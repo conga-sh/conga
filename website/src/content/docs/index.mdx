@@ -1,0 +1,51 @@
+---
+title: CONGA
+description: A batteries-included CLI framework for Go with link-time opt-in subsystems — model the command line with Go structs, and CONGA generates the flag schema, config cascade, help, and completion from them.
+template: splash
+hero:
+  tagline: CONGA aims to deliver the most complete modern CLI experience with the least developer effort.
+  actions:
+    - text: Quickstart
+      link: tutorials/quickstart/
+      variant: primary
+    - text: Explore the API
+      link: reference/conga/
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+
+<CardGrid stagger>
+  <Card title="Model the CLI as Go types">
+    Each command is a Go struct whose fields and tags describe its flags, arguments, subcommands, and constraints. CONGA reads that structure to generate the schema, help screen, validation, and completion.
+  </Card>
+  <Card title="12-factor configuration">
+    Every value resolves through a deterministic precedence ladder — CLI &gt; environment &gt; config file &gt; default — with provenance tracking on every field.
+  </Card>
+  <Card title="6-shell autocompletion">
+    Bash, zsh, fish, powershell, elvish, and nushell — all driven by CONGA's own completion engine and a decoupled predictor SDK.
+  </Card>
+  <Card title="Self-completing domain types">
+    `File`, `Dir`, `ByteSize`, and friends complete and validate themselves; any type implementing `TextUnmarshaler` joins in for free. See the [domain type reference](reference/domain-types/).
+  </Card>
+  <Card title="Static schema linting">
+    `conga-lint` checks the schema contract at build time — struct tags, leaf `Runner` implementations, and ancestor flag shadowing — before your binary ever runs. See [linting schemas](how-to/lint-schemas/).
+  </Card>
+  <Card title="Lifecycle with guaranteed teardown">
+    `Validate` → `PreRun` → `Run` → `PostRun` → `Finally`: hooks receive `ctx` and `session`, and `Finally` runs on success and failure alike. See [the lifecycle](explanation/lifecycle/).
+  </Card>
+  <Card title="Custom types and decoders">
+    Turn any type into a flag with `app.RegisterType`, register map parsers, or add a decoder for a new configuration format. See [custom types and decoders](how-to/custom-types-and-decoders/).
+  </Card>
+  <Card title="Opt-in subsystems, linker friendly">
+    Completion, configuration, and `.env` loading link only when enabled, and unused payloads are dead-code eliminated. See [About binary size and linking](explanation/binary-size/) for measured comparisons.
+  </Card>
+</CardGrid>
+
+## Where to go next
+
+- Understand the [value precedence ladder](explanation/value-precedence/) every flag goes through.
+- Browse the [struct tag reference](reference/struct-tags/) for the full declarative surface.
+- Copy [runnable examples](tutorials/cookbook/) from the 27-example collection.
+
+<LinkCard title="Installation" description="Add CONGA to your Go module." href="tutorials/installation/" />
