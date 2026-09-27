@@ -1,0 +1,13 @@
+{
+  "name": "conga-docs",
+  "compatibility_date": "2026-09-27", // Update to the day you deploy
+  "assets": {
+    "directory": "./dist"
+  },
+  "routes": [
+    {
+      "pattern": "docs.conga.sh",
+      "custom_domain": true
+    }
+  ]
+}

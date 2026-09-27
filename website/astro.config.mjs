@@ -3,7 +3,7 @@ import starlight from '@astrojs/starlight';
 
 export default defineConfig({
   site: 'https://conga-sh.github.io',
-  base: '/conga',
+  base: '/',
   integrations: [
     starlight({
       title: 'CONGA',

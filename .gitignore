@@ -19,6 +19,7 @@
 !/website/astro.config.mjs
 !/website/src/**
 !/website/public/**
+!/website/wrangler.jsonc
 
 !/**/LICENSE
 !/**/NOTICE
