@@ -1,0 +1,3 @@
+production	Production workloads
+staging	Pre-production staging cluster
+development	Local sandbox environment

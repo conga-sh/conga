@@ -1,0 +1,1 @@
+{"candidates":[{"value":"deploy.yaml ","display":"`e[33mdeploy.yaml`e[0m","description":" ","style":"yellow","tag":"files","sgr":"33"},{"value":"values.json ","display":"`e[33mvalues.json`e[0m","description":" ","style":"yellow","tag":"files","sgr":"33"}],"directives":{"keeporder":false,"messages":[],"noprefix":false,"nospace":false},"usage":"Deployment manifest"}

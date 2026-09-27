@@ -1,0 +1,21 @@
+{
+  "items": [
+    {
+      "value": "team=core,owner=",
+      "display": "owner=",
+      "tag": "values"
+    },
+    {
+      "value": "team=core,tier=",
+      "display": "tier=",
+      "tag": "values"
+    }
+  ],
+  "directives": {
+    "error": false,
+    "keeporder": false,
+    "nofilecomp": true,
+    "nospace": true
+  },
+  "usage": "Metadata labels in key=value format"
+}

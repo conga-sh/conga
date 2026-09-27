@@ -1,0 +1,7 @@
+D	nospace
+C	deploy	deploy	Deploy service to a cluster
+C	d	d	Deploy service to a cluster
+C	logs	logs	Stream service logs
+C	exec	exec	Execute a command in a pod
+C	cp	cp	Copy files
+C	completion	completion	Generate shell completion scripts

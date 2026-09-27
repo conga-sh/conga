@@ -1,0 +1,98 @@
+package wire
+
+import (
+	"os"
+	"strconv"
+	"strings"
+)
+
+// Environment variable names of the CONGA_* completion sideband and the
+// standard color variables.
+const (
+	// EnvColor forces color styling on ("1") or off ("0").
+	EnvColor = "CONGA_COLOR"
+	// EnvDescriptionLength limits the maximum description length in runes.
+	EnvDescriptionLength = "CONGA_DESCRIPTION_LENGTH"
+	// EnvMergeFlags merges the "shorthand flags" and "longhand flags" tags
+	// into "flags" (zsh grouping).
+	EnvMergeFlags = "CONGA_MERGE_FLAGS"
+	// EnvShell forces the target shell, overriding detection.
+	EnvShell = "CONGA_SHELL"
+	// EnvTooltip enables tooltip-style description rendering (powershell).
+	EnvTooltip = "CONGA_TOOLTIP"
+	// EnvZshStyleLimit caps the number of candidates inline-styled in zsh.
+	EnvZshStyleLimit = "CONGA_ZSH_STYLE_LIMIT"
+
+	// EnvCLIColor is the standard CLICOLOR variable; "0" disables color.
+	EnvCLIColor = "CLICOLOR"
+	// EnvNoColor is the standard NO_COLOR variable; presence disables color.
+	EnvNoColor = "NO_COLOR"
+)
+
+// ColorDisabled reports whether styled output is disabled: CONGA_COLOR is
+// honored first ("0" disables, any other non-empty value forces color), then
+// the NO_COLOR standard (present and non-empty disables), then CLICOLOR=0.
+func ColorDisabled() bool {
+	if value, ok := os.LookupEnv(EnvColor); ok && value != "" {
+		return value == "0"
+	}
+
+	if value, ok := os.LookupEnv(EnvNoColor); ok && value != "" {
+		return true
+	}
+
+	return os.Getenv(EnvCLIColor) == "0"
+}
+
+// DescriptionLength returns the maximum description length in runes:
+// CONGA_DESCRIPTION_LENGTH when set to a positive integer, 80 otherwise.
+func DescriptionLength() int {
+	if parsed, err := strconv.Atoi(os.Getenv(EnvDescriptionLength)); err == nil && parsed > 0 {
+		return parsed
+	}
+
+	return 80
+}
+
+// MergeFlags reports whether flag tag merging is requested (first return) and
+// whether CONGA_MERGE_FLAGS was explicitly set to a parseable boolean (second
+// return). Shells apply their own default when the variable is unset or
+// unparseable.
+func MergeFlags() (bool, bool) {
+	value, ok := os.LookupEnv(EnvMergeFlags)
+	if !ok {
+		return false, false
+	}
+
+	parsed, err := strconv.ParseBool(value)
+
+	return parsed, err == nil
+}
+
+// Shell returns the CONGA_SHELL override, which forces the target shell and
+// takes precedence over detection.
+func Shell() string {
+	return os.Getenv(EnvShell)
+}
+
+// Tooltip reports whether tooltip-style description rendering is requested
+// (powershell): CONGA_TOOLTIP set to a truthy value.
+func Tooltip() bool {
+	switch strings.ToLower(os.Getenv(EnvTooltip)) {
+	case "true", "1", "yes", "on":
+		return true
+	default:
+		return false
+	}
+}
+
+// ZshStyleLimit returns the maximum number of candidates to inline-style in
+// zsh: CONGA_ZSH_STYLE_LIMIT when parseable, 300 otherwise.
+func ZshStyleLimit() int {
+	limit, err := strconv.Atoi(os.Getenv(EnvZshStyleLimit))
+	if err != nil {
+		return 300
+	}
+
+	return limit
+}

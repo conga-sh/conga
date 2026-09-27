@@ -1,0 +1,18 @@
+{
+  "description": "Error result: usage and messages with zero candidates (elvish echoes them via the snippet; nushell has no channel and drops them).",
+  "input": {
+    "currentWord": "invalid",
+    "directives": {
+      "nospace": "/",
+      "noprefix": "",
+      "keeporder": false,
+      "messages": [
+        "unknown command \"invalid\"",
+        "usage: app [flags]"
+      ],
+      "usage": "app [flags]"
+    },
+    "candidates": null
+  },
+  "observed": "[]"
+}

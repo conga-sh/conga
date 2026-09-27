@@ -1,0 +1,26 @@
+{
+  "items": [
+    {
+      "value": "--env=staging",
+      "display": "staging",
+      "tag": "values"
+    },
+    {
+      "value": "--env=production",
+      "display": "production",
+      "tag": "values"
+    },
+    {
+      "value": "--env=qa",
+      "display": "qa",
+      "tag": "values"
+    }
+  ],
+  "directives": {
+    "error": false,
+    "keeporder": false,
+    "nofilecomp": true,
+    "nospace": false
+  },
+  "usage": "Target environment"
+}

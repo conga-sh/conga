@@ -1,0 +1,26 @@
+{
+  "description": "Multi-byte runes pass through unescaped; JSON escaping applies to quotes, backslashes, and control characters only.",
+  "input": {
+    "currentWord": "",
+    "directives": {
+      "nospace": "/",
+      "noprefix": "",
+      "keeporder": false,
+      "messages": [],
+      "usage": ""
+    },
+    "candidates": [
+      {
+        "value": "déjà-vü",
+        "display": "déjà-vü",
+        "description": "smörgåsbord — très élégant"
+      },
+      {
+        "value": "emoji-🚀",
+        "display": "emoji-🚀",
+        "description": "rocket"
+      }
+    ]
+  },
+  "observed": "{\"usage\":\"\",\"messages\":[],\"descriptionStyle\":\"dim\",\"candidates\":[{\"value\":\"déjà-vü\",\"display\":\"déjà-vü\",\"description\":\"smörgåsbord — très élégant\",\"codeSuffix\":\" \",\"style\":\"default\"},{\"value\":\"emoji-🚀\",\"display\":\"emoji-🚀\",\"description\":\"rocket\",\"codeSuffix\":\" \",\"style\":\"default\"}]}"
+}

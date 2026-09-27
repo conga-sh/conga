@@ -1,0 +1,21 @@
+{
+  "items": [
+    {
+      "value": "--verbose=true",
+      "display": "true",
+      "tag": "values"
+    },
+    {
+      "value": "--verbose=false",
+      "display": "false",
+      "tag": "values"
+    }
+  ],
+  "directives": {
+    "error": false,
+    "keeporder": false,
+    "nofilecomp": true,
+    "nospace": false
+  },
+  "usage": "Enable verbose output"
+}

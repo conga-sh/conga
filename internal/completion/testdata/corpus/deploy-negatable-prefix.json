@@ -1,0 +1,23 @@
+{
+  "items": [
+    {
+      "value": "--no-dry-run",
+      "display": "--no-dry-run",
+      "description": "Disable Preview without applying",
+      "tag": "longhand flags"
+    },
+    {
+      "value": "--no-verbose",
+      "display": "--no-verbose",
+      "description": "Disable Enable verbose output",
+      "tag": "longhand flags"
+    }
+  ],
+  "directives": {
+    "error": false,
+    "keeporder": false,
+    "nofilecomp": true,
+    "nospace": false
+  },
+  "usage": ""
+}

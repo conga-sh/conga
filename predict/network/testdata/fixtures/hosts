@@ -1,0 +1,6 @@
+# /etc/hosts mock fixture
+127.0.0.1   localhost localhost.localdomain
+::1         localhost ip6-localhost ip6-loopback
+192.168.1.100  devbox.local devbox
+10.0.0.50      db-master.prod
+10.0.0.51      db-replica.prod db-slave

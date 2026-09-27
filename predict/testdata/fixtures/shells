@@ -1,0 +1,6 @@
+# Valid shells
+/bin/bash
+/usr/bin/zsh
+
+# Fallback
+/bin/sh

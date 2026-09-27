@@ -1,0 +1,56 @@
+{
+  "description": "The full style vocabulary: named colors, bright variants, bg- variants, attributes, colorN, hex, rgb(), and empty (theme default).",
+  "input": {
+    "currentWord": "",
+    "directives": {
+      "nospace": "/",
+      "noprefix": "",
+      "keeporder": false,
+      "messages": [],
+      "usage": ""
+    },
+    "candidates": [
+      {
+        "value": "plain",
+        "display": "plain",
+        "description": "empty style falls back to the theme"
+      },
+      {
+        "value": "red",
+        "display": "red",
+        "style": "red"
+      },
+      {
+        "value": "bright",
+        "display": "bright",
+        "style": "bright-red bold"
+      },
+      {
+        "value": "indexed",
+        "display": "indexed",
+        "style": "color123"
+      },
+      {
+        "value": "hex",
+        "display": "hex",
+        "style": "#ff8800"
+      },
+      {
+        "value": "func",
+        "display": "func",
+        "style": "rgb(10,20,30)"
+      },
+      {
+        "value": "background",
+        "display": "background",
+        "style": "bg-bright-blue italic"
+      },
+      {
+        "value": "everything",
+        "display": "everything",
+        "style": "bold dim italic underlined blink inverse color9 bg-color21"
+      }
+    ]
+  },
+  "observed": "{\"usage\":\"\",\"messages\":[],\"descriptionStyle\":\"dim\",\"candidates\":[{\"value\":\"plain\",\"display\":\"plain\",\"description\":\"empty style falls back to the theme\",\"codeSuffix\":\" \",\"style\":\"default\"},{\"value\":\"red\",\"display\":\"red\",\"description\":\"\",\"codeSuffix\":\" \",\"style\":\"red\"},{\"value\":\"bright\",\"display\":\"bright\",\"description\":\"\",\"codeSuffix\":\" \",\"style\":\"bright-red bold\"},{\"value\":\"indexed\",\"display\":\"indexed\",\"description\":\"\",\"codeSuffix\":\" \",\"style\":\"color123\"},{\"value\":\"hex\",\"display\":\"hex\",\"description\":\"\",\"codeSuffix\":\" \",\"style\":\"#ff8800\"},{\"value\":\"func\",\"display\":\"func\",\"description\":\"\",\"codeSuffix\":\" \",\"style\":\"rgb(10,20,30)\"},{\"value\":\"background\",\"display\":\"background\",\"description\":\"\",\"codeSuffix\":\" \",\"style\":\"bg-bright-blue italic\"},{\"value\":\"everything\",\"display\":\"everything\",\"description\":\"\",\"codeSuffix\":\" \",\"style\":\"bold dim italic underlined blink inverse color9 bg-color21\"}]}"
+}

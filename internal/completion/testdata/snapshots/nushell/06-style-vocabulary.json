@@ -1,0 +1,56 @@
+{
+  "description": "The full style vocabulary: named colors, bright variants, bg- variants, attributes, colorN, hex, rgb(), and empty (theme default).",
+  "input": {
+    "currentWord": "",
+    "directives": {
+      "nospace": "/",
+      "noprefix": "",
+      "keeporder": false,
+      "messages": [],
+      "usage": ""
+    },
+    "candidates": [
+      {
+        "value": "plain",
+        "display": "plain",
+        "description": "empty style falls back to the theme"
+      },
+      {
+        "value": "red",
+        "display": "red",
+        "style": "red"
+      },
+      {
+        "value": "bright",
+        "display": "bright",
+        "style": "bright-red bold"
+      },
+      {
+        "value": "indexed",
+        "display": "indexed",
+        "style": "color123"
+      },
+      {
+        "value": "hex",
+        "display": "hex",
+        "style": "#ff8800"
+      },
+      {
+        "value": "func",
+        "display": "func",
+        "style": "rgb(10,20,30)"
+      },
+      {
+        "value": "background",
+        "display": "background",
+        "style": "bg-bright-blue italic"
+      },
+      {
+        "value": "everything",
+        "display": "everything",
+        "style": "bold dim italic underlined blink inverse color9 bg-color21"
+      }
+    ]
+  },
+  "observed": "[{\"value\":\"plain \",\"display\":\"plain\",\"description\":\"empty style falls back to the theme\"},{\"value\":\"red \",\"display\":\"red\",\"style\":{\"fg\":\"red\"}},{\"value\":\"bright \",\"display\":\"bright\",\"style\":{\"fg\":\"light_red\",\"attr\":\"b\"}},{\"value\":\"indexed \",\"display\":\"indexed\",\"style\":{\"fg\":\"#87ffff\"}},{\"value\":\"hex \",\"display\":\"hex\",\"style\":{\"fg\":\"#ff8800\"}},{\"value\":\"func \",\"display\":\"func\",\"style\":{\"fg\":\"rgb(10,20,30)\"}},{\"value\":\"background \",\"display\":\"background\",\"style\":{\"bg\":\"light_blue\",\"attr\":\"i\"}},{\"value\":\"everything \",\"display\":\"everything\",\"style\":{\"fg\":\"#ff0000\",\"bg\":\"#0000ff\",\"attr\":\"lbdiru\"}}]"
+}

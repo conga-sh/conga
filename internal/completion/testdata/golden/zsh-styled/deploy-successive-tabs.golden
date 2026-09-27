@@ -1,0 +1,17 @@
+Dnoprefix
+L=(#b)(--env)([ ]## -- *)=0=34=2:=(#b)(--env)=0=34:=(#b)(--region)([ ]## -- *)=0=34=2:=(#b)(--region)=0=34:=(#b)(--dry-run)([ ]## -- *)=0==2:=(#b)(--dry-run)=0=:=(#b)(--no-dry-run)([ ]## -- *)=0==2:=(#b)(--no-dry-run)=0=:=(#b)(--replicas)([ ]## -- *)=0=34=2:=(#b)(--replicas)=0=34:=(#b)(--manifest)([ ]## -- *)=0=34=2:=(#b)(--manifest)=0=34:=(#b)(--timeout)([ ]## -- *)=0=34=2:=(#b)(--timeout)=0=34:=(#b)(--verbose)([ ]## -- *)=0==2:=(#b)(--verbose)=0=:=(#b)(--no-verbose)([ ]## -- *)=0==2:=(#b)(--no-verbose)=0=:=(#b)(--profile)([ ]## -- *)=0=34=2:=(#b)(--profile)=0=34:=(#b)(--env-vars)([ ]## -- *)=0=35=2:=(#b)(--env-vars)=0=35:=(#b)(--shards)([ ]## -- *)=0=35=2:=(#b)(--shards)=0=35:=(#b)(--features)([ ]## -- *)=0=35=2:=(#b)(--features)=0=35:=(#b)(--help)([ ]## -- *)=0==2:=(#b)(--help)=0=:=(#b)(--why)([ ]## -- *)=0==2:=(#b)(--why)=0=:=(#b)(-- *)=0=2
+Cflags--envTarget environment--env 34
+Cflags--regionTarget region--region 34
+Cflags--dry-runPreview without applying--dry-run 
+Cflags--no-dry-runDisable Preview without applying--no-dry-run 
+Cflags--replicasReplica count--replicas 34
+Cflags--manifestDeployment manifest--manifest 34
+Cflags--timeoutWall-clock timeout--timeout 34
+Cflags--verboseEnable verbose output--verbose 
+Cflags--no-verboseDisable Enable verbose output--no-verbose 
+Cflags--profileCloud profile--profile 34
+Cflags--env-varsEnvironment key=value pairs--env-vars 35
+Cflags--shardsShard counts, semicolon-separated--shards 35
+Cflags--featuresComma-separated feature flags--features 35
+Cflags--helpShow help for command--help 
+Cflags--whyShow resolved field values and where they came from (values redacted unless tagged safe)--why 

@@ -1,0 +1,1 @@
+{"candidates":[{"value":"owner=alice,owner=bob","display":"bob","tag":"values"},{"value":"owner=alice,owner=carol","display":"carol","tag":"values"}],"directives":{"keeporder":false,"messages":[],"noprefix":false,"nospace":true},"usage":"Metadata labels in key=value format"}

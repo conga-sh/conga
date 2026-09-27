@@ -1,0 +1,4 @@
+D	nospace
+C	production	production	Production workloads
+C	staging	staging	Pre-production staging cluster
+C	development	development	Local sandbox environment

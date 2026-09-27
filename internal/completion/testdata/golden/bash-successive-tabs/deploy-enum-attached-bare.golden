@@ -1,0 +1,4 @@
+D	noprefix nospace
+C	staging	--env=staging	
+C	production	--env=production	
+C	qa	--env=qa	

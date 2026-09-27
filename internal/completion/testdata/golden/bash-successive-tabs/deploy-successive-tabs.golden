@@ -1,0 +1,16 @@
+D	nospace
+C	--env	--env	Target environment
+C	--region	--region	Target region
+C	--dry-run	--dry-run	Preview without applying
+C	--no-dry-run	--no-dry-run	Disable Preview without applying
+C	--replicas	--replicas	Replica count
+C	--manifest	--manifest	Deployment manifest
+C	--timeout	--timeout	Wall-clock timeout
+C	--verbose	--verbose	Enable verbose output
+C	--no-verbose	--no-verbose	Disable Enable verbose output
+C	--profile	--profile	Cloud profile
+C	--env-vars	--env-vars	Environment key=value pairs
+C	--shards	--shards	Shard counts, semicolon-separated
+C	--features	--features	Comma-separated feature flags
+C	--help	--help	Show help for command
+C	--why	--why	Show resolved field values and where they came from (values redacted unless t...

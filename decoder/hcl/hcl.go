@@ -1,0 +1,127 @@
+// Package hcl provides the HCL configuration decoder for CONGA applications.
+//
+// [RawDecoder] matches config.Decoder, parsing HCL into the generic key-value
+// map that the configuration engine validates against command struct tags.
+// Register it with App.RegisterDecoder. Undefined variables and duplicate
+// blocks fail with [ErrHCLParse], whose wrapped hcl.Diagnostics value is
+// available through errors.As.
+package hcl
+
+import (
+	"errors"
+	"fmt"
+	"math/big"
+
+	"github.com/hashicorp/hcl/v2"
+	"github.com/hashicorp/hcl/v2/hclsyntax"
+	"github.com/zclconf/go-cty/cty"
+)
+
+var (
+	// ErrHCLParse indicates an error parsing HCL configuration into CONGA's
+	// generic map structure: both syntax errors and semantic failures
+	// (undefined variables, unexpected body types, duplicate blocks). The
+	// underlying hcl.Diagnostics value is wrapped, so callers may extract it
+	// with errors.As.
+	ErrHCLParse = errors.New("hcl parse error")
+)
+
+// RawDecoder decodes HCL bytes into a generic map structure for CONGA's AST validator.
+func RawDecoder(data []byte) (map[string]any, error) {
+	file, diags := hclsyntax.ParseConfig(data, "config.hcl", hcl.Pos{Line: 1, Column: 1})
+	if diags.HasErrors() {
+		return nil, fmt.Errorf("%w: %w", ErrHCLParse, diags)
+	}
+
+	body, ok := file.Body.(*hclsyntax.Body)
+	if !ok {
+		return nil, fmt.Errorf("%w: unexpected HCL body type %T", ErrHCLParse, file.Body)
+	}
+
+	return decodeHCLBody(body)
+}
+
+func decodeHCLBody(body *hclsyntax.Body) (map[string]any, error) {
+	result := make(map[string]any)
+	seenBlocks := make(map[string]bool)
+
+	for name, attr := range body.Attributes {
+		value, diags := attr.Expr.Value(nil)
+		if diags.HasErrors() {
+			return nil, fmt.Errorf("%w: %w", ErrHCLParse, diags)
+		}
+
+		result[name] = convertCtyValue(value)
+	}
+
+	for _, block := range body.Blocks {
+		if seenBlocks[block.Type] {
+			return nil, fmt.Errorf("%w: duplicate block %q", ErrHCLParse, block.Type)
+		}
+
+		seenBlocks[block.Type] = true
+
+		nested, err := decodeHCLBody(block.Body)
+		if err != nil {
+			return nil, err
+		}
+
+		result[block.Type] = nested
+	}
+
+	return result, nil
+}
+
+func convertCtyValue(value cty.Value) any {
+	if value.IsNull() || !value.IsKnown() {
+		return nil
+	}
+
+	switch value.Type() {
+	case cty.String:
+		return value.AsString()
+	case cty.Bool:
+		return value.True()
+	case cty.Number:
+		bigFloat := value.AsBigFloat()
+		if bigFloat.IsInt() {
+			if i64, acc := bigFloat.Int64(); acc == big.Exact {
+				return i64
+			}
+
+			if u64, acc := bigFloat.Uint64(); acc == big.Exact {
+				return u64
+			}
+
+			return bigFloat.Text('f', -1)
+		}
+
+		f64, _ := bigFloat.Float64()
+
+		return f64
+	default:
+		if value.CanIterateElements() {
+			if value.Type().IsObjectType() || value.Type().IsMapType() {
+				result := make(map[string]any)
+
+				for it := value.ElementIterator(); it.Next(); {
+					key, elem := it.Element()
+					result[key.AsString()] = convertCtyValue(elem)
+				}
+
+				return result
+			}
+
+			var list []any
+
+			for it := value.ElementIterator(); it.Next(); {
+				_, elem := it.Element()
+				list = append(list, convertCtyValue(elem))
+			}
+
+			return list
+		}
+
+		return value.GoString()
+	}
+}

@@ -1,0 +1,6 @@
+root:x:0:0:root:/root:/bin/bash
+short:line
+:x:5:5::/home:/bin/sh
+root:x:0:0:root:/root:/bin/bash
+
+# comment line

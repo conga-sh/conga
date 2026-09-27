@@ -1,0 +1,3 @@
+D	nospace
+C	--no-dry-run	--no-dry-run	Disable Preview without applying
+C	--no-verbose	--no-verbose	Disable Enable verbose output

@@ -1,0 +1,15 @@
+a.yaml
+b.json
+notes.md
+--verbose	Enable verbose output
+--no-verbose	Disable Enable verbose output
+--profile	Cloud profile
+--env-vars	Environment key=value pairs
+--shards	Shard counts, semicolon-separated
+--features	Comma-separated feature flags
+--help	Show help for command
+--why	Show resolved field values and where they came from (values redacted unless t...
+-v	Enable verbose output
+-p	Cloud profile
+-e	Environment key=value pairs
+-f	Comma-separated feature flags

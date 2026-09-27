@@ -1,0 +1,11 @@
+D	nospace
+C	--follow	--follow	Follow the log stream
+C	--tail	--tail	Services to tail, comma-separated
+C	--verbose	--verbose	Enable verbose output
+C	--no-verbose	--no-verbose	Disable Enable verbose output
+C	--profile	--profile	Cloud profile
+C	--env-vars	--env-vars	Environment key=value pairs
+C	--shards	--shards	Shard counts, semicolon-separated
+C	--features	--features	Comma-separated feature flags
+C	--help	--help	Show help for command
+C	--why	--why	Show resolved field values and where they came from (values redacted unless t...

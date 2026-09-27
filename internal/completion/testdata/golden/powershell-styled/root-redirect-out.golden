@@ -1,0 +1,1 @@
+{"candidates":[{"value":"staging ","display":"staging","description":" ","tag":"values"},{"value":"production ","display":"production","description":" ","tag":"values"},{"value":"qa ","display":"qa","description":" ","tag":"values"}],"directives":{"keeporder":false,"messages":[],"noprefix":false,"nospace":false},"usage":"Target environment"}

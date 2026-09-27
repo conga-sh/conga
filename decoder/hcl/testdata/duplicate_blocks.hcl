@@ -1,0 +1,7 @@
+server {
+  port = 8080
+}
+
+server {
+  port = 9090
+}

@@ -1,0 +1,5 @@
+Dnoprefix,nospaceServices to tail, comma-separated
+L=(#b)(scheduler)([ ]## -- *)=0==2:=(#b)(scheduler)=0=:=(#b)(worker)([ ]## -- *)=0==2:=(#b)(worker)=0=:=(#b)(-- *)=0=2
+M[2mServices to tail, comma-separated[39m
+CvaluesschedulerCron schedulerapi,scheduler
+CvaluesworkerBackground workerapi,worker

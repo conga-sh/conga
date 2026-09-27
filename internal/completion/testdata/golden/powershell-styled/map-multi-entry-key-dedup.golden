@@ -1,0 +1,1 @@
+{"candidates":[{"value":"'team=core,owner='","display":"owner=","description":" ","tag":"values"},{"value":"'team=core,tier='","display":"tier=","description":" ","tag":"values"}],"directives":{"keeporder":false,"messages":[],"noprefix":false,"nospace":true},"usage":"Metadata labels in key=value format"}

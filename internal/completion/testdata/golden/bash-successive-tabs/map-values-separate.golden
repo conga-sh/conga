@@ -1,0 +1,4 @@
+D	noprefix nospace
+C	core	team=core	
+C	frontend	team=frontend	
+C	infra	team=infra	

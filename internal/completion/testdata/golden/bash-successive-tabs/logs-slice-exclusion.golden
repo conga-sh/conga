@@ -1,0 +1,3 @@
+D	noprefix nospace
+C	scheduler	api,scheduler	Cron scheduler
+C	worker	api,worker	Background worker

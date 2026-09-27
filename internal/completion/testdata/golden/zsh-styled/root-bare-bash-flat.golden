@@ -1,0 +1,8 @@
+Dnoprefix
+L=(#b)(deploy)([ ]## -- *)=0=34=2:=(#b)(deploy)=0=34:=(#b)(d)([ ]## -- *)=0=34=2:=(#b)(d)=0=34:=(#b)(logs)([ ]## -- *)=0=34=2:=(#b)(logs)=0=34:=(#b)(exec)([ ]## -- *)=0==2:=(#b)(exec)=0=:=(#b)(cp)([ ]## -- *)=0==2:=(#b)(cp)=0=:=(#b)(completion)([ ]## -- *)=0==2:=(#b)(completion)=0=:=(#b)(-- *)=0=2
+Ccluster commandsdeployDeploy service to a clusterdeploy 34
+Ccluster commandsdDeploy service to a clusterd 34
+Ccluster commandslogsStream service logslogs 34
+Cother commandsexecExecute a command in a podexec 
+Cother commandscpCopy filescp 
+Cother commandscompletionGenerate shell completion scriptscompletion 

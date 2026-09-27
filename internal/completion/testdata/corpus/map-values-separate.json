@@ -1,0 +1,26 @@
+{
+  "items": [
+    {
+      "value": "team=core",
+      "display": "core",
+      "tag": "values"
+    },
+    {
+      "value": "team=frontend",
+      "display": "frontend",
+      "tag": "values"
+    },
+    {
+      "value": "team=infra",
+      "display": "infra",
+      "tag": "values"
+    }
+  ],
+  "directives": {
+    "error": false,
+    "keeporder": false,
+    "nofilecomp": true,
+    "nospace": true
+  },
+  "usage": "Metadata labels in key=value format"
+}

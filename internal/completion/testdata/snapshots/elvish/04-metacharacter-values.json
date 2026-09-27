@@ -1,0 +1,76 @@
+{
+  "description": "Values carrying shell metacharacters: spaces, quotes, dollars, tilde, brackets, backslash, separators.",
+  "input": {
+    "currentWord": "",
+    "directives": {
+      "nospace": "/",
+      "noprefix": "",
+      "keeporder": false,
+      "messages": [],
+      "usage": ""
+    },
+    "candidates": [
+      {
+        "value": "my file.txt",
+        "display": "my file.txt",
+        "description": "space in name"
+      },
+      {
+        "value": "a\"b",
+        "display": "a\"b",
+        "description": "embedded double quote"
+      },
+      {
+        "value": "a'b",
+        "display": "a'b",
+        "description": "embedded single quote"
+      },
+      {
+        "value": "$(pwd)",
+        "display": "$(pwd)",
+        "description": "command substitution"
+      },
+      {
+        "value": "~/config",
+        "display": "~/config",
+        "description": "home-relative path"
+      },
+      {
+        "value": "a\\b",
+        "display": "a\\b",
+        "description": "backslash"
+      },
+      {
+        "value": "x;y|z",
+        "display": "x;y|z",
+        "description": "separators"
+      },
+      {
+        "value": "{brace}",
+        "display": "{brace}",
+        "description": "braces"
+      },
+      {
+        "value": "[bracket]",
+        "display": "[bracket]",
+        "description": "brackets"
+      },
+      {
+        "value": "#hash",
+        "display": "#hash",
+        "description": "hash prefix"
+      },
+      {
+        "value": "a\u0026b\u003cc\u003ed",
+        "display": "a\u0026b\u003cc\u003ed",
+        "description": "ampersand and redirects"
+      },
+      {
+        "value": "$var",
+        "display": "$var",
+        "description": "variable"
+      }
+    ]
+  },
+  "observed": "{\"usage\":\"\",\"messages\":[],\"descriptionStyle\":\"dim\",\"candidates\":[{\"value\":\"my file.txt\",\"display\":\"my file.txt\",\"description\":\"space in name\",\"codeSuffix\":\" \",\"style\":\"default\"},{\"value\":\"a\\\"b\",\"display\":\"a\\\"b\",\"description\":\"embedded double quote\",\"codeSuffix\":\" \",\"style\":\"default\"},{\"value\":\"a'b\",\"display\":\"a'b\",\"description\":\"embedded single quote\",\"codeSuffix\":\" \",\"style\":\"default\"},{\"value\":\"$(pwd)\",\"display\":\"$(pwd)\",\"description\":\"command substitution\",\"codeSuffix\":\" \",\"style\":\"default\"},{\"value\":\"~/config\",\"display\":\"~/config\",\"description\":\"home-relative path\",\"codeSuffix\":\" \",\"style\":\"default\"},{\"value\":\"a\\\\b\",\"display\":\"a\\\\b\",\"description\":\"backslash\",\"codeSuffix\":\" \",\"style\":\"default\"},{\"value\":\"x;y|z\",\"display\":\"x;y|z\",\"description\":\"separators\",\"codeSuffix\":\" \",\"style\":\"default\"},{\"value\":\"{brace}\",\"display\":\"{brace}\",\"description\":\"braces\",\"codeSuffix\":\" \",\"style\":\"default\"},{\"value\":\"[bracket]\",\"display\":\"[bracket]\",\"description\":\"brackets\",\"codeSuffix\":\" \",\"style\":\"default\"},{\"value\":\"#hash\",\"display\":\"#hash\",\"description\":\"hash prefix\",\"codeSuffix\":\" \",\"style\":\"default\"},{\"value\":\"a\u0026b\u003cc\u003ed\",\"display\":\"a\u0026b\u003cc\u003ed\",\"description\":\"ampersand and redirects\",\"codeSuffix\":\" \",\"style\":\"default\"},{\"value\":\"$var\",\"display\":\"$var\",\"description\":\"variable\",\"codeSuffix\":\" \",\"style\":\"default\"}]}"
+}

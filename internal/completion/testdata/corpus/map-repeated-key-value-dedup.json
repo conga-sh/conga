@@ -1,0 +1,21 @@
+{
+  "items": [
+    {
+      "value": "owner=alice,owner=bob",
+      "display": "bob",
+      "tag": "values"
+    },
+    {
+      "value": "owner=alice,owner=carol",
+      "display": "carol",
+      "tag": "values"
+    }
+  ],
+  "directives": {
+    "error": false,
+    "keeporder": false,
+    "nofilecomp": true,
+    "nospace": true
+  },
+  "usage": "Metadata labels in key=value format"
+}

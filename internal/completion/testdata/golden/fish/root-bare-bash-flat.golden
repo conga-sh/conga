@@ -1,0 +1,6 @@
+deploy	Deploy service to a cluster
+d	Deploy service to a cluster
+logs	Stream service logs
+exec	Execute a command in a pod
+cp	Copy files
+completion	Generate shell completion scripts

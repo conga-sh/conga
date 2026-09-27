@@ -1,0 +1,1 @@
+{"candidates":[{"value":"deploy ","display":"`e[34mdeploy`e[2m (Deploy service to a cluster)`e[0m","description":" ","style":"blue","tag":"cluster commands","sgr":"34"}],"directives":{"keeporder":false,"messages":[],"noprefix":false,"nospace":false},"usage":""}

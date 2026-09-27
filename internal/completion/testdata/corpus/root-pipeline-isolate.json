@@ -1,0 +1,18 @@
+{
+  "items": [
+    {
+      "value": "deploy",
+      "display": "deploy",
+      "description": "Deploy service to a cluster",
+      "style": "blue",
+      "tag": "cluster commands"
+    }
+  ],
+  "directives": {
+    "error": false,
+    "keeporder": false,
+    "nofilecomp": true,
+    "nospace": false
+  },
+  "usage": ""
+}

@@ -1,0 +1,42 @@
+  export COMP_LINE
+  export COMP_POINT
+  export COMP_TYPE
+  export COMP_WORDBREAKS
+
+  local compline="${COMP_LINE:0:${COMP_POINT}}"
+  local words="${compline#"${compline%%[! ]*}"}"
+  local cmd="${COMP_WORDS[0]:-${words%% *}}"
+  cmd="${cmd/#\~/$HOME}"
+  if [[ "$words" == *" "* ]]; then
+    words="${words#* }"
+  else
+    words=""
+  fi
+  local data=""
+  if [[ -n "$cmd" ]]; then
+    data=$(printf '%s' "${words}''" | xargs -- "$cmd" __complete bash 2>/dev/null) ||
+    data=$(printf '%s' "${words}'" | xargs -- "$cmd" __complete bash 2>/dev/null) ||
+    data=$(printf '%s' "${words}\"" | xargs -- "$cmd" __complete bash 2>/dev/null) || true
+  fi
+
+  local line payload display description
+  COMPREPLY=()
+  while IFS= read -r line; do
+    case "$line" in
+      'D'$'\t'*)
+        [[ "${line#D?}" == *nospace* ]] && compopt -o nospace
+        ;;
+      'M'$'\t'*)
+        ;;
+      'C'$'\t'*)
+        payload="${line#C?}"
+        if [[ "$COMP_TYPE" == "63" ]]; then
+          IFS=$'\t' read -r display _ description <<< "$payload"
+          COMPREPLY+=("${display}${description:+ (${description})}")
+        else
+          COMPREPLY+=("$payload")
+        fi
+        ;;
+    esac
+  done <<< "$data"
+}

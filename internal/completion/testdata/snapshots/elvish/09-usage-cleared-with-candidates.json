@@ -1,0 +1,21 @@
+{
+  "description": "Usage set alongside candidates (elvish clears usage when candidates exist; nushell has no channel).",
+  "input": {
+    "currentWord": "",
+    "directives": {
+      "nospace": "/",
+      "noprefix": "",
+      "keeporder": false,
+      "messages": [],
+      "usage": "app [flags]"
+    },
+    "candidates": [
+      {
+        "value": "serve",
+        "display": "serve",
+        "description": "start web server"
+      }
+    ]
+  },
+  "observed": "{\"usage\":\"\",\"messages\":[],\"descriptionStyle\":\"dim\",\"candidates\":[{\"value\":\"serve\",\"display\":\"serve\",\"description\":\"start web server\",\"codeSuffix\":\" \",\"style\":\"default\"}]}"
+}

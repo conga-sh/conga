@@ -1,0 +1,19 @@
+{
+  "description": "Nushell passes spans raw and still quoted: double- and single-quoted args are re-lexed, backticks trimmed, plain and empty args pass through.",
+  "input": [
+    "\"double quoted\"",
+    "'single quoted'",
+    "`backtick word`",
+    "plain",
+    "",
+    "\"partial\"word"
+  ],
+  "observed": [
+    "double quoted",
+    "single quoted",
+    "backtick word",
+    "plain",
+    "",
+    "partialword"
+  ]
+}

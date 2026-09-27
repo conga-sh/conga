@@ -1,0 +1,26 @@
+{
+  "items": [
+    {
+      "value": "sh",
+      "display": "sh",
+      "tag": "arguments"
+    },
+    {
+      "value": "bash",
+      "display": "bash",
+      "tag": "arguments"
+    },
+    {
+      "value": "python",
+      "display": "python",
+      "tag": "arguments"
+    }
+  ],
+  "directives": {
+    "error": false,
+    "keeporder": false,
+    "nofilecomp": true,
+    "nospace": false
+  },
+  "usage": ""
+}

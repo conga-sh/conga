@@ -1,0 +1,20 @@
+D	
+C	--env
+C	--region
+C	--dry-run
+C	--no-dry-run
+C	--replicas
+C	--manifest
+C	--timeout
+C	--verbose
+C	--no-verbose
+C	--profile
+C	--env-vars
+C	--shards
+C	--features
+C	--help
+C	--why
+C	-v
+C	-p
+C	-e
+C	-f

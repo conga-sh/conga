@@ -1,0 +1,24 @@
+{
+  "description": "Engine DirectiveNoSpace collapses the matcher to '*': every value suppresses the trailing space. Includes an '='-suffixed value (fork appends a space after '='; native §5 rule implies nospace there — documented delta).",
+  "input": {
+    "currentWord": "--flag ",
+    "directives": {
+      "nospace": "*",
+      "noprefix": "",
+      "keeporder": false,
+      "messages": [],
+      "usage": ""
+    },
+    "candidates": [
+      {
+        "value": "one",
+        "display": "one"
+      },
+      {
+        "value": "two=",
+        "display": "two="
+      }
+    ]
+  },
+  "observed": "{\"usage\":\"\",\"messages\":[],\"descriptionStyle\":\"dim\",\"candidates\":[{\"value\":\"one\",\"display\":\"one\",\"description\":\"\",\"codeSuffix\":\"\",\"style\":\"default\"},{\"value\":\"two=\",\"display\":\"two=\",\"description\":\"\",\"codeSuffix\":\"\",\"style\":\"default\"}]}"
+}

@@ -1,0 +1,14 @@
+D	nospace
+C	--verbose	--verbose	Enable verbose output
+C	--no-verbose	--no-verbose	Disable Enable verbose output
+C	--profile	--profile	Cloud profile
+C	--env-vars	--env-vars	Environment key=value pairs
+C	--shards	--shards	Shard counts, semicolon-separated
+C	--features	--features	Comma-separated feature flags
+C	--help	--help	Show help for command
+C	--version	--version	Show version information
+C	--why	--why	Show resolved field values and where they came from (values redacted unless t...
+C	-v	-v	Enable verbose output
+C	-p	-p	Cloud profile
+C	-e	-e	Environment key=value pairs
+C	-f	-f	Comma-separated feature flags

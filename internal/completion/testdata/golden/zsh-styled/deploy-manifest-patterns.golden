@@ -1,0 +1,5 @@
+DnoprefixDeployment manifest
+L=(#b)(deploy.yaml)([ ]## -- *)=0=33=2:=(#b)(deploy.yaml)=0=33:=(#b)(values.json)([ ]## -- *)=0=33=2:=(#b)(values.json)=0=33:=(#b)(-- *)=0=2
+M[2mDeployment manifest[39m
+Cfilesdeploy.yamldeploy.yaml 33
+Cfilesvalues.jsonvalues.json 33

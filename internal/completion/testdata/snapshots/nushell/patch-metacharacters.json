@@ -1,0 +1,11 @@
+{
+  "description": "Metacharacter-bearing quoted args survive re-lexing (first token value).",
+  "input": [
+    "\"a b\"",
+    "'x;y'"
+  ],
+  "observed": [
+    "a b",
+    "x;y"
+  ]
+}

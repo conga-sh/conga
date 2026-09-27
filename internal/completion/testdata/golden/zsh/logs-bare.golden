@@ -1,0 +1,19 @@
+Dnoprefix
+CargumentsapiREST API serviceapi 
+CargumentsschedulerCron schedulerscheduler 
+CargumentsworkerBackground workerworker 
+Cflags--followFollow the log stream--follow 
+Cflags--tailServices to tail, comma-separated--tail 
+Cflags--verboseEnable verbose output--verbose 
+Cflags--no-verboseDisable Enable verbose output--no-verbose 
+Cflags--profileCloud profile--profile 
+Cflags--env-varsEnvironment key=value pairs--env-vars 
+Cflags--shardsShard counts, semicolon-separated--shards 
+Cflags--featuresComma-separated feature flags--features 
+Cflags--helpShow help for command--help 
+Cflags--whyShow resolved field values and where they came from (values redacted unless tagged safe)--why 
+Cflags-FFollow the log stream-F 
+Cflags-vEnable verbose output-v 
+Cflags-pCloud profile-p 
+Cflags-eEnvironment key=value pairs-e 
+Cflags-fComma-separated feature flags-f 

@@ -1,0 +1,29 @@
+{
+  "items": [
+    {
+      "value": "us-east-1",
+      "display": "us-east-1",
+      "description": "North America (N. Virginia)",
+      "tag": "values"
+    },
+    {
+      "value": "eu-west-1",
+      "display": "eu-west-1",
+      "description": "Europe (Ireland)",
+      "tag": "values"
+    },
+    {
+      "value": "ap-southeast-1",
+      "display": "ap-southeast-1",
+      "description": "Asia Pacific (Singapore)",
+      "tag": "values"
+    }
+  ],
+  "directives": {
+    "error": false,
+    "keeporder": false,
+    "nofilecomp": true,
+    "nospace": false
+  },
+  "usage": "Target region"
+}

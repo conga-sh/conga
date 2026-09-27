@@ -1,0 +1,15 @@
+# ~/.ssh/config mock fixture
+Host bastion
+    HostName bastion.example.com
+    User admin
+    Port 2222
+
+Host prod-api prod-web
+    HostName 10.0.1.10
+    User deploy
+
+Host *
+    ServerAliveInterval 60
+
+Host *.internal
+    User engineer

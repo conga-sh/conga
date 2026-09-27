@@ -1,0 +1,1 @@
+{"candidates":[{"value":"--verbose=true","display":"true","tag":"values"},{"value":"--verbose=false","display":"false","tag":"values"}],"directives":{"keeporder":false,"messages":[],"noprefix":false,"nospace":false},"usage":"Enable verbose output"}

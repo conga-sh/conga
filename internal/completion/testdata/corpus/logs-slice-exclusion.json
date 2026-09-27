@@ -1,0 +1,23 @@
+{
+  "items": [
+    {
+      "value": "api,scheduler",
+      "display": "scheduler",
+      "description": "Cron scheduler",
+      "tag": "values"
+    },
+    {
+      "value": "api,worker",
+      "display": "worker",
+      "description": "Background worker",
+      "tag": "values"
+    }
+  ],
+  "directives": {
+    "error": false,
+    "keeporder": false,
+    "nofilecomp": true,
+    "nospace": true
+  },
+  "usage": "Services to tail, comma-separated"
+}

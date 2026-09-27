@@ -1,0 +1,1 @@
+{"usage":"","messages":[],"descriptionStyle":"dim","candidates":[{"value":"api,scheduler","display":"scheduler","description":"Cron scheduler","codeSuffix":"","style":"default"},{"value":"api,worker","display":"worker","description":"Background worker","codeSuffix":"","style":"default"}]}

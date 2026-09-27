@@ -1,0 +1,29 @@
+{
+  "description": "Adapter always adds '/' to the nospace matcher: directory candidates get no trailing space.",
+  "input": {
+    "currentWord": "d",
+    "directives": {
+      "nospace": "/",
+      "noprefix": "",
+      "keeporder": false,
+      "messages": [],
+      "usage": ""
+    },
+    "candidates": [
+      {
+        "value": "dir/",
+        "display": "dir/",
+        "description": "a directory",
+        "style": "blue",
+        "tag": "arguments"
+      },
+      {
+        "value": "file.txt",
+        "display": "file.txt",
+        "description": "a file",
+        "tag": "arguments"
+      }
+    ]
+  },
+  "observed": "[{\"value\":\"dir/\",\"display\":\"dir/\",\"description\":\"a directory\",\"style\":{\"fg\":\"blue\"}},{\"value\":\"file.txt \",\"display\":\"file.txt\",\"description\":\"a file\"}]"
+}

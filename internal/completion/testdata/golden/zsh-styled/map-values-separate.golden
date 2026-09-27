@@ -1,0 +1,6 @@
+Dnoprefix,nospaceMetadata labels in key=value format
+L=(#b)(core)([ ]## -- *)=0==2:=(#b)(core)=0=:=(#b)(frontend)([ ]## -- *)=0==2:=(#b)(frontend)=0=:=(#b)(infra)([ ]## -- *)=0==2:=(#b)(infra)=0=:=(#b)(-- *)=0=2
+M[2mMetadata labels in key=value format[39m
+Cvaluescoreteam=core
+Cvaluesfrontendteam=frontend
+Cvaluesinfrateam=infra

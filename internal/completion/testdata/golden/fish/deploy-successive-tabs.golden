@@ -1,0 +1,15 @@
+--env	Target environment
+--region	Target region
+--dry-run	Preview without applying
+--no-dry-run	Disable Preview without applying
+--replicas	Replica count
+--manifest	Deployment manifest
+--timeout	Wall-clock timeout
+--verbose	Enable verbose output
+--no-verbose	Disable Enable verbose output
+--profile	Cloud profile
+--env-vars	Environment key=value pairs
+--shards	Shard counts, semicolon-separated
+--features	Comma-separated feature flags
+--help	Show help for command
+--why	Show resolved field values and where they came from (values redacted unless t...

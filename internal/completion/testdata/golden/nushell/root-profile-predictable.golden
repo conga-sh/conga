@@ -1,0 +1,1 @@
+[{"value":"production ","display":"production","description":"Production workloads"},{"value":"staging ","display":"staging","description":"Pre-production staging cluster"},{"value":"development ","display":"development","description":"Local sandbox environment"}]

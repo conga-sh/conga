@@ -1,0 +1,31 @@
+{
+  "description": "Descriptions beyond the 80-rune default limit and multi-line descriptions (only the first line, clamped, with '...').",
+  "input": {
+    "currentWord": "",
+    "directives": {
+      "nospace": "/",
+      "noprefix": "",
+      "keeporder": false,
+      "messages": [],
+      "usage": ""
+    },
+    "candidates": [
+      {
+        "value": "long",
+        "display": "long",
+        "description": "This description is deliberately longer than eighty runes so that the clamping logic truncates it"
+      },
+      {
+        "value": "multi",
+        "display": "multi",
+        "description": "first line\nsecond line\nthird line"
+      },
+      {
+        "value": "exact",
+        "display": "exact",
+        "description": "exactly-eighty-runes.............................................................."
+      }
+    ]
+  },
+  "observed": "{\"usage\":\"\",\"messages\":[],\"descriptionStyle\":\"dim\",\"candidates\":[{\"value\":\"long\",\"display\":\"long\",\"description\":\"This description is deliberately longer than eighty runes so that the clampin...\",\"codeSuffix\":\" \",\"style\":\"default\"},{\"value\":\"multi\",\"display\":\"multi\",\"description\":\"first line\",\"codeSuffix\":\" \",\"style\":\"default\"},{\"value\":\"exact\",\"display\":\"exact\",\"description\":\"exactly-eighty-runes............................................................\",\"codeSuffix\":\" \",\"style\":\"default\"}]}"
+}

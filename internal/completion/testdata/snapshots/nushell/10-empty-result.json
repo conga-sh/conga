@@ -1,0 +1,15 @@
+{
+  "description": "Zero candidates, no messages, empty usage: the empty-payload shape.",
+  "input": {
+    "currentWord": "x",
+    "directives": {
+      "nospace": "/",
+      "noprefix": "",
+      "keeporder": false,
+      "messages": [],
+      "usage": ""
+    },
+    "candidates": null
+  },
+  "observed": "[]"
+}

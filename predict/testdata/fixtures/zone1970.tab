@@ -1,0 +1,15 @@
+# tzdb timezone descriptions (test fixture)
+#
+# Columns:
+# 1. Countries
+# 2. Coordinates
+# 3. Timezone name
+# 4. Comments (optional)
+US	+404251-0740023	America/New_York	Eastern Time
+US	+415100-0873900	America/Chicago	Central Time
+US	+340308-1181434	America/Los_Angeles	Pacific Time
+GB	+513030-0000731	Europe/London	BST/GMT
+FR	+485200+0022000	Europe/Paris
+JP	+353916+1394441	Asia/Tokyo
+AU	-3352+15113	Australia/Sydney	New South Wales (most areas)
+AQ	-7824+10654	Antarctica/Vostok	Vostok

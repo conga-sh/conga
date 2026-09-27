@@ -1,0 +1,28 @@
+{
+  "description": "Flag candidates with the adapter's '-' noprefix matcher (elvish and nushell have no noprefix channel and ignore it).",
+  "input": {
+    "currentWord": "--v",
+    "directives": {
+      "nospace": "/",
+      "noprefix": "-",
+      "keeporder": false,
+      "messages": [],
+      "usage": ""
+    },
+    "candidates": [
+      {
+        "value": "--verbose",
+        "display": "--verbose",
+        "description": "enable verbose output",
+        "tag": "longhand flags"
+      },
+      {
+        "value": "--version",
+        "display": "--version",
+        "description": "print version",
+        "tag": "longhand flags"
+      }
+    ]
+  },
+  "observed": "[{\"value\":\"--verbose \",\"display\":\"--verbose\",\"description\":\"enable verbose output\"},{\"value\":\"--version \",\"display\":\"--version\",\"description\":\"print version\"}]"
+}

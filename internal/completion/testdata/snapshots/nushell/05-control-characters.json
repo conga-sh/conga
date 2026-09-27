@@ -1,0 +1,21 @@
+{
+  "description": "Control characters in value/display/description exercise the per-shell sanitizers (elvish strips \\n\\r\\t; nushell strips \\n\\r and keeps \\t).",
+  "input": {
+    "currentWord": "",
+    "directives": {
+      "nospace": "/",
+      "noprefix": "",
+      "keeporder": false,
+      "messages": [],
+      "usage": ""
+    },
+    "candidates": [
+      {
+        "value": "va\tlue",
+        "display": "dis\rplay\nname",
+        "description": "desc\nwith\nnewlines\tand\ttabs"
+      }
+    ]
+  },
+  "observed": "[{\"value\":\"va\\tlue \",\"display\":\"displayname\",\"description\":\"descwithnewlines\\tand\\ttabs\"}]"
+}

@@ -1,0 +1,36 @@
+{
+  "description": "Subcommand candidates with descriptions and tags; one styled, one unstyled (theme default applies).",
+  "input": {
+    "currentWord": "s",
+    "directives": {
+      "nospace": "/",
+      "noprefix": "",
+      "keeporder": false,
+      "messages": [],
+      "usage": ""
+    },
+    "candidates": [
+      {
+        "value": "serve",
+        "display": "serve",
+        "description": "start web server",
+        "style": "blue",
+        "tag": "commands"
+      },
+      {
+        "value": "status",
+        "display": "status",
+        "description": "show status",
+        "tag": "commands"
+      },
+      {
+        "value": "deploy",
+        "display": "deploy",
+        "description": "deploy service",
+        "style": "bright-green",
+        "tag": "commands"
+      }
+    ]
+  },
+  "observed": "{\"usage\":\"\",\"messages\":[],\"descriptionStyle\":\"dim\",\"candidates\":[{\"value\":\"serve\",\"display\":\"serve\",\"description\":\"start web server\",\"codeSuffix\":\" \",\"style\":\"blue\"},{\"value\":\"status\",\"display\":\"status\",\"description\":\"show status\",\"codeSuffix\":\" \",\"style\":\"default\"},{\"value\":\"deploy\",\"display\":\"deploy\",\"description\":\"deploy service\",\"codeSuffix\":\" \",\"style\":\"bright-green\"}]}"
+}

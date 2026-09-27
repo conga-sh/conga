@@ -1,0 +1,4 @@
+Dnoprefix,nospaceMetadata labels in key=value format
+MMetadata labels in key=value format
+Cvaluesbobowner=alice,owner=bob
+Cvaluescarolowner=alice,owner=carol

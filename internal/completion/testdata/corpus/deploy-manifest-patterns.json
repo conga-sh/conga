@@ -1,0 +1,23 @@
+{
+  "items": [
+    {
+      "value": "deploy.yaml",
+      "display": "deploy.yaml",
+      "style": "yellow",
+      "tag": "files"
+    },
+    {
+      "value": "values.json",
+      "display": "values.json",
+      "style": "yellow",
+      "tag": "files"
+    }
+  ],
+  "directives": {
+    "error": false,
+    "keeporder": false,
+    "nofilecomp": true,
+    "nospace": false
+  },
+  "usage": "Deployment manifest"
+}

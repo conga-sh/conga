@@ -1,0 +1,1 @@
+{"candidates":[{"value":"'api,scheduler'","display":"scheduler (Cron scheduler)","description":" ","tag":"values"},{"value":"'api,worker'","display":"worker (Background worker)","description":" ","tag":"values"}],"directives":{"keeporder":false,"messages":[],"noprefix":false,"nospace":true},"usage":"Services to tail, comma-separated"}

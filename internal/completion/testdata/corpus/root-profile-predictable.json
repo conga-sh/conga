@@ -1,0 +1,29 @@
+{
+  "items": [
+    {
+      "value": "production",
+      "display": "production",
+      "description": "Production workloads",
+      "tag": "values"
+    },
+    {
+      "value": "staging",
+      "display": "staging",
+      "description": "Pre-production staging cluster",
+      "tag": "values"
+    },
+    {
+      "value": "development",
+      "display": "development",
+      "description": "Local sandbox environment",
+      "tag": "values"
+    }
+  ],
+  "directives": {
+    "error": false,
+    "keeporder": false,
+    "nofilecomp": true,
+    "nospace": false
+  },
+  "usage": "Cloud profile"
+}

@@ -1,0 +1,7 @@
+Dnoprefix
+Ccluster commandsdeployDeploy service to a clusterdeploy 
+Ccluster commandsdDeploy service to a clusterd 
+Ccluster commandslogsStream service logslogs 
+Cother commandsexecExecute a command in a podexec 
+Cother commandscpCopy filescp 
+Cother commandscompletionGenerate shell completion scriptscompletion 

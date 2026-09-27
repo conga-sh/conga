@@ -1,0 +1,16 @@
+{
+  "items": [
+    {
+      "value": "--env=production",
+      "display": "production",
+      "tag": "values"
+    }
+  ],
+  "directives": {
+    "error": false,
+    "keeporder": false,
+    "nofilecomp": true,
+    "nospace": false
+  },
+  "usage": "Target environment"
+}

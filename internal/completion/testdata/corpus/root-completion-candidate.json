@@ -1,0 +1,17 @@
+{
+  "items": [
+    {
+      "value": "completion",
+      "display": "completion",
+      "description": "Generate shell completion scripts",
+      "tag": "other commands"
+    }
+  ],
+  "directives": {
+    "error": false,
+    "keeporder": false,
+    "nofilecomp": true,
+    "nospace": false
+  },
+  "usage": ""
+}

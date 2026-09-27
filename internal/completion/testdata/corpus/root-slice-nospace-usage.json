@@ -1,0 +1,10 @@
+{
+  "items": [],
+  "directives": {
+    "error": false,
+    "keeporder": false,
+    "nofilecomp": true,
+    "nospace": true
+  },
+  "usage": "Comma-separated feature flags"
+}

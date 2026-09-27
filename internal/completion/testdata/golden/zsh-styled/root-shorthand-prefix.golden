@@ -1,0 +1,15 @@
+Dnoprefix
+L=(#b)(--verbose)([ ]## -- *)=0==2:=(#b)(--verbose)=0=:=(#b)(--no-verbose)([ ]## -- *)=0==2:=(#b)(--no-verbose)=0=:=(#b)(--profile)([ ]## -- *)=0=34=2:=(#b)(--profile)=0=34:=(#b)(--env-vars)([ ]## -- *)=0=35=2:=(#b)(--env-vars)=0=35:=(#b)(--shards)([ ]## -- *)=0=35=2:=(#b)(--shards)=0=35:=(#b)(--features)([ ]## -- *)=0=35=2:=(#b)(--features)=0=35:=(#b)(--help)([ ]## -- *)=0==2:=(#b)(--help)=0=:=(#b)(--version)([ ]## -- *)=0==2:=(#b)(--version)=0=:=(#b)(--why)([ ]## -- *)=0==2:=(#b)(--why)=0=:=(#b)(-v)([ ]## -- *)=0==2:=(#b)(-v)=0=:=(#b)(-p)([ ]## -- *)=0=34=2:=(#b)(-p)=0=34:=(#b)(-e)([ ]## -- *)=0=35=2:=(#b)(-e)=0=35:=(#b)(-f)([ ]## -- *)=0=35=2:=(#b)(-f)=0=35:=(#b)(-- *)=0=2
+Cflags--verboseEnable verbose output--verbose 
+Cflags--no-verboseDisable Enable verbose output--no-verbose 
+Cflags--profileCloud profile--profile 34
+Cflags--env-varsEnvironment key=value pairs--env-vars 35
+Cflags--shardsShard counts, semicolon-separated--shards 35
+Cflags--featuresComma-separated feature flags--features 35
+Cflags--helpShow help for command--help 
+Cflags--versionShow version information--version 
+Cflags--whyShow resolved field values and where they came from (values redacted unless tagged safe)--why 
+Cflags-vEnable verbose output-v 
+Cflags-pCloud profile-p 34
+Cflags-eEnvironment key=value pairs-e 35
+Cflags-fComma-separated feature flags-f 35
