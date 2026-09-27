@@ -1,0 +1,394 @@
+
+version: "2"
+
+linters:
+  default: none
+  # This list of linters is not a recommendation (same thing for all this configuration file).
+  # We intentionally use a limited set of linters.
+  # See the comment on top of this file.
+  disable:
+    - exhaustruct
+    - forbidigo
+    - goconst
+    - ireturn
+    - lll
+    - mnd
+    - noinlineerr
+    - wrapcheck
+
+  enable:
+    - arangolint
+    - asasalint
+    - asciicheck
+    - bidichk
+    - bodyclose
+    - canonicalheader
+    - clickhouselint
+    - containedctx
+    - contextcheck
+    - copyloopvar
+    - cyclop
+    - decorder
+    - depguard
+    - dogsled
+    - dupl
+    - dupword
+    - durationcheck
+    - embeddedstructfieldcheck
+    - err113
+    - errcheck
+    - errchkjson
+    - errname
+    - errorlint
+    - exhaustive
+    - exptostd
+    - fatcontext
+    - forcetypeassert
+    - funcorder
+    - funlen
+    - ginkgolinter
+    - gocheckcompilerdirectives
+    - gochecknoglobals
+    - gochecknoinits
+    - gochecksumtype
+    - gocognit
+    - gocritic
+    - gocyclo
+    - godoclint
+    - godot
+    - godox
+    - goheader
+    - gomoddirectives
+    - gomodguard_v2
+    - goprintffuncname
+    - gosec
+    - gosmopolitan
+    - govet
+    - grouper
+    - iface
+    - importas
+    - inamedparam
+    - ineffassign
+    - interfacebloat
+    - intrange
+    - iotamixing
+    - loggercheck
+    - maintidx
+    - makezero
+    - mirror
+    - misspell
+    - modernize
+    - musttag
+    - nakedret
+    - nestif
+    - nilerr
+    - nilnesserr
+    - nilnil
+    - nlreturn
+    - noctx
+    - nolintlint
+    - nonamedreturns
+    - nosprintfhostport
+    - paralleltest
+    - perfsprint
+    - prealloc
+    - predeclared
+    - promlinter
+    - protogetter
+    - reassign
+    - recvcheck
+    - revive
+    - rowserrcheck
+    - sloglint
+    - spancheck
+    - sqlclosecheck
+    - staticcheck
+    - tagalign
+    - tagliatelle
+    - testableexamples
+    - testifylint
+    - testpackage
+    - thelper
+    - tparallel
+    - unconvert
+    - unparam
+    - unqueryvet
+    - unused
+    - usestdlibvars
+    - usetesting
+    - varnamelen
+    - wastedassign
+    - whitespace
+    - wsl_v5
+    - zerologlint
+
+  settings:
+    depguard:
+      rules:
+        prevent_bloat:
+          list-mode: lax
+          files:
+            - "$all"
+            - "!**/_examples/**"
+            - "!**/*_test.go"
+            - "!**/tools/**"
+          deny:
+            - pkg: "net/http"
+              desc: "net/http pulls in crypto/tls and FIPS-140 bloating binary size; use internal tables instead"
+            - pkg: "crypto"
+              desc: "crypto stack must not be imported into core CONGA packages"
+            - pkg: "mime"
+              desc: "mime must not be imported into core CONGA packages"
+            - pkg: "github.com/spf13/cobra"
+              desc: "Cobra must not be imported in CONGA library packages"
+            - pkg: "github.com/mitchellh/go-ps"
+              desc: "go-ps is deprecated and native parent process inspection must be used"
+            - pkg: "hash/fnv"
+              desc: "hash/fnv allocates interface wrappers; use zero-alloc scalar loops instead"
+        modular_predictors:
+          list-mode: lax
+          files:
+            - "$all"
+            - "!**/predict/network/**"
+            - "!**/predict/system/**"
+            - "!**/plugin/network/**"
+            - "!**/plugin/system/**"
+            - "!**/_examples/**"
+            - "!**/*_test.go"
+            - "!**/test/shell/**"
+            - "!**/tools/**"
+          allow:
+            - "net/url"
+          deny:
+            - pkg: "net"
+              desc: "net is modular and must only be imported in predict/network and plugin/network"
+            - pkg: "os/user"
+              desc: "os/user is modular and must only be imported in predict/system and plugin/system"
+        modular_decoders:
+          list-mode: lax
+          files:
+            - "$all"
+            - "!**/decoder/**"
+            - "!**/_examples/**"
+            - "!**/*_test.go"
+            - "!**/test/shell/**"
+            - "!**/tools/**"
+          deny:
+            - pkg: "encoding/json"
+              desc: "JSON decoder is modular and must only be imported in decoder/json"
+            - pkg: "gopkg.in/yaml.v3"
+              desc: "YAML decoder is modular and must only be imported in decoder/yaml"
+            - pkg: "github.com/pelletier/go-toml/v2"
+              desc: "TOML decoder is modular and must only be imported in decoder/toml"
+            - pkg: "github.com/hashicorp/hcl/v2"
+              desc: "HCL decoder is modular and must only be imported in decoder/hcl"
+
+    cyclop:
+      max-complexity: 15 # default is 10
+
+    errcheck:
+      # Report about assignment of errors to blank identifier: `_ = f()`.
+      check-blank: true
+      # Report about not checking of errors in type assertions: `a := b.(MyStruct)`.
+      check-type-assertions: true
+      exclude-functions:
+        - (*net/http.Response).Body.Close
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln
+
+    exhaustive:
+      # Indicates that switch statements are exhaustive if a 'default' case is present.
+      default-signifies-exhaustive: true
+
+    funlen:
+      lines: 100
+      statements: 50
+
+    gocritic:
+      disabled-checks:
+        - dupImport # https://github.com/go-critic/go-critic/issues/845
+        - hugeParam
+        - ifElseChain
+        - octalLiteral
+        - paramTypeCombine
+        - rangeValCopy
+        - unnamedResult
+        - whyNoLint
+        - wrapperFunc
+      # Enable multiple checks by tags.
+      # See https://github.com/go-critic/go-critic#usage -> section "Tags".
+      enabled-tags:
+        - diagnostic
+        - experimental
+        - opinionated
+        - performance
+        - style
+
+    gocyclo:
+      min-complexity: 15
+
+    govet:
+      # Disable analyzers by name.
+      # Run `go tool vet help` to see all analyzers.
+      disable:
+        - fieldalignment # too strict, often results in less readable code
+      # Enable all analyzers.
+      # Default: false
+      enable-all: true
+      # Settings per analyzer.
+      settings:
+        shadow:
+          # Whether to be strict about shadowing; can be noisy.
+          # Default: false
+          strict: false
+
+    lll:
+      line-length: 120 # default is 80, which is often too short for modern screens
+
+    nolintlint:
+      # Require developers to explain why they are skipping the linter (e.g. //nolint:gosec // false positive because...)
+      require-explanation: true
+      # Require developers to specify exactly which linter is being skipped (e.g. //nolint:gosec)
+      require-specific: true
+
+    revive:
+      rules:
+        - name: context-as-argument
+          disabled: false
+        - name: context-keys-type
+          disabled: false
+        - name: error-return
+          disabled: false
+        - name: error-strings
+          disabled: false
+        - name: receiver-naming
+          disabled: false
+        - name: time-naming
+          disabled: false
+        - name: unexported-return
+          disabled: false
+      severity: warning
+
+    usestdlibvars:
+      # Suggest the use of crypto.Hash
+      crypto-hash: true
+      # Suggest the use of http.MethodXX
+      http-method: true
+      # Suggest the use of http.StatusXX
+      http-status-code: true
+      # Suggest the use of time.Layout
+      time-layout: true
+      # Suggest the use of time.Month
+      time-month: true
+      # Suggest the use of time.Weekday
+      time-weekday: true
+
+    usetesting:
+      # Reject context.Background() in test functions; tests must use t.Context().
+      context-background: true
+      # Reject context.TODO() in test functions; tests must use t.Context().
+      context-todo: true
+
+    varnamelen:
+      ignore-chan-recv-ok: true
+      ignore-decls:
+        - db *sql.DB
+        - i int
+        - i int8
+        - i int16
+        - i int32
+        - i int64
+        - i uint
+        - i uint8
+        - i uint16
+        - i uint32
+        - i uint64
+        - i uintptr
+        - j int
+        - j int8
+        - j int16
+        - j int32
+        - j int64
+        - j uint
+        - j uint8
+        - j uint16
+        - j uint32
+        - j uint64
+        - j uintptr
+        - ok bool
+        - r rune
+        - r int32
+        - tx *sql.Tx
+      ignore-map-index-ok: true
+      ignore-type-assert-ok: true
+
+  exclusions:
+    rules:
+      # Exclude certain linters from examples
+      - path: _examples
+        linters:
+          - unparam
+
+      # Exclude certain linters from test files
+      - path: _test\.go
+        linters:
+          - cyclop
+          - dupl
+          - err113
+          - errcheck
+          - funlen
+          - gocognit
+          - goconst
+          - gocyclo
+          - gosec
+          - gosmopolitan
+          - maintidx
+          - nestif
+      # Exclude package-comments check for any package main files
+      - source: "^package main"
+        text: "package-comments:"
+        linters:
+          - revive
+      # Exclude errcheck for deferred Body.Close calls
+      - text: "Error return value of `.*Body\\.Close` is not checked"
+        linters:
+          - errcheck
+      - text: "Error return value of `rows\\.Close` is not checked"
+        linters:
+          - errcheck
+      - text: 'shadow: declaration of "(err|ctx)" shadows declaration at'
+        linters: [ govet ]
+
+formatters:
+  enable:
+    - gci
+
+  settings:
+    gci:
+      # Section configuration to compare against.
+      # Section names are case-insensitive and may contain parameters in ().
+      # The default order of sections is `standard > default > custom > blank > dot > alias > localmodule`.
+      # If `custom-order` is `true`, it follows the order of `sections` option.
+      # Default: ["standard", "default"]
+      sections:
+        - standard # Standard section: captures all standard packages.
+        - default # Default section: contains all imports that could not be matched to another section type.
+        - prefix(github.com/conga-sh/conga) # Custom section: groups all imports with the specified Prefix.
+        - blank # Blank section: contains all blank imports. This section is not present unless explicitly enabled.
+        - dot # Dot section: contains all dot imports. This section is not present unless explicitly enabled.
+        - alias # Alias section: contains all alias imports. This section is not present unless explicitly enabled.
+        - localmodule # Local module section: contains all local packages. This section is not present unless explicitly enabled.
+      # Checks that no inline comments are present.
+      # Default: false
+      no-inline-comments: true
+      # Checks that no prefix comments (comment lines above an import) are present.
+      # Default: false
+      no-prefix-comments: true
+      # Enable custom order of sections.
+      # If `true`, make the section order the same as the order of `sections`.
+      # Default: false
+      custom-order: true
+      # Drops lexical ordering for custom sections.
+      # Default: false
+      no-lex-order: true

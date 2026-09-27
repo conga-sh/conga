@@ -1,0 +1,63 @@
+using namespace System.Management.Automation
+using namespace System.Management.Automation.Language
+
+$_myapp_completer = {
+    param($wordToComplete, $commandAst, $cursorPosition)
+    $esc = [char]27
+    $commandElements = $commandAst.CommandElements
+
+    $elems = @()
+    foreach ($_ in $commandElements) {
+      if ($_.Extent.StartOffset -gt $cursorPosition) {
+          break
+      }
+      $t = $_.Extent.Text
+      if ($_.Extent.EndOffset -gt $cursorPosition) {
+          $t = $t.Substring(0, $_.Extent.Text.Length - ($_.Extent.EndOffset - $cursorPosition))
+      }
+      if ($t.Length -gt 0 -and ($t[0] -eq "'" -or $t[0] -eq '"')) {
+        $t = $t.Substring(1)
+      }
+      if ($t.Length -gt 0 -and ($t[$t.Length - 1] -eq "'" -or $t[$t.Length - 1] -eq '"')) {
+        $t = $t.Substring(0, $t.Length - 1)
+      }
+      if ($t.Length -eq 0) {
+        $t = '""'
+      }
+      $elems += $t.replace('`,', ',')
+    }
+
+    if ($elems.Count -eq 0) {
+      return ""
+    }
+
+    $words = @()
+    if ($elems.Count -gt 1) {
+      $words = $elems[1..($elems.Count - 1)]
+    }
+
+    $payload = @(
+      if (!$wordToComplete) {
+        & $elems[0] __complete powershell $words '' 2>$null
+      } else {
+        & $elems[0] __complete powershell $words 2>$null
+      }
+    )
+    if (!$payload) {
+      return ""
+    }
+
+    $completions = @(
+      ($payload | ConvertFrom-Json).candidates | ForEach-Object {
+        [CompletionResult]::new($_.value, $_.display.replace('`e[', ($esc + '[')), [CompletionResultType]::ParameterValue, $_.description.replace('`e[', ($esc + '[')))
+      }
+    )
+    if ($completions.Count -eq 0) {
+      return ""
+    }
+
+    $completions
+}
+Register-ArgumentCompleter -Native -ScriptBlock $_myapp_completer -CommandName 'myapp' # 'myapp.exe'
+Register-ArgumentCompleter -Native -ScriptBlock $_myapp_completer -CommandName 'ma' # 'ma.exe'
+Register-ArgumentCompleter -Native -ScriptBlock $_myapp_completer -CommandName 'app' # 'app.exe'

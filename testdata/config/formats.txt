@@ -1,0 +1,27 @@
+# Test loading configuration in YAML, JSON, and TOML formats
+
+# 1. YAML config loading
+exec test-app --config-file config.yaml
+stdout 'app running: port=7001 host=192.168.1.1 env=prod debug=true \(config=config.yaml source=cli\)'
+
+# 2. JSON config loading
+exec test-app --config-file config.json
+stdout 'app running: port=7002 host=192.168.1.2 env=qa debug=false \(config=config.json source=cli\)'
+
+# 3. Attached flag syntax (--config-file=...)
+exec test-app --config-file=config.yaml
+stdout 'app running: port=7001 host=192.168.1.1 env=prod debug=true \(config=config.yaml source=cli\)'
+
+-- config.yaml --
+port: 7001
+host: "192.168.1.1"
+env: "prod"
+debug: true
+
+-- config.json --
+{
+  "port": 7002,
+  "host": "192.168.1.2",
+  "env": "qa",
+  "debug": false
+}

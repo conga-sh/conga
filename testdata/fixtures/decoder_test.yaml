@@ -1,0 +1,6 @@
+port: 9003
+host: 192.168.1.1
+cluster-name: prod-central
+timeout: 45s
+debug: true
+api_secret: tok_yaml_123

@@ -1,0 +1,8 @@
+verbose = true
+
+[cluster]
+region = "eu-west-1"
+
+[cluster.node]
+zone = "eu-west-1a"
+count = 5

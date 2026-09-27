@@ -1,0 +1,6 @@
+port = 9002
+host = "10.0.0.1"
+cluster_name = "prod-west"
+timeout = "30s"
+debug = true
+api_secret = "tok_toml_123"

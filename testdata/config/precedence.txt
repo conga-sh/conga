@@ -1,0 +1,25 @@
+# Precedence test for option resolution in CONGA:
+# Asserts 12-Factor App precedence: CLI Flag > Environment Variable > Config File > Default
+
+# 1. Default Values
+exec test-app
+stdout 'app running: port=8080 host=127.0.0.1 env=dev debug=false \(config= source=none\)'
+
+# 2. Config File Overrides Default
+exec test-app --config-file app.toml
+stdout 'app running: port=9001 host=10.0.0.1 env=staging debug=true \(config=app.toml source=cli\)'
+
+# 3. Environment Variable Overrides Config File
+env TEST_APP_PORT=9002
+exec test-app --config-file app.toml
+stdout 'app running: port=9002 host=10.0.0.1 env=staging debug=true \(config=app.toml source=cli\)'
+
+# 4. CLI Flag Overrides Environment Variable and Config File
+exec test-app --config-file app.toml --port 9003
+stdout 'app running: port=9003 host=10.0.0.1 env=staging debug=true \(config=app.toml source=cli\)'
+
+-- app.toml --
+port = 9001
+host = "10.0.0.1"
+env = "staging"
+debug = true

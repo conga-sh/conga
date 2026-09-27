@@ -1,0 +1,100 @@
+version: '3'
+
+tasks:
+  build:
+    desc: Build all examples
+    cmds:
+      - go build -trimpath -ldflags="-s -w" -o ./_examples/bin/ {{.CLI_ARGS | default "./_examples/[0-9]*"}}
+
+  test:
+    desc: Run unit tests (supports custom flags or packages via --, e.g. task test -- -v ./internal/...)
+    cmds:
+      - go test -trimpath -ldflags="-s -w" {{.CLI_ARGS | default "./..."}}
+
+  test:shell:
+    desc: Run shell completion integration tests (requires installed shells)
+    cmds:
+      - go test -tags shelltest {{.CLI_ARGS | default "./test/shell/..."}}
+
+  test:shell:pty:
+    desc: Run interactive PTY shell completion tests driven through tmux (requires tmux and installed shells)
+    cmds:
+      - 'command -v tmux >/dev/null || { echo "tmux is required for PTY completion tests; install tmux or run task test:shell"; exit 1; }'
+      - go test -tags shelltest -run '^TestPty' {{.CLI_ARGS | default "./test/shell/..."}}
+
+  test:size:
+    desc: Assert compile-time dead-code elimination of built-in subsystems in the minimal example (supports custom flags via --)
+    cmds:
+      - go test -tags sizetest {{.CLI_ARGS | default "./test/size/..."}}
+
+  test:all:
+    desc: Run all tests including shell completion and binary size integration tests
+    cmds:
+      - go test -tags shelltest,sizetest -trimpath -ldflags="-s -w" {{.CLI_ARGS | default "./..."}}
+
+  fuzz:
+    desc: Run fuzz targets briefly (supports custom flags via --, e.g. task fuzz -- -fuzz=FuzzTokenizer -fuzztime=2m)
+    cmds:
+      - go test {{.CLI_ARGS | default "-run '^$' -fuzz=FuzzTokenizer -fuzztime=30s"}} ./internal/tokenizer
+
+  test:examples:
+    desc: Run tests for the example programs (supports custom flags via --)
+    cmds:
+      - go test -trimpath -ldflags="-s -w" {{.CLI_ARGS | default "./_examples/[0-9]*"}}
+      - go test -trimpath -ldflags="-s -w" {{.CLI_ARGS | default "./_examples/internal/..."}}
+
+  lint:schema:
+    desc: Validate CONGA struct contracts and schemas with conga-lint (supports custom flags or packages via --)
+    cmds:
+      - go tool conga-lint {{.CLI_ARGS | default "./... ./_examples/..."}}
+
+  lint:
+    desc: Run all linters
+    deps: [lint:schema]
+    cmds:
+      - golangci-lint run --fix --max-same-issues=0 --max-issues-per-linter=0 ./...
+      - golangci-lint run --fix --max-same-issues=0 --max-issues-per-linter=0 ./_examples/[0-9]*
+      - golangci-lint run --fix --max-same-issues=0 --max-issues-per-linter=0 ./_examples/internal/...
+      - golangci-lint run --fix --max-same-issues=0 --max-issues-per-linter=0 --build-tags shelltest ./test/shell/...
+      - golangci-lint run --fix --max-same-issues=0 --max-issues-per-linter=0 --build-tags sizetest ./test/size/...
+
+  coverage:
+    desc: Report test coverage (supports custom flags or packages via --)
+    cmds:
+      - go test -coverprofile=coverage.out {{.CLI_ARGS | default "./..."}}
+      - go tool cover -func=coverage.out
+
+  reorder:
+    desc: Idiomatically reorder Go declarations across project files (supports custom paths via --)
+    cmds:
+      - conga-reorder -w {{.CLI_ARGS | default "./..."}}
+
+  reorder:check:
+    desc: Check that Go declarations follow idiomatic ordering (supports custom paths via --)
+    cmds:
+      - conga-reorder -c {{.CLI_ARGS | default "./..."}}
+
+  reorder:diff:
+    desc: Display diff of Go declarations that do not follow idiomatic ordering (supports custom paths via --)
+    cmds:
+      - conga-reorder --diff {{.CLI_ARGS | default "./..."}}
+
+  docs:install:
+    desc: Install documentation site dependencies (pnpm)
+    cmds:
+      - pnpm -C website install
+
+  docs:dev:
+    desc: Serve the documentation site locally (http://localhost:4321)
+    cmds:
+      - pnpm -C website dev
+
+  docs:build:
+    desc: Build the documentation site into website/dist
+    cmds:
+      - pnpm -C website build
+
+  docs:check:
+    desc: Type-check the documentation site content and links
+    cmds:
+      - pnpm -C website check

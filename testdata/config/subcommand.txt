@@ -1,0 +1,18 @@
+# Test subcommands resolving configuration from root config file
+
+# 1. Subcommand uses values from root config file
+exec test-app --config-file config.yaml server
+stdout 'server running: workers=16 zone=eu-central-1'
+
+# 2. CLI flag on subcommand overrides config file
+exec test-app --config-file config.yaml server --workers 32
+stdout 'server running: workers=32 zone=eu-central-1'
+
+# 3. Persistent flag passed after subcommand
+exec test-app server --config-file config.yaml --zone ap-southeast-1
+stdout 'server running: workers=16 zone=ap-southeast-1'
+
+-- config.yaml --
+server:
+  workers: 16
+  zone: "eu-central-1"

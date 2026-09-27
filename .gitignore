@@ -1,0 +1,55 @@
+# Ignore everything
+*
+
+# But not these files...
+!/.gitignore
+!/.golangci.yaml
+!**/.gitkeep
+
+!*.go
+!go.sum
+!go.mod
+
+!/.github/workflows/*.yml
+
+!/website/package.json
+!/website/pnpm-lock.yaml
+!/website/pnpm-workspace.yaml
+!/website/tsconfig.json
+!/website/astro.config.mjs
+!/website/src/**
+!/website/public/**
+
+!/**/LICENSE
+!/**/NOTICE
+!**/README.md
+!/docs/*.md
+
+!/Taskfile.yaml
+
+!**/testdata/**/*.env
+!**/testdata/**/*.golden
+!**/testdata/**/*.hcl
+!**/testdata/**/*.json
+!**/testdata/**/*.toml
+!**/testdata/**/*.txt
+!**/testdata/**/*.yaml
+
+!/internal/completion/*/assets/*
+!/test/shell/testdata/*_harness.*
+!/testdata/completion/*
+!**/testdata/**/fixtures/*
+
+!**/_examples/**/configs/*.hcl
+!**/_examples/**/configs/*.json
+!**/_examples/**/configs/*.toml
+!**/_examples/**/configs/*.yaml
+!**/_examples/**/configs/*.yml
+
+# ...even if they are in subdirectories
+!*/
+
+# Never track dependency or build trees, even when a re-include rule matches inside them
+/website/node_modules/
+
+/third_party

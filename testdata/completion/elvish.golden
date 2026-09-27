@@ -1,0 +1,26 @@
+var completer~ = {|@args|
+    set-env CONGA_SHELL elvish
+    var cmd = ""
+    try {
+        set cmd = (search-external $args[0])
+    } catch { }
+    if (not-eq $cmd "") {
+        try {
+            var completion = ($cmd __complete elvish (all $args[1..]) 2>/dev/null | from-json)
+            for c $completion[candidates] {
+                var styling = $c[style]
+                if (eq $styling "") {
+                    set styling = "default"
+                }
+                var description = $c[description]
+                if (not-eq $description "") {
+                    set description = (styled " ("$description")" $completion[descriptionStyle])
+                }
+                edit:complex-candidate $c[value] &display=(styled $c[display] $styling)$description &code-suffix=$c[codeSuffix]
+            }
+        } catch { }
+    }
+}
+set edit:completion:arg-completer[myapp] = $completer~
+set edit:completion:arg-completer[ma] = $completer~
+set edit:completion:arg-completer[app] = $completer~

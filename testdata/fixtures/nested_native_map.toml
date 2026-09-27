@@ -1,0 +1,7 @@
+[server]
+port = 9090
+host = "0.0.0.0"
+
+[env]
+vars = { DEBUG = "true", MODE = "test" }
+labels = ["env=test", "version=1.0"]

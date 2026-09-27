@@ -1,0 +1,7 @@
+env:
+  vars:
+    LOG_LEVEL: debug
+    APP_ENV: production
+  labels:
+    - tier=frontend
+    - team=platform

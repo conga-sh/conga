@@ -1,0 +1,16 @@
+function _myapp_completion
+  set --local words (commandline -opc)
+  if test (count $words) -gt 0
+    set --local current (commandline -ct)
+    $words[1] __complete fish $words[2..-1] $current 2>/dev/null
+  end
+end
+
+complete -e 'myapp'
+complete -c 'myapp' -f -a '(_myapp_completion)' -r
+
+complete -e 'ma'
+complete -c 'ma' -f -a '(_myapp_completion)' -r
+
+complete -e 'app'
+complete -c 'app' -f -a '(_myapp_completion)' -r

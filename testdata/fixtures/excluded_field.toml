@@ -1,0 +1,2 @@
+port = 8080
+internal_key = "forbidden_in_config"

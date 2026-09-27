@@ -1,0 +1,13 @@
+# Test config file errors
+
+# 1. Missing config file fails with non-zero exit code
+! exec test-app --config-file nonexistent.yaml
+stderr 'cannot read config file'
+
+# 2. Unknown field in config file fails strict validation
+! exec test-app --config-file invalid.yaml
+stderr 'unknown field "unrecognized_setting"'
+
+-- invalid.yaml --
+port: 8080
+unrecognized_setting: "boom"

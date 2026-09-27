@@ -1,0 +1,18 @@
+let myapp_completer = {|spans|
+    load-env { CONGA_SHELL: 'nushell' }
+    if ($spans | length) > 0 {
+        try {
+            let words = ($spans | skip 1)
+            ^$spans.0 __complete nushell ...$words | from json
+        } catch { }
+    }
+}
+
+mut current = (($env | default {} config).config | default {} completions)
+$current.completions = ($current.completions | default {} external)
+$current.completions.external = ($current.completions.external
+    | default true enable
+    |# backwards compatible workaround for default, see nushell #15654
+    | upsert completer { if $in == null { $myapp_completer } else { $in } })
+
+$env.config = $current
