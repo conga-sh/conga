@@ -13,49 +13,56 @@ hero:
       variant: minimal
 ---
 
-import { CardGrid, LinkCard } from '@astrojs/starlight/components';
+import { CardGrid } from '@astrojs/starlight/components';
+import IconLinkCard from '../../components/IconLinkCard.astro';
 
 <CardGrid>
-  <LinkCard
+  <IconLinkCard
     title="Commands from Go structs"
     description="Flags, arguments, and subcommands are ordinary struct fields; CONGA handles parsing, help, and validation."
     href="reference/struct-tags/"
+    icon="code-branch"
   />
-  <LinkCard
+  <IconLinkCard
     title="Configuration you can trace"
     description="Values resolve from flags, environment variables, config files, and defaults in a fixed order — and you can see where each one came from."
     href="explanation/value-precedence/"
+    icon="setting"
   />
-  <LinkCard
+  <IconLinkCard
     title="Completion for six shells"
     description="Tab completion for bash, zsh, fish, PowerShell, elvish, and nushell, generated from your command definitions."
     href="how-to/enable-shell-completion/"
+    icon="laptop"
   />
-  <LinkCard
+  <IconLinkCard
     title="Types that complete themselves"
     description="File paths, directories, sizes, and durations validate and complete themselves in every supported shell."
     href="reference/domain-types/"
+    icon="document"
   />
-  <LinkCard
+  <IconLinkCard
     title="Catch mistakes before runtime"
     description="A static linter checks command definitions for tag typos, missing handlers, and conflicting flags in your editor or CI."
     href="how-to/lint-schemas/"
+    icon="magnifier"
   />
-  <LinkCard
+  <IconLinkCard
     title="A reliable command lifecycle"
     description="Validation, setup, execution, and cleanup run in a fixed order, and cleanup runs even when the command fails."
     href="explanation/lifecycle/"
+    icon="clock"
   />
-  <LinkCard
+  <IconLinkCard
     title="Bring your own types and formats"
     description="Teach CONGA about your own types or add support for a new configuration file format."
     href="how-to/custom-types-and-decoders/"
+    icon="puzzle"
   />
-  <LinkCard
+  <IconLinkCard
     title="Only ship what you use"
     description="Optional features are included in your binary only when you enable them."
     href="explanation/binary-size/"
+    icon="rocket"
   />
 </CardGrid>
-
-<LinkCard title="Installation" description="Add CONGA to your Go module." href="tutorials/installation/" />
