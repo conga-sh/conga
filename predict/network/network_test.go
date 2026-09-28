@@ -269,21 +269,21 @@ func TestDomainTypes(t *testing.T) {
 
 		var nilHost *network.Host
 
-		_, err = nilHost.LookupIP()
+		_, err = nilHost.LookupIP(t.Context())
 
 		assert.Error(t, err)
 		assert.IsError(t, err, network.ErrEmptyHost)
 
 		var emptyHost network.Host
 
-		_, err = emptyHost.LookupIP()
+		_, err = emptyHost.LookupIP(t.Context())
 
 		assert.Error(t, err)
 		assert.IsError(t, err, network.ErrEmptyHost)
 
 		var ipHost network.Host = "127.0.0.1"
 
-		ips, err := ipHost.LookupIP()
+		ips, err := ipHost.LookupIP(t.Context())
 
 		assert.NoError(t, err)
 		assert.True(t, len(ips) > 0)

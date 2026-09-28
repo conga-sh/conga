@@ -130,13 +130,14 @@ func (h *Host) String() string {
 	return string(*h)
 }
 
-// LookupIP queries DNS for the IP addresses associated with the host.
-func (h *Host) LookupIP() ([]net.IP, error) {
+// LookupIP queries DNS for the IP addresses associated with the host, honoring
+// ctx for cancellation and deadlines.
+func (h *Host) LookupIP(ctx context.Context) ([]net.IP, error) {
 	if h == nil || *h == "" {
 		return nil, ErrEmptyHost
 	}
 
-	ips, err := net.DefaultResolver.LookupIP(context.Background(), "ip", string(*h))
+	ips, err := net.DefaultResolver.LookupIP(ctx, "ip", string(*h))
 	if err != nil {
 		return nil, fmt.Errorf("lookup host %q: %w", string(*h), err)
 	}

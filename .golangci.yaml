@@ -328,6 +328,8 @@ linters:
       # Exclude certain linters from examples
       - path: _examples
         linters:
+          - gochecknoglobals
+          - tagliatelle
           - unparam
 
       # Exclude certain linters from test files
