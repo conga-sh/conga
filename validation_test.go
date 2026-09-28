@@ -75,6 +75,50 @@ func (s SelfValidatingSlug) Validate(_ context.Context) error {
 	return nil
 }
 
+// Celsius is a signed text dialect: range bounds parse through its own
+// UnmarshalText grammar and compare as int64.
+type Celsius int64
+
+func (c *Celsius) UnmarshalText(text []byte) error {
+	parsed, err := strconv.ParseInt(strings.TrimSuffix(string(text), "C"), 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid temperature %q: %w", text, err)
+	}
+
+	*c = Celsius(parsed)
+
+	return nil
+}
+
+// Count is an unsigned text dialect: range bounds compare as uint64 without
+// clamping to int64.
+type Count uint64
+
+func (c *Count) UnmarshalText(text []byte) error {
+	parsed, err := strconv.ParseUint(strings.TrimSuffix(string(text), "x"), 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid count %q: %w", text, err)
+	}
+
+	*c = Count(parsed)
+
+	return nil
+}
+
+// Ratio is a float text dialect: range bounds compare as float64.
+type Ratio float64
+
+func (r *Ratio) UnmarshalText(text []byte) error {
+	parsed, err := strconv.ParseFloat(strings.TrimSuffix(string(text), "%"), 64)
+	if err != nil {
+		return fmt.Errorf("invalid ratio %q: %w", text, err)
+	}
+
+	*r = Ratio(parsed)
+
+	return nil
+}
+
 // Type aliases.
 type AliasInt = int
 type AliasString = string
@@ -97,6 +141,36 @@ type RangeUnitCLI struct {
 }
 
 func (r *RangeUnitCLI) Run(ctx context.Context, session *conga.Session) error { return nil }
+
+type RangeTextDialectCLI struct {
+	Temperature conga.OptionalFlag[Celsius] `name:"temperature" range:"10C..30C"`
+}
+
+func (r *RangeTextDialectCLI) Run(ctx context.Context, session *conga.Session) error { return nil }
+
+type BadRangeTextDialectCLI struct {
+	Temperature conga.OptionalFlag[Celsius] `name:"temperature" range:"bananaC..30C"`
+}
+
+func (b *BadRangeTextDialectCLI) Run(ctx context.Context, session *conga.Session) error { return nil }
+
+type RangeUnsignedDialectCLI struct {
+	Threshold conga.OptionalFlag[Count] `name:"threshold" range:"9223372036854775808x..9223372036854775809x"`
+}
+
+func (r *RangeUnsignedDialectCLI) Run(ctx context.Context, session *conga.Session) error { return nil }
+
+type RangeFloatDialectCLI struct {
+	Ratio conga.OptionalFlag[Ratio] `name:"ratio" range:"10%..90%"`
+}
+
+func (r *RangeFloatDialectCLI) Run(ctx context.Context, session *conga.Session) error { return nil }
+
+type RangeSliceDialectCLI struct {
+	Temperatures conga.OptionalFlag[[]Celsius] `name:"temperatures" range:"10C..30C"`
+}
+
+func (r *RangeSliceDialectCLI) Run(ctx context.Context, session *conga.Session) error { return nil }
 
 type RangeUintCLI struct {
 	Port   conga.OptionalFlag[uint]     `name:"port"   range:"1..65535"`
@@ -335,6 +409,102 @@ func TestUnitsRangeValidation(t *testing.T) {
 		t.Parallel()
 
 		err := conga.New[RangeUnitCLI]().Args([]string{"--memory", "20GB"}).Run()
+		assert.Error(t, err)
+		assert.IsError(t, err, conga.ErrValidation)
+	})
+}
+
+func TestTextDialectRangeValidation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("value within dialect bounds", func(t *testing.T) {
+		t.Parallel()
+
+		cli := new(RangeTextDialectCLI)
+
+		err := conga.New(cli).Args([]string{"--temperature", "20C"}).Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, Celsius(20), cli.Temperature.Get())
+	})
+
+	t.Run("value below dialect min", func(t *testing.T) {
+		t.Parallel()
+
+		err := conga.New[RangeTextDialectCLI]().Args([]string{"--temperature", "5C"}).Run()
+
+		assert.Error(t, err)
+		assert.IsError(t, err, conga.ErrValidation)
+	})
+
+	t.Run("value above dialect max", func(t *testing.T) {
+		t.Parallel()
+
+		err := conga.New[RangeTextDialectCLI]().Args([]string{"--temperature", "50C"}).Run()
+
+		assert.Error(t, err)
+		assert.IsError(t, err, conga.ErrValidation)
+	})
+
+	t.Run("unparseable dialect bound rejected at schema build", func(t *testing.T) {
+		t.Parallel()
+
+		err := conga.New[BadRangeTextDialectCLI]().Args([]string{"--temperature", "20C"}).Run()
+
+		assert.Error(t, err)
+		assert.IsError(t, err, conga.ErrSchema)
+	})
+
+	t.Run("unsigned dialect value above int64 max accepted", func(t *testing.T) {
+		t.Parallel()
+
+		cli := new(RangeUnsignedDialectCLI)
+
+		err := conga.New(cli).Args([]string{"--threshold", "9223372036854775808x"}).Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, Count(9223372036854775808), cli.Threshold.Get())
+	})
+
+	t.Run("unsigned dialect value below min rejected", func(t *testing.T) {
+		t.Parallel()
+
+		err := conga.New[RangeUnsignedDialectCLI]().Args([]string{"--threshold", "5x"}).Run()
+
+		assert.Error(t, err)
+		assert.IsError(t, err, conga.ErrValidation)
+	})
+
+	t.Run("float dialect value within bounds", func(t *testing.T) {
+		t.Parallel()
+
+		err := conga.New[RangeFloatDialectCLI]().Args([]string{"--ratio", "50%"}).Run()
+
+		assert.NoError(t, err)
+	})
+
+	t.Run("float dialect value above max rejected", func(t *testing.T) {
+		t.Parallel()
+
+		err := conga.New[RangeFloatDialectCLI]().Args([]string{"--ratio", "95%"}).Run()
+
+		assert.Error(t, err)
+		assert.IsError(t, err, conga.ErrValidation)
+	})
+
+	t.Run("slice dialect validates each element", func(t *testing.T) {
+		t.Parallel()
+
+		err := conga.New[RangeSliceDialectCLI]().Args([]string{"--temperatures", "20C,25C"}).Run()
+
+		assert.NoError(t, err)
+	})
+
+	t.Run("slice dialect rejects out-of-range element", func(t *testing.T) {
+		t.Parallel()
+
+		err := conga.New[RangeSliceDialectCLI]().Args([]string{"--temperatures", "20C,50C"}).Run()
+
 		assert.Error(t, err)
 		assert.IsError(t, err, conga.ErrValidation)
 	})

@@ -1641,15 +1641,6 @@ func checkTypedRange[T cmp.Ordered](value T, rangeSpec *spec.Range, parse func(s
 	return checkOrderedRange(value, minValue, maxValue, rangeSpec.HasMin, rangeSpec.HasMax, rangeSpec.MinStr, rangeSpec.MaxStr)
 }
 
-func parseByteSizeBound(raw string) (int64, error) {
-	var b ByteSize
-	if err := b.UnmarshalText([]byte(raw)); err != nil {
-		return 0, err
-	}
-
-	return b.Bytes(), nil
-}
-
 func parseInt64Bound(raw string) (int64, error) {
 	return strconv.ParseInt(raw, 10, 64)
 }
@@ -1662,29 +1653,63 @@ func parseFloat64Bound(raw string) (float64, error) {
 	return strconv.ParseFloat(raw, 64)
 }
 
+// checkTextRange applies range bounds to a value whose type carries its own
+// text grammar: bounds parse through the type's UnmarshalText and compare with
+// the value in its native domain. handled is false when the value has no
+// text-range projection, leaving the numeric and duration branches in charge.
+func checkTextRange(value any, rangeSpec *spec.Range) (string, bool, bool) {
+	if value == nil {
+		return "", false, false
+	}
+
+	elemType := reflect.TypeOf(value)
+	if elemType.Kind() == reflect.Pointer {
+		elemType = elemType.Elem()
+	}
+
+	domain, _, isTextRange := spec.TextRangeDomain(elemType)
+	if !isTextRange {
+		return "", false, false
+	}
+
+	switch domain {
+	case spec.RangeSigned:
+		return checkProjectedRange[int64](elemType, value, rangeSpec)
+	case spec.RangeUnsigned:
+		return checkProjectedRange[uint64](elemType, value, rangeSpec)
+	case spec.RangeFloat:
+		return checkProjectedRange[float64](elemType, value, rangeSpec)
+	default:
+		return "", false, false
+	}
+}
+
+func checkProjectedRange[T cmp.Ordered](elemType reflect.Type, value any, rangeSpec *spec.Range) (string, bool, bool) {
+	projected, projectedOK := spec.ProjectTextValue[T](elemType, reflect.ValueOf(value))
+	if !projectedOK {
+		// Schema build rejects range tags on pointer element types, so a
+		// classified text range always projects; fail closed if that invariant
+		// ever breaks rather than silently skipping validation.
+		return "has no comparable value", false, true
+	}
+
+	parse, parseOK := spec.TextRangeParser[T](elemType)
+	if !parseOK {
+		return "has no parseable range bounds", false, true
+	}
+
+	reason, ok := checkTypedRange(projected, rangeSpec, parse)
+
+	return reason, ok, true
+}
+
 func checkValueRange(value any, rangeSpec *spec.Range) (string, bool) {
 	if rangeSpec == nil {
 		return "", true
 	}
 
-	if byteSize, ok := value.(ByteSize); ok {
-		return checkTypedRange(byteSize.Bytes(), rangeSpec, parseByteSizeBound)
-	}
-
-	if byteSize, ok := value.(interface{ Bytes() int64 }); ok {
-		return checkTypedRange(byteSize.Bytes(), rangeSpec, parseByteSizeBound)
-	}
-
-	if value != nil {
-		valueType := reflect.TypeOf(value)
-		if valueType.Kind() != reflect.Pointer && reflect.PointerTo(valueType).Implements(reflect.TypeFor[interface{ Bytes() int64 }]()) {
-			ptr := reflect.New(valueType)
-			ptr.Elem().Set(reflect.ValueOf(value))
-
-			if byteSize, ok := reflect.TypeAssert[interface{ Bytes() int64 }](ptr); ok {
-				return checkTypedRange(byteSize.Bytes(), rangeSpec, parseByteSizeBound)
-			}
-		}
+	if reason, ok, handled := checkTextRange(value, rangeSpec); handled {
+		return reason, ok
 	}
 
 	if duration, ok := value.(time.Duration); ok {

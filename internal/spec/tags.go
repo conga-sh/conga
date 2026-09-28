@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"encoding"
 	"fmt"
-	"math"
 	"path/filepath"
 	"reflect"
 	"strconv"
@@ -18,12 +17,31 @@ import (
 	"github.com/conga-sh/conga/internal/slicex"
 )
 
+const (
+	// RangeSigned compares bounds and values as int64: Bytes() int64
+	// projections and signed integer underlying kinds.
+	RangeSigned RangeDomain = iota
+
+	// RangeUnsigned compares bounds and values as uint64: unsigned integer
+	// underlying kinds.
+	RangeUnsigned
+
+	// RangeFloat compares bounds and values as float64: float underlying
+	// kinds.
+	RangeFloat
+)
+
 // Directives holds the parsed directives of a conga:"..." struct tag.
 type Directives struct {
 	Ignore           bool
 	AllowUnknownTags bool
 	Recurse          bool
 }
+
+// RangeDomain selects the native comparison domain of a text-grammar range
+// type. Bytes() int64 projections and signed integer kinds compare as int64,
+// unsigned integer kinds as uint64, and float kinds as float64.
+type RangeDomain uint8
 
 // ParseCongaDirectives parses the directives of a conga:"..." struct tag.
 func ParseCongaDirectives(congaTag string) (Directives, error) {
@@ -90,7 +108,7 @@ func ParseRangeSpec(tag string) (*Range, error) {
 
 // ValidateScalarRange parses the min/max bounds of rangeSpec with parse and
 // checks their order. boundKind names the value kind in parse-error messages
-// ("duration", "integer", "unsigned integer", "float", "byte size").
+// ("duration", "integer", "unsigned integer", "float", "byte size", "value").
 func ValidateScalarRange[T cmp.Ordered](rangeSpec *Range, boundKind string, parse func(string) (T, error)) error {
 	var (
 		minValue T
@@ -235,6 +253,95 @@ func ParseSummaryTag(tag reflect.StructTag, defaultSummary string) (string, erro
 	return trimmed, nil
 }
 
+// TextRangeDomain reports whether elemType carries range bounds through its own
+// encoding.TextUnmarshaler grammar, and which native domain compares it. Bound
+// parsing reads every bound into a fresh instance via UnmarshalText, so the
+// type's own grammar is the single source of truth; boundKind names the kind in
+// parse-error messages ("byte size" for Bytes() int64 projections, "value" for
+// numeric-underlying dialects). Pointer element types and types without an
+// ordered projection are rejected.
+func TextRangeDomain(elemType reflect.Type) (RangeDomain, string, bool) {
+	if elemType == nil || elemType.Kind() == reflect.Pointer {
+		return 0, "", false
+	}
+
+	pointerType := reflect.PointerTo(elemType)
+	if !pointerType.Implements(reflect.TypeFor[encoding.TextUnmarshaler]()) {
+		return 0, "", false
+	}
+
+	if pointerType.Implements(reflect.TypeFor[interface{ Bytes() int64 }]()) {
+		return RangeSigned, "byte size", true
+	}
+
+	switch elemType.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return RangeSigned, "value", true
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return RangeUnsigned, "value", true
+	case reflect.Float32, reflect.Float64:
+		return RangeFloat, "value", true
+	default:
+		return 0, "", false
+	}
+}
+
+// TextRangeParser returns the bound parser for elemType in the caller's native
+// domain. ok is false when elemType is not a text-range type or its domain does
+// not match T.
+func TextRangeParser[T cmp.Ordered](elemType reflect.Type) (func(string) (T, error), bool) {
+	domain, _, ok := TextRangeDomain(elemType)
+	if !ok || !domainMatches[T](domain) {
+		return nil, false
+	}
+
+	var zero T
+
+	parse := func(raw string) (T, error) {
+		bound, err := parseTextBound(elemType, domain, raw)
+		if err != nil {
+			return zero, err
+		}
+
+		value, ok := domainValue[T](domain, bound)
+		if !ok {
+			return zero, fmt.Errorf("%w: range type %s does not project into its native domain", ErrInvalidRangeSyntax, elemType)
+		}
+
+		return value, nil
+	}
+
+	return parse, true
+}
+
+// ProjectTextValue projects a coerced value of elemType into the caller's
+// native domain. ok is false when elemType is not a text-range type, its domain
+// does not match T, or the value cannot be projected.
+func ProjectTextValue[T cmp.Ordered](elemType reflect.Type, value reflect.Value) (T, bool) {
+	domain, _, ok := TextRangeDomain(elemType)
+	if !ok || !domainMatches[T](domain) {
+		var zero T
+
+		return zero, false
+	}
+
+	pointer, ok := pointerToValue(elemType, value)
+	if !ok {
+		var zero T
+
+		return zero, false
+	}
+
+	bound, ok := projectTextBound(pointer, domain)
+	if !ok {
+		var zero T
+
+		return zero, false
+	}
+
+	return domainValue[T](domain, bound)
+}
+
 type flagKindInfo struct {
 	targetType  reflect.Type
 	isBool      bool
@@ -243,6 +350,14 @@ type flagKindInfo struct {
 	isCounter   bool
 	isNegatable bool
 	sep         string
+}
+
+// textBound carries a parsed text-grammar bound in its native domain; exactly
+// one field is set according to the RangeDomain it was projected into.
+type textBound struct {
+	signed   int64
+	unsigned uint64
+	float    float64
 }
 
 func parseStructTagKeys(tag reflect.StructTag) ([]string, error) {
@@ -477,6 +592,10 @@ func parseValidationSpecs(structTag reflect.StructTag, targetType reflect.Type) 
 	return rangeSpec, lenSpec, itemsSpec, nil
 }
 
+// validateRangeSpec is the runtime counterpart of the analyzer's
+// validateRangeBounds: numeric element kinds get their bounds parsed, the
+// duration type gets duration bounds, text-grammar types get their own
+// UnmarshalText grammar, and any other type is rejected.
 func validateRangeSpec(rangeSpec *Range, targetType reflect.Type) error {
 	if rangeSpec == nil || targetType == nil {
 		return nil
@@ -487,21 +606,29 @@ func validateRangeSpec(rangeSpec *Range, targetType reflect.Type) error {
 		elemType = elemType.Elem()
 	}
 
-	// Byte-size bounds are dispatched on the element type's bare name rather
-	// than its package path: the concrete ByteSize type lives in package conga
-	// (which imports spec), so spec cannot reference it by type. Any foreign
-	// type named ByteSize is therefore routed through the same bound-parse
-	// path; types without a TextUnmarshaler silently skip bound parsing.
-	if elemType.Name() == "ByteSize" {
-		return validateByteSizeRange(rangeSpec, elemType)
+	if elemType == reflect.TypeFor[time.Duration]() {
+		return ValidateScalarRange(rangeSpec, "duration", time.ParseDuration)
+	}
+
+	if domain, boundKind, ok := TextRangeDomain(elemType); ok {
+		switch domain {
+		case RangeSigned:
+			parse, _ := TextRangeParser[int64](elemType)
+
+			return ValidateScalarRange(rangeSpec, boundKind, parse)
+		case RangeUnsigned:
+			parse, _ := TextRangeParser[uint64](elemType)
+
+			return ValidateScalarRange(rangeSpec, boundKind, parse)
+		case RangeFloat:
+			parse, _ := TextRangeParser[float64](elemType)
+
+			return ValidateScalarRange(rangeSpec, boundKind, parse)
+		}
 	}
 
 	switch elemType.Kind() {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		if elemType == reflect.TypeFor[time.Duration]() {
-			return ValidateScalarRange(rangeSpec, "duration", time.ParseDuration)
-		}
-
 		return ValidateScalarRange(rangeSpec, "integer", func(raw string) (int64, error) {
 			return strconv.ParseInt(raw, 10, 64)
 		})
@@ -521,47 +648,133 @@ func validateRangeSpec(rangeSpec *Range, targetType reflect.Type) error {
 	}
 }
 
-func validateByteSizeRange(rangeSpec *Range, elemType reflect.Type) error {
-	parse := func(raw string) (int64, error) {
-		unmarshaler, ok := reflect.TypeAssert[encoding.TextUnmarshaler](reflect.New(elemType))
-		if !ok {
-			// Foreign types without a TextUnmarshaler skip bound parsing; the
-			// unparseable-bounds lint gap is tracked separately (Phase 2.9).
-			return 0, nil
-		}
+// parseTextBound reads raw through elemType's UnmarshalText into a fresh
+// instance and projects the parsed value into its native domain. The
+// TextUnmarshaler and projection checks re-verify the TextRangeDomain gate and
+// guard against silent zero-value comparisons if the two ever drift.
+func parseTextBound(elemType reflect.Type, domain RangeDomain, raw string) (textBound, error) {
+	instance := reflect.New(elemType)
 
-		if err := unmarshaler.UnmarshalText([]byte(raw)); err != nil {
-			return 0, err
-		}
-
-		return extractByteSize(unmarshaler), nil
+	unmarshaler, ok := reflect.TypeAssert[encoding.TextUnmarshaler](instance)
+	if !ok {
+		return textBound{}, fmt.Errorf("%w: range type %s does not implement encoding.TextUnmarshaler", ErrInvalidRangeSyntax, elemType)
 	}
 
-	return ValidateScalarRange(rangeSpec, "byte size", parse)
+	if err := unmarshaler.UnmarshalText([]byte(raw)); err != nil {
+		return textBound{}, err
+	}
+
+	bound, ok := projectTextBound(instance, domain)
+	if !ok {
+		return textBound{}, fmt.Errorf("%w: range type %s has no ordered projection", ErrInvalidRangeSyntax, elemType)
+	}
+
+	return bound, nil
 }
 
-func extractByteSize(v any) int64 {
-	if bc, ok := v.(interface{ Bytes() int64 }); ok {
-		return bc.Bytes()
+// projectTextBound projects a *elemType instance into its native domain,
+// preferring the Bytes() int64 projection over the numeric underlying kind.
+func projectTextBound(pointer reflect.Value, domain RangeDomain) (textBound, bool) {
+	if byteSize, ok := reflect.TypeAssert[interface{ Bytes() int64 }](pointer); ok {
+		return textBound{signed: byteSize.Bytes()}, true
 	}
 
-	value := reflect.ValueOf(v)
+	element := pointer.Elem()
+
+	switch domain {
+	case RangeSigned:
+		if isSignedKind(element.Kind()) {
+			return textBound{signed: element.Int()}, true
+		}
+	case RangeUnsigned:
+		if isUnsignedKind(element.Kind()) {
+			return textBound{unsigned: element.Uint()}, true
+		}
+	case RangeFloat:
+		if element.Kind() == reflect.Float32 || element.Kind() == reflect.Float64 {
+			return textBound{float: element.Float()}, true
+		}
+	}
+
+	return textBound{}, false
+}
+
+// pointerToValue returns an addressable pointer to elemType holding value,
+// accepting either a value or a pointer.
+func pointerToValue(elemType reflect.Type, value reflect.Value) (reflect.Value, bool) {
 	if value.Kind() == reflect.Pointer {
-		value = value.Elem()
-	}
-
-	switch value.Kind() {
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return value.Int()
-	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
-		u := value.Uint()
-		if u > math.MaxInt64 {
-			return math.MaxInt64
+		if value.IsNil() || value.Type().Elem() != elemType {
+			return reflect.Value{}, false
 		}
 
-		return int64(u)
+		return value, true
+	}
+
+	if value.Type() != elemType {
+		return reflect.Value{}, false
+	}
+
+	pointer := reflect.New(elemType)
+	pointer.Elem().Set(value)
+
+	return pointer, true
+}
+
+// domainMatches reports whether T is the native Go type of domain.
+func domainMatches[T cmp.Ordered](domain RangeDomain) bool {
+	var zero T
+
+	switch any(zero).(type) {
+	case int64:
+		return domain == RangeSigned
+	case uint64:
+		return domain == RangeUnsigned
+	case float64:
+		return domain == RangeFloat
 	default:
-		return 0
+		return false
+	}
+}
+
+// domainValue converts a projected bound into the caller's native domain. ok is
+// false when T does not match the domain, which callers rule out beforehand
+// through domainMatches.
+func domainValue[T cmp.Ordered](domain RangeDomain, bound textBound) (T, bool) {
+	var zero T
+
+	switch domain {
+	case RangeSigned:
+		value, ok := any(bound.signed).(T)
+
+		return value, ok
+	case RangeUnsigned:
+		value, ok := any(bound.unsigned).(T)
+
+		return value, ok
+	case RangeFloat:
+		value, ok := any(bound.float).(T)
+
+		return value, ok
+	default:
+		return zero, false
+	}
+}
+
+func isSignedKind(kind reflect.Kind) bool {
+	switch kind {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return true
+	default:
+		return false
+	}
+}
+
+func isUnsignedKind(kind reflect.Kind) bool {
+	switch kind {
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		return true
+	default:
+		return false
 	}
 }
 

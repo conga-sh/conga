@@ -105,6 +105,50 @@ type RangeApp struct { // want `does not implement conga\.Runner`
 
 var _ = conga.New[RangeApp]()
 
+// ByteSizeRangeApp declares an unparseable byte-size bound; conga-lint parses
+// conga.ByteSize bounds with the runtime grammar.
+type ByteSizeRangeApp struct {
+	Memory conga.OptionalFlag[conga.ByteSize] `name:"memory" range:"banana..1GiB" help:"Memory"` // want `invalid byte size min bound "banana"`
+}
+
+// Run executes the byte-size range fixture.
+func (b *ByteSizeRangeApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[ByteSizeRangeApp]()
+
+// MapRangeApp applies a range to a map element type, which runtime schema
+// build rejects and the analyzer mirrors.
+type MapRangeApp struct {
+	Weights conga.OptionalFlag[map[string]int] `name:"weights" range:"1..10" help:"Weights"` // want `range tag is not supported on type map\[string\]int`
+}
+
+// Run executes the map range fixture.
+func (m *MapRangeApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[MapRangeApp]()
+
+// Opaque implements encoding.TextUnmarshaler on a struct underlying kind
+// without an ordered projection.
+type Opaque struct{}
+
+func (o *Opaque) UnmarshalText(text []byte) error { return nil }
+
+// OpaqueRangeApp applies a range to a text unmarshaler without a projection.
+type OpaqueRangeApp struct {
+	Value conga.OptionalFlag[Opaque] `name:"value" range:"1..2" help:"Opaque"` // want `range tag is not supported on type invalid\.Opaque`
+}
+
+// Run executes the opaque range fixture.
+func (o *OpaqueRangeApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[OpaqueRangeApp]()
+
 // LenApp applies a negative length bound.
 type LenApp struct { // want `does not implement conga\.Runner`
 	Tags conga.OptionalFlag[[]string] `name:"tags" len:"-1" help:"Tags"` // want `invalid len min bound`

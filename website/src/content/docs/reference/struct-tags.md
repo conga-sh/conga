@@ -292,8 +292,13 @@ Any other unknown tag triggers a schema error with a closest-match suggestion.
 | `"1.."` | Min only. |
 | `"5"` | Exact value. |
 
-- `range` applies to numeric types, `time.Duration`, and `ByteSize`
-  (e.g. `range:"1..100"`, `range:"100ms..5s"`).
+- `range` applies to numeric types (`int*`, `uint*` except `uintptr`, `float*`),
+  `time.Duration`, and any other domain type whose pointer implements
+  `encoding.TextUnmarshaler` with an ordered projection (`Bytes() int64` or a
+  numeric underlying kind). Text dialects parse every bound with their own
+  `UnmarshalText`, so `ByteSize` accepts `range:"1MiB..1GiB"` alongside
+  `range:"1..100"` and `range:"100ms..5s"`; pointer element types and text
+  types without an orderable projection are rejected.
 - `len` applies to strings, slices, and maps (e.g. `len:"3..20"`).
 - `items` applies to slices and maps (e.g. `items:"1..5"`).
 

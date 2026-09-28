@@ -4,14 +4,14 @@ import (
 	"math"
 	"reflect"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/alecthomas/assert/v2"
 )
 
-// ByteSize mirrors the root ByteSize domain type by name: validateRangeSpec
-// dispatches byte-size handling on the element type's bare name, so a local
-// fixture with the same name is required to exercise that branch.
+// ByteSize is a Bytes() int64 text dialect: its own UnmarshalText grammar
+// supplies bound parsing while Bytes() supplies the ordered projection.
 type ByteSize int64
 
 func (b *ByteSize) UnmarshalText(text []byte) error {
@@ -29,7 +29,137 @@ func (b *ByteSize) Bytes() int64 {
 	return int64(*b)
 }
 
-func TestValidateRangeSpec_ByteSizeDispatch(t *testing.T) {
+// Celsius is a signed text dialect without a Bytes() projection: bounds parse
+// through its own grammar and compare as int64.
+type Celsius int64
+
+func (c *Celsius) UnmarshalText(text []byte) error {
+	parsed, err := strconv.ParseInt(strings.TrimSuffix(string(text), "C"), 10, 64)
+	if err != nil {
+		return err
+	}
+
+	*c = Celsius(parsed)
+
+	return nil
+}
+
+// Count is an unsigned text dialect: bounds compare as uint64, so values above
+// math.MaxInt64 keep their exact ordering.
+type Count uint64
+
+func (c *Count) UnmarshalText(text []byte) error {
+	parsed, err := strconv.ParseUint(strings.TrimSuffix(string(text), "x"), 10, 64)
+	if err != nil {
+		return err
+	}
+
+	*c = Count(parsed)
+
+	return nil
+}
+
+// Ratio is a float text dialect: bounds compare as float64.
+type Ratio float64
+
+func (r *Ratio) UnmarshalText(text []byte) error {
+	parsed, err := strconv.ParseFloat(strings.TrimSuffix(string(text), "%"), 64)
+	if err != nil {
+		return err
+	}
+
+	*r = Ratio(parsed)
+
+	return nil
+}
+
+// Opaque implements encoding.TextUnmarshaler on a struct underlying kind
+// without a Bytes() projection, so it is not rangeable.
+type Opaque struct{}
+
+func (o *Opaque) UnmarshalText(text []byte) error { return nil }
+
+// Plain is a numeric type without its own text grammar: it keeps the built-in
+// integer bound parsing.
+type Plain int64
+
+func TestTextRangeDomain(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Bytes projection is signed with byte size bound kind", func(t *testing.T) {
+		t.Parallel()
+
+		domain, boundKind, ok := TextRangeDomain(reflect.TypeFor[ByteSize]())
+
+		assert.True(t, ok)
+		assert.Equal(t, RangeSigned, domain)
+		assert.Equal(t, "byte size", boundKind)
+	})
+
+	t.Run("signed dialect is signed with value bound kind", func(t *testing.T) {
+		t.Parallel()
+
+		domain, boundKind, ok := TextRangeDomain(reflect.TypeFor[Celsius]())
+
+		assert.True(t, ok)
+		assert.Equal(t, RangeSigned, domain)
+		assert.Equal(t, "value", boundKind)
+	})
+
+	t.Run("unsigned dialect compares as uint64", func(t *testing.T) {
+		t.Parallel()
+
+		domain, boundKind, ok := TextRangeDomain(reflect.TypeFor[Count]())
+
+		assert.True(t, ok)
+		assert.Equal(t, RangeUnsigned, domain)
+		assert.Equal(t, "value", boundKind)
+	})
+
+	t.Run("float dialect compares as float64", func(t *testing.T) {
+		t.Parallel()
+
+		domain, boundKind, ok := TextRangeDomain(reflect.TypeFor[Ratio]())
+
+		assert.True(t, ok)
+		assert.Equal(t, RangeFloat, domain)
+		assert.Equal(t, "value", boundKind)
+	})
+
+	t.Run("pointer element type rejected", func(t *testing.T) {
+		t.Parallel()
+
+		_, _, ok := TextRangeDomain(reflect.TypeFor[*ByteSize]())
+
+		assert.False(t, ok)
+	})
+
+	t.Run("text unmarshaler without ordered projection rejected", func(t *testing.T) {
+		t.Parallel()
+
+		_, _, ok := TextRangeDomain(reflect.TypeFor[Opaque]())
+
+		assert.False(t, ok)
+	})
+
+	t.Run("numeric type without text grammar rejected", func(t *testing.T) {
+		t.Parallel()
+
+		_, _, ok := TextRangeDomain(reflect.TypeFor[Plain]())
+
+		assert.False(t, ok)
+	})
+
+	t.Run("non-numeric type without text grammar rejected", func(t *testing.T) {
+		t.Parallel()
+
+		_, _, ok := TextRangeDomain(reflect.TypeFor[string]())
+
+		assert.False(t, ok)
+	})
+}
+
+func TestValidateRangeSpec_TextDialects(t *testing.T) {
 	t.Parallel()
 
 	t.Run("valid byte size range accepted", func(t *testing.T) {
@@ -66,63 +196,195 @@ func TestValidateRangeSpec_ByteSizeDispatch(t *testing.T) {
 		assert.Equal(t, "schema error: invalid range syntax: invalid byte size min bound \"banana\"", err.Error())
 	})
 
-	t.Run("byte-size-named type without TextUnmarshaler silently accepts bounds", func(t *testing.T) {
+	t.Run("signed dialect bounds parse with its own grammar", func(t *testing.T) {
+		t.Parallel()
+
+		rangeSpec := &Range{MinStr: "10C", MaxStr: "30C", HasMin: true, HasMax: true}
+
+		err := validateRangeSpec(rangeSpec, reflect.TypeFor[Celsius]())
+
+		assert.NoError(t, err)
+	})
+
+	t.Run("signed dialect unparseable bound rejected with value kind", func(t *testing.T) {
+		t.Parallel()
+
+		rangeSpec := &Range{MinStr: "bananaC", HasMin: true}
+
+		err := validateRangeSpec(rangeSpec, reflect.TypeFor[Celsius]())
+
+		assert.Error(t, err)
+		assert.IsError(t, err, ErrInvalidRangeSyntax)
+		assert.Equal(t, "schema error: invalid range syntax: invalid value min bound \"bananaC\"", err.Error())
+	})
+
+	t.Run("unsigned dialect bounds above int64 max compare exactly", func(t *testing.T) {
+		t.Parallel()
+
+		rangeSpec := &Range{
+			MinStr: "9223372036854775808x",
+			MaxStr: "9223372036854775809x",
+			HasMin: true,
+			HasMax: true,
+		}
+
+		err := validateRangeSpec(rangeSpec, reflect.TypeFor[Count]())
+
+		assert.NoError(t, err)
+	})
+
+	t.Run("unsigned dialect inversion above int64 max detected", func(t *testing.T) {
+		t.Parallel()
+
+		rangeSpec := &Range{
+			MinStr: "9223372036854775809x",
+			MaxStr: "9223372036854775808x",
+			HasMin: true,
+			HasMax: true,
+		}
+
+		err := validateRangeSpec(rangeSpec, reflect.TypeFor[Count]())
+
+		assert.Error(t, err)
+		assert.IsError(t, err, ErrInvalidRangeSyntax)
+		assert.Equal(t, "schema error: invalid range syntax: min bound \"9223372036854775809x\" cannot be greater than max bound \"9223372036854775808x\"", err.Error())
+	})
+
+	t.Run("float dialect bounds parse with its own grammar", func(t *testing.T) {
+		t.Parallel()
+
+		rangeSpec := &Range{MinStr: "10%", MaxStr: "90%", HasMin: true, HasMax: true}
+
+		err := validateRangeSpec(rangeSpec, reflect.TypeFor[Ratio]())
+
+		assert.NoError(t, err)
+	})
+
+	t.Run("float dialect inversion detected", func(t *testing.T) {
+		t.Parallel()
+
+		rangeSpec := &Range{MinStr: "90%", MaxStr: "10%", HasMin: true, HasMax: true}
+
+		err := validateRangeSpec(rangeSpec, reflect.TypeFor[Ratio]())
+
+		assert.Error(t, err)
+		assert.IsError(t, err, ErrInvalidRangeSyntax)
+		assert.Equal(t, "schema error: invalid range syntax: min bound \"90%\" cannot be greater than max bound \"10%\"", err.Error())
+	})
+
+	t.Run("text dialect without ordered projection rejected with exact message", func(t *testing.T) {
+		t.Parallel()
+
+		rangeSpec := &Range{MinStr: "1", MaxStr: "2", HasMin: true, HasMax: true}
+
+		err := validateRangeSpec(rangeSpec, reflect.TypeFor[Opaque]())
+
+		assert.Error(t, err)
+		assert.IsError(t, err, ErrInvalidRangeSyntax)
+		assert.Equal(t, "schema error: invalid range syntax: range tag is not supported on type spec.Opaque", err.Error())
+	})
+
+	t.Run("numeric type without text grammar keeps integer parsing", func(t *testing.T) {
+		t.Parallel()
+
+		rangeSpec := &Range{MinStr: "1", MaxStr: "10", HasMin: true, HasMax: true}
+
+		err := validateRangeSpec(rangeSpec, reflect.TypeFor[Plain]())
+
+		assert.NoError(t, err)
+	})
+
+	t.Run("numeric type without text grammar rejects non-integer bound", func(t *testing.T) {
+		t.Parallel()
+
+		rangeSpec := &Range{MinStr: "banana", HasMin: true}
+
+		err := validateRangeSpec(rangeSpec, reflect.TypeFor[Plain]())
+
+		assert.Error(t, err)
+		assert.IsError(t, err, ErrInvalidRangeSyntax)
+		assert.Equal(t, "schema error: invalid range syntax: invalid integer min bound \"banana\"", err.Error())
+	})
+
+	t.Run("byte-size-named struct without text grammar rejected", func(t *testing.T) {
 		t.Parallel()
 
 		type ByteSize struct{}
 
-		rangeSpec := &Range{MinStr: "200", MaxStr: "100", HasMin: true, HasMax: true}
+		rangeSpec := &Range{MinStr: "1", MaxStr: "2", HasMin: true, HasMax: true}
 
 		err := validateRangeSpec(rangeSpec, reflect.TypeFor[ByteSize]())
 
-		assert.NoError(t, err)
+		assert.Error(t, err)
+		assert.IsError(t, err, ErrInvalidRangeSyntax)
+		assert.Equal(t, "schema error: invalid range syntax: range tag is not supported on type spec.ByteSize", err.Error())
 	})
 }
 
-func TestExtractByteSize(t *testing.T) {
+func TestProjectTextValue(t *testing.T) {
 	t.Parallel()
 
-	t.Run("Bytes fast path", func(t *testing.T) {
+	t.Run("Bytes projection wins over numeric kind", func(t *testing.T) {
 		t.Parallel()
 
-		size := ByteSize(4096)
+		projected, ok := ProjectTextValue[int64](reflect.TypeFor[ByteSize](), reflect.ValueOf(ByteSize(4096)))
 
-		assert.Equal(t, int64(4096), extractByteSize(&size))
+		assert.True(t, ok)
+		assert.Equal(t, int64(4096), projected)
 	})
 
-	t.Run("signed integer fallback", func(t *testing.T) {
+	t.Run("signed underlying projects as int64", func(t *testing.T) {
 		t.Parallel()
 
-		assert.Equal(t, int64(-7), extractByteSize(int64(-7)))
-		assert.Equal(t, int64(9), extractByteSize(int(9)))
-		assert.Equal(t, int64(5), extractByteSize(ByteSize(5)))
+		projected, ok := ProjectTextValue[int64](reflect.TypeFor[Celsius](), reflect.ValueOf(Celsius(-7)))
+
+		assert.True(t, ok)
+		assert.Equal(t, int64(-7), projected)
 	})
 
-	t.Run("unsigned integer fallback", func(t *testing.T) {
+	t.Run("unsigned underlying projects without clamping", func(t *testing.T) {
 		t.Parallel()
 
-		assert.Equal(t, int64(11), extractByteSize(uint64(11)))
-		assert.Equal(t, int64(3), extractByteSize(uint8(3)))
+		projected, ok := ProjectTextValue[uint64](reflect.TypeFor[Count](), reflect.ValueOf(Count(math.MaxUint64)))
+
+		assert.True(t, ok)
+		assert.Equal(t, uint64(math.MaxUint64), projected)
 	})
 
-	t.Run("uint beyond int64 max clamps to MaxInt64", func(t *testing.T) {
+	t.Run("float underlying projects as float64", func(t *testing.T) {
 		t.Parallel()
 
-		assert.Equal(t, int64(math.MaxInt64), extractByteSize(uint64(math.MaxInt64+1)))
+		projected, ok := ProjectTextValue[float64](reflect.TypeFor[Ratio](), reflect.ValueOf(Ratio(0.5)))
+
+		assert.True(t, ok)
+		assert.Equal(t, 0.5, projected)
 	})
 
-	t.Run("pointer dereferenced before extraction", func(t *testing.T) {
+	t.Run("pointer value accepted", func(t *testing.T) {
 		t.Parallel()
 
-		raw := uint64(15)
+		value := ByteSize(7)
 
-		assert.Equal(t, int64(15), extractByteSize(&raw))
+		projected, ok := ProjectTextValue[int64](reflect.TypeFor[ByteSize](), reflect.ValueOf(&value))
+
+		assert.True(t, ok)
+		assert.Equal(t, int64(7), projected)
 	})
 
-	t.Run("unsupported kind returns zero", func(t *testing.T) {
+	t.Run("mismatched domain returns false", func(t *testing.T) {
 		t.Parallel()
 
-		assert.Equal(t, int64(0), extractByteSize(struct{ Name string }{Name: "x"}))
+		_, ok := ProjectTextValue[uint64](reflect.TypeFor[ByteSize](), reflect.ValueOf(ByteSize(1)))
+
+		assert.False(t, ok)
+	})
+
+	t.Run("numeric type without text grammar returns false", func(t *testing.T) {
+		t.Parallel()
+
+		_, ok := ProjectTextValue[int64](reflect.TypeFor[Plain](), reflect.ValueOf(Plain(1)))
+
+		assert.False(t, ok)
 	})
 }
 

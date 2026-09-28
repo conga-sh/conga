@@ -4,17 +4,58 @@ package valid
 
 import (
 	"context"
+	"strconv"
+	"strings"
 
 	"github.com/conga-sh/conga"
 )
 
+// MemoryAlias aliases the built-in byte-size type: range validation must
+// resolve the alias to conga.ByteSize before parsing bounds.
+type MemoryAlias = conga.ByteSize
+
+// Histogram is a text dialect with a Bytes() int64 projection; the analyzer
+// verifies its classification but defers bound parsing to schema build.
+type Histogram int64
+
+func (h *Histogram) UnmarshalText(text []byte) error {
+	parsed, err := strconv.ParseInt(string(text), 10, 64)
+	if err != nil {
+		return err
+	}
+
+	*h = Histogram(parsed)
+
+	return nil
+}
+
+func (h *Histogram) Bytes() int64 { return int64(*h) }
+
+// Ratio is a float text dialect whose bounds compare as float64.
+type Ratio float64
+
+func (r *Ratio) UnmarshalText(text []byte) error {
+	parsed, err := strconv.ParseFloat(strings.TrimSuffix(string(text), "%"), 64)
+	if err != nil {
+		return err
+	}
+
+	*r = Ratio(parsed)
+
+	return nil
+}
+
 // DeployWorker is a leaf command implementing conga.Runner.
 type DeployWorker struct {
-	Replicas conga.OptionalFlag[int]        `name:"replicas" short:"r" help:"Worker replica count" range:"1..16"`
-	Input    conga.OptionalFlag[conga.File] `name:"input" existing:"true" stdin:"true" help:"Input file"`
-	Output   conga.OptionalFlag[conga.File] `name:"output" stdout:"true" help:"Output file"`
-	WorkDir  conga.OptionalFlag[conga.Dir]  `name:"workdir" existing:"true" help:"Working directory"`
-	Manifest conga.OptionalFlag[conga.File] `name:"manifest" glob:"*.yaml,Makefile" help:"Manifest file"`
+	Replicas  conga.OptionalFlag[int]            `name:"replicas" short:"r" help:"Worker replica count" range:"1..16"`
+	Memory    conga.OptionalFlag[conga.ByteSize] `name:"memory" help:"Worker memory limit" range:"1MiB..1GiB"`
+	AliasSize conga.OptionalFlag[MemoryAlias]    `name:"alias-size" help:"Aliased memory limit" range:"1MiB..1GiB"`
+	Histogram conga.OptionalFlag[Histogram]      `name:"histogram" help:"Histogram size" range:"1..10"`
+	Ratio     conga.OptionalFlag[Ratio]          `name:"ratio" help:"Ratio" range:"10%..90%"`
+	Input     conga.OptionalFlag[conga.File]     `name:"input" existing:"true" stdin:"true" help:"Input file"`
+	Output    conga.OptionalFlag[conga.File]     `name:"output" stdout:"true" help:"Output file"`
+	WorkDir   conga.OptionalFlag[conga.Dir]      `name:"workdir" existing:"true" help:"Working directory"`
+	Manifest  conga.OptionalFlag[conga.File]     `name:"manifest" glob:"*.yaml,Makefile" help:"Manifest file"`
 }
 
 // Run executes the worker deployment.

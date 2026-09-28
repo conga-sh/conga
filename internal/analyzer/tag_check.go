@@ -3,6 +3,7 @@ package analyzer
 import (
 	"cmp"
 	"fmt"
+	"go/token"
 	"go/types"
 	"reflect"
 	"slices"
@@ -234,25 +235,35 @@ func (w *walker) checkValidationSpecs(node *commandNode, fieldObject types.Objec
 
 // validateRangeBounds is the static port of the runtime validateRangeSpec:
 // numeric element kinds get their bounds parsed, the duration type gets
-// duration bounds, and non-numeric types are rejected. Byte-size bounds rely
-// on runtime TextUnmarshaler execution and are left to schema build.
+// duration bounds, conga.ByteSize is parsed with the runtime grammar compiled
+// into the analyzer, and other text-grammar types with an ordered projection
+// are accepted without bound evaluation because their grammar is not statically
+// executable. Element types without any range strategy are rejected, mirroring
+// schema build.
 func (w *walker) validateRangeBounds(rangeSpec *spec.Range, targetType types.Type) error {
 	if rangeSpec == nil || targetType == nil {
 		return nil
 	}
 
-	elementType := targetType
+	elementType := types.Unalias(targetType)
 	if slice, ok := elementType.Underlying().(*types.Slice); ok {
-		elementType = slice.Elem()
+		elementType = types.Unalias(slice.Elem())
 	}
 
-	if named, ok := elementType.(*types.Named); ok && isTimeDuration(named) {
-		return spec.ValidateScalarRange(rangeSpec, "duration", time.ParseDuration)
+	if named, ok := elementType.(*types.Named); ok {
+		switch {
+		case isCongaByteSize(named.Obj()):
+			return spec.ValidateScalarRange(rangeSpec, "byte size", parseByteSizeBound)
+		case isTimeDuration(named):
+			return spec.ValidateScalarRange(rangeSpec, "duration", time.ParseDuration)
+		case isTextRangeType(named):
+			return nil
+		}
 	}
 
 	basic, ok := elementType.Underlying().(*types.Basic)
 	if !ok {
-		return nil
+		return fmt.Errorf("%w: range tag is not supported on type %s", spec.ErrInvalidRangeSyntax, types.TypeString(elementType, shortPackageQualifier))
 	}
 
 	switch basic.Kind() {
@@ -320,6 +331,84 @@ func isBasicKind(targetType types.Type, kind types.BasicKind) bool {
 	basic, ok := targetType.Underlying().(*types.Basic)
 
 	return ok && basic.Kind() == kind
+}
+
+// isCongaByteSize reports whether the type name is the conga.ByteSize domain
+// type: package-path qualified so foreign types sharing the name are not
+// misclassified.
+func isCongaByteSize(object *types.TypeName) bool {
+	return object != nil && object.Pkg() != nil &&
+		object.Pkg().Path() == congaPackagePath && object.Name() == "ByteSize"
+}
+
+// isTextRangeType reports whether the runtime would accept range bounds on the
+// named type: its pointer must implement encoding.TextUnmarshaler and the type
+// must expose the ordered projection the runtime requires (Bytes() int64 or a
+// numeric underlying kind). The grammar itself is opaque to static analysis, so
+// bound parsing is deferred to schema build.
+func isTextRangeType(named *types.Named) bool {
+	return types.Implements(types.NewPointer(named), textUnmarshalerType()) && hasOrderedProjection(named)
+}
+
+// hasOrderedProjection mirrors spec.TextRangeDomain's projection rules: a
+// Bytes() int64 method on the pointer, or a signed, unsigned, or float
+// underlying kind.
+func hasOrderedProjection(named *types.Named) bool {
+	if method, _, _ := types.LookupFieldOrMethod(types.NewPointer(named), true, nil, "Bytes"); method != nil {
+		if function, ok := method.(*types.Func); ok {
+			if signature, ok := function.Type().(*types.Signature); ok &&
+				signature.Params().Len() == 0 &&
+				signature.Results().Len() == 1 &&
+				types.Identical(signature.Results().At(0).Type(), types.Typ[types.Int64]) {
+				return true
+			}
+		}
+	}
+
+	basic, ok := named.Underlying().(*types.Basic)
+	if !ok {
+		return false
+	}
+
+	switch basic.Kind() {
+	case types.Int, types.Int8, types.Int16, types.Int32, types.Int64,
+		types.Uint, types.Uint8, types.Uint16, types.Uint32, types.Uint64,
+		types.Float32, types.Float64:
+		return true
+	default:
+		return false
+	}
+}
+
+// textUnmarshalerType builds the encoding.TextUnmarshaler interface statically:
+// UnmarshalText(text []byte) error.
+func textUnmarshalerType() *types.Interface {
+	errorType := types.Universe.Lookup("error").Type()
+
+	signature := types.NewSignatureType(
+		nil, nil, nil,
+		types.NewTuple(types.NewParam(token.NoPos, nil, "text", types.NewSlice(types.Typ[types.Byte]))),
+		types.NewTuple(types.NewParam(token.NoPos, nil, "", errorType)),
+		false,
+	)
+
+	return types.NewInterfaceType(
+		[]*types.Func{types.NewFunc(token.NoPos, nil, "UnmarshalText", signature)},
+		nil,
+	).Complete()
+}
+
+// parseByteSizeBound parses a conga.ByteSize bound with the runtime grammar
+// compiled into the analyzer (conga is already linked for the built-in tag
+// specs), so lint and schema build share one parser. spec.ValidateScalarRange
+// derives the diagnostic from the raw bound, keeping messages verbatim.
+func parseByteSizeBound(raw string) (int64, error) {
+	var byteSize conga.ByteSize
+	if err := byteSize.UnmarshalText([]byte(raw)); err != nil {
+		return 0, err
+	}
+
+	return byteSize.Bytes(), nil
 }
 
 func isTimeDuration(named *types.Named) bool {
