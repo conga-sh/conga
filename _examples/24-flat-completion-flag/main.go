@@ -28,9 +28,9 @@ func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
 
 func main() {
 	app := conga.New[CLI]().
-		EnableCompletion().
 		Name("minify").
-		Description("Asset minifier (flat CLI with default --completion flag)")
+		Description("Asset minifier (flat CLI with default --completion flag)").
+		EnableCompletion()
 
 	app.FatalIfError(app.Run())
 }

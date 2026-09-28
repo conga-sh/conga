@@ -27,7 +27,7 @@ import (
 //nolint:gochecknoglobals // the analysis framework requires a package-level Analyzer value
 var Analyzer = &analysis.Analyzer{
 	Name: "congalint",
-	Doc:  "checks CONGA CLI struct definitions for contract compliance (leaf command Runner enforcement, struct tag validation, ancestor flag shadowing, throwaway root detection)",
+	Doc:  "checks CONGA CLI struct definitions for contract compliance (leaf command Runner enforcement, struct tag validation, ancestor flag shadowing, throwaway root detection) plus opt-in fluent builder call order checking",
 	Run:  run,
 	Requires: []*analysis.Analyzer{
 		inspect.Analyzer,
@@ -198,12 +198,18 @@ func configOptionName(pass *analysis.Pass, argument ast.Expr) string {
 func newAnalyzerFlags() flag.FlagSet {
 	flags := flag.FlagSet{}
 	flags.Bool("strict", false, "force strict tag validation regardless of detected app.StrictTagValidation calls")
+	flags.Bool("builder-order", false, "check that builder calls at conga.New construction sites follow the canonical method order")
+	flags.Var(&builderOrderSpec{}, "builder-order-spec", "canonical builder call order: comma- or newline-separated App method names, or @path to read one per line (defaults to the built-in order)")
 
 	return flags
 }
 
 func run(pass *analysis.Pass) (any, error) {
 	checkThrowawayRoots(pass)
+
+	if err := checkBuilderCallOrder(pass); err != nil {
+		return nil, err
+	}
 
 	anchors := discoverAnchors(pass)
 	if len(anchors) == 0 {

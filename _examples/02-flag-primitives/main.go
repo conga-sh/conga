@@ -32,10 +32,10 @@ func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
 
 func main() {
 	app := conga.New[CLI]().
-		EnableCompletion().
 		Name("prims").
 		Description("Primitive flag types, counters, groups, and aliases").
-		Version("1.0.0")
+		Version("1.0.0").
+		EnableCompletion()
 
 	app.FatalIfError(app.Run())
 }

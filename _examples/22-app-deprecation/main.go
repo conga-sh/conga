@@ -35,9 +35,9 @@ func (d *DeployCmd) Run(ctx context.Context, session *conga.Session) error {
 
 func main() {
 	app := conga.New[CLI]().
-		EnableCompletion().
 		Name("app-deprecated").
-		Deprecated("use the new unified tool")
+		Deprecated("use the new unified tool").
+		EnableCompletion()
 
 	app.FatalIfError(app.Run())
 }

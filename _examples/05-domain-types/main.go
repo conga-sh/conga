@@ -6,10 +6,10 @@ import (
 
 func main() {
 	app := conga.New[CLI]().
-		EnableCompletion().
 		Name("domain-demo").
 		Description("Strongly-typed domain types (File with tags, Dir, ByteSize, Custom)").
-		Version("1.0.0")
+		Version("1.0.0").
+		EnableCompletion()
 
 	app.FatalIfError(app.Run())
 }

@@ -58,6 +58,13 @@ tasks:
       - golangci-lint run --fix --max-same-issues=0 --max-issues-per-linter=0 --build-tags shelltest ./test/shell/...
       - golangci-lint run --fix --max-same-issues=0 --max-issues-per-linter=0 --build-tags sizetest ./test/size/...
 
+  lint:style:
+    desc: Check the canonical fluent builder call order at conga.New sites (opt-in; supports --fix via --)
+    # Example packages are not matched by ./...; pass them explicitly, e.g.
+    #   task lint:style -- ./_examples/[0-9]*
+    cmds:
+      - go tool conga-lint -builder-order {{.CLI_ARGS | default "./..."}}
+
   coverage:
     desc: Report test coverage (supports custom flags or packages via --)
     cmds:

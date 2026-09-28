@@ -56,10 +56,10 @@ func main() {
 		DisableVersionFlag().
 		// Errors stay clean; the host renders usage itself if it wants to.
 		UsageOnError(conga.UsageSilence).
+		Args(os.Args[1:]).
+		Stdin(strings.NewReader("host-provided stdin\n")).
 		Stdout(&stdoutBuffer).
 		Stderr(&stderrBuffer).
-		Stdin(strings.NewReader("host-provided stdin\n")).
-		Args(os.Args[1:]).
 		ExitFunc(func(code int) { capturedCode = code })
 
 	// RunContext accepts a host-provided context (cancellation, deadlines,

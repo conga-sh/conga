@@ -6,10 +6,10 @@ import (
 
 func main() {
 	app := conga.New[CLI]().
-		EnableCompletion().
 		Name("nodectl").
 		Description("Node administration CLI with modular system and network completion").
-		Version("1.0.0")
+		Version("1.0.0").
+		EnableCompletion()
 
 	app.FatalIfError(app.Run())
 }

@@ -33,8 +33,8 @@ func main() {
 		Name("server-precedence").
 		Description("12-Factor configuration resolution and 4-tier precedence").
 		Version("1.0.0").
-		EnvPrefix("SERVER").
 		EnableWhy().
+		EnvPrefix("SERVER").
 		RegisterDecoder(".toml", toml.RawDecoder)
 
 	app.FatalIfError(app.Run())

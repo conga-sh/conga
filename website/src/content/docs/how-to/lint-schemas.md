@@ -31,6 +31,7 @@ go tool conga-lint ./... ./_examples/...
 | Ancestor flag shadowing | The runtime `ErrDuplicateFlag` rule: a flag name, alias, or short rune declared on an ancestor cannot be redeclared on a descendant |
 | Cascading guard | The schema rejection of `config.Cascading()` without a `multi:"true"` root `ConfigFile` flag |
 | Throwaway root detection | Lint-only: flags `conga.New(root)` when the root instance is never referenced outside the app, steering authors to the engine-allocating `conga.New[T]()` form. Caller-owned instances (seeded before or read after execution) and multi-root panic guards are left alone; unlike anchor discovery, this check also covers `_test.go` files |
+| Builder call order (opt-in) | The fluent builder conventions: with `-builder-order`, flags builder calls at `conga.New` construction sites that break the canonical order (identity first, `Enable*`/`Disable*` alphabetically, behaviour calls grouped, execution last); `-builder-order-spec` overrides the order and `-fix` reorders what can move safely |
 
 All checks delegate to the exported validators in `internal/spec`, so lint-time and runtime validation share one source of truth and produce the same messages.
 
@@ -47,6 +48,18 @@ Non-literal (computed) arguments leave the evidence ambiguous; the analyzer then
 ```sh
 go tool conga-lint -strict ./...
 ```
+
+## Builder call order (opt-in)
+
+`-builder-order` checks the fluent builder calls at every `conga.New` construction site — both the constructor chain and the straight-line builder statements on the app variable — against the canonical method order: identity and documentation first, the `Enable*`/`Disable*` toggles alphabetically, behaviour calls grouped, and the execution methods last.
+
+```sh
+go tool conga-lint -builder-order ./...
+go tool conga-lint -builder-order -fix ./...           # apply the reordering
+go tool conga-lint -builder-order -fix -diff ./...     # preview it instead
+```
+
+`-builder-order-spec` replaces the built-in order; it accepts a comma- or newline-separated list of App method names or `@path` to read one method per line (`#` starts a comment). Methods left out of the spec stay unconstrained. `-fix` reorders the calls it can move safely: barrier calls such as `Use(...)`, which execute plugin functions, never move, calls never cross the constructor-chain/statement boundary, and comment placement or statement shapes that cannot be swapped safely downgrade the violation to a manual reorder. Test files and generated files are exempt. Inside the CONGA repository, `task lint:style` runs the check.
 
 ## Relationship to runtime errors
 

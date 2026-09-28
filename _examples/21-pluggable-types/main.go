@@ -9,14 +9,10 @@ import (
 
 func main() {
 	app := conga.New[CLI]().
-		EnableCompletion().
 		Name("pluggable-demo").
 		Description("Pluggable type parsers, standard library types, and modular plugins").
 		Version("1.0.0").
-		Use(
-			timezone.Location,
-			system.Signal,
-		)
+		EnableCompletion()
 
 	// RegisterType wires a parser for a foreign type that CONGA cannot parse
 	// natively and that does not implement TextUnmarshaler; WithPredictor
@@ -29,6 +25,11 @@ func main() {
 			predict.NewItem("90%", "Critical load"),
 		),
 	))
+
+	app.Use(
+		timezone.Location,
+		system.Signal,
+	)
 
 	app.FatalIfError(app.Run())
 }
