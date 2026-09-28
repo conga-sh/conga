@@ -1,0 +1,118 @@
+---
+import { Icon } from '@astrojs/starlight/components';
+import type { StarlightIcon } from '@astrojs/starlight/types';
+
+interface Props {
+	title: string;
+	description?: string;
+	href: string;
+	icon: StarlightIcon;
+}
+
+const { title, description, href, icon } = Astro.props;
+---
+
+<div class="icon-link-card">
+	<span class="stack">
+		<a href={href}>
+			<span class="chip"><Icon name={icon} size="1em" /></span>
+			<span class="title">{title}</span>
+		</a>
+		{description && <span class="description">{description}</span>}
+	</span>
+	<Icon name="right-arrow" size="1.333em" class="arrow" />
+</div>
+
+<style>
+	@layer starlight.components {
+		.icon-link-card {
+			--chip-border: var(--sl-color-purple);
+			--chip-bg: var(--sl-color-purple-low);
+			display: grid;
+			grid-template-columns: 1fr auto;
+			gap: 0.5rem;
+			border: 1px solid var(--sl-color-gray-5);
+			border-radius: 0.5rem;
+			padding: 1rem;
+			box-shadow: var(--sl-shadow-sm);
+			position: relative;
+		}
+
+		.icon-link-card:nth-child(4n + 1) {
+			--chip-border: var(--sl-color-orange);
+			--chip-bg: var(--sl-color-orange-low);
+		}
+
+		.icon-link-card:nth-child(4n + 3) {
+			--chip-border: var(--sl-color-green);
+			--chip-bg: var(--sl-color-green-low);
+		}
+
+		.icon-link-card:nth-child(4n + 4) {
+			--chip-border: var(--sl-color-red);
+			--chip-bg: var(--sl-color-red-low);
+		}
+
+		.icon-link-card:nth-child(4n + 5) {
+			--chip-border: var(--sl-color-blue);
+			--chip-bg: var(--sl-color-blue-low);
+		}
+
+		.icon-link-card a {
+			display: flex;
+			align-items: center;
+			gap: 0.75rem;
+			text-decoration: none;
+			line-height: var(--sl-line-height-headings);
+		}
+
+		.icon-link-card a::before {
+			content: '';
+			position: absolute;
+			inset: 0;
+		}
+
+		.stack {
+			display: flex;
+			flex-direction: column;
+			gap: 0.5rem;
+		}
+
+		.chip {
+			display: inline-flex;
+			align-items: center;
+			justify-content: center;
+			width: 2rem;
+			height: 2rem;
+			border: 1px solid var(--chip-border);
+			background-color: var(--chip-bg);
+			border-radius: 0.375rem;
+			color: var(--sl-color-white);
+			flex-shrink: 0;
+		}
+
+		.title {
+			color: var(--sl-color-white);
+			font-weight: 600;
+			font-size: var(--sl-text-lg);
+		}
+
+		.description {
+			color: var(--sl-color-gray-3);
+			line-height: 1.5;
+		}
+
+		.arrow {
+			color: var(--sl-color-gray-3);
+		}
+
+		.icon-link-card:hover {
+			background: var(--sl-color-gray-7, var(--sl-color-gray-6));
+			border-color: var(--sl-color-gray-2);
+		}
+
+		.icon-link-card:hover .arrow {
+			color: var(--sl-color-white);
+		}
+	}
+</style>
