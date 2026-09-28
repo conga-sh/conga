@@ -13,39 +13,49 @@ hero:
       variant: minimal
 ---
 
-import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components';
+import { CardGrid, LinkCard } from '@astrojs/starlight/components';
 
-<CardGrid stagger>
-  <Card title="Model the CLI as Go types">
-    Each command is a Go struct whose fields and tags describe its flags, arguments, subcommands, and constraints. CONGA reads that structure to generate the schema, help screen, validation, and completion. Foo
-  </Card>
-  <Card title="12-factor configuration">
-    Every value resolves through a deterministic precedence ladder — CLI &gt; environment &gt; config file &gt; default — with provenance tracking on every field.
-  </Card>
-  <Card title="6-shell autocompletion">
-    Bash, zsh, fish, powershell, elvish, and nushell — all driven by CONGA's own completion engine and a decoupled predictor SDK.
-  </Card>
-  <Card title="Self-completing domain types">
-    `File`, `Dir`, `ByteSize`, and friends complete and validate themselves; any type implementing `TextUnmarshaler` joins in for free. See the [domain type reference](reference/domain-types/).
-  </Card>
-  <Card title="Static schema linting">
-    `conga-lint` checks the schema contract at build time — struct tags, leaf `Runner` implementations, and ancestor flag shadowing — before your binary ever runs. See [linting schemas](how-to/lint-schemas/).
-  </Card>
-  <Card title="Lifecycle with guaranteed teardown">
-    `Validate` → `PreRun` → `Run` → `PostRun` → `Finally`: hooks receive `ctx` and `session`, and `Finally` runs on success and failure alike. See [the lifecycle](explanation/lifecycle/).
-  </Card>
-  <Card title="Custom types and decoders">
-    Turn any type into a flag with `app.RegisterType`, register map parsers, or add a decoder for a new configuration format. See [custom types and decoders](how-to/custom-types-and-decoders/).
-  </Card>
-  <Card title="Opt-in subsystems, linker friendly">
-    Completion, configuration, and `.env` loading link only when enabled, and unused payloads are dead-code eliminated. See [About binary size and linking](explanation/binary-size/) for measured comparisons.
-  </Card>
+<CardGrid>
+  <LinkCard
+    title="Commands from Go structs"
+    description="Flags, arguments, and subcommands are ordinary struct fields; CONGA handles parsing, help, and validation."
+    href="reference/struct-tags/"
+  />
+  <LinkCard
+    title="Configuration you can trace"
+    description="Values resolve from flags, environment variables, config files, and defaults in a fixed order — and you can see where each one came from."
+    href="explanation/value-precedence/"
+  />
+  <LinkCard
+    title="Completion for six shells"
+    description="Tab completion for bash, zsh, fish, PowerShell, elvish, and nushell, generated from your command definitions."
+    href="how-to/enable-shell-completion/"
+  />
+  <LinkCard
+    title="Types that complete themselves"
+    description="File paths, directories, sizes, and durations validate and complete themselves in every supported shell."
+    href="reference/domain-types/"
+  />
+  <LinkCard
+    title="Catch mistakes before runtime"
+    description="A static linter checks command definitions for tag typos, missing handlers, and conflicting flags in your editor or CI."
+    href="how-to/lint-schemas/"
+  />
+  <LinkCard
+    title="A reliable command lifecycle"
+    description="Validation, setup, execution, and cleanup run in a fixed order, and cleanup runs even when the command fails."
+    href="explanation/lifecycle/"
+  />
+  <LinkCard
+    title="Bring your own types and formats"
+    description="Teach CONGA about your own types or add support for a new configuration file format."
+    href="how-to/custom-types-and-decoders/"
+  />
+  <LinkCard
+    title="Only ship what you use"
+    description="Optional features are included in your binary only when you enable them."
+    href="explanation/binary-size/"
+  />
 </CardGrid>
-
-## Where to go next
-
-- Understand the [value precedence ladder](explanation/value-precedence/) every flag goes through.
-- Browse the [struct tag reference](reference/struct-tags/) for the full declarative surface.
-- Copy [runnable examples](tutorials/cookbook/) from the 27-example collection.
 
 <LinkCard title="Installation" description="Add CONGA to your Go module." href="tutorials/installation/" />
