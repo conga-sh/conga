@@ -1,0 +1,38 @@
+# TestScript for 04-positional-args
+# Asserts required positionals, optional positionals, trailing positional slices, and enum constraints
+
+# 1. Missing mandatory <channel> argument
+exit-status 2 notify
+stderr 'missing required positional argument <channel>'
+
+# 2. Invalid enum value for positional argument <channel>
+exit-status 2 notify discord
+stderr 'invalid value "discord" \(must be one of: slack, email, sms, webhook\) for argument <channel>'
+
+# 3. Single positional argument (optional message defaults to fallback)
+exec notify slack
+stdout '<channel>\s+string\s+slack\s+● cli'
+stdout '\[message\]\s+string\s+—\s+○ unset'
+stdout 'Broadcast: channel=slack message="Ping health check" urgent=false extra_recipients=0'
+
+# 4. Two positional arguments
+exec notify slack 'Deployment complete'
+stdout '<channel>\s+string\s+slack\s+● cli'
+stdout '\[message\]\s+string\s+Deployment complete\s+● cli'
+stdout 'Broadcast: channel=slack message="Deployment complete" urgent=false extra_recipients=0'
+
+# 5. Trailing positional slice with flags
+exec notify -u email 'Database failover' devops oncall lead
+stdout '-u, --urgent\s+bool\s+true\s+● cli --urgent'
+stdout '<channel>\s+string\s+email\s+● cli'
+stdout '\[message\]\s+string\s+Database failover\s+● cli'
+stdout '\[recipients\.\.\.\]\s+\[\]string\s+\[devops, oncall, lead\]\s+● cli'
+stdout 'Broadcast: channel=email message="Database failover" urgent=true extra_recipients=3'
+
+# 6. Help screen shows positional argument names and enum
+exec notify --help
+stdout 'Usage:'
+stdout 'notify <channel> \[message\] \[recipients\.\.\.\] \[flags\]'
+stdout '<channel>\s+Target channel \(slack, email, sms, webhook\)'
+stdout '\[message\]\s+Broadcast message payload'
+stdout '\[recipients\.\.\.\]\s+Additional recipient tags or handles'

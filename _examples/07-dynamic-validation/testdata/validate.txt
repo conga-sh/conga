@@ -1,0 +1,29 @@
+# TestScript for 07-dynamic-validation
+# Asserts conga.Validator programmatic cross-field validation
+
+# 1. Valid default run
+exec validator-demo
+stdout '⚙  validator-demo'
+stdout '--start-date\s+string\s+2026-01-01\s+· default'
+stdout '--end-date\s+string\s+2026-01-31\s+· default'
+stdout '--max-retries\s+int\s+3\s+· default'
+stdout '--backoff\s+time\.Duration\s+1s\s+· default'
+
+# 2. Valid custom date range
+exec validator-demo --start-date 2026-06-01 --end-date 2026-06-30 --max-retries 5 --backoff 2s
+stdout '--start-date\s+string\s+2026-06-01\s+● cli --start-date'
+stdout '--end-date\s+string\s+2026-06-30\s+● cli --end-date'
+stdout '--max-retries\s+int\s+5\s+● cli --max-retries'
+stdout '--backoff\s+time\.Duration\s+2s\s+● cli --backoff'
+
+# 3. Cross-field validation failure: end-date before start-date
+exit-status 2 validator-demo --start-date 2026-12-01 --end-date 2026-01-01
+stderr 'end-date \(2026-01-01\) cannot be earlier than start-date \(2026-12-01\)'
+
+# 4. Invalid date format
+exit-status 2 validator-demo --start-date not-a-date
+stderr 'invalid start-date format'
+
+# 5. Invalid zero backoff when max-retries > 0
+exit-status 2 validator-demo --max-retries 5 --backoff 0s
+stderr 'backoff duration must be positive when max-retries > 0'

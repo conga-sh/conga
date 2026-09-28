@@ -1,0 +1,54 @@
+{
+  "verbosity": 4,
+  "format": "hcl",
+  "cache": false,
+  "api_secret": "json-secret-key-abc123",
+
+  "types": {
+    "primitives": {
+      "string_flag": "json-configured",
+      "bool_flag": true,
+      "int_flag": 101,
+      "int8_flag": 9,
+      "int16_flag": 161,
+      "int32_flag": 3201,
+      "int64_flag": 64001,
+      "uint_flag": 201,
+      "uint8_flag": 81,
+      "uint16_flag": 1601,
+      "uint32_flag": 32001,
+      "uint64_flag": 64001,
+      "float32_flag": 1.6,
+      "float64_flag": 3.04,
+      "tags": ["json", "prod", "monitored"],
+      "ports": [8081, 8444, 9091]
+    },
+    "filesystem": {
+      "input_file": "/etc/hosts",
+      "output_dir": "/tmp",
+      "log_file": "/var/log/demo.log",
+      "data_dir": "/var/lib/demo",
+      "editor": "sh",
+      "hook": "deploy-hook"
+    },
+    "values": {
+      "timeout": "2m",
+      "endpoint": "https://json.example.com/v2",
+      "max_size": "60MB",
+      "level": "error",
+      "shard_map": { "web": "2", "worker": "4" }
+    }
+  },
+
+  "config": {
+    "context": "staging",
+    "maps": {
+      "vars": { "LOG_LEVEL": "info", "APP_ENV": "qa", "DB_HOST": "db.local" },
+      "labels": ["tier=api", "team=backend"]
+    },
+    "nested": {
+      "zone": "us-west-2b",
+      "count": 7
+    }
+  }
+}

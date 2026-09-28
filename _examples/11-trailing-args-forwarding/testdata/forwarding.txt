@@ -1,0 +1,32 @@
+# TestScript for 11-trailing-args-forwarding
+# Asserts DashArgs (--) and RawArgs (bare unparsed args)
+
+# 1. Test subcommand without DashArgs
+exec runner test ./pkg/server
+stdout '⚙  runner test'
+stdout 'runner · root'
+stdout 'test · active'
+stdout '<pkg>\s+string\s+\./pkg/server\s+● cli'
+stdout '\[-- <args\.\.\.>\]\s+DashArgs\s+—\s+○ unset'
+
+# 2. Test subcommand with DashArgs forwarded after '--'
+exec runner test ./pkg/server -- -v -run TestAuth -count 5
+stdout '⚙  runner test'
+stdout '\[-- <args\.\.\.>\]\s+DashArgs\s+-v -run TestAuth -count 5\s+● cli'
+
+# 3. Exec subcommand with bare unparsed arguments
+exec runner exec my-container ls -la /var/log
+stdout '⚙  runner exec'
+stdout 'exec · active'
+stdout '<container>\s+string\s+my-container\s+● cli'
+stdout '\[command\] \[args\.\.\.\]\s+RawArgs\s+ls -la /var/log\s+● cli'
+
+# 4. Global flags mixed with raw container arguments
+exec runner -v exec my-container python3 -m http.server 8000
+stdout '<container>\s+string\s+my-container\s+● cli'
+stdout '-v, --verbose\s+bool\s+true\s+● cli --verbose'
+stdout '\[command\] \[args\.\.\.\]\s+RawArgs\s+python3 -m http\.server 8000\s+● cli'
+
+# 5. RawArgs swallows tokens that look like the app's own flags (no '--' needed)
+exec runner exec my-container grep -v -r --include '*.go' TODO
+stdout '\[command\] \[args\.\.\.\]\s+RawArgs\s+grep -v -r --include \*\.go TODO\s+● cli'

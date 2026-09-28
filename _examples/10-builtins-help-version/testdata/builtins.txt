@@ -1,0 +1,77 @@
+# TestScript for 10-builtins-help-version
+# Asserts HelpCommand and VersionCommand built-ins, plus help enrichment via
+# the Examples/Footer builders and the Description/Examples subcommand methods
+
+# 1. Normal command execution
+exec infomgr status -d
+stdout '⚙  infomgr status'
+stdout 'infomgr · root'
+stdout 'status · active'
+stdout 'status\s+command\s+—\s+▸ selected'
+stdout '-d, --detailed\s+bool\s+true\s+● cli --detailed'
+
+# 2. Flag --version (single-line summary)
+exec infomgr --version
+stdout 'infomgr has version 2\.4\.1 built with go'
+
+# 3. Subcommand `version` (docker-style multi-line manifest)
+exec infomgr version
+stdout 'infomgr:'
+stdout 'Version:\s+2\.4\.1'
+stdout 'Go version:\s+go'
+stdout 'OS/Arch:'
+
+# 4. Subcommand `version --json` (machine-readable object)
+exec infomgr version --json
+stdout '"version":"2\.4\.1"'
+stdout '"goVersion":"go'
+stdout '"modified":false'
+
+# 5. Subcommand `help` (root help: description, examples, footer)
+exec infomgr help
+stdout 'Usage:'
+stdout 'infomgr <command>'
+stdout 'Commands:'
+stdout 'status'
+stdout 'help'
+stdout 'version'
+stdout 'Examples:'
+stdout '  infomgr status$'
+stdout '  infomgr help status$'
+stdout 'infomgr home: https://example\.com/infomgr'
+
+# 6. Subcommand `help status` (Description and Examples methods enrich the screen)
+exec infomgr help status
+stdout 'Usage:'
+stdout 'infomgr status \[flags\]'
+stdout 'Reports the health of every subsystem infomgr manages\.'
+stdout 'Flags:'
+stdout '-d, --detailed\s+Show detailed subsystem diagnostics'
+stdout 'Examples:'
+stdout '  infomgr status$'
+stdout '  infomgr status --detailed$'
+
+# 7. Subcommand `help nonexistent`
+exit-status 2 infomgr help nonexistent
+stderr 'unknown command "nonexistent"'
+
+# 8. Invalid flag with UsageHint mode
+exit-status 2 infomgr status --unknown
+stderr 'unknown flag: --unknown'
+stderr 'Run ''infomgr status --help'' for more information'
+
+# 9. Custom commands rendering through the session primitives
+exec infomgr guide
+stdout 'Usage:'
+stdout 'infomgr guide'
+
+exec infomgr syntax
+stderr 'Usage:'
+stderr 'infomgr syntax'
+
+exec infomgr about
+stdout 'infomgr has version 2\.4\.1'
+
+# 10. Invalid --json value is a usage error
+exit-status 2 infomgr version --json=banana
+stderr 'invalid boolean value "banana"'

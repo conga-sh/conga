@@ -1,0 +1,162 @@
+# TestScript for 20-modular-predictors
+# Asserts nested subcommand grouping and the predict/system + predict/network
+# modular domain types (shell script coverage lives in 19-shell-completion)
+
+# 1. Normal command execution (system)
+exec nodectl system kill --signal SIGTERM 1234
+stdout '⚙  nodectl system kill'
+stdout '<target>\s+system\.PID\s+1234\s+● cli'
+stdout '-s, --signal\s+system\.Signal\s+SIGTERM\s+● cli --signal'
+stdout 'Signaling PID 1234 with SIGTERM \(signal 15\)'
+
+exec nodectl system service worker-daemon --pass-env PATH --env-var PATH
+stdout '⚙  nodectl system service'
+stdout '<name>\s+string\s+worker-daemon\s+● cli'
+stdout '--pass-env\s+system\.EnvVar\s+PATH\s+● cli --pass-env'
+stdout 'env PATH: set=true value='
+stdout 'pass-env PATH='
+
+# Account lookups read the system databases: root exists on POSIX systems and
+# the root group is available on Linux.
+[unix] exec nodectl system service worker-daemon --user root
+[unix] stdout 'user: uid=0 gid=0'
+
+[linux] exec nodectl system service worker-daemon --group root
+[linux] stdout 'group: gid=0'
+
+exec nodectl system inspect 5678
+stdout '⚙  nodectl system inspect'
+stdout '<pid>\s+system\.PID\s+5678\s+● cli'
+
+# 2. Normal command execution (network)
+exec nodectl network probe localhost --method GET --expect 200
+stdout '⚙  nodectl network probe'
+stdout '<host>\s+network\.Host\s+localhost\s+● cli'
+stdout 'Probing localhost via GET \(expecting 200 OK\)'
+
+# Interface lookup reads the system interface table (loopback exists on Linux)
+[linux] exec nodectl network probe localhost --interface lo
+[linux] stdout 'interface lo: mtu='
+[linux] stdout 'interface lo addrs: [0-9]+'
+
+exec nodectl network scan 127.0.0.1 --ports 80,443
+stdout '⚙  nodectl network scan'
+stdout '<host>\s+network\.Host\s+127\.0\.0\.1\s+● cli'
+stdout '-p, --ports\s+\[\]network\.Port\s+\[80 443\]\s+● cli --ports'
+
+exec nodectl network serve --port 8080 --status 200 --content-type application/json
+stdout '⚙  nodectl network serve'
+stdout '-p, --port\s+network\.Port\s+8080\s+● cli --port'
+stdout 'Mock responder would listen on port 8080 \(returning 200 OK, application/json\)'
+stdout 'port privileged: false'
+stdout 'status class: success=true client_error=false server_error=false'
+stdout 'media: type=application subtype=json'
+
+exec nodectl network serve --port 443 --status 404 --content-type text/html
+stdout 'port privileged: true'
+stdout 'status class: success=false client_error=true server_error=false'
+stdout 'media: type=text subtype=html'
+
+exec nodectl network serve --port 80 --status 500
+stdout 'status class: success=false client_error=false server_error=true'
+
+# 3. Shell completion scripts (bash/zsh smoke; 19-shell-completion owns the full sweep)
+exec nodectl completion bash
+stdout '_nodectl_completion'
+stdout 'complete -o noquote -F _nodectl_completion nodectl'
+
+exec nodectl completion zsh
+stdout '#compdef nodectl'
+stdout '_nodectl_completion'
+
+# Aliases are not accepted, and invalid shells exit 2
+exit-status 2 nodectl completion pwsh
+stderr 'unknown shell "pwsh"'
+
+exit-status 2 nodectl completion nu
+stderr 'unknown shell "nu"'
+
+exit-status 2 nodectl completion invalidshell
+stderr 'unknown shell "invalidshell"'
+
+# 4. Nested subcommand completion: group names, then group members
+exec nodectl __complete export ''
+stdout '"value":"system"'
+stdout '"value":"network"'
+stdout '"value":"completion"'
+
+exec nodectl __complete export system ''
+stdout '"value":"kill"'
+stdout '"value":"service"'
+stdout '"value":"inspect"'
+
+exec nodectl __complete export network ''
+stdout '"value":"probe"'
+stdout '"value":"scan"'
+stdout '"value":"serve"'
+
+# 5. Built-in version manifest
+exec nodectl version
+stdout 'nodectl:'
+stdout 'Version:\s+1\.0\.0'
+stdout 'Go version:\s+go'
+
+# 6. Dynamic completion - Kill Command Flags and Signals
+exec nodectl __complete export system kill --
+stdout '"value":"--signal"'
+stdout '"value":"--process"'
+
+exec nodectl __complete export system kill -
+stdout '"value":"-s"'
+stdout '"value":"-p"'
+
+exec nodectl __complete export system kill --signal=
+stdout '"value":"--signal=SIGTERM"'
+stdout '"value":"--signal=SIGKILL"'
+stdout '"value":"--signal=SIGINT"'
+stdout '"tag":"signals"'
+
+exec nodectl __complete export system kill --signal SIGK
+stdout '"value":"SIGKILL"'
+
+# 7. Dynamic completion - Service Flags (User, Group, EnvVar, Locale)
+exec nodectl __complete export system service --locale=
+stdout '"tag":"locales"'
+
+exec nodectl __complete export system service --user=
+stdout '"tag":"users"'
+
+exec nodectl __complete export system service --group=
+stdout '"tag":"user groups"'
+
+exec nodectl __complete export system service --env-var=
+stdout '"tag":"environment variables"'
+
+# 8. Dynamic completion - Inspect Command (PIDs and Processes)
+exec nodectl __complete export system inspect --process=
+stdout '"tag":"processes"'
+
+exec nodectl __complete export system inspect ''
+stdout '"tag":"pids"'
+
+# 9. Dynamic completion - HTTP Methods, Status Codes, Ports, MIME Types
+exec nodectl __complete export network probe --method ''
+stdout '"value":"GET"'
+stdout '"value":"POST"'
+stdout '"value":"PUT"'
+stdout '"value":"DELETE"'
+
+exec nodectl __complete export network probe --expect ''
+stdout '"value":"200"'
+stdout '"value":"404"'
+stdout '"value":"500"'
+
+exec nodectl __complete export network serve --port ''
+stdout '"value":"80"'
+stdout '"value":"443"'
+stdout '"value":"8080"'
+stdout '"value":"5432"'
+
+exec nodectl __complete export network probe --content-type ''
+stdout '"value":"application/json"'
+stdout '"value":"text/html"'

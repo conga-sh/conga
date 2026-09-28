@@ -1,0 +1,50 @@
+# TestScript for 15-cascading-searchpaths
+# Asserts cascading config file search paths and tiered merging (system -> user -> local)
+
+env HOME=$WORK/home
+env SYSCONF_DIR=$WORK/etc/cascading-app
+
+# 1. Cascading merge of system -> user -> local
+exec cascading-app
+stdout '⚙  cascading-app'
+stdout '-c, --config-file\s+conga\.ConfigFile\s+.*etc[/\\]cascading-app[/\\]cascading-app\.yaml, .*cascading-app\.yaml, cascading-app\.yaml\s+● config '
+stdout '--api-endpoint\s+string\s+https://api\.local\.dev\s+● config api-endpoint'
+stdout '--timeout\s+time\.Duration\s+15s\s+● config timeout'
+stdout '--theme\s+string\s+light\s+● config theme'
+stdout '--telemetry\s+bool\s+false\s+● config telemetry'
+
+# 2. CLI flag overrides cascading merged values
+exec cascading-app --theme solarized --timeout 5s
+stdout '--theme\s+string\s+solarized\s+● cli --theme'
+stdout '--timeout\s+time\.Duration\s+5s\s+● cli --timeout'
+
+# 3. Explicit -c disables cascading: only that single file is loaded
+exec cascading-app -c home/.config/cascading-app/cascading-app.yaml
+stdout '--theme\s+string\s+light\s+● config theme'
+stdout '--timeout\s+time\.Duration\s+15s\s+● config timeout'
+stdout '--api-endpoint\s+string\s+https://api\.default\.io\s+· default'
+stdout '--telemetry\s+bool\s+true\s+· default'
+
+# 4. Missing explicit config file fails with a clean error (exit 1)
+exit-status 1 cascading-app -c missing.yaml
+stderr 'cannot read config file "missing\.yaml"'
+
+# 5. Partial cascade: missing intermediate files are skipped silently
+rm home/.config/cascading-app/cascading-app.yaml
+exec cascading-app
+stdout '--api-endpoint\s+string\s+https://api\.local\.dev\s+● config api-endpoint'
+stdout '--timeout\s+time\.Duration\s+30s\s+● config timeout'
+stdout '--theme\s+string\s+dark\s+· default'
+
+-- etc/cascading-app/cascading-app.yaml --
+api_endpoint: "https://api.system.corp"
+timeout: "30s"
+telemetry: false
+
+-- home/.config/cascading-app/cascading-app.yaml --
+theme: "light"
+timeout: "15s"
+
+-- cascading-app.yaml --
+api_endpoint: "https://api.local.dev"
+

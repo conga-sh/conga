@@ -1,0 +1,66 @@
+# Kitchen Sink - YAML Format
+# This file demonstrates every supported type and configuration pattern
+
+# Root flags (top-level keys)
+verbosity: 3
+format: toml
+cache: false
+api_secret: yaml-secret-key-def456
+
+# Primitives subcommand
+types:
+  primitives:
+    string_flag: yaml-configured
+    bool_flag: true
+    int_flag: 102
+    int8_flag: 10
+    int16_flag: 162
+    int32_flag: 3202
+    int64_flag: 64002
+    uint_flag: 202
+    uint8_flag: 82
+    uint16_flag: 1602
+    uint32_flag: 32002
+    uint64_flag: 64002
+    float32_flag: 1.7
+    float64_flag: 2.95
+    tags: ["yaml", "prod", "monitored"]
+    ports: [8082, 8445, 9092]
+
+  # Filesystem subcommand
+  filesystem:
+    input_file: /etc/hosts
+    output_dir: /tmp
+    log_file: /var/log/demo.log
+    data_dir: /var/lib/demo
+    editor: sh
+    hook: deploy-hook # created by the test suite (symlink)
+
+  # Value subcommand
+  values:
+    timeout: 90s
+    endpoint: https://yaml.example.com/v2
+    max_size: 70MB
+    level: debug
+    shard_map:
+      web: "1"
+      worker: "6"
+
+# Config subcommand (shared context flag)
+config:
+  context: development
+
+  # Config maps subcommand: native map vs array-of-strings encodings
+  maps:
+    vars:
+      LOG_LEVEL: warn
+      APP_ENV: staging
+      DB_HOST: yaml-db.local
+    labels:
+      - tier=worker
+      - team=sre
+
+  # Config nested subcommand (deep nesting)
+  nested:
+    zone: eu-central-1c
+    count: 9

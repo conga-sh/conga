@@ -1,0 +1,50 @@
+# TestScript for 02-flag-primitives
+# Asserts primitive flag types, durations, clustered counters, aliases, and hidden flags
+
+# 1. Defaults
+exec prims
+stdout '⚙  prims'
+stdout '-p, --port\s+int\s+8080\s+· default'
+stdout '--timeout\s+time\.Duration\s+30s\s+· default'
+stdout '-v, --verbosity\s+conga\.Counter\s+0\s+○ unset'
+
+# 2. Clustered counter flag (-vvv) and time.Duration parsing
+exec prims -vvv --timeout 1m15s --rate 3.25
+stdout '-v, --verbosity\s+conga\.Counter\s+3\s+● cli --verbosity'
+stdout '--timeout\s+time\.Duration\s+1m15s\s+● cli --timeout'
+stdout '--rate\s+float64\s+3\.25\s+● cli --rate'
+
+# 3. Short flag clustering with boolean and int flag (-dvv -p 9000)
+exec prims -dvv -p 9000
+stdout '-d, --debug\s+bool\s+true\s+● cli --debug'
+stdout '-v, --verbosity\s+conga\.Counter\s+2\s+● cli --verbosity'
+stdout '-p, --port\s+int\s+9000\s+● cli --port'
+
+# 4. Flag alias (--dbg)
+exec prims --dbg
+stdout '-d, --debug\s+bool\s+true\s+● cli --debug'
+
+# 5. Hidden flag accepted
+exec prims --secret-key supersecret
+stdout '--secret-key\s+string\s+supersecret\s+● cli --secret-key'
+
+# 6. Attached --flag=value syntax
+exec prims --port=9999
+stdout '-p, --port\s+int\s+9999\s+● cli --port'
+
+# 7. Type coercion failure: non-numeric port
+exit-status 2 prims -p notanumber
+stderr 'invalid integer value "notanumber" for flag --port'
+
+# 8. Type coercion failure: malformed duration
+exit-status 2 prims --timeout bogus
+stderr 'invalid duration "bogus" \(valid units: ms, s, m, h\) for flag --timeout'
+
+# 9. Help screen shows flags and excludes hidden flags
+exec prims --help
+stdout 'Logging Options:'
+stdout 'Network Options:'
+stdout '-v, --verbosity'
+stdout '-d, --debug'
+stdout '-p, --port'
+! stdout '--secret-key'

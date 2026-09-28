@@ -1,0 +1,118 @@
+# TestScript for 13-twelve-factor-precedence
+# Asserts 4-tier configuration precedence: CLI Flag > Environment Variable > Config File > Struct Default,
+# env:"-" exclusion, and config:"-" rejection
+
+env HOME=$WORK/home
+env XDG_CONFIG_HOME=$WORK/xdg
+
+# 1. Tier 4: struct defaults
+exec server-precedence
+stdout '⚙  server-precedence'
+stdout '-p, --port\s+int\s+8080\s+· default'
+stdout '--host\s+string\s+127\.0\.0\.1\s+· default'
+stdout '-e, --environment\s+string\s+dev\s+· default'
+stdout '-d, --debug\s+bool\s+false\s+· default'
+stdout '--worker-id\s+string\s+—\s+○ unset'
+! stdout '--session-id'
+
+# 2. Tier 3: config file overrides defaults
+exec server-precedence -c server.toml
+stdout '-c, --config-file\s+conga\.ConfigFile\s+server\.toml\s+● cli --config-file'
+stdout '-p, --port\s+int\s+9001\s+● config port'
+stdout '--host\s+string\s+10\.0\.0\.1\s+● config host'
+stdout '-e, --environment\s+string\s+staging\s+● config environment'
+stdout '-d, --debug\s+bool\s+true\s+● config debug'
+stdout '--worker-id\s+string\s+w-file\s+● config worker-id'
+
+# 3. --why displays non-sensitive flag values tagged safe:"true"
+exec server-precedence -c server.toml --why
+stdout '--port\s+9001\s+config\s+PORT\s+port'
+! stdout '██████'
+
+# 4. Tier 2: environment variable overrides config file
+# (--port declares env:"PORT" verbatim; the SERVER_ prefix only applies to flags without an env tag)
+env PORT=9002
+exec server-precedence -c server.toml
+stdout '-p, --port\s+int\s+9002\s+● env PORT'
+stdout '--host\s+string\s+10\.0\.0\.1\s+● config host'
+
+# 5. Tier 1: CLI flag overrides environment variable and config file
+exec server-precedence -c server.toml -p 9003
+stdout '-p, --port\s+int\s+9003\s+● cli --port'
+stdout '--host\s+string\s+10\.0\.0\.1\s+● config host'
+
+# 6. --why indicates the loaded decoders, the missing built-in tier, and how
+#    to create a config file the application will see
+exec server-precedence --why
+stdout 'Config decoders: \.toml'
+stdout 'xdg[/\\]server-precedence\s+directory does not exist'
+stdout 'looked for: .*xdg[/\\]server-precedence\.toml'
+stdout 'Create a configuration file at one of:'
+stdout 'xdg[/\\]server-precedence[/\\]config\.toml'
+
+# 7. Built-in conventional tier: ${XDG_CONFIG_HOME:-~/.config}/<app-name>/config.toml
+#    (seeded here so the earlier scenarios prove the pure 4-tier ladder without it)
+env PORT=
+mkdir xdg/server-precedence
+cp xdg-config.toml xdg/server-precedence/config.toml
+exec server-precedence
+stdout '-c, --config-file\s+conga\.ConfigFile\s+.*xdg[/\\]server-precedence[/\\]config\.toml\s+● config .*xdg[/\\]server-precedence[/\\]config\.toml'
+stdout '-p, --port\s+int\s+7001\s+● config port'
+stdout '--host\s+string\s+127\.0\.0\.1\s+· default'
+
+# 8. --why lists the built-in conventional tier with the loaded outcome
+#    (loaded tiers carry no probed-file list and no creation examples)
+exec server-precedence --why
+stdout 'Config decoders: \.toml'
+stdout 'xdg[/\\]server-precedence\s+loaded: .*xdg[/\\]server-precedence[/\\]config\.toml'
+! stdout 'looked for:'
+! stdout 'Create a configuration file'
+
+# 9. Config file path selected via SERVER_CONFIG environment variable
+env SERVER_CONFIG=server.toml
+exec server-precedence
+stdout '-c, --config-file\s+conga\.ConfigFile\s+server\.toml\s+● env SERVER_CONFIG'
+stdout '-p, --port\s+int\s+9001\s+● config port'
+env SERVER_CONFIG=
+
+# 10. env:"-" disables environment binding entirely: neither the verbatim
+#     TRACE name nor the prefix-derived SERVER_TRACE name reaches the flag
+env SERVER_TRACE=true
+env TRACE=true
+exec server-precedence
+stdout '--trace\s+bool\s+false\s+○ unset'
+stdout '--worker-id\s+string\s+—\s+○ unset'
+
+# 11. The same flag still binds through the CLI
+exec server-precedence --trace
+stdout '--trace\s+bool\s+true\s+● cli --trace'
+env SERVER_TRACE=
+env TRACE=
+
+# 12. Missing explicit config file fails with a clean error (config-read
+#     failures classify as runtime errors: exit 1, not usage exit 2)
+exit-status 1 server-precedence -c nonexistent.toml
+stderr 'cannot read config file "nonexistent\.toml"'
+
+# 13. Field tagged config:"-" is rejected inside config files
+exit-status 1 server-precedence -c excluded.toml
+stderr 'field "auth_token" is excluded from config files'
+
+# 14. Placeholder renders in help output
+exec server-precedence --help
+stdout '-p, --port=PORT\s+Server port'
+stdout '--auth-token=STRING\s+Bearer token'
+
+-- server.toml --
+port = 9001
+host = "10.0.0.1"
+environment = "staging"
+debug = true
+worker-id = "w-file"
+
+-- excluded.toml --
+port = 9001
+auth_token = "hunter2"
+
+-- xdg-config.toml --
+port = 7001

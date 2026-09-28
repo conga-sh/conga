@@ -1,0 +1,62 @@
+# TestScript for 09-deep-hierarchy-context
+# Asserts multi-tier command hierarchies, context ancestor accessors, and per-tier env prefixes
+
+# 1. Full 4-tier command invocation with defaults
+exec cloudctl cluster node pod list
+stdout '⚙  cloudctl cluster node pod list'
+stdout 'cloudctl · root'
+stdout 'cluster\s*$'
+stdout 'node\s*$'
+stdout 'list · active'
+stdout '-r, --global-region\s+string\s+us-east-1\s+· default'
+stdout '-c, --cluster-name\s+string\s+default-cluster\s+· default'
+stdout '-n, --node-id\s+string\s+node-01\s+· default'
+stdout '-w, --wait\s+time\.Duration\s+5s\s+· default'
+stdout '-s, --status\s+string\s+running\s+· default'
+stdout 'Full Command Path:\s+cloudctl cluster node pod list'
+stdout 'Active Leaf Name:\s+list'
+stdout 'Root Global Region:\s+us-east-1'
+stdout 'Ancestor Cluster:\s+default-cluster'
+stdout 'Ancestor Node:\s+node-01'
+stdout 'Parent Pod Wait:\s+5s'
+stdout 'Leaf Status Filter:\s+running'
+
+# 2. Overriding global flag, intermediate flags, and leaf flag
+exec cloudctl -r eu-central-1 cluster -c staging-eu node -n ingress-02 pod --wait 30s list -s pending
+stdout '-r, --global-region\s+string\s+eu-central-1\s+● cli --global-region'
+stdout '-c, --cluster-name\s+string\s+staging-eu\s+● cli --cluster-name'
+stdout '-n, --node-id\s+string\s+ingress-02\s+● cli --node-id'
+stdout '-w, --wait\s+time\.Duration\s+30s\s+● cli --wait'
+stdout '-s, --status\s+string\s+pending\s+● cli --status'
+stdout 'Root Global Region:\s+eu-central-1'
+stdout 'Ancestor Cluster:\s+staging-eu'
+stdout 'Ancestor Node:\s+ingress-02'
+stdout 'Leaf Status Filter:\s+pending'
+
+# 3. Partial path without leaf command fails
+exit-status 2 cloudctl cluster node
+stderr 'Usage:'
+stderr 'cloudctl cluster node <command>'
+
+# 4. Help screen on intermediate command cluster
+exec cloudctl cluster --help
+stdout 'Usage:'
+stdout 'cloudctl cluster <command>'
+stdout 'Commands:'
+stdout 'node\s+Node operations'
+
+# 5. Per-tier environment binding: cluster and node inherit the CLOUDCTL_ root
+#    prefix, while the pod list command overrides it with POD_
+env CLOUDCTL_GLOBAL_REGION=ap-south-1
+env CLOUDCTL_CLUSTER_NAME=prod-ap
+env CLOUDCTL_NODE_ID=edge-07
+env POD_STATUS=pending
+exec cloudctl cluster node pod list
+stdout '-r, --global-region\s+string\s+ap-south-1\s+● env CLOUDCTL_GLOBAL_REGION'
+stdout '-c, --cluster-name\s+string\s+prod-ap\s+● env CLOUDCTL_CLUSTER_NAME'
+stdout '-n, --node-id\s+string\s+edge-07\s+● env CLOUDCTL_NODE_ID'
+stdout '-s, --status\s+string\s+pending\s+● env POD_STATUS'
+stdout 'Root Global Region:\s+ap-south-1'
+stdout 'Ancestor Cluster:\s+prod-ap'
+stdout 'Ancestor Node:\s+edge-07'
+stdout 'Leaf Status Filter:\s+pending'

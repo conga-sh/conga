@@ -1,0 +1,33 @@
+# TestScript for 12-lifecycle-hooks
+# Asserts execution order: PreRun (top-down) -> Run (leaf) -> PostRun (bottom-up) -> Finally (bottom-up),
+# plus CONGA's exit-code contract (exit 1 for runtime failures)
+
+# 1. Successful run executes full lifecycle pipeline
+exec migrator migrate -d
+stdout '1\. Root\.PreRun: Initializing global logger'
+stdout '2\. MigrateCmd\.PreRun: Opening database connection'
+stdout '3\. MigrateCmd\.Run: Executing migration \(dry_run=true\)'
+stdout '3\.5\. MigrateCmd\.PostRun: Committing transaction log'
+stdout '4\. Root\.PostRun: Flushing telemetry & metrics'
+stdout '4\.5\. MigrateCmd\.Finally: Closing database connection pool'
+stdout '5\. Root\.Finally: Global teardown completed successfully'
+
+# 2. Failed Run skips PostRun but executes Finally teardown handlers (exit 1)
+exit-status 1 migrator abort
+stdout '1\. Root\.PreRun: Initializing global logger'
+stdout '2\. AbortCmd\.PreRun: Allocating temporary resources'
+stdout '3\. AbortCmd\.Run: Encountered fatal simulation error'
+! stdout 'Should NOT be printed'
+stdout '4\. AbortCmd\.Finally: Rolling back temporary resources'
+stdout '5\. Root\.Finally: Global teardown executed'
+stderr 'simulated fatal transaction failure'
+
+# 3. Failed PreRun skips Run/PostRun entirely and never initializes the failed command
+exit-status 1 migrator deploy
+stdout '1\. Root\.PreRun: Initializing global logger'
+stdout '2\. DeployCmd\.PreRun: Pulling container image'
+! stdout 'DeployCmd\.Run'
+! stdout 'DeployCmd\.PostRun'
+! stdout 'DeployCmd\.Finally'
+stdout '5\. Root\.Finally: Global teardown executed'
+stderr 'unable to reach container registry'

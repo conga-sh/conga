@@ -1,0 +1,22 @@
+# TestScript for 01-minimal-hello
+# Asserts defaults, flag overrides, short flags, and --help
+
+# 1. Default greeting
+exec hello
+stdout 'Hello, World!'
+
+# 2. Flag override
+exec hello --name Alice
+stdout 'Hello, Alice!'
+
+# 3. Short flag and boolean flag
+exec hello -n Bob -l
+stdout 'HELLO, BOB!'
+
+# 4. Help screen
+exec hello --help
+stdout 'Usage:'
+stdout 'hello \[flags\]'
+stdout 'Minimal single-command hello world CLI'
+stdout '-n, --name'
+stdout '-l, --loud'

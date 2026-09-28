@@ -1,0 +1,65 @@
+# TestScript for 03-negatable-and-maps
+# Asserts negatable booleans, key-value maps (including entry-count bounds), and slice delimiter controls
+
+# 1. Defaults
+exec negmap
+stdout '⚙  negmap'
+stdout '-C, --color\s+bool\s+true\s+· default'
+stdout '--progress\s+bool\s+false\s+○ unset'
+
+# 2. Negation (--no-color)
+exec negmap --no-color
+stdout '-C, --color\s+bool\s+false\s+● cli --color'
+
+# 3. Last flag wins (--color then --no-color)
+exec negmap --color --no-color
+stdout '-C, --color\s+bool\s+false\s+● cli --color'
+
+# 4. Last flag wins (--no-color then --color)
+exec negmap --no-color --color
+stdout '-C, --color\s+bool\s+true\s+● cli --color'
+
+# 5. Negation on a non-defaulted boolean (--no-progress)
+exec negmap --progress --no-progress
+stdout '--progress\s+bool\s+false\s+● cli --progress'
+
+# 6. Key-Value Maps (-e KEY=VAL, repeated and comma-separated)
+exec negmap -e REGION=us-east -e TIER=prod,APP=api
+stdout '-e, --env-vars\s+map\[string\]string\s+APP=api, REGION=us-east, TIER=prod\s+● cli --env-vars'
+
+# 7. Map pair without '=' fails with a clean coercion error
+exit-status 2 negmap -e BROKEN
+stderr 'invalid key-value pair "BROKEN", expected KEY=VALUE for flag --env-vars'
+
+# 8. Custom Typed Map (-r KEY=INT, repeated and comma-separated)
+exec negmap -r web=3,worker=5 -r db=2
+stdout '-r, --replicas\s+map\[string\]int\s+map\[db:2 web:3 worker:5\]\s+● cli --replicas'
+
+# 9. Registered Typed Map with sep:";" (-z KEY=INT)
+exec negmap -z 'web=3;worker=5'
+stdout '-z, --shards\s+map\[string\]int\s+map\[web:3 worker:5\]\s+● cli --shards'
+
+# 10. Map entry-count bound violation (items:"1..4" on --replicas)
+exit-status 2 negmap -r web=1,api=2,db=3,cache=4,search=5
+stderr 'item count 5 is out of range \[1\.\.4\]'
+
+# 11. Slice with sep:"none" preserves embedded commas in HTTP headers
+exec negmap -H 'Accept: text/html,application/xhtml+xml' -H 'User-Agent: CONGA/1.0'
+stdout '-H, --headers\s+\[\]string\s+\[Accept: text/html,application/xhtml\+xml, User-Agent: CONGA/1\.0\]\s+● cli --headers'
+
+# 12. Standard comma-delimited slice (-t go,cli,conga)
+exec negmap -t go,cli,conga
+stdout '-t, --tags\s+\[\]string\s+\[go, cli, conga\]\s+● cli --tags'
+
+# 13. Custom separator sep:";" splits on semicolons but keeps commas intact
+exec negmap -o 'a.example.com:8080,b.example.com:8080;c.example.com:9090'
+stdout '-o, --hosts\s+\[]string\s+\[a\.example\.com:8080,b\.example\.com:8080, c\.example\.com:9090\]\s+● cli --hosts'
+
+# 14. Attached --flag=value syntax
+exec negmap --tags=go,cli
+stdout '-t, --tags\s+\[\]string\s+\[go, cli\]\s+● cli --tags'
+
+# 15. Help screen formatting for negatable flags
+exec negmap --help
+stdout '-C, --\[no-\]color'
+stdout '--\[no-\]progress'

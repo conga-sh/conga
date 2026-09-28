@@ -1,0 +1,60 @@
+# Kitchen Sink - TOML Format
+# This file demonstrates every supported type and configuration pattern
+
+# Root flags (top-level keys)
+verbosity = 2
+format = "yaml"
+cache = false
+api_secret = "remapped-secret"
+
+# Primitives subcommand
+[types.primitives]
+string_flag = "toml-configured"
+bool_flag = true
+int_flag = 100
+int8_flag = 8
+int16_flag = 160
+int32_flag = 3200
+int64_flag = 64000
+uint_flag = 200
+uint8_flag = 80
+uint16_flag = 1600
+uint32_flag = 32000
+uint64_flag = 64000
+float32_flag = 1.5
+float64_flag = 3.14159265359
+tags = ["toml", "prod", "monitored"]
+ports = [8080, 8443, 9090]
+
+# Filesystem subcommand
+[types.filesystem]
+input_file = "/etc/hosts"
+output_dir = "/tmp"
+log_file = "/var/log/demo.log"
+data_dir = "/var/lib/demo"
+editor = "sh"
+# Hook must be an existing symlink; the test suite creates deploy-hook -> run.sh
+hook = "deploy-hook"
+
+# Value subcommand
+[types.values]
+timeout = "1m30s"
+endpoint = "https://api.example.com/v2"
+max_size = "50MB"
+level = "warn"
+
+shard_map = { web = "3", worker = "5" }
+
+# Config subcommand (shared context flag)
+[config]
+context = "production"
+
+# Config maps subcommand: native map vs array-of-strings encodings
+[config.maps]
+vars = { LOG_LEVEL = "debug", APP_ENV = "production", DB_HOST = "localhost" }
+labels = ["tier=frontend", "team=platform", "version=2.1"]
+
+# Config nested subcommand (deep nesting)
+[config.nested]
+zone = "eu-west-1a"
+count = 5

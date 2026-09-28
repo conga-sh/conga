@@ -1,0 +1,73 @@
+# TestScript for 08-subcommands-basic
+# Asserts subcommand routing, command aliases, command groups, and hidden commands
+
+# 1. Root without subcommand displays usage / required error
+exit-status 2 service-mgr
+stderr 'Commands:'
+stderr 'create\s+Create a new service'
+
+# 2. create subcommand with args and flags (full root-to-leaf inspector view)
+exec service-mgr create web-api -i redis:7 -r 3
+stdout '⚙  service-mgr create'
+stdout 'service-mgr · root'
+stdout 'create · active'
+stdout '-v, --verbose\s+bool\s+false\s+○ unset'
+stdout 'create\s+command\s+—\s+▸ selected'
+stdout 'delete \(rm, del\)\s+command\s+—\s+—'
+stdout '<name>\s+string\s+web-api\s+● cli'
+stdout '-i, --image\s+string\s+redis:7\s+● cli --image'
+stdout '-r, --replicas\s+int\s+3\s+● cli --replicas'
+
+# 3. delete subcommand
+exec service-mgr delete web-api -f
+stdout '⚙  service-mgr delete'
+stdout '<name>\s+string\s+web-api\s+● cli'
+stdout '-f, --force\s+bool\s+true\s+● cli --force'
+
+# 4. delete alias: rm
+exec service-mgr rm legacy-svc
+stdout '⚙  service-mgr delete'
+stdout '<name>\s+string\s+legacy-svc\s+● cli'
+
+# 5. delete alias: del
+exec service-mgr del cache-svc
+stdout '⚙  service-mgr delete'
+stdout '<name>\s+string\s+cache-svc\s+● cli'
+
+# 6. list subcommand
+exec service-mgr list -n production -A
+stdout '⚙  service-mgr list'
+stdout '-n, --namespace\s+string\s+production\s+● cli --namespace'
+stdout '-A, --all\s+bool\s+true\s+● cli --all'
+
+# 7. Unknown subcommand fails with a did-you-mean suggestion
+exit-status 2 service-mgr creat
+stderr 'unknown command: creat\. Did you mean "create"\?'
+
+# 8. Help screen shows subcommands (hidden doctor command excluded)
+exec service-mgr --help
+stdout 'create'
+stdout 'delete'
+stdout 'list'
+! stdout 'doctor'
+
+# 9. Hidden command is still invocable
+exec service-mgr doctor -f
+stdout '⚙  service-mgr doctor'
+stdout '-f, --fix\s+bool\s+true\s+● cli --fix'
+
+# 10. Hidden command is excluded from completion candidates
+exec service-mgr __complete export ''
+stdout '\"value\":\"create\"'
+! stdout '\"value\":\"doctor\"'
+
+# 11. Colour output is forced with CONGA_COLOR and suppressed with NO_COLOR
+env CONGA_COLOR=1
+exec service-mgr create color-svc
+stdout '\x1b\[1;36m  ⚙'
+stdout '\x1b\[1;36m● cli'
+env CONGA_COLOR=
+env NO_COLOR=1
+exec service-mgr create plain-svc
+stdout '● cli'
+! stdout '\x1b\['

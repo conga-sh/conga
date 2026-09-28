@@ -1,0 +1,69 @@
+# TestScript for 16-live-config-watcher
+# Asserts daemon startup, the HTTP /config endpoint, SIGHUP reload via session.Reload,
+# live config watching, auxiliary watch.File monitoring, and graceful OS signal shutdown
+
+# 1. Help and Version display
+exec watcher-app --help
+stdout 'Daemon CLI demonstrating live configuration watching with path expansion'
+stdout '-p, --port=8080\s+Server port'
+
+exec watcher-app --version
+stdout 'watcher-app has version 1\.0\.0'
+
+# 2. Start daemon HTTP server in the background (config watch + blocklist watch)
+exec watcher-app -c config.yaml -p 9090 --blocklist blocklist.txt &server&
+
+# 3. Query initial config via HTTP endpoint (polls until the server is up)
+http-wait http://127.0.0.1:9090/config '"rate_limit":\s*500'
+stdout '"port":\s*9090'
+stdout '"debug":\s*false'
+stdout '"blocklist_entries":\s*2'
+
+# 4. SIGHUP triggers a direct session.Reload re-read (no file event, values
+#    unchanged); polling the reload counter makes the ordering deterministic
+[!windows] hup
+[!windows] http-wait http://127.0.0.1:9090/config '"reloads":\s*1\b'
+[!windows] stdout '"rate_limit":\s*500'
+
+# 5. Modify config file dynamically to trigger live hot-reload, then poll
+# until the daemon serves the reloaded value (no fixed sleeps)
+cp config-updated.yaml config.yaml
+http-wait http://127.0.0.1:9090/config '"rate_limit":\s*1500'
+stdout '"port":\s*9090'
+stdout '"debug":\s*true'
+[!windows] stdout '"reloads":\s*2\b'
+
+# 6. Auxiliary single-file watch: replacing the blocklist reloads its entry count
+cp blocklist-updated.txt blocklist.txt
+http-wait http://127.0.0.1:9090/config '"blocklist_entries":\s*3'
+
+# 7. Send interrupt signal to shut down daemon gracefully
+# (signal delivery is not supported on Windows; testscript hard-kills leftover background processes)
+[!windows] interrupt
+[!windows] wait
+[!windows] stdout '\[WATCHER\] Loaded config files: \[.*config\.yaml\]'
+[!windows] stdout '\[WATCHER\] Blocklist loaded: 2 entries'
+[!windows] stdout '\[WATCHER\] SIGHUP reload successful! RateLimit: 500 -> 500'
+[!windows] stdout '\[WATCHER\] Live hot-reload successful! RateLimit: 500 -> 1500'
+[!windows] stdout '\[WATCHER\] Blocklist reloaded: 3 entries'
+[!windows] stdout 'Shutdown signal received, shutting down gracefully\.\.\.'
+[!windows] stdout 'Daemon shutting down gracefully'
+
+-- config.yaml --
+port: 9090
+rate_limit: 500
+debug: false
+
+-- config-updated.yaml --
+port: 9090
+rate_limit: 1500
+debug: true
+
+-- blocklist.txt --
+10.0.0.7
+10.0.0.9
+
+-- blocklist-updated.txt --
+10.0.0.7
+10.0.0.9
+10.0.0.11

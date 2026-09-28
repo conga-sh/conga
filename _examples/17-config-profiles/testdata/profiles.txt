@@ -1,0 +1,30 @@
+# TestScript for 17-config-profiles
+# Asserts conga.ConfigFile with multi:"true" multi-file merging (repeatable and sep-delimited forms)
+
+# 1. Multi-file merge via repeated -c flags: later files override earlier ones
+exec profiles -c deploy/base.yaml -c deploy/prod.yaml
+stdout '⚙  profiles'
+stdout '-c, --config-files\s+conga\.ConfigFile\s+deploy/base\.yaml, deploy/prod\.yaml\s+● cli --config-file'
+stdout '--host\s+string\s+base\.example\.com\s+● config host'
+stdout '-p, --port\s+int\s+9443\s+● config port'
+stdout '--log-level\s+string\s+warn\s+● config log-level'
+
+# 2. Comma-separated file list in a single flag
+exec profiles -c 'deploy/base.yaml,deploy/prod.yaml'
+stdout '-c, --config-files\s+conga\.ConfigFile\s+deploy/base\.yaml, deploy/prod\.yaml\s+● cli --config-file'
+stdout '-p, --port\s+int\s+9443\s+● config port'
+
+# 3. Search-path fallback: Cascading() merges all existing fallback files
+#    (lowest precedence first) instead of single-file first-found resolution
+exec profiles
+stdout '-p, --port\s+int\s+9443\s+● config port'
+stdout '--host\s+string\s+base\.example\.com\s+● config host'
+
+-- deploy/base.yaml --
+host: base.example.com
+port: 9000
+log_level: debug
+
+-- deploy/prod.yaml --
+port: 9443
+log_level: warn

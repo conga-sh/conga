@@ -1,0 +1,427 @@
+# TestScript for 19-shell-completion
+# Asserts completion in both wiring styles — self-completing domain types on
+# deploy, the predictor registry on exec/logs — plus the full predict SDK
+# playground on the logs subcommand
+
+symlink hook.conf -> presets.conf
+
+# 1. Normal command execution (domain-type deploy, registry exec)
+exec cloudctl deploy --env staging --cluster staging-cluster-alpha auth
+stdout '⚙  cloudctl deploy'
+stdout 'deploy \(d\)\s+command\s+—\s+▸ selected'
+stdout '-e, --env\s+string\s+staging\s+● cli --env'
+stdout '-c, --cluster\s+main\.Cluster\s+staging-cluster-alpha\s+● cli --cluster'
+stdout '<service>\s+string\s+auth\s+● cli'
+
+exec cloudctl exec --profile production --namespace frontend web-prod-1 uptime
+stdout '⚙  cloudctl exec'
+stdout '-n, --namespace\s+string\s+frontend\s+● cli --namespace'
+stdout '<target>\s+string\s+web-prod-1\s+● cli'
+stdout '<command>\s+string\s+uptime\s+● cli'
+
+# 2. Generate shell completion scripts for all supported shells
+exec cloudctl completion bash
+stdout '_cloudctl_completion'
+stdout 'complete -o noquote -F _cloudctl_completion cloudctl'
+
+exec cloudctl completion zsh
+stdout '#compdef cloudctl'
+stdout '_cloudctl_completion'
+
+exec cloudctl completion fish
+stdout 'function _cloudctl_completion'
+stdout 'complete -c .cloudctl.'
+
+exec cloudctl completion powershell
+stdout 'Register-ArgumentCompleter'
+stdout 'cloudctl'
+
+# Aliases are not accepted; only canonical shell names are valid.
+exit-status 2 cloudctl completion pwsh
+stderr 'unknown shell "pwsh"'
+
+exit-status 2 cloudctl completion nu
+stderr 'unknown shell "nu"'
+
+# elvish and nushell are canonical names with native drivers.
+exec cloudctl completion elvish
+stdout 'set-env CONGA_SHELL elvish'
+stdout '__complete elvish'
+
+exec cloudctl __complete elvish ''
+stdout '"value":'
+
+exec cloudctl completion nushell
+stdout 'let cloudctl_completer'
+stdout '__complete nushell'
+
+exec cloudctl __complete nushell ''
+stdout '"value":'
+
+# 3. Usage error on invalid shell name (exit code 2)
+exit-status 2 cloudctl completion invalidshell
+stderr 'unknown shell "invalidshell"'
+
+# 4. Dynamic completion (JSON export) - Subcommands
+exec cloudctl __complete export ''
+stdout '"value":"deploy"'
+stdout '"value":"d"'
+stdout '"value":"logs"'
+stdout '"value":"exec"'
+stdout '"value":"completion"'
+
+exec cloudctl __complete export dep
+stdout '"value":"deploy"'
+
+# 5. Dynamic completion (JSON export) - Flags & Negatable Booleans
+exec cloudctl __complete export deploy --
+stdout '"tag":"longhand flags"'
+stdout '"value":"--env"'
+stdout '"value":"--region"'
+stdout '"value":"--cluster"'
+stdout '"value":"--image"'
+stdout '"value":"--features"'
+stdout '"value":"--manifest"'
+stdout '"value":"--out-dir"'
+stdout '"value":"--dry-run"'
+stdout '"value":"--no-dry-run"'
+stdout '"value":"--profile"'
+stdout '"value":"--kubeconfig"'
+
+exec cloudctl __complete export deploy --no
+stdout '"value":"--no-dry-run"'
+
+# 6. Dynamic completion (JSON export) - Enum flag values
+exec cloudctl __complete export deploy --env=
+stdout '"value":"--env=staging"'
+stdout '"value":"--env=production"'
+stdout '"value":"--env=qa"'
+
+exec cloudctl __complete export deploy --env=pr
+stdout '"value":"--env=production"'
+
+exec cloudctl __complete export deploy --env st
+stdout '"value":"staging"'
+
+# 7. Self-completing domain types implementing conga.Predictable (Region & Profile)
+exec cloudctl __complete export deploy --region ''
+stdout '"value":"us-east-1"'
+stdout '"description":"North America \(N\. Virginia\)"'
+stdout '"value":"eu-west-1"'
+stdout '"value":"ap-southeast-1"'
+
+exec cloudctl __complete export --profile ''
+stdout '"value":"production"'
+stdout '"description":"Production workloads"'
+stdout '"value":"staging"'
+stdout '"value":"development"'
+
+# 8. Domain-type file filtering (FileFilterable), directory completion
+#    (conga.Dir), and file completion (conga.File)
+exec cloudctl __complete export deploy --manifest=
+stdout '"value":"--manifest=app.yaml"'
+stdout '"value":"--manifest=config.yml"'
+! stdout '"value":"--manifest=ignore.txt"'
+
+exec cloudctl __complete export deploy --out-dir=
+stdout '"value":"--out-dir=build/"'
+! stdout '"value":"--out-dir=app.yaml"'
+
+exec cloudctl __complete export --kubeconfig ''
+stdout '"value":"app.yaml"'
+stdout '"value":"presets.conf"'
+stdout '"value":"ignore.txt"'
+
+# 9. Dynamic contextual domain type completion (Cluster via predict.Callback)
+exec cloudctl __complete export deploy --cluster st
+stdout '"value":"staging-cluster-alpha"'
+stdout '"value":"staging-cluster-beta"'
+
+exec cloudctl __complete export deploy --env production --cluster prod
+stdout '"value":"prod-us-east-1"'
+stdout '"value":"prod-eu-west-1"'
+stdout '"value":"prod-ap-southeast-1"'
+
+# 10. Segmented MultiParts domain type completion (Image via predict.MultiParts(":"))
+exec cloudctl __complete export deploy --image a
+stdout '"value":"api-gateway:"'
+stdout '"value":"auth-service:"'
+
+exec cloudctl __complete export deploy --image auth-service:
+stdout '"value":"auth-service:v1.0.0"'
+stdout '"value":"auth-service:v1.1.0"'
+stdout '"value":"auth-service:v1.2.0"'
+stdout '"value":"auth-service:latest"'
+
+# 11. Domain-type slice completion with deduplication (Feature via predict.Values)
+exec cloudctl __complete export deploy --features c
+stdout '"value":"canary"'
+
+exec cloudctl __complete export deploy --features canary,
+! stdout '"value":"canary,canary"'
+stdout '"value":"canary,tracing"'
+
+exec cloudctl __complete export deploy --features canary --features ''
+! stdout '"value":"canary"'
+stdout '"value":"tracing"'
+stdout '"value":"metrics"'
+
+# 12. Map predictor (MapValues) on a map[string]string flag
+exec cloudctl __complete export logs --labels t
+stdout '"value":"team="'
+stdout '"value":"tier="'
+
+exec cloudctl __complete export logs --labels team=
+stdout '"value":"team=core"'
+stdout '"value":"team=frontend"'
+stdout '"value":"team=infra"'
+stdout '"value":"team=security"'
+
+# Key deduplication: when team=core is selected, team= key is excluded
+exec cloudctl __complete export logs --labels team=core,t
+! stdout '"value":"team=core,team="'
+stdout '"value":"team=core,tier="'
+
+# 13. Value predictors and combinators: KeepOrder, Items (display/style/tag),
+#     Map, Prefix, Suffix, Batch, Timeout fallback, Getenv
+exec cloudctl __complete export logs --severity ''
+stdout '"value":"debug"'
+stdout '"value":"info"'
+stdout '"value":"warn"'
+stdout '"value":"error"'
+stdout '"keeporder":true'
+
+exec cloudctl __complete export logs --sink ''
+stdout '"value":"stdout"'
+stdout '"display":"stdout \(console\)"'
+stdout '"style":"dim"'
+stdout '"tag":"sinks"'
+stdout '"value":"syslog"'
+stdout '"description":"Forward to a syslog collector \(UDP 514\)"'
+
+exec cloudctl __complete export logs --sink-mode ''
+stdout '"value":"buffered"'
+stdout '"description":"Coalesce writes into 64KiB buffers"'
+stdout '"value":"direct"'
+stdout '"value":"unbuffered"'
+
+exec cloudctl __complete export logs --bucket ''
+stdout '"value":"s3://logs-primary"'
+stdout '"display":"logs-primary"'
+stdout '"style":"cyan"'
+stdout '"value":"s3://logs-replica"'
+
+exec cloudctl __complete export logs --collector ''
+stdout '"value":"collector-a:5514"'
+stdout '"value":"collector-b:5514"'
+
+exec cloudctl __complete export logs --endpoint ''
+stdout '"value":"http://logs.local"'
+stdout '"value":"https://logs.internal"'
+stdout '"value":"unix:///var/run/log.sock"'
+
+# The slow shard registry misses the predictor Timeout, so the fallback list wins
+exec cloudctl __complete export logs --shard ''
+stdout '"value":"shard-0"'
+stdout '"value":"shard-1"'
+stdout '"value":"shard-2"'
+! stdout '"value":"shard-9"'
+
+# Context.Getenv reads the completion environment ($PAGER)
+env PAGER=custom-pager-demo
+exec cloudctl __complete export logs --pager ''
+stdout '"value":"custom-pager-demo"'
+
+# 14. Filesystem predictors: Files, Dirs, FilesFiltered, PathsFiltered,
+#     FileLines, FileContents (+custom parser), Executables, Symlinks, None
+exec cloudctl __complete export logs --out-file ''
+stdout '"value":"app.log"'
+stdout '"value":"server.log"'
+! stdout '"value":"app.yaml"'
+
+exec cloudctl __complete export logs --log-dir ''
+stdout '"value":"build/"'
+stdout '"value":"2024-01/"'
+! stdout '"value":"app.log"'
+
+exec cloudctl __complete export logs --archive ''
+stdout '"value":"archive.log.gz"'
+! stdout '"value":"app.log"'
+
+exec cloudctl __complete export logs --node-dir ''
+stdout '"value":"2024-01/"'
+! stdout '"value":"build/"'
+
+exec cloudctl __complete export logs --log-path ''
+stdout '"value":"app.yaml"'
+stdout '"value":"build/"'
+! stdout '"value":"config.yml"'
+
+exec cloudctl __complete export logs --preset ''
+stdout '"value":"errors-only"'
+stdout '"value":"slow-requests"'
+! stdout '"value":"comment-lines-are-skipped"'
+
+exec cloudctl __complete export logs --label-key ''
+stdout '"value":"team"'
+stdout '"description":"label from labels.conf"'
+stdout '"value":"tier"'
+! stdout '"value":"junk-without-equals"'
+
+# Executables resolves binaries from $PATH
+exec cloudctl __complete export logs --editor go
+stdout '"value":"go"'
+stdout '"tag":"executables"'
+
+exec cloudctl __complete export logs --hook ''
+stdout '"value":"hook.conf"'
+stdout '"description":"-> presets.conf"'
+
+# None suppresses candidates and file fallback entirely
+exec cloudctl __complete export logs --silent ''
+stdout '"candidates":\[\]'
+
+# 15. FlagValues dedup: already-muted services are excluded from the next value
+exec cloudctl __complete export logs --mute api,
+! stdout '"value":"api,api"'
+stdout '"value":"api,auth"'
+stdout '"value":"api,billing"'
+stdout '"value":"api,frontend"'
+
+# 16. Programmatic predictor evaluation: Invoke, Raw, and Filter
+exec cloudctl logs api --list-candidates
+stdout 'Severities: \[debug info warn error\]'
+stdout 'Severities matching "w": \[warn\]'
+stdout 'KeepOrder directive: true'
+
+# 17. Positional argument enums & simultaneous flags
+exec cloudctl __complete export logs a
+stdout '"value":"auth"'
+stdout '"value":"api"'
+
+exec cloudctl __complete export logs ''
+stdout '"tag":"arguments"'
+stdout '"value":"auth"'
+stdout '"value":"billing"'
+stdout '"value":"api"'
+stdout '"value":"frontend"'
+stdout '"tag":"longhand flags"'
+stdout '"value":"--env"'
+stdout '"value":"--follow"'
+stdout '"value":"--profile"'
+stdout '"value":"--help"'
+
+# 18. Unconstrained positional argument with active help and flags
+exec cloudctl __complete export deploy ''
+stdout 'Service name to deploy'
+stdout '"tag":"longhand flags"'
+stdout '"value":"--env"'
+stdout '"value":"--region"'
+stdout '"value":"--cluster"'
+stdout '"value":"--image"'
+stdout '"value":"--features"'
+stdout '"value":"--dry-run"'
+stdout '"value":"--profile"'
+stdout '"value":"--kubeconfig"'
+stdout '"value":"--help"'
+
+# 19. Hierarchical contextual argument autocompletion (pods predictor evaluated
+#     from the global --profile and the subcommand --namespace)
+exec cloudctl __complete export exec ''
+stdout '"usage":"target pod in staging/backend"'
+stdout '"tag":"arguments"'
+stdout '"value":"api-stage-alpha"'
+stdout '"value":"auth-stage-beta"'
+stdout '"tag":"longhand flags"'
+stdout '"value":"--namespace"'
+stdout '"value":"--container"'
+stdout '"value":"--profile"'
+stdout '"value":"--help"'
+
+exec cloudctl __complete export exec --namespace frontend ''
+stdout '"usage":"target pod in staging/frontend"'
+stdout '"value":"web-stage-1"'
+stdout '"value":"web-stage-2"'
+! stdout '"value":"api-stage-alpha"'
+
+exec cloudctl __complete export --profile production exec --namespace database ''
+stdout '"usage":"target pod in production/database"'
+stdout '"value":"pg-primary-0"'
+stdout '"value":"redis-prod-node-1"'
+! stdout '"value":"pg-stage-0"'
+
+# Root flag supplied after subcommand
+exec cloudctl __complete export exec --namespace database --profile development ''
+stdout '"usage":"target pod in development/database"'
+stdout '"value":"pg-dev-local"'
+stdout '"value":"redis-dev-local"'
+
+# 20. Command argument completion driven by Context.Arg, LastArg, and HasFlag:
+#     per-pod commands, container-level diagnostics, and default shells
+exec cloudctl __complete export exec web-prod-1 ''
+stdout '"usage":"known commands for pod web-prod-1"'
+stdout '"value":"nginx -t"'
+stdout '"value":"tail -n 100 /var/log/nginx/access.log"'
+
+exec cloudctl __complete export exec --container app web-prod-1 ''
+stdout '"usage":"container-level diagnostics"'
+stdout '"value":"sh -c ''env'''
+
+# An unregistered pod target falls through to the default shells (Arg(0) echo)
+exec cloudctl __complete export exec api-stage-alpha ''
+stdout '"usage":"default shells \(pod \\"api-stage-alpha\\"'
+stdout '"value":"/bin/sh"'
+stdout '"value":"/bin/bash"'
+
+# 21. Exclude drops sidecars from container completion
+exec cloudctl __complete export exec --container ''
+stdout '"value":"app"'
+stdout '"value":"cache"'
+! stdout '"value":"istio-proxy"'
+
+# 22. Fish formatting
+exec cloudctl __complete fish deploy --
+stdout '--env\tTarget deployment environment'
+stdout '--region\tTarget cloud region \(self-completing\)'
+stdout '--cluster\tTarget cluster \(contextual\)'
+stdout '--dry-run\tSimulate deployment'
+stdout '--profile\tGlobal cloud profile'
+stdout '--kubeconfig\tPath to kubeconfig file'
+
+# 23. Interactive TAB simulation via COMP_LINE with mismatched executable name
+env 'COMP_LINE=./custom-named-binary deploy --'
+exec cloudctl __complete export
+stdout '"value":"--env"'
+stdout '"value":"--region"'
+stdout '"value":"--cluster"'
+stdout '"value":"--image"'
+stdout '"value":"--features"'
+stdout '"value":"--dry-run"'
+stdout '"value":"--profile"'
+stdout '"value":"--help"'
+
+-- app.yaml --
+name: app
+-- config.yml --
+port: 8080
+-- ignore.txt --
+ignore
+-- build/placeholder --
+placeholder
+-- 2024-01/placeholder --
+placeholder
+-- app.log --
+placeholder
+-- server.log --
+placeholder
+-- archive.log.gz --
+placeholder
+-- presets.conf --
+# comment-lines-are-skipped
+errors-only
+slow-requests
+-- labels.conf --
+# comment-lines-are-skipped
+team=core
+tier=backend
+junk-without-equals

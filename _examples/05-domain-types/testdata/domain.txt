@@ -1,0 +1,92 @@
+# TestScript for 05-domain-types
+# Asserts File (with capability tags), Dir, ByteSize, and custom SelfValidator types
+
+# 1. Defaults
+exec domain-demo
+stdout '⚙  domain-demo'
+stdout '-m, --max-memory\s+conga\.ByteSize\s+512\.00 MiB\s+· default'
+stdout '-l, --deploy-hook\s+conga\.File\s+—\s+○ unset'
+stdout '--payload\s+conga\.FileContent\s+—\s+○ unset'
+stdout '--output\s+conga\.File\s+—\s+○ unset'
+stdout 'Validated Domain Types: max_memory_bytes=536870912'
+
+# 2. Valid domain types with created files/dirs/symlinks
+mkdir output_folder
+symlink deploy-hook -> hook.sh
+exec domain-demo -i valid.txt -o output_folder -m 2GiB -l deploy-hook -p 8000-8080 -H Accept=application/json -H Content-Type=text/html
+stdout '-i, --input-file\s+conga\.File\s+valid\.txt\s+● cli --input-file'
+stdout '-o, --output-dir\s+conga\.Dir\s+output_folder\s+● cli --output-dir'
+stdout '-m, --max-memory\s+conga\.ByteSize\s+2\.00 GiB\s+● cli --max-memory'
+stdout '-l, --deploy-hook\s+conga\.File\s+deploy-hook\s+● cli --deploy-hook'
+stdout '-p, --ports\s+main\.PortRange\s+8000-8080\s+● cli --ports'
+stdout '-H, --headers\s+main\.HeaderMap\s+map\[Accept:application/json Content-Type:text/html\]\s+● cli --headers'
+stdout 'Validated Domain Types: max_memory_bytes=2147483648'
+
+# 3. Non-existent file fails existing validation
+exit-status 2 domain-demo -i nonexistent.txt
+stderr 'stat nonexistent\.txt: no such file or directory for flag --input-file'
+
+# 4. Directory passed to existing file validation fails
+exit-status 2 domain-demo -i output_folder
+stderr '"output_folder" is a directory, but a file was expected for flag --input-file'
+
+# 5. File passed to existing dir validation fails
+exit-status 2 domain-demo -o valid.txt
+stderr '"valid\.txt" is a file, but a directory was expected for flag --output-dir'
+
+# 6. Invalid port range (min > max) fails custom SelfValidator.Validate()
+exit-status 2 domain-demo -p 9000-8000
+stderr 'invalid port range 9000-8000 \(must be 1\.\.65535 and min <= max\) for flag --ports'
+
+# 7. Malformed byte size unit fails coercion
+exit-status 2 domain-demo -m 5XB
+stderr 'unknown byte size unit "XB" in "5XB" for flag --max-memory'
+
+# 8. Invalid header name fails custom SelfValidator.Validate() on map domain type
+exit-status 2 domain-demo -H X-Bad@Header=value
+stderr 'invalid header: header name "X-Bad@Header" contains invalid characters for flag --headers'
+
+# 9. Restricted header fails custom SelfValidator.Validate() on map domain type
+exit-status 2 domain-demo -H Authorization=secret
+stderr 'invalid header: header "Authorization" cannot be passed via command line for flag --headers'
+
+# 10. Domain types earn file completion for free (File with existing tag)
+exec domain-demo __complete export -i ''
+stdout '\"value\":\"valid\.txt\"'
+
+# 11. Domain types earn directory completion for free (Dir with existing tag)
+exec domain-demo __complete export -o ''
+stdout '\"value\":\"output_folder/\"'
+
+# 12. Domain types earn symlink completion for free (Symlink)
+exec domain-demo __complete export -l ''
+stdout '\"value\":\"deploy-hook\"'
+! stdout '\"value\":\"valid\.txt\"'
+
+# 13. FileContent loads a payload file into memory at decode time
+exec domain-demo -i valid.txt --payload payload.txt
+stdout '--payload\s+conga\.FileContent\s+payload-data'
+stdout 'payload_bytes=[0-9]+'
+
+# 14. FileContent reads '-' from the engine-configured stdin
+stdin streamed.txt
+exec domain-demo -i valid.txt --payload -
+stdout 'payload_bytes=[0-9]+'
+
+# 15. File.IsStdio detects the '-' sink and keeps the payload stream clean
+exec domain-demo -i valid.txt --payload payload.txt --output -
+stdout 'payload-data'
+stderr 'output stream detected; diagnostics stay on stderr'
+
+-- payload.txt --
+payload-data
+
+-- streamed.txt --
+streamed-payload
+
+-- valid.txt --
+key=value
+
+-- hook.sh --
+#!/bin/sh
+echo "deployment hook executed"

@@ -1,0 +1,21 @@
+# TestScript for 22-app-deprecation
+# Asserts whole-command deprecation: the warning banner on root, subcommand,
+# and --help invocations, alongside normal output and exit codes
+
+# 1. Root invocation: banner on stderr, output and exit code unaffected
+exec app-deprecated
+stderr 'WARNING: app-deprecated is deprecated: use the new unified tool'
+stdout '⚙  app-deprecated'
+stdout 'root command executed'
+
+# 2. Subcommand invocation: same banner
+exec app-deprecated deploy -f
+stderr 'WARNING: app-deprecated is deprecated: use the new unified tool'
+stdout '⚙  app-deprecated deploy'
+stdout 'deployment started'
+
+# 3. --help also carries the banner above the usage screen (banner streams
+#    to stdout there, alongside the help screen itself)
+exec app-deprecated --help
+stdout 'WARNING: app-deprecated is deprecated: use the new unified tool'
+stdout 'Usage:'

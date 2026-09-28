@@ -1,0 +1,69 @@
+# TestScript for 06-flag-constraints
+# Asserts XOR groups, and groups, required flags, range (int, duration, byte size), len, items, and enum constraints,
+# plus full-help rendering on usage errors (UsageOnError(UsageFull)) and the exit-code contract (exit 2)
+
+# 1. Valid default run (required flag supplied)
+exec constraints-demo -k s3cr3t-key
+stdout '⚙  constraints-demo'
+stdout '--port\s+int\s+8080\s+· default'
+stdout '--timeout\s+time\.Duration\s+2s\s+· default'
+stdout '--memory\s+conga\.ByteSize\s+256\.00 MiB\s+· default'
+stdout '--env\s+string\s+dev\s+· default'
+stdout '-k, --api-key\s+string\s+s3cr3t-key\s+● cli --api-key'
+stdout 'Validated Constraints: format=default env=dev port=8080 timeout=2s memory=256\.00 MiB zones=0 api_key_source=cli'
+
+# 2. Missing required flag fails with exit code 2 and renders the full help screen
+exit-status 2 constraints-demo
+stderr 'missing required flag: --api-key'
+stderr '-k, --api-key=STRING'
+stderr 'Usage:'
+
+# 3. Valid single XOR flag
+exec constraints-demo -k s3cr3t-key --json
+stdout '--json\s+bool\s+true\s+● cli --json'
+stdout 'Validated Constraints: format=json env=dev port=8080 timeout=2s memory=256\.00 MiB zones=0 api_key_source=cli'
+
+# 4. XOR Mutual Exclusion violation
+exit-status 2 constraints-demo -k s3cr3t-key --json --yaml
+stderr 'flags --json and --yaml are mutually exclusive'
+
+# 5. And group violation (username without password)
+exit-status 2 constraints-demo -k s3cr3t-key -u alice
+stderr 'must be provided together'
+
+# 6. And group satisfied
+exec constraints-demo -k s3cr3t-key -u alice --password secretpass123
+stdout '-u, --username\s+string\s+alice\s+● cli --username'
+stdout '--password\s+string\s+secretpass123\s+● cli --password'
+
+# 7. Len lower-bound violation (username shorter than 3 characters)
+exit-status 2 constraints-demo -k s3cr3t-key -u al --password secretpass123
+stderr 'value "al" length 2 is out of range \[3\.\.20\] for flag --username'
+
+# 8. Len lower-bound violation (password shorter than 8 characters)
+exit-status 2 constraints-demo -k s3cr3t-key -u alice --password short
+stderr 'value "short" length 5 must be >= 8 for flag --password'
+
+# 9. Numeric range violation (port > 65535)
+exit-status 2 constraints-demo -k s3cr3t-key -p 70000
+stderr 'value 70000 is out of range \[1\.\.65535\] for flag --port'
+
+# 10. Duration range violation (timeout > 5s)
+exit-status 2 constraints-demo -k s3cr3t-key --timeout 10s
+stderr 'value 10s is out of range \[100ms\.\.5s\] for flag --timeout'
+
+# 11. Byte size range violation (memory > 1GiB)
+exit-status 2 constraints-demo -k s3cr3t-key --memory 2GiB
+stderr 'value 2147483648 is out of range \[1MiB\.\.1GiB\] for flag --memory'
+
+# 12. Enum violation
+exit-status 2 constraints-demo -k s3cr3t-key --env local
+stderr 'must be one of'
+
+# 13. Collection bounds violation (4 items > max 3)
+exit-status 2 constraints-demo -k s3cr3t-key -z us-east,us-west,eu-west,ap-south
+stderr 'item count 4 is out of range \[2\.\.3\]'
+
+# 14. Collection bounds violation (1 item < min 2)
+exit-status 2 constraints-demo -k s3cr3t-key -z us-east
+stderr 'item count 1 is out of range \[2\.\.3\]'

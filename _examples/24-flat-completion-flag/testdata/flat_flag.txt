@@ -1,0 +1,29 @@
+# TestScript for 24-flat-completion-flag
+# Asserts adaptive shell completion defaults for flat CLIs:
+# 1. By default, flat CLIs use the --completion flag (Task / ripgrep style).
+# 2. No Commands: section is generated in the --help output.
+
+# 1. Default flat CLI: --help displays the --completion flag with no Commands: section
+exec minify --help
+stdout 'Usage:\n  minify <input> \[flags\]'
+stdout 'Flags:'
+stdout '--completion=SHELL\s+Generate shell completion script'
+! stdout 'Commands:'
+
+# 2. Default flat CLI: --completion generates completion scripts for supported shells
+exec minify --completion bash
+stdout '_minify_completion'
+stdout 'complete -o noquote -F _minify_completion minify'
+
+exec minify --completion zsh
+stdout '#compdef minify'
+stdout '_minify_completion'
+
+# 3. Default flat CLI: unknown shell returns exit code 2 (usage error)
+exit-status 2 minify --completion invalidshell
+stderr 'unknown shell "invalidshell"'
+
+# 4. Default flat CLI: normal command execution
+exec minify -l 9 bundle.js
+stdout '-l, --level\s+int\s+9\s+● cli --level'
+stdout 'Minifying bundle.js \(level=9, output=<stdout>\)'

@@ -1,0 +1,28 @@
+# TestScript for 25-flat-completion-subcommand
+# Asserts flat CLI opting into CompletionCommand:
+# 1. Commands: section displays completion.
+# 2. The --completion flag is suppressed from --help.
+
+# 1. Opt-in CompletionCommand: --help displays Commands: section and suppresses --completion flag
+exec runner --help
+stdout 'Usage:\n  runner <task> \[flags\]'
+stdout 'Commands:'
+stdout 'completion\s+Generate shell completion script'
+! stdout '--completion'
+
+# 2. Opt-in CompletionCommand: completion subcommand generates completion scripts
+exec runner completion bash
+stdout '_runner_completion'
+stdout 'complete -o noquote -F _runner_completion runner'
+
+exec runner completion zsh
+stdout '#compdef runner'
+stdout '_runner_completion'
+
+# 3. Opt-in CompletionCommand: unknown shell returns exit code 2 (usage error)
+exit-status 2 runner completion invalidshell
+stderr 'unknown shell "invalidshell"'
+
+# 4. Opt-in CompletionCommand: normal command execution
+exec runner build
+stdout 'Running task build \(dry-run=false\)'

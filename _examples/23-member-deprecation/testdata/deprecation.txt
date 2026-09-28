@@ -1,0 +1,33 @@
+# TestScript for 23-member-deprecation
+# Asserts member deprecation: provenance-aware runtime warnings, help-screen
+# markers, and exclusion from shell completion
+
+# 1. Deprecated flag warning + parsed values still flow
+exec member-deprecated --old value
+stderr 'WARNING: flag ''--old'' is deprecated: use --modern instead'
+stdout '--old\s+string\s+value\s+● cli --old'
+stdout 'old="value" modern=""'
+
+# 2. Deprecated subcommand warning
+exec member-deprecated legacy
+stderr 'WARNING: command ''member-deprecated legacy'' is deprecated: use deploy instead'
+stdout 'legacy command executed'
+
+# 3. Replacement subcommand stays silent
+exec member-deprecated deploy
+! stderr 'WARNING'
+stdout 'deploy command executed'
+
+# 4. Help screen marks deprecated members
+exec member-deprecated --help
+stdout '\[deprecated: use --modern instead\]'
+stdout '\[deprecated: use deploy instead\]'
+
+# 5. Deprecated members are excluded from shell completion
+exec member-deprecated __complete export --
+! stdout '"value":"--old"'
+stdout '"value":"--modern"'
+
+exec member-deprecated __complete export ''
+! stdout '"value":"legacy"'
+stdout '"value":"deploy"'
