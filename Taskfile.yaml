@@ -27,6 +27,12 @@ tasks:
     cmds:
       - go test -tags sizetest {{.CLI_ARGS | default "./test/size/..."}}
 
+  test:examples:
+    desc: Run tests for the example programs (supports custom flags via --)
+    cmds:
+      - go test -trimpath -ldflags="-s -w" {{.CLI_ARGS | default "./_examples/[0-9]*"}}
+      - go test -trimpath -ldflags="-s -w" {{.CLI_ARGS | default "./_examples/internal/..."}}
+
   test:all:
     desc: Run all tests including shell completion and binary size integration tests
     cmds:
@@ -36,17 +42,6 @@ tasks:
     desc: Run fuzz targets briefly (supports custom flags via --, e.g. task fuzz -- -fuzz=FuzzTokenizer -fuzztime=2m)
     cmds:
       - go test {{.CLI_ARGS | default "-run '^$' -fuzz=FuzzTokenizer -fuzztime=30s"}} ./internal/tokenizer
-
-  test:examples:
-    desc: Run tests for the example programs (supports custom flags via --)
-    cmds:
-      - go test -trimpath -ldflags="-s -w" {{.CLI_ARGS | default "./_examples/[0-9]*"}}
-      - go test -trimpath -ldflags="-s -w" {{.CLI_ARGS | default "./_examples/internal/..."}}
-
-  lint:schema:
-    desc: Validate CONGA struct contracts and schemas with conga-lint (supports custom flags or packages via --)
-    cmds:
-      - go tool conga-lint {{.CLI_ARGS | default "./... ./_examples/..."}}
 
   lint:
     desc: Run all linters
@@ -58,12 +53,17 @@ tasks:
       - golangci-lint run --fix --max-same-issues=0 --max-issues-per-linter=0 --build-tags shelltest ./test/shell/...
       - golangci-lint run --fix --max-same-issues=0 --max-issues-per-linter=0 --build-tags sizetest ./test/size/...
 
-  lint:style:
-    desc: Check the canonical fluent builder call order at conga.New sites (opt-in; supports --fix via --)
-    # Example packages are not matched by ./...; pass them explicitly, e.g.
-    #   task lint:style -- ./_examples/[0-9]*
+  lint:schema:
+    desc: Validate CONGA struct contracts and schemas with conga-lint (supports custom flags or packages via --)
+    # Go's ./... wildcard skips _-prefixed directories, so example packages
+    # must be listed explicitly (shell glob) or they are never analyzed.
     cmds:
-      - go tool conga-lint -builder-order {{.CLI_ARGS | default "./..."}}
+      - go tool conga-lint {{.CLI_ARGS | default "./... ./_examples/[0-9]* ./_examples/internal/..."}}
+
+  lint:schema:style:
+    desc: Check the canonical fluent builder call order at conga.New sites (opt-in; supports --fix via --)
+    cmds:
+      - go tool conga-lint -builder-order {{.CLI_ARGS | default "./... ./_examples/[0-9]* ./_examples/internal/..."}}
 
   coverage:
     desc: Report test coverage (supports custom flags or packages via --)

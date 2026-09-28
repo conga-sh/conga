@@ -19,8 +19,10 @@ Inside the CONGA repository, the `lint:schema` task wires it into the default li
 ```sh
 task lint:schema
 # equivalent to:
-go tool conga-lint ./... ./_examples/...
+go tool conga-lint ./... ./_examples/[0-9]* ./_examples/internal/...
 ```
+
+The example paths are listed explicitly because Go's `./...` wildcard skips `_`-prefixed directories; the shell expands the `[0-9]*` glob into the numbered example packages.
 
 ## What it checks
 
@@ -59,7 +61,7 @@ go tool conga-lint -builder-order -fix ./...           # apply the reordering
 go tool conga-lint -builder-order -fix -diff ./...     # preview it instead
 ```
 
-`-builder-order-spec` replaces the built-in order; it accepts a comma- or newline-separated list of App method names or `@path` to read one method per line (`#` starts a comment). Methods left out of the spec stay unconstrained. `-fix` reorders the calls it can move safely: barrier calls such as `Use(...)`, which execute plugin functions, never move, calls never cross the constructor-chain/statement boundary, and comment placement or statement shapes that cannot be swapped safely downgrade the violation to a manual reorder. Test files and generated files are exempt. Inside the CONGA repository, `task lint:style` runs the check.
+`-builder-order-spec` replaces the built-in order; it accepts a comma- or newline-separated list of App method names or `@path` to read one method per line (`#` starts a comment). Methods left out of the spec stay unconstrained. `-fix` reorders the calls it can move safely: barrier calls such as `Use(...)`, which execute plugin functions, never move, calls never cross the constructor-chain/statement boundary, and comment placement or statement shapes that cannot be swapped safely downgrade the violation to a manual reorder. Test files and generated files are exempt. Inside the CONGA repository, `task lint:schema:style` runs the check.
 
 ## Relationship to runtime errors
 
