@@ -1,4 +1,4 @@
-# TestScript for 27-kitchen-sink
+# TestScript for 99-kitchen-sink
 # Asserts the exhaustive type matrix, configuration-mapping patterns, and
 # schema directives across all four decoder formats. The configs/ directory
 # is the single fixture source (documentation for manual runs, copied in here).

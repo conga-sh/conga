@@ -19,7 +19,7 @@ type CLI struct {
 	WorkerID    conga.OptionalFlag[string] `help:"Worker instance identifier" safe:"true"`
 	Trace       conga.OptionalFlag[bool]   `env:"-"                           help:"Enable trace output (never environment-bound)"`
 	AuthToken   conga.OptionalFlag[string] `config:"-"                        help:"Bearer token (CLI/env only, excluded from config files)"`
-	SessionID   string                     `conga:"-"`
+	SessionID   string                     `conga:"-"` // conga:"-" is an alias of conga:"ignore" (plain fields are inert either way)
 }
 
 func (c *CLI) Run(ctx context.Context, session *conga.Session) error {

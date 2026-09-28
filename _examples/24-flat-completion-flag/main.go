@@ -8,9 +8,9 @@ import (
 	"github.com/conga-sh/conga/_examples/internal/inspector"
 )
 
-// CLI is a flat CLI without subcommands. By default, CONGA provides
-// the --completion flag (Task / ripgrep style) without generating an unnecessary
-// Commands: section in the help display.
+// CLI is a flat CLI without subcommands. With EnableCompletion(), CONGA
+// provides the --completion flag (Task / ripgrep style) without generating an
+// unnecessary Commands: section in the help display.
 type CLI struct {
 	Level  conga.OptionalFlag[int]    `default:"1"                 help:"Minification level (1-9)" safe:"true" short:"l"`
 	Output conga.OptionalFlag[string] `help:"Output file path"     safe:"true"                     short:"o"`

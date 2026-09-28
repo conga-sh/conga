@@ -1,0 +1,40 @@
+package main
+
+import (
+	"context"
+
+	"github.com/conga-sh/conga"
+	"github.com/conga-sh/conga/_examples/internal/inspector"
+	"github.com/conga-sh/conga/config"
+	"github.com/conga-sh/conga/decoder/yaml"
+)
+
+// CLI demonstrates config.Explicit(...): one programmatic concrete config file
+// with fatal-if-missing semantics. Only an explicit --config-file flag
+// outranks it; the <PREFIX>_CONFIG environment variable and the search tier
+// are not consulted while the option is declared.
+type CLI struct {
+	ConfigFile conga.ConfigFile `help:"Config file override" short:"c"`
+
+	Host conga.OptionalFlag[string] `default:"localhost" help:"Server host"`
+	Port conga.OptionalFlag[int]    `default:"8080"      help:"Server port" short:"p"`
+}
+
+func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
+	inspector.Print(session, c)
+
+	return nil
+}
+
+func main() {
+	app := conga.New[CLI]().
+		Name("explicit-config").
+		Description("Programmatic explicit config file (fatal-if-missing)").
+		Version("1.0.0").
+		EnvPrefix("EXPLICIT").
+		RegisterDecoder(".yaml", yaml.RawDecoder).
+		RegisterDecoder(".yml", yaml.RawDecoder).
+		ConfigOptions(config.Explicit("bootstrap.yaml"))
+
+	app.FatalIfError(app.Run())
+}

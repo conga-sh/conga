@@ -232,11 +232,19 @@ env PAGER=custom-pager-demo
 exec cloudctl __complete export logs --pager ''
 stdout '"value":"custom-pager-demo"'
 
-# 14. Filesystem predictors: Files, Dirs, FilesFiltered, PathsFiltered,
-#     FileLines, FileContents (+custom parser), Executables, Symlinks, None
+# 14. Filesystem predictors: Files, FilesGlob, Dirs, FilesFiltered,
+#     PathsFiltered, FileLines, FileContents (+custom parser), Executables,
+#     Symlinks, None
 exec cloudctl __complete export logs --out-file ''
 stdout '"value":"app.log"'
 stdout '"value":"server.log"'
+! stdout '"value":"app.yaml"'
+
+# FilesGlob matches multiple name patterns
+exec cloudctl __complete export logs --glob-log ''
+stdout '"value":"app.log"'
+stdout '"value":"server.log"'
+stdout '"value":"ignore.txt"'
 ! stdout '"value":"app.yaml"'
 
 exec cloudctl __complete export logs --log-dir ''
@@ -288,11 +296,14 @@ stdout '"value":"api,auth"'
 stdout '"value":"api,billing"'
 stdout '"value":"api,frontend"'
 
-# 16. Programmatic predictor evaluation: Invoke, Raw, and Filter
+# 16. Programmatic predictor evaluation: Invoke, Raw, Filter, and Tag
+#     (flag completion tags candidates with the engine's own "values" tag,
+#     so the predictor tag is asserted on the programmatic result instead)
 exec cloudctl logs api --list-candidates
 stdout 'Severities: \[debug info warn error\]'
 stdout 'Severities matching "w": \[warn\]'
 stdout 'KeepOrder directive: true'
+stdout 'Tag: severities'
 
 # 17. Positional argument enums & simultaneous flags
 exec cloudctl __complete export logs a

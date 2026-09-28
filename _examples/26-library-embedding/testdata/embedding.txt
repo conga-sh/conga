@@ -1,13 +1,15 @@
 # TestScript for 26-library-embedding
-# Asserts hosted lifecycle: App.Args, injected Stdout/Stderr writers,
+# Asserts hosted lifecycle: App.Args, injected Stdout/Stderr/Stdin streams,
 # RunContext, typed errors + IsUsageError, custom Exit handler,
 # UsageOnError(UsageSilence), and the Disable* built-in switches
 
-# 1. Successful run: business output lands in the injected stdout buffer,
-#    the custom exit handler records 0, and the host exits cleanly
+# 1. Successful run: the command reads the injected stdin, business output
+#    lands in the injected stdout buffer, the custom exit handler records 0,
+#    and the host exits cleanly
 exec batchrun migrate-data --priority 7
 stdout '\[host\] captured exit code: 0'
 stdout 'Running job migrate-data \(priority 7\)'
+stdout 'stdin payload: "host-provided stdin\\n"'
 ! stdout 'usage-classified'
 
 # 2. Coercion failure: the host inspects the typed error (IsUsageError,

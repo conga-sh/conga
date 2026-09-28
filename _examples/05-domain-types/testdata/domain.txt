@@ -78,11 +78,25 @@ exec domain-demo -i valid.txt --payload payload.txt --output -
 stdout 'payload-data'
 stderr 'output stream detected; diagnostics stay on stderr'
 
+# 16. A File with stdin:"true" streams lazily via Reader() from the engine stdin
+stdin streamed.txt
+exec domain-demo -q -
+stdout '-q, --query\s+conga\.File\s+-\s+● cli --query'
+stdout 'query_bytes=[0-9]+'
+
+# 17. The same stdin-capable flag accepts a regular file path
+exec domain-demo -q valid.txt
+stdout '-q, --query\s+conga\.File\s+valid\.txt\s+● cli --query'
+stdout 'query_bytes=[0-9]+'
+
+# 18. glob:"*.yaml,*.yml" filters file completion candidates by name pattern
+exec domain-demo __complete export --templates ''
+stdout '"value":"template\.yaml"'
+stdout '"value":"settings\.yml"'
+! stdout 'notes\.txt'
+
 -- payload.txt --
 payload-data
-
--- streamed.txt --
-streamed-payload
 
 -- valid.txt --
 key=value
@@ -90,3 +104,15 @@ key=value
 -- hook.sh --
 #!/bin/sh
 echo "deployment hook executed"
+
+-- template.yaml --
+kind: Deployment
+
+-- settings.yml --
+theme: dark
+
+-- notes.txt --
+plain notes
+
+-- streamed.txt --
+streamed-payload

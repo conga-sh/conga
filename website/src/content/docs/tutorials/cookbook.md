@@ -1,9 +1,9 @@
 ---
 title: Examples Cookbook
-description: Runnable examples from the repository's 27-example collection.
+description: Runnable examples from the repository's 29-example collection.
 ---
 
-Every example below maps to a self-contained, runnable program in the repository's [`_examples/`](https://github.com/conga-sh/conga/tree/main/_examples) directory, each with an end-to-end test suite that also serves as executable documentation. Run one locally:
+Every example below maps to a self-contained, runnable program in the repository's [`_examples/`](https://github.com/conga-sh/conga/tree/main/_examples) directory, each with a README and an end-to-end test suite that also serves as executable documentation. Run one locally:
 
 ```sh
 go run ./_examples/08-subcommands-basic create web-api -i redis:7 -r 3
@@ -19,7 +19,7 @@ go run ./_examples/08-subcommands-basic create web-api -i redis:7 -r 3
 | 02 | [flag-primitives](https://github.com/conga-sh/conga/tree/main/_examples/02-flag-primitives) | Primitive types, `time.Duration`, `Counter` (`-vvv`), aliases, flag groups, hidden flags, coercion errors |
 | 03 | [negatable-and-maps](https://github.com/conga-sh/conga/tree/main/_examples/03-negatable-and-maps) | Negatable booleans, native `map[K]V` flags with `items` bounds, slice separators (`sep:"none"`, `sep:";"`) |
 | 04 | [positional-args](https://github.com/conga-sh/conga/tree/main/_examples/04-positional-args) | `RequiredArg[T]`, `OptionalArg[T]`, trailing slices, `GetOr` fallbacks |
-| 05 | [domain-types](https://github.com/conga-sh/conga/tree/main/_examples/05-domain-types) | `File` with `existing`/`stdin`/`stdout`/`symlink` tags, `Dir`, `ByteSize`, custom `TextUnmarshaler` + `SelfValidator` types |
+| 05 | [domain-types](https://github.com/conga-sh/conga/tree/main/_examples/05-domain-types) | `File` with `existing`/`stdin`/`stdout`/`symlink`/`glob` tags, `Dir`, `ByteSize`, `FileContent`, custom `TextUnmarshaler` + `SelfValidator` types |
 
 ### Constraints and structure
 
@@ -32,6 +32,7 @@ go run ./_examples/08-subcommands-basic create web-api -i redis:7 -r 3
 | 10 | [builtins-help-version](https://github.com/conga-sh/conga/tree/main/_examples/10-builtins-help-version) | Opt-in `HelpCommand`/`VersionCommand` subcommands; `version --json`; `Examples`/`Footer` builders; `Description()`/`Examples()` methods; custom commands rendering through `session.Help`/`Usage`/`Version` |
 | 11 | [trailing-args-forwarding](https://github.com/conga-sh/conga/tree/main/_examples/11-trailing-args-forwarding) | `DashArgs` (`--` forwarding) vs `RawArgs` (bare forwarding) |
 | 12 | [lifecycle-hooks](https://github.com/conga-sh/conga/tree/main/_examples/12-lifecycle-hooks) | `PreRun → Run → PostRun → Finally`, error short-circuiting, guaranteed teardown |
+| 27 | [strict-tag-validation](https://github.com/conga-sh/conga/tree/main/_examples/27-strict-tag-validation) | `app.StrictTagValidation(false)` for schemas carrying third-party struct tags |
 
 ### Configuration
 
@@ -43,6 +44,7 @@ go run ./_examples/08-subcommands-basic create web-api -i redis:7 -r 3
 | 16 | [live-config-watcher](https://github.com/conga-sh/conga/tree/main/_examples/16-live-config-watcher) | Daemon hot-reload with `watch.Config`/`watch.File`, SIGHUP reload via `session.Reload[T]`, graceful signal shutdown |
 | 17 | [config-profiles](https://github.com/conga-sh/conga/tree/main/_examples/17-config-profiles) | `ConfigFile` with `multi:"true"` multi-file merging (base + profiles) |
 | 18 | [config-searchpaths](https://github.com/conga-sh/conga/tree/main/_examples/18-config-searchpaths) | `app.ConfigOptions(config.Paths(...))` single-file mode, first existing file wins |
+| 28 | [explicit-config-file](https://github.com/conga-sh/conga/tree/main/_examples/28-explicit-config-file) | `app.ConfigOptions(config.Explicit(...))`: fatal-if-missing programmatic target, only `--config-file` outranks it |
 
 ### Completion
 
@@ -65,8 +67,8 @@ go run ./_examples/08-subcommands-basic create web-api -i redis:7 -r 3
 
 | # | Example | Teaches |
 |---|---------|---------|
-| 26 | [library-embedding](https://github.com/conga-sh/conga/tree/main/_examples/26-library-embedding) | `App.Args`, injected writers, `RunContext`, typed errors + `IsUsageError`, custom `ExitFunc`, `UsageOnError(UsageSilence)`, `DisableHelpFlag`/`DisableVersionFlag` |
-| 27 | [kitchen-sink](https://github.com/conga-sh/conga/tree/main/_examples/27-kitchen-sink) | Exhaustive reference: every type, all four decoders over nested subcommands, key remap, map encodings, provenance, schema directives |
+| 26 | [library-embedding](https://github.com/conga-sh/conga/tree/main/_examples/26-library-embedding) | `App.Args`, injected `Stdin`/`Stdout`/`Stderr` streams, `RunContext`, typed errors + `IsUsageError`, custom `ExitFunc`, `UsageOnError(UsageSilence)`, `DisableHelpFlag`/`DisableVersionFlag` |
+| 99 | [kitchen-sink](https://github.com/conga-sh/conga/tree/main/_examples/99-kitchen-sink) | Exhaustive reference: every primitive width plus the filesystem/value types (`File`, `Dir`, `ByteSize`, durations, URLs, maps), all four decoders over nested subcommands, key remap, map encodings, provenance, schema directives |
 
 ## Example: twelve-factor precedence
 

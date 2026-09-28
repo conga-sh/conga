@@ -102,7 +102,7 @@ or copy from the [Examples Cookbook](https://docs.conga.sh/tutorials/cookbook/).
   every supported struct tag and directive.
 - [Built-ins & Deprecation](https://docs.conga.sh/reference/builtins/) —
   help, `--version`/`--json`, `--why`, completion styles, and deprecation notices.
-- [Examples Cookbook](https://docs.conga.sh/tutorials/cookbook/) — 27
+- [Examples Cookbook](https://docs.conga.sh/tutorials/cookbook/) — 29
   runnable programs, mirrored in [`_examples/`](_examples/README.md).
 - Contributor docs: [testing guide](docs/TESTING.md) and
   [completion wire protocol](docs/completion-wire-protocol.md).

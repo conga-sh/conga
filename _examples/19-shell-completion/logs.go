@@ -17,9 +17,12 @@ import (
 
 // severityPredictor is registered as the "severities" predictor below and is
 // also evaluated programmatically by --list-candidates, demonstrating Invoke,
-// Raw, and Filter outside the completion engine.
+// Raw, Filter, and Tag outside the completion engine. Tag is observable on the
+// programmatic result; flag completion overwrites it with the engine's own
+// "values" tag.
 var severityPredictor = predict.Values("debug", "info", "warn", "error").
 	KeepOrder().
+	Tag("severities").
 	Usage("log severity threshold (source order preserved)")
 
 // LogsCmd is the predictor SDK playground: every flag demonstrates one
@@ -34,6 +37,7 @@ type LogsCmd struct {
 	Labels         conga.OptionalFlag[map[string]string] `help:"Log labels in key=value format (MapValues)"                          predictor:"labels"           short:"l"`
 	Mute           conga.OptionalFlag[[]string]          `help:"Service to suppress (FlagValues dedup)"                              predictor:"mute-services"`
 	OutFile        conga.OptionalFlag[string]            `help:"Output log file (Files with extension filter)"                       predictor:"log-files"`
+	GlobLog        conga.OptionalFlag[string]            `help:"Log file matching a glob pattern (FilesGlob)"                        predictor:"glob-logs"`
 	LogDir         conga.OptionalFlag[string]            `help:"Log output directory (Dirs)"                                         predictor:"log-dirs"`
 	Archive        conga.OptionalFlag[string]            `help:"Compressed archive to read (FilesFiltered)"                          predictor:"archives"`
 	NodeDir        conga.OptionalFlag[string]            `help:"Node log directory (PathsFiltered, directories only)"                predictor:"node-dirs"`
@@ -67,6 +71,10 @@ func (l *LogsCmd) Run(ctx context.Context, session *conga.Session) error {
 		fmt.Fprintf(stdout, "Severities: %v\n", severityPredictor.Raw())
 		fmt.Fprintf(stdout, "Severities matching \"w\": %v\n", filteredValues)
 		fmt.Fprintf(stdout, "KeepOrder directive: %t\n", severityResult.Directive.Has(predict.DirectiveKeepOrder))
+
+		if len(severityResult.Items) > 0 {
+			fmt.Fprintf(stdout, "Tag: %s\n", severityResult.Items[0].Tag)
+		}
 
 		return nil
 	}
@@ -116,6 +124,8 @@ func appendLogPredictors(app *conga.App[CLI]) *conga.App[CLI] {
 			return predict.Values(remaining...).Usage("services (already muted excluded)")
 		})).
 		Predictor("log-files", predict.Files(".log").Usage("rotated log files")).
+		Predictor("glob-logs", predict.FilesGlob("*.log", "*.txt").
+			Usage("log files and notes by glob pattern")).
 		Predictor("log-dirs", predict.Dirs().Usage("directories holding log output")).
 		Predictor("archives", predict.FilesFiltered(func(path string, entry os.DirEntry) bool {
 			return strings.HasSuffix(entry.Name(), ".gz")

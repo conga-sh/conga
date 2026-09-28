@@ -10,7 +10,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
+	"strings"
 
 	"github.com/conga-sh/conga"
 )
@@ -24,12 +26,20 @@ type DeployJobCLI struct {
 func (d *DeployJobCLI) Run(ctx context.Context, session *conga.Session) error {
 	fmt.Fprintf(session.Stdout(), "Running job %s (priority %d)\n", d.Job.Get(), d.Priority.Get())
 
+	payload, err := io.ReadAll(session.Stdin())
+	if err != nil {
+		return fmt.Errorf("read stdin: %w", err)
+	}
+
+	fmt.Fprintf(session.Stdout(), "stdin payload: %q\n", payload)
+
 	return nil
 }
 
 func main() {
-	// The host owns the streams: CONGA writes help, version, business output,
-	// and errors into these buffers, and the host decides where they go.
+	// The host owns the streams: CONGA reads standard input from the injected
+	// reader and writes help, version, business output, and errors into these
+	// buffers, and the host decides where they go.
 	var stdoutBuffer, stderrBuffer bytes.Buffer
 
 	// The host owns termination: the exit handler records the requested code
@@ -48,6 +58,7 @@ func main() {
 		UsageOnError(conga.UsageSilence).
 		Stdout(&stdoutBuffer).
 		Stderr(&stderrBuffer).
+		Stdin(strings.NewReader("host-provided stdin\n")).
 		Args(os.Args[1:]).
 		ExitFunc(func(code int) { capturedCode = code })
 

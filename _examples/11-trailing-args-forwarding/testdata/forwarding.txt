@@ -8,11 +8,13 @@ stdout 'runner · root'
 stdout 'test · active'
 stdout '<pkg>\s+string\s+\./pkg/server\s+● cli'
 stdout '\[-- <args\.\.\.>\]\s+DashArgs\s+—\s+○ unset'
+stdout 'DashArgs container: \[\] \| session\.Args\(\): \[\]'
 
 # 2. Test subcommand with DashArgs forwarded after '--'
 exec runner test ./pkg/server -- -v -run TestAuth -count 5
 stdout '⚙  runner test'
 stdout '\[-- <args\.\.\.>\]\s+DashArgs\s+-v -run TestAuth -count 5\s+● cli'
+stdout 'DashArgs container: \[-v -run TestAuth -count 5\] \| session\.Args\(\): \[\]'
 
 # 3. Exec subcommand with bare unparsed arguments
 exec runner exec my-container ls -la /var/log
@@ -20,6 +22,7 @@ stdout '⚙  runner exec'
 stdout 'exec · active'
 stdout '<container>\s+string\s+my-container\s+● cli'
 stdout '\[command\] \[args\.\.\.\]\s+RawArgs\s+ls -la /var/log\s+● cli'
+stdout 'RawArgs container: \[ls -la /var/log\] \| session\.Args\(\): \[ls -la /var/log\]'
 
 # 4. Global flags mixed with raw container arguments
 exec runner -v exec my-container python3 -m http.server 8000

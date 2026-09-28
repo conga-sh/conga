@@ -1,0 +1,41 @@
+# TestScript for 28-explicit-config-file
+# Asserts config.Explicit(...) semantics: bootstrap.yaml is the programmatic
+# target (fatal if missing), only --config-file outranks it, and the
+# EXPLICIT_CONFIG environment variable is ignored while the option is declared.
+
+# 1. The programmatic explicit file loads without any flag
+exec explicit-config
+stdout '⚙  explicit-config'
+stdout '-c, --config-file\s+conga\.ConfigFile\s+bootstrap\.yaml\s+● cli bootstrap\.yaml'
+stdout '--host\s+string\s+explicit\.example\.com\s+● config host'
+stdout '-p, --port\s+int\s+9100\s+● config port'
+
+# 2. EXPLICIT_CONFIG is not consulted: the explicit option still wins
+env EXPLICIT_CONFIG=env.yaml
+exec explicit-config
+stdout '--host\s+string\s+explicit\.example\.com\s+● config host'
+stdout '-p, --port\s+int\s+9100\s+● config port'
+env EXPLICIT_CONFIG=
+
+# 3. The --config-file flag outranks the explicit option
+exec explicit-config -c override.yaml
+stdout '-c, --config-file\s+conga\.ConfigFile\s+override\.yaml\s+● cli --config-file'
+stdout '--host\s+string\s+override\.example\.com\s+● config host'
+stdout '-p, --port\s+int\s+9200\s+● config port'
+
+# 4. Missing explicit file is fatal: exit 1, not a usage error
+rm bootstrap.yaml
+exit-status 1 explicit-config
+stderr 'cannot read config file "bootstrap\.yaml"'
+
+-- bootstrap.yaml --
+host: explicit.example.com
+port: 9100
+
+-- override.yaml --
+host: override.example.com
+port: 9200
+
+-- env.yaml --
+host: env.example.com
+port: 9300

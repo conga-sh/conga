@@ -182,4 +182,4 @@ func main() {
 - [About flags & args](../explanation/flags-and-args/) — the full declarative surface: counters, maps, slices, constraints.
 - [How to manage config files](../how-to/manage-config-files/) — add JSON/TOML/YAML/HCL configuration.
 - [How to enable shell completion](../how-to/enable-shell-completion/) — completion for all six shells.
-- [Examples Cookbook](cookbook/) — 27 runnable programs to copy from, including the [minimal hello](https://github.com/conga-sh/conga/tree/main/_examples/01-minimal-hello) this tutorial is based on.
+- [Examples Cookbook](cookbook/) — 29 runnable programs to copy from, including the [minimal hello](https://github.com/conga-sh/conga/tree/main/_examples/01-minimal-hello) this tutorial is based on.
