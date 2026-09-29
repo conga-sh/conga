@@ -3,7 +3,7 @@ title: About binary size and linking
 description: Why unused subsystems cost nothing to link, what each opt-in battery adds, and how its measured sizes compare with cobra, kong, and urfave/cli.
 ---
 
-Every CONGA feature is a link-time opt-in: the Go linker includes a subsystem only when the application enables it. An app that enables no completion, registers no config decoder, and loads no `.env` files carries none of those subsystems in its binary. This page explains how that works and what each opt-in costs; the full measured tables live in the [binary size benchmark](../reference/binary-size-benchmark/).
+Every CONGA feature is a link-time opt-in: the Go linker includes a subsystem only when the application enables it. An app that enables no completion, registers no config decoder, and loads no `.env` files carries none of those subsystems in its binary. This page explains how that works and what each opt-in costs; the full measured tables live in the [binary size benchmark](/reference/binary-size-benchmark/).
 
 ## The mechanism: the linker can only drop what it can prove unreachable
 
@@ -19,7 +19,7 @@ CONGA deliberately uses the first style. Completion, configuration, `.env` loadi
 - `app.RegisterDecoder(...)` / `app.ConfigOptions(...)` install the config resolver.
 - `app.Dotenv(...)` installs the `.env` loader and reload hooks.
 
-An application that calls none of these leaves every hook nil; the linker proves each call site unreachable and eliminates the subsystem. A checked-in DCE guard (`task test:size`) asserts the payloads are absent, so the property cannot silently regress. See [How to enable shell completion](../how-to/enable-shell-completion/), [How to load .env files](../how-to/load-env-files/), and [How to manage config files](../how-to/manage-config-files/) for the opt-in surface.
+An application that calls none of these leaves every hook nil; the linker proves each call site unreachable and eliminates the subsystem. A checked-in DCE guard (`task test:size`) asserts the payloads are absent, so the property cannot silently regress. See [How to enable shell completion](/how-to/enable-shell-completion/), [How to load .env files](/how-to/load-env-files/), and [How to manage config files](/how-to/manage-config-files/) for the opt-in surface.
 
 Cobra and urfave/cli manage the same subsystems through runtime switches. `DisableDefaultCmd` and `EnableShellCompletion: false` control whether a completion command is registered; the completion code stays linked either way, which is why each framework's "off" build is byte-identical to its "on" build in the measured ladder.
 
@@ -45,7 +45,7 @@ Completion costs 409,600 bytes (+15.9%), config 573,440 (+22.2%), and `--why` 53
 
 ## How the sizes compare across frameworks
 
-Each framework's builds differ in feature set and wiring style, so the comparison here is size-only; the [benchmark page](../reference/binary-size-benchmark/) records the exact builds and methodology. The measured ladder supports three separate observations rather than a single summary:
+Each framework's builds differ in feature set and wiring style, so the comparison here is size-only; the [benchmark page](/reference/binary-size-benchmark/) records the exact builds and methodology. The measured ladder supports three separate observations rather than a single summary:
 
 - **At the core rung, the sizes are close.** `CONGA core` (2,580,640) is within 1.1% of cobra (2,551,968). Cobra's binary includes its completion code in both configurations, while `CONGA core` includes native env binding, required validation, and the declarative schema, and links no completion code until you opt in.
 - **Completion alone: cobra's build is smaller.** Comparing the completion builds, cobra's (four shells) is 438,272 bytes smaller than `CONGA core + EnableCompletion()` (six shells, predictor-driven values, a wire protocol). If completion is the only capability required, cobra's binary is smaller.

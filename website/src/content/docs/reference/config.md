@@ -3,7 +3,7 @@ title: package config
 description: Config-file authoring surface — resolution options and decoder registration.
 ---
 
-Deep detail lives on [pkg.go.dev/github.com/conga-sh/conga/config](https://pkg.go.dev/github.com/conga-sh/conga/config); workflow guidance is in [How to manage config files](../how-to/manage-config-files/) and the rationale in [About the config cascade](../explanation/config-cascade/).
+Deep detail lives on [pkg.go.dev/github.com/conga-sh/conga/config](https://pkg.go.dev/github.com/conga-sh/conga/config); workflow guidance is in [How to manage config files](/how-to/manage-config-files/) and the rationale in [About the config cascade](/explanation/config-cascade/).
 
 ## Options
 
@@ -38,4 +38,4 @@ app.ConfigOptions(
 type Decoder func(data []byte) (map[string]any, error)
 ```
 
-Register decoders per application with `app.RegisterDecoder(extension, decoder)`. See [Decoders](decoders/).
+Register decoders per application with `app.RegisterDecoder(extension, decoder)`. See [Decoders](/reference/decoders/).

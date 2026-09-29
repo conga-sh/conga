@@ -5,14 +5,6 @@ description: Build server, a CLI whose values resolve from flags, environment va
 
 In this tutorial, we will build `server`, a CLI that prints its listen address. We will resolve host and port from defaults, then environment variables, then a TOML config file, and we will report the source of each value with `--why`.
 
-## Set up the module
-
-```sh
-mkdir server && cd server
-go mod init example.com/server
-go get github.com/conga-sh/conga
-```
-
 ## Define the command
 
 Create `main.go`:
@@ -102,7 +94,7 @@ Flags:
       --version           Show version
 ```
 
-The full four-tier ladder is explained in [About value precedence](../explanation/value-precedence/).
+The full four-tier ladder is explained in [About value precedence](/explanation/value-precedence/).
 
 ## Load a config file
 
@@ -153,7 +145,7 @@ $ SERVER_PORT=9002 go run .
 listening on 0.0.0.0:9002
 ```
 
-The first run reads both values from the file. In the second run the environment tier still wins for `port`, so `host` keeps the file's `0.0.0.0` while `port` comes from `SERVER_PORT`. See [How to manage config files](../how-to/manage-config-files/) for explicit paths, cascading, and profiles, and [About the config cascade](../explanation/config-cascade/) for the resolution rules.
+The first run reads both values from the file. In the second run the environment tier still wins for `port`, so `host` keeps the file's `0.0.0.0` while `port` comes from `SERVER_PORT`. See [How to manage config files](/how-to/manage-config-files/) for explicit paths, cascading, and profiles, and [About the config cascade](/explanation/config-cascade/) for the resolution rules.
 
 ## See where each value came from
 
@@ -204,7 +196,7 @@ Config paths checked:
   .   loaded: server.toml
 ```
 
-`--why` answers the invocation by printing the report and exiting before `Run` executes. The two fields display their values because they carry `safe:"true"`; untagged fields render as `██████`, which keeps secrets out of terminals and CI logs. See [The `--why` report](../reference/builtins/#the---why-report) for the full report reference.
+`--why` answers the invocation by printing the report and exiting before `Run` executes. The two fields display their values because they carry `safe:"true"`; untagged fields render as `██████`, which keeps secrets out of terminals and CI logs. See [The `--why` report](/reference/builtins/#the---why-report) for the full report reference.
 
 ## The complete program
 
@@ -247,7 +239,7 @@ func main() {
 
 ## Where to go next
 
-- [How to load .env files](../how-to/load-env-files/) — layer `.env` and `.env.local` under the environment tier.
-- [How to hot-reload configuration](../how-to/hot-reload-config/) — watch the file and swap values at runtime.
-- [About the config cascade](../explanation/config-cascade/) — the built-in XDG tier, cascading, and existence semantics.
-- [How to run the examples](../how-to/examples-cookbook/) — example 13 for the full precedence ladder, example 14 for multiple formats and `.env`.
+- [How to load .env files](/how-to/load-env-files/) — layer `.env` and `.env.local` under the environment tier.
+- [How to hot-reload configuration](/how-to/hot-reload-config/) — watch the file and swap values at runtime.
+- [About the config cascade](/explanation/config-cascade/) — the built-in XDG tier, cascading, and existence semantics.
+- [How to run the examples](/how-to/examples-cookbook/) — example 13 for the full precedence ladder, example 14 for multiple formats and `.env`.

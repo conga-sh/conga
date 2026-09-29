@@ -5,14 +5,6 @@ description: Build cloudctl, a multi-command CLI — route deploy and list, add 
 
 In this tutorial, we will build `cloudctl`, a CLI with two subcommands: `deploy` takes a service name and an optional replica count, and `list` prints the deployed services. We will cover `conga.Command[T]` fields, positional arguments, and the generated command tree.
 
-## Set up the module
-
-```sh
-mkdir cloudctl && cd cloudctl
-go mod init example.com/cloudctl
-go get github.com/conga-sh/conga
-```
-
 ## Declare the first subcommand
 
 A root struct field of type `conga.Command[T]` mounts a subcommand handled by `T`. Create `main.go`:
@@ -57,7 +49,7 @@ The `Deploy` field mounts a subcommand: `conga.Command[DeployCmd]` routes the `d
 `DeployCmd` is an ordinary CONGA struct, with the same rules as the root:
 
 - `Service` is a `RequiredArg[string]`, a positional argument. It has no flag name — it is matched by position — and CONGA refuses to run the command when it is missing.
-- `Replicas` is a regular flag with a default and a short form, using the same tag vocabulary as the [Quickstart](../quickstart/) flags.
+- `Replicas` is a regular flag with a default and a short form, using the same tag vocabulary as the [Quickstart](/tutorials/quickstart/) flags.
 
 We run it with and without the flag, then without the argument:
 
@@ -216,7 +208,7 @@ func main() {
 
 ## Where to go next
 
-- [Configuration](configuration/) — give flags environment and config-file fallbacks, and trace them with `--why`.
-- [About subcommands](../explanation/subcommands/) — nesting, command groups, hidden commands, and global flags.
-- [Struct tag reference](../reference/struct-tags/) — every command tag: `aliases`, `group`, `hidden`, `deprecated`, `envprefix`.
-- [How to run the examples](../how-to/examples-cookbook/) — example 08 for aliases and groups, example 09 for deep hierarchies and `session.Root[T]()`.
+- [Configuration](/tutorials/configuration/) — give flags environment and config-file fallbacks, and trace them with `--why`.
+- [About subcommands](/explanation/subcommands/) — nesting, command groups, hidden commands, and global flags.
+- [Struct tag reference](/reference/struct-tags/) — every command tag: `aliases`, `group`, `hidden`, `deprecated`, `envprefix`.
+- [How to run the examples](/how-to/examples-cookbook/) — example 08 for aliases and groups, example 09 for deep hierarchies and `session.Root[T]()`.

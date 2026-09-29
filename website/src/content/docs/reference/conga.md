@@ -122,7 +122,7 @@ when no version string was configured.
 
 ## Domain types
 
-`File`, `FileContent`, `Dir`, `ByteSize` — see [Domain types](domain-types/).
+`File`, `FileContent`, `Dir`, `ByteSize` — see [Domain types](/reference/domain-types/).
 
 ## Value sources
 
@@ -134,10 +134,10 @@ when no version string was configured.
 
 ## Errors
 
-Base categories (`ErrSchema`, `ErrParse`, `ErrCoerce`, `ErrValidation`, `ErrConfig`) plus the `UsageError` interface and `IsUsageError(err)` classification — catalogued in [Errors and exit codes](errors/).
+Base categories (`ErrSchema`, `ErrParse`, `ErrCoerce`, `ErrValidation`, `ErrConfig`) plus the `UsageError` interface and `IsUsageError(err)` classification — catalogued in [Errors and exit codes](/reference/errors/).
 
 ## Configuration package
 
 The config-file authoring surface lives in the `github.com/conga-sh/conga/config`
 package: the `app.ConfigOptions` option constructors (`config.Paths`, `config.Explicit`,
-`config.Cascading`) and the `config.Decoder` type. See [package config](config/).
+`config.Cascading`) and the `config.Decoder` type. See [package config](/reference/config/).

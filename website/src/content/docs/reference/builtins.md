@@ -49,7 +49,7 @@ hello:
 
 ## The `--why` report
 
-`app.EnableWhy()` enables `--why`, which prints a per-field provenance report — every resolved value in the active command chain with its [origin tier](../explanation/value-precedence/) (`● cli`, `● env VAR`, `● config key`, `· default`, `○ unset`). Values are redacted by default; fields opt in to display with `safe:"true"`. The report machinery is linked only when `app.EnableWhy()` is called; otherwise `--why` remains an unknown flag.
+`app.EnableWhy()` enables `--why`, which prints a per-field provenance report — every resolved value in the active command chain with its [origin tier](/explanation/value-precedence/) (`● cli`, `● env VAR`, `● config key`, `· default`, `○ unset`). Values are redacted by default; fields opt in to display with `safe:"true"`. The report machinery is linked only when `app.EnableWhy()` is called; otherwise `--why` remains an unknown flag.
 
 ## Completion surface
 
@@ -87,4 +87,4 @@ Deprecated members are excluded from shell completion.
 - `app.Stdout(w)` / `app.Stderr(w)` redirect help and error streams (tests, embedders).
 - `app.Args(args)` parses a custom argument slice instead of `os.Args[1:]`.
 - `app.ExitFunc(handler)` replaces `os.Exit` in `FatalIfError`.
-- `UsageOnError(mode)` controls error-time usage rendering (`conga.UsageSilence` suppresses it) — see [Errors and exit codes](errors/).
+- `UsageOnError(mode)` controls error-time usage rendering (`conga.UsageSilence` suppresses it) — see [Errors and exit codes](/reference/errors/).

@@ -3,7 +3,7 @@ title: Domain types
 description: Built-in filesystem and size types that coerce, validate, and complete themselves.
 ---
 
-Types in the root `conga` package implement the `Predictable` interfaces — they carry their own completion behaviour alongside coercion and validation. Using them makes flags and arguments complete automatically in all six shells. To author your own, see [How to add custom types and decoders](../how-to/custom-types-and-decoders/).
+Types in the root `conga` package implement the `Predictable` interfaces — they carry their own completion behaviour alongside coercion and validation. Using them makes flags and arguments complete automatically in all six shells. To author your own, see [How to add custom types and decoders](/how-to/custom-types-and-decoders/).
 
 ## Filesystem types
 

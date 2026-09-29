@@ -64,9 +64,9 @@ func (i *Import) Finally(ctx context.Context, session *conga.Session, err error)
 
 - **Error short-circuiting**: a stage returning an error stops the chain. `PostRun` runs only after a successful `Run`.
 - **Guaranteed teardown**: `Finally(ctx, session, err)` receives the outcome error (nil on success) and always runs — the safe place for cleanup.
-- **Exit codes**: an error returned from `Run` exits with status **1** (runtime failure); usage errors from earlier stages exit with **2**. See [Errors and exit codes](../reference/errors/).
+- **Exit codes**: an error returned from `Run` exits with status **1** (runtime failure); usage errors from earlier stages exit with **2**. See [About error reporting](/explanation/error-reporting/) and [Errors and exit codes](/reference/errors/).
 - **Validation split**: implement `SelfValidator` (`Validate(ctx) error`) on *custom value types* for self-validation right after coercion, and `Validator` (`Validate(ctx, session) error`) on *command structs* for cross-field semantic checks. Both run before any hook with side effects.
-- **Signals**: `app.Run()` installs a `signal.NotifyContext` for `SIGINT`/`SIGTERM`; cancellation surfaces as `ctx.Err()` in your hooks. `RunContext(ctx)` passes your context through untouched.
+- **Signals and context**: `app.Run()` installs a `signal.NotifyContext` for `SIGINT`/`SIGTERM`; cancellation surfaces as `ctx.Err()` in your hooks, while `RunContext(ctx)` passes the caller's context through untouched. See [About app execution](/explanation/execution/).
 
 ## Schema errors are programmer errors
 

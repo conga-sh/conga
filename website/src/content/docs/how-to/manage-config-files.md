@@ -3,7 +3,7 @@ title: How to manage config files
 description: Register decoders, declare search paths, cascade tiers, use profiles, and reload configuration at runtime.
 ---
 
-Config files are opt-in: register a decoder for each format you use, then declare how files are found with `app.ConfigOptions(...)`. The resolution rules — existence semantics, the built-in XDG tier, and cascading — are explained in [About the config cascade](../explanation/config-cascade/).
+Config files are opt-in: register a decoder for each format you use, then declare how files are found with `app.ConfigOptions(...)`. The resolution rules — existence semantics, the built-in XDG tier, and cascading — are explained in [About the config cascade](/explanation/config-cascade/).
 
 ## Register a configuration format
 
@@ -28,7 +28,7 @@ func main() {
 }
 ```
 
-Register additional formats with `app.RegisterDecoder(extension, decoder)`; the `config.Decoder` signature and built-in sentinels are catalogued in [package decoder](../reference/decoders/).
+Register additional formats with `app.RegisterDecoder(extension, decoder)`; the `config.Decoder` signature and built-in sentinels are catalogued in [package decoder](/reference/decoders/).
 
 ## Declare where configuration lives
 
@@ -70,4 +70,4 @@ loaded := session.LoadedConfigFiles()        // actually loaded
 fresh, err := session.Reload[CLI](ctx) // re-reads and re-validates the whole config
 ```
 
-`session.Reload[T]` returns a freshly bound `*T` — the foundation for [How to hot-reload configuration](hot-reload-config/).
+`session.Reload[T]` returns a freshly bound `*T` — the foundation for [How to hot-reload configuration](/how-to/hot-reload-config/).

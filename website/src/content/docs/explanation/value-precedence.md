@@ -41,7 +41,7 @@ type Serve struct {
 }
 ```
 
-See [About the config cascade](config-cascade/) for search paths, cascading, profiles, and decoders.
+See [About the config cascade](/explanation/config-cascade/) for search paths, cascading, profiles, and decoders.
 
 ## Provenance tracking
 
@@ -65,4 +65,4 @@ if cmd.Addr.Changed() {
 
 ## The `--why` report
 
-`app.EnableWhy()` enables `--why`, which renders this provenance for every field of the active command chain, including the resolved config file path. Values are redacted by default so secrets stay out of terminals and CI logs; fields opt in with `safe:"true"`. See [The `--why` report](../reference/builtins/#the---why-report).
+`app.EnableWhy()` enables `--why`, which renders this provenance for every field of the active command chain, including the resolved config file path. Values are redacted by default so secrets stay out of terminals and CI logs; fields opt in with `safe:"true"`. See [The `--why` report](/reference/builtins/#the---why-report).

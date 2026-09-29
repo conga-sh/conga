@@ -3,7 +3,7 @@ title: package watch
 description: Live config file watching and hot reload for daemon-style CLIs.
 ---
 
-Deep detail lives on [pkg.go.dev/github.com/conga-sh/conga/watch](https://pkg.go.dev/github.com/conga-sh/conga/watch); workflow guidance is in [How to hot-reload configuration](../how-to/hot-reload-config/).
+Deep detail lives on [pkg.go.dev/github.com/conga-sh/conga/watch](https://pkg.go.dev/github.com/conga-sh/conga/watch); workflow guidance is in [How to hot-reload configuration](/how-to/hot-reload-config/).
 
 ## Functions
 

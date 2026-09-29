@@ -46,27 +46,7 @@ Positional arguments are declared in field order. Required arguments come before
 
 ## Reading values
 
-Every flag and argument container exposes the same reader surface:
-
-| Method | Meaning |
-|--------|---------|
-| `Get()` | The resolved value (zero value if unset) |
-| `GetOr(fallback)` | The value if set, otherwise your fallback (optional containers only; required containers have no fallback) |
-| `IsSet()` | Whether a value was resolved from any tier |
-| `Changed()` | Whether the value was set explicitly via CLI, environment, or config |
-| `Source()` | Origin constant: `SourceCLI`, `SourceEnv`, `SourceConfig`, `SourceDefault`, or `SourceNone` |
-| `SourceDetail()` | Human-readable origin (env var name, config file path, …) |
-| `String()` | `fmt.Stringer` view of the value |
-
-```go
-func (s *Serve) Run(ctx context.Context, session *conga.Session) error {
-	if s.Verbose.Source() == conga.SourceEnv {
-		fmt.Fprintln(session.Stderr(), "verbosity came from the environment")
-	}
-
-	return nil
-}
-```
+Every flag and argument container exposes `Get()`, `GetOr()`, `IsSet()`, `Changed()`, `Source()`, `SourceDetail()`, and `String()`. The guarantees behind `Get()` and the provenance methods are covered in [About reading values](/explanation/reading-values/); the method-per-container matrix lives in [package conga](/reference/conga/#containers).
 
 ## Slices, separators, and maps
 
@@ -92,7 +72,7 @@ type Labels struct {
 }
 ```
 
-For custom map value types, register a parser with `app.RegisterMap` — see [How to add custom types and decoders](../how-to/custom-types-and-decoders/).
+For custom map value types, register a parser with `app.RegisterMap` — see [How to add custom types and decoders](/how-to/custom-types-and-decoders/).
 
 ## Negatable booleans
 
@@ -139,4 +119,4 @@ type Deploy struct {
 - `hidden` — functional but omitted from help and completion.
 - `aliases:"listen,bind"` — extra long names.
 - `deprecated:"use --addr instead"` — emits a warning on use and hides the flag from completion.
-- `safe:"true"` — opt in to showing the resolved value in the [`--why` provenance report](../reference/builtins/#the---why-report); values are redacted by default, keeping secrets out of the report.
+- `safe:"true"` — opt in to showing the resolved value in the [`--why` provenance report](/reference/builtins/#the---why-report); values are redacted by default, keeping secrets out of the report.

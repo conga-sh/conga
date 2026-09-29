@@ -3,7 +3,7 @@ title: How to hot-reload configuration
 description: Hot-reload configuration in daemon-style applications with the watch package.
 ---
 
-`package watch` reloads configuration in daemon-style applications when watched files change. The function catalogue is in [package watch](../reference/watch/), and the resolution rules behind each reload are explained in [About the config cascade](../explanation/config-cascade/).
+`package watch` reloads configuration in daemon-style applications when watched files change. The function catalogue is in [package watch](/reference/watch/), and the resolution rules behind each reload are explained in [About the config cascade](/explanation/config-cascade/).
 
 ## Watch the app's configuration
 
@@ -42,7 +42,7 @@ err := watch.Paths(ctx, []string{"a.yaml", "b.yaml"}, func(err error) { ... })
 
 ## Combining with signal shutdown
 
-`app.Run()` cancels its context on `SIGINT`/`SIGTERM`. Block on the watch call inside your command; when the context is cancelled the watchers stop and your `Finally` hook performs teardown — see example 16 (`16-live-config-watcher`) for a complete daemon and [About the lifecycle](../explanation/lifecycle/) for teardown semantics.
+`app.Run()` cancels its context on `SIGINT`/`SIGTERM`. Block on the watch call inside your command; when the context is cancelled the watchers stop and your `Finally` hook performs teardown — see example 16 (`16-live-config-watcher`) for a complete daemon and [About the lifecycle](/explanation/lifecycle/) for teardown semantics.
 
 :::note
 `onChange` callbacks run while the application is running. Keep them fast and hand work to your own goroutines; the watcher guarantees the fresh `*T` is fully validated before delivery.

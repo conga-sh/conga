@@ -16,7 +16,7 @@ app := conga.New[CLI]().
 
 - **Default behaviour** — loads `.env` followed by `.env.local` from the current directory. `.env.local` values override `.env` values, which makes the pair suitable for committed defaults + local overrides.
 - **Explicit paths** — `app.Dotenv("config/defaults.env", "config/secrets.env")` loads the given files in order, later files winning.
-- Loaded variables are real process environment entries, so they feed the [environment tier](../explanation/value-precedence/) of every flag — including flags whose `env` tag points at a secret.
+- Loaded variables are real process environment entries, so they feed the [environment tier](/explanation/value-precedence/) of every flag — including flags whose `env` tag points at a secret.
 - Syntax supports quotes (single and double) and variable expansion (`PATH=${PATH}:/extra`).
 - Files are capped at 16 MB to bound memory under adversarial input.
 
@@ -27,5 +27,5 @@ app := conga.New[CLI]().
 The default `.env`/`.env.local` pair is optional: a project with no dotenv files starts normally. Explicit paths follow the "missing file is fatal" convention of configuration loading.
 
 :::note
-`.env` files configure the *environment tier*; structured configuration belongs to [config files](../explanation/config-cascade/) — the two mechanisms compose (e.g. `CLOUDCTL_CONFIG=/etc/app.toml` inside `.env`).
+`.env` files configure the *environment tier*; structured configuration belongs to [config files](/explanation/config-cascade/) — the two mechanisms compose (e.g. `CLOUDCTL_CONFIG=/etc/app.toml` inside `.env`).
 :::

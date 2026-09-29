@@ -112,7 +112,7 @@ app := conga.New[Deploy]().
 
 ## Exit-code contract
 
-The examples assert CONGA's [exit-code contract](../reference/errors/#exit-codes) end to end: `0` on success (including `--help`/`--version`), `1` on a runtime failure returned from `Run` (including config read/parse failures), and `2` on input/usage errors.
+The examples assert CONGA's [exit-code contract](/reference/errors/#exit-codes) end to end: `0` on success (including `--help`/`--version`), `1` on a runtime failure returned from `Run` (including config read/parse failures), and `2` on input/usage errors.
 
 ## Example helpers
 

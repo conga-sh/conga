@@ -3,7 +3,7 @@ title: Struct tag reference
 description: Every struct tag CONGA understands, per construct.
 ---
 
-CONGA derives the entire CLI schema from struct fields and their tags. Tags are validated at schema initialization: unknown CONGA tags are rejected with a did-you-mean suggestion unless `conga:"allow-unknown-tags"` is set or the tag is on the allowed foreign list. Unknown tags, typos, or tags on incompatible field types fail schema building with `ErrSchema` before `main` does anything. The same checks run statically in CI — see [How to lint CONGA schemas](../how-to/lint-schemas/).
+CONGA derives the entire CLI schema from struct fields and their tags. Tags are validated at schema initialization: unknown CONGA tags are rejected with a did-you-mean suggestion unless `conga:"allow-unknown-tags"` is set or the tag is on the allowed foreign list. Unknown tags, typos, or tags on incompatible field types fail schema building with `ErrSchema` before `main` does anything. The same checks run statically in CI — see [How to lint CONGA schemas](/how-to/lint-schemas/).
 
 ## Tag availability matrix
 
@@ -125,7 +125,7 @@ type Server struct {
 | `deprecated` | Optional deprecation notice/reason; hidden from completion. |
 | `conga` | Directives. |
 
-The `default` tag is display-only: it appears in help text and the `--why` fallback row, and loading is triggered only by explicit paths or the built-in conventional tier. See [About the config cascade](../explanation/config-cascade/).
+The `default` tag is display-only: it appears in help text and the `--why` fallback row, and loading is triggered only by explicit paths or the built-in conventional tier. See [About the config cascade](/explanation/config-cascade/).
 
 ### Trailing args (`DashArgs`, `RawArgs`)
 
@@ -239,8 +239,8 @@ completion candidate descriptions when the field declares no explicit `help`
 tag. The static analyzer (`conga-lint`) validates tag usage for the built-in
 tagged types; foreign tagged types degrade conservatively (it may miss
 diagnostics, never invent them). Authoring guidance is in
-[How to add custom types and decoders](../how-to/custom-types-and-decoders/);
-the runtime interfaces are catalogued in [Domain types](domain-types/).
+[How to add custom types and decoders](/how-to/custom-types-and-decoders/);
+the runtime interfaces are catalogued in [Domain types](/reference/domain-types/).
 
 ## Subcommand methods
 

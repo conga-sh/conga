@@ -3,7 +3,7 @@ title: About the shell completion architecture
 description: The native driver, the wire protocol, and the decoupled predict SDK.
 ---
 
-Completion is served end-to-end by CONGA: its own driver ships six shell integrations, and dynamic candidates travel over a documented wire protocol. The user-facing steps are in [How to enable shell completion](../how-to/enable-shell-completion/).
+Completion is served end-to-end by CONGA: its own driver ships six shell integrations, and dynamic candidates travel over a documented wire protocol. The user-facing steps are in [How to enable shell completion](/how-to/enable-shell-completion/).
 
 ## Native driver
 
@@ -13,4 +13,4 @@ Completion is served end-to-end by CONGA: its own driver ships six shell integra
 
 ## Decoupled predictor SDK
 
-The `predict` package is decoupled from the root `conga` package: external consumers can use it as a standalone SDK, and the `predict/<domain>` packages (`network`, `system`, `timezone`) depend only on `predict`. See [package predict](../reference/predict/) and [About plugins vs predictors](plugins-vs-predictors/).
+The `predict` package is decoupled from the root `conga` package: external consumers can use it as a standalone SDK, and the `predict/<domain>` packages (`network`, `system`, `timezone`) depend only on `predict`. See [package predict](/reference/predict/) and [About plugins vs predictors](/explanation/plugins-vs-predictors/).

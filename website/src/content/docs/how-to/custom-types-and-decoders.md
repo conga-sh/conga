@@ -32,7 +32,7 @@ func main() {
 - `app.RegisterType(parser, opts...)` — `U`, the value type, is inferred from the parser. Re-registering a type overwrites the previous parser (last-write-wins), so libraries can ship defaults you then customize.
 - `conga.WithPredictor(p)` attaches a completion predictor used by fields of that type, and a field can override it with a `predictor:"..."` tag.
 - Panics are reserved for misuse (nil app, nil parser).
-- Types implementing `encoding.TextUnmarshaler` (like all built-in [domain types](../reference/domain-types/)) coerce automatically, and may self-validate via the `SelfValidator` interface (`Validate(ctx) error`).
+- Types implementing `encoding.TextUnmarshaler` (like all built-in [domain types](/reference/domain-types/)) coerce automatically, and may self-validate via the `SelfValidator` interface (`Validate(ctx) error`).
 
 ## Register custom map types
 
@@ -50,7 +50,7 @@ app.RegisterMap(map[string]CIDR(nil), conga.WithPredictor(myPredictor))
 
 ## Register configuration formats
 
-Decoders are registered per application with `app.RegisterDecoder(extension, decoder)`. A decoder returns a flat `map[string]any` whose keys match the [config keys](../explanation/value-precedence/#wiring-the-config-tier) of your flags. The built-in decoders (`decoder/json`, `yaml`, `toml`, `hcl`) follow the same contract and live in their own packages, so only registered formats are linked into your binary. See [package decoder](../reference/decoders/) for the `config.Decoder` signature and built-in parse sentinels.
+Decoders are registered per application with `app.RegisterDecoder(extension, decoder)`. A decoder returns a flat `map[string]any` whose keys match the [config keys](/explanation/value-precedence/#wiring-the-config-tier) of your flags. The built-in decoders (`decoder/json`, `yaml`, `toml`, `hcl`) follow the same contract and live in their own packages, so only registered formats are linked into your binary. See [package decoder](/reference/decoders/) for the `config.Decoder` signature and built-in parse sentinels.
 
 ## Make a type self-completing
 
@@ -72,7 +72,7 @@ func (e *Env) Predict() predict.Predictor {
 }
 ```
 
-The built-in types are catalogued in [Domain types](../reference/domain-types/); the full SDK is in [package predict](../reference/predict/), and wiring styles are covered in [How to wire custom completion](wire-custom-completion/).
+The built-in types are catalogued in [Domain types](/reference/domain-types/); the full SDK is in [package predict](/reference/predict/), and wiring styles are covered in [How to wire custom completion](/how-to/wire-custom-completion/).
 
 ## Register custom field tags
 
@@ -101,6 +101,6 @@ Strict tag linting is on by default. When your structs carry third-party tags:
 - Allow specific tags globally: `app.AllowTags("prometheus", "db")`.
 - Allow per field: `conga:"allow-unknown-tags"` (add `,recurse` to extend into nested command structs).
 - Opt out entirely: `app.StrictTagValidation(false)`.
-- Lint the schema statically in CI with [How to lint CONGA schemas](lint-schemas/).
+- Lint the schema statically in CI with [How to lint CONGA schemas](/how-to/lint-schemas/).
 
-See the [`conga` directive reference](../reference/struct-tags/#the-conga-directive-tag).
+See the [`conga` directive reference](/reference/struct-tags/#the-conga-directive-tag).
