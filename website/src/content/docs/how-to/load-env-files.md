@@ -35,7 +35,7 @@ If an environment variable is already set in the operating system shell, Docker 
 
 ```sh
 # OS environment variable takes precedence over .env entries
-$ CLOUDCTL_PORT=9090 cloudctl
+CLOUDCTL_PORT=9090 cloudctl
 ```
 
 ## Load explicit file paths

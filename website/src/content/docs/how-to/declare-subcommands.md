@@ -52,7 +52,10 @@ type CLI struct {
 Help screens organise subcommands by their declared groups:
 
 ```sh
-$ cloudctl --help
+cloudctl --help
+```
+
+```text no-copy
 Usage:
   cloudctl <command>
 

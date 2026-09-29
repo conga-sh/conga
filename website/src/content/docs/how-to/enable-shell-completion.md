@@ -44,7 +44,10 @@ type CLI struct {
 When declared, CONGA promotes `completion` into the `Commands:` section of `--help` and suppresses the `--completion` flag:
 
 ```sh
-$ cloudctl --help
+cloudctl --help
+```
+
+```text no-copy
 Usage:
   cloudctl <command> [flags]
 
@@ -68,7 +71,10 @@ You can customize the completion command field using standard command struct tag
 Running `cloudctl completion` without arguments or with `--help` displays the completion help screen:
 
 ```sh
-$ cloudctl completion
+cloudctl completion
+```
+
+```text no-copy
 Generate shell completion scripts
 
 Usage:
@@ -106,7 +112,10 @@ If an unknown shell name is passed (such as `cloudctl completion myshell`), CONG
 To view step-by-step installation and configuration instructions for a specific shell, pass `--help` with the shell name:
 
 ```sh
-$ cloudctl completion bash --help
+cloudctl completion bash --help
+```
+
+```text no-copy
 Generate the shell completion script for the bash shell.
 
 To load completions in your current shell session, run:
@@ -141,45 +150,45 @@ Run `cloudctl completion <shell>` to generate the completion script for your she
 
 ```sh
 # Load in current session
-$ source <(cloudctl completion bash)
+source <(cloudctl completion bash)
 
 # Persist for future sessions
-$ cloudctl completion bash > /etc/bash_completion.d/cloudctl
+cloudctl completion bash > /etc/bash_completion.d/cloudctl
 ```
 
 ### Zsh
 
 ```sh
 # Ensure completion directory is in $fpath and reload
-$ cloudctl completion zsh > "${fpath[1]}/_cloudctl"
+cloudctl completion zsh > "${fpath[1]}/_cloudctl"
 ```
 
 ### Fish
 
 ```sh
 # Install to user completions directory
-$ cloudctl completion fish > ~/.config/fish/completions/cloudctl.fish
+cloudctl completion fish > ~/.config/fish/completions/cloudctl.fish
 ```
 
 ### PowerShell
 
 ```sh
 # Add to current profile
-$ cloudctl completion powershell | Out-String | Invoke-Expression
+cloudctl completion powershell | Out-String | Invoke-Expression
 ```
 
 ### Elvish
 
 ```sh
 # Evaluate completion definition
-$ eval (cloudctl completion elvish | slurp)
+eval (cloudctl completion elvish | slurp)
 ```
 
 ### Nushell
 
 ```sh
 # Save and register completion script
-$ cloudctl completion nushell | save -f ~/.config/nushell/completions/cloudctl.nu
+cloudctl completion nushell | save -f ~/.config/nushell/completions/cloudctl.nu
 ```
 
 ## Understand completion runtime behaviour
@@ -187,7 +196,7 @@ $ cloudctl completion nushell | save -f ~/.config/nushell/completions/cloudctl.n
 When a user presses the tab key, the installed shell function invokes the application binary using the hidden `__complete` sub-protocol:
 
 ```sh
-$ cloudctl __complete bash "cloudctl" "dep"
+cloudctl __complete bash "cloudctl" "dep"
 ```
 
 During completion execution:

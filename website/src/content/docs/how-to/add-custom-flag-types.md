@@ -35,7 +35,10 @@ type Service struct {
 When a flag value cannot be parsed, CONGA wraps the returned error in `conga.ErrCoerce`, identifies the flag name, and exits with code 2:
 
 ```sh
-$ service --ports 80
+service --ports 80
+```
+
+```text no-copy
 service: error: invalid value "80" for flag --ports: invalid port range "80", expected START-END
 ```
 
@@ -161,7 +164,7 @@ Map keys must be strings. Registering a map type with a non-string key panics du
 Supply map entries using `KEY=VALUE` syntax across repeated flags or separated by commas:
 
 ```sh
-$ router --routes primary=10.0.0.0/8 --routes backup=192.168.0.0/16
+router --routes primary=10.0.0.0/8 --routes backup=192.168.0.0/16
 ```
 
 ## Where to go next

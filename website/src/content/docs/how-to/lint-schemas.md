@@ -10,14 +10,14 @@ description: Catch leaf Runner violations, struct tag typos, and ancestor flag s
 Declare the analyzer as a tool dependency of your Go module, then invoke it over your packages:
 
 ```sh
-$ go get -tool github.com/conga-sh/conga/cmd/conga-lint
-$ go tool conga-lint ./...
+go get -tool github.com/conga-sh/conga/cmd/conga-lint
+go tool conga-lint ./...
 ```
 
 Inside the CONGA repository, the `lint:schema` task integrates the check into the test pipeline:
 
 ```sh
-$ task lint:schema
+task lint:schema
 ```
 
 Note: Go's `./...` pattern skips directories with leading underscores (such as `_examples/`). To lint examples, pass directory paths or globs explicitly to the tool.
@@ -47,7 +47,7 @@ Settings are reconstructed from literal builder arguments:
 If builder arguments are non-literal or computed dynamically at runtime, the analyzer degrades conservatively to runtime defaults to prevent false positives. To enforce strict validation across all scanned packages regardless of detected builder calls, pass the `-strict` flag:
 
 ```sh
-$ go tool conga-lint -strict ./...
+go tool conga-lint -strict ./...
 ```
 
 ## Validate builder call ordering
@@ -56,13 +56,13 @@ The optional `-builder-order` flag checks builder method chains against CONGA's 
 
 ```sh
 # Report builder ordering violations
-$ go tool conga-lint -builder-order ./...
+go tool conga-lint -builder-order ./...
 
 # Automatically fix violations in place
-$ go tool conga-lint -builder-order -fix ./...
+go tool conga-lint -builder-order -fix ./...
 
 # Preview suggested fixes as a diff
-$ go tool conga-lint -builder-order -fix -diff ./...
+go tool conga-lint -builder-order -fix -diff ./...
 ```
 
 Custom ordering rules can be supplied via `-builder-order-spec`, which accepts a comma-separated list of method names or `@path` to read a specification file. Safe refactoring guards ensure barrier calls (such as `Use(...)`) are never reordered.

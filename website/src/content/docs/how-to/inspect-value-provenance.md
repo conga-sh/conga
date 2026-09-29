@@ -49,7 +49,10 @@ Positional arguments and config-file containers cannot be tagged `safe:"false"`.
 Invoke the binary with `--why` alongside any other flags or environment variables:
 
 ```sh
-$ SERVER_PORT=9002 server --why --port 9003
+SERVER_PORT=9002 server --why --port 9003
+```
+
+```text no-copy
 Value provenance for "server":
 
   FLAG     VALUE       SOURCE   ENV           CONFIG PATH

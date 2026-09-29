@@ -33,7 +33,7 @@ When a user mistypes a flag, the default `UsageSummary` mode renders a closest-m
 hello --nmae World
 ```
 
-```
+```text no-copy
 hello: error: unknown flag: --nmae. Did you mean "name"?
 
 Usage:

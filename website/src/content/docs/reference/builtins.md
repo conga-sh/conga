@@ -30,7 +30,7 @@ The flag and `session.Version()` render a single summary line. The commit and bu
 hello --version
 ```
 
-```
+```text no-copy
 hello has version 1.0.0 built with go1.27.1 from c2e2ea84591f on 2026-09-25T16:51:49Z
 ```
 
@@ -40,7 +40,7 @@ Without `app.Version(...)`, the summary falls back to the build metadata. A sour
 hello --version
 ```
 
-```
+```text no-copy
 hello has version dev built with go1.27.1
 ```
 
@@ -50,7 +50,7 @@ Declaring an opt-in `conga.VersionCommand` field adds a `version` subcommand tha
 hello version
 ```
 
-```
+```text no-copy
 hello:
  Version:    1.0.0
  Git commit: c2e2ea84591f0ef557489d0f7f2b0b1565555950

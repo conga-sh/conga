@@ -84,7 +84,10 @@ func main() {
 ```
 
 ```sh
-$ go run . --name conga --loud
+go run . --name conga --loud
+```
+
+```
 HELLO, CONGA!
 ```
 

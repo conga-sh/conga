@@ -1,6 +1,33 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 
+function pluginNoCopy() {
+  return {
+    name: 'NoCopy',
+    hooks: {
+      postprocessRenderedBlock: ({ codeBlock, renderData }) => {
+        const disableCopy =
+          Boolean(codeBlock.metaOptions.getBoolean('no-copy')) ||
+          codeBlock.metaOptions.getBoolean('copy') === false ||
+          codeBlock.meta?.split(/\s+/).includes('no-copy') ||
+          codeBlock.language === 'output';
+
+        if (disableCopy && renderData.blockAst) {
+          renderData.blockAst.children = renderData.blockAst.children.filter(
+            (child) =>
+              !(
+                child.type === 'element' &&
+                (Array.isArray(child.properties?.className)
+                  ? child.properties.className.includes('copy')
+                  : child.properties?.className === 'copy')
+              )
+          );
+        }
+      },
+    },
+  };
+}
+
 export default defineConfig({
   site: 'https://docs.conga.sh',
   base: '/',
@@ -16,6 +43,9 @@ export default defineConfig({
           href: 'https://github.com/conga-sh/conga',
         },
       ],
+      expressiveCode: {
+        plugins: [pluginNoCopy()],
+      },
       sidebar: [
         {
           label: 'Tutorials',

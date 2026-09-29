@@ -13,7 +13,7 @@ The command accepts an optional `--name` flag:
 hello --name conga
 ```
 
-```
+```text no-copy
 Hello, conga!
 ```
 
@@ -23,7 +23,7 @@ When invoked without flags, it prints a default greeting:
 hello
 ```
 
-```
+```text no-copy
 Hello, World!
 ```
 
@@ -84,7 +84,7 @@ Run the program with no arguments to observe the default output:
 go run .
 ```
 
-```
+```text no-copy
 Hello, World!
 ```
 
@@ -96,7 +96,7 @@ Pass `--name` to override the default value:
 go run . --name conga
 ```
 
-```
+```text no-copy
 Hello, conga!
 ```
 
@@ -106,7 +106,7 @@ The short flag `-n` produces the same result:
 go run . -n Bob
 ```
 
-```
+```text no-copy
 Hello, Bob!
 ```
 
@@ -118,7 +118,7 @@ CONGA generates `--help` automatically from the struct tags and application meta
 go run . --help
 ```
 
-```
+```text no-copy
 A greeting command
 
 Usage:
@@ -140,7 +140,7 @@ The `--version` flag renders the application name, the version string set by `Ve
 go run . --version
 ```
 
-```
+```text no-copy
 hello has version 1.0.0 built with go1.27.1
 ```
 
