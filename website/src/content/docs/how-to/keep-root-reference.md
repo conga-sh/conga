@@ -1,102 +1,82 @@
 ---
 title: How to keep a reference to the root struct
-description: Bind a caller-owned instance with conga.New(cli) to seed fields before execution and read resolved values after it.
+description: Bind a caller-owned instance with conga.New to seed dependencies before execution and inspect resolved values after it.
 ---
 
-`conga.New[T]()` lets the engine allocate the root command struct at execution time and exposes it to hooks through `session.Root[T]()`. When the surrounding program needs the same struct outside the lifecycle — to seed a dependency before execution or read resolved values after it — construct the instance first and pass it to `conga.New(cli)`.
+CONGA supports two root initialisation patterns: engine-allocated (`conga.New[T]()`) and caller-owned (`conga.New(cli)`). Pass an existing instance pointer to `conga.New` when the host application needs to seed dependencies before execution or inspect resolved container values after `Run` completes.
 
-## Bind an instance you own
+## Bind a caller-owned instance
+
+To inject dependencies or retain access to the root struct outside the execution lifecycle, construct the instance and pass its pointer to `conga.New`:
 
 ```go title="main.go"
-package main
-
-import (
-	"context"
-	"fmt"
-	"log/slog"
-
-	"github.com/conga-sh/conga"
-)
-
 type CLI struct {
-	Name   conga.OptionalFlag[string] `default:"World" help:"Name of the person to greet"`
+	Name   conga.OptionalFlag[string] `default:"World" help:"Name to greet"`
 	Logger *slog.Logger               `conga:"-"`
 }
 
 func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
-	c.Logger.Info("greeting", "name", c.Name.Get())
+	c.Logger.Info("executing greeting", "name", c.Name.Get())
 
 	return nil
 }
 
 func main() {
-	cli := &CLI{Logger: slog.New(slog.DiscardHandler)}
+	cli := &CLI{
+		Logger: slog.New(slog.NewTextHandler(os.Stderr, nil)),
+	}
 
-	app := conga.New(cli).Name("hello")
+	app := conga.New(cli).
+		Name("hello")
 
 	app.FatalIfError(app.Run())
 
-	fmt.Println("greeted", cli.Name.Get(), "from", cli.Name.Source())
+	if cli.Name.Changed() {
+		fmt.Printf("greeted %s (source: %s)\n", cli.Name.Get(), cli.Name.SourceDetail())
+	}
 }
 ```
 
-`conga.New(cli)` binds the instance: the engine resolves flag values into its containers, `Run` executes on that pointer, and `session.Root[CLI]()` inside any hook returns it. Fields excluded from the schema with `conga:"-"` keep the value seeded before `Run`, which is how a host injects dependencies such as a logger; flags and positional arguments are resolved by the engine from the [resolution tiers](/explanation/value-precedence/).
+When `conga.New(cli)` is called:
+- The engine binds directly to the provided instance pointer instead of allocating a fresh struct.
+- Fields tagged `conga:"-"` are excluded from CLI schema validation and flag binding, preserving caller-seeded values across execution.
+- Flags and arguments resolve into the instance's typed containers during the resolution phase.
+- Lifecycle hooks (`PreRun`, `Run`, `PostRun`) execute using the bound instance, and `session.Root[CLI]()` returns the same pointer.
 
-```sh
-go run .
-```
+## Enforce initialization invariants
 
-```
-greeted World from default
-```
+CONGA enforces explicit runtime guards on caller-owned instances:
 
-```sh
-go run . --name conga
-```
+- **Non-nil requirement**: Passing a nil pointer (`conga.New[*CLI](nil)`) panics immediately with `conga: New requires a non-nil root instance`.
+- **Single-instance limit**: Passing multiple instances (`conga.New(first, second)`) panics with `conga: New accepts at most one root instance`.
+- **Single-execution rule**: An `App` executes exactly once. Calling `Run()` or `RunContext()` a second time on the same `App` panics with `conga: App already executed`.
 
-```
-greeted conga from cli
-```
-
-:::note
-Built-in requests such as `--help` and `--version` render and return before value binding, so containers stay unset after those invocations.
-:::
-
-## Reach the root from a hook
-
-When no host code needs the struct, keep `conga.New[T]()` and read the engine-allocated instance from the session. `session.Root[T]()` is the entry point for nested command hooks, where the receiver is the subcommand struct rather than the root:
-
-```go
-func (d *DeployCmd) Run(ctx context.Context, session *conga.Session) error {
-	root := session.Root[CLI]()
-	fmt.Fprintf(session.Stdout(), "deploying %s to %s\n", d.Service.Get(), root.Region.Get())
-
-	return nil
-}
-```
-
-The bound instance is the same one hooks execute on, whether it was caller-owned or engine-allocated.
+Built-in requests such as `--help` and `--version` render their output and return before value binding runs; containers remain in their unset initial state after those invocations.
 
 ## Inspect resolved values after execution
 
-After `Run` returns, every container holds its resolved winner, so a host can log or assert it with the [reader surface](/explanation/reading-values/): `Get()` for the value, `Source()` and `SourceDetail()` for the tier that supplied it, `Changed()` to distinguish input from defaults.
+After `app.Run()` returns, containers on the bound instance hold their final winning values. Inspect the resolution details using the container reader surface:
 
 ```go
 app.FatalIfError(app.Run())
 
-if cli.Name.Changed() {
-	fmt.Println("name was supplied by", cli.Name.SourceDetail())
-}
+// Get returns the winning resolved value
+value := cli.Name.Get()
+
+// Source returns the winning tier: SourceCLI, SourceEnv, SourceConfig, or SourceDefault
+tier := cli.Name.Source()
+
+// SourceDetail provides a formatted description of the resolution origin
+origin := cli.Name.SourceDetail()
+
+// Changed reports whether the value was explicitly set via CLI, env, or config
+isCustom := cli.Name.Changed()
 ```
 
-## Guards and lint
-
-- At most one root instance can be bound, and it must be non-nil. `conga.New(nil)` panics with `conga: New requires a non-nil root instance`; `conga.New(first, second)` panics with `conga: New accepts at most one root instance`.
-- `conga-lint` reports a bound root that is never referenced outside the app and steers to the engine-allocating form; reading, seeding, or capturing the instance suppresses the diagnostic — see [How to lint CONGA schemas](/how-to/lint-schemas/).
+If the root instance is only needed inside lifecycle hooks and never outside `app.Run()`, prefer the engine-allocating form `conga.New[T]()`. The static analyzer `conga-lint` detects throwaway instances passed to `conga.New(cli)` that are never referenced outside the App builder chain.
 
 ## Where to go next
 
-- [About reading values](/explanation/reading-values/) — the container methods and the guarantees behind `Get()`.
-- [How to test a command](/how-to/test-a-command/) — construct an App per test case and assert output and exit codes.
-- [About app execution](/explanation/execution/) — the single-execution rule and `session.Reload[T]` for fresh configuration.
-- [How to run the examples](/how-to/examples-cookbook/) — example 26 embeds the App in a host process with injected streams, args, and a custom exit handler.
+- [About reading values](/explanation/reading-values/) — the container methods and guarantees behind `Get()`.
+- [How to test a command](/how-to/test-a-command/) — construct isolated App instances per test case with captured streams.
+- [About app execution](/explanation/execution/) — the single-execution rule and `session.Reload[T]` for live configuration updates.

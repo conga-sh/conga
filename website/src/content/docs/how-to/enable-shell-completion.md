@@ -1,49 +1,117 @@
 ---
 title: How to enable shell completion
-description: Generate completion scripts for bash, zsh, fish, powershell, elvish, and nushell.
+description: Generate and install shell completion scripts for bash, zsh, fish, powershell, elvish, and nushell.
 ---
 
-CONGA generates completion scripts for bash, zsh, fish, powershell, elvish, and nushell. This guide covers enabling the driver, generating a script, and choosing what completes; the driver and wire protocol are described in [About the shell completion architecture](/explanation/completion-architecture/).
+CONGA generates shell completion scripts for bash, zsh, fish, powershell, elvish, and nushell. Completion support is opt-in at link time: the driver hooks and internal completion handlers link into the binary only when `app.EnableCompletion()` is called.
 
-Completion is opt-in: call `app.EnableCompletion()` on the builder. The `--completion` flag, the `completion` subcommand, the `__complete` handler, and the shell drivers are linked only when this call is present.
+## Enable completion on the builder
 
-```go
-app := conga.New[CLI]().
-	EnableCompletion().
-	Name("mytool")
-```
+Call `EnableCompletion()` when constructing the application:
 
-## Generate a script
+```go title="main.go"
+func main() {
+	app := conga.New[CLI]().
+		Name("cloudctl").
+		EnableCompletion()
 
-With completion enabled, flat, single-command CLIs provide a `--completion <shell>` flag:
-
-```sh
-mytool --completion bash >> ~/.bashrc
-```
-
-Apps with subcommands get a hidden `__complete` handler used by the generated shell functions; you can additionally expose an opt-in `completion <shell>` subcommand by declaring a `conga.CompletionCommand` field:
-
-```go
-type App struct {
-	Completion conga.CompletionCommand `name:"completion" summary:"Generate shell completion script"`
+	app.FatalIfError(app.Run())
 }
 ```
 
-`mytool completion` on its own renders help, including per-shell install hints.
+Calling `app.EnableCompletion()` installs the hidden `__complete` handler used by shell completion scripts and provides completion endpoints:
+
+- **Flat applications (no subcommands)**: Automatically gain a `--completion <shell>` flag.
+- **Hierarchical applications (with subcommands)**: Can expose a dedicated `completion` command by declaring a `conga.CompletionCommand` field on the root command struct.
+
+## Expose the completion subcommand
+
+For applications with subcommands, declare a `conga.CompletionCommand` field on the root struct:
+
+```go title="main.go"
+type CLI struct {
+	Completion conga.CompletionCommand `summary:"Generate shell completion scripts"`
+	Deploy     conga.Command[DeployCmd] `summary:"Deploy a service"`
+}
+```
+
+When declared, running `cloudctl completion <shell>` prints the shell script directly to stdout. Running `cloudctl completion` without arguments displays help and per-shell installation instructions.
+
+## Install completion scripts per shell
+
+Install the generated completion scripts into your active shell configuration:
+
+### Bash
+
+```sh
+# Load in current session
+$ source <(cloudctl completion bash)
+
+# Persist for future sessions
+$ cloudctl completion bash > /etc/bash_completion.d/cloudctl
+```
+
+### Zsh
+
+```sh
+# Ensure completion directory is in $fpath and reload
+$ cloudctl completion zsh > "${fpath[1]}/_cloudctl"
+```
+
+### Fish
+
+```sh
+# Install to user completions directory
+$ cloudctl completion fish > ~/.config/fish/completions/cloudctl.fish
+```
+
+### PowerShell
+
+```sh
+# Add to current profile
+$ cloudctl completion powershell | Out-String | Invoke-Expression
+```
+
+### Elvish
+
+```sh
+# Evaluate completion definition
+$ eval (cloudctl completion elvish | slurp)
+```
+
+### Nushell
+
+```sh
+# Save and register completion script
+$ cloudctl completion nushell | save -f ~/.config/nushell/completions/cloudctl.nu
+```
+
+## Understand completion runtime behaviour
+
+When a user presses the tab key, the installed shell function invokes the application binary using the hidden `__complete` sub-protocol:
+
+```sh
+$ cloudctl __complete bash "cloudctl" "dep"
+```
+
+During completion execution:
+1. CONGA tokenises the partial command line and identifies the target command, flag, or argument.
+2. The engine evaluates candidate predictors, matching flags, subcommands, and allowed enum values.
+3. Candidate directives are written directly to stdout in the shell's native completion format.
+4. The process exits with status 0.
+5. The application's `Run` method is never executed, and the single-execution slot is not consumed.
 
 ## What completes automatically
 
-- **Flag names** — long, short, and aliases, including negatable `--no-` forms; deprecated flags are omitted.
-- **Subcommand names**, aliases, and groups, with did-you-mean behaviour in the shell editors.
-- **Enum-constrained flags and arguments** complete their allowed values.
-- **Domain-typed fields** — `conga.File` completes file paths, `conga.Dir` directories, `conga.ByteSize` unit suffixes, and so on. See [Domain types](/reference/domain-types/).
-- **Registered predictors** — flags and arguments tagged `predictor:"name"` complete via the SDK. See [How to wire custom completion](/how-to/wire-custom-completion/).
+When completion is enabled, the following elements complete without custom code:
 
-## Control completion
+- **Flag names**: Long flags (`--replicas`), short runes (`-r`), aliases, and negatable forms (`--no-cache`). Deprecated flags are omitted from suggestions.
+- **Subcommands**: Command names, aliases, and command groups with typo-correction suggestions.
+- **Enum values**: Flags and arguments restricted by `enum:"..."` tags complete their allowed choices.
+- **Domain types**: Built-in types provide context-aware predictions. `conga.File` completes filesystem files, `conga.Dir` completes directories, and `conga.ByteSize` completes unit suffixes.
 
-| Builder call | Effect |
-|--------------|--------|
-| `app.EnableCompletion()` | Enables completion support: flag, subcommand, and `__complete` handler. Linked only when this call is present |
-| `app.Predictor(name, p)` | Registers a named predictor for `predictor:"name"` tags |
+## Where to go next
 
-Fields with built-in semantics complete automatically; for your own types and registries, continue with [How to wire custom completion](/how-to/wire-custom-completion/).
+- [How to wire custom completion](/how-to/wire-custom-completion/) — implement dynamic completion candidates with `package predict`.
+- [About the shell completion architecture](/explanation/completion-architecture/) — driver dispatch, wire framing, and zero-allocation completion.
+- [Package predict reference](/reference/predict/) — combinator and constructor catalog for candidate generation.

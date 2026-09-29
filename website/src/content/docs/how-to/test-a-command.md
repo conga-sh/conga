@@ -1,13 +1,13 @@
 ---
 title: How to test a command
-description: Inject arguments, streams, and an exit handler, run the app in a test, and assert output and exit codes.
+description: Inject arguments and in-memory streams, intercept exit codes, and assert command behavior in Go unit tests.
 ---
 
-Testing a CONGA command means constructing the App in the test, replacing its inputs and outputs, and executing the same pipeline the binary uses. The engine writes through the injected pieces, so assertions read the bytes a user would see.
+Testing CONGA applications does not require spawning external processes or mutating global process state. Construct the `App` directly in your test, inject an in-memory argument slice and I/O buffers, and execute the application with `RunContext(t.Context())`.
 
-## Capture output and arguments
+## Isolate arguments and I/O streams
 
-`Args` replaces the process argument vector, and `Stdout`/`Stderr` replace the streams the engine and the command write to. Build the App with all three, then run it with `RunContext(t.Context())`:
+Inject custom arguments and memory buffers using `Args`, `Stdout`, and `Stderr`:
 
 ```go title="main_test.go"
 package main
@@ -19,7 +19,9 @@ import (
 	"github.com/conga-sh/conga"
 )
 
-func TestHelloGreetsAliceLoudly(t *testing.T) {
+func TestHelloGreetsUser(t *testing.T) {
+	t.Parallel()
+
 	var stdoutBuffer, stderrBuffer bytes.Buffer
 
 	app := conga.New[CLI]().
@@ -29,180 +31,131 @@ func TestHelloGreetsAliceLoudly(t *testing.T) {
 		Stderr(&stderrBuffer)
 
 	err := app.RunContext(t.Context())
-
 	if err != nil {
-		t.Fatalf("RunContext() error = %v", err)
+		t.Fatalf("RunContext() unexpected error: %v", err)
 	}
 
 	if got, want := stdoutBuffer.String(), "HELLO, ALICE!\n"; got != want {
 		t.Errorf("stdout = %q, want %q", got, want)
 	}
 
-	if got := stderrBuffer.String(); got != "" {
-		t.Errorf("stderr = %q, want no output", got)
+	if stderrBuffer.Len() > 0 {
+		t.Errorf("stderr = %q, want empty", stderrBuffer.String())
 	}
 }
 ```
 
-The command writes through `session.Stdout()`, which is the writer supplied to `app.Stdout(...)`, so the greeting lands in `stdoutBuffer`. `Args` keeps the test off `os.Args`, and `RunContext(t.Context())` propagates the test's cancellation instead of installing signal handlers — see [About app execution](/explanation/execution/). Streams are captured when execution starts, so they must be configured on the builder before `RunContext`.
+Configuring `Args` leaves `os.Args` untouched, preventing race conditions when tests run in parallel.
 
-## Assert exit codes without exiting
+Streams and arguments are snapshotted when `RunContext` begins. Builder calls made after execution has started do not affect the running session.
 
-The default exit handler is `os.Exit`. `ExitFunc` replaces it, which lets the test observe the code that `FatalIfError` requests. Add `strings` to the import block and the second test to the file:
+## Assert exit codes without terminating the test runner
+
+By default, `app.FatalIfError` terminates the process using `os.Exit`. To assert exit codes in tests without terminating the test runner, replace the exit handler using `ExitFunc`:
 
 ```go title="main_test.go"
-func TestHelloUnknownFlagExitsTwo(t *testing.T) {
-	var stdoutBuffer, stderrBuffer bytes.Buffer
+func TestUnknownFlagReportsUsageError(t *testing.T) {
+	t.Parallel()
 
+	var stdoutBuffer, stderrBuffer bytes.Buffer
 	exitCode := 0
 
 	app := conga.New[CLI]().
 		Name("hello").
-		Args([]string{"--nmae", "Alice"}).
+		Args([]string{"--unknown-flag"}).
 		Stdout(&stdoutBuffer).
 		Stderr(&stderrBuffer).
 		ExitFunc(func(code int) { exitCode = code })
 
 	err := app.RunContext(t.Context())
 
+	// Syntax, validation, and flag errors satisfy IsUsageError
 	if !conga.IsUsageError(err) {
-		t.Fatalf("expected a usage error, got %v", err)
+		t.Fatalf("expected usage error, got %v", err)
 	}
 
+	// FatalIfError prints the usage diagnostic and triggers ExitFunc
 	app.FatalIfError(err)
 
 	if exitCode != 2 {
-		t.Errorf("exit code = %d, want 2", exitCode)
+		t.Errorf("exit code = %d, want 2 for usage error", exitCode)
 	}
 
-	if !strings.Contains(stderrBuffer.String(), "unknown flag: --nmae") {
-		t.Errorf("stderr = %q, want the unknown flag message", stderrBuffer.String())
+	if !strings.Contains(stderrBuffer.String(), "unknown flag: --unknown-flag") {
+		t.Errorf("stderr = %q, missing unknown flag message", stderrBuffer.String())
 	}
 }
 ```
 
-`RunContext` returns the usage error without printing it; `FatalIfError` renders the message to `stderrBuffer` and calls the exit handler with `2` instead of terminating the test process — see [About error reporting](/explanation/error-reporting/). Add `UsageOnError(conga.UsageSilence)` to the builder chain when the test inspects only the message and does not need the usage block on stderr.
+`FatalIfError` maps errors to standardized exit codes: code 2 for usage and schema errors (`conga.IsUsageError(err) == true`), and code 1 for runtime failures returned from `Run`.
 
-## Test built-in requests
+To test error messages without dumping the full usage block to stderr, add `UsageOnError(conga.UsageSilence)` to the builder chain.
 
-Built-in requests are success paths: they render to stdout and return `nil`. Assert the rendered output and the nil error:
+## Test built-in flags
+
+Built-in requests (`--help`, `--version`, and `--why`) are valid execution paths, not errors. They write to `Stdout` and return `nil`:
 
 ```go title="main_test.go"
-func TestHelloHelpSucceeds(t *testing.T) {
-	var stdoutBuffer, stderrBuffer bytes.Buffer
+func TestHelpFlagRendersUsage(t *testing.T) {
+	t.Parallel()
+
+	var stdoutBuffer bytes.Buffer
 
 	app := conga.New[CLI]().
 		Name("hello").
 		Args([]string{"--help"}).
-		Stdout(&stdoutBuffer).
-		Stderr(&stderrBuffer)
+		Stdout(&stdoutBuffer)
 
 	err := app.RunContext(t.Context())
-
 	if err != nil {
 		t.Fatalf("RunContext() error = %v", err)
 	}
 
 	if !strings.Contains(stdoutBuffer.String(), "Usage:\n  hello [flags]") {
-		t.Errorf("stdout = %q, want the usage block", stdoutBuffer.String())
+		t.Errorf("stdout = %q, want usage block", stdoutBuffer.String())
 	}
 }
 ```
 
-## Keep the App single-use
+## Construct fresh App instances per test
 
-An App executes exactly once; a second `Run` or `RunContext` call panics with `conga: App already executed`. Each test case therefore constructs a fresh App, which also means a fresh command struct for every case, and subtests do not share one instance.
+CONGA enforces a single-execution rule: an `App` instance executes exactly once. Calling `Run` or `RunContext` a second time on the same `App` panics with `conga: App already executed`.
 
-## The complete test file
+Always call `conga.New[T]()` inside each test or table-driven test iteration to ensure a clean schema, fresh containers, and isolated state:
 
 ```go title="main_test.go"
-package main
-
-import (
-	"bytes"
-	"strings"
-	"testing"
-
-	"github.com/conga-sh/conga"
-)
-
-func TestHelloGreetsAliceLoudly(t *testing.T) {
-	var stdoutBuffer, stderrBuffer bytes.Buffer
-
-	app := conga.New[CLI]().
-		Name("hello").
-		Args([]string{"--name", "Alice", "--loud"}).
-		Stdout(&stdoutBuffer).
-		Stderr(&stderrBuffer)
-
-	err := app.RunContext(t.Context())
-
-	if err != nil {
-		t.Fatalf("RunContext() error = %v", err)
+func TestTable(t *testing.T) {
+	cases := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"default", nil, "hello World\n"},
+		{"custom", []string{"--name", "Bob"}, "hello Bob\n"},
 	}
 
-	if got, want := stdoutBuffer.String(), "HELLO, ALICE!\n"; got != want {
-		t.Errorf("stdout = %q, want %q", got, want)
-	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			var stdoutBuffer bytes.Buffer
 
-	if got := stderrBuffer.String(); got != "" {
-		t.Errorf("stderr = %q, want no output", got)
-	}
-}
+			app := conga.New[CLI]().
+				Args(tc.args).
+				Stdout(&stdoutBuffer)
 
-func TestHelloHelpSucceeds(t *testing.T) {
-	var stdoutBuffer, stderrBuffer bytes.Buffer
+			if err := app.RunContext(t.Context()); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
 
-	app := conga.New[CLI]().
-		Name("hello").
-		Args([]string{"--help"}).
-		Stdout(&stdoutBuffer).
-		Stderr(&stderrBuffer)
-
-	err := app.RunContext(t.Context())
-
-	if err != nil {
-		t.Fatalf("RunContext() error = %v", err)
-	}
-
-	if !strings.Contains(stdoutBuffer.String(), "Usage:\n  hello [flags]") {
-		t.Errorf("stdout = %q, want the usage block", stdoutBuffer.String())
-	}
-}
-
-func TestHelloUnknownFlagExitsTwo(t *testing.T) {
-	var stdoutBuffer, stderrBuffer bytes.Buffer
-
-	exitCode := 0
-
-	app := conga.New[CLI]().
-		Name("hello").
-		Args([]string{"--nmae", "Alice"}).
-		Stdout(&stdoutBuffer).
-		Stderr(&stderrBuffer).
-		ExitFunc(func(code int) { exitCode = code })
-
-	err := app.RunContext(t.Context())
-
-	if !conga.IsUsageError(err) {
-		t.Fatalf("expected a usage error, got %v", err)
-	}
-
-	app.FatalIfError(err)
-
-	if exitCode != 2 {
-		t.Errorf("exit code = %d, want 2", exitCode)
-	}
-
-	if !strings.Contains(stderrBuffer.String(), "unknown flag: --nmae") {
-		t.Errorf("stderr = %q, want the unknown flag message", stderrBuffer.String())
+			if got := stdoutBuffer.String(); got != tc.want {
+				t.Errorf("got %q, want %q", got, tc.want)
+			}
+		})
 	}
 }
 ```
 
 ## Where to go next
 
-- [About app execution](/explanation/execution/) — `RunContext`, context propagation, and stream capture.
-- [About error reporting](/explanation/error-reporting/) — classification and `FatalIfError` customisation.
-- [About reading values](/explanation/reading-values/) — the container reader surface.
-- [How to run the examples](/how-to/examples-cookbook/) — example 26 embeds the App in a host process with injected streams and a custom exit handler.
+- [About app execution](/explanation/execution/) — context propagation, signal handling, and execution lifecycles.
+- [About error reporting](/explanation/error-reporting/) — error categorization, exit codes, and usage silencing.
+- [About reading values](/explanation/reading-values/) — inspecting container state and provenance.

@@ -1,26 +1,17 @@
 ---
 title: How to declare subcommands
-description: Route subcommands with Command[T], assign command aliases, group commands, and reach root state.
+description: Route nested subcommands with Command[T], assign aliases and groups, and reach root state.
 ---
 
-This guide demonstrates how to declare nested subcommands with `Command[T]`, assign command aliases and visual groups, and reach root command state from child commands.
+Commands in CONGA compose hierarchically by declaring struct fields of type `conga.Command[T]`. This guide explains how to define subcommands, configure routing tags, access root state, and prevent ancestor flag shadowing.
 
 ## Mount a subcommand
 
-Declare a field of type `conga.Command[T]` on the enclosing command struct, where `T` is a struct implementing `Run(ctx context.Context, session *conga.Session) error`:
+Declare a field of type `conga.Command[T]` on the enclosing struct, where `T` is a struct implementing the `Runner` interface:
 
 ```go title="main.go"
-package main
-
-import (
-	"context"
-	"fmt"
-
-	"github.com/conga-sh/conga"
-)
-
 type CLI struct {
-	Deploy conga.Command[DeployCmd] `summary:"Deploy a service"`
+	Deploy conga.Command[DeployCmd] `summary:"Deploy a service to a cluster"`
 }
 
 type DeployCmd struct {
@@ -28,73 +19,40 @@ type DeployCmd struct {
 }
 
 func (d *DeployCmd) Run(ctx context.Context, session *conga.Session) error {
-	fmt.Fprintf(session.Stdout(), "deploying service (replicas: %d)\n", d.Replicas.Get())
+	fmt.Fprintf(session.Stdout(), "deploying service with %d replicas\n", d.Replicas.Get())
 
 	return nil
 }
-
-func main() {
-	app := conga.New[CLI]().
-		Name("cloudctl").
-		Description("Deploy and inspect services").
-		Version("1.0.0")
-
-	app.FatalIfError(app.Run())
-}
 ```
 
-Field names convert to kebab-case, so `Deploy` becomes the `deploy` subcommand. The `summary` tag provides the description displayed in parent command listings.
+Field names convert to kebab-case by default (`Deploy` becomes the `deploy` subcommand). The `summary` tag defines the short text displayed in parent command listings.
 
-Invoke the subcommand with flags:
+Leaf commands must implement `Run(ctx context.Context, session *conga.Session) error`. Defining a leaf command struct without a `Run` method produces an `ErrSchema` error during schema initialisation.
 
-```sh
-$ go run . deploy --replicas 5
-deploying service (replicas: 5)
-```
+An enclosing parent command may also implement `Run`. When a parent command implements `Run`, its method executes if the application is invoked without a subcommand. If the parent does not implement `Run`, invoking it without a subcommand displays command usage and exits.
 
-Omitted flags receive their declared default value:
+## Configure aliases, groups, and visibility
 
-```sh
-$ go run . deploy
-deploying service (replicas: 3)
-```
+Use struct tags on the `conga.Command[T]` field to control how subcommands route and display in `--help`:
 
-To accept positional arguments alongside flags, see [How to accept positional arguments](/how-to/accept-positional-arguments/).
-
-## Add command aliases and groups
-
-Assign command aliases and visual groups with struct tags on the `conga.Command[T]` field:
-
-```go title="main.go" ins={5-6,18-24}
+```go title="main.go"
 type CLI struct {
 	Deploy conga.Command[DeployCmd] `summary:"Deploy a service"`
-	List   conga.Command[ListCmd]   `aliases:"ls,ps" group:"Inspection" summary:"List deployed services"`
-}
-
-type ListCmd struct {
-	All conga.OptionalFlag[bool] `help:"Include inactive services" short:"a"`
-}
-
-func (l *ListCmd) Run(ctx context.Context, session *conga.Session) error {
-	fmt.Fprintln(session.Stdout(), "listing services")
-
-	return nil
+	List   conga.Command[ListCmd]   `aliases:"ls,ps" group:"Inspection" summary:"List active services"`
+	Debug  conga.Command[DebugCmd]  `hidden:"true" summary:"Internal debugging command"`
 }
 ```
 
-The alias invokes the command identically:
+- `name:"..."`: Overrides the kebab-case field name with a custom command token.
+- `aliases:"ls,ps"`: Registers comma-separated alternatives that route to the same command.
+- `group:"Inspection"`: Collects related commands under a dedicated section header in parent help screens.
+- `hidden:"true"`: Keeps the command executable while suppressing it from help listings and completion suggestions.
+- `description:"..."`: Supplies the extended description rendered on the subcommand's own `--help` screen.
+
+Help screens organise subcommands by their declared groups:
 
 ```sh
-$ go run . ls
-listing services
-```
-
-`--help` renders grouped subcommands under the assigned header:
-
-```sh
-$ go run . --help
-Deploy and inspect services
-
+$ cloudctl --help
 Usage:
   cloudctl <command>
 
@@ -102,29 +60,57 @@ Commands:
   deploy  Deploy a service
 
 Inspection Commands:
-  list    List deployed services (aliases: ls, ps)
+  list    List active services (aliases: ls, ps)
 
 Flags:
   --help     Show help
   --version  Show version
 ```
 
-## Read root state from a subcommand
+## Access root state and execution context
 
-Subcommands read global flags and metadata declared on the root command through `session.Root[T]()`:
+Subcommands read global flags and metadata declared on the root command struct through `session.Root[T]()`:
 
-```go
+```go title="main.go"
+type CLI struct {
+	Verbose conga.OptionalFlag[bool] `help:"Enable verbose output" short:"v"`
+	Deploy  conga.Command[DeployCmd] `summary:"Deploy a service"`
+}
+
 func (d *DeployCmd) Run(ctx context.Context, session *conga.Session) error {
 	root := session.Root[CLI]()
 
-	fmt.Fprintf(session.Stdout(), "command path: %s\n", session.Path())
-	fmt.Fprintf(session.Stdout(), "leaf name: %s\n", session.Name())
+	if root.Verbose.Get() {
+		fmt.Fprintf(session.Stdout(), "running %s (leaf: %s)\n", session.Path(), session.Name())
+	}
 
 	return nil
 }
 ```
 
-Flag shadowing across ancestor-descendant chains is prohibited: a flag name declared on the root command cannot be redeclared on any child subcommand.
+- `session.Root[T]()`: Returns the typed root command struct instance.
+- `session.Path()`: Returns the full invocation path string (for example, `"cloudctl deploy"`).
+- `session.Name()`: Returns the active leaf command name (`"deploy"`).
+- `session.Args()`: Returns trailing or unparsed arguments for the session.
+
+To navigate down the hierarchy from the root instance, call `Get()` on the command field (for example, `root.Deploy.Get()`).
+
+## Avoid ancestor flag shadowing
+
+CONGA strictly forbids flag shadowing across ancestor-descendant command hierarchies. A flag name, alias, or short rune declared on an ancestor command cannot be declared on any descendant subcommand:
+
+```go
+type Root struct {
+	Verbose conga.OptionalFlag[bool] `short:"v"`
+	Child   conga.Command[Child]
+}
+
+type Child struct {
+	Verbose conga.OptionalFlag[bool] `short:"v"` // schema error: duplicate flag -v
+}
+```
+
+Attempting to register a descendant flag that collides with an ancestor flag fails at startup with `conga.ErrDuplicateFlag`. This prevents ambiguity in flag inheritance and guarantees that persistent global flags behave consistently across all subcommands. Sibling subcommands do not share an ancestor relationship and may declare identical flag names.
 
 ## Where to go next
 

@@ -3,90 +3,80 @@ title: How to inspect value provenance
 description: Diagnose flag resolution sources across CLI, environment, config files, and defaults with --why.
 ---
 
-This guide demonstrates how to enable the built-in `--why` flag to inspect where each flag value resolved from across the four-tier resolution ladder.
+When flags resolve across multiple tiers (CLI flags, environment variables, config files, and defaults), determining which source provided a specific value can be difficult. Enable CONGA's built-in `--why` flag to output a diagnostic report detailing winning values, sources, and evaluated paths.
 
 ## Enable the provenance report
 
 Call `EnableWhy()` on the application builder to install the `--why` flag:
 
 ```go title="main.go"
-package main
-
-import (
-	"context"
-	"fmt"
-
-	"github.com/conga-sh/conga"
-	"github.com/conga-sh/conga/config"
-	"github.com/conga-sh/conga/decoder/toml"
-)
-
 type Server struct {
-	Host conga.OptionalFlag[string] `default:"127.0.0.1" help:"Address to listen on" safe:"true"`
-	Port conga.OptionalFlag[int]    `default:"8080" help:"Port to listen on" safe:"true" short:"p"`
-}
-
-func (s *Server) Run(ctx context.Context, session *conga.Session) error {
-	fmt.Fprintf(session.Stdout(), "listening on %s:%d\n", s.Host.Get(), s.Port.Get())
-
-	return nil
+	Host  conga.OptionalFlag[string] `default:"127.0.0.1" help:"Listen address" safe:"true"`
+	Port  conga.OptionalFlag[int]    `default:"8080" help:"Listen port" safe:"true" short:"p"`
+	Token conga.OptionalFlag[string] `help:"API secret token"`
 }
 
 func main() {
 	app := conga.New[Server]().
 		Name("server").
 		EnableWhy().
-		EnvPrefix("SERVER").
-		RegisterDecoder(".toml", toml.RawDecoder).
-		ConfigOptions(config.Paths("."))
+		EnvPrefix("SERVER")
 
 	app.FatalIfError(app.Run())
 }
 ```
 
-The `safe:"true"` tag opts a field into value rendering. Untagged fields redact their resolved values as `██████`, protecting credentials and tokens from display in terminal logs.
+Passing `--why` intercepts execution during the resolution phase. CONGA computes the provenance table, prints the report to stdout, and exits with code 0 before any lifecycle hooks (`PreRun`, `Run`, `PostRun`) execute.
 
-## Run the provenance report
+## Protect sensitive data with value redaction
 
-Pass `--why` on the command line alongside other arguments:
+By default, CONGA redacts all values in the `--why` report as `██████` to prevent credentials, secrets, and private keys from leaking into terminal scrollbacks or CI logs.
 
-```sh
-$ go run . --why
-Value provenance for "server":
+To opt a field into plaintext display, declare `safe:"true"`:
 
-  FLAG     VALUE       SOURCE   ENV           CONFIG PATH
-  --host   127.0.0.1   default  SERVER_HOST   host
-  --port   8080        default  SERVER_PORT   port
+```go title="main.go"
+// Renders plaintext in --why report
+Port conga.OptionalFlag[int] `default:"8080" safe:"true"`
 
-Config decoders: .toml
-
-Config paths checked:
-  .   (none found)
+// Redacted as ██████ in --why report
+Token conga.OptionalFlag[string] `help:"API secret token"`
 ```
 
-The report displays every declared flag, its winning value, the winning resolution tier (`cli`, `env`, `config`, or `default`), the associated environment variable, and the config file key.
+Positional arguments and config-file containers cannot be tagged `safe:"false"`. The schema analyzer rejects `safe:"false"` on these containers during initialisation.
 
-Override a value through the command line or environment to observe the source change:
+## Interpret the provenance output
+
+Invoke the binary with `--why` alongside any other flags or environment variables:
 
 ```sh
-$ SERVER_PORT=9002 go run . --why --port 9003
+$ SERVER_PORT=9002 server --why --port 9003
 Value provenance for "server":
 
   FLAG     VALUE       SOURCE   ENV           CONFIG PATH
   --host   127.0.0.1   default  SERVER_HOST   host
   --port   9003        cli      SERVER_PORT   port
+  --token  ██████      default  SERVER_TOKEN  token
 
-Config decoders: .toml
+Config decoders: none
 
 Config paths checked:
-  .   (none found)
+  none
 ```
 
-The report exits with code 0 before any lifecycle hooks (`PreRun`, `Run`, `PostRun`) execute.
+The report contains three diagnostic sections:
+
+- **Flag table**:
+  - `FLAG`: The declared flag name.
+  - `VALUE`: The winning value, or `██████` if untagged.
+  - `SOURCE`: The winning tier (`cli`, `env`, `config`, or `default`).
+  - `ENV`: The derived or explicit environment variable evaluated for this flag.
+  - `CONFIG PATH`: The evaluated config file key.
+- **Config decoders**: All file format decoders registered on the application.
+- **Config paths checked**: Every file path probed during resolution, annotated with its status (`(none found)` or loaded).
 
 ## Where to go next
 
-- [About value precedence](/explanation/value-precedence/) — the deterministic resolution ladder and provenance guarantees.
-- [How to bind environment variables](/how-to/bind-environment-variables/) — map environment variables to flags.
-- [How to manage config files](/how-to/manage-config-files/) — register file decoders and search paths.
+- [About value precedence](/explanation/value-precedence/) — the deterministic four-tier resolution ladder and provenance rules.
+- [How to bind environment variables](/how-to/bind-environment-variables/) — configure environment variable prefixes and explicit overrides.
+- [How to manage config files](/how-to/manage-config-files/) — register file decoders and configure search paths.
 - [The `--why` report](/reference/builtins/#the---why-report) — built-in reference documentation for `--why`.

@@ -3,118 +3,88 @@ title: How to run the examples
 description: Run the repository's 29 self-contained example programs and find the one covering a given feature.
 ---
 
-The repository's [`_examples/`](https://github.com/conga-sh/conga/tree/main/_examples) directory holds 29 self-contained programs, each with a README and an end-to-end test suite that also serves as executable documentation. Run one locally:
+The CONGA repository provides 29 self-contained example programs under [`_examples/`](https://github.com/conga-sh/conga/tree/main/_examples). Each example implements a focused architecture pattern, accompanied by a dedicated README and an automated end-to-end test suite.
+
+## Run an example locally
+
+Execute any example directly from the repository root:
 
 ```sh
-go run ./_examples/08-subcommands-basic create web-api -i redis:7 -r 3
+$ go run ./_examples/08-subcommands-basic create web-api -i redis:7 -r 3
+created service "web-api" (image: redis:7, replicas: 3)
+```
+
+To run the automated test suite across all examples:
+
+```sh
+$ go test ./_examples/...
 ```
 
 ## Example index
 
 ### Basics
 
-| # | Example | Teaches |
-|---|---------|---------|
-| 01 | [minimal-hello](https://github.com/conga-sh/conga/tree/main/_examples/01-minimal-hello) | `OptionalFlag[T]`, defaults, short flags, `--help` |
-| 02 | [flag-primitives](https://github.com/conga-sh/conga/tree/main/_examples/02-flag-primitives) | Primitive types, `time.Duration`, `Counter` (`-vvv`), aliases, flag groups, hidden flags, coercion errors |
-| 03 | [negatable-and-maps](https://github.com/conga-sh/conga/tree/main/_examples/03-negatable-and-maps) | Negatable booleans, native `map[K]V` flags with `items` bounds, slice separators (`sep:"none"`, `sep:";"`) |
-| 04 | [positional-args](https://github.com/conga-sh/conga/tree/main/_examples/04-positional-args) | `RequiredArg[T]`, `OptionalArg[T]`, trailing slices, `GetOr` fallbacks |
-| 05 | [domain-types](https://github.com/conga-sh/conga/tree/main/_examples/05-domain-types) | `File` with `existing`/`stdin`/`stdout`/`symlink`/`glob` tags, `Dir`, `ByteSize`, `FileContent`, custom `TextUnmarshaler` + `SelfValidator` types |
+| # | Example | Demonstrates |
+|---|---------|--------------|
+| 01 | [minimal-hello](https://github.com/conga-sh/conga/tree/main/_examples/01-minimal-hello) | `OptionalFlag[T]`, default values, short flags, and `--help`. |
+| 02 | [flag-primitives](https://github.com/conga-sh/conga/tree/main/_examples/02-flag-primitives) | Primitive types, `time.Duration`, `Counter` (`-vvv`), aliases, flag groups, hidden flags, and coercion errors. |
+| 03 | [negatable-and-maps](https://github.com/conga-sh/conga/tree/main/_examples/03-negatable-and-maps) | Negatable booleans, native `map[K]V` flags with `items` bounds, and slice separators (`sep:"none"`, `sep:";"`). |
+| 04 | [positional-args](https://github.com/conga-sh/conga/tree/main/_examples/04-positional-args) | `RequiredArg[T]`, `OptionalArg[T]`, trailing slices, and `GetOr` fallbacks. |
+| 05 | [domain-types](https://github.com/conga-sh/conga/tree/main/_examples/05-domain-types) | `File` with `existing`/`stdin`/`stdout`/`symlink`/`glob` tags, `Dir`, `ByteSize`, `FileContent`, and custom `TextUnmarshaler` types. |
 
 ### Constraints and structure
 
-| # | Example | Teaches |
-|---|---------|---------|
-| 06 | [flag-constraints](https://github.com/conga-sh/conga/tree/main/_examples/06-flag-constraints) | `xor`, `and`, `range` (int, duration, byte size), `len`, `items`, `enum`; full-help rendering on usage errors |
-| 07 | [dynamic-validation](https://github.com/conga-sh/conga/tree/main/_examples/07-dynamic-validation) | The `Validator` interface for cross-field checks before any hook runs |
-| 08 | [subcommands-basic](https://github.com/conga-sh/conga/tree/main/_examples/08-subcommands-basic) | `Command[T]` routing, aliases, groups, hidden commands, did-you-mean suggestions |
-| 09 | [deep-hierarchy-context](https://github.com/conga-sh/conga/tree/main/_examples/09-deep-hierarchy-context) | `session.Root[T]()`, root-down `Command[T].Get()` traversal, `session.Path()`, `session.Name()`; per-command `envprefix` tags |
-| 10 | [builtins-help-version](https://github.com/conga-sh/conga/tree/main/_examples/10-builtins-help-version) | Opt-in `HelpCommand`/`VersionCommand` subcommands; `version --json`; `Examples`/`Footer` builders; `Description()`/`Examples()` methods; custom commands rendering through `session.Help`/`Usage`/`Version` |
-| 11 | [trailing-args-forwarding](https://github.com/conga-sh/conga/tree/main/_examples/11-trailing-args-forwarding) | `DashArgs` (`--` forwarding) vs `RawArgs` (bare forwarding) |
-| 12 | [lifecycle-hooks](https://github.com/conga-sh/conga/tree/main/_examples/12-lifecycle-hooks) | `PreRun → Run → PostRun → Finally`, error short-circuiting, guaranteed teardown |
-| 27 | [strict-tag-validation](https://github.com/conga-sh/conga/tree/main/_examples/27-strict-tag-validation) | `app.StrictTagValidation(false)` for schemas carrying third-party struct tags |
+| # | Example | Demonstrates |
+|---|---------|--------------|
+| 06 | [flag-constraints](https://github.com/conga-sh/conga/tree/main/_examples/06-flag-constraints) | `xor`, `and`, `range` (int, duration, byte size), `len`, `items`, and `enum`. |
+| 07 | [dynamic-validation](https://github.com/conga-sh/conga/tree/main/_examples/07-dynamic-validation) | The `Validator` interface for cross-field semantic validation before hooks execute. |
+| 08 | [subcommands-basic](https://github.com/conga-sh/conga/tree/main/_examples/08-subcommands-basic) | `Command[T]` routing, aliases, visual groups, hidden commands, and typo suggestions. |
+| 09 | [deep-hierarchy-context](https://github.com/conga-sh/conga/tree/main/_examples/09-deep-hierarchy-context) | `session.Root[T]()`, root-down `Command[T].Get()` traversal, `session.Path()`, `session.Name()`, and `envprefix` tags. |
+| 10 | [builtins-help-version](https://github.com/conga-sh/conga/tree/main/_examples/10-builtins-help-version) | Opt-in `HelpCommand`/`VersionCommand` subcommands, `version --json`, `Examples`/`Footer` builders, and custom commands rendering through session helpers. |
+| 11 | [trailing-args-forwarding](https://github.com/conga-sh/conga/tree/main/_examples/11-trailing-args-forwarding) | `DashArgs` (`--` forwarding) versus `RawArgs` (bare forwarding). |
+| 12 | [lifecycle-hooks](https://github.com/conga-sh/conga/tree/main/_examples/12-lifecycle-hooks) | `PreRun -> Run -> PostRun -> Finally` sequence, error short-circuiting, and guaranteed teardown. |
+| 27 | [strict-tag-validation](https://github.com/conga-sh/conga/tree/main/_examples/27-strict-tag-validation) | `app.StrictTagValidation(false)` for schemas carrying foreign struct tags. |
 
 ### Configuration
 
-| # | Example | Teaches |
-|---|---------|---------|
-| 13 | [twelve-factor-precedence](https://github.com/conga-sh/conga/tree/main/_examples/13-twelve-factor-precedence) | The 4-tier ladder, `EnvPrefix`, `env:"-"`, `placeholder`, `config:"-"` |
-| 14 | [multiformat-and-dotenv](https://github.com/conga-sh/conga/tree/main/_examples/14-multiformat-and-dotenv) | `.env` + `.env.local`, JSON/TOML/YAML/HCL decoders, strict validation with typo hints |
-| 15 | [cascading-searchpaths](https://github.com/conga-sh/conga/tree/main/_examples/15-cascading-searchpaths) | `app.ConfigOptions(config.Cascading())` system→user→local merging, partial cascades, explicit `-c` override |
-| 16 | [live-config-watcher](https://github.com/conga-sh/conga/tree/main/_examples/16-live-config-watcher) | Daemon hot-reload with `watch.Config`/`watch.File`, SIGHUP reload via `session.Reload[T]`, graceful signal shutdown |
-| 17 | [config-profiles](https://github.com/conga-sh/conga/tree/main/_examples/17-config-profiles) | `ConfigFile` with `multi:"true"` multi-file merging (base + profiles) |
-| 18 | [config-searchpaths](https://github.com/conga-sh/conga/tree/main/_examples/18-config-searchpaths) | `app.ConfigOptions(config.Paths(...))` single-file mode, first existing file wins |
-| 28 | [explicit-config-file](https://github.com/conga-sh/conga/tree/main/_examples/28-explicit-config-file) | `app.ConfigOptions(config.Explicit(...))`: fatal-if-missing programmatic target, only `--config-file` outranks it |
+| # | Example | Demonstrates |
+|---|---------|--------------|
+| 13 | [twelve-factor-precedence](https://github.com/conga-sh/conga/tree/main/_examples/13-twelve-factor-precedence) | The four-tier resolution ladder, `EnvPrefix`, `env:"-"`, and `config:"-"`. |
+| 14 | [multiformat-and-dotenv](https://github.com/conga-sh/conga/tree/main/_examples/14-multiformat-and-dotenv) | `.env` and `.env.local` files, JSON/TOML/YAML/HCL decoders, and strict validation. |
+| 15 | [cascading-searchpaths](https://github.com/conga-sh/conga/tree/main/_examples/15-cascading-searchpaths) | `app.ConfigOptions(config.Cascading())` system-to-local merging and explicit `--config-file` overrides. |
+| 16 | [live-config-watcher](https://github.com/conga-sh/conga/tree/main/_examples/16-live-config-watcher) | Daemon hot-reload with `watch.Config`, reload via `session.Reload[T]`, and signal shutdown. |
+| 17 | [config-profiles](https://github.com/conga-sh/conga/tree/main/_examples/17-config-profiles) | `ConfigFile` with `multi:"true"` multi-file merging (base plus profile pattern). |
+| 18 | [config-searchpaths](https://github.com/conga-sh/conga/tree/main/_examples/18-config-searchpaths) | `app.ConfigOptions(config.Paths(...))` single-file search mode where the first existing file wins. |
+| 28 | [explicit-config-file](https://github.com/conga-sh/conga/tree/main/_examples/28-explicit-config-file) | `app.ConfigOptions(config.Explicit(...))` fatal-if-missing programmatic target. |
 
 ### Completion
 
-| # | Example | Teaches |
-|---|---------|---------|
-| 19 | [shell-completion](https://github.com/conga-sh/conga/tree/main/_examples/19-shell-completion) | Completion opt-in (`app.EnableCompletion()`) in both wiring styles: domain types (`Predictable`, `FileFilterable`, `conga.File`, `conga.Dir`) on `deploy`, the registry (`app.Predictor`, `predictor:"..."`) on `exec`, and the full predict SDK on `logs` |
-| 20 | [modular-predictors](https://github.com/conga-sh/conga/tree/main/_examples/20-modular-predictors) | Nested command groups with `system.*` and `network.*` modular domain types |
-| 21 | [pluggable-types](https://github.com/conga-sh/conga/tree/main/_examples/21-pluggable-types) | `app.Use` plugins, stdlib types (`timezone.Location`, `syscall.Signal`), `app.RegisterType` + `WithPredictor` for foreign types |
-| 24 | [flat-completion-flag](https://github.com/conga-sh/conga/tree/main/_examples/24-flat-completion-flag) | Opt-in flat CLI `--completion <shell>` flag via `app.EnableCompletion()` |
-| 25 | [flat-completion-subcommand](https://github.com/conga-sh/conga/tree/main/_examples/25-flat-completion-subcommand) | Flat CLI opting into `CompletionCommand` alongside `EnableCompletion()` |
+| # | Example | Demonstrates |
+|---|---------|--------------|
+| 19 | [shell-completion](https://github.com/conga-sh/conga/tree/main/_examples/19-shell-completion) | Opt-in completion via `app.EnableCompletion()`, domain types, predictor registry, and predict SDK. |
+| 20 | [modular-predictors](https://github.com/conga-sh/conga/tree/main/_examples/20-modular-predictors) | Command groups using `system.*` and `network.*` domain types. |
+| 21 | [pluggable-types](https://github.com/conga-sh/conga/tree/main/_examples/21-pluggable-types) | `app.Use` plugins, standard library types (`timezone.Location`, `system.Signal`), and `app.RegisterType`. |
+| 24 | [flat-completion-flag](https://github.com/conga-sh/conga/tree/main/_examples/24-flat-completion-flag) | Flat CLI `--completion <shell>` flag via `app.EnableCompletion()`. |
+| 25 | [flat-completion-subcommand](https://github.com/conga-sh/conga/tree/main/_examples/25-flat-completion-subcommand) | Flat CLI opting into `CompletionCommand` alongside `EnableCompletion()`. |
 
-### Deprecation
+### Deprecation and embedding
 
-| # | Example | Teaches |
-|---|---------|---------|
-| 22 | [app-deprecation](https://github.com/conga-sh/conga/tree/main/_examples/22-app-deprecation) | `app.Deprecated()` warning banner on every invocation |
-| 23 | [member-deprecation](https://github.com/conga-sh/conga/tree/main/_examples/23-member-deprecation) | `deprecated:"..."` tags for flags and subcommands |
+| # | Example | Demonstrates |
+|---|---------|--------------|
+| 22 | [app-deprecation](https://github.com/conga-sh/conga/tree/main/_examples/22-app-deprecation) | `app.Deprecated()` warning banner rendered on every invocation. |
+| 23 | [member-deprecation](https://github.com/conga-sh/conga/tree/main/_examples/23-member-deprecation) | `deprecated:"..."` struct tags for flags and subcommands. |
+| 26 | [library-embedding](https://github.com/conga-sh/conga/tree/main/_examples/26-library-embedding) | `App.Args`, injected `Stdin`/`Stdout`/`Stderr` streams, `RunContext`, `IsUsageError`, and custom `ExitFunc`. |
+| 99 | [kitchen-sink](https://github.com/conga-sh/conga/tree/main/_examples/99-kitchen-sink) | Exhaustive reference: all primitive types, filesystem types, four decoders, map encodings, and provenance. |
 
-### Hosting and reference
+## Exit code conventions
 
-| # | Example | Teaches |
-|---|---------|---------|
-| 26 | [library-embedding](https://github.com/conga-sh/conga/tree/main/_examples/26-library-embedding) | `App.Args`, injected `Stdin`/`Stdout`/`Stderr` streams, `RunContext`, typed errors + `IsUsageError`, custom `ExitFunc`, `UsageOnError(UsageSilence)`, `DisableHelpFlag`/`DisableVersionFlag` |
-| 99 | [kitchen-sink](https://github.com/conga-sh/conga/tree/main/_examples/99-kitchen-sink) | Exhaustive reference: every primitive width plus the filesystem/value types (`File`, `Dir`, `ByteSize`, durations, URLs, maps), all four decoders over nested subcommands, key remap, map encodings, provenance, schema directives |
+All example suites assert CONGA's exit code contract:
+- Exit `0`: Success (including built-in `--help` and `--version`).
+- Exit `1`: Runtime failure returned from a command's `Run` method or config loading failure.
+- Exit `2`: Usage error (invalid flag, missing required argument, or failed validation).
 
-## Example: twelve-factor precedence
+## Where to go next
 
-Adapted from example 13. Provenance resolves as each tier is applied:
-
-```go
-type Serve struct {
-	Addr conga.OptionalFlag[string] `default:":8080" env:"ADDR" placeholder:"HOST:PORT" help:"Listen address"`
-}
-
-func (s *Serve) Run(ctx context.Context, session *conga.Session) error {
-	inspector.Print(session, s) // visualizes value + origin badge per field
-
-	return nil
-}
-```
-
-```sh
-serve --addr :9000        # ● cli  --addr
-CLOUDCTL_ADDR=:9000 serve # ● env CLOUDCTL_ADDR
-serve                     # ● default :8080
-```
-
-## Example: cascading configuration
-
-Adapted from example 15. Three tiers merge, later paths override earlier keys:
-
-```go
-app := conga.New[Deploy]().
-	Name("deployctl").
-	RegisterDecoder("yaml", yaml.RawDecoder).
-	ConfigOptions(
-		config.Paths(
-			"/etc/deployctl/deployctl.yaml",
-			"~/.config/deployctl/deployctl.yaml",
-			"./deployctl.yaml",
-		),
-		config.Cascading(),
-	)
-```
-
-## Exit-code contract
-
-The examples assert CONGA's [exit-code contract](/reference/errors/#exit-codes) end to end: `0` on success (including `--help`/`--version`), `1` on a runtime failure returned from `Run` (including config read/parse failures), and `2` on input/usage errors.
-
-## Example helpers
-
-- `_examples/internal/inspector` — renders the resolved configuration of the active command chain with per-field origin badges (`● cli`, `● env VAR`, `● config key`, `· default`, `○ unset`), honouring `NO_COLOR`.
-- `_examples/internal/testutil` — shared testscript commands (`exit-status`, `copy-fixture`) used by the example suites.
+- [How to test a command](/how-to/test-a-command/) — test commands in memory using injected arguments and streams.
+- [How to declare subcommands](/how-to/declare-subcommands/) — organize hierarchical command trees.
+- [About value precedence](/explanation/value-precedence/) — deterministic four-tier resolution ladder.

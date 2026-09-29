@@ -1,27 +1,15 @@
 ---
 title: How to accept positional arguments
-description: Accept mandatory, optional, and trailing positional arguments, and forward raw tokens.
+description: Define mandatory, optional, and trailing positional arguments, and forward raw tokens.
 ---
 
-This guide demonstrates how to define mandatory and optional positional arguments, capture trailing arguments in a slice, and forward unparsed tokens after `--`.
+Positional arguments map command-line tokens to struct fields based on their position in the argument vector. Use CONGA's typed argument containers to define required and optional arguments, capture trailing arguments in a slice, and forward unparsed tokens to external commands.
 
-## Define required and optional arguments
+## Define required and optional positional arguments
 
-Declare fields on your command struct using CONGA's typed argument containers:
-
-- `conga.RequiredArg[T]` declares a mandatory argument matched by position.
-- `conga.OptionalArg[T]` declares an optional argument that falls back to its zero value when omitted.
+Declare fields on the command struct using `conga.RequiredArg[T]` and `conga.OptionalArg[T]`:
 
 ```go title="main.go"
-package main
-
-import (
-	"context"
-	"fmt"
-
-	"github.com/conga-sh/conga"
-)
-
 type CopyCmd struct {
 	Source conga.RequiredArg[string] `help:"Source file path"`
 	Target conga.OptionalArg[string] `help:"Destination file path"`
@@ -37,33 +25,9 @@ func (c *CopyCmd) Run(ctx context.Context, session *conga.Session) error {
 
 	return nil
 }
-
-func main() {
-	app := conga.New[CopyCmd]().
-		Name("copy").
-		Description("File copy command")
-
-	app.FatalIfError(app.Run())
-}
 ```
 
-Invoke the command with both arguments:
-
-```sh
-$ go run . src.txt dest.txt
-copying src.txt to dest.txt
-```
-
-When the optional argument is omitted, `IsSet()` reports `false`:
-
-```sh
-$ go run . src.txt
-copying src.txt to backup/
-```
-
-## Enforce declaration order
-
-Declare required positional arguments before optional positional arguments in the struct. Placing an optional argument before a required argument produces a schema error (`ErrSchema`) at application startup:
+CONGA binds positional tokens to struct fields strictly in field declaration order. Required positional arguments must precede optional positional arguments. Placing an optional argument before a required argument produces a schema error (`ErrSchema`) during schema initialisation:
 
 ```go
 type InvalidOrder struct {
@@ -72,10 +36,14 @@ type InvalidOrder struct {
 }
 ```
 
-When a required argument is omitted during invocation, CONGA reports the error and displays command usage:
+Positional arguments resolve exclusively from command-line tokens. Unlike flags, positional arguments do not bind to environment variables or config files.
+
+## Handle missing or unexpected arguments
+
+When a required argument is omitted, CONGA returns an error wrapping `conga.ErrParse`, renders the command usage to stderr, and exits with code 2:
 
 ```sh
-$ go run .
+$ copy
 copy: error: missing required positional argument <source>
 
 Usage:
@@ -84,14 +52,21 @@ Usage:
 Run 'copy --help' for more information.
 ```
 
+If an invocation provides more positional arguments than the command declares, CONGA rejects the extra tokens:
+
+```sh
+$ copy src.txt dest.txt extra.txt
+copy: error: unexpected argument "extra.txt"
+```
+
 ## Capture trailing arguments in a slice
 
-Use a plain slice `[]T` to capture a variable number of positional arguments following any scalar positional arguments:
+To accept a variable number of positional arguments, declare a slice field `[]T` as the final positional argument:
 
 ```go title="main.go"
 type DeleteCmd struct {
 	Mode  conga.RequiredArg[string] `help:"Deletion mode"`
-	Files []string                  `help:"Target files"`
+	Files []string                  `help:"Target files to delete"`
 }
 
 func (d *DeleteCmd) Run(ctx context.Context, session *conga.Session) error {
@@ -101,16 +76,18 @@ func (d *DeleteCmd) Run(ctx context.Context, session *conga.Session) error {
 }
 ```
 
-All tokens provided after `<mode>` collect into the `Files` slice:
+The engine binds initial tokens to the scalar positional fields (`Mode`) and collects all subsequent tokens into the slice:
 
 ```sh
-$ go run . purge file1.txt file2.txt file3.txt
+$ delete purge file1.txt file2.txt file3.txt
 mode: purge, targets: [file1.txt file2.txt file3.txt]
 ```
 
-## Forward trailing arguments after `--`
+A struct may declare at most one slice positional argument, and it must follow all scalar positional fields. Multiple slice fields in the same struct produce an `ErrSchema` error at startup.
 
-Use `conga.DashArgs` to capture all tokens passed after the `--` terminator:
+## Forward unparsed arguments after `--`
+
+To pass arguments directly to child processes or external tools without flag parsing, declare a `conga.DashArgs` field:
 
 ```go title="main.go"
 type TestRunner struct {
@@ -125,14 +102,14 @@ func (t *TestRunner) Run(ctx context.Context, session *conga.Session) error {
 }
 ```
 
-CONGA leaves all tokens after `--` unparsed and preserves their exact order:
+CONGA leaves all tokens appearing after `--` completely unparsed and preserves their order. Flags after `--` are not parsed as flags of the current application:
 
 ```sh
-$ go run . ./pkg/... -- -v -run TestUpload
+$ testrunner ./pkg/... -- -v -run TestUpload
 package: ./pkg/..., forwarded: [-v -run TestUpload]
 ```
 
-To capture unparsed tokens without requiring `--`, declare `conga.RawArgs` instead.
+To capture trailing unparsed tokens without requiring the `--` delimiter, declare a `conga.RawArgs` field instead.
 
 ## Where to go next
 
