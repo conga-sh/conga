@@ -42,7 +42,7 @@ type Copy struct {
 }
 ```
 
-Positional arguments are declared in field order. Required arguments come before optional ones; violating that order is a schema error (`ErrSchema`) reported at startup.
+Positional arguments are declared in field order. Required arguments come before optional ones; violating that order is a schema error (`ErrSchema`) reported at startup. For procedural directions, see [How to accept positional arguments](/how-to/accept-positional-arguments/).
 
 ## Reading values
 
@@ -72,7 +72,7 @@ type Labels struct {
 }
 ```
 
-For custom map value types, register a parser with `app.RegisterMap` — see [How to add custom types and decoders](/how-to/custom-types-and-decoders/).
+For custom map value types, register a parser with `app.RegisterMap` — see [How to add custom flag types](/how-to/add-custom-flag-types/).
 
 ## Negatable booleans
 

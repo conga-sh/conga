@@ -1,83 +1,60 @@
 ---
 title: About subcommands and hierarchy
-description: Route subcommands with Command[T], inspect the active chain through the session, and keep flags unique per hierarchy.
+description: Command tree modeling with Command[T], session hierarchy inspection, and the ancestor flag reservation invariant.
 ---
 
-A CONGA command tree is built from `conga.Command[T]` fields, one per subcommand. This page explains how subcommands are declared, grouped, and inspected at run time, and why flag names are unique across an ancestor chain.
+A CONGA command tree is represented by struct composition: fields of type `conga.Command[T]` model subcommands, creating a typed hierarchy derived from Go types. This page explains the architectural design of command hierarchies, how execution state travels through the session, and why flag shadowing across ancestor chains is strictly prohibited. For procedural instructions on mounting subcommands, see [How to declare subcommands](/how-to/declare-subcommands/).
 
-## Declaring subcommands
+## Command tree structure
 
-A subcommand is a struct field of type `conga.Command[T]` where `T` is another command struct implementing `Run(ctx context.Context, session *conga.Session) error`:
+In CONGA, command nesting is expressed through fields of type `conga.Command[T]`:
 
 ```go
 type App struct {
 	Deploy conga.Command[DeployCommand] `name:"deploy" summary:"Deploy a service"`
 	Remove conga.Command[RemoveCommand] `name:"remove" summary:"Remove a service" aliases:"rm,delete" group:"Maintenance"`
 }
-
-type DeployCommand struct {
-	Service  conga.RequiredArg[string] `help:"Service name"`
-	Replicas conga.OptionalFlag[int]   `default:"3" help:"Number of replicas"`
-}
-
-func (d *DeployCommand) Run(ctx context.Context, session *conga.Session) error {
-	fmt.Fprintf(session.Stdout(), "deploying %s\n", d.Service.Get())
-
-	return nil
-}
-
-func main() {
-	app := conga.New[App]().Name("cloudctl").Description("Cloud management tool")
-	app.FatalIfError(app.Run())
-}
 ```
 
-```sh
-cloudctl deploy web-api
-```
+Each `Command[T]` field mounts `T` as a child command. Because `T` is an ordinary command struct, it may itself declare `Command[U]` fields, permitting hierarchies of arbitrary depth.
 
-```
-deploying web-api
-```
-
-```sh
-cloudctl rm web-api        # via alias
-```
-
-```
-deploying web-api
-```
-
-Nested hierarchies are arbitrary in depth: a subcommand struct may itself declare `Command[T]` fields.
+CONGA validates the command tree at schema construction time:
+- Every leaf command must satisfy `Runner` (`Run(ctx context.Context, session *conga.Session) error`).
+- Intermediate routing nodes without a `Runner` require a subcommand token during invocation; omitting one produces a usage error.
+- Field names convert to kebab-case names by default, overridden by the `name` tag.
 
 ## Groups and visibility
 
-- `group:"Maintenance"` groups sibling commands under a heading in help output.
-- `hidden` hides a command from listings and completion while keeping it invocable.
-- Command aliases participate in did-you-mean suggestions: `cloudctl deplou` suggests `deploy`.
+Command listings on generated help screens reflect metadata declared on each `Command[T]` field:
+- `group:"<name>"` partitions sibling commands under dedicated section headers.
+- `hidden` leaves a command invocable while omitting it from help listings and shell completion.
+- `aliases:"<a,b>"` registers alternate tokens that resolve to the same command node. Aliases participate in did-you-mean distance suggestions during spelling errors.
 
-## Inspecting the active chain through the session
+## Inspecting the hierarchy through the session
 
-Commands and lifecycle hooks receive everything about the hierarchy through the `*conga.Session` passed alongside `context.Context`:
+When a command executes, its lifecycle hooks receive `*conga.Session`, which provides access to the invocation path and ancestor state:
 
 | Method | Returns |
 |--------|---------|
-| `session.Root[T]()` | The application struct bound to `T` (`*T`), nil on type mismatch |
-| `session.Path()` | Full invocation path, e.g. `"cloudctl deploy worker"` |
-| `session.Name()` | Leaf command name, e.g. `"worker"` |
+| `session.Root[T]()` | The application struct bound to `T` (`*T`), or nil on type mismatch |
+| `session.Path()` | The full invocation path string (for example `"cloudctl deploy worker"`) |
+| `session.Name()` | The leaf command name (for example `"worker"`) |
+| `session.Args()` | Trailing or unparsed positional arguments for the invocation |
+
+A leaf command accesses global flags declared on the root struct via `session.Root[T]()`:
 
 ```go
 func (w *WorkerCommand) Run(ctx context.Context, session *conga.Session) error {
-	root := session.Root[App]() // access global flags declared on the root struct
+	root := session.Root[App]()
 	if root.Verbose.Get() {
-		fmt.Fprintf(session.Stderr(), "path: %s\n", session.Path())
+		fmt.Fprintf(session.Stderr(), "invoking: %s\n", session.Path())
 	}
 
 	return nil
 }
 ```
 
-Enclosing command structs are reached by walking the selected `Command[T]` fields from the root:
+Enclosing intermediate command structs are reached by traversing the selected `Command[T]` fields down from the root instance:
 
 ```go
 root := session.Root[App]()
@@ -85,17 +62,19 @@ deploy := root.Deploy.Get()
 region := deploy.Region.Get()
 ```
 
-## Global and persistent flags
+## Forbidden flag shadowing
 
-Declare flags on the root struct and read them in subcommands via `session.Root[T]()`. Per-command environment prefixes are available through the `envprefix` command tag.
-
-## Flag shadowing is forbidden
-
-A flag name, alias, or short rune declared on an ancestor command is reserved across its whole descendant chain; redeclaring one fails schema building with `ErrSchema`. Sibling commands may freely reuse identical names — `deploy --force` and `remove --force` are independent.
+CONGA enforces strict ancestor flag uniqueness across the command hierarchy: **a flag, alias, or short rune declared on an ancestor command cannot be declared on any descendant command**. Violating this constraint fails schema construction with `ErrSchema` (wrapping `ErrDuplicateFlag`).
 
 ```
-✅ cloudctl deploy --force      + cloudctl remove --force   (siblings)
-❌ cloudctl --verbose           + cloudctl deploy --verbose (ancestor/descendant)
+cloudctl deploy --force      + cloudctl remove --force   (allowed: sibling commands)
+cloudctl --verbose           + cloudctl deploy --verbose (prohibited: ancestor-descendant chain)
 ```
 
-The rule keeps parsing unambiguous in one pass: with `--verbose` bound at the root and also possible at a leaf, a token like `cloudctl deploy --verbose` would have two legitimate owners.
+### Architectural rationale
+
+The shadowing prohibition provides deterministic, single-pass argument parsing:
+
+1. **Unambiguous token ownership**: When `--verbose` is declared at the root command, a token sequence such as `cloudctl deploy --verbose` has exactly one owner. Permitting descendant shadowing would introduce ambiguity regarding whether `--verbose` belongs to `deploy` or configures the global application runtime before subcommand dispatch.
+2. **Predictable shell completion**: Shell completion drivers can accurately determine whether a flag remains valid anywhere in the command line without evaluating backtracking rules or contextual state switches.
+3. **Explicit state hierarchy**: Shared flags belong at the root command. Child commands access shared values through `session.Root[T]()` rather than duplicating flag definitions across multiple subcommands.

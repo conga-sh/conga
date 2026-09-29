@@ -146,11 +146,11 @@ hello has version 1.0.0 built with go1.27.1
 
 ## Where to go next
 
-**Next tutorials**
-- [Subcommands](/tutorials/subcommands/): build a multi-command CLI with positional arguments and command aliases.
-- [Configuration](/tutorials/configuration/): load values from environment variables and configuration files.
-
 **How-to guides**
+- [How to declare subcommands](/how-to/declare-subcommands/): route subcommands with `Command[T]`, command aliases, and groups.
+- [How to accept positional arguments](/how-to/accept-positional-arguments/): define required, optional, and trailing positional arguments.
+- [How to bind environment variables](/how-to/bind-environment-variables/): map environment variables to flags with prefixes and struct tags.
+- [How to manage config files](/how-to/manage-config-files/): register decoders, declare search paths, and cascade tiers.
 - [How to test a command](/how-to/test-a-command/): capture streams, mock arguments, and assert exit codes.
 - [How to keep a reference to the root struct](/how-to/keep-root-reference/): pass pre-initialized structs using `conga.New(cli)`.
 - [How to run the examples](/how-to/examples-cookbook/): explore runnable sample applications, including the [minimal hello](https://github.com/conga-sh/conga/tree/main/_examples/01-minimal-hello) program.

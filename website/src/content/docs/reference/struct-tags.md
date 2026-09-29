@@ -238,9 +238,8 @@ For example, `File` with `existing:"true" stdin:"true"` renders
 completion candidate descriptions when the field declares no explicit `help`
 tag. The static analyzer (`conga-lint`) validates tag usage for the built-in
 tagged types; foreign tagged types degrade conservatively (it may miss
-diagnostics, never invent them). Authoring guidance is in
-[How to add custom types and decoders](/how-to/custom-types-and-decoders/);
-the runtime interfaces are catalogued in [Domain types](/reference/domain-types/).
+diagnostics, never invent them). The runtime interfaces are catalogued in
+[Domain types](/reference/domain-types/).
 
 ## Subcommand methods
 
@@ -278,6 +277,8 @@ tag validation:
 ```go
 app.AllowTags("protobuf", "storm")
 ```
+
+To disable strict tag checking across the entire application, call `app.StrictTagValidation(false)`.
 
 Any other unknown tag triggers a schema error with a closest-match suggestion.
 

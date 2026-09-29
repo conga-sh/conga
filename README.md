@@ -23,7 +23,7 @@ and shell completion from them.
   [About the shell completion architecture](https://docs.conga.sh/explanation/completion-architecture/).
 - **Extensibility.** Register third-party types, mount plugins, or add decoders
   for new configuration formats. See
-  [How to extend with custom types, maps & decoders](https://docs.conga.sh/how-to/custom-types-and-decoders/).
+  [How to add custom flag types](https://docs.conga.sh/how-to/add-custom-flag-types/).
 - **Static schema linting.** `conga-lint` enforces leaf `Runner` contracts,
   struct tags, and ancestor flag shadowing before the binary runs. See
   [How to lint CONGA schemas](https://docs.conga.sh/how-to/lint-schemas/).
@@ -91,7 +91,7 @@ HELLO, CONGA!
 Fields become flags, and `Run` reads their resolved values with `Get()`. Walk
 through the full program in the
 [Quickstart tutorial](https://docs.conga.sh/tutorials/quickstart/),
-or copy from the [Examples Cookbook](https://docs.conga.sh/tutorials/cookbook/).
+or copy from the [Examples Cookbook](https://docs.conga.sh/how-to/examples-cookbook/).
 
 ## Documentation
 
@@ -102,7 +102,7 @@ or copy from the [Examples Cookbook](https://docs.conga.sh/tutorials/cookbook/).
   every supported struct tag and directive.
 - [Built-ins & Deprecation](https://docs.conga.sh/reference/builtins/) —
   help, `--version`/`--json`, `--why`, completion styles, and deprecation notices.
-- [Examples Cookbook](https://docs.conga.sh/tutorials/cookbook/) — 29
+- [Examples Cookbook](https://docs.conga.sh/how-to/examples-cookbook/) — 29
   runnable programs, mirrored in [`_examples/`](_examples/README.md).
 - Contributor docs: [testing guide](docs/TESTING.md) and
   [completion wire protocol](docs/completion-wire-protocol.md).
