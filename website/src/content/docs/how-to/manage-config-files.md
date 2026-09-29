@@ -13,6 +13,7 @@ Register decoders on the application builder for each file format the applicatio
 import (
 	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/config"
+	"github.com/conga-sh/conga/decoder/hcl"
 	"github.com/conga-sh/conga/decoder/json"
 	"github.com/conga-sh/conga/decoder/toml"
 	"github.com/conga-sh/conga/decoder/yaml"
@@ -21,15 +22,152 @@ import (
 func main() {
 	app := conga.New[CLI]().
 		Name("cloudctl").
-		RegisterDecoder("json", json.RawDecoder).
-		RegisterDecoder("toml", toml.RawDecoder).
-		RegisterDecoder("yaml", yaml.RawDecoder)
+		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".toml", toml.RawDecoder).
+		RegisterDecoder(".yaml", yaml.RawDecoder).
+		RegisterDecoder(".yml", yaml.RawDecoder).
+		RegisterDecoder(".hcl", hcl.RawDecoder)
 
 	app.FatalIfError(app.Run())
 }
 ```
 
-Standard decoder packages provide `RawDecoder` instances for JSON, TOML, YAML, and HCL. Registering `"yaml"` automatically matches files with `.yaml` and `.yml` extensions.
+CONGA provides four opt-in decoder packages: JSON, TOML, YAML, and HCL. Each package exposes a `RawDecoder` function matching the `config.Decoder` interface.
+
+`RegisterDecoder` normalises extension strings by trimming whitespace, converting to lowercase, and stripping leading `*` and `.` characters—so `"json"`, `".json"`, and `"*.JSON"` are identical. Note that `.yaml` and `.yml` are distinct extensions; register both to accept both filename conventions.
+
+## Implement and register a custom decoder
+
+To support custom, proprietary, or legacy formats, provide a function satisfying the `config.Decoder` signature:
+
+```go
+type Decoder func(data []byte) (map[string]any, error)
+```
+
+The decoder receives the raw configuration file bytes and parses them into a generic `map[string]any`. Keys in the map correspond to flag names (or custom `config:"..."` tags), and nested `map[string]any` values correspond to subcommands or native Go map flags.
+
+```go title="main.go"
+import (
+	"bufio"
+	"bytes"
+	"fmt"
+	"strings"
+)
+
+// iniDecoder parses simple key=value lines into a configuration map.
+func iniDecoder(data []byte) (map[string]any, error) {
+	result := make(map[string]any)
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, ";") {
+			continue
+		}
+
+		key, value, found := strings.Cut(line, "=")
+		if !found {
+			return nil, fmt.Errorf("malformed line: %q", line)
+		}
+
+		result[strings.TrimSpace(key)] = strings.TrimSpace(value)
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+```
+
+Register the custom decoder on the application builder:
+
+```go title="main.go"
+app.RegisterDecoder(".ini", iniDecoder)
+```
+
+When a decoder returns a non-nil error, CONGA aborts configuration resolution and returns a categorized `conga.ErrConfig` error identifying the file and parse failure.
+
+## Structure nested configuration for subcommands
+
+When command structs declare nested subcommands using `conga.Command[T]`, the command hierarchy forms nested configuration namespaces. Top-level flags reside at the root of the file, while subcommand flags reside inside sections matching their kebab-case command names.
+
+```go title="main.go"
+type RootCLI struct {
+	Verbose  conga.OptionalFlag[bool]        `help:"Global verbose logging" short:"v"`
+	Server   conga.Command[ServerCmd]        `summary:"Server settings"`
+}
+
+type ServerCmd struct {
+	Port     conga.OptionalFlag[int]         `default:"8080" help:"Listen port"`
+	Database conga.Command[DatabaseCmd]      `summary:"Database settings"`
+}
+
+type DatabaseCmd struct {
+	Host     conga.OptionalFlag[string]      `default:"localhost" help:"Database host"`
+	PoolSize conga.OptionalFlag[int]         `default:"10" help:"Connection pool size" name:"pool-size"`
+}
+```
+
+Below are equivalent configuration files for each supported format:
+
+### YAML
+
+```yaml title="config.yaml"
+verbose: true
+
+server:
+  port: 9000
+  database:
+    host: "db.internal"
+    pool-size: 20
+```
+
+### TOML
+
+```toml title="config.toml"
+verbose = true
+
+[server]
+port = 9000
+
+[server.database]
+host = "db.internal"
+pool-size = 20
+```
+
+### JSON
+
+```json title="config.json"
+{
+  "verbose": true,
+  "server": {
+    "port": 9000,
+    "database": {
+      "host": "db.internal",
+      "pool-size": 20
+    }
+  }
+}
+```
+
+### HCL
+
+```hcl title="config.hcl"
+verbose = true
+
+server {
+  port = 9000
+
+  database {
+    host      = "db.internal"
+    pool-size = 20
+  }
+}
+```
+
+CONGA strictly validates all configuration keys against the declared struct fields. Any unknown keys or unexpected nested sections in a configuration file produce a validation error (`ErrConfig`) at startup with Levenshtein-based suggestions.
 
 ## Configure resolution tiers and search paths
 
@@ -80,13 +218,15 @@ Omitting `multi:"true"` on a root `ConfigFile` flag when cascading is active pro
 
 ## Accept config files on the command line
 
-To let users specify custom config files during invocation, declare a `conga.ConfigFile` container:
+To let users specify custom config files during invocation, declare a `conga.ConfigFile` container on your root command struct:
 
 ```go title="main.go"
 type CLI struct {
 	ConfigFile conga.ConfigFile `help:"Custom config file path" short:"c"`
 }
 ```
+
+`conga.ConfigFile` can only be declared on the root command struct. Placing it on a subcommand struct produces an `ErrSchema` error (`ConfigFile can only be declared on the root command`) during schema initialisation. Subcommands that need to inspect active configuration files can query `session.LoadedConfigFiles()` or access root flags via `session.Root[T]()`.
 
 Files supplied via `--config-file` or `-c` take precedence over environment variables, search paths, and conventional XDG tiers.
 

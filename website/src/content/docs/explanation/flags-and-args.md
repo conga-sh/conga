@@ -30,7 +30,6 @@ type Serve struct {
 |-----------|---------|
 | `conga.OptionalArg[T]` | Optional positional argument |
 | `conga.RequiredArg[T]` | Mandatory positional argument |
-| `[]T` (plain slice) | Trailing slice of positional arguments |
 | `conga.DashArgs` | Captures everything after `--` (go-test style forwarding) |
 | `conga.RawArgs` | Captures every trailing token as-is (docker-style forwarding) |
 
@@ -50,7 +49,7 @@ Every flag and argument container exposes `Get()`, `GetOr()`, `IsSet()`, `Change
 
 ## Slices, separators, and maps
 
-Slices (`OptionalFlag[[]string]`, `OptionalArg[[]string]`, plain slice args) split values on commas by default:
+Slices (`OptionalFlag[[]string]`, `OptionalArg[[]string]`, `RequiredArg[[]string]`) split values on commas by default:
 
 ```go
 type Query struct {
