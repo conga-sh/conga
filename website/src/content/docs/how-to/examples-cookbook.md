@@ -87,9 +87,9 @@ func (s *Serve) Run(ctx context.Context, session *conga.Session) error {
 ```
 
 ```sh
-$ serve --addr :9000        # ● cli  --addr
-$ CLOUDCTL_ADDR=:9000 serve # ● env CLOUDCTL_ADDR
-$ serve                     # ● default :8080
+serve --addr :9000        # ● cli  --addr
+CLOUDCTL_ADDR=:9000 serve # ● env CLOUDCTL_ADDR
+serve                     # ● default :8080
 ```
 
 ## Example: cascading configuration

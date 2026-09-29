@@ -54,11 +54,26 @@ The `Deploy` field mounts a subcommand: `conga.Command[DeployCmd]` routes the `d
 We run it with and without the flag, then without the argument:
 
 ```sh
-$ go run . deploy web-api --replicas 5
+go run . deploy web-api --replicas 5
+```
+
+```
 deploying web-api (replicas: 5)
-$ go run . deploy web-api
+```
+
+```sh
+go run . deploy web-api
+```
+
+```
 deploying web-api (replicas: 3)
-$ go run . deploy
+```
+
+```sh
+go run . deploy
+```
+
+```
 cloudctl: error: missing required positional argument <service>
 
 Usage:
@@ -74,7 +89,10 @@ The argument is validated before `Run` executes, so the body can read it directl
 `--help` renders the tree from the root:
 
 ```sh
-$ go run . --help
+go run . --help
+```
+
+```
 Deploy and inspect services
 
 Usage:
@@ -91,7 +109,10 @@ Flags:
 Each command has its own help screen, derived from its own struct:
 
 ```sh
-$ go run . deploy --help
+go run . deploy --help
+```
+
+```
 Deploy a service
 
 Usage:
@@ -142,10 +163,19 @@ func (l *ListCmd) Run(ctx context.Context, session *conga.Session) error {
 `aliases:"ls"` adds a second name for the same command; `--all` is a regular flag. Both invocations below print the same list:
 
 ```sh
-$ go run . list
+go run . list
+```
+
+```
 web-api
 worker
-$ go run . ls -a
+```
+
+```sh
+go run . ls -a
+```
+
+```
 web-api
 worker
 cron

@@ -20,9 +20,13 @@ description: Run and RunContext, the context they hand to the pipeline, the sing
 
 An `App` executes exactly once. A second `Run` or `RunContext` call panics with `conga: App already executed`: the builder is captured when execution starts and the pipeline has no reset. A host that serves several invocations builds one `App` per invocation. A running command that needs fresh configuration calls [`session.Reload[T]`](/reference/conga/#session-and-hierarchy-accessors), which re-evaluates the configuration cascade into a new command struct.
 
-## Streams and arguments are captured
+## Standard streams and I/O
 
-The engine defaults `Stdin`, `Stdout`, and `Stderr` to the process streams and `Args` to `os.Args[1:]`. The active session snapshots them when execution starts, so builder calls made after `Run` or `RunContext` begins do not affect the running command. Commands that write through `session.Stdout()` and read through `session.Stdin()` honour streams replaced at the App, which is how tests and embedding hosts capture output. The built-in `--help` and `--version` output, the opt-in `--why` report, and a `--completion` script all write to the configured streams.
+CONGA routes I/O through `session.Stdin()`, `session.Stdout()`, and `session.Stderr()`.
+
+By default, the engine connects these to the standard process streams (`os.Stdin`, `os.Stdout`, `os.Stderr`). When commands write through `session.Stdout()` rather than calling `fmt.Println` or writing directly to `os.Stdout`, they remain testable and embeddable. Automated tests and host applications can replace the streams on the builder (`app.Stdout(&buffer)`) and inspect output directly without hijacking global process state.
+
+The active session snapshots streams and arguments (`os.Args[1:]` by default) when execution starts. Builder calls made after `Run` or `RunContext` begins do not affect the running command. Built-in output (`--help`, `--version`, `--why`, and shell completion scripts) also writes exclusively through these configured streams.
 
 ## Execution returns an error
 

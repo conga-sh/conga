@@ -27,21 +27,30 @@ Every root command gets `--version`. `app.Version("1.0.0")` sets the rendered st
 The flag and `session.Version()` render a single summary line. The commit and build timestamp are appended when the build info carries them and the version string does not already embed them (Go 1.27 records a pseudo-version for source builds):
 
 ```sh
-$ hello --version
+hello --version
+```
+
+```
 hello has version 1.0.0 built with go1.27.1 from c2e2ea84591f on 2026-09-25T16:51:49Z
 ```
 
 Without `app.Version(...)`, the summary falls back to the build metadata. A source run with no VCS information reports `dev`:
 
 ```sh
-$ hello --version
+hello --version
+```
+
+```
 hello has version dev built with go1.27.1
 ```
 
 Declaring an opt-in `conga.VersionCommand` field adds a `version` subcommand that renders the same metadata as a docker-style block with the full commit hash and OS/arch:
 
 ```sh
-$ hello version
+hello version
+```
+
+```
 hello:
  Version:    1.0.0
  Git commit: c2e2ea84591f0ef557489d0f7f2b0b1565555950

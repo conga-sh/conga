@@ -43,9 +43,18 @@ func main() {
 `conga.New(cli)` binds the instance: the engine resolves flag values into its containers, `Run` executes on that pointer, and `session.Root[CLI]()` inside any hook returns it. Fields excluded from the schema with `conga:"-"` keep the value seeded before `Run`, which is how a host injects dependencies such as a logger; flags and positional arguments are resolved by the engine from the [resolution tiers](/explanation/value-precedence/).
 
 ```sh
-$ go run .
+go run .
+```
+
+```
 greeted World from default
-$ go run . --name conga
+```
+
+```sh
+go run . --name conga
+```
+
+```
 greeted conga from cli
 ```
 

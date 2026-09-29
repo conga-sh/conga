@@ -43,9 +43,18 @@ func main() {
 We run it with the defaults, then override the port:
 
 ```sh
-$ go run .
+go run .
+```
+
+```
 listening on 127.0.0.1:8080
-$ go run . --port 9001
+```
+
+```sh
+go run . --port 9001
+```
+
+```
 listening on 127.0.0.1:9001
 ```
 
@@ -70,18 +79,36 @@ func main() {
 The prefix namespaces every flag: CONGA uppercases the flag name and joins it to the prefix, so `--host` reads `SERVER_HOST` and `--port` reads `SERVER_PORT`. We run the three tiers:
 
 ```sh
-$ go run .
+go run .
+```
+
+```
 listening on 127.0.0.1:8080
-$ SERVER_PORT=9002 go run .
+```
+
+```sh
+SERVER_PORT=9002 go run .
+```
+
+```
 listening on 127.0.0.1:9002
-$ SERVER_PORT=9002 go run . --port 9003
+```
+
+```sh
+SERVER_PORT=9002 go run . --port 9003
+```
+
+```
 listening on 127.0.0.1:9003
 ```
 
 The last run shows the order: an explicit flag outranks the environment variable, which outranks the default. Config files occupy the tier between the environment and the default. The help screen now advertises the variables:
 
 ```sh
-$ go run . --help
+go run . --help
+```
+
+```
 A server that reads its address from flags, environment, or a config file
 
 Usage:
@@ -139,9 +166,18 @@ port = 9004
 ```
 
 ```sh
-$ go run .
+go run .
+```
+
+```
 listening on 0.0.0.0:9004
-$ SERVER_PORT=9002 go run .
+```
+
+```sh
+SERVER_PORT=9002 go run .
+```
+
+```
 listening on 0.0.0.0:9002
 ```
 
@@ -167,7 +203,10 @@ func main() {
 ```
 
 ```sh
-$ go run . --why
+go run . --why
+```
+
+```
 Value provenance for "server":
 
   FLAG     VALUE     SOURCE   ENV           CONFIG PATH
@@ -183,7 +222,10 @@ Config paths checked:
 Each row is one flag: the winning value, the tier that supplied it, and the environment variable and config key that can supply it. We run the same command through a different tier to change the `SOURCE` column:
 
 ```sh
-$ go run . --why --port 9003
+go run . --why --port 9003
+```
+
+```
 Value provenance for "server":
 
   FLAG     VALUE     SOURCE   ENV           CONFIG PATH

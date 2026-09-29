@@ -33,9 +33,19 @@ func main() {
 ```
 
 ```sh
-$ cloudctl deploy web-api
+cloudctl deploy web-api
+```
+
+```
 deploying web-api
-$ cloudctl rm web-api        # via alias
+```
+
+```sh
+cloudctl rm web-api        # via alias
+```
+
+```
+deploying web-api
 ```
 
 Nested hierarchies are arbitrary in depth: a subcommand struct may itself declare `Command[T]` fields.

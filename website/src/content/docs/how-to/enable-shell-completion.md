@@ -18,7 +18,7 @@ app := conga.New[CLI]().
 With completion enabled, flat, single-command CLIs provide a `--completion <shell>` flag:
 
 ```sh
-$ mytool --completion bash >> ~/.bashrc
+mytool --completion bash >> ~/.bashrc
 ```
 
 Apps with subcommands get a hidden `__complete` handler used by the generated shell functions; you can additionally expose an opt-in `completion <shell>` subcommand by declaring a `conga.CompletionCommand` field:

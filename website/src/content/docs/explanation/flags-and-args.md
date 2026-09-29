@@ -85,7 +85,7 @@ type Build struct {
 ```
 
 ```sh
-$ app build --no-color
+app build --no-color
 ```
 
 The last occurrence wins: `--color --no-color --color` resolves to `true`.

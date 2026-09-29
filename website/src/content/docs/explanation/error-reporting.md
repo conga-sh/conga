@@ -25,7 +25,22 @@ All of them wrap one of the five base categories (`ErrSchema`, `ErrParse`, `ErrC
 | Runtime error | Message only | 1 |
 | Internal completion failure | Diagnostic | 2 |
 
-`UsageOnError` selects the rendering for usage errors: `UsageSummary` (the default: the error, a short syntax block, and a `--help` hint), `UsageFull` (the complete help screen), `UsageHint` (the hint alone), and `UsageSilence` (the message alone). Self-describing value errors — coercion failures and constraint violations, whose message already names the flag and the offending value — print only the message regardless of the mode. The full catalogue is in [Errors and exit codes](/reference/errors/).
+`UsageOnError` selects the rendering for usage errors: `UsageSummary` (the default: the error, a short syntax block, and a `--help` hint), `UsageFull` (the complete help screen), `UsageHint` (the hint alone), and `UsageSilence` (the message alone). Self-describing value errors (coercion failures and constraint violations whose message already names the flag and offending value) print only the message regardless of the mode. The full catalogue is in [Errors and exit codes](/reference/errors/).
+
+When a user mistypes a flag, the default `UsageSummary` mode renders a closest-match suggestion alongside the syntax block:
+
+```sh
+hello --nmae World
+```
+
+```
+hello: error: unknown flag: --nmae. Did you mean "name"?
+
+Usage:
+  hello [flags]
+
+Run 'hello --help' for more information.
+```
 
 The process exits because a command-line tool has no caller to return to. Until `FatalIfError` is called, ordinary Go error handling stays in charge: the caller can inspect, log, or classify the error first.
 
