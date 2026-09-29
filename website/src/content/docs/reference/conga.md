@@ -11,7 +11,7 @@ Deep detail lives on [pkg.go.dev/github.com/conga-sh/conga](https://pkg.go.dev/g
 func New[T any](root ...*T) *App[T]
 ```
 
-`App[T]` wraps your command struct. `New` defers instance allocation to execution; pass your own instance (`conga.New(cli)`) to keep a handle for pre-run seeding and post-run inspection. All builder methods return `*App[T]` for chaining.
+`App[T]` wraps your command struct. `New` defers instance allocation to execution; pass your own instance (`conga.New(cli)`) to keep a reference for pre-run seeding and post-run inspection. All builder methods return `*App[T]` for chaining.
 
 ### Configuration methods
 
@@ -28,7 +28,7 @@ func New[T any](root ...*T) *App[T]
 | `ConfigOptions(options...)` | Config resolution: `config.Explicit(path)`, `config.Paths(paths...)`, `config.Cascading()` |
 | `RegisterDecoder(ext, decoder)` | Per-app config format decoder |
 | `StrictTagValidation(strict)` | Toggle tag linting (default on) |
-| `AllowTags(tags...)` | Whitelist extra struct tags |
+| `AllowTags(tags...)` | Allow additional struct tags |
 | `Predictor(name, p)` | Register named completion predictor (panics on misuse) |
 | `Use(plugins...)` | Apply builder plugins |
 | `RegisterType[U](parser, opts...)` | Register a parser (and optional predictor) for type `U` |
@@ -114,7 +114,7 @@ with the current configuration.
 
 `Help`, `Usage`, and `Version` are the same rendering primitives the built-in
 `help` and `version` commands use, so a custom command can emit
-framework-formatted help, syntax, and version output without pseudo-errors:
+framework-formatted help, syntax, and version output directly:
 `Help` writes the active command's help screen to stdout, `Usage` writes the
 syntax summary to stderr, and `Version` writes the version summary to stdout,
 falling back to the module version (or `dev`) plus the embedded build metadata

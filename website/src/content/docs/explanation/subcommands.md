@@ -3,6 +3,8 @@ title: About subcommands & hierarchy
 description: Route subcommands with Command[T], inspect the active chain through the session, and keep flags unique per hierarchy.
 ---
 
+A CONGA command tree is built from `conga.Command[T]` fields, one per subcommand. This page explains how subcommands are declared, grouped, and inspected at run time, and why flag names are unique across an ancestor chain.
+
 ## Declaring subcommands
 
 A subcommand is a struct field of type `conga.Command[T]` where `T` is another command struct implementing `Run(ctx context.Context, session *conga.Session) error`:

@@ -3,7 +3,7 @@ title: About binary size and linking
 description: Why unused subsystems cost nothing to link, what each opt-in battery adds, and how its measured sizes compare with cobra, kong, and urfave/cli.
 ---
 
-Every CONGA feature is a link-time opt-in, not a runtime toggle: code your application never enables is code the Go linker never includes in the binary. An app that skips completion, registers no config decoder, and loads no `.env` files does not include any of those subsystems in its binary. This page explains how that works and what each opt-in costs; the full measured tables live in the [binary size benchmark](../reference/binary-size-benchmark/).
+Every CONGA feature is a link-time opt-in: the Go linker includes a subsystem only when the application enables it. An app that enables no completion, registers no config decoder, and loads no `.env` files carries none of those subsystems in its binary. This page explains how that works and what each opt-in costs; the full measured tables live in the [binary size benchmark](../reference/binary-size-benchmark/).
 
 ## The mechanism: the linker can only drop what it can prove unreachable
 
@@ -19,7 +19,7 @@ CONGA deliberately uses the first style. Completion, configuration, `.env` loadi
 - `app.RegisterDecoder(...)` / `app.ConfigOptions(...)` install the config resolver.
 - `app.Dotenv(...)` installs the `.env` loader and reload hooks.
 
-An application that calls none of these leaves every hook nil; the linker proves each call site unreachable and eliminates the subsystem. A checked-in DCE guard (`task test:size`) asserts the payloads are absent, so the property can't silently regress. See [How to enable shell completion](../how-to/enable-shell-completion/), [How to load .env files](../how-to/load-env-files/), and [How to manage config files](../how-to/manage-config-files/) for the opt-in surface.
+An application that calls none of these leaves every hook nil; the linker proves each call site unreachable and eliminates the subsystem. A checked-in DCE guard (`task test:size`) asserts the payloads are absent, so the property cannot silently regress. See [How to enable shell completion](../how-to/enable-shell-completion/), [How to load .env files](../how-to/load-env-files/), and [How to manage config files](../how-to/manage-config-files/) for the opt-in surface.
 
 Cobra and urfave/cli manage the same subsystems through runtime switches. `DisableDefaultCmd` and `EnableShellCompletion: false` control whether a completion command is registered; the completion code stays linked either way, which is why each framework's "off" build is byte-identical to its "on" build in the measured ladder.
 

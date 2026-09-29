@@ -30,4 +30,4 @@ A named configuration target (an explicit `--config-file`, an environment variab
 
 ## Isolation guarantee
 
-Decoder packages import their wire-format library (e.g. `gopkg.in/yaml.v3`, `github.com/pelletier/go-toml/v2`), keeping those dependencies out of core CONGA packages. Only the decoders an application registers are linked into its binary. See the [linker-friendly dependency policy](../tutorials/installation/#optional-format-decoders).
+Decoder packages import their wire-format library (e.g. `gopkg.in/yaml.v3`, `github.com/pelletier/go-toml/v2`), keeping those dependencies out of core CONGA packages. Only the decoders an application registers are linked into its binary. See [About binary size and linking](../explanation/binary-size/) for the linker-friendly dependency policy.

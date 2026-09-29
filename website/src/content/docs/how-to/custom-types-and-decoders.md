@@ -3,6 +3,8 @@ title: How to extend with custom types, maps & decoders
 description: Register flag parsers, map parsers, configuration formats, and self-completing domain types.
 ---
 
+This page covers four extension points: custom flag types, custom map types, configuration decoders, and self-completing domain types.
+
 ## Register a custom flag type
 
 Any type can become a flag/argument type by registering a parser for it. Parsers are plain functions from string to value:

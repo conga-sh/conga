@@ -19,7 +19,12 @@ export default defineConfig({
       sidebar: [
         {
           label: 'Tutorials',
-          items: ['tutorials/installation', 'tutorials/quickstart', 'tutorials/cookbook'],
+          items: [
+            'tutorials/quickstart',
+            'tutorials/subcommands',
+            'tutorials/configuration',
+            'tutorials/cookbook',
+          ],
         },
         {
           label: 'How-to Guides',

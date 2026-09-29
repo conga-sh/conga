@@ -14,7 +14,7 @@ app := conga.New[CLI]().
 
 ## Semantics
 
-- **Default behavior** — loads `.env` followed by `.env.local` from the current directory. `.env.local` values override `.env` values, which makes the pair suitable for committed defaults + local overrides.
+- **Default behaviour** — loads `.env` followed by `.env.local` from the current directory. `.env.local` values override `.env` values, which makes the pair suitable for committed defaults + local overrides.
 - **Explicit paths** — `app.Dotenv("config/defaults.env", "config/secrets.env")` loads the given files in order, later files winning.
 - Loaded variables are real process environment entries, so they feed the [environment tier](../explanation/value-precedence/) of every flag — including flags whose `env` tag points at a secret.
 - Syntax supports quotes (single and double) and variable expansion (`PATH=${PATH}:/extra`).

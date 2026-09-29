@@ -5,7 +5,7 @@ description: Generate completion scripts for bash, zsh, fish, powershell, elvish
 
 CONGA ships its own completion driver supporting **bash, zsh, fish, powershell, elvish, and nushell**. Scripts are generated from the same schema that powers parsing and help. How the driver and wire protocol work is covered in [About the shell completion architecture](../explanation/completion-architecture/).
 
-Completion is opt-in: call `app.EnableCompletion()` on the builder. Apps that skip it keep `--completion`, the `completion` subcommand, and the `__complete` handler out of the binary entirely.
+Completion is opt-in: call `app.EnableCompletion()` on the builder. The `--completion` flag, the `completion` subcommand, the `__complete` handler, and the shell drivers are linked only when this call is present.
 
 ```go
 app := conga.New[CLI]().
@@ -43,7 +43,7 @@ type App struct {
 
 | Builder call | Effect |
 |--------------|--------|
-| `app.EnableCompletion()` | Enables completion support: flag, subcommand, and `__complete` handler. Off by default; apps that skip it do not link the drivers |
+| `app.EnableCompletion()` | Enables completion support: flag, subcommand, and `__complete` handler. Linked only when this call is present |
 | `app.Predictor(name, p)` | Registers a named predictor for `predictor:"name"` tags |
 
 Fields with built-in semantics complete automatically; for your own types and registries, continue with [How to wire custom completion](wire-custom-completion/).

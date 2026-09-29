@@ -3,7 +3,7 @@ title: About the shell completion architecture
 description: The native driver, the wire protocol, and the decoupled predict SDK.
 ---
 
-Completion is served end-to-end by CONGA: there is no third-party shell driver, and dynamic candidates travel over a documented wire protocol. The user-facing steps are in [How to enable shell completion](../how-to/enable-shell-completion/).
+Completion is served end-to-end by CONGA: its own driver ships six shell integrations, and dynamic candidates travel over a documented wire protocol. The user-facing steps are in [How to enable shell completion](../how-to/enable-shell-completion/).
 
 ## Native driver
 

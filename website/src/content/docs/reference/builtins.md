@@ -3,6 +3,8 @@ title: Built-ins & Deprecation
 description: Help, version, why, completion commands, deprecation notices, and flat-CLI completion styles.
 ---
 
+CONGA provides five built-in surfaces: help, version, `--why`, completion, and deprecation notices. Help and version are injected by default and disabled with builder calls; `--why` and completion are opt-in.
+
 ## Help
 
 Every app gets `--help`/`-h` and a generated help screen: description, usage line, grouped flags, positional arguments, subcommands, and examples — derived from the schema.
@@ -20,7 +22,7 @@ type App struct {
 
 ## Version
 
-Every root command gets `--version`/`-v`. `app.Version("1.0.0")` sets the rendered string; without it, the output falls back to the module version (or `dev`) plus the embedded build metadata (VCS commit and date, when available).
+Every root command gets `--version`/`-v`. `app.Version("1.0.0")` sets the rendered string; the default is the module version (or `dev`) plus the embedded build metadata (VCS commit and date, when available).
 
 The flag and `session.Version()` render a single summary line. The commit and build timestamp are appended when the build info carries them and the version string does not already embed them (Go 1.27 records a pseudo-version for source builds):
 
@@ -47,11 +49,11 @@ hello:
 
 ## The `--why` report
 
-`app.EnableWhy()` enables `--why`, which prints a per-field provenance report — every resolved value in the active command chain with its [origin tier](../explanation/value-precedence/) (`● cli`, `● env VAR`, `● config key`, `· default`, `○ unset`). Values are redacted by default; fields opt in to display with `safe:"true"`. Applications that never call `app.EnableWhy()` do not link the report machinery, and `--why` is an unknown flag.
+`app.EnableWhy()` enables `--why`, which prints a per-field provenance report — every resolved value in the active command chain with its [origin tier](../explanation/value-precedence/) (`● cli`, `● env VAR`, `● config key`, `· default`, `○ unset`). Values are redacted by default; fields opt in to display with `safe:"true"`. The report machinery is linked only when `app.EnableWhy()` is called; otherwise `--why` remains an unknown flag.
 
 ## Completion surface
 
-`app.EnableCompletion()` enables shell completion; without it the completion flag, subcommand, and `__complete` protocol do not exist and their drivers are not linked.
+`app.EnableCompletion()` enables shell completion. The completion flag, the `completion` subcommand, the `__complete` protocol, and their shell drivers are linked only when this call is present.
 
 | Style | Surface | When |
 |-------|---------|------|

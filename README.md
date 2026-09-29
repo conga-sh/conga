@@ -41,8 +41,8 @@ plugins, and the config watcher live in satellite packages:
 go get github.com/conga-sh/conga
 ```
 
-See [Installation](https://docs.conga.sh/tutorials/installation/)
-for the opt-in packages and their import paths.
+See the [Quickstart](https://docs.conga.sh/tutorials/quickstart/) to build
+your first CLI.
 
 ## Quickstart
 
