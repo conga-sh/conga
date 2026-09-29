@@ -14,12 +14,6 @@ go get -tool github.com/conga-sh/conga/cmd/conga-lint
 go tool conga-lint ./...
 ```
 
-Inside the CONGA repository, the `lint:schema` task integrates the check into the test pipeline:
-
-```sh
-task lint:schema
-```
-
 Note: Go's `./...` pattern skips directories with leading underscores (such as `_examples/`). To lint examples, pass directory paths or globs explicitly to the tool.
 
 ## Checks performed by conga-lint
