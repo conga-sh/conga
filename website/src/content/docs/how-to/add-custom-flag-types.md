@@ -49,27 +49,57 @@ type ContextAwareTextUnmarshaler interface {
 }
 ```
 
-The `decodeContext` parameter provides the field's declared tags (`Tags`) and standard streams (`Stdin`, `Stdout`):
+To accept custom struct tags on fields using the type, implement `conga.TagSpecProvider`. CONGA validates struct tags strictly at schema build, rejecting any tags not registered by the type:
 
 ```go title="main.go"
 type SecretInput struct {
 	Value string
 }
 
+func (s *SecretInput) TagSpecs() []conga.TagSpec {
+	return []conga.TagSpec{
+		{Name: "stdin", Kind: conga.TagKindBool},
+		{Name: "prefix", Kind: conga.TagKindString},
+	}
+}
+
 func (s *SecretInput) UnmarshalTextWithContext(text []byte, decodeContext conga.DecodeContext) error {
+	var raw string
 	if string(text) == "-" {
+		if !decodeContext.Tags.Bool("stdin") {
+			return errors.New("reading from stdin is not enabled for this field")
+		}
+
 		data, err := io.ReadAll(decodeContext.Stdin)
 		if err != nil {
 			return fmt.Errorf("reading secret from stdin: %w", err)
 		}
-		s.Value = strings.TrimSpace(string(data))
-		return nil
+
+		raw = strings.TrimSpace(string(data))
+	} else {
+		raw = string(text)
 	}
 
-	s.Value = string(text)
+	if prefix := decodeContext.Tags.String("prefix"); prefix != "" {
+		if !strings.HasPrefix(raw, prefix) {
+			return fmt.Errorf("secret must start with prefix %q", prefix)
+		}
+	}
+
+	s.Value = raw
+
 	return nil
 }
+
+type CLI struct {
+	Token conga.RequiredFlag[SecretInput] `name:"token" help:"API token or - for stdin" stdin:"true" prefix:"sk-"`
+}
 ```
+
+The `decodeContext.Tags` accessor methods inspect declared custom tags:
+- `Bool(key)` reports whether a boolean tag was set to `"true"`.
+- `String(key)` returns the declared string tag value, or `""` if omitted.
+- `Has(key)` reports whether the tag was declared on the field.
 
 The coercion pipeline prefers `ContextAwareTextUnmarshaler` over `encoding.TextUnmarshaler`. If `UnmarshalTextWithContext` is implemented, the engine invokes it exclusively.
 
@@ -138,4 +168,5 @@ $ router --routes primary=10.0.0.0/8 --routes backup=192.168.0.0/16
 
 - [How to wire custom completion](/how-to/wire-custom-completion/) — build completion providers for flags and custom types with `package predict`.
 - [Domain types](/reference/domain-types/) — reference catalog of built-in types including `File`, `Dir`, and `ByteSize`.
+- [Struct tags](/reference/struct-tags/#domain-type-tags) — declare custom tags, validation hooks, and exclusion rules on domain types.
 - [About flags and args](/explanation/flags-and-args/) — typed container semantics and constraints.
