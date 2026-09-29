@@ -1,35 +1,35 @@
 ---
 title: Quickstart
-description: Build hello from a working flag-driven command into a CLI with switches, metadata, generated help, and version output.
+description: Build a working command-line tool with flags, metadata, generated help, and version output using CONGA.
 ---
 
-In this tutorial, we will build `hello` step by step. We start with a working command that accepts a `--name` flag with a default, add a `--loud` boolean switch, configure application metadata, and inspect the generated help and version output. CONGA requires Go 1.27+.
+In this tutorial, we will build `hello`, a command-line tool that greets a user by name. We will write a command struct with an optional flag, configure application metadata, run the program with defaults and custom flags, and inspect the generated help and version output.
 
 ## The command we will build
 
-The finished command accepts `--name` and `--loud` flags:
+The command accepts an optional `--name` flag:
 
 ```sh
-hello --name conga --loud
+hello --name conga
 ```
 
 ```
-HELLO, CONGA!
+Hello, conga!
 ```
 
-We will build it in three stages:
-1. Start with `--name` and default greeting output.
-2. Add `--loud` to toggle uppercase output.
-3. Configure application metadata and inspect `--help` and `--version`.
+When invoked without flags, it prints a default greeting:
 
-| Flag | Default | Meaning |
-|------|---------|---------|
-| `-n`, `--name` | `World` | Name of the person to greet |
-| `-l`, `--loud` | `false` | Print greeting in uppercase |
+```sh
+hello
+```
 
-## A first program
+```
+Hello, World!
+```
 
-Create the project directory and module:
+## Set up the project
+
+Create a directory for the project and initialize a Go module:
 
 ```sh
 mkdir hello && cd hello
@@ -37,7 +37,9 @@ go mod init hello
 go get github.com/conga-sh/conga
 ```
 
-Then create `main.go`:
+## Write the program
+
+Create `main.go`:
 
 ```go title="main.go"
 package main
@@ -54,21 +56,29 @@ type CLI struct {
 }
 
 func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
-	greeting := fmt.Sprintf("Hello, %s!", c.Name.Get())
-
-	fmt.Fprintln(session.Stdout(), greeting)
+	fmt.Fprintf(session.Stdout(), "Hello, %s!\n", c.Name.Get())
 
 	return nil
 }
 
 func main() {
-	app := conga.New[CLI]()
+	app := conga.New[CLI]().
+		Name("hello").
+		Description("A greeting command").
+		Version("1.0.0")
 
 	app.FatalIfError(app.Run())
 }
 ```
 
-Run the program with the default value:
+Notice the three parts of the program:
+- `CLI` defines the command flags. Field names convert to kebab-case, so `Name` becomes `--name`.
+- `Run` contains the command logic. `c.Name.Get()` reads the resolved flag value, and writes go to `session.Stdout()`.
+- `main` configures the application name, description, and version, then executes the command.
+
+## Run the program
+
+Run the program with no arguments to observe the default output:
 
 ```sh
 go run .
@@ -78,7 +88,9 @@ go run .
 Hello, World!
 ```
 
-Override the flag from the command line:
+Because `--name` was omitted, CONGA used the `default:"World"` from the struct tag.
+
+Pass `--name` to override the default value:
 
 ```sh
 go run . --name conga
@@ -88,122 +100,41 @@ go run . --name conga
 Hello, conga!
 ```
 
-`conga.New[CLI]()` creates the application builder and registers `CLI` as the root command. `Run` executes the command body; implementing it makes `CLI` a `conga.Runner`.
-
-`Name` becomes `--name`: field names convert to kebab-case. `conga.OptionalFlag[string]` is a typed container that stores the resolved flag value. Struct tags shape the flag: `default:"World"` supplies the fallback value, `short:"n"` adds `-n`, and `help:"..."` provides the flag description for the help screen.
-
-In `Run`, `c.Name.Get()` returns the resolved value. Resolution finishes before `Run` starts, so the value is ready to use without presence checks.
-
-Commands write to `session.Stdout()` rather than `os.Stdout`. In the terminal this prints normally, but routing writes through the session allows automated tests and host programs to capture output directly.
-
-`app.Run()` executes the command line pipeline: it parses arguments, resolves flag values, and calls `Run`. `app.FatalIfError` prints any error to stderr and exits with a non-zero status code.
-
-:::tip
-The engine supplies `--help` and `--version` from this first step. Run `go run . --help` at any point to render the schema as it stands.
-:::
-
-## Add the --loud flag
-
-A `bool` container declares a switch. We add the field:
-
-```go title="main.go" ins={3}
-type CLI struct {
-	Name conga.OptionalFlag[string] `default:"World" help:"Name of the person to greet" short:"n"`
-	Loud conga.OptionalFlag[bool]   `help:"Print greeting in uppercase" short:"l"`
-}
-```
-
-The uppercase branch needs `strings`:
-
-```go title="main.go" ins={4}
-import (
-	"context"
-	"fmt"
-	"strings"
-
-	"github.com/conga-sh/conga"
-)
-```
-
-```go title="main.go" ins={3-5}
-func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
-	greeting := fmt.Sprintf("Hello, %s!", c.Name.Get())
-	if c.Loud.Get() {
-		greeting = strings.ToUpper(greeting)
-	}
-
-	fmt.Fprintln(session.Stdout(), greeting)
-
-	return nil
-}
-```
-
-Both the long and the short form work:
+The short flag `-n` produces the same result:
 
 ```sh
-go run . --name conga --loud
+go run . -n Bob
 ```
 
 ```
-HELLO, CONGA!
+Hello, Bob!
 ```
 
-```sh
-go run . -n Bob -l
-```
+## Inspect generated help
 
-```
-HELLO, BOB!
-```
-
-## Name, description, and version
-
-We can describe the application by chaining builder calls on `conga.New[CLI]()`:
-
-```go title="main.go" del={2} ins={3-6}
-func main() {
-	app := conga.New[CLI]()
-	app := conga.New[CLI]().
-		Name("hello").
-		Description("Minimal single-command hello world CLI").
-		Version("1.0.0")
-
-	app.FatalIfError(app.Run())
-}
-```
-
-These builder calls set application metadata:
-
-- `Name("hello")` sets the command name shown in usage lines and error messages.
-- `Description("...")` provides the overview line at the top of the help screen.
-- `Version("1.0.0")` sets the version string displayed by `--version`.
-
-## Generated help
-
-The help screen is generated from the struct and the builder calls:
+CONGA generates `--help` automatically from the struct tags and application metadata:
 
 ```sh
 go run . --help
 ```
 
 ```
-Minimal single-command hello world CLI
+A greeting command
 
 Usage:
   hello [flags]
 
 Flags:
   -n, --name="World"  Name of the person to greet
-  -l, --loud          Print greeting in uppercase
       --help          Show help
       --version       Show version
 ```
 
-The first line comes from `Description(...)`, the usage line combines the binary name with the schema, and each flag line combines a field name with its tags.
+The overview line comes from `Description(...)`, the usage line uses the application name from `Name(...)`, and each flag line reflects the field name, default value, and help text from the struct tags.
 
-## Version output
+## Inspect version output
 
-`--version` renders the application name, the version set by `Version(...)`, and the toolchain that built the binary:
+The `--version` flag renders the application name, the version string set by `Version(...)`, and the Go toolchain that built the binary:
 
 ```sh
 go run . --version
@@ -211,45 +142,6 @@ go run . --version
 
 ```
 hello has version 1.0.0 built with go1.27.1
-```
-
-## The complete program
-
-```go title="main.go"
-package main
-
-import (
-	"context"
-	"fmt"
-	"strings"
-
-	"github.com/conga-sh/conga"
-)
-
-type CLI struct {
-	Name conga.OptionalFlag[string] `default:"World" help:"Name of the person to greet" short:"n"`
-	Loud conga.OptionalFlag[bool]   `help:"Print greeting in uppercase" short:"l"`
-}
-
-func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
-	greeting := fmt.Sprintf("Hello, %s!", c.Name.Get())
-	if c.Loud.Get() {
-		greeting = strings.ToUpper(greeting)
-	}
-
-	fmt.Fprintln(session.Stdout(), greeting)
-
-	return nil
-}
-
-func main() {
-	app := conga.New[CLI]().
-		Name("hello").
-		Description("Minimal single-command hello world CLI").
-		Version("1.0.0")
-
-	app.FatalIfError(app.Run())
-}
 ```
 
 ## Where to go next
@@ -266,6 +158,7 @@ func main() {
 **Concepts and reference**
 - [About reading values](/explanation/reading-values/): container reader guarantees.
 - [About app execution](/explanation/execution/): context propagation, standard streams, and lifecycle execution.
+- [About the lifecycle](/explanation/lifecycle/): execution stages and hook order.
 - [About error reporting](/explanation/error-reporting/): usage errors, runtime errors, and `FatalIfError`.
 - [About flags and args](/explanation/flags-and-args/): counters, slices, maps, and positional arguments.
 - [Package conga](/reference/conga/): core API reference.
