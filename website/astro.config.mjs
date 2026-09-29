@@ -35,6 +35,7 @@ export default defineConfig({
             'how-to/wire-custom-completion',
             'how-to/custom-types-and-decoders',
             'how-to/test-a-command',
+            'how-to/keep-root-reference',
             'how-to/lint-schemas',
             'how-to/examples-cookbook',
           ],

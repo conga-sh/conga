@@ -3,11 +3,11 @@ title: Built-ins and deprecation
 description: Help, version, why, completion commands, deprecation notices, and flat-CLI completion styles.
 ---
 
-CONGA provides five built-in surfaces: help, version, `--why`, completion, and deprecation notices. Help and version are injected by default and disabled with builder calls; `--why` and completion are opt-in.
+CONGA provides five built-in surfaces: help, version, `--why`, completion, and deprecation notices. Help and version are injected by default and disabled with builder calls; `--why` and completion are opt-in. The injected `--help` and `--version` flags declare no short forms.
 
 ## Help
 
-Every app gets `--help`/`-h` and a generated help screen: description, usage line, grouped flags, positional arguments, subcommands, and examples — derived from the schema.
+Every app gets `--help` and a generated help screen: description, usage line, grouped flags, positional arguments, subcommands, and examples — derived from the schema.
 
 Opt in to a `help [command...]` subcommand for nested commands:
 
@@ -22,13 +22,20 @@ type App struct {
 
 ## Version
 
-Every root command gets `--version`/`-v`. `app.Version("1.0.0")` sets the rendered string; the default is the module version (or `dev`) plus the embedded build metadata (VCS commit and date, when available).
+Every root command gets `--version`. `app.Version("1.0.0")` sets the rendered string; the default is the module version (or `dev`) plus the embedded build metadata (VCS commit and date, when available).
 
 The flag and `session.Version()` render a single summary line. The commit and build timestamp are appended when the build info carries them and the version string does not already embed them (Go 1.27 records a pseudo-version for source builds):
 
 ```sh
 $ hello --version
 hello has version 1.0.0 built with go1.27.1 from c2e2ea84591f on 2026-09-25T16:51:49Z
+```
+
+Without `app.Version(...)`, the summary falls back to the build metadata. A source run with no VCS information reports `dev`:
+
+```sh
+$ hello --version
+hello has version dev built with go1.27.1
 ```
 
 Declaring an opt-in `conga.VersionCommand` field adds a `version` subcommand that renders the same metadata as a docker-style block with the full commit hash and OS/arch:
