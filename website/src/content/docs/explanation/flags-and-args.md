@@ -1,5 +1,5 @@
 ---
-title: About flags & args
+title: About flags and args
 description: Typed containers for flags, positional arguments, counters, maps, slices, and raw forwarding.
 ---
 
@@ -92,7 +92,7 @@ type Labels struct {
 }
 ```
 
-For custom map value types, register a parser with `app.RegisterMap` — see [How to extend with custom types, maps & decoders](../how-to/custom-types-and-decoders/).
+For custom map value types, register a parser with `app.RegisterMap` — see [How to add custom types and decoders](../how-to/custom-types-and-decoders/).
 
 ## Negatable booleans
 

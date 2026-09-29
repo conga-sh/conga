@@ -1,5 +1,5 @@
 ---
-title: About subcommands & hierarchy
+title: About subcommands and hierarchy
 description: Route subcommands with Command[T], inspect the active chain through the session, and keep flags unique per hierarchy.
 ---
 

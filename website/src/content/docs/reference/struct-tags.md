@@ -1,5 +1,5 @@
 ---
-title: Struct Tag Reference
+title: Struct tag reference
 description: Every struct tag CONGA understands, per construct.
 ---
 
@@ -239,8 +239,8 @@ completion candidate descriptions when the field declares no explicit `help`
 tag. The static analyzer (`conga-lint`) validates tag usage for the built-in
 tagged types; foreign tagged types degrade conservatively (it may miss
 diagnostics, never invent them). Authoring guidance is in
-[How to extend with custom types, maps & decoders](../how-to/custom-types-and-decoders/);
-the runtime interfaces are catalogued in [Domain Types](domain-types/).
+[How to add custom types and decoders](../how-to/custom-types-and-decoders/);
+the runtime interfaces are catalogued in [Domain types](domain-types/).
 
 ## Subcommand methods
 

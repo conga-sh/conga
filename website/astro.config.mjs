@@ -23,7 +23,6 @@ export default defineConfig({
             'tutorials/quickstart',
             'tutorials/subcommands',
             'tutorials/configuration',
-            'tutorials/cookbook',
           ],
         },
         {
@@ -36,6 +35,7 @@ export default defineConfig({
             'how-to/wire-custom-completion',
             'how-to/custom-types-and-decoders',
             'how-to/lint-schemas',
+            'how-to/examples-cookbook',
           ],
         },
         {

@@ -21,6 +21,6 @@ type Deploy struct {
 }
 ```
 
-**Self-completing style** — implement `Predictable`, or `TagAwarePredictable` when candidates depend on the field's declared tags, on the type itself. This is how the built-in domain types work — see [Domain Types](../reference/domain-types/) and [How to extend with custom types, maps & decoders](custom-types-and-decoders/).
+**Self-completing style** — implement `Predictable`, or `TagAwarePredictable` when candidates depend on the field's declared tags, on the type itself. This is how the built-in domain types work — see [Domain types](../reference/domain-types/) and [How to add custom types and decoders](custom-types-and-decoders/).
 
 Both styles resolve to the same predictor values; the [package predict reference](../reference/predict/) catalogues every constructor, combinator, context helper, and directive.

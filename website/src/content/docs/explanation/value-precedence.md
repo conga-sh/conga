@@ -8,7 +8,7 @@ Every flag value resolves through a deterministic four-tier ladder:
 ```
 1. CLI          explicit --flag or -f on the command line
 2. Environment  $PREFIX_NAME (via EnvPrefix) or the flag's env tag
-3. Config file  keys from the active configuration file(s)
+3. Config file  keys from the active config file(s)
 4. Default      the `default:"..."` struct tag, or the type's zero value
 ```
 
@@ -59,7 +59,7 @@ if cmd.Addr.Changed() {
 |----------|---------|
 | `conga.SourceCLI` | Parsed from the command line |
 | `conga.SourceEnv` | Resolved from an environment variable |
-| `conga.SourceConfig` | Resolved from a configuration file |
+| `conga.SourceConfig` | Resolved from a config file |
 | `conga.SourceDefault` | Fell through to the `default` tag or zero value |
 | `conga.SourceNone` | Value left unset across all tiers |
 

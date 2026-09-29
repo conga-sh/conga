@@ -34,7 +34,7 @@ app := conga.New[CLI]().
 | `plugin/timezone.Location` | `*time.Location` |
 | `plugin/network.Interface` | `network.NetInterface` |
 
-Plugins are built on `app.RegisterType` — the same primitive you can use for your own types ([How to extend with custom types, maps & decoders](../how-to/custom-types-and-decoders/)).
+Plugins are built on `app.RegisterType` — the same primitive you can use for your own types ([How to add custom types and decoders](../how-to/custom-types-and-decoders/)).
 
 ## `predict/system` — operating system domain
 
@@ -51,7 +51,7 @@ type Kill struct {
 }
 ```
 
-## `predict/network` — network & web domain
+## `predict/network` — network and web domain
 
 Types: `network.Host`, `network.Port`, `network.HTTPMethod`, `network.HTTPStatus`, `network.MIMEType`, `network.NetInterface`.
 

@@ -3,7 +3,7 @@ title: Subcommands
 description: Build cloudctl, a multi-command CLI — route deploy and list, add positional arguments and aliases, and inspect the generated command tree.
 ---
 
-This tutorial builds `cloudctl`, a CLI with two subcommands: `deploy` takes a service name and an optional replica count, and `list` prints the deployed services. It covers `conga.Command[T]` fields, positional arguments, and the generated command tree.
+In this tutorial, we will build `cloudctl`, a CLI with two subcommands: `deploy` takes a service name and an optional replica count, and `list` prints the deployed services. We will cover `conga.Command[T]` fields, positional arguments, and the generated command tree.
 
 ## Set up the module
 
@@ -59,7 +59,7 @@ The `Deploy` field mounts a subcommand: `conga.Command[DeployCmd]` routes the `d
 - `Service` is a `RequiredArg[string]`, a positional argument. It has no flag name — it is matched by position — and CONGA refuses to run the command when it is missing.
 - `Replicas` is a regular flag with a default and a short form, using the same tag vocabulary as the [Quickstart](../quickstart/) flags.
 
-Run it with and without the flag, then without the argument:
+We run it with and without the flag, then without the argument:
 
 ```sh
 $ go run . deploy web-api --replicas 5
@@ -117,7 +117,7 @@ The `Arguments:` section lists positional arguments separately from flags. The r
 
 ## Add a second command
 
-`aliases` adds alternate names for a subcommand. Add the `List` field:
+`aliases` adds alternate names for a subcommand. We add the `List` field:
 
 ```go title="main.go" ins={3}
 type CLI struct {
@@ -126,7 +126,7 @@ type CLI struct {
 }
 ```
 
-Then define the command struct and its `Run` method:
+We then define the command struct and its `Run` method:
 
 ```go title="main.go"
 type ListCmd struct {
@@ -147,7 +147,7 @@ func (l *ListCmd) Run(ctx context.Context, session *conga.Session) error {
 }
 ```
 
-`aliases:"ls"` adds a second name for the same command; `--all` is a regular flag:
+`aliases:"ls"` adds a second name for the same command; `--all` is a regular flag. Both invocations below print the same list:
 
 ```sh
 $ go run . list
@@ -219,4 +219,4 @@ func main() {
 - [Configuration](configuration/) — give flags environment and config-file fallbacks, and trace them with `--why`.
 - [About subcommands](../explanation/subcommands/) — nesting, command groups, hidden commands, and global flags.
 - [Struct tag reference](../reference/struct-tags/) — every command tag: `aliases`, `group`, `hidden`, `deprecated`, `envprefix`.
-- [Examples Cookbook](cookbook/) — example 08 for aliases and groups, example 09 for deep hierarchies and `session.Root[T]()`.
+- [How to run the examples](../how-to/examples-cookbook/) — example 08 for aliases and groups, example 09 for deep hierarchies and `session.Root[T]()`.

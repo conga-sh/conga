@@ -3,7 +3,7 @@ title: How to enable shell completion
 description: Generate completion scripts for bash, zsh, fish, powershell, elvish, and nushell.
 ---
 
-CONGA ships its own completion driver supporting **bash, zsh, fish, powershell, elvish, and nushell**. Scripts are generated from the same schema that powers parsing and help. How the driver and wire protocol work is covered in [About the shell completion architecture](../explanation/completion-architecture/).
+CONGA generates completion scripts for bash, zsh, fish, powershell, elvish, and nushell. This guide covers enabling the driver, generating a script, and choosing what completes; the driver and wire protocol are described in [About the shell completion architecture](../explanation/completion-architecture/).
 
 Completion is opt-in: call `app.EnableCompletion()` on the builder. The `--completion` flag, the `completion` subcommand, the `__complete` handler, and the shell drivers are linked only when this call is present.
 
@@ -36,7 +36,7 @@ type App struct {
 - **Flag names** — long, short, and aliases, including negatable `--no-` forms; deprecated flags are omitted.
 - **Subcommand names**, aliases, and groups, with did-you-mean behaviour in the shell editors.
 - **Enum-constrained flags and arguments** complete their allowed values.
-- **Domain-typed fields** — `conga.File` completes file paths, `conga.Dir` directories, `conga.ByteSize` unit suffixes, and so on. See [Domain Types](../reference/domain-types/).
+- **Domain-typed fields** — `conga.File` completes file paths, `conga.Dir` directories, `conga.ByteSize` unit suffixes, and so on. See [Domain types](../reference/domain-types/).
 - **Registered predictors** — flags and arguments tagged `predictor:"name"` complete via the SDK. See [How to wire custom completion](wire-custom-completion/).
 
 ## Control completion

@@ -3,7 +3,7 @@ title: How to manage config files
 description: Register decoders, declare search paths, cascade tiers, use profiles, and reload configuration at runtime.
 ---
 
-Configuration files are opt-in: register a decoder for each format you use, then declare how files are found with `app.ConfigOptions(...)`. The resolution rules — existence semantics, the built-in XDG tier, and cascading — are explained in [About the config cascade](../explanation/config-cascade/).
+Config files are opt-in: register a decoder for each format you use, then declare how files are found with `app.ConfigOptions(...)`. The resolution rules — existence semantics, the built-in XDG tier, and cascading — are explained in [About the config cascade](../explanation/config-cascade/).
 
 ## Register a configuration format
 
@@ -57,7 +57,7 @@ Multi-file merging is also available as an explicit flag via the `multi:"true"` 
 
 ```go
 type CLI struct {
-	Config conga.ConfigFile `multi:"true" help:"Configuration files, later files override earlier"`
+	Config conga.ConfigFile `multi:"true" help:"Config files, later files override earlier"`
 }
 ```
 

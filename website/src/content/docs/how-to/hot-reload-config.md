@@ -3,7 +3,7 @@ title: How to hot-reload configuration
 description: Hot-reload configuration in daemon-style applications with the watch package.
 ---
 
-`package watch` turns the [configuration cascade](../explanation/config-cascade/) into a live stream for long-running processes. It uses `fsnotify` and re-runs the full resolve + validate pipeline when watched files change. The full function catalogue is in [package watch](../reference/watch/).
+`package watch` reloads configuration in daemon-style applications when watched files change. The function catalogue is in [package watch](../reference/watch/), and the resolution rules behind each reload are explained in [About the config cascade](../explanation/config-cascade/).
 
 ## Watch the app's configuration
 

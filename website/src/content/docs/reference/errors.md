@@ -1,5 +1,5 @@
 ---
-title: Errors & Exit Codes
+title: Errors and exit codes
 description: Categorized base errors, the usage/runtime classification contract, and the 0/1/2 exit code contract.
 ---
 
@@ -25,7 +25,7 @@ Built-in requests (`--help`, `help`, `--version`, `version`, and — when enable
 | `conga.ErrParse` | Command-line tokenization and parsing |
 | `conga.ErrCoerce` | String → typed value conversion |
 | `conga.ErrValidation` | Constraints and semantic checks |
-| `conga.ErrConfig` | Configuration file and `.env` reading, parsing, and key resolution |
+| `conga.ErrConfig` | Config file and `.env` reading, parsing, and key resolution |
 
 ## Usage vs runtime classification
 

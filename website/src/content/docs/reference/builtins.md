@@ -1,5 +1,5 @@
 ---
-title: Built-ins & Deprecation
+title: Built-ins and deprecation
 description: Help, version, why, completion commands, deprecation notices, and flat-CLI completion styles.
 ---
 
@@ -87,4 +87,4 @@ Deprecated members are excluded from shell completion.
 - `app.Stdout(w)` / `app.Stderr(w)` redirect help and error streams (tests, embedders).
 - `app.Args(args)` parses a custom argument slice instead of `os.Args[1:]`.
 - `app.ExitFunc(handler)` replaces `os.Exit` in `FatalIfError`.
-- `UsageOnError(mode)` controls error-time usage rendering (`conga.UsageSilence` suppresses it) — see [Errors & Exit Codes](errors/).
+- `UsageOnError(mode)` controls error-time usage rendering (`conga.UsageSilence` suppresses it) — see [Errors and exit codes](errors/).

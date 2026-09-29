@@ -86,7 +86,7 @@ func WithPredictor(p predict.Predictor) RegisterTypeOption
 | `DescriptionProvider` / `ExampleProvider` | `Description()` / `Examples()` | Custom command metadata |
 | `ContextAwareTextUnmarshaler` | `UnmarshalTextWithContext(text, decodeContext) error` | Domain types needing field tags and/or the configured streams at decode time |
 
-## Session & hierarchy accessors
+## Session and hierarchy accessors
 
 ```go
 func (s *Session) Root[T any]() *T
@@ -122,7 +122,7 @@ when no version string was configured.
 
 ## Domain types
 
-`File`, `FileContent`, `Dir`, `ByteSize` — see [Domain Types](domain-types/).
+`File`, `FileContent`, `Dir`, `ByteSize` — see [Domain types](domain-types/).
 
 ## Value sources
 
@@ -134,7 +134,7 @@ when no version string was configured.
 
 ## Errors
 
-Base categories (`ErrSchema`, `ErrParse`, `ErrCoerce`, `ErrValidation`, `ErrConfig`) plus the `UsageError` interface and `IsUsageError(err)` classification — catalogued in [Errors & Exit Codes](errors/).
+Base categories (`ErrSchema`, `ErrParse`, `ErrCoerce`, `ErrValidation`, `ErrConfig`) plus the `UsageError` interface and `IsUsageError(err)` classification — catalogued in [Errors and exit codes](errors/).
 
 ## Configuration package
 

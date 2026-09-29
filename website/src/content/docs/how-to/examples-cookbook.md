@@ -1,9 +1,9 @@
 ---
-title: Examples Cookbook
-description: Runnable examples from the repository's 29-example collection.
+title: How to run the examples
+description: Run the repository's 29 self-contained example programs and find the one covering a given feature.
 ---
 
-Every example below maps to a self-contained, runnable program in the repository's [`_examples/`](https://github.com/conga-sh/conga/tree/main/_examples) directory, each with a README and an end-to-end test suite that also serves as executable documentation. Run one locally:
+The repository's [`_examples/`](https://github.com/conga-sh/conga/tree/main/_examples) directory holds 29 self-contained programs, each with a README and an end-to-end test suite that also serves as executable documentation. Run one locally:
 
 ```sh
 go run ./_examples/08-subcommands-basic create web-api -i redis:7 -r 3

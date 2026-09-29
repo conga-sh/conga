@@ -65,4 +65,4 @@ go tool conga-lint -builder-order -fix -diff ./...     # preview it instead
 
 ## Relationship to runtime errors
 
-The runtime remains authoritative: schema build still returns self-describing `ErrSchema` errors from `App.Run` for every violation, and lint is a fast, editor- and CI-friendly mirror. Because both consult the same validators in `internal/spec`, anything lint reports is a genuine schema error — but a clean lint run does not waive the runtime check. See [Errors & Exit Codes](../reference/errors/) for the error categories and [Struct Tag Reference](../reference/struct-tags/) for the tag vocabulary.
+The runtime remains authoritative: schema build still returns self-describing `ErrSchema` errors from `App.Run` for every violation, and lint is a fast, editor- and CI-friendly mirror. Because both consult the same validators in `internal/spec`, anything lint reports is a genuine schema error — but a clean lint run does not waive the runtime check. See [Errors and exit codes](../reference/errors/) for the error categories and [Struct tag reference](../reference/struct-tags/) for the tag vocabulary.

@@ -3,7 +3,7 @@ title: Quickstart
 description: Build hello, a single-command CLI, and see a Go struct become flags, help, and version output.
 ---
 
-This tutorial builds `hello`, a single-command CLI. It covers the command struct, the flag tags that shape its schema, and the generated help and version output.
+In this tutorial, we will build `hello`, a single-command CLI. We will cover the command struct, the flag tags that shape its schema, and the generated help and version output.
 
 ## Set up the module
 
@@ -68,7 +68,7 @@ CONGA builds the command schema from the exported fields and their tags. Field n
 
 ## Run the command
 
-Run without flags, then with both flags:
+We run the command without flags, then with both flags:
 
 ```sh
 $ go run .
@@ -79,7 +79,7 @@ HELLO, CONGA!
 
 ## See the generated help
 
-The help screen is generated from the command schema:
+The help screen is generated from the command schema; we view it with `--help`:
 
 ```sh
 $ go run . --help
@@ -95,7 +95,7 @@ Flags:
       --version       Show version
 ```
 
-`--version` renders the name and version supplied by the `Name(...)` and `Version(...)` calls:
+`--version` renders the name and version supplied by the `Name(...)` and `Version(...)` calls; you will notice the build toolchain in the output too:
 
 ```sh
 $ go run . --version
@@ -118,6 +118,6 @@ Run 'hello --help' for more information.
 
 - [Subcommands](subcommands/) — build `cloudctl`, a multi-command CLI with positional arguments and aliases.
 - [Configuration](configuration/) — resolve values from environment variables and config files, and inspect provenance with `--why`.
-- [About flags & args](../explanation/flags-and-args/) — counters, maps, slices, constraints, and reading values.
-- [Examples Cookbook](cookbook/) — runnable programs, including the [minimal hello](https://github.com/conga-sh/conga/tree/main/_examples/01-minimal-hello) program this tutorial derives from.
+- [About flags and args](../explanation/flags-and-args/) — counters, maps, slices, constraints, and reading values.
+- [How to run the examples](../how-to/examples-cookbook/) — runnable programs, including the [minimal hello](https://github.com/conga-sh/conga/tree/main/_examples/01-minimal-hello) program this tutorial derives from.
 - Optional modules: [decoders](../reference/decoders/), [predictors](../reference/predict/), [plugins](../reference/plugins/), and the [config watcher](../reference/watch/).

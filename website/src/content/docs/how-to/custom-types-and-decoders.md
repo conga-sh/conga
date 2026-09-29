@@ -1,5 +1,5 @@
 ---
-title: How to extend with custom types, maps & decoders
+title: How to add custom types and decoders
 description: Register flag parsers, map parsers, configuration formats, and self-completing domain types.
 ---
 
@@ -72,7 +72,7 @@ func (e *Env) Predict() predict.Predictor {
 }
 ```
 
-The built-in types are catalogued in [Domain Types](../reference/domain-types/); the full SDK is in [package predict](../reference/predict/), and wiring styles are covered in [How to wire custom completion](wire-custom-completion/).
+The built-in types are catalogued in [Domain types](../reference/domain-types/); the full SDK is in [package predict](../reference/predict/), and wiring styles are covered in [How to wire custom completion](wire-custom-completion/).
 
 ## Register custom field tags
 
