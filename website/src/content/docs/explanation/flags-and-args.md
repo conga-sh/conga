@@ -5,44 +5,56 @@ description: Architectural design of CONGA input modelling, container types, and
 
 Command-line interfaces accept two primary forms of input: named flags and positional arguments. CONGA models both as typed container fields declared directly on command structs.
 
-This page explains how CONGA structures command-line inputs, the engineering trade-offs of using container types instead of plain struct fields, and how flags differ from positional arguments in evaluation and scoping. For the complete container API, see [package conga](/reference/conga/#containers); for struct tag syntax, see the [struct tag reference](/reference/struct-tags/).
+Before any lifecycle hook executes, the engine resolves every container across command-line arguments, environment variables, configuration files, and default tags. Command bodies read from these resolved containers rather than interacting with the resolution pipeline. For the complete container API, see [package conga](/reference/conga/#containers); for struct tag syntax, see the [struct tag reference](/reference/struct-tags/).
 
 ## Approaches to input in Go
 
 Command-line libraries in the Go ecosystem generally approach input modelling in one of two ways:
 
-1. **Imperative flag sets**: Standard library `flag`, `spf13/cobra`, and `urfave/cli` register flags imperatively onto flag sets. Flags bind to standalone variables through pointers or are queried by string keys such as `cmd.Flags().GetString("addr")`. This model is flexible, but separates the command line specification from data structures and defers type and name checks to runtime.
-2. **Struct-field reflection**: Libraries like `alecthomas/kong` and `alexflint/go-arg` derive flag schemas directly from Go struct definitions using struct tags. Flags map to native Go types (`string`, `int`, `bool`) or pointers (`*string`). This approach keeps configuration declarations concise and feels like ordinary Go code.
+1. **Imperative flag sets**: Standard library `flag`, `spf13/cobra`, and `urfave/cli` register flags imperatively onto flag sets. Flags bind to standalone variables through pointers or are queried by string keys such as `cmd.Flags().GetString("addr")`. This model separates the command-line specification from data structures and defers type and name checks to runtime error returns.
+2. **Struct-field reflection**: Libraries like `alecthomas/kong` and `alexflint/go-arg` derive flag schemas directly from Go struct definitions using struct tags. Flags map to native Go types (`string`, `int`, `bool`) or pointers (`*string`). This keeps declarations concise and feels like ordinary Go code.
 
-CONGA follows the struct-based approach, but uses dedicated generic containers—such as `OptionalFlag[T]`, `RequiredFlag[T]`, and `RequiredArg[T]`—rather than bare primitive fields.
+CONGA follows the struct-based approach, but uses dedicated generic containers—such as `OptionalFlag[T]`, `RequiredFlag[T]`, and `RequiredArg[T]`—rather than bare primitive fields or pointers.
 
 ## The container trade-off
 
 Using container types introduces an explicit trade-off between declaration brevity and runtime capability.
 
-Wrapping fields in `OptionalFlag[string]` requires more typing than declaring a bare `string`. Accessing the value also requires an explicit method call: `cmd.Addr.Get()` rather than `cmd.Addr`. For straightforward utilities that only need basic flag parsing, this extra layer can feel verbose or clunky compared to plain struct fields.
+Wrapping fields in `OptionalFlag[string]` requires more typing than declaring a bare `string`. Accessing the value also requires an explicit method call: `cmd.Addr.Get()` rather than `cmd.Addr`. For straightforward utilities that only need basic flag parsing, this extra layer can feel verbose compared to plain struct fields.
 
 CONGA accepts this syntactic overhead because containers solve several structural challenges in multi-tier CLI applications:
 
-### Distinguishing unset values without pointers
-In Go, every primitive type has a zero value. A bare `string` defaults to `""` and an integer defaults to `0`. If a command struct uses bare primitives, the application cannot distinguish whether the user explicitly passed `--port 0` or `--name ""`, or whether the flag was omitted entirely.
+### Separating value access from presence checks
 
-Libraries using plain structs often turn to pointer fields (`*int`, `*string`) to distinguish presence. Pointers solve the presence question, but they require defensive nil checks throughout command handlers. If a handler reads `*cmd.Port` without verifying it is non-nil, the process panics.
+In Go, primitive types always have a zero value (`""` for strings, `0` for numbers). If a command struct uses bare primitives, the application cannot distinguish whether an operator passed `--port 0` explicitly or omitted the flag entirely.
 
-Containers solve this without pointers:
-- `cmd.Port.Get()` is always safe to call and returns the resolved value or fallback.
-- `cmd.Port.IsSet()` indicates whether any tier provided a value.
-- The command handler never needs nil checks or defensive guard clauses.
+Libraries using plain structs often turn to pointer fields (`*int`, `*string`) to distinguish presence. Pointers solve the ambiguity—an omitted flag is `nil`, while `--port 0` points to `0`—but they couple memory safety directly to presence checking. A handler cannot simply read the value; it must check `if cmd.Port != nil` before dereferencing, or risk a runtime panic.
 
-### Tracking resolution provenance
+Containers decouple value retrieval from presence checks:
+- **Panic-free value retrieval**: `cmd.Port.Get()` is always safe to call and returns the resolved value as `T` directly. When business logic only needs the value—or its zero value—it reads the container without defensive pointer checks.
+- **Pre-run enforcement for required values**: A required flag or argument that received no value fails validation at the engine boundary before any lifecycle hook (`Validate`, `PreRun`, `Run`) executes. Handlers never observe an unpopulated required container.
+- **Accurate presence when branching**: When logic genuinely branches on whether a flag was supplied, the command checks `cmd.Port.IsSet()`. Like a pointer `nil` check, `IsSet()` accurately distinguishes explicit zero values (`--port 0`) from omission, but without heap pointer indirection or the risk of a nil dereference elsewhere in the handler.
+- **Convenient fallbacks**: When an optional flag needs a fallback value if omitted, `cmd.Port.GetOr(8080)` evaluates the fallback in a single expression, avoiding boilerplate `if cmd.Port.IsSet() { ... } else { ... }` blocks.
+
+### Decoupling presence and provenance from values
 CONGA is built around a multi-tier resolution ladder where values can originate from CLI flags, environment variables, config files, or hardcoded defaults. Bare fields and pointers discard that origin once populated.
 
-Containers retain their history throughout execution:
+Containers retain their resolution history throughout execution:
+- `cmd.Addr.IsSet()` indicates whether any tier (including a default tag) provided a value.
+- `cmd.Addr.Changed()` indicates whether an external source (CLI, env, or config) altered the value from its default.
 - `cmd.Addr.Source()` identifies which tier supplied the value (`SourceCLI`, `SourceEnv`, `SourceConfig`, `SourceDefault`).
 - `cmd.Addr.SourceDetail()` provides the concrete origin, such as the environment variable name or config file path.
-- `cmd.Addr.Changed()` indicates whether an external source altered the value from its default.
 
 This metadata powers diagnostic features like the `--why` provenance report and allows commands to adjust behaviour based on how a setting was configured.
+
+## Schema defaults versus dynamic fallbacks
+
+CONGA provides two distinct ways to supply fallback values for optional inputs:
+
+- **Declarative schema defaults (`default:"..."`)**: Evaluated at compile time and resolved during engine binding. When no higher tier provides a value, the container populates with the tag's value (`IsSet() == true`, `Changed() == false`, `Source() == SourceDefault`). Help screens automatically display `(default: ...)`.
+- **Imperative dynamic fallbacks (`GetOr(fallback)`)**: Evaluated at runtime inside the command body only when the container is unset (`IsSet() == false`, `SourceNone`). This pattern suits fallbacks derived from operating system state, dynamic directories, or values computed from other flags.
+
+Required containers expose no `GetOr`: a required container without a value fails validation before execution, so a fallback is structurally meaningless.
 
 ## Flags versus positional arguments
 
@@ -76,8 +88,16 @@ Many command-line tools wrap existing utilities or forward arguments to compiler
 ### RawArgs for command passthrough
 `conga.RawArgs` captures trailing tokens without requiring a `--` delimiter. Once the parser encounters an argument at the `RawArgs` position, flag parsing stops immediately and all remaining arguments are captured as-is. Tools like `docker run` use this pattern to pass arbitrary commands to container runtimes (for example, `docker run alpine echo hello`).
 
+Both trailing containers expose `Get() []string`, `GetOr()`, `Len()`, and `IsSet()`.
+
 ## Declarative constraints
 
 Input validation frequently clutters command handlers with manual range checks, length bounds, and mutual exclusivity tests. CONGA allows these constraints to be declared directly on container fields with struct tags such as `enum`, `range`, `len`, `xor`, and `and`.
 
 The engine evaluates declared constraints after type coercion but before invoking lifecycle hooks (`Validate`, `PreRun`, `Run`). When an input violates a constraint, the engine halts execution with a usage error (exit code 2). This separates input validation from command business logic, ensuring that command bodies receive values that already satisfy domain requirements.
+
+## Immutability during execution
+
+Once execution reaches the lifecycle hooks, container state is immutable. Command handlers read resolved values; they cannot re-run the resolution ladder or modify container values in place.
+
+When a long-running process or background worker needs to re-read configuration after a file change on disk, it calls `session.Reload[T](ctx)`. Rather than mutating existing containers, `Reload` executes a fresh resolution pass and returns a newly allocated, validated instance of the command struct.

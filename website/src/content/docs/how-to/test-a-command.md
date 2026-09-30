@@ -158,4 +158,4 @@ func TestTable(t *testing.T) {
 
 - [About app execution](/explanation/execution/) — context propagation, signal handling, and execution lifecycles.
 - [About error reporting](/explanation/error-reporting/) — error categorization, exit codes, and usage silencing.
-- [About reading values](/explanation/reading-values/) — inspecting container state and provenance.
+- [About flags and args](/explanation/flags-and-args/) — inspecting container state and provenance.

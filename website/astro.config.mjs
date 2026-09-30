@@ -95,7 +95,6 @@ export default defineConfig({
             'explanation/value-precedence',
             'explanation/config-cascade',
             'explanation/flags-and-args',
-            'explanation/reading-values',
             'explanation/subcommands',
             'explanation/lifecycle',
             'explanation/execution',

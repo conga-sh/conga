@@ -77,6 +77,6 @@ If the root instance is only needed inside lifecycle hooks and never outside `ap
 
 ## Where to go next
 
-- [About reading values](/explanation/reading-values/) — the container methods and guarantees behind `Get()`.
+- [About flags and args](/explanation/flags-and-args/) — container methods, trade-offs, and reader guarantees.
 - [How to test a command](/how-to/test-a-command/) — construct isolated App instances per test case with captured streams.
 - [About app execution](/explanation/execution/) — the single-execution rule and `session.Reload[T]` for live configuration updates.

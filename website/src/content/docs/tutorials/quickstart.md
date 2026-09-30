@@ -156,9 +156,8 @@ hello has version 1.0.0 built with go1.27.1
 - [How to run the examples](/how-to/examples-cookbook/): explore runnable sample applications, including the [minimal hello](https://github.com/conga-sh/conga/tree/main/_examples/01-minimal-hello) program.
 
 **Concepts and reference**
-- [About reading values](/explanation/reading-values/): container reader guarantees.
+- [About flags and args](/explanation/flags-and-args/): container reader guarantees, trade-offs, and positional arguments.
 - [About app execution](/explanation/execution/): context propagation, standard streams, and lifecycle execution.
 - [About the lifecycle](/explanation/lifecycle/): execution stages and hook order.
 - [About error reporting](/explanation/error-reporting/): usage errors, runtime errors, and `FatalIfError`.
-- [About flags and args](/explanation/flags-and-args/): counters, slices, maps, and positional arguments.
 - [Package conga](/reference/conga/): core API reference.
