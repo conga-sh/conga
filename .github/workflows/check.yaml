@@ -15,6 +15,9 @@ jobs:
       - uses: arduino/setup-task@v1
         with:
           version: 3.52.0
+      - uses: golangci/golangci-lint-action@v3
+        with:
+          version: 2.13.2
       - run: task lint
 
   test:
