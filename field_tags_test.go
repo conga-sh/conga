@@ -641,6 +641,7 @@ func (s *SecretInput) TagSpecs() []conga.TagSpec {
 
 func (s *SecretInput) UnmarshalTextWithContext(text []byte, decodeContext conga.DecodeContext) error {
 	var raw string
+
 	if string(text) == "-" {
 		if !decodeContext.Tags.Bool("stdin") {
 			return errors.New("reading from stdin is not enabled for this field")
