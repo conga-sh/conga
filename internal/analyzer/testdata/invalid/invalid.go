@@ -194,6 +194,20 @@ type BuiltinHelpTagApp struct { // want `does not implement conga\.Runner`
 
 var _ = conga.New[BuiltinHelpTagApp]()
 
+// TrailingHelpApp declares the unsupported help tag on trailing-argument
+// collectors; their names render in the usage synopsis only.
+type TrailingHelpApp struct {
+	Extra    conga.DashArgs `help:"Arguments after --"` // want `tag "help" is invalid on dash args`
+	Leftover conga.RawArgs  `help:"Unparsed tokens"`    // want `tag "help" is invalid on raw args`
+}
+
+// Run executes the trailing help fixture.
+func (t *TrailingHelpApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[TrailingHelpApp]()
+
 // FlatLeaf is a leaf root command without a Run method.
 type FlatLeaf struct { // want `does not implement conga\.Runner`
 	Verbose conga.OptionalFlag[bool] `name:"verbose" help:"Verbose output"`

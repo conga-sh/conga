@@ -1,31 +1,51 @@
 ---
 title: How to load .env files
-description: 12-factor .env loading with expansion, quoting, and DoS-hardened limits.
+description: Load .env and .env.local files into the process environment with variable expansion and DoS-hardened limits.
 ---
 
-`app.Dotenv(...)` enables zero-dependency `.env` loading into the process environment before parsing and resolution:
+CONGA provides zero-dependency `.env` file loading through `app.Dotenv()`. Loaded variables populate the process environment before flag resolution, feeding directly into the environment tier of the resolution ladder.
 
-```go
-app := conga.New[CLI]().
-	Name("cloudctl").
-	EnvPrefix("CLOUDCTL").
-	Dotenv() // loads ".env", then ".env.local" from the working directory
+## Enable default .env loading
+
+Call `Dotenv()` on the application builder without arguments to enable conventional loading:
+
+```go title="main.go"
+func main() {
+	app := conga.New[CLI]().
+		Name("cloudctl").
+		EnvPrefix("CLOUDCTL").
+		Dotenv()
+
+	app.FatalIfError(app.Run())
+}
 ```
 
-## Semantics
+When invoked without arguments, `Dotenv()` probes `.env` then `.env.local` in the current working directory. Missing files are silently ignored, allowing applications to run normally in production environments where configuration is injected directly through the operating system. Existing process environment variables and keys defined in `.env` are preserved; `.env.local` supplies the remaining keys. [Dotenv files](/reference/dotenv/) has the complete loading contract.
 
-- **Default behavior** — loads `.env` followed by `.env.local` from the current directory. `.env.local` values override `.env` values, which makes the pair suitable for committed defaults + local overrides.
-- **Explicit paths** — `app.Dotenv("config/defaults.env", "config/secrets.env")` loads the given files in order, later files winning.
-- Loaded variables are real process environment entries, so they feed the [environment tier](../explanation/value-precedence/) of every flag — including flags whose `env` tag points at a secret.
-- Syntax supports quotes (single and double) and variable expansion (`PATH=${PATH}:/extra`).
-- Files are capped at 16 MB to bound memory under adversarial input.
+## Preserve host environment variables
 
-## Errors
+At startup, `app.Dotenv()` adheres to the 12-factor application principle: existing host environment variables are never overwritten by `.env` files. If an environment variable is already set in the operating system shell, Docker container, or CI runner, CONGA preserves that value and ignores the corresponding entry in `.env` or `.env.local`:
 
-`.env` failures (missing explicit file, malformed line, size limit exceeded) surface as descriptive errors wrapping the `conga.ErrConfig` base category; the message identifies the offending file and line.
+```sh
+# OS environment variable takes precedence over .env entries
+CLOUDCTL_PORT=9090 cloudctl
+```
 
-The default `.env`/`.env.local` pair is optional: a project with no dotenv files starts normally. Explicit paths follow the "missing file is fatal" convention of configuration loading.
+## Load explicit file paths
 
-:::note
-`.env` files configure the *environment tier*; structured configuration belongs to [config files](../explanation/config-cascade/) — the two mechanisms compose (e.g. `CLOUDCTL_CONFIG=/etc/app.toml` inside `.env`).
-:::
+To load custom files or require that the files exist, pass explicit paths to `Dotenv`:
+
+```go title="main.go"
+app.Dotenv("config/base.env", "config/secrets.env")
+```
+
+When explicit paths are provided:
+- Files are loaded sequentially in the specified order; every listed file must exist, and a missing file returns an error wrapping `conga.ErrConfig`.
+- Existing environment variables and values from earlier files are preserved, so the first definition of a key wins.
+
+## Where to go next
+
+- [Dotenv files](/reference/dotenv/) — loading rules, grammar, and the 16 MB size limit.
+- [How to bind environment variables](/how-to/bind-environment-variables/) — map environment variables to command flags.
+- [How to manage config files](/how-to/manage-config-files/) — register file decoders and search paths.
+- [About value precedence](/explanation/value-precedence/) — the deterministic four-tier resolution ladder.

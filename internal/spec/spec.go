@@ -260,7 +260,6 @@ type Arg struct {
 // DashArgs represents the binder for arguments explicitly passed after '--'.
 type DashArgs struct {
 	Name string
-	Help string
 	// Handle is the engine's opaque handle to the '--' trailing-arguments
 	// container value. It is never inspected by this package and nil when not
 	// classified.
@@ -270,7 +269,6 @@ type DashArgs struct {
 // RawArgs represents the binder for unparsed trailing raw arguments.
 type RawArgs struct {
 	Name string
-	Help string
 	// Handle is the engine's opaque handle to the raw trailing-tokens
 	// container value. It is never inspected by this package and nil when not
 	// classified.

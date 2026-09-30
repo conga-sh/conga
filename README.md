@@ -20,17 +20,16 @@ and shell completion from them.
   [About the lifecycle](https://docs.conga.sh/explanation/lifecycle/).
 - **6-shell autocompletion.** Bash, zsh, fish, powershell, elvish, and nushell,
   with self-completing domain types and a decoupled predictor SDK. See
-  [About the shell completion architecture](https://docs.conga.sh/explanation/completion-architecture/).
+  [How to enable shell completion](https://docs.conga.sh/how-to/enable-shell-completion/).
 - **Extensibility.** Register third-party types, mount plugins, or add decoders
   for new configuration formats. See
-  [How to extend with custom types, maps & decoders](https://docs.conga.sh/how-to/custom-types-and-decoders/).
+  [How to add custom flag types](https://docs.conga.sh/how-to/add-custom-flag-types/).
 - **Static schema linting.** `conga-lint` enforces leaf `Runner` contracts,
   struct tags, and ancestor flag shadowing before the binary runs. See
   [How to lint CONGA schemas](https://docs.conga.sh/how-to/lint-schemas/).
 - **Opt-in subsystems, linker friendly.** Completion, configuration, and
   `.env` loading link only when enabled; omitting one drops its code and
-  dependencies from the binary. See
-  [About binary size and linking](https://docs.conga.sh/explanation/binary-size/).
+  dependencies from the binary.
 
 ## Installation
 
@@ -41,8 +40,8 @@ plugins, and the config watcher live in satellite packages:
 go get github.com/conga-sh/conga
 ```
 
-See [Installation](https://docs.conga.sh/tutorials/installation/)
-for the opt-in packages and their import paths.
+See the [Quickstart](https://docs.conga.sh/tutorials/quickstart/) to build
+your first CLI.
 
 ## Quickstart
 
@@ -84,14 +83,17 @@ func main() {
 ```
 
 ```sh
-$ go run . --name conga --loud
+go run . --name conga --loud
+```
+
+```
 HELLO, CONGA!
 ```
 
 Fields become flags, and `Run` reads their resolved values with `Get()`. Walk
 through the full program in the
 [Quickstart tutorial](https://docs.conga.sh/tutorials/quickstart/),
-or copy from the [Examples Cookbook](https://docs.conga.sh/tutorials/cookbook/).
+or copy from the [Examples Cookbook](https://docs.conga.sh/how-to/examples-cookbook/).
 
 ## Documentation
 
@@ -102,7 +104,7 @@ or copy from the [Examples Cookbook](https://docs.conga.sh/tutorials/cookbook/).
   every supported struct tag and directive.
 - [Built-ins & Deprecation](https://docs.conga.sh/reference/builtins/) —
   help, `--version`/`--json`, `--why`, completion styles, and deprecation notices.
-- [Examples Cookbook](https://docs.conga.sh/tutorials/cookbook/) — 29
+- [Examples Cookbook](https://docs.conga.sh/how-to/examples-cookbook/) — 29
   runnable programs, mirrored in [`_examples/`](_examples/README.md).
 - Contributor docs: [testing guide](docs/TESTING.md) and
   [completion wire protocol](docs/completion-wire-protocol.md).

@@ -10,7 +10,7 @@ import (
 // KitchenSinkCLI is the exhaustive reference application: every supported
 // flag type, configuration-mapping pattern, and schema directive lives here.
 type KitchenSinkCLI struct {
-	Config conga.ConfigFile `help:"Config file path (any registered format)" name:"config-file" short:"c"`
+	Config conga.ConfigFile `name:"config-file" short:"c"`
 
 	// Conventional root flags, all bound from top-level config keys
 	Verbosity conga.Counter              `default:"0"         help:"Verbosity level"                       safe:"true"          short:"v"`

@@ -151,7 +151,7 @@ func (a *App[T]) Deprecated(reason string) *App[T] {
 	return a
 }
 
-// Version sets the version string rendered by the built-in --version/-v flag
+// Version sets the version string rendered by the built-in --version flag
 // and by session.Version(). The flag exists on every root command; when no
 // version is set, the output falls back to the module version (or "dev") plus
 // the embedded build metadata (VCS commit and date, when available).
@@ -271,7 +271,7 @@ func (a *App[T]) EnableCompletion() *App[T] {
 	return a
 }
 
-// DisableHelpFlag removes the automatically injected --help/-h flag. Help
+// DisableHelpFlag removes the automatically injected --help flag. Help
 // screens rendered by session.Help(), a declared HelpCommand, and error/usage
 // handling remain available.
 func (a *App[T]) DisableHelpFlag() *App[T] {
@@ -280,7 +280,7 @@ func (a *App[T]) DisableHelpFlag() *App[T] {
 	return a
 }
 
-// DisableVersionFlag removes the automatically injected --version/-v flag and
+// DisableVersionFlag removes the automatically injected --version flag and
 // its renderer. The version string set by Version() remains available to
 // session.Version(), a declared VersionCommand, and the --why report. Calling
 // Version after DisableVersionFlag still records the string but does not
@@ -705,8 +705,8 @@ type configEngineFactory func(name string, envPrefix string, registry *configeng
 
 // emptyConfigView is the engine view for applications that never installed a
 // configuration engine: it rejects named configuration targets with a
-// decoder-required error and surfaces display-only candidates (the environment
-// targets and the config-file flag's default), but loads and probes nothing.
+// decoder-required error and surfaces the environment targets, but loads and
+// probes nothing.
 type emptyConfigView struct {
 	envPrefix string
 }
@@ -734,7 +734,7 @@ func (view emptyConfigView) CandidatePaths(explicitPaths []string, cmd *spec.Com
 		return envPaths
 	}
 
-	return configengine.DefaultConfigCandidates(cmd)
+	return nil
 }
 
 func (emptyConfigView) EffectiveSearchPaths() []string { return nil }

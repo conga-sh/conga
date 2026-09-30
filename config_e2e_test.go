@@ -2,7 +2,6 @@ package conga_test
 
 import (
 	"bytes"
-	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -499,29 +498,22 @@ func TestConfig_EnvConfigVar_RequiresDecoder(t *testing.T) {
 		err.Error())
 }
 
-type DecoderlessCandidateCLI struct {
+type DefaultTagConfigFileCLI struct {
+	noopRunner
+
 	ConfigFile conga.ConfigFile `default:"/etc/decoderless/app.json"`
-
-	candidates []string
 }
 
-func (c *DecoderlessCandidateCLI) Run(_ context.Context, session *conga.Session) error {
-	c.candidates = session.CandidateConfigFiles()
-
-	return nil
-}
-
-func TestConfigFile_DecoderlessDefaultTagCandidate(t *testing.T) {
+func TestConfigFile_DefaultTagRejected(t *testing.T) {
 	t.Parallel()
 
-	cli := new(DecoderlessCandidateCLI)
-
-	app := conga.New(cli).
-		Name("decoderless").
+	app := conga.New[DefaultTagConfigFileCLI]().
+		Name("defaulttag").
 		Args([]string{})
 
 	err := app.Run()
 
-	assert.NoError(t, err)
-	assert.Equal(t, []string{"/etc/decoderless/app.json"}, cli.candidates)
+	assert.Error(t, err)
+	assert.IsError(t, err, conga.ErrSchema)
+	assert.Equal(t, `struct DefaultTagConfigFileCLI field ConfigFile: schema error: invalid struct tag: tag "default" is not supported on config-file flags; declare search locations with app.ConfigOptions(config.Paths(...)) or config.Explicit(...), or show an example value with placeholder:"..."`, err.Error())
 }

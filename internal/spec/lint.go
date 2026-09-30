@@ -19,8 +19,8 @@ var (
 	argTagCandidates            = []string{"name", "help", "default", "enum", "range", "len", "items", "sep", "predictor", "conga"}
 	builtinCommandTagCandidates = []string{"name", "summary", "aliases", "group", "hidden", "conga"}
 	userCommandTagCandidates    = []string{"name", "summary", "aliases", "group", "hidden", "envprefix", "deprecated", "conga"}
-	configFileTagCandidates     = []string{"name", "short", "help", "default", "env", "aliases", "placeholder", "group", "hidden", "multi", "sep", "config", "deprecated", "conga"}
-	dashRawTagCandidates        = []string{"name", "help", "conga"}
+	configFileTagCandidates     = []string{"name", "short", "help", "env", "aliases", "placeholder", "group", "hidden", "multi", "sep", "config", "deprecated", "conga"}
+	dashRawTagCandidates        = []string{"name", "conga"}
 	sentinelTagCandidates       = []string{"envprefix", "conga"}
 	allCongaTagCandidates       = collectTagCandidates()
 )
@@ -95,7 +95,7 @@ func validContextDescription(tag string) string {
 		return "commands"
 	case "deprecated":
 		return "subcommands, flags, and config file flags"
-	case "predictor":
+	case "predictor", "default":
 		return "flags and positional arguments"
 	default:
 		return "other CONGA constructs"

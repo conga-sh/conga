@@ -11,16 +11,16 @@ import (
 
 // CLI demonstrates strongly-typed domain objects with built-in filesystem and format validation.
 type CLI struct {
-	InputFile  conga.OptionalFlag[conga.File]        `existing:"true"                                      help:"Path to existing input file"              short:"i"`
-	OutputDir  conga.OptionalFlag[conga.Dir]         `existing:"true"                                      help:"Path to existing directory"               short:"o"`
-	MaxMemory  conga.OptionalFlag[conga.ByteSize]    `default:"512MiB"                                     help:"Maximum memory limit (e.g. 500MiB, 2GiB)" short:"m"`
-	DeployHook conga.OptionalFlag[conga.File]        `help:"Symlink to the deployment hook script"         short:"l"                                       symlink:"true"`
-	Ports      conga.OptionalFlag[PortRange]         `help:"Port range (e.g. 8000-8080)"                   short:"p"`
-	Headers    conga.OptionalFlag[HeaderMap]         `help:"HTTP request headers (key=value)"              short:"H"`
-	Payload    conga.OptionalFlag[conga.FileContent] `help:"Payload file ('-' for stdin) read into memory"`
-	Output     conga.OptionalFlag[conga.File]        `help:"Output file ('-' for stdout)"                  stdout:"true"`
-	Query      conga.OptionalFlag[conga.File]        `help:"Query file ('-' for stdin)"                    short:"q"                                       stdin:"true"`
-	Templates  conga.OptionalFlag[conga.File]        `glob:"*.yaml,*.yml"                                  help:"Deployment template (yaml/yml only)"`
+	InputFile  conga.OptionalFlag[conga.File]     `existing:"true"                         short:"i"`
+	OutputDir  conga.OptionalFlag[conga.Dir]      `existing:"true"                         short:"o"`
+	MaxMemory  conga.OptionalFlag[conga.ByteSize] `default:"512MiB"                        short:"m"`
+	DeployHook conga.OptionalFlag[conga.File]     `short:"l"                               symlink:"true"`
+	Ports      conga.OptionalFlag[PortRange]      `help:"Port range (e.g. 8000-8080)"      short:"p"`
+	Headers    conga.OptionalFlag[HeaderMap]      `help:"HTTP request headers (key=value)" short:"H"`
+	Payload    conga.OptionalFlag[conga.FileContent]
+	Output     conga.OptionalFlag[conga.File] `stdout:"true"`
+	Query      conga.OptionalFlag[conga.File] `short:"q"           stdin:"true"`
+	Templates  conga.OptionalFlag[conga.File] `glob:"*.yaml,*.yml"`
 }
 
 func (c *CLI) Run(ctx context.Context, session *conga.Session) error {

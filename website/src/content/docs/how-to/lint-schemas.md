@@ -3,66 +3,39 @@ title: How to lint CONGA schemas
 description: Catch leaf Runner violations, struct tag typos, and ancestor flag shadowing in CI with conga-lint.
 ---
 
-`conga-lint` is a static analysis pass that mirrors the runtime schema contract on Go type information, so contract violations surface before any binary runs. It ships with the module as a Go tool and requires a **Go 1.27+ toolchain** to parse CONGA schemas, which use method-level type parameters (`func (a *App[T]) RegisterType[U any](...)`).
+`conga-lint` catches schema errors, tag typos, and invalid hierarchies before binaries are built or run. This guide covers installation, running the analyzer over your packages, and enabling builder-order validation. [conga-lint](/reference/conga-lint/) catalogs every check and flag.
 
-## Run the analyzer
+## Install and run the analyzer
 
-Add the analyzer as a tool dependency of your module, then run it over your packages:
+Declare the analyzer as a tool dependency of your Go module, then invoke it over your packages:
 
 ```sh
 go get -tool github.com/conga-sh/conga/cmd/conga-lint
 go tool conga-lint ./...
 ```
 
-Inside the CONGA repository, the `lint:schema` task wires it into the default lint pipeline:
+Go's `./...` pattern skips underscore-prefixed directories such as `_examples/`; pass those paths explicitly to lint them.
+
+## Validate builder call ordering
+
+The optional `-builder-order` flag checks builder method chains against CONGA's canonical ordering conventions:
 
 ```sh
-task lint:schema
-# equivalent to:
-go tool conga-lint ./... ./_examples/[0-9]* ./_examples/internal/...
-```
-
-The example paths are listed explicitly because Go's `./...` wildcard skips `_`-prefixed directories; the shell expands the `[0-9]*` glob into the numbered example packages.
-
-## What it checks
-
-| Check | Mirrors |
-|-------|---------|
-| Leaf command Runner enforcement | The bind-time `noRunnerError`: a command struct without `Command[T]` fields must implement `Run(context.Context, *conga.Session) error` |
-| Struct tag linting | Tag syntax, `required:"true"` rejection, `help` on `Command[T]`, directive validity, predictor vocabulary, `range`/`len`/`items` bounds, and — under strict validation — unknown tag keys and unregistered `predictor:"..."` names |
-| Ancestor flag shadowing | The runtime `ErrDuplicateFlag` rule: a flag name, alias, or short rune declared on an ancestor cannot be redeclared on a descendant |
-| Cascading guard | The schema rejection of `config.Cascading()` without a `multi:"true"` root `ConfigFile` flag |
-| Throwaway root detection | Lint-only: flags `conga.New(root)` when the root instance is never referenced outside the app, steering authors to the engine-allocating `conga.New[T]()` form. Caller-owned instances (seeded before or read after execution) and multi-root panic guards are left alone; unlike anchor discovery, this check also covers `_test.go` files |
-| Builder call order (opt-in) | The fluent builder conventions: with `-builder-order`, flags builder calls at `conga.New` construction sites that break the canonical order (identity first, `Enable*`/`Disable*` alphabetically, behaviour calls grouped, execution last); `-builder-order-spec` overrides the order and `-fix` reorders what can move safely |
-
-All checks delegate to the exported validators in `internal/spec`, so lint-time and runtime validation share one source of truth and produce the same messages.
-
-## The discovery contract
-
-The analyzer finds hierarchies exclusively from `conga.New` anchors — both the explicit `conga.New[T]()` and the inferred `conga.New(root)` forms — then walks the `Command[T]` fields of the root type. Strict-mode settings are reconstructed from literal builder arguments:
-
-- `app.StrictTagValidation(true)` / `app.StrictTagValidation(false)`
-- `app.AllowTags("...", ...)`
-- `app.Predictor("name", ...)`
-
-Non-literal (computed) arguments leave the evidence ambiguous; the analyzer then degrades conservatively to the runtime default. It may miss diagnostics, but it never invents them. To force strict validation regardless of detected calls, pass `-strict`:
-
-```sh
-go tool conga-lint -strict ./...
-```
-
-## Builder call order (opt-in)
-
-`-builder-order` checks the fluent builder calls at every `conga.New` construction site — both the constructor chain and the straight-line builder statements on the app variable — against the canonical method order: identity and documentation first, the `Enable*`/`Disable*` toggles alphabetically, behaviour calls grouped, and the execution methods last.
-
-```sh
+# Report builder ordering violations
 go tool conga-lint -builder-order ./...
-go tool conga-lint -builder-order -fix ./...           # apply the reordering
-go tool conga-lint -builder-order -fix -diff ./...     # preview it instead
+
+# Automatically fix violations in place
+go tool conga-lint -builder-order -fix ./...
+
+# Preview suggested fixes as a diff
+go tool conga-lint -builder-order -fix -diff ./...
 ```
 
-`-builder-order-spec` replaces the built-in order; it accepts a comma- or newline-separated list of App method names or `@path` to read one method per line (`#` starts a comment). Methods left out of the spec stay unconstrained. `-fix` reorders the calls it can move safely: barrier calls such as `Use(...)`, which execute plugin functions, never move, calls never cross the constructor-chain/statement boundary, and comment placement or statement shapes that cannot be swapped safely downgrade the violation to a manual reorder. Test files and generated files are exempt. Inside the CONGA repository, `task lint:schema:style` runs the check.
+Custom ordering rules can be supplied via `-builder-order-spec`, which accepts comma- or newline-separated method names or `@path` to read one per line; [conga-lint](/reference/conga-lint/#flags) documents every flag.
 
-## Relationship to runtime errors
+## Where to go next
 
-The runtime remains authoritative: schema build still returns self-describing `ErrSchema` errors from `App.Run` for every violation, and lint is a fast, editor- and CI-friendly mirror. Because both consult the same validators in `internal/spec`, anything lint reports is a genuine schema error — but a clean lint run does not waive the runtime check. See [Errors & Exit Codes](../reference/errors/) for the error categories and [Struct Tag Reference](../reference/struct-tags/) for the tag vocabulary.
+- [conga-lint](/reference/conga-lint/) — checks, discovery contract, and flags.
+- [Struct tag reference](/reference/struct-tags/) — reference catalog for all supported struct tags and syntax rules.
+- [Errors and exit codes](/reference/errors/) — base error categories and exit code mappings.
+- [How to declare subcommands](/how-to/declare-subcommands/) — command hierarchy routing and flag shadowing rules.

@@ -160,8 +160,8 @@ func (a *App[T]) whyConfigFileRow(cmd *spec.Command, cmdChain []*spec.Command, f
 	}
 
 	if len(loadedPaths) == 0 {
-		// Nothing resolved: fall back to the ordinary tier cascade so a
-		// declared default path or unset state still renders.
+		// Nothing resolved: fall back to the ordinary tier cascade so unset
+		// state still renders.
 		return a.whyFlagRow(cmd, cmdChain, flagSpec, cliValues, state)
 	}
 
@@ -240,7 +240,7 @@ func whyConfigPaths(resolver configView, candidates []string, loadedPaths []stri
 // nothing was found: an absent candidate location reports "directory does
 // not exist", otherwise "no config file". Search-path tiers the resolution
 // actually probes additionally carry the concrete probed file locations;
-// display-only candidates (e.g. the config-file flag's default tag) do not.
+// explicit and environment-derived candidates do not.
 func whyAbsentConfigPath(resolver configView, candidate string, expandedTiers []string, extensions []string) why.ConfigPath {
 	configPath := why.ConfigPath{Path: candidate}
 

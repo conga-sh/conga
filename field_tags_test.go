@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -626,6 +628,58 @@ type PlainHookTokenCLI struct {
 	Token conga.OptionalFlag[PlainHookToken] `name:"token" tier:"bronze"`
 }
 
+type SecretInput struct {
+	Value string
+}
+
+func (s *SecretInput) TagSpecs() []conga.TagSpec {
+	return []conga.TagSpec{
+		{Name: "stdin", Kind: conga.TagKindBool},
+		{Name: "prefix", Kind: conga.TagKindString},
+	}
+}
+
+func (s *SecretInput) UnmarshalTextWithContext(text []byte, decodeContext conga.DecodeContext) error {
+	var raw string
+
+	if string(text) == "-" {
+		if !decodeContext.Tags.Bool("stdin") {
+			return errors.New("reading from stdin is not enabled for this field")
+		}
+
+		data, err := io.ReadAll(decodeContext.Stdin)
+		if err != nil {
+			return fmt.Errorf("reading secret from stdin: %w", err)
+		}
+
+		raw = strings.TrimSpace(string(data))
+	} else {
+		raw = string(text)
+	}
+
+	if prefix := decodeContext.Tags.String("prefix"); prefix != "" {
+		if !strings.HasPrefix(raw, prefix) {
+			return fmt.Errorf("secret must start with prefix %q", prefix)
+		}
+	}
+
+	s.Value = raw
+
+	return nil
+}
+
+type SecretInputCLI struct {
+	noopRunner
+
+	Token conga.RequiredFlag[SecretInput] `name:"token" prefix:"sk-" stdin:"true"`
+}
+
+type SecretInputNoStdinCLI struct {
+	noopRunner
+
+	Token conga.RequiredFlag[SecretInput] `name:"token" prefix:"sk-"`
+}
+
 func TestUserDefinedTaggedDomainType(t *testing.T) {
 	t.Parallel()
 
@@ -733,6 +787,60 @@ func TestFlagCandidateDescriptionFromDomainType(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Contains(t, buffer.String(), "Path to an existing file or '-' for stdin")
+}
+
+func TestContextAwareTextUnmarshalerTagsAndStreams(t *testing.T) {
+	t.Parallel()
+
+	t.Run("valid direct token with matching prefix", func(t *testing.T) {
+		t.Parallel()
+
+		cli := new(SecretInputCLI)
+		app := conga.New(cli).Name("app").Args([]string{"--token", "sk-secret123"})
+
+		err := app.RunContext(t.Context())
+
+		assert.NoError(t, err)
+		assert.Equal(t, "sk-secret123", cli.Token.Get().Value)
+	})
+
+	t.Run("token with invalid prefix is rejected", func(t *testing.T) {
+		t.Parallel()
+
+		app := conga.New[SecretInputCLI]().Name("app").Args([]string{"--token", "wrong-secret"})
+
+		err := app.RunContext(t.Context())
+
+		assert.Error(t, err)
+		assert.IsError(t, err, conga.ErrCoerce)
+		assert.Contains(t, err.Error(), `secret must start with prefix "sk-"`)
+	})
+
+	t.Run("token read from stdin when stdin tag is enabled", func(t *testing.T) {
+		t.Parallel()
+
+		cli := new(SecretInputCLI)
+		stdin := strings.NewReader("sk-streamed-secret\n")
+		app := conga.New(cli).Name("app").Stdin(stdin).Args([]string{"--token", "-"})
+
+		err := app.RunContext(t.Context())
+
+		assert.NoError(t, err)
+		assert.Equal(t, "sk-streamed-secret", cli.Token.Get().Value)
+	})
+
+	t.Run("stdin rejected when stdin tag is omitted", func(t *testing.T) {
+		t.Parallel()
+
+		stdin := strings.NewReader("sk-streamed-secret\n")
+		app := conga.New[SecretInputNoStdinCLI]().Name("app").Stdin(stdin).Args([]string{"--token", "-"})
+
+		err := app.RunContext(t.Context())
+
+		assert.Error(t, err)
+		assert.IsError(t, err, conga.ErrCoerce)
+		assert.Contains(t, err.Error(), "reading from stdin is not enabled for this field")
+	})
 }
 
 func writeFileForTest(t *testing.T, name string) string {

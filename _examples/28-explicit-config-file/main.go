@@ -14,7 +14,7 @@ import (
 // outranks it; the <PREFIX>_CONFIG environment variable and the search tier
 // are not consulted while the option is declared.
 type CLI struct {
-	ConfigFile conga.ConfigFile `help:"Config file override" short:"c"`
+	ConfigFile conga.ConfigFile `short:"c"`
 
 	Host conga.OptionalFlag[string] `default:"localhost" help:"Server host"`
 	Port conga.OptionalFlag[int]    `default:"8080"      help:"Server port" short:"p"`

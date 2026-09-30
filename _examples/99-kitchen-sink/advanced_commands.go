@@ -18,11 +18,11 @@ type AdvancedCmd struct {
 // RequiredCmd demonstrates RequiredFlag, positional arguments with custom
 // placeholders, and DashArgs forwarding.
 type RequiredCmd struct {
-	APIKey      conga.RequiredFlag[string]  `help:"API key (required)"   short:"k"`
-	Name        conga.RequiredArg[string]   `help:"Resource name"        name:"<name>"`
-	Message     conga.OptionalArg[string]   `help:"Optional message"     name:"[message]"`
-	Extra       conga.OptionalArg[[]string] `help:"Optional extra args"  name:"[extras...]"`
-	Passthrough conga.DashArgs              `help:"Arguments after '--'"`
+	APIKey      conga.RequiredFlag[string]  `help:"API key (required)"  short:"k"`
+	Name        conga.RequiredArg[string]   `help:"Resource name"       name:"<name>"`
+	Message     conga.OptionalArg[string]   `help:"Optional message"    name:"[message]"`
+	Extra       conga.OptionalArg[[]string] `help:"Optional extra args" name:"[extras...]"`
+	Passthrough conga.DashArgs
 }
 
 func (c *RequiredCmd) Run(ctx context.Context, session *conga.Session) error {

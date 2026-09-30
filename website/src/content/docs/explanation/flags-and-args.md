@@ -1,142 +1,103 @@
 ---
-title: About flags & args
-description: Typed containers for flags, positional arguments, counters, maps, slices, and raw forwarding.
+title: About flags and args
+description: Architectural design of CONGA input modelling, container types, and argument binding.
 ---
 
-CONGA models every piece of command-line input as an explicit, typed container field on your command struct.
+Command-line interfaces accept two primary forms of input: named flags and positional arguments. CONGA models both as typed container fields declared directly on command structs.
 
-## Flag containers
+Before any lifecycle hook executes, the engine resolves every container across command-line arguments, environment variables, config files, and default tags. Command bodies read from these resolved containers rather than interacting with the resolution pipeline. For the complete container API, see [package conga](/reference/conga/#containers); for struct tag syntax, see the [struct tag reference](/reference/struct-tags/).
 
-| Container | Meaning | Typical tags |
-|-----------|---------|--------------|
-| `conga.OptionalFlag[T]` | Optional flag with a zero-value fallback | `default`, `env`, `config` |
-| `conga.RequiredFlag[T]` | Mandatory flag; missing value is a usage error (exit 2) | `env`, `config` |
-| `conga.Counter` | Repeatable counting flag (`-v`, `-vv`, `-vvv`) | `default`, `env` |
-| `conga.ConfigFile` | Root-only `--config-file` path flag with explicit loading semantics; `multi:"true"` enables repeatable multi-file values | `default`, `env`, `multi`, `sep` |
+## Approaches to input in Go
 
-```go
-type Serve struct {
-	Addr    conga.OptionalFlag[string] `default:":8080" help:"Listen address" short:"a"`
-	Token   conga.RequiredFlag[string] `help:"Auth token" env:"SERVE_TOKEN"`
-	Verbose conga.Counter              `help:"Increase log verbosity" short:"v"`
-}
-```
+Command-line libraries in the Go ecosystem generally approach input modelling in one of two ways:
 
-`Counter` counts clustered repeats: `-vvv` resolves to `3`. Its `Get()` returns `int`.
+1. **Imperative flag sets**: Standard library `flag`, `spf13/cobra`, and `urfave/cli` register flags imperatively onto flag sets. Flags bind to standalone variables through pointers or are queried by string keys such as `cmd.Flags().GetString("addr")`. This model separates the command-line specification from data structures and defers type and name checks to runtime error returns.
+2. **Struct-field reflection**: Libraries like `alecthomas/kong` and `alexflint/go-arg` derive flag schemas directly from Go struct definitions using struct tags. Flags map to native Go types (`string`, `int`, `bool`) or pointers (`*string`). This keeps declarations concise and feels like ordinary Go code.
 
-## Argument containers
+CONGA follows the struct-based approach, but uses dedicated generic containers—such as `OptionalFlag[T]`, `RequiredFlag[T]`, and `RequiredArg[T]`—rather than bare primitive fields or pointers.
 
-| Container | Meaning |
-|-----------|---------|
-| `conga.OptionalArg[T]` | Optional positional argument |
-| `conga.RequiredArg[T]` | Mandatory positional argument |
-| `[]T` (plain slice) | Trailing slice of positional arguments |
-| `conga.DashArgs` | Captures everything after `--` (go-test style forwarding) |
-| `conga.RawArgs` | Captures every trailing token as-is (docker-style forwarding) |
+## The container trade-off
 
-```go
-type Copy struct {
-	Source conga.RequiredArg[string] `help:"Source path"`
-	Target conga.RequiredArg[string] `help:"Target path"`
-	Extra  conga.DashArgs            `help:"Arguments forwarded verbatim after --"`
-}
-```
+Using container types introduces an explicit trade-off between declaration brevity and runtime capability.
 
-Positional arguments are declared in field order. Required arguments come before optional ones; violating that order is a schema error (`ErrSchema`) reported at startup.
+Wrapping fields in `OptionalFlag[string]` requires more typing than declaring a bare `string`. Accessing the value also requires an explicit method call: `cmd.Addr.Get()` rather than `cmd.Addr`. For straightforward utilities that only need basic flag parsing, this extra layer can feel verbose compared to plain struct fields.
 
-## Reading values
+CONGA accepts this syntactic overhead because containers solve several structural challenges in multi-tier CLI applications:
 
-Every flag and argument container exposes the same reader surface:
+### Separating value access from presence checks
 
-| Method | Meaning |
-|--------|---------|
-| `Get()` | The resolved value (zero value if unset) |
-| `GetOr(fallback)` | The value if set, otherwise your fallback (optional containers only; required containers have no fallback) |
-| `IsSet()` | Whether a value was resolved from any tier |
-| `Changed()` | Whether the value was set explicitly via CLI, environment, or config |
-| `Source()` | Origin constant: `SourceCLI`, `SourceEnv`, `SourceConfig`, `SourceDefault`, or `SourceNone` |
-| `SourceDetail()` | Human-readable origin (env var name, config file path, …) |
-| `String()` | `fmt.Stringer` view of the value |
+In Go, primitive types always have a zero value (`""` for strings, `0` for numbers). If a command struct uses bare primitives, the application cannot distinguish whether an operator passed `--port 0` explicitly or omitted the flag entirely.
 
-```go
-func (s *Serve) Run(ctx context.Context, session *conga.Session) error {
-	if s.Verbose.Source() == conga.SourceEnv {
-		fmt.Fprintln(session.Stderr(), "verbosity came from the environment")
-	}
+Libraries using plain structs often turn to pointer fields (`*int`, `*string`) to distinguish presence. Pointers solve the ambiguity—an omitted flag is `nil`, while `--port 0` points to `0`—but they couple memory safety directly to presence checking. A handler cannot read the value; it must check `if cmd.Port != nil` before dereferencing, or risk a runtime panic.
 
-	return nil
-}
-```
+Containers decouple value retrieval from presence checks:
+- **Panic-free value retrieval**: `cmd.Port.Get()` is always safe to call and returns the resolved value as `T` directly. When business logic only needs the value—or its zero value—it reads the container without defensive pointer checks.
+- **Pre-run enforcement for required values**: A required flag or argument that received no value fails validation at the engine boundary before any lifecycle hook (`Validate`, `PreRun`, `Run`) executes. Handlers never observe an unpopulated required container.
+- **Accurate presence when branching**: When logic genuinely branches on whether a flag was supplied, the command checks `cmd.Port.IsSet()`. Like a pointer `nil` check, `IsSet()` accurately distinguishes explicit zero values (`--port 0`) from omission, but without heap pointer indirection or the risk of a nil dereference elsewhere in the handler.
+- **Convenient fallbacks**: When an optional flag needs a fallback value if omitted, `cmd.Port.GetOr(8080)` evaluates the fallback in a single expression, avoiding boilerplate `if cmd.Port.IsSet() { ... } else { ... }` blocks.
 
-## Slices, separators, and maps
+### Decoupling presence and provenance from values
+CONGA is built around a multi-tier resolution ladder where values can originate from CLI flags, environment variables, config files, or hardcoded defaults. Bare fields and pointers discard that origin once populated.
 
-Slices (`OptionalFlag[[]string]`, `OptionalArg[[]string]`, plain slice args) split values on commas by default:
+Containers retain their resolution history throughout execution:
+- `cmd.Addr.IsSet()` indicates whether any tier (including a default tag) provided a value.
+- `cmd.Addr.Changed()` indicates whether an external source (CLI, env, or config) altered the value from its default.
+- `cmd.Addr.Source()` identifies which tier supplied the value (`SourceCLI`, `SourceEnv`, `SourceConfig`, `SourceDefault`).
+- `cmd.Addr.SourceDetail()` provides the concrete origin, such as the environment variable name or config file path.
 
-```go
-type Query struct {
-	// --tag a,b,c OR --tag a --tag b --tag c
-	Tags conga.OptionalFlag[[]string] `help:"Labels" sep:","`
-	// sep:"none" disables splitting entirely (docker-run style)
-	Env  conga.OptionalFlag[[]string] `help:"Raw env pairs" sep:"none"`
-	// custom separator
-	Ids  conga.OptionalFlag[[]int]    `help:"Record ids" sep:";"`
-}
-```
+This metadata powers diagnostic features like the `--why` provenance report and allows commands to adjust behaviour based on how a setting was configured.
 
-Native Go maps are supported directly as flag types:
+## Schema defaults versus dynamic fallbacks
 
-```go
-type Labels struct {
-	// --label key=value --label other=value2
-	Labels map[string]string `help:"Key-value labels"`
-}
-```
+CONGA provides two distinct ways to supply fallback values for optional inputs:
 
-For custom map value types, register a parser with `app.RegisterMap` — see [How to extend with custom types, maps & decoders](../how-to/custom-types-and-decoders/).
+- **Declarative schema defaults (`default:"..."`)**: Evaluated at compile time and resolved during engine binding. When no higher tier provides a value, the container populates with the tag's value (`IsSet() == true`, `Changed() == false`, `Source() == SourceDefault`). Help screens automatically display `(default: ...)`.
+- **Imperative dynamic fallbacks (`GetOr(fallback)`)**: Evaluated at runtime inside the command body only when the container is unset (`IsSet() == false`, `SourceNone`). This pattern suits fallbacks derived from operating system state, dynamic directories, or values computed from other flags.
 
-## Negatable booleans
+Required containers expose no `GetOr`: a required container without a value fails validation before execution, so a fallback is structurally meaningless.
 
-Bool flags accept `--no-<name>` to set them to `false` explicitly:
+## Flags versus positional arguments
 
-```go
-type Build struct {
-	Color conga.OptionalFlag[bool] `default:"true" help:"Colour output" negatable`
-}
-```
+Flags and positional arguments serve different roles in a CLI, and CONGA enforces their differences through distinct container types:
 
-```sh
-$ app build --no-color
-```
+### Addressing and order
+Flags are addressed by name (`--output`, `-o`). They are order-independent and may appear anywhere on the command line relative to other flags.
 
-The last occurrence wins: `--color --no-color --color` resolves to `true`.
+Positional arguments (`RequiredArg[T]`, `OptionalArg[T]`) have no names on the command line. Their identity depends entirely on their position. In Go source code, their sequence matches the order of the fields declared on the command struct.
 
-## Value constraints
+### Resolution scope
+Flags participate in the complete four-tier resolution ladder. A flag value can come from the command line, an environment variable, an active config file, or a default tag.
 
-Constraints are declared on the container and enforced after coercion, before any lifecycle hook runs:
+Positional arguments represent immediate execution targets, such as file paths, hostnames, or artifact identifiers. They resolve strictly from command-line arguments. Positional arguments never read from environment variables or config files, preventing ambient system settings from altering explicit command targets.
 
-| Tag | Applies to | Syntax |
-|-----|-----------|--------|
-| `xor:"a,b"` | Flags | At most one of the named flags may be set (`ErrValidation`) |
-| `and:"a,b"` | Flags | All named flags must be provided together (`ErrValidation`) |
-| `enum:"a,b,c"` | Scalars & slices | Value must be one of the listed options (`ErrValidation`) |
-| `range:"1..65535"` | Ordered scalars | Inclusive bounds; `min..`, `..max`, or an exact value (`ErrValidation`) |
-| `len:"1..8"` | Strings & slices | Length bounds in the same syntax (`ErrValidation`) |
-| `items:"0..100"` | Slices & maps | Per-item or per-entry bounds (`ErrValidation`) |
+## Deterministic positional evaluation
 
-```go
-type Deploy struct {
-	Port    conga.OptionalFlag[int]    `default:"8080" range:"1..65535" help:"Listen port"`
-	Level   conga.OptionalFlag[string] `default:"info" enum:"debug,info,warn,error" help:"Log level"`
-	Workers conga.OptionalFlag[int]    `default:"4" range:"1..64" help:"Worker count"`
-}
-```
+Positional parsing in CONGA is greedy and deterministic. The engine iterates through command-line tokens from left to right, binding them to argument containers in declaration order.
 
-## Help-screen ergonomics
+Because parsing does not backtrack, CONGA enforces a strict structural invariant: all required arguments must appear before any optional argument. A struct declaring an optional argument before a required one fails during startup with `ErrSchema`.
 
-- `help:"..."` — description line.
-- `placeholder:"HOST"` — value placeholder in usage lines (otherwise derived from the type).
-- `group:"Server"` — visual grouping on the help screen.
-- `hidden` — functional but omitted from help and completion.
-- `aliases:"listen,bind"` — extra long names.
-- `deprecated:"use --addr instead"` — emits a warning on use and hides the flag from completion.
-- `safe:"true"` — opt in to showing the resolved value in the [`--why` provenance report](../reference/builtins/#the---why-report); values are redacted by default, keeping secrets out of the report.
+This rule eliminates grammar ambiguity. If an optional argument could precede a required argument, an invocation supplying fewer tokens than parameters would be ambiguous: the first token could satisfy either the optional parameter or the mandatory one. Requiring mandatory arguments first ensures that every token binding is predictable.
+
+## Forwarding and raw payloads
+
+Many command-line tools wrap existing utilities or forward arguments to compilers, test runners, or sub-processes. CONGA provides two dedicated containers for trailing tokens:
+
+### DashArgs for delimited forwarding
+`conga.DashArgs` captures tokens that appear after the standard POSIX `--` delimiter. The host application parses its own flags up to the delimiter, and places all subsequent tokens into `DashArgs`. Tools like `go test` use this pattern to separate build options from test binary flags (for example, `go test ./... -- -v`).
+
+### RawArgs for command passthrough
+`conga.RawArgs` captures trailing tokens without requiring a `--` delimiter. Once the parser encounters an argument at the `RawArgs` position, flag parsing stops immediately and all remaining arguments are captured as-is. Tools like `docker run` use this pattern to pass arbitrary commands to container runtimes (for example, `docker run alpine echo hello`).
+
+Both trailing containers expose `Get() []string`, `GetOr()`, `Len()`, and `IsSet()`.
+
+## Declarative constraints
+
+Input validation frequently clutters command handlers with manual range checks, length bounds, and mutual exclusivity tests. CONGA allows these constraints to be declared directly on container fields with struct tags such as `enum`, `range`, `len`, `xor`, and `and`.
+
+The engine evaluates declared constraints after type coercion but before invoking lifecycle hooks (`Validate`, `PreRun`, `Run`). When an input violates a constraint, the engine halts execution with a usage error (exit code 2). This separates input validation from command business logic, ensuring that command bodies receive values that already satisfy domain requirements.
+
+## Immutability during execution
+
+Once execution reaches the lifecycle hooks, container state is immutable. Command handlers read resolved values; they cannot re-run the resolution ladder or modify container values in place.
+
+When a long-running process or background worker needs to re-read configuration after a file change on disk, it calls `session.Reload[T](ctx)`. Rather than mutating existing containers, `Reload` executes a fresh resolution pass and returns a newly allocated, validated instance of the command struct.

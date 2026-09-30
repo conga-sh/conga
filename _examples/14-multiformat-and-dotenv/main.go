@@ -13,7 +13,7 @@ import (
 
 // CLI demonstrates multi-format config decoding (JSON, TOML, YAML, HCL) and .env file loading.
 type CLI struct {
-	ConfigFile conga.ConfigFile `help:"Config file path" short:"c"`
+	ConfigFile conga.ConfigFile `short:"c"`
 
 	ServiceName conga.OptionalFlag[string] `default:"api-svc"  env:"SERVICE_NAME"                    help:"Service name"`
 	Port        conga.OptionalFlag[int]    `default:"8080"     env:"PORT"                            help:"Port number"         range:"1..65535" short:"p"`

@@ -1,9 +1,10 @@
 ---
 title: Binary size benchmark
 description: Measured ladder of a shared spec CLI across flag, pflag, cobra, kong, urfave/cli, and CONGA.
+draft: true
 ---
 
-Sizes for a shared spec CLI built identically across frameworks. Every build is measured on `go1.27.1 linux/amd64`, `CGO_ENABLED=0`, `go build -trimpath -buildvcs=false -ldflags="-s -w"`. Numbers are a point-in-time snapshot; regenerate them with `make report` in `bench/comparison`. The conceptual reading is in [About binary size and linking](../explanation/binary-size/).
+Sizes for a shared spec CLI built identically across frameworks. Every build is measured on `go1.27.1 linux/amd64`, `CGO_ENABLED=0`, `go build -trimpath -buildvcs=false -ldflags="-s -w"`. Numbers are a point-in-time snapshot; regenerate them with `make report` in `bench/comparison`. The conceptual reading is in [About binary size and linking](/explanation/binary-size/).
 
 ## Build ladder
 
@@ -23,7 +24,7 @@ Each rung adds one battery through that framework's idiomatic mechanism — vipe
 | kong | 4,264,096 | full native core | kong struct tags |
 | kong + config | 4,518,048 | + config file | `kong.Configuration(kongtoml.Loader, ...)` |
 
-The `cobracore` and `urfave + completion` builds are byte-identical to `cobra` and `urfave` respectively, so they are collapsed into one row each; see [About binary size and linking](../explanation/binary-size/) for why.
+The `cobracore` and `urfave + completion` builds are byte-identical to `cobra` and `urfave` respectively, so they are collapsed into one row each; see [About binary size and linking](/explanation/binary-size/) for why.
 
 ## Feature matrix
 

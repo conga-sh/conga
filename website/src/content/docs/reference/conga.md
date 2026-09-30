@@ -11,7 +11,7 @@ Deep detail lives on [pkg.go.dev/github.com/conga-sh/conga](https://pkg.go.dev/g
 func New[T any](root ...*T) *App[T]
 ```
 
-`App[T]` wraps your command struct. `New` defers instance allocation to execution; pass your own instance (`conga.New(cli)`) to keep a handle for pre-run seeding and post-run inspection. All builder methods return `*App[T]` for chaining.
+`App[T]` wraps your command struct. `New` defers instance allocation to execution; pass your own instance (`conga.New(cli)`) to keep a reference for pre-run seeding and post-run inspection — see [How to keep a reference to the root struct](/how-to/keep-root-reference/). All builder methods return `*App[T]` for chaining.
 
 ### Configuration methods
 
@@ -24,11 +24,11 @@ func New[T any](root ...*T) *App[T]
 | `Deprecated(reason)` | Whole-app deprecation banner |
 | `Version(version)` | `--version` display string (falls back to build metadata) |
 | `EnvPrefix(prefix)` | Environment tier prefix (normalized to trailing `_`) |
-| `Dotenv(paths...)` | Enable `.env` loading (default `.env` + `.env.local`) |
+| `Dotenv(paths...)` | Enable `.env` loading (default `.env` + `.env.local`; [rules](/reference/dotenv/)) |
 | `ConfigOptions(options...)` | Config resolution: `config.Explicit(path)`, `config.Paths(paths...)`, `config.Cascading()` |
 | `RegisterDecoder(ext, decoder)` | Per-app config format decoder |
 | `StrictTagValidation(strict)` | Toggle tag linting (default on) |
-| `AllowTags(tags...)` | Whitelist extra struct tags |
+| `AllowTags(tags...)` | Allow additional struct tags |
 | `Predictor(name, p)` | Register named completion predictor (panics on misuse) |
 | `Use(plugins...)` | Apply builder plugins |
 | `RegisterType[U](parser, opts...)` | Register a parser (and optional predictor) for type `U` |
@@ -76,17 +76,15 @@ func WithPredictor(p predict.Predictor) RegisterTypeOption
 | Interface | Method | Stage |
 |-----------|--------|-------|
 | `Validator` | `Validate(ctx, session) error` | Cross-field command validation |
-| `SelfValidator` | `Validate(ctx) error` | Custom-type self-validation after the cascade (reads tag state captured at decode time) |
 | `PreRunner` | `PreRun(ctx, session) error` | Resource initialization |
 | `Runner` | `Run(ctx, session) error` | Command body (required) |
 | `PostRunner` | `PostRun(ctx, session) error` | Post-success follow-up |
 | `Finalizer` | `Finally(ctx, session, err) error` | Guaranteed teardown |
-| `HelpProvider` | `Help() string` | Parameterless default help for a value format |
-| `TagAwareHelpProvider` | `Help(tags) string` | Tag-tailored default help; preferred when both forms are implemented |
 | `DescriptionProvider` / `ExampleProvider` | `Description()` / `Examples()` | Custom command metadata |
-| `ContextAwareTextUnmarshaler` | `UnmarshalTextWithContext(text, decodeContext) error` | Domain types needing field tags and/or the configured streams at decode time |
 
-## Session & hierarchy accessors
+Value-shape interfaces (`SelfValidator`, `HelpProvider`, `TagAwareHelpProvider`, `ContextAwareTextUnmarshaler`) and the predictor hooks are catalogued in [Domain types](/reference/domain-types/#domain-type-interfaces).
+
+## Session and hierarchy accessors
 
 ```go
 func (s *Session) Root[T any]() *T
@@ -114,7 +112,7 @@ with the current configuration.
 
 `Help`, `Usage`, and `Version` are the same rendering primitives the built-in
 `help` and `version` commands use, so a custom command can emit
-framework-formatted help, syntax, and version output without pseudo-errors:
+framework-formatted help, syntax, and version output directly:
 `Help` writes the active command's help screen to stdout, `Usage` writes the
 syntax summary to stderr, and `Version` writes the version summary to stdout,
 falling back to the module version (or `dev`) plus the embedded build metadata
@@ -122,11 +120,11 @@ when no version string was configured.
 
 ## Domain types
 
-`File`, `FileContent`, `Dir`, `ByteSize` — see [Domain Types](domain-types/).
+`File`, `FileContent`, `Dir`, `ByteSize` — see [Domain types](/reference/domain-types/).
 
 ## Value sources
 
-`ValueSource` constants: `SourceNone`, `SourceDefault`, `SourceConfig`, `SourceEnv`, `SourceCLI`.
+`ValueSource` constants (`SourceNone`, `SourceDefault`, `SourceConfig`, `SourceEnv`, `SourceCLI`); meanings in [About value precedence](/explanation/value-precedence/#provenance-tracking).
 
 ## Usage rendering modes
 
@@ -134,10 +132,10 @@ when no version string was configured.
 
 ## Errors
 
-Base categories (`ErrSchema`, `ErrParse`, `ErrCoerce`, `ErrValidation`, `ErrConfig`) plus the `UsageError` interface and `IsUsageError(err)` classification — catalogued in [Errors & Exit Codes](errors/).
+Base categories (`ErrSchema`, `ErrParse`, `ErrCoerce`, `ErrValidation`, `ErrConfig`) plus the `UsageError` interface and `IsUsageError(err)` classification — catalogued in [Errors and exit codes](/reference/errors/).
 
 ## Configuration package
 
 The config-file authoring surface lives in the `github.com/conga-sh/conga/config`
 package: the `app.ConfigOptions` option constructors (`config.Paths`, `config.Explicit`,
-`config.Cascading`) and the `config.Decoder` type. See [package config](config/).
+`config.Cascading`) and the `config.Decoder` type. See [package config](/reference/config/).

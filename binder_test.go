@@ -224,7 +224,7 @@ func TestDashArgs(t *testing.T) {
 
 		Target  conga.RequiredArg[string] `name:"<target>"`
 		Verbose conga.OptionalFlag[bool]  `short:"v"`
-		Extra   conga.DashArgs            `help:"Options passed after '--'"`
+		Extra   conga.DashArgs
 	}
 
 	t.Run("success with explicit double dash", func(t *testing.T) {
@@ -265,8 +265,8 @@ func TestRawArgs(t *testing.T) {
 	type CLI struct {
 		noopRunner
 
-		User    conga.OptionalFlag[string] `default:"root"            short:"u"`
-		Command conga.RawArgs              `help:"Raw command to run"`
+		User    conga.OptionalFlag[string] `default:"root" short:"u"`
+		Command conga.RawArgs
 	}
 
 	cli := new(CLI)

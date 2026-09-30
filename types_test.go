@@ -1115,7 +1115,7 @@ func TestFileContent(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "payload", content.String())
 	assert.Equal(t, []byte("payload"), content.Bytes())
-	assert.Equal(t, "Path to a file (or '-' for stdin) to read into memory", content.Help())
+	assert.Equal(t, "Path to a file (or '-' for stdin)", content.Help())
 	assert.NotZero(t, content.Predict())
 
 	t.Run("nonexistent file", func(t *testing.T) {

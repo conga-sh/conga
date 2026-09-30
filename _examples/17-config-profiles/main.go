@@ -15,7 +15,7 @@ import (
 // makes the fallback tier below merge every existing file (lowest precedence
 // first) instead of stopping at the first match.
 type CLI struct {
-	ConfigFiles conga.ConfigFile `help:"Config files to merge, later files win (repeatable)" multi:"true" short:"c"`
+	ConfigFiles conga.ConfigFile `multi:"true" short:"c"`
 
 	Host     conga.OptionalFlag[string] `default:"localhost" help:"Server host"`
 	Port     conga.OptionalFlag[int]    `default:"8080"      help:"Server port"           short:"p"`

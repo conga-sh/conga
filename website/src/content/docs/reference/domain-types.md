@@ -1,40 +1,29 @@
 ---
-title: Domain Types
+title: Domain types
 description: Built-in filesystem and size types that coerce, validate, and complete themselves.
 ---
 
-Types in the root `conga` package implement the `Predictable` interfaces — they carry their own completion behaviour alongside coercion and validation. Using them makes flags and arguments complete automatically in all six shells. To author your own, see [How to extend with custom types, maps & decoders](../how-to/custom-types-and-decoders/).
+Types in the root `conga` package implement the `Predictable` interfaces — they carry their own completion behaviour alongside coercion and validation. Using them makes flags and arguments complete automatically in all six shells. To author custom flag types, see [How to add custom flag types](/how-to/add-custom-flag-types/).
 
 ## Filesystem types
 
 | Type | Coercion / validation | Completes as |
 |------|----------------------|--------------|
-| `conga.File` | Expands `~` and environment variables; capabilities declared through tags | File paths (or per capability tags) |
-| `conga.Dir` | Expands `~` and environment variables; `existing` tag requires a directory | Directories |
+| `conga.File` | Expands `~` and environment variables; capability tags constrain the path | File paths (or per capability tags) |
+| `conga.Dir` | Expands `~` and environment variables; `existing` requires a directory | Directories |
 
-`File` declares its capabilities with custom field tags:
-
-| Tag | Meaning |
-|-----|---------|
-| `existing:"true"` | The path must exist and be a regular file. |
-| `stdin:"true"` | `"-"` reads standard input. |
-| `stdout:"true"` | `"-"` writes standard output. |
-| `executable:"true"` | The path must be an executable regular file; `$PATH`-relative names resolve to their absolute location at parse time. Completes from `$PATH` executables. |
-| `symlink:"true"` | The path must be a symbolic link. Completes as symlinks. |
-| `glob:"<patterns>"` | Completion-only candidate filter: suggested files must match one of the comma-separated glob patterns (matched on entry names, e.g. `glob:"Makefile,Dockerfile"` or `glob:"*.yaml"`). Directories stay visible for traversal. Incompatible with `executable` and `symlink`. |
-
-The `executable` and `symlink` capabilities are complete value kinds: they exclude each other and every other capability tag (`existing`, `stdin`, `stdout`, `glob`), so a field declares exactly one.
+`File` accepts the capability tags `existing`, `stdin`, `stdout`, `executable`, `symlink`, and `glob`; the [struct tag reference](/reference/struct-tags/#domain-type-tags) defines each tag, its mutual exclusions, and the schema-build rules.
 
 ```go
 type Convert struct {
-	Input  conga.OptionalFlag[conga.File] `existing:"true" stdin:"true" help:"File to convert ('-' for stdin)"`
-	Output conga.OptionalFlag[conga.File] `stdout:"true" help:"Output path or '-' for stdout"`
-	Tool   conga.OptionalFlag[conga.File] `executable:"true" help:"External converter binary"`
-	Recipe conga.OptionalFlag[conga.File] `glob:"*.yaml,Makefile" help:"Recipe source"`
+	Input  conga.OptionalFlag[conga.File] `existing:"true" stdin:"true"`
+	Output conga.OptionalFlag[conga.File] `stdout:"true"`
+	Tool   conga.OptionalFlag[conga.File] `executable:"true"`
+	Recipe conga.OptionalFlag[conga.File] `glob:"*.yaml,Makefile"`
 }
 ```
 
-All filesystem capability checks run during the validation phase on the final resolved value (after the configuration cascade); failures are usage errors (exit 2). Tag typos such as `existing:"yes"` fail at schema build, as do malformed `glob` patterns and glob patterns containing path separators (patterns match entry names during traversal, so `src/*.go` can never match).
+All filesystem capability checks run during the validation phase on the final resolved value (after the configuration cascade); failures are usage errors (exit 2).
 
 ## Content and I/O types
 
@@ -45,8 +34,8 @@ All filesystem capability checks run during the validation phase on the final re
 
 ```go
 type Upload struct {
-	Payload conga.FileContent `help:"Payload file ('-' for stdin)"`
-	Budget  conga.ByteSize    `default:"10MiB" help:"Maximum transfer size"`
+	Payload conga.FileContent
+	Budget  conga.ByteSize `default:"10MiB"`
 }
 
 func (u *Upload) Run(ctx context.Context, session *conga.Session) error {
@@ -76,6 +65,26 @@ func (c *Convert) Run(ctx context.Context, session *conga.Session) error {
 	return err
 }
 ```
+
+## Default help text
+
+An explicit `help:"..."` tag replaces the type-derived description. Without one, these types describe themselves in the help screen:
+
+| Field type | Declared tags | Default help |
+|------------|---------------|--------------|
+| `conga.File` | – | `Path to a file` |
+| `conga.File` | `existing:"true"` | `Path to an existing file` |
+| `conga.File` | `stdin:"true"` | `Path to a file or '-' for stdin` |
+| `conga.File` | `stdout:"true"` | `Path to a file or '-' for stdout` |
+| `conga.File` | `executable:"true"` | `Path to an executable` |
+| `conga.File` | `symlink:"true"` | `Path to a symbolic link` |
+| `conga.File` | `glob:"<patterns>"` | `Path to a file matching '<patterns>'` |
+| `conga.Dir` | – | `Path to a directory` |
+| `conga.Dir` | `existing:"true"` | `Path to an existing directory` |
+| `conga.FileContent` | – | `Path to a file (or '-' for stdin)` |
+| `conga.ByteSize` | – | `Byte size (e.g., 10MiB, 1.5GB, 500KiB)` |
+
+`time.Duration` renders `Duration (e.g., 300ms, 2m45s, 1h)`. The container types delegate to their value type, so `OptionalFlag[conga.File]` and `RequiredArg[conga.Dir]` use the descriptions above. After the description, the engine appends `[default: ...]`, `[env: ...]`, constraint hints such as `[1..65535]` or `[items: 2..3]`, and `[enum: ...]` where the field declares them.
 
 ## Domain type interfaces
 

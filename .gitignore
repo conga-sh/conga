@@ -50,6 +50,9 @@
 # ...even if they are in subdirectories
 !*/
 
+.agents
+.opencode
+
 # Never track dependency or build trees, even when a re-include rule matches inside them
 /website/node_modules/
 

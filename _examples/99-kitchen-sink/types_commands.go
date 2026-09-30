@@ -45,12 +45,12 @@ func (c *PrimitivesCmd) Run(ctx context.Context, session *conga.Session) error {
 
 // FilesystemCmd demonstrates the filesystem domain types.
 type FilesystemCmd struct {
-	InputFile conga.OptionalFlag[conga.File] `existing:"true"                          help:"Path to existing input file"            safe:"true"    short:"i"`
-	OutputDir conga.OptionalFlag[conga.Dir]  `existing:"true"                          help:"Path to existing directory"             safe:"true"    short:"o"`
-	LogFile   conga.OptionalFlag[conga.File] `help:"Log file path (created on demand)" safe:"true"`
-	DataDir   conga.OptionalFlag[conga.Dir]  `help:"Data directory path"               safe:"true"`
-	Editor    conga.OptionalFlag[conga.File] `executable:"true"                        help:"Editor executable (resolved via $PATH)" safe:"true"    short:"e"`
-	Hook      conga.OptionalFlag[conga.File] `help:"Hook script (symlink completion)"  safe:"true"                                   symlink:"true"`
+	InputFile conga.OptionalFlag[conga.File] `existing:"true"   safe:"true"    short:"i"`
+	OutputDir conga.OptionalFlag[conga.Dir]  `existing:"true"   safe:"true"    short:"o"`
+	LogFile   conga.OptionalFlag[conga.File] `safe:"true"`
+	DataDir   conga.OptionalFlag[conga.Dir]  `safe:"true"`
+	Editor    conga.OptionalFlag[conga.File] `executable:"true" safe:"true"    short:"e"`
+	Hook      conga.OptionalFlag[conga.File] `safe:"true"       symlink:"true"`
 }
 
 func (c *FilesystemCmd) Run(ctx context.Context, session *conga.Session) error {
@@ -63,7 +63,7 @@ func (c *FilesystemCmd) Run(ctx context.Context, session *conga.Session) error {
 type ValueCmd struct {
 	Timeout  conga.OptionalFlag[time.Duration]     `default:"30s"                         help:"Timeout duration"      safe:"true"`
 	Endpoint conga.OptionalFlag[url.URL]           `default:"https://example.com"         help:"API endpoint"          safe:"true"`
-	MaxSize  conga.OptionalFlag[conga.ByteSize]    `default:"10MB"                        help:"Maximum file size"     safe:"true"`
+	MaxSize  conga.OptionalFlag[conga.ByteSize]    `default:"10MB"                        safe:"true"`
 	Level    conga.OptionalFlag[string]            `default:"info"                        enum:"debug,info,warn,error" help:"Log level" safe:"true"`
 	ShardMap conga.OptionalFlag[map[string]string] `help:"Shard assignments (native map)" safe:"true"`
 }

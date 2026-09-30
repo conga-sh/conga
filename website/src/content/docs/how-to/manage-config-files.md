@@ -1,73 +1,218 @@
 ---
 title: How to manage config files
-description: Register decoders, declare search paths, cascade tiers, use profiles, and reload configuration at runtime.
+description: Register decoders, configure search paths, enable cascading file merges, and reload config files.
 ---
 
-Configuration files are opt-in: register a decoder for each format you use, then declare how files are found with `app.ConfigOptions(...)`. The resolution rules — existence semantics, the built-in XDG tier, and cascading — are explained in [About the config cascade](../explanation/config-cascade/).
+Config files in CONGA are opt-in. An application registers file decoders for desired formats, then configures resolution rules using `app.ConfigOptions(...)`. This guide explains format registration, search-tier probing, cascading merges, key mapping, and runtime reloading.
 
-## Register a configuration format
+## Register configuration formats
 
-```go
+Register decoders on the application builder for each file format the application accepts:
+
+```go title="main.go"
 import (
 	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/config"
-	"github.com/conga-sh/conga/decoder/json"
-	"github.com/conga-sh/conga/decoder/yaml"
-	"github.com/conga-sh/conga/decoder/toml"
 	"github.com/conga-sh/conga/decoder/hcl"
+	"github.com/conga-sh/conga/decoder/json"
+	"github.com/conga-sh/conga/decoder/toml"
+	"github.com/conga-sh/conga/decoder/yaml"
 )
 
 func main() {
 	app := conga.New[CLI]().
 		Name("cloudctl").
-		RegisterDecoder("json", json.RawDecoder).
-		RegisterDecoder("yaml", yaml.RawDecoder).
-		RegisterDecoder("toml", toml.RawDecoder).
-		RegisterDecoder("hcl", hcl.RawDecoder)
-	...
+		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".toml", toml.RawDecoder).
+		RegisterDecoder(".yaml", yaml.RawDecoder).
+		RegisterDecoder(".yml", yaml.RawDecoder).
+		RegisterDecoder(".hcl", hcl.RawDecoder)
+
+	app.FatalIfError(app.Run())
 }
 ```
 
-Register additional formats with `app.RegisterDecoder(extension, decoder)`; the `config.Decoder` signature and built-in sentinels are catalogued in [package decoder](../reference/decoders/).
+CONGA provides four opt-in decoder packages: JSON, TOML, YAML, and HCL. Each package exposes a `RawDecoder` function matching the `config.Decoder` interface; [package decoder](/reference/decoders/) covers extension normalization and the missing-decoder rule.
 
-## Declare where configuration lives
+## Implement and register a custom decoder
 
-One method — `app.ConfigOptions(...)` — declares the entire resolution with composable options:
+To support custom, proprietary, or legacy formats, provide a function satisfying the `config.Decoder` signature:
 
 ```go
+type Decoder func(data []byte) (map[string]any, error)
+```
+
+The decoder receives the raw config file bytes and parses them into a generic `map[string]any`. Keys in the map correspond to flag names (or custom `config:"..."` tags), and nested `map[string]any` values correspond to subcommands or native Go map flags.
+
+```go title="main.go"
+import (
+	"bufio"
+	"bytes"
+	"fmt"
+	"strings"
+)
+
+// iniDecoder parses simple key=value lines into a configuration map.
+func iniDecoder(data []byte) (map[string]any, error) {
+	result := make(map[string]any)
+	scanner := bufio.NewScanner(bytes.NewReader(data))
+
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, ";") {
+			continue
+		}
+
+		key, value, found := strings.Cut(line, "=")
+		if !found {
+			return nil, fmt.Errorf("malformed line: %q", line)
+		}
+
+		result[strings.TrimSpace(key)] = strings.TrimSpace(value)
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+```
+
+Register the custom decoder on the application builder:
+
+```go title="main.go"
+app.RegisterDecoder(".ini", iniDecoder)
+```
+
+When a decoder returns a non-nil error, CONGA aborts configuration resolution and returns a categorized `conga.ErrConfig` error identifying the file and parse failure.
+
+## Structure nested configuration for subcommands
+
+When command structs declare nested subcommands using `conga.Command[T]`, the command hierarchy forms nested configuration namespaces; [About subcommands and hierarchy](/explanation/subcommands/#hierarchical-configuration-mapping) defines the mapping.
+
+```go title="main.go"
+type RootCLI struct {
+	Verbose conga.OptionalFlag[bool] `help:"Global verbose logging" short:"v"`
+	Server  conga.Command[ServerCmd] `summary:"Server settings"`
+}
+
+type ServerCmd struct {
+	Port     conga.OptionalFlag[int]    `default:"8080" help:"Listen port"`
+	Database conga.Command[DatabaseCmd] `summary:"Database settings"`
+}
+
+type DatabaseCmd struct {
+	Host     conga.OptionalFlag[string] `default:"localhost" help:"Database host"`
+	PoolSize conga.OptionalFlag[int]    `default:"10" help:"Connection pool size" name:"pool-size"`
+}
+```
+
+A YAML file for the same schema nests subcommand keys under their command names:
+
+```yaml title="config.yaml"
+verbose: true
+
+server:
+  port: 9000
+  database:
+    host: "db.internal"
+    pool-size: 20
+```
+
+## Configure resolution tiers and search paths
+
+Configure file discovery using `app.ConfigOptions(...)`:
+
+```go title="main.go"
 app.ConfigOptions(
 	config.Paths(
-		"./cloudctl.yaml",                  // local — highest precedence
+		"./cloudctl.yaml",                  // local: highest precedence
 		"~/.config/cloudctl/cloudctl.yaml", // user
-		"/etc/cloudctl/cloudctl.yaml",      // system — lowest precedence
+		"/etc/cloudctl/cloudctl.yaml",      // system: lowest precedence
+	),
+)
+```
+
+Use `config.Paths(...)` to declare search tiers and `config.Explicit(...)` to name one concrete file. [Package config](/reference/config/) lists the option contracts; [About the config cascade](/explanation/config-cascade/) covers discovery precedence, the built-in XDG tier, and per-tier existence semantics.
+
+## Merge multiple files with cascading
+
+To merge settings across system, user, and project files, add `config.Cascading()` to the options:
+
+```go title="main.go"
+app.ConfigOptions(
+	config.Paths(
+		"./cloudctl.yaml",
+		"~/.config/cloudctl/cloudctl.yaml",
+		"/etc/cloudctl/cloudctl.yaml",
 	),
 	config.Cascading(),
 )
 ```
 
-- `config.Explicit(path)` names one concrete file with **fatal-if-missing** semantics; it outranks the configuration environment variable and the search tier, and bypasses the built-in conventional tier.
-- `config.Paths(paths...)` declares the author search tier in precedence order (highest first). The **first existing file** is used; the rest are ignored — unless `config.Cascading()` is also declared. Declaring paths replaces the built-in conventional tier.
-- `config.Cascading()` merges **all existing files** from lowest to highest precedence, so higher-precedence paths override earlier keys. Any subset of the list may exist. The declared root config-file flag must accept multiple values (`multi:"true"`) so it can report every merged file; the schema rejects the combination otherwise.
+`config.Cascading()` merges every existing tier file instead of stopping at the first match; [About the config cascade](/explanation/config-cascade/) describes the merge order. The root `ConfigFile` flag must then declare `multi:"true"`:
 
-Options compose and are independent of call order; repeating an option replaces its slot.
-
-## Merge a base file with profiles
-
-Multi-file merging is also available as an explicit flag via the `multi:"true"` tag on the `conga.ConfigFile` container — a base file plus `--config-file` overrides (base + profile pattern):
-
-```go
+```go title="main.go"
 type CLI struct {
-	Config conga.ConfigFile `multi:"true" help:"Configuration files, later files override earlier"`
+	Config conga.ConfigFile `multi:"true"`
 }
 ```
 
-## Inspect and reload at runtime
+Omitting `multi:"true"` on a root `ConfigFile` flag when cascading is active fails schema validation.
 
-```go
-candidates := session.CandidateConfigFiles() // evaluated for this execution
-loaded := session.LoadedConfigFiles()        // actually loaded
+## Accept config files on the command line
 
-fresh, err := session.Reload[CLI](ctx) // re-reads and re-validates the whole config
+To let users specify custom config files during invocation, declare a `conga.ConfigFile` container on your root command struct:
+
+```go title="main.go"
+type CLI struct {
+	ConfigFile conga.ConfigFile `short:"c"`
+}
 ```
 
-`session.Reload[T]` returns a freshly bound `*T` — the foundation for [How to hot-reload configuration](hot-reload-config/).
+`conga.ConfigFile` can only be declared on the root command struct. Placing it on a subcommand struct produces an `ErrSchema` error (`ConfigFile can only be declared on the root command`) during schema initialization. Subcommands inspect the active files through `session.LoadedConfigFiles()` and reach root state with `session.Root[T]()` ([session accessors](/reference/conga/#session-and-hierarchy-accessors)).
+
+## Map fields to configuration keys
+
+By default, config keys match the flag's kebab-case field name. Use struct tags to customise mapping:
+
+```go title="main.go"
+type Database struct {
+	URL      conga.RequiredFlag[string] `config:"connection_url" help:"Database connection string"`
+	Password conga.OptionalFlag[string] `config:"-" help:"Never read password from config files"`
+}
+```
+
+- `config:"connection_url"`: Reads the value from the specified key in the config file.
+- `config:"-"`: Disables config file resolution for that field, requiring it to be set via CLI, environment variable, or default value.
+
+## Inspect and reload config files at runtime
+
+Access active file paths and trigger reloads using the session:
+
+```go title="main.go"
+func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
+	// Candidate paths evaluated during resolution
+	candidates := session.CandidateConfigFiles()
+
+	// Paths of files that were actually found and decoded
+	loaded := session.LoadedConfigFiles()
+
+	// Re-read and re-validate configuration from disk
+	freshCLI, err := session.Reload[CLI](ctx)
+	if err != nil {
+		return fmt.Errorf("reloading configuration: %w", err)
+	}
+
+	return nil
+}
+```
+
+Call `session.Reload[T](ctx)` to re-read files from disk and re-run validation, returning a freshly bound `*T`.
+
+## Where to go next
+
+- [How to hot-reload configuration](/how-to/hot-reload-config/) — live filesystem watching with `package watch`.
+- [About the config cascade](/explanation/config-cascade/) — search-tier mechanics, merging order, and XDG resolution.
+- [Package decoder reference](/reference/decoders/) — decoders for JSON, TOML, YAML, and HCL.

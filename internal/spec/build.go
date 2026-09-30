@@ -393,7 +393,6 @@ func (b *schemaBuilder) buildConfigFileFlagSpec(structField reflect.StructField,
 		Short:        shortRune,
 		Aliases:      aliases,
 		ConfigKey:    "-",
-		Default:      structField.Tag.Get("default"),
 		EnvVars:      envVars,
 		Help:         helpText,
 		Placeholder:  placeholder,
@@ -649,7 +648,6 @@ func (b *schemaBuilder) processDashArgsField(structField reflect.StructField, ha
 
 	b.cmd.DashArgs = &DashArgs{
 		Name:   dashName,
-		Help:   structField.Tag.Get("help"),
 		Handle: handle,
 	}
 
@@ -672,7 +670,6 @@ func (b *schemaBuilder) processRawArgsField(structField reflect.StructField, han
 
 	b.cmd.RawArgs = &RawArgs{
 		Name:   rawName,
-		Help:   structField.Tag.Get("help"),
 		Handle: handle,
 	}
 
@@ -1042,6 +1039,12 @@ func buildInternal(target any, defaultName string, isRoot bool, opts Options) (*
 func validateDisallowedTags(tag reflect.StructTag, keys []string, role string) error {
 	if slices.Contains(keys, "required") {
 		return fmt.Errorf("%w: tag \"required\" is not supported. Use conga.RequiredFlag[T] or conga.RequiredArg[T] instead", ErrInvalidStructTag)
+	}
+
+	if role == "config file flag" {
+		if _, ok := tag.Lookup("default"); ok {
+			return fmt.Errorf("%w: tag \"default\" is not supported on config-file flags; declare search locations with app.ConfigOptions(config.Paths(...)) or config.Explicit(...), or show an example value with placeholder:\"...\"", ErrInvalidStructTag)
+		}
 	}
 
 	if _, ok := tag.Lookup("help"); ok {

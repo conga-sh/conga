@@ -1,49 +1,84 @@
 ---
 title: How to hot-reload configuration
-description: Hot-reload configuration in daemon-style applications with the watch package.
+description: Monitor config files for live updates using watch.Config in daemon applications.
 ---
 
-`package watch` turns the [configuration cascade](../explanation/config-cascade/) into a live stream for long-running processes. It uses `fsnotify` and re-runs the full resolve + validate pipeline when watched files change. The full function catalogue is in [package watch](../reference/watch/).
+Long-running daemon services often require configuration updates without restarting the process. CONGA provides `package watch` to monitor config files on disk, automatically re-evaluating and re-validating configuration as files change.
 
-## Watch the app's configuration
+## Watch application configuration
 
-```go
+In your command's `Run` method, call `watch.Config` to monitor all active config files:
+
+```go title="main.go"
+import (
+	"context"
+	"fmt"
+	"sync/atomic"
+
+	"github.com/conga-sh/conga"
+	"github.com/conga-sh/conga/watch"
+)
+
+type Daemon struct {
+	activeConfig atomic.Pointer[CLI]
+}
+
 func (d *Daemon) Run(ctx context.Context, session *conga.Session) error {
-	onChange := func(newCfg *CLI, err error) {
-		if err != nil {
-			fmt.Fprintf(session.Stderr(), "config invalid, keeping previous: %v\n", err)
+	// Store initial configuration
+	d.activeConfig.Store(session.Root[CLI]())
 
+	onChange := func(freshConfig *CLI, err error) {
+		if err != nil {
+			fmt.Fprintf(session.Stderr(), "config reload failed, keeping previous configuration: %v\n", err)
 			return
 		}
 
-		applyConfig(newCfg) // swap your settings atomically
+		// Swap validated configuration pointer atomically
+		d.activeConfig.Store(freshConfig)
+		fmt.Fprintln(session.Stdout(), "configuration reloaded successfully")
 	}
 
 	return watch.Config(ctx, session, onChange)
 }
 ```
 
-`watch.Config[T](ctx, session, onChange)`:
+## Watcher behavior
 
-- watches exactly the files reported by `session.LoadedConfigFiles()` / `session.CandidateConfigFiles()` for the active execution;
-- calls `onChange` with a freshly bound, fully validated `*T` after each change (the same result as `session.Reload[T](ctx)`);
-- calls `onChange` with a non-nil error when a change produces an invalid configuration — your previous settings stay in effect;
-- returns `watch.ErrNoCandidates` when the candidate set is empty.
+`watch.Config[T](ctx, session, onChange)` monitors the evaluated config files and their parent directories, debounces write bursts, and re-validates on change; [Package watch](/reference/watch/) documents the lifecycle, failure handling, and concurrency contract.
+
+## Integrate with graceful shutdown
+
+`watch.Config` blocks until the provided `ctx` is cancelled, so the watch loop and the process lifetime end together under `app.Run()`; [About the command lifecycle](/explanation/lifecycle/#default-signal-context-versus-custom-context) covers signal handling and `Finally` teardown.
+
+```go title="main.go"
+func (d *Daemon) Finally(ctx context.Context, session *conga.Session, runErr error) error {
+	fmt.Fprintln(session.Stdout(), "shutting down daemon workers")
+	return nil
+}
+```
 
 ## Watch arbitrary files
 
-```go
-err := watch.File(ctx, "/etc/motd", func(err error) { ... })
+To monitor non-config files (such as certificates or token files), use `watch.File` or `watch.Paths`:
 
-err := watch.Paths(ctx, []string{"a.yaml", "b.yaml"}, func(err error) { ... })
+```go
+// Watch a single file
+err := watch.File(ctx, "/etc/ssl/certs/service.pem", func(err error) {
+	if err == nil {
+		reloadCertificates()
+	}
+})
+
+// Watch multiple files
+err := watch.Paths(ctx, []string{"hosts.txt", "routes.json"}, func(err error) {
+	if err == nil {
+		reloadRoutingTable()
+	}
+})
 ```
 
-`Paths` watches any file list; `File` is the single-file convenience form.
+## Where to go next
 
-## Combining with signal shutdown
-
-`app.Run()` cancels its context on `SIGINT`/`SIGTERM`. Block on the watch call inside your command; when the context is cancelled the watchers stop and your `Finally` hook performs teardown — see example 16 (`16-live-config-watcher`) for a complete daemon and [About the lifecycle](../explanation/lifecycle/) for teardown semantics.
-
-:::note
-`onChange` callbacks run while the application is running. Keep them fast and hand work to your own goroutines; the watcher guarantees the fresh `*T` is fully validated before delivery.
-:::
+- [Package watch reference](/reference/watch/) — API reference for `Config`, `File`, and `Paths`.
+- [About the lifecycle](/explanation/lifecycle/) — execution phases, signal handling, and teardown guarantees.
+- [About the config cascade](/explanation/config-cascade/) — the resolution order behind `session.Reload[T]`.
