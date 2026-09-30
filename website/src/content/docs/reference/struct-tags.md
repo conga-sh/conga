@@ -3,101 +3,66 @@ title: Struct tag reference
 description: Every struct tag CONGA understands, per construct.
 ---
 
-CONGA derives the entire CLI schema from struct fields and their tags. Tags are validated at schema initialization: unknown CONGA tags are rejected with a did-you-mean suggestion unless `conga:"allow-unknown-tags"` is set or the tag is on the allowed foreign list. Unknown tags, typos, or tags on incompatible field types fail schema building with `ErrSchema` before `main` does anything. The same checks run statically in CI — see [How to lint CONGA schemas](/how-to/lint-schemas/).
+CONGA derives the CLI schema from struct fields and their tags. The engine validates tags at schema initialization: unknown tags, typos, or tags on incompatible field types fail schema construction with `ErrSchema` (see [How to lint CONGA schemas](/how-to/lint-schemas/)). Recognized foreign tags (such as `json` or `yaml`) pass validation silently.
 
-## Tag availability matrix
+## Flags (`OptionalFlag[T]`, `RequiredFlag[T]`, `Counter`)
 
-| Tag | Flag | Arg | Command | ConfigFile | DashArgs/RawArgs |
-|-----|:----:|:---:|:-------:|:----------:|:----------------:|
-| `name`        | ✅ | ✅ | ✅ | ✅ | ✅ |
-| `short`       | ✅ | –  | –  | ✅ | –  |
-| `help`        | ✅ | ✅ | –  | ✅ | –  |
-| `summary`     | –  | –  | ✅ | –  | –  |
-| `default`     | ✅ | ✅ | –  | ✅ | –  |
-| `env`         | ✅ | –  | –  | ✅ | –  |
-| `aliases`     | ✅ | –  | ✅ | ✅ | –  |
-| `group`       | ✅ | –  | ✅ | ✅ | –  |
-| `hidden`      | ✅ | –  | ✅ | ✅ | –  |
-| `safe`        | ✅ | –  | –  | –  | –  |
-| `placeholder` | ✅ | –  | –  | ✅ | –  |
-| `multi`       | –  | –  | –  | ✅ (multi) | – |
-| `negatable`   | ✅ (bool) | – | – | – | – |
-| `sep`         | ✅ (slices) | ✅ (slices) | – | ✅ (multi) | – |
-| `xor`         | ✅ | –  | –  | –  | –  |
-| `and`         | ✅ | –  | –  | –  | –  |
-| `enum`        | ✅ | ✅ | –  | –  | –  |
-| `range`       | ✅ | ✅ | –  | –  | –  |
-| `len`         | ✅ | ✅ | –  | –  | –  |
-| `items`       | ✅ | ✅ | –  | –  | –  |
-| `config`      | ✅ | –  | –  | ✅ | –  |
-| `predictor`   | ✅ | ✅ | –  | –  | –  |
-| `deprecated`  | ✅ | –  | ✅ | ✅ | –  |
-| `envprefix`   | –  | –  | ✅ | –  | –  |
-| `conga`       | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Tag | Optional | Required | Counter | Meaning |
+|-----|:--------:|:--------:|:-------:|---------|
+| `aliases` | ✅ | ✅ | – | Comma-separated long-name aliases. |
+| `and` | ✅ | ✅ | – | Required co-occurrence group name whose members must all be set together. |
+| `config` | ✅ | ✅ | – | Configuration file key feeding the flag (default: flag name). `config:"-"` excludes the field from configuration files. |
+| `conga` | ✅ | ✅ | ✅ | Directives (see [`conga` directives](#conga-directives)). |
+| `default` | ✅ | – | – | Default value when no other source provides one. Coerced with the same parser as CLI input. |
+| `deprecated` | ✅ | – | ✅ | Deprecation notice; suppresses flag from completion. |
+| `enum` | ✅ | ✅ | – | Comma-separated allowed values. |
+| `env` | ✅ | ✅ | – | Comma-separated environment variable names. `env:"-"` disables environment binding. Explicit names ignore `envprefix`. |
+| `group` | ✅ | ✅ | ✅ | Help-screen grouping header. Flags sharing a group render under their own titled section. |
+| `help` | ✅ | ✅ | ✅ | Help text displayed on the help screen. |
+| `hidden` | ✅ | ✅ | ✅ | Suppress from help and completion (`hidden` or `hidden:"true"`). |
+| `items` | ✅ | ✅ | – | Element count bound for slices or maps (see [Bounds syntax](#bounds-syntax)). |
+| `len` | ✅ | ✅ | – | Length bound for strings, slices, or maps. |
+| `name` | ✅ | ✅ | ✅ | Flag name override (default: kebab-case of field name, e.g. `MaxRetries` → `--max-retries`). |
+| `negatable` | ✅ (bool) | – | – | Boolean flags only: enables `--[no-]flag` syntax (`negatable` or `negatable:"true"`). |
+| `placeholder` | ✅ | ✅ | – | Argument placeholder displayed in syntax and help. |
+| `predictor` | ✅ | ✅ | – | Completion predictor identifier (see [Predictors](#predictors)). |
+| `range` | ✅ | ✅ | – | Numeric or duration bounds (see [Bounds syntax](#bounds-syntax)). |
+| `safe` | ✅ | ✅ | ✅ | Controls value display in `--why` provenance (`true` or `false`). Boolean and counter flags default to `true`; other flags default to `false`. Declared defaults are always visible. |
+| `sep` | ✅ (slices) | ✅ (slices) | – | Slice separator (default `","`). `sep:"none"` disables splitting, preserving the unparsed string. |
+| `short` | ✅ | ✅ | ✅ | Single-rune short flag (e.g. `short:"n"`). |
+| `xor` | ✅ | ✅ | – | Mutually exclusive group name. |
 
-Foreign tags (e.g. `json:"..."`, `yaml:"..."`) on schema structs are allowed and ignored. Unknown non-standard tags fail validation with a did-you-mean suggestion.
+## Positional arguments (`OptionalArg[T]`, `RequiredArg[T]`)
 
-## Tag sets by construct
+Positional arguments bind to command-line input.
 
-### Flags (`OptionalFlag[T]`, `RequiredFlag[T]`, `Counter`)
+| Tag | Optional | Required | Meaning |
+|-----|:--------:|:--------:|---------|
+| `conga` | ✅ | ✅ | Directives (see [`conga` directives](#conga-directives)). |
+| `default` | ✅ | – | Default value for optional arguments. |
+| `enum` | ✅ | ✅ | Comma-separated allowed values. |
+| `help` | ✅ | ✅ | Help text. |
+| `items` | ✅ | ✅ | Element count bound for slices or maps. |
+| `len` | ✅ | ✅ | Length bound for strings, slices, or maps. |
+| `name` | ✅ | ✅ | Argument placeholder in usage syntax (default: `<kebab-field-name>`). |
+| `predictor` | ✅ | ✅ | Completion predictor identifier (see [Predictors](#predictors)). |
+| `range` | ✅ | ✅ | Numeric or duration bounds. |
+| `sep` | ✅ (slices) | ✅ (slices) | Slice separator (default `","`). |
 
-| Tag | Meaning |
-|-----|---------|
-| `name` | Override the flag name (default: kebab-case of the field name, e.g. `MaxRetries` → `--max-retries`). |
-| `short` | Single-rune short flag (e.g. `short:"n"`). |
-| `help` | Help text shown on the help screen. Custom domain types can supply a default via the parameterless `conga.HelpProvider` or the tag-tailored `conga.TagAwareHelpProvider`; an explicit `help` tag wins. |
-| `default` | Default value when no other source provides one. Parsed with the same coercion as CLI input, so `default:"10MiB"` works for `conga.ByteSize`. |
-| `env` | Environment variable name(s), comma-separated; `env:"-"` disables environment variable binding. The name is used verbatim: `EnvPrefix` is not prepended to an explicit `env` tag. |
-| `aliases` | Comma-separated long-name aliases. |
-| `group` | Help-screen grouping header: entries sharing a group render under their own titled section (ungrouped entries render first). |
-| `hidden` | Hide from help and completion (presence or `hidden:"true"`). |
-| `safe` | Control display of the resolved value in the `--why` provenance report; strict bool (`true`/`false` only). Boolean and counter flags default to visible — their value domain can never carry credential material; every other flag type defaults to redacted for values from the CLI, environment, or config files — declared defaults are always displayed, matching `--help`. `safe:"false"` forces redaction on a boolean or counter flag. Rejected on config-file flags and positional arguments. |
-| `xor` | Mutually exclusive group name. |
-| `and` | And group name whose members must all be set together. |
-| `enum` | Comma-separated allowed values. |
-| `range` | Numeric/duration bound (see [Bounds syntax](#bounds-syntax)). |
-| `len` | Length bound for strings/slices/maps. |
-| `items` | Element count bound for slices/maps. |
-| `sep` | Slice separator (default `","`; `sep:"none"` disables splitting entirely, docker-run style). |
-| `negatable` | Boolean only: emit `--[no-]flag` form (presence or `negatable:"true"`). |
-| `placeholder` | Value placeholder in help/syntax. |
-| `config` | Config-file key that feeds the flag (defaults to the flag name); `config:"-"` excludes the field from config resolution entirely. |
-| `deprecated` | Optional deprecation notice/reason; hidden from completion. Only valid on optional flags (rejected on `RequiredFlag[T]`). |
-| `predictor` | Completion predictor (see [Predictors](#predictors)). |
-| `conga` | Directives (see [`conga` directives](#conga-directives)). |
-
-### Positional arguments (`OptionalArg[T]`, `RequiredArg[T]`)
+## Subcommands (`Command[T]`)
 
 | Tag | Meaning |
 |-----|---------|
-| `name` | Argument placeholder (default: `<kebab-field-name>`). |
-| `help` | Help text. |
-| `default` | Default value for optional arguments. |
-| `enum` | Comma-separated allowed values. |
-| `range` | Numeric/duration bound. |
-| `len` | Length bound. |
-| `items` | Element count bound. |
-| `sep` | Slice separator (default `","`). |
-| `predictor` | Completion predictor. |
-| `conga` | Directives. |
-
-Arguments are pure CLI input, resolved from the command line; the `env` and `config` tags apply to flags.
-
-### Subcommands (`Command[T]`)
-
-| Tag | Meaning |
-|-----|---------|
-| `name` | Override the subcommand name (default: kebab-case of the field name). |
-| `summary` | Optional 1-line synopsis shown in the parent's command list and completion. |
 | `aliases` | Comma-separated command aliases. |
-| `group` | Help-screen grouping header: subcommands sharing a group render under their own titled section (ungrouped commands render first) and are tagged as `<group> commands` in completion. |
-| `hidden` | Hide from help and completion. |
+| `conga` | Directives (see [`conga` directives](#conga-directives)). |
+| `deprecated` | Deprecation notice displayed in help. |
 | `envprefix` | Environment variable prefix for this command's flags. |
-| `deprecated` | Optional deprecation notice/reason. |
-| `conga` | Directives. |
+| `group` | Help-screen grouping header. Subcommands sharing a group render under their own titled section and are tagged as `<group> commands` in completion. |
+| `hidden` | Suppress from help and completion (`hidden` or `hidden:"true"`). |
+| `name` | Subcommand token override (default: kebab-case field name). |
+| `summary` | One-line synopsis displayed in parent command listings and shell completion. |
 
-The `envprefix` tag may also stand alone on a blank field to set the
-command's environment prefix without contributing a schema element:
+The `envprefix` tag may stand alone on a blank field to set the command's environment prefix without contributing a schema element:
 
 ```go
 type Server struct {
@@ -106,150 +71,67 @@ type Server struct {
 }
 ```
 
-### Config file flags (`ConfigFile`)
+## Config file flags (`ConfigFile`)
 
 | Tag | Meaning |
 |-----|---------|
-| `name` | Flag name. |
-| `short` | Short rune. |
-| `help` | Help text. |
-| `env` | Environment variable name(s); `env:"-"` disables environment variable binding. |
-| `aliases` | Long-name aliases. |
-| `placeholder` | Value placeholder (default `PATH`). |
-| `group` | Help-screen grouping header: entries sharing a group render under their own titled section (ungrouped entries render first). |
-| `hidden` | Hide from help and completion. |
-| `multi` | Multi-value arity: repeated `--config-file` and `sep`-split values accumulate (presence or `multi:"true"`). |
-| `sep` | Separator for multi-value flags and environment variables (default `","`). |
-| `config` | Config-file key that feeds the flag; `config:"-"` disables config binding. |
-| `deprecated` | Optional deprecation notice/reason; hidden from completion. |
-| `conga` | Directives. |
+| `aliases` | Comma-separated long-name aliases. |
+| `config` | Configuration file key feeding the flag. `config:"-"` disables configuration binding. |
+| `conga` | Directives (see [`conga` directives](#conga-directives)). |
+| `deprecated` | Deprecation notice; suppresses flag from completion. |
+| `env` | Comma-separated environment variable names. `env:"-"` disables environment binding. |
+| `group` | Help-screen grouping header. Flags sharing a group render under their own titled section. |
+| `help` | Help text (default: `Path to configuration file`, or `Path to configuration file(s)` when `multi:"true"`). |
+| `hidden` | Suppress from help and completion (`hidden` or `hidden:"true"`). |
+| `multi` | Enable multi-value arity for repeated flags and slice values (`multi` or `multi:"true"`). |
+| `name` | Flag name (default: `--config`). |
+| `placeholder` | Value placeholder in help (default: `PATH`). |
+| `sep` | Multi-value flags only: value separator for repeated flags and environment variables (default `","`). |
+| `short` | Single-rune short flag. |
 
-The `default` tag is not accepted on a `ConfigFile` flag: a default path would be neither loaded nor validated. Search locations are declared with [`config.Paths(...)` or `config.Explicit(...)`](/reference/config/), and `placeholder` sets the value displayed in help (default `PATH`). Without a `help` tag the flag renders `Path to configuration file` (`Path to configuration file(s)` for `multi:"true"`; the engine appends a ` (no configuration decoder registered)` suffix when no decoder is registered). The candidates evaluated for an invocation are reported by `session.CandidateConfigFiles()` and the [`--why` report](/how-to/inspect-value-provenance/). See [About the config cascade](/explanation/config-cascade/).
+The `default` tag is rejected on `ConfigFile` flags. Declare default search paths using [`config.Paths(...)` or `config.Explicit(...)`](/reference/config/).
 
-### Trailing args (`DashArgs`, `RawArgs`)
+## Trailing arguments (`DashArgs`, `RawArgs`)
+
+`DashArgs` and `RawArgs` accept:
 
 | Tag | Meaning |
 |-----|---------|
-| `name` | Placeholder name. |
-| `conga` | Directives. |
+| `conga` | Directives (see [`conga` directives](#conga-directives)). |
+| `name` | Placeholder name in usage syntax. |
 
 ## Domain-type tags
 
-Domain types can register the custom struct tags they accept by implementing
-`conga.TagSpecProvider`. Registered tags are validated at schema build (key
-membership under strict tag validation, value grammar, and combination
-exclusions), delivered to the type at decode time via
-`conga.ContextAwareTextUnmarshaler`, and enforced during the validation phase
-via `conga.SelfValidator`:
-
-```go
-// ContextAwareTextUnmarshaler receives the field's declared custom tags and
-// the engine's ambient environment (the standard streams configured via
-// App.Stdin/App.Stdout) at decode time. The engine prefers it over
-// encoding.TextUnmarshaler; types capture the tags on the value for later
-// validation. The zero DecodeContext selects no tags and process streams.
-type ContextAwareTextUnmarshaler interface {
-	UnmarshalTextWithContext(text []byte, decodeContext DecodeContext) error
-}
-
-// SelfValidator is implemented by custom flag/arg domain types. The engine
-// passes a non-nil context derived from RunContext; implementations read
-// the tag state captured during decoding.
-type SelfValidator interface {
-	Validate(ctx context.Context) error
-}
-```
-
-A user-defined type registers and consumes tags exactly like the built-ins:
-
-```go
-type Token string
-
-func (t *Token) TagSpecs() []conga.TagSpec {
-	return []conga.TagSpec{{Name: "prefix", Kind: conga.TagKindBool}}
-}
-
-func (t *Token) UnmarshalTextWithContext(text []byte, decodeContext conga.DecodeContext) error {
-	value := string(text)
-	if decodeContext.Tags.Bool("prefix") {
-		value = "token:" + value
-	}
-
-	*t = Token(value)
-
-	return nil
-}
-
-func (t *Token) Validate(ctx context.Context) error { /* read captured state */ }
-```
-
-Plain `encoding.TextUnmarshaler` unmarshaling (outside the engine) decodes an
-untagged, unconstrained value.
+Domain types can register custom tags they accept by implementing `conga.TagSpecProvider`. To create custom tagged types, see [How to add custom flag types](/how-to/add-custom-flag-types/).
 
 The built-in filesystem domain types register these tags:
 
-| Type | Tag | Meaning |
-|------|-----|---------|
-| `File` | `existing` | The path must exist and be a regular file (mutually exclusive with `stdout`, `executable`, and `symlink`). |
-| `File` | `stdin` | `"-"` reads standard input (mutually exclusive with `stdout`, `executable`, and `symlink`). |
-| `File` | `stdout` | `"-"` writes standard output (mutually exclusive with `stdin`, `existing`, `executable`, and `symlink`). |
-| `File` | `executable` | The path must be an executable regular file; `$PATH`-relative bare names resolve to their absolute location at parse time (mutually exclusive with `existing`, `stdin`, `stdout`, `symlink`, and `glob`). Completes from `$PATH` executables. |
-| `File` | `symlink` | The path must be a symbolic link (mutually exclusive with `existing`, `stdin`, `stdout`, `executable`, and `glob`). Completes as symlinks. |
-| `File` | `glob` | Completion-only candidate filter: comma-separated glob patterns (e.g. `glob:"Makefile,Dockerfile"` or `glob:"*.yaml"`) matched against entry names during traversal; directories stay visible for traversal. Mutually exclusive with `executable` and `symlink`. |
-| `Dir` | `existing` | The path must exist and be a directory. |
+### `conga.File`
+
+| Tag | Meaning |
+|-----|---------|
+| `executable` | Path must be an executable regular file. Bare names resolve via `$PATH`. Completes from `$PATH`. Mutually exclusive with `existing`, `stdin`, `stdout`, `symlink`, and `glob`. |
+| `existing` | Path must exist and be a regular file. Mutually exclusive with `stdout`, `executable`, and `symlink`. |
+| `glob` | Comma-separated glob patterns filtering completion candidates (e.g. `glob:"*.yaml,Makefile"`). Mutually exclusive with `executable` and `symlink`. |
+| `stdin` | `"-"` reads standard input. Mutually exclusive with `stdout`, `executable`, and `symlink`. |
+| `stdout` | `"-"` writes standard output. Mutually exclusive with `stdin`, `existing`, `executable`, and `symlink`. |
+| `symlink` | Path must be a symbolic link. Completes as symlinks. Mutually exclusive with `existing`, `stdin`, `stdout`, `executable`, and `glob`. |
+
+### `conga.Dir`
+
+| Tag | Meaning |
+|-----|---------|
+| `existing` | Path must exist and be a directory. |
 
 ```go
 type CLI struct {
-	Input  conga.OptionalFlag[conga.File] `name:"input" existing:"true" stdin:"true"`
-	Output conga.OptionalFlag[conga.File] `name:"output" stdout:"true"`
-	Work   conga.OptionalFlag[conga.Dir]  `name:"work" existing:"true"`
+	Input  conga.OptionalFlag[conga.File] `existing:"true" stdin:"true"`
+	Output conga.OptionalFlag[conga.File] `stdout:"true"`
+	Work   conga.OptionalFlag[conga.Dir]  `existing:"true"`
 }
 ```
 
-Validation runs after the full configuration cascade, so only the final
-resolved value is checked: a config-provided path that is overridden on the
-command line is never validated. Failures are usage errors (exit 2)
-classified under `ErrValidation`. Boolean tag values are strict — a typo
-such as `existing:"yes"` fails at schema build. String-valued tags
-(`conga.TagKindString`) must be non-empty and are validated by the domain
-type at schema build: malformed `glob` patterns and patterns containing
-path separators are rejected with remediation guidance.
-
-Domain types may also supply a default help description by implementing
-`conga.HelpProvider` for a parameterless description, or
-`conga.TagAwareHelpProvider` when the description is tailored to the declared
-tags (the preferred form when both are implemented):
-
-```go
-type HelpProvider interface {
-	Help() string
-}
-
-// tags carries the field's declared custom tag values (empty when none).
-type TagAwareHelpProvider interface {
-	Help(tags FieldTags) string
-}
-```
-
-For example, `File` with `existing:"true" stdin:"true"` renders
-`Path to an existing file or '-' for stdin` on help screens and in shell
-completion candidate descriptions when the field declares no explicit `help`
-tag. The static analyzer (`conga-lint`) validates tag usage for the built-in
-tagged types; foreign tagged types degrade conservatively (it may miss
-diagnostics, never invent them). The runtime interfaces are catalogued in
-[Domain types](/reference/domain-types/).
-
-## Subcommand methods
-
-Subcommand structs may optionally implement these methods to enrich their help
-screen (the root command sets the same values via the fluent builders
-`app.Description(...)`, `app.Examples(...)`, `app.Footer(...)`, and
-`app.Deprecated(...)`):
-
-| Method | Meaning |
-|--------|---------|
-| `Description() string` | Multi-line help-screen overview; falls back to `summary` when empty. |
-| `Examples() string` | Usage examples rendered under an `Examples:` heading with 2-space indentation. |
+Filesystem capability checks run during validation on the final resolved value; failures exit with code 2 (`ErrValidation`). Tag values are strict booleans (`"true"` or `"false"`). Custom tags and domain type interfaces are catalogued in [Domain types](/reference/domain-types/).
 
 ## `conga` directives
 
@@ -257,53 +139,46 @@ Set on the `conga:"..."` tag, comma-separated:
 
 | Directive | Meaning |
 |-----------|---------|
-| `ignore` (or `-`) | Exclude the field from the schema entirely. |
-| `recurse` | Recursively walk the field's nested struct into the schema. |
-| `allow-unknown-tags` | Permit unknown foreign tags on this field without error. On any field of the root struct it also widens to the whole schema (nested recursion included when combined with `recurse`). |
+| `ignore` (or `-`) | Exclude the field from the schema. |
+| `recurse` | Recursively inspect nested struct fields into the schema. |
+| `allow-unknown-tags` | Permit unknown foreign tags on this field without error. On the root struct, permits unknown tags across the entire schema. |
 
 ## Allowed foreign tags
 
-These tags are recognized as non-CONGA and pass validation silently:
+These tags are recognized as external and pass validation silently:
 
-`json`, `yaml`, `yml`, `toml`, `hcl`, `xml`, `mapstructure`, `envconfig`,
-`validate`, `binding`, `gorm`, `db`, `doc`, `example`, `description`
+`json`, `yaml`, `yml`, `toml`, `hcl`, `xml`, `mapstructure`, `envconfig`, `validate`, `binding`, `gorm`, `db`, `doc`, `example`, `description`
 
-Applications can extend this list at runtime with `app.AllowTags(...)`, which
-registers additional custom struct tags to be permitted during strict struct
-tag validation:
+Register additional allowed tags at runtime with `app.AllowTags(...)`:
 
 ```go
 app.AllowTags("protobuf", "storm")
 ```
 
-To disable strict tag checking across the entire application, call `app.StrictTagValidation(false)`.
-
-Any other unknown tag triggers a schema error with a closest-match suggestion.
+`app.StrictTagValidation(false)` disables strict tag checking across the application. Any other unknown tag triggers a schema error with a closest-match suggestion.
 
 ## Bounds syntax
 
-`range`, `len`, and `items` accept:
+The `range`, `len`, and `items` tags accept these formats:
 
 | Form | Meaning |
 |------|---------|
-| `"1..100"` | Inclusive min..max. |
-| `"..100"` | Max only. |
-| `"1.."` | Min only. |
+| `"1..100"` | Inclusive minimum and maximum. |
+| `"..100"` | Maximum only. |
+| `"1.."` | Minimum only. |
 | `"5"` | Exact value. |
 
-- `range` applies to numeric types (`int*`, `uint*` except `uintptr`, `float*`),
-  `time.Duration`, and any other domain type whose pointer implements
-  `encoding.TextUnmarshaler` with an ordered projection (`Bytes() int64` or a
-  numeric underlying kind). Text dialects parse every bound with their own
-  `UnmarshalText`, so `ByteSize` accepts `range:"1MiB..1GiB"` alongside
-  `range:"1..100"` and `range:"100ms..5s"`; pointer element types and text
-  types without an orderable projection are rejected.
-- `len` applies to strings, slices, and maps (e.g. `len:"3..20"`).
-- `items` applies to slices and maps (e.g. `items:"1..5"`).
+Applicability rules:
+
+| Tag | Applicable types | Validation |
+|-----|------------------|------------|
+| `range` | Numeric types (`int*`, `uint*` except `uintptr`, `float*`), `time.Duration`, and domain types implementing `encoding.TextUnmarshaler` with an ordered projection (`Bytes() int64` or numeric underlying kind). | Bounds parse using the type's own unmarshaler (e.g. `ByteSize` accepts `range:"1MiB..1GiB"`). Pointer element types and unprojected types are rejected. |
+| `len` | Strings, slices, and maps. | Asserts character count on strings or entry count on slices and maps. |
+| `items` | Slices and maps. | Asserts element count. |
 
 ## Predictors
 
-`predictor:"..."` accepts:
+The `predictor:"..."` tag sets completion behavior:
 
 | Value | Meaning |
 |-------|---------|
@@ -313,7 +188,7 @@ Any other unknown tag triggers a schema error with a closest-match suggestion.
 | `exec` / `executable` | Executable completion from `$PATH`. |
 | `symlink` / `symlinks` | Symlink completion. |
 | `none` / `off` | Disable completion for the field. |
-| `<name>` | A custom predictor registered via `app.Predictor(name, action)`. |
+| `<name>` | Custom predictor registered via `app.Predictor(name, action)`. |
 
 ## Examples
 
@@ -330,23 +205,9 @@ type Deploy struct {
 	DryRun   conga.OptionalFlag[bool]          `xor:"mode"`
 	Force    conga.OptionalFlag[bool]          `xor:"mode"`
 }
-```
 
-```go
 type Root struct {
 	Deploy conga.Command[Deploy] `summary:"Deploy the application"`
 	Config conga.ConfigFile      `short:"c"`
 }
-```
-
-The configuration resolution itself (explicit file, search tier, cascading
-merge) is declared at the application level via `app.ConfigOptions(...)`:
-
-```go
-import "github.com/conga-sh/conga/config"
-
-app.ConfigOptions(
-	config.Paths("/etc/cloudctl/cloudctl.yaml", "~/.config/cloudctl/cloudctl.yaml"),
-	config.Cascading(),
-)
 ```
