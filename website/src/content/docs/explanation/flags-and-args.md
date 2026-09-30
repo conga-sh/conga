@@ -5,7 +5,7 @@ description: Architectural design of CONGA input modelling, container types, and
 
 Command-line interfaces accept two primary forms of input: named flags and positional arguments. CONGA models both as typed container fields declared directly on command structs.
 
-Before any lifecycle hook executes, the engine resolves every container across command-line arguments, environment variables, configuration files, and default tags. Command bodies read from these resolved containers rather than interacting with the resolution pipeline. For the complete container API, see [package conga](/reference/conga/#containers); for struct tag syntax, see the [struct tag reference](/reference/struct-tags/).
+Before any lifecycle hook executes, the engine resolves every container across command-line arguments, environment variables, config files, and default tags. Command bodies read from these resolved containers rather than interacting with the resolution pipeline. For the complete container API, see [package conga](/reference/conga/#containers); for struct tag syntax, see the [struct tag reference](/reference/struct-tags/).
 
 ## Approaches to input in Go
 
@@ -28,7 +28,7 @@ CONGA accepts this syntactic overhead because containers solve several structura
 
 In Go, primitive types always have a zero value (`""` for strings, `0` for numbers). If a command struct uses bare primitives, the application cannot distinguish whether an operator passed `--port 0` explicitly or omitted the flag entirely.
 
-Libraries using plain structs often turn to pointer fields (`*int`, `*string`) to distinguish presence. Pointers solve the ambiguity—an omitted flag is `nil`, while `--port 0` points to `0`—but they couple memory safety directly to presence checking. A handler cannot simply read the value; it must check `if cmd.Port != nil` before dereferencing, or risk a runtime panic.
+Libraries using plain structs often turn to pointer fields (`*int`, `*string`) to distinguish presence. Pointers solve the ambiguity—an omitted flag is `nil`, while `--port 0` points to `0`—but they couple memory safety directly to presence checking. A handler cannot read the value; it must check `if cmd.Port != nil` before dereferencing, or risk a runtime panic.
 
 Containers decouple value retrieval from presence checks:
 - **Panic-free value retrieval**: `cmd.Port.Get()` is always safe to call and returns the resolved value as `T` directly. When business logic only needs the value—or its zero value—it reads the container without defensive pointer checks.

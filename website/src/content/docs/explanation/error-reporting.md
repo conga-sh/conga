@@ -29,27 +29,16 @@ Standalone command-line applications typically translate errors into standard er
 - When `err` is `nil`, the method returns immediately and execution continues.
 - When `err` is non-nil, the method formats the error message, writes it to the configured standard error stream, prints contextual usage if appropriate, and calls the configured exit function (defaulting to `os.Exit`).
 
-Exit codes follow POSIX and Unix shell conventions:
-
-- Exit code 2 indicates a command usage error (unknown flags, missing arguments, invalid values) or an internal completion failure. Scripts inspect status 2 to determine that the command failed before work began because the operator supplied invalid syntax.
-- Exit code 1 indicates an operational or runtime failure returned by a command body or lifecycle hook.
-- Exit code 0 indicates success.
+`FatalIfError` translates that classification into POSIX exit statuses: 2 for usage errors, 1 for schema-build, configuration, and command runtime failures. Scripts inspect status 2 to determine that the command failed before work began because the operator supplied invalid syntax. [Errors and exit codes](/reference/errors/#exit-codes) is the full contract.
 
 `FatalIfError` is entirely optional. Applications that embed CLI commands, collect telemetry, or format errors using structured loggers like `slog` can omit `FatalIfError` and handle the returned error value directly. When callers do use `FatalIfError`, setting `app.ExitFunc(handler)` intercepts the requested exit status code without killing the test process, allowing tests to verify exit behavior in-process.
 
 ## Self-describing value errors
 
-When an operator supplies invalid input, the nature of the error dictates what information is helpful on standard error. CONGA distinguishes between two kinds of input failures:
-
-1. Syntax mistakes: Unknown flags (`--nmae`), unknown subcommands, or missing required positional arguments indicate that the operator does not know the command interface. In these cases, printing a syntax usage block or `--help` hint alongside the error message guides the operator toward the correct command form.
-2. Value constraint violations: Supplying `--port abc` or `--memory 100XB` represents a semantic error rather than a syntax failure. The operator knows the flag name, but supplied an unparseable or out-of-bounds value.
-
-For value errors, the error message already names the flag, the invalid input, and the reason (`cannot parse "abc" as int for flag --port`). CONGA treats these as self-describing errors. When `FatalIfError` encounters a self-describing error, it suppresses the syntax usage block across all `UsageOnError` modes. Printing a 40-line usage screen below a value error scrolls the terminal window and buries the actual message under redundant text.
+When an operator supplies invalid input, the nature of the error dictates what information helps on standard error. Unknown flags, unknown subcommands, and missing required positional arguments are interface-discovery mistakes, so `FatalIfError` pairs them with a syntax usage block or `--help` hint. Coercion and constraint failures already name the flag and the offending value, so they render without the usage block: printing a 40-line usage screen below a value error scrolls the terminal window and buries the actual message under redundant text. [Errors and exit codes](/reference/errors/#usage-rendering-on-errors) lists which failures count as self-describing.
 
 ## Categorical classification without concrete coupling
 
-CONGA categorizes every pipeline failure into five base sentinels: `ErrSchema`, `ErrParse`, `ErrCoerce`, `ErrValidation`, and `ErrConfig`.
+CONGA categorizes every pipeline failure into a small set of base sentinels and exposes classification through standard Go error primitives (`errors.Is`) and the `conga.IsUsageError(err)` predicate, rather than exporting the underlying struct implementations. This boundary allows the internal error representation to evolve without breaking downstream callers. [Errors and exit codes](/reference/errors/) catalogs the sentinels and the `UsageError` interface.
 
-The underlying struct implementations that format these errors remain unexported. Applications inspect and handle errors using standard Go error primitives (`errors.Is(err, conga.ErrValidation)`) or the `conga.IsUsageError(err)` predicate, rather than asserting on concrete internal types. This boundary allows the internal error representation to evolve without breaking downstream callers.
-
-For mode options and complete exit code specifications, see [Errors and exit codes](/reference/errors/). For testing patterns, see [How to test a command](/how-to/test-a-command/).
+For testing patterns, see [How to test a command](/how-to/test-a-command/).

@@ -87,7 +87,7 @@ func TestUnknownFlagReportsUsageError(t *testing.T) {
 }
 ```
 
-`FatalIfError` maps errors to standardized exit codes: code 2 for usage and schema errors (`conga.IsUsageError(err) == true`), and code 1 for runtime failures returned from `Run`.
+`FatalIfError` maps errors to standardized exit codes: code 2 when `conga.IsUsageError(err)` reports a usage error, and code 1 for schema-build failures and runtime failures returned from `Run`.
 
 To test error messages without dumping the full usage block to stderr, add `UsageOnError(conga.UsageSilence)` to the builder chain.
 

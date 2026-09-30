@@ -3,7 +3,7 @@ title: How to keep a reference to the root struct
 description: Bind a caller-owned instance with conga.New to seed dependencies before execution and inspect resolved values after it.
 ---
 
-CONGA supports two root initialisation patterns: engine-allocated (`conga.New[T]()`) and caller-owned (`conga.New(cli)`). Pass an existing instance pointer to `conga.New` when the host application needs to seed dependencies before execution or inspect resolved container values after `Run` completes.
+CONGA supports two root initialization patterns: engine-allocated (`conga.New[T]()`) and caller-owned (`conga.New(cli)`). Pass an existing instance pointer to `conga.New` when the host application needs to seed dependencies before execution or inspect resolved container values after `Run` completes.
 
 ## Bind a caller-owned instance
 
@@ -45,33 +45,24 @@ When `conga.New(cli)` is called:
 
 ## Enforce initialization invariants
 
-CONGA enforces explicit runtime guards on caller-owned instances:
+CONGA validates root instances at startup: passing a nil pointer (`conga.New[*CLI](nil)`) or multiple instances panics immediately. Calling `Run()` or `RunContext()` a second time on the same `App` also panics, because each application executes once. The full contract is documented in [Package conga](/reference/conga/#the-app-builder).
 
-- **Non-nil requirement**: Passing a nil pointer (`conga.New[*CLI](nil)`) panics immediately with `conga: New requires a non-nil root instance`.
-- **Single-instance limit**: Passing multiple instances (`conga.New(first, second)`) panics with `conga: New accepts at most one root instance`.
-- **Single-execution rule**: An `App` executes exactly once. Calling `Run()` or `RunContext()` a second time on the same `App` panics with `conga: App already executed`.
-
-Built-in requests such as `--help` and `--version` render their output and return before value binding runs; containers remain in their unset initial state after those invocations.
+Built-in requests such as `--help` and `--version` render their output and return before value binding runs, so containers remain in their unset initial state after those invocations.
 
 ## Inspect resolved values after execution
 
-After `app.Run()` returns, containers on the bound instance hold their final winning values. Inspect the resolution details using the container reader surface:
+After `app.Run()` returns, containers on the bound instance hold their final winning values:
 
 ```go
 app.FatalIfError(app.Run())
 
-// Get returns the winning resolved value
 value := cli.Name.Get()
-
-// Source returns the winning tier: SourceCLI, SourceEnv, SourceConfig, or SourceDefault
 tier := cli.Name.Source()
-
-// SourceDetail provides a formatted description of the resolution origin
 origin := cli.Name.SourceDetail()
-
-// Changed reports whether the value was explicitly set via CLI, env, or config
 isCustom := cli.Name.Changed()
 ```
+
+The reader surface and the meaning of each method are catalogued in the [package conga container table](/reference/conga/#containers); [About value precedence](/explanation/value-precedence/#provenance-tracking) explains provenance.
 
 If the root instance is only needed inside lifecycle hooks and never outside `app.Run()`, prefer the engine-allocating form `conga.New[T]()`. The static analyzer `conga-lint` detects throwaway instances passed to `conga.New(cli)` that are never referenced outside the App builder chain.
 

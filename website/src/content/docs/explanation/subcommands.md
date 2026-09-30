@@ -79,13 +79,13 @@ Handlers can check whether a specific subcommand was selected on the active path
 
 ## Hierarchical configuration mapping
 
-The command tree structure maps directly onto external configuration files. When an application registers a configuration decoder (such as JSON, YAML, or TOML), the engine routes configuration keys to subcommands using dot-delimited paths or nested configuration tables.
+The command tree structure maps directly onto external config files. When an application registers a configuration decoder (such as JSON, YAML, or TOML), the engine routes configuration keys to subcommands using dot-delimited paths or nested configuration tables.
 
 For example, a flag declared on a `WorkerCommand` mounted under a `DeployCommand` maps to:
 - `deploy.worker.concurrency` in flat key-value formats.
 - A nested table `[deploy.worker]` with key `concurrency` in TOML.
 
-This alignment ensures that command line flags, environment variable prefixes, and configuration files follow the identical structural hierarchy.
+This alignment ensures that command line flags, environment variable prefixes, and config files follow the identical structural hierarchy.
 
 ## The ancestor flag reservation invariant
 

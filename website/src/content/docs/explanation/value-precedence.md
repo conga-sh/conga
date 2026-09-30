@@ -39,14 +39,7 @@ Phase 2: Flag Value Binding                                            v
 
 ### Phase 1: Config file discovery
 
-Before binding individual flags, CONGA determines which config files exist and loads them into a flat key-value map. File discovery follows its own precedence:
-
-1. An explicit CLI flag (`--config-file` or its alias).
-2. An environment variable (`<PREFIX>_CONFIG` or a custom `env` tag).
-3. A programmatic explicit target declared with `config.Explicit(...)`.
-4. Probed search tiers declared with `config.Paths(...)` or the conventional XDG directory (`${XDG_CONFIG_HOME:-~/.config}/<app-name>`).
-
-Named paths in tiers 1 through 3 must exist; a missing named path halts execution with a fatal `ErrConfig` error. In contrast, probed search tiers in tier 4 are opportunistic and skip absent files silently. Once discovered files load and validate against the schema, their keys form the lookup table for Phase 2.
+Before binding individual flags, CONGA determines which config files exist and loads them into a flat key-value map. Discovery follows its own precedence (`--config-file`, then `<PREFIX>_CONFIG`, then `config.Explicit(...)`, then probed search tiers), with per-tier existence semantics and merge rules described in [About the config cascade](/explanation/config-cascade/). Once discovered files load and validate against the schema, their keys form the lookup table for Phase 2.
 
 ### Phase 2: Flag value binding
 
@@ -84,7 +77,7 @@ Positional containers (`RequiredArg[T]`, `OptionalArg[T]`, `DashArgs`, and `RawA
 
 ### Environment file integration
 
-When `.env` loading is enabled via `app.Dotenv()`, variables from `.env` files populate the process environment before flag resolution begins. These values feed directly into Tier 2 as standard environment variables.
+When `.env` loading is enabled via `app.Dotenv()`, variables from `.env` files populate the process environment before flag resolution begins ([Dotenv files](/reference/dotenv/)). These values feed Tier 2 as standard environment variables.
 
 ## Provenance tracking
 
@@ -110,10 +103,4 @@ The `Changed()` method reports whether an external tier (CLI, environment, or co
 
 ## Inspecting precedence with `--why`
 
-Applications enabling `app.EnableWhy()` gain the `--why` diagnostic flag. The report displays the complete resolution path for every field in the active command chain:
-
-1. The candidate config files probed during Phase 1, indicating which files were loaded, missing, or rejected.
-2. The winning tier and exact source detail for every flag in Phase 2.
-3. The redaction status of sensitive values, preserving secret hygiene in terminal output and logs.
-
-See [How to inspect value provenance](/how-to/inspect-value-provenance/) for detailed walkthroughs, and [About the config cascade](/explanation/config-cascade/) for search path precedence rules.
+Applications enabling `app.EnableWhy()` gain the `--why` diagnostic flag, which prints the winning tier and exact source detail for every field in the active command chain. [The `--why` report](/reference/builtins/#the---why-report) documents the output, and [How to inspect value provenance](/how-to/inspect-value-provenance/) walks through a diagnosis. Search path precedence is covered in [About the config cascade](/explanation/config-cascade/).

@@ -77,6 +77,20 @@ hello:
 | Subcommand | `completion <shell>` via `conga.CompletionCommand` | Declare the field and enable `app.EnableCompletion()` |
 | Hidden driver | `<cmd> __complete <shell> <words...>` | Used internally by generated shell functions |
 
+When the user presses tab, the installed shell function invokes the binary through the hidden driver with the partial words:
+
+```sh
+cloudctl __complete bash "cloudctl" "dep"
+```
+
+The driver tokenizes the partial line, identifies the target command, flag, or argument, evaluates the applicable predictor and the built-in candidates, writes the shell-native directives to stdout, and exits 0. The application's `Run` method does not execute, and the single-execution slot is not consumed.
+
+With completion enabled, several elements complete without custom code:
+- Flag names (long flags, short runes, aliases, and negatable forms), omitting deprecated flags.
+- Subcommands, command aliases, and command groups with typo-correction suggestions.
+- Enum values restricted by `enum:"..."` tags.
+- Domain types with built-in path or unit predictions (`conga.File`, `conga.Dir`, `conga.ByteSize`).
+
 ## Deprecation
 
 Whole-application deprecation prints a warning banner on every invocation (root, subcommands, and help):
@@ -97,10 +111,3 @@ type App struct {
 ```
 
 Deprecated members are excluded from shell completion.
-
-## Usage output control
-
-- `app.Stdout(w)` / `app.Stderr(w)` redirect help and error streams (tests, embedders).
-- `app.Args(args)` parses a custom argument slice instead of `os.Args[1:]`.
-- `app.ExitFunc(handler)` replaces `os.Exit` in `FatalIfError`.
-- `UsageOnError(mode)` controls error-time usage rendering (`conga.UsageSilence` suppresses it) — see [Errors and exit codes](/reference/errors/).

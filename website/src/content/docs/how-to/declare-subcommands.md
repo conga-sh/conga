@@ -27,9 +27,9 @@ func (d *DeployCmd) Run(ctx context.Context, session *conga.Session) error {
 
 Field names convert to kebab-case by default (`Deploy` becomes the `deploy` subcommand). The `summary` tag defines the short text displayed in parent command listings.
 
-Leaf commands must implement `Run(ctx context.Context, session *conga.Session) error`. Defining a leaf command struct without a `Run` method produces an `ErrSchema` error during schema initialisation.
+Leaf commands must implement `Run(ctx context.Context, session *conga.Session) error`. Defining a leaf command struct without a `Run` method produces an `ErrSchema` error during schema initialization.
 
-An enclosing parent command may also implement `Run`. When a parent command implements `Run`, its method executes if the application is invoked without a subcommand. If the parent does not implement `Run`, invoking it without a subcommand displays command usage and exits.
+An enclosing parent command may also implement `Run`, executing when the application is invoked without a subcommand; [About subcommands and hierarchy](/explanation/subcommands/#routing-nodes-versus-runnable-commands) covers routing versus executable nodes.
 
 ## Configure aliases, groups, and visibility
 
@@ -47,9 +47,8 @@ type CLI struct {
 - `aliases:"ls,ps"`: Registers comma-separated alternatives that route to the same command.
 - `group:"Inspection"`: Collects related commands under a dedicated section header in parent help screens.
 - `hidden:"true"`: Keeps the command executable while suppressing it from help listings and completion suggestions.
-- `description:"..."`: Supplies the extended description rendered on the subcommand's own `--help` screen.
 
-Help screens organise subcommands by their declared groups:
+Help screens organize subcommands by their declared groups:
 
 ```sh
 cloudctl --help
@@ -91,12 +90,7 @@ func (d *DeployCmd) Run(ctx context.Context, session *conga.Session) error {
 }
 ```
 
-- `session.Root[T]()`: Returns the typed root command struct instance.
-- `session.Path()`: Returns the full invocation path string (for example, `"cloudctl deploy"`).
-- `session.Name()`: Returns the active leaf command name (`"deploy"`).
-- `session.Args()`: Returns trailing or unparsed arguments for the session.
-
-To navigate down the hierarchy from the root instance, call `Get()` on the command field (for example, `root.Deploy.Get()`).
+`session.Root[T]()` returns the typed root command struct instance. The full accessor catalog (`Path()`, `Name()`, `Args()`, and the stream accessors) is in [package conga](/reference/conga/#session-and-hierarchy-accessors); navigate down the hierarchy from the root instance by calling `Get()` on a command field (for example, `root.Deploy.Get()`).
 
 ## Avoid ancestor flag shadowing
 
@@ -113,7 +107,7 @@ type Child struct {
 }
 ```
 
-Attempting to register a descendant flag that collides with an ancestor flag fails at startup with `conga.ErrDuplicateFlag`. This prevents ambiguity in flag inheritance and guarantees that persistent global flags behave consistently across all subcommands. Sibling subcommands do not share an ancestor relationship and may declare identical flag names.
+Attempting to register a descendant flag that collides with an ancestor flag fails at startup with `conga.ErrDuplicateFlag`; [About subcommands and hierarchy](/explanation/subcommands/#the-ancestor-flag-reservation-invariant) explains the invariant. Sibling subcommands may declare identical flag names.
 
 ## Where to go next
 

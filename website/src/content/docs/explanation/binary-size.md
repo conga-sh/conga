@@ -31,15 +31,7 @@ The completion rung makes this concrete. Enabling completion adds about 232 KB o
 
 ## The cost of each battery
 
-Each opt-in is priced individually against the batteries-off floor, `CONGA core` (2,580,640 bytes): flags, native env binding, required validation, and the declarative schema:
-
-| build | file bytes | what it enables |
-|---|---:|---|
-| CONGA core | 2,580,640 | env binding, required validation, declarative schema |
-| `+` `EnableCompletion()` | 2,990,240 | six shell drivers, predictor-driven value completion |
-| `+` `EnableWhy()` | 2,633,888 | `--why` value-provenance report |
-| `+` `RegisterDecoder`/`Dotenv()` | 3,154,080 | config resolver, TOML decoder, `.env` loading |
-| full batteries | 3,551,392 | all three opt-ins together |
+Each opt-in is priced individually against the batteries-off floor, `CONGA core` (2,580,640 bytes); the [battery ladder](/reference/binary-size-benchmark/#conga-battery-ladder) records every build.
 
 Completion costs 409,600 bytes (+15.9%), config 573,440 (+22.2%), and `--why` 53,248 (+2.1%). All three together cost 970,752 (+37.6%), less than the 1,036,288 the isolates sum to, because `internal/spec` and `predict` are shared across them.
 

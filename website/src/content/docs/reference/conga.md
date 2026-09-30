@@ -24,7 +24,7 @@ func New[T any](root ...*T) *App[T]
 | `Deprecated(reason)` | Whole-app deprecation banner |
 | `Version(version)` | `--version` display string (falls back to build metadata) |
 | `EnvPrefix(prefix)` | Environment tier prefix (normalized to trailing `_`) |
-| `Dotenv(paths...)` | Enable `.env` loading (default `.env` + `.env.local`) |
+| `Dotenv(paths...)` | Enable `.env` loading (default `.env` + `.env.local`; [rules](/reference/dotenv/)) |
 | `ConfigOptions(options...)` | Config resolution: `config.Explicit(path)`, `config.Paths(paths...)`, `config.Cascading()` |
 | `RegisterDecoder(ext, decoder)` | Per-app config format decoder |
 | `StrictTagValidation(strict)` | Toggle tag linting (default on) |
@@ -76,15 +76,13 @@ func WithPredictor(p predict.Predictor) RegisterTypeOption
 | Interface | Method | Stage |
 |-----------|--------|-------|
 | `Validator` | `Validate(ctx, session) error` | Cross-field command validation |
-| `SelfValidator` | `Validate(ctx) error` | Custom-type self-validation after the cascade (reads tag state captured at decode time) |
 | `PreRunner` | `PreRun(ctx, session) error` | Resource initialization |
 | `Runner` | `Run(ctx, session) error` | Command body (required) |
 | `PostRunner` | `PostRun(ctx, session) error` | Post-success follow-up |
 | `Finalizer` | `Finally(ctx, session, err) error` | Guaranteed teardown |
-| `HelpProvider` | `Help() string` | Parameterless default help for a value format |
-| `TagAwareHelpProvider` | `Help(tags) string` | Tag-tailored default help; preferred when both forms are implemented |
 | `DescriptionProvider` / `ExampleProvider` | `Description()` / `Examples()` | Custom command metadata |
-| `ContextAwareTextUnmarshaler` | `UnmarshalTextWithContext(text, decodeContext) error` | Domain types needing field tags and/or the configured streams at decode time |
+
+Value-shape interfaces (`SelfValidator`, `HelpProvider`, `TagAwareHelpProvider`, `ContextAwareTextUnmarshaler`) and the predictor hooks are catalogued in [Domain types](/reference/domain-types/#domain-type-interfaces).
 
 ## Session and hierarchy accessors
 
@@ -126,7 +124,7 @@ when no version string was configured.
 
 ## Value sources
 
-`ValueSource` constants: `SourceNone`, `SourceDefault`, `SourceConfig`, `SourceEnv`, `SourceCLI`.
+`ValueSource` constants (`SourceNone`, `SourceDefault`, `SourceConfig`, `SourceEnv`, `SourceCLI`); meanings in [About value precedence](/explanation/value-precedence/#provenance-tracking).
 
 ## Usage rendering modes
 

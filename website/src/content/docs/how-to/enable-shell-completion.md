@@ -137,7 +137,7 @@ Flags:
 
 Per-shell help outputs:
 - **Session command**: Loads completion functions into the current terminal session without writing files.
-- **Persistent setup**: Shows the configuration file or directory to update (such as `~/.bashrc`, `~/.zshrc`, fish completion directories, or PowerShell profiles).
+- **Persistent setup**: Shows the config file or directory to update (such as `~/.bashrc`, `~/.zshrc`, fish completion directories, or PowerShell profiles).
 - **Environment notes**: Surfaces platform prerequisites, such as requiring Bash 4+ with `bash-completion@2` on macOS when running the default legacy Bash 3.2, or initializing Zsh `compdef` and `fpath`.
 
 Flat applications use flag syntax: `cloudctl --completion <shell> --help` (e.g. `cloudctl --completion zsh --help`).
@@ -191,33 +191,12 @@ eval (cloudctl completion elvish | slurp)
 cloudctl completion nushell | save -f ~/.config/nushell/completions/cloudctl.nu
 ```
 
-## Understand completion runtime behaviour
+## Completion at runtime
 
-When a user presses the tab key, the installed shell function invokes the application binary using the hidden `__complete` sub-protocol:
-
-```sh
-cloudctl __complete bash "cloudctl" "dep"
-```
-
-During completion execution:
-1. CONGA tokenises the partial command line and identifies the target command, flag, or argument.
-2. The engine evaluates candidate predictors, matching flags, subcommands, and allowed enum values.
-3. Candidate directives are written directly to stdout in the shell's native completion format.
-4. The process exits with status 0.
-5. The application's `Run` method is never executed, and the single-execution slot is not consumed.
-
-The completion command itself supports tab-completion: typing `cloudctl completion <TAB>` suggests all supported shell names with descriptions. Built-in flags like `--help` and `--version` are also suggested when typing flag prefixes.
-
-## What completes automatically
-
-When completion is enabled, the following elements complete without custom code:
-
-- **Flag names**: Long flags (`--replicas`), short runes (`-r`), aliases, and negatable forms (`--no-cache`). Deprecated flags are omitted from suggestions.
-- **Subcommands**: Command names, aliases, and command groups with typo-correction suggestions.
-- **Enum values**: Flags and arguments restricted by `enum:"..."` tags complete their allowed choices.
-- **Domain types**: Built-in types provide context-aware predictions. `conga.File` completes filesystem files, `conga.Dir` completes directories, and `conga.ByteSize` completes unit suffixes.
+The hidden `__complete` driver, the shell-native output, and the elements that complete without custom code are documented in [Built-ins and deprecation](/reference/builtins/#completion-surface). The completion command itself supports tab-completion: typing `cloudctl completion <TAB>` suggests all supported shell names with descriptions.
 
 ## Where to go next
 
 - [How to wire custom completion](/how-to/wire-custom-completion/) — implement dynamic completion candidates with `package predict`.
 - [Package predict reference](/reference/predict/) — combinator and constructor catalog for candidate generation.
+- [Built-ins and deprecation](/reference/builtins/#completion-surface) — flat flag, subcommand, and hidden driver surfaces.

@@ -24,6 +24,8 @@ import "github.com/conga-sh/conga/config"
 app.RegisterDecoder("yaml", yaml.RawDecoder)
 ```
 
+`RegisterDecoder` normalizes extension strings by trimming whitespace, converting to lowercase, and stripping leading `*` and `.` characters, so `"json"`, `".json"`, and `"*.JSON"` are identical. `.yaml` and `.yml` are distinct extensions; register both to accept both filename conventions.
+
 ## Missing decoders
 
 A named configuration target (an explicit `--config-file`, an environment variable, or `config.Explicit(...)`) must have a registered decoder for its format: resolving one without a decoder is a fatal `ErrConfig` error naming the missing decoder or the unsupported format, never a silent no-op. The config-file flag's help text appends `(no configuration decoder registered)`, and environment targets still appear in `session.CandidateConfigFiles()`.

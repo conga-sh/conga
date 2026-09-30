@@ -42,46 +42,20 @@ func (d *Daemon) Run(ctx context.Context, session *conga.Session) error {
 }
 ```
 
-## Understand watcher mechanics
+## Watcher behavior
 
-`watch.Config[T](ctx, session, onChange)` executes the following lifecycle:
-
-- **File discovery**: Automatically monitors every path returned by `session.CandidateConfigFiles()` and `session.LoadedConfigFiles()`. If no candidate files were evaluated during startup, it returns `watch.ErrNoCandidates`.
-- **Parent directory watching**: Monitors both the config files and their parent directories. This ensures atomic updates (such as text editors saving via temporary file renames or Kubernetes ConfigMap symlink swaps) trigger reload notifications reliably.
-- **Event debouncing**: Filesystem write bursts are debounced to prevent duplicate reloads during rapid multi-step writes.
-- **Atomic re-validation**: On change, the watcher executes `session.Reload[T](ctx)`. The engine re-reads files, decodes keys, and runs all validation rules (`Validator` interface, bounds, and enum checks).
-- **Failure safety**: If the modified file contains invalid syntax or fails schema validation, `onChange` receives a non-nil error and a nil struct pointer. The application keeps its previous valid configuration running without interruption.
-- **Concurrency**: The `onChange` callback executes on a background watcher goroutine. Protect mutable shared state using `sync.Mutex` or `atomic.Pointer[T]`.
+`watch.Config[T](ctx, session, onChange)` monitors the evaluated config files and their parent directories, debounces write bursts, and re-validates on change; [Package watch](/reference/watch/) documents the lifecycle, failure handling, and concurrency contract.
 
 ## Integrate with graceful shutdown
 
-`watch.Config` blocks until the provided `ctx` is cancelled. When running with `app.Run()`, CONGA automatically handles `SIGINT` and `SIGTERM` signals by cancelling the execution context:
+`watch.Config` blocks until the provided `ctx` is cancelled, so the watch loop and the process lifetime end together under `app.Run()`; [About the command lifecycle](/explanation/lifecycle/#default-signal-context-versus-custom-context) covers signal handling and `Finally` teardown.
 
 ```go title="main.go"
-type Daemon struct {
-	activeConfig atomic.Pointer[CLI]
-}
-
-func (d *Daemon) Run(ctx context.Context, session *conga.Session) error {
-	d.activeConfig.Store(session.Root[CLI]())
-
-	return watch.Config(ctx, session, func(freshConfig *CLI, err error) {
-		if err == nil {
-			d.activeConfig.Store(freshConfig)
-		}
-	})
-}
-
 func (d *Daemon) Finally(ctx context.Context, session *conga.Session, runErr error) error {
 	fmt.Fprintln(session.Stdout(), "shutting down daemon workers")
 	return nil
 }
 ```
-
-When a termination signal arrives:
-1. CONGA cancels `ctx`.
-2. `watch.Config` exits and returns `context.Canceled`.
-3. CONGA executes any declared `Finally` lifecycle hooks to perform clean teardown.
 
 ## Watch arbitrary files
 

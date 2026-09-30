@@ -9,21 +9,10 @@ Types in the root `conga` package implement the `Predictable` interfaces — the
 
 | Type | Coercion / validation | Completes as |
 |------|----------------------|--------------|
-| `conga.File` | Expands `~` and environment variables; capabilities declared through tags | File paths (or per capability tags) |
-| `conga.Dir` | Expands `~` and environment variables; `existing` tag requires a directory | Directories |
+| `conga.File` | Expands `~` and environment variables; capability tags constrain the path | File paths (or per capability tags) |
+| `conga.Dir` | Expands `~` and environment variables; `existing` requires a directory | Directories |
 
-`File` declares its capabilities with custom field tags:
-
-| Tag | Meaning |
-|-----|---------|
-| `existing:"true"` | The path must exist and be a regular file. |
-| `stdin:"true"` | `"-"` reads standard input. |
-| `stdout:"true"` | `"-"` writes standard output. |
-| `executable:"true"` | The path must be an executable regular file; `$PATH`-relative names resolve to their absolute location at parse time. Completes from `$PATH` executables. |
-| `symlink:"true"` | The path must be a symbolic link. Completes as symlinks. |
-| `glob:"<patterns>"` | Completion-only candidate filter: suggested files must match one of the comma-separated glob patterns (matched on entry names, e.g. `glob:"Makefile,Dockerfile"` or `glob:"*.yaml"`). Directories stay visible for traversal. Incompatible with `executable` and `symlink`. |
-
-The `executable` and `symlink` capabilities are complete value kinds: they exclude each other and every other capability tag (`existing`, `stdin`, `stdout`, `glob`), so a field declares exactly one.
+`File` accepts the capability tags `existing`, `stdin`, `stdout`, `executable`, `symlink`, and `glob`; the [struct tag reference](/reference/struct-tags/#domain-type-tags) defines each tag, its mutual exclusions, and the schema-build rules.
 
 ```go
 type Convert struct {
@@ -34,7 +23,7 @@ type Convert struct {
 }
 ```
 
-All filesystem capability checks run during the validation phase on the final resolved value (after the configuration cascade); failures are usage errors (exit 2). Tag typos such as `existing:"yes"` fail at schema build, as do malformed `glob` patterns and glob patterns containing path separators (patterns match entry names during traversal, so `src/*.go` can never match).
+All filesystem capability checks run during the validation phase on the final resolved value (after the configuration cascade); failures are usage errors (exit 2).
 
 ## Content and I/O types
 

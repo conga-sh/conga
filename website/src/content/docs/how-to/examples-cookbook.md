@@ -81,10 +81,7 @@ go test ./_examples/...
 
 ## Exit code conventions
 
-All example suites assert CONGA's exit code contract:
-- Exit `0`: Success (including built-in `--help` and `--version`).
-- Exit `1`: Runtime failure returned from a command's `Run` method or config loading failure.
-- Exit `2`: Usage error (invalid flag, missing required argument, or failed validation).
+All example suites assert CONGA's [exit code contract](/reference/errors/#exit-codes): 0 for success (including built-in `--help` and `--version`), 2 for usage errors, and 1 for schema, configuration, and runtime failures.
 
 ## Where to go next
 

@@ -32,9 +32,7 @@ func main() {
 }
 ```
 
-CONGA provides four opt-in decoder packages: JSON, TOML, YAML, and HCL. Each package exposes a `RawDecoder` function matching the `config.Decoder` interface.
-
-`RegisterDecoder` normalises extension strings by trimming whitespace, converting to lowercase, and stripping leading `*` and `.` characters—so `"json"`, `".json"`, and `"*.JSON"` are identical. Note that `.yaml` and `.yml` are distinct extensions; register both to accept both filename conventions.
+CONGA provides four opt-in decoder packages: JSON, TOML, YAML, and HCL. Each package exposes a `RawDecoder` function matching the `config.Decoder` interface; [package decoder](/reference/decoders/) covers extension normalization and the missing-decoder rule.
 
 ## Implement and register a custom decoder
 
@@ -44,7 +42,7 @@ To support custom, proprietary, or legacy formats, provide a function satisfying
 type Decoder func(data []byte) (map[string]any, error)
 ```
 
-The decoder receives the raw configuration file bytes and parses them into a generic `map[string]any`. Keys in the map correspond to flag names (or custom `config:"..."` tags), and nested `map[string]any` values correspond to subcommands or native Go map flags.
+The decoder receives the raw config file bytes and parses them into a generic `map[string]any`. Keys in the map correspond to flag names (or custom `config:"..."` tags), and nested `map[string]any` values correspond to subcommands or native Go map flags.
 
 ```go title="main.go"
 import (
@@ -91,28 +89,26 @@ When a decoder returns a non-nil error, CONGA aborts configuration resolution an
 
 ## Structure nested configuration for subcommands
 
-When command structs declare nested subcommands using `conga.Command[T]`, the command hierarchy forms nested configuration namespaces. Top-level flags reside at the root of the file, while subcommand flags reside inside sections matching their kebab-case command names.
+When command structs declare nested subcommands using `conga.Command[T]`, the command hierarchy forms nested configuration namespaces; [About subcommands and hierarchy](/explanation/subcommands/#hierarchical-configuration-mapping) defines the mapping.
 
 ```go title="main.go"
 type RootCLI struct {
-	Verbose  conga.OptionalFlag[bool]        `help:"Global verbose logging" short:"v"`
-	Server   conga.Command[ServerCmd]        `summary:"Server settings"`
+	Verbose conga.OptionalFlag[bool] `help:"Global verbose logging" short:"v"`
+	Server  conga.Command[ServerCmd] `summary:"Server settings"`
 }
 
 type ServerCmd struct {
-	Port     conga.OptionalFlag[int]         `default:"8080" help:"Listen port"`
-	Database conga.Command[DatabaseCmd]      `summary:"Database settings"`
+	Port     conga.OptionalFlag[int]    `default:"8080" help:"Listen port"`
+	Database conga.Command[DatabaseCmd] `summary:"Database settings"`
 }
 
 type DatabaseCmd struct {
-	Host     conga.OptionalFlag[string]      `default:"localhost" help:"Database host"`
-	PoolSize conga.OptionalFlag[int]         `default:"10" help:"Connection pool size" name:"pool-size"`
+	Host     conga.OptionalFlag[string] `default:"localhost" help:"Database host"`
+	PoolSize conga.OptionalFlag[int]    `default:"10" help:"Connection pool size" name:"pool-size"`
 }
 ```
 
-Below are equivalent configuration files for each supported format:
-
-### YAML
+A YAML file for the same schema nests subcommand keys under their command names:
 
 ```yaml title="config.yaml"
 verbose: true
@@ -123,51 +119,6 @@ server:
     host: "db.internal"
     pool-size: 20
 ```
-
-### TOML
-
-```toml title="config.toml"
-verbose = true
-
-[server]
-port = 9000
-
-[server.database]
-host = "db.internal"
-pool-size = 20
-```
-
-### JSON
-
-```json title="config.json"
-{
-  "verbose": true,
-  "server": {
-    "port": 9000,
-    "database": {
-      "host": "db.internal",
-      "pool-size": 20
-    }
-  }
-}
-```
-
-### HCL
-
-```hcl title="config.hcl"
-verbose = true
-
-server {
-  port = 9000
-
-  database {
-    host      = "db.internal"
-    pool-size = 20
-  }
-}
-```
-
-CONGA strictly validates all configuration keys against the declared struct fields. Any unknown keys or unexpected nested sections in a configuration file produce a validation error (`ErrConfig`) at startup with Levenshtein-based suggestions.
 
 ## Configure resolution tiers and search paths
 
@@ -183,11 +134,7 @@ app.ConfigOptions(
 )
 ```
 
-CONGA supports three config file discovery tiers:
-
-- **Built-in conventional tier (XDG)**: If decoders are registered and an application name is configured, CONGA automatically searches `${XDG_CONFIG_HOME:-~/.config}/<app-name>/config.<ext>` and `<app-name>.<ext>` as a fallback tier.
-- **Custom search tier (`config.Paths`)**: Overrides the built-in XDG tier. In standard single-file mode, CONGA loads the **first existing file** in the list and ignores the remaining paths.
-- **Explicit path (`config.Explicit`)**: Designates a specific file with fatal-if-missing semantics. It outranks environment variables and search paths, bypassing conventional tiers.
+Use `config.Paths(...)` to declare search tiers and `config.Explicit(...)` to name one concrete file. [Package config](/reference/config/) lists the option contracts; [About the config cascade](/explanation/config-cascade/) covers discovery precedence, the built-in XDG tier, and per-tier existence semantics.
 
 ## Merge multiple files with cascading
 
@@ -204,9 +151,7 @@ app.ConfigOptions(
 )
 ```
 
-In cascading mode, CONGA reads **every existing file** in the list from lowest to highest precedence (`/etc` -> `~/.config` -> `./`). Higher-precedence files override individual keys defined in earlier files.
-
-When `config.Cascading()` is declared, any root `conga.ConfigFile` container on the command struct must accept multiple values by declaring `multi:"true"`:
+`config.Cascading()` merges every existing tier file instead of stopping at the first match; [About the config cascade](/explanation/config-cascade/) describes the merge order. The root `ConfigFile` flag must then declare `multi:"true"`:
 
 ```go title="main.go"
 type CLI struct {
@@ -214,7 +159,7 @@ type CLI struct {
 }
 ```
 
-Omitting `multi:"true"` on a root `ConfigFile` flag when cascading is active produces an `ErrSchema` error during schema validation.
+Omitting `multi:"true"` on a root `ConfigFile` flag when cascading is active fails schema validation.
 
 ## Accept config files on the command line
 
@@ -226,9 +171,7 @@ type CLI struct {
 }
 ```
 
-`conga.ConfigFile` can only be declared on the root command struct. Placing it on a subcommand struct produces an `ErrSchema` error (`ConfigFile can only be declared on the root command`) during schema initialisation. Subcommands that need to inspect active configuration files can query `session.LoadedConfigFiles()` or access root flags via `session.Root[T]()`.
-
-Files supplied via `--config-file` or `-c` take precedence over environment variables, search paths, and conventional XDG tiers.
+`conga.ConfigFile` can only be declared on the root command struct. Placing it on a subcommand struct produces an `ErrSchema` error (`ConfigFile can only be declared on the root command`) during schema initialization. Subcommands inspect the active files through `session.LoadedConfigFiles()` and reach root state with `session.Root[T]()` ([session accessors](/reference/conga/#session-and-hierarchy-accessors)).
 
 ## Map fields to configuration keys
 
@@ -243,8 +186,6 @@ type Database struct {
 
 - `config:"connection_url"`: Reads the value from the specified key in the config file.
 - `config:"-"`: Disables config file resolution for that field, requiring it to be set via CLI, environment variable, or default value.
-
-Files are subject to a strict 16 MB maximum size limit to protect against unbounded allocations.
 
 ## Inspect and reload config files at runtime
 
@@ -268,7 +209,7 @@ func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
 }
 ```
 
-`session.Reload[T](ctx)` executes the entire resolution ladder again, decodes existing files, and runs validation hooks, returning a freshly bound `*T`.
+Call `session.Reload[T](ctx)` to re-read files from disk and re-run validation, returning a freshly bound `*T`.
 
 ## Where to go next
 

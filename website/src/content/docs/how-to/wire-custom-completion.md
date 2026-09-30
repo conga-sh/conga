@@ -7,13 +7,13 @@ When flags or positional arguments accept dynamic values — such as server name
 
 ## Understand predictor resolution precedence
 
-When generating completion candidates for a field, CONGA evaluates candidate sources in strict precedence order:
+When generating completion candidates for a field, CONGA evaluates candidate sources in strict precedence:
 
-1. **Field-level tag**: An explicit `predictor:"name"` tag overrides all other predictors.
-2. **Tag-aware type interface**: The field type implements `conga.TagAwarePredictable`.
-3. **Type interface**: The field type implements `conga.Predictable`.
-4. **Type-level registration**: A predictor was attached to the type via `app.RegisterType(..., conga.WithPredictor(p))`.
-5. **Built-in domain predictor**: Domain types (such as `conga.File` and `conga.Dir`) evaluate their built-in path completers.
+1. Field-level tag: an explicit `predictor:"name"` tag overrides all other sources.
+2. Type-level registration: the field type was registered with `app.RegisterType(..., conga.WithPredictor(p))`.
+3. Filesystem filter interfaces: the field type implements `predict.FileFilterable`, `predict.DirFilterable`, or `predict.PathFilterable`.
+4. Tag-aware type interface: the field type implements `conga.TagAwarePredictable` (including built-in `conga.File`).
+5. Parameterless type interface: the field type implements `conga.Predictable` (including built-in `conga.Dir`).
 
 ## Register named predictors on the builder
 
@@ -44,21 +44,17 @@ type CLI struct {
 }
 ```
 
-In strict tag validation mode (`app.StrictTagValidation(true)` or `conga-lint -strict`), referencing a predictor name that was not registered with `app.Predictor` produces an `ErrSchema` error during initialisation.
+In strict tag validation mode (`app.StrictTagValidation(true)` or `conga-lint -strict`), referencing a predictor name that was not registered with `app.Predictor` produces an `ErrSchema` error during initialization.
 
 ## Provide candidate descriptions with predict.Item
 
-To render descriptions alongside completion candidates in shells that support rich completions (such as zsh, fish, and nushell), return `predict.Item` slices:
+To render descriptions alongside completion candidates in shells that support rich completions (such as zsh, fish, and nushell), return `predict.Item` values through `predict.Items`:
 
 ```go title="main.go"
-app.Predictor("environments", predict.PredictorFunc(
-	func(ctx context.Context, session *conga.Session) ([]predict.Item, error) {
-		return []predict.Item{
-			{Value: "dev", Description: "Local development environment"},
-			{Value: "staging", Description: "Pre-production verification cluster"},
-			{Value: "prod", Description: "Production live cluster"},
-		}, nil
-	},
+app.Predictor("environments", predict.Items(
+	predict.NewItem("dev", "Local development environment"),
+	predict.NewItem("staging", "Pre-production verification cluster"),
+	predict.NewItem("prod", "Production live cluster"),
 ))
 ```
 
@@ -67,24 +63,24 @@ app.Predictor("environments", predict.PredictorFunc(
 To query a database, read a configuration directory, or inspect an API at completion time, use `predict.Callback`:
 
 ```go title="main.go"
-app.Predictor("clusters", predict.Callback(
-	func(ctx context.Context, session *conga.Session) ([]predict.Item, error) {
-		clusters, err := fetchActiveClusters(ctx)
-		if err != nil {
-			return nil, err
-		}
+app.Predictor("clusters", predict.Callback(func(compCtx predict.Context) predict.Predictor {
+	region := compCtx.FlagValue("region", "us-east-1")
 
-		items := make([]predict.Item, len(clusters))
-		for i, c := range clusters {
-			items[i] = predict.Item{Value: c.Name, Description: c.Status}
-		}
+	clusters, err := lookupClusters(region)
+	if err != nil {
+		return predict.None()
+	}
 
-		return items, nil
-	},
-))
+	items := make([]predict.Item, len(clusters))
+	for index, cluster := range clusters {
+		items[index] = predict.NewItem(cluster.Name, cluster.Status)
+	}
+
+	return predict.Items(items...)
+}))
 ```
 
-If the callback returns an error or takes too long, CONGA logs the failure to stderr in diagnostic mode and returns an empty candidate list to the shell without crashing the interactive prompt.
+`predict.Callback` takes no error return: when the data source fails, return `predict.None()`. Dynamic callbacks run under a 250 ms deadline (`predict.DefaultTimeout`); on overrun, CONGA returns an empty candidate set instead of blocking the interactive prompt. Pass a fallback predictor to `Timeout` to return candidates on overrun.
 
 ## Make a type self-completing
 
@@ -106,18 +102,22 @@ Fields using `ClusterID` complete automatically without requiring an explicit `p
 
 ## Inspect struct tags with TagAwarePredictable
 
-When completion candidates depend on metadata declared on the field (such as file extensions or resource filters), implement `conga.TagAwarePredictable`:
+When completion candidates depend on metadata declared on the field (such as file extensions or resource filters), implement `conga.TagAwarePredictable` and register the tags the type accepts with `conga.TagSpecProvider`:
 
 ```go title="main.go"
 type DocumentPath string
 
+func (d DocumentPath) TagSpecs() []conga.TagSpec {
+	return []conga.TagSpec{{Name: "ext", Kind: conga.TagKindString}}
+}
+
 func (d DocumentPath) Predict(tags conga.FieldTags) predict.Predictor {
-	allowedExt := tags.Get("ext") // reads `ext:".json"` from field tag
-	if allowedExt == "" {
+	allowedExtension := tags.String("ext") // reads `ext:".yaml"` from the field tag
+	if allowedExtension == "" {
 		return predict.Files()
 	}
 
-	return predict.Files(allowedExt)
+	return predict.Files(allowedExtension)
 }
 
 type CLI struct {
@@ -125,7 +125,7 @@ type CLI struct {
 }
 ```
 
-The `tags` parameter provides read-only access to all struct tags declared on the owning field, allowing a single type to adjust its completion logic based on field annotations.
+The `tags` parameter provides read-only access to the tags registered by the type: `Has(key)`, `Bool(key)`, and `String(key)`. A type declaring custom tags without a `TagSpecProvider` fails strict tag validation at schema build.
 
 ## Where to go next
 

@@ -16,7 +16,7 @@ Every CONGA command execution operates in two distinct phases: **schema compilat
 Before input tokens are parsed or lifecycle hooks run, the engine compiles and validates the application schema from struct definitions and tags. Once the schema is verified, the runtime pipeline resolves values from command-line tokens, environment variables, and config files, moving through five sequential phases:
 
 ```text no-copy
-Schema Compilation (conga.New / buildSpec) ──[ErrSchema]──► Exit 2 (Programmer Error)
+Schema Compilation (conga.New / buildSpec) ──[ErrSchema]──► Exit 1 (Programmer Error)
                 │
                 ▼
 Input Binding & Coercion (SelfValidator)
@@ -181,7 +181,7 @@ Understanding the boundary between these two phases clarifies how errors are cla
 | **Checks** | Struct tags, type compatibility, flag collisions, leaf `Runner` presence | Value ranges, business constraints, external resources, command actions |
 | **Error category** | `ErrSchema` (Programmer mistake) | `ErrValidation` (Input mistake) or Runtime failure |
 | **Teardown (`Finally`)** | **Never invoked** (pipeline never initialized) | **Guaranteed** for all initialized commands |
-| **Exit code** | Exit 2 (Usage error) | Exit 2 (Validation) or Exit 1 (Runtime) |
+| **Exit code** | Exit 1 (Programmer error) | Exit 2 (Validation) or Exit 1 (Runtime) |
 
 ### Why schema failures bypass teardown
 

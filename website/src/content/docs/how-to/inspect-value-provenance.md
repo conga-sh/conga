@@ -30,9 +30,7 @@ Passing `--why` intercepts execution during the resolution phase. CONGA computes
 
 ## Protect sensitive data with value redaction
 
-By default, CONGA redacts all values in the `--why` report as `██████` to prevent credentials, secrets, and private keys from leaking into terminal scrollbacks or CI logs.
-
-To opt a field into plaintext display, declare `safe:"true"`:
+The report redacts values by default (see [The `--why` report](/reference/builtins/#the---why-report)). To display a field in plaintext, declare `safe:"true"`:
 
 ```go title="main.go"
 // Renders plaintext in --why report
