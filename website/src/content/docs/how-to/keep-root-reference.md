@@ -79,4 +79,4 @@ If the root instance is only needed inside lifecycle hooks and never outside `ap
 
 - [About flags and args](/explanation/flags-and-args/) — container methods, trade-offs, and reader guarantees.
 - [How to test a command](/how-to/test-a-command/) — construct isolated App instances per test case with captured streams.
-- [About app execution](/explanation/execution/) — the single-execution rule and `session.Reload[T]` for live configuration updates.
+- [How to hot-reload configuration](/how-to/hot-reload-config/) — re-evaluate the config cascade with `session.Reload[T]`.

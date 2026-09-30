@@ -156,6 +156,6 @@ func TestTable(t *testing.T) {
 
 ## Where to go next
 
-- [About app execution](/explanation/execution/) — context propagation, signal handling, and execution lifecycles.
+- [About the command lifecycle](/explanation/lifecycle/) — context propagation, signal handling, and execution lifecycles.
 - [About error reporting](/explanation/error-reporting/) — error categorization, exit codes, and usage silencing.
 - [About flags and args](/explanation/flags-and-args/) — inspecting container state and provenance.

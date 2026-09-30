@@ -97,7 +97,6 @@ export default defineConfig({
             'explanation/flags-and-args',
             'explanation/subcommands',
             'explanation/lifecycle',
-            'explanation/execution',
             'explanation/error-reporting',
             'explanation/binary-size',
             'explanation/plugins-vs-predictors',

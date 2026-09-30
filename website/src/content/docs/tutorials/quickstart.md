@@ -157,7 +157,6 @@ hello has version 1.0.0 built with go1.27.1
 
 **Concepts and reference**
 - [About flags and args](/explanation/flags-and-args/): container reader guarantees, trade-offs, and positional arguments.
-- [About app execution](/explanation/execution/): context propagation, standard streams, and lifecycle execution.
-- [About the lifecycle](/explanation/lifecycle/): execution stages and hook order.
+- [About the command lifecycle](/explanation/lifecycle/): execution stages, hook order, and teardown guarantees.
 - [About error reporting](/explanation/error-reporting/): usage errors, runtime errors, and `FatalIfError`.
 - [Package conga](/reference/conga/): core API reference.
