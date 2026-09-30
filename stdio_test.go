@@ -139,27 +139,6 @@ func (c *stdioSessionCaptureCLI) Run(_ context.Context, session *conga.Session) 
 	return nil
 }
 
-type stdioReloadCLI struct {
-	Input conga.OptionalFlag[conga.File] `name:"input" stdin:"true"`
-
-	session *conga.Session
-	payload string
-}
-
-func (c *stdioReloadCLI) Run(_ context.Context, session *conga.Session) error {
-	c.session = session
-
-	reader, err := c.Input.Get().Reader()
-	if err != nil {
-		return err
-	}
-
-	data, err := io.ReadAll(reader)
-	c.payload = string(data)
-
-	return err
-}
-
 func TestStdio_FileDashWriterHonorsAppStdout(t *testing.T) {
 	t.Parallel()
 
@@ -280,37 +259,6 @@ func TestStdio_SessionStreamsFrozenAfterAppMutation(t *testing.T) {
 	app.Stdin(replacement)
 
 	assert.True(t, cli.session.Stdin() == io.Reader(original))
-}
-
-func TestStdio_ReloadHonorsNewStdin(t *testing.T) {
-	t.Parallel()
-
-	cli := new(stdioReloadCLI)
-	app := conga.New(cli).
-		Stdin(strings.NewReader("first")).
-		Args([]string{"--input", "-"})
-
-	err := app.RunContext(t.Context())
-
-	assert.NoError(t, err)
-	assert.Equal(t, "first", cli.payload)
-
-	app.Stdin(strings.NewReader("second"))
-
-	reloaded, err := cli.session.Reload[stdioReloadCLI](t.Context())
-
-	assert.NoError(t, err)
-	assert.NotZero(t, reloaded)
-
-	reader, err := reloaded.Input.Get().Reader()
-
-	assert.NoError(t, err)
-	assert.NotZero(t, reader)
-
-	data, err := io.ReadAll(reader)
-
-	assert.NoError(t, err)
-	assert.Equal(t, "second", string(data))
 }
 
 func TestStdio_FatalIfErrorUsesCurrentStderr(t *testing.T) {

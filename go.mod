@@ -4,7 +4,6 @@ go 1.27
 
 require (
 	github.com/alecthomas/assert/v2 v2.11.0
-	github.com/fsnotify/fsnotify v1.10.1
 	github.com/hashicorp/hcl/v2 v2.25.0
 	github.com/pelletier/go-toml/v2 v2.4.3
 	github.com/rogpeppe/go-internal v1.16.0

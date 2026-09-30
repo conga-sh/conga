@@ -56,15 +56,6 @@ func (r *Registry) Extensions() []string {
 	return extensions
 }
 
-// Clone returns a deep copy of the registry, safe for building a reloaded App.
-func (r *Registry) Clone() *Registry {
-	if r == nil {
-		return nil
-	}
-
-	return &Registry{decoders: maps.Clone(r.decoders)}
-}
-
 func normalizeExtension(extension string) string {
 	extension = strings.ToLower(strings.TrimSpace(extension))
 

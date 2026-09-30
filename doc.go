@@ -34,9 +34,9 @@
 // Subcommands and lifecycle hooks access execution state through [Session].
 // [Session.Root] returns the root application struct, and enclosing commands
 // are reached by walking Command[T] fields from there. [Session.Path] and
-// [Session.Name] report the invocation path, [Session.CandidateConfigFiles],
-// [Session.LoadedConfigFiles], and [Session.Reload] expose evaluated and
-// reloadable configuration, and [Session.Stdin], [Session.Stdout], and
+// [Session.Name] report the invocation path, [Session.CandidateConfigFiles]
+// and [Session.LoadedConfigFiles] expose evaluated configuration, and
+// [Session.Stdin], [Session.Stdout], and
 // [Session.Stderr] return the configured standard streams, captured when the
 // App starts executing. Domain types implementing [ContextAwareTextUnmarshaler]
 // receive the field's declared tags and these streams at decode time, so "-"

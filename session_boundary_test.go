@@ -14,26 +14,6 @@ type contextTestCLI struct {
 	Port conga.OptionalFlag[int] `default:"8080"`
 }
 
-func TestReload_NilContext(t *testing.T) {
-	t.Parallel()
-
-	var nilCtx context.Context
-
-	assert.Panics(t, func() {
-		_, _ = (*conga.Session)(nil).Reload[contextTestCLI](nilCtx)
-	})
-}
-
-func TestReload_UninitializedSession(t *testing.T) {
-	t.Parallel()
-
-	result, err := (*conga.Session)(nil).Reload[contextTestCLI](t.Context())
-
-	assert.Error(t, err)
-	assert.Equal(t, "conga: session not initialized with reloader", err.Error())
-	assert.Equal(t, (*contextTestCLI)(nil), result)
-}
-
 func TestHelpCommand_NilContext(t *testing.T) {
 	t.Parallel()
 

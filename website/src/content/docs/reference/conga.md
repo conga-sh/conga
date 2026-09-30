@@ -88,7 +88,6 @@ Value-shape interfaces (`SelfValidator`, `HelpProvider`, `TagAwareHelpProvider`,
 
 ```go
 func (s *Session) Root[T any]() *T
-func (s *Session) Reload[T any](ctx context.Context) (*T, error)
 func (s *Session) Stdin() io.Reader
 func (s *Session) Stdout() io.Writer
 func (s *Session) Stderr() io.Writer
@@ -107,8 +106,7 @@ func (s *Session) LoadedConfigFiles() []string
 by walking the selected `Command[T]` fields (`root.Cluster.Get()`).
 
 The standard streams are captured when the App starts executing; builder
-changes afterwards do not affect the active session. `Reload` re-evaluates
-with the current configuration.
+changes afterwards do not affect the active session.
 
 `Help`, `Usage`, and `Version` are the same rendering primitives the built-in
 `help` and `version` commands use, so a custom command can emit

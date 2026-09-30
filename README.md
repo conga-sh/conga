@@ -34,7 +34,7 @@ and shell completion from them.
 ## Installation
 
 Requires Go 1.27+. Add CONGA to your module; optional decoders, predictors,
-plugins, and the config watcher live in satellite packages:
+and plugins live in satellite packages:
 
 ```sh
 go get github.com/conga-sh/conga
@@ -104,7 +104,7 @@ or copy from the [Examples Cookbook](https://docs.conga.sh/how-to/examples-cookb
   every supported struct tag and directive.
 - [Built-ins & Deprecation](https://docs.conga.sh/reference/builtins/) —
   help, `--version`/`--json`, `--why`, completion styles, and deprecation notices.
-- [Examples Cookbook](https://docs.conga.sh/how-to/examples-cookbook/) — 29
+- [Examples Cookbook](https://docs.conga.sh/how-to/examples-cookbook/) — 28
   runnable programs, mirrored in [`_examples/`](_examples/README.md).
 - Contributor docs: [testing guide](docs/TESTING.md) and
   [completion wire protocol](docs/completion-wire-protocol.md).

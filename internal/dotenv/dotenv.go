@@ -65,27 +65,39 @@ func (e *DotenvError) Is(target error) bool {
 // When paths is empty, Load automatically loads ".env" followed by ".env.local" from the
 // current working directory if they exist (silently ignoring missing files).
 // When explicit paths are provided, each file must exist or a DotenvError is returned.
+//
+// Precedence:
+// Files are applied in order: a key defined in more than one file takes the value from the
+// last file that defines it, while keys already present in the process environment outrank
+// every file.
+//
+// Variable references resolve from the process environment first, then from keys defined
+// earlier in the same file; a file that overrides a key already supplied by an earlier file
+// in the same call expands to its own value.
 func Load(paths ...string) error {
-	return loadFiles(false, paths...)
-}
+	if len(paths) == 0 {
+		return loadDefaultHierarchy()
+	}
 
-// Overload loads environment variables from .env files into the current process environment,
-// overwriting existing environment variables.
-//
-// Live Reload:
-// Used during dynamic configuration reloading to ensure on-disk .env updates take effect.
-//
-// Hierarchy:
-// When paths is empty, Overload automatically loads ".env" followed by ".env.local" from the
-// current working directory if they exist (silently ignoring missing files).
-// When explicit paths are provided, each file must exist or a DotenvError is returned.
-func Overload(paths ...string) error {
-	return loadFiles(true, paths...)
+	loadedKeys := make(map[string]struct{})
+
+	for _, path := range paths {
+		if err := loadSingleFile(path, true, loadedKeys); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // Parse parses raw .env file contents into a key-value map.
 // Supports comments, export prefixes, unquoted, single-quoted, and double-quoted values with escape sequences.
+// Variable references resolve from the process environment first, then from keys defined earlier in the file.
 func Parse(data []byte) (map[string]string, error) {
+	return parse(data, nil)
+}
+
+func parse(data []byte, loadedKeys map[string]struct{}) (map[string]string, error) {
 	reader := bufio.NewReader(bytes.NewReader(data))
 	result := make(map[string]string)
 
@@ -123,7 +135,7 @@ func Parse(data []byte) (map[string]string, error) {
 				result[key] = value
 			} else {
 				// Expand variables: ${VAR} or $VAR
-				result[key] = expandValue(value, result)
+				result[key] = expandValue(value, result, loadedKeys)
 			}
 		}
 
@@ -135,13 +147,12 @@ func Parse(data []byte) (map[string]string, error) {
 	return result, nil
 }
 
-func loadFiles(overwrite bool, paths ...string) error {
-	if len(paths) == 0 {
-		return loadDefaultHierarchy(overwrite)
-	}
+func loadDefaultHierarchy() error {
+	candidateFiles := []string{".env", ".env.local"}
+	loadedKeys := make(map[string]struct{})
 
-	for _, path := range paths {
-		if err := loadSingleFile(path, true, overwrite); err != nil {
+	for _, filename := range candidateFiles {
+		if err := loadSingleFile(filename, false, loadedKeys); err != nil {
 			return err
 		}
 	}
@@ -149,21 +160,7 @@ func loadFiles(overwrite bool, paths ...string) error {
 	return nil
 }
 
-func loadDefaultHierarchy(overwrite bool) error {
-	candidateFiles := []string{".env", ".env.local"}
-
-	for _, filename := range candidateFiles {
-		if _, err := os.Stat(filename); err == nil {
-			if err := loadSingleFile(filename, false, overwrite); err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
-}
-
-func loadSingleFile(path string, mustExist bool, overwrite bool) error {
+func loadSingleFile(path string, mustExist bool, loadedKeys map[string]struct{}) error {
 	cleanPath := pathx.Expand(path)
 
 	data, err := filex.ReadLimited(cleanPath, maxDotenvFileSize)
@@ -179,7 +176,7 @@ func loadSingleFile(path string, mustExist bool, overwrite bool) error {
 		}
 	}
 
-	envMap, err := Parse(data)
+	envMap, err := parse(data, loadedKeys)
 	if err != nil {
 		return &DotenvError{
 			Path:  path,
@@ -189,8 +186,8 @@ func loadSingleFile(path string, mustExist bool, overwrite bool) error {
 	}
 
 	for key, value := range envMap {
-		if !overwrite {
-			if _, exists := os.LookupEnv(key); exists {
+		if _, exists := os.LookupEnv(key); exists {
+			if _, loadedByFile := loadedKeys[key]; !loadedByFile {
 				continue
 			}
 		}
@@ -202,6 +199,8 @@ func loadSingleFile(path string, mustExist bool, overwrite bool) error {
 				Cause: fmt.Errorf("%w: %w", sentinel.ErrDotenv, err),
 			}
 		}
+
+		loadedKeys[key] = struct{}{}
 	}
 
 	return nil
@@ -397,12 +396,17 @@ func parseUnquoted(rawValue string) string {
 	return strings.TrimSpace(rawValue)
 }
 
-func expandValue(value string, localMap map[string]string) string {
+func expandValue(value string, localMap map[string]string, loadedKeys map[string]struct{}) string {
 	return os.Expand(value, func(key string) string {
-		if v, ok := localMap[key]; ok {
-			return v
+		localValue, locallyDefined := localMap[key]
+		if _, overriddenEarlier := loadedKeys[key]; overriddenEarlier && locallyDefined {
+			return localValue
 		}
 
-		return os.Getenv(key)
+		if hostValue, hostDefined := os.LookupEnv(key); hostDefined {
+			return hostValue
+		}
+
+		return localValue
 	})
 }

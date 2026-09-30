@@ -20,11 +20,11 @@ func main() {
 }
 ```
 
-When invoked without arguments, `Dotenv()` probes `.env` then `.env.local` in the current working directory. Missing files are silently ignored, allowing applications to run normally in production environments where configuration is injected directly through the operating system. Existing process environment variables and keys defined in `.env` are preserved; `.env.local` supplies the remaining keys. [Dotenv files](/reference/dotenv/) has the complete loading contract.
+When invoked without arguments, `Dotenv()` probes `.env` then `.env.local` in the current working directory. Missing files are silently ignored, allowing applications to run normally in production environments where configuration is injected directly through the operating system. Existing process environment variables are preserved, and `.env.local` overrides a key defined in `.env`. [Dotenv files](/reference/dotenv/) has the complete loading contract.
 
 ## Preserve host environment variables
 
-At startup, `app.Dotenv()` adheres to the 12-factor application principle: existing host environment variables are never overwritten by `.env` files. If an environment variable is already set in the operating system shell, Docker container, or CI runner, CONGA preserves that value and ignores the corresponding entry in `.env` or `.env.local`:
+At startup, `app.Dotenv()` adheres to the 12-factor application principle: existing host environment variables are never overwritten by `.env` files. If an environment variable is already set in the operating system shell, Docker container, or CI runner, CONGA preserves that value and ignores the corresponding entry in `.env` or `.env.local`. Variable expansion observes the same precedence: a reference such as `${HOST}` resolves to the host value, so derived entries stay consistent with the preserved variable:
 
 ```sh
 # OS environment variable takes precedence over .env entries
@@ -41,7 +41,7 @@ app.Dotenv("config/base.env", "config/secrets.env")
 
 When explicit paths are provided:
 - Files are loaded sequentially in the specified order; every listed file must exist, and a missing file returns an error wrapping `conga.ErrConfig`.
-- Existing environment variables and values from earlier files are preserved, so the first definition of a key wins.
+- Existing environment variables are preserved; a key defined in more than one file takes the value from the last file that defines it.
 
 ## Where to go next
 

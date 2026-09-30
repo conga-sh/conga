@@ -32,20 +32,6 @@ func TestRegistry_Extensions(t *testing.T) {
 	assert.Equal(t, []string{".json", ".toml"}, extensions)
 }
 
-func TestRegistry_CloneIsDeep(t *testing.T) {
-	t.Parallel()
-
-	registry := NewRegistry()
-	registry.Register(".json", json.RawDecoder)
-
-	cloned := registry.Clone()
-	cloned.Register(".toml", json.RawDecoder)
-
-	assert.Zero(t, registry.Decoder(".toml"))
-	assert.NotZero(t, cloned.Decoder(".json"))
-	assert.NotZero(t, cloned.Decoder(".toml"))
-}
-
 func TestRegistry_NilReceiver(t *testing.T) {
 	t.Parallel()
 
@@ -53,7 +39,6 @@ func TestRegistry_NilReceiver(t *testing.T) {
 
 	assert.Zero(t, registry.Decoder(".json"))
 	assert.Zero(t, registry.Extensions())
-	assert.Zero(t, registry.Clone())
 
 	registry.Register(".json", json.RawDecoder)
 
