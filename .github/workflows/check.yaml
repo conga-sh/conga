@@ -1,0 +1,30 @@
+name: check
+
+on:
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v4
+        with:
+          go-version: '1.27'
+      - uses: arduino/setup-task@v1
+        with:
+          version: 3.52.0
+      - run: task lint
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v4
+        with:
+          go-version: '1.27'
+      - uses: arduino/setup-task@v1
+        with:
+          version: 3.52.0
+      - run: task test
