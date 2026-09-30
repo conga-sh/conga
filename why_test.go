@@ -824,6 +824,42 @@ func TestWhy_ConfigPathsChecked_ExplicitPath(t *testing.T) {
 	})
 }
 
+func TestWhy_ConfigFileRowUnset(t *testing.T) {
+	t.Parallel()
+
+	missingTier := filepath.Join(t.TempDir(), "missing")
+
+	var buffer bytes.Buffer
+
+	app := conga.New[whyExplicitConfigCLI]().
+		Name("whyapp").
+		RegisterDecoder(".json", json.RawDecoder).
+		ConfigOptions(config.Paths(missingTier)).
+		Stdout(&buffer).
+		EnableWhy().
+		Args([]string{"--why"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+
+	output := buffer.String()
+
+	configRow := ""
+
+	for line := range strings.SplitSeq(output, "\n") {
+		if strings.Contains(line, "--config-file") {
+			configRow = line
+
+			break
+		}
+	}
+
+	assert.True(t, configRow != "", "report must contain the config-file row")
+	assert.Contains(t, configRow, "unset")
+	assert.NotContains(t, configRow, "default")
+}
+
 func TestWhy_ConfigPathsChecked_OmittedWithoutConfigResolution(t *testing.T) {
 	t.Parallel()
 

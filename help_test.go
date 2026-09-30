@@ -211,6 +211,30 @@ func TestHelpFormatting_SpecialFlags(t *testing.T) {
 	assert.Contains(t, helpText, "-t, --tags=KEY=VALUE,...")
 }
 
+type ConfigFileHelpCLI struct {
+	ConfigFile conga.ConfigFile `help:"Path to config file" short:"c"`
+}
+
+func TestHelpFormatting_ConfigFileFlag(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	app := conga.New[ConfigFileHelpCLI]().
+		Name("helpapp").
+		Args([]string{"--help"}).
+		Stdout(&buffer)
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+
+	helpText := buffer.String()
+	assert.Contains(t, helpText, "-c, --config-file=PATH")
+	assert.Contains(t, helpText, "Path to config file")
+	assert.NotContains(t, helpText, "[default:")
+}
+
 type plainSubcommand struct{}
 
 func (c *plainSubcommand) Run(_ context.Context, _ *conga.Session) error { return nil }

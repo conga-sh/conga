@@ -583,7 +583,7 @@ func (c *CompletionCommand) Run(ctx context.Context, session *Session) error {
 // reports the configuration files actually loaded; probed-but-absent
 // candidates are surfaced by session.CandidateConfigFiles() instead.
 //
-// Supported struct tags: name, short, help, default, env, aliases, placeholder,
+// Supported struct tags: name, short, help, env, aliases, placeholder,
 // group, hidden, multi, sep, and conga directives. See docs/struct-tags.md for
 // the complete reference.
 type ConfigFile struct {

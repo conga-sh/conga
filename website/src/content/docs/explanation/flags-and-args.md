@@ -12,7 +12,7 @@ CONGA models every piece of command-line input as an explicit, typed container f
 | `conga.OptionalFlag[T]` | Optional flag with a zero-value fallback | `default`, `env`, `config` |
 | `conga.RequiredFlag[T]` | Mandatory flag; missing value is a usage error (exit 2) | `env`, `config` |
 | `conga.Counter` | Repeatable counting flag (`-v`, `-vv`, `-vvv`) | `default`, `env` |
-| `conga.ConfigFile` | Root-only `--config-file` path flag with explicit loading semantics; `multi:"true"` enables repeatable multi-file values | `default`, `env`, `multi`, `sep` |
+| `conga.ConfigFile` | Root-only `--config-file` path flag with explicit loading semantics; `multi:"true"` enables repeatable multi-file values | `env`, `multi`, `sep` |
 
 ```go
 type Serve struct {

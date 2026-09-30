@@ -705,8 +705,8 @@ type configEngineFactory func(name string, envPrefix string, registry *configeng
 
 // emptyConfigView is the engine view for applications that never installed a
 // configuration engine: it rejects named configuration targets with a
-// decoder-required error and surfaces display-only candidates (the environment
-// targets and the config-file flag's default), but loads and probes nothing.
+// decoder-required error and surfaces the environment targets, but loads and
+// probes nothing.
 type emptyConfigView struct {
 	envPrefix string
 }
@@ -734,7 +734,7 @@ func (view emptyConfigView) CandidatePaths(explicitPaths []string, cmd *spec.Com
 		return envPaths
 	}
 
-	return configengine.DefaultConfigCandidates(cmd)
+	return nil
 }
 
 func (emptyConfigView) EffectiveSearchPaths() []string { return nil }

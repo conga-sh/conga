@@ -33,11 +33,11 @@ ${XDG_CONFIG_HOME:-~/.config}/<app-name>/config.<ext>
 ${XDG_CONFIG_HOME:-~/.config}/<app-name>/<app-name>.<ext>
 ```
 
-for each registered extension. This is the lowest-precedence tier and is replaced entirely by `config.Paths(...)`. The `default` tag on a `ConfigFile` container is display-only: it appears in help text and the `--why` fallback row, and loading is triggered only by explicit paths or the built-in conventional tier.
+for each registered extension. This is the lowest-precedence tier and is replaced entirely by `config.Paths(...)`. A `ConfigFile` container does not accept the `default` tag: a file loads only when it is named explicitly (`--config-file`, the environment variable, or `config.Explicit(...)`) or discovered inside a probed tier. The [`--why` report](/how-to/inspect-value-provenance/) and `session.CandidateConfigFiles()` list the candidates an invocation evaluates.
 
 ## Decoder capability
 
-Resolution only reads formats the application registered: search tiers probe only registered extensions, and no wire-format library is linked unless a decoder package is. A decoderless application is still config-aware enough to surface candidates — the config-file flag's help text appends `(no configuration decoder registered)`, and `session.CandidateConfigFiles()` reports the environment and `default`-tag targets — but a **named** target (an explicit `--config-file`, the `<PREFIX>_CONFIG` variable, or `config.Explicit(...)`) must have a decoder for its format: resolving one without a decoder is a fatal `ErrConfig` error naming the missing decoder or the unsupported format, never a silent no-op. The `--why` report marks the failing candidate row.
+Resolution only reads formats the application registered: search tiers probe only registered extensions, and no wire-format library is linked unless a decoder package is. A decoderless application is still config-aware enough to surface candidates — the config-file flag's help text appends `(no configuration decoder registered)`, and `session.CandidateConfigFiles()` reports the environment targets — but a **named** target (an explicit `--config-file`, the `<PREFIX>_CONFIG` variable, or `config.Explicit(...)`) must have a decoder for its format: resolving one without a decoder is a fatal `ErrConfig` error naming the missing decoder or the unsupported format, never a silent no-op. The `--why` report marks the failing candidate row.
 
 ## Error semantics
 

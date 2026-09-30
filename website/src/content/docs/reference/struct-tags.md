@@ -113,7 +113,6 @@ type Server struct {
 | `name` | Flag name. |
 | `short` | Short rune. |
 | `help` | Help text. |
-| `default` | Default path(s), display-only. |
 | `env` | Environment variable name(s); `env:"-"` disables environment variable binding. |
 | `aliases` | Long-name aliases. |
 | `placeholder` | Value placeholder. |
@@ -125,7 +124,7 @@ type Server struct {
 | `deprecated` | Optional deprecation notice/reason; hidden from completion. |
 | `conga` | Directives. |
 
-The `default` tag is display-only: it appears in help text and the `--why` fallback row, and loading is triggered only by explicit paths or the built-in conventional tier. See [About the config cascade](/explanation/config-cascade/).
+The `default` tag is not accepted on a `ConfigFile` flag: a default path would be neither loaded nor validated. Search locations are declared with [`config.Paths(...)` or `config.Explicit(...)`](/reference/config/), and `placeholder` sets the value displayed in help. The candidates evaluated for an invocation are reported by `session.CandidateConfigFiles()` and the [`--why` report](/how-to/inspect-value-provenance/). See [About the config cascade](/explanation/config-cascade/).
 
 ### Trailing args (`DashArgs`, `RawArgs`)
 

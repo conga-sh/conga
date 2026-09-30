@@ -54,8 +54,7 @@ func (r Resolver) EffectiveSearchPaths() []string {
 // CandidatePaths returns the expanded candidate configuration paths evaluated
 // for an invocation, in reported precedence order: explicit paths when named,
 // otherwise the configuration environment variable targets, otherwise the
-// search tier plus display-only candidates (the config-file flag's default tag
-// and the explicit option path).
+// search tier plus the explicit option path.
 func (r Resolver) CandidatePaths(explicitPaths []string, cmd *spec.Command) []string {
 	if len(explicitPaths) > 0 {
 		return slicex.Map(explicitPaths, pathx.Expand)
@@ -65,7 +64,7 @@ func (r Resolver) CandidatePaths(explicitPaths []string, cmd *spec.Command) []st
 		return envPaths
 	}
 
-	return r.defaultSearchCandidatePaths(cmd)
+	return r.defaultSearchCandidatePaths()
 }
 
 // Resolve resolves, loads, and validates the effective configuration files.
@@ -169,10 +168,10 @@ func (r Resolver) ConfigExamples(candidates []string, tiers []string, extensions
 }
 
 // SplitList splits a configuration list value (an environment variable
-// payload, a multi-value flag entry, or a flag default) by the configured
-// separator, defaulting to a comma. The "none", "off", and "-" separators
-// disable splitting and yield the whitespace-trimmed value as a single item;
-// blank values and empty split items are dropped.
+// payload or a multi-value flag entry) by the configured separator,
+// defaulting to a comma. The "none", "off", and "-" separators disable
+// splitting and yield the whitespace-trimmed value as a single item; blank
+// values and empty split items are dropped.
 func SplitList(value string, separator string) []string {
 	effectiveSeparator := cmp.Or(separator, ",")
 
@@ -231,26 +230,6 @@ func EnvCandidates(envPrefix string, cmd *spec.Command) []string {
 	return nil
 }
 
-// DefaultConfigCandidates returns the expanded display-only candidate
-// configuration paths derived from the config-file flag's default tag. These
-// candidates are never probed or loaded; they are reported by the
-// CandidatePaths view and the --why fallback row.
-func DefaultConfigCandidates(cmd *spec.Command) []string {
-	if cmd == nil || cmd.ConfigFileFlag == nil || cmd.ConfigFileFlag.Default == "" {
-		return nil
-	}
-
-	items := SplitList(cmd.ConfigFileFlag.Default, cmd.ConfigFileFlag.Sep)
-
-	candidates := make([]string, 0, len(items))
-
-	for _, item := range items {
-		candidates = append(candidates, pathx.Expand(item))
-	}
-
-	return candidates
-}
-
 // defaultTier returns the built-in conventional configuration search tier,
 // `${XDG_CONFIG_HOME:-~/.config}/<app-name>`, or "" when the tier is
 // unavailable.
@@ -262,7 +241,7 @@ func (r Resolver) defaultTier() string {
 	return pathx.Expand("${XDG_CONFIG_HOME:-~/.config}/" + r.AppName)
 }
 
-func (r Resolver) defaultSearchCandidatePaths(cmd *spec.Command) []string {
+func (r Resolver) defaultSearchCandidatePaths() []string {
 	seen := make(map[string]bool)
 
 	var paths []string
@@ -281,13 +260,6 @@ func (r Resolver) defaultSearchCandidatePaths(cmd *spec.Command) []string {
 
 	for _, path := range r.EffectiveSearchPaths() {
 		addPath(path)
-	}
-
-	for _, candidate := range DefaultConfigCandidates(cmd) {
-		if !seen[candidate] {
-			seen[candidate] = true
-			paths = append(paths, candidate)
-		}
 	}
 
 	if r.Settings.Explicit != "" {
