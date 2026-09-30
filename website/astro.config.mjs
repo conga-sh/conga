@@ -43,6 +43,7 @@ export default defineConfig({
           href: 'https://github.com/conga-sh/conga',
         },
       ],
+      customCss: ['./src/styles/custom.css'],
       expressiveCode: {
         plugins: [pluginNoCopy()],
       },

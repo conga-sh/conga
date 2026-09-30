@@ -1,0 +1,34 @@
+/* Custom Starlight Layout - Pinned Right Toolbar & Expanded Middle Panel */
+:root {
+  /* Increase middle panel content width from 45rem (720px) to 64rem (1024px) */
+  --sl-content-width: 64rem;
+}
+
+@media (min-width: 72rem) {
+  /* Pin the right sidebar (Table of Contents) to the right viewport edge */
+  .right-sidebar-container {
+    width: var(--sl-sidebar-width) !important;
+  }
+
+  .right-sidebar {
+    width: var(--sl-sidebar-width) !important;
+    inset-inline-end: 0;
+  }
+
+  /* Expand the main pane to fill the remaining width between left navigation and right TOC */
+  [data-has-sidebar][data-has-toc] .main-pane {
+    width: calc(100% - var(--sl-sidebar-width)) !important;
+  }
+
+  /* Center the content container within the expanded middle pane */
+  .main-pane .sl-container {
+    max-width: var(--sl-content-width);
+    margin-inline: auto !important;
+  }
+
+  /* Ensure markdown tables use the full width of the container */
+  .sl-markdown-content table {
+    width: 100%;
+    display: table;
+  }
+}
