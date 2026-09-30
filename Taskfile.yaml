@@ -46,12 +46,21 @@ tasks:
   lint:
     desc: Run all linters
     deps: [lint:schema]
-    cmds:
-      - golangci-lint run --fix --max-same-issues=0 --max-issues-per-linter=0 ./...
-      - golangci-lint run --fix --max-same-issues=0 --max-issues-per-linter=0 ./_examples/[0-9]*
-      - golangci-lint run --fix --max-same-issues=0 --max-issues-per-linter=0 ./_examples/internal/...
-      - golangci-lint run --fix --max-same-issues=0 --max-issues-per-linter=0 --build-tags shelltest ./test/shell/...
-      - golangci-lint run --fix --max-same-issues=0 --max-issues-per-linter=0 --build-tags sizetest ./test/size/...
+    vars:
+      LINT_ARGS: '--fix'
+    cmds: &lint-cmds
+      - golangci-lint run {{.LINT_ARGS}} --max-same-issues=0 --max-issues-per-linter=0 ./...
+      - golangci-lint run {{.LINT_ARGS}} --max-same-issues=0 --max-issues-per-linter=0 ./_examples/[0-9]*
+      - golangci-lint run {{.LINT_ARGS}} --max-same-issues=0 --max-issues-per-linter=0 ./_examples/internal/...
+      - golangci-lint run {{.LINT_ARGS}} --max-same-issues=0 --max-issues-per-linter=0 --build-tags shelltest ./test/shell/...
+      - golangci-lint run {{.LINT_ARGS}} --max-same-issues=0 --max-issues-per-linter=0 --build-tags sizetest ./test/size/...
+
+  lint:ci:
+    desc: Run all linters without applying fixes (CI)
+    deps: [lint:schema]
+    vars:
+      LINT_ARGS: ''
+    cmds: *lint-cmds
 
   lint:schema:
     desc: Validate CONGA struct contracts and schemas with conga-lint (supports custom flags or packages via --)
@@ -64,6 +73,14 @@ tasks:
     desc: Check the canonical fluent builder call order at conga.New sites (opt-in; supports --fix via --)
     cmds:
       - go tool conga-lint -builder-order {{.CLI_ARGS | default "./... ./_examples/[0-9]* ./_examples/internal/..."}}
+
+  ci:
+    desc: Run the full CI verification suite (check-only lint plus unit, example, and size tests)
+    cmds:
+      - task: lint:ci
+      - task: test
+      - task: test:examples
+      - task: test:size
 
   coverage:
     desc: Report test coverage (supports custom flags or packages via --)

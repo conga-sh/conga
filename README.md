@@ -1,5 +1,11 @@
 # CONGA
 
+[![check](https://github.com/conga-sh/conga/actions/workflows/check.yaml/badge.svg?branch=main&event=push)](https://github.com/conga-sh/conga/actions/workflows/check.yaml)
+[![Go Reference](https://pkg.go.dev/badge/github.com/conga-sh/conga.svg)](https://pkg.go.dev/github.com/conga-sh/conga)
+[![Go 1.27](https://img.shields.io/badge/Go-1.27-00ADD8?logo=go&logoColor=white)](https://go.dev/)
+[![license: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+[![docs](https://img.shields.io/website?url=https%3A%2F%2Fdocs.conga.sh)](https://docs.conga.sh)
+
 CONGA is a batteries-included CLI framework for Go with linker-friendly
 opt-in subsystems. Model the command line with Go structs, and CONGA derives
 the flag schema, 12-factor configuration cascade, validation, help screens,
