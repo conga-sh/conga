@@ -131,4 +131,3 @@ The `tags` parameter provides read-only access to all struct tags declared on th
 
 - [How to enable shell completion](/how-to/enable-shell-completion/) — generate completion scripts for bash, zsh, fish, powershell, elvish, and nushell.
 - [Package predict reference](/reference/predict/) — constructor and combinator reference for candidate filtering and caching.
-- [About the shell completion architecture](/explanation/completion-architecture/) — driver dispatch and wire framing protocol.

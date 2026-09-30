@@ -100,7 +100,6 @@ export default defineConfig({
             'explanation/lifecycle',
             'explanation/execution',
             'explanation/error-reporting',
-            'explanation/completion-architecture',
             'explanation/binary-size',
             'explanation/plugins-vs-predictors',
           ],

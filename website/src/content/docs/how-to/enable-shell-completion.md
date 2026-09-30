@@ -220,5 +220,4 @@ When completion is enabled, the following elements complete without custom code:
 ## Where to go next
 
 - [How to wire custom completion](/how-to/wire-custom-completion/) — implement dynamic completion candidates with `package predict`.
-- [About the shell completion architecture](/explanation/completion-architecture/) — driver dispatch, wire framing, and zero-allocation completion.
 - [Package predict reference](/reference/predict/) — combinator and constructor catalog for candidate generation.

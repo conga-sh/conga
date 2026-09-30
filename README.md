@@ -20,7 +20,7 @@ and shell completion from them.
   [About the lifecycle](https://docs.conga.sh/explanation/lifecycle/).
 - **6-shell autocompletion.** Bash, zsh, fish, powershell, elvish, and nushell,
   with self-completing domain types and a decoupled predictor SDK. See
-  [About the shell completion architecture](https://docs.conga.sh/explanation/completion-architecture/).
+  [How to enable shell completion](https://docs.conga.sh/how-to/enable-shell-completion/).
 - **Extensibility.** Register third-party types, mount plugins, or add decoders
   for new configuration formats. See
   [How to add custom flag types](https://docs.conga.sh/how-to/add-custom-flag-types/).
