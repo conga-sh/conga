@@ -1,89 +1,66 @@
 ---
 title: About plugins versus predictors
-description: Builder plugins for standard library types, decoupled domain predictors, and linker-friendly dependency boundaries.
+description: Linker-friendly dependency boundaries, standard library type adaptation, and decoupled completion providers.
 ---
 
-CONGA separates completion-capable types into two decoupled layers:
+CONGA separates completion-capable types into two distinct layers:
 
-- `plugin/*`: builder plugins that mount standard library types (`*time.Location`, `syscall.Signal`, `os/user` types) onto an application via `app.Use(...)`. Each plugin registers a type loader and predictor for a standard library type.
-- `predict/<domain>`: standalone domain types and predictors (covering network, operating system, and time zones) with zero dependency on the root `conga` framework.
+- `plugin/*`: Builder plugins that adapt Go standard library types (`*time.Location`, `*net.Interface`, `syscall.Signal`, `os/user` types) to an application through `app.Use(...)`.
+- `predict/<domain>`: Standalone domain types and autocompletion providers (covering network, operating system, and time zones) that operate with zero dependency on the root `conga` framework.
 
-This page explains why these systems are decoupled, how they preserve linker boundaries, and how plugins and domain predictors interact with the engine.
+This separation resolves two core engineering challenges in Go CLI development: preserving small binary footprints across linker boundaries, and adapting third-party standard library types that cannot implement framework interfaces.
 
-## Linker-friendly dependency boundaries
+## Linker boundaries and binary footprint
 
-Core CONGA packages enforce strict linker boundaries to keep minimal binaries small. In particular, core packages never import `net` (which pulls networking runtime and name resolution into the binary) or `os/user` (which pulls system user lookup and Cgo dependencies).
+Core CONGA packages enforce strict linker boundaries to keep minimal binaries small. In particular, core packages never import `net` or `os/user`. Importing `net` pulls the Go networking runtime, socket machinery, and resolver code into the compiled binary; importing `os/user` pulls system user database lookup and Cgo dependencies.
 
-If core CONGA imported these packages to provide built-in completion or parsing, every CLI application built with the framework would carry those dependencies, whether or not it needed them.
+If core CONGA registered handlers for these packages by default, every CLI utility built with the framework would carry those dependencies, regardless of whether the utility needed them. A single-purpose file manipulation tool would link the entire networking runtime.
 
-To preserve a trim footprint, CONGA isolates these capabilities:
+To prevent dependency bloat, CONGA isolates domain capabilities:
 
-1. **Standard library type loaders** live in `plugin/network`, `plugin/system`, and `plugin/timezone`. They import `conga` to register types via `app.RegisterType`, but link into an application only when mounted via `app.Use(...)`.
-2. **Domain types and predictors** live in `predict/network`, `predict/system`, and `predict/timezone`. They depend exclusively on `package predict`, with zero dependency on the root `conga` package.
+- Standard library loaders live in `plugin/network`, `plugin/system`, and `plugin/timezone`. They import `conga` to register types on `*App[T]`, but link into an application only when explicitly mounted via `app.Use(...)`.
+- Predictors and domain types live in `predict/network`, `predict/system`, and `predict/timezone`. They depend exclusively on `package predict`, maintaining zero dependency on the root `conga` package.
 
-## Builder plugins (`plugin/*`)
+An application that needs neither plugin nor predictor links neither into its final executable.
 
-Plugins are functions of type `func(*conga.App[T])`, applied with `app.Use`:
+## Adapting standard library types via builder plugins
 
-```go
-import (
-	"github.com/conga-sh/conga/plugin/network"
-	"github.com/conga-sh/conga/plugin/system"
-	"github.com/conga-sh/conga/plugin/timezone"
-)
+Go's type system forbids defining methods on types outside their declaring package. Standard library types such as `*user.User`, `*time.Location`, `*net.Interface`, and `syscall.Signal` cannot implement CONGA interfaces like `encoding.TextUnmarshaler` or `predict.Predictable`.
 
-app := conga.New[CLI]().
-	Name("opsctl").
-	Use(system.User, system.Group, system.Signal).
-	Use(timezone.Location).
-	Use(network.Interface)
-```
-
-| Plugin | Mounts stdlib type |
-|--------|--------------------|
-| `plugin/system.User` | `*user.User` (via `system.User` domain type) |
-| `plugin/system.Group` | `*user.Group` |
-| `plugin/system.Signal` | `syscall.Signal` |
-| `plugin/timezone.Location` | `*time.Location` |
-| `plugin/network.Interface` | `network.NetInterface` |
-
-Plugins build on `app.RegisterType` — the same primitive used for custom application types ([How to add custom flag types](/how-to/add-custom-flag-types/)).
-
-## Operating system domain (`predict/system`)
-
-The `predict/system` package provides typed representations for operating system resources alongside corresponding shell completion providers.
-
-The package exposes domain types for `system.User`, `system.Group`, `system.Signal`, `system.PID`, `system.Process`, `system.EnvVar`, and `system.Locale`. Each type pairs with an autocompletion predictor: `system.Users()`, `system.Groups()`, `system.Signals()`, `system.ProcessIDs()`, `system.ProcessNames()`, `system.EnvVars()`, and `system.Locales()`.
-
-Two types pair with constructors that add a noun rather than pluralising the type name: `system.PID` pairs with `ProcessIDs()` and `system.Process` (which stores an executable name) pairs with `ProcessNames()`.
+Because the standard library cannot know about CONGA, the framework uses an adapter mechanism. A plugin is a generic function matching the signature `func(*conga.App[T])`:
 
 ```go
-type Kill struct {
-	Target  system.PID    `help:"Process to signal"`
-	Signal_ system.Signal `default:"SIGTERM" help:"Signal to send"`
+func Location[T any](app *conga.App[T]) {
+	app.RegisterType(time.LoadLocation, conga.WithPredictor(timezone.Timezones()))
 }
 ```
 
-## Network and web domain (`predict/network`)
-
-The `predict/network` package provides types and predictors for network addresses, protocols, and HTTP values.
-
-Domain types include `network.Host`, `network.Port`, `network.HTTPMethod`, `network.HTTPStatus`, `network.MIMEType`, and `network.NetInterface`. Corresponding predictors include `network.Hosts()`, `network.Ports()`, `network.HTTPMethods()`, `network.HTTPStatusCodes()`, `network.MIMETypes()`, and `network.NetInterfaces()`.
+Applying a plugin via `app.Use(...)` connects the standard library parsing function (`time.LoadLocation`, `user.Lookup`, `net.InterfaceByName`) with a domain predictor from `predict/*`. This allows command structs to declare fields using native standard library types directly:
 
 ```go
-type Curl struct {
-	URL    network.Host       `help:"Target host"`
-	Method network.HTTPMethod `default:"GET" help:"HTTP method"`
-	Status network.HTTPStatus `help:"Expected status code"`
+type Config struct {
+	Timezone *time.Location `help:"Target time zone"`
+	Signal   syscall.Signal `default:"SIGTERM" help:"Signal to send"`
 }
 ```
 
-## Time zones (`predict/timezone`)
+The command handler receives the standard library types already parsed and validated, without requiring manual type conversions.
 
-The `timezone.Timezones()` predictor completes IANA time zone identifiers derived from the standard library `time` package database:
+## Decoupled completion providers (`predict/*`)
 
-```go
-app.Predictor("timezone", timezone.Timezones)
-```
+While `plugin/*` packages adapt standard library types into CONGA's builder, packages under `predict/*` provide pure autocompletion logic.
 
-Because domain predictor packages depend only on `predict`, they can also be used in applications built on other CLI frameworks by invoking them inside a `predict.Callback`.
+A predictor is an evaluation function that inspects a command-line context and returns candidate strings. Predictors do not depend on reflection, struct tags, or the root `conga` package. Because of this decoupling:
+
+- Predictors can be tested in isolation without instantiating a CLI application or building a command schema.
+- Predictors can complete values in other contexts, including applications built on other CLI frameworks.
+- Domain types defined in `predict/*` (such as `system.PID` or `network.Host`) implement standard interfaces like `encoding.TextUnmarshaler` and `predict.Predictable` directly. Unlike standard library types, these domain types require no plugin registration; CONGA detects their interfaces at schema build time.
+
+## Choosing between plugins and domain types
+
+When designing command structs, developers choose between standard library types mounted via plugins and domain types from `predict/*`:
+
+- Standard library types via `plugin/*`: Choose this approach when application business logic already expects standard library types (`*time.Location`, `*user.User`, `syscall.Signal`). Using `app.Use(...)` ensures that command struct fields match the signatures of downstream Go functions.
+- Domain types via `predict/*`: Choose this approach when you need specialized representations with self-contained validation (such as `system.PID` or `network.Host`), or when authoring reusable predictors independent of standard library structures.
+
+For complete lists of available plugins and predictors, see [package plugin reference](/reference/plugins/), [package predict reference](/reference/predict/), and [domain types reference](/reference/domain-types/).
