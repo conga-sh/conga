@@ -1,6 +1,6 @@
 ---
 title: About subcommands and hierarchy
-description: Command tree modeling with Command[T], session hierarchy inspection, and the ancestor flag reservation invariant.
+description: Command tree modelling with Command[T], session hierarchy inspection, and the ancestor flag reservation invariant.
 ---
 
 A CONGA command tree is represented by struct composition: fields of type `conga.Command[T]` model subcommands, creating a typed hierarchy derived from Go types. This page explains the architectural design of command hierarchies, how execution state travels through the session, and why flag shadowing across ancestor chains is strictly prohibited. For procedural instructions on mounting subcommands, see [How to declare subcommands](/how-to/declare-subcommands/).
@@ -64,9 +64,9 @@ region := deploy.Region.Get()
 
 ## Forbidden flag shadowing
 
-CONGA enforces strict ancestor flag uniqueness across the command hierarchy: **a flag, alias, or short rune declared on an ancestor command cannot be declared on any descendant command**. Violating this constraint fails schema construction with `ErrSchema` (wrapping `ErrDuplicateFlag`).
+CONGA enforces strict ancestor flag uniqueness across the command hierarchy: a flag, alias, or short rune declared on an ancestor command cannot be declared on any descendant command. Violating this constraint fails schema construction with `ErrSchema` (wrapping `ErrDuplicateFlag`).
 
-```
+```text no-copy
 cloudctl deploy --force      + cloudctl remove --force   (allowed: sibling commands)
 cloudctl --verbose           + cloudctl deploy --verbose (prohibited: ancestor-descendant chain)
 ```

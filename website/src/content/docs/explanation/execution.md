@@ -18,7 +18,7 @@ description: Run and RunContext, the context they hand to the pipeline, the sing
 
 ## One execution per App
 
-An `App` executes exactly once. A second `Run` or `RunContext` call panics with `conga: App already executed`: the builder is captured when execution starts and the pipeline has no reset. A host that serves several invocations builds one `App` per invocation. A running command that needs fresh configuration calls [`session.Reload[T]`](/reference/conga/#session-and-hierarchy-accessors), which re-evaluates the configuration cascade into a new command struct.
+An `App` executes exactly once. A second `Run` or `RunContext` call panics with `conga: App already executed`: the builder is captured when execution starts and the pipeline has no reset. A host that serves several invocations builds one `App` per invocation. A running command that needs fresh configuration calls [`session.Reload[T]`](/reference/conga/#session-and-hierarchy-accessors), which re-evaluates the config cascade into a new command struct.
 
 ## Standard streams and I/O
 

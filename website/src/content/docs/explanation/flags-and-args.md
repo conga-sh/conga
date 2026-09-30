@@ -1,6 +1,6 @@
 ---
 title: About flags and args
-description: Architectural design of CONGA input modeling, container types, and argument binding.
+description: Architectural design of CONGA input modelling, container types, and argument binding.
 ---
 
 Command-line interfaces accept two primary forms of input: named flags and positional arguments. CONGA models both as typed container fields declared directly on command structs.
@@ -9,7 +9,7 @@ This page explains how CONGA structures command-line inputs, the engineering tra
 
 ## Approaches to input in Go
 
-Command-line libraries in the Go ecosystem generally approach input modeling in one of two ways:
+Command-line libraries in the Go ecosystem generally approach input modelling in one of two ways:
 
 1. **Imperative flag sets**: Standard library `flag`, `spf13/cobra`, and `urfave/cli` register flags imperatively onto flag sets. Flags bind to standalone variables through pointers or are queried by string keys such as `cmd.Flags().GetString("addr")`. This model is flexible, but separates the command line specification from data structures and defers type and name checks to runtime.
 2. **Struct-field reflection**: Libraries like `alecthomas/kong` and `alexflint/go-arg` derive flag schemas directly from Go struct definitions using struct tags. Flags map to native Go types (`string`, `int`, `bool`) or pointers (`*string`). This approach keeps configuration declarations concise and feels like ordinary Go code.
@@ -35,14 +35,14 @@ Containers solve this without pointers:
 - The command handler never needs nil checks or defensive guard clauses.
 
 ### Tracking resolution provenance
-CONGA is built around a multi-tier resolution ladder where values can originate from CLI flags, environment variables, configuration files, or hardcoded defaults. Bare fields and pointers discard that origin once populated.
+CONGA is built around a multi-tier resolution ladder where values can originate from CLI flags, environment variables, config files, or hardcoded defaults. Bare fields and pointers discard that origin once populated.
 
 Containers retain their history throughout execution:
 - `cmd.Addr.Source()` identifies which tier supplied the value (`SourceCLI`, `SourceEnv`, `SourceConfig`, `SourceDefault`).
-- `cmd.Addr.SourceDetail()` provides the concrete origin, such as the environment variable name or configuration file path.
+- `cmd.Addr.SourceDetail()` provides the concrete origin, such as the environment variable name or config file path.
 - `cmd.Addr.Changed()` indicates whether an external source altered the value from its default.
 
-This metadata powers diagnostic features like the `--why` provenance report and allows commands to adjust behavior based on how a setting was configured.
+This metadata powers diagnostic features like the `--why` provenance report and allows commands to adjust behaviour based on how a setting was configured.
 
 ## Flags versus positional arguments
 
@@ -54,15 +54,15 @@ Flags are addressed by name (`--output`, `-o`). They are order-independent and m
 Positional arguments (`RequiredArg[T]`, `OptionalArg[T]`) have no names on the command line. Their identity depends entirely on their position. In Go source code, their sequence matches the order of the fields declared on the command struct.
 
 ### Resolution scope
-Flags participate in the complete four-tier resolution ladder. A flag value can come from the command line, an environment variable, an active configuration file, or a default tag.
+Flags participate in the complete four-tier resolution ladder. A flag value can come from the command line, an environment variable, an active config file, or a default tag.
 
-Positional arguments represent immediate execution targets, such as file paths, hostnames, or artifact identifiers. They resolve strictly from command-line arguments. Positional arguments never read from environment variables or configuration files, preventing ambient system settings from altering explicit command targets.
+Positional arguments represent immediate execution targets, such as file paths, hostnames, or artifact identifiers. They resolve strictly from command-line arguments. Positional arguments never read from environment variables or config files, preventing ambient system settings from altering explicit command targets.
 
 ## Deterministic positional evaluation
 
 Positional parsing in CONGA is greedy and deterministic. The engine iterates through command-line tokens from left to right, binding them to argument containers in declaration order.
 
-Because parsing does not backtrack, CONGA enforces a strict structural invariant: **all required arguments must appear before any optional argument**. A struct declaring an optional argument before a required one fails during startup with `ErrSchema`.
+Because parsing does not backtrack, CONGA enforces a strict structural invariant: all required arguments must appear before any optional argument. A struct declaring an optional argument before a required one fails during startup with `ErrSchema`.
 
 This rule eliminates grammar ambiguity. If an optional argument could precede a required argument, an invocation supplying fewer tokens than parameters would be ambiguous: the first token could satisfy either the optional parameter or the mandatory one. Requiring mandatory arguments first ensures that every token binding is predictable.
 
@@ -74,7 +74,7 @@ Many command-line tools wrap existing utilities or forward arguments to compiler
 `conga.DashArgs` captures tokens that appear after the standard POSIX `--` delimiter. The host application parses its own flags up to the delimiter, and places all subsequent tokens into `DashArgs`. Tools like `go test` use this pattern to separate build options from test binary flags (for example, `go test ./... -- -v`).
 
 ### RawArgs for command passthrough
-`conga.RawArgs` captures trailing tokens without requiring a `--` delimiter. Once the parser encounters an argument at the `RawArgs` position, flag parsing stops immediately and all remaining arguments are captured as-is. Container tools like `docker run` use this pattern to pass arbitrary commands to container runtimes (for example, `docker run alpine echo hello`).
+`conga.RawArgs` captures trailing tokens without requiring a `--` delimiter. Once the parser encounters an argument at the `RawArgs` position, flag parsing stops immediately and all remaining arguments are captured as-is. Tools like `docker run` use this pattern to pass arbitrary commands to container runtimes (for example, `docker run alpine echo hello`).
 
 ## Declarative constraints
 

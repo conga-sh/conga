@@ -1,12 +1,25 @@
 ---
-title: About plugins vs predictors
-description: plugin/* loaders for standard library types and predict/network, predict/system, predict/timezone domain packages.
+title: About plugins versus predictors
+description: Builder plugins for standard library types, decoupled domain predictors, and linker-friendly dependency boundaries.
 ---
 
-CONGA splits "completion-capable types" into two families:
+CONGA separates completion-capable types into two decoupled layers:
 
-- **`plugin/*`** — builder plugins that mount **standard library types** (`*time.Location`, `syscall.Signal`, `os/user` types) onto your app via `app.Use(...)`. Each plugin registers a parser (and predictor) for a stdlib type.
-- **`predict/<domain>`** — pure, self-contained **domain types and predictors** (network, operating system, time zones) with zero dependency on the root framework.
+- `plugin/*`: builder plugins that mount standard library types (`*time.Location`, `syscall.Signal`, `os/user` types) onto an application via `app.Use(...)`. Each plugin registers a type loader and predictor for a standard library type.
+- `predict/<domain>`: standalone domain types and predictors (covering network, operating system, and time zones) with zero dependency on the root `conga` framework.
+
+This page explains why these systems are decoupled, how they preserve linker boundaries, and how plugins and domain predictors interact with the engine.
+
+## Linker-friendly dependency boundaries
+
+Core CONGA packages enforce strict linker boundaries to keep minimal binaries small. In particular, core packages never import `net` (which pulls networking runtime and name resolution into the binary) or `os/user` (which pulls system user lookup and Cgo dependencies).
+
+If core CONGA imported these packages to provide built-in completion or parsing, every CLI application built with the framework would carry those dependencies, whether or not it needed them.
+
+To preserve a trim footprint, CONGA isolates these capabilities:
+
+1. **Standard library type loaders** live in `plugin/network`, `plugin/system`, and `plugin/timezone`. They import `conga` to register types via `app.RegisterType`, but link into an application only when mounted via `app.Use(...)`.
+2. **Domain types and predictors** live in `predict/network`, `predict/system`, and `predict/timezone`. They depend exclusively on `package predict`, with zero dependency on the root `conga` package.
 
 ## Builder plugins (`plugin/*`)
 
@@ -34,15 +47,15 @@ app := conga.New[CLI]().
 | `plugin/timezone.Location` | `*time.Location` |
 | `plugin/network.Interface` | `network.NetInterface` |
 
-Plugins are built on `app.RegisterType` — the same primitive you can use for your own types ([How to add custom flag types](/how-to/add-custom-flag-types/)).
+Plugins build on `app.RegisterType` — the same primitive used for custom application types ([How to add custom flag types](/how-to/add-custom-flag-types/)).
 
-## `predict/system` — operating system domain
+## Operating system domain (`predict/system`)
 
-Types: `system.User`, `system.Group`, `system.Signal`, `system.PID`, `system.Process`, `system.EnvVar`, `system.Locale`.
+The `predict/system` package provides typed representations for operating system resources alongside corresponding shell completion providers.
 
-Predictors: `system.Users()`, `system.Groups()`, `system.Signals()`, `system.ProcessIDs()`, `system.ProcessNames()`, `system.EnvVars()`, `system.Locales()`.
+The package exposes domain types for `system.User`, `system.Group`, `system.Signal`, `system.PID`, `system.Process`, `system.EnvVar`, and `system.Locale`. Each type pairs with an autocompletion predictor: `system.Users()`, `system.Groups()`, `system.Signals()`, `system.ProcessIDs()`, `system.ProcessNames()`, `system.EnvVars()`, and `system.Locales()`.
 
-Two types pair with constructors that add a noun rather than pluralizing the type name: `system.PID` pairs with `ProcessIDs()` and `system.Process` (which stores an executable name) pairs with `ProcessNames()`.
+Two types pair with constructors that add a noun rather than pluralising the type name: `system.PID` pairs with `ProcessIDs()` and `system.Process` (which stores an executable name) pairs with `ProcessNames()`.
 
 ```go
 type Kill struct {
@@ -51,28 +64,26 @@ type Kill struct {
 }
 ```
 
-## `predict/network` — network and web domain
+## Network and web domain (`predict/network`)
 
-Types: `network.Host`, `network.Port`, `network.HTTPMethod`, `network.HTTPStatus`, `network.MIMEType`, `network.NetInterface`.
+The `predict/network` package provides types and predictors for network addresses, protocols, and HTTP values.
 
-Predictors: `network.Hosts()`, `network.Ports()`, `network.HTTPMethods()`, `network.HTTPStatusCodes()`, `network.MIMETypes()`, `network.NetInterfaces()`.
+Domain types include `network.Host`, `network.Port`, `network.HTTPMethod`, `network.HTTPStatus`, `network.MIMEType`, and `network.NetInterface`. Corresponding predictors include `network.Hosts()`, `network.Ports()`, `network.HTTPMethods()`, `network.HTTPStatusCodes()`, `network.MIMETypes()`, and `network.NetInterfaces()`.
 
 ```go
 type Curl struct {
-	URL    network.Host    `help:"Target host"`
+	URL    network.Host       `help:"Target host"`
 	Method network.HTTPMethod `default:"GET" help:"HTTP method"`
 	Status network.HTTPStatus `help:"Expected status code"`
 }
 ```
 
-## `predict/timezone` — time zones
+## Time zones (`predict/timezone`)
 
-`timezone.Timezones()` completes IANA time zone identifiers (from the standard `time` package data):
+The `timezone.Timezones()` predictor completes IANA time zone identifiers derived from the standard library `time` package database:
 
 ```go
 app.Predictor("timezone", timezone.Timezones)
 ```
 
-:::note
-Domain predictor packages depend only on `predict` — you can use them in apps built on other CLI frameworks by invoking them inside a `predict.Callback`.
-:::
+Because domain predictor packages depend only on `predict`, they can also be used in applications built on other CLI frameworks by invoking them inside a `predict.Callback`.
