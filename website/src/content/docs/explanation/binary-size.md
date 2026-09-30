@@ -1,6 +1,7 @@
 ---
 title: About binary size and linking
 description: Why unused subsystems cost nothing to link, what each opt-in battery adds, and how its measured sizes compare with cobra and urfave/cli.
+draft: true
 ---
 
 Every CONGA feature is a link-time opt-in: the Go linker includes a subsystem only when the application enables it. An app that enables no completion, registers no config decoder, and loads no `.env` files carries none of those subsystems in its binary. This page explains how that works and what each opt-in costs; the full measured tables live in the [binary size benchmark](/reference/binary-size-benchmark/).

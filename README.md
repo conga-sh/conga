@@ -29,8 +29,7 @@ and shell completion from them.
   [How to lint CONGA schemas](https://docs.conga.sh/how-to/lint-schemas/).
 - **Opt-in subsystems, linker friendly.** Completion, configuration, and
   `.env` loading link only when enabled; omitting one drops its code and
-  dependencies from the binary. See
-  [About binary size and linking](https://docs.conga.sh/explanation/binary-size/).
+  dependencies from the binary.
 
 ## Installation
 

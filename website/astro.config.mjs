@@ -88,7 +88,6 @@ export default defineConfig({
             'reference/errors',
             'reference/conga-lint',
             'reference/domain-types',
-            'reference/binary-size-benchmark',
           ],
         },
         {
@@ -100,7 +99,6 @@ export default defineConfig({
             'explanation/subcommands',
             'explanation/lifecycle',
             'explanation/error-reporting',
-            'explanation/binary-size',
             'explanation/plugins-vs-predictors',
           ],
         },

@@ -1,6 +1,7 @@
 ---
 title: Binary size benchmark
 description: Measured ladder of a shared spec CLI across flag, pflag, cobra, kong, urfave/cli, and CONGA.
+draft: true
 ---
 
 Sizes for a shared spec CLI built identically across frameworks. Every build is measured on `go1.27.1 linux/amd64`, `CGO_ENABLED=0`, `go build -trimpath -buildvcs=false -ldflags="-s -w"`. Numbers are a point-in-time snapshot; regenerate them with `make report` in `bench/comparison`. The conceptual reading is in [About binary size and linking](/explanation/binary-size/).
