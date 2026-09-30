@@ -3,7 +3,7 @@ title: About the config cascade
 description: How config files are discovered, merged, and classified — the XDG tier, cascading, and error semantics.
 ---
 
-CONGA loads config files into a flat `map[string]string` view that feeds tier 3 of the [value precedence ladder](/explanation/value-precedence/). Formats are opt-in packages; only registered formats are linked into the application binary. The practical steps — registering decoders, declaring search paths, cascading, and reload — live in [How to manage config files](/how-to/manage-config-files/).
+CONGA loads config files into a flat `map[string]string` view that feeds tier 3 of the [value precedence ladder](/explanation/value-precedence/). Formats are opt-in packages; only registered formats are linked into the application binary. The practical steps — registering decoders, declaring search paths, and cascading — live in [How to manage config files](/how-to/manage-config-files/).
 
 ## Cascading merges
 

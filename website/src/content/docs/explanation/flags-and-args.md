@@ -98,6 +98,4 @@ The engine evaluates declared constraints after type coercion but before invokin
 
 ## Immutability during execution
 
-Once execution reaches the lifecycle hooks, container state is immutable. Command handlers read resolved values; they cannot re-run the resolution ladder or modify container values in place.
-
-When a long-running process or background worker needs to re-read configuration after a file change on disk, it calls `session.Reload[T](ctx)`. Rather than mutating existing containers, `Reload` executes a fresh resolution pass and returns a newly allocated, validated instance of the command struct.
+Once execution reaches the lifecycle hooks, container state is immutable. Command handlers read resolved values; they cannot re-run the resolution ladder or modify container values in place. Configuration is resolved once at startup; restarting the process applies file changes.

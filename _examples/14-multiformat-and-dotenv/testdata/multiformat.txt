@@ -64,9 +64,10 @@ DB_HOST=localhost
 DATABASE_URL=postgres://${DB_HOST}:5432/db
 PORT=8000
 SERVICE_NAME='local svc'
+API_KEY=from-env
 
 -- .env.local --
-# Machine-local values, never committed to source control
+# Machine-local values, never committed to source control; API_KEY overrides .env
 API_KEY=local-dev-key-42
 
 -- config.json --

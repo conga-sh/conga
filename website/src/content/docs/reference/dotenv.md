@@ -13,12 +13,10 @@ func (a *App[T]) Dotenv(paths ...string) *App[T]
 
 | Call | Files | Missing file | Key conflicts |
 |------|-------|--------------|---------------|
-| `Dotenv()` | `.env`, then `.env.local`, in the working directory | Silently ignored | The first definition wins; the process environment outranks both files |
-| `Dotenv(path1, path2, ...)` | Each named path, in order | Fatal error wrapping `conga.ErrConfig` | The first definition wins; the process environment outranks files |
+| `Dotenv()` | `.env`, then `.env.local`, in the working directory | Silently ignored | The last definition wins; the process environment outranks both files |
+| `Dotenv(path1, path2, ...)` | Each named path, in order | Fatal error wrapping `conga.ErrConfig` | The last definition wins; the process environment outranks files |
 
-At startup, `app.Dotenv()` loads non-destructively: a key already present in the process environment is not replaced, so shell, container, and CI values outrank file values. With both conventional files present, `.env` supplies a key defined in both files, and `.env.local` contributes the keys `.env` does not define.
-
-`session.Reload[T](ctx)` re-reads the files with overwrite semantics: file values replace existing process environment entries, and later files win over earlier ones, so edits to `.env` files apply without restarting the process.
+`app.Dotenv()` loads non-destructively: a key already present in the process environment is not replaced, so shell, container, and CI values outrank file values. Files apply in order, so `.env.local` overrides a key defined in both conventional files, and each named path overrides the paths before it.
 
 ## Grammar
 
@@ -29,7 +27,7 @@ At startup, `app.Dotenv()` loads non-destructively: a key already present in the
 | Unquoted values | Taken verbatim after inline-comment stripping. |
 | Single quotes | Literal; no escape processing. |
 | Double quotes | The escapes `\n`, `\r`, `\t`, `\"`, `\\`, and `\$` are evaluated; only whitespace or a comment may follow the closing quote. |
-| Variable expansion | `$VAR` and `${VAR}` expand from keys defined earlier in the file first, then from the process environment. |
+| Variable expansion | `$VAR` and `${VAR}` resolve from the process environment first, then from keys defined earlier in the file; a file overriding a key from an earlier file in the same call uses its own value. |
 
 ```ini title=".env"
 BASE_DIR=/var/data

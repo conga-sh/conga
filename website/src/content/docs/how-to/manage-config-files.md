@@ -1,9 +1,9 @@
 ---
 title: How to manage config files
-description: Register decoders, configure search paths, enable cascading file merges, and reload config files.
+description: Register decoders, configure search paths, enable cascading file merges, and inspect config files at runtime.
 ---
 
-Config files in CONGA are opt-in. An application registers file decoders for desired formats, then configures resolution rules using `app.ConfigOptions(...)`. This guide explains format registration, search-tier probing, cascading merges, key mapping, and runtime reloading.
+Config files in CONGA are opt-in. An application registers file decoders for desired formats, then configures resolution rules using `app.ConfigOptions(...)`. This guide explains format registration, search-tier probing, cascading merges, key mapping, and runtime inspection.
 
 ## Register configuration formats
 
@@ -187,9 +187,9 @@ type Database struct {
 - `config:"connection_url"`: Reads the value from the specified key in the config file.
 - `config:"-"`: Disables config file resolution for that field, requiring it to be set via CLI, environment variable, or default value.
 
-## Inspect and reload config files at runtime
+## Inspect config files at runtime
 
-Access active file paths and trigger reloads using the session:
+Access the evaluated file paths using the session:
 
 ```go title="main.go"
 func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
@@ -199,20 +199,13 @@ func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
 	// Paths of files that were actually found and decoded
 	loaded := session.LoadedConfigFiles()
 
-	// Re-read and re-validate configuration from disk
-	freshCLI, err := session.Reload[CLI](ctx)
-	if err != nil {
-		return fmt.Errorf("reloading configuration: %w", err)
-	}
-
 	return nil
 }
 ```
 
-Call `session.Reload[T](ctx)` to re-read files from disk and re-run validation, returning a freshly bound `*T`.
+`CandidateConfigFiles` lists every path probed during resolution; `LoadedConfigFiles` lists the subset that existed and was decoded.
 
 ## Where to go next
 
-- [How to hot-reload configuration](/how-to/hot-reload-config/) — live filesystem watching with `package watch`.
 - [About the config cascade](/explanation/config-cascade/) — search-tier mechanics, merging order, and XDG resolution.
 - [Package decoder reference](/reference/decoders/) — decoders for JSON, TOML, YAML, and HCL.

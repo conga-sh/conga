@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"maps"
 	"os"
 	"os/signal"
 	"reflect"
@@ -70,8 +69,7 @@ type App[T any] struct {
 	rootCommand *spec.Command
 
 	// executed guards the single-execution contract: Run/RunContext may only
-	// execute once per App. The flag lives on App, not appConfig, so Reload's
-	// fresh internal App and appConfig.clone() never inherit it.
+	// execute once per App.
 	executed bool
 }
 
@@ -178,7 +176,6 @@ func (a *App[T]) EnvPrefix(prefix string) *App[T] {
 func (a *App[T]) Dotenv(paths ...string) *App[T] {
 	a.dotenvPaths = paths
 	a.dotenvLoader = dotenv.Load
-	a.dotenvOverloader = dotenv.Overload
 
 	return a
 }
@@ -394,8 +391,7 @@ func (a *App[T]) RegisterMap[M ~map[K]V, K comparable, V any](_ M, opts ...Regis
 // parses arguments, validates constraints, and runs the matched command.
 // Panics if ctx is nil, and panics if the App has already executed: an App
 // runs exactly once. The standard streams are captured at execution start;
-// changes made afterwards do not affect the active session. Use Reload for
-// re-execution with fresh configuration.
+// changes made afterwards do not affect the active session.
 func (a *App[T]) RunContext(ctx context.Context) error {
 	a.initDefaults()
 
@@ -462,7 +458,7 @@ func (a *App[T]) UsageOnError(mode UsageOnErrorMode) *App[T] {
 
 // Stdin sets the standard input reader for commands that read input (defaults to os.Stdin).
 // The stream is captured when Run/RunContext starts: changes made afterwards do
-// not affect the active session; use Reload for re-execution with new streams.
+// not affect the active session.
 func (a *App[T]) Stdin(reader io.Reader) *App[T] {
 	if reader != nil {
 		a.stdin = reader
@@ -473,7 +469,7 @@ func (a *App[T]) Stdin(reader io.Reader) *App[T] {
 
 // Stdout sets the standard output writer for help and version messages (defaults to os.Stdout).
 // The stream is captured when Run/RunContext starts: changes made afterwards do
-// not affect the active session; use Reload for re-execution with new streams.
+// not affect the active session.
 func (a *App[T]) Stdout(writer io.Writer) *App[T] {
 	if writer != nil {
 		a.stdout = writer
@@ -484,7 +480,7 @@ func (a *App[T]) Stdout(writer io.Writer) *App[T] {
 
 // Stderr sets the standard error writer for error and usage messages (defaults to os.Stderr).
 // The stream is captured when Run/RunContext starts: changes made afterwards do
-// not affect the active session; use Reload for re-execution with new streams.
+// not affect the active session.
 func (a *App[T]) Stderr(writer io.Writer) *App[T] {
 	if writer != nil {
 		a.stderr = writer
@@ -618,7 +614,7 @@ type typeRegistration struct {
 
 // appConfig holds every configuration field for an App. It is the single source
 // of truth for configuration state: New populates it with defaults and the
-// reloader clones it so a reloaded pipeline never drifts from the original.
+// builder methods mutate it.
 type appConfig[T any] struct {
 	name                string
 	description         string
@@ -634,7 +630,6 @@ type appConfig[T any] struct {
 	configEngine        configEngineFactory
 	dotenvPaths         []string
 	dotenvLoader        func(paths ...string) error
-	dotenvOverloader    func(paths ...string) error
 	configData          map[string]string
 	args                []string
 	argsExplicitlySet   bool
@@ -656,8 +651,7 @@ type appConfig[T any] struct {
 	// (including its filesystem probes) unreferenced at link time.
 	inferPredictor func(targetType reflect.Type, tags spec.FieldTags) *spec.PredictorSpec
 	// The following feature hooks are method expressions: they receive the
-	// executing App as their first argument, so a reloaded App's cloned hooks
-	// always dispatch to the fresh receiver. Nil means the subsystem is
+	// executing App as their first argument. Nil means the subsystem is
 	// disabled and unreferenced, so its packages drop at link time.
 	whyRenderer                func(app *App[T], cmdChain []*spec.Command, flagValues map[*spec.Flag][]string)
 	defaultPredictors          func(app *App[T])
@@ -665,25 +659,6 @@ type appConfig[T any] struct {
 	handleCompletionInvocation func(app *App[T]) error
 	completionHelp             func(app *App[T], cmdChain []*spec.Command, completionValue string, withHelp bool) (bool, error)
 	renderCompletionScript     func(app *App[T], cmdChain []*spec.Command, shell string) (bool, error)
-}
-
-// clone returns a deep copy of the configuration, safe for building a reloaded App.
-func (c appConfig[T]) clone() appConfig[T] {
-	configSettings := c.configSettings
-	configSettings.Tier = slices.Clone(configSettings.Tier)
-	c.configSettings = configSettings
-	c.configOptions = slices.Clone(c.configOptions)
-	c.configRegistry = c.configRegistry.Clone()
-	c.dotenvPaths = slices.Clone(c.dotenvPaths)
-	c.completionShells = slices.Clone(c.completionShells)
-	c.configData = maps.Clone(c.configData)
-	c.args = slices.Clone(c.args)
-	c.deprecationNotices = nil
-	c.allowedTags = slices.Clone(c.allowedTags)
-	c.predictors = maps.Clone(c.predictors)
-	c.typeRegistry = maps.Clone(c.typeRegistry)
-
-	return c
 }
 
 // configView is the root package's view over the configuration resolution
@@ -1058,7 +1033,6 @@ func (a *App[T]) prepare(ctx context.Context) (*Session, bool, error) {
 		stdin:       a.stdin,
 		cmdChain:    cmdChain,
 		rawArgs:     rawTokens,
-		reloadFunc:  a.buildReloadFunc(),
 		appName:     a.name,
 		appVersion:  a.version,
 		helpOptions: a.helpOptions,
@@ -1419,30 +1393,6 @@ func (a *App[T]) installCompletionHooks() {
 // keep the why machinery unreferenced.
 func (a *App[T]) installWhyRenderer() {
 	a.whyRenderer = (*App[T]).renderWhy
-}
-
-func (a *App[T]) buildReloadFunc() func(ctx context.Context) (any, error) {
-	return func(ctx context.Context) (any, error) {
-		newRoot := new(T)
-
-		freshApp := &App[T]{
-			rootTarget: newRoot,
-			appConfig:  a.clone(),
-		}
-		freshApp.configData = make(map[string]string)
-
-		if freshApp.dotenvOverloader != nil {
-			if err := freshApp.dotenvOverloader(freshApp.dotenvPaths...); err != nil {
-				return nil, fmt.Errorf("%w: %w", ErrConfig, err)
-			}
-		}
-
-		if _, _, err := freshApp.prepare(ctx); err != nil {
-			return nil, err
-		}
-
-		return newRoot, nil
-	}
 }
 
 func (a *App[T]) exit(code int) {

@@ -1,19 +1,11 @@
 package conga
 
 import (
-	"context"
-	"errors"
 	"fmt"
 	"io"
 
 	"github.com/conga-sh/conga/internal/help"
 	"github.com/conga-sh/conga/internal/spec"
-)
-
-// Internal sentinel errors for session lifecycle misuse.
-var (
-	errReloaderNotInitialized = errors.New("conga: session not initialized with reloader")
-	errReloadTypeMismatch     = errors.New("conga: reload result type mismatch")
 )
 
 // Session represents an active CLI execution session.
@@ -26,7 +18,6 @@ type Session struct {
 	rawArgs        []string
 	candidateFiles []string
 	loadedFiles    []string
-	reloadFunc     func(ctx context.Context) (any, error)
 	appName        string
 	appVersion     string
 	helpOptions    help.Options
@@ -157,30 +148,6 @@ func (s *Session) Root[T any]() *T {
 	}
 
 	return nil
-}
-
-// Reload re-reads and re-evaluates the active application configuration, returning a fresh, validated pointer to T.
-// The root instance supplied to New is not updated: the reloaded values live on the returned pointer.
-func (s *Session) Reload[T any](ctx context.Context) (*T, error) {
-	if ctx == nil {
-		panic("conga: nil Context")
-	}
-
-	if s == nil || s.reloadFunc == nil {
-		return nil, errReloaderNotInitialized
-	}
-
-	reloaded, err := s.reloadFunc(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	typed, ok := reloaded.(*T)
-	if !ok {
-		return nil, fmt.Errorf("%w: type %T does not match requested type *%T", errReloadTypeMismatch, reloaded, *new(T))
-	}
-
-	return typed, nil
 }
 
 // eofReader is the nil-session input analogue of io.Discard: every Read

@@ -25,5 +25,4 @@ go run ./_examples/12-lifecycle-hooks deploy
 go test ./_examples/12-lifecycle-hooks
 ```
 
-Related: [07 — Dynamic validation](../07-dynamic-validation/),
-[16 — Live config watcher](../16-live-config-watcher/).
+Related: [07 — Dynamic validation](../07-dynamic-validation/).

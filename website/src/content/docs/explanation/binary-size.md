@@ -18,7 +18,7 @@ CONGA deliberately uses the first style. Completion, configuration, `.env` loadi
 - `app.EnableCompletion()` installs the completion hooks — six shell drivers, the `__complete` handler, and predictor-driven value completion.
 - `app.EnableWhy()` installs the `--why` value-provenance report renderer.
 - `app.RegisterDecoder(...)` / `app.ConfigOptions(...)` install the config resolver.
-- `app.Dotenv(...)` installs the `.env` loader and reload hooks.
+- `app.Dotenv(...)` installs the `.env` loader hook.
 
 An application that calls none of these leaves every hook nil; the linker proves each call site unreachable and eliminates the subsystem. A checked-in DCE guard (`task test:size`) asserts the payloads are absent, so the property cannot silently regress. See [How to enable shell completion](/how-to/enable-shell-completion/), [How to load .env files](/how-to/load-env-files/), and [How to manage config files](/how-to/manage-config-files/) for the opt-in surface.
 

@@ -1,9 +1,9 @@
 ---
 title: How to run the examples
-description: Run the repository's 29 self-contained example programs and find the one covering a given feature.
+description: Run the repository's 28 self-contained example programs and find the one covering a given feature.
 ---
 
-The CONGA repository provides 29 self-contained example programs under [`_examples/`](https://github.com/conga-sh/conga/tree/main/_examples). Each example implements a focused architecture pattern, accompanied by a dedicated README and an automated end-to-end test suite.
+The CONGA repository provides 28 self-contained example programs under [`_examples/`](https://github.com/conga-sh/conga/tree/main/_examples). Each example implements a focused architecture pattern, accompanied by a dedicated README and an automated end-to-end test suite.
 
 ## Run an example locally
 
@@ -55,7 +55,6 @@ go test ./_examples/...
 | 13 | [twelve-factor-precedence](https://github.com/conga-sh/conga/tree/main/_examples/13-twelve-factor-precedence) | The four-tier resolution ladder, `EnvPrefix`, `env:"-"`, and `config:"-"`. |
 | 14 | [multiformat-and-dotenv](https://github.com/conga-sh/conga/tree/main/_examples/14-multiformat-and-dotenv) | `.env` and `.env.local` files, JSON/TOML/YAML/HCL decoders, and strict validation. |
 | 15 | [cascading-searchpaths](https://github.com/conga-sh/conga/tree/main/_examples/15-cascading-searchpaths) | `app.ConfigOptions(config.Cascading())` system-to-local merging and explicit `--config-file` overrides. |
-| 16 | [live-config-watcher](https://github.com/conga-sh/conga/tree/main/_examples/16-live-config-watcher) | Daemon hot-reload with `watch.Config`, reload via `session.Reload[T]`, and signal shutdown. |
 | 17 | [config-profiles](https://github.com/conga-sh/conga/tree/main/_examples/17-config-profiles) | `ConfigFile` with `multi:"true"` multi-file merging (base plus profile pattern). |
 | 18 | [config-searchpaths](https://github.com/conga-sh/conga/tree/main/_examples/18-config-searchpaths) | `app.ConfigOptions(config.Paths(...))` single-file search mode where the first existing file wins. |
 | 28 | [explicit-config-file](https://github.com/conga-sh/conga/tree/main/_examples/28-explicit-config-file) | `app.ConfigOptions(config.Explicit(...))` fatal-if-missing programmatic target. |

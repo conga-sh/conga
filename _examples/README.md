@@ -37,7 +37,6 @@ task test:examples
 | 13 | [13-twelve-factor-precedence](13-twelve-factor-precedence/) | The 4-tier precedence ladder (CLI > env > config > default), `EnvPrefix`, `env:"-"`, `placeholder`, `config:"-"`, and the `--why` provenance report |
 | 14 | [14-multiformat-and-dotenv](14-multiformat-and-dotenv/) | `.env` + `.env.local` loading (expansion, quotes), JSON/TOML/YAML/HCL decoders, strict validation with typo hints |
 | 15 | [15-cascading-searchpaths](15-cascading-searchpaths/) | `app.ConfigOptions(config.Cascading())` system→user→local merging, partial cascades, explicit `-c` override |
-| 16 | [16-live-config-watcher](16-live-config-watcher/) | Daemon hot-reload: `watch.Config`, `watch.File`, SIGHUP reload via `session.Reload`, `session.CandidateConfigFiles`, `session.LoadedConfigFiles`, graceful signal shutdown |
 | 17 | [17-config-profiles](17-config-profiles/) | `conga.ConfigFile` with `multi:"true"` multi-file configuration merging (base + profiles, repeatable and comma-list forms) |
 | 18 | [18-config-searchpaths](18-config-searchpaths/) | `app.ConfigOptions(config.Paths(...))` single-file mode where first existing file wins |
 | 19 | [19-shell-completion](19-shell-completion/) | Shell completion in both wiring styles: self-completing domain types (`conga.Predictable`, `FileFilterable`, `conga.File`, `conga.Dir`) on `deploy`, the predictor registry (`app.Predictor`, `predictor:"..."` tags) on `exec`, and the full predict SDK playground (every constructor and combinator) on `logs` |

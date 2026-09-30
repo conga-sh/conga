@@ -114,16 +114,10 @@ type DirExistingCLI struct {
 	WorkDir conga.OptionalFlag[conga.Dir] `existing:"true" name:"workdir"`
 }
 
-type FileReloadCLI struct {
+type FileConfigCLI struct {
+	noopRunner
+
 	Input conga.OptionalFlag[conga.File] `existing:"true" name:"input"`
-}
-
-// Run reloads the configuration through session.Reload, propagating the
-// re-validation outcome of the freshly resolved values.
-func (c *FileReloadCLI) Run(ctx context.Context, session *conga.Session) error {
-	_, err := session.Reload[FileReloadCLI](ctx)
-
-	return err
 }
 
 func TestFileExistingValidation(t *testing.T) {
@@ -471,14 +465,14 @@ func TestFileGlobSchemaErrors(t *testing.T) {
 	})
 }
 
-func TestFileExistingReloadParity(t *testing.T) {
+func TestFileExistingConfigValidation(t *testing.T) {
 	t.Parallel()
 
-	t.Run("reloaded config values re-validated", func(t *testing.T) {
+	t.Run("config-sourced existing file passes", func(t *testing.T) {
 		t.Parallel()
 
-		testFile := writeFileForTest(t, "reload.txt")
-		app := conga.New[FileReloadCLI]().
+		testFile := writeFileForTest(t, "config.txt")
+		app := conga.New[FileConfigCLI]().
 			Name("app").
 			RegisterDecoder(".json", json.RawDecoder).
 			ConfigOptions(config.Explicit(writeConfigFile(t, `{"input": "`+testFile+`"}`))).
@@ -489,11 +483,11 @@ func TestFileExistingReloadParity(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	t.Run("reloaded config values failing validation fail reload", func(t *testing.T) {
+	t.Run("config-sourced missing file fails validation", func(t *testing.T) {
 		t.Parallel()
 
-		missing := filepath.Join(t.TempDir(), "reload-missing.txt")
-		app := conga.New[FileReloadCLI]().
+		missing := filepath.Join(t.TempDir(), "config-missing.txt")
+		app := conga.New[FileConfigCLI]().
 			Name("app").
 			RegisterDecoder(".json", json.RawDecoder).
 			ConfigOptions(config.Explicit(writeConfigFile(t, `{"input": "`+missing+`"}`))).

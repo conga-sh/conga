@@ -22,7 +22,7 @@ import (
 // initializer would run at every startup. Error sentinels for these packages
 // live in the always-linked internal/sentinel leaf instead. Packages not yet
 // converted (predict/network, predict/system, internal/filex, internal/signals,
-// watch, decoder/*) are intentionally absent until their sentinels move there.
+// decoder/*) are intentionally absent until their sentinels move there.
 //
 //nolint:gochecknoglobals // static package policy list shared by the guard subtests
 var optInInitGuardPackages = []string{

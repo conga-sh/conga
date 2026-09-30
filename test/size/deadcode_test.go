@@ -27,9 +27,7 @@ func TestMinimalHello_DotenvPayloadEliminated(t *testing.T) {
 
 	for _, symbol := range []string{
 		"github.com/conga-sh/conga/internal/dotenv.Load",
-		"github.com/conga-sh/conga/internal/dotenv.Overload",
 		"github.com/conga-sh/conga/internal/dotenv.loadDefaultHierarchy",
-		"github.com/conga-sh/conga/internal/dotenv.loadFiles",
 		"github.com/conga-sh/conga/internal/dotenv.loadSingleFile",
 	} {
 		assert.False(t, symbols[symbol], "linker must drop the dotenv loader payload: "+symbol)
