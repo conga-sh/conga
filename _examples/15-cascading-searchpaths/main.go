@@ -12,7 +12,7 @@ import (
 
 // CLI demonstrates cascading configuration merges (local > user > system precedence).
 type CLI struct {
-	ConfigFile conga.ConfigFile `help:"Explicit configuration file" multi:"true" short:"c"`
+	ConfigFile conga.ConfigFile `multi:"true" short:"c"`
 
 	APIEndpoint conga.OptionalFlag[string]        `default:"https://api.default.io" help:"API endpoint"                name:"api-endpoint"`
 	Timeout     conga.OptionalFlag[time.Duration] `default:"10s"                    help:"Request timeout"`

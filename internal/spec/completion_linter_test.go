@@ -57,11 +57,11 @@ type ContextPredictorSentinelCLI struct {
 }
 
 type ContextPredictorDashArgsCLI struct {
-	Trailing mockDashArgs `help:"Trailing args" predictor:"file"`
+	Trailing mockDashArgs `name:"trailing" predictor:"file"`
 }
 
 type ContextPredictorRawArgsCLI struct {
-	Raw mockRawArgs `help:"Raw args" predictor:"file"`
+	Raw mockRawArgs `name:"raw" predictor:"file"`
 }
 
 type ContextPredictorConfigFileCLI struct {

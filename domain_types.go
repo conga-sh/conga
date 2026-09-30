@@ -289,7 +289,7 @@ func (f FileContent) String() string {
 
 // Help returns the default help description for file content flags.
 func (f FileContent) Help() string {
-	return "Path to a file (or '-' for stdin) to read into memory"
+	return "Path to a file (or '-' for stdin)"
 }
 
 // Predict returns file autocompletion candidates.

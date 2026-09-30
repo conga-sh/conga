@@ -9,6 +9,7 @@ import (
 	"github.com/alecthomas/assert/v2"
 
 	"github.com/conga-sh/conga"
+	"github.com/conga-sh/conga/decoder/json"
 	"github.com/conga-sh/conga/internal/help"
 	"github.com/conga-sh/conga/internal/spec"
 )
@@ -233,6 +234,76 @@ func TestHelpFormatting_ConfigFileFlag(t *testing.T) {
 	assert.Contains(t, helpText, "-c, --config-file=PATH")
 	assert.Contains(t, helpText, "Path to config file")
 	assert.NotContains(t, helpText, "[default:")
+}
+
+type ConfigFileDefaultHelpCLI struct {
+	noopRunner
+
+	ConfigFile conga.ConfigFile
+}
+
+type MultiConfigFileDefaultHelpCLI struct {
+	noopRunner
+
+	ConfigFile conga.ConfigFile `multi:"true"`
+}
+
+func TestHelpFormatting_ConfigFileDefaultHelp(t *testing.T) {
+	t.Parallel()
+
+	t.Run("single flag with decoder", func(t *testing.T) {
+		t.Parallel()
+
+		var buffer bytes.Buffer
+
+		app := conga.New[ConfigFileDefaultHelpCLI]().
+			Name("helpapp").
+			RegisterDecoder(".json", json.RawDecoder).
+			Args([]string{"--help"}).
+			Stdout(&buffer)
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Contains(t, buffer.String(), "--config-file=PATH")
+		assert.Contains(t, buffer.String(), "Path to configuration file")
+		assert.NotContains(t, buffer.String(), "configuration file(s)")
+		assert.NotContains(t, buffer.String(), "no configuration decoder registered")
+	})
+
+	t.Run("multi flag with decoder", func(t *testing.T) {
+		t.Parallel()
+
+		var buffer bytes.Buffer
+
+		app := conga.New[MultiConfigFileDefaultHelpCLI]().
+			Name("helpapp").
+			RegisterDecoder(".json", json.RawDecoder).
+			Args([]string{"--help"}).
+			Stdout(&buffer)
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Contains(t, buffer.String(), "--config-file=PATH,...")
+		assert.Contains(t, buffer.String(), "Path to configuration file(s)")
+	})
+
+	t.Run("single flag without decoder appends warning", func(t *testing.T) {
+		t.Parallel()
+
+		var buffer bytes.Buffer
+
+		app := conga.New[ConfigFileDefaultHelpCLI]().
+			Name("helpapp").
+			Args([]string{"--help"}).
+			Stdout(&buffer)
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Contains(t, buffer.String(), "Path to configuration file (no configuration decoder registered)")
+	})
 }
 
 type plainSubcommand struct{}

@@ -387,7 +387,7 @@ func (a *RequiredArg[T]) String() string {
 
 // DashArgs captures trailing arguments passed explicitly after '--'.
 //
-// Supported struct tags: name, help, and conga directives. See
+// Supported struct tags: name and conga directives. See
 // docs/struct-tags.md for the complete reference.
 type DashArgs struct {
 	rawSlice
@@ -404,7 +404,7 @@ func (raw *DashArgs) String() string {
 
 // RawArgs captures all trailing unparsed tokens (flags and arguments) without requiring '--'.
 //
-// Supported struct tags: name, help, and conga directives. See
+// Supported struct tags: name and conga directives. See
 // docs/struct-tags.md for the complete reference.
 type RawArgs struct {
 	rawSlice

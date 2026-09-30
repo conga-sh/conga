@@ -21,8 +21,8 @@ func (p Profile) Predict() predict.Predictor {
 // conga.Dir, conga.File); the exec and logs subcommands use the predictor
 // registry (app.Predictor + predictor:"..." struct tags).
 type CLI struct {
-	Profile    conga.OptionalFlag[Profile]    `default:"staging"                                         help:"Global cloud profile" short:"p"`
-	Kubeconfig conga.OptionalFlag[conga.File] `help:"Path to kubeconfig file (file completion for free)" short:"k"`
+	Profile    conga.OptionalFlag[Profile]    `default:"staging" help:"Global cloud profile" short:"p"`
+	Kubeconfig conga.OptionalFlag[conga.File] `short:"k"`
 
 	Deploy     conga.Command[DeployCmd] `aliases:"d"                                  summary:"Deploy service to a cluster"`
 	Logs       conga.Command[LogsCmd]   `summary:"Stream and export service logs"`

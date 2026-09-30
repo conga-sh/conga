@@ -99,9 +99,9 @@ type DeployCmd struct {
 	Image    conga.OptionalFlag[Image]        `help:"Container image (repository:tag)"             short:"i"`
 	Features conga.OptionalFlag[[]Feature]    `help:"Enabled deployment features"                  sep:","`
 	Manifest conga.OptionalFlag[ManifestFile] `help:"Deployment manifest file (yaml/yml filtered)"`
-	OutDir   conga.OptionalFlag[conga.Dir]    `help:"Output artifact directory"`
-	DryRun   conga.OptionalFlag[bool]         `default:"false"                                     help:"Simulate deployment"                   negatable:"true"`
-	Service  conga.RequiredArg[string]        `help:"Service name to deploy"`
+	OutDir   conga.OptionalFlag[conga.Dir]
+	DryRun   conga.OptionalFlag[bool]  `default:"false"               help:"Simulate deployment" negatable:"true"`
+	Service  conga.RequiredArg[string] `help:"Service name to deploy"`
 }
 
 func (d *DeployCmd) Run(ctx context.Context, session *conga.Session) error {

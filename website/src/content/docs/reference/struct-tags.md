@@ -11,7 +11,7 @@ CONGA derives the entire CLI schema from struct fields and their tags. Tags are 
 |-----|:----:|:---:|:-------:|:----------:|:----------------:|
 | `name`        | ✅ | ✅ | ✅ | ✅ | ✅ |
 | `short`       | ✅ | –  | –  | ✅ | –  |
-| `help`        | ✅ | ✅ | –  | ✅ | ✅ |
+| `help`        | ✅ | ✅ | –  | ✅ | –  |
 | `summary`     | –  | –  | ✅ | –  | –  |
 | `default`     | ✅ | ✅ | –  | ✅ | –  |
 | `env`         | ✅ | –  | –  | ✅ | –  |
@@ -115,7 +115,7 @@ type Server struct {
 | `help` | Help text. |
 | `env` | Environment variable name(s); `env:"-"` disables environment variable binding. |
 | `aliases` | Long-name aliases. |
-| `placeholder` | Value placeholder. |
+| `placeholder` | Value placeholder (default `PATH`). |
 | `group` | Help-screen grouping header: entries sharing a group render under their own titled section (ungrouped entries render first). |
 | `hidden` | Hide from help and completion. |
 | `multi` | Multi-value arity: repeated `--config-file` and `sep`-split values accumulate (presence or `multi:"true"`). |
@@ -124,14 +124,13 @@ type Server struct {
 | `deprecated` | Optional deprecation notice/reason; hidden from completion. |
 | `conga` | Directives. |
 
-The `default` tag is not accepted on a `ConfigFile` flag: a default path would be neither loaded nor validated. Search locations are declared with [`config.Paths(...)` or `config.Explicit(...)`](/reference/config/), and `placeholder` sets the value displayed in help. The candidates evaluated for an invocation are reported by `session.CandidateConfigFiles()` and the [`--why` report](/how-to/inspect-value-provenance/). See [About the config cascade](/explanation/config-cascade/).
+The `default` tag is not accepted on a `ConfigFile` flag: a default path would be neither loaded nor validated. Search locations are declared with [`config.Paths(...)` or `config.Explicit(...)`](/reference/config/), and `placeholder` sets the value displayed in help (default `PATH`). Without a `help` tag the flag renders `Path to configuration file` (`Path to configuration file(s)` for `multi:"true"`; the engine appends a ` (no configuration decoder registered)` suffix when no decoder is registered). The candidates evaluated for an invocation are reported by `session.CandidateConfigFiles()` and the [`--why` report](/how-to/inspect-value-provenance/). See [About the config cascade](/explanation/config-cascade/).
 
 ### Trailing args (`DashArgs`, `RawArgs`)
 
 | Tag | Meaning |
 |-----|---------|
 | `name` | Placeholder name. |
-| `help` | Help text. |
 | `conga` | Directives. |
 
 ## Domain-type tags
@@ -336,7 +335,7 @@ type Deploy struct {
 ```go
 type Root struct {
 	Deploy conga.Command[Deploy] `summary:"Deploy the application"`
-	Config conga.ConfigFile      `help:"Path to config file" short:"c"`
+	Config conga.ConfigFile      `short:"c"`
 }
 ```
 

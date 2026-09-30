@@ -10,8 +10,8 @@ import (
 
 // TestCmd uses DashArgs (Go test / Cargo test pattern).
 type TestCmd struct {
-	Package    conga.RequiredArg[string] `help:"Package to test"                name:"<pkg>"`
-	RunnerArgs conga.DashArgs            `help:"Arguments forwarded after '--'"`
+	Package    conga.RequiredArg[string] `help:"Package to test" name:"<pkg>"`
+	RunnerArgs conga.DashArgs
 }
 
 func (t *TestCmd) Run(ctx context.Context, session *conga.Session) error {

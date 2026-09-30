@@ -20,7 +20,7 @@ var (
 	builtinCommandTagCandidates = []string{"name", "summary", "aliases", "group", "hidden", "conga"}
 	userCommandTagCandidates    = []string{"name", "summary", "aliases", "group", "hidden", "envprefix", "deprecated", "conga"}
 	configFileTagCandidates     = []string{"name", "short", "help", "env", "aliases", "placeholder", "group", "hidden", "multi", "sep", "config", "deprecated", "conga"}
-	dashRawTagCandidates        = []string{"name", "help", "conga"}
+	dashRawTagCandidates        = []string{"name", "conga"}
 	sentinelTagCandidates       = []string{"envprefix", "conga"}
 	allCongaTagCandidates       = collectTagCandidates()
 )

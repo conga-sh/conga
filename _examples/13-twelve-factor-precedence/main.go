@@ -10,7 +10,7 @@ import (
 
 // CLI demonstrates the 4-tier 12-Factor precedence: CLI Flag > Env Var > Config File > Struct Default.
 type CLI struct {
-	ConfigFile conga.ConfigFile `help:"Configuration file path" short:"c"`
+	ConfigFile conga.ConfigFile `short:"c"`
 
 	Port        conga.OptionalFlag[int]    `default:"8080"                    env:"PORT"                                                     help:"Server port"        placeholder:"PORT" safe:"true" short:"p"`
 	Host        conga.OptionalFlag[string] `default:"127.0.0.1"               help:"Server host"                                             safe:"true"`

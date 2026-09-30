@@ -84,8 +84,8 @@ type App struct {
 	Leaf     conga.Command[ValueReceiverLeaf] `name:"leaf"`
 	ConfigIn conga.ConfigFile                 `name:"config" short:"c" help:"Path to configuration file"`
 	Count    conga.Counter                    `name:"count" help:"Count invocations"`
-	Extra    conga.DashArgs                   `help:"Arguments after --"`
-	Leftover conga.RawArgs                    `help:"Unparsed trailing arguments"`
+	Extra    conga.DashArgs                   `name:"extra"`
+	Leftover conga.RawArgs                    `name:"leftover"`
 	Help     conga.HelpCommand                `summary:"Show help"`
 	_        struct{}                         `envprefix:"VALID_"`
 }

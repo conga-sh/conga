@@ -397,7 +397,7 @@ stdout '--region\tTarget cloud region \(self-completing\)'
 stdout '--cluster\tTarget cluster \(contextual\)'
 stdout '--dry-run\tSimulate deployment'
 stdout '--profile\tGlobal cloud profile'
-stdout '--kubeconfig\tPath to kubeconfig file'
+stdout '--kubeconfig\tPath to a file'
 
 # 23. Interactive TAB simulation via COMP_LINE with mismatched executable name
 env 'COMP_LINE=./custom-named-binary deploy --'

@@ -37,7 +37,7 @@ type Serve struct {
 type Copy struct {
 	Source conga.RequiredArg[string] `help:"Source path"`
 	Target conga.RequiredArg[string] `help:"Target path"`
-	Extra  conga.DashArgs            `help:"Arguments forwarded verbatim after --"`
+	Extra  conga.DashArgs
 }
 ```
 

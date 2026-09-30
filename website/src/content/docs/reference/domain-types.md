@@ -27,10 +27,10 @@ The `executable` and `symlink` capabilities are complete value kinds: they exclu
 
 ```go
 type Convert struct {
-	Input  conga.OptionalFlag[conga.File] `existing:"true" stdin:"true" help:"File to convert ('-' for stdin)"`
-	Output conga.OptionalFlag[conga.File] `stdout:"true" help:"Output path or '-' for stdout"`
-	Tool   conga.OptionalFlag[conga.File] `executable:"true" help:"External converter binary"`
-	Recipe conga.OptionalFlag[conga.File] `glob:"*.yaml,Makefile" help:"Recipe source"`
+	Input  conga.OptionalFlag[conga.File] `existing:"true" stdin:"true"`
+	Output conga.OptionalFlag[conga.File] `stdout:"true"`
+	Tool   conga.OptionalFlag[conga.File] `executable:"true"`
+	Recipe conga.OptionalFlag[conga.File] `glob:"*.yaml,Makefile"`
 }
 ```
 
@@ -45,8 +45,8 @@ All filesystem capability checks run during the validation phase on the final re
 
 ```go
 type Upload struct {
-	Payload conga.FileContent `help:"Payload file ('-' for stdin)"`
-	Budget  conga.ByteSize    `default:"10MiB" help:"Maximum transfer size"`
+	Payload conga.FileContent
+	Budget  conga.ByteSize `default:"10MiB"`
 }
 
 func (u *Upload) Run(ctx context.Context, session *conga.Session) error {
@@ -76,6 +76,26 @@ func (c *Convert) Run(ctx context.Context, session *conga.Session) error {
 	return err
 }
 ```
+
+## Default help text
+
+An explicit `help:"..."` tag replaces the type-derived description. Without one, these types describe themselves in the help screen:
+
+| Field type | Declared tags | Default help |
+|------------|---------------|--------------|
+| `conga.File` | – | `Path to a file` |
+| `conga.File` | `existing:"true"` | `Path to an existing file` |
+| `conga.File` | `stdin:"true"` | `Path to a file or '-' for stdin` |
+| `conga.File` | `stdout:"true"` | `Path to a file or '-' for stdout` |
+| `conga.File` | `executable:"true"` | `Path to an executable` |
+| `conga.File` | `symlink:"true"` | `Path to a symbolic link` |
+| `conga.File` | `glob:"<patterns>"` | `Path to a file matching '<patterns>'` |
+| `conga.Dir` | – | `Path to a directory` |
+| `conga.Dir` | `existing:"true"` | `Path to an existing directory` |
+| `conga.FileContent` | – | `Path to a file (or '-' for stdin)` |
+| `conga.ByteSize` | – | `Byte size (e.g., 10MiB, 1.5GB, 500KiB)` |
+
+`time.Duration` renders `Duration (e.g., 300ms, 2m45s, 1h)`. The container types delegate to their value type, so `OptionalFlag[conga.File]` and `RequiredArg[conga.Dir]` use the descriptions above. After the description, the engine appends `[default: ...]`, `[env: ...]`, constraint hints such as `[1..65535]` or `[items: 2..3]`, and `[enum: ...]` where the field declares them.
 
 ## Domain type interfaces
 

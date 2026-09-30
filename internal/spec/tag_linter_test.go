@@ -41,6 +41,14 @@ type ContextInvalidNegatableNonBoolCLI struct {
 	Port mockFlag[int] `help:"Port" negatable:"true"`
 }
 
+type ContextInvalidDashArgsHelpCLI struct {
+	Extra mockDashArgs `help:"Trailing args"`
+}
+
+type ContextInvalidRawArgsHelpCLI struct {
+	Raw mockRawArgs `help:"Raw args"`
+}
+
 type ObsoleteCounterTagCLI struct {
 	Count mockFlag[int] `counter:"true" help:"Count"`
 }
@@ -203,6 +211,32 @@ func TestStrictTagLinter_ContextValidation(t *testing.T) {
 		assert.IsError(t, err, spec.ErrSchema)
 		assert.IsError(t, err, spec.ErrInvalidStructTag)
 		assert.Equal(t, `struct ContextInvalidNegatableNonBoolCLI field Port: schema error: invalid struct tag: tag "negatable" is only valid on boolean flags, got int`, err.Error())
+	})
+
+	t.Run("help tag on dash args errors", func(t *testing.T) {
+		t.Parallel()
+
+		var cli ContextInvalidDashArgsHelpCLI
+
+		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+
+		assert.Error(t, err)
+		assert.IsError(t, err, spec.ErrSchema)
+		assert.IsError(t, err, spec.ErrInvalidStructTag)
+		assert.Equal(t, `struct ContextInvalidDashArgsHelpCLI field Extra: schema error: invalid struct tag: tag "help" is invalid on dash args (tag "help" is only valid on other CONGA constructs)`, err.Error())
+	})
+
+	t.Run("help tag on raw args errors", func(t *testing.T) {
+		t.Parallel()
+
+		var cli ContextInvalidRawArgsHelpCLI
+
+		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+
+		assert.Error(t, err)
+		assert.IsError(t, err, spec.ErrSchema)
+		assert.IsError(t, err, spec.ErrInvalidStructTag)
+		assert.Equal(t, `struct ContextInvalidRawArgsHelpCLI field Raw: schema error: invalid struct tag: tag "help" is invalid on raw args (tag "help" is only valid on other CONGA constructs)`, err.Error())
 	})
 
 	t.Run("counter tag on flag errors", func(t *testing.T) {

@@ -19,11 +19,11 @@ import (
 
 // CLI demonstrates live configuration file watching, path expansion, and daemon hot-reloading.
 type CLI struct {
-	ConfigFile conga.ConfigFile               `help:"Config file path" multi:"true"                                   short:"c"`
-	Port       conga.OptionalFlag[int]        `default:"8080"          help:"Server port"                             short:"p"`
-	RateLimit  conga.OptionalFlag[int]        `default:"100"           help:"Rate limit per second"`
-	Debug      conga.OptionalFlag[bool]       `default:"false"         help:"Enable debug logging"`
-	Blocklist  conga.OptionalFlag[conga.File] `existing:"true"         help:"Blocklist file watched for live updates"`
+	ConfigFile conga.ConfigFile               `multi:"true"    short:"c"`
+	Port       conga.OptionalFlag[int]        `default:"8080"  help:"Server port"           short:"p"`
+	RateLimit  conga.OptionalFlag[int]        `default:"100"   help:"Rate limit per second"`
+	Debug      conga.OptionalFlag[bool]       `default:"false" help:"Enable debug logging"`
+	Blocklist  conga.OptionalFlag[conga.File] `existing:"true"`
 }
 
 func (c *CLI) Run(ctx context.Context, session *conga.Session) error {

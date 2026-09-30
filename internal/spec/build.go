@@ -648,7 +648,6 @@ func (b *schemaBuilder) processDashArgsField(structField reflect.StructField, ha
 
 	b.cmd.DashArgs = &DashArgs{
 		Name:   dashName,
-		Help:   structField.Tag.Get("help"),
 		Handle: handle,
 	}
 
@@ -671,7 +670,6 @@ func (b *schemaBuilder) processRawArgsField(structField reflect.StructField, han
 
 	b.cmd.RawArgs = &RawArgs{
 		Name:   rawName,
-		Help:   structField.Tag.Get("help"),
 		Handle: handle,
 	}
 

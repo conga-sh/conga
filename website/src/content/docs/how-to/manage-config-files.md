@@ -210,7 +210,7 @@ When `config.Cascading()` is declared, any root `conga.ConfigFile` container on 
 
 ```go title="main.go"
 type CLI struct {
-	Config conga.ConfigFile `multi:"true" help:"Configuration files to load"`
+	Config conga.ConfigFile `multi:"true"`
 }
 ```
 
@@ -222,7 +222,7 @@ To let users specify custom config files during invocation, declare a `conga.Con
 
 ```go title="main.go"
 type CLI struct {
-	ConfigFile conga.ConfigFile `help:"Custom config file path" short:"c"`
+	ConfigFile conga.ConfigFile `short:"c"`
 }
 ```
 

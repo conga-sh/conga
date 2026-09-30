@@ -10,8 +10,8 @@ import (
 
 // ExecCmd uses RawArgs (Docker run / Sudo pattern).
 type ExecCmd struct {
-	Container conga.RequiredArg[string] `help:"Target container"                     name:"<container>"`
-	Command   conga.RawArgs             `help:"Raw command and arguments to forward"`
+	Container conga.RequiredArg[string] `help:"Target container" name:"<container>"`
+	Command   conga.RawArgs
 }
 
 func (e *ExecCmd) Run(ctx context.Context, session *conga.Session) error {

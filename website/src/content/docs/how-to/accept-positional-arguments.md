@@ -90,7 +90,7 @@ To pass arguments directly to child processes or external tools without flag par
 ```go title="main.go"
 type TestRunner struct {
 	Package conga.RequiredArg[string] `help:"Package to test"`
-	Extra   conga.DashArgs            `help:"Arguments forwarded verbatim after --"`
+	Extra   conga.DashArgs
 }
 
 func (t *TestRunner) Run(ctx context.Context, session *conga.Session) error {

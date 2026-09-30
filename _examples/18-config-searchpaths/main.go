@@ -11,7 +11,7 @@ import (
 
 // CLI probes search paths in order and loads only the first existing file.
 type CLI struct {
-	ConfigFile conga.ConfigFile `help:"Explicit config file" short:"c"`
+	ConfigFile conga.ConfigFile `short:"c"`
 
 	Region conga.OptionalFlag[string] `default:"us-east-1" help:"Deployment region"`
 	Mode   conga.OptionalFlag[string] `default:"standby"   enum:"local,user,system,standby,active" help:"Operating mode"`
