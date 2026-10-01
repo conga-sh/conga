@@ -22,7 +22,7 @@ type CLI struct {
 	StartDate  conga.OptionalFlag[string]        `default:"2026-01-01" help:"Start date (YYYY-MM-DD)"`
 	EndDate    conga.OptionalFlag[string]        `default:"2026-01-31" help:"End date (YYYY-MM-DD)"`
 	MaxRetries conga.OptionalFlag[int]           `default:"3"          help:"Maximum retry attempts"`
-	Backoff    conga.OptionalFlag[time.Duration] `default:"1s"         help:"Backoff duration between retries"`
+	Backoff    conga.OptionalFlag[time.Duration] `default:"1s"         help:"Backoff between retries"`
 }
 
 // Validate executes pure, side-effect-free cross-field semantic validation before any lifecycle hooks.

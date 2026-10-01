@@ -266,6 +266,43 @@ type FieldTagForeignApp struct { // want `does not implement conga\.Runner`
 
 var _ = conga.New[FieldTagForeignApp]().StrictTagValidation(true)
 
+// HelpVarTypoApp references an unknown help-text variable.
+type HelpVarTypoApp struct { // want `does not implement conga\.Runner`
+	Port conga.OptionalFlag[int] `name:"port" range:"1..10" help:"Port ({{rnage}})"` // want `tag "help" references unknown variable \{\{rnage\}\}`
+}
+
+var _ = conga.New[HelpVarTypoApp]()
+
+// HelpVarUndeclaredApp references a help-text variable the field does not declare.
+type HelpVarUndeclaredApp struct { // want `does not implement conga\.Runner`
+	Port conga.OptionalFlag[int] `name:"port" help:"Port ({{range}})"` // want `tag "help" references \{\{range\}\}, but the field provides no value for that variable`
+}
+
+var _ = conga.New[HelpVarUndeclaredApp]()
+
+// HelpVarEnvArgApp references {{env}} from a positional argument, which never
+// binds environment variables.
+type HelpVarEnvArgApp struct { // want `does not implement conga\.Runner`
+	Target conga.RequiredArg[string] `name:"<target>" help:"Target ({{env}})"` // want `tag "help" references \{\{env\}\}, but the field provides no value for that variable`
+}
+
+var _ = conga.New[HelpVarEnvArgApp]()
+
+// HelpVarEnvFlagApp references {{env}} from a flag that binds no environment
+// variable: the package declares no app.EnvPrefix and no envprefix tag.
+type HelpVarEnvFlagApp struct { // want `does not implement conga\.Runner`
+	Port conga.OptionalFlag[int] `name:"port" help:"Port from {{env}}"` // want `tag "help" references \{\{env\}\}, but the field provides no value for that variable`
+}
+
+var _ = conga.New[HelpVarEnvFlagApp]()
+
+// EmptyConstraintApp declares a constraint tag with no value.
+type EmptyConstraintApp struct { // want `does not implement conga\.Runner`
+	Port conga.OptionalFlag[int] `name:"port" range:""` // want `tag "range" cannot be empty`
+}
+
+var _ = conga.New[EmptyConstraintApp]()
+
 // InferredMissingRunner is a leaf command discovered through the inferred
 // conga.New(root) call form rather than an explicit type argument.
 type InferredMissingRunner struct { // want `leaf command "inferred-missing-runner" \(struct InferredMissingRunner\) does not implement conga\.Runner`

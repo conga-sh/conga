@@ -7,7 +7,35 @@ CONGA provides five built-in surfaces: help, version, `--why`, completion, and d
 
 ## Help
 
-Every app gets `--help` and a generated help screen: description, usage line, grouped flags, positional arguments, subcommands, and examples — derived from the schema.
+Every app gets `--help` and a generated help screen. CONGA derives the help output from the command schema and renders sections in a fixed order:
+
+1. **Deprecation banner**: configured via `app.Deprecated(...)` or the member `deprecated:"..."` tag.
+2. **Description**: configured via `app.Description(...)` on the root builder, or `Description() string` on subcommand structs. Subcommands fall back to their `summary:"..."` tag when no description method is defined. Root structs must not implement `Description()` or `Summary()`.
+3. **Completion instructions**: per-shell setup steps rendered when inspecting a completion command (e.g. `--completion bash --help`).
+4. **Usage syntax**: command invocation syntax including flags, positional arguments, and trailing arguments (`DashArgs`, `RawArgs`).
+5. **Subcommands**: child commands listed under their `group:"..."` section headers or the default `Commands:` heading.
+6. **Positional arguments**: argument names and descriptions under `Arguments:`.
+7. **Completion footer**: supported shells list rendered on generic completion help screens.
+8. **Flags**: flags declared on the active command, grouped under `group:"..."` headers or the default `Flags:` heading. Built-in flags (`--help`, `--version`, `--why`) appear here.
+9. **Global flags**: persistent flags inherited from ancestor commands.
+10. **Examples**: usage examples configured via `app.Examples(...)` on the root builder, or `Examples() string` on subcommand structs.
+11. **Global footer**: text configured via `app.Footer(...)`.
+
+### Global footers and top matter
+
+CONGA does not provide a freeform header API; top-matter text is managed through command descriptions and the deprecation banner.
+
+`app.Footer(footer)` sets a global footer rendered at the bottom of every help screen across the application, including subcommands:
+
+```go
+app := conga.New[CLI]().
+	Description("Service deployment manager").
+	Footer("Documentation: https://example.com/docs\nReport issues: https://example.com/issues")
+```
+
+Footers are strictly global. Defining a `Footer() string` method on a root command struct or a subcommand struct fails schema construction with `ErrSchema`.
+
+### The `help` subcommand
 
 Opt in to a `help [command...]` subcommand for nested commands:
 
@@ -18,7 +46,7 @@ type App struct {
 }
 ```
 
-`HelpCommand` resolves the requested path (with aliases) and returns the target's help screen; unknown paths are parse errors with suggestions. `app.DisableHelpFlag()` removes `--help` injection entirely.
+`HelpCommand` resolves the requested path (with aliases) and returns the target's help screen; unknown paths are parse errors with suggestions. `app.DisableHelpFlag()` removes `--help` flag injection entirely.
 
 ## Version
 

@@ -10,7 +10,7 @@ import (
 
 // ScanCmd scans open network ports on a target host.
 type ScanCmd struct {
-	Ports     conga.OptionalFlag[[]network.Port]       `default:"80,443,22"                         help:"Comma-separated port list to scan" sep:"," short:"p"`
+	Ports     conga.OptionalFlag[[]network.Port]       `default:"80,443,22"                         help:"Port list to scan" sep:"," short:"p"`
 	Interface conga.OptionalFlag[network.NetInterface] `help:"Bind to source interface"             short:"i"`
 	Host      conga.RequiredArg[network.Host]          `help:"Target server hostname or IP address"`
 }

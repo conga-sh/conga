@@ -294,6 +294,12 @@ func (b *sectionBuilder) sections() []tableSection {
 	return append(sections, b.grouped...)
 }
 
+// hintSuppression records which automatic constraint hints the field's help tag
+// already states, mirroring the help-variable references on the schema field.
+type hintSuppression struct {
+	rangeRef, lenRef, itemsRef bool
+}
+
 // appendUsageFlags appends long-form tokens for required flags to the usage
 // synopsis and reports whether any optional flags remain to be collapsed.
 func appendUsageFlags(parts []string, flags []*spec.Flag) ([]string, bool) {
@@ -467,7 +473,17 @@ func formatArgLabel(arg *spec.Arg) (string, string) {
 		helpText = typeHelpFor(arg.TargetType, arg.FieldTags)
 	}
 
-	if hint := formatConstraintHints(arg.Range, arg.Len, arg.Items); hint != "" {
+	suppression := hintSuppression{
+		rangeRef: arg.HelpVars.Range,
+		lenRef:   arg.HelpVars.Len,
+		itemsRef: arg.HelpVars.Items,
+	}
+
+	if hint := formatConstraintHints(arg.Range, arg.Len, arg.Items, suppression); hint != "" {
+		helpText = appendNonEmpty(helpText, hint)
+	}
+
+	if hint := formatEnumHint(arg.Enum); hint != "" && !arg.HelpVars.Enum {
 		helpText = appendNonEmpty(helpText, hint)
 	}
 
@@ -494,9 +510,10 @@ func formatArgs(args []*spec.Arg) string {
 
 // formatFlagLabel renders the flag label column. The value slot follows kong's
 // FormatPlaceHolder precedence: an explicit placeholder tag wins, then the
-// formatted default value (strings quoted), then an informative metavar for
-// well-known domain kinds, then the uppercase flag name. Multi-value flags
-// (slices and maps) gain a ",..." tail to signal repetition.
+// formatted default value (strings quoted, skipped when the help tag
+// references {{default}}), then an informative metavar for well-known domain
+// kinds, then the uppercase flag name. Multi-value flags (slices and maps) gain
+// a ",..." tail to signal repetition.
 func formatFlagLabel(flagSpec *spec.Flag) string {
 	flagPrefix := cond.If(flagSpec.IsNegatable, "--[no-]", "--")
 	label := cond.If(flagSpec.Short != 0,
@@ -525,14 +542,15 @@ func formatFlagLabel(flagSpec *spec.Flag) string {
 
 // formatFlagValue returns the placeholder text for a flag's value slot. The
 // metavar is always derived from the flag's type, never its name: an explicit
-// placeholder tag wins, then the formatted default value, then the smart-cased
-// name of the resolved type, then the Go kind for anonymous primitives.
+// placeholder tag wins, then the formatted default value (skipped when the
+// help tag references {{default}}), then the smart-cased name of the resolved
+// type, then the Go kind for anonymous primitives.
 func formatFlagValue(flagSpec *spec.Flag) string {
 	if flagSpec.IsMap {
 		return "KEY=VALUE"
 	}
 
-	if flagSpec.Default != "" && flagSpec.Handle != nil {
+	if flagSpec.Default != "" && flagSpec.Handle != nil && !flagSpec.HelpVars.Default {
 		if flagSpec.TargetType != nil && flagSpec.TargetType.Kind() == reflect.String {
 			return strconv.Quote(flagSpec.Default)
 		}
@@ -597,7 +615,7 @@ func formatFlagHelpText(flagSpec *spec.Flag) string {
 
 	hasDefaultInLabel := flagSpec.Placeholder == "" && flagSpec.Default != "" && flagSpec.Handle != nil
 
-	if flagSpec.Default != "" {
+	if flagSpec.Default != "" && !flagSpec.HelpVars.Default {
 		// A negatable flag with a default (e.g. --[no-]cache default true) has
 		// no value slot, so its default only lives in the help column. Plain
 		// bools defaulting to false add noise without information.
@@ -606,18 +624,23 @@ func formatFlagHelpText(flagSpec *spec.Flag) string {
 		}
 	}
 
-	if len(flagSpec.EnvVars) > 0 {
+	if len(flagSpec.EnvVars) > 0 && !flagSpec.HelpVars.Env {
 		envHint := fmt.Sprintf("[env: %s]", strings.Join(flagSpec.EnvVars, ", "))
 		helpText = appendNonEmpty(helpText, envHint)
 	}
 
-	if hint := formatConstraintHints(flagSpec.Range, flagSpec.Len, flagSpec.Items); hint != "" {
+	suppression := hintSuppression{
+		rangeRef: flagSpec.HelpVars.Range,
+		lenRef:   flagSpec.HelpVars.Len,
+		itemsRef: flagSpec.HelpVars.Items,
+	}
+
+	if hint := formatConstraintHints(flagSpec.Range, flagSpec.Len, flagSpec.Items, suppression); hint != "" {
 		helpText = appendNonEmpty(helpText, hint)
 	}
 
-	if len(flagSpec.Enum) > 0 {
-		enumHint := fmt.Sprintf("[enum: %s]", strings.Join(flagSpec.Enum, ", "))
-		helpText = appendNonEmpty(helpText, enumHint)
+	if hint := formatEnumHint(flagSpec.Enum); hint != "" && !flagSpec.HelpVars.Enum {
+		helpText = appendNonEmpty(helpText, hint)
 	}
 
 	helpText = appendNonEmpty(helpText, deprecationMarker(flagSpec.Deprecated))
@@ -778,22 +801,22 @@ func formatGlobalFlags(cmdChain []*spec.Command) string {
 	return renderSections(builder.sections())
 }
 
-func formatConstraintHints(valueRange, lengthRange, itemsRange *spec.Range) string {
+func formatConstraintHints(valueRange, lengthRange, itemsRange *spec.Range, suppression hintSuppression) string {
 	var hints []string
 
-	if valueRange != nil {
+	if valueRange != nil && !suppression.rangeRef {
 		if h := formatRangeHint(valueRange, ""); h != "" {
 			hints = append(hints, h)
 		}
 	}
 
-	if lengthRange != nil {
+	if lengthRange != nil && !suppression.lenRef {
 		if h := formatRangeHint(lengthRange, "len: "); h != "" {
 			hints = append(hints, h)
 		}
 	}
 
-	if itemsRange != nil {
+	if itemsRange != nil && !suppression.itemsRef {
 		if h := formatRangeHint(itemsRange, "items: "); h != "" {
 			hints = append(hints, h)
 		}
@@ -803,27 +826,22 @@ func formatConstraintHints(valueRange, lengthRange, itemsRange *spec.Range) stri
 }
 
 func formatRangeHint(rangeSpec *spec.Range, prefix string) string {
-	if rangeSpec == nil {
+	text := rangeSpec.HintText()
+	if text == "" {
 		return ""
 	}
 
-	if rangeSpec.Exact {
-		return fmt.Sprintf("[%s%s]", prefix, rangeSpec.MinStr)
+	return "[" + prefix + text + "]"
+}
+
+// formatEnumHint renders a flag's or argument's allowed values as the
+// "[enum: a, b]" hint, or "" when no values are declared.
+func formatEnumHint(enumValues []string) string {
+	if len(enumValues) == 0 {
+		return ""
 	}
 
-	if rangeSpec.HasMin && rangeSpec.HasMax {
-		return fmt.Sprintf("[%s%s..%s]", prefix, rangeSpec.MinStr, rangeSpec.MaxStr)
-	}
-
-	if rangeSpec.HasMin {
-		return fmt.Sprintf("[%s>= %s]", prefix, rangeSpec.MinStr)
-	}
-
-	if rangeSpec.HasMax {
-		return fmt.Sprintf("[%s<= %s]", prefix, rangeSpec.MaxStr)
-	}
-
-	return ""
+	return "[enum: " + strings.Join(enumValues, ", ") + "]"
 }
 
 func appendNonEmpty(base, suffix string) string {

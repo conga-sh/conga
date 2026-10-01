@@ -15,8 +15,8 @@ import (
 type CLI struct {
 	ConfigFile conga.ConfigFile `short:"c"`
 
-	ServiceName conga.OptionalFlag[string] `default:"api-svc"  env:"SERVICE_NAME"                    help:"Service name"`
-	Port        conga.OptionalFlag[int]    `default:"8080"     env:"PORT"                            help:"Port number"         range:"1..65535" short:"p"`
+	ServiceName conga.OptionalFlag[string] `default:"api-svc"  env:"SERVICE_NAME"`
+	Port        conga.OptionalFlag[int]    `default:"8080"     env:"PORT"                            range:"1..65535"           short:"p"`
 	DatabaseURL conga.OptionalFlag[string] `env:"DATABASE_URL" help:"Database connection"            short:"d"`
 	MaxWorkers  conga.OptionalFlag[int]    `default:"4"        env:"MAX_WORKERS"                     help:"Worker thread count" range:"1.."`
 	APIKey      conga.OptionalFlag[string] `env:"API_KEY"      help:"API key loaded from .env.local"`

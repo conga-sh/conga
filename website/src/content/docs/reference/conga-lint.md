@@ -12,7 +12,7 @@ The analyzer delegates to the exported validators in `internal/spec`, so static 
 | Check | Runtime contract mirrored |
 |-------|---------------------------|
 | Leaf command Runner enforcement | The bind-time `noRunnerError`: any command struct without `Command[T]` fields must implement `Run(context.Context, *conga.Session) error`. |
-| Struct tag validation | Tag syntax, `required:"true"` rejection, `help` on `Command[T]`, directive validity, predictor vocabulary, `range`/`len`/`items` bounds, and unregistered `predictor:"..."` names. |
+| Struct tag validation | Tag syntax, `required:"true"` rejection, `help` on `Command[T]`, directive validity, predictor vocabulary, `range`/`len`/`items` bounds, unregistered `predictor:"..."` names, and unknown or undeclared `{{...}}` help variables. |
 | Ancestor flag shadowing | The runtime `ErrDuplicateFlag` rule: a flag name, alias, or short rune declared on an ancestor cannot be redeclared on any descendant command. |
 | Cascading guard | The schema rejection of `config.Cascading()` when the root command lacks a `multi:"true"` `ConfigFile` flag. |
 | Throwaway root detection | Lint-only: flags `conga.New(root)` when the root pointer is never referenced outside the application builder, steering code to the engine-allocating `conga.New[T]()` form. |

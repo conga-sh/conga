@@ -71,6 +71,13 @@ type appOptions struct {
 	allowedTagsAmbiguous     bool
 	registeredNames          []string
 	registeredNamesAmbiguous bool
+	// envPrefix records a statically identified app.EnvPrefix("...") call;
+	// envPrefixAmbiguous marks non-literal or conflicting arguments that leave
+	// the app-level prefix undecided. Ambiguous evidence leaves {{env}}
+	// available in help tags, so the analyzer skips that check rather than
+	// inventing a diagnostic.
+	envPrefix          string
+	envPrefixAmbiguous bool
 	// configCascading records a statically identified app.ConfigOptions(config.Cascading())
 	// call; configCascadingAmbiguous marks unclassifiable ConfigOptions arguments
 	// that could hide one. Ambiguous evidence skips the cascading guard.
@@ -102,13 +109,7 @@ func (o *appOptions) absorbCall(pass *analysis.Pass, node ast.Node) {
 			o.strictAmbiguous = true
 		}
 	case "AllowTags":
-		for _, argument := range call.Args {
-			if value, known := stringLiteralValue(pass, argument); known {
-				o.allowedTags = append(o.allowedTags, value)
-			} else {
-				o.allowedTagsAmbiguous = true
-			}
-		}
+		o.absorbAllowTagsCall(pass, call)
 	case "Predictor":
 		if len(call.Args) == 0 {
 			return
@@ -121,7 +122,42 @@ func (o *appOptions) absorbCall(pass *analysis.Pass, node ast.Node) {
 		}
 	case "ConfigOptions":
 		o.absorbConfigCall(pass, call)
+	case "EnvPrefix":
+		o.absorbEnvPrefixCall(pass, call)
 	}
+}
+
+// absorbAllowTagsCall records the app.AllowTags literals; a non-literal
+// argument marks the allow-list ambiguous.
+func (o *appOptions) absorbAllowTagsCall(pass *analysis.Pass, call *ast.CallExpr) {
+	for _, argument := range call.Args {
+		if value, known := stringLiteralValue(pass, argument); known {
+			o.allowedTags = append(o.allowedTags, value)
+		} else {
+			o.allowedTagsAmbiguous = true
+		}
+	}
+}
+
+// absorbEnvPrefixCall records the app-level environment prefix; a non-literal
+// or conflicting argument leaves it ambiguous.
+func (o *appOptions) absorbEnvPrefixCall(pass *analysis.Pass, call *ast.CallExpr) {
+	if len(call.Args) == 0 {
+		return
+	}
+
+	value, known := stringLiteralValue(pass, call.Args[0])
+	if !known {
+		o.envPrefixAmbiguous = true
+
+		return
+	}
+
+	if o.envPrefix != "" && o.envPrefix != value {
+		o.envPrefixAmbiguous = true
+	}
+
+	o.envPrefix = value
 }
 
 // absorbConfigCall classifies the option-constructor arguments of an
@@ -151,6 +187,8 @@ func (o *appOptions) forceStrict() {
 func (o *appOptions) validationOptionsFor(node *commandNode) spec.ValidationOptions {
 	options := o.strictValidationOptions()
 	options.AllowUnknownTags = options.AllowUnknownTags || node.allowUnknown
+	options.EnvPrefix = node.envPrefix
+	options.EnvPrefixKnown = !o.envPrefixAmbiguous
 
 	return options
 }

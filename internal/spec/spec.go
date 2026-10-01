@@ -167,6 +167,25 @@ type Range struct {
 	Exact  bool
 }
 
+// HintText renders the range's inline description without brackets ("1..10",
+// ">= 5", "<= 9", or the exact value). It returns "" when no bound is declared.
+func (r *Range) HintText() string {
+	if r == nil || (!r.Exact && !r.HasMin && !r.HasMax) {
+		return ""
+	}
+
+	switch {
+	case r.Exact:
+		return r.MinStr
+	case r.HasMin && r.HasMax:
+		return r.MinStr + ".." + r.MaxStr
+	case r.HasMin:
+		return ">= " + r.MinStr
+	default:
+		return "<= " + r.MaxStr
+	}
+}
+
 // PredictorKind identifies the type of completion predictor.
 type PredictorKind int
 
@@ -196,8 +215,11 @@ type Flag struct {
 	// FieldTags holds the custom tag values declared on the flag that were
 	// registered by its domain type (see spec.TagSpecProvider). Nil when the
 	// flag's type registers no tags or declares none.
-	FieldTags   FieldTags
-	Help        string
+	FieldTags FieldTags
+	Help      string
+	// HelpVars records the help-text variables the flag's help tag referenced;
+	// the renderer suppresses the matching automatic hint for each one.
+	HelpVars    helpVars
 	Placeholder string
 	Group       string
 	Hidden      bool
@@ -236,10 +258,14 @@ type Arg struct {
 	Name    string
 	Default string
 	Help    string
-	Enum    []string
-	Range   *Range
-	Len     *Range
-	Items   *Range
+	// HelpVars records the help-text variables the argument's help tag
+	// referenced; the renderer suppresses the matching automatic hint for each
+	// one.
+	HelpVars helpVars
+	Enum     []string
+	Range    *Range
+	Len      *Range
+	Items    *Range
 	// FieldTags holds the custom tag values declared on the argument that
 	// were registered by its domain type (see spec.TagSpecProvider). Nil
 	// when the argument's type registers no tags or declares none.

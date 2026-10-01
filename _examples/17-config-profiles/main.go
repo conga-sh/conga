@@ -19,7 +19,7 @@ type CLI struct {
 
 	Host     conga.OptionalFlag[string] `default:"localhost" help:"Server host"`
 	Port     conga.OptionalFlag[int]    `default:"8080"      help:"Server port"           short:"p"`
-	LogLevel conga.OptionalFlag[string] `default:"info"      enum:"debug,info,warn,error" help:"Log level"`
+	LogLevel conga.OptionalFlag[string] `default:"info"      enum:"debug,info,warn,error"`
 }
 
 func (c *CLI) Run(ctx context.Context, session *conga.Session) error {

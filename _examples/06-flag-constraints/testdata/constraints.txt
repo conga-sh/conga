@@ -17,6 +17,7 @@ exit-status 2 constraints-demo
 stderr 'missing required flag: --api-key'
 stderr '-k, --api-key=STRING'
 stderr 'Usage:'
+stderr 'Port number \[1\.\.65535\]'
 
 # 3. Valid single XOR flag
 exec constraints-demo -k s3cr3t-key --json

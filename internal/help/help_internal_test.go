@@ -64,15 +64,25 @@ func TestFormatConstraintHints(t *testing.T) {
 		lengthRange := &spec.Range{Exact: true, MinStr: "5"}
 		itemsRange := &spec.Range{HasMin: true, MinStr: "2"}
 
-		hint := formatConstraintHints(valueRange, lengthRange, itemsRange)
+		hint := formatConstraintHints(valueRange, lengthRange, itemsRange, hintSuppression{})
 		assert.Equal(t, "[1..10] [len: 5] [items: >= 2]", hint)
 	})
 
 	t.Run("nil ranges return empty", func(t *testing.T) {
 		t.Parallel()
 
-		hint := formatConstraintHints(nil, nil, nil)
+		hint := formatConstraintHints(nil, nil, nil, hintSuppression{})
 		assert.Equal(t, "", hint)
+	})
+
+	t.Run("referenced ranges are suppressed individually", func(t *testing.T) {
+		t.Parallel()
+
+		valueRange := &spec.Range{HasMin: true, HasMax: true, MinStr: "1", MaxStr: "10"}
+		lengthRange := &spec.Range{Exact: true, MinStr: "5"}
+
+		hint := formatConstraintHints(valueRange, lengthRange, nil, hintSuppression{rangeRef: true})
+		assert.Equal(t, "[len: 5]", hint)
 	})
 }
 

@@ -878,3 +878,227 @@ func TestFormat_GroupedGlobalFlags(t *testing.T) {
 
 	assert.True(t, globalIndex < connectionIndex, "ungrouped global flags must render first")
 }
+
+// TestFormat_DefaultReferenceDropsValueSlotDefault verifies that referencing
+// {{default}} in the help text removes the default from the flag's value slot,
+// so the default is stated once — in the help column.
+func TestFormat_DefaultReferenceDropsValueSlotDefault(t *testing.T) {
+	t.Parallel()
+
+	profile := &spec.Flag{
+		Name:       "profile",
+		Help:       "Build profile (dev)",
+		Default:    "dev",
+		TargetType: reflect.TypeFor[string](),
+		Handle:     testContainerHandle{},
+	}
+	profile.HelpVars.Default = true
+
+	cmd := &spec.Command{Name: "deploy", Flags: []*spec.Flag{profile}}
+
+	formatted := help.Format([]*spec.Command{cmd})
+
+	assert.Contains(t, formatted, "--profile=STRING")
+	assert.NotContains(t, formatted, `--profile="dev"`)
+	assert.Contains(t, formatted, "Build profile (dev)")
+	assert.NotContains(t, formatted, "[default:")
+}
+
+// TestFormat_HelpVariablesSuppressHints verifies that a help tag referencing a
+// constraint variable suppresses exactly that automatic hint. Each subtest
+// covers one suppression rule with its own fixture carrying the help text the
+// schema builder produces (variables already expanded) plus the help-variable
+// references the renderer consults.
+func TestFormat_HelpVariablesSuppressHints(t *testing.T) {
+	t.Parallel()
+
+	t.Run("range reference suppresses the range hint", func(t *testing.T) {
+		t.Parallel()
+
+		port := &spec.Flag{
+			Name:       "port",
+			Help:       "Port number (1..10)",
+			Range:      &spec.Range{HasMin: true, HasMax: true, MinStr: "1", MaxStr: "10"},
+			TargetType: reflect.TypeFor[int](),
+		}
+		port.HelpVars.Range = true
+
+		cmd := &spec.Command{Name: "testapp", Flags: []*spec.Flag{port}}
+
+		formatted := help.Format([]*spec.Command{cmd})
+
+		line := lineContaining(formatted, "Port number")
+		assert.Contains(t, line, "Port number (1..10)")
+		assert.NotContains(t, line, "[1..10]")
+	})
+
+	t.Run("enum reference suppresses the enum hint", func(t *testing.T) {
+		t.Parallel()
+
+		env := &spec.Flag{
+			Name:       "env",
+			Help:       "Deployment environment (dev, prod)",
+			Enum:       []string{"dev", "prod"},
+			Default:    "dev",
+			TargetType: reflect.TypeFor[string](),
+		}
+		env.HelpVars.Enum = true
+
+		cmd := &spec.Command{Name: "testapp", Flags: []*spec.Flag{env}}
+
+		formatted := help.Format([]*spec.Command{cmd})
+
+		line := lineContaining(formatted, "Deployment environment")
+		assert.Contains(t, line, "Deployment environment (dev, prod) [default: dev]")
+		assert.NotContains(t, line, "[enum:")
+	})
+
+	t.Run("default reference suppresses the default hint", func(t *testing.T) {
+		t.Parallel()
+
+		timeout := &spec.Flag{
+			Name:       "timeout",
+			Help:       "Request timeout (default 2s)",
+			Default:    "2s",
+			TargetType: reflect.TypeFor[string](),
+		}
+		timeout.HelpVars.Default = true
+
+		cmd := &spec.Command{Name: "testapp", Flags: []*spec.Flag{timeout}}
+
+		formatted := help.Format([]*spec.Command{cmd})
+
+		line := lineContaining(formatted, "Request timeout")
+		assert.Contains(t, line, "Request timeout (default 2s)")
+		assert.NotContains(t, line, "[default:")
+	})
+
+	t.Run("env reference suppresses the env hint", func(t *testing.T) {
+		t.Parallel()
+
+		region := &spec.Flag{
+			Name:       "region",
+			Help:       "Region (AWS_REGION)",
+			EnvVars:    []string{"AWS_REGION"},
+			TargetType: reflect.TypeFor[string](),
+		}
+		region.HelpVars.Env = true
+
+		cmd := &spec.Command{Name: "testapp", Flags: []*spec.Flag{region}}
+
+		formatted := help.Format([]*spec.Command{cmd})
+
+		line := lineContaining(formatted, "Region (")
+		assert.Contains(t, line, "Region (AWS_REGION)")
+		assert.NotContains(t, line, "[env:")
+	})
+
+	t.Run("items reference suppresses the items hint", func(t *testing.T) {
+		t.Parallel()
+
+		tags := &spec.Flag{
+			Name:       "tags",
+			Help:       "Tags (2..3)",
+			Items:      &spec.Range{HasMin: true, HasMax: true, MinStr: "2", MaxStr: "3"},
+			IsSlice:    true,
+			TargetType: reflect.TypeFor[[]string](),
+		}
+		tags.HelpVars.Items = true
+
+		cmd := &spec.Command{Name: "testapp", Flags: []*spec.Flag{tags}}
+
+		formatted := help.Format([]*spec.Command{cmd})
+
+		line := lineContaining(formatted, "Tags (")
+		assert.Contains(t, line, "Tags (2..3)")
+		assert.NotContains(t, line, "[items:")
+	})
+
+	t.Run("unreferenced constraint keeps its hint", func(t *testing.T) {
+		t.Parallel()
+
+		username := &spec.Flag{
+			Name:       "username",
+			Help:       "Authentication username",
+			Len:        &spec.Range{HasMin: true, HasMax: true, MinStr: "3", MaxStr: "20"},
+			TargetType: reflect.TypeFor[string](),
+		}
+
+		cmd := &spec.Command{Name: "testapp", Flags: []*spec.Flag{username}}
+
+		formatted := help.Format([]*spec.Command{cmd})
+
+		line := lineContaining(formatted, "Authentication username")
+		assert.Contains(t, line, "Authentication username [len: 3..20]")
+	})
+
+	t.Run("suppression is per hint", func(t *testing.T) {
+		t.Parallel()
+
+		mixed := &spec.Flag{
+			Name:       "mixed",
+			Help:       "Mixed (1..10)",
+			Range:      &spec.Range{HasMin: true, HasMax: true, MinStr: "1", MaxStr: "10"},
+			Len:        &spec.Range{HasMin: true, MinStr: "3"},
+			TargetType: reflect.TypeFor[string](),
+		}
+		mixed.HelpVars.Range = true
+
+		cmd := &spec.Command{Name: "testapp", Flags: []*spec.Flag{mixed}}
+
+		formatted := help.Format([]*spec.Command{cmd})
+
+		line := lineContaining(formatted, "Mixed (")
+		assert.Contains(t, line, "Mixed (1..10) [len: >= 3]")
+	})
+}
+
+// TestFormat_ArgEnumHint verifies that a positional argument renders its enum
+// values as the [enum: ...] hint unless the help tag references {{enum}}.
+func TestFormat_ArgEnumHint(t *testing.T) {
+	t.Parallel()
+
+	t.Run("enum hint rendered when unreferenced", func(t *testing.T) {
+		t.Parallel()
+
+		channel := &spec.Arg{
+			Name:       "<channel>",
+			Help:       "Target channel",
+			Enum:       []string{"slack", "email"},
+			TargetType: reflect.TypeFor[string](),
+		}
+
+		cmd := &spec.Command{
+			Name: "notify",
+			Args: []*spec.Arg{channel},
+		}
+
+		formatted := help.Format([]*spec.Command{cmd})
+
+		line := lineContaining(formatted, "Target channel")
+		assert.Contains(t, line, "Target channel [enum: slack, email]")
+	})
+
+	t.Run("enum hint suppressed when referenced", func(t *testing.T) {
+		t.Parallel()
+
+		topic := &spec.Arg{
+			Name:       "[topic]",
+			Help:       "Topic (news, alerts)",
+			Enum:       []string{"news", "alerts"},
+			TargetType: reflect.TypeFor[string](),
+		}
+		topic.HelpVars.Enum = true
+
+		cmd := &spec.Command{
+			Name: "notify",
+			Args: []*spec.Arg{topic},
+		}
+
+		formatted := help.Format([]*spec.Command{cmd})
+
+		line := lineContaining(formatted, "Topic (")
+		assert.Contains(t, line, "Topic (news, alerts)")
+		assert.NotContains(t, line, "[enum:")
+	})
+}

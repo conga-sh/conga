@@ -20,13 +20,24 @@ type ValidationOptions struct {
 	// AllowedTags lists additional struct tag keys accepted under strict
 	// tag validation (app.AllowTags equivalent).
 	AllowedTags []string
+
+	// EnvPrefix is the effective environment variable prefix of the command
+	// declaring the field, used to decide whether {{env}} is available in a help
+	// tag. It is only consulted when EnvPrefixKnown is true.
+	EnvPrefix string
+
+	// EnvPrefixKnown reports whether EnvPrefix was resolved. An unresolved
+	// prefix leaves {{env}} available, so evidence the analyzer cannot see never
+	// produces a diagnostic the runtime would not report.
+	EnvPrefixKnown bool
 }
 
 // ValidateFieldTags validates the struct tags of a single schema field:
-// tag syntax, conga directives, disallowed tags, and — under strict tag
-// validation — tag-key candidate membership for the field's role. It returns
-// the parsed conga directives so callers can honor conga:"ignore" and
-// allow-unknown-tags propagation.
+// tag syntax, conga directives, disallowed tags, {{...}} help-variable
+// references for the flag, positional-argument, and config-file-flag roles,
+// and — under strict tag validation — tag-key candidate membership for the
+// field's role. It returns the parsed conga directives so callers can honor
+// conga:"ignore" and allow-unknown-tags propagation.
 func ValidateFieldTags(tag reflect.StructTag, role string, candidates []string, opts ValidationOptions) (Directives, error) {
 	keys, err := parseStructTagKeys(tag)
 	if err != nil {
@@ -48,6 +59,20 @@ func ValidateFieldTags(tag reflect.StructTag, role string, candidates []string, 
 
 	if err := validateDisallowedTags(tag, keys, role); err != nil {
 		return Directives{}, err
+	}
+
+	switch role {
+	case "flag", "positional argument":
+		if err := validateConstraintTagValues(tag); err != nil {
+			return Directives{}, err
+		}
+
+		fallthrough
+	case "config file flag":
+		declared := helpVarAvailability(tag, role, opts.EnvPrefix, opts.EnvPrefixKnown)
+		if err := validateHelpVariables(tag.Get("help"), declared); err != nil {
+			return Directives{}, err
+		}
 	}
 
 	if !opts.StrictTagValidation || opts.AllowUnknownTags || dirs.AllowUnknownTags {
@@ -154,6 +179,24 @@ func validateReservedPseudoTagKeys(keys []string) error {
 		if strings.HasPrefix(key, "~") {
 			return fmt.Errorf("%w: struct tag %q is reserved for CONGA's app-level configuration settings; declare it via app.ConfigOptions(...) instead", ErrInvalidStructTag, key)
 		}
+	}
+
+	return nil
+}
+
+// validateConstraintTagValues rejects a constraint tag that is present but
+// carries no value. An empty range, len, items, or enum tag is a no-op the
+// engine would otherwise silently ignore, so a help variable referencing it
+// would expand to an empty string; rejecting the tag keeps the schema honest.
+func validateConstraintTagValues(tag reflect.StructTag) error {
+	for _, key := range []string{"range", "len", "items"} {
+		if value, ok := tag.Lookup(key); ok && strings.TrimSpace(value) == "" {
+			return fmt.Errorf("%w: tag %q cannot be empty", ErrInvalidStructTag, key)
+		}
+	}
+
+	if _, ok := tag.Lookup("enum"); ok && len(SplitTagList(tag, "enum")) == 0 {
+		return fmt.Errorf("%w: tag %q cannot be empty", ErrInvalidStructTag, "enum")
 	}
 
 	return nil
