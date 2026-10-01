@@ -8,7 +8,7 @@
 
 CONGA is a batteries-included CLI framework for Go with linker-friendly
 opt-in subsystems. Model the command line with Go structs, and CONGA derives
-the flag schema, 12-factor configuration cascade, validation, help screens,
+the flag schema, 12-factor config cascade, validation, help screens,
 and shell completion from them.
 
 ## What you get
@@ -20,7 +20,8 @@ and shell completion from them.
 - **12-factor configuration with provenance.** Every value resolves through a
   deterministic precedence ladder — CLI > environment > config file > default —
   and `Source()` / `SourceDetail()` report where it came from. See
-  [About the config cascade](https://docs.conga.sh/explanation/config-cascade/).
+  [About value precedence](https://docs.conga.sh/explanation/value-precedence/)
+  and [About the config cascade](https://docs.conga.sh/explanation/config-cascade/).
 - **Lifecycle with guaranteed teardown.** `Validate` → `PreRun` → `Run` →
   `PostRun` → `Finally`, with hooks receiving `ctx` and `session`. See
   [About the lifecycle](https://docs.conga.sh/explanation/lifecycle/).
@@ -39,8 +40,8 @@ and shell completion from them.
 
 ## Installation
 
-Requires Go 1.27+. Add CONGA to your module; optional decoders, predictors,
-and plugins live in satellite packages:
+Requires Go 1.27+. Optional decoders, predictors, and plugins are
+subpackages of the same module and link in only when imported:
 
 ```sh
 go get github.com/conga-sh/conga
@@ -108,7 +109,7 @@ or copy from the [Examples Cookbook](https://docs.conga.sh/how-to/examples-cookb
 - [API reference](https://pkg.go.dev/github.com/conga-sh/conga) on pkg.go.dev.
 - [Struct Tag Reference](https://docs.conga.sh/reference/struct-tags/) —
   every supported struct tag and directive.
-- [Built-ins & Deprecation](https://docs.conga.sh/reference/builtins/) —
+- [Built-ins and deprecation](https://docs.conga.sh/reference/builtins/) —
   help, `--version`/`--json`, `--why`, completion styles, and deprecation notices.
 - [Examples Cookbook](https://docs.conga.sh/how-to/examples-cookbook/) — 28
   runnable programs, mirrored in [`_examples/`](_examples/README.md).
