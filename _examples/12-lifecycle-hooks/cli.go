@@ -9,7 +9,7 @@ import (
 
 // CLI is the root CLI implementing PreRunner, PostRunner, and Finalizer.
 type CLI struct {
-	Environment conga.OptionalFlag[string] `default:"staging"                                             help:"Environment" short:"e"`
+	Environment conga.OptionalFlag[string] `default:"staging"                                             short:"e"`
 	Migrate     conga.Command[MigrateCmd]  `summary:"Run database migrations"`
 	Abort       conga.Command[AbortCmd]    `summary:"Simulate a failed execution to test Finally cleanup"`
 	Deploy      conga.Command[DeployCmd]   `summary:"Simulate a PreRun failure to test early teardown"`

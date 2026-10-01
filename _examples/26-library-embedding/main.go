@@ -20,7 +20,7 @@ import (
 // DeployJobCLI is the command schema of the embedded runner.
 type DeployJobCLI struct {
 	Job      conga.RequiredArg[string] `help:"Batch job identifier"`
-	Priority conga.OptionalFlag[int]   `default:"5"                 help:"Scheduling priority (1-9)"`
+	Priority conga.OptionalFlag[int]   `default:"5"                 help:"Scheduling priority" range:"1..9"`
 }
 
 func (d *DeployJobCLI) Run(ctx context.Context, session *conga.Session) error {

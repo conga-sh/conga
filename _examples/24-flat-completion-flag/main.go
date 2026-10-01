@@ -12,8 +12,8 @@ import (
 // provides the --completion flag (Task / ripgrep style) without generating an
 // unnecessary Commands: section in the help display.
 type CLI struct {
-	Level  conga.OptionalFlag[int]    `default:"1"                 help:"Minification level (1-9)" safe:"true" short:"l"`
-	Output conga.OptionalFlag[string] `help:"Output file path"     safe:"true"                     short:"o"`
+	Level  conga.OptionalFlag[int]    `default:"1"                 help:"Minification level" range:"1..9" safe:"true" short:"l"`
+	Output conga.OptionalFlag[string] `help:"Output file path"     safe:"true"               short:"o"`
 	Input  conga.RequiredArg[string]  `help:"Input file to minify"`
 }
 

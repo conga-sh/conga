@@ -473,7 +473,14 @@ func parseFlagSpec(structField reflect.StructField, flagHandle any, classificati
 		return nil, err
 	}
 
-	helpText := structField.Tag.Get("help")
+	helpText, referenced, err := interpolateHelp(
+		structField.Tag.Get("help"),
+		helpVarValuesFor(rangeSpec, lenSpec, itemsSpec, enumValues, structField.Tag.Get("default"), envVars),
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	placeholder := structField.Tag.Get("placeholder")
 
 	safeTagValue, safePresent, err := ParseStrictBoolTag(structField.Tag, "safe")
@@ -506,6 +513,7 @@ func parseFlagSpec(structField reflect.StructField, flagHandle any, classificati
 		Len:         lenSpec,
 		Items:       itemsSpec,
 		Help:        helpText,
+		HelpVars:    referenced,
 		Placeholder: placeholder,
 		Group:       structField.Tag.Get("group"),
 		Hidden:      parsePresenceOrTrueTag(structField.Tag, "hidden"),
@@ -804,10 +812,19 @@ func parseArgSpec(structField reflect.StructField, argHandle any, classification
 		return nil, err
 	}
 
+	helpText, referenced, err := interpolateHelp(
+		structField.Tag.Get("help"),
+		helpVarValuesFor(rangeSpec, lenSpec, itemsSpec, enumValues, structField.Tag.Get("default"), nil),
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Arg{
 		Name:       name,
 		Default:    structField.Tag.Get("default"),
-		Help:       structField.Tag.Get("help"),
+		Help:       helpText,
+		HelpVars:   referenced,
 		Enum:       enumValues,
 		Range:      rangeSpec,
 		Len:        lenSpec,

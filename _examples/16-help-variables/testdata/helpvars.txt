@@ -1,0 +1,30 @@
+# TestScript for 16-help-variables
+# Contrasts the automatic constraint hint with the {{...}} help-variable
+# alternative, which states the constraint once and suppresses the matching hint.
+
+# 1. Automatic form appends the bracket hint after the help text
+exec helpvars --help
+stdout '--automatic=8080\s+Port using the automatic hint \[1\.\.65535\]'
+
+# 2. Inlined form states the bound in prose and suppresses the bracket hint
+stdout '(?m)^\s*--inlined=8080\s+Port stated once \(1\.\.65535\)\s*$'
+! stdout '(?m)^\s*--inlined=8080.*\['
+
+# 3. {{enum}}, {{items}}, and {{env}} inline the declared values
+stdout '--environment=STRING\s+Environment \(dev, staging, prod\)'
+! stdout '\[enum:'
+stdout '--zones=STRING,\.\.\.\s+Availability zones \(2\.\.3 items\)'
+! stdout '\[items:'
+stdout '--region=STRING\s+Region \(from REGION\)'
+! stdout '\[env:'
+
+# 4. {{default}} moves the default into the prose; the value slot shows the type
+stdout '--profile=STRING\s+Build profile \(default dev\)'
+! stdout '\[default:'
+
+# 5. A literal {{ is written by doubling the opening braces
+stdout '--literal=STRING\s+Literal braces: \{\{not-a-variable\}\}'
+
+# 6. Running with values resolves the flags
+exec helpvars --inlined 9000 --environment prod --zones a --zones b
+stdout 'inlined'

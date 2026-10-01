@@ -84,7 +84,7 @@ An explicit `help:"..."` tag replaces the type-derived description. Without one,
 | `conga.FileContent` | – | `Path to a file (or '-' for stdin)` |
 | `conga.ByteSize` | – | `Byte size (e.g., 10MiB, 1.5GB, 500KiB)` |
 
-`time.Duration` renders `Duration (e.g., 300ms, 2m45s, 1h)`. The container types delegate to their value type, so `OptionalFlag[conga.File]` and `RequiredArg[conga.Dir]` use the descriptions above. After the description, the engine appends `[default: ...]`, `[env: ...]`, constraint hints such as `[1..65535]` or `[items: 2..3]`, and `[enum: ...]` where the field declares them.
+`time.Duration` renders `Duration (e.g., 300ms, 2m45s, 1h)`. The container types delegate to their value type, so `OptionalFlag[conga.File]` and `RequiredArg[conga.Dir]` use the descriptions above. After the description, the engine appends `[default: ...]`, `[env: ...]`, constraint hints such as `[1..65535]` or `[items: 2..3]`, and `[enum: ...]` where the field declares them. Referencing the matching `{{...}}` variable in the field's `help` tag suppresses that automatic hint (see [Help variables](/reference/struct-tags/#help-variables)).
 
 ## Domain type interfaces
 

@@ -1,9 +1,9 @@
 ---
 title: How to run the examples
-description: Run the repository's 28 self-contained example programs and find the one covering a given feature.
+description: Run the repository's 29 self-contained example programs and find the one covering a given feature.
 ---
 
-The CONGA repository provides 28 self-contained example programs under [`_examples/`](https://github.com/conga-sh/conga/tree/main/_examples). Each example implements a focused architecture pattern, accompanied by a dedicated README and an automated end-to-end test suite.
+The CONGA repository provides 29 self-contained example programs under [`_examples/`](https://github.com/conga-sh/conga/tree/main/_examples). Each example implements a focused architecture pattern, accompanied by a dedicated README and an automated end-to-end test suite.
 
 ## Run an example locally
 
@@ -40,6 +40,7 @@ go test ./_examples/...
 | # | Example | Demonstrates |
 |---|---------|--------------|
 | 06 | [flag-constraints](https://github.com/conga-sh/conga/tree/main/_examples/06-flag-constraints) | `xor`, `and`, `range` (int, duration, byte size), `len`, `items`, and `enum`. |
+| 16 | [help-variables](https://github.com/conga-sh/conga/tree/main/_examples/16-help-variables) | `{{...}}` help variables that inline a declared constraint instead of the automatic bracket hint, including `{{default}}` value-slot suppression. |
 | 07 | [dynamic-validation](https://github.com/conga-sh/conga/tree/main/_examples/07-dynamic-validation) | The `Validator` interface for cross-field semantic validation before hooks execute. |
 | 08 | [subcommands-basic](https://github.com/conga-sh/conga/tree/main/_examples/08-subcommands-basic) | `Command[T]` routing, aliases, visual groups, hidden commands, and typo suggestions. |
 | 09 | [deep-hierarchy-context](https://github.com/conga-sh/conga/tree/main/_examples/09-deep-hierarchy-context) | `session.Root[T]()`, root-down `Command[T].Get()` traversal, `session.Path()`, `session.Name()`, and `envprefix` tags. |

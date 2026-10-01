@@ -33,6 +33,6 @@ stdout 'Broadcast: channel=email message="Database failover" urgent=true extra_r
 exec notify --help
 stdout 'Usage:'
 stdout 'notify <channel> \[message\] \[recipients\.\.\.\] \[flags\]'
-stdout '<channel>\s+Target channel \(slack, email, sms, webhook\)'
+stdout '<channel>\s+Target channel \[enum: slack, email, sms, webhook\]'
 stdout '\[message\]\s+Broadcast message payload'
 stdout '\[recipients\.\.\.\]\s+Additional recipient tags or handles'

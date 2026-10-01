@@ -61,6 +61,10 @@ type commandNode struct {
 	reportPos    token.Pos
 	allowUnknown bool
 	allowRecurse bool
+	// envPrefix is the effective environment variable prefix inherited by the
+	// command (its own sentinel tag, else the declaring Command[T] field's
+	// envprefix tag, else the parent's, else the app-level prefix).
+	envPrefix string
 }
 
 // walker drives the static hierarchy traversal and emits diagnostics.
@@ -112,6 +116,7 @@ func (w *walker) walkRoot(root *anchor) {
 		reportPos:    root.position,
 		allowUnknown: allowUnknown,
 		allowRecurse: allowRecurse,
+		envPrefix:    cmp.Or(nodeEnvPrefix(structType), w.options.envPrefix),
 	}
 
 	w.walkCommand(node, map[string]string{}, map[rune]string{})
@@ -258,6 +263,7 @@ func (w *walker) buildChildNode(node *commandNode, fieldObject types.Object, tag
 		reportPos:    w.fieldReportPos(node, fieldObject),
 		allowUnknown: allowUnknown,
 		allowRecurse: allowRecurse,
+		envPrefix:    cmp.Or(nodeEnvPrefix(structType), tag.Get("envprefix"), node.envPrefix),
 	}
 }
 
@@ -298,6 +304,24 @@ func (w *walker) fieldReportPos(node *commandNode, fieldObject types.Object) tok
 	}
 
 	return node.reportPos
+}
+
+// nodeEnvPrefix mirrors the runtime scanSentinelDirectives envprefix scan: the
+// last sentinel field declaring envprefix wins.
+func nodeEnvPrefix(structType *types.Struct) string {
+	var envPrefix string
+
+	for index := range structType.NumFields() {
+		if structType.Field(index).Name() != "_" {
+			continue
+		}
+
+		if prefix, ok := reflect.StructTag(structType.Tag(index)).Lookup("envprefix"); ok {
+			envPrefix = prefix
+		}
+	}
+
+	return envPrefix
 }
 
 // resolveCongaTypes resolves the runtime conga package objects the analyzer

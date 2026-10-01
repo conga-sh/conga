@@ -103,6 +103,11 @@ func NewCompletionCommand(name, summary string, target any, aliases []string, hi
 				Help:     "Target shell name",
 				Required: false,
 				Enum:     shells,
+				// The enum validates the argument and supplies the "shell"
+				// predictor's vocabulary; the completion footer already renders
+				// the supported shells, so the automatic [enum: ...] hint is
+				// suppressed to avoid listing them twice.
+				HelpVars: helpVars{Enum: true},
 				Predictor: &PredictorSpec{
 					Kind: PredictorKindCustom,
 					Name: "shell",
@@ -185,6 +190,8 @@ func (b *schemaBuilder) validateFieldTags(structField reflect.StructField, role 
 		StrictTagValidation: b.opts.StrictTagValidation,
 		AllowUnknownTags:    b.opts.AllowUnknownTags,
 		AllowedTags:         b.opts.AllowedTags,
+		EnvPrefix:           b.opts.EnvPrefix,
+		EnvPrefixKnown:      true,
 	})
 }
 
@@ -346,7 +353,10 @@ func (b *schemaBuilder) processConfigFile(structField reflect.StructField, confi
 		return err
 	}
 
-	flagSpec := b.buildConfigFileFlagSpec(structField, configHandle, fieldTags)
+	flagSpec, err := b.buildConfigFileFlagSpec(structField, configHandle, fieldTags)
+	if err != nil {
+		return err
+	}
 
 	if err := b.flagTracker.CheckAndAdd(flagSpec, structField.Name); err != nil {
 		return err
@@ -358,20 +368,24 @@ func (b *schemaBuilder) processConfigFile(structField reflect.StructField, confi
 	return nil
 }
 
-func (b *schemaBuilder) buildConfigFileFlagSpec(structField reflect.StructField, configHandle any, fieldTags FieldTags) *Flag {
+func (b *schemaBuilder) buildConfigFileFlagSpec(structField reflect.StructField, configHandle any, fieldTags FieldTags) (*Flag, error) {
 	isMulti := fieldTags.Bool("multi")
 
 	flagName := cmp.Or(structField.Tag.Get("name"), "config-file")
 
 	shortRune := extractFlagShort(structField.Tag)
-	helpText := extractConfigFileHelp(structField.Tag, isMulti)
+	envVars := b.extractConfigFileEnvVars(structField.Tag)
+
+	helpText, referenced, err := interpolateHelp(extractConfigFileHelp(structField.Tag, isMulti), helpVarValuesFor(nil, nil, nil, nil, "", envVars))
+	if err != nil {
+		return nil, err
+	}
 
 	if len(b.opts.ConfigFilePatterns) == 0 {
 		helpText += " (no configuration decoder registered)"
 	}
 
 	placeholder := extractConfigFilePlaceholder(structField.Tag)
-	envVars := b.extractConfigFileEnvVars(structField.Tag)
 
 	targetType := reflect.TypeFor[string]()
 	if isMulti {
@@ -395,6 +409,7 @@ func (b *schemaBuilder) buildConfigFileFlagSpec(structField reflect.StructField,
 		ConfigKey:    "-",
 		EnvVars:      envVars,
 		Help:         helpText,
+		HelpVars:     referenced,
 		Placeholder:  placeholder,
 		Group:        structField.Tag.Get("group"),
 		Hidden:       parsePresenceOrTrueTag(structField.Tag, "hidden"),
@@ -406,7 +421,7 @@ func (b *schemaBuilder) buildConfigFileFlagSpec(structField reflect.StructField,
 		IsSlice:      isMulti,
 		Sep:          sep,
 		Predictor:    &PredictorSpec{Kind: PredictorKindFile, Name: "file", Patterns: slices.Clone(b.opts.ConfigFilePatterns)},
-	}
+	}, nil
 }
 
 func (b *schemaBuilder) extractConfigFileEnvVars(tag reflect.StructTag) []string {

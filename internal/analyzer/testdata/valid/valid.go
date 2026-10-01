@@ -47,7 +47,7 @@ func (r *Ratio) UnmarshalText(text []byte) error {
 
 // DeployWorker is a leaf command implementing conga.Runner.
 type DeployWorker struct {
-	Replicas  conga.OptionalFlag[int]            `name:"replicas" short:"r" help:"Worker replica count" range:"1..16"`
+	Replicas  conga.OptionalFlag[int]            `name:"replicas" short:"r" help:"Worker replica count ({{env}})" range:"1..16"`
 	Memory    conga.OptionalFlag[conga.ByteSize] `name:"memory" help:"Worker memory limit" range:"1MiB..1GiB"`
 	AliasSize conga.OptionalFlag[MemoryAlias]    `name:"alias-size" help:"Aliased memory limit" range:"1MiB..1GiB"`
 	Histogram conga.OptionalFlag[Histogram]      `name:"histogram" help:"Histogram size" range:"1..10"`
@@ -56,6 +56,7 @@ type DeployWorker struct {
 	Output    conga.OptionalFlag[conga.File]     `name:"output" stdout:"true" help:"Output file"`
 	WorkDir   conga.OptionalFlag[conga.Dir]      `name:"workdir" existing:"true" help:"Working directory"`
 	Manifest  conga.OptionalFlag[conga.File]     `name:"manifest" glob:"*.yaml,Makefile" help:"Manifest file"`
+	Port      conga.OptionalFlag[int]            `name:"port" help:"Port number ({{range}})" range:"1..1024"`
 }
 
 // Run executes the worker deployment.
@@ -65,7 +66,7 @@ func (d *DeployWorker) Run(ctx context.Context, session *conga.Session) error {
 
 // Deploy is a grouping command; Runner is optional when subcommands exist.
 type Deploy struct {
-	Worker conga.Command[DeployWorker] `name:"worker"`
+	Worker conga.Command[DeployWorker] `name:"worker" envprefix:"DEPLOY_"`
 }
 
 // ValueReceiverLeaf implements conga.Runner with a value receiver.

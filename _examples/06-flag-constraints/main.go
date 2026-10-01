@@ -25,15 +25,15 @@ type CLI struct {
 	Password conga.OptionalFlag[string] `and:"auth" help:"Authentication password" len:"8.."`
 
 	// Numeric Range Constraints
-	Port    conga.OptionalFlag[int]            `default:"8080"   help:"Port number (1-65535)"         range:"1..65535"  short:"p"`
-	Timeout conga.OptionalFlag[time.Duration]  `default:"2s"     help:"Request timeout (100ms to 5s)" range:"100ms..5s"`
+	Port    conga.OptionalFlag[int]            `default:"8080"   help:"Port number"     range:"1..65535"  short:"p"`
+	Timeout conga.OptionalFlag[time.Duration]  `default:"2s"     help:"Request timeout" range:"100ms..5s"`
 	Memory  conga.OptionalFlag[conga.ByteSize] `default:"256MiB" range:"1MiB..1GiB"`
 
 	// Enum Constraint
-	Env conga.OptionalFlag[string] `default:"dev" enum:"dev,staging,prod" help:"Deployment environment (dev, staging, prod)"`
+	Env conga.OptionalFlag[string] `default:"dev" enum:"dev,staging,prod" help:"Deployment environment"`
 
 	// Collection Bounds Constraint
-	Zones conga.OptionalFlag[[]string] `help:"Availability zones (2 to 3 items)" items:"2..3" short:"z"`
+	Zones conga.OptionalFlag[[]string] `help:"Availability zones" items:"2..3" short:"z"`
 }
 
 func (c *CLI) Run(ctx context.Context, session *conga.Session) error {

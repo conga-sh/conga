@@ -34,7 +34,7 @@ type LogsCmd struct {
 	Severity       conga.OptionalFlag[string]            `help:"Minimum severity (KeepOrder preserves source order)"                 predictor:"severities"`
 	Sink           conga.OptionalFlag[string]            `help:"Export sink (rich Items: display, style, tag)"                       predictor:"sinks"`
 	SinkMode       conga.OptionalFlag[string]            `help:"Sink buffering mode (Map with descriptions)"                         predictor:"sink-modes"`
-	Labels         conga.OptionalFlag[map[string]string] `help:"Log labels in key=value format (MapValues)"                          predictor:"labels"           short:"l"`
+	Labels         conga.OptionalFlag[map[string]string] `help:"Log labels (MapValues)"                                              predictor:"labels"           short:"l"`
 	Mute           conga.OptionalFlag[[]string]          `help:"Service to suppress (FlagValues dedup)"                              predictor:"mute-services"`
 	OutFile        conga.OptionalFlag[string]            `help:"Output log file (Files with extension filter)"                       predictor:"log-files"`
 	GlobLog        conga.OptionalFlag[string]            `help:"Log file matching a glob pattern (FilesGlob)"                        predictor:"glob-logs"`

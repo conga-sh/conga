@@ -968,6 +968,261 @@ func TestFlag_DeprecatedRequiredRejected(t *testing.T) {
 	assert.Equal(t, `struct RootCLI field Key: schema error: invalid struct tag: tag "deprecated" cannot be used on required flags (make the flag optional before deprecating it so callers can migrate without error)`, err.Error())
 }
 
+func TestFlag_HelpVariablesExpanded(t *testing.T) {
+	t.Parallel()
+
+	t.Run("range variable expanded", func(t *testing.T) {
+		t.Parallel()
+
+		type RootCLI struct {
+			Port mockFlag[int] `help:"Port ({{range}})" range:"1..10"`
+		}
+
+		var cli RootCLI
+
+		cmd, err := buildSchema(&cli, "app", spec.Options{})
+
+		assert.NoError(t, err)
+		assert.Equal(t, "Port (1..10)", cmd.Flags[0].Help)
+		assert.True(t, cmd.Flags[0].HelpVars.Range)
+		assert.False(t, cmd.Flags[0].HelpVars.Enum)
+	})
+
+	t.Run("enum variable expanded", func(t *testing.T) {
+		t.Parallel()
+
+		type RootCLI struct {
+			Env mockFlag[string] `enum:"dev,prod" help:"Env ({{enum}})"`
+		}
+
+		var cli RootCLI
+
+		cmd, err := buildSchema(&cli, "app", spec.Options{})
+
+		assert.NoError(t, err)
+		assert.Equal(t, "Env (dev, prod)", cmd.Flags[0].Help)
+		assert.True(t, cmd.Flags[0].HelpVars.Enum)
+		assert.False(t, cmd.Flags[0].HelpVars.Range)
+	})
+}
+
+func TestFlag_HelpUndeclaredVariableRejected(t *testing.T) {
+	t.Parallel()
+
+	type RootCLI struct {
+		Port mockFlag[int] `help:"Port ({{range}})"`
+	}
+
+	var cli RootCLI
+
+	_, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.Error(t, err)
+	assert.IsError(t, err, spec.ErrSchema)
+	assert.IsError(t, err, spec.ErrInvalidStructTag)
+	assert.Equal(t, `struct RootCLI field Port: schema error: invalid struct tag: tag "help" references {{range}}, but the field provides no value for that variable`, err.Error())
+}
+
+func TestArg_HelpEnvVariableRejected(t *testing.T) {
+	t.Parallel()
+
+	type RootCLI struct {
+		_ struct{} `envprefix:"APP_"`
+
+		Target mockArg[string] `help:"Target ({{env}})"`
+	}
+
+	var cli RootCLI
+
+	_, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.Error(t, err)
+	assert.IsError(t, err, spec.ErrSchema)
+	assert.IsError(t, err, spec.ErrInvalidStructTag)
+	assert.Equal(t, `struct RootCLI field Target: schema error: invalid struct tag: tag "help" references {{env}}, but the field provides no value for that variable`, err.Error())
+}
+
+func TestFlag_HelpEnvVariableDerivedFromPrefix(t *testing.T) {
+	t.Parallel()
+
+	type RootCLI struct {
+		_ struct{} `envprefix:"APP_"`
+
+		Port mockFlag[int] `help:"Port from {{env}}"`
+	}
+
+	var cli RootCLI
+
+	cmd, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.NoError(t, err)
+	assert.Equal(t, "Port from APP_PORT", cmd.Flags[0].Help)
+	assert.True(t, cmd.Flags[0].HelpVars.Env)
+}
+
+func TestFlag_HelpUnknownVariableRejected(t *testing.T) {
+	t.Parallel()
+
+	type RootCLI struct {
+		Port mockFlag[int] `help:"Port ({{rnage}})" range:"1..10"`
+	}
+
+	var cli RootCLI
+
+	_, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.Error(t, err)
+	assert.IsError(t, err, spec.ErrSchema)
+	assert.IsError(t, err, spec.ErrInvalidStructTag)
+	assert.Equal(t, `struct RootCLI field Port: schema error: invalid struct tag: tag "help" references unknown variable {{rnage}}; supported variables are {{range}}, {{len}}, {{items}}, {{enum}}, {{default}}, {{env}}`, err.Error())
+}
+
+func TestArg_HelpUnknownVariableRejected(t *testing.T) {
+	t.Parallel()
+
+	type RootCLI struct {
+		Channel mockArg[string] `enum:"slack,email" help:"Channel ({{enums}})"`
+	}
+
+	var cli RootCLI
+
+	_, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.Error(t, err)
+	assert.IsError(t, err, spec.ErrSchema)
+	assert.IsError(t, err, spec.ErrInvalidStructTag)
+	assert.Equal(t, `struct RootCLI field Channel: schema error: invalid struct tag: tag "help" references unknown variable {{enums}}; supported variables are {{range}}, {{len}}, {{items}}, {{enum}}, {{default}}, {{env}}`, err.Error())
+}
+
+func TestConfigFile_HelpEnvVariableExpanded(t *testing.T) {
+	t.Parallel()
+
+	type RootCLI struct {
+		Config mockConfigFile `env:"APP_CONFIG" help:"Load ({{env}})"`
+	}
+
+	var cli RootCLI
+
+	cmd, err := buildSchema(&cli, "app", spec.Options{ConfigFilePatterns: []string{"*.yaml"}})
+
+	assert.NoError(t, err)
+	assert.Equal(t, "Load (APP_CONFIG)", cmd.ConfigFileFlag.Help)
+	assert.True(t, cmd.ConfigFileFlag.HelpVars.Env)
+}
+
+func TestConfigFile_HelpEnvVariableRejected(t *testing.T) {
+	t.Parallel()
+
+	type RootCLI struct {
+		Config mockConfigFile `help:"Load ({{env}})"`
+	}
+
+	var cli RootCLI
+
+	_, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.Error(t, err)
+	assert.IsError(t, err, spec.ErrSchema)
+	assert.IsError(t, err, spec.ErrInvalidStructTag)
+	assert.Equal(t, `struct RootCLI field Config: schema error: invalid struct tag: tag "help" references {{env}}, but the field provides no value for that variable`, err.Error())
+}
+
+func TestConfigFile_HelpUnknownVariableRejected(t *testing.T) {
+	t.Parallel()
+
+	type RootCLI struct {
+		Config mockConfigFile `help:"Config ({{rnage}})"`
+	}
+
+	var cli RootCLI
+
+	_, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.Error(t, err)
+	assert.IsError(t, err, spec.ErrSchema)
+	assert.IsError(t, err, spec.ErrInvalidStructTag)
+	assert.Equal(t, `struct RootCLI field Config: schema error: invalid struct tag: tag "help" references unknown variable {{rnage}}; supported variables are {{range}}, {{len}}, {{items}}, {{enum}}, {{default}}, {{env}}`, err.Error())
+}
+
+func TestFlag_EmptyConstraintTagRejected(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		newCLI   func() any
+		expected string
+	}{
+		{
+			name: "empty range",
+			newCLI: func() any {
+				type CLI struct {
+					Port mockFlag[int] `range:""`
+				}
+
+				return &CLI{}
+			},
+			expected: `struct CLI field Port: schema error: invalid struct tag: tag "range" cannot be empty`,
+		},
+		{
+			name: "empty len",
+			newCLI: func() any {
+				type CLI struct {
+					Port mockFlag[string] `len:""`
+				}
+
+				return &CLI{}
+			},
+			expected: `struct CLI field Port: schema error: invalid struct tag: tag "len" cannot be empty`,
+		},
+		{
+			name: "empty items",
+			newCLI: func() any {
+				type CLI struct {
+					Port mockFlag[[]string] `items:""`
+				}
+
+				return &CLI{}
+			},
+			expected: `struct CLI field Port: schema error: invalid struct tag: tag "items" cannot be empty`,
+		},
+		{
+			name: "empty enum",
+			newCLI: func() any {
+				type CLI struct {
+					Port mockFlag[string] `enum:""`
+				}
+
+				return &CLI{}
+			},
+			expected: `struct CLI field Port: schema error: invalid struct tag: tag "enum" cannot be empty`,
+		},
+		{
+			name: "comma-only enum",
+			newCLI: func() any {
+				type CLI struct {
+					Port mockFlag[string] `enum:","`
+				}
+
+				return &CLI{}
+			},
+			expected: `struct CLI field Port: schema error: invalid struct tag: tag "enum" cannot be empty`,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := buildSchema(testCase.newCLI(), "app", spec.Options{})
+
+			assert.Error(t, err)
+			assert.IsError(t, err, spec.ErrSchema)
+			assert.IsError(t, err, spec.ErrInvalidStructTag)
+			assert.Equal(t, testCase.expected, err.Error())
+		})
+	}
+}
+
 func TestRootCommand_NamePreservedWithoutKebab(t *testing.T) {
 	t.Parallel()
 

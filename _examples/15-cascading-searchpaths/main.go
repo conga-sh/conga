@@ -14,9 +14,9 @@ import (
 type CLI struct {
 	ConfigFile conga.ConfigFile `multi:"true" short:"c"`
 
-	APIEndpoint conga.OptionalFlag[string]        `default:"https://api.default.io" help:"API endpoint"                name:"api-endpoint"`
+	APIEndpoint conga.OptionalFlag[string]        `default:"https://api.default.io" name:"api-endpoint"`
 	Timeout     conga.OptionalFlag[time.Duration] `default:"10s"                    help:"Request timeout"`
-	Theme       conga.OptionalFlag[string]        `default:"dark"                   enum:"dark,light,solarized,system" help:"UI Theme"`
+	Theme       conga.OptionalFlag[string]        `default:"dark"                   enum:"dark,light,solarized,system"`
 	Telemetry   conga.OptionalFlag[bool]          `default:"true"                   help:"Enable telemetry reporting"`
 }
 

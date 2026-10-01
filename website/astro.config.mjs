@@ -59,6 +59,7 @@ export default defineConfig({
           items: [
             'how-to/declare-subcommands',
             'how-to/accept-positional-arguments',
+            'how-to/customize-help-screens',
             'how-to/manage-config-files',
             'how-to/bind-environment-variables',
             'how-to/load-env-files',
