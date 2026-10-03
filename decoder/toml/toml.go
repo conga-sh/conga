@@ -1,9 +1,19 @@
 // Package toml provides the TOML configuration decoder for CONGA applications.
 //
-// [RawDecoder] matches config.Decoder, parsing TOML into the generic key-value
-// map that the configuration engine validates against command struct tags.
-// Register it with App.RegisterDecoder; parse failures wrap [ErrTOMLParse],
-// and an empty document decodes to an empty map.
+// Register [RawDecoder] with App.RegisterDecoder to enable TOML configuration support:
+//
+//	app.RegisterDecoder(".toml", toml.RawDecoder)
+//
+// # Key Mapping
+//
+// Top-level TOML keys match flag names using kebab-case, snake_case, or camelCase:
+//
+//	# config.toml
+//	http-port = 8080
+//	database_url = "postgres://localhost/db"
+//	maxRetries = 5
+//
+// Parse failures wrap [ErrTOMLParse], and an empty document decodes to an empty map.
 package toml
 
 import (

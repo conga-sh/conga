@@ -33,20 +33,48 @@ const (
 	byteSizeErrorUnknownUnit                            // unrecognized unit suffix
 )
 
-// File represents a filesystem path with optional capabilities declared
-// through custom field tags: existing:"true" requires the path to exist and
-// be a regular file, stdin:"true" permits "-" to read standard input,
-// stdout:"true" permits "-" to write standard output, executable:"true"
-// requires the path to be an executable regular file with $PATH-relative
-// names resolved at decode time, and symlink:"true" requires the path to be
-// a symbolic link. The glob:"..." tag is completion-only: it filters the
-// suggested file candidates against comma-separated glob patterns matched
-// on entry names (e.g. glob:"Makefile,Dockerfile" or glob:"*.yaml") and
-// cannot be combined with the executable or symlink capabilities. Values
-// expand environment variables and tilde paths at decode time, capturing
-// the field's declared tags and the engine-configured standard streams
-// (App.Stdin/App.Stdout for values bound through an App run); tag-driven
-// validation runs during the validation phase.
+// File represents a filesystem path with optional capability constraints declared
+// through struct tags on command fields:
+//   - `existing:"true"`: Requires the path to exist and not be a directory.
+//   - `stdin:"true"`: Permits "-" to bind to standard input ([App.Stdin] or [os.Stdin]).
+//   - `stdout:"true"`: Permits "-" to bind to standard output ([App.Stdout] or [os.Stdout]).
+//   - `executable:"true"`: Requires the path to exist, not be a directory, have execute
+//     permission, and resolves $PATH-relative names to their absolute location at decode time.
+//   - `symlink:"true"`: Requires the path to be a symbolic link.
+//   - `glob:"pattern"`: Shell autocompletion filter using comma-separated glob patterns
+//     (e.g. `glob:"*.yaml,*.yml"` or `glob:"Dockerfile*"`).
+//
+// These tags are mutually exclusive in part, because they constrain the same path
+// in incompatible ways. Declaring a conflicting pair fails schema compilation:
+//   - `existing` conflicts with `stdout`, `executable`, and `symlink`.
+//   - `stdin` conflicts with `stdout`, `executable`, and `symlink`.
+//   - `stdout` conflicts with `stdin`, `existing`, `executable`, and `symlink`.
+//   - `executable` conflicts with `existing`, `stdin`, `stdout`, `symlink`, and `glob`.
+//   - `symlink` conflicts with `existing`, `stdin`, `stdout`, `executable`, and `glob`.
+//   - `glob` conflicts with `executable` and `symlink`.
+//
+// File paths automatically expand tilde prefixes (`~` to the user's home directory)
+// and environment variables (`$VAR` or `${VAR}`) during value decoding.
+//
+// In command handlers, call [File.Reader] to open the file (or stdin if "-") or
+// [File.Writer] to create/truncate the file (or stdout if "-"):
+//
+//	type TransformCLI struct {
+//		Input  conga.RequiredFlag[conga.File] `short:"i" stdin:"true" help:"Input file or - for stdin"`
+//		Output conga.RequiredFlag[conga.File] `short:"o" stdout:"true" help:"Output file or - for stdout"`
+//	}
+//
+//	func (t *TransformCLI) Run(ctx context.Context, session *conga.Session) error {
+//		reader, err := t.Input.Get().Reader()
+//		if err != nil {
+//			return err
+//		}
+//		defer reader.Close()
+//		// Process reader...
+//		return nil
+//	}
+//
+// See https://docs.conga.sh/reference/domain-types/.
 //
 //nolint:recvcheck // Inspection hooks (String/Help/Predict/TagSpecs/Validate) use pointer receivers for nil-safety; file accessors (IsStdio/Reader/Writer/Stat) use value receivers.
 type File struct {
@@ -60,7 +88,7 @@ type File struct {
 	stdoutSink  io.Writer // engine-configured stdout (App.Stdout); nil falls back to os.Stdout
 }
 
-// TagSpecs registers the custom field tags accepted by File.
+// TagSpecs registers the custom struct tags accepted by [File] fields.
 func (f *File) TagSpecs() []spec.TagSpec {
 	return []spec.TagSpec{
 		{Name: "existing", Kind: spec.TagKindBool, Excludes: []string{"stdout", "executable", "symlink"}},
@@ -72,11 +100,14 @@ func (f *File) TagSpecs() []spec.TagSpec {
 	}
 }
 
-// Validate enforces the tags captured at decode time against the resolved
-// path: "-" requires the stdin or stdout capability, the symlink capability
-// requires the path to be a symbolic link, the executable capability requires
-// the path to exist and be an executable regular file, and the existing
-// capability requires the path to exist and be a regular file.
+// Validate verifies that the resolved path satisfies the capability tags declared
+// on the owning field. The `glob` tag is a completion filter and is not validated.
+//
+// Enforced rules:
+//   - If the value is "-", the field must declare either `stdin:"true"` or `stdout:"true"`.
+//   - If `existing:"true"` is declared, the path must exist and cannot be a directory.
+//   - If `executable:"true"` is declared, the file must exist, cannot be a directory, and must have execute permissions.
+//   - If `symlink:"true"` is declared, the path must be a symbolic link.
 func (f *File) Validate(ctx context.Context) error {
 	if f == nil {
 		return nil
@@ -121,10 +152,11 @@ func (f *File) Validate(ctx context.Context) error {
 	return nil
 }
 
-// Predict returns file autocompletion candidates, tailored to the field's
-// declared tags: executables from $PATH for executable fields, symlinks for
-// symlink fields, glob-filtered file paths for glob fields, and file paths
-// otherwise.
+// Predict returns shell autocompletion candidates tailored to the field's declared tags.
+//
+// Generates executable candidates from $PATH for `executable:"true"` fields, symlinks for
+// `symlink:"true"`, glob-filtered filenames for `glob:"..."`, and standard filesystem
+// files otherwise.
 func (f *File) Predict(tags FieldTags) predict.Predictor {
 	switch {
 	case tags.Bool("executable"):
@@ -138,7 +170,8 @@ func (f *File) Predict(tags FieldTags) predict.Predictor {
 	}
 }
 
-// String returns the file path.
+// String returns the resolved filesystem path string. Returns an empty string if
+// the receiver is nil.
 func (f *File) String() string {
 	if f == nil {
 		return ""
@@ -147,21 +180,19 @@ func (f *File) String() string {
 	return f.path
 }
 
-// UnmarshalText expands environment variables and tilde paths. Plain text
-// unmarshaling carries no field tags or engine streams, so the decoded value
-// is unconstrained and "-" wiring falls back to the process stdio streams;
-// the engine delivers declared tags and configured streams via
-// UnmarshalTextWithContext.
+// UnmarshalText unmarshals a raw path string, expanding environment variables and
+// tilde prefixes. Standard text unmarshaling carries no field tags or engine streams,
+// so the path is unconstrained and "-" streams fall back to [os.Stdin]/[os.Stdout].
 func (f *File) UnmarshalText(text []byte) error {
 	return f.UnmarshalTextWithContext(text, DecodeContext{})
 }
 
-// UnmarshalTextWithContext expands environment variables and tilde paths,
-// captures the field's declared capability tags for Validate, and captures
-// the engine-configured standard streams so "-" in Reader/Writer follows
-// App.Stdin/App.Stdout for values bound through an App run. Fields declaring
-// the executable capability additionally trim their value and resolve
-// $PATH-relative names to their absolute location at decode time.
+// UnmarshalTextWithContext decodes a path string using ambient field tags and configured
+// standard streams ([App.Stdin] / [App.Stdout]).
+//
+// Expands environment variables and tilde prefixes, captures declared capability tags
+// for [File.Validate], and resolves $PATH-relative names to absolute paths when
+// `executable:"true"` is declared.
 func (f *File) UnmarshalTextWithContext(text []byte, decodeContext DecodeContext) error {
 	f.path = pathx.Expand(string(text))
 	f.applyTags(decodeContext.Tags)
@@ -197,8 +228,8 @@ func (f *File) UnmarshalTextWithContext(text []byte, decodeContext DecodeContext
 	return nil
 }
 
-// Help returns the default help description for file flags, tailored to the
-// field's declared tags.
+// Help returns the default value syntax description for file flags, tailored to
+// declared capability tags (e.g. "Path to an existing file or '-' for stdin").
 func (f *File) Help(tags FieldTags) string {
 	switch {
 	case tags.Bool("executable"):
@@ -226,17 +257,16 @@ func (f *File) Help(tags FieldTags) string {
 	}
 }
 
-// IsStdio reports whether the value is "-" (a standard stream). The direction
-// follows from the accessor: Reader() wires "-" to standard input and
-// Writer() wires it to standard output.
+// IsStdio reports whether the file path is "-" (representing standard input or standard output).
 func (f File) IsStdio() bool {
 	return f.path == "-"
 }
 
-// Reader opens the file for reading. When the value is "-", it wraps the
-// engine-configured standard input (App.Stdin) for values bound through an
-// App run, falling back to os.Stdin for directly-constructed values. Either
-// wrapper is non-closing so caller Close() calls never close the stream.
+// Reader opens the file for reading.
+//
+// If the path is "-", Reader returns a non-closing wrapper around [App.Stdin] (or
+// [os.Stdin] if unconfigured). Callers can safely call Close() on the returned
+// [io.ReadCloser] without closing the underlying process standard input stream.
 func (f File) Reader() (io.ReadCloser, error) {
 	if f.IsStdio() {
 		if f.stdinSource != nil {
@@ -249,10 +279,11 @@ func (f File) Reader() (io.ReadCloser, error) {
 	return os.Open(f.path)
 }
 
-// Writer creates or truncates the file for writing. When the value is "-", it
-// returns a non-closing wrapper around the engine-configured standard output
-// (App.Stdout) for values bound through an App run, falling back to
-// os.Stdout for directly-constructed values.
+// Writer creates or truncates the file for writing.
+//
+// If the path is "-", Writer returns a non-closing wrapper around [App.Stdout] (or
+// [os.Stdout] if unconfigured). Callers can safely call Close() on the returned
+// [io.WriteCloser] without closing the underlying process standard output stream.
 func (f File) Writer() (io.WriteCloser, error) {
 	if f.IsStdio() {
 		if f.stdoutSink != nil {
@@ -265,48 +296,60 @@ func (f File) Writer() (io.WriteCloser, error) {
 	return os.Create(f.path)
 }
 
-// Stat returns the os.FileInfo for the file.
+// Stat returns [os.FileInfo] for the resolved file path.
 func (f File) Stat() (os.FileInfo, error) {
 	return os.Stat(f.path)
 }
 
-// FileContent represents file contents loaded into memory during value decoding.
-// Supports "-" to read from standard input: the engine-configured standard input
-// (App.Stdin) for values bound through an App run, os.Stdin otherwise.
+// FileContent represents the in-memory contents of a file read during argument decoding.
+//
+// If the value is "-", the content is read into memory from [App.Stdin] (or [os.Stdin]).
+// FileContent enforces a strict 16MB file size limit to prevent out-of-memory DoS
+// vulnerabilities:
+//
+//	type ConfigCLI struct {
+//		Cert conga.RequiredFlag[conga.FileContent] `short:"c" help:"TLS certificate file or - for stdin"`
+//	}
+//
+//	func (c *ConfigCLI) Run(ctx context.Context, session *conga.Session) error {
+//		certBytes := c.Cert.Get().Bytes()
+//		return loadCertificate(certBytes)
+//	}
+//
+// See https://docs.conga.sh/reference/domain-types/.
 //
 //nolint:recvcheck // Inspection hooks (String/Help/Predict) use value receivers for value semantics; text unmarshaling needs pointer receivers to mutate the value.
 type FileContent string
 
-// Bytes returns the raw bytes of the file content.
+// Bytes returns the raw bytes of the loaded file content.
 func (f FileContent) Bytes() []byte {
 	return []byte(f)
 }
 
-// String returns the file content as a string.
+// String returns the loaded file content as a string.
 func (f FileContent) String() string {
 	return string(f)
 }
 
-// Help returns the default help description for file content flags.
+// Help returns the default value syntax description for file content flags.
 func (f FileContent) Help() string {
 	return "Path to a file (or '-' for stdin)"
 }
 
-// Predict returns file autocompletion candidates.
+// Predict returns filesystem file autocompletion candidates.
 func (f FileContent) Predict() predict.Predictor {
 	return predict.Files()
 }
 
-// UnmarshalText reads the file at path (or os.Stdin if "-") into memory,
-// enforcing a 16MB DoS limit (maxFileContentSize).
+// UnmarshalText loads the file at path (or [os.Stdin] if "-") into memory,
+// enforcing a strict 16MB file size limit to prevent memory exhaustion.
 func (f *FileContent) UnmarshalText(text []byte) error {
 	return f.UnmarshalTextWithContext(text, DecodeContext{})
 }
 
-// UnmarshalTextWithContext reads the file at path into memory, enforcing a
-// 16MB DoS limit (maxFileContentSize). "-" reads the engine-configured
-// standard input (App.Stdin) for values bound through an App run, falling
-// back to os.Stdin for directly-constructed values.
+// UnmarshalTextWithContext loads the file at path into memory, enforcing a strict
+// 16MB file size limit. When path is "-", content is read from the engine-configured
+// standard input ([App.Stdin]), falling back to [os.Stdin] for unconfigured values.
 func (f *FileContent) UnmarshalTextWithContext(text []byte, decodeContext DecodeContext) error {
 	raw := string(text)
 	if raw == "-" {
@@ -346,26 +389,39 @@ func (f *FileContent) UnmarshalTextWithContext(text []byte, decodeContext Decode
 	return nil
 }
 
-// Dir represents a filesystem directory path with an optional existence
-// capability declared through the custom field tag existing:"true" (the path
-// must exist and be a directory). Values expand environment variables and
-// tilde paths at decode time, capturing the field's declared tags; tag-driven
-// validation runs during the validation phase.
+// Dir represents a filesystem directory path with an optional existence constraint
+// declared via the struct tag `existing:"true"`.
+//
+// Directory paths automatically expand tilde prefixes (`~` to the user's home directory)
+// and environment variables (`$VAR` or `${VAR}`) during value decoding.
+//
+// String uses a pointer receiver, so bind the resolved value to a local variable
+// before calling it:
+//
+//	type OutputCLI struct {
+//		OutputDir conga.RequiredFlag[conga.Dir] `short:"o" existing:"true" help:"Output directory"`
+//	}
+//
+//	func (o *OutputCLI) Run(ctx context.Context, session *conga.Session) error {
+//		dir := o.OutputDir.Get()
+//		return os.WriteFile(filepath.Join(dir.String(), "result.json"), []byte("{}\n"), 0o644)
+//	}
+//
+// See https://docs.conga.sh/reference/domain-types/.
 type Dir struct {
 	path     string
 	existing bool
 }
 
-// TagSpecs registers the custom field tags accepted by Dir.
+// TagSpecs registers the custom struct tags accepted by [Dir] fields (`existing`).
 func (d *Dir) TagSpecs() []spec.TagSpec {
 	return []spec.TagSpec{
 		{Name: "existing", Kind: spec.TagKindBool},
 	}
 }
 
-// Validate enforces the tags captured at decode time against the resolved
-// path: the existing capability requires the path to exist and be a
-// directory.
+// Validate enforces the declared directory tags. With `existing:"true"`, the path
+// must exist and be a directory; without it, Validate always succeeds.
 func (d *Dir) Validate(ctx context.Context) error {
 	if d == nil {
 		return nil
@@ -387,16 +443,13 @@ func (d *Dir) Validate(ctx context.Context) error {
 	return nil
 }
 
-// Predict returns directory autocompletion candidates. Unlike File.Predict it
-// takes no field tags: Dir's only custom tag (existing:"true") constrains
-// validation, not the candidate set, so the candidates are always directories.
-// This keeps the parameterless Predictable form usable for domain types whose
-// candidates never depend on declared tags.
+// Predict returns filesystem directory autocompletion candidates.
 func (d *Dir) Predict() predict.Predictor {
 	return predict.Dirs()
 }
 
-// String returns the directory path.
+// String returns the resolved directory path string. Returns an empty string if
+// the receiver is nil.
 func (d *Dir) String() string {
 	if d == nil {
 		return ""
@@ -405,15 +458,14 @@ func (d *Dir) String() string {
 	return d.path
 }
 
-// UnmarshalText expands environment variables and tilde paths. Plain text
-// unmarshaling carries no field tags, so the decoded value is unconstrained;
-// the engine delivers declared tags via UnmarshalTextWithContext.
+// UnmarshalText unmarshals a directory path, expanding environment variables and
+// tilde prefixes without tag constraints.
 func (d *Dir) UnmarshalText(text []byte) error {
 	return d.UnmarshalTextWithContext(text, DecodeContext{})
 }
 
-// UnmarshalTextWithContext expands environment variables and tilde paths and
-// captures the field's declared capability tags for Validate.
+// UnmarshalTextWithContext decodes a directory path, expanding environment variables
+// and tilde prefixes, and captures declared capability tags from [DecodeContext].
 func (d *Dir) UnmarshalTextWithContext(text []byte, decodeContext DecodeContext) error {
 	d.path = pathx.Expand(string(text))
 	d.existing = decodeContext.Tags.Bool("existing")
@@ -421,8 +473,8 @@ func (d *Dir) UnmarshalTextWithContext(text []byte, decodeContext DecodeContext)
 	return nil
 }
 
-// Help returns the default help description for directory flags, tailored to
-// the field's declared tags.
+// Help returns the default value syntax description for directory flags, tailored
+// to declared tags ("Path to an existing directory" or "Path to a directory").
 func (d *Dir) Help(tags FieldTags) string {
 	if tags.Bool("existing") {
 		return "Path to an existing directory"
@@ -431,10 +483,25 @@ func (d *Dir) Help(tags FieldTags) string {
 	return "Path to a directory"
 }
 
-// ByteSize represents human-readable byte sizes (e.g. "10MiB", "1.5GB", "500KiB").
+// ByteSize represents human-readable data volumes (such as "10MiB", "1.5GB", "500KiB").
+//
+// The underlying type is an int64 byte count, enabling direct numeric comparisons
+// and calculations in bytes. Bytes and String use pointer receivers, so bind the
+// resolved value to a local variable before calling them:
+//
+//	type CacheCLI struct {
+//		MaxMemory conga.OptionalFlag[conga.ByteSize] `default:"512MiB" help:"Max memory limit"`
+//	}
+//
+//	func (c *CacheCLI) Run(ctx context.Context, session *conga.Session) error {
+//		limit := c.MaxMemory.Get()
+//		return configureCache(limit.Bytes()) // 536870912 for 512MiB
+//	}
+//
+// See https://docs.conga.sh/reference/domain-types/.
 type ByteSize int64
 
-// Bytes returns the number of bytes as int64.
+// Bytes returns the size in bytes as an int64. Returns 0 if the receiver is nil.
 func (b *ByteSize) Bytes() int64 {
 	if b == nil {
 		return 0
@@ -443,8 +510,8 @@ func (b *ByteSize) Bytes() int64 {
 	return int64(*b)
 }
 
-// String returns a formatted byte size representation using deterministic
-// IEC binary notation (KiB, MiB, GiB, TiB, PiB).
+// String formats the byte size into a deterministic human-readable string using
+// IEC binary units (KiB, MiB, GiB, TiB, PiB). Returns "0 B" if the receiver is nil or zero.
 func (b *ByteSize) String() string {
 	if b == nil || *b == 0 {
 		return "0 B"
@@ -468,11 +535,15 @@ func (b *ByteSize) String() string {
 	}
 }
 
-// UnmarshalText parses a strict, case-sensitive byte size. It accepts exact
-// byte counts ("1024", "500B"), SI metric units ending in "B" ("kB", "KB",
-// "MB", "GB", "TB", "PB"), and IEC binary units ("KiB", "MiB", "GiB", "TiB",
-// "PiB"). Naked prefixes ("10G", "512Mi") and invalid casings ("mb", "kib")
-// are rejected.
+// UnmarshalText parses a strict, case-sensitive byte size string.
+//
+// Accepted formats:
+//   - Exact byte counts: "1024", "500B"
+//   - SI metric units ending in "B": "kB", "KB", "MB", "GB", "TB", "PB" (powers of 1000)
+//   - IEC binary units: "KiB", "MiB", "GiB", "TiB", "PiB" (powers of 1024)
+//
+// Naked unit suffixes without 'B' ("10G", "512Mi") and lowercase casings ("mb", "kib")
+// are rejected to prevent ambiguity.
 func (b *ByteSize) UnmarshalText(text []byte) error {
 	rawText := strings.TrimSpace(string(text))
 	if rawText == "" {
@@ -517,7 +588,7 @@ func (b *ByteSize) UnmarshalText(text []byte) error {
 	return nil
 }
 
-// Help returns the default help description for byte-size flags.
+// Help returns the default value syntax description for byte size flags.
 func (b *ByteSize) Help() string {
 	return "Byte size (e.g., 10MiB, 1.5GB, 500KiB)"
 }

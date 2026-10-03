@@ -31,16 +31,21 @@ import (
 )
 
 const (
-	// UsageSummary displays the clean error, a 1-2 line command syntax, and a --help hint.
+	// UsageSummary formats usage errors with a concise 1-2 line command syntax
+	// guide followed by a hint to run --help. This is the default error display mode.
 	UsageSummary UsageOnErrorMode = iota
 
-	// UsageFull displays the clean error and the complete formatted command help screen.
+	// UsageFull formats usage errors with the error message followed by the complete
+	// command help screen, including flags, arguments, and subcommands.
 	UsageFull
 
-	// UsageHint displays the clean error and a single-line "Run '<cmd> --help' for usage" hint.
+	// UsageHint formats usage errors with only the error message followed by a
+	// single-line "Run '<command> --help' for more information." hint, without
+	// syntax details.
 	UsageHint
 
-	// UsageSilence displays only the clean error message without any usage or help text.
+	// UsageSilence formats usage errors with only the bare error message, omitting all
+	// usage instructions and help hints.
 	UsageSilence
 )
 
@@ -54,10 +59,20 @@ const (
 	mapEntryErrorValue                          // value coercion failed
 )
 
-// UsageOnErrorMode specifies how usage/help information is rendered when an input error occurs.
+// UsageOnErrorMode specifies how command usage and help hints are formatted
+// on standard error when a user supplies invalid command-line input.
+//
+// When an input error violates a specific value constraint (such as range, length,
+// enum, or type coercion), CONGA treats the failure as self-describing and renders
+// only the specific error message to keep output readable, regardless of the
+// configured mode. Syntax errors, unknown flags, and missing required inputs render
+// contextual guidance according to the active mode.
 type UsageOnErrorMode int
 
-// App manages command schema, flag binding, and CLI execution for struct type T.
+// App configures and runs a command-line application.
+//
+// Create an instance using [New]. An App instance executes exactly once: calling
+// [App.Run] or [App.RunContext] a second time panics.
 type App[T any] struct {
 	appConfig[T]
 
@@ -73,17 +88,27 @@ type App[T any] struct {
 	executed bool
 }
 
-// New creates and initializes a new fluent App builder for struct type T.
+// New creates a new fluent [App] builder for the root command struct of type T.
 //
-// The command struct instance is allocated by the engine on the first schema
-// build and is reachable inside lifecycle hooks through session.Root[T]().
-// Passing root retains the caller's own instance so it stays accessible outside
-// the lifecycle for pre-run seeding and post-run inspection:
+// New[T]() lets the engine allocate the root instance when the schema is
+// compiled; subcommands and lifecycle hooks reach it through [Session.Root].
 //
-//	cli := new(CLI)
-//	app := conga.New(cli)
+// Pass an existing instance (New(cli)) to keep a direct reference to the root
+// struct and inspect its bound values after execution:
 //
-// At most one root instance may be supplied, and it must be non-nil.
+//	cli := &MyCLI{}
+//	app := conga.New(cli).Args([]string{"--port", "9000"})
+//	if err := app.Run(); err != nil {
+//		return err
+//	}
+//	fmt.Println(cli.Port.Get())
+//
+// Initialize startup state in [PreRunner] and with `default` struct tags, not by
+// pre-populating the root instance.
+//
+// Panics if more than one root instance is passed, or if the passed pointer is nil.
+//
+// See https://docs.conga.sh/how-to/keep-root-reference/.
 func New[T any](root ...*T) *App[T] {
 	if len(root) > 1 {
 		panic("conga: New accepts at most one root instance")
@@ -114,52 +139,102 @@ func New[T any](root ...*T) *App[T] {
 	return app
 }
 
-// Name sets the root application binary name (defaults to os.Args[0]).
+// Name sets the root application binary name.
+//
+// The configured name appears in generated usage syntax, help headers, version
+// strings, and error prefixes. When omitted, CONGA falls back to the invoked binary
+// name derived from os.Args[0].
 func (a *App[T]) Name(name string) *App[T] {
 	a.name = name
 
 	return a
 }
 
-// Description sets the root application description.
+// Description sets the long-form application overview, rendered at the top of
+// the root command's help screen below the usage header.
+//
+// A subcommand supplies its own long-form overview by implementing
+// [DescriptionProvider], and its one-line synopsis with the `summary` tag.
+//
+// See https://docs.conga.sh/how-to/customize-help-screens/.
 func (a *App[T]) Description(desc string) *App[T] {
 	a.description = desc
 
 	return a
 }
 
-// Examples sets the root application usage examples shown on --help.
+// Examples sets application usage examples displayed on the root help screen.
+//
+// Examples appear in a dedicated "Examples:" section on `--help`. Indented lines
+// are preserved as formatted code or command lines:
+//
+//	app.Examples(`  # Start server on custom port
+//	  myapp --port 9000
+//
+//	  # Run with verbose logging
+//	  myapp -v`)
+//
+// See https://docs.conga.sh/how-to/customize-help-screens/.
 func (a *App[T]) Examples(examples string) *App[T] {
 	a.examples = examples
 
 	return a
 }
 
-// Footer sets the global footer rendered on every help screen.
+// Footer sets text rendered at the bottom of every help screen, after the flags,
+// arguments, and subcommands. It applies to the root command and all subcommands.
+//
+// See https://docs.conga.sh/how-to/customize-help-screens/.
 func (a *App[T]) Footer(footer string) *App[T] {
 	a.footer = footer
 
 	return a
 }
 
-// Deprecated retires the entire application/binary; emits a warning on all invocations.
+// Deprecated marks the entire application as deprecated.
+//
+// Each run that reaches the command lifecycle first prints a warning containing
+// the reason text to standard error. Execution continues normally; deprecation
+// warnings are non-fatal. Requests that render a built-in and return early, such
+// as `--help`, `--version`, and `--why`, print no warning.
+//
+// Declare the deprecation with this method, not a Deprecated method on the root
+// struct, which fails schema compilation with [ErrSchema]. To deprecate an
+// individual optional flag or subcommand, use the `deprecated` struct tag.
 func (a *App[T]) Deprecated(reason string) *App[T] {
 	a.deprecated = reason
 
 	return a
 }
 
-// Version sets the version string rendered by the built-in --version flag
-// and by session.Version(). The flag exists on every root command; when no
-// version is set, the output falls back to the module version (or "dev") plus
-// the embedded build metadata (VCS commit and date, when available).
+// Version sets the application version string.
+//
+// The version renders when the user passes the built-in `--version` flag, when
+// running a mounted [VersionCommand], or when calling [Session.Version].
+//
+// When omitted, CONGA falls back to the Go module version recorded in the binary,
+// or "dev" when the module version is unavailable. An embedded VCS commit hash and
+// timestamp are appended to the rendered summary when present.
 func (a *App[T]) Version(version string) *App[T] {
 	a.version = version
 
 	return a
 }
 
-// EnvPrefix sets the global environment variable prefix for all flags (e.g. "MYAPP_").
+// EnvPrefix sets the global environment variable prefix applied to derived flag bindings.
+//
+// CONGA ensures the prefix ends with an underscore; if prefix does not end with "_",
+// it is appended automatically (e.g. "MYAPP" becomes "MYAPP_").
+//
+// Flags without an explicit `env` tag derive their variable name from the prefix and
+// the uppercase flag name with hyphens replaced by underscores (e.g. `--database-url`
+// binds to "MYAPP_DATABASE_URL"). A field declaring `env:"PORT"` uses that name
+// verbatim; explicit `env` names ignore the prefix.
+//
+// Environment variable bindings outrank configuration file values and defaults, but
+// yield to explicit command-line flags.
+//
+// See https://docs.conga.sh/how-to/bind-environment-variables/.
 func (a *App[T]) EnvPrefix(prefix string) *App[T] {
 	if prefix != "" && !strings.HasSuffix(prefix, "_") {
 		prefix += "_"
@@ -170,9 +245,24 @@ func (a *App[T]) EnvPrefix(prefix string) *App[T] {
 	return a
 }
 
-// Dotenv enables zero-dependency 12-factor .env loading into the process environment.
-// When called with no arguments, it automatically loads ".env" followed by ".env.local" from CWD.
-// When explicit paths are provided, it loads the specified files in order.
+// Dotenv enables loading environment variables from .env files into the process environment.
+//
+// When called without arguments, Dotenv probes for ".env" followed by ".env.local" in the
+// current working directory, loading both if present. When explicit paths are supplied,
+// CONGA loads only the specified files in the given order.
+//
+// Files apply in order: a key defined in more than one file takes the value from the
+// last file that defines it, so ".env.local" overrides ".env". Variables already present
+// in the process environment are never overwritten and outrank every file.
+//
+// Files must use KEY=VALUE syntax. Empty lines and lines starting with '#' are ignored;
+// optional 'export ' prefixes and surrounding single or double quotes are stripped.
+//
+// Dotenv files enforce a strict 16MB file size limit to prevent unbounded memory allocation.
+// Files exceeding the limit or missing explicit paths cause execution to halt with an error
+// wrapping [ErrConfig].
+//
+// See https://docs.conga.sh/how-to/load-env-files/.
 func (a *App[T]) Dotenv(paths ...string) *App[T] {
 	a.dotenvPaths = paths
 	a.dotenvLoader = dotenv.Load
@@ -180,27 +270,12 @@ func (a *App[T]) Dotenv(paths ...string) *App[T] {
 	return a
 }
 
-// ConfigOptions configures how the application resolves configuration files.
-// Options compose and are independent of call order:
+// ConfigOptions sets how CONGA discovers and merges config files. Options come
+// from the conga/config package; [config.Option] lists the constructors and the
+// resolution rule each one declares.
 //
-//   - config.Explicit(path) names one concrete file with fatal-if-missing
-//     semantics; it outranks the configuration environment variable and the
-//     search tier.
-//   - config.Paths(paths...) declares the author search tier, probed in
-//     precedence order; the first existing file wins unless
-//     config.Cascading is also declared. Declaring paths replaces the
-//     built-in conventional tier, which otherwise probes
-//     ${XDG_CONFIG_HOME:-~/.config}/<app-name> (files config.<ext> and
-//     <app-name>.<ext> for every registered decoder extension) whenever the
-//     application is config-capable.
-//   - config.Cascading() merges every existing tier file in precedence order
-//     (lowest to highest) instead of stopping at the first existing file. A
-//     declared root ConfigFile flag must accept multiple values
-//     (multi:"true") so it can report every merged file.
-//
-// Repeated calls accumulate rather than replace: options declared by earlier
-// calls stay in effect, and a later declaration of the same slot overrides the
-// previous one.
+// Config files also require a registered decoder (see [App.RegisterDecoder]).
+// See https://docs.conga.sh/how-to/manage-config-files/.
 func (a *App[T]) ConfigOptions(options ...config.Option) *App[T] {
 	a.configOptions = append(a.configOptions, options...)
 	a.configSettings = configSettingsFrom(config.Apply(a.configOptions...))
@@ -209,11 +284,22 @@ func (a *App[T]) ConfigOptions(options ...config.Option) *App[T] {
 	return a
 }
 
-// RegisterDecoder registers a custom configuration format decoder for the
-// given file extension. The extension is normalized (trimmed, lowercased, an
-// optional "*" prefix and a missing leading "." are both accepted), so
-// ".json", "json", and "*.JSON" are equivalent. Registering an extension that
-// already has a decoder replaces it (last registration wins).
+// RegisterDecoder registers a decoder for a configuration file extension:
+//
+//	app.RegisterDecoder(".yaml", yaml.RawDecoder)
+//
+// The extension is normalized automatically: leading asterisks and dots are
+// stripped, whitespace is trimmed, and characters are converted to lowercase.
+// For example, ".yaml", "yaml", and "*.YAML" are all equivalent.
+//
+// The decoder callback receives the raw file bytes and unmarshals them into a
+// nested map[string]any with string keys. Registering an extension that was previously
+// registered overwrites the earlier registration.
+//
+// Ready-made decoders live in separate packages (decoder/json, decoder/yaml,
+// decoder/toml, decoder/hcl) so unused formats stay out of the binary.
+//
+// See https://docs.conga.sh/reference/decoders/.
 func (a *App[T]) RegisterDecoder(extension string, decoder config.Decoder) *App[T] {
 	a.installConfigEngine()
 	a.configRegistry.Register(extension, decoder)
@@ -221,24 +307,66 @@ func (a *App[T]) RegisterDecoder(extension string, decoder config.Decoder) *App[
 	return a
 }
 
-// StrictTagValidation configures whether strict struct tag linting is enabled at startup (default: true).
-// When enabled, unrecognized struct tags, tag typos, or tags on incompatible field types will cause
-// schema building to fail with an error wrapping ErrSchema.
+// StrictTagValidation controls whether struct tags are strictly validated when the
+// command schema is compiled (enabled by default).
+//
+// When strict validation is enabled, CONGA inspects all struct tags on command fields.
+// Unknown tag keys (such as misspelled `hlp` or `deflt`), invalid constraint combinations,
+// or tags applied to unsupported field types cause [App.Run] or [App.RunContext] to return
+// an error wrapping [ErrSchema].
+//
+// Common third-party tags (e.g. `json`, `yaml`, `validate`, `db`) are permitted by default.
+// To permit additional external tags (e.g. `kong`, `bson`, or custom annotations), pass
+// their keys to [App.AllowTags] rather than disabling strict validation entirely.
 func (a *App[T]) StrictTagValidation(strict bool) *App[T] {
 	a.strictTagValidation = strict
 
 	return a
 }
 
-// AllowTags registers additional custom struct tags to be permitted during strict struct tag validation.
+// AllowTags adds struct tag keys that strict tag validation accepts.
+//
+// Strict validation (the default) rejects unrecognized tag keys. CONGA accepts
+// common third-party tags out of the box (json, yaml, validate, db, and others
+// listed in the package documentation); register any others your structs carry
+// (for example `bson` or a custom annotation) instead of disabling strict
+// validation:
+//
+//	type ServerCLI struct {
+//		Port  conga.OptionalFlag[int]    `default:"8080" help:"Listening port" short:"p"`
+//		Token conga.RequiredFlag[string] `help:"API access token" audit:"mask"`
+//	}
+//
+//	app := conga.New[ServerCLI]().AllowTags("audit")
+//
+// Registered keys are ignored by the schema builder on all commands, subcommands,
+// and nested structs; multiple calls append to the permitted tag set. For
+// narrower scope use `conga:"allow-unknown-tags"`, or call
+// [App.StrictTagValidation] with false to disable tag checking entirely.
 func (a *App[T]) AllowTags(tags ...string) *App[T] {
 	a.allowedTags = append(a.allowedTags, tags...)
 
 	return a
 }
 
-// Predictor registers a named dynamic completion predictor for flags and positional arguments.
-// It panics if name is empty, is a reserved built-in predictor name, or has already been registered.
+// Predictor registers a named completion predictor for dynamic shell autocompletion.
+//
+// Registered predictors are referenced on command struct fields using the
+// `predictor:"name"` struct tag:
+//
+//	type DeployCLI struct {
+//		Region conga.RequiredFlag[string] `short:"r" predictor:"regions" help:"Target region"`
+//	}
+//
+//	app.Predictor("regions", predict.Values("us-east-1", "us-west-2", "eu-west-1"))
+//
+// Panics:
+//   - If name is empty.
+//   - If name matches a reserved built-in predictor name or alias (for example "file",
+//     "dirs", "executables", "symlinks", "none").
+//   - If a predictor with the same name has already been registered.
+//
+// See https://docs.conga.sh/how-to/wire-custom-completion/.
 func (a *App[T]) Predictor(name string, predictor predict.Predictor) *App[T] {
 	if name == "" {
 		panic("conga: predictor name cannot be empty")
@@ -257,10 +385,11 @@ func (a *App[T]) Predictor(name string, predictor predict.Predictor) *App[T] {
 	return a
 }
 
-// EnableCompletion enables shell autocompletion support: script generation, the
-// `completion <shell>` entry points, and the hidden `__complete` protocol.
-// Applications that never call EnableCompletion do not link the completion
-// drivers.
+// EnableCompletion activates shell completion: script generation for Bash, Zsh,
+// Fish, PowerShell, Elvish, and Nushell, plus the hidden `__complete` wire
+// protocol. A mounted [CompletionCommand] requires it.
+//
+// See https://docs.conga.sh/how-to/enable-shell-completion/.
 func (a *App[T]) EnableCompletion() *App[T] {
 	a.completionShells = completion.SupportedShells()
 	a.installCompletionHooks()
@@ -268,36 +397,49 @@ func (a *App[T]) EnableCompletion() *App[T] {
 	return a
 }
 
-// DisableHelpFlag removes the automatically injected --help flag. Help
-// screens rendered by session.Help(), a declared HelpCommand, and error/usage
-// handling remain available.
+// DisableHelpFlag stops CONGA from injecting the built-in `--help` flag, freeing
+// that name for your own flags. [Session.Help], error-driven usage summaries, and
+// an explicit [HelpCommand] still work.
+//
+// See https://docs.conga.sh/reference/builtins/.
 func (a *App[T]) DisableHelpFlag() *App[T] {
 	a.helpEnabled = false
 
 	return a
 }
 
-// DisableVersionFlag removes the automatically injected --version flag and
-// its renderer. The version string set by Version() remains available to
-// session.Version(), a declared VersionCommand, and the --why report. Calling
-// Version after DisableVersionFlag still records the string but does not
-// re-enable the flag.
+// DisableVersionFlag stops CONGA from injecting the built-in `--version` flag,
+// freeing that name for your own flags. [Session.Version], version metadata in
+// `--why` reports, and an explicit [VersionCommand] still work.
+//
+// See https://docs.conga.sh/reference/builtins/.
 func (a *App[T]) DisableVersionFlag() *App[T] {
 	a.versionEnabled = false
 
 	return a
 }
 
-// EnableWhy enables the built-in --why flag and its value-provenance report,
-// which explains where every field value came from and why other sources lost.
-// Applications that never call EnableWhy do not link the reporting machinery.
+// EnableWhy activates the built-in `--why` flag. When passed, CONGA skips
+// command execution and prints a provenance report to standard output showing
+// where every flag value originated (CLI, environment, configuration file, or
+// struct default) and why competing sources were overridden.
+//
+// See https://docs.conga.sh/how-to/inspect-value-provenance/.
 func (a *App[T]) EnableWhy() *App[T] {
 	a.installWhyRenderer()
 
 	return a
 }
 
-// Use applies one or more configuration plugins or type loaders to the app builder.
+// Use mounts one or more modular configuration plugins or type loaders onto the builder.
+//
+// Plugins are functions with signature `func(*App[T])`. Use them to group related
+// settings or register domain type parsers (e.g. from `plugin/network`, `plugin/system`,
+// `plugin/timezone`):
+//
+//	app.Use(network.Interface, timezone.Location)
+//
+// See https://docs.conga.sh/reference/plugins/.
 func (a *App[T]) Use(plugins ...func(*App[T])) *App[T] {
 	for _, plugin := range plugins {
 		if plugin != nil {
@@ -309,10 +451,33 @@ func (a *App[T]) Use(plugins ...func(*App[T])) *App[T] {
 }
 
 // RegisterType registers a strongly-typed parser and optional completion predictor
-// for type U on the application builder. If type U has already been registered
-// (e.g. by an imported plugin or prior RegisterType call), the new parser and
-// predictor overwrite the existing entry (last-write-wins), allowing callers to
-// customize or override default type behaviors.
+// for custom type U on the application builder.
+//
+// The parser callback converts raw string input from flags, arguments, or environment
+// variables into an instance of type U. If parsing fails, the callback must return a
+// descriptive error, which CONGA wraps in [ErrCoerce].
+//
+//	type Percent int
+//
+//	func parsePercent(raw string) (Percent, error) {
+//		value, err := strconv.Atoi(strings.TrimSuffix(raw, "%"))
+//		if err != nil {
+//			return 0, fmt.Errorf("invalid percentage %q: %w", raw, err)
+//		}
+//
+//		return Percent(value), nil
+//	}
+//
+//	app.RegisterType(parsePercent, conga.WithPredictor(predict.Values("25%", "50%", "75%")))
+//
+// If type U was previously registered, the new parser and predictor overwrite the
+// existing registration (last-write-wins).
+//
+// Panics:
+//   - If the receiver App is nil.
+//   - If parser is nil.
+//
+// See https://docs.conga.sh/how-to/add-custom-flag-types/.
 func (a *App[T]) RegisterType[U any](parser func(string) (U, error), opts ...RegisterTypeOption) *App[T] {
 	if a == nil {
 		panic("conga: RegisterType requires a non-nil app")
@@ -343,10 +508,27 @@ func (a *App[T]) RegisterType[U any](parser func(string) (U, error), opts ...Reg
 	return a
 }
 
-// RegisterMap registers a typed map[K]V parser and optional completion predictor
-// on the application builder. Passing a sample map (e.g. map[string]int{} or
-// map[string]int(nil)) allows Go to infer all type parameters automatically.
-// Only string map keys are supported; non-string keys panic.
+// RegisterMap registers a strongly-typed parser and optional completion predictor
+// for map type `map[K]V`, so flags and positional arguments of that type accept
+// `key=value` pairs. K must be `string` or a type with underlying kind string; V
+// may be any primitive, standard type, or custom type supported by CONGA. Maps
+// with both a string key and a string value bind natively and need no registration.
+//
+//	type CLI struct {
+//		Replicas conga.OptionalFlag[map[string]int] `help:"Replica counts" short:"r"`
+//	}
+//
+//	app.RegisterMap(map[string]int(nil))
+//	// app --replicas api=2,web=3   or   app --replicas api=2 --replicas web=3
+//
+// Passing an empty or nil map instance allows Go's compiler to infer all type
+// parameters automatically.
+//
+// Panics:
+//   - If the receiver App is nil.
+//   - If key type K is not a string type.
+//
+// See https://docs.conga.sh/how-to/add-custom-flag-types/.
 func (a *App[T]) RegisterMap[M ~map[K]V, K comparable, V any](_ M, opts ...RegisterTypeOption) *App[T] {
 	if a == nil {
 		panic("conga: RegisterMap requires a non-nil app")
@@ -387,11 +569,52 @@ func (a *App[T]) RegisterMap[M ~map[K]V, K comparable, V any](_ M, opts ...Regis
 	return a.RegisterType(parser, opts...)
 }
 
-// RunContext executes the application pipeline with the provided context:
-// parses arguments, validates constraints, and runs the matched command.
-// Panics if ctx is nil, and panics if the App has already executed: an App
-// runs exactly once. The standard streams are captured at execution start;
-// changes made afterwards do not affect the active session.
+// RunContext executes the application lifecycle using the provided context.
+//
+// Resolution and binding run first: dotenv loading (if configured via
+// [App.Dotenv]), tokenization, configuration file resolution, then flag and
+// argument coercion from the CLI, environment, and configuration sources.
+// Constraints are then enforced in this order: struct tag constraints, the leaf
+// command's [Runner] contract, and domain-type [SelfValidator] checks.
+//
+// The lifecycle runs in five stages on the matched leaf command:
+//
+//  1. Validate: [Validator.Validate] hooks run top-down. A failure returns an
+//     error immediately; no PreRun, Run, PostRun, or Finally hook executes,
+//     because no command has been initialized yet.
+//  2. PreRun: [PreRunner.PreRun] hooks run top-down to initialize resources.
+//  3. Run: [Runner.Run] executes on the leaf.
+//  4. PostRun: [PostRunner.PostRun] hooks run bottom-up, only after Run succeeds.
+//  5. Finally: [Finalizer.Finally] hooks run bottom-up unconditionally for every
+//     initialized command, receiving the halting error or nil.
+//
+// An error from any stage between PreRun and PostRun skips the remaining
+// stages and jumps straight to Finally. An error from a Finally hook is joined
+// with the halting error and returned alongside it.
+//
+// RunContext propagates the provided context to every lifecycle hook but does not
+// itself poll for cancellation; a hook that observes cancellation can return
+// ctx.Err(), which then flows through Finally cleanup like any other error. Standard
+// streams are snapshotted when execution begins; subsequent builder mutations do not
+// affect the running session.
+//
+// The built-in subcommands ([HelpCommand], [VersionCommand],
+// [CompletionCommand]) bypass the lifecycle, so ancestor hooks never
+// execute for them.
+//
+// Returns:
+//   - nil on successful execution or when handling built-in flags (--help, --version, --why).
+//   - An error wrapping [ErrSchema] if the struct tags or command schema are invalid.
+//   - An error wrapping [ErrParse], [ErrCoerce], or [ErrValidation] if user input is invalid.
+//   - An error wrapping [ErrConfig] if configuration or .env loading fails.
+//   - The error returned by [Runner.Run] or lifecycle hooks, or ctx.Err() on cancellation.
+//
+// RunContext never terminates the process; it returns every failure to the
+// caller. [App.FatalIfError] maps a returned error to an exit code.
+//
+// Panics:
+//   - If ctx is nil.
+//   - If the App has already been executed: an App instance runs exactly once.
 func (a *App[T]) RunContext(ctx context.Context) error {
 	a.initDefaults()
 
@@ -432,8 +655,13 @@ func (a *App[T]) RunContext(ctx context.Context) error {
 	return executeLifecycle(ctx, session)
 }
 
-// Run executes the application pipeline with a default context that listens for interruption signals (SIGINT / Ctrl+C, SIGTERM).
-// An App runs exactly once: calling Run or RunContext again panics.
+// Run executes the application lifecycle with an interrupt-aware context that listens
+// for SIGINT (Ctrl+C) and SIGTERM.
+//
+// When an interruption signal is received, the context is canceled, triggering graceful
+// termination and driving [Finalizer.Finally] cleanup hooks.
+//
+// Calling Run or [App.RunContext] more than once on the same App instance panics.
 func (a *App[T]) Run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
@@ -441,7 +669,12 @@ func (a *App[T]) Run() error {
 	return a.RunContext(ctx)
 }
 
-// Args sets custom command-line arguments to parse (defaults to os.Args[1:]).
+// Args overrides the command-line argument slice parsed by the application.
+// Defaults to os.Args[1:].
+//
+//	app.Args([]string{"--port", "9000", "server"})
+//
+// See https://docs.conga.sh/how-to/test-a-command/.
 func (a *App[T]) Args(args []string) *App[T] {
 	a.args = args
 	a.argsExplicitlySet = true
@@ -449,16 +682,27 @@ func (a *App[T]) Args(args []string) *App[T] {
 	return a
 }
 
-// UsageOnError configures how help/usage is displayed when an input error occurs.
+// UsageOnError configures how command syntax and help guidance are formatted on
+// standard error when command-line input parsing or validation fails.
+//
+// By default, CONGA uses [UsageSummary]. See [UsageOnErrorMode] for details on
+// available presentation modes.
+//
+// See https://docs.conga.sh/explanation/error-reporting/.
 func (a *App[T]) UsageOnError(mode UsageOnErrorMode) *App[T] {
 	a.usageMode = mode
 
 	return a
 }
 
-// Stdin sets the standard input reader for commands that read input (defaults to os.Stdin).
-// The stream is captured when Run/RunContext starts: changes made afterwards do
-// not affect the active session.
+// Stdin redirects the standard input stream reader for the application.
+//
+// The stream defaults to [os.Stdin]. It is passed to commands via [Session.Stdin] and
+// feeds [File] containers declaring `stdin:"true"` and [FileContent] containers reading "-".
+//
+// The stream reader is snapshotted when [App.Run] or [App.RunContext] begins; mutations
+// made after execution starts do not affect the active session. Passing a nil reader
+// is a no-op.
 func (a *App[T]) Stdin(reader io.Reader) *App[T] {
 	if reader != nil {
 		a.stdin = reader
@@ -467,9 +711,15 @@ func (a *App[T]) Stdin(reader io.Reader) *App[T] {
 	return a
 }
 
-// Stdout sets the standard output writer for help and version messages (defaults to os.Stdout).
-// The stream is captured when Run/RunContext starts: changes made afterwards do
-// not affect the active session.
+// Stdout redirects the standard output stream writer for the application.
+//
+// The stream defaults to [os.Stdout]. It is passed to commands via [Session.Stdout] and
+// is used by built-in help, version, and `--why` renderers, as well as [File] containers
+// declaring `stdout:"true"` writing to "-".
+//
+// The stream writer is snapshotted when [App.Run] or [App.RunContext] begins; mutations
+// made after execution starts do not affect the active session. Passing a nil writer
+// is a no-op.
 func (a *App[T]) Stdout(writer io.Writer) *App[T] {
 	if writer != nil {
 		a.stdout = writer
@@ -478,9 +728,14 @@ func (a *App[T]) Stdout(writer io.Writer) *App[T] {
 	return a
 }
 
-// Stderr sets the standard error writer for error and usage messages (defaults to os.Stderr).
-// The stream is captured when Run/RunContext starts: changes made afterwards do
-// not affect the active session.
+// Stderr redirects the standard error stream writer for the application.
+//
+// The stream defaults to [os.Stderr]. It is passed to commands via [Session.Stderr] and
+// is used for diagnostics, deprecation notices, syntax usage summaries, and [App.FatalIfError].
+//
+// The stream writer is snapshotted when [App.Run] or [App.RunContext] begins; mutations
+// made after execution starts do not affect the active session. Passing a nil writer
+// is a no-op.
 func (a *App[T]) Stderr(writer io.Writer) *App[T] {
 	if writer != nil {
 		a.stderr = writer
@@ -489,7 +744,11 @@ func (a *App[T]) Stderr(writer io.Writer) *App[T] {
 	return a
 }
 
-// ExitFunc sets a custom exit handler for FatalIfError (defaults to os.Exit).
+// ExitFunc overrides the function [App.FatalIfError] calls to terminate the
+// process. Defaults to [os.Exit]. Passing a nil handler is a no-op.
+//
+//	var exitCode int
+//	app.ExitFunc(func(code int) { exitCode = code })
 func (a *App[T]) ExitFunc(exitHandler func(code int)) *App[T] {
 	if exitHandler != nil {
 		a.exitFunc = exitHandler
@@ -498,14 +757,24 @@ func (a *App[T]) ExitFunc(exitHandler func(code int)) *App[T] {
 	return a
 }
 
-// FatalIfError handles an execution error by printing a user-friendly error message,
-// rendering contextual usage instructions according to the configured UsageOnErrorMode,
-// and terminating the application with an appropriate exit status code.
+// FatalIfError checks an error returned by [App.Run] or [App.RunContext], formats a
+// user-facing error message to standard error if non-nil, and terminates the process
+// with an appropriate exit code using the configured exit function (defaults to [os.Exit]).
 //
-// Exit codes:
-// - Exit code 1 for runtime errors returned by command execution (Runner.Run)
-// - Exit code 2 for CLI usage errors (unknown flags, missing required arguments, constraint violations).
-// - Exit code 2 for internal completion failures (recovered panics, unwritable stdout), with a diagnostic on stderr.
+// If err is nil, FatalIfError returns immediately without printing or exiting.
+//
+// Exit code conventions (a nil err returns without exiting):
+//   - Exit code 1: runtime errors from command execution ([Runner.Run] or lifecycle
+//     hooks), developer schema defects ([ErrSchema]), and configuration failures
+//     ([ErrConfig], including .env loading).
+//   - Exit code 2: usage errors — [IsUsageError] reports true for parse, coercion,
+//     and validation failures — plus internal completion failures.
+//
+// Usage error rendering follows [UsageOnErrorMode], except for self-describing
+// value errors (coercion failures and value-constraint violations), which always
+// print the error line alone.
+//
+// See https://docs.conga.sh/explanation/error-reporting/.
 func (a *App[T]) FatalIfError(err error) {
 	if err == nil {
 		return
@@ -534,12 +803,14 @@ func (a *App[T]) FatalIfError(err error) {
 	a.exit(1)
 }
 
-// RegisterTypeOption configures a custom type parser registration.
+// RegisterTypeOption configures a custom type registration on [App.RegisterType]
+// and [App.RegisterMap]. [WithPredictor] is currently the only constructor.
 type RegisterTypeOption func(*typeRegistration)
 
-// WithPredictor attaches a shell completion predictor to the registered custom type.
-// Flags and arguments of this type will automatically autocomplete with this predictor
-// unless overridden by an explicit struct tag.
+// WithPredictor attaches a shell autocompletion predictor to a registered custom type.
+//
+// Flags and positional arguments using this type automatically inherit the predictor
+// for shell autocompletion, unless overridden by an explicit `predictor:"name"` struct tag.
 func WithPredictor(p predict.Predictor) RegisterTypeOption {
 	return func(r *typeRegistration) {
 		r.hasPredictor = true

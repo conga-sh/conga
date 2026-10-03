@@ -1,3 +1,4 @@
+// Package casing converts identifier strings between common casing styles.
 package casing
 
 import (

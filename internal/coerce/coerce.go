@@ -1,3 +1,5 @@
+// Package coerce converts raw CLI values to Go types using built-in and
+// registered parsers.
 package coerce
 
 import (

@@ -1,52 +1,103 @@
-// Package conga is a batteries-included CLI framework for Go with
-// linker-friendly opt-in subsystems.
+// Package conga builds command-line applications from Go structs.
 //
-// Commands are declared as plain structs. Typed containers such as
-// [OptionalFlag], [RequiredFlag], [OptionalArg], and [RequiredArg] mark fields
-// as flags and positional arguments, while [Command] introduces subcommands.
-// Struct tags configure identification, help text, 12-factor binding,
-// validation constraints, and completion predictors — see the complete
-// reference in docs/struct-tags.md.
+// An application is a Go struct whose fields declare its flags, positional
+// arguments, and subcommands. CONGA inspects the struct once at startup, then
+// populates the fields from command-line arguments, environment variables, and
+// configuration files.
 //
-// # Configuration cascade
+// # Declaring a command
 //
-// Every flag value resolves through a deterministic precedence ladder:
-// CLI > environment > configuration file > default. Positional arguments
-// resolve from the command line alone. Each resolved value reports its origin
-// through the Source and SourceDetail accessors, using the [ValueSource]
-// constants [SourceNone], [SourceDefault], [SourceConfig], [SourceEnv], and
-// [SourceCLI]. Configuration files load from explicit paths, declared search
-// paths, or the built-in XDG tier, and .env files feed the environment tier.
-// JSON, TOML, YAML, and HCL decoders live in their own opt-in packages
-// (decoder/json, decoder/toml, decoder/yaml, decoder/hcl), each exporting a
-// RawDecoder wired in explicitly via [App.RegisterDecoder].
+// Fields use container types to define the CLI interface:
 //
-// # Lifecycle
+//   - Flags: [OptionalFlag], [RequiredFlag], [Counter], [ConfigFile]
+//   - Positional arguments: [OptionalArg], [RequiredArg], [DashArgs], [RawArgs]
+//   - Subcommands: [Command]
 //
-// A command implements the [Runner] interface (Run). The optional hooks
-// [PreRunner], [Validator], [PostRunner], and [Finalizer] wrap execution, with
-// [Finalizer] guaranteed to run for teardown. Build an application with [New],
-// configure it with the fluent builder methods on [App], then invoke Run or
-// RunContext.
+// Struct tags declare names, help text, fallback values, and constraints such
+// as `range`, `len`, `enum`, `xor`, and `and`. For the full tag specification,
+// see https://docs.conga.sh/reference/struct-tags/.
 //
-// # Execution session
+// Commands execute by implementing [Runner]. Lifecycle hooks can be added
+// with [Validator], [PreRunner], [PostRunner], and [Finalizer].
 //
-// Subcommands and lifecycle hooks access execution state through [Session].
-// [Session.Root] returns the root application struct, and enclosing commands
-// are reached by walking Command[T] fields from there. [Session.Path] and
-// [Session.Name] report the invocation path, [Session.CandidateConfigFiles]
-// and [Session.LoadedConfigFiles] expose evaluated configuration, and
-// [Session.Stdin], [Session.Stdout], and
-// [Session.Stderr] return the configured standard streams, captured when the
-// App starts executing. Domain types implementing [ContextAwareTextUnmarshaler]
-// receive the field's declared tags and these streams at decode time, so "-"
-// stdio conventions follow App.Stdin/App.Stdout instead of the process globals.
+// # Example
 //
-// # Linker-friendly subsystems
+//	type ServerCLI struct {
+//		Host conga.OptionalFlag[string] `short:"H" default:"127.0.0.1" help:"Address to bind"`
+//		Port conga.RequiredFlag[int]    `short:"p" env:"PORT" range:"1..65535" help:"Port number"`
+//	}
 //
-// Completion ([App.EnableCompletion]), configuration ([App.RegisterDecoder]
-// and [App.ConfigOptions]), .env loading ([App.Dotenv]), and the provenance
-// report ([App.EnableWhy]) link only when an application enables them. Unused
-// payloads are dead-code eliminated, so a minimal binary carries minimal
-// framework weight.
+//	func (s *ServerCLI) Run(ctx context.Context, session *conga.Session) error {
+//		fmt.Fprintf(session.Stdout(), "Listening on %s:%d\n", s.Host.Get(), s.Port.Get())
+//		return nil
+//	}
+//
+//	func main() {
+//		app := conga.New[ServerCLI]()
+//		app.FatalIfError(app.Run())
+//	}
+//
+// # Value resolution
+//
+// Flags resolve through four sources in order of precedence:
+//
+//  1. Command-line flags
+//  2. Environment variables
+//  3. Configuration files
+//  4. Struct field `default` tags
+//
+// Positional arguments resolve only from command-line arguments and `default`
+// tags. [OptionalFlag.Source] reports where a resolved value originated.
+//
+// See https://docs.conga.sh/explanation/value-precedence/.
+//
+// # Built-ins
+//
+// CONGA provides built-in flags for standard operational tasks:
+//
+//   - `--help` (`-h`): prints command syntax and flag descriptions. Enabled
+//     by default; disable with [App.DisableHelpFlag].
+//   - `--version` (`-v`): prints version and build information. Enabled by
+//     default; disable with [App.DisableVersionFlag].
+//   - `--why`: prints a provenance report showing where every flag resolved
+//     from (CLI flag, environment variable, configuration file, or default tag)
+//     and which competing values were overridden. Useful when debugging complex
+//     configurations. Enable with [App.EnableWhy].
+//
+// When a built-in flag is passed, CONGA prints the output to standard output
+// and exits immediately without running command logic; [App.Run] returns nil.
+//
+// For applications that prefer subcommands over flags, CONGA also provides
+// [HelpCommand], [VersionCommand], and [CompletionCommand]. Declare them
+// directly as struct fields on the command. These subcommands bypass lifecycle
+// hooks and render their output to standard output.
+//
+// See https://docs.conga.sh/reference/builtins/.
+//
+// # Execution and streams
+//
+// [App.Run] and [App.RunContext] execute an App exactly once; a second call
+// panics.
+//
+// Commands receive a [*Session] providing invocation metadata and configured
+// I/O streams ([Session.Stdout], [Session.Stderr], [Session.Stdin]). Streams
+// default to the standard process streams ([os.Stdout], [os.Stderr], [os.Stdin]),
+// and can be redirected on the builder via [App.Stdout], [App.Stderr], or
+// [App.Stdin] for testing or embedded execution.
+//
+// [App.FatalIfError] reports errors and exits with status 2 for usage errors
+// or status 1 for runtime failures.
+//
+// # Optional subsystems
+//
+// Several features are opt-in to keep unused dependencies out of compiled
+// binaries:
+//
+//   - Shell completion: call [App.EnableCompletion] to generate completion
+//     scripts for Bash, Zsh, Fish, PowerShell, Elvish, and Nushell.
+//   - Configuration decoders: import and register decoders such as
+//     `conga/decoder/yaml` using [App.RegisterDecoder].
+//   - Dotenv files: call [App.Dotenv] to load variables from `.env` files.
+//
+// See https://docs.conga.sh/explanation/binary-size/.
 package conga

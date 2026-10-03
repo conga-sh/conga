@@ -1,7 +1,18 @@
-// Package system provides standard library system plugins for the CONGA CLI
-// builder. Apply [User] and [Group] with App.Use to register *user.User and
-// *user.Group lookup through os/user, and [Signal] to register syscall.Signal
-// parsing from names such as "SIGTERM", "TERM", or "hup" and numeric strings.
+// Package system integrates POSIX signals and system user/group types into CONGA applications.
+//
+// Mount [Signal], [User], or [Group] using App.Use to register system types
+// and automatic shell autocompletion:
+//
+//	type CLI struct {
+//		Sig  conga.OptionalFlag[syscall.Signal] `short:"s" default:"SIGTERM" help:"Termination signal"`
+//		User conga.OptionalFlag[*user.User]     `short:"u" help:"System user"`
+//	}
+//
+//	app := conga.New[CLI]().Use(system.Signal, system.User)
+//
+// Signals accept POSIX names (e.g. "SIGHUP", "SIGINT", "TERM") or numeric values (e.g. "15").
+// Users and groups resolve via os/user lookups. When shell completion is enabled,
+// pressing Tab suggests matching signals, usernames, or group names.
 package system
 
 import (

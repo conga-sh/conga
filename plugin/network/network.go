@@ -1,6 +1,16 @@
-// Package network provides standard library network plugins for the CONGA CLI
-// builder. Apply [Interface] with App.Use to register *net.Interface through
-// net.InterfaceByName and add network interface completion candidates.
+// Package network integrates standard library network types into CONGA applications.
+//
+// Mount [Interface] using App.Use to register *net.Interface with net.InterfaceByName
+// and enable network interface autocompletion:
+//
+//	type CLI struct {
+//		Iface conga.OptionalFlag[*net.Interface] `short:"i" help:"Network interface"`
+//	}
+//
+//	app := conga.New[CLI]().Use(network.Interface)
+//
+// Flags resolve interface names (e.g. "lo", "eth0") to live *net.Interface values.
+// When shell completion is enabled, pressing Tab completes from available host interfaces.
 package network
 
 import (

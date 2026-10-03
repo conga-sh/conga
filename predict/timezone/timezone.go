@@ -1,8 +1,8 @@
 // Package timezone provides autocompletion predictors for IANA timezone
 // identifiers.
 //
-// [Timezones] reads system zoneinfo tables (honoring $ZONEINFO) and falls back
-// to a built-in identifier list; UTC is always included.
+// [Timezones] reads system zoneinfo tables (honoring $ZONEINFO when it names a
+// directory) and falls back to a built-in identifier list; UTC is always included.
 package timezone
 
 import (

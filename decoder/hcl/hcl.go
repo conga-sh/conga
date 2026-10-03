@@ -1,10 +1,20 @@
 // Package hcl provides the HCL configuration decoder for CONGA applications.
 //
-// [RawDecoder] matches config.Decoder, parsing HCL into the generic key-value
-// map that the configuration engine validates against command struct tags.
-// Register it with App.RegisterDecoder. Undefined variables and duplicate
-// blocks fail with [ErrHCLParse], whose wrapped hcl.Diagnostics value is
-// available through errors.As.
+// Register [RawDecoder] with App.RegisterDecoder to enable HCL configuration support:
+//
+//	app.RegisterDecoder(".hcl", hcl.RawDecoder)
+//
+// # Key Mapping
+//
+// Top-level HCL attributes match flag names using kebab-case, snake_case, or camelCase:
+//
+//	# config.hcl
+//	http-port = 8080
+//	database_url = "postgres://localhost/db"
+//	maxRetries = 5
+//
+// Undefined variables and duplicate blocks fail with [ErrHCLParse], whose wrapped
+// hcl.Diagnostics value is available through errors.As.
 package hcl
 
 import (

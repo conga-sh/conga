@@ -1,9 +1,20 @@
 // Package yaml provides the YAML configuration decoder for CONGA applications.
 //
-// [RawDecoder] matches config.Decoder, parsing YAML into the generic key-value
-// map that the configuration engine validates against command struct tags.
-// Register it with App.RegisterDecoder; parse failures wrap [ErrYAMLParse],
-// and an empty document decodes to an empty map.
+// Register [RawDecoder] with App.RegisterDecoder to enable YAML configuration support:
+//
+//	app.RegisterDecoder(".yaml", yaml.RawDecoder)
+//	app.RegisterDecoder(".yml", yaml.RawDecoder)
+//
+// # Key Mapping
+//
+// Top-level YAML keys match flag names using kebab-case, snake_case, or camelCase:
+//
+//	# config.yaml
+//	http-port: 8080
+//	database_url: "postgres://localhost/db"
+//	maxRetries: 5
+//
+// Parse failures wrap [ErrYAMLParse], and an empty document decodes to an empty map.
 package yaml
 
 import (
