@@ -1,37 +1,34 @@
-// Package conga binds command-line arguments, environment variables, and
-// configuration files into Go struct fields.
+// Package conga builds command-line applications from Go structs.
 //
-// CONGA uses typed container structs to declare CLI flags, positional
-// arguments, and subcommands directly on application structs:
+// An application is a Go struct whose fields declare its flags, positional
+// arguments, and subcommands. CONGA inspects the struct once at startup, then
+// populates the fields from command-line arguments, environment variables, and
+// configuration files.
+//
+// # Declaring a command
+//
+// Fields use container types to define the CLI interface:
 //
 //   - Flags: [OptionalFlag], [RequiredFlag], [Counter], [ConfigFile]
 //   - Positional arguments: [OptionalArg], [RequiredArg], [DashArgs], [RawArgs]
 //   - Subcommands: [Command]
 //
-// Command schemas, validation rules, and completion hooks are inspected once at
-// startup.
+// Struct tags declare names, help text, fallback values, and constraints such
+// as `range`, `len`, `enum`, `xor`, and `and`. For the full tag specification,
+// see https://docs.conga.sh/reference/struct-tags/.
 //
-// # Quick Start
+// Commands execute by implementing [Runner]. Lifecycle hooks can be added
+// with [Validator], [PreRunner], [PostRunner], and [Finalizer].
 //
-// Define an application struct with typed containers and struct tags, implement
-// [Runner], and invoke [App.Run]:
-//
-//	package main
-//
-//	import (
-//		"context"
-//		"fmt"
-//
-//		"github.com/conga-sh/conga"
-//	)
+// # Example
 //
 //	type ServerCLI struct {
-//		Host conga.OptionalFlag[string] `short:"H" default:"127.0.0.1" help:"Host address to bind"`
-//		Port conga.RequiredFlag[int]    `short:"p" env:"PORT" help:"Port number (1-65535)" range:"1..65535"`
+//		Host conga.OptionalFlag[string] `short:"H" default:"127.0.0.1" help:"Address to bind"`
+//		Port conga.RequiredFlag[int]    `short:"p" env:"PORT" range:"1..65535" help:"Port number"`
 //	}
 //
-//	func (c *ServerCLI) Run(ctx context.Context, session *conga.Session) error {
-//		fmt.Fprintf(session.Stdout(), "Listening on %s:%d\n", c.Host.Get(), c.Port.Get())
+//	func (s *ServerCLI) Run(ctx context.Context, session *conga.Session) error {
+//		fmt.Fprintf(session.Stdout(), "Listening on %s:%d\n", s.Host.Get(), s.Port.Get())
 //		return nil
 //	}
 //
@@ -40,170 +37,67 @@
 //		app.FatalIfError(app.Run())
 //	}
 //
-// # Value Resolution Precedence
+// # Value resolution
 //
-// Flags resolve through a deterministic four-tier precedence ladder:
+// Flags resolve through four sources in order of precedence:
 //
-//  1. Command-line flags (e.g. --port 9000, -p 9000)
-//  2. Environment variables (e.g. PORT=9000 or APP_PORT=9000 with [App.EnvPrefix])
-//  3. Configuration files in any format registered with [App.RegisterDecoder]
-//  4. Struct tag defaults (`default:"8080"`)
+//  1. Command-line flags
+//  2. Environment variables
+//  3. Configuration files
+//  4. Struct field `default` tags
 //
-// Positional arguments resolve from command-line arguments only, falling back to
-// a `default` struct tag. They never bind environment variables or configuration
-// file keys.
-//
-// Containers record the origin of their resolved value: call [OptionalFlag.Source]
-// and [OptionalFlag.SourceDetail] to inspect where a value originated, or enable
-// [App.EnableWhy] to generate a full provenance report via `--why`.
+// Positional arguments resolve only from command-line arguments and `default`
+// tags. [OptionalFlag.Source] reports where a resolved value originated.
 //
 // See https://docs.conga.sh/explanation/value-precedence/.
 //
-// # Execution Lifecycle
+// # Built-ins
 //
-// Before the lifecycle runs, CONGA resolves configuration, binds and coerces
-// every flag and positional argument, then enforces constraints in this order:
-// struct tag constraints (`range`, `len`, `items`, `enum`, `xor`, `and`,
-// `negatable`), the leaf command's [Runner] contract, and domain-type
-// [SelfValidator] checks.
+// CONGA provides built-in flags for standard operational tasks:
 //
-// Command execution then progresses through a five-stage lifecycle:
+//   - `--help` (`-h`): prints command syntax and flag descriptions. Enabled
+//     by default; disable with [App.DisableHelpFlag].
+//   - `--version` (`-v`): prints version and build information. Enabled by
+//     default; disable with [App.DisableVersionFlag].
+//   - `--why`: prints a provenance report showing where every flag resolved
+//     from (CLI flag, environment variable, configuration file, or default tag)
+//     and which competing values were overridden. Useful when debugging complex
+//     configurations. Enable with [App.EnableWhy].
 //
-//  1. Validate: [Validator.Validate] runs top-down (root to leaf). An error
-//     aborts the run and is returned to the caller; [App.FatalIfError] reports
-//     it as a usage error with exit status 2. No command has been initialized
-//     yet, so no Finally hook runs.
-//  2. PreRun: [PreRunner.PreRun] runs top-down to initialize shared resources.
-//  3. Run: [Runner.Run] executes on the selected leaf command.
-//  4. PostRun: [PostRunner.PostRun] runs bottom-up on success.
-//  5. Finally: [Finalizer.Finally] runs bottom-up unconditionally for every
-//     initialized command, receiving the halting error or nil.
+// When a built-in flag is passed, CONGA prints the output to standard output
+// and exits immediately without running command logic; [App.Run] returns nil.
 //
-// If any stage between PreRun and PostRun returns an error, the remaining
-// stages are skipped and execution jumps directly to Finally for cleanup.
+// For applications that prefer subcommands over flags, CONGA also provides
+// [HelpCommand], [VersionCommand], and [CompletionCommand]. Declare them
+// directly as struct fields on the command. These subcommands bypass lifecycle
+// hooks and render their output to standard output.
 //
-// The built-in subcommands ([HelpCommand], [VersionCommand],
-// [CompletionCommand]) are meta-commands: they bypass the lifecycle entirely, so
-// ancestor PreRun, PostRun, and Finally hooks never execute for them.
+// See https://docs.conga.sh/reference/builtins/.
 //
-// See https://docs.conga.sh/explanation/lifecycle/.
+// # Execution and streams
 //
-// # Execution Session and Streams
+// [App.Run] and [App.RunContext] execute an App exactly once; a second call
+// panics.
 //
-// Commands receive a [*Session] providing invocation metadata ([Session.Path],
-// [Session.Name], [Session.Root]) and configured I/O streams ([Session.Stdout],
-// [Session.Stderr], [Session.Stdin]). Streams default to the standard process
-// streams ([os.Stdout], [os.Stderr], [os.Stdin]), and can be redirected on the
-// builder via [App.Stdout], [App.Stderr], or [App.Stdin] for testing and embedded
-// CLI execution.
+// Commands receive a [*Session] providing invocation metadata and configured
+// I/O streams ([Session.Stdout], [Session.Stderr], [Session.Stdin]). Streams
+// default to the standard process streams ([os.Stdout], [os.Stderr], [os.Stdin]),
+// and can be redirected on the builder via [App.Stdout], [App.Stderr], or
+// [App.Stdin] for testing or embedded execution.
 //
-// Standard streams are snapshotted when execution begins; builder modifications
-// made after execution starts do not affect the active session.
+// [App.FatalIfError] reports errors and exits with status 2 for usage errors
+// or status 1 for runtime failures.
 //
-// # Struct Tag Reference
+// # Optional subsystems
 //
-// Struct tags declare metadata, validation constraints, and binding behaviors.
-// The authoritative reference, including bounds syntax, help variables, and
-// `conga` directives, is published at
-// https://docs.conga.sh/reference/struct-tags/.
+// Several features are opt-in to keep unused dependencies out of compiled
+// binaries:
 //
-// A tag is only valid on the constructs listed below. Declaring it elsewhere
-// fails schema compilation with [ErrSchema].
-//
-// Flags ([OptionalFlag], [RequiredFlag], [Counter]) accept:
-//
-//   - `short:"x"`: Single-rune short flag alias (e.g. `-p`).
-//   - `name:"flag"`: Flag name override (default: kebab-case field name).
-//   - `aliases:"a,b"`: Comma-separated long-name aliases.
-//   - `help:"text"`: Help text rendered on `--help`.
-//   - `default:"val"`: Fallback value when no other source supplies one.
-//   - `env:"VAR"`: Comma-separated environment variable names. `env:"-"` disables
-//     environment binding; explicit names ignore [App.EnvPrefix].
-//   - `config:"key"`: Configuration file key (default: the flag name). `config:"-"`
-//     excludes the field from configuration files.
-//   - `range:"min..max"`: Inclusive bounds for numeric types, [time.Duration], and
-//     text-unmarshaled types exposing an ordered projection.
-//   - `len:"min..max"`: String length or slice/map length constraint.
-//   - `items:"min..max"`: Slice or map element count constraint.
-//   - `enum:"a,b,c"`: Restricts accepted values to a comma-separated set.
-//   - `xor:"group"`: Enforces mutual exclusivity among flags sharing the group name.
-//   - `and:"group"`: Requires all flags in the group to be provided together.
-//   - `sep:"ch"`: Slice element separator (default `,`). `sep:"none"` disables
-//     splitting and preserves the unparsed string.
-//   - `negatable:"true"`: Boolean flags only; enables `--[no-]flag` syntax.
-//   - `predictor:"name"`: Selects a completion predictor registered via [App.Predictor].
-//   - `placeholder:"NAME"`: Value placeholder displayed in help syntax.
-//   - `group:"Heading"`: Help-screen grouping header.
-//   - `hidden:"true"`: Suppresses the flag from help screens and completion.
-//   - `safe:"true"`: Controls whether the value is displayed in `--why` reports.
-//   - `deprecated:"msg"`: Marks the flag deprecated. A warning naming the flag,
-//     environment variable, or configuration key appears on standard error when
-//     the value is set explicitly through that source; defaulted values never warn.
-//     Rejected on [RequiredFlag] fields, which fails schema compilation.
-//   - `conga:"directive"`: Engine directives; see the reference above.
-//
-// Positional arguments ([OptionalArg], [RequiredArg]) accept a narrower set:
-// `name` (rendered as the usage placeholder), `help`, `default`, `enum`, `range`,
-// `len`, `items`, `sep`, `predictor`, and `conga`. Positional arguments never bind
-// environment variables or configuration file keys.
-//
-// Subcommands ([Command]) accept `name`, `summary` (one-line synopsis),
-// `aliases`, `group`, `hidden`, `deprecated`, `envprefix` (an environment prefix
-// scoped to this subcommand and its descendants), and `conga`. The built-in
-// [HelpCommand], [VersionCommand], and [CompletionCommand] fields reject
-// `deprecated`. Long-form
-// subcommand descriptions come from [DescriptionProvider], not a tag.
-//
-// Configuration-file flags ([ConfigFile]) accept `name`, `short`, `help`,
-// `aliases`, `placeholder`, `group`, `hidden`, `deprecated`, `env`, `sep`,
-// `conga`, and `multi`. On this construct `config` takes only the value `"-"`,
-// which opts the flag out of configuration binding; any other value is a schema
-// error. `multi:"true"` is likewise exclusive to [ConfigFile]: it switches the
-// flag to repeated-argument and slice arity so cascaded files accumulate in
-// [ConfigFile.Paths].
-//
-// Trailing-argument collectors ([DashArgs], [RawArgs]) accept `name` and
-// `conga`.
-//
-// Domain types declare capability tags of their own. [File] accepts `existing`,
-// `stdin`, `stdout`, `executable`, `symlink`, and `glob`; the combinations that
-// conflict are listed on [File]. [Dir] accepts `existing`. [FileContent] accepts
-// none and always resolves `-` to standard input.
-//
-// # Struct Tag Validation and Foreign Tags
-//
-// CONGA strictly validates struct tags at startup by default. Unrecognized tag keys,
-// typographical errors, and tags applied to incompatible constructs cause schema
-// compilation to fail with an error wrapping [ErrSchema].
-//
-// Common third-party tags are recognized out of the box and accepted silently:
-//
-//	json, yaml, yml, toml, hcl, xml, mapstructure, envconfig,
-//	validate, binding, gorm, db, doc, example, description
-//
-// Additional external or domain-specific tag keys (e.g. `kong`, `bson`, or custom
-// annotations) can be whitelisted schema-wide using [App.AllowTags]. Alternatively,
-// `conga:"allow-unknown-tags"` permits arbitrary tags on a specific field or command,
-// and [App.StrictTagValidation] disables strict tag checking entirely.
-//
-// # Opt-in Subsystems
-//
-// CONGA isolates optional subsystems so that unreferenced features are pruned
-// at link time, keeping compiled binaries lean:
-//
-//   - Shell completion: call [App.EnableCompletion] to register the drivers and the
-//     hidden `__complete` wire protocol. A mounted [CompletionCommand] requires it;
-//     without it the subcommand is dropped from the schema without warning.
-//   - Configuration decoders: import decoder/json, decoder/yaml, decoder/toml, or
-//     decoder/hcl and call [App.RegisterDecoder]. Without a registered decoder the
-//     configuration tiers are skipped.
-//   - Dotenv loading: call [App.Dotenv].
-//   - Value provenance: call [App.EnableWhy].
+//   - Shell completion: call [App.EnableCompletion] to generate completion
+//     scripts for Bash, Zsh, Fish, PowerShell, Elvish, and Nushell.
+//   - Configuration decoders: import and register decoders such as
+//     `conga/decoder/yaml` using [App.RegisterDecoder].
+//   - Dotenv files: call [App.Dotenv] to load variables from `.env` files.
 //
 // See https://docs.conga.sh/explanation/binary-size/.
-//
-// # Execution Invariants
-//
-// An [App] instance executes exactly once. Calling [App.Run] or [App.RunContext]
-// a second time panics.
 package conga
