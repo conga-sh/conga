@@ -1,3 +1,5 @@
+// Package help renders command help, usage, version, and completion
+// instructions.
 package help
 
 import (

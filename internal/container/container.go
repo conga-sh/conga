@@ -1,3 +1,5 @@
+// Package container defines the source and classification metadata used by
+// CONGA's built-in command-line containers.
 package container
 
 const (

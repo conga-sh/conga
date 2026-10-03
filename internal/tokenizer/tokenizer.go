@@ -1,3 +1,5 @@
+// Package tokenizer splits command-line input into typed tokens and provides
+// scanners for traversing them.
 package tokenizer
 
 import (

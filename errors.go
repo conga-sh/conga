@@ -14,22 +14,42 @@ import (
 	"github.com/conga-sh/conga/internal/spec"
 )
 
-// Base category errors identifying where an error occurred.
+// Base error categories classifying execution and configuration failures.
 var (
-	// ErrSchema indicates the command schema could not be built from the target struct.
+	// ErrSchema indicates the command schema could not be constructed from the struct definition.
+	//
+	// This occurs when a struct tag is unrecognized, a tag combination is invalid,
+	// a field type is unsupported, or ancestor flag shadowing is detected.
+	// ErrSchema represents a developer defect detected during schema compilation.
 	ErrSchema = spec.ErrSchema
 
 	// ErrParse indicates command-line tokens could not be parsed.
+	//
+	// This category includes unknown flags, missing flag arguments, unexpected positional
+	// arguments, and unrecognized subcommand names. All parse errors classify as usage
+	// errors ([IsUsageError] reports true).
 	ErrParse = errors.New("parse error")
 
-	// ErrCoerce indicates a raw value could not be converted to its target type.
+	// ErrCoerce indicates a raw string value could not be converted to its target type.
+	//
+	// This category includes numeric parsing failures, unparseable durations, malformed
+	// URLs, and errors returned by [encoding.TextUnmarshaler] or [ContextAwareTextUnmarshaler].
+	// All coercion errors classify as usage errors ([IsUsageError] reports true).
 	ErrCoerce = coerce.ErrCoerce
 
 	// ErrValidation indicates a flag or argument constraint was violated.
+	//
+	// This category covers violations of struct tags such as `range`, `len`, `enum`,
+	// `xor`, and `and`, as well as failures returned by [SelfValidator.Validate].
+	// All validation errors classify as usage errors ([IsUsageError] reports true).
 	ErrValidation = errors.New("validation error")
 
-	// ErrConfig indicates the configuration file could not be loaded.
-	ErrConfig error = sentinel.ErrConfig
+	// ErrConfig indicates a configuration file or .env file could not be loaded.
+	//
+	// This category includes missing explicit configuration files, file read permission
+	// errors, file size limit violations (exceeding the 16MB DoS threshold), and
+	// syntax errors returned by configuration decoders.
+	ErrConfig = sentinel.ErrConfig
 )
 
 // maxDisplayRunes is the maximum number of runes echoed from a user-supplied
@@ -63,13 +83,29 @@ var (
 )
 
 // UsageError is an interface implemented by errors that represent invalid command-line usage.
+//
+// When [App.FatalIfError] receives an error satisfying UsageError, it prints the
+// message to standard error, appends usage guidance as configured by
+// [UsageOnErrorMode], and terminates the process with exit code 2. Self-describing
+// value errors — coercion failures and value-constraint violations, whose messages
+// already name the offending flag and value — print the message alone regardless of
+// the configured mode.
 type UsageError interface {
 	error
+
+	// IsUsageError reports whether the error represents invalid command-line input.
 	IsUsageError() bool
+
+	// CommandPath returns the space-separated command path where the error occurred.
 	CommandPath() string
 }
 
 // IsUsageError reports whether err was caused by invalid command-line input.
+//
+// Returns true if err implements [UsageError] and reports true, or if err wraps
+// [ErrParse], [ErrCoerce], or [ErrValidation]. Returns false for developer schema
+// errors ([ErrSchema]), configuration file failures ([ErrConfig]), runtime errors
+// returned by [Runner.Run], or nil errors.
 func IsUsageError(err error) bool {
 	if err == nil {
 		return false

@@ -1,3 +1,4 @@
+// Package spec builds and validates command schemas from application structs.
 package spec
 
 import (

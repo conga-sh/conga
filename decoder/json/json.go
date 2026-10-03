@@ -1,9 +1,20 @@
 // Package json provides the JSON configuration decoder for CONGA applications.
 //
-// [RawDecoder] matches config.Decoder, parsing JSON into the generic key-value
-// map that the configuration engine validates against command struct tags.
-// Register it with App.RegisterDecoder; syntax errors and trailing content
-// after the first JSON document wrap [ErrJSONParse].
+// Register [RawDecoder] with App.RegisterDecoder to enable JSON configuration support:
+//
+//	app.RegisterDecoder(".json", json.RawDecoder)
+//
+// # Key Mapping
+//
+// Top-level JSON keys match flag names using kebab-case, snake_case, or camelCase:
+//
+//	{
+//	  "port": 8080,
+//	  "database_url": "postgres://localhost/db",
+//	  "maxRetries": 5
+//	}
+//
+// Syntax errors and trailing content after the first JSON document wrap [ErrJSONParse].
 package json
 
 import (

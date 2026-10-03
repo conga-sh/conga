@@ -1,3 +1,4 @@
+// Package dotenv loads environment variables from .env files.
 package dotenv
 
 import (

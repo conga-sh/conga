@@ -1,3 +1,4 @@
+// Package pathx expands environment variables and tilde prefixes in paths.
 package pathx
 
 import (
