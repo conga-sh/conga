@@ -84,10 +84,10 @@ Fields become flags, and `Run` reads their resolved values with `Get()`.
 
 Flags resolve through a deterministic 4-tier precedence ladder:
 
-1. **Command-line flags** (`--port 9000`, `-p 9000`)
-2. **Environment variables** (`PORT=9000` or `APP_PORT=9000` with `App.EnvPrefix`)
-3. **Configuration files** (JSON, YAML, TOML, HCL)
-4. **Struct field defaults** (`default:"8080"`)
+1. Command-line flags
+2. Environment variables
+3. Configuration files
+4. Struct field defaults
 
 Positional arguments bind only to command-line tokens, falling back to `default`.
 
