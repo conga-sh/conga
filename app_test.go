@@ -3,8 +3,10 @@ package conga_test
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -36,6 +38,18 @@ type EnvSemanticsCLI struct {
 	CustomPort conga.OptionalFlag[int]    `default:"8080"      env:"CUSTOM_PORT" name:"port"`
 	Token      conga.OptionalFlag[string] `default:"secret"    env:"-"           name:"token"`
 	Host       conga.OptionalFlag[string] `default:"127.0.0.1" name:"host"`
+}
+
+type ZeroAppCLI struct {
+	CacheEnabled conga.OptionalFlag[bool]  `default:"true" name:"cache" negatable:"true"`
+	Port         conga.OptionalFlag[int]   `default:"8080" short:"p"`
+	TagList      conga.OptionalFlag[[]int] `name:"tag"     short:"t"`
+}
+
+func (c *ZeroAppCLI) Run(ctx context.Context, session *conga.Session) error {
+	fmt.Fprintln(session.Stdout(), "CacheEnabled:", c.CacheEnabled.Get(), "Port:", c.Port.Get(), "TagList:", c.TagList.Get())
+
+	return nil
 }
 
 func TestApp_NegatedBoolFlag(t *testing.T) {
@@ -197,6 +211,104 @@ func TestApp_Run_DoubleExecutionPanics(t *testing.T) {
 	assertx.PanicsWithValue(t, "conga: App already executed", func() {
 		_ = app.Run()
 	})
+}
+
+func TestApp_ZeroValue(t *testing.T) {
+	t.Parallel()
+
+	t.Run("one line", func(t *testing.T) {
+		t.Parallel()
+
+		var stdoutBuffer bytes.Buffer
+
+		err := new(conga.App[ZeroAppCLI]).
+			Args([]string{"-p", "7777"}).
+			Stdout(&stdoutBuffer).
+			RunContext(t.Context())
+
+		assert.NoError(t, err)
+		assert.Equal(t, stdoutBuffer.String(), "CacheEnabled: true Port: 7777 TagList: []\n")
+	})
+
+	t.Run("runs like new", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			app          conga.App[ZeroAppCLI]
+			stdoutBuffer bytes.Buffer
+		)
+
+		err := app.Args([]string{"-p", "7777"}).
+			Stdout(&stdoutBuffer).
+			RunContext(t.Context())
+
+		assert.NoError(t, err)
+		assert.Equal(t, stdoutBuffer.String(), "CacheEnabled: true Port: 7777 TagList: []\n")
+	})
+
+	t.Run("with cli", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			cli          ZeroAppCLI
+			stdoutBuffer bytes.Buffer
+		)
+
+		err := conga.New(&cli).
+			Args([]string{"-p", "7777"}).
+			Stdout(&stdoutBuffer).
+			RunContext(t.Context())
+
+		assert.NoError(t, err)
+		assert.Equal(t, cli.Port.Get(), 7777)
+		assert.Equal(t, stdoutBuffer.String(), "CacheEnabled: true Port: 7777 TagList: []\n")
+	})
+}
+
+func TestApp_ZeroValue_EnablesBuiltins(t *testing.T) {
+	t.Parallel()
+
+	var (
+		app          conga.App[SimpleAppCLI]
+		stdoutBuffer bytes.Buffer
+	)
+
+	app.Args([]string{"--help"}).Stdout(&stdoutBuffer)
+
+	err := app.RunContext(t.Context())
+
+	assert.NoError(t, err)
+	assert.True(t, strings.Contains(stdoutBuffer.String(), "Usage:"))
+}
+
+func TestApp_ZeroValue_PredictorBeforeRun(t *testing.T) {
+	t.Parallel()
+
+	var app conga.App[SimpleAppCLI]
+
+	app.Predictor("colors", predict.Values("red", "blue")).Args([]string{"-p", "1"})
+
+	err := app.RunContext(t.Context())
+
+	assert.NoError(t, err)
+}
+
+func TestApp_ZeroValue_StrictTagValidationDefault(t *testing.T) {
+	t.Parallel()
+
+	type ZeroValueUnknownTagCLI struct {
+		noopRunner
+
+		Port conga.OptionalFlag[int] `custom:"x" default:"8080"`
+	}
+
+	var app conga.App[ZeroValueUnknownTagCLI]
+
+	app.Args([]string{})
+
+	err := app.RunContext(t.Context())
+
+	assert.IsError(t, err, conga.ErrSchema)
 }
 
 func TestApp_CompletionInvocationDoesNotConsumeExecution(t *testing.T) {

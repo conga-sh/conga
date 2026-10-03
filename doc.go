@@ -77,7 +77,8 @@
 // # Execution and streams
 //
 // [App.Run] and [App.RunContext] execute an App exactly once; a second call
-// panics.
+// panics. A zero-value [App] is usable and installs the same defaults as [New]
+// on first use.
 //
 // Commands receive a [*Session] providing invocation metadata and configured
 // I/O streams ([Session.Stdout], [Session.Stderr], [Session.Stdin]). Streams
