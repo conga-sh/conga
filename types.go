@@ -107,11 +107,13 @@ type Runner interface {
 
 // Validator is implemented by command structs that perform cross-field semantic validation.
 //
-// Validation runs top-down from root to leaf, after struct tag constraints and
-// domain-type [SelfValidator] checks have already passed, and before any lifecycle
-// hook ([PreRunner], [Runner], [PostRunner], or [Finalizer]) executes. If Validate
-// returns an error, Run returns it without entering the lifecycle; [IsUsageError]
-// reports true and [App.FatalIfError] exits with status 2.
+// Validate is the first lifecycle stage. Hooks run top-down from root to leaf, after
+// struct tag constraints and domain-type [SelfValidator] checks have already passed,
+// and before any [PreRunner], [Runner], [PostRunner], or [Finalizer] hook executes.
+// If Validate returns an error, Run returns it without running the remaining stages
+// (no command has been initialized, so no Finally hook runs); [IsUsageError] reports
+// true and [App.FatalIfError] exits with status 2. For a built-in subcommand such as
+// [HelpCommand], only the leaf command's Validate hook runs.
 //
 // See https://docs.conga.sh/explanation/lifecycle/.
 type Validator interface {
@@ -348,9 +350,9 @@ func (f *OptionalFlag[T]) String() string {
 //
 // The requirement is satisfied if a value is supplied by a command-line flag,
 // an environment variable, a configuration file, or a struct `default:"..."` tag.
-// If no source provides a value, Run returns a usage error before [Validator.Validate]
-// or any lifecycle hook executes; [IsUsageError] reports true and [App.FatalIfError]
-// exits with status 2.
+// If no source provides a value, Run returns a usage error before any lifecycle
+// stage, starting with [Validator.Validate], executes; [IsUsageError] reports true and
+// [App.FatalIfError] exits with status 2.
 //
 // When satisfied by explicit input, [RequiredFlag.Changed] reports true. When
 // satisfied by a struct default tag, [RequiredFlag.IsSet] reports true while
@@ -468,8 +470,8 @@ func (a *OptionalArg[T]) String() string {
 //
 // Required positional arguments must be supplied on the command line in struct
 // declaration order. If omitted and no struct `default:"..."` tag is present, Run
-// returns a usage error before [Validator.Validate] or any lifecycle hook executes;
-// [IsUsageError] reports true and [App.FatalIfError] exits with status 2.
+// returns a usage error before any lifecycle stage, starting with [Validator.Validate],
+// executes; [IsUsageError] reports true and [App.FatalIfError] exits with status 2.
 type RequiredArg[T any] struct {
 	value        T
 	set          bool

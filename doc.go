@@ -9,8 +9,7 @@
 //   - Subcommands: [Command]
 //
 // Command schemas, validation rules, and completion hooks are inspected once at
-// startup. Value binding at execution time assigns through the container's own
-// state accessors, so no per-token reflection occurs on the binding path.
+// startup.
 //
 // # Quick Start
 //
@@ -47,7 +46,7 @@
 //
 //  1. Command-line flags (e.g. --port 9000, -p 9000)
 //  2. Environment variables (e.g. PORT=9000 or APP_PORT=9000 with [App.EnvPrefix])
-//  3. Configuration files (.json, .yaml, .toml, .hcl)
+//  3. Configuration files in any format registered with [App.RegisterDecoder]
 //  4. Struct tag defaults (`default:"8080"`)
 //
 // Positional arguments resolve from command-line arguments only, falling back to
@@ -65,22 +64,23 @@
 // Before the lifecycle runs, CONGA resolves configuration, binds and coerces
 // every flag and positional argument, then enforces constraints in this order:
 // struct tag constraints (`range`, `len`, `items`, `enum`, `xor`, `and`,
-// `negatable`), the leaf command's [Runner] contract, domain-type [SelfValidator]
-// checks, and finally [Validator] hooks.
+// `negatable`), the leaf command's [Runner] contract, and domain-type
+// [SelfValidator] checks.
 //
 // Command execution then progresses through a five-stage lifecycle:
 //
 //  1. Validate: [Validator.Validate] runs top-down (root to leaf). An error
 //     aborts the run and is returned to the caller; [App.FatalIfError] reports
-//     it as a usage error with exit status 2.
+//     it as a usage error with exit status 2. No command has been initialized
+//     yet, so no Finally hook runs.
 //  2. PreRun: [PreRunner.PreRun] runs top-down to initialize shared resources.
 //  3. Run: [Runner.Run] executes on the selected leaf command.
 //  4. PostRun: [PostRunner.PostRun] runs bottom-up on success.
 //  5. Finally: [Finalizer.Finally] runs bottom-up unconditionally for every
 //     initialized command, receiving the halting error or nil.
 //
-// If any stage between PreRun and PostRun returns an error, intermediate steps
-// are skipped and execution jumps directly to Finally for cleanup.
+// If any stage between PreRun and PostRun returns an error, the remaining
+// stages are skipped and execution jumps directly to Finally for cleanup.
 //
 // The built-in subcommands ([HelpCommand], [VersionCommand],
 // [CompletionCommand]) are meta-commands: they bypass the lifecycle entirely, so
@@ -136,7 +136,10 @@
 //   - `group:"Heading"`: Help-screen grouping header.
 //   - `hidden:"true"`: Suppresses the flag from help screens and completion.
 //   - `safe:"true"`: Controls whether the value is displayed in `--why` reports.
-//   - `deprecated:"msg"`: Emits a deprecation warning on standard error when used.
+//   - `deprecated:"msg"`: Marks the flag deprecated. A warning naming the flag,
+//     environment variable, or configuration key appears on standard error when
+//     the value is set explicitly through that source; defaulted values never warn.
+//     Rejected on [RequiredFlag] fields, which fails schema compilation.
 //   - `conga:"directive"`: Engine directives; see the reference above.
 //
 // Positional arguments ([OptionalArg], [RequiredArg]) accept a narrower set:
@@ -146,7 +149,9 @@
 //
 // Subcommands ([Command]) accept `name`, `summary` (one-line synopsis),
 // `aliases`, `group`, `hidden`, `deprecated`, `envprefix` (an environment prefix
-// scoped to this subcommand and its descendants), and `conga`. Long-form
+// scoped to this subcommand and its descendants), and `conga`. The built-in
+// [HelpCommand], [VersionCommand], and [CompletionCommand] fields reject
+// `deprecated`. Long-form
 // subcommand descriptions come from [DescriptionProvider], not a tag.
 //
 // Configuration-file flags ([ConfigFile]) accept `name`, `short`, `help`,

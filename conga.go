@@ -193,12 +193,14 @@ func (a *App[T]) Footer(footer string) *App[T] {
 
 // Deprecated marks the entire application as deprecated.
 //
-// On every invocation, CONGA prints a deprecation warning containing the reason
-// text to standard error before executing the command lifecycle. Execution
-// continues normally; deprecation warnings are non-fatal.
+// Each run that reaches the command lifecycle first prints a warning containing
+// the reason text to standard error. Execution continues normally; deprecation
+// warnings are non-fatal. Requests that render a built-in and return early, such
+// as `--help`, `--version`, and `--why`, print no warning.
 //
-// To deprecate a single flag or the built-in --version flag, use the
-// `deprecated` struct tag.
+// Declare the deprecation with this method, not a Deprecated method on the root
+// struct, which fails schema compilation with [ErrSchema]. To deprecate an
+// individual optional flag or subcommand, use the `deprecated` struct tag.
 func (a *App[T]) Deprecated(reason string) *App[T] {
 	a.deprecated = reason
 
@@ -248,6 +250,10 @@ func (a *App[T]) EnvPrefix(prefix string) *App[T] {
 // When called without arguments, Dotenv probes for ".env" followed by ".env.local" in the
 // current working directory, loading both if present. When explicit paths are supplied,
 // CONGA loads only the specified files in the given order.
+//
+// Files apply in order: a key defined in more than one file takes the value from the
+// last file that defines it, so ".env.local" overrides ".env". Variables already present
+// in the process environment are never overwritten and outrank every file.
 //
 // Files must use KEY=VALUE syntax. Empty lines and lines starting with '#' are ignored;
 // optional 'export ' prefixes and surrounding single or double quotes are stripped.
@@ -568,18 +574,18 @@ func (a *App[T]) RegisterMap[M ~map[K]V, K comparable, V any](_ M, opts ...Regis
 // Resolution and binding run first: dotenv loading (if configured via
 // [App.Dotenv]), tokenization, configuration file resolution, then flag and
 // argument coercion from the CLI, environment, and configuration sources.
-// Constraints are enforced in this order — struct tag constraints, the leaf
-// command's [Runner] contract, domain-type [SelfValidator] checks, and finally
-// top-down [Validator.Validate] hooks. A failure in any of these stages returns
-// an error without entering the lifecycle, so no PreRun, Run, PostRun, or
-// Finally hook executes.
+// Constraints are then enforced in this order: struct tag constraints, the leaf
+// command's [Runner] contract, and domain-type [SelfValidator] checks.
 //
-// The lifecycle then runs on the matched leaf command:
+// The lifecycle runs in five stages on the matched leaf command:
 //
-//  1. PreRun: [PreRunner.PreRun] hooks run top-down to initialize resources.
-//  2. Run: [Runner.Run] executes on the leaf.
-//  3. PostRun: [PostRunner.PostRun] hooks run bottom-up, only after Run succeeds.
-//  4. Finally: [Finalizer.Finally] hooks run bottom-up unconditionally for every
+//  1. Validate: [Validator.Validate] hooks run top-down. A failure returns an
+//     error immediately; no PreRun, Run, PostRun, or Finally hook executes,
+//     because no command has been initialized yet.
+//  2. PreRun: [PreRunner.PreRun] hooks run top-down to initialize resources.
+//  3. Run: [Runner.Run] executes on the leaf.
+//  4. PostRun: [PostRunner.PostRun] hooks run bottom-up, only after Run succeeds.
+//  5. Finally: [Finalizer.Finally] hooks run bottom-up unconditionally for every
 //     initialized command, receiving the halting error or nil.
 //
 // An error from any stage between PreRun and PostRun skips the remaining
@@ -593,7 +599,7 @@ func (a *App[T]) RegisterMap[M ~map[K]V, K comparable, V any](_ M, opts ...Regis
 // affect the running session.
 //
 // The built-in subcommands ([HelpCommand], [VersionCommand],
-// [CompletionCommand]) bypass all four lifecycle stages, so ancestor hooks never
+// [CompletionCommand]) bypass the lifecycle, so ancestor hooks never
 // execute for them.
 //
 // Returns:
@@ -797,7 +803,8 @@ func (a *App[T]) FatalIfError(err error) {
 	a.exit(1)
 }
 
-// RegisterTypeOption configures a custom type registration on [App.RegisterType].
+// RegisterTypeOption configures a custom type registration on [App.RegisterType]
+// and [App.RegisterMap]. [WithPredictor] is currently the only constructor.
 type RegisterTypeOption func(*typeRegistration)
 
 // WithPredictor attaches a shell autocompletion predictor to a registered custom type.

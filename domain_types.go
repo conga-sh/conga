@@ -35,11 +35,11 @@ const (
 
 // File represents a filesystem path with optional capability constraints declared
 // through struct tags on command fields:
-//   - `existing:"true"`: Requires the path to exist and be a regular file.
+//   - `existing:"true"`: Requires the path to exist and not be a directory.
 //   - `stdin:"true"`: Permits "-" to bind to standard input ([App.Stdin] or [os.Stdin]).
 //   - `stdout:"true"`: Permits "-" to bind to standard output ([App.Stdout] or [os.Stdout]).
-//   - `executable:"true"`: Requires the path to exist, be an executable regular file, and
-//     resolves $PATH-relative names to their absolute location at decode time.
+//   - `executable:"true"`: Requires the path to exist, not be a directory, have execute
+//     permission, and resolves $PATH-relative names to their absolute location at decode time.
 //   - `symlink:"true"`: Requires the path to be a symbolic link.
 //   - `glob:"pattern"`: Shell autocompletion filter using comma-separated glob patterns
 //     (e.g. `glob:"*.yaml,*.yml"` or `glob:"Dockerfile*"`).
