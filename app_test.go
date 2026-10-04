@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -48,6 +47,18 @@ type ZeroAppCLI struct {
 
 func (c *ZeroAppCLI) Run(ctx context.Context, session *conga.Session) error {
 	fmt.Fprintln(session.Stdout(), "CacheEnabled:", c.CacheEnabled.Get(), "Port:", c.Port.Get(), "TagList:", c.TagList.Get())
+
+	return nil
+}
+
+type ContextReceiverCLI struct {
+	ReceivedValue string
+}
+
+func (c *ContextReceiverCLI) Run(ctx context.Context, session *conga.Session) error {
+	if value, ok := ctx.Value(ctxKey{}).(string); ok {
+		c.ReceivedValue = value
+	}
 
 	return nil
 }
@@ -127,20 +138,6 @@ func TestApp_SliceFlags(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, []int{101, 202, 303}, cli.TagList.Get())
-}
-
-type ContextReceiverCLI struct {
-	ReceivedValue string
-}
-
-type ctxKey struct{}
-
-func (c *ContextReceiverCLI) Run(ctx context.Context, session *conga.Session) error {
-	if value, ok := ctx.Value(ctxKey{}).(string); ok {
-		c.ReceivedValue = value
-	}
-
-	return nil
 }
 
 func TestApp_RunContext(t *testing.T) {
@@ -269,16 +266,16 @@ func TestApp_ZeroValue_EnablesBuiltins(t *testing.T) {
 	t.Parallel()
 
 	var (
-		app          conga.App[SimpleAppCLI]
+		app          conga.App[goldenCLI]
 		stdoutBuffer bytes.Buffer
 	)
 
-	app.Args([]string{"--help"}).Stdout(&stdoutBuffer)
+	configureGoldenApp(&app).Args([]string{"--help"}).Stdout(&stdoutBuffer)
 
 	err := app.RunContext(t.Context())
 
 	assert.NoError(t, err)
-	assert.True(t, strings.Contains(stdoutBuffer.String(), "Usage:"))
+	assertGolden(t, "testdata/help/root.golden", goldenHelpRoot, stdoutBuffer.String())
 }
 
 func TestApp_ZeroValue_PredictorBeforeRun(t *testing.T) {
@@ -636,3 +633,5 @@ func TestApp_TagValidationBuilders(t *testing.T) {
 		assert.Equal(t, 8080, cli.Port.Get())
 	})
 }
+
+type ctxKey struct{}

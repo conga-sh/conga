@@ -1,0 +1,4 @@
+Value provenance for "whyapp":
+
+  FLAG      VALUE                SOURCE    ENV   CONFIG PATH
+  --level   super-secret-level   default   -     level

@@ -1,0 +1,19 @@
+Value provenance for "whyapp":
+
+  FLAG     VALUE   SOURCE    ENV   CONFIG PATH
+  --port   8080    default   -     port
+
+Config decoders: .json
+
+Config paths checked:
+  <TMP>/local   no config file
+    looked for: <TMP>/local/config.json
+    looked for: <TMP>/local/whyapp.json
+  <TMP>/user    no config file
+    looked for: <TMP>/user/config.json
+    looked for: <TMP>/user/whyapp.json
+
+Create a configuration file at one of:
+  <TMP>/local/config.json
+  <TMP>/local/whyapp.json
+  <TMP>/local.json

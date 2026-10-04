@@ -103,9 +103,10 @@ func TestEnableInstructions_AllShells(t *testing.T) {
 
 			assert.Contains(t, out, "To load completions in your current ")
 			assert.Contains(t, out, "To load completions in every new session,")
-			assert.True(t, strings.Contains(out, "myapp completion "+info.Name), "expected command invocation in:\n%s", out)
-			assert.True(t, strings.Contains(out, "session, run:"), "expected a session step in:\n%s", out)
-			assert.True(t, strings.Contains(out, "every new session"), "expected a persistence step in:\n%s", out)
+
+			for _, line := range SessionCommands(Shell(info.Name), "myapp", false) {
+				assert.Contains(t, out, line, "expected the session command %q in:\n%s", line, out)
+			}
 		})
 	}
 }

@@ -1,0 +1,17 @@
+Value provenance for "whyapp":
+
+  FLAG                VALUE             SOURCE   ENV          CONFIG PATH
+  --port              ██████            cli      -            port
+  --token             ██████            env      WHY_TOKEN    token
+  --shown             visible-value     cli      -            shown
+  --region            ██████            config   -            region
+  --headers           a=2, z=1          cli      -            headers
+  --secret (hidden)                     unset    -            secret
+  --config-file       why-config.json   env      WHY_CONFIG   -
+
+Config decoders: .json
+
+Config paths checked:
+  why-config.json   loaded: why-config.json
+
+values are redacted — tag fields safe:"true" to display

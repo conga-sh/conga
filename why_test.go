@@ -16,33 +16,6 @@ import (
 	"github.com/conga-sh/conga/decoder/toml"
 )
 
-// --- Part 1: builtin hoist (help/version never fail on resolution errors) ---
-
-type hoistConfigCLI struct {
-	Config conga.ConfigFile `help:"Path to config file"`
-}
-
-type hoistSub struct{}
-
-func (s *hoistSub) Run(_ context.Context, _ *conga.Session) error { return nil }
-
-type hoistSubCLI struct {
-	Config conga.ConfigFile        `help:"Path to config file"`
-	Sub    conga.Command[hoistSub] `name:"sub"                 summary:"Subcommand"`
-}
-
-type hoistHelpCLI struct {
-	Config conga.ConfigFile  `help:"Path to config file"`
-	Help   conga.HelpCommand `summary:"Show help for any command"`
-}
-
-type hoistDeprecatedCLI struct {
-	OldFlag conga.OptionalFlag[bool] `deprecated:"use --new-flag"         help:"Legacy toggle"`
-	Help    conga.HelpCommand        `summary:"Show help for any command"`
-}
-
-func (c *hoistDeprecatedCLI) Run(_ context.Context, _ *conga.Session) error { return nil }
-
 func TestBuiltinHoist_HelpWithEnvSourcedMissingConfigPath(t *testing.T) {
 	var buffer bytes.Buffer
 
@@ -57,7 +30,7 @@ func TestBuiltinHoist_HelpWithEnvSourcedMissingConfigPath(t *testing.T) {
 	err := app.Run()
 
 	assert.NoError(t, err)
-	assert.Contains(t, buffer.String(), "Usage:")
+	assert.Contains(t, buffer.String(), "Usage:\n  cloudctl")
 }
 
 func TestBuiltinHoist_VersionWithEnvSourcedMissingConfigPath(t *testing.T) {
@@ -91,7 +64,7 @@ func TestBuiltinHoist_ExplicitMissingConfigPathWithHelp(t *testing.T) {
 	err := app.Run()
 
 	assert.NoError(t, err)
-	assert.Contains(t, buffer.String(), "Usage:")
+	assert.Contains(t, buffer.String(), "Usage:\n  cloudctl")
 }
 
 func TestBuiltinHoist_SubcommandHelpWithEnvSourcedMissingConfigPath(t *testing.T) {
@@ -125,7 +98,7 @@ func TestBuiltinHoist_HelpSubcommandWithEnvSourcedMissingConfigPath(t *testing.T
 	err := app.Run()
 
 	assert.NoError(t, err)
-	assert.Contains(t, buffer.String(), "Usage:")
+	assert.Contains(t, buffer.String(), "Usage:\n  cloudctl")
 }
 
 func TestBuiltinHoist_CompletionScriptWithEnvSourcedMissingConfigPath(t *testing.T) {
@@ -186,31 +159,12 @@ func TestBuiltinHoist_DeprecationNotices(t *testing.T) {
 	})
 }
 
-// --- Part 3: --why builtin ---
-
-type whyRunner struct{ ran bool }
-
-func (r *whyRunner) Run(_ context.Context, _ *conga.Session) error {
-	r.ran = true
-
-	return nil
-}
-
-type whyCLI struct {
-	Port    conga.OptionalFlag[int]               `help:"Listen port"`
-	Token   conga.OptionalFlag[string]            `env:"WHY_TOKEN"    help:"API token"`
-	Shown   conga.OptionalFlag[string]            `help:"Shown value" safe:"true"`
-	Region  conga.OptionalFlag[string]            `config:"region"    help:"Deployment region"`
-	Headers conga.OptionalFlag[map[string]string] `help:"Headers"     safe:"true"`
-	Secret  conga.OptionalFlag[string]            `help:"Hidden knob" hidden:"true"`
-	Config  conga.ConfigFile                      `env:"WHY_CONFIG"   help:"Config path"`
-	Sub     conga.Command[whyRunner]              `name:"sub"         summary:"Subcommand"`
-}
-
 func TestWhy_ReportRedactionAndBadges(t *testing.T) {
 	t.Setenv("WHY_TOKEN", "s3cr3t-token")
+	t.Chdir(t.TempDir())
 
-	configPath := filepath.Join(t.TempDir(), "why-config.json")
+	const configPath = "why-config.json"
+
 	assert.NoError(t, os.WriteFile(configPath, []byte(`{"region": "eu-west-1"}`), 0o600))
 	t.Setenv("WHY_CONFIG", configPath)
 
@@ -227,47 +181,7 @@ func TestWhy_ReportRedactionAndBadges(t *testing.T) {
 	err := app.Run()
 
 	assert.NoError(t, err)
-
-	output := buffer.String()
-
-	assert.NoError(t, err)
-
-	// Redaction default: every non-safe value renders the fixed-width block,
-	// regardless of source tier or value length.
-	assert.Contains(t, output, "██████")
-	assert.NotContains(t, output, "8080")
-	assert.NotContains(t, output, "s3cr3t-token")
-
-	for line := range strings.SplitSeq(output, "\n") {
-		if strings.Contains(line, "--port") {
-			assert.True(t, strings.Contains(line, "██████"), "value column must be redacted: %q", line)
-			assert.True(t, strings.Contains(line, " cli "), "CLI source word: %q", line)
-		}
-
-		if strings.Contains(line, "--token") {
-			assert.True(t, strings.Contains(line, " env "), "env source word: %q", line)
-			assert.True(t, strings.Contains(line, "WHY_TOKEN"), "env column: %q", line)
-		}
-
-		if strings.Contains(line, "--region") {
-			assert.True(t, strings.Contains(line, " config "), "config source word: %q", line)
-			assert.True(t, strings.Contains(line, " region"), "config path column: %q", line)
-		}
-
-		if strings.Contains(line, "--shown") {
-			assert.True(t, strings.Contains(line, "visible-value"), "safe field renders the real value: %q", line)
-		}
-
-		if strings.Contains(line, "--config") {
-			assert.True(t, strings.Contains(line, configPath), "config-file path is always displayed: %q", line)
-		}
-	}
-
-	// Safe opt-in: the map renders with sorted keys.
-	assert.Contains(t, output, "a=2, z=1")
-
-	// Footer hint advertises the safe tag.
-	assert.Contains(t, output, `values are redacted — tag fields safe:"true" to display`)
+	assertGolden(t, "testdata/why/redaction-badges.golden", goldenWhyRedactionBadges, buffer.String())
 
 	// The command never ran: --why short-circuits execution.
 	assert.False(t, cli.Sub.Get().ran)
@@ -321,17 +235,7 @@ func TestWhy_DefaultValuesDisplayed(t *testing.T) {
 	err := app.Run()
 
 	assert.NoError(t, err)
-
-	output := buffer.String()
-
-	assert.Contains(t, output, "super-secret-level")
-
-	for line := range strings.SplitSeq(output, "\n") {
-		if strings.Contains(line, "--level") {
-			assert.Contains(t, line, " default")
-			assert.Contains(t, line, "super-secret-level")
-		}
-	}
+	assertGolden(t, "testdata/why/defaults.golden", goldenWhyDefaults, buffer.String())
 }
 
 func TestWhy_BoolAndCounterVisibleByDefault(t *testing.T) {
@@ -654,15 +558,6 @@ func TestWhy_ConfigFileRowsRender(t *testing.T) {
 	})
 }
 
-type whySearchPathCLI struct {
-	Port conga.OptionalFlag[int] `default:"8080" help:"Listen port"`
-}
-
-type whyExplicitConfigCLI struct {
-	ConfigFile conga.ConfigFile        `help:"Explicit configuration file"`
-	Port       conga.OptionalFlag[int] `default:"8080"                     help:"Listen port"`
-}
-
 func TestWhy_ConfigPathsChecked_NothingFound(t *testing.T) {
 	t.Parallel()
 
@@ -688,25 +583,8 @@ func TestWhy_ConfigPathsChecked_NothingFound(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	output := buffer.String()
-
-	assert.NoError(t, err)
-	assert.Contains(t, output, "Config paths checked")
-	assert.Contains(t, output, localDir)
-	assert.Contains(t, output, userDir)
-
-	inSection := false
-
-	for line := range strings.SplitSeq(output, "\n") {
-		switch {
-		case strings.HasPrefix(line, "Config paths checked"):
-			inSection = true
-		case strings.HasPrefix(line, "Create a configuration file"):
-			inSection = false
-		case inSection && strings.HasPrefix(strings.TrimSpace(line), localDir):
-			assert.True(t, strings.HasSuffix(strings.TrimSpace(line), "no config file"), "empty tier must report the absence: %q", line)
-		}
-	}
+	output := normalizeWhyGolden(buffer.String(), tmpDir, "<TMP>")
+	assertGolden(t, "testdata/why/config-paths-missing.golden", goldenWhyConfigPathsMissing, output)
 }
 
 func TestWhy_ConfigPathsChecked_LoadedTiers(t *testing.T) {
@@ -742,12 +620,8 @@ func TestWhy_ConfigPathsChecked_LoadedTiers(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	output := buffer.String()
-
-	assert.NoError(t, err)
-	assert.Contains(t, output, "loaded: "+dirFile)
-	assert.Contains(t, output, "loaded: "+stemFile)
-	assert.NotContains(t, output, "no config file")
+	output := normalizeWhyGolden(buffer.String(), tmpDir, "<TMP>")
+	assertGolden(t, "testdata/why/config-paths-loaded.golden", goldenWhyConfigPathsLoaded, output)
 }
 
 func TestWhy_ConfigPathsChecked_ExplicitPath(t *testing.T) {
@@ -898,7 +772,7 @@ func TestWhy_BuiltinPriority(t *testing.T) {
 		err := app.Run()
 
 		assert.NoError(t, err)
-		assert.Contains(t, buffer.String(), "Usage:")
+		assert.Contains(t, buffer.String(), "Usage:\n  whyapp")
 	})
 
 	t.Run("--why --version renders version", func(t *testing.T) {
@@ -974,10 +848,6 @@ func TestWhy_BuiltinPriority(t *testing.T) {
 	})
 }
 
-type whyFlatCLI struct {
-	Port conga.OptionalFlag[int] `help:"Listen port"`
-}
-
 // TestWhy_Collision pins the collision guard on the builtin --why name (every
 // command offers the builtin, so a user flag named "why" collides anywhere).
 func TestWhy_Collision(t *testing.T) {
@@ -994,16 +864,6 @@ func TestWhy_Collision(t *testing.T) {
 	assert.Error(t, err)
 	assert.IsError(t, err, conga.ErrSchema)
 	assert.Contains(t, err.Error(), "built-in why (enabled by app.EnableWhy())")
-}
-
-type whySubCollisionRunner struct {
-	Why conga.OptionalFlag[bool] `help:"Explain reasoning"`
-}
-
-func (r *whySubCollisionRunner) Run(_ context.Context, _ *conga.Session) error { return nil }
-
-type whySubCollisionCLI struct {
-	Sub conga.Command[whySubCollisionRunner] `name:"sub" summary:"Subcommand"`
 }
 
 func TestWhy_Collision_SubcommandUserFlag(t *testing.T) {
@@ -1053,52 +913,6 @@ func TestWhy_UserFlagWithoutOptIn_Subcommand(t *testing.T) {
 	assert.True(t, cli.Sub.Get().ran)
 }
 
-type whySubTakeoverRunner struct {
-	Why conga.OptionalFlag[bool] `help:"Explain reasoning"`
-	ran bool
-}
-
-func (r *whySubTakeoverRunner) Run(_ context.Context, _ *conga.Session) error {
-	r.ran = true
-
-	return nil
-}
-
-type whySubTakeoverCLI struct {
-	Sub conga.Command[whySubTakeoverRunner] `name:"sub" summary:"Subcommand"`
-}
-
-type whyTakeoverCLI struct {
-	Why   conga.OptionalFlag[bool]   `help:"Explain reasoning"`
-	Token conga.OptionalFlag[string] `env:"TAKEOVER_TOKEN"     help:"Token" safe:"true"`
-
-	ran bool
-}
-
-func (c *whyTakeoverCLI) Run(_ context.Context, _ *conga.Session) error {
-	c.ran = true
-
-	return nil
-}
-
-type whyLeafRunner struct {
-	Depth  conga.OptionalFlag[int]    `help:"Nesting depth"`
-	Region conga.OptionalFlag[string] `config:"region"      help:"Deployment region"`
-	ran    bool
-}
-
-func (r *whyLeafRunner) Run(_ context.Context, _ *conga.Session) error {
-	r.ran = true
-
-	return nil
-}
-
-type whyLeafCLI struct {
-	Port    conga.OptionalFlag[int]      `help:"Listen port"`
-	CLIOnly conga.OptionalFlag[string]   `config:"-"         help:"CLI-only override"`
-	Sub     conga.Command[whyLeafRunner] `name:"sub"         summary:"Subcommand"`
-}
-
 func TestWhy_OnSubcommands(t *testing.T) {
 	t.Parallel()
 
@@ -1143,41 +957,7 @@ func TestWhy_OnSubcommands(t *testing.T) {
 		err := app.Run()
 
 		assert.NoError(t, err)
-
-		output := buffer.String()
-
-		assert.NoError(t, err)
-		assert.Contains(t, output, `Value provenance for "whyapp sub":`)
-
-		// Column headers render in both tables, in tier-preference order.
-		assert.Contains(t, output, "FLAG")
-		assert.Contains(t, output, "ENV")
-		assert.Contains(t, output, "CONFIG PATH")
-
-		// Leaf rows precede the Global Flags section; ancestor rows follow it.
-		assert.True(t, strings.Index(output, "--depth") < strings.Index(output, "Global Flags:"), "leaf rows must precede Global Flags")
-		assert.True(t, strings.Index(output, "Global Flags:") < strings.Index(output, "--port"), "ancestor rows must follow Global Flags")
-
-		for line := range strings.SplitSeq(output, "\n") {
-			switch {
-			case strings.Contains(line, "--depth"):
-				assert.True(t, strings.Contains(line, " cli "), "source word: %q", line)
-				assert.True(t, strings.Contains(line, "WHYAPP_DEPTH"), "derived env var: %q", line)
-				assert.True(t, strings.Contains(line, "sub.depth"), "canonical config path: %q", line)
-			case strings.Contains(line, "--region"):
-				assert.True(t, strings.Contains(line, "sub.region"), "explicit config tag namespaced under the command path: %q", line)
-			case strings.Contains(line, "--cli-only"):
-				assert.True(t, strings.Contains(line, " -"), "config-excluded flag renders a dash: %q", line)
-				assert.True(t, strings.Contains(line, "WHYAPP_CLI_ONLY"), "derived env var for config-excluded flag: %q", line)
-			case strings.Contains(line, "--port"):
-				assert.True(t, strings.Contains(line, "WHYAPP_PORT"), "derived env var: %q", line)
-				assert.True(t, strings.HasSuffix(strings.TrimSpace(line), "port"), "root-owned flag keeps its bare config path under Global Flags: %q", line)
-				assert.False(t, strings.Contains(line, "sub.port"), "root-owned flag must not inherit the active subcommand path: %q", line)
-			}
-		}
-
-		assert.Contains(t, output, "██████")
-		assert.NotContains(t, output, "8080")
+		assertGolden(t, "testdata/why/subcommand-report.golden", goldenWhySubcommandReport, buffer.String())
 		assert.False(t, cli.Sub.Get().ran)
 	})
 
@@ -1195,7 +975,7 @@ func TestWhy_OnSubcommands(t *testing.T) {
 		err := app.Run()
 
 		assert.NoError(t, err)
-		assert.Contains(t, buffer.String(), "Usage:")
+		assert.Contains(t, buffer.String(), "Usage:\n  whyapp sub")
 	})
 
 	t.Run("root help lists --why before the closing --help line", func(t *testing.T) {
@@ -1510,4 +1290,117 @@ func TestWhy_ProbedFiles_ExplicitPathOmitted(t *testing.T) {
 	assert.Contains(t, output, missingPath)
 	assert.NotContains(t, output, "looked for:")
 	assert.NotContains(t, output, "Create a configuration file")
+}
+
+type hoistConfigCLI struct {
+	Config conga.ConfigFile `help:"Path to config file"`
+}
+
+type hoistSub struct{}
+
+func (s *hoistSub) Run(_ context.Context, _ *conga.Session) error { return nil }
+
+type hoistSubCLI struct {
+	Config conga.ConfigFile        `help:"Path to config file"`
+	Sub    conga.Command[hoistSub] `name:"sub"                 summary:"Subcommand"`
+}
+
+type hoistHelpCLI struct {
+	Config conga.ConfigFile  `help:"Path to config file"`
+	Help   conga.HelpCommand `summary:"Show help for any command"`
+}
+
+type hoistDeprecatedCLI struct {
+	OldFlag conga.OptionalFlag[bool] `deprecated:"use --new-flag"         help:"Legacy toggle"`
+	Help    conga.HelpCommand        `summary:"Show help for any command"`
+}
+
+func (c *hoistDeprecatedCLI) Run(_ context.Context, _ *conga.Session) error { return nil }
+
+type whyRunner struct{ ran bool }
+
+func (r *whyRunner) Run(_ context.Context, _ *conga.Session) error {
+	r.ran = true
+
+	return nil
+}
+
+type whyCLI struct {
+	Port    conga.OptionalFlag[int]               `help:"Listen port"`
+	Token   conga.OptionalFlag[string]            `env:"WHY_TOKEN"    help:"API token"`
+	Shown   conga.OptionalFlag[string]            `help:"Shown value" safe:"true"`
+	Region  conga.OptionalFlag[string]            `config:"region"    help:"Deployment region"`
+	Headers conga.OptionalFlag[map[string]string] `help:"Headers"     safe:"true"`
+	Secret  conga.OptionalFlag[string]            `help:"Hidden knob" hidden:"true"`
+	Config  conga.ConfigFile                      `env:"WHY_CONFIG"   help:"Config path"`
+	Sub     conga.Command[whyRunner]              `name:"sub"         summary:"Subcommand"`
+}
+
+type whySearchPathCLI struct {
+	Port conga.OptionalFlag[int] `default:"8080" help:"Listen port"`
+}
+
+type whyExplicitConfigCLI struct {
+	ConfigFile conga.ConfigFile        `help:"Explicit configuration file"`
+	Port       conga.OptionalFlag[int] `default:"8080"                     help:"Listen port"`
+}
+
+type whyFlatCLI struct {
+	Port conga.OptionalFlag[int] `help:"Listen port"`
+}
+
+type whySubCollisionRunner struct {
+	Why conga.OptionalFlag[bool] `help:"Explain reasoning"`
+}
+
+func (r *whySubCollisionRunner) Run(_ context.Context, _ *conga.Session) error { return nil }
+
+type whySubCollisionCLI struct {
+	Sub conga.Command[whySubCollisionRunner] `name:"sub" summary:"Subcommand"`
+}
+
+type whySubTakeoverRunner struct {
+	Why conga.OptionalFlag[bool] `help:"Explain reasoning"`
+	ran bool
+}
+
+func (r *whySubTakeoverRunner) Run(_ context.Context, _ *conga.Session) error {
+	r.ran = true
+
+	return nil
+}
+
+type whySubTakeoverCLI struct {
+	Sub conga.Command[whySubTakeoverRunner] `name:"sub" summary:"Subcommand"`
+}
+
+type whyTakeoverCLI struct {
+	Why   conga.OptionalFlag[bool]   `help:"Explain reasoning"`
+	Token conga.OptionalFlag[string] `env:"TAKEOVER_TOKEN"     help:"Token" safe:"true"`
+
+	ran bool
+}
+
+func (c *whyTakeoverCLI) Run(_ context.Context, _ *conga.Session) error {
+	c.ran = true
+
+	return nil
+}
+
+type whyLeafRunner struct {
+	Depth  conga.OptionalFlag[int]    `help:"Nesting depth"`
+	Region conga.OptionalFlag[string] `config:"region"      help:"Deployment region"`
+	ran    bool
+}
+
+func (r *whyLeafRunner) Run(_ context.Context, _ *conga.Session) error {
+	r.ran = true
+
+	return nil
+}
+
+type whyLeafCLI struct {
+	Port    conga.OptionalFlag[int]      `help:"Listen port"`
+	CLIOnly conga.OptionalFlag[string]   `config:"-"         help:"CLI-only override"`
+	Sub     conga.Command[whyLeafRunner] `name:"sub"         summary:"Subcommand"`
 }

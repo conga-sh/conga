@@ -1,0 +1,6 @@
+Usage:
+  myapp
+
+Flags:
+      --help     Show help
+      --version  Show version

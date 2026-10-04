@@ -24,12 +24,6 @@ import (
 	"github.com/conga-sh/conga/internal/spec"
 )
 
-type failingCLI struct{}
-
-func (f *failingCLI) Run(ctx context.Context, session *conga.Session) error {
-	return fs.ErrPermission
-}
-
 type TextUnmarshalerType struct {
 	Value string
 }
@@ -117,6 +111,12 @@ type ByteSizeErrorCLI struct {
 	noopRunner
 
 	MaxMemory conga.OptionalFlag[conga.ByteSize] `name:"max-memory"`
+}
+
+type MissingRequiredFlagCLI struct {
+	noopRunner
+
+	Port conga.RequiredFlag[int] `name:"port"`
 }
 
 func TestErrorCategories(t *testing.T) {
@@ -633,11 +633,7 @@ func TestFatalIfError_OutputsAndExits(t *testing.T) {
 		app.FatalIfError(err)
 
 		assert.Equal(t, 2, exitCode)
-
-		output := buffer.String()
-		assert.True(t, strings.Contains(output, "clustermgr: error: unknown command: clustr"))
-		assert.True(t, strings.Contains(output, "Usage:"))
-		assert.True(t, strings.Contains(output, "Run 'clustermgr --help' for more information."))
+		assertGolden(t, "testdata/errors/usage-default.golden", goldenErrorsUsageDefault, buffer.String())
 	})
 
 	t.Run("silenced usage prints only the error message", func(t *testing.T) {
@@ -663,10 +659,7 @@ func TestFatalIfError_OutputsAndExits(t *testing.T) {
 		app.FatalIfError(err)
 
 		assert.Equal(t, 2, exitCode)
-
-		output := buffer.String()
-		assert.True(t, strings.Contains(output, "clustermgr: error: unknown command: clustr"))
-		assert.False(t, strings.Contains(output, "Usage:"))
+		assertGolden(t, "testdata/errors/usage-silence.golden", goldenErrorsUsageSilence, buffer.String())
 	})
 
 	t.Run("usage full mode prints error and full help screen", func(t *testing.T) {
@@ -692,11 +685,7 @@ func TestFatalIfError_OutputsAndExits(t *testing.T) {
 		app.FatalIfError(err)
 
 		assert.Equal(t, 2, exitCode)
-
-		output := buffer.String()
-		assert.True(t, strings.Contains(output, "clustermgr: error: unknown command: clustr"))
-		assert.True(t, strings.Contains(output, "Commands:"))
-		assert.True(t, strings.Contains(output, "Flags:"))
+		assertGolden(t, "testdata/errors/usage-full.golden", goldenErrorsUsageFull, buffer.String())
 	})
 
 	t.Run("subcommand required error outputs error message and exits with status 2", func(t *testing.T) {
@@ -722,9 +711,7 @@ func TestFatalIfError_OutputsAndExits(t *testing.T) {
 		app.FatalIfError(err)
 
 		assert.Equal(t, 2, exitCode)
-
-		output := buffer.String()
-		assert.True(t, strings.Contains(output, `clustermgr: error: subcommand required for "clustermgr"`))
+		assertGolden(t, "testdata/errors/subcommand-required.golden", goldenErrorsSubcommandRequired, buffer.String())
 	})
 
 	t.Run("usage hint mode prints error and only help hint", func(t *testing.T) {
@@ -750,11 +737,7 @@ func TestFatalIfError_OutputsAndExits(t *testing.T) {
 		app.FatalIfError(err)
 
 		assert.Equal(t, 2, exitCode)
-
-		output := buffer.String()
-		assert.True(t, strings.Contains(output, "clustermgr: error: unknown command: clustr"))
-		assert.False(t, strings.Contains(output, "Usage:"))
-		assert.True(t, strings.Contains(output, "Run 'clustermgr --help' for more information."))
+		assertGolden(t, "testdata/errors/usage-hint.golden", goldenErrorsUsageHint, buffer.String())
 	})
 
 	t.Run("runtime error from command execution exits with status 1 and suppresses usage", func(t *testing.T) {
@@ -766,6 +749,7 @@ func TestFatalIfError_OutputsAndExits(t *testing.T) {
 		)
 
 		app := conga.New[failingCLI]().
+			Name("app").
 			Args([]string{}).
 			Stderr(&buffer).
 			ExitFunc(func(code int) {
@@ -778,7 +762,7 @@ func TestFatalIfError_OutputsAndExits(t *testing.T) {
 		app.FatalIfError(err)
 
 		assert.Equal(t, 1, exitCode)
-		assert.False(t, strings.Contains(buffer.String(), "Usage:"))
+		assert.Equal(t, "app: error: permission denied\n", buffer.String())
 	})
 
 	t.Run("coercion error prints message only and exits with status 2", func(t *testing.T) {
@@ -803,17 +787,8 @@ func TestFatalIfError_OutputsAndExits(t *testing.T) {
 		app.FatalIfError(err)
 
 		assert.Equal(t, 2, exitCode)
-
-		output := buffer.String()
-		assert.True(t, strings.Contains(output, "clustermgr: error: invalid integer value \"abc\" for flag --port"))
-		assert.False(t, strings.Contains(output, "Usage:"))
+		assertGolden(t, "testdata/errors/invalid-value.golden", goldenErrorsInvalidValue, buffer.String())
 	})
-}
-
-type MissingRequiredFlagCLI struct {
-	noopRunner
-
-	Port conga.RequiredFlag[int] `name:"port"`
 }
 
 func TestFatalIfError_ValueErrorsRenderWithoutUsage(t *testing.T) {
@@ -844,11 +819,7 @@ func TestFatalIfError_ValueErrorsRenderWithoutUsage(t *testing.T) {
 		app.FatalIfError(err)
 
 		assert.Equal(t, 2, exitCode)
-
-		output := buffer.String()
-		assert.Contains(t, output, fmt.Sprintf("app: error: %q is a directory, but a file was expected for flag --file", tmpDir))
-		assert.False(t, strings.Contains(output, "Usage:"))
-		assert.False(t, strings.Contains(output, "--help"))
+		assert.Equal(t, fmt.Sprintf("app: error: %q is a directory, but a file was expected for flag --file\n", tmpDir), buffer.String())
 	})
 
 	t.Run("domain-type validation error renders message only in full usage mode", func(t *testing.T) {
@@ -876,11 +847,7 @@ func TestFatalIfError_ValueErrorsRenderWithoutUsage(t *testing.T) {
 		app.FatalIfError(err)
 
 		assert.Equal(t, 2, exitCode)
-
-		output := buffer.String()
-		assert.Contains(t, output, fmt.Sprintf("app: error: %q is a directory, but a file was expected for flag --file", tmpDir))
-		assert.False(t, strings.Contains(output, "Usage:"))
-		assert.False(t, strings.Contains(output, "Flags:"))
+		assert.Equal(t, fmt.Sprintf("app: error: %q is a directory, but a file was expected for flag --file\n", tmpDir), buffer.String())
 	})
 
 	t.Run("custom validatable constraint error renders message only", func(t *testing.T) {
@@ -905,10 +872,7 @@ func TestFatalIfError_ValueErrorsRenderWithoutUsage(t *testing.T) {
 		app.FatalIfError(err)
 
 		assert.Equal(t, 2, exitCode)
-
-		output := buffer.String()
-		assert.Contains(t, output, "app: error: score 150 must be between 0 and 100 for flag --score")
-		assert.False(t, strings.Contains(output, "Usage:"))
+		assert.Equal(t, "app: error: score 150 must be between 0 and 100 for flag --score\n", buffer.String())
 	})
 
 	t.Run("missing required flag error still renders usage", func(t *testing.T) {
@@ -933,10 +897,7 @@ func TestFatalIfError_ValueErrorsRenderWithoutUsage(t *testing.T) {
 		app.FatalIfError(err)
 
 		assert.Equal(t, 2, exitCode)
-
-		output := buffer.String()
-		assert.Contains(t, output, "app: error: missing required flag: --port")
-		assert.True(t, strings.Contains(output, "Usage:"))
+		assertGolden(t, "testdata/errors/missing-required-flag.golden", goldenErrorsMissingRequiredFlag, buffer.String())
 	})
 }
 
@@ -1776,4 +1737,10 @@ func TestErrorCommandAndChain_EndToEnd(t *testing.T) {
 		assert.True(t, errors.As(err, &usage))
 		assert.Equal(t, "app sub", usage.CommandPath())
 	})
+}
+
+type failingCLI struct{}
+
+func (f *failingCLI) Run(ctx context.Context, session *conga.Session) error {
+	return fs.ErrPermission
 }

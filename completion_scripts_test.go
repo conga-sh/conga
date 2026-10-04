@@ -158,8 +158,7 @@ func TestCompletionCommand_StructBased(t *testing.T) {
 		err := app.Run()
 
 		assert.NoError(t, err)
-		assert.True(t, strings.Contains(buffer.String(), "_myapp_completer") || strings.Contains(buffer.String(), "_myapp_completion"))
-		assert.True(t, strings.Contains(buffer.String(), "complete -o noquote -F"))
+		assertGolden(t, "testdata/completion/command-bash.golden", goldenCompletionCommandBash, buffer.String())
 	})
 
 	t.Run("execute completion zsh", func(t *testing.T) {
@@ -176,7 +175,7 @@ func TestCompletionCommand_StructBased(t *testing.T) {
 		err := app.Run()
 
 		assert.NoError(t, err)
-		assert.True(t, strings.Contains(buffer.String(), "#compdef myapp"))
+		assertGolden(t, "testdata/completion/command-zsh.golden", goldenCompletionCommandZsh, buffer.String())
 	})
 
 	t.Run("execute completion powershell", func(t *testing.T) {
@@ -193,7 +192,7 @@ func TestCompletionCommand_StructBased(t *testing.T) {
 		err := app.Run()
 
 		assert.NoError(t, err)
-		assert.True(t, strings.Contains(buffer.String(), "Register-ArgumentCompleter"))
+		assertGolden(t, "testdata/completion/command-powershell.golden", goldenCompletionCommandPowershell, buffer.String())
 	})
 }
 
@@ -215,8 +214,10 @@ func TestCompletionCommand_Argv0(t *testing.T) {
 	err := app.Run()
 
 	assert.NoError(t, err)
-	assert.True(t, strings.Contains(buffer.String(), "#compdef foobar"))
-	assert.True(t, strings.Contains(buffer.String(), "compdef _foobar_completion foobar"))
+
+	expected, err := completion.Generate(completion.ShellZsh, completion.DriverOptions{CommandName: "foobar"})
+	assert.NoError(t, err)
+	assert.Equal(t, expected, buffer.String())
 }
 
 func TestCompletionCommand_StructTags(t *testing.T) {
@@ -236,7 +237,10 @@ func TestCompletionCommand_StructTags(t *testing.T) {
 		err := app.Run()
 
 		assert.NoError(t, err)
-		assert.True(t, strings.Contains(buffer.String(), "complete -c 'myapp'") || strings.Contains(buffer.String(), `complete -c "myapp"`))
+
+		expected, err := completion.Generate(completion.ShellFish, completion.DriverOptions{CommandName: "myapp"})
+		assert.NoError(t, err)
+		assert.Equal(t, expected, buffer.String())
 	})
 
 	t.Run("execute customized comp subcommand via alias", func(t *testing.T) {
@@ -253,7 +257,10 @@ func TestCompletionCommand_StructTags(t *testing.T) {
 		err := app.Run()
 
 		assert.NoError(t, err)
-		assert.True(t, strings.Contains(buffer.String(), "complete -c 'myapp'") || strings.Contains(buffer.String(), `complete -c "myapp"`))
+
+		expected, err := completion.Generate(completion.ShellFish, completion.DriverOptions{CommandName: "myapp"})
+		assert.NoError(t, err)
+		assert.Equal(t, expected, buffer.String())
 	})
 }
 
@@ -274,7 +281,10 @@ func TestApp_Completion_Fluent(t *testing.T) {
 		err := app.Run()
 
 		assert.NoError(t, err)
-		assert.True(t, strings.Contains(buffer.String(), "_cloudapp_completion") || strings.Contains(buffer.String(), "_cloudapp_completer"))
+
+		expected, err := completion.Generate(completion.ShellBash, completion.DriverOptions{CommandName: "cloudapp"})
+		assert.NoError(t, err)
+		assert.Equal(t, expected, buffer.String())
 	})
 
 	t.Run("flat app uses completion flag when enabled", func(t *testing.T) {
@@ -292,7 +302,9 @@ func TestApp_Completion_Fluent(t *testing.T) {
 
 		assert.NoError(t, err)
 
-		assert.True(t, strings.Contains(buffer.String(), "_plainapp_completion") || strings.Contains(buffer.String(), "_plainapp_completer"))
+		expected, err := completion.Generate(completion.ShellBash, completion.DriverOptions{CommandName: "plainapp"})
+		assert.NoError(t, err)
+		assert.Equal(t, expected, buffer.String())
 	})
 
 	t.Run("flat app rejects completion subcommand when not enabled", func(t *testing.T) {
@@ -356,13 +368,12 @@ func TestCompletionCommand_NoShellShowsHelp(t *testing.T) {
 	assert.NoError(t, err)
 
 	// Bare `completion` renders its help screen (supported shells plus
-	// current-shell enable hints) instead of failing.
-	assert.NoError(t, err)
-
+	// current-shell enable hints) instead of failing. The enable hint is
+	// derived from the live process chain, so only the static screen is pinned.
 	output := buffer.String()
 	assert.Contains(t, output, "Generate shell completion scripts")
-	assert.Contains(t, output, "Supported shells:")
 	assert.Contains(t, output, "Usage:\n  myapp completion <shell>")
+	assert.Contains(t, output, "Supported shells:\n  bash        Bourne Again SHell\n  elvish      Elvish shell\n  fish        Friendly interactive shell\n  nushell     Nushell shell\n  powershell  PowerShell / pwsh\n  zsh         Z shell")
 }
 
 func TestCompletionCommand_InteractiveTAB(t *testing.T) {
@@ -378,10 +389,7 @@ func TestCompletionCommand_InteractiveTAB(t *testing.T) {
 		invoked, formatted := app.CompleteForShell("fish", []string{"completion", ""})
 
 		assert.Equal(t, 6, len(invoked.Items))
-		assert.True(t, strings.Contains(formatted, "bash\t"))
-		assert.True(t, strings.Contains(formatted, "zsh\t"))
-		assert.True(t, strings.Contains(formatted, "fish\t"))
-		assert.True(t, strings.Contains(formatted, "powershell\t"))
+		assert.Equal(t, "bash\tBourne Again SHell\nelvish\tElvish shell\nfish\tFriendly interactive shell\nnushell\tNushell shell\npowershell\tPowerShell / pwsh\nzsh\tZ shell", formatted)
 	})
 
 	t.Run("complete shell prefix", func(t *testing.T) {
@@ -569,18 +577,13 @@ func TestCompletion_PureFlagsCommandWithRequiredFlag(t *testing.T) {
 				Stdout(&buffer).
 				Args([]string{"--completion", shell})
 
-			expectedTarget := "constraints-demo"
-			if shell == "nushell" {
-				expectedTarget = "constraints_demo"
-			}
-
 			err := app.Run()
 
 			assert.NoError(t, err)
 
-			assert.True(t, buffer.String() != "")
-			assert.True(t, strings.Contains(buffer.String(), expectedTarget))
-			assert.True(t, strings.Contains(buffer.String(), "__complete"), "script must contain __complete entry point for %s", shell)
+			expected, err := completion.Generate(completion.Shell(shell), completion.DriverOptions{CommandName: "constraints-demo"})
+			assert.NoError(t, err)
+			assert.Equal(t, expected, buffer.String())
 		})
 	}
 
@@ -598,7 +601,7 @@ func TestCompletion_PureFlagsCommandWithRequiredFlag(t *testing.T) {
 		err := app.Run()
 
 		assert.NoError(t, err)
-		assert.Contains(t, buffer.String(), "Usage:")
+		assert.Contains(t, buffer.String(), "Usage:\n  constraints-demo --api-key=STRING")
 	})
 
 	t.Run("--help displays completion flag alongside declared flags", func(t *testing.T) {

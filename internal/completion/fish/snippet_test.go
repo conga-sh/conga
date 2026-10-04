@@ -68,7 +68,18 @@ func TestSnippet_QuotesNonIdentifierNames(t *testing.T) {
 
 	output := fish.Snippet("my-app", nil)
 
-	assert.True(t, strings.Contains(output, "complete -c 'my-app' -f -a '(_my_app_completion)' -r"))
+	assert.Equal(t,
+		`function _my_app_completion`+"\n"+
+			`  set --local words (commandline -opc)`+"\n"+
+			`  if test (count $words) -gt 0`+"\n"+
+			`    set --local current (commandline -ct)`+"\n"+
+			`    $words[1] __complete fish $words[2..-1] $current 2>/dev/null`+"\n"+
+			`  end`+"\n"+
+			`end`+"\n"+
+			"\n"+
+			`complete -e 'my-app'`+"\n"+
+			`complete -c 'my-app' -f -a '(_my_app_completion)' -r`+"\n",
+		output)
 }
 
 // TestSnippet_IdentifierHygiene pins the quoting contract for hostile command

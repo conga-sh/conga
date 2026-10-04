@@ -1,0 +1,28 @@
+Deploy the application
+
+Usage:
+  golden deploy --reason=STRING <target> [flags]
+
+Arguments:
+  <target>  Deployment target
+
+Flags:
+      --replicas=1     Replica count [1..100]
+      --dry-run        Preview changes only
+      --reason=STRING  Reason for deployment
+      --help           Show help
+
+Global Flags:
+  -n, --name="demo"         Application name
+  -v, --verbose             Verbosity level
+      --[no-]color          Colorize output
+  -t, --tags=KEY=VALUE,...  Arbitrary tags
+      --port=8080           Listen port [1..65535]
+      --format=STRING       Output format [enum: json, yaml]
+      --token=STRING        API token [env: GOLDEN_TOKEN]
+      --legacy              Legacy toggle [deprecated: use --name]
+
+Output:
+      --output=STRING  Output path
+
+Documentation: https://example.com/golden

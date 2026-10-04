@@ -71,7 +71,7 @@ func TestVersionFlag_Root(t *testing.T) {
 	err := app.Run()
 
 	assert.NoError(t, err)
-	assert.Contains(t, buffer.String(), "testapp has version")
+	assert.Contains(t, buffer.String(), "testapp has version 2.1.0 built with ")
 }
 
 func TestVersionFlag_BuildInfoWithoutVersion(t *testing.T) {
@@ -87,7 +87,7 @@ func TestVersionFlag_BuildInfoWithoutVersion(t *testing.T) {
 	err := app.Run()
 
 	assert.NoError(t, err)
-	assert.Contains(t, buffer.String(), "testapp has version")
+	assert.Contains(t, buffer.String(), "testapp has version dev built with ")
 }
 
 func TestVersionCommand_Root(t *testing.T) {
@@ -140,7 +140,7 @@ func TestVersionFlag_RendersToConfiguredStdout(t *testing.T) {
 	err := app.Run()
 
 	assert.NoError(t, err)
-	assert.Contains(t, buffer.String(), "testapp has version 3.0.0")
+	assert.Contains(t, buffer.String(), "testapp has version 3.0.0 built with ")
 }
 
 func TestVersionCommand_RendersToConfiguredStdout(t *testing.T) {
@@ -331,7 +331,7 @@ func TestSessionVersion_BuildInfoWithoutVersion(t *testing.T) {
 	err := app.Run()
 
 	assert.NoError(t, err)
-	assert.Contains(t, buffer.String(), "testapp has version")
+	assert.Contains(t, buffer.String(), "testapp has version dev built with ")
 }
 
 func TestVersion_CollisionWithoutDisableVersionFlag(t *testing.T) {
