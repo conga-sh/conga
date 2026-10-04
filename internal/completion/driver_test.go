@@ -1,7 +1,9 @@
 package completion_test
 
 import (
-	"strings"
+	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/alecthomas/assert/v2"
@@ -60,7 +62,7 @@ func TestParseShell(t *testing.T) {
 
 			assert.Error(t, err)
 			assert.Equal(t, completion.Shell(""), shell)
-			assert.True(t, strings.Contains(err.Error(), "unknown shell"))
+			assert.Equal(t, fmt.Sprintf(`unknown shell %q, supported shells: bash, elvish, fish, nushell, powershell, zsh`, input), err.Error())
 		}
 	})
 
@@ -89,7 +91,7 @@ func TestParseShell(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Equal(t, completion.Shell(""), shell)
-		assert.True(t, strings.Contains(err.Error(), "unknown shell"))
+		assert.Equal(t, `unknown shell "unknown-shell", supported shells: bash, elvish, fish, nushell, powershell, zsh`, err.Error())
 	})
 }
 
@@ -116,8 +118,10 @@ func TestGenerate_AllShells(t *testing.T) {
 			out, err := completion.Generate(completion.Shell(shell), opts)
 
 			assert.NoError(t, err)
-			assert.True(t, out != "")
-			assert.True(t, strings.Contains(out, "myapp"))
+
+			expected, err := os.ReadFile(filepath.Join("..", "..", "testdata", "completion", shell+".golden"))
+			assert.NoError(t, err)
+			assert.Equal(t, string(expected), out)
 		})
 	}
 }

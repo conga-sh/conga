@@ -45,20 +45,66 @@ func (c *TestCustomHCLI) Run(ctx context.Context, session *conga.Session) error 
 	return nil
 }
 
+type SpecialFlagsHelpCLI struct {
+	Verbose  conga.Counter                         `help:"Verbosity level"  short:"v"`
+	Location conga.OptionalFlag[bool]              `help:"Follow redirects" negatable:"true" short:"L"`
+	Tags     conga.OptionalFlag[map[string]string] `help:"Tags"             short:"t"`
+}
+
+type ConfigFileHelpCLI struct {
+	ConfigFile conga.ConfigFile `help:"Path to config file" short:"c"`
+}
+
+type ConfigFileDefaultHelpCLI struct {
+	noopRunner
+
+	ConfigFile conga.ConfigFile
+}
+
+type MultiConfigFileDefaultHelpCLI struct {
+	noopRunner
+
+	ConfigFile conga.ConfigFile `multi:"true"`
+}
+
+type UserHelpFlagCLI struct {
+	Help conga.OptionalFlag[string] `help:"Custom help argument" name:"help"`
+}
+
+func (u *UserHelpFlagCLI) Run(_ context.Context, _ *conga.Session) error {
+	return nil
+}
+
+type TestGroupTagsFlagsCLI struct {
+	Verbose conga.OptionalFlag[bool]   `help:"Verbose logging" short:"v"`
+	Repo    conga.OptionalFlag[string] `group:"Source control" help:"Repository path"`
+	Quiet   conga.OptionalFlag[bool]   `group:"Output"         help:"Suppress output"     short:"q"`
+	Color   conga.OptionalFlag[bool]   `group:"Output"         help:"Colorize output"`
+	Config  conga.ConfigFile           `group:"Configuration"  help:"Path to config file"`
+}
+
+type TestGroupTagsServerCmd struct{}
+
+func (c *TestGroupTagsServerCmd) Run(_ context.Context, _ *conga.Session) error { return nil }
+
+type TestGroupTagsSubcommandsCLI struct {
+	Deploy conga.Command[TestGroupTagsServerCmd] `group:"Lifecycle"     summary:"Deploy the application"`
+	Status conga.Command[plainSubcommand]        `summary:"Show status"`
+}
+
 func TestHelpFlag_Root(t *testing.T) {
 	t.Parallel()
 
 	var buffer bytes.Buffer
 
-	app := conga.New[TestHelpRootCLI]().
-		Name("testapp").
+	app := newGoldenApp().
 		Args([]string{"--help"}).
 		Stdout(&buffer)
 
 	err := app.Run()
 
 	assert.NoError(t, err)
-	assert.Contains(t, buffer.String(), "Usage:\n  testapp")
+	assertGolden(t, "testdata/help/root.golden", goldenHelpRoot, buffer.String())
 }
 
 func TestHelpFlag_Subcommand(t *testing.T) {
@@ -66,15 +112,14 @@ func TestHelpFlag_Subcommand(t *testing.T) {
 
 	var buffer bytes.Buffer
 
-	app := conga.New[TestHelpRootCLI]().
-		Name("testapp").
-		Args([]string{"cluster", "node", "drain", "--help"}).
+	app := newGoldenApp().
+		Args([]string{"deploy", "--help"}).
 		Stdout(&buffer)
 
 	err := app.Run()
 
 	assert.NoError(t, err)
-	assert.Contains(t, buffer.String(), "Usage:\n  testapp cluster node drain")
+	assertGolden(t, "testdata/help/subcommand.golden", goldenHelpSubcommand, buffer.String())
 }
 
 func TestHelpFlag_PrecedenceOverRequired(t *testing.T) {
@@ -99,15 +144,14 @@ func TestHelpCommand_Root(t *testing.T) {
 
 	var buffer bytes.Buffer
 
-	app := conga.New[TestHelpRootCLI]().
-		Name("testapp").
+	app := newGoldenApp().
 		Args([]string{"help"}).
 		Stdout(&buffer)
 
 	err := app.Run()
 
 	assert.NoError(t, err)
-	assert.Contains(t, buffer.String(), "Usage:\n  testapp")
+	assertGolden(t, "testdata/help/root.golden", goldenHelpRoot, buffer.String())
 }
 
 func TestHelpCommand_SubcommandRouting(t *testing.T) {
@@ -186,12 +230,6 @@ func TestHelpFlag_RendersToConfiguredStdout(t *testing.T) {
 	assert.Contains(t, output, "--help")
 }
 
-type SpecialFlagsHelpCLI struct {
-	Verbose  conga.Counter                         `help:"Verbosity level"  short:"v"`
-	Location conga.OptionalFlag[bool]              `help:"Follow redirects" negatable:"true" short:"L"`
-	Tags     conga.OptionalFlag[map[string]string] `help:"Tags"             short:"t"`
-}
-
 func TestHelpFormatting_SpecialFlags(t *testing.T) {
 	t.Parallel()
 
@@ -212,10 +250,6 @@ func TestHelpFormatting_SpecialFlags(t *testing.T) {
 	assert.Contains(t, helpText, "-t, --tags=KEY=VALUE,...")
 }
 
-type ConfigFileHelpCLI struct {
-	ConfigFile conga.ConfigFile `help:"Path to config file" short:"c"`
-}
-
 func TestHelpFormatting_ConfigFileFlag(t *testing.T) {
 	t.Parallel()
 
@@ -234,18 +268,6 @@ func TestHelpFormatting_ConfigFileFlag(t *testing.T) {
 	assert.Contains(t, helpText, "-c, --config-file=PATH")
 	assert.Contains(t, helpText, "Path to config file")
 	assert.NotContains(t, helpText, "[default:")
-}
-
-type ConfigFileDefaultHelpCLI struct {
-	noopRunner
-
-	ConfigFile conga.ConfigFile
-}
-
-type MultiConfigFileDefaultHelpCLI struct {
-	noopRunner
-
-	ConfigFile conga.ConfigFile `multi:"true"`
 }
 
 func TestHelpFormatting_ConfigFileDefaultHelp(t *testing.T) {
@@ -305,32 +327,6 @@ func TestHelpFormatting_ConfigFileDefaultHelp(t *testing.T) {
 		assert.Contains(t, buffer.String(), "Path to configuration file (no configuration decoder registered)")
 	})
 }
-
-type plainSubcommand struct{}
-
-func (c *plainSubcommand) Run(_ context.Context, _ *conga.Session) error { return nil }
-
-type emptyDescSubcommand struct{}
-
-func (c *emptyDescSubcommand) Description() string { return "" }
-
-func (c *emptyDescSubcommand) Run(_ context.Context, _ *conga.Session) error { return nil }
-
-type richSubcommand struct{}
-
-func (c *richSubcommand) Description() string {
-	return "Deploy a container image.\n\nSupports rolling updates and rollbacks."
-}
-
-func (c *richSubcommand) Run(_ context.Context, _ *conga.Session) error { return nil }
-
-type exampleSubcommand struct{}
-
-func (c *exampleSubcommand) Examples() string {
-	return "# Deploy a single container\napp deploy --image nginx:alpine"
-}
-
-func (c *exampleSubcommand) Run(_ context.Context, _ *conga.Session) error { return nil }
 
 func TestDescriptionProvider_Fallback(t *testing.T) {
 	t.Parallel()
@@ -578,14 +574,6 @@ func TestFooter_GlobalInheritance(t *testing.T) {
 	})
 }
 
-type UserHelpFlagCLI struct {
-	Help conga.OptionalFlag[string] `help:"Custom help argument" name:"help"`
-}
-
-func (u *UserHelpFlagCLI) Run(_ context.Context, _ *conga.Session) error {
-	return nil
-}
-
 func TestHelp_CollisionWithoutDisableHelpFlag(t *testing.T) {
 	t.Parallel()
 
@@ -612,23 +600,6 @@ func TestHelp_CustomFlagWithDisableHelpFlag(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, "custom-topic", cli.Help.Get())
-}
-
-type TestGroupTagsFlagsCLI struct {
-	Verbose conga.OptionalFlag[bool]   `help:"Verbose logging" short:"v"`
-	Repo    conga.OptionalFlag[string] `group:"Source control" help:"Repository path"`
-	Quiet   conga.OptionalFlag[bool]   `group:"Output"         help:"Suppress output"     short:"q"`
-	Color   conga.OptionalFlag[bool]   `group:"Output"         help:"Colorize output"`
-	Config  conga.ConfigFile           `group:"Configuration"  help:"Path to config file"`
-}
-
-type TestGroupTagsServerCmd struct{}
-
-func (c *TestGroupTagsServerCmd) Run(_ context.Context, _ *conga.Session) error { return nil }
-
-type TestGroupTagsSubcommandsCLI struct {
-	Deploy conga.Command[TestGroupTagsServerCmd] `group:"Lifecycle"     summary:"Deploy the application"`
-	Status conga.Command[plainSubcommand]        `summary:"Show status"`
 }
 
 // TestHelpScreen_GroupTags_Flags verifies that the group struct tag drives
@@ -721,3 +692,29 @@ func TestHelpScreen_EnvPrefixDerived(t *testing.T) {
 	assert.Contains(t, subHelp, "[env: CUSTOM_PORT]")
 	assert.Contains(t, subHelp, "[env: MYAPP_WORKER]")
 }
+
+type plainSubcommand struct{}
+
+func (c *plainSubcommand) Run(_ context.Context, _ *conga.Session) error { return nil }
+
+type emptyDescSubcommand struct{}
+
+func (c *emptyDescSubcommand) Description() string { return "" }
+
+func (c *emptyDescSubcommand) Run(_ context.Context, _ *conga.Session) error { return nil }
+
+type richSubcommand struct{}
+
+func (c *richSubcommand) Description() string {
+	return "Deploy a container image.\n\nSupports rolling updates and rollbacks."
+}
+
+func (c *richSubcommand) Run(_ context.Context, _ *conga.Session) error { return nil }
+
+type exampleSubcommand struct{}
+
+func (c *exampleSubcommand) Examples() string {
+	return "# Deploy a single container\napp deploy --image nginx:alpine"
+}
+
+func (c *exampleSubcommand) Run(_ context.Context, _ *conga.Session) error { return nil }

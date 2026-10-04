@@ -1,0 +1,3 @@
+clustermgr: error: unknown command: clustr. Did you mean "cluster"?
+
+Run 'clustermgr --help' for more information.

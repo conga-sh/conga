@@ -4,13 +4,110 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/alecthomas/assert/v2"
 
 	"github.com/conga-sh/conga"
 )
+
+func TestSession_RootAndStreams(t *testing.T) {
+	t.Parallel()
+
+	buffer := &bytes.Buffer{}
+	app := conga.New[sessionTestRoot]().
+		Name("cloudctl").
+		Args([]string{"-v", "deploy", "api"}).
+		Stdout(buffer)
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, "verbose mode\ndeploying api\n", buffer.String())
+}
+
+func TestSession_Help(t *testing.T) {
+	t.Parallel()
+
+	buffer := &bytes.Buffer{}
+	app := conga.New[sessionHelpCmd]().
+		Name("myapp").
+		Args([]string{}).
+		Stdout(buffer)
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assertGolden(t, "testdata/help/session.golden", goldenHelpSession, buffer.String())
+}
+
+func TestSession_Usage(t *testing.T) {
+	t.Parallel()
+
+	buffer := &bytes.Buffer{}
+	app := conga.New[sessionUsageCmd]().
+		Name("myapp").
+		Args([]string{}).
+		Stderr(buffer)
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assertGolden(t, "testdata/help/usage.golden", goldenHelpUsage, buffer.String())
+}
+
+func TestSession_Version(t *testing.T) {
+	t.Parallel()
+
+	buffer := &bytes.Buffer{}
+	app := conga.New[sessionVersionCmd]().
+		Name("myapp").
+		Args([]string{}).
+		Version("2.5.0").
+		Stdout(buffer)
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Contains(t, buffer.String(), "myapp has version 2.5.0 built with ")
+}
+
+func TestSession_Metadata(t *testing.T) {
+	t.Parallel()
+
+	cli := new(sessionMetadataCmd)
+	app := conga.New(cli).
+		Name("myapp").
+		Args([]string{"sub"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, "myapp sub", cli.Sub.Get().RecordedPath)
+	assert.Equal(t, "sub", cli.Sub.Get().RecordedName)
+}
+
+func TestSession_LifecycleHooks(t *testing.T) {
+	t.Parallel()
+
+	cli := new(sessionLifecycleCmd)
+	app := conga.New(cli).
+		Name("runner").
+		Args([]string{})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+
+	expected := []string{
+		"Validate:runner",
+		"PreRun:runner",
+		"Run:runner",
+		"PostRun:runner",
+		"Finally:runner:false",
+	}
+	assert.Equal(t, expected, cli.Logs)
+}
 
 type sessionTestRoot struct {
 	Verbose conga.OptionalFlag[bool]        `short:"v"`
@@ -107,112 +204,4 @@ func (c *sessionLifecycleCmd) Finally(ctx context.Context, session *conga.Sessio
 	c.Logs = append(c.Logs, fmt.Sprintf("Finally:%s:%v", session.Name(), err != nil))
 
 	return nil
-}
-
-func TestSession_RootAndStreams(t *testing.T) {
-	t.Parallel()
-
-	buffer := &bytes.Buffer{}
-	app := conga.New[sessionTestRoot]().
-		Name("cloudctl").
-		Args([]string{"-v", "deploy", "api"}).
-		Stdout(buffer)
-
-	err := app.Run()
-
-	assert.NoError(t, err)
-
-	output := buffer.String()
-	assert.True(t, strings.Contains(output, "verbose mode"))
-	assert.True(t, strings.Contains(output, "deploying api"))
-}
-
-func TestSession_Help(t *testing.T) {
-	t.Parallel()
-
-	buffer := &bytes.Buffer{}
-	app := conga.New[sessionHelpCmd]().
-		Name("myapp").
-		Args([]string{}).
-		Stdout(buffer)
-
-	err := app.Run()
-
-	assert.NoError(t, err)
-
-	output := buffer.String()
-	assert.True(t, strings.Contains(output, "Usage:"))
-	assert.True(t, strings.Contains(output, "myapp"))
-}
-
-func TestSession_Usage(t *testing.T) {
-	t.Parallel()
-
-	buffer := &bytes.Buffer{}
-	app := conga.New[sessionUsageCmd]().
-		Name("myapp").
-		Args([]string{}).
-		Stderr(buffer)
-
-	err := app.Run()
-
-	assert.NoError(t, err)
-
-	output := buffer.String()
-	assert.True(t, strings.Contains(output, "Usage:"))
-}
-
-func TestSession_Version(t *testing.T) {
-	t.Parallel()
-
-	buffer := &bytes.Buffer{}
-	app := conga.New[sessionVersionCmd]().
-		Name("myapp").
-		Args([]string{}).
-		Version("2.5.0").
-		Stdout(buffer)
-
-	err := app.Run()
-
-	assert.NoError(t, err)
-
-	output := buffer.String()
-	assert.True(t, strings.Contains(output, "myapp has version 2.5.0"))
-}
-
-func TestSession_Metadata(t *testing.T) {
-	t.Parallel()
-
-	cli := new(sessionMetadataCmd)
-	app := conga.New(cli).
-		Name("myapp").
-		Args([]string{"sub"})
-
-	err := app.Run()
-
-	assert.NoError(t, err)
-	assert.Equal(t, "myapp sub", cli.Sub.Get().RecordedPath)
-	assert.Equal(t, "sub", cli.Sub.Get().RecordedName)
-}
-
-func TestSession_LifecycleHooks(t *testing.T) {
-	t.Parallel()
-
-	cli := new(sessionLifecycleCmd)
-	app := conga.New(cli).
-		Name("runner").
-		Args([]string{})
-
-	err := app.Run()
-
-	assert.NoError(t, err)
-
-	expected := []string{
-		"Validate:runner",
-		"PreRun:runner",
-		"Run:runner",
-		"PostRun:runner",
-		"Finally:runner:false",
-	}
-	assert.Equal(t, expected, cli.Logs)
 }

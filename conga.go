@@ -73,6 +73,11 @@ type UsageOnErrorMode int
 //
 // Create an instance using [New]. An App instance executes exactly once: calling
 // [App.Run] or [App.RunContext] a second time panics.
+//
+// The zero value is usable: the execution entry points install the same defaults
+// [New] sets (standard streams, the process exit function, and the built-in
+// `--help`/`--version` flags) on first use, so `var app conga.App[T]` behaves
+// like New[T]().
 type App[T any] struct {
 	appConfig[T]
 
@@ -86,6 +91,11 @@ type App[T any] struct {
 	// executed guards the single-execution contract: Run/RunContext may only
 	// execute once per App.
 	executed bool
+
+	// initialized records that applyDefaults has installed the engine defaults
+	// on the App. It makes initialization idempotent across New and the
+	// execution entry points, so a zero-value App behaves like New[T]().
+	initialized bool
 }
 
 // New creates a new fluent [App] builder for the root command struct of type T.
@@ -108,25 +118,17 @@ type App[T any] struct {
 //
 // Panics if more than one root instance is passed, or if the passed pointer is nil.
 //
+// New is the recommended constructor. The zero value of [App] is also usable and
+// behaves like New[T]().
+//
 // See https://docs.conga.sh/how-to/keep-root-reference/.
 func New[T any](root ...*T) *App[T] {
 	if len(root) > 1 {
 		panic("conga: New accepts at most one root instance")
 	}
 
-	app := &App[T]{
-		configData:          make(map[string]string),
-		predictors:          make(map[string]predict.Predictor),
-		typeRegistry:        make(map[reflect.Type]typeRegistration),
-		usageMode:           UsageSummary,
-		stdout:              os.Stdout,
-		stderr:              os.Stderr,
-		stdin:               os.Stdin,
-		exitFunc:            os.Exit,
-		strictTagValidation: true,
-		helpEnabled:         true,
-		versionEnabled:      true,
-	}
+	app := &App[T]{}
+	app.applyDefaults()
 
 	if len(root) == 1 {
 		if root[0] == nil {
@@ -319,7 +321,7 @@ func (a *App[T]) RegisterDecoder(extension string, decoder config.Decoder) *App[
 // To permit additional external tags (e.g. `kong`, `bson`, or custom annotations), pass
 // their keys to [App.AllowTags] rather than disabling strict validation entirely.
 func (a *App[T]) StrictTagValidation(strict bool) *App[T] {
-	a.strictTagValidation = strict
+	a.tagValidationDisabled = !strict
 
 	return a
 }
@@ -368,6 +370,8 @@ func (a *App[T]) AllowTags(tags ...string) *App[T] {
 //
 // See https://docs.conga.sh/how-to/wire-custom-completion/.
 func (a *App[T]) Predictor(name string, predictor predict.Predictor) *App[T] {
+	a.applyDefaults()
+
 	if name == "" {
 		panic("conga: predictor name cannot be empty")
 	}
@@ -403,7 +407,7 @@ func (a *App[T]) EnableCompletion() *App[T] {
 //
 // See https://docs.conga.sh/reference/builtins/.
 func (a *App[T]) DisableHelpFlag() *App[T] {
-	a.helpEnabled = false
+	a.helpDisabled = true
 
 	return a
 }
@@ -414,7 +418,7 @@ func (a *App[T]) DisableHelpFlag() *App[T] {
 //
 // See https://docs.conga.sh/reference/builtins/.
 func (a *App[T]) DisableVersionFlag() *App[T] {
-	a.versionEnabled = false
+	a.versionDisabled = true
 
 	return a
 }
@@ -616,6 +620,8 @@ func (a *App[T]) RegisterMap[M ~map[K]V, K comparable, V any](_ M, opts ...Regis
 //   - If ctx is nil.
 //   - If the App has already been executed: an App instance runs exactly once.
 func (a *App[T]) RunContext(ctx context.Context) error {
+	a.applyDefaults()
+
 	a.initDefaults()
 
 	if a.handleCompletionInvocation != nil && a.isCompletionInvocation() {
@@ -776,6 +782,8 @@ func (a *App[T]) ExitFunc(exitHandler func(code int)) *App[T] {
 //
 // See https://docs.conga.sh/explanation/error-reporting/.
 func (a *App[T]) FatalIfError(err error) {
+	a.applyDefaults()
+
 	if err == nil {
 		return
 	}
@@ -887,36 +895,36 @@ type typeRegistration struct {
 // of truth for configuration state: New populates it with defaults and the
 // builder methods mutate it.
 type appConfig[T any] struct {
-	name                string
-	description         string
-	examples            string
-	footer              string
-	deprecated          string
-	deprecationNotices  []string
-	version             string
-	envPrefix           string
-	configOptions       []config.Option
-	configSettings      spec.ConfigSettings
-	configRegistry      *configengine.Registry
-	configEngine        configEngineFactory
-	dotenvPaths         []string
-	dotenvLoader        func(paths ...string) error
-	configData          map[string]string
-	args                []string
-	argsExplicitlySet   bool
-	usageMode           UsageOnErrorMode
-	stdout              io.Writer
-	stderr              io.Writer
-	stdin               io.Reader
-	exitFunc            func(code int)
-	strictTagValidation bool
-	allowedTags         []string
-	predictors          map[string]predict.Predictor
-	typeRegistry        map[reflect.Type]typeRegistration
-	helpEnabled         bool
-	versionEnabled      bool
-	helpOptions         help.Options
-	completionShells    []string
+	name                  string
+	description           string
+	examples              string
+	footer                string
+	deprecated            string
+	deprecationNotices    []string
+	version               string
+	envPrefix             string
+	configOptions         []config.Option
+	configSettings        spec.ConfigSettings
+	configRegistry        *configengine.Registry
+	configEngine          configEngineFactory
+	dotenvPaths           []string
+	dotenvLoader          func(paths ...string) error
+	configData            map[string]string
+	args                  []string
+	argsExplicitlySet     bool
+	usageMode             UsageOnErrorMode
+	stdout                io.Writer
+	stderr                io.Writer
+	stdin                 io.Reader
+	exitFunc              func(code int)
+	tagValidationDisabled bool
+	allowedTags           []string
+	predictors            map[string]predict.Predictor
+	typeRegistry          map[reflect.Type]typeRegistration
+	helpDisabled          bool
+	versionDisabled       bool
+	helpOptions           help.Options
+	completionShells      []string
 	// inferPredictor performs type-based predictor inference during schema
 	// build. Completion installs it; nil keeps the inference machinery
 	// (including its filesystem probes) unreferenced at link time.
@@ -1082,6 +1090,46 @@ func (a *App[T]) completeCompLineForShell(targetShell string, compLine string, c
 	return a.completeForShell(targetShell, words)
 }
 
+// applyDefaults installs the engine defaults a fresh App starts from: the
+// standard process streams, the process exit function, and the internal
+// registries. It is idempotent; New calls it eagerly and the execution entry
+// points call it again, so a zero-value App behaves like New[T]().
+func (a *App[T]) applyDefaults() {
+	if a.initialized {
+		return
+	}
+
+	a.initialized = true
+
+	if a.stdout == nil {
+		a.stdout = os.Stdout
+	}
+
+	if a.stderr == nil {
+		a.stderr = os.Stderr
+	}
+
+	if a.stdin == nil {
+		a.stdin = os.Stdin
+	}
+
+	if a.exitFunc == nil {
+		a.exitFunc = os.Exit
+	}
+
+	if a.predictors == nil {
+		a.predictors = make(map[string]predict.Predictor)
+	}
+
+	if a.configData == nil {
+		a.configData = make(map[string]string)
+	}
+
+	if a.typeRegistry == nil {
+		a.typeRegistry = make(map[reflect.Type]typeRegistration)
+	}
+}
+
 func (a *App[T]) initDefaults() {
 	a.name = cond.SetOrDefaultFunc(a.name, getAppName)
 
@@ -1151,7 +1199,7 @@ func (a *App[T]) buildSpec() (*spec.Command, error) {
 	}
 
 	opts := spec.Options{
-		StrictTagValidation:  a.strictTagValidation,
+		StrictTagValidation:  !a.tagValidationDisabled,
 		AllowedTags:          a.allowedTags,
 		RegisteredPredictors: a.predictors,
 		TypePredictors:       a.collectTypePredictors(),
@@ -1161,8 +1209,8 @@ func (a *App[T]) buildSpec() (*spec.Command, error) {
 		}),
 		ConfigSettings:    a.configSettings,
 		ConfigCapable:     a.configEngine != nil,
-		DisableHelp:       !a.helpEnabled,
-		DisableVersion:    !a.versionEnabled,
+		DisableHelp:       a.helpDisabled,
+		DisableVersion:    a.versionDisabled,
 		DisableWhy:        a.whyRenderer == nil,
 		DisableCompletion: a.mountCompletion == nil,
 		CompletionShells:  a.completionShells,

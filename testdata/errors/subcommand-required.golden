@@ -1,0 +1,11 @@
+clustermgr: error: subcommand required for "clustermgr"
+
+Usage:
+  clustermgr <command>
+
+Commands:
+  cluster  
+
+Flags:
+      --help     Show help
+      --version  Show version
