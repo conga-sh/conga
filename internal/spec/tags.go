@@ -461,6 +461,13 @@ func extractFlagKindInfo(structField reflect.StructField, classification contain
 
 func parseFlagSpec(structField reflect.StructField, flagHandle any, classification container.Classification, fieldTags FieldTags, opts Options) (*Flag, error) {
 	kindInfo := extractFlagKindInfo(structField, classification)
+
+	if kindInfo.isCounter {
+		if err := ValidateCounterDefaultTag(structField.Tag); err != nil {
+			return nil, err
+		}
+	}
+
 	name := extractFlagName(structField)
 	shortRune := extractFlagShort(structField.Tag)
 

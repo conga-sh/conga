@@ -142,6 +142,15 @@ func ValidateConfigFileConfigTag(tag reflect.StructTag) error {
 	return nil
 }
 
+// ValidateCounterDefaultTag rejects a default struct tag on a counter flag.
+func ValidateCounterDefaultTag(tag reflect.StructTag) error {
+	if _, ok := tag.Lookup("default"); ok {
+		return fmt.Errorf("%w: tag \"default\" is not supported on counter flags; counters count command-line occurrences starting at 0. Seed a base level with an env or config-file binding, or use OptionalFlag[int] for a numeric default", ErrInvalidStructTag)
+	}
+
+	return nil
+}
+
 // CascadingRequiresMultiError builds the cascading⟹multi arity-guard error
 // for a root config-file flag: a flag without multi:"true" cannot report
 // every merged file under Cascading(). The error wraps ErrSchema so runtime

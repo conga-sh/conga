@@ -857,12 +857,12 @@ func (c *ConfigFile) String() string {
 //	}
 //
 // When invoked as `app -vvv`, Verbose.Get() returns 3. With no occurrences and no
-// `default` tag, Verbose.Get() returns 0.
+// other source, Verbose.Get() returns 0.
 //
-// A `default:"N"` tag seeds the count when the flag is omitted, and
-// [Counter.Changed] reports false for a defaulted count. An explicit occurrence
-// replaces that seed rather than adding to it: with `default:"2"`, `app -v`
-// resolves to 1, not 3.
+// Counters count command-line occurrences starting at 0, so a `default` tag is
+// rejected at schema build. An environment or configuration file binding seeds a
+// base level that command-line occurrences override; use [OptionalFlag] with an
+// integer type for a counted value that needs a numeric default.
 type Counter struct {
 	value        int
 	set          bool
@@ -871,13 +871,13 @@ type Counter struct {
 	sourceDetail string
 }
 
-// IsSet reports whether the counter flag received a count from any source,
-// including a `default:"..."` tag.
+// IsSet reports whether the counter flag received a count from any source: a
+// CLI flag, an environment variable, or a configuration file.
 func (c *Counter) IsSet() bool { return c.set }
 
-// Get returns the resolved occurrence count: the number of command-line
-// occurrences, the `default` value when the flag is omitted, or 0 when neither
-// applies. An explicit occurrence replaces a defaulted count; see [Counter].
+// Get returns the resolved count: command-line occurrences take precedence, then
+// an environment or configuration file binding, then 0 when no source supplied
+// one. See [Counter].
 func (c *Counter) Get() int {
 	return c.value
 }
@@ -892,8 +892,9 @@ func (c *Counter) GetOr(fallback int) int {
 	return c.value
 }
 
-// Changed reports whether the count came from an explicit command-line occurrence
-// rather than a `default:"..."` tag.
+// Changed reports whether the count was explicitly supplied by a CLI flag,
+// environment variable, or configuration file. It is always true when
+// [Counter.IsSet] is true, since counters accept no `default` tag.
 func (c *Counter) Changed() bool {
 	return c.changed
 }

@@ -61,6 +61,10 @@ type ConfigFileDefaultTagCLI struct {
 	Config mockConfigFile `default:"config.yaml" help:"Config file path"`
 }
 
+type CounterDefaultTagCLI struct {
+	Verbose mockCounter `default:"2" help:"Verbosity level"`
+}
+
 type SentinelInvalidTagCLI struct {
 	_    struct{}      `help:"App description"`
 	Port mockFlag[int] `help:"Port"`
@@ -275,6 +279,19 @@ func TestStrictTagLinter_ContextValidation(t *testing.T) {
 		assert.IsError(t, err, spec.ErrSchema)
 		assert.IsError(t, err, spec.ErrInvalidStructTag)
 		assert.Equal(t, `struct ConfigFileDefaultTagCLI field Config: schema error: invalid struct tag: tag "default" is not supported on config-file flags; declare search locations with app.ConfigOptions(config.Paths(...)) or config.Explicit(...), or show an example value with placeholder:"..."`, err.Error())
+	})
+
+	t.Run("default tag on counter errors", func(t *testing.T) {
+		t.Parallel()
+
+		var cli CounterDefaultTagCLI
+
+		_, err := buildSchema(&cli, "app", spec.Options{})
+
+		assert.Error(t, err)
+		assert.IsError(t, err, spec.ErrSchema)
+		assert.IsError(t, err, spec.ErrInvalidStructTag)
+		assert.Equal(t, `struct CounterDefaultTagCLI field Verbose: schema error: invalid struct tag: tag "default" is not supported on counter flags; counters count command-line occurrences starting at 0. Seed a base level with an env or config-file binding, or use OptionalFlag[int] for a numeric default`, err.Error())
 	})
 
 	t.Run("help tag on sentinel field errors", func(t *testing.T) {

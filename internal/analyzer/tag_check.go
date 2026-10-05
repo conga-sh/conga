@@ -180,6 +180,10 @@ func (w *walker) checkFlagField(node *commandNode, fieldObject types.Object, tag
 		return
 	}
 
+	if w.congaWrapperName(fieldObject.Type()) == "Counter" {
+		w.reportFieldError(node, fieldObject, spec.ValidateCounterDefaultTag(tag))
+	}
+
 	w.reportFieldError(node, fieldObject, spec.ValidatePredictorTag(tag, isBasicKind(targetType, types.Bool), w.predictorOptions(), w.options.registeredNames))
 	w.checkValidationSpecs(node, fieldObject, tag, targetType)
 

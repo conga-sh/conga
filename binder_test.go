@@ -491,6 +491,52 @@ func TestBinder_CounterFlag(t *testing.T) {
 	})
 }
 
+func TestBinder_CounterEnvSeed(t *testing.T) {
+	t.Setenv("VERBOSE_LEVEL", "3")
+
+	type CLI struct {
+		noopRunner
+
+		Verbose conga.Counter `env:"VERBOSE_LEVEL" help:"Verbosity level" short:"v"`
+	}
+
+	cli := new(CLI)
+	app := conga.New(cli).
+		Name("counterapp").
+		Args([]string{})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.True(t, cli.Verbose.IsSet())
+	assert.Equal(t, 3, cli.Verbose.Get())
+	assert.True(t, cli.Verbose.Changed())
+	assert.Equal(t, conga.SourceEnv, cli.Verbose.Source())
+}
+
+func TestBinder_CounterCLIOverridesEnv(t *testing.T) {
+	t.Setenv("VERBOSE_LEVEL", "3")
+
+	type CLI struct {
+		noopRunner
+
+		Verbose conga.Counter `env:"VERBOSE_LEVEL" help:"Verbosity level" short:"v"`
+	}
+
+	cli := new(CLI)
+	app := conga.New(cli).
+		Name("counterapp").
+		Args([]string{"-vv"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.True(t, cli.Verbose.IsSet())
+	assert.Equal(t, 2, cli.Verbose.Get())
+	assert.Equal(t, conga.SourceCLI, cli.Verbose.Source())
+	assert.True(t, cli.Verbose.Changed())
+}
+
 func TestBinder_UnknownShortFlag(t *testing.T) {
 	t.Parallel()
 
