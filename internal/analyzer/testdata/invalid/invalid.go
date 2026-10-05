@@ -34,6 +34,13 @@ type RequiredTagApp struct { // want `does not implement conga\.Runner`
 
 var _ = conga.New[RequiredTagApp]()
 
+// CounterDefaultApp declares the unsupported default tag on a counter flag.
+type CounterDefaultApp struct { // want `does not implement conga\.Runner`
+	Verbose conga.Counter `name:"verbose" default:"2" help:"Verbose output"` // want `tag "default" is not supported on counter flags`
+}
+
+var _ = conga.New[CounterDefaultApp]()
+
 // HelpChild is a leaf subcommand.
 type HelpChild struct {
 	Leaf conga.OptionalFlag[bool] `name:"leaf" help:"Leaf flag"`

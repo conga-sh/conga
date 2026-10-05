@@ -13,7 +13,7 @@ type KitchenSinkCLI struct {
 	Config conga.ConfigFile `name:"config-file" short:"c"`
 
 	// Conventional root flags, all bound from top-level config keys
-	Verbosity conga.Counter              `default:"0"         safe:"true"                                  short:"v"`
+	Verbosity conga.Counter              `safe:"true"         short:"v"`
 	Format    conga.OptionalFlag[string] `default:"json"      enum:"json,yaml,toml,hcl"                    safe:"true"`
 	Cache     conga.OptionalFlag[bool]   `default:"true"      help:"Enable cache"                          negatable:"true" safe:"true"`
 	SecretKey conga.OptionalFlag[string] `config:"api_secret" help:"API secret (config key remapped)"      safe:"true"`

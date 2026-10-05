@@ -11,12 +11,12 @@ CONGA derives the CLI schema from struct fields and their tags. The engine valid
 |-----|:--------:|:--------:|:-------:|---------|
 | `aliases` | ✅ | ✅ | – | Comma-separated long-name aliases. |
 | `and` | ✅ | ✅ | – | Required co-occurrence group name whose members must all be set together. |
-| `config` | ✅ | ✅ | – | Config file key feeding the flag (default: flag name). `config:"-"` excludes the field from config files. |
+| `config` | ✅ | ✅ | ✅ | Config file key feeding the flag (default: flag name). `config:"-"` excludes the field from config files. |
 | `conga` | ✅ | ✅ | ✅ | Directives (see [`conga` directives](#conga-directives)). |
 | `default` | ✅ | – | – | Default value when no other source provides one. Coerced with the same parser as CLI input. |
 | `deprecated` | ✅ | – | ✅ | Deprecation notice; suppresses flag from completion. |
 | `enum` | ✅ | ✅ | – | Comma-separated allowed values. |
-| `env` | ✅ | ✅ | – | Comma-separated environment variable names. `env:"-"` disables environment binding. Explicit names ignore `envprefix`. |
+| `env` | ✅ | ✅ | ✅ | Comma-separated environment variable names. `env:"-"` disables environment binding. Explicit names ignore `envprefix`. |
 | `group` | ✅ | ✅ | ✅ | Help-screen grouping header. Flags sharing a group render under their own titled section. |
 | `help` | ✅ | ✅ | ✅ | Help text displayed on the help screen. Supports [help variables](#help-variables). |
 | `hidden` | ✅ | ✅ | ✅ | Suppress from help and completion (`hidden` or `hidden:"true"`). |
@@ -31,6 +31,8 @@ CONGA derives the CLI schema from struct fields and their tags. The engine valid
 | `sep` | ✅ (slices) | ✅ (slices) | – | Slice separator (default `","`). `sep:"none"` disables splitting, preserving the unparsed string. |
 | `short` | ✅ | ✅ | ✅ | Single-rune short flag (e.g. `short:"n"`). |
 | `xor` | ✅ | ✅ | – | Mutually exclusive group name. |
+
+The `default` tag is rejected on `Counter` flags. Counters count command-line occurrences starting at 0; seed a base level with an `env` or config-file binding, or use `OptionalFlag[int]` for a numeric default.
 
 ## Positional arguments (`OptionalArg[T]`, `RequiredArg[T]`)
 
