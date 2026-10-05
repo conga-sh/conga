@@ -14,7 +14,7 @@ func TestAnalyzer(t *testing.T) {
 	t.Parallel()
 
 	testData := analysistest.TestData()
-	analysistest.Run(t, testData, analyzer.Analyzer, "./valid", "./invalid", "./anchorpkg", "./cascading", "./cascadingclean", "./cascadingnoflag", "./cascadingmasked", "./cascadinginnocent", "./cascadingambiguous", "./envprefixambiguous")
+	analysistest.Run(t, testData, analyzer.Analyzer, "./valid", "./invalid", "./anchorpkg", "./cascading", "./cascadingclean", "./cascadingnoflag", "./cascadingmasked", "./cascadinginnocent", "./cascadingambiguous", "./envprefixambiguous", "./completiondisabled", "./completionenabled", "./completionenabledstmt", "./completionmulti", "./completionescape", "./completionargeak", "./completionforeign")
 }
 
 func TestAnalyzerStrictFlag(t *testing.T) {

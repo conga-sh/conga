@@ -161,6 +161,16 @@ func CascadingRequiresMultiError(flagName string) error {
 	return fmt.Errorf("%w: Cascading() merges multiple configuration files; the root config-file flag %q must declare multi:\"true\" (or drop Cascading() from app.ConfigOptions(...))", ErrSchema, flagName)
 }
 
+// CompletionRequiresEnableError builds the completion⟹enable schema guard: a
+// command struct that declares a CompletionCommand field while completion is
+// disabled would have the field silently dropped, so schema build rejects it
+// and names the missing opt-in. The error wraps ErrSchema so runtime schema
+// validation returns it directly and the static analyzer reports it verbatim,
+// keeping the lint-time and runtime messages a single source of truth.
+func CompletionRequiresEnableError() error {
+	return fmt.Errorf("%w: completion command declared without completion enabled; call app.EnableCompletion() when constructing the app, or remove the field", ErrSchema)
+}
+
 // ValidatePredictorTag validates an explicit predictor:"..." struct tag
 // without runtime predictor inference: built-in predictor vocabulary is
 // always checked; custom predictor names only under strict tag validation.
