@@ -476,7 +476,7 @@ func TestApp_Predictor_DuplicateRegistrationPanic(t *testing.T) {
 func TestApp_CompletionOffByDefault_RejectsCompletionCommand(t *testing.T) {
 	t.Parallel()
 
-	t.Run("single command app rejects completion as unexpected arg", func(t *testing.T) {
+	t.Run("single command app fails schema build", func(t *testing.T) {
 		t.Parallel()
 
 		type CLI struct {
@@ -491,11 +491,11 @@ func TestApp_CompletionOffByDefault_RejectsCompletionCommand(t *testing.T) {
 
 		err := app.Run()
 
-		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assert.IsError(t, err, conga.ErrSchema)
+		assert.Equal(t, "struct CLI field Completion: schema error: completion command declared without completion enabled; call app.EnableCompletion() when constructing the app, or remove the field", err.Error())
 	})
 
-	t.Run("multi command app rejects completion as unknown command", func(t *testing.T) {
+	t.Run("multi command app fails schema build", func(t *testing.T) {
 		t.Parallel()
 
 		type StatusSubcommand struct {
@@ -514,8 +514,8 @@ func TestApp_CompletionOffByDefault_RejectsCompletionCommand(t *testing.T) {
 
 		err := app.Run()
 
-		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrParse)
+		assert.IsError(t, err, conga.ErrSchema)
+		assert.Equal(t, "struct CLI field Completion: schema error: completion command declared without completion enabled; call app.EnableCompletion() when constructing the app, or remove the field", err.Error())
 	})
 }
 

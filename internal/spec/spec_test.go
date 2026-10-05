@@ -263,6 +263,17 @@ func TestBuildSchema(t *testing.T) {
 		assert.True(t, completionCmd.IsCompletionCmd)
 	})
 
+	t.Run("declared completion command without completion enabled rejected", func(t *testing.T) {
+		t.Parallel()
+
+		var cli BuiltinTestCLI
+
+		_, err := buildSchema(&cli, "app", spec.Options{DisableCompletion: true})
+
+		assert.IsError(t, err, spec.ErrSchema)
+		assert.Equal(t, "struct BuiltinTestCLI field Completion: schema error: completion command declared without completion enabled; call app.EnableCompletion() when constructing the app, or remove the field", err.Error())
+	})
+
 	t.Run("range on int with invalid bound rejected at build time", func(t *testing.T) {
 		t.Parallel()
 
