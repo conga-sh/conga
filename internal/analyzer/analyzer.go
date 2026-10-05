@@ -27,7 +27,7 @@ import (
 //nolint:gochecknoglobals // the analysis framework requires a package-level Analyzer value
 var Analyzer = &analysis.Analyzer{
 	Name: "congalint",
-	Doc:  "checks CONGA CLI struct definitions for contract compliance (leaf command Runner enforcement, struct tag validation, ancestor flag shadowing, throwaway root detection) plus opt-in fluent builder call order checking",
+	Doc:  "checks CONGA CLI struct definitions for contract compliance (leaf command Runner enforcement, struct tag validation, ancestor flag shadowing, throwaway root detection, completion command opt-in enforcement) plus opt-in fluent builder call order checking",
 	Run:  run,
 	Requires: []*analysis.Analyzer{
 		inspect.Analyzer,
@@ -57,6 +57,11 @@ type anchor struct {
 	packageObject *types.Package
 	rootType      *types.Named
 	position      token.Pos
+	// file and call locate the construction site, so per-anchor builder facts
+	// can be attributed by tracking the app value through the surrounding
+	// statements.
+	file *ast.File
+	call *ast.CallExpr
 }
 
 // appOptions holds the statically detected builder options that gate strict
@@ -264,7 +269,7 @@ func run(pass *analysis.Pass) (any, error) {
 		options.forceStrict()
 	}
 
-	walker := newWalker(pass, congaTypes, options, len(anchors) == 1)
+	walker := newWalker(pass, congaTypes, options, detectCompletionState(pass, anchors), len(anchors) == 1)
 	for _, anchor := range anchors {
 		walker.walkRoot(anchor)
 	}
@@ -307,6 +312,10 @@ func discoverAnchors(pass *analysis.Pass) []*anchor {
 			}
 
 			seenRootTypes[found.rootType.Obj()] = true
+
+			found.file = file
+			found.call = node
+
 			anchors = append(anchors, found)
 		}
 	}

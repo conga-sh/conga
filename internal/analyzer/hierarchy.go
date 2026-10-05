@@ -75,6 +75,10 @@ type walker struct {
 	reported     map[string]bool
 	visitPath    map[types.Object]bool
 	singleAnchor bool
+	// completionState is the per-anchor completion verdict: the completion
+	// command guard reports only when the anchored app definitely never calls
+	// EnableCompletion.
+	completionState completionState
 	// configFileMulti tracks the root command's config-file flag arity
 	// (multi tag) for the cascading guard: nil when no field is declared.
 	// The state is reset per walked root.
@@ -84,14 +88,15 @@ type walker struct {
 	configFileNode        *commandNode
 }
 
-func newWalker(pass *analysis.Pass, congaTypes *congaTypes, options *appOptions, singleAnchor bool) *walker {
+func newWalker(pass *analysis.Pass, congaTypes *congaTypes, options *appOptions, completionState completionState, singleAnchor bool) *walker {
 	return &walker{
-		pass:         pass,
-		conga:        congaTypes,
-		options:      options,
-		reported:     make(map[string]bool),
-		visitPath:    make(map[types.Object]bool),
-		singleAnchor: singleAnchor,
+		pass:            pass,
+		conga:           congaTypes,
+		options:         options,
+		reported:        make(map[string]bool),
+		visitPath:       make(map[types.Object]bool),
+		singleAnchor:    singleAnchor,
+		completionState: completionState,
 	}
 }
 
@@ -190,7 +195,7 @@ func (w *walker) checkField(node *commandNode, fieldObject types.Object, tag ref
 
 		return nil
 	case "completion command":
-		w.checkBuiltinCommandField(node, fieldObject, tag, role)
+		w.checkCompletionCommandField(node, fieldObject, tag)
 
 		return nil
 	case "config file flag":

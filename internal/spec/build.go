@@ -549,7 +549,7 @@ func (b *schemaBuilder) processBuiltinCommand(structField reflect.StructField, c
 	// reject `completion <shell>` with unrelated parse/validation errors that
 	// never name the missing opt-in.
 	if kind == builtinCompletion && b.opts.DisableCompletion {
-		return fmt.Errorf("%w: completion command declared without completion enabled; call app.EnableCompletion() when constructing the app, or remove the field", ErrSchema)
+		return CompletionRequiresEnableError()
 	}
 
 	subcommand, err := b.newBuiltinSubcommand(structField, kind, classification.Target)

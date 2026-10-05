@@ -104,6 +104,24 @@ func (w *walker) checkBuiltinCommandField(node *commandNode, fieldObject types.O
 	w.reportFieldError(node, fieldObject, summaryTagError(tag))
 }
 
+// checkCompletionCommandField validates a built-in completion command field
+// and mirrors the runtime opt-in guard: a declared CompletionCommand under an
+// app that never calls EnableCompletion is rejected at schema build. Tag
+// validation runs first (an ignored or invalid field short-circuits the guard,
+// exactly like the runtime), and undecided per-anchor evidence leaves the
+// diagnostic suppressed.
+func (w *walker) checkCompletionCommandField(node *commandNode, fieldObject types.Object, tag reflect.StructTag) {
+	if !w.validateNodeFieldTags(node, fieldObject, tag, "completion command", nil) {
+		return
+	}
+
+	w.reportFieldError(node, fieldObject, summaryTagError(tag))
+
+	if w.completionState == completionDisabled {
+		w.reportFieldError(node, fieldObject, spec.CompletionRequiresEnableError())
+	}
+}
+
 // checkConfigFileField validates a config file flag field and folds it into
 // the ancestor shadow maps (runtime config file flags join cmd.Flags). The
 // config-file tag vocabulary (multi) is engine-owned and shared through the
