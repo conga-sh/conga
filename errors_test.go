@@ -567,10 +567,10 @@ func TestSliceEnumValidation_Issue03(t *testing.T) {
 	})
 }
 
-func TestFatalIfError_OutputsAndExits(t *testing.T) {
+func TestExit_OutputsAndExits(t *testing.T) {
 	t.Parallel()
 
-	t.Run("nil error does not output or exit", func(t *testing.T) {
+	t.Run("nil error exits with status 0 and no output", func(t *testing.T) {
 		t.Parallel()
 
 		var (
@@ -584,13 +584,13 @@ func TestFatalIfError_OutputsAndExits(t *testing.T) {
 				exitCode = code
 			})
 
-		app.FatalIfError(nil)
+		app.Exit(nil)
 
-		assert.Equal(t, -1, exitCode)
+		assert.Equal(t, 0, exitCode)
 		assert.Equal(t, "", buffer.String())
 	})
 
-	t.Run("calling FatalIfError before Run outputs error and exits with status 1", func(t *testing.T) {
+	t.Run("calling Exit before Run outputs error and exits with status 1", func(t *testing.T) {
 		t.Parallel()
 
 		var (
@@ -605,7 +605,7 @@ func TestFatalIfError_OutputsAndExits(t *testing.T) {
 				exitCode = code
 			})
 
-		app.FatalIfError(errors.New("premature error"))
+		app.Exit(errors.New("premature error"))
 
 		assert.Equal(t, 1, exitCode)
 		assert.Equal(t, "clustermgr: error: premature error\n", buffer.String())
@@ -630,7 +630,7 @@ func TestFatalIfError_OutputsAndExits(t *testing.T) {
 		err := app.RunContext(t.Context())
 		assert.Error(t, err)
 
-		app.FatalIfError(err)
+		app.Exit(err)
 
 		assert.Equal(t, 2, exitCode)
 		assertGolden(t, "testdata/errors/usage-default.golden", goldenErrorsUsageDefault, buffer.String())
@@ -656,7 +656,7 @@ func TestFatalIfError_OutputsAndExits(t *testing.T) {
 		err := app.RunContext(t.Context())
 		assert.Error(t, err)
 
-		app.FatalIfError(err)
+		app.Exit(err)
 
 		assert.Equal(t, 2, exitCode)
 		assertGolden(t, "testdata/errors/usage-silence.golden", goldenErrorsUsageSilence, buffer.String())
@@ -682,7 +682,7 @@ func TestFatalIfError_OutputsAndExits(t *testing.T) {
 		err := app.RunContext(t.Context())
 		assert.Error(t, err)
 
-		app.FatalIfError(err)
+		app.Exit(err)
 
 		assert.Equal(t, 2, exitCode)
 		assertGolden(t, "testdata/errors/usage-full.golden", goldenErrorsUsageFull, buffer.String())
@@ -708,7 +708,7 @@ func TestFatalIfError_OutputsAndExits(t *testing.T) {
 		assert.Error(t, err)
 		assert.IsError(t, err, conga.ErrParse)
 
-		app.FatalIfError(err)
+		app.Exit(err)
 
 		assert.Equal(t, 2, exitCode)
 		assertGolden(t, "testdata/errors/subcommand-required.golden", goldenErrorsSubcommandRequired, buffer.String())
@@ -734,7 +734,7 @@ func TestFatalIfError_OutputsAndExits(t *testing.T) {
 		err := app.RunContext(t.Context())
 		assert.Error(t, err)
 
-		app.FatalIfError(err)
+		app.Exit(err)
 
 		assert.Equal(t, 2, exitCode)
 		assertGolden(t, "testdata/errors/usage-hint.golden", goldenErrorsUsageHint, buffer.String())
@@ -759,7 +759,7 @@ func TestFatalIfError_OutputsAndExits(t *testing.T) {
 		err := app.RunContext(t.Context())
 		assert.Error(t, err)
 
-		app.FatalIfError(err)
+		app.Exit(err)
 
 		assert.Equal(t, 1, exitCode)
 		assert.Equal(t, "app: error: permission denied\n", buffer.String())
@@ -784,14 +784,14 @@ func TestFatalIfError_OutputsAndExits(t *testing.T) {
 		err := app.RunContext(t.Context())
 		assert.Error(t, err)
 
-		app.FatalIfError(err)
+		app.Exit(err)
 
 		assert.Equal(t, 2, exitCode)
 		assertGolden(t, "testdata/errors/invalid-value.golden", goldenErrorsInvalidValue, buffer.String())
 	})
 }
 
-func TestFatalIfError_ValueErrorsRenderWithoutUsage(t *testing.T) {
+func TestExit_ValueErrorsRenderWithoutUsage(t *testing.T) {
 	t.Parallel()
 
 	t.Run("domain-type validation error renders message only in default usage mode", func(t *testing.T) {
@@ -816,7 +816,7 @@ func TestFatalIfError_ValueErrorsRenderWithoutUsage(t *testing.T) {
 		assert.Error(t, err)
 		assert.True(t, conga.IsUsageError(err))
 
-		app.FatalIfError(err)
+		app.Exit(err)
 
 		assert.Equal(t, 2, exitCode)
 		assert.Equal(t, fmt.Sprintf("app: error: %q is a directory, but a file was expected for flag --file\n", tmpDir), buffer.String())
@@ -844,7 +844,7 @@ func TestFatalIfError_ValueErrorsRenderWithoutUsage(t *testing.T) {
 		err := app.RunContext(t.Context())
 		assert.Error(t, err)
 
-		app.FatalIfError(err)
+		app.Exit(err)
 
 		assert.Equal(t, 2, exitCode)
 		assert.Equal(t, fmt.Sprintf("app: error: %q is a directory, but a file was expected for flag --file\n", tmpDir), buffer.String())
@@ -869,7 +869,7 @@ func TestFatalIfError_ValueErrorsRenderWithoutUsage(t *testing.T) {
 		err := app.RunContext(t.Context())
 		assert.Error(t, err)
 
-		app.FatalIfError(err)
+		app.Exit(err)
 
 		assert.Equal(t, 2, exitCode)
 		assert.Equal(t, "app: error: score 150 must be between 0 and 100 for flag --score\n", buffer.String())
@@ -894,7 +894,7 @@ func TestFatalIfError_ValueErrorsRenderWithoutUsage(t *testing.T) {
 		err := app.RunContext(t.Context())
 		assert.Error(t, err)
 
-		app.FatalIfError(err)
+		app.Exit(err)
 
 		assert.Equal(t, 2, exitCode)
 		assertGolden(t, "testdata/errors/missing-required-flag.golden", goldenErrorsMissingRequiredFlag, buffer.String())

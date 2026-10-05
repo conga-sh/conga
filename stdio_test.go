@@ -261,7 +261,7 @@ func TestStdio_SessionStreamsFrozenAfterAppMutation(t *testing.T) {
 	assert.True(t, cli.session.Stdin() == io.Reader(original))
 }
 
-func TestStdio_FatalIfErrorUsesCurrentStderr(t *testing.T) {
+func TestStdio_ExitUsesCurrentStderr(t *testing.T) {
 	t.Parallel()
 
 	var (
@@ -281,7 +281,7 @@ func TestStdio_FatalIfErrorUsesCurrentStderr(t *testing.T) {
 
 	app.Stderr(&updatedBuffer)
 
-	app.FatalIfError(err)
+	app.Exit(err)
 
 	assert.NotEqual(t, "", updatedBuffer.String())
 	assert.Equal(t, "", initialBuffer.String())

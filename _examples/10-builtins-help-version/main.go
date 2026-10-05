@@ -76,5 +76,7 @@ func main() {
 		Footer("infomgr home: https://example.com/infomgr").
 		UsageOnError(conga.UsageHint)
 
-	app.FatalIfError(app.Run())
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
 }

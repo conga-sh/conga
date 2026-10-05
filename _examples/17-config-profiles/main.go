@@ -37,5 +37,7 @@ func main() {
 		RegisterDecoder(".yml", yaml.RawDecoder).
 		ConfigOptions(config.Paths("deploy/prod.yaml", "deploy/base.yaml"), config.Cascading())
 
-	app.FatalIfError(app.Run())
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
 }

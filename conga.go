@@ -614,7 +614,7 @@ func (a *App[T]) RegisterMap[M ~map[K]V, K comparable, V any](_ M, opts ...Regis
 //   - The error returned by [Runner.Run] or lifecycle hooks, or ctx.Err() on cancellation.
 //
 // RunContext never terminates the process; it returns every failure to the
-// caller. [App.FatalIfError] maps a returned error to an exit code.
+// caller. [App.Exit] maps a returned error to an exit code.
 //
 // Panics:
 //   - If ctx is nil.
@@ -737,7 +737,7 @@ func (a *App[T]) Stdout(writer io.Writer) *App[T] {
 // Stderr redirects the standard error stream writer for the application.
 //
 // The stream defaults to [os.Stderr]. It is passed to commands via [Session.Stderr] and
-// is used for diagnostics, deprecation notices, syntax usage summaries, and [App.FatalIfError].
+// is used for diagnostics, deprecation notices, syntax usage summaries, and [App.Exit].
 //
 // The stream writer is snapshotted when [App.Run] or [App.RunContext] begins; mutations
 // made after execution starts do not affect the active session. Passing a nil writer
@@ -750,7 +750,7 @@ func (a *App[T]) Stderr(writer io.Writer) *App[T] {
 	return a
 }
 
-// ExitFunc overrides the function [App.FatalIfError] calls to terminate the
+// ExitFunc overrides the function [App.Exit] calls to terminate the
 // process. Defaults to [os.Exit]. Passing a nil handler is a no-op.
 //
 //	var exitCode int
@@ -763,13 +763,25 @@ func (a *App[T]) ExitFunc(exitHandler func(code int)) *App[T] {
 	return a
 }
 
-// FatalIfError checks an error returned by [App.Run] or [App.RunContext], formats a
-// user-facing error message to standard error if non-nil, and terminates the process
-// with an appropriate exit code using the configured exit function (defaults to [os.Exit]).
+// Exit terminates the process with an exit status mapped from err, using the
+// configured exit function (see [App.ExitFunc], defaults to [os.Exit]).
 //
-// If err is nil, FatalIfError returns immediately without printing or exiting.
+// Standalone programs can pass the error from [App.Run] directly to Exit:
 //
-// Exit code conventions (a nil err returns without exiting):
+//	func main() {
+//		app := conga.New[CLI]().Name("hello")
+//
+//		if err := app.Run(); err != nil {
+//			app.Exit(err)
+//		}
+//	}
+//
+// All post-run cleanup ([PostRunner.PostRun] and [Finalizer.Finally] hooks)
+// completes before [App.Run] returns, so Exit runs only after teardown
+// finishes.
+//
+// Exit code conventions:
+//   - A nil err exits with status 0 and no output.
 //   - Exit code 1: runtime errors from command execution ([Runner.Run] or lifecycle
 //     hooks), developer schema defects ([ErrSchema]), and configuration failures
 //     ([ErrConfig], including .env loading).
@@ -781,10 +793,12 @@ func (a *App[T]) ExitFunc(exitHandler func(code int)) *App[T] {
 // print the error line alone.
 //
 // See https://docs.conga.sh/explanation/error-reporting/.
-func (a *App[T]) FatalIfError(err error) {
+func (a *App[T]) Exit(err error) {
 	a.applyDefaults()
 
 	if err == nil {
+		a.exit(0)
+
 		return
 	}
 

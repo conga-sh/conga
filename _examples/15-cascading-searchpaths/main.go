@@ -35,5 +35,7 @@ func main() {
 		RegisterDecoder(".yml", yaml.RawDecoder).
 		ConfigOptions(config.Paths(".", "~/.config/cascading-app", "${SYSCONF_DIR:-/etc/cascading-app}"), config.Cascading())
 
-	app.FatalIfError(app.Run())
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
 }

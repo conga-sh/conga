@@ -64,5 +64,7 @@ func main() {
 		EnableCompletion().
 		UsageOnError(conga.UsageFull)
 
-	app.FatalIfError(app.Run())
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
 }

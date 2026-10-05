@@ -51,7 +51,7 @@ Streams and arguments are snapshotted when `RunContext` begins. Builder calls ma
 
 ## Assert exit codes without terminating the test runner
 
-By default, `app.FatalIfError` terminates the process using `os.Exit`. To assert exit codes in tests without terminating the test runner, replace the exit handler using `ExitFunc`:
+By default, `app.Exit` terminates the process using `os.Exit`. To assert exit codes in tests without terminating the test runner, replace the exit handler using `ExitFunc`:
 
 ```go title="main_test.go"
 func TestUnknownFlagReportsUsageError(t *testing.T) {
@@ -74,8 +74,8 @@ func TestUnknownFlagReportsUsageError(t *testing.T) {
 		t.Fatalf("expected usage error, got %v", err)
 	}
 
-	// FatalIfError prints the usage diagnostic and triggers ExitFunc
-	app.FatalIfError(err)
+	// Exit prints the usage diagnostic and triggers ExitFunc
+	app.Exit(err)
 
 	if exitCode != 2 {
 		t.Errorf("exit code = %d, want 2 for usage error", exitCode)
@@ -87,7 +87,7 @@ func TestUnknownFlagReportsUsageError(t *testing.T) {
 }
 ```
 
-`FatalIfError` maps errors to standardized exit codes: code 2 when `conga.IsUsageError(err)` reports a usage error, and code 1 for schema-build failures and runtime failures returned from `Run`.
+`Exit` maps errors to standardized exit codes: code 2 when `conga.IsUsageError(err)` reports a usage error, and code 1 for schema-build failures and runtime failures returned from `Run`. A nil error exits with code 0.
 
 To test error messages without dumping the full usage block to stderr, add `UsageOnError(conga.UsageSilence)` to the builder chain.
 

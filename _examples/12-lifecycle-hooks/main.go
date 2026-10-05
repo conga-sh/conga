@@ -17,5 +17,7 @@ func main() {
 		Description("CLI demonstrating full lifecycle hooks (PreRun -> Run -> PostRun -> Finally)").
 		Version("1.0.0")
 
-	app.FatalIfError(app.Run())
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
 }

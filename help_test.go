@@ -460,8 +460,8 @@ func TestExampleProvider_OmittedOnError(t *testing.T) {
 	assert.Error(t, err)
 	assert.IsError(t, err, conga.ErrParse)
 
-	// FatalIfError handles usage errors by rendering error and synopsis to stderr and calling exit(2).
-	app.FatalIfError(err)
+	// Exit handles usage errors by rendering error and synopsis to stderr and calling exit(2).
+	app.Exit(err)
 
 	assert.Equal(t, 2, exitCode)
 	assert.NotContains(t, buffer.String(), "Examples:")

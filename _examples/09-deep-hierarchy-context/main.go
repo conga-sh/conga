@@ -8,5 +8,7 @@ func main() {
 		Description("Multi-tier nested command tree demonstrating context hierarchy navigation").
 		Version("1.0.0")
 
-	app.FatalIfError(app.Run())
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
 }

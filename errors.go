@@ -84,7 +84,7 @@ var (
 
 // UsageError is an interface implemented by errors that represent invalid command-line usage.
 //
-// When [App.FatalIfError] receives an error satisfying UsageError, it prints the
+// When [App.Exit] receives an error satisfying UsageError, it prints the
 // message to standard error, appends usage guidance as configured by
 // [UsageOnErrorMode], and terminates the process with exit code 2. Self-describing
 // value errors — coercion failures and value-constraint violations, whose messages

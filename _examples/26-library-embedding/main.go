@@ -84,9 +84,9 @@ func main() {
 		}
 	}
 
-	// FatalIfError renders the friendly error message into the injected
-	// stderr and invokes the custom exit handler instead of os.Exit.
-	app.FatalIfError(err)
+	// Exit renders the friendly error message into the injected stderr and
+	// invokes the custom exit handler instead of os.Exit.
+	app.Exit(err)
 
 	// The host flushes the captured streams wherever it wants (a logger, a
 	// socket, a test buffer); here it just forwards them.

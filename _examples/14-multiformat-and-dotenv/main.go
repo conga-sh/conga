@@ -40,5 +40,7 @@ func main() {
 		RegisterDecoder(".yml", yaml.RawDecoder).
 		RegisterDecoder(".hcl", hcl.RawDecoder)
 
-	app.FatalIfError(app.Run())
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
 }

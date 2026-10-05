@@ -1,9 +1,9 @@
 ---
 title: About error reporting
-description: How execution separates error values from process termination, when developer defects panic, and why FatalIfError is an optional convenience.
+description: How execution separates error values from process termination, when developer defects panic, and why Exit is an optional convenience.
 ---
 
-Command execution in CONGA separates error evaluation from process termination: the execution methods `app.Run` and `app.RunContext` return command-line mistakes and runtime failures as plain error values instead of calling `os.Exit`. Callers decide how to handle failures, whether by inspecting the error directly or delegating terminal formatting and exit status codes to the optional `app.FatalIfError(err)` convenience method.
+Command execution in CONGA separates error evaluation from process termination: the execution methods `app.Run` and `app.RunContext` return command-line mistakes and runtime failures as plain error values instead of calling `os.Exit`. Callers decide how to handle failures, whether by inspecting the error directly or delegating terminal formatting and exit status codes to the optional `app.Exit(err)` convenience method.
 
 ## Errors as values across the pipeline
 
@@ -22,20 +22,29 @@ CONGA divides failures into two distinct classes based on who is responsible:
 - Pipeline errors (operator mistakes and execution failures): Invalid flags, unknown subcommands, value coercion failures, violated constraints, missing arguments, and failures returned by a command's `Run` method. These represent normal operating conditions. `Run` and `RunContext` return them as `error` values so the application retains full control over inspection, structured logging, and exit handling.
 - Programmer defects (developer contract violations): Passing a nil `context.Context` to `RunContext`, attempting to execute an `App` instance a second time, registering duplicate or empty predictor names, or supplying invalid schema configurations. In accordance with standard Go conventions, CONGA panics immediately with a fixed descriptive message (such as `"conga: nil Context"` or `"conga: App already executed"`). Panics denote unrecoverable programming defects that require code fixes rather than runtime error handling.
 
-## The optional FatalIfError convenience
+## The optional Exit convenience
 
-Standalone command-line applications typically translate errors into standard error messages and an exit status code. To eliminate repetitive error-handling boilerplate, CONGA provides `app.FatalIfError(err)` as an optional convenience helper:
+Standalone command-line applications typically translate errors into standard error messages and an exit status code. To eliminate repetitive error-handling boilerplate, CONGA provides `app.Exit(err)` as an optional convenience helper:
 
-- When `err` is `nil`, the method returns immediately and execution continues.
-- When `err` is non-nil, the method formats the error message, writes it to the configured standard error stream, prints contextual usage if appropriate, and calls the configured exit function (defaulting to `os.Exit`).
+```go
+if err := app.Run(); err != nil {
+	app.Exit(err)
+}
+```
 
-`FatalIfError` translates that classification into POSIX exit statuses: 2 for usage errors, 1 for schema-build, configuration, and command runtime failures. Scripts inspect status 2 to determine that the command failed before work began because the operator supplied invalid syntax. [Errors and exit codes](/reference/errors/#exit-codes) is the full contract.
+The method maps the result to a POSIX status:
 
-`FatalIfError` is entirely optional. Applications that embed CLI commands, collect telemetry, or format errors using structured loggers like `slog` can omit `FatalIfError` and handle the returned error value directly. When callers do use `FatalIfError`, setting `app.ExitFunc(handler)` intercepts the requested exit status code without killing the test process, allowing tests to verify exit behavior in-process.
+- `nil`: exits with status 0 and writes nothing.
+- A usage error: writes the diagnostic and contextual usage, then exits with status 2. Scripts inspect status 2 to determine that the command failed before work began because the operator supplied invalid syntax.
+- A schema-build, configuration, or runtime failure: writes the error and exits with status 1.
+
+`Exit` terminates through the configured exit function (`app.ExitFunc`, default `os.Exit`); it returns only when that function returns without terminating. All `PostRun` and `Finally` hooks complete inside `app.Run`, so the teardown work is already done by the time `Exit` runs. [Errors and exit codes](/reference/errors/#exit-codes) is the full contract.
+
+`Exit` is optional. Applications that embed CLI commands, collect telemetry, or format errors using structured loggers like `slog` can omit `Exit` and handle the returned error value directly. When callers do use `Exit`, setting `app.ExitFunc(handler)` intercepts the requested exit status code without killing the test process, allowing tests to verify exit behaviour in-process.
 
 ## Self-describing value errors
 
-When an operator supplies invalid input, the nature of the error dictates what information helps on standard error. Unknown flags, unknown subcommands, and missing required positional arguments are interface-discovery mistakes, so `FatalIfError` pairs them with a syntax usage block or `--help` hint. Coercion and constraint failures already name the flag and the offending value, so they render without the usage block: printing a 40-line usage screen below a value error scrolls the terminal window and buries the actual message under redundant text. [Errors and exit codes](/reference/errors/#usage-rendering-on-errors) lists which failures count as self-describing.
+When an operator supplies invalid input, the nature of the error dictates what information helps on standard error. Unknown flags, unknown subcommands, and missing required positional arguments are interface-discovery mistakes, so `Exit` pairs them with a syntax usage block or `--help` hint. Coercion and constraint failures already name the flag and the offending value, so they render without the usage block: printing a 40-line usage screen below a value error scrolls the terminal window and buries the actual message under redundant text. [Errors and exit codes](/reference/errors/#usage-rendering-on-errors) lists which failures count as self-describing.
 
 ## Categorical classification without concrete coupling
 

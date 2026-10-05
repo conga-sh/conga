@@ -29,7 +29,9 @@ func main() {
 	app := conga.New(cli).
 		Name("hello")
 
-	app.FatalIfError(app.Run())
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
 
 	if cli.Name.Changed() {
 		fmt.Printf("greeted %s (source: %s)\n", cli.Name.Get(), cli.Name.SourceDetail())
@@ -54,7 +56,9 @@ Built-in requests such as `--help` and `--version` render their output and retur
 After `app.Run()` returns, containers on the bound instance hold their final winning values:
 
 ```go
-app.FatalIfError(app.Run())
+if err := app.Run(); err != nil {
+	app.Exit(err)
+}
 
 value := cli.Name.Get()
 tier := cli.Name.Source()

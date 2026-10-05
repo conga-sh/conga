@@ -16,7 +16,9 @@ func main() {
 		EnvPrefix("CLOUDCTL").
 		Dotenv()
 
-	app.FatalIfError(app.Run())
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
 }
 ```
 
