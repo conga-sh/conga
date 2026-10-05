@@ -67,7 +67,9 @@ func main() {
 		Description("A greeting command").
 		Version("1.0.0")
 
-	app.FatalIfError(app.Run())
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
 }
 ```
 
@@ -158,5 +160,5 @@ hello has version 1.0.0 built with go1.27.1
 **Concepts and reference**
 - [About flags and args](/explanation/flags-and-args/): container reader guarantees, trade-offs, and positional arguments.
 - [About the command lifecycle](/explanation/lifecycle/): execution stages, hook order, and teardown guarantees.
-- [About error reporting](/explanation/error-reporting/): usage errors, runtime errors, and `FatalIfError`.
+- [About error reporting](/explanation/error-reporting/): usage errors, runtime errors, and `Exit`.
 - [Package conga](/reference/conga/): core API reference.

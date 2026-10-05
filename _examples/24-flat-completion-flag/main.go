@@ -32,5 +32,7 @@ func main() {
 		Description("Asset minifier (flat CLI with default --completion flag)").
 		EnableCompletion()
 
-	app.FatalIfError(app.Run())
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
 }

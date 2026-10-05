@@ -57,7 +57,7 @@ func TestComplete_PanicRecovered_Exit2Contract(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "internal completion failure")
 
-	app.FatalIfError(err)
+	app.Exit(err)
 
 	assert.Equal(t, 2, exitCode)
 	assert.Equal(t, "", stdoutBuffer.String())
@@ -89,7 +89,7 @@ func TestComplete_UnwritableStdout_Exit2Contract(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "internal completion failure")
 
-	app.FatalIfError(err)
+	app.Exit(err)
 
 	assert.Equal(t, 2, exitCode)
 	assert.Contains(t, buffer.String(), "internal completion failure")

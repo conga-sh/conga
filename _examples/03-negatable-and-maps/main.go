@@ -38,5 +38,7 @@ func main() {
 
 	app.RegisterMap(map[string]int{})
 
-	app.FatalIfError(app.Run())
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
 }

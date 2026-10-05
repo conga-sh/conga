@@ -39,5 +39,7 @@ func main() {
 		Deprecated("use the new unified tool").
 		EnableCompletion()
 
-	app.FatalIfError(app.Run())
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
 }

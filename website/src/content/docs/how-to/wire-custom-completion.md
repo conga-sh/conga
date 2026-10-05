@@ -36,7 +36,9 @@ func main() {
 		"eu-west-1",
 	))
 
-	app.FatalIfError(app.Run())
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
 }
 
 type CLI struct {

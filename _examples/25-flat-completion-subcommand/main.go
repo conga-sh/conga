@@ -31,5 +31,7 @@ func main() {
 		Description("Task runner (flat CLI with opt-in completion subcommand)").
 		EnableCompletion()
 
-	app.FatalIfError(app.Run())
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
 }

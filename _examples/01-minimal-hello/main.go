@@ -30,5 +30,7 @@ func main() {
 		Name("hello").
 		Description("Minimal single-command hello world CLI")
 
-	app.FatalIfError(app.Run())
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
 }

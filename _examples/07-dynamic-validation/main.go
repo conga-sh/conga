@@ -61,5 +61,7 @@ func main() {
 		Description("Dynamic programmatic validation via conga.Validator interface").
 		Version("1.0.0")
 
-	app.FatalIfError(app.Run())
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
 }

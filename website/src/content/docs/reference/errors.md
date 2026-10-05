@@ -7,7 +7,7 @@ CONGA classifies every failure into five base categories, one per pipeline stage
 
 ## Exit codes
 
-`app.FatalIfError(err)` terminates with one of three codes:
+`app.Exit(err)` terminates with one of three codes:
 
 | Code | Meaning |
 |------|---------|
@@ -37,7 +37,7 @@ if err := app.Run(); err != nil {
 		// custom telemetry for user mistakes
 	}
 
-	app.FatalIfError(err)
+	app.Exit(err)
 }
 ```
 
@@ -45,7 +45,7 @@ The concrete error implementations (parse, coercion, validation, config) are une
 
 ## Usage rendering on errors
 
-`UsageOnError(mode)` controls what `FatalIfError` prints below a usage error:
+`UsageOnError(mode)` controls what `Exit` prints below a usage error:
 
 | Mode | Output |
 |------|--------|

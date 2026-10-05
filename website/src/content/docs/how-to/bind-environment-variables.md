@@ -21,7 +21,9 @@ func main() {
 		Name("server").
 		EnvPrefix("SERVER")
 
-	app.FatalIfError(app.Run())
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
 }
 ```
 

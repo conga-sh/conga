@@ -36,5 +36,7 @@ func main() {
 		RegisterDecoder(".yml", yaml.RawDecoder).
 		ConfigOptions(config.Explicit("bootstrap.yaml"))
 
-	app.FatalIfError(app.Run())
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
 }

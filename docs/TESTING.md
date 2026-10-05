@@ -50,7 +50,7 @@ All tests must follow a strict three-phase visual structure separated by blank l
 1. **Arrange (Setup)**:
    - Define test data, declare target structs, build schemas, and prepare input argument slices.
 2. **Act (Execution)**:
-   - Exactly one invocation under test (e.g. `err := app.Run()`, `err = app.RunContext(ctx)`, `app.FatalIfError(app.Run())`).
+   - Exactly one invocation under test (e.g. `err := app.Run()`, `err = app.RunContext(ctx)`). When the exit mapping itself is under test, `app.Exit(err)` is the invocation; the `Run` that produces its error input is setup, followed immediately by its precondition assertion.
    - Must be preceded by a blank line and followed by a blank line.
 3. **Assert (Verification)**:
    - All `assert.*` statements verifying the outcome of the Act step.

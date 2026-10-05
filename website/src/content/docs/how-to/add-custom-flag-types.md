@@ -129,7 +129,9 @@ func main() {
 		conga.WithPredictor(predict.Values("10.0.0.0/8", "192.168.0.0/16")),
 	)
 
-	app.FatalIfError(app.Run())
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
 }
 ```
 
@@ -155,7 +157,9 @@ func main() {
 	app.RegisterType(parseCIDR)
 	app.RegisterMap(map[string]net.IPNet(nil))
 
-	app.FatalIfError(app.Run())
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
 }
 ```
 

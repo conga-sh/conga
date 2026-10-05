@@ -38,7 +38,7 @@ func New[T any](root ...*T) *App[T]
 | `Args(args)` | Custom argument slice (defaults to `os.Args[1:]`) |
 | `UsageOnError(mode)` | Error-time usage rendering mode |
 | `Stdout(w)` / `Stderr(w)` | Output writers (default `os.Stdout`/`os.Stderr`) |
-| `ExitFunc(handler)` | Custom exit handler for `FatalIfError` |
+| `ExitFunc(handler)` | Custom exit handler for `Exit` |
 | `EnableWhy()` / `EnableCompletion()` | Opt in to the `--why` report and shell completion |
 | `DisableHelpFlag()` / `DisableVersionFlag()` | Remove the `--help`/`--version` flags |
 
@@ -48,7 +48,7 @@ func New[T any](root ...*T) *App[T]
 |--------|---------|
 | `Run()` | Parse + execute with a signal-aware context (`SIGINT`/`SIGTERM`) |
 | `RunContext(ctx)` | Execute with your context; panics on a nil context |
-| `FatalIfError(err)` | Render error messages and exit (0/1/2 contract) |
+| `Exit(err)` | Render error messages and exit (0/1/2 contract) |
 
 ### Extensibility functions
 

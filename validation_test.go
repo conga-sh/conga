@@ -999,11 +999,11 @@ func TestHelpConstraintHints(t *testing.T) {
 	app := conga.New[RangeNumericCLI]().
 		Name("test").
 		Args([]string{"--help"}).
-		Stdout(&buffer).
-		ExitFunc(func(code int) {})
+		Stdout(&buffer)
 
 	err := app.Run()
-	app.FatalIfError(err)
+
+	assert.NoError(t, err)
 
 	helpText := buffer.String()
 	assert.Contains(t, helpText, "[1..10]")

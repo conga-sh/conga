@@ -1003,7 +1003,7 @@ func TestCompletionFlag_FlatCLI(t *testing.T) {
 		assert.Error(t, err)
 		assert.IsError(t, err, conga.ErrValidation)
 
-		app.FatalIfError(err)
+		app.Exit(err)
 
 		assert.Equal(t, 2, exitCode)
 		assert.Contains(t, buffer.String(), "unknown shell \"invalidshell\"")
@@ -1031,7 +1031,7 @@ func TestCompletionFlag_FlatCLI(t *testing.T) {
 		assert.Error(t, err)
 		assert.IsError(t, err, conga.ErrValidation)
 
-		app.FatalIfError(err)
+		app.Exit(err)
 
 		assert.Equal(t, 2, exitCode)
 		assert.Contains(t, buffer.String(), "unknown shell \"invalidshell\"")

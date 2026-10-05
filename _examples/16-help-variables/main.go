@@ -47,5 +47,7 @@ func main() {
 		Description("Help-variable interpolation: state a constraint once").
 		Version("1.0.0")
 
-	app.FatalIfError(app.Run())
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
 }

@@ -112,7 +112,7 @@ type Runner interface {
 // and before any [PreRunner], [Runner], [PostRunner], or [Finalizer] hook executes.
 // If Validate returns an error, Run returns it without running the remaining stages
 // (no command has been initialized, so no Finally hook runs); [IsUsageError] reports
-// true and [App.FatalIfError] exits with status 2. For a built-in subcommand such as
+// true and [App.Exit] exits with status 2. For a built-in subcommand such as
 // [HelpCommand], only the leaf command's Validate hook runs.
 //
 // See https://docs.conga.sh/explanation/lifecycle/.
@@ -352,7 +352,7 @@ func (f *OptionalFlag[T]) String() string {
 // an environment variable, a configuration file, or a struct `default:"..."` tag.
 // If no source provides a value, Run returns a usage error before any lifecycle
 // stage, starting with [Validator.Validate], executes; [IsUsageError] reports true and
-// [App.FatalIfError] exits with status 2.
+// [App.Exit] exits with status 2.
 //
 // When satisfied by explicit input, [RequiredFlag.Changed] reports true. When
 // satisfied by a struct default tag, [RequiredFlag.IsSet] reports true while
@@ -471,7 +471,7 @@ func (a *OptionalArg[T]) String() string {
 // Required positional arguments must be supplied on the command line in struct
 // declaration order. If omitted and no struct `default:"..."` tag is present, Run
 // returns a usage error before any lifecycle stage, starting with [Validator.Validate],
-// executes; [IsUsageError] reports true and [App.FatalIfError] exits with status 2.
+// executes; [IsUsageError] reports true and [App.Exit] exits with status 2.
 type RequiredArg[T any] struct {
 	value        T
 	set          bool

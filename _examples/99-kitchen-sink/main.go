@@ -21,5 +21,7 @@ func main() {
 		RegisterDecoder(".hcl", hcl.RawDecoder).
 		AllowTags("kong")
 
-	app.FatalIfError(app.Run())
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
 }

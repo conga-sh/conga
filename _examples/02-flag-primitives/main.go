@@ -37,5 +37,7 @@ func main() {
 		Version("1.0.0").
 		EnableCompletion()
 
-	app.FatalIfError(app.Run())
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
 }

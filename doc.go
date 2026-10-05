@@ -34,7 +34,10 @@
 //
 //	func main() {
 //		app := conga.New[ServerCLI]()
-//		app.FatalIfError(app.Run())
+//
+//		if err := app.Run(); err != nil {
+//			app.Exit(err)
+//		}
 //	}
 //
 // # Value resolution
@@ -86,8 +89,8 @@
 // and can be redirected on the builder via [App.Stdout], [App.Stderr], or
 // [App.Stdin] for testing or embedded execution.
 //
-// [App.FatalIfError] reports errors and exits with status 2 for usage errors
-// or status 1 for runtime failures.
+// [App.Exit] reports errors and exits with status 2 for usage errors
+// or status 1 for runtime failures. A nil error exits with status 0.
 //
 // # Optional subsystems
 //

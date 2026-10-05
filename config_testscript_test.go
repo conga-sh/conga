@@ -50,7 +50,7 @@ func mainTestApp() {
 		RegisterDecoder(".json", json.RawDecoder)
 
 	if err := app.Run(); err != nil {
-		app.FatalIfError(err)
+		app.Exit(err)
 	}
 }
 

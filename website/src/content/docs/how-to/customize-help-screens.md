@@ -33,7 +33,9 @@ func main() {
 		Examples("cloudctl --verbose\ncloudctl deploy worker").
 		Footer("Documentation: https://example.com/docs\nReport issues: https://example.com/issues")
 
-	app.FatalIfError(app.Run())
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
 }
 ```
 
