@@ -345,7 +345,10 @@ type Options struct {
 	DisableVersion bool
 	DisableWhy     bool
 	// DisableCompletion excludes every completion entry point from the schema:
-	// no `completion` subcommand is mounted and no `--completion` flag is offered.
+	// no `completion` subcommand is mounted and no `--completion` flag is
+	// offered. A command struct that declares a completion command field while
+	// completion is disabled is rejected with an ErrSchema naming the fix,
+	// rather than silently dropped.
 	DisableCompletion bool
 	// CompletionShells enumerates the shells the completion subsystem supports;
 	// it is supplied by the caller only when completion is enabled.

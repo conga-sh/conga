@@ -733,8 +733,8 @@ func (v *VersionCommand) Run(ctx context.Context, session *Session) error {
 //		Completion conga.CompletionCommand `summary:"Generate shell completion scripts"`
 //	}
 //
-// The field requires [App.EnableCompletion]; without that call the subcommand is
-// dropped from the schema with no warning.
+// The field requires [App.EnableCompletion]; declaring it without that call fails
+// schema build with an [ErrSchema] error naming the missing opt-in.
 //
 // The `completion` subcommand is a meta-command: it bypasses the execution
 // lifecycle, so ancestor [PreRunner], [PostRunner], and [Finalizer] hooks do not run

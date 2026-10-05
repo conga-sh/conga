@@ -544,10 +544,12 @@ func (b *schemaBuilder) processBuiltinCommand(structField reflect.StructField, c
 		return nil
 	}
 
-	// A declared completion command is dropped when completion is not enabled,
-	// mirroring the --completion flag's absence; the tags are still validated.
+	// A declared completion command requires completion to be enabled: the
+	// schema must not silently drop the field, because the resulting app would
+	// reject `completion <shell>` with unrelated parse/validation errors that
+	// never name the missing opt-in.
 	if kind == builtinCompletion && b.opts.DisableCompletion {
-		return nil
+		return fmt.Errorf("%w: completion command declared without completion enabled; call app.EnableCompletion() when constructing the app, or remove the field", ErrSchema)
 	}
 
 	subcommand, err := b.newBuiltinSubcommand(structField, kind, classification.Target)
