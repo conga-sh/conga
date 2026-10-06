@@ -66,15 +66,15 @@ func TestMap(t *testing.T) {
 	assert.Equal(t, predict.DirectiveNoFileComp, result.Directive)
 }
 
-func TestMapValues(t *testing.T) {
+func TestKeyValue(t *testing.T) {
 	t.Parallel()
 
-	spec := map[string][]string{
+	valuesByKey := map[string][]string{
 		"team":  {"core", "frontend", "infra"},
 		"tier":  {"frontend", "backend", "database"},
 		"owner": {"alice", "bob", "carol"},
 	}
-	pred := predict.MapValues(spec)
+	pred := predict.KeyValue(valuesByKey)
 
 	resKeys := pred.Invoke(predict.Context{})
 

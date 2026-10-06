@@ -36,7 +36,7 @@ var (
 	ErrHCLParse = errors.New("hcl parse error")
 )
 
-// RawDecoder decodes HCL bytes into a generic map structure for CONGA's AST validator.
+// RawDecoder decodes HCL bytes into the generic map[string]any structure the configuration engine matches against flag bindings.
 func RawDecoder(data []byte) (map[string]any, error) {
 	file, diags := hclsyntax.ParseConfig(data, "config.hcl", hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {

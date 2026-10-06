@@ -166,7 +166,7 @@ exec cloudctl __complete export deploy --features canary --features ''
 stdout '"value":"tracing"'
 stdout '"value":"metrics"'
 
-# 12. Map predictor (MapValues) on a map[string]string flag
+# 12. Map predictor (KeyValue) on a map[string]string flag
 exec cloudctl __complete export logs --labels t
 stdout '"value":"team="'
 stdout '"value":"tier="'

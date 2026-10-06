@@ -256,8 +256,8 @@ func Map(items map[string]string) Predictor {
 	}
 }
 
-// MapValues creates a segmented KEY=VALUE Predictor from a map of keys to allowed value slices.
-func MapValues(spec map[string][]string) Predictor {
+// KeyValue creates a segmented KEY=VALUE Predictor from a map of keys to allowed value slices.
+func KeyValue(valuesByKey map[string][]string) Predictor {
 	return MultiParts("=", func(compCtx Context) Predictor {
 		existingEntries := slices.Clone(compCtx.ParentParts)
 
@@ -268,11 +268,11 @@ func MapValues(spec map[string][]string) Predictor {
 		usedKeys, usedKeyValues := parseUsedMapEntries(existingEntries)
 
 		if len(compCtx.Parts) == 0 {
-			keys := make([]string, 0, len(spec))
+			keys := make([]string, 0, len(valuesByKey))
 
-			for k := range spec {
-				if !usedKeys[k] {
-					keys = append(keys, k+"=")
+			for key := range valuesByKey {
+				if !usedKeys[key] {
+					keys = append(keys, key+"=")
 				}
 			}
 
@@ -282,7 +282,7 @@ func MapValues(spec map[string][]string) Predictor {
 		}
 
 		key := compCtx.Parts[0]
-		if values, ok := spec[key]; ok {
+		if values, ok := valuesByKey[key]; ok {
 			allowed := make([]string, 0, len(values))
 
 			for _, value := range values {

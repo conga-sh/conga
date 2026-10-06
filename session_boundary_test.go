@@ -145,14 +145,6 @@ func TestSessionGetters_NilSession(t *testing.T) {
 		assert.Equal(t, io.EOF, err)
 	})
 
-	t.Run("Args", func(t *testing.T) {
-		t.Parallel()
-
-		args := nilSession.Args()
-
-		assert.Equal(t, []string(nil), args)
-	})
-
 	t.Run("Help", func(t *testing.T) {
 		t.Parallel()
 

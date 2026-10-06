@@ -227,7 +227,7 @@ func newCorpusMapApp() *conga.App[corpusMapRoot] {
 		Name("corpusctl").
 		Description("Corpus map fixture application for completion driver conformance")
 
-	app.Predictor("labels", predict.MapValues(map[string][]string{
+	app.Predictor("labels", predict.KeyValue(map[string][]string{
 		"team":  {"core", "frontend", "infra"},
 		"tier":  {"frontend", "backend", "database"},
 		"owner": {"alice", "bob", "carol"},

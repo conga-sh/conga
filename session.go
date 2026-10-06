@@ -21,7 +21,6 @@ type Session struct {
 	stderr         io.Writer
 	stdin          io.Reader
 	cmdChain       []*spec.Command
-	rawArgs        []string
 	candidateFiles []string
 	loadedFiles    []string
 	appName        string
@@ -131,20 +130,6 @@ func (s *Session) Name() string {
 	}
 
 	return s.cmdChain[len(s.cmdChain)-1].Name
-}
-
-// Args returns a copy of the trailing command-line arguments that parsing did not
-// consume.
-//
-// The slice is populated only when the selected command declares a [RawArgs]
-// container, which captures every token from the first unrecognized one onward.
-// Without that container the parser consumes all tokens and Args returns nil.
-func (s *Session) Args() []string {
-	if s == nil {
-		return nil
-	}
-
-	return append([]string(nil), s.rawArgs...)
 }
 
 // CandidateConfigFiles returns a copy of all candidate configuration file paths
