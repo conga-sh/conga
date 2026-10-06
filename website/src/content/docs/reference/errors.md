@@ -27,21 +27,52 @@ Built-in requests (`--help`, `help`, `--version`, `version`, and — when enable
 | `conga.ErrValidation` | Constraints and semantic checks |
 | `conga.ErrConfig` | Config file and `.env` reading, parsing, and key resolution |
 
-## Usage vs runtime classification
+## Usage and completion classification
 
-Use `conga.IsUsageError(err)` to decide whether an error is input-related (exit 2) versus a runtime failure (exit 1). Errors caused by invalid command-line input satisfy the `conga.UsageError` interface, which also exposes `CommandPath()` for the active invocation path:
+Use `conga.IsUsageError(err)` to decide whether an error is input-related (exit 2) versus a runtime failure (exit 1). Errors caused by invalid command-line input satisfy the `conga.UsageError` interface:
 
 ```go
-if err := app.Run(); err != nil {
-	if conga.IsUsageError(err) {
-		// custom telemetry for user mistakes
-	}
-
-	app.Exit(err)
+type UsageError interface {
+	error
+	CommandPath() string
+	Usage() string
 }
 ```
 
-The concrete error implementations (parse, coercion, validation, config) are unexported; `IsUsageError`, the `UsageError` interface, and the base categories are the public classification API.
+- `CommandPath()` returns the invocation path of the command where the failure occurred (for example, `"cloudctl deploy"`).
+- `Usage()` returns the syntax usage summary string for that command.
+
+Internal completion failures satisfy the `conga.CompletionError` interface and are detected with `conga.IsCompletionError(err)`:
+
+```go
+type CompletionError interface {
+	error
+	IsCompletionError() bool
+}
+```
+
+The concrete error implementations (parse, coercion, validation, config) are unexported; `IsUsageError`, `IsCompletionError`, `UsageError`, `CompletionError`, and the base category sentinels form the public classification API.
+
+## Replacing app.Exit
+
+When an application requires custom process termination, error formatting, or telemetry, inspect errors returned from `app.Run()` or `app.RunContext(ctx)` directly rather than calling `app.Exit(err)`:
+
+```go
+if err := app.RunContext(ctx); err != nil {
+	if usageErr, ok := errors.AsType[conga.UsageError](err); ok {
+		fmt.Fprintf(os.Stderr, "Error: %v\n\n%s\n", err, usageErr.Usage())
+		os.Exit(2)
+	}
+
+	if conga.IsCompletionError(err) {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(2)
+	}
+
+	fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+	os.Exit(1)
+}
+```
 
 ## Usage rendering on errors
 

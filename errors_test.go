@@ -22,6 +22,7 @@ import (
 	"github.com/conga-sh/conga/decoder/json"
 	"github.com/conga-sh/conga/internal/help"
 	"github.com/conga-sh/conga/internal/spec"
+	"github.com/conga-sh/conga/predict"
 )
 
 type TextUnmarshalerType struct {
@@ -1736,6 +1737,97 @@ func TestErrorCommandAndChain_EndToEnd(t *testing.T) {
 
 		assert.True(t, errors.As(err, &usage))
 		assert.Equal(t, "app sub", usage.CommandPath())
+		assert.Contains(t, usage.Usage(), "app sub [flags]")
+	})
+
+	t.Run("parse error exposes Usage syntax", func(t *testing.T) {
+		t.Parallel()
+
+		app := conga.New[nestedCLI]().
+			Name("app").
+			Args([]string{"sub", "--unknown-flag"})
+
+		err := app.Run()
+
+		assert.Error(t, err)
+
+		var usage conga.UsageError
+
+		assert.True(t, errors.As(err, &usage))
+		assert.Contains(t, usage.Usage(), "Usage:\n  app sub [flags]")
+	})
+
+	t.Run("coercion error exposes Usage syntax", func(t *testing.T) {
+		t.Parallel()
+
+		app := conga.New[nestedCLI]().
+			Name("app").
+			Args([]string{"sub", "--port", "invalid-number"})
+
+		err := app.Run()
+
+		assert.Error(t, err)
+
+		var usage conga.UsageError
+
+		assert.True(t, errors.As(err, &usage))
+		assert.Contains(t, usage.Usage(), "Usage:\n  app sub [flags]")
+	})
+
+	t.Run("validation error exposes Usage syntax", func(t *testing.T) {
+		t.Parallel()
+
+		app := conga.New[nestedCLI]().
+			Name("app").
+			Args([]string{"sub", "--port", "99"})
+
+		err := app.Run()
+
+		assert.Error(t, err)
+
+		var usage conga.UsageError
+
+		assert.True(t, errors.As(err, &usage))
+		assert.Contains(t, usage.Usage(), "Usage:\n  app sub [flags]")
+	})
+
+	t.Run("CompletionError classification and decoupling from UsageError", func(t *testing.T) {
+		t.Parallel()
+
+		booming := predict.Callback(func(_ predict.Context) predict.Predictor {
+			panic("completion boom")
+		})
+
+		type panicCLI struct {
+			noopRunner
+
+			Kind conga.OptionalFlag[string] `predictor:"boom"`
+		}
+
+		app := conga.New[panicCLI]().
+			EnableCompletion().
+			Name("app").
+			Predictor("boom", booming).
+			Args([]string{"__complete", "bash", "--kind", ""})
+
+		err := app.Run()
+
+		assert.Error(t, err)
+
+		// Must classify as CompletionError
+		assert.True(t, conga.IsCompletionError(err))
+
+		var compErr conga.CompletionError
+
+		assert.True(t, errors.As(err, &compErr))
+		assert.True(t, compErr.IsCompletionError())
+
+		// Must NOT classify as UsageError
+		assert.False(t, conga.IsUsageError(err))
+
+		var usageErr conga.UsageError
+
+		assert.False(t, errors.As(err, &usageErr))
 	})
 }
 

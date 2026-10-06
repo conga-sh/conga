@@ -802,8 +802,8 @@ func (a *App[T]) Exit(err error) {
 		return
 	}
 
-	if compErr, ok := errors.AsType[*completionError](err); ok {
-		fmt.Fprintln(a.stderr, compErr)
+	if IsCompletionError(err) {
+		fmt.Fprintln(a.stderr, err)
 		a.exit(2)
 
 		return
@@ -1372,7 +1372,7 @@ func (a *App[T]) prepare(ctx context.Context) (*Session, bool, error) {
 
 	// Hoist builtin detection ahead of config resolution so help/version/why
 	// never fail on resolution errors (e.g. a missing env-sourced config path).
-	if handled, err := a.handleBuiltinFlags(cmdChain, flagValues); handled || err != nil {
+	if handled, err := a.handleBuiltinFlags(session, flagValues); handled || err != nil {
 		return nil, handled, err
 	}
 
@@ -1413,7 +1413,8 @@ func (a *App[T]) prepare(ctx context.Context) (*Session, bool, error) {
 	return session, false, nil
 }
 
-func (a *App[T]) handleBuiltinFlags(cmdChain []*spec.Command, flagValues map[*spec.Flag][]string) (bool, error) {
+func (a *App[T]) handleBuiltinFlags(session *Session, flagValues map[*spec.Flag][]string) (bool, error) {
+	cmdChain := session.cmdChain
 	request := scanBuiltinRequest(flagValues)
 
 	// 1. Completion flag + --help (e.g. `app --completion zsh --help` or `app --completion --help`)
@@ -1428,7 +1429,7 @@ func (a *App[T]) handleBuiltinFlags(cmdChain []*spec.Command, flagValues map[*sp
 
 	// 3. Standard --help
 	if request.hasHelp {
-		fmt.Fprintln(a.stdout, help.FormatWith(cmdChain, a.helpOptions))
+		fmt.Fprintln(a.stdout, session.Help())
 
 		return true, nil
 	}

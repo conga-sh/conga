@@ -122,3 +122,21 @@ Referencing a variable suppresses its matching automatic hint:
 Suppression applies per hint: unreferenced hints remain intact. Referencing an undeclared variable or referencing any variable other than `{{env}}` on a `ConfigFile` flag fails schema construction with `ErrSchema`. Double opening braces (`{{{{`) to print a literal `{{`.
 
 For the complete variable catalog and availability rules, see [Struct tag reference: help variables](/reference/struct-tags/#help-variables).
+
+## Query help and usage strings in commands
+
+Command implementations can access the formatted help screen and syntax usage line as plain strings through the execution session:
+
+```go title="guide.go"
+func (g *GuideCmd) Run(ctx context.Context, session *conga.Session) error {
+	helpText := session.Help()
+	usageText := session.Usage()
+
+	fmt.Fprintf(session.Stdout(), "Syntax: %s\n\n%s\n", usageText, helpText)
+	return nil
+}
+```
+
+- `session.Help()` returns the complete help screen string.
+- `session.Usage()` returns the one-line syntax usage summary (for example, `"cloudctl deploy [flags]"`).
+- Both accessors return strings without writing to streams, giving commands full control over formatting, paging, or stream routing.

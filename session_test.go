@@ -30,7 +30,8 @@ func TestSession_Help(t *testing.T) {
 	t.Parallel()
 
 	buffer := &bytes.Buffer{}
-	app := conga.New[sessionHelpCmd]().
+	cmd := &sessionHelpCmd{}
+	app := conga.New(cmd).
 		Name("myapp").
 		Args([]string{}).
 		Stdout(buffer)
@@ -38,14 +39,17 @@ func TestSession_Help(t *testing.T) {
 	err := app.Run()
 
 	assert.NoError(t, err)
+	assert.NotZero(t, cmd.helpText)
 	assertGolden(t, "testdata/help/session.golden", goldenHelpSession, buffer.String())
+	assert.Equal(t, cmd.helpText+"\n", buffer.String())
 }
 
 func TestSession_Usage(t *testing.T) {
 	t.Parallel()
 
 	buffer := &bytes.Buffer{}
-	app := conga.New[sessionUsageCmd]().
+	cmd := &sessionUsageCmd{}
+	app := conga.New(cmd).
 		Name("myapp").
 		Args([]string{}).
 		Stderr(buffer)
@@ -53,7 +57,17 @@ func TestSession_Usage(t *testing.T) {
 	err := app.Run()
 
 	assert.NoError(t, err)
+	assert.NotZero(t, cmd.usageText)
 	assertGolden(t, "testdata/help/usage.golden", goldenHelpUsage, buffer.String())
+	assert.Equal(t, cmd.usageText+"\n", buffer.String())
+}
+
+func TestSession_HelpAndUsage_NilOrEmpty(t *testing.T) {
+	t.Parallel()
+
+	var s *conga.Session
+	assert.Equal(t, "", s.Help())
+	assert.Equal(t, "", s.Usage())
 }
 
 func TestSession_Version(t *testing.T) {
@@ -132,18 +146,24 @@ func (d *sessionDeployCmd) Run(ctx context.Context, session *conga.Session) erro
 	return nil
 }
 
-type sessionHelpCmd struct{}
+type sessionHelpCmd struct {
+	helpText string
+}
 
 func (h *sessionHelpCmd) Run(ctx context.Context, session *conga.Session) error {
-	session.Help()
+	h.helpText = session.Help()
+	fmt.Fprintln(session.Stdout(), h.helpText)
 
 	return nil
 }
 
-type sessionUsageCmd struct{}
+type sessionUsageCmd struct {
+	usageText string
+}
 
 func (u *sessionUsageCmd) Run(ctx context.Context, session *conga.Session) error {
-	session.Usage()
+	u.usageText = session.Usage()
+	fmt.Fprintln(session.Stderr(), u.usageText)
 
 	return nil
 }
