@@ -58,9 +58,9 @@
 //
 // CONGA provides built-in flags for standard operational tasks:
 //
-//   - `--help` (`-h`): prints command syntax and flag descriptions. Enabled
+//   - `--help`: prints command syntax and flag descriptions. Enabled
 //     by default; disable with [App.DisableHelpFlag].
-//   - `--version` (`-v`): prints version and build information. Enabled by
+//   - `--version`: prints version and build information. Enabled by
 //     default; disable with [App.DisableVersionFlag].
 //   - `--why`: prints a provenance report showing where every flag resolved
 //     from (CLI flag, environment variable, configuration file, or default tag)

@@ -133,8 +133,8 @@ func (d *DeployCmd) Run(ctx context.Context, session *conga.Session) error {
 
 Every CONGA application includes built-in operational flags:
 
-- `--help` (`-h`): Prints command syntax and flag descriptions.
-- `--version` (`-v`): Prints version and build information.
+- `--help`: Prints command syntax and flag descriptions.
+- `--version`: Prints version and build information.
 - `--why`: Debugging flag that prints a provenance report explaining where every flag value came from (CLI, env, config, or default) and which competing sources were overridden. Enable with `app.EnableWhy()`.
 
 For subcommand-based CLIs, CONGA provides `HelpCommand`, `VersionCommand`, and `CompletionCommand`. See the [Built-ins Reference](https://docs.conga.sh/reference/builtins/).
