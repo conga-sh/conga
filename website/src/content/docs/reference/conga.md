@@ -98,7 +98,6 @@ func (s *Session) Usage()
 func (s *Session) Version()
 func (s *Session) Path() string
 func (s *Session) Name() string
-func (s *Session) Args() []string
 func (s *Session) CandidateConfigFiles() []string
 func (s *Session) LoadedConfigFiles() []string
 ```

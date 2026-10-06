@@ -30,7 +30,7 @@ var (
 	ErrJSONParse = errors.New("json parse error")
 )
 
-// RawDecoder decodes JSON bytes into a generic map structure for CONGA's AST validator.
+// RawDecoder decodes JSON bytes into the generic map[string]any structure the configuration engine matches against flag bindings.
 func RawDecoder(data []byte) (map[string]any, error) {
 	var result map[string]any
 

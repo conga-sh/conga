@@ -1365,7 +1365,6 @@ func (a *App[T]) prepare(ctx context.Context) (*Session, bool, error) {
 		stderr:      a.stderr,
 		stdin:       a.stdin,
 		cmdChain:    cmdChain,
-		rawArgs:     rawTokens,
 		appName:     a.name,
 		appVersion:  a.version,
 		helpOptions: a.helpOptions,

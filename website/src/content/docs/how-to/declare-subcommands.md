@@ -90,7 +90,7 @@ func (d *DeployCmd) Run(ctx context.Context, session *conga.Session) error {
 }
 ```
 
-`session.Root[T]()` returns the typed root command struct instance. The full accessor catalog (`Path()`, `Name()`, `Args()`, and the stream accessors) is in [package conga](/reference/conga/#session-and-hierarchy-accessors); navigate down the hierarchy from the root instance by calling `Get()` on a command field (for example, `root.Deploy.Get()`).
+`session.Root[T]()` returns the typed root command struct instance. The full accessor catalog (`Path()`, `Name()`, and the stream accessors) is in [package conga](/reference/conga/#session-and-hierarchy-accessors); navigate down the hierarchy from the root instance by calling `Get()` on a command field (for example, `root.Deploy.Get()`).
 
 ## Avoid ancestor flag shadowing
 

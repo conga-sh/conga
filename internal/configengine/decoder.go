@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-// Decoder parses raw configuration bytes into a generic key-value map for AST validation.
+// Decoder parses raw configuration bytes into the generic key-value map validated against the Command AST during configuration resolution.
 type Decoder func(data []byte) (map[string]any, error)
 
 // Registry holds one application's locally registered configuration decoders.

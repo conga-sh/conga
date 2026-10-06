@@ -28,7 +28,7 @@ var (
 	ErrTOMLParse = errors.New("toml parse error")
 )
 
-// RawDecoder decodes TOML bytes into a generic map structure for CONGA's AST validator.
+// RawDecoder decodes TOML bytes into the generic map[string]any structure the configuration engine matches against flag bindings.
 func RawDecoder(data []byte) (map[string]any, error) {
 	var result map[string]any
 

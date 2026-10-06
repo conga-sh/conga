@@ -17,9 +17,7 @@ type ExecCmd struct {
 func (e *ExecCmd) Run(ctx context.Context, session *conga.Session) error {
 	inspector.Print(session, session.Root[CLI]())
 
-	// RawArgs tokens are also unparsed at the session level: session.Args()
-	// returns the same raw tail without requiring the typed container.
-	fmt.Fprintf(session.Stdout(), "RawArgs container: %v | session.Args(): %v\n", e.Command.Get(), session.Args())
+	fmt.Fprintf(session.Stdout(), "RawArgs container: %v\n", e.Command.Get())
 
 	return nil
 }

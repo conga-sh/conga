@@ -36,7 +36,7 @@ func (i Item) WithTag(tag string) Item
 |-------------|---------|
 | `Values(values ...string)` | Static candidates |
 | `Map(items map[string]string)` | Sorted map candidates |
-| `MapValues(spec map[string][]string)` | `KEY=VALUE` segmented completion |
+| `KeyValue(valuesByKey map[string][]string)` | `KEY=VALUE` segmented completion |
 | `Items(items ...Item)` | Explicit item list |
 | `Callback(fn func(Context) Predictor)` | Lazy evaluation |
 | `MultiParts(delimiter string, fn func(Context) Predictor)` | Multi-segment values |

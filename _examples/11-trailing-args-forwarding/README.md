@@ -2,7 +2,7 @@
 
 Two argument-forwarding styles: `conga.DashArgs` (everything after `--`, the Go
 test / Cargo test pattern) and `conga.RawArgs` (bare trailing tokens, the Docker
-run pattern). Also shows `session.Args()` as the session-level raw tail.
+run pattern).
 
 ## Run it
 
@@ -13,9 +13,8 @@ go run ./_examples/11-trailing-args-forwarding exec my-container ls -la /var/log
 
 ## What to look for
 
-- `RawArgs` swallows tokens that look like the app's own flags, no `--` needed.
-- `session.Args()` mirrors the RawArgs tail and stays empty for `DashArgs`,
-  which parses its tokens into the container.
+- `DashArgs` captures tokens passed after the standard POSIX `--` delimiter into its container.
+- `RawArgs` swallows trailing tokens that look like flags into its container, no `--` needed.
 
 ## Test
 

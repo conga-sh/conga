@@ -31,7 +31,7 @@ var (
 	ErrYAMLParse = errors.New("yaml parse error")
 )
 
-// RawDecoder decodes YAML bytes into a generic map structure for CONGA's AST validator.
+// RawDecoder decodes YAML bytes into the generic map[string]any structure the configuration engine matches against flag bindings.
 func RawDecoder(data []byte) (map[string]any, error) {
 	var result map[string]any
 
