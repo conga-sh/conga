@@ -73,7 +73,7 @@ func main() {
 		Description("CLI demonstrating built-in HelpCommand and VersionCommand").
 		Version("2.4.1").
 		Examples("infomgr status\ninfomgr help status\ninfomgr version").
-		Footer("infomgr home: https://example.com/infomgr").
+		HelpFooter("infomgr home: https://example.com/infomgr").
 		UsageOnError(conga.UsageHint)
 
 	if err := app.Run(); err != nil {

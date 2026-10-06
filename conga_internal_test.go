@@ -165,15 +165,15 @@ func TestApp_Fluent_Examples(t *testing.T) {
 	assert.Equal(t, "app deploy --image nginx:alpine", app.examples)
 }
 
-func TestApp_Fluent_Footer(t *testing.T) {
+func TestApp_Fluent_HelpFooter(t *testing.T) {
 	t.Parallel()
 
 	app := New[struct{}]()
 
-	got := app.Footer("Documentation: https://example.com/docs")
+	got := app.HelpFooter("Documentation: https://example.com/docs")
 
 	assert.True(t, got == app)
-	assert.Equal(t, "Documentation: https://example.com/docs", app.footer)
+	assert.Equal(t, "Documentation: https://example.com/docs", app.helpFooter)
 }
 
 func TestApp_Fluent_Deprecated(t *testing.T) {

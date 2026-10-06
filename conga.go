@@ -183,12 +183,12 @@ func (a *App[T]) Examples(examples string) *App[T] {
 	return a
 }
 
-// Footer sets text rendered at the bottom of every help screen, after the flags,
+// HelpFooter sets text rendered at the bottom of every help screen, after the flags,
 // arguments, and subcommands. It applies to the root command and all subcommands.
 //
 // See https://docs.conga.sh/how-to/customize-help-screens/.
-func (a *App[T]) Footer(footer string) *App[T] {
-	a.footer = footer
+func (a *App[T]) HelpFooter(footer string) *App[T] {
+	a.helpFooter = footer
 
 	return a
 }
@@ -912,7 +912,7 @@ type appConfig[T any] struct {
 	name                  string
 	description           string
 	examples              string
-	footer                string
+	helpFooter            string
 	deprecated            string
 	deprecationNotices    []string
 	version               string
@@ -1253,8 +1253,8 @@ func (a *App[T]) buildSpec() (*spec.Command, error) {
 		cmd.Examples = strings.TrimSpace(a.examples)
 	}
 
-	if a.footer != "" {
-		cmd.Footer = a.footer
+	if a.helpFooter != "" {
+		cmd.HelpFooter = a.helpFooter
 	}
 
 	if a.deprecated != "" {

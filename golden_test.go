@@ -134,7 +134,7 @@ func configureGoldenApp(app *conga.App[goldenCLI]) *conga.App[goldenCLI] {
 	return app.
 		Name("golden").
 		Description("Golden reference application.").
-		Footer("Documentation: https://example.com/golden").
+		HelpFooter("Documentation: https://example.com/golden").
 		Examples("# Deploy the api target\ngolden deploy api --reason rollout").
 		Version("1.2.3")
 }

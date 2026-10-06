@@ -22,7 +22,7 @@ func New[T any](root ...*T) *App[T]
 | `Name(name)` | Binary name (defaults to `os.Args[0]`) |
 | `Description(desc)` | Root description |
 | `Examples(examples)` | Usage examples on `--help` |
-| `Footer(footer)` | Footer rendered on every help screen |
+| `HelpFooter(footer)` | Footer rendered on every help screen |
 | `Deprecated(reason)` | Whole-app deprecation banner |
 | `Version(version)` | `--version` display string (falls back to build metadata) |
 | `EnvPrefix(prefix)` | Environment tier prefix (normalized to trailing `_`) |

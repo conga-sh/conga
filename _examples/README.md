@@ -31,7 +31,7 @@ task test:examples
 | 07 | [07-dynamic-validation](07-dynamic-validation/) | The `conga.Validator` interface for cross-field semantic validation before any hook runs |
 | 08 | [08-subcommands-basic](08-subcommands-basic/) | `Command[T]` routing, command aliases, command groups, hidden commands, did-you-mean suggestions |
 | 09 | [09-deep-hierarchy-context](09-deep-hierarchy-context/) | Deep nesting with `session.Root`, root-down `Command[T].Get()` traversal, `session.Path()`, `session.Name()`; per-command `envprefix` tags (inheritance and override) |
-| 10 | [10-builtins-help-version](10-builtins-help-version/) | Opt-in `conga.HelpCommand` / `conga.VersionCommand` subcommands vs `--help` / `--version` flags; `Examples`/`Footer` builders and the `Description()`/`Examples()` subcommand methods |
+| 10 | [10-builtins-help-version](10-builtins-help-version/) | Opt-in `conga.HelpCommand` / `conga.VersionCommand` subcommands vs `--help` / `--version` flags; `Examples`/`HelpFooter` builders and the `Description()`/`Examples()` subcommand methods |
 | 11 | [11-trailing-args-forwarding](11-trailing-args-forwarding/) | `conga.DashArgs` (`--` forwarding, go-test style) vs `conga.RawArgs` (bare forwarding, docker style), plus `session.Args()` |
 | 12 | [12-lifecycle-hooks](12-lifecycle-hooks/) | `PreRun` → `Run` → `PostRun` → `Finally` ordering, error short-circuiting, guaranteed teardown, exit code 1 on runtime errors |
 | 13 | [13-twelve-factor-precedence](13-twelve-factor-precedence/) | The 4-tier precedence ladder (CLI > env > config > default), `EnvPrefix`, `env:"-"`, `placeholder`, `config:"-"`, and the `--why` provenance report |

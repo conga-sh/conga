@@ -40,7 +40,7 @@ type Command struct {
 	Summary         string
 	Description     string
 	Examples        string
-	Footer          string
+	HelpFooter      string
 	Deprecated      string
 	Group           string
 	Hidden          bool

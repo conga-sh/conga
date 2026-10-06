@@ -1255,9 +1255,9 @@ type deprecatedMethodCmd struct{}
 
 func (deprecatedMethodCmd) Deprecated() string { return "unused" }
 
-type footerMethodCmd struct{}
+type helpFooterMethodCmd struct{}
 
-func (footerMethodCmd) Footer() string { return "unused" }
+func (helpFooterMethodCmd) HelpFooter() string { return "unused" }
 
 type rootSummaryCLI struct{}
 
@@ -1267,9 +1267,9 @@ type rootDescriptionCLI struct{}
 
 func (rootDescriptionCLI) Description() string { return "unused" }
 
-type rootFooterCLI struct{}
+type rootHelpFooterCLI struct{}
 
-func (rootFooterCLI) Footer() string { return "unused" }
+func (rootHelpFooterCLI) HelpFooter() string { return "unused" }
 
 type rootDeprecatedCLI struct{}
 
@@ -1311,11 +1311,11 @@ func TestSubcommand_MethodRejection_Deprecated(t *testing.T) {
 	assert.Equal(t, `schema error: subcommand struct deprecatedMethodCmd must not implement Deprecated(); declare the deprecation notice via the deprecated:"..." struct tag`, err.Error())
 }
 
-func TestSubcommand_MethodRejection_Footer(t *testing.T) {
+func TestSubcommand_MethodRejection_HelpFooter(t *testing.T) {
 	t.Parallel()
 
 	type RootCLI struct {
-		Subcommand mockCmd[footerMethodCmd] `summary:"Sub command"`
+		Subcommand mockCmd[helpFooterMethodCmd] `summary:"Sub command"`
 	}
 
 	var cli RootCLI
@@ -1324,7 +1324,7 @@ func TestSubcommand_MethodRejection_Footer(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.IsError(t, err, spec.ErrSchema)
-	assert.Equal(t, `schema error: subcommand struct footerMethodCmd must not implement Footer(); footers are global and must be configured via app.Footer()`, err.Error())
+	assert.Equal(t, `schema error: subcommand struct helpFooterMethodCmd must not implement HelpFooter(); help footers are global and must be configured via app.HelpFooter()`, err.Error())
 }
 
 func TestRootCommand_MethodRejection_Summary(t *testing.T) {
@@ -1351,16 +1351,16 @@ func TestRootCommand_MethodRejection_Description(t *testing.T) {
 	assert.Equal(t, `schema error: root command struct rootDescriptionCLI must not implement Description(); configure application description via app.Description()`, err.Error())
 }
 
-func TestRootCommand_MethodRejection_Footer(t *testing.T) {
+func TestRootCommand_MethodRejection_HelpFooter(t *testing.T) {
 	t.Parallel()
 
-	var cli rootFooterCLI
+	var cli rootHelpFooterCLI
 
 	_, err := buildSchema(&cli, "app", spec.Options{})
 
 	assert.Error(t, err)
 	assert.IsError(t, err, spec.ErrSchema)
-	assert.Equal(t, `schema error: root command struct rootFooterCLI must not implement Footer(); configure global footer via app.Footer()`, err.Error())
+	assert.Equal(t, `schema error: root command struct rootHelpFooterCLI must not implement HelpFooter(); configure global help footer via app.HelpFooter()`, err.Error())
 }
 
 func TestRootCommand_MethodRejection_Deprecated(t *testing.T) {

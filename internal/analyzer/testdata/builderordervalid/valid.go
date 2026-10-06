@@ -23,7 +23,7 @@ func orderedChain() {
 		Description("Every call sits in its canonical position").
 		Version("1.0.0").
 		Examples("ordered --help").
-		Footer("ordered docs").
+		HelpFooter("ordered docs").
 		Deprecated("").
 		DisableHelpFlag().
 		DisableVersionFlag().
