@@ -93,8 +93,8 @@ func (s *Session) Root[T any]() *T
 func (s *Session) Stdin() io.Reader
 func (s *Session) Stdout() io.Writer
 func (s *Session) Stderr() io.Writer
-func (s *Session) Help()
-func (s *Session) Usage()
+func (s *Session) Help() string
+func (s *Session) Usage() string
 func (s *Session) Version()
 func (s *Session) Path() string
 func (s *Session) Name() string
@@ -109,13 +109,7 @@ by walking the selected `Command[T]` fields (`root.Cluster.Get()`).
 The standard streams are captured when the App starts executing; builder
 changes afterwards do not affect the active session.
 
-`Help`, `Usage`, and `Version` are the same rendering primitives the built-in
-`help` and `version` commands use, so a custom command can emit
-framework-formatted help, syntax, and version output directly:
-`Help` writes the active command's help screen to stdout, `Usage` writes the
-syntax summary to stderr, and `Version` writes the version summary to stdout,
-falling back to the module version (or `dev`) plus the embedded build metadata
-when no version string was configured.
+`Help`, `Usage`, and `Version` are the formatting primitives behind the built-in `help` and `version` commands: `Help` returns the active command's help screen as a string, `Usage` returns the syntax usage summary as a string, and `Version` writes the version summary to stdout, falling back to the module version (or `dev`) plus the embedded build metadata when no version string was configured.
 
 ## Domain types
 
@@ -131,7 +125,7 @@ when no version string was configured.
 
 ## Errors
 
-Base categories (`ErrSchema`, `ErrParse`, `ErrCoerce`, `ErrValidation`, `ErrConfig`) plus the `UsageError` interface and `IsUsageError(err)` classification — catalogued in [Errors and exit codes](/reference/errors/).
+Base categories (`ErrSchema`, `ErrParse`, `ErrCoerce`, `ErrValidation`, `ErrConfig`) plus the `UsageError` and `CompletionError` interfaces and `IsUsageError(err)` / `IsCompletionError(err)` classifications — catalogued in [Errors and exit codes](/reference/errors/).
 
 ## Configuration package
 

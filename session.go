@@ -69,30 +69,27 @@ func (s *Session) Stdin() io.Reader {
 	return s.stdin
 }
 
-// Help renders the active command's help screen to [Session.Stdout].
+// Help returns the formatted help screen for the active command, rendered with
+// the same engine the built-in `--help` flag uses.
 //
-// This executes the identical formatting engine used by the built-in `--help` flag,
-// allowing custom commands to render standard help screens without pseudo-error
-// sentinels.
-func (s *Session) Help() {
-	if s == nil || s.stdout == nil {
-		return
+// If the session is nil or uninitialized, Help returns an empty string.
+func (s *Session) Help() string {
+	if s == nil || len(s.cmdChain) == 0 {
+		return ""
 	}
 
-	if len(s.cmdChain) > 0 {
-		fmt.Fprintln(s.stdout, help.FormatWith(s.cmdChain, s.helpOptions))
-	}
+	return help.FormatWith(s.cmdChain, s.helpOptions)
 }
 
-// Usage renders the syntax usage summary for the active command to [Session.Stderr].
-func (s *Session) Usage() {
-	if s == nil || s.stderr == nil {
-		return
+// Usage returns the syntax usage summary for the active command.
+//
+// If the session is nil or uninitialized, Usage returns an empty string.
+func (s *Session) Usage() string {
+	if s == nil || len(s.cmdChain) == 0 {
+		return ""
 	}
 
-	if len(s.cmdChain) > 0 {
-		fmt.Fprintln(s.stderr, help.Usage(s.cmdChain))
-	}
+	return help.Usage(s.cmdChain)
 }
 
 // Version renders application version information to [Session.Stdout].

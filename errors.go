@@ -10,6 +10,7 @@ import (
 
 	"github.com/conga-sh/conga/internal/coerce"
 	"github.com/conga-sh/conga/internal/container"
+	"github.com/conga-sh/conga/internal/help"
 	"github.com/conga-sh/conga/internal/sentinel"
 	"github.com/conga-sh/conga/internal/spec"
 )
@@ -98,6 +99,18 @@ type UsageError interface {
 
 	// CommandPath returns the space-separated command path where the error occurred.
 	CommandPath() string
+
+	// Usage returns the syntax usage summary for the command where the error occurred.
+	Usage() string
+}
+
+// CompletionError is an interface implemented by errors that represent an internal
+// failure during shell completion evaluation (such as a predictor panic or broken stream).
+type CompletionError interface {
+	error
+
+	// IsCompletionError reports whether the error represents an internal completion failure.
+	IsCompletionError() bool
 }
 
 // IsUsageError reports whether err was caused by invalid command-line input.
@@ -118,6 +131,20 @@ func IsUsageError(err error) bool {
 	return errors.Is(err, ErrParse) ||
 		errors.Is(err, ErrCoerce) ||
 		errors.Is(err, ErrValidation)
+}
+
+// IsCompletionError reports whether err was caused by an internal failure during shell
+// completion evaluation.
+func IsCompletionError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	if completionErr, ok := errors.AsType[CompletionError](err); ok {
+		return completionErr.IsCompletionError()
+	}
+
+	return false
 }
 
 type commandChainProvider interface {
@@ -181,6 +208,10 @@ func (e *parseError) IsUsageError() bool {
 
 func (e *parseError) CommandPath() string {
 	return commandChainPath(e.cmdChain)
+}
+
+func (e *parseError) Usage() string {
+	return help.Usage(e.cmdChain)
 }
 
 func (e *parseError) commandChain() []*spec.Command {
@@ -255,6 +286,10 @@ func (e *coercionError) CommandPath() string {
 	return commandChainPath(e.cmdChain)
 }
 
+func (e *coercionError) Usage() string {
+	return help.Usage(e.cmdChain)
+}
+
 func (e *coercionError) commandChain() []*spec.Command {
 	return e.cmdChain
 }
@@ -310,6 +345,10 @@ func (e *validationError) CommandPath() string {
 	return commandChainPath(e.cmdChain)
 }
 
+func (e *validationError) Usage() string {
+	return help.Usage(e.cmdChain)
+}
+
 func (e *validationError) commandChain() []*spec.Command {
 	return e.cmdChain
 }
@@ -327,12 +366,8 @@ func (e *completionError) Error() string {
 	return "internal completion failure: " + e.cause
 }
 
-func (e *completionError) IsUsageError() bool {
+func (e *completionError) IsCompletionError() bool {
 	return true
-}
-
-func (e *completionError) CommandPath() string {
-	return ""
 }
 
 func formatCoercionLocation(errObj *coercionError) string {

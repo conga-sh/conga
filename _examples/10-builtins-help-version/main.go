@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/_examples/internal/inspector"
@@ -53,7 +54,7 @@ type GuideCmd struct{}
 
 // Run renders the active command's help screen to stdout.
 func (g *GuideCmd) Run(_ context.Context, session *conga.Session) error {
-	session.Help()
+	fmt.Fprintln(session.Stdout(), session.Help())
 
 	return nil
 }
@@ -62,7 +63,7 @@ type SyntaxCmd struct{}
 
 // Run renders the syntax usage summary to stderr.
 func (s *SyntaxCmd) Run(_ context.Context, session *conga.Session) error {
-	session.Usage()
+	fmt.Fprintln(session.Stderr(), session.Usage())
 
 	return nil
 }

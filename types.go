@@ -765,7 +765,7 @@ func (c *CompletionCommand) Run(ctx context.Context, session *Session) error {
 	// help screen instead of failing: the supported-shells list and current-
 	// shell enable hints are the guidance the caller is looking for.
 	if c.Shell == "" {
-		fmt.Fprintln(session.Stdout(), help.FormatWith(session.cmdChain, session.helpOptions))
+		fmt.Fprintln(session.Stdout(), session.Help())
 
 		return nil
 	}
