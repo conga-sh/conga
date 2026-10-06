@@ -89,14 +89,14 @@ type File struct {
 }
 
 // TagSpecs registers the custom struct tags accepted by [File] fields.
-func (f *File) TagSpecs() []spec.TagSpec {
-	return []spec.TagSpec{
-		{Name: "existing", Kind: spec.TagKindBool, Excludes: []string{"stdout", "executable", "symlink"}},
-		{Name: "stdin", Kind: spec.TagKindBool, Excludes: []string{"stdout", "executable", "symlink"}},
-		{Name: "stdout", Kind: spec.TagKindBool, Excludes: []string{"stdin", "existing", "executable", "symlink"}},
-		{Name: "executable", Kind: spec.TagKindBool, Excludes: []string{"existing", "stdin", "stdout", "symlink", "glob"}},
-		{Name: "symlink", Kind: spec.TagKindBool, Excludes: []string{"existing", "stdin", "stdout", "executable", "glob"}},
-		{Name: "glob", Kind: spec.TagKindString, Excludes: []string{"executable", "symlink"}, Validate: validateGlobTagValue},
+func (f *File) TagSpecs() []TagSpec {
+	return []TagSpec{
+		{Name: "existing", Kind: TagKindBool, Excludes: []string{"stdout", "executable", "symlink"}},
+		{Name: "stdin", Kind: TagKindBool, Excludes: []string{"stdout", "executable", "symlink"}},
+		{Name: "stdout", Kind: TagKindBool, Excludes: []string{"stdin", "existing", "executable", "symlink"}},
+		{Name: "executable", Kind: TagKindBool, Excludes: []string{"existing", "stdin", "stdout", "symlink", "glob"}},
+		{Name: "symlink", Kind: TagKindBool, Excludes: []string{"existing", "stdin", "stdout", "executable", "glob"}},
+		{Name: "glob", Kind: TagKindString, Excludes: []string{"executable", "symlink"}, Validate: validateGlobTagValue},
 	}
 }
 
@@ -414,9 +414,9 @@ type Dir struct {
 }
 
 // TagSpecs registers the custom struct tags accepted by [Dir] fields (`existing`).
-func (d *Dir) TagSpecs() []spec.TagSpec {
-	return []spec.TagSpec{
-		{Name: "existing", Kind: spec.TagKindBool},
+func (d *Dir) TagSpecs() []TagSpec {
+	return []TagSpec{
+		{Name: "existing", Kind: TagKindBool},
 	}
 }
 
