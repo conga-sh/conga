@@ -2,9 +2,12 @@ package conga_test
 
 import (
 	"context"
+	"encoding"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
+	"math"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -458,19 +461,21 @@ func TestDomainTypes(t *testing.T) {
 		assert.Equal(t, []conga.TagSpec{{Name: "existing", Kind: conga.TagKindBool}}, dirSpecs)
 	})
 
-	t.Run("nil safety on pointer methods", func(t *testing.T) {
+	t.Run("zero value on domain types", func(t *testing.T) {
 		t.Parallel()
 
 		var (
-			nilFile     *conga.File
-			nilDir      *conga.Dir
-			nilByteSize *conga.ByteSize
+			zeroFile     conga.File
+			zeroDir      conga.Dir
+			zeroByteSize conga.ByteSize
+			zeroContent  conga.FileContent
 		)
 
-		assert.Equal(t, "", nilFile.String())
-		assert.Equal(t, "", nilDir.String())
-		assert.Equal(t, "0 B", nilByteSize.String())
-		assert.Equal(t, int64(0), nilByteSize.Bytes())
+		assert.Equal(t, "", zeroFile.String())
+		assert.Equal(t, "", zeroDir.String())
+		assert.Equal(t, "0B", zeroByteSize.String())
+		assert.Equal(t, int64(0), zeroByteSize.Bytes())
+		assert.Equal(t, "", zeroContent.String())
 	})
 
 	t.Run("File with executable tag unmarshal stores paths without probing", func(t *testing.T) {
@@ -683,16 +688,22 @@ func TestDomainTypes(t *testing.T) {
 			bytes    int64
 			expected string
 		}{
-			{name: "zero bytes", bytes: 0, expected: "0 B"},
-			{name: "sub-kibibyte bytes", bytes: 512, expected: "512 B"},
-			{name: "kibibyte boundary", bytes: 1024, expected: "1.00 KiB"},
-			{name: "fractional kibibytes", bytes: 1536, expected: "1.50 KiB"},
-			{name: "mebibyte boundary", bytes: 1024 * 1024, expected: "1.00 MiB"},
-			{name: "512 mebibytes", bytes: 512 * 1024 * 1024, expected: "512.00 MiB"},
-			{name: "gibibyte boundary", bytes: 1024 * 1024 * 1024, expected: "1.00 GiB"},
-			{name: "2 gibibytes", bytes: 2 * 1024 * 1024 * 1024, expected: "2.00 GiB"},
-			{name: "tebibyte boundary", bytes: 1024 * 1024 * 1024 * 1024, expected: "1.00 TiB"},
-			{name: "pebibyte boundary", bytes: 1024 * 1024 * 1024 * 1024 * 1024, expected: "1.00 PiB"},
+			{name: "zero bytes", bytes: 0, expected: "0B"},
+			{name: "sub-kibibyte bytes", bytes: 512, expected: "512B"},
+			{name: "kibibyte boundary", bytes: 1024, expected: "1KiB"},
+			{name: "fractional kibibytes", bytes: 1536, expected: "1536B"},
+			{name: "mebibyte boundary", bytes: 1024 * 1024, expected: "1MiB"},
+			{name: "512 mebibytes", bytes: 512 * 1024 * 1024, expected: "512MiB"},
+			{name: "gibibyte boundary", bytes: 1024 * 1024 * 1024, expected: "1GiB"},
+			{name: "2 gibibytes", bytes: 2 * 1024 * 1024 * 1024, expected: "2GiB"},
+			{name: "tebibyte boundary", bytes: 1024 * 1024 * 1024 * 1024, expected: "1TiB"},
+			{name: "pebibyte boundary", bytes: 1024 * 1024 * 1024 * 1024 * 1024, expected: "1PiB"},
+			{name: "negative kibibyte", bytes: -1024, expected: "-1KiB"},
+			{name: "negative mebibyte", bytes: -1024 * 1024, expected: "-1MiB"},
+			{name: "negative sub-kibibyte", bytes: -512, expected: "-512B"},
+			{name: "indivisible remainder", bytes: 1048577, expected: "1048577B"},
+			{name: "boundary minus one", bytes: 1048575, expected: "1048575B"},
+			{name: "math MinInt64 safe", bytes: math.MinInt64, expected: "-8192PiB"},
 		}
 
 		for _, formatCase := range formatCases {
@@ -1441,4 +1452,229 @@ func TestContainer_Flag_Source(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestIssue22DomainTypeValueStringer(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "config.yaml")
+	assert.NoError(t, os.WriteFile(filePath, []byte("key: value\n"), 0o600))
+
+	var (
+		fileFlag     conga.OptionalFlag[conga.File]
+		dirFlag      conga.OptionalFlag[conga.Dir]
+		byteSizeFlag conga.OptionalFlag[conga.ByteSize]
+		contentFlag  conga.OptionalFlag[conga.FileContent]
+	)
+
+	var file conga.File
+	assert.NoError(t, file.UnmarshalText([]byte(filePath)))
+	conga.OptionalFlagContainer(&fileFlag).SetValue(file, conga.SourceCLI, "--file")
+
+	var dir conga.Dir
+	assert.NoError(t, dir.UnmarshalText([]byte(tmpDir)))
+	conga.OptionalFlagContainer(&dirFlag).SetValue(dir, conga.SourceCLI, "--dir")
+
+	conga.OptionalFlagContainer(&byteSizeFlag).SetValue(conga.ByteSize(1024), conga.SourceCLI, "--size")
+	conga.OptionalFlagContainer(&contentFlag).SetValue(conga.FileContent("payload-data"), conga.SourceCLI, "--content")
+
+	t.Run("File value Stringer output avoids struct dump and pointer leakage", func(t *testing.T) {
+		t.Parallel()
+
+		fileValue := fileFlag.Get()
+		formattedPercentV := fmt.Sprintf("%v", fileValue)
+		formattedSprint := fmt.Sprint(fileValue)
+
+		assert.Equal(t, filePath, formattedPercentV)
+		assert.Equal(t, filePath, formattedSprint)
+		assert.False(t, slices.Contains([]byte(formattedPercentV), '{'))
+		assert.False(t, slices.Contains([]byte(formattedPercentV), '}'))
+
+		// Inline chaining on unaddressable temporary
+		assert.Equal(t, filePath, fileFlag.Get().String())
+	})
+
+	t.Run("Dir value Stringer output avoids struct dump", func(t *testing.T) {
+		t.Parallel()
+
+		dirValue := dirFlag.Get()
+		formattedPercentV := fmt.Sprintf("%v", dirValue)
+		formattedSprint := fmt.Sprint(dirValue)
+
+		assert.Equal(t, tmpDir, formattedPercentV)
+		assert.Equal(t, tmpDir, formattedSprint)
+
+		// Inline chaining on unaddressable temporary
+		assert.Equal(t, tmpDir, dirFlag.Get().String())
+	})
+
+	t.Run("ByteSize value Stringer output avoids raw integer", func(t *testing.T) {
+		t.Parallel()
+
+		sizeValue := byteSizeFlag.Get()
+		formattedPercentV := fmt.Sprintf("%v", sizeValue)
+		formattedSprint := fmt.Sprint(sizeValue)
+
+		assert.Equal(t, "1KiB", formattedPercentV)
+		assert.Equal(t, "1KiB", formattedSprint)
+
+		// Inline chaining on unaddressable temporary
+		assert.Equal(t, "1KiB", byteSizeFlag.Get().String())
+		assert.Equal(t, int64(1024), byteSizeFlag.Get().Bytes())
+	})
+
+	t.Run("FileContent value Stringer output", func(t *testing.T) {
+		t.Parallel()
+
+		contentValue := contentFlag.Get()
+		assert.Equal(t, "payload-data", fmt.Sprintf("%v", contentValue))
+		assert.Equal(t, "payload-data", contentFlag.Get().String())
+		assert.Equal(t, []byte("payload-data"), contentFlag.Get().Bytes())
+	})
+}
+
+func TestDomainTypesTextMarshaler(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "sample.txt")
+	assert.NoError(t, os.WriteFile(filePath, []byte("content"), 0o600))
+
+	var file conga.File
+	assert.NoError(t, file.UnmarshalText([]byte(filePath)))
+
+	var dir conga.Dir
+	assert.NoError(t, dir.UnmarshalText([]byte(tmpDir)))
+
+	var byteSize conga.ByteSize
+	assert.NoError(t, byteSize.UnmarshalText([]byte("1MiB")))
+
+	content := conga.FileContent("sample content")
+
+	t.Run("MarshalText outputs expected bytes", func(t *testing.T) {
+		t.Parallel()
+
+		fileBytes, fileErr := file.MarshalText()
+		assert.NoError(t, fileErr)
+		assert.Equal(t, []byte(filePath), fileBytes)
+
+		dirBytes, dirErr := dir.MarshalText()
+		assert.NoError(t, dirErr)
+		assert.Equal(t, []byte(tmpDir), dirBytes)
+
+		sizeBytes, sizeErr := byteSize.MarshalText()
+		assert.NoError(t, sizeErr)
+		assert.Equal(t, []byte("1MiB"), sizeBytes)
+
+		contentBytes, contentErr := content.MarshalText()
+		assert.NoError(t, contentErr)
+		assert.Equal(t, []byte("sample content"), contentBytes)
+	})
+
+	t.Run("MarshalText to UnmarshalText roundtrip", func(t *testing.T) {
+		t.Parallel()
+
+		var roundtripFile conga.File
+
+		fileBytes, _ := file.MarshalText()
+		assert.NoError(t, roundtripFile.UnmarshalText(fileBytes))
+		assert.Equal(t, file.String(), roundtripFile.String())
+
+		var roundtripDir conga.Dir
+
+		dirBytes, _ := dir.MarshalText()
+		assert.NoError(t, roundtripDir.UnmarshalText(dirBytes))
+		assert.Equal(t, dir.String(), roundtripDir.String())
+
+		var roundtripSize conga.ByteSize
+
+		sizeBytes, _ := byteSize.MarshalText()
+		assert.NoError(t, roundtripSize.UnmarshalText(sizeBytes))
+		assert.Equal(t, byteSize.Bytes(), roundtripSize.Bytes())
+	})
+}
+
+func TestDomainTypesJSONSerializationRoundtrip(t *testing.T) {
+	t.Parallel()
+
+	type domainConfig struct {
+		Input  conga.File     `json:"input"`
+		Output conga.Dir      `json:"output"`
+		Memory conga.ByteSize `json:"memory"`
+	}
+
+	tmpDir := t.TempDir()
+	filePath := filepath.Join(tmpDir, "file.txt")
+	assert.NoError(t, os.WriteFile(filePath, []byte("payload"), 0o600))
+
+	var file conga.File
+	assert.NoError(t, file.UnmarshalText([]byte(filePath)))
+
+	var dir conga.Dir
+	assert.NoError(t, dir.UnmarshalText([]byte(tmpDir)))
+
+	initial := domainConfig{
+		Input:  file,
+		Output: dir,
+		Memory: conga.ByteSize(1024 * 1024),
+	}
+
+	encoded, err := json.Marshal(initial)
+	assert.NoError(t, err)
+
+	// Ensure File and Dir do not serialize to empty object "{}"
+	jsonString := string(encoded)
+	assert.Contains(t, jsonString, fmt.Sprintf(`"input":%q`, filePath))
+	assert.Contains(t, jsonString, fmt.Sprintf(`"output":%q`, tmpDir))
+	assert.Contains(t, jsonString, `"memory":"1MiB"`)
+
+	var decoded domainConfig
+
+	err = json.Unmarshal(encoded, &decoded)
+	assert.NoError(t, err)
+
+	assert.Equal(t, initial.Input.String(), decoded.Input.String())
+	assert.Equal(t, initial.Output.String(), decoded.Output.String())
+	assert.Equal(t, initial.Memory.Bytes(), decoded.Memory.Bytes())
+
+	// FileContent: Marshal outputs text rather than base64; Unmarshal loads file path from JSON
+	content := conga.FileContent("inline payload")
+
+	encodedContent, err := json.Marshal(content)
+	assert.NoError(t, err)
+	assert.Equal(t, `"inline payload"`, string(encodedContent))
+
+	var decodedContent conga.FileContent
+
+	err = json.Unmarshal([]byte(fmt.Sprintf("%q", filePath)), &decodedContent)
+	assert.NoError(t, err)
+	assert.Equal(t, "payload", decodedContent.String())
+}
+
+func TestDomainTypesInterfaceAssertions(t *testing.T) {
+	t.Parallel()
+
+	// Assert value types satisfy fmt.Stringer and encoding.TextMarshaler
+	var (
+		_ fmt.Stringer           = conga.File{}
+		_ encoding.TextMarshaler = conga.File{}
+
+		_ fmt.Stringer           = conga.Dir{}
+		_ encoding.TextMarshaler = conga.Dir{}
+
+		_ fmt.Stringer           = conga.ByteSize(0)
+		_ encoding.TextMarshaler = conga.ByteSize(0)
+
+		_ fmt.Stringer           = conga.FileContent("")
+		_ encoding.TextMarshaler = conga.FileContent("")
+	)
+
+	// Assert pointer types satisfy encoding.TextUnmarshaler
+	var (
+		_ encoding.TextUnmarshaler = (*conga.File)(nil)
+		_ encoding.TextUnmarshaler = (*conga.Dir)(nil)
+		_ encoding.TextUnmarshaler = (*conga.ByteSize)(nil)
+		_ encoding.TextUnmarshaler = (*conga.FileContent)(nil)
+	)
 }

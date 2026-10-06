@@ -4,7 +4,7 @@
 # 1. Defaults
 exec domain-demo
 stdout '⚙  domain-demo'
-stdout '-m, --max-memory\s+conga\.ByteSize\s+512\.00 MiB\s+· default'
+stdout '-m, --max-memory\s+conga\.ByteSize\s+512MiB\s+· default'
 stdout '-l, --deploy-hook\s+conga\.File\s+—\s+○ unset'
 stdout '--payload\s+conga\.FileContent\s+—\s+○ unset'
 stdout '--output\s+conga\.File\s+—\s+○ unset'
@@ -16,7 +16,7 @@ symlink deploy-hook -> hook.sh
 exec domain-demo -i valid.txt -o output_folder -m 2GiB -l deploy-hook -p 8000-8080 -H Accept=application/json -H Content-Type=text/html
 stdout '-i, --input-file\s+conga\.File\s+valid\.txt\s+● cli --input-file'
 stdout '-o, --output-dir\s+conga\.Dir\s+output_folder\s+● cli --output-dir'
-stdout '-m, --max-memory\s+conga\.ByteSize\s+2\.00 GiB\s+● cli --max-memory'
+stdout '-m, --max-memory\s+conga\.ByteSize\s+2GiB\s+● cli --max-memory'
 stdout '-l, --deploy-hook\s+conga\.File\s+deploy-hook\s+● cli --deploy-hook'
 stdout '-p, --ports\s+main\.PortRange\s+8000-8080\s+● cli --ports'
 stdout '-H, --headers\s+main\.HeaderMap\s+map\[Accept:application/json Content-Type:text/html\]\s+● cli --headers'

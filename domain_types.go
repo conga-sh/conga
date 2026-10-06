@@ -2,6 +2,7 @@ package conga
 
 import (
 	"context"
+	"encoding"
 	"fmt"
 	"io"
 	"os"
@@ -31,6 +32,24 @@ const (
 	byteSizeErrorInvalid                                // no leading numeric prefix
 	byteSizeErrorInvalidNumber                          // numeric prefix does not parse
 	byteSizeErrorUnknownUnit                            // unrecognized unit suffix
+)
+
+var (
+	_ fmt.Stringer             = File{}
+	_ encoding.TextMarshaler   = File{}
+	_ encoding.TextUnmarshaler = (*File)(nil)
+
+	_ fmt.Stringer             = Dir{}
+	_ encoding.TextMarshaler   = Dir{}
+	_ encoding.TextUnmarshaler = (*Dir)(nil)
+
+	_ fmt.Stringer             = ByteSize(0)
+	_ encoding.TextMarshaler   = ByteSize(0)
+	_ encoding.TextUnmarshaler = (*ByteSize)(nil)
+
+	_ fmt.Stringer             = FileContent("")
+	_ encoding.TextMarshaler   = FileContent("")
+	_ encoding.TextUnmarshaler = (*FileContent)(nil)
 )
 
 // File represents a filesystem path with optional capability constraints declared
@@ -76,7 +95,7 @@ const (
 //
 // See https://docs.conga.sh/reference/domain-types/.
 //
-//nolint:recvcheck // Inspection hooks (String/Help/Predict/TagSpecs/Validate) use pointer receivers for nil-safety; file accessors (IsStdio/Reader/Writer/Stat) use value receivers.
+//nolint:recvcheck // Inspection hooks (String/MarshalText/Help/Predict/IsStdio/Reader/Writer/Stat) use value receivers for value semantics; mutating and decoding hooks (UnmarshalText/UnmarshalTextWithContext/Validate/TagSpecs) use pointer receivers.
 type File struct {
 	path        string
 	existing    bool
@@ -89,14 +108,14 @@ type File struct {
 }
 
 // TagSpecs registers the custom struct tags accepted by [File] fields.
-func (f *File) TagSpecs() []spec.TagSpec {
-	return []spec.TagSpec{
-		{Name: "existing", Kind: spec.TagKindBool, Excludes: []string{"stdout", "executable", "symlink"}},
-		{Name: "stdin", Kind: spec.TagKindBool, Excludes: []string{"stdout", "executable", "symlink"}},
-		{Name: "stdout", Kind: spec.TagKindBool, Excludes: []string{"stdin", "existing", "executable", "symlink"}},
-		{Name: "executable", Kind: spec.TagKindBool, Excludes: []string{"existing", "stdin", "stdout", "symlink", "glob"}},
-		{Name: "symlink", Kind: spec.TagKindBool, Excludes: []string{"existing", "stdin", "stdout", "executable", "glob"}},
-		{Name: "glob", Kind: spec.TagKindString, Excludes: []string{"executable", "symlink"}, Validate: validateGlobTagValue},
+func (f *File) TagSpecs() []TagSpec {
+	return []TagSpec{
+		{Name: "existing", Kind: TagKindBool, Excludes: []string{"stdout", "executable", "symlink"}},
+		{Name: "stdin", Kind: TagKindBool, Excludes: []string{"stdout", "executable", "symlink"}},
+		{Name: "stdout", Kind: TagKindBool, Excludes: []string{"stdin", "existing", "executable", "symlink"}},
+		{Name: "executable", Kind: TagKindBool, Excludes: []string{"existing", "stdin", "stdout", "symlink", "glob"}},
+		{Name: "symlink", Kind: TagKindBool, Excludes: []string{"existing", "stdin", "stdout", "executable", "glob"}},
+		{Name: "glob", Kind: TagKindString, Excludes: []string{"executable", "symlink"}, Validate: validateGlobTagValue},
 	}
 }
 
@@ -157,7 +176,7 @@ func (f *File) Validate(ctx context.Context) error {
 // Generates executable candidates from $PATH for `executable:"true"` fields, symlinks for
 // `symlink:"true"`, glob-filtered filenames for `glob:"..."`, and standard filesystem
 // files otherwise.
-func (f *File) Predict(tags FieldTags) predict.Predictor {
+func (f File) Predict(tags FieldTags) predict.Predictor {
 	switch {
 	case tags.Bool("executable"):
 		return predict.Executables()
@@ -170,14 +189,14 @@ func (f *File) Predict(tags FieldTags) predict.Predictor {
 	}
 }
 
-// String returns the resolved filesystem path string. Returns an empty string if
-// the receiver is nil.
-func (f *File) String() string {
-	if f == nil {
-		return ""
-	}
-
+// String returns the resolved filesystem path string.
+func (f File) String() string {
 	return f.path
+}
+
+// MarshalText returns the resolved filesystem path as UTF-8 bytes.
+func (f File) MarshalText() ([]byte, error) {
+	return []byte(f.path), nil
 }
 
 // UnmarshalText unmarshals a raw path string, expanding environment variables and
@@ -230,7 +249,7 @@ func (f *File) UnmarshalTextWithContext(text []byte, decodeContext DecodeContext
 
 // Help returns the default value syntax description for file flags, tailored to
 // declared capability tags (e.g. "Path to an existing file or '-' for stdin").
-func (f *File) Help(tags FieldTags) string {
+func (f File) Help(tags FieldTags) string {
 	switch {
 	case tags.Bool("executable"):
 		return "Path to an executable"
@@ -317,13 +336,16 @@ func (f File) Stat() (os.FileInfo, error) {
 //	}
 //
 // See https://docs.conga.sh/reference/domain-types/.
-//
-//nolint:recvcheck // Inspection hooks (String/Help/Predict) use value receivers for value semantics; text unmarshaling needs pointer receivers to mutate the value.
 type FileContent string
 
 // Bytes returns the raw bytes of the loaded file content.
 func (f FileContent) Bytes() []byte {
 	return []byte(f)
+}
+
+// MarshalText returns the loaded file content as UTF-8 bytes.
+func (f FileContent) MarshalText() ([]byte, error) {
+	return []byte(f), nil
 }
 
 // String returns the loaded file content as a string.
@@ -395,9 +417,6 @@ func (f *FileContent) UnmarshalTextWithContext(text []byte, decodeContext Decode
 // Directory paths automatically expand tilde prefixes (`~` to the user's home directory)
 // and environment variables (`$VAR` or `${VAR}`) during value decoding.
 //
-// String uses a pointer receiver, so bind the resolved value to a local variable
-// before calling it:
-//
 //	type OutputCLI struct {
 //		OutputDir conga.RequiredFlag[conga.Dir] `short:"o" existing:"true" help:"Output directory"`
 //	}
@@ -414,9 +433,9 @@ type Dir struct {
 }
 
 // TagSpecs registers the custom struct tags accepted by [Dir] fields (`existing`).
-func (d *Dir) TagSpecs() []spec.TagSpec {
-	return []spec.TagSpec{
-		{Name: "existing", Kind: spec.TagKindBool},
+func (d *Dir) TagSpecs() []TagSpec {
+	return []TagSpec{
+		{Name: "existing", Kind: TagKindBool},
 	}
 }
 
@@ -444,18 +463,18 @@ func (d *Dir) Validate(ctx context.Context) error {
 }
 
 // Predict returns filesystem directory autocompletion candidates.
-func (d *Dir) Predict() predict.Predictor {
+func (d Dir) Predict() predict.Predictor {
 	return predict.Dirs()
 }
 
-// String returns the resolved directory path string. Returns an empty string if
-// the receiver is nil.
-func (d *Dir) String() string {
-	if d == nil {
-		return ""
-	}
-
+// String returns the resolved directory path string.
+func (d Dir) String() string {
 	return d.path
+}
+
+// MarshalText returns the resolved directory path as UTF-8 bytes.
+func (d Dir) MarshalText() ([]byte, error) {
+	return []byte(d.path), nil
 }
 
 // UnmarshalText unmarshals a directory path, expanding environment variables and
@@ -475,7 +494,7 @@ func (d *Dir) UnmarshalTextWithContext(text []byte, decodeContext DecodeContext)
 
 // Help returns the default value syntax description for directory flags, tailored
 // to declared tags ("Path to an existing directory" or "Path to a directory").
-func (d *Dir) Help(tags FieldTags) string {
+func (d Dir) Help(tags FieldTags) string {
 	if tags.Bool("existing") {
 		return "Path to an existing directory"
 	}
@@ -486,53 +505,69 @@ func (d *Dir) Help(tags FieldTags) string {
 // ByteSize represents human-readable data volumes (such as "10MiB", "1.5GB", "500KiB").
 //
 // The underlying type is an int64 byte count, enabling direct numeric comparisons
-// and calculations in bytes. Bytes and String use pointer receivers, so bind the
-// resolved value to a local variable before calling them:
+// and calculations in bytes:
 //
 //	type CacheCLI struct {
 //		MaxMemory conga.OptionalFlag[conga.ByteSize] `default:"512MiB" help:"Max memory limit"`
 //	}
 //
 //	func (c *CacheCLI) Run(ctx context.Context, session *conga.Session) error {
-//		limit := c.MaxMemory.Get()
-//		return configureCache(limit.Bytes()) // 536870912 for 512MiB
+//		return configureCache(c.MaxMemory.Get().Bytes()) // 536870912 for 512MiB
 //	}
 //
 // See https://docs.conga.sh/reference/domain-types/.
 type ByteSize int64
 
-// Bytes returns the size in bytes as an int64. Returns 0 if the receiver is nil.
-func (b *ByteSize) Bytes() int64 {
-	if b == nil {
-		return 0
-	}
-
-	return int64(*b)
+// Bytes returns the size in bytes as an int64.
+func (b ByteSize) Bytes() int64 {
+	return int64(b)
 }
 
-// String formats the byte size into a deterministic human-readable string using
-// IEC binary units (KiB, MiB, GiB, TiB, PiB). Returns "0 B" if the receiver is nil or zero.
-func (b *ByteSize) String() string {
-	if b == nil || *b == 0 {
-		return "0 B"
+// String formats the byte size into a deterministic, lossless human-readable string
+// using IEC binary units (KiB, MiB, GiB, TiB, PiB). Whole multiples of a unit are
+// formatted as integers without spaces or decimal points (e.g. "1MiB", "512MiB");
+// values with indivisible remainders are emitted as exact bytes (e.g. "1048577B").
+// Returns "0B" for zero.
+func (b ByteSize) String() string {
+	if b == 0 {
+		return "0B"
 	}
 
-	value := float64(*b)
+	var (
+		sign string
+		abs  uint64
+	)
 
-	switch {
-	case value >= 1024*1024*1024*1024*1024:
-		return fmt.Sprintf("%.2f PiB", value/(1024*1024*1024*1024*1024))
-	case value >= 1024*1024*1024*1024:
-		return fmt.Sprintf("%.2f TiB", value/(1024*1024*1024*1024))
-	case value >= 1024*1024*1024:
-		return fmt.Sprintf("%.2f GiB", value/(1024*1024*1024))
-	case value >= 1024*1024:
-		return fmt.Sprintf("%.2f MiB", value/(1024*1024))
-	case value >= 1024:
-		return fmt.Sprintf("%.2f KiB", value/1024)
-	default:
-		return fmt.Sprintf("%d B", int64(*b))
+	if b < 0 {
+		sign = "-"
+		abs = uint64(-(b + 1)) + 1 //nolint:gosec // G115: -(b+1) is non-negative for all negative int64 values including math.MinInt64.
+	} else {
+		abs = uint64(b)
 	}
+
+	units := []struct {
+		name       string
+		multiplier uint64
+	}{
+		{name: "PiB", multiplier: 1024 * 1024 * 1024 * 1024 * 1024},
+		{name: "TiB", multiplier: 1024 * 1024 * 1024 * 1024},
+		{name: "GiB", multiplier: 1024 * 1024 * 1024},
+		{name: "MiB", multiplier: 1024 * 1024},
+		{name: "KiB", multiplier: 1024},
+	}
+
+	for _, unit := range units {
+		if abs >= unit.multiplier && abs%unit.multiplier == 0 {
+			return fmt.Sprintf("%s%d%s", sign, abs/unit.multiplier, unit.name)
+		}
+	}
+
+	return fmt.Sprintf("%s%dB", sign, abs)
+}
+
+// MarshalText returns the byte size formatted as UTF-8 text using [ByteSize.String].
+func (b ByteSize) MarshalText() ([]byte, error) {
+	return []byte(b.String()), nil
 }
 
 // UnmarshalText parses a strict, case-sensitive byte size string.
@@ -589,7 +624,7 @@ func (b *ByteSize) UnmarshalText(text []byte) error {
 }
 
 // Help returns the default value syntax description for byte size flags.
-func (b *ByteSize) Help() string {
+func (b ByteSize) Help() string {
 	return "Byte size (e.g., 10MiB, 1.5GB, 500KiB)"
 }
 
