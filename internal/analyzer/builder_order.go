@@ -888,7 +888,7 @@ func defaultBuilderCallOrder() []string {
 		"Description",
 		"Version",
 		"Examples",
-		"Footer",
+		"HelpFooter",
 		"Deprecated",
 		"DisableHelpFlag",
 		"DisableVersionFlag",

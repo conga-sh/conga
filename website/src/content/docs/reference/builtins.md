@@ -19,21 +19,21 @@ Every app gets `--help` and a generated help screen. CONGA derives the help outp
 8. **Flags**: flags declared on the active command, grouped under `group:"..."` headers or the default `Flags:` heading. Built-in flags (`--help`, `--version`, `--why`) appear here.
 9. **Global flags**: persistent flags inherited from ancestor commands.
 10. **Examples**: usage examples configured via `app.Examples(...)` on the root builder, or `Examples() string` on subcommand structs.
-11. **Global footer**: text configured via `app.Footer(...)`.
+11. **Global help footer**: text configured via `app.HelpFooter(...)`.
 
-### Global footers and top matter
+### Global help footers and top matter
 
 CONGA does not provide a freeform header API; top-matter text is managed through command descriptions and the deprecation banner.
 
-`app.Footer(footer)` sets a global footer rendered at the bottom of every help screen across the application, including subcommands:
+`app.HelpFooter(footer)` sets a global help footer rendered at the bottom of every help screen across the application, including subcommands:
 
 ```go
 app := conga.New[CLI]().
 	Description("Service deployment manager").
-	Footer("Documentation: https://example.com/docs\nReport issues: https://example.com/issues")
+	HelpFooter("Documentation: https://example.com/docs\nReport issues: https://example.com/issues")
 ```
 
-Footers are strictly global. Defining a `Footer() string` method on a root command struct or a subcommand struct fails schema construction with `ErrSchema`.
+Help footers are strictly global. Defining a `HelpFooter() string` method on a root command struct or a subcommand struct fails schema construction with `ErrSchema`.
 
 ### The `help` subcommand
 

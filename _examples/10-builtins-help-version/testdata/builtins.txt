@@ -1,6 +1,6 @@
 # TestScript for 10-builtins-help-version
 # Asserts HelpCommand and VersionCommand built-ins, plus help enrichment via
-# the Examples/Footer builders and the Description/Examples subcommand methods
+# the Examples/HelpFooter builders and the Description/Examples subcommand methods
 
 # 1. Normal command execution
 exec infomgr status -d

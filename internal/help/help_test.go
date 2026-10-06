@@ -626,13 +626,13 @@ func TestFormat_ExamplesOmittedWhenEmpty(t *testing.T) {
 	assert.NotContains(t, formatted, "Examples:")
 }
 
-func TestFormat_Footer(t *testing.T) {
+func TestFormat_HelpFooter(t *testing.T) {
 	t.Parallel()
 
 	root := &spec.Command{
-		Name:    "app",
-		Summary: "Application root",
-		Footer:  "Documentation: https://example.com/docs\nReport issues: https://example.com/issues",
+		Name:       "app",
+		Summary:    "Application root",
+		HelpFooter: "Documentation: https://example.com/docs\nReport issues: https://example.com/issues",
 		Subcommands: []*spec.Command{
 			{Name: "deploy", Summary: "Deploy a container"},
 		},
@@ -647,7 +647,7 @@ func TestFormat_Footer(t *testing.T) {
 	assert.Contains(t, subFormatted, "Documentation: https://example.com/docs")
 }
 
-func TestFormat_FooterOmittedWhenEmpty(t *testing.T) {
+func TestFormat_HelpFooterOmittedWhenEmpty(t *testing.T) {
 	t.Parallel()
 
 	cmd := &spec.Command{

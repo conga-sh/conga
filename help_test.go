@@ -530,7 +530,7 @@ func TestApp_Deprecated_HelpFormatting(t *testing.T) {
 	})
 }
 
-func TestFooter_GlobalInheritance(t *testing.T) {
+func TestHelpFooter_GlobalInheritance(t *testing.T) {
 	t.Parallel()
 
 	type RootCLI struct {
@@ -546,7 +546,7 @@ func TestFooter_GlobalInheritance(t *testing.T) {
 
 		app := conga.New[RootCLI]().
 			Name("app").
-			Footer(footer).
+			HelpFooter(footer).
 			Args([]string{"--help"}).
 			Stdout(&buffer)
 
@@ -563,7 +563,7 @@ func TestFooter_GlobalInheritance(t *testing.T) {
 
 		app := conga.New[RootCLI]().
 			Name("app").
-			Footer(footer).
+			HelpFooter(footer).
 			Args([]string{"deploy", "--help"}).
 			Stdout(&buffer)
 

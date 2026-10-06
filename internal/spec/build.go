@@ -40,9 +40,9 @@ var rootCommandMethodGuards = []struct {
 		},
 	},
 	{
-		rejects: implements[footerMethod],
+		rejects: implements[helpFooterMethod],
 		message: func(structName string) string {
-			return "root command struct " + structName + " must not implement Footer(); configure global footer via app.Footer()"
+			return "root command struct " + structName + " must not implement HelpFooter(); configure global help footer via app.HelpFooter()"
 		},
 	},
 	{
@@ -757,7 +757,7 @@ type examplesMethod interface{ Examples() string }
 
 type summaryMethod interface{ Summary() string }
 
-type footerMethod interface{ Footer() string }
+type helpFooterMethod interface{ HelpFooter() string }
 
 type deprecatedMethod interface{ Deprecated() string }
 
@@ -845,7 +845,7 @@ func implements[T any](target any) bool {
 // applyCommandMethodGuardrails rejects lifecycle methods that conflict with the
 // struct-tag/flat-API conventions and populates subcommand help details from the
 // Description()/Examples() methods where allowed. The root command must configure
-// its metadata through app.Description()/app.Footer()/app.Deprecated()/app.Examples(),
+// its metadata through app.Description()/app.HelpFooter()/app.Deprecated()/app.Examples(),
 // while subcommands read Description()/Examples() from their struct and declare the
 // 1-line synopsis and deprecation notice through struct tags.
 func applyCommandMethodGuardrails(target any, cmd *Command, structName string, isRoot bool) error {
@@ -875,8 +875,8 @@ func guardSubcommandMethods(target any, cmd *Command, structName string) error {
 		return fmt.Errorf("%w: subcommand struct %s must not implement Deprecated(); declare the deprecation notice via the deprecated:\"...\" struct tag", ErrSchema, structName)
 	}
 
-	if _, ok := target.(footerMethod); ok {
-		return fmt.Errorf("%w: subcommand struct %s must not implement Footer(); footers are global and must be configured via app.Footer()", ErrSchema, structName)
+	if _, ok := target.(helpFooterMethod); ok {
+		return fmt.Errorf("%w: subcommand struct %s must not implement HelpFooter(); help footers are global and must be configured via app.HelpFooter()", ErrSchema, structName)
 	}
 
 	if m, ok := target.(descriptionMethod); ok {

@@ -3,7 +3,7 @@
 Opt-in `conga.HelpCommand` and `conga.VersionCommand` subcommands (including
 `version --json`) alongside custom commands that render through
 `session.Help()`, `session.Usage()`, and `session.Version()`. Also covers the
-`Examples`/`Footer` builders and the `Description()`/`Examples()` methods.
+`Examples`/`HelpFooter` builders and the `Description()`/`Examples()` methods.
 
 ## Run it
 

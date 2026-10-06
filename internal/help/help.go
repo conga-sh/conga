@@ -233,8 +233,8 @@ func FormatWith(cmdChain []*spec.Command, opts Options) string {
 	// 9. Examples
 	builder.WriteString(formatExamples(leaf.Examples))
 
-	// 10. Global footer
-	if footer := strings.TrimSpace(cmdChain[0].Footer); footer != "" {
+	// 10. Global help footer
+	if footer := strings.TrimSpace(cmdChain[0].HelpFooter); footer != "" {
 		builder.WriteString("\n")
 		builder.WriteString(footer)
 	}

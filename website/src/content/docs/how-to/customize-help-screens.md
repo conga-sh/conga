@@ -31,7 +31,7 @@ func main() {
 		Name("cloudctl").
 		Description("Manage cloud infrastructure and deployments.").
 		Examples("cloudctl --verbose\ncloudctl deploy worker").
-		Footer("Documentation: https://example.com/docs\nReport issues: https://example.com/issues")
+		HelpFooter("Documentation: https://example.com/docs\nReport issues: https://example.com/issues")
 
 	if err := app.Run(); err != nil {
 		app.Exit(err)
@@ -41,9 +41,9 @@ func main() {
 
 - `Description("...")` sets the synopsis rendered at the top of the help screen.
 - `Examples("...")` renders usage lines under the `Examples:` heading.
-- `Footer("...")` renders text at the bottom of every help screen across the application, including subcommands.
+- `HelpFooter("...")` renders text at the bottom of every help screen across the application, including subcommands.
 
-Root structs must not implement `Description()`, `Summary()`, or `Footer()` methods; configure them on the builder. Footers are strictly global: defining a `Footer() string` method on a subcommand struct or root struct fails schema construction with `ErrSchema`.
+Root structs must not implement `Description()`, `Summary()`, or `HelpFooter()` methods; configure them on the builder. Help footers are strictly global: defining a `HelpFooter() string` method on a subcommand struct or root struct fails schema construction with `ErrSchema`.
 
 ## Add subcommand descriptions and examples
 
