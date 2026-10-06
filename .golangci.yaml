@@ -252,6 +252,13 @@ linters:
       # Require developers to specify exactly which linter is being skipped (e.g. //nolint:gosec)
       require-specific: true
 
+    recvcheck:
+      disable-builtin: false
+      exclusions:
+        - "*.UnmarshalTextWithContext"
+        - "*.Validate"
+        - "*.TagSpecs"
+
     revive:
       rules:
         - name: context-as-argument
@@ -347,6 +354,11 @@ linters:
           - gosmopolitan
           - maintidx
           - nestif
+      # Exclude redundantSprint from test files (testing Stringer implementation specifically requires fmt.Sprint/Sprintf)
+      - path: _test\.go
+        text: "redundantSprint:"
+        linters:
+          - gocritic
       # Exclude package-comments check for any package main files
       - source: "^package main"
         text: "package-comments:"

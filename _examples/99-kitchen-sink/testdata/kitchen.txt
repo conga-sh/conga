@@ -62,12 +62,12 @@ stdout '--string-flag\s+string\s+hcl-parsed\s+● config types.primitives.string
 exec kitchen-sink --config-file config.toml types values
 stdout '--timeout\s+time\.Duration\s+1m30s\s+● config types.values.timeout'
 stdout '--endpoint\s+url\.URL\s+https://api\.example\.com/v2\s+● config types.values.endpoint'
-stdout '--max-size\s+conga\.ByteSize\s+47\.68 MiB\s+● config types.values.max-size'
+stdout '--max-size\s+conga\.ByteSize\s+50000000B\s+● config types.values.max-size'
 stdout '--level\s+string\s+warn\s+● config types.values.level'
 stdout '--shard-map\s+map\[string\]string\s+web=3, worker=5\s+● config types.values.shard-map'
 
 exec kitchen-sink --config-file config.json types values
-stdout '--max-size\s+conga\.ByteSize\s+57\.22 MiB\s+● config types.values.max-size'
+stdout '--max-size\s+conga\.ByteSize\s+60000000B\s+● config types.values.max-size'
 
 # 4. Filesystem domain types (File with existing/executable/symlink tags, Dir)
 exec kitchen-sink --config-file config.toml types filesystem

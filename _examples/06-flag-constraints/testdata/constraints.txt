@@ -7,10 +7,10 @@ exec constraints-demo -k s3cr3t-key
 stdout '⚙  constraints-demo'
 stdout '--port\s+int\s+8080\s+· default'
 stdout '--timeout\s+time\.Duration\s+2s\s+· default'
-stdout '--memory\s+conga\.ByteSize\s+256\.00 MiB\s+· default'
+stdout '--memory\s+conga\.ByteSize\s+256MiB\s+· default'
 stdout '--env\s+string\s+dev\s+· default'
 stdout '-k, --api-key\s+string\s+s3cr3t-key\s+● cli --api-key'
-stdout 'Validated Constraints: format=default env=dev port=8080 timeout=2s memory=256\.00 MiB zones=0 api_key_source=cli'
+stdout 'Validated Constraints: format=default env=dev port=8080 timeout=2s memory=256MiB zones=0 api_key_source=cli'
 
 # 2. Missing required flag fails with exit code 2 and renders the full help screen
 exit-status 2 constraints-demo
@@ -22,7 +22,7 @@ stderr 'Port number \[1\.\.65535\]'
 # 3. Valid single XOR flag
 exec constraints-demo -k s3cr3t-key --json
 stdout '--json\s+bool\s+true\s+● cli --json'
-stdout 'Validated Constraints: format=json env=dev port=8080 timeout=2s memory=256\.00 MiB zones=0 api_key_source=cli'
+stdout 'Validated Constraints: format=json env=dev port=8080 timeout=2s memory=256MiB zones=0 api_key_source=cli'
 
 # 4. XOR Mutual Exclusion violation
 exit-status 2 constraints-demo -k s3cr3t-key --json --yaml
@@ -55,7 +55,7 @@ stderr 'value 10s is out of range \[100ms\.\.5s\] for flag --timeout'
 
 # 11. Byte size range violation (memory > 1GiB)
 exit-status 2 constraints-demo -k s3cr3t-key --memory 2GiB
-stderr 'value 2147483648 is out of range \[1MiB\.\.1GiB\] for flag --memory'
+stderr 'value 2GiB is out of range \[1MiB\.\.1GiB\] for flag --memory'
 
 # 12. Enum violation
 exit-status 2 constraints-demo -k s3cr3t-key --env local
