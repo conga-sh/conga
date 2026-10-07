@@ -89,8 +89,8 @@ func (p Predictor) Exclude(values ...string) Predictor {
 // The argument replaces the implicit ctx.ToComplete term used during
 // filtering; FilterText("") restores the implicit term. There is no "disable
 // filtering" spelling. This method filters by query match — unlike the
-// predicate-based FilesFiltered and PathsFiltered constructors, whose filter
-// argument is a predicate over directory entries.
+// predicate-based FilesFiltered, DirsFiltered, and PathsFiltered constructors,
+// whose filter argument is a predicate over directory entries.
 func (p Predictor) FilterText(toComplete string) Predictor {
 	p.filterText = toComplete
 

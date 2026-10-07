@@ -40,7 +40,8 @@ type LogsCmd struct {
 	GlobLog        conga.OptionalFlag[string]            `help:"Log file matching a glob pattern (FilesGlob)"                        predictor:"glob-logs"`
 	LogDir         conga.OptionalFlag[string]            `help:"Log output directory (Dirs)"                                         predictor:"log-dirs"`
 	Archive        conga.OptionalFlag[string]            `help:"Compressed archive to read (FilesFiltered)"                          predictor:"archives"`
-	NodeDir        conga.OptionalFlag[string]            `help:"Node log directory (PathsFiltered, directories only)"                predictor:"node-dirs"`
+	NodeDir        conga.OptionalFlag[string]            `help:"Node log directory (DirsFiltered)"                                   predictor:"node-dirs"`
+	VersionDir     conga.OptionalFlag[string]            `help:"Versioned output directory (DirsGlob)"                               predictor:"version-dirs"`
 	LogPath        conga.OptionalFlag[string]            `help:"Any manifest or directory (PathsFiltered)"                           predictor:"log-paths"`
 	Preset         conga.OptionalFlag[string]            `help:"Saved query preset (FileLines)"                                      predictor:"presets"`
 	LabelKey       conga.OptionalFlag[string]            `help:"Label key to filter on (FileContents + custom parser)"               predictor:"label-keys"`
@@ -130,9 +131,10 @@ func appendLogPredictors(app *conga.App[CLI]) *conga.App[CLI] {
 		Predictor("archives", predict.FilesFiltered(func(path string, entry os.DirEntry) bool {
 			return strings.HasSuffix(entry.Name(), ".gz")
 		}).Usage("compressed log archives")).
-		Predictor("node-dirs", predict.PathsFiltered(func(path string, entry os.DirEntry) bool {
-			return isDirectoryEntry(path, entry) && strings.HasPrefix(entry.Name(), "202")
-		}).NoSpace().Usage("dated node directories")).
+		Predictor("node-dirs", predict.DirsFiltered(func(path string, entry os.DirEntry) bool {
+			return strings.HasPrefix(entry.Name(), "202")
+		}).Usage("dated node directories")).
+		Predictor("version-dirs", predict.DirsGlob("v*").Usage("versioned output directories")).
 		Predictor("log-paths", predict.PathsFiltered(func(path string, entry os.DirEntry) bool {
 			return entry.IsDir() || strings.HasSuffix(entry.Name(), ".yaml")
 		}).Usage("manifest files or directories")).
@@ -201,21 +203,4 @@ func slowShardRegistry() predict.Predictor {
 	time.Sleep(300 * time.Millisecond)
 
 	return predict.Values("shard-9", "shard-8").Usage("slow registry results")
-}
-
-// isDirectoryEntry reports whether entry is a directory or a symlink that
-// resolves to one. DirEntry.IsDir does not follow symlinks, so a directory
-// predicate over PathsFiltered must stat symlinks explicitly.
-func isDirectoryEntry(path string, entry os.DirEntry) bool {
-	if entry.IsDir() {
-		return true
-	}
-
-	if entry.Type()&os.ModeSymlink == 0 {
-		return false
-	}
-
-	info, err := os.Stat(path)
-
-	return err == nil && info.IsDir()
 }
