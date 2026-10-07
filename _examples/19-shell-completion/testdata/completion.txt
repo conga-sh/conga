@@ -232,9 +232,9 @@ env PAGER=custom-pager-demo
 exec cloudctl __complete export logs --pager ''
 stdout '"value":"custom-pager-demo"'
 
-# 14. Filesystem predictors: Files, FilesGlob, Dirs, FilesFiltered,
-#     PathsFiltered, FileLines, FileContents (+custom parser), Executables,
-#     Symlinks, None
+# 14. Filesystem predictors: Files, FilesGlob, Dirs, DirsFiltered, DirsGlob,
+#     FilesFiltered, PathsFiltered, FileLines, FileContents (+custom parser),
+#     Executables, Symlinks, None
 exec cloudctl __complete export logs --out-file ''
 stdout '"value":"app.log"'
 stdout '"value":"server.log"'
@@ -259,6 +259,12 @@ stdout '"value":"archive.log.gz"'
 exec cloudctl __complete export logs --node-dir ''
 stdout '"value":"2024-01/"'
 ! stdout '"value":"build/"'
+
+exec cloudctl __complete export logs --version-dir ''
+stdout '"value":"v1.0/"'
+stdout '"value":"v2.0/"'
+! stdout '"value":"build/"'
+! stdout '"value":"2024-01/"'
 
 exec cloudctl __complete export logs --log-path ''
 stdout '"value":"app.yaml"'
@@ -420,6 +426,10 @@ ignore
 -- build/placeholder --
 placeholder
 -- 2024-01/placeholder --
+placeholder
+-- v1.0/placeholder --
+placeholder
+-- v2.0/placeholder --
 placeholder
 -- app.log --
 placeholder

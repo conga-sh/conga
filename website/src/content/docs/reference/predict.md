@@ -45,7 +45,7 @@ func (i Item) WithTag(tag string) Item
 
 ## Filesystem constructors
 
-`Files(extensions...)`, `FilesFiltered(filter)`, `FilesGlob(patterns...)`, `Dirs()`, `PathsFiltered(filter)`, `Symlinks()`, `Executables()`, `FileLines(filePath)`, and `FileContents(filePath, parser)`. Filters are `func(path string, entry os.DirEntry) bool`. `FilesGlob` matches file base names against `filepath.Match` patterns while keeping directories visible for traversal (a wildcard-free pattern such as `"Makefile"` matches that literal name). Directory-only filtering is `PathsFiltered` with a directory predicate plus `NoSpace()`.
+`Files(extensions...)`, `FilesFiltered(filter)`, `FilesGlob(patterns...)`, `Dirs()`, `DirsFiltered(filter)`, `DirsGlob(patterns...)`, `PathsFiltered(filter)`, `Symlinks()`, `Executables()`, `FileLines(filePath)`, and `FileContents(filePath, parser)`. Filters are `func(path string, entry os.DirEntry) bool`. `FilesGlob` matches file base names against `filepath.Match` patterns while keeping directories visible for traversal (a wildcard-free pattern such as `"Makefile"` matches that literal name); `DirsGlob` matches directory base names against the same patterns. `DirsFiltered` is the predicate equivalent for directories.
 
 ## Combinators on `Predictor`
 

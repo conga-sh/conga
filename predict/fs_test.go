@@ -136,6 +136,93 @@ func TestDirs(t *testing.T) {
 	assert.True(t, result.Directive.Has(predict.DirectiveNoFileComp))
 }
 
+func TestDirsFiltered(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	assert.NoError(t, os.Mkdir(filepath.Join(tmpDir, "2023-01"), 0755))
+	assert.NoError(t, os.Mkdir(filepath.Join(tmpDir, "2024-06"), 0755))
+	assert.NoError(t, os.Mkdir(filepath.Join(tmpDir, "archive"), 0755))
+	writeFile(t, filepath.Join(tmpDir, "notes.txt"), []byte("notes"))
+	writeFile(t, filepath.Join(tmpDir, "app.go"), []byte("package main"))
+
+	pred := predict.DirsFiltered(func(path string, entry os.DirEntry) bool {
+		return strings.HasPrefix(entry.Name(), "202")
+	})
+	result := pred.Invoke(predict.Context{Dir: tmpDir})
+
+	assert.Equal(t, []string{"2023-01/", "2024-06/"}, itemValues(result.Items))
+	assert.True(t, result.Directive.Has(predict.DirectiveNoSpace))
+	assert.True(t, result.Directive.Has(predict.DirectiveNoFileComp))
+}
+
+func TestDirsFiltered_SymlinkedDir(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	assert.NoError(t, os.Mkdir(filepath.Join(tmpDir, "real"), 0755))
+
+	symlinkPath := filepath.Join(tmpDir, "link")
+	if err := os.Symlink(filepath.Join(tmpDir, "real"), symlinkPath); err != nil {
+		t.Skip("symlinks not supported on this platform")
+	}
+
+	pred := predict.DirsFiltered(func(path string, entry os.DirEntry) bool {
+		return entry.Name() == "link"
+	})
+	result := pred.Invoke(predict.Context{Dir: tmpDir})
+
+	assert.Equal(t, []string{"link/"}, itemValues(result.Items))
+	assert.True(t, result.Directive.Has(predict.DirectiveNoSpace))
+	assert.True(t, result.Directive.Has(predict.DirectiveNoFileComp))
+}
+
+func TestDirsGlob(t *testing.T) {
+	t.Parallel()
+
+	t.Run("literal pattern matches exact directory name", func(t *testing.T) {
+		t.Parallel()
+
+		tmpDir := t.TempDir()
+		assert.NoError(t, os.Mkdir(filepath.Join(tmpDir, "build"), 0755))
+		assert.NoError(t, os.Mkdir(filepath.Join(tmpDir, "dist"), 0755))
+		writeFile(t, filepath.Join(tmpDir, "Makefile"), []byte("all:"))
+
+		pred := predict.DirsGlob("build")
+		result := pred.Invoke(predict.Context{Dir: tmpDir})
+
+		assert.Equal(t, []string{"build/"}, itemValues(result.Items))
+		assert.True(t, result.Directive.Has(predict.DirectiveNoSpace))
+		assert.True(t, result.Directive.Has(predict.DirectiveNoFileComp))
+	})
+
+	t.Run("multiple patterns union", func(t *testing.T) {
+		t.Parallel()
+
+		tmpDir := t.TempDir()
+		assert.NoError(t, os.Mkdir(filepath.Join(tmpDir, "env-prod"), 0755))
+		assert.NoError(t, os.Mkdir(filepath.Join(tmpDir, "env-staging"), 0755))
+		assert.NoError(t, os.Mkdir(filepath.Join(tmpDir, "archive"), 0755))
+
+		pred := predict.DirsGlob("env-*", "archive")
+		result := pred.Invoke(predict.Context{Dir: tmpDir})
+
+		assert.Equal(t, []string{"archive/", "env-prod/", "env-staging/"}, itemValues(result.Items))
+	})
+
+	t.Run("malformed pattern matches nothing", func(t *testing.T) {
+		t.Parallel()
+
+		tmpDir := t.TempDir()
+		assert.NoError(t, os.Mkdir(filepath.Join(tmpDir, "build"), 0755))
+
+		pred := predict.DirsGlob("[")
+		result := pred.Invoke(predict.Context{Dir: tmpDir})
+
+		assert.Zero(t, result.Items)
+	})
+}
+
 func TestFiles_NestedTraversal(t *testing.T) {
 	t.Parallel()
 

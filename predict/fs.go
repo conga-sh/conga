@@ -25,6 +25,27 @@ func Dirs() Predictor {
 	return Callback(actionDirs)
 }
 
+// DirsFiltered configures in-process directory completion with a custom
+// filter predicate. Only directories matching the predicate are offered;
+// symlinks that resolve to directories are treated as directories. This
+// filter is a predicate over directory entries, not the query match of
+// Predictor.Filter.
+func DirsFiltered(filter func(path string, entry os.DirEntry) bool) Predictor {
+	return Callback(func(c Context) Predictor {
+		return actionDirsFiltered(c, filter)
+	})
+}
+
+// DirsGlob configures in-process directory completion filtered by glob
+// patterns. A directory is offered when its base name matches at least one
+// pattern (filepath.Match syntax; a wildcard-free pattern such as "build"
+// matches that literal name).
+func DirsGlob(patterns ...string) Predictor {
+	return Callback(func(c Context) Predictor {
+		return actionDirsGlob(c, patterns)
+	})
+}
+
 // FileContents reads a file relative to the completion context directory and extracts completion items using the provided parser.
 func FileContents(filePath string, parser func(content []byte) []Item) Predictor {
 	return Callback(func(c Context) Predictor {
@@ -82,6 +103,27 @@ type fsScanMode int
 
 func actionDirs(ctx Context) Predictor {
 	items := scanFilesystem(ctx, fsModeDirs, nil, nil)
+
+	return Predictor{
+		items:     items,
+		directive: DirectiveNoFileComp | DirectiveNoSpace,
+	}
+}
+
+func actionDirsFiltered(ctx Context, filter func(path string, entry os.DirEntry) bool) Predictor {
+	items := scanFilesystem(ctx, fsModeDirs, nil, filter)
+
+	return Predictor{
+		items:     items,
+		directive: DirectiveNoFileComp | DirectiveNoSpace,
+	}
+}
+
+func actionDirsGlob(ctx Context, patterns []string) Predictor {
+	filter := func(_ string, entry os.DirEntry) bool {
+		return matchesAnyGlob(entry.Name(), patterns)
+	}
+	items := scanFilesystem(ctx, fsModeDirs, nil, filter)
 
 	return Predictor{
 		items:     items,
