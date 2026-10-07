@@ -1220,15 +1220,16 @@ func (a *App[T]) buildSpec() (*spec.Command, error) {
 		ConfigFilePatterns: slicex.Map(a.configRegistry.Extensions(), func(extension string) string {
 			return "*" + extension
 		}),
-		ConfigSettings:    a.configSettings,
-		ConfigCapable:     a.configEngine != nil,
-		DisableHelp:       a.helpDisabled,
-		DisableVersion:    a.versionDisabled,
-		DisableWhy:        a.whyRenderer == nil,
-		DisableCompletion: a.mountCompletion == nil,
-		CompletionShells:  a.completionShells,
-		InferPredictor:    a.inferPredictor,
-		EnvPrefix:         a.envPrefix,
+		ConfigSettings:         a.configSettings,
+		ConfigCapable:          a.configEngine != nil,
+		DisableHelp:            a.helpDisabled,
+		DisableVersion:         a.versionDisabled,
+		DisableWhy:             a.whyRenderer == nil,
+		DisableCompletion:      a.mountCompletion == nil,
+		CompletionShells:       a.completionShells,
+		InferPredictor:         a.inferPredictor,
+		ValidateTextRangeBound: validateTextRangeBound,
+		EnvPrefix:              a.envPrefix,
 	}
 
 	if a.rootTarget == nil {
@@ -1731,6 +1732,21 @@ func (a *App[T]) exit(code int) {
 	if a.exitFunc != nil {
 		a.exitFunc(code)
 	}
+}
+
+// validateTextRangeBound parses a range bound with the owning field's declared
+// tags for domain types that implement [ContextAwareTextUnmarshaler]. It backs
+// spec.Options.ValidateTextRangeBound, so schema build rejects range bounds that
+// are invalid under the field's tags (for example a decimal bound on a
+// units:"binary" [ByteSize] field). Types that ignore tags fall through to the
+// default UnmarshalText-bound parser.
+func validateTextRangeBound(targetType reflect.Type, tags FieldTags, raw string) error {
+	unmarshaler, ok := reflect.TypeAssert[ContextAwareTextUnmarshaler](reflect.New(targetType))
+	if !ok {
+		return nil
+	}
+
+	return unmarshaler.UnmarshalTextWithContext([]byte(raw), DecodeContext{Tags: tags})
 }
 
 // configFlagName returns the root configuration file flag name, defaulting to

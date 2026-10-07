@@ -167,7 +167,7 @@ func TestValidateRangeSpec_TextDialects(t *testing.T) {
 
 		rangeSpec := &Range{MinStr: "100", MaxStr: "200", HasMin: true, HasMax: true}
 
-		err := validateRangeSpec(rangeSpec, reflect.TypeFor[ByteSize]())
+		err := validateRangeSpec(rangeSpec, reflect.TypeFor[ByteSize](), nil, Options{})
 
 		assert.NoError(t, err)
 	})
@@ -177,7 +177,7 @@ func TestValidateRangeSpec_TextDialects(t *testing.T) {
 
 		rangeSpec := &Range{MinStr: "200", MaxStr: "100", HasMin: true, HasMax: true}
 
-		err := validateRangeSpec(rangeSpec, reflect.TypeFor[ByteSize]())
+		err := validateRangeSpec(rangeSpec, reflect.TypeFor[ByteSize](), nil, Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, ErrInvalidRangeSyntax)
@@ -189,7 +189,7 @@ func TestValidateRangeSpec_TextDialects(t *testing.T) {
 
 		rangeSpec := &Range{MinStr: "banana", HasMin: true}
 
-		err := validateRangeSpec(rangeSpec, reflect.TypeFor[ByteSize]())
+		err := validateRangeSpec(rangeSpec, reflect.TypeFor[ByteSize](), nil, Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, ErrInvalidRangeSyntax)
@@ -201,7 +201,7 @@ func TestValidateRangeSpec_TextDialects(t *testing.T) {
 
 		rangeSpec := &Range{MinStr: "10C", MaxStr: "30C", HasMin: true, HasMax: true}
 
-		err := validateRangeSpec(rangeSpec, reflect.TypeFor[Celsius]())
+		err := validateRangeSpec(rangeSpec, reflect.TypeFor[Celsius](), nil, Options{})
 
 		assert.NoError(t, err)
 	})
@@ -211,7 +211,7 @@ func TestValidateRangeSpec_TextDialects(t *testing.T) {
 
 		rangeSpec := &Range{MinStr: "bananaC", HasMin: true}
 
-		err := validateRangeSpec(rangeSpec, reflect.TypeFor[Celsius]())
+		err := validateRangeSpec(rangeSpec, reflect.TypeFor[Celsius](), nil, Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, ErrInvalidRangeSyntax)
@@ -228,7 +228,7 @@ func TestValidateRangeSpec_TextDialects(t *testing.T) {
 			HasMax: true,
 		}
 
-		err := validateRangeSpec(rangeSpec, reflect.TypeFor[Count]())
+		err := validateRangeSpec(rangeSpec, reflect.TypeFor[Count](), nil, Options{})
 
 		assert.NoError(t, err)
 	})
@@ -243,7 +243,7 @@ func TestValidateRangeSpec_TextDialects(t *testing.T) {
 			HasMax: true,
 		}
 
-		err := validateRangeSpec(rangeSpec, reflect.TypeFor[Count]())
+		err := validateRangeSpec(rangeSpec, reflect.TypeFor[Count](), nil, Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, ErrInvalidRangeSyntax)
@@ -255,7 +255,7 @@ func TestValidateRangeSpec_TextDialects(t *testing.T) {
 
 		rangeSpec := &Range{MinStr: "10%", MaxStr: "90%", HasMin: true, HasMax: true}
 
-		err := validateRangeSpec(rangeSpec, reflect.TypeFor[Ratio]())
+		err := validateRangeSpec(rangeSpec, reflect.TypeFor[Ratio](), nil, Options{})
 
 		assert.NoError(t, err)
 	})
@@ -265,7 +265,7 @@ func TestValidateRangeSpec_TextDialects(t *testing.T) {
 
 		rangeSpec := &Range{MinStr: "90%", MaxStr: "10%", HasMin: true, HasMax: true}
 
-		err := validateRangeSpec(rangeSpec, reflect.TypeFor[Ratio]())
+		err := validateRangeSpec(rangeSpec, reflect.TypeFor[Ratio](), nil, Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, ErrInvalidRangeSyntax)
@@ -277,7 +277,7 @@ func TestValidateRangeSpec_TextDialects(t *testing.T) {
 
 		rangeSpec := &Range{MinStr: "1", MaxStr: "2", HasMin: true, HasMax: true}
 
-		err := validateRangeSpec(rangeSpec, reflect.TypeFor[Opaque]())
+		err := validateRangeSpec(rangeSpec, reflect.TypeFor[Opaque](), nil, Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, ErrInvalidRangeSyntax)
@@ -289,7 +289,7 @@ func TestValidateRangeSpec_TextDialects(t *testing.T) {
 
 		rangeSpec := &Range{MinStr: "1", MaxStr: "10", HasMin: true, HasMax: true}
 
-		err := validateRangeSpec(rangeSpec, reflect.TypeFor[Plain]())
+		err := validateRangeSpec(rangeSpec, reflect.TypeFor[Plain](), nil, Options{})
 
 		assert.NoError(t, err)
 	})
@@ -299,7 +299,7 @@ func TestValidateRangeSpec_TextDialects(t *testing.T) {
 
 		rangeSpec := &Range{MinStr: "banana", HasMin: true}
 
-		err := validateRangeSpec(rangeSpec, reflect.TypeFor[Plain]())
+		err := validateRangeSpec(rangeSpec, reflect.TypeFor[Plain](), nil, Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, ErrInvalidRangeSyntax)
@@ -313,7 +313,7 @@ func TestValidateRangeSpec_TextDialects(t *testing.T) {
 
 		rangeSpec := &Range{MinStr: "1", MaxStr: "2", HasMin: true, HasMax: true}
 
-		err := validateRangeSpec(rangeSpec, reflect.TypeFor[ByteSize]())
+		err := validateRangeSpec(rangeSpec, reflect.TypeFor[ByteSize](), nil, Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, ErrInvalidRangeSyntax)

@@ -30,7 +30,7 @@ All filesystem capability checks run during the validation phase on the final re
 | Type | Behaviour |
 |------|-----------|
 | `conga.FileContent` | Reads the file into memory during parsing; accepts `-` for stdin; 16 MB limit |
-| `conga.ByteSize` | Parses `"10MiB"`, `"1.5GB"`, `"500KiB"`, exact bytes; `Bytes()` returns `int64`; strict case-sensitive units |
+| `conga.ByteSize` | Parses `"10MiB"`, `"1.5GB"`, `"500KiB"`, and exact bytes; `Bytes()` returns `int64`; strict case-sensitive units. Renders in the unit family it was parsed in (echo), exact bytes included, or the canonical IEC integer model for the zero value |
 
 ```go
 type Upload struct {
@@ -41,6 +41,23 @@ type Upload struct {
 func (u *Upload) Run(ctx context.Context, session *conga.Session) error {
 	limit := u.Budget.Bytes() // 10485760
 	...
+}
+```
+
+### Byte size formatting
+
+`ByteSize` remembers the unit family a value was parsed in, so it renders back in that family (a value decoded from `"1.5GB"` prints `1500MB`); a bare count or `B`-suffixed input is exact bytes and prints as exact bytes (`"1048576B"` prints `1048576B`); the zero value uses the canonical IEC integer model. Text input is non-negative, and negative byte counts are not representable. Two struct tags tune acceptance and display:
+
+| Tag | Values | Effect |
+|-----|--------|--------|
+| `units` | `binary`, `decimal`, `both` (default) | Restricts the accepted unit families; a parsed unit outside the allowed family is a coercion error. Exact byte counts (`B` suffix or bare) are family-neutral and accepted by both. |
+| `display` | `binary`, `decimal`, `input` (default) | Forces the render family; `input` echoes the entered unit family. |
+
+`ByteSize` is not comparable: `==` between two values and `ByteSize`-keyed maps are compile errors, because the render family is not part of a size's identity. Compare with `Equal`, order with `Compare`, and calculate with `Bytes()`.
+
+```go
+type Cache struct {
+	Memory conga.ByteSize `units:"binary" display:"input"`
 }
 ```
 
@@ -83,6 +100,8 @@ An explicit `help:"..."` tag replaces the type-derived description. Without one,
 | `conga.Dir` | `existing:"true"` | `Path to an existing directory` |
 | `conga.FileContent` | – | `Path to a file (or '-' for stdin)` |
 | `conga.ByteSize` | – | `Byte size (e.g., 10MiB, 1.5GB, 500KiB)` |
+| `conga.ByteSize` | `units:"binary"` | `Byte size in binary units (e.g., 10KiB, 512MiB)` |
+| `conga.ByteSize` | `units:"decimal"` | `Byte size in decimal units (e.g., 10kB, 512MB)` |
 
 `time.Duration` renders `Duration (e.g., 300ms, 2m45s, 1h)`. The container types delegate to their value type, so `OptionalFlag[conga.File]` and `RequiredArg[conga.Dir]` use the descriptions above. After the description, the engine appends `[default: ...]`, `[env: ...]`, constraint hints such as `[1..65535]` or `[items: 2..3]`, and `[enum: ...]` where the field declares them. Referencing the matching `{{...}}` variable in the field's `help` tag suppresses that automatic hint (see [Help variables](/reference/struct-tags/#help-variables)).
 

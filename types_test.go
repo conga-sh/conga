@@ -7,11 +7,12 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"math"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"slices"
+	"strconv"
 	"testing"
 
 	"github.com/alecthomas/assert/v2"
@@ -642,11 +643,20 @@ func TestDomainTypes(t *testing.T) {
 			{name: "IEC pebibytes", input: "1PiB", expected: 1024 * 1024 * 1024 * 1024 * 1024, expectError: false},
 			{name: "fractional SI megabytes", input: "1.5MB", expected: int64(1.5 * 1000 * 1000), expectError: false},
 			{name: "fractional IEC gibibytes", input: "0.5GiB", expected: int64(0.5 * 1024 * 1024 * 1024), expectError: false},
+			{name: "fractional trailing zeros resolve exactly", input: "1.500GB", expected: 1500 * 1000 * 1000, expectError: false},
 			{name: "outer whitespace trimmed", input: "  256MiB  ", expected: 256 * 1024 * 1024, expectError: false},
 			{name: "512 mebibytes", input: "512MiB", expected: 512 * 1024 * 1024, expectError: false},
 			{name: "2 gibibytes", input: "2GiB", expected: 2 * 1024 * 1024 * 1024, expectError: false},
 			{name: "empty input rejected", input: "", expected: 0, expectError: true},
 			{name: "raw fractional integer rejected", input: "1.5", expected: 0, expectError: true},
+			{name: "leading dot without digits rejected", input: ".B", expected: 0, expectError: true},
+			{name: "leading dot fraction rejected", input: ".5MiB", expected: 0, expectError: true},
+			{name: "trailing dot rejected", input: "1.", expected: 0, expectError: true},
+			{name: "multiple dots rejected", input: "1.2.3B", expected: 0, expectError: true},
+			{name: "fractional byte below one rejected", input: "0.5B", expected: 0, expectError: true},
+			{name: "fractional byte above one rejected", input: "1.5B", expected: 0, expectError: true},
+			{name: "inexact binary fraction rejected", input: "0.1GiB", expected: 0, expectError: true},
+			{name: "inexact decimal sub-byte fraction rejected", input: "0.0000001MB", expected: 0, expectError: true},
 			{name: "lowercase byte unit rejected", input: "500b", expected: 0, expectError: true},
 			{name: "naked K prefix rejected", input: "4K", expected: 0, expectError: true},
 			{name: "naked M prefix rejected", input: "10M", expected: 0, expectError: true},
@@ -676,43 +686,6 @@ func TestDomainTypes(t *testing.T) {
 					assert.NoError(t, err)
 					assert.Equal(t, testCase.expected, byteSize.Bytes())
 				}
-			})
-		}
-	})
-
-	t.Run("ByteSize string IEC formatting", func(t *testing.T) {
-		t.Parallel()
-
-		formatCases := []struct {
-			name     string
-			bytes    int64
-			expected string
-		}{
-			{name: "zero bytes", bytes: 0, expected: "0B"},
-			{name: "sub-kibibyte bytes", bytes: 512, expected: "512B"},
-			{name: "kibibyte boundary", bytes: 1024, expected: "1KiB"},
-			{name: "fractional kibibytes", bytes: 1536, expected: "1536B"},
-			{name: "mebibyte boundary", bytes: 1024 * 1024, expected: "1MiB"},
-			{name: "512 mebibytes", bytes: 512 * 1024 * 1024, expected: "512MiB"},
-			{name: "gibibyte boundary", bytes: 1024 * 1024 * 1024, expected: "1GiB"},
-			{name: "2 gibibytes", bytes: 2 * 1024 * 1024 * 1024, expected: "2GiB"},
-			{name: "tebibyte boundary", bytes: 1024 * 1024 * 1024 * 1024, expected: "1TiB"},
-			{name: "pebibyte boundary", bytes: 1024 * 1024 * 1024 * 1024 * 1024, expected: "1PiB"},
-			{name: "negative kibibyte", bytes: -1024, expected: "-1KiB"},
-			{name: "negative mebibyte", bytes: -1024 * 1024, expected: "-1MiB"},
-			{name: "negative sub-kibibyte", bytes: -512, expected: "-512B"},
-			{name: "indivisible remainder", bytes: 1048577, expected: "1048577B"},
-			{name: "boundary minus one", bytes: 1048575, expected: "1048575B"},
-			{name: "math MinInt64 safe", bytes: math.MinInt64, expected: "-8192PiB"},
-		}
-
-		for _, formatCase := range formatCases {
-			t.Run(formatCase.name, func(t *testing.T) {
-				t.Parallel()
-
-				byteSize := conga.ByteSize(formatCase.bytes)
-
-				assert.Equal(t, formatCase.expected, byteSize.String())
 			})
 		}
 	})
@@ -775,7 +748,7 @@ func TestDomainTypeHelp(t *testing.T) {
 
 		_ conga.TagAwareHelpProvider = &file
 		_ conga.TagAwareHelpProvider = &dir
-		_ conga.HelpProvider         = &byteSize
+		_ conga.TagAwareHelpProvider = &byteSize
 	)
 
 	t.Run("static descriptions", func(t *testing.T) {
@@ -783,7 +756,7 @@ func TestDomainTypeHelp(t *testing.T) {
 
 		assert.Equal(t, "Path to a file", file.Help(nil))
 		assert.Equal(t, "Path to a directory", dir.Help(nil))
-		assert.Equal(t, "Byte size (e.g., 10MiB, 1.5GB, 500KiB)", byteSize.Help())
+		assert.Equal(t, "Byte size (e.g., 10MiB, 1.5GB, 500KiB)", byteSize.Help(nil))
 	})
 
 	t.Run("File with executable and symlink tags", func(t *testing.T) {
@@ -1476,7 +1449,10 @@ func TestIssue22DomainTypeValueStringer(t *testing.T) {
 	assert.NoError(t, dir.UnmarshalText([]byte(tmpDir)))
 	conga.OptionalFlagContainer(&dirFlag).SetValue(dir, conga.SourceCLI, "--dir")
 
-	conga.OptionalFlagContainer(&byteSizeFlag).SetValue(conga.ByteSize(1024), conga.SourceCLI, "--size")
+	var byteSize conga.ByteSize
+	assert.NoError(t, byteSize.UnmarshalText([]byte("1KiB")))
+	conga.OptionalFlagContainer(&byteSizeFlag).SetValue(byteSize, conga.SourceCLI, "--size")
+
 	conga.OptionalFlagContainer(&contentFlag).SetValue(conga.FileContent("payload-data"), conga.SourceCLI, "--content")
 
 	t.Run("File value Stringer output avoids struct dump and pointer leakage", func(t *testing.T) {
@@ -1614,10 +1590,13 @@ func TestDomainTypesJSONSerializationRoundtrip(t *testing.T) {
 	var dir conga.Dir
 	assert.NoError(t, dir.UnmarshalText([]byte(tmpDir)))
 
+	var memory conga.ByteSize
+	assert.NoError(t, memory.UnmarshalText([]byte("1MiB")))
+
 	initial := domainConfig{
 		Input:  file,
 		Output: dir,
-		Memory: conga.ByteSize(1024 * 1024),
+		Memory: memory,
 	}
 
 	encoded, err := json.Marshal(initial)
@@ -1663,8 +1642,8 @@ func TestDomainTypesInterfaceAssertions(t *testing.T) {
 		_ fmt.Stringer           = conga.Dir{}
 		_ encoding.TextMarshaler = conga.Dir{}
 
-		_ fmt.Stringer           = conga.ByteSize(0)
-		_ encoding.TextMarshaler = conga.ByteSize(0)
+		_ fmt.Stringer           = conga.ByteSize{}
+		_ encoding.TextMarshaler = conga.ByteSize{}
 
 		_ fmt.Stringer           = conga.FileContent("")
 		_ encoding.TextMarshaler = conga.FileContent("")
@@ -1677,4 +1656,278 @@ func TestDomainTypesInterfaceAssertions(t *testing.T) {
 		_ encoding.TextUnmarshaler = (*conga.ByteSize)(nil)
 		_ encoding.TextUnmarshaler = (*conga.FileContent)(nil)
 	)
+}
+
+type invalidByteSizeUnitsCLI struct {
+	noopRunner
+
+	Memory conga.OptionalFlag[conga.ByteSize] `name:"memory" units:"hex"`
+}
+
+type invalidByteSizeDisplayCLI struct {
+	noopRunner
+
+	Memory conga.OptionalFlag[conga.ByteSize] `display:"hex" name:"memory"`
+}
+
+// TestByteSizeEchoesInputFamily verifies the default (untagged) render model:
+// parsed values echo the unit family they were written in, exact-byte input
+// included, while constructed values keep the canonical IEC integer model.
+func TestByteSizeEchoesInputFamily(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{name: "decimal fraction renders as integer decimal", input: "1.5GB", expected: "1500MB"},
+		{name: "binary fraction renders as integer binary", input: "0.5GiB", expected: "512MiB"},
+		{name: "decimal integer preserved", input: "10MB", expected: "10MB"},
+		{name: "decimal lowercase k canonicalized", input: "2KB", expected: "2kB"},
+		{name: "binary integer preserved", input: "2GiB", expected: "2GiB"},
+		{name: "bare integer echoes exact bytes", input: "1024", expected: "1024B"},
+		{name: "bare indivisible integer emits bytes", input: "1536", expected: "1536B"},
+		{name: "bare large integer emits bytes", input: "1048577", expected: "1048577B"},
+		{name: "byte suffix emits bytes", input: "512B", expected: "512B"},
+		{name: "byte suffix does not abbreviate", input: "1048576B", expected: "1048576B"},
+		{name: "byte suffix below kibibyte stays bytes", input: "2048B", expected: "2048B"},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			var byteSize conga.ByteSize
+
+			assert.NoError(t, byteSize.UnmarshalText([]byte(testCase.input)))
+			assert.Equal(t, testCase.expected, byteSize.String())
+		})
+	}
+}
+
+// TestByteSizeDisplayTagForcesFamily verifies that the display tag overrides the
+// family captured from the input, falling back to exact bytes when no unit of the
+// forced family divides the value.
+func TestByteSizeDisplayTagForcesFamily(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		input    string
+		display  string
+		expected string
+	}{
+		{name: "decimal input forced binary falls back to bytes", input: "10MB", display: "binary", expected: "10000000B"},
+		{name: "binary input forced decimal falls back to bytes", input: "1GiB", display: "decimal", expected: "1073741824B"},
+		{name: "decimal megabyte forced binary falls back to bytes", input: "1MB", display: "binary", expected: "1000000B"},
+		{name: "binary exact bytes forced binary abbreviates", input: "2048B", display: "binary", expected: "2KiB"},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			var byteSize conga.ByteSize
+
+			decodeContext := conga.DecodeContext{Tags: conga.FieldTags{"display": testCase.display}}
+
+			assert.NoError(t, byteSize.UnmarshalTextWithContext([]byte(testCase.input), decodeContext))
+			assert.Equal(t, testCase.expected, byteSize.String())
+		})
+	}
+}
+
+// TestByteSizeUnitsTagRestrictsAcceptedFamilies verifies the units tag accepts or
+// rejects a parsed unit family and that absent/both accepts every unit.
+func TestByteSizeUnitsTagRestrictsAcceptedFamilies(t *testing.T) {
+	t.Parallel()
+
+	t.Run("binary only rejects decimal", func(t *testing.T) {
+		t.Parallel()
+
+		var byteSize conga.ByteSize
+
+		err := byteSize.UnmarshalTextWithContext([]byte("10MB"), conga.DecodeContext{Tags: conga.FieldTags{"units": "binary"}})
+
+		assert.Error(t, err)
+		assert.IsError(t, err, conga.ErrCoerce)
+		assert.Equal(t, `byte size unit "MB" in "10MB" is not allowed: the field accepts binary units only`, err.Error())
+	})
+
+	t.Run("decimal only rejects binary", func(t *testing.T) {
+		t.Parallel()
+
+		var byteSize conga.ByteSize
+
+		err := byteSize.UnmarshalTextWithContext([]byte("10MiB"), conga.DecodeContext{Tags: conga.FieldTags{"units": "decimal"}})
+
+		assert.Error(t, err)
+		assert.IsError(t, err, conga.ErrCoerce)
+		assert.Equal(t, `byte size unit "MiB" in "10MiB" is not allowed: the field accepts decimal units only`, err.Error())
+	})
+
+	t.Run("binary accepts binary", func(t *testing.T) {
+		t.Parallel()
+
+		var byteSize conga.ByteSize
+
+		assert.NoError(t, byteSize.UnmarshalTextWithContext([]byte("10MiB"), conga.DecodeContext{Tags: conga.FieldTags{"units": "binary"}}))
+		assert.Equal(t, "10MiB", byteSize.String())
+	})
+
+	t.Run("both accepts decimal", func(t *testing.T) {
+		t.Parallel()
+
+		var byteSize conga.ByteSize
+
+		assert.NoError(t, byteSize.UnmarshalTextWithContext([]byte("10MB"), conga.DecodeContext{Tags: conga.FieldTags{"units": "both"}}))
+		assert.Equal(t, "10MB", byteSize.String())
+	})
+
+	t.Run("decimal only renders neutral input as exact bytes", func(t *testing.T) {
+		t.Parallel()
+
+		decodeContext := conga.DecodeContext{Tags: conga.FieldTags{"units": "decimal"}}
+
+		var suffixed conga.ByteSize
+
+		assert.NoError(t, suffixed.UnmarshalTextWithContext([]byte("1024B"), decodeContext))
+		assert.Equal(t, "1024B", suffixed.String())
+
+		var bare conga.ByteSize
+
+		assert.NoError(t, bare.UnmarshalTextWithContext([]byte("1024"), decodeContext))
+		assert.Equal(t, "1024B", bare.String())
+	})
+
+	t.Run("binary only renders neutral input as exact bytes", func(t *testing.T) {
+		t.Parallel()
+
+		decodeContext := conga.DecodeContext{Tags: conga.FieldTags{"units": "binary"}}
+
+		var suffixed conga.ByteSize
+
+		assert.NoError(t, suffixed.UnmarshalTextWithContext([]byte("1000B"), decodeContext))
+		assert.Equal(t, "1000B", suffixed.String())
+
+		var bare conga.ByteSize
+
+		assert.NoError(t, bare.UnmarshalTextWithContext([]byte("1000"), decodeContext))
+		assert.Equal(t, "1000B", bare.String())
+	})
+}
+
+// TestByteSizeTagSchemaErrors verifies that invalid tag values fail schema build
+// with a self-describing message and the ErrSchema category.
+func TestByteSizeTagSchemaErrors(t *testing.T) {
+	t.Parallel()
+
+	t.Run("units", func(t *testing.T) {
+		t.Parallel()
+
+		err := conga.New[invalidByteSizeUnitsCLI]().Args([]string{}).RunContext(t.Context())
+
+		assert.Error(t, err)
+		assert.IsError(t, err, conga.ErrSchema)
+		assert.Equal(t, `struct invalidByteSizeUnitsCLI field Memory: schema error: invalid struct tag: tag "units": unknown units value "hex" (want "binary", "decimal", or "both")`, err.Error())
+	})
+
+	t.Run("display", func(t *testing.T) {
+		t.Parallel()
+
+		err := conga.New[invalidByteSizeDisplayCLI]().Args([]string{}).RunContext(t.Context())
+
+		assert.Error(t, err)
+		assert.IsError(t, err, conga.ErrSchema)
+		assert.Equal(t, `struct invalidByteSizeDisplayCLI field Memory: schema error: invalid struct tag: tag "display": unknown display value "hex" (want "binary", "decimal", or "input")`, err.Error())
+	})
+}
+
+// TestByteSizeHelpTailorsToTags verifies the type-derived help description adapts
+// to the declared units/display tags.
+func TestByteSizeHelpTailorsToTags(t *testing.T) {
+	t.Parallel()
+
+	var byteSize conga.ByteSize
+
+	assert.Equal(t, "Byte size (e.g., 10MiB, 1.5GB, 500KiB)", byteSize.Help(nil))
+	assert.Equal(t, "Byte size in binary units (e.g., 10KiB, 512MiB)", byteSize.Help(conga.FieldTags{"units": "binary"}))
+	assert.Equal(t, "Byte size in decimal units (e.g., 10kB, 512MB)", byteSize.Help(conga.FieldTags{"units": "decimal"}))
+	assert.Equal(t, "Byte size (e.g., 10MiB, 1.5GB, 500KiB), shown in the entered unit family", byteSize.Help(conga.FieldTags{"display": "input"}))
+}
+
+// TestByteSizeRendersLosslessly verifies that every value in the sweep reparses
+// to the identical byte count, for both render families.
+func TestByteSizeRendersLosslessly(t *testing.T) {
+	t.Parallel()
+
+	var mismatch string
+
+	for _, display := range []string{"binary", "decimal"} {
+		tags := conga.FieldTags{"display": display}
+
+		for value := range 1 << 16 {
+			var byteSize conga.ByteSize
+
+			if err := byteSize.UnmarshalTextWithContext([]byte(strconv.Itoa(value)), conga.DecodeContext{Tags: tags}); err != nil {
+				mismatch = fmt.Sprintf("decode %d (%s): %v", value, display, err)
+
+				break
+			}
+
+			rendered := byteSize.String()
+
+			var reparsed conga.ByteSize
+
+			if err := reparsed.UnmarshalText([]byte(rendered)); err != nil {
+				mismatch = fmt.Sprintf("reparse %q (%s): %v", rendered, display, err)
+
+				break
+			}
+
+			if reparsed.Bytes() != int64(value) {
+				mismatch = fmt.Sprintf("value %d rendered %q and reparsed as %d (%s)", value, rendered, reparsed.Bytes(), display)
+
+				break
+			}
+		}
+
+		if mismatch != "" {
+			break
+		}
+	}
+
+	assert.Equal(t, "", mismatch)
+}
+
+// TestByteSizeNotComparable verifies that ByteSize deliberately rejects == and
+// map keys: the render family is not part of a size's identity, so callers
+// compare through Equal, Compare, or Bytes.
+func TestByteSizeNotComparable(t *testing.T) {
+	t.Parallel()
+
+	assert.False(t, reflect.TypeFor[conga.ByteSize]().Comparable())
+}
+
+// TestByteSizeEqualAndCompare verifies that quantity equality and ordering
+// ignore the captured render family.
+func TestByteSizeEqualAndCompare(t *testing.T) {
+	t.Parallel()
+
+	var parsedMiB conga.ByteSize
+	assert.NoError(t, parsedMiB.UnmarshalText([]byte("1MiB")))
+
+	var parsedBytes conga.ByteSize
+	assert.NoError(t, parsedBytes.UnmarshalText([]byte("1048576B")))
+
+	assert.True(t, parsedMiB.Equal(parsedBytes))
+	assert.True(t, parsedBytes.Equal(parsedMiB))
+	assert.Equal(t, 0, parsedBytes.Compare(parsedMiB))
+
+	var parsedKiB conga.ByteSize
+	assert.NoError(t, parsedKiB.UnmarshalText([]byte("1024")))
+
+	assert.Equal(t, -1, parsedKiB.Compare(parsedBytes))
+	assert.Equal(t, 1, parsedBytes.Compare(parsedKiB))
 }

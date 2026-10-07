@@ -80,6 +80,12 @@ var (
 	// declared neither the stdin nor the stdout capability tag.
 	errStdioCapabilityRequired = errors.New(`"-" requires the stdin or stdout tag on the field`)
 
+	// errByteSizeUnitsTag reports an unrecognized units tag value on a ByteSize field.
+	errByteSizeUnitsTag = errors.New("unknown units value")
+
+	// errByteSizeDisplayTag reports an unrecognized display tag value on a ByteSize field.
+	errByteSizeDisplayTag = errors.New("unknown display value")
+
 	errNoRunner = errors.New("runner not implemented")
 )
 

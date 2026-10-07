@@ -475,7 +475,7 @@ func parseFlagSpec(structField reflect.StructField, flagHandle any, classificati
 	enumValues := SplitTagList(structField.Tag, "enum")
 	aliases := SplitTagList(structField.Tag, "aliases")
 
-	rangeSpec, lenSpec, itemsSpec, err := parseValidationSpecs(structField.Tag, kindInfo.targetType)
+	rangeSpec, lenSpec, itemsSpec, err := parseValidationSpecs(structField.Tag, kindInfo.targetType, fieldTags, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -558,7 +558,7 @@ func extractFlagShort(structTag reflect.StructTag) rune {
 	return 0
 }
 
-func parseValidationSpecs(structTag reflect.StructTag, targetType reflect.Type) (*Range, *Range, *Range, error) {
+func parseValidationSpecs(structTag reflect.StructTag, targetType reflect.Type, fieldTags FieldTags, opts Options) (*Range, *Range, *Range, error) {
 	var (
 		rangeSpec *Range
 		lenSpec   *Range
@@ -571,7 +571,7 @@ func parseValidationSpecs(structTag reflect.StructTag, targetType reflect.Type) 
 			return nil, nil, nil, err
 		}
 
-		if err := validateRangeSpec(spec, targetType); err != nil {
+		if err := validateRangeSpec(spec, targetType, fieldTags, opts); err != nil {
 			return nil, nil, nil, err
 		}
 
@@ -610,8 +610,10 @@ func parseValidationSpecs(structTag reflect.StructTag, targetType reflect.Type) 
 // validateRangeSpec is the runtime counterpart of the analyzer's
 // validateRangeBounds: numeric element kinds get their bounds parsed, the
 // duration type gets duration bounds, text-grammar types get their own
-// UnmarshalText grammar, and any other type is rejected.
-func validateRangeSpec(rangeSpec *Range, targetType reflect.Type) error {
+// UnmarshalText grammar, and any other type is rejected. fieldTags and opts
+// feed the optional tag-aware bound validator (see Options.ValidateTextRangeBound)
+// so domain types can enforce their own tag constraints on range bounds.
+func validateRangeSpec(rangeSpec *Range, targetType reflect.Type, fieldTags FieldTags, opts Options) error {
 	if rangeSpec == nil || targetType == nil {
 		return nil
 	}
@@ -626,6 +628,12 @@ func validateRangeSpec(rangeSpec *Range, targetType reflect.Type) error {
 	}
 
 	if domain, boundKind, ok := TextRangeDomain(elemType); ok {
+		if opts.ValidateTextRangeBound != nil {
+			if err := validateTaggedTextBounds(rangeSpec, boundKind, elemType, fieldTags, opts.ValidateTextRangeBound); err != nil {
+				return err
+			}
+		}
+
 		switch domain {
 		case RangeSigned:
 			parse, _ := TextRangeParser[int64](elemType)
@@ -661,6 +669,27 @@ func validateRangeSpec(rangeSpec *Range, targetType reflect.Type) error {
 	default:
 		return fmt.Errorf("%w: range tag is not supported on type %s", ErrInvalidRangeSyntax, elemType.String())
 	}
+}
+
+// validateTaggedTextBounds runs the caller-supplied tag-aware bound validator
+// over the declared bound sides. A validator error means the bound is not
+// acceptable under the field's declared tags; the message mirrors
+// ValidateScalarRange's parse-failure format so lint-time and schema-build
+// diagnostics agree.
+func validateTaggedTextBounds(rangeSpec *Range, boundKind string, elemType reflect.Type, fieldTags FieldTags, validate func(reflect.Type, FieldTags, string) error) error {
+	if rangeSpec.HasMin {
+		if err := validate(elemType, fieldTags, rangeSpec.MinStr); err != nil {
+			return fmt.Errorf("%w: invalid %s min bound %q", ErrInvalidRangeSyntax, boundKind, rangeSpec.MinStr)
+		}
+	}
+
+	if rangeSpec.HasMax {
+		if err := validate(elemType, fieldTags, rangeSpec.MaxStr); err != nil {
+			return fmt.Errorf("%w: invalid %s max bound %q", ErrInvalidRangeSyntax, boundKind, rangeSpec.MaxStr)
+		}
+	}
+
+	return nil
 }
 
 // parseTextBound reads raw through elemType's UnmarshalText into a fresh
@@ -809,7 +838,7 @@ func parseArgSpec(structField reflect.StructField, argHandle any, classification
 
 	enumValues := SplitTagList(structField.Tag, "enum")
 
-	rangeSpec, lenSpec, itemsSpec, err := parseValidationSpecs(structField.Tag, innerType)
+	rangeSpec, lenSpec, itemsSpec, err := parseValidationSpecs(structField.Tag, innerType, fieldTags, opts)
 	if err != nil {
 		return nil, err
 	}

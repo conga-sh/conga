@@ -142,6 +142,14 @@ type RangeUnitCLI struct {
 
 func (r *RangeUnitCLI) Run(ctx context.Context, session *conga.Session) error { return nil }
 
+type ByteSizeUnitsRangeMismatchCLI struct {
+	Memory conga.OptionalFlag[conga.ByteSize] `name:"memory" range:"1MB..10MB" units:"binary"`
+}
+
+func (b *ByteSizeUnitsRangeMismatchCLI) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
 type RangeTextDialectCLI struct {
 	Temperature conga.OptionalFlag[Celsius] `name:"temperature" range:"10C..30C"`
 }
@@ -411,6 +419,16 @@ func TestUnitsRangeValidation(t *testing.T) {
 		err := conga.New[RangeUnitCLI]().Args([]string{"--memory", "20GB"}).Run()
 		assert.Error(t, err)
 		assert.IsError(t, err, conga.ErrValidation)
+	})
+
+	t.Run("bytesize bound violating units tag rejected at schema build", func(t *testing.T) {
+		t.Parallel()
+
+		err := conga.New[ByteSizeUnitsRangeMismatchCLI]().Args([]string{}).RunContext(t.Context())
+
+		assert.Error(t, err)
+		assert.IsError(t, err, conga.ErrSchema)
+		assert.Equal(t, `struct ByteSizeUnitsRangeMismatchCLI field Memory: schema error: invalid range syntax: invalid byte size min bound "1MB"`, err.Error())
 	})
 }
 

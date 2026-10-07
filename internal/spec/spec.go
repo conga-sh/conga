@@ -360,7 +360,14 @@ type Options struct {
 	// type-based inference, and inferred predictors are consumed exclusively by
 	// completion.
 	InferPredictor func(targetType reflect.Type, tags FieldTags) *PredictorSpec
-	EnvPrefix      string
+	// ValidateTextRangeBound checks a range bound against the owning field's
+	// declared custom tags before the default text grammar parses it. It is
+	// supplied by the caller (the root package) so tag-aware domain types can
+	// enforce constraints the plain UnmarshalText call cannot see; a nil hook
+	// leaves the default parser alone, and a nil return from the hook for
+	// unhandled types also falls through to the default parser.
+	ValidateTextRangeBound func(targetType reflect.Type, tags FieldTags, raw string) error
+	EnvPrefix              string
 }
 
 // FindDeclaredFlagInChain searches backwards through chain for a declared flag

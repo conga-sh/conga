@@ -24,8 +24,9 @@ import (
 //
 //nolint:gochecknoglobals // static dispatch table from analyzed type names to the real conga built-in implementations
 var congaBuiltinTaggedTypes = map[string]spec.TagSpecProvider{
-	"File": new(conga.File),
-	"Dir":  new(conga.Dir),
+	"File":     new(conga.File),
+	"Dir":      new(conga.Dir),
+	"ByteSize": new(conga.ByteSize),
 }
 
 // validateNodeFieldTags runs the shared tag-validation facade for a field of
@@ -203,7 +204,7 @@ func (w *walker) checkFlagField(node *commandNode, fieldObject types.Object, tag
 	}
 
 	w.reportFieldError(node, fieldObject, spec.ValidatePredictorTag(tag, isBasicKind(targetType, types.Bool), w.predictorOptions(), w.options.registeredNames))
-	w.checkValidationSpecs(node, fieldObject, tag, targetType)
+	w.checkValidationSpecs(node, fieldObject, tag, targetType, tagSpecs)
 
 	if _, err := spec.ParseFieldTags(tag, tagSpecs); err != nil {
 		w.reportFieldError(node, fieldObject, err)
@@ -224,7 +225,7 @@ func (w *walker) checkArgField(node *commandNode, fieldObject types.Object, tag 
 	}
 
 	w.reportFieldError(node, fieldObject, spec.ValidatePredictorTag(tag, false, w.predictorOptions(), w.options.registeredNames))
-	w.checkValidationSpecs(node, fieldObject, tag, targetType)
+	w.checkValidationSpecs(node, fieldObject, tag, targetType, tagSpecs)
 
 	if _, err := spec.ParseFieldTags(tag, tagSpecs); err != nil {
 		w.reportFieldError(node, fieldObject, err)
@@ -232,14 +233,22 @@ func (w *walker) checkArgField(node *commandNode, fieldObject types.Object, tag 
 }
 
 // checkValidationSpecs mirrors the runtime parseValidationSpecs: range bounds
-// against the element type, and non-negative len/items counts.
-func (w *walker) checkValidationSpecs(node *commandNode, fieldObject types.Object, tag reflect.StructTag, targetType types.Type) {
+// against the element type, and non-negative len/items counts. The field's
+// domain-type tags are parsed and threaded into bound validation so tag-aware
+// types (conga.ByteSize) reject bounds that contradict their tags.
+func (w *walker) checkValidationSpecs(node *commandNode, fieldObject types.Object, tag reflect.StructTag, targetType types.Type, tagSpecs []spec.TagSpec) {
 	if rangeTag := tag.Get("range"); rangeTag != "" {
 		rangeSpec, err := spec.ParseRangeSpec(rangeTag)
 		w.reportFieldError(node, fieldObject, err)
 
 		if err == nil {
-			w.reportFieldError(node, fieldObject, w.validateRangeBounds(rangeSpec, targetType))
+			// The caller reports ParseFieldTags errors separately; bound
+			// validation only needs the parsed tags, so a tag error skips it
+			// rather than duplicating the diagnostic.
+			fieldTags, tagErr := spec.ParseFieldTags(tag, tagSpecs)
+			if tagErr == nil {
+				w.reportFieldError(node, fieldObject, w.validateRangeBounds(rangeSpec, targetType, fieldTags))
+			}
 		}
 	}
 
@@ -262,7 +271,7 @@ func (w *walker) checkValidationSpecs(node *commandNode, fieldObject types.Objec
 // are accepted without bound evaluation because their grammar is not statically
 // executable. Element types without any range strategy are rejected, mirroring
 // schema build.
-func (w *walker) validateRangeBounds(rangeSpec *spec.Range, targetType types.Type) error {
+func (w *walker) validateRangeBounds(rangeSpec *spec.Range, targetType types.Type, fieldTags spec.FieldTags) error {
 	if rangeSpec == nil || targetType == nil {
 		return nil
 	}
@@ -275,7 +284,7 @@ func (w *walker) validateRangeBounds(rangeSpec *spec.Range, targetType types.Typ
 	if named, ok := elementType.(*types.Named); ok {
 		switch {
 		case isCongaByteSize(named.Obj()):
-			return spec.ValidateScalarRange(rangeSpec, "byte size", parseByteSizeBound)
+			return spec.ValidateScalarRange(rangeSpec, "byte size", parseByteSizeBound(fieldTags))
 		case isTimeDuration(named):
 			return spec.ValidateScalarRange(rangeSpec, "duration", time.ParseDuration)
 		case isTextRangeType(named):
@@ -420,17 +429,20 @@ func textUnmarshalerType() *types.Interface {
 	).Complete()
 }
 
-// parseByteSizeBound parses a conga.ByteSize bound with the runtime grammar
-// compiled into the analyzer (conga is already linked for the built-in tag
-// specs), so lint and schema build share one parser. spec.ValidateScalarRange
+// parseByteSizeBound returns a parser for conga.ByteSize range bounds using the
+// runtime grammar compiled into the analyzer (conga is already linked for the
+// built-in tag specs) together with the owning field's declared tags, so bound
+// acceptance matches runtime binding and schema build. spec.ValidateScalarRange
 // derives the diagnostic from the raw bound, keeping messages verbatim.
-func parseByteSizeBound(raw string) (int64, error) {
-	var byteSize conga.ByteSize
-	if err := byteSize.UnmarshalText([]byte(raw)); err != nil {
-		return 0, err
-	}
+func parseByteSizeBound(fieldTags spec.FieldTags) func(string) (int64, error) {
+	return func(raw string) (int64, error) {
+		var byteSize conga.ByteSize
+		if err := byteSize.UnmarshalTextWithContext([]byte(raw), conga.DecodeContext{Tags: fieldTags}); err != nil {
+			return 0, err
+		}
 
-	return byteSize.Bytes(), nil
+		return byteSize.Bytes(), nil
+	}
 }
 
 func isTimeDuration(named *types.Named) bool {
