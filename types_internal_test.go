@@ -97,6 +97,7 @@ func TestByteSizeError(t *testing.T) {
 		{name: "empty", err: &byteSizeError{kind: byteSizeErrorEmpty}, expected: "empty byte size"},
 		{name: "invalid", err: &byteSizeError{raw: "10G", kind: byteSizeErrorInvalid}, expected: `invalid byte size "10G"`},
 		{name: "invalid number", err: &byteSizeError{raw: "1.2.3", kind: byteSizeErrorInvalidNumber}, expected: `invalid byte size number "1.2.3"`},
+		{name: "inexact fraction", err: &byteSizeError{raw: "0.5B", kind: byteSizeErrorInexactFraction}, expected: `byte size "0.5B" is not a whole number of bytes`},
 		{name: "unknown unit", err: &byteSizeError{raw: "10ZB", unit: "ZB", kind: byteSizeErrorUnknownUnit}, expected: `unknown byte size unit "ZB" in "10ZB"`},
 		{name: "unknown kind", err: &byteSizeError{raw: "10", kind: byteSizeErrorKind(255)}, expected: `invalid byte size "10"`},
 	}

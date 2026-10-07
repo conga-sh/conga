@@ -125,6 +125,33 @@ func (b *ByteSizeRangeApp) Run(ctx context.Context, session *conga.Session) erro
 
 var _ = conga.New[ByteSizeRangeApp]()
 
+// ByteSizeUnitsRangeApp declares decimal range bounds on a field restricted to
+// binary units; conga-lint parses bounds with the field's tags, mirroring
+// runtime schema build.
+type ByteSizeUnitsRangeApp struct {
+	Memory conga.OptionalFlag[conga.ByteSize] `name:"memory" units:"binary" range:"1MB..10MB" help:"Memory"` // want `invalid byte size min bound "1MB"`
+}
+
+// Run executes the byte-size units-range fixture.
+func (b *ByteSizeUnitsRangeApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[ByteSizeUnitsRangeApp]()
+
+// ByteSizeUnitsTagApp declares an invalid units tag value for a ByteSize field;
+// conga-lint validates the value through the real TagSpecs.
+type ByteSizeUnitsTagApp struct {
+	Memory conga.OptionalFlag[conga.ByteSize] `name:"memory" units:"hexadecimal" help:"Memory"` // want `unknown units value "hexadecimal"`
+}
+
+// Run executes the byte-size units tag fixture.
+func (b *ByteSizeUnitsTagApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[ByteSizeUnitsTagApp]()
+
 // MapRangeApp applies a range to a map element type, which runtime schema
 // build rejects and the analyzer mirrors.
 type MapRangeApp struct {
