@@ -18,7 +18,6 @@ import (
 	"github.com/alecthomas/assert/v2"
 
 	"github.com/conga-sh/conga"
-	"github.com/conga-sh/conga/config"
 	"github.com/conga-sh/conga/decoder/json"
 	"github.com/conga-sh/conga/internal/help"
 	"github.com/conga-sh/conga/internal/spec"
@@ -199,7 +198,7 @@ func TestErrorCategories(t *testing.T) {
 		t.Parallel()
 
 		app := conga.New[FullServerCLI]().
-			ConfigOptions(config.Explicit(filepath.Join(t.TempDir(), "missing.json"))).
+			ConfigOptions(conga.ConfigExplicit(filepath.Join(t.TempDir(), "missing.json"))).
 			Args([]string{})
 
 		err := app.Run()
@@ -1031,7 +1030,7 @@ func TestJSONArrayFlattening_Issue09(t *testing.T) {
 	cli := new(JSONArrayCLI)
 	app := conga.New(cli).
 		RegisterDecoder(".json", json.RawDecoder).
-		ConfigOptions(config.Explicit(cfgPath)).
+		ConfigOptions(conga.ConfigExplicit(cfgPath)).
 		Args([]string{})
 
 	assert.NoError(t, app.Run())

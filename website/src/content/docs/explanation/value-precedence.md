@@ -39,7 +39,7 @@ Phase 2: Flag Value Binding                                            v
 
 ### Phase 1: Config file discovery
 
-Before binding individual flags, CONGA determines which config files exist and loads them into a flat key-value map. Discovery follows its own precedence (`--config-file`, then `<PREFIX>_CONFIG`, then `config.Explicit(...)`, then probed search tiers), with per-tier existence semantics and merge rules described in [About the config cascade](/explanation/config-cascade/). Once discovered files load and validate against the schema, their keys form the lookup table for Phase 2.
+Before binding individual flags, CONGA determines which config files exist and loads them into a flat key-value map. Discovery follows its own precedence (`--config-file`, then `<PREFIX>_CONFIG`, then `conga.ConfigExplicit(...)`, then probed search tiers), with per-tier existence semantics and merge rules described in [About the config cascade](/explanation/config-cascade/). Once discovered files load and validate against the schema, their keys form the lookup table for Phase 2.
 
 ### Phase 2: Flag value binding
 
@@ -51,7 +51,7 @@ Although declared as a flag container (`conga.ConfigFile`) on the root command s
 
 First, a config file cannot define which config file to load, so Tier 3 cannot feed itself.
 
-Second, the schema validator rejects `default` struct tags on `ConfigFile` fields at startup. A default path on the flag would be neither loaded nor validated through the configuration engine. Probed locations belong in search paths (`config.Paths`), while display examples in help text use `placeholder`.
+Second, the schema validator rejects `default` struct tags on `ConfigFile` fields at startup. A default path on the flag would be neither loaded nor validated through the configuration engine. Probed locations belong in search paths (`conga.ConfigPaths`), while display examples in help text use `placeholder`.
 
 Instead, `ConfigFile` configures and records Phase 1. It discovers config files through CLI flags, environment variables, explicit targets, or probed directories. When a file loads from a search tier, `ConfigFile` records `SourceConfig`. If no config files resolve, `ConfigFile` remains unset (`SourceNone`), and flag binding proceeds to defaults for remaining fields.
 

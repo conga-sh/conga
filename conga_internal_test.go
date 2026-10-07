@@ -12,7 +12,6 @@ import (
 
 	"github.com/alecthomas/assert/v2"
 
-	"github.com/conga-sh/conga/config"
 	"github.com/conga-sh/conga/internal/completion"
 	"github.com/conga-sh/conga/internal/slicex"
 	"github.com/conga-sh/conga/internal/spec"
@@ -39,8 +38,8 @@ func TestAppConfig_ConfigOptions_AccumulatesSlots(t *testing.T) {
 	t.Parallel()
 
 	app := New[emptyCLI]().
-		ConfigOptions(config.Paths("a.json", "b.json")).
-		ConfigOptions(config.Explicit("override.json"), config.Cascading())
+		ConfigOptions(ConfigPaths("a.json", "b.json")).
+		ConfigOptions(ConfigExplicit("override.json"), ConfigCascading())
 
 	assert.Equal(t, 3, len(app.configOptions))
 	assert.Equal(t, spec.ConfigSettings{
@@ -54,8 +53,8 @@ func TestAppConfig_ConfigOptions_RepeatedPaths_LastDeclarationWins(t *testing.T)
 	t.Parallel()
 
 	app := New[emptyCLI]().
-		ConfigOptions(config.Paths("first.json")).
-		ConfigOptions(config.Paths("second.json"))
+		ConfigOptions(ConfigPaths("first.json")).
+		ConfigOptions(ConfigPaths("second.json"))
 
 	assert.Equal(t, []string{"second.json"}, app.configSettings.Tier)
 }
@@ -74,7 +73,7 @@ func TestValidator_HasStreamsAndConfigContext(t *testing.T) {
 		Stdout(&stdoutBuffer).
 		Stderr(&stderrBuffer).
 		Stdin(&stdinBuffer).
-		ConfigOptions(config.Paths("test-config.json"))
+		ConfigOptions(ConfigPaths("test-config.json"))
 
 	err := app.RunContext(t.Context())
 

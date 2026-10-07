@@ -5,7 +5,6 @@ import (
 
 	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/_examples/internal/inspector"
-	"github.com/conga-sh/conga/config"
 	"github.com/conga-sh/conga/decoder/hcl"
 )
 
@@ -29,7 +28,7 @@ func main() {
 		Description("Single-file config mode: first existing search path wins").
 		Version("1.0.0").
 		RegisterDecoder(".hcl", hcl.RawDecoder).
-		ConfigOptions(config.Paths(".", "~/.config/firstfound", "${SYSCONF_DIR:-/etc/firstfound}"))
+		ConfigOptions(conga.ConfigPaths(".", "~/.config/firstfound", "${SYSCONF_DIR:-/etc/firstfound}"))
 
 	if err := app.Run(); err != nil {
 		app.Exit(err)

@@ -9,7 +9,6 @@ import (
 	"github.com/alecthomas/assert/v2"
 
 	"github.com/conga-sh/conga"
-	"github.com/conga-sh/conga/config"
 	"github.com/conga-sh/conga/decoder/json"
 )
 
@@ -131,7 +130,7 @@ func TestDeprecation_ProvenanceGating(t *testing.T) {
 			Name("testapp").
 			RegisterDecoder(".json", json.RawDecoder).
 			Stderr(&buffer).
-			ConfigOptions(config.Paths(cfgPath)).
+			ConfigOptions(conga.ConfigPaths(cfgPath)).
 			Args([]string{})
 
 		err := app.Run()

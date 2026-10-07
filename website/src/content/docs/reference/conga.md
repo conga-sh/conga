@@ -27,7 +27,7 @@ func New[T any](root ...*T) *App[T]
 | `Version(version)` | `--version` display string (falls back to build metadata) |
 | `EnvPrefix(prefix)` | Environment tier prefix (normalized to trailing `_`) |
 | `Dotenv(paths...)` | Enable `.env` loading (default `.env` + `.env.local`; [rules](/reference/dotenv/)) |
-| `ConfigOptions(options...)` | Config resolution: `config.Explicit(path)`, `config.Paths(paths...)`, `config.Cascading()` |
+| `ConfigOptions(options...)` | Config resolution: `conga.ConfigExplicit(path)`, `conga.ConfigPaths(paths...)`, `conga.ConfigCascading()` |
 | `RegisterDecoder(ext, decoder)` | Per-app config format decoder |
 | `StrictTagValidation(strict)` | Toggle tag linting (default on) |
 | `AllowTags(tags...)` | Allow additional struct tags |
@@ -127,8 +127,10 @@ changes afterwards do not affect the active session.
 
 Base categories (`ErrSchema`, `ErrParse`, `ErrCoerce`, `ErrValidation`, `ErrConfig`) plus the `UsageError` and `CompletionError` interfaces and `IsUsageError(err)` / `IsCompletionError(err)` classifications — catalogued in [Errors and exit codes](/reference/errors/).
 
-## Configuration package
+## Configuration options
 
-The config-file authoring surface lives in the `github.com/conga-sh/conga/config`
-package: the `app.ConfigOptions` option constructors (`config.Paths`, `config.Explicit`,
-`config.Cascading`) and the `config.Decoder` type. See [package config](/reference/config/).
+The config-file authoring surface lives in the root `conga` package: the
+`app.ConfigOptions` option constructors (`conga.ConfigPaths`, `conga.ConfigExplicit`,
+`conga.ConfigCascading`) and the `conga.ConfigDecoder` type. Options are declared
+as `conga.ConfigOption` values; the engine folds them into its own resolution
+settings, so no separate authoring package exists.

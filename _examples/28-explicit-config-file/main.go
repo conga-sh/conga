@@ -5,11 +5,10 @@ import (
 
 	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/_examples/internal/inspector"
-	"github.com/conga-sh/conga/config"
 	"github.com/conga-sh/conga/decoder/yaml"
 )
 
-// CLI demonstrates config.Explicit(...): one programmatic concrete config file
+// CLI demonstrates conga.ConfigExplicit(...): one programmatic concrete config file
 // with fatal-if-missing semantics. Only an explicit --config-file flag
 // outranks it; the <PREFIX>_CONFIG environment variable and the search tier
 // are not consulted while the option is declared.
@@ -34,7 +33,7 @@ func main() {
 		EnvPrefix("EXPLICIT").
 		RegisterDecoder(".yaml", yaml.RawDecoder).
 		RegisterDecoder(".yml", yaml.RawDecoder).
-		ConfigOptions(config.Explicit("bootstrap.yaml"))
+		ConfigOptions(conga.ConfigExplicit("bootstrap.yaml"))
 
 	if err := app.Run(); err != nil {
 		app.Exit(err)

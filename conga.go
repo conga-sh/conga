@@ -13,7 +13,6 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/conga-sh/conga/config"
 	"github.com/conga-sh/conga/internal/appname"
 	"github.com/conga-sh/conga/internal/coerce"
 	"github.com/conga-sh/conga/internal/completion"
@@ -273,14 +272,14 @@ func (a *App[T]) Dotenv(paths ...string) *App[T] {
 }
 
 // ConfigOptions sets how CONGA discovers and merges config files. Options come
-// from the conga/config package; [config.Option] lists the constructors and the
-// resolution rule each one declares.
+// from the [ConfigOption] constructors: [ConfigPaths], [ConfigExplicit], and
+// [ConfigCascading], each declaring one resolution rule.
 //
 // Config files also require a registered decoder (see [App.RegisterDecoder]).
 // See https://docs.conga.sh/how-to/manage-config-files/.
-func (a *App[T]) ConfigOptions(options ...config.Option) *App[T] {
+func (a *App[T]) ConfigOptions(options ...ConfigOption) *App[T] {
 	a.configOptions = append(a.configOptions, options...)
-	a.configSettings = configSettingsFrom(config.Apply(a.configOptions...))
+	a.configSettings = foldConfigOptions(a.configOptions)
 	a.installConfigEngine()
 
 	return a
@@ -302,7 +301,7 @@ func (a *App[T]) ConfigOptions(options ...config.Option) *App[T] {
 // decoder/toml, decoder/hcl) so unused formats stay out of the binary.
 //
 // See https://docs.conga.sh/reference/decoders/.
-func (a *App[T]) RegisterDecoder(extension string, decoder config.Decoder) *App[T] {
+func (a *App[T]) RegisterDecoder(extension string, decoder ConfigDecoder) *App[T] {
 	a.installConfigEngine()
 	a.configRegistry.Register(extension, decoder)
 
@@ -917,7 +916,7 @@ type appConfig[T any] struct {
 	deprecationNotices    []string
 	version               string
 	envPrefix             string
-	configOptions         []config.Option
+	configOptions         []ConfigOption
 	configSettings        spec.ConfigSettings
 	configRegistry        *configengine.Registry
 	configEngine          configEngineFactory
@@ -1801,16 +1800,6 @@ func errEmptyConfigTarget(cmd *spec.Command, cmdChain []*spec.Command) error {
 		cmdChain:    cmdChain,
 		cause:       errInvalidValue,
 		valueShaped: true,
-	}
-}
-
-// configSettingsFrom converts the public authoring-surface settings snapshot
-// into the engine's own configuration settings representation.
-func configSettingsFrom(settings config.Settings) spec.ConfigSettings {
-	return spec.ConfigSettings{
-		Explicit:  settings.Explicit,
-		Tier:      settings.Tier,
-		Cascading: settings.Cascading,
 	}
 }
 

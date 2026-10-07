@@ -7,7 +7,7 @@ CONGA loads config files into a flat `map[string]string` view that feeds tier 3 
 
 ## Cascading merges
 
-By default a search tier is first-hit: `config.Paths(...)` lists files in precedence order and the first existing one wins. Declaring `config.Cascading()` changes the model to a merge: every existing file contributes, from lowest to highest precedence, so higher-precedence paths override keys set earlier. Partial cascades are supported: any subset of the list may exist.
+By default a search tier is first-hit: `conga.ConfigPaths(...)` lists files in precedence order and the first existing one wins. Declaring `conga.ConfigCascading()` changes the model to a merge: every existing file contributes, from lowest to highest precedence, so higher-precedence paths override keys set earlier. Partial cascades are supported: any subset of the list may exist.
 
 Because a cascade can load more than one file, a declared root config-file flag must accept multiple values (`multi:"true"`) so it can report every merged file; the schema rejects the combination otherwise.
 
@@ -17,8 +17,8 @@ Because a cascade can load more than one file, a declared root config-file flag 
 |-----------|--------|
 | CLI flag value (`--config-file`) missing | Fatal: descriptive error (`ErrConfig` base) |
 | `<PREFIX>_CONFIG` environment variable pointing at a missing file | Fatal: descriptive error (`ErrConfig` base) |
-| `config.Explicit(...)` path missing | Fatal: descriptive error (`ErrConfig` base) |
-| Search-tier path (`config.Paths(...)`, built-in XDG tier) missing | Silently skipped; probing continues |
+| `conga.ConfigExplicit(...)` path missing | Fatal: descriptive error (`ErrConfig` base) |
+| Search-tier path (`conga.ConfigPaths(...)`, built-in XDG tier) missing | Silently skipped; probing continues |
 | Multiple decoder-matching candidates in one probed tier | Fatal conflict error (`ErrConfig` base) |
 | Nothing resolves anywhere | Silent no-op — the run continues on defaults |
 | File larger than 16 MB | Fatal: size-limit error (DoS hardening, `ErrConfig` base) |
@@ -36,7 +36,7 @@ ${XDG_CONFIG_HOME:-~/.config}/<app-name>/config.<ext>
 ${XDG_CONFIG_HOME:-~/.config}/<app-name>/<app-name>.<ext>
 ```
 
-for each registered extension. This is the lowest-precedence tier and is replaced entirely by `config.Paths(...)`. A `ConfigFile` container loads a file only when an invocation names it explicitly (`--config-file`, the environment variable, or `config.Explicit(...)`) or a probed tier discovers it; [About value precedence](/explanation/value-precedence/#why-configfile-sits-outside-the-four-tier-ladder) explains why the container sits outside the four-tier ladder. The [`--why` report](/how-to/inspect-value-provenance/) and `session.CandidateConfigFiles()` list the candidates an invocation evaluates.
+for each registered extension. This is the lowest-precedence tier and is replaced entirely by `conga.ConfigPaths(...)`. A `ConfigFile` container loads a file only when an invocation names it explicitly (`--config-file`, the environment variable, or `conga.ConfigExplicit(...)`) or a probed tier discovers it; [About value precedence](/explanation/value-precedence/#why-configfile-sits-outside-the-four-tier-ladder) explains why the container sits outside the four-tier ladder. The [`--why` report](/how-to/inspect-value-provenance/) and `session.CandidateConfigFiles()` list the candidates an invocation evaluates.
 
 ## Decoder capability
 

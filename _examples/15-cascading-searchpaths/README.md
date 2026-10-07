@@ -1,6 +1,6 @@
 # 15 — Cascading search paths
 
-`app.ConfigOptions(config.Paths(...), config.Cascading())`: every existing file
+`app.ConfigOptions(conga.ConfigPaths(...), conga.ConfigCascading())`: every existing file
 in the search tier merges in precedence order (system → user → local, lowest to
 highest), partial cascades skip missing files silently, and an explicit
 `--config-file` disables cascading entirely.

@@ -11,7 +11,6 @@ import (
 	"context"
 
 	"github.com/conga-sh/conga"
-	"github.com/conga-sh/conga/config"
 )
 
 // CascadingMultiRoot satisfies the guard with the multi tag.
@@ -35,6 +34,6 @@ func (c *CascadingViolatingRoot) Run(ctx context.Context, session *conga.Session
 	return nil
 }
 
-var _ = conga.New[CascadingMultiRoot]().ConfigOptions(config.Cascading())
+var _ = conga.New[CascadingMultiRoot]().ConfigOptions(conga.ConfigCascading())
 
-var _ = conga.New[CascadingViolatingRoot]().ConfigOptions(config.Cascading())
+var _ = conga.New[CascadingViolatingRoot]().ConfigOptions(conga.ConfigCascading())

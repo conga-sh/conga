@@ -10,7 +10,6 @@ import (
 	"github.com/alecthomas/assert/v2"
 
 	"github.com/conga-sh/conga"
-	"github.com/conga-sh/conga/config"
 	"github.com/conga-sh/conga/decoder/json"
 )
 
@@ -53,7 +52,7 @@ func TestBinder_4TierResolution_CLIFlags(t *testing.T) {
 	app := conga.New(cli).
 		Name("server").
 		RegisterDecoder(".json", json.RawDecoder).
-		ConfigOptions(config.Explicit(writeConfigFile(t, `{"server": {"port": "9090"}}`))).
+		ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"server": {"port": "9090"}}`))).
 		Args([]string{"--api-key", "secret123", "-p", "7070", "-v", "input.txt", "out.txt"})
 
 	err := app.RunContext(t.Context())
@@ -76,7 +75,7 @@ func TestBinder_4TierResolution_EnvVar(t *testing.T) {
 	app := conga.New(cli).
 		Name("server").
 		RegisterDecoder(".json", json.RawDecoder).
-		ConfigOptions(config.Explicit(writeConfigFile(t, `{"server": {"port": "9090"}}`))).
+		ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"server": {"port": "9090"}}`))).
 		Args([]string{"--api-key", "secret", "file.txt"})
 
 	err := app.RunContext(t.Context())
@@ -93,7 +92,7 @@ func TestBinder_4TierResolution_ConfigFile(t *testing.T) {
 	app := conga.New(cli).
 		Name("server").
 		RegisterDecoder(".json", json.RawDecoder).
-		ConfigOptions(config.Explicit(writeConfigFile(t, `{"server": {"port": "9090"}}`))).
+		ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"server": {"port": "9090"}}`))).
 		Args([]string{"--api-key", "secret", "file.txt"})
 
 	err := app.RunContext(t.Context())
@@ -302,7 +301,7 @@ func TestAppConfigFile(t *testing.T) {
 	cli := new(ConfigApp)
 	app := conga.New(cli).
 		RegisterDecoder(".json", json.RawDecoder).
-		ConfigOptions(config.Explicit(cfgPath)).
+		ConfigOptions(conga.ConfigExplicit(cfgPath)).
 		Args([]string{})
 
 	err = app.Run()
@@ -1111,7 +1110,7 @@ func TestBinder_EmptyStringConfig(t *testing.T) {
 	cli := new(StringConfigCLI)
 	app := conga.New(cli).
 		RegisterDecoder(".json", json.RawDecoder).
-		ConfigOptions(config.Explicit(writeConfigFile(t, `{"name": ""}`))).
+		ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"name": ""}`))).
 		Args([]string{})
 	err := app.RunContext(t.Context())
 
@@ -1132,7 +1131,7 @@ func TestBinder_CounterCoercionError(t *testing.T) {
 
 	app := conga.New[CounterCLI]().
 		RegisterDecoder(".json", json.RawDecoder).
-		ConfigOptions(config.Explicit(writeConfigFile(t, `{"v": "not-a-number"}`))).
+		ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"v": "not-a-number"}`))).
 		Args([]string{})
 	err := app.RunContext(t.Context())
 

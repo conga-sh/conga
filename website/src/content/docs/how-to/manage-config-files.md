@@ -12,7 +12,6 @@ Register decoders on the application builder for each file format the applicatio
 ```go title="main.go"
 import (
 	"github.com/conga-sh/conga"
-	"github.com/conga-sh/conga/config"
 	"github.com/conga-sh/conga/decoder/hcl"
 	"github.com/conga-sh/conga/decoder/json"
 	"github.com/conga-sh/conga/decoder/toml"
@@ -34,11 +33,11 @@ func main() {
 }
 ```
 
-CONGA provides four opt-in decoder packages: JSON, TOML, YAML, and HCL. Each package exposes a `RawDecoder` function matching the `config.Decoder` interface; [package decoder](/reference/decoders/) covers extension normalization and the missing-decoder rule.
+CONGA provides four opt-in decoder packages: JSON, TOML, YAML, and HCL. Each package exposes a `RawDecoder` function matching the `conga.ConfigDecoder` interface; [package decoder](/reference/decoders/) covers extension normalization and the missing-decoder rule.
 
 ## Implement and register a custom decoder
 
-To support custom, proprietary, or legacy formats, provide a function satisfying the `config.Decoder` signature:
+To support custom, proprietary, or legacy formats, provide a function satisfying the `conga.ConfigDecoder` signature:
 
 ```go
 type Decoder func(data []byte) (map[string]any, error)
@@ -128,7 +127,7 @@ Configure file discovery using `app.ConfigOptions(...)`:
 
 ```go title="main.go"
 app.ConfigOptions(
-	config.Paths(
+	conga.ConfigPaths(
 		"./cloudctl.yaml",                  // local: highest precedence
 		"~/.config/cloudctl/cloudctl.yaml", // user
 		"/etc/cloudctl/cloudctl.yaml",      // system: lowest precedence
@@ -136,24 +135,24 @@ app.ConfigOptions(
 )
 ```
 
-Use `config.Paths(...)` to declare search tiers and `config.Explicit(...)` to name one concrete file. [Package config](/reference/config/) lists the option contracts; [About the config cascade](/explanation/config-cascade/) covers discovery precedence, the built-in XDG tier, and per-tier existence semantics.
+Use `conga.ConfigPaths(...)` to declare search tiers and `conga.ConfigExplicit(...)` to name one concrete file. [About the config cascade](/explanation/config-cascade/) covers discovery precedence, the built-in XDG tier, and per-tier existence semantics.
 
 ## Merge multiple files with cascading
 
-To merge settings across system, user, and project files, add `config.Cascading()` to the options:
+To merge settings across system, user, and project files, add `conga.ConfigCascading()` to the options:
 
 ```go title="main.go"
 app.ConfigOptions(
-	config.Paths(
+	conga.ConfigPaths(
 		"./cloudctl.yaml",
 		"~/.config/cloudctl/cloudctl.yaml",
 		"/etc/cloudctl/cloudctl.yaml",
 	),
-	config.Cascading(),
+	conga.ConfigCascading(),
 )
 ```
 
-`config.Cascading()` merges every existing tier file instead of stopping at the first match; [About the config cascade](/explanation/config-cascade/) describes the merge order. The root `ConfigFile` flag must then declare `multi:"true"`:
+`conga.ConfigCascading()` merges every existing tier file instead of stopping at the first match; [About the config cascade](/explanation/config-cascade/) describes the merge order. The root `ConfigFile` flag must then declare `multi:"true"`:
 
 ```go title="main.go"
 type CLI struct {

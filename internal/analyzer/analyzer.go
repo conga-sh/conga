@@ -39,9 +39,10 @@ const (
 	// congaPackagePath is the import path of the CONGA runtime package.
 	congaPackagePath = "github.com/conga-sh/conga"
 
-	// configPackagePath is the import path of the public configuration
-	// authoring package, which hosts the app.ConfigOptions option constructors.
-	configPackagePath = "github.com/conga-sh/conga/config"
+	// configPackagePath is the import path of the CONGA runtime package,
+	// which hosts the app.ConfigOptions option constructors. User-defined
+	// constructors live in other packages and are never classified.
+	configPackagePath = "github.com/conga-sh/conga"
 )
 
 // analyzerFlags registers the conga-lint command-line flags.
@@ -83,7 +84,7 @@ type appOptions struct {
 	// inventing a diagnostic.
 	envPrefix          string
 	envPrefixAmbiguous bool
-	// configCascading records a statically identified app.ConfigOptions(config.Cascading())
+	// configCascading records a statically identified app.ConfigOptions(conga.ConfigCascading())
 	// call; configCascadingAmbiguous marks unclassifiable ConfigOptions arguments
 	// that could hide one. Ambiguous evidence skips the cascading guard.
 	configCascading          bool
@@ -166,15 +167,15 @@ func (o *appOptions) absorbEnvPrefixCall(pass *analysis.Pass, call *ast.CallExpr
 }
 
 // absorbConfigCall classifies the option-constructor arguments of an
-// app.ConfigOptions(...) call: a statically identified config.Cascading() enables the
-// cascading guard, known non-cascading options are inert, and anything else
-// is ambiguous evidence that could hide a Cascading option.
+// app.ConfigOptions(...) call: a statically identified conga.ConfigCascading()
+// enables the cascading guard, known non-cascading options are inert, and
+// anything else is ambiguous evidence that could hide a Cascading option.
 func (o *appOptions) absorbConfigCall(pass *analysis.Pass, call *ast.CallExpr) {
 	for _, argument := range call.Args {
 		switch configOptionName(pass, argument) {
-		case "Cascading":
+		case "ConfigCascading":
 			o.configCascading = true
-		case "Paths", "Explicit":
+		case "ConfigPaths", "ConfigExplicit":
 			// Statically identified non-cascading options.
 		default:
 			o.configCascadingAmbiguous = true
@@ -211,9 +212,10 @@ func (o *appOptions) strictValidationOptions() spec.ValidationOptions {
 	}
 }
 
-// configOptionName reports the name of the config-package option constructor
-// an app.ConfigOptions argument calls (e.g. "Cascading", "Paths", "Explicit"), or ""
-// when the argument is not a statically identifiable config option call.
+// configOptionName reports the name of the conga option constructor an
+// app.ConfigOptions argument calls (e.g. "ConfigCascading", "ConfigPaths",
+// "ConfigExplicit"), or "" when the argument is not a statically identifiable
+// config option call.
 func configOptionName(pass *analysis.Pass, argument ast.Expr) string {
 	call, ok := argument.(*ast.CallExpr)
 	if !ok {

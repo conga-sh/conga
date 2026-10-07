@@ -14,7 +14,6 @@ import (
 	"github.com/alecthomas/assert/v2"
 
 	"github.com/conga-sh/conga"
-	"github.com/conga-sh/conga/config"
 	"github.com/conga-sh/conga/decoder/json"
 )
 
@@ -213,7 +212,7 @@ func TestFileExistingValidation(t *testing.T) {
 		app := conga.New(cli).
 			Name("app").
 			RegisterDecoder(".json", json.RawDecoder).
-			ConfigOptions(config.Explicit(writeConfigFile(t, `{"input": "`+missing+`"}`))).
+			ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"input": "`+missing+`"}`))).
 			Args([]string{"--input", testFile})
 
 		err := app.RunContext(t.Context())
@@ -231,7 +230,7 @@ func TestFileExistingValidation(t *testing.T) {
 		app := conga.New[FileExistingCLI]().
 			Name("app").
 			RegisterDecoder(".json", json.RawDecoder).
-			ConfigOptions(config.Explicit(writeConfigFile(t, `{"input": "`+missing+`"}`))).
+			ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"input": "`+missing+`"}`))).
 			Args([]string{})
 
 		err := app.RunContext(t.Context())
@@ -475,7 +474,7 @@ func TestFileExistingConfigValidation(t *testing.T) {
 		app := conga.New[FileConfigCLI]().
 			Name("app").
 			RegisterDecoder(".json", json.RawDecoder).
-			ConfigOptions(config.Explicit(writeConfigFile(t, `{"input": "`+testFile+`"}`))).
+			ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"input": "`+testFile+`"}`))).
 			Args([]string{})
 
 		err := app.Run()
@@ -490,7 +489,7 @@ func TestFileExistingConfigValidation(t *testing.T) {
 		app := conga.New[FileConfigCLI]().
 			Name("app").
 			RegisterDecoder(".json", json.RawDecoder).
-			ConfigOptions(config.Explicit(writeConfigFile(t, `{"input": "`+missing+`"}`))).
+			ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"input": "`+missing+`"}`))).
 			Args([]string{})
 
 		err := app.Run()

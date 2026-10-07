@@ -1,5 +1,5 @@
 # TestScript for 28-explicit-config-file
-# Asserts config.Explicit(...) semantics: bootstrap.yaml is the programmatic
+# Asserts conga.ConfigExplicit(...) semantics: bootstrap.yaml is the programmatic
 # target (fatal if missing), only --config-file outranks it, and the
 # EXPLICIT_CONFIG environment variable is ignored while the option is declared.
 

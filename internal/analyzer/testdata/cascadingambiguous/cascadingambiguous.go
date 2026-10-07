@@ -8,7 +8,6 @@ import (
 	"context"
 
 	"github.com/conga-sh/conga"
-	"github.com/conga-sh/conga/config"
 )
 
 // NonLiteralOption feeds an unclassifiable ConfigOptions argument.
@@ -20,8 +19,8 @@ func (c *NonLiteralOption) Run(ctx context.Context, session *conga.Session) erro
 	return nil
 }
 
-func cascadingOption() config.Option {
-	return config.Cascading()
+func cascadingOption() conga.ConfigOption {
+	return conga.ConfigCascading()
 }
 
 var _ = conga.New[NonLiteralOption]().ConfigOptions(cascadingOption())

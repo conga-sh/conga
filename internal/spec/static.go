@@ -158,7 +158,7 @@ func ValidateCounterDefaultTag(tag reflect.StructTag) error {
 // verbatim, keeping the lint-time and runtime messages a single source of
 // truth.
 func CascadingRequiresMultiError(flagName string) error {
-	return fmt.Errorf("%w: Cascading() merges multiple configuration files; the root config-file flag %q must declare multi:\"true\" (or drop Cascading() from app.ConfigOptions(...))", ErrSchema, flagName)
+	return fmt.Errorf("%w: conga.ConfigCascading() merges multiple configuration files; the root config-file flag %q must declare multi:\"true\" (or drop conga.ConfigCascading() from app.ConfigOptions(...))", ErrSchema, flagName)
 }
 
 // CompletionRequiresEnableError builds the completion⟹enable schema guard: a

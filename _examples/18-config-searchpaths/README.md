@@ -1,7 +1,7 @@
 # 18 — Config search paths
 
-Single-file search mode: `app.ConfigOptions(config.Paths(...))` without
-`Cascading()`, so the first existing file wins and no merging happens. An
+Single-file search mode: `app.ConfigOptions(conga.ConfigPaths(...))` without
+`conga.ConfigCascading()`, so the first existing file wins and no merging happens. An
 explicit `-c` overrides the whole search list.
 
 ## Run it

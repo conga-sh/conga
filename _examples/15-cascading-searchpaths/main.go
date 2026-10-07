@@ -6,7 +6,6 @@ import (
 
 	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/_examples/internal/inspector"
-	"github.com/conga-sh/conga/config"
 	"github.com/conga-sh/conga/decoder/yaml"
 )
 
@@ -33,7 +32,7 @@ func main() {
 		Version("1.0.0").
 		RegisterDecoder(".yaml", yaml.RawDecoder).
 		RegisterDecoder(".yml", yaml.RawDecoder).
-		ConfigOptions(config.Paths(".", "~/.config/cascading-app", "${SYSCONF_DIR:-/etc/cascading-app}"), config.Cascading())
+		ConfigOptions(conga.ConfigPaths(".", "~/.config/cascading-app", "${SYSCONF_DIR:-/etc/cascading-app}"), conga.ConfigCascading())
 
 	if err := app.Run(); err != nil {
 		app.Exit(err)

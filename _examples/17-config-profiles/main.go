@@ -5,7 +5,6 @@ import (
 
 	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/_examples/internal/inspector"
-	"github.com/conga-sh/conga/config"
 	"github.com/conga-sh/conga/decoder/yaml"
 )
 
@@ -35,7 +34,7 @@ func main() {
 		Version("1.0.0").
 		RegisterDecoder(".yaml", yaml.RawDecoder).
 		RegisterDecoder(".yml", yaml.RawDecoder).
-		ConfigOptions(config.Paths("deploy/prod.yaml", "deploy/base.yaml"), config.Cascading())
+		ConfigOptions(conga.ConfigPaths("deploy/prod.yaml", "deploy/base.yaml"), conga.ConfigCascading())
 
 	if err := app.Run(); err != nil {
 		app.Exit(err)

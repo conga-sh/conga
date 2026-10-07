@@ -8,7 +8,6 @@ import (
 	"context"
 
 	"github.com/conga-sh/conga"
-	"github.com/conga-sh/conga/config"
 )
 
 // CascadingMultiFlag satisfies the guard: the multi tag lets the flag report
@@ -21,4 +20,4 @@ func (c *CascadingMultiFlag) Run(ctx context.Context, session *conga.Session) er
 	return nil
 }
 
-var _ = conga.New[CascadingMultiFlag]().ConfigOptions(config.Cascading())
+var _ = conga.New[CascadingMultiFlag]().ConfigOptions(conga.ConfigCascading())
