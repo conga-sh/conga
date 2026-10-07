@@ -39,7 +39,7 @@ const (
 )
 
 const (
-	byteSizeFamilyUnset   byteSizeFamily = iota // constructed values: canonical IEC integer model
+	byteSizeFamilyUnset   byteSizeFamily = iota // zero value: canonical IEC integer model
 	byteSizeFamilyBytes                         // parsed exact bytes (B suffix or bare count)
 	byteSizeFamilyBinary                        // KiB..PiB
 	byteSizeFamilyDecimal                       // kB/KB..PB
@@ -523,12 +523,11 @@ func (d Dir) Help(tags FieldTags) string {
 //
 // A parsed value remembers the unit family it was written in: one decoded from
 // "1.5GB" renders back in decimal units ("1500MB"), while one decoded from "1GiB"
-// renders in binary units ("1GiB"). Values constructed directly through
-// [NewByteSize] render with the canonical IEC integer model, where only whole
-// multiples of a binary unit are abbreviated (e.g. "1MiB", "512MiB") and any
-// indivisible remainder is emitted as exact bytes (e.g. "1048577B"). Fractions
-// such as "1.5GB" are emitted only when a field declares the `precision` tag and
-// the fraction round-trips exactly.
+// renders in binary units ("1GiB"). The zero value renders with the canonical IEC
+// integer model, where only whole multiples of a binary unit are abbreviated
+// (e.g. "1MiB", "512MiB") and any indivisible remainder is emitted as exact bytes
+// (e.g. "1048577B"). Fractions such as "1.5GB" are emitted only when a field
+// declares the `precision` tag and the fraction round-trips exactly.
 //
 // The byte count is available through [ByteSize.Bytes] for comparisons and
 // calculations:
@@ -562,13 +561,6 @@ type ByteSize struct {
 	// The blank field makes the struct non-comparable: array types are
 	// comparable only when their element type is, and func is not comparable.
 	_ [0]func()
-}
-
-// NewByteSize constructs a ByteSize from a raw byte count. The value renders with
-// the canonical IEC integer model ([ByteSize.String]); decode a value from text to
-// preserve an input's unit family.
-func NewByteSize(bytes int64) ByteSize {
-	return ByteSize{bytes: bytes}
 }
 
 // Equal reports whether b and other represent the same number of bytes,
@@ -607,7 +599,7 @@ func (b ByteSize) Bytes() int64 {
 // String formats the byte size into a deterministic, lossless human-readable string.
 //
 // The rendering family comes from the value's captured unit family (or the
-// canonical IEC model for constructed values): whole multiples of a unit are
+// canonical IEC model for the zero value): whole multiples of a unit are
 // formatted as integers without spaces or decimal points (e.g. "1MiB",
 // "1500MB"), values with indivisible remainders are emitted as exact bytes (e.g.
 // "1048577B"), and fractions appear only when the declared precision renders them
@@ -618,22 +610,12 @@ func (b ByteSize) String() string {
 		return "0B"
 	}
 
-	var (
-		sign string
-		abs  uint64
-	)
-
-	if b.bytes < 0 {
-		sign = "-"
-		abs = uint64(-(b.bytes + 1)) + 1 //nolint:gosec // G115: -(b+1) is non-negative for all negative int64 values including math.MinInt64.
-	} else {
-		abs = uint64(b.bytes)
-	}
+	abs := uint64(b.bytes) //nolint:gosec // G115: byte counts are non-negative by construction; text input rejects negative values and no public constructor exists.
 
 	precision := b.precision
 	if b.family == byteSizeFamilyUnset {
-		// Constructed values keep the canonical integer-only model regardless
-		// of any declared precision tag.
+		// The zero value keeps the canonical integer-only model regardless of
+		// any declared precision tag.
 		precision = 0
 	}
 
@@ -642,7 +624,7 @@ func (b ByteSize) String() string {
 		remainder := abs % unit.multiplier
 
 		if remainder == 0 {
-			return fmt.Sprintf("%s%d%s", sign, whole, unit.name)
+			return fmt.Sprintf("%d%s", whole, unit.name)
 		}
 
 		if precision == 0 {
@@ -656,10 +638,10 @@ func (b ByteSize) String() string {
 
 		fraction := remainder * byteSizePow10(decimals) / unit.multiplier
 
-		return fmt.Sprintf("%s%d.%0*d%s", sign, whole, decimals, fraction, unit.name)
+		return fmt.Sprintf("%d.%0*d%s", whole, decimals, fraction, unit.name)
 	}
 
-	return fmt.Sprintf("%s%dB", sign, abs)
+	return fmt.Sprintf("%dB", abs)
 }
 
 // MarshalText returns the byte size formatted as UTF-8 text using [ByteSize.String].
@@ -677,9 +659,8 @@ func (b ByteSize) MarshalText() ([]byte, error) {
 //
 // The numeric prefix is digits with an optional fraction whose contribution
 // resolves exactly to bytes (e.g. "1.5GB", "0.5GiB"); a sub-byte remainder such
-// as "0.1GiB" is rejected. Text input is non-negative: negative byte counts are
-// representable only programmatically through [NewByteSize] even though
-// [ByteSize.MarshalText] renders them with a leading '-'.
+// as "0.1GiB" is rejected. Text input is non-negative; negative byte counts are
+// not representable.
 //
 // Naked unit suffixes without 'B' ("10G", "512Mi") and lowercase casings ("mb", "kib")
 // are rejected to prevent ambiguity.

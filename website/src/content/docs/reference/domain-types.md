@@ -30,7 +30,7 @@ All filesystem capability checks run during the validation phase on the final re
 | Type | Behaviour |
 |------|-----------|
 | `conga.FileContent` | Reads the file into memory during parsing; accepts `-` for stdin; 16 MB limit |
-| `conga.ByteSize` | Parses `"10MiB"`, `"1.5GB"`, `"500KiB"`, and exact bytes; `Bytes()` returns `int64`; strict case-sensitive units. Renders in the unit family it was parsed in (echo), exact bytes included, or the canonical IEC model for constructed values |
+| `conga.ByteSize` | Parses `"10MiB"`, `"1.5GB"`, `"500KiB"`, and exact bytes; `Bytes()` returns `int64`; strict case-sensitive units. Renders in the unit family it was parsed in (echo), exact bytes included, or the canonical IEC integer model for the zero value |
 
 ```go
 type Upload struct {
@@ -46,7 +46,7 @@ func (u *Upload) Run(ctx context.Context, session *conga.Session) error {
 
 ### Byte size formatting
 
-`ByteSize` remembers the unit family a value was parsed in, so it renders back in that family (a value decoded from `"1.5GB"` prints `1500MB`); a bare count or `B`-suffixed input is exact bytes and prints as exact bytes (`"1048576B"` prints `1048576B`); values built with `conga.NewByteSize` use the canonical IEC integer model. Text input is non-negative: negative values exist only programmatically, render with a leading `-`, and do not parse back. Three struct tags tune acceptance and display:
+`ByteSize` remembers the unit family a value was parsed in, so it renders back in that family (a value decoded from `"1.5GB"` prints `1500MB`); a bare count or `B`-suffixed input is exact bytes and prints as exact bytes (`"1048576B"` prints `1048576B`); the zero value uses the canonical IEC integer model. Text input is non-negative, and negative byte counts are not representable. Three struct tags tune acceptance and display:
 
 | Tag | Values | Effect |
 |-----|--------|--------|

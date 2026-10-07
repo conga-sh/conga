@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
-	"math"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -687,43 +686,6 @@ func TestDomainTypes(t *testing.T) {
 					assert.NoError(t, err)
 					assert.Equal(t, testCase.expected, byteSize.Bytes())
 				}
-			})
-		}
-	})
-
-	t.Run("ByteSize string IEC formatting", func(t *testing.T) {
-		t.Parallel()
-
-		formatCases := []struct {
-			name     string
-			bytes    int64
-			expected string
-		}{
-			{name: "zero bytes", bytes: 0, expected: "0B"},
-			{name: "sub-kibibyte bytes", bytes: 512, expected: "512B"},
-			{name: "kibibyte boundary", bytes: 1024, expected: "1KiB"},
-			{name: "fractional kibibytes", bytes: 1536, expected: "1536B"},
-			{name: "mebibyte boundary", bytes: 1024 * 1024, expected: "1MiB"},
-			{name: "512 mebibytes", bytes: 512 * 1024 * 1024, expected: "512MiB"},
-			{name: "gibibyte boundary", bytes: 1024 * 1024 * 1024, expected: "1GiB"},
-			{name: "2 gibibytes", bytes: 2 * 1024 * 1024 * 1024, expected: "2GiB"},
-			{name: "tebibyte boundary", bytes: 1024 * 1024 * 1024 * 1024, expected: "1TiB"},
-			{name: "pebibyte boundary", bytes: 1024 * 1024 * 1024 * 1024 * 1024, expected: "1PiB"},
-			{name: "negative kibibyte", bytes: -1024, expected: "-1KiB"},
-			{name: "negative mebibyte", bytes: -1024 * 1024, expected: "-1MiB"},
-			{name: "negative sub-kibibyte", bytes: -512, expected: "-512B"},
-			{name: "indivisible remainder", bytes: 1048577, expected: "1048577B"},
-			{name: "boundary minus one", bytes: 1048575, expected: "1048575B"},
-			{name: "math MinInt64 safe", bytes: math.MinInt64, expected: "-8192PiB"},
-		}
-
-		for _, formatCase := range formatCases {
-			t.Run(formatCase.name, func(t *testing.T) {
-				t.Parallel()
-
-				byteSize := conga.NewByteSize(formatCase.bytes)
-
-				assert.Equal(t, formatCase.expected, byteSize.String())
 			})
 		}
 	})
@@ -1487,7 +1449,10 @@ func TestIssue22DomainTypeValueStringer(t *testing.T) {
 	assert.NoError(t, dir.UnmarshalText([]byte(tmpDir)))
 	conga.OptionalFlagContainer(&dirFlag).SetValue(dir, conga.SourceCLI, "--dir")
 
-	conga.OptionalFlagContainer(&byteSizeFlag).SetValue(conga.NewByteSize(1024), conga.SourceCLI, "--size")
+	var byteSize conga.ByteSize
+	assert.NoError(t, byteSize.UnmarshalText([]byte("1KiB")))
+	conga.OptionalFlagContainer(&byteSizeFlag).SetValue(byteSize, conga.SourceCLI, "--size")
+
 	conga.OptionalFlagContainer(&contentFlag).SetValue(conga.FileContent("payload-data"), conga.SourceCLI, "--content")
 
 	t.Run("File value Stringer output avoids struct dump and pointer leakage", func(t *testing.T) {
@@ -1625,10 +1590,13 @@ func TestDomainTypesJSONSerializationRoundtrip(t *testing.T) {
 	var dir conga.Dir
 	assert.NoError(t, dir.UnmarshalText([]byte(tmpDir)))
 
+	var memory conga.ByteSize
+	assert.NoError(t, memory.UnmarshalText([]byte("1MiB")))
+
 	initial := domainConfig{
 		Input:  file,
 		Output: dir,
-		Memory: conga.NewByteSize(1024 * 1024),
+		Memory: memory,
 	}
 
 	encoded, err := json.Marshal(initial)
@@ -1945,23 +1913,6 @@ func TestByteSizeHelpTailorsToTags(t *testing.T) {
 	assert.Equal(t, "Byte size (e.g., 10MiB, 1.5GB, 500KiB), up to 2 decimal places", byteSize.Help(conga.FieldTags{"precision": "2"}))
 }
 
-// TestByteSizeMarshalTextRoundTrip verifies MarshalText/UnmarshalText preserve the
-// exact byte count for constructed non-negative values.
-func TestByteSizeMarshalTextRoundTrip(t *testing.T) {
-	t.Parallel()
-
-	for _, value := range []int64{0, 1, 1023, 1024, 1536, 1048576, 1048577, 536870912, 1500000000, 1 << 40} {
-		byteSize := conga.NewByteSize(value)
-
-		text, err := byteSize.MarshalText()
-		assert.NoError(t, err)
-
-		var reparsed conga.ByteSize
-		assert.NoError(t, reparsed.UnmarshalText(text))
-		assert.Equal(t, value, reparsed.Bytes())
-	}
-}
-
 // TestByteSizePrecisionRendersLosslessly verifies that every value in the sweep
 // reparses to the identical byte count, for both render families and every precision.
 func TestByteSizePrecisionRendersLosslessly(t *testing.T) {
@@ -2032,34 +1983,13 @@ func TestByteSizeEqualAndCompare(t *testing.T) {
 	var parsedBytes conga.ByteSize
 	assert.NoError(t, parsedBytes.UnmarshalText([]byte("1048576B")))
 
-	constructed := conga.NewByteSize(1048576)
-
-	assert.True(t, constructed.Equal(parsedMiB))
 	assert.True(t, parsedMiB.Equal(parsedBytes))
-	assert.True(t, parsedBytes.Equal(constructed))
-	assert.Equal(t, 0, constructed.Compare(parsedMiB))
+	assert.True(t, parsedBytes.Equal(parsedMiB))
+	assert.Equal(t, 0, parsedBytes.Compare(parsedMiB))
 
-	smaller := conga.NewByteSize(1024)
+	var parsedKiB conga.ByteSize
+	assert.NoError(t, parsedKiB.UnmarshalText([]byte("1024")))
 
-	assert.Equal(t, -1, smaller.Compare(constructed))
-	assert.Equal(t, 1, constructed.Compare(smaller))
-}
-
-// TestByteSizeNegativeTextAsymmetry pins the documented asymmetry: programmatic
-// negative values render signed but have no parsed text form.
-func TestByteSizeNegativeTextAsymmetry(t *testing.T) {
-	t.Parallel()
-
-	negative := conga.NewByteSize(-1024)
-
-	assert.Equal(t, "-1KiB", negative.String())
-	assert.Equal(t, int64(-1024), negative.Bytes())
-
-	var parsed conga.ByteSize
-
-	err := parsed.UnmarshalText([]byte("-1KiB"))
-
-	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrCoerce)
-	assert.Equal(t, `invalid byte size "-1KiB"`, err.Error())
+	assert.Equal(t, -1, parsedKiB.Compare(parsedBytes))
+	assert.Equal(t, 1, parsedBytes.Compare(parsedKiB))
 }

@@ -112,6 +112,58 @@ func TestByteSizeError(t *testing.T) {
 	}
 }
 
+// TestByteSizeStringIECFormatting pins the canonical IEC integer model for values
+// with the unset render family (the zero value and internal constructions).
+func TestByteSizeStringIECFormatting(t *testing.T) {
+	t.Parallel()
+
+	formatCases := []struct {
+		name     string
+		bytes    int64
+		expected string
+	}{
+		{name: "zero bytes", bytes: 0, expected: "0B"},
+		{name: "sub-kibibyte bytes", bytes: 512, expected: "512B"},
+		{name: "kibibyte boundary", bytes: 1024, expected: "1KiB"},
+		{name: "fractional kibibytes", bytes: 1536, expected: "1536B"},
+		{name: "mebibyte boundary", bytes: 1024 * 1024, expected: "1MiB"},
+		{name: "512 mebibytes", bytes: 512 * 1024 * 1024, expected: "512MiB"},
+		{name: "gibibyte boundary", bytes: 1024 * 1024 * 1024, expected: "1GiB"},
+		{name: "2 gibibytes", bytes: 2 * 1024 * 1024 * 1024, expected: "2GiB"},
+		{name: "tebibyte boundary", bytes: 1024 * 1024 * 1024 * 1024, expected: "1TiB"},
+		{name: "pebibyte boundary", bytes: 1024 * 1024 * 1024 * 1024 * 1024, expected: "1PiB"},
+		{name: "indivisible remainder", bytes: 1048577, expected: "1048577B"},
+		{name: "boundary minus one", bytes: 1048575, expected: "1048575B"},
+	}
+
+	for _, formatCase := range formatCases {
+		t.Run(formatCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			byteSize := ByteSize{bytes: formatCase.bytes}
+
+			assert.Equal(t, formatCase.expected, byteSize.String())
+		})
+	}
+}
+
+// TestByteSizeMarshalTextRoundTrip verifies MarshalText/UnmarshalText preserve the
+// exact byte count for values with the unset render family.
+func TestByteSizeMarshalTextRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	for _, value := range []int64{0, 1, 1023, 1024, 1536, 1048576, 1048577, 536870912, 1500000000, 1 << 40} {
+		byteSize := ByteSize{bytes: value}
+
+		text, err := byteSize.MarshalText()
+		assert.NoError(t, err)
+
+		var reparsed ByteSize
+		assert.NoError(t, reparsed.UnmarshalText(text))
+		assert.Equal(t, value, reparsed.Bytes())
+	}
+}
+
 // resolverDummyCmd is the inner command struct for classifier tests.
 type resolverDummyCmd struct{}
 
