@@ -1050,6 +1050,10 @@ func (a *App[T]) configurationView(cmd *spec.Command) configView {
 }
 
 func (a *App[T]) completeForShell(targetShell string, args []string) (predict.Result, string) {
+	return a.completeForShellWithEnv(targetShell, args, nil)
+}
+
+func (a *App[T]) completeForShellWithEnv(targetShell string, args []string, lookup completion.EnvLookup) (predict.Result, string) {
 	a.initDefaults()
 
 	cmd, err := a.buildSpec()
@@ -1064,7 +1068,9 @@ func (a *App[T]) completeForShell(targetShell string, args []string) (predict.Re
 		TargetShell:          targetShell,
 	}
 
-	patchedArgs, err := completion.Patch(targetShell, args)
+	completionSession := completion.NewSessionWithEnv(targetShell, lookup)
+
+	patchedArgs, err := completionSession.Patch(args)
 	if errors.Is(err, sentinel.ErrRedirectTarget) {
 		// A redirect target ("cloudctl deploy > <cursor>") never completes:
 		// falling back to the raw arguments would leak subcommand
@@ -1073,7 +1079,7 @@ func (a *App[T]) completeForShell(targetShell string, args []string) (predict.Re
 		// the pass-through behavior below.
 		invoked := predict.None().Invoke(predict.Context{})
 
-		return invoked, completion.Format(targetShell, "", invoked)
+		return invoked, completionSession.Format("", invoked)
 	}
 
 	normArgs := cond.If(err == nil && len(patchedArgs) > 0, patchedArgs, args)
@@ -1084,7 +1090,7 @@ func (a *App[T]) completeForShell(targetShell string, args []string) (predict.Re
 	invoked := spec.Complete(cmd, normArgs, opts)
 	toComplete := normArgs[len(normArgs)-1]
 
-	formatted := completion.Format(targetShell, toComplete, invoked)
+	formatted := completionSession.Format(toComplete, invoked)
 
 	return invoked, formatted
 }
@@ -1095,7 +1101,18 @@ func (a *App[T]) completeCompLineForShell(targetShell string, compLine string, c
 		words = words[1:]
 	}
 
-	return a.completeForShell(targetShell, words)
+	lookup := func(key string) (string, bool) {
+		switch key {
+		case "COMP_LINE":
+			return compLine, true
+		case "COMP_POINT":
+			return strconv.Itoa(compPoint), true
+		default:
+			return os.LookupEnv(key)
+		}
+	}
+
+	return a.completeForShellWithEnv(targetShell, words, lookup)
 }
 
 // applyDefaults installs the engine defaults a fresh App starts from: the
@@ -1612,10 +1629,12 @@ func (a *App[T]) handleComplete() (err error) {
 	}
 
 	// The bash-native COMP_LINE environment is intentionally left intact
-	// here: completeForShell's Patch pass consumes it, and only that pass
+	// here: completeForShell's Patch pass re-lexes it, and only that pass
 	// sees the redirect-rejection sentinel this dispatch must honor.
-	if envWords, ok := resolveCompLineEnv(); ok && len(wordsToComplete) <= 1 {
-		wordsToComplete = envWords
+	if targetShell == "bash" {
+		if envWords, ok := resolveCompLineEnv(); ok && len(wordsToComplete) <= 1 {
+			wordsToComplete = envWords
+		}
 	}
 
 	_, formatted := a.completeForShell(targetShell, wordsToComplete)

@@ -29,7 +29,7 @@ var corpusFixtures embed.FS
 var updateGolden = flag.Bool("update", false, "rewrite conformance golden files from current formatter output")
 
 // goldenModes enumerates every framing replayed by the conformance suite:
-// the shell passed to completion.Format plus the sideband environment the
+// the shell passed to NewSession plus the sideband environment the
 // mode pins. The suite runs sequentially because t.Setenv pins the
 // process-wide environment.
 //
@@ -102,7 +102,7 @@ func TestConformance_GoldenReplay(t *testing.T) {
 					t.Setenv(key, value)
 				}
 
-				formatted := completion.Format(mode.shell, "", resultFromFixture(fixture))
+				formatted := completion.NewSession(mode.shell).Format("", resultFromFixture(fixture))
 
 				if singleLineFramings[mode.shell] {
 					assert.False(t, strings.Contains(formatted, "\n"), mode.name+" framing must be a single line")
@@ -132,7 +132,7 @@ func TestConformance_GoldenReplay(t *testing.T) {
 func TestConformance_ExportReplay(t *testing.T) {
 	for name, fixture := range loadCorpusFixtures(t) {
 		t.Run(name, func(t *testing.T) {
-			formatted := completion.Format("export", "", resultFromFixture(fixture))
+			formatted := completion.NewSession("export").Format("", resultFromFixture(fixture))
 
 			assertExportFraming(t, fixture, formatted)
 		})
@@ -167,15 +167,15 @@ func TestConformance_MergeFlags(t *testing.T) {
 				t.Setenv(key, value)
 			}
 
-			baseline := completion.Format(mergeCase.shell, "", result)
+			baseline := completion.NewSession(mergeCase.shell).Format("", result)
 
 			t.Setenv("CONGA_MERGE_FLAGS", "false")
 
-			unmerged := completion.Format(mergeCase.shell, "", result)
+			unmerged := completion.NewSession(mergeCase.shell).Format("", result)
 
 			t.Setenv("CONGA_MERGE_FLAGS", "true")
 
-			merged := completion.Format(mergeCase.shell, "", result)
+			merged := completion.NewSession(mergeCase.shell).Format("", result)
 
 			assert.Equal(t, baseline, unmerged)
 			assert.Equal(t, baseline, merged)
@@ -185,19 +185,19 @@ func TestConformance_MergeFlags(t *testing.T) {
 	t.Run("zsh", func(t *testing.T) {
 		t.Setenv("CONGA_COLOR", "0")
 
-		baseline := completion.Format("zsh", "", result)
+		baseline := completion.NewSession("zsh").Format("", result)
 		assert.Contains(t, baseline, "\x1fflags\x1f", "merging is default-on for zsh")
 
 		t.Setenv("CONGA_MERGE_FLAGS", "false")
 
-		unmerged := completion.Format("zsh", "", result)
+		unmerged := completion.NewSession("zsh").Format("", result)
 		assert.Contains(t, unmerged, "\x1flonghand flags\x1f")
 		assert.Contains(t, unmerged, "\x1fshorthand flags\x1f")
 		assert.NotContains(t, unmerged, "\x1fflags\x1f")
 
 		t.Setenv("CONGA_MERGE_FLAGS", "true")
 
-		merged := completion.Format("zsh", "", result)
+		merged := completion.NewSession("zsh").Format("", result)
 
 		assert.Equal(t, baseline, merged)
 	})

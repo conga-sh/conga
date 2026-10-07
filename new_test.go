@@ -77,8 +77,9 @@ func TestNew_EngineAllocatesWhenUnset(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-//nolint:paralleltest // serialized: the bash completion driver keeps a process-global presentation state
 func TestNew_ArgsMutableAfterCompletionInvocation(t *testing.T) {
+	t.Parallel()
+
 	var buffer bytes.Buffer
 
 	cli := new(newRootCLI)

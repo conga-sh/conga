@@ -1,7 +1,6 @@
 package bash
 
 import (
-	"os"
 	"strings"
 	"sync"
 	"unicode/utf8"
@@ -31,9 +30,9 @@ var fieldSanitizerReplacer *strings.Replacer
 // "display (description)". Multiple candidates sharing a non-flag common
 // value prefix collapse to that prefix with the nospace directive so the
 // first tab inserts the shared stem.
-func Format(toComplete string, directives wire.Directives, candidates []wire.Candidate) string {
-	wordbreakPrefix := resolveWordbreakPrefix(toComplete)
-	successive := isSuccessiveTabs(len(candidates))
+func (s *Session) Format(toComplete string, directives wire.Directives, candidates []wire.Candidate) string {
+	wordbreakPrefix := s.resolveWordbreakPrefix(toComplete)
+	successive := s.isSuccessiveTabs(len(candidates))
 
 	collapsed := false
 
@@ -56,6 +55,30 @@ func Format(toComplete string, directives wire.Directives, candidates []wire.Can
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+// resolveWordbreakPrefix prefers the prefix lexed by Patch from the raw
+// COMP_LINE when the session ran a Patch pass; without one (direct formatter
+// invocations) it derives the prefix from the word being completed itself.
+func (s *Session) resolveWordbreakPrefix(toComplete string) string {
+	if s.active {
+		return s.wordbreakPrefix
+	}
+
+	return lex.LastWordbreakPrefix(toComplete, s.resolveCompWordbreaks())
+}
+
+// isSuccessiveTabs reports whether the listing runs in readline's
+// successive-tabs mode: COMP_TYPE=63 (the session's Patch-derived value first,
+// then the environment for direct formatter invocations) with multiple
+// candidates.
+func (s *Session) isSuccessiveTabs(candidateCount int) bool {
+	compType := s.compType
+	if !s.active {
+		compType = s.getEnvironment(envCompType)
+	}
+
+	return candidateCount > 1 && compType == compTypeSuccessiveTabs
 }
 
 // fieldSanitizer normalizes the characters that would corrupt the
@@ -206,29 +229,6 @@ func noSpaceForAny(directives wire.Directives, candidates []wire.Candidate) bool
 	}
 
 	return false
-}
-
-// resolveWordbreakPrefix prefers the prefix lexed by Patch from the raw
-// COMP_LINE; without a Patch pass (direct formatter invocations) it derives
-// the prefix from the word being completed itself.
-func resolveWordbreakPrefix(toComplete string) string {
-	if presentationState.active {
-		return presentationState.wordbreakPrefix
-	}
-
-	return lex.LastWordbreakPrefix(toComplete, compWordbreaks())
-}
-
-// isSuccessiveTabs reports whether the listing runs in readline's
-// successive-tabs mode: COMP_TYPE=63 (patch state first, then the
-// environment for direct formatter invocations) with multiple candidates.
-func isSuccessiveTabs(candidateCount int) bool {
-	compType := presentationState.compType
-	if !presentationState.active {
-		compType = os.Getenv(envCompType)
-	}
-
-	return candidateCount > 1 && compType == compTypeSuccessiveTabs
 }
 
 // commonValuePrefix returns the longest common prefix of every candidate's

@@ -308,8 +308,9 @@ func TestApp_ZeroValue_StrictTagValidationDefault(t *testing.T) {
 	assert.IsError(t, err, conga.ErrSchema)
 }
 
-//nolint:paralleltest // serialized: the bash completion driver keeps a process-global presentation state
 func TestApp_CompletionInvocationDoesNotConsumeExecution(t *testing.T) {
+	t.Parallel()
+
 	cli := new(SimpleAppCLI)
 	app := conga.New(cli).
 		EnableCompletion().
@@ -366,6 +367,19 @@ func TestApp_CompleteCompLine(t *testing.T) {
 	assert.Equal(t, 1, len(invoked.Items))
 	assert.Equal(t, "--cache", invoked.Items[0].Value)
 	assert.Equal(t, "--cache", formatted) // fish framing omits the trailing tab
+}
+
+func TestApp_CompleteCompLine_BashRedirectRejection(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[SimpleAppCLI]().
+		Name("testapp")
+
+	line := "testapp --ca > "
+	invoked, formatted := app.CompleteCompLineForShell("bash", line, len(line))
+
+	assert.Equal(t, 0, len(invoked.Items))
+	assert.Equal(t, "D\t", formatted)
 }
 
 func TestApp_HiddenCompleteCommand(t *testing.T) {

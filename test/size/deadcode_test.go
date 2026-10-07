@@ -66,13 +66,17 @@ func TestMinimalHello_CompletionEliminated(t *testing.T) {
 	assert.True(t, symbols["main.main"], "sanity check: the analysis build must expose symbols")
 
 	for _, symbol := range []string{
-		"github.com/conga-sh/conga/internal/completion.Format",
+		"github.com/conga-sh/conga/internal/completion.(*Session).Format",
+		"github.com/conga-sh/conga/internal/completion.(*Session).Patch",
 		"github.com/conga-sh/conga/internal/completion.Generate",
+		"github.com/conga-sh/conga/internal/completion.NewSession",
+		"github.com/conga-sh/conga/internal/completion.NewSessionWithEnv",
 		"github.com/conga-sh/conga/internal/completion.ParseShell",
-		"github.com/conga-sh/conga/internal/completion.Patch",
 		"github.com/conga-sh/conga/internal/completion.ShellDescriptions",
 		"github.com/conga-sh/conga/internal/completion.SupportedShells",
-		"github.com/conga-sh/conga/internal/completion/bash.Format",
+		"github.com/conga-sh/conga/internal/completion/bash.(*Session).Format",
+		"github.com/conga-sh/conga/internal/completion/bash.(*Session).Patch",
+		"github.com/conga-sh/conga/internal/completion/bash.NewSessionWithEnv",
 		"github.com/conga-sh/conga/internal/completion/zsh.Format",
 		"github.com/conga-sh/conga/internal/spec.Complete",
 	} {
@@ -167,7 +171,7 @@ func TestOptedInCompletionExample_RetainsDriver(t *testing.T) {
 	symbols := buildAndListSymbols(t, completionExamplePath)
 
 	assert.True(t, symbols["github.com/conga-sh/conga/internal/completion.Generate"], "app.EnableCompletion() must link the completion driver")
-	assert.True(t, symbols["github.com/conga-sh/conga/internal/completion/bash.Format"], "app.EnableCompletion() must link the bash driver")
+	assert.True(t, symbols["github.com/conga-sh/conga/internal/completion/bash.(*Session).Format"], "app.EnableCompletion() must link the bash driver")
 }
 
 func TestOptedInCompletionExample_RetainsInference(t *testing.T) {
