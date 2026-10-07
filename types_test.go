@@ -1702,6 +1702,12 @@ type invalidByteSizePrecisionCLI struct {
 	Memory conga.OptionalFlag[conga.ByteSize] `name:"memory" precision:"9"`
 }
 
+type invalidByteSizeDisplayCLI struct {
+	noopRunner
+
+	Memory conga.OptionalFlag[conga.ByteSize] `display:"hex" name:"memory"`
+}
+
 // TestByteSizeEchoesInputFamily verifies the default (untagged) render model:
 // parsed values echo the unit family they were written in, exact-byte input
 // included, while constructed values keep the canonical IEC integer model.
@@ -1912,6 +1918,16 @@ func TestByteSizeTagSchemaErrors(t *testing.T) {
 		assert.Error(t, err)
 		assert.IsError(t, err, conga.ErrSchema)
 		assert.Equal(t, `struct invalidByteSizePrecisionCLI field Memory: schema error: invalid struct tag: tag "precision": invalid precision value "9" (want 0, 1, 2, or 3)`, err.Error())
+	})
+
+	t.Run("display", func(t *testing.T) {
+		t.Parallel()
+
+		err := conga.New[invalidByteSizeDisplayCLI]().Args([]string{}).RunContext(t.Context())
+
+		assert.Error(t, err)
+		assert.IsError(t, err, conga.ErrSchema)
+		assert.Equal(t, `struct invalidByteSizeDisplayCLI field Memory: schema error: invalid struct tag: tag "display": unknown display value "hex" (want "binary", "decimal", or "input")`, err.Error())
 	})
 }
 

@@ -46,23 +46,27 @@ const (
 )
 
 var (
-	_ fmt.Stringer             = File{}
-	_ encoding.TextMarshaler   = File{}
-	_ encoding.TextUnmarshaler = (*File)(nil)
+	_ fmt.Stringer                = File{}
+	_ encoding.TextMarshaler      = File{}
+	_ encoding.TextUnmarshaler    = (*File)(nil)
+	_ ContextAwareTextUnmarshaler = (*File)(nil)
 
-	_ fmt.Stringer             = Dir{}
-	_ encoding.TextMarshaler   = Dir{}
-	_ encoding.TextUnmarshaler = (*Dir)(nil)
+	_ fmt.Stringer                = Dir{}
+	_ encoding.TextMarshaler      = Dir{}
+	_ encoding.TextUnmarshaler    = (*Dir)(nil)
+	_ ContextAwareTextUnmarshaler = (*Dir)(nil)
 
-	_ fmt.Stringer             = ByteSize{}
-	_ encoding.TextMarshaler   = ByteSize{}
-	_ encoding.TextUnmarshaler = (*ByteSize)(nil)
-	_ TagSpecProvider          = (*ByteSize)(nil)
-	_ TagAwareHelpProvider     = ByteSize{}
+	_ fmt.Stringer                = ByteSize{}
+	_ encoding.TextMarshaler      = ByteSize{}
+	_ encoding.TextUnmarshaler    = (*ByteSize)(nil)
+	_ ContextAwareTextUnmarshaler = (*ByteSize)(nil)
+	_ TagSpecProvider             = (*ByteSize)(nil)
+	_ TagAwareHelpProvider        = ByteSize{}
 
-	_ fmt.Stringer             = FileContent("")
-	_ encoding.TextMarshaler   = FileContent("")
-	_ encoding.TextUnmarshaler = (*FileContent)(nil)
+	_ fmt.Stringer                = FileContent("")
+	_ encoding.TextMarshaler      = FileContent("")
+	_ encoding.TextUnmarshaler    = (*FileContent)(nil)
+	_ ContextAwareTextUnmarshaler = (*FileContent)(nil)
 )
 
 // File represents a filesystem path with optional capability constraints declared
