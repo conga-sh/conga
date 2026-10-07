@@ -23,6 +23,9 @@ var (
 	//go:embed testdata/invalid_utf8.json
 	fixtureInvalidUTF8 []byte
 
+	//go:embed testdata/null.json
+	fixtureNull []byte
+
 	//go:embed testdata/trailing_garbage.json
 	fixtureTrailingGarbage []byte
 
@@ -33,10 +36,10 @@ var (
 	fixtureValidNested []byte
 )
 
-func TestRawDecoder_ValidFlat(t *testing.T) {
+func TestDecode_ValidFlat(t *testing.T) {
 	t.Parallel()
 
-	result, err := json.RawDecoder(fixtureValidFlat)
+	result, err := json.Decode(fixtureValidFlat)
 
 	assert.NoError(t, err)
 	assert.Equal(t, any("testapp"), result["name"])
@@ -44,10 +47,10 @@ func TestRawDecoder_ValidFlat(t *testing.T) {
 	assert.Equal(t, any(true), result["debug"])
 }
 
-func TestRawDecoder_ValidNested(t *testing.T) {
+func TestDecode_ValidNested(t *testing.T) {
 	t.Parallel()
 
-	result, err := json.RawDecoder(fixtureValidNested)
+	result, err := json.Decode(fixtureValidNested)
 
 	assert.NoError(t, err)
 
@@ -71,64 +74,70 @@ func TestRawDecoder_ValidNested(t *testing.T) {
 	assert.Equal(t, any(float64(3)), config["retries"])
 }
 
-func TestRawDecoder_InvalidSyntax(t *testing.T) {
+func TestDecode_InvalidSyntax(t *testing.T) {
 	t.Parallel()
 
-	_, err := json.RawDecoder(fixtureInvalidSyntax)
+	_, err := json.Decode(fixtureInvalidSyntax)
 
-	assert.Error(t, err)
+	assert.IsError(t, err, json.ErrParse)
 }
 
-func TestRawDecoder_InvalidArray(t *testing.T) {
+func TestDecode_InvalidArray(t *testing.T) {
 	t.Parallel()
 
-	_, err := json.RawDecoder(fixtureInvalidArray)
+	_, err := json.Decode(fixtureInvalidArray)
 
-	assert.Error(t, err)
+	assert.IsError(t, err, json.ErrParse)
 }
 
-func TestRawDecoder_TrailingGarbage(t *testing.T) {
+func TestDecode_TrailingGarbage(t *testing.T) {
 	t.Parallel()
 
-	_, err := json.RawDecoder(fixtureTrailingGarbage)
+	_, err := json.Decode(fixtureTrailingGarbage)
 
-	assert.Error(t, err)
-	assert.IsError(t, err, json.ErrJSONParse)
+	assert.IsError(t, err, json.ErrParse)
 }
 
-func TestRawDecoder_TrailingWhitespaceSucceeds(t *testing.T) {
+func TestDecode_TrailingWhitespaceSucceeds(t *testing.T) {
 	t.Parallel()
 
 	payload := []byte("{\"name\": \"testapp\"}\n  \t  \n")
-	result, err := json.RawDecoder(payload)
+	result, err := json.Decode(payload)
 
 	assert.NoError(t, err)
 	assert.Equal(t, any("testapp"), result["name"])
 }
 
-func TestRawDecoder_EmptyFails(t *testing.T) {
+func TestDecode_EmptyFails(t *testing.T) {
 	t.Parallel()
 
-	_, err := json.RawDecoder([]byte(""))
+	_, err := json.Decode([]byte(""))
 
-	assert.Error(t, err)
-	assert.IsError(t, err, json.ErrJSONParse)
+	assert.IsError(t, err, json.ErrParse)
 }
 
-func TestRawDecoder_DuplicateKeys(t *testing.T) {
+func TestDecode_NullDocument(t *testing.T) {
 	t.Parallel()
 
-	_, err := json.RawDecoder(fixtureDuplicateKeys)
+	result, err := json.Decode(fixtureNull)
 
-	assert.Error(t, err)
-	assert.IsError(t, err, json.ErrJSONParse)
+	assert.NoError(t, err)
+	assert.True(t, result != nil)
+	assert.Zero(t, result)
 }
 
-func TestRawDecoder_InvalidUTF8(t *testing.T) {
+func TestDecode_DuplicateKeys(t *testing.T) {
 	t.Parallel()
 
-	_, err := json.RawDecoder(fixtureInvalidUTF8)
+	_, err := json.Decode(fixtureDuplicateKeys)
 
-	assert.Error(t, err)
-	assert.IsError(t, err, json.ErrJSONParse)
+	assert.IsError(t, err, json.ErrParse)
+}
+
+func TestDecode_InvalidUTF8(t *testing.T) {
+	t.Parallel()
+
+	_, err := json.Decode(fixtureInvalidUTF8)
+
+	assert.IsError(t, err, json.ErrParse)
 }

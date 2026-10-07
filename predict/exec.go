@@ -21,7 +21,7 @@ func actionExecutables(ctx Context) Predictor {
 
 	return Predictor{
 		items:     items,
-		directive: DirectiveNoFileComp,
+		directive: DirectiveNoFileCompletion,
 	}
 }
 

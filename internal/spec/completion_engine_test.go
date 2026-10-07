@@ -538,7 +538,7 @@ func TestCompletion_FlagValues(t *testing.T) {
 
 		invoked := spec.Complete(cmdSpec, []string{"--config", ""}, spec.CompleteOptions{Dir: tmpDir})
 
-		assert.True(t, invoked.Directive.Has(predict.DirectiveNoFileComp))
+		assert.True(t, invoked.Directive.Has(predict.DirectiveNoFileCompletion))
 
 		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
 
@@ -579,7 +579,7 @@ func TestCompletion_FlagValues(t *testing.T) {
 
 		invoked := spec.Complete(cmdSpec, []string{"--quiet", ""}, spec.CompleteOptions{})
 
-		assert.Equal(t, predict.DirectiveNoFileComp, invoked.Directive)
+		assert.Equal(t, predict.DirectiveNoFileCompletion, invoked.Directive)
 		assert.Zero(t, invoked.Items)
 	})
 
@@ -593,7 +593,7 @@ func TestCompletion_FlagValues(t *testing.T) {
 
 		invoked := spec.Complete(cmdSpec, []string{"--plain", ""}, spec.CompleteOptions{})
 
-		assert.Equal(t, predict.DirectiveNoFileComp, invoked.Directive)
+		assert.Equal(t, predict.DirectiveNoFileCompletion, invoked.Directive)
 		assert.Zero(t, invoked.Items)
 	})
 
@@ -705,7 +705,7 @@ func TestCompletion_PositionalArguments(t *testing.T) {
 
 		invoked := spec.Complete(cmdSpec, []string{"staging", "/tmp", "extra1.go", ""}, spec.CompleteOptions{Dir: tmpDir})
 
-		assert.True(t, invoked.Directive.Has(predict.DirectiveNoFileComp))
+		assert.True(t, invoked.Directive.Has(predict.DirectiveNoFileCompletion))
 
 		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
 
@@ -858,7 +858,7 @@ func TestCompletion_PredictableDomainTypes(t *testing.T) {
 
 		invoked := spec.Complete(cmdSpec, []string{"--override", ""}, spec.CompleteOptions{})
 
-		assert.Equal(t, predict.DirectiveNoFileComp, invoked.Directive)
+		assert.Equal(t, predict.DirectiveNoFileCompletion, invoked.Directive)
 		assert.Zero(t, invoked.Items)
 	})
 
@@ -1085,7 +1085,7 @@ func TestCompletion_FilteringInterfacesAndBuiltinPredictors(t *testing.T) {
 		assert.True(t, slices.Contains(values, "repo-link/"), "symlinked directories must be followed")
 		assert.False(t, slices.Contains(values, "plaindir/"))
 		assert.False(t, slices.Contains(values, "compose.yaml"))
-		assert.True(t, invoked.Directive.Has(predict.DirectiveNoFileComp))
+		assert.True(t, invoked.Directive.Has(predict.DirectiveNoFileCompletion))
 		assert.True(t, invoked.Directive.Has(predict.DirectiveNoSpace))
 	})
 

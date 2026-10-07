@@ -36,10 +36,10 @@ var (
 	fixtureValidNested []byte
 )
 
-func TestRawDecoder_ValidFlat(t *testing.T) {
+func TestDecode_ValidFlat(t *testing.T) {
 	t.Parallel()
 
-	result, err := hcl.RawDecoder(fixtureValidFlat)
+	result, err := hcl.Decode(fixtureValidFlat)
 
 	assert.NoError(t, err)
 	assert.Equal(t, any("testapp"), result["name"])
@@ -47,10 +47,10 @@ func TestRawDecoder_ValidFlat(t *testing.T) {
 	assert.Equal(t, any(true), result["debug"])
 }
 
-func TestRawDecoder_ValidNested(t *testing.T) {
+func TestDecode_ValidNested(t *testing.T) {
 	t.Parallel()
 
-	result, err := hcl.RawDecoder(fixtureValidNested)
+	result, err := hcl.Decode(fixtureValidNested)
 
 	assert.NoError(t, err)
 
@@ -74,43 +74,40 @@ func TestRawDecoder_ValidNested(t *testing.T) {
 	assert.Equal(t, any(int64(3)), config["retries"])
 }
 
-func TestRawDecoder_InvalidSyntax(t *testing.T) {
+func TestDecode_InvalidSyntax(t *testing.T) {
 	t.Parallel()
 
-	_, err := hcl.RawDecoder(fixtureInvalidSyntax)
+	_, err := hcl.Decode(fixtureInvalidSyntax)
 
-	assert.Error(t, err)
-	assert.IsError(t, err, hcl.ErrHCLParse)
+	assert.IsError(t, err, hcl.ErrParse)
 	assert.Contains(t, err.Error(), "hcl parse error")
 }
 
-func TestRawDecoder_DuplicateBlocks(t *testing.T) {
+func TestDecode_DuplicateBlocks(t *testing.T) {
 	t.Parallel()
 
-	_, err := hcl.RawDecoder(fixtureDuplicateBlocks)
+	_, err := hcl.Decode(fixtureDuplicateBlocks)
 
-	assert.Error(t, err)
-	assert.IsError(t, err, hcl.ErrHCLParse)
+	assert.IsError(t, err, hcl.ErrParse)
 	assert.Equal(t, `hcl parse error: duplicate block "server"`, err.Error())
 }
 
-func TestRawDecoder_UndefinedVariable(t *testing.T) {
+func TestDecode_UndefinedVariable(t *testing.T) {
 	t.Parallel()
 
-	_, err := hcl.RawDecoder(fixtureUndefinedVariable)
+	_, err := hcl.Decode(fixtureUndefinedVariable)
 
-	assert.Error(t, err)
-	assert.IsError(t, err, hcl.ErrHCLParse)
+	assert.IsError(t, err, hcl.ErrParse)
 	assert.Contains(t, err.Error(), "Variables not allowed")
 
 	var diagnostics hashicorphcl.Diagnostics
 	assert.True(t, errors.As(err, &diagnostics))
 }
 
-func TestRawDecoder_NullAndFloatValues(t *testing.T) {
+func TestDecode_NullAndFloatValues(t *testing.T) {
 	t.Parallel()
 
-	result, err := hcl.RawDecoder(fixtureNullAndFloat)
+	result, err := hcl.Decode(fixtureNullAndFloat)
 
 	assert.NoError(t, err)
 	assert.Equal(t, any("testapp"), result["name"])
@@ -118,12 +115,21 @@ func TestRawDecoder_NullAndFloatValues(t *testing.T) {
 	assert.Equal(t, any(0.25), result["ratio"])
 }
 
-func TestRawDecoder_LargeNumbers(t *testing.T) {
+func TestDecode_LargeNumbers(t *testing.T) {
 	t.Parallel()
 
-	result, err := hcl.RawDecoder(fixtureLargeNumber)
+	result, err := hcl.Decode(fixtureLargeNumber)
 
 	assert.NoError(t, err)
 	assert.Equal(t, any(uint64(18446744073709551615)), result["large_uint"])
 	assert.Equal(t, any("999999999999999999999999999999"), result["huge_num"])
+}
+
+func TestDecode_EmptyValid(t *testing.T) {
+	t.Parallel()
+
+	result, err := hcl.Decode([]byte(""))
+
+	assert.NoError(t, err)
+	assert.Zero(t, result)
 }

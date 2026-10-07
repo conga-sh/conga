@@ -21,11 +21,11 @@ import (
 func main() {
 	app := conga.New[CLI]().
 		Name("cloudctl").
-		RegisterDecoder(".json", json.RawDecoder).
-		RegisterDecoder(".toml", toml.RawDecoder).
-		RegisterDecoder(".yaml", yaml.RawDecoder).
-		RegisterDecoder(".yml", yaml.RawDecoder).
-		RegisterDecoder(".hcl", hcl.RawDecoder)
+		RegisterDecoder(".json", json.Decode).
+		RegisterDecoder(".toml", toml.Decode).
+		RegisterDecoder(".yaml", yaml.Decode).
+		RegisterDecoder(".yml", yaml.Decode).
+		RegisterDecoder(".hcl", hcl.Decode)
 
 	if err := app.Run(); err != nil {
 		app.Exit(err)
@@ -33,7 +33,7 @@ func main() {
 }
 ```
 
-CONGA provides four opt-in decoder packages: JSON, TOML, YAML, and HCL. Each package exposes a `RawDecoder` function matching the `conga.ConfigDecoder` interface; [package decoder](/reference/decoders/) covers extension normalization and the missing-decoder rule.
+CONGA provides four opt-in decoder packages: JSON, TOML, YAML, and HCL. Each package exposes a `Decode` function matching the `conga.ConfigDecoder` interface; [package decoder](/reference/decoders/) covers extension normalization and the missing-decoder rule.
 
 ## Implement and register a custom decoder
 

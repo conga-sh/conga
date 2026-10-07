@@ -37,7 +37,7 @@ func TestConfigFile_DefaultFlagNameAndAccessors(t *testing.T) {
 
 	cli := new(AppCLI)
 	app := conga.New(cli).
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".json", json.Decode).
 		Args([]string{"--config-file", cfgPath})
 
 	err = app.Run()
@@ -69,7 +69,7 @@ func TestConfigFile_CustomNameAndShortFlag(t *testing.T) {
 
 	cli := new(CustomCLI)
 	app := conga.New(cli).
-		RegisterDecoder(".yaml", yaml.RawDecoder).
+		RegisterDecoder(".yaml", yaml.Decode).
 		Args([]string{"-c", cfgPath})
 
 	err = app.Run()
@@ -97,7 +97,7 @@ func TestConfigFile_FourTierPrecedence(t *testing.T) {
 	// Scenario A: Config file overrides default
 	cliA := new(PrecedenceCLI)
 	appA := conga.New(cliA).
-		RegisterDecoder(".toml", toml.RawDecoder).
+		RegisterDecoder(".toml", toml.Decode).
 		Args([]string{"-c", cfgPath})
 	err = appA.Run()
 	assert.NoError(t, err)
@@ -109,7 +109,7 @@ func TestConfigFile_FourTierPrecedence(t *testing.T) {
 
 	cliB := new(PrecedenceCLI)
 	appB := conga.New(cliB).
-		RegisterDecoder(".toml", toml.RawDecoder).
+		RegisterDecoder(".toml", toml.Decode).
 		Args([]string{"-c", cfgPath})
 	err = appB.Run()
 	assert.NoError(t, err)
@@ -119,7 +119,7 @@ func TestConfigFile_FourTierPrecedence(t *testing.T) {
 	// Scenario C: CLI flag overrides env var and config file
 	cliC := new(PrecedenceCLI)
 	appC := conga.New(cliC).
-		RegisterDecoder(".toml", toml.RawDecoder).
+		RegisterDecoder(".toml", toml.Decode).
 		Args([]string{"-c", cfgPath, "--port", "8082"})
 	err = appC.Run()
 	assert.NoError(t, err)
@@ -156,7 +156,7 @@ func TestConfigFile_CollisionResistance(t *testing.T) {
 
 	cli := new(CollisionCLI)
 	app := conga.New(cli).
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".json", json.Decode).
 		Args(args)
 
 	err = app.Run()
@@ -193,7 +193,7 @@ func TestConfigFile_SubcommandNamespaceLoading(t *testing.T) {
 	// Execute subcommand with config file on root: app --config-file app.yaml server --port 1234
 	cli := new(RootCLI)
 	app := conga.New(cli).
-		RegisterDecoder(".yaml", yaml.RawDecoder).
+		RegisterDecoder(".yaml", yaml.Decode).
 		Args([]string{"--config-file", cfgPath, "server", "--port", "1234"})
 
 	err = app.Run()
@@ -277,7 +277,7 @@ func TestConfigFile_SchemaValidation_CascadingWithMultiAccepted(t *testing.T) {
 	}
 
 	app := conga.New[MultiConfigCLI]().
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigCascading()).
 		Args([]string{})
 
@@ -296,7 +296,7 @@ func TestConfigFile_SchemaValidation_CascadingWithoutFlagAccepted(t *testing.T) 
 	}
 
 	app := conga.New[FlaglessCLI]().
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigCascading()).
 		Args([]string{})
 
@@ -364,7 +364,7 @@ func TestConfigFile_CounterFromConfig(t *testing.T) {
 
 	cli := new(CounterConfigCLI)
 	app := conga.New(cli).
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".json", json.Decode).
 		Args([]string{"--config", cfgPath})
 
 	err = app.Run()
@@ -392,7 +392,7 @@ func TestConfigFile_CounterCLIOverridesConfig(t *testing.T) {
 
 	cli := new(CounterOverrideCLI)
 	app := conga.New(cli).
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".json", json.Decode).
 		Args([]string{"--config", cfgPath, "-v=2"})
 
 	err = app.Run()
@@ -439,7 +439,7 @@ func TestConfigFile_WithDecoderHelpOmitsWarning(t *testing.T) {
 
 	app := conga.New[DecoderHelpCLI]().
 		Name("myapp").
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".json", json.Decode).
 		Args([]string{"--help"}).
 		Stdout(&buffer)
 

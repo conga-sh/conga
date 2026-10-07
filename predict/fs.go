@@ -106,7 +106,7 @@ func actionDirs(ctx Context) Predictor {
 
 	return Predictor{
 		items:     items,
-		directive: DirectiveNoFileComp | DirectiveNoSpace,
+		directive: DirectiveNoFileCompletion | DirectiveNoSpace,
 	}
 }
 
@@ -115,7 +115,7 @@ func actionDirsFiltered(ctx Context, filter func(path string, entry os.DirEntry)
 
 	return Predictor{
 		items:     items,
-		directive: DirectiveNoFileComp | DirectiveNoSpace,
+		directive: DirectiveNoFileCompletion | DirectiveNoSpace,
 	}
 }
 
@@ -127,7 +127,7 @@ func actionDirsGlob(ctx Context, patterns []string) Predictor {
 
 	return Predictor{
 		items:     items,
-		directive: DirectiveNoFileComp | DirectiveNoSpace,
+		directive: DirectiveNoFileCompletion | DirectiveNoSpace,
 	}
 }
 
@@ -153,7 +153,7 @@ func actionFiles(ctx Context, extensions ...string) Predictor {
 
 	return Predictor{
 		items:     items,
-		directive: DirectiveNoFileComp,
+		directive: DirectiveNoFileCompletion,
 	}
 }
 
@@ -162,7 +162,7 @@ func actionFilesFiltered(ctx Context, filter func(path string, entry os.DirEntry
 
 	return Predictor{
 		items:     items,
-		directive: DirectiveNoFileComp,
+		directive: DirectiveNoFileCompletion,
 	}
 }
 
@@ -174,7 +174,7 @@ func actionFilesGlob(ctx Context, patterns []string) Predictor {
 
 	return Predictor{
 		items:     items,
-		directive: DirectiveNoFileComp,
+		directive: DirectiveNoFileCompletion,
 	}
 }
 
@@ -183,7 +183,7 @@ func actionPathsFiltered(ctx Context, filter func(path string, entry os.DirEntry
 
 	return Predictor{
 		items:     items,
-		directive: DirectiveNoFileComp,
+		directive: DirectiveNoFileCompletion,
 	}
 }
 
@@ -195,7 +195,7 @@ func actionSymlinks(ctx Context) Predictor {
 
 	return Predictor{
 		items:     items,
-		directive: DirectiveNoFileComp,
+		directive: DirectiveNoFileCompletion,
 	}
 }
 

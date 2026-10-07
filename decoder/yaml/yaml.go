@@ -1,9 +1,9 @@
 // Package yaml provides the YAML configuration decoder for CONGA applications.
 //
-// Register [RawDecoder] with App.RegisterDecoder to enable YAML configuration support:
+// Register [Decode] with App.RegisterDecoder to enable YAML configuration support:
 //
-//	app.RegisterDecoder(".yaml", yaml.RawDecoder)
-//	app.RegisterDecoder(".yml", yaml.RawDecoder)
+//	app.RegisterDecoder(".yaml", yaml.Decode)
+//	app.RegisterDecoder(".yml", yaml.Decode)
 //
 // # Key Mapping
 //
@@ -14,7 +14,7 @@
 //	database_url: "postgres://localhost/db"
 //	maxRetries: 5
 //
-// Parse failures wrap [ErrYAMLParse], and an empty document decodes to an empty map.
+// Parse failures wrap [ErrParse], and an empty document decodes to an empty map.
 package yaml
 
 import (
@@ -27,12 +27,12 @@ import (
 )
 
 var (
-	// ErrYAMLParse indicates a syntax or parsing error in YAML configuration.
-	ErrYAMLParse = errors.New("yaml parse error")
+	// ErrParse indicates a syntax or parsing error in YAML configuration.
+	ErrParse = errors.New("yaml parse error")
 )
 
-// RawDecoder decodes YAML bytes into the generic map[string]any structure the configuration engine matches against flag bindings.
-func RawDecoder(data []byte) (map[string]any, error) {
+// Decode decodes YAML bytes into the generic map[string]any structure the configuration engine matches against flag bindings.
+func Decode(data []byte) (map[string]any, error) {
 	var result map[string]any
 
 	dec := yaml.NewDecoder(bytes.NewReader(data))
@@ -41,12 +41,12 @@ func RawDecoder(data []byte) (map[string]any, error) {
 			return make(map[string]any), nil
 		}
 
-		return nil, fmt.Errorf("%w: %w", ErrYAMLParse, err)
+		return nil, fmt.Errorf("%w: %w", ErrParse, err)
 	}
 
 	var extra any
 	if err := dec.Decode(&extra); !errors.Is(err, io.EOF) {
-		return nil, fmt.Errorf("%w: trailing garbage after YAML document", ErrYAMLParse)
+		return nil, fmt.Errorf("%w: trailing garbage after YAML document", ErrParse)
 	}
 
 	if result == nil {

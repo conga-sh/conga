@@ -30,8 +30,8 @@ func main() {
 		Name("cascading-app").
 		Description("Cascading multi-tier configuration search paths (local > user > system)").
 		Version("1.0.0").
-		RegisterDecoder(".yaml", yaml.RawDecoder).
-		RegisterDecoder(".yml", yaml.RawDecoder).
+		RegisterDecoder(".yaml", yaml.Decode).
+		RegisterDecoder(".yml", yaml.Decode).
 		ConfigOptions(conga.ConfigPaths(".", "~/.config/cascading-app", "${SYSCONF_DIR:-/etc/cascading-app}"), conga.ConfigCascading())
 
 	if err := app.Run(); err != nil {

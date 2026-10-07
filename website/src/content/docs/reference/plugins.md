@@ -3,7 +3,7 @@ title: package plugin
 description: Builder plugins mounting standard library types onto the app.
 ---
 
-Deep detail lives on [pkg.go.dev](https://pkg.go.dev/github.com/conga-sh/conga/plugin); the conceptual distinction is in [About plugins vs predictors](/explanation/plugins-vs-predictors/).
+Deep detail lives on pkg.go.dev ([network](https://pkg.go.dev/github.com/conga-sh/conga/plugin/network), [system](https://pkg.go.dev/github.com/conga-sh/conga/plugin/system), [timezone](https://pkg.go.dev/github.com/conga-sh/conga/plugin/timezone)); the conceptual distinction is in [About plugins vs predictors](/explanation/plugins-vs-predictors/).
 
 ## Loader functions
 

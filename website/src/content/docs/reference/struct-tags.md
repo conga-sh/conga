@@ -113,7 +113,7 @@ type Server struct {
 | `help` | Help text (default: `Path to configuration file`, or `Path to configuration file(s)` when `multi:"true"`). |
 | `hidden` | Suppress from help and completion (`hidden` or `hidden:"true"`). |
 | `multi` | Enable multi-value arity for repeated flags and slice values (`multi` or `multi:"true"`). |
-| `name` | Flag name (default: `--config`). |
+| `name` | Flag name (default: `--config-file`). |
 | `placeholder` | Value placeholder in help (default: `PATH`). |
 | `sep` | Multi-value flags only: value separator for repeated flags and environment variables (default `","`). |
 | `short` | Single-rune short flag. |

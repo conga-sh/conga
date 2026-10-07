@@ -287,7 +287,7 @@ func (a *App[T]) ConfigOptions(options ...ConfigOption) *App[T] {
 
 // RegisterDecoder registers a decoder for a configuration file extension:
 //
-//	app.RegisterDecoder(".yaml", yaml.RawDecoder)
+//	app.RegisterDecoder(".yaml", yaml.Decode)
 //
 // The extension is normalized automatically: leading asterisks and dots are
 // stripped, whitespace is trimmed, and characters are converted to lowercase.
@@ -529,16 +529,11 @@ func (a *App[T]) RegisterType[U any](parser func(string) (U, error), opts ...Reg
 //
 // Panics:
 //   - If the receiver App is nil.
-//   - If key type K is not a string type.
 //
 // See https://docs.conga.sh/how-to/add-custom-flag-types/.
-func (a *App[T]) RegisterMap[M ~map[K]V, K comparable, V any](_ M, opts ...RegisterTypeOption) *App[T] {
+func (a *App[T]) RegisterMap[M ~map[K]V, K ~string, V any](_ M, opts ...RegisterTypeOption) *App[T] {
 	if a == nil {
 		panic("conga: RegisterMap requires a non-nil app")
-	}
-
-	if reflect.TypeFor[K]().Kind() != reflect.String {
-		panic(fmt.Sprintf("conga: RegisterMap requires string map keys, got %s", reflect.TypeFor[K]()))
 	}
 
 	parser := func(raw string) (M, error) {

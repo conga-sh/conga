@@ -172,7 +172,7 @@ func TestWhy_ReportRedactionAndBadges(t *testing.T) {
 	cli := new(whyCLI)
 	app := conga.New(cli).
 		Name("whyapp").
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".json", json.Decode).
 		Stdout(&buffer).
 		EnableWhy().
 		Args([]string{"--port", "8080", "--headers", "z=1,a=2", "--shown", "visible-value", "--why"})
@@ -450,7 +450,7 @@ func TestWhy_ConfigFileReadFailureDiagnosticRow(t *testing.T) {
 
 	app := conga.New[whyCLI]().
 		Name("whyapp").
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".json", json.Decode).
 		Stdout(&buffer).
 		EnableWhy().
 		Args([]string{"--why"})
@@ -503,7 +503,7 @@ func TestWhy_ConfigFileRowsRender(t *testing.T) {
 
 		app := conga.New[whyCLI]().
 			Name("whyapp").
-			RegisterDecoder(".json", json.RawDecoder).
+			RegisterDecoder(".json", json.Decode).
 			Stdout(&buffer).
 			EnableWhy().
 			Args([]string{"--config-file", configPath, "--why"})
@@ -539,7 +539,7 @@ func TestWhy_ConfigFileRowsRender(t *testing.T) {
 
 		app := conga.New[multiCLI]().
 			Name("whyapp").
-			RegisterDecoder(".json", json.RawDecoder).
+			RegisterDecoder(".json", json.Decode).
 			Stdout(&buffer).
 			EnableWhy().
 			Args([]string{"--config-files", firstPath, "--config-files", secondPath, "--why"})
@@ -572,7 +572,7 @@ func TestWhy_ConfigPathsChecked_NothingFound(t *testing.T) {
 
 	app := conga.New[whySearchPathCLI]().
 		Name("whyapp").
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigPaths(localDir, userDir), conga.ConfigCascading()).
 		Stdout(&buffer).
 		EnableWhy().
@@ -609,7 +609,7 @@ func TestWhy_ConfigPathsChecked_LoadedTiers(t *testing.T) {
 
 	app := conga.New[whySearchPathCLI]().
 		Name("whyapp").
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigPaths(dirTier, stemPath), conga.ConfigCascading()).
 		Stdout(&buffer).
 		EnableWhy().
@@ -638,7 +638,7 @@ func TestWhy_ConfigPathsChecked_ExplicitPath(t *testing.T) {
 
 		app := conga.New[whyExplicitConfigCLI]().
 			Name("whyapp").
-			RegisterDecoder(".json", json.RawDecoder).
+			RegisterDecoder(".json", json.Decode).
 			Stdout(&buffer).
 			EnableWhy().
 			Args([]string{"--config-file", configPath, "--why"})
@@ -665,7 +665,7 @@ func TestWhy_ConfigPathsChecked_ExplicitPath(t *testing.T) {
 
 		app := conga.New[whyExplicitConfigCLI]().
 			Name("whyapp").
-			RegisterDecoder(".json", json.RawDecoder).
+			RegisterDecoder(".json", json.Decode).
 			Stdout(&buffer).
 			EnableWhy().
 			Args([]string{"--config-file", missingPath, "--why"})
@@ -706,7 +706,7 @@ func TestWhy_ConfigFileRowUnset(t *testing.T) {
 
 	app := conga.New[whyExplicitConfigCLI]().
 		Name("whyapp").
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigPaths(missingTier)).
 		Stdout(&buffer).
 		EnableWhy().
@@ -1041,7 +1041,7 @@ func TestWhy_ConfigPathsChecked_DefaultXDGTier(t *testing.T) {
 
 		app := conga.New[whySearchPathCLI]().
 			Name("whyapp").
-			RegisterDecoder(".json", json.RawDecoder).
+			RegisterDecoder(".json", json.Decode).
 			Stdout(&buffer).
 			EnableWhy().
 			Args([]string{"--why"})
@@ -1086,7 +1086,7 @@ func TestWhy_ConfigPathsChecked_DefaultXDGTier(t *testing.T) {
 
 		app := conga.New[whySearchPathCLI]().
 			Name("whyapp").
-			RegisterDecoder(".json", json.RawDecoder).
+			RegisterDecoder(".json", json.Decode).
 			Stdout(&buffer).
 			EnableWhy().
 			Args([]string{"--why"})
@@ -1110,7 +1110,7 @@ func TestWhy_ConfigDecoders_HeaderSuffixListsRegisteredDecoders(t *testing.T) {
 
 	app := conga.New[whySearchPathCLI]().
 		Name("whyapp").
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigPaths(filepath.Join(t.TempDir(), "conf")), conga.ConfigCascading()).
 		Stdout(&buffer).
 		EnableWhy().
@@ -1159,7 +1159,7 @@ func TestWhy_ProbedFiles_MissingTierProbesAppStem(t *testing.T) {
 
 	app := conga.New[whySearchPathCLI]().
 		Name("whyapp").
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigPaths(missingTier), conga.ConfigCascading()).
 		Stdout(&buffer).
 		EnableWhy().
@@ -1185,8 +1185,8 @@ func TestWhy_ProbedFiles_DirectoryTierProbesConfigAndAppStems(t *testing.T) {
 
 	app := conga.New[whySearchPathCLI]().
 		Name("whyapp").
-		RegisterDecoder(".toml", toml.RawDecoder).
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".toml", toml.Decode).
+		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigPaths(dirTier), conga.ConfigCascading()).
 		Stdout(&buffer).
 		EnableWhy().
@@ -1219,7 +1219,7 @@ func TestWhy_ProbedFiles_LoadedTierOmitted(t *testing.T) {
 
 	app := conga.New[whySearchPathCLI]().
 		Name("whyapp").
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigPaths(dirTier), conga.ConfigCascading()).
 		Stdout(&buffer).
 		EnableWhy().
@@ -1246,7 +1246,7 @@ func TestWhy_ConfigExamples_SuggestedWhenNothingLoaded(t *testing.T) {
 
 	app := conga.New[whySearchPathCLI]().
 		Name("whyapp").
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigPaths(missingTier), conga.ConfigCascading()).
 		Stdout(&buffer).
 		EnableWhy().
@@ -1274,7 +1274,7 @@ func TestWhy_ProbedFiles_ExplicitPathOmitted(t *testing.T) {
 
 	app := conga.New[whyExplicitConfigCLI]().
 		Name("whyapp").
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".json", json.Decode).
 		Stdout(&buffer).
 		EnableWhy().
 		Args([]string{"--config-file", missingPath, "--why"})

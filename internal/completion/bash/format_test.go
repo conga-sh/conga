@@ -125,9 +125,8 @@ func TestFormat_SanitizesFramingCharactersInValues(t *testing.T) {
 	assert.Equal(t, "D\t\nC\t\"with tab newline\"", formatted)
 }
 
+//nolint:paralleltest // restores the process-global presentation state that parallel Format tests read
 func TestFormat_StripsWordbreakPrefixDerivedFromToComplete(t *testing.T) {
-	t.Parallel()
-
 	resetPresentationState(t)
 
 	candidates := []wire.Candidate{{Value: "team=core", Display: "core"}}
@@ -137,9 +136,8 @@ func TestFormat_StripsWordbreakPrefixDerivedFromToComplete(t *testing.T) {
 	assert.Equal(t, "D\tnoprefix\nC\tcore", formatted)
 }
 
+//nolint:paralleltest // restores the process-global presentation state that parallel Format tests read
 func TestFormat_DisplayFallbackWhenPrefixDoesNotMatchValue(t *testing.T) {
-	t.Parallel()
-
 	resetPresentationState(t)
 
 	candidates := []wire.Candidate{{Value: "--env=production", Display: "production"}}
@@ -149,9 +147,8 @@ func TestFormat_DisplayFallbackWhenPrefixDoesNotMatchValue(t *testing.T) {
 	assert.Equal(t, "D\tnoprefix\nC\tproduction", formatted)
 }
 
+//nolint:paralleltest // restores the process-global presentation state that parallel Format tests read
 func TestFormat_CollapsesSharedNonFlagPrefix(t *testing.T) {
-	t.Parallel()
-
 	resetPresentationState(t)
 
 	candidates := []wire.Candidate{
@@ -167,9 +164,9 @@ func TestFormat_CollapsesSharedNonFlagPrefix(t *testing.T) {
 
 // Note: common-prefix collapsing is bash-only today (zsh manages its own insertion),
 // so no cross-shell duplication is required for this behavior.
+//
+//nolint:paralleltest // restores the process-global presentation state that parallel Format tests read
 func TestFormat_CollapsesMultibyteRunePrefix(t *testing.T) {
-	t.Parallel()
-
 	resetPresentationState(t)
 
 	candidates := []wire.Candidate{{Value: "café-1"}, {Value: "cafè-2"}}
@@ -179,9 +176,8 @@ func TestFormat_CollapsesMultibyteRunePrefix(t *testing.T) {
 	assert.Equal(t, "D\tnospace\nC\tcaf", formatted)
 }
 
+//nolint:paralleltest // restores the process-global presentation state that parallel Format tests read
 func TestFormat_CommonValuePrefixAlwaysValidUTF8(t *testing.T) {
-	t.Parallel()
-
 	resetPresentationState(t)
 
 	testCases := []struct {
@@ -234,10 +230,9 @@ func TestFormat_CommonValuePrefixAlwaysValidUTF8(t *testing.T) {
 		},
 	}
 
+	//nolint:paralleltest // restores the process-global presentation state that parallel Format tests read
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-			t.Parallel()
-
 			formatted := Format(testCase.toComplete, wire.Directives{}, testCase.candidates)
 
 			assert.Equal(t, testCase.expected, formatted)
@@ -268,9 +263,8 @@ func TestCommonValuePrefix_AlwaysValidUTF8(t *testing.T) {
 	}
 }
 
+//nolint:paralleltest // restores the process-global presentation state that parallel Format tests read
 func TestFormat_DoesNotCollapseFlags(t *testing.T) {
-	t.Parallel()
-
 	resetPresentationState(t)
 
 	candidates := []wire.Candidate{{Value: "--env"}, {Value: "--env-vars"}}
@@ -280,9 +274,8 @@ func TestFormat_DoesNotCollapseFlags(t *testing.T) {
 	assert.Equal(t, "D\t\nC\t--env\nC\t--env-vars", formatted)
 }
 
+//nolint:paralleltest // restores the process-global presentation state that parallel Format tests read
 func TestFormat_DoesNotCollapseWhenPrefixFullyTyped(t *testing.T) {
-	t.Parallel()
-
 	resetPresentationState(t)
 
 	candidates := []wire.Candidate{{Value: "prod-east"}, {Value: "prod-west"}}
@@ -292,9 +285,8 @@ func TestFormat_DoesNotCollapseWhenPrefixFullyTyped(t *testing.T) {
 	assert.Equal(t, "D\t\nC\tprod-east\nC\tprod-west", formatted)
 }
 
+//nolint:paralleltest // restores the process-global presentation state that parallel Format tests read
 func TestFormat_DoesNotCollapseUnsharedValues(t *testing.T) {
-	t.Parallel()
-
 	resetPresentationState(t)
 
 	candidates := []wire.Candidate{{Value: "staging"}, {Value: "production"}, {Value: "qa"}}
@@ -359,9 +351,8 @@ func TestFormat_UsesPatchStateForCompType(t *testing.T) {
 	assert.Equal(t, "", os.Getenv("COMP_LINE"), "Patch must unset the bash-native environment")
 }
 
+//nolint:paralleltest // restores the process-global presentation state that parallel Format tests read
 func TestFormat_CollapseForcesNospaceBeyondSuffixes(t *testing.T) {
-	t.Parallel()
-
 	resetPresentationState(t)
 
 	candidates := []wire.Candidate{{Value: "prod-east"}, {Value: "prod-west"}}

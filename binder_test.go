@@ -51,7 +51,7 @@ func TestBinder_4TierResolution_CLIFlags(t *testing.T) {
 	cli := new(FullServerCLI)
 	app := conga.New(cli).
 		Name("server").
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"server": {"port": "9090"}}`))).
 		Args([]string{"--api-key", "secret123", "-p", "7070", "-v", "input.txt", "out.txt"})
 
@@ -74,7 +74,7 @@ func TestBinder_4TierResolution_EnvVar(t *testing.T) {
 	cli := new(FullServerCLI)
 	app := conga.New(cli).
 		Name("server").
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"server": {"port": "9090"}}`))).
 		Args([]string{"--api-key", "secret", "file.txt"})
 
@@ -91,7 +91,7 @@ func TestBinder_4TierResolution_ConfigFile(t *testing.T) {
 	cli := new(FullServerCLI)
 	app := conga.New(cli).
 		Name("server").
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"server": {"port": "9090"}}`))).
 		Args([]string{"--api-key", "secret", "file.txt"})
 
@@ -300,7 +300,7 @@ func TestAppConfigFile(t *testing.T) {
 
 	cli := new(ConfigApp)
 	app := conga.New(cli).
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigExplicit(cfgPath)).
 		Args([]string{})
 
@@ -1109,7 +1109,7 @@ func TestBinder_EmptyStringConfig(t *testing.T) {
 
 	cli := new(StringConfigCLI)
 	app := conga.New(cli).
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"name": ""}`))).
 		Args([]string{})
 	err := app.RunContext(t.Context())
@@ -1130,7 +1130,7 @@ func TestBinder_CounterCoercionError(t *testing.T) {
 	}
 
 	app := conga.New[CounterCLI]().
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"v": "not-a-number"}`))).
 		Args([]string{})
 	err := app.RunContext(t.Context())

@@ -107,7 +107,7 @@ type Child struct {
 }
 ```
 
-Attempting to register a descendant flag that collides with an ancestor flag fails at startup with `conga.ErrDuplicateFlag`; [About subcommands and hierarchy](/explanation/subcommands/#the-ancestor-flag-reservation-invariant) explains the invariant. Sibling subcommands may declare identical flag names.
+Attempting to register a descendant flag that collides with an ancestor flag fails at startup with `conga.ErrSchema`; [About subcommands and hierarchy](/explanation/subcommands/#the-ancestor-flag-reservation-invariant) explains the invariant. Sibling subcommands may declare identical flag names.
 
 ## Where to go next
 

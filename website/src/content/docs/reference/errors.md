@@ -34,6 +34,7 @@ Use `conga.IsUsageError(err)` to decide whether an error is input-related (exit 
 ```go
 type UsageError interface {
 	error
+	IsUsageError() bool
 	CommandPath() string
 	Usage() string
 }

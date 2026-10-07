@@ -211,7 +211,7 @@ func TestFileExistingValidation(t *testing.T) {
 		cli := new(FileExistingCLI)
 		app := conga.New(cli).
 			Name("app").
-			RegisterDecoder(".json", json.RawDecoder).
+			RegisterDecoder(".json", json.Decode).
 			ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"input": "`+missing+`"}`))).
 			Args([]string{"--input", testFile})
 
@@ -229,7 +229,7 @@ func TestFileExistingValidation(t *testing.T) {
 		missing := filepath.Join(t.TempDir(), "config-missing.txt")
 		app := conga.New[FileExistingCLI]().
 			Name("app").
-			RegisterDecoder(".json", json.RawDecoder).
+			RegisterDecoder(".json", json.Decode).
 			ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"input": "`+missing+`"}`))).
 			Args([]string{})
 
@@ -473,7 +473,7 @@ func TestFileExistingConfigValidation(t *testing.T) {
 		testFile := writeFileForTest(t, "config.txt")
 		app := conga.New[FileConfigCLI]().
 			Name("app").
-			RegisterDecoder(".json", json.RawDecoder).
+			RegisterDecoder(".json", json.Decode).
 			ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"input": "`+testFile+`"}`))).
 			Args([]string{})
 
@@ -488,7 +488,7 @@ func TestFileExistingConfigValidation(t *testing.T) {
 		missing := filepath.Join(t.TempDir(), "config-missing.txt")
 		app := conga.New[FileConfigCLI]().
 			Name("app").
-			RegisterDecoder(".json", json.RawDecoder).
+			RegisterDecoder(".json", json.Decode).
 			ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"input": "`+missing+`"}`))).
 			Args([]string{})
 

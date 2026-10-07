@@ -1,6 +1,7 @@
 package timezone_test
 
 import (
+	"bytes"
 	"context"
 	"testing"
 	"time"
@@ -39,6 +40,24 @@ func TestLocation_InvalidZone(t *testing.T) {
 	assert.True(t, conga.IsUsageError(err))
 	assert.Contains(t, err.Error(), "Mars/Crater")
 	assert.Contains(t, err.Error(), "for flag --zone")
+}
+
+func TestLocation_Completion(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	app := conga.New[timezoneTestCLI]().
+		EnableCompletion().
+		Name("app").
+		Stdout(&buffer).
+		Use(timezone.Location).
+		Args([]string{"__complete", "export", "--zone", ""})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Contains(t, buffer.String(), `"value":"America/New_York"`)
 }
 
 type timezoneTestCLI struct {

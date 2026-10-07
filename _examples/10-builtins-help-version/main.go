@@ -45,7 +45,7 @@ type AboutCmd struct{}
 // Run prints the version summary through the same renderer the built-in
 // --version flag uses, without touching the configured streams directly.
 func (a *AboutCmd) Run(_ context.Context, session *conga.Session) error {
-	session.Version()
+	fmt.Fprintln(session.Stdout(), session.Version())
 
 	return nil
 }

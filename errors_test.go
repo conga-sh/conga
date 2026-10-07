@@ -1029,7 +1029,7 @@ func TestJSONArrayFlattening_Issue09(t *testing.T) {
 
 	cli := new(JSONArrayCLI)
 	app := conga.New(cli).
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigExplicit(cfgPath)).
 		Args([]string{})
 
@@ -1666,9 +1666,8 @@ func TestErrFileSizeLimitExceeded(t *testing.T) {
 	})
 }
 
+//nolint:paralleltest,tparallel // serialized: one subtest drives the bash completion driver, which keeps a process-global presentation state
 func TestErrorCommandAndChain_EndToEnd(t *testing.T) {
-	t.Parallel()
-
 	type leafCLI struct {
 		noopRunner
 
@@ -1790,9 +1789,8 @@ func TestErrorCommandAndChain_EndToEnd(t *testing.T) {
 		assert.Contains(t, usage.Usage(), "Usage:\n  app sub [flags]")
 	})
 
+	//nolint:paralleltest // serialized: this subtest drives the bash completion driver's process-global state
 	t.Run("CompletionError classification and decoupling from UsageError", func(t *testing.T) {
-		t.Parallel()
-
 		booming := predict.Callback(func(_ predict.Context) predict.Predictor {
 			panic("completion boom")
 		})

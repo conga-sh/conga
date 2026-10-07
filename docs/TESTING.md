@@ -36,7 +36,6 @@ func TestSliceEnumValidation_Issue03(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.IsError(t, err, conga.ErrValidation)
-		assert.IsError(t, err, conga.ErrInvalidValue)
 	})
 }
 ```

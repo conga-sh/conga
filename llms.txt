@@ -1,0 +1,23 @@
+# CONGA
+
+> CONGA is a zero-reflection-at-runtime, generics-first Go CLI framework: declare flags, arguments, and subcommands as typed struct fields, implement `Run(context.Context, *conga.Session) error`, and let the engine build the schema.
+
+## Project
+
+- [AGENTS.md](https://github.com/conga-sh/conga/blob/main/AGENTS.md): Coding standards, declaration ordering, architectural invariants, and verification workflow.
+- [docs/TESTING.md](https://github.com/conga-sh/conga/blob/main/docs/TESTING.md): Test architecture and style guide (single responsibility, AAA formatting, assertion library).
+- [docs/completion-wire-protocol.md](https://github.com/conga-sh/conga/blob/main/docs/completion-wire-protocol.md): Shell completion wire protocol (`__complete` entry convention and `CONGA_*` sideband variables).
+
+## Reference
+
+- [Overview](https://docs.conga.sh/reference/conga/): The `conga` package surface.
+- [Struct tags](https://docs.conga.sh/reference/struct-tags/): Every supported struct tag and its semantics.
+- [Built-ins](https://docs.conga.sh/reference/builtins/): `--help`, `--version`, `--why`, `--completion`, and the `__complete` driver.
+- [Domain types](https://docs.conga.sh/reference/domain-types/): `File`, `Dir`, `ByteSize`, `FileContent`, and custom `TextUnmarshaler` types.
+- [Decoders](https://docs.conga.sh/reference/decoders/): Opt-in `json`, `yaml`, `toml`, and `hcl` configuration decoders.
+- [Dotenv](https://docs.conga.sh/reference/dotenv/): `.env` loading and precedence.
+- [Errors](https://docs.conga.sh/reference/errors/): Base error categories and the usage/completion classification interfaces.
+- [Plugins](https://docs.conga.sh/reference/plugins/): `plugin/network`, `plugin/system`, and `plugin/timezone` loader functions.
+- [Predict](https://docs.conga.sh/reference/predict/): The decoupled autocompletion provider SDK.
+- [conga-lint](https://docs.conga.sh/reference/conga-lint/): The static schema analyzer.
+- [Binary size benchmark](https://docs.conga.sh/reference/binary-size-benchmark/): Link-time pruning measurements.

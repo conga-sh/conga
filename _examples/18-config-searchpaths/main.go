@@ -27,7 +27,7 @@ func main() {
 		Name("firstfound").
 		Description("Single-file config mode: first existing search path wins").
 		Version("1.0.0").
-		RegisterDecoder(".hcl", hcl.RawDecoder).
+		RegisterDecoder(".hcl", hcl.Decode).
 		ConfigOptions(conga.ConfigPaths(".", "~/.config/firstfound", "${SYSCONF_DIR:-/etc/firstfound}"))
 
 	if err := app.Run(); err != nil {

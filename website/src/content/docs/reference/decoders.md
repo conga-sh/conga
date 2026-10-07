@@ -6,22 +6,22 @@ description: Opt-in wire-format decoders — json, yaml, toml, hcl.
 Each subpackage exposes a single function matching `conga.ConfigDecoder`:
 
 ```go
-func RawDecoder(data []byte) (map[string]any, error)
+func Decode(data []byte) (map[string]any, error)
 ```
 
 | Package | Import | Parse sentinel |
 |---------|--------|----------------|
-| JSON | `github.com/conga-sh/conga/decoder/json` | `json.ErrJSONParse` |
-| YAML | `github.com/conga-sh/conga/decoder/yaml` | `yaml.ErrYAMLParse` |
-| TOML | `github.com/conga-sh/conga/decoder/toml` | `toml.ErrTOMLParse` |
-| HCL | `github.com/conga-sh/conga/decoder/hcl` | `hcl.ErrHCLParse` |
+| JSON | `github.com/conga-sh/conga/decoder/json` | `json.ErrParse` |
+| YAML | `github.com/conga-sh/conga/decoder/yaml` | `yaml.ErrParse` |
+| TOML | `github.com/conga-sh/conga/decoder/toml` | `toml.ErrParse` |
+| HCL | `github.com/conga-sh/conga/decoder/hcl` | `hcl.ErrParse` |
 
 ## Registration
 
 ```go
 import "github.com/conga-sh/conga"
 
-app.RegisterDecoder("yaml", yaml.RawDecoder)
+app.RegisterDecoder("yaml", yaml.Decode)
 ```
 
 `RegisterDecoder` normalizes extension strings by trimming whitespace, converting to lowercase, and stripping leading `*` and `.` characters, so `"json"`, `".json"`, and `"*.JSON"` are identical. `.yaml` and `.yml` are distinct extensions; register both to accept both filename conventions.

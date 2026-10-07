@@ -30,7 +30,7 @@ func plainResult() predict.Result {
 			{Value: "deploy", Description: "Deploy service", Style: "blue", Tag: "commands"},
 			{Value: "logs", Display: "logs"},
 		},
-		Directive: predict.DirectiveNoFileComp,
+		Directive: predict.DirectiveNoFileCompletion,
 	}
 }
 

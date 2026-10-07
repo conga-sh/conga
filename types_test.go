@@ -1626,7 +1626,7 @@ func TestDomainTypesJSONSerializationRoundtrip(t *testing.T) {
 
 	var decodedContent conga.FileContent
 
-	err = json.Unmarshal([]byte(fmt.Sprintf("%q", filePath)), &decodedContent)
+	err = json.Unmarshal(fmt.Appendf(nil, "%q", filePath), &decodedContent)
 	assert.NoError(t, err)
 	assert.Equal(t, "payload", decodedContent.String())
 }

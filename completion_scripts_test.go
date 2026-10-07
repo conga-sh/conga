@@ -1038,17 +1038,15 @@ func TestCompletionFlag_FlatCLI(t *testing.T) {
 	})
 }
 
+//nolint:paralleltest // serialized: the bash iteration drives the completion driver's process-global state
 func TestCompletion_FirstPositionalPathPreserved(t *testing.T) {
-	t.Parallel()
-
 	shells := []string{"bash", "zsh", "fish", "powershell"}
 	firstArgs := []string{"/x/one", "./rel/path", "tool.exe", "myapp"}
 
+	//nolint:paralleltest // serialized: the bash iteration drives the completion driver's process-global state
 	for _, shell := range shells {
 		for _, firstArg := range firstArgs {
 			t.Run(shell+"_"+firstArg, func(t *testing.T) {
-				t.Parallel()
-
 				var buffer bytes.Buffer
 
 				app := conga.New[TwoPositionalArgsCLI]().

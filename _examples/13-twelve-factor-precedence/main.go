@@ -35,7 +35,7 @@ func main() {
 		Version("1.0.0").
 		EnableWhy().
 		EnvPrefix("SERVER").
-		RegisterDecoder(".toml", toml.RawDecoder)
+		RegisterDecoder(".toml", toml.Decode)
 
 	if err := app.Run(); err != nil {
 		app.Exit(err)

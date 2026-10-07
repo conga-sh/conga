@@ -10,16 +10,6 @@ import (
 	"github.com/conga-sh/conga"
 )
 
-type exampleGreetCLI struct {
-	Name conga.OptionalFlag[string] `default:"world" help:"Who to greet"`
-}
-
-func (c *exampleGreetCLI) Run(_ context.Context, session *conga.Session) error {
-	_, err := fmt.Fprintf(session.Stdout(), "Hello, %s!\n", c.Name.Get())
-
-	return err
-}
-
 // Declare flags as typed fields, implement [conga.Runner], and call [conga.App.Run].
 func Example() {
 	app := conga.New[exampleGreetCLI]().
@@ -30,20 +20,6 @@ func Example() {
 		fmt.Println("error:", err)
 	}
 	// Output: Hello, gopher!
-}
-
-type exampleRootCLI struct {
-	Verbose conga.OptionalFlag[bool]         `help:"Verbose output"`
-	Migrate conga.Command[exampleMigrateCLI] `summary:"Run database migrations"`
-}
-
-type exampleMigrateCLI struct{}
-
-func (c *exampleMigrateCLI) Run(_ context.Context, session *conga.Session) error {
-	root := session.Root[exampleRootCLI]()
-	_, err := fmt.Fprintf(session.Stdout(), "%s verbose=%t\n", session.Path(), root.Verbose.Get())
-
-	return err
 }
 
 // A subcommand reads global flags declared on the root command through
@@ -59,28 +35,6 @@ func ExampleSession_Root() {
 	// Output: tool migrate verbose=true
 }
 
-// examplePercent is a custom flag type parsed from values such as "75%".
-type examplePercent int
-
-type examplePercentCLI struct {
-	Threshold conga.OptionalFlag[examplePercent] `default:"50%" help:"Alert threshold"`
-}
-
-func (c *examplePercentCLI) Run(_ context.Context, session *conga.Session) error {
-	_, err := fmt.Fprintf(session.Stdout(), "threshold=%d\n", c.Threshold.Get())
-
-	return err
-}
-
-func exampleParsePercent(raw string) (examplePercent, error) {
-	value, err := strconv.Atoi(strings.TrimSuffix(raw, "%"))
-	if err != nil {
-		return 0, fmt.Errorf("invalid percentage %q: %w", raw, err)
-	}
-
-	return examplePercent(value), nil
-}
-
 // Register a parser so flags and arguments of a custom type accept its text form.
 func ExampleApp_RegisterType() {
 	app := conga.New[examplePercentCLI]().
@@ -92,14 +46,6 @@ func ExampleApp_RegisterType() {
 		fmt.Println("error:", err)
 	}
 	// Output: threshold=75
-}
-
-type exampleDeprecatedCLI struct{}
-
-func (c *exampleDeprecatedCLI) Run(_ context.Context, session *conga.Session) error {
-	_, err := fmt.Fprintln(session.Stdout(), "running")
-
-	return err
 }
 
 // A deprecated application warns on standard error, then runs normally.
@@ -116,4 +62,58 @@ func ExampleApp_Deprecated() {
 	// Output:
 	// WARNING: oldtool is deprecated: use newtool
 	// running
+}
+
+type exampleGreetCLI struct {
+	Name conga.OptionalFlag[string] `default:"world" help:"Who to greet"`
+}
+
+func (c *exampleGreetCLI) Run(_ context.Context, session *conga.Session) error {
+	_, err := fmt.Fprintf(session.Stdout(), "Hello, %s!\n", c.Name.Get())
+
+	return err
+}
+
+type exampleRootCLI struct {
+	Verbose conga.OptionalFlag[bool]         `help:"Verbose output"`
+	Migrate conga.Command[exampleMigrateCLI] `summary:"Run database migrations"`
+}
+
+type exampleMigrateCLI struct{}
+
+func (c *exampleMigrateCLI) Run(_ context.Context, session *conga.Session) error {
+	root := session.Root[exampleRootCLI]()
+	_, err := fmt.Fprintf(session.Stdout(), "%s verbose=%t\n", session.Path(), root.Verbose.Get())
+
+	return err
+}
+
+// examplePercent is a custom flag type parsed from values such as "75%".
+type examplePercent int
+
+type examplePercentCLI struct {
+	Threshold conga.OptionalFlag[examplePercent] `default:"50%" help:"Alert threshold"`
+}
+
+func (c *examplePercentCLI) Run(_ context.Context, session *conga.Session) error {
+	_, err := fmt.Fprintf(session.Stdout(), "threshold=%d\n", c.Threshold.Get())
+
+	return err
+}
+
+type exampleDeprecatedCLI struct{}
+
+func (c *exampleDeprecatedCLI) Run(_ context.Context, session *conga.Session) error {
+	_, err := fmt.Fprintln(session.Stdout(), "running")
+
+	return err
+}
+
+func exampleParsePercent(raw string) (examplePercent, error) {
+	value, err := strconv.Atoi(strings.TrimSuffix(raw, "%"))
+	if err != nil {
+		return 0, fmt.Errorf("invalid percentage %q: %w", raw, err)
+	}
+
+	return examplePercent(value), nil
 }

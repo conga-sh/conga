@@ -87,7 +87,7 @@ Directives are shell-agnostic instructions about how to treat the candidate stre
 | `noprefix` | *(adapter-level)* | Candidate values are complete word replacements: the shell must replace the entire current word instead of appending after its typed prefix. Emitted for attached-value completion (`--flag=<TAB>` → values are `--flag=value`) |
 | `keeporder` | `DirectiveKeepOrder` | Preserve engine candidate order; do not let the shell re-sort |
 
-`DirectiveError` and the engine's `Usage` field surface as **messages** (§7): the usage string, or the literal `ERROR` when usage is empty. `DirectiveNoFileComp` is carried on the engine's `Result` and has no wire representation.
+`DirectiveError` and the engine's `Usage` field surface as **messages** (§7): the usage string, or the literal `ERROR` when usage is empty. `DirectiveNoFileCompletion` is carried on the engine's `Result` and has no wire representation.
 
 ## 6. Style vocabulary
 

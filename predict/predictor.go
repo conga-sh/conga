@@ -226,7 +226,7 @@ func Items(items ...Item) Predictor {
 
 	return Predictor{
 		items:     copied,
-		directive: DirectiveNoFileComp,
+		directive: DirectiveNoFileCompletion,
 		raw:       raw,
 	}
 }
@@ -251,7 +251,7 @@ func Map(items map[string]string) Predictor {
 
 	return Predictor{
 		items:     completionItems,
-		directive: DirectiveNoFileComp,
+		directive: DirectiveNoFileCompletion,
 		raw:       keys,
 	}
 }
@@ -311,7 +311,7 @@ func MultiParts(delimiter string, fn func(c Context) Predictor) Predictor {
 // None creates a Predictor that suppresses completion and file fallbacks.
 func None() Predictor {
 	return Predictor{
-		directive: DirectiveNoFileComp,
+		directive: DirectiveNoFileCompletion,
 	}
 }
 
@@ -323,7 +323,7 @@ func Values(values ...string) Predictor {
 
 	return Predictor{
 		items:     items,
-		directive: DirectiveNoFileComp,
+		directive: DirectiveNoFileCompletion,
 		raw:       slices.Clone(values),
 	}
 }
@@ -438,7 +438,7 @@ func (p Predictor) evaluateBaseWithTimeout(ctx Context, timeout time.Duration) (
 		}
 
 		return Result{
-			Directive: DirectiveNoFileComp,
+			Directive: DirectiveNoFileCompletion,
 		}, false
 	}
 }

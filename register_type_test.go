@@ -175,9 +175,8 @@ func TestRegisterType_LastWriteWinsOverride(t *testing.T) {
 	assert.Equal(t, "overridden:res-123", cli.ID.Get().raw)
 }
 
+//nolint:paralleltest // serialized: the bash shell iteration drives the completion driver's process-global state
 func TestRegisterType_CompletionPredictorInference(t *testing.T) {
-	t.Parallel()
-
 	dummyPredictor := predict.Items(
 		predict.Item{Value: "Zone/A", Display: "Zone/A", Description: "Alpha"},
 		predict.Item{Value: "Zone/B", Display: "Zone/B", Description: "Beta"},
@@ -185,10 +184,9 @@ func TestRegisterType_CompletionPredictorInference(t *testing.T) {
 
 	shells := []string{"bash", "zsh", "fish", "powershell", "elvish", "nushell"}
 
+	//nolint:paralleltest // serialized: the bash iteration drives the completion driver's process-global state
 	for _, shell := range shells {
 		t.Run(shell, func(t *testing.T) {
-			t.Parallel()
-
 			app := conga.New[completionTestCLI]()
 			app.RegisterType(time.LoadLocation, conga.WithPredictor(dummyPredictor))
 
@@ -381,14 +379,6 @@ func TestRegisterMap_FlagsAndArgs(t *testing.T) {
 
 		assertx.PanicsWithValue(t, "conga: RegisterMap requires a non-nil app", func() {
 			nilApp.RegisterMap(map[string]int(nil))
-		})
-	})
-
-	t.Run("non-string map keys panic", func(t *testing.T) {
-		t.Parallel()
-
-		assertx.PanicsWithValue(t, "conga: RegisterMap requires string map keys, got int", func() {
-			_ = conga.New[registeredMapCLI]().RegisterMap(map[int]string(nil))
 		})
 	})
 }

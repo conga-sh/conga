@@ -32,8 +32,8 @@ func main() {
 		Name("profiles").
 		Description("Multi-file config merging via conga.ConfigFile with multi:\"true\"").
 		Version("1.0.0").
-		RegisterDecoder(".yaml", yaml.RawDecoder).
-		RegisterDecoder(".yml", yaml.RawDecoder).
+		RegisterDecoder(".yaml", yaml.Decode).
+		RegisterDecoder(".yml", yaml.Decode).
 		ConfigOptions(conga.ConfigPaths("deploy/prod.yaml", "deploy/base.yaml"), conga.ConfigCascading())
 
 	if err := app.Run(); err != nil {

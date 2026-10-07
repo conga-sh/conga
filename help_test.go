@@ -280,7 +280,7 @@ func TestHelpFormatting_ConfigFileDefaultHelp(t *testing.T) {
 
 		app := conga.New[ConfigFileDefaultHelpCLI]().
 			Name("helpapp").
-			RegisterDecoder(".json", json.RawDecoder).
+			RegisterDecoder(".json", json.Decode).
 			Args([]string{"--help"}).
 			Stdout(&buffer)
 
@@ -300,7 +300,7 @@ func TestHelpFormatting_ConfigFileDefaultHelp(t *testing.T) {
 
 		app := conga.New[MultiConfigFileDefaultHelpCLI]().
 			Name("helpapp").
-			RegisterDecoder(".json", json.RawDecoder).
+			RegisterDecoder(".json", json.Decode).
 			Args([]string{"--help"}).
 			Stdout(&buffer)
 

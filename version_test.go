@@ -3,6 +3,7 @@ package conga_test
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -44,7 +45,7 @@ func (s *TestVersionStatusCmd) Run(ctx context.Context, session *conga.Session) 
 type TestSessionVersionCLI struct{}
 
 func (c *TestSessionVersionCLI) Run(ctx context.Context, session *conga.Session) error {
-	session.Version()
+	fmt.Fprintln(session.Stdout(), session.Version())
 
 	return nil
 }

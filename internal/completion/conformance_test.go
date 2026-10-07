@@ -247,7 +247,7 @@ func resultFromFixture(fixture conformanceFixture) predict.Result {
 	}
 
 	if fixture.Directives.NoFileComp {
-		directive |= predict.DirectiveNoFileComp
+		directive |= predict.DirectiveNoFileCompletion
 	}
 
 	if fixture.Directives.NoSpace {

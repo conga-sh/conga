@@ -31,8 +31,8 @@ func main() {
 		Description("Programmatic explicit config file (fatal-if-missing)").
 		Version("1.0.0").
 		EnvPrefix("EXPLICIT").
-		RegisterDecoder(".yaml", yaml.RawDecoder).
-		RegisterDecoder(".yml", yaml.RawDecoder).
+		RegisterDecoder(".yaml", yaml.Decode).
+		RegisterDecoder(".yml", yaml.Decode).
 		ConfigOptions(conga.ConfigExplicit("bootstrap.yaml"))
 
 	if err := app.Run(); err != nil {

@@ -228,7 +228,7 @@ func TestStdio_ConfigTierHonorsStreams(t *testing.T) {
 
 	cli := new(stdioConfigCLI)
 	app := conga.New(cli).
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"stdio": {"input": "-"}}`))).
 		Stdin(strings.NewReader("config payload")).
 		Args([]string{})

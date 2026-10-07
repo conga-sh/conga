@@ -30,9 +30,9 @@ func (failingWriter) Write(p []byte) (int, error) {
 // panic during __complete is recovered, returns no stdout payload, and maps
 // to exit code 2 with a diagnostic on stderr instead of corrupting the
 // user's terminal line.
+//
+//nolint:paralleltest // serialized: the bash completion driver keeps a process-global presentation state
 func TestComplete_PanicRecovered_Exit2Contract(t *testing.T) {
-	t.Parallel()
-
 	var (
 		stdoutBuffer bytes.Buffer
 		stderrBuffer bytes.Buffer
@@ -68,9 +68,9 @@ func TestComplete_PanicRecovered_Exit2Contract(t *testing.T) {
 // TestComplete_UnwritableStdout_Exit2Contract verifies that an unwritable
 // completion stdout maps to the documented exit-2 contract with a stderr
 // diagnostic instead of the generic runtime exit-1 path.
+//
+//nolint:paralleltest // serialized: the bash completion driver keeps a process-global presentation state
 func TestComplete_UnwritableStdout_Exit2Contract(t *testing.T) {
-	t.Parallel()
-
 	var (
 		buffer   bytes.Buffer
 		exitCode = -1

@@ -148,3 +148,7 @@ CONGA isolates heavier dependencies—such as configuration decoders (`decoder/{
 - [Documentation & Guides](https://docs.conga.sh)
 - [Struct Tag Reference](https://docs.conga.sh/reference/struct-tags/)
 - [API Reference (pkg.go.dev)](https://pkg.go.dev/github.com/conga-sh/conga)
+
+## License
+
+CONGA is released under the [MIT License](LICENSE).

@@ -1,7 +1,6 @@
 package conga
 
 import (
-	"fmt"
 	"io"
 
 	"github.com/conga-sh/conga/internal/help"
@@ -92,17 +91,19 @@ func (s *Session) Usage() string {
 	return help.Usage(s.cmdChain)
 }
 
-// Version renders application version information to [Session.Stdout].
+// Version returns the formatted application version summary line.
 //
-// When no explicit version string was configured via [App.Version], the output
-// falls back to the Go module version recorded in the binary, or "dev" when that is
-// unavailable. An embedded VCS commit hash and date are appended when present.
-func (s *Session) Version() {
-	if s == nil || s.stdout == nil {
-		return
+// When no explicit version string was configured via [App.Version], the summary
+// falls back to the Go module version recorded in the binary, or "dev" when that
+// is unavailable. An embedded VCS commit hash and date are appended when present.
+//
+// If the session is nil, Version returns an empty string.
+func (s *Session) Version() string {
+	if s == nil {
+		return ""
 	}
 
-	fmt.Fprintln(s.stdout, help.VersionSummary(s.appName, s.appVersion))
+	return help.VersionSummary(s.appName, s.appVersion)
 }
 
 // Path returns the full space-separated invocation path string for the active command

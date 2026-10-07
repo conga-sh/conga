@@ -1,6 +1,7 @@
 package network_test
 
 import (
+	"bytes"
 	"context"
 	"net"
 	"testing"
@@ -48,6 +49,31 @@ func TestInterface_UnknownName(t *testing.T) {
 	assert.True(t, conga.IsUsageError(err))
 	assert.Contains(t, err.Error(), "for flag --iface")
 	assert.Contains(t, err.Error(), "no such network interface")
+}
+
+func TestInterface_Completion(t *testing.T) {
+	t.Parallel()
+
+	ifaces, err := net.Interfaces()
+	assert.NoError(t, err)
+
+	if len(ifaces) == 0 {
+		t.Skip("no network interfaces available")
+	}
+
+	var buffer bytes.Buffer
+
+	app := conga.New[netTestCLI]().
+		EnableCompletion().
+		Name("app").
+		Stdout(&buffer).
+		Use(network.Interface).
+		Args([]string{"__complete", "export", "--iface", ""})
+
+	err = app.Run()
+
+	assert.NoError(t, err)
+	assert.Contains(t, buffer.String(), `"value":"`+ifaces[0].Name+`"`)
 }
 
 type netTestCLI struct {

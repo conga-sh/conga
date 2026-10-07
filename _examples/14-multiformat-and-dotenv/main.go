@@ -34,11 +34,11 @@ func main() {
 		Description("Multi-format configuration decoders (JSON, TOML, YAML, HCL) and .env loading").
 		Version("1.0.0").
 		Dotenv().
-		RegisterDecoder(".json", json.RawDecoder).
-		RegisterDecoder(".toml", toml.RawDecoder).
-		RegisterDecoder(".yaml", yaml.RawDecoder).
-		RegisterDecoder(".yml", yaml.RawDecoder).
-		RegisterDecoder(".hcl", hcl.RawDecoder)
+		RegisterDecoder(".json", json.Decode).
+		RegisterDecoder(".toml", toml.Decode).
+		RegisterDecoder(".yaml", yaml.Decode).
+		RegisterDecoder(".yml", yaml.Decode).
+		RegisterDecoder(".hcl", hcl.Decode)
 
 	if err := app.Run(); err != nil {
 		app.Exit(err)

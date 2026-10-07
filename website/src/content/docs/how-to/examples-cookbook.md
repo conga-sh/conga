@@ -14,7 +14,23 @@ go run ./_examples/08-subcommands-basic create web-api -i redis:7 -r 3
 ```
 
 ```text no-copy
-created service "web-api" (image: redis:7, replicas: 3)
+╭───────────────────────────────────────────────────────────╮
+│  ⚙  service-mgr create                                    │
+╰───────────────────────────────────────────────────────────╯
+
+    FIELD              TYPE      VALUE     SOURCE
+
+  service-mgr · root
+    -v, --verbose      bool      false     ○ unset
+    create             command   —         ▸ selected
+    delete (rm, del)   command   —         —
+    list               command   —         —
+    doctor             command   —         —
+
+  create · active
+    <name>             string    web-api   ● cli
+    -i, --image        string    redis:7   ● cli --image
+    -r, --replicas     int       3         ● cli --replicas
 ```
 
 To run the automated test suite across all examples:

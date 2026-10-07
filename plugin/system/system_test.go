@@ -1,6 +1,7 @@
 package system_test
 
 import (
+	"bytes"
 	"context"
 	"os/user"
 	"syscall"
@@ -39,6 +40,24 @@ func TestSignal_InvalidName(t *testing.T) {
 	assert.IsError(t, err, conga.ErrCoerce)
 	assert.True(t, conga.IsUsageError(err))
 	assert.Contains(t, err.Error(), "NOTASIGNAL")
+}
+
+func TestSignal_Completion(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	app := conga.New[sysTestCLI]().
+		EnableCompletion().
+		Name("app").
+		Stdout(&buffer).
+		Use(system.Signal).
+		Args([]string{"__complete", "export", "--sig", ""})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Contains(t, buffer.String(), `"value":"SIGTERM"`)
 }
 
 func TestUser(t *testing.T) {

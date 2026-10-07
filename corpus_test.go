@@ -334,7 +334,7 @@ func captureCorpusResult[T any](app *conga.App[T], scenario corpusScenario) []by
 		Directives: corpusDirectives{
 			Error:      result.Directive.Has(predict.DirectiveError),
 			KeepOrder:  result.Directive.Has(predict.DirectiveKeepOrder),
-			NoFileComp: result.Directive.Has(predict.DirectiveNoFileComp),
+			NoFileComp: result.Directive.Has(predict.DirectiveNoFileCompletion),
 			NoSpace:    result.Directive.Has(predict.DirectiveNoSpace),
 		},
 		Usage: result.Usage,

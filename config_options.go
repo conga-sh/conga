@@ -24,7 +24,7 @@ type ConfigOption interface {
 // associates one with a file extension. A decoder unmarshals the file into a
 // nested map with string keys, for example:
 //
-//	func RawDecoder(data []byte) (map[string]any, error) {
+//	func Decode(data []byte) (map[string]any, error) {
 //		var parsed map[string]any
 //		if err := json.Unmarshal(data, &parsed); err != nil {
 //			return nil, fmt.Errorf("decode json config: %w", err)

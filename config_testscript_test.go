@@ -44,10 +44,10 @@ func (a *TestAppCLI) Run(_ context.Context, _ *conga.Session) error {
 func mainTestApp() {
 	app := conga.New[TestAppCLI]().
 		Name("test-app").
-		RegisterDecoder(".yaml", yaml.RawDecoder).
-		RegisterDecoder(".yml", yaml.RawDecoder).
-		RegisterDecoder(".toml", toml.RawDecoder).
-		RegisterDecoder(".json", json.RawDecoder)
+		RegisterDecoder(".yaml", yaml.Decode).
+		RegisterDecoder(".yml", yaml.Decode).
+		RegisterDecoder(".toml", toml.Decode).
+		RegisterDecoder(".json", json.Decode)
 
 	if err := app.Run(); err != nil {
 		app.Exit(err)

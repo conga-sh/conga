@@ -308,9 +308,8 @@ func TestApp_ZeroValue_StrictTagValidationDefault(t *testing.T) {
 	assert.IsError(t, err, conga.ErrSchema)
 }
 
+//nolint:paralleltest // serialized: the bash completion driver keeps a process-global presentation state
 func TestApp_CompletionInvocationDoesNotConsumeExecution(t *testing.T) {
-	t.Parallel()
-
 	cli := new(SimpleAppCLI)
 	app := conga.New(cli).
 		EnableCompletion().

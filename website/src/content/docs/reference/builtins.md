@@ -52,7 +52,7 @@ type App struct {
 
 Every root command gets `--version`. `app.Version("1.0.0")` sets the rendered string; the default is the module version (or `dev`) plus the embedded build metadata (VCS commit and date, when available).
 
-The flag and `session.Version()` render a single summary line. The commit and build timestamp are appended when the build info carries them and the version string does not already embed them (Go 1.27 records a pseudo-version for source builds):
+The flag renders a single summary line, and `session.Version()` returns that same line. The commit and build timestamp are appended when the build info carries them and the version string does not already embed them (Go 1.27 records a pseudo-version for source builds):
 
 ```sh
 hello --version
@@ -89,7 +89,7 @@ hello:
 
 `hello version --json` renders a flat machine-readable object with the same fields (`version`, `gitCommit`, `built`, `goVersion`, `os`, `arch`, `modified`). The `--json` flag is engine-owned: a user-defined `--json` flag on an ancestor command cannot collide with it, and a non-boolean value is a usage error (exit 2).
 
-`app.DisableVersionFlag()` removes the flag while keeping the metadata available to `session.Version()` and `VersionCommand`.
+`app.DisableVersionFlag()` removes the flag while keeping the version summary line available through `session.Version()` and `VersionCommand`.
 
 ## The `--why` report
 
@@ -108,7 +108,7 @@ hello:
 When the user presses tab, the installed shell function invokes the binary through the hidden driver with the partial words:
 
 ```sh
-cloudctl __complete bash "cloudctl" "dep"
+cloudctl __complete bash "dep"
 ```
 
 The driver tokenizes the partial line, identifies the target command, flag, or argument, evaluates the applicable predictor and the built-in candidates, writes the shell-native directives to stdout, and exits 0. The application's `Run` method does not execute, and the single-execution slot is not consumed.

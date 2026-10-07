@@ -24,10 +24,10 @@ var (
 	fixtureValidNested []byte
 )
 
-func TestRawDecoder_ValidFlat(t *testing.T) {
+func TestDecode_ValidFlat(t *testing.T) {
 	t.Parallel()
 
-	result, err := yaml.RawDecoder(fixtureValidFlat)
+	result, err := yaml.Decode(fixtureValidFlat)
 
 	assert.NoError(t, err)
 	assert.Equal(t, any("testapp"), result["name"])
@@ -35,10 +35,10 @@ func TestRawDecoder_ValidFlat(t *testing.T) {
 	assert.Equal(t, any(true), result["debug"])
 }
 
-func TestRawDecoder_ValidNested(t *testing.T) {
+func TestDecode_ValidNested(t *testing.T) {
 	t.Parallel()
 
-	result, err := yaml.RawDecoder(fixtureValidNested)
+	result, err := yaml.Decode(fixtureValidNested)
 
 	assert.NoError(t, err)
 
@@ -62,37 +62,36 @@ func TestRawDecoder_ValidNested(t *testing.T) {
 	assert.Equal(t, any(3), config["retries"])
 }
 
-func TestRawDecoder_InvalidSyntax(t *testing.T) {
+func TestDecode_InvalidSyntax(t *testing.T) {
 	t.Parallel()
 
-	_, err := yaml.RawDecoder(fixtureInvalidSyntax)
+	_, err := yaml.Decode(fixtureInvalidSyntax)
 
-	assert.Error(t, err)
+	assert.IsError(t, err, yaml.ErrParse)
 }
 
-func TestRawDecoder_TrailingGarbage(t *testing.T) {
+func TestDecode_TrailingGarbage(t *testing.T) {
 	t.Parallel()
 
-	_, err := yaml.RawDecoder(fixtureTrailingGarbage)
+	_, err := yaml.Decode(fixtureTrailingGarbage)
 
-	assert.Error(t, err)
-	assert.IsError(t, err, yaml.ErrYAMLParse)
+	assert.IsError(t, err, yaml.ErrParse)
 }
 
-func TestRawDecoder_TrailingWhitespaceSucceeds(t *testing.T) {
+func TestDecode_TrailingWhitespaceSucceeds(t *testing.T) {
 	t.Parallel()
 
 	payload := []byte("name: testapp\n  \n")
-	result, err := yaml.RawDecoder(payload)
+	result, err := yaml.Decode(payload)
 
 	assert.NoError(t, err)
 	assert.Equal(t, any("testapp"), result["name"])
 }
 
-func TestRawDecoder_EmptyValid(t *testing.T) {
+func TestDecode_EmptyValid(t *testing.T) {
 	t.Parallel()
 
-	result, err := yaml.RawDecoder([]byte(""))
+	result, err := yaml.Decode([]byte(""))
 
 	assert.NoError(t, err)
 	assert.Zero(t, result)

@@ -171,7 +171,7 @@ func (u *sessionUsageCmd) Run(ctx context.Context, session *conga.Session) error
 type sessionVersionCmd struct{}
 
 func (v *sessionVersionCmd) Run(ctx context.Context, session *conga.Session) error {
-	session.Version()
+	fmt.Fprintln(session.Stdout(), session.Version())
 
 	return nil
 }
