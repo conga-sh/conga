@@ -526,8 +526,7 @@ func (d Dir) Help(tags FieldTags) string {
 // renders in binary units ("1GiB"). The zero value renders with the canonical IEC
 // integer model, where only whole multiples of a binary unit are abbreviated
 // (e.g. "1MiB", "512MiB") and any indivisible remainder is emitted as exact bytes
-// (e.g. "1048577B"). Fractions such as "1.5GB" are emitted only when a field
-// declares the `precision` tag and the fraction round-trips exactly.
+// (e.g. "1048577B").
 //
 // The byte count is available through [ByteSize.Bytes] for comparisons and
 // calculations:
@@ -541,22 +540,20 @@ func (d Dir) Help(tags FieldTags) string {
 //	}
 //
 // ByteSize values are deliberately non-comparable: the captured render family
-// and precision are not part of a size's identity, so [ByteSize.Equal] (or
+// is not part of a size's identity, so [ByteSize.Equal] (or
 // [ByteSize.Compare], or [ByteSize.Bytes]) expresses equality and ordering.
 // The compiler rejects == between two ByteSize values and rejects ByteSize as a
 // map key, preventing silently wrong lookups between values that render
 // differently but hold the same byte count.
 //
-// Fields may declare the `units` (`binary`, `decimal`, or `both`), `display`
-// (`binary`, `decimal`, or `input`), and `precision` (`0`–`3`) tags to restrict
-// the accepted unit families, force the rendering family, or allow exact
-// fractions.
+// Fields may declare the `units` (`binary`, `decimal`, or `both`) and `display`
+// (`binary`, `decimal`, or `input`) tags to restrict the accepted unit families
+// or force the rendering family.
 //
 // See https://docs.conga.sh/reference/domain-types/.
 type ByteSize struct {
-	bytes     int64
-	family    byteSizeFamily
-	precision uint8
+	bytes  int64
+	family byteSizeFamily
 
 	// The blank field makes the struct non-comparable: array types are
 	// comparable only when their element type is, and func is not comparable.
@@ -564,7 +561,7 @@ type ByteSize struct {
 }
 
 // Equal reports whether b and other represent the same number of bytes,
-// independent of the unit families and precisions used to render them.
+// independent of the unit family used to render them.
 func (b ByteSize) Equal(other ByteSize) bool {
 	return b.bytes == other.bytes
 }
@@ -582,12 +579,11 @@ func (b ByteSize) Compare(other ByteSize) int {
 }
 
 // TagSpecs registers the custom struct tags accepted by [ByteSize] fields:
-// `units`, `display`, and `precision`.
+// `units` and `display`.
 func (b *ByteSize) TagSpecs() []TagSpec {
 	return []TagSpec{
 		{Name: "units", Kind: TagKindString, Validate: validateByteSizeUnitsTag},
 		{Name: "display", Kind: TagKindString, Validate: validateByteSizeDisplayTag},
-		{Name: "precision", Kind: TagKindString, Validate: validateByteSizePrecisionTag},
 	}
 }
 
@@ -601,9 +597,8 @@ func (b ByteSize) Bytes() int64 {
 // The rendering family comes from the value's captured unit family (or the
 // canonical IEC model for the zero value): whole multiples of a unit are
 // formatted as integers without spaces or decimal points (e.g. "1MiB",
-// "1500MB"), values with indivisible remainders are emitted as exact bytes (e.g.
-// "1048577B"), and fractions appear only when the declared precision renders them
-// exactly (e.g. "1.5GB"). Parsed exact-byte input ("B" or a bare count) echoes as
+// "1500MB") and values with indivisible remainders are emitted as exact bytes
+// (e.g. "1048577B"). Parsed exact-byte input ("B" or a bare count) echoes as
 // exact bytes (e.g. "1024B"). Returns "0B" for zero.
 func (b ByteSize) String() string {
 	if b.bytes == 0 {
@@ -612,33 +607,12 @@ func (b ByteSize) String() string {
 
 	abs := uint64(b.bytes) //nolint:gosec // G115: byte counts are non-negative by construction; text input rejects negative values and no public constructor exists.
 
-	precision := b.precision
-	if b.family == byteSizeFamilyUnset {
-		// The zero value keeps the canonical integer-only model regardless of
-		// any declared precision tag.
-		precision = 0
-	}
-
 	for _, unit := range byteSizeUnits(b.family) {
 		whole := abs / unit.multiplier
-		remainder := abs % unit.multiplier
 
-		if remainder == 0 {
+		if abs%unit.multiplier == 0 {
 			return fmt.Sprintf("%d%s", whole, unit.name)
 		}
-
-		if precision == 0 {
-			continue
-		}
-
-		decimals, ok := byteSizeDecimals(remainder, unit.multiplier, precision)
-		if !ok {
-			continue
-		}
-
-		fraction := remainder * byteSizePow10(decimals) / unit.multiplier
-
-		return fmt.Sprintf("%d.%0*d%s", whole, decimals, fraction, unit.name)
 	}
 
 	return fmt.Sprintf("%dB", abs)
@@ -670,8 +644,8 @@ func (b *ByteSize) UnmarshalText(text []byte) error {
 
 // UnmarshalTextWithContext parses a strict, case-sensitive byte size string using the
 // field's declared tags: `units` restricts the accepted unit family (`binary`,
-// `decimal`, or `both`), `display` forces the render family (`binary`, `decimal`, or
-// `input`), and `precision` allows exact fractions of up to that many decimals.
+// `decimal`, or `both`) and `display` forces the render family (`binary`, `decimal`,
+// or `input`).
 //
 // The value captures the parsed unit's family so it renders back in the family the
 // input used (Kubernetes-Quantity style). Bare counts and the "B" suffix capture
@@ -694,16 +668,15 @@ func (b *ByteSize) UnmarshalTextWithContext(text []byte, decodeContext DecodeCon
 	}
 
 	*b = ByteSize{
-		bytes:     byteCount,
-		family:    byteSizeResolveFamily(family, decodeContext.Tags),
-		precision: byteSizePrecision(decodeContext.Tags),
+		bytes:  byteCount,
+		family: byteSizeResolveFamily(family, decodeContext.Tags),
 	}
 
 	return nil
 }
 
 // Help returns the default value syntax description for byte size flags, tailored
-// to the declared `units`, `display`, and `precision` tags.
+// to the declared `units` and `display` tags.
 func (b ByteSize) Help(tags FieldTags) string {
 	helpText := "Byte size (e.g., 10MiB, 1.5GB, 500KiB)"
 
@@ -721,10 +694,6 @@ func (b ByteSize) Help(tags FieldTags) string {
 		helpText += ", shown in decimal units"
 	case "input":
 		helpText += ", shown in the entered unit family"
-	}
-
-	if precision := tags.String("precision"); precision != "" {
-		helpText += ", up to " + precision + " decimal places"
 	}
 
 	return helpText
@@ -1024,9 +993,8 @@ func byteSizeScaleBytes(numStr string, multiplier uint64) (int64, bool, bool) {
 }
 
 // byteSizeUnits returns the abbreviation units of a render family, ordered from
-// largest to smallest. The unset and binary families share the IEC ladder; they
-// differ only in whether the declared precision applies (see [ByteSize.String]).
-// The bytes family has no ladder, so String emits exact bytes for it.
+// largest to smallest. The unset and binary families share the IEC ladder. The
+// bytes family has no ladder, so String emits exact bytes for it.
 func byteSizeUnits(family byteSizeFamily) []byteSizeUnit {
 	switch family {
 	case byteSizeFamilyBytes:
@@ -1048,44 +1016,6 @@ func byteSizeUnits(family byteSizeFamily) []byteSizeUnit {
 			{name: "KiB", multiplier: 1024},
 		}
 	}
-}
-
-// byteSizeDecimals returns the smallest number of fraction digits (up to
-// maxPrecision) that renders remainder/multiplier exactly, or false when no
-// precision in range round-trips.
-func byteSizeDecimals(remainder, multiplier uint64, maxPrecision uint8) (uint8, bool) {
-	scaled := remainder
-
-	for decimals := uint8(1); decimals <= maxPrecision; decimals++ {
-		scaled *= 10
-		if scaled%multiplier == 0 {
-			return decimals, true
-		}
-	}
-
-	return 0, false
-}
-
-// byteSizePow10 returns 10^exponent for the small precision range.
-func byteSizePow10(exponent uint8) uint64 {
-	result := uint64(1)
-
-	for range exponent {
-		result *= 10
-	}
-
-	return result
-}
-
-// byteSizePrecision reads the precision tag as a fraction-digit count, defaulting
-// to 0 for absent or out-of-range values (schema build rejects the latter).
-func byteSizePrecision(tags FieldTags) uint8 {
-	parsed, err := strconv.ParseUint(tags.String("precision"), 10, 8)
-	if err != nil || parsed > 3 {
-		return 0
-	}
-
-	return uint8(parsed)
 }
 
 // byteSizeResolveFamily applies the display tag to the input-derived family:
@@ -1135,14 +1065,4 @@ func validateByteSizeDisplayTag(value string) error {
 	default:
 		return fmt.Errorf("%w %q (want \"binary\", \"decimal\", or \"input\")", errByteSizeDisplayTag, value)
 	}
-}
-
-// validateByteSizePrecisionTag restricts the precision tag to 0..3 exact fraction digits.
-func validateByteSizePrecisionTag(value string) error {
-	parsed, err := strconv.ParseUint(value, 10, 8)
-	if err != nil || parsed > 3 {
-		return fmt.Errorf("%w %q (want 0, 1, 2, or 3)", errByteSizePrecisionTag, value)
-	}
-
-	return nil
 }

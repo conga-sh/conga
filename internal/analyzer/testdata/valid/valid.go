@@ -48,7 +48,7 @@ func (r *Ratio) UnmarshalText(text []byte) error {
 // DeployWorker is a leaf command implementing conga.Runner.
 type DeployWorker struct {
 	Replicas  conga.OptionalFlag[int]            `name:"replicas" short:"r" help:"Worker replica count ({{env}})" range:"1..16"`
-	Memory    conga.OptionalFlag[conga.ByteSize] `name:"memory" help:"Worker memory limit" range:"1MiB..1GiB" units:"binary" display:"input" precision:"1"`
+	Memory    conga.OptionalFlag[conga.ByteSize] `name:"memory" help:"Worker memory limit" range:"1MiB..1GiB" units:"binary" display:"input"`
 	AliasSize conga.OptionalFlag[MemoryAlias]    `name:"alias-size" help:"Aliased memory limit" range:"1MiB..1GiB"`
 	Histogram conga.OptionalFlag[Histogram]      `name:"histogram" help:"Histogram size" range:"1..10"`
 	Ratio     conga.OptionalFlag[Ratio]          `name:"ratio" help:"Ratio" range:"10%..90%"`

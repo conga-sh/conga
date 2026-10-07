@@ -86,9 +86,6 @@ var (
 	// errByteSizeDisplayTag reports an unrecognized display tag value on a ByteSize field.
 	errByteSizeDisplayTag = errors.New("unknown display value")
 
-	// errByteSizePrecisionTag reports an out-of-range precision tag value on a ByteSize field.
-	errByteSizePrecisionTag = errors.New("invalid precision value")
-
 	errNoRunner = errors.New("runner not implemented")
 )
 

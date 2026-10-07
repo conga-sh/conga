@@ -1664,12 +1664,6 @@ type invalidByteSizeUnitsCLI struct {
 	Memory conga.OptionalFlag[conga.ByteSize] `name:"memory" units:"hex"`
 }
 
-type invalidByteSizePrecisionCLI struct {
-	noopRunner
-
-	Memory conga.OptionalFlag[conga.ByteSize] `name:"memory" precision:"9"`
-}
-
 type invalidByteSizeDisplayCLI struct {
 	noopRunner
 
@@ -1710,45 +1704,6 @@ func TestByteSizeEchoesInputFamily(t *testing.T) {
 			assert.Equal(t, testCase.expected, byteSize.String())
 		})
 	}
-}
-
-// TestByteSizePrecisionRendersExactFractions verifies that the precision tag
-// enables exact fractional rendering and that its absence keeps integer multiples.
-func TestByteSizePrecisionRendersExactFractions(t *testing.T) {
-	t.Parallel()
-
-	t.Run("fraction with matching precision", func(t *testing.T) {
-		t.Parallel()
-
-		var byteSize conga.ByteSize
-
-		decodeContext := conga.DecodeContext{Tags: conga.FieldTags{"display": "decimal", "precision": "1"}}
-
-		assert.NoError(t, byteSize.UnmarshalTextWithContext([]byte("1.5GB"), decodeContext))
-		assert.Equal(t, "1.5GB", byteSize.String())
-	})
-
-	t.Run("fraction without precision falls back to integer multiple", func(t *testing.T) {
-		t.Parallel()
-
-		var byteSize conga.ByteSize
-
-		decodeContext := conga.DecodeContext{Tags: conga.FieldTags{"display": "decimal"}}
-
-		assert.NoError(t, byteSize.UnmarshalTextWithContext([]byte("1.5GB"), decodeContext))
-		assert.Equal(t, "1500MB", byteSize.String())
-	})
-
-	t.Run("binary fraction with precision", func(t *testing.T) {
-		t.Parallel()
-
-		var byteSize conga.ByteSize
-
-		decodeContext := conga.DecodeContext{Tags: conga.FieldTags{"precision": "1"}}
-
-		assert.NoError(t, byteSize.UnmarshalTextWithContext([]byte("0.5GiB"), decodeContext))
-		assert.Equal(t, "0.5GiB", byteSize.String())
-	})
 }
 
 // TestByteSizeDisplayTagForcesFamily verifies that the display tag overrides the
@@ -1878,16 +1833,6 @@ func TestByteSizeTagSchemaErrors(t *testing.T) {
 		assert.Equal(t, `struct invalidByteSizeUnitsCLI field Memory: schema error: invalid struct tag: tag "units": unknown units value "hex" (want "binary", "decimal", or "both")`, err.Error())
 	})
 
-	t.Run("precision", func(t *testing.T) {
-		t.Parallel()
-
-		err := conga.New[invalidByteSizePrecisionCLI]().Args([]string{}).RunContext(t.Context())
-
-		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, `struct invalidByteSizePrecisionCLI field Memory: schema error: invalid struct tag: tag "precision": invalid precision value "9" (want 0, 1, 2, or 3)`, err.Error())
-	})
-
 	t.Run("display", func(t *testing.T) {
 		t.Parallel()
 
@@ -1900,7 +1845,7 @@ func TestByteSizeTagSchemaErrors(t *testing.T) {
 }
 
 // TestByteSizeHelpTailorsToTags verifies the type-derived help description adapts
-// to the declared units/display/precision tags.
+// to the declared units/display tags.
 func TestByteSizeHelpTailorsToTags(t *testing.T) {
 	t.Parallel()
 
@@ -1910,47 +1855,40 @@ func TestByteSizeHelpTailorsToTags(t *testing.T) {
 	assert.Equal(t, "Byte size in binary units (e.g., 10KiB, 512MiB)", byteSize.Help(conga.FieldTags{"units": "binary"}))
 	assert.Equal(t, "Byte size in decimal units (e.g., 10kB, 512MB)", byteSize.Help(conga.FieldTags{"units": "decimal"}))
 	assert.Equal(t, "Byte size (e.g., 10MiB, 1.5GB, 500KiB), shown in the entered unit family", byteSize.Help(conga.FieldTags{"display": "input"}))
-	assert.Equal(t, "Byte size (e.g., 10MiB, 1.5GB, 500KiB), up to 2 decimal places", byteSize.Help(conga.FieldTags{"precision": "2"}))
 }
 
-// TestByteSizePrecisionRendersLosslessly verifies that every value in the sweep
-// reparses to the identical byte count, for both render families and every precision.
-func TestByteSizePrecisionRendersLosslessly(t *testing.T) {
+// TestByteSizeRendersLosslessly verifies that every value in the sweep reparses
+// to the identical byte count, for both render families.
+func TestByteSizeRendersLosslessly(t *testing.T) {
 	t.Parallel()
 
 	var mismatch string
 
 	for _, display := range []string{"binary", "decimal"} {
-		for precision := range 4 {
-			tags := conga.FieldTags{"display": display, "precision": strconv.Itoa(precision)}
+		tags := conga.FieldTags{"display": display}
 
-			for value := range 1 << 16 {
-				var byteSize conga.ByteSize
+		for value := range 1 << 16 {
+			var byteSize conga.ByteSize
 
-				if err := byteSize.UnmarshalTextWithContext([]byte(strconv.Itoa(value)), conga.DecodeContext{Tags: tags}); err != nil {
-					mismatch = fmt.Sprintf("decode %d (%s/%d): %v", value, display, precision, err)
+			if err := byteSize.UnmarshalTextWithContext([]byte(strconv.Itoa(value)), conga.DecodeContext{Tags: tags}); err != nil {
+				mismatch = fmt.Sprintf("decode %d (%s): %v", value, display, err)
 
-					break
-				}
-
-				rendered := byteSize.String()
-
-				var reparsed conga.ByteSize
-
-				if err := reparsed.UnmarshalText([]byte(rendered)); err != nil {
-					mismatch = fmt.Sprintf("reparse %q (%s/%d): %v", rendered, display, precision, err)
-
-					break
-				}
-
-				if reparsed.Bytes() != int64(value) {
-					mismatch = fmt.Sprintf("value %d rendered %q and reparsed as %d (%s/%d)", value, rendered, reparsed.Bytes(), display, precision)
-
-					break
-				}
+				break
 			}
 
-			if mismatch != "" {
+			rendered := byteSize.String()
+
+			var reparsed conga.ByteSize
+
+			if err := reparsed.UnmarshalText([]byte(rendered)); err != nil {
+				mismatch = fmt.Sprintf("reparse %q (%s): %v", rendered, display, err)
+
+				break
+			}
+
+			if reparsed.Bytes() != int64(value) {
+				mismatch = fmt.Sprintf("value %d rendered %q and reparsed as %d (%s)", value, rendered, reparsed.Bytes(), display)
+
 				break
 			}
 		}
@@ -1964,8 +1902,8 @@ func TestByteSizePrecisionRendersLosslessly(t *testing.T) {
 }
 
 // TestByteSizeNotComparable verifies that ByteSize deliberately rejects == and
-// map keys: the render family and precision are not part of a size's identity,
-// so callers compare through Equal, Compare, or Bytes.
+// map keys: the render family is not part of a size's identity, so callers
+// compare through Equal, Compare, or Bytes.
 func TestByteSizeNotComparable(t *testing.T) {
 	t.Parallel()
 
@@ -1973,7 +1911,7 @@ func TestByteSizeNotComparable(t *testing.T) {
 }
 
 // TestByteSizeEqualAndCompare verifies that quantity equality and ordering
-// ignore the captured render family and precision.
+// ignore the captured render family.
 func TestByteSizeEqualAndCompare(t *testing.T) {
 	t.Parallel()
 

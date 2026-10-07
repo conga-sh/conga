@@ -46,19 +46,18 @@ func (u *Upload) Run(ctx context.Context, session *conga.Session) error {
 
 ### Byte size formatting
 
-`ByteSize` remembers the unit family a value was parsed in, so it renders back in that family (a value decoded from `"1.5GB"` prints `1500MB`); a bare count or `B`-suffixed input is exact bytes and prints as exact bytes (`"1048576B"` prints `1048576B`); the zero value uses the canonical IEC integer model. Text input is non-negative, and negative byte counts are not representable. Three struct tags tune acceptance and display:
+`ByteSize` remembers the unit family a value was parsed in, so it renders back in that family (a value decoded from `"1.5GB"` prints `1500MB`); a bare count or `B`-suffixed input is exact bytes and prints as exact bytes (`"1048576B"` prints `1048576B`); the zero value uses the canonical IEC integer model. Text input is non-negative, and negative byte counts are not representable. Two struct tags tune acceptance and display:
 
 | Tag | Values | Effect |
 |-----|--------|--------|
 | `units` | `binary`, `decimal`, `both` (default) | Restricts the accepted unit families; a parsed unit outside the allowed family is a coercion error. Exact byte counts (`B` suffix or bare) are family-neutral and accepted by both. |
 | `display` | `binary`, `decimal`, `input` (default) | Forces the render family; `input` echoes the entered unit family. |
-| `precision` | `0`–`3` (default `0`) | Emits exact fractions up to that many decimals (e.g. `1.5GB`); fractions are emitted only when they round-trip exactly. |
 
-`ByteSize` is not comparable: `==` between two values and `ByteSize`-keyed maps are compile errors, because the render family and precision are not part of a size's identity. Compare with `Equal`, order with `Compare`, and calculate with `Bytes()`.
+`ByteSize` is not comparable: `==` between two values and `ByteSize`-keyed maps are compile errors, because the render family is not part of a size's identity. Compare with `Equal`, order with `Compare`, and calculate with `Bytes()`.
 
 ```go
 type Cache struct {
-	Memory conga.ByteSize `units:"binary" display:"input" precision:"1"`
+	Memory conga.ByteSize `units:"binary" display:"input"`
 }
 ```
 
