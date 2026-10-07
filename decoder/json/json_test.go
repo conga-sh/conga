@@ -11,11 +11,17 @@ import (
 )
 
 var (
+	//go:embed testdata/duplicate_keys.json
+	fixtureDuplicateKeys []byte
+
 	//go:embed testdata/invalid_array.json
 	fixtureInvalidArray []byte
 
 	//go:embed testdata/invalid_syntax.json
 	fixtureInvalidSyntax []byte
+
+	//go:embed testdata/invalid_utf8.json
+	fixtureInvalidUTF8 []byte
 
 	//go:embed testdata/trailing_garbage.json
 	fixtureTrailingGarbage []byte
@@ -104,6 +110,24 @@ func TestRawDecoder_EmptyFails(t *testing.T) {
 	t.Parallel()
 
 	_, err := json.RawDecoder([]byte(""))
+
+	assert.Error(t, err)
+	assert.IsError(t, err, json.ErrJSONParse)
+}
+
+func TestRawDecoder_DuplicateKeys(t *testing.T) {
+	t.Parallel()
+
+	_, err := json.RawDecoder(fixtureDuplicateKeys)
+
+	assert.Error(t, err)
+	assert.IsError(t, err, json.ErrJSONParse)
+}
+
+func TestRawDecoder_InvalidUTF8(t *testing.T) {
+	t.Parallel()
+
+	_, err := json.RawDecoder(fixtureInvalidUTF8)
 
 	assert.Error(t, err)
 	assert.IsError(t, err, json.ErrJSONParse)

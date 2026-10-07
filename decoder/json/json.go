@@ -14,15 +14,19 @@
 //	  "maxRetries": 5
 //	}
 //
-// Syntax errors and trailing content after the first JSON document wrap [ErrJSONParse].
+// # Strictness
+//
+// Decoding follows [encoding/json/v2] semantics and rejects inputs that RFC 8259
+// leaves ambiguous: duplicate object member names and invalid UTF-8 in strings are
+// errors rather than silently accepted. Reported errors carry the byte offset and
+// JSON pointer of the offending value. Syntax errors, trailing content after the
+// first JSON document, and non-object top-level values wrap [ErrJSONParse].
 package json
 
 import (
-	"bytes"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
-	"io"
 )
 
 var (
@@ -34,14 +38,8 @@ var (
 func RawDecoder(data []byte) (map[string]any, error) {
 	var result map[string]any
 
-	dec := json.NewDecoder(bytes.NewReader(data))
-	if err := dec.Decode(&result); err != nil {
+	if err := json.Unmarshal(data, &result); err != nil {
 		return nil, fmt.Errorf("%w: %w", ErrJSONParse, err)
-	}
-
-	var extra any
-	if err := dec.Decode(&extra); !errors.Is(err, io.EOF) {
-		return nil, fmt.Errorf("%w: trailing garbage after JSON document", ErrJSONParse)
 	}
 
 	return result, nil
