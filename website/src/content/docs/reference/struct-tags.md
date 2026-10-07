@@ -118,7 +118,7 @@ type Server struct {
 | `sep` | Multi-value flags only: value separator for repeated flags and environment variables (default `","`). |
 | `short` | Single-rune short flag. |
 
-The `default` tag is rejected on `ConfigFile` flags. Declare default search paths using [`config.Paths(...)` or `config.Explicit(...)`](/reference/config/).
+The `default` tag is rejected on `ConfigFile` flags. Declare default search paths using [`conga.ConfigPaths(...)` or `conga.ConfigExplicit(...)`](/explanation/config-cascade/).
 
 ## Trailing arguments (`DashArgs`, `RawArgs`)
 

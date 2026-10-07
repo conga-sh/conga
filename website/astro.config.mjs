@@ -78,7 +78,6 @@ export default defineConfig({
           items: [
             'reference/struct-tags',
             'reference/conga',
-            'reference/config',
             'reference/predict',
             'reference/plugins',
             'reference/decoders',

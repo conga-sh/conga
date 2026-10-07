@@ -11,7 +11,6 @@ import (
 	_ "embed"
 
 	"github.com/conga-sh/conga"
-	"github.com/conga-sh/conga/config"
 	"github.com/conga-sh/conga/decoder/json"
 	"github.com/conga-sh/conga/decoder/toml"
 	"github.com/conga-sh/conga/decoder/yaml"
@@ -258,14 +257,14 @@ func TestConfigFile_SchemaValidation_CascadingRequiresMulti(t *testing.T) {
 	}
 
 	app := conga.New[SingleConfigCLI]().
-		ConfigOptions(config.Cascading()).
+		ConfigOptions(conga.ConfigCascading()).
 		Args([]string{})
 
 	err := app.Run()
 
 	assert.Error(t, err)
 	assert.IsError(t, err, conga.ErrSchema)
-	assert.Equal(t, `schema error: Cascading() merges multiple configuration files; the root config-file flag "config" must declare multi:"true" (or drop Cascading() from app.ConfigOptions(...))`, err.Error())
+	assert.Equal(t, `schema error: conga.ConfigCascading() merges multiple configuration files; the root config-file flag "config" must declare multi:"true" (or drop conga.ConfigCascading() from app.ConfigOptions(...))`, err.Error())
 }
 
 func TestConfigFile_SchemaValidation_CascadingWithMultiAccepted(t *testing.T) {
@@ -279,7 +278,7 @@ func TestConfigFile_SchemaValidation_CascadingWithMultiAccepted(t *testing.T) {
 
 	app := conga.New[MultiConfigCLI]().
 		RegisterDecoder(".json", json.RawDecoder).
-		ConfigOptions(config.Cascading()).
+		ConfigOptions(conga.ConfigCascading()).
 		Args([]string{})
 
 	err := app.Run()
@@ -298,7 +297,7 @@ func TestConfigFile_SchemaValidation_CascadingWithoutFlagAccepted(t *testing.T) 
 
 	app := conga.New[FlaglessCLI]().
 		RegisterDecoder(".json", json.RawDecoder).
-		ConfigOptions(config.Cascading()).
+		ConfigOptions(conga.ConfigCascading()).
 		Args([]string{})
 
 	err := app.Run()
@@ -515,5 +514,5 @@ func TestConfigFile_DefaultTagRejected(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.IsError(t, err, conga.ErrSchema)
-	assert.Equal(t, `struct DefaultTagConfigFileCLI field ConfigFile: schema error: invalid struct tag: tag "default" is not supported on config-file flags; declare search locations with app.ConfigOptions(config.Paths(...)) or config.Explicit(...), or show an example value with placeholder:"..."`, err.Error())
+	assert.Equal(t, `struct DefaultTagConfigFileCLI field ConfigFile: schema error: invalid struct tag: tag "default" is not supported on config-file flags; declare search locations with app.ConfigOptions(conga.ConfigPaths(...)) or conga.ConfigExplicit(...), or show an example value with placeholder:"..."`, err.Error())
 }

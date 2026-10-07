@@ -27,7 +27,8 @@ type Resolver struct {
 	AppName string
 	// EnvPrefix is the global environment variable prefix (including any trailing underscore).
 	EnvPrefix string
-	// Settings carries the app-level resolution mode declared via conga/config options.
+	// Settings carries the app-level resolution mode declared via the root conga
+	// ConfigOptions options.
 	Settings spec.ConfigSettings
 	// Registry supplies the registered configuration decoders.
 	Registry *Registry

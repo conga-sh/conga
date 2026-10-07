@@ -1060,7 +1060,7 @@ func validateDisallowedTags(tag reflect.StructTag, keys []string, role string) e
 
 	if role == "config file flag" {
 		if _, ok := tag.Lookup("default"); ok {
-			return fmt.Errorf("%w: tag \"default\" is not supported on config-file flags; declare search locations with app.ConfigOptions(config.Paths(...)) or config.Explicit(...), or show an example value with placeholder:\"...\"", ErrInvalidStructTag)
+			return fmt.Errorf("%w: tag \"default\" is not supported on config-file flags; declare search locations with app.ConfigOptions(conga.ConfigPaths(...)) or conga.ConfigExplicit(...), or show an example value with placeholder:\"...\"", ErrInvalidStructTag)
 		}
 	}
 

@@ -1,7 +1,7 @@
 // Package configengine implements the configuration-file resolution engine
-// shared by the root conga package and the public conga/config façade: decoder
-// registration, search-tier probing, strict content validation, and the
-// per-invocation Resolver that turns those pieces into loaded files.
+// shared by the root conga package: decoder registration, search-tier probing,
+// strict content validation, and the per-invocation Resolver that turns those
+// pieces into loaded files.
 package configengine
 
 import (

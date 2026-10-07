@@ -26,7 +26,6 @@ import (
 //
 //nolint:gochecknoglobals // static package policy list shared by the guard subtests
 var optInInitGuardPackages = []string{
-	"config",
 	"internal/completion",
 	"internal/completion/bash",
 	"internal/completion/elvish",

@@ -2,7 +2,7 @@
 
 Multi-file merging with `conga.ConfigFile` and `multi:"true"`: repeated `-c`
 flags and one comma-separated list both merge with later files winning.
-`config.Cascading()` makes the fallback tier merge every existing file instead
+`conga.ConfigCascading()` makes the fallback tier merge every existing file instead
 of stopping at the first.
 
 ## Run it

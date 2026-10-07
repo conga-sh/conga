@@ -1,6 +1,6 @@
 # 28 — Explicit config file
 
-`app.ConfigOptions(config.Explicit(...))`: one programmatic concrete config
+`app.ConfigOptions(conga.ConfigExplicit(...))`: one programmatic concrete config
 file with fatal-if-missing semantics. Only an explicit `--config-file` flag
 outranks it; the `<PREFIX>_CONFIG` environment variable and the search tier are
 not consulted while the option is declared.

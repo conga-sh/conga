@@ -10,7 +10,6 @@ import (
 	"context"
 
 	"github.com/conga-sh/conga"
-	"github.com/conga-sh/conga/config"
 )
 
 // InnocentPlainFlag declares a single-value config-file flag without
@@ -36,4 +35,4 @@ func (c *CascadingSibling) Run(ctx context.Context, session *conga.Session) erro
 
 var _ = conga.New[InnocentPlainFlag]()
 
-var _ = conga.New[CascadingSibling]().ConfigOptions(config.Cascading())
+var _ = conga.New[CascadingSibling]().ConfigOptions(conga.ConfigCascading())

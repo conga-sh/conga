@@ -163,7 +163,7 @@ func (w *walker) trackRootConfigFileArity(node *commandNode, fieldObject types.O
 }
 
 // checkCascadingArity mirrors the runtime cascading guard: when the app
-// enables Cascading() and the root struct declares a config-file flag without
+// enables ConfigCascading() and the root struct declares a config-file flag without
 // multi:"true", the flag cannot report every merged file. Ambiguous builder
 // evidence skips the check entirely, and packages anchoring more than one
 // conga.New root skip it as well: builder-option evidence is aggregated

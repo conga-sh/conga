@@ -10,7 +10,6 @@ import (
 	"github.com/alecthomas/assert/v2"
 
 	"github.com/conga-sh/conga"
-	"github.com/conga-sh/conga/config"
 	"github.com/conga-sh/conga/decoder/json"
 )
 
@@ -230,7 +229,7 @@ func TestStdio_ConfigTierHonorsStreams(t *testing.T) {
 	cli := new(stdioConfigCLI)
 	app := conga.New(cli).
 		RegisterDecoder(".json", json.RawDecoder).
-		ConfigOptions(config.Explicit(writeConfigFile(t, `{"stdio": {"input": "-"}}`))).
+		ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"stdio": {"input": "-"}}`))).
 		Stdin(strings.NewReader("config payload")).
 		Args([]string{})
 
