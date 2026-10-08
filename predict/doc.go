@@ -43,4 +43,8 @@
 //
 // This package is a standalone SDK with no dependency on the root conga
 // package, so it can be reused independently of the framework.
+//
+// Predictors reach the command line through the root package's App.Predictor
+// builder method and the conga.Predictable interface; see
+// https://docs.conga.sh/how-to/wire-custom-completion/ for the wiring guide.
 package predict

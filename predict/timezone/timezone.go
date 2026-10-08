@@ -3,6 +3,8 @@
 //
 // [Timezones] reads system zoneinfo tables (honoring $ZONEINFO when it names a
 // directory) and falls back to a built-in identifier list; UTC is always included.
+//
+// See https://docs.conga.sh/reference/predict/ for the predictor reference.
 package timezone
 
 import (

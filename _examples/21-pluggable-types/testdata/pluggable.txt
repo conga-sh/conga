@@ -9,7 +9,7 @@ stdout '⚙  pluggable-demo'
 stdout '-z, --tz\s+\*time\.Location\s+UTC\s+· default'
 stdout '--replica-tz\s+\[\]\*time\.Location\s+—\s+○ unset'
 stdout '-s, --signal\s+syscall\.Signal\s+terminated\s+· default'
-stdout '--load\s+main\.Percent\s+0\s+○ unset'
+stdout '--load\s+main\.Percent\s+0%\s+○ unset'
 
 # 2. Parsing scalar pointer type and syscall.Signal
 exec pluggable-demo -z Europe/London -s HUP
@@ -22,11 +22,23 @@ stdout '--replica-tz\s+\[\]\*time\.Location\s+\[Europe/Paris Asia/Tokyo\]\s+● 
 
 # 4. RegisterType parser applies to the custom Percent type
 exec pluggable-demo --load 75%
-stdout '--load\s+main\.Percent\s+75\s+● cli --load'
+stdout '--load\s+main\.Percent\s+75%\s+● cli --load'
+
+# 4b. The trailing percent sign is optional and the value renders canonically
+exec pluggable-demo --load 75
+stdout '--load\s+main\.Percent\s+75%\s+● cli --load'
 
 # 5. The registered parser also reports coercion errors for the foreign type
 exit-status 2 pluggable-demo --load 150%
 stderr 'invalid load percentage "150%"'
+
+# 5b. Signs, fractions, and a bare percent sign are rejected
+exit-status 2 pluggable-demo --load +75%
+stderr 'invalid load percentage "\+75%"'
+exit-status 2 pluggable-demo --load 75.5%
+stderr 'invalid load percentage "75\.5%"'
+exit-status 2 pluggable-demo --load %
+stderr 'invalid load percentage "%"'
 
 # 6. WithPredictor attaches completion to the registered type
 exec pluggable-demo __complete export --load ''

@@ -8,6 +8,8 @@
 // with the flag and reason named in the message. Host.LookupIP and
 // NetInterface.Interface return [ErrEmptyHost] and [ErrEmptyInterface]
 // respectively for blank input.
+//
+// See https://docs.conga.sh/reference/predict/ for the predictor reference.
 package network
 
 import (

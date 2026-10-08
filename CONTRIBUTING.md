@@ -32,8 +32,9 @@ task test:all
 
 ## Declaration Ordering
 
-Every Go source file follows top-down public-to-private declaration ordering
-(public API first, then the public/private boundary, then internal helpers).
+Every non-test Go source file follows top-down public-to-private declaration
+ordering (public API first, then the public/private boundary, then internal
+helpers). `*_test.go` files are exempt.
 The full ordering hierarchy and its rationale are documented in
 [AGENTS.md](AGENTS.md) §1.
 

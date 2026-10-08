@@ -463,9 +463,9 @@ func (a *App[T]) Use(plugins ...func(*App[T])) *App[T] {
 //	type Percent int
 //
 //	func parsePercent(raw string) (Percent, error) {
-//		value, err := strconv.Atoi(strings.TrimSuffix(raw, "%"))
-//		if err != nil {
-//			return 0, fmt.Errorf("invalid percentage %q: %w", raw, err)
+//		value, err := strconv.ParseUint(strings.TrimSuffix(raw, "%"), 10, 8)
+//		if err != nil || value > 100 {
+//			return 0, fmt.Errorf("invalid percentage %q: want 0%%-100%%", raw)
 //		}
 //
 //		return Percent(value), nil

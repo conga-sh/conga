@@ -13,6 +13,8 @@
 // Signals accept POSIX names (e.g. "SIGHUP", "SIGINT", "TERM") or numeric values (e.g. "15").
 // Users and groups resolve via os/user lookups. When shell completion is enabled,
 // pressing Tab suggests matching signals, usernames, or group names.
+//
+// See https://docs.conga.sh/reference/plugins/ for the plugin reference.
 package system
 
 import (

@@ -11,6 +11,8 @@
 //
 // Flags resolve interface names (e.g. "lo", "eth0") to live *net.Interface values.
 // When shell completion is enabled, pressing Tab completes from available host interfaces.
+//
+// See https://docs.conga.sh/reference/plugins/ for the plugin reference.
 package network
 
 import (

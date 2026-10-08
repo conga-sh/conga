@@ -7,6 +7,8 @@
 // tables or live system state. Invalid values classify under conga.ErrCoerce
 // with the flag and reason named in the message. Group.Lookup and User.Lookup
 // return [ErrEmptyGroup] and [ErrEmptyUser] respectively for blank input.
+//
+// See https://docs.conga.sh/reference/predict/ for the predictor reference.
 package system
 
 import (
