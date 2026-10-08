@@ -3,7 +3,6 @@ package conga_test
 import (
 	"context"
 	"fmt"
-	"os"
 	"testing"
 
 	"github.com/rogpeppe/go-internal/testscript"
@@ -58,7 +57,6 @@ func TestMain(m *testing.M) {
 	testscript.Main(m, map[string]func(){
 		"test-app": mainTestApp,
 	})
-	os.Exit(m.Run())
 }
 
 func TestScripts(t *testing.T) {
