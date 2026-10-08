@@ -116,6 +116,14 @@ func TestDecode_EmptyFails(t *testing.T) {
 	assert.IsError(t, err, json.ErrParse)
 }
 
+func TestDecode_NilInput(t *testing.T) {
+	t.Parallel()
+
+	_, err := json.Decode(nil)
+
+	assert.IsError(t, err, json.ErrParse)
+}
+
 func TestDecode_NullDocument(t *testing.T) {
 	t.Parallel()
 

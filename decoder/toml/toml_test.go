@@ -107,3 +107,12 @@ func TestDecode_EmptyValid(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Zero(t, result)
 }
+
+func TestDecode_NilInput(t *testing.T) {
+	t.Parallel()
+
+	result, err := toml.Decode(nil)
+
+	assert.NoError(t, err)
+	assert.Zero(t, result)
+}

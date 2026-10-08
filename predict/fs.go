@@ -29,7 +29,7 @@ func Dirs() Predictor {
 // filter predicate. Only directories matching the predicate are offered;
 // symlinks that resolve to directories are treated as directories. This
 // filter is a predicate over directory entries, not the query match of
-// Predictor.Filter.
+// Predictor.FilterText.
 func DirsFiltered(filter func(path string, entry os.DirEntry) bool) Predictor {
 	return Callback(func(c Context) Predictor {
 		return actionDirsFiltered(c, filter)
@@ -68,7 +68,7 @@ func Files(extensions ...string) Predictor {
 // FilesFiltered configures file completion with a custom filter predicate.
 // Directories are retained for traversal, while files are filtered using the provided predicate.
 // This filter is a predicate over directory entries, not the query match of
-// Predictor.Filter.
+// Predictor.FilterText.
 func FilesFiltered(filter func(path string, entry os.DirEntry) bool) Predictor {
 	return Callback(func(c Context) Predictor {
 		return actionFilesFiltered(c, filter)
@@ -87,7 +87,7 @@ func FilesGlob(patterns ...string) Predictor {
 
 // PathsFiltered configures completion where both files and directories are evaluated against the filter predicate.
 // This filter is a predicate over directory entries, not the query match of
-// Predictor.Filter.
+// Predictor.FilterText.
 func PathsFiltered(filter func(path string, entry os.DirEntry) bool) Predictor {
 	return Callback(func(c Context) Predictor {
 		return actionPathsFiltered(c, filter)

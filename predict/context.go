@@ -9,7 +9,7 @@ import (
 type Context struct {
 	// ToComplete is the word fragment under the cursor being completed. The
 	// implicit filtering term of a Predictor is derived from it unless
-	// Filter has been called with a non-empty query.
+	// FilterText has been called with a non-empty query.
 	ToComplete string
 
 	// Args holds the positional arguments parsed before ToComplete for the
