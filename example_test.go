@@ -194,7 +194,7 @@ func ExampleApp_RegisterDecoder() {
 		Args([]string{"--config-file", "testdata/fixtures/example_config.toml"})
 
 	if err := app.Run(); err != nil {
-		app.Exit(err)
+		panic(err)
 	}
 
 	// Output:

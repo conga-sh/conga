@@ -28,7 +28,7 @@ func ExampleLocation() {
 		Args([]string{"--zone", "America/New_York"})
 
 	if err := app.Run(); err != nil {
-		app.Exit(err)
+		panic(err)
 	}
 
 	// Output: America/New_York
