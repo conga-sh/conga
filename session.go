@@ -12,8 +12,7 @@ import (
 //
 // Every lifecycle stage ([Runner.Run], [Validator.Validate], [PreRunner.PreRun],
 // [PostRunner.PostRun], and [Finalizer.Finally]) receives a pointer to the active
-// Session. Commands should read and write through [Session.Stdin], [Session.Stdout],
-// and [Session.Stderr] rather than accessing global process streams directly.
+// Session.
 type Session struct {
 	root           any
 	stdout         io.Writer
@@ -29,9 +28,9 @@ type Session struct {
 
 // Stdout returns the configured standard output writer for this session.
 //
-// Commands should write output to this stream rather than [os.Stdout] to ensure
-// output is captured during unit tests and embedded CLI execution. If the session
-// or writer is nil, Stdout returns [io.Discard].
+// The writer is captured when execution begins, so unit tests and embedded
+// execution observe the application's output. If the session or writer is nil,
+// Stdout returns [io.Discard].
 func (s *Session) Stdout() io.Writer {
 	if s == nil || s.stdout == nil {
 		return io.Discard
@@ -42,8 +41,7 @@ func (s *Session) Stdout() io.Writer {
 
 // Stderr returns the configured standard error writer for this session.
 //
-// Commands should write diagnostic logs and progress messages to this stream rather
-// than [os.Stderr]. If the session or writer is nil, Stderr returns [io.Discard].
+// If the session or writer is nil, Stderr returns [io.Discard].
 func (s *Session) Stderr() io.Writer {
 	if s == nil || s.stderr == nil {
 		return io.Discard

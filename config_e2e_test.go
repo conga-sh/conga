@@ -264,7 +264,7 @@ func TestConfigFile_SchemaValidation_CascadingRequiresMulti(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.IsError(t, err, conga.ErrSchema)
-	assert.Equal(t, `schema error: conga.ConfigCascading() merges multiple configuration files; the root config-file flag "config" must declare multi:"true" (or drop conga.ConfigCascading() from app.ConfigOptions(...))`, err.Error())
+	assert.Equal(t, `schema error: conga.ConfigCascading() merges multiple config files; the root config-file flag "config" must declare multi:"true" (or drop conga.ConfigCascading() from app.ConfigOptions(...))`, err.Error())
 }
 
 func TestConfigFile_SchemaValidation_CascadingWithMultiAccepted(t *testing.T) {

@@ -110,7 +110,7 @@ type Server struct {
 | `deprecated` | Deprecation notice; suppresses flag from completion. |
 | `env` | Comma-separated environment variable names. `env:"-"` disables environment binding. |
 | `group` | Help-screen grouping header. Flags sharing a group render under their own titled section. |
-| `help` | Help text (default: `Path to configuration file`, or `Path to configuration file(s)` when `multi:"true"`). |
+| `help` | Help text (default: `Path to config file`, or `Path to config file(s)` when `multi:"true"`). |
 | `hidden` | Suppress from help and completion (`hidden` or `hidden:"true"`). |
 | `multi` | Enable multi-value arity for repeated flags and slice values (`multi` or `multi:"true"`). |
 | `name` | Flag name (default: `--config-file`). |

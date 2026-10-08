@@ -108,7 +108,7 @@ func (r Report) Format() string {
 		builder.WriteString(renderConfigPaths(r.ConfigPaths))
 
 		if len(r.ConfigExamples) > 0 {
-			builder.WriteString("\nCreate a configuration file at one of:\n")
+			builder.WriteString("\nCreate a config file at one of:\n")
 			builder.WriteString(renderConfigExamples(r.ConfigExamples))
 		}
 	}

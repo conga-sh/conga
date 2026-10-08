@@ -288,8 +288,8 @@ func TestHelpFormatting_ConfigFileDefaultHelp(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.Contains(t, buffer.String(), "--config-file=PATH")
-		assert.Contains(t, buffer.String(), "Path to configuration file")
-		assert.NotContains(t, buffer.String(), "configuration file(s)")
+		assert.Contains(t, buffer.String(), "Path to config file")
+		assert.NotContains(t, buffer.String(), "config file(s)")
 		assert.NotContains(t, buffer.String(), "no configuration decoder registered")
 	})
 
@@ -308,7 +308,7 @@ func TestHelpFormatting_ConfigFileDefaultHelp(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.Contains(t, buffer.String(), "--config-file=PATH,...")
-		assert.Contains(t, buffer.String(), "Path to configuration file(s)")
+		assert.Contains(t, buffer.String(), "Path to config file(s)")
 	})
 
 	t.Run("single flag without decoder appends warning", func(t *testing.T) {
@@ -324,7 +324,7 @@ func TestHelpFormatting_ConfigFileDefaultHelp(t *testing.T) {
 		err := app.Run()
 
 		assert.NoError(t, err)
-		assert.Contains(t, buffer.String(), "Path to configuration file (no configuration decoder registered)")
+		assert.Contains(t, buffer.String(), "Path to config file (no configuration decoder registered)")
 	})
 }
 

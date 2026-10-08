@@ -102,6 +102,4 @@
 //   - Configuration decoders: import and register decoders such as
 //     `conga/decoder/yaml` using [App.RegisterDecoder].
 //   - Dotenv files: call [App.Dotenv] to load variables from `.env` files.
-//
-// See https://docs.conga.sh/explanation/binary-size/.
 package conga

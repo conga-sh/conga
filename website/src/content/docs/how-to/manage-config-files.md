@@ -33,17 +33,11 @@ func main() {
 }
 ```
 
-CONGA provides four opt-in decoder packages: JSON, TOML, YAML, and HCL. Each package exposes a `Decode` function matching the `conga.ConfigDecoder` interface; [package decoder](/reference/decoders/) covers extension normalization and the missing-decoder rule.
+CONGA provides four opt-in decoder packages: JSON, TOML, YAML, and HCL. Each package exposes a `Decode` function matching the `conga.ConfigDecoder` func type; [package decoder](/reference/decoders/) covers extension normalization and the missing-decoder rule.
 
 ## Implement and register a custom decoder
 
-To support custom, proprietary, or legacy formats, provide a function satisfying the `conga.ConfigDecoder` signature:
-
-```go
-type Decoder func(data []byte) (map[string]any, error)
-```
-
-The decoder receives the raw config file bytes and parses them into a generic `map[string]any`. Keys in the map correspond to flag names (or custom `config:"..."` tags), and nested `map[string]any` values correspond to subcommands or native Go map flags.
+To support custom, proprietary, or legacy formats, provide a function with the `conga.ConfigDecoder` signature, `func(data []byte) (map[string]any, error)` (see [package decoder](/reference/decoders/)). The decoder receives the raw config file bytes and parses them into a generic `map[string]any`. Keys in the map correspond to flag names (or custom `config:"..."` tags), and nested `map[string]any` values correspond to subcommands or native Go map flags.
 
 ```go title="main.go"
 import (

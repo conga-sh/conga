@@ -20,4 +20,3 @@
 - [Plugins](https://docs.conga.sh/reference/plugins/): `plugin/network`, `plugin/system`, and `plugin/timezone` loader functions.
 - [Predict](https://docs.conga.sh/reference/predict/): The decoupled autocompletion provider SDK.
 - [conga-lint](https://docs.conga.sh/reference/conga-lint/): The static schema analyzer.
-- [Binary size benchmark](https://docs.conga.sh/reference/binary-size-benchmark/): Link-time pruning measurements.

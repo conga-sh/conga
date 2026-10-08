@@ -5,7 +5,7 @@ description: How CONGA coordinates validation, resource acquisition, leaf execut
 
 Command-line execution involves more than invoking a single function. A command-line program must validate input before touching disk or network resources, allocate connections, execute business logic, run post-action tasks, and guarantee cleanup even when operations fail.
 
-Rather than forcing these concerns into a monolithic handler or relying on unstructured `defer` statements, CONGA divides execution into discrete lifecycle stages governed by optional marker interfaces. Each stage serves a specific operational purpose, with distinct error classifications, cancellation handling, and traversal orders across command trees.
+CONGA divides execution into discrete lifecycle stages governed by optional marker interfaces. Each stage serves a specific operational purpose, with distinct error classifications, cancellation handling, and traversal orders across command trees.
 
 For signature definitions and interface contracts, see [Lifecycle interfaces](/reference/conga/#lifecycle-interfaces). For testing patterns, see [How to test a command](/how-to/test-a-command/).
 
@@ -87,7 +87,7 @@ If `Run` returns an error, `PostRun` is skipped entirely. This guarantees that f
 
 ## Guaranteed teardown and outcome-aware cleanup
 
-Clean teardown is essential for command-line tools that manipulate persistent state. Standard Go code relies on `defer` statements inside functions, but `defer` has a fundamental limitation: it cannot inspect the enclosing function's returned error without clumsy named return values and closures.
+Clean teardown is essential for command-line tools that manipulate persistent state, and the cleanup handler must observe the invocation's terminal outcome.
 
 CONGA solves this through `Finalizer` (`Finally(ctx context.Context, session *conga.Session, err error) error`).
 
@@ -140,7 +140,7 @@ func (c *WorkerCommand) PreRun(ctx context.Context, session *conga.Session) erro
 
 ### Bottom-up teardown
 
-Teardown follows the inverse order. Both `PostRun` and `Finally` unwind bottom-up, starting from the leaf command and moving back up to the root. This Last-In, First-Out (LIFO) order mirrors Go's `defer` statement, ensuring that child commands release dependent resources before parent infrastructure shuts down.
+Teardown follows the inverse order. Both `PostRun` and `Finally` unwind bottom-up, starting from the leaf command and moving back up to the root. This Last-In, First-Out order ensures that child commands release dependent resources before parent infrastructure shuts down.
 
 ### Safe partial initialization
 

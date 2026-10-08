@@ -1062,7 +1062,7 @@ func TestWhy_ConfigPathsChecked_DefaultXDGTier(t *testing.T) {
 			switch {
 			case strings.HasPrefix(line, "Config paths checked"):
 				inSection = true
-			case strings.HasPrefix(line, "Create a configuration file"):
+			case strings.HasPrefix(line, "Create a config file"):
 				inSection = false
 			case inSection && strings.HasPrefix(strings.TrimSpace(line), tierPath):
 				assert.True(t, strings.HasSuffix(strings.TrimSpace(line), "directory does not exist"), "missing default tier must report the absence: %q", line)
@@ -1234,7 +1234,7 @@ func TestWhy_ProbedFiles_LoadedTierOmitted(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Contains(t, output, "loaded: "+configPath)
 	assert.NotContains(t, output, "looked for:")
-	assert.NotContains(t, output, "Create a configuration file")
+	assert.NotContains(t, output, "Create a config file")
 }
 
 func TestWhy_ConfigExamples_SuggestedWhenNothingLoaded(t *testing.T) {
@@ -1259,7 +1259,7 @@ func TestWhy_ConfigExamples_SuggestedWhenNothingLoaded(t *testing.T) {
 	output := buffer.String()
 
 	assert.NoError(t, err)
-	assert.Contains(t, output, "Create a configuration file at one of:")
+	assert.Contains(t, output, "Create a config file at one of:")
 	assert.Contains(t, output, "  "+filepath.Join(missingTier, "config.json"))
 	assert.Contains(t, output, "  "+filepath.Join(missingTier, "whyapp.json"))
 	assert.Contains(t, output, "  "+missingTier+".json")
@@ -1288,7 +1288,7 @@ func TestWhy_ProbedFiles_ExplicitPathOmitted(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Contains(t, output, missingPath)
 	assert.NotContains(t, output, "looked for:")
-	assert.NotContains(t, output, "Create a configuration file")
+	assert.NotContains(t, output, "Create a config file")
 }
 
 type hoistConfigCLI struct {

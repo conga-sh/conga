@@ -13,7 +13,7 @@ Config paths checked:
     looked for: <TMP>/user/config.json
     looked for: <TMP>/user/whyapp.json
 
-Create a configuration file at one of:
+Create a config file at one of:
   <TMP>/local/config.json
   <TMP>/local/whyapp.json
   <TMP>/local.json

@@ -25,7 +25,7 @@ An application that needs neither plugin nor predictor links neither into its fi
 
 ## Adapting standard library types via builder plugins
 
-Go's type system forbids defining methods on types outside their declaring package. Standard library types such as `*user.User`, `*time.Location`, `*net.Interface`, and `syscall.Signal` cannot implement CONGA interfaces like `encoding.TextUnmarshaler` or `predict.Predictable`.
+Standard library types such as `*user.User`, `*time.Location`, `*net.Interface`, and `syscall.Signal` cannot implement CONGA interfaces like `encoding.TextUnmarshaler` or `predict.Predictable`.
 
 Because the standard library cannot know about CONGA, the framework uses an adapter mechanism. A plugin is a generic function matching the signature `func(*conga.App[T])`:
 

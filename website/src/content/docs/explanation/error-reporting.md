@@ -11,7 +11,7 @@ Command-line frameworks often conflate argument parsing with process termination
 
 CONGA treats command execution as a value pipeline that produces standard Go errors. Calling `app.Run()` or `app.RunContext(ctx)` executes the parsing, coercion, validation, and runner stages, returning:
 
-- `nil` on clean execution, including built-in commands. Requests for `--help`, `--version`, and opt-in diagnostics like `--why` and `--completion` render to standard output and return `nil`. In frameworks that model help as a sentinel error (such as `flag.ErrHelp`), callers must write boilerplate to intercept and suppress the pseudo-error. In CONGA, requesting help is a successful invocation, ensuring that standard Go error handling (`if err := app.Run(); err != nil`) triggers only on genuine failures.
+- `nil` on clean execution, including built-in commands. Requests for `--help`, `--version`, and opt-in diagnostics like `--why` and `--completion` render to standard output and return `nil`; requesting help is a successful invocation, so error handling triggers only on genuine failures.
 - A usage error when command-line input violates syntax, naming, or value constraints.
 - A runtime error when the active command's `Run` method or a lifecycle hook returns a failure.
 
@@ -24,15 +24,7 @@ CONGA divides failures into two distinct classes based on who is responsible:
 
 ## The optional Exit convenience
 
-Standalone command-line applications typically translate errors into standard error messages and an exit status code. To eliminate repetitive error-handling boilerplate, CONGA provides `app.Exit(err)` as an optional convenience helper:
-
-```go
-if err := app.Run(); err != nil {
-	app.Exit(err)
-}
-```
-
-The method maps the result to a POSIX status:
+Standalone command-line applications translate errors into standard error messages and an exit status code. `app.Exit(err)` accepts the value returned by `app.Run` or `app.RunContext(ctx)` and maps it to a POSIX status:
 
 - `nil`: exits with status 0 and writes nothing.
 - A usage error: writes the diagnostic and contextual usage, then exits with status 2. Scripts inspect status 2 to determine that the command failed before work began because the operator supplied invalid syntax.

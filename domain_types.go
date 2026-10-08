@@ -539,12 +539,10 @@ func (d Dir) Help(tags FieldTags) string {
 //		return configureCache(c.MaxMemory.Get().Bytes()) // 536870912 for 512MiB
 //	}
 //
-// ByteSize values are deliberately non-comparable: the captured render family
-// is not part of a size's identity, so [ByteSize.Equal] (or
-// [ByteSize.Compare], or [ByteSize.Bytes]) expresses equality and ordering.
-// The compiler rejects == between two ByteSize values and rejects ByteSize as a
-// map key, preventing silently wrong lookups between values that render
-// differently but hold the same byte count.
+// ByteSize values are deliberately non-comparable and cannot be used as map
+// keys: the captured render family is not part of a size's identity. Express
+// equality and ordering through [ByteSize.Equal], [ByteSize.Compare], or
+// [ByteSize.Bytes].
 //
 // Fields may declare the `units` (`binary`, `decimal`, or `both`) and `display`
 // (`binary`, `decimal`, or `input`) tags to restrict the accepted unit families
@@ -555,8 +553,8 @@ type ByteSize struct {
 	bytes  int64
 	family byteSizeFamily
 
-	// The blank field makes the struct non-comparable: array types are
-	// comparable only when their element type is, and func is not comparable.
+	// The blank field makes the struct non-comparable, so == between two
+	// ByteSize values is a compile error.
 	_ [0]func()
 }
 

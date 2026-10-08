@@ -141,7 +141,7 @@ For subcommand-based CLIs, CONGA provides `HelpCommand`, `VersionCommand`, and `
 
 ## Modular Architecture
 
-CONGA isolates heavier dependencies—such as configuration decoders (`decoder/{json,yaml,toml,hcl}`) and shell completion drivers—into opt-in packages so unused features are pruned at link time. See [Binary Size & Architecture](https://docs.conga.sh/explanation/binary-size/).
+CONGA isolates heavier dependencies—such as configuration decoders (`decoder/{json,yaml,toml,hcl}`) and shell completion drivers—into opt-in packages so unused features are pruned at link time.
 
 ## Documentation
 

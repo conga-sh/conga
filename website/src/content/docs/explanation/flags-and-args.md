@@ -26,15 +26,11 @@ CONGA accepts this syntactic overhead because containers solve several structura
 
 ### Separating value access from presence checks
 
-In Go, primitive types always have a zero value (`""` for strings, `0` for numbers). If a command struct uses bare primitives, the application cannot distinguish whether an operator passed `--port 0` explicitly or omitted the flag entirely.
-
-Libraries using plain structs often turn to pointer fields (`*int`, `*string`) to distinguish presence. Pointers solve the ambiguity—an omitted flag is `nil`, while `--port 0` points to `0`—but they couple memory safety directly to presence checking. A handler cannot read the value; it must check `if cmd.Port != nil` before dereferencing, or risk a runtime panic.
-
-Containers decouple value retrieval from presence checks:
-- **Panic-free value retrieval**: `cmd.Port.Get()` is always safe to call and returns the resolved value as `T` directly. When business logic only needs the value—or its zero value—it reads the container without defensive pointer checks.
+Bare fields and pointers conflate presence with value: an omitted flag and an explicit zero are indistinguishable, and a pointer field must be nil-checked before use. Containers decouple value retrieval from presence checks:
+- **Panic-free value retrieval**: `cmd.Port.Get()` returns the resolved value as `T`, with no pointer to check.
 - **Pre-run enforcement for required values**: A required flag or argument that received no value fails validation at the engine boundary before any lifecycle hook (`Validate`, `PreRun`, `Run`) executes. Handlers never observe an unpopulated required container.
-- **Accurate presence when branching**: When logic genuinely branches on whether a flag was supplied, the command checks `cmd.Port.IsSet()`. Like a pointer `nil` check, `IsSet()` accurately distinguishes explicit zero values (`--port 0`) from omission, but without heap pointer indirection or the risk of a nil dereference elsewhere in the handler.
-- **Convenient fallbacks**: When an optional flag needs a fallback value if omitted, `cmd.Port.GetOr(8080)` evaluates the fallback in a single expression, avoiding boilerplate `if cmd.Port.IsSet() { ... } else { ... }` blocks.
+- **Accurate presence when branching**: `cmd.Port.IsSet()` distinguishes an explicit zero value (`--port 0`) from omission.
+- **Convenient fallbacks**: `cmd.Port.GetOr(8080)` supplies a fallback in a single expression.
 
 ### Decoupling presence and provenance from values
 CONGA is built around a multi-tier resolution ladder where values can originate from CLI flags, environment variables, config files, or hardcoded defaults. Bare fields and pointers discard that origin once populated.

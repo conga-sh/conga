@@ -54,26 +54,37 @@ type CompletionError interface {
 
 The concrete error implementations (parse, coercion, validation, config) are unexported; `IsUsageError`, `IsCompletionError`, `UsageError`, `CompletionError`, and the base category sentinels form the public classification API.
 
-## Replacing app.Exit
+## Custom error handling
 
-When an application requires custom process termination, error formatting, or telemetry, inspect errors returned from `app.Run()` or `app.RunContext(ctx)` directly rather than calling `app.Exit(err)`:
+Custom error handling inspects the error returned by `app.Run()` or `app.RunContext(ctx)` directly instead of delegating to `app.Exit(err)`. The classification is available from the returned error: `conga.IsUsageError(err)` distinguishes input errors, `errors.AsType[conga.UsageError](err)` yields the `UsageError` for `CommandPath()` and `Usage()`, `conga.IsCompletionError(err)` identifies internal completion failures, and `errors.Is` matches the base category sentinels.
 
 ```go
 if err := app.RunContext(ctx); err != nil {
 	if usageErr, ok := errors.AsType[conga.UsageError](err); ok {
-		fmt.Fprintf(os.Stderr, "Error: %v\n\n%s\n", err, usageErr.Usage())
+		fmt.Fprintf(os.Stderr, "usage error in %s: %v\n", usageErr.CommandPath(), err)
+		fmt.Fprintf(os.Stderr, "%s\n", usageErr.Usage())
+
 		os.Exit(2)
 	}
 
+	if errors.Is(err, conga.ErrConfig) {
+		fmt.Fprintf(os.Stderr, "configuration failure: %v\n", err)
+		
+		os.Exit(78)
+	}
+
 	if conga.IsCompletionError(err) {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(2)
+		fmt.Fprintf(os.Stderr, "completion failure: %v\n", err)
+		
+		os.Exit(70)
 	}
 
 	fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 	os.Exit(1)
 }
 ```
+
+[About error reporting](/explanation/error-reporting/) covers the separation of error values from process termination.
 
 ## Usage rendering on errors
 

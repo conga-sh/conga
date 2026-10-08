@@ -112,8 +112,8 @@ type App[T any] struct {
 //	}
 //	fmt.Println(cli.Port.Get())
 //
-// Initialize startup state in [PreRunner] and with `default` struct tags, not by
-// pre-populating the root instance.
+// The engine populates container fields during resolution; fields tagged
+// `conga:"-"` keep their caller-seeded values.
 //
 // Panics if more than one root instance is passed, or if the passed pointer is nil.
 //
@@ -317,8 +317,8 @@ func (a *App[T]) RegisterDecoder(extension string, decoder ConfigDecoder) *App[T
 // an error wrapping [ErrSchema].
 //
 // Common third-party tags (e.g. `json`, `yaml`, `validate`, `db`) are permitted by default.
-// To permit additional external tags (e.g. `kong`, `bson`, or custom annotations), pass
-// their keys to [App.AllowTags] rather than disabling strict validation entirely.
+// [App.AllowTags] registers additional external tag keys (e.g. `kong`, `bson`, or
+// custom annotations) without disabling strict validation.
 func (a *App[T]) StrictTagValidation(strict bool) *App[T] {
 	a.tagValidationDisabled = !strict
 
@@ -524,8 +524,7 @@ func (a *App[T]) RegisterType[U any](parser func(string) (U, error), opts ...Reg
 //	app.RegisterMap(map[string]int(nil))
 //	// app --replicas api=2,web=3   or   app --replicas api=2 --replicas web=3
 //
-// Passing an empty or nil map instance allows Go's compiler to infer all type
-// parameters automatically.
+// The sample map is read for its type only; its entries are ignored.
 //
 // Panics:
 //   - If the receiver App is nil.
@@ -760,15 +759,7 @@ func (a *App[T]) ExitFunc(exitHandler func(code int)) *App[T] {
 // Exit terminates the process with an exit status mapped from err, using the
 // configured exit function (see [App.ExitFunc], defaults to [os.Exit]).
 //
-// Standalone programs can pass the error from [App.Run] directly to Exit:
-//
-//	func main() {
-//		app := conga.New[CLI]().Name("hello")
-//
-//		if err := app.Run(); err != nil {
-//			app.Exit(err)
-//		}
-//	}
+// Exit accepts the error returned by [App.Run] or [App.RunContext].
 //
 // All post-run cleanup ([PostRunner.PostRun] and [Finalizer.Finally] hooks)
 // completes before [App.Run] returns, so Exit runs only after teardown

@@ -1014,10 +1014,10 @@ func extractConfigFileHelp(tag reflect.StructTag, isMulti bool) string {
 	}
 
 	if isMulti {
-		return "Path to configuration file(s)"
+		return "Path to config file(s)"
 	}
 
-	return "Path to configuration file"
+	return "Path to config file"
 }
 
 func extractConfigFilePlaceholder(tag reflect.StructTag) string {
