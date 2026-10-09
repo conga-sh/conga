@@ -97,25 +97,20 @@ type App[T any] struct {
 	initialized bool
 }
 
-// New creates a new fluent [App] builder for the root command struct of type T.
+// New creates an [App] builder for the root command struct of type T.
 //
 // New[T]() lets the engine allocate the root instance when the schema is
 // compiled; subcommands and lifecycle hooks reach it through [Session.Root].
 //
-// Pass an existing instance (New(cli)) to keep a direct reference to the root
-// struct and inspect its bound values after execution:
-//
-//	cli := &MyCLI{}
-//	app := conga.New(cli).Args([]string{"--port", "9000"})
-//	if err := app.Run(); err != nil {
-//		return err
-//	}
-//	fmt.Println(cli.Port.Get())
+// Pass an existing instance (New(cli)) to preserve a direct reference to the root
+// struct and inspect its bound values after execution.
 //
 // The engine populates container fields during resolution; fields tagged
 // `conga:"-"` keep their caller-seeded values.
 //
-// Panics if more than one root instance is passed, or if the passed pointer is nil.
+// Panics:
+//   - If more than one root instance is passed.
+//   - If the passed pointer is nil.
 //
 // New is the recommended constructor. The zero value of [App] is also usable and
 // behaves like New[T]().
@@ -350,16 +345,10 @@ func (a *App[T]) AllowTags(tags ...string) *App[T] {
 	return a
 }
 
-// Predictor registers a named completion predictor for dynamic shell autocompletion.
+// Predictor registers a named completion predictor for shell autocompletion.
 //
-// Registered predictors are referenced on command struct fields using the
-// `predictor:"name"` struct tag:
-//
-//	type DeployCLI struct {
-//		Region conga.RequiredFlag[string] `short:"r" predictor:"regions" help:"Target region"`
-//	}
-//
-//	app.Predictor("regions", predict.Values("us-east-1", "us-west-2", "eu-west-1"))
+// Command struct fields reference registered predictors using the
+// `predictor:"name"` struct tag.
 //
 // Panics:
 //   - If name is empty.
@@ -453,28 +442,15 @@ func (a *App[T]) Use(plugins ...func(*App[T])) *App[T] {
 	return a
 }
 
-// RegisterType registers a strongly-typed parser and optional completion predictor
+// RegisterType registers a parser and optional completion predictor
 // for custom type U on the application builder.
 //
 // The parser callback converts raw string input from flags, arguments, or environment
 // variables into an instance of type U. If parsing fails, the callback must return a
 // descriptive error, which CONGA wraps in [ErrCoerce].
 //
-//	type Percent int
-//
-//	func parsePercent(raw string) (Percent, error) {
-//		value, err := strconv.ParseUint(strings.TrimSuffix(raw, "%"), 10, 8)
-//		if err != nil || value > 100 {
-//			return 0, fmt.Errorf("invalid percentage %q: want 0%%-100%%", raw)
-//		}
-//
-//		return Percent(value), nil
-//	}
-//
-//	app.RegisterType(parsePercent, conga.WithPredictor(predict.Values("25%", "50%", "75%")))
-//
 // If type U was previously registered, the new parser and predictor overwrite the
-// existing registration (last-write-wins).
+// existing registration.
 //
 // Panics:
 //   - If the receiver App is nil.
@@ -511,18 +487,13 @@ func (a *App[T]) RegisterType[U any](parser func(string) (U, error), opts ...Reg
 	return a
 }
 
-// RegisterMap registers a strongly-typed parser and optional completion predictor
+// RegisterMap registers a parser and optional completion predictor
 // for map type `map[K]V`, so flags and positional arguments of that type accept
 // `key=value` pairs. K must be `string` or a type with underlying kind string; V
-// may be any primitive, standard type, or custom type supported by CONGA. Maps
-// with both a string key and a string value bind natively and need no registration.
+// may be any type supported by CONGA. Maps with both a string key and a string
+// value bind natively and need no registration.
 //
-//	type CLI struct {
-//		Replicas conga.OptionalFlag[map[string]int] `help:"Replica counts" short:"r"`
-//	}
-//
-//	app.RegisterMap(map[string]int(nil))
-//	// app --replicas api=2,web=3   or   app --replicas api=2 --replicas web=3
+// Flags accept repeated (`--flag k1=v1 --flag k2=v2`) or comma-separated (`--flag k1=v1,k2=v2`) pairs.
 //
 // The sample map is read for its type only; its entries are ignored.
 //

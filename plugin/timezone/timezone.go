@@ -1,13 +1,7 @@
 // Package timezone integrates IANA timezones into CONGA applications.
 //
-// Mount [Location] using App.Use to register *time.Location with time.LoadLocation
-// and enable IANA timezone shell autocompletion:
-//
-//	type CLI struct {
-//		Zone conga.OptionalFlag[*time.Location] `short:"z" default:"UTC" help:"Server timezone"`
-//	}
-//
-//	app := conga.New[CLI]().Use(timezone.Location)
+// Mount [Location] using [conga.App.Use] to register *time.Location with time.LoadLocation
+// and enable IANA timezone shell autocompletion.
 //
 // Flags parse standard IANA timezone identifiers (e.g. "America/New_York", "UTC",
 // "Europe/London"). When shell completion is enabled, pressing Tab completes from

@@ -516,16 +516,8 @@ func (a *RequiredArg[T]) String() string {
 
 // DashArgs captures trailing arguments passed explicitly after the '--' token.
 //
-// All arguments following '--' are captured verbatim without flag parsing:
-//
-//	type RunCLI struct {
-//		Verbose conga.OptionalFlag[bool] `short:"v" help:"Verbose output"`
-//		Package conga.RequiredArg[string] `name:"package" help:"Package to run"`
-//		Args    conga.DashArgs            `name:"flags"`
-//	}
-//
-// When invoked as `app run -v pkg -- -f --target test`, Args.Get() contains
-// `[]string{"-f", "--target", "test"}`.
+// All arguments following '--' are captured verbatim without flag parsing. For
+// example, `app run -v pkg -- -f --target test` captures `[]string{"-f", "--target", "test"}`.
 //
 // A DashArgs field accepts only the `name` and `conga` tags.
 type DashArgs struct {
@@ -545,16 +537,9 @@ func (raw *DashArgs) String() string {
 // RawArgs captures all trailing unparsed command-line arguments without requiring '--'.
 //
 // Parsing stops at the first unrecognized flag or argument, forwarding all remaining
-// tokens into the container. This container is designed for proxy commands and CLI
-// wrappers (such as `kubectl`, `ssh`, or `docker` wrappers):
-//
-//	type ExecCLI struct {
-//		Verbose conga.OptionalFlag[bool] `short:"v" help:"Verbose output"`
-//		Command conga.RawArgs            `name:"command"`
-//	}
-//
-// When invoked as `app exec -v sh -c "echo hello"`, Command.Get() contains
-// `[]string{"sh", "-c", "echo hello"}`.
+// tokens into the container. For example, `app exec -v sh -c "echo hello"` captures
+// `[]string{"sh", "-c", "echo hello"}`. This container supports proxy commands and
+// CLI wrappers (such as `kubectl`, `ssh`, or `docker` wrappers).
 //
 // A RawArgs field accepts only the `name` and `conga` tags.
 type RawArgs struct {
@@ -850,14 +835,8 @@ func (c *ConfigFile) String() string {
 
 // Counter represents a repeatable boolean flag that counts its occurrences.
 //
-// Each occurrence on the command line increments the count by 1:
-//
-//	type CLI struct {
-//		Verbose conga.Counter `short:"v" help:"Increase verbosity level (-v, -vvv)"`
-//	}
-//
-// When invoked as `app -vvv`, Verbose.Get() returns 3. With no occurrences and no
-// other source, Verbose.Get() returns 0.
+// Each occurrence on the command line increments the count by 1 (for example,
+// `-vvv` returns 3). With no occurrences and no other source, Verbose.Get() returns 0.
 //
 // Counters count command-line occurrences starting at 0, so a `default` tag is
 // rejected at schema build. An environment or configuration file binding seeds a

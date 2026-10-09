@@ -529,15 +529,7 @@ func (d Dir) Help(tags FieldTags) string {
 // (e.g. "1048577B").
 //
 // The byte count is available through [ByteSize.Bytes] for comparisons and
-// calculations:
-//
-//	type CacheCLI struct {
-//		MaxMemory conga.OptionalFlag[conga.ByteSize] `default:"512MiB" help:"Max memory limit"`
-//	}
-//
-//	func (c *CacheCLI) Run(ctx context.Context, session *conga.Session) error {
-//		return configureCache(c.MaxMemory.Get().Bytes()) // 536870912 for 512MiB
-//	}
+// calculations.
 //
 // ByteSize values are deliberately non-comparable and cannot be used as map
 // keys: the captured render family is not part of a size's identity. Express

@@ -118,6 +118,72 @@ func (c *PredictableCLI) Run(_ context.Context, _ *conga.Session) error {
 	return nil
 }
 
+// ReplicasCLI is an application whose flag accepts a map of counts.
+type ReplicasCLI struct {
+	Replicas conga.OptionalFlag[map[string]int] `help:"Replica counts"`
+}
+
+func (c *ReplicasCLI) Run(_ context.Context, session *conga.Session) error {
+	replicas := c.Replicas.Get()
+	_, err := fmt.Fprintf(session.Stdout(), "api=%d web=%d\n", replicas["api"], replicas["web"])
+
+	return err
+}
+
+// PreallocatedCLI is an application whose instance is supplied to New.
+type PreallocatedCLI struct {
+	Port conga.OptionalFlag[int] `help:"Port"`
+}
+
+func (c *PreallocatedCLI) Run(_ context.Context, _ *conga.Session) error {
+	return nil
+}
+
+// CounterCLI is an application with a verbosity counter flag.
+type CounterCLI struct {
+	Verbose conga.Counter `help:"Increase verbosity" short:"v"`
+}
+
+func (c *CounterCLI) Run(_ context.Context, session *conga.Session) error {
+	_, err := fmt.Fprintf(session.Stdout(), "verbosity=%d\n", c.Verbose.Get())
+
+	return err
+}
+
+// DashCLI is an application that captures trailing arguments after '--'.
+type DashCLI struct {
+	Target conga.RequiredArg[string] `help:"Target package" name:"target"`
+	Flags  conga.DashArgs            `name:"flags"`
+}
+
+func (c *DashCLI) Run(_ context.Context, session *conga.Session) error {
+	_, err := fmt.Fprintf(session.Stdout(), "%s: %s\n", c.Target.Get(), strings.Join(c.Flags.Get(), " "))
+
+	return err
+}
+
+// RawCLI is an application that forwards trailing unparsed arguments.
+type RawCLI struct {
+	Command conga.RawArgs `name:"command"`
+}
+
+func (c *RawCLI) Run(_ context.Context, session *conga.Session) error {
+	_, err := fmt.Fprintf(session.Stdout(), "exec: %s\n", strings.Join(c.Command.Get(), " "))
+
+	return err
+}
+
+// ByteSizeCLI is an application whose flag accepts human-readable data volumes.
+type ByteSizeCLI struct {
+	Limit conga.OptionalFlag[conga.ByteSize] `default:"512MiB" help:"Memory limit"`
+}
+
+func (c *ByteSizeCLI) Run(_ context.Context, session *conga.Session) error {
+	_, err := fmt.Fprintf(session.Stdout(), "limit=%s bytes=%d\n", c.Limit.Get(), c.Limit.Get().Bytes())
+
+	return err
+}
+
 // Declare flags as typed fields, implement [conga.Runner], and call [conga.App.Run].
 func Example() {
 	app := conga.New[CLI]().
@@ -234,6 +300,81 @@ func ExamplePredictable() {
 	// alpha
 	// beta
 	// gamma
+}
+
+// Register a map type so flags and arguments accept key=value pairs.
+func ExampleApp_RegisterMap() {
+	app := conga.New[ReplicasCLI]().
+		RegisterMap(map[string]int(nil)).
+		Args([]string{"--replicas", "api=2,web=3"})
+
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
+
+	// Output: api=2 web=3
+}
+
+// Pass a pre-allocated struct instance to New to inspect bound values after execution.
+func ExampleNew_preallocated() {
+	cli := &PreallocatedCLI{}
+	app := conga.New(cli).
+		Args([]string{"--port", "9000"})
+
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
+
+	fmt.Println(cli.Port.Get())
+	// Output: 9000
+}
+
+// Counter counts repeated occurrences of a boolean flag on the command line.
+func ExampleCounter() {
+	app := conga.New[CounterCLI]().
+		Args([]string{"-vvv"})
+
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
+
+	// Output: verbosity=3
+}
+
+// DashArgs captures arguments passed after the '--' delimiter without flag parsing.
+func ExampleDashArgs() {
+	app := conga.New[DashCLI]().
+		Args([]string{"testpkg", "--", "-v", "--run", "TestFoo"})
+
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
+
+	// Output: testpkg: -v --run TestFoo
+}
+
+// RawArgs forwards trailing unparsed command-line arguments to proxy commands.
+func ExampleRawArgs() {
+	app := conga.New[RawCLI]().
+		Args([]string{"sh", "-c", "echo hello"})
+
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
+
+	// Output: exec: sh -c echo hello
+}
+
+// ByteSize parses human-readable byte sizes and provides the raw byte count.
+func ExampleByteSize() {
+	app := conga.New[ByteSizeCLI]().
+		Args([]string{"--limit", "1.5GB"})
+
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
+
+	// Output: limit=1500MB bytes=1500000000
 }
 
 // parseCIDR adapts net.ParseCIDR to the App.RegisterType parser signature.

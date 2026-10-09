@@ -155,15 +155,7 @@ func (s *Session) LoadedConfigFiles() []string {
 // compilation.
 //
 // In a subcommand's [Runner.Run] or lifecycle hook, use Root to inspect global flags
-// and shared settings declared on the root command:
-//
-//	func (m *MigrateCLI) Run(ctx context.Context, session *conga.Session) error {
-//		root := session.Root[AppCLI]()
-//		if root != nil && root.Verbose.Get() {
-//			fmt.Fprintln(session.Stdout(), "Verbose logging active")
-//		}
-//		return nil
-//	}
+// and shared settings declared on the root command.
 //
 // Returns nil if the session is nil or if T does not match the actual root struct type.
 func (s *Session) Root[T any]() *T {
