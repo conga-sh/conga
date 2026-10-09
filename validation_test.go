@@ -408,7 +408,7 @@ func TestUnitsRangeValidation(t *testing.T) {
 	t.Run("bytesize range below min", func(t *testing.T) {
 		t.Parallel()
 
-		err := conga.New[RangeUnitCLI]().Args([]string{"--memory", "500KB"}).Run()
+		err := conga.New[RangeUnitCLI]().Args([]string{"--memory", "500kB"}).Run()
 		assert.Error(t, err)
 		assert.IsError(t, err, conga.ErrValidation)
 	})

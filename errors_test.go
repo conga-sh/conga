@@ -355,6 +355,17 @@ func TestCoercionErrorByteSizeRender(t *testing.T) {
 	assert.Equal(t, `unknown byte size unit "ZB" in "10ZB" for flag --max-memory`, err.Error())
 }
 
+func TestCoercionErrorByteSizeAmbiguousUnitRender(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[ByteSizeErrorCLI]().Name("app").Args([]string{"--max-memory", "10KB"})
+	err := app.RunContext(t.Context())
+
+	assert.Error(t, err)
+	assert.IsError(t, err, conga.ErrCoerce)
+	assert.Equal(t, `ambiguous byte size unit "KB" in "10KB": use kB (1000) or KiB (1024) for flag --max-memory`, err.Error())
+}
+
 func TestHookErrorsPassThrough(t *testing.T) {
 	t.Parallel()
 

@@ -36,13 +36,14 @@ const (
 	byteSizeErrorInexactFraction                          // fraction does not resolve to whole bytes
 	byteSizeErrorUnknownUnit                              // unrecognized unit suffix
 	byteSizeErrorUnitNotAllowed                           // unit excluded by the field's units tag
+	byteSizeErrorAmbiguousUnit                            // ambiguous casing (KB)
 )
 
 const (
 	byteSizeFamilyUnset   byteSizeFamily = iota // zero value: canonical IEC integer model
 	byteSizeFamilyBytes                         // parsed exact bytes (B suffix or bare count)
 	byteSizeFamilyBinary                        // KiB..PiB
-	byteSizeFamilyDecimal                       // kB/KB..PB
+	byteSizeFamilyDecimal                       // kB..PB
 )
 
 var (
@@ -531,33 +532,64 @@ func (d Dir) Help(tags FieldTags) string {
 //
 //	1024                 exact bytes
 //	500B                 exact bytes
-//	kB KB MB GB TB PB    powers of 1000
+//	kB MB GB TB PB       powers of 1000
 //	KiB MiB GiB TiB PiB  powers of 1024
 //
 // The numeric prefix is digits with an optional fraction whose contribution resolves
 // exactly to bytes (1.5GB, 0.5GiB); a sub-byte remainder such as 0.1GiB is rejected.
 // Naked unit suffixes without B (10G, 512Mi) and lowercase casings (mb, kib) are
-// rejected to prevent ambiguity. Text input is non-negative.
+// rejected to prevent ambiguity. KB is rejected as ambiguous: it denotes 1000 bytes in
+// SI usage and 1024 bytes in legacy usage. kB is always 1000 bytes; KiB is always 1024.
+// Text input is non-negative.
 //
 // # Rendering
 //
-// A parsed value remembers the unit family it was written in: one decoded from 1.5GB
-// renders back in decimal units (1500MB), while one decoded from 1GiB renders in binary
-// units (1GiB). The zero value uses the canonical IEC integer model, where only whole
-// multiples of a binary unit are abbreviated (1MiB, 512MiB) and any indivisible
-// remainder is emitted as exact bytes (1048577B). [ByteSize.String] is deterministic
-// and lossless.
+// A value renders in its display family: a display field tag of binary or decimal
+// forces that family, and input, the default, uses the family of the unit the value
+// was decoded from. Rendering picks the largest unit of the family that divides the
+// byte count exactly, or exact bytes when no unit divides it:
 //
-// # Comparison and field tags
+//	input             display tag   output
+//	1.5GB             input         1500MB
+//	0.5GiB            input         512MiB
+//	1024              input         1024B
+//	1.000000001GB     input         1000000001B
+//	1.5GB             binary        1500000000B
+//	1024kB            binary        1000KiB
+//	1000KiB           decimal       1024kB
+//	1073741824        binary        1GiB
+//	zero value        any           0B
+//
+// [ByteSize.String] is deterministic and lossless.
+//
+// # Comparison
 //
 // The byte count is available through [ByteSize.Bytes]. ByteSize values are deliberately
 // non-comparable and cannot be used as map keys: the captured render family is not part
 // of a size's identity. Express equality and ordering through [ByteSize.Equal],
 // [ByteSize.Compare], or [ByteSize.Bytes].
 //
-// Fields may declare the units tag (binary, decimal, or both) to restrict the accepted
-// unit families, and the display tag (binary, decimal, or input) to force the rendering
-// family.
+// # Field tags
+//
+// Fields may declare the units tag to restrict the accepted unit families and the
+// display tag to force the render family:
+//
+//	units:"binary"    accept only IEC binary units (KiB..PiB)
+//	units:"decimal"   accept only SI metric units (kB..PB)
+//	units:"both"      accept every unit family (default)
+//	display:"binary"  render in binary units
+//	display:"decimal" render in decimal units
+//	display:"input"   render in the unit family the input used (default)
+//
+// Exact byte counts (a bare count or the B suffix) are family-neutral and accepted
+// under either units value. A parsed unit outside the allowed family is a coercion
+// error, and an unrecognized tag value is a schema error. The tags reach the type
+// through field binding, tailor the default help text, and select the grammar used to
+// parse range bounds (a decimal bound on a units:"binary" field is a schema error).
+//
+//	type Cache struct {
+//		Memory conga.ByteSize `units:"binary" display:"input"`
+//	}
 //
 // See https://docs.conga.sh/reference/domain-types/.
 type ByteSize struct {
@@ -603,12 +635,12 @@ func (b ByteSize) Bytes() int64 {
 
 // String formats the byte size into a deterministic, lossless human-readable string.
 //
-// The rendering family comes from the value's captured unit family (or the
-// canonical IEC model for the zero value): whole multiples of a unit are
-// formatted as integers without spaces or decimal points (1MiB, 1500MB) and
-// values with indivisible remainders are emitted as exact bytes (1048577B).
-// Parsed exact-byte input (a B suffix or a bare count) echoes as exact bytes
-// (1024B). Returns 0B for zero.
+// The rendering family is the value's captured unit family, the display family
+// resolved at parse time: the largest unit of that family that divides the byte count
+// formats the value as an integer without spaces or decimal points (512MiB, 1500MB);
+// a count no unit divides is emitted as exact bytes (1048577B). Parsed exact-byte
+// input (a B suffix or a bare count) always echoes as exact bytes (1024B). Returns 0B
+// for zero.
 func (b ByteSize) String() string {
 	if b.bytes == 0 {
 		return "0B"
@@ -774,6 +806,8 @@ func (e *byteSizeError) Error() string {
 		return fmt.Sprintf("unknown byte size unit %q in %q", e.unit, e.raw)
 	case byteSizeErrorUnitNotAllowed:
 		return fmt.Sprintf("byte size unit %q in %q is not allowed: the field accepts %s units only", e.unit, e.raw, e.allowed)
+	case byteSizeErrorAmbiguousUnit:
+		return fmt.Sprintf("ambiguous byte size unit %q in %q: use kB (1000) or KiB (1024)", e.unit, e.raw)
 	default:
 		return fmt.Sprintf("invalid byte size %q", e.raw)
 	}
@@ -809,6 +843,10 @@ func byteSizeParseParts(numStr, unitStr, rawText string, tags FieldTags) (int64,
 		}
 
 		return parsed, byteSizeFamilyBytes, nil
+	}
+
+	if unitStr == "KB" {
+		return 0, byteSizeFamilyUnset, &byteSizeError{raw: rawText, unit: unitStr, kind: byteSizeErrorAmbiguousUnit}
 	}
 
 	multiplier, family, ok := byteSizeUnitMultiplier(unitStr)
@@ -875,7 +913,7 @@ func byteSizeUnitMultiplier(unit string) (uint64, byteSizeFamily, bool) {
 	switch unit {
 	case "B":
 		return 1, byteSizeFamilyBytes, true
-	case "kB", "KB":
+	case "kB":
 		return 1000, byteSizeFamilyDecimal, true
 	case "MB":
 		return 1000 * 1000, byteSizeFamilyDecimal, true

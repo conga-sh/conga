@@ -30,7 +30,7 @@ All filesystem capability checks run during the validation phase on the final re
 | Type | Behaviour |
 |------|-----------|
 | `conga.FileContent` | Reads the file into memory during parsing; accepts `-` for stdin; 16 MB limit |
-| `conga.ByteSize` | Parses `"10MiB"`, `"1.5GB"`, `"500KiB"`, and exact bytes; `Bytes()` returns `int64`; strict case-sensitive units. Renders in the unit family it was parsed in (echo), exact bytes included, or the canonical IEC integer model for the zero value |
+| `conga.ByteSize` | Parses `"10MiB"`, `"1.5GB"`, `"500KiB"`, and exact bytes; `Bytes()` returns `int64`; strict case-sensitive units. See [Byte size parsing](#byte-size-parsing) and [Byte size rendering](#byte-size-rendering) |
 
 ```go
 type Upload struct {
@@ -44,22 +44,56 @@ func (u *Upload) Run(ctx context.Context, session *conga.Session) error {
 }
 ```
 
-### Byte size formatting
+### Byte size parsing
 
-`ByteSize` remembers the unit family a value was parsed in, so it renders back in that family (a value decoded from `"1.5GB"` prints `1500MB`); a bare count or `B`-suffixed input is exact bytes and prints as exact bytes (`"1048576B"` prints `1048576B`); the zero value uses the canonical IEC integer model. Text input is non-negative, and negative byte counts are not representable. Two struct tags tune acceptance and display:
+`ByteSize` input is strict and case-sensitive. It accepts exact byte counts, SI metric units ending in `B`, and IEC binary units:
+
+| Form | Examples | Meaning |
+|------|----------|---------|
+| Exact bytes | `1024`, `500B` | Byte counts |
+| Decimal | `kB`, `MB`, `GB`, `TB`, `PB` | Powers of 1000 |
+| Binary | `KiB`, `MiB`, `GiB`, `TiB`, `PiB` | Powers of 1024 |
+
+The numeric prefix is digits with an optional fraction whose contribution resolves exactly to bytes (`1.5GB`, `0.5GiB`); a sub-byte remainder such as `0.1GiB` is rejected. Naked unit suffixes without `B` (`10G`, `512Mi`) and lowercase casings (`mb`, `kib`) are rejected to prevent ambiguity. `kB` is always 1000 bytes and `KiB` is always 1024; `KB` is rejected as ambiguous because it denotes 1000 bytes in SI usage and 1024 bytes in legacy usage. Text input is non-negative, and negative byte counts are not representable.
+
+### Byte size rendering
+
+A value renders in its display family: a `display` tag of `binary` or `decimal` forces that family, and `input`, the default, uses the family of the unit the value was decoded from. Rendering picks the largest unit of that family that divides the byte count exactly, or exact bytes when no unit divides it:
+
+| Input | `display` tag | Output |
+|-------|---------------|--------|
+| `1.5GB` | `input` (default) | `1500MB` |
+| `0.5GiB` | `input` | `512MiB` |
+| `1024` | `input` | `1024B` |
+| `1.000000001GB` | `input` | `1000000001B` |
+| `1.5GB` | `binary` | `1500000000B` |
+| `1024kB` | `binary` | `1000KiB` |
+| `1000KiB` | `decimal` | `1024kB` |
+| `1073741824` | `binary` | `1GiB` |
+| zero value | any | `0B` |
+
+### Byte size tags
+
+Two struct tags tune acceptance and display:
 
 | Tag | Values | Effect |
 |-----|--------|--------|
 | `units` | `binary`, `decimal`, `both` (default) | Restricts the accepted unit families; a parsed unit outside the allowed family is a coercion error. Exact byte counts (`B` suffix or bare) are family-neutral and accepted by both. |
 | `display` | `binary`, `decimal`, `input` (default) | Forces the render family; `input` echoes the entered unit family. |
 
-`ByteSize` is not comparable: `==` between two values and `ByteSize`-keyed maps are compile errors, because the render family is not part of a size's identity. Compare with `Equal`, order with `Compare`, and calculate with `Bytes()`.
+An unrecognized tag value fails at schema build, and range bounds parse under the same tags (see [Bounds syntax](/reference/struct-tags/#bounds-syntax)).
 
 ```go
 type Cache struct {
 	Memory conga.ByteSize `units:"binary" display:"input"`
 }
 ```
+
+### Byte size comparison
+
+`ByteSize` is not comparable: `==` between two values and `ByteSize`-keyed maps are compile errors, because the render family is not part of a size's identity. Compare with `Equal`, order with `Compare`, and calculate with `Bytes()`.
+
+### File streaming
 
 `File` streams through `Reader()` and `Writer()`, which return `io.ReadCloser` and `io.WriteCloser`. When the value is `-`, `Reader()` wraps `os.Stdin` and `Writer()` wraps `os.Stdout` — the wrappers absorb `Close()`, so callers can always `defer Close()`. `Stat()` exposes the file metadata, and `IsStdio()` reports the `-` case so commands can skip filesystem-only side effects (backups, atomic renames) and route diagnostics away from a stdout payload stream. Reading beyond these helpers is the caller's responsibility (`io.ReadAll(f.Reader())`); `FileContent` is the bounded whole-file shortcut.
 

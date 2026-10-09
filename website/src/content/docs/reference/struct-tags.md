@@ -210,7 +210,7 @@ Applicability rules:
 
 | Tag | Applicable types | Validation |
 |-----|------------------|------------|
-| `range` | Numeric types (`int*`, `uint*` except `uintptr`, `float*`), `time.Duration`, and domain types implementing `encoding.TextUnmarshaler` with an ordered projection (`Bytes() int64` or numeric underlying kind). | Bounds parse using the type's own unmarshaler (e.g. `ByteSize` accepts `range:"1MiB..1GiB"`). Pointer element types and unprojected types are rejected. |
+| `range` | Numeric types (`int*`, `uint*` except `uintptr`, `float*`), `time.Duration`, and domain types implementing `encoding.TextUnmarshaler` with an ordered projection (`Bytes() int64` or numeric underlying kind). | Bounds parse using the type's own unmarshaler (e.g. `ByteSize` accepts `range:"1MiB..1GiB"`), under the field's declared tags: a decimal bound on a `units:"binary"` field fails at schema build. Pointer element types and unprojected types are rejected. |
 | `len` | Strings, slices, and maps. | Asserts character count on strings or entry count on slices and maps. |
 | `items` | Slices and maps. | Asserts element count. |
 
