@@ -12,8 +12,8 @@ import (
 // is never referenced outside the app: the instance exists only to satisfy the
 // variadic root parameter, so the engine-allocating conga.New[T]() form is the
 // intended spelling. Fresh allocations (new(T), &T{}) and local variables
-// whose sole use is the conga.New argument are reported; any read, seeding,
-// closure capture, or comparison suppresses the diagnostic.
+// whose sole use is the conga.New argument are reported; any field read,
+// assignment, closure capture, or comparison suppresses the diagnostic.
 func checkThrowawayRoots(pass *analysis.Pass) {
 	for _, file := range pass.Files {
 		for _, call := range anchorCallNodes(file) {

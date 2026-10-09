@@ -55,7 +55,7 @@ In multi-command tools, subcommands frequently need access to shared runtime opt
 Rather than scattering copies of shared options across subcommands or maintaining package-level global variables, CONGA keeps global options on the root struct and provides typed access to them during execution.
 
 ### Scoped command state
-Each command struct in CONGA declares only the flags, arguments, and dependencies relevant to its own scope. Shared options stay at the root command, where they belong conceptually.
+Each command struct in CONGA declares only the flags and arguments relevant to its own scope. Shared options stay at the root command, where they belong conceptually.
 
 When a leaf or intermediate command needs root state, it queries the execution session using `session.Root[T]()`:
 

@@ -113,4 +113,4 @@ Attempting to register a descendant flag that collides with an ancestor flag fai
 
 - [How to accept positional arguments](/how-to/accept-positional-arguments/) — define mandatory, optional, and trailing positional arguments.
 - [About subcommands and hierarchy](/explanation/subcommands/) — hierarchy architecture and flag-shadowing rules.
-- [How to keep a reference to the root struct](/how-to/keep-root-reference/) — construct and bind caller-owned root instances.
+- [How to keep a reference to the root struct](/how-to/keep-root-reference/) — inspect resolved container values after execution.

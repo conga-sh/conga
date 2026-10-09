@@ -79,9 +79,10 @@
 //
 // # Execution and streams
 //
-// [App.Run] and [App.RunContext] execute an App exactly once; a second call
-// panics. A zero-value [App] is usable and installs the same defaults as [New]
-// on first use.
+// [App.Run] executes with a default context that cancels on SIGINT and
+// SIGTERM; [App.RunContext] executes with the caller's context. An App
+// executes exactly once; a second call panics. A zero-value [App] is usable
+// and installs the same defaults as [New] on first use.
 //
 // Commands receive a [*Session] providing invocation metadata and configured
 // I/O streams ([Session.Stdout], [Session.Stderr], [Session.Stdin]). Streams
@@ -91,6 +92,8 @@
 //
 // [App.Exit] reports errors and exits with status 2 for usage errors
 // or status 1 for runtime failures. A nil error exits with status 0.
+//
+// See https://docs.conga.sh/explanation/lifecycle/.
 //
 // # Optional subsystems
 //

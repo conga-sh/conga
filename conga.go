@@ -68,15 +68,20 @@ const (
 // contextual guidance according to the active mode.
 type UsageOnErrorMode int
 
-// App configures and runs a command-line application.
+// App manages the configuration, parsing, and execution lifecycle of a
+// command-line application rooted in struct T.
 //
-// Create an instance using [New]. An App instance executes exactly once: calling
-// [App.Run] or [App.RunContext] a second time panics.
+// The command struct T (or its selected subcommand) executes by implementing
+// [Runner].
 //
-// The zero value is usable: the execution entry points install the same defaults
-// [New] sets (standard streams, the process exit function, and the built-in
-// `--help`/`--version` flags) on first use, so `var app conga.App[T]` behaves
-// like New[T]().
+// An App is constructed with [New], configured through chained builder
+// methods, and executed with [App.Run] (passing the default signal-canceling
+// context to [Runner.Run]) or [App.RunContext] (passing the caller's context).
+//
+// An App executes once; calling [App.Run] or [App.RunContext] a second time
+// panics. Builder methods must be called before execution begins.
+//
+// See https://docs.conga.sh/explanation/lifecycle/.
 type App[T any] struct {
 	appConfig[T]
 
@@ -97,25 +102,19 @@ type App[T any] struct {
 	initialized bool
 }
 
-// New creates an [App] builder for the root command struct of type T.
+// New returns an [App] builder for the root command struct T.
 //
-// New[T]() lets the engine allocate the root instance when the schema is
-// compiled; subcommands and lifecycle hooks reach it through [Session.Root].
+// Calling New[T]() without arguments is the standard pattern. CONGA manages
+// the root struct lifecycle: it instantiates T, binds flags and arguments to its
+// fields, and executes its [Runner.Run] method.
 //
-// Pass an existing instance (New(cli)) to preserve a direct reference to the root
-// struct and inspect its bound values after execution.
-//
-// The engine populates container fields during resolution; fields tagged
-// `conga:"-"` keep their caller-seeded values.
+// Passing an existing pointer—New(&cli)—binds that instance instead of
+// allocating a fresh one. This allows callers to inspect bound container values
+// after execution completes.
 //
 // Panics:
-//   - If more than one root instance is passed.
-//   - If the passed pointer is nil.
-//
-// New is the recommended constructor. The zero value of [App] is also usable and
-// behaves like New[T]().
-//
-// See https://docs.conga.sh/how-to/keep-root-reference/.
+//   - If root contains more than one pointer.
+//   - If the supplied pointer is nil.
 func New[T any](root ...*T) *App[T] {
 	if len(root) > 1 {
 		panic("conga: New accepts at most one root instance")
@@ -625,13 +624,16 @@ func (a *App[T]) RunContext(ctx context.Context) error {
 	return executeLifecycle(ctx, session)
 }
 
-// Run executes the application lifecycle with an interrupt-aware context that listens
-// for SIGINT (Ctrl+C) and SIGTERM.
+// Run executes the application, passing a default context to the command's
+// [Runner.Run] method and lifecycle hooks. The default context cancels when an
+// [os.Interrupt] (SIGINT) or [syscall.SIGTERM] signal is received.
 //
-// When an interruption signal is received, the context is canceled, triggering graceful
-// termination and driving [Finalizer.Finally] cleanup hooks.
+// For callers supplying their own context, use [App.RunContext].
 //
-// Calling Run or [App.RunContext] more than once on the same App instance panics.
+// Panics:
+//   - If the App has already been executed: an App instance runs exactly once.
+//
+// See https://docs.conga.sh/explanation/lifecycle/.
 func (a *App[T]) Run() error {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()

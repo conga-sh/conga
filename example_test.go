@@ -130,12 +130,12 @@ func (c *ReplicasCLI) Run(_ context.Context, session *conga.Session) error {
 	return err
 }
 
-// PreallocatedCLI is an application whose instance is supplied to New.
-type PreallocatedCLI struct {
+// InspectCLI is an application whose bound fields are read after execution.
+type InspectCLI struct {
 	Port conga.OptionalFlag[int] `help:"Port"`
 }
 
-func (c *PreallocatedCLI) Run(_ context.Context, _ *conga.Session) error {
+func (c *InspectCLI) Run(_ context.Context, _ *conga.Session) error {
 	return nil
 }
 
@@ -185,7 +185,7 @@ func (c *ByteSizeCLI) Run(_ context.Context, session *conga.Session) error {
 }
 
 // Declare flags as typed fields, implement [conga.Runner], and call [conga.App.Run].
-func Example() {
+func ExampleNew() {
 	app := conga.New[CLI]().
 		Name("greet").
 		Args([]string{"--name", "gopher"})
@@ -315,9 +315,9 @@ func ExampleApp_RegisterMap() {
 	// Output: api=2 web=3
 }
 
-// Pass a pre-allocated struct instance to New to inspect bound values after execution.
-func ExampleNew_preallocated() {
-	cli := &PreallocatedCLI{}
+// Pass an existing struct pointer to inspect bound values after execution.
+func ExampleNew_inspect() {
+	cli := &InspectCLI{}
 	app := conga.New(cli).
 		Args([]string{"--port", "9000"})
 
