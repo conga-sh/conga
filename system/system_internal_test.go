@@ -95,7 +95,7 @@ func TestParseGroupReader_MalformedLinesSkipped(t *testing.T) {
 func TestUserAndGroup_Lookup(t *testing.T) {
 	t.Parallel()
 
-	t.Run("empty user rejected with sentinel", func(t *testing.T) {
+	t.Run("empty user rejected", func(t *testing.T) {
 		t.Parallel()
 
 		empty := User("")
@@ -103,7 +103,7 @@ func TestUserAndGroup_Lookup(t *testing.T) {
 		_, err := empty.Lookup()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, ErrEmptyUser)
+		assert.IsError(t, err, errEmptyUser)
 	})
 
 	t.Run("unknown user wrapped with context", func(t *testing.T) {
@@ -131,7 +131,7 @@ func TestUserAndGroup_Lookup(t *testing.T) {
 		assert.Equal(t, current.Uid, found.Uid)
 	})
 
-	t.Run("empty group rejected with sentinel", func(t *testing.T) {
+	t.Run("empty group rejected", func(t *testing.T) {
 		t.Parallel()
 
 		empty := Group("")
@@ -139,7 +139,7 @@ func TestUserAndGroup_Lookup(t *testing.T) {
 		_, err := empty.Lookup()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, ErrEmptyGroup)
+		assert.IsError(t, err, errEmptyGroup)
 	})
 
 	t.Run("unknown group wrapped with context", func(t *testing.T) {

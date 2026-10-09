@@ -89,16 +89,16 @@ This alignment ensures that command line flags, environment variable prefixes, a
 
 ## The ancestor flag reservation invariant
 
-CONGA enforces a strict grammar invariant across the entire command hierarchy: **no descendant command may declare a flag name, alias, or short rune already declared by any of its ancestors**.
+CONGA enforces a strict grammar invariant across the entire command hierarchy: **ancestor commands reserve their flag names, aliases, and short runes throughout all descendant command branches**.
 
 Attempting to register a descendant flag that collides with an ancestor flag fails schema construction with `ErrSchema` (wrapping `ErrDuplicateFlag`).
 
 ```text no-copy
 cloudctl deploy --force      + cloudctl remove --force   (allowed: sibling commands)
-cloudctl --verbose           + cloudctl deploy --verbose (prohibited: ancestor-descendant collision)
+cloudctl --verbose           + cloudctl deploy --verbose (reserved: ancestor-descendant collision)
 ```
 
-This prohibition is not an arbitrary restriction. It enables several fundamental architectural guarantees:
+This invariant provides several fundamental architectural guarantees:
 
 ### Deterministic single-pass parsing
 Command-line operators expect flags to work regardless of where they appear on the command line. An operator might run `cloudctl --verbose deploy worker` or `cloudctl deploy worker --verbose`.

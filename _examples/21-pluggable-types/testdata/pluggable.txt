@@ -1,5 +1,5 @@
 # TestScript for 21-pluggable-types
-# Verifies pluggable type plugins (app.Use), standard library types
+# Verifies pluggable type bindings (app.Use), standard library types
 # (*time.Location, syscall.Signal), slice parsing, and app.RegisterType
 # with a completion predictor for foreign types
 

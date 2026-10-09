@@ -5,7 +5,7 @@ import (
 
 	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/_examples/internal/inspector"
-	"github.com/conga-sh/conga/predict/system"
+	"github.com/conga-sh/conga/system"
 )
 
 // InspectCmd inspects process metadata by PID or process name.

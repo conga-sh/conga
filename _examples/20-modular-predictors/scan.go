@@ -5,7 +5,7 @@ import (
 
 	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/_examples/internal/inspector"
-	"github.com/conga-sh/conga/predict/network"
+	"github.com/conga-sh/conga/network"
 )
 
 // ScanCmd scans open network ports on a target host.

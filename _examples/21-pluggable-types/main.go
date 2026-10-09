@@ -2,15 +2,15 @@ package main
 
 import (
 	"github.com/conga-sh/conga"
-	"github.com/conga-sh/conga/plugin/system"
-	"github.com/conga-sh/conga/plugin/timezone"
 	"github.com/conga-sh/conga/predict"
+	"github.com/conga-sh/conga/system"
+	"github.com/conga-sh/conga/timezone"
 )
 
 func main() {
 	app := conga.New[CLI]().
 		Name("pluggable-demo").
-		Description("Pluggable type parsers, standard library types, and modular plugins").
+		Description("Pluggable type parsers, standard library types, and modular bindings").
 		Version("1.0.0").
 		EnableCompletion()
 
@@ -27,8 +27,8 @@ func main() {
 	))
 
 	app.Use(
-		timezone.Location,
-		system.Signal,
+		timezone.RegisterLocation,
+		system.RegisterSignal,
 	)
 
 	if err := app.Run(); err != nil {

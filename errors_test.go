@@ -65,6 +65,23 @@ type SliceEnumCLI struct {
 	Formats conga.OptionalFlag[[]string] `enum:"json,yaml,table" name:"format"`
 }
 
+// upperEnum normalizes its input to upper case, so enum membership must be
+// checked against the coerced value on both flags and positional arguments.
+type upperEnum string
+
+func (u *upperEnum) UnmarshalText(text []byte) error {
+	*u = upperEnum(strings.ToUpper(strings.TrimSpace(string(text))))
+
+	return nil
+}
+
+type NormalizingEnumCLI struct {
+	noopRunner
+
+	Method conga.OptionalFlag[upperEnum] `enum:"GET,POST" name:"method"`
+	Verb   conga.OptionalArg[upperEnum]  `enum:"GET,POST" name:"[verb]"`
+}
+
 type PathKindCLI struct {
 	noopRunner
 
@@ -571,6 +588,52 @@ func TestSliceEnumValidation_Issue03(t *testing.T) {
 		t.Parallel()
 
 		app := conga.New[SliceEnumCLI]().Name("app").Args([]string{"--format", "json,xml"})
+		err := app.RunContext(t.Context())
+
+		assert.Error(t, err)
+		assert.IsError(t, err, conga.ErrValidation)
+	})
+}
+
+func TestNormalizingEnumValidation(t *testing.T) {
+	t.Parallel()
+
+	t.Run("flag accepts normalized value", func(t *testing.T) {
+		t.Parallel()
+
+		app := conga.New[NormalizingEnumCLI]().Name("app").Args([]string{"--method", "get"})
+
+		err := app.RunContext(t.Context())
+
+		assert.NoError(t, err)
+	})
+
+	t.Run("argument accepts normalized value", func(t *testing.T) {
+		t.Parallel()
+
+		app := conga.New[NormalizingEnumCLI]().Name("app").Args([]string{"get"})
+
+		err := app.RunContext(t.Context())
+
+		assert.NoError(t, err)
+	})
+
+	t.Run("flag rejects value outside enum", func(t *testing.T) {
+		t.Parallel()
+
+		app := conga.New[NormalizingEnumCLI]().Name("app").Args([]string{"--method", "patch"})
+
+		err := app.RunContext(t.Context())
+
+		assert.Error(t, err)
+		assert.IsError(t, err, conga.ErrValidation)
+	})
+
+	t.Run("argument rejects value outside enum", func(t *testing.T) {
+		t.Parallel()
+
+		app := conga.New[NormalizingEnumCLI]().Name("app").Args([]string{"patch"})
+
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)

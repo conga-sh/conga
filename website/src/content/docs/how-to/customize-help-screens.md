@@ -43,7 +43,7 @@ func main() {
 - `Examples("...")` renders usage lines under the `Examples:` heading.
 - `HelpFooter("...")` renders text at the bottom of every help screen across the application, including subcommands.
 
-Root structs must not implement `Description()`, `Summary()`, or `HelpFooter()` methods; configure them on the builder. Help footers are strictly global: defining a `HelpFooter() string` method on a subcommand struct or root struct fails schema construction with `ErrSchema`.
+Configure descriptions and help footers for the root command directly on the App builder (`app.Description(...)`, `app.HelpFooter(...)`). Subcommand structs configure descriptions via `Description()` methods or `summary` struct tags.
 
 ## Add subcommand descriptions and examples
 

@@ -6,7 +6,7 @@ import (
 
 	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/_examples/internal/inspector"
-	"github.com/conga-sh/conga/predict/network"
+	"github.com/conga-sh/conga/network"
 )
 
 // ProbeCmd sends an HTTP request probe to a target host or URL.

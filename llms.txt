@@ -13,10 +13,9 @@
 - [Overview](https://docs.conga.sh/reference/conga/): The `conga` package surface.
 - [Struct tags](https://docs.conga.sh/reference/struct-tags/): Every supported struct tag and its semantics.
 - [Built-ins](https://docs.conga.sh/reference/builtins/): `--help`, `--version`, `--why`, `--completion`, and the `__complete` driver.
-- [Domain types](https://docs.conga.sh/reference/domain-types/): `File`, `Dir`, `ByteSize`, `FileContent`, and custom `TextUnmarshaler` types.
+- [Domain types](https://docs.conga.sh/reference/domain-types/): root `File`, `Dir`, `ByteSize`, `FileContent` plus the `network`, `system`, and `timezone` kits.
 - [Decoders](https://docs.conga.sh/reference/decoders/): Opt-in `json`, `yaml`, `toml`, and `hcl` configuration decoders.
 - [Dotenv](https://docs.conga.sh/reference/dotenv/): `.env` loading and precedence.
 - [Errors](https://docs.conga.sh/reference/errors/): Base error categories and the usage/completion classification interfaces.
-- [Plugins](https://docs.conga.sh/reference/plugins/): `plugin/network`, `plugin/system`, and `plugin/timezone` loader functions.
 - [Predict](https://docs.conga.sh/reference/predict/): The decoupled autocompletion provider SDK.
 - [conga-lint](https://docs.conga.sh/reference/conga-lint/): The static schema analyzer.

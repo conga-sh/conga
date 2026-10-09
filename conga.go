@@ -421,19 +421,19 @@ func (a *App[T]) EnableWhy() *App[T] {
 	return a
 }
 
-// Use mounts one or more modular configuration plugins or type loaders onto the builder.
+// Use mounts one or more builder bindings onto the app.
 //
-// Plugins are functions with signature func(*App[T]). Use them to group related
-// settings or register domain type parsers (e.g. from plugin/network, plugin/system,
-// plugin/timezone):
+// Bindings are functions with signature func(*App[T]). Use them to register
+// standard library bindings from the network, system, and timezone kits, or to
+// group related settings:
 //
-//	app.Use(network.Interface, timezone.Location)
+//	app.Use(network.RegisterInterface, timezone.RegisterLocation)
 //
-// See https://docs.conga.sh/reference/plugins/.
-func (a *App[T]) Use(plugins ...func(*App[T])) *App[T] {
-	for _, plugin := range plugins {
-		if plugin != nil {
-			plugin(a)
+// See https://docs.conga.sh/reference/domain-types/.
+func (a *App[T]) Use(bindings ...func(*App[T])) *App[T] {
+	for _, binding := range bindings {
+		if binding != nil {
+			binding(a)
 		}
 	}
 

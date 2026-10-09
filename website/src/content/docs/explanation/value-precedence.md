@@ -47,7 +47,7 @@ With the configuration map prepared, CONGA iterates over the command hierarchy's
 
 ## Why ConfigFile sits outside the four-tier ladder
 
-Although declared as a flag container (`conga.ConfigFile`) on the root command struct, `ConfigFile` does not follow the four-tier flag ladder.
+Although declared as a flag container (`conga.ConfigFile`) on the root command struct, `ConfigFile` operates outside the four-tier flag ladder because it governs file discovery (Phase 1) rather than individual value binding (Phase 2).
 
 First, a config file cannot define which config file to load, so Tier 3 cannot feed itself.
 
@@ -73,7 +73,7 @@ If an application registers no config decoders (`app.RegisterDecoder`), Tier 3 r
 
 ### Positional arguments
 
-Positional containers (`RequiredArg[T]`, `OptionalArg[T]`, `DashArgs`, and `RawArgs`) resolve exclusively from command-line arguments. They never participate in environment variable or config file resolution. `OptionalArg[T]` falls back to its `default` tag when omitted; `RequiredArg[T]` rejects `default` tags and requires a CLI token.
+Positional containers (`RequiredArg[T]`, `OptionalArg[T]`, `DashArgs`, and `RawArgs`) resolve exclusively from command-line tokens. `OptionalArg[T]` populates from its `default` tag when omitted; `RequiredArg[T]` requires an explicit CLI token.
 
 ### Environment file integration
 

@@ -1,9 +1,9 @@
 # 21 — Pluggable types
 
-Pluggable type parsers in three forms: `app.Use` plugins
-(`plugin/timezone.Location`, `plugin/system.Signal`), standard library types
-parsed natively (`*time.Location`, `syscall.Signal`), and a foreign type wired
-through `app.RegisterType` with `conga.WithPredictor` (`Percent`).
+Pluggable type parsers in two forms: standard library types (`*time.Location`,
+`syscall.Signal`) wired via `app.Use` bindings (`timezone.RegisterLocation`,
+`system.RegisterSignal`), and a foreign type wired via `app.RegisterType` with
+`conga.WithPredictor` (`Percent`).
 
 ## Run it
 
@@ -15,7 +15,7 @@ go run ./_examples/21-pluggable-types --help
 
 ## What to look for
 
-- Plugins and stdlib types resolve to the same underlying values
+- The `syscall.Signal` parser accepts both POSIX signal names and numeric values
   (`--signal TERM` ≈ `--signal 15`).
 - `parsePercent` is the only custom parser; completion for it comes from
   `WithPredictor`.

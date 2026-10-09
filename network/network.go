@@ -1,15 +1,27 @@
-// Package network provides autocompletion predictors and strongly-typed domain
-// objects for network interfaces, hosts, ports, HTTP status codes, MIME types,
-// and HTTP methods.
+// Package network provides domain types and autocompletion predictors for
+// network interfaces, hosts, ports, HTTP status codes, MIME types, and HTTP
+// methods, plus an optional standard library binding for *net.Interface fields.
 //
-// Every exported type implements encoding.TextUnmarshaler and Predict: fields
-// declared with these types coerce automatically and complete from package
-// tables or live system state. Invalid values classify under conga.ErrCoerce
-// with the flag and reason named in the message. Host.LookupIP and
-// NetInterface.Interface return [ErrEmptyHost] and [ErrEmptyInterface]
-// respectively for blank input.
+// Every exported domain type implements encoding.TextUnmarshaler and Predict:
+// fields declared with these types coerce automatically and complete from
+// package tables or live system state. Invalid values classify under
+// conga.ErrCoerce with the flag and reason named in the message. Host.LookupIP
+// and NetInterface.Interface report a blank receiver as an error naming the
+// failed lookup.
 //
-// See https://docs.conga.sh/reference/predict/ for the predictor reference.
+// Mount [RegisterInterface] to register *net.Interface with net.InterfaceByName
+// and enable interface completion on fields typed with the standard library
+// type:
+//
+//	type CLI struct {
+//		Iface conga.OptionalFlag[network.NetInterface] `short:"i" help:"Network interface"`
+//		Peer  conga.OptionalFlag[*net.Interface]       `short:"p" help:"Peer interface"`
+//	}
+//
+//	app := conga.New[CLI]().Use(network.RegisterInterface)
+//
+// See https://docs.conga.sh/reference/domain-types/ for the domain type
+// reference.
 package network
 
 import (
@@ -24,6 +36,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/internal/scanx"
 	"github.com/conga-sh/conga/internal/slicex"
 	"github.com/conga-sh/conga/internal/style"
@@ -31,11 +44,8 @@ import (
 )
 
 var (
-	// ErrEmptyHost indicates a blank host or domain name.
-	ErrEmptyHost = errors.New("host cannot be empty")
-
-	// ErrEmptyInterface indicates a blank network interface name.
-	ErrEmptyInterface = errors.New("interface name cannot be empty")
+	errEmptyHost      = errors.New("lookup host: empty host name")
+	errEmptyInterface = errors.New("network interface: empty interface name")
 
 	errInvalidHTTPMethod = errors.New("unrecognized HTTP method")
 	errInvalidHTTPStatus = errors.New("invalid HTTP status")
@@ -136,7 +146,7 @@ func (h *Host) String() string {
 // ctx for cancellation and deadlines.
 func (h *Host) LookupIP(ctx context.Context) ([]net.IP, error) {
 	if h == nil || *h == "" {
-		return nil, ErrEmptyHost
+		return nil, errEmptyHost
 	}
 
 	ips, err := net.DefaultResolver.LookupIP(ctx, "ip", string(*h))
@@ -149,7 +159,7 @@ func (h *Host) LookupIP(ctx context.Context) ([]net.IP, error) {
 
 // UnmarshalText sets the host string, trimming surrounding whitespace; empty
 // input clears the value. It performs no validation: a host is checked only
-// when it is used (e.g. LookupIP rejects a blank host with ErrEmptyHost).
+// when it is used (e.g. LookupIP rejects a blank host with an error).
 func (h *Host) UnmarshalText(text []byte) error {
 	raw := strings.TrimSpace(string(text))
 	if raw == "" {
@@ -373,7 +383,7 @@ func (n *NetInterface) String() string {
 // Interface queries the system for the underlying net.Interface.
 func (n *NetInterface) Interface() (*net.Interface, error) {
 	if n == nil || *n == "" {
-		return nil, ErrEmptyInterface
+		return nil, errEmptyInterface
 	}
 
 	iface, err := net.InterfaceByName(string(*n))
@@ -472,6 +482,13 @@ func (p *Port) UnmarshalText(text []byte) error {
 	*p = Port(uint16(resolvedPort))
 
 	return nil
+}
+
+// RegisterInterface mounts *net.Interface support onto the app builder: the
+// parser resolves interface names (e.g. lo, eth0) with net.InterfaceByName and
+// completion offers the host's interfaces. Apply with app.Use.
+func RegisterInterface[T any](app *conga.App[T]) {
+	app.RegisterType(net.InterfaceByName, conga.WithPredictor(NetInterfaces()))
 }
 
 // Hosts configures completion of hostnames from /etc/hosts, SSH known_hosts, and SSH config.

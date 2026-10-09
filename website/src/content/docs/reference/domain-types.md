@@ -1,9 +1,9 @@
 ---
 title: Domain types
-description: Built-in filesystem and size types that coerce, validate, and complete themselves.
+description: Built-in and topical domain types that coerce, validate, and complete themselves.
 ---
 
-Types in the root `conga` package implement the `Predictable` interfaces — they carry their own completion behaviour alongside coercion and validation. Using them makes flags and arguments complete automatically in all six shells. To author custom flag types, see [How to add custom flag types](/how-to/add-custom-flag-types/).
+Types in the root `conga` package and the topical `network` and `system` packages implement `Predictable` interfaces — they carry their own completion behaviour alongside coercion and validation. Using them makes flags and arguments complete automatically in all six shells. To author custom flag types, see [How to add custom flag types](/how-to/add-custom-flag-types/).
 
 ## Filesystem types
 
@@ -54,7 +54,7 @@ func (u *Upload) Run(ctx context.Context, session *conga.Session) error {
 | Decimal | `kB`, `MB`, `GB`, `TB`, `PB` | Powers of 1000 |
 | Binary | `KiB`, `MiB`, `GiB`, `TiB`, `PiB` | Powers of 1024 |
 
-The numeric prefix is digits with an optional fraction whose contribution resolves exactly to bytes (`1.5GB`, `0.5GiB`); a sub-byte remainder such as `0.1GiB` is rejected. Naked unit suffixes without `B` (`10G`, `512Mi`) and lowercase casings (`mb`, `kib`) are rejected to prevent ambiguity. `kB` is always 1000 bytes and `KiB` is always 1024; `KB` is rejected as ambiguous because it denotes 1000 bytes in SI usage and 1024 bytes in legacy usage. Text input is non-negative, and negative byte counts are not representable.
+The numeric prefix is digits with an optional fraction whose contribution resolves exactly to bytes (`1.5GB`, `0.5GiB`); a sub-byte remainder such as `0.1GiB` is rejected. Naked unit suffixes without `B` (`10G`, `512Mi`) and lowercase casings (`mb`, `kib`) are rejected to prevent ambiguity. `kB` is always 1000 bytes and `KiB` is always 1024; `KB` is rejected as ambiguous because it denotes 1000 bytes in SI usage and 1024 bytes in legacy usage. Text input must be non-negative.
 
 ### Byte size rendering
 
@@ -91,7 +91,7 @@ type Cache struct {
 
 ### Byte size comparison
 
-`ByteSize` is not comparable: `==` between two values and `ByteSize`-keyed maps are compile errors, because the render family is not part of a size's identity. Compare with `Equal`, order with `Compare`, and calculate with `Bytes()`.
+Compare `ByteSize` values with `Equal`, order with `Compare`, and retrieve raw magnitudes with `Bytes()`. The type is non-comparable via Go's `==` operator to preserve unit-family independence.
 
 ### File streaming
 
@@ -116,6 +116,37 @@ func (c *Convert) Run(ctx context.Context, session *conga.Session) error {
 	return err
 }
 ```
+
+## Topical domain packages
+
+The domain packages (`network`, `system`, `timezone`) bundle value types, autocompletion predictors, and standard library bindings. Declaring a field with a domain type such as `network.Host` or `system.User` enables automatic coercion and autocompletion. When a field uses standard library types (`*net.Interface`, `*time.Location`), register the corresponding binding with `app.Use(...)`.
+
+| Package | Domain types | Standard library binding |
+|---------|--------------|--------------------------|
+| `network` | `Host`, `Port`, `HTTPMethod`, `HTTPStatus`, `MIMEType`, `NetInterface` | `network.RegisterInterface` (`*net.Interface`) |
+| `system` | `User`, `Group`, `Signal`, `PID`, `Process`, `EnvVar`, `Locale` | `system.RegisterUser` (`*user.User`), `system.RegisterGroup` (`*user.Group`), `system.RegisterSignal` (`syscall.Signal`) |
+| `timezone` | – | `timezone.RegisterLocation` (`*time.Location`) |
+
+Each package also exports its predictors as standalone constructors (`network.Hosts()`, `network.NetInterfaces()`, `system.Signals()`, `system.Users()`, `timezone.Timezones()`) for fields declared with plain strings.
+
+```go
+type Deploy struct {
+	Host   conga.OptionalFlag[network.Host]       `help:"Target host"`
+	Port   conga.OptionalFlag[network.Port]       `help:"Target port"`
+	User   conga.OptionalFlag[system.User]        `help:"Run as user"`
+	Method conga.OptionalFlag[network.HTTPMethod] `help:"HTTP method"`
+}
+
+type Legacy struct {
+	Iface conga.OptionalFlag[*net.Interface] `help:"Network interface"`
+	Zone  conga.OptionalFlag[*time.Location] `help:"Server timezone"`
+}
+
+app := conga.New[Legacy]().
+	Use(network.RegisterInterface, timezone.RegisterLocation)
+```
+
+The engine classifies all domain-type coercion failures under `conga.ErrCoerce`, reporting the flag name and failure reason. Methods that query host state (`network.Host.LookupIP`, `network.NetInterface.Interface`, `system.User.Lookup`, `system.Group.Lookup`) return a descriptive error naming the failed lookup for blank input, or the wrapped OS/network error otherwise.
 
 ## Default help text
 

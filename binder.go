@@ -1433,7 +1433,7 @@ func resolveScalarArg(cmdChain []*spec.Command, arg *spec.Arg, posTokens []strin
 			return false, newArgCoercionError(cmdChain, arg, SourceCLI, "", raw, err)
 		}
 
-		if err := validateArgScalar(cmdChain, arg, raw, typedValue); err != nil {
+		if err := validateArgScalar(cmdChain, arg, typedValue); err != nil {
 			return false, err
 		}
 
@@ -1448,7 +1448,7 @@ func resolveScalarArg(cmdChain []*spec.Command, arg *spec.Arg, posTokens []strin
 			return false, newArgCoercionError(cmdChain, arg, SourceDefault, arg.Default, arg.Default, err)
 		}
 
-		if err := validateArgScalar(cmdChain, arg, arg.Default, typedValue); err != nil {
+		if err := validateArgScalar(cmdChain, arg, typedValue); err != nil {
 			return false, err
 		}
 
@@ -1551,7 +1551,7 @@ func resolveArgs(cmd *spec.Command, cmdChain []*spec.Command, posTokens []string
 	return nil
 }
 
-func validateArgScalar(cmdChain []*spec.Command, arg *spec.Arg, raw string, typedValue any) error {
+func validateArgScalar(cmdChain []*spec.Command, arg *spec.Arg, typedValue any) error {
 	constraints := constraintSet{
 		enum:       arg.Enum,
 		length:     arg.Len,
@@ -1559,7 +1559,7 @@ func validateArgScalar(cmdChain []*spec.Command, arg *spec.Arg, raw string, type
 		items:      arg.Items,
 	}
 
-	return validateScalarValue(cmdChain, "argument "+arg.Name, constraints, typedValue, raw)
+	return validateScalarValue(cmdChain, "argument "+arg.Name, constraints, typedValue, stringx.Stringify(typedValue))
 }
 
 func validateArgSlice(cmdChain []*spec.Command, arg *spec.Arg, typedSlice any) error {

@@ -15,7 +15,7 @@ CONGA classifies every failure into five base categories, one per pipeline stage
 | **1** | Command runtime failure (`Runner.Run` or lifecycle hooks), schema-build failure (`ErrSchema`), or configuration failure (`ErrConfig`) |
 | **2** | Usage error: unknown flags, coercion failures, constraint violations, missing required input — and internal completion failures with a diagnostic on stderr |
 
-Built-in requests (`--help`, `help`, `--version`, `version`, and — when enabled with `app.EnableWhy()` / `app.EnableCompletion()` — `--why` and `--completion <shell>`) render their output to stdout during `app.Run()` and return `nil` — they are normal execution, not errors.
+Built-in requests (`--help`, `help`, `--version`, `version`, and opt-in `--why` and `--completion <shell>`) write to stdout during `app.Run()` and return `nil` on clean completion.
 
 ## Base categories
 

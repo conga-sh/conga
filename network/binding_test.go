@@ -9,7 +9,7 @@ import (
 	"github.com/alecthomas/assert/v2"
 
 	"github.com/conga-sh/conga"
-	"github.com/conga-sh/conga/plugin/network"
+	"github.com/conga-sh/conga/network"
 )
 
 func TestInterface(t *testing.T) {
@@ -27,7 +27,7 @@ func TestInterface(t *testing.T) {
 	cli := new(netTestCLI)
 	app := conga.New(cli).
 		Args([]string{"-i", targetName}).
-		Use(network.Interface)
+		Use(network.RegisterInterface)
 
 	err = app.Run()
 
@@ -40,7 +40,7 @@ func TestInterface_UnknownName(t *testing.T) {
 
 	app := conga.New[netTestCLI]().
 		Args([]string{"-i", "no-such-interface-conga-test"}).
-		Use(network.Interface)
+		Use(network.RegisterInterface)
 
 	err := app.Run()
 
@@ -67,7 +67,7 @@ func TestInterface_Completion(t *testing.T) {
 		EnableCompletion().
 		Name("app").
 		Stdout(&buffer).
-		Use(network.Interface).
+		Use(network.RegisterInterface).
 		Args([]string{"__complete", "export", "--iface", ""})
 
 	err = app.Run()

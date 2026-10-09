@@ -1,5 +1,5 @@
 # TestScript for 20-modular-predictors
-# Asserts nested subcommand grouping and the predict/system + predict/network
+# Asserts nested subcommand grouping and the system + network
 # modular domain types (shell script coverage lives in 19-shell-completion)
 
 # 1. Normal command execution (system)

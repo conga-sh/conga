@@ -42,7 +42,7 @@ Port conga.OptionalFlag[int] `default:"8080" safe:"true"`
 Token conga.OptionalFlag[string] `help:"API secret token"`
 ```
 
-Positional arguments and config-file containers cannot be tagged `safe:"false"`. The schema analyzer rejects `safe:"false"` on these containers during initialisation.
+The `safe` tag applies exclusively to flag containers; positional arguments and config-file paths display without redaction.
 
 ## Interpret the provenance output
 

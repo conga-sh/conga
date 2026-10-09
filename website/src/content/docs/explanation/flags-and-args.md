@@ -14,7 +14,7 @@ Command-line libraries in the Go ecosystem generally approach input modelling in
 1. **Imperative flag sets**: Standard library `flag`, `spf13/cobra`, and `urfave/cli` register flags imperatively onto flag sets. Flags bind to standalone variables through pointers or are queried by string keys such as `cmd.Flags().GetString("addr")`. This model separates the command-line specification from data structures and defers type and name checks to runtime error returns.
 2. **Struct-field reflection**: Libraries like `alecthomas/kong` and `alexflint/go-arg` derive flag schemas directly from Go struct definitions using struct tags. Flags map to native Go types (`string`, `int`, `bool`) or pointers (`*string`). This keeps declarations concise and feels like ordinary Go code.
 
-CONGA follows the struct-based approach, but uses dedicated generic containers—such as `OptionalFlag[T]`, `RequiredFlag[T]`, and `RequiredArg[T]`—rather than bare primitive fields or pointers.
+CONGA follows the struct-based approach with dedicated generic containers: `OptionalFlag[T]`, `RequiredFlag[T]`, and `RequiredArg[T]`.
 
 ## The container trade-off
 
@@ -50,7 +50,7 @@ CONGA provides two distinct ways to supply fallback values for optional inputs:
 - **Declarative schema defaults (`default:"..."`)**: Evaluated at compile time and resolved during engine binding. When no higher tier provides a value, the container populates with the tag's value (`IsSet() == true`, `Changed() == false`, `Source() == SourceDefault`). Help screens automatically display `(default: ...)`.
 - **Imperative dynamic fallbacks (`GetOr(fallback)`)**: Evaluated at runtime inside the command body only when the container is unset (`IsSet() == false`, `SourceNone`). This pattern suits fallbacks derived from operating system state, dynamic directories, or values computed from other flags.
 
-Required containers expose no `GetOr`: a required container without a value fails validation before execution, so a fallback is structurally meaningless.
+`GetOr` is available on optional containers; required containers guarantee a validated value prior to execution.
 
 ## Flags versus positional arguments
 
@@ -64,7 +64,7 @@ Positional arguments (`RequiredArg[T]`, `OptionalArg[T]`) have no names on the c
 ### Resolution scope
 Flags participate in the complete four-tier resolution ladder. A flag value can come from the command line, an environment variable, an active config file, or a default tag.
 
-Positional arguments represent immediate execution targets, such as file paths, hostnames, or artifact identifiers. They resolve strictly from command-line arguments. Positional arguments never read from environment variables or config files, preventing ambient system settings from altering explicit command targets.
+Positional arguments represent immediate execution targets, such as file paths, hostnames, or artifact identifiers. They resolve strictly from command-line tokens, isolating execution targets from ambient environment or configuration settings.
 
 ## Deterministic positional evaluation
 

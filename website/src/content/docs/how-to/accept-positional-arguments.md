@@ -44,7 +44,7 @@ copying src.txt to dest.txt
 
 Declare required positional arguments before optional positional arguments in the struct. Placing an optional argument before a required argument produces a schema error (`ErrSchema`) during schema initialisation.
 
-Positional arguments resolve exclusively from command-line tokens. Unlike flags, positional arguments do not bind to environment variables or config files.
+Positional arguments resolve exclusively from command-line tokens.
 
 ## Capture trailing arguments in a slice
 
@@ -100,7 +100,7 @@ func (t *TestRunner) Run(ctx context.Context, session *conga.Session) error {
 }
 ```
 
-CONGA leaves all tokens appearing after `--` completely unparsed and preserves their order. Flags after `--` are not parsed as flags of the current application:
+CONGA forwards all tokens appearing after `--` verbatim into `DashArgs` in their original sequence:
 
 ```sh
 testrunner ./pkg/... -- -v -run TestUpload

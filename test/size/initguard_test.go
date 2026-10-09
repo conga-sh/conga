@@ -21,8 +21,9 @@ import (
 // the feature is disabled, and internal/jsonwire is always-linked, so its
 // initializer would run at every startup. Error sentinels for these packages
 // live in the always-linked internal/sentinel leaf instead. Packages not yet
-// converted (predict/network, predict/system, internal/filex, internal/signals,
-// decoder/*) are intentionally absent until their sentinels move there.
+// converted (network, system, internal/filex, internal/signals, decoder/*) are
+// intentionally absent until their sentinels move there; the network and system
+// kits additionally build static lookup tables at package scope.
 //
 //nolint:gochecknoglobals // static package policy list shared by the guard subtests
 var optInInitGuardPackages = []string{
@@ -40,10 +41,8 @@ var optInInitGuardPackages = []string{
 	"internal/dotenv",
 	"internal/jsonwire",
 	"internal/style",
-	"plugin/network",
-	"plugin/system",
-	"plugin/timezone",
 	"predict",
+	"timezone",
 }
 
 func TestOptInPackages_HaveNoDynamicInitializers(t *testing.T) {

@@ -16,7 +16,7 @@ func (a *App[T]) Dotenv(paths ...string) *App[T]
 | `Dotenv()` | `.env`, then `.env.local`, in the working directory | Silently ignored | The last definition wins; the process environment outranks both files |
 | `Dotenv(path1, path2, ...)` | Each named path, in order | Fatal error wrapping `conga.ErrConfig` | The last definition wins; the process environment outranks files |
 
-`app.Dotenv()` loads non-destructively: a key already present in the process environment is not replaced, so shell, container, and CI values outrank file values. Files apply in order, so `.env.local` overrides a key defined in both conventional files, and each named path overrides the paths before it.
+`app.Dotenv()` loads non-destructively: process environment variables take precedence over file values, preserving shell, container, and CI configurations. Files apply in order, so `.env.local` overrides keys defined in `.env`, and each named path overrides preceding paths.
 
 ## Grammar
 
@@ -25,7 +25,7 @@ func (a *App[T]) Dotenv(paths ...string) *App[T]
 | Comments | Lines whose first non-space character is `#` are ignored; unquoted values drop a trailing `# comment` after whitespace. |
 | `export` prefix | `export PORT=8080` is parsed identically to `PORT=8080`. |
 | Unquoted values | Taken verbatim after inline-comment stripping. |
-| Single quotes | Literal; no escape processing. |
+| Single quotes | Literal; escapes remain uninterpreted. |
 | Double quotes | The escapes `\n`, `\r`, `\t`, `\"`, `\\`, and `\$` are evaluated; only whitespace or a comment may follow the closing quote. |
 | Variable expansion | `$VAR` and `${VAR}` resolve from the process environment first, then from keys defined earlier in the file; a file overriding a key from an earlier file in the same call uses its own value. |
 

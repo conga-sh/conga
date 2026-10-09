@@ -146,7 +146,7 @@ app.ConfigOptions(
 )
 ```
 
-`conga.ConfigCascading()` merges every existing tier file instead of stopping at the first match; [About the config cascade](/explanation/config-cascade/) describes the merge order. The root `ConfigFile` flag must then declare `multi:"true"`:
+`conga.ConfigCascading()` merges all matching configuration files across tiers in precedence order; [About the config cascade](/explanation/config-cascade/) describes the merge sequence. The root `ConfigFile` flag must then declare `multi:"true"`:
 
 ```go title="main.go"
 type CLI struct {
@@ -175,7 +175,7 @@ By default, config keys match the flag's kebab-case field name. Use struct tags 
 ```go title="main.go"
 type Database struct {
 	URL      conga.RequiredFlag[string] `config:"connection_url" help:"Database connection string"`
-	Password conga.OptionalFlag[string] `config:"-" help:"Never read password from config files"`
+	Password conga.OptionalFlag[string] `config:"-" help:"Read password from flags or environment only"`
 }
 ```
 

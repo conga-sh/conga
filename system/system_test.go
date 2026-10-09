@@ -16,7 +16,7 @@ import (
 
 	"github.com/conga-sh/conga/internal/slicex"
 	"github.com/conga-sh/conga/predict"
-	"github.com/conga-sh/conga/predict/system"
+	"github.com/conga-sh/conga/system"
 )
 
 var (

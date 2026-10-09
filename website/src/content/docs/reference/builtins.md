@@ -3,7 +3,7 @@ title: Built-ins and deprecation
 description: Help, version, why, completion commands, deprecation notices, and flat-CLI completion styles.
 ---
 
-CONGA provides five built-in surfaces: help, version, `--why`, completion, and deprecation notices. Help and version are injected by default and disabled with builder calls; `--why` and completion are opt-in. The injected `--help` and `--version` flags declare no short forms.
+CONGA provides five built-in surfaces: help, version, `--why`, completion, and deprecation notices. Help and version are injected by default and disabled with builder calls; `--why` and completion are opt-in. The injected `--help` and `--version` flags provide long forms only.
 
 ## Help
 
@@ -23,7 +23,7 @@ Every app gets `--help` and a generated help screen. CONGA derives the help outp
 
 ### Global help footers and top matter
 
-CONGA does not provide a freeform header API; top-matter text is managed through command descriptions and the deprecation banner.
+Top-matter text consists of command descriptions and the deprecation banner.
 
 `app.HelpFooter(footer)` sets a global help footer rendered at the bottom of every help screen across the application, including subcommands:
 
@@ -111,7 +111,7 @@ When the user presses tab, the installed shell function invokes the binary throu
 cloudctl __complete bash "dep"
 ```
 
-The driver tokenizes the partial line, identifies the target command, flag, or argument, evaluates the applicable predictor and the built-in candidates, writes the shell-native directives to stdout, and exits 0. The application's `Run` method does not execute, and the single-execution slot is not consumed.
+The driver tokenizes the partial line, identifies the target command, flag, or argument, evaluates the applicable predictor and the built-in candidates, writes the shell-native directives to stdout, and exits 0 immediately, preserving the application's single-execution slot.
 
 With completion enabled, several elements complete without custom code:
 - Flag names (long flags, short runes, aliases, and negatable forms), omitting deprecated flags.

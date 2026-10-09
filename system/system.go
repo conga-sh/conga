@@ -1,14 +1,30 @@
-// Package system provides autocompletion predictors and strongly-typed domain
-// objects for system users, groups, running processes, PIDs, POSIX signals,
-// locales, and environment variables.
+// Package system provides domain types and autocompletion predictors for system
+// users, groups, running processes, PIDs, POSIX signals, locales, and
+// environment variables, plus optional standard library bindings for
+// *user.User, *user.Group, and syscall.Signal fields.
 //
-// Every exported type implements encoding.TextUnmarshaler and Predict: fields
-// declared with these types coerce automatically and complete from package
-// tables or live system state. Invalid values classify under conga.ErrCoerce
-// with the flag and reason named in the message. Group.Lookup and User.Lookup
-// return [ErrEmptyGroup] and [ErrEmptyUser] respectively for blank input.
+// Every exported domain type implements encoding.TextUnmarshaler and Predict:
+// fields declared with these types coerce automatically and complete from
+// package tables or live system state. Invalid values classify under
+// conga.ErrCoerce with the flag and reason named in the message. Group.Lookup
+// and User.Lookup report a blank receiver as an error naming the failed lookup.
 //
-// See https://docs.conga.sh/reference/predict/ for the predictor reference.
+// Mount [RegisterUser], [RegisterGroup], or [RegisterSignal] to register the
+// corresponding standard library types and enable completion on fields typed
+// with them:
+//
+//	type CLI struct {
+//		User   conga.OptionalFlag[system.User]    `help:"Run as user"`
+//		Signal conga.OptionalFlag[syscall.Signal] `help:"Termination signal"`
+//	}
+//
+//	app := conga.New[CLI]().Use(system.RegisterSignal)
+//
+// Signals accept POSIX names (SIGHUP, SIGINT, TERM) or numeric values (15).
+// Users and groups resolve via os/user lookups.
+//
+// See https://docs.conga.sh/reference/domain-types/ for the domain type
+// reference.
 package system
 
 import (
@@ -24,6 +40,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/internal/cond"
 	"github.com/conga-sh/conga/internal/scanx"
 	"github.com/conga-sh/conga/internal/signals"
@@ -33,12 +50,8 @@ import (
 )
 
 var (
-	// ErrEmptyGroup indicates a blank group name.
-	ErrEmptyGroup = errors.New("group name cannot be empty")
-
-	// ErrEmptyUser indicates a blank username.
-	ErrEmptyUser = errors.New("username cannot be empty")
-
+	errEmptyGroup = errors.New("group lookup: empty group name")
+	errEmptyUser  = errors.New("user lookup: empty username")
 	errInvalidPID = errors.New("invalid PID")
 )
 
@@ -104,7 +117,7 @@ func (g *Group) String() string {
 // Lookup queries system group details using os/user.LookupGroup.
 func (g *Group) Lookup() (*user.Group, error) {
 	if g == nil || *g == "" {
-		return nil, ErrEmptyGroup
+		return nil, errEmptyGroup
 	}
 
 	grp, err := user.LookupGroup(string(*g))
@@ -242,8 +255,8 @@ func (s *Signal) String() string {
 // Signal converts the signal string into a syscall.Signal. It is a total
 // conversion of a value already validated by UnmarshalText: a nil receiver,
 // an empty value, and unrecognized text all yield 0. Callers that must reject
-// unknown input validate it with UnmarshalText or the plugin/system parser
-// before converting; predictor callbacks have no error channel and ignore
+// unknown input validate it with UnmarshalText or the parser installed by
+// RegisterSignal before converting; predictor callbacks have no error channel and ignore
 // unknown text by construction.
 func (s *Signal) Signal() syscall.Signal {
 	if s == nil {
@@ -293,7 +306,7 @@ func (u *User) String() string {
 // Lookup queries system user details using os/user.Lookup.
 func (u *User) Lookup() (*user.User, error) {
 	if u == nil || *u == "" {
-		return nil, ErrEmptyUser
+		return nil, errEmptyUser
 	}
 
 	usr, err := user.Lookup(string(*u))
@@ -309,6 +322,27 @@ func (u *User) UnmarshalText(text []byte) error {
 	*u = User(strings.TrimSpace(string(text)))
 
 	return nil
+}
+
+// RegisterGroup mounts *user.Group support onto the app builder: the parser
+// resolves group names with os/user.LookupGroup and completion offers the
+// host's groups. Apply with app.Use.
+func RegisterGroup[T any](app *conga.App[T]) {
+	app.RegisterType(user.LookupGroup, conga.WithPredictor(Groups()))
+}
+
+// RegisterSignal mounts syscall.Signal support onto the app builder: the parser
+// accepts POSIX signal names (SIGHUP, TERM) and numeric values (15), and
+// completion offers the platform's signal table. Apply with app.Use.
+func RegisterSignal[T any](app *conga.App[T]) {
+	app.RegisterType(parseSignal, conga.WithPredictor(Signals()))
+}
+
+// RegisterUser mounts *user.User support onto the app builder: the parser
+// resolves usernames with os/user.Lookup and completion offers the host's
+// users. Apply with app.Use.
+func RegisterUser[T any](app *conga.App[T]) {
+	app.RegisterType(user.Lookup, conga.WithPredictor(Users()))
 }
 
 // EnvVars configures completion of environment variable names currently defined
@@ -823,4 +857,14 @@ func scanUsers() []predict.Item {
 	}
 
 	return items
+}
+
+// parseSignal parses a signal by name (e.g. "SIGTERM", "TERM", "hup") or numeric string ("15").
+func parseSignal(raw string) (syscall.Signal, error) {
+	sig, ok := signals.Lookup(raw)
+	if !ok {
+		return 0, fmt.Errorf("%w %q", signals.ErrInvalid, raw)
+	}
+
+	return sig, nil
 }

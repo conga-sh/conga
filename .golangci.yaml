@@ -149,10 +149,8 @@ linters:
           list-mode: lax
           files:
             - "$all"
-            - "!**/predict/network/**"
-            - "!**/predict/system/**"
-            - "!**/plugin/network/**"
-            - "!**/plugin/system/**"
+            - "!**/network/**"
+            - "!**/system/**"
             - "!**/_examples/**"
             - "!**/*_test.go"
             - "!**/test/shell/**"
@@ -161,9 +159,9 @@ linters:
             - "net/url"
           deny:
             - pkg: "net"
-              desc: "net is modular and must only be imported in predict/network and plugin/network"
+              desc: "net is modular and must only be imported in the network kit"
             - pkg: "os/user"
-              desc: "os/user is modular and must only be imported in predict/system and plugin/system"
+              desc: "os/user is modular and must only be imported in the system kit"
         modular_decoders:
           list-mode: lax
           files:

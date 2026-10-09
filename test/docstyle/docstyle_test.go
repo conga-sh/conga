@@ -24,13 +24,10 @@ var publicPackages = []string{
 	"decoder/json",
 	"decoder/toml",
 	"decoder/yaml",
-	"plugin/network",
-	"plugin/system",
-	"plugin/timezone",
+	"network",
 	"predict",
-	"predict/network",
-	"predict/system",
-	"predict/timezone",
+	"system",
+	"timezone",
 }
 
 func TestPublicPackages_HaveNoBackticksInComments(t *testing.T) {

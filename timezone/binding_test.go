@@ -9,7 +9,7 @@ import (
 	"github.com/alecthomas/assert/v2"
 
 	"github.com/conga-sh/conga"
-	"github.com/conga-sh/conga/plugin/timezone"
+	"github.com/conga-sh/conga/timezone"
 )
 
 func TestLocation(t *testing.T) {
@@ -18,7 +18,7 @@ func TestLocation(t *testing.T) {
 	cli := new(timezoneTestCLI)
 	app := conga.New(cli).
 		Args([]string{"-z", "America/New_York"}).
-		Use(timezone.Location)
+		Use(timezone.RegisterLocation)
 
 	err := app.Run()
 
@@ -31,7 +31,7 @@ func TestLocation_InvalidZone(t *testing.T) {
 
 	app := conga.New[timezoneTestCLI]().
 		Args([]string{"-z", "Mars/Crater"}).
-		Use(timezone.Location)
+		Use(timezone.RegisterLocation)
 
 	err := app.Run()
 
@@ -51,7 +51,7 @@ func TestLocation_Completion(t *testing.T) {
 		EnableCompletion().
 		Name("app").
 		Stdout(&buffer).
-		Use(timezone.Location).
+		Use(timezone.RegisterLocation).
 		Args([]string{"__complete", "export", "--zone", ""})
 
 	err := app.Run()

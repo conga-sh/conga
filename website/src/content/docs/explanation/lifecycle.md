@@ -119,7 +119,7 @@ func (c *MigrateCommand) Finally(ctx context.Context, session *conga.Session, er
 
 Unlike `PostRun`, `Finally` is guaranteed to run whenever a command has been initialized, regardless of whether execution succeeded or failed. Even if the process receives a termination signal (`SIGINT` or `SIGTERM`) or an intermediate hook fails, the engine invokes `Finally` to release locks, close file descriptors, and remove temporary files.
 
-If `Finally` itself encounters an error while cleaning up after an earlier failure, the engine combines both errors using `errors.Join`. The primary failure cause is never masked by a secondary cleanup error.
+If `Finally` itself encounters an error while cleaning up after an earlier failure, the engine combines both errors using `errors.Join`, preserving both the primary execution error and the secondary cleanup failure.
 
 ## Hierarchical hook composition
 
@@ -146,7 +146,7 @@ Teardown follows the inverse order. Both `PostRun` and `Finally` unwind bottom-u
 
 If an error occurs during `PreRun`, forward execution stops immediately. The engine tracks which commands successfully finished their `PreRun` step in an internal initialization list.
 
-When unwinding teardown after a `PreRun` failure, `Finally` executes only on commands present in that initialization list. If an intermediate subcommand fails during setup, CONGA never invokes `Finally` on that subcommand or any unvisited descendants. Parent commands that already completed initialization receive their `Finally` call, preventing resource leaks while protecting cleanup handlers from inspecting unallocated state.
+When unwinding teardown after a `PreRun` failure, `Finally` executes strictly on commands that completed `PreRun` successfully. If an intermediate subcommand fails during setup, CONGA limits `Finally` calls to visited parent commands, preventing resource leaks while protecting cleanup handlers from uninitialized state.
 
 ## Context propagation and cancellation
 
@@ -164,7 +164,7 @@ When a context cancels, the cancellation propagates through `ctx` to all active 
 
 Returning an error from a cancelled hook stops forward progress immediately. If `PreRun` or `Run` returns after cancellation, the engine skips any remaining execution steps, including `PostRun`.
 
-Cancellation never skips teardown. When forward execution halts, the engine unwinds through every command that finished its `PreRun` step, calling `Finally` in reverse hierarchy order. The `Finally` hook receives the cancellation error as its `err` argument, allowing cleanup code to roll back transactions, release locks, and remove temporary files before the process exits.
+Teardown is guaranteed on cancellation: when forward execution halts, the engine unwinds through every command that finished its `PreRun` step, calling `Finally` in reverse hierarchy order. The `Finally` hook receives the cancellation error as its `err` argument, allowing cleanup code to roll back transactions, release locks, and remove temporary files before the process exits.
 
 ## Static schema verification versus runtime lifecycle
 

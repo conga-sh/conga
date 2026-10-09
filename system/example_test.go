@@ -6,7 +6,7 @@ import (
 	"syscall"
 
 	"github.com/conga-sh/conga"
-	"github.com/conga-sh/conga/plugin/system"
+	"github.com/conga-sh/conga/system"
 )
 
 // CLI is an application whose flag accepts a POSIX signal.
@@ -20,11 +20,11 @@ func (c *CLI) Run(_ context.Context, session *conga.Session) error {
 	return err
 }
 
-// Signal mounts syscall.Signal support: the flag accepts a POSIX signal name or
-// number and completion offers the platform's signal table.
-func ExampleSignal() {
+// RegisterSignal mounts syscall.Signal support: the flag accepts a POSIX signal
+// name or number and completion offers the platform's signal table.
+func ExampleRegisterSignal() {
 	app := conga.New[CLI]().
-		Use(system.Signal).
+		Use(system.RegisterSignal).
 		Args([]string{"--signal", "SIGTERM"})
 
 	if err := app.Run(); err != nil {

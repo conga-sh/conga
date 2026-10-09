@@ -9,7 +9,7 @@ import (
 	"github.com/conga-sh/conga/_examples/internal/inspector"
 )
 
-// CLI demonstrates pluggable type parsers: plugins for standard library
+// CLI demonstrates pluggable type parsers: bindings for standard library
 // types (*time.Location, syscall.Signal) mounted via app.Use, and a custom
 // foreign type wired via App.RegisterType.
 type CLI struct {
