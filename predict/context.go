@@ -17,8 +17,8 @@ type Context struct {
 	Args []string
 
 	// Parts holds the already-completed segments of a MultiParts value (e.g.
-	// ["key"] while completing "key=val"). The engine leaves it empty: it is
-	// populated by MultiParts for the nested predictor only.
+	// the key segment while completing key=val). The engine leaves it empty: it
+	// is populated by MultiParts for the nested predictor only.
 	Parts []string
 
 	// ParentParts holds the Parts segments of the enclosing MultiParts

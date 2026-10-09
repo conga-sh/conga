@@ -14,10 +14,10 @@ type Item struct {
 	Description string
 
 	// Style is the optional style token string from the internal style
-	// vocabulary (e.g. "blue"). Empty leaves styling to the shell theme.
+	// vocabulary (e.g. blue). Empty leaves styling to the shell theme.
 	Style string
 
-	// Tag is the optional grouping tag (e.g. "commands", "flags") used by
+	// Tag is the optional grouping tag (e.g. commands, flags) used by
 	// tag-aware shells to group candidates in the menu.
 	Tag string
 }

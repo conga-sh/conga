@@ -38,7 +38,7 @@ func DirsFiltered(filter func(path string, entry os.DirEntry) bool) Predictor {
 
 // DirsGlob configures in-process directory completion filtered by glob
 // patterns. A directory is offered when its base name matches at least one
-// pattern (filepath.Match syntax; a wildcard-free pattern such as "build"
+// pattern (filepath.Match syntax; a wildcard-free pattern such as build
 // matches that literal name).
 func DirsGlob(patterns ...string) Predictor {
 	return Callback(func(c Context) Predictor {
@@ -78,7 +78,7 @@ func FilesFiltered(filter func(path string, entry os.DirEntry) bool) Predictor {
 // FilesGlob configures in-process file completion filtered by glob patterns.
 // Directories are retained for traversal, while files must match at least one
 // pattern against their base name (filepath.Match syntax; a wildcard-free
-// pattern such as "Makefile" matches that literal name).
+// pattern such as Makefile matches that literal name).
 func FilesGlob(patterns ...string) Predictor {
 	return Callback(func(c Context) Predictor {
 		return actionFilesGlob(c, patterns)

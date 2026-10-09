@@ -70,7 +70,7 @@ func ConfigPaths(paths ...string) ConfigOption {
 // tier) instead of stopping at the first existing file. The first-listed tier
 // path has the highest precedence on key conflicts; later files still supply
 // keys the earlier ones omit. A declared root [ConfigFile] flag must accept
-// multiple values (`multi:"true"`); the schema rejects the combination
+// multiple values (the multi tag); the schema rejects the combination
 // otherwise.
 func ConfigCascading() ConfigOption {
 	return optionFunc(func(settings *spec.ConfigSettings) {

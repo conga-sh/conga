@@ -3,7 +3,7 @@
 // Mount [Signal], [User], or [Group] using [conga.App.Use] to register system types
 // and automatic shell autocompletion.
 //
-// Signals accept POSIX names (e.g. "SIGHUP", "SIGINT", "TERM") or numeric values (e.g. "15").
+// Signals accept POSIX names (SIGHUP, SIGINT, TERM) or numeric values (15).
 // Users and groups resolve via os/user lookups. When shell completion is enabled,
 // pressing Tab suggests matching signals, usernames, or group names.
 //

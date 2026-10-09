@@ -67,7 +67,7 @@ func (s *Session) Stdin() io.Reader {
 }
 
 // Help returns the formatted help screen for the active command, rendered with
-// the same engine the built-in `--help` flag uses.
+// the same engine the built-in --help flag uses.
 //
 // If the session is nil or uninitialized, Help returns an empty string.
 func (s *Session) Help() string {

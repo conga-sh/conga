@@ -21,7 +21,7 @@
 // errors rather than silently accepted. Reported errors carry the byte offset and
 // JSON pointer of the offending value. Syntax errors, trailing content after the
 // first JSON document, and non-object top-level values wrap [ErrParse]. A JSON
-// `null` document decodes to an empty map.
+// null document decodes to an empty map.
 package json
 
 import (

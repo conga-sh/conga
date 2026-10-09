@@ -40,8 +40,8 @@ var (
 
 	// ErrValidation indicates a flag or argument constraint was violated.
 	//
-	// This category covers violations of struct tags such as `range`, `len`, `enum`,
-	// `xor`, and `and`, as well as failures returned by [SelfValidator.Validate].
+	// This category covers violations of struct tags such as range, len, enum,
+	// xor, and and, as well as failures returned by [SelfValidator.Validate].
 	// All validation errors classify as usage errors ([IsUsageError] reports true).
 	ErrValidation = errors.New("validation error")
 

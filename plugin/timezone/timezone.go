@@ -3,8 +3,8 @@
 // Mount [Location] using [conga.App.Use] to register *time.Location with time.LoadLocation
 // and enable IANA timezone shell autocompletion.
 //
-// Flags parse standard IANA timezone identifiers (e.g. "America/New_York", "UTC",
-// "Europe/London"). When shell completion is enabled, pressing Tab completes from
+// Flags parse standard IANA timezone identifiers (America/New_York, UTC,
+// Europe/London). When shell completion is enabled, pressing Tab completes from
 // available system timezones.
 //
 // See https://docs.conga.sh/reference/plugins/ for the plugin reference.

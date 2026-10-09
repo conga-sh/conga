@@ -128,7 +128,7 @@ func (parser *tokenParser) findFlagSuggestion(name string) string {
 
 	for flagName, flagSpec := range parser.flagMap {
 		if flagSpec.Name == flagName {
-			// A `no-` token is only an intentional negation of a negatable bool
+			// A no- token is only an intentional negation of a negatable bool
 			// flag. Skip candidates that a negated token could never legally
 			// spell, so suggestions do not point at unrelated flags.
 			if _, ok := strings.CutPrefix(name, "no-"); ok && !flagSpec.IsNegatable {
@@ -775,7 +775,7 @@ func routeSubcommands(cmd *spec.Command, tokens []tokenizer.Token) ([]*spec.Comm
 
 		// A positional routed into the completion command is consumed as
 		// the shell argument; keep routing so trailing flags (e.g.
-		// `completion zsh --help`) survive into token parsing.
+		// completion zsh --help) survive into token parsing.
 		if current.IsCompletionCmd {
 			continue
 		}
@@ -1597,8 +1597,8 @@ func checkOrderedRange[T cmp.Ordered](value, minValue, maxValue T, hasMin, hasMa
 	return "", true
 }
 
-// negatedLongFlag re-resolves a `no-`-prefixed long flag name through lookup,
-// enforcing the spec.CanNegate guard: a `no-` token may only re-bind a boolean
+// negatedLongFlag re-resolves a long flag name prefixed with no- through lookup,
+// enforcing the spec.CanNegate guard: a no- token may only re-bind a boolean
 // negatable flag.
 func negatedLongFlag(name string, lookup func(string) *spec.Flag) *spec.Flag {
 	posName, ok := strings.CutPrefix(name, "no-")

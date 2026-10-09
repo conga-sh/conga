@@ -216,7 +216,7 @@ func (s *HTTPStatus) Code() int {
 	return int(*s)
 }
 
-// Text returns the standard HTTP status reason text (e.g. "OK", "Not Found").
+// Text returns the standard HTTP status reason text (e.g. OK, Not Found).
 func (s *HTTPStatus) Text() string {
 	if s == nil {
 		return ""
@@ -290,7 +290,7 @@ func (s *HTTPStatus) UnmarshalText(text []byte) error {
 	return nil
 }
 
-// MIMEType represents an IANA media type string (e.g. "application/json").
+// MIMEType represents an IANA media type string (e.g. application/json).
 type MIMEType string
 
 // Predict returns media type autocompletion candidates.
@@ -298,7 +298,7 @@ func (m *MIMEType) Predict() predict.Predictor {
 	return MIMETypes()
 }
 
-// Type returns the top-level media type component (e.g. "application" in "application/json").
+// Type returns the top-level media type component (e.g. application in application/json).
 func (m *MIMEType) Type() string {
 	if m == nil {
 		return ""
@@ -309,7 +309,7 @@ func (m *MIMEType) Type() string {
 	return strings.TrimSpace(topType)
 }
 
-// Subtype returns the subtype component (e.g. "json" in "application/json; charset=utf-8").
+// Subtype returns the subtype component (e.g. json in application/json; charset=utf-8).
 func (m *MIMEType) Subtype() string {
 	if m == nil {
 		return ""

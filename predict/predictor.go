@@ -27,7 +27,7 @@ type Result struct {
 	// Usage is an ActiveHelp/tooltip hint accompanying the candidates, not
 	// syntax help. When Directive includes DirectiveError, the wire layer
 	// also uses it as the error message for shells with a message channel
-	// (an empty Usage renders the literal "ERROR").
+	// (an empty Usage renders the literal ERROR).
 	Usage string
 }
 

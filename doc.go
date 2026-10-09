@@ -14,7 +14,7 @@
 //   - Subcommands: [Command]
 //
 // Struct tags declare names, help text, fallback values, and constraints such
-// as `range`, `len`, `enum`, `xor`, and `and`. For the full tag specification,
+// as range, len, enum, xor, and and. For the full tag specification,
 // see https://docs.conga.sh/reference/struct-tags/.
 //
 // Commands execute by implementing [Runner]. Lifecycle hooks can be added
@@ -47,9 +47,9 @@
 //  1. Command-line flags
 //  2. Environment variables
 //  3. Configuration files
-//  4. Struct field `default` tags
+//  4. Struct field default tags
 //
-// Positional arguments resolve only from command-line arguments and `default`
+// Positional arguments resolve only from command-line arguments and default
 // tags. [OptionalFlag.Source] reports where a resolved value originated.
 //
 // See https://docs.conga.sh/explanation/value-precedence/.
@@ -58,11 +58,11 @@
 //
 // CONGA provides built-in flags for standard operational tasks:
 //
-//   - `--help`: prints command syntax and flag descriptions. Enabled
+//   - --help: prints command syntax and flag descriptions. Enabled
 //     by default; disable with [App.DisableHelpFlag].
-//   - `--version`: prints version and build information. Enabled by
+//   - --version: prints version and build information. Enabled by
 //     default; disable with [App.DisableVersionFlag].
-//   - `--why`: prints a provenance report showing where every flag resolved
+//   - --why: prints a provenance report showing where every flag resolved
 //     from (CLI flag, environment variable, configuration file, or default tag)
 //     and which competing values were overridden. Useful when debugging complex
 //     configurations. Enable with [App.EnableWhy].
@@ -103,6 +103,6 @@
 //   - Shell completion: call [App.EnableCompletion] to generate completion
 //     scripts for Bash, Zsh, Fish, PowerShell, Elvish, and Nushell.
 //   - Configuration decoders: import and register decoders such as
-//     `conga/decoder/yaml` using [App.RegisterDecoder].
-//   - Dotenv files: call [App.Dotenv] to load variables from `.env` files.
+//     conga/decoder/yaml using [App.RegisterDecoder].
+//   - Dotenv files: call [App.Dotenv] to load variables from .env files.
 package conga

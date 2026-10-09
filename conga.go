@@ -149,7 +149,7 @@ func (a *App[T]) Name(name string) *App[T] {
 // the root command's help screen below the usage header.
 //
 // A subcommand supplies its own long-form overview by implementing
-// [DescriptionProvider], and its one-line synopsis with the `summary` tag.
+// [DescriptionProvider], and its one-line synopsis with the summary tag.
 //
 // See https://docs.conga.sh/how-to/customize-help-screens/.
 func (a *App[T]) Description(desc string) *App[T] {
@@ -160,7 +160,7 @@ func (a *App[T]) Description(desc string) *App[T] {
 
 // Examples sets application usage examples displayed on the root help screen.
 //
-// Examples appear in a dedicated "Examples:" section on `--help`. Indented lines
+// Examples appear in a dedicated "Examples:" section on --help. Indented lines
 // are preserved as formatted code or command lines:
 //
 //	app.Examples(`  # Start server on custom port
@@ -191,11 +191,11 @@ func (a *App[T]) HelpFooter(footer string) *App[T] {
 // Each run that reaches the command lifecycle first prints a warning containing
 // the reason text to standard error. Execution continues normally; deprecation
 // warnings are non-fatal. Requests that render a built-in and return early, such
-// as `--help`, `--version`, and `--why`, print no warning.
+// as --help, --version, and --why, print no warning.
 //
 // Declare the deprecation with this method, not a Deprecated method on the root
 // struct, which fails schema compilation with [ErrSchema]. To deprecate an
-// individual optional flag or subcommand, use the `deprecated` struct tag.
+// individual optional flag or subcommand, use the deprecated struct tag.
 func (a *App[T]) Deprecated(reason string) *App[T] {
 	a.deprecated = reason
 
@@ -204,7 +204,7 @@ func (a *App[T]) Deprecated(reason string) *App[T] {
 
 // Version sets the application version string.
 //
-// The version renders when the user passes the built-in `--version` flag, when
+// The version renders when the user passes the built-in --version flag, when
 // running a mounted [VersionCommand], or when calling [Session.Version].
 //
 // When omitted, CONGA falls back to the Go module version recorded in the binary,
@@ -218,13 +218,13 @@ func (a *App[T]) Version(version string) *App[T] {
 
 // EnvPrefix sets the global environment variable prefix applied to derived flag bindings.
 //
-// CONGA ensures the prefix ends with an underscore; if prefix does not end with "_",
-// it is appended automatically (e.g. "MYAPP" becomes "MYAPP_").
+// CONGA appends a trailing underscore when the prefix lacks one, so the prefix MYAPP
+// becomes MYAPP_. Flags without an explicit env tag derive their variable name from the
+// prefix and the uppercase flag name, with hyphens replaced by underscores. A field
+// declaring an env tag uses that name verbatim and ignores the prefix:
 //
-// Flags without an explicit `env` tag derive their variable name from the prefix and
-// the uppercase flag name with hyphens replaced by underscores (e.g. `--database-url`
-// binds to "MYAPP_DATABASE_URL"). A field declaring `env:"PORT"` uses that name
-// verbatim; explicit `env` names ignore the prefix.
+//	EnvPrefix("MYAPP")  --database-url  =>  MYAPP_DATABASE_URL
+//	EnvPrefix("MYAPP")  env:"PORT"      =>  PORT
 //
 // Environment variable bindings outrank configuration file values and defaults, but
 // yield to explicit command-line flags.
@@ -242,16 +242,16 @@ func (a *App[T]) EnvPrefix(prefix string) *App[T] {
 
 // Dotenv enables loading environment variables from .env files into the process environment.
 //
-// When called without arguments, Dotenv probes for ".env" followed by ".env.local" in the
+// When called without arguments, Dotenv probes for .env followed by .env.local in the
 // current working directory, loading both if present. When explicit paths are supplied,
 // CONGA loads only the specified files in the given order.
 //
 // Files apply in order: a key defined in more than one file takes the value from the
-// last file that defines it, so ".env.local" overrides ".env". Variables already present
+// last file that defines it, so .env.local overrides .env. Variables already present
 // in the process environment are never overwritten and outrank every file.
 //
-// Files must use KEY=VALUE syntax. Empty lines and lines starting with '#' are ignored;
-// optional 'export ' prefixes and surrounding single or double quotes are stripped.
+// Files must use KEY=VALUE syntax. Empty lines and lines starting with # are ignored;
+// optional export prefixes and surrounding single or double quotes are stripped.
 //
 // Dotenv files enforce a strict 16MB file size limit to prevent unbounded memory allocation.
 // Files exceeding the limit or missing explicit paths cause execution to halt with an error
@@ -306,13 +306,13 @@ func (a *App[T]) RegisterDecoder(extension string, decoder ConfigDecoder) *App[T
 // command schema is compiled (enabled by default).
 //
 // When strict validation is enabled, CONGA inspects all struct tags on command fields.
-// Unknown tag keys (such as misspelled `hlp` or `deflt`), invalid constraint combinations,
+// Unknown tag keys (such as misspelled hlp or deflt), invalid constraint combinations,
 // or tags applied to unsupported field types cause [App.Run] or [App.RunContext] to return
 // an error wrapping [ErrSchema].
 //
-// Common third-party tags (e.g. `json`, `yaml`, `validate`, `db`) are permitted by default.
-// [App.AllowTags] registers additional external tag keys (e.g. `kong`, `bson`, or
-// custom annotations) without disabling strict validation.
+// Common third-party tags (json, yaml, validate, db, and others listed in the package
+// documentation) are permitted by default. [App.AllowTags] registers additional external
+// tag keys (kong, bson, or custom annotations) without disabling strict validation.
 func (a *App[T]) StrictTagValidation(strict bool) *App[T] {
 	a.tagValidationDisabled = !strict
 
@@ -324,7 +324,7 @@ func (a *App[T]) StrictTagValidation(strict bool) *App[T] {
 // Strict validation (the default) rejects unrecognized tag keys. CONGA accepts
 // common third-party tags out of the box (json, yaml, validate, db, and others
 // listed in the package documentation); register any others your structs carry
-// (for example `bson` or a custom annotation) instead of disabling strict
+// (for example bson or a custom annotation) instead of disabling strict
 // validation:
 //
 //	type ServerCLI struct {
@@ -336,7 +336,7 @@ func (a *App[T]) StrictTagValidation(strict bool) *App[T] {
 //
 // Registered keys are ignored by the schema builder on all commands, subcommands,
 // and nested structs; multiple calls append to the permitted tag set. For
-// narrower scope use `conga:"allow-unknown-tags"`, or call
+// narrower scope use the conga allow-unknown-tags directive, or call
 // [App.StrictTagValidation] with false to disable tag checking entirely.
 func (a *App[T]) AllowTags(tags ...string) *App[T] {
 	a.allowedTags = append(a.allowedTags, tags...)
@@ -346,13 +346,12 @@ func (a *App[T]) AllowTags(tags ...string) *App[T] {
 
 // Predictor registers a named completion predictor for shell autocompletion.
 //
-// Command struct fields reference registered predictors using the
-// `predictor:"name"` struct tag.
+// Command struct fields reference registered predictors using the predictor struct tag.
 //
 // Panics:
 //   - If name is empty.
-//   - If name matches a reserved built-in predictor name or alias (for example "file",
-//     "dirs", "executables", "symlinks", "none").
+//   - If name matches a reserved built-in predictor name or alias (file, dirs,
+//     executables, symlinks, none).
 //   - If a predictor with the same name has already been registered.
 //
 // See https://docs.conga.sh/how-to/wire-custom-completion/.
@@ -377,7 +376,7 @@ func (a *App[T]) Predictor(name string, predictor predict.Predictor) *App[T] {
 }
 
 // EnableCompletion activates shell completion: script generation for Bash, Zsh,
-// Fish, PowerShell, Elvish, and Nushell, plus the hidden `__complete` wire
+// Fish, PowerShell, Elvish, and Nushell, plus the hidden __complete wire
 // protocol. A mounted [CompletionCommand] requires it.
 //
 // See https://docs.conga.sh/how-to/enable-shell-completion/.
@@ -388,7 +387,7 @@ func (a *App[T]) EnableCompletion() *App[T] {
 	return a
 }
 
-// DisableHelpFlag stops CONGA from injecting the built-in `--help` flag, freeing
+// DisableHelpFlag stops CONGA from injecting the built-in --help flag, freeing
 // that name for your own flags. [Session.Help], error-driven usage summaries, and
 // an explicit [HelpCommand] still work.
 //
@@ -399,9 +398,9 @@ func (a *App[T]) DisableHelpFlag() *App[T] {
 	return a
 }
 
-// DisableVersionFlag stops CONGA from injecting the built-in `--version` flag,
+// DisableVersionFlag stops CONGA from injecting the built-in --version flag,
 // freeing that name for your own flags. [Session.Version], version metadata in
-// `--why` reports, and an explicit [VersionCommand] still work.
+// --why reports, and an explicit [VersionCommand] still work.
 //
 // See https://docs.conga.sh/reference/builtins/.
 func (a *App[T]) DisableVersionFlag() *App[T] {
@@ -410,7 +409,7 @@ func (a *App[T]) DisableVersionFlag() *App[T] {
 	return a
 }
 
-// EnableWhy activates the built-in `--why` flag. When passed, CONGA skips
+// EnableWhy activates the built-in --why flag. When passed, CONGA skips
 // command execution and prints a provenance report to standard output showing
 // where every flag value originated (CLI, environment, configuration file, or
 // struct default) and why competing sources were overridden.
@@ -424,9 +423,9 @@ func (a *App[T]) EnableWhy() *App[T] {
 
 // Use mounts one or more modular configuration plugins or type loaders onto the builder.
 //
-// Plugins are functions with signature `func(*App[T])`. Use them to group related
-// settings or register domain type parsers (e.g. from `plugin/network`, `plugin/system`,
-// `plugin/timezone`):
+// Plugins are functions with signature func(*App[T]). Use them to group related
+// settings or register domain type parsers (e.g. from plugin/network, plugin/system,
+// plugin/timezone):
 //
 //	app.Use(network.Interface, timezone.Location)
 //
@@ -487,12 +486,15 @@ func (a *App[T]) RegisterType[U any](parser func(string) (U, error), opts ...Reg
 }
 
 // RegisterMap registers a parser and optional completion predictor
-// for map type `map[K]V`, so flags and positional arguments of that type accept
-// `key=value` pairs. K must be `string` or a type with underlying kind string; V
+// for map type map[K]V, so flags and positional arguments of that type accept
+// key=value pairs. K must be string or a type with underlying kind string; V
 // may be any type supported by CONGA. Maps with both a string key and a string
 // value bind natively and need no registration.
 //
-// Flags accept repeated (`--flag k1=v1 --flag k2=v2`) or comma-separated (`--flag k1=v1,k2=v2`) pairs.
+// Flags accept repeated or comma-separated pairs:
+//
+//	--flag k1=v1 --flag k2=v2
+//	--flag k1=v1,k2=v2
 //
 // The sample map is read for its type only; its entries are ignored.
 //
@@ -670,7 +672,8 @@ func (a *App[T]) UsageOnError(mode UsageOnErrorMode) *App[T] {
 // Stdin redirects the standard input stream reader for the application.
 //
 // The stream defaults to [os.Stdin]. It is passed to commands via [Session.Stdin] and
-// feeds [File] containers declaring `stdin:"true"` and [FileContent] containers reading "-".
+// feeds [File] containers declaring the stdin tag and [FileContent] containers reading
+// from the - path.
 //
 // The stream reader is snapshotted when [App.Run] or [App.RunContext] begins; mutations
 // made after execution starts do not affect the active session. Passing a nil reader
@@ -686,8 +689,8 @@ func (a *App[T]) Stdin(reader io.Reader) *App[T] {
 // Stdout redirects the standard output stream writer for the application.
 //
 // The stream defaults to [os.Stdout]. It is passed to commands via [Session.Stdout] and
-// is used by built-in help, version, and `--why` renderers, as well as [File] containers
-// declaring `stdout:"true"` writing to "-".
+// is used by built-in help, version, and --why renderers, as well as [File] containers
+// declaring the stdout tag and writing to the - path.
 //
 // The stream writer is snapshotted when [App.Run] or [App.RunContext] begins; mutations
 // made after execution starts do not affect the active session. Passing a nil writer
@@ -790,7 +793,7 @@ type RegisterTypeOption func(*typeRegistration)
 // WithPredictor attaches a shell autocompletion predictor to a registered custom type.
 //
 // Flags and positional arguments using this type automatically inherit the predictor
-// for shell autocompletion, unless overridden by an explicit `predictor:"name"` struct tag.
+// for shell autocompletion, unless overridden by an explicit predictor struct tag.
 func WithPredictor(p predict.Predictor) RegisterTypeOption {
 	return func(r *typeRegistration) {
 		r.hasPredictor = true
@@ -1393,12 +1396,12 @@ func (a *App[T]) handleBuiltinFlags(session *Session, flagValues map[*spec.Flag]
 	cmdChain := session.cmdChain
 	request := scanBuiltinRequest(flagValues)
 
-	// 1. Completion flag + --help (e.g. `app --completion zsh --help` or `app --completion --help`)
+	// 1. Completion flag + --help (e.g. app --completion zsh --help or app --completion --help)
 	if request.hasCompletion && request.hasHelp && a.completionHelp != nil {
 		return a.completionHelp(a, cmdChain, request.completionValue, true)
 	}
 
-	// 2. Bare completion flag (e.g. `app --completion`)
+	// 2. Bare completion flag (e.g. app --completion)
 	if request.hasCompletion && request.completionValue == "" && a.completionHelp != nil {
 		return a.completionHelp(a, cmdChain, "", false)
 	}
@@ -1417,14 +1420,14 @@ func (a *App[T]) handleBuiltinFlags(session *Session, flagValues map[*spec.Flag]
 		return true, nil
 	}
 
-	// 5. Value-provenance report (e.g. `app --why`)
+	// 5. Value-provenance report (e.g. app --why)
 	if request.hasWhy && a.whyRenderer != nil {
 		a.whyRenderer(a, cmdChain, flagValues)
 
 		return true, nil
 	}
 
-	// 6. Completion script generation (e.g. `app --completion zsh`)
+	// 6. Completion script generation (e.g. app --completion zsh)
 	if request.hasCompletion && request.completionValue != "" && a.renderCompletionScript != nil {
 		return a.renderCompletionScript(a, cmdChain, request.completionValue)
 	}
@@ -1444,8 +1447,8 @@ func (a *App[T]) renderVersionBuiltin() {
 }
 
 // renderCompletionHelp renders the completion help screen: the per-shell
-// screen for `--completion <shell> --help`, or the generic screen for a bare
-// `--completion`.
+// screen for --completion <shell> --help, or the generic screen for a bare
+// --completion.
 func (a *App[T]) renderCompletionHelp(cmdChain []*spec.Command, completionValue string, withHelp bool) (bool, error) {
 	var compCmd *spec.Command
 
