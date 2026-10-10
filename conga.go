@@ -205,11 +205,21 @@ func (a *App[T]) Deprecated(reason string) *App[T] {
 // Version sets the application version string.
 //
 // The version renders when the user passes the built-in --version flag, when
-// running a mounted [VersionCommand], or when calling [Session.Version].
+// running a mounted [VersionCommand], or when calling [Session.Version]. The
+// --version flag prefers the invoked binary's name over the configured
+// application name.
 //
-// When omitted, CONGA falls back to the Go module version recorded in the binary,
-// or "dev" when the module version is unavailable. An embedded VCS commit hash and
-// timestamp are appended to the rendered summary when present.
+// When omitted, CONGA falls back to the Go module version recorded in the
+// binary, or "dev" when the module version is unavailable. An embedded VCS
+// commit hash and timestamp are appended to the rendered summary when present.
+//
+// The summary line takes the form
+//
+//	<app> has version <version> built with <goversion>
+//
+// For example:
+//
+//	Version("2.1.0")  --version  =>  myapp has version 2.1.0 built with go1.24.0
 func (a *App[T]) Version(version string) *App[T] {
 	a.version = version
 
@@ -423,9 +433,10 @@ func (a *App[T]) EnableWhy() *App[T] {
 
 // Use mounts one or more builder bindings onto the app.
 //
-// Bindings are functions with signature func(*App[T]). Use them to register
-// standard library bindings from the network, system, and timezone kits, or to
-// group related settings:
+// Bindings are functions with signature func(*App[T]). Each runs immediately
+// in the given order, registering types and predictors through the App builder
+// (RegisterLocation, for example, calls [App.RegisterType] with a completion
+// predictor), and nil bindings are skipped:
 //
 //	app.Use(network.RegisterInterface, timezone.RegisterLocation)
 //

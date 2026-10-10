@@ -269,7 +269,22 @@ func (f *File) UnmarshalTextWithContext(text []byte, decodeContext DecodeContext
 }
 
 // Help returns the default value syntax description for file flags, tailored to
-// declared capability tags (e.g. "Path to an existing file or '-' for stdin").
+// declared capability tags.
+//
+// The engine renders this text in the flag's help column when the field
+// declares no help tag; a field with a help tag shows that text instead.
+// Shells also show it as the description of the flag's completion candidates.
+//
+//	Field                  Rendered text
+//	conga.File             Path to a file
+//	stdin:"true"           Path to a file or '-' for stdin
+//	stdout:"true"          Path to a file or '-' for stdout
+//	existing:"true"        Path to an existing file
+//	executable:"true"      Path to an executable
+//	symlink:"true"         Path to a symbolic link
+//
+// The glob tag appends a matching clause, and the stdin/stdout suffix combines
+// with the file and existing forms (see [File] for the tag grammar).
 func (f File) Help(tags FieldTags) string {
 	switch {
 	case tags.Bool("executable"):
@@ -375,6 +390,11 @@ func (f FileContent) String() string {
 }
 
 // Help returns the default value syntax description for file content flags.
+//
+// The engine renders this text in the flag's help column when the field
+// declares no help tag; a field with a help tag shows that text instead.
+// Shells also show it as the description of the flag's completion candidates.
+// The rendered text is always "Path to a file (or '-' for stdin)".
 func (f FileContent) Help() string {
 	return "Path to a file (or '-' for stdin)"
 }
@@ -513,8 +533,16 @@ func (d *Dir) UnmarshalTextWithContext(text []byte, decodeContext DecodeContext)
 	return nil
 }
 
-// Help returns the default value syntax description for directory flags, tailored
-// to declared tags ("Path to an existing directory" or "Path to a directory").
+// Help returns the default value syntax description for directory flags,
+// tailored to the declared existing tag.
+//
+// The engine renders this text in the flag's help column when the field
+// declares no help tag; a field with a help tag shows that text instead.
+// Shells also show it as the description of the flag's completion candidates:
+//
+//	Field            Rendered text
+//	conga.Dir        Path to a directory
+//	existing:"true"  Path to an existing directory
 func (d Dir) Help(tags FieldTags) string {
 	if tags.Bool("existing") {
 		return "Path to an existing directory"
@@ -707,8 +735,20 @@ func (b *ByteSize) UnmarshalTextWithContext(text []byte, decodeContext DecodeCon
 	return nil
 }
 
-// Help returns the default value syntax description for byte size flags, tailored
-// to the declared units and display tags.
+// Help returns the default value syntax description for byte size flags,
+// tailored to the declared units and display tags.
+//
+// The engine renders this text in the flag's help column when the field
+// declares no help tag; a field with a help tag shows that text instead.
+// Shells also show it as the description of the flag's completion candidates.
+//
+//	Field            Rendered text
+//	conga.ByteSize   Byte size (e.g., 10MiB, 1.5GB, 500KiB)
+//	units:"binary"   Byte size in binary units (e.g., 10KiB, 512MiB)
+//	units:"decimal"  Byte size in decimal units (e.g., 10kB, 512MB)
+//
+// The display tag appends one of ", shown in binary units", ", shown in
+// decimal units", or ", shown in the entered unit family".
 func (b ByteSize) Help(tags FieldTags) string {
 	helpText := "Byte size (e.g., 10MiB, 1.5GB, 500KiB)"
 

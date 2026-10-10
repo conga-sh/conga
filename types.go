@@ -76,6 +76,10 @@ type ValueSource = container.Source
 // instead. Implement exactly one of [HelpProvider] or [TagAwareHelpProvider], not both.
 type HelpProvider interface {
 	// Help returns the value syntax description displayed in help screens.
+	//
+	// The engine consults the provider when the owning field declares no help
+	// tag; a field with a help tag shows that text instead. Shells show the
+	// provider's text as the description of the field's completion candidates.
 	Help() string
 }
 
@@ -89,6 +93,10 @@ type HelpProvider interface {
 // of the pair, not both.
 type TagAwareHelpProvider interface {
 	// Help returns the tailored help description for the field given its declared tags.
+	//
+	// The engine consults the provider when the owning field declares no help
+	// tag; a field with a help tag shows that text instead. Shells show the
+	// provider's text as the description of the field's completion candidates.
 	Help(tags FieldTags) string
 }
 

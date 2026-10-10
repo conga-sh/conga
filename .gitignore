@@ -60,3 +60,7 @@
 /website/node_modules/
 
 /third_party
+
+.agents
+.omp
+.opencode

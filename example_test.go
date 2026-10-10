@@ -7,10 +7,12 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/decoder/toml"
 	"github.com/conga-sh/conga/predict"
+	"github.com/conga-sh/conga/timezone"
 )
 
 // CLI is a minimal single-command application.
@@ -180,6 +182,17 @@ type ByteSizeCLI struct {
 
 func (c *ByteSizeCLI) Run(_ context.Context, session *conga.Session) error {
 	_, err := fmt.Fprintf(session.Stdout(), "limit=%s bytes=%d\n", c.Limit.Get(), c.Limit.Get().Bytes())
+
+	return err
+}
+
+// UseCLI is an application whose flag type is registered through a mounted binding.
+type UseCLI struct {
+	Zone conga.OptionalFlag[*time.Location] `help:"Server timezone"`
+}
+
+func (c *UseCLI) Run(_ context.Context, session *conga.Session) error {
+	_, err := fmt.Fprintln(session.Stdout(), c.Zone.Get())
 
 	return err
 }
@@ -375,6 +388,34 @@ func ExampleByteSize() {
 	}
 
 	// Output: limit=1500MB bytes=1500000000
+}
+
+// Use mounts timezone.RegisterLocation, which registers a parser and
+// completion predictor for *time.Location through App.RegisterType.
+func ExampleApp_Use() {
+	app := conga.New[UseCLI]().
+		Use(timezone.RegisterLocation).
+		Args([]string{"--zone", "America/New_York"})
+
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
+
+	// Output: America/New_York
+}
+
+// ByteSize's help text tailors to the field's declared units and display tags.
+func ExampleByteSize_Help() {
+	var size conga.ByteSize
+
+	fmt.Println(size.Help(nil))
+	fmt.Println(size.Help(conga.FieldTags{"units": "binary"}))
+	fmt.Println(size.Help(conga.FieldTags{"units": "decimal", "display": "input"}))
+
+	// Output:
+	// Byte size (e.g., 10MiB, 1.5GB, 500KiB)
+	// Byte size in binary units (e.g., 10KiB, 512MiB)
+	// Byte size in decimal units (e.g., 10kB, 512MB), shown in the entered unit family
 }
 
 // parseCIDR adapts net.ParseCIDR to the App.RegisterType parser signature.
