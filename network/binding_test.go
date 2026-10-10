@@ -76,6 +76,52 @@ func TestInterface_Completion(t *testing.T) {
 	assert.Contains(t, buffer.String(), `"value":"`+ifaces[0].Name+`"`)
 }
 
+func TestDefaultTypeHelp(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	app := conga.New[netHelpCLI]().
+		Args([]string{"--help"}).
+		Stdout(&buffer)
+
+	err := app.Run()
+	assert.NoError(t, err)
+
+	output := buffer.String()
+
+	for _, testCase := range []struct {
+		name string
+		want string
+	}{
+		{"Host", "Host (hostname, domain, or IP address)"},
+		{"HTTPMethod", "HTTP method (GET, POST, PUT, DELETE, ...)"},
+		{"HTTPStatus", "HTTP status code (100-599, e.g. 200, 404)"},
+		{"MIMEType", "MIME type (e.g. application/json)"},
+		{"NetInterface", "Network interface (e.g. eth0, lo)"},
+		{"Port", `Port (1-65535, or a service name like "http")`},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Contains(t, output, testCase.want)
+		})
+	}
+}
+
+type netHelpCLI struct {
+	Host      conga.OptionalFlag[network.Host]
+	Method    conga.OptionalFlag[network.HTTPMethod]
+	Status    conga.OptionalFlag[network.HTTPStatus]
+	MIME      conga.OptionalFlag[network.MIMEType]
+	Interface conga.OptionalFlag[network.NetInterface]
+	Port      conga.OptionalFlag[network.Port]
+}
+
+func (c *netHelpCLI) Run(_ context.Context, _ *conga.Session) error {
+	return nil
+}
+
 type netTestCLI struct {
 	Iface conga.OptionalFlag[*net.Interface] `short:"i"`
 }

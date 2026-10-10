@@ -167,6 +167,19 @@ An explicit `help:"..."` tag replaces the type-derived description. Without one,
 | `conga.ByteSize` | – | `Byte size (e.g., 10MiB, 1.5GB, 500KiB)` |
 | `conga.ByteSize` | `units:"binary"` | `Byte size in binary units (e.g., 10KiB, 512MiB)` |
 | `conga.ByteSize` | `units:"decimal"` | `Byte size in decimal units (e.g., 10kB, 512MB)` |
+| `network.Host` | – | `Host (hostname, domain, or IP address)` |
+| `network.HTTPMethod` | – | `HTTP method (GET, POST, PUT, DELETE, ...)` |
+| `network.HTTPStatus` | – | `HTTP status code (100-599, e.g. 200, 404)` |
+| `network.MIMEType` | – | `MIME type (e.g. application/json)` |
+| `network.NetInterface` | – | `Network interface (e.g. eth0, lo)` |
+| `network.Port` | – | `Port (1-65535, or a service name like "http")` |
+| `system.EnvVar` | – | `Environment variable name (e.g. PATH)` |
+| `system.Group` | – | `System group name` |
+| `system.Locale` | – | `Locale identifier (e.g. en_US.UTF-8)` |
+| `system.PID` | – | `Process ID (a positive integer)` |
+| `system.Process` | – | `Process executable name (e.g. postgres)` |
+| `system.Signal` | – | `Signal name or number (e.g. SIGTERM, 9)` |
+| `system.User` | – | `System username` |
 
 `time.Duration` renders `Duration (e.g., 300ms, 2m45s, 1h)`. The container types delegate to their value type, so `OptionalFlag[conga.File]` and `RequiredArg[conga.Dir]` use the descriptions above. After the description, the engine appends `[default: ...]`, `[env: ...]`, constraint hints such as `[1..65535]` or `[items: 2..3]`, and `[enum: ...]` where the field declares them. Referencing the matching `{{...}}` variable in the field's `help` tag suppresses that automatic hint (see [Help variables](/reference/struct-tags/#help-variables)).
 

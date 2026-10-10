@@ -11,7 +11,7 @@ type CLI struct {
 	System  conga.Command[SystemCmd]  `summary:"Operating system and process operations"`
 	Network conga.Command[NetworkCmd] `summary:"Network and web operations"`
 
-	Completion conga.CompletionCommand `summary:"Generate shell completion scripts"`
+	Completion conga.CompletionCommand
 	Help       conga.HelpCommand       `summary:"Show help for any command"`
-	Version    conga.VersionCommand    `summary:"Show version information"`
+	Version    conga.VersionCommand
 }

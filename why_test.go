@@ -1292,7 +1292,7 @@ func TestWhy_ProbedFiles_ExplicitPathOmitted(t *testing.T) {
 }
 
 type hoistConfigCLI struct {
-	Config conga.ConfigFile `help:"Path to config file"`
+	Config conga.ConfigFile
 }
 
 type hoistSub struct{}
@@ -1300,12 +1300,12 @@ type hoistSub struct{}
 func (s *hoistSub) Run(_ context.Context, _ *conga.Session) error { return nil }
 
 type hoistSubCLI struct {
-	Config conga.ConfigFile        `help:"Path to config file"`
-	Sub    conga.Command[hoistSub] `name:"sub"                 summary:"Subcommand"`
+	Config conga.ConfigFile
+	Sub    conga.Command[hoistSub] `summary:"Subcommand"`
 }
 
 type hoistHelpCLI struct {
-	Config conga.ConfigFile  `help:"Path to config file"`
+	Config conga.ConfigFile
 	Help   conga.HelpCommand `summary:"Show help for any command"`
 }
 
@@ -1332,7 +1332,7 @@ type whyCLI struct {
 	Headers conga.OptionalFlag[map[string]string] `help:"Headers"     safe:"true"`
 	Secret  conga.OptionalFlag[string]            `help:"Hidden knob" hidden:"true"`
 	Config  conga.ConfigFile                      `env:"WHY_CONFIG"   help:"Config path"`
-	Sub     conga.Command[whyRunner]              `name:"sub"         summary:"Subcommand"`
+	Sub     conga.Command[whyRunner]              `summary:"Subcommand"`
 }
 
 type whySearchPathCLI struct {
@@ -1355,7 +1355,7 @@ type whySubCollisionRunner struct {
 func (r *whySubCollisionRunner) Run(_ context.Context, _ *conga.Session) error { return nil }
 
 type whySubCollisionCLI struct {
-	Sub conga.Command[whySubCollisionRunner] `name:"sub" summary:"Subcommand"`
+	Sub conga.Command[whySubCollisionRunner] `summary:"Subcommand"`
 }
 
 type whySubTakeoverRunner struct {
@@ -1370,7 +1370,7 @@ func (r *whySubTakeoverRunner) Run(_ context.Context, _ *conga.Session) error {
 }
 
 type whySubTakeoverCLI struct {
-	Sub conga.Command[whySubTakeoverRunner] `name:"sub" summary:"Subcommand"`
+	Sub conga.Command[whySubTakeoverRunner] `summary:"Subcommand"`
 }
 
 type whyTakeoverCLI struct {
@@ -1401,5 +1401,5 @@ func (r *whyLeafRunner) Run(_ context.Context, _ *conga.Session) error {
 type whyLeafCLI struct {
 	Port    conga.OptionalFlag[int]      `help:"Listen port"`
 	CLIOnly conga.OptionalFlag[string]   `config:"-"         help:"CLI-only override"`
-	Sub     conga.Command[whyLeafRunner] `name:"sub"         summary:"Subcommand"`
+	Sub     conga.Command[whyLeafRunner] `summary:"Subcommand"`
 }

@@ -1355,9 +1355,9 @@ func TestFileTypesEndToEnd(t *testing.T) {
 	type CLI struct {
 		noopRunner
 
-		Content conga.OptionalFlag[conga.FileContent] `help:"File content flag" name:"content"`
-		Input   conga.OptionalFlag[conga.File]        `existing:"true"          help:"Input file flag" name:"input"  stdin:"true"`
-		Output  conga.OptionalFlag[conga.File]        `help:"Output file flag"  name:"output"          stdout:"true"`
+		Content conga.OptionalFlag[conga.FileContent] `help:"File content flag"`
+		Input   conga.OptionalFlag[conga.File]        `existing:"true"          help:"Input file flag" stdin:"true"`
+		Output  conga.OptionalFlag[conga.File]        `help:"Output file flag"  stdout:"true"`
 	}
 
 	tmpDir := t.TempDir()
@@ -1661,13 +1661,13 @@ func TestDomainTypesInterfaceAssertions(t *testing.T) {
 type invalidByteSizeUnitsCLI struct {
 	noopRunner
 
-	Memory conga.OptionalFlag[conga.ByteSize] `name:"memory" units:"hex"`
+	Memory conga.OptionalFlag[conga.ByteSize] `units:"hex"`
 }
 
 type invalidByteSizeDisplayCLI struct {
 	noopRunner
 
-	Memory conga.OptionalFlag[conga.ByteSize] `display:"hex" name:"memory"`
+	Memory conga.OptionalFlag[conga.ByteSize] `display:"hex"`
 }
 
 // TestByteSizeEchoesInputFamily verifies the default (untagged) render model:

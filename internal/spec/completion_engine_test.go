@@ -45,7 +45,7 @@ type FlagsTestCLI struct {
 	Debug   mockFlag[bool]     `help:"Debug mode" negatable:"true"   short:"d"`
 	Format  mockFlag[string]   `default:"json"    enum:"json,yaml"   help:"Output format"`
 	Private mockFlag[string]   `help:"Internal"   hidden:"true"`
-	Tags    mockFlag[[]string] `help:"Tags"       sep:","`
+	Tags    mockFlag[[]string] `help:"Tags"`
 	Verbose mockFlag[int]      `help:"Verbosity"  short:"v"`
 }
 
@@ -68,7 +68,7 @@ type FlagValueCLI struct {
 	OutDir mockFlag[string]   `help:"Output dir"    predictor:"dir"`
 	Quiet  mockFlag[string]   `help:"Quiet"         predictor:"none"`
 	Custom mockFlag[string]   `help:"Custom"        predictor:"custom-branches"`
-	Tags   mockFlag[[]string] `enum:"api,cli,docs"  help:"Tags"                    sep:","`
+	Tags   mockFlag[[]string] `enum:"api,cli,docs"  help:"Tags"`
 	ShortF mockFlag[string]   `enum:"json,yaml"     help:"Short format"            short:"f"`
 	Plain  mockFlag[string]   `help:"Plain string"`
 }
@@ -81,7 +81,7 @@ type PositionalArgsCLI struct {
 
 type PredictableDomainCLI struct {
 	Branch   mockFlag[customBranchType]   `help:"Target branch"`
-	Branches mockFlag[[]customBranchType] `help:"Branch list"        sep:","`
+	Branches mockFlag[[]customBranchType] `help:"Branch list"`
 	Override mockFlag[customBranchType]   `help:"Override predictor" predictor:"none"`
 	PosArg   mockArg[customBranchType]    `help:"Positional branch"`
 }

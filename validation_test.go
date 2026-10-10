@@ -126,24 +126,24 @@ type AliasString = string
 // --- Test CLI Structs ---
 
 type RangeNumericCLI struct {
-	Count      conga.OptionalFlag[int]     `name:"count"     range:"1..10"`
-	MinOnly    conga.OptionalFlag[int]     `name:"min-only"  range:"5.."`
-	MaxOnly    conga.OptionalFlag[int]     `name:"max-only"  range:"..50"`
-	Offset     conga.OptionalFlag[int]     `name:"offset"    range:"-20..-5"`
+	Count      conga.OptionalFlag[int]     `range:"1..10"`
+	MinOnly    conga.OptionalFlag[int]     `range:"5.."`
+	MaxOnly    conga.OptionalFlag[int]     `range:"..50"`
+	Offset     conga.OptionalFlag[int]     `range:"-20..-5"`
 	FloatValue conga.OptionalFlag[float64] `name:"float-val" range:"0.0..1.0"`
 }
 
 func (r *RangeNumericCLI) Run(ctx context.Context, session *conga.Session) error { return nil }
 
 type RangeUnitCLI struct {
-	Timeout conga.OptionalFlag[time.Duration]  `name:"timeout" range:"100ms..5m"`
-	Memory  conga.OptionalFlag[conga.ByteSize] `name:"memory"  range:"1MB..10GB"`
+	Timeout conga.OptionalFlag[time.Duration]  `range:"100ms..5m"`
+	Memory  conga.OptionalFlag[conga.ByteSize] `range:"1MB..10GB"`
 }
 
 func (r *RangeUnitCLI) Run(ctx context.Context, session *conga.Session) error { return nil }
 
 type ByteSizeUnitsRangeMismatchCLI struct {
-	Memory conga.OptionalFlag[conga.ByteSize] `name:"memory" range:"1MB..10MB" units:"binary"`
+	Memory conga.OptionalFlag[conga.ByteSize] `range:"1MB..10MB" units:"binary"`
 }
 
 func (b *ByteSizeUnitsRangeMismatchCLI) Run(ctx context.Context, session *conga.Session) error {
@@ -151,47 +151,47 @@ func (b *ByteSizeUnitsRangeMismatchCLI) Run(ctx context.Context, session *conga.
 }
 
 type RangeTextDialectCLI struct {
-	Temperature conga.OptionalFlag[Celsius] `name:"temperature" range:"10C..30C"`
+	Temperature conga.OptionalFlag[Celsius] `range:"10C..30C"`
 }
 
 func (r *RangeTextDialectCLI) Run(ctx context.Context, session *conga.Session) error { return nil }
 
 type BadRangeTextDialectCLI struct {
-	Temperature conga.OptionalFlag[Celsius] `name:"temperature" range:"bananaC..30C"`
+	Temperature conga.OptionalFlag[Celsius] `range:"bananaC..30C"`
 }
 
 func (b *BadRangeTextDialectCLI) Run(ctx context.Context, session *conga.Session) error { return nil }
 
 type RangeUnsignedDialectCLI struct {
-	Threshold conga.OptionalFlag[Count] `name:"threshold" range:"9223372036854775808x..9223372036854775809x"`
+	Threshold conga.OptionalFlag[Count] `range:"9223372036854775808x..9223372036854775809x"`
 }
 
 func (r *RangeUnsignedDialectCLI) Run(ctx context.Context, session *conga.Session) error { return nil }
 
 type RangeFloatDialectCLI struct {
-	Ratio conga.OptionalFlag[Ratio] `name:"ratio" range:"10%..90%"`
+	Ratio conga.OptionalFlag[Ratio] `range:"10%..90%"`
 }
 
 func (r *RangeFloatDialectCLI) Run(ctx context.Context, session *conga.Session) error { return nil }
 
 type RangeSliceDialectCLI struct {
-	Temperatures conga.OptionalFlag[[]Celsius] `name:"temperatures" range:"10C..30C"`
+	Temperatures conga.OptionalFlag[[]Celsius] `range:"10C..30C"`
 }
 
 func (r *RangeSliceDialectCLI) Run(ctx context.Context, session *conga.Session) error { return nil }
 
 type RangeUintCLI struct {
-	Port   conga.OptionalFlag[uint]     `name:"port"   range:"1..65535"`
-	Worker conga.OptionalFlag[uint8]    `name:"worker" range:"..8"`
-	Level  conga.OptionalFlag[uint64]   `name:"level"  range:"10.."`
-	Octets conga.OptionalFlag[[]uint16] `name:"octets" range:"0..255"`
+	Port   conga.OptionalFlag[uint]     `range:"1..65535"`
+	Worker conga.OptionalFlag[uint8]    `range:"..8"`
+	Level  conga.OptionalFlag[uint64]   `range:"10.."`
+	Octets conga.OptionalFlag[[]uint16] `range:"0..255"`
 }
 
 func (r *RangeUintCLI) Run(ctx context.Context, session *conga.Session) error { return nil }
 
 type LengthCLI struct {
 	Username conga.OptionalFlag[string] `len:"3..16" name:"user"`
-	Pin      conga.OptionalFlag[string] `len:"4"     name:"pin"`
+	Pin      conga.OptionalFlag[string] `len:"4"`
 	MinPass  conga.OptionalFlag[string] `len:"8.."   name:"pass"`
 	MaxBio   conga.OptionalFlag[string] `len:"..50"  name:"bio"`
 }
@@ -199,19 +199,19 @@ type LengthCLI struct {
 func (l *LengthCLI) Run(ctx context.Context, session *conga.Session) error { return nil }
 
 type SliceConstraintsCLI struct {
-	Ports conga.OptionalFlag[[]int]    `items:"1..3" name:"ports" range:"1..10"`
-	Tags  conga.OptionalFlag[[]string] `items:"2..4" len:"2..6"   name:"tags"`
+	Ports conga.OptionalFlag[[]int]    `items:"1..3" range:"1..10"`
+	Tags  conga.OptionalFlag[[]string] `items:"2..4" len:"2..6"`
 }
 
 func (s *SliceConstraintsCLI) Run(ctx context.Context, session *conga.Session) error { return nil }
 
 type CustomTypesCLI struct {
-	Port     conga.OptionalFlag[CustomPort]          `name:"port"`
-	User     conga.OptionalFlag[CustomUsername]      `name:"user"`
-	Score    conga.OptionalFlag[SelfValidatingScore] `name:"score"`
-	Slug     conga.OptionalFlag[SelfValidatingSlug]  `name:"slug"`
-	AliasNum conga.OptionalFlag[AliasInt]            `name:"alias-num" range:"1..100"`
-	AliasStr conga.OptionalFlag[AliasString]         `len:"3..10"      name:"alias-str"`
+	Port     conga.OptionalFlag[CustomPort]
+	User     conga.OptionalFlag[CustomUsername]
+	Score    conga.OptionalFlag[SelfValidatingScore]
+	Slug     conga.OptionalFlag[SelfValidatingSlug]
+	AliasNum conga.OptionalFlag[AliasInt]            `range:"1..100"`
+	AliasStr conga.OptionalFlag[AliasString]         `len:"3..10"`
 	Negative conga.OptionalFlag[AliasInt]            `name:"neg-alias" range:"-50..-1"`
 }
 

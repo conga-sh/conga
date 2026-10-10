@@ -14,7 +14,7 @@ import (
 
 // TrackedLifecycleRoot is a multi-level hierarchy struct for tracking exact hook execution order.
 type TrackedLifecycleRoot struct {
-	FailValidate conga.OptionalFlag[bool] `name:"fail-validate"`
+	FailValidate conga.OptionalFlag[bool]
 	FailPreRun   conga.OptionalFlag[bool] `name:"fail-root-pre"`
 	FailPostRun  conga.OptionalFlag[bool] `name:"fail-root-post"`
 	FailFinally  conga.OptionalFlag[bool] `name:"fail-root-finally"`
@@ -122,7 +122,7 @@ type TrackedNodeCmd struct {
 	FailPostRun conga.OptionalFlag[bool] `name:"fail-node-post"`
 	FailFinally conga.OptionalFlag[bool] `name:"fail-node-finally"`
 
-	Target conga.RequiredArg[string] `name:"<target>"`
+	Target conga.RequiredArg[string]
 
 	capturedPath   string
 	capturedActive string

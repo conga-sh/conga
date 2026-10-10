@@ -27,6 +27,6 @@ type CLI struct {
 	Deploy     conga.Command[DeployCmd] `aliases:"d"                                  summary:"Deploy service to a cluster"`
 	Logs       conga.Command[LogsCmd]   `summary:"Stream and export service logs"`
 	Exec       conga.Command[ExecCmd]   `summary:"Execute interactive command in pod"`
-	Completion conga.CompletionCommand  `summary:"Generate shell completion scripts"`
+	Completion conga.CompletionCommand
 	Help       conga.HelpCommand        `summary:"Show help for any command"`
 }

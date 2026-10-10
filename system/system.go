@@ -63,6 +63,14 @@ func (e *EnvVar) Predict() predict.Predictor {
 	return EnvVars()
 }
 
+// Help returns the default value syntax description for environment variable
+// flags. The engine renders this text in the flag's help column when the field
+// declares no help tag; a field with a help tag shows that text instead. Shells
+// also show it as the description of the flag's completion candidates.
+func (e *EnvVar) Help() string {
+	return "Environment variable name (e.g. PATH)"
+}
+
 // String returns the environment variable name.
 func (e *EnvVar) String() string {
 	if e == nil {
@@ -105,6 +113,14 @@ func (g *Group) Predict() predict.Predictor {
 	return Groups()
 }
 
+// Help returns the default value syntax description for system group flags. The
+// engine renders this text in the flag's help column when the field declares no
+// help tag; a field with a help tag shows that text instead. Shells also show
+// it as the description of the flag's completion candidates.
+func (g *Group) Help() string {
+	return "System group name"
+}
+
 // String returns the group name.
 func (g *Group) String() string {
 	if g == nil {
@@ -143,6 +159,14 @@ func (l *Locale) Predict() predict.Predictor {
 	return Locales()
 }
 
+// Help returns the default value syntax description for locale flags. The
+// engine renders this text in the flag's help column when the field declares no
+// help tag; a field with a help tag shows that text instead. Shells also show
+// it as the description of the flag's completion candidates.
+func (l *Locale) Help() string {
+	return "Locale identifier (e.g. en_US.UTF-8)"
+}
+
 // String returns the locale identifier.
 func (l *Locale) String() string {
 	if l == nil {
@@ -166,6 +190,14 @@ type PID int
 // Predict returns active process ID autocompletion candidates.
 func (p *PID) Predict() predict.Predictor {
 	return ProcessIDs()
+}
+
+// Help returns the default value syntax description for PID flags. The engine
+// renders this text in the flag's help column when the field declares no help
+// tag; a field with a help tag shows that text instead. Shells also show it as
+// the description of the flag's completion candidates.
+func (p *PID) Help() string {
+	return "Process ID (a positive integer)"
 }
 
 // Int returns the PID as an integer.
@@ -219,6 +251,14 @@ func (p *Process) Predict() predict.Predictor {
 	return ProcessNames()
 }
 
+// Help returns the default value syntax description for process name flags. The
+// engine renders this text in the flag's help column when the field declares no
+// help tag; a field with a help tag shows that text instead. Shells also show
+// it as the description of the flag's completion candidates.
+func (p *Process) Help() string {
+	return "Process executable name (e.g. postgres)"
+}
+
 // String returns the process executable name.
 func (p *Process) String() string {
 	if p == nil {
@@ -241,6 +281,14 @@ type Signal string
 // Predict returns kill signal autocompletion candidates.
 func (s *Signal) Predict() predict.Predictor {
 	return Signals()
+}
+
+// Help returns the default value syntax description for signal flags. The
+// engine renders this text in the flag's help column when the field declares no
+// help tag; a field with a help tag shows that text instead. Shells also show
+// it as the description of the flag's completion candidates.
+func (s *Signal) Help() string {
+	return "Signal name or number (e.g. SIGTERM, 9)"
 }
 
 // String returns the signal representation.
@@ -292,6 +340,14 @@ type User string
 // Predict returns system username autocompletion candidates.
 func (u *User) Predict() predict.Predictor {
 	return Users()
+}
+
+// Help returns the default value syntax description for username flags. The
+// engine renders this text in the flag's help column when the field declares no
+// help tag; a field with a help tag shows that text instead. Shells also show
+// it as the description of the flag's completion candidates.
+func (u *User) Help() string {
+	return "System username"
 }
 
 // String returns the username.

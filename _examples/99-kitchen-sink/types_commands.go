@@ -20,7 +20,7 @@ type TypesCmd struct {
 // sections. The foreign kong tag is permitted schema-wide by app.AllowTags.
 type PrimitivesCmd struct {
 	StringFlag  conga.OptionalFlag[string]   `default:"default" kong:"default='default'" safe:"true"`
-	BoolFlag    conga.OptionalFlag[bool]     `default:"false"   safe:"true"`
+	BoolFlag    conga.OptionalFlag[bool]
 	IntFlag     conga.OptionalFlag[int]      `default:"42"      safe:"true"`
 	Int8Flag    conga.OptionalFlag[int8]     `default:"8"       safe:"true"`
 	Int16Flag   conga.OptionalFlag[int16]    `default:"16"      safe:"true"`
@@ -33,8 +33,8 @@ type PrimitivesCmd struct {
 	Uint64Flag  conga.OptionalFlag[uint64]   `default:"64"      safe:"true"`
 	Float32Flag conga.OptionalFlag[float32]  `default:"3.14"    safe:"true"`
 	Float64Flag conga.OptionalFlag[float64]  `default:"2.718"   safe:"true"`
-	Tags        conga.OptionalFlag[[]string] `safe:"true"       sep:","`
-	Ports       conga.OptionalFlag[[]int]    `safe:"true"       sep:","`
+	Tags        conga.OptionalFlag[[]string] `safe:"true"`
+	Ports       conga.OptionalFlag[[]int]    `safe:"true"`
 }
 
 func (c *PrimitivesCmd) Run(ctx context.Context, session *conga.Session) error {

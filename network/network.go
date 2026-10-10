@@ -133,6 +133,14 @@ func (h *Host) Predict() predict.Predictor {
 	return Hosts()
 }
 
+// Help returns the default value syntax description for host flags. The engine
+// renders this text in the flag's help column when the field declares no help
+// tag; a field with a help tag shows that text instead. Shells also show it as
+// the description of the flag's completion candidates.
+func (h *Host) Help() string {
+	return "Host (hostname, domain, or IP address)"
+}
+
 // String returns the hostname or IP string.
 func (h *Host) String() string {
 	if h == nil {
@@ -181,6 +189,14 @@ func (m *HTTPMethod) Predict() predict.Predictor {
 	return HTTPMethods()
 }
 
+// Help returns the default value syntax description for HTTP method flags. The
+// engine renders this text in the flag's help column when the field declares no
+// help tag; a field with a help tag shows that text instead. Shells also show
+// it as the description of the flag's completion candidates.
+func (m *HTTPMethod) Help() string {
+	return "HTTP method (GET, POST, PUT, DELETE, ...)"
+}
+
 // String returns the HTTP method in uppercase.
 func (m *HTTPMethod) String() string {
 	if m == nil {
@@ -215,6 +231,14 @@ type HTTPStatus int
 // Predict returns HTTP status code autocompletion candidates.
 func (s *HTTPStatus) Predict() predict.Predictor {
 	return HTTPStatusCodes()
+}
+
+// Help returns the default value syntax description for HTTP status flags. The
+// engine renders this text in the flag's help column when the field declares no
+// help tag; a field with a help tag shows that text instead. Shells also show
+// it as the description of the flag's completion candidates.
+func (s *HTTPStatus) Help() string {
+	return "HTTP status code (100-599, e.g. 200, 404)"
 }
 
 // Code returns the HTTP status code as an integer.
@@ -308,6 +332,14 @@ func (m *MIMEType) Predict() predict.Predictor {
 	return MIMETypes()
 }
 
+// Help returns the default value syntax description for MIME type flags. The
+// engine renders this text in the flag's help column when the field declares no
+// help tag; a field with a help tag shows that text instead. Shells also show
+// it as the description of the flag's completion candidates.
+func (m *MIMEType) Help() string {
+	return "MIME type (e.g. application/json)"
+}
+
 // Type returns the top-level media type component (e.g. application in application/json).
 func (m *MIMEType) Type() string {
 	if m == nil {
@@ -371,6 +403,14 @@ func (n *NetInterface) Predict() predict.Predictor {
 	return NetInterfaces()
 }
 
+// Help returns the default value syntax description for network interface
+// flags. The engine renders this text in the flag's help column when the field
+// declares no help tag; a field with a help tag shows that text instead. Shells
+// also show it as the description of the flag's completion candidates.
+func (n *NetInterface) Help() string {
+	return "Network interface (e.g. eth0, lo)"
+}
+
 // String returns the network interface name.
 func (n *NetInterface) String() string {
 	if n == nil {
@@ -422,6 +462,14 @@ type Port uint16
 // Predict returns service port autocompletion candidates.
 func (p *Port) Predict() predict.Predictor {
 	return Ports()
+}
+
+// Help returns the default value syntax description for port flags. The engine
+// renders this text in the flag's help column when the field declares no help
+// tag; a field with a help tag shows that text instead. Shells also show it as
+// the description of the flag's completion candidates.
+func (p *Port) Help() string {
+	return `Port (1-65535, or a service name like "http")`
 }
 
 // Int returns the port number as an integer.

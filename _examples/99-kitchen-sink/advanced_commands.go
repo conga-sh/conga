@@ -19,7 +19,7 @@ type AdvancedCmd struct {
 // placeholders, and DashArgs forwarding.
 type RequiredCmd struct {
 	APIKey      conga.RequiredFlag[string]  `help:"API key (required)" short:"k"`
-	Name        conga.RequiredArg[string]   `help:"Resource name"      name:"<name>"`
+	Name        conga.RequiredArg[string]   `help:"Resource name"`
 	Message     conga.OptionalArg[string]   `name:"[message]"`
 	Extra       conga.OptionalArg[[]string] `name:"[extras...]"`
 	Passthrough conga.DashArgs

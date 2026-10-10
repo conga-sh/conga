@@ -17,7 +17,7 @@ import (
 type TestHelpRootCLI struct {
 	Verbose conga.OptionalFlag[bool]          `help:"Verbose logging"            short:"v"`
 	Cluster conga.Command[TestHelpClusterCmd] `summary:"Cluster commands"`
-	Help    conga.HelpCommand                 `summary:"Show help for a command"`
+	Help    conga.HelpCommand
 }
 
 type TestHelpClusterCmd struct {
@@ -29,7 +29,7 @@ type TestHelpNodeCmd struct {
 }
 
 type TestHelpDrainCmd struct {
-	NodeID conga.RequiredArg[string]  `help:"Node ID"          name:"<node-id>"`
+	NodeID conga.RequiredArg[string]  `help:"Node ID"`
 	Reason conga.RequiredFlag[string] `help:"Reason for drain"`
 }
 
@@ -52,7 +52,7 @@ type SpecialFlagsHelpCLI struct {
 }
 
 type ConfigFileHelpCLI struct {
-	ConfigFile conga.ConfigFile `help:"Path to config file" short:"c"`
+	ConfigFile conga.ConfigFile `short:"c"`
 }
 
 type ConfigFileDefaultHelpCLI struct {
@@ -68,7 +68,7 @@ type MultiConfigFileDefaultHelpCLI struct {
 }
 
 type UserHelpFlagCLI struct {
-	Help conga.OptionalFlag[string] `help:"Custom help argument" name:"help"`
+	Help conga.OptionalFlag[string] `help:"Custom help argument"`
 }
 
 func (u *UserHelpFlagCLI) Run(_ context.Context, _ *conga.Session) error {
@@ -78,9 +78,9 @@ func (u *UserHelpFlagCLI) Run(_ context.Context, _ *conga.Session) error {
 type TestGroupTagsFlagsCLI struct {
 	Verbose conga.OptionalFlag[bool]   `help:"Verbose logging" short:"v"`
 	Repo    conga.OptionalFlag[string] `group:"Source control" help:"Repository path"`
-	Quiet   conga.OptionalFlag[bool]   `group:"Output"         help:"Suppress output"     short:"q"`
+	Quiet   conga.OptionalFlag[bool]   `group:"Output"         help:"Suppress output" short:"q"`
 	Color   conga.OptionalFlag[bool]   `group:"Output"         help:"Colorize output"`
-	Config  conga.ConfigFile           `group:"Configuration"  help:"Path to config file"`
+	Config  conga.ConfigFile           `group:"Configuration"`
 }
 
 type TestGroupTagsServerCmd struct{}

@@ -129,6 +129,54 @@ func TestGroup_UnknownGroup(t *testing.T) {
 	assert.Contains(t, err.Error(), "no-such-group-conga-test")
 }
 
+func TestDefaultTypeHelp(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	app := conga.New[sysHelpCLI]().
+		Args([]string{"--help"}).
+		Stdout(&buffer)
+
+	err := app.Run()
+	assert.NoError(t, err)
+
+	output := buffer.String()
+
+	for _, testCase := range []struct {
+		name string
+		want string
+	}{
+		{"EnvVar", "Environment variable name (e.g. PATH)"},
+		{"Group", "System group name"},
+		{"Locale", "Locale identifier (e.g. en_US.UTF-8)"},
+		{"PID", "Process ID (a positive integer)"},
+		{"Process", "Process executable name (e.g. postgres)"},
+		{"Signal", "Signal name or number (e.g. SIGTERM, 9)"},
+		{"User", "System username"},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Contains(t, output, testCase.want)
+		})
+	}
+}
+
+type sysHelpCLI struct {
+	Env     conga.OptionalFlag[system.EnvVar]
+	Group   conga.OptionalFlag[system.Group]
+	Locale  conga.OptionalFlag[system.Locale]
+	PID     conga.OptionalFlag[system.PID]
+	Process conga.OptionalFlag[system.Process]
+	Signal  conga.OptionalFlag[system.Signal]
+	User    conga.OptionalFlag[system.User]
+}
+
+func (c *sysHelpCLI) Run(_ context.Context, _ *conga.Session) error {
+	return nil
+}
+
 type sysTestCLI struct {
 	Sig conga.OptionalFlag[syscall.Signal] `short:"s"`
 	Usr conga.OptionalFlag[*user.User]     `short:"u"`
