@@ -277,14 +277,29 @@ func (f *File) UnmarshalTextWithContext(text []byte, decodeContext DecodeContext
 //
 //	Field                  Rendered text
 //	conga.File             Path to a file
-//	stdin:"true"           Path to a file or '-' for stdin
-//	stdout:"true"          Path to a file or '-' for stdout
 //	existing:"true"        Path to an existing file
+//	existing:"true" with   Path to an existing file or '-' for stdin
+//	stdin:"true"
+//	Path to a file or '-' for stdin
+//	stdout:"true"          Path to a file or '-' for stdout
+//	glob:"*.log"           Path to a file matching '*.log'
+//	existing:"true" with   Path to an existing file matching '*.log'
+//	glob:"*.log"
 //	executable:"true"      Path to an executable
 //	symlink:"true"         Path to a symbolic link
 //
-// The glob tag appends a matching clause, and the stdin/stdout suffix combines
-// with the file and existing forms (see [File] for the tag grammar).
+// The clauses compose in a fixed order:
+//
+//	glob       appends " matching '<patterns>'" to the file or existing base text,
+//	           with the patterns comma-joined into one quoted list; it combines
+//	           with existing and the stdin/stdout suffix.
+//	executable returns its fixed text unconditionally, never combining with glob,
+//	           existing, or the stdin/stdout suffix.
+//	symlink    returns its fixed text unconditionally, never combining with glob,
+//	           existing, or the stdin/stdout suffix.
+//
+// The stdin/stdout suffix (" or '-' for stdin" / " or '-' for stdout") is appended
+// last, after any glob clause (see [File] for the tag grammar).
 func (f File) Help(tags FieldTags) string {
 	switch {
 	case tags.Bool("executable"):
@@ -747,8 +762,16 @@ func (b *ByteSize) UnmarshalTextWithContext(text []byte, decodeContext DecodeCon
 //	units:"binary"   Byte size in binary units (e.g., 10KiB, 512MiB)
 //	units:"decimal"  Byte size in decimal units (e.g., 10kB, 512MB)
 //
-// The display tag appends one of ", shown in binary units", ", shown in
-// decimal units", or ", shown in the entered unit family".
+// The display tag appends a clause to the base text selected by units:
+//
+//	display:"binary"   Byte size ..., shown in binary units
+//	display:"decimal"  Byte size ..., shown in decimal units
+//	display:"input"    Byte size ..., shown in the entered unit family
+//
+// The "..." stands for whichever base text units selected, so every units value
+// pairs with every display value; for example units:"binary" with display:"input"
+// renders "Byte size in binary units (e.g., 10KiB, 512MiB), shown in the entered
+// unit family". An absent or unrecognized display value appends nothing.
 func (b ByteSize) Help(tags FieldTags) string {
 	helpText := "Byte size (e.g., 10MiB, 1.5GB, 500KiB)"
 

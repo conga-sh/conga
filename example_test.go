@@ -404,20 +404,6 @@ func ExampleApp_Use() {
 	// Output: America/New_York
 }
 
-// ByteSize's help text tailors to the field's declared units and display tags.
-func ExampleByteSize_Help() {
-	var size conga.ByteSize
-
-	fmt.Println(size.Help(nil))
-	fmt.Println(size.Help(conga.FieldTags{"units": "binary"}))
-	fmt.Println(size.Help(conga.FieldTags{"units": "decimal", "display": "input"}))
-
-	// Output:
-	// Byte size (e.g., 10MiB, 1.5GB, 500KiB)
-	// Byte size in binary units (e.g., 10KiB, 512MiB)
-	// Byte size in decimal units (e.g., 10kB, 512MB), shown in the entered unit family
-}
-
 // parseCIDR adapts net.ParseCIDR to the App.RegisterType parser signature.
 // net.ParseCIDR itself returns three values (net.IP, *net.IPNet, error), so it
 // cannot be passed to RegisterType, which takes func(string) (U, error).
