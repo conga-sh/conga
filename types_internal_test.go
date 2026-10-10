@@ -170,19 +170,19 @@ type resolverDummyCmd struct{}
 
 // resolverCLI declares every public container type to pin the classifier mapping.
 type resolverCLI struct {
-	OptionalFlag OptionalFlag[string]      `name:"optional-flag"`
-	RequiredFlag RequiredFlag[int]         `name:"required-flag"`
-	OptionalArg  OptionalArg[string]       `name:"[optional-arg]"`
-	RequiredArg  RequiredArg[bool]         `name:"<required-arg>"`
-	Config       ConfigFile                `name:"config"`
-	Count        Counter                   `name:"counter"`
-	Subcommand   Command[resolverDummyCmd] `name:"command"`
-	Dash         DashArgs                  `name:"dash"`
-	Raw          RawArgs                   `name:"raw"`
-	HelpCmd      HelpCommand               `name:"help"`
-	VersionCmd   VersionCommand            `name:"version"`
-	Completion   CompletionCommand         `name:"completion"`
-	Plain        string                    `name:"plain"`
+	OptionalFlag OptionalFlag[string]
+	RequiredFlag RequiredFlag[int]
+	OptionalArg  OptionalArg[string]
+	RequiredArg  RequiredArg[bool]
+	Config       ConfigFile
+	Count        Counter
+	Subcommand   Command[resolverDummyCmd]
+	Dash         DashArgs
+	Raw          RawArgs
+	HelpCmd      HelpCommand
+	VersionCmd   VersionCommand
+	Completion   CompletionCommand
+	Plain        string
 }
 
 // assertClassifiedAs classifies a field address through the engine classifier

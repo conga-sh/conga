@@ -115,7 +115,7 @@ type Subcommand struct {
 }
 
 type LeafCommand struct {
-	Value mockArg[string] `name:"<value>"`
+	Value mockArg[string]
 }
 
 func (l *LeafCommand) Run(ctx context.Context) error {
@@ -226,12 +226,12 @@ func TestBuildSchema(t *testing.T) {
 		t.Parallel()
 
 		type ChildCLI struct {
-			Port mockFlag[int] `name:"port"`
+			Port mockFlag[int]
 		}
 
 		type ParentCLI struct {
-			Port  mockFlag[int]     `name:"port"`
-			Child mockCmd[ChildCLI] `name:"child"`
+			Port  mockFlag[int]
+			Child mockCmd[ChildCLI]
 		}
 
 		var cli ParentCLI
@@ -278,7 +278,7 @@ func TestBuildSchema(t *testing.T) {
 		t.Parallel()
 
 		type InvalidRangeBoundCLI struct {
-			Port mockFlag[int] `name:"port" range:"abc..10"`
+			Port mockFlag[int] `range:"abc..10"`
 		}
 
 		var cli InvalidRangeBoundCLI
@@ -295,7 +295,7 @@ func TestBuildSchema(t *testing.T) {
 		t.Parallel()
 
 		type InvertedRangeCLI struct {
-			Port mockFlag[int] `name:"port" range:"10..1"`
+			Port mockFlag[int] `range:"10..1"`
 		}
 
 		var cli InvertedRangeCLI
@@ -312,7 +312,7 @@ func TestBuildSchema(t *testing.T) {
 		t.Parallel()
 
 		type InvalidDurationRangeCLI struct {
-			Timeout mockFlag[time.Duration] `name:"timeout" range:"1s..invalid"`
+			Timeout mockFlag[time.Duration] `range:"1s..invalid"`
 		}
 
 		var cli InvalidDurationRangeCLI
@@ -329,7 +329,7 @@ func TestBuildSchema(t *testing.T) {
 		t.Parallel()
 
 		type StringRangeCLI struct {
-			Name mockFlag[string] `name:"name" range:"1..10"`
+			Name mockFlag[string] `range:"1..10"`
 		}
 
 		var cli StringRangeCLI
@@ -346,7 +346,7 @@ func TestBuildSchema(t *testing.T) {
 		t.Parallel()
 
 		type InvalidLenCLI struct {
-			Name mockFlag[string] `len:"abc..10" name:"name"`
+			Name mockFlag[string] `len:"abc..10"`
 		}
 
 		var cli InvalidLenCLI
@@ -363,7 +363,7 @@ func TestBuildSchema(t *testing.T) {
 		t.Parallel()
 
 		type InvalidItemsCLI struct {
-			Items mockFlag[[]string] `items:"-1..5" name:"items"`
+			Items mockFlag[[]string] `items:"-1..5"`
 		}
 
 		var cli InvalidItemsCLI
@@ -384,7 +384,7 @@ func TestUintRangeValidation(t *testing.T) {
 		t.Parallel()
 
 		type ValidUintRangeCLI struct {
-			Port mockFlag[uint] `name:"port" range:"1..65535"`
+			Port mockFlag[uint] `range:"1..65535"`
 		}
 
 		var cli ValidUintRangeCLI
@@ -398,7 +398,7 @@ func TestUintRangeValidation(t *testing.T) {
 		t.Parallel()
 
 		type ValidUintSliceRangeCLI struct {
-			Octets mockFlag[[]uint8] `name:"octets" range:"0..255"`
+			Octets mockFlag[[]uint8] `range:"0..255"`
 		}
 
 		var cli ValidUintSliceRangeCLI
@@ -412,7 +412,7 @@ func TestUintRangeValidation(t *testing.T) {
 		t.Parallel()
 
 		type InvertedUintRangeCLI struct {
-			Port mockFlag[uint] `name:"port" range:"100..1"`
+			Port mockFlag[uint] `range:"100..1"`
 		}
 
 		var cli InvertedUintRangeCLI
@@ -429,7 +429,7 @@ func TestUintRangeValidation(t *testing.T) {
 		t.Parallel()
 
 		type InvalidUintBoundCLI struct {
-			Port mockFlag[uint] `name:"port" range:"abc..10"`
+			Port mockFlag[uint] `range:"abc..10"`
 		}
 
 		var cli InvalidUintBoundCLI
@@ -446,7 +446,7 @@ func TestUintRangeValidation(t *testing.T) {
 		t.Parallel()
 
 		type NegativeUintBoundCLI struct {
-			Port mockFlag[uint] `name:"port" range:"-5..10"`
+			Port mockFlag[uint] `range:"-5..10"`
 		}
 
 		var cli NegativeUintBoundCLI
@@ -463,7 +463,7 @@ func TestUintRangeValidation(t *testing.T) {
 		t.Parallel()
 
 		type OverflowUintBoundCLI struct {
-			Port mockFlag[uint64] `name:"port" range:"1..99999999999999999999999"`
+			Port mockFlag[uint64] `range:"1..99999999999999999999999"`
 		}
 
 		var cli OverflowUintBoundCLI
@@ -496,9 +496,9 @@ func (m *mockCompletionCmd) testClassification() container.Classification {
 }
 
 type BuiltinTestCLI struct {
-	Help       mockHelpCmd       `name:"help"       summary:"Help screen"`
-	Version    mockVersionCmd    `name:"version"    summary:"Show version"`
-	Completion mockCompletionCmd `name:"completion" summary:"Shell completion"`
+	Help       mockHelpCmd       `summary:"Help screen"`
+	Version    mockVersionCmd    `summary:"Show version"`
+	Completion mockCompletionCmd `summary:"Shell completion"`
 }
 
 func TestFindSubcommandAndFlag(t *testing.T) {
@@ -618,7 +618,7 @@ func TestSubcommand_SummaryTag(t *testing.T) {
 		type SubCmd struct{}
 
 		type RootCLI struct {
-			Deploy mockCmd[SubCmd] `name:"deploy"`
+			Deploy mockCmd[SubCmd]
 		}
 
 		var cli RootCLI
@@ -636,7 +636,7 @@ func TestSubcommand_SummaryTag(t *testing.T) {
 		type SubCmd struct{}
 
 		type RootCLI struct {
-			Deploy mockCmd[SubCmd] `name:"deploy" summary:"Deploy the service"`
+			Deploy mockCmd[SubCmd] `summary:"Deploy the service"`
 		}
 
 		var cli RootCLI
@@ -654,7 +654,7 @@ func TestSubcommand_SummaryTag(t *testing.T) {
 		type SubCmd struct{}
 
 		type RootCLI struct {
-			Deploy mockCmd[SubCmd] `name:"deploy" summary:""`
+			Deploy mockCmd[SubCmd] `summary:""`
 		}
 
 		var cli RootCLI
@@ -672,7 +672,7 @@ func TestSubcommand_SummaryTag(t *testing.T) {
 		type SubCmd struct{}
 
 		type RootCLI struct {
-			Deploy mockCmd[SubCmd] `name:"deploy" summary:"   "`
+			Deploy mockCmd[SubCmd] `summary:"   "`
 		}
 
 		var cli RootCLI
@@ -690,7 +690,7 @@ func TestSubcommand_SummaryTag(t *testing.T) {
 		type SubCmd struct{}
 
 		type RootCLI struct {
-			Deploy mockCmd[SubCmd] `name:"deploy" summary:"line1\nline2"`
+			Deploy mockCmd[SubCmd] `summary:"line1\nline2"`
 		}
 
 		var cli RootCLI
@@ -708,7 +708,7 @@ func TestSubcommand_SummaryTag(t *testing.T) {
 		type SubCmd struct{}
 
 		type RootCLI struct {
-			Deploy mockCmd[SubCmd] `help:"Deploy service" name:"deploy"`
+			Deploy mockCmd[SubCmd] `help:"Deploy service"`
 		}
 
 		var cli RootCLI
@@ -724,7 +724,7 @@ func TestSubcommand_SummaryTag(t *testing.T) {
 		t.Parallel()
 
 		type RootCLI struct {
-			Help mockHelpCmd `name:"help"`
+			Help mockHelpCmd
 		}
 
 		var cli RootCLI
@@ -740,7 +740,7 @@ func TestSubcommand_SummaryTag(t *testing.T) {
 		t.Parallel()
 
 		type RootCLI struct {
-			Help mockHelpCmd `name:"help" summary:"Custom help synopsis"`
+			Help mockHelpCmd `summary:"Custom help synopsis"`
 		}
 
 		var cli RootCLI
@@ -756,7 +756,7 @@ func TestSubcommand_SummaryTag(t *testing.T) {
 		t.Parallel()
 
 		type RootCLI struct {
-			Help mockHelpCmd `name:"help" summary:"  "`
+			Help mockHelpCmd `summary:"  "`
 		}
 
 		var cli RootCLI
@@ -772,7 +772,7 @@ func TestSubcommand_SummaryTag(t *testing.T) {
 		t.Parallel()
 
 		type RootCLI struct {
-			Help mockHelpCmd `name:"help" summary:"line1\nline2"`
+			Help mockHelpCmd `summary:"line1\nline2"`
 		}
 
 		var cli RootCLI
@@ -788,7 +788,7 @@ func TestSubcommand_SummaryTag(t *testing.T) {
 		t.Parallel()
 
 		type RootCLI struct {
-			Help mockHelpCmd `help:"Help text" name:"help"`
+			Help mockHelpCmd `help:"Help text"`
 		}
 
 		var cli RootCLI
@@ -806,7 +806,7 @@ func TestSubcommand_SummaryTag(t *testing.T) {
 		type SubCmd struct{}
 
 		type RootCLI struct {
-			Deploy mockCmd[SubCmd] `conga:"ignore" help:"Deploy service" name:"deploy"`
+			Deploy mockCmd[SubCmd] `conga:"ignore" help:"Deploy service"`
 		}
 
 		var cli RootCLI
@@ -821,7 +821,7 @@ func TestSubcommand_SummaryTag(t *testing.T) {
 		t.Parallel()
 
 		type RootCLI struct {
-			Help mockHelpCmd `conga:"ignore" help:"Help text" name:"help"`
+			Help mockHelpCmd `conga:"ignore" help:"Help text"`
 		}
 
 		var cli RootCLI
@@ -840,7 +840,7 @@ func TestEnvPrefix_SubcommandAndBuiltin(t *testing.T) {
 		t.Parallel()
 
 		type SubCmd struct {
-			Port mockFlag[int] `name:"port"`
+			Port mockFlag[int]
 		}
 
 		type RootCLI struct {
@@ -895,10 +895,10 @@ func TestEnvPrefix_FlagDerivation(t *testing.T) {
 	t.Parallel()
 
 	type CLI struct {
-		Config mockConfigFile   `name:"config"`
-		Port   mockFlag[int]    `env:"PORT"    name:"port"`
-		Host   mockFlag[string] `name:"host"`
-		Secret mockFlag[string] `env:"-"       name:"secret"`
+		Config mockConfigFile
+		Port   mockFlag[int]    `env:"PORT"`
+		Host   mockFlag[string]
+		Secret mockFlag[string] `env:"-"`
 	}
 
 	var cli CLI
@@ -966,7 +966,7 @@ func TestFlag_DeprecatedRequiredRejected(t *testing.T) {
 	t.Parallel()
 
 	type RootCLI struct {
-		Key mockReqFlag[string] `deprecated:"use --token instead" name:"key"`
+		Key mockReqFlag[string] `deprecated:"use --token instead"`
 	}
 
 	var cli RootCLI
