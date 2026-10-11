@@ -226,6 +226,11 @@ linters:
     gocyclo:
       min-complexity: 15
 
+    gosec:
+      excludes:
+        - G304 # File path inclusion via variable (inapplicable to CLI tools opening user paths)
+        - G703 # Path traversal via taint analysis (false positives on $HOME, %SystemRoot%, etc.)
+
     govet:
       # Disable analyzers by name.
       # Run `go tool vet help` to see all analyzers.

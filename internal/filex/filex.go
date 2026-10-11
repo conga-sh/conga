@@ -14,7 +14,6 @@ var ErrFileSizeLimitExceeded = errors.New("file size limit exceeded")
 
 // ReadLimited reads the file at path up to maxBytes, returning ErrFileSizeLimitExceeded if exceeded.
 func ReadLimited(path string, maxBytes int64) ([]byte, error) {
-	//nolint:gosec // File path validated by caller.
 	file, err := os.Open(path)
 	if err != nil {
 		return nil, err

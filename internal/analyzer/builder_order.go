@@ -697,7 +697,7 @@ func builderOrderSource(pass *analysis.Pass, filename string) ([]byte, bool) {
 		}
 	}
 
-	source, err := os.ReadFile(filename) //nolint:gosec // the filename comes from the analysis file set, not user input
+	source, err := os.ReadFile(filename)
 	if err != nil {
 		return nil, false
 	}
