@@ -407,15 +407,15 @@ stdout '--kubeconfig\tPath to a file'
 
 # 23. Interactive TAB simulation via COMP_LINE with mismatched executable name
 env 'COMP_LINE=./custom-named-binary deploy --'
-exec cloudctl __complete export
-stdout '"value":"--env"'
-stdout '"value":"--region"'
-stdout '"value":"--cluster"'
-stdout '"value":"--image"'
-stdout '"value":"--features"'
-stdout '"value":"--dry-run"'
-stdout '"value":"--profile"'
-stdout '"value":"--help"'
+exec cloudctl __complete bash
+stdout 'C\t--env'
+stdout 'C\t--region'
+stdout 'C\t--cluster'
+stdout 'C\t--image'
+stdout 'C\t--features'
+stdout 'C\t--dry-run'
+stdout 'C\t--profile'
+stdout 'C\t--help'
 
 -- app.yaml --
 name: app

@@ -36,7 +36,6 @@ func TestSliceEnumValidation_Issue03(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.IsError(t, err, conga.ErrValidation)
-		assert.IsError(t, err, conga.ErrInvalidValue)
 	})
 }
 ```
@@ -196,4 +195,4 @@ var (
 - A file embedding exactly one fixture declares it as a bare `var`, without parentheses.
 - Colliding identifiers inside one package are a compile error; repair a collision by qualifying only the colliding declaration with its owning file stem (e.g. `fixtureDecoderHCL` in `config_test.go` becomes `fixtureConfigDecoderHCL` if a second file in the package embeds the same stem), never as a default.
 - Fixtures mirroring real system file layouts (`passwd`, `group`, `known_hosts`, `ssh_config`, `zone1970.tab`) keep their canonical filenames; shell harness scripts and production embedded assets are not fixtures and stay outside this convention.
-- Full authoring rules — including `[]byte` vs `string` selection, the declaration-ordering interaction, and testscript separation — live in [`AGENTS.md` §3](../AGENTS.md).
+- Full authoring rules — including `[]byte` vs `string` selection, the fixture placement rule, and testscript separation — live in [`AGENTS.md` §3](../AGENTS.md).

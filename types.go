@@ -24,7 +24,7 @@ const (
 	SourceNone = container.SourceNone
 
 	// SourceDefault indicates the container value originated from a struct field's
-	// `default:"..."` tag. Changed() reports false for defaulted values.
+	// default tag. Changed() reports false for defaulted values.
 	SourceDefault = container.SourceDefault
 
 	// SourceConfig indicates the container value was resolved from a configuration file.
@@ -72,23 +72,31 @@ type ValueSource = container.Source
 // help description of their accepted value format on generated help screens.
 //
 // For types whose help description varies depending on the owning field's custom
-// struct tags (such as [File] with `existing:"true"`), implement [TagAwareHelpProvider]
+// struct tags (such as [File] with the existing tag), implement [TagAwareHelpProvider]
 // instead. Implement exactly one of [HelpProvider] or [TagAwareHelpProvider], not both.
 type HelpProvider interface {
 	// Help returns the value syntax description displayed in help screens.
+	//
+	// The engine consults the provider when the owning field declares no help
+	// tag; a field with a help tag shows that text instead. Shells show the
+	// provider's text as the description of the field's completion candidates.
 	Help() string
 }
 
 // TagAwareHelpProvider is implemented by custom domain types whose help description
 // depends on custom struct tags declared on the owning field (see [TagSpecProvider]).
 //
-// For example, [File] displays "Path to an existing file" when `existing:"true"` is declared,
-// or "Path to a file or '-' for stdin" when `stdin:"true"` is declared.
+// For example, [File] describes the field as an existing file, or as a file or stdin,
+// depending on the declared tags.
 //
 // The engine prefers TagAwareHelpProvider over [HelpProvider]. Implement exactly one
 // of the pair, not both.
 type TagAwareHelpProvider interface {
 	// Help returns the tailored help description for the field given its declared tags.
+	//
+	// The engine consults the provider when the owning field declares no help
+	// tag; a field with a help tag shows that text instead. Shells show the
+	// provider's text as the description of the field's completion candidates.
 	Help(tags FieldTags) string
 }
 
@@ -149,7 +157,7 @@ type ContextAwareTextUnmarshaler interface {
 // candidates.
 //
 // Types whose completion candidates depend on custom field tags (such as [File] with
-// `glob:"*.yaml"`) implement [TagAwarePredictable] instead.
+// the glob tag) implement [TagAwarePredictable] instead.
 //
 // The engine evaluates Predict during schema compilation; implementations must not
 // depend on runtime parsed values. Implement exactly one of [Predictable] or
@@ -162,8 +170,8 @@ type Predictable interface {
 // TagAwarePredictable is implemented by custom domain types whose autocompletion
 // candidates are tailored to custom struct tags declared on the owning field.
 //
-// For example, [File] returns executable completions when `executable:"true"` is declared,
-// or glob-filtered completions when `glob:"*.json"` is declared.
+// For example, [File] returns executable completions when the executable tag is declared,
+// or glob-filtered completions when the glob tag is declared.
 //
 // The engine evaluates Predict during schema compilation; implementations must not
 // depend on runtime parsed values. Implement exactly one of [Predictable] or
@@ -174,7 +182,7 @@ type TagAwarePredictable interface {
 }
 
 // TagSpecProvider is implemented by custom domain types that define custom struct tags
-// accepted on fields of their type (e.g. `existing:"true"` on [File] and [Dir]).
+// accepted on fields of their type (e.g. the existing tag on [File] and [Dir]).
 //
 // Registered specs feed strict tag validation, schema-time value parsing, and tag
 // mutual exclusion checks.
@@ -270,16 +278,9 @@ type ExampleProvider interface {
 
 // OptionalFlag represents an optional command-line flag of type T.
 //
-// An optional flag has three observable states:
-//   - Omitted without a default: [OptionalFlag.IsSet] reports false, [OptionalFlag.Get] returns
-//     the zero value of T, [OptionalFlag.GetOr] returns the caller-supplied fallback, and
-//     [OptionalFlag.Source] reports [SourceNone].
-//   - Omitted with a `default` struct tag: [OptionalFlag.IsSet] reports true, [OptionalFlag.Changed]
-//     reports false, [OptionalFlag.Get] returns the parsed default, and [OptionalFlag.Source]
-//     reports [SourceDefault].
-//   - Explicitly provided via CLI, environment variable, or configuration file:
-//     [OptionalFlag.IsSet] and [OptionalFlag.Changed] both report true, and [OptionalFlag.Source]
-//     identifies the originating tier.
+// The value resolves from the command line, the environment, a configuration
+// file, or a default struct tag, in that order of precedence. An omitted flag
+// with no default holds the zero value of T.
 type OptionalFlag[T any] struct {
 	value        T
 	set          bool
@@ -290,7 +291,7 @@ type OptionalFlag[T any] struct {
 
 // IsSet reports whether the flag received a value from any source, including
 // explicit CLI arguments, environment variables, configuration files, or a
-// struct `default:"..."` tag.
+// struct default tag.
 func (f *OptionalFlag[T]) IsSet() bool { return f.set }
 
 // Get returns the resolved flag value.
@@ -314,30 +315,27 @@ func (f *OptionalFlag[T]) GetOr(fallback T) T {
 // Changed reports whether the flag value was explicitly supplied by the caller
 // through a CLI flag, an environment variable, or a configuration file.
 //
-// Returns false if the value was populated exclusively from a struct `default:"..."`
+// Returns false if the value was populated exclusively from a struct default
 // tag or if the flag was omitted.
 func (f *OptionalFlag[T]) Changed() bool {
 	return f.changed
 }
 
-// Source reports the configuration tier from which the flag value was resolved
-// ([SourceCLI], [SourceEnv], [SourceConfig], [SourceDefault], or [SourceNone]).
+// Source reports the configuration tier from which the flag value was resolved.
+// See [ValueSource] for the tiers and their precedence.
 func (f *OptionalFlag[T]) Source() ValueSource {
 	return f.source
 }
 
-// SourceDetail returns contextual metadata about the resolution source.
-//
-// Depending on [OptionalFlag.Source], this returns the environment variable name
-// (e.g. "PORT"), the configuration file path, the default tag literal, or the raw
-// CLI flag token. Returns an empty string if [OptionalFlag.Source] is [SourceNone].
+// SourceDetail returns the concrete origin recorded with [OptionalFlag.Source]:
+// the flag token, the environment variable name, the configuration key, or the
+// default tag literal. It is empty when the flag is unset.
 func (f *OptionalFlag[T]) SourceDetail() string {
 	return f.sourceDetail
 }
 
-// String returns the string representation of the resolved value, formatting
-// primitive types, slices, and custom Stringers. Returns an empty string if the
-// receiver is nil.
+// String returns the string representation of the resolved value. Returns an
+// empty string if the receiver is nil.
 func (f *OptionalFlag[T]) String() string {
 	if f == nil {
 		return ""
@@ -349,7 +347,7 @@ func (f *OptionalFlag[T]) String() string {
 // RequiredFlag represents a mandatory command-line flag of type T.
 //
 // The requirement is satisfied if a value is supplied by a command-line flag,
-// an environment variable, a configuration file, or a struct `default:"..."` tag.
+// an environment variable, a configuration file, or a struct default tag.
 // If no source provides a value, Run returns a usage error before any lifecycle
 // stage, starting with [Validator.Validate], executes; [IsUsageError] reports true and
 // [App.Exit] exits with status 2.
@@ -375,19 +373,20 @@ func (f *RequiredFlag[T]) Get() T {
 
 // Changed reports whether the flag was explicitly provided by the caller via
 // CLI, environment variable, or configuration file, returning false if satisfied
-// exclusively by a struct `default:"..."` tag.
+// exclusively by a struct default tag.
 func (f *RequiredFlag[T]) Changed() bool {
 	return f.changed
 }
 
-// Source reports the configuration tier from which the flag value was resolved
-// ([SourceCLI], [SourceEnv], [SourceConfig], or [SourceDefault]).
+// Source reports the configuration tier from which the flag value was resolved.
+// See [ValueSource] for the tiers and their precedence.
 func (f *RequiredFlag[T]) Source() ValueSource {
 	return f.source
 }
 
-// SourceDetail returns contextual metadata about the resolution source, such as
-// the environment variable name, configuration file path, or CLI flag token.
+// SourceDetail returns the concrete origin recorded with [RequiredFlag.Source]:
+// the flag token, the environment variable name, the configuration key, or the
+// default tag literal. It is empty when the flag is unset.
 func (f *RequiredFlag[T]) SourceDetail() string {
 	return f.sourceDetail
 }
@@ -419,7 +418,7 @@ type OptionalArg[T any] struct {
 }
 
 // IsSet reports whether a positional argument was supplied on the command line or
-// populated from a struct `default:"..."` tag.
+// populated from a struct default tag.
 func (a *OptionalArg[T]) IsSet() bool { return a.set }
 
 // Get returns the resolved positional argument value.
@@ -451,7 +450,8 @@ func (a *OptionalArg[T]) Source() ValueSource {
 	return a.source
 }
 
-// SourceDetail returns additional context on the argument source (e.g. the raw token).
+// SourceDetail returns the default tag literal when the value came from a
+// default tag, and an empty string when it came from the command line or is unset.
 func (a *OptionalArg[T]) SourceDetail() string {
 	return a.sourceDetail
 }
@@ -469,7 +469,7 @@ func (a *OptionalArg[T]) String() string {
 // RequiredArg represents a mandatory positional command-line argument of type T.
 //
 // Required positional arguments must be supplied on the command line in struct
-// declaration order. If omitted and no struct `default:"..."` tag is present, Run
+// declaration order. If omitted and no struct default tag is present, Run
 // returns a usage error before any lifecycle stage, starting with [Validator.Validate],
 // executes; [IsUsageError] reports true and [App.Exit] exits with status 2.
 type RequiredArg[T any] struct {
@@ -499,7 +499,8 @@ func (a *RequiredArg[T]) Source() ValueSource {
 	return a.source
 }
 
-// SourceDetail returns additional context on the argument source.
+// SourceDetail returns the default tag literal when the value came from a
+// default tag, and an empty string when it came from the command line.
 func (a *RequiredArg[T]) SourceDetail() string {
 	return a.sourceDetail
 }
@@ -514,20 +515,11 @@ func (a *RequiredArg[T]) String() string {
 	return stringx.Stringify(a.value)
 }
 
-// DashArgs captures trailing arguments passed explicitly after the '--' token.
+// DashArgs captures trailing arguments passed explicitly after the -- token.
 //
-// All arguments following '--' are captured verbatim without flag parsing:
+// All arguments following -- are captured verbatim without flag parsing.
 //
-//	type RunCLI struct {
-//		Verbose conga.OptionalFlag[bool] `short:"v" help:"Verbose output"`
-//		Package conga.RequiredArg[string] `name:"package" help:"Package to run"`
-//		Args    conga.DashArgs            `name:"flags"`
-//	}
-//
-// When invoked as `app run -v pkg -- -f --target test`, Args.Get() contains
-// `[]string{"-f", "--target", "test"}`.
-//
-// A DashArgs field accepts only the `name` and `conga` tags.
+// A DashArgs field accepts only the name and conga tags.
 type DashArgs struct {
 	rawSlice
 }
@@ -542,21 +534,12 @@ func (raw *DashArgs) String() string {
 	return raw.rawSlice.String()
 }
 
-// RawArgs captures all trailing unparsed command-line arguments without requiring '--'.
+// RawArgs captures all trailing unparsed command-line arguments without requiring --.
 //
 // Parsing stops at the first unrecognized flag or argument, forwarding all remaining
-// tokens into the container. This container is designed for proxy commands and CLI
-// wrappers (such as `kubectl`, `ssh`, or `docker` wrappers):
+// tokens into the container. This container supports proxy commands and CLI wrappers.
 //
-//	type ExecCLI struct {
-//		Verbose conga.OptionalFlag[bool] `short:"v" help:"Verbose output"`
-//		Command conga.RawArgs            `name:"command"`
-//	}
-//
-// When invoked as `app exec -v sh -c "echo hello"`, Command.Get() contains
-// `[]string{"sh", "-c", "echo hello"}`.
-//
-// A RawArgs field accepts only the `name` and `conga` tags.
+// A RawArgs field accepts only the name and conga tags.
 type RawArgs struct {
 	rawSlice
 }
@@ -571,7 +554,7 @@ func (raw *RawArgs) String() string {
 	return raw.rawSlice.String()
 }
 
-// Command represents a strongly-typed subcommand container holding struct type T.
+// Command represents a subcommand container holding struct type T.
 //
 // In parent commands and lifecycle hooks, call [Command.IsSelected] to check whether
 // execution was routed to this subcommand. Call [Command.Get] to access the inner
@@ -600,23 +583,22 @@ func (c *Command[T]) Get() *T {
 	return &c.value
 }
 
-// HelpCommand provides an opt-in `help [command...]` subcommand.
+// HelpCommand provides an opt-in help subcommand.
 //
-// Declare a HelpCommand field directly on a command struct — do not wrap it in
-// [Command]:
+// Declare a HelpCommand field directly on a command struct:
 //
 //	type CLI struct {
 //		Help conga.HelpCommand `summary:"Show help for any command"`
 //	}
 //
-// The `help` subcommand is a meta-command: it bypasses the execution lifecycle, so
+// The help subcommand is a meta-command: it bypasses the execution lifecycle, so
 // ancestor [PreRunner], [PostRunner], and [Finalizer] hooks do not run for it.
 //
 // See https://docs.conga.sh/reference/builtins/.
 type HelpCommand struct {
 	// Path holds the subcommand path whose help was requested, populated by the
-	// engine from positional tokens (e.g. `["cluster", "nodes"]` for `help cluster nodes`).
-	// When empty, Run renders the help screen of the parent command.
+	// engine from positional tokens (for example, cluster nodes when the user runs
+	// help cluster nodes). When empty, Run renders the help screen of the parent command.
 	Path []string
 }
 
@@ -674,16 +656,15 @@ func (h *HelpCommand) Run(ctx context.Context, session *Session) error {
 	return nil
 }
 
-// VersionCommand provides an opt-in `version [--json]` subcommand.
+// VersionCommand provides an opt-in version subcommand.
 //
-// Declare a VersionCommand field directly on a command struct — do not wrap it in
-// [Command]:
+// Declare a VersionCommand field directly on a command struct:
 //
 //	type CLI struct {
 //		Version conga.VersionCommand `summary:"Show version and build information"`
 //	}
 //
-// The `version` subcommand is a meta-command: it bypasses the execution lifecycle,
+// The version subcommand is a meta-command: it bypasses the execution lifecycle,
 // so ancestor [PreRunner], [PostRunner], and [Finalizer] hooks do not run for it.
 //
 // See https://docs.conga.sh/reference/builtins/.
@@ -724,10 +705,9 @@ func (v *VersionCommand) Run(ctx context.Context, session *Session) error {
 	return nil
 }
 
-// CompletionCommand provides an opt-in `completion <shell>` subcommand.
+// CompletionCommand provides an opt-in completion subcommand.
 //
-// Declare a CompletionCommand field directly on a command struct — do not wrap it
-// in [Command]:
+// Declare a CompletionCommand field directly on a command struct:
 //
 //	type CLI struct {
 //		Completion conga.CompletionCommand `summary:"Generate shell completion scripts"`
@@ -736,14 +716,14 @@ func (v *VersionCommand) Run(ctx context.Context, session *Session) error {
 // The field requires [App.EnableCompletion]; declaring it without that call fails
 // schema build with an [ErrSchema] error naming the missing opt-in.
 //
-// The `completion` subcommand is a meta-command: it bypasses the execution
+// The completion subcommand is a meta-command: it bypasses the execution
 // lifecycle, so ancestor [PreRunner], [PostRunner], and [Finalizer] hooks do not run
 // for it.
 //
 // See https://docs.conga.sh/reference/builtins/.
 type CompletionCommand struct {
-	// Shell holds the target shell name ("bash", "zsh", "fish", "powershell",
-	// "elvish", "nushell"). When empty, Run renders usage guidance listing supported shells.
+	// Shell holds the target shell name (bash, zsh, fish, powershell, elvish,
+	// nushell). When empty, Run renders usage guidance listing supported shells.
 	Shell string
 }
 
@@ -761,7 +741,7 @@ func (c *CompletionCommand) Run(ctx context.Context, session *Session) error {
 		return errSessionUninitialized
 	}
 
-	// Invoked without a shell (e.g. `app completion`), the command renders its
+	// Invoked without a shell (e.g. app completion), the command renders its
 	// help screen instead of failing: the supported-shells list and current-
 	// shell enable hints are the guidance the caller is looking for.
 	if c.Shell == "" {
@@ -784,11 +764,22 @@ func (c *CompletionCommand) Run(ctx context.Context, session *Session) error {
 
 // ConfigFile represents a root-level flag for loading configuration files.
 //
-// By default, the flag holds a single file path (last provided value wins). Declaring
-// `multi:"true"` enables repeated `--config-file` flags and comma-separated paths
-// to accumulate in [ConfigFile.Paths] for multi-file cascading merges.
+// By default the flag holds a single file path (last provided value wins).
+// Declaring the multi tag enables repeated --config-file flags and
+// comma-separated paths to accumulate in [ConfigFile.Paths] for multi-file
+// cascading merges:
 //
-// Probed candidate paths that were absent on disk are reported by [Session.CandidateConfigFiles].
+//	type ServerCLI struct {
+//		Config conga.ConfigFile `multi:"true" short:"c"`
+//	}
+//
+//	app -c base.toml -c prod.toml
+//
+// The invocation above loads both files in order (later files override earlier
+// ones on key conflicts) and reports both through [ConfigFile.Paths].
+//
+// Probed candidate paths that were absent on disk are reported by
+// [Session.CandidateConfigFiles].
 //
 // See https://docs.conga.sh/how-to/manage-config-files/.
 type ConfigFile struct {
@@ -799,8 +790,8 @@ type ConfigFile struct {
 	sourceDetail string
 }
 
-// IsSet reports whether configuration file paths were supplied by any source
-// (CLI, environment, or default discovery).
+// IsSet reports whether any configuration file path resolved: from a CLI flag,
+// an environment variable, or the probed search tier.
 func (c *ConfigFile) IsSet() bool { return c.set }
 
 // Path returns the effective configuration file path: the highest-precedence loaded
@@ -822,18 +813,26 @@ func (c *ConfigFile) Paths() []string {
 	return append([]string(nil), c.paths...)
 }
 
-// Changed reports whether configuration file paths were explicitly passed via
-// CLI or environment variable (not automatically discovered by the engine).
+// Changed reports whether configuration file paths were supplied by any source:
+// a CLI flag, an environment variable, or the probed search tier. It mirrors
+// [ConfigFile.IsSet]; a ConfigFile field accepts no default tag, so there is no
+// default-only state.
 func (c *ConfigFile) Changed() bool {
 	return c.changed
 }
 
-// Source reports where the configuration file paths originated.
+// Source reports the configuration tier from which the configuration file
+// paths resolved. See [ValueSource] for the tiers and their precedence.
 func (c *ConfigFile) Source() ValueSource {
 	return c.source
 }
 
-// SourceDetail returns additional context on the source (e.g. the CLI flag token or environment variable name).
+// SourceDetail returns the concrete origin recorded with [ConfigFile.Source].
+//
+//	app --config-file prod.toml
+//
+// records SourceCLI with the detail "--config-file"; paths loaded from the
+// search tier record SourceConfig with the comma-joined loaded paths.
 func (c *ConfigFile) SourceDetail() string {
 	return c.sourceDetail
 }
@@ -850,19 +849,13 @@ func (c *ConfigFile) String() string {
 
 // Counter represents a repeatable boolean flag that counts its occurrences.
 //
-// Each occurrence on the command line increments the count by 1:
+// Each occurrence on the command line increments the count by 1. With no
+// occurrences and no other source, [Counter.Get] returns 0.
 //
-//	type CLI struct {
-//		Verbose conga.Counter `short:"v" help:"Increase verbosity level (-v, -vvv)"`
-//	}
-//
-// When invoked as `app -vvv`, Verbose.Get() returns 3. With no occurrences and no
-// other source, Verbose.Get() returns 0.
-//
-// Counters count command-line occurrences starting at 0, so a `default` tag is
-// rejected at schema build. An environment or configuration file binding seeds a
-// base level that command-line occurrences override; use [OptionalFlag] with an
-// integer type for a counted value that needs a numeric default.
+// Counters count command-line occurrences starting at 0, so a default tag is
+// rejected at schema build. An environment or configuration file binding seeds
+// a base level that command-line occurrences override; use [OptionalFlag] with
+// an integer type for a counted value that needs a numeric default.
 type Counter struct {
 	value        int
 	set          bool
@@ -871,8 +864,7 @@ type Counter struct {
 	sourceDetail string
 }
 
-// IsSet reports whether the counter flag received a count from any source: a
-// CLI flag, an environment variable, or a configuration file.
+// IsSet reports whether the counter flag received a count from any source.
 func (c *Counter) IsSet() bool { return c.set }
 
 // Get returns the resolved count: command-line occurrences take precedence, then
@@ -893,18 +885,21 @@ func (c *Counter) GetOr(fallback int) int {
 }
 
 // Changed reports whether the count was explicitly supplied by a CLI flag,
-// environment variable, or configuration file. It is always true when
-// [Counter.IsSet] is true, since counters accept no `default` tag.
+// environment variable, or configuration file. It mirrors [Counter.IsSet];
+// a Counter field accepts no default tag, so there is no default-only state.
 func (c *Counter) Changed() bool {
 	return c.changed
 }
 
-// Source reports where the counter value originated.
+// Source reports the configuration tier from which the count was resolved.
+// See [ValueSource] for the tiers and their precedence.
 func (c *Counter) Source() ValueSource {
 	return c.source
 }
 
-// SourceDetail returns additional context on the source.
+// SourceDetail returns the concrete origin recorded with [Counter.Source]:
+// the flag token, the environment variable name, or the configuration key.
+// It is empty when the counter is unset.
 func (c *Counter) SourceDetail() string {
 	return c.sourceDetail
 }

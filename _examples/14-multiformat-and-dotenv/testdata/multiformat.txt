@@ -58,6 +58,10 @@ stderr 'did you mean "port"\?'
 exit-status 1 multiformat-app -c config.xml
 stderr 'unsupported config file format "\.xml"'
 
+# 9. Duplicate JSON object keys are rejected (RFC 7493 strictness, exit 1)
+exit-status 1 multiformat-app -c duplicate.json
+stderr 'duplicate object member name "port"'
+
 -- .env --
 # Database and service defaults (variable expansion supported)
 DB_HOST=localhost
@@ -97,3 +101,10 @@ max_workers = 20
 
 -- typo.yaml --
 prt: 8080
+
+-- duplicate.json --
+{
+  "service_name": "dup",
+  "port": 3000,
+  "port": 4000
+}

@@ -1,8 +1,8 @@
 // Package json provides the JSON configuration decoder for CONGA applications.
 //
-// Register [RawDecoder] with App.RegisterDecoder to enable JSON configuration support:
+// Register [Decode] with conga.App.RegisterDecoder to enable JSON configuration support:
 //
-//	app.RegisterDecoder(".json", json.RawDecoder)
+//	app.RegisterDecoder(".json", json.Decode)
 //
 // # Key Mapping
 //
@@ -14,34 +14,37 @@
 //	  "maxRetries": 5
 //	}
 //
-// Syntax errors and trailing content after the first JSON document wrap [ErrJSONParse].
+// # Strictness
+//
+// Decoding follows [encoding/json/v2] semantics and rejects inputs that RFC 8259
+// leaves ambiguous: duplicate object member names and invalid UTF-8 in strings are
+// errors rather than silently accepted. Reported errors carry the byte offset and
+// JSON pointer of the offending value. Syntax errors, trailing content after the
+// first JSON document, and non-object top-level values wrap [ErrParse]. A JSON
+// null document decodes to an empty map.
 package json
 
 import (
-	"bytes"
-	"encoding/json"
+	"encoding/json/v2"
 	"errors"
 	"fmt"
-	"io"
 )
 
 var (
-	// ErrJSONParse indicates a syntax or parsing error in JSON configuration.
-	ErrJSONParse = errors.New("json parse error")
+	// ErrParse indicates a syntax or parsing error in JSON configuration.
+	ErrParse = errors.New("json parse error")
 )
 
-// RawDecoder decodes JSON bytes into the generic map[string]any structure the configuration engine matches against flag bindings.
-func RawDecoder(data []byte) (map[string]any, error) {
+// Decode decodes JSON bytes into the generic map[string]any structure the configuration engine matches against flag bindings.
+func Decode(data []byte) (map[string]any, error) {
 	var result map[string]any
 
-	dec := json.NewDecoder(bytes.NewReader(data))
-	if err := dec.Decode(&result); err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrJSONParse, err)
+	if err := json.Unmarshal(data, &result); err != nil {
+		return nil, fmt.Errorf("%w: %w", ErrParse, err)
 	}
 
-	var extra any
-	if err := dec.Decode(&extra); !errors.Is(err, io.EOF) {
-		return nil, fmt.Errorf("%w: trailing garbage after JSON document", ErrJSONParse)
+	if result == nil {
+		result = make(map[string]any)
 	}
 
 	return result, nil

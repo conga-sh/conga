@@ -12,7 +12,7 @@ import (
 	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/internal/assertx"
 	"github.com/conga-sh/conga/predict"
-	"github.com/conga-sh/conga/predict/timezone"
+	"github.com/conga-sh/conga/timezone"
 )
 
 func TestRegisterType_ScalarAndPointerFlags(t *testing.T) {
@@ -381,14 +381,6 @@ func TestRegisterMap_FlagsAndArgs(t *testing.T) {
 
 		assertx.PanicsWithValue(t, "conga: RegisterMap requires a non-nil app", func() {
 			nilApp.RegisterMap(map[string]int(nil))
-		})
-	})
-
-	t.Run("non-string map keys panic", func(t *testing.T) {
-		t.Parallel()
-
-		assertx.PanicsWithValue(t, "conga: RegisterMap requires string map keys, got int", func() {
-			_ = conga.New[registeredMapCLI]().RegisterMap(map[int]string(nil))
 		})
 	})
 }

@@ -14,7 +14,7 @@ import (
 )
 
 type stdioWriterCLI struct {
-	Output conga.OptionalFlag[conga.File] `name:"output" stdout:"true"`
+	Output conga.OptionalFlag[conga.File] `stdout:"true"`
 }
 
 func (c *stdioWriterCLI) Run(_ context.Context, _ *conga.Session) error {
@@ -29,7 +29,7 @@ func (c *stdioWriterCLI) Run(_ context.Context, _ *conga.Session) error {
 }
 
 type stdioReaderCLI struct {
-	Input conga.OptionalFlag[conga.File] `name:"input" stdin:"true"`
+	Input conga.OptionalFlag[conga.File] `stdin:"true"`
 
 	payload string
 }
@@ -67,7 +67,7 @@ func (c *stdioSliceCLI) Run(_ context.Context, _ *conga.Session) error {
 }
 
 type stdioContentCLI struct {
-	Payload conga.OptionalFlag[conga.FileContent] `name:"payload"`
+	Payload conga.OptionalFlag[conga.FileContent]
 }
 
 func (c *stdioContentCLI) Run(_ context.Context, _ *conga.Session) error {
@@ -75,7 +75,7 @@ func (c *stdioContentCLI) Run(_ context.Context, _ *conga.Session) error {
 }
 
 type stdioEnvCLI struct {
-	Input conga.OptionalFlag[conga.File] `env:"STDIO_TEST_INPUT" name:"input" stdin:"true"`
+	Input conga.OptionalFlag[conga.File] `env:"STDIO_TEST_INPUT" stdin:"true"`
 
 	payload string
 }
@@ -93,7 +93,7 @@ func (c *stdioEnvCLI) Run(_ context.Context, _ *conga.Session) error {
 }
 
 type stdioDefaultCLI struct {
-	Input conga.OptionalFlag[conga.File] `default:"-" name:"input" stdin:"true"`
+	Input conga.OptionalFlag[conga.File] `default:"-" stdin:"true"`
 
 	payload string
 }
@@ -111,7 +111,7 @@ func (c *stdioDefaultCLI) Run(_ context.Context, _ *conga.Session) error {
 }
 
 type stdioConfigCLI struct {
-	Input conga.OptionalFlag[conga.File] `config:"stdio.input" name:"input" stdin:"true"`
+	Input conga.OptionalFlag[conga.File] `config:"stdio.input" stdin:"true"`
 
 	payload string
 }
@@ -228,7 +228,7 @@ func TestStdio_ConfigTierHonorsStreams(t *testing.T) {
 
 	cli := new(stdioConfigCLI)
 	app := conga.New(cli).
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"stdio": {"input": "-"}}`))).
 		Stdin(strings.NewReader("config payload")).
 		Args([]string{})

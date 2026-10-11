@@ -12,7 +12,7 @@ import (
 // Level 0: Root Application.
 type MultiLevelRoot struct {
 	Verbose conga.OptionalFlag[bool]         `help:"Global verbose flag" short:"v"`
-	Env     conga.OptionalFlag[string]       `default:"dev"              help:"Target environment" name:"env"`
+	Env     conga.OptionalFlag[string]       `default:"dev"              help:"Target environment"`
 	Cluster conga.Command[ClusterSubcommand] `summary:"Cluster commands"`
 
 	rootPreRunCalled  bool
@@ -46,7 +46,7 @@ func (r *MultiLevelRoot) Finally(ctx context.Context, session *conga.Session, er
 // Level 1: Cluster Subcommand.
 type ClusterSubcommand struct {
 	Region      conga.OptionalFlag[string]    `default:"us-east-1"       help:"Cloud region"`
-	ClusterName conga.OptionalFlag[string]    `help:"Cluster name"       name:"cluster-name"`
+	ClusterName conga.OptionalFlag[string]    `help:"Cluster name"`
 	Node        conga.Command[NodeSubcommand] `summary:"Node operations"`
 
 	clusterPreRunCalled bool
@@ -75,7 +75,7 @@ func (n *NodeSubcommand) PreRun(ctx context.Context, session *conga.Session) err
 
 // Level 3: Drain Leaf Command.
 type DrainLeafCmd struct {
-	NodeID conga.RequiredArg[string] `help:"Target node ID" name:"<node-id>"`
+	NodeID conga.RequiredArg[string] `help:"Target node ID"`
 	Force  conga.OptionalFlag[bool]  `help:"Force drain"    short:"f"`
 
 	// Captured values for test verification

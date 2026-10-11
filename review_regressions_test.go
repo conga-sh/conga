@@ -38,8 +38,8 @@ func (u *ConfigFile) UnmarshalText(text []byte) error {
 }
 
 type UserTypeCollisionCLI struct {
-	MyCounter conga.OptionalFlag[Counter]    `name:"my-counter"`
-	MyConfig  conga.OptionalFlag[ConfigFile] `name:"my-config"`
+	MyCounter conga.OptionalFlag[Counter]
+	MyConfig  conga.OptionalFlag[ConfigFile]
 }
 
 func (c *UserTypeCollisionCLI) Run(_ context.Context, _ *conga.Session) error {
@@ -392,7 +392,7 @@ func (m CustomHeaderMap) Validate(_ context.Context) error {
 }
 
 type SelfValidatingMapFlagCLI struct {
-	Headers conga.OptionalFlag[CustomHeaderMap] `name:"headers"`
+	Headers conga.OptionalFlag[CustomHeaderMap]
 }
 
 func (c *SelfValidatingMapFlagCLI) Run(_ context.Context, _ *conga.Session) error { return nil }
@@ -441,7 +441,7 @@ func (p ValidatedPortNumber) Validate(_ context.Context) error {
 }
 
 type SelfValidatingMapEntryCLI struct {
-	Ports conga.OptionalFlag[map[string]ValidatedPortNumber] `name:"ports"`
+	Ports conga.OptionalFlag[map[string]ValidatedPortNumber]
 }
 
 func (c *SelfValidatingMapEntryCLI) Run(_ context.Context, _ *conga.Session) error { return nil }

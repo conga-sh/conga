@@ -3,7 +3,7 @@ title: package predict
 description: The decoupled completion SDK — predictors, combinators, items, context, directives.
 ---
 
-Deep detail lives on [pkg.go.dev/github.com/conga-sh/conga/predict](https://pkg.go.dev/github.com/conga-sh/conga/predict); wiring guidance is in [How to wire custom completion](/how-to/wire-custom-completion/).
+Complete package API documentation is on [pkg.go.dev/github.com/conga-sh/conga/predict](https://pkg.go.dev/github.com/conga-sh/conga/predict); wiring guidance is in [How to wire custom completion](/how-to/wire-custom-completion/).
 
 ## Core types
 
@@ -100,7 +100,7 @@ app.Predictor("stack", predict.Callback(func(c predict.Context) predict.Predicto
 
 ## Directives
 
-`Directive` constants instruct shells on post-completion behaviour (e.g. `DirectiveNoFileComp` to disable filename fallback). Set per predictor or per `Result`.
+`Directive` constants instruct shells on post-completion behaviour (e.g. `DirectiveNoFileCompletion` to disable filename fallback). Set per predictor or per `Result`.
 
 ## Interfaces for custom types
 
@@ -114,14 +114,6 @@ app.Predictor("stack", predict.Callback(func(c predict.Context) predict.Predicto
 
 `DefaultTimeout = 250 * time.Millisecond` — callback deadline applied by dynamic predictors; `Timeout(0)` reapplies it and a negative duration disables enforcement.
 
-## Subpackages
+## Domain types
 
-- [`predict/network`](https://pkg.go.dev/github.com/conga-sh/conga/predict/network) — `Host`, `Port`, `HTTPMethod`, `HTTPStatus`, `MIMEType`, `NetInterface` + predictors
-- [`predict/system`](https://pkg.go.dev/github.com/conga-sh/conga/predict/system) — `User`, `Group`, `Signal`, `PID`, `Process`, `EnvVar`, `Locale` + predictors
-- [`predict/timezone`](https://pkg.go.dev/github.com/conga-sh/conga/predict/timezone) — IANA `Timezones()` predictor
-
-Coercion-time validation failures of these domain types carry no per-type
-sentinels: the engine classifies them under `ErrCoerce`, and the rendered error
-names the flag and the reason. The system-query methods report absent input via
-`ErrEmptyHost`, `ErrEmptyInterface`, `ErrEmptyUser`, or `ErrEmptyGroup`, plus
-the wrapped OS/network error otherwise.
+The `network`, `system`, and `timezone` packages provide domain types and predictors. See [Domain types](/reference/domain-types/) for the type inventory, the standard library bindings, and the system-query sentinels.

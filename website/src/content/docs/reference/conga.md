@@ -11,7 +11,7 @@ Deep detail lives on [pkg.go.dev/github.com/conga-sh/conga](https://pkg.go.dev/g
 func New[T any](root ...*T) *App[T]
 ```
 
-`App[T]` wraps your command struct. `New` defers instance allocation to execution; pass your own instance (`conga.New(cli)`) to keep a reference for pre-run seeding and post-run inspection — see [How to keep a reference to the root struct](/how-to/keep-root-reference/). All builder methods return `*App[T]` for chaining.
+`App[T]` wraps your command struct. `New` defers instance allocation to execution; pass your own instance (`conga.New(cli)`) to inspect bound container values after execution completes — see [How to keep a reference to the root struct](/how-to/keep-root-reference/). All builder methods return `*App[T]` for chaining.
 
 `New` is the recommended constructor. The zero value of `App[T]` is also usable: the execution entry points install the same defaults `New` sets, so `var app conga.App[CLI]` behaves like `conga.New[CLI]()`.
 
@@ -32,7 +32,7 @@ func New[T any](root ...*T) *App[T]
 | `StrictTagValidation(strict)` | Toggle tag linting (default on) |
 | `AllowTags(tags...)` | Allow additional struct tags |
 | `Predictor(name, p)` | Register named completion predictor (panics on misuse) |
-| `Use(plugins...)` | Apply builder plugins |
+| `Use(bindings...)` | Apply builder bindings (`network.RegisterInterface`, `timezone.RegisterLocation`, …) |
 | `RegisterType[U](parser, opts...)` | Register a parser (and optional predictor) for type `U` |
 | `RegisterMap[M](sample, opts...)` | Register a `map[K]V` parser from a sample map |
 | `Args(args)` | Custom argument slice (defaults to `os.Args[1:]`) |
@@ -106,8 +106,7 @@ func (s *Session) LoadedConfigFiles() []string
 `New`, or the engine-allocated instance. Enclosing command structs are reached
 by walking the selected `Command[T]` fields (`root.Cluster.Get()`).
 
-The standard streams are captured when the App starts executing; builder
-changes afterwards do not affect the active session.
+The App snapshots standard streams at the start of execution for the active session.
 
 `Help`, `Usage`, and `Version` are the formatting primitives behind the built-in `help` and `version` commands: `Help` returns the active command's help screen as a string, `Usage` returns the syntax usage summary as a string, and `Version` writes the version summary to stdout, falling back to the module version (or `dev`) plus the embedded build metadata when no version string was configured.
 
@@ -132,5 +131,5 @@ Base categories (`ErrSchema`, `ErrParse`, `ErrCoerce`, `ErrValidation`, `ErrConf
 The config-file authoring surface lives in the root `conga` package: the
 `app.ConfigOptions` option constructors (`conga.ConfigPaths`, `conga.ConfigExplicit`,
 `conga.ConfigCascading`) and the `conga.ConfigDecoder` type. Options are declared
-as `conga.ConfigOption` values; the engine folds them into its own resolution
-settings, so no separate authoring package exists.
+as `conga.ConfigOption` values and folded directly into the engine's resolution
+settings.

@@ -20,7 +20,7 @@ func TestValues(t *testing.T) {
 	assert.Equal(t, "apple", result.Items[0].Value)
 	assert.Equal(t, "banana", result.Items[1].Value)
 	assert.Equal(t, "cherry", result.Items[2].Value)
-	assert.Equal(t, predict.DirectiveNoFileComp, result.Directive)
+	assert.Equal(t, predict.DirectiveNoFileCompletion, result.Directive)
 	assert.Equal(t, []string{"apple", "banana", "cherry"}, pred.Raw())
 }
 
@@ -41,7 +41,7 @@ func TestItems(t *testing.T) {
 	assert.Equal(t, "green", result.Items[0].Style)
 	assert.Equal(t, "yaml", result.Items[1].Value)
 	assert.Equal(t, "YAML Ain't Markup Language", result.Items[1].Description)
-	assert.Equal(t, predict.DirectiveNoFileComp, result.Directive)
+	assert.Equal(t, predict.DirectiveNoFileCompletion, result.Directive)
 }
 
 func TestMap(t *testing.T) {
@@ -63,7 +63,7 @@ func TestMap(t *testing.T) {
 	assert.Equal(t, "Error messages only", result.Items[1].Description)
 	assert.Equal(t, "info", result.Items[2].Value)
 	assert.Equal(t, "Informational messages", result.Items[2].Description)
-	assert.Equal(t, predict.DirectiveNoFileComp, result.Directive)
+	assert.Equal(t, predict.DirectiveNoFileCompletion, result.Directive)
 }
 
 func TestKeyValue(t *testing.T) {
@@ -149,7 +149,7 @@ func TestNone(t *testing.T) {
 	result := pred.Invoke(predict.Context{})
 
 	assert.Zero(t, result.Items)
-	assert.Equal(t, predict.DirectiveNoFileComp, result.Directive)
+	assert.Equal(t, predict.DirectiveNoFileCompletion, result.Directive)
 }
 
 func TestCallback(t *testing.T) {
@@ -257,7 +257,7 @@ func TestBatch(t *testing.T) {
 		assert.Equal(t, "apple", result.Items[0].Value)
 		assert.Equal(t, "banana", result.Items[1].Value)
 		assert.Equal(t, "cherry", result.Items[2].Value)
-		assert.True(t, result.Directive.Has(predict.DirectiveNoFileComp))
+		assert.True(t, result.Directive.Has(predict.DirectiveNoFileCompletion))
 		assert.True(t, result.Directive.Has(predict.DirectiveNoSpace))
 	})
 }
@@ -405,7 +405,7 @@ func TestTimeout(t *testing.T) {
 		assert.True(t, elapsed >= 200*time.Millisecond, "expected to wait at least default timeout")
 		assert.True(t, elapsed < 400*time.Millisecond, "expected not to wait for full sleep duration")
 		assert.Zero(t, result.Items)
-		assert.Equal(t, predict.DirectiveNoFileComp, result.Directive)
+		assert.Equal(t, predict.DirectiveNoFileCompletion, result.Directive)
 	})
 
 	t.Run("custom timeout with fallback predictor", func(t *testing.T) {
@@ -443,7 +443,7 @@ func TestTimeout(t *testing.T) {
 		assert.True(t, elapsed >= 25*time.Millisecond, "expected to wait for custom timeout")
 		assert.True(t, elapsed < 150*time.Millisecond, "expected to return before callback completes")
 		assert.Zero(t, result.Items)
-		assert.Equal(t, predict.DirectiveNoFileComp, result.Directive)
+		assert.Equal(t, predict.DirectiveNoFileCompletion, result.Directive)
 	})
 
 	t.Run("disabled timeout allows slow execution", func(t *testing.T) {

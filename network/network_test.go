@@ -13,8 +13,8 @@ import (
 	_ "embed"
 
 	"github.com/conga-sh/conga/internal/slicex"
+	"github.com/conga-sh/conga/network"
 	"github.com/conga-sh/conga/predict"
-	"github.com/conga-sh/conga/predict/network"
 )
 
 var (
@@ -222,14 +222,14 @@ func TestDomainTypes(t *testing.T) {
 		_, err = nilNetif.Interface()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, network.ErrEmptyInterface)
+		assert.Equal(t, "network interface: empty interface name", err.Error())
 
 		var emptyNetif network.NetInterface
 
 		_, err = emptyNetif.Interface()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, network.ErrEmptyInterface)
+		assert.Equal(t, "network interface: empty interface name", err.Error())
 
 		var badNetif network.NetInterface = "nonexistent_iface_999"
 
@@ -272,14 +272,14 @@ func TestDomainTypes(t *testing.T) {
 		_, err = nilHost.LookupIP(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, network.ErrEmptyHost)
+		assert.Equal(t, "lookup host: empty host name", err.Error())
 
 		var emptyHost network.Host
 
 		_, err = emptyHost.LookupIP(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, network.ErrEmptyHost)
+		assert.Equal(t, "lookup host: empty host name", err.Error())
 
 		var ipHost network.Host = "127.0.0.1"
 

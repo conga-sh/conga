@@ -29,7 +29,7 @@ func Dirs() Predictor {
 // filter predicate. Only directories matching the predicate are offered;
 // symlinks that resolve to directories are treated as directories. This
 // filter is a predicate over directory entries, not the query match of
-// Predictor.Filter.
+// Predictor.FilterText.
 func DirsFiltered(filter func(path string, entry os.DirEntry) bool) Predictor {
 	return Callback(func(c Context) Predictor {
 		return actionDirsFiltered(c, filter)
@@ -38,7 +38,7 @@ func DirsFiltered(filter func(path string, entry os.DirEntry) bool) Predictor {
 
 // DirsGlob configures in-process directory completion filtered by glob
 // patterns. A directory is offered when its base name matches at least one
-// pattern (filepath.Match syntax; a wildcard-free pattern such as "build"
+// pattern (filepath.Match syntax; a wildcard-free pattern such as build
 // matches that literal name).
 func DirsGlob(patterns ...string) Predictor {
 	return Callback(func(c Context) Predictor {
@@ -68,7 +68,7 @@ func Files(extensions ...string) Predictor {
 // FilesFiltered configures file completion with a custom filter predicate.
 // Directories are retained for traversal, while files are filtered using the provided predicate.
 // This filter is a predicate over directory entries, not the query match of
-// Predictor.Filter.
+// Predictor.FilterText.
 func FilesFiltered(filter func(path string, entry os.DirEntry) bool) Predictor {
 	return Callback(func(c Context) Predictor {
 		return actionFilesFiltered(c, filter)
@@ -78,7 +78,7 @@ func FilesFiltered(filter func(path string, entry os.DirEntry) bool) Predictor {
 // FilesGlob configures in-process file completion filtered by glob patterns.
 // Directories are retained for traversal, while files must match at least one
 // pattern against their base name (filepath.Match syntax; a wildcard-free
-// pattern such as "Makefile" matches that literal name).
+// pattern such as Makefile matches that literal name).
 func FilesGlob(patterns ...string) Predictor {
 	return Callback(func(c Context) Predictor {
 		return actionFilesGlob(c, patterns)
@@ -87,7 +87,7 @@ func FilesGlob(patterns ...string) Predictor {
 
 // PathsFiltered configures completion where both files and directories are evaluated against the filter predicate.
 // This filter is a predicate over directory entries, not the query match of
-// Predictor.Filter.
+// Predictor.FilterText.
 func PathsFiltered(filter func(path string, entry os.DirEntry) bool) Predictor {
 	return Callback(func(c Context) Predictor {
 		return actionPathsFiltered(c, filter)
@@ -106,7 +106,7 @@ func actionDirs(ctx Context) Predictor {
 
 	return Predictor{
 		items:     items,
-		directive: DirectiveNoFileComp | DirectiveNoSpace,
+		directive: DirectiveNoFileCompletion | DirectiveNoSpace,
 	}
 }
 
@@ -115,7 +115,7 @@ func actionDirsFiltered(ctx Context, filter func(path string, entry os.DirEntry)
 
 	return Predictor{
 		items:     items,
-		directive: DirectiveNoFileComp | DirectiveNoSpace,
+		directive: DirectiveNoFileCompletion | DirectiveNoSpace,
 	}
 }
 
@@ -127,7 +127,7 @@ func actionDirsGlob(ctx Context, patterns []string) Predictor {
 
 	return Predictor{
 		items:     items,
-		directive: DirectiveNoFileComp | DirectiveNoSpace,
+		directive: DirectiveNoFileCompletion | DirectiveNoSpace,
 	}
 }
 
@@ -153,7 +153,7 @@ func actionFiles(ctx Context, extensions ...string) Predictor {
 
 	return Predictor{
 		items:     items,
-		directive: DirectiveNoFileComp,
+		directive: DirectiveNoFileCompletion,
 	}
 }
 
@@ -162,7 +162,7 @@ func actionFilesFiltered(ctx Context, filter func(path string, entry os.DirEntry
 
 	return Predictor{
 		items:     items,
-		directive: DirectiveNoFileComp,
+		directive: DirectiveNoFileCompletion,
 	}
 }
 
@@ -174,7 +174,7 @@ func actionFilesGlob(ctx Context, patterns []string) Predictor {
 
 	return Predictor{
 		items:     items,
-		directive: DirectiveNoFileComp,
+		directive: DirectiveNoFileCompletion,
 	}
 }
 
@@ -183,7 +183,7 @@ func actionPathsFiltered(ctx Context, filter func(path string, entry os.DirEntry
 
 	return Predictor{
 		items:     items,
-		directive: DirectiveNoFileComp,
+		directive: DirectiveNoFileCompletion,
 	}
 }
 
@@ -195,7 +195,7 @@ func actionSymlinks(ctx Context) Predictor {
 
 	return Predictor{
 		items:     items,
-		directive: DirectiveNoFileComp,
+		directive: DirectiveNoFileCompletion,
 	}
 }
 

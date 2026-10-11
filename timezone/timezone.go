@@ -1,8 +1,23 @@
-// Package timezone provides autocompletion predictors for IANA timezone
-// identifiers.
+// Package timezone provides an autocompletion predictor for IANA timezone
+// identifiers and an optional standard library binding for *time.Location
+// fields.
 //
 // [Timezones] reads system zoneinfo tables (honoring $ZONEINFO when it names a
-// directory) and falls back to a built-in identifier list; UTC is always included.
+// directory) and falls back to a built-in identifier list; UTC is always
+// included.
+//
+// Mount [RegisterLocation] to register *time.Location with time.LoadLocation
+// and enable IANA timezone completion on fields typed with the standard library
+// type:
+//
+//	type CLI struct {
+//		Zone conga.OptionalFlag[*time.Location] `help:"Server timezone"`
+//	}
+//
+//	app := conga.New[CLI]().Use(timezone.RegisterLocation)
+//
+// See https://docs.conga.sh/reference/domain-types/ for the domain type
+// reference.
 package timezone
 
 import (
@@ -11,12 +26,21 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
+	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/internal/scanx"
 	"github.com/conga-sh/conga/internal/slicex"
 	"github.com/conga-sh/conga/internal/style"
 	"github.com/conga-sh/conga/predict"
 )
+
+// RegisterLocation mounts *time.Location support onto the app builder: the
+// parser resolves IANA timezone identifiers with time.LoadLocation and
+// completion offers the host's zones. Apply with app.Use.
+func RegisterLocation[T any](app *conga.App[T]) {
+	app.RegisterType(time.LoadLocation, conga.WithPredictor(Timezones()))
+}
 
 // Timezones configures completion of IANA timezone identifiers (e.g. UTC, America/New_York, Europe/London).
 func Timezones() predict.Predictor {

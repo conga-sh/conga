@@ -156,7 +156,7 @@ func TestConfig_JSONDecoder(t *testing.T) {
 
 	cli := new(MultiFormatServerCLI)
 	app := conga.New(cli).
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigExplicit(cfgPath)).
 		Args([]string{})
 
@@ -182,7 +182,7 @@ func TestConfig_TOMLDecoder(t *testing.T) {
 
 	cli := new(MultiFormatServerCLI)
 	app := conga.New(cli).
-		RegisterDecoder(".toml", toml.RawDecoder).
+		RegisterDecoder(".toml", toml.Decode).
 		ConfigOptions(conga.ConfigExplicit(cfgPath)).
 		Args([]string{})
 
@@ -208,7 +208,7 @@ func TestConfig_YAMLDecoder(t *testing.T) {
 
 	cli := new(MultiFormatServerCLI)
 	app := conga.New(cli).
-		RegisterDecoder(".yaml", yaml.RawDecoder).
+		RegisterDecoder(".yaml", yaml.Decode).
 		ConfigOptions(conga.ConfigExplicit(cfgPath)).
 		Args([]string{})
 
@@ -234,7 +234,7 @@ func TestConfig_HCLDecoder(t *testing.T) {
 
 	cli := new(MultiFormatServerCLI)
 	app := conga.New(cli).
-		RegisterDecoder(".hcl", hcl.RawDecoder).
+		RegisterDecoder(".hcl", hcl.Decode).
 		ConfigOptions(conga.ConfigExplicit(cfgPath)).
 		Args([]string{})
 
@@ -259,7 +259,7 @@ func TestConfig_StrictUnknownFieldRejection(t *testing.T) {
 	assert.NoError(t, err)
 
 	app := conga.New[MultiFormatServerCLI]().
-		RegisterDecoder(".toml", toml.RawDecoder).
+		RegisterDecoder(".toml", toml.Decode).
 		ConfigOptions(conga.ConfigExplicit(cfgPath)).
 		Args([]string{})
 
@@ -278,7 +278,7 @@ func TestConfig_ExcludedFieldRejection(t *testing.T) {
 	assert.NoError(t, err)
 
 	app := conga.New[MultiFormatServerCLI]().
-		RegisterDecoder(".toml", toml.RawDecoder).
+		RegisterDecoder(".toml", toml.Decode).
 		ConfigOptions(conga.ConfigExplicit(cfgPath)).
 		Args([]string{})
 
@@ -298,7 +298,7 @@ func TestConfig_NestedSubcommandTables(t *testing.T) {
 
 	cli := new(HierarchicalRootCLI)
 	app := conga.New(cli).
-		RegisterDecoder(".toml", toml.RawDecoder).
+		RegisterDecoder(".toml", toml.Decode).
 		ConfigOptions(conga.ConfigExplicit(cfgPath)).
 		Args([]string{"cluster", "node"})
 
@@ -322,7 +322,7 @@ func TestConfig_PreParsedFlag(t *testing.T) {
 
 	cli := new(MultiFormatServerCLI)
 	app := conga.New(cli).
-		RegisterDecoder(".toml", toml.RawDecoder).
+		RegisterDecoder(".toml", toml.Decode).
 		Args([]string{"--config-file", cfgPath, "--debug"})
 
 	err = app.Run()
@@ -360,7 +360,7 @@ func TestConfig_MultiFlagTierFirstHitWithoutCascading(t *testing.T) {
 
 	cli := new(MultiTierCLI)
 	app := conga.New(cli).
-		RegisterDecoder(".toml", toml.RawDecoder).
+		RegisterDecoder(".toml", toml.Decode).
 		ConfigOptions(conga.ConfigPaths(firstCfg, secondCfg)).
 		Args([]string{})
 
@@ -398,7 +398,7 @@ func TestConfig_MultiFlagTierCascadingMerge(t *testing.T) {
 
 	cli := new(MultiCascadeCLI)
 	app := conga.New(cli).
-		RegisterDecoder(".toml", toml.RawDecoder).
+		RegisterDecoder(".toml", toml.Decode).
 		ConfigOptions(conga.ConfigPaths(localCfg, sysCfg), conga.ConfigCascading()).
 		Args([]string{})
 
@@ -436,7 +436,7 @@ func TestConfigOptions_MultipleCalls_AccumulateSlots(t *testing.T) {
 
 	cli := new(SplitOptionsCLI)
 	app := conga.New(cli).
-		RegisterDecoder(".toml", toml.RawDecoder).
+		RegisterDecoder(".toml", toml.Decode).
 		ConfigOptions(conga.ConfigPaths(localCfg, sysCfg)).
 		ConfigOptions(conga.ConfigCascading()).
 		Args([]string{})
@@ -464,7 +464,7 @@ func TestConfig_SearchPathsSingleFile(t *testing.T) {
 
 	cli := new(MultiFormatServerCLI)
 	app := conga.New(cli).
-		RegisterDecoder(".toml", toml.RawDecoder).
+		RegisterDecoder(".toml", toml.Decode).
 		ConfigOptions(conga.ConfigPaths(file1, file2, file3)).
 		Args([]string{})
 
@@ -498,7 +498,7 @@ func TestConfig_CascadingResolution(t *testing.T) {
 	// Precedence order: local > user > sys
 	cli := new(MultiFormatServerCLI)
 	app := conga.New(cli).
-		RegisterDecoder(".toml", toml.RawDecoder).
+		RegisterDecoder(".toml", toml.Decode).
 		ConfigOptions(conga.ConfigPaths(localCfg, userCfg, sysCfg), conga.ConfigCascading()).
 		Args([]string{})
 
@@ -524,7 +524,7 @@ func TestConfigFiles_MultiFlag(t *testing.T) {
 
 	cli := new(MultiConfigFileTestCLI)
 	app := conga.New(cli).
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".json", json.Decode).
 		Args([]string{"-c", basePath, "-c", overridePath})
 
 	err = app.Run()
@@ -554,7 +554,7 @@ func TestConfig_NamespacedFlagAlias(t *testing.T) {
 
 	cli := new(NamespacedFlagAliasCLI)
 	app := conga.New(cli).
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigExplicit(cfgPath)).
 		Args([]string{})
 
@@ -578,7 +578,7 @@ func TestConfigFiles_CommaSeparated(t *testing.T) {
 
 	cli := new(MultiConfigFileTestCLI)
 	app := conga.New(cli).
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".json", json.Decode).
 		Args([]string{"-c", basePath + "," + overridePath})
 
 	err = app.Run()
@@ -605,8 +605,8 @@ func TestConfig_DirectorySearchPaths(t *testing.T) {
 	cli := new(MultiFormatServerCLI)
 	app := conga.New(cli).
 		Name("server").
-		RegisterDecoder(".toml", toml.RawDecoder).
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".toml", toml.Decode).
+		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigPaths(localDir, userDir), conga.ConfigCascading()).
 		Args([]string{})
 
@@ -633,8 +633,8 @@ func TestConfig_StemSearchPaths(t *testing.T) {
 
 	cli := new(MultiFormatServerCLI)
 	app := conga.New(cli).
-		RegisterDecoder(".toml", toml.RawDecoder).
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".toml", toml.Decode).
+		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigPaths(localStem, userStem), conga.ConfigCascading()).
 		Args([]string{})
 
@@ -657,8 +657,8 @@ func TestConfig_MultiFormatConflict_Directory(t *testing.T) {
 
 	app := conga.New[MultiFormatServerCLI]().
 		Name("server").
-		RegisterDecoder(".toml", toml.RawDecoder).
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".toml", toml.Decode).
+		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigPaths(tmpDir), conga.ConfigCascading()).
 		Args([]string{})
 
@@ -681,8 +681,8 @@ func TestConfig_MultiFormatConflict_Stem(t *testing.T) {
 	assert.NoError(t, err)
 
 	app := conga.New[MultiFormatServerCLI]().
-		RegisterDecoder(".toml", toml.RawDecoder).
-		RegisterDecoder(".hcl", hcl.RawDecoder).
+		RegisterDecoder(".toml", toml.Decode).
+		RegisterDecoder(".hcl", hcl.Decode).
 		ConfigOptions(conga.ConfigPaths(cfgStem)).
 		Args([]string{})
 
@@ -713,7 +713,7 @@ func TestConfig_NativeMap_TOML(t *testing.T) {
 
 	cli := new(NativeMapCLI)
 	app := conga.New(cli).
-		RegisterDecoder(".toml", toml.RawDecoder).
+		RegisterDecoder(".toml", toml.Decode).
 		ConfigOptions(conga.ConfigExplicit(cfgPath)).
 		Args([]string{"env"})
 
@@ -740,7 +740,7 @@ func TestConfig_NativeMap_YAML(t *testing.T) {
 
 	cli := new(NativeMapCLI)
 	app := conga.New(cli).
-		RegisterDecoder(".yaml", yaml.RawDecoder).
+		RegisterDecoder(".yaml", yaml.Decode).
 		ConfigOptions(conga.ConfigExplicit(cfgPath)).
 		Args([]string{"env"})
 
@@ -767,7 +767,7 @@ func TestConfig_NativeMap_JSON(t *testing.T) {
 
 	cli := new(NativeMapCLI)
 	app := conga.New(cli).
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigExplicit(cfgPath)).
 		Args([]string{"env"})
 
@@ -794,7 +794,7 @@ func TestConfig_NativeMap_HCL(t *testing.T) {
 
 	cli := new(NativeMapCLI)
 	app := conga.New(cli).
-		RegisterDecoder(".hcl", hcl.RawDecoder).
+		RegisterDecoder(".hcl", hcl.Decode).
 		ConfigOptions(conga.ConfigExplicit(cfgPath)).
 		Args([]string{"env"})
 
@@ -838,7 +838,7 @@ func TestConfig_NestedNativeMap_TOML(t *testing.T) {
 
 	cli := new(NestedNativeMapCLI)
 	app := conga.New(cli).
-		RegisterDecoder(".toml", toml.RawDecoder).
+		RegisterDecoder(".toml", toml.Decode).
 		ConfigOptions(conga.ConfigExplicit(cfgPath)).
 		Args([]string{"env"})
 
@@ -873,7 +873,7 @@ func TestConfig_FileSizeLimitExceeded(t *testing.T) {
 	}
 
 	app := conga.New[SimpleConfigCLI]().
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigExplicit(cfgPath)).
 		Args([]string{})
 
@@ -902,7 +902,7 @@ func TestConfig_MultipleEnvVarsForConfigFile(t *testing.T) {
 
 	cli := new(MultiEnvConfigCLI)
 	app := conga.New(cli).
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".json", json.Decode).
 		Args([]string{})
 
 	err = app.RunContext(t.Context())
@@ -938,7 +938,7 @@ func TestConfig_NestedSubcommandPrefixing(t *testing.T) {
 
 		cli := new(RootCLI)
 		app := conga.New(cli).
-			RegisterDecoder(".json", json.RawDecoder).
+			RegisterDecoder(".json", json.Decode).
 			ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"cluster": {"node": {"zone": "us-east-1"}}}`))).
 			Args([]string{"cluster", "node"})
 
@@ -969,7 +969,7 @@ func TestConfig_NestedSubcommandPrefixing(t *testing.T) {
 
 		cli := new(AppCLI)
 		app := conga.New(cli).
-			RegisterDecoder(".json", json.RawDecoder).
+			RegisterDecoder(".json", json.Decode).
 			ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"server": {"port": "9999"}}`))).
 			Args([]string{"server"})
 
@@ -998,7 +998,7 @@ func TestConfig_DefaultXDGTierLoadsConfig(t *testing.T) {
 	cli := new(MultiFormatServerCLI)
 	app := conga.New(cli).
 		Name("xdg-server").
-		RegisterDecoder(".toml", toml.RawDecoder).
+		RegisterDecoder(".toml", toml.Decode).
 		Args([]string{})
 
 	err = app.RunContext(t.Context())
@@ -1025,7 +1025,7 @@ func TestConfig_DefaultXDGTierAppNamedFile(t *testing.T) {
 	cli := new(MultiFormatServerCLI)
 	app := conga.New(cli).
 		Name("xdg-server").
-		RegisterDecoder(".toml", toml.RawDecoder).
+		RegisterDecoder(".toml", toml.Decode).
 		Args([]string{})
 
 	err = app.RunContext(t.Context())
@@ -1052,7 +1052,7 @@ func TestConfig_AuthorSearchPathsReplaceDefaultXDGTier(t *testing.T) {
 	cli := new(MultiFormatServerCLI)
 	app := conga.New(cli).
 		Name("xdg-server").
-		RegisterDecoder(".toml", toml.RawDecoder).
+		RegisterDecoder(".toml", toml.Decode).
 		ConfigOptions(conga.ConfigPaths(missingPath)).
 		Args([]string{})
 
@@ -1096,7 +1096,7 @@ func TestConfig_DefaultXDGTierMissingDirectoryIsSilent(t *testing.T) {
 	cli := new(MultiFormatServerCLI)
 	app := conga.New(cli).
 		Name("xdg-server").
-		RegisterDecoder(".toml", toml.RawDecoder).
+		RegisterDecoder(".toml", toml.Decode).
 		Args([]string{})
 
 	err := app.RunContext(t.Context())

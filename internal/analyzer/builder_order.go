@@ -917,7 +917,7 @@ func defaultBuilderCallOrder() []string {
 }
 
 // isBuilderOrderBarrier reports whether calling the method executes user code
-// (plugin functions), pinning the call in place for automatic reordering.
+// (binding functions), pinning the call in place for automatic reordering.
 func isBuilderOrderBarrier(name string) bool {
 	return name == "Use"
 }

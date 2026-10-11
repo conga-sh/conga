@@ -1,8 +1,8 @@
 // Package hcl provides the HCL configuration decoder for CONGA applications.
 //
-// Register [RawDecoder] with App.RegisterDecoder to enable HCL configuration support:
+// Register [Decode] with conga.App.RegisterDecoder to enable HCL configuration support:
 //
-//	app.RegisterDecoder(".hcl", hcl.RawDecoder)
+//	app.RegisterDecoder(".hcl", hcl.Decode)
 //
 // # Key Mapping
 //
@@ -13,8 +13,9 @@
 //	database_url = "postgres://localhost/db"
 //	maxRetries = 5
 //
-// Undefined variables and duplicate blocks fail with [ErrHCLParse], whose wrapped
-// hcl.Diagnostics value is available through errors.As.
+// Blocks decode as nested maps keyed by block type; duplicate block types are
+// rejected. Parse and semantic failures (undefined variables) wrap [ErrParse],
+// and an empty document decodes to an empty map.
 package hcl
 
 import (
@@ -28,24 +29,20 @@ import (
 )
 
 var (
-	// ErrHCLParse indicates an error parsing HCL configuration into CONGA's
-	// generic map structure: both syntax errors and semantic failures
-	// (undefined variables, unexpected body types, duplicate blocks). The
-	// underlying hcl.Diagnostics value is wrapped, so callers may extract it
-	// with errors.As.
-	ErrHCLParse = errors.New("hcl parse error")
+	// ErrParse indicates a syntax or semantic error in HCL configuration.
+	ErrParse = errors.New("hcl parse error")
 )
 
-// RawDecoder decodes HCL bytes into the generic map[string]any structure the configuration engine matches against flag bindings.
-func RawDecoder(data []byte) (map[string]any, error) {
+// Decode decodes HCL bytes into the generic map[string]any structure the configuration engine matches against flag bindings.
+func Decode(data []byte) (map[string]any, error) {
 	file, diags := hclsyntax.ParseConfig(data, "config.hcl", hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {
-		return nil, fmt.Errorf("%w: %w", ErrHCLParse, diags)
+		return nil, fmt.Errorf("%w: %w", ErrParse, diags)
 	}
 
 	body, ok := file.Body.(*hclsyntax.Body)
 	if !ok {
-		return nil, fmt.Errorf("%w: unexpected HCL body type %T", ErrHCLParse, file.Body)
+		return nil, fmt.Errorf("%w: unexpected HCL body type %T", ErrParse, file.Body)
 	}
 
 	return decodeHCLBody(body)
@@ -58,7 +55,7 @@ func decodeHCLBody(body *hclsyntax.Body) (map[string]any, error) {
 	for name, attr := range body.Attributes {
 		value, diags := attr.Expr.Value(nil)
 		if diags.HasErrors() {
-			return nil, fmt.Errorf("%w: %w", ErrHCLParse, diags)
+			return nil, fmt.Errorf("%w: %w", ErrParse, diags)
 		}
 
 		result[name] = convertCtyValue(value)
@@ -66,7 +63,7 @@ func decodeHCLBody(body *hclsyntax.Body) (map[string]any, error) {
 
 	for _, block := range body.Blocks {
 		if seenBlocks[block.Type] {
-			return nil, fmt.Errorf("%w: duplicate block %q", ErrHCLParse, block.Type)
+			return nil, fmt.Errorf("%w: duplicate block %q", ErrParse, block.Type)
 		}
 
 		seenBlocks[block.Type] = true

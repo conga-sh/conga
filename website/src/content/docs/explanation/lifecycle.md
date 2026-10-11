@@ -5,7 +5,7 @@ description: How CONGA coordinates validation, resource acquisition, leaf execut
 
 Command-line execution involves more than invoking a single function. A command-line program must validate input before touching disk or network resources, allocate connections, execute business logic, run post-action tasks, and guarantee cleanup even when operations fail.
 
-Rather than forcing these concerns into a monolithic handler or relying on unstructured `defer` statements, CONGA divides execution into discrete lifecycle stages governed by optional marker interfaces. Each stage serves a specific operational purpose, with distinct error classifications, cancellation handling, and traversal orders across command trees.
+CONGA divides execution into discrete lifecycle stages governed by optional marker interfaces. Each stage serves a specific operational purpose, with distinct error classifications, cancellation handling, and traversal orders across command trees.
 
 For signature definitions and interface contracts, see [Lifecycle interfaces](/reference/conga/#lifecycle-interfaces). For testing patterns, see [How to test a command](/how-to/test-a-command/).
 
@@ -87,7 +87,7 @@ If `Run` returns an error, `PostRun` is skipped entirely. This guarantees that f
 
 ## Guaranteed teardown and outcome-aware cleanup
 
-Clean teardown is essential for command-line tools that manipulate persistent state. Standard Go code relies on `defer` statements inside functions, but `defer` has a fundamental limitation: it cannot inspect the enclosing function's returned error without clumsy named return values and closures.
+Clean teardown is essential for command-line tools that manipulate persistent state, and the cleanup handler must observe the invocation's terminal outcome.
 
 CONGA solves this through `Finalizer` (`Finally(ctx context.Context, session *conga.Session, err error) error`).
 
@@ -119,7 +119,7 @@ func (c *MigrateCommand) Finally(ctx context.Context, session *conga.Session, er
 
 Unlike `PostRun`, `Finally` is guaranteed to run whenever a command has been initialized, regardless of whether execution succeeded or failed. Even if the process receives a termination signal (`SIGINT` or `SIGTERM`) or an intermediate hook fails, the engine invokes `Finally` to release locks, close file descriptors, and remove temporary files.
 
-If `Finally` itself encounters an error while cleaning up after an earlier failure, the engine combines both errors using `errors.Join`. The primary failure cause is never masked by a secondary cleanup error.
+If `Finally` itself encounters an error while cleaning up after an earlier failure, the engine combines both errors using `errors.Join`, preserving both the primary execution error and the secondary cleanup failure.
 
 ## Hierarchical hook composition
 
@@ -140,13 +140,13 @@ func (c *WorkerCommand) PreRun(ctx context.Context, session *conga.Session) erro
 
 ### Bottom-up teardown
 
-Teardown follows the inverse order. Both `PostRun` and `Finally` unwind bottom-up, starting from the leaf command and moving back up to the root. This Last-In, First-Out (LIFO) order mirrors Go's `defer` statement, ensuring that child commands release dependent resources before parent infrastructure shuts down.
+Teardown follows the inverse order. Both `PostRun` and `Finally` unwind bottom-up, starting from the leaf command and moving back up to the root. This Last-In, First-Out order ensures that child commands release dependent resources before parent infrastructure shuts down.
 
 ### Safe partial initialization
 
 If an error occurs during `PreRun`, forward execution stops immediately. The engine tracks which commands successfully finished their `PreRun` step in an internal initialization list.
 
-When unwinding teardown after a `PreRun` failure, `Finally` executes only on commands present in that initialization list. If an intermediate subcommand fails during setup, CONGA never invokes `Finally` on that subcommand or any unvisited descendants. Parent commands that already completed initialization receive their `Finally` call, preventing resource leaks while protecting cleanup handlers from inspecting unallocated state.
+When unwinding teardown after a `PreRun` failure, `Finally` executes strictly on commands that completed `PreRun` successfully. If an intermediate subcommand fails during setup, CONGA limits `Finally` calls to visited parent commands, preventing resource leaks while protecting cleanup handlers from uninitialized state.
 
 ## Context propagation and cancellation
 
@@ -164,7 +164,7 @@ When a context cancels, the cancellation propagates through `ctx` to all active 
 
 Returning an error from a cancelled hook stops forward progress immediately. If `PreRun` or `Run` returns after cancellation, the engine skips any remaining execution steps, including `PostRun`.
 
-Cancellation never skips teardown. When forward execution halts, the engine unwinds through every command that finished its `PreRun` step, calling `Finally` in reverse hierarchy order. The `Finally` hook receives the cancellation error as its `err` argument, allowing cleanup code to roll back transactions, release locks, and remove temporary files before the process exits.
+Teardown is guaranteed on cancellation: when forward execution halts, the engine unwinds through every command that finished its `PreRun` step, calling `Finally` in reverse hierarchy order. The `Finally` hook receives the cancellation error as its `err` argument, allowing cleanup code to roll back transactions, release locks, and remove temporary files before the process exits.
 
 ## Static schema verification versus runtime lifecycle
 

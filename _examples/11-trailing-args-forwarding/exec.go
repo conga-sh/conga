@@ -10,7 +10,7 @@ import (
 
 // ExecCmd uses RawArgs (Docker run / Sudo pattern).
 type ExecCmd struct {
-	Container conga.RequiredArg[string] `help:"Target container" name:"<container>"`
+	Container conga.RequiredArg[string] `help:"Target container"`
 	Command   conga.RawArgs
 }
 

@@ -47,7 +47,7 @@ exec server-precedence --why
 stdout 'Config decoders: \.toml'
 stdout 'xdg[/\\]server-precedence\s+directory does not exist'
 stdout 'looked for: .*xdg[/\\]server-precedence\.toml'
-stdout 'Create a configuration file at one of:'
+stdout 'Create a config file at one of:'
 stdout 'xdg[/\\]server-precedence[/\\]config\.toml'
 
 # 7. Built-in conventional tier: ${XDG_CONFIG_HOME:-~/.config}/<app-name>/config.toml
@@ -66,7 +66,7 @@ exec server-precedence --why
 stdout 'Config decoders: \.toml'
 stdout 'xdg[/\\]server-precedence\s+loaded: .*xdg[/\\]server-precedence[/\\]config\.toml'
 ! stdout 'looked for:'
-! stdout 'Create a configuration file'
+! stdout 'Create a config file'
 
 # 9. Config file path selected via SERVER_CONFIG environment variable
 env SERVER_CONFIG=server.toml

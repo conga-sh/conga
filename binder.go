@@ -128,7 +128,7 @@ func (parser *tokenParser) findFlagSuggestion(name string) string {
 
 	for flagName, flagSpec := range parser.flagMap {
 		if flagSpec.Name == flagName {
-			// A `no-` token is only an intentional negation of a negatable bool
+			// A no- token is only an intentional negation of a negatable bool
 			// flag. Skip candidates that a negated token could never legally
 			// spell, so suggestions do not point at unrelated flags.
 			if _, ok := strings.CutPrefix(name, "no-"); ok && !flagSpec.IsNegatable {
@@ -775,7 +775,7 @@ func routeSubcommands(cmd *spec.Command, tokens []tokenizer.Token) ([]*spec.Comm
 
 		// A positional routed into the completion command is consumed as
 		// the shell argument; keep routing so trailing flags (e.g.
-		// `completion zsh --help`) survive into token parsing.
+		// completion zsh --help) survive into token parsing.
 		if current.IsCompletionCmd {
 			continue
 		}
@@ -1433,7 +1433,7 @@ func resolveScalarArg(cmdChain []*spec.Command, arg *spec.Arg, posTokens []strin
 			return false, newArgCoercionError(cmdChain, arg, SourceCLI, "", raw, err)
 		}
 
-		if err := validateArgScalar(cmdChain, arg, raw, typedValue); err != nil {
+		if err := validateArgScalar(cmdChain, arg, typedValue); err != nil {
 			return false, err
 		}
 
@@ -1448,7 +1448,7 @@ func resolveScalarArg(cmdChain []*spec.Command, arg *spec.Arg, posTokens []strin
 			return false, newArgCoercionError(cmdChain, arg, SourceDefault, arg.Default, arg.Default, err)
 		}
 
-		if err := validateArgScalar(cmdChain, arg, arg.Default, typedValue); err != nil {
+		if err := validateArgScalar(cmdChain, arg, typedValue); err != nil {
 			return false, err
 		}
 
@@ -1551,7 +1551,7 @@ func resolveArgs(cmd *spec.Command, cmdChain []*spec.Command, posTokens []string
 	return nil
 }
 
-func validateArgScalar(cmdChain []*spec.Command, arg *spec.Arg, raw string, typedValue any) error {
+func validateArgScalar(cmdChain []*spec.Command, arg *spec.Arg, typedValue any) error {
 	constraints := constraintSet{
 		enum:       arg.Enum,
 		length:     arg.Len,
@@ -1559,7 +1559,7 @@ func validateArgScalar(cmdChain []*spec.Command, arg *spec.Arg, raw string, type
 		items:      arg.Items,
 	}
 
-	return validateScalarValue(cmdChain, "argument "+arg.Name, constraints, typedValue, raw)
+	return validateScalarValue(cmdChain, "argument "+arg.Name, constraints, typedValue, stringx.Stringify(typedValue))
 }
 
 func validateArgSlice(cmdChain []*spec.Command, arg *spec.Arg, typedSlice any) error {
@@ -1597,8 +1597,8 @@ func checkOrderedRange[T cmp.Ordered](value, minValue, maxValue T, hasMin, hasMa
 	return "", true
 }
 
-// negatedLongFlag re-resolves a `no-`-prefixed long flag name through lookup,
-// enforcing the spec.CanNegate guard: a `no-` token may only re-bind a boolean
+// negatedLongFlag re-resolves a long flag name prefixed with no- through lookup,
+// enforcing the spec.CanNegate guard: a no- token may only re-bind a boolean
 // negatable flag.
 func negatedLongFlag(name string, lookup func(string) *spec.Flag) *spec.Flag {
 	posName, ok := strings.CutPrefix(name, "no-")

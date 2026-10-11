@@ -24,7 +24,7 @@ type ConfigOption interface {
 // associates one with a file extension. A decoder unmarshals the file into a
 // nested map with string keys, for example:
 //
-//	func RawDecoder(data []byte) (map[string]any, error) {
+//	func Decode(data []byte) (map[string]any, error) {
 //		var parsed map[string]any
 //		if err := json.Unmarshal(data, &parsed); err != nil {
 //			return nil, fmt.Errorf("decode json config: %w", err)
@@ -33,16 +33,16 @@ type ConfigOption interface {
 //		return parsed, nil
 //	}
 //
-// Ready-made decoders ship as separate packages — decoder/json, decoder/yaml,
-// decoder/toml, and decoder/hcl — so that unreferenced formats stay out of the
-// linked binary.
+// Decoders for JSON, YAML, TOML, and HCL ship with CONGA in the
+// decoder/json, decoder/yaml, decoder/toml, and decoder/hcl packages.
 type ConfigDecoder = configengine.Decoder
 
 // ConfigPaths declares the author configuration search tier for
 // [App.ConfigOptions]: the paths are probed in precedence order and the first
 // existing configuration file wins unless [ConfigCascading] is also declared.
-// Declaring paths replaces the built-in conventional configuration tier
-// (${XDG_CONFIG_HOME:-~/.config}/<app-name>).
+// Declaring paths replaces the built-in conventional configuration tier:
+//
+//	${XDG_CONFIG_HOME:-~/.config}/<app-name>
 //
 // Panics:
 //   - If called with no paths.
@@ -70,7 +70,7 @@ func ConfigPaths(paths ...string) ConfigOption {
 // tier) instead of stopping at the first existing file. The first-listed tier
 // path has the highest precedence on key conflicts; later files still supply
 // keys the earlier ones omit. A declared root [ConfigFile] flag must accept
-// multiple values (`multi:"true"`); the schema rejects the combination
+// multiple values (the multi tag); the schema rejects the combination
 // otherwise.
 func ConfigCascading() ConfigOption {
 	return optionFunc(func(settings *spec.ConfigSettings) {

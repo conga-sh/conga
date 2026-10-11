@@ -6,7 +6,7 @@ import (
 
 	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/_examples/internal/inspector"
-	"github.com/conga-sh/conga/predict/system"
+	"github.com/conga-sh/conga/system"
 )
 
 // KillCmd sends a termination or custom signal to a target process or PID.

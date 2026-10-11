@@ -1,6 +1,7 @@
 package timezone_test
 
 import (
+	"bytes"
 	"context"
 	"testing"
 	"time"
@@ -8,7 +9,7 @@ import (
 	"github.com/alecthomas/assert/v2"
 
 	"github.com/conga-sh/conga"
-	"github.com/conga-sh/conga/plugin/timezone"
+	"github.com/conga-sh/conga/timezone"
 )
 
 func TestLocation(t *testing.T) {
@@ -17,7 +18,7 @@ func TestLocation(t *testing.T) {
 	cli := new(timezoneTestCLI)
 	app := conga.New(cli).
 		Args([]string{"-z", "America/New_York"}).
-		Use(timezone.Location)
+		Use(timezone.RegisterLocation)
 
 	err := app.Run()
 
@@ -30,7 +31,7 @@ func TestLocation_InvalidZone(t *testing.T) {
 
 	app := conga.New[timezoneTestCLI]().
 		Args([]string{"-z", "Mars/Crater"}).
-		Use(timezone.Location)
+		Use(timezone.RegisterLocation)
 
 	err := app.Run()
 
@@ -39,6 +40,24 @@ func TestLocation_InvalidZone(t *testing.T) {
 	assert.True(t, conga.IsUsageError(err))
 	assert.Contains(t, err.Error(), "Mars/Crater")
 	assert.Contains(t, err.Error(), "for flag --zone")
+}
+
+func TestLocation_Completion(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	app := conga.New[timezoneTestCLI]().
+		EnableCompletion().
+		Name("app").
+		Stdout(&buffer).
+		Use(timezone.RegisterLocation).
+		Args([]string{"__complete", "export", "--zone", ""})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Contains(t, buffer.String(), `"value":"America/New_York"`)
 }
 
 type timezoneTestCLI struct {

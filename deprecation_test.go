@@ -128,7 +128,7 @@ func TestDeprecation_ProvenanceGating(t *testing.T) {
 
 		app := conga.New[DeprecatedFlagCLI]().
 			Name("testapp").
-			RegisterDecoder(".json", json.RawDecoder).
+			RegisterDecoder(".json", json.Decode).
 			Stderr(&buffer).
 			ConfigOptions(conga.ConfigPaths(cfgPath)).
 			Args([]string{})
@@ -234,7 +234,7 @@ func TestDeprecation_ConfigFileFlag(t *testing.T) {
 		var buffer bytes.Buffer
 
 		app := conga.New[deprecationConfigFileFlagCLI]().
-			RegisterDecoder(".json", json.RawDecoder).
+			RegisterDecoder(".json", json.Decode).
 			Name("testapp").
 			Stderr(&buffer).
 			Args([]string{"--config", cfgPath})
@@ -256,7 +256,7 @@ func TestDeprecation_ConfigFileFlag(t *testing.T) {
 		var buffer bytes.Buffer
 
 		app := conga.New[deprecationConfigFilesFlagCLI]().
-			RegisterDecoder(".json", json.RawDecoder).
+			RegisterDecoder(".json", json.Decode).
 			Name("testapp").
 			Stderr(&buffer).
 			Args([]string{"--configs", cfgPath})
@@ -289,10 +289,10 @@ type deprecationFilterLegacyCmd struct {
 func TestDeprecation_CompletionFiltering(t *testing.T) {
 	t.Parallel()
 
-	app := conga.New[deprecationFilterCLI]().Name("testapp")
-
 	t.Run("deprecated flags are excluded from flag completion", func(t *testing.T) {
 		t.Parallel()
+
+		app := conga.New[deprecationFilterCLI]().Name("testapp")
 
 		invoked, _ := app.CompleteForShell("fish", []string{"--"})
 
@@ -308,6 +308,8 @@ func TestDeprecation_CompletionFiltering(t *testing.T) {
 
 	t.Run("deprecated subcommands are excluded from command completion", func(t *testing.T) {
 		t.Parallel()
+
+		app := conga.New[deprecationFilterCLI]().Name("testapp")
 
 		invoked, _ := app.CompleteForShell("fish", []string{""})
 

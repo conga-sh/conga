@@ -1,8 +1,8 @@
 # 20 — Modular predictors
 
 Nested command groups using the modular completion domain types from
-`predict/system` (`User`, `Group`, `Process`, `PID`, `Signal`, `EnvVar`,
-`Locale`) and `predict/network` (`NetInterface`, `Host`, `Port`, `HTTPStatus`,
+`system` (`User`, `Group`, `Process`, `PID`, `Signal`, `EnvVar`,
+`Locale`) and `network` (`NetInterface`, `Host`, `Port`, `HTTPStatus`,
 `MIMEType`, `HTTPMethod`). No predictor wiring is needed: the types complete
 themselves.
 

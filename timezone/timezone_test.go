@@ -12,7 +12,7 @@ import (
 
 	"github.com/conga-sh/conga/internal/slicex"
 	"github.com/conga-sh/conga/predict"
-	"github.com/conga-sh/conga/predict/timezone"
+	"github.com/conga-sh/conga/timezone"
 )
 
 //go:embed testdata/fixtures/zone1970.tab

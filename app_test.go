@@ -13,8 +13,8 @@ import (
 
 	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/internal/assertx"
-	"github.com/conga-sh/conga/plugin/timezone"
 	"github.com/conga-sh/conga/predict"
+	"github.com/conga-sh/conga/timezone"
 )
 
 type SimpleAppCLI struct {
@@ -369,6 +369,19 @@ func TestApp_CompleteCompLine(t *testing.T) {
 	assert.Equal(t, "--cache", formatted) // fish framing omits the trailing tab
 }
 
+func TestApp_CompleteCompLine_BashRedirectRejection(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[SimpleAppCLI]().
+		Name("testapp")
+
+	line := "testapp --ca > "
+	invoked, formatted := app.CompleteCompLineForShell("bash", line, len(line))
+
+	assert.Equal(t, 0, len(invoked.Items))
+	assert.Equal(t, "D\t", formatted)
+}
+
 func TestApp_HiddenCompleteCommand(t *testing.T) {
 	t.Parallel()
 
@@ -519,19 +532,19 @@ func TestApp_CompletionOffByDefault_RejectsCompletionCommand(t *testing.T) {
 	})
 }
 
-func TestApp_Use_MountsRealPluginPackage(t *testing.T) {
+func TestApp_Use_MountsRealKitBinding(t *testing.T) {
 	t.Parallel()
 
-	type usePluginCLI struct {
+	type useBindingCLI struct {
 		noopRunner
 
 		Zone conga.OptionalFlag[*time.Location] `default:"UTC" short:"z"`
 	}
 
-	cli := new(usePluginCLI)
+	cli := new(useBindingCLI)
 	app := conga.New(cli).
 		Args([]string{"-z", "Europe/Paris"}).
-		Use(timezone.Location[usePluginCLI])
+		Use(timezone.RegisterLocation[useBindingCLI])
 
 	err := app.Run()
 
@@ -540,7 +553,7 @@ func TestApp_Use_MountsRealPluginPackage(t *testing.T) {
 	assert.Equal(t, conga.SourceCLI, cli.Zone.Source())
 }
 
-func TestApp_Use_AppliesPluginsInOrderAndSkipsNil(t *testing.T) {
+func TestApp_Use_AppliesBindingsInOrderAndSkipsNil(t *testing.T) {
 	t.Parallel()
 
 	type useOrderCLI struct {

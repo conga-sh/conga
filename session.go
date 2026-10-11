@@ -1,7 +1,6 @@
 package conga
 
 import (
-	"fmt"
 	"io"
 
 	"github.com/conga-sh/conga/internal/help"
@@ -13,8 +12,7 @@ import (
 //
 // Every lifecycle stage ([Runner.Run], [Validator.Validate], [PreRunner.PreRun],
 // [PostRunner.PostRun], and [Finalizer.Finally]) receives a pointer to the active
-// Session. Commands should read and write through [Session.Stdin], [Session.Stdout],
-// and [Session.Stderr] rather than accessing global process streams directly.
+// Session.
 type Session struct {
 	root           any
 	stdout         io.Writer
@@ -30,9 +28,9 @@ type Session struct {
 
 // Stdout returns the configured standard output writer for this session.
 //
-// Commands should write output to this stream rather than [os.Stdout] to ensure
-// output is captured during unit tests and embedded CLI execution. If the session
-// or writer is nil, Stdout returns [io.Discard].
+// The writer is captured when execution begins, so unit tests and embedded
+// execution observe the application's output. If the session or writer is nil,
+// Stdout returns [io.Discard].
 func (s *Session) Stdout() io.Writer {
 	if s == nil || s.stdout == nil {
 		return io.Discard
@@ -43,8 +41,7 @@ func (s *Session) Stdout() io.Writer {
 
 // Stderr returns the configured standard error writer for this session.
 //
-// Commands should write diagnostic logs and progress messages to this stream rather
-// than [os.Stderr]. If the session or writer is nil, Stderr returns [io.Discard].
+// If the session or writer is nil, Stderr returns [io.Discard].
 func (s *Session) Stderr() io.Writer {
 	if s == nil || s.stderr == nil {
 		return io.Discard
@@ -70,7 +67,7 @@ func (s *Session) Stdin() io.Reader {
 }
 
 // Help returns the formatted help screen for the active command, rendered with
-// the same engine the built-in `--help` flag uses.
+// the same engine the built-in --help flag uses.
 //
 // If the session is nil or uninitialized, Help returns an empty string.
 func (s *Session) Help() string {
@@ -92,17 +89,19 @@ func (s *Session) Usage() string {
 	return help.Usage(s.cmdChain)
 }
 
-// Version renders application version information to [Session.Stdout].
+// Version returns the formatted application version summary line.
 //
-// When no explicit version string was configured via [App.Version], the output
-// falls back to the Go module version recorded in the binary, or "dev" when that is
-// unavailable. An embedded VCS commit hash and date are appended when present.
-func (s *Session) Version() {
-	if s == nil || s.stdout == nil {
-		return
+// When no explicit version string was configured via [App.Version], the summary
+// falls back to the Go module version recorded in the binary, or "dev" when that
+// is unavailable. An embedded VCS commit hash and date are appended when present.
+//
+// If the session is nil, Version returns an empty string.
+func (s *Session) Version() string {
+	if s == nil {
+		return ""
 	}
 
-	fmt.Fprintln(s.stdout, help.VersionSummary(s.appName, s.appVersion))
+	return help.VersionSummary(s.appName, s.appVersion)
 }
 
 // Path returns the full space-separated invocation path string for the active command
@@ -156,15 +155,7 @@ func (s *Session) LoadedConfigFiles() []string {
 // compilation.
 //
 // In a subcommand's [Runner.Run] or lifecycle hook, use Root to inspect global flags
-// and shared settings declared on the root command:
-//
-//	func (m *MigrateCLI) Run(ctx context.Context, session *conga.Session) error {
-//		root := session.Root[AppCLI]()
-//		if root != nil && root.Verbose.Get() {
-//			fmt.Fprintln(session.Stdout(), "Verbose logging active")
-//		}
-//		return nil
-//	}
+// and shared settings declared on the root command.
 //
 // Returns nil if the session is nil or if T does not match the actual root struct type.
 func (s *Session) Root[T any]() *T {

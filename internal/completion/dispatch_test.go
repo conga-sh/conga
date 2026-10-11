@@ -30,7 +30,7 @@ func plainResult() predict.Result {
 			{Value: "deploy", Description: "Deploy service", Style: "blue", Tag: "commands"},
 			{Value: "logs", Display: "logs"},
 		},
-		Directive: predict.DirectiveNoFileComp,
+		Directive: predict.DirectiveNoFileCompletion,
 	}
 }
 
@@ -48,8 +48,8 @@ func TestFormatFallbackShellsRenderExportFraming(t *testing.T) {
 		t.Run("plain result/"+shell, func(t *testing.T) {
 			t.Parallel()
 
-			formatted := completion.Format(shell, "de", plainResult())
-			expected := completion.Format("export", "de", plainResult())
+			formatted := completion.NewSession(shell).Format("de", plainResult())
+			expected := completion.NewSession("export").Format("de", plainResult())
 
 			assert.Equal(t, expected, formatted)
 		})
@@ -63,8 +63,8 @@ func TestFormatFallbackShellsRenderErrorResultsInExportFraming(t *testing.T) {
 		t.Run("error result/"+shell, func(t *testing.T) {
 			t.Parallel()
 
-			formatted := completion.Format(shell, "", errorResult())
-			expected := completion.Format("export", "", errorResult())
+			formatted := completion.NewSession(shell).Format("", errorResult())
+			expected := completion.NewSession("export").Format("", errorResult())
 
 			assert.Equal(t, expected, formatted)
 		})
@@ -74,7 +74,7 @@ func TestFormatFallbackShellsRenderErrorResultsInExportFraming(t *testing.T) {
 func TestFormatNativeFish(t *testing.T) {
 	t.Parallel()
 
-	formatted := completion.Format("fish", "de", plainResult())
+	formatted := completion.NewSession("fish").Format("de", plainResult())
 
 	assert.Equal(t, "deploy\tDeploy service\nlogs", formatted)
 }
@@ -82,7 +82,7 @@ func TestFormatNativeFish(t *testing.T) {
 func TestFormatNativeBash(t *testing.T) {
 	t.Parallel()
 
-	formatted := completion.Format("bash", "de", plainResult())
+	formatted := completion.NewSession("bash").Format("de", plainResult())
 
 	assert.Equal(t, "D\t\nC\tdeploy\nC\tlogs", formatted)
 }
@@ -90,7 +90,7 @@ func TestFormatNativeBash(t *testing.T) {
 func TestFormatNativeZsh(t *testing.T) {
 	t.Setenv("CONGA_COLOR", "0")
 
-	formatted := completion.Format("zsh", "de", plainResult())
+	formatted := completion.NewSession("zsh").Format("de", plainResult())
 
 	assert.Equal(t,
 		"D\x1f\x1f\n"+
@@ -102,7 +102,7 @@ func TestFormatNativeZsh(t *testing.T) {
 func TestFormatNativeZshErrorResult(t *testing.T) {
 	t.Setenv("CONGA_COLOR", "0")
 
-	formatted := completion.Format("zsh", "", errorResult())
+	formatted := completion.NewSession("zsh").Format("", errorResult())
 
 	assert.Equal(t, "D\x1f\x1fusage: app <command>\nM\x1fusage: app <command>", formatted)
 }
@@ -110,7 +110,7 @@ func TestFormatNativeZshErrorResult(t *testing.T) {
 func TestFormatNativeBashErrorResult(t *testing.T) {
 	t.Parallel()
 
-	formatted := completion.Format("bash", "", errorResult())
+	formatted := completion.NewSession("bash").Format("", errorResult())
 
 	assert.Equal(t, "D\t\nM\tusage: app <command>", formatted)
 }
@@ -118,7 +118,7 @@ func TestFormatNativeBashErrorResult(t *testing.T) {
 func TestFormatNativeFishErrorResult(t *testing.T) {
 	t.Parallel()
 
-	formatted := completion.Format("fish", "", errorResult())
+	formatted := completion.NewSession("fish").Format("", errorResult())
 
 	assert.Equal(t, "", formatted)
 }
@@ -126,7 +126,7 @@ func TestFormatNativeFishErrorResult(t *testing.T) {
 func TestFormatNativeExport(t *testing.T) {
 	t.Parallel()
 
-	formatted := completion.Format("export", "", plainResult())
+	formatted := completion.NewSession("export").Format("", plainResult())
 
 	assert.Equal(t,
 		`{"candidates":[{"value":"deploy","display":"deploy","description":"Deploy service","style":"blue","tag":"commands"},{"value":"logs","display":"logs"}],`+
@@ -137,7 +137,7 @@ func TestFormatNativeExport(t *testing.T) {
 func TestFormatNativeExportErrorResult(t *testing.T) {
 	t.Parallel()
 
-	formatted := completion.Format("export", "", errorResult())
+	formatted := completion.NewSession("export").Format("", errorResult())
 
 	assert.Equal(t,
 		`{"candidates":[],"directives":{"keeporder":false,"messages":["usage: app <command>"],"noprefix":false,"nospace":false},"usage":"usage: app <command>"}`,
@@ -153,7 +153,7 @@ func TestPatchPassesThroughNonBashShells(t *testing.T) {
 		t.Run(shell, func(t *testing.T) {
 			t.Parallel()
 
-			patched, err := completion.Patch(shell, args)
+			patched, err := completion.NewSession(shell).Patch(args)
 
 			assert.NoError(t, err)
 			assert.Equal(t, args, patched)
@@ -161,35 +161,55 @@ func TestPatchPassesThroughNonBashShells(t *testing.T) {
 	}
 }
 
-//nolint:paralleltest // uses t.Setenv for the bash-native completion environment
+func bashSessionForLine(line string) *completion.Session {
+	return completion.NewSessionWithEnv("bash", func(key string) (string, bool) {
+		switch key {
+		case "COMP_LINE":
+			return line, true
+		case "COMP_POINT":
+			return strconv.Itoa(len(line)), true
+		default:
+			return "", false
+		}
+	})
+}
+
 func TestPatchNativeBash(t *testing.T) {
+	t.Parallel()
+
 	args := []string{"cloudctl", "deploy", ">", "/tmp/out.log", "--env", ""}
 
 	t.Run("redirect target and trailing word preserved", func(t *testing.T) {
-		t.Setenv("COMP_LINE", "cloudctl deploy > /tmp/out.log --env ")
-		t.Setenv("COMP_POINT", strconv.Itoa(len("cloudctl deploy > /tmp/out.log --env ")))
+		t.Parallel()
 
-		patched, err := completion.Patch("bash", args)
+		line := "cloudctl deploy > /tmp/out.log --env "
+		session := bashSessionForLine(line)
+
+		patched, err := session.Patch(args)
 
 		assert.NoError(t, err)
 		assert.Equal(t, []string{"deploy", "--env", ""}, patched)
 	})
 
 	t.Run("pipeline isolation", func(t *testing.T) {
-		t.Setenv("COMP_LINE", "echo foo | cloudctl dep")
-		t.Setenv("COMP_POINT", strconv.Itoa(len("echo foo | cloudctl dep")))
+		t.Parallel()
 
-		patched, err := completion.Patch("bash", []string{"foo", "|", "cloudctl", "dep"})
+		line := "echo foo | cloudctl dep"
+		session := bashSessionForLine(line)
+
+		patched, err := session.Patch([]string{"foo", "|", "cloudctl", "dep"})
 
 		assert.NoError(t, err)
 		assert.Equal(t, []string{"dep"}, patched)
 	})
 
 	t.Run("redirect position rejected", func(t *testing.T) {
-		t.Setenv("COMP_LINE", "cloudctl deploy > ")
-		t.Setenv("COMP_POINT", strconv.Itoa(len("cloudctl deploy > ")))
+		t.Parallel()
 
-		patched, err := completion.Patch("bash", []string{"deploy", ">", ""})
+		line := "cloudctl deploy > "
+		session := bashSessionForLine(line)
+
+		patched, err := session.Patch([]string{"deploy", ">", ""})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, sentinel.ErrRedirectTarget)
@@ -197,7 +217,9 @@ func TestPatchNativeBash(t *testing.T) {
 	})
 
 	t.Run("without environment passes through", func(t *testing.T) {
-		patched, err := completion.Patch("bash", args)
+		t.Parallel()
+
+		patched, err := completion.NewSession("bash").Patch(args)
 
 		assert.NoError(t, err)
 		assert.Equal(t, args, patched)
@@ -268,7 +290,7 @@ func TestSnippetNativeBash(t *testing.T) {
 func TestFormatNativeElvish(t *testing.T) {
 	t.Parallel()
 
-	formatted := completion.Format("elvish", "de", plainResult())
+	formatted := completion.NewSession("elvish").Format("de", plainResult())
 
 	assert.Equal(t,
 		`{"usage":"","messages":[],"descriptionStyle":"dim",`+
@@ -279,7 +301,7 @@ func TestFormatNativeElvish(t *testing.T) {
 func TestFormatNativeElvishErrorResult(t *testing.T) {
 	t.Parallel()
 
-	formatted := completion.Format("elvish", "", errorResult())
+	formatted := completion.NewSession("elvish").Format("", errorResult())
 
 	assert.Equal(t,
 		`{"usage":"usage: app <command>","messages":["usage: app <command>"],"descriptionStyle":"dim","candidates":[]}`,
@@ -303,7 +325,7 @@ func TestSnippetNativeElvish(t *testing.T) {
 func TestFormatNativeNushell(t *testing.T) {
 	t.Parallel()
 
-	formatted := completion.Format("nushell", "", plainResult())
+	formatted := completion.NewSession("nushell").Format("", plainResult())
 
 	assert.Equal(t,
 		`[{"value":"deploy ","display":"deploy","description":"Deploy service","style":{"fg":"blue"}},{"value":"logs ","display":"logs"}]`,
@@ -313,7 +335,7 @@ func TestFormatNativeNushell(t *testing.T) {
 func TestFormatNativeNushellErrorResult(t *testing.T) {
 	t.Parallel()
 
-	formatted := completion.Format("nushell", "", errorResult())
+	formatted := completion.NewSession("nushell").Format("", errorResult())
 
 	// Nushell's external-completer contract has no message/usage channel.
 	assert.Equal(t, `[]`, formatted)
@@ -334,7 +356,7 @@ func TestFormatNativeNushellQuoting(t *testing.T) {
 		},
 	}
 
-	formatted := completion.Format("nushell", "", result)
+	formatted := completion.NewSession("nushell").Format("", result)
 
 	assert.Equal(t,
 		`[{"value":"\"my file.txt\" ","display":"my file.txt"}`+
@@ -350,7 +372,7 @@ func TestFormatNativeNushellQuoting(t *testing.T) {
 func TestPatchNativeNushell(t *testing.T) {
 	t.Parallel()
 
-	patched, err := completion.Patch("nushell", []string{`"double quoted"`, `'single quoted'`, "`backtick`", "plain", "", `"partial"word`, `"unclosed`})
+	patched, err := completion.NewSession("nushell").Patch([]string{`"double quoted"`, `'single quoted'`, "`backtick`", "plain", "", `"partial"word`, `"unclosed`})
 
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"double quoted", "single quoted", "backtick", "plain", "", "partialword", `"unclosed`}, patched)
@@ -374,7 +396,7 @@ func TestSnippetNativeNushell(t *testing.T) {
 func TestFormatNativePowerShell(t *testing.T) {
 	t.Setenv("CONGA_COLOR", "0")
 
-	formatted := completion.Format("powershell", "", plainResult())
+	formatted := completion.NewSession("powershell").Format("", plainResult())
 
 	assert.Equal(t,
 		`{"candidates":[{"value":"deploy ","display":"deploy (Deploy service)","description":" ","style":"blue","tag":"commands"},{"value":"logs ","display":"logs","description":" "}],`+
@@ -385,7 +407,7 @@ func TestFormatNativePowerShell(t *testing.T) {
 func TestFormatNativePowerShellErrorResult(t *testing.T) {
 	t.Setenv("CONGA_COLOR", "0")
 
-	formatted := completion.Format("powershell", "", errorResult())
+	formatted := completion.NewSession("powershell").Format("", errorResult())
 
 	assert.Equal(t,
 		`{"candidates":[],"directives":{"keeporder":false,"messages":["usage: app <command>"],"noprefix":false,"nospace":false},"usage":"usage: app <command>"}`,

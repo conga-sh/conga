@@ -13,7 +13,7 @@ import (
 type CLI struct {
 	ConfigFile conga.ConfigFile `multi:"true" short:"c"`
 
-	APIEndpoint conga.OptionalFlag[string]        `default:"https://api.default.io" name:"api-endpoint"`
+	APIEndpoint conga.OptionalFlag[string]        `default:"https://api.default.io"`
 	Timeout     conga.OptionalFlag[time.Duration] `default:"10s"                    help:"Request timeout"`
 	Theme       conga.OptionalFlag[string]        `default:"dark"                   enum:"dark,light,solarized,system"`
 	Telemetry   conga.OptionalFlag[bool]          `default:"true"                   help:"Enable telemetry reporting"`
@@ -30,8 +30,8 @@ func main() {
 		Name("cascading-app").
 		Description("Cascading multi-tier configuration search paths (local > user > system)").
 		Version("1.0.0").
-		RegisterDecoder(".yaml", yaml.RawDecoder).
-		RegisterDecoder(".yml", yaml.RawDecoder).
+		RegisterDecoder(".yaml", yaml.Decode).
+		RegisterDecoder(".yml", yaml.Decode).
 		ConfigOptions(conga.ConfigPaths(".", "~/.config/cascading-app", "${SYSCONF_DIR:-/etc/cascading-app}"), conga.ConfigCascading())
 
 	if err := app.Run(); err != nil {

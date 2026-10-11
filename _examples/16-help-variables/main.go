@@ -13,11 +13,11 @@ import (
 // hint, so the constraint is stated exactly once.
 type CLI struct {
 	// Default rendering: the engine appends [1..65535] after the help text.
-	Automatic conga.OptionalFlag[int] `default:"8080" help:"Port using the automatic hint" name:"automatic" range:"1..65535"`
+	Automatic conga.OptionalFlag[int] `default:"8080" help:"Port using the automatic hint" range:"1..65535"`
 
 	// Alternative rendering: {{range}} states the bound in prose and suppresses
 	// the automatic hint.
-	Inlined conga.OptionalFlag[int] `default:"8080" help:"Port stated once ({{range}})" name:"inlined" range:"1..65535"`
+	Inlined conga.OptionalFlag[int] `default:"8080" help:"Port stated once ({{range}})" range:"1..65535"`
 
 	// {{enum}} inlines the allowed values.
 	Environment conga.OptionalFlag[string] `enum:"dev,staging,prod" help:"Environment ({{enum}})"`

@@ -6,7 +6,7 @@ import (
 
 	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/_examples/internal/inspector"
-	"github.com/conga-sh/conga/predict/system"
+	"github.com/conga-sh/conga/system"
 )
 
 // ServiceCmd configures and runs a background system daemon.
@@ -14,7 +14,7 @@ type ServiceCmd struct {
 	Name    conga.RequiredArg[string]         `help:"Service daemon name"`
 	User    conga.OptionalFlag[system.User]   `help:"System user to run daemon under"       short:"u"`
 	Group   conga.OptionalFlag[system.Group]  `help:"System user group to run daemon under" short:"g"`
-	EnvVar  conga.OptionalFlag[system.EnvVar] `help:"Environment variable to forward"       name:"env-var"                  short:"v"`
+	EnvVar  conga.OptionalFlag[system.EnvVar] `help:"Environment variable to forward"       short:"v"`
 	Locale  conga.OptionalFlag[system.Locale] `default:"en_US.UTF-8"                        help:"Service execution locale" short:"l"`
 	PassEnv conga.OptionalFlag[system.EnvVar] `help:"Pass-through environment variable"`
 }

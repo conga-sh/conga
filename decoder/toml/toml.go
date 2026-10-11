@@ -1,8 +1,8 @@
 // Package toml provides the TOML configuration decoder for CONGA applications.
 //
-// Register [RawDecoder] with App.RegisterDecoder to enable TOML configuration support:
+// Register [Decode] with conga.App.RegisterDecoder to enable TOML configuration support:
 //
-//	app.RegisterDecoder(".toml", toml.RawDecoder)
+//	app.RegisterDecoder(".toml", toml.Decode)
 //
 // # Key Mapping
 //
@@ -13,7 +13,7 @@
 //	database_url = "postgres://localhost/db"
 //	maxRetries = 5
 //
-// Parse failures wrap [ErrTOMLParse], and an empty document decodes to an empty map.
+// Parse failures wrap [ErrParse], and an empty document decodes to an empty map.
 package toml
 
 import (
@@ -24,16 +24,16 @@ import (
 )
 
 var (
-	// ErrTOMLParse indicates a syntax or parsing error in TOML configuration.
-	ErrTOMLParse = errors.New("toml parse error")
+	// ErrParse indicates a syntax or parsing error in TOML configuration.
+	ErrParse = errors.New("toml parse error")
 )
 
-// RawDecoder decodes TOML bytes into the generic map[string]any structure the configuration engine matches against flag bindings.
-func RawDecoder(data []byte) (map[string]any, error) {
+// Decode decodes TOML bytes into the generic map[string]any structure the configuration engine matches against flag bindings.
+func Decode(data []byte) (map[string]any, error) {
 	var result map[string]any
 
 	if err := toml.Unmarshal(data, &result); err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrTOMLParse, err)
+		return nil, fmt.Errorf("%w: %w", ErrParse, err)
 	}
 
 	if result == nil {

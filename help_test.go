@@ -15,9 +15,9 @@ import (
 )
 
 type TestHelpRootCLI struct {
-	Verbose conga.OptionalFlag[bool]          `help:"Verbose logging"            short:"v"`
+	Verbose conga.OptionalFlag[bool]          `help:"Verbose logging"     short:"v"`
 	Cluster conga.Command[TestHelpClusterCmd] `summary:"Cluster commands"`
-	Help    conga.HelpCommand                 `summary:"Show help for a command"`
+	Help    conga.HelpCommand
 }
 
 type TestHelpClusterCmd struct {
@@ -29,7 +29,7 @@ type TestHelpNodeCmd struct {
 }
 
 type TestHelpDrainCmd struct {
-	NodeID conga.RequiredArg[string]  `help:"Node ID"          name:"<node-id>"`
+	NodeID conga.RequiredArg[string]  `help:"Node ID"`
 	Reason conga.RequiredFlag[string] `help:"Reason for drain"`
 }
 
@@ -52,7 +52,7 @@ type SpecialFlagsHelpCLI struct {
 }
 
 type ConfigFileHelpCLI struct {
-	ConfigFile conga.ConfigFile `help:"Path to config file" short:"c"`
+	ConfigFile conga.ConfigFile `short:"c"`
 }
 
 type ConfigFileDefaultHelpCLI struct {
@@ -68,7 +68,7 @@ type MultiConfigFileDefaultHelpCLI struct {
 }
 
 type UserHelpFlagCLI struct {
-	Help conga.OptionalFlag[string] `help:"Custom help argument" name:"help"`
+	Help conga.OptionalFlag[string] `help:"Custom help argument"`
 }
 
 func (u *UserHelpFlagCLI) Run(_ context.Context, _ *conga.Session) error {
@@ -78,9 +78,9 @@ func (u *UserHelpFlagCLI) Run(_ context.Context, _ *conga.Session) error {
 type TestGroupTagsFlagsCLI struct {
 	Verbose conga.OptionalFlag[bool]   `help:"Verbose logging" short:"v"`
 	Repo    conga.OptionalFlag[string] `group:"Source control" help:"Repository path"`
-	Quiet   conga.OptionalFlag[bool]   `group:"Output"         help:"Suppress output"     short:"q"`
+	Quiet   conga.OptionalFlag[bool]   `group:"Output"         help:"Suppress output" short:"q"`
 	Color   conga.OptionalFlag[bool]   `group:"Output"         help:"Colorize output"`
-	Config  conga.ConfigFile           `group:"Configuration"  help:"Path to config file"`
+	Config  conga.ConfigFile           `group:"Configuration"`
 }
 
 type TestGroupTagsServerCmd struct{}
@@ -280,7 +280,7 @@ func TestHelpFormatting_ConfigFileDefaultHelp(t *testing.T) {
 
 		app := conga.New[ConfigFileDefaultHelpCLI]().
 			Name("helpapp").
-			RegisterDecoder(".json", json.RawDecoder).
+			RegisterDecoder(".json", json.Decode).
 			Args([]string{"--help"}).
 			Stdout(&buffer)
 
@@ -288,8 +288,8 @@ func TestHelpFormatting_ConfigFileDefaultHelp(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.Contains(t, buffer.String(), "--config-file=PATH")
-		assert.Contains(t, buffer.String(), "Path to configuration file")
-		assert.NotContains(t, buffer.String(), "configuration file(s)")
+		assert.Contains(t, buffer.String(), "Path to config file")
+		assert.NotContains(t, buffer.String(), "config file(s)")
 		assert.NotContains(t, buffer.String(), "no configuration decoder registered")
 	})
 
@@ -300,7 +300,7 @@ func TestHelpFormatting_ConfigFileDefaultHelp(t *testing.T) {
 
 		app := conga.New[MultiConfigFileDefaultHelpCLI]().
 			Name("helpapp").
-			RegisterDecoder(".json", json.RawDecoder).
+			RegisterDecoder(".json", json.Decode).
 			Args([]string{"--help"}).
 			Stdout(&buffer)
 
@@ -308,7 +308,7 @@ func TestHelpFormatting_ConfigFileDefaultHelp(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.Contains(t, buffer.String(), "--config-file=PATH,...")
-		assert.Contains(t, buffer.String(), "Path to configuration file(s)")
+		assert.Contains(t, buffer.String(), "Path to config file(s)")
 	})
 
 	t.Run("single flag without decoder appends warning", func(t *testing.T) {
@@ -324,7 +324,7 @@ func TestHelpFormatting_ConfigFileDefaultHelp(t *testing.T) {
 		err := app.Run()
 
 		assert.NoError(t, err)
-		assert.Contains(t, buffer.String(), "Path to configuration file (no configuration decoder registered)")
+		assert.Contains(t, buffer.String(), "Path to config file (no configuration decoder registered)")
 	})
 }
 

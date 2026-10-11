@@ -8,7 +8,7 @@ import (
 )
 
 type DeleteCmd struct {
-	Name  conga.RequiredArg[string] `help:"Service name to delete" name:"<name>"`
+	Name  conga.RequiredArg[string] `help:"Service name to delete"`
 	Force conga.OptionalFlag[bool]  `help:"Force removal"          short:"f"`
 }
 

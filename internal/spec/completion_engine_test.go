@@ -45,7 +45,7 @@ type FlagsTestCLI struct {
 	Debug   mockFlag[bool]     `help:"Debug mode" negatable:"true"   short:"d"`
 	Format  mockFlag[string]   `default:"json"    enum:"json,yaml"   help:"Output format"`
 	Private mockFlag[string]   `help:"Internal"   hidden:"true"`
-	Tags    mockFlag[[]string] `help:"Tags"       sep:","`
+	Tags    mockFlag[[]string] `help:"Tags"`
 	Verbose mockFlag[int]      `help:"Verbosity"  short:"v"`
 }
 
@@ -68,7 +68,7 @@ type FlagValueCLI struct {
 	OutDir mockFlag[string]   `help:"Output dir"    predictor:"dir"`
 	Quiet  mockFlag[string]   `help:"Quiet"         predictor:"none"`
 	Custom mockFlag[string]   `help:"Custom"        predictor:"custom-branches"`
-	Tags   mockFlag[[]string] `enum:"api,cli,docs"  help:"Tags"                    sep:","`
+	Tags   mockFlag[[]string] `enum:"api,cli,docs"  help:"Tags"`
 	ShortF mockFlag[string]   `enum:"json,yaml"     help:"Short format"            short:"f"`
 	Plain  mockFlag[string]   `help:"Plain string"`
 }
@@ -81,7 +81,7 @@ type PositionalArgsCLI struct {
 
 type PredictableDomainCLI struct {
 	Branch   mockFlag[customBranchType]   `help:"Target branch"`
-	Branches mockFlag[[]customBranchType] `help:"Branch list"        sep:","`
+	Branches mockFlag[[]customBranchType] `help:"Branch list"`
 	Override mockFlag[customBranchType]   `help:"Override predictor" predictor:"none"`
 	PosArg   mockArg[customBranchType]    `help:"Positional branch"`
 }
@@ -538,7 +538,7 @@ func TestCompletion_FlagValues(t *testing.T) {
 
 		invoked := spec.Complete(cmdSpec, []string{"--config", ""}, spec.CompleteOptions{Dir: tmpDir})
 
-		assert.True(t, invoked.Directive.Has(predict.DirectiveNoFileComp))
+		assert.True(t, invoked.Directive.Has(predict.DirectiveNoFileCompletion))
 
 		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
 
@@ -579,7 +579,7 @@ func TestCompletion_FlagValues(t *testing.T) {
 
 		invoked := spec.Complete(cmdSpec, []string{"--quiet", ""}, spec.CompleteOptions{})
 
-		assert.Equal(t, predict.DirectiveNoFileComp, invoked.Directive)
+		assert.Equal(t, predict.DirectiveNoFileCompletion, invoked.Directive)
 		assert.Zero(t, invoked.Items)
 	})
 
@@ -593,7 +593,7 @@ func TestCompletion_FlagValues(t *testing.T) {
 
 		invoked := spec.Complete(cmdSpec, []string{"--plain", ""}, spec.CompleteOptions{})
 
-		assert.Equal(t, predict.DirectiveNoFileComp, invoked.Directive)
+		assert.Equal(t, predict.DirectiveNoFileCompletion, invoked.Directive)
 		assert.Zero(t, invoked.Items)
 	})
 
@@ -705,7 +705,7 @@ func TestCompletion_PositionalArguments(t *testing.T) {
 
 		invoked := spec.Complete(cmdSpec, []string{"staging", "/tmp", "extra1.go", ""}, spec.CompleteOptions{Dir: tmpDir})
 
-		assert.True(t, invoked.Directive.Has(predict.DirectiveNoFileComp))
+		assert.True(t, invoked.Directive.Has(predict.DirectiveNoFileCompletion))
 
 		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
 
@@ -858,7 +858,7 @@ func TestCompletion_PredictableDomainTypes(t *testing.T) {
 
 		invoked := spec.Complete(cmdSpec, []string{"--override", ""}, spec.CompleteOptions{})
 
-		assert.Equal(t, predict.DirectiveNoFileComp, invoked.Directive)
+		assert.Equal(t, predict.DirectiveNoFileCompletion, invoked.Directive)
 		assert.Zero(t, invoked.Items)
 	})
 
@@ -1085,7 +1085,7 @@ func TestCompletion_FilteringInterfacesAndBuiltinPredictors(t *testing.T) {
 		assert.True(t, slices.Contains(values, "repo-link/"), "symlinked directories must be followed")
 		assert.False(t, slices.Contains(values, "plaindir/"))
 		assert.False(t, slices.Contains(values, "compose.yaml"))
-		assert.True(t, invoked.Directive.Has(predict.DirectiveNoFileComp))
+		assert.True(t, invoked.Directive.Has(predict.DirectiveNoFileCompletion))
 		assert.True(t, invoked.Directive.Has(predict.DirectiveNoSpace))
 	})
 

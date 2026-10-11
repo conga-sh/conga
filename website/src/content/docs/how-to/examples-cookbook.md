@@ -14,7 +14,23 @@ go run ./_examples/08-subcommands-basic create web-api -i redis:7 -r 3
 ```
 
 ```text no-copy
-created service "web-api" (image: redis:7, replicas: 3)
+╭───────────────────────────────────────────────────────────╮
+│  ⚙  service-mgr create                                    │
+╰───────────────────────────────────────────────────────────╯
+
+    FIELD              TYPE      VALUE     SOURCE
+
+  service-mgr · root
+    -v, --verbose      bool      false     ○ unset
+    create             command   —         ▸ selected
+    delete (rm, del)   command   —         —
+    list               command   —         —
+    doctor             command   —         —
+
+  create · active
+    <name>             string    web-api   ● cli
+    -i, --image        string    redis:7   ● cli --image
+    -r, --replicas     int       3         ● cli --replicas
 ```
 
 To run the automated test suite across all examples:
@@ -66,7 +82,7 @@ go test ./_examples/...
 |---|---------|--------------|
 | 19 | [shell-completion](https://github.com/conga-sh/conga/tree/main/_examples/19-shell-completion) | Opt-in completion via `app.EnableCompletion()`, domain types, predictor registry, and predict SDK. |
 | 20 | [modular-predictors](https://github.com/conga-sh/conga/tree/main/_examples/20-modular-predictors) | Command groups using `system.*` and `network.*` domain types. |
-| 21 | [pluggable-types](https://github.com/conga-sh/conga/tree/main/_examples/21-pluggable-types) | `app.Use` plugins, standard library types (`timezone.Location`, `system.Signal`), and `app.RegisterType`. |
+| 21 | [pluggable-types](https://github.com/conga-sh/conga/tree/main/_examples/21-pluggable-types) | `app.Use` type bindings (`timezone.RegisterLocation`, `system.RegisterSignal`) for standard library types (`*time.Location`, `syscall.Signal`), and `app.RegisterType`. |
 | 24 | [flat-completion-flag](https://github.com/conga-sh/conga/tree/main/_examples/24-flat-completion-flag) | Flat CLI `--completion <shell>` flag via `app.EnableCompletion()`. |
 | 25 | [flat-completion-subcommand](https://github.com/conga-sh/conga/tree/main/_examples/25-flat-completion-subcommand) | Flat CLI opting into `CompletionCommand` alongside `EnableCompletion()`. |
 

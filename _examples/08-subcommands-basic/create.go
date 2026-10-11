@@ -8,7 +8,7 @@ import (
 )
 
 type CreateCmd struct {
-	Name     conga.RequiredArg[string]  `help:"Service name"    name:"<name>"`
+	Name     conga.RequiredArg[string]  `help:"Service name"`
 	Image    conga.OptionalFlag[string] `default:"nginx:latest" help:"Container image to deploy" short:"i"`
 	Replicas conga.OptionalFlag[int]    `default:"1"            help:"Number of pod replicas"    short:"r"`
 }

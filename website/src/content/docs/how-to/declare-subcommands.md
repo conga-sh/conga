@@ -92,9 +92,9 @@ func (d *DeployCmd) Run(ctx context.Context, session *conga.Session) error {
 
 `session.Root[T]()` returns the typed root command struct instance. The full accessor catalog (`Path()`, `Name()`, and the stream accessors) is in [package conga](/reference/conga/#session-and-hierarchy-accessors); navigate down the hierarchy from the root instance by calling `Get()` on a command field (for example, `root.Deploy.Get()`).
 
-## Avoid ancestor flag shadowing
+## Share flags across subcommands
 
-CONGA strictly forbids flag shadowing across ancestor-descendant command hierarchies. A flag name, alias, or short rune declared on an ancestor command cannot be declared on any descendant subcommand:
+Ancestor flags remain available to all descendant subcommands. Flag names, aliases, and short runes are reserved throughout each command branch; declare shared options once on the parent command:
 
 ```go
 type Root struct {
@@ -107,10 +107,10 @@ type Child struct {
 }
 ```
 
-Attempting to register a descendant flag that collides with an ancestor flag fails at startup with `conga.ErrDuplicateFlag`; [About subcommands and hierarchy](/explanation/subcommands/#the-ancestor-flag-reservation-invariant) explains the invariant. Sibling subcommands may declare identical flag names.
+Attempting to register a descendant flag that collides with an ancestor flag fails at startup with `conga.ErrSchema`; [About subcommands and hierarchy](/explanation/subcommands/#the-ancestor-flag-reservation-invariant) explains the invariant. Sibling subcommands may declare identical flag names.
 
 ## Where to go next
 
 - [How to accept positional arguments](/how-to/accept-positional-arguments/) — define mandatory, optional, and trailing positional arguments.
 - [About subcommands and hierarchy](/explanation/subcommands/) — hierarchy architecture and flag-shadowing rules.
-- [How to keep a reference to the root struct](/how-to/keep-root-reference/) — construct and bind caller-owned root instances.
+- [How to keep a reference to the root struct](/how-to/keep-root-reference/) — inspect resolved container values after execution.

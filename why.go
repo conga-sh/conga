@@ -133,7 +133,7 @@ func (a *App[T]) whyFlagRow(cmd *spec.Command, cmdChain []*spec.Command, flagSpe
 		return a.whyCoercedRow(cmdChain, flagSpec, []string{configValue}, SourceConfig, configKey, state, row, !flagSpec.Safe)
 	}
 
-	// Tier 4: Default Values — defaults are always displayed, matching --help.
+	// Tier 4: Default Values: defaults are always displayed, matching --help.
 	if flagSpec.Default != "" {
 		return a.whyCoercedRow(cmdChain, flagSpec, []string{flagSpec.Default}, SourceDefault, flagSpec.Default, state, row, false)
 	}
@@ -415,7 +415,7 @@ func whyEnvColumn(flagSpec *spec.Flag, cmd *spec.Command, state *bindingState) s
 // mirroring storeFlagValue's canonical write-side keys: the explicit config
 // tag namespaced under the owning command's path, or the flag's canonical
 // dotted path. The prefix covers the chain elements up to and including the
-// command that owns the flag — root-owned flags carry no prefix regardless
+// command that owns the flag; root-owned flags carry no prefix regardless
 // of which subcommand is active.
 func whyConfigPath(flagSpec *spec.Flag, cmdChain []*spec.Command, cmdIndex int) string {
 	if flagSpec.ConfigKey == "-" {

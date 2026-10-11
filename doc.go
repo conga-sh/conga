@@ -14,8 +14,8 @@
 //   - Subcommands: [Command]
 //
 // Struct tags declare names, help text, fallback values, and constraints such
-// as `range`, `len`, `enum`, `xor`, and `and`. For the full tag specification,
-// see https://docs.conga.sh/reference/struct-tags/.
+// as range, len, enum, xor, and and. For the full tag specification,
+// See https://docs.conga.sh/reference/struct-tags/.
 //
 // Commands execute by implementing [Runner]. Lifecycle hooks can be added
 // with [Validator], [PreRunner], [PostRunner], and [Finalizer].
@@ -47,9 +47,9 @@
 //  1. Command-line flags
 //  2. Environment variables
 //  3. Configuration files
-//  4. Struct field `default` tags
+//  4. Struct field default tags
 //
-// Positional arguments resolve only from command-line arguments and `default`
+// Positional arguments resolve only from command-line arguments and default
 // tags. [OptionalFlag.Source] reports where a resolved value originated.
 //
 // See https://docs.conga.sh/explanation/value-precedence/.
@@ -58,11 +58,11 @@
 //
 // CONGA provides built-in flags for standard operational tasks:
 //
-//   - `--help`: prints command syntax and flag descriptions. Enabled
+//   - --help: prints command syntax and flag descriptions. Enabled
 //     by default; disable with [App.DisableHelpFlag].
-//   - `--version`: prints version and build information. Enabled by
+//   - --version: prints version and build information. Enabled by
 //     default; disable with [App.DisableVersionFlag].
-//   - `--why`: prints a provenance report showing where every flag resolved
+//   - --why: prints a provenance report showing where every flag resolved
 //     from (CLI flag, environment variable, configuration file, or default tag)
 //     and which competing values were overridden. Useful when debugging complex
 //     configurations. Enable with [App.EnableWhy].
@@ -79,9 +79,10 @@
 //
 // # Execution and streams
 //
-// [App.Run] and [App.RunContext] execute an App exactly once; a second call
-// panics. A zero-value [App] is usable and installs the same defaults as [New]
-// on first use.
+// [App.Run] executes with a default context that cancels on SIGINT and
+// SIGTERM; [App.RunContext] executes with the caller's context. An App
+// executes exactly once; a second call panics. A zero-value [App] is usable
+// and installs the same defaults as [New] on first use.
 //
 // Commands receive a [*Session] providing invocation metadata and configured
 // I/O streams ([Session.Stdout], [Session.Stderr], [Session.Stdin]). Streams
@@ -92,16 +93,15 @@
 // [App.Exit] reports errors and exits with status 2 for usage errors
 // or status 1 for runtime failures. A nil error exits with status 0.
 //
+// See https://docs.conga.sh/explanation/lifecycle/.
+//
 // # Optional subsystems
 //
-// Several features are opt-in to keep unused dependencies out of compiled
-// binaries:
+// Several features are opt-in:
 //
 //   - Shell completion: call [App.EnableCompletion] to generate completion
 //     scripts for Bash, Zsh, Fish, PowerShell, Elvish, and Nushell.
 //   - Configuration decoders: import and register decoders such as
-//     `conga/decoder/yaml` using [App.RegisterDecoder].
-//   - Dotenv files: call [App.Dotenv] to load variables from `.env` files.
-//
-// See https://docs.conga.sh/explanation/binary-size/.
+//     decoder/yaml using [App.RegisterDecoder].
+//   - Dotenv files: call [App.Dotenv] to load variables from .env files.
 package conga

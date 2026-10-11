@@ -15,7 +15,7 @@ CONGA derives the CLI schema from struct fields and their tags. The engine valid
 | `conga` | ✅ | ✅ | ✅ | Directives (see [`conga` directives](#conga-directives)). |
 | `default` | ✅ | – | – | Default value when no other source provides one. Coerced with the same parser as CLI input. |
 | `deprecated` | ✅ | – | ✅ | Deprecation notice; suppresses flag from completion. |
-| `enum` | ✅ | ✅ | – | Comma-separated allowed values. |
+| `enum` | ✅ | ✅ | – | Comma-separated allowed values, checked against the coerced value, rendered in help as `[enum: …]`. |
 | `env` | ✅ | ✅ | ✅ | Comma-separated environment variable names. `env:"-"` disables environment binding. Explicit names ignore `envprefix`. |
 | `group` | ✅ | ✅ | ✅ | Help-screen grouping header. Flags sharing a group render under their own titled section. |
 | `help` | ✅ | ✅ | ✅ | Help text displayed on the help screen. Supports [help variables](#help-variables). |
@@ -34,6 +34,8 @@ CONGA derives the CLI schema from struct fields and their tags. The engine valid
 
 The `default` tag is rejected on `Counter` flags. Counters count command-line occurrences starting at 0; seed a base level with an `env` or config-file binding, or use `OptionalFlag[int]` for a numeric default.
 
+The `enum` tag validates against the field's coerced value. When a type's `UnmarshalText` normalizes input (such as `get` to `GET`), validation compares against that normalized form, so declared enum values must match the normalized output.
+
 ## Positional arguments (`OptionalArg[T]`, `RequiredArg[T]`)
 
 Positional arguments bind to command-line input.
@@ -42,7 +44,7 @@ Positional arguments bind to command-line input.
 |-----|:--------:|:--------:|---------|
 | `conga` | ✅ | ✅ | Directives (see [`conga` directives](#conga-directives)). |
 | `default` | ✅ | – | Default value for optional arguments. |
-| `enum` | ✅ | ✅ | Comma-separated allowed values, rendered in help as `[enum: …]`. |
+| `enum` | ✅ | ✅ | Comma-separated allowed values, checked against the coerced value, rendered in help as `[enum: …]`. |
 | `help` | ✅ | ✅ | Help text. Supports [help variables](#help-variables). |
 | `items` | ✅ | ✅ | Element count bound for slices or maps. |
 | `len` | ✅ | ✅ | Length bound for strings, slices, or maps. |
@@ -62,7 +64,7 @@ CONGA appends declared constraints after each field's help text: `range:"1..6553
 | `{{items}}` | The `items` tag's bounds without brackets. | Flags and positional arguments with an `items` tag. |
 | `{{enum}}` | The `enum` values joined with `, `. | Flags and positional arguments with an `enum` tag. |
 | `{{default}}` | The `default` tag's value. | Flags and positional arguments with a `default` tag. |
-| `{{env}}` | The `env` variable names joined with `, `. | Flags and config-file flags that bind environment variables (via `env` tag or `envprefix`). Positional arguments never bind environment variables. |
+| `{{env}}` | The `env` variable names joined with `, `. | Flags and config-file flags that bind environment variables (via `env` tag or `envprefix`). |
 
 ```go
 type CLI struct {
@@ -74,7 +76,7 @@ type CLI struct {
 
 The help column renders `Port number (1..65535)`, `Environment (dev, staging, prod)`, and `Tags (1..5 allowed)`.
 
-Suppression applies per hint: referencing `{{range}}` leaves `[len: …]`, `[items: …]`, `[enum: …]`, `[default: …]`, and `[env: …]` in place. On flags, referencing `{{default}}` also removes the default from the value slot (`--port=8080` becomes `--port=INT`), so the default appears only where the help text places it. On positional arguments, `{{default}}` inlines the declared default into the prose; arguments never render value-slot defaults or automatic bracket hints. Config-file flags support only `{{env}}`.
+Suppression applies per hint: referencing `{{range}}` leaves `[len: …]`, `[items: …]`, `[enum: …]`, `[default: …]`, and `[env: …]` in place. On flags, referencing `{{default}}` also removes the default from the value slot (`--port=8080` becomes `--port=INT`), displaying the default exclusively where the help text places it. On positional arguments, `{{default}}` inlines the declared default into the prose. Config-file flags support only `{{env}}`.
 
 Referencing an undeclared variable fails schema build with `ErrSchema`: `{{range}}` without a `range` tag, any variable other than `{{env}}` on a config-file flag, or `{{env}}` on a positional argument. Unknown names fail the same way and list the six supported names. Empty constraint tags (`range:""`, `len:""`, `items:""`, and `enum:""`) are rejected at schema build unconditionally. Bare `{` and shell-style `${...}` sequences copy verbatim; double the opening braces (`{{{{`) to render a literal `{{`.
 
@@ -110,10 +112,10 @@ type Server struct {
 | `deprecated` | Deprecation notice; suppresses flag from completion. |
 | `env` | Comma-separated environment variable names. `env:"-"` disables environment binding. |
 | `group` | Help-screen grouping header. Flags sharing a group render under their own titled section. |
-| `help` | Help text (default: `Path to configuration file`, or `Path to configuration file(s)` when `multi:"true"`). |
+| `help` | Help text (default: `Path to config file`, or `Path to config file(s)` when `multi:"true"`). |
 | `hidden` | Suppress from help and completion (`hidden` or `hidden:"true"`). |
 | `multi` | Enable multi-value arity for repeated flags and slice values (`multi` or `multi:"true"`). |
-| `name` | Flag name (default: `--config`). |
+| `name` | Flag name (default: `--config-file`). |
 | `placeholder` | Value placeholder in help (default: `PATH`). |
 | `sep` | Multi-value flags only: value separator for repeated flags and environment variables (default `","`). |
 | `short` | Single-rune short flag. |
@@ -210,7 +212,7 @@ Applicability rules:
 
 | Tag | Applicable types | Validation |
 |-----|------------------|------------|
-| `range` | Numeric types (`int*`, `uint*` except `uintptr`, `float*`), `time.Duration`, and domain types implementing `encoding.TextUnmarshaler` with an ordered projection (`Bytes() int64` or numeric underlying kind). | Bounds parse using the type's own unmarshaler (e.g. `ByteSize` accepts `range:"1MiB..1GiB"`). Pointer element types and unprojected types are rejected. |
+| `range` | Numeric types (`int*`, `uint*` except `uintptr`, `float*`), `time.Duration`, and domain types implementing `encoding.TextUnmarshaler` with an ordered projection (`Bytes() int64` or numeric underlying kind). | Bounds parse using the type's own unmarshaler (e.g. `ByteSize` accepts `range:"1MiB..1GiB"`), under the field's declared tags: a decimal bound on a `units:"binary"` field fails at schema build. Pointer element types and unprojected types are rejected. |
 | `len` | Strings, slices, and maps. | Asserts character count on strings or entry count on slices and maps. |
 | `items` | Slices and maps. | Asserts element count. |
 

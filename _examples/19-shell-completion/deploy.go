@@ -97,7 +97,7 @@ type DeployCmd struct {
 	Region   conga.OptionalFlag[Region]       `default:"us-east-1"                                 help:"Target cloud region (self-completing)" short:"r"`
 	Cluster  conga.OptionalFlag[Cluster]      `help:"Target cluster (contextual)"                  short:"c"`
 	Image    conga.OptionalFlag[Image]        `help:"Container image (repository:tag)"             short:"i"`
-	Features conga.OptionalFlag[[]Feature]    `help:"Enabled deployment features"                  sep:","`
+	Features conga.OptionalFlag[[]Feature]    `help:"Enabled deployment features"`
 	Manifest conga.OptionalFlag[ManifestFile] `help:"Deployment manifest file (yaml/yml filtered)"`
 	OutDir   conga.OptionalFlag[conga.Dir]
 	DryRun   conga.OptionalFlag[bool]  `default:"false"               help:"Simulate deployment" negatable:"true"`

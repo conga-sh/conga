@@ -41,7 +41,7 @@ SERVER_PORT=9002 server --port 9003
 
 In the example above, the flag resolves to `9003` from `SourceCLI`. If the `--port` flag is omitted on the command line, the flag resolves to `9002` from `SourceEnv`.
 
-Positional arguments do not participate in environment resolution; they resolve exclusively from command-line tokens.
+Environment variable binding applies to flags; positional arguments resolve exclusively from command-line tokens.
 
 ## Namespace subcommands with envprefix
 

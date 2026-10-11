@@ -19,38 +19,64 @@ import (
 
 //nolint:gochecknoglobals // internal single source of truth for shell driver definitions
 var shellDrivers = []shellDriver{
-	{shell: ShellBash, name: "bash", description: "Bourne Again SHell", format: bash.Format, snippet: bash.Snippet, patch: bash.Patch},
-	{shell: ShellElvish, name: "elvish", description: "Elvish shell", format: elvish.Format, snippet: elvish.Snippet},
-	{shell: ShellFish, name: "fish", description: "Friendly interactive shell", format: fish.Format, snippet: fish.Snippet},
-	{shell: ShellNushell, name: "nushell", description: "Nushell shell", execNames: []string{"nu", "nushell"}, format: nushell.Format, snippet: nushell.Snippet, patch: patchNushell},
-	{shell: ShellPowerShell, name: "powershell", description: "PowerShell / pwsh", execNames: []string{"pwsh"}, format: powershell.Format, snippet: powershell.Snippet},
-	{shell: ShellZsh, name: "zsh", description: "Z shell", format: zsh.Format, snippet: zsh.Snippet},
+	{shell: ShellBash, name: "bash", description: "Bourne Again SHell", newSession: bashSession, snippet: bash.Snippet},
+	{shell: ShellElvish, name: "elvish", description: "Elvish shell", session: statelessSession{format: elvish.Format}, snippet: elvish.Snippet},
+	{shell: ShellFish, name: "fish", description: "Friendly interactive shell", session: statelessSession{format: fish.Format}, snippet: fish.Snippet},
+	{shell: ShellNushell, name: "nushell", description: "Nushell shell", execNames: []string{"nu", "nushell"}, session: statelessSession{format: nushell.Format, patch: patchNushell}, snippet: nushell.Snippet},
+	{shell: ShellPowerShell, name: "powershell", description: "PowerShell / pwsh", execNames: []string{"pwsh"}, session: statelessSession{format: powershell.Format}, snippet: powershell.Snippet},
+	{shell: ShellZsh, name: "zsh", description: "Z shell", session: statelessSession{format: zsh.Format}, snippet: zsh.Snippet},
 }
 
-// Format renders a completion result in the framing of targetShell. The
-// protocol shells render natively; any other identifier — unknown, removed,
-// or the empty auto-detect form — falls back to the export framing.
-func Format(targetShell string, toComplete string, result predict.Result) string {
-	candidates, directives := wire.FromResult(result)
+// EnvLookup returns the value of an environment variable and whether it was set.
+type EnvLookup = bash.EnvLookup
 
+// Session is one completion invocation's driver: Patch derives the shell's
+// presentation inputs and Format consumes them, so concurrent completions never
+// share state. Unknown identifiers — and the empty auto-detect form — render in
+// the export framing.
+type Session struct {
+	driver *shellDriver
+	state  driverSession
+}
+
+// NewSession returns the invocation-scoped driver for targetShell.
+func NewSession(targetShell string) *Session {
+	return NewSessionWithEnv(targetShell, nil)
+}
+
+// NewSessionWithEnv returns the invocation-scoped driver for targetShell using
+// lookup to resolve environment variables.
+func NewSessionWithEnv(targetShell string, lookup EnvLookup) *Session {
 	driver := findDriver(normalizeShell(targetShell))
 	if driver == nil {
-		return export.Format(toComplete, directives, candidates)
+		return &Session{}
 	}
 
-	return driver.format(toComplete, directives, candidates)
+	return &Session{driver: driver, state: driver.open(lookup)}
 }
 
 // Patch applies shell-specific completion argument patching: bash's redirect
 // rejection and wordbreak trimming, and nushell's raw-span dequoting. Every
 // other shell passes the arguments through unchanged.
-func Patch(targetShell string, args []string) ([]string, error) {
-	driver := findDriver(normalizeShell(targetShell))
-	if driver == nil || driver.patch == nil {
+func (s *Session) Patch(args []string) ([]string, error) {
+	if s.driver == nil {
 		return args, nil
 	}
 
-	return driver.patch(args)
+	return s.state.Patch(args)
+}
+
+// Format renders a completion result in the framing of the session's shell. The
+// protocol shells render natively; an unknown, removed, or empty identifier
+// falls back to the export framing.
+func (s *Session) Format(toComplete string, result predict.Result) string {
+	candidates, directives := wire.FromResult(result)
+
+	if s.driver == nil {
+		return export.Format(toComplete, directives, candidates)
+	}
+
+	return s.state.Format(toComplete, directives, candidates)
 }
 
 // Snippet renders the registration snippet for shellName ("" auto-detects the
@@ -75,19 +101,67 @@ func SupportedShells() []string {
 	})
 }
 
+// driverSession is the per-invocation state contract of one shell driver: Patch
+// derives the shell's presentation inputs, Format consumes them. Drivers without
+// cross-pass state share one statelessSession value.
+type driverSession interface {
+	Patch(args []string) ([]string, error)
+	Format(toComplete string, directives wire.Directives, candidates []wire.Candidate) string
+}
+
 // shellDriver is one entry of the shell driver registry: the shell's
-// identifier metadata plus its framing, snippet, and patch hooks. It is the
-// single source of truth for shell definitions — dispatch routing
-// (Format/Patch/Snippet), SupportedShells, ParseShell, ShellDescriptions, and
-// exec-path detection all read from the same table.
+// identifier metadata plus its framing, snippet, and per-invocation session
+// hooks. It is the single source of truth for shell definitions — dispatch
+// routing (NewSession, Snippet), SupportedShells, ParseShell,
+// ShellDescriptions, and exec-path detection all read from the same table.
 type shellDriver struct {
 	shell       Shell
 	name        string
 	description string
 	execNames   []string
-	format      func(toComplete string, directives wire.Directives, candidates []wire.Candidate) string
-	snippet     func(name string, aliases []string) string
-	patch       func(args []string) ([]string, error)
+	// session is the shared stateless session (every shell but bash); exactly
+	// one of session/newSession is set.
+	session driverSession
+	// newSession mints the per-invocation session of a stateful driver.
+	newSession func(lookup EnvLookup) driverSession
+	snippet    func(name string, aliases []string) string
+}
+
+// open returns the driver session of one completion invocation.
+func (d *shellDriver) open(lookup EnvLookup) driverSession {
+	if d.newSession != nil {
+		return d.newSession(lookup)
+	}
+
+	return d.session
+}
+
+// statelessSession adapts a driver whose Patch and Format hooks share no state
+// to the driverSession contract.
+type statelessSession struct {
+	format func(toComplete string, directives wire.Directives, candidates []wire.Candidate) string
+	patch  func(args []string) ([]string, error)
+}
+
+// Patch applies the driver's argument patch, or passes the arguments through
+// when the driver declares no patch hook.
+func (s statelessSession) Patch(args []string) ([]string, error) {
+	if s.patch == nil {
+		return args, nil
+	}
+
+	return s.patch(args)
+}
+
+// Format renders the driver's framing.
+func (s statelessSession) Format(toComplete string, directives wire.Directives, candidates []wire.Candidate) string {
+	return s.format(toComplete, directives, candidates)
+}
+
+// bashSession adapts the bash driver's per-invocation session to the registry
+// contract.
+func bashSession(lookup EnvLookup) driverSession {
+	return bash.NewSessionWithEnv(lookup)
 }
 
 // patchNushell adapts nushell.Patch (error-free signature) to the registry's

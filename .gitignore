@@ -24,6 +24,9 @@
 !/**/LICENSE
 !/**/NOTICE
 !**/README.md
+!/CHANGELOG.md
+!/CONTRIBUTING.md
+!/llms.txt
 !/docs/*.md
 
 !/Taskfile.yaml
@@ -57,3 +60,7 @@
 /website/node_modules/
 
 /third_party
+
+.agents
+.omp
+.opencode

@@ -36,13 +36,14 @@ const (
 	byteSizeErrorInexactFraction                          // fraction does not resolve to whole bytes
 	byteSizeErrorUnknownUnit                              // unrecognized unit suffix
 	byteSizeErrorUnitNotAllowed                           // unit excluded by the field's units tag
+	byteSizeErrorAmbiguousUnit                            // ambiguous casing (KB)
 )
 
 const (
 	byteSizeFamilyUnset   byteSizeFamily = iota // zero value: canonical IEC integer model
 	byteSizeFamilyBytes                         // parsed exact bytes (B suffix or bare count)
 	byteSizeFamilyBinary                        // KiB..PiB
-	byteSizeFamilyDecimal                       // kB/KB..PB
+	byteSizeFamilyDecimal                       // kB..PB
 )
 
 var (
@@ -71,29 +72,31 @@ var (
 
 // File represents a filesystem path with optional capability constraints declared
 // through struct tags on command fields:
-//   - `existing:"true"`: Requires the path to exist and not be a directory.
-//   - `stdin:"true"`: Permits "-" to bind to standard input ([App.Stdin] or [os.Stdin]).
-//   - `stdout:"true"`: Permits "-" to bind to standard output ([App.Stdout] or [os.Stdout]).
-//   - `executable:"true"`: Requires the path to exist, not be a directory, have execute
-//     permission, and resolves $PATH-relative names to their absolute location at decode time.
-//   - `symlink:"true"`: Requires the path to be a symbolic link.
-//   - `glob:"pattern"`: Shell autocompletion filter using comma-separated glob patterns
-//     (e.g. `glob:"*.yaml,*.yml"` or `glob:"Dockerfile*"`).
+//   - existing: requires the path to exist and not be a directory.
+//   - stdin: permits - to bind to standard input ([App.Stdin] or [os.Stdin]).
+//   - stdout: permits - to bind to standard output ([App.Stdout] or [os.Stdout]).
+//   - executable: requires the path to exist, not be a directory, have execute
+//     permission, and resolves PATH-relative names to their absolute location at
+//     decode time.
+//   - symlink: requires the path to be a symbolic link.
+//   - glob: shell autocompletion filter using comma-separated glob patterns (for
+//     example *.yaml,*.yml or Dockerfile*).
 //
-// These tags are mutually exclusive in part, because they constrain the same path
-// in incompatible ways. Declaring a conflicting pair fails schema compilation:
-//   - `existing` conflicts with `stdout`, `executable`, and `symlink`.
-//   - `stdin` conflicts with `stdout`, `executable`, and `symlink`.
-//   - `stdout` conflicts with `stdin`, `existing`, `executable`, and `symlink`.
-//   - `executable` conflicts with `existing`, `stdin`, `stdout`, `symlink`, and `glob`.
-//   - `symlink` conflicts with `existing`, `stdin`, `stdout`, `executable`, and `glob`.
-//   - `glob` conflicts with `executable` and `symlink`.
+// The tags are partly mutually exclusive because they constrain the same path in
+// incompatible ways. Declaring a conflicting pair fails schema compilation:
 //
-// File paths automatically expand tilde prefixes (`~` to the user's home directory)
-// and environment variables (`$VAR` or `${VAR}`) during value decoding.
+//	existing   conflicts with stdout, executable, symlink
+//	stdin      conflicts with stdout, executable, symlink
+//	stdout     conflicts with stdin, existing, executable, symlink
+//	executable conflicts with existing, stdin, stdout, symlink, glob
+//	symlink    conflicts with existing, stdin, stdout, glob, executable
+//	glob       conflicts with executable, symlink
 //
-// In command handlers, call [File.Reader] to open the file (or stdin if "-") or
-// [File.Writer] to create/truncate the file (or stdout if "-"):
+// File paths automatically expand tilde prefixes (~ to the user's home directory)
+// and environment variables ($VAR or ${VAR}) during value decoding.
+//
+// In command handlers, call [File.Reader] to open the file (or stdin if -) or
+// [File.Writer] to create/truncate the file (or stdout if -):
 //
 //	type TransformCLI struct {
 //		Input  conga.RequiredFlag[conga.File] `short:"i" stdin:"true" help:"Input file or - for stdin"`
@@ -137,13 +140,14 @@ func (f *File) TagSpecs() []TagSpec {
 }
 
 // Validate verifies that the resolved path satisfies the capability tags declared
-// on the owning field. The `glob` tag is a completion filter and is not validated.
+// on the owning field. The glob tag is a completion filter and is not validated.
 //
 // Enforced rules:
-//   - If the value is "-", the field must declare either `stdin:"true"` or `stdout:"true"`.
-//   - If `existing:"true"` is declared, the path must exist and cannot be a directory.
-//   - If `executable:"true"` is declared, the file must exist, cannot be a directory, and must have execute permissions.
-//   - If `symlink:"true"` is declared, the path must be a symbolic link.
+//   - If the value is -, the field must declare either the stdin or the stdout tag.
+//   - If the existing tag is declared, the path must exist and cannot be a directory.
+//   - If the executable tag is declared, the file must exist, cannot be a directory,
+//     and must have execute permissions.
+//   - If the symlink tag is declared, the path must be a symbolic link.
 func (f *File) Validate(ctx context.Context) error {
 	if f == nil {
 		return nil
@@ -190,9 +194,9 @@ func (f *File) Validate(ctx context.Context) error {
 
 // Predict returns shell autocompletion candidates tailored to the field's declared tags.
 //
-// Generates executable candidates from $PATH for `executable:"true"` fields, symlinks for
-// `symlink:"true"`, glob-filtered filenames for `glob:"..."`, and standard filesystem
-// files otherwise.
+// Generates executable candidates from $PATH for executable-tagged fields, symlinks for
+// symlink-tagged fields, glob-filtered filenames for glob-tagged fields, and standard
+// filesystem files otherwise.
 func (f File) Predict(tags FieldTags) predict.Predictor {
 	switch {
 	case tags.Bool("executable"):
@@ -216,9 +220,8 @@ func (f File) MarshalText() ([]byte, error) {
 	return []byte(f.path), nil
 }
 
-// UnmarshalText unmarshals a raw path string, expanding environment variables and
-// tilde prefixes. Standard text unmarshaling carries no field tags or engine streams,
-// so the path is unconstrained and "-" streams fall back to [os.Stdin]/[os.Stdout].
+// UnmarshalText unmarshals a raw path string via [File.UnmarshalTextWithContext]
+// with a zero [DecodeContext].
 func (f *File) UnmarshalText(text []byte) error {
 	return f.UnmarshalTextWithContext(text, DecodeContext{})
 }
@@ -227,8 +230,8 @@ func (f *File) UnmarshalText(text []byte) error {
 // standard streams ([App.Stdin] / [App.Stdout]).
 //
 // Expands environment variables and tilde prefixes, captures declared capability tags
-// for [File.Validate], and resolves $PATH-relative names to absolute paths when
-// `executable:"true"` is declared.
+// for [File.Validate], and resolves PATH-relative names to absolute paths when the
+// executable tag is declared.
 func (f *File) UnmarshalTextWithContext(text []byte, decodeContext DecodeContext) error {
 	f.path = pathx.Expand(string(text))
 	f.applyTags(decodeContext.Tags)
@@ -265,7 +268,37 @@ func (f *File) UnmarshalTextWithContext(text []byte, decodeContext DecodeContext
 }
 
 // Help returns the default value syntax description for file flags, tailored to
-// declared capability tags (e.g. "Path to an existing file or '-' for stdin").
+// declared capability tags.
+//
+// The engine renders this text in the flag's help column when the field
+// declares no help tag; a field with a help tag shows that text instead.
+// Shells also show it as the description of the flag's completion candidates.
+//
+//	Field                  Rendered text
+//	conga.File             Path to a file
+//	existing:"true"        Path to an existing file
+//	existing:"true" with   Path to an existing file or '-' for stdin
+//	stdin:"true"
+//	Path to a file or '-' for stdin
+//	stdout:"true"          Path to a file or '-' for stdout
+//	glob:"*.log"           Path to a file matching '*.log'
+//	existing:"true" with   Path to an existing file matching '*.log'
+//	glob:"*.log"
+//	executable:"true"      Path to an executable
+//	symlink:"true"         Path to a symbolic link
+//
+// The clauses compose in a fixed order:
+//
+//	glob       appends " matching '<patterns>'" to the file or existing base text,
+//	           with the patterns comma-joined into one quoted list; it combines
+//	           with existing and the stdin/stdout suffix.
+//	executable returns its fixed text unconditionally, never combining with glob,
+//	           existing, or the stdin/stdout suffix.
+//	symlink    returns its fixed text unconditionally, never combining with glob,
+//	           existing, or the stdin/stdout suffix.
+//
+// The stdin/stdout suffix (" or '-' for stdin" / " or '-' for stdout") is appended
+// last, after any glob clause (see [File] for the tag grammar).
 func (f File) Help(tags FieldTags) string {
 	switch {
 	case tags.Bool("executable"):
@@ -365,12 +398,17 @@ func (f FileContent) MarshalText() ([]byte, error) {
 	return []byte(f), nil
 }
 
-// String returns the loaded file content as a string.
+// String returns the loaded file content.
 func (f FileContent) String() string {
 	return string(f)
 }
 
 // Help returns the default value syntax description for file content flags.
+//
+// The engine renders this text in the flag's help column when the field
+// declares no help tag; a field with a help tag shows that text instead.
+// Shells also show it as the description of the flag's completion candidates.
+// The rendered text is always "Path to a file (or '-' for stdin)".
 func (f FileContent) Help() string {
 	return "Path to a file (or '-' for stdin)"
 }
@@ -380,8 +418,8 @@ func (f FileContent) Predict() predict.Predictor {
 	return predict.Files()
 }
 
-// UnmarshalText loads the file at path (or [os.Stdin] if "-") into memory,
-// enforcing a strict 16MB file size limit to prevent memory exhaustion.
+// UnmarshalText loads the file at path into memory via
+// [FileContent.UnmarshalTextWithContext] with a zero [DecodeContext].
 func (f *FileContent) UnmarshalText(text []byte) error {
 	return f.UnmarshalTextWithContext(text, DecodeContext{})
 }
@@ -429,10 +467,10 @@ func (f *FileContent) UnmarshalTextWithContext(text []byte, decodeContext Decode
 }
 
 // Dir represents a filesystem directory path with an optional existence constraint
-// declared via the struct tag `existing:"true"`.
+// declared via the existing struct tag.
 //
-// Directory paths automatically expand tilde prefixes (`~` to the user's home directory)
-// and environment variables (`$VAR` or `${VAR}`) during value decoding.
+// Directory paths automatically expand tilde prefixes (~ to the user's home directory)
+// and environment variables ($VAR or ${VAR}) during value decoding.
 //
 //	type OutputCLI struct {
 //		OutputDir conga.RequiredFlag[conga.Dir] `short:"o" existing:"true" help:"Output directory"`
@@ -449,14 +487,14 @@ type Dir struct {
 	existing bool
 }
 
-// TagSpecs registers the custom struct tags accepted by [Dir] fields (`existing`).
+// TagSpecs registers the custom struct tags accepted by [Dir] fields (existing).
 func (d *Dir) TagSpecs() []TagSpec {
 	return []TagSpec{
 		{Name: "existing", Kind: TagKindBool},
 	}
 }
 
-// Validate enforces the declared directory tags. With `existing:"true"`, the path
+// Validate enforces the declared directory tags. With the existing tag, the path
 // must exist and be a directory; without it, Validate always succeeds.
 func (d *Dir) Validate(ctx context.Context) error {
 	if d == nil {
@@ -494,8 +532,8 @@ func (d Dir) MarshalText() ([]byte, error) {
 	return []byte(d.path), nil
 }
 
-// UnmarshalText unmarshals a directory path, expanding environment variables and
-// tilde prefixes without tag constraints.
+// UnmarshalText unmarshals a directory path via [Dir.UnmarshalTextWithContext]
+// with a zero [DecodeContext].
 func (d *Dir) UnmarshalText(text []byte) error {
 	return d.UnmarshalTextWithContext(text, DecodeContext{})
 }
@@ -509,8 +547,16 @@ func (d *Dir) UnmarshalTextWithContext(text []byte, decodeContext DecodeContext)
 	return nil
 }
 
-// Help returns the default value syntax description for directory flags, tailored
-// to declared tags ("Path to an existing directory" or "Path to a directory").
+// Help returns the default value syntax description for directory flags,
+// tailored to the declared existing tag.
+//
+// The engine renders this text in the flag's help column when the field
+// declares no help tag; a field with a help tag shows that text instead.
+// Shells also show it as the description of the flag's completion candidates:
+//
+//	Field            Rendered text
+//	conga.Dir        Path to a directory
+//	existing:"true"  Path to an existing directory
 func (d Dir) Help(tags FieldTags) string {
 	if tags.Bool("existing") {
 		return "Path to an existing directory"
@@ -519,44 +565,68 @@ func (d Dir) Help(tags FieldTags) string {
 	return "Path to a directory"
 }
 
-// ByteSize represents human-readable data volumes (such as "10MiB", "1.5GB", "500KiB").
+// ByteSize represents human-readable data volumes.
 //
-// A parsed value remembers the unit family it was written in: one decoded from
-// "1.5GB" renders back in decimal units ("1500MB"), while one decoded from "1GiB"
-// renders in binary units ("1GiB"). The zero value renders with the canonical IEC
-// integer model, where only whole multiples of a binary unit are abbreviated
-// (e.g. "1MiB", "512MiB") and any indivisible remainder is emitted as exact bytes
-// (e.g. "1048577B").
+// # Accepted formats
 //
-// The byte count is available through [ByteSize.Bytes] for comparisons and
-// calculations:
+// Input is strict and case-sensitive. Exact byte counts, SI metric units ending in B,
+// and IEC binary units are accepted:
 //
-//	type CacheCLI struct {
-//		MaxMemory conga.OptionalFlag[conga.ByteSize] `default:"512MiB" help:"Max memory limit"`
+//	1024                 exact bytes
+//	500B                 exact bytes
+//	kB MB GB TB PB       powers of 1000
+//	KiB MiB GiB TiB PiB  powers of 1024
+//
+// The numeric prefix is digits with an optional fraction whose contribution resolves
+// exactly to bytes (1.5GB, 0.5GiB); a sub-byte remainder such as 0.1GiB is rejected.
+// Naked unit suffixes without B (10G, 512Mi) and lowercase casings (mb, kib) are
+// rejected to prevent ambiguity. KB is rejected as ambiguous: it denotes 1000 bytes in
+// SI usage and 1024 bytes in legacy usage. kB is always 1000 bytes; KiB is always 1024.
+// Text input is non-negative.
+//
+// # Rendering
+//
+// A value renders in its display family: a display field tag of binary or
+// decimal forces that family, and input (the default) uses the family of the
+// unit the value was decoded from. [ByteSize.String] is deterministic and
+// lossless, and shows the full input-to-output mapping.
+//
+// # Comparison
+//
+// The byte count is available through [ByteSize.Bytes]. ByteSize values are deliberately
+// non-comparable and cannot be used as map keys: the captured render family is not part
+// of a size's identity. Express equality and ordering through [ByteSize.Equal],
+// [ByteSize.Compare], or [ByteSize.Bytes].
+//
+// # Field tags
+//
+// Fields may declare the units tag to restrict the accepted unit families and the
+// display tag to force the render family:
+//
+//	units:"binary"    accept only IEC binary units (KiB..PiB)
+//	units:"decimal"   accept only SI metric units (kB..PB)
+//	units:"both"      accept every unit family (default)
+//	display:"binary"  render in binary units
+//	display:"decimal" render in decimal units
+//	display:"input"   render in the unit family the input used (default)
+//
+// Exact byte counts (a bare count or the B suffix) are family-neutral and accepted
+// under either units value. A parsed unit outside the allowed family is a coercion
+// error, and an unrecognized tag value is a schema error. The tags reach the type
+// through field binding, tailor the default help text, and select the grammar used to
+// parse range bounds (a decimal bound on a units:"binary" field is a schema error).
+//
+//	type Cache struct {
+//		Memory conga.ByteSize `units:"binary" display:"input"`
 //	}
-//
-//	func (c *CacheCLI) Run(ctx context.Context, session *conga.Session) error {
-//		return configureCache(c.MaxMemory.Get().Bytes()) // 536870912 for 512MiB
-//	}
-//
-// ByteSize values are deliberately non-comparable: the captured render family
-// is not part of a size's identity, so [ByteSize.Equal] (or
-// [ByteSize.Compare], or [ByteSize.Bytes]) expresses equality and ordering.
-// The compiler rejects == between two ByteSize values and rejects ByteSize as a
-// map key, preventing silently wrong lookups between values that render
-// differently but hold the same byte count.
-//
-// Fields may declare the `units` (`binary`, `decimal`, or `both`) and `display`
-// (`binary`, `decimal`, or `input`) tags to restrict the accepted unit families
-// or force the rendering family.
 //
 // See https://docs.conga.sh/reference/domain-types/.
 type ByteSize struct {
 	bytes  int64
 	family byteSizeFamily
 
-	// The blank field makes the struct non-comparable: array types are
-	// comparable only when their element type is, and func is not comparable.
+	// The blank field makes the struct non-comparable, so == between two
+	// ByteSize values is a compile error.
 	_ [0]func()
 }
 
@@ -579,7 +649,7 @@ func (b ByteSize) Compare(other ByteSize) int {
 }
 
 // TagSpecs registers the custom struct tags accepted by [ByteSize] fields:
-// `units` and `display`.
+// units and display.
 func (b *ByteSize) TagSpecs() []TagSpec {
 	return []TagSpec{
 		{Name: "units", Kind: TagKindString, Validate: validateByteSizeUnitsTag},
@@ -587,19 +657,31 @@ func (b *ByteSize) TagSpecs() []TagSpec {
 	}
 }
 
-// Bytes returns the size in bytes as an int64.
+// Bytes returns the size in bytes.
 func (b ByteSize) Bytes() int64 {
 	return b.bytes
 }
 
 // String formats the byte size into a deterministic, lossless human-readable string.
 //
-// The rendering family comes from the value's captured unit family (or the
-// canonical IEC model for the zero value): whole multiples of a unit are
-// formatted as integers without spaces or decimal points (e.g. "1MiB",
-// "1500MB") and values with indivisible remainders are emitted as exact bytes
-// (e.g. "1048577B"). Parsed exact-byte input ("B" or a bare count) echoes as
-// exact bytes (e.g. "1024B"). Returns "0B" for zero.
+// Rendering picks the largest unit of the value's family that divides the byte
+// count exactly, formatting it as an integer without spaces or decimal points;
+// a count no unit divides is emitted as exact bytes. The input-to-output
+// mapping, including the display tag families:
+//
+//	input             display tag   output
+//	1.5GB             input         1500MB
+//	0.5GiB            input         512MiB
+//	1024              input         1024B
+//	1.000000001GB     input         1000000001B
+//	1.5GB             binary        1500000000B
+//	1024kB            binary        1000KiB
+//	1000KiB           decimal       1024kB
+//	1073741824        binary        1GiB
+//	zero value        any           0B
+//
+// Parsed exact-byte input (a B suffix or a bare count) always echoes as exact
+// bytes, and String returns 0B for zero.
 func (b ByteSize) String() string {
 	if b.bytes == 0 {
 		return "0B"
@@ -624,33 +706,21 @@ func (b ByteSize) MarshalText() ([]byte, error) {
 }
 
 // UnmarshalText parses a strict, case-sensitive byte size string without field
-// tags. The input's unit suffix fixes the value's render family.
-//
-// Accepted formats:
-//   - Exact byte counts: "1024", "500B"
-//   - SI metric units ending in "B": "kB", "KB", "MB", "GB", "TB", "PB" (powers of 1000)
-//   - IEC binary units: "KiB", "MiB", "GiB", "TiB", "PiB" (powers of 1024)
-//
-// The numeric prefix is digits with an optional fraction whose contribution
-// resolves exactly to bytes (e.g. "1.5GB", "0.5GiB"); a sub-byte remainder such
-// as "0.1GiB" is rejected. Text input is non-negative; negative byte counts are
-// not representable.
-//
-// Naked unit suffixes without 'B' ("10G", "512Mi") and lowercase casings ("mb", "kib")
-// are rejected to prevent ambiguity.
+// tags, via [ByteSize.UnmarshalTextWithContext] with a zero [DecodeContext].
+// The input's unit suffix fixes the value's render family; the accepted formats
+// are listed on [ByteSize].
 func (b *ByteSize) UnmarshalText(text []byte) error {
 	return b.UnmarshalTextWithContext(text, DecodeContext{})
 }
 
 // UnmarshalTextWithContext parses a strict, case-sensitive byte size string using the
-// field's declared tags: `units` restricts the accepted unit family (`binary`,
-// `decimal`, or `both`) and `display` forces the render family (`binary`, `decimal`,
-// or `input`).
+// field's declared tags: units restricts the accepted unit family (binary, decimal, or
+// both) and display forces the render family (binary, decimal, or input).
 //
 // The value captures the parsed unit's family so it renders back in the family the
-// input used (Kubernetes-Quantity style). Bare counts and the "B" suffix capture
-// the exact-bytes family and echo as exact bytes. Absent tags accept every unit
-// and echo the input family.
+// input used (Kubernetes-Quantity style). Bare counts and the B suffix capture the
+// exact-bytes family and echo as exact bytes. Absent tags accept every unit and echo
+// the input family.
 func (b *ByteSize) UnmarshalTextWithContext(text []byte, decodeContext DecodeContext) error {
 	rawText := strings.TrimSpace(string(text))
 	if rawText == "" {
@@ -675,8 +745,28 @@ func (b *ByteSize) UnmarshalTextWithContext(text []byte, decodeContext DecodeCon
 	return nil
 }
 
-// Help returns the default value syntax description for byte size flags, tailored
-// to the declared `units` and `display` tags.
+// Help returns the default value syntax description for byte size flags,
+// tailored to the declared units and display tags.
+//
+// The engine renders this text in the flag's help column when the field
+// declares no help tag; a field with a help tag shows that text instead.
+// Shells also show it as the description of the flag's completion candidates.
+//
+//	Field            Rendered text
+//	conga.ByteSize   Byte size (e.g., 10MiB, 1.5GB, 500KiB)
+//	units:"binary"   Byte size in binary units (e.g., 10KiB, 512MiB)
+//	units:"decimal"  Byte size in decimal units (e.g., 10kB, 512MB)
+//
+// The display tag appends a clause to the base text selected by units:
+//
+//	display:"binary"   Byte size ..., shown in binary units
+//	display:"decimal"  Byte size ..., shown in decimal units
+//	display:"input"    Byte size ..., shown in the entered unit family
+//
+// The "..." stands for whichever base text units selected, so every units value
+// pairs with every display value; for example units:"binary" with display:"input"
+// renders "Byte size in binary units (e.g., 10KiB, 512MiB), shown in the entered
+// unit family". An absent or unrecognized display value appends nothing.
 func (b ByteSize) Help(tags FieldTags) string {
 	helpText := "Byte size (e.g., 10MiB, 1.5GB, 500KiB)"
 
@@ -774,6 +864,8 @@ func (e *byteSizeError) Error() string {
 		return fmt.Sprintf("unknown byte size unit %q in %q", e.unit, e.raw)
 	case byteSizeErrorUnitNotAllowed:
 		return fmt.Sprintf("byte size unit %q in %q is not allowed: the field accepts %s units only", e.unit, e.raw, e.allowed)
+	case byteSizeErrorAmbiguousUnit:
+		return fmt.Sprintf("ambiguous byte size unit %q in %q: use kB (1000) or KiB (1024)", e.unit, e.raw)
 	default:
 		return fmt.Sprintf("invalid byte size %q", e.raw)
 	}
@@ -809,6 +901,10 @@ func byteSizeParseParts(numStr, unitStr, rawText string, tags FieldTags) (int64,
 		}
 
 		return parsed, byteSizeFamilyBytes, nil
+	}
+
+	if unitStr == "KB" {
+		return 0, byteSizeFamilyUnset, &byteSizeError{raw: rawText, unit: unitStr, kind: byteSizeErrorAmbiguousUnit}
 	}
 
 	multiplier, family, ok := byteSizeUnitMultiplier(unitStr)
@@ -875,7 +971,7 @@ func byteSizeUnitMultiplier(unit string) (uint64, byteSizeFamily, bool) {
 	switch unit {
 	case "B":
 		return 1, byteSizeFamilyBytes, true
-	case "kB", "KB":
+	case "kB":
 		return 1000, byteSizeFamilyDecimal, true
 	case "MB":
 		return 1000 * 1000, byteSizeFamilyDecimal, true

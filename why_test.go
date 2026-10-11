@@ -172,7 +172,7 @@ func TestWhy_ReportRedactionAndBadges(t *testing.T) {
 	cli := new(whyCLI)
 	app := conga.New(cli).
 		Name("whyapp").
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".json", json.Decode).
 		Stdout(&buffer).
 		EnableWhy().
 		Args([]string{"--port", "8080", "--headers", "z=1,a=2", "--shown", "visible-value", "--why"})
@@ -450,7 +450,7 @@ func TestWhy_ConfigFileReadFailureDiagnosticRow(t *testing.T) {
 
 	app := conga.New[whyCLI]().
 		Name("whyapp").
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".json", json.Decode).
 		Stdout(&buffer).
 		EnableWhy().
 		Args([]string{"--why"})
@@ -503,7 +503,7 @@ func TestWhy_ConfigFileRowsRender(t *testing.T) {
 
 		app := conga.New[whyCLI]().
 			Name("whyapp").
-			RegisterDecoder(".json", json.RawDecoder).
+			RegisterDecoder(".json", json.Decode).
 			Stdout(&buffer).
 			EnableWhy().
 			Args([]string{"--config-file", configPath, "--why"})
@@ -539,7 +539,7 @@ func TestWhy_ConfigFileRowsRender(t *testing.T) {
 
 		app := conga.New[multiCLI]().
 			Name("whyapp").
-			RegisterDecoder(".json", json.RawDecoder).
+			RegisterDecoder(".json", json.Decode).
 			Stdout(&buffer).
 			EnableWhy().
 			Args([]string{"--config-files", firstPath, "--config-files", secondPath, "--why"})
@@ -572,7 +572,7 @@ func TestWhy_ConfigPathsChecked_NothingFound(t *testing.T) {
 
 	app := conga.New[whySearchPathCLI]().
 		Name("whyapp").
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigPaths(localDir, userDir), conga.ConfigCascading()).
 		Stdout(&buffer).
 		EnableWhy().
@@ -609,7 +609,7 @@ func TestWhy_ConfigPathsChecked_LoadedTiers(t *testing.T) {
 
 	app := conga.New[whySearchPathCLI]().
 		Name("whyapp").
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigPaths(dirTier, stemPath), conga.ConfigCascading()).
 		Stdout(&buffer).
 		EnableWhy().
@@ -638,7 +638,7 @@ func TestWhy_ConfigPathsChecked_ExplicitPath(t *testing.T) {
 
 		app := conga.New[whyExplicitConfigCLI]().
 			Name("whyapp").
-			RegisterDecoder(".json", json.RawDecoder).
+			RegisterDecoder(".json", json.Decode).
 			Stdout(&buffer).
 			EnableWhy().
 			Args([]string{"--config-file", configPath, "--why"})
@@ -665,7 +665,7 @@ func TestWhy_ConfigPathsChecked_ExplicitPath(t *testing.T) {
 
 		app := conga.New[whyExplicitConfigCLI]().
 			Name("whyapp").
-			RegisterDecoder(".json", json.RawDecoder).
+			RegisterDecoder(".json", json.Decode).
 			Stdout(&buffer).
 			EnableWhy().
 			Args([]string{"--config-file", missingPath, "--why"})
@@ -706,7 +706,7 @@ func TestWhy_ConfigFileRowUnset(t *testing.T) {
 
 	app := conga.New[whyExplicitConfigCLI]().
 		Name("whyapp").
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigPaths(missingTier)).
 		Stdout(&buffer).
 		EnableWhy().
@@ -1041,7 +1041,7 @@ func TestWhy_ConfigPathsChecked_DefaultXDGTier(t *testing.T) {
 
 		app := conga.New[whySearchPathCLI]().
 			Name("whyapp").
-			RegisterDecoder(".json", json.RawDecoder).
+			RegisterDecoder(".json", json.Decode).
 			Stdout(&buffer).
 			EnableWhy().
 			Args([]string{"--why"})
@@ -1062,7 +1062,7 @@ func TestWhy_ConfigPathsChecked_DefaultXDGTier(t *testing.T) {
 			switch {
 			case strings.HasPrefix(line, "Config paths checked"):
 				inSection = true
-			case strings.HasPrefix(line, "Create a configuration file"):
+			case strings.HasPrefix(line, "Create a config file"):
 				inSection = false
 			case inSection && strings.HasPrefix(strings.TrimSpace(line), tierPath):
 				assert.True(t, strings.HasSuffix(strings.TrimSpace(line), "directory does not exist"), "missing default tier must report the absence: %q", line)
@@ -1086,7 +1086,7 @@ func TestWhy_ConfigPathsChecked_DefaultXDGTier(t *testing.T) {
 
 		app := conga.New[whySearchPathCLI]().
 			Name("whyapp").
-			RegisterDecoder(".json", json.RawDecoder).
+			RegisterDecoder(".json", json.Decode).
 			Stdout(&buffer).
 			EnableWhy().
 			Args([]string{"--why"})
@@ -1110,7 +1110,7 @@ func TestWhy_ConfigDecoders_HeaderSuffixListsRegisteredDecoders(t *testing.T) {
 
 	app := conga.New[whySearchPathCLI]().
 		Name("whyapp").
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigPaths(filepath.Join(t.TempDir(), "conf")), conga.ConfigCascading()).
 		Stdout(&buffer).
 		EnableWhy().
@@ -1159,7 +1159,7 @@ func TestWhy_ProbedFiles_MissingTierProbesAppStem(t *testing.T) {
 
 	app := conga.New[whySearchPathCLI]().
 		Name("whyapp").
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigPaths(missingTier), conga.ConfigCascading()).
 		Stdout(&buffer).
 		EnableWhy().
@@ -1185,8 +1185,8 @@ func TestWhy_ProbedFiles_DirectoryTierProbesConfigAndAppStems(t *testing.T) {
 
 	app := conga.New[whySearchPathCLI]().
 		Name("whyapp").
-		RegisterDecoder(".toml", toml.RawDecoder).
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".toml", toml.Decode).
+		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigPaths(dirTier), conga.ConfigCascading()).
 		Stdout(&buffer).
 		EnableWhy().
@@ -1219,7 +1219,7 @@ func TestWhy_ProbedFiles_LoadedTierOmitted(t *testing.T) {
 
 	app := conga.New[whySearchPathCLI]().
 		Name("whyapp").
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigPaths(dirTier), conga.ConfigCascading()).
 		Stdout(&buffer).
 		EnableWhy().
@@ -1234,7 +1234,7 @@ func TestWhy_ProbedFiles_LoadedTierOmitted(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Contains(t, output, "loaded: "+configPath)
 	assert.NotContains(t, output, "looked for:")
-	assert.NotContains(t, output, "Create a configuration file")
+	assert.NotContains(t, output, "Create a config file")
 }
 
 func TestWhy_ConfigExamples_SuggestedWhenNothingLoaded(t *testing.T) {
@@ -1246,7 +1246,7 @@ func TestWhy_ConfigExamples_SuggestedWhenNothingLoaded(t *testing.T) {
 
 	app := conga.New[whySearchPathCLI]().
 		Name("whyapp").
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigPaths(missingTier), conga.ConfigCascading()).
 		Stdout(&buffer).
 		EnableWhy().
@@ -1259,7 +1259,7 @@ func TestWhy_ConfigExamples_SuggestedWhenNothingLoaded(t *testing.T) {
 	output := buffer.String()
 
 	assert.NoError(t, err)
-	assert.Contains(t, output, "Create a configuration file at one of:")
+	assert.Contains(t, output, "Create a config file at one of:")
 	assert.Contains(t, output, "  "+filepath.Join(missingTier, "config.json"))
 	assert.Contains(t, output, "  "+filepath.Join(missingTier, "whyapp.json"))
 	assert.Contains(t, output, "  "+missingTier+".json")
@@ -1274,7 +1274,7 @@ func TestWhy_ProbedFiles_ExplicitPathOmitted(t *testing.T) {
 
 	app := conga.New[whyExplicitConfigCLI]().
 		Name("whyapp").
-		RegisterDecoder(".json", json.RawDecoder).
+		RegisterDecoder(".json", json.Decode).
 		Stdout(&buffer).
 		EnableWhy().
 		Args([]string{"--config-file", missingPath, "--why"})
@@ -1288,11 +1288,11 @@ func TestWhy_ProbedFiles_ExplicitPathOmitted(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Contains(t, output, missingPath)
 	assert.NotContains(t, output, "looked for:")
-	assert.NotContains(t, output, "Create a configuration file")
+	assert.NotContains(t, output, "Create a config file")
 }
 
 type hoistConfigCLI struct {
-	Config conga.ConfigFile `help:"Path to config file"`
+	Config conga.ConfigFile
 }
 
 type hoistSub struct{}
@@ -1300,12 +1300,12 @@ type hoistSub struct{}
 func (s *hoistSub) Run(_ context.Context, _ *conga.Session) error { return nil }
 
 type hoistSubCLI struct {
-	Config conga.ConfigFile        `help:"Path to config file"`
-	Sub    conga.Command[hoistSub] `name:"sub"                 summary:"Subcommand"`
+	Config conga.ConfigFile
+	Sub    conga.Command[hoistSub] `summary:"Subcommand"`
 }
 
 type hoistHelpCLI struct {
-	Config conga.ConfigFile  `help:"Path to config file"`
+	Config conga.ConfigFile
 	Help   conga.HelpCommand `summary:"Show help for any command"`
 }
 
@@ -1326,13 +1326,13 @@ func (r *whyRunner) Run(_ context.Context, _ *conga.Session) error {
 
 type whyCLI struct {
 	Port    conga.OptionalFlag[int]               `help:"Listen port"`
-	Token   conga.OptionalFlag[string]            `env:"WHY_TOKEN"    help:"API token"`
-	Shown   conga.OptionalFlag[string]            `help:"Shown value" safe:"true"`
-	Region  conga.OptionalFlag[string]            `config:"region"    help:"Deployment region"`
-	Headers conga.OptionalFlag[map[string]string] `help:"Headers"     safe:"true"`
-	Secret  conga.OptionalFlag[string]            `help:"Hidden knob" hidden:"true"`
-	Config  conga.ConfigFile                      `env:"WHY_CONFIG"   help:"Config path"`
-	Sub     conga.Command[whyRunner]              `name:"sub"         summary:"Subcommand"`
+	Token   conga.OptionalFlag[string]            `env:"WHY_TOKEN"      help:"API token"`
+	Shown   conga.OptionalFlag[string]            `help:"Shown value"   safe:"true"`
+	Region  conga.OptionalFlag[string]            `config:"region"      help:"Deployment region"`
+	Headers conga.OptionalFlag[map[string]string] `help:"Headers"       safe:"true"`
+	Secret  conga.OptionalFlag[string]            `help:"Hidden knob"   hidden:"true"`
+	Config  conga.ConfigFile                      `env:"WHY_CONFIG"     help:"Config path"`
+	Sub     conga.Command[whyRunner]              `summary:"Subcommand"`
 }
 
 type whySearchPathCLI struct {
@@ -1355,7 +1355,7 @@ type whySubCollisionRunner struct {
 func (r *whySubCollisionRunner) Run(_ context.Context, _ *conga.Session) error { return nil }
 
 type whySubCollisionCLI struct {
-	Sub conga.Command[whySubCollisionRunner] `name:"sub" summary:"Subcommand"`
+	Sub conga.Command[whySubCollisionRunner] `summary:"Subcommand"`
 }
 
 type whySubTakeoverRunner struct {
@@ -1370,7 +1370,7 @@ func (r *whySubTakeoverRunner) Run(_ context.Context, _ *conga.Session) error {
 }
 
 type whySubTakeoverCLI struct {
-	Sub conga.Command[whySubTakeoverRunner] `name:"sub" summary:"Subcommand"`
+	Sub conga.Command[whySubTakeoverRunner] `summary:"Subcommand"`
 }
 
 type whyTakeoverCLI struct {
@@ -1400,6 +1400,6 @@ func (r *whyLeafRunner) Run(_ context.Context, _ *conga.Session) error {
 
 type whyLeafCLI struct {
 	Port    conga.OptionalFlag[int]      `help:"Listen port"`
-	CLIOnly conga.OptionalFlag[string]   `config:"-"         help:"CLI-only override"`
-	Sub     conga.Command[whyLeafRunner] `name:"sub"         summary:"Subcommand"`
+	CLIOnly conga.OptionalFlag[string]   `config:"-"           help:"CLI-only override"`
+	Sub     conga.Command[whyLeafRunner] `summary:"Subcommand"`
 }

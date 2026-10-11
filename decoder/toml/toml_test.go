@@ -27,10 +27,10 @@ var (
 	fixtureValidNested []byte
 )
 
-func TestRawDecoder_ValidFlat(t *testing.T) {
+func TestDecode_ValidFlat(t *testing.T) {
 	t.Parallel()
 
-	result, err := toml.RawDecoder(fixtureValidFlat)
+	result, err := toml.Decode(fixtureValidFlat)
 
 	assert.NoError(t, err)
 	assert.Equal(t, any("testapp"), result["name"])
@@ -38,10 +38,10 @@ func TestRawDecoder_ValidFlat(t *testing.T) {
 	assert.Equal(t, any(true), result["debug"])
 }
 
-func TestRawDecoder_ValidNested(t *testing.T) {
+func TestDecode_ValidNested(t *testing.T) {
 	t.Parallel()
 
-	result, err := toml.RawDecoder(fixtureValidNested)
+	result, err := toml.Decode(fixtureValidNested)
 
 	assert.NoError(t, err)
 
@@ -65,47 +65,53 @@ func TestRawDecoder_ValidNested(t *testing.T) {
 	assert.Equal(t, any(int64(3)), config["retries"])
 }
 
-func TestRawDecoder_InvalidSyntax(t *testing.T) {
+func TestDecode_InvalidSyntax(t *testing.T) {
 	t.Parallel()
 
-	_, err := toml.RawDecoder(fixtureInvalidSyntax)
+	_, err := toml.Decode(fixtureInvalidSyntax)
 
-	assert.Error(t, err)
-	assert.IsError(t, err, toml.ErrTOMLParse)
+	assert.IsError(t, err, toml.ErrParse)
 }
 
-func TestRawDecoder_DuplicateKeys(t *testing.T) {
+func TestDecode_DuplicateKeys(t *testing.T) {
 	t.Parallel()
 
-	_, err := toml.RawDecoder(fixtureDuplicateKeys)
+	_, err := toml.Decode(fixtureDuplicateKeys)
 
-	assert.Error(t, err)
-	assert.IsError(t, err, toml.ErrTOMLParse)
+	assert.IsError(t, err, toml.ErrParse)
 }
 
-func TestRawDecoder_TrailingGarbage(t *testing.T) {
+func TestDecode_TrailingGarbage(t *testing.T) {
 	t.Parallel()
 
-	_, err := toml.RawDecoder(fixtureTrailingGarbage)
+	_, err := toml.Decode(fixtureTrailingGarbage)
 
-	assert.Error(t, err)
-	assert.IsError(t, err, toml.ErrTOMLParse)
+	assert.IsError(t, err, toml.ErrParse)
 }
 
-func TestRawDecoder_TrailingWhitespaceSucceeds(t *testing.T) {
+func TestDecode_TrailingWhitespaceSucceeds(t *testing.T) {
 	t.Parallel()
 
 	payload := []byte("name = \"testapp\"\n  \t  \n")
-	result, err := toml.RawDecoder(payload)
+	result, err := toml.Decode(payload)
 
 	assert.NoError(t, err)
 	assert.Equal(t, any("testapp"), result["name"])
 }
 
-func TestRawDecoder_EmptyValid(t *testing.T) {
+func TestDecode_EmptyValid(t *testing.T) {
 	t.Parallel()
 
-	result, err := toml.RawDecoder([]byte(""))
+	result, err := toml.Decode([]byte(""))
+
+	assert.NoError(t, err)
+	assert.Zero(t, result)
+}
+
+func TestDecode_NilInput(t *testing.T) {
+	t.Parallel()
+
+	result, err := toml.Decode(nil)
 
 	assert.NoError(t, err)
 	assert.Zero(t, result)

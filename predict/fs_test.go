@@ -133,7 +133,7 @@ func TestDirs(t *testing.T) {
 	assert.True(t, slices.Contains(values, "dist/"))
 	assert.False(t, slices.Contains(values, "app.go"))
 	assert.True(t, result.Directive.Has(predict.DirectiveNoSpace))
-	assert.True(t, result.Directive.Has(predict.DirectiveNoFileComp))
+	assert.True(t, result.Directive.Has(predict.DirectiveNoFileCompletion))
 }
 
 func TestDirsFiltered(t *testing.T) {
@@ -153,7 +153,7 @@ func TestDirsFiltered(t *testing.T) {
 
 	assert.Equal(t, []string{"2023-01/", "2024-06/"}, itemValues(result.Items))
 	assert.True(t, result.Directive.Has(predict.DirectiveNoSpace))
-	assert.True(t, result.Directive.Has(predict.DirectiveNoFileComp))
+	assert.True(t, result.Directive.Has(predict.DirectiveNoFileCompletion))
 }
 
 func TestDirsFiltered_SymlinkedDir(t *testing.T) {
@@ -174,7 +174,7 @@ func TestDirsFiltered_SymlinkedDir(t *testing.T) {
 
 	assert.Equal(t, []string{"link/"}, itemValues(result.Items))
 	assert.True(t, result.Directive.Has(predict.DirectiveNoSpace))
-	assert.True(t, result.Directive.Has(predict.DirectiveNoFileComp))
+	assert.True(t, result.Directive.Has(predict.DirectiveNoFileCompletion))
 }
 
 func TestDirsGlob(t *testing.T) {
@@ -193,7 +193,7 @@ func TestDirsGlob(t *testing.T) {
 
 		assert.Equal(t, []string{"build/"}, itemValues(result.Items))
 		assert.True(t, result.Directive.Has(predict.DirectiveNoSpace))
-		assert.True(t, result.Directive.Has(predict.DirectiveNoFileComp))
+		assert.True(t, result.Directive.Has(predict.DirectiveNoFileCompletion))
 	})
 
 	t.Run("multiple patterns union", func(t *testing.T) {

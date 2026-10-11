@@ -7,11 +7,11 @@ const (
 	// DirectiveNoSpace indicates the shell should not append a space after the candidate.
 	DirectiveNoSpace Directive = 1 << 1
 
-	// DirectiveNoFileComp indicates the shell should not fall back to file completion.
-	DirectiveNoFileComp Directive = 1 << 2
+	// DirectiveNoFileCompletion indicates the shell should not fall back to file completion.
+	DirectiveNoFileCompletion Directive = 1 << 2
 
 	// DirectiveKeepOrder indicates the shell should preserve candidate ordering.
-	DirectiveKeepOrder Directive = 1 << 5
+	DirectiveKeepOrder Directive = 1 << 3
 )
 
 // Directive is a bitmask representing actions the shell completion script should perform.

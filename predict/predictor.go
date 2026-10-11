@@ -27,7 +27,7 @@ type Result struct {
 	// Usage is an ActiveHelp/tooltip hint accompanying the candidates, not
 	// syntax help. When Directive includes DirectiveError, the wire layer
 	// also uses it as the error message for shells with a message channel
-	// (an empty Usage renders the literal "ERROR").
+	// (an empty Usage renders the literal ERROR).
 	Usage string
 }
 
@@ -88,7 +88,7 @@ func (p Predictor) Exclude(values ...string) Predictor {
 // FilterText filters candidates by matching against the given query prefix.
 // The argument replaces the implicit ctx.ToComplete term used during
 // filtering; FilterText("") restores the implicit term. There is no "disable
-// filtering" spelling. This method filters by query match — unlike the
+// filtering" spelling. This method filters by query match: unlike the
 // predicate-based FilesFiltered, DirsFiltered, and PathsFiltered constructors,
 // whose filter argument is a predicate over directory entries.
 func (p Predictor) FilterText(toComplete string) Predictor {
@@ -128,7 +128,7 @@ func (p Predictor) Prefix(prefix string) Predictor {
 // Raw returns the statically stored completion candidate values: the raw
 // strings recorded by constructors such as Values, Items, and Map, or the
 // Value fields of the stored Items when no raw slice was recorded. It is a
-// snapshot, not an evaluation — callbacks, batches, and MultiParts are not
+// snapshot, not an evaluation: callbacks, batches, and MultiParts are not
 // invoked (a callback-only predictor returns an empty slice), and while
 // Exclude narrows the stored set, Prefix, Suffix, Style, and Tag are ignored
 // because they apply to Result.Items only. The returned slice is always a
@@ -226,7 +226,7 @@ func Items(items ...Item) Predictor {
 
 	return Predictor{
 		items:     copied,
-		directive: DirectiveNoFileComp,
+		directive: DirectiveNoFileCompletion,
 		raw:       raw,
 	}
 }
@@ -251,7 +251,7 @@ func Map(items map[string]string) Predictor {
 
 	return Predictor{
 		items:     completionItems,
-		directive: DirectiveNoFileComp,
+		directive: DirectiveNoFileCompletion,
 		raw:       keys,
 	}
 }
@@ -311,7 +311,7 @@ func MultiParts(delimiter string, fn func(c Context) Predictor) Predictor {
 // None creates a Predictor that suppresses completion and file fallbacks.
 func None() Predictor {
 	return Predictor{
-		directive: DirectiveNoFileComp,
+		directive: DirectiveNoFileCompletion,
 	}
 }
 
@@ -323,7 +323,7 @@ func Values(values ...string) Predictor {
 
 	return Predictor{
 		items:     items,
-		directive: DirectiveNoFileComp,
+		directive: DirectiveNoFileCompletion,
 		raw:       slices.Clone(values),
 	}
 }
@@ -438,7 +438,7 @@ func (p Predictor) evaluateBaseWithTimeout(ctx Context, timeout time.Duration) (
 		}
 
 		return Result{
-			Directive: DirectiveNoFileComp,
+			Directive: DirectiveNoFileCompletion,
 		}, false
 	}
 }

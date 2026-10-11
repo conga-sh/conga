@@ -631,7 +631,7 @@ func TestDomainTypes(t *testing.T) {
 			{name: "zero integer", input: "0", expected: 0, expectError: false},
 			{name: "exact bytes B unit", input: "500B", expected: 500, expectError: false},
 			{name: "SI kilobytes lowercase k", input: "1kB", expected: 1000, expectError: false},
-			{name: "SI kilobytes uppercase K", input: "2KB", expected: 2000, expectError: false},
+			{name: "SI kilobytes uppercase K rejected as ambiguous", input: "2KB", expected: 0, expectError: true},
 			{name: "IEC kibibytes", input: "1KiB", expected: 1024, expectError: false},
 			{name: "SI megabytes", input: "10MB", expected: 10 * 1000 * 1000, expectError: false},
 			{name: "IEC mebibytes", input: "1MiB", expected: 1024 * 1024, expectError: false},
@@ -1355,9 +1355,9 @@ func TestFileTypesEndToEnd(t *testing.T) {
 	type CLI struct {
 		noopRunner
 
-		Content conga.OptionalFlag[conga.FileContent] `help:"File content flag" name:"content"`
-		Input   conga.OptionalFlag[conga.File]        `existing:"true"          help:"Input file flag" name:"input"  stdin:"true"`
-		Output  conga.OptionalFlag[conga.File]        `help:"Output file flag"  name:"output"          stdout:"true"`
+		Content conga.OptionalFlag[conga.FileContent] `help:"File content flag"`
+		Input   conga.OptionalFlag[conga.File]        `existing:"true"          help:"Input file flag" stdin:"true"`
+		Output  conga.OptionalFlag[conga.File]        `help:"Output file flag"  stdout:"true"`
 	}
 
 	tmpDir := t.TempDir()
@@ -1626,7 +1626,7 @@ func TestDomainTypesJSONSerializationRoundtrip(t *testing.T) {
 
 	var decodedContent conga.FileContent
 
-	err = json.Unmarshal([]byte(fmt.Sprintf("%q", filePath)), &decodedContent)
+	err = json.Unmarshal(fmt.Appendf(nil, "%q", filePath), &decodedContent)
 	assert.NoError(t, err)
 	assert.Equal(t, "payload", decodedContent.String())
 }
@@ -1661,13 +1661,13 @@ func TestDomainTypesInterfaceAssertions(t *testing.T) {
 type invalidByteSizeUnitsCLI struct {
 	noopRunner
 
-	Memory conga.OptionalFlag[conga.ByteSize] `name:"memory" units:"hex"`
+	Memory conga.OptionalFlag[conga.ByteSize] `units:"hex"`
 }
 
 type invalidByteSizeDisplayCLI struct {
 	noopRunner
 
-	Memory conga.OptionalFlag[conga.ByteSize] `display:"hex" name:"memory"`
+	Memory conga.OptionalFlag[conga.ByteSize] `display:"hex"`
 }
 
 // TestByteSizeEchoesInputFamily verifies the default (untagged) render model:
@@ -1684,7 +1684,7 @@ func TestByteSizeEchoesInputFamily(t *testing.T) {
 		{name: "decimal fraction renders as integer decimal", input: "1.5GB", expected: "1500MB"},
 		{name: "binary fraction renders as integer binary", input: "0.5GiB", expected: "512MiB"},
 		{name: "decimal integer preserved", input: "10MB", expected: "10MB"},
-		{name: "decimal lowercase k canonicalized", input: "2KB", expected: "2kB"},
+		{name: "decimal kilo renders kB", input: "2kB", expected: "2kB"},
 		{name: "binary integer preserved", input: "2GiB", expected: "2GiB"},
 		{name: "bare integer echoes exact bytes", input: "1024", expected: "1024B"},
 		{name: "bare indivisible integer emits bytes", input: "1536", expected: "1536B"},

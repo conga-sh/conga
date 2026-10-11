@@ -15,7 +15,7 @@ CONGA classifies every failure into five base categories, one per pipeline stage
 | **1** | Command runtime failure (`Runner.Run` or lifecycle hooks), schema-build failure (`ErrSchema`), or configuration failure (`ErrConfig`) |
 | **2** | Usage error: unknown flags, coercion failures, constraint violations, missing required input — and internal completion failures with a diagnostic on stderr |
 
-Built-in requests (`--help`, `help`, `--version`, `version`, and — when enabled with `app.EnableWhy()` / `app.EnableCompletion()` — `--why` and `--completion <shell>`) render their output to stdout during `app.Run()` and return `nil` — they are normal execution, not errors.
+Built-in requests (`--help`, `help`, `--version`, `version`, and opt-in `--why` and `--completion <shell>`) write to stdout during `app.Run()` and return `nil` on clean completion.
 
 ## Base categories
 
@@ -34,6 +34,7 @@ Use `conga.IsUsageError(err)` to decide whether an error is input-related (exit 
 ```go
 type UsageError interface {
 	error
+	IsUsageError() bool
 	CommandPath() string
 	Usage() string
 }
@@ -53,26 +54,37 @@ type CompletionError interface {
 
 The concrete error implementations (parse, coercion, validation, config) are unexported; `IsUsageError`, `IsCompletionError`, `UsageError`, `CompletionError`, and the base category sentinels form the public classification API.
 
-## Replacing app.Exit
+## Custom error handling
 
-When an application requires custom process termination, error formatting, or telemetry, inspect errors returned from `app.Run()` or `app.RunContext(ctx)` directly rather than calling `app.Exit(err)`:
+Custom error handling inspects the error returned by `app.Run()` or `app.RunContext(ctx)` directly instead of delegating to `app.Exit(err)`. The classification is available from the returned error: `conga.IsUsageError(err)` distinguishes input errors, `errors.AsType[conga.UsageError](err)` yields the `UsageError` for `CommandPath()` and `Usage()`, `conga.IsCompletionError(err)` identifies internal completion failures, and `errors.Is` matches the base category sentinels.
 
 ```go
 if err := app.RunContext(ctx); err != nil {
 	if usageErr, ok := errors.AsType[conga.UsageError](err); ok {
-		fmt.Fprintf(os.Stderr, "Error: %v\n\n%s\n", err, usageErr.Usage())
+		fmt.Fprintf(os.Stderr, "usage error in %s: %v\n", usageErr.CommandPath(), err)
+		fmt.Fprintf(os.Stderr, "%s\n", usageErr.Usage())
+
 		os.Exit(2)
 	}
 
+	if errors.Is(err, conga.ErrConfig) {
+		fmt.Fprintf(os.Stderr, "configuration failure: %v\n", err)
+		
+		os.Exit(78)
+	}
+
 	if conga.IsCompletionError(err) {
-		fmt.Fprintf(os.Stderr, "%v\n", err)
-		os.Exit(2)
+		fmt.Fprintf(os.Stderr, "completion failure: %v\n", err)
+		
+		os.Exit(70)
 	}
 
 	fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 	os.Exit(1)
 }
 ```
+
+[About error reporting](/explanation/error-reporting/) covers the separation of error values from process termination.
 
 ## Usage rendering on errors
 
@@ -85,4 +97,4 @@ if err := app.RunContext(ctx); err != nil {
 | `conga.UsageHint` | Clean error plus a single `Run '<cmd> --help'` hint |
 | `conga.UsageSilence` | Only the clean error message |
 
-Self-describing value errors render only the error line regardless of the configured mode. These are errors whose message already names the flag/argument and the offending value — coercion failures (`unknown byte size unit "XB" in "5XB" for flag --max-memory`) and value-constraint violations (`"/etc/passwd" is a file, but a directory was expected for flag --dir`, `score 150 must be between 0 and 100 for flag --score`). Errors that benefit from usage context — unknown commands and flags, missing required flags/arguments, mutually exclusive or grouped flags — keep the mode's rendering.
+Self-describing value errors render only the error line regardless of the configured mode. These are errors whose message already names the flag/argument and the offending value — coercion failures (`unknown byte size unit "XB" in "5XB" for flag --max-memory`, `ambiguous byte size unit "KB" in "5KB": use kB (1000) or KiB (1024) for flag --max-memory`) and value-constraint violations (`"/etc/passwd" is a file, but a directory was expected for flag --dir`, `score 150 must be between 0 and 100 for flag --score`). Errors that benefit from usage context — unknown commands and flags, missing required flags/arguments, mutually exclusive or grouped flags — keep the mode's rendering.

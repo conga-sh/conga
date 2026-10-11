@@ -36,7 +36,7 @@ func TestConfigFile_Completion_RestrictedToSingleDecoder(t *testing.T) {
 
 	app := conga.New[ConfigCompleteSingleCLI]().
 		EnableCompletion().
-		RegisterDecoder(".toml", toml.RawDecoder)
+		RegisterDecoder(".toml", toml.Decode)
 
 	result, _ := app.CompleteForShell("fish", []string{"--config-file", filepath.Join(tmpDir, "") + string(filepath.Separator)})
 
@@ -59,8 +59,8 @@ func TestConfigFile_Completion_MultipleDecoders(t *testing.T) {
 
 	app := conga.New[ConfigCompleteSingleCLI]().
 		EnableCompletion().
-		RegisterDecoder(".toml", toml.RawDecoder).
-		RegisterDecoder(".hcl", hcl.RawDecoder)
+		RegisterDecoder(".toml", toml.Decode).
+		RegisterDecoder(".hcl", hcl.Decode)
 
 	result, _ := app.CompleteForShell("fish", []string{"--config-file", filepath.Join(tmpDir, "") + string(filepath.Separator)})
 
@@ -100,7 +100,7 @@ func TestConfigFile_Completion_ConfigFilesMulti(t *testing.T) {
 
 	app := conga.New[ConfigCompleteMultiCLI]().
 		EnableCompletion().
-		RegisterDecoder(".toml", toml.RawDecoder)
+		RegisterDecoder(".toml", toml.Decode)
 
 	result, _ := app.CompleteForShell("fish", []string{"--config-file", filepath.Join(tmpDir, "") + string(filepath.Separator)})
 

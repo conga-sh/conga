@@ -9,7 +9,7 @@ tasks:
   test:
     desc: Run unit tests (supports custom flags or packages via --, e.g. task test -- -v ./internal/...)
     cmds:
-      - go test -trimpath -ldflags="-s -w" {{.CLI_ARGS | default "./..."}}
+      - go test -race -trimpath -ldflags="-s -w" {{.CLI_ARGS | default "./..."}}
 
   test:shell:
     desc: Run shell completion integration tests (requires installed shells)

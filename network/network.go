@@ -1,13 +1,27 @@
-// Package network provides autocompletion predictors and strongly-typed domain
-// objects for network interfaces, hosts, ports, HTTP status codes, MIME types,
-// and HTTP methods.
+// Package network provides domain types and autocompletion predictors for
+// network interfaces, hosts, ports, HTTP status codes, MIME types, and HTTP
+// methods, plus an optional standard library binding for *net.Interface fields.
 //
-// Every exported type implements encoding.TextUnmarshaler and Predict: fields
-// declared with these types coerce automatically and complete from package
-// tables or live system state. Invalid values classify under conga.ErrCoerce
-// with the flag and reason named in the message. Host.LookupIP and
-// NetInterface.Interface return [ErrEmptyHost] and [ErrEmptyInterface]
-// respectively for blank input.
+// Every exported domain type implements encoding.TextUnmarshaler and Predict:
+// fields declared with these types coerce automatically and complete from
+// package tables or live system state. Invalid values classify under
+// conga.ErrCoerce with the flag and reason named in the message. Host.LookupIP
+// and NetInterface.Interface report a blank receiver as an error naming the
+// failed lookup.
+//
+// Mount [RegisterInterface] to register *net.Interface with net.InterfaceByName
+// and enable interface completion on fields typed with the standard library
+// type:
+//
+//	type CLI struct {
+//		Iface conga.OptionalFlag[network.NetInterface] `short:"i" help:"Network interface"`
+//		Peer  conga.OptionalFlag[*net.Interface]       `short:"p" help:"Peer interface"`
+//	}
+//
+//	app := conga.New[CLI]().Use(network.RegisterInterface)
+//
+// See https://docs.conga.sh/reference/domain-types/ for the domain type
+// reference.
 package network
 
 import (
@@ -22,6 +36,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/internal/scanx"
 	"github.com/conga-sh/conga/internal/slicex"
 	"github.com/conga-sh/conga/internal/style"
@@ -29,11 +44,8 @@ import (
 )
 
 var (
-	// ErrEmptyHost indicates a blank host or domain name.
-	ErrEmptyHost = errors.New("host cannot be empty")
-
-	// ErrEmptyInterface indicates a blank network interface name.
-	ErrEmptyInterface = errors.New("interface name cannot be empty")
+	errEmptyHost      = errors.New("lookup host: empty host name")
+	errEmptyInterface = errors.New("network interface: empty interface name")
 
 	errInvalidHTTPMethod = errors.New("unrecognized HTTP method")
 	errInvalidHTTPStatus = errors.New("invalid HTTP status")
@@ -121,6 +133,14 @@ func (h *Host) Predict() predict.Predictor {
 	return Hosts()
 }
 
+// Help returns the default value syntax description for host flags. The engine
+// renders this text in the flag's help column when the field declares no help
+// tag; a field with a help tag shows that text instead. Shells also show it as
+// the description of the flag's completion candidates.
+func (h *Host) Help() string {
+	return "Host (hostname, domain, or IP address)"
+}
+
 // String returns the hostname or IP string.
 func (h *Host) String() string {
 	if h == nil {
@@ -134,7 +154,7 @@ func (h *Host) String() string {
 // ctx for cancellation and deadlines.
 func (h *Host) LookupIP(ctx context.Context) ([]net.IP, error) {
 	if h == nil || *h == "" {
-		return nil, ErrEmptyHost
+		return nil, errEmptyHost
 	}
 
 	ips, err := net.DefaultResolver.LookupIP(ctx, "ip", string(*h))
@@ -147,7 +167,7 @@ func (h *Host) LookupIP(ctx context.Context) ([]net.IP, error) {
 
 // UnmarshalText sets the host string, trimming surrounding whitespace; empty
 // input clears the value. It performs no validation: a host is checked only
-// when it is used (e.g. LookupIP rejects a blank host with ErrEmptyHost).
+// when it is used (e.g. LookupIP rejects a blank host with an error).
 func (h *Host) UnmarshalText(text []byte) error {
 	raw := strings.TrimSpace(string(text))
 	if raw == "" {
@@ -167,6 +187,14 @@ type HTTPMethod string
 // Predict returns HTTP method autocompletion candidates.
 func (m *HTTPMethod) Predict() predict.Predictor {
 	return HTTPMethods()
+}
+
+// Help returns the default value syntax description for HTTP method flags. The
+// engine renders this text in the flag's help column when the field declares no
+// help tag; a field with a help tag shows that text instead. Shells also show
+// it as the description of the flag's completion candidates.
+func (m *HTTPMethod) Help() string {
+	return "HTTP method (GET, POST, PUT, DELETE, ...)"
 }
 
 // String returns the HTTP method in uppercase.
@@ -205,6 +233,14 @@ func (s *HTTPStatus) Predict() predict.Predictor {
 	return HTTPStatusCodes()
 }
 
+// Help returns the default value syntax description for HTTP status flags. The
+// engine renders this text in the flag's help column when the field declares no
+// help tag; a field with a help tag shows that text instead. Shells also show
+// it as the description of the flag's completion candidates.
+func (s *HTTPStatus) Help() string {
+	return "HTTP status code (100-599, e.g. 200, 404)"
+}
+
 // Code returns the HTTP status code as an integer.
 func (s *HTTPStatus) Code() int {
 	if s == nil {
@@ -214,7 +250,7 @@ func (s *HTTPStatus) Code() int {
 	return int(*s)
 }
 
-// Text returns the standard HTTP status reason text (e.g. "OK", "Not Found").
+// Text returns the standard HTTP status reason text (e.g. OK, Not Found).
 func (s *HTTPStatus) Text() string {
 	if s == nil {
 		return ""
@@ -288,7 +324,7 @@ func (s *HTTPStatus) UnmarshalText(text []byte) error {
 	return nil
 }
 
-// MIMEType represents an IANA media type string (e.g. "application/json").
+// MIMEType represents an IANA media type string (e.g. application/json).
 type MIMEType string
 
 // Predict returns media type autocompletion candidates.
@@ -296,7 +332,15 @@ func (m *MIMEType) Predict() predict.Predictor {
 	return MIMETypes()
 }
 
-// Type returns the top-level media type component (e.g. "application" in "application/json").
+// Help returns the default value syntax description for MIME type flags. The
+// engine renders this text in the flag's help column when the field declares no
+// help tag; a field with a help tag shows that text instead. Shells also show
+// it as the description of the flag's completion candidates.
+func (m *MIMEType) Help() string {
+	return "MIME type (e.g. application/json)"
+}
+
+// Type returns the top-level media type component (e.g. application in application/json).
 func (m *MIMEType) Type() string {
 	if m == nil {
 		return ""
@@ -307,7 +351,7 @@ func (m *MIMEType) Type() string {
 	return strings.TrimSpace(topType)
 }
 
-// Subtype returns the subtype component (e.g. "json" in "application/json; charset=utf-8").
+// Subtype returns the subtype component (e.g. json in application/json; charset=utf-8).
 func (m *MIMEType) Subtype() string {
 	if m == nil {
 		return ""
@@ -359,6 +403,14 @@ func (n *NetInterface) Predict() predict.Predictor {
 	return NetInterfaces()
 }
 
+// Help returns the default value syntax description for network interface
+// flags. The engine renders this text in the flag's help column when the field
+// declares no help tag; a field with a help tag shows that text instead. Shells
+// also show it as the description of the flag's completion candidates.
+func (n *NetInterface) Help() string {
+	return "Network interface (e.g. eth0, lo)"
+}
+
 // String returns the network interface name.
 func (n *NetInterface) String() string {
 	if n == nil {
@@ -371,7 +423,7 @@ func (n *NetInterface) String() string {
 // Interface queries the system for the underlying net.Interface.
 func (n *NetInterface) Interface() (*net.Interface, error) {
 	if n == nil || *n == "" {
-		return nil, ErrEmptyInterface
+		return nil, errEmptyInterface
 	}
 
 	iface, err := net.InterfaceByName(string(*n))
@@ -410,6 +462,14 @@ type Port uint16
 // Predict returns service port autocompletion candidates.
 func (p *Port) Predict() predict.Predictor {
 	return Ports()
+}
+
+// Help returns the default value syntax description for port flags. The engine
+// renders this text in the flag's help column when the field declares no help
+// tag; a field with a help tag shows that text instead. Shells also show it as
+// the description of the flag's completion candidates.
+func (p *Port) Help() string {
+	return `Port (1-65535, or a service name like "http")`
 }
 
 // Int returns the port number as an integer.
@@ -470,6 +530,13 @@ func (p *Port) UnmarshalText(text []byte) error {
 	*p = Port(uint16(resolvedPort))
 
 	return nil
+}
+
+// RegisterInterface mounts *net.Interface support onto the app builder: the
+// parser resolves interface names (e.g. lo, eth0) with net.InterfaceByName and
+// completion offers the host's interfaces. Apply with app.Use.
+func RegisterInterface[T any](app *conga.App[T]) {
+	app.RegisterType(net.InterfaceByName, conga.WithPredictor(NetInterfaces()))
 }
 
 // Hosts configures completion of hostnames from /etc/hosts, SSH known_hosts, and SSH config.

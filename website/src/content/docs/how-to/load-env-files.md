@@ -26,7 +26,7 @@ When invoked without arguments, `Dotenv()` probes `.env` then `.env.local` in th
 
 ## Preserve host environment variables
 
-At startup, `app.Dotenv()` adheres to the 12-factor application principle: existing host environment variables are never overwritten by `.env` files. If an environment variable is already set in the operating system shell, Docker container, or CI runner, CONGA preserves that value and ignores the corresponding entry in `.env` or `.env.local`. Variable expansion observes the same precedence: a reference such as `${HOST}` resolves to the host value, so derived entries stay consistent with the preserved variable:
+At startup, `app.Dotenv()` adheres to the 12-factor application principle: host environment variables take precedence over `.env` files. Variables set in the shell, container, or CI runner override matching entries in `.env` or `.env.local`. Variable expansion observes the same precedence: a reference such as `${HOST}` resolves to the host value, keeping derived entries consistent with the preserved variable:
 
 ```sh
 # OS environment variable takes precedence over .env entries

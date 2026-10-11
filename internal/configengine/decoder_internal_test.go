@@ -12,11 +12,11 @@ func TestRegistry_DecoderNormalization(t *testing.T) {
 	t.Parallel()
 
 	registry := NewRegistry()
-	registry.Register("CUSTOMEXT", json.RawDecoder)
+	registry.Register("CUSTOMEXT", json.Decode)
 
-	assert.Equal(t, json.RawDecoder, registry.Decoder(".customext"))
-	assert.Equal(t, json.RawDecoder, registry.Decoder("CUSTOMEXT"))
-	assert.Equal(t, json.RawDecoder, registry.Decoder("*.customext"))
+	assert.Equal(t, json.Decode, registry.Decoder(".customext"))
+	assert.Equal(t, json.Decode, registry.Decoder("CUSTOMEXT"))
+	assert.Equal(t, json.Decode, registry.Decoder("*.customext"))
 	assert.Equal(t, nil, registry.Decoder(".neverregisteredext"))
 }
 
@@ -24,8 +24,8 @@ func TestRegistry_Extensions(t *testing.T) {
 	t.Parallel()
 
 	registry := NewRegistry()
-	registry.Register("toml", json.RawDecoder)
-	registry.Register(".json", json.RawDecoder)
+	registry.Register("toml", json.Decode)
+	registry.Register(".json", json.Decode)
 
 	extensions := registry.Extensions()
 
@@ -40,7 +40,7 @@ func TestRegistry_NilReceiver(t *testing.T) {
 	assert.Zero(t, registry.Decoder(".json"))
 	assert.Zero(t, registry.Extensions())
 
-	registry.Register(".json", json.RawDecoder)
+	registry.Register(".json", json.Decode)
 
 	assert.Zero(t, registry.Decoder(".json"))
 }

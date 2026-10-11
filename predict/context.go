@@ -9,7 +9,7 @@ import (
 type Context struct {
 	// ToComplete is the word fragment under the cursor being completed. The
 	// implicit filtering term of a Predictor is derived from it unless
-	// Filter has been called with a non-empty query.
+	// FilterText has been called with a non-empty query.
 	ToComplete string
 
 	// Args holds the positional arguments parsed before ToComplete for the
@@ -17,8 +17,8 @@ type Context struct {
 	Args []string
 
 	// Parts holds the already-completed segments of a MultiParts value (e.g.
-	// ["key"] while completing "key=val"). The engine leaves it empty: it is
-	// populated by MultiParts for the nested predictor only.
+	// the key segment while completing key=val). The engine leaves it empty: it
+	// is populated by MultiParts for the nested predictor only.
 	Parts []string
 
 	// ParentParts holds the Parts segments of the enclosing MultiParts

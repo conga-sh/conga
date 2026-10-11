@@ -1,6 +1,7 @@
 package system_test
 
 import (
+	"bytes"
 	"context"
 	"os/user"
 	"syscall"
@@ -9,7 +10,7 @@ import (
 	"github.com/alecthomas/assert/v2"
 
 	"github.com/conga-sh/conga"
-	"github.com/conga-sh/conga/plugin/system"
+	"github.com/conga-sh/conga/system"
 )
 
 func TestSignal(t *testing.T) {
@@ -18,7 +19,7 @@ func TestSignal(t *testing.T) {
 	cli := new(sysTestCLI)
 	app := conga.New(cli).
 		Args([]string{"-s", "SIGHUP"}).
-		Use(system.Signal)
+		Use(system.RegisterSignal)
 
 	err := app.Run()
 
@@ -31,7 +32,7 @@ func TestSignal_InvalidName(t *testing.T) {
 
 	app := conga.New[sysTestCLI]().
 		Args([]string{"-s", "NOTASIGNAL"}).
-		Use(system.Signal)
+		Use(system.RegisterSignal)
 
 	err := app.Run()
 
@@ -39,6 +40,24 @@ func TestSignal_InvalidName(t *testing.T) {
 	assert.IsError(t, err, conga.ErrCoerce)
 	assert.True(t, conga.IsUsageError(err))
 	assert.Contains(t, err.Error(), "NOTASIGNAL")
+}
+
+func TestSignal_Completion(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	app := conga.New[sysTestCLI]().
+		EnableCompletion().
+		Name("app").
+		Stdout(&buffer).
+		Use(system.RegisterSignal).
+		Args([]string{"__complete", "export", "--sig", ""})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Contains(t, buffer.String(), `"value":"SIGTERM"`)
 }
 
 func TestUser(t *testing.T) {
@@ -50,7 +69,7 @@ func TestUser(t *testing.T) {
 	cli := new(sysTestCLI)
 	app := conga.New(cli).
 		Args([]string{"-u", curr.Username}).
-		Use(system.User)
+		Use(system.RegisterUser)
 
 	err = app.Run()
 
@@ -64,7 +83,7 @@ func TestUser_UnknownUser(t *testing.T) {
 
 	app := conga.New[sysTestCLI]().
 		Args([]string{"-u", "no-such-user-conga-test"}).
-		Use(system.User)
+		Use(system.RegisterUser)
 
 	err := app.Run()
 
@@ -86,7 +105,7 @@ func TestGroup(t *testing.T) {
 	cli := new(sysTestCLI)
 	app := conga.New(cli).
 		Args([]string{"-g", grp.Name}).
-		Use(system.Group)
+		Use(system.RegisterGroup)
 
 	err = app.Run()
 
@@ -100,7 +119,7 @@ func TestGroup_UnknownGroup(t *testing.T) {
 
 	app := conga.New[sysTestCLI]().
 		Args([]string{"-g", "no-such-group-conga-test"}).
-		Use(system.Group)
+		Use(system.RegisterGroup)
 
 	err := app.Run()
 
@@ -108,6 +127,54 @@ func TestGroup_UnknownGroup(t *testing.T) {
 	assert.IsError(t, err, conga.ErrCoerce)
 	assert.True(t, conga.IsUsageError(err))
 	assert.Contains(t, err.Error(), "no-such-group-conga-test")
+}
+
+func TestDefaultTypeHelp(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	app := conga.New[sysHelpCLI]().
+		Args([]string{"--help"}).
+		Stdout(&buffer)
+
+	err := app.Run()
+	assert.NoError(t, err)
+
+	output := buffer.String()
+
+	for _, testCase := range []struct {
+		name string
+		want string
+	}{
+		{"EnvVar", "Environment variable name (e.g. PATH)"},
+		{"Group", "System group name"},
+		{"Locale", "Locale identifier (e.g. en_US.UTF-8)"},
+		{"PID", "Process ID (a positive integer)"},
+		{"Process", "Process executable name (e.g. postgres)"},
+		{"Signal", "Signal name or number (e.g. SIGTERM, 9)"},
+		{"User", "System username"},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Contains(t, output, testCase.want)
+		})
+	}
+}
+
+type sysHelpCLI struct {
+	Env     conga.OptionalFlag[system.EnvVar]
+	Group   conga.OptionalFlag[system.Group]
+	Locale  conga.OptionalFlag[system.Locale]
+	PID     conga.OptionalFlag[system.PID]
+	Process conga.OptionalFlag[system.Process]
+	Signal  conga.OptionalFlag[system.Signal]
+	User    conga.OptionalFlag[system.User]
+}
+
+func (c *sysHelpCLI) Run(_ context.Context, _ *conga.Session) error {
+	return nil
 }
 
 type sysTestCLI struct {

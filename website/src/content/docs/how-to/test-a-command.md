@@ -3,7 +3,7 @@ title: How to test a command
 description: Inject arguments and in-memory streams, intercept exit codes, and assert command behavior in Go unit tests.
 ---
 
-Testing CONGA applications does not require spawning external processes or mutating global process state. Construct the `App` directly in your test, inject an in-memory argument slice and I/O buffers, and execute the application with `RunContext(t.Context())`.
+Test CONGA applications in-process by constructing the `App` directly, injecting an in-memory argument slice and I/O buffers, and executing with `RunContext(t.Context())`.
 
 ## Isolate arguments and I/O streams
 
@@ -93,7 +93,7 @@ To test error messages without dumping the full usage block to stderr, add `Usag
 
 ## Test built-in flags
 
-Built-in requests (`--help`, `--version`, and `--why`) are valid execution paths, not errors. They write to `Stdout` and return `nil`:
+Built-in requests (`--help`, `--version`, and `--why`) execute cleanly, writing to `Stdout` and returning `nil`:
 
 ```go title="main_test.go"
 func TestHelpFlagRendersUsage(t *testing.T) {

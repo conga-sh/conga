@@ -14,7 +14,7 @@ Command-line libraries in the Go ecosystem generally approach input modelling in
 1. **Imperative flag sets**: Standard library `flag`, `spf13/cobra`, and `urfave/cli` register flags imperatively onto flag sets. Flags bind to standalone variables through pointers or are queried by string keys such as `cmd.Flags().GetString("addr")`. This model separates the command-line specification from data structures and defers type and name checks to runtime error returns.
 2. **Struct-field reflection**: Libraries like `alecthomas/kong` and `alexflint/go-arg` derive flag schemas directly from Go struct definitions using struct tags. Flags map to native Go types (`string`, `int`, `bool`) or pointers (`*string`). This keeps declarations concise and feels like ordinary Go code.
 
-CONGA follows the struct-based approach, but uses dedicated generic containers—such as `OptionalFlag[T]`, `RequiredFlag[T]`, and `RequiredArg[T]`—rather than bare primitive fields or pointers.
+CONGA follows the struct-based approach with dedicated generic containers: `OptionalFlag[T]`, `RequiredFlag[T]`, and `RequiredArg[T]`.
 
 ## The container trade-off
 
@@ -26,15 +26,11 @@ CONGA accepts this syntactic overhead because containers solve several structura
 
 ### Separating value access from presence checks
 
-In Go, primitive types always have a zero value (`""` for strings, `0` for numbers). If a command struct uses bare primitives, the application cannot distinguish whether an operator passed `--port 0` explicitly or omitted the flag entirely.
-
-Libraries using plain structs often turn to pointer fields (`*int`, `*string`) to distinguish presence. Pointers solve the ambiguity—an omitted flag is `nil`, while `--port 0` points to `0`—but they couple memory safety directly to presence checking. A handler cannot read the value; it must check `if cmd.Port != nil` before dereferencing, or risk a runtime panic.
-
-Containers decouple value retrieval from presence checks:
-- **Panic-free value retrieval**: `cmd.Port.Get()` is always safe to call and returns the resolved value as `T` directly. When business logic only needs the value—or its zero value—it reads the container without defensive pointer checks.
+Bare fields and pointers conflate presence with value: an omitted flag and an explicit zero are indistinguishable, and a pointer field must be nil-checked before use. Containers decouple value retrieval from presence checks:
+- **Panic-free value retrieval**: `cmd.Port.Get()` returns the resolved value as `T`, with no pointer to check.
 - **Pre-run enforcement for required values**: A required flag or argument that received no value fails validation at the engine boundary before any lifecycle hook (`Validate`, `PreRun`, `Run`) executes. Handlers never observe an unpopulated required container.
-- **Accurate presence when branching**: When logic genuinely branches on whether a flag was supplied, the command checks `cmd.Port.IsSet()`. Like a pointer `nil` check, `IsSet()` accurately distinguishes explicit zero values (`--port 0`) from omission, but without heap pointer indirection or the risk of a nil dereference elsewhere in the handler.
-- **Convenient fallbacks**: When an optional flag needs a fallback value if omitted, `cmd.Port.GetOr(8080)` evaluates the fallback in a single expression, avoiding boilerplate `if cmd.Port.IsSet() { ... } else { ... }` blocks.
+- **Accurate presence when branching**: `cmd.Port.IsSet()` distinguishes an explicit zero value (`--port 0`) from omission.
+- **Convenient fallbacks**: `cmd.Port.GetOr(8080)` supplies a fallback in a single expression.
 
 ### Decoupling presence and provenance from values
 CONGA is built around a multi-tier resolution ladder where values can originate from CLI flags, environment variables, config files, or hardcoded defaults. Bare fields and pointers discard that origin once populated.
@@ -54,7 +50,7 @@ CONGA provides two distinct ways to supply fallback values for optional inputs:
 - **Declarative schema defaults (`default:"..."`)**: Evaluated at compile time and resolved during engine binding. When no higher tier provides a value, the container populates with the tag's value (`IsSet() == true`, `Changed() == false`, `Source() == SourceDefault`). Help screens automatically display `(default: ...)`.
 - **Imperative dynamic fallbacks (`GetOr(fallback)`)**: Evaluated at runtime inside the command body only when the container is unset (`IsSet() == false`, `SourceNone`). This pattern suits fallbacks derived from operating system state, dynamic directories, or values computed from other flags.
 
-Required containers expose no `GetOr`: a required container without a value fails validation before execution, so a fallback is structurally meaningless.
+`GetOr` is available on optional containers; required containers guarantee a validated value prior to execution.
 
 ## Flags versus positional arguments
 
@@ -68,7 +64,7 @@ Positional arguments (`RequiredArg[T]`, `OptionalArg[T]`) have no names on the c
 ### Resolution scope
 Flags participate in the complete four-tier resolution ladder. A flag value can come from the command line, an environment variable, an active config file, or a default tag.
 
-Positional arguments represent immediate execution targets, such as file paths, hostnames, or artifact identifiers. They resolve strictly from command-line arguments. Positional arguments never read from environment variables or config files, preventing ambient system settings from altering explicit command targets.
+Positional arguments represent immediate execution targets, such as file paths, hostnames, or artifact identifiers. They resolve strictly from command-line tokens, isolating execution targets from ambient environment or configuration settings.
 
 ## Deterministic positional evaluation
 

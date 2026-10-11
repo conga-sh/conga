@@ -14,11 +14,11 @@ func main() {
 		Description("Exhaustive type, configuration-mapping, and schema-directive reference").
 		Version("1.0.0").
 		EnableCompletion().
-		RegisterDecoder(".toml", toml.RawDecoder).
-		RegisterDecoder(".json", json.RawDecoder).
-		RegisterDecoder(".yaml", yaml.RawDecoder).
-		RegisterDecoder(".yml", yaml.RawDecoder).
-		RegisterDecoder(".hcl", hcl.RawDecoder).
+		RegisterDecoder(".toml", toml.Decode).
+		RegisterDecoder(".json", json.Decode).
+		RegisterDecoder(".yaml", yaml.Decode).
+		RegisterDecoder(".yml", yaml.Decode).
+		RegisterDecoder(".hcl", hcl.Decode).
 		AllowTags("kong")
 
 	if err := app.Run(); err != nil {

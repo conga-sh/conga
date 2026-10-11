@@ -21,11 +21,11 @@ import (
 func main() {
 	app := conga.New[CLI]().
 		Name("cloudctl").
-		RegisterDecoder(".json", json.RawDecoder).
-		RegisterDecoder(".toml", toml.RawDecoder).
-		RegisterDecoder(".yaml", yaml.RawDecoder).
-		RegisterDecoder(".yml", yaml.RawDecoder).
-		RegisterDecoder(".hcl", hcl.RawDecoder)
+		RegisterDecoder(".json", json.Decode).
+		RegisterDecoder(".toml", toml.Decode).
+		RegisterDecoder(".yaml", yaml.Decode).
+		RegisterDecoder(".yml", yaml.Decode).
+		RegisterDecoder(".hcl", hcl.Decode)
 
 	if err := app.Run(); err != nil {
 		app.Exit(err)
@@ -33,17 +33,11 @@ func main() {
 }
 ```
 
-CONGA provides four opt-in decoder packages: JSON, TOML, YAML, and HCL. Each package exposes a `RawDecoder` function matching the `conga.ConfigDecoder` interface; [package decoder](/reference/decoders/) covers extension normalization and the missing-decoder rule.
+CONGA provides four opt-in decoder packages: JSON, TOML, YAML, and HCL. Each package exposes a `Decode` function matching the `conga.ConfigDecoder` func type; [package decoder](/reference/decoders/) covers extension normalization and the missing-decoder rule.
 
 ## Implement and register a custom decoder
 
-To support custom, proprietary, or legacy formats, provide a function satisfying the `conga.ConfigDecoder` signature:
-
-```go
-type Decoder func(data []byte) (map[string]any, error)
-```
-
-The decoder receives the raw config file bytes and parses them into a generic `map[string]any`. Keys in the map correspond to flag names (or custom `config:"..."` tags), and nested `map[string]any` values correspond to subcommands or native Go map flags.
+To support custom, proprietary, or legacy formats, provide a function with the `conga.ConfigDecoder` signature, `func(data []byte) (map[string]any, error)` (see [package decoder](/reference/decoders/)). The decoder receives the raw config file bytes and parses them into a generic `map[string]any`. Keys in the map correspond to flag names (or custom `config:"..."` tags), and nested `map[string]any` values correspond to subcommands or native Go map flags.
 
 ```go title="main.go"
 import (
@@ -152,7 +146,7 @@ app.ConfigOptions(
 )
 ```
 
-`conga.ConfigCascading()` merges every existing tier file instead of stopping at the first match; [About the config cascade](/explanation/config-cascade/) describes the merge order. The root `ConfigFile` flag must then declare `multi:"true"`:
+`conga.ConfigCascading()` merges all matching configuration files across tiers in precedence order; [About the config cascade](/explanation/config-cascade/) describes the merge sequence. The root `ConfigFile` flag must then declare `multi:"true"`:
 
 ```go title="main.go"
 type CLI struct {
@@ -181,7 +175,7 @@ By default, config keys match the flag's kebab-case field name. Use struct tags 
 ```go title="main.go"
 type Database struct {
 	URL      conga.RequiredFlag[string] `config:"connection_url" help:"Database connection string"`
-	Password conga.OptionalFlag[string] `config:"-" help:"Never read password from config files"`
+	Password conga.OptionalFlag[string] `config:"-" help:"Read password from flags or environment only"`
 }
 ```
 

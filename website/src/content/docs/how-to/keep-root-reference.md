@@ -1,30 +1,27 @@
 ---
 title: How to keep a reference to the root struct
-description: Bind a caller-owned instance with conga.New to seed dependencies before execution and inspect resolved values after it.
+description: Bind an existing instance with conga.New to inspect resolved container values after execution completes.
 ---
 
-CONGA supports two root initialization patterns: engine-allocated (`conga.New[T]()`) and caller-owned (`conga.New(cli)`). Pass an existing instance pointer to `conga.New` when the host application needs to seed dependencies before execution or inspect resolved container values after `Run` completes.
+CONGA supports two root initialization patterns: engine-allocated (`conga.New[T]()`) and caller-owned (`conga.New(cli)`). Pass an existing instance pointer to `conga.New` to inspect resolved container values after `Run` completes.
 
 ## Bind a caller-owned instance
 
-To inject dependencies or retain access to the root struct outside the execution lifecycle, construct the instance and pass its pointer to `conga.New`:
+To retain access to the root struct outside the execution lifecycle, construct the instance and pass its pointer to `conga.New`:
 
 ```go title="main.go"
 type CLI struct {
-	Name   conga.OptionalFlag[string] `default:"World" help:"Name to greet"`
-	Logger *slog.Logger               `conga:"-"`
+	Name conga.OptionalFlag[string] `default:"World" help:"Name to greet"`
 }
 
 func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
-	c.Logger.Info("executing greeting", "name", c.Name.Get())
+	fmt.Fprintf(session.Stdout(), "Hello, %s!\n", c.Name.Get())
 
 	return nil
 }
 
 func main() {
-	cli := &CLI{
-		Logger: slog.New(slog.NewTextHandler(os.Stderr, nil)),
-	}
+	cli := &CLI{}
 
 	app := conga.New(cli).
 		Name("hello")
@@ -41,7 +38,6 @@ func main() {
 
 When `conga.New(cli)` is called:
 - The engine binds directly to the provided instance pointer instead of allocating a fresh struct.
-- Fields tagged `conga:"-"` are excluded from CLI schema validation and flag binding, preserving caller-seeded values across execution.
 - Flags and arguments resolve into the instance's typed containers during the resolution phase.
 - Lifecycle hooks (`PreRun`, `Run`, `PostRun`) execute using the bound instance, and `session.Root[CLI]()` returns the same pointer.
 

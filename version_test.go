@@ -3,6 +3,7 @@ package conga_test
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -12,9 +13,9 @@ import (
 )
 
 type TestVersionRootCLI struct {
-	Verbose conga.OptionalFlag[bool]             `help:"Verbose logging"             short:"v"`
+	Verbose conga.OptionalFlag[bool]             `help:"Verbose logging"     short:"v"`
 	Cluster conga.Command[TestVersionClusterCmd] `summary:"Cluster commands"`
-	Version conga.VersionCommand                 `summary:"Show version information"`
+	Version conga.VersionCommand
 }
 
 type TestVersionClusterCmd struct {
@@ -32,7 +33,7 @@ func (n *TestVersionNodeCmd) Run(ctx context.Context, session *conga.Session) er
 type TestVersionJSONCollisionCLI struct {
 	JSON    conga.OptionalFlag[bool]            `help:"Output in JSON format"`
 	Status  conga.Command[TestVersionStatusCmd] `summary:"Check status"`
-	Version conga.VersionCommand                `summary:"Show version information"`
+	Version conga.VersionCommand
 }
 
 type TestVersionStatusCmd struct{}
@@ -44,13 +45,13 @@ func (s *TestVersionStatusCmd) Run(ctx context.Context, session *conga.Session) 
 type TestSessionVersionCLI struct{}
 
 func (c *TestSessionVersionCLI) Run(ctx context.Context, session *conga.Session) error {
-	session.Version()
+	fmt.Fprintln(session.Stdout(), session.Version())
 
 	return nil
 }
 
 type UserVersionFlagCLI struct {
-	Version conga.OptionalFlag[string] `help:"Custom version string" name:"version"`
+	Version conga.OptionalFlag[string] `help:"Custom version string"`
 }
 
 func (u *UserVersionFlagCLI) Run(ctx context.Context, session *conga.Session) error {
