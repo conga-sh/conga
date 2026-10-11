@@ -33,16 +33,16 @@ type ConfigOption interface {
 //		return parsed, nil
 //	}
 //
-// Ready-made decoders ship as separate packages — decoder/json, decoder/yaml,
-// decoder/toml, and decoder/hcl — so that unreferenced formats stay out of the
-// linked binary.
+// Decoders for JSON, YAML, TOML, and HCL ship with CONGA in the
+// decoder/json, decoder/yaml, decoder/toml, and decoder/hcl packages.
 type ConfigDecoder = configengine.Decoder
 
 // ConfigPaths declares the author configuration search tier for
 // [App.ConfigOptions]: the paths are probed in precedence order and the first
 // existing configuration file wins unless [ConfigCascading] is also declared.
-// Declaring paths replaces the built-in conventional configuration tier
-// (${XDG_CONFIG_HOME:-~/.config}/<app-name>).
+// Declaring paths replaces the built-in conventional configuration tier:
+//
+//	${XDG_CONFIG_HOME:-~/.config}/<app-name>
 //
 // Panics:
 //   - If called with no paths.

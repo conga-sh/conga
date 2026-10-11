@@ -28,5 +28,5 @@ type CLI struct {
 	Logs       conga.Command[LogsCmd]   `summary:"Stream and export service logs"`
 	Exec       conga.Command[ExecCmd]   `summary:"Execute interactive command in pod"`
 	Completion conga.CompletionCommand
-	Help       conga.HelpCommand        `summary:"Show help for any command"`
+	Help       conga.HelpCommand `summary:"Show help for any command"`
 }

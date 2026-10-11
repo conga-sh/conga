@@ -210,9 +210,9 @@ type CustomTypesCLI struct {
 	User     conga.OptionalFlag[CustomUsername]
 	Score    conga.OptionalFlag[SelfValidatingScore]
 	Slug     conga.OptionalFlag[SelfValidatingSlug]
-	AliasNum conga.OptionalFlag[AliasInt]            `range:"1..100"`
-	AliasStr conga.OptionalFlag[AliasString]         `len:"3..10"`
-	Negative conga.OptionalFlag[AliasInt]            `name:"neg-alias" range:"-50..-1"`
+	AliasNum conga.OptionalFlag[AliasInt]    `range:"1..100"`
+	AliasStr conga.OptionalFlag[AliasString] `len:"3..10"`
+	Negative conga.OptionalFlag[AliasInt]    `name:"neg-alias" range:"-50..-1"`
 }
 
 func (c *CustomTypesCLI) Run(ctx context.Context, session *conga.Session) error { return nil }

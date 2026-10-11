@@ -1,6 +1,6 @@
 // Package yaml provides the YAML configuration decoder for CONGA applications.
 //
-// Register [Decode] with App.RegisterDecoder to enable YAML configuration support:
+// Register [Decode] with conga.App.RegisterDecoder to enable YAML configuration support:
 //
 //	app.RegisterDecoder(".yaml", yaml.Decode)
 //	app.RegisterDecoder(".yml", yaml.Decode)

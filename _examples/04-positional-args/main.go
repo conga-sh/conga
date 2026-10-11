@@ -12,7 +12,7 @@ import (
 type CLI struct {
 	Urgent conga.OptionalFlag[bool] `help:"Mark notification as high priority" short:"u"`
 
-	Channel    conga.RequiredArg[string]   `enum:"slack,email,sms,webhook" help:"Target channel"`
+	Channel    conga.RequiredArg[string]   `enum:"slack,email,sms,webhook"              help:"Target channel"`
 	Message    conga.OptionalArg[string]   `help:"Broadcast message payload"            name:"[message]"`
 	Recipients conga.OptionalArg[[]string] `help:"Additional recipient tags or handles" name:"[recipients...]"`
 }

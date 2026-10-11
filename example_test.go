@@ -152,6 +152,18 @@ func (c *CounterCLI) Run(_ context.Context, session *conga.Session) error {
 	return err
 }
 
+// FlagStateCLI is an application whose optional flag declares a default.
+type FlagStateCLI struct {
+	Port conga.OptionalFlag[int] `default:"8080" help:"Listen port"`
+}
+
+func (c *FlagStateCLI) Run(_ context.Context, session *conga.Session) error {
+	_, err := fmt.Fprintf(session.Stdout(), "value=%d set=%t changed=%t source=%s\n",
+		c.Port.Get(), c.Port.IsSet(), c.Port.Changed(), c.Port.Source())
+
+	return err
+}
+
 // DashCLI is an application that captures trailing arguments after '--'.
 type DashCLI struct {
 	Target conga.RequiredArg[string] `help:"Target package" name:"target"`
@@ -352,6 +364,30 @@ func ExampleCounter() {
 	}
 
 	// Output: verbosity=3
+}
+
+// An omitted flag falls back to its default tag: set, but not changed.
+func ExampleOptionalFlag_default() {
+	app := conga.New[FlagStateCLI]().
+		Name("flagtool").
+		Args([]string{})
+
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
+	// Output: value=8080 set=true changed=false source=default
+}
+
+// A command-line value overrides the default and reports its source.
+func ExampleOptionalFlag() {
+	app := conga.New[FlagStateCLI]().
+		Name("flagtool").
+		Args([]string{"--port", "9000"})
+
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
+	// Output: value=9000 set=true changed=true source=cli
 }
 
 // DashArgs captures arguments passed after the '--' delimiter without flag parsing.

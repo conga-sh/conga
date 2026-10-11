@@ -88,7 +88,7 @@ func (p Predictor) Exclude(values ...string) Predictor {
 // FilterText filters candidates by matching against the given query prefix.
 // The argument replaces the implicit ctx.ToComplete term used during
 // filtering; FilterText("") restores the implicit term. There is no "disable
-// filtering" spelling. This method filters by query match — unlike the
+// filtering" spelling. This method filters by query match: unlike the
 // predicate-based FilesFiltered, DirsFiltered, and PathsFiltered constructors,
 // whose filter argument is a predicate over directory entries.
 func (p Predictor) FilterText(toComplete string) Predictor {
@@ -128,7 +128,7 @@ func (p Predictor) Prefix(prefix string) Predictor {
 // Raw returns the statically stored completion candidate values: the raw
 // strings recorded by constructors such as Values, Items, and Map, or the
 // Value fields of the stored Items when no raw slice was recorded. It is a
-// snapshot, not an evaluation — callbacks, batches, and MultiParts are not
+// snapshot, not an evaluation: callbacks, batches, and MultiParts are not
 // invoked (a callback-only predictor returns an empty slice), and while
 // Exclude narrows the stored set, Prefix, Suffix, Style, and Tag are ignored
 // because they apply to Result.Items only. The returned slice is always a

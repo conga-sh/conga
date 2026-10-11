@@ -15,7 +15,7 @@
 //
 // Struct tags declare names, help text, fallback values, and constraints such
 // as range, len, enum, xor, and and. For the full tag specification,
-// see https://docs.conga.sh/reference/struct-tags/.
+// See https://docs.conga.sh/reference/struct-tags/.
 //
 // Commands execute by implementing [Runner]. Lifecycle hooks can be added
 // with [Validator], [PreRunner], [PostRunner], and [Finalizer].
@@ -97,12 +97,11 @@
 //
 // # Optional subsystems
 //
-// Several features are opt-in to keep unused dependencies out of compiled
-// binaries:
+// Several features are opt-in:
 //
 //   - Shell completion: call [App.EnableCompletion] to generate completion
 //     scripts for Bash, Zsh, Fish, PowerShell, Elvish, and Nushell.
 //   - Configuration decoders: import and register decoders such as
-//     conga/decoder/yaml using [App.RegisterDecoder].
+//     decoder/yaml using [App.RegisterDecoder].
 //   - Dotenv files: call [App.Dotenv] to load variables from .env files.
 package conga

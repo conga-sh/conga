@@ -1326,12 +1326,12 @@ func (r *whyRunner) Run(_ context.Context, _ *conga.Session) error {
 
 type whyCLI struct {
 	Port    conga.OptionalFlag[int]               `help:"Listen port"`
-	Token   conga.OptionalFlag[string]            `env:"WHY_TOKEN"    help:"API token"`
-	Shown   conga.OptionalFlag[string]            `help:"Shown value" safe:"true"`
-	Region  conga.OptionalFlag[string]            `config:"region"    help:"Deployment region"`
-	Headers conga.OptionalFlag[map[string]string] `help:"Headers"     safe:"true"`
-	Secret  conga.OptionalFlag[string]            `help:"Hidden knob" hidden:"true"`
-	Config  conga.ConfigFile                      `env:"WHY_CONFIG"   help:"Config path"`
+	Token   conga.OptionalFlag[string]            `env:"WHY_TOKEN"      help:"API token"`
+	Shown   conga.OptionalFlag[string]            `help:"Shown value"   safe:"true"`
+	Region  conga.OptionalFlag[string]            `config:"region"      help:"Deployment region"`
+	Headers conga.OptionalFlag[map[string]string] `help:"Headers"       safe:"true"`
+	Secret  conga.OptionalFlag[string]            `help:"Hidden knob"   hidden:"true"`
+	Config  conga.ConfigFile                      `env:"WHY_CONFIG"     help:"Config path"`
 	Sub     conga.Command[whyRunner]              `summary:"Subcommand"`
 }
 
@@ -1400,6 +1400,6 @@ func (r *whyLeafRunner) Run(_ context.Context, _ *conga.Session) error {
 
 type whyLeafCLI struct {
 	Port    conga.OptionalFlag[int]      `help:"Listen port"`
-	CLIOnly conga.OptionalFlag[string]   `config:"-"         help:"CLI-only override"`
+	CLIOnly conga.OptionalFlag[string]   `config:"-"           help:"CLI-only override"`
 	Sub     conga.Command[whyLeafRunner] `summary:"Subcommand"`
 }

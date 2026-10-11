@@ -37,7 +37,7 @@ type KitchenSinkCLI struct {
 	Configs  conga.Command[ConfigCmd]   `name:"config"                                                      summary:"Configuration mapping patterns"`
 	Advanced conga.Command[AdvancedCmd] `summary:"Required flags, arguments, trailing args, provenance"`
 
-	Help       conga.HelpCommand       `summary:"Show help for any command"`
+	Help       conga.HelpCommand `summary:"Show help for any command"`
 	Version    conga.VersionCommand
 	Completion conga.CompletionCommand
 }

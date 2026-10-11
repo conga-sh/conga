@@ -12,6 +12,6 @@ type CLI struct {
 	Network conga.Command[NetworkCmd] `summary:"Network and web operations"`
 
 	Completion conga.CompletionCommand
-	Help       conga.HelpCommand       `summary:"Show help for any command"`
+	Help       conga.HelpCommand `summary:"Show help for any command"`
 	Version    conga.VersionCommand
 }

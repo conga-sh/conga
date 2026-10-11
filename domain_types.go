@@ -89,8 +89,8 @@ var (
 //	stdin      conflicts with stdout, executable, symlink
 //	stdout     conflicts with stdin, existing, executable, symlink
 //	executable conflicts with existing, stdin, stdout, symlink, glob
-//	symlink    conflicts with existing, stdin, stdout, executable, glob
-//	conflicts with executable, symlink
+//	symlink    conflicts with existing, stdin, stdout, glob, executable
+//	glob       conflicts with executable, symlink
 //
 // File paths automatically expand tilde prefixes (~ to the user's home directory)
 // and environment variables ($VAR or ${VAR}) during value decoding.
@@ -220,9 +220,8 @@ func (f File) MarshalText() ([]byte, error) {
 	return []byte(f.path), nil
 }
 
-// UnmarshalText unmarshals a raw path string, expanding environment variables and
-// tilde prefixes. Standard text unmarshaling carries no field tags or engine streams,
-// so the path is unconstrained and "-" streams fall back to [os.Stdin]/[os.Stdout].
+// UnmarshalText unmarshals a raw path string via [File.UnmarshalTextWithContext]
+// with a zero [DecodeContext].
 func (f *File) UnmarshalText(text []byte) error {
 	return f.UnmarshalTextWithContext(text, DecodeContext{})
 }
@@ -399,7 +398,7 @@ func (f FileContent) MarshalText() ([]byte, error) {
 	return []byte(f), nil
 }
 
-// String returns the loaded file content as a string.
+// String returns the loaded file content.
 func (f FileContent) String() string {
 	return string(f)
 }
@@ -419,8 +418,8 @@ func (f FileContent) Predict() predict.Predictor {
 	return predict.Files()
 }
 
-// UnmarshalText loads the file at path (or [os.Stdin] if "-") into memory,
-// enforcing a strict 16MB file size limit to prevent memory exhaustion.
+// UnmarshalText loads the file at path into memory via
+// [FileContent.UnmarshalTextWithContext] with a zero [DecodeContext].
 func (f *FileContent) UnmarshalText(text []byte) error {
 	return f.UnmarshalTextWithContext(text, DecodeContext{})
 }
@@ -533,8 +532,8 @@ func (d Dir) MarshalText() ([]byte, error) {
 	return []byte(d.path), nil
 }
 
-// UnmarshalText unmarshals a directory path, expanding environment variables and
-// tilde prefixes without tag constraints.
+// UnmarshalText unmarshals a directory path via [Dir.UnmarshalTextWithContext]
+// with a zero [DecodeContext].
 func (d *Dir) UnmarshalText(text []byte) error {
 	return d.UnmarshalTextWithContext(text, DecodeContext{})
 }
@@ -587,23 +586,10 @@ func (d Dir) Help(tags FieldTags) string {
 //
 // # Rendering
 //
-// A value renders in its display family: a display field tag of binary or decimal
-// forces that family, and input, the default, uses the family of the unit the value
-// was decoded from. Rendering picks the largest unit of the family that divides the
-// byte count exactly, or exact bytes when no unit divides it:
-//
-//	input             display tag   output
-//	1.5GB             input         1500MB
-//	0.5GiB            input         512MiB
-//	1024              input         1024B
-//	1.000000001GB     input         1000000001B
-//	1.5GB             binary        1500000000B
-//	1024kB            binary        1000KiB
-//	1000KiB           decimal       1024kB
-//	1073741824        binary        1GiB
-//	zero value        any           0B
-//
-// [ByteSize.String] is deterministic and lossless.
+// A value renders in its display family: a display field tag of binary or
+// decimal forces that family, and input (the default) uses the family of the
+// unit the value was decoded from. [ByteSize.String] is deterministic and
+// lossless, and shows the full input-to-output mapping.
 //
 // # Comparison
 //
@@ -671,19 +657,31 @@ func (b *ByteSize) TagSpecs() []TagSpec {
 	}
 }
 
-// Bytes returns the size in bytes as an int64.
+// Bytes returns the size in bytes.
 func (b ByteSize) Bytes() int64 {
 	return b.bytes
 }
 
 // String formats the byte size into a deterministic, lossless human-readable string.
 //
-// The rendering family is the value's captured unit family, the display family
-// resolved at parse time: the largest unit of that family that divides the byte count
-// formats the value as an integer without spaces or decimal points (512MiB, 1500MB);
-// a count no unit divides is emitted as exact bytes (1048577B). Parsed exact-byte
-// input (a B suffix or a bare count) always echoes as exact bytes (1024B). Returns 0B
-// for zero.
+// Rendering picks the largest unit of the value's family that divides the byte
+// count exactly, formatting it as an integer without spaces or decimal points;
+// a count no unit divides is emitted as exact bytes. The input-to-output
+// mapping, including the display tag families:
+//
+//	input             display tag   output
+//	1.5GB             input         1500MB
+//	0.5GiB            input         512MiB
+//	1024              input         1024B
+//	1.000000001GB     input         1000000001B
+//	1.5GB             binary        1500000000B
+//	1024kB            binary        1000KiB
+//	1000KiB           decimal       1024kB
+//	1073741824        binary        1GiB
+//	zero value        any           0B
+//
+// Parsed exact-byte input (a B suffix or a bare count) always echoes as exact
+// bytes, and String returns 0B for zero.
 func (b ByteSize) String() string {
 	if b.bytes == 0 {
 		return "0B"
@@ -707,13 +705,10 @@ func (b ByteSize) MarshalText() ([]byte, error) {
 	return []byte(b.String()), nil
 }
 
-// UnmarshalText parses a strict, case-sensitive byte size string without field tags.
-// The input's unit suffix fixes the value's render family.
-//
-// It accepts the formats listed on [ByteSize]: exact byte counts (1024, 500B), SI
-// metric units (kB, MB), and IEC binary units (KiB, MiB). The numeric prefix is digits
-// with an optional fraction whose contribution resolves exactly to bytes (1.5GB,
-// 0.5GiB); a sub-byte remainder such as 0.1GiB is rejected. Text input is non-negative.
+// UnmarshalText parses a strict, case-sensitive byte size string without field
+// tags, via [ByteSize.UnmarshalTextWithContext] with a zero [DecodeContext].
+// The input's unit suffix fixes the value's render family; the accepted formats
+// are listed on [ByteSize].
 func (b *ByteSize) UnmarshalText(text []byte) error {
 	return b.UnmarshalTextWithContext(text, DecodeContext{})
 }

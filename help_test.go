@@ -15,7 +15,7 @@ import (
 )
 
 type TestHelpRootCLI struct {
-	Verbose conga.OptionalFlag[bool]          `help:"Verbose logging"            short:"v"`
+	Verbose conga.OptionalFlag[bool]          `help:"Verbose logging"     short:"v"`
 	Cluster conga.Command[TestHelpClusterCmd] `summary:"Cluster commands"`
 	Help    conga.HelpCommand
 }

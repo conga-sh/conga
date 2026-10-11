@@ -108,9 +108,9 @@ type App[T any] struct {
 // the root struct lifecycle: it instantiates T, binds flags and arguments to its
 // fields, and executes its [Runner.Run] method.
 //
-// Passing an existing pointer—New(&cli)—binds that instance instead of
-// allocating a fresh one. This allows callers to inspect bound container values
-// after execution completes.
+// Passing an existing root instance binds that instance instead of
+// allocating a fresh one, so callers can inspect bound container
+// values after execution completes.
 //
 // Panics:
 //   - If root contains more than one pointer.
@@ -301,8 +301,8 @@ func (a *App[T]) ConfigOptions(options ...ConfigOption) *App[T] {
 // nested map[string]any with string keys. Registering an extension that was previously
 // registered overwrites the earlier registration.
 //
-// Ready-made decoders live in separate packages (decoder/json, decoder/yaml,
-// decoder/toml, decoder/hcl) so unused formats stay out of the binary.
+// Decoders for JSON, YAML, TOML, and HCL ship with CONGA in the decoder/json,
+// decoder/yaml, decoder/toml, and decoder/hcl packages.
 //
 // See https://docs.conga.sh/reference/decoders/.
 func (a *App[T]) RegisterDecoder(extension string, decoder ConfigDecoder) *App[T] {
@@ -455,8 +455,7 @@ func (a *App[T]) Use(bindings ...func(*App[T])) *App[T] {
 // for custom type U on the application builder.
 //
 // The parser callback converts raw string input from flags, arguments, or environment
-// variables into an instance of type U. If parsing fails, the callback must return a
-// descriptive error, which CONGA wraps in [ErrCoerce].
+// variables into an instance of type U. A returned error is wrapped in [ErrCoerce].
 //
 // If type U was previously registered, the new parser and predictor overwrite the
 // existing registration.
@@ -757,8 +756,8 @@ func (a *App[T]) ExitFunc(exitHandler func(code int)) *App[T] {
 //   - Exit code 1: runtime errors from command execution ([Runner.Run] or lifecycle
 //     hooks), developer schema defects ([ErrSchema]), and configuration failures
 //     ([ErrConfig], including .env loading).
-//   - Exit code 2: usage errors — [IsUsageError] reports true for parse, coercion,
-//     and validation failures — plus internal completion failures.
+//   - Exit code 2: usage errors ([IsUsageError] reports true for parse, coercion,
+//     and validation failures) and internal completion failures.
 //
 // Usage error rendering follows [UsageOnErrorMode], except for self-describing
 // value errors (coercion failures and value-constraint violations), which always
@@ -1347,8 +1346,8 @@ func (a *App[T]) prepare(ctx context.Context) (*Session, bool, error) {
 	}
 
 	// The session is born before value binding so the whole decode pipeline
-	// (config resolution, flag and argument coercion) reads engine state —
-	// the standard streams — from one consistent run context.
+	// (config resolution, flag and argument coercion) reads engine state
+	// (the standard streams) from one consistent run context.
 	session := &Session{
 		root:        getCmdTarget(cmdChain[0]),
 		stdout:      a.stdout,
@@ -1765,8 +1764,8 @@ func engineConfigResolver(name string, envPrefix string, registry *configengine.
 
 // flagConfigTargets extracts the CLI-supplied configuration file paths for the
 // root config-file flag: the split values of a multi-valued flag, or the last
-// value of a single-valued one. Supplying the flag without naming a path — an
-// empty or blank value — is rejected as a usage error instead of silently
+// value of a single-valued one. Supplying the flag without naming a path (an
+// empty or blank value) is rejected as a usage error instead of silently
 // falling through to the environment variable or the search tier, which would
 // load a different configuration than the one the user named.
 func flagConfigTargets(cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string) ([]string, error) {

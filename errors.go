@@ -94,8 +94,8 @@ var (
 // When [App.Exit] receives an error satisfying UsageError, it prints the
 // message to standard error, appends usage guidance as configured by
 // [UsageOnErrorMode], and terminates the process with exit code 2. Self-describing
-// value errors — coercion failures and value-constraint violations, whose messages
-// already name the offending flag and value — print the message alone regardless of
+// value errors (coercion failures and value-constraint violations, whose messages
+// already name the offending flag and value) print the message alone regardless of
 // the configured mode.
 type UsageError interface {
 	error
@@ -111,7 +111,7 @@ type UsageError interface {
 }
 
 // CompletionError is an interface implemented by errors that represent an internal
-// failure during shell completion evaluation (such as a predictor panic or broken stream).
+// failure during shell completion evaluation.
 type CompletionError interface {
 	error
 
@@ -164,7 +164,7 @@ type commandChainProvider interface {
 // policy in handleUsageFatal: self-describing value errors (coercion failures
 // and value-constraint violations) render only the error line, regardless of
 // the configured UsageOnErrorMode. Parse errors and missing-input errors
-// deliberately do not implement it — their messages benefit from the usage
+// deliberately do not implement it: their messages benefit from the usage
 // block listing valid commands and flags.
 type selfDescribingError interface {
 	error

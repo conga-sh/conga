@@ -896,7 +896,7 @@ func TestEnvPrefix_FlagDerivation(t *testing.T) {
 
 	type CLI struct {
 		Config mockConfigFile
-		Port   mockFlag[int]    `env:"PORT"`
+		Port   mockFlag[int] `env:"PORT"`
 		Host   mockFlag[string]
 		Secret mockFlag[string] `env:"-"`
 	}

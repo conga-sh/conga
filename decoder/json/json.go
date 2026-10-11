@@ -1,6 +1,6 @@
 // Package json provides the JSON configuration decoder for CONGA applications.
 //
-// Register [Decode] with App.RegisterDecoder to enable JSON configuration support:
+// Register [Decode] with conga.App.RegisterDecoder to enable JSON configuration support:
 //
 //	app.RegisterDecoder(".json", json.Decode)
 //

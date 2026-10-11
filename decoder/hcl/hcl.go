@@ -1,6 +1,6 @@
 // Package hcl provides the HCL configuration decoder for CONGA applications.
 //
-// Register [Decode] with App.RegisterDecoder to enable HCL configuration support:
+// Register [Decode] with conga.App.RegisterDecoder to enable HCL configuration support:
 //
 //	app.RegisterDecoder(".hcl", hcl.Decode)
 //
@@ -14,7 +14,7 @@
 //	maxRetries = 5
 //
 // Undefined variables and duplicate blocks fail with [ErrParse], whose wrapped
-// hcl.Diagnostics value is available through errors.As.
+// hcl.Diagnostics value is available through [errors.As].
 package hcl
 
 import (

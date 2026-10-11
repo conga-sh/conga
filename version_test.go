@@ -13,7 +13,7 @@ import (
 )
 
 type TestVersionRootCLI struct {
-	Verbose conga.OptionalFlag[bool]             `help:"Verbose logging" short:"v"`
+	Verbose conga.OptionalFlag[bool]             `help:"Verbose logging"     short:"v"`
 	Cluster conga.Command[TestVersionClusterCmd] `summary:"Cluster commands"`
 	Version conga.VersionCommand
 }

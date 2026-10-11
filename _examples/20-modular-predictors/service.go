@@ -14,7 +14,7 @@ type ServiceCmd struct {
 	Name    conga.RequiredArg[string]         `help:"Service daemon name"`
 	User    conga.OptionalFlag[system.User]   `help:"System user to run daemon under"       short:"u"`
 	Group   conga.OptionalFlag[system.Group]  `help:"System user group to run daemon under" short:"g"`
-	EnvVar  conga.OptionalFlag[system.EnvVar] `help:"Environment variable to forward" short:"v"`
+	EnvVar  conga.OptionalFlag[system.EnvVar] `help:"Environment variable to forward"       short:"v"`
 	Locale  conga.OptionalFlag[system.Locale] `default:"en_US.UTF-8"                        help:"Service execution locale" short:"l"`
 	PassEnv conga.OptionalFlag[system.EnvVar] `help:"Pass-through environment variable"`
 }

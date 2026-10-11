@@ -1,6 +1,6 @@
 // Package toml provides the TOML configuration decoder for CONGA applications.
 //
-// Register [Decode] with App.RegisterDecoder to enable TOML configuration support:
+// Register [Decode] with conga.App.RegisterDecoder to enable TOML configuration support:
 //
 //	app.RegisterDecoder(".toml", toml.Decode)
 //
