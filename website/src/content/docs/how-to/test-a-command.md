@@ -49,7 +49,7 @@ Configuring `Args` leaves `os.Args` untouched, preventing race conditions when t
 
 Streams and arguments are snapshotted when `RunContext` begins. Builder calls made after execution has started do not affect the running session.
 
-## Assert exit codes without terminating the test runner
+## Assert exit codes
 
 By default, `app.Exit` terminates the process using `os.Exit`. To assert exit codes in tests without terminating the test runner, replace the exit handler using `ExitFunc`:
 

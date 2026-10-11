@@ -12,4 +12,4 @@ syntax, predictor values, and the allowed foreign tag list.
 Related pages:
 
 - [Domain Types](https://docs.conga.sh/reference/domain-types/)
-- [How to lint CONGA schemas](https://docs.conga.sh/how-to/lint-schemas/)
+- [How to lint schemas](https://docs.conga.sh/how-to/lint-schemas/)

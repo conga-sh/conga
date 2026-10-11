@@ -1,5 +1,5 @@
 ---
-title: How to keep a reference to the root struct
+title: How to retain the root struct
 description: Bind an existing instance with conga.New to inspect resolved container values after execution completes.
 ---
 

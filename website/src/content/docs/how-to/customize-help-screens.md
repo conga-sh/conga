@@ -1,11 +1,11 @@
 ---
 title: How to customize help screens
-description: Configure root descriptions, examples, global footers, subcommand metadata, section groups, and help variables.
+description: Configure command descriptions, footers, section groups, and help variables across help screens.
 ---
 
 CONGA generates help screens automatically from your command structs. This guide explains how to customize top-matter descriptions, usage examples, global footers, visual section groups, and constraint formatting.
 
-## Configure root description, examples, and footers
+## Configure descriptions, examples, and footers
 
 Configure root-level help metadata on the `App` builder:
 

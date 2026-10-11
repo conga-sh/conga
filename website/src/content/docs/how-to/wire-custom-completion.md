@@ -5,7 +5,7 @@ description: Supply dynamic completion candidates for flags and arguments using 
 
 When flags or positional arguments accept dynamic values — such as server names, cluster regions, or API resources — implement custom completion using `package predict`. This guide explains predictor resolution precedence, static and dynamic candidate generation, and self-completing types.
 
-## Understand predictor resolution precedence
+## Predictor resolution precedence
 
 When generating completion candidates for a field, CONGA evaluates candidate sources in strict precedence:
 

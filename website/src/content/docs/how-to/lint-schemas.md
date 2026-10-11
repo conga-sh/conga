@@ -1,5 +1,5 @@
 ---
-title: How to lint CONGA schemas
+title: How to lint schemas
 description: Catch leaf Runner violations, struct tag typos, and ancestor flag shadowing in CI with conga-lint.
 ---
 

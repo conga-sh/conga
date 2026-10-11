@@ -3,7 +3,7 @@ title: conga-lint
 description: The static schema analyzer — checks, discovery contract, and flags.
 ---
 
-`conga-lint` mirrors CONGA's runtime schema contracts against Go AST and type information, catching schema errors, tag typos, and invalid hierarchies before binaries are built or run. [How to lint CONGA schemas](/how-to/lint-schemas/) covers installing and running it in CI.
+`conga-lint` mirrors CONGA's runtime schema contracts against Go AST and type information, catching schema errors, tag typos, and invalid hierarchies before binaries are built or run. [How to lint schemas](/how-to/lint-schemas/) covers installing and running it in CI.
 
 ## Checks
 
