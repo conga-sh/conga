@@ -13,8 +13,9 @@
 //	database_url = "postgres://localhost/db"
 //	maxRetries = 5
 //
-// Undefined variables and duplicate blocks fail with [ErrParse], whose wrapped
-// hcl.Diagnostics value is available through [errors.As].
+// Blocks decode as nested maps keyed by block type; duplicate block types are
+// rejected. Parse and semantic failures (undefined variables) wrap [ErrParse],
+// and an empty document decodes to an empty map.
 package hcl
 
 import (
@@ -28,11 +29,7 @@ import (
 )
 
 var (
-	// ErrParse indicates an error parsing HCL configuration into CONGA's
-	// generic map structure: both syntax errors and semantic failures
-	// (undefined variables, unexpected body types, duplicate blocks). The
-	// underlying hcl.Diagnostics value is wrapped, so callers may extract it
-	// with errors.As.
+	// ErrParse indicates a syntax or semantic error in HCL configuration.
 	ErrParse = errors.New("hcl parse error")
 )
 
