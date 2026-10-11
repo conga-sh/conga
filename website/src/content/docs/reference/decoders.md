@@ -19,7 +19,10 @@ func Decode(data []byte) (map[string]any, error)
 ## Registration
 
 ```go
-import "github.com/conga-sh/conga"
+import (
+	"github.com/conga-sh/conga"
+	"github.com/conga-sh/conga/decoder/yaml"
+)
 
 app.RegisterDecoder("yaml", yaml.Decode)
 ```

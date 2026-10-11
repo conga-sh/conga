@@ -10,10 +10,22 @@ When flags resolve across multiple tiers (CLI flags, environment variables, conf
 Call `EnableWhy()` on the application builder to install the `--why` flag:
 
 ```go title="main.go"
+package main
+
+import (
+	"context"
+
+	"github.com/conga-sh/conga"
+)
+
 type Server struct {
 	Host  conga.OptionalFlag[string] `default:"127.0.0.1" help:"Listen address" safe:"true"`
 	Port  conga.OptionalFlag[int]    `default:"8080" help:"Listen port" safe:"true" short:"p"`
 	Token conga.OptionalFlag[string] `help:"API secret token"`
+}
+
+func (s *Server) Run(ctx context.Context, session *conga.Session) error {
+	return nil
 }
 
 func main() {

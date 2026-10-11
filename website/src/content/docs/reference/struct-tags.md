@@ -241,7 +241,7 @@ type Deploy struct {
 	Verbose  conga.Counter                     `short:"v" help:"Increase verbosity"`
 	Timeout  conga.OptionalFlag[time.Duration] `range:"100ms..5s" default:"1s"`
 	Color    conga.OptionalFlag[bool]          `negatable:"true" default:"true"`
-	Region   conga.OptionalFlag[string]        `env:"AWS_REGION" config:"region"`
+	Region   conga.OptionalFlag[string]        `env:"AWS_REGION" config:"aws_region"`
 	DryRun   conga.OptionalFlag[bool]          `xor:"mode"`
 	Force    conga.OptionalFlag[bool]          `xor:"mode"`
 }

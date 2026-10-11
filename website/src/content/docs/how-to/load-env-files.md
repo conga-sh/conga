@@ -10,9 +10,27 @@ CONGA provides zero-dependency `.env` file loading through `app.Dotenv()`. Loade
 Call `Dotenv()` on the application builder without arguments to enable conventional loading:
 
 ```go title="main.go"
+package main
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/conga-sh/conga"
+)
+
+type CLI struct {
+	Port conga.OptionalFlag[int] `default:"8080" help:"Listen port"`
+}
+
+func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
+	fmt.Fprintf(session.Stdout(), "port: %d\n", c.Port.Get())
+
+	return nil
+}
+
 func main() {
 	app := conga.New[CLI]().
-		Name("cloudctl").
 		EnvPrefix("CLOUDCTL").
 		Dotenv()
 

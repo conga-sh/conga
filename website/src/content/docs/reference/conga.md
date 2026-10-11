@@ -95,7 +95,7 @@ func (s *Session) Stdout() io.Writer
 func (s *Session) Stderr() io.Writer
 func (s *Session) Help() string
 func (s *Session) Usage() string
-func (s *Session) Version()
+func (s *Session) Version() string
 func (s *Session) Path() string
 func (s *Session) Name() string
 func (s *Session) CandidateConfigFiles() []string
@@ -108,7 +108,7 @@ by walking the selected `Command[T]` fields (`root.Cluster.Get()`).
 
 The App snapshots standard streams at the start of execution for the active session.
 
-`Help`, `Usage`, and `Version` are the formatting primitives behind the built-in `help` and `version` commands: `Help` returns the active command's help screen as a string, `Usage` returns the syntax usage summary as a string, and `Version` writes the version summary to stdout, falling back to the module version (or `dev`) plus the embedded build metadata when no version string was configured.
+`Help`, `Usage`, and `Version` are the formatting primitives behind the built-in `help` and `version` commands: `Help` returns the active command's help screen as a string, `Usage` returns the syntax usage summary as a string, and `Version` returns the formatted version summary line as a string, falling back to the module version (or `dev`) plus the embedded build metadata when no version string was configured.
 
 ## Domain types
 

@@ -41,7 +41,7 @@ Opt in to a `help [command...]` subcommand for nested commands:
 
 ```go
 type App struct {
-	Help conga.HelpCommand `name:"help" summary:"Show help for a command"`
+	Help conga.HelpCommand `summary:"Show help for a command"`
 	...
 }
 ```
@@ -125,7 +125,6 @@ Whole-application deprecation prints a warning banner on every invocation (root,
 
 ```go
 app := conga.New[Legacy]().
-	Name("legacyctl").
 	Deprecated("migrated to newctl — see https://example.com/migration")
 ```
 

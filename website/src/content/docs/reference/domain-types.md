@@ -85,7 +85,7 @@ An unrecognized tag value fails at schema build, and range bounds parse under th
 
 ```go
 type Cache struct {
-	Memory conga.ByteSize `units:"binary" display:"input"`
+	Memory conga.ByteSize `units:"binary"`
 }
 ```
 

@@ -28,7 +28,6 @@ func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
 
 func main() {
 	app := conga.New[CLI]().
-		Name("cloudctl").
 		Description("Manage cloud infrastructure and deployments.").
 		Examples("cloudctl --verbose\ncloudctl deploy worker").
 		HelpFooter("Documentation: https://example.com/docs\nReport issues: https://example.com/issues")

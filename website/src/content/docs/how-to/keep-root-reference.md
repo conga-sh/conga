@@ -10,6 +10,15 @@ CONGA supports two root initialization patterns: engine-allocated (`conga.New[T]
 To retain access to the root struct outside the execution lifecycle, construct the instance and pass its pointer to `conga.New`:
 
 ```go title="main.go"
+package main
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/conga-sh/conga"
+)
+
 type CLI struct {
 	Name conga.OptionalFlag[string] `default:"World" help:"Name to greet"`
 }
@@ -23,8 +32,7 @@ func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
 func main() {
 	cli := &CLI{}
 
-	app := conga.New(cli).
-		Name("hello")
+	app := conga.New(cli)
 
 	if err := app.Run(); err != nil {
 		app.Exit(err)
