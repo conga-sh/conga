@@ -212,7 +212,6 @@ func (c *UseCLI) Run(_ context.Context, session *conga.Session) error {
 // Declare flags as typed fields, implement [conga.Runner], and call [conga.App.Run].
 func ExampleNew() {
 	app := conga.New[CLI]().
-		Name("greet").
 		Args([]string{"--name", "gopher"})
 
 	if err := app.Run(); err != nil {
@@ -237,7 +236,6 @@ func ExampleSession_Root() {
 // Register a parser so flags and arguments of a custom type accept its text form.
 func ExampleApp_RegisterType() {
 	app := conga.New[PercentCLI]().
-		Name("alerts").
 		RegisterType(parsePercent).
 		Args([]string{"--threshold", "75%"})
 
@@ -251,7 +249,6 @@ func ExampleApp_RegisterType() {
 // library type that does not implement encoding.TextUnmarshaler.
 func ExampleApp_RegisterType_external() {
 	app := conga.New[NetworkCLI]().
-		Name("nettool").
 		RegisterType(parseCIDR).
 		Args([]string{"--network", "192.168.1.7/24"})
 
@@ -369,7 +366,6 @@ func ExampleCounter() {
 // An omitted flag falls back to its default tag: set, but not changed.
 func ExampleOptionalFlag_default() {
 	app := conga.New[FlagStateCLI]().
-		Name("flagtool").
 		Args([]string{})
 
 	if err := app.Run(); err != nil {
@@ -381,7 +377,6 @@ func ExampleOptionalFlag_default() {
 // A command-line value overrides the default and reports its source.
 func ExampleOptionalFlag() {
 	app := conga.New[FlagStateCLI]().
-		Name("flagtool").
 		Args([]string{"--port", "9000"})
 
 	if err := app.Run(); err != nil {

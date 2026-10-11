@@ -50,7 +50,6 @@ func TestBinder_4TierResolution_CLIFlags(t *testing.T) {
 
 	cli := new(FullServerCLI)
 	app := conga.New(cli).
-		Name("server").
 		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"server": {"port": "9090"}}`))).
 		Args([]string{"--api-key", "secret123", "-p", "7070", "-v", "input.txt", "out.txt"})
@@ -73,7 +72,6 @@ func TestBinder_4TierResolution_EnvVar(t *testing.T) {
 
 	cli := new(FullServerCLI)
 	app := conga.New(cli).
-		Name("server").
 		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"server": {"port": "9090"}}`))).
 		Args([]string{"--api-key", "secret", "file.txt"})
@@ -90,7 +88,6 @@ func TestBinder_4TierResolution_ConfigFile(t *testing.T) {
 
 	cli := new(FullServerCLI)
 	app := conga.New(cli).
-		Name("server").
 		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"server": {"port": "9090"}}`))).
 		Args([]string{"--api-key", "secret", "file.txt"})
@@ -109,7 +106,6 @@ func TestBinder_Constraints(t *testing.T) {
 		t.Parallel()
 
 		app := conga.New[FullServerCLI]().
-			Name("server").
 			Args([]string{"file.txt"})
 
 		err := app.RunContext(t.Context())
@@ -123,7 +119,6 @@ func TestBinder_Constraints(t *testing.T) {
 		t.Parallel()
 
 		app := conga.New[FullServerCLI]().
-			Name("server").
 			Args([]string{"--api-key", "key", "--tcp", "--udp", "file.txt"})
 
 		err := app.RunContext(t.Context())
@@ -136,7 +131,6 @@ func TestBinder_Constraints(t *testing.T) {
 		t.Parallel()
 
 		app := conga.New[FullServerCLI]().
-			Name("server").
 			Args([]string{"--api-key", "key", "--user", "admin", "file.txt"})
 
 		err := app.RunContext(t.Context())
@@ -149,7 +143,6 @@ func TestBinder_Constraints(t *testing.T) {
 		t.Parallel()
 
 		app := conga.New[FullServerCLI]().
-			Name("server").
 			Args([]string{"--api-key", "key", "--format", "invalid", "file.txt"})
 
 		err := app.RunContext(t.Context())
@@ -198,7 +191,6 @@ func TestSubcommandRoutingAndLifecycle(t *testing.T) {
 
 	cli := new(RootApp)
 	app := conga.New(cli).
-		Name("myapp").
 		Args([]string{"cluster", "node", "drain", "worker-1", "-f"})
 
 	err := app.RunContext(t.Context())
@@ -231,7 +223,6 @@ func TestDashArgs(t *testing.T) {
 
 		cli := new(CLI)
 		app := conga.New(cli).
-			Name("test").
 			Args([]string{"./pkg/...", "-v", "--", "-run", "TestFoo", "-count=1"})
 
 		err := app.RunContext(t.Context())
@@ -248,7 +239,6 @@ func TestDashArgs(t *testing.T) {
 		t.Parallel()
 
 		app := conga.New[CLI]().
-			Name("test").
 			Args([]string{"./pkg/...", "--run", "TestFoo"})
 
 		err := app.RunContext(t.Context())
@@ -270,7 +260,6 @@ func TestRawArgs(t *testing.T) {
 
 	cli := new(CLI)
 	app := conga.New(cli).
-		Name("sudo").
 		Args([]string{"-u", "postgres", "psql", "-h", "localhost", "-U", "postgres"})
 
 	err := app.RunContext(t.Context())
@@ -328,7 +317,6 @@ func TestBinder_MapFlag(t *testing.T) {
 
 		cli := new(CLI)
 		app := conga.New(cli).
-			Name("mapapp").
 			Args([]string{"-t", "category=work", "-t", "priority=high"})
 
 		err := app.Run()
@@ -346,7 +334,6 @@ func TestBinder_MapFlag(t *testing.T) {
 
 		cli := new(CLI)
 		app := conga.New(cli).
-			Name("mapapp").
 			Args([]string{"-t", "env=prod,region=us-east"})
 
 		err := app.Run()
@@ -363,7 +350,6 @@ func TestBinder_MapFlag(t *testing.T) {
 
 		cli := new(CLI)
 		app := conga.New(cli).
-			Name("mapapp").
 			Args([]string{"-g", "k1=v1", "-g", "k2=v2"})
 
 		err := app.Run()
@@ -388,7 +374,6 @@ func TestBinder_CounterFlag(t *testing.T) {
 
 		cli := new(CLI)
 		app := conga.New(cli).
-			Name("counterapp").
 			Args([]string{"-v"})
 
 		err := app.Run()
@@ -404,7 +389,6 @@ func TestBinder_CounterFlag(t *testing.T) {
 
 		cli := new(CLI)
 		app := conga.New(cli).
-			Name("counterapp").
 			Args([]string{"-vvv"})
 
 		err := app.Run()
@@ -419,7 +403,6 @@ func TestBinder_CounterFlag(t *testing.T) {
 
 		cli := new(CLI)
 		app := conga.New(cli).
-			Name("counterapp").
 			Args([]string{"-v", "-v"})
 
 		err := app.Run()
@@ -434,7 +417,6 @@ func TestBinder_CounterFlag(t *testing.T) {
 
 		cli := new(CLI)
 		app := conga.New(cli).
-			Name("counterapp").
 			Args([]string{"--verbose", "--verbose"})
 
 		err := app.Run()
@@ -449,7 +431,6 @@ func TestBinder_CounterFlag(t *testing.T) {
 
 		cli := new(CLI)
 		app := conga.New(cli).
-			Name("counterapp").
 			Args([]string{"--verbose=2"})
 
 		err := app.Run()
@@ -465,7 +446,6 @@ func TestBinder_CounterFlag(t *testing.T) {
 
 		cli := new(CLI)
 		app := conga.New(cli).
-			Name("counterapp").
 			Args([]string{"-v=2"})
 
 		err := app.Run()
@@ -480,7 +460,6 @@ func TestBinder_CounterFlag(t *testing.T) {
 		t.Parallel()
 
 		app := conga.New[CLI]().
-			Name("counterapp").
 			Args([]string{"--verbose=abc"})
 
 		err := app.Run()
@@ -501,7 +480,6 @@ func TestBinder_CounterEnvSeed(t *testing.T) {
 
 	cli := new(CLI)
 	app := conga.New(cli).
-		Name("counterapp").
 		Args([]string{})
 
 	err := app.Run()
@@ -524,7 +502,6 @@ func TestBinder_CounterCLIOverridesEnv(t *testing.T) {
 
 	cli := new(CLI)
 	app := conga.New(cli).
-		Name("counterapp").
 		Args([]string{"-vv"})
 
 	err := app.Run()
@@ -549,7 +526,6 @@ func TestBinder_UnknownShortFlag(t *testing.T) {
 		t.Parallel()
 
 		app := conga.New[CLI]().
-			Name("unknownapp").
 			Args([]string{"-Z"})
 
 		err := app.Run()
@@ -562,7 +538,6 @@ func TestBinder_UnknownShortFlag(t *testing.T) {
 		t.Parallel()
 
 		app := conga.New[CLI]().
-			Name("unknownapp").
 			Args([]string{"-dZ"})
 
 		err := app.Run()
@@ -575,7 +550,6 @@ func TestBinder_UnknownShortFlag(t *testing.T) {
 		t.Parallel()
 
 		app := conga.New[CLI]().
-			Name("unknownapp").
 			Args([]string{"-Zd"})
 
 		err := app.Run()
@@ -596,7 +570,6 @@ func TestBinder_SliceSepNone(t *testing.T) {
 
 	cli := new(CLI)
 	app := conga.New(cli).
-		Name("sliceapp").
 		Args([]string{
 			"-H", "Accept: text/html,application/xhtml+xml",
 			"-H", "Authorization: Bearer token123",
@@ -626,7 +599,6 @@ func TestBinder_NegatableBool(t *testing.T) {
 
 		cli := new(CLI)
 		app := conga.New(cli).
-			Name("negapp").
 			Args([]string{"--location"})
 
 		err := app.Run()
@@ -641,7 +613,6 @@ func TestBinder_NegatableBool(t *testing.T) {
 
 		cli := new(CLI)
 		app := conga.New(cli).
-			Name("negapp").
 			Args([]string{"--no-location"})
 
 		err := app.Run()
@@ -656,7 +627,6 @@ func TestBinder_NegatableBool(t *testing.T) {
 
 		cli := new(CLI)
 		app := conga.New(cli).
-			Name("negapp").
 			Args([]string{"-L", "--no-location"})
 
 		err := app.Run()
@@ -671,7 +641,6 @@ func TestBinder_NegatableBool(t *testing.T) {
 
 		cli := new(CLI)
 		app := conga.New(cli).
-			Name("negapp").
 			Args([]string{"--no-location", "-L"})
 
 		err := app.Run()
@@ -698,7 +667,7 @@ func TestBinder_NegatedTokenRouting(t *testing.T) {
 	t.Run("negated form of non-negatable flag is an unknown flag", func(t *testing.T) {
 		t.Parallel()
 
-		app := conga.New[NegatedTokenCLI]().Name("negapp").Args([]string{"--no-port"})
+		app := conga.New[NegatedTokenCLI]().Args([]string{"--no-port"})
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
@@ -709,7 +678,7 @@ func TestBinder_NegatedTokenRouting(t *testing.T) {
 	t.Run("negated form of non-negatable bool flag is an unknown flag", func(t *testing.T) {
 		t.Parallel()
 
-		app := conga.New[NegatedTokenCLI]().Name("negapp").Args([]string{"--no-verbose"})
+		app := conga.New[NegatedTokenCLI]().Args([]string{"--no-verbose"})
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
@@ -721,7 +690,7 @@ func TestBinder_NegatedTokenRouting(t *testing.T) {
 		t.Parallel()
 
 		cli := new(NegatedTokenCLI)
-		app := conga.New(cli).Name("negapp").Args([]string{"--no-cache"})
+		app := conga.New(cli).Args([]string{"--no-cache"})
 		err := app.RunContext(t.Context())
 
 		assert.NoError(t, err)
@@ -732,7 +701,7 @@ func TestBinder_NegatedTokenRouting(t *testing.T) {
 		t.Parallel()
 
 		cli := new(NegatedTokenCLI)
-		app := conga.New(cli).Name("negapp").Args([]string{"--no-debug"})
+		app := conga.New(cli).Args([]string{"--no-debug"})
 		err := app.RunContext(t.Context())
 
 		assert.NoError(t, err)
@@ -746,7 +715,7 @@ func TestBinder_NegatedTokenSuggestionSuppression(t *testing.T) {
 	t.Run("no suggestion on negated non-negatable flag", func(t *testing.T) {
 		t.Parallel()
 
-		app := conga.New[NegatedTokenCLI]().Name("negapp").Args([]string{"--no-port"})
+		app := conga.New[NegatedTokenCLI]().Args([]string{"--no-port"})
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
@@ -757,7 +726,7 @@ func TestBinder_NegatedTokenSuggestionSuppression(t *testing.T) {
 func TestBinder_CaseInsensitiveFlagSuggestion(t *testing.T) {
 	t.Parallel()
 
-	app := conga.New[NegatedTokenCLI]().Name("negapp").Args([]string{"--PORT"})
+	app := conga.New[NegatedTokenCLI]().Args([]string{"--PORT"})
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
@@ -828,7 +797,7 @@ func TestBinder_SubcommandRequired(t *testing.T) {
 		Subcommand conga.Command[SubcommandChildCLI] `name:"sub"`
 	}
 
-	app := conga.New[RequiredSubParentCLI]().Name("app").Args([]string{})
+	app := conga.New[RequiredSubParentCLI]().Args([]string{})
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)

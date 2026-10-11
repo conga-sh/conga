@@ -65,7 +65,6 @@ func TestInterface_Completion(t *testing.T) {
 
 	app := conga.New[netTestCLI]().
 		EnableCompletion().
-		Name("app").
 		Stdout(&buffer).
 		Use(network.RegisterInterface).
 		Args([]string{"__complete", "export", "--iface", ""})

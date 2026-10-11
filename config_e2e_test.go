@@ -415,7 +415,6 @@ func TestConfigFile_DecoderlessHelpWarns(t *testing.T) {
 	var buffer bytes.Buffer
 
 	app := conga.New[DecoderlessHelpCLI]().
-		Name("myapp").
 		Args([]string{"--help"}).
 		Stdout(&buffer)
 
@@ -438,7 +437,6 @@ func TestConfigFile_WithDecoderHelpOmitsWarning(t *testing.T) {
 	var buffer bytes.Buffer
 
 	app := conga.New[DecoderHelpCLI]().
-		Name("myapp").
 		RegisterDecoder(".json", json.Decode).
 		Args([]string{"--help"}).
 		Stdout(&buffer)
@@ -464,7 +462,6 @@ func TestConfigFile_DecoderlessExplicitTargetErrors(t *testing.T) {
 	assert.NoError(t, err)
 
 	app := conga.New[DecoderlessTargetCLI]().
-		Name("myapp").
 		Args([]string{"--config", cfgPath})
 
 	err = app.Run()
@@ -485,7 +482,6 @@ func TestConfig_EnvConfigVar_RequiresDecoder(t *testing.T) {
 	}
 
 	app := conga.New[EnvConfigCLI]().
-		Name("decoderless").
 		EnvPrefix("DECODERLESS_").
 		Args([]string{})
 
@@ -507,7 +503,6 @@ func TestConfigFile_DefaultTagRejected(t *testing.T) {
 	t.Parallel()
 
 	app := conga.New[DefaultTagConfigFileCLI]().
-		Name("defaulttag").
 		Args([]string{})
 
 	err := app.Run()

@@ -46,7 +46,6 @@ func TestInspectorFormatting(t *testing.T) {
 
 	cli := new(SampleCLI)
 	app := conga.New(cli).
-		Name("sample").
 		Args([]string{"-n", "Antigravity", "-v"})
 
 	err := app.RunContext(t.Context())
@@ -73,7 +72,6 @@ func TestInspectorChainView(t *testing.T) {
 
 	cli := new(ChainCLI)
 	app := conga.New(cli).
-		Name("chainctl").
 		Args([]string{"create", "web-api", "-i", "redis:7"})
 
 	err := app.RunContext(t.Context())
@@ -103,7 +101,6 @@ func TestInspectorColorForced(t *testing.T) {
 
 	cli := new(SampleCLI)
 	app := conga.New(cli).
-		Name("sample").
 		Args([]string{"-n", "Antigravity", "-v"})
 
 	err := app.RunContext(t.Context())
@@ -124,7 +121,6 @@ func TestInspectorColorDisabled(t *testing.T) {
 
 	cli := new(SampleCLI)
 	app := conga.New(cli).
-		Name("sample").
 		Args([]string{"-n", "Antigravity", "-v"})
 
 	err := app.RunContext(t.Context())

@@ -87,7 +87,7 @@ func TestDocClaims_ValidateFailureSkipsFinally(t *testing.T) {
 
 	var buffer bytes.Buffer
 
-	app := conga.New[docClaimsValidateCLI]().Name("testapp").Stdout(&buffer).Args([]string{})
+	app := conga.New[docClaimsValidateCLI]().Stdout(&buffer).Args([]string{})
 
 	err := app.Run()
 

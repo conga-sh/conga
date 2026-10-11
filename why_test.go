@@ -192,7 +192,6 @@ func TestWhy_UnsetRows(t *testing.T) {
 	var buffer bytes.Buffer
 
 	app := conga.New[whyCLI]().
-		Name("whyapp").
 		Stdout(&buffer).
 		EnableWhy().
 		Args([]string{"--why"})
@@ -249,7 +248,6 @@ func TestWhy_BoolAndCounterVisibleByDefault(t *testing.T) {
 	var buffer bytes.Buffer
 
 	app := conga.New[toggleCLI]().
-		Name("whyapp").
 		Stdout(&buffer).
 		EnableWhy().
 		Args([]string{"--verbose", "--loud", "--loud", "--token", "s3cr3t-token", "--why"})
@@ -291,7 +289,6 @@ func TestWhy_BoolSafeFalseOverrideRedacts(t *testing.T) {
 	var buffer bytes.Buffer
 
 	app := conga.New[overrideCLI]().
-		Name("whyapp").
 		Stdout(&buffer).
 		EnableWhy().
 		Args([]string{"--telemetry", "--why"})
@@ -324,7 +321,6 @@ func TestWhy_AllVisibleRowsOmitFooter(t *testing.T) {
 	var buffer bytes.Buffer
 
 	app := conga.New[visibleCLI]().
-		Name("whyapp").
 		Stdout(&buffer).
 		EnableWhy().
 		Args([]string{"--verbose", "--why"})
@@ -350,7 +346,6 @@ func TestWhy_NegatedBoolDisplaysFalse(t *testing.T) {
 	var buffer bytes.Buffer
 
 	app := conga.New[negatableCLI]().
-		Name("whyapp").
 		Stdout(&buffer).
 		EnableWhy().
 		Args([]string{"--no-color", "--why"})
@@ -377,7 +372,6 @@ func TestWhy_MapDeterminism(t *testing.T) {
 		var buffer bytes.Buffer
 
 		app := conga.New[whyCLI]().
-			Name("whyapp").
 			Stdout(&buffer).
 			EnableWhy().
 			Args([]string{"--headers", "z=1,a=2,m=3", "--why"})
@@ -398,7 +392,6 @@ func TestWhy_HiddenFlagMarked(t *testing.T) {
 	var buffer bytes.Buffer
 
 	app := conga.New[whyCLI]().
-		Name("whyapp").
 		Stdout(&buffer).
 		EnableWhy().
 		Args([]string{"--secret", "hidden-value", "--why"})
@@ -428,7 +421,6 @@ func TestWhy_TolerantCoercionErrorRow(t *testing.T) {
 	var buffer bytes.Buffer
 
 	app := conga.New[envPortCLI]().
-		Name("whyapp").
 		Stdout(&buffer).
 		EnableWhy().
 		Args([]string{"--why"})
@@ -449,7 +441,6 @@ func TestWhy_ConfigFileReadFailureDiagnosticRow(t *testing.T) {
 	var buffer bytes.Buffer
 
 	app := conga.New[whyCLI]().
-		Name("whyapp").
 		RegisterDecoder(".json", json.Decode).
 		Stdout(&buffer).
 		EnableWhy().
@@ -473,7 +464,6 @@ func TestWhy_DecoderlessEnvConfigVarDiagnosticRow(t *testing.T) {
 	var buffer bytes.Buffer
 
 	app := conga.New[whyExplicitConfigCLI]().
-		Name("decoderless").
 		EnvPrefix("DECODERLESS_").
 		Stdout(&buffer).
 		EnableWhy().
@@ -502,7 +492,6 @@ func TestWhy_ConfigFileRowsRender(t *testing.T) {
 		var buffer bytes.Buffer
 
 		app := conga.New[whyCLI]().
-			Name("whyapp").
 			RegisterDecoder(".json", json.Decode).
 			Stdout(&buffer).
 			EnableWhy().
@@ -538,7 +527,6 @@ func TestWhy_ConfigFileRowsRender(t *testing.T) {
 		var buffer bytes.Buffer
 
 		app := conga.New[multiCLI]().
-			Name("whyapp").
 			RegisterDecoder(".json", json.Decode).
 			Stdout(&buffer).
 			EnableWhy().
@@ -637,7 +625,6 @@ func TestWhy_ConfigPathsChecked_ExplicitPath(t *testing.T) {
 		)
 
 		app := conga.New[whyExplicitConfigCLI]().
-			Name("whyapp").
 			RegisterDecoder(".json", json.Decode).
 			Stdout(&buffer).
 			EnableWhy().
@@ -664,7 +651,6 @@ func TestWhy_ConfigPathsChecked_ExplicitPath(t *testing.T) {
 		)
 
 		app := conga.New[whyExplicitConfigCLI]().
-			Name("whyapp").
 			RegisterDecoder(".json", json.Decode).
 			Stdout(&buffer).
 			EnableWhy().
@@ -705,7 +691,6 @@ func TestWhy_ConfigFileRowUnset(t *testing.T) {
 	var buffer bytes.Buffer
 
 	app := conga.New[whyExplicitConfigCLI]().
-		Name("whyapp").
 		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigPaths(missingTier)).
 		Stdout(&buffer).
@@ -739,7 +724,6 @@ func TestWhy_ConfigPathsChecked_OmittedWithoutConfigResolution(t *testing.T) {
 	var buffer bytes.Buffer
 
 	app := conga.New[whySearchPathCLI]().
-		Name("whyapp").
 		Stdout(&buffer).
 		EnableWhy().
 		Args([]string{"--why"})
@@ -799,7 +783,6 @@ func TestWhy_BuiltinPriority(t *testing.T) {
 
 		app := conga.New[whyFlatCLI]().
 			EnableCompletion().
-			Name("whyapp").
 			Stdout(&buffer).
 			EnableWhy().
 			Args([]string{"--why", "--completion", "zsh"})
@@ -817,7 +800,6 @@ func TestWhy_BuiltinPriority(t *testing.T) {
 
 		app := conga.New[whyFlatCLI]().
 			EnableCompletion().
-			Name("whyapp").
 			Stdout(&buffer).
 			EnableWhy().
 			Args([]string{"--completion", "--why"})
@@ -835,7 +817,6 @@ func TestWhy_BuiltinPriority(t *testing.T) {
 
 		app := conga.New[whyFlatCLI]().
 			EnableCompletion().
-			Name("whyapp").
 			Stdout(&buffer).
 			EnableWhy().
 			Args([]string{"--completion", "zsh", "--help", "--why"})
@@ -856,7 +837,7 @@ func TestWhy_Collision(t *testing.T) {
 		Why conga.OptionalFlag[bool] `help:"Explain reasoning"`
 	}
 
-	app := conga.New[collidingCLI]().Name("whyapp").EnableWhy()
+	app := conga.New[collidingCLI]().EnableWhy()
 
 	err := app.Run()
 
@@ -868,7 +849,7 @@ func TestWhy_Collision(t *testing.T) {
 func TestWhy_Collision_SubcommandUserFlag(t *testing.T) {
 	t.Parallel()
 
-	app := conga.New[whySubCollisionCLI]().Name("whyapp").EnableWhy()
+	app := conga.New[whySubCollisionCLI]().EnableWhy()
 
 	err := app.Run()
 
@@ -884,7 +865,6 @@ func TestWhy_UserFlagWithoutOptIn(t *testing.T) {
 
 	cli := new(whyTakeoverCLI)
 	app := conga.New(cli).
-		Name("whyapp").
 		Stdout(&buffer).
 		Args([]string{"--why"})
 
@@ -902,7 +882,6 @@ func TestWhy_UserFlagWithoutOptIn_Subcommand(t *testing.T) {
 
 	cli := new(whySubTakeoverCLI)
 	app := conga.New(cli).
-		Name("whyapp").
 		Args([]string{"sub", "--why"})
 
 	err := app.Run()
@@ -923,7 +902,6 @@ func TestWhy_OnSubcommands(t *testing.T) {
 		)
 
 		app := conga.New[whyCLI]().
-			Name("whyapp").
 			Stdout(&buffer).
 			EnableWhy().
 			Args([]string{"sub", "--help"})
@@ -985,7 +963,6 @@ func TestWhy_OnSubcommands(t *testing.T) {
 		)
 
 		app := conga.New[whyCLI]().
-			Name("whyapp").
 			Stdout(&buffer).
 			EnableWhy().
 			Args([]string{"--help"})
@@ -1013,7 +990,6 @@ func TestWhy_NoPositionalArgRows(t *testing.T) {
 	var buffer bytes.Buffer
 
 	app := conga.New[argCLI]().
-		Name("whyapp").
 		Stdout(&buffer).
 		EnableWhy().
 		Args([]string{"prod", "--why"})
@@ -1109,7 +1085,6 @@ func TestWhy_ConfigDecoders_HeaderSuffixListsRegisteredDecoders(t *testing.T) {
 	var buffer bytes.Buffer
 
 	app := conga.New[whySearchPathCLI]().
-		Name("whyapp").
 		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigPaths(filepath.Join(t.TempDir(), "conf")), conga.ConfigCascading()).
 		Stdout(&buffer).
@@ -1133,7 +1108,6 @@ func TestWhy_ConfigDecoders_OmittedWithoutRegisteredDecoders(t *testing.T) {
 	var buffer bytes.Buffer
 
 	app := conga.New[whySearchPathCLI]().
-		Name("whyapp").
 		ConfigOptions(conga.ConfigPaths(filepath.Join(t.TempDir(), "conf")), conga.ConfigCascading()).
 		Stdout(&buffer).
 		EnableWhy().
@@ -1218,7 +1192,6 @@ func TestWhy_ProbedFiles_LoadedTierOmitted(t *testing.T) {
 	var buffer bytes.Buffer
 
 	app := conga.New[whySearchPathCLI]().
-		Name("whyapp").
 		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigPaths(dirTier), conga.ConfigCascading()).
 		Stdout(&buffer).
@@ -1273,7 +1246,6 @@ func TestWhy_ProbedFiles_ExplicitPathOmitted(t *testing.T) {
 	var buffer bytes.Buffer
 
 	app := conga.New[whyExplicitConfigCLI]().
-		Name("whyapp").
 		RegisterDecoder(".json", json.Decode).
 		Stdout(&buffer).
 		EnableWhy().

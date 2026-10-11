@@ -150,7 +150,7 @@ func TestErrorCategories(t *testing.T) {
 	t.Run("parse unknown flag", func(t *testing.T) {
 		t.Parallel()
 
-		app := conga.New[XorDefaultCLI]().Name("app").Args([]string{"--bogus"})
+		app := conga.New[XorDefaultCLI]().Args([]string{"--bogus"})
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
@@ -161,7 +161,7 @@ func TestErrorCategories(t *testing.T) {
 	t.Run("parse flag requires value", func(t *testing.T) {
 		t.Parallel()
 
-		app := conga.New[FullServerCLI]().Name("server").Args([]string{"--api-key", "k", "--port"})
+		app := conga.New[FullServerCLI]().Args([]string{"--api-key", "k", "--port"})
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
@@ -172,7 +172,7 @@ func TestErrorCategories(t *testing.T) {
 	t.Run("validation mutually exclusive", func(t *testing.T) {
 		t.Parallel()
 
-		app := conga.New[XorDefaultCLI]().Name("app").Args([]string{"--immediate", "--graceful"})
+		app := conga.New[XorDefaultCLI]().Args([]string{"--immediate", "--graceful"})
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
@@ -182,7 +182,7 @@ func TestErrorCategories(t *testing.T) {
 	t.Run("validation missing required flag", func(t *testing.T) {
 		t.Parallel()
 
-		app := conga.New[FullServerCLI]().Name("server").Args([]string{"file.txt"})
+		app := conga.New[FullServerCLI]().Args([]string{"file.txt"})
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
@@ -193,7 +193,7 @@ func TestErrorCategories(t *testing.T) {
 	t.Run("validation invalid enum value", func(t *testing.T) {
 		t.Parallel()
 
-		app := conga.New[FullServerCLI]().Name("server").Args([]string{"--api-key", "k", "--format", "invalid", "file.txt"})
+		app := conga.New[FullServerCLI]().Args([]string{"--api-key", "k", "--format", "invalid", "file.txt"})
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
@@ -203,7 +203,7 @@ func TestErrorCategories(t *testing.T) {
 	t.Run("coerce invalid value", func(t *testing.T) {
 		t.Parallel()
 
-		app := conga.New[FullServerCLI]().Name("server").Args([]string{"--api-key", "k", "-p", "not-a-number", "file.txt"})
+		app := conga.New[FullServerCLI]().Args([]string{"--api-key", "k", "-p", "not-a-number", "file.txt"})
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
@@ -272,7 +272,7 @@ func TestValidationErrorPathKindRender(t *testing.T) {
 
 	tmpDir := t.TempDir()
 
-	app := conga.New[PathKindCLI]().Name("app").Args([]string{"--file", tmpDir})
+	app := conga.New[PathKindCLI]().Args([]string{"--file", tmpDir})
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
@@ -292,7 +292,7 @@ func TestValidationErrorExecutableRender(t *testing.T) {
 	progPath := filepath.Join(tmpDir, "prog")
 	assert.NoError(t, os.WriteFile(progPath, []byte("#!/bin/sh\n"), 0o644))
 
-	app := conga.New[ExecutableCLI]().Name("app").Args([]string{"--prog", progPath})
+	app := conga.New[ExecutableCLI]().Args([]string{"--prog", progPath})
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
@@ -308,7 +308,7 @@ func TestValidationErrorSymlinkRender(t *testing.T) {
 	hookPath := filepath.Join(tmpDir, "hook.sh")
 	assert.NoError(t, os.WriteFile(hookPath, []byte("#!/bin/sh\n"), 0o755))
 
-	app := conga.New[SymlinkCLI]().Name("app").Args([]string{"--hook", hookPath})
+	app := conga.New[SymlinkCLI]().Args([]string{"--hook", hookPath})
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
@@ -320,7 +320,7 @@ func TestValidationErrorSymlinkRender(t *testing.T) {
 func TestSchemaErrorFileTagExclusionExistingExecutable(t *testing.T) {
 	t.Parallel()
 
-	app := conga.New[FileTagExclusionCLI]().Name("app")
+	app := conga.New[FileTagExclusionCLI]()
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
@@ -331,7 +331,7 @@ func TestSchemaErrorFileTagExclusionExistingExecutable(t *testing.T) {
 func TestSchemaErrorFileTagExclusionSymlinkStdout(t *testing.T) {
 	t.Parallel()
 
-	app := conga.New[FileStdioExclusionCLI]().Name("app")
+	app := conga.New[FileStdioExclusionCLI]()
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
@@ -342,7 +342,7 @@ func TestSchemaErrorFileTagExclusionSymlinkStdout(t *testing.T) {
 func TestCoercionErrorCounterRender(t *testing.T) {
 	t.Parallel()
 
-	app := conga.New[CounterErrorCLI]().Name("app").Args([]string{"--count=abc"})
+	app := conga.New[CounterErrorCLI]().Args([]string{"--count=abc"})
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
@@ -353,7 +353,7 @@ func TestCoercionErrorCounterRender(t *testing.T) {
 func TestCoercionErrorUnsupportedTypeRender(t *testing.T) {
 	t.Parallel()
 
-	app := conga.New[UnsupportedTypeCLI]().Name("app").Args([]string{"--ch", "x"})
+	app := conga.New[UnsupportedTypeCLI]().Args([]string{"--ch", "x"})
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
@@ -364,7 +364,7 @@ func TestCoercionErrorUnsupportedTypeRender(t *testing.T) {
 func TestCoercionErrorByteSizeRender(t *testing.T) {
 	t.Parallel()
 
-	app := conga.New[ByteSizeErrorCLI]().Name("app").Args([]string{"--max-memory", "10ZB"})
+	app := conga.New[ByteSizeErrorCLI]().Args([]string{"--max-memory", "10ZB"})
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
@@ -375,7 +375,7 @@ func TestCoercionErrorByteSizeRender(t *testing.T) {
 func TestCoercionErrorByteSizeAmbiguousUnitRender(t *testing.T) {
 	t.Parallel()
 
-	app := conga.New[ByteSizeErrorCLI]().Name("app").Args([]string{"--max-memory", "10KB"})
+	app := conga.New[ByteSizeErrorCLI]().Args([]string{"--max-memory", "10KB"})
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
@@ -386,7 +386,7 @@ func TestCoercionErrorByteSizeAmbiguousUnitRender(t *testing.T) {
 func TestHookErrorsPassThrough(t *testing.T) {
 	t.Parallel()
 
-	app := conga.New[failingCLI]().Name("app").Args([]string{})
+	app := conga.New[failingCLI]().Args([]string{})
 	err := app.RunContext(t.Context())
 	assert.IsError(t, err, fs.ErrPermission)
 	assert.Equal(t, fs.ErrPermission.Error(), err.Error())
@@ -429,7 +429,7 @@ func TestIsUsageError_EndToEnd(t *testing.T) {
 			noopRunner
 		}
 
-		app := conga.New[CLI]().Name("app").Args([]string{"--bogus"})
+		app := conga.New[CLI]().Args([]string{"--bogus"})
 
 		err := app.Run()
 
@@ -447,7 +447,7 @@ func TestIsUsageError_EndToEnd(t *testing.T) {
 			Port conga.OptionalFlag[int] `name:"port"`
 		}
 
-		app := conga.New[CLI]().Name("app").Args([]string{"--port", "abc"})
+		app := conga.New[CLI]().Args([]string{"--port", "abc"})
 
 		err := app.Run()
 
@@ -465,7 +465,7 @@ func TestIsUsageError_EndToEnd(t *testing.T) {
 			Token conga.RequiredFlag[string] `name:"token"`
 		}
 
-		app := conga.New[CLI]().Name("app").Args([]string{})
+		app := conga.New[CLI]().Args([]string{})
 
 		err := app.Run()
 
@@ -485,7 +485,7 @@ func TestErrNoRunner(t *testing.T) {
 			Flag conga.OptionalFlag[string] `name:"flag"`
 		}
 
-		app := conga.New[CLI]().Name("app").Args([]string{})
+		app := conga.New[CLI]().Args([]string{})
 
 		err := app.Run()
 
@@ -505,7 +505,7 @@ func TestErrNoRunner(t *testing.T) {
 			Subcommand conga.Command[ChildCmd] `name:"sub"`
 		}
 
-		app := conga.New[ParentCLI]().Name("app").Args([]string{"sub"})
+		app := conga.New[ParentCLI]().Args([]string{"sub"})
 
 		err := app.Run()
 
@@ -529,7 +529,7 @@ func TestErrNoRunner(t *testing.T) {
 			Mid conga.Command[MidCmd] `name:"mid"`
 		}
 
-		app := conga.New[RootCLI]().Name("app").Args([]string{"mid", "leaf"})
+		app := conga.New[RootCLI]().Args([]string{"mid", "leaf"})
 
 		err := app.Run()
 
@@ -542,7 +542,7 @@ func TestErrNoRunner(t *testing.T) {
 func TestTextUnmarshalerCoerceWrapping_Issue06(t *testing.T) {
 	t.Parallel()
 
-	app := conga.New[CustomTypeCLI]().Name("app").Args([]string{"--custom", "fail"})
+	app := conga.New[CustomTypeCLI]().Args([]string{"--custom", "fail"})
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
@@ -553,7 +553,7 @@ func TestTextUnmarshalerCoerceWrapping_Issue06(t *testing.T) {
 func TestSubcommandTypoSuggestion_Issue10(t *testing.T) {
 	t.Parallel()
 
-	app := conga.New[SubcommandParentCLI]().Name("clustermgr").Args([]string{"clustr"})
+	app := conga.New[SubcommandParentCLI]().Args([]string{"clustr"})
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
@@ -578,7 +578,7 @@ func TestSliceEnumValidation_Issue03(t *testing.T) {
 	t.Run("valid slice enum elements", func(t *testing.T) {
 		t.Parallel()
 
-		app := conga.New[SliceEnumCLI]().Name("app").Args([]string{"--format", "json,yaml"})
+		app := conga.New[SliceEnumCLI]().Args([]string{"--format", "json,yaml"})
 		err := app.RunContext(t.Context())
 
 		assert.NoError(t, err)
@@ -587,7 +587,7 @@ func TestSliceEnumValidation_Issue03(t *testing.T) {
 	t.Run("invalid slice enum element", func(t *testing.T) {
 		t.Parallel()
 
-		app := conga.New[SliceEnumCLI]().Name("app").Args([]string{"--format", "json,xml"})
+		app := conga.New[SliceEnumCLI]().Args([]string{"--format", "json,xml"})
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
@@ -601,7 +601,7 @@ func TestNormalizingEnumValidation(t *testing.T) {
 	t.Run("flag accepts normalized value", func(t *testing.T) {
 		t.Parallel()
 
-		app := conga.New[NormalizingEnumCLI]().Name("app").Args([]string{"--method", "get"})
+		app := conga.New[NormalizingEnumCLI]().Args([]string{"--method", "get"})
 
 		err := app.RunContext(t.Context())
 
@@ -611,7 +611,7 @@ func TestNormalizingEnumValidation(t *testing.T) {
 	t.Run("argument accepts normalized value", func(t *testing.T) {
 		t.Parallel()
 
-		app := conga.New[NormalizingEnumCLI]().Name("app").Args([]string{"get"})
+		app := conga.New[NormalizingEnumCLI]().Args([]string{"get"})
 
 		err := app.RunContext(t.Context())
 
@@ -621,7 +621,7 @@ func TestNormalizingEnumValidation(t *testing.T) {
 	t.Run("flag rejects value outside enum", func(t *testing.T) {
 		t.Parallel()
 
-		app := conga.New[NormalizingEnumCLI]().Name("app").Args([]string{"--method", "patch"})
+		app := conga.New[NormalizingEnumCLI]().Args([]string{"--method", "patch"})
 
 		err := app.RunContext(t.Context())
 
@@ -632,7 +632,7 @@ func TestNormalizingEnumValidation(t *testing.T) {
 	t.Run("argument rejects value outside enum", func(t *testing.T) {
 		t.Parallel()
 
-		app := conga.New[NormalizingEnumCLI]().Name("app").Args([]string{"patch"})
+		app := conga.New[NormalizingEnumCLI]().Args([]string{"patch"})
 
 		err := app.RunContext(t.Context())
 
@@ -1007,7 +1007,7 @@ func TestOptionTerminatorLookahead_Issue02(t *testing.T) {
 	t.Run("long value flag before double dash", func(t *testing.T) {
 		t.Parallel()
 
-		app := conga.New[OptionTerminatorCLI]().Name("app").Args([]string{"--name", "--", "file1.txt", "file2.txt"})
+		app := conga.New[OptionTerminatorCLI]().Args([]string{"--name", "--", "file1.txt", "file2.txt"})
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
@@ -1018,7 +1018,7 @@ func TestOptionTerminatorLookahead_Issue02(t *testing.T) {
 	t.Run("short value flag before double dash", func(t *testing.T) {
 		t.Parallel()
 
-		app := conga.New[OptionTerminatorCLI]().Name("app").Args([]string{"-o", "--", "file1.txt"})
+		app := conga.New[OptionTerminatorCLI]().Args([]string{"-o", "--", "file1.txt"})
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
@@ -1030,7 +1030,7 @@ func TestOptionTerminatorLookahead_Issue02(t *testing.T) {
 		t.Parallel()
 
 		cli := new(OptionTerminatorCLI)
-		app := conga.New(cli).Name("app").Args([]string{"--name=myname", "--", "file1.txt", "file2.txt"})
+		app := conga.New(cli).Args([]string{"--name=myname", "--", "file1.txt", "file2.txt"})
 		err := app.RunContext(t.Context())
 
 		assert.NoError(t, err)
@@ -1046,7 +1046,7 @@ func TestPointerTargetCoercion_Issue07(t *testing.T) {
 		t.Parallel()
 
 		cli := new(CustomTypeCLI)
-		app := conga.New(cli).Name("app").Args([]string{
+		app := conga.New(cli).Args([]string{
 			"--url", "https://example.com/api/v1?query=test",
 			"--ptr", "custom-pointer-val",
 		})
@@ -1064,7 +1064,7 @@ func TestPointerTargetCoercion_Issue07(t *testing.T) {
 	t.Run("invalid URL pointer fails coercion", func(t *testing.T) {
 		t.Parallel()
 
-		app := conga.New[CustomTypeCLI]().Name("app").Args([]string{"--url", "http://[invalid-host-bracket"})
+		app := conga.New[CustomTypeCLI]().Args([]string{"--url", "http://[invalid-host-bracket"})
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
@@ -1075,7 +1075,7 @@ func TestPointerTargetCoercion_Issue07(t *testing.T) {
 	t.Run("failing pointer TextUnmarshaler fails coercion", func(t *testing.T) {
 		t.Parallel()
 
-		app := conga.New[CustomTypeCLI]().Name("app").Args([]string{"--ptr", "fail"})
+		app := conga.New[CustomTypeCLI]().Args([]string{"--ptr", "fail"})
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
@@ -1313,7 +1313,7 @@ func TestSchemaFlagCollisions_Issue05(t *testing.T) {
 		}
 
 		cli := new(CoexistCLI)
-		app := conga.New(cli).Name("app").Args([]string{"--config", "app.yaml", "config", "mykey"})
+		app := conga.New(cli).Args([]string{"--config", "app.yaml", "config", "mykey"})
 		err := app.RunContext(t.Context())
 
 		assert.NoError(t, err)
@@ -1337,7 +1337,7 @@ func TestSchemaFlagCollisions_Issue05(t *testing.T) {
 		}
 
 		cli := new(DisambiguateCLI)
-		app := conga.New(cli).Name("app").Args([]string{"--config", "run", "run", "mytask"})
+		app := conga.New(cli).Args([]string{"--config", "run", "run", "mytask"})
 		err := app.RunContext(t.Context())
 
 		assert.NoError(t, err)
@@ -1361,7 +1361,7 @@ func TestNegativeNumbersAndNumericFlags_Issue01(t *testing.T) {
 		}
 
 		cli := new(CalcCLI)
-		app := conga.New(cli).Name("calc").Args([]string{"-5", "-3.14"})
+		app := conga.New(cli).Args([]string{"-5", "-3.14"})
 		err := app.RunContext(t.Context())
 
 		assert.NoError(t, err)
@@ -1379,7 +1379,7 @@ func TestNegativeNumbersAndNumericFlags_Issue01(t *testing.T) {
 		}
 
 		cli := new(SliceCLI)
-		app := conga.New(cli).Name("math").Args([]string{"-5", "-10", "-15"})
+		app := conga.New(cli).Args([]string{"-5", "-10", "-15"})
 		err := app.RunContext(t.Context())
 
 		assert.NoError(t, err)
@@ -1398,7 +1398,7 @@ func TestNegativeNumbersAndNumericFlags_Issue01(t *testing.T) {
 		}
 
 		cli := new(OffsetCLI)
-		app := conga.New(cli).Name("app").Args([]string{"--offset", "-10", "--scale", "-0.5"})
+		app := conga.New(cli).Args([]string{"--offset", "-10", "--scale", "-0.5"})
 		err := app.RunContext(t.Context())
 
 		assert.NoError(t, err)
@@ -1418,7 +1418,7 @@ func TestNegativeNumbersAndNumericFlags_Issue01(t *testing.T) {
 		}
 
 		cli := new(OffsetCLI)
-		app := conga.New(cli).Name("app").Args([]string{"-o", "-25", "-s", "-1.25", "-v"})
+		app := conga.New(cli).Args([]string{"-o", "-25", "-s", "-1.25", "-v"})
 		err := app.RunContext(t.Context())
 
 		assert.NoError(t, err)
@@ -1439,7 +1439,7 @@ func TestNegativeNumbersAndNumericFlags_Issue01(t *testing.T) {
 		}
 
 		cli := new(OffsetCLI)
-		app := conga.New(cli).Name("app").Args([]string{"--offset=-99", "-s=-4.5"})
+		app := conga.New(cli).Args([]string{"--offset=-99", "-s=-4.5"})
 		err := app.RunContext(t.Context())
 
 		assert.NoError(t, err)
@@ -1459,7 +1459,7 @@ func TestNegativeNumbersAndNumericFlags_Issue01(t *testing.T) {
 		}
 
 		cli := new(NetCLI)
-		app := conga.New(cli).Name("net").Args([]string{"-6", "-p", "8080"})
+		app := conga.New(cli).Args([]string{"-6", "-p", "8080"})
 		err := app.RunContext(t.Context())
 
 		assert.NoError(t, err)
@@ -1478,7 +1478,7 @@ func TestNegativeNumbersAndNumericFlags_Issue01(t *testing.T) {
 			Verbose conga.OptionalFlag[bool] `name:"verbose" short:"v"`
 		}
 
-		app := conga.New[TestCLI]().Name("app").Args([]string{"--offset", "-v"})
+		app := conga.New[TestCLI]().Args([]string{"--offset", "-v"})
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
@@ -1495,7 +1495,7 @@ func TestNegativeNumbersAndNumericFlags_Issue01(t *testing.T) {
 			Verbose conga.OptionalFlag[bool] `name:"verbose" short:"v"`
 		}
 
-		app := conga.New[TestCLI]().Name("app").Args([]string{"-o", "-v"})
+		app := conga.New[TestCLI]().Args([]string{"-o", "-v"})
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
@@ -1511,7 +1511,7 @@ func TestNegativeNumbersAndNumericFlags_Issue01(t *testing.T) {
 			Verbose conga.OptionalFlag[bool] `name:"verbose" short:"v"`
 		}
 
-		app := conga.New[NoPosCLI]().Name("app").Args([]string{"-5"})
+		app := conga.New[NoPosCLI]().Args([]string{"-5"})
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
@@ -1529,7 +1529,7 @@ func TestNegativeNumbersAndNumericFlags_Issue01(t *testing.T) {
 		}
 
 		cli := new(AdvancedCalcCLI)
-		app := conga.New(cli).Name("calc").Args([]string{"-1e-3", "-99999"})
+		app := conga.New(cli).Args([]string{"-1e-3", "-99999"})
 		err := app.RunContext(t.Context())
 
 		assert.NoError(t, err)

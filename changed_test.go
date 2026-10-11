@@ -26,7 +26,6 @@ func TestChangedSemantics_DefaultSource(t *testing.T) {
 
 	cli := new(SemanticsCLI)
 	app := conga.New(cli).
-		Name("app").
 		Args([]string{})
 
 	err := app.RunContext(t.Context())
@@ -43,7 +42,6 @@ func TestChangedSemantics_EnvSource(t *testing.T) {
 
 	cli := new(SemanticsCLI)
 	app := conga.New(cli).
-		Name("app").
 		Args([]string{})
 
 	err := app.RunContext(t.Context())
@@ -60,7 +58,6 @@ func TestChangedSemantics_CLISource(t *testing.T) {
 
 	cli := new(SemanticsCLI)
 	app := conga.New(cli).
-		Name("app").
 		Args([]string{"--name", "from_cli"})
 
 	err := app.RunContext(t.Context())
@@ -77,7 +74,6 @@ func TestXor_DefaultDoesNotConflict(t *testing.T) {
 
 	cli := new(XorDefaultCLI)
 	app := conga.New(cli).
-		Name("app").
 		Args([]string{"--immediate"})
 
 	err := app.RunContext(t.Context())
@@ -96,7 +92,6 @@ func TestXor_ExplicitConflictStillDetected(t *testing.T) {
 		t.Parallel()
 
 		app := conga.New[XorDefaultCLI]().
-			Name("app").
 			Args([]string{"--immediate", "--graceful"})
 
 		err := app.RunContext(t.Context())
@@ -110,7 +105,6 @@ func TestXor_ExplicitConflictStillDetected(t *testing.T) {
 		t.Parallel()
 
 		app := conga.New[XorDefaultCLI]().
-			Name("app").
 			Args([]string{"--immediate", "--graceful=false"})
 
 		err := app.RunContext(t.Context())
@@ -132,7 +126,6 @@ func TestXor_EnvCountsAsChanged(t *testing.T) {
 	}
 
 	app := conga.New[XorEnvCLI]().
-		Name("app").
 		Args([]string{"--immediate"})
 
 	err := app.RunContext(t.Context())
@@ -153,7 +146,6 @@ func TestAndGroup_EnvTriggersGroup(t *testing.T) {
 	}
 
 	app := conga.New[AndGroupCLI]().
-		Name("app").
 		Args([]string{})
 
 	err := app.RunContext(t.Context())
@@ -174,7 +166,6 @@ func TestAndGroup_DefaultDoesNotTriggerGroup(t *testing.T) {
 	}
 
 	app := conga.New[CLI]().
-		Name("app").
 		Args([]string{})
 
 	err := app.RunContext(t.Context())

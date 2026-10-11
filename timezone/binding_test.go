@@ -49,7 +49,6 @@ func TestLocation_Completion(t *testing.T) {
 
 	app := conga.New[timezoneTestCLI]().
 		EnableCompletion().
-		Name("app").
 		Stdout(&buffer).
 		Use(timezone.RegisterLocation).
 		Args([]string{"__complete", "export", "--zone", ""})

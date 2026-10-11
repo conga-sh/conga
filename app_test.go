@@ -68,8 +68,6 @@ func TestApp_NegatedBoolFlag(t *testing.T) {
 
 	cli := new(SimpleAppCLI)
 	app := conga.New(cli).
-		Name("testapp").
-		Description("A test application").
 		Args([]string{"--no-cache"})
 
 	err := app.Run()
@@ -314,7 +312,6 @@ func TestApp_CompletionInvocationDoesNotConsumeExecution(t *testing.T) {
 	cli := new(SimpleAppCLI)
 	app := conga.New(cli).
 		EnableCompletion().
-		Name("testapp").
 		Stdout(io.Discard).
 		Args([]string{"__complete", "bash", ""})
 
@@ -346,8 +343,7 @@ func TestApp_RunDefaultContext(t *testing.T) {
 func TestApp_Complete(t *testing.T) {
 	t.Parallel()
 
-	app := conga.New[SimpleAppCLI]().
-		Name("testapp")
+	app := conga.New[SimpleAppCLI]()
 
 	invoked, formatted := app.CompleteForShell("fish", []string{"--ca"})
 
@@ -389,7 +385,6 @@ func TestApp_HiddenCompleteCommand(t *testing.T) {
 
 	app := conga.New[SimpleAppCLI]().
 		EnableCompletion().
-		Name("testapp").
 		Stdout(&buffer).
 		Args([]string{"__complete", "fish", "--ca"})
 

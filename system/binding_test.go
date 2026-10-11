@@ -49,7 +49,6 @@ func TestSignal_Completion(t *testing.T) {
 
 	app := conga.New[sysTestCLI]().
 		EnableCompletion().
-		Name("app").
 		Stdout(&buffer).
 		Use(system.RegisterSignal).
 		Args([]string{"__complete", "export", "--sig", ""})

@@ -939,8 +939,7 @@ func TestCompletionFlag_FlatCLI(t *testing.T) {
 		t.Parallel()
 
 		app := conga.New[PlainAppCLI]().
-			EnableCompletion().
-			Name("myapp")
+			EnableCompletion()
 
 		invoked, formatted := app.CompleteForShell("fish", []string{"--completion", ""})
 
@@ -958,8 +957,7 @@ func TestCompletionFlag_FlatCLI(t *testing.T) {
 		t.Parallel()
 
 		app := conga.New[PlainAppCLI]().
-			EnableCompletion().
-			Name("myapp")
+			EnableCompletion()
 
 		invoked, formatted := app.CompleteForShell("fish", []string{"--completion", "z"})
 
@@ -972,8 +970,7 @@ func TestCompletionFlag_FlatCLI(t *testing.T) {
 		t.Parallel()
 
 		app := conga.New[PlainAppCLI]().
-			EnableCompletion().
-			Name("myapp")
+			EnableCompletion()
 
 		invoked, _ := app.CompleteForShell("fish", []string{"--completion=z"})
 
@@ -991,7 +988,6 @@ func TestCompletionFlag_FlatCLI(t *testing.T) {
 
 		app := conga.New[PlainAppCLI]().
 			EnableCompletion().
-			Name("myapp").
 			Stderr(&buffer).
 			ExitFunc(func(code int) {
 				exitCode = code
@@ -1019,7 +1015,6 @@ func TestCompletionFlag_FlatCLI(t *testing.T) {
 
 		app := conga.New[PlainAppCLI]().
 			EnableCompletion().
-			Name("myapp").
 			Stderr(&buffer).
 			ExitFunc(func(code int) {
 				exitCode = code

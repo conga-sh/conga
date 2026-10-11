@@ -174,7 +174,6 @@ func TestHelpCommand_UnknownSubcommand(t *testing.T) {
 	t.Parallel()
 
 	app := conga.New[TestHelpRootCLI]().
-		Name("testapp").
 		Args([]string{"help", "cluster", "bogus"})
 
 	err := app.Run()
@@ -187,7 +186,6 @@ func TestShortH_Unreserved(t *testing.T) {
 	t.Parallel()
 
 	app := conga.New[TestHelpRootCLI]().
-		Name("testapp").
 		Args([]string{"-h"})
 
 	err := app.Run()
@@ -201,7 +199,6 @@ func TestShortH_CustomFieldBinding(t *testing.T) {
 
 	cli := new(TestCustomHCLI)
 	app := conga.New(cli).
-		Name("testapp").
 		Args([]string{"-h", "example.com"})
 
 	err := app.Run()
@@ -216,7 +213,6 @@ func TestHelpFlag_RendersToConfiguredStdout(t *testing.T) {
 	var buffer bytes.Buffer
 
 	app := conga.New[TestHelpRootCLI]().
-		Name("testapp").
 		Description("A test app").
 		Args([]string{"--help"}).
 		Stdout(&buffer)
@@ -236,7 +232,6 @@ func TestHelpFormatting_SpecialFlags(t *testing.T) {
 	var buffer bytes.Buffer
 
 	app := conga.New[SpecialFlagsHelpCLI]().
-		Name("helpapp").
 		Args([]string{"--help"}).
 		Stdout(&buffer)
 
@@ -256,7 +251,6 @@ func TestHelpFormatting_ConfigFileFlag(t *testing.T) {
 	var buffer bytes.Buffer
 
 	app := conga.New[ConfigFileHelpCLI]().
-		Name("helpapp").
 		Args([]string{"--help"}).
 		Stdout(&buffer)
 
@@ -279,7 +273,6 @@ func TestHelpFormatting_ConfigFileDefaultHelp(t *testing.T) {
 		var buffer bytes.Buffer
 
 		app := conga.New[ConfigFileDefaultHelpCLI]().
-			Name("helpapp").
 			RegisterDecoder(".json", json.Decode).
 			Args([]string{"--help"}).
 			Stdout(&buffer)
@@ -299,7 +292,6 @@ func TestHelpFormatting_ConfigFileDefaultHelp(t *testing.T) {
 		var buffer bytes.Buffer
 
 		app := conga.New[MultiConfigFileDefaultHelpCLI]().
-			Name("helpapp").
 			RegisterDecoder(".json", json.Decode).
 			Args([]string{"--help"}).
 			Stdout(&buffer)
@@ -317,7 +309,6 @@ func TestHelpFormatting_ConfigFileDefaultHelp(t *testing.T) {
 		var buffer bytes.Buffer
 
 		app := conga.New[ConfigFileDefaultHelpCLI]().
-			Name("helpapp").
 			Args([]string{"--help"}).
 			Stdout(&buffer)
 
@@ -341,7 +332,6 @@ func TestDescriptionProvider_Fallback(t *testing.T) {
 		var buffer bytes.Buffer
 
 		app := conga.New[RootCLI]().
-			Name("app").
 			Args([]string{"deploy", "--help"}).
 			Stdout(&buffer)
 
@@ -361,7 +351,6 @@ func TestDescriptionProvider_Fallback(t *testing.T) {
 		var buffer bytes.Buffer
 
 		app := conga.New[RootCLI]().
-			Name("app").
 			Args([]string{"deploy", "--help"}).
 			Stdout(&buffer)
 
@@ -385,7 +374,6 @@ func TestDescriptionProvider_Rich(t *testing.T) {
 		var buffer bytes.Buffer
 
 		app := conga.New[RootCLI]().
-			Name("app").
 			Args([]string{"deploy", "--help"}).
 			Stdout(&buffer)
 
@@ -401,7 +389,6 @@ func TestDescriptionProvider_Rich(t *testing.T) {
 		var buffer bytes.Buffer
 
 		app := conga.New[RootCLI]().
-			Name("app").
 			Args([]string{"--help"}).
 			Stdout(&buffer)
 
@@ -425,7 +412,6 @@ func TestExampleProvider_Formatting(t *testing.T) {
 	var buffer bytes.Buffer
 
 	app := conga.New[RootCLI]().
-		Name("app").
 		Args([]string{"deploy", "--help"}).
 		Stdout(&buffer)
 
@@ -448,7 +434,6 @@ func TestExampleProvider_OmittedOnError(t *testing.T) {
 	)
 
 	app := conga.New[RootCLI]().
-		Name("app").
 		Args([]string{"deploy", "--unknown"}).
 		Stderr(&buffer).
 		ExitFunc(func(code int) {
@@ -477,7 +462,6 @@ func TestApp_Examples_HelpFormatting(t *testing.T) {
 	var buffer bytes.Buffer
 
 	app := conga.New[RootCLI]().
-		Name("app").
 		Examples("\n\n# Deploy application\napp deploy --image nginx\n\n").
 		Args([]string{"--help"}).
 		Stdout(&buffer)
@@ -501,7 +485,6 @@ func TestApp_Deprecated_HelpFormatting(t *testing.T) {
 		var buffer bytes.Buffer
 
 		app := conga.New[RootCLI]().
-			Name("app").
 			Deprecated("use new-app instead").
 			Args([]string{"--help"}).
 			Stdout(&buffer)
@@ -518,7 +501,6 @@ func TestApp_Deprecated_HelpFormatting(t *testing.T) {
 		var buffer bytes.Buffer
 
 		app := conga.New[RootCLI]().
-			Name("app").
 			Deprecated("use new-app instead").
 			Args([]string{"deploy", "--help"}).
 			Stdout(&buffer)
@@ -545,7 +527,6 @@ func TestHelpFooter_GlobalInheritance(t *testing.T) {
 		var buffer bytes.Buffer
 
 		app := conga.New[RootCLI]().
-			Name("app").
 			HelpFooter(footer).
 			Args([]string{"--help"}).
 			Stdout(&buffer)
@@ -562,7 +543,6 @@ func TestHelpFooter_GlobalInheritance(t *testing.T) {
 		var buffer bytes.Buffer
 
 		app := conga.New[RootCLI]().
-			Name("app").
 			HelpFooter(footer).
 			Args([]string{"deploy", "--help"}).
 			Stdout(&buffer)
@@ -578,7 +558,6 @@ func TestHelp_CollisionWithoutDisableHelpFlag(t *testing.T) {
 	t.Parallel()
 
 	app := conga.New[UserHelpFlagCLI]().
-		Name("testapp").
 		Args([]string{})
 
 	err := app.Run()
@@ -592,7 +571,6 @@ func TestHelp_CustomFlagWithDisableHelpFlag(t *testing.T) {
 
 	cli := new(UserHelpFlagCLI)
 	app := conga.New(cli).
-		Name("testapp").
 		DisableHelpFlag().
 		Args([]string{"--help", "custom-topic"})
 
@@ -661,7 +639,6 @@ func TestHelpScreen_EnvPrefixDerived(t *testing.T) {
 	var rootBuffer bytes.Buffer
 
 	app := conga.New[AppCLI]().
-		Name("myapp").
 		EnvPrefix("MYAPP").
 		Args([]string{"--help"}).
 		Stdout(&rootBuffer)
@@ -679,7 +656,6 @@ func TestHelpScreen_EnvPrefixDerived(t *testing.T) {
 	var subBuffer bytes.Buffer
 
 	appSub := conga.New[AppCLI]().
-		Name("myapp").
 		EnvPrefix("MYAPP").
 		Args([]string{"deploy", "--help"}).
 		Stdout(&subBuffer)

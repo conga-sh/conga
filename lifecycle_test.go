@@ -240,7 +240,6 @@ func TestLifecycle_PreRunPartialFailure_Issue04(t *testing.T) {
 	// Node.Finally, Node.Run, Node.PostRun, Cluster.PostRun, Root.PostRun MUST NOT execute.
 	cli := new(TrackedLifecycleRoot)
 	app := conga.New(cli).
-		Name("clustermgr").
 		Args([]string{"cluster", "node", "--fail-node-pre", "worker-1"})
 
 	err := app.RunContext(t.Context())
@@ -272,7 +271,6 @@ func TestLifecycle_RunFailure_SkipsPostRun_RunsAllFinally(t *testing.T) {
 	// Requirement: PostRun hooks are skipped. Finally hooks run bottom-up for all initialized commands.
 	cli := new(TrackedLifecycleRoot)
 	app := conga.New(cli).
-		Name("clustermgr").
 		Args([]string{"cluster", "node", "--fail-node-run", "worker-1"})
 
 	err := app.RunContext(t.Context())
@@ -307,7 +305,6 @@ func TestLifecycle_MultipleTeardownErrors_Joined(t *testing.T) {
 	// Requirement: All teardowns execute (Cluster.Finally runs too), and all errors are joined.
 	cli := new(TrackedLifecycleRoot)
 	app := conga.New(cli).
-		Name("clustermgr").
 		Args([]string{"--fail-root-finally", "cluster", "node", "--fail-node-run", "--fail-node-finally", "worker-1"})
 
 	err := app.RunContext(t.Context())
@@ -330,7 +327,6 @@ func TestLifecycle_ValidationFailure_ZeroSideEffects(t *testing.T) {
 	// Requirement: Zero PreRun, Run, PostRun, Finally hooks execute.
 	cli := new(TrackedLifecycleRoot)
 	app := conga.New(cli).
-		Name("clustermgr").
 		Args([]string{"--fail-validate", "cluster", "node", "worker-1"})
 
 	err := app.RunContext(t.Context())
@@ -347,7 +343,6 @@ func TestLifecycle_IncompleteSubcommand_ZeroSideEffects(t *testing.T) {
 	// Requirement: Zero PreRun, Run, PostRun, Finally hooks execute. Returned as ErrSubcommandRequired.
 	cli := new(TrackedLifecycleRoot)
 	app := conga.New(cli).
-		Name("clustermgr").
 		Args([]string{"cluster"})
 
 	err := app.RunContext(t.Context())

@@ -1369,7 +1369,6 @@ func TestFileTypesEndToEnd(t *testing.T) {
 
 	cli := new(CLI)
 	app := conga.New(cli).
-		Name("filetypes").
 		Args([]string{"--content", inputPath, "--input", inputPath, "--output", outputPath})
 
 	err = app.Run()

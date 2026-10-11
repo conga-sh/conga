@@ -16,7 +16,6 @@ func TestSession_RootAndStreams(t *testing.T) {
 
 	buffer := &bytes.Buffer{}
 	app := conga.New[sessionTestRoot]().
-		Name("cloudctl").
 		Args([]string{"-v", "deploy", "api"}).
 		Stdout(buffer)
 

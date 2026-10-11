@@ -269,7 +269,6 @@ func TestStdio_ExitUsesCurrentStderr(t *testing.T) {
 	)
 
 	app := conga.New[SimpleAppCLI]().
-		Name("testapp").
 		Stderr(&initialBuffer).
 		ExitFunc(func(int) {}).
 		Args([]string{"--nope"})
