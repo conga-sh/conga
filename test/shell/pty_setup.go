@@ -127,7 +127,7 @@ func ptyWriteElvishRC(t *testing.T, workspace *Workspace, scriptPath string) {
 		"\nset edit:prompt = { put '" + ptyPrompt + "' }\n" +
 		"set edit:rprompt = { }\n"
 
-	if err := os.WriteFile(filepath.Join(rcDir, "rc.elv"), []byte(rc), 0o600); err != nil { //nolint:gosec // Test harness writes its own rc.elv inside the isolated workspace.
+	if err := os.WriteFile(filepath.Join(rcDir, "rc.elv"), []byte(rc), 0o600); err != nil {
 		t.Fatalf("failed to write elvish rc.elv: %v", err)
 	}
 }

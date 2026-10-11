@@ -137,7 +137,7 @@ func actionFileContents(ctx Context, filePath string, parser func(content []byte
 	}
 
 	resolvedPath := resolveFilePath(ctx, filePath)
-	//nolint:gosec // Completion file path is controlled by predictor definition.
+
 	content, err := os.ReadFile(resolvedPath)
 	if err != nil {
 		return None()

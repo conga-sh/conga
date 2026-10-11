@@ -34,12 +34,12 @@ func NewWorkspace(t *testing.T) *Workspace {
 	var baseDir string
 	if envRoot := os.Getenv("CONGA_TEST_ROOT"); envRoot != "" {
 		baseDir = filepath.Join(envRoot, sanitizeName(t.Name()))
-		if err := os.MkdirAll(baseDir, 0o700); err != nil { //nolint:gosec // Isolated test workspace.
+		if err := os.MkdirAll(baseDir, 0o700); err != nil {
 			t.Fatalf("failed to create CONGA_TEST_ROOT directory: %v", err)
 		}
 	} else if bazelTmp := os.Getenv("TEST_TMPDIR"); bazelTmp != "" {
 		baseDir = filepath.Join(bazelTmp, sanitizeName(t.Name()))
-		if err := os.MkdirAll(baseDir, 0o700); err != nil { //nolint:gosec // Isolated test workspace.
+		if err := os.MkdirAll(baseDir, 0o700); err != nil {
 			t.Fatalf("failed to create TEST_TMPDIR directory: %v", err)
 		}
 	} else {
@@ -53,15 +53,15 @@ func NewWorkspace(t *testing.T) *Workspace {
 		WorkDir: filepath.Join(baseDir, "work"),
 	}
 
-	if err := os.MkdirAll(workspace.BinDir, 0o700); err != nil { //nolint:gosec // Isolated test workspace.
+	if err := os.MkdirAll(workspace.BinDir, 0o700); err != nil {
 		t.Fatalf("failed to create bin dir: %v", err)
 	}
 
-	if err := os.MkdirAll(workspace.HomeDir, 0o700); err != nil { //nolint:gosec // Isolated test workspace.
+	if err := os.MkdirAll(workspace.HomeDir, 0o700); err != nil {
 		t.Fatalf("failed to create home dir: %v", err)
 	}
 
-	if err := os.MkdirAll(workspace.WorkDir, 0o700); err != nil { //nolint:gosec // Isolated test workspace.
+	if err := os.MkdirAll(workspace.WorkDir, 0o700); err != nil {
 		t.Fatalf("failed to create work dir: %v", err)
 	}
 
