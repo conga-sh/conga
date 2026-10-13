@@ -50,7 +50,7 @@ func (a *App[T]) buildWhyReport(cmdChain []*spec.Command, cliValues map[*spec.Fl
 
 	loadedPaths := resolution.loadedPaths
 	loadedSource := resolution.loadedSource
-	loadErr := resolution.whyErr()
+	loadErr := resolution.err
 
 	resolver := a.configurationView(cmdChain[0])
 	candidatePaths := resolution.candidates

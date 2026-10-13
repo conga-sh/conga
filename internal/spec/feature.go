@@ -169,20 +169,8 @@ func ValidateFeatureFieldTags(field *FeatureField, tag reflect.StructTag) error 
 			return fmt.Errorf("%w: tag \"enum\" is only valid on integer features", ErrInvalidStructTag)
 		}
 
-		parts := slicex.SplitAndTrim(enumTag, ",")
-		if len(parts) == 0 {
-			return fmt.Errorf("%w: tag \"enum\" cannot be empty", ErrInvalidStructTag)
-		}
-
-		for _, part := range parts {
-			canonical, err := field.parseInteger(part)
-			if err != nil {
-				return fmt.Errorf("%w: feature enum value %q: %w", ErrInvalidStructTag, part, err)
-			}
-
-			if !slices.Contains(field.Enum, canonical) {
-				field.Enum = append(field.Enum, canonical)
-			}
+		if err := validateFeatureEnum(field, enumTag); err != nil {
+			return err
 		}
 	}
 
@@ -268,6 +256,33 @@ func featureIntegerParseError(err error, signed bool) error {
 // permitted levels.
 func invalidFeatureEnumError(f *FeatureField) error {
 	return fmt.Errorf("%w: %s", errFeatureInvalidEnum, strings.Join(f.Domain(), ", "))
+}
+
+// validateFeatureEnum parses and records the non-zero levels of an integer
+// feature's enum tag. Level 0 is rejected: it is the reserved off level and is
+// always accepted, so listing it would duplicate it in the rendered domain.
+func validateFeatureEnum(field *FeatureField, enumTag string) error {
+	parts := slicex.SplitAndTrim(enumTag, ",")
+	if len(parts) == 0 {
+		return fmt.Errorf("%w: tag \"enum\" cannot be empty", ErrInvalidStructTag)
+	}
+
+	for _, part := range parts {
+		canonical, err := field.parseInteger(part)
+		if err != nil {
+			return fmt.Errorf("%w: feature enum value %q: %w", ErrInvalidStructTag, part, err)
+		}
+
+		if canonical == "0" {
+			return fmt.Errorf("%w: feature %q enum value \"0\" is the reserved off level; list only non-zero levels", ErrInvalidStructTag, field.Name)
+		}
+
+		if !slices.Contains(field.Enum, canonical) {
+			field.Enum = append(field.Enum, canonical)
+		}
+	}
+
+	return nil
 }
 
 func parseFeatureTerm(term string) (featureTerm, bool) {

@@ -179,6 +179,14 @@ func FeaturesMustBeStructParameterError() error {
 	return fmt.Errorf("%w: conga.Features must be parameterized by a struct type", ErrSchema)
 }
 
+// FeaturesAlreadyDeclaredError builds the duplicate-container error for a
+// second conga.Features field on the root command struct. The runtime schema
+// builder and the static analyzer share it as the single source of truth;
+// firstFlagName is the resolved synthesized flag name of the first container.
+func FeaturesAlreadyDeclaredError(firstFlagName string) error {
+	return fmt.Errorf("%w: Features (already declared by %s)", ErrDuplicateFlag, firstFlagName)
+}
+
 // FeatureOnRequiredFlagError builds the schema error for a feature tag on a
 // required flag: a feature-gated flag must be optional. The runtime schema
 // builder and the static analyzer share it as the single source of truth.

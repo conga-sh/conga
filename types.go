@@ -1186,8 +1186,12 @@ func (f *Features[T]) rejectPrunedConfig(pruned []prunedFlag, configData map[str
 	return checkFeatureConfigRestrictions(pruned, configData)
 }
 
+// pruneForCompletion prunes inactive features for a completion invocation
+// through the pure completion resolver, leaving the container's bound state
+// untouched and keeping the feature payload behind the state-interface fence
+// for dead-code elimination.
 func (f *Features[T]) pruneForCompletion(cmd *spec.Command, flagValues map[*spec.Flag][]string, state *bindingState) {
-	pruneFeaturesForCompletion(f, &f.value, cmd, flagValues, state)
+	pruneFeaturesForCompletion(cmd, flagValues, state)
 }
 
 // getValue returns the loaded configuration file paths for the engine.

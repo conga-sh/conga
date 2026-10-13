@@ -25,6 +25,7 @@ type featureChecksApp struct {
 
 	BadSyntax conga.OptionalFlag[string] `feature:"="       help:"Bad syntax"`     // want `struct featureChecksApp field BadSyntax: schema error: invalid struct tag: invalid feature tag syntax "="`
 	Req       conga.RequiredFlag[string] `feature:"enabled" help:"Required gated"` // want `struct featureChecksApp field Req: schema error: invalid struct tag: tag "feature" cannot be used on required flags \(feature-gated flags must be optional\)`
+	BadReq    conga.RequiredFlag[string] `feature:"="       help:"Bad required"`   // want `struct featureChecksApp field BadReq: schema error: invalid struct tag: invalid feature tag syntax "="`
 
 	Sub conga.Command[featureChecksSub] `feature:"foo=bar" summary:"Sub"` // want `struct featureChecksApp field Sub: schema error: invalid struct tag: invalid feature tag syntax "foo=bar"`
 }
@@ -69,6 +70,7 @@ type badFeatureTagSet struct {
 	EmptyEnum  int  `enum:""`                // want `struct badFeatureTagApp field EmptyEnum: schema error: invalid struct tag: tag "enum" cannot be empty`
 	BoolEnum   bool `enum:"1"`               // want `struct badFeatureTagApp field BoolEnum: schema error: invalid struct tag: tag "enum" is only valid on integer features`
 	BadEnum    int  `enum:"abc"`             // want `struct badFeatureTagApp field BadEnum: schema error: invalid struct tag: feature enum value "abc": must be an integer`
+	ZeroEnum   int  `enum:"0,1"`             // want `struct badFeatureTagApp field ZeroEnum: schema error: invalid struct tag: feature "zero-enum" enum value "0" is the reserved off level; list only non-zero levels`
 	WidthEnum  int8 `enum:"300"`             // want `struct badFeatureTagApp field WidthEnum: schema error: invalid struct tag: feature enum value "300": is out of range for the feature's integer type`
 	BadDefault int  `enum:"1,2" default:"9"` // want `struct badFeatureTagApp field BadDefault: schema error: invalid struct tag: feature "bad-default" default "9": must be one of: 0, 1, 2`
 }
@@ -97,3 +99,46 @@ func (a *duplicateFeatureNameApp) Run(ctx context.Context, session *conga.Sessio
 }
 
 var _ = conga.New[duplicateFeatureNameApp]()
+
+type duplicateFeaturesApp struct {
+	Features conga.Features[goodFeatureSet] `flag:"gates"`
+	Again    conga.Features[goodFeatureSet] // want `struct duplicateFeaturesApp field Again: schema error: duplicate flag: Features \(already declared by gates\)`
+}
+
+func (a *duplicateFeaturesApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[duplicateFeaturesApp]()
+
+type featureShadowSub struct {
+	Gates conga.OptionalFlag[bool] `help:"Shadowed gate"` // want `command "sub": schema error: duplicate flag: --gates \(already declared by ancestor command "feature-shadow-app"\)`
+}
+
+func (s *featureShadowSub) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+type featureShadowApp struct {
+	Features conga.Features[goodFeatureSet] `flag:"gates"`
+
+	Sub conga.Command[featureShadowSub] `summary:"Sub"`
+}
+
+func (a *featureShadowApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[featureShadowApp]()
+
+type featureFlagCollisionApp struct {
+	Features conga.Features[goodFeatureSet] `flag:"gates"`
+
+	Gates conga.OptionalFlag[bool] `name:"gates" help:"Collides with the synthesized flag"` // want `already declared by ancestor`
+}
+
+func (a *featureFlagCollisionApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[featureFlagCollisionApp]()

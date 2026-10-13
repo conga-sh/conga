@@ -628,7 +628,7 @@ func (b *schemaBuilder) processFeaturesField(structField reflect.StructField, fi
 	}
 
 	if b.cmd.FeatureFlag != nil {
-		return fmt.Errorf("%w: Features (already declared by %s)", ErrDuplicateFlag, b.cmd.FeatureFlag.Name)
+		return FeaturesAlreadyDeclaredError(b.cmd.FeatureFlag.Name)
 	}
 
 	innerType, err := featureStructType(classification.Target)

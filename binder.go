@@ -928,28 +928,42 @@ func applyFlagCoercion(cmdChain []*spec.Command, flagSpec *spec.Flag, rawValues 
 	return nil
 }
 
-func applyFlagValue(cmd *spec.Command, cmdChain []*spec.Command, flagSpec *spec.Flag, cliValues map[*spec.Flag][]string, state *bindingState) error {
+// flagSourceValues resolves the winning source tier for a flag through the
+// CLI -> environment -> config -> default cascade without coercing or storing
+// the value. It is the shared tier walk behind applyFlagValue and the pure
+// completion feature resolution, keeping tier precedence a single source of
+// truth.
+func flagSourceValues(flagSpec *spec.Flag, cmd *spec.Command, cmdChain []*spec.Command, cliValues map[*spec.Flag][]string, state *bindingState) ([]string, ValueSource, string, bool) {
 	// Tier 1: CLI Flags
 	if values, ok := cliValues[flagSpec]; ok && len(values) > 0 {
-		return applyFlagCoercion(cmdChain, flagSpec, values, SourceCLI, "--"+flagSpec.Name, state)
+		return values, SourceCLI, "--" + flagSpec.Name, true
 	}
 
 	// Tier 2: Environment Variables
 	if envValue, envName, ok := lookupEnv(flagSpec, cmd, state); ok {
-		return applyFlagCoercion(cmdChain, flagSpec, []string{envValue}, SourceEnv, envName, state)
+		return []string{envValue}, SourceEnv, envName, true
 	}
 
 	// Tier 3: Configuration Files
 	if configValue, configKey, ok := lookupConfig(flagSpec, cmd, cmdChain, state); ok {
-		return applyFlagCoercion(cmdChain, flagSpec, []string{configValue}, SourceConfig, configKey, state)
+		return []string{configValue}, SourceConfig, configKey, true
 	}
 
 	// Tier 4: Default Values
 	if flagSpec.Default != "" {
-		return applyFlagCoercion(cmdChain, flagSpec, []string{flagSpec.Default}, SourceDefault, flagSpec.Default, state)
+		return []string{flagSpec.Default}, SourceDefault, flagSpec.Default, true
 	}
 
-	return nil
+	return nil, SourceNone, "", false
+}
+
+func applyFlagValue(cmd *spec.Command, cmdChain []*spec.Command, flagSpec *spec.Flag, cliValues map[*spec.Flag][]string, state *bindingState) error {
+	rawValues, source, sourceName, ok := flagSourceValues(flagSpec, cmd, cmdChain, cliValues, state)
+	if !ok {
+		return nil
+	}
+
+	return applyFlagCoercion(cmdChain, flagSpec, rawValues, source, sourceName, state)
 }
 
 func resolveRequiredFlags(cmdChain []*spec.Command) error {

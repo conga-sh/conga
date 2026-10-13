@@ -68,6 +68,7 @@ func WithPredictor(p predict.Predictor) RegisterTypeOption
 | `OptionalArg[T]` / `RequiredArg[T]` | same as flags |
 | `Counter` | same as flags, value is `int` |
 | `ConfigFile` | root-only config path flag; `multi:"true"` for multi-path (`Path`, `Paths`) |
+| `Features[T]` | root-only feature declaration; values read through `Get`, plus `IsSet`, `Changed`, `Source`, `SourceDetail` |
 | `DashArgs` / `RawArgs` | `Get []string`, `GetOr`, `Len`, `IsSet`, `String` |
 | `Command[T]` | `Get() *T`, `IsSelected()` |
 

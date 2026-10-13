@@ -32,11 +32,17 @@ var (
 	//go:embed testdata/fixtures/feature_pruned_subtree.yml
 	fixtureFeaturePrunedSubtree []byte
 
+	//go:embed testdata/fixtures/feature_scoped_config_key.yml
+	fixtureFeatureScopedConfigKey []byte
+
 	//go:embed testdata/fixtures/feature_scoped_flag.yml
 	fixtureFeatureScopedFlag []byte
 
 	//go:embed testdata/fixtures/feature_scoped_key.yml
 	fixtureFeatureScopedKey []byte
+
+	//go:embed testdata/fixtures/feature_sibling_config_key.yml
+	fixtureFeatureSiblingConfigKey []byte
 
 	//go:embed testdata/fixtures/feature_typo.yml
 	fixtureFeatureTypo []byte
@@ -840,6 +846,29 @@ func TestFeature_Completion_PartialGateTokenStillPrunes(t *testing.T) {
 	assert.NotContains(t, commandFormatted, "package")
 }
 
+// TestFeature_Completion_NoStateLeak pins the completion observation contract:
+// pruning a completion invocation must not bind the app's feature container,
+// so a real execution that follows resolves features from its own tiers.
+func TestFeature_Completion_NoStateLeak(t *testing.T) {
+	t.Parallel()
+
+	var cli featureTestCLI
+
+	app := conga.New(&cli).
+		Name("task").
+		EnableCompletion().
+		Args([]string{})
+
+	_, formatted := app.CompleteForShell("bash", []string{"--feature-gates", "gentle-force=true", "--"})
+	assert.Contains(t, formatted, "--force-all")
+
+	err := app.Run()
+	assert.NoError(t, err)
+	assert.True(t, cli.Ran)
+	assert.False(t, cli.Features.Get().GentleForce)
+	assert.False(t, cli.Features.IsSet())
+}
+
 // TestFeature_VersionSkipsConfigResolution pins the version-only hoist: a lone
 // --version renders from app metadata without decoding any configuration file,
 // even when the app declares feature toggles.
@@ -1052,6 +1081,87 @@ func TestFeature_ConfigFile_PrunedSubcommandBareKey(t *testing.T) {
 	assert.Equal(t, "30s", cli.Wait.Get())
 }
 
+type featureSharedConfigKeyCLI struct {
+	Features conga.Features[featureExperiments] `flag:"feature-gates"`
+
+	Wait conga.OptionalFlag[string] `config:"custom-key" help:"Root wait timeout"`
+
+	Admin conga.Command[featureSharedConfigKeyAdmin] `feature:"packages" summary:"Admin operations"`
+
+	Ran bool
+}
+
+type featureSharedConfigKeyAdmin struct {
+	Beta conga.OptionalFlag[string] `config:"custom-key" help:"Beta toggle"`
+
+	Ran bool
+}
+
+func (c *featureSharedConfigKeyCLI) Run(ctx context.Context, session *conga.Session) error {
+	c.Ran = true
+
+	return nil
+}
+
+func (s *featureSharedConfigKeyAdmin) Run(ctx context.Context, session *conga.Session) error {
+	s.Ran = true
+
+	return nil
+}
+
+// TestFeature_ConfigFile_PrunedSubcommandBareConfigKeyNotClaimed guards the
+// shared explicit-config tier: a pruned subcommand flag declaring the same bare
+// config key as an active root flag must not reject the root's value.
+func TestFeature_ConfigFile_PrunedSubcommandBareConfigKeyNotClaimed(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, ".taskrc.yml")
+	err := os.WriteFile(configPath, fixtureFeatureSiblingConfigKey, 0o600)
+	assert.NoError(t, err)
+
+	var cli featureSharedConfigKeyCLI
+
+	app := conga.New(&cli).
+		Name("task").
+		RegisterDecoder(".yaml", yaml.Decode).
+		RegisterDecoder(".yml", yaml.Decode).
+		ConfigOptions(conga.ConfigExplicit(configPath)).
+		Args([]string{})
+
+	err = app.Run()
+	assert.NoError(t, err)
+	assert.True(t, cli.Ran)
+	assert.Equal(t, "root-value", cli.Wait.Get())
+}
+
+// TestFeature_ConfigFile_PrunedSubcommandScopedConfigKeyRejection keeps the
+// rejection contract for command-scoped keys: only the namespaced key belongs
+// to the pruned subcommand flag, so a value targeting it is not silently
+// ignored.
+func TestFeature_ConfigFile_PrunedSubcommandScopedConfigKeyRejection(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, ".taskrc.yml")
+	err := os.WriteFile(configPath, fixtureFeatureScopedConfigKey, 0o600)
+	assert.NoError(t, err)
+
+	var cli featureSharedConfigKeyCLI
+
+	app := conga.New(&cli).
+		Name("task").
+		RegisterDecoder(".yaml", yaml.Decode).
+		RegisterDecoder(".yml", yaml.Decode).
+		ConfigOptions(conga.ConfigExplicit(configPath)).
+		Args([]string{})
+
+	err = app.Run()
+	assert.Error(t, err)
+	assert.IsError(t, err, conga.ErrConfig)
+	assert.Contains(t, err.Error(), `config file declares flag '--beta' which requires feature "packages"`)
+}
+
 type featureInvalidEnumTagCLI struct {
 	Features conga.Features[featureExperiments]
 	BadFlag  conga.OptionalFlag[string] `feature:"syntax=3" name:"bad"`
@@ -1094,6 +1204,34 @@ func TestFeature_FlagConstraintPrecedenceOverArgCoercion(t *testing.T) {
 	err := app.Run()
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), `mutually exclusive`)
+}
+
+// TestFeature_GatedFlagErrorDeterministic pins the first-error contract when
+// several inactive gated flags are supplied: targets are inspected in
+// flag-name order, so the reported flag never depends on map iteration order.
+func TestFeature_GatedFlagErrorDeterministic(t *testing.T) {
+	t.Parallel()
+
+	var firstErrMsg string
+
+	for i := range 20 {
+		var cli featureTestCLI
+
+		app := conga.New(&cli).
+			Name("task").
+			Args([]string{"--syntax", "x", "--force-all", "--v1", "y"})
+
+		err := app.Run()
+		assert.Error(t, err)
+
+		if i == 0 {
+			firstErrMsg = err.Error()
+		} else {
+			assert.Equal(t, firstErrMsg, err.Error(), "error message must be deterministic across iterations")
+		}
+	}
+
+	assert.Contains(t, firstErrMsg, `flag '--force-all' requires feature "gentle-force"`)
 }
 
 func TestFeature_ConfigErrorPrecedenceOverFeatureGate(t *testing.T) {

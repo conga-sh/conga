@@ -17,6 +17,7 @@ CONGA derives the CLI schema from struct fields and their tags. The engine valid
 | `deprecated` | ✅ | – | ✅ | Deprecation notice; suppresses flag from completion. |
 | `enum` | ✅ | ✅ | – | Comma-separated allowed values, checked against the coerced value, rendered in help as `[enum: …]`. |
 | `env` | ✅ | ✅ | ✅ | Comma-separated environment variable names. `env:"-"` disables environment binding. Explicit names ignore `envprefix`. |
+| `feature` | ✅ | – | ✅ | Feature-gate expression: the flag exists only while the expression is satisfied (see [Feature toggles](#feature-toggles-congafeaturest)). Required flags reject this tag. |
 | `group` | ✅ | ✅ | ✅ | Help-screen grouping header. Flags sharing a group render under their own titled section. |
 | `help` | ✅ | ✅ | ✅ | Help text displayed on the help screen. Supports [help variables](#help-variables). |
 | `hidden` | ✅ | ✅ | ✅ | Suppress from help and completion (`hidden` or `hidden:"true"`). |
@@ -88,6 +89,7 @@ Referencing an undeclared variable fails schema build with `ErrSchema`: `{{range
 | `conga` | Directives (see [`conga` directives](#conga-directives)). |
 | `deprecated` | Deprecation notice displayed in help. |
 | `envprefix` | Environment variable prefix for this command's flags. |
+| `feature` | Feature-gate expression: the subcommand and its subtree exist only while the expression is satisfied (see [Feature toggles](#feature-toggles-congafeaturest)). |
 | `group` | Help-screen grouping header. Subcommands sharing a group render under their own titled section and are tagged as `<group> commands` in completion. |
 | `hidden` | Suppress from help and completion (`hidden` or `hidden:"true"`). |
 | `name` | Subcommand token override (default: kebab-case field name). |
@@ -111,6 +113,7 @@ type Server struct {
 | `conga` | Directives (see [`conga` directives](#conga-directives)). |
 | `deprecated` | Deprecation notice; suppresses flag from completion. |
 | `env` | Comma-separated environment variable names. `env:"-"` disables environment binding. |
+| `feature` | Feature-gate expression: the config-file flag exists only while the expression is satisfied (see [Feature toggles](#feature-toggles-congafeaturest)). |
 | `group` | Help-screen grouping header. Flags sharing a group render under their own titled section. |
 | `help` | Help text (default: `Path to config file`, or `Path to config file(s)` when `multi:"true"`). |
 | `hidden` | Suppress from help and completion (`hidden` or `hidden:"true"`). |
@@ -121,6 +124,71 @@ type Server struct {
 | `short` | Single-rune short flag. |
 
 The `default` tag is rejected on `ConfigFile` flags. Declare default search paths using [`conga.ConfigPaths(...)` or `conga.ConfigExplicit(...)`](/explanation/config-cascade/).
+
+## Feature toggles (`conga.Features[T]`)
+
+`conga.Features[T]` declares feature toggles on the root command struct. Each exported field of `T` is one feature: the field name converts to kebab-case (or is overridden with the `name` tag), a `bool` field is an on/off toggle, and an integer field is a leveled toggle where `0` means off and every non-zero level must be listed in the `enum` tag.
+
+```go
+type Experiments struct {
+	GentleForce bool `default:"true" help:"Force all dependent tasks"`
+	Syntax      int  `enum:"1,2"     help:"Syntax version (0 = off)"`
+}
+
+type CLI struct {
+	Features conga.Features[Experiments] `flag:"feature-gates" env:"APP_FEATURES" config:"experiments"`
+
+	Force  conga.OptionalFlag[bool] `feature:"gentle-force"  help:"Force all dependent tasks"`
+	V2Only conga.OptionalFlag[bool] `feature:"syntax"        help:"Syntax v2 configuration"`
+	Legacy conga.OptionalFlag[bool] `feature:"!gentle-force" help:"Legacy force behavior"`
+
+	Admin conga.Command[AdminCmd] `feature:"gentle-force" summary:"Admin operations"`
+}
+
+func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
+	if c.Features.Get().GentleForce {
+		// ...
+	}
+
+	return nil
+}
+```
+
+Declare the container once, on the root command struct. The `feature` tag is accepted on `OptionalFlag`, `Counter`, `Command[T]`, and `ConfigFile` fields; `RequiredFlag` rejects it because a required input cannot be absent.
+
+### Feature container tags
+
+| Tag | Meaning |
+|-----|---------|
+| `flag` | Name of the synthesized CLI map flag carrying `name=value` pairs, for example `--feature-gates gentle-force=true`. Omit the tag or set `flag:"-"` to give the container no CLI surface. |
+| `env` | Comma-separated environment variable names carrying the same `name=value` pairs. Explicit names ignore `envprefix`. |
+| `envprefix` | Prefix for the derived environment variable name `<PREFIX>_<UPPER_SNAKE(flag name)>`. The app-level `EnvPrefix(...)` applies when neither `env` nor `envprefix` is declared. |
+| `config` | Config section name holding the `name=value` pairs. |
+| `sep` | Pair separator inside one map value (default `","`). |
+| `help` | Help text for the synthesized flag. Defaults to `Enable or disable features (name=domain, ...)`, listing each feature's accepted values. |
+| `conga` | Directives (see [`conga` directives](#conga-directives)). |
+
+### Feature field tags
+
+| Tag | Meaning |
+|-----|---------|
+| `name` | Feature name override (default: kebab-case of the field name). |
+| `help` | Feature description shown by help and completion. |
+| `default` | Base value when the winning source does not set the key. Integer defaults must be a declared level; `0` is valid and means off. |
+| `enum` | Integer features only: comma-separated non-zero levels, required on every integer feature. `0` is reserved for off and rejected in the tag. |
+| `conga` | Directives (see [`conga` directives](#conga-directives)). |
+
+### Feature expressions
+
+A `feature` tag holds a comma-separated conjunction of terms. Each term is a feature name, optionally prefixed with `!` to negate it. The expression is satisfied when every term holds:
+
+| Expression | Satisfied when |
+|------------|----------------|
+| `http3` | `http3` is on. |
+| `!strict-tls` | `strict-tls` is off. |
+| `http3,!strict-tls` | `http3` is on and `strict-tls` is off. |
+
+Feature names are kebab-cased. One winning source supplies the feature map per run (CLI over environment over config), and its keys overlay the field defaults key by key, so unlisted features keep their defaults. Gated members are pruned from `--help`, `--why`, and shell completion; supplying a gated flag or subcommand on the command line is a usage error (exit 2), and a config key targeting an inactive gated flag fails with `ErrConfig` (exit 1). An environment variable targeting an inactive gated flag is ignored, so ambient environment state never breaks a run it does not control. See [About value precedence](/explanation/value-precedence/) and [Errors and exit codes](/reference/errors/).
 
 ## Trailing arguments (`DashArgs`, `RawArgs`)
 

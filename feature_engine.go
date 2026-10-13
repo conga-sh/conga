@@ -1,6 +1,7 @@
 package conga
 
 import (
+	"cmp"
 	"fmt"
 	"maps"
 	"reflect"
@@ -25,40 +26,45 @@ type prunedFlag struct {
 }
 
 // configKeys lists the configuration document keys that could supply the pruned
-// flag, mirroring lookupConfig's read tiers: the direct flag name, an explicit
-// config key (bare and namespaced under the owning command path), and the
-// command-scoped canonical path.
+// flag, mirroring lookupConfig's read tiers. Only command-scoped keys are
+// claimed for subcommand-owned flags: the bare flag name and the bare explicit
+// config key are shared fallback tiers that any flag, root or subcommand, may
+// read, so a pruned subcommand flag must not claim them or a valid top-level
+// entry an active flag legitimately consumes would be rejected.
+//
+//	root-owned:  Name, ConfigKey
+//	subcommand:  prefix.ConfigKey (or ConfigKey when already qualified),
+//	             prefix.Name, leafName.Name
 func (p prunedFlag) configKeys() []string {
 	if p.flag.ConfigKey == "-" {
 		return nil
 	}
 
-	var keys []string
-
 	if p.prefix == "" {
-		// The bare flag name is a shared config tier (lookupConfig tier 4):
-		// every flag of that name reads it regardless of owning command. Only a
-		// root-owned pruned flag may claim it, otherwise a pruned subcommand
-		// flag would reject a top-level entry a sibling's same-named flag
-		// legitimately consumes.
-		keys = append(keys, p.flag.Name)
+		keys := []string{p.flag.Name}
+
+		if p.flag.ConfigKey != "" {
+			keys = append(keys, p.flag.ConfigKey)
+		}
+
+		return keys
 	}
 
-	if p.flag.ConfigKey != "" {
-		keys = append(keys, p.flag.ConfigKey)
+	var keys []string
 
-		if p.prefix != "" && !strings.HasPrefix(p.flag.ConfigKey, p.prefix+".") {
+	if p.flag.ConfigKey != "" {
+		if strings.HasPrefix(p.flag.ConfigKey, p.prefix+".") {
+			keys = append(keys, p.flag.ConfigKey)
+		} else {
 			keys = append(keys, p.prefix+"."+p.flag.ConfigKey)
 		}
 	}
 
-	if p.prefix != "" {
-		keys = append(keys, p.prefix+"."+p.flag.Name)
+	keys = append(keys, p.prefix+"."+p.flag.Name)
 
-		if lastDot := strings.LastIndex(p.prefix, "."); lastDot != -1 {
-			leafName := p.prefix[lastDot+1:]
-			keys = append(keys, leafName+"."+p.flag.Name)
-		}
+	if lastDot := strings.LastIndex(p.prefix, "."); lastDot != -1 {
+		leafName := p.prefix[lastDot+1:]
+		keys = append(keys, leafName+"."+p.flag.Name)
 	}
 
 	return keys
@@ -209,20 +215,47 @@ func bindFeatureMap(binding flagState, cmd *spec.Command, cmdChain []*spec.Comma
 	return provided, nil
 }
 
-// bindFeatureValuesLenient is the tolerant binding path used by completion
-// pruning: a malformed feature map leaves the flag unbound, and resolution
-// proceeds from the declared defaults without materializing diagnostics.
-func bindFeatureValuesLenient(binding flagState, target any, cmd *spec.Command, flagValues map[*spec.Flag][]string, state *bindingState) map[string]bool {
-	provided, err := bindFeatureMap(binding, cmd, []*spec.Command{cmd}, flagValues, state)
-
-	values := featureDefaults(cmd)
-	if err == nil {
-		values, _ = featureValuesLenient(cmd, provided)
-	}
-
-	materializeFeatureValues(target, cmd.FeatureFields, values)
+// completionFeatureGates resolves the feature gate map for a completion
+// invocation from the tier cascade without mutating the application's feature
+// container: completion is an observation, and App permits a real execution
+// after a completion invocation, so binding state here would leak into that
+// run. A malformed feature map degrades to the declared defaults rather than
+// aborting the completion.
+func completionFeatureGates(cmd *spec.Command, flagValues map[*spec.Flag][]string, state *bindingState) map[string]bool {
+	values, _ := featureValuesLenient(cmd, completionProvidedMap(cmd, flagValues, state))
 
 	return featureGates(cmd, values)
+}
+
+// completionProvidedMap resolves the synthesized feature flag's raw provided
+// map from the tier cascade without coercing into the container.
+func completionProvidedMap(cmd *spec.Command, flagValues map[*spec.Flag][]string, state *bindingState) map[string]string {
+	if cmd.FeatureFlag == nil {
+		return nil
+	}
+
+	rawValues, _, _, ok := flagSourceValues(cmd.FeatureFlag, cmd, []*spec.Command{cmd}, flagValues, state)
+	if !ok {
+		return nil
+	}
+
+	parsed, err := parseMapTokens(rawValues, cmd.FeatureFlag.TargetType, cmd.FeatureFlag.Sep, state.TypeParsers)
+	if err != nil {
+		return nil
+	}
+
+	provided, ok := parsed.(map[string]string)
+	if !ok {
+		return nil
+	}
+
+	return provided
+}
+
+// pruneFeaturesForCompletion prunes inactive features for a completion
+// invocation so suggestions never leak gated commands or flags.
+func pruneFeaturesForCompletion(cmd *spec.Command, flagValues map[*spec.Flag][]string, state *bindingState) {
+	pruneInactiveFeatures(cmd, "", completionFeatureGates(cmd, flagValues, state))
 }
 
 // resolveFeatureGates binds the feature map flag, materializes the typed
@@ -245,16 +278,6 @@ func resolveFeatureGates(binding flagState, target any, cmd *spec.Command, cmdCh
 	}
 
 	return pruned, nil
-}
-
-// pruneFeaturesForCompletion binds the feature map flag for a completion
-// invocation and prunes inactive features so suggestions never leak gated
-// commands or flags. Binding is best-effort: a malformed feature map degrades
-// to the declared defaults instead of aborting the completion.
-func pruneFeaturesForCompletion(binding flagState, target any, cmd *spec.Command, flagValues map[*spec.Flag][]string, state *bindingState) {
-	gates := bindFeatureValuesLenient(binding, target, cmd, flagValues, state)
-
-	pruneInactiveFeatures(cmd, "", gates)
 }
 
 func unknownFeatureError(cmdChain []*spec.Command, cmd *spec.Command, name string, source ValueSource) error {
@@ -416,8 +439,14 @@ func validateSubcommandFeatures(cmdChain []*spec.Command, activeFeatures map[str
 // checkFeatureFlagCLIRestrictions rejects command-line invocations of a flag
 // whose gating feature expression is inactive. It runs before builtin rendering
 // so --help on a gated flag fails symmetrically with a gated subcommand.
+// Targets are inspected in flag-name order so the first diagnostic is
+// deterministic when several gated flags are supplied.
 func checkFeatureFlagCLIRestrictions(flagValues map[*spec.Flag][]string, activeFeatures map[string]bool, cmdChain []*spec.Command) error {
-	for flagSpec := range flagValues {
+	targets := slices.SortedFunc(maps.Keys(flagValues), func(first *spec.Flag, second *spec.Flag) int {
+		return cmp.Compare(first.Name, second.Name)
+	})
+
+	for _, flagSpec := range targets {
 		if flagSpec.Feature != "" && !spec.MatchFeature(flagSpec.Feature, activeFeatures) {
 			return &parseError{
 				msg:      fmt.Sprintf("flag '--%s' requires feature %q", flagSpec.Name, flagSpec.Feature),

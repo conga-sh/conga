@@ -78,7 +78,7 @@ Config paths checked:
   none
 ```
 
-The report contains three diagnostic sections:
+The report contains these diagnostic sections (the feature table appears only when the root command declares `conga.Features[T]`):
 
 - **Flag table**:
   - `FLAG`: The declared flag name.
@@ -88,6 +88,25 @@ The report contains three diagnostic sections:
   - `CONFIG PATH`: The evaluated config file key.
 - **Config decoders**: All file format decoders registered on the application.
 - **Config paths checked**: Every file path probed during resolution, annotated with its status (`(none found)` or loaded).
+- **Features**: Every declared feature, its resolved value, and its source.
+
+## Inspect feature provenance
+
+When the root command declares a `conga.Features[T]` container (see [Feature toggles](/reference/struct-tags/#feature-toggles-congafeaturest)), the report ends with a `Features:` table. The winning feature-map tier supplies the keys it sets; keys that tier leaves out fall back to the field default (`default`) or render `unset`:
+
+```sh
+serve --why
+```
+
+```text no-copy
+Features:
+
+  FEATURE      VALUE   SOURCE
+  http3        false   unset
+  admin-api    false   unset
+  strict-tls   true    default
+  metrics      true    default
+```
 
 ## Where to go next
 

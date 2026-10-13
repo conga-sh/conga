@@ -877,30 +877,14 @@ type typeRegistration struct {
 }
 
 // configResolution memoizes the outcome of the run's single configuration
-// resolution: the loaded files and their winning source, the extraction and load
-// errors, and the candidate paths probed.
+// resolution: the loaded files and their winning source, the resolution
+// failure (extraction or load, mutually exclusive), and the candidate paths
+// probed.
 type configResolution struct {
 	loadedPaths  []string
 	loadedSource ValueSource
-	extractErr   error
-	loadErr      error
+	err          error
 	candidates   []string
-}
-
-func (r *configResolution) execErr() error {
-	if r.extractErr != nil {
-		return r.extractErr
-	}
-
-	return r.loadErr
-}
-
-func (r *configResolution) whyErr() error {
-	if r.loadErr != nil {
-		return r.loadErr
-	}
-
-	return r.extractErr
 }
 
 // appConfig holds every configuration field for an App. It is the single source
@@ -1366,7 +1350,7 @@ func (a *App[T]) prepareFeatures(featureBinding featureState, cmd *spec.Command,
 	if !request.versionOnly() {
 		resolution := a.resolveConfig(cmd, cmdChain, flagValues)
 		if !request.toleratesFeatureErrors() {
-			if err := resolution.execErr(); err != nil {
+			if err := resolution.err; err != nil {
 				return nil, err
 			}
 		}
@@ -1411,7 +1395,7 @@ func (a *App[T]) validateExecution(ctx context.Context, session *Session, leaf *
 
 func (a *App[T]) prepareNonMetaExecution(session *Session, cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, featureBinding featureState, prunedFlags []prunedFlag) error {
 	resolution := a.resolveSessionConfig(session, cmd, cmdChain, flagValues)
-	if err := resolution.execErr(); err != nil {
+	if err := resolution.err; err != nil {
 		return err
 	}
 
@@ -1812,11 +1796,17 @@ func (a *App[T]) resolveConfig(cmd *spec.Command, cmdChain []*spec.Command, flag
 		loadedPaths, loadedSource, loadErr = a.resolveAndLoadConfig(cmd, explicitTargets)
 	}
 
+	// Extraction and loading are mutually exclusive: loadErr is only produced
+	// when extractErr is nil, so the resolution carries exactly one failure.
+	resolutionErr := loadErr
+	if extractErr != nil {
+		resolutionErr = extractErr
+	}
+
 	a.configResolution = &configResolution{
 		loadedPaths:  loadedPaths,
 		loadedSource: loadedSource,
-		extractErr:   extractErr,
-		loadErr:      loadErr,
+		err:          resolutionErr,
 		candidates:   a.configurationView(cmd).CandidatePaths(explicitTargets, cmd),
 	}
 

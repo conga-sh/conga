@@ -95,6 +95,8 @@ hello:
 
 `app.EnableWhy()` enables `--why`, which prints a per-field provenance report — every resolved value in the active command chain with its [origin tier](/explanation/value-precedence/) (`● cli`, `● env VAR`, `● config key`, `· default`, `○ unset`). Values are redacted by default; fields opt in to display with `safe:"true"`. The report machinery is linked only when `app.EnableWhy()` is called; otherwise `--why` remains an unknown flag.
 
+When the root command declares `conga.Features[T]`, the report ends with a `Features:` table listing every declared feature, its resolved value, and its source. The winning feature-map tier supplies the rows it sets; keys that tier does not set fall back to the field default (`· default`) or render unset (`○ unset`). See [Feature toggles](/reference/struct-tags/#feature-toggles-congafeaturest).
+
 ## Completion surface
 
 `app.EnableCompletion()` enables shell completion. The completion flag, the `completion` subcommand, the `__complete` protocol, and their shell drivers are linked only when this call is present.

@@ -54,6 +54,18 @@ type CompletionError interface {
 
 The concrete error implementations (parse, coercion, validation, config) are unexported; `IsUsageError`, `IsCompletionError`, `UsageError`, `CompletionError`, and the base category sentinels form the public classification API.
 
+## Feature-gating failures
+
+Feature gating classifies by input source:
+
+| Failure | Category | Exit |
+|---------|----------|:----:|
+| Inactive gated flag or subcommand supplied on the command line, unknown feature key, or invalid feature value | `ErrParse` / `ErrValidation` (usage error) | 2 |
+| Unknown feature key or invalid feature value in a config file | `ErrConfig` | 1 |
+| Config key naming a flag whose gating feature is inactive | `ErrConfig` | 1 |
+| Environment variable naming an inactive gated flag | Ignored (the pruned flag never reaches environment binding) | – |
+| Unknown or invalid feature key in the feature map environment variable | `ErrParse` (usage error) | 2 |
+
 ## Custom error handling
 
 Custom error handling inspects the error returned by `app.Run()` or `app.RunContext(ctx)` directly instead of delegating to `app.Exit(err)`. The classification is available from the returned error: `conga.IsUsageError(err)` distinguishes input errors, `errors.AsType[conga.UsageError](err)` yields the `UsageError` for `CommandPath()` and `Usage()`, `conga.IsCompletionError(err)` identifies internal completion failures, and `errors.Is` matches the base category sentinels.

@@ -167,14 +167,22 @@ func (w *walker) checkConfigFileField(node *commandNode, fieldObject types.Objec
 // inner field, the per-feature tag vocabulary, the scalar kind, and the
 // enum/default contract through the shared spec validators. Feature-name
 // reference validation is left to schema build, which has the fully reflected
-// declaration set.
-func (w *walker) checkFeaturesField(node *commandNode, fieldObject types.Object, tag reflect.StructTag) {
+// declaration set. A CLI-exposed container registers its synthesized flag name
+// in the branch shadow maps, and a second container on the root reports the
+// duplicate-container error.
+func (w *walker) checkFeaturesField(node *commandNode, fieldObject types.Object, tag reflect.StructTag, branchNames map[string]string) {
 	if !w.validateNodeFieldTags(node, fieldObject, tag, "features", nil) {
 		return
 	}
 
 	if !node.isRoot {
 		w.reportFieldError(node, fieldObject, spec.FeaturesMustBeOnRootError())
+
+		return
+	}
+
+	if node.featuresDeclared {
+		w.reportFieldError(node, fieldObject, spec.FeaturesAlreadyDeclaredError(node.featureFlagName))
 
 		return
 	}
@@ -188,10 +196,37 @@ func (w *walker) checkFeaturesField(node *commandNode, fieldObject types.Object,
 		return
 	}
 
+	// The runtime installs the synthesized flag only after every inner field
+	// validates, so a failed container neither reserves the flag name against
+	// descendants nor counts as the first declaration.
+	if !w.checkFeatureFields(node, innerType, structType) {
+		return
+	}
+
+	flagName := strings.TrimSpace(tag.Get("flag"))
+	noCLI := flagName == "" || flagName == "-"
+
+	if noCLI {
+		flagName = casing.Kebab(fieldObject.Name())
+	}
+
+	node.featuresDeclared = true
+	node.featureFlagName = flagName
+
+	if !noCLI {
+		w.checkAndCollectSynthesizedFlag(node, fieldObject, flagName, branchNames)
+	}
+}
+
+// checkFeatureFields validates every exported inner field of a feature struct
+// and reports whether the container is valid.
+func (w *walker) checkFeatureFields(node *commandNode, innerType types.Type, structType *types.Struct) bool {
 	innerStructName := ""
 	if named, ok := types.Unalias(innerType).(*types.Named); ok {
 		innerStructName = named.Obj().Name()
 	}
+
+	valid := true
 
 	seen := make(map[string]bool)
 
@@ -204,12 +239,16 @@ func (w *walker) checkFeaturesField(node *commandNode, fieldObject types.Object,
 		innerTag := reflect.StructTag(structType.Tag(index))
 
 		if !w.validateNodeFieldTags(node, innerField, innerTag, "feature", nil) {
+			valid = false
+
 			continue
 		}
 
 		field, ok := featureField(innerField.Type(), w.pass.TypesSizes)
 		if !ok {
 			w.reportFieldError(node, innerField, spec.FeatureFieldTypeError(innerField.Name(), innerField.Type().String()))
+
+			valid = false
 
 			continue
 		}
@@ -218,11 +257,15 @@ func (w *walker) checkFeaturesField(node *commandNode, fieldObject types.Object,
 		w.reportFieldError(node, innerField, err)
 
 		if err != nil {
+			valid = false
+
 			continue
 		}
 
 		if seen[name] {
 			w.reportFieldError(node, innerField, spec.DuplicateFeatureError(name, innerStructName))
+
+			valid = false
 
 			continue
 		}
@@ -230,8 +273,14 @@ func (w *walker) checkFeaturesField(node *commandNode, fieldObject types.Object,
 		seen[name] = true
 		field.Name = name
 
-		w.reportFieldError(node, innerField, spec.ValidateFeatureFieldTags(field, innerTag))
+		if err := spec.ValidateFeatureFieldTags(field, innerTag); err != nil {
+			w.reportFieldError(node, innerField, err)
+
+			valid = false
+		}
 	}
+
+	return valid
 }
 
 // trackRootConfigFileArity records the root command's config-file flag arity
@@ -292,11 +341,18 @@ func (w *walker) checkFlagField(node *commandNode, fieldObject types.Object, tag
 		w.reportFieldError(node, fieldObject, spec.ValidateCounterDefaultTag(tag))
 	}
 
-	if strings.TrimSpace(tag.Get("feature")) != "" && w.congaWrapperName(fieldObject.Type()) == "RequiredFlag" {
-		w.reportFieldError(node, fieldObject, spec.FeatureOnRequiredFlagError())
-	}
+	// Feature-tag syntax is validated before the required-flag guard, mirroring
+	// the runtime parse order: an invalid expression reports its syntax error
+	// instead of the required-flag rejection.
+	featureExpr := strings.TrimSpace(tag.Get("feature"))
+	if featureExpr != "" {
+		syntaxErr := spec.ValidateFeatureExpression(featureExpr)
+		w.reportFieldError(node, fieldObject, syntaxErr)
 
-	w.checkFeatureExpression(node, fieldObject, tag)
+		if syntaxErr == nil && w.congaWrapperName(fieldObject.Type()) == "RequiredFlag" {
+			w.reportFieldError(node, fieldObject, spec.FeatureOnRequiredFlagError())
+		}
+	}
 
 	w.reportFieldError(node, fieldObject, spec.ValidatePredictorTag(tag, isBasicKind(targetType, types.Bool), w.predictorOptions(), w.options.registeredNames))
 	w.checkValidationSpecs(node, fieldObject, tag, targetType, tagSpecs)

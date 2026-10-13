@@ -75,6 +75,10 @@ If an application registers no config decoders (`app.RegisterDecoder`), Tier 3 r
 
 Positional containers (`RequiredArg[T]`, `OptionalArg[T]`, `DashArgs`, and `RawArgs`) resolve exclusively from command-line tokens. `OptionalArg[T]` populates from its `default` tag when omitted; `RequiredArg[T]` requires an explicit CLI token.
 
+### Feature maps
+
+A `conga.Features[T]` container resolves through the same four tiers, but the winning tier supplies one `name=value` map rather than a single value. Exactly one tier wins per run, and its keys overlay the inner features' `default` tags key by key, so features the winning tier does not list keep their declared defaults (sparse overrides). The container records the winning tier once; `Features.Source()` reports it, and `--why` renders each feature's effective value against it. See [Feature toggles](/reference/struct-tags/#feature-toggles-congafeaturest) and the [container accessors](/reference/conga/#containers).
+
 ### Environment file integration
 
 When `.env` loading is enabled via `app.Dotenv()`, variables from `.env` files populate the process environment before flag resolution begins ([Dotenv files](/reference/dotenv/)). These values feed Tier 2 as standard environment variables.

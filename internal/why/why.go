@@ -191,7 +191,7 @@ func renderRows(rows []Row) string {
 		builder.WriteString("\n")
 	}
 
-	writeGridHeader(&builder, header, widths)
+	writeGridRow(&builder, header, widths)
 
 	for index, row := range rows {
 		cells := grid[index+1]
@@ -228,7 +228,7 @@ func renderFeatureRows(rows []FeatureRow) string {
 
 	var builder strings.Builder
 
-	writeGridHeader(&builder, header, widths)
+	writeGridRow(&builder, header, widths)
 
 	for index := range rows {
 		writeGridRow(&builder, grid[index+1], widths)
@@ -237,18 +237,9 @@ func renderFeatureRows(rows []FeatureRow) string {
 	return builder.String()
 }
 
-// writeGridHeader writes the indented header row: every column but the last is
-// padded to its measured width and gap-separated, and the final header cell is
-// written flush.
-func writeGridHeader(builder *strings.Builder, header []string, widths []int) {
-	builder.WriteString(strings.Repeat(" ", rowIndent))
-	writeTableCells(builder, header[:len(header)-1], widths)
-	builder.WriteString(header[len(header)-1])
-	builder.WriteString("\n")
-}
-
-// writeGridRow writes one indented data row: every cell but the last is padded
+// writeGridRow writes one indented grid row: every cell but the last is padded
 // to its measured width and gap-separated, and the final cell is written flush.
+// Header and data rows share the layout.
 func writeGridRow(builder *strings.Builder, cells []string, widths []int) {
 	builder.WriteString(strings.Repeat(" ", rowIndent))
 	writeTableCells(builder, cells[:len(cells)-1], widths)

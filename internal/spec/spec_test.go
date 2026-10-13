@@ -1455,6 +1455,10 @@ type featureNoEnumSet struct {
 	Level int `help:"Level"`
 }
 
+type featureZeroEnumSet struct {
+	Level int `enum:"0,1" help:"Level"`
+}
+
 type featureNegativeDefaultSet struct {
 	Level uint `default:"-1" help:"Level"`
 }
@@ -1737,6 +1741,18 @@ func TestFeatureTag_NegativeUnsignedEnum(t *testing.T) {
 	assert.Error(t, err)
 	assert.IsError(t, err, spec.ErrInvalidStructTag)
 	assert.Contains(t, err.Error(), `feature enum value "-1": must be a non-negative integer`)
+}
+
+func TestFeatureTag_ZeroEnumRejected(t *testing.T) {
+	t.Parallel()
+
+	var cli featureSchemaCLI[featureZeroEnumSet]
+
+	_, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.Error(t, err)
+	assert.IsError(t, err, spec.ErrInvalidStructTag)
+	assert.Contains(t, err.Error(), `feature "level" enum value "0" is the reserved off level; list only non-zero levels`)
 }
 
 func TestFeatureTag_OutOfWidthEnum(t *testing.T) {

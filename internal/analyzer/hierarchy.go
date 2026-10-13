@@ -69,6 +69,12 @@ type commandNode struct {
 	// isRoot marks the command struct anchored by conga.New. conga.Features is
 	// legal only on the root command struct.
 	isRoot bool
+	// featuresDeclared reports whether the root already declared a
+	// conga.Features container; the runtime allows exactly one, and
+	// featureFlagName carries the resolved synthesized flag name of that
+	// container for the duplicate-container diagnostic.
+	featuresDeclared bool
+	featureFlagName  string
 }
 
 // walker drives the static hierarchy traversal and emits diagnostics.
@@ -208,7 +214,7 @@ func (w *walker) checkField(node *commandNode, fieldObject types.Object, tag ref
 
 		return nil
 	case "features":
-		w.checkFeaturesField(node, fieldObject, tag)
+		w.checkFeaturesField(node, fieldObject, tag, branchNames)
 
 		return nil
 	case "dash args":
