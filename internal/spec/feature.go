@@ -1,6 +1,7 @@
 package spec
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"reflect"
@@ -9,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/conga-sh/conga/internal/casing"
+	"github.com/conga-sh/conga/internal/slicex"
 )
 
 // FeatureField describes one field of the root conga.Features[T] struct: a
@@ -138,6 +140,73 @@ func NormalizeFeatureExpression(featureExpr string) string {
 	}
 
 	return strings.Join(terms, ",")
+}
+
+// FeatureFieldName derives the canonical kebab-case feature name of an inner
+// feature struct field: the name tag when present, else the Go field name. The
+// runtime schema builder and the static analyzer share it as the single source
+// of truth for duplicate and empty-name diagnostics.
+func FeatureFieldName(fieldName string, tag reflect.StructTag) (string, error) {
+	name := casing.Kebab(cmp.Or(strings.TrimSpace(tag.Get("name")), fieldName))
+	if name == "" {
+		return "", fmt.Errorf("%w: feature field %s declares an empty name", ErrInvalidStructTag, fieldName)
+	}
+
+	return name, nil
+}
+
+// ValidateFeatureFieldTags validates and records the enum and default tags of
+// one feature field: enum is valid only on integer features and may not be
+// empty, every enum value must canonicalize within the feature's domain and
+// storage width, an integer feature requires at least one enum level, and a
+// declared default must canonicalize against the enum domain. The runtime
+// schema builder reports it from the reflected field and the static analyzer
+// reconstructs the same metadata from go/types, keeping the diagnostics a
+// single source of truth.
+func ValidateFeatureFieldTags(field *FeatureField, tag reflect.StructTag) error {
+	if enumTag, hasEnum := tag.Lookup("enum"); hasEnum {
+		if !field.IsInt {
+			return fmt.Errorf("%w: tag \"enum\" is only valid on integer features", ErrInvalidStructTag)
+		}
+
+		parts := slicex.SplitAndTrim(enumTag, ",")
+		if len(parts) == 0 {
+			return fmt.Errorf("%w: tag \"enum\" cannot be empty", ErrInvalidStructTag)
+		}
+
+		for _, part := range parts {
+			canonical, err := field.parseInteger(part)
+			if err != nil {
+				return fmt.Errorf("%w: feature enum value %q: %w", ErrInvalidStructTag, part, err)
+			}
+
+			if !slices.Contains(field.Enum, canonical) {
+				field.Enum = append(field.Enum, canonical)
+			}
+		}
+	}
+
+	if defaultTag, hasDefault := tag.Lookup("default"); hasDefault {
+		canonical, err := field.Canonicalize(defaultTag)
+		if err != nil {
+			return fmt.Errorf("%w: feature %q default %q: %w", ErrInvalidStructTag, field.Name, defaultTag, err)
+		}
+
+		field.Default = canonical
+	}
+
+	if field.IsInt && len(field.Enum) == 0 {
+		return fmt.Errorf("%w: feature %q is an integer feature and requires an enum tag listing its non-zero levels", ErrInvalidStructTag, field.Name)
+	}
+
+	return nil
+}
+
+// DuplicateFeatureError builds the schema error for two feature fields that
+// normalize to the same kebab-case name. The runtime schema builder and the
+// static analyzer share it as the single source of truth.
+func DuplicateFeatureError(name string, typeName string) error {
+	return fmt.Errorf("%w: feature %q (already declared in %s)", ErrDuplicateFlag, name, typeName)
 }
 
 type featureTerm struct {

@@ -164,16 +164,18 @@ func (w *walker) checkConfigFileField(node *commandNode, fieldObject types.Objec
 
 // checkFeaturesField validates a root feature-declaration field
 // (conga.Features[T]): the container tag vocabulary and, for every exported
-// inner field, the per-feature tag vocabulary. Feature-name reference validation
-// is left to schema build, which has the fully reflected declaration set.
+// inner field, the per-feature tag vocabulary, the scalar kind, and the
+// enum/default contract through the shared spec validators. Feature-name
+// reference validation is left to schema build, which has the fully reflected
+// declaration set.
 func (w *walker) checkFeaturesField(node *commandNode, fieldObject types.Object, tag reflect.StructTag) {
-	if !node.isRoot {
-		w.reportFieldError(node, fieldObject, spec.FeaturesMustBeOnRootError())
-
+	if !w.validateNodeFieldTags(node, fieldObject, tag, "features", nil) {
 		return
 	}
 
-	if !w.validateNodeFieldTags(node, fieldObject, tag, "features", nil) {
+	if !node.isRoot {
+		w.reportFieldError(node, fieldObject, spec.FeaturesMustBeOnRootError())
+
 		return
 	}
 
@@ -186,19 +188,49 @@ func (w *walker) checkFeaturesField(node *commandNode, fieldObject types.Object,
 		return
 	}
 
+	innerStructName := ""
+	if named, ok := types.Unalias(innerType).(*types.Named); ok {
+		innerStructName = named.Obj().Name()
+	}
+
+	seen := make(map[string]bool)
+
 	for index := range structType.NumFields() {
 		innerField := structType.Field(index)
 		if !innerField.Exported() {
 			continue
 		}
 
-		if !w.validateNodeFieldTags(node, innerField, reflect.StructTag(structType.Tag(index)), "feature", nil) {
+		innerTag := reflect.StructTag(structType.Tag(index))
+
+		if !w.validateNodeFieldTags(node, innerField, innerTag, "feature", nil) {
 			continue
 		}
 
-		if !isFeatureScalarType(innerField.Type()) {
+		field, ok := featureField(innerField.Type(), w.pass.TypesSizes)
+		if !ok {
 			w.reportFieldError(node, innerField, spec.FeatureFieldTypeError(innerField.Name(), innerField.Type().String()))
+
+			continue
 		}
+
+		name, err := spec.FeatureFieldName(innerField.Name(), innerTag)
+		w.reportFieldError(node, innerField, err)
+
+		if err != nil {
+			continue
+		}
+
+		if seen[name] {
+			w.reportFieldError(node, innerField, spec.DuplicateFeatureError(name, innerStructName))
+
+			continue
+		}
+
+		seen[name] = true
+		field.Name = name
+
+		w.reportFieldError(node, innerField, spec.ValidateFeatureFieldTags(field, innerTag))
 	}
 }
 
@@ -421,23 +453,42 @@ func (w *walker) predictorOptions() spec.ValidationOptions {
 	return options
 }
 
-// isFeatureScalarType mirrors the runtime feature-field kind check: a feature
-// field must have a bool or an integer underlying kind. Uintptr is excluded to
-// match the runtime switch, which accepts only Uint..Uint64.
-func isFeatureScalarType(targetType types.Type) bool {
+// featureField mirrors the runtime feature-field kind switch: a feature field
+// must have a bool or an integer underlying kind (Uintptr is excluded to match
+// the runtime switch, which accepts only Uint..Uint64), and the reconstructed
+// metadata feeds the shared enum/default validators so lint-time and runtime
+// diagnostics stay identical. Bit sizes come from the package type sizes; when
+// they are unavailable the zero bit size falls back to the platform width,
+// which can only miss narrow-width overflow diagnostics.
+func featureField(targetType types.Type, sizes types.Sizes) (*spec.FeatureField, bool) {
 	basic, ok := targetType.Underlying().(*types.Basic)
 	if !ok {
-		return false
+		return nil, false
 	}
 
+	var (
+		isInt      bool
+		isUnsigned bool
+	)
+
 	switch basic.Kind() {
-	case types.Bool,
-		types.Int, types.Int8, types.Int16, types.Int32, types.Int64,
-		types.Uint, types.Uint8, types.Uint16, types.Uint32, types.Uint64:
-		return true
+	case types.Bool:
+	case types.Int, types.Int8, types.Int16, types.Int32, types.Int64:
+		isInt = true
+	case types.Uint, types.Uint8, types.Uint16, types.Uint32, types.Uint64:
+		isInt = true
+		isUnsigned = true
 	default:
-		return false
+		return nil, false
 	}
+
+	field := &spec.FeatureField{IsInt: isInt, IsUnsigned: isUnsigned}
+
+	if isInt && sizes != nil {
+		field.BitSize = int(sizes.Sizeof(targetType)) * 8
+	}
+
+	return field, true
 }
 
 func isBasicKind(targetType types.Type, kind types.BasicKind) bool {

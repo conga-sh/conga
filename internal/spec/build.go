@@ -610,16 +610,10 @@ func (b *schemaBuilder) processConfigFileField(structField reflect.StructField, 
 // processFeaturesField validates and reflects the root feature-declaration
 // container (conga.Features[T]) into per-feature metadata and synthesizes the
 // single map flag that carries feature values from the command line,
-// environment, and configuration files.
+// environment, and configuration files. A conga:"-" field is ignored before
+// the root-placement and duplicate checks, matching the other container
+// processors.
 func (b *schemaBuilder) processFeaturesField(structField reflect.StructField, fieldHandle any, classification container.Classification) error {
-	if !b.isRoot {
-		return FeaturesMustBeOnRootError()
-	}
-
-	if b.cmd.FeatureFlag != nil {
-		return fmt.Errorf("%w: Features (already declared by %s)", ErrDuplicateFlag, b.cmd.FeatureFlag.Name)
-	}
-
 	dirs, err := b.validateFieldTags(structField, "features", featuresFieldTagCandidates)
 	if err != nil {
 		return err
@@ -627,6 +621,14 @@ func (b *schemaBuilder) processFeaturesField(structField reflect.StructField, fi
 
 	if dirs.Ignore {
 		return nil
+	}
+
+	if !b.isRoot {
+		return FeaturesMustBeOnRootError()
+	}
+
+	if b.cmd.FeatureFlag != nil {
+		return fmt.Errorf("%w: Features (already declared by %s)", ErrDuplicateFlag, b.cmd.FeatureFlag.Name)
 	}
 
 	innerType, err := featureStructType(classification.Target)
@@ -695,15 +697,13 @@ func (b *schemaBuilder) buildSingleFeatureField(fieldSpec reflect.StructField, t
 		return nil, FeatureFieldTypeError(fieldSpec.Name, fieldSpec.Type.String())
 	}
 
-	rawName := cmp.Or(strings.TrimSpace(fieldSpec.Tag.Get("name")), fieldSpec.Name)
-	name := casing.Kebab(rawName)
-
-	if name == "" {
-		return nil, fmt.Errorf("%w: feature field %s declares an empty name", ErrInvalidStructTag, fieldSpec.Name)
+	name, err := FeatureFieldName(fieldSpec.Name, fieldSpec.Tag)
+	if err != nil {
+		return nil, err
 	}
 
 	if seen[name] {
-		return nil, fmt.Errorf("%w: feature %q (already declared in %s)", ErrDuplicateFlag, name, typeName)
+		return nil, DuplicateFeatureError(name, typeName)
 	}
 
 	seen[name] = true
@@ -720,7 +720,7 @@ func (b *schemaBuilder) buildSingleFeatureField(fieldSpec reflect.StructField, t
 		field.BitSize = fieldSpec.Type.Bits()
 	}
 
-	if err := parseFeatureEnumAndDefault(field, fieldSpec); err != nil {
+	if err := ValidateFeatureFieldTags(field, fieldSpec.Tag); err != nil {
 		return nil, err
 	}
 
@@ -1011,45 +1011,6 @@ func (t *flagCollisionTracker) CheckAndAdd(flagSpec *Flag, fieldName string) err
 		}
 
 		t.seenShorts[flagSpec.Short] = fieldName
-	}
-
-	return nil
-}
-
-func parseFeatureEnumAndDefault(field *FeatureField, fieldSpec reflect.StructField) error {
-	if enumTag, hasEnum := fieldSpec.Tag.Lookup("enum"); hasEnum {
-		if !field.IsInt {
-			return fmt.Errorf("%w: tag \"enum\" is only valid on integer features", ErrInvalidStructTag)
-		}
-
-		parts := slicex.SplitAndTrim(enumTag, ",")
-		if len(parts) == 0 {
-			return fmt.Errorf("%w: tag \"enum\" cannot be empty", ErrInvalidStructTag)
-		}
-
-		for _, part := range parts {
-			canonical, err := field.parseInteger(part)
-			if err != nil {
-				return fmt.Errorf("%w: feature enum value %q: %w", ErrInvalidStructTag, part, err)
-			}
-
-			if !slices.Contains(field.Enum, canonical) {
-				field.Enum = append(field.Enum, canonical)
-			}
-		}
-	}
-
-	if defaultTag, hasDefault := fieldSpec.Tag.Lookup("default"); hasDefault {
-		canonical, err := field.Canonicalize(defaultTag)
-		if err != nil {
-			return fmt.Errorf("%w: feature %q default %q: %w", ErrInvalidStructTag, field.Name, defaultTag, err)
-		}
-
-		field.Default = canonical
-	}
-
-	if field.IsInt && len(field.Enum) == 0 {
-		return fmt.Errorf("%w: feature %q is an integer feature and requires an enum tag listing its non-zero levels", ErrInvalidStructTag, field.Name)
 	}
 
 	return nil

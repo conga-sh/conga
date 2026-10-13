@@ -790,9 +790,16 @@ func (c *CompletionCommand) Run(ctx context.Context, session *Session) error {
 //
 // Flags and subcommands gated by the feature tag are pruned from help, why, and
 // completion when their feature is inactive, and invoking them is a usage error.
+//
+// Gating enforcement is symmetric for explicit inputs: a gated flag supplied on
+// the command line is a usage error even when only help was requested, and a
+// configuration key naming a gated flag whose feature is inactive is rejected
+// with [ErrConfig]. Environment variables are the exception: pruning removes
+// the flag from the schema before environment binding, so a variable targeting
+// an inactive gated flag is ignored rather than rejected, keeping ambient
+// environment state from breaking runs it does not control.
 type Features[T any] struct {
 	value        T
-	set          bool
 	source       ValueSource
 	sourceDetail string
 	provided     map[string]string
@@ -804,7 +811,7 @@ func (f *Features[T]) Get() *T {
 }
 
 // IsSet reports whether any feature source contributed a value.
-func (f *Features[T]) IsSet() bool { return f.set }
+func (f *Features[T]) IsSet() bool { return f.source != SourceNone }
 
 // Changed reports whether a feature value came from the command line, the
 // environment, or a configuration file rather than exclusively from defaults.
@@ -1167,7 +1174,6 @@ func (f *Features[T]) setValue(value any, source ValueSource, detail string) {
 	}
 
 	f.provided = provided
-	f.set = true
 	f.source = source
 	f.sourceDetail = detail
 }

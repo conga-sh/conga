@@ -1362,9 +1362,9 @@ func (a *App[T]) bindConfigAndFlags(session *Session, cmd *spec.Command, cmdChai
 // the feature map, prunes inactive flags and subcommands, and rejects a gated
 // flag supplied on the command line (a usage error even under --help, symmetric
 // with a gated subcommand). It returns the pruned flags.
-func (a *App[T]) prepareFeatures(session *Session, featureBinding featureState, cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, request builtinRequest) ([]prunedFlag, error) {
+func (a *App[T]) prepareFeatures(featureBinding featureState, cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, request builtinRequest) ([]prunedFlag, error) {
 	if !request.versionOnly() {
-		resolution := a.resolveSessionConfig(session, cmd, cmdChain, flagValues)
+		resolution := a.resolveConfig(cmd, cmdChain, flagValues)
 		if !request.toleratesFeatureErrors() {
 			if err := resolution.execErr(); err != nil {
 				return nil, err
@@ -1474,7 +1474,7 @@ func (a *App[T]) prepare(ctx context.Context) (*Session, bool, error) {
 	// rendering and pruning. A lone --version renders from app metadata alone
 	// and skips configuration resolution entirely.
 	if featureBinding != nil {
-		pruned, err := a.prepareFeatures(session, featureBinding, cmd, cmdChain, flagValues, request)
+		pruned, err := a.prepareFeatures(featureBinding, cmd, cmdChain, flagValues, request)
 		if err != nil {
 			return nil, false, err
 		}

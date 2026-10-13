@@ -206,15 +206,13 @@ func whyFeatureRows(root *spec.Command) []why.FeatureRow {
 	}
 
 	featureBinding := featureStateOf(root.FeatureFlag.Handle)
+
 	var provided map[string]string
 	if rawProvided, ok := featureBinding.getValue().(map[string]string); ok {
 		provided = rawProvided
 	}
 
-	values, accepted, err := featureValues(root, nil, provided, featureBinding.Source())
-	if err != nil && len(values) == 0 {
-		return nil
-	}
+	values, accepted := featureValuesLenient(root, provided)
 
 	flagSource := whySourceWord(featureBinding.Source())
 

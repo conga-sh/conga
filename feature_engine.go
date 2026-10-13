@@ -104,21 +104,53 @@ func featureGates(cmd *spec.Command, values map[string]string) map[string]bool {
 	return gates
 }
 
-// featureValues overlays the source-provided feature map on the field defaults.
-// Keys are processed in sorted order for deterministic diagnostics.
+// featureValues overlays the source-provided feature map on the field defaults,
+// recording the canonical values and the accepted keys, and returns the first
+// diagnostic in sorted key order.
 func featureValues(cmd *spec.Command, cmdChain []*spec.Command, provided map[string]string, source ValueSource) (map[string]string, map[string]string, error) {
+	var firstErr error
+
+	values, accepted := collectFeatureValues(cmd, provided, func(name string, raw string, feature *spec.FeatureField, cause error) {
+		if firstErr != nil {
+			return
+		}
+
+		if feature == nil {
+			firstErr = unknownFeatureError(cmdChain, cmd, name, source)
+
+			return
+		}
+
+		firstErr = invalidFeatureValueError(cmdChain, feature, raw, cause, source)
+	})
+
+	return values, accepted, firstErr
+}
+
+// featureValuesLenient overlays the provided feature map on the field defaults
+// without building diagnostics: unknown or invalid keys fall back to their
+// declared defaults. It backs tolerant paths (--why, completion binding),
+// where a rejected key must render its defaulted value rather than an error.
+func featureValuesLenient(cmd *spec.Command, provided map[string]string) (map[string]string, map[string]string) {
+	return collectFeatureValues(cmd, provided, nil)
+}
+
+// collectFeatureValues is the shared overlay loop: known keys are canonicalized
+// and recorded, and unknown or invalid keys invoke reject when it is non-nil.
+// Keys are processed in sorted order for deterministic diagnostics.
+func collectFeatureValues(cmd *spec.Command, provided map[string]string, reject func(name string, raw string, feature *spec.FeatureField, cause error)) (map[string]string, map[string]string) {
 	values := featureDefaults(cmd)
 	accepted := make(map[string]string, len(provided))
 
 	names := slices.Sorted(maps.Keys(provided))
-	var firstErr error
 
 	for _, name := range names {
 		raw := provided[name]
+
 		feature := cmd.FindFeature(casing.Kebab(name))
 		if feature == nil {
-			if firstErr == nil {
-				firstErr = unknownFeatureError(cmdChain, cmd, name, source)
+			if reject != nil {
+				reject(name, raw, nil, nil)
 			}
 
 			continue
@@ -126,8 +158,8 @@ func featureValues(cmd *spec.Command, cmdChain []*spec.Command, provided map[str
 
 		canonical, err := feature.Canonicalize(raw)
 		if err != nil {
-			if firstErr == nil {
-				firstErr = invalidFeatureValueError(cmdChain, feature, raw, err, source)
+			if reject != nil {
+				reject(name, raw, feature, err)
 			}
 
 			continue
@@ -137,24 +169,16 @@ func featureValues(cmd *spec.Command, cmdChain []*spec.Command, provided map[str
 		accepted[feature.Name] = canonical
 	}
 
-	return values, accepted, firstErr
+	return values, accepted
 }
 
 // bindFeatureValues binds the synthesized feature map flag, overlays the
 // provided feature map onto the defaults, and materializes the typed feature
 // struct.
 func bindFeatureValues(binding flagState, target any, cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, state *bindingState) (map[string]bool, error) {
-	if cmd.FeatureFlag != nil {
-		if err := applyFlagValue(cmd, cmdChain, cmd.FeatureFlag, flagValues, state); err != nil {
-			if !state.TolerateFeatureErrors {
-				return nil, err
-			}
-		}
-	}
-
-	var provided map[string]string
-	if rawProvided, ok := binding.getValue().(map[string]string); ok {
-		provided = rawProvided
+	provided, err := bindFeatureMap(binding, cmd, cmdChain, flagValues, state)
+	if err != nil && !state.TolerateFeatureErrors {
+		return nil, err
 	}
 
 	values, _, err := featureValues(cmd, cmdChain, provided, binding.Source())
@@ -165,6 +189,40 @@ func bindFeatureValues(binding flagState, target any, cmd *spec.Command, cmdChai
 	materializeFeatureValues(target, cmd.FeatureFields, values)
 
 	return featureGates(cmd, values), nil
+}
+
+// bindFeatureMap applies the synthesized feature map flag from the tier
+// cascade and returns the raw provided map, or nil when the flag stays
+// unbound.
+func bindFeatureMap(binding flagState, cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, state *bindingState) (map[string]string, error) {
+	if cmd.FeatureFlag != nil {
+		if err := applyFlagValue(cmd, cmdChain, cmd.FeatureFlag, flagValues, state); err != nil {
+			return nil, err
+		}
+	}
+
+	var provided map[string]string
+	if rawProvided, ok := binding.getValue().(map[string]string); ok {
+		provided = rawProvided
+	}
+
+	return provided, nil
+}
+
+// bindFeatureValuesLenient is the tolerant binding path used by completion
+// pruning: a malformed feature map leaves the flag unbound, and resolution
+// proceeds from the declared defaults without materializing diagnostics.
+func bindFeatureValuesLenient(binding flagState, target any, cmd *spec.Command, flagValues map[*spec.Flag][]string, state *bindingState) map[string]bool {
+	provided, err := bindFeatureMap(binding, cmd, []*spec.Command{cmd}, flagValues, state)
+
+	values := featureDefaults(cmd)
+	if err == nil {
+		values, _ = featureValuesLenient(cmd, provided)
+	}
+
+	materializeFeatureValues(target, cmd.FeatureFields, values)
+
+	return featureGates(cmd, values)
 }
 
 // resolveFeatureGates binds the feature map flag, materializes the typed
@@ -191,12 +249,10 @@ func resolveFeatureGates(binding flagState, target any, cmd *spec.Command, cmdCh
 
 // pruneFeaturesForCompletion binds the feature map flag for a completion
 // invocation and prunes inactive features so suggestions never leak gated
-// commands or flags.
+// commands or flags. Binding is best-effort: a malformed feature map degrades
+// to the declared defaults instead of aborting the completion.
 func pruneFeaturesForCompletion(binding flagState, target any, cmd *spec.Command, flagValues map[*spec.Flag][]string, state *bindingState) {
-	gates, err := bindFeatureValues(binding, target, cmd, []*spec.Command{cmd}, flagValues, state)
-	if err != nil {
-		gates = nil
-	}
+	gates := bindFeatureValuesLenient(binding, target, cmd, flagValues, state)
 
 	pruneInactiveFeatures(cmd, "", gates)
 }
@@ -276,6 +332,16 @@ func materializeFeatureValues(target any, fields []*spec.FeatureField, values ma
 	}
 }
 
+// joinSubcommandPrefix extends a dotted command prefix with a subcommand name,
+// returning the bare name for root-level commands.
+func joinSubcommandPrefix(prefix string, name string) string {
+	if prefix == "" {
+		return name
+	}
+
+	return prefix + "." + name
+}
+
 func pruneInactiveFeatures(cmd *spec.Command, prefix string, activeFeatures map[string]bool) []prunedFlag {
 	var pruned []prunedFlag
 
@@ -296,10 +362,7 @@ func pruneInactiveFeatures(cmd *spec.Command, prefix string, activeFeatures map[
 	})
 
 	cmd.Subcommands = slicex.Filter(cmd.Subcommands, func(subcommand *spec.Command) bool {
-		subcommandPrefix := subcommand.Name
-		if prefix != "" {
-			subcommandPrefix = prefix + "." + subcommand.Name
-		}
+		subcommandPrefix := joinSubcommandPrefix(prefix, subcommand.Name)
 
 		if subcommand.Feature != "" && !spec.MatchFeature(subcommand.Feature, activeFeatures) {
 			pruned = append(pruned, collectPrunedSubtree(subcommand, subcommandPrefix, subcommand.Feature)...)
@@ -328,10 +391,7 @@ func collectPrunedSubtree(cmd *spec.Command, prefix string, featureExpr string) 
 	}
 
 	for _, subcommand := range cmd.Subcommands {
-		subcommandPrefix := subcommand.Name
-		if prefix != "" {
-			subcommandPrefix = prefix + "." + subcommand.Name
-		}
+		subcommandPrefix := joinSubcommandPrefix(prefix, subcommand.Name)
 
 		pruned = append(pruned, collectPrunedSubtree(subcommand, subcommandPrefix, featureExpr)...)
 	}
@@ -389,12 +449,14 @@ func checkFeatureConfigRestrictions(pruned []prunedFlag, configData map[string]s
 // cliFlagValues extracts the command-line values supplied for the given target
 // flags from completion words, so completion feature pruning observes the CLI
 // tier of the feature cascade and an explicit --config-file supplied on the
-// completion line. Extraction is deliberately tolerant: unknown tokens, dangling
-// flags, and partial values are ignored rather than failing the invocation.
+// completion line. NoCLI targets (such as an unnamed synthesized feature flag)
+// can never appear on the completion line and are skipped. Extraction is
+// deliberately tolerant: unknown tokens, dangling flags, and partial values are
+// ignored rather than failing the invocation.
 func cliFlagValues(cmd *spec.Command, args []string, targets ...*spec.Flag) map[*spec.Flag][]string {
 	wanted := make(map[*spec.Flag]bool, len(targets))
 	for _, target := range targets {
-		if target != nil {
+		if target != nil && !target.NoCLI {
 			wanted[target] = true
 		}
 	}

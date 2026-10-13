@@ -140,13 +140,18 @@ func TestMinimalHello_FeatureResolutionPayloadEliminated(t *testing.T) {
 
 	for _, symbol := range []string{
 		"github.com/conga-sh/conga.featureValues",
+		"github.com/conga-sh/conga.featureValuesLenient",
+		"github.com/conga-sh/conga.collectFeatureValues",
 		"github.com/conga-sh/conga.bindFeatureValues",
+		"github.com/conga-sh/conga.bindFeatureValuesLenient",
+		"github.com/conga-sh/conga.bindFeatureMap",
 		"github.com/conga-sh/conga.resolveFeatureGates",
 		"github.com/conga-sh/conga.pruneFeaturesForCompletion",
 		"github.com/conga-sh/conga.materializeFeatureValues",
 		"github.com/conga-sh/conga.unknownFeatureError",
 		"github.com/conga-sh/conga.invalidFeatureValueError",
 		"github.com/conga-sh/conga.pruneInactiveFeatures",
+		"github.com/conga-sh/conga.joinSubcommandPrefix",
 		"github.com/conga-sh/conga.collectPrunedSubtree",
 		"github.com/conga-sh/conga.validateSubcommandFeatures",
 		"github.com/conga-sh/conga.checkFeatureFlagCLIRestrictions",

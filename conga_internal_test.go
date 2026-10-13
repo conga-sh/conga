@@ -80,6 +80,18 @@ func TestValidator_HasStreamsAndConfigContext(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestValidator_FeatureCapable_HasConfigContext(t *testing.T) {
+	t.Parallel()
+
+	app := New[featureValidatorCLI]().
+		Args([]string{}).
+		ConfigOptions(ConfigPaths("test-config.json"))
+
+	err := app.RunContext(t.Context())
+
+	assert.NoError(t, err)
+}
+
 func TestApp_initDefaultPredictors_RegistersShellPredictor(t *testing.T) {
 	t.Parallel()
 
@@ -150,6 +162,27 @@ func (c *validatorContextCLI) Validate(ctx context.Context, session *Session) er
 }
 
 func (c *validatorContextCLI) Run(_ context.Context, _ *Session) error {
+	return nil
+}
+
+type featureValidatorSet struct {
+	Enabled bool
+}
+
+type featureValidatorCLI struct {
+	Features Features[featureValidatorSet] `flag:"feature-gates"`
+}
+
+func (c *featureValidatorCLI) Validate(_ context.Context, session *Session) error {
+	candidates := session.CandidateConfigFiles()
+	if len(candidates) != 1 || candidates[0] != "test-config.json" {
+		return fmt.Errorf("unexpected candidate config files: %v", candidates)
+	}
+
+	return nil
+}
+
+func (c *featureValidatorCLI) Run(_ context.Context, _ *Session) error {
 	return nil
 }
 

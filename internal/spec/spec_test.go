@@ -1528,6 +1528,43 @@ func TestFeaturesContainer_DuplicateDeclaration_EmptyInnerStruct(t *testing.T) {
 	assert.Equal(t, "struct featureDuplicateCLI field Second: schema error: duplicate flag: Features (already declared by gates-a)", err.Error())
 }
 
+type featureIgnoredDuplicateCLI struct {
+	First  mockFeatures[struct{}]   `flag:"gates-a"`
+	Second mockFeatures[featureSet] `conga:"-"`
+}
+
+func TestFeaturesContainer_IgnoredSecondDeclaration(t *testing.T) {
+	t.Parallel()
+
+	var cli featureIgnoredDuplicateCLI
+
+	cmd, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.NoError(t, err)
+	assert.NotZero(t, cmd.FeatureFlag)
+	assert.Equal(t, "gates-a", cmd.FeatureFlag.Name)
+}
+
+type featureIgnoredNonRootSub struct {
+	Features mockFeatures[featureSet] `conga:"-"`
+}
+
+type featureIgnoredNonRootCLI struct {
+	Sub mockCmd[featureIgnoredNonRootSub]
+}
+
+func TestFeaturesContainer_IgnoredOnNonRoot(t *testing.T) {
+	t.Parallel()
+
+	var cli featureIgnoredNonRootCLI
+
+	cmd, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.NoError(t, err)
+	assert.Zero(t, cmd.FeatureFlag)
+	assert.NotZero(t, cmd.FindSubcommand("sub"))
+}
+
 type featureNoCLINameAfterCLI struct {
 	Features mockFeatures[featureDeclSet]
 

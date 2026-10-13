@@ -249,6 +249,27 @@ func TestFeature_FlagGating_EnabledViaDerivedEnvPrefix(t *testing.T) {
 	assert.True(t, cli.ForceAll.Get())
 }
 
+// TestFeature_EnvForInactiveGatedFlag_Ignored pins the environment-tier
+// asymmetry: pruning removes a gated flag from the schema before environment
+// binding, so a variable targeting it is silently ignored while a config key
+// naming it is rejected.
+func TestFeature_EnvForInactiveGatedFlag_Ignored(t *testing.T) {
+	var cli featureTestCLI
+
+	app := conga.New(&cli).
+		Name("task").
+		EnvPrefix("TASK_X").
+		Args([]string{})
+
+	t.Setenv("TASK_X_FORCE_ALL", "true")
+
+	err := app.Run()
+	assert.NoError(t, err)
+	assert.True(t, cli.Ran)
+	assert.False(t, cli.ForceAll.IsSet())
+	assert.False(t, cli.ForceAll.Get())
+}
+
 func TestFeature_FlagGating_EnabledViaConfig(t *testing.T) {
 	t.Parallel()
 
@@ -1067,6 +1088,7 @@ func TestFeature_FlagConstraintPrecedenceOverArgCoercion(t *testing.T) {
 	t.Parallel()
 
 	var cli flagConstraintCLI
+
 	app := conga.New(&cli).Name("app").Args([]string{"--foo", "--bar", "notanumber"})
 
 	err := app.Run()
@@ -1082,6 +1104,7 @@ func TestFeature_ConfigErrorPrecedenceOverFeatureGate(t *testing.T) {
 	assert.NoError(t, err)
 
 	var cli featureTestCLI
+
 	app := conga.New(&cli).
 		Name("task").
 		RegisterDecoder(".yaml", yaml.Decode).
@@ -1108,6 +1131,7 @@ func TestFeature_ExplicitConfigExtractionErrorHalts(t *testing.T) {
 	t.Parallel()
 
 	var cli badConfigFlagCLI
+
 	app := conga.New(&cli).Name("app").Args([]string{"package", "--config"})
 
 	err := app.Run()
@@ -1118,14 +1142,17 @@ func TestFeature_DeterministicErrorAcrossIterations(t *testing.T) {
 	t.Parallel()
 
 	var firstErrMsg string
+
 	for i := range 20 {
 		var cli featureTestCLI
+
 		app := conga.New(&cli).
 			Name("app").
 			Args([]string{"--feature-gates", "zebra=true,alpha=true,beta=true"})
 
 		err := app.Run()
 		assert.Error(t, err)
+
 		if i == 0 {
 			firstErrMsg = err.Error()
 		} else {
@@ -1145,6 +1172,7 @@ type leafClusterCmd struct {
 
 func (c *leafClusterCmd) Run(ctx context.Context, session *conga.Session) error {
 	c.Ran = true
+
 	return nil
 }
 
@@ -1169,6 +1197,7 @@ func TestFeature_ConfigFile_PrunedCommandLocalKeyRejection(t *testing.T) {
 	assert.NoError(t, err)
 
 	var cli nestedClusterCLI
+
 	app := conga.New(&cli).
 		Name("task").
 		RegisterDecoder(".yaml", yaml.Decode).

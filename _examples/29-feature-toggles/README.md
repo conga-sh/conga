@@ -52,6 +52,9 @@ go run ./_examples/29-feature-toggles -c features.yaml admin
   the inspector) but are never bound.
 - A config key that names an inactive gated flag fails with exit code 1, and an
   unknown feature name in the section fails with a did-you-mean hint.
+- An environment variable that targets an inactive gated flag is ignored
+  (pruning removes the flag before environment binding), so stale ambient
+  variables never break a run; only CLI and config inputs are rejected.
 
 The complete scenarios live in [`testdata/`](testdata/):
 [`baseline.txt`](testdata/baseline.txt) (default posture and enforcement),

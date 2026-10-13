@@ -21,6 +21,16 @@ type SemanticsCLI struct {
 	Name conga.OptionalFlag[string] `default:"initial" env:"SEMANTICS_NAME" name:"name"`
 }
 
+type featureSemanticsSet struct {
+	Enabled bool `default:"true"`
+}
+
+type FeatureSemanticsCLI struct {
+	noopRunner
+
+	Features conga.Features[featureSemanticsSet] `flag:"feature-gates"`
+}
+
 func TestChangedSemantics_DefaultSource(t *testing.T) {
 	t.Parallel()
 
@@ -67,6 +77,38 @@ func TestChangedSemantics_CLISource(t *testing.T) {
 	assert.True(t, cli.Name.Changed())
 	assert.Equal(t, "from_cli", cli.Name.Get())
 	assert.Equal(t, conga.SourceCLI, cli.Name.Source())
+}
+
+func TestFeaturesSemantics_DefaultOnly(t *testing.T) {
+	t.Parallel()
+
+	cli := new(FeatureSemanticsCLI)
+	app := conga.New(cli).
+		Args([]string{})
+
+	err := app.RunContext(t.Context())
+
+	assert.NoError(t, err)
+	assert.False(t, cli.Features.IsSet())
+	assert.False(t, cli.Features.Changed())
+	assert.Equal(t, conga.SourceNone, cli.Features.Source())
+	assert.True(t, cli.Features.Get().Enabled)
+}
+
+func TestFeaturesSemantics_CLISource(t *testing.T) {
+	t.Parallel()
+
+	cli := new(FeatureSemanticsCLI)
+	app := conga.New(cli).
+		Args([]string{"--feature-gates", "enabled=false"})
+
+	err := app.RunContext(t.Context())
+
+	assert.NoError(t, err)
+	assert.True(t, cli.Features.IsSet())
+	assert.True(t, cli.Features.Changed())
+	assert.Equal(t, conga.SourceCLI, cli.Features.Source())
+	assert.False(t, cli.Features.Get().Enabled)
 }
 
 func TestXor_DefaultDoesNotConflict(t *testing.T) {
