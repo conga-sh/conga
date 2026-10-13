@@ -505,17 +505,13 @@ func parseFlagSpec(structField reflect.StructField, flagHandle any, classificati
 		return nil, err
 	}
 
-	feature := strings.TrimSpace(structField.Tag.Get("feature"))
-	if feature != "" {
-		if classification.Required {
-			return nil, FeatureOnRequiredFlagError()
-		}
+	feature, err := parseFeatureTag(structField.Tag)
+	if err != nil {
+		return nil, err
+	}
 
-		if err := ValidateFeatureExpression(feature); err != nil {
-			return nil, err
-		}
-
-		feature = NormalizeFeatureExpression(feature)
+	if feature != "" && classification.Required {
+		return nil, FeatureOnRequiredFlagError()
 	}
 
 	return &Flag{

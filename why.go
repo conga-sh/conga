@@ -50,7 +50,7 @@ func (a *App[T]) buildWhyReport(cmdChain []*spec.Command, cliValues map[*spec.Fl
 
 	loadedPaths := resolution.loadedPaths
 	loadedSource := resolution.loadedSource
-	loadErr := resolution.err
+	loadErr := resolution.whyErr()
 
 	resolver := a.configurationView(cmdChain[0])
 	candidatePaths := resolution.candidates
@@ -201,14 +201,20 @@ func (a *App[T]) whyCoercedRow(cmdChain []*spec.Command, flagSpec *spec.Flag, ra
 // shares the feature map flag's winning source tier; keys that source did not
 // set fall back to their field default (or unset).
 func whyFeatureRows(root *spec.Command) []why.FeatureRow {
-	if root == nil || root.FeatureFlag == nil {
+	if root.FeatureFlag == nil {
 		return nil
 	}
 
 	featureBinding := featureStateOf(root.FeatureFlag.Handle)
-	provided := featureBinding.featureProvided()
+	var provided map[string]string
+	if rawProvided, ok := featureBinding.getValue().(map[string]string); ok {
+		provided = rawProvided
+	}
 
-	_, values, accepted := lenientFeatureValues(root, provided)
+	values, accepted, err := featureValues(root, nil, provided, featureBinding.Source())
+	if err != nil && len(values) == 0 {
+		return nil
+	}
 
 	flagSource := whySourceWord(featureBinding.Source())
 

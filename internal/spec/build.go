@@ -270,30 +270,18 @@ func (b *schemaBuilder) processSubcommand(structField reflect.StructField, comma
 	subcommand.Hidden = parsePresenceOrTrueTag(structField.Tag, "hidden")
 	subcommand.Aliases = aliases
 
-	if err := b.applySubcommandFeature(subcommand, structField.Tag.Get("feature")); err != nil {
+	feature, err := parseFeatureTag(structField.Tag)
+	if err != nil {
 		return fmt.Errorf("struct %s field %s: %w", b.structType.Name(), structField.Name, err)
 	}
+
+	subcommand.Feature = feature
 
 	if subcommand.EnvPrefix == "" {
 		subcommand.EnvPrefix = subOpts.EnvPrefix
 	}
 
 	b.cmd.Subcommands = append(b.cmd.Subcommands, subcommand)
-
-	return nil
-}
-
-func (b *schemaBuilder) applySubcommandFeature(subcommand *Command, rawFeature string) error {
-	feature := strings.TrimSpace(rawFeature)
-	if feature == "" {
-		return nil
-	}
-
-	if err := ValidateFeatureExpression(feature); err != nil {
-		return err
-	}
-
-	subcommand.Feature = NormalizeFeatureExpression(feature)
 
 	return nil
 }
@@ -426,13 +414,9 @@ func (b *schemaBuilder) buildConfigFileFlagSpec(structField reflect.StructField,
 		aliases = slicex.SplitAndTrim(aliasTag, ",")
 	}
 
-	feature := strings.TrimSpace(structField.Tag.Get("feature"))
-	if feature != "" {
-		if err := ValidateFeatureExpression(feature); err != nil {
-			return nil, err
-		}
-
-		feature = NormalizeFeatureExpression(feature)
+	feature, err := parseFeatureTag(structField.Tag)
+	if err != nil {
+		return nil, err
 	}
 
 	return &Flag{
@@ -674,8 +658,12 @@ func (b *schemaBuilder) buildFeatureFields(innerType reflect.Type) ([]*FeatureFi
 			continue
 		}
 
-		dirs, err := ParseCongaDirectives(fieldSpec.Tag.Get("conga"))
-		if err == nil && dirs.Ignore {
+		dirs, err := b.validateFieldTags(fieldSpec, "feature", featureFieldTagCandidates)
+		if err != nil {
+			return nil, err
+		}
+
+		if dirs.Ignore {
 			continue
 		}
 
@@ -691,10 +679,6 @@ func (b *schemaBuilder) buildFeatureFields(innerType reflect.Type) ([]*FeatureFi
 }
 
 func (b *schemaBuilder) buildSingleFeatureField(fieldSpec reflect.StructField, typeName string, index int, seen map[string]bool) (*FeatureField, error) {
-	if _, err := b.validateFieldTags(fieldSpec, "feature", featureFieldTagCandidates); err != nil {
-		return nil, err
-	}
-
 	var (
 		isInt      bool
 		isUnsigned bool
@@ -702,7 +686,6 @@ func (b *schemaBuilder) buildSingleFeatureField(fieldSpec reflect.StructField, t
 
 	switch fieldSpec.Type.Kind() {
 	case reflect.Bool:
-		isInt = false
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		isInt = true
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
@@ -753,9 +736,6 @@ func (b *schemaBuilder) installFeatureFlag(structField reflect.StructField, fiel
 
 	if noCLI {
 		name = casing.Kebab(structField.Name)
-		if name == "" {
-			name = "features"
-		}
 	}
 
 	sep, found := structField.Tag.Lookup("sep")
@@ -1060,7 +1040,7 @@ func parseFeatureEnumAndDefault(field *FeatureField, fieldSpec reflect.StructFie
 	}
 
 	if defaultTag, hasDefault := fieldSpec.Tag.Lookup("default"); hasDefault {
-		canonical, err := field.Canonicalize(strings.TrimSpace(defaultTag))
+		canonical, err := field.Canonicalize(defaultTag)
 		if err != nil {
 			return fmt.Errorf("%w: feature %q default %q: %w", ErrInvalidStructTag, field.Name, defaultTag, err)
 		}
@@ -1081,13 +1061,7 @@ func featureValueDomains(fields []*FeatureField) map[string][]string {
 	domains := make(map[string][]string, len(fields))
 
 	for _, field := range fields {
-		if field.IsInt {
-			domains[field.Name] = slices.Concat([]string{"0"}, field.Enum)
-
-			continue
-		}
-
-		domains[field.Name] = []string{"true", "false"}
+		domains[field.Name] = field.Domain()
 	}
 
 	return domains
@@ -1110,13 +1084,7 @@ func featureFlagDefaultHelp(fields []*FeatureField) string {
 	parts := make([]string, 0, len(fields))
 
 	for _, field := range fields {
-		if field.IsInt {
-			parts = append(parts, field.Name+"=0|"+strings.Join(field.Enum, "|"))
-
-			continue
-		}
-
-		parts = append(parts, field.Name+"=true|false")
+		parts = append(parts, field.Name+"="+strings.Join(field.Domain(), "|"))
 	}
 
 	return "Enable or disable features (" + strings.Join(parts, ", ") + ")"
@@ -1136,36 +1104,17 @@ func validateConfigSettings(root *Command) error {
 }
 
 // validateFeatureReferences rejects feature expressions that reference a feature
-// not declared through the root conga.Features container, or compare a feature
-// against a value outside its declared domain.
+// not declared through the root conga.Features container.
 func validateFeatureReferences(root *Command) error {
-	if len(root.FeatureFields) == 0 && !hasFeatureGating(root) {
-		return nil
-	}
-
-	declared := make(map[string]*FeatureField, len(root.FeatureFields))
+	declared := make(map[string]bool, len(root.FeatureFields))
 	for _, feature := range root.FeatureFields {
-		declared[feature.Name] = feature
+		declared[feature.Name] = true
 	}
 
 	return validateFeatureReferencesInCommand(root, declared)
 }
 
-func hasFeatureGating(cmd *Command) bool {
-	if cmd.Feature != "" {
-		return true
-	}
-
-	for _, flagSpec := range cmd.Flags {
-		if flagSpec.Feature != "" {
-			return true
-		}
-	}
-
-	return slices.ContainsFunc(cmd.Subcommands, hasFeatureGating)
-}
-
-func validateFeatureReferencesInCommand(cmd *Command, declared map[string]*FeatureField) error {
+func validateFeatureReferencesInCommand(cmd *Command, declared map[string]bool) error {
 	if cmd.Feature != "" {
 		if err := validateFeatureExpressionReferences("command "+strconv.Quote(cmd.Name), cmd.Feature, declared); err != nil {
 			return err
@@ -1191,14 +1140,10 @@ func validateFeatureReferencesInCommand(cmd *Command, declared map[string]*Featu
 	return nil
 }
 
-func validateFeatureExpressionReferences(owner, featureExpr string, declared map[string]*FeatureField) error {
+func validateFeatureExpressionReferences(owner, featureExpr string, declared map[string]bool) error {
 	for rawPart := range strings.SplitSeq(featureExpr, ",") {
-		term, ok := parseFeatureTerm(rawPart)
-		if !ok {
-			continue
-		}
-
-		if _, exists := declared[term.name]; !exists {
+		term, _ := parseFeatureTerm(rawPart)
+		if !declared[term.name] {
 			return fmt.Errorf("%w: %s references undeclared feature %q; declare it in the root conga.Features container", ErrSchema, owner, term.name)
 		}
 	}

@@ -977,9 +977,9 @@ func resolveFlags(cmdChain []*spec.Command, cliValues map[*spec.Flag][]string, s
 	for _, cmd := range cmdChain {
 		for _, flagSpec := range cmd.Flags {
 			// The synthesized feature map flag is already bound and validated
-			// by bindFeatures; binding it again would double the tier lookups,
+			// by resolveFeatureGates; binding it again would double the tier lookups,
 			// parsing, and setValue work.
-			if cmd.FeatureFlag != nil && flagSpec == cmd.FeatureFlag {
+			if flagSpec == cmd.FeatureFlag {
 				continue
 			}
 

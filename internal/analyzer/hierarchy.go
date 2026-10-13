@@ -278,7 +278,6 @@ func (w *walker) buildChildNode(node *commandNode, fieldObject types.Object, tag
 		allowUnknown: allowUnknown,
 		allowRecurse: allowRecurse,
 		envPrefix:    cmp.Or(nodeEnvPrefix(structType), tag.Get("envprefix"), node.envPrefix),
-		isRoot:       false,
 	}
 }
 

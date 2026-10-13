@@ -877,16 +877,30 @@ type typeRegistration struct {
 }
 
 // configResolution memoizes the outcome of the run's single configuration
-// resolution: the loaded files and their winning source, the resolution error,
-// and the candidate paths probed. Feature-capable applications resolve
-// configuration before builtin rendering (gating needs the config tier) and the
-// --why report reuses the memo instead of probing, decoding, and validating a
-// second time.
+// resolution: the loaded files and their winning source, the extraction and load
+// errors, and the candidate paths probed.
 type configResolution struct {
 	loadedPaths  []string
 	loadedSource ValueSource
-	err          error
+	extractErr   error
+	loadErr      error
 	candidates   []string
+}
+
+func (r *configResolution) execErr() error {
+	if r.extractErr != nil {
+		return r.extractErr
+	}
+
+	return r.loadErr
+}
+
+func (r *configResolution) whyErr() error {
+	if r.loadErr != nil {
+		return r.loadErr
+	}
+
+	return r.extractErr
 }
 
 // appConfig holds every configuration field for an App. It is the single source
@@ -1061,7 +1075,7 @@ func (a *App[T]) completeForShellWithEnv(targetShell string, args []string, look
 	if featureBinding := featureStateOfCommand(cmd); featureBinding != nil {
 		cliValues := cliFlagValues(cmd, args, cmd.FeatureFlag, cmd.ConfigFileFlag)
 
-		featureBinding.prepareForCompletion(cmd, cliValues, &bindingState{
+		featureBinding.pruneForCompletion(cmd, cliValues, &bindingState{
 			EnvPrefix:             a.envPrefix,
 			ConfigData:            a.loadConfigDataForCompletion(cmd, cliValues),
 			TypeParsers:           a.collectTypeParsers(),
@@ -1343,28 +1357,19 @@ func (a *App[T]) bindConfigAndFlags(session *Session, cmd *spec.Command, cmdChai
 	return nil
 }
 
-func (a *App[T]) bindNonMetaExecution(session *Session, cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, featureBinding featureState, prunedFlags []prunedFlag, configErr error, loadedPaths []string, loadedSource ValueSource) error {
-	if configErr != nil {
-		return configErr
-	}
-
-	if featureBinding != nil {
-		if err := featureBinding.enforceConfigRestrictions(prunedFlags, a.configData); err != nil {
-			return err
-		}
-	}
-
-	return a.bindConfigAndFlags(session, cmd, cmdChain, flagValues, loadedPaths, loadedSource)
-}
-
 // prepareFeatures resolves feature gating before builtin rendering: it resolves
 // configuration (unless the request is a lone --version), binds and materializes
 // the feature map, prunes inactive flags and subcommands, and rejects a gated
 // flag supplied on the command line (a usage error even under --help, symmetric
 // with a gated subcommand). It returns the pruned flags.
-func (a *App[T]) prepareFeatures(featureBinding featureState, cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, request builtinRequest, resolveSessionConfig func()) ([]prunedFlag, error) {
+func (a *App[T]) prepareFeatures(session *Session, featureBinding featureState, cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, request builtinRequest) ([]prunedFlag, error) {
 	if !request.versionOnly() {
-		resolveSessionConfig()
+		resolution := a.resolveSessionConfig(session, cmd, cmdChain, flagValues)
+		if !request.toleratesFeatureErrors() {
+			if err := resolution.execErr(); err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	featureBindingState := &bindingState{
@@ -1374,16 +1379,7 @@ func (a *App[T]) prepareFeatures(featureBinding featureState, cmd *spec.Command,
 		TolerateFeatureErrors: request.toleratesFeatureErrors(),
 	}
 
-	pruned, gates, err := featureBinding.applyFeatures(cmd, cmdChain, flagValues, featureBindingState)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := featureBinding.enforceCLIRestrictions(flagValues, gates, cmdChain); err != nil {
-		return nil, err
-	}
-
-	return pruned, nil
+	return featureBinding.resolveFeatures(cmd, cmdChain, flagValues, featureBindingState)
 }
 
 func (a *App[T]) extractExplicitConfigTargets(cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string) ([]string, error) {
@@ -1400,12 +1396,6 @@ func (a *App[T]) extractExplicitConfigTargets(cmd *spec.Command, cmdChain []*spe
 }
 
 func (a *App[T]) validateExecution(ctx context.Context, session *Session, leaf *spec.Command, cmdChain []*spec.Command) error {
-	if !isMetaCommand(leaf) {
-		if err := validateFlagConstraints(cmdChain); err != nil {
-			return err
-		}
-	}
-
 	if err := validateRunnableContract(leaf, cmdChain); err != nil {
 		return err
 	}
@@ -1417,6 +1407,27 @@ func (a *App[T]) validateExecution(ctx context.Context, session *Session, leaf *
 	}
 
 	return runValidators(ctx, session, cmdChain)
+}
+
+func (a *App[T]) prepareNonMetaExecution(session *Session, cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, featureBinding featureState, prunedFlags []prunedFlag) error {
+	resolution := a.resolveSessionConfig(session, cmd, cmdChain, flagValues)
+	if err := resolution.execErr(); err != nil {
+		return err
+	}
+
+	if featureBinding != nil {
+		if err := featureBinding.rejectPrunedConfig(prunedFlags, a.configData); err != nil {
+			return err
+		}
+	}
+
+	if err := a.bindConfigAndFlags(session, cmd, cmdChain, flagValues, resolution.loadedPaths, resolution.loadedSource); err != nil {
+		return err
+	}
+
+	a.collectDeprecationNotices(cmdChain)
+
+	return validateFlagConstraints(cmdChain)
 }
 
 func (a *App[T]) prepare(ctx context.Context) (*Session, bool, error) {
@@ -1456,33 +1467,14 @@ func (a *App[T]) prepare(ctx context.Context) (*Session, bool, error) {
 	featureBinding := featureStateOfCommand(cmd)
 	request := scanBuiltinRequest(flagValues)
 
-	var (
-		loadedPaths    []string
-		loadedSource   ValueSource
-		configErr      error
-		prunedFlags    []prunedFlag
-		resolvedConfig bool
-	)
-
-	resolveSessionConfig := func() {
-		resolution := a.resolveConfig(cmd, cmdChain, flagValues)
-
-		loadedPaths = resolution.loadedPaths
-		loadedSource = resolution.loadedSource
-		configErr = resolution.err
-
-		session.candidateFiles = resolution.candidates
-		session.loadedFiles = resolution.loadedPaths
-
-		resolvedConfig = true
-	}
+	var prunedFlags []prunedFlag
 
 	// Feature gating sources gates from the configuration tier, so
 	// feature-capable applications resolve configuration before builtin
 	// rendering and pruning. A lone --version renders from app metadata alone
 	// and skips configuration resolution entirely.
 	if featureBinding != nil {
-		pruned, err := a.prepareFeatures(featureBinding, cmd, cmdChain, flagValues, request, resolveSessionConfig)
+		pruned, err := a.prepareFeatures(session, featureBinding, cmd, cmdChain, flagValues, request)
 		if err != nil {
 			return nil, false, err
 		}
@@ -1498,16 +1490,10 @@ func (a *App[T]) prepare(ctx context.Context) (*Session, bool, error) {
 	}
 
 	if !isMetaCommand(leaf) {
-		if !resolvedConfig {
-			resolveSessionConfig()
-		}
-
-		if err := a.bindNonMetaExecution(session, cmd, cmdChain, flagValues, featureBinding, prunedFlags, configErr, loadedPaths, loadedSource); err != nil {
+		if err := a.prepareNonMetaExecution(session, cmd, cmdChain, flagValues, featureBinding, prunedFlags); err != nil {
 			return nil, false, err
 		}
 	}
-
-	a.collectDeprecationNotices(cmdChain)
 
 	if err := resolveArgs(leaf, cmdChain, posTokens, a.collectTypeParsers(), coerce.DecodeContext{Stdin: session.stdin, Stdout: session.stdout}); err != nil {
 		return nil, false, err
@@ -1806,8 +1792,7 @@ func (a *App[T]) handleUsageFatal(writer io.Writer, err error, appName string) {
 // memoizing the outcome on the App. Feature-capable applications resolve
 // configuration before builtin rendering (gating needs the config tier) and the
 // --why report reuses the memo, so configuration files are probed, decoded, and
-// validated a single time per run. The combined error mirrors the report's
-// precedence: a load failure outranks an explicit-target extraction failure.
+// validated a single time per run.
 func (a *App[T]) resolveConfig(cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string) *configResolution {
 	if a.configResolution != nil {
 		return a.configResolution
@@ -1817,19 +1802,35 @@ func (a *App[T]) resolveConfig(cmd *spec.Command, cmdChain []*spec.Command, flag
 
 	a.configData = make(map[string]string)
 
-	loadedPaths, loadedSource, loadErr := a.resolveAndLoadConfig(cmd, explicitTargets)
-	if loadErr == nil {
-		loadErr = extractErr
+	var (
+		loadedPaths  []string
+		loadedSource ValueSource
+		loadErr      error
+	)
+
+	if extractErr == nil {
+		loadedPaths, loadedSource, loadErr = a.resolveAndLoadConfig(cmd, explicitTargets)
 	}
 
 	a.configResolution = &configResolution{
 		loadedPaths:  loadedPaths,
 		loadedSource: loadedSource,
-		err:          loadErr,
+		extractErr:   extractErr,
+		loadErr:      loadErr,
 		candidates:   a.configurationView(cmd).CandidatePaths(explicitTargets, cmd),
 	}
 
 	return a.configResolution
+}
+
+func (a *App[T]) resolveSessionConfig(session *Session, cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string) *configResolution {
+	resolution := a.resolveConfig(cmd, cmdChain, flagValues)
+	if session != nil {
+		session.candidateFiles = resolution.candidates
+		session.loadedFiles = resolution.loadedPaths
+	}
+
+	return resolution
 }
 
 func (a *App[T]) resolveAndLoadConfig(root *spec.Command, explicitTargets []string) ([]string, ValueSource, error) {

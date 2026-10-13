@@ -2,7 +2,9 @@ package conga
 
 import (
 	"fmt"
+	"maps"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -52,6 +54,11 @@ func (p prunedFlag) configKeys() []string {
 
 	if p.prefix != "" {
 		keys = append(keys, p.prefix+"."+p.flag.Name)
+
+		if lastDot := strings.LastIndex(p.prefix, "."); lastDot != -1 {
+			leafName := p.prefix[lastDot+1:]
+			keys = append(keys, leafName+"."+p.flag.Name)
+		}
 	}
 
 	return keys
@@ -97,66 +104,101 @@ func featureGates(cmd *spec.Command, values map[string]string) map[string]bool {
 	return gates
 }
 
-// buildFeatureValues overlays the source-provided feature map on the field
-// defaults, rejecting keys that name no declared feature and values outside a
-// feature's declared domain. Configuration-sourced failures classify under
-// ErrConfig; command-line and environment failures are usage errors. It returns
-// the derived gate map and the canonical value map.
-func buildFeatureValues(cmd *spec.Command, cmdChain []*spec.Command, provided map[string]string, source ValueSource) (map[string]bool, map[string]string, error) {
-	values, _, err := overlayFeatureValues(cmd, cmdChain, provided, source, false)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return featureGates(cmd, values), values, nil
-}
-
-// lenientFeatureValues overlays every canonicalizable source-provided key on
-// the field defaults, silently skipping unknown features and invalid values.
-// Builtin requests use it so --help, --version, --why, and --completion never
-// fail on feature resolution errors. It also returns the accepted provided keys
-// (the canonicalizable subset) so --why can report honest provenance for values
-// the tolerant overlay dropped.
-func lenientFeatureValues(cmd *spec.Command, provided map[string]string) (map[string]bool, map[string]string, map[string]string) {
-	// Tolerant mode (tolerateErrors=true) never returns an error.
-	values, accepted, _ := overlayFeatureValues(cmd, nil, provided, SourceNone, true) //nolint:errcheck // tolerateErrors=true never returns an error
-
-	return featureGates(cmd, values), values, accepted
-}
-
-// overlayFeatureValues overlays the source-provided feature map on the field
-// defaults. Strict mode rejects keys that name no declared feature and values
-// outside a feature's declared domain; tolerant mode silently skips them. It
-// returns the canonical value map and the accepted keys (feature name to
-// canonical value) that were successfully overlaid.
-func overlayFeatureValues(cmd *spec.Command, cmdChain []*spec.Command, provided map[string]string, source ValueSource, tolerateErrors bool) (map[string]string, map[string]string, error) {
+// featureValues overlays the source-provided feature map on the field defaults.
+// Keys are processed in sorted order for deterministic diagnostics.
+func featureValues(cmd *spec.Command, cmdChain []*spec.Command, provided map[string]string, source ValueSource) (map[string]string, map[string]string, error) {
 	values := featureDefaults(cmd)
 	accepted := make(map[string]string, len(provided))
 
-	for name, raw := range provided {
+	names := slices.Sorted(maps.Keys(provided))
+	var firstErr error
+
+	for _, name := range names {
+		raw := provided[name]
 		feature := cmd.FindFeature(casing.Kebab(name))
 		if feature == nil {
-			if tolerateErrors {
-				continue
+			if firstErr == nil {
+				firstErr = unknownFeatureError(cmdChain, cmd, name, source)
 			}
 
-			return nil, nil, unknownFeatureError(cmdChain, cmd, name, source)
+			continue
 		}
 
 		canonical, err := feature.Canonicalize(raw)
 		if err != nil {
-			if tolerateErrors {
-				continue
+			if firstErr == nil {
+				firstErr = invalidFeatureValueError(cmdChain, feature, raw, err, source)
 			}
 
-			return nil, nil, invalidFeatureValueError(cmdChain, feature, raw, err, source)
+			continue
 		}
 
 		values[feature.Name] = canonical
 		accepted[feature.Name] = canonical
 	}
 
-	return values, accepted, nil
+	return values, accepted, firstErr
+}
+
+// bindFeatureValues binds the synthesized feature map flag, overlays the
+// provided feature map onto the defaults, and materializes the typed feature
+// struct.
+func bindFeatureValues(binding flagState, target any, cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, state *bindingState) (map[string]bool, error) {
+	if cmd.FeatureFlag != nil {
+		if err := applyFlagValue(cmd, cmdChain, cmd.FeatureFlag, flagValues, state); err != nil {
+			if !state.TolerateFeatureErrors {
+				return nil, err
+			}
+		}
+	}
+
+	var provided map[string]string
+	if rawProvided, ok := binding.getValue().(map[string]string); ok {
+		provided = rawProvided
+	}
+
+	values, _, err := featureValues(cmd, cmdChain, provided, binding.Source())
+	if err != nil && !state.TolerateFeatureErrors {
+		return nil, err
+	}
+
+	materializeFeatureValues(target, cmd.FeatureFields, values)
+
+	return featureGates(cmd, values), nil
+}
+
+// resolveFeatureGates binds the feature map flag, materializes the typed
+// feature struct, enforces subcommand gates, prunes inactive flags and
+// subcommands, and enforces CLI flag restrictions.
+func resolveFeatureGates(binding flagState, target any, cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, state *bindingState) ([]prunedFlag, error) {
+	gates, err := bindFeatureValues(binding, target, cmd, cmdChain, flagValues, state)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := validateSubcommandFeatures(cmdChain, gates); err != nil {
+		return nil, err
+	}
+
+	pruned := pruneInactiveFeatures(cmd, "", gates)
+
+	if err := checkFeatureFlagCLIRestrictions(flagValues, gates, cmdChain); err != nil {
+		return nil, err
+	}
+
+	return pruned, nil
+}
+
+// pruneFeaturesForCompletion binds the feature map flag for a completion
+// invocation and prunes inactive features so suggestions never leak gated
+// commands or flags.
+func pruneFeaturesForCompletion(binding flagState, target any, cmd *spec.Command, flagValues map[*spec.Flag][]string, state *bindingState) {
+	gates, err := bindFeatureValues(binding, target, cmd, []*spec.Command{cmd}, flagValues, state)
+	if err != nil {
+		gates = nil
+	}
+
+	pruneInactiveFeatures(cmd, "", gates)
 }
 
 func unknownFeatureError(cmdChain []*spec.Command, cmd *spec.Command, name string, source ValueSource) error {
@@ -198,16 +240,7 @@ func invalidFeatureValueError(cmdChain []*spec.Command, feature *spec.FeatureFie
 // their canonical decimal level, whose parse is guaranteed by bind-time
 // canonicalization, so a failure here is an engine invariant.
 func materializeFeatureValues(target any, fields []*spec.FeatureField, values map[string]string) {
-	if target == nil {
-		return
-	}
-
-	reflected := reflect.ValueOf(target)
-	if reflected.Kind() != reflect.Pointer || reflected.IsNil() {
-		return
-	}
-
-	inner := reflected.Elem()
+	inner := reflect.ValueOf(target).Elem()
 
 	for _, feature := range fields {
 		value, ok := values[feature.Name]
@@ -217,26 +250,29 @@ func materializeFeatureValues(target any, fields []*spec.FeatureField, values ma
 
 		field := inner.Field(feature.FieldIndex)
 
-		switch field.Kind() {
-		case reflect.Bool:
+		if !feature.IsInt {
 			field.SetBool(value == "true")
-		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-			parsed, err := strconv.ParseInt(value, 10, field.Type().Bits())
-			if err != nil {
-				panic(fmt.Sprintf("conga: invariant violation: feature %q value %q does not fit %s", feature.Name, value, field.Type()))
-			}
 
-			field.SetInt(parsed)
-		case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+			continue
+		}
+
+		if feature.IsUnsigned {
 			parsed, err := strconv.ParseUint(value, 10, field.Type().Bits())
 			if err != nil {
 				panic(fmt.Sprintf("conga: invariant violation: feature %q value %q does not fit %s", feature.Name, value, field.Type()))
 			}
 
 			field.SetUint(parsed)
-		default:
+
 			continue
 		}
+
+		parsed, err := strconv.ParseInt(value, 10, field.Type().Bits())
+		if err != nil {
+			panic(fmt.Sprintf("conga: invariant violation: feature %q value %q does not fit %s", feature.Name, value, field.Type()))
+		}
+
+		field.SetInt(parsed)
 	}
 }
 
@@ -354,17 +390,11 @@ func checkFeatureConfigRestrictions(pruned []prunedFlag, configData map[string]s
 // flags from completion words, so completion feature pruning observes the CLI
 // tier of the feature cascade and an explicit --config-file supplied on the
 // completion line. Extraction is deliberately tolerant: unknown tokens, dangling
-// flags, and partial values are ignored rather than failing the invocation. Nil
-// and NoCLI targets are skipped, and a single flag index and tokenization serve
-// every target.
+// flags, and partial values are ignored rather than failing the invocation.
 func cliFlagValues(cmd *spec.Command, args []string, targets ...*spec.Flag) map[*spec.Flag][]string {
-	if cmd == nil {
-		return nil
-	}
-
 	wanted := make(map[*spec.Flag]bool, len(targets))
 	for _, target := range targets {
-		if target != nil && !target.NoCLI {
+		if target != nil {
 			wanted[target] = true
 		}
 	}

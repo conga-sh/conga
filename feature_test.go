@@ -1052,3 +1052,131 @@ func TestFeature_ValueComparisonSyntaxRejected(t *testing.T) {
 	assert.IsError(t, err, conga.ErrSchema)
 	assert.Contains(t, err.Error(), `invalid feature tag syntax "syntax=3"`)
 }
+
+type flagConstraintCLI struct {
+	Foo conga.OptionalFlag[bool] `xor:"group"`
+	Bar conga.OptionalFlag[bool] `xor:"group"`
+	Num conga.RequiredArg[int]
+}
+
+func (c *flagConstraintCLI) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+func TestFeature_FlagConstraintPrecedenceOverArgCoercion(t *testing.T) {
+	t.Parallel()
+
+	var cli flagConstraintCLI
+	app := conga.New(&cli).Name("app").Args([]string{"--foo", "--bar", "notanumber"})
+
+	err := app.Run()
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), `mutually exclusive`)
+}
+
+func TestFeature_ConfigErrorPrecedenceOverFeatureGate(t *testing.T) {
+	t.Parallel()
+
+	configPath := filepath.Join(t.TempDir(), "broken.yaml")
+	err := os.WriteFile(configPath, []byte("broken: [unclosed\n"), 0o600)
+	assert.NoError(t, err)
+
+	var cli featureTestCLI
+	app := conga.New(&cli).
+		Name("task").
+		RegisterDecoder(".yaml", yaml.Decode).
+		ConfigOptions(conga.ConfigExplicit(configPath)).
+		Args([]string{"package"})
+
+	err = app.Run()
+	assert.Error(t, err)
+	assert.IsError(t, err, conga.ErrConfig)
+	assert.NotContains(t, err.Error(), `requires feature`)
+}
+
+type badConfigFlagCLI struct {
+	Features conga.Features[featureExperiments]
+	Config   conga.ConfigFile                        `name:"config"`
+	Package  conga.Command[featurePackageSubcommand] `feature:"packages"`
+}
+
+func (c *badConfigFlagCLI) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+func TestFeature_ExplicitConfigExtractionErrorHalts(t *testing.T) {
+	t.Parallel()
+
+	var cli badConfigFlagCLI
+	app := conga.New(&cli).Name("app").Args([]string{"package", "--config"})
+
+	err := app.Run()
+	assert.Error(t, err)
+}
+
+func TestFeature_DeterministicErrorAcrossIterations(t *testing.T) {
+	t.Parallel()
+
+	var firstErrMsg string
+	for i := range 20 {
+		var cli featureTestCLI
+		app := conga.New(&cli).
+			Name("app").
+			Args([]string{"--feature-gates", "zebra=true,alpha=true,beta=true"})
+
+		err := app.Run()
+		assert.Error(t, err)
+		if i == 0 {
+			firstErrMsg = err.Error()
+		} else {
+			assert.Equal(t, firstErrMsg, err.Error(), "error message must be deterministic across iterations")
+		}
+	}
+}
+
+type clusterExperiments struct {
+	Experimental bool
+}
+
+type leafClusterCmd struct {
+	Ran  bool
+	Wait conga.OptionalFlag[string] `feature:"experimental" name:"wait"`
+}
+
+func (c *leafClusterCmd) Run(ctx context.Context, session *conga.Session) error {
+	c.Ran = true
+	return nil
+}
+
+type midClusterCmd struct {
+	Node conga.Command[leafClusterCmd]
+}
+
+type nestedClusterCLI struct {
+	Features conga.Features[clusterExperiments]
+	Cluster  conga.Command[midClusterCmd]
+}
+
+func (c *nestedClusterCLI) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+func TestFeature_ConfigFile_PrunedCommandLocalKeyRejection(t *testing.T) {
+	t.Parallel()
+
+	configPath := filepath.Join(t.TempDir(), "config.yaml")
+	err := os.WriteFile(configPath, []byte("cluster:\n  node:\n    wait: 30s\n"), 0o600)
+	assert.NoError(t, err)
+
+	var cli nestedClusterCLI
+	app := conga.New(&cli).
+		Name("task").
+		RegisterDecoder(".yaml", yaml.Decode).
+		ConfigOptions(conga.ConfigExplicit(configPath)).
+		Args([]string{"cluster", "node"})
+
+	err = app.Run()
+	assert.Error(t, err)
+	assert.IsError(t, err, conga.ErrConfig)
+	assert.Contains(t, err.Error(), `config file declares flag '--wait' which requires feature "experimental"`)
+}

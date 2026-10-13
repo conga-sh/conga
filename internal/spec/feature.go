@@ -3,6 +3,7 @@ package spec
 import (
 	"errors"
 	"fmt"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -33,6 +34,17 @@ type FeatureField struct {
 	Default string
 	// FieldIndex is the index of the feature field inside the inner feature struct.
 	FieldIndex int
+}
+
+// Domain returns the canonical value domain for the feature toggle:
+// "0" followed by the enum values for an integer feature, or "true" and "false"
+// for a boolean feature.
+func (f *FeatureField) Domain() []string {
+	if f.IsInt {
+		return slices.Concat([]string{"0"}, f.Enum)
+	}
+
+	return []string{"true", "false"}
 }
 
 // Canonicalize coerces a raw feature value to its canonical form: "true" or
@@ -112,9 +124,17 @@ func NormalizeFeatureExpression(featureExpr string) string {
 	terms := make([]string, 0, strings.Count(featureExpr, ",")+1)
 
 	for rawPart := range strings.SplitSeq(featureExpr, ",") {
-		if term := strings.TrimSpace(rawPart); term != "" {
-			terms = append(terms, term)
+		term, ok := parseFeatureTerm(rawPart)
+		if !ok {
+			continue
 		}
+
+		formatted := term.name
+		if term.negated {
+			formatted = "!" + formatted
+		}
+
+		terms = append(terms, formatted)
 	}
 
 	return strings.Join(terms, ",")
@@ -146,6 +166,20 @@ func (f *FeatureField) parseInteger(raw string) (string, error) {
 	return strconv.FormatInt(parsed, 10), nil
 }
 
+// parseFeatureTag extracts, validates, and normalizes the "feature" struct tag.
+func parseFeatureTag(tag reflect.StructTag) (string, error) {
+	feature := strings.TrimSpace(tag.Get("feature"))
+	if feature == "" {
+		return "", nil
+	}
+
+	if err := ValidateFeatureExpression(feature); err != nil {
+		return "", err
+	}
+
+	return NormalizeFeatureExpression(feature), nil
+}
+
 // featureIntegerParseError classifies a failed feature-integer parse: range
 // failures name the storage width, unsigned syntax failures name the
 // non-negativity requirement, and everything else is a plain integer error.
@@ -164,9 +198,7 @@ func featureIntegerParseError(err error, signed bool) error {
 // invalidFeatureEnumError builds the enum-domain rejection listing the
 // permitted levels.
 func invalidFeatureEnumError(f *FeatureField) error {
-	allowed := slices.Concat([]string{"0"}, f.Enum)
-
-	return fmt.Errorf("%w: %s", errFeatureInvalidEnum, strings.Join(allowed, ", "))
+	return fmt.Errorf("%w: %s", errFeatureInvalidEnum, strings.Join(f.Domain(), ", "))
 }
 
 func parseFeatureTerm(term string) (featureTerm, bool) {

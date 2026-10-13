@@ -139,8 +139,10 @@ func TestMinimalHello_FeatureResolutionPayloadEliminated(t *testing.T) {
 	assert.True(t, symbols["main.main"], "sanity check: the analysis build must expose symbols")
 
 	for _, symbol := range []string{
-		"github.com/conga-sh/conga.buildFeatureValues",
-		"github.com/conga-sh/conga.overlayFeatureValues",
+		"github.com/conga-sh/conga.featureValues",
+		"github.com/conga-sh/conga.bindFeatureValues",
+		"github.com/conga-sh/conga.resolveFeatureGates",
+		"github.com/conga-sh/conga.pruneFeaturesForCompletion",
 		"github.com/conga-sh/conga.materializeFeatureValues",
 		"github.com/conga-sh/conga.unknownFeatureError",
 		"github.com/conga-sh/conga.invalidFeatureValueError",
@@ -156,9 +158,9 @@ func TestMinimalHello_FeatureResolutionPayloadEliminated(t *testing.T) {
 	}
 
 	for symbol := range symbols {
-		assert.False(t, strings.Contains(symbol, "applyFeatures"), "linker must drop applyFeatures from generic App: "+symbol)
-		assert.False(t, strings.Contains(symbol, "enforceCLIRestrictions"), "linker must drop enforceCLIRestrictions: "+symbol)
-		assert.False(t, strings.Contains(symbol, "enforceConfigRestrictions"), "linker must drop enforceConfigRestrictions: "+symbol)
+		assert.False(t, strings.Contains(symbol, "resolveFeatures"), "linker must drop resolveFeatures: "+symbol)
+		assert.False(t, strings.Contains(symbol, "rejectPrunedConfig"), "linker must drop rejectPrunedConfig: "+symbol)
+		assert.False(t, strings.Contains(symbol, "pruneForCompletion"), "linker must drop pruneForCompletion: "+symbol)
 	}
 }
 

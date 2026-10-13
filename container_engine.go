@@ -17,14 +17,12 @@ type flagState interface {
 }
 
 // featureState is the engine's state view of the feature-declaration container:
-// the flag state plus the feature application and restriction enforcement methods.
+// the flag state plus feature resolution, config restriction, and completion pruning.
 type featureState interface {
 	flagState
-	featureProvided() map[string]string
-	applyFeatures(cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, state *bindingState) ([]prunedFlag, map[string]bool, error)
-	enforceCLIRestrictions(flagValues map[*spec.Flag][]string, activeFeatures map[string]bool, cmdChain []*spec.Command) error
-	enforceConfigRestrictions(pruned []prunedFlag, configData map[string]string) error
-	prepareForCompletion(cmd *spec.Command, flagValues map[*spec.Flag][]string, state *bindingState)
+	resolveFeatures(cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, state *bindingState) ([]prunedFlag, error)
+	rejectPrunedConfig(pruned []prunedFlag, configData map[string]string) error
+	pruneForCompletion(cmd *spec.Command, flagValues map[*spec.Flag][]string, state *bindingState)
 }
 
 // argState is the engine's state view of a positional argument container.
