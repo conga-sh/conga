@@ -43,7 +43,7 @@ Before binding individual flags, CONGA determines which config files exist and l
 
 ### Phase 2: Flag value binding
 
-With the configuration map prepared, CONGA iterates over the command hierarchy's flags, evaluating the four-tier ladder for each field. The winning tier sets the container's value and provenance.
+With the configuration map prepared, CONGA iterates over the command hierarchy's flags, evaluating the four-tier ladder for each field. The winning tier sets the container's value and provenance. Map flags are the one exception: instead of a winning tier, every tier contributes its keys and higher tiers override per key (see [Map flags](#map-flags)).
 
 ## Why ConfigFile sits outside the four-tier ladder
 
@@ -75,9 +75,13 @@ If an application registers no config decoders (`app.RegisterDecoder`), Tier 3 r
 
 Positional containers (`RequiredArg[T]`, `OptionalArg[T]`, `DashArgs`, and `RawArgs`) resolve exclusively from command-line tokens. `OptionalArg[T]` populates from its `default` tag when omitted; `RequiredArg[T]` requires an explicit CLI token.
 
+### Map flags
+
+`map[K]V` flags merge key by key across all four tiers instead of resolving a single winning tier. Each tier supplies a set of `key=value` pairs, and the effective map is the fold of `default < config < env < CLI`, with a higher tier overriding only the keys it names. A config file can therefore set one key while the command line sets another, and both apply. This matches the established convention for map-like flags (Kubernetes `--feature-gates`, Helm `--set`, `git -c`). A key a lower tier sets can be overridden from a higher tier but never removed.
+
 ### Feature maps
 
-A `conga.Features[T]` container resolves through the same four tiers, but the winning tier supplies one `name=value` map rather than a single value. Exactly one tier wins per run, and its keys overlay the inner features' `default` tags key by key, so features the winning tier does not list keep their declared defaults (sparse overrides). The container records the winning tier once; `Features.Source()` reports it, and `--why` renders each feature's effective value against it. See [Feature toggles](/reference/struct-tags/#feature-toggles-congafeaturest) and the [container accessors](/reference/conga/#containers).
+A `conga.Features[T]` container resolves as a map flag: every tier contributes `name=value` pairs, higher tiers override per key, and the merged result overlays the inner features' `default` tags key by key, so features no tier lists keep their declared defaults (sparse overrides). The container records the highest contributing tier once; `Features.Source()` reports it, and `--why` renders each feature's effective value against the tier that last wrote its key. See [Feature toggles](/reference/struct-tags/#feature-toggles-congafeaturest) and the [container accessors](/reference/conga/#containers).
 
 ### Environment file integration
 
@@ -85,7 +89,7 @@ When `.env` loading is enabled via `app.Dotenv()`, variables from `.env` files p
 
 ## Provenance tracking
 
-CONGA records the origin of every resolved value. Rather than discarding resolution history after binding, containers retain their winning tier and source detail throughout execution:
+CONGA records the origin of every resolved value. Rather than discarding resolution history after binding, containers retain their winning tier and source detail throughout execution (map containers record the highest contributing tier):
 
 ```go
 source := cmd.Addr.Source()       // conga.SourceCLI, SourceEnv, SourceConfig, etc.

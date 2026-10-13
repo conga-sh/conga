@@ -278,6 +278,50 @@ func TestWhy_ReportRedactionAndBadges(t *testing.T) {
 	assert.False(t, cli.Sub.Get().ran)
 }
 
+type whyMergeFeatures struct {
+	Alpha bool `help:"Alpha gate"`
+	Beta  bool `default:"true"    help:"Beta gate"`
+}
+
+type whyMergeCLI struct {
+	noopRunner
+
+	Features conga.Features[whyMergeFeatures]      `config:"experiments"  env:"WHY_MERGE_FEATURES" flag:"feature-gates"`
+	Headers  conga.OptionalFlag[map[string]string] `help:"Headers"        safe:"true"`
+	Secrets  conga.OptionalFlag[map[string]string] `help:"Secret headers"`
+}
+
+func TestWhy_MapMergePerKeyProvenance(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "why-merge.json")
+
+	assert.NoError(t, os.WriteFile(configPath, []byte(`{
+		"experiments": {"alpha": true},
+		"headers": {"region": "eu-west-1", "shared": "cfg"},
+		"secrets": {"token": "abc"}
+	}`), 0o600))
+
+	var buffer bytes.Buffer
+
+	app := conga.New[whyMergeCLI]().
+		Name("whyapp").
+		RegisterDecoder(".json", json.Decode).
+		ConfigOptions(conga.ConfigExplicit(configPath)).
+		Stdout(&buffer).
+		EnableWhy().
+		Args([]string{"--headers", "shared=cli,team=core", "--secrets", "clikey=xyz", "--feature-gates", "beta=false", "--why"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+
+	output := normalizeWhyGolden(buffer.String(), tempDir, "<TMP>")
+
+	assertGolden(t, "testdata/why/map-merge.golden", goldenWhyMapMerge, output)
+}
+
 func TestWhy_UnsetRows(t *testing.T) {
 	t.Parallel()
 

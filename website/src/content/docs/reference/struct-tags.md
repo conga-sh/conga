@@ -174,7 +174,7 @@ Declare the container once, on the root command struct. The `feature` tag is acc
 |-----|---------|
 | `name` | Feature name override (default: kebab-case of the field name). |
 | `help` | Feature description shown by help and completion. |
-| `default` | Base value when the winning source does not set the key. Integer defaults must be a declared level; `0` is valid and means off. |
+| `default` | Base value when no source sets the key. Integer defaults must be a declared level; `0` is valid and means off. |
 | `enum` | Integer features only: comma-separated non-zero levels, required on every integer feature. `0` is reserved for off and rejected in the tag. |
 | `conga` | Directives (see [`conga` directives](#conga-directives)). |
 
@@ -188,7 +188,7 @@ A `feature` tag holds a comma-separated conjunction of terms. Each term is a fea
 | `!strict-tls` | `strict-tls` is off. |
 | `http3,!strict-tls` | `http3` is on and `strict-tls` is off. |
 
-Feature names are kebab-cased. One winning source supplies the feature map per run (CLI over environment over config), and its keys overlay the field defaults key by key, so unlisted features keep their defaults. Gated members are pruned from `--help`, `--why`, and shell completion; supplying a gated flag or subcommand on the command line is a usage error (exit 2), and a config key targeting an inactive gated flag fails with `ErrConfig` (exit 1). An environment variable targeting an inactive gated flag is ignored, so ambient environment state never breaks a run it does not control. See [About value precedence](/explanation/value-precedence/) and [Errors and exit codes](/reference/errors/).
+Feature names are kebab-cased. Every source contributes to the feature map, which merges key by key (CLI over environment over config), and the merged keys overlay the field defaults key by key, so unlisted features keep their defaults. Gated members are pruned from `--help`, `--why`, and shell completion; supplying a gated flag or subcommand on the command line is a usage error (exit 2), and a config key targeting an inactive gated flag fails with `ErrConfig` (exit 1). An environment variable targeting an inactive gated flag is ignored, so ambient environment state never breaks a run it does not control. See [About value precedence](/explanation/value-precedence/) and [Errors and exit codes](/reference/errors/).
 
 ## Trailing arguments (`DashArgs`, `RawArgs`)
 

@@ -41,7 +41,7 @@ type Row struct {
 	// for unset values (the source column says "unset").
 	Value string
 	// Source is the bare source-tier word ("cli", "env", "config", "default",
-	// "unset").
+	// "unset"). For a merged map flag this is the highest contributing tier.
 	Source string
 	// Env lists the environment variables that can set the flag, or "-" when
 	// none apply.
@@ -54,6 +54,21 @@ type Row struct {
 	Error string
 	// Hidden marks flags hidden from help and completion.
 	Hidden bool
+	// Entries lists the per-key provenance of a merged map flag value,
+	// rendered as sub-rows beneath the flag row. Empty for scalar and slice
+	// flags and for error rows.
+	Entries []MapEntry
+}
+
+// MapEntry is one key of a merged map flag value with the source tier that
+// last wrote it.
+type MapEntry struct {
+	// Key is the map key.
+	Key string
+	// Value is the key's display value, redacted or formatted by the caller.
+	Value string
+	// Source is the bare source-tier word for the tier that last wrote the key.
+	Source string
 }
 
 // FeatureRow is one feature-toggle line in the report.
@@ -207,6 +222,10 @@ func renderRows(rows []Row) string {
 		}
 
 		writeGridRow(&builder, cells, widths)
+
+		for _, entry := range row.Entries {
+			writeGridRow(&builder, []string{"", entry.Key + "=" + entry.Value, entry.Source, "", ""}, widths)
+		}
 	}
 
 	return builder.String()
@@ -239,8 +258,13 @@ func renderFeatureRows(rows []FeatureRow) string {
 
 // writeGridRow writes one indented grid row: every cell but the last is padded
 // to its measured width and gap-separated, and the final cell is written flush.
-// Header and data rows share the layout.
+// Header and data rows share the layout. Trailing empty cells are dropped so
+// short rows (such as map-entry sub-rows) never carry trailing padding.
 func writeGridRow(builder *strings.Builder, cells []string, widths []int) {
+	for len(cells) > 1 && cells[len(cells)-1] == "" {
+		cells = cells[:len(cells)-1]
+	}
+
 	builder.WriteString(strings.Repeat(" ", rowIndent))
 	writeTableCells(builder, cells[:len(cells)-1], widths)
 	builder.WriteString(cells[len(cells)-1])

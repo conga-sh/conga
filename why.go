@@ -95,7 +95,7 @@ func (a *App[T]) buildWhyReport(cmdChain []*spec.Command, cliValues map[*spec.Fl
 	}
 
 	report.Redacted = whyReportRedacted(report)
-	report.Features = whyFeatureRows(cmdChain[0])
+	report.Features = whyFeatureRows(cmdChain[0], cmdChain, cliValues, state)
 	extensions := a.configRegistry.Extensions()
 	report.ConfigDecoders = extensions
 	report.ConfigPaths = whyConfigPaths(resolver, candidatePaths, loadedPaths, loadErr, extensions)
@@ -113,6 +113,12 @@ func (a *App[T]) whyFlagRow(cmd *spec.Command, cmdChain []*spec.Command, flagSpe
 	row := why.Row{
 		Label:  "--" + flagSpec.Name,
 		Hidden: flagSpec.Hidden,
+	}
+
+	// Map flags merge every tier key-by-key, so their row replays the merged
+	// cascade and records one provenance entry per key.
+	if flagSpec.IsMap {
+		return a.whyMapRow(cmd, cmdChain, flagSpec, cliValues, state, row)
 	}
 
 	// Tier 1: CLI Flags
@@ -136,6 +142,79 @@ func (a *App[T]) whyFlagRow(cmd *spec.Command, cmdChain []*spec.Command, flagSpe
 	}
 
 	row.Source = whySourceWord(SourceNone)
+
+	return row
+}
+
+// whyMapRow replays the per-key merge cascade for a map flag, mirroring
+// applyMapFlagValue: every tier is coerced and folded key-by-key in ascending
+// precedence, and each key records the tier that last wrote it. The row value
+// shows the merged map, and each key renders as a sub-row with its own source
+// tier. Coercion failures surface as an error row naming the failing tier,
+// mirroring whyCoercedRow. Redaction applies per key: keys written by a
+// non-default tier of an unsafe flag are redacted, while default-tier keys
+// stay visible, matching the report's always-display-defaults rule.
+func (a *App[T]) whyMapRow(cmd *spec.Command, cmdChain []*spec.Command, flagSpec *spec.Flag, cliValues map[*spec.Flag][]string, state *bindingState, row why.Row) why.Row {
+	tiers := mapTierValues(flagSpec, cmd, cmdChain, cliValues, state)
+	if len(tiers) == 0 {
+		row.Source = whySourceWord(SourceNone)
+
+		return row
+	}
+
+	merged := reflect.MakeMap(flagSpec.TargetType)
+	provenance := make(map[string]mapKeySource)
+
+	for _, tier := range tiers {
+		parsed, err := parseMapTokens(tier.rawValues, flagSpec.TargetType, flagSpec.Sep, state.TypeParsers)
+		if err != nil {
+			row.Error = newFlagCoercionError(cmdChain, flagSpec, tier.source, tier.sourceName, strings.Join(tier.rawValues, flagSpec.Sep), err).Error()
+			row.Value = cond.If(!flagSpec.Safe, why.Redacted, strings.Join(tier.rawValues, whyJoinSep(flagSpec)))
+
+			return row
+		}
+
+		parsedValue := reflect.ValueOf(parsed)
+		iter := parsedValue.MapRange()
+
+		for iter.Next() {
+			merged.SetMapIndex(iter.Key(), iter.Value())
+			provenance[stringx.Stringify(iter.Key().Interface())] = mapKeySource{source: tier.source, detail: tier.sourceName}
+		}
+	}
+
+	highest := tiers[len(tiers)-1]
+	row.Source = whySourceWord(highest.source)
+
+	mergedValue := merged.Interface()
+	iter := reflect.ValueOf(mergedValue).MapRange()
+	entries := make([]why.MapEntry, 0, merged.Len())
+	hasNonDefaultKey := false
+
+	for iter.Next() {
+		key := stringx.Stringify(iter.Key().Interface())
+		keySource := provenance[key]
+
+		if keySource.source != SourceDefault {
+			hasNonDefaultKey = true
+		}
+
+		entry := why.MapEntry{Key: key, Source: whySourceWord(keySource.source)}
+		if !flagSpec.Safe && keySource.source != SourceDefault {
+			entry.Value = why.Redacted
+		} else {
+			entry.Value = stringx.Stringify(iter.Value().Interface())
+		}
+
+		entries = append(entries, entry)
+	}
+
+	slices.SortFunc(entries, func(first why.MapEntry, second why.MapEntry) int {
+		return strings.Compare(first.Key, second.Key)
+	})
+
+	row.Value = cond.If(!flagSpec.Safe && hasNonDefaultKey, why.Redacted, whyDisplayValue(flagSpec, mergedValue))
+	row.Entries = entries
 
 	return row
 }
@@ -197,24 +276,46 @@ func (a *App[T]) whyCoercedRow(cmdChain []*spec.Command, flagSpec *spec.Flag, ra
 	return row
 }
 
-// whyFeatureRows renders one provenance row per declared feature. Every key
-// shares the feature map flag's winning source tier; keys that source did not
-// set fall back to their field default (or unset).
-func whyFeatureRows(root *spec.Command) []why.FeatureRow {
+// whyFeatureRows renders one provenance row per declared feature. The feature
+// map merges every tier key-by-key, so each feature reports the tier that
+// last wrote its key; keys no tier set fall back to their field default (or
+// unset).
+func whyFeatureRows(root *spec.Command, cmdChain []*spec.Command, cliValues map[*spec.Flag][]string, state *bindingState) []why.FeatureRow {
 	if root.FeatureFlag == nil {
 		return nil
 	}
 
-	featureBinding := featureStateOf(root.FeatureFlag.Handle)
+	var (
+		provided   map[string]string
+		provenance map[string]mapKeySource
+	)
 
-	var provided map[string]string
-	if rawProvided, ok := featureBinding.getValue().(map[string]string); ok {
-		provided = rawProvided
+	tiers := mapTierValues(root.FeatureFlag, root, cmdChain, cliValues, state)
+	if len(tiers) > 0 {
+		if merged, keys, err := mergeMapTiers(cmdChain, root.FeatureFlag, tiers, state); err == nil {
+			if providedMap, ok := merged.(map[string]string); ok {
+				provided = providedMap
+				provenance = keys
+			}
+		}
 	}
 
 	values, accepted := featureValuesLenient(root, provided)
 
-	flagSource := whySourceWord(featureBinding.Source())
+	// Provenance is keyed by the raw supplied key; index it by canonical
+	// feature name for the row lookup.
+	featureSources := make(map[string]ValueSource, len(provided))
+
+	for name := range provided {
+		feature := root.FindFeature(casing.Kebab(name))
+		if feature == nil {
+			continue
+		}
+
+		if keySource, ok := provenance[name]; ok {
+			featureSources[feature.Name] = keySource.source
+		}
+	}
 
 	rows := make([]why.FeatureRow, 0, len(root.FeatureFields))
 
@@ -223,7 +324,7 @@ func whyFeatureRows(root *spec.Command) []why.FeatureRow {
 
 		switch {
 		case accepted[feature.Name] != "":
-			source = flagSource
+			source = whySourceWord(featureSources[feature.Name])
 		case feature.Default != "":
 			source = whySourceWord(SourceDefault)
 		}

@@ -83,16 +83,29 @@ The report contains these diagnostic sections (the feature table appears only wh
 - **Flag table**:
   - `FLAG`: The declared flag name.
   - `VALUE`: The winning value, or `██████` if untagged.
-  - `SOURCE`: The winning tier (`cli`, `env`, `config`, or `default`).
+  - `SOURCE`: The winning tier (`cli`, `env`, `config`, or `default`). For a map flag, the highest contributing tier.
   - `ENV`: The derived or explicit environment variable evaluated for this flag.
   - `CONFIG PATH`: The evaluated config file key.
 - **Config decoders**: All file format decoders registered on the application.
 - **Config paths checked**: Every file path probed during resolution, annotated with its status (`(none found)` or loaded).
 - **Features**: Every declared feature, its resolved value, and its source.
 
+Map flags merge key by key across tiers, so their row is followed by one indented sub-row per key carrying the tier that last wrote it:
+
+```sh
+server --why --headers shared=cli,team=core
+```
+
+```text no-copy
+  --headers   region=eu-west-1, shared=cli, team=core   cli      -   headers
+              region=eu-west-1                          config
+              shared=cli                                cli
+              team=core                                 cli
+```
+
 ## Inspect feature provenance
 
-When the root command declares a `conga.Features[T]` container (see [Feature toggles](/reference/struct-tags/#feature-toggles-congafeaturest)), the report ends with a `Features:` table. The winning feature-map tier supplies the keys it sets; keys that tier leaves out fall back to the field default (`default`) or render `unset`:
+When the root command declares a `conga.Features[T]` container (see [Feature toggles](/reference/struct-tags/#feature-toggles-congafeaturest)), the report ends with a `Features:` table. Each feature reports the tier that last wrote its key; keys no tier set fall back to the field default (`default`) or render `unset`:
 
 ```sh
 serve --why

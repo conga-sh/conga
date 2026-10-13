@@ -112,13 +112,20 @@ func featureGates(cmd *spec.Command, values map[string]string) map[string]bool {
 
 // featureValues overlays the source-provided feature map on the field defaults,
 // recording the canonical values and the accepted keys, and returns the first
-// diagnostic in sorted key order.
-func featureValues(cmd *spec.Command, cmdChain []*spec.Command, provided map[string]string, source ValueSource) (map[string]string, map[string]string, error) {
+// diagnostic in sorted key order. Diagnostics attribute each key to the tier
+// that supplied it via provenance, falling back to the container's recorded
+// source when a key has no recorded tier.
+func featureValues(cmd *spec.Command, cmdChain []*spec.Command, provided map[string]string, provenance map[string]mapKeySource, fallback ValueSource) (map[string]string, map[string]string, error) {
 	var firstErr error
 
 	values, accepted := collectFeatureValues(cmd, provided, func(name string, raw string, feature *spec.FeatureField, cause error) {
 		if firstErr != nil {
 			return
+		}
+
+		source := fallback
+		if keySource, ok := provenance[name]; ok {
+			source = keySource.source
 		}
 
 		if feature == nil {
@@ -182,12 +189,12 @@ func collectFeatureValues(cmd *spec.Command, provided map[string]string, reject 
 // provided feature map onto the defaults, and materializes the typed feature
 // struct.
 func bindFeatureValues(binding flagState, target any, cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, state *bindingState) (map[string]bool, error) {
-	provided, err := bindFeatureMap(binding, cmd, cmdChain, flagValues, state)
+	provided, provenance, err := bindFeatureMap(binding, cmd, cmdChain, flagValues, state)
 	if err != nil && !state.TolerateFeatureErrors {
 		return nil, err
 	}
 
-	values, _, err := featureValues(cmd, cmdChain, provided, binding.Source())
+	values, _, err := featureValues(cmd, cmdChain, provided, provenance, binding.Source())
 	if err != nil && !state.TolerateFeatureErrors {
 		return nil, err
 	}
@@ -197,14 +204,17 @@ func bindFeatureValues(binding flagState, target any, cmd *spec.Command, cmdChai
 	return featureGates(cmd, values), nil
 }
 
-// bindFeatureMap applies the synthesized feature map flag from the tier
-// cascade and returns the raw provided map, or nil when the flag stays
-// unbound.
-func bindFeatureMap(binding flagState, cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, state *bindingState) (map[string]string, error) {
-	if cmd.FeatureFlag != nil {
-		if err := applyFlagValue(cmd, cmdChain, cmd.FeatureFlag, flagValues, state); err != nil {
-			return nil, err
-		}
+// bindFeatureMap applies the synthesized feature map flag from the merged
+// tier cascade and returns the raw provided map with its per-key provenance,
+// or nil when the flag stays unbound.
+func bindFeatureMap(binding flagState, cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, state *bindingState) (map[string]string, map[string]mapKeySource, error) {
+	if cmd.FeatureFlag == nil {
+		return nil, nil, nil
+	}
+
+	provenance, err := applyMapFlagValue(cmd, cmdChain, cmd.FeatureFlag, flagValues, state)
+	if err != nil {
+		return nil, nil, err
 	}
 
 	var provided map[string]string
@@ -212,7 +222,7 @@ func bindFeatureMap(binding flagState, cmd *spec.Command, cmdChain []*spec.Comma
 		provided = rawProvided
 	}
 
-	return provided, nil
+	return provided, provenance, nil
 }
 
 // completionFeatureGates resolves the feature gate map for a completion
@@ -228,23 +238,23 @@ func completionFeatureGates(cmd *spec.Command, flagValues map[*spec.Flag][]strin
 }
 
 // completionProvidedMap resolves the synthesized feature flag's raw provided
-// map from the tier cascade without coercing into the container.
+// map from the merged tier cascade without coercing into the container.
 func completionProvidedMap(cmd *spec.Command, flagValues map[*spec.Flag][]string, state *bindingState) map[string]string {
 	if cmd.FeatureFlag == nil {
 		return nil
 	}
 
-	rawValues, _, _, ok := flagSourceValues(cmd.FeatureFlag, cmd, []*spec.Command{cmd}, flagValues, state)
-	if !ok {
+	tiers := mapTierValues(cmd.FeatureFlag, cmd, []*spec.Command{cmd}, flagValues, state)
+	if len(tiers) == 0 {
 		return nil
 	}
 
-	parsed, err := parseMapTokens(rawValues, cmd.FeatureFlag.TargetType, cmd.FeatureFlag.Sep, state.TypeParsers)
+	merged, _, err := mergeMapTiers([]*spec.Command{cmd}, cmd.FeatureFlag, tiers, state)
 	if err != nil {
 		return nil
 	}
 
-	provided, ok := parsed.(map[string]string)
+	provided, ok := merged.(map[string]string)
 	if !ok {
 		return nil
 	}

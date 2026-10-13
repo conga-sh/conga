@@ -119,6 +119,123 @@ func TestFeature_CLIOverridesEnv(t *testing.T) {
 	assert.True(t, cli.ActiveGentle)
 }
 
+func TestFeature_MergesSourcesPerKey(t *testing.T) {
+	t.Parallel()
+
+	writeConfig := func(t *testing.T, fixture []byte) string {
+		t.Helper()
+
+		configPath := filepath.Join(t.TempDir(), ".taskrc.yml")
+		assert.NoError(t, os.WriteFile(configPath, fixture, 0o600))
+
+		return configPath
+	}
+
+	t.Run("config and CLI contribute different gates", func(t *testing.T) {
+		t.Parallel()
+
+		configPath := writeConfig(t, fixtureFeatureGentleForce)
+
+		var cli featureTestCLI
+
+		app := conga.New(&cli).
+			Name("task").
+			RegisterDecoder(".yaml", yaml.Decode).
+			RegisterDecoder(".yml", yaml.Decode).
+			ConfigOptions(conga.ConfigExplicit(configPath)).
+			Args([]string{"--feature-gates", "packages=true"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.True(t, cli.Features.Get().GentleForce)
+		assert.True(t, cli.Features.Get().Packages)
+	})
+
+	t.Run("CLI overrides config per key", func(t *testing.T) {
+		t.Parallel()
+
+		configPath := writeConfig(t, fixtureFeatureGentleForce)
+
+		var cli featureTestCLI
+
+		app := conga.New(&cli).
+			Name("task").
+			RegisterDecoder(".yaml", yaml.Decode).
+			RegisterDecoder(".yml", yaml.Decode).
+			ConfigOptions(conga.ConfigExplicit(configPath)).
+			Args([]string{"--feature-gates", "gentle-force=false"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.False(t, cli.Features.Get().GentleForce)
+	})
+
+	t.Run("CLI override of a config key masks its invalid value", func(t *testing.T) {
+		t.Parallel()
+
+		configPath := writeConfig(t, fixtureFeatureInvalidValue)
+
+		var cli featureTestCLI
+
+		app := conga.New(&cli).
+			Name("task").
+			RegisterDecoder(".yaml", yaml.Decode).
+			RegisterDecoder(".yml", yaml.Decode).
+			ConfigOptions(conga.ConfigExplicit(configPath)).
+			Args([]string{"--feature-gates", "syntax=1"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, 1, cli.Features.Get().Syntax)
+	})
+
+	t.Run("unknown config key errors even when CLI sets the flag", func(t *testing.T) {
+		t.Parallel()
+
+		configPath := writeConfig(t, fixtureFeatureTypo)
+
+		var cli featureTestCLI
+
+		app := conga.New(&cli).
+			Name("task").
+			RegisterDecoder(".yaml", yaml.Decode).
+			RegisterDecoder(".yml", yaml.Decode).
+			ConfigOptions(conga.ConfigExplicit(configPath)).
+			Args([]string{"--feature-gates", "packages=true"})
+
+		err := app.Run()
+
+		assert.Error(t, err)
+		assert.IsError(t, err, conga.ErrConfig)
+		assert.Contains(t, err.Error(), `unknown feature "GNTLE_FORCCE" (did you mean "gentle-force"?)`)
+	})
+}
+
+func TestFeature_MergesEnvAboveConfig(t *testing.T) {
+	t.Setenv("TASK_X_FEATURES", "packages=true")
+
+	configPath := filepath.Join(t.TempDir(), ".taskrc.yml")
+	assert.NoError(t, os.WriteFile(configPath, fixtureFeatureGentleForce, 0o600))
+
+	var cli featureTestCLI
+
+	app := conga.New(&cli).
+		Name("task").
+		RegisterDecoder(".yaml", yaml.Decode).
+		RegisterDecoder(".yml", yaml.Decode).
+		ConfigOptions(conga.ConfigExplicit(configPath)).
+		Args([]string{})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.True(t, cli.Features.Get().GentleForce)
+	assert.True(t, cli.Features.Get().Packages)
+}
+
 type featureRootOnlyCLI struct {
 	Sub conga.Command[featureRootOnlySub] `summary:"Sub"`
 }
@@ -711,6 +828,27 @@ func TestFeature_Completion(t *testing.T) {
 
 		_, formatted := app.CompleteForShell("bash", []string{"--feature-gates", "packages=true", "package", "--"})
 		assert.Contains(t, formatted, "--name")
+	})
+
+	t.Run("config gates survive unrelated CLI gates", func(t *testing.T) {
+		t.Parallel()
+
+		tempDir := t.TempDir()
+		configPath := filepath.Join(tempDir, ".taskrc.yml")
+		err := os.WriteFile(configPath, fixtureFeatureGentleForce, 0o600)
+		assert.NoError(t, err)
+
+		var cli featureTestCLI
+
+		app := conga.New(&cli).
+			Name("task").
+			EnableCompletion().
+			RegisterDecoder(".yaml", yaml.Decode).
+			RegisterDecoder(".yml", yaml.Decode).
+			ConfigOptions(conga.ConfigExplicit(configPath))
+
+		_, formatted := app.CompleteForShell("bash", []string{"--feature-gates", "packages=true", "--"})
+		assert.Contains(t, formatted, "--force-all")
 	})
 }
 

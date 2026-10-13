@@ -360,6 +360,167 @@ func TestBinder_MapFlag(t *testing.T) {
 	})
 }
 
+func TestBinder_MapFlagMergesTiers(t *testing.T) {
+	t.Parallel()
+
+	type CLI struct {
+		noopRunner
+
+		ConfigFile conga.ConfigFile                      `help:"Config file"`
+		Tags       conga.OptionalFlag[map[string]string] `env:"MERGE_TAGS"                help:"Tags map"`
+		Defaults   conga.OptionalFlag[map[string]string] `default:"base=1,shared=default" help:"Map with default"`
+		Sizes      conga.OptionalFlag[map[string]int]    `help:"Registered map"`
+	}
+
+	t.Run("config and CLI merge per key", func(t *testing.T) {
+		t.Parallel()
+
+		configPath := writeConfigFile(t, `{"tags": {"a": "config", "shared": "config"}}`)
+
+		cli := new(CLI)
+		app := conga.New(cli).
+			RegisterDecoder(".json", json.Decode).
+			ConfigOptions(conga.ConfigExplicit(configPath)).
+			Args([]string{"--tags", "b=cli"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]string{"a": "config", "b": "cli", "shared": "config"}, cli.Tags.Get())
+		assert.Equal(t, conga.SourceCLI, cli.Tags.Source())
+	})
+
+	t.Run("CLI overrides config per key", func(t *testing.T) {
+		t.Parallel()
+
+		configPath := writeConfigFile(t, `{"tags": {"a": "config", "shared": "config"}}`)
+
+		cli := new(CLI)
+		app := conga.New(cli).
+			RegisterDecoder(".json", json.Decode).
+			ConfigOptions(conga.ConfigExplicit(configPath)).
+			Args([]string{"--tags", "shared=cli"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]string{"a": "config", "shared": "cli"}, cli.Tags.Get())
+	})
+
+	t.Run("default merges below config", func(t *testing.T) {
+		t.Parallel()
+
+		configPath := writeConfigFile(t, `{"defaults": {"shared": "config"}}`)
+
+		cli := new(CLI)
+		app := conga.New(cli).
+			RegisterDecoder(".json", json.Decode).
+			ConfigOptions(conga.ConfigExplicit(configPath)).
+			Args([]string{})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]string{"base": "1", "shared": "config"}, cli.Defaults.Get())
+		assert.Equal(t, conga.SourceConfig, cli.Defaults.Source())
+	})
+
+	t.Run("registered map type merges per key", func(t *testing.T) {
+		t.Parallel()
+
+		configPath := writeConfigFile(t, `{"sizes": {"small": 1, "shared": 2}}`)
+
+		cli := new(CLI)
+		app := conga.New(cli).
+			RegisterDecoder(".json", json.Decode).
+			RegisterMap(map[string]int{}).
+			ConfigOptions(conga.ConfigExplicit(configPath)).
+			Args([]string{"--sizes", "shared=9,large=3"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]int{"small": 1, "shared": 9, "large": 3}, cli.Sizes.Get())
+	})
+
+	t.Run("malformed config tier errors despite CLI presence", func(t *testing.T) {
+		t.Parallel()
+
+		configPath := writeConfigFile(t, `{"sizes": {"small": "notanint"}}`)
+
+		app := conga.New[CLI]().
+			RegisterDecoder(".json", json.Decode).
+			RegisterMap(map[string]int{}).
+			ConfigOptions(conga.ConfigExplicit(configPath)).
+			Args([]string{"--sizes", "large=3"})
+
+		err := app.Run()
+
+		assert.Error(t, err)
+		assert.IsError(t, err, conga.ErrCoerce)
+		assert.Contains(t, err.Error(), "config")
+	})
+
+	t.Run("no tier leaves map unset", func(t *testing.T) {
+		t.Parallel()
+
+		configPath := writeConfigFile(t, `{}`)
+
+		cli := new(CLI)
+		app := conga.New(cli).
+			RegisterDecoder(".json", json.Decode).
+			ConfigOptions(conga.ConfigExplicit(configPath)).
+			Args([]string{})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.False(t, cli.Tags.IsSet())
+	})
+}
+
+func TestBinder_MapFlagMergesEnvTier(t *testing.T) {
+	type CLI struct {
+		noopRunner
+
+		ConfigFile conga.ConfigFile                      `help:"Config file"`
+		Tags       conga.OptionalFlag[map[string]string] `env:"MERGE_TAGS"   help:"Tags map"`
+	}
+
+	t.Run("env merges above config and below CLI", func(t *testing.T) {
+		t.Setenv("MERGE_TAGS", "shared=env,envkey=env")
+		configPath := writeConfigFile(t, `{"tags": {"a": "config", "shared": "config"}}`)
+
+		cli := new(CLI)
+		app := conga.New(cli).
+			RegisterDecoder(".json", json.Decode).
+			ConfigOptions(conga.ConfigExplicit(configPath)).
+			Args([]string{"--tags", "shared=cli"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]string{"a": "config", "envkey": "env", "shared": "cli"}, cli.Tags.Get())
+	})
+
+	t.Run("env wins over config per key without CLI", func(t *testing.T) {
+		t.Setenv("MERGE_TAGS", "shared=env")
+		configPath := writeConfigFile(t, `{"tags": {"a": "config", "shared": "config"}}`)
+
+		cli := new(CLI)
+		app := conga.New(cli).
+			RegisterDecoder(".json", json.Decode).
+			ConfigOptions(conga.ConfigExplicit(configPath)).
+			Args([]string{})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]string{"a": "config", "shared": "env"}, cli.Tags.Get())
+		assert.Equal(t, conga.SourceEnv, cli.Tags.Source())
+	})
+}
+
 func TestBinder_CounterFlag(t *testing.T) {
 	t.Parallel()
 

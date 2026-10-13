@@ -782,9 +782,11 @@ func (c *CompletionCommand) Run(ctx context.Context, session *Session) error {
 // carried by a single key=value map surface: the map flag named by the flag tag
 // (omitted when the tag is absent), the environment variable named by env or
 // derived from envprefix, and the configuration section named by config. The
-// field defaults form the base set; whichever of those sources is present
-// overlays only the keys it lists (Kubernetes-style sparse overrides). Read the
-// resolved values through [Features.Get]:
+// field defaults form the base set; config, environment, and command line
+// sources merge over it key by key in ascending precedence (config < env <
+// CLI), each source overlaying only the keys it lists (Kubernetes-style sparse
+// overrides), so a config file can enable one feature while the command line
+// enables another. Read the resolved values through [Features.Get]:
 //
 //	if cli.Features.Get().GentleForce { ... }
 //
@@ -817,7 +819,8 @@ func (f *Features[T]) IsSet() bool { return f.source != SourceNone }
 // environment, or a configuration file rather than exclusively from defaults.
 func (f *Features[T]) Changed() bool { return f.source != SourceNone && f.source != SourceDefault }
 
-// Source reports the configuration tier the feature map was resolved from.
+// Source reports the highest configuration tier that contributed a key to the
+// feature map.
 func (f *Features[T]) Source() ValueSource { return f.source }
 
 // SourceDetail returns the concrete origin recorded with [Features.Source].
