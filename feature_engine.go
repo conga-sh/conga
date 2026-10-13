@@ -115,7 +115,7 @@ func featureGates(cmd *spec.Command, values map[string]string) map[string]bool {
 // diagnostic in sorted key order. Diagnostics attribute each key to the tier
 // that supplied it via provenance, falling back to the container's recorded
 // source when a key has no recorded tier.
-func featureValues(cmd *spec.Command, cmdChain []*spec.Command, provided map[string]string, provenance map[string]mapKeySource, fallback ValueSource) (map[string]string, map[string]string, error) {
+func featureValues(cmd *spec.Command, cmdChain []*spec.Command, provided map[string]string, provenance map[string]ValueSource, fallback ValueSource) (map[string]string, map[string]string, error) {
 	var firstErr error
 
 	values, accepted := collectFeatureValues(cmd, provided, func(name string, raw string, feature *spec.FeatureField, cause error) {
@@ -124,8 +124,8 @@ func featureValues(cmd *spec.Command, cmdChain []*spec.Command, provided map[str
 		}
 
 		source := fallback
-		if keySource, ok := provenance[name]; ok {
-			source = keySource.source
+		if provenanceSource, ok := provenance[name]; ok {
+			source = provenanceSource
 		}
 
 		if feature == nil {
@@ -185,6 +185,25 @@ func collectFeatureValues(cmd *spec.Command, provided map[string]string, reject 
 	return values, accepted
 }
 
+// mapKeyCanonicalizer returns the key canonicalizer for a map flag's tier
+// fold. Feature-map keys fold to the canonical name of the declared feature
+// they match, so a higher tier overrides the same feature regardless of the
+// spelling each tier used. It returns nil for every other map flag, whose keys
+// stay verbatim.
+func mapKeyCanonicalizer(cmd *spec.Command, flagSpec *spec.Flag) func(string) string {
+	if cmd == nil || cmd.FeatureFlag == nil || flagSpec != cmd.FeatureFlag {
+		return nil
+	}
+
+	return func(key string) string {
+		if feature := cmd.FindFeature(casing.Kebab(key)); feature != nil {
+			return feature.Name
+		}
+
+		return key
+	}
+}
+
 // bindFeatureValues binds the synthesized feature map flag, overlays the
 // provided feature map onto the defaults, and materializes the typed feature
 // struct.
@@ -205,14 +224,14 @@ func bindFeatureValues(binding flagState, target any, cmd *spec.Command, cmdChai
 }
 
 // bindFeatureMap applies the synthesized feature map flag from the merged
-// tier cascade and returns the raw provided map with its per-key provenance,
-// or nil when the flag stays unbound.
-func bindFeatureMap(binding flagState, cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, state *bindingState) (map[string]string, map[string]mapKeySource, error) {
+// tier cascade and returns the resolved provided map (canonical feature-name
+// keys) with its per-key provenance, or nil when the flag stays unbound.
+func bindFeatureMap(binding flagState, cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, state *bindingState) (map[string]string, map[string]ValueSource, error) {
 	if cmd.FeatureFlag == nil {
 		return nil, nil, nil
 	}
 
-	provenance, err := applyMapFlagValue(cmd, cmdChain, cmd.FeatureFlag, flagValues, state)
+	provenance, err := applyMapFlagValue(cmd, cmdChain, cmd.FeatureFlag, flagValues, state, true)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -249,12 +268,14 @@ func completionProvidedMap(cmd *spec.Command, flagValues map[*spec.Flag][]string
 		return nil
 	}
 
-	merged, _, err := mergeMapTiers([]*spec.Command{cmd}, cmd.FeatureFlag, tiers, state)
+	result, err := mergeMapTiers([]*spec.Command{cmd}, cmd.FeatureFlag, tiers, state, mapMergeOptions{
+		canonicalizeKey: mapKeyCanonicalizer(cmd, cmd.FeatureFlag),
+	})
 	if err != nil {
 		return nil
 	}
 
-	provided, ok := merged.(map[string]string)
+	provided, ok := result.merged.(map[string]string)
 	if !ok {
 		return nil
 	}

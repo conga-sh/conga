@@ -21,6 +21,27 @@ func TestRenderFeatureRows_AlignedColumns(t *testing.T) {
 		"  x              0       default\n", output)
 }
 
+func TestRenderRows_MapEntriesWidenValueColumn(t *testing.T) {
+	t.Parallel()
+
+	rows := []Row{
+		{
+			Label:      "--secrets",
+			Value:      Redacted,
+			Source:     "cli",
+			Env:        "-",
+			ConfigPath: "secrets",
+			Entries:    []MapEntry{{Key: "token", Value: Redacted, Source: "cli"}},
+		},
+	}
+
+	output := renderRows(rows)
+
+	assert.Equal(t, "\n  FLAG        VALUE          SOURCE   ENV   CONFIG PATH\n"+
+		"  --secrets   ██████         cli      -     secrets\n"+
+		"              token=██████   cli\n", output)
+}
+
 func TestRenderRows_ErrorRowStopsAfterValue(t *testing.T) {
 	t.Parallel()
 

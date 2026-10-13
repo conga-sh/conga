@@ -5,6 +5,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -17,6 +18,9 @@ import (
 )
 
 var (
+	//go:embed testdata/fixtures/feature_camel_case.yml
+	fixtureFeatureCamelCase []byte
+
 	//go:embed testdata/fixtures/feature_gentle_force.yml
 	fixtureFeatureGentleForce []byte
 
@@ -43,6 +47,9 @@ var (
 
 	//go:embed testdata/fixtures/feature_sibling_config_key.yml
 	fixtureFeatureSiblingConfigKey []byte
+
+	//go:embed testdata/fixtures/feature_snake_case.yml
+	fixtureFeatureSnakeCase []byte
 
 	//go:embed testdata/fixtures/feature_typo.yml
 	fixtureFeatureTypo []byte
@@ -172,6 +179,81 @@ func TestFeature_MergesSourcesPerKey(t *testing.T) {
 		assert.False(t, cli.Features.Get().GentleForce)
 	})
 
+	t.Run("config snake_case key loses to the CLI spelling", func(t *testing.T) {
+		t.Parallel()
+
+		configPath := writeConfig(t, fixtureFeatureSnakeCase)
+
+		var cli featureTestCLI
+
+		app := conga.New(&cli).
+			Name("task").
+			RegisterDecoder(".yaml", yaml.Decode).
+			RegisterDecoder(".yml", yaml.Decode).
+			ConfigOptions(conga.ConfigExplicit(configPath)).
+			Args([]string{"--feature-gates", "gentle-force=false"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.False(t, cli.Features.Get().GentleForce)
+		assert.Equal(t, conga.SourceCLI, cli.Features.Source())
+	})
+
+	t.Run("config camelCase key loses to the CLI spelling", func(t *testing.T) {
+		t.Parallel()
+
+		configPath := writeConfig(t, fixtureFeatureCamelCase)
+
+		var cli featureTestCLI
+
+		app := conga.New(&cli).
+			Name("task").
+			RegisterDecoder(".yaml", yaml.Decode).
+			RegisterDecoder(".yml", yaml.Decode).
+			ConfigOptions(conga.ConfigExplicit(configPath)).
+			Args([]string{"--feature-gates", "gentle-force=false"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.False(t, cli.Features.Get().GentleForce)
+		assert.Equal(t, conga.SourceCLI, cli.Features.Source())
+	})
+
+	t.Run("why table attributes the canonical key to the CLI tier", func(t *testing.T) {
+		t.Parallel()
+
+		configPath := writeConfig(t, fixtureFeatureSnakeCase)
+
+		var buffer bytes.Buffer
+
+		var cli featureTestCLI
+
+		app := conga.New(&cli).
+			Name("task").
+			RegisterDecoder(".yaml", yaml.Decode).
+			RegisterDecoder(".yml", yaml.Decode).
+			ConfigOptions(conga.ConfigExplicit(configPath)).
+			Stdout(&buffer).
+			EnableWhy().
+			Args([]string{"--feature-gates", "gentle-force=false", "--why"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+
+		_, featuresSection, found := strings.Cut(buffer.String(), "Features:")
+		assert.True(t, found)
+
+		for line := range strings.SplitSeq(featuresSection, "\n") {
+			if strings.HasPrefix(strings.TrimSpace(line), "gentle-force") {
+				assert.Contains(t, line, "false")
+				assert.Contains(t, line, "cli")
+			}
+		}
+	})
+
 	t.Run("CLI override of a config key masks its invalid value", func(t *testing.T) {
 		t.Parallel()
 
@@ -234,6 +316,22 @@ func TestFeature_MergesEnvAboveConfig(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, cli.Features.Get().GentleForce)
 	assert.True(t, cli.Features.Get().Packages)
+}
+
+func TestFeature_EnvSpellingLosesToCLI(t *testing.T) {
+	t.Setenv("TASK_X_FEATURES", "gentle_force=true")
+
+	var cli featureTestCLI
+
+	app := conga.New(&cli).
+		Name("task").
+		Args([]string{"--feature-gates", "gentle-force=false"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.False(t, cli.Features.Get().GentleForce)
+	assert.Equal(t, conga.SourceCLI, cli.Features.Source())
 }
 
 type featureRootOnlyCLI struct {

@@ -81,7 +81,7 @@ Positional containers (`RequiredArg[T]`, `OptionalArg[T]`, `DashArgs`, and `RawA
 
 ### Feature maps
 
-A `conga.Features[T]` container resolves as a map flag: every tier contributes `name=value` pairs, higher tiers override per key, and the merged result overlays the inner features' `default` tags key by key, so features no tier lists keep their declared defaults (sparse overrides). The container records the highest contributing tier once; `Features.Source()` reports it, and `--why` renders each feature's effective value against the tier that last wrote its key. See [Feature toggles](/reference/struct-tags/#feature-toggles-congafeaturest) and the [container accessors](/reference/conga/#containers).
+A `conga.Features[T]` container resolves as a map flag: every tier contributes `name=value` pairs, higher tiers override per key, and the merged result overlays the inner features' `default` tags key by key, so features no tier lists keep their declared defaults (sparse overrides). Keys accept any spelling of a declared name and are canonicalized before the merge, so a higher tier overrides the same feature regardless of the spelling each tier used. The container records the highest contributing tier once; `Features.Source()` reports it, and `--why` renders each feature's effective value against the tier that last wrote its key. See [Feature toggles](/reference/struct-tags/#feature-toggles-congafeaturest) and the [container accessors](/reference/conga/#containers).
 
 ### Environment file integration
 

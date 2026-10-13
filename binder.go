@@ -555,11 +555,21 @@ type mapTier struct {
 	rawValues  []string
 }
 
-// mapKeySource records which source tier last wrote a key of a merged map
-// value, so diagnostics and the --why report can attribute individual keys.
-type mapKeySource struct {
-	source ValueSource
-	detail string
+// mapMergeOptions controls a map flag's tier fold: whether per-key provenance
+// is recorded and an optional key canonicalizer (feature maps fold accepted
+// spellings to the declared feature name).
+type mapMergeOptions struct {
+	wantProvenance  bool
+	canonicalizeKey func(string) string
+}
+
+// mapMergeResult is the outcome of folding a map flag's tiers: the merged
+// value, the per-key source tiers recorded when requested, and the tier whose
+// coercion failed when the fold returns an error.
+type mapMergeResult struct {
+	merged     any
+	provenance map[string]ValueSource
+	failedTier *mapTier
 }
 
 func bindSpecialArgs(leaf *spec.Command, dashArgs, rawTokens []string) {
@@ -966,7 +976,7 @@ func applyFlagValue(cmd *spec.Command, cmdChain []*spec.Command, flagSpec *spec.
 	// winning tier, so a config file and the command line can each contribute
 	// different keys to the same map.
 	if flagSpec.IsMap {
-		_, err := applyMapFlagValue(cmd, cmdChain, flagSpec, cliValues, state)
+		_, err := applyMapFlagValue(cmd, cmdChain, flagSpec, cliValues, state, false)
 
 		return err
 	}
@@ -981,25 +991,28 @@ func applyFlagValue(cmd *spec.Command, cmdChain []*spec.Command, flagSpec *spec.
 
 // applyMapFlagValue merges every tier's contribution to a map flag key-by-key
 // in ascending precedence (default < config < env < CLI) and binds the merged
-// map with the highest contributing tier as the container source. It returns
-// the per-key provenance of the merged value for source-attributed
-// diagnostics.
-func applyMapFlagValue(cmd *spec.Command, cmdChain []*spec.Command, flagSpec *spec.Flag, cliValues map[*spec.Flag][]string, state *bindingState) (map[string]mapKeySource, error) {
+// map with the highest contributing tier as the container source. When
+// wantProvenance is set it returns the per-key source tiers of the merged
+// value for source-attributed diagnostics.
+func applyMapFlagValue(cmd *spec.Command, cmdChain []*spec.Command, flagSpec *spec.Flag, cliValues map[*spec.Flag][]string, state *bindingState, wantProvenance bool) (map[string]ValueSource, error) {
 	tiers := mapTierValues(flagSpec, cmd, cmdChain, cliValues, state)
 	if len(tiers) == 0 {
-		return map[string]mapKeySource{}, nil
+		return map[string]ValueSource{}, nil
 	}
 
-	merged, provenance, err := mergeMapTiers(cmdChain, flagSpec, tiers, state)
+	result, err := mergeMapTiers(cmdChain, flagSpec, tiers, state, mapMergeOptions{
+		wantProvenance:  wantProvenance,
+		canonicalizeKey: mapKeyCanonicalizer(cmd, flagSpec),
+	})
 	if err != nil {
 		return nil, err
 	}
 
 	highest := tiers[len(tiers)-1]
 
-	flagStateOf(flagSpec.Handle).setValue(merged, highest.source, highest.sourceName)
+	flagStateOf(flagSpec.Handle).setValue(result.merged, highest.source, highest.sourceName)
 
-	return provenance, nil
+	return result.provenance, nil
 }
 
 func resolveRequiredFlags(cmdChain []*spec.Command) error {
@@ -2157,29 +2170,77 @@ func mapTierValues(flagSpec *spec.Flag, cmd *spec.Command, cmdChain []*spec.Comm
 
 // mergeMapTiers coerces each tier's raw values and folds the resulting maps
 // into one map in tier order, so a higher tier overrides only the keys it
-// names. The returned provenance records the tier that last wrote each key. A
-// coercion failure in any tier aborts the merge with an error attributed to
-// that tier.
-func mergeMapTiers(cmdChain []*spec.Command, flagSpec *spec.Flag, tiers []mapTier, state *bindingState) (any, map[string]mapKeySource, error) {
-	merged := reflect.MakeMap(flagSpec.TargetType)
-	provenance := make(map[string]mapKeySource)
+// names. When options.canonicalizeKey is set, keys are folded to their
+// canonical form before the merge, so spelling variants of the same key
+// override across tiers (same-tier variants resolve in sorted key order, the
+// later spelling winning). options.wantProvenance records the tier that last
+// wrote each key. A coercion failure in any tier aborts the merge with an
+// error attributed to that tier; the failing tier is returned for callers
+// that render the raw offending input.
+func mergeMapTiers(cmdChain []*spec.Command, flagSpec *spec.Flag, tiers []mapTier, state *bindingState, options mapMergeOptions) (mapMergeResult, error) {
+	if len(tiers) == 1 && !options.wantProvenance && options.canonicalizeKey == nil {
+		parsed, err := parseMapTokens(tiers[0].rawValues, flagSpec.TargetType, flagSpec.Sep, state.TypeParsers)
+		if err != nil {
+			return mapMergeResult{failedTier: &tiers[0]}, newFlagCoercionError(cmdChain, flagSpec, tiers[0].source, tiers[0].sourceName, strings.Join(tiers[0].rawValues, flagSpec.Sep), err)
+		}
 
-	for _, tier := range tiers {
+		return mapMergeResult{merged: parsed}, nil
+	}
+
+	merged := reflect.MakeMap(flagSpec.TargetType)
+
+	var provenance map[string]ValueSource
+
+	if options.wantProvenance {
+		provenance = make(map[string]ValueSource)
+	}
+
+	for index := range tiers {
+		tier := &tiers[index]
+
 		parsed, err := parseMapTokens(tier.rawValues, flagSpec.TargetType, flagSpec.Sep, state.TypeParsers)
 		if err != nil {
-			return nil, nil, newFlagCoercionError(cmdChain, flagSpec, tier.source, tier.sourceName, strings.Join(tier.rawValues, flagSpec.Sep), err)
+			return mapMergeResult{failedTier: tier}, newFlagCoercionError(cmdChain, flagSpec, tier.source, tier.sourceName, strings.Join(tier.rawValues, flagSpec.Sep), err)
 		}
 
 		parsedValue := reflect.ValueOf(parsed)
-		iter := parsedValue.MapRange()
 
-		for iter.Next() {
-			merged.SetMapIndex(iter.Key(), iter.Value())
-			provenance[stringx.Stringify(iter.Key().Interface())] = mapKeySource{source: tier.source, detail: tier.sourceName}
+		if options.canonicalizeKey == nil {
+			iter := parsedValue.MapRange()
+			for iter.Next() {
+				merged.SetMapIndex(iter.Key(), iter.Value())
+
+				if options.wantProvenance {
+					provenance[stringx.Stringify(iter.Key().Interface())] = tier.source
+				}
+			}
+
+			continue
+		}
+
+		keys := parsedValue.MapKeys()
+		slices.SortFunc(keys, func(first, second reflect.Value) int {
+			return strings.Compare(stringx.Stringify(first.Interface()), stringx.Stringify(second.Interface()))
+		})
+
+		for _, parsedKey := range keys {
+			keyName := stringx.Stringify(parsedKey.Interface())
+			key := parsedKey
+
+			if canonical := options.canonicalizeKey(keyName); canonical != keyName {
+				key = reflect.ValueOf(canonical).Convert(parsedKey.Type())
+				keyName = canonical
+			}
+
+			merged.SetMapIndex(key, parsedValue.MapIndex(parsedKey))
+
+			if options.wantProvenance {
+				provenance[keyName] = tier.source
+			}
 		}
 	}
 
-	return merged.Interface(), provenance, nil
+	return mapMergeResult{merged: merged.Interface(), provenance: provenance}, nil
 }
 
 func parseMapTokens(rawValues []string, targetType reflect.Type, sep string, parsers coerce.Registry) (any, error) {

@@ -322,6 +322,29 @@ func TestWhy_MapMergePerKeyProvenance(t *testing.T) {
 	assertGolden(t, "testdata/why/map-merge.golden", goldenWhyMapMerge, output)
 }
 
+type whyMapEntryWidthCLI struct {
+	noopRunner
+
+	Secrets conga.OptionalFlag[map[string]string] `help:"Secret headers"`
+}
+
+func TestWhy_MapEntryWidensValueColumn(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	app := conga.New[whyMapEntryWidthCLI]().
+		Name("whyapp").
+		Stdout(&buffer).
+		EnableWhy().
+		Args([]string{"--secrets", "token=abc", "--why"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assertGolden(t, "testdata/why/map-entry-width.golden", goldenWhyMapEntryWidth, buffer.String())
+}
+
 func TestWhy_UnsetRows(t *testing.T) {
 	t.Parallel()
 

@@ -781,12 +781,15 @@ func (c *CompletionCommand) Run(ctx context.Context, session *Session) error {
 // Declare the Features field on the root command struct only. Every feature is
 // carried by a single key=value map surface: the map flag named by the flag tag
 // (omitted when the tag is absent), the environment variable named by env or
-// derived from envprefix, and the configuration section named by config. The
-// field defaults form the base set; config, environment, and command line
-// sources merge over it key by key in ascending precedence (config < env <
-// CLI), each source overlaying only the keys it lists (Kubernetes-style sparse
-// overrides), so a config file can enable one feature while the command line
-// enables another. Read the resolved values through [Features.Get]:
+// derived from envprefix, and the configuration section named by config. A key
+// may use any spelling of a declared feature name (kebab-case, snake_case, or
+// camelCase); keys are canonicalized before the merge, so precedence follows
+// the tier rather than the spelling. The field defaults form the base set;
+// config, environment, and command line sources merge over it key by key in
+// ascending precedence (config < env < CLI), each source overlaying only the
+// keys it lists (Kubernetes-style sparse overrides), so a config file can
+// enable one feature while the command line enables another. Read the resolved
+// values through [Features.Get]:
 //
 //	if cli.Features.Get().GentleForce { ... }
 //
@@ -1163,13 +1166,14 @@ func (f *Features[T]) containerKind() container.Classification {
 	return container.Classification{Kind: container.KindFeatures, Target: &f.value}
 }
 
-// getValue returns the raw feature map resolved by the engine cascade (nil when
-// no source supplied a value); the engine uses it for key validation.
+// getValue returns the feature map resolved by the engine cascade with
+// canonical feature-name keys (nil when no source supplied a value); the
+// engine uses it for key validation.
 func (f *Features[T]) getValue() any { return f.provided }
 
-// setValue stores the raw feature map resolved by the engine cascade and records
-// its source. The owning App later materializes the typed feature struct by
-// overlaying the stored map onto the field defaults.
+// setValue stores the resolved feature map (canonical feature-name keys) and
+// records its source. The owning App later materializes the typed feature
+// struct by overlaying the stored map onto the field defaults.
 func (f *Features[T]) setValue(value any, source ValueSource, detail string) {
 	provided, ok := value.(map[string]string)
 	if !ok {

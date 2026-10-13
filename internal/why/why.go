@@ -186,19 +186,18 @@ type ConfigPath struct {
 func renderRows(rows []Row) string {
 	header := []string{headerLabel, headerValue, headerSource, headerEnv, headerConfigPath}
 
-	grid := make([][]string, 0, len(rows)+1)
-	grid = append(grid, header)
+	measurement := make([][]string, 0, len(rows)+1)
+	measurement = append(measurement, header)
 
 	for _, row := range rows {
-		source := row.Source
-		if row.Error != "" {
-			source = ""
-		}
+		measurement = append(measurement, rowCells(row))
 
-		grid = append(grid, []string{rowLabel(row), row.Value, source, row.Env, row.ConfigPath})
+		for _, entry := range row.Entries {
+			measurement = append(measurement, []string{"", entry.Key + "=" + entry.Value, entry.Source, "", ""})
+		}
 	}
 
-	widths := measureColumnWidths(grid)
+	widths := measureColumnWidths(measurement)
 
 	var builder strings.Builder
 
@@ -208,8 +207,8 @@ func renderRows(rows []Row) string {
 
 	writeGridRow(&builder, header, widths)
 
-	for index, row := range rows {
-		cells := grid[index+1]
+	for _, row := range rows {
+		cells := rowCells(row)
 
 		if row.Error != "" {
 			builder.WriteString(strings.Repeat(" ", rowIndent))
@@ -224,7 +223,7 @@ func renderRows(rows []Row) string {
 		writeGridRow(&builder, cells, widths)
 
 		for _, entry := range row.Entries {
-			writeGridRow(&builder, []string{"", entry.Key + "=" + entry.Value, entry.Source, "", ""}, widths)
+			writeGridRow(&builder, []string{"", entry.Key + "=" + entry.Value, entry.Source}, widths)
 		}
 	}
 
@@ -258,13 +257,8 @@ func renderFeatureRows(rows []FeatureRow) string {
 
 // writeGridRow writes one indented grid row: every cell but the last is padded
 // to its measured width and gap-separated, and the final cell is written flush.
-// Header and data rows share the layout. Trailing empty cells are dropped so
-// short rows (such as map-entry sub-rows) never carry trailing padding.
+// Header and data rows share the layout.
 func writeGridRow(builder *strings.Builder, cells []string, widths []int) {
-	for len(cells) > 1 && cells[len(cells)-1] == "" {
-		cells = cells[:len(cells)-1]
-	}
-
 	builder.WriteString(strings.Repeat(" ", rowIndent))
 	writeTableCells(builder, cells[:len(cells)-1], widths)
 	builder.WriteString(cells[len(cells)-1])
@@ -330,6 +324,17 @@ func rowLabel(row Row) string {
 	}
 
 	return row.Label
+}
+
+// rowCells renders a row's table cells; an error row blanks the source column
+// because the diagnostic replaces it.
+func rowCells(row Row) []string {
+	source := row.Source
+	if row.Error != "" {
+		source = ""
+	}
+
+	return []string{rowLabel(row), row.Value, source, row.Env, row.ConfigPath}
 }
 
 // measureColumnWidths measures the display width of every table column across
