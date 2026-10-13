@@ -2,6 +2,7 @@ package spec_test
 
 import (
 	"context"
+	"strconv"
 	"testing"
 	"time"
 
@@ -66,6 +67,14 @@ type mockCmd[T any] struct {
 
 func (m *mockCmd[T]) testClassification() container.Classification {
 	return container.Classification{Kind: container.KindCommand, Target: &m.inner}
+}
+
+type mockFeatures[T any] struct {
+	inner T
+}
+
+func (m *mockFeatures[T]) testClassification() container.Classification {
+	return container.Classification{Kind: container.KindFeatures, Target: &m.inner}
 }
 
 // classifiedMock is implemented by the test container doubles to surface the
@@ -1385,4 +1394,505 @@ func TestRootCommand_MethodRejection_Examples(t *testing.T) {
 	assert.Error(t, err)
 	assert.IsError(t, err, spec.ErrSchema)
 	assert.Equal(t, `schema error: root command struct rootExamplesCLI must not implement Examples(); configure root examples via app.Examples()`, err.Error())
+}
+
+type featureSet struct {
+	GentleForce  bool
+	Experimental bool
+	V2           bool
+}
+
+type featureFlagCLI struct {
+	Features mockFeatures[featureSet]
+
+	ForceAll mockFlag[bool]         `feature:"gentle-force" help:"Forces all tasks"`
+	Sub      mockCmd[featureSubCLI] `feature:"experimental" name:"lab"`
+}
+
+type featureSubCLI struct {
+	Beta mockFlag[string] `feature:"v2"`
+}
+
+type featureRequiredCLI struct {
+	Features mockFeatures[featureSet]
+
+	Req mockReqFlag[string] `feature:"preview"`
+}
+
+type undeclaredFeatureCLI struct {
+	Force mockFlag[bool] `feature:"missing"`
+}
+
+type featureValueCLI struct {
+	Features mockFeatures[featureValueSet]
+
+	Mode mockFlag[string] `feature:"parallel=3"`
+}
+
+type featureValueSet struct {
+	Parallel int `enum:"1,2"`
+}
+
+type featureUnsignedSet struct {
+	Workers uint `enum:"1,2" help:"Workers"`
+}
+
+type featureUnsignedCLI struct {
+	Features mockFeatures[featureUnsignedSet]
+
+	Force mockFlag[bool] `feature:"workers"`
+}
+
+type featureNegativeEnumSet struct {
+	Level uint `enum:"-1" help:"Level"`
+}
+
+type featureWidthSet struct {
+	Level int8 `enum:"300" help:"Level"`
+}
+
+type featureNoEnumSet struct {
+	Level int `help:"Level"`
+}
+
+type featureNegativeDefaultSet struct {
+	Level uint `default:"-1" help:"Level"`
+}
+
+type featureWidthDefaultSet struct {
+	Level int8 `default:"300" help:"Level"`
+}
+
+type featureSchemaCLI[T any] struct {
+	Features mockFeatures[T]
+}
+
+type featureDeclSet struct {
+	GentleForce bool `default:"true" help:"Force all"`
+	Parallel    int  `enum:"1,2"     help:"Workers"   name:"parallelism"`
+}
+
+type featureDeclCLI struct {
+	Features mockFeatures[featureDeclSet] `config:"experiments" envprefix:"APP_X_" flag:"feature-gates"`
+
+	Force mockFlag[bool] `feature:"gentle-force"`
+}
+
+func TestFeaturesContainer_Parsing(t *testing.T) {
+	t.Parallel()
+
+	var cli featureDeclCLI
+
+	cmd, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.NoError(t, err)
+
+	assert.Equal(t, []string{"gentle-force", "parallelism"}, cmd.FeatureNames())
+
+	gentle := cmd.FindFeature("gentle-force")
+	assert.NotZero(t, gentle)
+	assert.False(t, gentle.IsInt)
+	assert.Equal(t, "true", gentle.Default)
+
+	parallel := cmd.FindFeature("parallelism")
+	assert.NotZero(t, parallel)
+	assert.True(t, parallel.IsInt)
+	assert.Equal(t, []string{"1", "2"}, parallel.Enum)
+
+	assert.NotZero(t, cmd.FeatureFlag)
+	assert.Equal(t, "feature-gates", cmd.FeatureFlag.Name)
+	assert.True(t, cmd.FeatureFlag.IsMap)
+	assert.Equal(t, "experiments", cmd.FeatureFlag.ConfigKey)
+	assert.Equal(t, []string{"APP_X_FEATURE_GATES"}, cmd.FeatureFlag.EnvVars)
+	assert.Equal(t, []string{"gentle-force", "parallelism"}, cmd.FeatureFlag.Enum)
+}
+
+type featureDuplicateCLI struct {
+	First  mockFeatures[struct{}]       `flag:"gates-a"`
+	Second mockFeatures[featureDeclSet] `flag:"gates-b"`
+}
+
+type featurePredictorCLI struct {
+	Features mockFeatures[featureDeclSet] `flag:"gates"`
+}
+
+func TestFeaturesContainer_DuplicateDeclaration_EmptyInnerStruct(t *testing.T) {
+	t.Parallel()
+
+	var cli featureDuplicateCLI
+
+	_, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.Error(t, err)
+	assert.IsError(t, err, spec.ErrDuplicateFlag)
+	assert.Equal(t, "struct featureDuplicateCLI field Second: schema error: duplicate flag: Features (already declared by gates-a)", err.Error())
+}
+
+type featureNoCLINameAfterCLI struct {
+	Features mockFeatures[featureDeclSet]
+
+	Legacy mockFlag[string] `help:"Legacy features flag" name:"features"`
+}
+
+type featureNoCLINameBeforeCLI struct {
+	Legacy mockFlag[string] `help:"Legacy features flag" name:"features"`
+
+	Features mockFeatures[featureDeclSet]
+}
+
+type featureTaggedCollisionCLI struct {
+	Features mockFeatures[featureDeclSet] `flag:"gates"`
+
+	Gates mockFlag[string] `help:"User gates" name:"gates"`
+}
+
+// hasRoutableFlag reports whether cmd declares a CLI-routable flag with the
+// given name (ignoring the hidden NoCLI synthesized feature flag).
+func hasRoutableFlag(cmd *spec.Command, name string) bool {
+	for _, flag := range cmd.Flags {
+		if flag.Name == name && !flag.NoCLI {
+			return true
+		}
+	}
+
+	return false
+}
+
+func TestFeaturesContainer_NoCLINameSharedWithUserFlag(t *testing.T) {
+	t.Parallel()
+
+	t.Run("user flag declared after the container", func(t *testing.T) {
+		t.Parallel()
+
+		var cli featureNoCLINameAfterCLI
+
+		cmd, err := buildSchema(&cli, "app", spec.Options{})
+
+		assert.NoError(t, err)
+		assert.NotZero(t, cmd.FeatureFlag)
+		assert.True(t, cmd.FeatureFlag.NoCLI)
+		assert.True(t, hasRoutableFlag(cmd, "features"))
+	})
+
+	t.Run("user flag declared before the container", func(t *testing.T) {
+		t.Parallel()
+
+		var cli featureNoCLINameBeforeCLI
+
+		cmd, err := buildSchema(&cli, "app", spec.Options{})
+
+		assert.NoError(t, err)
+		assert.NotZero(t, cmd.FeatureFlag)
+		assert.True(t, cmd.FeatureFlag.NoCLI)
+		assert.True(t, hasRoutableFlag(cmd, "features"))
+	})
+}
+
+func TestFeaturesContainer_TaggedNameCollidesWithUserFlag(t *testing.T) {
+	t.Parallel()
+
+	var cli featureTaggedCollisionCLI
+
+	_, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.Error(t, err)
+	assert.IsError(t, err, spec.ErrDuplicateFlag)
+}
+
+func TestFeaturesContainer_PredictorReceivesFlagName(t *testing.T) {
+	t.Parallel()
+
+	capture := func(name string, values map[string][]string) *spec.PredictorSpec {
+		return &spec.PredictorSpec{Kind: spec.PredictorKindCustom, Name: name}
+	}
+
+	t.Run("explicit flag name", func(t *testing.T) {
+		t.Parallel()
+
+		var cli featureDeclCLI
+
+		cmd, err := buildSchema(&cli, "app", spec.Options{FeaturePredictor: capture})
+
+		assert.NoError(t, err)
+		assert.Equal(t, "feature-gates", cmd.FeatureFlag.Predictor.Name)
+	})
+
+	t.Run("derived flag name", func(t *testing.T) {
+		t.Parallel()
+
+		var cli featurePredictorCLI
+
+		cmd, err := buildSchema(&cli, "app", spec.Options{FeaturePredictor: capture})
+
+		assert.NoError(t, err)
+		assert.Equal(t, "gates", cmd.FeatureFlag.Predictor.Name)
+	})
+}
+
+type featureSubcommandTagCLI struct {
+	Lab mockCmd[LeafCommand] `feature:"="`
+}
+
+func TestSubcommandFeatureTag_InvalidSyntax(t *testing.T) {
+	t.Parallel()
+
+	var cli featureSubcommandTagCLI
+
+	_, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.Error(t, err)
+	assert.IsError(t, err, spec.ErrInvalidStructTag)
+	assert.Equal(t, `struct featureSubcommandTagCLI field Lab: schema error: invalid struct tag: invalid feature tag syntax "="`, err.Error())
+}
+
+func TestFeaturesContainer_UnsignedField(t *testing.T) {
+	t.Parallel()
+
+	var cli featureUnsignedCLI
+
+	cmd, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.NoError(t, err)
+
+	workers := cmd.FindFeature("workers")
+	assert.NotZero(t, workers)
+	assert.True(t, workers.IsInt)
+	assert.True(t, workers.IsUnsigned)
+	assert.Equal(t, strconv.IntSize, workers.BitSize)
+}
+
+type featureInvalidTypeSet struct {
+	Label string `help:"Label"`
+}
+
+type featureInvalidTypeCLI struct {
+	Features mockFeatures[featureInvalidTypeSet]
+}
+
+func TestFeaturesContainer_InvalidFieldType(t *testing.T) {
+	t.Parallel()
+
+	var cli featureInvalidTypeCLI
+
+	_, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.IsError(t, err, spec.ErrInvalidStructTag)
+	assert.Equal(t, "struct featureInvalidTypeCLI field Features: schema error: invalid struct tag: feature field Label must be a bool or an integer, got string", err.Error())
+}
+
+func TestFeatureTag_UnsignedComparison(t *testing.T) {
+	t.Parallel()
+
+	var cli featureUnsignedCLI
+
+	_, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.NoError(t, err)
+}
+
+func TestFeatureTag_NegativeUnsignedEnum(t *testing.T) {
+	t.Parallel()
+
+	var cli featureSchemaCLI[featureNegativeEnumSet]
+
+	_, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.Error(t, err)
+	assert.IsError(t, err, spec.ErrInvalidStructTag)
+	assert.Contains(t, err.Error(), `feature enum value "-1": must be a non-negative integer`)
+}
+
+func TestFeatureTag_OutOfWidthEnum(t *testing.T) {
+	t.Parallel()
+
+	var cli featureSchemaCLI[featureWidthSet]
+
+	_, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.Error(t, err)
+	assert.IsError(t, err, spec.ErrInvalidStructTag)
+	assert.Contains(t, err.Error(), `feature enum value "300": is out of range for the feature's integer type`)
+}
+
+func TestFeatureTag_NegativeUnsignedDefault(t *testing.T) {
+	t.Parallel()
+
+	var cli featureSchemaCLI[featureNegativeDefaultSet]
+
+	_, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.Error(t, err)
+	assert.IsError(t, err, spec.ErrInvalidStructTag)
+	assert.Contains(t, err.Error(), `feature "level" default "-1": must be a non-negative integer`)
+}
+
+func TestFeatureTag_OutOfWidthDefault(t *testing.T) {
+	t.Parallel()
+
+	var cli featureSchemaCLI[featureWidthDefaultSet]
+
+	_, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.Error(t, err)
+	assert.IsError(t, err, spec.ErrInvalidStructTag)
+	assert.Contains(t, err.Error(), `feature "level" default "300": is out of range for the feature's integer type`)
+}
+
+func TestFeatureTag_IntegerWithoutEnum(t *testing.T) {
+	t.Parallel()
+
+	var cli featureSchemaCLI[featureNoEnumSet]
+
+	_, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.Error(t, err)
+	assert.IsError(t, err, spec.ErrInvalidStructTag)
+	assert.Contains(t, err.Error(), `feature "level" is an integer feature and requires an enum tag listing its non-zero levels`)
+}
+
+func TestFeatureTag_Parsing(t *testing.T) {
+	t.Parallel()
+
+	var cli featureFlagCLI
+
+	cmd, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.NoError(t, err)
+
+	flag := cmd.FindFlag("force-all")
+	assert.NotZero(t, flag)
+	assert.Equal(t, "gentle-force", flag.Feature)
+
+	subcommand := cmd.FindSubcommand("lab")
+	assert.NotZero(t, subcommand)
+	assert.Equal(t, "experimental", subcommand.Feature)
+
+	subcommandFlag := subcommand.FindFlag("beta")
+	assert.NotZero(t, subcommandFlag)
+	assert.Equal(t, "v2", subcommandFlag.Feature)
+
+	assert.Equal(t, []string{"gentle-force", "experimental", "v2"}, cmd.FeatureNames())
+}
+
+type featureNormalizedCLI struct {
+	Features mockFeatures[featureSet]
+
+	ForceAll mockFlag[bool] `feature:"gentle-force, experimental" help:"Forces all"`
+}
+
+func TestFeatureTag_ExpressionNormalized(t *testing.T) {
+	t.Parallel()
+
+	var cli featureNormalizedCLI
+
+	cmd, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.NoError(t, err)
+
+	flag := cmd.FindFlag("force-all")
+	assert.NotZero(t, flag)
+	assert.Equal(t, "gentle-force,experimental", flag.Feature)
+}
+
+func TestFeatureTag_RequiredFlagRejection(t *testing.T) {
+	t.Parallel()
+
+	var cli featureRequiredCLI
+
+	_, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.Error(t, err)
+	assert.IsError(t, err, spec.ErrInvalidStructTag)
+}
+
+func TestFeatureTag_UndeclaredReference(t *testing.T) {
+	t.Parallel()
+
+	var cli undeclaredFeatureCLI
+
+	_, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.Error(t, err)
+	assert.IsError(t, err, spec.ErrSchema)
+	assert.Contains(t, err.Error(), `references undeclared feature "missing"`)
+}
+
+func TestFeatureTag_ValueComparisonSyntaxRejected(t *testing.T) {
+	t.Parallel()
+
+	var cli featureValueCLI
+
+	_, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.Error(t, err)
+	assert.IsError(t, err, spec.ErrInvalidStructTag)
+	assert.Contains(t, err.Error(), `invalid feature tag syntax "parallel=3"`)
+}
+
+func TestMatchFeature(t *testing.T) {
+	t.Parallel()
+
+	active := map[string]bool{
+		"gentle-force": true,
+		"preview":      true,
+		"version":      true,
+		"parallel":     true,
+		"stage":        false,
+		"disabled":     false,
+	}
+
+	t.Run("truthiness", func(t *testing.T) {
+		t.Parallel()
+
+		assert.True(t, spec.MatchFeature("gentle-force", active))
+		assert.True(t, spec.MatchFeature("preview", active))
+		assert.True(t, spec.MatchFeature("version", active))
+		assert.False(t, spec.MatchFeature("disabled", active))
+		assert.False(t, spec.MatchFeature("missing", active))
+	})
+
+	t.Run("integer levels", func(t *testing.T) {
+		t.Parallel()
+
+		// Integer features are on at any non-zero level and off at zero.
+		assert.True(t, spec.MatchFeature("parallel", active))
+		assert.False(t, spec.MatchFeature("stage", active))
+	})
+
+	t.Run("negation", func(t *testing.T) {
+		t.Parallel()
+
+		assert.True(t, spec.MatchFeature("!missing", active))
+		assert.True(t, spec.MatchFeature("!disabled", active))
+		assert.False(t, spec.MatchFeature("!preview", active))
+	})
+
+	t.Run("AND of multiple terms", func(t *testing.T) {
+		t.Parallel()
+
+		assert.True(t, spec.MatchFeature("gentle-force,preview,!disabled", active))
+		assert.False(t, spec.MatchFeature("gentle-force,missing", active))
+	})
+
+	t.Run("empty expression", func(t *testing.T) {
+		t.Parallel()
+
+		assert.True(t, spec.MatchFeature("", active))
+	})
+}
+
+func TestFeatureTag_InvalidSyntaxRejection(t *testing.T) {
+	t.Parallel()
+
+	invalidTags := []string{"=", "!", "foo=", "=bar", ",,", "foo!= ", " ! ", "foo,,bar"}
+
+	for _, invalidTag := range invalidTags {
+		t.Run(invalidTag, func(t *testing.T) {
+			t.Parallel()
+
+			err := spec.ValidateFeatureExpression(invalidTag)
+			assert.Error(t, err)
+			assert.IsError(t, err, spec.ErrInvalidStructTag)
+		})
+	}
 }

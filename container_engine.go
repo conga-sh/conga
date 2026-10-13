@@ -1,6 +1,9 @@
 package conga
 
-import "github.com/conga-sh/conga/internal/container"
+import (
+	"github.com/conga-sh/conga/internal/container"
+	"github.com/conga-sh/conga/internal/spec"
+)
 
 // flagState is the engine's state view of a flag-like container: the exported
 // query methods plus the unexported mutators backing value binding.
@@ -11,6 +14,17 @@ type flagState interface {
 	SourceDetail() string
 	getValue() any
 	setValue(value any, source ValueSource, detail string)
+}
+
+// featureState is the engine's state view of the feature-declaration container:
+// the flag state plus the feature application and restriction enforcement methods.
+type featureState interface {
+	flagState
+	featureProvided() map[string]string
+	applyFeatures(cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, state *bindingState) ([]prunedFlag, map[string]bool, error)
+	enforceCLIRestrictions(flagValues map[*spec.Flag][]string, activeFeatures map[string]bool, cmdChain []*spec.Command) error
+	enforceConfigRestrictions(pruned []prunedFlag, configData map[string]string) error
+	prepareForCompletion(cmd *spec.Command, flagValues map[*spec.Flag][]string, state *bindingState)
 }
 
 // argState is the engine's state view of a positional argument container.
@@ -63,6 +77,28 @@ func flagStateOf(handle any) flagState {
 	}
 
 	return state
+}
+
+// featureStateOf recovers the engine feature state stored on a classified field
+// handle. Callers only invoke it on handles the schema builder classified, so
+// a nil result indicates an engine bug.
+func featureStateOf(handle any) featureState {
+	state, ok := handle.(featureState)
+	if !ok {
+		return nil
+	}
+
+	return state
+}
+
+// featureStateOfCommand recovers the engine feature state stored on a command's
+// feature flag handle.
+func featureStateOfCommand(cmd *spec.Command) featureState {
+	if cmd == nil || cmd.FeatureFlag == nil {
+		return nil
+	}
+
+	return featureStateOf(cmd.FeatureFlag.Handle)
 }
 
 // argStateOf recovers the engine argument state stored on a classified field

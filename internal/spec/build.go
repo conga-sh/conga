@@ -6,6 +6,7 @@ import (
 	"maps"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/conga-sh/conga/internal/casing"
@@ -67,6 +68,10 @@ func Build(target any, defaultName string, opts Options) (*Command, error) {
 	}
 
 	if err := validateAncestorFlagUniqueness(cmd); err != nil {
+		return nil, err
+	}
+
+	if err := validateFeatureReferences(cmd); err != nil {
 		return nil, err
 	}
 
@@ -265,11 +270,30 @@ func (b *schemaBuilder) processSubcommand(structField reflect.StructField, comma
 	subcommand.Hidden = parsePresenceOrTrueTag(structField.Tag, "hidden")
 	subcommand.Aliases = aliases
 
+	if err := b.applySubcommandFeature(subcommand, structField.Tag.Get("feature")); err != nil {
+		return fmt.Errorf("struct %s field %s: %w", b.structType.Name(), structField.Name, err)
+	}
+
 	if subcommand.EnvPrefix == "" {
 		subcommand.EnvPrefix = subOpts.EnvPrefix
 	}
 
 	b.cmd.Subcommands = append(b.cmd.Subcommands, subcommand)
+
+	return nil
+}
+
+func (b *schemaBuilder) applySubcommandFeature(subcommand *Command, rawFeature string) error {
+	feature := strings.TrimSpace(rawFeature)
+	if feature == "" {
+		return nil
+	}
+
+	if err := ValidateFeatureExpression(feature); err != nil {
+		return err
+	}
+
+	subcommand.Feature = NormalizeFeatureExpression(feature)
 
 	return nil
 }
@@ -402,6 +426,15 @@ func (b *schemaBuilder) buildConfigFileFlagSpec(structField reflect.StructField,
 		aliases = slicex.SplitAndTrim(aliasTag, ",")
 	}
 
+	feature := strings.TrimSpace(structField.Tag.Get("feature"))
+	if feature != "" {
+		if err := ValidateFeatureExpression(feature); err != nil {
+			return nil, err
+		}
+
+		feature = NormalizeFeatureExpression(feature)
+	}
+
 	return &Flag{
 		Name:         flagName,
 		Short:        shortRune,
@@ -414,6 +447,7 @@ func (b *schemaBuilder) buildConfigFileFlagSpec(structField reflect.StructField,
 		Group:        structField.Tag.Get("group"),
 		Hidden:       parsePresenceOrTrueTag(structField.Tag, "hidden"),
 		Deprecated:   structField.Tag.Get("deprecated"),
+		Feature:      feature,
 		FieldTags:    fieldTags,
 		TargetType:   targetType,
 		Handle:       configHandle,
@@ -589,6 +623,205 @@ func (b *schemaBuilder) processConfigFileField(structField reflect.StructField, 
 	return b.processConfigFile(structField, configHandle, fieldTags)
 }
 
+// processFeaturesField validates and reflects the root feature-declaration
+// container (conga.Features[T]) into per-feature metadata and synthesizes the
+// single map flag that carries feature values from the command line,
+// environment, and configuration files.
+func (b *schemaBuilder) processFeaturesField(structField reflect.StructField, fieldHandle any, classification container.Classification) error {
+	if !b.isRoot {
+		return FeaturesMustBeOnRootError()
+	}
+
+	if b.cmd.FeatureFlag != nil {
+		return fmt.Errorf("%w: Features (already declared by %s)", ErrDuplicateFlag, b.cmd.FeatureFlag.Name)
+	}
+
+	dirs, err := b.validateFieldTags(structField, "features", featuresFieldTagCandidates)
+	if err != nil {
+		return err
+	}
+
+	if dirs.Ignore {
+		return nil
+	}
+
+	innerType, err := featureStructType(classification.Target)
+	if err != nil {
+		return err
+	}
+
+	fields, err := b.buildFeatureFields(innerType)
+	if err != nil {
+		return err
+	}
+
+	b.cmd.FeatureFields = fields
+
+	return b.installFeatureFlag(structField, fieldHandle, fields)
+}
+
+// buildFeatureFields reflects the exported bool/int fields of the feature
+// struct into feature metadata, deriving the feature key set from the field
+// names.
+func (b *schemaBuilder) buildFeatureFields(innerType reflect.Type) ([]*FeatureField, error) {
+	seen := make(map[string]bool)
+
+	var fields []*FeatureField
+
+	for index := range innerType.NumField() {
+		fieldSpec := innerType.Field(index)
+		if !fieldSpec.IsExported() {
+			continue
+		}
+
+		dirs, err := ParseCongaDirectives(fieldSpec.Tag.Get("conga"))
+		if err == nil && dirs.Ignore {
+			continue
+		}
+
+		field, err := b.buildSingleFeatureField(fieldSpec, innerType.Name(), index, seen)
+		if err != nil {
+			return nil, err
+		}
+
+		fields = append(fields, field)
+	}
+
+	return fields, nil
+}
+
+func (b *schemaBuilder) buildSingleFeatureField(fieldSpec reflect.StructField, typeName string, index int, seen map[string]bool) (*FeatureField, error) {
+	if _, err := b.validateFieldTags(fieldSpec, "feature", featureFieldTagCandidates); err != nil {
+		return nil, err
+	}
+
+	var (
+		isInt      bool
+		isUnsigned bool
+	)
+
+	switch fieldSpec.Type.Kind() {
+	case reflect.Bool:
+		isInt = false
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		isInt = true
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+		isInt = true
+		isUnsigned = true
+	default:
+		return nil, FeatureFieldTypeError(fieldSpec.Name, fieldSpec.Type.String())
+	}
+
+	rawName := cmp.Or(strings.TrimSpace(fieldSpec.Tag.Get("name")), fieldSpec.Name)
+	name := casing.Kebab(rawName)
+
+	if name == "" {
+		return nil, fmt.Errorf("%w: feature field %s declares an empty name", ErrInvalidStructTag, fieldSpec.Name)
+	}
+
+	if seen[name] {
+		return nil, fmt.Errorf("%w: feature %q (already declared in %s)", ErrDuplicateFlag, name, typeName)
+	}
+
+	seen[name] = true
+
+	field := &FeatureField{
+		Name:       name,
+		Help:       strings.TrimSpace(fieldSpec.Tag.Get("help")),
+		IsInt:      isInt,
+		IsUnsigned: isUnsigned,
+		FieldIndex: index,
+	}
+
+	if isInt {
+		field.BitSize = fieldSpec.Type.Bits()
+	}
+
+	if err := parseFeatureEnumAndDefault(field, fieldSpec); err != nil {
+		return nil, err
+	}
+
+	return field, nil
+}
+
+// installFeatureFlag synthesizes the single map flag that carries feature
+// values across the command line, environment, and configuration surfaces, and
+// stores it on the root command for feature resolution.
+func (b *schemaBuilder) installFeatureFlag(structField reflect.StructField, fieldHandle any, fields []*FeatureField) error {
+	name := strings.TrimSpace(structField.Tag.Get("flag"))
+	noCLI := name == "" || name == "-"
+
+	if noCLI {
+		name = casing.Kebab(structField.Name)
+		if name == "" {
+			name = "features"
+		}
+	}
+
+	sep, found := structField.Tag.Lookup("sep")
+	if !found {
+		sep = ","
+	}
+
+	envVars, envExcluded := parseFlagEnvVars(structField.Tag, name, structField.Tag.Get("envprefix"))
+
+	configKey := strings.TrimSpace(structField.Tag.Get("config"))
+	if configKey == "" {
+		configKey = "-"
+	}
+
+	helpText := strings.TrimSpace(structField.Tag.Get("help"))
+	if helpText == "" {
+		helpText = featureFlagDefaultHelp(fields)
+	}
+
+	enumKeys := make([]string, 0, len(fields))
+	for _, field := range fields {
+		enumKeys = append(enumKeys, field.Name)
+	}
+
+	flagSpec := &Flag{
+		Name:        name,
+		Help:        helpText,
+		Sep:         sep,
+		IsMap:       true,
+		EngineOwned: true,
+		ConfigKey:   configKey,
+		EnvVars:     envVars,
+		EnvExcluded: envExcluded,
+		NoCLI:       noCLI,
+		Hidden:      noCLI,
+		Safe:        true,
+		TargetType:  reflect.TypeFor[map[string]string](),
+		// Enum is metadata only on the synthesized map flag: it seeds the help
+		// hint and completion candidates. Map flags validate their items, not
+		// the flag value, so this list never gates the map flag's binding; the
+		// per-feature domains are enforced by FeatureField.Canonicalize.
+		Enum:   enumKeys,
+		Handle: fieldHandle,
+	}
+
+	if b.opts.FeaturePredictor != nil {
+		flagSpec.Predictor = b.opts.FeaturePredictor(name, featureValueDomains(fields))
+	}
+
+	// A NoCLI synthesized flag is engine-owned and never CLI-routable, so it
+	// must not reserve its derived name against a user CLI flag that happens to
+	// share it. A second Features field is still rejected by the FeatureFlag
+	// duplicate-container guard in processFeaturesField. CLI-exposed
+	// synthesized flags (flag:"name") keep full collision tracking.
+	if !noCLI {
+		if err := b.flagTracker.CheckAndAdd(flagSpec, structField.Name); err != nil {
+			return err
+		}
+	}
+
+	b.cmd.Flags = append(b.cmd.Flags, flagSpec)
+	b.cmd.FeatureFlag = flagSpec
+
+	return nil
+}
+
 func (b *schemaBuilder) processField(structField reflect.StructField, fieldValue reflect.Value) error {
 	if !structField.IsExported() {
 		return b.processUnexportedField(structField)
@@ -608,6 +841,8 @@ func (b *schemaBuilder) processField(structField reflect.StructField, fieldValue
 		return b.fieldContextError(structField, b.processBuiltinCommand(structField, classification))
 	case container.KindConfigFile:
 		return b.fieldContextError(structField, b.processConfigFileField(structField, fieldAddr))
+	case container.KindFeatures:
+		return b.fieldContextError(structField, b.processFeaturesField(structField, fieldAddr, classification))
 	case container.KindDashArgs:
 		return b.processDashArgsField(structField, fieldAddr)
 	case container.KindRawArgs:
@@ -801,6 +1036,92 @@ func (t *flagCollisionTracker) CheckAndAdd(flagSpec *Flag, fieldName string) err
 	return nil
 }
 
+func parseFeatureEnumAndDefault(field *FeatureField, fieldSpec reflect.StructField) error {
+	if enumTag, hasEnum := fieldSpec.Tag.Lookup("enum"); hasEnum {
+		if !field.IsInt {
+			return fmt.Errorf("%w: tag \"enum\" is only valid on integer features", ErrInvalidStructTag)
+		}
+
+		parts := slicex.SplitAndTrim(enumTag, ",")
+		if len(parts) == 0 {
+			return fmt.Errorf("%w: tag \"enum\" cannot be empty", ErrInvalidStructTag)
+		}
+
+		for _, part := range parts {
+			canonical, err := field.parseInteger(part)
+			if err != nil {
+				return fmt.Errorf("%w: feature enum value %q: %w", ErrInvalidStructTag, part, err)
+			}
+
+			if !slices.Contains(field.Enum, canonical) {
+				field.Enum = append(field.Enum, canonical)
+			}
+		}
+	}
+
+	if defaultTag, hasDefault := fieldSpec.Tag.Lookup("default"); hasDefault {
+		canonical, err := field.Canonicalize(strings.TrimSpace(defaultTag))
+		if err != nil {
+			return fmt.Errorf("%w: feature %q default %q: %w", ErrInvalidStructTag, field.Name, defaultTag, err)
+		}
+
+		field.Default = canonical
+	}
+
+	if field.IsInt && len(field.Enum) == 0 {
+		return fmt.Errorf("%w: feature %q is an integer feature and requires an enum tag listing its non-zero levels", ErrInvalidStructTag, field.Name)
+	}
+
+	return nil
+}
+
+// featureValueDomains maps each declared feature to its completion value
+// domain: true/false for bools and every permitted level for integers.
+func featureValueDomains(fields []*FeatureField) map[string][]string {
+	domains := make(map[string][]string, len(fields))
+
+	for _, field := range fields {
+		if field.IsInt {
+			domains[field.Name] = slices.Concat([]string{"0"}, field.Enum)
+
+			continue
+		}
+
+		domains[field.Name] = []string{"true", "false"}
+	}
+
+	return domains
+}
+
+func featureStructType(target any) (reflect.Type, error) {
+	innerValue := reflect.ValueOf(target)
+	if !innerValue.IsValid() || innerValue.Kind() != reflect.Pointer || innerValue.Elem().Kind() != reflect.Struct {
+		return nil, FeaturesMustBeStructParameterError()
+	}
+
+	return innerValue.Elem().Type(), nil
+}
+
+func featureFlagDefaultHelp(fields []*FeatureField) string {
+	if len(fields) == 0 {
+		return "Enable or disable features (name=value)"
+	}
+
+	parts := make([]string, 0, len(fields))
+
+	for _, field := range fields {
+		if field.IsInt {
+			parts = append(parts, field.Name+"=0|"+strings.Join(field.Enum, "|"))
+
+			continue
+		}
+
+		parts = append(parts, field.Name+"=true|false")
+	}
+
+	return "Enable or disable features (" + strings.Join(parts, ", ") + ")"
+}
+
 // validateConfigSettings enforces the app-level configuration settings against
 // the built schema: cascading merge mode loads multiple configuration files,
 // so a declared root config-file flag must accept multiple values
@@ -812,6 +1133,77 @@ func validateConfigSettings(root *Command) error {
 	}
 
 	return CascadingRequiresMultiError(root.ConfigFileFlag.Name)
+}
+
+// validateFeatureReferences rejects feature expressions that reference a feature
+// not declared through the root conga.Features container, or compare a feature
+// against a value outside its declared domain.
+func validateFeatureReferences(root *Command) error {
+	if len(root.FeatureFields) == 0 && !hasFeatureGating(root) {
+		return nil
+	}
+
+	declared := make(map[string]*FeatureField, len(root.FeatureFields))
+	for _, feature := range root.FeatureFields {
+		declared[feature.Name] = feature
+	}
+
+	return validateFeatureReferencesInCommand(root, declared)
+}
+
+func hasFeatureGating(cmd *Command) bool {
+	if cmd.Feature != "" {
+		return true
+	}
+
+	for _, flagSpec := range cmd.Flags {
+		if flagSpec.Feature != "" {
+			return true
+		}
+	}
+
+	return slices.ContainsFunc(cmd.Subcommands, hasFeatureGating)
+}
+
+func validateFeatureReferencesInCommand(cmd *Command, declared map[string]*FeatureField) error {
+	if cmd.Feature != "" {
+		if err := validateFeatureExpressionReferences("command "+strconv.Quote(cmd.Name), cmd.Feature, declared); err != nil {
+			return err
+		}
+	}
+
+	for _, flagSpec := range cmd.Flags {
+		if flagSpec.Feature == "" {
+			continue
+		}
+
+		if err := validateFeatureExpressionReferences("flag "+strconv.Quote("--"+flagSpec.Name), flagSpec.Feature, declared); err != nil {
+			return err
+		}
+	}
+
+	for _, subcommand := range cmd.Subcommands {
+		if err := validateFeatureReferencesInCommand(subcommand, declared); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func validateFeatureExpressionReferences(owner, featureExpr string, declared map[string]*FeatureField) error {
+	for rawPart := range strings.SplitSeq(featureExpr, ",") {
+		term, ok := parseFeatureTerm(rawPart)
+		if !ok {
+			continue
+		}
+
+		if _, exists := declared[term.name]; !exists {
+			return fmt.Errorf("%w: %s references undeclared feature %q; declare it in the root conga.Features container", ErrSchema, owner, term.name)
+		}
+	}
+
+	return nil
 }
 
 // validateMapConstraints rejects map-typed flag/arg fields whose key type is

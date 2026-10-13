@@ -43,21 +43,17 @@ func (a *App[T]) buildWhyReport(cmdChain []*spec.Command, cliValues map[*spec.Fl
 	}
 
 	// Tolerant config loading: resolution and read failures surface as a
-	// diagnostic row on the config-file container instead of aborting.
-	a.configData = make(map[string]string)
+	// diagnostic row on the config-file container instead of aborting. The
+	// resolution is memoized on the App, so a feature-capable run that already
+	// resolved configuration for gating does not probe and decode a second time.
+	resolution := a.resolveConfig(cmdChain[0], cmdChain, cliValues)
 
-	explicitPaths, explicitErr := a.extractExplicitConfigTargets(cmdChain[0], cmdChain, cliValues)
-	if explicitErr != nil {
-		explicitPaths = nil
-	}
-
-	loadedPaths, loadedSource, loadErr := a.resolveAndLoadConfig(cmdChain[0], explicitPaths)
-	if loadErr == nil {
-		loadErr = explicitErr
-	}
+	loadedPaths := resolution.loadedPaths
+	loadedSource := resolution.loadedSource
+	loadErr := resolution.err
 
 	resolver := a.configurationView(cmdChain[0])
-	candidatePaths := resolver.CandidatePaths(explicitPaths, cmdChain[0])
+	candidatePaths := resolution.candidates
 
 	state := &bindingState{
 		EnvPrefix:   a.envPrefix,
@@ -99,6 +95,7 @@ func (a *App[T]) buildWhyReport(cmdChain []*spec.Command, cliValues map[*spec.Fl
 	}
 
 	report.Redacted = whyReportRedacted(report)
+	report.Features = whyFeatureRows(cmdChain[0])
 	extensions := a.configRegistry.Extensions()
 	report.ConfigDecoders = extensions
 	report.ConfigPaths = whyConfigPaths(resolver, candidatePaths, loadedPaths, loadErr, extensions)
@@ -198,6 +195,43 @@ func (a *App[T]) whyCoercedRow(cmdChain []*spec.Command, flagSpec *spec.Flag, ra
 	row.Value = cond.If(redact, why.Redacted, whyDisplayValue(flagSpec, value))
 
 	return row
+}
+
+// whyFeatureRows renders one provenance row per declared feature. Every key
+// shares the feature map flag's winning source tier; keys that source did not
+// set fall back to their field default (or unset).
+func whyFeatureRows(root *spec.Command) []why.FeatureRow {
+	if root == nil || root.FeatureFlag == nil {
+		return nil
+	}
+
+	featureBinding := featureStateOf(root.FeatureFlag.Handle)
+	provided := featureBinding.featureProvided()
+
+	_, values, accepted := lenientFeatureValues(root, provided)
+
+	flagSource := whySourceWord(featureBinding.Source())
+
+	rows := make([]why.FeatureRow, 0, len(root.FeatureFields))
+
+	for _, feature := range root.FeatureFields {
+		source := whySourceWord(SourceNone)
+
+		switch {
+		case accepted[feature.Name] != "":
+			source = flagSource
+		case feature.Default != "":
+			source = whySourceWord(SourceDefault)
+		}
+
+		rows = append(rows, why.FeatureRow{
+			Name:   feature.Name,
+			Value:  values[feature.Name],
+			Source: source,
+		})
+	}
+
+	return rows
 }
 
 // whyConfigPaths annotates every candidate configuration path probed during

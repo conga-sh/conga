@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -89,10 +90,24 @@ func (w *walker) checkSubcommandField(node *commandNode, fieldObject types.Objec
 	}
 
 	w.reportFieldError(node, fieldObject, summaryTagError(tag))
+	w.checkFeatureExpression(node, fieldObject, tag)
 
 	childAllowUnknown, childAllowRecurse := threadDirectiveOptions(node, parseNodeDirectives(tag))
 
 	return w.buildChildNode(node, fieldObject, tag, childAllowUnknown, childAllowRecurse)
+}
+
+// checkFeatureExpression mirrors the runtime feature-tag syntax check: a
+// declared feature expression must parse. The runtime schema builder validates
+// subcommand, flag, and config-file flag feature tags through the same shared
+// validator, so the analyzer reports the identical diagnostic.
+func (w *walker) checkFeatureExpression(node *commandNode, fieldObject types.Object, tag reflect.StructTag) {
+	featureExpr := strings.TrimSpace(tag.Get("feature"))
+	if featureExpr == "" {
+		return
+	}
+
+	w.reportFieldError(node, fieldObject, spec.ValidateFeatureExpression(featureExpr))
 }
 
 // checkBuiltinCommandField validates a built-in help/version/completion
@@ -136,6 +151,8 @@ func (w *walker) checkConfigFileField(node *commandNode, fieldObject types.Objec
 
 	w.reportFieldError(node, fieldObject, spec.ValidateConfigFileConfigTag(tag))
 
+	w.checkFeatureExpression(node, fieldObject, tag)
+
 	fieldTags, err := spec.ParseFieldTags(tag, tagSpecs)
 	w.reportFieldError(node, fieldObject, err)
 
@@ -143,6 +160,46 @@ func (w *walker) checkConfigFileField(node *commandNode, fieldObject types.Objec
 	w.trackRootConfigFileArity(node, fieldObject, fieldTags, flagName)
 
 	w.checkAndCollectFlag(node, fieldObject, tag, flagName, branchNames, branchShorts)
+}
+
+// checkFeaturesField validates a root feature-declaration field
+// (conga.Features[T]): the container tag vocabulary and, for every exported
+// inner field, the per-feature tag vocabulary. Feature-name reference validation
+// is left to schema build, which has the fully reflected declaration set.
+func (w *walker) checkFeaturesField(node *commandNode, fieldObject types.Object, tag reflect.StructTag) {
+	if !node.isRoot {
+		w.reportFieldError(node, fieldObject, spec.FeaturesMustBeOnRootError())
+
+		return
+	}
+
+	if !w.validateNodeFieldTags(node, fieldObject, tag, "features", nil) {
+		return
+	}
+
+	innerType := w.containerInnerType(fieldObject.Type())
+
+	structType, ok := innerType.Underlying().(*types.Struct)
+	if !ok {
+		w.reportFieldError(node, fieldObject, spec.FeaturesMustBeStructParameterError())
+
+		return
+	}
+
+	for index := range structType.NumFields() {
+		innerField := structType.Field(index)
+		if !innerField.Exported() {
+			continue
+		}
+
+		if !w.validateNodeFieldTags(node, innerField, reflect.StructTag(structType.Tag(index)), "feature", nil) {
+			continue
+		}
+
+		if !isFeatureScalarType(innerField.Type()) {
+			w.reportFieldError(node, innerField, spec.FeatureFieldTypeError(innerField.Name(), innerField.Type().String()))
+		}
+	}
 }
 
 // trackRootConfigFileArity records the root command's config-file flag arity
@@ -203,6 +260,12 @@ func (w *walker) checkFlagField(node *commandNode, fieldObject types.Object, tag
 		w.reportFieldError(node, fieldObject, spec.ValidateCounterDefaultTag(tag))
 	}
 
+	if strings.TrimSpace(tag.Get("feature")) != "" && w.congaWrapperName(fieldObject.Type()) == "RequiredFlag" {
+		w.reportFieldError(node, fieldObject, spec.FeatureOnRequiredFlagError())
+	}
+
+	w.checkFeatureExpression(node, fieldObject, tag)
+
 	w.reportFieldError(node, fieldObject, spec.ValidatePredictorTag(tag, isBasicKind(targetType, types.Bool), w.predictorOptions(), w.options.registeredNames))
 	w.checkValidationSpecs(node, fieldObject, tag, targetType, tagSpecs)
 
@@ -245,8 +308,8 @@ func (w *walker) checkValidationSpecs(node *commandNode, fieldObject types.Objec
 			// The caller reports ParseFieldTags errors separately; bound
 			// validation only needs the parsed tags, so a tag error skips it
 			// rather than duplicating the diagnostic.
-			fieldTags, tagErr := spec.ParseFieldTags(tag, tagSpecs)
-			if tagErr == nil {
+			fieldTags, err := spec.ParseFieldTags(tag, tagSpecs)
+			if err == nil {
 				w.reportFieldError(node, fieldObject, w.validateRangeBounds(rangeSpec, targetType, fieldTags))
 			}
 		}
@@ -356,6 +419,25 @@ func (w *walker) predictorOptions() spec.ValidationOptions {
 	}
 
 	return options
+}
+
+// isFeatureScalarType mirrors the runtime feature-field kind check: a feature
+// field must have a bool or an integer underlying kind. Uintptr is excluded to
+// match the runtime switch, which accepts only Uint..Uint64.
+func isFeatureScalarType(targetType types.Type) bool {
+	basic, ok := targetType.Underlying().(*types.Basic)
+	if !ok {
+		return false
+	}
+
+	switch basic.Kind() {
+	case types.Bool,
+		types.Int, types.Int8, types.Int16, types.Int32, types.Int64,
+		types.Uint, types.Uint8, types.Uint16, types.Uint32, types.Uint64:
+		return true
+	default:
+		return false
+	}
 }
 
 func isBasicKind(targetType types.Type, kind types.BasicKind) bool {

@@ -30,6 +30,9 @@ const (
 	headerConfigPath = "CONFIG PATH"
 )
 
+// rowIndent is the leading indentation shared by every rendered table row.
+const rowIndent = 2
+
 // Row is one neutral report line for a single flag or config-file container.
 type Row struct {
 	// Label is the flag display label (e.g. "--port").
@@ -53,6 +56,17 @@ type Row struct {
 	Hidden bool
 }
 
+// FeatureRow is one feature-toggle line in the report.
+type FeatureRow struct {
+	// Name is the normalized kebab-case feature name.
+	Name string
+	// Value is the canonical resolved value ("true"/"false" or a decimal level).
+	Value string
+	// Source is the bare source-tier word ("cli", "env", "config", "default",
+	// "unset").
+	Source string
+}
+
 // Report is the complete --why report: the invocation's command path, the
 // rows for the active command's flags, the rows for inherited ancestor flags,
 // the candidate configuration paths probed during resolution, the registered
@@ -63,6 +77,9 @@ type Report struct {
 	CommandPath string
 	Rows        []Row
 	GlobalRows  []Row
+	// Features lists the declared feature toggles of the root command with
+	// their resolved value and source tier.
+	Features    []FeatureRow
 	ConfigPaths []ConfigPath
 	// ConfigDecoders lists the registered configuration decoder extensions
 	// (e.g. ".json", ".toml") that drove the configuration file probes;
@@ -95,6 +112,11 @@ func (r Report) Format() string {
 	if len(r.GlobalRows) > 0 {
 		builder.WriteString("\nGlobal Flags:\n")
 		builder.WriteString(renderRows(r.GlobalRows))
+	}
+
+	if len(r.Features) > 0 {
+		builder.WriteString("\nFeatures:\n")
+		builder.WriteString(renderFeatureRows(r.Features))
 	}
 
 	if len(r.ConfigPaths) > 0 {
@@ -147,31 +169,21 @@ type ConfigPath struct {
 // "error: ..." diagnostic and stop there, so long messages never push the
 // later columns out of alignment for the remaining rows.
 func renderRows(rows []Row) string {
-	const (
-		rowIndent = 2
-		columnGap = 3
-	)
+	header := []string{headerLabel, headerValue, headerSource, headerEnv, headerConfigPath}
 
-	var (
-		labelWidth      = utf8.RuneCountInString(headerLabel)
-		valueWidth      = utf8.RuneCountInString(headerValue)
-		sourceWidth     = utf8.RuneCountInString(headerSource)
-		envWidth        = utf8.RuneCountInString(headerEnv)
-		configPathWidth = utf8.RuneCountInString(headerConfigPath)
-	)
+	grid := make([][]string, 0, len(rows)+1)
+	grid = append(grid, header)
 
 	for _, row := range rows {
-		label := rowLabel(row)
-
-		labelWidth = max(labelWidth, utf8.RuneCountInString(label))
-		valueWidth = max(valueWidth, utf8.RuneCountInString(row.Value))
-		envWidth = max(envWidth, utf8.RuneCountInString(row.Env))
-		configPathWidth = max(configPathWidth, utf8.RuneCountInString(row.ConfigPath))
-
-		if row.Error == "" {
-			sourceWidth = max(sourceWidth, utf8.RuneCountInString(row.Source))
+		source := row.Source
+		if row.Error != "" {
+			source = ""
 		}
+
+		grid = append(grid, []string{rowLabel(row), row.Value, source, row.Env, row.ConfigPath})
 	}
+
+	widths := measureColumnWidths(grid)
 
 	var builder strings.Builder
 
@@ -179,20 +191,14 @@ func renderRows(rows []Row) string {
 		builder.WriteString("\n")
 	}
 
-	builder.WriteString(strings.Repeat(" ", rowIndent))
-	writeCell(&builder, headerLabel, labelWidth)
-	writeCell(&builder, headerValue, valueWidth)
-	writeCell(&builder, headerSource, sourceWidth)
-	writeCell(&builder, headerEnv, envWidth)
-	builder.WriteString(headerConfigPath)
-	builder.WriteString("\n")
+	writeGridHeader(&builder, header, widths)
 
-	for _, row := range rows {
-		builder.WriteString(strings.Repeat(" ", rowIndent))
-		writeCell(&builder, rowLabel(row), labelWidth)
-		writeCell(&builder, row.Value, valueWidth)
+	for index, row := range rows {
+		cells := grid[index+1]
 
 		if row.Error != "" {
+			builder.WriteString(strings.Repeat(" ", rowIndent))
+			writeTableCells(&builder, cells[:2], widths)
 			builder.WriteString("error: ")
 			builder.WriteString(row.Error)
 			builder.WriteString("\n")
@@ -200,13 +206,54 @@ func renderRows(rows []Row) string {
 			continue
 		}
 
-		writeCell(&builder, row.Source, sourceWidth)
-		writeCell(&builder, row.Env, envWidth)
-		builder.WriteString(row.ConfigPath)
-		builder.WriteString("\n")
+		writeGridRow(&builder, cells, widths)
 	}
 
 	return builder.String()
+}
+
+// renderFeatureRows lays out the aligned feature-name · value · source table
+// beneath a header row.
+func renderFeatureRows(rows []FeatureRow) string {
+	header := []string{"FEATURE", headerValue, headerSource}
+
+	grid := make([][]string, 0, len(rows)+1)
+	grid = append(grid, header)
+
+	for _, row := range rows {
+		grid = append(grid, []string{row.Name, row.Value, row.Source})
+	}
+
+	widths := measureColumnWidths(grid)
+
+	var builder strings.Builder
+
+	writeGridHeader(&builder, header, widths)
+
+	for index := range rows {
+		writeGridRow(&builder, grid[index+1], widths)
+	}
+
+	return builder.String()
+}
+
+// writeGridHeader writes the indented header row: every column but the last is
+// padded to its measured width and gap-separated, and the final header cell is
+// written flush.
+func writeGridHeader(builder *strings.Builder, header []string, widths []int) {
+	builder.WriteString(strings.Repeat(" ", rowIndent))
+	writeTableCells(builder, header[:len(header)-1], widths)
+	builder.WriteString(header[len(header)-1])
+	builder.WriteString("\n")
+}
+
+// writeGridRow writes one indented data row: every cell but the last is padded
+// to its measured width and gap-separated, and the final cell is written flush.
+func writeGridRow(builder *strings.Builder, cells []string, widths []int) {
+	builder.WriteString(strings.Repeat(" ", rowIndent))
+	writeTableCells(builder, cells[:len(cells)-1], widths)
+	builder.WriteString(cells[len(cells)-1])
+	builder.WriteString("\n")
 }
 
 // renderConfigPaths lays out the aligned candidate-path · status list beneath
@@ -270,10 +317,33 @@ func rowLabel(row Row) string {
 	return row.Label
 }
 
-// writeCell writes a space-padded table cell followed by the column gap.
-func writeCell(builder *strings.Builder, cell string, width int) {
-	builder.WriteString(pad(cell, width))
-	builder.WriteString(strings.Repeat(" ", 3))
+// measureColumnWidths measures the display width of every table column across
+// the provided rows. Rows shorter than the widest row contribute no width for
+// the columns they omit.
+func measureColumnWidths(rows [][]string) []int {
+	var widths []int
+
+	for _, cells := range rows {
+		for column, cell := range cells {
+			if column == len(widths) {
+				widths = append(widths, 0)
+			}
+
+			widths[column] = max(widths[column], utf8.RuneCountInString(cell))
+		}
+	}
+
+	return widths
+}
+
+// writeTableCells writes each cell space-padded to its measured width and
+// followed by the column gap. Callers write the final table column themselves,
+// so trailing values never carry padding.
+func writeTableCells(builder *strings.Builder, cells []string, widths []int) {
+	for column, cell := range cells {
+		builder.WriteString(pad(cell, widths[column]))
+		builder.WriteString(strings.Repeat(" ", 3))
+	}
 }
 
 func pad(cell string, width int) string {

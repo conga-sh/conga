@@ -762,6 +762,61 @@ func (c *CompletionCommand) Run(ctx context.Context, session *Session) error {
 	return generateCompletionScript(parsedShell, session.cmdChain[0], session.Stdout())
 }
 
+// Features declares the application's feature toggles through the fields of T.
+//
+// Each exported field of T declares one feature: the field name, converted to
+// kebab-case (or overridden with the name tag), is the feature name. A bool
+// field is an on/off toggle; an integer field is a leveled toggle where 0 means
+// off and any other value must be listed in the enum tag.
+//
+//	type Experiments struct {
+//		GentleForce bool `default:"true" help:"Force all dependents"`
+//		Parallelism int  `enum:"1,2"     help:"Concurrent workers"`
+//	}
+//
+//	type CLI struct {
+//		Features conga.Features[Experiments] `flag:"feature-gates" env:"APP_FEATURES" config:"experiments"`
+//	}
+//
+// Declare the Features field on the root command struct only. Every feature is
+// carried by a single key=value map surface: the map flag named by the flag tag
+// (omitted when the tag is absent), the environment variable named by env or
+// derived from envprefix, and the configuration section named by config. The
+// field defaults form the base set; whichever of those sources is present
+// overlays only the keys it lists (Kubernetes-style sparse overrides). Read the
+// resolved values through [Features.Get]:
+//
+//	if cli.Features.Get().GentleForce { ... }
+//
+// Flags and subcommands gated by the feature tag are pruned from help, why, and
+// completion when their feature is inactive, and invoking them is a usage error.
+type Features[T any] struct {
+	value        T
+	set          bool
+	changed      bool
+	source       ValueSource
+	sourceDetail string
+	provided     map[string]string
+}
+
+// Get returns a pointer to the inner feature struct with every resolved value bound.
+func (f *Features[T]) Get() *T {
+	return &f.value
+}
+
+// IsSet reports whether any feature source contributed a value.
+func (f *Features[T]) IsSet() bool { return f.set }
+
+// Changed reports whether a feature value came from the command line, the
+// environment, or a configuration file rather than exclusively from defaults.
+func (f *Features[T]) Changed() bool { return f.changed }
+
+// Source reports the configuration tier the feature map was resolved from.
+func (f *Features[T]) Source() ValueSource { return f.source }
+
+// SourceDetail returns the concrete origin recorded with [Features.Source].
+func (f *Features[T]) SourceDetail() string { return f.sourceDetail }
+
 // ConfigFile represents a root-level flag for loading configuration files.
 //
 // By default the flag holds a single file path (last provided value wins).
@@ -1090,6 +1145,120 @@ func (v *VersionCommand) containerKind() container.Classification {
 // containerKind classifies the opt-in completion subcommand for the engine.
 func (c *CompletionCommand) containerKind() container.Classification {
 	return container.Classification{Kind: container.KindCompletionCommand, Target: c}
+}
+
+// containerKind classifies the feature-declaration container for the engine,
+// carrying the inner feature struct pointer so the schema builder can reflect
+// over its fields.
+func (f *Features[T]) containerKind() container.Classification {
+	return container.Classification{Kind: container.KindFeatures, Target: &f.value}
+}
+
+// getValue returns the raw feature map resolved by the engine cascade (nil when
+// no source supplied a value); the engine uses it for key validation.
+func (f *Features[T]) getValue() any { return f.provided }
+
+// setValue stores the raw feature map resolved by the engine cascade and records
+// its source. The owning App later materializes the typed feature struct by
+// overlaying the stored map onto the field defaults.
+func (f *Features[T]) setValue(value any, source ValueSource, detail string) {
+	provided, ok := value.(map[string]string)
+	if !ok {
+		panic(fmt.Sprintf("conga: invariant violation: expected map[string]string in Features.setValue, got %T", value))
+	}
+
+	f.provided = provided
+	f.set = true
+	f.changed = source != SourceDefault
+	f.source = source
+	f.sourceDetail = detail
+}
+
+// featureProvided returns the raw feature map supplied by the winning source
+// tier, or nil when no source supplied a value.
+func (f *Features[T]) featureProvided() map[string]string { return f.provided }
+
+// bindFeatures binds the synthesized feature map flag, validates its keys and
+// values, overlays the result on the declared field defaults, and materializes
+// the typed feature struct. It returns the boolean gate map used for gating and
+// the integer level map consumed by typed materialization.
+func (f *Features[T]) bindFeatures(cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, state *bindingState) (map[string]bool, map[string]string, error) {
+	if cmd.FeatureFlag == nil {
+		return map[string]bool{}, map[string]string{}, nil
+	}
+
+	if err := applyFlagValue(cmd, cmdChain, cmd.FeatureFlag, flagValues, state); err != nil {
+		return nil, nil, err
+	}
+
+	gates, values, err := buildFeatureValues(cmd, cmdChain, f.provided, f.source)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	materializeFeatureValues(&f.value, cmd.FeatureFields, values)
+
+	return gates, values, nil
+}
+
+// applyFeatures binds the synthesized feature map flag, materializes the typed
+// feature struct, enforces subcommand gates, and prunes inactive flags and
+// subcommands, returning the active gate map alongside the pruned flags. Builtin
+// requests tolerate resolution errors: on failure the canonical defaults plus
+// every valid provided key are used so --help/--version/--why/--completion still
+// render.
+func (f *Features[T]) applyFeatures(cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, state *bindingState) ([]prunedFlag, map[string]bool, error) {
+	gates, _, err := f.bindFeatures(cmd, cmdChain, flagValues, state)
+	if err != nil {
+		if !state.TolerateFeatureErrors {
+			return nil, nil, err
+		}
+
+		var values map[string]string
+
+		gates, values, _ = lenientFeatureValues(cmd, f.provided)
+		materializeFeatureValues(&f.value, cmd.FeatureFields, values)
+	}
+
+	if err := validateSubcommandFeatures(cmdChain, gates); err != nil {
+		return nil, nil, err
+	}
+
+	return pruneInactiveFeatures(cmd, "", gates), gates, nil
+}
+
+// prepareForCompletion binds the feature map flag for a completion invocation
+// and prunes inactive features so suggestions never leak gated commands or
+// flags. Tolerant mode (set for completion) falls back to the canonical defaults
+// plus the valid provided keys when binding fails, so a partial or malformed
+// --feature-gates token still prunes rather than aborting. In that fallback the
+// whole malformed map item is lost (coerce.Map rejects the pair list as a unit),
+// so pruning reflects defaults and configuration; that is the conservative
+// direction — inactive entries stay hidden.
+func (f *Features[T]) prepareForCompletion(cmd *spec.Command, flagValues map[*spec.Flag][]string, state *bindingState) {
+	gates, values, err := f.bindFeatures(cmd, []*spec.Command{cmd}, flagValues, state)
+	if err != nil {
+		if !state.TolerateFeatureErrors {
+			return
+		}
+
+		gates, values, _ = lenientFeatureValues(cmd, f.provided)
+	}
+
+	materializeFeatureValues(&f.value, cmd.FeatureFields, values)
+	pruneInactiveFeatures(cmd, "", gates)
+}
+
+// enforceCLIRestrictions rejects command-line invocations of gated flags whose
+// feature expression is inactive.
+func (f *Features[T]) enforceCLIRestrictions(flagValues map[*spec.Flag][]string, activeFeatures map[string]bool, cmdChain []*spec.Command) error {
+	return checkFeatureFlagCLIRestrictions(flagValues, activeFeatures, cmdChain)
+}
+
+// enforceConfigRestrictions rejects configuration entries targeting pruned
+// (feature-gated) flags.
+func (f *Features[T]) enforceConfigRestrictions(pruned []prunedFlag, configData map[string]string) error {
+	return checkFeatureConfigRestrictions(pruned, configData)
 }
 
 // getValue returns the loaded configuration file paths for the engine.

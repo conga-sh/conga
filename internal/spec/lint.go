@@ -15,11 +15,13 @@ import (
 
 //nolint:gochecknoglobals // Static candidate definitions for schema tag validation.
 var (
-	flagTagCandidates           = []string{"name", "short", "help", "default", "env", "aliases", "group", "hidden", "safe", "xor", "and", "enum", "range", "len", "items", "sep", "negatable", "placeholder", "config", "deprecated", "predictor", "conga"}
+	flagTagCandidates           = []string{"name", "short", "help", "default", "env", "aliases", "group", "hidden", "safe", "xor", "and", "enum", "range", "len", "items", "sep", "negatable", "placeholder", "config", "deprecated", "predictor", "feature", "conga"}
 	argTagCandidates            = []string{"name", "help", "default", "enum", "range", "len", "items", "sep", "predictor", "conga"}
 	builtinCommandTagCandidates = []string{"name", "summary", "aliases", "group", "hidden", "conga"}
-	userCommandTagCandidates    = []string{"name", "summary", "aliases", "group", "hidden", "envprefix", "deprecated", "conga"}
-	configFileTagCandidates     = []string{"name", "short", "help", "env", "aliases", "placeholder", "group", "hidden", "multi", "sep", "config", "deprecated", "conga"}
+	userCommandTagCandidates    = []string{"name", "summary", "aliases", "group", "hidden", "envprefix", "deprecated", "feature", "conga"}
+	configFileTagCandidates     = []string{"name", "short", "help", "env", "aliases", "placeholder", "group", "hidden", "multi", "sep", "config", "deprecated", "feature", "conga"}
+	featuresFieldTagCandidates  = []string{"flag", "env", "envprefix", "config", "sep", "help", "conga"}
+	featureFieldTagCandidates   = []string{"name", "help", "default", "enum", "conga"}
 	dashRawTagCandidates        = []string{"name", "conga"}
 	sentinelTagCandidates       = []string{"envprefix", "conga"}
 	allCongaTagCandidates       = collectTagCandidates()
@@ -58,7 +60,7 @@ func collectTagCandidates() []string {
 
 	var combined []string
 
-	for _, tag := range slices.Concat(flagTagCandidates, argTagCandidates, builtinCommandTagCandidates, userCommandTagCandidates, configFileTagCandidates, dashRawTagCandidates, sentinelTagCandidates) {
+	for _, tag := range slices.Concat(flagTagCandidates, argTagCandidates, builtinCommandTagCandidates, userCommandTagCandidates, configFileTagCandidates, featuresFieldTagCandidates, featureFieldTagCandidates, dashRawTagCandidates, sentinelTagCandidates) {
 		if seen[tag] {
 			continue
 		}

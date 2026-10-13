@@ -31,13 +31,13 @@ func TestIsUsageError_Classification(t *testing.T) {
 
 	missingPath := filepath.Join(t.TempDir(), "missing.json")
 
-	loadedPaths, values, source, configErr := configengine.Resolver{Registry: configengine.NewRegistry()}.Resolve([]string{missingPath}, nil)
+	loadedPaths, values, source, err := configengine.Resolver{Registry: configengine.NewRegistry()}.Resolve([]string{missingPath}, nil)
 
-	assert.Error(t, configErr)
+	assert.Error(t, err)
 	assert.Zero(t, len(loadedPaths))
 	assert.Zero(t, len(values))
 	assert.Equal(t, SourceNone, source)
-	assert.False(t, IsUsageError(configErr))
+	assert.False(t, IsUsageError(err))
 
 	assert.False(t, IsUsageError(ErrSchema))
 

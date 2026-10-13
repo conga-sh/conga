@@ -118,6 +118,98 @@ func TestBuiltinHoist_CompletionScriptWithEnvSourcedMissingConfigPath(t *testing
 	assert.Contains(t, buffer.String(), "#compdef cloudctl")
 }
 
+func TestBuiltinHoist_VersionSkipsConfigResolutionWithoutFeatures(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "app.json")
+	err := os.WriteFile(configPath, []byte("{}"), 0o600)
+	assert.NoError(t, err)
+
+	decodeCount := 0
+	decode := func(_ []byte) (map[string]any, error) {
+		decodeCount++
+
+		return map[string]any{}, nil
+	}
+
+	var buffer bytes.Buffer
+
+	app := conga.New[hoistConfigCLI]().
+		Name("cloudctl").
+		Version("1.2.3").
+		Stdout(&buffer).
+		RegisterDecoder(".json", decode).
+		ConfigOptions(conga.ConfigExplicit(configPath)).
+		Args([]string{"--version"})
+
+	err = app.Run()
+	assert.NoError(t, err)
+	assert.Equal(t, 0, decodeCount)
+	assert.Contains(t, buffer.String(), "cloudctl has version 1.2.3")
+}
+
+func TestBuiltinHoist_HelpSkipsConfigResolutionWithoutFeatures(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "app.json")
+	err := os.WriteFile(configPath, []byte("{}"), 0o600)
+	assert.NoError(t, err)
+
+	decodeCount := 0
+	decode := func(_ []byte) (map[string]any, error) {
+		decodeCount++
+
+		return map[string]any{}, nil
+	}
+
+	var buffer bytes.Buffer
+
+	app := conga.New[hoistConfigCLI]().
+		Name("cloudctl").
+		Stdout(&buffer).
+		RegisterDecoder(".json", decode).
+		ConfigOptions(conga.ConfigExplicit(configPath)).
+		Args([]string{"--help"})
+
+	err = app.Run()
+	assert.NoError(t, err)
+	assert.Equal(t, 0, decodeCount)
+	assert.Contains(t, buffer.String(), "Usage:\n  cloudctl")
+}
+
+func TestBuiltinHoist_WhyResolvesConfigOnceWithoutFeatures(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "app.json")
+	err := os.WriteFile(configPath, []byte("{}"), 0o600)
+	assert.NoError(t, err)
+
+	decodeCount := 0
+	decode := func(_ []byte) (map[string]any, error) {
+		decodeCount++
+
+		return map[string]any{}, nil
+	}
+
+	var buffer bytes.Buffer
+
+	app := conga.New[hoistConfigCLI]().
+		Name("cloudctl").
+		EnableWhy().
+		Stdout(&buffer).
+		RegisterDecoder(".json", decode).
+		ConfigOptions(conga.ConfigExplicit(configPath)).
+		Args([]string{"--why"})
+
+	err = app.Run()
+	assert.NoError(t, err)
+	assert.Equal(t, 1, decodeCount)
+	assert.Contains(t, buffer.String(), "Value provenance")
+}
+
 func TestBuiltinHoist_DeprecationNotices(t *testing.T) {
 	t.Parallel()
 

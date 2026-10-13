@@ -505,6 +505,19 @@ func parseFlagSpec(structField reflect.StructField, flagHandle any, classificati
 		return nil, err
 	}
 
+	feature := strings.TrimSpace(structField.Tag.Get("feature"))
+	if feature != "" {
+		if classification.Required {
+			return nil, FeatureOnRequiredFlagError()
+		}
+
+		if err := ValidateFeatureExpression(feature); err != nil {
+			return nil, err
+		}
+
+		feature = NormalizeFeatureExpression(feature)
+	}
+
 	return &Flag{
 		Name:        name,
 		Short:       shortRune,
@@ -526,6 +539,7 @@ func parseFlagSpec(structField reflect.StructField, flagHandle any, classificati
 		Hidden:      parsePresenceOrTrueTag(structField.Tag, "hidden"),
 		Safe:        safe,
 		Deprecated:  structField.Tag.Get("deprecated"),
+		Feature:     feature,
 		Sep:         kindInfo.sep,
 		IsBool:      kindInfo.isBool,
 		IsSlice:     kindInfo.isSlice,

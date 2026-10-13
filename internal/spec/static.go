@@ -100,6 +100,10 @@ func TagCandidatesForRole(role string) ([]string, bool) {
 		return builtinCommandTagCandidates, true
 	case "config file flag":
 		return configFileTagCandidates, true
+	case "features":
+		return featuresFieldTagCandidates, true
+	case "feature":
+		return featureFieldTagCandidates, true
 	case "dash args", "raw args":
 		return dashRawTagCandidates, true
 	case "sentinel field":
@@ -149,6 +153,37 @@ func ValidateCounterDefaultTag(tag reflect.StructTag) error {
 	}
 
 	return nil
+}
+
+// FeatureFieldTypeError builds the schema error for a feature field whose type
+// is neither a bool nor an integer. The runtime schema builder reports it from
+// the reflected field kind and the static analyzer reports it from the
+// go/types kind, so the message stays a single source of truth.
+func FeatureFieldTypeError(fieldName string, typeName string) error {
+	return fmt.Errorf("%w: feature field %s must be a bool or an integer, got %s", ErrInvalidStructTag, fieldName, typeName)
+}
+
+// FeaturesMustBeOnRootError builds the schema error for a conga.Features
+// container declared on a non-root command struct. The runtime schema builder
+// returns it and the static analyzer reports it verbatim, keeping the message a
+// single source of truth.
+func FeaturesMustBeOnRootError() error {
+	return fmt.Errorf("%w: conga.Features must be declared on the root command struct", ErrSchema)
+}
+
+// FeaturesMustBeStructParameterError builds the schema error for a
+// conga.Features container whose type parameter is not a struct. The runtime
+// schema builder and the static analyzer share it as the single source of
+// truth.
+func FeaturesMustBeStructParameterError() error {
+	return fmt.Errorf("%w: conga.Features must be parameterized by a struct type", ErrSchema)
+}
+
+// FeatureOnRequiredFlagError builds the schema error for a feature tag on a
+// required flag: a feature-gated flag must be optional. The runtime schema
+// builder and the static analyzer share it as the single source of truth.
+func FeatureOnRequiredFlagError() error {
+	return fmt.Errorf("%w: tag \"feature\" cannot be used on required flags (feature-gated flags must be optional)", ErrInvalidStructTag)
 }
 
 // CascadingRequiresMultiError builds the cascading⟹multi arity-guard error

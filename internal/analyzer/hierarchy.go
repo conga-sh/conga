@@ -32,6 +32,7 @@ var congaWrapperRoles = map[string]string{
 	"VersionCommand":    "version command",
 	"CompletionCommand": "completion command",
 	"ConfigFile":        "config file flag",
+	"Features":          "features",
 	"DashArgs":          "dash args",
 	"RawArgs":           "raw args",
 	"OptionalFlag":      "flag",
@@ -65,6 +66,9 @@ type commandNode struct {
 	// command (its own sentinel tag, else the declaring Command[T] field's
 	// envprefix tag, else the parent's, else the app-level prefix).
 	envPrefix string
+	// isRoot marks the command struct anchored by conga.New. conga.Features is
+	// legal only on the root command struct.
+	isRoot bool
 }
 
 // walker drives the static hierarchy traversal and emits diagnostics.
@@ -122,6 +126,7 @@ func (w *walker) walkRoot(root *anchor) {
 		allowUnknown: allowUnknown,
 		allowRecurse: allowRecurse,
 		envPrefix:    cmp.Or(nodeEnvPrefix(structType), w.options.envPrefix),
+		isRoot:       true,
 	}
 
 	w.walkCommand(node, map[string]string{}, map[rune]string{})
@@ -202,6 +207,10 @@ func (w *walker) checkField(node *commandNode, fieldObject types.Object, tag ref
 		w.checkConfigFileField(node, fieldObject, tag, branchNames, branchShorts)
 
 		return nil
+	case "features":
+		w.checkFeaturesField(node, fieldObject, tag)
+
+		return nil
 	case "dash args":
 		w.validateNodeFieldTags(node, fieldObject, tag, role, nil)
 
@@ -269,6 +278,7 @@ func (w *walker) buildChildNode(node *commandNode, fieldObject types.Object, tag
 		allowUnknown: allowUnknown,
 		allowRecurse: allowRecurse,
 		envPrefix:    cmp.Or(nodeEnvPrefix(structType), tag.Get("envprefix"), node.envPrefix),
+		isRoot:       false,
 	}
 }
 

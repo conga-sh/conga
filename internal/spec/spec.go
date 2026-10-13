@@ -76,6 +76,39 @@ type Command struct {
 	DisableHelp       bool
 	DisableVersion    bool
 	DisableWhy        bool
+	// Feature holds the feature-gate expression declared through the feature
+	// tag on a subcommand container field. Empty means the subcommand is not
+	// feature-gated.
+	Feature string
+	// FeatureFields lists the root feature declarations reflected from the
+	// conga.Features[T] container. Empty on subcommands.
+	FeatureFields []*FeatureField
+	// FeatureFlag is the synthesized map flag that carries feature values from
+	// the command line, environment, and configuration files. Nil when no
+	// Features container is declared; the flag is always installed for a
+	// declared container (NoCLI only removes CLI routing).
+	FeatureFlag *Flag
+}
+
+// FindFeature returns the declared feature matching name, or nil.
+func (c *Command) FindFeature(name string) *FeatureField {
+	for _, feature := range c.FeatureFields {
+		if feature.Name == name {
+			return feature
+		}
+	}
+
+	return nil
+}
+
+// FeatureNames returns the normalized names of every declared feature.
+func (c *Command) FeatureNames() []string {
+	names := make([]string, 0, len(c.FeatureFields))
+	for _, feature := range c.FeatureFields {
+		names = append(names, feature.Name)
+	}
+
+	return names
 }
 
 // HasUserSubcommands returns true if this command has user-declared subcommands (excluding built-in help, version, and completion).
@@ -242,6 +275,9 @@ type Flag struct {
 	// resolve into user containers, so ancestor flag shadowing validation
 	// exempts them: a same-named user flag on an ancestor stays reachable.
 	EngineOwned bool
+	// NoCLI marks an engine-synthesized flag that binds environment and
+	// configuration values but is excluded from command-line routing and help.
+	NoCLI bool
 	// Required reports whether the flag was declared through a required
 	// container (conga.RequiredFlag[T]).
 	Required bool
@@ -252,6 +288,10 @@ type Flag struct {
 	Handle     any
 	Predictor  *PredictorSpec
 	TargetType reflect.Type
+	// Feature holds the feature-gate expression declared through the feature
+	// tag on the flag's owning field. Empty means the flag is not
+	// feature-gated.
+	Feature string
 }
 
 // Arg represents the metadata and binder for a positional argument.
@@ -360,6 +400,11 @@ type Options struct {
 	// type-based inference, and inferred predictors are consumed exclusively by
 	// completion.
 	InferPredictor func(targetType reflect.Type, tags FieldTags) *PredictorSpec
+	// FeaturePredictor builds the predictor spec for the feature map flag's
+	// keys from the flag's resolved name and the declared feature value
+	// domains. It is supplied by the caller only when completion is enabled;
+	// nil omits key completion so the predictor package stays unreferenced.
+	FeaturePredictor func(name string, values map[string][]string) *PredictorSpec
 	// ValidateTextRangeBound checks a range bound against the owning field's
 	// declared custom tags before the default text grammar parses it. It is
 	// supplied by the caller (the root package) so tag-aware domain types can

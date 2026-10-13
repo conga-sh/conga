@@ -38,6 +38,14 @@ type bindingState struct {
 	TypeParsers coerce.Registry
 	Stdin       io.Reader
 	Stdout      io.Writer
+	// EnvLookup overrides os.LookupEnv for environment binding. The completion
+	// path supplies the shell's injected environment; nil reads the process
+	// environment directly.
+	EnvLookup completion.EnvLookup
+	// TolerateFeatureErrors degrades feature resolution failures to the
+	// canonical defaults plus valid provided keys. Builtin requests set it so
+	// rendering never fails on resolution errors.
+	TolerateFeatureErrors bool
 }
 
 // decodeContext composes the per-value context for one field's coercion: the
@@ -417,6 +425,10 @@ func newFlagIndex(cmd *spec.Command) *flagIndex {
 
 func (index *flagIndex) addCommand(cmd *spec.Command) {
 	for _, flagSpec := range cmd.Flags {
+		if flagSpec.NoCLI {
+			continue
+		}
+
 		index.long[flagSpec.Name] = flagSpec
 		for _, alias := range flagSpec.Aliases {
 			index.long[alias] = flagSpec
@@ -465,6 +477,20 @@ type builtinRequest struct {
 	hasWhy          bool
 	hasCompletion   bool
 	completionValue string
+}
+
+// toleratesFeatureErrors reports whether the request is a builtin rendering
+// request whose output must survive feature resolution errors.
+func (r builtinRequest) toleratesFeatureErrors() bool {
+	return r.hasHelp || r.hasVersion || r.hasWhy || r.hasCompletion
+}
+
+// versionOnly reports a request that renders solely from app metadata and never
+// consults features, flags, or configuration: a lone --version. Any other
+// builtin flag (help, why, completion) consumes the feature/config tiers, so it
+// is not version-only.
+func (r builtinRequest) versionOnly() bool {
+	return r.hasVersion && !r.hasHelp && !r.hasWhy && !r.hasCompletion
 }
 
 // counterError is the root cause for unparseable counter flag values.
@@ -950,6 +976,13 @@ func resolveRequiredFlags(cmdChain []*spec.Command) error {
 func resolveFlags(cmdChain []*spec.Command, cliValues map[*spec.Flag][]string, state *bindingState) error {
 	for _, cmd := range cmdChain {
 		for _, flagSpec := range cmd.Flags {
+			// The synthesized feature map flag is already bound and validated
+			// by bindFeatures; binding it again would double the tier lookups,
+			// parsing, and setValue work.
+			if cmd.FeatureFlag != nil && flagSpec == cmd.FeatureFlag {
+				continue
+			}
+
 			if err := applyFlagValue(cmd, cmdChain, flagSpec, cliValues, state); err != nil {
 				return err
 			}
@@ -1020,10 +1053,12 @@ func lookupEnv(flagSpec *spec.Flag, cmd *spec.Command, state *bindingState) (str
 		return "", "", false
 	}
 
+	lookup := envLookupFunc(state)
+
 	isString := flagSpec.TargetType != nil && flagSpec.TargetType.Kind() == reflect.String
 
 	for _, envVar := range flagSpec.EnvVars {
-		if value, ok := os.LookupEnv(envVar); ok && (value != "" || isString) {
+		if value, ok := lookup(envVar); ok && (value != "" || isString) {
 			return value, envVar, true
 		}
 	}
@@ -1035,12 +1070,22 @@ func lookupEnv(flagSpec *spec.Flag, cmd *spec.Command, state *bindingState) (str
 
 	if prefix != "" && len(flagSpec.EnvVars) == 0 {
 		derived := prefix + casing.UpperSnake(flagSpec.Name)
-		if value, ok := os.LookupEnv(derived); ok && (value != "" || isString) {
+		if value, ok := lookup(derived); ok && (value != "" || isString) {
 			return value, derived, true
 		}
 	}
 
 	return "", "", false
+}
+
+// envLookupFunc selects the environment reader for a binding run: the
+// completion-injected lookup when supplied, otherwise the process environment.
+func envLookupFunc(state *bindingState) func(string) (string, bool) {
+	if state != nil && state.EnvLookup != nil {
+		return state.EnvLookup
+	}
+
+	return os.LookupEnv
 }
 
 func lookupConfig(flagSpec *spec.Flag, cmd *spec.Command, cmdChain []*spec.Command, state *bindingState) (string, string, bool) {

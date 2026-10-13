@@ -131,6 +131,37 @@ func TestMinimalHello_OptInInitializersEliminated(t *testing.T) {
 	}
 }
 
+func TestMinimalHello_FeatureResolutionPayloadEliminated(t *testing.T) {
+	t.Parallel()
+
+	symbols := buildAndListSymbols(t, minimalExamplePath)
+
+	assert.True(t, symbols["main.main"], "sanity check: the analysis build must expose symbols")
+
+	for _, symbol := range []string{
+		"github.com/conga-sh/conga.buildFeatureValues",
+		"github.com/conga-sh/conga.overlayFeatureValues",
+		"github.com/conga-sh/conga.materializeFeatureValues",
+		"github.com/conga-sh/conga.unknownFeatureError",
+		"github.com/conga-sh/conga.invalidFeatureValueError",
+		"github.com/conga-sh/conga.pruneInactiveFeatures",
+		"github.com/conga-sh/conga.collectPrunedSubtree",
+		"github.com/conga-sh/conga.validateSubcommandFeatures",
+		"github.com/conga-sh/conga.checkFeatureFlagCLIRestrictions",
+		"github.com/conga-sh/conga.checkFeatureConfigRestrictions",
+		"github.com/conga-sh/conga/internal/spec.MatchFeature",
+		"github.com/conga-sh/conga.featureDefaults",
+	} {
+		assert.False(t, symbols[symbol], "linker must drop feature runtime payload: "+symbol)
+	}
+
+	for symbol := range symbols {
+		assert.False(t, strings.Contains(symbol, "applyFeatures"), "linker must drop applyFeatures from generic App: "+symbol)
+		assert.False(t, strings.Contains(symbol, "enforceCLIRestrictions"), "linker must drop enforceCLIRestrictions: "+symbol)
+		assert.False(t, strings.Contains(symbol, "enforceConfigRestrictions"), "linker must drop enforceConfigRestrictions: "+symbol)
+	}
+}
+
 func TestMinimalHello_VersionPayloadRetained(t *testing.T) {
 	t.Parallel()
 
