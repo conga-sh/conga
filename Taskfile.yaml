@@ -122,3 +122,42 @@ tasks:
     desc: Type-check the documentation site content and links
     cmds:
       - pnpm -C website check
+
+  repomix:
+    desc: Pack Go sources for LLM context (skips *_test.go and _examples; override via INCLUDE/IGNORE/OUTPUT)
+    vars:
+      INCLUDE: '{{.INCLUDE | default "**/*.go"}}'
+      IGNORE: '{{.IGNORE | default "**/*_test.go,_examples/**"}}'
+      OUTPUT: '{{.OUTPUT | default "repomix-output.xml"}}'
+    cmds:
+      - npx repomix@latest --include "{{.INCLUDE}}" --ignore "{{.IGNORE}}" -o "{{.OUTPUT}}"
+
+  repomix:core:
+    desc: Pack production Go sources only (no tests, examples, analyzer fixtures, website)
+    cmds:
+      - task: repomix
+        vars:
+          IGNORE: "**/*_test.go,_examples/**,**/testdata/**,website/**"
+          OUTPUT: "repomix-output.core.xml"
+
+  repomix:tests:
+    desc: Pack all Go sources including tests (still skips _examples)
+    cmds:
+      - task: repomix
+        vars:
+          IGNORE: "_examples/**"
+          OUTPUT: "repomix-output.tests.xml"
+
+  repomix:docs:
+    desc: Pack Markdown docs (repo docs plus website content)
+    cmds:
+      - task: repomix
+        vars:
+          INCLUDE: "**/*.md,**/*.mdx"
+          IGNORE: "_examples/**"
+          OUTPUT: "repomix-output.docs.xml"
+
+  repomix:full:
+    desc: Pack every file repomix's default patterns allow (respects .gitignore)
+    cmds:
+      - npx repomix@latest -o repomix-output.full.xml
