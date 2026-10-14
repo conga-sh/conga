@@ -6,7 +6,6 @@ package nushell
 
 import (
 	"strings"
-	"sync"
 
 	"github.com/conga-sh/conga/internal/completion/wire"
 )
@@ -15,13 +14,10 @@ import (
 // insertion value: nushell inserts the record's value verbatim into the
 // command line, so every shell metacharacter must be quoted for direct
 // insertion.
-const metacharacters = " {}()[]<>$&\"'|;#\\`"
-
-//nolint:gochecknoglobals // one-time lazy construction of the shared replacer below
-var fieldSanitizerOnce sync.Once
-
-//nolint:gochecknoglobals // immutable after fieldSanitizerOnce completes
-var fieldSanitizerReplacer *strings.Replacer
+const (
+	metacharacters = " {}()[]<>$&\"'|;#\\`"
+	controlCutset  = "\n\r"
+)
 
 // Format renders candidates and directives in the nushell framing: a bare
 // JSON array of records (no trailing newline) in engine order. The record's
@@ -51,26 +47,18 @@ func Format(toComplete string, directives wire.Directives, candidates []wire.Can
 // newlines and carriage returns (tabs are kept). Construction is deferred to
 // first use so the driver package stays free of package initializers and
 // drops at link time when nushell completion is disabled.
-func fieldSanitizer() *strings.Replacer {
-	fieldSanitizerOnce.Do(func() {
-		fieldSanitizerReplacer = strings.NewReplacer("\n", "", "\r", "")
-	})
-
-	return fieldSanitizerReplacer
-}
-
 // appendCandidate appends one record: the pre-quoted insertion value with the
 // trailing-space rule, the raw display, the optional clamped description, and
 // the optional style record.
 func appendCandidate(buffer []byte, directives wire.Directives, candidate wire.Candidate) []byte {
-	value := quoteInsertionValue(fieldSanitizer().Replace(candidate.Value))
+	value := quoteInsertionValue(sanitizeField(candidate.Value))
 	if !directives.NoSpaceFor(candidate.Value) {
 		value += " "
 	}
 
-	display := fieldSanitizer().Replace(candidate.Display)
+	display := sanitizeField(candidate.Display)
 	if display == "" {
-		display = fieldSanitizer().Replace(candidate.Value)
+		display = sanitizeField(candidate.Value)
 	}
 
 	buffer = append(buffer, `{"value":`...)
@@ -120,5 +108,9 @@ func escapeDoubleQuoted(value string) string {
 // clamped to the configured maximum length with a "..." suffix (hard cut
 // when the limit is 3 or fewer runes).
 func clampedDescription(description string) string {
-	return wire.ClampDescription(strings.TrimSpace(fieldSanitizer().Replace(description)), wire.DescriptionLength())
+	return wire.ClampDescription(strings.TrimSpace(sanitizeField(description)), wire.DescriptionLength())
+}
+
+func sanitizeField(s string) string {
+	return wire.StripControl(s, controlCutset)
 }

@@ -5,17 +5,12 @@ package fish
 
 import (
 	"strings"
-	"sync"
 
 	"github.com/conga-sh/conga/internal/completion/wire"
 	"github.com/conga-sh/conga/internal/slicex"
 )
 
-//nolint:gochecknoglobals // one-time lazy construction of the shared replacer below
-var fieldSanitizerOnce sync.Once
-
-//nolint:gochecknoglobals // immutable after fieldSanitizerOnce completes
-var fieldSanitizerReplacer *strings.Replacer
+const controlCutset = "\t\n\r"
 
 // Format renders candidates as fish's native completion feed: one line per
 // candidate in engine order, the value and description separated by a tab
@@ -28,8 +23,8 @@ var fieldSanitizerReplacer *strings.Replacer
 // pre-filters candidates engine-side.
 func Format(toComplete string, directives wire.Directives, candidates []wire.Candidate) string {
 	lines := slicex.Map(candidates, func(candidate wire.Candidate) string {
-		value := fieldSanitizer().Replace(candidate.Value)
-		description := fieldSanitizer().Replace(candidate.TrimmedDescription())
+		value := sanitizeField(candidate.Value)
+		description := sanitizeField(candidate.TrimmedDescription())
 
 		if description == "" {
 			return value
@@ -41,15 +36,6 @@ func Format(toComplete string, directives wire.Directives, candidates []wire.Can
 	return strings.Join(lines, "\n")
 }
 
-// fieldSanitizer normalizes the characters that would corrupt fish's
-// tab-separated record parser: every tab, newline, and carriage return
-// becomes a single space. Construction is deferred to first use so the
-// driver package stays free of package initializers and drops at link time
-// when fish completion is disabled.
-func fieldSanitizer() *strings.Replacer {
-	fieldSanitizerOnce.Do(func() {
-		fieldSanitizerReplacer = strings.NewReplacer("\t", " ", "\n", " ", "\r", " ")
-	})
-
-	return fieldSanitizerReplacer
+func sanitizeField(s string) string {
+	return wire.ReplaceControlWithSpace(s, controlCutset)
 }

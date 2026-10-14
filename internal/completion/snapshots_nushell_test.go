@@ -4,38 +4,16 @@ import (
 	"embed"
 	"encoding/json"
 	"io/fs"
-	"slices"
 	"strings"
 	"testing"
 
 	"github.com/alecthomas/assert/v2"
 
 	"github.com/conga-sh/conga/internal/completion/nushell"
-	"github.com/conga-sh/conga/internal/completion/wire"
-	"github.com/conga-sh/conga/internal/slicex"
 )
 
 //go:embed testdata/snapshots/nushell/*.json
 var nushellSnapshotFixtures embed.FS
-
-// nushellSnapshot mirrors one fork-observation fixture: the formatter-shaped
-// input captured by tools/snapshot-completion and the fork's observed output
-// (docs/completion-wire-protocol.md §9).
-type nushellSnapshot struct {
-	Description string `json:"description"`
-	Input       struct {
-		CurrentWord string `json:"currentWord"`
-		Directives  struct {
-			NoSpace   string   `json:"nospace"`
-			NoPrefix  string   `json:"noprefix"`
-			KeepOrder bool     `json:"keeporder"`
-			Messages  []string `json:"messages"`
-			Usage     string   `json:"usage"`
-		} `json:"directives"`
-		Candidates []snapshotCandidate `json:"candidates"`
-	} `json:"input"`
-	Observed string `json:"observed"`
-}
 
 // patchSnapshot mirrors one fork-observation fixture for the nushell Patch
 // seam.
@@ -76,37 +54,11 @@ func TestSnapshotEquivalence_Nushell(t *testing.T) {
 				return
 			}
 
-			var fixture nushellSnapshot
+			var fixture snapshotFixture
 
 			assert.NoError(t, json.Unmarshal(data, &fixture))
 
-			directives := wire.Directives{
-				KeepOrder: fixture.Input.Directives.KeepOrder,
-				Usage:     fixture.Input.Directives.Usage,
-			}
-
-			for _, r := range fixture.Input.Directives.NoSpace {
-				directives.NoSpace.Add(r)
-			}
-
-			for _, r := range fixture.Input.Directives.NoPrefix {
-				directives.NoPrefix.Add(r)
-			}
-
-			// The fork's message collection sorts lexicographically (nushell
-			// framing drops messages either way).
-			directives.Messages = append(directives.Messages, fixture.Input.Directives.Messages...)
-			slices.Sort(directives.Messages)
-
-			candidates := slicex.Map(fixture.Input.Candidates, func(candidate snapshotCandidate) wire.Candidate {
-				return wire.Candidate{
-					Value:       candidate.Value,
-					Display:     candidate.Display,
-					Description: candidate.Description,
-					Style:       candidate.Style,
-					Tag:         candidate.Tag,
-				}
-			})
+			directives, candidates := fixture.toWire()
 
 			formatted := nushell.Format(fixture.Input.CurrentWord, directives, candidates)
 

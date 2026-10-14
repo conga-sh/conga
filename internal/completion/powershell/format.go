@@ -7,7 +7,6 @@ package powershell
 import (
 	"cmp"
 	"strings"
-	"sync"
 
 	"github.com/conga-sh/conga/internal/completion/export"
 	"github.com/conga-sh/conga/internal/completion/wire"
@@ -24,13 +23,10 @@ const (
 
 // metacharacters lists the whitespace and PowerShell metacharacters that
 // force single-quoting of a candidate value.
-const metacharacters = " `{}()[]*$?\\\"|<>&,;#'"
-
-//nolint:gochecknoglobals // one-time lazy construction of the shared replacer below
-var sanitizerOnce sync.Once
-
-//nolint:gochecknoglobals // immutable after sanitizerOnce completes
-var sanitizerReplacer *strings.Replacer
+const (
+	metacharacters = " `{}()[]*$?\\\"|<>&,;#'"
+	controlCutset  = "\n\t\r"
+)
 
 // Format renders candidates and directives in the powershell framing: the
 // export JSON schema plus a per-candidate "sgr" field, with the
@@ -81,23 +77,11 @@ func Snippet(name string, aliases []string) string {
 }
 
 // sanitizer strips the characters PowerShell cannot carry through a
-// completion result: newlines, tabs, and carriage returns are removed.
-// Construction is deferred to first use so the driver package stays free of
-// package initializers and drops at link time when powershell completion is
-// disabled.
-func sanitizer() *strings.Replacer {
-	sanitizerOnce.Do(func() {
-		sanitizerReplacer = strings.NewReplacer("\n", "", "\t", "", "\r", "")
-	})
-
-	return sanitizerReplacer
-}
-
 // composeCandidate renders one candidate's wire fields into their final
 // presentation content: the quoted insertion value, the ListItemText, and
 // the ToolTip.
 func composeCandidate(candidate wire.Candidate, directives wire.Directives, colorOn bool, tooltip bool) wire.Candidate {
-	value := sanitizer().Replace(candidate.Value)
+	value := sanitizeField(candidate.Value)
 	noSpace := directives.NoSpaceFor(value)
 
 	if quoteNeeded(value) {
@@ -108,8 +92,8 @@ func composeCandidate(candidate wire.Candidate, directives wire.Directives, colo
 		value += " "
 	}
 
-	display := sanitizer().Replace(candidate.Display)
-	description := sanitizer().Replace(candidate.TrimmedDescription())
+	display := sanitizeField(candidate.Display)
+	description := sanitizeField(candidate.TrimmedDescription())
 
 	listItem, toolTip := composePresentation(display, description, valueStyleSGR(candidate.Style), colorOn, tooltip)
 
@@ -213,4 +197,8 @@ func ensureNotEmpty(s string) string {
 	}
 
 	return s
+}
+
+func sanitizeField(s string) string {
+	return wire.StripControl(s, controlCutset)
 }

@@ -344,6 +344,11 @@ func (f *OptionalFlag[T]) String() string {
 	return stringx.Stringify(f.value)
 }
 
+// ValueAny returns the resolved flag value as an any.
+func (f *OptionalFlag[T]) ValueAny() any {
+	return f.value
+}
+
 // RequiredFlag represents a mandatory command-line flag of type T.
 //
 // The requirement is satisfied if a value is supplied by a command-line flag,
@@ -399,6 +404,11 @@ func (f *RequiredFlag[T]) String() string {
 	}
 
 	return stringx.Stringify(f.value)
+}
+
+// ValueAny returns the resolved flag value as an any.
+func (f *RequiredFlag[T]) ValueAny() any {
+	return f.value
 }
 
 // OptionalArg represents an optional positional command-line argument of type T.
@@ -466,6 +476,16 @@ func (a *OptionalArg[T]) String() string {
 	return stringx.Stringify(a.value)
 }
 
+// ValueAny returns the resolved positional argument value as an any.
+func (a *OptionalArg[T]) ValueAny() any {
+	return a.value
+}
+
+// IsArg reports that the container holds a positional argument.
+func (a *OptionalArg[T]) IsArg() bool {
+	return true
+}
+
 // RequiredArg represents a mandatory positional command-line argument of type T.
 //
 // Required positional arguments must be supplied on the command line in struct
@@ -513,6 +533,16 @@ func (a *RequiredArg[T]) String() string {
 	}
 
 	return stringx.Stringify(a.value)
+}
+
+// ValueAny returns the resolved positional argument value as an any.
+func (a *RequiredArg[T]) ValueAny() any {
+	return a.value
+}
+
+// IsArg reports that the container holds a positional argument.
+func (a *RequiredArg[T]) IsArg() bool {
+	return true
 }
 
 // DashArgs captures trailing arguments passed explicitly after the -- token.
@@ -580,6 +610,11 @@ func (c *Command[T]) IsSelected() bool {
 
 // Get returns a pointer to the inner command struct instance of type T.
 func (c *Command[T]) Get() *T {
+	return &c.value
+}
+
+// ValueAny returns a pointer to the inner command struct instance as an any.
+func (c *Command[T]) ValueAny() any {
 	return &c.value
 }
 
@@ -815,6 +850,11 @@ func (f *Features[T]) Get() *T {
 	return &f.value
 }
 
+// ValueAny returns a pointer to the inner feature struct as an any.
+func (f *Features[T]) ValueAny() any {
+	return &f.value
+}
+
 // IsSet reports whether any feature source contributed a value.
 func (f *Features[T]) IsSet() bool { return f.source != SourceNone }
 
@@ -914,6 +954,11 @@ func (c *ConfigFile) String() string {
 	return strings.Join(c.paths, ", ")
 }
 
+// ValueAny returns the loaded configuration file paths as an any.
+func (c *ConfigFile) ValueAny() any {
+	return c.paths
+}
+
 // Counter represents a repeatable boolean flag that counts its occurrences.
 //
 // Each occurrence on the command line increments the count by 1. With no
@@ -978,6 +1023,11 @@ func (c *Counter) String() string {
 	}
 
 	return strconv.Itoa(c.value)
+}
+
+// ValueAny returns the resolved count as an any.
+func (c *Counter) ValueAny() any {
+	return c.value
 }
 
 type rawSlice struct {

@@ -19,17 +19,17 @@ type PortRange struct {
 func (p *PortRange) UnmarshalText(text []byte) error {
 	raw := strings.TrimSpace(string(text))
 
-	parts := strings.Split(raw, "-")
-	if len(parts) != 2 {
+	minStr, maxStr, ok := strings.Cut(raw, "-")
+	if !ok || strings.Contains(maxStr, "-") {
 		return fmt.Errorf("%w %q (expected min-max)", errInvalidPortRange, raw)
 	}
 
-	minValue, err := strconv.Atoi(parts[0])
+	minValue, err := strconv.Atoi(minStr)
 	if err != nil {
 		return fmt.Errorf("%w in %q: %w", errInvalidPortRange, raw, err)
 	}
 
-	maxValue, err := strconv.Atoi(parts[1])
+	maxValue, err := strconv.Atoi(maxStr)
 	if err != nil {
 		return fmt.Errorf("%w in %q: %w", errInvalidPortRange, raw, err)
 	}
