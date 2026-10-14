@@ -6,6 +6,7 @@ import (
 
 	"github.com/alecthomas/assert/v2"
 
+	"github.com/conga-sh/conga/internal/completion/lex"
 	"github.com/conga-sh/conga/internal/tokenizer"
 )
 
@@ -53,9 +54,9 @@ func FuzzTokenizer(f *testing.F) {
 		assert.Equal(t, len(args), count)
 
 		// Round-trip: POSIX-quoting every argument must survive
-		// ParseCompLine byte-for-byte, whatever the argument contents.
+		// WordsUpTo byte-for-byte, whatever the argument contents.
 		line := quotedCompLine(args)
-		parsed := tokenizer.ParseCompLine(line, len(line))
+		parsed := lex.WordsUpTo(line, len(line))
 		assert.Equal(t, args, parsed)
 	})
 }

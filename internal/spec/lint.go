@@ -314,19 +314,11 @@ func inferPredictorFromOptions(targetType reflect.Type, typePredictors map[refle
 // first in value form, then in pointer form — and builds the predictor through
 // build. It is the shared skeleton of the predictor-inference helpers.
 func inferImplements[T any](elemType reflect.Type, build func(T) predict.Predictor) *PredictorSpec {
-	if value, ok := reflect.TypeAssert[T](reflect.Zero(elemType)); ok {
+	if target, ok := assertValueOrPointer[T](elemType); ok {
 		return &PredictorSpec{
 			Kind:      PredictorKindPredictable,
 			Name:      "predictable",
-			Predictor: build(value),
-		}
-	}
-
-	if ptr, ok := reflect.TypeAssert[T](reflect.New(elemType)); ok {
-		return &PredictorSpec{
-			Kind:      PredictorKindPredictable,
-			Name:      "predictable",
-			Predictor: build(ptr),
+			Predictor: build(target),
 		}
 	}
 

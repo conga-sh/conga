@@ -25,6 +25,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -34,6 +35,27 @@ import (
 	"github.com/conga-sh/conga/internal/style"
 	"github.com/conga-sh/conga/predict"
 )
+
+//nolint:gochecknoglobals // static fallback timezone names
+var defaultTimezoneNames = []string{
+	"Africa/Cairo", "Africa/Johannesburg", "Africa/Lagos", "Africa/Nairobi",
+	"America/Anchorage", "America/Argentina/Buenos_Aires", "America/Bogota",
+	"America/Chicago", "America/Denver", "America/Los_Angeles", "America/Mexico_City",
+	"America/New_York", "America/Phoenix", "America/Santiago", "America/Sao_Paulo",
+	"America/Toronto", "America/Vancouver",
+	"Asia/Bangkok", "Asia/Dubai", "Asia/Hong_Kong", "Asia/Jakarta", "Asia/Jerusalem",
+	"Asia/Kolkata", "Asia/Manila", "Asia/Seoul", "Asia/Shanghai", "Asia/Singapore",
+	"Asia/Taipei", "Asia/Tokyo",
+	"Atlantic/Reykjavik",
+	"Australia/Adelaide", "Australia/Brisbane", "Australia/Melbourne",
+	"Australia/Perth", "Australia/Sydney",
+	"Europe/Amsterdam", "Europe/Athens", "Europe/Berlin", "Europe/Brussels",
+	"Europe/Dublin", "Europe/Helsinki", "Europe/Lisbon", "Europe/London",
+	"Europe/Madrid", "Europe/Oslo", "Europe/Paris", "Europe/Prague",
+	"Europe/Rome", "Europe/Stockholm", "Europe/Vienna", "Europe/Warsaw",
+	"Europe/Zurich",
+	"Pacific/Auckland", "Pacific/Fiji", "Pacific/Guam", "Pacific/Honolulu",
+}
 
 // RegisterLocation mounts *time.Location support onto the app builder: the
 // parser resolves IANA timezone identifiers with time.LoadLocation and
@@ -54,27 +76,7 @@ func actionTimezones(_ predict.Context) predict.Predictor {
 }
 
 func fallbackTimezones() []predict.Item {
-	zones := []string{
-		"Africa/Cairo", "Africa/Johannesburg", "Africa/Lagos", "Africa/Nairobi",
-		"America/Anchorage", "America/Argentina/Buenos_Aires", "America/Bogota",
-		"America/Chicago", "America/Denver", "America/Los_Angeles", "America/Mexico_City",
-		"America/New_York", "America/Phoenix", "America/Santiago", "America/Sao_Paulo",
-		"America/Toronto", "America/Vancouver",
-		"Asia/Bangkok", "Asia/Dubai", "Asia/Hong_Kong", "Asia/Jakarta", "Asia/Jerusalem",
-		"Asia/Kolkata", "Asia/Manila", "Asia/Seoul", "Asia/Shanghai", "Asia/Singapore",
-		"Asia/Taipei", "Asia/Tokyo",
-		"Atlantic/Reykjavik",
-		"Australia/Adelaide", "Australia/Brisbane", "Australia/Melbourne",
-		"Australia/Perth", "Australia/Sydney",
-		"Europe/Amsterdam", "Europe/Athens", "Europe/Berlin", "Europe/Brussels",
-		"Europe/Dublin", "Europe/Helsinki", "Europe/Lisbon", "Europe/London",
-		"Europe/Madrid", "Europe/Oslo", "Europe/Paris", "Europe/Prague",
-		"Europe/Rome", "Europe/Stockholm", "Europe/Vienna", "Europe/Warsaw",
-		"Europe/Zurich",
-		"Pacific/Auckland", "Pacific/Fiji", "Pacific/Guam", "Pacific/Honolulu",
-	}
-
-	return slicex.Map(zones, func(z string) predict.Item {
+	return slicex.Map(defaultTimezoneNames, func(z string) predict.Item {
 		return predict.Item{
 			Value:   z,
 			Display: z,
@@ -126,24 +128,9 @@ func scanTimezones() []predict.Item {
 		items = fallbackTimezones()
 	}
 
-	seen := make(map[string]bool, len(items)+10)
-	deduped := make([]predict.Item, 0, len(items)+10)
+	deduped := slicex.UniqueBy(items, func(item predict.Item) string { return item.Value })
 
-	utcFound := false
-
-	for _, item := range items {
-		if !seen[item.Value] {
-			seen[item.Value] = true
-
-			if item.Value == "UTC" {
-				utcFound = true
-			}
-
-			deduped = append(deduped, item)
-		}
-	}
-
-	if !utcFound {
+	if !slices.ContainsFunc(deduped, func(item predict.Item) bool { return item.Value == "UTC" }) {
 		deduped = append([]predict.Item{
 			{Value: "UTC", Display: "UTC", Description: "Coordinated Universal Time", Style: style.Default, Tag: "timezones"},
 		}, deduped...)

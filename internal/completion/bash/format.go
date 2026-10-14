@@ -1,6 +1,7 @@
 package bash
 
 import (
+	"slices"
 	"strings"
 	"unicode/utf8"
 
@@ -197,25 +198,17 @@ func headerTokens(directives wire.Directives, candidates []wire.Candidate, colla
 // trimmedAny reports whether any candidate had a wordbreak prefix stripped
 // during rendering (candidates are then tail replacements).
 func trimmedAny(candidates []wire.Candidate) bool {
-	for _, candidate := range candidates {
-		if candidate.Display != "" && candidate.Display != candidate.Value {
-			return true
-		}
-	}
-
-	return false
+	return slices.ContainsFunc(candidates, func(candidate wire.Candidate) bool {
+		return candidate.Display != "" && candidate.Display != candidate.Value
+	})
 }
 
 // noSpaceForAny reports whether the nospace rule applies to the stream: the
 // engine's nospace set, or any candidate ending with "=" or "/".
 func noSpaceForAny(directives wire.Directives, candidates []wire.Candidate) bool {
-	for _, candidate := range candidates {
-		if directives.NoSpaceFor(candidate.Value) {
-			return true
-		}
-	}
-
-	return false
+	return slices.ContainsFunc(candidates, func(candidate wire.Candidate) bool {
+		return directives.NoSpaceFor(candidate.Value)
+	})
 }
 
 // commonValuePrefix returns the longest common prefix of every candidate's

@@ -9,7 +9,6 @@ import (
 	"github.com/conga-sh/conga/internal/casing"
 	"github.com/conga-sh/conga/internal/cond"
 	"github.com/conga-sh/conga/internal/levenshtein"
-	"github.com/conga-sh/conga/internal/sentinel"
 	"github.com/conga-sh/conga/internal/slicex"
 	"github.com/conga-sh/conga/internal/spec"
 	"github.com/conga-sh/conga/internal/stringx"
@@ -35,11 +34,11 @@ func validateSingleCommandEntry(prefix, key string, value any, cmd *spec.Command
 
 	if flag := findFlag(cmd, key); flag != nil {
 		if flag.ConfigKey == "-" {
-			return &configError{
-				path:  filePath,
-				msg:   fmt.Sprintf("config file %q: field %q is excluded from config files in command %q", filePath, key, cmd.Name),
-				cause: fmt.Errorf("%w: field %q not allowed in config", sentinel.ErrConfigUnknownField, key),
-			}
+			return newFieldConfigError(
+				filePath,
+				fmt.Sprintf("field %q is excluded from config files in command %q", key, cmd.Name),
+				fmt.Sprintf("field %q not allowed in config", key),
+			)
 		}
 
 		storeFlagValue(prefix, flag, value, dest)
@@ -47,11 +46,11 @@ func validateSingleCommandEntry(prefix, key string, value any, cmd *spec.Command
 		return nil
 	}
 
-	return &configError{
-		path:  filePath,
-		msg:   fmt.Sprintf("config file %q: unknown field %q in command %q%s", filePath, key, cmd.Name, suggestionHint(cmd, key)),
-		cause: fmt.Errorf("%w: unknown field %q in command %q", sentinel.ErrConfigUnknownField, key, cmd.Name),
-	}
+	return newFieldConfigError(
+		filePath,
+		fmt.Sprintf("unknown field %q in command %q%s", key, cmd.Name, suggestionHint(cmd, key)),
+		fmt.Sprintf("unknown field %q in command %q", key, cmd.Name),
+	)
 }
 
 func handleNestedSection(prefix, key string, nestedMap map[string]any, cmd *spec.Command, dest map[string]string, filePath string) error {
@@ -73,11 +72,11 @@ func handleNestedSection(prefix, key string, nestedMap map[string]any, cmd *spec
 		return validateNamespaceConfig(subPrefix, nestedMap, cmd, dest, filePath)
 	}
 
-	return &configError{
-		path:  filePath,
-		msg:   fmt.Sprintf("config file %q: unknown section %q in command %q%s", filePath, key, cmd.Name, suggestionHint(cmd, key)),
-		cause: fmt.Errorf("%w: unknown section %q in command %q", sentinel.ErrConfigUnknownField, key, cmd.Name),
-	}
+	return newFieldConfigError(
+		filePath,
+		fmt.Sprintf("unknown section %q in command %q%s", key, cmd.Name, suggestionHint(cmd, key)),
+		fmt.Sprintf("unknown section %q in command %q", key, cmd.Name),
+	)
 }
 
 func validateNamespaceConfig(prefix string, rawMap map[string]any, cmd *spec.Command, dest map[string]string, filePath string) error {
@@ -95,11 +94,11 @@ func validateNamespaceConfig(prefix string, rawMap map[string]any, cmd *spec.Com
 		flag := findFlagByConfigKeyOrName(cmd, fullKey, key)
 		if flag != nil {
 			if flag.ConfigKey == "-" {
-				return &configError{
-					path:  filePath,
-					msg:   fmt.Sprintf("config file %q: field %q is excluded from config files in command %q", filePath, fullKey, cmd.Name),
-					cause: fmt.Errorf("%w: field %q not allowed in config", sentinel.ErrConfigUnknownField, fullKey),
-				}
+				return newFieldConfigError(
+					filePath,
+					fmt.Sprintf("field %q is excluded from config files in command %q", fullKey, cmd.Name),
+					fmt.Sprintf("field %q not allowed in config", fullKey),
+				)
 			}
 
 			storeFlagValue(prefix, flag, value, dest)
@@ -108,11 +107,11 @@ func validateNamespaceConfig(prefix string, rawMap map[string]any, cmd *spec.Com
 			continue
 		}
 
-		return &configError{
-			path:  filePath,
-			msg:   fmt.Sprintf("config file %q: unknown field %q in namespace %q%s", filePath, key, prefix, suggestionHint(cmd, key)),
-			cause: fmt.Errorf("%w: unknown field %q in namespace %q", sentinel.ErrConfigUnknownField, key, prefix),
-		}
+		return newFieldConfigError(
+			filePath,
+			fmt.Sprintf("unknown field %q in namespace %q%s", key, prefix, suggestionHint(cmd, key)),
+			fmt.Sprintf("unknown field %q in namespace %q", key, prefix),
+		)
 	}
 
 	return nil

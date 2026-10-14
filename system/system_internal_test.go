@@ -28,7 +28,7 @@ var (
 	fixturePasswdMalformed []byte
 )
 
-func TestFallbackLocales(t *testing.T) {
+func TestDefaultLocales(t *testing.T) {
 	t.Parallel()
 
 	locales := fallbackLocales()
@@ -37,6 +37,17 @@ func TestFallbackLocales(t *testing.T) {
 	assert.True(t, slices.Contains(locales, "en_US.UTF-8"))
 	assert.True(t, slices.Contains(locales, "C"))
 	assert.True(t, slices.Contains(locales, "POSIX"))
+}
+
+func TestFallbackLocales_DefensiveClone(t *testing.T) {
+	t.Parallel()
+
+	first := fallbackLocales()
+	first[0] = "mutated"
+
+	second := fallbackLocales()
+
+	assert.NotEqual(t, first[0], second[0])
 }
 
 func TestParsePasswdReader(t *testing.T) {

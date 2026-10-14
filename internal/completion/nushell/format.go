@@ -43,10 +43,6 @@ func Format(toComplete string, directives wire.Directives, candidates []wire.Can
 	return string(append(buffer, ']'))
 }
 
-// fieldSanitizer strips the characters nushell's record JSON cannot carry:
-// newlines and carriage returns (tabs are kept). Construction is deferred to
-// first use so the driver package stays free of package initializers and
-// drops at link time when nushell completion is disabled.
 // appendCandidate appends one record: the pre-quoted insertion value with the
 // trailing-space rule, the raw display, the optional clamped description, and
 // the optional style record.

@@ -4,6 +4,7 @@ package signals
 
 import (
 	"errors"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -23,7 +24,7 @@ type Entry struct {
 
 // Known returns the signal table for the current platform.
 func Known() []Entry {
-	return known()
+	return slices.Clone(platformSignals)
 }
 
 // Lookup parses a signal by name (e.g. "SIGTERM", "TERM", "hup") or numeric
@@ -40,7 +41,7 @@ func Lookup(raw string) (syscall.Signal, bool) {
 
 	upper := strings.ToUpper(raw)
 
-	for _, sig := range known() {
+	for _, sig := range platformSignals {
 		if strings.EqualFold(sig.Name, upper) || strings.EqualFold(sig.ShortName, upper) {
 			return sig.Signal, true
 		}

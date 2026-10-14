@@ -15,13 +15,12 @@ func Expand(path string) string {
 	}
 
 	expanded := os.Expand(path, func(key string) string {
-		if strings.Contains(key, ":-") {
-			parts := strings.SplitN(key, ":-", 2)
-			if value := os.Getenv(parts[0]); value != "" {
+		if varName, fallback, found := strings.Cut(key, ":-"); found {
+			if value := os.Getenv(varName); value != "" {
 				return value
 			}
 
-			return parts[1]
+			return fallback
 		}
 
 		return os.Getenv(key)

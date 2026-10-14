@@ -42,3 +42,27 @@ func SplitAndTrim(input, sep string) []string {
 
 	return result
 }
+
+// UniqueBy returns a new slice containing only the elements of items with unique keys determined by keyFn,
+// preserving the order of first appearance.
+func UniqueBy[T any, K comparable](items []T, keyFn func(T) K) []T {
+	seen := make(map[K]struct{}, len(items))
+	result := make([]T, 0, len(items))
+
+	for _, item := range items {
+		key := keyFn(item)
+		if _, exists := seen[key]; !exists {
+			seen[key] = struct{}{}
+
+			result = append(result, item)
+		}
+	}
+
+	return result
+}
+
+// Unique returns a new slice containing only unique elements from items,
+// preserving the order of first appearance.
+func Unique[T comparable](items []T) []T {
+	return UniqueBy(items, func(item T) T { return item })
+}

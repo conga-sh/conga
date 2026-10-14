@@ -16,6 +16,7 @@ import (
 	"github.com/conga-sh/conga/internal/appname"
 	"github.com/conga-sh/conga/internal/coerce"
 	"github.com/conga-sh/conga/internal/completion"
+	"github.com/conga-sh/conga/internal/completion/lex"
 	"github.com/conga-sh/conga/internal/completion/wire"
 	"github.com/conga-sh/conga/internal/cond"
 	"github.com/conga-sh/conga/internal/configengine"
@@ -1125,7 +1126,7 @@ func (a *App[T]) completeForShellWithEnv(targetShell string, args []string, look
 }
 
 func (a *App[T]) completeCompLineForShell(targetShell string, compLine string, compPoint int) (predict.Result, string) {
-	words := tokenizer.ParseCompLine(compLine, compPoint)
+	words := lex.WordsUpTo(compLine, compPoint)
 	if len(words) > 0 {
 		words = words[1:]
 	}
@@ -2004,7 +2005,7 @@ func resolveCompLineEnv() ([]string, bool) {
 			}
 		}
 
-		words := tokenizer.ParseCompLine(compLine, compPoint)
+		words := lex.WordsUpTo(compLine, compPoint)
 		if len(words) > 0 {
 			words = words[1:]
 		}

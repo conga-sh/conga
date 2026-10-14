@@ -19,8 +19,8 @@ import (
 
 	_ "embed"
 
+	"github.com/conga-sh/conga/internal/completion/lex"
 	"github.com/conga-sh/conga/internal/completion/wire"
-	"github.com/conga-sh/conga/internal/tokenizer"
 )
 
 var (
@@ -420,7 +420,7 @@ func (ws *Workspace) RunElvishCompletion(t *testing.T, binaryName, cmdLine strin
 	// Elvish invokes the arg-completer with the command name in front and the
 	// word being completed (possibly an empty string) last; the quote-aware
 	// COMP_LINE parser reproduces that word list (docs/completion-wire-protocol.md §3).
-	words := tokenizer.ParseCompLine(cmdLine, len(cmdLine))
+	words := lex.WordsUpTo(cmdLine, len(cmdLine))
 
 	quotedWords := make([]string, 0, len(words))
 	for _, word := range words {
@@ -455,7 +455,7 @@ func (ws *Workspace) RunNushellCompletion(t *testing.T, binaryName, cmdLine stri
 
 	// Nushell passes the spans raw, command name first, word being completed
 	// last (docs/completion-wire-protocol.md §3).
-	words := tokenizer.ParseCompLine(cmdLine, len(cmdLine))
+	words := lex.WordsUpTo(cmdLine, len(cmdLine))
 
 	quotedSpans := make([]string, 0, len(words))
 	for _, word := range words {
@@ -763,6 +763,31 @@ func getZshDumpFile(t *testing.T, zshPath string) string {
 	return zshDumpPath
 }
 
+func resolveTabBuffers(cmdLine string, words []string, candidates []Candidate) (string, string) {
+	var lastWord string
+	if !strings.HasSuffix(cmdLine, " ") && len(words) > 0 {
+		lastWord = words[len(words)-1]
+	}
+
+	prefix := cmdLine[:len(cmdLine)-len(lastWord)]
+
+	switch len(candidates) {
+	case 0:
+		return cmdLine, cmdLine
+	case 1:
+		completed := prefix + candidates[0].Value
+
+		return completed, completed
+	default:
+		tab1 := cmdLine
+		if lcp := commonCandidatePrefix(candidates); len(lcp) > len(lastWord) {
+			tab1 = prefix + lcp
+		}
+
+		return tab1, prefix + candidates[0].Value
+	}
+}
+
 func parseElvishResult(t *testing.T, raw, cmdLine string, words []string) *ElvishResult {
 	t.Helper()
 
@@ -814,23 +839,7 @@ func parseElvishResult(t *testing.T, raw, cmdLine string, words []string) *Elvis
 		}
 	}
 
-	var lastWord string
-	if !strings.HasSuffix(cmdLine, " ") && len(words) > 0 {
-		lastWord = words[len(words)-1]
-	}
-
-	if len(result.Candidates) == 1 {
-		cand := result.Candidates[0].Value
-		result.BufferTab1 = cmdLine[:len(cmdLine)-len(lastWord)] + cand
-		result.BufferTab2 = result.BufferTab1
-	} else if len(result.Candidates) > 1 {
-		lcp := commonCandidatePrefix(result.Candidates)
-		if len(lcp) > len(lastWord) {
-			result.BufferTab1 = cmdLine[:len(cmdLine)-len(lastWord)] + lcp
-		}
-
-		result.BufferTab2 = cmdLine[:len(cmdLine)-len(lastWord)] + result.Candidates[0].Value
-	}
+	result.BufferTab1, result.BufferTab2 = resolveTabBuffers(cmdLine, words, result.Candidates)
 
 	return result
 }
@@ -919,23 +928,7 @@ func parseNushellResult(t *testing.T, raw, cmdLine string, words []string) *Nush
 		}
 	}
 
-	var lastWord string
-	if !strings.HasSuffix(cmdLine, " ") && len(words) > 0 {
-		lastWord = words[len(words)-1]
-	}
-
-	if len(result.Candidates) == 1 {
-		cand := result.Candidates[0].Value
-		result.BufferTab1 = cmdLine[:len(cmdLine)-len(lastWord)] + cand
-		result.BufferTab2 = result.BufferTab1
-	} else if len(result.Candidates) > 1 {
-		lcp := commonCandidatePrefix(result.Candidates)
-		if len(lcp) > len(lastWord) {
-			result.BufferTab1 = cmdLine[:len(cmdLine)-len(lastWord)] + lcp
-		}
-
-		result.BufferTab2 = cmdLine[:len(cmdLine)-len(lastWord)] + result.Candidates[0].Value
-	}
+	result.BufferTab1, result.BufferTab2 = resolveTabBuffers(cmdLine, words, result.Candidates)
 
 	result.CursorTab1 = len(result.BufferTab1)
 	result.CursorTab2 = len(result.BufferTab2)
@@ -971,25 +964,8 @@ func parseFishResult(raw, cmdLine string) *FishResult {
 		})
 	}
 
-	words := tokenizer.ParseCompLine(cmdLine, len(cmdLine))
-
-	var lastWord string
-	if !strings.HasSuffix(cmdLine, " ") && len(words) > 0 {
-		lastWord = words[len(words)-1]
-	}
-
-	if len(result.Items) == 1 {
-		cand := result.Items[0].Value
-		result.BufferTab1 = cmdLine[:len(cmdLine)-len(lastWord)] + cand
-		result.BufferTab2 = result.BufferTab1
-	} else if len(result.Items) > 1 {
-		lcp := commonCandidatePrefix(result.Items)
-		if len(lcp) > len(lastWord) {
-			result.BufferTab1 = cmdLine[:len(cmdLine)-len(lastWord)] + lcp
-		}
-
-		result.BufferTab2 = cmdLine[:len(cmdLine)-len(lastWord)] + result.Items[0].Value
-	}
+	words := lex.WordsUpTo(cmdLine, len(cmdLine))
+	result.BufferTab1, result.BufferTab2 = resolveTabBuffers(cmdLine, words, result.Items)
 
 	result.CursorTab1 = len(result.BufferTab1)
 	result.CursorTab2 = len(result.BufferTab2)

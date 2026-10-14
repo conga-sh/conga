@@ -153,13 +153,10 @@ func parsePathExtensions(extsEnv string) []string {
 		return []string{".com", ".exe", ".bat", ".cmd"}
 	}
 
-	raw := strings.Split(extsEnv, ";")
-
 	var extensions []string
 
-	for _, extension := range raw {
-		trimmed := strings.ToLower(strings.TrimSpace(extension))
-		if trimmed != "" {
+	for extension := range strings.SplitSeq(extsEnv, ";") {
+		if trimmed := strings.ToLower(strings.TrimSpace(extension)); trimmed != "" {
 			extensions = append(extensions, trimmed)
 		}
 	}

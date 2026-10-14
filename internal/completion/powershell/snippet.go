@@ -25,6 +25,26 @@ using namespace System.Management.Automation.Language
 // dynamicTarget invokes the binary under the command name the user typed.
 const dynamicTarget = `$elems[0]`
 
+// Snippet renders the PowerShell registration script for the given command
+// name and aliases (docs/completion-wire-protocol.md): the
+// single-command form defines one completer function and registers it for
+// the command name (plus its .exe variant, active on Windows and commented
+// out elsewhere); the multi-command form assigns one completer scriptblock
+// (invoking the binary under the name the user typed, .exe suffix stripped)
+// shared by one registration line per name and alias. The completer collects
+// the cursor-truncated command elements (quotes stripped, PowerShell's
+// tokenization), drops the program name, and feeds the words to the binary's
+// __complete entry point; the JSON payload is piped through
+// ConvertFrom-Json into CompletionResult objects. An empty result set
+// returns "" so PowerShell's default file completion is suppressed.
+func Snippet(name string, aliases []string) string {
+	if len(aliases) > 0 {
+		return multiSnippet(name, aliases)
+	}
+
+	return singleSnippet(name)
+}
+
 func singleSnippet(name string) string {
 	identifier := wire.SanitizeIdentifier(name)
 

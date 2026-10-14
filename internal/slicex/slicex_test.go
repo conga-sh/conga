@@ -39,3 +39,32 @@ func TestSplitAndTrim(t *testing.T) {
 	assert.Equal(t, []string{"foo", "bar"}, slicex.SplitAndTrim("foo,,bar", ","))
 	assert.Equal(t, []string{"host1", "host2"}, slicex.SplitAndTrim("host1:host2", ":"))
 }
+
+func TestUnique(t *testing.T) {
+	t.Parallel()
+
+	input := []string{"a", "b", "a", "c", "b"}
+
+	result := slicex.Unique(input)
+
+	assert.Equal(t, []string{"a", "b", "c"}, result)
+}
+
+func TestUniqueBy(t *testing.T) {
+	t.Parallel()
+
+	type item struct {
+		id   int
+		name string
+	}
+
+	input := []item{
+		{id: 1, name: "first"},
+		{id: 2, name: "second"},
+		{id: 1, name: "duplicate"},
+	}
+
+	result := slicex.UniqueBy(input, func(i item) int { return i.id })
+
+	assert.Equal(t, []item{{id: 1, name: "first"}, {id: 2, name: "second"}}, result)
+}
