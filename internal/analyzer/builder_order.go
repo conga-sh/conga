@@ -893,6 +893,7 @@ func defaultBuilderCallOrder() []string {
 		"DisableHelpFlag",
 		"DisableVersionFlag",
 		"EnableCompletion",
+		"EnableFeatures",
 		"EnableWhy",
 		"EnvPrefix",
 		"Dotenv",

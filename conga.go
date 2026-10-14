@@ -19,6 +19,7 @@ import (
 	"github.com/conga-sh/conga/internal/completion/wire"
 	"github.com/conga-sh/conga/internal/cond"
 	"github.com/conga-sh/conga/internal/configengine"
+	"github.com/conga-sh/conga/internal/container"
 	"github.com/conga-sh/conga/internal/dotenv"
 	"github.com/conga-sh/conga/internal/help"
 	"github.com/conga-sh/conga/internal/pathx"
@@ -419,6 +420,17 @@ func (a *App[T]) DisableVersionFlag() *App[T] {
 	return a
 }
 
+// EnableFeatures activates feature toggles and gated command/flag execution.
+// Applications declaring a [conga.Features] container or feature struct tags
+// require it.
+//
+// See https://docs.conga.sh/how-to/feature-flags/.
+func (a *App[T]) EnableFeatures() *App[T] {
+	a.installFeatureHooks()
+
+	return a
+}
+
 // EnableWhy activates the built-in --why flag. When passed, CONGA skips
 // command execution and prints a provenance report to standard output showing
 // where every flag value originated (CLI, environment, configuration file, or
@@ -475,6 +487,10 @@ func (a *App[T]) RegisterType[U any](parser func(string) (U, error), opts ...Reg
 	}
 
 	targetType := reflect.TypeFor[U]()
+
+	if targetType.Kind() == reflect.Map {
+		a.customMapMerger = mergeRegisteredMapTiers
+	}
 
 	wrapped := func(raw string) (any, error) {
 		return parser(raw)
@@ -939,6 +955,12 @@ type appConfig[T any] struct {
 	handleCompletionInvocation func(app *App[T]) error
 	completionHelp             func(app *App[T], cmdChain []*spec.Command, completionValue string, withHelp bool) (bool, error)
 	renderCompletionScript     func(app *App[T], cmdChain []*spec.Command, shell string) (bool, error)
+	featurePreparer            func(app *App[T], featureBinding featureState, cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, request builtinRequest) ([]prunedFlag, error)
+	processFeatures            func(builder any, structField reflect.StructField, fieldHandle any, classification container.Classification) error
+	validateFeatures           func(root *spec.Command) error
+	parseFeatureTag            func(feature string, required bool) (string, error)
+	whyFeatures                featureWhyRowsFunc
+	customMapMerger            func(cmd *spec.Command, cmdChain []*spec.Command, flagSpec *spec.Flag, cliValues map[*spec.Flag][]string, state *bindingState, wantProvenance bool, result *mapMergeResult) error
 }
 
 // configView is the root package's view over the configuration resolution
@@ -1056,16 +1078,18 @@ func (a *App[T]) completeForShellWithEnv(targetShell string, args []string, look
 
 	targetShell = cond.SetOrDefaultFunc(targetShell, detectShell)
 
-	if featureBinding := featureStateOfCommand(cmd); featureBinding != nil {
-		cliValues := cliFlagValues(cmd, args, cmd.FeatureFlag, cmd.ConfigFileFlag)
+	if a.featurePreparer != nil {
+		if featureBinding := featureStateOfCommand(cmd); featureBinding != nil {
+			cliValues := cliFlagValues(cmd, args, cmd.FeatureFlag, cmd.ConfigFileFlag)
 
-		featureBinding.pruneForCompletion(cmd, cliValues, &bindingState{
-			EnvPrefix:             a.envPrefix,
-			ConfigData:            a.loadConfigDataForCompletion(cmd, cliValues),
-			TypeParsers:           a.collectTypeParsers(),
-			EnvLookup:             lookup,
-			TolerateFeatureErrors: true,
-		})
+			featureBinding.pruneForCompletion(cmd, cliValues, &bindingState{
+				EnvPrefix:             a.envPrefix,
+				ConfigData:            a.loadConfigDataForCompletion(cmd, cliValues),
+				TypeParsers:           a.collectTypeParsers(),
+				EnvLookup:             lookup,
+				TolerateFeatureErrors: true,
+			})
+		}
 	}
 
 	opts := spec.CompleteOptions{
@@ -1255,17 +1279,20 @@ func (a *App[T]) buildSpec() (*spec.Command, error) {
 		ConfigFilePatterns: slicex.Map(a.configRegistry.Extensions(), func(extension string) string {
 			return "*" + extension
 		}),
-		ConfigSettings:         a.configSettings,
-		ConfigCapable:          a.configEngine != nil,
-		DisableHelp:            a.helpDisabled,
-		DisableVersion:         a.versionDisabled,
-		DisableWhy:             a.whyRenderer == nil,
-		DisableCompletion:      a.mountCompletion == nil,
-		CompletionShells:       a.completionShells,
-		InferPredictor:         a.inferPredictor,
-		FeaturePredictor:       a.featurePredictor,
-		ValidateTextRangeBound: validateTextRangeBound,
-		EnvPrefix:              a.envPrefix,
+		ConfigSettings:            a.configSettings,
+		ConfigCapable:             a.configEngine != nil,
+		DisableHelp:               a.helpDisabled,
+		DisableVersion:            a.versionDisabled,
+		DisableWhy:                a.whyRenderer == nil,
+		DisableCompletion:         a.mountCompletion == nil,
+		CompletionShells:          a.completionShells,
+		InferPredictor:            a.inferPredictor,
+		FeaturePredictor:          a.featurePredictor,
+		ValidateTextRangeBound:    validateTextRangeBound,
+		EnvPrefix:                 a.envPrefix,
+		ProcessFeatures:           a.processFeatures,
+		ValidateFeatureReferences: a.validateFeatures,
+		ParseFeatureTag:           a.parseFeatureTag,
 	}
 
 	if a.rootTarget == nil {
@@ -1321,26 +1348,6 @@ func (a *App[T]) mountCompletionSubcommand(cmd *spec.Command) {
 	}
 }
 
-func (a *App[T]) bindConfigAndFlags(session *Session, cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, loadedPaths []string, loadedSource ValueSource) error {
-	state := &bindingState{
-		EnvPrefix:   a.envPrefix,
-		ConfigData:  a.configData,
-		TypeParsers: a.collectTypeParsers(),
-		Stdin:       session.stdin,
-		Stdout:      session.stdout,
-	}
-
-	if err := resolveFlags(cmdChain, flagValues, state); err != nil {
-		return err
-	}
-
-	if cmd.ConfigFileFlag != nil && len(loadedPaths) > 0 && !flagStateOf(cmd.ConfigFileFlag.Handle).IsSet() {
-		flagStateOf(cmd.ConfigFileFlag.Handle).setValue(loadedPaths, loadedSource, strings.Join(loadedPaths, ", "))
-	}
-
-	return nil
-}
-
 // prepareFeatures resolves feature gating before builtin rendering: it resolves
 // configuration (unless the request is a lone --version), binds and materializes
 // the feature map, prunes inactive flags and subcommands, and rejects a gated
@@ -1379,34 +1386,38 @@ func (a *App[T]) extractExplicitConfigTargets(cmd *spec.Command, cmdChain []*spe
 	return nil, nil
 }
 
-func (a *App[T]) validateExecution(ctx context.Context, session *Session, leaf *spec.Command, cmdChain []*spec.Command) error {
-	if err := validateRunnableContract(leaf, cmdChain); err != nil {
-		return err
-	}
-
-	if !isMetaCommand(leaf) {
-		if err := validateCustomValues(ctx, cmdChain); err != nil {
-			return err
-		}
-	}
-
-	return runValidators(ctx, session, cmdChain)
-}
-
 func (a *App[T]) prepareNonMetaExecution(session *Session, cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, featureBinding featureState, prunedFlags []prunedFlag) error {
-	resolution := a.resolveSessionConfig(session, cmd, cmdChain, flagValues)
+	resolution := a.resolveConfig(cmd, cmdChain, flagValues)
+	if session != nil {
+		session.candidateFiles = resolution.candidates
+		session.loadedFiles = resolution.loadedPaths
+	}
+
 	if err := resolution.err; err != nil {
 		return err
 	}
 
-	if featureBinding != nil {
+	if a.featurePreparer != nil && featureBinding != nil {
 		if err := featureBinding.rejectPrunedConfig(prunedFlags, a.configData); err != nil {
 			return err
 		}
 	}
 
-	if err := a.bindConfigAndFlags(session, cmd, cmdChain, flagValues, resolution.loadedPaths, resolution.loadedSource); err != nil {
+	state := &bindingState{
+		EnvPrefix:       a.envPrefix,
+		ConfigData:      a.configData,
+		TypeParsers:     a.collectTypeParsers(),
+		CustomMapMerger: a.customMapMerger,
+		Stdin:           session.stdin,
+		Stdout:          session.stdout,
+	}
+
+	if err := resolveFlags(cmdChain, flagValues, state); err != nil {
 		return err
+	}
+
+	if cmd.ConfigFileFlag != nil && len(resolution.loadedPaths) > 0 && !flagStateOf(cmd.ConfigFileFlag.Handle).IsSet() {
+		flagStateOf(cmd.ConfigFileFlag.Handle).setValue(resolution.loadedPaths, resolution.loadedSource, strings.Join(resolution.loadedPaths, ", "))
 	}
 
 	a.collectDeprecationNotices(cmdChain)
@@ -1448,22 +1459,27 @@ func (a *App[T]) prepare(ctx context.Context) (*Session, bool, error) {
 		helpOptions: a.helpOptions,
 	}
 
-	featureBinding := featureStateOfCommand(cmd)
-	request := scanBuiltinRequest(flagValues)
+	var (
+		featureBinding featureState
+		prunedFlags    []prunedFlag
+	)
 
-	var prunedFlags []prunedFlag
+	request := scanBuiltinRequest(flagValues)
 
 	// Feature gating sources gates from the configuration tier, so
 	// feature-capable applications resolve configuration before builtin
 	// rendering and pruning. A lone --version renders from app metadata alone
 	// and skips configuration resolution entirely.
-	if featureBinding != nil {
-		pruned, err := a.prepareFeatures(featureBinding, cmd, cmdChain, flagValues, request)
-		if err != nil {
-			return nil, false, err
-		}
+	if a.featurePreparer != nil {
+		featureBinding = featureStateOfCommand(cmd)
+		if featureBinding != nil {
+			pruned, err := a.featurePreparer(a, featureBinding, cmd, cmdChain, flagValues, request)
+			if err != nil {
+				return nil, false, err
+			}
 
-		prunedFlags = pruned
+			prunedFlags = pruned
+		}
 	}
 
 	// Featureless applications defer configuration resolution below builtin
@@ -1490,6 +1506,20 @@ func (a *App[T]) prepare(ctx context.Context) (*Session, bool, error) {
 	}
 
 	return session, false, nil
+}
+
+func (a *App[T]) validateExecution(ctx context.Context, session *Session, leaf *spec.Command, cmdChain []*spec.Command) error {
+	if err := validateRunnableContract(leaf, cmdChain); err != nil {
+		return err
+	}
+
+	if !isMetaCommand(leaf) {
+		if err := validateCustomValues(ctx, cmdChain); err != nil {
+			return err
+		}
+	}
+
+	return runValidators(ctx, session, cmdChain)
 }
 
 func (a *App[T]) handleBuiltinFlags(session *Session, flagValues map[*spec.Flag][]string, request builtinRequest) (bool, error) {
@@ -1813,16 +1843,6 @@ func (a *App[T]) resolveConfig(cmd *spec.Command, cmdChain []*spec.Command, flag
 	return a.configResolution
 }
 
-func (a *App[T]) resolveSessionConfig(session *Session, cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string) *configResolution {
-	resolution := a.resolveConfig(cmd, cmdChain, flagValues)
-	if session != nil {
-		session.candidateFiles = resolution.candidates
-		session.loadedFiles = resolution.loadedPaths
-	}
-
-	return resolution
-}
-
 func (a *App[T]) resolveAndLoadConfig(root *spec.Command, explicitTargets []string) ([]string, ValueSource, error) {
 	loadedPaths, values, source, err := a.configurationView(root).Resolve(explicitTargets, root)
 	if values != nil {
@@ -1853,6 +1873,17 @@ func (a *App[T]) installCompletionHooks() {
 	a.helpOptions.CompletionFooter = func(cmdChain []*spec.Command, useFlag bool) string {
 		return help.RenderCompletionFooter(cmdChain, useFlag, completion.DetectCurrentShell)
 	}
+}
+
+// installFeatureHooks binds feature reflection and resolution to a. It is reached
+// exclusively through EnableFeatures, so applications that never enable features
+// keep the feature machinery unreferenced.
+func (a *App[T]) installFeatureHooks() {
+	a.featurePreparer = (*App[T]).prepareFeatures
+	a.processFeatures = spec.ProcessFeaturesField
+	a.validateFeatures = spec.ValidateFeatureReferences
+	a.parseFeatureTag = spec.ParseFeatureTag
+	a.whyFeatures = whyFeatureRows
 }
 
 // installWhyRenderer binds the value-provenance renderer to a. It is reached

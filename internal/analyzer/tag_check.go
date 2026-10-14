@@ -97,13 +97,20 @@ func (w *walker) checkSubcommandField(node *commandNode, fieldObject types.Objec
 	return w.buildChildNode(node, fieldObject, tag, childAllowUnknown, childAllowRecurse)
 }
 
-// checkFeatureExpression mirrors the runtime feature-tag syntax check: a
-// declared feature expression must parse. The runtime schema builder validates
-// subcommand, flag, and config-file flag feature tags through the same shared
-// validator, so the analyzer reports the identical diagnostic.
+// checkFeatureExpression mirrors the runtime feature-tag handling: a declared
+// feature expression under an app that never calls EnableFeatures is rejected,
+// and an enabled app validates the expression syntax. The runtime schema
+// builder validates subcommand, flag, and config-file flag feature tags through
+// the same shared validators, so the analyzer reports the identical diagnostic.
 func (w *walker) checkFeatureExpression(node *commandNode, fieldObject types.Object, tag reflect.StructTag) {
 	featureExpr := strings.TrimSpace(tag.Get("feature"))
 	if featureExpr == "" {
+		return
+	}
+
+	if w.featureState == optInDisabled {
+		w.reportFieldError(node, fieldObject, spec.FeatureTagRequiresEnableError())
+
 		return
 	}
 
@@ -133,7 +140,7 @@ func (w *walker) checkCompletionCommandField(node *commandNode, fieldObject type
 
 	w.reportFieldError(node, fieldObject, summaryTagError(tag))
 
-	if w.completionState == completionDisabled {
+	if w.completionState == optInDisabled {
 		w.reportFieldError(node, fieldObject, spec.CompletionRequiresEnableError())
 	}
 }
@@ -172,6 +179,12 @@ func (w *walker) checkConfigFileField(node *commandNode, fieldObject types.Objec
 // duplicate-container error.
 func (w *walker) checkFeaturesField(node *commandNode, fieldObject types.Object, tag reflect.StructTag, branchNames map[string]string) {
 	if !w.validateNodeFieldTags(node, fieldObject, tag, "features", nil) {
+		return
+	}
+
+	if w.featureState == optInDisabled {
+		w.reportFieldError(node, fieldObject, spec.FeaturesRequiresEnableError())
+
 		return
 	}
 
@@ -343,14 +356,19 @@ func (w *walker) checkFlagField(node *commandNode, fieldObject types.Object, tag
 
 	// Feature-tag syntax is validated before the required-flag guard, mirroring
 	// the runtime parse order: an invalid expression reports its syntax error
-	// instead of the required-flag rejection.
+	// instead of the required-flag rejection. When features are disabled, the
+	// runtime rejects the tag before parsing it, so the enable guard wins.
 	featureExpr := strings.TrimSpace(tag.Get("feature"))
 	if featureExpr != "" {
-		syntaxErr := spec.ValidateFeatureExpression(featureExpr)
-		w.reportFieldError(node, fieldObject, syntaxErr)
+		if w.featureState == optInDisabled {
+			w.reportFieldError(node, fieldObject, spec.FeatureTagRequiresEnableError())
+		} else {
+			syntaxErr := spec.ValidateFeatureExpression(featureExpr)
+			w.reportFieldError(node, fieldObject, syntaxErr)
 
-		if syntaxErr == nil && w.congaWrapperName(fieldObject.Type()) == "RequiredFlag" {
-			w.reportFieldError(node, fieldObject, spec.FeatureOnRequiredFlagError())
+			if syntaxErr == nil && w.congaWrapperName(fieldObject.Type()) == "RequiredFlag" {
+				w.reportFieldError(node, fieldObject, spec.FeatureOnRequiredFlagError())
+			}
 		}
 	}
 

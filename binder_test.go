@@ -2,8 +2,11 @@ package conga_test
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -508,6 +511,84 @@ func TestBinder_MapFlagMergesTiers(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, map[string]string{}, cli.Tags.Get())
 		assert.Equal(t, conga.SourceCLI, cli.Tags.Source())
+	})
+
+	t.Run("all present tiers empty falls back to last present tier", func(t *testing.T) {
+		t.Parallel()
+
+		configPath := writeConfigFile(t, `{"tags": ","}`)
+
+		cli := new(CLI)
+		app := conga.New(cli).
+			RegisterDecoder(".json", json.Decode).
+			ConfigOptions(conga.ConfigExplicit(configPath)).
+			Args([]string{"--tags", ""})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]string{}, cli.Tags.Get())
+		assert.Equal(t, conga.SourceCLI, cli.Tags.Source())
+	})
+}
+
+func TestBinder_RegisterTypeMapFlag(t *testing.T) {
+	t.Parallel()
+
+	t.Run("RegisterType map parser binds repeated pairs", func(t *testing.T) {
+		t.Parallel()
+
+		type CLI struct {
+			noopRunner
+
+			Sizes conga.OptionalFlag[map[string]int] `help:"Registered map"`
+		}
+
+		cli := new(CLI)
+		app := conga.New(cli).
+			RegisterType(func(raw string) (map[string]int, error) {
+				key, value, _ := strings.Cut(raw, "=")
+
+				parsed, err := strconv.Atoi(value)
+				if err != nil {
+					return nil, err
+				}
+
+				return map[string]int{key: parsed}, nil
+			}).
+			Args([]string{"--sizes", "a=1", "--sizes", "b=2"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]int{"a": 1, "b": 2}, cli.Sizes.Get())
+	})
+
+	t.Run("RegisterType map parser is consulted for string maps", func(t *testing.T) {
+		t.Parallel()
+
+		type CLI struct {
+			noopRunner
+
+			Headers conga.OptionalFlag[map[string]string] `help:"Headers"`
+		}
+
+		app := conga.New[CLI]().
+			RegisterType(func(raw string) (map[string]string, error) {
+				if strings.HasPrefix(raw, "forbidden") {
+					return nil, errors.New("forbidden key rejected")
+				}
+
+				key, value, _ := strings.Cut(raw, "=")
+
+				return map[string]string{key: value}, nil
+			}).
+			Args([]string{"--headers", "forbidden=1"})
+
+		err := app.Run()
+
+		assert.Error(t, err)
+		assert.IsError(t, err, conga.ErrCoerce)
 	})
 }
 

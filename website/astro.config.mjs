@@ -63,6 +63,7 @@ export default defineConfig({
             { label: 'Manage config files', slug: 'how-to/manage-config-files' },
             { label: 'Bind environment variables', slug: 'how-to/bind-environment-variables' },
             { label: 'Load .env files', slug: 'how-to/load-env-files' },
+            { label: 'Gate features', slug: 'how-to/feature-flags' },
             { label: 'Inspect value provenance', slug: 'how-to/inspect-value-provenance' },
             { label: 'Enable shell completion', slug: 'how-to/enable-shell-completion' },
             { label: 'Wire custom completion', slug: 'how-to/wire-custom-completion' },

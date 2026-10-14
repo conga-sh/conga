@@ -84,6 +84,7 @@ func TestValidator_FeatureCapable_HasConfigContext(t *testing.T) {
 	t.Parallel()
 
 	app := New[featureValidatorCLI]().
+		EnableFeatures().
 		Args([]string{}).
 		ConfigOptions(ConfigPaths("test-config.json"))
 

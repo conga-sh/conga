@@ -46,6 +46,10 @@ type bindingState struct {
 	// canonical defaults plus valid provided keys. Builtin requests set it so
 	// rendering never fails on resolution errors.
 	TolerateFeatureErrors bool
+	// CustomMapMerger merges registered custom map types. Populated when a map
+	// type is registered through RegisterMap or RegisterType; nil keeps custom
+	// map reflection unreferenced.
+	CustomMapMerger func(cmd *spec.Command, cmdChain []*spec.Command, flagSpec *spec.Flag, cliValues map[*spec.Flag][]string, state *bindingState, wantProvenance bool, result *mapMergeResult) error
 }
 
 // decodeContext composes the per-value context for one field's coercion: the
@@ -548,29 +552,24 @@ func (e *mapParserError) Error() string {
 
 func (e *mapParserError) Unwrap() error { return ErrCoerce }
 
-// mapTier holds the raw values one source tier contributes to a map flag.
-type mapTier struct {
-	source     ValueSource
-	sourceName string
-	rawValues  []string
-}
-
-// mapMergeOptions controls a map flag's tier fold: whether per-key provenance
-// is recorded and an optional key canonicalizer (feature maps fold accepted
-// spellings to the declared feature name).
-type mapMergeOptions struct {
-	wantProvenance  bool
-	canonicalizeKey func(string) string
-}
-
-// mapMergeResult is the outcome of folding a map flag's tiers: the contributing
-// tiers, the merged value, the per-key source tiers recorded when requested,
-// and the tier whose coercion failed when the fold returns an error.
+// mapMergeResult is the outcome of folding a map flag's tiers: whether any
+// tiers contributed, the merged value, the per-key source tiers recorded when
+// requested, the failing tier when coercion fails, and the highest contributing tier.
 type mapMergeResult struct {
-	tiers      []mapTier
-	merged     any
-	provenance map[string]ValueSource
-	failedTier *mapTier
+	hasValues   bool
+	merged      any
+	provenance  map[string]ValueSource
+	failedTier  ValueSource
+	failedRaw   string
+	highestTier ValueSource
+	highestName string
+}
+
+type mapTierInput struct {
+	has    bool
+	values []string
+	source ValueSource
+	name   string
 }
 
 func bindSpecialArgs(leaf *spec.Command, dashArgs, rawTokens []string) {
@@ -942,77 +941,44 @@ func applyFlagCoercion(cmdChain []*spec.Command, flagSpec *spec.Flag, rawValues 
 	return nil
 }
 
-// flagSourceValues resolves the winning source tier for a scalar, slice, or
-// counter flag through the CLI -> environment -> config -> default cascade
-// without coercing or storing the value. Map flags do not use it: they merge
-// every tier key-by-key via mapTierValues. It is the shared tier walk behind
-// applyFlagValue and the pure completion feature resolution, keeping tier
-// precedence a single source of truth.
-func flagSourceValues(flagSpec *spec.Flag, cmd *spec.Command, cmdChain []*spec.Command, cliValues map[*spec.Flag][]string, state *bindingState) ([]string, ValueSource, string, bool) {
-	// Tier 1: CLI Flags
-	if values, ok := cliValues[flagSpec]; ok && len(values) > 0 {
-		return values, SourceCLI, "--" + flagSpec.Name, true
-	}
-
-	// Tier 2: Environment Variables
-	if envValue, envName, ok := lookupEnv(flagSpec, cmd, state); ok {
-		return []string{envValue}, SourceEnv, envName, true
-	}
-
-	// Tier 3: Configuration Files
-	if configValue, configKey, ok := lookupConfig(flagSpec, cmd, cmdChain, state); ok {
-		return []string{configValue}, SourceConfig, configKey, true
-	}
-
-	// Tier 4: Default Values
-	if flagSpec.Default != "" {
-		return []string{flagSpec.Default}, SourceDefault, flagSpec.Default, true
-	}
-
-	return nil, SourceNone, "", false
-}
-
 func applyFlagValue(cmd *spec.Command, cmdChain []*spec.Command, flagSpec *spec.Flag, cliValues map[*spec.Flag][]string, state *bindingState) error {
 	// Map flags merge every tier key-by-key rather than resolving a single
 	// winning tier, so a config file and the command line can each contribute
 	// different keys to the same map.
 	if flagSpec.IsMap {
-		_, _, err := applyMapFlagValue(cmd, cmdChain, flagSpec, cliValues, state)
+		var result mapMergeResult
+		if err := foldMapTiers(cmd, cmdChain, flagSpec, cliValues, state, false, &result); err != nil {
+			return err
+		}
 
-		return err
-	}
+		if result.hasValues {
+			flagStateOf(flagSpec.Handle).setValue(result.merged, result.highestTier, result.highestName)
+		}
 
-	rawValues, source, sourceName, ok := flagSourceValues(flagSpec, cmd, cmdChain, cliValues, state)
-	if !ok {
 		return nil
 	}
 
-	return applyFlagCoercion(cmdChain, flagSpec, rawValues, source, sourceName, state)
-}
-
-// applyMapFlagValue merges every tier's contribution to a map flag key-by-key
-// in ascending precedence (default < config < env < CLI) and binds the merged
-// map with the highest contributing tier as the container source. It returns
-// the merged value and the per-key source tiers for source-attributed
-// diagnostics.
-func applyMapFlagValue(cmd *spec.Command, cmdChain []*spec.Command, flagSpec *spec.Flag, cliValues map[*spec.Flag][]string, state *bindingState) (any, map[string]ValueSource, error) {
-	result, err := foldMapTiers(cmd, cmdChain, flagSpec, cliValues, state, true)
-	if err != nil {
-		return nil, nil, err
+	// Tier 1: CLI Flags
+	if values, ok := cliValues[flagSpec]; ok && len(values) > 0 {
+		return applyFlagCoercion(cmdChain, flagSpec, values, SourceCLI, "--"+flagSpec.Name, state)
 	}
 
-	if len(result.tiers) == 0 {
-		return nil, map[string]ValueSource{}, nil
+	// Tier 2: Environment Variables
+	if envValue, envName, ok := lookupEnv(flagSpec, cmd, state); ok {
+		return applyFlagCoercion(cmdChain, flagSpec, []string{envValue}, SourceEnv, envName, state)
 	}
 
-	highest := highestContributingTier(result.tiers, result.provenance)
-	if highest == nil {
-		highest = &result.tiers[len(result.tiers)-1]
+	// Tier 3: Configuration Files
+	if configValue, configKey, ok := lookupConfig(flagSpec, cmd, cmdChain, state); ok {
+		return applyFlagCoercion(cmdChain, flagSpec, []string{configValue}, SourceConfig, configKey, state)
 	}
 
-	flagStateOf(flagSpec.Handle).setValue(result.merged, highest.source, highest.sourceName)
+	// Tier 4: Default Values
+	if flagSpec.Default != "" {
+		return applyFlagCoercion(cmdChain, flagSpec, []string{flagSpec.Default}, SourceDefault, flagSpec.Default, state)
+	}
 
-	return result.merged, result.provenance, nil
+	return nil
 }
 
 func resolveRequiredFlags(cmdChain []*spec.Command) error {
@@ -2143,116 +2109,120 @@ func newArgCoercionError(cmdChain []*spec.Command, arg *spec.Arg, source ValueSo
 	}
 }
 
-// mapTierValues collects every tier contributing to a map flag in ascending
-// precedence order (default, config, env, CLI). Unlike flagSourceValues, no
-// tier masks a lower one: map flags merge their contributions key-by-key.
-func mapTierValues(flagSpec *spec.Flag, cmd *spec.Command, cmdChain []*spec.Command, cliValues map[*spec.Flag][]string, state *bindingState) []mapTier {
-	var tiers []mapTier
-
-	if flagSpec.Default != "" {
-		tiers = append(tiers, mapTier{source: SourceDefault, sourceName: flagSpec.Default, rawValues: []string{flagSpec.Default}})
+func foldMapTier(cmdChain []*spec.Command, flagSpec *spec.Flag, rawValues []string, source ValueSource, name string, merged map[string]string, provenance map[string]ValueSource, result *mapMergeResult) error {
+	if len(rawValues) == 0 {
+		return nil
 	}
 
-	if configValue, configKey, ok := lookupConfig(flagSpec, cmd, cmdChain, state); ok {
-		tiers = append(tiers, mapTier{source: SourceConfig, sourceName: configKey, rawValues: []string{configValue}})
+	entries, err := coerce.MapEntries(rawValues, flagSpec.Sep)
+	if err != nil {
+		result.hasValues = true
+		result.failedTier = source
+		result.failedRaw = strings.Join(rawValues, whyJoinSep(flagSpec))
+
+		return newFlagCoercionError(cmdChain, flagSpec, source, name, strings.Join(rawValues, flagSpec.Sep), err)
 	}
 
-	if envValue, envName, ok := lookupEnv(flagSpec, cmd, state); ok {
-		tiers = append(tiers, mapTier{source: SourceEnv, sourceName: envName, rawValues: []string{envValue}})
+	for _, entry := range entries {
+		key := entry.Key
+		if flagSpec.KeyCanonicalizer != nil {
+			key = flagSpec.KeyCanonicalizer(key)
+		}
+
+		merged[key] = entry.Value
+
+		if provenance != nil {
+			provenance[key] = source
+		}
 	}
 
-	if values, ok := cliValues[flagSpec]; ok && len(values) > 0 {
-		tiers = append(tiers, mapTier{source: SourceCLI, sourceName: "--" + flagSpec.Name, rawValues: values})
+	result.hasValues = true
+	if len(entries) > 0 {
+		result.highestTier = source
+		result.highestName = name
 	}
 
-	return tiers
+	return nil
+}
+
+func hasCustomMapParser(state *bindingState, targetType reflect.Type) bool {
+	if state == nil || state.CustomMapMerger == nil || len(state.TypeParsers) == 0 {
+		return false
+	}
+
+	_, ok := state.TypeParsers[targetType]
+
+	return ok
+}
+
+func isStringStringMap(targetType reflect.Type) bool {
+	return targetType.Key().Kind() == reflect.String && targetType.Elem().Kind() == reflect.String
 }
 
 // foldMapTiers resolves a map flag's contributing tiers (default, config, env,
 // CLI) and merges their contributions key-by-key in ascending precedence.
 // For feature-map flags, keys are canonicalized during the merge so spelling
 // variants override across tiers and later tokens in the same tier win.
-func foldMapTiers(cmd *spec.Command, cmdChain []*spec.Command, flagSpec *spec.Flag, cliValues map[*spec.Flag][]string, state *bindingState, wantProvenance bool) (mapMergeResult, error) {
+func foldMapTiers(cmd *spec.Command, cmdChain []*spec.Command, flagSpec *spec.Flag, cliValues map[*spec.Flag][]string, state *bindingState, wantProvenance bool, result *mapMergeResult) error {
 	if flagSpec == nil {
-		return mapMergeResult{}, nil
+		return nil
 	}
 
-	tiers := mapTierValues(flagSpec, cmd, cmdChain, cliValues, state)
-	if len(tiers) == 0 {
-		return mapMergeResult{}, nil
+	defaultValue := flagSpec.Default
+	configValue, configKey, hasConfig := lookupConfig(flagSpec, cmd, cmdChain, state)
+	envValue, envName, hasEnv := lookupEnv(flagSpec, cmd, state)
+	cliValuesForFlag := cliValues[flagSpec]
+
+	if defaultValue == "" && !hasConfig && !hasEnv && len(cliValuesForFlag) == 0 {
+		return nil
 	}
 
-	return mergeMapTiers(cmdChain, flagSpec, tiers, state, mapMergeOptions{
-		wantProvenance:  wantProvenance,
-		canonicalizeKey: mapKeyCanonicalizer(cmd, flagSpec),
-	})
-}
-
-// highestContributingTier returns the highest-precedence tier that contributed
-// at least one key to provenance. If no tier contributed any keys (e.g. empty
-// maps across all tiers), it returns nil.
-func highestContributingTier(tiers []mapTier, provenance map[string]ValueSource) *mapTier {
-	for index := len(tiers) - 1; index >= 0; index-- {
-		tier := &tiers[index]
-		for _, source := range provenance {
-			if source == tier.source {
-				return tier
-			}
-		}
+	if hasCustomMapParser(state, flagSpec.TargetType) {
+		return state.CustomMapMerger(cmd, cmdChain, flagSpec, cliValues, state, wantProvenance, result)
 	}
 
-	return nil
-}
+	if !isStringStringMap(flagSpec.TargetType) {
+		result.hasValues = true
 
-// mergeMapTiers coerces each tier's raw values and folds the resulting maps
-// into one map in tier order, so a higher tier overrides only the keys it
-// names. For string maps, it preserves token order within each tier and avoids
-// reflection. options.wantProvenance records the tier that last wrote each key.
-// A coercion failure in any tier aborts the merge with an error attributed to
-// that tier; the failing tier is returned for callers that render the raw
-// offending input.
-func mergeMapTiers(cmdChain []*spec.Command, flagSpec *spec.Flag, tiers []mapTier, state *bindingState, options mapMergeOptions) (mapMergeResult, error) {
-	if state != nil && len(state.TypeParsers) > 0 {
-		if _, ok := state.TypeParsers[flagSpec.TargetType]; ok {
-			return mergeRegisteredMapTiers(cmdChain, flagSpec, tiers, state, options)
-		}
+		return &mapRegistrationError{targetType: flagSpec.TargetType}
 	}
 
-	if flagSpec.TargetType.Key().Kind() != reflect.String || flagSpec.TargetType.Elem().Kind() != reflect.String {
-		return mapMergeResult{tiers: tiers}, &mapRegistrationError{targetType: flagSpec.TargetType}
-	}
-
-	return mergeStringMapTiers(cmdChain, flagSpec, tiers, options)
-}
-
-func mergeStringMapTiers(cmdChain []*spec.Command, flagSpec *spec.Flag, tiers []mapTier, options mapMergeOptions) (mapMergeResult, error) {
 	merged := make(map[string]string)
 
 	var provenance map[string]ValueSource
-	if options.wantProvenance {
+	if wantProvenance {
 		provenance = make(map[string]ValueSource)
 	}
 
-	for index := range tiers {
-		tier := &tiers[index]
+	tiers := [...]mapTierInput{
+		{has: defaultValue != "", values: []string{defaultValue}, source: SourceDefault, name: defaultValue},
+		{has: hasConfig, values: []string{configValue}, source: SourceConfig, name: configKey},
+		{has: hasEnv, values: []string{envValue}, source: SourceEnv, name: envName},
+		{has: len(cliValuesForFlag) > 0, values: cliValuesForFlag, source: SourceCLI, name: "--" + flagSpec.Name},
+	}
 
-		entries, err := coerce.MapEntries(tier.rawValues, flagSpec.Sep)
-		if err != nil {
-			return mapMergeResult{tiers: tiers, failedTier: tier}, newFlagCoercionError(cmdChain, flagSpec, tier.source, tier.sourceName, strings.Join(tier.rawValues, flagSpec.Sep), err)
-		}
+	var lastSource ValueSource
 
-		for _, entry := range entries {
-			key := entry.Key
-			if options.canonicalizeKey != nil {
-				key = options.canonicalizeKey(key)
+	var lastName string
+
+	for _, tier := range tiers {
+		if tier.has {
+			lastSource = tier.source
+			lastName = tier.name
+
+			if err := foldMapTier(cmdChain, flagSpec, tier.values, tier.source, tier.name, merged, provenance, result); err != nil {
+				return err
 			}
-
-			merged[key] = entry.Value
-
-			if options.wantProvenance {
-				provenance[key] = tier.source
-			}
 		}
+	}
+
+	if !result.hasValues {
+		return nil
+	}
+
+	if result.highestTier == SourceNone {
+		result.highestTier = lastSource
+		result.highestName = lastName
 	}
 
 	var finalMerged any = merged
@@ -2260,38 +2230,103 @@ func mergeStringMapTiers(cmdChain []*spec.Command, flagSpec *spec.Flag, tiers []
 		finalMerged = reflect.ValueOf(merged).Convert(flagSpec.TargetType).Interface()
 	}
 
-	return mapMergeResult{tiers: tiers, merged: finalMerged, provenance: provenance}, nil
+	result.merged = finalMerged
+	result.provenance = provenance
+
+	return nil
 }
 
-func mergeRegisteredMapTiers(cmdChain []*spec.Command, flagSpec *spec.Flag, tiers []mapTier, state *bindingState, options mapMergeOptions) (mapMergeResult, error) {
+func foldRegisteredMapTier(rawValues []string, source ValueSource, name string, flagSpec *spec.Flag, cmdChain []*spec.Command, state *bindingState, merged reflect.Value, provenance map[string]ValueSource, result *mapMergeResult) error {
+	if len(rawValues) == 0 {
+		return nil
+	}
+
+	parsed, err := parseMapTokens(rawValues, flagSpec.TargetType, flagSpec.Sep, state.TypeParsers)
+	if err != nil {
+		raw := strings.Join(rawValues, whyJoinSep(flagSpec))
+		result.hasValues = true
+		result.failedTier = source
+		result.failedRaw = raw
+
+		return newFlagCoercionError(cmdChain, flagSpec, source, name, strings.Join(rawValues, flagSpec.Sep), err)
+	}
+
+	result.hasValues = true
+
+	parsedValue := reflect.ValueOf(parsed)
+	if parsedValue.Len() > 0 {
+		result.highestTier = source
+		result.highestName = name
+	}
+
+	iter := parsedValue.MapRange()
+	for iter.Next() {
+		merged.SetMapIndex(iter.Key(), iter.Value())
+
+		if provenance != nil {
+			provenance[stringx.Stringify(iter.Key().Interface())] = source
+		}
+	}
+
+	return nil
+}
+
+func mergeRegisteredMapTiers(cmd *spec.Command, cmdChain []*spec.Command, flagSpec *spec.Flag, cliValues map[*spec.Flag][]string, state *bindingState, wantProvenance bool, result *mapMergeResult) error {
 	merged := reflect.MakeMap(flagSpec.TargetType)
 
 	var provenance map[string]ValueSource
-	if options.wantProvenance {
+	if wantProvenance {
 		provenance = make(map[string]ValueSource)
 	}
 
-	for index := range tiers {
-		tier := &tiers[index]
+	var lastSource ValueSource
 
-		parsed, err := parseMapTokens(tier.rawValues, flagSpec.TargetType, flagSpec.Sep, state.TypeParsers)
-		if err != nil {
-			return mapMergeResult{tiers: tiers, failedTier: tier}, newFlagCoercionError(cmdChain, flagSpec, tier.source, tier.sourceName, strings.Join(tier.rawValues, flagSpec.Sep), err)
-		}
+	var lastName string
 
-		parsedValue := reflect.ValueOf(parsed)
-		iter := parsedValue.MapRange()
+	foldTier := func(rawValues []string, source ValueSource, name string) error {
+		lastSource = source
+		lastName = name
 
-		for iter.Next() {
-			merged.SetMapIndex(iter.Key(), iter.Value())
+		return foldRegisteredMapTier(rawValues, source, name, flagSpec, cmdChain, state, merged, provenance, result)
+	}
 
-			if options.wantProvenance {
-				provenance[stringx.Stringify(iter.Key().Interface())] = tier.source
-			}
+	if flagSpec.Default != "" {
+		if err := foldTier([]string{flagSpec.Default}, SourceDefault, flagSpec.Default); err != nil {
+			return err
 		}
 	}
 
-	return mapMergeResult{tiers: tiers, merged: merged.Interface(), provenance: provenance}, nil
+	if configValue, configKey, ok := lookupConfig(flagSpec, cmd, cmdChain, state); ok {
+		if err := foldTier([]string{configValue}, SourceConfig, configKey); err != nil {
+			return err
+		}
+	}
+
+	if envValue, envName, ok := lookupEnv(flagSpec, cmd, state); ok {
+		if err := foldTier([]string{envValue}, SourceEnv, envName); err != nil {
+			return err
+		}
+	}
+
+	if values, ok := cliValues[flagSpec]; ok && len(values) > 0 {
+		if err := foldTier(values, SourceCLI, "--"+flagSpec.Name); err != nil {
+			return err
+		}
+	}
+
+	if !result.hasValues {
+		return nil
+	}
+
+	if result.highestTier == SourceNone {
+		result.highestTier = lastSource
+		result.highestName = lastName
+	}
+
+	result.merged = merged.Interface()
+	result.provenance = provenance
+
+	return nil
 }
 
 func parseMapTokens(rawValues []string, targetType reflect.Type, sep string, parsers coerce.Registry) (any, error) {

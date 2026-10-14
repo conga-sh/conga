@@ -9,8 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `App.EnableFeatures()` activates struct-declared feature toggles: it installs the feature resolver and validator hooks, and is required for any application declaring a `conga.Features[T]` container or a `feature:"..."` tag.
+
 ### Changed
 
+- **Breaking**: feature toggles are now opt-in. An application declaring a `conga.Features[T]` container or a `feature:"..."` tag without calling `app.EnableFeatures()` is rejected at schema build with `ErrSchema`, so binaries that never enable features keep the feature machinery unlinked.
 - **Breaking**: map flags (`map[K]V` fields, registered `RegisterMap` types, and the synthesized `conga.Features[T]` map) now merge key-by-key across all source tiers (`default` < config < env < CLI) instead of one winning tier supplying the whole map. A config file can set one key while the command line sets another, and both apply; a higher tier overrides only the keys it names. Feature keys are canonicalized to the declared name, so any accepted spelling (`gentle-force`, `gentle_force`, `gentleForce`) overrides across tiers. Scalars and slices keep winning-tier semantics. A malformed map or unknown feature key in a lower tier (e.g. config) now errors even when a higher tier also sets the flag, attributed to the tier that supplied it.
 - **Breaking**: merged `predict/{network,system,timezone}` and `plugin/{network,system,timezone}` into three topical kits — `network`, `system`, and `timezone`. Each kit bundles its domain types, autocompletion predictors, and standard library bindings in one package.
 - **Breaking**: renamed the standard library bindings to `network.RegisterInterface`, `system.RegisterUser`, `system.RegisterGroup`, `system.RegisterSignal`, and `timezone.RegisterLocation`. This resolves the previous `system.User` type-versus-function collision.

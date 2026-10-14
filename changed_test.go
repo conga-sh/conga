@@ -84,6 +84,7 @@ func TestFeaturesSemantics_DefaultOnly(t *testing.T) {
 
 	cli := new(FeatureSemanticsCLI)
 	app := conga.New(cli).
+		EnableFeatures().
 		Args([]string{})
 
 	err := app.RunContext(t.Context())
@@ -100,6 +101,7 @@ func TestFeaturesSemantics_CLISource(t *testing.T) {
 
 	cli := new(FeatureSemanticsCLI)
 	app := conga.New(cli).
+		EnableFeatures().
 		Args([]string{"--feature-gates", "enabled=false"})
 
 	err := app.RunContext(t.Context())

@@ -288,6 +288,8 @@ type Flag struct {
 	Handle     any
 	Predictor  *PredictorSpec
 	TargetType reflect.Type
+	// KeyCanonicalizer optionally canonicalizes keys during map tier merging.
+	KeyCanonicalizer func(string) string
 	// Feature holds the feature-gate expression declared through the feature
 	// tag on the flag's owning field. Empty means the flag is not
 	// feature-gated.
@@ -412,7 +414,13 @@ type Options struct {
 	// leaves the default parser alone, and a nil return from the hook for
 	// unhandled types also falls through to the default parser.
 	ValidateTextRangeBound func(targetType reflect.Type, tags FieldTags, raw string) error
-	EnvPrefix              string
+	// ProcessFeatures processes a conga.Features container field during schema build.
+	ProcessFeatures func(builder any, structField reflect.StructField, fieldAddr any, classification container.Classification) error
+	// ValidateFeatureReferences validates feature expressions across commands and flags.
+	ValidateFeatureReferences func(root *Command) error
+	// ParseFeatureTag parses, validates, and normalizes a feature struct tag.
+	ParseFeatureTag func(raw string, required bool) (string, error)
+	EnvPrefix       string
 }
 
 // FindDeclaredFlagInChain searches backwards through chain for a declared flag

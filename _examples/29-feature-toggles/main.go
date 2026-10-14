@@ -83,6 +83,7 @@ func main() {
 		Description("HTTP API server gating experimental features behind code, env, and config gates").
 		Version("1.0.0").
 		EnableCompletion().
+		EnableFeatures().
 		EnableWhy().
 		EnvPrefix("SERVE").
 		RegisterDecoder(".yaml", yaml.Decode).

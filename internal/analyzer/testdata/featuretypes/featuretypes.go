@@ -21,4 +21,4 @@ func (a *featureTypesApp) Run(ctx context.Context, session *conga.Session) error
 	return nil
 }
 
-var _ = conga.New[featureTypesApp]()
+var _ = conga.New[featureTypesApp]().EnableFeatures()

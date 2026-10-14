@@ -27,6 +27,11 @@ type configPathError interface {
 	ConfigPath() string
 }
 
+// featureWhyRowsFunc renders the --why Features table from the resolved
+// feature map. It is stored on App as a named function type so a signature
+// drift fails at compile time instead of silently dropping the table.
+type featureWhyRowsFunc func(root *spec.Command, result mapMergeResult) []why.FeatureRow
+
 func (a *App[T]) renderWhy(cmdChain []*spec.Command, cliValues map[*spec.Flag][]string) {
 	report := a.buildWhyReport(cmdChain, cliValues)
 
@@ -56,11 +61,12 @@ func (a *App[T]) buildWhyReport(cmdChain []*spec.Command, cliValues map[*spec.Fl
 	candidatePaths := resolution.candidates
 
 	state := &bindingState{
-		EnvPrefix:   a.envPrefix,
-		ConfigData:  a.configData,
-		TypeParsers: a.collectTypeParsers(),
-		Stdin:       a.stdin,
-		Stdout:      a.stdout,
+		EnvPrefix:       a.envPrefix,
+		ConfigData:      a.configData,
+		TypeParsers:     a.collectTypeParsers(),
+		CustomMapMerger: a.customMapMerger,
+		Stdin:           a.stdin,
+		Stdout:          a.stdout,
 	}
 
 	leaf := cmdChain[len(cmdChain)-1]
@@ -68,11 +74,35 @@ func (a *App[T]) buildWhyReport(cmdChain []*spec.Command, cliValues map[*spec.Fl
 
 	report := why.Report{CommandPath: commandChainPath(cmdChain)}
 
-	// Resolve the feature-map fold once and share it between the feature flag
-	// row and the Features table, so the config/env/CLI cascade is parsed a
-	// single time per report.
-	featureResult, featureErr := foldMapTiers(root, cmdChain, root.FeatureFlag, cliValues, state, true)
+	var (
+		featureResult mapMergeResult
+		featureErr    error
+	)
 
+	if a.whyFeatures != nil && root.FeatureFlag != nil {
+		featureErr = foldMapTiers(root, cmdChain, root.FeatureFlag, cliValues, state, true, &featureResult)
+	}
+
+	a.populateWhyRows(&report, cmdChain, cliValues, state, root, leaf, featureResult, featureErr, loadedPaths, loadedSource, loadErr)
+
+	report.Redacted = whyReportRedacted(report)
+
+	if a.whyFeatures != nil {
+		report.Features = a.whyFeatures(root, featureResult)
+	}
+
+	extensions := a.configRegistry.Extensions()
+	report.ConfigDecoders = extensions
+	report.ConfigPaths = whyConfigPaths(resolver, candidatePaths, loadedPaths, loadErr, extensions)
+
+	if len(loadedPaths) == 0 {
+		report.ConfigExamples = resolver.ConfigExamples(candidatePaths, slicex.Map(resolver.EffectiveSearchPaths(), pathx.Expand), extensions)
+	}
+
+	return report
+}
+
+func (a *App[T]) populateWhyRows(report *why.Report, cmdChain []*spec.Command, cliValues map[*spec.Flag][]string, state *bindingState, root, leaf *spec.Command, featureResult mapMergeResult, featureErr error, loadedPaths []string, loadedSource ValueSource, loadErr error) {
 	for cmdIndex, cmd := range cmdChain {
 		for _, flagSpec := range cmd.Flags {
 			if flagSpec.Handle == nil {
@@ -93,7 +123,7 @@ func (a *App[T]) buildWhyReport(cmdChain []*spec.Command, cliValues map[*spec.Fl
 			case flagSpec.IsConfigFile:
 				row = a.whyConfigFileRow(cmd, cmdChain, flagSpec, cliValues, state, loadedPaths, loadedSource, loadErr)
 				row.ConfigPath = "-"
-			case flagSpec == root.FeatureFlag:
+			case root.FeatureFlag != nil && flagSpec == root.FeatureFlag:
 				row = whyMapFoldRow(flagSpec, featureResult, featureErr, why.Row{Label: "--" + flagSpec.Name, Hidden: flagSpec.Hidden}, false)
 				row.ConfigPath = whyConfigPath(flagSpec, cmdChain, cmdIndex)
 			default:
@@ -110,18 +140,6 @@ func (a *App[T]) buildWhyReport(cmdChain []*spec.Command, cliValues map[*spec.Fl
 			}
 		}
 	}
-
-	report.Redacted = whyReportRedacted(report)
-	report.Features = whyFeatureRows(root, featureResult)
-	extensions := a.configRegistry.Extensions()
-	report.ConfigDecoders = extensions
-	report.ConfigPaths = whyConfigPaths(resolver, candidatePaths, loadedPaths, loadErr, extensions)
-
-	if len(loadedPaths) == 0 {
-		report.ConfigExamples = resolver.ConfigExamples(candidatePaths, slicex.Map(resolver.EffectiveSearchPaths(), pathx.Expand), extensions)
-	}
-
-	return report
 }
 
 // whyFlagRow resolves one ordinary flag through the tier cascade, capturing
@@ -169,7 +187,9 @@ func (a *App[T]) whyFlagRow(cmd *spec.Command, cmdChain []*spec.Command, flagSpe
 // shows the merged map, and each key renders as a sub-row with its own source
 // tier.
 func (a *App[T]) whyMapRow(cmd *spec.Command, cmdChain []*spec.Command, flagSpec *spec.Flag, cliValues map[*spec.Flag][]string, state *bindingState, row why.Row) why.Row {
-	result, err := foldMapTiers(cmd, cmdChain, flagSpec, cliValues, state, true)
+	var result mapMergeResult
+
+	err := foldMapTiers(cmd, cmdChain, flagSpec, cliValues, state, true, &result)
 
 	return whyMapFoldRow(flagSpec, result, err, row, true)
 }
@@ -239,7 +259,7 @@ func (a *App[T]) whyCoercedRow(cmdChain []*spec.Command, flagSpec *spec.Flag, ra
 // while default-tier keys stay visible, matching the report's always-display-defaults
 // rule.
 func whyMapFoldRow(flagSpec *spec.Flag, result mapMergeResult, err error, row why.Row, includeEntries bool) why.Row {
-	if len(result.tiers) == 0 {
+	if !result.hasValues {
 		row.Source = whySourceWord(SourceNone)
 
 		return row
@@ -249,57 +269,25 @@ func whyMapFoldRow(flagSpec *spec.Flag, result mapMergeResult, err error, row wh
 		row.Error = err.Error()
 		if !flagSpec.Safe {
 			row.Value = why.Redacted
-		} else if result.failedTier != nil {
-			row.Value = strings.Join(result.failedTier.rawValues, whyJoinSep(flagSpec))
+		} else if result.failedRaw != "" {
+			row.Value = result.failedRaw
 		}
 
 		return row
 	}
 
-	highest := highestContributingTier(result.tiers, result.provenance)
-	if highest == nil {
-		highest = &result.tiers[len(result.tiers)-1]
-	}
-
-	row.Source = whySourceWord(highest.source)
+	row.Source = whySourceWord(result.highestTier)
 
 	mergedValue := result.merged
 	mergedReflect := reflect.ValueOf(mergedValue)
 	iter := mergedReflect.MapRange()
 
-	var entries []why.MapEntry
-	if includeEntries {
-		entries = make([]why.MapEntry, 0, mergedReflect.Len())
-	}
-
-	hasNonDefaultKey := false
-
-	for iter.Next() {
-		key := stringx.Stringify(iter.Key().Interface())
-		keySource := result.provenance[key]
-
-		if keySource != SourceDefault {
-			hasNonDefaultKey = true
-		}
-
-		if includeEntries {
-			entry := why.MapEntry{Key: key, Source: whySourceWord(keySource)}
-			if !flagSpec.Safe && keySource != SourceDefault {
-				entry.Value = why.Redacted
-			} else {
-				entry.Value = stringx.Stringify(iter.Value().Interface())
-			}
-
-			entries = append(entries, entry)
-		}
-	}
+	var hasNonDefaultKey bool
 
 	if includeEntries {
-		slices.SortFunc(entries, func(first, second why.MapEntry) int {
-			return strings.Compare(first.Key, second.Key)
-		})
-
-		row.Entries = entries
+		row.Entries, hasNonDefaultKey = whyMapEntries(iter, result.provenance, flagSpec, mergedReflect.Len())
+	} else {
+		hasNonDefaultKey = whyHasNonDefaultKey(iter, result.provenance)
 	}
 
 	if !flagSpec.Safe && hasNonDefaultKey {
@@ -309,6 +297,51 @@ func whyMapFoldRow(flagSpec *spec.Flag, result mapMergeResult, err error, row wh
 	}
 
 	return row
+}
+
+func whyMapEntries(iter *reflect.MapIter, provenance map[string]ValueSource, flagSpec *spec.Flag, count int) ([]why.MapEntry, bool) {
+	keys := make([]string, 0, count)
+	entryMap := make(map[string]why.MapEntry, count)
+	hasNonDefault := false
+
+	for iter.Next() {
+		key := stringx.Stringify(iter.Key().Interface())
+		keySource := provenance[key]
+
+		if keySource != SourceDefault {
+			hasNonDefault = true
+		}
+
+		entry := why.MapEntry{Key: key, Source: whySourceWord(keySource)}
+		if !flagSpec.Safe && keySource != SourceDefault {
+			entry.Value = why.Redacted
+		} else {
+			entry.Value = stringx.Stringify(iter.Value().Interface())
+		}
+
+		keys = append(keys, key)
+		entryMap[key] = entry
+	}
+
+	slices.Sort(keys)
+
+	entries := make([]why.MapEntry, 0, len(keys))
+	for _, key := range keys {
+		entries = append(entries, entryMap[key])
+	}
+
+	return entries, hasNonDefault
+}
+
+func whyHasNonDefaultKey(iter *reflect.MapIter, provenance map[string]ValueSource) bool {
+	for iter.Next() {
+		key := stringx.Stringify(iter.Key().Interface())
+		if provenance[key] != SourceDefault {
+			return true
+		}
+	}
+
+	return false
 }
 
 // whyFeatureRows renders one provenance row per declared feature. The feature

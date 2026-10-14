@@ -310,6 +310,7 @@ func TestWhy_MapMergePerKeyProvenance(t *testing.T) {
 		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigExplicit(configPath)).
 		Stdout(&buffer).
+		EnableFeatures().
 		EnableWhy().
 		Args([]string{"--headers", "shared=cli,team=core", "--secrets", "clikey=xyz", "--feature-gates", "beta=false", "--why"})
 
@@ -363,6 +364,7 @@ func TestWhy_NoCLIFeaturesExcludedFromFlagTable(t *testing.T) {
 	app := conga.New[whyNoCLIFeaturesCLI]().
 		Name("whyapp").
 		Stdout(&buffer).
+		EnableFeatures().
 		EnableWhy().
 		Args([]string{"--why"})
 
@@ -625,6 +627,27 @@ func TestWhy_TolerantCoercionErrorRow(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Contains(t, output, "error: invalid integer value")
+}
+
+func TestWhy_MapCoercionErrorUsesDisplaySeparator(t *testing.T) {
+	t.Parallel()
+
+	type mapCLI struct {
+		Headers conga.OptionalFlag[map[string]string] `help:"Headers" safe:"true" sep:"none"`
+	}
+
+	var buffer bytes.Buffer
+
+	app := conga.New[mapCLI]().
+		Stdout(&buffer).
+		EnableWhy().
+		Args([]string{"--headers", "bad1", "--headers", "bad2", "--why"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Contains(t, buffer.String(), "bad1 bad2")
+	assert.NotContains(t, buffer.String(), "bad1nonebad2")
 }
 
 func TestWhy_ConfigFileReadFailureDiagnosticRow(t *testing.T) {

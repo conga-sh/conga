@@ -117,6 +117,7 @@ func TestFeature_CLIOverridesEnv(t *testing.T) {
 
 	app := conga.New(&cli).
 		Name("task").
+		EnableFeatures().
 		Args([]string{"--feature-gates", "gentle-force=true", "--force-all"})
 
 	t.Setenv("TASK_X_FEATURES", "gentle-force=false")
@@ -147,6 +148,7 @@ func TestFeature_MergesSourcesPerKey(t *testing.T) {
 
 		app := conga.New(&cli).
 			Name("task").
+			EnableFeatures().
 			RegisterDecoder(".yaml", yaml.Decode).
 			RegisterDecoder(".yml", yaml.Decode).
 			ConfigOptions(conga.ConfigExplicit(configPath)).
@@ -168,6 +170,7 @@ func TestFeature_MergesSourcesPerKey(t *testing.T) {
 
 		app := conga.New(&cli).
 			Name("task").
+			EnableFeatures().
 			RegisterDecoder(".yaml", yaml.Decode).
 			RegisterDecoder(".yml", yaml.Decode).
 			ConfigOptions(conga.ConfigExplicit(configPath)).
@@ -188,6 +191,7 @@ func TestFeature_MergesSourcesPerKey(t *testing.T) {
 
 		app := conga.New(&cli).
 			Name("task").
+			EnableFeatures().
 			RegisterDecoder(".yaml", yaml.Decode).
 			RegisterDecoder(".yml", yaml.Decode).
 			ConfigOptions(conga.ConfigExplicit(configPath)).
@@ -209,6 +213,7 @@ func TestFeature_MergesSourcesPerKey(t *testing.T) {
 
 		app := conga.New(&cli).
 			Name("task").
+			EnableFeatures().
 			RegisterDecoder(".yaml", yaml.Decode).
 			RegisterDecoder(".yml", yaml.Decode).
 			ConfigOptions(conga.ConfigExplicit(configPath)).
@@ -228,6 +233,7 @@ func TestFeature_MergesSourcesPerKey(t *testing.T) {
 
 		app1 := conga.New(&cli1).
 			Name("task").
+			EnableFeatures().
 			Args([]string{"--feature-gates", "gentle_force=false,gentle-force=true"})
 
 		err1 := app1.Run()
@@ -239,6 +245,7 @@ func TestFeature_MergesSourcesPerKey(t *testing.T) {
 
 		app2 := conga.New(&cli2).
 			Name("task").
+			EnableFeatures().
 			Args([]string{"--feature-gates", "gentle-force=true,gentle_force=false"})
 
 		err2 := app2.Run()
@@ -262,6 +269,7 @@ func TestFeature_MergesSourcesPerKey(t *testing.T) {
 			RegisterDecoder(".yml", yaml.Decode).
 			ConfigOptions(conga.ConfigExplicit(configPath)).
 			Stdout(&buffer).
+			EnableFeatures().
 			EnableWhy().
 			Args([]string{"--feature-gates", "gentle-force=false", "--why"})
 
@@ -289,6 +297,7 @@ func TestFeature_MergesSourcesPerKey(t *testing.T) {
 
 		app := conga.New(&cli).
 			Name("task").
+			EnableFeatures().
 			RegisterDecoder(".yaml", yaml.Decode).
 			RegisterDecoder(".yml", yaml.Decode).
 			ConfigOptions(conga.ConfigExplicit(configPath)).
@@ -309,6 +318,7 @@ func TestFeature_MergesSourcesPerKey(t *testing.T) {
 
 		app := conga.New(&cli).
 			Name("task").
+			EnableFeatures().
 			RegisterDecoder(".yaml", yaml.Decode).
 			RegisterDecoder(".yml", yaml.Decode).
 			ConfigOptions(conga.ConfigExplicit(configPath)).
@@ -332,6 +342,7 @@ func TestFeature_MergesEnvAboveConfig(t *testing.T) {
 
 	app := conga.New(&cli).
 		Name("task").
+		EnableFeatures().
 		RegisterDecoder(".yaml", yaml.Decode).
 		RegisterDecoder(".yml", yaml.Decode).
 		ConfigOptions(conga.ConfigExplicit(configPath)).
@@ -351,6 +362,7 @@ func TestFeature_EnvSpellingLosesToCLI(t *testing.T) {
 
 	app := conga.New(&cli).
 		Name("task").
+		EnableFeatures().
 		Args([]string{"--feature-gates", "gentle-force=false"})
 
 	err := app.Run()
@@ -379,6 +391,7 @@ func TestFeature_RootOnly(t *testing.T) {
 
 	app := conga.New(&cli).
 		Name("task").
+		EnableFeatures().
 		Args([]string{"sub"})
 
 	err := app.Run()
@@ -398,7 +411,8 @@ type featureDuplicateSet struct {
 func TestFeature_DuplicateName(t *testing.T) {
 	t.Parallel()
 
-	app := conga.New[featureDuplicateCLI]().Name("task")
+	app := conga.New[featureDuplicateCLI]().Name("task").
+		EnableFeatures()
 
 	err := app.Run()
 	assert.Error(t, err)
@@ -412,6 +426,7 @@ func TestFeature_FlagGating_Disabled(t *testing.T) {
 
 	app := conga.New(&cli).
 		Name("task").
+		EnableFeatures().
 		Args([]string{"--force-all"})
 
 	err := app.Run()
@@ -427,6 +442,7 @@ func TestFeature_FlagGating_EnabledViaCLI(t *testing.T) {
 
 	app := conga.New(&cli).
 		Name("task").
+		EnableFeatures().
 		Args([]string{"--feature-gates", "gentle-force=true", "--force-all"})
 
 	err := app.Run()
@@ -441,6 +457,7 @@ func TestFeature_FlagGating_EnabledViaEnv(t *testing.T) {
 
 	app := conga.New(&cli).
 		Name("task").
+		EnableFeatures().
 		Args([]string{"--force-all"})
 
 	t.Setenv("TASK_X_FEATURES", "gentle-force=true")
@@ -457,6 +474,7 @@ func TestFeature_SubcommandGating_EnabledViaEnv(t *testing.T) {
 
 	app := conga.New(&cli).
 		Name("task").
+		EnableFeatures().
 		Args([]string{"package", "--name", "lib"})
 
 	t.Setenv("TASK_X_FEATURES", "packages=true")
@@ -485,6 +503,7 @@ func TestFeature_FlagGating_EnabledViaDerivedEnvPrefix(t *testing.T) {
 
 	app := conga.New(&cli).
 		Name("task").
+		EnableFeatures().
 		EnvPrefix("TASK_X").
 		Args([]string{"--force-all"})
 
@@ -505,6 +524,7 @@ func TestFeature_EnvForInactiveGatedFlag_Ignored(t *testing.T) {
 
 	app := conga.New(&cli).
 		Name("task").
+		EnableFeatures().
 		EnvPrefix("TASK_X").
 		Args([]string{})
 
@@ -529,6 +549,7 @@ func TestFeature_FlagGating_EnabledViaConfig(t *testing.T) {
 
 	app := conga.New(&cli).
 		Name("task").
+		EnableFeatures().
 		RegisterDecoder(".yaml", yaml.Decode).
 		RegisterDecoder(".yml", yaml.Decode).
 		ConfigOptions(conga.ConfigExplicit(configPath)).
@@ -553,6 +574,7 @@ func TestFeature_Config_TypoRejection(t *testing.T) {
 
 	app := conga.New(&cli).
 		Name("task").
+		EnableFeatures().
 		RegisterDecoder(".yaml", yaml.Decode).
 		RegisterDecoder(".yml", yaml.Decode).
 		ConfigOptions(conga.ConfigExplicit(configPath)).
@@ -579,6 +601,7 @@ func TestFeature_ConfigTypo_HelpStillRenders(t *testing.T) {
 
 	app := conga.New(&cli).
 		Name("task").
+		EnableFeatures().
 		Stdout(&buffer).
 		RegisterDecoder(".yaml", yaml.Decode).
 		RegisterDecoder(".yml", yaml.Decode).
@@ -605,6 +628,7 @@ func TestFeature_ConfigTypo_VersionStillRenders(t *testing.T) {
 
 	app := conga.New(&cli).
 		Name("task").
+		EnableFeatures().
 		Stdout(&buffer).
 		RegisterDecoder(".yaml", yaml.Decode).
 		RegisterDecoder(".yml", yaml.Decode).
@@ -632,6 +656,7 @@ func TestFeature_ConfigTypo_WhyStillRenders(t *testing.T) {
 	app := conga.New(&cli).
 		Name("task").
 		Stdout(&buffer).
+		EnableFeatures().
 		EnableWhy().
 		RegisterDecoder(".yaml", yaml.Decode).
 		RegisterDecoder(".yml", yaml.Decode).
@@ -660,6 +685,7 @@ func TestFeature_Why_RejectedValueProvenance(t *testing.T) {
 		app := conga.New(&cli).
 			Name("task").
 			Stdout(&buffer).
+			EnableFeatures().
 			EnableWhy().
 			Args([]string{"--feature-gates", "syntax=9", "--why"})
 
@@ -682,6 +708,7 @@ func TestFeature_Why_RejectedValueProvenance(t *testing.T) {
 		app := conga.New(&cli).
 			Name("task").
 			Stdout(&buffer).
+			EnableFeatures().
 			EnableWhy().
 			Args([]string{"--feature-gates", "gentle-forse=true", "--why"})
 
@@ -703,6 +730,7 @@ func TestFeature_Config_InvalidValue(t *testing.T) {
 
 	app := conga.New(&cli).
 		Name("task").
+		EnableFeatures().
 		RegisterDecoder(".yaml", yaml.Decode).
 		RegisterDecoder(".yml", yaml.Decode).
 		ConfigOptions(conga.ConfigExplicit(configPath)).
@@ -721,6 +749,7 @@ func TestFeature_CLI_UnknownFeature(t *testing.T) {
 
 	app := conga.New(&cli).
 		Name("task").
+		EnableFeatures().
 		Args([]string{"--feature-gates", "gentle-forse=true"})
 
 	err := app.Run()
@@ -736,6 +765,7 @@ func TestFeature_CLI_InvalidValue(t *testing.T) {
 
 	app := conga.New(&cli).
 		Name("task").
+		EnableFeatures().
 		Args([]string{"--feature-gates", "syntax=9"})
 
 	err := app.Run()
@@ -751,6 +781,7 @@ func TestFeature_SubcommandGating_Disabled(t *testing.T) {
 
 	app := conga.New(&cli).
 		Name("task").
+		EnableFeatures().
 		Args([]string{"package"})
 
 	err := app.Run()
@@ -767,6 +798,7 @@ func TestFeature_SubcommandGating_Enabled(t *testing.T) {
 	app := conga.New(&cli).
 		Name("task").
 		EnableCompletion().
+		EnableFeatures().
 		Args([]string{"--feature-gates=packages=true", "package", "--name", "lib"})
 
 	err := app.Run()
@@ -789,6 +821,7 @@ func TestFeature_HelpExclusion(t *testing.T) {
 
 		app := conga.New(&cli).
 			Name("task").
+			EnableFeatures().
 			Stdout(&buffer).
 			Args([]string{"--help"})
 
@@ -814,6 +847,7 @@ func TestFeature_HelpExclusion(t *testing.T) {
 
 		app := conga.New(&cli).
 			Name("task").
+			EnableFeatures().
 			Stdout(&buffer).
 			Args([]string{"--feature-gates", "gentle-force=true,packages=true,syntax=2", "--help"})
 
@@ -839,6 +873,7 @@ func TestFeature_MultiLevel(t *testing.T) {
 
 		app := conga.New(&cli).
 			Name("task").
+			EnableFeatures().
 			Args([]string{"--feature-gates", "syntax=2", "--syntax", "experimental"})
 
 		err := app.Run()
@@ -855,6 +890,7 @@ func TestFeature_MultiLevel(t *testing.T) {
 
 		app := conga.New(&cli).
 			Name("task").
+			EnableFeatures().
 			Args([]string{"--feature-gates", "syntax=1", "--v1", "legacy"})
 
 		err := app.Run()
@@ -871,6 +907,7 @@ func TestFeature_MultiLevel(t *testing.T) {
 
 		app := conga.New(&cli).
 			Name("task").
+			EnableFeatures().
 			Args([]string{"--feature-gates", "syntax=3"})
 
 		err := app.Run()
@@ -889,7 +926,8 @@ func TestFeature_Completion(t *testing.T) {
 
 		app := conga.New(&cli).
 			Name("task").
-			EnableCompletion()
+			EnableCompletion().
+			EnableFeatures()
 
 		_, formatted := app.CompleteForShell("bash", []string{"--"})
 		assert.Contains(t, formatted, "--force")
@@ -913,6 +951,7 @@ func TestFeature_Completion(t *testing.T) {
 		app := conga.New(&cli).
 			Name("task").
 			EnableCompletion().
+			EnableFeatures().
 			RegisterDecoder(".yaml", yaml.Decode).
 			RegisterDecoder(".yml", yaml.Decode).
 			ConfigOptions(conga.ConfigExplicit(configPath))
@@ -932,7 +971,8 @@ func TestFeature_Completion(t *testing.T) {
 
 		app := conga.New(&cli).
 			Name("task").
-			EnableCompletion()
+			EnableCompletion().
+			EnableFeatures()
 
 		for _, shell := range []string{"bash", "zsh", "fish", "powershell"} {
 			_, formatted := app.CompleteForShell(shell, []string{"--feature-gates=gentle-force=true", "--"})
@@ -948,7 +988,8 @@ func TestFeature_Completion(t *testing.T) {
 
 		app := conga.New(&cli).
 			Name("task").
-			EnableCompletion()
+			EnableCompletion().
+			EnableFeatures()
 
 		_, formatted := app.CompleteForShell("bash", []string{"--feature-gates", "packages=true", "package", "--"})
 		assert.Contains(t, formatted, "--name")
@@ -967,6 +1008,7 @@ func TestFeature_Completion(t *testing.T) {
 		app := conga.New(&cli).
 			Name("task").
 			EnableCompletion().
+			EnableFeatures().
 			RegisterDecoder(".yaml", yaml.Decode).
 			RegisterDecoder(".yml", yaml.Decode).
 			ConfigOptions(conga.ConfigExplicit(configPath))
@@ -983,6 +1025,7 @@ func TestFeature_Completion_ExplicitConfigFile(t *testing.T) {
 		return conga.New[featureConfigCLI]().
 			Name("task").
 			EnableCompletion().
+			EnableFeatures().
 			RegisterDecoder(".yaml", yaml.Decode).
 			RegisterDecoder(".yml", yaml.Decode)
 	}
@@ -1038,6 +1081,7 @@ func TestFeature_WhyResolvesConfigOnce(t *testing.T) {
 
 	app := conga.New(&cli).
 		Name("task").
+		EnableFeatures().
 		EnableWhy().
 		Stdout(&bytes.Buffer{}).
 		RegisterDecoder(".yaml", decode).
@@ -1058,6 +1102,7 @@ func TestFeature_SubcommandHelp_Disabled(t *testing.T) {
 
 	app := conga.New(&cli).
 		Name("task").
+		EnableFeatures().
 		Args([]string{"package", "--help"})
 
 	err := app.Run()
@@ -1079,6 +1124,7 @@ func TestFeature_FlagGating_HelpRejected(t *testing.T) {
 
 	app := conga.New(&cli).
 		Name("task").
+		EnableFeatures().
 		Stdout(&buffer).
 		Args([]string{"--force-all", "--help"})
 
@@ -1099,7 +1145,8 @@ func TestFeature_Completion_PartialGateTokenStillPrunes(t *testing.T) {
 
 	app := conga.New(&cli).
 		Name("task").
-		EnableCompletion()
+		EnableCompletion().
+		EnableFeatures()
 
 	_, flagFormatted := app.CompleteForShell("bash", []string{"--feature-gates", "gentle-force=true,ty", "--"})
 	assert.NotContains(t, flagFormatted, "--force-all")
@@ -1119,6 +1166,7 @@ func TestFeature_Completion_NoStateLeak(t *testing.T) {
 	app := conga.New(&cli).
 		Name("task").
 		EnableCompletion().
+		EnableFeatures().
 		Args([]string{})
 
 	_, formatted := app.CompleteForShell("bash", []string{"--feature-gates", "gentle-force=true", "--"})
@@ -1157,6 +1205,7 @@ func TestFeature_VersionSkipsConfigResolution(t *testing.T) {
 
 	app := conga.New(&cli).
 		Name("task").
+		EnableFeatures().
 		Version("1.2.3").
 		Stdout(&buffer).
 		RegisterDecoder(".yaml", decode).
@@ -1182,6 +1231,7 @@ func TestFeature_ConfigFile_InactiveFlagRejection(t *testing.T) {
 
 	app := conga.New(&cli).
 		Name("task").
+		EnableFeatures().
 		RegisterDecoder(".yaml", yaml.Decode).
 		RegisterDecoder(".yml", yaml.Decode).
 		ConfigOptions(conga.ConfigExplicit(configPath)).
@@ -1232,6 +1282,7 @@ func TestFeature_ConfigFile_InactiveScopedFlagRejection(t *testing.T) {
 
 	app := conga.New(&cli).
 		Name("task").
+		EnableFeatures().
 		RegisterDecoder(".yaml", yaml.Decode).
 		RegisterDecoder(".yml", yaml.Decode).
 		ConfigOptions(conga.ConfigExplicit(configPath)).
@@ -1255,6 +1306,7 @@ func TestFeature_ConfigFile_InactiveSubcommandSubtreeRejection(t *testing.T) {
 
 	app := conga.New(&cli).
 		Name("task").
+		EnableFeatures().
 		RegisterDecoder(".yaml", yaml.Decode).
 		RegisterDecoder(".yml", yaml.Decode).
 		ConfigOptions(conga.ConfigExplicit(configPath)).
@@ -1278,6 +1330,7 @@ func TestFeature_ConfigFile_ScopedFlagBindsWhenActive(t *testing.T) {
 
 	app := conga.New(&cli).
 		Name("task").
+		EnableFeatures().
 		RegisterDecoder(".yaml", yaml.Decode).
 		RegisterDecoder(".yml", yaml.Decode).
 		ConfigOptions(conga.ConfigExplicit(configPath)).
@@ -1332,6 +1385,7 @@ func TestFeature_ConfigFile_PrunedSubcommandBareKey(t *testing.T) {
 
 	app := conga.New(&cli).
 		Name("task").
+		EnableFeatures().
 		RegisterDecoder(".yaml", yaml.Decode).
 		RegisterDecoder(".yml", yaml.Decode).
 		ConfigOptions(conga.ConfigExplicit(configPath)).
@@ -1386,6 +1440,7 @@ func TestFeature_ConfigFile_PrunedSubcommandBareConfigKeyNotClaimed(t *testing.T
 
 	app := conga.New(&cli).
 		Name("task").
+		EnableFeatures().
 		RegisterDecoder(".yaml", yaml.Decode).
 		RegisterDecoder(".yml", yaml.Decode).
 		ConfigOptions(conga.ConfigExplicit(configPath)).
@@ -1413,6 +1468,7 @@ func TestFeature_ConfigFile_PrunedSubcommandScopedConfigKeyRejection(t *testing.
 
 	app := conga.New(&cli).
 		Name("task").
+		EnableFeatures().
 		RegisterDecoder(".yaml", yaml.Decode).
 		RegisterDecoder(".yml", yaml.Decode).
 		ConfigOptions(conga.ConfigExplicit(configPath)).
@@ -1438,7 +1494,9 @@ func TestFeature_ValueComparisonSyntaxRejected(t *testing.T) {
 
 	var cli featureInvalidEnumTagCLI
 
-	app := conga.New(&cli).Name("task").Args([]string{})
+	app := conga.New(&cli).Name("task").
+		EnableFeatures().
+		Args([]string{})
 
 	err := app.Run()
 	assert.Error(t, err)
@@ -1461,7 +1519,9 @@ func TestFeature_FlagConstraintPrecedenceOverArgCoercion(t *testing.T) {
 
 	var cli flagConstraintCLI
 
-	app := conga.New(&cli).Name("app").Args([]string{"--foo", "--bar", "notanumber"})
+	app := conga.New(&cli).Name("app").
+		EnableFeatures().
+		Args([]string{"--foo", "--bar", "notanumber"})
 
 	err := app.Run()
 	assert.Error(t, err)
@@ -1481,6 +1541,7 @@ func TestFeature_GatedFlagErrorDeterministic(t *testing.T) {
 
 		app := conga.New(&cli).
 			Name("task").
+			EnableFeatures().
 			Args([]string{"--syntax", "x", "--force-all", "--v1", "y"})
 
 		err := app.Run()
@@ -1507,6 +1568,7 @@ func TestFeature_ConfigErrorPrecedenceOverFeatureGate(t *testing.T) {
 
 	app := conga.New(&cli).
 		Name("task").
+		EnableFeatures().
 		RegisterDecoder(".yaml", yaml.Decode).
 		ConfigOptions(conga.ConfigExplicit(configPath)).
 		Args([]string{"package"})
@@ -1532,7 +1594,9 @@ func TestFeature_ExplicitConfigExtractionErrorHalts(t *testing.T) {
 
 	var cli badConfigFlagCLI
 
-	app := conga.New(&cli).Name("app").Args([]string{"package", "--config"})
+	app := conga.New(&cli).Name("app").
+		EnableFeatures().
+		Args([]string{"package", "--config"})
 
 	err := app.Run()
 	assert.Error(t, err)
@@ -1548,6 +1612,7 @@ func TestFeature_DeterministicErrorAcrossIterations(t *testing.T) {
 
 		app := conga.New(&cli).
 			Name("app").
+			EnableFeatures().
 			Args([]string{"--feature-gates", "zebra=true,alpha=true,beta=true"})
 
 		err := app.Run()
@@ -1600,6 +1665,7 @@ func TestFeature_ConfigFile_PrunedCommandLocalKeyRejection(t *testing.T) {
 
 	app := conga.New(&cli).
 		Name("task").
+		EnableFeatures().
 		RegisterDecoder(".yaml", yaml.Decode).
 		ConfigOptions(conga.ConfigExplicit(configPath)).
 		Args([]string{"cluster", "node"})
@@ -1608,4 +1674,18 @@ func TestFeature_ConfigFile_PrunedCommandLocalKeyRejection(t *testing.T) {
 	assert.Error(t, err)
 	assert.IsError(t, err, conga.ErrConfig)
 	assert.Contains(t, err.Error(), `config file declares flag '--wait' which requires feature "experimental"`)
+}
+
+func TestFeature_RequiresEnableFeatures(t *testing.T) {
+	t.Parallel()
+
+	var cli featureTestCLI
+
+	app := conga.New(&cli).Name("task")
+
+	err := app.Run()
+
+	assert.Error(t, err)
+	assert.IsError(t, err, conga.ErrSchema)
+	assert.Contains(t, err.Error(), "conga.Features declared on root command requires app.EnableFeatures()")
 }

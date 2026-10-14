@@ -214,6 +214,22 @@ func CompletionRequiresEnableError() error {
 	return fmt.Errorf("%w: completion command declared without completion enabled; call app.EnableCompletion() when constructing the app, or remove the field", ErrSchema)
 }
 
+// FeaturesRequiresEnableError returns the schema error for a conga.Features
+// container declared under an app that never calls app.EnableFeatures(). The
+// runtime schema builder and the static analyzer share it as the single source
+// of truth.
+func FeaturesRequiresEnableError() error {
+	return errFeaturesRequiresEnableFeatures
+}
+
+// FeatureTagRequiresEnableError returns the schema error for a feature:"..."
+// struct tag declared under an app that never calls app.EnableFeatures(). The
+// runtime schema builder and the static analyzer share it as the single source
+// of truth.
+func FeatureTagRequiresEnableError() error {
+	return errFeatureTagRequiresEnableFeatures
+}
+
 // ValidatePredictorTag validates an explicit predictor:"..." struct tag
 // without runtime predictor inference: built-in predictor vocabulary is
 // always checked; custom predictor names only under strict tag validation.

@@ -154,7 +154,7 @@ func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
 }
 ```
 
-Declare the container once, on the root command struct. The `feature` tag is accepted on `OptionalFlag`, `Counter`, `Command[T]`, and `ConfigFile` fields; `RequiredFlag` rejects it because a required input cannot be absent.
+Declare the container once, on the root command struct, and call `app.EnableFeatures()` on the application builder to activate feature resolution. Without the builder call, schema build rejects the container and every `feature` tag with `ErrSchema`. The `feature` tag is accepted on `OptionalFlag`, `Counter`, `Command[T]`, and `ConfigFile` fields; `RequiredFlag` rejects it because a required input cannot be absent. See [How to gate features](/how-to/feature-flags/).
 
 ### Feature container tags
 

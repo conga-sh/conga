@@ -102,6 +102,12 @@ func buildSchema(target any, name string, opts spec.Options) (*spec.Command, err
 	opts.ClassifyContainer = classifyTestContainer
 	opts.InferPredictor = spec.InferPredictorFromType
 
+	if opts.ProcessFeatures == nil {
+		opts.ProcessFeatures = spec.ProcessFeaturesField
+		opts.ValidateFeatureReferences = spec.ValidateFeatureReferences
+		opts.ParseFeatureTag = spec.ParseFeatureTag
+	}
+
 	return spec.Build(target, name, opts)
 }
 
@@ -1948,4 +1954,40 @@ func TestFeatureTag_InvalidSyntaxRejection(t *testing.T) {
 			assert.IsError(t, err, spec.ErrInvalidStructTag)
 		})
 	}
+}
+
+type featureDisabledContainerCLI struct {
+	Features mockFeatures[featureDeclSet]
+}
+
+type featureDisabledTagCLI struct {
+	Verbose mockFlag[bool] `feature:"preview"`
+}
+
+func TestFeatures_DisabledWithoutEnableFeatures(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Features container rejected", func(t *testing.T) {
+		t.Parallel()
+
+		var cli featureDisabledContainerCLI
+
+		_, err := spec.Build(&cli, "app", spec.Options{ClassifyContainer: classifyTestContainer})
+
+		assert.Error(t, err)
+		assert.IsError(t, err, spec.ErrSchema)
+		assert.Contains(t, err.Error(), "conga.Features declared on root command requires app.EnableFeatures()")
+	})
+
+	t.Run("feature struct tag rejected", func(t *testing.T) {
+		t.Parallel()
+
+		var cli featureDisabledTagCLI
+
+		_, err := spec.Build(&cli, "app", spec.Options{ClassifyContainer: classifyTestContainer})
+
+		assert.Error(t, err)
+		assert.IsError(t, err, spec.ErrSchema)
+		assert.Contains(t, err.Error(), "feature struct tag requires app.EnableFeatures()")
+	})
 }

@@ -182,7 +182,6 @@ func Map(raws []string, sep string) (map[string]string, error) {
 	}
 
 	result := make(map[string]string, len(entries))
-
 	for _, entry := range entries {
 		result[entry.Key] = entry.Value
 	}
