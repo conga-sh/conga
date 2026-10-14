@@ -12,9 +12,8 @@ import (
 	"github.com/conga-sh/conga/timezone"
 )
 
+//nolint:paralleltest // timezone package tests mutate the process-global ZONEINFO environment variable.
 func TestLocation(t *testing.T) {
-	t.Parallel()
-
 	cli := new(timezoneTestCLI)
 	app := conga.New(cli).
 		Args([]string{"-z", "America/New_York"}).
@@ -26,9 +25,8 @@ func TestLocation(t *testing.T) {
 	assert.Equal(t, "America/New_York", cli.Zone.Get().String())
 }
 
+//nolint:paralleltest // timezone package tests mutate the process-global ZONEINFO environment variable.
 func TestLocation_InvalidZone(t *testing.T) {
-	t.Parallel()
-
 	app := conga.New[timezoneTestCLI]().
 		Args([]string{"-z", "Mars/Crater"}).
 		Use(timezone.RegisterLocation)
@@ -42,9 +40,8 @@ func TestLocation_InvalidZone(t *testing.T) {
 	assert.Contains(t, err.Error(), "for flag --zone")
 }
 
+//nolint:paralleltest // timezone package tests mutate the process-global ZONEINFO environment variable.
 func TestLocation_Completion(t *testing.T) {
-	t.Parallel()
-
 	var buffer bytes.Buffer
 
 	app := conga.New[timezoneTestCLI]().

@@ -78,7 +78,7 @@ func TestInspectorChainView(t *testing.T) {
 	assert.NoError(t, err)
 
 	var buffer bytes.Buffer
-	inspector.Fprint(nil, &buffer, cli)
+	inspector.Fprint(nil, &buffer, cli, cli.Create.Get())
 
 	output := buffer.String()
 	assert.Contains(t, output, "⚙  app")

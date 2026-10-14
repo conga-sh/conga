@@ -833,6 +833,12 @@ func (t *flagCollisionTracker) CheckAndAdd(flagSpec *Flag, fieldName string) err
 // (multi:"true") to report every merged file. Apps without a root config-file
 // field cascade without one.
 func validateConfigSettings(root *Command) error {
+	if root.ConfigSettings.Explicit != "" {
+		if len(root.ConfigSettings.Tier) > 0 || root.ConfigSettings.Cascading {
+			return ConfigExplicitConflictError()
+		}
+	}
+
 	if !root.ConfigSettings.Cascading || root.ConfigFileFlag == nil || root.ConfigFileFlag.IsSlice {
 		return nil
 	}

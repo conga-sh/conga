@@ -60,7 +60,7 @@ type AdminCmd struct {
 
 // Run executes the admin API command.
 func (a *AdminCmd) Run(ctx context.Context, session *conga.Session) error {
-	inspector.Print(session, session.Root[CLI]())
+	inspector.Print(session, session.Root[CLI](), a)
 
 	fmt.Fprintf(session.Stdout(), "admin: API listening on :%d\n", a.Port.Get())
 

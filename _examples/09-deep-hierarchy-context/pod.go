@@ -19,14 +19,14 @@ type PodListCmd struct {
 }
 
 func (p *PodListCmd) Run(ctx context.Context, session *conga.Session) error {
-	inspector.Print(session, session.Root[CLI]())
-
 	// Ancestor accessors: read the root through session.Root, then walk the
 	// selected Command fields down to any enclosing command struct.
 	root := session.Root[CLI]()
 	cluster := root.Cluster.Get()
 	node := cluster.Node.Get()
 	podParent := node.Pod.Get()
+
+	inspector.Print(session, root, cluster, node, podParent, p)
 
 	stdout := session.Stdout()
 	fmt.Fprintf(stdout, "=== Deep Hierarchy Resolution ===\n")

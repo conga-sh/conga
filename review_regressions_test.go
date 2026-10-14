@@ -182,10 +182,10 @@ func TestTypedMaps_ArbitraryTypes(t *testing.T) {
 	app := conga.New(cli).
 		Args([]string{"-i", "web=3,worker=5", "-b", "auth=true,billing=false", "-d", "api=5s,db=30s", "lr=0.01,decay=0.001"})
 
-	app.RegisterMap(map[string]int{})
-	app.RegisterMap(map[string]bool{})
-	app.RegisterMap(map[string]time.Duration{})
-	app.RegisterMap(map[string]float64{})
+	app.RegisterMap[map[string]int]()
+	app.RegisterMap[map[string]bool]()
+	app.RegisterMap[map[string]time.Duration]()
+	app.RegisterMap[map[string]float64]()
 
 	err := app.Run()
 
@@ -458,7 +458,7 @@ func TestRegression_SelfValidatingMapEntryValues(t *testing.T) {
 		app := conga.New(cli).
 			Args([]string{"--ports", "http=80,https=443"})
 
-		app.RegisterMap(map[string]ValidatedPortNumber{})
+		app.RegisterMap[map[string]ValidatedPortNumber]()
 
 		err := app.Run()
 
@@ -473,7 +473,7 @@ func TestRegression_SelfValidatingMapEntryValues(t *testing.T) {
 		app := conga.New[SelfValidatingMapEntryCLI]().
 			Args([]string{"--ports", "http=80,bad=99999"})
 
-		app.RegisterMap(map[string]ValidatedPortNumber{})
+		app.RegisterMap[map[string]ValidatedPortNumber]()
 
 		err := app.Run()
 

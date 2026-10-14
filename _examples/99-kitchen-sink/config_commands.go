@@ -18,7 +18,7 @@ type ConfigCmd struct {
 }
 
 func (c *ConfigCmd) Run(ctx context.Context, session *conga.Session) error {
-	inspector.Print(session, session.Root[KitchenSinkCLI]())
+	inspector.Print(session, session.Root[KitchenSinkCLI](), c)
 
 	return nil
 }
@@ -31,7 +31,9 @@ type MapConfigCmd struct {
 }
 
 func (c *MapConfigCmd) Run(ctx context.Context, session *conga.Session) error {
-	inspector.Print(session, session.Root[KitchenSinkCLI]())
+	root := session.Root[KitchenSinkCLI]()
+	configCmd := root.Configs.Get()
+	inspector.Print(session, root, configCmd, c)
 
 	return nil
 }
@@ -43,7 +45,9 @@ type NestedConfigCmd struct {
 }
 
 func (c *NestedConfigCmd) Run(ctx context.Context, session *conga.Session) error {
-	inspector.Print(session, session.Root[KitchenSinkCLI]())
+	root := session.Root[KitchenSinkCLI]()
+	configCmd := root.Configs.Get()
+	inspector.Print(session, root, configCmd, c)
 
 	return nil
 }

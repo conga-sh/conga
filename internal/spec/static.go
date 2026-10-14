@@ -194,6 +194,13 @@ func FeatureOnRequiredFlagError() error {
 	return fmt.Errorf("%w: tag \"feature\" cannot be used on required flags (feature-gated flags must be optional)", ErrInvalidStructTag)
 }
 
+// ConfigExplicitConflictError builds the error when ConfigExplicit is combined with ConfigPaths or ConfigCascading.
+// The error wraps ErrSchema so runtime schema validation returns it directly and the static analyzer reports it verbatim,
+// keeping the lint-time and runtime messages a single source of truth.
+func ConfigExplicitConflictError() error {
+	return fmt.Errorf("%w: conga.ConfigExplicit() specifies an absolute configuration file and cannot be combined with conga.ConfigPaths() or conga.ConfigCascading()", ErrSchema)
+}
+
 // CascadingRequiresMultiError builds the cascading⟹multi arity-guard error
 // for a root config-file flag: a flag without multi:"true" cannot report
 // every merged file under Cascading(). The error wraps ErrSchema so runtime

@@ -38,7 +38,9 @@ type PrimitivesCmd struct {
 }
 
 func (c *PrimitivesCmd) Run(ctx context.Context, session *conga.Session) error {
-	inspector.Print(session, session.Root[KitchenSinkCLI]())
+	root := session.Root[KitchenSinkCLI]()
+	typesCmd := root.Types.Get()
+	inspector.Print(session, root, typesCmd, c)
 
 	return nil
 }
@@ -54,7 +56,9 @@ type FilesystemCmd struct {
 }
 
 func (c *FilesystemCmd) Run(ctx context.Context, session *conga.Session) error {
-	inspector.Print(session, session.Root[KitchenSinkCLI]())
+	root := session.Root[KitchenSinkCLI]()
+	typesCmd := root.Types.Get()
+	inspector.Print(session, root, typesCmd, c)
 
 	return nil
 }
@@ -69,7 +73,9 @@ type ValueCmd struct {
 }
 
 func (c *ValueCmd) Run(ctx context.Context, session *conga.Session) error {
-	inspector.Print(session, session.Root[KitchenSinkCLI]())
+	root := session.Root[KitchenSinkCLI]()
+	typesCmd := root.Types.Get()
+	inspector.Print(session, root, typesCmd, c)
 
 	return nil
 }

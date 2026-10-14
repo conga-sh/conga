@@ -89,6 +89,8 @@ type appOptions struct {
 	// that could hide one. Ambiguous evidence skips the cascading guard.
 	configCascading          bool
 	configCascadingAmbiguous bool
+	configExplicit           bool
+	configPaths              bool
 }
 
 func (o *appOptions) absorbCall(pass *analysis.Pass, node ast.Node) {
@@ -170,13 +172,26 @@ func (o *appOptions) absorbEnvPrefixCall(pass *analysis.Pass, call *ast.CallExpr
 // app.ConfigOptions(...) call: a statically identified conga.ConfigCascading()
 // enables the cascading guard, known non-cascading options are inert, and
 // anything else is ambiguous evidence that could hide a Cascading option.
+// It reports a diagnostic when ConfigExplicit is combined with ConfigPaths or
+// ConfigCascading.
 func (o *appOptions) absorbConfigCall(pass *analysis.Pass, call *ast.CallExpr) {
 	for _, argument := range call.Args {
 		switch configOptionName(pass, argument) {
 		case "ConfigCascading":
 			o.configCascading = true
-		case "ConfigPaths", "ConfigExplicit":
-			// Statically identified non-cascading options.
+			if o.configExplicit {
+				pass.Reportf(argument.Pos(), "%s", spec.ConfigExplicitConflictError().Error())
+			}
+		case "ConfigPaths":
+			o.configPaths = true
+			if o.configExplicit {
+				pass.Reportf(argument.Pos(), "%s", spec.ConfigExplicitConflictError().Error())
+			}
+		case "ConfigExplicit":
+			o.configExplicit = true
+			if o.configCascading || o.configPaths {
+				pass.Reportf(argument.Pos(), "%s", spec.ConfigExplicitConflictError().Error())
+			}
 		default:
 			o.configCascadingAmbiguous = true
 		}
@@ -259,6 +274,10 @@ func run(pass *analysis.Pass) (any, error) {
 	anchors := discoverAnchors(pass)
 	if len(anchors) == 0 {
 		return nil, nil //nolint:nilnil // the analysis driver contract expects a nil result on success
+	}
+
+	if len(anchors) == 1 {
+		checkSessionRootCalls(pass, anchors[0])
 	}
 
 	congaTypes, err := resolveCongaTypes(anchors[0].packageObject)
@@ -496,4 +515,120 @@ func stringLiteralValue(pass *analysis.Pass, expression ast.Expr) (string, bool)
 	default:
 		return "", false
 	}
+}
+
+// checkSessionRootCalls inspects calls to (*conga.Session).Root[T]() in packages
+// with a single conga.New anchor, reporting a diagnostic if the type argument T
+// does not match the anchored application root command struct.
+func checkSessionRootCalls(pass *analysis.Pass, singleAnchor *anchor) {
+	for _, file := range pass.Files {
+		if isTestFile(pass.Fset, file) {
+			continue
+		}
+
+		ast.Inspect(file, func(node ast.Node) bool {
+			call, ok := node.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+
+			typeArg, indexPos, ok := sessionRootCallTypeArg(pass, call)
+			if !ok {
+				return true
+			}
+
+			if !types.Identical(typeArg, singleAnchor.rootType) {
+				qualifier := func(pkg *types.Package) string {
+					if pkg == pass.Pkg || pkg == nil {
+						return ""
+					}
+
+					return pkg.Name()
+				}
+
+				pass.Reportf(indexPos, "Session.Root[T] type %s does not match application root command %s",
+					types.TypeString(typeArg, qualifier),
+					types.TypeString(singleAnchor.rootType, qualifier),
+				)
+			}
+
+			return true
+		})
+	}
+}
+
+func sessionRootCallTypeArg(pass *analysis.Pass, call *ast.CallExpr) (types.Type, token.Pos, bool) {
+	var (
+		selector  *ast.SelectorExpr
+		indexNode ast.Expr
+	)
+
+	switch function := call.Fun.(type) {
+	case *ast.IndexExpr:
+		sel, ok := function.X.(*ast.SelectorExpr)
+		if !ok {
+			return nil, token.NoPos, false
+		}
+
+		selector = sel
+		indexNode = function.Index
+	case *ast.IndexListExpr:
+		sel, ok := function.X.(*ast.SelectorExpr)
+		if !ok || len(function.Indices) != 1 {
+			return nil, token.NoPos, false
+		}
+
+		selector = sel
+		indexNode = function.Indices[0]
+	default:
+		return nil, token.NoPos, false
+	}
+
+	if !isSessionRootMethod(pass, selector) {
+		return nil, token.NoPos, false
+	}
+
+	typeArg := pass.TypesInfo.TypeOf(indexNode)
+	if typeArg == nil {
+		return nil, token.NoPos, false
+	}
+
+	return typeArg, indexNode.Pos(), true
+}
+
+func isSessionRootMethod(pass *analysis.Pass, selector *ast.SelectorExpr) bool {
+	var method *types.Func
+
+	if selection := pass.TypesInfo.Selections[selector]; selection != nil {
+		if fn, ok := selection.Obj().(*types.Func); ok {
+			method = fn
+		}
+	}
+
+	if method == nil {
+		if fn, ok := pass.TypesInfo.Uses[selector.Sel].(*types.Func); ok {
+			method = fn
+		}
+	}
+
+	if method == nil || method.Name() != "Root" {
+		return false
+	}
+
+	signature, ok := method.Type().(*types.Signature)
+	if !ok || signature.Recv() == nil {
+		return false
+	}
+
+	receiver := signature.Recv().Type()
+	if pointer, isPointer := receiver.(*types.Pointer); isPointer {
+		receiver = pointer.Elem()
+	}
+
+	named, ok := receiver.(*types.Named)
+	if !ok || named.Obj().Pkg() == nil {
+		return false
+	}
+
+	return named.Obj().Pkg().Path() == congaPackagePath && named.Obj().Name() == "Session"
 }

@@ -1106,3 +1106,41 @@ func TestConfig_DefaultXDGTierMissingDirectoryIsSilent(t *testing.T) {
 	assert.Equal(t, conga.SourceDefault, cli.Port.Source())
 	assert.Equal(t, "", cli.ConfigFile.Path())
 }
+
+func TestConfig_ConfigExplicit_ConflictWithPathsOrCascading_FailsSchema(t *testing.T) {
+	t.Parallel()
+
+	type SimpleCLI struct {
+		noopRunner
+
+		Port conga.OptionalFlag[int] `name:"port"`
+	}
+
+	t.Run("explicit combined with paths", func(t *testing.T) {
+		t.Parallel()
+
+		app := conga.New[SimpleCLI]().
+			ConfigOptions(conga.ConfigExplicit("app.json"), conga.ConfigPaths("search.json")).
+			Args([]string{})
+
+		err := app.RunContext(t.Context())
+
+		assert.Error(t, err)
+		assert.IsError(t, err, conga.ErrSchema)
+		assert.Contains(t, err.Error(), "conga.ConfigExplicit() specifies an absolute configuration file and cannot be combined with conga.ConfigPaths() or conga.ConfigCascading()")
+	})
+
+	t.Run("explicit combined with cascading", func(t *testing.T) {
+		t.Parallel()
+
+		app := conga.New[SimpleCLI]().
+			ConfigOptions(conga.ConfigExplicit("app.json"), conga.ConfigCascading()).
+			Args([]string{})
+
+		err := app.RunContext(t.Context())
+
+		assert.Error(t, err)
+		assert.IsError(t, err, conga.ErrSchema)
+		assert.Contains(t, err.Error(), "conga.ConfigExplicit() specifies an absolute configuration file and cannot be combined with conga.ConfigPaths() or conga.ConfigCascading()")
+	})
+}

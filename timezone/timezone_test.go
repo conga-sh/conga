@@ -18,9 +18,8 @@ import (
 //go:embed testdata/fixtures/zone1970.tab
 var fixtureZone1970Tab []byte
 
+//nolint:paralleltest // timezone package tests mutate the process-global ZONEINFO environment variable.
 func TestTimezones_Execution(t *testing.T) {
-	t.Parallel()
-
 	pred := timezone.Timezones()
 
 	result := pred.Invoke(predict.Context{})

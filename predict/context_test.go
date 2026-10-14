@@ -272,3 +272,46 @@ func TestContext_GetenvMissingKeyFallback(t *testing.T) {
 	assert.Equal(t, "eu-west-1", present)
 	assert.Equal(t, "from_process", fallback)
 }
+
+func TestContext_Getenv_EnvLookup(t *testing.T) {
+	t.Setenv("CONGA_PROCESS_VAR", "from_os")
+
+	ctx := predict.Context{
+		Env: map[string]string{
+			"SHADOWED": "from_env_map",
+			"ENV_ONLY": "from_env_map_only",
+		},
+		EnvLookup: func(key string) (string, bool) {
+			if key == "SHADOWED" {
+				return "from_lookup", true
+			}
+
+			if key == "LOOKUP_ONLY" {
+				return "lookup_val", true
+			}
+
+			return "", false
+		},
+	}
+
+	assert.Equal(t, "from_lookup", ctx.Getenv("SHADOWED"))
+	assert.Equal(t, "lookup_val", ctx.Getenv("LOOKUP_ONLY"))
+	assert.Equal(t, "from_env_map_only", ctx.Getenv("ENV_ONLY"))
+	assert.Equal(t, "from_os", ctx.Getenv("CONGA_PROCESS_VAR"))
+	assert.Equal(t, "", ctx.Getenv("NON_EXISTENT_VAR"))
+}
+
+func TestContext_WithFlagValues(t *testing.T) {
+	t.Parallel()
+
+	ctx := predict.Context{}.WithFlagValues(map[string][]string{
+		"env":  {"dev", "prod"},
+		"tier": {"web"},
+	})
+
+	assert.Equal(t, []string{"dev", "prod"}, ctx.FlagValues("env"))
+	assert.Equal(t, "prod", ctx.FlagValue("env", ""))
+	assert.Equal(t, "web", ctx.FlagValue("tier", ""))
+	assert.Equal(t, "prod", ctx.Flags["env"])
+	assert.Equal(t, "web", ctx.Flags["tier"])
+}

@@ -53,7 +53,7 @@ func TestCompletionCommand_NilContext(t *testing.T) {
 
 	var nilCtx context.Context
 
-	cmd := &conga.CompletionCommand{Shell: "bash"}
+	cmd := &conga.CompletionCommand{}
 
 	assert.Panics(t, func() {
 		_ = cmd.Run(nilCtx, nil)
@@ -63,7 +63,7 @@ func TestCompletionCommand_NilContext(t *testing.T) {
 func TestCompletionCommand_NilSession(t *testing.T) {
 	t.Parallel()
 
-	cmd := &conga.CompletionCommand{Shell: "bash"}
+	cmd := &conga.CompletionCommand{}
 
 	err := cmd.Run(t.Context(), nil)
 

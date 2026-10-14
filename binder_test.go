@@ -436,7 +436,7 @@ func TestBinder_MapFlagMergesTiers(t *testing.T) {
 		cli := new(CLI)
 		app := conga.New(cli).
 			RegisterDecoder(".json", json.Decode).
-			RegisterMap(map[string]int{}).
+			RegisterMap[map[string]int]().
 			ConfigOptions(conga.ConfigExplicit(configPath)).
 			Args([]string{"--sizes", "shared=9,large=3"})
 
@@ -453,7 +453,7 @@ func TestBinder_MapFlagMergesTiers(t *testing.T) {
 
 		app := conga.New[CLI]().
 			RegisterDecoder(".json", json.Decode).
-			RegisterMap(map[string]int{}).
+			RegisterMap[map[string]int]().
 			ConfigOptions(conga.ConfigExplicit(configPath)).
 			Args([]string{"--sizes", "large=3"})
 

@@ -121,9 +121,6 @@ type argContainerView struct {
 	required bool
 }
 
-// IsArg marks the view as a positional argument container.
-func (argContainerView) IsArg() {}
-
 // SetValue binds a value and records its source.
 func (v argContainerView) SetValue(value any, source ValueSource, detail string) {
 	v.state.setValue(value, source, detail)

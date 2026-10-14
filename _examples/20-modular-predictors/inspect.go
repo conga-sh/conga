@@ -15,7 +15,7 @@ type InspectCmd struct {
 }
 
 func (i *InspectCmd) Run(ctx context.Context, session *conga.Session) error {
-	inspector.Print(session, session.Root[CLI]())
+	inspector.Print(session, session.Root[CLI](), i)
 
 	return nil
 }

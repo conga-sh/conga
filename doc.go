@@ -104,4 +104,10 @@
 //   - Configuration decoders: import and register decoders such as
 //     decoder/yaml using [App.RegisterDecoder].
 //   - Dotenv files: call [App.Dotenv] to load variables from .env files.
+//
+// # Requirements
+//
+// CONGA requires Go 1.27 or newer. Tooling such as conga-lint and conga-reorder
+// likewise requires a Go 1.27+ toolchain to parse and analyze method-level generic
+// type parameters.
 package conga

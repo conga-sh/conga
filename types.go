@@ -344,11 +344,6 @@ func (f *OptionalFlag[T]) String() string {
 	return stringx.Stringify(f.value)
 }
 
-// ValueAny returns the resolved flag value as an any.
-func (f *OptionalFlag[T]) ValueAny() any {
-	return f.value
-}
-
 // RequiredFlag represents a mandatory command-line flag of type T.
 //
 // The requirement is satisfied if a value is supplied by a command-line flag,
@@ -404,11 +399,6 @@ func (f *RequiredFlag[T]) String() string {
 	}
 
 	return stringx.Stringify(f.value)
-}
-
-// ValueAny returns the resolved flag value as an any.
-func (f *RequiredFlag[T]) ValueAny() any {
-	return f.value
 }
 
 // OptionalArg represents an optional positional command-line argument of type T.
@@ -476,16 +466,6 @@ func (a *OptionalArg[T]) String() string {
 	return stringx.Stringify(a.value)
 }
 
-// ValueAny returns the resolved positional argument value as an any.
-func (a *OptionalArg[T]) ValueAny() any {
-	return a.value
-}
-
-// IsArg reports that the container holds a positional argument.
-func (a *OptionalArg[T]) IsArg() bool {
-	return true
-}
-
 // RequiredArg represents a mandatory positional command-line argument of type T.
 //
 // Required positional arguments must be supplied on the command line in struct
@@ -533,16 +513,6 @@ func (a *RequiredArg[T]) String() string {
 	}
 
 	return stringx.Stringify(a.value)
-}
-
-// ValueAny returns the resolved positional argument value as an any.
-func (a *RequiredArg[T]) ValueAny() any {
-	return a.value
-}
-
-// IsArg reports that the container holds a positional argument.
-func (a *RequiredArg[T]) IsArg() bool {
-	return true
 }
 
 // DashArgs captures trailing arguments passed explicitly after the -- token.
@@ -613,11 +583,6 @@ func (c *Command[T]) Get() *T {
 	return &c.value
 }
 
-// ValueAny returns a pointer to the inner command struct instance as an any.
-func (c *Command[T]) ValueAny() any {
-	return &c.value
-}
-
 // HelpCommand provides an opt-in help subcommand.
 //
 // Declare a HelpCommand field directly on a command struct:
@@ -631,10 +596,17 @@ func (c *Command[T]) ValueAny() any {
 //
 // See https://docs.conga.sh/reference/builtins/.
 type HelpCommand struct {
-	// Path holds the subcommand path whose help was requested, populated by the
-	// engine from positional tokens (for example, cluster nodes when the user runs
-	// help cluster nodes). When empty, Run renders the help screen of the parent command.
-	Path []string
+	path []string
+}
+
+// Path returns the subcommand path whose help was requested, or empty when
+// rendering the help screen of the parent command.
+func (h *HelpCommand) Path() []string {
+	if h == nil {
+		return nil
+	}
+
+	return append([]string(nil), h.path...)
 }
 
 // Run resolves the requested subcommand path and renders its help screen to
@@ -652,7 +624,7 @@ func (h *HelpCommand) Run(ctx context.Context, session *Session) error {
 	}
 
 	parentChain := session.cmdChain[:len(session.cmdChain)-1]
-	if len(h.Path) == 0 {
+	if len(h.path) == 0 {
 		fmt.Fprintln(session.Stdout(), help.FormatWith(parentChain, session.helpOptions))
 
 		return nil
@@ -662,7 +634,7 @@ func (h *HelpCommand) Run(ctx context.Context, session *Session) error {
 	targetChain := []*spec.Command{root}
 	current := root
 
-	for _, seg := range h.Path {
+	for _, seg := range h.path {
 		var matched *spec.Command
 
 		for _, subcommand := range current.Subcommands {
@@ -704,9 +676,12 @@ func (h *HelpCommand) Run(ctx context.Context, session *Session) error {
 //
 // See https://docs.conga.sh/reference/builtins/.
 type VersionCommand struct {
-	// JSON indicates whether the version output should be rendered as a flat
-	// machine-readable JSON object instead of the human-readable text block.
-	JSON bool
+	json bool
+}
+
+// JSON reports whether the version output should be rendered as a JSON object.
+func (v *VersionCommand) JSON() bool {
+	return v != nil && v.json
 }
 
 // Run renders detailed application version information to [Session.Stdout].
@@ -724,7 +699,7 @@ func (v *VersionCommand) Run(ctx context.Context, session *Session) error {
 		return nil
 	}
 
-	if v != nil && v.JSON {
+	if v != nil && v.json {
 		fmt.Fprintln(session.Stdout(), help.VersionJSON(session.appVersion))
 
 		return nil
@@ -757,9 +732,16 @@ func (v *VersionCommand) Run(ctx context.Context, session *Session) error {
 //
 // See https://docs.conga.sh/reference/builtins/.
 type CompletionCommand struct {
-	// Shell holds the target shell name (bash, zsh, fish, powershell, elvish,
-	// nushell). When empty, Run renders usage guidance listing supported shells.
-	Shell string
+	shell string
+}
+
+// Shell returns the target shell name.
+func (c *CompletionCommand) Shell() string {
+	if c == nil {
+		return ""
+	}
+
+	return c.shell
 }
 
 // Run generates and outputs the shell completion script for the requested shell
@@ -779,13 +761,13 @@ func (c *CompletionCommand) Run(ctx context.Context, session *Session) error {
 	// Invoked without a shell (e.g. app completion), the command renders its
 	// help screen instead of failing: the supported-shells list and current-
 	// shell enable hints are the guidance the caller is looking for.
-	if c.Shell == "" {
+	if c.shell == "" {
 		fmt.Fprintln(session.Stdout(), session.Help())
 
 		return nil
 	}
 
-	parsedShell, err := completion.ParseShell(c.Shell)
+	parsedShell, err := completion.ParseShell(c.shell)
 	if err != nil {
 		return &validationError{
 			msg:      err.Error(),
@@ -850,9 +832,14 @@ func (f *Features[T]) Get() *T {
 	return &f.value
 }
 
-// ValueAny returns a pointer to the inner feature struct as an any.
-func (f *Features[T]) ValueAny() any {
-	return &f.value
+// String returns the string representation of the features struct. Returns an empty
+// string if the receiver is nil.
+func (f *Features[T]) String() string {
+	if f == nil {
+		return ""
+	}
+
+	return stringx.Stringify(f.value)
 }
 
 // IsSet reports whether any feature source contributed a value.
@@ -954,11 +941,6 @@ func (c *ConfigFile) String() string {
 	return strings.Join(c.paths, ", ")
 }
 
-// ValueAny returns the loaded configuration file paths as an any.
-func (c *ConfigFile) ValueAny() any {
-	return c.paths
-}
-
 // Counter represents a repeatable boolean flag that counts its occurrences.
 //
 // Each occurrence on the command line increments the count by 1. With no
@@ -1023,11 +1005,6 @@ func (c *Counter) String() string {
 	}
 
 	return strconv.Itoa(c.value)
-}
-
-// ValueAny returns the resolved count as an any.
-func (c *Counter) ValueAny() any {
-	return c.value
 }
 
 type rawSlice struct {

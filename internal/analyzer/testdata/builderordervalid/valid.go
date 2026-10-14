@@ -39,7 +39,7 @@ func orderedChain() {
 		RegisterType(func(raw string) (int, error) {
 			return 0, nil
 		}).
-		RegisterMap(map[string]int{}).
+		RegisterMap[map[string]int]().
 		Use().
 		UsageOnError(conga.UsageHint).
 		Args([]string{}).

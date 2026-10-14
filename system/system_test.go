@@ -2,6 +2,7 @@ package system_test
 
 import (
 	"bytes"
+	"context"
 	"os"
 	"slices"
 	"strconv"
@@ -14,6 +15,7 @@ import (
 
 	_ "embed"
 
+	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/internal/slicex"
 	"github.com/conga-sh/conga/predict"
 	"github.com/conga-sh/conga/system"
@@ -337,9 +339,6 @@ func TestDomainTypes(t *testing.T) {
 		assert.Equal(t, syscall.SIGTERM, testSignal.Signal())
 		assert.NotZero(t, testSignal.Predict())
 
-		var nilSig *system.Signal
-		assert.Equal(t, syscall.Signal(0), nilSig.Signal())
-
 		var killSig system.Signal = "9"
 		assert.Equal(t, syscall.SIGKILL, killSig.Signal())
 
@@ -367,6 +366,86 @@ func TestDomainTypes(t *testing.T) {
 		assert.Equal(t, "en_US.UTF-8", testLocale.String())
 		assert.NotZero(t, testLocale.Predict())
 	})
+}
+
+func TestDomainTypes_MarshalText(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		input    any
+		expected string
+	}{
+		{"EnvVar", system.EnvVar("PATH"), "PATH"},
+		{"Group", system.Group("wheel"), "wheel"},
+		{"Locale", system.Locale("en_US.UTF-8"), "en_US.UTF-8"},
+		{"PID", system.PID(1234), "1234"},
+		{"Process", system.Process("nginx"), "nginx"},
+		{"Signal", system.Signal("SIGTERM"), "SIGTERM"},
+		{"User", system.User("root"), "root"},
+	}
+
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			marshaler, ok := testCase.input.(interface{ MarshalText() ([]byte, error) })
+			assert.True(t, ok)
+
+			encoded, err := marshaler.MarshalText()
+			assert.NoError(t, err)
+			assert.Equal(t, testCase.expected, string(encoded))
+		})
+	}
+}
+
+type systemChainingCLI struct {
+	PID     conga.OptionalFlag[system.PID]     `short:"p"`
+	Env     conga.OptionalFlag[system.EnvVar]  `short:"e"`
+	Signal  conga.OptionalFlag[system.Signal]  `short:"s"`
+	User    conga.OptionalFlag[system.User]    `short:"u"`
+	Group   conga.OptionalFlag[system.Group]   `short:"g"`
+	Locale  conga.OptionalFlag[system.Locale]  `short:"l"`
+	Process conga.OptionalFlag[system.Process] `short:"r"`
+}
+
+func (c *systemChainingCLI) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+func TestDomainTypes_ValueReceiverChaining(t *testing.T) {
+	t.Parallel()
+
+	cli := &systemChainingCLI{}
+	app := conga.New(cli).Args([]string{
+		"-p", "1234",
+		"-e", "PATH",
+		"-s", "SIGTERM",
+		"-u", "root",
+		"-g", "wheel",
+		"-l", "en_US.UTF-8",
+		"-r", "nginx",
+	})
+	err := app.Run()
+	assert.NoError(t, err)
+
+	assert.Equal(t, 1234, cli.PID.Get().Int())
+	assert.Equal(t, "1234", cli.PID.Get().String())
+	assert.Equal(t, "PATH", cli.Env.Get().String())
+	assert.NotZero(t, cli.Env.Get().Value())
+	assert.Equal(t, "SIGTERM", cli.Signal.Get().String())
+	assert.Equal(t, syscall.SIGTERM, cli.Signal.Get().Signal())
+	assert.Equal(t, "root", cli.User.Get().String())
+	assert.Equal(t, "wheel", cli.Group.Get().String())
+	assert.Equal(t, "en_US.UTF-8", cli.Locale.Get().String())
+	assert.Equal(t, "nginx", cli.Process.Get().String())
+}
+
+func TestPIDs_Processes_Aliases(t *testing.T) {
+	t.Parallel()
+
+	assert.NotZero(t, system.PIDs())
+	assert.NotZero(t, system.Processes())
 }
 
 func itemValues(items []predict.Item) []string {

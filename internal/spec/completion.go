@@ -17,6 +17,7 @@ import (
 type CompleteOptions struct {
 	RegisteredPredictors map[string]predict.Predictor
 	Env                  map[string]string
+	EnvLookup            func(string) (string, bool)
 	Dir                  string
 	TargetShell          string
 }
@@ -233,6 +234,7 @@ func (w *astCompletionWalker) buildCompletionContext(toComplete string) predict.
 		FlagMultiValues: flagMultiValuesMap,
 		Dir:             w.opts.Dir,
 		Env:             w.opts.Env,
+		EnvLookup:       w.opts.EnvLookup,
 	}
 }
 

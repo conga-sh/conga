@@ -327,7 +327,7 @@ func ExamplePredictable() {
 // Register a map type so flags and arguments accept key=value pairs.
 func ExampleApp_RegisterMap() {
 	app := conga.New[ReplicasCLI]().
-		RegisterMap(map[string]int(nil)).
+		RegisterMap[map[string]int]().
 		Args([]string{"--replicas", "api=2,web=3"})
 
 	if err := app.Run(); err != nil {

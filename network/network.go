@@ -26,6 +26,7 @@ package network
 
 import (
 	"context"
+	"encoding"
 	"errors"
 	"fmt"
 	"net"
@@ -34,6 +35,44 @@ import (
 
 	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/predict"
+)
+
+var (
+	_ fmt.Stringer             = Host("")
+	_ encoding.TextMarshaler   = Host("")
+	_ encoding.TextUnmarshaler = (*Host)(nil)
+	_ conga.HelpProvider       = Host("")
+	_ conga.Predictable        = Host("")
+
+	_ fmt.Stringer             = HTTPMethod("")
+	_ encoding.TextMarshaler   = HTTPMethod("")
+	_ encoding.TextUnmarshaler = (*HTTPMethod)(nil)
+	_ conga.HelpProvider       = HTTPMethod("")
+	_ conga.Predictable        = HTTPMethod("")
+
+	_ fmt.Stringer             = HTTPStatus(0)
+	_ encoding.TextMarshaler   = HTTPStatus(0)
+	_ encoding.TextUnmarshaler = (*HTTPStatus)(nil)
+	_ conga.HelpProvider       = HTTPStatus(0)
+	_ conga.Predictable        = HTTPStatus(0)
+
+	_ fmt.Stringer             = MIMEType("")
+	_ encoding.TextMarshaler   = MIMEType("")
+	_ encoding.TextUnmarshaler = (*MIMEType)(nil)
+	_ conga.HelpProvider       = MIMEType("")
+	_ conga.Predictable        = MIMEType("")
+
+	_ fmt.Stringer             = NetInterface("")
+	_ encoding.TextMarshaler   = NetInterface("")
+	_ encoding.TextUnmarshaler = (*NetInterface)(nil)
+	_ conga.HelpProvider       = NetInterface("")
+	_ conga.Predictable        = NetInterface("")
+
+	_ fmt.Stringer             = Port(0)
+	_ encoding.TextMarshaler   = Port(0)
+	_ encoding.TextUnmarshaler = (*Port)(nil)
+	_ conga.HelpProvider       = Port(0)
+	_ conga.Predictable        = Port(0)
 )
 
 var (
@@ -50,7 +89,7 @@ var (
 type Host string
 
 // Predict returns host autocompletion candidates from /etc/hosts, SSH config, and known_hosts.
-func (h *Host) Predict() predict.Predictor {
+func (h Host) Predict() predict.Predictor {
 	return Hosts()
 }
 
@@ -58,29 +97,30 @@ func (h *Host) Predict() predict.Predictor {
 // renders this text in the flag's help column when the field declares no help
 // tag; a field with a help tag shows that text instead. Shells also show it as
 // the description of the flag's completion candidates.
-func (h *Host) Help() string {
+func (h Host) Help() string {
 	return "Host (hostname, domain, or IP address)"
 }
 
 // String returns the hostname or IP string.
-func (h *Host) String() string {
-	if h == nil {
-		return ""
-	}
+func (h Host) String() string {
+	return string(h)
+}
 
-	return string(*h)
+// MarshalText encodes the host into UTF-8 text bytes.
+func (h Host) MarshalText() ([]byte, error) {
+	return []byte(h), nil
 }
 
 // LookupIP queries DNS for the IP addresses associated with the host, honoring
 // ctx for cancellation and deadlines.
-func (h *Host) LookupIP(ctx context.Context) ([]net.IP, error) {
-	if h == nil || *h == "" {
+func (h Host) LookupIP(ctx context.Context) ([]net.IP, error) {
+	if h == "" {
 		return nil, errEmptyHost
 	}
 
-	ips, err := net.DefaultResolver.LookupIP(ctx, "ip", string(*h))
+	ips, err := net.DefaultResolver.LookupIP(ctx, "ip", string(h))
 	if err != nil {
-		return nil, fmt.Errorf("lookup host %q: %w", string(*h), err)
+		return nil, fmt.Errorf("lookup host %q: %w", string(h), err)
 	}
 
 	return ips, nil
@@ -106,7 +146,7 @@ func (h *Host) UnmarshalText(text []byte) error {
 type HTTPMethod string
 
 // Predict returns HTTP method autocompletion candidates.
-func (m *HTTPMethod) Predict() predict.Predictor {
+func (m HTTPMethod) Predict() predict.Predictor {
 	return HTTPMethods()
 }
 
@@ -114,17 +154,18 @@ func (m *HTTPMethod) Predict() predict.Predictor {
 // engine renders this text in the flag's help column when the field declares no
 // help tag; a field with a help tag shows that text instead. Shells also show
 // it as the description of the flag's completion candidates.
-func (m *HTTPMethod) Help() string {
+func (m HTTPMethod) Help() string {
 	return "HTTP method (GET, POST, PUT, DELETE, ...)"
 }
 
 // String returns the HTTP method in uppercase.
-func (m *HTTPMethod) String() string {
-	if m == nil {
-		return ""
-	}
+func (m HTTPMethod) String() string {
+	return string(m)
+}
 
-	return string(*m)
+// MarshalText encodes the HTTP method into UTF-8 text bytes.
+func (m HTTPMethod) MarshalText() ([]byte, error) {
+	return []byte(m), nil
 }
 
 // UnmarshalText parses and validates a standard HTTP method verb.
@@ -150,7 +191,7 @@ func (m *HTTPMethod) UnmarshalText(text []byte) error {
 type HTTPStatus int
 
 // Predict returns HTTP status code autocompletion candidates.
-func (s *HTTPStatus) Predict() predict.Predictor {
+func (s HTTPStatus) Predict() predict.Predictor {
 	return HTTPStatusCodes()
 }
 
@@ -158,62 +199,43 @@ func (s *HTTPStatus) Predict() predict.Predictor {
 // engine renders this text in the flag's help column when the field declares no
 // help tag; a field with a help tag shows that text instead. Shells also show
 // it as the description of the flag's completion candidates.
-func (s *HTTPStatus) Help() string {
+func (s HTTPStatus) Help() string {
 	return "HTTP status code (100-599, e.g. 200, 404)"
 }
 
 // Code returns the HTTP status code as an integer.
-func (s *HTTPStatus) Code() int {
-	if s == nil {
-		return 0
-	}
-
-	return int(*s)
+func (s HTTPStatus) Code() int {
+	return int(s)
 }
 
 // Text returns the standard HTTP status reason text (e.g. OK, Not Found).
-func (s *HTTPStatus) Text() string {
-	if s == nil {
-		return ""
-	}
-
-	return httpStatusText(int(*s))
+func (s HTTPStatus) Text() string {
+	return httpStatusText(int(s))
 }
 
 // IsSuccess returns true if the status code represents a 2xx success response.
-func (s *HTTPStatus) IsSuccess() bool {
-	if s == nil {
-		return false
-	}
-
-	return *s >= 200 && *s < 300
+func (s HTTPStatus) IsSuccess() bool {
+	return s >= 200 && s < 300
 }
 
 // IsClientError returns true if the status code represents a 4xx client error response.
-func (s *HTTPStatus) IsClientError() bool {
-	if s == nil {
-		return false
-	}
-
-	return *s >= 400 && *s < 500
+func (s HTTPStatus) IsClientError() bool {
+	return s >= 400 && s < 500
 }
 
 // IsServerError returns true if the status code represents a 5xx server error response.
-func (s *HTTPStatus) IsServerError() bool {
-	if s == nil {
-		return false
-	}
-
-	return *s >= 500 && *s < 600
+func (s HTTPStatus) IsServerError() bool {
+	return s >= 500 && s < 600
 }
 
 // String returns the HTTP status code formatted as a string.
-func (s *HTTPStatus) String() string {
-	if s == nil {
-		return "0"
-	}
+func (s HTTPStatus) String() string {
+	return strconv.Itoa(int(s))
+}
 
-	return strconv.Itoa(int(*s))
+// MarshalText encodes the HTTP status code into UTF-8 text bytes.
+func (s HTTPStatus) MarshalText() ([]byte, error) {
+	return []byte(strconv.Itoa(int(s))), nil
 }
 
 // UnmarshalText parses a numeric HTTP status code (100–599) or standard status text.
@@ -249,7 +271,7 @@ func (s *HTTPStatus) UnmarshalText(text []byte) error {
 type MIMEType string
 
 // Predict returns media type autocompletion candidates.
-func (m *MIMEType) Predict() predict.Predictor {
+func (m MIMEType) Predict() predict.Predictor {
 	return MIMETypes()
 }
 
@@ -257,28 +279,20 @@ func (m *MIMEType) Predict() predict.Predictor {
 // engine renders this text in the flag's help column when the field declares no
 // help tag; a field with a help tag shows that text instead. Shells also show
 // it as the description of the flag's completion candidates.
-func (m *MIMEType) Help() string {
+func (m MIMEType) Help() string {
 	return "MIME type (e.g. application/json)"
 }
 
 // Type returns the top-level media type component (e.g. application in application/json).
-func (m *MIMEType) Type() string {
-	if m == nil {
-		return ""
-	}
-
-	topType, _, _ := strings.Cut(string(*m), "/")
+func (m MIMEType) Type() string {
+	topType, _, _ := strings.Cut(string(m), "/")
 
 	return strings.TrimSpace(topType)
 }
 
 // Subtype returns the subtype component (e.g. json in application/json; charset=utf-8).
-func (m *MIMEType) Subtype() string {
-	if m == nil {
-		return ""
-	}
-
-	_, subtype, found := strings.Cut(string(*m), "/")
+func (m MIMEType) Subtype() string {
+	_, subtype, found := strings.Cut(string(m), "/")
 	if !found {
 		return ""
 	}
@@ -289,12 +303,13 @@ func (m *MIMEType) Subtype() string {
 }
 
 // String returns the media type string.
-func (m *MIMEType) String() string {
-	if m == nil {
-		return ""
-	}
+func (m MIMEType) String() string {
+	return string(m)
+}
 
-	return string(*m)
+// MarshalText encodes the media type into UTF-8 text bytes.
+func (m MIMEType) MarshalText() ([]byte, error) {
+	return []byte(m), nil
 }
 
 // UnmarshalText parses and validates that the text is a valid MIME media type with a slash.
@@ -320,7 +335,7 @@ func (m *MIMEType) UnmarshalText(text []byte) error {
 type NetInterface string
 
 // Predict returns network interface autocompletion candidates.
-func (n *NetInterface) Predict() predict.Predictor {
+func (n NetInterface) Predict() predict.Predictor {
 	return NetInterfaces()
 }
 
@@ -328,35 +343,36 @@ func (n *NetInterface) Predict() predict.Predictor {
 // flags. The engine renders this text in the flag's help column when the field
 // declares no help tag; a field with a help tag shows that text instead. Shells
 // also show it as the description of the flag's completion candidates.
-func (n *NetInterface) Help() string {
+func (n NetInterface) Help() string {
 	return "Network interface (e.g. eth0, lo)"
 }
 
 // String returns the network interface name.
-func (n *NetInterface) String() string {
-	if n == nil {
-		return ""
-	}
+func (n NetInterface) String() string {
+	return string(n)
+}
 
-	return string(*n)
+// MarshalText encodes the network interface name into UTF-8 text bytes.
+func (n NetInterface) MarshalText() ([]byte, error) {
+	return []byte(n), nil
 }
 
 // Interface queries the system for the underlying net.Interface.
-func (n *NetInterface) Interface() (*net.Interface, error) {
-	if n == nil || *n == "" {
+func (n NetInterface) Interface() (*net.Interface, error) {
+	if n == "" {
 		return nil, errEmptyInterface
 	}
 
-	iface, err := net.InterfaceByName(string(*n))
+	iface, err := net.InterfaceByName(string(n))
 	if err != nil {
-		return nil, fmt.Errorf("network interface %q: %w", string(*n), err)
+		return nil, fmt.Errorf("network interface %q: %w", string(n), err)
 	}
 
 	return iface, nil
 }
 
 // Addrs returns the unicast interface addresses for the network interface.
-func (n *NetInterface) Addrs() ([]net.Addr, error) {
+func (n NetInterface) Addrs() ([]net.Addr, error) {
 	iface, err := n.Interface()
 	if err != nil {
 		return nil, err
@@ -364,7 +380,7 @@ func (n *NetInterface) Addrs() ([]net.Addr, error) {
 
 	addrs, err := iface.Addrs()
 	if err != nil {
-		return nil, fmt.Errorf("interface %q addrs: %w", string(*n), err)
+		return nil, fmt.Errorf("interface %q addrs: %w", string(n), err)
 	}
 
 	return addrs, nil
@@ -381,7 +397,7 @@ func (n *NetInterface) UnmarshalText(text []byte) error {
 type Port uint16
 
 // Predict returns service port autocompletion candidates.
-func (p *Port) Predict() predict.Predictor {
+func (p Port) Predict() predict.Predictor {
 	return Ports()
 }
 
@@ -389,35 +405,28 @@ func (p *Port) Predict() predict.Predictor {
 // renders this text in the flag's help column when the field declares no help
 // tag; a field with a help tag shows that text instead. Shells also show it as
 // the description of the flag's completion candidates.
-func (p *Port) Help() string {
+func (p Port) Help() string {
 	return `Port (1-65535, or a service name like "http")`
 }
 
 // Int returns the port number as an integer.
-func (p *Port) Int() int {
-	if p == nil {
-		return 0
-	}
-
-	return int(*p)
+func (p Port) Int() int {
+	return int(p)
 }
 
 // IsPrivileged returns true if the port is a system/privileged port (< 1024).
-func (p *Port) IsPrivileged() bool {
-	if p == nil {
-		return false
-	}
-
-	return *p < 1024
+func (p Port) IsPrivileged() bool {
+	return p < 1024
 }
 
 // String returns the port number formatted as a string.
-func (p *Port) String() string {
-	if p == nil {
-		return "0"
-	}
+func (p Port) String() string {
+	return strconv.Itoa(int(p))
+}
 
-	return strconv.Itoa(int(*p))
+// MarshalText encodes the port number into UTF-8 text bytes.
+func (p Port) MarshalText() ([]byte, error) {
+	return []byte(strconv.Itoa(int(p))), nil
 }
 
 // UnmarshalText parses a numeric port (1–65535) or a well-known service name.
@@ -458,6 +467,12 @@ func (p *Port) UnmarshalText(text []byte) error {
 // completion offers the host's interfaces. Apply with app.Use.
 func RegisterInterface[T any](app *conga.App[T]) {
 	app.RegisterType(net.InterfaceByName, conga.WithPredictor(NetInterfaces()))
+}
+
+// RegisterNetInterface mounts *net.Interface support onto the app builder, aliasing
+// [RegisterInterface]. Apply with app.Use.
+func RegisterNetInterface[T any](app *conga.App[T]) {
+	RegisterInterface(app)
 }
 
 // Hosts configures completion of hostnames from /etc/hosts, SSH known_hosts, and SSH config.

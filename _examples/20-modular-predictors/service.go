@@ -20,7 +20,7 @@ type ServiceCmd struct {
 }
 
 func (s *ServiceCmd) Run(ctx context.Context, session *conga.Session) error {
-	inspector.Print(session, session.Root[CLI]())
+	inspector.Print(session, session.Root[CLI](), s)
 
 	if user := s.User.Get(); user != "" {
 		if account, err := user.Lookup(); err != nil {

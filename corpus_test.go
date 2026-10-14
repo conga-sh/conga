@@ -201,7 +201,7 @@ func newCorpusApp() *conga.App[corpusRoot] {
 		predict.NewItem("scheduler", "Cron scheduler"),
 		predict.NewItem("worker", "Background worker"),
 	))
-	app.RegisterMap(map[string]int{})
+	app.RegisterMap[map[string]int]()
 
 	return app
 }

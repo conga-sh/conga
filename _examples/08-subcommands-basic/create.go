@@ -14,7 +14,7 @@ type CreateCmd struct {
 }
 
 func (c *CreateCmd) Run(ctx context.Context, session *conga.Session) error {
-	inspector.Print(session, session.Root[CLI]())
+	inspector.Print(session, session.Root[CLI](), c)
 
 	return nil
 }

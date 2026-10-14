@@ -661,7 +661,7 @@ func populateHelpCommandPath(helpCmd *spec.Command, tokens []tokenizer.Token, st
 			}
 		}
 
-		helpCommand.Path = helpPath
+		helpCommand.path = helpPath
 	}
 }
 
@@ -670,7 +670,7 @@ func populateCompletionCommandShell(compCmd *spec.Command, tokens []tokenizer.To
 	if compCommand, ok := target.(*CompletionCommand); ok {
 		for j := startIndex; j < len(tokens); j++ {
 			if tokens[j].Type == tokenizer.TokenTypePositional {
-				compCommand.Shell = tokens[j].Raw
+				compCommand.shell = tokens[j].Raw
 				compCmd.Shell = tokens[j].Raw
 
 				break
@@ -707,7 +707,7 @@ func bindVersionCommandJSON(cmdChain []*spec.Command, versionCmd *spec.Command, 
 			return newFlagCoercionError(cmdChain, flagSpec, SourceCLI, "--"+flagSpec.Name, rawValue, err)
 		}
 
-		versionCommand.JSON = enabled
+		versionCommand.json = enabled
 
 		return nil
 	}

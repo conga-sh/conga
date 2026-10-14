@@ -250,7 +250,7 @@ func TestVersionCommand_AncestorJSONFlagDoesNotShadow(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Contains(t, buffer.String(), `{"version":"3.0.0"`)
-	assert.True(t, cli.Version.JSON)
+	assert.True(t, cli.Version.JSON())
 	assert.False(t, cli.JSON.Get())
 }
 
@@ -269,7 +269,7 @@ func TestVersionCommand_RootJSONFlagUnaffected(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.True(t, cli.JSON.Get())
-	assert.False(t, cli.Version.JSON)
+	assert.False(t, cli.Version.JSON())
 }
 
 func TestHelp_ShowsVersionFlagWhenVersionSet(t *testing.T) {

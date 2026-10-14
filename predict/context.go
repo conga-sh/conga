@@ -46,6 +46,11 @@ type Context struct {
 	// consulted by Getenv with a fallback to os.Getenv for absent keys. The
 	// App engine currently leaves it nil.
 	Env map[string]string
+
+	// EnvLookup queries the environment variables visible to the completion run.
+	// When non-nil, Getenv consults this callback before checking Env and falling
+	// back to os.Getenv.
+	EnvLookup func(key string) (string, bool)
 }
 
 // Arg returns the positional argument at the given 0-based index, or an empty string if out of bounds.
@@ -82,9 +87,31 @@ func (c Context) FlagValues(name string) []string {
 	return slices.Clone(values)
 }
 
-// Getenv returns the value of the environment variable named by key from the context's environment map,
-// falling back to os.Getenv when the map is nil or the key is absent.
+// WithFlagValues returns a shallow copy of the context with FlagMultiValues populated.
+// If Flags is nil and flagValues is non-empty, Flags is also populated from the last entry of each flag.
+func (c Context) WithFlagValues(flagValues map[string][]string) Context {
+	c.FlagMultiValues = flagValues
+	if c.Flags == nil && len(flagValues) > 0 {
+		c.Flags = make(map[string]string, len(flagValues))
+		for name, values := range flagValues {
+			if len(values) > 0 {
+				c.Flags[name] = values[len(values)-1]
+			}
+		}
+	}
+
+	return c
+}
+
+// Getenv returns the value of the environment variable named by key from the context's environment,
+// checking EnvLookup first (if non-nil), then the Env map, falling back to os.Getenv when the key is absent.
 func (c Context) Getenv(key string) string {
+	if c.EnvLookup != nil {
+		if value, ok := c.EnvLookup(key); ok {
+			return value
+		}
+	}
+
 	if c.Env != nil {
 		if value, ok := c.Env[key]; ok {
 			return value

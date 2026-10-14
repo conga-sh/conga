@@ -26,7 +26,9 @@ type RequiredCmd struct {
 }
 
 func (c *RequiredCmd) Run(ctx context.Context, session *conga.Session) error {
-	inspector.Print(session, session.Root[KitchenSinkCLI]())
+	root := session.Root[KitchenSinkCLI]()
+	advancedCmd := root.Advanced.Get()
+	inspector.Print(session, root, advancedCmd, c)
 
 	fmt.Fprintf(session.Stdout(), "Advanced: name=%s message=%q extras=%d passthrough=%v\n",
 		c.Name.Get(), c.Message.Get(), len(c.Extra.Get()), c.Passthrough.Get())
@@ -39,9 +41,10 @@ func (c *RequiredCmd) Run(ctx context.Context, session *conga.Session) error {
 type ProvenanceCmd struct{}
 
 func (c *ProvenanceCmd) Run(ctx context.Context, session *conga.Session) error {
-	inspector.Print(session, session.Root[KitchenSinkCLI]())
-
 	root := session.Root[KitchenSinkCLI]()
+	advancedCmd := root.Advanced.Get()
+	inspector.Print(session, root, advancedCmd, c)
+
 	stdout := session.Stdout()
 
 	fmt.Fprintln(stdout, "=== Root Value Provenance ===")

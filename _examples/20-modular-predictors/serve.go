@@ -17,7 +17,7 @@ type ServeCmd struct {
 }
 
 func (s *ServeCmd) Run(ctx context.Context, session *conga.Session) error {
-	inspector.Print(session, session.Root[CLI]())
+	inspector.Print(session, session.Root[CLI](), s)
 
 	port := s.Port.Get()
 	status := s.Status.Get()

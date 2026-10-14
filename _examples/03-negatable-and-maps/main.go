@@ -36,7 +36,7 @@ func main() {
 		Description("Negatable booleans, maps, and slice delimiter controls").
 		Version("1.0.0")
 
-	app.RegisterMap(map[string]int{})
+	app.RegisterMap[map[string]int]()
 
 	if err := app.Run(); err != nil {
 		app.Exit(err)

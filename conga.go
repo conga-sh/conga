@@ -513,23 +513,33 @@ func (a *App[T]) RegisterType[U any](parser func(string) (U, error), opts ...Reg
 }
 
 // RegisterMap registers a parser and optional completion predictor
-// for map type map[K]V, so flags and positional arguments of that type accept
-// key=value pairs. K must be string or a type with underlying kind string; V
-// may be any type supported by CONGA. Maps with both a string key and a string
-// value bind natively and need no registration.
+// for a map type with string-compatible keys. It supports both
+// standard map[K]V types and custom named types whose underlying
+// type is map[K]V.
+//
+// Key types must have an underlying type of string (~string).
+// Value types (V) can be any type supported by conga's coercion
+// system, including types with custom text unmarshalers or
+// types registered via [App.RegisterType]. Maps with both a string
+// key and a string value bind natively and need no registration.
+//
+// Example:
+//
+//	type PortMap map[string]int
+//	app := conga.New[CLI]().
+//		RegisterMap[PortMap]().
+//		RegisterMap[map[string]time.Duration]()
 //
 // Flags accept repeated or comma-separated pairs:
 //
 //	--flag k1=v1 --flag k2=v2
 //	--flag k1=v1,k2=v2
 //
-// The sample map is read for its type only; its entries are ignored.
-//
 // Panics:
 //   - If the receiver App is nil.
 //
 // See https://docs.conga.sh/how-to/add-custom-flag-types/.
-func (a *App[T]) RegisterMap[M ~map[K]V, K ~string, V any](_ M, opts ...RegisterTypeOption) *App[T] {
+func (a *App[T]) RegisterMap[M ~map[K]V, K ~string, V any](opts ...RegisterTypeOption) *App[T] {
 	if a == nil {
 		panic("conga: RegisterMap requires a non-nil app")
 	}
@@ -1096,6 +1106,7 @@ func (a *App[T]) completeForShellWithEnv(targetShell string, args []string, look
 	opts := spec.CompleteOptions{
 		RegisteredPredictors: a.predictors,
 		TargetShell:          targetShell,
+		EnvLookup:            lookup,
 	}
 
 	completionSession := completion.NewSessionWithEnv(targetShell, lookup)

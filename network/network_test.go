@@ -2,6 +2,7 @@ package network_test
 
 import (
 	"bytes"
+	"context"
 	"net"
 	"os"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 
 	_ "embed"
 
+	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/internal/slicex"
 	"github.com/conga-sh/conga/network"
 	"github.com/conga-sh/conga/predict"
@@ -217,13 +219,6 @@ func TestDomainTypes(t *testing.T) {
 		assert.Equal(t, "lo", netif.String())
 		assert.NotZero(t, netif.Predict())
 
-		var nilNetif *network.NetInterface
-
-		_, err = nilNetif.Interface()
-
-		assert.Error(t, err)
-		assert.Equal(t, "network interface: empty interface name", err.Error())
-
 		var emptyNetif network.NetInterface
 
 		_, err = emptyNetif.Interface()
@@ -266,13 +261,6 @@ func TestDomainTypes(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, "localhost", host.String())
 		assert.NotZero(t, host.Predict())
-
-		var nilHost *network.Host
-
-		_, err = nilHost.LookupIP(t.Context())
-
-		assert.Error(t, err)
-		assert.Equal(t, "lookup host: empty host name", err.Error())
 
 		var emptyHost network.Host
 
@@ -406,6 +394,76 @@ func TestDomainTypes(t *testing.T) {
 
 		assert.Error(t, err)
 	})
+}
+
+func TestDomainTypes_MarshalText(t *testing.T) {
+	t.Parallel()
+
+	hostData, err := network.Host("example.com").MarshalText()
+	assert.NoError(t, err)
+	assert.Equal(t, "example.com", string(hostData))
+
+	methodData, err := network.HTTPMethod("POST").MarshalText()
+	assert.NoError(t, err)
+	assert.Equal(t, "POST", string(methodData))
+
+	statusData, err := network.HTTPStatus(200).MarshalText()
+	assert.NoError(t, err)
+	assert.Equal(t, "200", string(statusData))
+
+	mimeData, err := network.MIMEType("application/json").MarshalText()
+	assert.NoError(t, err)
+	assert.Equal(t, "application/json", string(mimeData))
+
+	netifData, err := network.NetInterface("lo").MarshalText()
+	assert.NoError(t, err)
+	assert.Equal(t, "lo", string(netifData))
+
+	portData, err := network.Port(8080).MarshalText()
+	assert.NoError(t, err)
+	assert.Equal(t, "8080", string(portData))
+}
+
+type chainingCLI struct {
+	Port   conga.OptionalFlag[network.Port]       `short:"p"`
+	Status conga.OptionalFlag[network.HTTPStatus] `short:"s"`
+	Method conga.OptionalFlag[network.HTTPMethod] `short:"m"`
+}
+
+func (c *chainingCLI) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+func TestDomainTypes_ValueReceiverChaining(t *testing.T) {
+	t.Parallel()
+
+	cli := &chainingCLI{}
+	app := conga.New(cli).Args([]string{"--port", "80", "--status", "204", "--method", "get"})
+	err := app.Run()
+	assert.NoError(t, err)
+
+	assert.True(t, cli.Port.Get().IsPrivileged())
+	assert.Equal(t, 80, cli.Port.Get().Int())
+	assert.Equal(t, "80", cli.Port.Get().String())
+
+	assert.True(t, cli.Status.Get().IsSuccess())
+	assert.False(t, cli.Status.Get().IsClientError())
+	assert.False(t, cli.Status.Get().IsServerError())
+	assert.Equal(t, 204, cli.Status.Get().Code())
+	assert.Equal(t, "No Content", cli.Status.Get().Text())
+
+	assert.Equal(t, "GET", cli.Method.Get().String())
+}
+
+func TestRegisterNetInterface(t *testing.T) {
+	t.Parallel()
+
+	type CLI struct {
+		Iface conga.OptionalFlag[*net.Interface] `short:"i"`
+	}
+
+	app := conga.New[CLI]().Use(network.RegisterNetInterface)
+	assert.NotZero(t, app)
 }
 
 func itemValues(items []predict.Item) []string {
