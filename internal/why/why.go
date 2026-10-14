@@ -186,15 +186,31 @@ type ConfigPath struct {
 func renderRows(rows []Row) string {
 	header := []string{headerLabel, headerValue, headerSource, headerEnv, headerConfigPath}
 
+	type renderedRow struct {
+		cells        []string
+		entries      [][]string
+		errorMessage string
+	}
+
+	lines := make([]renderedRow, 0, len(rows))
 	measurement := make([][]string, 0, len(rows)+1)
 	measurement = append(measurement, header)
 
 	for _, row := range rows {
-		measurement = append(measurement, rowCells(row))
+		cells := rowCells(row)
+		measurement = append(measurement, cells)
 
-		for _, entry := range row.Entries {
-			measurement = append(measurement, []string{"", entry.Key + "=" + entry.Value, entry.Source, "", ""})
+		var entryCells [][]string
+		if len(row.Entries) > 0 {
+			entryCells = make([][]string, 0, len(row.Entries))
+			for _, entry := range row.Entries {
+				entryLine := []string{"", entry.Key + "=" + entry.Value, entry.Source}
+				measurement = append(measurement, []string{"", entryLine[1], entryLine[2], "", ""})
+				entryCells = append(entryCells, entryLine)
+			}
 		}
+
+		lines = append(lines, renderedRow{cells: cells, entries: entryCells, errorMessage: row.Error})
 	}
 
 	widths := measureColumnWidths(measurement)
@@ -207,23 +223,21 @@ func renderRows(rows []Row) string {
 
 	writeGridRow(&builder, header, widths)
 
-	for _, row := range rows {
-		cells := rowCells(row)
-
-		if row.Error != "" {
+	for _, line := range lines {
+		if line.errorMessage != "" {
 			builder.WriteString(strings.Repeat(" ", rowIndent))
-			writeTableCells(&builder, cells[:2], widths)
+			writeTableCells(&builder, line.cells[:2], widths)
 			builder.WriteString("error: ")
-			builder.WriteString(row.Error)
+			builder.WriteString(line.errorMessage)
 			builder.WriteString("\n")
 
 			continue
 		}
 
-		writeGridRow(&builder, cells, widths)
+		writeGridRow(&builder, line.cells, widths)
 
-		for _, entry := range row.Entries {
-			writeGridRow(&builder, []string{"", entry.Key + "=" + entry.Value, entry.Source}, widths)
+		for _, entryLine := range line.entries {
+			writeGridRow(&builder, entryLine, widths)
 		}
 	}
 

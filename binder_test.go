@@ -477,6 +477,38 @@ func TestBinder_MapFlagMergesTiers(t *testing.T) {
 		assert.NoError(t, err)
 		assert.False(t, cli.Tags.IsSet())
 	})
+
+	t.Run("empty CLI flag input does not claim source tier over config keys", func(t *testing.T) {
+		t.Parallel()
+
+		configPath := writeConfigFile(t, `{"tags": {"a": "config"}}`)
+
+		cli := new(CLI)
+		app := conga.New(cli).
+			RegisterDecoder(".json", json.Decode).
+			ConfigOptions(conga.ConfigExplicit(configPath)).
+			Args([]string{"--tags", ""})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]string{"a": "config"}, cli.Tags.Get())
+		assert.Equal(t, conga.SourceConfig, cli.Tags.Source())
+	})
+
+	t.Run("empty CLI flag input sets empty map with CLI source when no tier contributes", func(t *testing.T) {
+		t.Parallel()
+
+		cli := new(CLI)
+		app := conga.New(cli).
+			Args([]string{"--tags", ""})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]string{}, cli.Tags.Get())
+		assert.Equal(t, conga.SourceCLI, cli.Tags.Source())
+	})
 }
 
 func TestBinder_MapFlagMergesEnvTier(t *testing.T) {

@@ -345,6 +345,39 @@ func TestWhy_MapEntryWidensValueColumn(t *testing.T) {
 	assertGolden(t, "testdata/why/map-entry-width.golden", goldenWhyMapEntryWidth, buffer.String())
 }
 
+type whyNoCLIFeatures struct {
+	Alpha bool `help:"Alpha gate"`
+}
+
+type whyNoCLIFeaturesCLI struct {
+	noopRunner
+
+	Features conga.Features[whyNoCLIFeatures] `config:"experiments"`
+}
+
+func TestWhy_NoCLIFeaturesExcludedFromFlagTable(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	app := conga.New[whyNoCLIFeaturesCLI]().
+		Name("whyapp").
+		Stdout(&buffer).
+		EnableWhy().
+		Args([]string{"--why"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+
+	output := buffer.String()
+
+	flagSection, featuresSection, found := strings.Cut(output, "Features:")
+	assert.True(t, found)
+	assert.NotContains(t, flagSection, "--features")
+	assert.Contains(t, featuresSection, "alpha")
+}
+
 func TestWhy_UnsetRows(t *testing.T) {
 	t.Parallel()
 

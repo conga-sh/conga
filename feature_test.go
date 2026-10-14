@@ -221,6 +221,32 @@ func TestFeature_MergesSourcesPerKey(t *testing.T) {
 		assert.Equal(t, conga.SourceCLI, cli.Features.Source())
 	})
 
+	t.Run("CLI same-tier later token overrides earlier token in input sequence", func(t *testing.T) {
+		t.Parallel()
+
+		var cli1 featureTestCLI
+
+		app1 := conga.New(&cli1).
+			Name("task").
+			Args([]string{"--feature-gates", "gentle_force=false,gentle-force=true"})
+
+		err1 := app1.Run()
+
+		assert.NoError(t, err1)
+		assert.True(t, cli1.Features.Get().GentleForce)
+
+		var cli2 featureTestCLI
+
+		app2 := conga.New(&cli2).
+			Name("task").
+			Args([]string{"--feature-gates", "gentle-force=true,gentle_force=false"})
+
+		err2 := app2.Run()
+
+		assert.NoError(t, err2)
+		assert.False(t, cli2.Features.Get().GentleForce)
+	})
+
 	t.Run("why table attributes the canonical key to the CLI tier", func(t *testing.T) {
 		t.Parallel()
 

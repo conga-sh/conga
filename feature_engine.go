@@ -208,7 +208,7 @@ func mapKeyCanonicalizer(cmd *spec.Command, flagSpec *spec.Flag) func(string) st
 // provided feature map onto the defaults, and materializes the typed feature
 // struct.
 func bindFeatureValues(binding flagState, target any, cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, state *bindingState) (map[string]bool, error) {
-	provided, provenance, err := bindFeatureMap(binding, cmd, cmdChain, flagValues, state)
+	provided, provenance, err := bindFeatureMap(cmd, cmdChain, flagValues, state)
 	if err != nil && !state.TolerateFeatureErrors {
 		return nil, err
 	}
@@ -226,18 +226,18 @@ func bindFeatureValues(binding flagState, target any, cmd *spec.Command, cmdChai
 // bindFeatureMap applies the synthesized feature map flag from the merged
 // tier cascade and returns the resolved provided map (canonical feature-name
 // keys) with its per-key provenance, or nil when the flag stays unbound.
-func bindFeatureMap(binding flagState, cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, state *bindingState) (map[string]string, map[string]ValueSource, error) {
+func bindFeatureMap(cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, state *bindingState) (map[string]string, map[string]ValueSource, error) {
 	if cmd.FeatureFlag == nil {
 		return nil, nil, nil
 	}
 
-	provenance, err := applyMapFlagValue(cmd, cmdChain, cmd.FeatureFlag, flagValues, state, true)
+	merged, provenance, err := applyMapFlagValue(cmd, cmdChain, cmd.FeatureFlag, flagValues, state)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	var provided map[string]string
-	if rawProvided, ok := binding.getValue().(map[string]string); ok {
+	if rawProvided, ok := merged.(map[string]string); ok {
 		provided = rawProvided
 	}
 
@@ -263,14 +263,7 @@ func completionProvidedMap(cmd *spec.Command, flagValues map[*spec.Flag][]string
 		return nil
 	}
 
-	tiers := mapTierValues(cmd.FeatureFlag, cmd, []*spec.Command{cmd}, flagValues, state)
-	if len(tiers) == 0 {
-		return nil
-	}
-
-	result, err := mergeMapTiers([]*spec.Command{cmd}, cmd.FeatureFlag, tiers, state, mapMergeOptions{
-		canonicalizeKey: mapKeyCanonicalizer(cmd, cmd.FeatureFlag),
-	})
+	result, err := foldMapTiers(cmd, []*spec.Command{cmd}, cmd.FeatureFlag, flagValues, state, false)
 	if err != nil {
 		return nil
 	}
