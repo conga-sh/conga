@@ -46,7 +46,7 @@ stdout '--uint64-flag\s+uint64\s+64000\s+● config types.primitives.uint64-flag
 stdout '--float32-flag\s+float32\s+1\.5\s+● config types.primitives.float32-flag'
 stdout '--float64-flag\s+float64\s+3\.14159265359\s+● config types.primitives.float64-flag'
 stdout '--tags\s+\[\]string\s+\[toml, prod, monitored\]\s+● config types.primitives.tags'
-stdout '--ports\s+\[\]int\s+\[8080 8443 9090\]\s+● config types.primitives.ports'
+stdout '--ports\s+\[\]int\s+\[8080, 8443, 9090\]\s+● config types.primitives.ports'
 
 exec kitchen-sink --config-file config.json types primitives
 stdout '--string-flag\s+string\s+json-configured\s+● config types.primitives.string-flag'

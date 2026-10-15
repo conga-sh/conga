@@ -787,15 +787,22 @@ func (c *CompletionCommand) Run(ctx context.Context, session *Session) error {
 // off and any other value must be listed in the enum tag.
 //
 //	type Experiments struct {
-//		GentleForce bool `default:"true" help:"Force all dependents"`
-//		Parallelism int  `enum:"1,2"     help:"Concurrent workers"`
+//		RemoteCache      bool `help:"Experimental distributed CAS artifact cache"`
+//		SandboxIsolation int  `enum:"1,2" help:"Experimental build sandbox isolation: 1=chroot, 2=rootless-container"`
 //	}
 //
 //	type CLI struct {
 //		Features conga.Features[Experiments] `flag:"feature-gates" env:"APP_FEATURES" config:"experiments"`
 //	}
 //
-// Declare the Features field on the root command struct only. Every feature is
+//	app := conga.New[CLI]().EnableFeatures()
+//
+// Declare the Features field on the root command struct only. Activating
+// feature toggles requires calling [App.EnableFeatures] on the application
+// builder; declaring a Features field or a feature tag without it fails schema
+// build with [ErrSchema].
+//
+// Every feature is
 // carried by a single key=value map surface: the map flag named by the flag tag
 // (omitted when the tag is absent), the environment variable named by env or
 // derived from envprefix, and the configuration section named by config. A key
@@ -825,6 +832,8 @@ func (c *CompletionCommand) Run(ctx context.Context, session *Session) error {
 // the flag from the schema before environment binding, so a variable targeting
 // an inactive gated flag is ignored rather than rejected, keeping ambient
 // environment state from breaking runs it does not control.
+//
+// See https://docs.conga.sh/how-to/feature-flags/.
 type Features[T any] struct {
 	value        T
 	source       ValueSource

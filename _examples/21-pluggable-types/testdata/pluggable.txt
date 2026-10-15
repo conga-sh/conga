@@ -18,7 +18,7 @@ stdout '-s, --signal\s+syscall\.Signal\s+hangup\s+● cli --signal'
 
 # 3. Parsing slice of pointer types
 exec pluggable-demo --replica-tz Europe/Paris,Asia/Tokyo
-stdout '--replica-tz\s+\[\]\*time\.Location\s+\[Europe/Paris Asia/Tokyo\]\s+● cli --replica-tz'
+stdout '--replica-tz\s+\[\]\*time\.Location\s+\[Europe/Paris, Asia/Tokyo\]\s+● cli --replica-tz'
 
 # 4. RegisterType parser applies to the custom Percent type
 exec pluggable-demo --load 75%

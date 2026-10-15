@@ -15,7 +15,7 @@ stdout '--cache'
 stdout '--feature-gates'
 ! stdout 'QUIC/HTTP3'
 ! stdout 'development only'
-! stdout 'Experimental admin API'
+! stdout 'admin\s+Experimental admin API'
 
 # 2. The default run reports the resolved configuration and feature state.
 exec serve

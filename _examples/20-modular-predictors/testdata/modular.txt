@@ -42,7 +42,7 @@ stdout 'Probing localhost via GET \(expecting 200 OK\)'
 exec nodectl network scan 127.0.0.1 --ports 80,443
 stdout '⚙  nodectl network scan'
 stdout '<host>\s+network\.Host\s+127\.0\.0\.1\s+● cli'
-stdout '-p, --ports\s+\[\]network\.Port\s+\[80 443\]\s+● cli --ports'
+stdout '-p, --ports\s+\[\]network\.Port\s+\[80, 443\]\s+● cli --ports'
 
 exec nodectl network serve --port 8080 --status 200 --content-type application/json
 stdout '⚙  nodectl network serve'

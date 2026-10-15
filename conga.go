@@ -425,6 +425,11 @@ func (a *App[T]) DisableVersionFlag() *App[T] {
 // Applications declaring a [conga.Features] container or feature struct tags
 // require it.
 //
+// Example:
+//
+//	app := conga.New[CLI]().
+//		EnableFeatures()
+//
 // See https://docs.conga.sh/how-to/feature-flags/.
 func (a *App[T]) EnableFeatures() *App[T] {
 	a.installFeatureHooks()
