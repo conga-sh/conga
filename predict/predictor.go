@@ -258,44 +258,15 @@ func Map(items map[string]string) Predictor {
 
 // KeyValue creates a segmented KEY=VALUE Predictor from a map of keys to allowed value slices.
 func KeyValue(valuesByKey map[string][]string) Predictor {
-	return MultiParts("=", func(compCtx Context) Predictor {
-		existingEntries := slices.Clone(compCtx.ParentParts)
+	return keyValue(valuesByKey, nil)
+}
 
-		for _, values := range compCtx.FlagMultiValues {
-			existingEntries = append(existingEntries, values...)
-		}
-
-		usedKeys, usedKeyValues := parseUsedMapEntries(existingEntries)
-
-		if len(compCtx.Parts) == 0 {
-			keys := make([]string, 0, len(valuesByKey))
-
-			for key := range valuesByKey {
-				if !usedKeys[key] {
-					keys = append(keys, key+"=")
-				}
-			}
-
-			slices.Sort(keys)
-
-			return Values(keys...).NoSpace()
-		}
-
-		key := compCtx.Parts[0]
-		if values, ok := valuesByKey[key]; ok {
-			allowed := make([]string, 0, len(values))
-
-			for _, value := range values {
-				if usedKeyValues[key] == nil || !usedKeyValues[key][value] {
-					allowed = append(allowed, value)
-				}
-			}
-
-			return Values(allowed...)
-		}
-
-		return None()
-	})
+// KeyValueDescribed creates a segmented KEY=VALUE Predictor from a map of
+// keys to allowed value slices, carrying a per-key description shown next to
+// the key candidate. A nil or empty description map behaves exactly like
+// [KeyValue]; an absent or empty description renders the key without one.
+func KeyValueDescribed(valuesByKey map[string][]string, descriptionByKey map[string]string) Predictor {
+	return keyValue(valuesByKey, descriptionByKey)
 }
 
 // MultiParts completes segmented tokens by splitting on a delimiter.
@@ -579,6 +550,67 @@ func (p Predictor) invokeMultiParts(ctx Context) ([]Item, Directive, string) {
 	}
 
 	return items, directive, childRes.Usage
+}
+
+// keyValue is the shared segmentation core of KeyValue and KeyValueDescribed:
+// it completes the remaining keys (described when a description map is
+// supplied) and the allowed values of the key being completed.
+func keyValue(valuesByKey map[string][]string, descriptionByKey map[string]string) Predictor {
+	return MultiParts("=", func(compCtx Context) Predictor {
+		existingEntries := slices.Clone(compCtx.ParentParts)
+
+		for _, values := range compCtx.FlagMultiValues {
+			existingEntries = append(existingEntries, values...)
+		}
+
+		usedKeys, usedKeyValues := parseUsedMapEntries(existingEntries)
+
+		if len(compCtx.Parts) == 0 {
+			keys := make([]string, 0, len(valuesByKey))
+
+			for key := range valuesByKey {
+				if !usedKeys[key] {
+					keys = append(keys, key+"=")
+				}
+			}
+
+			slices.Sort(keys)
+
+			if len(descriptionByKey) == 0 {
+				return Values(keys...).NoSpace()
+			}
+
+			items := make([]Item, 0, len(keys))
+			for _, key := range keys {
+				items = append(items, Item{
+					Value:       key,
+					Display:     key,
+					Description: descriptionByKey[strings.TrimSuffix(key, "=")],
+				})
+			}
+
+			return Predictor{
+				items:     items,
+				directive: DirectiveNoFileCompletion,
+				raw:       keys,
+			}.NoSpace()
+		}
+
+		key := compCtx.Parts[0]
+		if values, ok := valuesByKey[key]; ok {
+			allowed := make([]string, 0, len(values))
+
+			for _, value := range values {
+				if usedKeyValues[key] == nil || !usedKeyValues[key][value] {
+					allowed = append(allowed, value)
+				}
+			}
+
+			return Values(allowed...)
+		}
+
+		return None()
+	})
 }
 
 func matchesSmartCase(candidate, term, lowerTerm string) bool {

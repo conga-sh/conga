@@ -956,7 +956,7 @@ type appConfig[T any] struct {
 	// featurePredictor builds the completion predictor for feature map keys.
 	// Completion installs it; nil keeps the predictor package unreferenced when
 	// completion is disabled.
-	featurePredictor func(name string, values map[string][]string) *spec.PredictorSpec
+	featurePredictor func(name string, values map[string][]string, descriptions map[string]string) *spec.PredictorSpec
 	// The following feature hooks are method expressions: they receive the
 	// executing App as their first argument. Nil means the subsystem is
 	// disabled and unreferenced, so its packages drop at link time.
@@ -1873,8 +1873,8 @@ func (a *App[T]) resolveAndLoadConfig(root *spec.Command, explicitTargets []stri
 // never enable completion keep the subsystem unreferenced.
 func (a *App[T]) installCompletionHooks() {
 	a.inferPredictor = spec.InferPredictorFromType
-	a.featurePredictor = func(name string, values map[string][]string) *spec.PredictorSpec {
-		return &spec.PredictorSpec{Kind: spec.PredictorKindPredictable, Name: name, Predictor: predict.KeyValue(values)}
+	a.featurePredictor = func(name string, values map[string][]string, descriptions map[string]string) *spec.PredictorSpec {
+		return &spec.PredictorSpec{Kind: spec.PredictorKindPredictable, Name: name, Predictor: predict.KeyValueDescribed(values, descriptions)}
 	}
 	a.defaultPredictors = (*App[T]).initDefaultPredictors
 	a.mountCompletion = (*App[T]).mountCompletionSubcommand
@@ -1896,6 +1896,7 @@ func (a *App[T]) installFeatureHooks() {
 	a.validateFeatures = spec.ValidateFeatureReferences
 	a.parseFeatureTag = spec.ParseFeatureTag
 	a.whyFeatures = whyFeatureRows
+	a.helpOptions.FeaturesSection = help.RenderFeatures
 }
 
 // installWhyRenderer binds the value-provenance renderer to a. It is reached

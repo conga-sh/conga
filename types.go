@@ -810,6 +810,11 @@ func (c *CompletionCommand) Run(ctx context.Context, session *Session) error {
 //
 //	if cli.Features.Get().GentleForce { ... }
 //
+// The root help screen renders an automatic Features section listing every
+// toggle: its help tag text, its stage tag maturity (alpha, beta, ga, or
+// deprecated — optional, but all features must declare one when any does), and
+// its default. Features staged ga or deprecated are omitted from the section.
+//
 // Flags and subcommands gated by the feature tag are pruned from help, why, and
 // completion when their feature is inactive, and invoking them is a usage error.
 //

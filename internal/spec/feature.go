@@ -14,13 +14,35 @@ import (
 	"github.com/conga-sh/conga/internal/slicex"
 )
 
+// Feature stage vocabulary of the stage struct tag, mirroring Kubernetes'
+// feature maturity levels. The stage is declared per feature field; when any
+// field declares one, every field must.
+const (
+	FeatureStageAlpha      = "alpha"
+	FeatureStageBeta       = "beta"
+	FeatureStageGA         = "ga"
+	FeatureStageDeprecated = "deprecated"
+)
+
+// featureFlagDefaultHelp is the synthesized feature flag's default help text.
+// It deliberately does not enumerate the features: the root help screen's
+// Features section lists them, and a custom help tag can inline them through
+// {{enum}}.
+const featureFlagDefaultHelp = "Enable or disable features (name=value)"
+
 // FeatureField describes one field of the root conga.Features[T] struct: a
 // single feature toggle.
 type FeatureField struct {
 	// Name is the normalized kebab-case feature name (the map key).
 	Name string
-	// Help is the human-readable description shown in help and completion.
+	// Help is the human-readable description shown in the root help screen's
+	// Features section and in completion candidate descriptions.
 	Help string
+	// Stage is the declared feature maturity: FeatureStageAlpha,
+	// FeatureStageBeta, FeatureStageGA, or FeatureStageDeprecated, or "" when
+	// the stage tag is absent on every feature field. GA and deprecated
+	// features are omitted from the help screen's Features section.
+	Stage string
 	// IsInt reports whether the feature is a leveled integer toggle (0 = off).
 	IsInt bool
 	// IsUnsigned reports whether the feature's integer field is an unsigned
@@ -37,6 +59,13 @@ type FeatureField struct {
 	Default string
 	// FieldIndex is the index of the feature field inside the inner feature struct.
 	FieldIndex int
+}
+
+// ListedInHelp reports whether the feature toggle is rendered in the root help
+// screen's Features section: undeclared, alpha, and beta stages are listed,
+// while GA and deprecated features — no longer experimental — are omitted.
+func (f *FeatureField) ListedInHelp() bool {
+	return f.Stage != FeatureStageGA && f.Stage != FeatureStageDeprecated
 }
 
 // Domain returns the canonical value domain for the feature toggle:
@@ -156,15 +185,30 @@ func FeatureFieldName(fieldName string, tag reflect.StructTag) (string, error) {
 	return name, nil
 }
 
-// ValidateFeatureFieldTags validates and records the enum and default tags of
-// one feature field: enum is valid only on integer features and may not be
-// empty, every enum value must canonicalize within the feature's domain and
-// storage width, an integer feature requires at least one enum level, and a
-// declared default must canonicalize against the enum domain. The runtime
-// schema builder reports it from the reflected field and the static analyzer
-// reconstructs the same metadata from go/types, keeping the diagnostics a
-// single source of truth.
+// ValidateFeatureFieldTags validates and records the enum, default, and stage
+// tags of one feature field: enum is valid only on integer features and may
+// not be empty, every enum value must canonicalize within the feature's domain
+// and storage width, an integer feature requires at least one enum level, a
+// declared default must canonicalize against the enum domain, and a declared
+// stage must name one of the four maturity levels. The runtime schema builder
+// reports it from the reflected field and the static analyzer reconstructs the
+// same metadata from go/types, keeping the diagnostics a single source of
+// truth.
 func ValidateFeatureFieldTags(field *FeatureField, tag reflect.StructTag) error {
+	if stageTag, hasStage := tag.Lookup("stage"); hasStage {
+		stage := strings.TrimSpace(stageTag)
+		if stage == "" {
+			return fmt.Errorf("%w: tag \"stage\" cannot be empty", ErrInvalidStructTag)
+		}
+
+		switch stage {
+		case FeatureStageAlpha, FeatureStageBeta, FeatureStageGA, FeatureStageDeprecated:
+			field.Stage = stage
+		default:
+			return fmt.Errorf(`%w: tag "stage" must be one of %s, %s, %s, or %s, got %q`, ErrInvalidStructTag, FeatureStageAlpha, FeatureStageBeta, FeatureStageGA, FeatureStageDeprecated, stage)
+		}
+	}
+
 	if enumTag, hasEnum := tag.Lookup("enum"); hasEnum {
 		if !field.IsInt {
 			return fmt.Errorf("%w: tag \"enum\" is only valid on integer features", ErrInvalidStructTag)
@@ -196,6 +240,13 @@ func ValidateFeatureFieldTags(field *FeatureField, tag reflect.StructTag) error 
 // static analyzer share it as the single source of truth.
 func DuplicateFeatureError(name string, typeName string) error {
 	return fmt.Errorf("%w: feature %q (already declared in %s)", ErrDuplicateFlag, name, typeName)
+}
+
+// FeatureStageAllOrNothingError builds the schema error for a feature field
+// that omits the stage tag while a sibling declares one. The runtime schema
+// builder and the static analyzer share it as the single source of truth.
+func FeatureStageAllOrNothingError(fieldName string) error {
+	return fmt.Errorf("%w: feature field %s does not declare the stage tag; declare stage on every feature field or on none", ErrInvalidStructTag, fieldName)
 }
 
 // ParseFeatureTag parses, validates, and normalizes the "feature" struct tag expression.
@@ -328,6 +379,10 @@ func (b *schemaBuilder) buildFeatureFields(innerType reflect.Type) ([]*FeatureFi
 		fields = append(fields, field)
 	}
 
+	if err := enforceFeatureStageAllOrNothing(fields); err != nil {
+		return nil, err
+	}
+
 	return fields, nil
 }
 
@@ -401,29 +456,49 @@ func (b *schemaBuilder) installFeatureFlag(structField reflect.StructField, fiel
 		configKey = "-"
 	}
 
-	helpText := strings.TrimSpace(structField.Tag.Get("help"))
-	if helpText == "" {
-		helpText = featureFlagDefaultHelp(fields)
-	}
-
 	enumKeys := make([]string, 0, len(fields))
 	for _, field := range fields {
 		enumKeys = append(enumKeys, field.Name)
 	}
 
+	helpText := strings.TrimSpace(structField.Tag.Get("help"))
+	referenced := helpVars{}
+
+	if helpText == "" {
+		helpText = featureFlagDefaultHelp
+	} else {
+		var err error
+
+		helpText, referenced, err = interpolateHelp(helpText, helpVarValuesFor(nil, nil, nil, enumKeys, "", envVars))
+		if err != nil {
+			return err
+		}
+	}
+
+	// The root help screen's Features section lists every visible feature by
+	// name, so the automatic [enum: ...] hint on the synthesized flag is
+	// suppressed while any feature remains listed there. When every feature is
+	// GA or deprecated (hidden from the section), the hint stays and remains
+	// the only help-screen surface naming the gates.
+	if slices.ContainsFunc(fields, (*FeatureField).ListedInHelp) {
+		referenced.Enum = true
+	}
+
 	flagSpec := &Flag{
-		Name:        name,
-		Help:        helpText,
-		Sep:         sep,
-		IsMap:       true,
-		EngineOwned: true,
-		ConfigKey:   configKey,
-		EnvVars:     envVars,
-		EnvExcluded: envExcluded,
-		NoCLI:       noCLI,
-		Hidden:      noCLI,
-		Safe:        true,
-		TargetType:  reflect.TypeFor[map[string]string](),
+		Name:           name,
+		Help:           helpText,
+		HelpVars:       referenced,
+		Sep:            sep,
+		IsMap:          true,
+		EngineOwned:    true,
+		ConfigKey:      configKey,
+		EnvVars:        envVars,
+		EnvExcluded:    envExcluded,
+		NoCLI:          noCLI,
+		Hidden:         noCLI,
+		Safe:           true,
+		TargetType:     reflect.TypeFor[map[string]string](),
+		EnumHintHidden: hasTag(structField.Tag, "enumhint"),
 		// Enum is metadata only on the synthesized map flag: it seeds the help
 		// hint and completion candidates. Map flags validate their items, not
 		// the flag value, so this list never gates the map flag's binding; the
@@ -433,7 +508,7 @@ func (b *schemaBuilder) installFeatureFlag(structField reflect.StructField, fiel
 	}
 
 	if b.opts.FeaturePredictor != nil {
-		flagSpec.Predictor = b.opts.FeaturePredictor(name, featureValueDomains(fields))
+		flagSpec.Predictor = b.opts.FeaturePredictor(name, featureValueDomains(fields), featureHelpDescriptions(fields))
 	}
 
 	// A NoCLI synthesized flag is engine-owned and never CLI-routable, so it
@@ -457,6 +532,24 @@ func (b *schemaBuilder) installFeatureFlag(structField reflect.StructField, fiel
 
 	b.cmd.Flags = append(b.cmd.Flags, flagSpec)
 	b.cmd.FeatureFlag = flagSpec
+
+	return nil
+}
+
+// enforceFeatureStageAllOrNothing reports the first feature field (in
+// declaration order) that omits the stage tag while a sibling declares it: a
+// feature set is either fully staged or entirely stage-less, so the help
+// screen's Features section never renders a mix of hinted and unhinted rows.
+func enforceFeatureStageAllOrNothing(fields []*FeatureField) error {
+	if !slices.ContainsFunc(fields, func(field *FeatureField) bool { return field.Stage != "" }) {
+		return nil
+	}
+
+	for _, field := range fields {
+		if field.Stage == "" {
+			return FeatureStageAllOrNothingError(field.Name)
+		}
+	}
 
 	return nil
 }
@@ -570,18 +663,16 @@ func featureStructType(target any) (reflect.Type, error) {
 	return innerValue.Elem().Type(), nil
 }
 
-func featureFlagDefaultHelp(fields []*FeatureField) string {
-	if len(fields) == 0 {
-		return "Enable or disable features (name=value)"
-	}
-
-	parts := make([]string, 0, len(fields))
+// featureHelpDescriptions maps each declared feature name to its help tag
+// text, consumed as the description of the feature's completion key candidate.
+func featureHelpDescriptions(fields []*FeatureField) map[string]string {
+	descriptions := make(map[string]string, len(fields))
 
 	for _, field := range fields {
-		parts = append(parts, field.Name+"="+strings.Join(field.Domain(), "|"))
+		descriptions[field.Name] = field.Help
 	}
 
-	return "Enable or disable features (" + strings.Join(parts, ", ") + ")"
+	return descriptions
 }
 
 func validateFeatureReferences(root *Command) error {

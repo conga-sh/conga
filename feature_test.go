@@ -863,6 +863,32 @@ func TestFeature_HelpExclusion(t *testing.T) {
 	})
 }
 
+func TestFeature_HelpFeaturesSection(t *testing.T) {
+	t.Parallel()
+
+	var (
+		buffer bytes.Buffer
+		cli    featureTestCLI
+	)
+
+	app := conga.New(&cli).
+		Name("task").
+		EnableFeatures().
+		Stdout(&buffer).
+		Args([]string{"--help"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+
+	output := buffer.String()
+
+	assert.Contains(t, output, "Features:")
+	assert.Contains(t, output, "gentle-force  Forces all dependent tasks [default: false]")
+	assert.Contains(t, output, "syntax        Syntax version (0 = off) [levels: 1, 2]")
+	assert.NotContains(t, output, "[enum: gentle-force")
+}
+
 func TestFeature_MultiLevel(t *testing.T) {
 	t.Parallel()
 
@@ -979,6 +1005,27 @@ func TestFeature_Completion(t *testing.T) {
 			assert.Contains(t, formatted, "--force-all")
 			assert.NotContains(t, formatted, "--syntax")
 		}
+	})
+
+	t.Run("feature key completion carries help descriptions", func(t *testing.T) {
+		t.Parallel()
+
+		var cli featureTestCLI
+
+		app := conga.New(&cli).
+			Name("task").
+			EnableCompletion().
+			EnableFeatures()
+
+		result, _ := app.CompleteForShell("bash", []string{"--feature-gates", ""})
+
+		assert.Equal(t, 3, len(result.Items))
+		assert.Equal(t, "gentle-force=", result.Items[0].Value)
+		assert.Equal(t, "Forces all dependent tasks", result.Items[0].Description)
+		assert.Equal(t, "packages=", result.Items[1].Value)
+		assert.Equal(t, "Manage Taskfile packages", result.Items[1].Description)
+		assert.Equal(t, "syntax=", result.Items[2].Value)
+		assert.Equal(t, "Syntax version (0 = off)", result.Items[2].Description)
 	})
 
 	t.Run("CLI feature gates drive subcommand completion", func(t *testing.T) {

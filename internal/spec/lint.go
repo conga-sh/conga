@@ -15,20 +15,20 @@ import (
 
 //nolint:gochecknoglobals // Static candidate definitions for schema tag validation.
 var (
-	flagTagCandidates           = []string{"name", "short", "help", "default", "env", "aliases", "group", "hidden", "safe", "xor", "and", "enum", "range", "len", "items", "sep", "negatable", "placeholder", "config", "deprecated", "predictor", "feature", "conga"}
-	argTagCandidates            = []string{"name", "help", "default", "enum", "range", "len", "items", "sep", "predictor", "conga"}
+	flagTagCandidates           = []string{"name", "short", "help", "default", "env", "aliases", "group", "hidden", "safe", "xor", "and", "enum", "enumhint", "range", "len", "items", "sep", "negatable", "placeholder", "config", "deprecated", "predictor", "feature", "conga"}
+	argTagCandidates            = []string{"name", "help", "default", "enum", "enumhint", "range", "len", "items", "sep", "predictor", "conga"}
 	builtinCommandTagCandidates = []string{"name", "summary", "aliases", "group", "hidden", "conga"}
 	userCommandTagCandidates    = []string{"name", "summary", "aliases", "group", "hidden", "envprefix", "deprecated", "feature", "conga"}
 	configFileTagCandidates     = []string{"name", "short", "help", "env", "aliases", "placeholder", "group", "hidden", "multi", "sep", "config", "deprecated", "feature", "conga"}
-	featuresFieldTagCandidates  = []string{"flag", "env", "envprefix", "config", "sep", "help", "conga"}
-	featureFieldTagCandidates   = []string{"name", "help", "default", "enum", "conga"}
+	featuresFieldTagCandidates  = []string{"flag", "env", "envprefix", "config", "sep", "help", "enumhint", "conga"}
+	featureFieldTagCandidates   = []string{"name", "help", "default", "enum", "stage", "conga"}
 	dashRawTagCandidates        = []string{"name", "conga"}
 	sentinelTagCandidates       = []string{"envprefix", "conga"}
 	allCongaTagCandidates       = []string{
 		"name", "short", "help", "default", "env", "aliases", "group", "hidden", "safe",
-		"xor", "and", "enum", "range", "len", "items", "sep", "negatable", "placeholder",
+		"xor", "and", "enum", "enumhint", "range", "len", "items", "sep", "negatable", "placeholder",
 		"config", "deprecated", "predictor", "feature", "conga", "summary", "envprefix",
-		"multi", "flag",
+		"multi", "flag", "stage",
 	}
 )
 

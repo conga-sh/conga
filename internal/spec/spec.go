@@ -253,10 +253,14 @@ type Flag struct {
 	Help      string
 	// HelpVars records the help-text variables the flag's help tag referenced;
 	// the renderer suppresses the matching automatic hint for each one.
-	HelpVars    helpVars
-	Placeholder string
-	Group       string
-	Hidden      bool
+	HelpVars helpVars
+	// EnumHintHidden reports whether the enumhint struct tag opted the flag out
+	// of the automatic [enum: ...] help hint. Declared values stay validated
+	// and completed; only the help-screen listing is suppressed.
+	EnumHintHidden bool
+	Placeholder    string
+	Group          string
+	Hidden         bool
 	// Safe reports whether the resolved value may be displayed in the --why
 	// provenance report. Declared via the safe struct tag; an absent tag
 	// defaults to true for boolean and counter flags (their value domain can
@@ -305,10 +309,14 @@ type Arg struct {
 	// referenced; the renderer suppresses the matching automatic hint for each
 	// one.
 	HelpVars helpVars
-	Enum     []string
-	Range    *Range
-	Len      *Range
-	Items    *Range
+	// EnumHintHidden reports whether the enumhint struct tag opted the argument
+	// out of the automatic [enum: ...] help hint. Declared values stay
+	// validated and completed; only the help-screen listing is suppressed.
+	EnumHintHidden bool
+	Enum           []string
+	Range          *Range
+	Len            *Range
+	Items          *Range
 	// FieldTags holds the custom tag values declared on the argument that
 	// were registered by its domain type (see spec.TagSpecProvider). Nil
 	// when the argument's type registers no tags or declares none.
@@ -403,10 +411,11 @@ type Options struct {
 	// completion.
 	InferPredictor func(targetType reflect.Type, tags FieldTags) *PredictorSpec
 	// FeaturePredictor builds the predictor spec for the feature map flag's
-	// keys from the flag's resolved name and the declared feature value
-	// domains. It is supplied by the caller only when completion is enabled;
-	// nil omits key completion so the predictor package stays unreferenced.
-	FeaturePredictor func(name string, values map[string][]string) *PredictorSpec
+	// keys from the flag's resolved name, the declared feature value domains,
+	// and the per-feature help descriptions. It is supplied by the caller only
+	// when completion is enabled; nil omits key completion so the predictor
+	// package stays unreferenced.
+	FeaturePredictor func(name string, values map[string][]string, descriptions map[string]string) *PredictorSpec
 	// ValidateTextRangeBound checks a range bound against the owning field's
 	// declared custom tags before the default text grammar parses it. It is
 	// supplied by the caller (the root package) so tag-aware domain types can

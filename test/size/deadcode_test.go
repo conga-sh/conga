@@ -158,6 +158,8 @@ func TestMinimalHello_FeatureResolutionPayloadEliminated(t *testing.T) {
 		"github.com/conga-sh/conga.checkFeatureConfigRestrictions",
 		"github.com/conga-sh/conga/internal/spec.MatchFeature",
 		"github.com/conga-sh/conga.featureDefaults",
+		"github.com/conga-sh/conga/internal/help.RenderFeatures",
+		"github.com/conga-sh/conga/internal/spec.(*FeatureField).ListedInHelp",
 	} {
 		assert.False(t, symbols[symbol], "linker must drop feature runtime payload: "+symbol)
 	}

@@ -97,10 +97,17 @@ func interpolateHelp(helpText string, values helpVarValues) (string, helpVars, e
 // unresolved env prefix leaves that undecided in the field's favor, so the
 // analyzer never invents a diagnostic the runtime would not report. Config-file
 // flags only ever substitute {{env}}, so the other variables stay unavailable.
+// The features container substitutes {{enum}} (the declared feature names) and
+// {{env}}; container-level default, range, len, and items are not part of the
+// model, so their variables stay unavailable.
 func helpVarAvailability(tag reflect.StructTag, role string, envPrefix string, envPrefixKnown bool) helpVars {
 	envAvailable := envVarsDeclared(tag, role, envPrefix, envPrefixKnown)
 	if role == "config file flag" {
 		return helpVars{Env: envAvailable}
+	}
+
+	if role == "features" {
+		return helpVars{Enum: true, Env: envAvailable}
 	}
 
 	return helpVars{
@@ -116,9 +123,10 @@ func helpVarAvailability(tag reflect.StructTag, role string, envPrefix string, e
 // envVarsDeclared mirrors parseFlagEnvVars and extractConfigFileEnvVars: a
 // field binds environment variables when its env tag names them, or when the
 // tag is absent and an env prefix supplies the name; env:"-" disables binding
-// outright. Positional arguments never bind them.
+// outright. Positional arguments never bind them. The features container binds
+// them under the same rules as flags.
 func envVarsDeclared(tag reflect.StructTag, role string, envPrefix string, envPrefixKnown bool) bool {
-	if role != "flag" && role != "config file flag" {
+	if role != "flag" && role != "config file flag" && role != "features" {
 		return false
 	}
 

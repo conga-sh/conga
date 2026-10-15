@@ -86,6 +86,33 @@ Run 'server --help' for more information.
 
 A config key that names an inactive gated flag fails with `ErrConfig` (exit 1). An environment variable that names one is ignored, so ambient environment state never breaks a run it does not control.
 
+## Features section
+
+The root `--help` screen renders an automatic `Features:` section listing every declared toggle: its `help` tag text, its declared stage, and its default. Integer toggles also list their levels. The synthesized feature-gates flag omits its `[enum: ...]` hint because the section already lists the names.
+
+```go title="main.go"
+type Experiments struct {
+	HTTP3     bool `stage:"alpha" help:"Experimental HTTP/3 (QUIC) listener"`
+	AdminAPI  bool `stage:"alpha" help:"Experimental admin API"`
+	StrictTLS bool `stage:"beta"  default:"true" help:"Require TLS and reject weak ciphers"`
+	Metrics   bool `stage:"beta"  default:"true" help:"Expose the metrics endpoint"`
+}
+```
+
+```sh
+server --help
+```
+
+```text no-copy
+Features:
+  http3       Experimental HTTP/3 (QUIC) listener [alpha]
+  admin-api   Experimental admin API [alpha]
+  strict-tls  Require TLS and reject weak ciphers [beta] [default: true]
+  metrics     Expose the metrics endpoint [beta] [default: true]
+```
+
+The `stage` tag records the feature's maturity — `alpha`, `beta`, `ga`, or `deprecated`. It is optional, but all-or-nothing: when any feature field declares a stage, every field must. Features staged `ga` or `deprecated` are omitted from the section, mirroring Kubernetes, which stops listing gates once they leave the experimental stages; the toggles remain fully functional, validated, and completable.
+
 ## Read feature values
 
 `Features.Get()` returns the resolved `*T`, and `Features.Source()` reports the highest contributing tier:

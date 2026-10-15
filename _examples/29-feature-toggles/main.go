@@ -69,12 +69,14 @@ func (a *AdminCmd) Run(ctx context.Context, session *conga.Session) error {
 
 // experiments declares the application's feature toggles. Each field is one
 // feature: the field name becomes the feature name and a bool field is an
-// on/off toggle. The default tag seeds the base value.
+// on/off toggle. The default tag seeds the base value, and the stage tag
+// annotates the maturity rendered in the help screen's Features section — the
+// staged set is all-or-nothing, so every field declares one.
 type experiments struct {
-	HTTP3     bool `help:"Experimental HTTP/3 (QUIC) listener"`
-	AdminAPI  bool `help:"Experimental admin API"`
-	StrictTLS bool `default:"true"                             help:"Require TLS and reject weak ciphers"`
-	Metrics   bool `default:"true"                             help:"Expose the metrics endpoint"`
+	HTTP3     bool `help:"Experimental HTTP/3 (QUIC) listener" stage:"alpha"`
+	AdminAPI  bool `help:"Experimental admin API"              stage:"alpha"`
+	StrictTLS bool `default:"true"                             help:"Require TLS and reject weak ciphers" stage:"beta"`
+	Metrics   bool `default:"true"                             help:"Expose the metrics endpoint"         stage:"beta"`
 }
 
 func main() {

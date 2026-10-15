@@ -1649,7 +1649,7 @@ func TestFeaturesContainer_TaggedNameCollidesWithUserFlag(t *testing.T) {
 func TestFeaturesContainer_PredictorReceivesFlagName(t *testing.T) {
 	t.Parallel()
 
-	capture := func(name string, values map[string][]string) *spec.PredictorSpec {
+	capture := func(name string, values map[string][]string, descriptions map[string]string) *spec.PredictorSpec {
 		return &spec.PredictorSpec{Kind: spec.PredictorKindCustom, Name: name}
 	}
 
@@ -1674,6 +1674,281 @@ func TestFeaturesContainer_PredictorReceivesFlagName(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, "gates", cmd.FeatureFlag.Predictor.Name)
 	})
+}
+
+type featureStageSet struct {
+	HTTP3  bool `help:"HTTP/3" stage:"alpha"`
+	Syntax int  `default:"2"   enum:"1,2"    help:"Syntax" stage:"beta"`
+}
+
+type featureStageCLI struct {
+	Features mockFeatures[featureStageSet]
+}
+
+func TestFeatureField_StageParsed(t *testing.T) {
+	t.Parallel()
+
+	var cli featureStageCLI
+
+	cmd, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.NoError(t, err)
+
+	http3 := cmd.FindFeature("http3")
+	assert.NotZero(t, http3)
+	assert.Equal(t, spec.FeatureStageAlpha, http3.Stage)
+
+	syntax := cmd.FindFeature("syntax")
+	assert.NotZero(t, syntax)
+	assert.Equal(t, spec.FeatureStageBeta, syntax.Stage)
+}
+
+type featurePartialStageSet struct {
+	First  bool `help:"First"  stage:"alpha"`
+	Second bool `help:"Second"`
+}
+
+type featurePartialStageCLI struct {
+	Features mockFeatures[featurePartialStageSet]
+}
+
+func TestFeatureField_StageAllOrNothing(t *testing.T) {
+	t.Parallel()
+
+	var cli featurePartialStageCLI
+
+	_, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.IsError(t, err, spec.ErrInvalidStructTag)
+	assert.Equal(t, "struct featurePartialStageCLI field Features: schema error: invalid struct tag: feature field second does not declare the stage tag; declare stage on every feature field or on none", err.Error())
+}
+
+type featureFullyStagedSet struct {
+	First  bool `help:"First"  stage:"alpha"`
+	Second bool `help:"Second" stage:"beta"`
+}
+
+type featureFullyStagedCLI struct {
+	Features mockFeatures[featureFullyStagedSet]
+}
+
+func TestFeatureField_StageAllOrNothingSatisfied(t *testing.T) {
+	t.Parallel()
+
+	var cli featureFullyStagedCLI
+
+	_, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.NoError(t, err)
+}
+
+type featureBadStageSet struct {
+	Level bool `help:"Level" stage:"stable"`
+}
+
+type featureBadStageCLI struct {
+	Features mockFeatures[featureBadStageSet]
+}
+
+func TestFeatureField_StageInvalidValue(t *testing.T) {
+	t.Parallel()
+
+	var cli featureBadStageCLI
+
+	_, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.IsError(t, err, spec.ErrInvalidStructTag)
+	assert.Equal(t, `struct featureBadStageCLI field Features: schema error: invalid struct tag: tag "stage" must be one of alpha, beta, ga, or deprecated, got "stable"`, err.Error())
+}
+
+type featureEmptyStageSet struct {
+	Level bool `help:"Level" stage:""`
+}
+
+type featureEmptyStageCLI struct {
+	Features mockFeatures[featureEmptyStageSet]
+}
+
+func TestFeatureField_StageEmptyValue(t *testing.T) {
+	t.Parallel()
+
+	var cli featureEmptyStageCLI
+
+	_, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.IsError(t, err, spec.ErrInvalidStructTag)
+	assert.Equal(t, `struct featureEmptyStageCLI field Features: schema error: invalid struct tag: tag "stage" cannot be empty`, err.Error())
+}
+
+func TestFeaturesContainer_DefaultHelpSuppressesEnumHint(t *testing.T) {
+	t.Parallel()
+
+	var cli featureDeclCLI
+
+	cmd, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.NoError(t, err)
+	assert.Equal(t, "Enable or disable features (name=value)", cmd.FeatureFlag.Help)
+	assert.True(t, cmd.FeatureFlag.HelpVars.Enum)
+}
+
+type featureHiddenStagesSet struct {
+	Done   bool `help:"Done"   stage:"ga"`
+	Legacy bool `help:"Legacy" stage:"deprecated"`
+}
+
+type featureHiddenStagesCLI struct {
+	Features mockFeatures[featureHiddenStagesSet]
+}
+
+func TestFeaturesContainer_AllFeaturesHiddenKeepsEnumHint(t *testing.T) {
+	t.Parallel()
+
+	var cli featureHiddenStagesCLI
+
+	cmd, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.NoError(t, err)
+	assert.Equal(t, "Enable or disable features (name=value)", cmd.FeatureFlag.Help)
+	assert.False(t, cmd.FeatureFlag.HelpVars.Enum)
+	assert.Equal(t, []string{"done", "legacy"}, cmd.FeatureFlag.Enum)
+}
+
+type featureEnumHelpCLI struct {
+	Features mockFeatures[featureDeclSet] `help:"Gates ({{enum}})"`
+}
+
+func TestFeaturesContainer_EnumVariableSubstitution(t *testing.T) {
+	t.Parallel()
+
+	var cli featureEnumHelpCLI
+
+	cmd, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.NoError(t, err)
+	assert.Equal(t, "Gates (gentle-force, parallelism)", cmd.FeatureFlag.Help)
+	assert.True(t, cmd.FeatureFlag.HelpVars.Enum)
+}
+
+type featureEnvHelpCLI struct {
+	Features mockFeatures[featureDeclSet] `env:"APP_GATES" help:"Gates via {{env}}"`
+}
+
+func TestFeaturesContainer_EnvVariableSubstitution(t *testing.T) {
+	t.Parallel()
+
+	var cli featureEnvHelpCLI
+
+	cmd, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.NoError(t, err)
+	assert.Equal(t, "Gates via APP_GATES", cmd.FeatureFlag.Help)
+	assert.True(t, cmd.FeatureFlag.HelpVars.Env)
+}
+
+type featureDefaultHelpCLI struct {
+	Features mockFeatures[featureDeclSet] `help:"Gates {{default}}"`
+}
+
+func TestFeaturesContainer_DefaultVariableRejected(t *testing.T) {
+	t.Parallel()
+
+	var cli featureDefaultHelpCLI
+
+	_, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.IsError(t, err, spec.ErrInvalidStructTag)
+	assert.Equal(t, `struct featureDefaultHelpCLI field Features: schema error: invalid struct tag: tag "help" references {{default}}, but the field provides no value for that variable`, err.Error())
+}
+
+type featureEnumHintRedundantCLI struct {
+	Features mockFeatures[featureDeclSet] `enumhint:"-" help:"Gates ({{enum}})"`
+}
+
+func TestFeaturesContainer_EnumHintRedundantWithEnumReference(t *testing.T) {
+	t.Parallel()
+
+	var cli featureEnumHintRedundantCLI
+
+	_, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.IsError(t, err, spec.ErrInvalidStructTag)
+	assert.Equal(t, `struct featureEnumHintRedundantCLI field Features: schema error: invalid struct tag: tag "enumhint" is redundant: the help tag already references {{enum}}`, err.Error())
+}
+
+type enumHintMissingEnumCLI struct {
+	Format mockFlag[string] `enumhint:"-" help:"Format"`
+}
+
+func TestFlag_EnumHintWithoutEnumValues(t *testing.T) {
+	t.Parallel()
+
+	var cli enumHintMissingEnumCLI
+
+	_, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.IsError(t, err, spec.ErrInvalidStructTag)
+	assert.Equal(t, `struct enumHintMissingEnumCLI field Format: schema error: invalid struct tag: tag "enumhint" suppresses the enum hint, but the field declares no enum values`, err.Error())
+}
+
+type enumHintRedundantCLI struct {
+	Format mockFlag[string] `enum:"json,yaml" enumhint:"-" help:"Format ({{enum}})"`
+}
+
+func TestFlag_EnumHintRedundantWithEnumReference(t *testing.T) {
+	t.Parallel()
+
+	var cli enumHintRedundantCLI
+
+	_, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.IsError(t, err, spec.ErrInvalidStructTag)
+	assert.Equal(t, `struct enumHintRedundantCLI field Format: schema error: invalid struct tag: tag "enumhint" is redundant: the help tag already references {{enum}}`, err.Error())
+}
+
+type enumHintInvalidValueCLI struct {
+	Format mockFlag[string] `enum:"json,yaml" enumhint:"true" help:"Format"`
+}
+
+func TestFlag_EnumHintInvalidValue(t *testing.T) {
+	t.Parallel()
+
+	var cli enumHintInvalidValueCLI
+
+	_, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.IsError(t, err, spec.ErrInvalidStructTag)
+	assert.Equal(t, `struct enumHintInvalidValueCLI field Format: schema error: invalid struct tag: tag "enumhint" must be "-"`, err.Error())
+}
+
+type enumHintParsedCLI struct {
+	Format mockFlag[string] `enum:"json,yaml" enumhint:"-" help:"Format"`
+}
+
+func TestFlag_EnumHintParsed(t *testing.T) {
+	t.Parallel()
+
+	var cli enumHintParsedCLI
+
+	cmd, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.NoError(t, err)
+	assert.True(t, cmd.Flags[0].EnumHintHidden)
+}
+
+type enumHintArgCLI struct {
+	Verb mockArg[string] `enum:"get,post" enumhint:"-" help:"Verb"`
+}
+
+func TestArg_EnumHintParsed(t *testing.T) {
+	t.Parallel()
+
+	var cli enumHintArgCLI
+
+	cmd, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.NoError(t, err)
+	assert.True(t, cmd.Args[0].EnumHintHidden)
 }
 
 type featureSubcommandTagCLI struct {

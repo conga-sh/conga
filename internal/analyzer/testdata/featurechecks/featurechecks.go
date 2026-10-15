@@ -142,3 +142,78 @@ func (a *featureFlagCollisionApp) Run(ctx context.Context, session *conga.Sessio
 }
 
 var _ = conga.New[featureFlagCollisionApp]()
+
+type badStageSet struct {
+	Level bool `stage:"stable" help:"Level"` // want `struct badStageApp field Level: schema error: invalid struct tag: tag "stage" must be one of alpha, beta, ga, or deprecated, got "stable"`
+}
+
+type badStageApp struct {
+	Features conga.Features[badStageSet]
+}
+
+func (a *badStageApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[badStageApp]()
+
+type emptyStageSet struct {
+	Level bool `stage:"" help:"Level"` // want `struct emptyStageApp field Level: schema error: invalid struct tag: tag "stage" cannot be empty`
+}
+
+type emptyStageApp struct {
+	Features conga.Features[emptyStageSet]
+}
+
+func (a *emptyStageApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[emptyStageApp]()
+
+type partialStageSet struct {
+	First  bool `help:"First" stage:"alpha"`
+	Second bool `help:"Second"` // want `struct partialStageApp field Second: schema error: invalid struct tag: feature field second does not declare the stage tag; declare stage on every feature field or on none`
+}
+
+type partialStageApp struct {
+	Features conga.Features[partialStageSet]
+}
+
+func (a *partialStageApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[partialStageApp]()
+
+type enumHintChecksApp struct {
+	MissingEnum conga.OptionalFlag[string] `enumhint:"-" help:"Format"` // want `struct enumHintChecksApp field MissingEnum: schema error: invalid struct tag: tag "enumhint" suppresses the enum hint, but the field declares no enum values`
+	Redundant   conga.OptionalFlag[string] `enum:"json,yaml" enumhint:"-" help:"Format ({{enum}})"` // want `struct enumHintChecksApp field Redundant: schema error: invalid struct tag: tag "enumhint" is redundant: the help tag already references \{\{enum\}\}`
+	BadValue    conga.OptionalFlag[string] `enum:"json,yaml" enumhint:"true" help:"Format"` // want `struct enumHintChecksApp field BadValue: schema error: invalid struct tag: tag "enumhint" must be "-"`
+}
+
+func (a *enumHintChecksApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[enumHintChecksApp]()
+
+type enumHintFeaturesApp struct {
+	Features conga.Features[goodFeatureSet] `enumhint:"-" help:"Gates ({{enum}})"` // want `struct enumHintFeaturesApp field Features: schema error: invalid struct tag: tag "enumhint" is redundant: the help tag already references \{\{enum\}\}`
+}
+
+func (a *enumHintFeaturesApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[enumHintFeaturesApp]()
+
+type defaultVarFeaturesApp struct {
+	Features conga.Features[goodFeatureSet] `help:"Gates {{default}}"` // want `struct defaultVarFeaturesApp field Features: schema error: invalid struct tag: tag "help" references \{\{default\}\}, but the field provides no value for that variable`
+}
+
+func (a *defaultVarFeaturesApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[defaultVarFeaturesApp]()

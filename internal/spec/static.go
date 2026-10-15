@@ -61,18 +61,8 @@ func ValidateFieldTags(tag reflect.StructTag, role string, candidates []string, 
 		return Directives{}, err
 	}
 
-	switch role {
-	case "flag", "positional argument":
-		if err := validateConstraintTagValues(tag); err != nil {
-			return Directives{}, err
-		}
-
-		fallthrough
-	case "config file flag":
-		declared := helpVarAvailability(tag, role, opts.EnvPrefix, opts.EnvPrefixKnown)
-		if err := validateHelpVariables(tag.Get("help"), declared); err != nil {
-			return Directives{}, err
-		}
+	if err := validateRoleTagRules(tag, role, opts); err != nil {
+		return Directives{}, err
 	}
 
 	if !opts.StrictTagValidation || opts.AllowUnknownTags || dirs.AllowUnknownTags {
@@ -249,6 +239,69 @@ func ValidatePredictorTag(tag reflect.StructTag, isBool bool, opts ValidationOpt
 	_, err := validateExplicitPredictor(strings.TrimSpace(tagValue), isBool, opts.StrictTagValidation, registeredNames)
 
 	return err
+}
+
+// validateRoleTagRules applies the role-specific tag rules shared by schema
+// build and the static analyzer: constraint tag values for flags and
+// positional arguments, {{...}} help-variable availability for the roles that
+// substitute them, and the enumhint opt-out. The rules run regardless of
+// strict tag validation, mirroring the runtime schema build.
+func validateRoleTagRules(tag reflect.StructTag, role string, opts ValidationOptions) error {
+	switch role {
+	case "flag", "positional argument":
+		if err := validateConstraintTagValues(tag); err != nil {
+			return err
+		}
+
+		fallthrough
+	case "config file flag", "features":
+		declared := helpVarAvailability(tag, role, opts.EnvPrefix, opts.EnvPrefixKnown)
+		if err := validateHelpVariables(tag.Get("help"), declared); err != nil {
+			return err
+		}
+	}
+
+	switch role {
+	case "flag", "positional argument", "features":
+		if err := validateEnumHintTag(tag, role); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// validateEnumHintTag validates the enumhint struct tag of a flag, positional
+// argument, or features container. The tag opts the field out of the automatic
+// [enum: ...] help hint; its only accepted value is "-", the field must
+// declare enum values to suppress (the features container always carries the
+// declared feature names), and the help tag must not reference {{enum}} —
+// inlining the values and hiding them are contradictory requests. The runtime
+// schema build and the static analyzer share it as the single source of truth.
+func validateEnumHintTag(tag reflect.StructTag, role string) error {
+	raw, ok := tag.Lookup("enumhint")
+	if !ok {
+		return nil
+	}
+
+	if strings.TrimSpace(raw) != "-" {
+		return fmt.Errorf("%w: tag \"enumhint\" must be \"-\"", ErrInvalidStructTag)
+	}
+
+	if role != "features" && len(SplitTagList(tag, "enum")) == 0 {
+		return fmt.Errorf("%w: tag \"enumhint\" suppresses the enum hint, but the field declares no enum values", ErrInvalidStructTag)
+	}
+
+	_, referenced, err := interpolateHelp(tag.Get("help"), helpVarValues{})
+	if err != nil {
+		return err
+	}
+
+	if referenced.Enum {
+		return fmt.Errorf("%w: tag \"enumhint\" is redundant: the help tag already references {{enum}}", ErrInvalidStructTag)
+	}
+
+	return nil
 }
 
 // validateReservedPseudoTagKeys rejects the engine-owned "~" pseudo-tag

@@ -243,6 +243,17 @@ func (w *walker) checkFeatureFields(node *commandNode, innerType types.Type, str
 
 	seen := make(map[string]bool)
 
+	// stagedFields accumulates the fields that survived validation so the
+	// all-or-nothing stage guard can report the first stage-less field after
+	// the whole struct is inspected.
+	type stagedField struct {
+		obj   types.Object
+		name  string
+		stage string
+	}
+
+	var stagedFields []stagedField
+
 	for index := range structType.NumFields() {
 		innerField := structType.Field(index)
 		if !innerField.Exported() {
@@ -290,6 +301,22 @@ func (w *walker) checkFeatureFields(node *commandNode, innerType types.Type, str
 			w.reportFieldError(node, innerField, err)
 
 			valid = false
+
+			continue
+		}
+
+		stagedFields = append(stagedFields, stagedField{obj: innerField, name: name, stage: field.Stage})
+	}
+
+	if slices.ContainsFunc(stagedFields, func(entry stagedField) bool { return entry.stage != "" }) {
+		for _, entry := range stagedFields {
+			if entry.stage == "" {
+				w.reportFieldError(node, entry.obj, spec.FeatureStageAllOrNothingError(entry.name))
+
+				valid = false
+
+				break
+			}
 		}
 	}
 
