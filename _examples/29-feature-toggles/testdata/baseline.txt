@@ -1,0 +1,44 @@
+# TestScript for 29-feature-toggles — default posture and enforcement.
+# With no configuration only the default-on gates are active: strict-tls and
+# metrics. Gated flags and the gated command are invisible and unusable, while
+# the baseline flags remain.
+
+# Isolate the conventional XDG config tier from the host machine.
+env HOME=$WORK/home
+env XDG_CONFIG_HOME=$WORK/xdg
+
+# 1. Default help shows only active members: --http3 and --allow-insecure are
+#    gated off, as is the admin command.
+exec serve --help
+stdout '--listen'
+stdout '--cache'
+stdout '--feature-gates'
+! stdout 'QUIC/HTTP3'
+! stdout 'development only'
+! stdout 'admin\s+Experimental admin API'
+
+# 2. The default run reports the resolved configuration and feature state.
+exec serve
+stdout 'listen=:8080 cache=128 http3=false insecure=false'
+stdout 'features: http3=false admin-api=false strict-tls=true metrics=true'
+stdout 'metrics: collecting on :8080'
+
+# 3. Invoking an inactive flag is a usage error (exit 2).
+exit-status 2 serve --http3
+stderr 'flag .--http3. requires feature "http3"'
+exit-status 2 serve --allow-insecure
+stderr 'flag .--allow-insecure. requires feature "!strict-tls"'
+
+# 4. Invoking an inactive command is a usage error, even when asking for help.
+exit-status 2 serve admin
+stderr 'command "admin" requires feature "admin-api"'
+exit-status 2 serve admin --help
+stderr 'command "admin" requires feature "admin-api"'
+
+# 5. --why reports only the active flags, plus the resolved feature state.
+exec serve --why
+stdout '--listen'
+! stdout '--http3'
+stdout 'Features:'
+stdout 'http3'
+stdout 'strict-tls'

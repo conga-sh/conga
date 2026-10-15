@@ -6,7 +6,6 @@ import (
 	"runtime"
 	"runtime/debug"
 	"strings"
-	"time"
 
 	"github.com/conga-sh/conga/internal/jsonwire"
 )
@@ -197,10 +196,28 @@ func versionEmbedsCommit(version, commit string) bool {
 // versionEmbedsTimestamp reports whether the version string already carries
 // the commit time as the fourteen-digit UTC stamp inside a Go pseudo-version.
 func versionEmbedsTimestamp(version, commitDate string) bool {
-	stamp, err := time.Parse(time.RFC3339, commitDate)
-	if err != nil {
+	// Go's vcs.time is always RFC3339 UTC: "YYYY-MM-DDTHH:MM:SSZ" (20 bytes).
+	if len(commitDate) != 20 ||
+		commitDate[4] != '-' || commitDate[7] != '-' ||
+		commitDate[10] != 'T' || commitDate[13] != ':' ||
+		commitDate[16] != ':' || commitDate[19] != 'Z' {
 		return false
 	}
 
-	return strings.Contains(version, "-"+stamp.UTC().Format("20060102150405")+"-")
+	for _, idx := range [...]int{0, 1, 2, 3, 5, 6, 8, 9, 11, 12, 14, 15, 17, 18} {
+		if commitDate[idx] < '0' || commitDate[idx] > '9' {
+			return false
+		}
+	}
+
+	stamp := [14]byte{
+		commitDate[0], commitDate[1], commitDate[2], commitDate[3],
+		commitDate[5], commitDate[6],
+		commitDate[8], commitDate[9],
+		commitDate[11], commitDate[12],
+		commitDate[14], commitDate[15],
+		commitDate[17], commitDate[18],
+	}
+
+	return strings.Contains(version, "-"+string(stamp[:])+"-")
 }

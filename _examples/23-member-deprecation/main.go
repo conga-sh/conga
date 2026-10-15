@@ -30,7 +30,7 @@ func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
 type LegacyCmd struct{}
 
 func (l *LegacyCmd) Run(ctx context.Context, session *conga.Session) error {
-	inspector.Print(session, session.Root[CLI]())
+	inspector.Print(session, session.Root[CLI](), l)
 	fmt.Fprintln(session.Stdout(), "legacy command executed")
 
 	return nil
@@ -40,7 +40,7 @@ func (l *LegacyCmd) Run(ctx context.Context, session *conga.Session) error {
 type DeployCmd struct{}
 
 func (d *DeployCmd) Run(ctx context.Context, session *conga.Session) error {
-	inspector.Print(session, session.Root[CLI]())
+	inspector.Print(session, session.Root[CLI](), d)
 	fmt.Fprintln(session.Stdout(), "deploy command executed")
 
 	return nil

@@ -7,17 +7,12 @@ package elvish
 import (
 	"strconv"
 	"strings"
-	"sync"
 
 	"github.com/conga-sh/conga/internal/completion/wire"
 	"github.com/conga-sh/conga/internal/style"
 )
 
-//nolint:gochecknoglobals // one-time lazy construction of the shared replacer below
-var fieldSanitizerOnce sync.Once
-
-//nolint:gochecknoglobals // immutable after fieldSanitizerOnce completes
-var fieldSanitizerReplacer *strings.Replacer
+const controlCutset = "\n\r\t"
 
 // Format renders candidates and directives in the elvish framing: a
 // single-line JSON object (no trailing newline) with candidates in engine
@@ -69,26 +64,13 @@ func Format(toComplete string, directives wire.Directives, candidates []wire.Can
 	return string(buffer)
 }
 
-// fieldSanitizer strips the characters elvish cannot carry in its JSON string
-// fields or render in the completion UI: newlines, carriage returns, and tabs.
-// Construction is deferred to first use so the driver package stays free of
-// package initializers and drops at link time when elvish completion is
-// disabled.
-func fieldSanitizer() *strings.Replacer {
-	fieldSanitizerOnce.Do(func() {
-		fieldSanitizerReplacer = strings.NewReplacer("\n", "", "\r", "", "\t", "")
-	})
-
-	return fieldSanitizerReplacer
-}
-
 // appendCandidate appends one candidate object: the sanitized value, display,
 // and clamped description; the codeSuffix carrying the nospace rule; and the
 // style in elvish vocabulary.
 func appendCandidate(buffer []byte, directives wire.Directives, candidate wire.Candidate) []byte {
-	display := fieldSanitizer().Replace(candidate.Display)
+	display := sanitizeField(candidate.Display)
 	if display == "" {
-		display = fieldSanitizer().Replace(candidate.Value)
+		display = sanitizeField(candidate.Value)
 	}
 
 	codeSuffix := " "
@@ -97,17 +79,21 @@ func appendCandidate(buffer []byte, directives wire.Directives, candidate wire.C
 	}
 
 	buffer = append(buffer, `{"value":`...)
-	buffer = wire.AppendJSONString(buffer, fieldSanitizer().Replace(candidate.Value))
+	buffer = wire.AppendJSONString(buffer, sanitizeField(candidate.Value))
 	buffer = append(buffer, `,"display":`...)
 	buffer = wire.AppendJSONString(buffer, display)
 	buffer = append(buffer, `,"description":`...)
-	buffer = wire.AppendJSONString(buffer, fieldSanitizer().Replace(candidate.TrimmedDescription()))
+	buffer = wire.AppendJSONString(buffer, sanitizeField(candidate.TrimmedDescription()))
 	buffer = append(buffer, `,"codeSuffix":`...)
 	buffer = wire.AppendJSONString(buffer, codeSuffix)
 	buffer = append(buffer, `,"style":`...)
 	buffer = wire.AppendJSONString(buffer, normalizeStyle(candidate.Style))
 
 	return append(buffer, '}')
+}
+
+func sanitizeField(s string) string {
+	return wire.StripControl(s, controlCutset)
 }
 
 // normalizeStyle translates a style token string to elvish's `styled`

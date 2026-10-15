@@ -27,7 +27,7 @@ type DeployCmd struct {
 }
 
 func (d *DeployCmd) Run(ctx context.Context, session *conga.Session) error {
-	inspector.Print(session, session.Root[CLI]())
+	inspector.Print(session, session.Root[CLI](), d)
 	fmt.Fprintln(session.Stdout(), "deployment started")
 
 	return nil

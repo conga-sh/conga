@@ -1,8 +1,8 @@
 package bash
 
 import (
+	"slices"
 	"strings"
-	"sync"
 	"unicode/utf8"
 
 	"github.com/conga-sh/conga/internal/completion/lex"
@@ -11,13 +11,10 @@ import (
 
 // quotedClass lists the characters that force double-quoting of a candidate
 // value: whitespace and the POSIX shell metacharacters.
-const quotedClass = " \t\n\r\"'\\$`[]{}()<>;|&*?#"
-
-//nolint:gochecknoglobals // one-time lazy construction of the shared replacer below
-var fieldSanitizerOnce sync.Once
-
-//nolint:gochecknoglobals // immutable after fieldSanitizerOnce completes
-var fieldSanitizerReplacer *strings.Replacer
+const (
+	quotedClass   = " \t\n\r\"'\\$`[]{}()<>;|&*?#"
+	controlCutset = "\t\n\r"
+)
 
 // Format renders candidates in bash's line-oriented framing: a directive
 // header line ("D"), optional message lines ("M", discarded by the snippet to
@@ -47,7 +44,7 @@ func (s *Session) Format(toComplete string, directives wire.Directives, candidat
 	lines = append(lines, "D\t"+strings.Join(headerTokens(directives, candidates, collapsed, successive), " "))
 
 	for _, message := range directives.Messages {
-		lines = append(lines, "M\t"+fieldSanitizer().Replace(message))
+		lines = append(lines, "M\t"+sanitizeField(message))
 	}
 
 	for _, candidate := range candidates {
@@ -81,17 +78,8 @@ func (s *Session) isSuccessiveTabs(candidateCount int) bool {
 	return candidateCount > 1 && compType == compTypeSuccessiveTabs
 }
 
-// fieldSanitizer normalizes the characters that would corrupt the
-// line-oriented framing: every tab, newline, and carriage return becomes a
-// single space. Construction is deferred to first use so the driver package
-// stays free of package initializers and drops at link time when bash
-// completion is disabled.
-func fieldSanitizer() *strings.Replacer {
-	fieldSanitizerOnce.Do(func() {
-		fieldSanitizerReplacer = strings.NewReplacer("\t", " ", "\n", " ", "\r", " ")
-	})
-
-	return fieldSanitizerReplacer
+func sanitizeField(s string) string {
+	return wire.ReplaceControlWithSpace(s, controlCutset)
 }
 
 // candidateLine renders one candidate: a tab-delimited display/value/
@@ -99,9 +87,9 @@ func fieldSanitizer() *strings.Replacer {
 // otherwise.
 func candidateLine(candidate wire.Candidate, wordbreakPrefix string, successive bool) string {
 	if successive {
-		return fieldSanitizer().Replace(candidate.Display) + "\t" +
-			fieldSanitizer().Replace(candidate.Value) + "\t" +
-			fieldSanitizer().Replace(candidate.TrimmedDescription())
+		return sanitizeField(candidate.Display) + "\t" +
+			sanitizeField(candidate.Value) + "\t" +
+			sanitizeField(candidate.TrimmedDescription())
 	}
 
 	return quoteValue(insertionValue(candidate, wordbreakPrefix))
@@ -133,7 +121,7 @@ func insertionValue(candidate wire.Candidate, wordbreakPrefix string) string {
 // metacharacters; values containing whitespace or shell metacharacters are
 // double-quoted with '"', '\', '$', and '`' escaped; everything else is raw.
 func quoteValue(value string) string {
-	value = fieldSanitizer().Replace(value)
+	value = sanitizeField(value)
 
 	switch {
 	case strings.HasPrefix(value, "~"):
@@ -210,25 +198,17 @@ func headerTokens(directives wire.Directives, candidates []wire.Candidate, colla
 // trimmedAny reports whether any candidate had a wordbreak prefix stripped
 // during rendering (candidates are then tail replacements).
 func trimmedAny(candidates []wire.Candidate) bool {
-	for _, candidate := range candidates {
-		if candidate.Display != "" && candidate.Display != candidate.Value {
-			return true
-		}
-	}
-
-	return false
+	return slices.ContainsFunc(candidates, func(candidate wire.Candidate) bool {
+		return candidate.Display != "" && candidate.Display != candidate.Value
+	})
 }
 
 // noSpaceForAny reports whether the nospace rule applies to the stream: the
 // engine's nospace set, or any candidate ending with "=" or "/".
 func noSpaceForAny(directives wire.Directives, candidates []wire.Candidate) bool {
-	for _, candidate := range candidates {
-		if directives.NoSpaceFor(candidate.Value) {
-			return true
-		}
-	}
-
-	return false
+	return slices.ContainsFunc(candidates, func(candidate wire.Candidate) bool {
+		return directives.NoSpaceFor(candidate.Value)
+	})
 }
 
 // commonValuePrefix returns the longest common prefix of every candidate's

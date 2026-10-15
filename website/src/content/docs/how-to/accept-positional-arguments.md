@@ -1,6 +1,6 @@
 ---
 title: How to accept positional arguments
-description: Define mandatory, optional, and trailing positional arguments, and forward raw tokens.
+description: Define required, optional, and trailing positional arguments, and forward raw tokens.
 ---
 
 CONGA binds command-line tokens to struct fields using typed argument containers. This guide demonstrates how to define required and optional positional arguments, capture trailing arguments in a slice, and forward unparsed tokens after `--`.

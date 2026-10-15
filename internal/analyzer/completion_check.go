@@ -8,68 +8,79 @@ import (
 	"golang.org/x/tools/go/analysis"
 )
 
-// completionState is the per-anchor completion verdict consumed by the
-// completion command guard. Unlike the app-wide appOptions facts, the
-// completion-enabled fact belongs to one conga.New anchor: the same command
-// struct is valid under an app that calls EnableCompletion and invalid under
-// one that does not.
+// optInState is the per-anchor verdict for an opt-in builder method
+// (EnableCompletion, EnableFeatures). Unlike the app-wide appOptions facts, the
+// enabled fact belongs to one conga.New anchor: the same command struct is
+// valid under an app that calls the method and invalid under one that does not.
 const (
-	// completionUnknown leaves the fact undecided: multiple anchors, an
-	// escaping app value, or a shape the analyzer does not attribute. The
-	// guard is suppressed rather than guessed.
-	completionUnknown completionState = iota
-	// completionEnabled records a statically identified EnableCompletion call
+	// optInUnknown leaves the fact undecided: multiple anchors, an escaping
+	// app value, or a shape the analyzer does not attribute. The guard is
+	// suppressed rather than guessed.
+	optInUnknown optInState = iota
+	// optInEnabled records a statically identified call to the builder method
 	// on the anchored app value.
-	completionEnabled
-	// completionDisabled records an anchored app value that never calls
-	// EnableCompletion in its straight-line construction run.
-	completionDisabled
+	optInEnabled
+	// optInDisabled records an anchored app value that never calls the builder
+	// method in its straight-line construction run.
+	optInDisabled
 )
 
-type completionState int
+type optInState int
 
 // detectCompletionState attributes the completion-enabled fact to the single
+// conga.New anchor of the package.
+func detectCompletionState(pass *analysis.Pass, anchors []*anchor) optInState {
+	return detectOptInState(pass, anchors, "EnableCompletion")
+}
+
+// detectFeatureState attributes the feature-enabled fact to the single
+// conga.New anchor of the package.
+func detectFeatureState(pass *analysis.Pass, anchors []*anchor) optInState {
+	return detectOptInState(pass, anchors, "EnableFeatures")
+}
+
+// detectOptInState attributes an opt-in builder-method fact to the single
 // conga.New anchor of the package. The construction chain is inspected first,
 // then the straight-line statements on the app variable it binds, stopping at
 // the first reference that is not a pure builder call on that variable.
 // Multiple anchors or any escape of the app value leave the fact undecided, so
 // the analyzer only ever misses a diagnostic, never invents one.
-func detectCompletionState(pass *analysis.Pass, anchors []*anchor) completionState {
+func detectOptInState(pass *analysis.Pass, anchors []*anchor, method string) optInState {
 	if len(anchors) != 1 {
-		return completionUnknown
+		return optInUnknown
 	}
 
 	found := anchors[0]
 	if found.file == nil || found.call == nil {
-		return completionUnknown
+		return optInUnknown
 	}
 
 	parents := nodeParents(found.file)
 	chainEnd := chainEndNode(parents, found.call)
 
-	if appChainCallsEnableCompletion(pass, chainEnd) {
-		return completionEnabled
+	if appChainCallsMethod(pass, chainEnd, method) {
+		return optInEnabled
 	}
 
 	// A bare expression statement discards the app value, so nothing can
 	// escape and the chain alone decides the fact.
 	if _, ok := parents[chainEnd].(*ast.ExprStmt); ok {
-		return completionDisabled
+		return optInDisabled
 	}
 
 	variable, block, index := boundAppVariable(pass, parents, chainEnd)
 	if variable == nil {
 		// The app value is returned, passed, stored, or otherwise escapes the
 		// straight-line run, so its builder calls cannot be attributed.
-		return completionUnknown
+		return optInUnknown
 	}
 
 	for _, statement := range block.List[index+1:] {
 		if expression := statementExpression(statement); expression != nil {
 			slots, root := fluentChainSegments(pass, expression, nil)
 			if len(slots) > 0 && isAppVariableExpression(pass, root, variable) && variableReferenceCount(pass, statement, variable) == 1 {
-				if slices.ContainsFunc(slots, func(slot builderOrderSlot) bool { return slot.name == "EnableCompletion" }) {
-					return completionEnabled
+				if slices.ContainsFunc(slots, func(slot builderOrderSlot) bool { return slot.name == method }) {
+					return optInEnabled
 				}
 
 				continue
@@ -77,19 +88,19 @@ func detectCompletionState(pass *analysis.Pass, anchors []*anchor) completionSta
 		}
 
 		if statementReferencesVariable(pass, statement, variable) {
-			return completionUnknown
+			return optInUnknown
 		}
 	}
 
-	return completionDisabled
+	return optInDisabled
 }
 
-// appChainCallsEnableCompletion reports whether a fluent construction chain
-// rooted at a conga.New call invokes EnableCompletion on the app.
-func appChainCallsEnableCompletion(pass *analysis.Pass, outermost ast.Expr) bool {
+// appChainCallsMethod reports whether a fluent construction chain rooted at a
+// conga.New call invokes method on the app.
+func appChainCallsMethod(pass *analysis.Pass, outermost ast.Expr, method string) bool {
 	slots, _ := fluentChainSegments(pass, outermost, nil)
 
-	return slices.ContainsFunc(slots, func(slot builderOrderSlot) bool { return slot.name == "EnableCompletion" })
+	return slices.ContainsFunc(slots, func(slot builderOrderSlot) bool { return slot.name == method })
 }
 
 // variableReferenceCount counts the references to the app variable inside one

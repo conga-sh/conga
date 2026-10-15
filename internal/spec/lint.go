@@ -15,14 +15,21 @@ import (
 
 //nolint:gochecknoglobals // Static candidate definitions for schema tag validation.
 var (
-	flagTagCandidates           = []string{"name", "short", "help", "default", "env", "aliases", "group", "hidden", "safe", "xor", "and", "enum", "range", "len", "items", "sep", "negatable", "placeholder", "config", "deprecated", "predictor", "conga"}
-	argTagCandidates            = []string{"name", "help", "default", "enum", "range", "len", "items", "sep", "predictor", "conga"}
+	flagTagCandidates           = []string{"name", "short", "help", "default", "env", "aliases", "group", "hidden", "safe", "xor", "and", "enum", "enumhint", "range", "len", "items", "sep", "negatable", "placeholder", "config", "deprecated", "predictor", "feature", "conga"}
+	argTagCandidates            = []string{"name", "help", "default", "enum", "enumhint", "range", "len", "items", "sep", "predictor", "conga"}
 	builtinCommandTagCandidates = []string{"name", "summary", "aliases", "group", "hidden", "conga"}
-	userCommandTagCandidates    = []string{"name", "summary", "aliases", "group", "hidden", "envprefix", "deprecated", "conga"}
-	configFileTagCandidates     = []string{"name", "short", "help", "env", "aliases", "placeholder", "group", "hidden", "multi", "sep", "config", "deprecated", "conga"}
+	userCommandTagCandidates    = []string{"name", "summary", "aliases", "group", "hidden", "envprefix", "deprecated", "feature", "conga"}
+	configFileTagCandidates     = []string{"name", "short", "help", "env", "aliases", "placeholder", "group", "hidden", "multi", "sep", "config", "deprecated", "feature", "conga"}
+	featuresFieldTagCandidates  = []string{"flag", "env", "envprefix", "config", "sep", "help", "enumhint", "conga"}
+	featureFieldTagCandidates   = []string{"name", "help", "default", "enum", "stage", "conga"}
 	dashRawTagCandidates        = []string{"name", "conga"}
 	sentinelTagCandidates       = []string{"envprefix", "conga"}
-	allCongaTagCandidates       = collectTagCandidates()
+	allCongaTagCandidates       = []string{
+		"name", "short", "help", "default", "env", "aliases", "group", "hidden", "safe",
+		"xor", "and", "enum", "enumhint", "range", "len", "items", "sep", "negatable", "placeholder",
+		"config", "deprecated", "predictor", "feature", "conga", "summary", "envprefix",
+		"multi", "flag", "stage",
+	}
 )
 
 // IsReservedPredictorName reports whether name is a reserved built-in predictor name or alias.
@@ -49,26 +56,6 @@ type predictable interface {
 
 type predictableTagged interface {
 	Predict(tags FieldTags) predict.Predictor
-}
-
-// collectTagCandidates derives the full conga-tag vocabulary from the
-// per-container candidate lists, deduplicating in first-occurrence order.
-func collectTagCandidates() []string {
-	seen := make(map[string]bool)
-
-	var combined []string
-
-	for _, tag := range slices.Concat(flagTagCandidates, argTagCandidates, builtinCommandTagCandidates, userCommandTagCandidates, configFileTagCandidates, dashRawTagCandidates, sentinelTagCandidates) {
-		if seen[tag] {
-			continue
-		}
-
-		seen[tag] = true
-
-		combined = append(combined, tag)
-	}
-
-	return combined
 }
 
 func isAllowedForeignTag(tag string) bool {
@@ -110,7 +97,7 @@ func findClosestTagSuggestion(key string, candidates []string) string {
 	return levenshtein.Suggest(key, allCongaTagCandidates, 4)
 }
 
-func parsePredictorSpec(structTag reflect.StructTag, targetType reflect.Type, isBool bool, tags FieldTags, opts Options) (*PredictorSpec, error) {
+func parsePredictorSpec(structTag reflect.StructTag, targetType reflect.Type, isBool bool, tags FieldTags, opts *Options) (*PredictorSpec, error) {
 	tagValue, hasPred := structTag.Lookup("predictor")
 	if !hasPred {
 		return inferPredictorSpec(targetType, tags, opts), nil
@@ -123,7 +110,7 @@ func parsePredictorSpec(structTag reflect.StructTag, targetType reflect.Type, is
 // predictor:"..." tag: register-time type predictors first, then the optional
 // completion-supplied inference hook. It returns nil when inference is
 // disabled.
-func inferPredictorSpec(targetType reflect.Type, tags FieldTags, opts Options) *PredictorSpec {
+func inferPredictorSpec(targetType reflect.Type, tags FieldTags, opts *Options) *PredictorSpec {
 	if spec := inferPredictorFromOptions(targetType, opts.TypePredictors); spec != nil {
 		return spec
 	}
@@ -327,19 +314,11 @@ func inferPredictorFromOptions(targetType reflect.Type, typePredictors map[refle
 // first in value form, then in pointer form — and builds the predictor through
 // build. It is the shared skeleton of the predictor-inference helpers.
 func inferImplements[T any](elemType reflect.Type, build func(T) predict.Predictor) *PredictorSpec {
-	if value, ok := reflect.TypeAssert[T](reflect.Zero(elemType)); ok {
+	if target, ok := assertValueOrPointer[T](elemType); ok {
 		return &PredictorSpec{
 			Kind:      PredictorKindPredictable,
 			Name:      "predictable",
-			Predictor: build(value),
-		}
-	}
-
-	if ptr, ok := reflect.TypeAssert[T](reflect.New(elemType)); ok {
-		return &PredictorSpec{
-			Kind:      PredictorKindPredictable,
-			Name:      "predictable",
-			Predictor: build(ptr),
+			Predictor: build(target),
 		}
 	}
 

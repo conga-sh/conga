@@ -15,7 +15,7 @@ type TestCmd struct {
 }
 
 func (t *TestCmd) Run(ctx context.Context, session *conga.Session) error {
-	inspector.Print(session, session.Root[CLI]())
+	inspector.Print(session, session.Root[CLI](), t)
 
 	fmt.Fprintf(session.Stdout(), "DashArgs container: %v\n", t.RunnerArgs.Get())
 

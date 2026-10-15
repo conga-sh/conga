@@ -7,7 +7,7 @@
 // declaring intermediate mutable variables.
 //
 //	// Good:
-//	baseDir := cond.SetOrDefault(ctx.Dir, ".")
+//	baseDir := cmp.Or(ctx.Dir, ".")
 //
 //	// Avoid:
 //	var baseDir string = "."
@@ -42,21 +42,6 @@
 //	}
 package cond
 
-// SetOrDefault returns value if it is not the zero value of T, otherwise defaultValue.
-//
-// Example:
-//
-//	name := cond.SetOrDefault(tag.Get("name"), "default-name")
-//	port := cond.SetOrDefault(cfg.Port, 8080)
-func SetOrDefault[T comparable](value, defaultValue T) T {
-	var zero T
-	if value != zero {
-		return value
-	}
-
-	return defaultValue
-}
-
 // SetOrDefaultFunc returns value if it is not the zero value of T, otherwise invokes
 // defaultFn() and returns its result. Use this when the default computation is expensive
 // or invokes a system lookup that should only run if value is unset.
@@ -72,23 +57,6 @@ func SetOrDefaultFunc[T comparable](value T, defaultFn func() T) T {
 	}
 
 	return defaultFn()
-}
-
-// FirstSet returns the first non-zero value among the provided arguments,
-// or the zero value of T if all values are zero.
-//
-// Example:
-//
-//	title := cond.FirstSet(flagTitle, envTitle, defaultTitle, "Untitled")
-func FirstSet[T comparable](values ...T) T {
-	var zero T
-	for _, v := range values {
-		if v != zero {
-			return v
-		}
-	}
-
-	return zero
 }
 
 // If returns whenTrue if condition is true, otherwise whenFalse.

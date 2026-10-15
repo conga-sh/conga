@@ -197,19 +197,11 @@ func DefaultTypeHelp(targetType reflect.Type, tags FieldTags) string {
 		targetType = targetType.Elem()
 	}
 
-	if helper, ok := reflect.TypeAssert[helpProviderTagged](reflect.Zero(targetType)); ok {
+	if helper, ok := assertValueOrPointer[helpProviderTagged](targetType); ok {
 		return helper.Help(tags)
 	}
 
-	if helper, ok := reflect.TypeAssert[helpProviderTagged](reflect.New(targetType)); ok {
-		return helper.Help(tags)
-	}
-
-	if helper, ok := reflect.TypeAssert[helpProvider](reflect.Zero(targetType)); ok {
-		return helper.Help()
-	}
-
-	if helper, ok := reflect.TypeAssert[helpProvider](reflect.New(targetType)); ok {
+	if helper, ok := assertValueOrPointer[helpProvider](targetType); ok {
 		return helper.Help()
 	}
 
@@ -266,13 +258,17 @@ func fieldTagSpecsForField(containerType reflect.Type) []TagSpec {
 		containerType = containerType.Elem()
 	}
 
-	if provider, ok := reflect.TypeAssert[TagSpecProvider](reflect.Zero(containerType)); ok {
-		return provider.TagSpecs()
-	}
-
-	if provider, ok := reflect.TypeAssert[TagSpecProvider](reflect.New(containerType)); ok {
+	if provider, ok := assertValueOrPointer[TagSpecProvider](containerType); ok {
 		return provider.TagSpecs()
 	}
 
 	return nil
+}
+
+func assertValueOrPointer[I any](targetType reflect.Type) (I, bool) {
+	if target, ok := reflect.TypeAssert[I](reflect.Zero(targetType)); ok {
+		return target, true
+	}
+
+	return reflect.TypeAssert[I](reflect.New(targetType))
 }

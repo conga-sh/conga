@@ -76,6 +76,39 @@ type Command struct {
 	DisableHelp       bool
 	DisableVersion    bool
 	DisableWhy        bool
+	// Feature holds the feature-gate expression declared through the feature
+	// tag on a subcommand container field. Empty means the subcommand is not
+	// feature-gated.
+	Feature string
+	// FeatureFields lists the root feature declarations reflected from the
+	// conga.Features[T] container. Empty on subcommands.
+	FeatureFields []*FeatureField
+	// FeatureFlag is the synthesized map flag that carries feature values from
+	// the command line, environment, and configuration files. Nil when no
+	// Features container is declared; the flag is always installed for a
+	// declared container (NoCLI only removes CLI routing).
+	FeatureFlag *Flag
+}
+
+// FindFeature returns the declared feature matching name, or nil.
+func (c *Command) FindFeature(name string) *FeatureField {
+	for _, feature := range c.FeatureFields {
+		if feature.Name == name {
+			return feature
+		}
+	}
+
+	return nil
+}
+
+// FeatureNames returns the normalized names of every declared feature.
+func (c *Command) FeatureNames() []string {
+	names := make([]string, 0, len(c.FeatureFields))
+	for _, feature := range c.FeatureFields {
+		names = append(names, feature.Name)
+	}
+
+	return names
 }
 
 // HasUserSubcommands returns true if this command has user-declared subcommands (excluding built-in help, version, and completion).
@@ -220,10 +253,14 @@ type Flag struct {
 	Help      string
 	// HelpVars records the help-text variables the flag's help tag referenced;
 	// the renderer suppresses the matching automatic hint for each one.
-	HelpVars    helpVars
-	Placeholder string
-	Group       string
-	Hidden      bool
+	HelpVars helpVars
+	// EnumHintHidden reports whether the enumhint struct tag opted the flag out
+	// of the automatic [enum: ...] help hint. Declared values stay validated
+	// and completed; only the help-screen listing is suppressed.
+	EnumHintHidden bool
+	Placeholder    string
+	Group          string
+	Hidden         bool
 	// Safe reports whether the resolved value may be displayed in the --why
 	// provenance report. Declared via the safe struct tag; an absent tag
 	// defaults to true for boolean and counter flags (their value domain can
@@ -242,6 +279,9 @@ type Flag struct {
 	// resolve into user containers, so ancestor flag shadowing validation
 	// exempts them: a same-named user flag on an ancestor stays reachable.
 	EngineOwned bool
+	// NoCLI marks an engine-synthesized flag that binds environment and
+	// configuration values but is excluded from command-line routing and help.
+	NoCLI bool
 	// Required reports whether the flag was declared through a required
 	// container (conga.RequiredFlag[T]).
 	Required bool
@@ -252,6 +292,12 @@ type Flag struct {
 	Handle     any
 	Predictor  *PredictorSpec
 	TargetType reflect.Type
+	// KeyCanonicalizer optionally canonicalizes keys during map tier merging.
+	KeyCanonicalizer func(string) string
+	// Feature holds the feature-gate expression declared through the feature
+	// tag on the flag's owning field. Empty means the flag is not
+	// feature-gated.
+	Feature string
 }
 
 // Arg represents the metadata and binder for a positional argument.
@@ -263,10 +309,14 @@ type Arg struct {
 	// referenced; the renderer suppresses the matching automatic hint for each
 	// one.
 	HelpVars helpVars
-	Enum     []string
-	Range    *Range
-	Len      *Range
-	Items    *Range
+	// EnumHintHidden reports whether the enumhint struct tag opted the argument
+	// out of the automatic [enum: ...] help hint. Declared values stay
+	// validated and completed; only the help-screen listing is suppressed.
+	EnumHintHidden bool
+	Enum           []string
+	Range          *Range
+	Len            *Range
+	Items          *Range
 	// FieldTags holds the custom tag values declared on the argument that
 	// were registered by its domain type (see spec.TagSpecProvider). Nil
 	// when the argument's type registers no tags or declares none.
@@ -360,6 +410,12 @@ type Options struct {
 	// type-based inference, and inferred predictors are consumed exclusively by
 	// completion.
 	InferPredictor func(targetType reflect.Type, tags FieldTags) *PredictorSpec
+	// FeaturePredictor builds the predictor spec for the feature map flag's
+	// keys from the flag's resolved name, the declared feature value domains,
+	// and the per-feature help descriptions. It is supplied by the caller only
+	// when completion is enabled; nil omits key completion so the predictor
+	// package stays unreferenced.
+	FeaturePredictor func(name string, values map[string][]string, descriptions map[string]string) *PredictorSpec
 	// ValidateTextRangeBound checks a range bound against the owning field's
 	// declared custom tags before the default text grammar parses it. It is
 	// supplied by the caller (the root package) so tag-aware domain types can
@@ -367,7 +423,13 @@ type Options struct {
 	// leaves the default parser alone, and a nil return from the hook for
 	// unhandled types also falls through to the default parser.
 	ValidateTextRangeBound func(targetType reflect.Type, tags FieldTags, raw string) error
-	EnvPrefix              string
+	// ProcessFeatures processes a conga.Features container field during schema build.
+	ProcessFeatures func(builder any, structField reflect.StructField, fieldAddr any, classification container.Classification) error
+	// ValidateFeatureReferences validates feature expressions across commands and flags.
+	ValidateFeatureReferences func(root *Command) error
+	// ParseFeatureTag parses, validates, and normalizes a feature struct tag.
+	ParseFeatureTag func(raw string, required bool) (string, error)
+	EnvPrefix       string
 }
 
 // FindDeclaredFlagInChain searches backwards through chain for a declared flag

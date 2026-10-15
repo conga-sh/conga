@@ -114,9 +114,10 @@ func TestCompletion_ShellDetectionUnified(t *testing.T) {
 	t.Setenv("CONGA_SHELL", "fish")
 
 	app := conga.New[ConfigCompleteSingleCLI]().EnableCompletion()
+	_, exportFormatted := app.CompleteForShell("export", []string{"--"})
 
 	result, formatted := app.CompleteForShell("", []string{"--"})
 
 	assert.True(t, len(result.Items) > 0)
-	assert.True(t, formatted != "")
+	assert.NotEqual(t, exportFormatted, formatted, "CONGA_SHELL=fish must select fish framing, not the export fallback")
 }

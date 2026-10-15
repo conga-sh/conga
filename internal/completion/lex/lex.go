@@ -159,6 +159,13 @@ func Parse(line string) Line {
 	return Line{Tokens: tokens}
 }
 
+// WordsUpTo lexes line truncated at point and returns the quotes-resolved words.
+func WordsUpTo(line string, point int) []string {
+	point = max(0, min(point, len(line)))
+
+	return Parse(line[:point]).Words()
+}
+
 // LastWordbreakPrefix returns the prefix of word up to and including its
 // last occurrence of any rune in wordbreaks, or "" when none occurs.
 func LastWordbreakPrefix(word string, wordbreaks string) string {
@@ -186,11 +193,11 @@ type lexer struct {
 // terminate the word even without surrounding whitespace; an fd number
 // immediately followed by a redirection operator folds into the redirect
 // token.
-func (scan *lexer) scanWord() {
+func (l *lexer) scanWord() {
 	word := newWordBuilder()
 
-	for scan.pos < len(scan.source) {
-		char := scan.source[scan.pos]
+	for l.pos < len(l.source) {
+		char := l.source[l.pos]
 
 		if isWhitespace(char) {
 			break
@@ -199,44 +206,44 @@ func (scan *lexer) scanWord() {
 		if isOperator(char) {
 			fdNumber := word.rawText()
 			if fdNumber != "" && !allDigits(fdNumber) {
-				scan.tokens = append(scan.tokens, word.token())
+				l.tokens = append(l.tokens, word.token())
 
 				fdNumber = ""
 			}
 
-			scan.scanOperator(fdNumber)
+			l.scanOperator(fdNumber)
 
 			return
 		}
 
 		if char == '#' && word.rawEmpty() {
-			scan.pos = len(scan.source)
+			l.pos = len(l.source)
 
 			return
 		}
 
 		switch char {
 		case '\'':
-			word.scanSingleQuote(scan)
+			word.scanSingleQuote(l)
 		case '"':
-			word.scanDoubleQuote(scan)
+			word.scanDoubleQuote(l)
 		case '\\':
-			word.scanEscape(scan)
+			word.scanEscape(l)
 		default:
 			word.push(char, char)
 
-			scan.pos++
+			l.pos++
 		}
 	}
 
-	scan.tokens = append(scan.tokens, word.token())
+	l.tokens = append(l.tokens, word.token())
 }
 
 // scanOperator consumes one operator at the cursor: a redirection (folding
 // the given fd-number prefix, e.g. "2"), a pipeline delimiter, or a list
 // separator.
-func (scan *lexer) scanOperator(fdNumber string) {
-	remaining := scan.source[scan.pos:]
+func (l *lexer) scanOperator(fdNumber string) {
+	remaining := l.source[l.pos:]
 
 	var (
 		kind Kind
@@ -272,8 +279,8 @@ func (scan *lexer) scanOperator(fdNumber string) {
 	}
 
 	raw := fdNumber + text
-	scan.tokens = append(scan.tokens, Token{Kind: kind, Value: text, Raw: raw})
-	scan.pos += len(text)
+	l.tokens = append(l.tokens, Token{Kind: kind, Value: text, Raw: raw})
+	l.pos += len(text)
 }
 
 // wordBuilder accumulates one word's quotes-resolved value and raw source

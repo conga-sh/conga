@@ -82,9 +82,9 @@ func findDynamicInitializers(t *testing.T, dir string) []string {
 
 		filePath := filepath.Join(dir, name)
 
-		parsed, parseErr := parser.ParseFile(fileSet, filePath, nil, 0)
-		if parseErr != nil {
-			t.Fatalf("parse %s: %v", filePath, parseErr)
+		parsed, err := parser.ParseFile(fileSet, filePath, nil, 0)
+		if err != nil {
+			t.Fatalf("parse %s: %v", filePath, err)
 		}
 
 		for _, declaration := range parsed.Decls {

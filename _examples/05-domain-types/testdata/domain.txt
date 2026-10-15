@@ -19,7 +19,7 @@ stdout '-o, --output-dir\s+conga\.Dir\s+output_folder\s+● cli --output-dir'
 stdout '-m, --max-memory\s+conga\.ByteSize\s+2GiB\s+● cli --max-memory'
 stdout '-l, --deploy-hook\s+conga\.File\s+deploy-hook\s+● cli --deploy-hook'
 stdout '-p, --ports\s+main\.PortRange\s+8000-8080\s+● cli --ports'
-stdout '-H, --headers\s+main\.HeaderMap\s+map\[Accept:application/json Content-Type:text/html\]\s+● cli --headers'
+stdout '-H, --headers\s+main\.HeaderMap\s+Accept=application/json, Content-Type=text/html\s+● cli --headers'
 stdout 'Validated Domain Types: max_memory_bytes=2147483648'
 
 # 3. Non-existent file fails existing validation

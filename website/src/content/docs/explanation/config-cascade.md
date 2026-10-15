@@ -11,6 +11,8 @@ By default a search tier is first-hit: `conga.ConfigPaths(...)` lists files in p
 
 Because a cascade can load more than one file, a declared root config-file flag must accept multiple values (`multi:"true"`) so it can report every merged file; the schema rejects the combination otherwise.
 
+`conga.ConfigExplicit(...)` specifies an absolute, single configuration file target. It cannot be combined with `conga.ConfigPaths(...)` or `conga.ConfigCascading()`; attempting to combine them fails schema initialization with `ErrSchema` and is reported as a violation by `conga-lint`.
+
 ## Discovery and failure semantics
 
 | Situation | Result |

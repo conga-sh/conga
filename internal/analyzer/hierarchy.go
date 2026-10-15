@@ -32,6 +32,7 @@ var congaWrapperRoles = map[string]string{
 	"VersionCommand":    "version command",
 	"CompletionCommand": "completion command",
 	"ConfigFile":        "config file flag",
+	"Features":          "features",
 	"DashArgs":          "dash args",
 	"RawArgs":           "raw args",
 	"OptionalFlag":      "flag",
@@ -65,6 +66,15 @@ type commandNode struct {
 	// command (its own sentinel tag, else the declaring Command[T] field's
 	// envprefix tag, else the parent's, else the app-level prefix).
 	envPrefix string
+	// isRoot marks the command struct anchored by conga.New. conga.Features is
+	// legal only on the root command struct.
+	isRoot bool
+	// featuresDeclared reports whether the root already declared a
+	// conga.Features container; the runtime allows exactly one, and
+	// featureFlagName carries the resolved synthesized flag name of that
+	// container for the duplicate-container diagnostic.
+	featuresDeclared bool
+	featureFlagName  string
 }
 
 // walker drives the static hierarchy traversal and emits diagnostics.
@@ -78,7 +88,11 @@ type walker struct {
 	// completionState is the per-anchor completion verdict: the completion
 	// command guard reports only when the anchored app definitely never calls
 	// EnableCompletion.
-	completionState completionState
+	completionState optInState
+	// featureState is the per-anchor feature verdict: the Features and
+	// feature-tag guards report only when the anchored app definitely never
+	// calls EnableFeatures.
+	featureState optInState
 	// configFileMulti tracks the root command's config-file flag arity
 	// (multi tag) for the cascading guard: nil when no field is declared.
 	// The state is reset per walked root.
@@ -88,7 +102,7 @@ type walker struct {
 	configFileNode        *commandNode
 }
 
-func newWalker(pass *analysis.Pass, congaTypes *congaTypes, options *appOptions, completionState completionState, singleAnchor bool) *walker {
+func newWalker(pass *analysis.Pass, congaTypes *congaTypes, options *appOptions, completionState, featureState optInState, singleAnchor bool) *walker {
 	return &walker{
 		pass:            pass,
 		conga:           congaTypes,
@@ -97,6 +111,7 @@ func newWalker(pass *analysis.Pass, congaTypes *congaTypes, options *appOptions,
 		visitPath:       make(map[types.Object]bool),
 		singleAnchor:    singleAnchor,
 		completionState: completionState,
+		featureState:    featureState,
 	}
 }
 
@@ -122,6 +137,7 @@ func (w *walker) walkRoot(root *anchor) {
 		allowUnknown: allowUnknown,
 		allowRecurse: allowRecurse,
 		envPrefix:    cmp.Or(nodeEnvPrefix(structType), w.options.envPrefix),
+		isRoot:       true,
 	}
 
 	w.walkCommand(node, map[string]string{}, map[rune]string{})
@@ -200,6 +216,10 @@ func (w *walker) checkField(node *commandNode, fieldObject types.Object, tag ref
 		return nil
 	case "config file flag":
 		w.checkConfigFileField(node, fieldObject, tag, branchNames, branchShorts)
+
+		return nil
+	case "features":
+		w.checkFeaturesField(node, fieldObject, tag, branchNames)
 
 		return nil
 	case "dash args":

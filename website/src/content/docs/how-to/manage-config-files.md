@@ -10,7 +10,11 @@ Config files in CONGA are opt-in. An application registers file decoders for des
 Register decoders on the application builder for each file format the application accepts:
 
 ```go title="main.go"
+package main
+
 import (
+	"context"
+
 	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/decoder/hcl"
 	"github.com/conga-sh/conga/decoder/json"
@@ -18,9 +22,16 @@ import (
 	"github.com/conga-sh/conga/decoder/yaml"
 )
 
+type CLI struct {
+	Port conga.OptionalFlag[int] `default:"8080" help:"Listen port"`
+}
+
+func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
 func main() {
 	app := conga.New[CLI]().
-		Name("cloudctl").
 		RegisterDecoder(".json", json.Decode).
 		RegisterDecoder(".toml", toml.Decode).
 		RegisterDecoder(".yaml", yaml.Decode).
@@ -99,7 +110,7 @@ type ServerCmd struct {
 
 type DatabaseCmd struct {
 	Host     conga.OptionalFlag[string] `default:"localhost" help:"Database host"`
-	PoolSize conga.OptionalFlag[int]    `default:"10" help:"Connection pool size" name:"pool-size"`
+	PoolSize conga.OptionalFlag[int]    `default:"10" help:"Connection pool size"`
 }
 ```
 
@@ -129,7 +140,7 @@ app.ConfigOptions(
 )
 ```
 
-Use `conga.ConfigPaths(...)` to declare search tiers and `conga.ConfigExplicit(...)` to name one concrete file. [About the config cascade](/explanation/config-cascade/) covers discovery precedence, the built-in XDG tier, and per-tier existence semantics.
+Use `conga.ConfigPaths(...)` to declare search tiers and `conga.ConfigExplicit(...)` to name one concrete file. `ConfigExplicit` specifies an absolute, standalone configuration file and cannot be combined with `ConfigPaths` or `ConfigCascading`; combining them fails schema build with `ErrSchema` and is flagged by `conga-lint`. [About the config cascade](/explanation/config-cascade/) covers discovery precedence, the built-in XDG tier, and per-tier existence semantics.
 
 ## Merge multiple files with cascading
 

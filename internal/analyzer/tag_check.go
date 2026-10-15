@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -89,10 +90,31 @@ func (w *walker) checkSubcommandField(node *commandNode, fieldObject types.Objec
 	}
 
 	w.reportFieldError(node, fieldObject, summaryTagError(tag))
+	w.checkFeatureExpression(node, fieldObject, tag)
 
 	childAllowUnknown, childAllowRecurse := threadDirectiveOptions(node, parseNodeDirectives(tag))
 
 	return w.buildChildNode(node, fieldObject, tag, childAllowUnknown, childAllowRecurse)
+}
+
+// checkFeatureExpression mirrors the runtime feature-tag handling: a declared
+// feature expression under an app that never calls EnableFeatures is rejected,
+// and an enabled app validates the expression syntax. The runtime schema
+// builder validates subcommand, flag, and config-file flag feature tags through
+// the same shared validators, so the analyzer reports the identical diagnostic.
+func (w *walker) checkFeatureExpression(node *commandNode, fieldObject types.Object, tag reflect.StructTag) {
+	featureExpr := strings.TrimSpace(tag.Get("feature"))
+	if featureExpr == "" {
+		return
+	}
+
+	if w.featureState == optInDisabled {
+		w.reportFieldError(node, fieldObject, spec.FeatureTagRequiresEnableError())
+
+		return
+	}
+
+	w.reportFieldError(node, fieldObject, spec.ValidateFeatureExpression(featureExpr))
 }
 
 // checkBuiltinCommandField validates a built-in help/version/completion
@@ -118,7 +140,7 @@ func (w *walker) checkCompletionCommandField(node *commandNode, fieldObject type
 
 	w.reportFieldError(node, fieldObject, summaryTagError(tag))
 
-	if w.completionState == completionDisabled {
+	if w.completionState == optInDisabled {
 		w.reportFieldError(node, fieldObject, spec.CompletionRequiresEnableError())
 	}
 }
@@ -136,6 +158,8 @@ func (w *walker) checkConfigFileField(node *commandNode, fieldObject types.Objec
 
 	w.reportFieldError(node, fieldObject, spec.ValidateConfigFileConfigTag(tag))
 
+	w.checkFeatureExpression(node, fieldObject, tag)
+
 	fieldTags, err := spec.ParseFieldTags(tag, tagSpecs)
 	w.reportFieldError(node, fieldObject, err)
 
@@ -143,6 +167,160 @@ func (w *walker) checkConfigFileField(node *commandNode, fieldObject types.Objec
 	w.trackRootConfigFileArity(node, fieldObject, fieldTags, flagName)
 
 	w.checkAndCollectFlag(node, fieldObject, tag, flagName, branchNames, branchShorts)
+}
+
+// checkFeaturesField validates a root feature-declaration field
+// (conga.Features[T]): the container tag vocabulary and, for every exported
+// inner field, the per-feature tag vocabulary, the scalar kind, and the
+// enum/default contract through the shared spec validators. Feature-name
+// reference validation is left to schema build, which has the fully reflected
+// declaration set. A CLI-exposed container registers its synthesized flag name
+// in the branch shadow maps, and a second container on the root reports the
+// duplicate-container error.
+func (w *walker) checkFeaturesField(node *commandNode, fieldObject types.Object, tag reflect.StructTag, branchNames map[string]string) {
+	if !w.validateNodeFieldTags(node, fieldObject, tag, "features", nil) {
+		return
+	}
+
+	if w.featureState == optInDisabled {
+		w.reportFieldError(node, fieldObject, spec.FeaturesRequiresEnableError())
+
+		return
+	}
+
+	if !node.isRoot {
+		w.reportFieldError(node, fieldObject, spec.FeaturesMustBeOnRootError())
+
+		return
+	}
+
+	if node.featuresDeclared {
+		w.reportFieldError(node, fieldObject, spec.FeaturesAlreadyDeclaredError(node.featureFlagName))
+
+		return
+	}
+
+	innerType := w.containerInnerType(fieldObject.Type())
+
+	structType, ok := innerType.Underlying().(*types.Struct)
+	if !ok {
+		w.reportFieldError(node, fieldObject, spec.FeaturesMustBeStructParameterError())
+
+		return
+	}
+
+	// The runtime installs the synthesized flag only after every inner field
+	// validates, so a failed container neither reserves the flag name against
+	// descendants nor counts as the first declaration.
+	if !w.checkFeatureFields(node, innerType, structType) {
+		return
+	}
+
+	flagName := strings.TrimSpace(tag.Get("flag"))
+	noCLI := flagName == "" || flagName == "-"
+
+	if noCLI {
+		flagName = casing.Kebab(fieldObject.Name())
+	}
+
+	node.featuresDeclared = true
+	node.featureFlagName = flagName
+
+	if !noCLI {
+		w.checkAndCollectSynthesizedFlag(node, fieldObject, flagName, branchNames)
+	}
+}
+
+// checkFeatureFields validates every exported inner field of a feature struct
+// and reports whether the container is valid.
+func (w *walker) checkFeatureFields(node *commandNode, innerType types.Type, structType *types.Struct) bool {
+	innerStructName := ""
+	if named, ok := types.Unalias(innerType).(*types.Named); ok {
+		innerStructName = named.Obj().Name()
+	}
+
+	valid := true
+
+	seen := make(map[string]bool)
+
+	// stagedFields accumulates the fields that survived validation so the
+	// all-or-nothing stage guard can report the first stage-less field after
+	// the whole struct is inspected.
+	type stagedField struct {
+		obj   types.Object
+		name  string
+		stage string
+	}
+
+	var stagedFields []stagedField
+
+	for index := range structType.NumFields() {
+		innerField := structType.Field(index)
+		if !innerField.Exported() {
+			continue
+		}
+
+		innerTag := reflect.StructTag(structType.Tag(index))
+
+		if !w.validateNodeFieldTags(node, innerField, innerTag, "feature", nil) {
+			valid = false
+
+			continue
+		}
+
+		field, ok := featureField(innerField.Type(), w.pass.TypesSizes)
+		if !ok {
+			w.reportFieldError(node, innerField, spec.FeatureFieldTypeError(innerField.Name(), innerField.Type().String()))
+
+			valid = false
+
+			continue
+		}
+
+		name, err := spec.FeatureFieldName(innerField.Name(), innerTag)
+		w.reportFieldError(node, innerField, err)
+
+		if err != nil {
+			valid = false
+
+			continue
+		}
+
+		if seen[name] {
+			w.reportFieldError(node, innerField, spec.DuplicateFeatureError(name, innerStructName))
+
+			valid = false
+
+			continue
+		}
+
+		seen[name] = true
+		field.Name = name
+
+		if err := spec.ValidateFeatureFieldTags(field, innerTag); err != nil {
+			w.reportFieldError(node, innerField, err)
+
+			valid = false
+
+			continue
+		}
+
+		stagedFields = append(stagedFields, stagedField{obj: innerField, name: name, stage: field.Stage})
+	}
+
+	if slices.ContainsFunc(stagedFields, func(entry stagedField) bool { return entry.stage != "" }) {
+		for _, entry := range stagedFields {
+			if entry.stage == "" {
+				w.reportFieldError(node, entry.obj, spec.FeatureStageAllOrNothingError(entry.name))
+
+				valid = false
+
+				break
+			}
+		}
+	}
+
+	return valid
 }
 
 // trackRootConfigFileArity records the root command's config-file flag arity
@@ -203,6 +381,24 @@ func (w *walker) checkFlagField(node *commandNode, fieldObject types.Object, tag
 		w.reportFieldError(node, fieldObject, spec.ValidateCounterDefaultTag(tag))
 	}
 
+	// Feature-tag syntax is validated before the required-flag guard, mirroring
+	// the runtime parse order: an invalid expression reports its syntax error
+	// instead of the required-flag rejection. When features are disabled, the
+	// runtime rejects the tag before parsing it, so the enable guard wins.
+	featureExpr := strings.TrimSpace(tag.Get("feature"))
+	if featureExpr != "" {
+		if w.featureState == optInDisabled {
+			w.reportFieldError(node, fieldObject, spec.FeatureTagRequiresEnableError())
+		} else {
+			syntaxErr := spec.ValidateFeatureExpression(featureExpr)
+			w.reportFieldError(node, fieldObject, syntaxErr)
+
+			if syntaxErr == nil && w.congaWrapperName(fieldObject.Type()) == "RequiredFlag" {
+				w.reportFieldError(node, fieldObject, spec.FeatureOnRequiredFlagError())
+			}
+		}
+	}
+
 	w.reportFieldError(node, fieldObject, spec.ValidatePredictorTag(tag, isBasicKind(targetType, types.Bool), w.predictorOptions(), w.options.registeredNames))
 	w.checkValidationSpecs(node, fieldObject, tag, targetType, tagSpecs)
 
@@ -245,8 +441,8 @@ func (w *walker) checkValidationSpecs(node *commandNode, fieldObject types.Objec
 			// The caller reports ParseFieldTags errors separately; bound
 			// validation only needs the parsed tags, so a tag error skips it
 			// rather than duplicating the diagnostic.
-			fieldTags, tagErr := spec.ParseFieldTags(tag, tagSpecs)
-			if tagErr == nil {
+			fieldTags, err := spec.ParseFieldTags(tag, tagSpecs)
+			if err == nil {
 				w.reportFieldError(node, fieldObject, w.validateRangeBounds(rangeSpec, targetType, fieldTags))
 			}
 		}
@@ -356,6 +552,44 @@ func (w *walker) predictorOptions() spec.ValidationOptions {
 	}
 
 	return options
+}
+
+// featureField mirrors the runtime feature-field kind switch: a feature field
+// must have a bool or an integer underlying kind (Uintptr is excluded to match
+// the runtime switch, which accepts only Uint..Uint64), and the reconstructed
+// metadata feeds the shared enum/default validators so lint-time and runtime
+// diagnostics stay identical. Bit sizes come from the package type sizes; when
+// they are unavailable the zero bit size falls back to the platform width,
+// which can only miss narrow-width overflow diagnostics.
+func featureField(targetType types.Type, sizes types.Sizes) (*spec.FeatureField, bool) {
+	basic, ok := targetType.Underlying().(*types.Basic)
+	if !ok {
+		return nil, false
+	}
+
+	var (
+		isInt      bool
+		isUnsigned bool
+	)
+
+	switch basic.Kind() {
+	case types.Bool:
+	case types.Int, types.Int8, types.Int16, types.Int32, types.Int64:
+		isInt = true
+	case types.Uint, types.Uint8, types.Uint16, types.Uint32, types.Uint64:
+		isInt = true
+		isUnsigned = true
+	default:
+		return nil, false
+	}
+
+	field := &spec.FeatureField{IsInt: isInt, IsUnsigned: isUnsigned}
+
+	if isInt && sizes != nil {
+		field.BitSize = int(sizes.Sizeof(targetType)) * 8
+	}
+
+	return field, true
 }
 
 func isBasicKind(targetType types.Type, kind types.BasicKind) bool {

@@ -33,11 +33,11 @@ stderr 'invalid key-value pair "BROKEN", expected KEY=VALUE for flag --env-vars'
 
 # 8. Custom Typed Map (-r KEY=INT, repeated and comma-separated)
 exec negmap -r web=3,worker=5 -r db=2
-stdout '-r, --replicas\s+map\[string\]int\s+map\[db:2 web:3 worker:5\]\s+● cli --replicas'
+stdout '-r, --replicas\s+map\[string\]int\s+db=2, web=3, worker=5\s+● cli --replicas'
 
 # 9. Registered Typed Map with sep:";" (-z KEY=INT)
 exec negmap -z 'web=3;worker=5'
-stdout '-z, --shards\s+map\[string\]int\s+map\[web:3 worker:5\]\s+● cli --shards'
+stdout '-z, --shards\s+map\[string\]int\s+web=3, worker=5\s+● cli --shards'
 
 # 10. Map entry-count bound violation (items:"1..4" on --replicas)
 exit-status 2 negmap -r web=1,api=2,db=3,cache=4,search=5

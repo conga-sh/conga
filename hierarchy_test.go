@@ -135,7 +135,6 @@ func TestMultiLevelCommandHierarchy(t *testing.T) {
 
 	cli := new(MultiLevelRoot)
 	app := conga.New(cli).
-		Name("clustermgr").
 		Args(args)
 
 	err := app.RunContext(t.Context())

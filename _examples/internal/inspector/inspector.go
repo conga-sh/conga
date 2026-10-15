@@ -8,11 +8,12 @@ import (
 	"io"
 	"os"
 	"reflect"
-	"slices"
 	"strings"
 	"unicode/utf8"
 
 	"github.com/conga-sh/conga"
+	"github.com/conga-sh/conga/internal/casing"
+	"github.com/conga-sh/conga/internal/stringx"
 )
 
 // ANSI color escape codes.
@@ -73,23 +74,19 @@ func Inspect(target any) []Row {
 	return rows
 }
 
-// Print renders the configuration of the root command and its chain of
-// selected subcommands to the session-configured stdout.
-func Print(session *conga.Session, root any) {
+// Print renders the configuration of the provided commands to the session-configured stdout.
+func Print(session *conga.Session, commands ...any) {
 	var writer io.Writer
 	if session != nil {
 		writer = session.Stdout()
 	}
 
-	Fprint(session, writer, root)
+	Fprint(session, writer, commands...)
 }
 
-// Fprint renders the configuration of the root command and its chain of
-// selected subcommands to the given writer. The root argument must be a
-// pointer to the root application struct; the active chain is discovered by
-// following selected conga.Command[T] fields down the hierarchy.
-func Fprint(session *conga.Session, writer io.Writer, root any) {
-	sections := collectSections(session, root)
+// Fprint renders the configuration of the provided commands to the given writer.
+func Fprint(session *conga.Session, writer io.Writer, commands ...any) {
+	sections := collectSections(session, commands)
 	if len(sections) == 0 {
 		return
 	}
@@ -144,39 +141,19 @@ type columnWidths struct {
 // commandContainer is the method set of conga.Command[T] needed for hierarchy
 // discovery, asserted statically instead of reflect.MethodByName dispatch
 // (which defeats the linker's dead-code elimination and bloats the binary).
-// The inner command struct is resolved through the public Get() method
-// reflectively because its generic return type cannot be expressed here.
 type commandContainer interface {
 	IsSelected() bool
 }
 
 // stateContainer is the shared method set of conga's flag and argument
-// containers, asserted statically for the same reason. Resolved values are
-// read through the public Get() method reflectively.
+// containers, asserted statically for the same reason.
 type stateContainer interface {
 	IsSet() bool
 	Source() conga.ValueSource
 	SourceDetail() string
 }
 
-// containerValue resolves a container's typed value through its public Get()
-// method. It returns nil for containers without a Get method (e.g.
-// conga.ConfigFile).
-func containerValue(fieldAddr any) any {
-	method := reflect.ValueOf(fieldAddr).MethodByName("Get")
-	if !method.IsValid() || method.Type().NumIn() != 0 || method.Type().NumOut() != 1 {
-		return nil
-	}
-
-	return method.Call(nil)[0].Interface()
-}
-
-func collectSections(session *conga.Session, root any) []section {
-	value := structValueOf(root)
-	if !value.IsValid() {
-		return nil
-	}
-
+func collectSections(session *conga.Session, commands []any) []section {
 	var chainPath string
 	if session != nil {
 		chainPath = session.Path()
@@ -187,26 +164,23 @@ func collectSections(session *conga.Session, root any) []section {
 		chainNames = []string{"app"}
 	}
 
-	sections := make([]section, 0, 2)
-	target := root
-	name := chainNames[0]
-
-	for {
-		sections = append(sections, section{name: name, rows: Inspect(target)})
-
-		structField, child, ok := findSelectedSubcommand(value)
-		if !ok {
-			break
+	sections := make([]section, 0, len(commands))
+	for index, command := range commands {
+		if command == nil {
+			continue
 		}
 
-		if len(sections) < len(chainNames) {
-			name = chainNames[len(sections)]
-		} else {
-			name = subcommandName(structField)
+		value := structValueOf(command)
+		if !value.IsValid() {
+			continue
 		}
 
-		target = child
-		value = structValueOf(child)
+		name := resolveSectionName(session, commands, index, chainNames)
+
+		sections = append(sections, section{
+			name: name,
+			rows: Inspect(command),
+		})
 	}
 
 	if len(sections) > 1 {
@@ -217,31 +191,56 @@ func collectSections(session *conga.Session, root any) []section {
 	return sections
 }
 
-func findSelectedSubcommand(structValue reflect.Value) (reflect.StructField, any, bool) {
-	structType := structValue.Type()
-
-	for i := range structType.NumField() {
-		structField := structType.Field(i)
-		if !structField.IsExported() {
-			continue
+func resolveSectionName(session *conga.Session, commands []any, index int, chainNames []string) string {
+	if session != nil && len(chainNames) > 0 {
+		if len(commands) == 1 {
+			return chainNames[len(chainNames)-1]
 		}
 
-		fieldAddr := structValue.Field(i).Addr().Interface()
-
-		command, ok := fieldAddr.(commandContainer)
-		if !ok || !command.IsSelected() {
-			continue
+		if index == 0 {
+			return chainNames[0]
 		}
 
-		child := containerValue(fieldAddr)
-		if child == nil {
-			continue
+		if index == len(commands)-1 {
+			return chainNames[len(chainNames)-1]
 		}
 
-		return structField, child, true
+		if index < len(chainNames) {
+			return chainNames[index]
+		}
 	}
 
-	return reflect.StructField{}, nil, false
+	if index > 0 && index < len(commands) {
+		if discovered := findSubcommandFieldName(commands[index-1], commands[index]); discovered != "" {
+			return discovered
+		}
+	}
+
+	if index < len(chainNames) {
+		return chainNames[index]
+	}
+
+	return "app"
+}
+
+func findSubcommandFieldName(parent, child any) string {
+	parentVal := structValueOf(parent)
+
+	childVal := structValueOf(child)
+	if !parentVal.IsValid() || !childVal.IsValid() {
+		return ""
+	}
+
+	childType := childVal.Type()
+	parentType := parentVal.Type()
+
+	for field := range parentType.Fields() {
+		if strings.Contains(field.Type.String(), childType.Name()) {
+			return subcommandName(field)
+		}
+	}
+
+	return ""
 }
 
 func structValueOf(target any) reflect.Value {
@@ -388,7 +387,7 @@ func extractFieldRow(structField reflect.StructField, fieldAddr any) *Row {
 		return builtinRow
 	}
 
-	if strings.HasPrefix(structField.Type.String(), "conga.Command[") {
+	if _, ok := fieldAddr.(commandContainer); ok {
 		return extractSubcommandRow(structField, fieldAddr)
 	}
 
@@ -478,34 +477,17 @@ func extractContainerRow(structField reflect.StructField, fieldAddr any, name, s
 	)
 
 	if ok {
-		value := containerValue(fieldAddr)
-		if valueType := reflect.TypeOf(value); valueType != nil {
-			typeName = valueType.String()
+		if stringer, isStringer := fieldAddr.(fmt.Stringer); isStringer {
+			valueStr = stringer.String()
 		}
 
-		if value != nil {
-			valueStr = formatValue(value)
-		}
-
+		typeName = extractContainerTypeName(structField.Type)
 		isSet = container.IsSet()
 		source = container.Source()
 		sourceDetail = container.SourceDetail()
 	} else {
 		typeName = structField.Type.String()
-		valueStr = formatValue(fieldAddr)
-	}
-
-	switch structField.Type.String() {
-	case "conga.Counter", "conga.ConfigFile":
-		typeName = structField.Type.String()
-	}
-
-	// Config-file containers report their loaded file list through the
-	// comma-joined String() rendering instead of the raw []string form.
-	if structField.Type.String() == "conga.ConfigFile" {
-		if stringer, ok := fieldAddr.(fmt.Stringer); ok {
-			valueStr = stringer.String()
-		}
+		valueStr = stringx.Stringify(fieldAddr)
 	}
 
 	return &Row{
@@ -519,14 +501,34 @@ func extractContainerRow(structField reflect.StructField, fieldAddr any, name, s
 	}
 }
 
-func formatFieldDisplayName(structField reflect.StructField, name, shortTag string) (string, string) {
-	isArg := strings.HasPrefix(structField.Type.String(), "conga.RequiredArg[") ||
-		strings.HasPrefix(structField.Type.String(), "conga.OptionalArg[")
+func extractContainerTypeName(containerType reflect.Type) string {
+	if containerType.Kind() == reflect.Pointer {
+		containerType = containerType.Elem()
+	}
 
-	if isArg {
+	switch containerType {
+	case reflect.TypeFor[conga.Counter](), reflect.TypeFor[conga.ConfigFile]():
+		return containerType.String()
+	}
+
+	if valueField, ok := containerType.FieldByName("value"); ok {
+		return valueField.Type.String()
+	}
+
+	return containerType.String()
+}
+
+func isArgField(structField reflect.StructField) bool {
+	typeName := structField.Type.String()
+
+	return strings.Contains(typeName, ".OptionalArg[") || strings.Contains(typeName, ".RequiredArg[")
+}
+
+func formatFieldDisplayName(structField reflect.StructField, name, shortTag string) (string, string) {
+	if isArgField(structField) {
 		displayName := name
 		if displayName == "" {
-			displayName = fmt.Sprintf("<%s>", toKebab(structField.Name))
+			displayName = fmt.Sprintf("<%s>", casing.Kebab(structField.Name))
 		}
 
 		return "arg", displayName
@@ -534,7 +536,7 @@ func formatFieldDisplayName(structField reflect.StructField, name, shortTag stri
 
 	flagName := name
 	if flagName == "" {
-		flagName = toKebab(structField.Name)
+		flagName = casing.Kebab(structField.Name)
 	}
 
 	var shortRune rune
@@ -547,44 +549,6 @@ func formatFieldDisplayName(structField reflect.StructField, name, shortTag stri
 	}
 
 	return "flag", "--" + flagName
-}
-
-func formatValue(value any) string {
-	if value == nil {
-		return ""
-	}
-
-	if stringer, ok := value.(fmt.Stringer); ok {
-		return stringer.String()
-	}
-
-	reflectedValue := reflect.ValueOf(value)
-	if reflectedValue.IsValid() && reflectedValue.Type().Kind() != reflect.Pointer {
-		pointerValue := reflect.New(reflectedValue.Type())
-		pointerValue.Elem().Set(reflectedValue)
-
-		if stringer, ok := reflect.TypeAssert[fmt.Stringer](pointerValue); ok {
-			return stringer.String()
-		}
-	}
-
-	switch valueTyped := value.(type) {
-	case string:
-		return valueTyped
-	case []string:
-		return fmt.Sprintf("[%s]", strings.Join(valueTyped, ", "))
-	case map[string]string:
-		pairs := make([]string, 0, len(valueTyped))
-		for key, mapped := range valueTyped {
-			pairs = append(pairs, fmt.Sprintf("%s=%s", key, mapped))
-		}
-
-		slices.Sort(pairs)
-
-		return strings.Join(pairs, ", ")
-	default:
-		return fmt.Sprintf("%v", valueTyped)
-	}
 }
 
 func formatSourceCell(row Row, useColor bool) string {
@@ -687,7 +651,7 @@ func isTerminalWriter(writer io.Writer) bool {
 func subcommandName(structField reflect.StructField) string {
 	name := structField.Tag.Get("name")
 	if name == "" {
-		name = toKebab(structField.Name)
+		name = casing.Kebab(structField.Name)
 	}
 
 	return name
@@ -715,37 +679,4 @@ func formatAliases(tag string) string {
 	}
 
 	return strings.Join(parts, ", ")
-}
-
-func toKebab(s string) string {
-	var builder strings.Builder
-
-	runes := []rune(s)
-	for i := range runes {
-		r := runes[i]
-		if r >= 'A' && r <= 'Z' {
-			if needsKebabSeparator(runes, i) {
-				builder.WriteRune('-')
-			}
-
-			builder.WriteRune(r + ('a' - 'A'))
-		} else if r == '_' {
-			builder.WriteRune('-')
-		} else {
-			builder.WriteRune(r)
-		}
-	}
-
-	return builder.String()
-}
-
-func needsKebabSeparator(runes []rune, i int) bool {
-	if i == 0 {
-		return false
-	}
-
-	prevLower := runes[i-1] >= 'a' && runes[i-1] <= 'z'
-	nextLower := i+1 < len(runes) && runes[i+1] >= 'a' && runes[i+1] <= 'z'
-
-	return prevLower || nextLower
 }

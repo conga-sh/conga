@@ -76,38 +76,34 @@ func TestKeyValue(t *testing.T) {
 	}
 	pred := predict.KeyValue(valuesByKey)
 
-	resKeys := pred.Invoke(predict.Context{})
+	resultKeys := pred.Invoke(predict.Context{})
 
-	assert.Equal(t, 3, len(resKeys.Items))
-	assert.Equal(t, "owner=", resKeys.Items[0].Value)
-	assert.Equal(t, "team=", resKeys.Items[1].Value)
-	assert.Equal(t, "tier=", resKeys.Items[2].Value)
-	assert.True(t, resKeys.Directive.Has(predict.DirectiveNoSpace))
+	assert.Equal(t, 3, len(resultKeys.Items))
+	assert.Equal(t, "owner=", resultKeys.Items[0].Value)
+	assert.Equal(t, "team=", resultKeys.Items[1].Value)
+	assert.Equal(t, "tier=", resultKeys.Items[2].Value)
+	assert.True(t, resultKeys.Directive.Has(predict.DirectiveNoSpace))
 
-	// 4. Act - Value completion phase
-	resValues := pred.Invoke(predict.Context{
+	resultValues := pred.Invoke(predict.Context{
 		ToComplete: "team=",
 	})
 
-	// 5. Assert values
-	assert.Equal(t, 3, len(resValues.Items))
-	assert.Equal(t, "team=core", resValues.Items[0].Value)
-	assert.Equal(t, "team=frontend", resValues.Items[1].Value)
-	assert.Equal(t, "team=infra", resValues.Items[2].Value)
+	assert.Equal(t, 3, len(resultValues.Items))
+	assert.Equal(t, "team=core", resultValues.Items[0].Value)
+	assert.Equal(t, "team=frontend", resultValues.Items[1].Value)
+	assert.Equal(t, "team=infra", resultValues.Items[2].Value)
 
-	// 6. Act - Unknown key
-	resUnknown := pred.Invoke(predict.Context{
+	resultUnknown := pred.Invoke(predict.Context{
 		ToComplete: "unknown=",
 	})
-	assert.Zero(t, resUnknown.Items)
+	assert.Zero(t, resultUnknown.Items)
 
-	// 7. Act - Key deduplication from ParentParts (e.g. following a comma in slice context)
-	resDeduplicatedKeys := pred.Invoke(predict.Context{
+	resultDeduplicatedKeys := pred.Invoke(predict.Context{
 		ParentParts: []string{"owner=alice"},
 	})
-	assert.Equal(t, 2, len(resDeduplicatedKeys.Items))
-	assert.Equal(t, "team=", resDeduplicatedKeys.Items[0].Value)
-	assert.Equal(t, "tier=", resDeduplicatedKeys.Items[1].Value)
+	assert.Equal(t, 2, len(resultDeduplicatedKeys.Items))
+	assert.Equal(t, "team=", resultDeduplicatedKeys.Items[0].Value)
+	assert.Equal(t, "tier=", resultDeduplicatedKeys.Items[1].Value)
 
 	// 8. Act - Value deduplication when key is repeated
 	resDeduplicatedValues := pred.Invoke(predict.Context{
@@ -510,4 +506,52 @@ func TestPredictor_RawAndTag(t *testing.T) {
 
 		assert.Equal(t, []string{"item1", "item2"}, raw)
 	})
+}
+
+func TestKeyValueDescribed(t *testing.T) {
+	t.Parallel()
+
+	valuesByKey := map[string][]string{
+		"http3": {"true", "false"},
+		"admin": {"true", "false"},
+	}
+	descriptions := map[string]string{
+		"http3": "Experimental HTTP/3 listener",
+		"admin": "Experimental admin API",
+	}
+	pred := predict.KeyValueDescribed(valuesByKey, descriptions)
+
+	resKeys := pred.Invoke(predict.Context{})
+
+	assert.Equal(t, 2, len(resKeys.Items))
+	assert.Equal(t, "admin=", resKeys.Items[0].Value)
+	assert.Equal(t, "Experimental admin API", resKeys.Items[0].Description)
+	assert.Equal(t, "http3=", resKeys.Items[1].Value)
+	assert.Equal(t, "Experimental HTTP/3 listener", resKeys.Items[1].Description)
+	assert.True(t, resKeys.Directive.Has(predict.DirectiveNoSpace))
+
+	resValues := pred.Invoke(predict.Context{
+		ToComplete: "http3=",
+	})
+
+	assert.Equal(t, 2, len(resValues.Items))
+	assert.Equal(t, "http3=true", resValues.Items[0].Value)
+	assert.Equal(t, "http3=false", resValues.Items[1].Value)
+}
+
+func TestKeyValueDescribed_EmptyDescriptionsMatchesKeyValue(t *testing.T) {
+	t.Parallel()
+
+	valuesByKey := map[string][]string{
+		"team": {"core", "infra"},
+	}
+
+	pred := predict.KeyValueDescribed(valuesByKey, nil)
+
+	resKeys := pred.Invoke(predict.Context{})
+
+	assert.Equal(t, 1, len(resKeys.Items))
+	assert.Equal(t, "team=", resKeys.Items[0].Value)
+	assert.Equal(t, "", resKeys.Items[0].Description)
+	assert.True(t, resKeys.Directive.Has(predict.DirectiveNoSpace))
 }

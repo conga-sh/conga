@@ -209,10 +209,50 @@ func (c *UseCLI) Run(_ context.Context, session *conga.Session) error {
 	return err
 }
 
+// BuildExperiments declares feature toggles for ExampleFeatures and ExampleApp_EnableFeatures.
+type BuildExperiments struct {
+	RemoteCache      bool `help:"Experimental distributed CAS artifact cache"`
+	SandboxIsolation int  `enum:"1,2"                                         help:"Experimental build sandbox isolation: 1=chroot, 2=rootless-container"`
+}
+
+// BuildCLI is an application with feature toggles and gated flags.
+type BuildCLI struct {
+	Features       conga.Features[BuildExperiments] `flag:"feature-gates"`
+	Target         conga.RequiredArg[string]        `help:"Build target"`
+	CacheEndpoint  conga.OptionalFlag[string]       `feature:"remote-cache"      help:"CAS server gRPC endpoint"`
+	ContainerImage conga.OptionalFlag[string]       `feature:"sandbox-isolation" help:"OCI build container image"`
+}
+
+func (c *BuildCLI) Run(_ context.Context, session *conga.Session) error {
+	experiments := c.Features.Get()
+	_, err := fmt.Fprintf(session.Stdout(),
+		"remote-cache=%t sandbox=%d endpoint=%s image=%s target=%s\n",
+		experiments.RemoteCache,
+		experiments.SandboxIsolation,
+		c.CacheEndpoint.Get(),
+		c.ContainerImage.Get(),
+		c.Target.Get(),
+	)
+
+	return err
+}
+
+// MapMergeCLI is an application whose map flag merges defaults with CLI inputs.
+type MapMergeCLI struct {
+	Settings conga.OptionalFlag[map[string]string] `default:"env=prod,retries=3" help:"Runtime settings"`
+}
+
+func (c *MapMergeCLI) Run(_ context.Context, session *conga.Session) error {
+	settings := c.Settings.Get()
+	_, err := fmt.Fprintf(session.Stdout(), "env=%s retries=%s timeout=%s\n",
+		settings["env"], settings["retries"], settings["timeout"])
+
+	return err
+}
+
 // Declare flags as typed fields, implement [conga.Runner], and call [conga.App.Run].
 func ExampleNew() {
 	app := conga.New[CLI]().
-		Name("greet").
 		Args([]string{"--name", "gopher"})
 
 	if err := app.Run(); err != nil {
@@ -237,7 +277,6 @@ func ExampleSession_Root() {
 // Register a parser so flags and arguments of a custom type accept its text form.
 func ExampleApp_RegisterType() {
 	app := conga.New[PercentCLI]().
-		Name("alerts").
 		RegisterType(parsePercent).
 		Args([]string{"--threshold", "75%"})
 
@@ -251,7 +290,6 @@ func ExampleApp_RegisterType() {
 // library type that does not implement encoding.TextUnmarshaler.
 func ExampleApp_RegisterType_external() {
 	app := conga.New[NetworkCLI]().
-		Name("nettool").
 		RegisterType(parseCIDR).
 		Args([]string{"--network", "192.168.1.7/24"})
 
@@ -330,7 +368,7 @@ func ExamplePredictable() {
 // Register a map type so flags and arguments accept key=value pairs.
 func ExampleApp_RegisterMap() {
 	app := conga.New[ReplicasCLI]().
-		RegisterMap(map[string]int(nil)).
+		RegisterMap[map[string]int]().
 		Args([]string{"--replicas", "api=2,web=3"})
 
 	if err := app.Run(); err != nil {
@@ -369,7 +407,6 @@ func ExampleCounter() {
 // An omitted flag falls back to its default tag: set, but not changed.
 func ExampleOptionalFlag_default() {
 	app := conga.New[FlagStateCLI]().
-		Name("flagtool").
 		Args([]string{})
 
 	if err := app.Run(); err != nil {
@@ -381,7 +418,6 @@ func ExampleOptionalFlag_default() {
 // A command-line value overrides the default and reports its source.
 func ExampleOptionalFlag() {
 	app := conga.New[FlagStateCLI]().
-		Name("flagtool").
 		Args([]string{"--port", "9000"})
 
 	if err := app.Run(); err != nil {
@@ -438,6 +474,51 @@ func ExampleApp_Use() {
 	}
 
 	// Output: America/New_York
+}
+
+// Features declares feature toggles evaluated through field defaults,
+// configuration, environment, and CLI flags. Enable with [conga.App.EnableFeatures].
+func ExampleFeatures() {
+	app := conga.New[BuildCLI]().
+		EnableFeatures().
+		Args([]string{
+			"--feature-gates", "remote-cache=true,sandbox-isolation=2",
+			"--cache-endpoint", "cas.internal:9092",
+			"--container-image", "alpine:latest",
+			"main",
+		})
+
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
+
+	// Output: remote-cache=true sandbox=2 endpoint=cas.internal:9092 image=alpine:latest target=main
+}
+
+// EnableFeatures activates feature toggles and gated flags.
+func ExampleApp_EnableFeatures() {
+	app := conga.New[BuildCLI]().
+		EnableFeatures().
+		Args([]string{"main"})
+
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
+
+	// Output: remote-cache=false sandbox=0 endpoint= image= target=main
+}
+
+// Map flags merge key by key across tiers: the command-line flag overrides
+// retries and adds timeout, while unmentioned keys like env keep their default.
+func ExampleOptionalFlag_mapMerge() {
+	app := conga.New[MapMergeCLI]().
+		Args([]string{"--settings", "retries=5,timeout=10s"})
+
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
+
+	// Output: env=prod retries=5 timeout=10s
 }
 
 // parseCIDR adapts net.ParseCIDR to the App.RegisterType parser signature.

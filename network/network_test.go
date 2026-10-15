@@ -1,7 +1,8 @@
 package network_test
 
 import (
-	"bytes"
+	"context"
+	"encoding"
 	"net"
 	"os"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 
 	_ "embed"
 
+	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/internal/slicex"
 	"github.com/conga-sh/conga/network"
 	"github.com/conga-sh/conga/predict"
@@ -19,9 +21,6 @@ import (
 
 var (
 	// System file payloads in the formats the network predictors parse.
-	//go:embed testdata/fixtures/hosts
-	fixtureHosts []byte
-
 	//go:embed testdata/fixtures/known_hosts
 	fixtureKnownHosts []byte
 
@@ -76,8 +75,6 @@ func TestHosts_ParseEtcHosts(t *testing.T) {
 	assert.False(t, slices.Contains(values, "@revoked"), "marker token must not be emitted as host")
 	assert.False(t, slices.Contains(values, "*"), "wildcard Host patterns must be excluded")
 	assert.False(t, slices.Contains(values, "*.internal"), "wildcard Host patterns must be excluded")
-	assert.True(t, len(fixtureHosts) > 0, "hosts fixture must be valid")
-	assert.True(t, bytes.Contains(fixtureHosts, []byte("localhost")))
 }
 
 func TestPorts_StandardEntries(t *testing.T) {
@@ -217,13 +214,6 @@ func TestDomainTypes(t *testing.T) {
 		assert.Equal(t, "lo", netif.String())
 		assert.NotZero(t, netif.Predict())
 
-		var nilNetif *network.NetInterface
-
-		_, err = nilNetif.Interface()
-
-		assert.Error(t, err)
-		assert.Equal(t, "network interface: empty interface name", err.Error())
-
 		var emptyNetif network.NetInterface
 
 		_, err = emptyNetif.Interface()
@@ -266,13 +256,6 @@ func TestDomainTypes(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, "localhost", host.String())
 		assert.NotZero(t, host.Predict())
-
-		var nilHost *network.Host
-
-		_, err = nilHost.LookupIP(t.Context())
-
-		assert.Error(t, err)
-		assert.Equal(t, "lookup host: empty host name", err.Error())
 
 		var emptyHost network.Host
 
@@ -406,6 +389,92 @@ func TestDomainTypes(t *testing.T) {
 
 		assert.Error(t, err)
 	})
+}
+
+func TestDomainTypes_MarshalText(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		input    encoding.TextMarshaler
+		expected string
+	}{
+		{"Host", network.Host("example.com"), "example.com"},
+		{"HTTPMethod", network.HTTPMethod("POST"), "POST"},
+		{"HTTPStatus", network.HTTPStatus(200), "200"},
+		{"MIMEType", network.MIMEType("application/json"), "application/json"},
+		{"NetInterface", network.NetInterface("lo"), "lo"},
+		{"Port", network.Port(8080), "8080"},
+	}
+
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			encoded, err := testCase.input.MarshalText()
+
+			assert.NoError(t, err)
+			assert.Equal(t, testCase.expected, string(encoded))
+		})
+	}
+}
+
+type chainingCLI struct {
+	Port   conga.OptionalFlag[network.Port]       `short:"p"`
+	Status conga.OptionalFlag[network.HTTPStatus] `short:"s"`
+	Method conga.OptionalFlag[network.HTTPMethod] `short:"m"`
+}
+
+func (c *chainingCLI) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+func TestDomainTypes_ValueReceiverChaining(t *testing.T) {
+	t.Parallel()
+
+	cli := &chainingCLI{}
+	app := conga.New(cli).Args([]string{"--port", "80", "--status", "204", "--method", "get"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+
+	assert.True(t, cli.Port.Get().IsPrivileged())
+	assert.Equal(t, 80, cli.Port.Get().Int())
+	assert.Equal(t, "80", cli.Port.Get().String())
+
+	assert.True(t, cli.Status.Get().IsSuccess())
+	assert.False(t, cli.Status.Get().IsClientError())
+	assert.False(t, cli.Status.Get().IsServerError())
+	assert.Equal(t, 204, cli.Status.Get().Code())
+	assert.Equal(t, "No Content", cli.Status.Get().Text())
+
+	assert.Equal(t, "GET", cli.Method.Get().String())
+}
+
+func TestRegisterNetInterface_CoercesInterface(t *testing.T) {
+	t.Parallel()
+
+	ifaces, err := net.Interfaces()
+	assert.NoError(t, err)
+
+	if len(ifaces) == 0 {
+		t.Skip("no network interfaces available")
+	}
+
+	targetName := ifaces[0].Name
+	cli := new(netTestCLI)
+	app := conga.New(cli).
+		Args([]string{"-i", targetName}).
+		Use(network.RegisterNetInterface)
+
+	err = app.Run()
+
+	assert.NoError(t, err)
+
+	iface := cli.Iface.Get()
+	assert.NotZero(t, iface)
+	assert.Equal(t, targetName, iface.Name)
 }
 
 func itemValues(items []predict.Item) []string {

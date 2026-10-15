@@ -17,9 +17,10 @@ Every app gets `--help` and a generated help screen. CONGA derives the help outp
 6. **Positional arguments**: argument names and descriptions under `Arguments:`.
 7. **Completion footer**: supported shells list rendered on generic completion help screens.
 8. **Flags**: flags declared on the active command, grouped under `group:"..."` headers or the default `Flags:` heading. Built-in flags (`--help`, `--version`, `--why`) appear here.
-9. **Global flags**: persistent flags inherited from ancestor commands.
-10. **Examples**: usage examples configured via `app.Examples(...)` on the root builder, or `Examples() string` on subcommand structs.
-11. **Global help footer**: text configured via `app.HelpFooter(...)`.
+9. **Features** (root screen only): feature toggles declared via `conga.Features[T]`, rendered under `Features:` with help text, stage (`[alpha]`, `[beta]`), integer levels, and defaults. Toggles staged `ga` or `deprecated` are omitted.
+10. **Global flags**: persistent flags inherited from ancestor commands.
+11. **Examples**: usage examples configured via `app.Examples(...)` on the root builder, or `Examples() string` on subcommand structs.
+12. **Global help footer**: text configured via `app.HelpFooter(...)`.
 
 ### Global help footers and top matter
 
@@ -41,12 +42,12 @@ Opt in to a `help [command...]` subcommand for nested commands:
 
 ```go
 type App struct {
-	Help conga.HelpCommand `name:"help" summary:"Show help for a command"`
+	Help conga.HelpCommand `summary:"Show help for a command"`
 	...
 }
 ```
 
-`HelpCommand` resolves the requested path (with aliases) and returns the target's help screen; unknown paths are parse errors with suggestions. `app.DisableHelpFlag()` removes `--help` flag injection entirely.
+`HelpCommand` resolves the requested path (with aliases) and returns the target's help screen; unknown paths are parse errors with suggestions. Call `Path() []string` to inspect the requested subcommand path. `app.DisableHelpFlag()` removes `--help` flag injection entirely.
 
 ## Version
 
@@ -87,13 +88,15 @@ hello:
  OS/Arch:    linux/amd64
 ```
 
-`hello version --json` renders a flat machine-readable object with the same fields (`version`, `gitCommit`, `built`, `goVersion`, `os`, `arch`, `modified`). The `--json` flag is engine-owned: a user-defined `--json` flag on an ancestor command cannot collide with it, and a non-boolean value is a usage error (exit 2).
+`hello version --json` renders a flat machine-readable object with the same fields (`version`, `gitCommit`, `built`, `goVersion`, `os`, `arch`, `modified`). Call `JSON() bool` on the command struct to query whether JSON format was requested. The `--json` flag is engine-owned: a user-defined `--json` flag on an ancestor command cannot collide with it, and a non-boolean value is a usage error (exit 2).
 
 `app.DisableVersionFlag()` removes the flag while keeping the version summary line available through `session.Version()` and `VersionCommand`.
 
 ## The `--why` report
 
-`app.EnableWhy()` enables `--why`, which prints a per-field provenance report — every resolved value in the active command chain with its [origin tier](/explanation/value-precedence/) (`● cli`, `● env VAR`, `● config key`, `· default`, `○ unset`). Values are redacted by default; fields opt in to display with `safe:"true"`. The report machinery is linked only when `app.EnableWhy()` is called; otherwise `--why` remains an unknown flag.
+`app.EnableWhy()` enables `--why`, which prints a per-field provenance report — every resolved value in the active command chain with its [origin tier](/explanation/value-precedence/) (`● cli`, `● env VAR`, `● config key`, `· default`, `○ unset`). Map flags merge key by key across tiers, so a map row is followed by one indented sub-row per key carrying the tier that last wrote it. Values are redacted by default; fields opt in to display with `safe:"true"`. The report machinery is linked only when `app.EnableWhy()` is called; otherwise `--why` remains an unknown flag.
+
+When the root command declares `conga.Features[T]`, the report ends with a `Features:` table listing every declared feature, its resolved value, and its source. Each feature reports the tier that last wrote its key; keys no tier sets fall back to the field default (`· default`) or render unset (`○ unset`). See [Feature toggles](/reference/struct-tags/#feature-toggles-congafeaturest).
 
 ## Completion surface
 
@@ -102,7 +105,7 @@ hello:
 | Style | Surface | When |
 |-------|---------|------|
 | Flat flag | `--completion <shell>` | Enabled flat, single-command CLIs |
-| Subcommand | `completion <shell>` via `conga.CompletionCommand` | Declare the field and enable `app.EnableCompletion()` |
+| Subcommand | `completion <shell>` via `conga.CompletionCommand` | Declare the field and enable `app.EnableCompletion()` (inspect requested shell with `Shell() string`) |
 | Hidden driver | `<cmd> __complete <shell> <words...>` | Used internally by generated shell functions |
 
 When the user presses tab, the installed shell function invokes the binary through the hidden driver with the partial words:
@@ -125,7 +128,6 @@ Whole-application deprecation prints a warning banner on every invocation (root,
 
 ```go
 app := conga.New[Legacy]().
-	Name("legacyctl").
 	Deprecated("migrated to newctl — see https://example.com/migration")
 ```
 

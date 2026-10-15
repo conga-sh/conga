@@ -3,7 +3,6 @@ package spec
 import (
 	"cmp"
 	"fmt"
-	"os"
 	"slices"
 	"strings"
 
@@ -17,6 +16,7 @@ import (
 type CompleteOptions struct {
 	RegisteredPredictors map[string]predict.Predictor
 	Env                  map[string]string
+	EnvLookup            func(string) (string, bool)
 	Dir                  string
 	TargetShell          string
 }
@@ -233,6 +233,7 @@ func (w *astCompletionWalker) buildCompletionContext(toComplete string) predict.
 		FlagMultiValues: flagMultiValuesMap,
 		Dir:             w.opts.Dir,
 		Env:             w.opts.Env,
+		EnvLookup:       w.opts.EnvLookup,
 	}
 }
 
@@ -370,7 +371,7 @@ func (w *astCompletionWalker) completeFlagNamesAction(toComplete string) predict
 func (w *astCompletionWalker) isFlatShell() bool {
 	shell := strings.ToLower(strings.TrimSpace(w.opts.TargetShell))
 	if shell == "" {
-		shell = strings.ToLower(strings.TrimSpace(os.Getenv(wire.EnvShell)))
+		shell = strings.ToLower(strings.TrimSpace(wire.Shell()))
 	}
 
 	if shell == "" || shell == "zsh" || shell == "export" {

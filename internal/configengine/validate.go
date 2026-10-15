@@ -9,7 +9,6 @@ import (
 	"github.com/conga-sh/conga/internal/casing"
 	"github.com/conga-sh/conga/internal/cond"
 	"github.com/conga-sh/conga/internal/levenshtein"
-	"github.com/conga-sh/conga/internal/sentinel"
 	"github.com/conga-sh/conga/internal/slicex"
 	"github.com/conga-sh/conga/internal/spec"
 	"github.com/conga-sh/conga/internal/stringx"
@@ -35,11 +34,11 @@ func validateSingleCommandEntry(prefix, key string, value any, cmd *spec.Command
 
 	if flag := findFlag(cmd, key); flag != nil {
 		if flag.ConfigKey == "-" {
-			return &configError{
-				path:  filePath,
-				msg:   fmt.Sprintf("config file %q: field %q is excluded from config files in command %q", filePath, key, cmd.Name),
-				cause: fmt.Errorf("%w: field %q not allowed in config", sentinel.ErrConfigUnknownField, key),
-			}
+			return newFieldConfigError(
+				filePath,
+				fmt.Sprintf("field %q is excluded from config files in command %q", key, cmd.Name),
+				fmt.Sprintf("field %q not allowed in config", key),
+			)
 		}
 
 		storeFlagValue(prefix, flag, value, dest)
@@ -47,11 +46,11 @@ func validateSingleCommandEntry(prefix, key string, value any, cmd *spec.Command
 		return nil
 	}
 
-	return &configError{
-		path:  filePath,
-		msg:   fmt.Sprintf("config file %q: unknown field %q in command %q%s", filePath, key, cmd.Name, suggestionHint(cmd, key)),
-		cause: fmt.Errorf("%w: unknown field %q in command %q", sentinel.ErrConfigUnknownField, key, cmd.Name),
-	}
+	return newFieldConfigError(
+		filePath,
+		fmt.Sprintf("unknown field %q in command %q%s", key, cmd.Name, suggestionHint(cmd, key)),
+		fmt.Sprintf("unknown field %q in command %q", key, cmd.Name),
+	)
 }
 
 func handleNestedSection(prefix, key string, nestedMap map[string]any, cmd *spec.Command, dest map[string]string, filePath string) error {
@@ -73,11 +72,11 @@ func handleNestedSection(prefix, key string, nestedMap map[string]any, cmd *spec
 		return validateNamespaceConfig(subPrefix, nestedMap, cmd, dest, filePath)
 	}
 
-	return &configError{
-		path:  filePath,
-		msg:   fmt.Sprintf("config file %q: unknown section %q in command %q%s", filePath, key, cmd.Name, suggestionHint(cmd, key)),
-		cause: fmt.Errorf("%w: unknown section %q in command %q", sentinel.ErrConfigUnknownField, key, cmd.Name),
-	}
+	return newFieldConfigError(
+		filePath,
+		fmt.Sprintf("unknown section %q in command %q%s", key, cmd.Name, suggestionHint(cmd, key)),
+		fmt.Sprintf("unknown section %q in command %q", key, cmd.Name),
+	)
 }
 
 func validateNamespaceConfig(prefix string, rawMap map[string]any, cmd *spec.Command, dest map[string]string, filePath string) error {
@@ -95,11 +94,11 @@ func validateNamespaceConfig(prefix string, rawMap map[string]any, cmd *spec.Com
 		flag := findFlagByConfigKeyOrName(cmd, fullKey, key)
 		if flag != nil {
 			if flag.ConfigKey == "-" {
-				return &configError{
-					path:  filePath,
-					msg:   fmt.Sprintf("config file %q: field %q is excluded from config files in command %q", filePath, fullKey, cmd.Name),
-					cause: fmt.Errorf("%w: field %q not allowed in config", sentinel.ErrConfigUnknownField, fullKey),
-				}
+				return newFieldConfigError(
+					filePath,
+					fmt.Sprintf("field %q is excluded from config files in command %q", fullKey, cmd.Name),
+					fmt.Sprintf("field %q not allowed in config", fullKey),
+				)
 			}
 
 			storeFlagValue(prefix, flag, value, dest)
@@ -108,11 +107,11 @@ func validateNamespaceConfig(prefix string, rawMap map[string]any, cmd *spec.Com
 			continue
 		}
 
-		return &configError{
-			path:  filePath,
-			msg:   fmt.Sprintf("config file %q: unknown field %q in namespace %q%s", filePath, key, prefix, suggestionHint(cmd, key)),
-			cause: fmt.Errorf("%w: unknown field %q in namespace %q", sentinel.ErrConfigUnknownField, key, prefix),
-		}
+		return newFieldConfigError(
+			filePath,
+			fmt.Sprintf("unknown field %q in namespace %q%s", key, prefix, suggestionHint(cmd, key)),
+			fmt.Sprintf("unknown field %q in namespace %q", key, prefix),
+		)
 	}
 
 	return nil
@@ -123,9 +122,10 @@ func hasFlagWithPrefix(cmd *spec.Command, prefix string) bool {
 
 	for _, flag := range cmd.Flags {
 		if flag.ConfigKey != "" && flag.ConfigKey != "-" {
-			parts := strings.Split(flag.ConfigKey, ".")
-			if len(parts) > 1 && (parts[0] == prefix || normalizeConfigKey(parts[0]) == normPrefix) {
-				return true
+			if first, _, hasDot := strings.Cut(flag.ConfigKey, "."); hasDot {
+				if matchesConfigName(first, prefix, normPrefix) {
+					return true
+				}
 			}
 		}
 	}
@@ -142,18 +142,28 @@ func findFlagByConfigKeyOrName(cmd *spec.Command, fullKey, subKey string) *spec.
 			continue
 		}
 
-		if flag.ConfigKey != "" && flag.ConfigKey != "-" && (flag.ConfigKey == fullKey || normalizeConfigKey(flag.ConfigKey) == normFull) {
-			return flag
-		}
-
-		if flag.Name == subKey || normalizeConfigKey(flag.Name) == normSub {
-			return flag
-		}
-
-		for _, alias := range flag.Aliases {
-			if alias == subKey || normalizeConfigKey(alias) == normSub {
+		if flag.ConfigKey == "-" {
+			if matchesConfigName(flag.Name, subKey, normSub) || slices.ContainsFunc(flag.Aliases, func(alias string) bool {
+				return matchesConfigName(alias, subKey, normSub)
+			}) {
 				return flag
 			}
+
+			continue
+		}
+
+		if flag.ConfigKey != "" && matchesConfigName(flag.ConfigKey, fullKey, normFull) {
+			return flag
+		}
+
+		if matchesConfigName(flag.Name, subKey, normSub) {
+			return flag
+		}
+
+		if slices.ContainsFunc(flag.Aliases, func(alias string) bool {
+			return matchesConfigName(alias, subKey, normSub)
+		}) {
+			return flag
 		}
 	}
 
@@ -206,58 +216,43 @@ func formatConfigValue(value any) string {
 }
 
 func findFlag(cmd *spec.Command, key string) *spec.Flag {
-	normalizedKey := normalizeConfigKey(key)
-
-	for _, flag := range cmd.Flags {
-		if flag.IsConfigFile {
-			continue
-		}
-
-		if flag.ConfigKey == "-" {
-			if flag.Name == key || normalizeConfigKey(flag.Name) == normalizedKey {
-				return flag
-			}
-
-			continue
-		}
-
-		if flag.ConfigKey != "" && (flag.ConfigKey == key || normalizeConfigKey(flag.ConfigKey) == normalizedKey) {
-			return flag
-		}
-
-		if flag.Name == key || normalizeConfigKey(flag.Name) == normalizedKey {
-			return flag
-		}
-
-		for _, alias := range flag.Aliases {
-			if alias == key || normalizeConfigKey(alias) == normalizedKey {
-				return flag
-			}
-		}
-	}
-
-	return nil
+	return findFlagByConfigKeyOrName(cmd, key, key)
 }
 
 func findSubcommand(cmd *spec.Command, key string) *spec.Command {
 	normalizedKey := normalizeConfigKey(key)
 
 	for _, subcommand := range cmd.Subcommands {
-		if subcommand.Name == key || normalizeConfigKey(subcommand.Name) == normalizedKey {
+		if matchesConfigName(subcommand.Name, key, normalizedKey) {
 			return subcommand
 		}
 
-		for _, alias := range subcommand.Aliases {
-			if alias == key || normalizeConfigKey(alias) == normalizedKey {
-				return subcommand
-			}
+		if slices.ContainsFunc(subcommand.Aliases, func(alias string) bool {
+			return matchesConfigName(alias, key, normalizedKey)
+		}) {
+			return subcommand
 		}
 	}
 
 	return nil
 }
 
+func matchesConfigName(candidate, rawKey, normKey string) bool {
+	return candidate == rawKey || normalizeConfigKey(candidate) == normKey
+}
+
 func normalizeConfigKey(key string) string {
+	for i := range len(key) {
+		character := key[i]
+		if (character < 'a' || character > 'z') && (character < '0' || character > '9') {
+			return normalizeConfigKeySlow(key)
+		}
+	}
+
+	return key
+}
+
+func normalizeConfigKeySlow(key string) string {
 	var builder strings.Builder
 
 	for _, character := range key {

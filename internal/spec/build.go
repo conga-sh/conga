@@ -70,6 +70,12 @@ func Build(target any, defaultName string, opts Options) (*Command, error) {
 		return nil, err
 	}
 
+	if opts.ValidateFeatureReferences != nil {
+		if err := opts.ValidateFeatureReferences(cmd); err != nil {
+			return nil, err
+		}
+	}
+
 	cmd.ConfigSettings = opts.ConfigSettings
 
 	if err := validateConfigSettings(cmd); err != nil {
@@ -214,7 +220,7 @@ func (b *schemaBuilder) processSubcommand(structField reflect.StructField, comma
 	subName := cmp.Or(structField.Tag.Get("name"), casing.Kebab(structField.Name))
 
 	if err := b.checkDuplicateSubcommand(subName, structField.Name, false); err != nil {
-		return fmt.Errorf("struct %s field %s: %w", b.structType.Name(), structField.Name, err)
+		return b.fieldContextError(structField.Name, err)
 	}
 
 	var aliases []string
@@ -223,14 +229,14 @@ func (b *schemaBuilder) processSubcommand(structField reflect.StructField, comma
 		aliases = slicex.SplitAndTrim(aliasesTag, ",")
 		for _, alias := range aliases {
 			if err := b.checkDuplicateSubcommand(alias, structField.Name, true); err != nil {
-				return fmt.Errorf("struct %s field %s: %w", b.structType.Name(), structField.Name, err)
+				return b.fieldContextError(structField.Name, err)
 			}
 		}
 	}
 
 	summary, err := ParseSummaryTag(structField.Tag, "")
 	if err != nil {
-		return fmt.Errorf("struct %s field %s: %w", b.structType.Name(), structField.Name, err)
+		return b.fieldContextError(structField.Name, err)
 	}
 
 	subOpts := b.opts
@@ -264,6 +270,13 @@ func (b *schemaBuilder) processSubcommand(structField reflect.StructField, comma
 	subcommand.Group = structField.Tag.Get("group")
 	subcommand.Hidden = parsePresenceOrTrueTag(structField.Tag, "hidden")
 	subcommand.Aliases = aliases
+
+	feature, err := parseTagFeature(structField.Tag, false, &b.opts)
+	if err != nil {
+		return b.fieldContextError(structField.Name, err)
+	}
+
+	subcommand.Feature = feature
 
 	if subcommand.EnvPrefix == "" {
 		subcommand.EnvPrefix = subOpts.EnvPrefix
@@ -402,6 +415,11 @@ func (b *schemaBuilder) buildConfigFileFlagSpec(structField reflect.StructField,
 		aliases = slicex.SplitAndTrim(aliasTag, ",")
 	}
 
+	feature, err := parseTagFeature(structField.Tag, false, &b.opts)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Flag{
 		Name:         flagName,
 		Short:        shortRune,
@@ -414,6 +432,7 @@ func (b *schemaBuilder) buildConfigFileFlagSpec(structField reflect.StructField,
 		Group:        structField.Tag.Get("group"),
 		Hidden:       parsePresenceOrTrueTag(structField.Tag, "hidden"),
 		Deprecated:   structField.Tag.Get("deprecated"),
+		Feature:      feature,
 		FieldTags:    fieldTags,
 		TargetType:   targetType,
 		Handle:       configHandle,
@@ -457,7 +476,7 @@ func (b *schemaBuilder) processFlag(structField reflect.StructField, flagHandle 
 		return fmt.Errorf("%w: tag \"deprecated\" cannot be used on required flags (make the flag optional before deprecating it so callers can migrate without error)", ErrInvalidStructTag)
 	}
 
-	flagSpec, err := parseFlagSpec(structField, flagHandle, classification, fieldTags, b.opts)
+	flagSpec, err := parseFlagSpec(structField, flagHandle, classification, fieldTags, &b.opts)
 	if err != nil {
 		return err
 	}
@@ -480,7 +499,7 @@ func (b *schemaBuilder) processArg(structField reflect.StructField, argHandle an
 		return err
 	}
 
-	argSpec, err := parseArgSpec(structField, argHandle, classification, fieldTags, b.opts)
+	argSpec, err := parseArgSpec(structField, argHandle, classification, fieldTags, &b.opts)
 	if err != nil {
 		return err
 	}
@@ -605,9 +624,16 @@ func (b *schemaBuilder) processField(structField reflect.StructField, fieldValue
 	case container.KindCommand:
 		return b.processCommandField(structField, fieldAddr, classification)
 	case container.KindHelpCommand, container.KindVersionCommand, container.KindCompletionCommand:
-		return b.fieldContextError(structField, b.processBuiltinCommand(structField, classification))
+		return b.fieldContextError(structField.Name, b.processBuiltinCommand(structField, classification))
 	case container.KindConfigFile:
-		return b.fieldContextError(structField, b.processConfigFileField(structField, fieldAddr))
+		return b.fieldContextError(structField.Name, b.processConfigFileField(structField, fieldAddr))
+	case container.KindFeatures:
+		err := FeaturesRequiresEnableError()
+		if b.opts.ProcessFeatures != nil {
+			err = b.opts.ProcessFeatures(b, structField, fieldAddr, classification)
+		}
+
+		return b.fieldContextError(structField.Name, err)
 	case container.KindDashArgs:
 		return b.processDashArgsField(structField, fieldAddr)
 	case container.KindRawArgs:
@@ -629,7 +655,7 @@ func (b *schemaBuilder) processUnexportedField(structField reflect.StructField) 
 	}
 
 	if _, err := b.validateFieldTags(structField, "sentinel field", sentinelTagCandidates); err != nil {
-		return b.fieldContextError(structField, err)
+		return b.fieldContextError(structField.Name, err)
 	}
 
 	return nil
@@ -639,7 +665,7 @@ func (b *schemaBuilder) processUnexportedField(structField reflect.StructField) 
 func (b *schemaBuilder) processCommandField(structField reflect.StructField, commandHandle any, classification container.Classification) error {
 	dirs, err := b.validateFieldTags(structField, "subcommand", userCommandTagCandidates)
 	if err != nil {
-		return b.fieldContextError(structField, err)
+		return b.fieldContextError(structField.Name, err)
 	}
 
 	if dirs.Ignore {
@@ -654,7 +680,7 @@ func (b *schemaBuilder) processCommandField(structField reflect.StructField, com
 func (b *schemaBuilder) processDashArgsField(structField reflect.StructField, handle any) error {
 	dirs, err := b.validateFieldTags(structField, "dash args", dashRawTagCandidates)
 	if err != nil {
-		return b.fieldContextError(structField, err)
+		return b.fieldContextError(structField.Name, err)
 	}
 
 	if dirs.Ignore {
@@ -676,7 +702,7 @@ func (b *schemaBuilder) processDashArgsField(structField reflect.StructField, ha
 func (b *schemaBuilder) processRawArgsField(structField reflect.StructField, handle any) error {
 	dirs, err := b.validateFieldTags(structField, "raw args", dashRawTagCandidates)
 	if err != nil {
-		return b.fieldContextError(structField, err)
+		return b.fieldContextError(structField.Name, err)
 	}
 
 	if dirs.Ignore {
@@ -695,12 +721,12 @@ func (b *schemaBuilder) processRawArgsField(structField reflect.StructField, han
 
 // fieldContextError wraps a schema-build error with the owning struct and
 // field, returning nil unchanged.
-func (b *schemaBuilder) fieldContextError(structField reflect.StructField, err error) error {
+func (b *schemaBuilder) fieldContextError(fieldName string, err error) error {
 	if err == nil {
 		return nil
 	}
 
-	return fmt.Errorf("struct %s field %s: %w", b.structType.Name(), structField.Name, err)
+	return fmt.Errorf("struct %s field %s: %w", b.structType.Name(), fieldName, err)
 }
 
 func (b *schemaBuilder) processFlagField(structField reflect.StructField, flagHandle any, classification container.Classification) error {
@@ -807,6 +833,12 @@ func (t *flagCollisionTracker) CheckAndAdd(flagSpec *Flag, fieldName string) err
 // (multi:"true") to report every merged file. Apps without a root config-file
 // field cascade without one.
 func validateConfigSettings(root *Command) error {
+	if root.ConfigSettings.Explicit != "" {
+		if len(root.ConfigSettings.Tier) > 0 || root.ConfigSettings.Cascading {
+			return ConfigExplicitConflictError()
+		}
+	}
+
 	if !root.ConfigSettings.Cascading || root.ConfigFileFlag == nil || root.ConfigFileFlag.IsSlice {
 		return nil
 	}

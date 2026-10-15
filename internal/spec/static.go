@@ -61,18 +61,8 @@ func ValidateFieldTags(tag reflect.StructTag, role string, candidates []string, 
 		return Directives{}, err
 	}
 
-	switch role {
-	case "flag", "positional argument":
-		if err := validateConstraintTagValues(tag); err != nil {
-			return Directives{}, err
-		}
-
-		fallthrough
-	case "config file flag":
-		declared := helpVarAvailability(tag, role, opts.EnvPrefix, opts.EnvPrefixKnown)
-		if err := validateHelpVariables(tag.Get("help"), declared); err != nil {
-			return Directives{}, err
-		}
+	if err := validateRoleTagRules(tag, role, opts); err != nil {
+		return Directives{}, err
 	}
 
 	if !opts.StrictTagValidation || opts.AllowUnknownTags || dirs.AllowUnknownTags {
@@ -100,6 +90,10 @@ func TagCandidatesForRole(role string) ([]string, bool) {
 		return builtinCommandTagCandidates, true
 	case "config file flag":
 		return configFileTagCandidates, true
+	case "features":
+		return featuresFieldTagCandidates, true
+	case "feature":
+		return featureFieldTagCandidates, true
 	case "dash args", "raw args":
 		return dashRawTagCandidates, true
 	case "sentinel field":
@@ -151,6 +145,52 @@ func ValidateCounterDefaultTag(tag reflect.StructTag) error {
 	return nil
 }
 
+// FeatureFieldTypeError builds the schema error for a feature field whose type
+// is neither a bool nor an integer. The runtime schema builder reports it from
+// the reflected field kind and the static analyzer reports it from the
+// go/types kind, so the message stays a single source of truth.
+func FeatureFieldTypeError(fieldName string, typeName string) error {
+	return fmt.Errorf("%w: feature field %s must be a bool or an integer, got %s", ErrInvalidStructTag, fieldName, typeName)
+}
+
+// FeaturesMustBeOnRootError builds the schema error for a conga.Features
+// container declared on a non-root command struct. The runtime schema builder
+// returns it and the static analyzer reports it verbatim, keeping the message a
+// single source of truth.
+func FeaturesMustBeOnRootError() error {
+	return fmt.Errorf("%w: conga.Features must be declared on the root command struct", ErrSchema)
+}
+
+// FeaturesMustBeStructParameterError builds the schema error for a
+// conga.Features container whose type parameter is not a struct. The runtime
+// schema builder and the static analyzer share it as the single source of
+// truth.
+func FeaturesMustBeStructParameterError() error {
+	return fmt.Errorf("%w: conga.Features must be parameterized by a struct type", ErrSchema)
+}
+
+// FeaturesAlreadyDeclaredError builds the duplicate-container error for a
+// second conga.Features field on the root command struct. The runtime schema
+// builder and the static analyzer share it as the single source of truth;
+// firstFlagName is the resolved synthesized flag name of the first container.
+func FeaturesAlreadyDeclaredError(firstFlagName string) error {
+	return fmt.Errorf("%w: Features (already declared by %s)", ErrDuplicateFlag, firstFlagName)
+}
+
+// FeatureOnRequiredFlagError builds the schema error for a feature tag on a
+// required flag: a feature-gated flag must be optional. The runtime schema
+// builder and the static analyzer share it as the single source of truth.
+func FeatureOnRequiredFlagError() error {
+	return fmt.Errorf("%w: tag \"feature\" cannot be used on required flags (feature-gated flags must be optional)", ErrInvalidStructTag)
+}
+
+// ConfigExplicitConflictError builds the error when ConfigExplicit is combined with ConfigPaths or ConfigCascading.
+// The error wraps ErrSchema so runtime schema validation returns it directly and the static analyzer reports it verbatim,
+// keeping the lint-time and runtime messages a single source of truth.
+func ConfigExplicitConflictError() error {
+	return fmt.Errorf("%w: conga.ConfigExplicit() specifies an absolute configuration file and cannot be combined with conga.ConfigPaths() or conga.ConfigCascading()", ErrSchema)
+}
+
 // CascadingRequiresMultiError builds the cascading⟹multi arity-guard error
 // for a root config-file flag: a flag without multi:"true" cannot report
 // every merged file under Cascading(). The error wraps ErrSchema so runtime
@@ -171,6 +211,22 @@ func CompletionRequiresEnableError() error {
 	return fmt.Errorf("%w: completion command declared without completion enabled; call app.EnableCompletion() when constructing the app, or remove the field", ErrSchema)
 }
 
+// FeaturesRequiresEnableError returns the schema error for a conga.Features
+// container declared under an app that never calls app.EnableFeatures(). The
+// runtime schema builder and the static analyzer share it as the single source
+// of truth.
+func FeaturesRequiresEnableError() error {
+	return errFeaturesRequiresEnableFeatures
+}
+
+// FeatureTagRequiresEnableError returns the schema error for a feature:"..."
+// struct tag declared under an app that never calls app.EnableFeatures(). The
+// runtime schema builder and the static analyzer share it as the single source
+// of truth.
+func FeatureTagRequiresEnableError() error {
+	return errFeatureTagRequiresEnableFeatures
+}
+
 // ValidatePredictorTag validates an explicit predictor:"..." struct tag
 // without runtime predictor inference: built-in predictor vocabulary is
 // always checked; custom predictor names only under strict tag validation.
@@ -183,6 +239,69 @@ func ValidatePredictorTag(tag reflect.StructTag, isBool bool, opts ValidationOpt
 	_, err := validateExplicitPredictor(strings.TrimSpace(tagValue), isBool, opts.StrictTagValidation, registeredNames)
 
 	return err
+}
+
+// validateRoleTagRules applies the role-specific tag rules shared by schema
+// build and the static analyzer: constraint tag values for flags and
+// positional arguments, {{...}} help-variable availability for the roles that
+// substitute them, and the enumhint opt-out. The rules run regardless of
+// strict tag validation, mirroring the runtime schema build.
+func validateRoleTagRules(tag reflect.StructTag, role string, opts ValidationOptions) error {
+	switch role {
+	case "flag", "positional argument":
+		if err := validateConstraintTagValues(tag); err != nil {
+			return err
+		}
+
+		fallthrough
+	case "config file flag", "features":
+		declared := helpVarAvailability(tag, role, opts.EnvPrefix, opts.EnvPrefixKnown)
+		if err := validateHelpVariables(tag.Get("help"), declared); err != nil {
+			return err
+		}
+	}
+
+	switch role {
+	case "flag", "positional argument", "features":
+		if err := validateEnumHintTag(tag, role); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// validateEnumHintTag validates the enumhint struct tag of a flag, positional
+// argument, or features container. The tag opts the field out of the automatic
+// [enum: ...] help hint; its only accepted value is "-", the field must
+// declare enum values to suppress (the features container always carries the
+// declared feature names), and the help tag must not reference {{enum}} —
+// inlining the values and hiding them are contradictory requests. The runtime
+// schema build and the static analyzer share it as the single source of truth.
+func validateEnumHintTag(tag reflect.StructTag, role string) error {
+	raw, ok := tag.Lookup("enumhint")
+	if !ok {
+		return nil
+	}
+
+	if strings.TrimSpace(raw) != "-" {
+		return fmt.Errorf("%w: tag \"enumhint\" must be \"-\"", ErrInvalidStructTag)
+	}
+
+	if role != "features" && len(SplitTagList(tag, "enum")) == 0 {
+		return fmt.Errorf("%w: tag \"enumhint\" suppresses the enum hint, but the field declares no enum values", ErrInvalidStructTag)
+	}
+
+	_, referenced, err := interpolateHelp(tag.Get("help"), helpVarValues{})
+	if err != nil {
+		return err
+	}
+
+	if referenced.Enum {
+		return fmt.Errorf("%w: tag \"enumhint\" is redundant: the help tag already references {{enum}}", ErrInvalidStructTag)
+	}
+
+	return nil
 }
 
 // validateReservedPseudoTagKeys rejects the engine-owned "~" pseudo-tag

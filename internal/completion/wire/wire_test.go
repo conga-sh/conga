@@ -367,3 +367,19 @@ func TestCandidateTrimmedDescription(t *testing.T) {
 
 	assert.Equal(t, "hé...", runes.TrimmedDescription())
 }
+
+func TestStripControl(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "clean string", wire.StripControl("clean string", "\n\r\t"))
+	assert.Equal(t, "foobar", wire.StripControl("foo\n\r\tbar", "\n\r\t"))
+	assert.Equal(t, "", wire.StripControl("\n\n\r\t", "\n\r\t"))
+}
+
+func TestReplaceControlWithSpace(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "clean string", wire.ReplaceControlWithSpace("clean string", "\n\r\t"))
+	assert.Equal(t, "foo   bar", wire.ReplaceControlWithSpace("foo\n\r\tbar", "\n\r\t"))
+	assert.Equal(t, "    ", wire.ReplaceControlWithSpace("\n\n\r\t", "\n\r\t"))
+}

@@ -27,6 +27,11 @@ type configPathError interface {
 	ConfigPath() string
 }
 
+// featureWhyRowsFunc renders the --why Features table from the resolved
+// feature map. It is stored on App as a named function type so a signature
+// drift fails at compile time instead of silently dropping the table.
+type featureWhyRowsFunc func(root *spec.Command, result mapMergeResult) []why.FeatureRow
+
 func (a *App[T]) renderWhy(cmdChain []*spec.Command, cliValues map[*spec.Flag][]string) {
 	report := a.buildWhyReport(cmdChain, cliValues)
 
@@ -43,34 +48,61 @@ func (a *App[T]) buildWhyReport(cmdChain []*spec.Command, cliValues map[*spec.Fl
 	}
 
 	// Tolerant config loading: resolution and read failures surface as a
-	// diagnostic row on the config-file container instead of aborting.
-	a.configData = make(map[string]string)
+	// diagnostic row on the config-file container instead of aborting. The
+	// resolution is memoized on the App, so a feature-capable run that already
+	// resolved configuration for gating does not probe and decode a second time.
+	resolution := a.resolveConfig(cmdChain[0], cmdChain, cliValues)
 
-	explicitPaths, explicitErr := a.extractExplicitConfigTargets(cmdChain[0], cmdChain, cliValues)
-	if explicitErr != nil {
-		explicitPaths = nil
-	}
-
-	loadedPaths, loadedSource, loadErr := a.resolveAndLoadConfig(cmdChain[0], explicitPaths)
-	if loadErr == nil {
-		loadErr = explicitErr
-	}
+	loadedPaths := resolution.loadedPaths
+	loadedSource := resolution.loadedSource
+	loadErr := resolution.err
 
 	resolver := a.configurationView(cmdChain[0])
-	candidatePaths := resolver.CandidatePaths(explicitPaths, cmdChain[0])
+	candidatePaths := resolution.candidates
 
 	state := &bindingState{
-		EnvPrefix:   a.envPrefix,
-		ConfigData:  a.configData,
-		TypeParsers: a.collectTypeParsers(),
-		Stdin:       a.stdin,
-		Stdout:      a.stdout,
+		EnvPrefix:       a.envPrefix,
+		ConfigData:      a.configData,
+		TypeParsers:     a.collectTypeParsers(),
+		CustomMapMerger: a.customMapMerger,
+		Stdin:           a.stdin,
+		Stdout:          a.stdout,
 	}
 
 	leaf := cmdChain[len(cmdChain)-1]
+	root := cmdChain[0]
 
 	report := why.Report{CommandPath: commandChainPath(cmdChain)}
 
+	var (
+		featureResult mapMergeResult
+		featureErr    error
+	)
+
+	if a.whyFeatures != nil && root.FeatureFlag != nil {
+		featureErr = foldMapTiers(root, cmdChain, root.FeatureFlag, cliValues, state, true, &featureResult)
+	}
+
+	a.populateWhyRows(&report, cmdChain, cliValues, state, root, leaf, featureResult, featureErr, loadedPaths, loadedSource, loadErr)
+
+	report.Redacted = whyReportRedacted(report)
+
+	if a.whyFeatures != nil {
+		report.Features = a.whyFeatures(root, featureResult)
+	}
+
+	extensions := a.configRegistry.Extensions()
+	report.ConfigDecoders = extensions
+	report.ConfigPaths = whyConfigPaths(resolver, candidatePaths, loadedPaths, loadErr, extensions)
+
+	if len(loadedPaths) == 0 {
+		report.ConfigExamples = resolver.ConfigExamples(candidatePaths, slicex.Map(resolver.EffectiveSearchPaths(), pathx.Expand), extensions)
+	}
+
+	return report
+}
+
+func (a *App[T]) populateWhyRows(report *why.Report, cmdChain []*spec.Command, cliValues map[*spec.Flag][]string, state *bindingState, root, leaf *spec.Command, featureResult mapMergeResult, featureErr error, loadedPaths []string, loadedSource ValueSource, loadErr error) {
 	for cmdIndex, cmd := range cmdChain {
 		for _, flagSpec := range cmd.Flags {
 			if flagSpec.Handle == nil {
@@ -78,12 +110,23 @@ func (a *App[T]) buildWhyReport(cmdChain []*spec.Command, cliValues map[*spec.Fl
 				continue
 			}
 
+			// A synthesized feature map flag with NoCLI (no flag tag) is engine-owned
+			// and not a CLI flag. It is excluded from the flag table; its toggles
+			// are displayed in the dedicated Features section.
+			if flagSpec == root.FeatureFlag && flagSpec.NoCLI {
+				continue
+			}
+
 			var row why.Row
 
-			if flagSpec.IsConfigFile {
+			switch {
+			case flagSpec.IsConfigFile:
 				row = a.whyConfigFileRow(cmd, cmdChain, flagSpec, cliValues, state, loadedPaths, loadedSource, loadErr)
 				row.ConfigPath = "-"
-			} else {
+			case root.FeatureFlag != nil && flagSpec == root.FeatureFlag:
+				row = whyMapFoldRow(flagSpec, featureResult, featureErr, why.Row{Label: "--" + flagSpec.Name, Hidden: flagSpec.Hidden}, false)
+				row.ConfigPath = whyConfigPath(flagSpec, cmdChain, cmdIndex)
+			default:
 				row = a.whyFlagRow(cmd, cmdChain, flagSpec, cliValues, state)
 				row.ConfigPath = whyConfigPath(flagSpec, cmdChain, cmdIndex)
 			}
@@ -97,17 +140,6 @@ func (a *App[T]) buildWhyReport(cmdChain []*spec.Command, cliValues map[*spec.Fl
 			}
 		}
 	}
-
-	report.Redacted = whyReportRedacted(report)
-	extensions := a.configRegistry.Extensions()
-	report.ConfigDecoders = extensions
-	report.ConfigPaths = whyConfigPaths(resolver, candidatePaths, loadedPaths, loadErr, extensions)
-
-	if len(loadedPaths) == 0 {
-		report.ConfigExamples = resolver.ConfigExamples(candidatePaths, slicex.Map(resolver.EffectiveSearchPaths(), pathx.Expand), extensions)
-	}
-
-	return report
 }
 
 // whyFlagRow resolves one ordinary flag through the tier cascade, capturing
@@ -116,6 +148,12 @@ func (a *App[T]) whyFlagRow(cmd *spec.Command, cmdChain []*spec.Command, flagSpe
 	row := why.Row{
 		Label:  "--" + flagSpec.Name,
 		Hidden: flagSpec.Hidden,
+	}
+
+	// Map flags merge every tier key-by-key, so their row replays the merged
+	// cascade and records one provenance entry per key.
+	if flagSpec.IsMap {
+		return a.whyMapRow(cmd, cmdChain, flagSpec, cliValues, state, row)
 	}
 
 	// Tier 1: CLI Flags
@@ -141,6 +179,19 @@ func (a *App[T]) whyFlagRow(cmd *spec.Command, cmdChain []*spec.Command, flagSpe
 	row.Source = whySourceWord(SourceNone)
 
 	return row
+}
+
+// whyMapRow replays the per-key merge cascade for a map flag, mirroring
+// applyMapFlagValue: every tier is coerced and folded key-by-key in ascending
+// precedence, and each key records the tier that last wrote it. The row value
+// shows the merged map, and each key renders as a sub-row with its own source
+// tier.
+func (a *App[T]) whyMapRow(cmd *spec.Command, cmdChain []*spec.Command, flagSpec *spec.Flag, cliValues map[*spec.Flag][]string, state *bindingState, row why.Row) why.Row {
+	var result mapMergeResult
+
+	err := foldMapTiers(cmd, cmdChain, flagSpec, cliValues, state, true, &result)
+
+	return whyMapFoldRow(flagSpec, result, err, row, true)
 }
 
 // whyConfigFileRow renders the config-file container row. Config-file paths
@@ -198,6 +249,137 @@ func (a *App[T]) whyCoercedRow(cmdChain []*spec.Command, flagSpec *spec.Flag, ra
 	row.Value = cond.If(redact, why.Redacted, whyDisplayValue(flagSpec, value))
 
 	return row
+}
+
+// whyMapFoldRow renders one map flag row from a resolved fold. A zero fold
+// renders unset; a coercion failure renders an error row naming the failing
+// tier; otherwise the row shows the merged map and one sub-row per key with
+// the tier that last wrote it (when includeEntries is set). Redaction applies
+// per key: keys written by a non-default tier of an unsafe flag are redacted,
+// while default-tier keys stay visible, matching the report's always-display-defaults
+// rule.
+func whyMapFoldRow(flagSpec *spec.Flag, result mapMergeResult, err error, row why.Row, includeEntries bool) why.Row {
+	if !result.hasValues {
+		row.Source = whySourceWord(SourceNone)
+
+		return row
+	}
+
+	if err != nil {
+		row.Error = err.Error()
+		if !flagSpec.Safe {
+			row.Value = why.Redacted
+		} else if result.failedRaw != "" {
+			row.Value = result.failedRaw
+		}
+
+		return row
+	}
+
+	row.Source = whySourceWord(result.highestTier)
+
+	mergedValue := result.merged
+	mergedReflect := reflect.ValueOf(mergedValue)
+	iter := mergedReflect.MapRange()
+
+	var hasNonDefaultKey bool
+
+	if includeEntries {
+		row.Entries, hasNonDefaultKey = whyMapEntries(iter, result.provenance, flagSpec, mergedReflect.Len())
+	} else {
+		hasNonDefaultKey = whyHasNonDefaultKey(iter, result.provenance)
+	}
+
+	if !flagSpec.Safe && hasNonDefaultKey {
+		row.Value = why.Redacted
+	} else {
+		row.Value = whyDisplayValue(flagSpec, mergedValue)
+	}
+
+	return row
+}
+
+func whyMapEntries(iter *reflect.MapIter, provenance map[string]ValueSource, flagSpec *spec.Flag, count int) ([]why.MapEntry, bool) {
+	keys := make([]string, 0, count)
+	entryMap := make(map[string]why.MapEntry, count)
+	hasNonDefault := false
+
+	for iter.Next() {
+		key := stringx.Stringify(iter.Key().Interface())
+		keySource := provenance[key]
+
+		if keySource != SourceDefault {
+			hasNonDefault = true
+		}
+
+		entry := why.MapEntry{Key: key, Source: whySourceWord(keySource)}
+		if !flagSpec.Safe && keySource != SourceDefault {
+			entry.Value = why.Redacted
+		} else {
+			entry.Value = stringx.Stringify(iter.Value().Interface())
+		}
+
+		keys = append(keys, key)
+		entryMap[key] = entry
+	}
+
+	slices.Sort(keys)
+
+	entries := make([]why.MapEntry, 0, len(keys))
+	for _, key := range keys {
+		entries = append(entries, entryMap[key])
+	}
+
+	return entries, hasNonDefault
+}
+
+func whyHasNonDefaultKey(iter *reflect.MapIter, provenance map[string]ValueSource) bool {
+	for iter.Next() {
+		key := stringx.Stringify(iter.Key().Interface())
+		if provenance[key] != SourceDefault {
+			return true
+		}
+	}
+
+	return false
+}
+
+// whyFeatureRows renders one provenance row per declared feature. The feature
+// map merges every tier key-by-key, so each feature reports the tier that
+// last wrote its key; keys no tier set fall back to their field default (or
+// unset).
+func whyFeatureRows(root *spec.Command, result mapMergeResult) []why.FeatureRow {
+	if root.FeatureFlag == nil {
+		return nil
+	}
+
+	var provided map[string]string
+	if merged, ok := result.merged.(map[string]string); ok {
+		provided = merged
+	}
+
+	values, accepted := featureValuesLenient(root, provided)
+
+	rows := make([]why.FeatureRow, 0, len(root.FeatureFields))
+
+	for _, feature := range root.FeatureFields {
+		source := whySourceWord(SourceNone)
+
+		switch {
+		case accepted[feature.Name] != "":
+			source = whySourceWord(result.provenance[feature.Name])
+		case feature.Default != "":
+			source = whySourceWord(SourceDefault)
+		}
+
+		rows = append(rows, why.FeatureRow{
+			Name:   feature.Name,
+			Value:  values[feature.Name],
+			Source: source,
+		})
+	}
+
+	return rows
 }
 
 // whyConfigPaths annotates every candidate configuration path probed during

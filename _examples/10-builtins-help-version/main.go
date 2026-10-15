@@ -35,7 +35,7 @@ func (s *StatusCmd) Examples() string {
 }
 
 func (s *StatusCmd) Run(ctx context.Context, session *conga.Session) error {
-	inspector.Print(session, session.Root[CLI]())
+	inspector.Print(session, session.Root[CLI](), s)
 
 	return nil
 }

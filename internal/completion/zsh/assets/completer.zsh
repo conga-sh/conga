@@ -1,0 +1,59 @@
+  local -a args
+  if (( CURRENT >= 2 )); then
+    args=("${(@Q)words[2,CURRENT-1]}" "${words[CURRENT]}")
+  else
+    args=("")
+  fi
+
+  local target="${words[1]/#\~/$HOME}"
+  target="${aliases[$target]:-$target}"
+  local lines
+  lines="$("$target" __complete zsh "${args[@]}" 2>/dev/null)" || lines=""
+
+  local nl=$'\n' us=$'\x1f'
+  local line tag display description composed prior
+  local -a tags fields
+  local -A tag_displays tag_values
+
+  zstyle ":completion:${curcontext}:*" group-name ''
+
+  for line in "${(@f)lines}"; do
+    case "${line%%"$us"*}" in
+      D)
+        IFS=$us read -r -A fields <<<"${line#*"$us"}"
+        [[ ",${fields[1]}," == *,noprefix,* ]] && (( ${+compstate} )) && compstate[insert]=''
+        ;;
+      L)
+        zstyle ":completion:${curcontext}:*" list-colors "${line#*"$us"}"
+        ;;
+      M)
+        _message -r "${line#*"$us"}"
+        ;;
+      C)
+        IFS=$us read -r -A fields <<<"${line#*"$us"}"
+        tag="${fields[1]}"
+        display="${fields[2]}"
+        composed="${display//:/\\:}"
+        description="${fields[3]}"
+        [[ -n "$description" ]] && composed+=":${description//:/\\:}"
+        if [[ -z "${tag_displays[$tag]+x}" ]]; then
+          tags+=("$tag")
+        fi
+        prior="${tag_displays[$tag]}"
+        tag_displays[$tag]="${prior}${prior:+$nl}$composed"
+        prior="${tag_values[$tag]}"
+        tag_values[$tag]="${prior}${prior:+$nl}${fields[4]}"
+        ;;
+    esac
+  done
+
+  local -a displays values
+  for tag in "${tags[@]}"; do
+    displays=("${(@f)tag_displays[$tag]}")
+    values=("${(@f)tag_values[$tag]}")
+    if [[ -n "$tag" ]]; then
+      _describe -t "$tag" "$tag" displays values -Q -S ''
+    else
+      compadd -Q -S '' -a values
+    fi
+  done

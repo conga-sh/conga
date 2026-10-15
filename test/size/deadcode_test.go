@@ -131,6 +131,46 @@ func TestMinimalHello_OptInInitializersEliminated(t *testing.T) {
 	}
 }
 
+func TestMinimalHello_FeatureResolutionPayloadEliminated(t *testing.T) {
+	t.Parallel()
+
+	symbols := buildAndListSymbols(t, minimalExamplePath)
+
+	assert.True(t, symbols["main.main"], "sanity check: the analysis build must expose symbols")
+
+	for _, symbol := range []string{
+		"github.com/conga-sh/conga.featureValues",
+		"github.com/conga-sh/conga.featureValuesLenient",
+		"github.com/conga-sh/conga.collectFeatureValues",
+		"github.com/conga-sh/conga.bindFeatureValues",
+		"github.com/conga-sh/conga.bindFeatureMap",
+		"github.com/conga-sh/conga.resolveFeatureGates",
+		"github.com/conga-sh/conga.completionFeatureGates",
+		"github.com/conga-sh/conga.pruneFeaturesForCompletion",
+		"github.com/conga-sh/conga.materializeFeatureValues",
+		"github.com/conga-sh/conga.unknownFeatureError",
+		"github.com/conga-sh/conga.invalidFeatureValueError",
+		"github.com/conga-sh/conga.pruneInactiveFeatures",
+		"github.com/conga-sh/conga.joinSubcommandPrefix",
+		"github.com/conga-sh/conga.collectPrunedSubtree",
+		"github.com/conga-sh/conga.validateSubcommandFeatures",
+		"github.com/conga-sh/conga.checkFeatureFlagCLIRestrictions",
+		"github.com/conga-sh/conga.checkFeatureConfigRestrictions",
+		"github.com/conga-sh/conga/internal/spec.MatchFeature",
+		"github.com/conga-sh/conga.featureDefaults",
+		"github.com/conga-sh/conga/internal/help.RenderFeatures",
+		"github.com/conga-sh/conga/internal/spec.(*FeatureField).ListedInHelp",
+	} {
+		assert.False(t, symbols[symbol], "linker must drop feature runtime payload: "+symbol)
+	}
+
+	for symbol := range symbols {
+		assert.False(t, strings.Contains(symbol, "resolveFeatures"), "linker must drop resolveFeatures: "+symbol)
+		assert.False(t, strings.Contains(symbol, "rejectPrunedConfig"), "linker must drop rejectPrunedConfig: "+symbol)
+		assert.False(t, strings.Contains(symbol, "pruneForCompletion"), "linker must drop pruneForCompletion: "+symbol)
+	}
+}
+
 func TestMinimalHello_VersionPayloadRetained(t *testing.T) {
 	t.Parallel()
 

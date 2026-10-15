@@ -1102,3 +1102,114 @@ func TestFormat_ArgEnumHint(t *testing.T) {
 		assert.NotContains(t, line, "[enum:")
 	})
 }
+
+func TestFormat_FeaturesSection(t *testing.T) {
+	t.Parallel()
+
+	root := &spec.Command{
+		Name: "app",
+		FeatureFields: []*spec.FeatureField{
+			{Name: "http3", Help: "Experimental HTTP/3 listener", Stage: spec.FeatureStageAlpha},
+			{Name: "syntax", Help: "Syntax version", Stage: spec.FeatureStageBeta, IsInt: true, Enum: []string{"1", "2"}, Default: "2"},
+			{Name: "stable", Help: "Stable core", Stage: spec.FeatureStageGA},
+			{Name: "legacy", Help: "Legacy mode", Stage: spec.FeatureStageDeprecated},
+		},
+	}
+
+	formatted := help.FormatWith([]*spec.Command{root}, help.Options{FeaturesSection: help.RenderFeatures})
+
+	assert.Contains(t, formatted, "Features:")
+	assert.Contains(t, formatted, "Experimental HTTP/3 listener [alpha]")
+	assert.Contains(t, formatted, "Syntax version [beta] [levels: 1, 2] [default: 2]")
+	assert.NotContains(t, formatted, "Stable core")
+	assert.NotContains(t, formatted, "Legacy mode")
+}
+
+func TestFormat_FeaturesSection_OmittedWhenAllHidden(t *testing.T) {
+	t.Parallel()
+
+	root := &spec.Command{
+		Name: "app",
+		FeatureFields: []*spec.FeatureField{
+			{Name: "stable", Help: "Stable core", Stage: spec.FeatureStageGA},
+			{Name: "legacy", Help: "Legacy mode", Stage: spec.FeatureStageDeprecated},
+		},
+	}
+
+	formatted := help.FormatWith([]*spec.Command{root}, help.Options{FeaturesSection: help.RenderFeatures})
+
+	assert.NotContains(t, formatted, "Features:")
+}
+
+func TestFormat_FeaturesSection_RootScreenOnly(t *testing.T) {
+	t.Parallel()
+
+	root := &spec.Command{
+		Name: "app",
+		FeatureFields: []*spec.FeatureField{
+			{Name: "http3", Help: "Experimental HTTP/3 listener", Stage: spec.FeatureStageAlpha},
+		},
+		Subcommands: []*spec.Command{
+			{Name: "serve"},
+		},
+	}
+
+	options := help.Options{FeaturesSection: help.RenderFeatures}
+
+	subFormatted := help.FormatWith([]*spec.Command{root, root.Subcommands[0]}, options)
+
+	assert.NotContains(t, subFormatted, "Features:")
+}
+
+func TestFormat_FeaturesSection_AbsentWithoutFeatures(t *testing.T) {
+	t.Parallel()
+
+	root := &spec.Command{
+		Name: "app",
+		Flags: []*spec.Flag{
+			{Name: "verbose", Help: "Verbose logging", IsBool: true},
+		},
+	}
+
+	formatted := help.FormatWith([]*spec.Command{root}, help.Options{FeaturesSection: help.RenderFeatures})
+
+	assert.NotContains(t, formatted, "Features:")
+}
+
+func TestFormat_FeaturesSection_AbsentWithoutHook(t *testing.T) {
+	t.Parallel()
+
+	root := &spec.Command{
+		Name: "app",
+		FeatureFields: []*spec.FeatureField{
+			{Name: "http3", Help: "Experimental HTTP/3 listener", Stage: spec.FeatureStageAlpha},
+		},
+	}
+
+	formatted := help.Format([]*spec.Command{root})
+
+	assert.NotContains(t, formatted, "Features:")
+	assert.NotContains(t, formatted, "http3")
+}
+
+func TestFormat_EnumHintHiddenSuppressesHint(t *testing.T) {
+	t.Parallel()
+
+	cmd := &spec.Command{
+		Name: "app",
+		Flags: []*spec.Flag{
+			{Name: "format", Help: "Output format", Enum: []string{"json", "yaml"}, EnumHintHidden: true, TargetType: reflect.TypeFor[string]()},
+		},
+		Args: []*spec.Arg{
+			{Name: "<verb>", Help: "Verb", Enum: []string{"get", "post"}, EnumHintHidden: true, TargetType: reflect.TypeFor[string]()},
+		},
+	}
+
+	formatted := help.Format([]*spec.Command{cmd})
+
+	flagLine := lineContaining(formatted, "Output format")
+	assert.NotContains(t, flagLine, "[enum:")
+
+	argLine := lineContaining(formatted, "Verb")
+	assert.NotContains(t, argLine, "[enum:")
+}

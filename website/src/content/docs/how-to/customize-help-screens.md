@@ -1,11 +1,11 @@
 ---
 title: How to customize help screens
-description: Configure root descriptions, examples, global footers, subcommand metadata, section groups, and help variables.
+description: Configure command descriptions, footers, section groups, and help variables across help screens.
 ---
 
 CONGA generates help screens automatically from your command structs. This guide explains how to customize top-matter descriptions, usage examples, global footers, visual section groups, and constraint formatting.
 
-## Configure root description, examples, and footers
+## Configure descriptions, examples, and footers
 
 Configure root-level help metadata on the `App` builder:
 
@@ -28,7 +28,6 @@ func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
 
 func main() {
 	app := conga.New[CLI]().
-		Name("cloudctl").
 		Description("Manage cloud infrastructure and deployments.").
 		Examples("cloudctl --verbose\ncloudctl deploy worker").
 		HelpFooter("Documentation: https://example.com/docs\nReport issues: https://example.com/issues")
@@ -122,6 +121,24 @@ Referencing a variable suppresses its matching automatic hint:
 Suppression applies per hint: unreferenced hints remain intact. Referencing an undeclared variable or referencing any variable other than `{{env}}` on a `ConfigFile` flag fails schema construction with `ErrSchema`. Double opening braces (`{{{{`) to print a literal `{{`.
 
 For the complete variable catalog and availability rules, see [Struct tag reference: help variables](/reference/struct-tags/#help-variables).
+
+## Suppress enum hints with enumhint
+
+When a flag, positional argument, or feature container specifies a long list of allowed values, the automatic `[enum: ...]` bracket hint can crowd the help screen. Add `enumhint:"-"` to suppress the hint while keeping values validated and completable:
+
+```go title="cli.go"
+type CLI struct {
+	Region conga.OptionalFlag[string] `enum:"us-east-1,us-west-1,us-west-2,eu-west-1,eu-central-1" enumhint:"-" help:"Target AWS deployment region"`
+}
+```
+
+The flag enforces the allowed values during resolution and completes them during shell tab completion, but omits `[enum: ...]` from the help screen. The tag's only accepted value is `-`. Setting `enumhint:"-"` on a field without an `enum` tag, or combining it with a `help` tag that references `{{enum}}`, fails schema build with `ErrSchema`.
+
+## Automatic Features section
+
+When the root command declares a `conga.Features[T]` container (see [How to gate features](/how-to/feature-flags/)), CONGA automatically renders a `Features:` section on the root help screen. The section lists each experimental toggle (`alpha` and `beta`), its help text, maturity stage, integer levels, and default value. Mature toggles staged `ga` or `deprecated` are omitted from the section.
+
+The synthesized feature-gates flag automatically suppresses its own `[enum: ...]` hint because the `Features:` section already documents every available toggle.
 
 ## Query help and usage strings in commands
 

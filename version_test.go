@@ -116,7 +116,6 @@ func TestVersionFlag_SummaryOmitsBuildDetails(t *testing.T) {
 	var buffer bytes.Buffer
 
 	app := conga.New[TestVersionRootCLI]().
-		Name("testapp").
 		Version("2.1.0").
 		Args([]string{"--version"}).
 		Stdout(&buffer)
@@ -169,7 +168,6 @@ func TestVersionCommand_JSON(t *testing.T) {
 	var buffer bytes.Buffer
 
 	app := conga.New[TestVersionRootCLI]().
-		Name("testapp").
 		Version("3.0.0").
 		Args([]string{"version", "--json"}).
 		Stdout(&buffer)
@@ -208,7 +206,6 @@ func TestVersionCommand_JSONInvalidValue(t *testing.T) {
 	var buffer bytes.Buffer
 
 	app := conga.New[TestVersionRootCLI]().
-		Name("testapp").
 		Version("3.0.0").
 		Args([]string{"version", "--json=banana"}).
 		Stdout(&buffer)
@@ -228,7 +225,6 @@ func TestVersionCommand_JSONEmptyValueTreatedAsTrue(t *testing.T) {
 	var buffer bytes.Buffer
 
 	app := conga.New[TestVersionRootCLI]().
-		Name("testapp").
 		Version("3.0.0").
 		Args([]string{"version", "--json="}).
 		Stdout(&buffer)
@@ -246,7 +242,6 @@ func TestVersionCommand_AncestorJSONFlagDoesNotShadow(t *testing.T) {
 
 	cli := new(TestVersionJSONCollisionCLI)
 	app := conga.New(cli).
-		Name("testapp").
 		Version("3.0.0").
 		Args([]string{"version", "--json"}).
 		Stdout(&buffer)
@@ -255,7 +250,7 @@ func TestVersionCommand_AncestorJSONFlagDoesNotShadow(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Contains(t, buffer.String(), `{"version":"3.0.0"`)
-	assert.True(t, cli.Version.JSON)
+	assert.True(t, cli.Version.JSON())
 	assert.False(t, cli.JSON.Get())
 }
 
@@ -266,7 +261,6 @@ func TestVersionCommand_RootJSONFlagUnaffected(t *testing.T) {
 
 	cli := new(TestVersionJSONCollisionCLI)
 	app := conga.New(cli).
-		Name("testapp").
 		Version("3.0.0").
 		Args([]string{"--json", "status"}).
 		Stdout(&buffer)
@@ -275,7 +269,7 @@ func TestVersionCommand_RootJSONFlagUnaffected(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.True(t, cli.JSON.Get())
-	assert.False(t, cli.Version.JSON)
+	assert.False(t, cli.Version.JSON())
 }
 
 func TestHelp_ShowsVersionFlagWhenVersionSet(t *testing.T) {
@@ -284,7 +278,6 @@ func TestHelp_ShowsVersionFlagWhenVersionSet(t *testing.T) {
 	var buffer bytes.Buffer
 
 	app := conga.New[TestVersionRootCLI]().
-		Name("testapp").
 		Version("2.1.0").
 		Args([]string{"--help"}).
 		Stdout(&buffer)
@@ -308,7 +301,6 @@ func TestHelp_ShowsVersionFlagWithoutVersion(t *testing.T) {
 	var buffer bytes.Buffer
 
 	app := conga.New[TestHelpRootCLI]().
-		Name("testapp").
 		Args([]string{"--help"}).
 		Stdout(&buffer)
 
@@ -339,7 +331,6 @@ func TestVersion_CollisionWithoutDisableVersionFlag(t *testing.T) {
 	t.Parallel()
 
 	app := conga.New[UserVersionFlagCLI]().
-		Name("testapp").
 		Version("1.0.0").
 		Args([]string{})
 
@@ -353,7 +344,6 @@ func TestVersion_CustomFlagCollisionWithoutDisableVersionFlag(t *testing.T) {
 	t.Parallel()
 
 	app := conga.New[UserVersionFlagCLI]().
-		Name("testapp").
 		Args([]string{"--version", "custom-v1"})
 
 	err := app.Run()
@@ -367,7 +357,6 @@ func TestVersion_CustomFlagWithDisableVersionFlag(t *testing.T) {
 
 	cli := new(UserVersionFlagCLI)
 	app := conga.New(cli).
-		Name("testapp").
 		DisableVersionFlag().
 		Args([]string{"--version", "custom-v1"})
 

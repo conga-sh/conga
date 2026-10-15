@@ -10,12 +10,13 @@
 // Fields use container types to define the CLI interface:
 //
 //   - Flags: [OptionalFlag], [RequiredFlag], [Counter], [ConfigFile]
+//   - Feature toggles: [Features]
 //   - Positional arguments: [OptionalArg], [RequiredArg], [DashArgs], [RawArgs]
 //   - Subcommands: [Command]
 //
-// Struct tags declare names, help text, fallback values, and constraints such
-// as range, len, enum, xor, and and. For the full tag specification,
-// See https://docs.conga.sh/reference/struct-tags/.
+// Struct tags declare names, help text, fallback values, feature-gating (feature),
+// and constraints such as range, len, enum, xor, and and. For the full tag
+// specification, see https://docs.conga.sh/reference/struct-tags/.
 //
 // Commands execute by implementing [Runner]. Lifecycle hooks can be added
 // with [Validator], [PreRunner], [PostRunner], and [Finalizer].
@@ -51,6 +52,11 @@
 //
 // Positional arguments resolve only from command-line arguments and default
 // tags. [OptionalFlag.Source] reports where a resolved value originated.
+//
+// For scalar and slice flags, the winning tier replaces lower-precedence sources
+// entirely. In contrast, map flags and [Features] merge key by key across tiers
+// in ascending precedence (default < config < env < CLI): each source overlays
+// only the keys it specifies, preserving lower-tier entries for unmentioned keys.
 //
 // See https://docs.conga.sh/explanation/value-precedence/.
 //
@@ -104,4 +110,12 @@
 //   - Configuration decoders: import and register decoders such as
 //     decoder/yaml using [App.RegisterDecoder].
 //   - Dotenv files: call [App.Dotenv] to load variables from .env files.
+//   - Feature toggles: call [App.EnableFeatures] to activate feature toggles
+//     declared with [Features] and gate execution behind feature tags.
+//
+// # Requirements
+//
+// CONGA requires Go 1.27 or newer. Tooling such as conga-lint and conga-reorder
+// likewise requires a Go 1.27+ toolchain to parse and analyze method-level generic
+// type parameters.
 package conga

@@ -5,7 +5,14 @@ import (
 	"runtime"
 	"strings"
 
+	_ "embed"
+
 	"github.com/conga-sh/conga/internal/completion/wire"
+)
+
+var (
+	//go:embed assets/completer.ps1
+	completerTemplate string
 )
 
 // usingDeclarations opens every generated script: both namespaces are
@@ -18,69 +25,25 @@ using namespace System.Management.Automation.Language
 // dynamicTarget invokes the binary under the command name the user typed.
 const dynamicTarget = `$elems[0]`
 
-// completerTemplate is the shared completer body: %[1]s is the invocation
-// target expression. The elements of the parsed command AST are truncated at
-// the cursor, stripped of their surrounding quotes (PowerShell's Extent.Text
-// is the raw source), restored from empty tokens, and passed — without the
-// program name — to the binary's __complete entry point. The JSON payload is
-// piped through ConvertFrom-Json into CompletionResult objects; a failed or
-// empty invocation returns "" so PowerShell's default file completion is
-// suppressed.
-const completerTemplate = `    $esc = [char]27
-    $commandElements = $commandAst.CommandElements
+// Snippet renders the PowerShell registration script for the given command
+// name and aliases (docs/completion-wire-protocol.md): the
+// single-command form defines one completer function and registers it for
+// the command name (plus its .exe variant, active on Windows and commented
+// out elsewhere); the multi-command form assigns one completer scriptblock
+// (invoking the binary under the name the user typed, .exe suffix stripped)
+// shared by one registration line per name and alias. The completer collects
+// the cursor-truncated command elements (quotes stripped, PowerShell's
+// tokenization), drops the program name, and feeds the words to the binary's
+// __complete entry point; the JSON payload is piped through
+// ConvertFrom-Json into CompletionResult objects. An empty result set
+// returns "" so PowerShell's default file completion is suppressed.
+func Snippet(name string, aliases []string) string {
+	if len(aliases) > 0 {
+		return multiSnippet(name, aliases)
+	}
 
-    $elems = @()
-    foreach ($_ in $commandElements) {
-      if ($_.Extent.StartOffset -gt $cursorPosition) {
-          break
-      }
-      $t = $_.Extent.Text
-      if ($_.Extent.EndOffset -gt $cursorPosition) {
-          $t = $t.Substring(0, $_.Extent.Text.Length - ($_.Extent.EndOffset - $cursorPosition))
-      }
-      if ($t.Length -gt 0 -and ($t[0] -eq "'" -or $t[0] -eq '"')) {
-        $t = $t.Substring(1)
-      }
-      if ($t.Length -gt 0 -and ($t[$t.Length - 1] -eq "'" -or $t[$t.Length - 1] -eq '"')) {
-        $t = $t.Substring(0, $t.Length - 1)
-      }
-      if ($t.Length -eq 0) {
-        $t = '""'
-      }
-      $elems += $t.replace('` + "`" + `,', ',')
-    }
-
-    if ($elems.Count -eq 0) {
-      return ""
-    }
-
-    $words = @()
-    if ($elems.Count -gt 1) {
-      $words = $elems[1..($elems.Count - 1)]
-    }
-
-    $payload = @(
-      if (!$wordToComplete) {
-        & %[1]s __complete powershell $words '' 2>$null
-      } else {
-        & %[1]s __complete powershell $words 2>$null
-      }
-    )
-    if (!$payload) {
-      return ""
-    }
-
-    $completions = @(
-      ($payload | ConvertFrom-Json).candidates | ForEach-Object {
-        [CompletionResult]::new($_.value, $_.display.replace('` + "`" + `e[', ($esc + '[')), [CompletionResultType]::ParameterValue, $_.description.replace('` + "`" + `e[', ($esc + '[')))
-      }
-    )
-    if ($completions.Count -eq 0) {
-      return ""
-    }
-
-    $completions
-`
+	return singleSnippet(name)
+}
 
 func singleSnippet(name string) string {
 	identifier := wire.SanitizeIdentifier(name)

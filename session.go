@@ -1,6 +1,7 @@
 package conga
 
 import (
+	"fmt"
 	"io"
 
 	"github.com/conga-sh/conga/internal/help"
@@ -157,17 +158,21 @@ func (s *Session) LoadedConfigFiles() []string {
 // In a subcommand's [Runner.Run] or lifecycle hook, use Root to inspect global flags
 // and shared settings declared on the root command.
 //
-// Returns nil if the session is nil or if T does not match the actual root struct type.
+// Returns nil if the session is nil or if no root command instance exists.
+//
+// Panics:
+//   - If T does not match the actual root struct type.
 func (s *Session) Root[T any]() *T {
-	if s == nil {
+	if s == nil || s.root == nil {
 		return nil
 	}
 
-	if typed, ok := s.root.(*T); ok {
-		return typed
+	root, ok := s.root.(*T)
+	if !ok {
+		panic(fmt.Sprintf("conga: Session.Root[%T] called, but root command type is %T", *new(T), s.root))
 	}
 
-	return nil
+	return root
 }
 
 // eofReader is the nil-session input analogue of io.Discard: every Read

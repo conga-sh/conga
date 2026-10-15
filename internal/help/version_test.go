@@ -2,6 +2,7 @@ package help_test
 
 import (
 	"encoding/json"
+	"runtime"
 	"testing"
 
 	"github.com/alecthomas/assert/v2"
@@ -59,8 +60,8 @@ func TestVersionJSON(t *testing.T) {
 	assert.NoError(t, json.Unmarshal([]byte(payload), &decoded))
 	assert.Equal(t, "1.0.0", decoded["version"])
 	assert.Equal(t, false, decoded["modified"])
-	assert.Equal(t, "linux", decoded["os"])
-	assert.Equal(t, "amd64", decoded["arch"])
+	assert.Equal[any](t, runtime.GOOS, decoded["os"])
+	assert.Equal[any](t, runtime.GOARCH, decoded["arch"])
 }
 
 func TestGetBuildInfo(t *testing.T) {

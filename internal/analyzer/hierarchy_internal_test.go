@@ -27,6 +27,7 @@ var wrapperContainerContracts = map[string]struct {
 	"VersionCommand":    {kind: "KindVersionCommand"},
 	"CompletionCommand": {kind: "KindCompletionCommand"},
 	"ConfigFile":        {kind: "KindConfigFile", stateMethods: []string{"getValue", "setValue"}},
+	"Features":          {kind: "KindFeatures", stateMethods: []string{"getValue", "setValue", "resolveFeatures", "rejectPrunedConfig", "pruneForCompletion"}},
 	"DashArgs":          {kind: "KindDashArgs", stateMethods: []string{"setArgs"}},
 	"RawArgs":           {kind: "KindRawArgs", stateMethods: []string{"setArgs"}},
 	"OptionalFlag":      {kind: "KindFlag", stateMethods: []string{"getValue", "setValue"}},

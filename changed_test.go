@@ -21,12 +21,45 @@ type SemanticsCLI struct {
 	Name conga.OptionalFlag[string] `default:"initial" env:"SEMANTICS_NAME" name:"name"`
 }
 
+type featureSemanticsSet struct {
+	Enabled bool `default:"true"`
+}
+
+type FeatureSemanticsCLI struct {
+	noopRunner
+
+	Features conga.Features[featureSemanticsSet] `flag:"feature-gates"`
+}
+
+func TestFeatures_String(t *testing.T) {
+	t.Parallel()
+
+	cli := new(FeatureSemanticsCLI)
+	app := conga.New(cli).
+		EnableFeatures().
+		Args([]string{"--feature-gates", "enabled=false"})
+
+	err := app.RunContext(t.Context())
+
+	assert.NoError(t, err)
+	assert.Equal(t, "{false}", cli.Features.String())
+}
+
+func TestFeatures_StringNilReceiver(t *testing.T) {
+	t.Parallel()
+
+	var features *conga.Features[featureSemanticsSet]
+
+	result := features.String()
+
+	assert.Zero(t, result)
+}
+
 func TestChangedSemantics_DefaultSource(t *testing.T) {
 	t.Parallel()
 
 	cli := new(SemanticsCLI)
 	app := conga.New(cli).
-		Name("app").
 		Args([]string{})
 
 	err := app.RunContext(t.Context())
@@ -43,7 +76,6 @@ func TestChangedSemantics_EnvSource(t *testing.T) {
 
 	cli := new(SemanticsCLI)
 	app := conga.New(cli).
-		Name("app").
 		Args([]string{})
 
 	err := app.RunContext(t.Context())
@@ -60,7 +92,6 @@ func TestChangedSemantics_CLISource(t *testing.T) {
 
 	cli := new(SemanticsCLI)
 	app := conga.New(cli).
-		Name("app").
 		Args([]string{"--name", "from_cli"})
 
 	err := app.RunContext(t.Context())
@@ -72,12 +103,45 @@ func TestChangedSemantics_CLISource(t *testing.T) {
 	assert.Equal(t, conga.SourceCLI, cli.Name.Source())
 }
 
+func TestFeaturesSemantics_DefaultOnly(t *testing.T) {
+	t.Parallel()
+
+	cli := new(FeatureSemanticsCLI)
+	app := conga.New(cli).
+		EnableFeatures().
+		Args([]string{})
+
+	err := app.RunContext(t.Context())
+
+	assert.NoError(t, err)
+	assert.False(t, cli.Features.IsSet())
+	assert.False(t, cli.Features.Changed())
+	assert.Equal(t, conga.SourceNone, cli.Features.Source())
+	assert.True(t, cli.Features.Get().Enabled)
+}
+
+func TestFeaturesSemantics_CLISource(t *testing.T) {
+	t.Parallel()
+
+	cli := new(FeatureSemanticsCLI)
+	app := conga.New(cli).
+		EnableFeatures().
+		Args([]string{"--feature-gates", "enabled=false"})
+
+	err := app.RunContext(t.Context())
+
+	assert.NoError(t, err)
+	assert.True(t, cli.Features.IsSet())
+	assert.True(t, cli.Features.Changed())
+	assert.Equal(t, conga.SourceCLI, cli.Features.Source())
+	assert.False(t, cli.Features.Get().Enabled)
+}
+
 func TestXor_DefaultDoesNotConflict(t *testing.T) {
 	t.Parallel()
 
 	cli := new(XorDefaultCLI)
 	app := conga.New(cli).
-		Name("app").
 		Args([]string{"--immediate"})
 
 	err := app.RunContext(t.Context())
@@ -96,7 +160,6 @@ func TestXor_ExplicitConflictStillDetected(t *testing.T) {
 		t.Parallel()
 
 		app := conga.New[XorDefaultCLI]().
-			Name("app").
 			Args([]string{"--immediate", "--graceful"})
 
 		err := app.RunContext(t.Context())
@@ -110,7 +173,6 @@ func TestXor_ExplicitConflictStillDetected(t *testing.T) {
 		t.Parallel()
 
 		app := conga.New[XorDefaultCLI]().
-			Name("app").
 			Args([]string{"--immediate", "--graceful=false"})
 
 		err := app.RunContext(t.Context())
@@ -132,7 +194,6 @@ func TestXor_EnvCountsAsChanged(t *testing.T) {
 	}
 
 	app := conga.New[XorEnvCLI]().
-		Name("app").
 		Args([]string{"--immediate"})
 
 	err := app.RunContext(t.Context())
@@ -153,7 +214,6 @@ func TestAndGroup_EnvTriggersGroup(t *testing.T) {
 	}
 
 	app := conga.New[AndGroupCLI]().
-		Name("app").
 		Args([]string{})
 
 	err := app.RunContext(t.Context())
@@ -174,7 +234,6 @@ func TestAndGroup_DefaultDoesNotTriggerGroup(t *testing.T) {
 	}
 
 	app := conga.New[CLI]().
-		Name("app").
 		Args([]string{})
 
 	err := app.RunContext(t.Context())

@@ -124,9 +124,14 @@ type MultiConfigFileTestCLI struct {
 	Port    conga.OptionalFlag[int]    `default:"8080"`
 	Host    conga.OptionalFlag[string] `default:"localhost"`
 	Env     conga.OptionalFlag[string] `default:"dev"`
+	Loaded  []string
 }
 
-func (m *MultiConfigFileTestCLI) Run(_ context.Context, _ *conga.Session) error { return nil }
+func (m *MultiConfigFileTestCLI) Run(_ context.Context, session *conga.Session) error {
+	m.Loaded = session.LoadedConfigFiles()
+
+	return nil
+}
 
 func TestConfig_UnregisteredDecoderRejection(t *testing.T) {
 	t.Parallel()
@@ -537,6 +542,29 @@ func TestConfigFiles_MultiFlag(t *testing.T) {
 	assert.Equal(t, "prod", cli.Env.Get())
 }
 
+func TestSession_LoadedConfigFiles(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	basePath := filepath.Join(tmpDir, "base.json")
+	err := os.WriteFile(basePath, []byte(`{"port": 9000, "host": "0.0.0.0", "env": "staging"}`), 0o600)
+	assert.NoError(t, err)
+
+	overridePath := filepath.Join(tmpDir, "override.json")
+	err = os.WriteFile(overridePath, []byte(`{"port": 9999, "env": "prod"}`), 0o600)
+	assert.NoError(t, err)
+
+	cli := new(MultiConfigFileTestCLI)
+	app := conga.New(cli).
+		RegisterDecoder(".json", json.Decode).
+		Args([]string{"-c", basePath, "-c", overridePath})
+
+	err = app.Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, []string{basePath, overridePath}, cli.Loaded)
+}
+
 type NamespacedFlagAliasCLI struct {
 	ConfigFile conga.ConfigFile        `short:"c"`
 	Port       conga.OptionalFlag[int] `aliases:"listen-port" config:"network.port" short:"p"`
@@ -666,6 +694,8 @@ func TestConfig_MultiFormatConflict_Directory(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.IsError(t, err, conga.ErrConfig)
+	assert.Contains(t, err.Error(), "multiple conflicting config files found")
+	assert.Contains(t, err.Error(), "server.json, server.toml")
 }
 
 func TestConfig_MultiFormatConflict_Stem(t *testing.T) {
@@ -690,6 +720,8 @@ func TestConfig_MultiFormatConflict_Stem(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.IsError(t, err, conga.ErrConfig)
+	assert.Contains(t, err.Error(), "multiple conflicting config files found")
+	assert.Contains(t, err.Error(), "config.hcl, config.toml")
 }
 
 type NativeMapCLI struct {
@@ -1105,4 +1137,42 @@ func TestConfig_DefaultXDGTierMissingDirectoryIsSilent(t *testing.T) {
 	assert.Equal(t, 8080, cli.Port.Get())
 	assert.Equal(t, conga.SourceDefault, cli.Port.Source())
 	assert.Equal(t, "", cli.ConfigFile.Path())
+}
+
+func TestConfig_ConfigExplicit_ConflictWithPathsOrCascading_FailsSchema(t *testing.T) {
+	t.Parallel()
+
+	type SimpleCLI struct {
+		noopRunner
+
+		Port conga.OptionalFlag[int] `name:"port"`
+	}
+
+	t.Run("explicit combined with paths", func(t *testing.T) {
+		t.Parallel()
+
+		app := conga.New[SimpleCLI]().
+			ConfigOptions(conga.ConfigExplicit("app.json"), conga.ConfigPaths("search.json")).
+			Args([]string{})
+
+		err := app.RunContext(t.Context())
+
+		assert.Error(t, err)
+		assert.IsError(t, err, conga.ErrSchema)
+		assert.Contains(t, err.Error(), "conga.ConfigExplicit() specifies an absolute configuration file and cannot be combined with conga.ConfigPaths() or conga.ConfigCascading()")
+	})
+
+	t.Run("explicit combined with cascading", func(t *testing.T) {
+		t.Parallel()
+
+		app := conga.New[SimpleCLI]().
+			ConfigOptions(conga.ConfigExplicit("app.json"), conga.ConfigCascading()).
+			Args([]string{})
+
+		err := app.RunContext(t.Context())
+
+		assert.Error(t, err)
+		assert.IsError(t, err, conga.ErrSchema)
+		assert.Contains(t, err.Error(), "conga.ConfigExplicit() specifies an absolute configuration file and cannot be combined with conga.ConfigPaths() or conga.ConfigCascading()")
+	})
 }

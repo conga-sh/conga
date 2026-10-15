@@ -15,7 +15,7 @@ type ExecCmd struct {
 }
 
 func (e *ExecCmd) Run(ctx context.Context, session *conga.Session) error {
-	inspector.Print(session, session.Root[CLI]())
+	inspector.Print(session, session.Root[CLI](), e)
 
 	fmt.Fprintf(session.Stdout(), "RawArgs container: %v\n", e.Command.Get())
 

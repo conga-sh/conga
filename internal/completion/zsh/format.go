@@ -7,7 +7,6 @@ import (
 	"cmp"
 	"slices"
 	"strings"
-	"sync"
 
 	"github.com/conga-sh/conga/internal/completion/wire"
 	"github.com/conga-sh/conga/internal/slicex"
@@ -23,33 +22,14 @@ const (
 	recordMessage    = "M"
 	recordCandidate  = "C"
 	fieldSep         = "\x1f"
+	controlCutset    = "\t\n\r\x1f"
+
+	longhandFlagsTag   = "longhand flags"
+	shorthandFlagsTag  = "shorthand flags"
+	mergedFlagsTag     = "flags"
+	valueEscapeClass   = " \"'\\$`|&;<>()[]{}*?!^#"
+	patternEscapeClass = "\\[]*?()|^~#<>:"
 )
-
-// Tag names of the engine vocabulary that merge into the single "flags" tag
-// group on the zsh wire.
-const (
-	longhandFlagsTag  = "longhand flags"
-	shorthandFlagsTag = "shorthand flags"
-	mergedFlagsTag    = "flags"
-)
-
-// valueEscapeClass lists the characters that require backslash-escaping in an
-// inserted value so the completed word survives zsh word splitting, quote
-// processing, and glob expansion. "=", "/" and a leading "~" are kept verbatim:
-// attached values ("--env=staging"), directory candidates ("subdir/") and tilde
-// expansion ("~/bin") are all observed unescaped on the wire.
-const valueEscapeClass = " \"'\\$`|&;<>()[]{}*?!^#"
-
-// patternEscapeClass lists the zsh glob metacharacters that require
-// backslash-escaping inside a list-colors pattern; the colon is the
-// list-colors entry separator and must always be escaped in a pattern.
-const patternEscapeClass = "\\[]*?()|^~#<>:"
-
-//nolint:gochecknoglobals // one-time lazy construction of the shared replacer below
-var fieldSanitizerOnce sync.Once
-
-//nolint:gochecknoglobals // immutable after fieldSanitizerOnce completes
-var fieldSanitizerReplacer *strings.Replacer
 
 // Format renders candidates and directives in the zsh framing: a directives
 // record ("D", always first), an optional list-colors record ("L"), message
@@ -92,17 +72,11 @@ func Format(toComplete string, directives wire.Directives, candidates []wire.Can
 	return strings.Join(lines, "\n")
 }
 
-// fieldSanitizer normalizes the characters that would corrupt the
+// sanitizeField normalizes the characters that would corrupt the
 // line-oriented record stream: every tab, newline, carriage return, and unit
-// separator becomes a single space. Construction is deferred to first use so
-// the driver package stays free of package initializers and drops at link time
-// when zsh completion is disabled.
-func fieldSanitizer() *strings.Replacer {
-	fieldSanitizerOnce.Do(func() {
-		fieldSanitizerReplacer = strings.NewReplacer("\t", " ", "\n", " ", "\r", " ", "\x1f", " ")
-	})
-
-	return fieldSanitizerReplacer
+// separator becomes a single space.
+func sanitizeField(s string) string {
+	return wire.ReplaceControlWithSpace(s, controlCutset)
 }
 
 // mergeFlagTags re-tags the engine's "longhand flags" and "shorthand flags"
@@ -152,7 +126,7 @@ func groupByTag(candidates []wire.Candidate) []wire.Candidate {
 // the shell through the message stream).
 func directivesRecord(directives wire.Directives) string {
 	return recordDirectives + fieldSep + strings.Join(directives.Tokens(), ",") +
-		fieldSep + fieldSanitizer().Replace(directives.Usage)
+		fieldSep + sanitizeField(directives.Usage)
 }
 
 // messageRecords renders the "M" records: the engine's messages plus the
@@ -180,7 +154,7 @@ func messageRecords(directives wire.Directives, colorOn bool) []string {
 // styledMessage sanitizes a message and wraps it in the theme's usage style
 // when color is enabled.
 func styledMessage(message string, colorOn bool) string {
-	message = fieldSanitizer().Replace(message)
+	message = sanitizeField(message)
 	sgr := style.SGR(style.Theme.Usage)
 
 	if !colorOn || sgr == "" {
@@ -195,7 +169,7 @@ func styledMessage(message string, colorOn bool) string {
 // trailing space is embedded unless the nospace rules apply (directive set,
 // or the value ends with "=" or "/").
 func candidateRecord(candidate wire.Candidate, directives wire.Directives, colorOn bool) string {
-	value := escapeValue(fieldSanitizer().Replace(candidate.Value))
+	value := escapeValue(sanitizeField(candidate.Value))
 	if !directives.NoSpaceFor(candidate.Value) {
 		value += " "
 	}
@@ -206,9 +180,9 @@ func candidateRecord(candidate wire.Candidate, directives wire.Directives, color
 	}
 
 	fields := []string{
-		fieldSanitizer().Replace(candidate.Tag),
-		fieldSanitizer().Replace(candidate.Display),
-		fieldSanitizer().Replace(candidate.Description),
+		sanitizeField(candidate.Tag),
+		sanitizeField(candidate.Display),
+		sanitizeField(candidate.Description),
 		value,
 		sgr,
 	}
@@ -216,18 +190,17 @@ func candidateRecord(candidate wire.Candidate, directives wire.Directives, color
 	return recordCandidate + fieldSep + strings.Join(fields, fieldSep)
 }
 
-// escapeValue backslash-escapes the zsh metacharacters of an insertion value
-// so _describe -Q can insert it verbatim.
-func escapeValue(value string) string {
-	if !strings.ContainsAny(value, valueEscapeClass) {
-		return value
+// escapeChars backslash-escapes characters in input that are present in the class.
+func escapeChars(input, class string) string {
+	if !strings.ContainsAny(input, class) {
+		return input
 	}
 
 	var builder strings.Builder
-	builder.Grow(len(value) + 4)
+	builder.Grow(len(input) + 4)
 
-	for _, r := range value {
-		if strings.ContainsRune(valueEscapeClass, r) {
+	for _, r := range input {
+		if strings.ContainsRune(class, r) {
 			builder.WriteByte('\\')
 		}
 
@@ -235,6 +208,12 @@ func escapeValue(value string) string {
 	}
 
 	return builder.String()
+}
+
+// escapeValue backslash-escapes the zsh metacharacters of an insertion value
+// so _describe -Q can insert it verbatim.
+func escapeValue(value string) string {
+	return escapeChars(value, valueEscapeClass)
 }
 
 // listColorsSpec builds the zsh list-colors specification: one entry pair per
@@ -258,7 +237,7 @@ func listColorsSpec(candidates []wire.Candidate) string {
 			limit--
 		}
 
-		display := patternEscape(fieldSanitizer().Replace(candidate.Display))
+		display := patternEscape(sanitizeField(candidate.Display))
 		valueSGR := style.SGR(cmp.Or(candidate.Style, style.Theme.Value))
 
 		entries = append(entries,
@@ -274,20 +253,5 @@ func listColorsSpec(candidates []wire.Candidate) string {
 // patternEscape backslash-escapes the glob metacharacters of a display string
 // inside a list-colors pattern.
 func patternEscape(display string) string {
-	if !strings.ContainsAny(display, patternEscapeClass) {
-		return display
-	}
-
-	var builder strings.Builder
-	builder.Grow(len(display) + 4)
-
-	for _, r := range display {
-		if strings.ContainsRune(patternEscapeClass, r) {
-			builder.WriteByte('\\')
-		}
-
-		builder.WriteRune(r)
-	}
-
-	return builder.String()
+	return escapeChars(display, patternEscapeClass)
 }

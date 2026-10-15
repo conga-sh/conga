@@ -596,10 +596,17 @@ func (c *Command[T]) Get() *T {
 //
 // See https://docs.conga.sh/reference/builtins/.
 type HelpCommand struct {
-	// Path holds the subcommand path whose help was requested, populated by the
-	// engine from positional tokens (for example, cluster nodes when the user runs
-	// help cluster nodes). When empty, Run renders the help screen of the parent command.
-	Path []string
+	path []string
+}
+
+// Path returns the subcommand path whose help was requested, or empty when
+// rendering the help screen of the parent command.
+func (h *HelpCommand) Path() []string {
+	if h == nil {
+		return nil
+	}
+
+	return append([]string(nil), h.path...)
 }
 
 // Run resolves the requested subcommand path and renders its help screen to
@@ -617,7 +624,7 @@ func (h *HelpCommand) Run(ctx context.Context, session *Session) error {
 	}
 
 	parentChain := session.cmdChain[:len(session.cmdChain)-1]
-	if len(h.Path) == 0 {
+	if len(h.path) == 0 {
 		fmt.Fprintln(session.Stdout(), help.FormatWith(parentChain, session.helpOptions))
 
 		return nil
@@ -627,7 +634,7 @@ func (h *HelpCommand) Run(ctx context.Context, session *Session) error {
 	targetChain := []*spec.Command{root}
 	current := root
 
-	for _, seg := range h.Path {
+	for _, seg := range h.path {
 		var matched *spec.Command
 
 		for _, subcommand := range current.Subcommands {
@@ -669,9 +676,12 @@ func (h *HelpCommand) Run(ctx context.Context, session *Session) error {
 //
 // See https://docs.conga.sh/reference/builtins/.
 type VersionCommand struct {
-	// JSON indicates whether the version output should be rendered as a flat
-	// machine-readable JSON object instead of the human-readable text block.
-	JSON bool
+	json bool
+}
+
+// JSON reports whether the version output should be rendered as a JSON object.
+func (v *VersionCommand) JSON() bool {
+	return v != nil && v.json
 }
 
 // Run renders detailed application version information to [Session.Stdout].
@@ -689,7 +699,7 @@ func (v *VersionCommand) Run(ctx context.Context, session *Session) error {
 		return nil
 	}
 
-	if v != nil && v.JSON {
+	if v != nil && v.json {
 		fmt.Fprintln(session.Stdout(), help.VersionJSON(session.appVersion))
 
 		return nil
@@ -722,9 +732,16 @@ func (v *VersionCommand) Run(ctx context.Context, session *Session) error {
 //
 // See https://docs.conga.sh/reference/builtins/.
 type CompletionCommand struct {
-	// Shell holds the target shell name (bash, zsh, fish, powershell, elvish,
-	// nushell). When empty, Run renders usage guidance listing supported shells.
-	Shell string
+	shell string
+}
+
+// Shell returns the target shell name.
+func (c *CompletionCommand) Shell() string {
+	if c == nil {
+		return ""
+	}
+
+	return c.shell
 }
 
 // Run generates and outputs the shell completion script for the requested shell
@@ -744,13 +761,13 @@ func (c *CompletionCommand) Run(ctx context.Context, session *Session) error {
 	// Invoked without a shell (e.g. app completion), the command renders its
 	// help screen instead of failing: the supported-shells list and current-
 	// shell enable hints are the guidance the caller is looking for.
-	if c.Shell == "" {
+	if c.shell == "" {
 		fmt.Fprintln(session.Stdout(), session.Help())
 
 		return nil
 	}
 
-	parsedShell, err := completion.ParseShell(c.Shell)
+	parsedShell, err := completion.ParseShell(c.shell)
 	if err != nil {
 		return &validationError{
 			msg:      err.Error(),
@@ -761,6 +778,97 @@ func (c *CompletionCommand) Run(ctx context.Context, session *Session) error {
 
 	return generateCompletionScript(parsedShell, session.cmdChain[0], session.Stdout())
 }
+
+// Features declares the application's feature toggles through the fields of T.
+//
+// Each exported field of T declares one feature: the field name, converted to
+// kebab-case (or overridden with the name tag), is the feature name. A bool
+// field is an on/off toggle; an integer field is a leveled toggle where 0 means
+// off and any other value must be listed in the enum tag.
+//
+//	type Experiments struct {
+//		RemoteCache      bool `help:"Experimental distributed CAS artifact cache"`
+//		SandboxIsolation int  `enum:"1,2" help:"Experimental build sandbox isolation: 1=chroot, 2=rootless-container"`
+//	}
+//
+//	type CLI struct {
+//		Features conga.Features[Experiments] `flag:"feature-gates" env:"APP_FEATURES" config:"experiments"`
+//	}
+//
+//	app := conga.New[CLI]().EnableFeatures()
+//
+// Declare the Features field on the root command struct only. Activating
+// feature toggles requires calling [App.EnableFeatures] on the application
+// builder; declaring a Features field or a feature tag without it fails schema
+// build with [ErrSchema].
+//
+// Every feature is
+// carried by a single key=value map surface: the map flag named by the flag tag
+// (omitted when the tag is absent), the environment variable named by env or
+// derived from envprefix, and the configuration section named by config. A key
+// may use any spelling of a declared feature name (kebab-case, snake_case, or
+// camelCase); keys are canonicalized before the merge, so precedence follows
+// the tier rather than the spelling. The field defaults form the base set;
+// config, environment, and command line sources merge over it key by key in
+// ascending precedence (config < env < CLI), each source overlaying only the
+// keys it lists (Kubernetes-style sparse overrides), so a config file can
+// enable one feature while the command line enables another. Read the resolved
+// values through [Features.Get]:
+//
+//	if cli.Features.Get().GentleForce { ... }
+//
+// The root help screen renders an automatic Features section listing every
+// toggle: its help tag text, its stage tag maturity (alpha, beta, ga, or
+// deprecated — optional, but all features must declare one when any does), and
+// its default. Features staged ga or deprecated are omitted from the section.
+//
+// Flags and subcommands gated by the feature tag are pruned from help, why, and
+// completion when their feature is inactive, and invoking them is a usage error.
+//
+// Gating enforcement is symmetric for explicit inputs: a gated flag supplied on
+// the command line is a usage error even when only help was requested, and a
+// configuration key naming a gated flag whose feature is inactive is rejected
+// with [ErrConfig]. Environment variables are the exception: pruning removes
+// the flag from the schema before environment binding, so a variable targeting
+// an inactive gated flag is ignored rather than rejected, keeping ambient
+// environment state from breaking runs it does not control.
+//
+// See https://docs.conga.sh/how-to/feature-flags/.
+type Features[T any] struct {
+	value        T
+	source       ValueSource
+	sourceDetail string
+	provided     map[string]string
+}
+
+// Get returns a pointer to the inner feature struct with every resolved value bound.
+func (f *Features[T]) Get() *T {
+	return &f.value
+}
+
+// String returns the string representation of the features struct. Returns an empty
+// string if the receiver is nil.
+func (f *Features[T]) String() string {
+	if f == nil {
+		return ""
+	}
+
+	return stringx.Stringify(f.value)
+}
+
+// IsSet reports whether any feature source contributed a value.
+func (f *Features[T]) IsSet() bool { return f.source != SourceNone }
+
+// Changed reports whether a feature value came from the command line, the
+// environment, or a configuration file rather than exclusively from defaults.
+func (f *Features[T]) Changed() bool { return f.source != SourceNone && f.source != SourceDefault }
+
+// Source reports the highest configuration tier that contributed a key to the
+// feature map.
+func (f *Features[T]) Source() ValueSource { return f.source }
+
+// SourceDetail returns the concrete origin recorded with [Features.Source].
+func (f *Features[T]) SourceDetail() string { return f.sourceDetail }
 
 // ConfigFile represents a root-level flag for loading configuration files.
 //
@@ -1090,6 +1198,48 @@ func (v *VersionCommand) containerKind() container.Classification {
 // containerKind classifies the opt-in completion subcommand for the engine.
 func (c *CompletionCommand) containerKind() container.Classification {
 	return container.Classification{Kind: container.KindCompletionCommand, Target: c}
+}
+
+// containerKind classifies the feature-declaration container for the engine,
+// carrying the inner feature struct pointer so the schema builder can reflect
+// over its fields.
+func (f *Features[T]) containerKind() container.Classification {
+	return container.Classification{Kind: container.KindFeatures, Target: &f.value}
+}
+
+// getValue returns the feature map resolved by the engine cascade with
+// canonical feature-name keys (nil when no source supplied a value); the
+// engine uses it for key validation.
+func (f *Features[T]) getValue() any { return f.provided }
+
+// setValue stores the resolved feature map (canonical feature-name keys) and
+// records its source. The owning App later materializes the typed feature
+// struct by overlaying the stored map onto the field defaults.
+func (f *Features[T]) setValue(value any, source ValueSource, detail string) {
+	provided, ok := value.(map[string]string)
+	if !ok {
+		panic(fmt.Sprintf("conga: invariant violation: expected map[string]string in Features.setValue, got %T", value))
+	}
+
+	f.provided = provided
+	f.source = source
+	f.sourceDetail = detail
+}
+
+func (f *Features[T]) resolveFeatures(cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, state *bindingState) ([]prunedFlag, error) {
+	return resolveFeatureGates(f, &f.value, cmd, cmdChain, flagValues, state)
+}
+
+func (f *Features[T]) rejectPrunedConfig(pruned []prunedFlag, configData map[string]string) error {
+	return checkFeatureConfigRestrictions(pruned, configData)
+}
+
+// pruneForCompletion prunes inactive features for a completion invocation
+// through the pure completion resolver, leaving the container's bound state
+// untouched and keeping the feature payload behind the state-interface fence
+// for dead-code elimination.
+func (f *Features[T]) pruneForCompletion(cmd *spec.Command, flagValues map[*spec.Flag][]string, state *bindingState) {
+	pruneFeaturesForCompletion(cmd, flagValues, state)
 }
 
 // getValue returns the loaded configuration file paths for the engine.

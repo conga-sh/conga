@@ -1015,7 +1015,6 @@ func TestHelpConstraintHints(t *testing.T) {
 	var buffer bytes.Buffer
 
 	app := conga.New[RangeNumericCLI]().
-		Name("test").
 		Args([]string{"--help"}).
 		Stdout(&buffer)
 

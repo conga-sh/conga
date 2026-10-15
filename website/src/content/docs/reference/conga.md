@@ -11,7 +11,7 @@ Deep detail lives on [pkg.go.dev/github.com/conga-sh/conga](https://pkg.go.dev/g
 func New[T any](root ...*T) *App[T]
 ```
 
-`App[T]` wraps your command struct. `New` defers instance allocation to execution; pass your own instance (`conga.New(cli)`) to inspect bound container values after execution completes — see [How to keep a reference to the root struct](/how-to/keep-root-reference/). All builder methods return `*App[T]` for chaining.
+`App[T]` wraps your command struct. `New` defers instance allocation to execution; pass your own instance (`conga.New(cli)`) to inspect bound container values after execution completes — see [How to retain the root struct](/how-to/keep-root-reference/). All builder methods return `*App[T]` for chaining.
 
 `New` is the recommended constructor. The zero value of `App[T]` is also usable: the execution entry points install the same defaults `New` sets, so `var app conga.App[CLI]` behaves like `conga.New[CLI]()`.
 
@@ -27,19 +27,19 @@ func New[T any](root ...*T) *App[T]
 | `Version(version)` | `--version` display string (falls back to build metadata) |
 | `EnvPrefix(prefix)` | Environment tier prefix (normalized to trailing `_`) |
 | `Dotenv(paths...)` | Enable `.env` loading (default `.env` + `.env.local`; [rules](/reference/dotenv/)) |
-| `ConfigOptions(options...)` | Config resolution: `conga.ConfigExplicit(path)`, `conga.ConfigPaths(paths...)`, `conga.ConfigCascading()` |
+| `ConfigOptions(options...)` | Config resolution: `conga.ConfigExplicit(path)`, `conga.ConfigPaths(paths...)`, `conga.ConfigCascading()`; `ConfigExplicit` cannot be combined with paths or cascading |
 | `RegisterDecoder(ext, decoder)` | Per-app config format decoder |
 | `StrictTagValidation(strict)` | Toggle tag linting (default on) |
 | `AllowTags(tags...)` | Allow additional struct tags |
 | `Predictor(name, p)` | Register named completion predictor (panics on misuse) |
 | `Use(bindings...)` | Apply builder bindings (`network.RegisterInterface`, `timezone.RegisterLocation`, …) |
 | `RegisterType[U](parser, opts...)` | Register a parser (and optional predictor) for type `U` |
-| `RegisterMap[M](sample, opts...)` | Register a `map[K]V` parser from a sample map |
+| `RegisterMap[M](opts...)` | Register a `map[K]V` parser for a map type with string-compatible keys |
 | `Args(args)` | Custom argument slice (defaults to `os.Args[1:]`) |
 | `UsageOnError(mode)` | Error-time usage rendering mode |
 | `Stdout(w)` / `Stderr(w)` | Output writers (default `os.Stdout`/`os.Stderr`) |
 | `ExitFunc(handler)` | Custom exit handler for `Exit` |
-| `EnableWhy()` / `EnableCompletion()` | Opt in to the `--why` report and shell completion |
+| `EnableWhy()` / `EnableCompletion()` / `EnableFeatures()` | Opt in to the `--why` report, shell completion, and struct-declared feature toggles |
 | `DisableHelpFlag()` / `DisableVersionFlag()` | Remove the `--help`/`--version` flags |
 
 ### Execution methods
@@ -54,7 +54,7 @@ func New[T any](root ...*T) *App[T]
 
 ```go
 func (a *App[T]) RegisterType[U any](parser func(string) (U, error), opts ...RegisterTypeOption) *App[T]
-func (a *App[T]) RegisterMap[M ~map[K]V, K comparable, V any](sample M, opts ...RegisterTypeOption) *App[T]
+func (a *App[T]) RegisterMap[M ~map[K]V, K ~string, V any](opts ...RegisterTypeOption) *App[T]
 func WithPredictor(p predict.Predictor) RegisterTypeOption
 ```
 
@@ -68,10 +68,11 @@ func WithPredictor(p predict.Predictor) RegisterTypeOption
 | `OptionalArg[T]` / `RequiredArg[T]` | same as flags |
 | `Counter` | same as flags, value is `int` |
 | `ConfigFile` | root-only config path flag; `multi:"true"` for multi-path (`Path`, `Paths`) |
+| `Features[T]` | root-only feature declaration; values read through `Get`, plus `IsSet`, `Changed`, `Source`, `SourceDetail`, `String` |
 | `DashArgs` / `RawArgs` | `Get []string`, `GetOr`, `Len`, `IsSet`, `String` |
 | `Command[T]` | `Get() *T`, `IsSelected()` |
 
-`HelpCommand` (with `Path []string`), `VersionCommand` (with `JSON bool`), and `CompletionCommand` (with `Shell string`) are the opt-in built-in subcommand containers.
+`HelpCommand` (with `Path() []string`), `VersionCommand` (with `JSON() bool`), and `CompletionCommand` (with `Shell() string`) are the opt-in built-in subcommand containers.
 
 ## Lifecycle interfaces
 
@@ -95,7 +96,7 @@ func (s *Session) Stdout() io.Writer
 func (s *Session) Stderr() io.Writer
 func (s *Session) Help() string
 func (s *Session) Usage() string
-func (s *Session) Version()
+func (s *Session) Version() string
 func (s *Session) Path() string
 func (s *Session) Name() string
 func (s *Session) CandidateConfigFiles() []string
@@ -103,12 +104,13 @@ func (s *Session) LoadedConfigFiles() []string
 ```
 
 `Root` returns the application struct bound to `T`: the instance passed to
-`New`, or the engine-allocated instance. Enclosing command structs are reached
+`New`, or the engine-allocated instance. The type argument `T` must match the
+exact root command struct type, or `Root` panics. Enclosing command structs are reached
 by walking the selected `Command[T]` fields (`root.Cluster.Get()`).
 
 The App snapshots standard streams at the start of execution for the active session.
 
-`Help`, `Usage`, and `Version` are the formatting primitives behind the built-in `help` and `version` commands: `Help` returns the active command's help screen as a string, `Usage` returns the syntax usage summary as a string, and `Version` writes the version summary to stdout, falling back to the module version (or `dev`) plus the embedded build metadata when no version string was configured.
+`Help`, `Usage`, and `Version` are the formatting primitives behind the built-in `help` and `version` commands: `Help` returns the active command's help screen as a string, `Usage` returns the syntax usage summary as a string, and `Version` returns the formatted version summary line as a string, falling back to the module version (or `dev`) plus the embedded build metadata when no version string was configured.
 
 ## Domain types
 

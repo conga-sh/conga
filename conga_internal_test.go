@@ -80,6 +80,19 @@ func TestValidator_HasStreamsAndConfigContext(t *testing.T) {
 	assert.NoError(t, err)
 }
 
+func TestValidator_FeatureCapable_HasConfigContext(t *testing.T) {
+	t.Parallel()
+
+	app := New[featureValidatorCLI]().
+		EnableFeatures().
+		Args([]string{}).
+		ConfigOptions(ConfigPaths("test-config.json"))
+
+	err := app.RunContext(t.Context())
+
+	assert.NoError(t, err)
+}
+
 func TestApp_initDefaultPredictors_RegistersShellPredictor(t *testing.T) {
 	t.Parallel()
 
@@ -153,6 +166,27 @@ func (c *validatorContextCLI) Run(_ context.Context, _ *Session) error {
 	return nil
 }
 
+type featureValidatorSet struct {
+	Enabled bool
+}
+
+type featureValidatorCLI struct {
+	Features Features[featureValidatorSet] `flag:"feature-gates"`
+}
+
+func (c *featureValidatorCLI) Validate(_ context.Context, session *Session) error {
+	candidates := session.CandidateConfigFiles()
+	if len(candidates) != 1 || candidates[0] != "test-config.json" {
+		return fmt.Errorf("unexpected candidate config files: %v", candidates)
+	}
+
+	return nil
+}
+
+func (c *featureValidatorCLI) Run(_ context.Context, _ *Session) error {
+	return nil
+}
+
 func TestApp_Fluent_Examples(t *testing.T) {
 	t.Parallel()
 
@@ -203,6 +237,80 @@ func TestApp_Fluent_Stdin(t *testing.T) {
 	assert.False(t, app.stdin == io.Reader(os.Stdin))
 }
 
+func TestApp_StdoutNil_IsNoOp(t *testing.T) {
+	t.Parallel()
+
+	t.Run("defaults to os.Stdout", func(t *testing.T) {
+		t.Parallel()
+
+		app := New[struct{}]()
+
+		assert.True(t, app.stdout == io.Writer(os.Stdout))
+	})
+
+	t.Run("sets non-nil writer", func(t *testing.T) {
+		t.Parallel()
+
+		app := New[struct{}]()
+
+		writer := &bytes.Buffer{}
+
+		got := app.Stdout(writer)
+
+		assert.True(t, got == app)
+		assert.True(t, app.stdout == io.Writer(writer))
+	})
+
+	t.Run("nil is no-op", func(t *testing.T) {
+		t.Parallel()
+
+		app := New[struct{}]()
+		writer := &bytes.Buffer{}
+		app.Stdout(writer)
+
+		app.Stdout(nil)
+
+		assert.True(t, app.stdout == io.Writer(writer))
+	})
+}
+
+func TestApp_StderrNil_IsNoOp(t *testing.T) {
+	t.Parallel()
+
+	t.Run("defaults to os.Stderr", func(t *testing.T) {
+		t.Parallel()
+
+		app := New[struct{}]()
+
+		assert.True(t, app.stderr == io.Writer(os.Stderr))
+	})
+
+	t.Run("sets non-nil writer", func(t *testing.T) {
+		t.Parallel()
+
+		app := New[struct{}]()
+
+		writer := &bytes.Buffer{}
+
+		got := app.Stderr(writer)
+
+		assert.True(t, got == app)
+		assert.True(t, app.stderr == io.Writer(writer))
+	})
+
+	t.Run("nil is no-op", func(t *testing.T) {
+		t.Parallel()
+
+		app := New[struct{}]()
+		writer := &bytes.Buffer{}
+		app.Stderr(writer)
+
+		app.Stderr(nil)
+
+		assert.True(t, app.stderr == io.Writer(writer))
+	})
+}
+
 type validatorFailingCLI struct {
 	Port OptionalFlag[int] `name:"port"`
 }
@@ -225,4 +333,45 @@ func TestValidator_FailureSurfacesFromRun(t *testing.T) {
 	assert.Error(t, err)
 	assert.IsError(t, err, ErrValidation)
 	assert.Equal(t, "custom validator failure", err.Error())
+}
+
+// TestPrunedFlag_ConfigKeys pins the configuration-key mapping against
+// lookupConfig's read tiers: root-owned pruned flags claim the bare tiers,
+// subcommand-owned pruned flags claim only command-scoped tiers so a valid
+// top-level entry an active flag consumes is never rejected.
+func TestPrunedFlag_ConfigKeys(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		prefix   string
+		flagName string
+		config   string
+		want     []string
+	}{
+		{name: "root flag name only", flagName: "wait", want: []string{"wait"}},
+		{name: "root flag with config key", flagName: "wait", config: "timeout", want: []string{"wait", "timeout"}},
+		{name: "root flag excluded from config", flagName: "wait", config: "-", want: nil},
+		{name: "subcommand flag name only", prefix: "admin", flagName: "beta", want: []string{"admin.beta"}},
+		{name: "nested subcommand flag name only", prefix: "cluster.node", flagName: "wait", want: []string{"cluster.node.wait", "node.wait"}},
+		{name: "subcommand flag with config key", prefix: "admin", flagName: "beta", config: "beta-key", want: []string{"admin.beta-key", "admin.beta"}},
+		{name: "nested subcommand flag with config key", prefix: "cluster.node", flagName: "wait", config: "wait-key", want: []string{"cluster.node.wait-key", "cluster.node.wait", "node.wait"}},
+		{name: "subcommand flag with qualified config key", prefix: "cluster.node", flagName: "wait", config: "cluster.node.wait-key", want: []string{"cluster.node.wait-key", "cluster.node.wait", "node.wait"}},
+		{name: "subcommand flag excluded from config", prefix: "admin", flagName: "beta", config: "-", want: nil},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			pruned := prunedFlag{
+				flag:   &spec.Flag{Name: test.flagName, ConfigKey: test.config},
+				prefix: test.prefix,
+			}
+
+			got := pruned.configKeys()
+
+			assert.Equal(t, test.want, got)
+		})
+	}
 }

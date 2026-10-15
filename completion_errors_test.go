@@ -45,7 +45,6 @@ func TestComplete_PanicRecovered_Exit2Contract(t *testing.T) {
 
 	app := conga.New[panicPredictorCLI]().
 		EnableCompletion().
-		Name("testapp").
 		Stdout(&stdoutBuffer).
 		Stderr(&stderrBuffer).
 		ExitFunc(func(code int) { exitCode = code }).
@@ -78,7 +77,6 @@ func TestComplete_UnwritableStdout_Exit2Contract(t *testing.T) {
 
 	app := conga.New[SimpleAppCLI]().
 		EnableCompletion().
-		Name("testapp").
 		Stdout(failingWriter{}).
 		Stderr(&buffer).
 		ExitFunc(func(code int) { exitCode = code }).

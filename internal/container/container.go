@@ -35,6 +35,9 @@ const (
 
 	// KindCompletionCommand marks the opt-in completion subcommand container.
 	KindCompletionCommand
+
+	// KindFeatures marks the root feature-declaration container.
+	KindFeatures
 )
 
 // Kind identifies the engine container role a command-struct field plays. The

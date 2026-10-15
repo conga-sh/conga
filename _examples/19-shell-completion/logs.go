@@ -80,7 +80,7 @@ func (l *LogsCmd) Run(ctx context.Context, session *conga.Session) error {
 		return nil
 	}
 
-	inspector.Print(session, session.Root[CLI]())
+	inspector.Print(session, session.Root[CLI](), l)
 
 	return nil
 }

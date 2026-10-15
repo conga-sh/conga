@@ -1,5 +1,5 @@
 ---
-title: How to keep a reference to the root struct
+title: How to retain the root struct
 description: Bind an existing instance with conga.New to inspect resolved container values after execution completes.
 ---
 
@@ -10,6 +10,15 @@ CONGA supports two root initialization patterns: engine-allocated (`conga.New[T]
 To retain access to the root struct outside the execution lifecycle, construct the instance and pass its pointer to `conga.New`:
 
 ```go title="main.go"
+package main
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/conga-sh/conga"
+)
+
 type CLI struct {
 	Name conga.OptionalFlag[string] `default:"World" help:"Name to greet"`
 }
@@ -23,8 +32,7 @@ func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
 func main() {
 	cli := &CLI{}
 
-	app := conga.New(cli).
-		Name("hello")
+	app := conga.New(cli)
 
 	if err := app.Run(); err != nil {
 		app.Exit(err)
@@ -39,7 +47,7 @@ func main() {
 When `conga.New(cli)` is called:
 - The engine binds directly to the provided instance pointer instead of allocating a fresh struct.
 - Flags and arguments resolve into the instance's typed containers during the resolution phase.
-- Lifecycle hooks (`PreRun`, `Run`, `PostRun`) execute using the bound instance, and `session.Root[CLI]()` returns the same pointer.
+- Lifecycle hooks (`PreRun`, `Run`, `PostRun`) execute using the bound instance, and `session.Root[CLI]()` returns the same pointer. The type argument must match the root struct type exactly; passing a different type panics at runtime, and `conga-lint` verifies this statically.
 
 ## Enforce initialization invariants
 

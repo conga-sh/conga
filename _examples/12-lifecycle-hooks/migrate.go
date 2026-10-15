@@ -19,7 +19,7 @@ func (m *MigrateCmd) PreRun(ctx context.Context, session *conga.Session) error {
 }
 
 func (m *MigrateCmd) Run(ctx context.Context, session *conga.Session) error {
-	inspector.Print(session, session.Root[CLI]())
+	inspector.Print(session, session.Root[CLI](), m)
 	fmt.Fprintf(session.Stdout(), "[HOOK] 3. MigrateCmd.Run: Executing migration (dry_run=%t)\n", m.DryRun.Get())
 
 	return nil

@@ -2,8 +2,11 @@ package conga_test
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -50,7 +53,6 @@ func TestBinder_4TierResolution_CLIFlags(t *testing.T) {
 
 	cli := new(FullServerCLI)
 	app := conga.New(cli).
-		Name("server").
 		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"server": {"port": "9090"}}`))).
 		Args([]string{"--api-key", "secret123", "-p", "7070", "-v", "input.txt", "out.txt"})
@@ -73,7 +75,6 @@ func TestBinder_4TierResolution_EnvVar(t *testing.T) {
 
 	cli := new(FullServerCLI)
 	app := conga.New(cli).
-		Name("server").
 		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"server": {"port": "9090"}}`))).
 		Args([]string{"--api-key", "secret", "file.txt"})
@@ -90,7 +91,6 @@ func TestBinder_4TierResolution_ConfigFile(t *testing.T) {
 
 	cli := new(FullServerCLI)
 	app := conga.New(cli).
-		Name("server").
 		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"server": {"port": "9090"}}`))).
 		Args([]string{"--api-key", "secret", "file.txt"})
@@ -109,7 +109,6 @@ func TestBinder_Constraints(t *testing.T) {
 		t.Parallel()
 
 		app := conga.New[FullServerCLI]().
-			Name("server").
 			Args([]string{"file.txt"})
 
 		err := app.RunContext(t.Context())
@@ -123,7 +122,6 @@ func TestBinder_Constraints(t *testing.T) {
 		t.Parallel()
 
 		app := conga.New[FullServerCLI]().
-			Name("server").
 			Args([]string{"--api-key", "key", "--tcp", "--udp", "file.txt"})
 
 		err := app.RunContext(t.Context())
@@ -136,7 +134,6 @@ func TestBinder_Constraints(t *testing.T) {
 		t.Parallel()
 
 		app := conga.New[FullServerCLI]().
-			Name("server").
 			Args([]string{"--api-key", "key", "--user", "admin", "file.txt"})
 
 		err := app.RunContext(t.Context())
@@ -149,7 +146,6 @@ func TestBinder_Constraints(t *testing.T) {
 		t.Parallel()
 
 		app := conga.New[FullServerCLI]().
-			Name("server").
 			Args([]string{"--api-key", "key", "--format", "invalid", "file.txt"})
 
 		err := app.RunContext(t.Context())
@@ -198,7 +194,6 @@ func TestSubcommandRoutingAndLifecycle(t *testing.T) {
 
 	cli := new(RootApp)
 	app := conga.New(cli).
-		Name("myapp").
 		Args([]string{"cluster", "node", "drain", "worker-1", "-f"})
 
 	err := app.RunContext(t.Context())
@@ -231,7 +226,6 @@ func TestDashArgs(t *testing.T) {
 
 		cli := new(CLI)
 		app := conga.New(cli).
-			Name("test").
 			Args([]string{"./pkg/...", "-v", "--", "-run", "TestFoo", "-count=1"})
 
 		err := app.RunContext(t.Context())
@@ -248,7 +242,6 @@ func TestDashArgs(t *testing.T) {
 		t.Parallel()
 
 		app := conga.New[CLI]().
-			Name("test").
 			Args([]string{"./pkg/...", "--run", "TestFoo"})
 
 		err := app.RunContext(t.Context())
@@ -270,7 +263,6 @@ func TestRawArgs(t *testing.T) {
 
 	cli := new(CLI)
 	app := conga.New(cli).
-		Name("sudo").
 		Args([]string{"-u", "postgres", "psql", "-h", "localhost", "-U", "postgres"})
 
 	err := app.RunContext(t.Context())
@@ -328,7 +320,6 @@ func TestBinder_MapFlag(t *testing.T) {
 
 		cli := new(CLI)
 		app := conga.New(cli).
-			Name("mapapp").
 			Args([]string{"-t", "category=work", "-t", "priority=high"})
 
 		err := app.Run()
@@ -346,7 +337,6 @@ func TestBinder_MapFlag(t *testing.T) {
 
 		cli := new(CLI)
 		app := conga.New(cli).
-			Name("mapapp").
 			Args([]string{"-t", "env=prod,region=us-east"})
 
 		err := app.Run()
@@ -363,7 +353,6 @@ func TestBinder_MapFlag(t *testing.T) {
 
 		cli := new(CLI)
 		app := conga.New(cli).
-			Name("mapapp").
 			Args([]string{"-g", "k1=v1", "-g", "k2=v2"})
 
 		err := app.Run()
@@ -371,6 +360,277 @@ func TestBinder_MapFlag(t *testing.T) {
 		assert.NoError(t, err)
 		assert.True(t, cli.GenTags.IsSet())
 		assert.Equal(t, map[string]string{"k1": "v1", "k2": "v2"}, cli.GenTags.Get())
+	})
+}
+
+func TestBinder_MapFlagMergesTiers(t *testing.T) {
+	t.Parallel()
+
+	type CLI struct {
+		noopRunner
+
+		ConfigFile conga.ConfigFile                      `help:"Config file"`
+		Tags       conga.OptionalFlag[map[string]string] `env:"MERGE_TAGS"                help:"Tags map"`
+		Defaults   conga.OptionalFlag[map[string]string] `default:"base=1,shared=default" help:"Map with default"`
+		Sizes      conga.OptionalFlag[map[string]int]    `help:"Registered map"`
+	}
+
+	t.Run("config and CLI merge per key", func(t *testing.T) {
+		t.Parallel()
+
+		configPath := writeConfigFile(t, `{"tags": {"a": "config", "shared": "config"}}`)
+
+		cli := new(CLI)
+		app := conga.New(cli).
+			RegisterDecoder(".json", json.Decode).
+			ConfigOptions(conga.ConfigExplicit(configPath)).
+			Args([]string{"--tags", "b=cli"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]string{"a": "config", "b": "cli", "shared": "config"}, cli.Tags.Get())
+		assert.Equal(t, conga.SourceCLI, cli.Tags.Source())
+	})
+
+	t.Run("CLI overrides config per key", func(t *testing.T) {
+		t.Parallel()
+
+		configPath := writeConfigFile(t, `{"tags": {"a": "config", "shared": "config"}}`)
+
+		cli := new(CLI)
+		app := conga.New(cli).
+			RegisterDecoder(".json", json.Decode).
+			ConfigOptions(conga.ConfigExplicit(configPath)).
+			Args([]string{"--tags", "shared=cli"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]string{"a": "config", "shared": "cli"}, cli.Tags.Get())
+	})
+
+	t.Run("default merges below config", func(t *testing.T) {
+		t.Parallel()
+
+		configPath := writeConfigFile(t, `{"defaults": {"shared": "config"}}`)
+
+		cli := new(CLI)
+		app := conga.New(cli).
+			RegisterDecoder(".json", json.Decode).
+			ConfigOptions(conga.ConfigExplicit(configPath)).
+			Args([]string{})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]string{"base": "1", "shared": "config"}, cli.Defaults.Get())
+		assert.Equal(t, conga.SourceConfig, cli.Defaults.Source())
+	})
+
+	t.Run("registered map type merges per key", func(t *testing.T) {
+		t.Parallel()
+
+		configPath := writeConfigFile(t, `{"sizes": {"small": 1, "shared": 2}}`)
+
+		cli := new(CLI)
+		app := conga.New(cli).
+			RegisterDecoder(".json", json.Decode).
+			RegisterMap[map[string]int]().
+			ConfigOptions(conga.ConfigExplicit(configPath)).
+			Args([]string{"--sizes", "shared=9,large=3"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]int{"small": 1, "shared": 9, "large": 3}, cli.Sizes.Get())
+	})
+
+	t.Run("malformed config tier errors despite CLI presence", func(t *testing.T) {
+		t.Parallel()
+
+		configPath := writeConfigFile(t, `{"sizes": {"small": "notanint"}}`)
+
+		app := conga.New[CLI]().
+			RegisterDecoder(".json", json.Decode).
+			RegisterMap[map[string]int]().
+			ConfigOptions(conga.ConfigExplicit(configPath)).
+			Args([]string{"--sizes", "large=3"})
+
+		err := app.Run()
+
+		assert.Error(t, err)
+		assert.IsError(t, err, conga.ErrCoerce)
+		assert.Contains(t, err.Error(), "config")
+	})
+
+	t.Run("no tier leaves map unset", func(t *testing.T) {
+		t.Parallel()
+
+		configPath := writeConfigFile(t, `{}`)
+
+		cli := new(CLI)
+		app := conga.New(cli).
+			RegisterDecoder(".json", json.Decode).
+			ConfigOptions(conga.ConfigExplicit(configPath)).
+			Args([]string{})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.False(t, cli.Tags.IsSet())
+	})
+
+	t.Run("empty CLI flag input does not claim source tier over config keys", func(t *testing.T) {
+		t.Parallel()
+
+		configPath := writeConfigFile(t, `{"tags": {"a": "config"}}`)
+
+		cli := new(CLI)
+		app := conga.New(cli).
+			RegisterDecoder(".json", json.Decode).
+			ConfigOptions(conga.ConfigExplicit(configPath)).
+			Args([]string{"--tags", ""})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]string{"a": "config"}, cli.Tags.Get())
+		assert.Equal(t, conga.SourceConfig, cli.Tags.Source())
+	})
+
+	t.Run("empty CLI flag input sets empty map with CLI source when no tier contributes", func(t *testing.T) {
+		t.Parallel()
+
+		cli := new(CLI)
+		app := conga.New(cli).
+			Args([]string{"--tags", ""})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]string{}, cli.Tags.Get())
+		assert.Equal(t, conga.SourceCLI, cli.Tags.Source())
+	})
+
+	t.Run("all present tiers empty falls back to last present tier", func(t *testing.T) {
+		t.Parallel()
+
+		configPath := writeConfigFile(t, `{"tags": ","}`)
+
+		cli := new(CLI)
+		app := conga.New(cli).
+			RegisterDecoder(".json", json.Decode).
+			ConfigOptions(conga.ConfigExplicit(configPath)).
+			Args([]string{"--tags", ""})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]string{}, cli.Tags.Get())
+		assert.Equal(t, conga.SourceCLI, cli.Tags.Source())
+	})
+}
+
+func TestBinder_RegisterTypeMapFlag(t *testing.T) {
+	t.Parallel()
+
+	t.Run("RegisterType map parser binds repeated pairs", func(t *testing.T) {
+		t.Parallel()
+
+		type CLI struct {
+			noopRunner
+
+			Sizes conga.OptionalFlag[map[string]int] `help:"Registered map"`
+		}
+
+		cli := new(CLI)
+		app := conga.New(cli).
+			RegisterType(func(raw string) (map[string]int, error) {
+				key, value, _ := strings.Cut(raw, "=")
+
+				parsed, err := strconv.Atoi(value)
+				if err != nil {
+					return nil, err
+				}
+
+				return map[string]int{key: parsed}, nil
+			}).
+			Args([]string{"--sizes", "a=1", "--sizes", "b=2"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]int{"a": 1, "b": 2}, cli.Sizes.Get())
+	})
+
+	t.Run("RegisterType map parser is consulted for string maps", func(t *testing.T) {
+		t.Parallel()
+
+		type CLI struct {
+			noopRunner
+
+			Headers conga.OptionalFlag[map[string]string] `help:"Headers"`
+		}
+
+		app := conga.New[CLI]().
+			RegisterType(func(raw string) (map[string]string, error) {
+				if strings.HasPrefix(raw, "forbidden") {
+					return nil, errors.New("forbidden key rejected")
+				}
+
+				key, value, _ := strings.Cut(raw, "=")
+
+				return map[string]string{key: value}, nil
+			}).
+			Args([]string{"--headers", "forbidden=1"})
+
+		err := app.Run()
+
+		assert.Error(t, err)
+		assert.IsError(t, err, conga.ErrCoerce)
+	})
+}
+
+func TestBinder_MapFlagMergesEnvTier(t *testing.T) {
+	type CLI struct {
+		noopRunner
+
+		ConfigFile conga.ConfigFile                      `help:"Config file"`
+		Tags       conga.OptionalFlag[map[string]string] `env:"MERGE_TAGS"   help:"Tags map"`
+	}
+
+	t.Run("env merges above config and below CLI", func(t *testing.T) {
+		t.Setenv("MERGE_TAGS", "shared=env,envkey=env")
+		configPath := writeConfigFile(t, `{"tags": {"a": "config", "shared": "config"}}`)
+
+		cli := new(CLI)
+		app := conga.New(cli).
+			RegisterDecoder(".json", json.Decode).
+			ConfigOptions(conga.ConfigExplicit(configPath)).
+			Args([]string{"--tags", "shared=cli"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]string{"a": "config", "envkey": "env", "shared": "cli"}, cli.Tags.Get())
+	})
+
+	t.Run("env wins over config per key without CLI", func(t *testing.T) {
+		t.Setenv("MERGE_TAGS", "shared=env")
+		configPath := writeConfigFile(t, `{"tags": {"a": "config", "shared": "config"}}`)
+
+		cli := new(CLI)
+		app := conga.New(cli).
+			RegisterDecoder(".json", json.Decode).
+			ConfigOptions(conga.ConfigExplicit(configPath)).
+			Args([]string{})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]string{"a": "config", "shared": "env"}, cli.Tags.Get())
+		assert.Equal(t, conga.SourceEnv, cli.Tags.Source())
 	})
 }
 
@@ -388,7 +648,6 @@ func TestBinder_CounterFlag(t *testing.T) {
 
 		cli := new(CLI)
 		app := conga.New(cli).
-			Name("counterapp").
 			Args([]string{"-v"})
 
 		err := app.Run()
@@ -404,7 +663,6 @@ func TestBinder_CounterFlag(t *testing.T) {
 
 		cli := new(CLI)
 		app := conga.New(cli).
-			Name("counterapp").
 			Args([]string{"-vvv"})
 
 		err := app.Run()
@@ -419,7 +677,6 @@ func TestBinder_CounterFlag(t *testing.T) {
 
 		cli := new(CLI)
 		app := conga.New(cli).
-			Name("counterapp").
 			Args([]string{"-v", "-v"})
 
 		err := app.Run()
@@ -434,7 +691,6 @@ func TestBinder_CounterFlag(t *testing.T) {
 
 		cli := new(CLI)
 		app := conga.New(cli).
-			Name("counterapp").
 			Args([]string{"--verbose", "--verbose"})
 
 		err := app.Run()
@@ -449,7 +705,6 @@ func TestBinder_CounterFlag(t *testing.T) {
 
 		cli := new(CLI)
 		app := conga.New(cli).
-			Name("counterapp").
 			Args([]string{"--verbose=2"})
 
 		err := app.Run()
@@ -465,7 +720,6 @@ func TestBinder_CounterFlag(t *testing.T) {
 
 		cli := new(CLI)
 		app := conga.New(cli).
-			Name("counterapp").
 			Args([]string{"-v=2"})
 
 		err := app.Run()
@@ -480,7 +734,6 @@ func TestBinder_CounterFlag(t *testing.T) {
 		t.Parallel()
 
 		app := conga.New[CLI]().
-			Name("counterapp").
 			Args([]string{"--verbose=abc"})
 
 		err := app.Run()
@@ -501,7 +754,6 @@ func TestBinder_CounterEnvSeed(t *testing.T) {
 
 	cli := new(CLI)
 	app := conga.New(cli).
-		Name("counterapp").
 		Args([]string{})
 
 	err := app.Run()
@@ -524,7 +776,6 @@ func TestBinder_CounterCLIOverridesEnv(t *testing.T) {
 
 	cli := new(CLI)
 	app := conga.New(cli).
-		Name("counterapp").
 		Args([]string{"-vv"})
 
 	err := app.Run()
@@ -549,7 +800,6 @@ func TestBinder_UnknownShortFlag(t *testing.T) {
 		t.Parallel()
 
 		app := conga.New[CLI]().
-			Name("unknownapp").
 			Args([]string{"-Z"})
 
 		err := app.Run()
@@ -562,7 +812,6 @@ func TestBinder_UnknownShortFlag(t *testing.T) {
 		t.Parallel()
 
 		app := conga.New[CLI]().
-			Name("unknownapp").
 			Args([]string{"-dZ"})
 
 		err := app.Run()
@@ -575,7 +824,6 @@ func TestBinder_UnknownShortFlag(t *testing.T) {
 		t.Parallel()
 
 		app := conga.New[CLI]().
-			Name("unknownapp").
 			Args([]string{"-Zd"})
 
 		err := app.Run()
@@ -596,7 +844,6 @@ func TestBinder_SliceSepNone(t *testing.T) {
 
 	cli := new(CLI)
 	app := conga.New(cli).
-		Name("sliceapp").
 		Args([]string{
 			"-H", "Accept: text/html,application/xhtml+xml",
 			"-H", "Authorization: Bearer token123",
@@ -626,7 +873,6 @@ func TestBinder_NegatableBool(t *testing.T) {
 
 		cli := new(CLI)
 		app := conga.New(cli).
-			Name("negapp").
 			Args([]string{"--location"})
 
 		err := app.Run()
@@ -641,7 +887,6 @@ func TestBinder_NegatableBool(t *testing.T) {
 
 		cli := new(CLI)
 		app := conga.New(cli).
-			Name("negapp").
 			Args([]string{"--no-location"})
 
 		err := app.Run()
@@ -656,7 +901,6 @@ func TestBinder_NegatableBool(t *testing.T) {
 
 		cli := new(CLI)
 		app := conga.New(cli).
-			Name("negapp").
 			Args([]string{"-L", "--no-location"})
 
 		err := app.Run()
@@ -671,7 +915,6 @@ func TestBinder_NegatableBool(t *testing.T) {
 
 		cli := new(CLI)
 		app := conga.New(cli).
-			Name("negapp").
 			Args([]string{"--no-location", "-L"})
 
 		err := app.Run()
@@ -698,7 +941,7 @@ func TestBinder_NegatedTokenRouting(t *testing.T) {
 	t.Run("negated form of non-negatable flag is an unknown flag", func(t *testing.T) {
 		t.Parallel()
 
-		app := conga.New[NegatedTokenCLI]().Name("negapp").Args([]string{"--no-port"})
+		app := conga.New[NegatedTokenCLI]().Args([]string{"--no-port"})
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
@@ -709,7 +952,7 @@ func TestBinder_NegatedTokenRouting(t *testing.T) {
 	t.Run("negated form of non-negatable bool flag is an unknown flag", func(t *testing.T) {
 		t.Parallel()
 
-		app := conga.New[NegatedTokenCLI]().Name("negapp").Args([]string{"--no-verbose"})
+		app := conga.New[NegatedTokenCLI]().Args([]string{"--no-verbose"})
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
@@ -721,7 +964,7 @@ func TestBinder_NegatedTokenRouting(t *testing.T) {
 		t.Parallel()
 
 		cli := new(NegatedTokenCLI)
-		app := conga.New(cli).Name("negapp").Args([]string{"--no-cache"})
+		app := conga.New(cli).Args([]string{"--no-cache"})
 		err := app.RunContext(t.Context())
 
 		assert.NoError(t, err)
@@ -732,7 +975,7 @@ func TestBinder_NegatedTokenRouting(t *testing.T) {
 		t.Parallel()
 
 		cli := new(NegatedTokenCLI)
-		app := conga.New(cli).Name("negapp").Args([]string{"--no-debug"})
+		app := conga.New(cli).Args([]string{"--no-debug"})
 		err := app.RunContext(t.Context())
 
 		assert.NoError(t, err)
@@ -746,7 +989,7 @@ func TestBinder_NegatedTokenSuggestionSuppression(t *testing.T) {
 	t.Run("no suggestion on negated non-negatable flag", func(t *testing.T) {
 		t.Parallel()
 
-		app := conga.New[NegatedTokenCLI]().Name("negapp").Args([]string{"--no-port"})
+		app := conga.New[NegatedTokenCLI]().Args([]string{"--no-port"})
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
@@ -757,7 +1000,7 @@ func TestBinder_NegatedTokenSuggestionSuppression(t *testing.T) {
 func TestBinder_CaseInsensitiveFlagSuggestion(t *testing.T) {
 	t.Parallel()
 
-	app := conga.New[NegatedTokenCLI]().Name("negapp").Args([]string{"--PORT"})
+	app := conga.New[NegatedTokenCLI]().Args([]string{"--PORT"})
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
@@ -828,7 +1071,7 @@ func TestBinder_SubcommandRequired(t *testing.T) {
 		Subcommand conga.Command[SubcommandChildCLI] `name:"sub"`
 	}
 
-	app := conga.New[RequiredSubParentCLI]().Name("app").Args([]string{})
+	app := conga.New[RequiredSubParentCLI]().Args([]string{})
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)

@@ -29,6 +29,11 @@ type Options struct {
 	// CompletionFooter renders the supported-shells footer of the generic
 	// completion screen.
 	CompletionFooter func(cmdChain []*spec.Command, useFlag bool) string
+	// FeaturesSection renders the automatic Features section of the root help
+	// screen. It is reached exclusively through the feature-enabled engine
+	// path, so applications that never enable features keep the feature help
+	// payload unreferenced.
+	FeaturesSection func(root *spec.Command) string
 }
 
 // RenderCompletionInstructions renders the enable instructions body of a
@@ -77,6 +82,40 @@ func RenderCompletionFooter(cmdChain []*spec.Command, useFlag bool, detect func(
 	}
 
 	return builder.String()
+}
+
+// RenderFeatures renders the automatic Features section of the root help
+// screen: one aligned row per feature toggle, in declaration order, carrying
+// the feature's help text followed by its declared stage, integer levels, and
+// default. GA and deprecated features are omitted — they are no longer
+// experimental — and the section renders nothing when no feature remains. It
+// is the feature-enabled implementation behind Options.FeaturesSection.
+func RenderFeatures(root *spec.Command) string {
+	entries := make([]tableEntry, 0, len(root.FeatureFields))
+
+	for _, feature := range root.FeatureFields {
+		if !feature.ListedInHelp() {
+			continue
+		}
+
+		helpText := feature.Help
+
+		if feature.Stage != "" {
+			helpText = appendNonEmpty(helpText, "["+feature.Stage+"]")
+		}
+
+		if feature.IsInt {
+			helpText = appendNonEmpty(helpText, "[levels: "+strings.Join(feature.Enum, ", ")+"]")
+		}
+
+		if feature.Default != "" {
+			helpText = appendNonEmpty(helpText, "[default: "+feature.Default+"]")
+		}
+
+		entries = append(entries, tableEntry{label: feature.Name, help: helpText})
+	}
+
+	return renderTable("Features", entries)
 }
 
 // Usage returns the standard 1-2 line usage syntax for the given command chain.
@@ -226,6 +265,15 @@ func FormatWith(cmdChain []*spec.Command, opts Options) string {
 	visibleVersion := leaf.VersionFlagVisible(len(cmdChain) == 1)
 	visibleWhy := leaf.WhyFlagVisible()
 	builder.WriteString(formatFlags(leaf.Flags, visibleHelp, visibleVersion, leaf.CompletionFlagVisible(len(cmdChain) == 1), visibleWhy))
+
+	// 7.5 Features (root screen only)
+	// The automatic Features section renders the root command's feature
+	// toggles with their stage, levels, and defaults; it lists every visible
+	// feature by name, so the synthesized feature-gates flag suppresses its
+	// own [enum: ...] hint. Features are declared on the root only.
+	if len(cmdChain) == 1 && opts.FeaturesSection != nil {
+		builder.WriteString(opts.FeaturesSection(cmdChain[0]))
+	}
 
 	// 8. Global Flags (inherited from ancestor commands)
 	builder.WriteString(formatGlobalFlags(cmdChain))
@@ -485,7 +533,7 @@ func formatArgLabel(arg *spec.Arg) (string, string) {
 		helpText = appendNonEmpty(helpText, hint)
 	}
 
-	if hint := formatEnumHint(arg.Enum); hint != "" && !arg.HelpVars.Enum {
+	if hint := formatEnumHint(arg.Enum); hint != "" && !arg.HelpVars.Enum && !arg.EnumHintHidden {
 		helpText = appendNonEmpty(helpText, hint)
 	}
 
@@ -641,7 +689,7 @@ func formatFlagHelpText(flagSpec *spec.Flag) string {
 		helpText = appendNonEmpty(helpText, hint)
 	}
 
-	if hint := formatEnumHint(flagSpec.Enum); hint != "" && !flagSpec.HelpVars.Enum {
+	if hint := formatEnumHint(flagSpec.Enum); hint != "" && !flagSpec.HelpVars.Enum && !flagSpec.EnumHintHidden {
 		helpText = appendNonEmpty(helpText, hint)
 	}
 

@@ -29,4 +29,13 @@ var (
 	ErrInvalidStructTag = fmt.Errorf("%w: invalid struct tag", ErrSchema)
 
 	errNonStringMapKey = fmt.Errorf("%w: map keys must be of type string", ErrSchema)
+
+	errFeatureTagRequiresEnableFeatures = fmt.Errorf("%w: feature struct tag requires app.EnableFeatures()", ErrSchema)
+	errFeaturesRequiresEnableFeatures   = fmt.Errorf("%w: conga.Features declared on root command requires app.EnableFeatures()", ErrSchema)
+
+	errFeatureMustBeInteger            = errors.New("must be an integer")
+	errFeatureMustBeBoolean            = errors.New("must be true or false")
+	errFeatureInvalidEnum              = errors.New("must be one of")
+	errFeatureMustBeNonNegativeInteger = errors.New("must be a non-negative integer")
+	errFeatureIntegerOutOfRange        = errors.New("is out of range for the feature's integer type")
 )

@@ -154,18 +154,7 @@ func (r Resolver) ConfigExamples(candidates []string, tiers []string, extensions
 
 	probes := append(directoryProbes(tier, r.AppName, extensions), stemProbes(tier, extensions)...)
 
-	seen := make(map[string]bool, len(probes))
-
-	examples := make([]string, 0, len(probes))
-
-	for _, probe := range probes {
-		if !seen[probe] {
-			seen[probe] = true
-			examples = append(examples, probe)
-		}
-	}
-
-	return examples
+	return slicex.Unique(probes)
 }
 
 // SplitList splits a configuration list value (an environment variable

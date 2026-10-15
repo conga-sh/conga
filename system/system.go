@@ -28,25 +28,62 @@
 package system
 
 import (
+	"encoding"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/user"
-	"path/filepath"
-	"runtime"
-	"slices"
 	"strconv"
 	"strings"
 	"syscall"
 
 	"github.com/conga-sh/conga"
-	"github.com/conga-sh/conga/internal/cond"
-	"github.com/conga-sh/conga/internal/scanx"
 	"github.com/conga-sh/conga/internal/signals"
-	"github.com/conga-sh/conga/internal/slicex"
-	"github.com/conga-sh/conga/internal/style"
 	"github.com/conga-sh/conga/predict"
+)
+
+var (
+	_ fmt.Stringer             = EnvVar("")
+	_ encoding.TextMarshaler   = EnvVar("")
+	_ encoding.TextUnmarshaler = (*EnvVar)(nil)
+	_ conga.HelpProvider       = EnvVar("")
+	_ conga.Predictable        = EnvVar("")
+
+	_ fmt.Stringer             = Group("")
+	_ encoding.TextMarshaler   = Group("")
+	_ encoding.TextUnmarshaler = (*Group)(nil)
+	_ conga.HelpProvider       = Group("")
+	_ conga.Predictable        = Group("")
+
+	_ fmt.Stringer             = Locale("")
+	_ encoding.TextMarshaler   = Locale("")
+	_ encoding.TextUnmarshaler = (*Locale)(nil)
+	_ conga.HelpProvider       = Locale("")
+	_ conga.Predictable        = Locale("")
+
+	_ fmt.Stringer             = PID(0)
+	_ encoding.TextMarshaler   = PID(0)
+	_ encoding.TextUnmarshaler = (*PID)(nil)
+	_ conga.HelpProvider       = PID(0)
+	_ conga.Predictable        = PID(0)
+
+	_ fmt.Stringer             = Process("")
+	_ encoding.TextMarshaler   = Process("")
+	_ encoding.TextUnmarshaler = (*Process)(nil)
+	_ conga.HelpProvider       = Process("")
+	_ conga.Predictable        = Process("")
+
+	_ fmt.Stringer             = Signal("")
+	_ encoding.TextMarshaler   = Signal("")
+	_ encoding.TextUnmarshaler = (*Signal)(nil)
+	_ conga.HelpProvider       = Signal("")
+	_ conga.Predictable        = Signal("")
+
+	_ fmt.Stringer             = User("")
+	_ encoding.TextMarshaler   = User("")
+	_ encoding.TextUnmarshaler = (*User)(nil)
+	_ conga.HelpProvider       = User("")
+	_ conga.Predictable        = User("")
 )
 
 var (
@@ -59,7 +96,7 @@ var (
 type EnvVar string
 
 // Predict returns environment variable autocompletion candidates.
-func (e *EnvVar) Predict() predict.Predictor {
+func (e EnvVar) Predict() predict.Predictor {
 	return EnvVars()
 }
 
@@ -67,35 +104,28 @@ func (e *EnvVar) Predict() predict.Predictor {
 // flags. The engine renders this text in the flag's help column when the field
 // declares no help tag; a field with a help tag shows that text instead. Shells
 // also show it as the description of the flag's completion candidates.
-func (e *EnvVar) Help() string {
+func (e EnvVar) Help() string {
 	return "Environment variable name (e.g. PATH)"
 }
 
 // String returns the environment variable name.
-func (e *EnvVar) String() string {
-	if e == nil {
-		return ""
-	}
-
-	return string(*e)
+func (e EnvVar) String() string {
+	return string(e)
 }
 
 // Value returns the value of the environment variable via os.Getenv.
-func (e *EnvVar) Value() string {
-	if e == nil {
-		return ""
-	}
-
-	return os.Getenv(string(*e))
+func (e EnvVar) Value() string {
+	return os.Getenv(string(e))
 }
 
 // Lookup queries the environment variable via os.LookupEnv.
-func (e *EnvVar) Lookup() (string, bool) {
-	if e == nil {
-		return "", false
-	}
+func (e EnvVar) Lookup() (string, bool) {
+	return os.LookupEnv(string(e))
+}
 
-	return os.LookupEnv(string(*e))
+// MarshalText encodes the environment variable name as UTF-8 text.
+func (e EnvVar) MarshalText() ([]byte, error) {
+	return []byte(e), nil
 }
 
 // UnmarshalText sets the environment variable name.
@@ -109,7 +139,7 @@ func (e *EnvVar) UnmarshalText(text []byte) error {
 type Group string
 
 // Predict returns system group autocompletion candidates.
-func (g *Group) Predict() predict.Predictor {
+func (g Group) Predict() predict.Predictor {
 	return Groups()
 }
 
@@ -117,31 +147,32 @@ func (g *Group) Predict() predict.Predictor {
 // engine renders this text in the flag's help column when the field declares no
 // help tag; a field with a help tag shows that text instead. Shells also show
 // it as the description of the flag's completion candidates.
-func (g *Group) Help() string {
+func (g Group) Help() string {
 	return "System group name"
 }
 
 // String returns the group name.
-func (g *Group) String() string {
-	if g == nil {
-		return ""
-	}
-
-	return string(*g)
+func (g Group) String() string {
+	return string(g)
 }
 
 // Lookup queries system group details using os/user.LookupGroup.
-func (g *Group) Lookup() (*user.Group, error) {
-	if g == nil || *g == "" {
+func (g Group) Lookup() (*user.Group, error) {
+	if g == "" {
 		return nil, errEmptyGroup
 	}
 
-	grp, err := user.LookupGroup(string(*g))
+	grp, err := user.LookupGroup(string(g))
 	if err != nil {
 		return nil, fmt.Errorf("group lookup: %w", err)
 	}
 
 	return grp, nil
+}
+
+// MarshalText encodes the group name as UTF-8 text.
+func (g Group) MarshalText() ([]byte, error) {
+	return []byte(g), nil
 }
 
 // UnmarshalText sets the group name.
@@ -155,7 +186,7 @@ func (g *Group) UnmarshalText(text []byte) error {
 type Locale string
 
 // Predict returns locale autocompletion candidates.
-func (l *Locale) Predict() predict.Predictor {
+func (l Locale) Predict() predict.Predictor {
 	return Locales()
 }
 
@@ -163,17 +194,18 @@ func (l *Locale) Predict() predict.Predictor {
 // engine renders this text in the flag's help column when the field declares no
 // help tag; a field with a help tag shows that text instead. Shells also show
 // it as the description of the flag's completion candidates.
-func (l *Locale) Help() string {
+func (l Locale) Help() string {
 	return "Locale identifier (e.g. en_US.UTF-8)"
 }
 
 // String returns the locale identifier.
-func (l *Locale) String() string {
-	if l == nil {
-		return ""
-	}
+func (l Locale) String() string {
+	return string(l)
+}
 
-	return string(*l)
+// MarshalText encodes the locale identifier as UTF-8 text.
+func (l Locale) MarshalText() ([]byte, error) {
+	return []byte(l), nil
 }
 
 // UnmarshalText sets the locale identifier.
@@ -188,7 +220,7 @@ func (l *Locale) UnmarshalText(text []byte) error {
 type PID int
 
 // Predict returns active process ID autocompletion candidates.
-func (p *PID) Predict() predict.Predictor {
+func (p PID) Predict() predict.Predictor {
 	return ProcessIDs()
 }
 
@@ -196,26 +228,23 @@ func (p *PID) Predict() predict.Predictor {
 // renders this text in the flag's help column when the field declares no help
 // tag; a field with a help tag shows that text instead. Shells also show it as
 // the description of the flag's completion candidates.
-func (p *PID) Help() string {
+func (p PID) Help() string {
 	return "Process ID (a positive integer)"
 }
 
 // Int returns the PID as an integer.
-func (p *PID) Int() int {
-	if p == nil {
-		return 0
-	}
-
-	return int(*p)
+func (p PID) Int() int {
+	return int(p)
 }
 
 // String returns the PID formatted as a string.
-func (p *PID) String() string {
-	if p == nil {
-		return "0"
-	}
+func (p PID) String() string {
+	return strconv.Itoa(int(p))
+}
 
-	return strconv.Itoa(int(*p))
+// MarshalText encodes the PID as UTF-8 text.
+func (p PID) MarshalText() ([]byte, error) {
+	return []byte(strconv.Itoa(int(p))), nil
 }
 
 // UnmarshalText validates and parses a positive PID.
@@ -247,7 +276,7 @@ func (p *PID) UnmarshalText(text []byte) error {
 type Process string
 
 // Predict returns active process autocompletion candidates.
-func (p *Process) Predict() predict.Predictor {
+func (p Process) Predict() predict.Predictor {
 	return ProcessNames()
 }
 
@@ -255,17 +284,18 @@ func (p *Process) Predict() predict.Predictor {
 // engine renders this text in the flag's help column when the field declares no
 // help tag; a field with a help tag shows that text instead. Shells also show
 // it as the description of the flag's completion candidates.
-func (p *Process) Help() string {
+func (p Process) Help() string {
 	return "Process executable name (e.g. postgres)"
 }
 
 // String returns the process executable name.
-func (p *Process) String() string {
-	if p == nil {
-		return ""
-	}
+func (p Process) String() string {
+	return string(p)
+}
 
-	return string(*p)
+// MarshalText encodes the process executable name as UTF-8 text.
+func (p Process) MarshalText() ([]byte, error) {
+	return []byte(p), nil
 }
 
 // UnmarshalText sets the process executable name.
@@ -279,7 +309,7 @@ func (p *Process) UnmarshalText(text []byte) error {
 type Signal string
 
 // Predict returns kill signal autocompletion candidates.
-func (s *Signal) Predict() predict.Predictor {
+func (s Signal) Predict() predict.Predictor {
 	return Signals()
 }
 
@@ -287,33 +317,30 @@ func (s *Signal) Predict() predict.Predictor {
 // engine renders this text in the flag's help column when the field declares no
 // help tag; a field with a help tag shows that text instead. Shells also show
 // it as the description of the flag's completion candidates.
-func (s *Signal) Help() string {
+func (s Signal) Help() string {
 	return "Signal name or number (e.g. SIGTERM, 9)"
 }
 
 // String returns the signal representation.
-func (s *Signal) String() string {
-	if s == nil {
-		return ""
-	}
-
-	return string(*s)
+func (s Signal) String() string {
+	return string(s)
 }
 
 // Signal converts the signal string into a syscall.Signal. It is a total
-// conversion of a value already validated by UnmarshalText: a nil receiver,
-// an empty value, and unrecognized text all yield 0. Callers that must reject
-// unknown input validate it with UnmarshalText or the parser installed by
-// RegisterSignal before converting; predictor callbacks have no error channel and ignore
-// unknown text by construction.
-func (s *Signal) Signal() syscall.Signal {
-	if s == nil {
-		return 0
-	}
-
-	sig, _ := signals.Lookup(string(*s))
+// conversion of a value already validated by UnmarshalText: an empty value
+// and unrecognized text all yield 0. Callers that must reject unknown input
+// validate it with UnmarshalText or the parser installed by RegisterSignal before
+// converting; predictor callbacks have no error channel and ignore unknown text by
+// construction.
+func (s Signal) Signal() syscall.Signal {
+	sig, _ := signals.Lookup(string(s))
 
 	return sig
+}
+
+// MarshalText encodes the signal representation as UTF-8 text.
+func (s Signal) MarshalText() ([]byte, error) {
+	return []byte(s), nil
 }
 
 // UnmarshalText validates that the text represents a recognized signal.
@@ -338,7 +365,7 @@ func (s *Signal) UnmarshalText(text []byte) error {
 type User string
 
 // Predict returns system username autocompletion candidates.
-func (u *User) Predict() predict.Predictor {
+func (u User) Predict() predict.Predictor {
 	return Users()
 }
 
@@ -346,31 +373,32 @@ func (u *User) Predict() predict.Predictor {
 // engine renders this text in the flag's help column when the field declares no
 // help tag; a field with a help tag shows that text instead. Shells also show
 // it as the description of the flag's completion candidates.
-func (u *User) Help() string {
+func (u User) Help() string {
 	return "System username"
 }
 
 // String returns the username.
-func (u *User) String() string {
-	if u == nil {
-		return ""
-	}
-
-	return string(*u)
+func (u User) String() string {
+	return string(u)
 }
 
 // Lookup queries system user details using os/user.Lookup.
-func (u *User) Lookup() (*user.User, error) {
-	if u == nil || *u == "" {
+func (u User) Lookup() (*user.User, error) {
+	if u == "" {
 		return nil, errEmptyUser
 	}
 
-	usr, err := user.Lookup(string(*u))
+	usr, err := user.Lookup(string(u))
 	if err != nil {
 		return nil, fmt.Errorf("user lookup: %w", err)
 	}
 
 	return usr, nil
+}
+
+// MarshalText encodes the username as UTF-8 text.
+func (u User) MarshalText() ([]byte, error) {
+	return []byte(u), nil
 }
 
 // UnmarshalText sets the username.
@@ -417,11 +445,21 @@ func Locales() predict.Predictor {
 	return predict.Callback(actionLocales)
 }
 
+// PIDs is an alias for [ProcessIDs], configuring completion of active process IDs.
+func PIDs() predict.Predictor {
+	return ProcessIDs()
+}
+
 // ProcessIDs configures completion of active process IDs with their executable names as descriptions.
 // Full process scanning is supported on Linux via /proc; on other platforms, it returns the current process.
 // It pairs with the PID type.
 func ProcessIDs() predict.Predictor {
 	return predict.Callback(actionProcessIDs)
+}
+
+// Processes is an alias for [ProcessNames], configuring completion of active running process executable names.
+func Processes() predict.Predictor {
+	return ProcessNames()
 }
 
 // ProcessNames configures completion of active running process executable names.
@@ -439,480 +477,6 @@ func Signals() predict.Predictor {
 // Users configures completion of system user accounts.
 func Users() predict.Predictor {
 	return predict.Callback(actionUsers)
-}
-
-type procEntry struct {
-	Pid int
-	Exe string
-}
-
-func actionEnvVars(ctx predict.Context) predict.Predictor {
-	items := scanEnvVars(ctx)
-
-	return predict.Items(items...)
-}
-
-func actionGroups(_ predict.Context) predict.Predictor {
-	items := scanGroups()
-
-	return predict.Items(items...)
-}
-
-func actionLocales(_ predict.Context) predict.Predictor {
-	items := scanLocales()
-
-	return predict.Items(items...)
-}
-
-func actionProcessIDs(_ predict.Context) predict.Predictor {
-	items := slicex.Map(scanRunningProcesses(), func(proc procEntry) predict.Item {
-		pidStr := strconv.Itoa(proc.Pid)
-
-		return predict.Item{
-			Value:       pidStr,
-			Display:     pidStr,
-			Description: proc.Exe,
-			Style:       style.Magenta,
-			Tag:         "pids",
-		}
-	})
-
-	return predict.Items(items...)
-}
-
-func actionProcessNames(_ predict.Context) predict.Predictor {
-	procs := scanRunningProcesses()
-
-	counts := make(map[string]int)
-	order := make([]string, 0, len(procs))
-
-	for _, proc := range procs {
-		name := proc.Exe
-		if name == "" {
-			continue
-		}
-
-		if counts[name] == 0 {
-			order = append(order, name)
-		}
-
-		counts[name]++
-	}
-
-	slices.Sort(order)
-
-	items := make([]predict.Item, 0, len(order))
-	for _, name := range order {
-		desc := "1 instance"
-		if count := counts[name]; count > 1 {
-			desc = fmt.Sprintf("%d instances", count)
-		}
-
-		items = append(items, predict.Item{
-			Value:       name,
-			Display:     name,
-			Description: desc,
-			Style:       style.Green,
-			Tag:         "processes",
-		})
-	}
-
-	return predict.Items(items...)
-}
-
-func actionSignals(ctx predict.Context) predict.Predictor {
-	knownSignals := signals.Known()
-	items := make([]predict.Item, 0, len(knownSignals)*3)
-	seen := make(map[string]bool)
-
-	toComplete := ctx.ToComplete
-	upperToComplete := strings.ToUpper(toComplete)
-
-	for _, sig := range knownSignals {
-		candidates := []struct {
-			value string
-			desc  string
-		}{
-			{value: sig.Name, desc: sig.Description},
-			{value: sig.ShortName, desc: sig.Description},
-			{value: strconv.Itoa(int(sig.Signal)), desc: sig.Name + " (" + sig.Description + ")"},
-		}
-
-		for _, cand := range candidates {
-			if seen[cand.value] {
-				continue
-			}
-
-			if toComplete != "" && !strings.HasPrefix(strings.ToUpper(cand.value), upperToComplete) {
-				continue
-			}
-
-			seen[cand.value] = true
-			items = append(items, predict.Item{
-				Value:       cand.value,
-				Display:     cand.value,
-				Description: cand.desc,
-				Style:       sig.Style,
-				Tag:         "signals",
-			})
-		}
-	}
-
-	return predict.Items(items...)
-}
-
-func actionUsers(_ predict.Context) predict.Predictor {
-	items := scanUsers()
-
-	return predict.Items(items...)
-}
-
-func fallbackLocales() []string {
-	return []string{
-		"C", "C.UTF-8", "POSIX",
-		"en_US.UTF-8", "en_GB.UTF-8", "en_CA.UTF-8", "en_AU.UTF-8",
-		"de_DE.UTF-8", "de_AT.UTF-8", "de_CH.UTF-8",
-		"fr_FR.UTF-8", "fr_CA.UTF-8", "fr_BE.UTF-8", "fr_CH.UTF-8",
-		"es_ES.UTF-8", "es_MX.UTF-8", "es_AR.UTF-8", "es_CL.UTF-8",
-		"it_IT.UTF-8", "it_CH.UTF-8",
-		"pt_PT.UTF-8", "pt_BR.UTF-8",
-		"nl_NL.UTF-8", "nl_BE.UTF-8",
-		"ru_RU.UTF-8", "zh_CN.UTF-8", "zh_TW.UTF-8", "zh_HK.UTF-8",
-		"ja_JP.UTF-8", "ko_KR.UTF-8", "pl_PL.UTF-8", "sv_SE.UTF-8",
-		"da_DK.UTF-8", "fi_FI.UTF-8", "nb_NO.UTF-8", "nn_NO.UTF-8",
-		"cs_CZ.UTF-8", "el_GR.UTF-8", "he_IL.UTF-8", "hi_IN.UTF-8",
-		"hu_HU.UTF-8", "id_ID.UTF-8", "tr_TR.UTF-8", "uk_UA.UTF-8",
-		"vi_VN.UTF-8",
-	}
-}
-
-func parseGroupReader(r io.Reader) []predict.Item {
-	seen := make(map[string]bool)
-
-	var items []predict.Item
-
-	if err := scanx.ScanLines(r, func(line string) bool {
-		parts := strings.Split(line, ":")
-		if len(parts) < 3 {
-			return true
-		}
-
-		name := strings.TrimSpace(parts[0])
-		if name == "" || seen[name] {
-			return true
-		}
-
-		seen[name] = true
-		gid := strings.TrimSpace(parts[2])
-
-		desc := "GID: " + gid
-		if len(parts) >= 4 && strings.TrimSpace(parts[3]) != "" {
-			desc += fmt.Sprintf(" (%s)", strings.TrimSpace(parts[3]))
-		}
-
-		items = append(items, predict.Item{
-			Value:       name,
-			Display:     name,
-			Description: desc,
-			Style:       style.Cyan,
-			Tag:         "user groups",
-		})
-
-		return true
-	}); err != nil {
-		return items
-	}
-
-	return items
-}
-
-func parsePasswdReader(r io.Reader) []predict.Item {
-	seen := make(map[string]bool)
-
-	var items []predict.Item
-
-	if err := scanx.ScanLines(r, func(line string) bool {
-		parts := strings.Split(line, ":")
-		if len(parts) < 6 {
-			return true
-		}
-
-		name := strings.TrimSpace(parts[0])
-		if name == "" || seen[name] {
-			return true
-		}
-
-		seen[name] = true
-		gecos := strings.TrimSpace(parts[4])
-
-		if index := strings.Index(gecos, ","); index != -1 {
-			gecos = strings.TrimSpace(gecos[:index])
-		}
-
-		desc := gecos
-		if desc == "" {
-			desc = strings.TrimSpace(parts[5]) // Home directory
-		}
-
-		items = append(items, predict.Item{
-			Value:       name,
-			Display:     name,
-			Description: desc,
-			Style:       style.Blue,
-			Tag:         "users",
-		})
-
-		return true
-	}); err != nil {
-		return items
-	}
-
-	return items
-}
-
-func scanEnvVars(ctx predict.Context) []predict.Item {
-	var envList []string
-
-	if len(ctx.Env) > 0 {
-		for k, v := range ctx.Env {
-			envList = append(envList, k+"="+v)
-		}
-	} else {
-		envList = os.Environ()
-	}
-
-	slices.Sort(envList)
-
-	hasDollarPrefix := strings.HasPrefix(ctx.ToComplete, "$")
-
-	seen := make(map[string]bool)
-
-	var items []predict.Item
-
-	for _, entry := range envList {
-		parts := strings.SplitN(entry, "=", 2)
-		if len(parts) != 2 {
-			continue
-		}
-
-		key := parts[0]
-		value := parts[1]
-
-		if key == "" || seen[key] {
-			continue
-		}
-
-		seen[key] = true
-
-		valueRunes := []rune(value)
-		if len(valueRunes) > 40 {
-			value = string(valueRunes[:37]) + "..."
-		}
-
-		valueCandidate := key
-		if hasDollarPrefix {
-			valueCandidate = "$" + key
-		}
-
-		items = append(items, predict.Item{
-			Value:       valueCandidate,
-			Display:     valueCandidate,
-			Description: value,
-			Style:       style.Yellow,
-			Tag:         "environment variables",
-		})
-	}
-
-	return items
-}
-
-func scanGroups() []predict.Item {
-	if runtime.GOOS != "windows" {
-		if file, err := os.Open("/etc/group"); err == nil {
-			items := parseGroupReader(file)
-			_ = file.Close() //nolint:errcheck // Read-only file close.
-
-			return items
-		}
-	}
-
-	var items []predict.Item
-
-	if curr, err := user.Current(); err == nil && curr.Gid != "" {
-		groupName := curr.Username
-		if grp, err := user.LookupGroupId(curr.Gid); err == nil && grp.Name != "" {
-			groupName = grp.Name
-		}
-
-		items = append(items, predict.Item{
-			Value:       groupName,
-			Display:     groupName,
-			Description: "Current user group",
-			Style:       style.Cyan,
-			Tag:         "user groups",
-		})
-	}
-
-	return items
-}
-
-func scanI18nLocales() []string {
-	entries, err := os.ReadDir("/usr/share/i18n/locales")
-	if err != nil {
-		return nil
-	}
-
-	var locales []string
-
-	for _, entry := range entries {
-		if !entry.IsDir() && !strings.HasPrefix(entry.Name(), ".") {
-			locales = append(locales, entry.Name())
-		}
-	}
-
-	return locales
-}
-
-func scanLocaleGen() []string {
-	file, err := os.Open("/etc/locale.gen")
-	if err != nil {
-		return nil
-	}
-
-	defer func() {
-		_ = file.Close() //nolint:errcheck // Read-only file close.
-	}()
-
-	var locales []string
-
-	if err := scanx.ScanLines(file, func(line string) bool {
-		parts := strings.Fields(line)
-		if len(parts) > 0 {
-			locales = append(locales, parts[0])
-		}
-
-		return true
-	}); err != nil {
-		return nil
-	}
-
-	return locales
-}
-
-func scanLocales() []predict.Item {
-	locales := scanLocaleGen()
-	if len(locales) == 0 {
-		locales = scanI18nLocales()
-	}
-
-	if len(locales) == 0 {
-		locales = fallbackLocales()
-	}
-
-	seen := make(map[string]bool)
-
-	var items []predict.Item
-
-	for _, loc := range locales {
-		if loc == "" || seen[loc] {
-			continue
-		}
-
-		seen[loc] = true
-
-		items = append(items, predict.Item{
-			Value:   loc,
-			Display: loc,
-			Style:   style.Cyan,
-			Tag:     "locales",
-		})
-	}
-
-	return items
-}
-
-func scanLinuxProc() []procEntry {
-	entries, err := os.ReadDir("/proc")
-	if err != nil {
-		return nil
-	}
-
-	var procs []procEntry
-
-	for _, entry := range entries {
-		if !entry.IsDir() {
-			continue
-		}
-
-		pid, err := strconv.Atoi(entry.Name())
-		if err != nil || pid <= 0 {
-			continue
-		}
-
-		commPath := filepath.Clean(fmt.Sprintf("/proc/%s/comm", entry.Name()))
-
-		commBytes, err := os.ReadFile(commPath)
-		if err != nil {
-			continue
-		}
-
-		exe := strings.TrimSpace(string(commBytes))
-		if exe != "" {
-			procs = append(procs, procEntry{Pid: pid, Exe: exe})
-		}
-	}
-
-	return procs
-}
-
-func scanRunningProcesses() []procEntry {
-	if runtime.GOOS == "linux" {
-		if procs := scanLinuxProc(); len(procs) > 0 {
-			return procs
-		}
-	}
-
-	pid := os.Getpid()
-	exe := "conga"
-
-	if selfExe, err := os.Executable(); err == nil {
-		exe = filepath.Base(selfExe)
-	}
-
-	return []procEntry{{Pid: pid, Exe: exe}}
-}
-
-func scanUsers() []predict.Item {
-	if runtime.GOOS != "windows" {
-		if file, err := os.Open("/etc/passwd"); err == nil {
-			items := parsePasswdReader(file)
-			_ = file.Close() //nolint:errcheck // Read-only file close.
-
-			return items
-		}
-	}
-
-	var items []predict.Item
-
-	name := cond.SetOrDefaultFunc(os.Getenv("USER"), func() string {
-		return os.Getenv("USERNAME")
-	})
-
-	if curr, err := user.Current(); err == nil && curr.Username != "" {
-		name = curr.Username
-	}
-
-	if name != "" {
-		items = append(items, predict.Item{
-			Value:       name,
-			Display:     name,
-			Description: "Current user",
-			Style:       style.Blue,
-			Tag:         "users",
-		})
-	}
-
-	return items
 }
 
 // parseSignal parses a signal by name (e.g. "SIGTERM", "TERM", "hup") or numeric string ("15").

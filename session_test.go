@@ -9,6 +9,7 @@ import (
 	"github.com/alecthomas/assert/v2"
 
 	"github.com/conga-sh/conga"
+	"github.com/conga-sh/conga/internal/assertx"
 )
 
 func TestSession_RootAndStreams(t *testing.T) {
@@ -16,7 +17,6 @@ func TestSession_RootAndStreams(t *testing.T) {
 
 	buffer := &bytes.Buffer{}
 	app := conga.New[sessionTestRoot]().
-		Name("cloudctl").
 		Args([]string{"-v", "deploy", "api"}).
 		Stdout(buffer)
 
@@ -224,4 +224,35 @@ func (c *sessionLifecycleCmd) Finally(ctx context.Context, session *conga.Sessio
 	c.Logs = append(c.Logs, fmt.Sprintf("Finally:%s:%v", session.Name(), err != nil))
 
 	return nil
+}
+
+type wrongRootType struct{}
+
+type mismatchDeployCmd struct{}
+
+func (m *mismatchDeployCmd) Run(ctx context.Context, session *conga.Session) error {
+	_ = session.Root[wrongRootType]()
+
+	return nil
+}
+
+type sessionMismatchRoot struct {
+	Deploy conga.Command[mismatchDeployCmd] `summary:"Deploy service"`
+}
+
+func (s *sessionMismatchRoot) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+func TestSession_Root_TypeMismatchPanics(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[sessionMismatchRoot]().
+		Args([]string{"deploy"})
+
+	expectedPanic := "conga: Session.Root[conga_test.wrongRootType] called, but root command type is *conga_test.sessionMismatchRoot"
+
+	assertx.PanicsWithValue(t, expectedPanic, func() {
+		_ = app.Run()
+	})
 }

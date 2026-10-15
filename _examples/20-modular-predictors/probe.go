@@ -20,7 +20,7 @@ type ProbeCmd struct {
 }
 
 func (p *ProbeCmd) Run(ctx context.Context, session *conga.Session) error {
-	inspector.Print(session, session.Root[CLI]())
+	inspector.Print(session, session.Root[CLI](), p)
 
 	expect := p.Expect.Get()
 

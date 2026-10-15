@@ -65,6 +65,12 @@ type DecodeContext struct {
 	Stdout io.Writer
 }
 
+// MapEntry is a key-value pair parsed from raw CLI tokens.
+type MapEntry struct {
+	Key   string
+	Value string
+}
+
 // Value converts a raw string value into the target type T.
 func Value[T any](raw string) (T, error) {
 	var zero T
@@ -142,11 +148,13 @@ func SplitMapItems(raws []string, sep string) []string {
 	return items
 }
 
-// Map converts a slice of raw string tokens into a map[string]string.
-func Map(raws []string, sep string) (map[string]string, error) {
-	result := make(map[string]string)
+// MapEntries converts a slice of raw string tokens into an ordered slice of
+// MapEntry pairs, preserving input token sequence.
+func MapEntries(raws []string, sep string) ([]MapEntry, error) {
+	items := SplitMapItems(raws, sep)
+	entries := make([]MapEntry, 0, len(items))
 
-	for _, item := range SplitMapItems(raws, sep) {
+	for _, item := range items {
 		key, value, ok := strings.Cut(item, "=")
 		if !ok {
 			return nil, &mapPairError{item: item, kind: mapPairErrorInvalid}
@@ -157,7 +165,25 @@ func Map(raws []string, sep string) (map[string]string, error) {
 			return nil, &mapPairError{item: item, kind: mapPairErrorEmptyKey}
 		}
 
-		result[key] = strings.TrimSpace(value)
+		entries = append(entries, MapEntry{
+			Key:   key,
+			Value: strings.TrimSpace(value),
+		})
+	}
+
+	return entries, nil
+}
+
+// Map converts a slice of raw string tokens into a map[string]string.
+func Map(raws []string, sep string) (map[string]string, error) {
+	entries, err := MapEntries(raws, sep)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make(map[string]string, len(entries))
+	for _, entry := range entries {
+		result[entry.Key] = entry.Value
 	}
 
 	return result, nil

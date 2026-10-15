@@ -94,57 +94,45 @@ func (d Directives) Tokens() []string {
 // PrefixSet is a set of runes matched against the first rune of a word, with
 // "*" as the match-any wildcard.
 type PrefixSet struct {
-	runes string
-}
-
-// Add inserts runes into the set, deduplicating and sorting them; adding "*"
-// collapses the set to the wildcard.
-func (s *PrefixSet) Add(runes ...rune) {
-	s.runes = addRunes(s.runes, runes...)
-}
-
-// IsEmpty reports whether the set holds no runes.
-func (s *PrefixSet) IsEmpty() bool {
-	return s.runes == ""
+	runeSet
 }
 
 // Matches reports whether the first rune of value is in the set. The empty
 // string never matches.
 func (s *PrefixSet) Matches(value string) bool {
-	return matchRunes(s.runes, value, true)
-}
+	if s.runes == "" || value == "" {
+		return false
+	}
 
-// String returns the set's runes as a sorted string ("*" for the wildcard).
-func (s *PrefixSet) String() string {
-	return s.runes
+	if s.runes == "*" {
+		return true
+	}
+
+	firstRune, _ := utf8.DecodeRuneInString(value)
+
+	return strings.ContainsRune(s.runes, firstRune)
 }
 
 // SuffixSet is a set of runes matched against the last rune of a word, with
 // "*" as the match-any wildcard.
 type SuffixSet struct {
-	runes string
-}
-
-// Add inserts runes into the set, deduplicating and sorting them; adding "*"
-// collapses the set to the wildcard.
-func (s *SuffixSet) Add(runes ...rune) {
-	s.runes = addRunes(s.runes, runes...)
-}
-
-// IsEmpty reports whether the set holds no runes.
-func (s *SuffixSet) IsEmpty() bool {
-	return s.runes == ""
+	runeSet
 }
 
 // Matches reports whether the last rune of value is in the set. The empty
 // string never matches.
 func (s *SuffixSet) Matches(value string) bool {
-	return matchRunes(s.runes, value, false)
-}
+	if s.runes == "" || value == "" {
+		return false
+	}
 
-// String returns the set's runes as a sorted string ("*" for the wildcard).
-func (s *SuffixSet) String() string {
-	return s.runes
+	if s.runes == "*" {
+		return true
+	}
+
+	lastRune, _ := utf8.DecodeLastRuneInString(value)
+
+	return strings.ContainsRune(s.runes, lastRune)
 }
 
 // ClampDescription truncates description to maxLength runes, appending "..."
@@ -194,6 +182,59 @@ func FromResult(result predict.Result) ([]Candidate, Directives) {
 	return candidates, directives
 }
 
+// StripControl removes all occurrences of any character in cutset from input.
+// It returns input unchanged if input contains no cutset characters.
+func StripControl(input, cutset string) string {
+	if !strings.ContainsAny(input, cutset) {
+		return input
+	}
+
+	return strings.Map(func(r rune) rune {
+		if strings.ContainsRune(cutset, r) {
+			return -1
+		}
+
+		return r
+	}, input)
+}
+
+// ReplaceControlWithSpace replaces all occurrences of any character in cutset
+// from input with an ASCII space. It returns input unchanged if input contains no cutset characters.
+func ReplaceControlWithSpace(input, cutset string) string {
+	if !strings.ContainsAny(input, cutset) {
+		return input
+	}
+
+	return strings.Map(func(r rune) rune {
+		if strings.ContainsRune(cutset, r) {
+			return ' '
+		}
+
+		return r
+	}, input)
+}
+
+// runeSet holds a sorted, deduplicated set of runes or "*" as a wildcard.
+type runeSet struct {
+	runes string
+}
+
+// Add inserts runes into the set, deduplicating and sorting them; adding "*"
+// collapses the set to the wildcard.
+func (s *runeSet) Add(runes ...rune) {
+	s.runes = addRunes(s.runes, runes...)
+}
+
+// IsEmpty reports whether the set holds no runes.
+func (s *runeSet) IsEmpty() bool {
+	return s.runes == ""
+}
+
+// String returns the set's runes as a sorted string ("*" for the wildcard).
+func (s *runeSet) String() string {
+	return s.runes
+}
+
 // addRunes merges runes into an existing sorted, deduplicated set; adding "*"
 // (or adding to a set already holding "*") collapses the set to the wildcard.
 func addRunes(existing string, add ...rune) string {
@@ -211,41 +252,4 @@ func addRunes(existing string, add ...rune) string {
 	slices.Sort(unique)
 
 	return string(unique)
-}
-
-// matchRunes reports whether any rune of the set matches value: prefix mode
-// compares against the first rune, suffix mode against the last rune. "*"
-// matches any non-empty value; the empty value never matches.
-func matchRunes(set, value string, prefix bool) bool {
-	if value == "" {
-		return false
-	}
-
-	for _, r := range set {
-		if r == '*' {
-			return true
-		}
-
-		if r < utf8.RuneSelf {
-			if prefix {
-				if rune(value[0]) == r {
-					return true
-				}
-			} else if rune(value[len(value)-1]) == r {
-				return true
-			}
-
-			continue
-		}
-
-		if prefix {
-			if strings.HasPrefix(value, string(r)) {
-				return true
-			}
-		} else if strings.HasSuffix(value, string(r)) {
-			return true
-		}
-	}
-
-	return false
 }

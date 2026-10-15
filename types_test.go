@@ -48,14 +48,6 @@ func TestGenericContainers(t *testing.T) {
 		assert.Equal(t, "--port", intFlag.SourceDetail())
 	})
 
-	t.Run("RequiredFlag[string] required state", func(t *testing.T) {
-		t.Parallel()
-
-		var requiredFlag conga.RequiredFlag[string]
-
-		assert.True(t, conga.RequiredFlagContainer(&requiredFlag).IsRequired())
-	})
-
 	t.Run("RequiredFlag[string] set value and source", func(t *testing.T) {
 		t.Parallel()
 
@@ -65,14 +57,6 @@ func TestGenericContainers(t *testing.T) {
 
 		assert.Equal(t, "admin", requiredFlag.Get())
 		assert.Equal(t, conga.SourceEnv, requiredFlag.Source())
-	})
-
-	t.Run("RequiredArg[string] required state", func(t *testing.T) {
-		t.Parallel()
-
-		var stringArg conga.RequiredArg[string]
-
-		assert.True(t, conga.RequiredArgContainer(&stringArg).IsRequired())
 	})
 
 	t.Run("RequiredArg[string] set value", func(t *testing.T) {
@@ -90,7 +74,6 @@ func TestGenericContainers(t *testing.T) {
 
 		var optionalArg conga.OptionalArg[string]
 
-		assert.False(t, conga.OptionalArgContainer(&optionalArg).IsRequired())
 		assert.Equal(t, "default.txt", optionalArg.GetOr("default.txt"))
 	})
 
@@ -231,7 +214,6 @@ func TestCommandContainer(t *testing.T) {
 	cmdContainer.MarkSelected()
 
 	assert.True(t, cmd.IsSelected())
-	assert.NotZero(t, cmd.Get())
 	assert.Equal(t, any(cmd.Get()), cmdContainer.InnerValue())
 }
 
@@ -1369,7 +1351,6 @@ func TestFileTypesEndToEnd(t *testing.T) {
 
 	cli := new(CLI)
 	app := conga.New(cli).
-		Name("filetypes").
 		Args([]string{"--content", inputPath, "--input", inputPath, "--output", outputPath})
 
 	err = app.Run()

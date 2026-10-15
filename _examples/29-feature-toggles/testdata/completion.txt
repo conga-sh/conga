@@ -1,0 +1,23 @@
+# TestScript for 29-feature-toggles — shell completion pruning.
+# Inactive gated flags and commands never reach completion candidates; the
+# baseline flags do.
+
+# Isolate the conventional XDG config tier from the host machine.
+env HOME=$WORK/home
+env XDG_CONFIG_HOME=$WORK/xdg
+
+# 1. Default: gated flags and the gated command are absent.
+exec serve __complete export --
+stdout '"value":"--listen"'
+stdout '"value":"--cache"'
+! stdout '"value":"--http3"'
+! stdout '"value":"--allow-insecure"'
+exec serve __complete export ""
+! stdout '"value":"admin"'
+
+# 2. Enabling the features reveals them in completion.
+env SERVE_FEATURES=http3=true,admin-api=true
+exec serve __complete export --
+stdout '"value":"--http3"'
+exec serve __complete export ""
+stdout '"value":"admin"'

@@ -10,10 +10,22 @@ When flags resolve across multiple tiers (CLI flags, environment variables, conf
 Call `EnableWhy()` on the application builder to install the `--why` flag:
 
 ```go title="main.go"
+package main
+
+import (
+	"context"
+
+	"github.com/conga-sh/conga"
+)
+
 type Server struct {
 	Host  conga.OptionalFlag[string] `default:"127.0.0.1" help:"Listen address" safe:"true"`
 	Port  conga.OptionalFlag[int]    `default:"8080" help:"Listen port" safe:"true" short:"p"`
 	Token conga.OptionalFlag[string] `help:"API secret token"`
+}
+
+func (s *Server) Run(ctx context.Context, session *conga.Session) error {
+	return nil
 }
 
 func main() {
@@ -64,21 +76,56 @@ Config decoders: none
 
 Config paths checked:
   none
+
+values are redacted — tag fields safe:"true" to display
 ```
 
-The report contains three diagnostic sections:
+The report contains these diagnostic sections (the feature table appears only when the root command declares `conga.Features[T]`):
 
 - **Flag table**:
   - `FLAG`: The declared flag name.
   - `VALUE`: The winning value, or `██████` if untagged.
-  - `SOURCE`: The winning tier (`cli`, `env`, `config`, or `default`).
+  - `SOURCE`: The winning tier (`cli`, `env`, `config`, or `default`). For a map flag, the highest contributing tier.
   - `ENV`: The derived or explicit environment variable evaluated for this flag.
   - `CONFIG PATH`: The evaluated config file key.
 - **Config decoders**: All file format decoders registered on the application.
 - **Config paths checked**: Every file path probed during resolution, annotated with its status (`(none found)` or loaded).
+- **Features**: Every declared feature, its resolved value, and its source.
+
+Map flags merge key by key across tiers, so their row is followed by one indented sub-row per key carrying the tier that last wrote it:
+
+```sh
+server --why --headers shared=cli,team=core
+```
+
+```text no-copy
+  --headers   region=eu-west-1, shared=cli, team=core   cli      -   headers
+              region=eu-west-1                          config
+              shared=cli                                cli
+              team=core                                 cli
+```
+
+## Inspect feature provenance
+
+When the root command declares a `conga.Features[T]` container (see [Feature toggles](/reference/struct-tags/#feature-toggles-congafeaturest)), the report ends with a `Features:` table. Each feature reports the tier that last wrote its key; keys no tier set fall back to the field default (`default`) or render `unset`:
+
+```sh
+serve --why
+```
+
+```text no-copy
+Features:
+
+  FEATURE      VALUE   SOURCE
+  http3        false   unset
+  admin-api    false   unset
+  strict-tls   true    default
+  metrics      true    default
+```
 
 ## Where to go next
 
+- [About feature toggles](/explanation/feature-toggles/) — design rationale, sparse gate merging, and member pruning.
 - [About value precedence](/explanation/value-precedence/) — the deterministic four-tier resolution ladder and provenance rules.
 - [How to bind environment variables](/how-to/bind-environment-variables/) — configure environment variable prefixes and explicit overrides.
 - [How to manage config files](/how-to/manage-config-files/) — register file decoders and configure search paths.

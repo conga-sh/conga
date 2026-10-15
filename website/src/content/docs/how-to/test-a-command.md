@@ -14,10 +14,29 @@ package main
 
 import (
 	"bytes"
+	"context"
+	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/conga-sh/conga"
 )
+
+type CLI struct {
+	Name conga.OptionalFlag[string] `default:"World" help:"Name of the person to greet"`
+	Loud conga.OptionalFlag[bool]   `help:"Print greeting in uppercase"`
+}
+
+func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
+	greeting := fmt.Sprintf("Hello, %s!", c.Name.Get())
+	if c.Loud.Get() {
+		greeting = strings.ToUpper(greeting)
+	}
+
+	fmt.Fprintln(session.Stdout(), greeting)
+
+	return nil
+}
 
 func TestHelloGreetsUser(t *testing.T) {
 	t.Parallel()
@@ -25,7 +44,6 @@ func TestHelloGreetsUser(t *testing.T) {
 	var stdoutBuffer, stderrBuffer bytes.Buffer
 
 	app := conga.New[CLI]().
-		Name("hello").
 		Args([]string{"--name", "Alice", "--loud"}).
 		Stdout(&stdoutBuffer).
 		Stderr(&stderrBuffer)
@@ -49,7 +67,7 @@ Configuring `Args` leaves `os.Args` untouched, preventing race conditions when t
 
 Streams and arguments are snapshotted when `RunContext` begins. Builder calls made after execution has started do not affect the running session.
 
-## Assert exit codes without terminating the test runner
+## Assert exit codes
 
 By default, `app.Exit` terminates the process using `os.Exit`. To assert exit codes in tests without terminating the test runner, replace the exit handler using `ExitFunc`:
 
@@ -61,7 +79,6 @@ func TestUnknownFlagReportsUsageError(t *testing.T) {
 	exitCode := 0
 
 	app := conga.New[CLI]().
-		Name("hello").
 		Args([]string{"--unknown-flag"}).
 		Stdout(&stdoutBuffer).
 		Stderr(&stderrBuffer).
@@ -130,8 +147,8 @@ func TestTable(t *testing.T) {
 		args []string
 		want string
 	}{
-		{"default", nil, "hello World\n"},
-		{"custom", []string{"--name", "Bob"}, "hello Bob\n"},
+		{"default", nil, "Hello, World!\n"},
+		{"custom", []string{"--name", "Bob"}, "Hello, Bob!\n"},
 	}
 
 	for _, tc := range cases {

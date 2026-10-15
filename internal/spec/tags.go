@@ -459,7 +459,7 @@ func extractFlagKindInfo(structField reflect.StructField, classification contain
 	}
 }
 
-func parseFlagSpec(structField reflect.StructField, flagHandle any, classification container.Classification, fieldTags FieldTags, opts Options) (*Flag, error) {
+func parseFlagSpec(structField reflect.StructField, flagHandle any, classification container.Classification, fieldTags FieldTags, opts *Options) (*Flag, error) {
 	kindInfo := extractFlagKindInfo(structField, classification)
 
 	if kindInfo.isCounter {
@@ -505,6 +505,11 @@ func parseFlagSpec(structField reflect.StructField, flagHandle any, classificati
 		return nil, err
 	}
 
+	feature, err := parseTagFeature(structField.Tag, classification.Required, opts)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Flag{
 		Name:        name,
 		Short:       shortRune,
@@ -521,22 +526,44 @@ func parseFlagSpec(structField reflect.StructField, flagHandle any, classificati
 		Items:       itemsSpec,
 		Help:        helpText,
 		HelpVars:    referenced,
-		Placeholder: placeholder,
-		Group:       structField.Tag.Get("group"),
-		Hidden:      parsePresenceOrTrueTag(structField.Tag, "hidden"),
-		Safe:        safe,
-		Deprecated:  structField.Tag.Get("deprecated"),
-		Sep:         kindInfo.sep,
-		IsBool:      kindInfo.isBool,
-		IsSlice:     kindInfo.isSlice,
-		IsMap:       kindInfo.isMap,
-		IsCounter:   kindInfo.isCounter,
-		IsNegatable: kindInfo.isNegatable,
-		Required:    classification.Required,
-		Predictor:   predSpec,
-		TargetType:  kindInfo.targetType,
-		Handle:      flagHandle,
+		// The enumhint tag's "-" value was validated by ValidateFieldTags before
+		// parsing; presence alone opts the flag out of the enum hint.
+		EnumHintHidden: hasTag(structField.Tag, "enumhint"),
+		Placeholder:    placeholder,
+		Group:          structField.Tag.Get("group"),
+		Hidden:         parsePresenceOrTrueTag(structField.Tag, "hidden"),
+		Safe:           safe,
+		Deprecated:     structField.Tag.Get("deprecated"),
+		Feature:        feature,
+		Sep:            kindInfo.sep,
+		IsBool:         kindInfo.isBool,
+		IsSlice:        kindInfo.isSlice,
+		IsMap:          kindInfo.isMap,
+		IsCounter:      kindInfo.isCounter,
+		IsNegatable:    kindInfo.isNegatable,
+		Required:       classification.Required,
+		Predictor:      predSpec,
+		TargetType:     kindInfo.targetType,
+		Handle:         flagHandle,
 	}, nil
+}
+
+func parseTagFeature(tag reflect.StructTag, required bool, opts *Options) (string, error) {
+	raw := tag.Get("feature")
+	if raw == "" {
+		return "", nil
+	}
+
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return "", nil
+	}
+
+	if opts.ParseFeatureTag == nil {
+		return "", FeatureTagRequiresEnableError()
+	}
+
+	return opts.ParseFeatureTag(raw, required)
 }
 
 func extractFlagName(structField reflect.StructField) string {
@@ -558,7 +585,7 @@ func extractFlagShort(structTag reflect.StructTag) rune {
 	return 0
 }
 
-func parseValidationSpecs(structTag reflect.StructTag, targetType reflect.Type, fieldTags FieldTags, opts Options) (*Range, *Range, *Range, error) {
+func parseValidationSpecs(structTag reflect.StructTag, targetType reflect.Type, fieldTags FieldTags, opts *Options) (*Range, *Range, *Range, error) {
 	var (
 		rangeSpec *Range
 		lenSpec   *Range
@@ -613,7 +640,7 @@ func parseValidationSpecs(structTag reflect.StructTag, targetType reflect.Type, 
 // UnmarshalText grammar, and any other type is rejected. fieldTags and opts
 // feed the optional tag-aware bound validator (see Options.ValidateTextRangeBound)
 // so domain types can enforce their own tag constraints on range bounds.
-func validateRangeSpec(rangeSpec *Range, targetType reflect.Type, fieldTags FieldTags, opts Options) error {
+func validateRangeSpec(rangeSpec *Range, targetType reflect.Type, fieldTags FieldTags, opts *Options) error {
 	if rangeSpec == nil || targetType == nil {
 		return nil
 	}
@@ -628,8 +655,8 @@ func validateRangeSpec(rangeSpec *Range, targetType reflect.Type, fieldTags Fiel
 	}
 
 	if domain, boundKind, ok := TextRangeDomain(elemType); ok {
-		if opts.ValidateTextRangeBound != nil {
-			if err := validateTaggedTextBounds(rangeSpec, boundKind, elemType, fieldTags, opts.ValidateTextRangeBound); err != nil {
+		if validator := boundValidatorOf(opts); validator != nil {
+			if err := validateTaggedTextBounds(rangeSpec, boundKind, elemType, fieldTags, validator); err != nil {
 				return err
 			}
 		}
@@ -687,6 +714,14 @@ func validateTaggedTextBounds(rangeSpec *Range, boundKind string, elemType refle
 		if err := validate(elemType, fieldTags, rangeSpec.MaxStr); err != nil {
 			return fmt.Errorf("%w: invalid %s max bound %q", ErrInvalidRangeSyntax, boundKind, rangeSpec.MaxStr)
 		}
+	}
+
+	return nil
+}
+
+func boundValidatorOf(opts *Options) func(reflect.Type, FieldTags, string) error {
+	if opts != nil {
+		return opts.ValidateTextRangeBound
 	}
 
 	return nil
@@ -822,7 +857,7 @@ func isUnsignedKind(kind reflect.Kind) bool {
 	}
 }
 
-func parseArgSpec(structField reflect.StructField, argHandle any, classification container.Classification, fieldTags FieldTags, opts Options) (*Arg, error) {
+func parseArgSpec(structField reflect.StructField, argHandle any, classification container.Classification, fieldTags FieldTags, opts *Options) (*Arg, error) {
 	name := cond.SetOrDefaultFunc(structField.Tag.Get("name"), func() string {
 		return fmt.Sprintf("<%s>", casing.Kebab(structField.Name))
 	})
@@ -857,21 +892,24 @@ func parseArgSpec(structField reflect.StructField, argHandle any, classification
 	}
 
 	return &Arg{
-		Name:       name,
-		Default:    structField.Tag.Get("default"),
-		Help:       helpText,
-		HelpVars:   referenced,
-		Enum:       enumValues,
-		Range:      rangeSpec,
-		Len:        lenSpec,
-		Items:      itemsSpec,
-		Sep:        sep,
-		IsSlice:    isSlice,
-		IsMap:      isMap,
-		Required:   classification.Required,
-		Predictor:  predSpec,
-		TargetType: innerType,
-		Handle:     argHandle,
+		Name:     name,
+		Default:  structField.Tag.Get("default"),
+		Help:     helpText,
+		HelpVars: referenced,
+		// The enumhint tag's "-" value was validated by ValidateFieldTags
+		// before parsing; presence alone opts the argument out of the enum hint.
+		EnumHintHidden: hasTag(structField.Tag, "enumhint"),
+		Enum:           enumValues,
+		Range:          rangeSpec,
+		Len:            lenSpec,
+		Items:          itemsSpec,
+		Sep:            sep,
+		IsSlice:        isSlice,
+		IsMap:          isMap,
+		Required:       classification.Required,
+		Predictor:      predSpec,
+		TargetType:     innerType,
+		Handle:         argHandle,
 	}, nil
 }
 

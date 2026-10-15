@@ -95,7 +95,7 @@ func (s *SecretInput) UnmarshalTextWithContext(text []byte, decodeContext conga.
 }
 
 type CLI struct {
-	Token conga.RequiredFlag[SecretInput] `name:"token" help:"API token or - for stdin" stdin:"true" prefix:"sk-"`
+	Token conga.RequiredFlag[SecretInput] `help:"API token or - for stdin" stdin:"true" prefix:"sk-"`
 }
 ```
 
@@ -121,8 +121,7 @@ func parseCIDR(raw string) (net.IPNet, error) {
 }
 
 func main() {
-	app := conga.New[CLI]().
-		Name("nettool")
+	app := conga.New[CLI]()
 
 	app.RegisterType(
 		parseCIDR,
@@ -150,12 +149,15 @@ type Router struct {
 	Routes map[string]net.IPNet `help:"Routing table entries in key=cidr format"`
 }
 
+func (r *Router) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
 func main() {
-	app := conga.New[Router]().
-		Name("router")
+	app := conga.New[Router]()
 
 	app.RegisterType(parseCIDR)
-	app.RegisterMap(map[string]net.IPNet(nil))
+	app.RegisterMap[map[string]net.IPNet]()
 
 	if err := app.Run(); err != nil {
 		app.Exit(err)
@@ -163,7 +165,7 @@ func main() {
 }
 ```
 
-Map keys must be strings. Registering a map type with a non-string key panics during application initialisation.
+Map keys must have an underlying string type, enforced at compile time by RegisterMap's type constraints.
 
 Supply map entries using `KEY=VALUE` syntax across repeated flags or separated by commas:
 

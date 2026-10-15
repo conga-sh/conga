@@ -72,6 +72,12 @@ var (
 	//go:embed testdata/why/defaults.golden
 	goldenWhyDefaults string
 
+	//go:embed testdata/why/map-entry-width.golden
+	goldenWhyMapEntryWidth string
+
+	//go:embed testdata/why/map-merge.golden
+	goldenWhyMapMerge string
+
 	//go:embed testdata/why/redaction-badges.golden
 	goldenWhyRedactionBadges string
 

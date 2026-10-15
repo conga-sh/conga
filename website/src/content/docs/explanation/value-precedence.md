@@ -43,7 +43,7 @@ Before binding individual flags, CONGA determines which config files exist and l
 
 ### Phase 2: Flag value binding
 
-With the configuration map prepared, CONGA iterates over the command hierarchy's flags, evaluating the four-tier ladder for each field. The winning tier sets the container's value and provenance.
+With the configuration map prepared, CONGA iterates over the command hierarchy's flags, evaluating the four-tier ladder for each field. The winning tier sets the container's value and provenance. Map flags are the one exception: instead of a winning tier, every tier contributes its keys and higher tiers override per key (see [Map flags](#map-flags)).
 
 ## Why ConfigFile sits outside the four-tier ladder
 
@@ -75,13 +75,42 @@ If an application registers no config decoders (`app.RegisterDecoder`), Tier 3 r
 
 Positional containers (`RequiredArg[T]`, `OptionalArg[T]`, `DashArgs`, and `RawArgs`) resolve exclusively from command-line tokens. `OptionalArg[T]` populates from its `default` tag when omitted; `RequiredArg[T]` requires an explicit CLI token.
 
+### Map flags
+
+Unlike scalar and slice flags where a single winning tier replaces all lower tiers, `map[K]V` flags (and registered custom map types) merge key by key across all four tiers. Each tier contributes a set of `key=value` pairs, and the effective map folds in ascending order: `default < config < env < CLI`.
+
+A higher tier overrides only the specific keys it names. Keys supplied by lower tiers persist into the final map unless explicitly overridden:
+
+| Tier | Contributed keys | Effective map after tier |
+|---|---|---|
+| **1. Default tag** | `region=us-east-1`, `timeout=30s` | `region=us-east-1`, `timeout=30s` |
+| **2. Config file** | `timeout=60s`, `retries=3` | `region=us-east-1`, `timeout=60s`, `retries=3` |
+| **3. Environment** | `retries=5`, `debug=true` | `region=us-east-1`, `timeout=60s`, `retries=5`, `debug=true` |
+| **4. CLI flag** | `debug=false`, `profile=dev` | `region=us-east-1`, `timeout=60s`, `retries=5`, `debug=false`, `profile=dev` |
+
+This folding model matches conventions established by tools such as Kubernetes (`--feature-gates`), Helm (`--set`), and Git (`git -c`). A key set by a lower tier can be updated from a higher tier, but cannot be removed entirely.
+
+#### Lower-tier validation and attribution
+
+Because every tier contributes to the merged map, CONGA parses and validates map entries across all active tiers. A malformed entry or syntax error in a configuration file or environment variable produces an error even if an operator also specifies the flag on the command line. Errors attribute to the specific tier that supplied the malformed token:
+- Malformed configuration entries fail during file decoding with `ErrConfig` (exit code 1).
+- Malformed environment entries fail during parsing with `ErrParse` (exit code 2).
+
+### Feature maps
+
+A `conga.Features[T]` container resolves through the same key-by-key map merge. Every tier contributes `name=value` pairs, higher tiers override matching keys, and the resulting map overlays the inner feature struct's `default` tags key by key. Features not listed in any tier retain their field defaults (sparse overrides).
+
+Before merging, CONGA canonicalizes all feature keys to the declared feature name. Whether a configuration file specifies `gentle_force`, an environment variable sets `GENTLE_FORCE`, or the command line sets `gentle-force`, all three match the `GentleForce` toggle. Precedence follows the resolution tier, never the spelling variant.
+
+The container records the highest contributing tier as its `Source()`, and `--why` renders each individual feature against the tier that last wrote its key. See [About feature toggles](/explanation/feature-toggles/) and [How to inspect value provenance](/how-to/inspect-value-provenance/).
+
 ### Environment file integration
 
 When `.env` loading is enabled via `app.Dotenv()`, variables from `.env` files populate the process environment before flag resolution begins ([Dotenv files](/reference/dotenv/)). These values feed Tier 2 as standard environment variables.
 
 ## Provenance tracking
 
-CONGA records the origin of every resolved value. Rather than discarding resolution history after binding, containers retain their winning tier and source detail throughout execution:
+CONGA records the origin of every resolved value. Rather than discarding resolution history after binding, containers retain their winning tier and source detail throughout execution (map containers record the highest contributing tier):
 
 ```go
 source := cmd.Addr.Source()       // conga.SourceCLI, SourceEnv, SourceConfig, etc.

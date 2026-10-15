@@ -1,33 +1,12 @@
 package cond_test
 
 import (
-	"bytes"
-	"io"
-	"os"
 	"testing"
 
 	"github.com/alecthomas/assert/v2"
 
 	"github.com/conga-sh/conga/internal/cond"
 )
-
-func TestSetOrDefault(t *testing.T) {
-	t.Parallel()
-
-	assert.Equal(t, "hello", cond.SetOrDefault("hello", "fallback"))
-	assert.Equal(t, "fallback", cond.SetOrDefault("", "fallback"))
-	assert.Equal(t, 42, cond.SetOrDefault(42, 100))
-	assert.Equal(t, 100, cond.SetOrDefault(0, 100))
-
-	var (
-		writer io.Writer
-		buffer bytes.Buffer
-	)
-
-	assert.Equal(t, io.Writer(&buffer), cond.SetOrDefault(writer, io.Writer(&buffer)))
-	writer = os.Stdout
-	assert.Equal(t, io.Writer(os.Stdout), cond.SetOrDefault(writer, io.Writer(&buffer)))
-}
 
 func TestSetOrDefaultFunc(t *testing.T) {
 	t.Parallel()
@@ -44,16 +23,6 @@ func TestSetOrDefaultFunc(t *testing.T) {
 
 	assert.Equal(t, "computed", cond.SetOrDefaultFunc("", lazyFn))
 	assert.True(t, called)
-}
-
-func TestFirstSet(t *testing.T) {
-	t.Parallel()
-
-	assert.Equal(t, "first", cond.FirstSet("", "first", "second"))
-	assert.Equal(t, "a", cond.FirstSet("a", "b", "c"))
-	assert.Equal(t, "", cond.FirstSet("", "", ""))
-	assert.Equal(t, 5, cond.FirstSet(0, 0, 5, 10))
-	assert.Equal(t, 0, cond.FirstSet[int]())
 }
 
 func TestIf(t *testing.T) {

@@ -127,7 +127,7 @@ func TestFileExistingValidation(t *testing.T) {
 
 		testFile := writeFileForTest(t, "input.txt")
 		cli := new(FileExistingCLI)
-		app := conga.New(cli).Name("app").Args([]string{"--input", testFile})
+		app := conga.New(cli).Args([]string{"--input", testFile})
 
 		err := app.RunContext(t.Context())
 
@@ -141,7 +141,7 @@ func TestFileExistingValidation(t *testing.T) {
 		t.Parallel()
 
 		missing := filepath.Join(t.TempDir(), "missing.txt")
-		app := conga.New[FileExistingCLI]().Name("app").Args([]string{"--input", missing})
+		app := conga.New[FileExistingCLI]().Args([]string{"--input", missing})
 
 		err := app.RunContext(t.Context())
 
@@ -155,7 +155,7 @@ func TestFileExistingValidation(t *testing.T) {
 		t.Parallel()
 
 		missing := filepath.Join(t.TempDir(), "missing.txt")
-		app := conga.New[FileExistingCLI]().Name("app").Args([]string{"--input", missing, "--help"})
+		app := conga.New[FileExistingCLI]().Args([]string{"--input", missing, "--help"})
 
 		err := app.RunContext(t.Context())
 
@@ -166,7 +166,7 @@ func TestFileExistingValidation(t *testing.T) {
 		t.Parallel()
 
 		cli := new(FileStdinCLI)
-		app := conga.New(cli).Name("app").Args([]string{"--input", "-"})
+		app := conga.New(cli).Args([]string{"--input", "-"})
 
 		err := app.RunContext(t.Context())
 
@@ -181,7 +181,7 @@ func TestFileExistingValidation(t *testing.T) {
 		t.Parallel()
 
 		cli := new(FileStdoutCLI)
-		app := conga.New(cli).Name("app").Args([]string{"--output", "-"})
+		app := conga.New(cli).Args([]string{"--output", "-"})
 
 		err := app.RunContext(t.Context())
 
@@ -194,7 +194,7 @@ func TestFileExistingValidation(t *testing.T) {
 	t.Run("dash rejected without capability tags", func(t *testing.T) {
 		t.Parallel()
 
-		app := conga.New[FileExistingCLI]().Name("app").Args([]string{"--input", "-"})
+		app := conga.New[FileExistingCLI]().Args([]string{"--input", "-"})
 
 		err := app.RunContext(t.Context())
 
@@ -210,7 +210,6 @@ func TestFileExistingValidation(t *testing.T) {
 		testFile := writeFileForTest(t, "override.txt")
 		cli := new(FileExistingCLI)
 		app := conga.New(cli).
-			Name("app").
 			RegisterDecoder(".json", json.Decode).
 			ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"input": "`+missing+`"}`))).
 			Args([]string{"--input", testFile})
@@ -228,7 +227,6 @@ func TestFileExistingValidation(t *testing.T) {
 
 		missing := filepath.Join(t.TempDir(), "config-missing.txt")
 		app := conga.New[FileExistingCLI]().
-			Name("app").
 			RegisterDecoder(".json", json.Decode).
 			ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"input": "`+missing+`"}`))).
 			Args([]string{})
@@ -246,7 +244,6 @@ func TestFileExistingValidation(t *testing.T) {
 		missing := filepath.Join(t.TempDir(), "slice-missing.txt")
 		testFile := writeFileForTest(t, "slice-present.txt")
 		app := conga.New[FileSliceCLI]().
-			Name("app").
 			Args([]string{"--input", testFile + "," + missing})
 
 		err := app.RunContext(t.Context())
@@ -265,7 +262,7 @@ func TestFileArgExistingValidation(t *testing.T) {
 
 		testFile := writeFileForTest(t, "arg.txt")
 		cli := new(FileArgCLI)
-		app := conga.New(cli).Name("app").Args([]string{testFile})
+		app := conga.New(cli).Args([]string{testFile})
 
 		err := app.RunContext(t.Context())
 
@@ -279,7 +276,7 @@ func TestFileArgExistingValidation(t *testing.T) {
 		t.Parallel()
 
 		missing := filepath.Join(t.TempDir(), "missing.txt")
-		app := conga.New[FileArgCLI]().Name("app").Args([]string{missing})
+		app := conga.New[FileArgCLI]().Args([]string{missing})
 
 		err := app.RunContext(t.Context())
 
@@ -295,7 +292,7 @@ func TestDirExistingValidation(t *testing.T) {
 	t.Run("existing directory passes", func(t *testing.T) {
 		t.Parallel()
 
-		app := conga.New[DirExistingCLI]().Name("app").Args([]string{"--workdir", t.TempDir()})
+		app := conga.New[DirExistingCLI]().Args([]string{"--workdir", t.TempDir()})
 
 		err := app.RunContext(t.Context())
 
@@ -306,7 +303,7 @@ func TestDirExistingValidation(t *testing.T) {
 		t.Parallel()
 
 		testFile := writeFileForTest(t, "not-a-dir.txt")
-		app := conga.New[DirExistingCLI]().Name("app").Args([]string{"--workdir", testFile})
+		app := conga.New[DirExistingCLI]().Args([]string{"--workdir", testFile})
 
 		err := app.RunContext(t.Context())
 
@@ -376,7 +373,7 @@ func TestFileGlobTag(t *testing.T) {
 
 		testFile := writeFileForTest(t, "input.txt")
 		cli := new(FileGlobCLI)
-		app := conga.New(cli).Name("app").Args([]string{"--input", testFile})
+		app := conga.New(cli).Args([]string{"--input", testFile})
 
 		err := app.RunContext(t.Context())
 
@@ -391,7 +388,7 @@ func TestFileGlobTag(t *testing.T) {
 
 		var buffer bytes.Buffer
 
-		app := conga.New[FileGlobCLI]().Name("app").Stdout(&buffer).Args([]string{"--help"})
+		app := conga.New[FileGlobCLI]().Stdout(&buffer).Args([]string{"--help"})
 
 		err := app.Run()
 
@@ -472,7 +469,6 @@ func TestFileExistingConfigValidation(t *testing.T) {
 
 		testFile := writeFileForTest(t, "config.txt")
 		app := conga.New[FileConfigCLI]().
-			Name("app").
 			RegisterDecoder(".json", json.Decode).
 			ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"input": "`+testFile+`"}`))).
 			Args([]string{})
@@ -487,7 +483,6 @@ func TestFileExistingConfigValidation(t *testing.T) {
 
 		missing := filepath.Join(t.TempDir(), "config-missing.txt")
 		app := conga.New[FileConfigCLI]().
-			Name("app").
 			RegisterDecoder(".json", json.Decode).
 			ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"input": "`+missing+`"}`))).
 			Args([]string{})
@@ -515,7 +510,7 @@ func TestFileTagAwareHelp(t *testing.T) {
 
 	var buffer bytes.Buffer
 
-	app := conga.New[CLI]().Name("app").Stdout(&buffer).Args([]string{"--help"})
+	app := conga.New[CLI]().Stdout(&buffer).Args([]string{"--help"})
 
 	err := app.Run()
 
@@ -680,7 +675,7 @@ func TestUserDefinedTaggedDomainType(t *testing.T) {
 		t.Parallel()
 
 		cli := new(TaggedTokenCLI)
-		app := conga.New(cli).Name("app").Args([]string{"--token", "abc123"})
+		app := conga.New(cli).Args([]string{"--token", "abc123"})
 
 		err := app.RunContext(t.Context())
 
@@ -691,7 +686,7 @@ func TestUserDefinedTaggedDomainType(t *testing.T) {
 	t.Run("untagged parse leaves the value unconstrained and invalid", func(t *testing.T) {
 		t.Parallel()
 
-		app := conga.New[TaggedTokenRawCLI]().Name("app").Args([]string{"--token", "abc123"})
+		app := conga.New[TaggedTokenRawCLI]().Args([]string{"--token", "abc123"})
 
 		err := app.RunContext(t.Context())
 
@@ -741,7 +736,7 @@ func TestUserDefinedTaggedDomainType(t *testing.T) {
 
 		var buffer bytes.Buffer
 
-		app := conga.New[TaggedTokenCLI]().Name("app").Stdout(&buffer).Args([]string{"--help"})
+		app := conga.New[TaggedTokenCLI]().Stdout(&buffer).Args([]string{"--help"})
 
 		err := app.Run()
 
@@ -761,7 +756,7 @@ func TestDomainTypeArgDefaultHelp(t *testing.T) {
 
 	var buffer bytes.Buffer
 
-	app := conga.New[CLI]().Name("app").Stdout(&buffer).Args([]string{"--help"})
+	app := conga.New[CLI]().Stdout(&buffer).Args([]string{"--help"})
 
 	err := app.Run()
 
@@ -774,7 +769,7 @@ func TestFlagCandidateDescriptionFromDomainType(t *testing.T) {
 
 	var buffer bytes.Buffer
 
-	app := conga.New[FileStdinCLI]().EnableCompletion().Name("app").Stdout(&buffer).Args([]string{"__complete", "export", "--"})
+	app := conga.New[FileStdinCLI]().EnableCompletion().Stdout(&buffer).Args([]string{"__complete", "export", "--"})
 
 	err := app.Run()
 
@@ -789,7 +784,7 @@ func TestContextAwareTextUnmarshalerTagsAndStreams(t *testing.T) {
 		t.Parallel()
 
 		cli := new(SecretInputCLI)
-		app := conga.New(cli).Name("app").Args([]string{"--token", "sk-secret123"})
+		app := conga.New(cli).Args([]string{"--token", "sk-secret123"})
 
 		err := app.RunContext(t.Context())
 
@@ -800,7 +795,7 @@ func TestContextAwareTextUnmarshalerTagsAndStreams(t *testing.T) {
 	t.Run("token with invalid prefix is rejected", func(t *testing.T) {
 		t.Parallel()
 
-		app := conga.New[SecretInputCLI]().Name("app").Args([]string{"--token", "wrong-secret"})
+		app := conga.New[SecretInputCLI]().Args([]string{"--token", "wrong-secret"})
 
 		err := app.RunContext(t.Context())
 
@@ -814,7 +809,7 @@ func TestContextAwareTextUnmarshalerTagsAndStreams(t *testing.T) {
 
 		cli := new(SecretInputCLI)
 		stdin := strings.NewReader("sk-streamed-secret\n")
-		app := conga.New(cli).Name("app").Stdin(stdin).Args([]string{"--token", "-"})
+		app := conga.New(cli).Stdin(stdin).Args([]string{"--token", "-"})
 
 		err := app.RunContext(t.Context())
 
@@ -826,7 +821,7 @@ func TestContextAwareTextUnmarshalerTagsAndStreams(t *testing.T) {
 		t.Parallel()
 
 		stdin := strings.NewReader("sk-streamed-secret\n")
-		app := conga.New[SecretInputNoStdinCLI]().Name("app").Stdin(stdin).Args([]string{"--token", "-"})
+		app := conga.New[SecretInputNoStdinCLI]().Stdin(stdin).Args([]string{"--token", "-"})
 
 		err := app.RunContext(t.Context())
 

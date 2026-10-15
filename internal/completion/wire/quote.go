@@ -80,11 +80,11 @@ func SanitizeIdentifier(s string) string {
 
 // QuoteTargetPOSIX quotes target for use as a word in a POSIX shell script
 // unless it consists only of characters that are literal in an unquoted word
-// (alphanumerics and the common path/punctuation set "-_/.: where it is
+// (alphanumerics and the common path/punctuation set "-_/.:,@"), where it is
 // returned unchanged. Quoting is otherwise unconditional: POSIX single quotes
 // make every character literal.
 func QuoteTargetPOSIX(target string) string {
-	if isPosixSafe(target) {
+	if isPOSIXSafe(target) {
 		return target
 	}
 
@@ -108,9 +108,9 @@ func quoteSingleDoubled(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", "''") + "'"
 }
 
-// isPosixSafe reports whether every rune of s is literal in an unquoted POSIX
+// isPOSIXSafe reports whether every rune of s is literal in an unquoted POSIX
 // shell word.
-func isPosixSafe(s string) bool {
+func isPOSIXSafe(s string) bool {
 	for _, r := range s {
 		switch {
 		case r >= 'a' && r <= 'z':

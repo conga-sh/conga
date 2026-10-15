@@ -10,15 +10,26 @@ CONGA automatically binds environment variables to command flags during flag res
 Call `EnvPrefix` on the application builder to namespace all command flags under an environment variable prefix:
 
 ```go title="main.go"
+package main
+
+import (
+	"context"
+
+	"github.com/conga-sh/conga"
+)
+
 type Server struct {
 	Host      conga.OptionalFlag[string] `default:"127.0.0.1" help:"Listen address"`
 	Port      conga.OptionalFlag[int]    `default:"8080" help:"Listen port" short:"p"`
 	MaxMemory conga.OptionalFlag[string] `default:"512MB" help:"Maximum allocated memory"`
 }
 
+func (s *Server) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
 func main() {
 	app := conga.New[Server]().
-		Name("server").
 		EnvPrefix("SERVER")
 
 	if err := app.Run(); err != nil {

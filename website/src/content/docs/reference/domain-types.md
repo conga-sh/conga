@@ -85,7 +85,7 @@ An unrecognized tag value fails at schema build, and range bounds parse under th
 
 ```go
 type Cache struct {
-	Memory conga.ByteSize `units:"binary" display:"input"`
+	Memory conga.ByteSize `units:"binary"`
 }
 ```
 
@@ -123,11 +123,13 @@ The domain packages (`network`, `system`, `timezone`) bundle value types, autoco
 
 | Package | Domain types | Standard library binding |
 |---------|--------------|--------------------------|
-| `network` | `Host`, `Port`, `HTTPMethod`, `HTTPStatus`, `MIMEType`, `NetInterface` | `network.RegisterInterface` (`*net.Interface`) |
+| `network` | `Host`, `Port`, `HTTPMethod`, `HTTPStatus`, `MIMEType`, `NetInterface` | `network.RegisterInterface` (alias `network.RegisterNetInterface`) for `*net.Interface` |
 | `system` | `User`, `Group`, `Signal`, `PID`, `Process`, `EnvVar`, `Locale` | `system.RegisterUser` (`*user.User`), `system.RegisterGroup` (`*user.Group`), `system.RegisterSignal` (`syscall.Signal`) |
 | `timezone` | – | `timezone.RegisterLocation` (`*time.Location`) |
 
-Each package also exports its predictors as standalone constructors (`network.Hosts()`, `network.NetInterfaces()`, `system.Signals()`, `system.Users()`, `timezone.Timezones()`) for fields declared with plain strings.
+Each package also exports its predictors as standalone constructors: `network.Hosts()`, `network.NetInterfaces()`, `system.Signals()`, `system.Users()`, `system.ProcessIDs()` (alias `system.PIDs()`), `system.ProcessNames()` (alias `system.Processes()`), `system.Locales()`, `system.EnvVars()`, and `timezone.Timezones()`.
+
+Domain types in `network` and `system` implement `encoding.TextMarshaler` with value receivers, supporting canonical text formatting and serialization.
 
 ```go
 type Deploy struct {

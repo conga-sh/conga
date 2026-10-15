@@ -274,8 +274,8 @@ func TestRegisterMap_FlagsAndArgs(t *testing.T) {
 		app := conga.New(cli).
 			Args([]string{"-c", "web=3,worker=5", "-d", "timeout=10s,idle=1m", "db=2,cache=4"})
 
-		app.RegisterMap(map[string]int{})
-		app.RegisterMap(map[string]time.Duration{})
+		app.RegisterMap[map[string]int]()
+		app.RegisterMap[map[string]time.Duration]()
 
 		err := app.Run()
 
@@ -292,7 +292,7 @@ func TestRegisterMap_FlagsAndArgs(t *testing.T) {
 		app := conga.New(cli).
 			Args([]string{"-c", "web=3", "-c", "worker=5,db=2"})
 
-		app.RegisterMap(map[string]int{})
+		app.RegisterMap[map[string]int]()
 
 		err := app.Run()
 
@@ -307,7 +307,7 @@ func TestRegisterMap_FlagsAndArgs(t *testing.T) {
 		app := conga.New(cli).
 			Args([]string{"-w", "frontend=4,backend=8"})
 
-		app.RegisterMap(domainWorkerMap{})
+		app.RegisterMap[domainWorkerMap]()
 
 		err := app.Run()
 
@@ -321,7 +321,7 @@ func TestRegisterMap_FlagsAndArgs(t *testing.T) {
 		app := conga.New[registeredMapCLI]().
 			Args([]string{"-c", "bad_entry"})
 
-		app.RegisterMap(map[string]int{})
+		app.RegisterMap[map[string]int]()
 
 		err := app.Run()
 
@@ -335,7 +335,7 @@ func TestRegisterMap_FlagsAndArgs(t *testing.T) {
 		app := conga.New[registeredMapCLI]().
 			Args([]string{"-c", "web=not_a_number"})
 
-		app.RegisterMap(map[string]int{})
+		app.RegisterMap[map[string]int]()
 
 		err := app.Run()
 
@@ -351,7 +351,7 @@ func TestRegisterMap_FlagsAndArgs(t *testing.T) {
 		app := conga.New(cli).
 			Args([]string{"-c", "web=3;worker=5"})
 
-		app.RegisterMap(map[string]int{})
+		app.RegisterMap[map[string]int]()
 
 		err := app.Run()
 
@@ -366,7 +366,7 @@ func TestRegisterMap_FlagsAndArgs(t *testing.T) {
 		app := conga.New(cli).
 			Args([]string{"-c", "hosts=a,b"})
 
-		app.RegisterMap(map[string]string{})
+		app.RegisterMap[map[string]string]()
 
 		err := app.Run()
 
@@ -380,7 +380,7 @@ func TestRegisterMap_FlagsAndArgs(t *testing.T) {
 		var nilApp *conga.App[registeredMapCLI]
 
 		assertx.PanicsWithValue(t, "conga: RegisterMap requires a non-nil app", func() {
-			nilApp.RegisterMap(map[string]int(nil))
+			nilApp.RegisterMap[map[string]int]()
 		})
 	})
 }

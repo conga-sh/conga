@@ -13,7 +13,7 @@ type DoctorCmd struct {
 }
 
 func (d *DoctorCmd) Run(ctx context.Context, session *conga.Session) error {
-	inspector.Print(session, session.Root[CLI]())
+	inspector.Print(session, session.Root[CLI](), d)
 
 	return nil
 }

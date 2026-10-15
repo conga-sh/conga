@@ -37,6 +37,7 @@ func (i Item) WithTag(tag string) Item
 | `Values(values ...string)` | Static candidates |
 | `Map(items map[string]string)` | Sorted map candidates |
 | `KeyValue(valuesByKey map[string][]string)` | `KEY=VALUE` segmented completion |
+| `KeyValueDescribed(valuesByKey map[string][]string, descriptionByKey map[string]string)` | `KEY=VALUE` segmented completion with per-key descriptions |
 | `Items(items ...Item)` | Explicit item list |
 | `Callback(fn func(Context) Predictor)` | Lazy evaluation |
 | `MultiParts(delimiter string, fn func(Context) Predictor)` | Multi-segment values |
@@ -74,6 +75,7 @@ type Context struct {
 	FlagMultiValues map[string][]string
 	Dir             string
 	Env             map[string]string
+	EnvLookup       func(key string) (string, bool)
 }
 
 func (c Context) Arg(index int) string
@@ -82,6 +84,7 @@ func (c Context) FlagValues(name string) []string
 func (c Context) Getenv(key string) string
 func (c Context) HasFlag(name string) bool
 func (c Context) LastArg() string
+func (c Context) WithFlagValues(flagValues map[string][]string) Context
 ```
 
 `predict.Context` is a plain struct distinct from `context.Context`; the driver manages deadlines through `Timeout` and `predict.DefaultTimeout`.

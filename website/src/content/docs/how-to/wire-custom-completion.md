@@ -5,7 +5,7 @@ description: Supply dynamic completion candidates for flags and arguments using 
 
 When flags or positional arguments accept dynamic values — such as server names, cluster regions, or API resources — implement custom completion using `package predict`. This guide explains predictor resolution precedence, static and dynamic candidate generation, and self-completing types.
 
-## Understand predictor resolution precedence
+## Predictor resolution precedence
 
 When generating completion candidates for a field, CONGA evaluates candidate sources in strict precedence:
 
@@ -20,14 +20,25 @@ When generating completion candidates for a field, CONGA evaluates candidate sou
 For field-specific completion logic, register a named predictor on the application builder, then reference it using the `predictor` struct tag:
 
 ```go title="main.go"
+package main
+
 import (
+	"context"
+
 	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/predict"
 )
 
+type CLI struct {
+	Region conga.RequiredFlag[string] `help:"Deployment region" predictor:"regions"`
+}
+
+func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
 func main() {
 	app := conga.New[CLI]().
-		Name("deployer").
 		EnableCompletion()
 
 	app.Predictor("regions", predict.Values(
@@ -39,10 +50,6 @@ func main() {
 	if err := app.Run(); err != nil {
 		app.Exit(err)
 	}
-}
-
-type CLI struct {
-	Region conga.RequiredFlag[string] `help:"Deployment region" predictor:"regions"`
 }
 ```
 

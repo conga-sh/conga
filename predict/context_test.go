@@ -272,3 +272,95 @@ func TestContext_GetenvMissingKeyFallback(t *testing.T) {
 	assert.Equal(t, "eu-west-1", present)
 	assert.Equal(t, "from_process", fallback)
 }
+
+func TestContext_Getenv_EnvLookup(t *testing.T) {
+	t.Parallel()
+
+	t.Run("lookup wins over env map", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := predict.Context{
+			Env: map[string]string{"SHADOWED": "from_env_map"},
+			EnvLookup: func(key string) (string, bool) {
+				if key == "SHADOWED" {
+					return "from_lookup", true
+				}
+
+				return "", false
+			},
+		}
+
+		result := ctx.Getenv("SHADOWED")
+
+		assert.Equal(t, "from_lookup", result)
+	})
+
+	t.Run("lookup-only key", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := predict.Context{
+			EnvLookup: func(key string) (string, bool) {
+				if key == "LOOKUP_ONLY" {
+					return "lookup_val", true
+				}
+
+				return "", false
+			},
+		}
+
+		result := ctx.Getenv("LOOKUP_ONLY")
+
+		assert.Equal(t, "lookup_val", result)
+	})
+
+	t.Run("env map fallback", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := predict.Context{
+			Env: map[string]string{"ENV_ONLY": "from_env_map_only"},
+		}
+
+		result := ctx.Getenv("ENV_ONLY")
+
+		assert.Equal(t, "from_env_map_only", result)
+	})
+
+	t.Run("absent key", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := predict.Context{}
+
+		result := ctx.Getenv("NON_EXISTENT_VAR")
+
+		assert.Zero(t, result)
+	})
+}
+
+// TestContext_Getenv_ProcessEnvFallback verifies that Getenv falls back to
+// the process environment when neither EnvLookup nor Env supply the key. It
+// mutates process-wide environment state via t.Setenv, so it does not run in
+// parallel.
+func TestContext_Getenv_ProcessEnvFallback(t *testing.T) {
+	t.Setenv("CONGA_PROCESS_VAR", "from_os")
+
+	ctx := predict.Context{}
+
+	result := ctx.Getenv("CONGA_PROCESS_VAR")
+
+	assert.Equal(t, "from_os", result)
+}
+
+func TestContext_WithFlagValues(t *testing.T) {
+	t.Parallel()
+
+	ctx := predict.Context{}.WithFlagValues(map[string][]string{
+		"env":  {"dev", "prod"},
+		"tier": {"web"},
+	})
+
+	assert.Equal(t, []string{"dev", "prod"}, ctx.FlagValues("env"))
+	assert.Equal(t, "prod", ctx.FlagValue("env", ""))
+	assert.Equal(t, "web", ctx.FlagValue("tier", ""))
+	assert.Equal(t, "prod", ctx.Flags["env"])
+	assert.Equal(t, "web", ctx.Flags["tier"])
+}

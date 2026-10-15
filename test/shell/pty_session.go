@@ -8,6 +8,7 @@ package shell
 import (
 	"context"
 	"fmt"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -351,10 +352,5 @@ func ptySignificantLines(screen string) []string {
 }
 
 func ptySupportedShells() []string {
-	names := make([]string, 0, len(ptyShellSpecs))
-	for name := range ptyShellSpecs {
-		names = append(names, name)
-	}
-
-	return names
+	return slices.Collect(maps.Keys(ptyShellSpecs))
 }

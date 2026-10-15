@@ -368,3 +368,116 @@ func TestWords_PreservesEngineOrderForAliasAndFlagRuns(t *testing.T) {
 func filteredWords(line lex.Line) []string {
 	return line.CurrentPipeline().WithoutRedirects().Words()
 }
+
+func TestWordsUpTo(t *testing.T) {
+	t.Parallel()
+
+	t.Run("empty line", func(t *testing.T) {
+		t.Parallel()
+
+		words := lex.WordsUpTo("", 0)
+
+		assert.Equal(t, []string{""}, words)
+	})
+
+	t.Run("cursor at end of single word", func(t *testing.T) {
+		t.Parallel()
+
+		line := "myapp"
+
+		words := lex.WordsUpTo(line, len(line))
+
+		assert.Equal(t, []string{"myapp"}, words)
+	})
+
+	t.Run("cursor after space following word", func(t *testing.T) {
+		t.Parallel()
+
+		line := "myapp "
+
+		words := lex.WordsUpTo(line, len(line))
+
+		assert.Equal(t, []string{"myapp", ""}, words)
+	})
+
+	t.Run("cursor in middle of last word", func(t *testing.T) {
+		t.Parallel()
+
+		line := "myapp deploy --env=prod"
+		point := len("myapp deploy --en")
+
+		words := lex.WordsUpTo(line, point)
+
+		assert.Equal(t, []string{"myapp", "deploy", "--en"}, words)
+	})
+
+	t.Run("multiple consecutive spaces", func(t *testing.T) {
+		t.Parallel()
+
+		line := "myapp   deploy   "
+
+		words := lex.WordsUpTo(line, len(line))
+
+		assert.Equal(t, []string{"myapp", "deploy", ""}, words)
+	})
+
+	t.Run("single quoted string with spaces", func(t *testing.T) {
+		t.Parallel()
+
+		line := "myapp 'hello world' "
+
+		words := lex.WordsUpTo(line, len(line))
+
+		assert.Equal(t, []string{"myapp", "hello world", ""}, words)
+	})
+
+	t.Run("double quoted string with escaped quotes", func(t *testing.T) {
+		t.Parallel()
+
+		line := `myapp "say \"hi\"" `
+
+		words := lex.WordsUpTo(line, len(line))
+
+		assert.Equal(t, []string{"myapp", `say "hi"`, ""}, words)
+	})
+
+	t.Run("backslash escaped space outside quotes", func(t *testing.T) {
+		t.Parallel()
+
+		line := `myapp hello\ world `
+
+		words := lex.WordsUpTo(line, len(line))
+
+		assert.Equal(t, []string{"myapp", "hello world", ""}, words)
+	})
+
+	t.Run("cursor clamped when point is negative", func(t *testing.T) {
+		t.Parallel()
+
+		line := "myapp deploy"
+
+		words := lex.WordsUpTo(line, -5)
+
+		assert.Equal(t, []string{""}, words)
+	})
+
+	t.Run("cursor clamped when point exceeds length", func(t *testing.T) {
+		t.Parallel()
+
+		line := "myapp deploy"
+
+		words := lex.WordsUpTo(line, 100)
+
+		assert.Equal(t, []string{"myapp", "deploy"}, words)
+	})
+
+	t.Run("attached flag with equal sign", func(t *testing.T) {
+		t.Parallel()
+
+		line := "myapp --format="
+
+		words := lex.WordsUpTo(line, len(line))
+
+		assert.Equal(t, []string{"myapp", "--format="}, words)
+	})
+}

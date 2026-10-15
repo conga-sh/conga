@@ -23,9 +23,9 @@
 // completion items, shell directives, and usage text.
 //
 // Common constructors include static values ([Values], [Map], [Items],
-// [KeyValue]), the filesystem ([Files], [Dirs], [Executables], [Symlinks]),
-// multi-part paths ([MultiParts]), dynamic callbacks ([Callback]), and the
-// empty predictor ([None]).
+// [KeyValue], [KeyValueDescribed]), the filesystem ([Files], [Dirs],
+// [Executables], [Symlinks]), multi-part paths ([MultiParts]), dynamic
+// callbacks ([Callback]), and the empty predictor ([None]).
 //
 // Modifiers refine prediction behavior:
 //

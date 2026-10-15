@@ -26,6 +26,7 @@ func TestRenderCompletionFooter_Generic(t *testing.T) {
 		})
 
 		assert.Contains(t, formatted, "Supported shells:")
+		assert.True(t, len(completion.ShellDescriptions()) > 0, "shell registry must not be empty")
 
 		for _, info := range completion.ShellDescriptions() {
 			assert.Contains(t, formatted, info.Name)

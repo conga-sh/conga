@@ -41,6 +41,12 @@ type CLI struct {
 	Completion conga.CompletionCommand  `summary:"Generate shell completion scripts"`
 	Deploy     conga.Command[DeployCmd] `summary:"Deploy a service"`
 }
+
+type DeployCmd struct{}
+
+func (d *DeployCmd) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
 ```
 
 When declared, CONGA promotes `completion` into the `Commands:` section of `--help` and suppresses the `--completion` flag:

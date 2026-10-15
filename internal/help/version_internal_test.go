@@ -171,3 +171,47 @@ func TestFormatVersionJSON(t *testing.T) {
 		assert.Contains(t, formatVersionJSON(info), `"version":"1.2.3\"quote\""`)
 	})
 }
+
+func TestVersionEmbedsTimestamp(t *testing.T) {
+	t.Parallel()
+
+	t.Run("matching RFC3339 UTC timestamp returns true", func(t *testing.T) {
+		t.Parallel()
+
+		result := versionEmbedsTimestamp("v0.0.0-20260925165149-c2e2ea84591f", "2026-09-25T16:51:49Z")
+
+		assert.True(t, result)
+	})
+
+	t.Run("mismatched timestamp returns false", func(t *testing.T) {
+		t.Parallel()
+
+		result := versionEmbedsTimestamp("v0.0.0-20260925165149-c2e2ea84591f", "2026-09-25T16:51:50Z")
+
+		assert.False(t, result)
+	})
+
+	t.Run("invalid length returns false", func(t *testing.T) {
+		t.Parallel()
+
+		result := versionEmbedsTimestamp("v0.0.0-20260925165149-c2e2ea84591f", "2026-09-25T16:51:49")
+
+		assert.False(t, result)
+	})
+
+	t.Run("invalid delimiters return false", func(t *testing.T) {
+		t.Parallel()
+
+		result := versionEmbedsTimestamp("v0.0.0-20260925165149-c2e2ea84591f", "2026/09/25 16:51:49Z")
+
+		assert.False(t, result)
+	})
+
+	t.Run("non-digit characters return false", func(t *testing.T) {
+		t.Parallel()
+
+		result := versionEmbedsTimestamp("v0.0.0-20260925165149-c2e2ea84591f", "2026-09-25T16:51:XXZ")
+
+		assert.False(t, result)
+	})
+}

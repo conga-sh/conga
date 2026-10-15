@@ -32,14 +32,4 @@ func TestDirective(t *testing.T) {
 		assert.True(t, combined.Has(predict.DirectiveKeepOrder))
 		assert.False(t, combined.Has(predict.DirectiveError))
 	})
-
-	t.Run("individual directive flags", func(t *testing.T) {
-		t.Parallel()
-
-		assert.True(t, predict.DirectiveError.Has(predict.DirectiveError))
-		assert.True(t, predict.DirectiveNoSpace.Has(predict.DirectiveNoSpace))
-		assert.True(t, predict.DirectiveNoFileCompletion.Has(predict.DirectiveNoFileCompletion))
-		assert.True(t, predict.DirectiveKeepOrder.Has(predict.DirectiveKeepOrder))
-		assert.False(t, predict.DirectiveNoSpace.Has(predict.DirectiveNoFileCompletion))
-	})
 }

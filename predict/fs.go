@@ -346,16 +346,14 @@ func passesFilter(fullPath string, entry os.DirEntry, filter func(path string, e
 func parseLinesFile(content []byte) []Item {
 	var items []Item
 
-	if err := scanx.ScanLines(bytes.NewReader(content), func(line string) bool {
+	_ = scanx.ScanLines(bytes.NewReader(content), func(line string) bool { //nolint:errcheck // best-effort candidate scan
 		items = append(items, Item{
 			Value:   line,
 			Display: line,
 		})
 
 		return true
-	}); err != nil {
-		return items
-	}
+	})
 
 	return items
 }
