@@ -148,6 +148,15 @@ tasks:
           IGNORE: "_examples/**"
           OUTPUT: "repomix-output.tests.xml"
 
+  repomix:tests:only:
+    desc: Pack all Go test sources including tests (still skips _examples)
+    cmds:
+      - task: repomix
+        vars:
+          INCLUDE: "**/*_test.go"
+          IGNORE: "_examples/**"
+          OUTPUT: "repomix-output.tests.only.xml"
+
   repomix:docs:
     desc: Pack Markdown docs (repo docs plus website content)
     cmds:

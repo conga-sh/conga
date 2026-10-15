@@ -1170,6 +1170,23 @@ func TestConfigFile_HelpUnknownVariableRejected(t *testing.T) {
 	assert.Equal(t, `struct RootCLI field Config: schema error: invalid struct tag: tag "help" references unknown variable {{rnage}}; supported variables are {{range}}, {{len}}, {{items}}, {{enum}}, {{default}}, {{env}}`, err.Error())
 }
 
+func TestConfigFile_ConfigTagRejected(t *testing.T) {
+	t.Parallel()
+
+	type RootCLI struct {
+		Config mockConfigFile `config:"server"`
+	}
+
+	var cli RootCLI
+
+	_, err := spec.Build(&cli, "app", spec.Options{ClassifyContainer: classifyTestContainer})
+
+	assert.Error(t, err)
+	assert.IsError(t, err, spec.ErrSchema)
+	assert.IsError(t, err, spec.ErrInvalidStructTag)
+	assert.Contains(t, err.Error(), "struct RootCLI field Config")
+}
+
 func TestFlag_EmptyConstraintTagRejected(t *testing.T) {
 	t.Parallel()
 

@@ -738,3 +738,33 @@ func TestParseGlobPatterns(t *testing.T) {
 		}
 	})
 }
+
+func TestValidateConfigFileConfigTag(t *testing.T) {
+	t.Parallel()
+
+	t.Run("config dash tag accepted", func(t *testing.T) {
+		t.Parallel()
+
+		err := ValidateConfigFileConfigTag(reflect.StructTag(`config:"-"`))
+
+		assert.NoError(t, err)
+	})
+
+	t.Run("multi tag accepted", func(t *testing.T) {
+		t.Parallel()
+
+		err := ValidateConfigFileConfigTag(reflect.StructTag(`multi:"true"`))
+
+		assert.NoError(t, err)
+	})
+
+	t.Run("non-dash value rejected with exact message", func(t *testing.T) {
+		t.Parallel()
+
+		err := ValidateConfigFileConfigTag(reflect.StructTag(`config:"server"`))
+
+		assert.Error(t, err)
+		assert.IsError(t, err, ErrInvalidStructTag)
+		assert.Equal(t, `schema error: invalid struct tag: tag "config" on config file flag must be "-", got "server"`, err.Error())
+	})
+}

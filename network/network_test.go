@@ -1,7 +1,6 @@
 package network_test
 
 import (
-	"bytes"
 	"context"
 	"encoding"
 	"net"
@@ -22,9 +21,6 @@ import (
 
 var (
 	// System file payloads in the formats the network predictors parse.
-	//go:embed testdata/fixtures/hosts
-	fixtureHosts []byte
-
 	//go:embed testdata/fixtures/known_hosts
 	fixtureKnownHosts []byte
 
@@ -79,8 +75,6 @@ func TestHosts_ParseEtcHosts(t *testing.T) {
 	assert.False(t, slices.Contains(values, "@revoked"), "marker token must not be emitted as host")
 	assert.False(t, slices.Contains(values, "*"), "wildcard Host patterns must be excluded")
 	assert.False(t, slices.Contains(values, "*.internal"), "wildcard Host patterns must be excluded")
-	assert.True(t, len(fixtureHosts) > 0, "hosts fixture must be valid")
-	assert.True(t, bytes.Contains(fixtureHosts, []byte("localhost")))
 }
 
 func TestPorts_StandardEntries(t *testing.T) {

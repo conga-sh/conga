@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"slices"
 	"strconv"
 	"testing"
 	"time"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/internal/assertx"
+	"github.com/conga-sh/conga/internal/slicex"
 	"github.com/conga-sh/conga/predict"
 	"github.com/conga-sh/conga/timezone"
 )
@@ -279,13 +281,21 @@ func TestApp_ZeroValue_EnablesBuiltins(t *testing.T) {
 func TestApp_ZeroValue_PredictorBeforeRun(t *testing.T) {
 	t.Parallel()
 
-	var app conga.App[SimpleAppCLI]
+	type ZeroValuePredictorCLI struct {
+		noopRunner
 
-	app.Predictor("colors", predict.Values("red", "blue")).Args([]string{"-p", "1"})
+		Color conga.OptionalFlag[string] `predictor:"colors"`
+	}
 
-	err := app.RunContext(t.Context())
+	var app conga.App[ZeroValuePredictorCLI]
 
-	assert.NoError(t, err)
+	app.Predictor("colors", predict.Values("red", "blue"))
+
+	result, _ := app.CompleteForShell("bash", []string{"--color", ""})
+
+	values := slicex.Map(result.Items, func(item predict.Item) string { return item.Value })
+
+	assert.True(t, slices.Contains(values, "red"))
 }
 
 func TestApp_ZeroValue_StrictTagValidationDefault(t *testing.T) {

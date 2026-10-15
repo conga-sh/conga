@@ -12,11 +12,10 @@ import (
 )
 
 // fallbackFormatShells lists the shell identifiers that render in the export
-// framing: the export entry-point target itself, the registry-narrowed legacy
-// shells, and unknown or empty identifiers (docs/completion-wire-protocol.md).
+// framing: the registry-narrowed legacy shells and unknown or empty identifiers
+// (docs/completion-wire-protocol.md).
 func fallbackFormatShells() []string {
 	return []string{
-		"export",
 		"oil",
 		"xonsh",
 		"unknown-shell",

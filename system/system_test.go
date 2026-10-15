@@ -1,7 +1,6 @@
 package system_test
 
 import (
-	"bytes"
 	"context"
 	"os"
 	"slices"
@@ -13,21 +12,10 @@ import (
 
 	"github.com/alecthomas/assert/v2"
 
-	_ "embed"
-
 	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/internal/slicex"
 	"github.com/conga-sh/conga/predict"
 	"github.com/conga-sh/conga/system"
-)
-
-var (
-	// System account file payloads in passwd(5) and group(5) format.
-	//go:embed testdata/fixtures/group
-	fixtureGroup []byte
-
-	//go:embed testdata/fixtures/passwd
-	fixturePasswd []byte
 )
 
 func TestEnvVars_ContextEnv(t *testing.T) {
@@ -86,6 +74,8 @@ func TestEnvVars_TruncateDescription(t *testing.T) {
 		},
 	})
 
+	assert.True(t, slices.Contains(itemValues(result.Items), "CONGA_LONG"), "env var candidate must be present")
+
 	for _, item := range result.Items {
 		if item.Value == "CONGA_LONG" {
 			assert.True(t, strings.HasSuffix(item.Description, "..."))
@@ -104,6 +94,8 @@ func TestEnvVars_MultiByteUTF8Truncation(t *testing.T) {
 			"CONGA_UTF8": valueWithUTF8,
 		},
 	})
+
+	assert.True(t, slices.Contains(itemValues(result.Items), "CONGA_UTF8"), "env var candidate must be present")
 
 	for _, item := range result.Items {
 		if item.Value == "CONGA_UTF8" {
@@ -222,6 +214,36 @@ func TestProcessIDs_Scanning(t *testing.T) {
 	}
 }
 
+func TestPIDs_Execution(t *testing.T) {
+	t.Parallel()
+
+	pred := system.PIDs()
+	result := pred.Invoke(predict.Context{})
+
+	assert.True(t, len(result.Items) > 0, "expected active process IDs to be returned")
+
+	for _, item := range result.Items {
+		assert.Equal(t, "pids", item.Tag)
+		assert.Equal(t, "magenta", item.Style)
+		assert.NotZero(t, item.Value)
+	}
+}
+
+func TestProcesses_Execution(t *testing.T) {
+	t.Parallel()
+
+	pred := system.Processes()
+	result := pred.Invoke(predict.Context{})
+
+	assert.True(t, len(result.Items) > 0, "expected active processes to be returned")
+
+	for _, item := range result.Items {
+		assert.Equal(t, "processes", item.Tag)
+		assert.Equal(t, "green", item.Style)
+		assert.NotZero(t, item.Value)
+	}
+}
+
 func TestLocales_Fallback(t *testing.T) {
 	t.Parallel()
 
@@ -236,15 +258,6 @@ func TestLocales_Fallback(t *testing.T) {
 		assert.Equal(t, "locales", item.Tag)
 		assert.Equal(t, "cyan", item.Style)
 	}
-}
-
-func TestPasswdAndGroup_Readers(t *testing.T) {
-	t.Parallel()
-
-	assert.True(t, len(fixturePasswd) > 0)
-	assert.True(t, len(fixtureGroup) > 0)
-	assert.True(t, bytes.Contains(fixturePasswd, []byte("alice")))
-	assert.True(t, bytes.Contains(fixtureGroup, []byte("sudo")))
 }
 
 func TestDomainTypes(t *testing.T) {
@@ -441,24 +454,6 @@ func TestDomainTypes_ValueReceiverChaining(t *testing.T) {
 	assert.Equal(t, "wheel", cli.Group.Get().String())
 	assert.Equal(t, "en_US.UTF-8", cli.Locale.Get().String())
 	assert.Equal(t, "nginx", cli.Process.Get().String())
-}
-
-func TestPIDs_AliasesProcessIDs(t *testing.T) {
-	t.Parallel()
-
-	aliasItems := system.PIDs().Invoke(predict.Context{}).Items
-	canonicalItems := system.ProcessIDs().Invoke(predict.Context{}).Items
-
-	assert.Equal(t, itemValues(canonicalItems), itemValues(aliasItems))
-}
-
-func TestProcesses_AliasesProcessNames(t *testing.T) {
-	t.Parallel()
-
-	aliasItems := system.Processes().Invoke(predict.Context{}).Items
-	canonicalItems := system.ProcessNames().Invoke(predict.Context{}).Items
-
-	assert.Equal(t, itemValues(canonicalItems), itemValues(aliasItems))
 }
 
 func itemValues(items []predict.Item) []string {

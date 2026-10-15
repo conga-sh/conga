@@ -2100,7 +2100,7 @@ func extractCmdChain(err error, fallback *spec.Command) []*spec.Command {
 }
 
 func detectShell() string {
-	if shell := os.Getenv(wire.EnvShell); shell != "" {
+	if shell := wire.Shell(); shell != "" {
 		return shell
 	}
 

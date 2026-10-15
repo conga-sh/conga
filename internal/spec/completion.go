@@ -3,7 +3,6 @@ package spec
 import (
 	"cmp"
 	"fmt"
-	"os"
 	"slices"
 	"strings"
 
@@ -372,7 +371,7 @@ func (w *astCompletionWalker) completeFlagNamesAction(toComplete string) predict
 func (w *astCompletionWalker) isFlatShell() bool {
 	shell := strings.ToLower(strings.TrimSpace(w.opts.TargetShell))
 	if shell == "" {
-		shell = strings.ToLower(strings.TrimSpace(os.Getenv(wire.EnvShell)))
+		shell = strings.ToLower(strings.TrimSpace(wire.Shell()))
 	}
 
 	if shell == "" || shell == "zsh" || shell == "export" {

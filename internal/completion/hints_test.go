@@ -2,6 +2,7 @@
 package completion
 
 import (
+	"runtime"
 	"strings"
 	"testing"
 
@@ -85,11 +86,13 @@ func TestInferBashNeedsUpgrade(t *testing.T) {
 func TestShouldWarnBash(t *testing.T) {
 	t.Parallel()
 
-	// On non-darwin platforms the warning is never applicable; the darwin-only
-	// path logic is covered by InferBashNeedsUpgrade.
 	current := CurrentShell{Shell: ShellBash, ExecPath: "/bin/bash"}
 
-	assert.False(t, ShouldWarnBash(current))
+	if runtime.GOOS == "darwin" {
+		assert.True(t, ShouldWarnBash(current))
+	} else {
+		assert.False(t, ShouldWarnBash(current))
+	}
 }
 
 func TestEnableInstructions_AllShells(t *testing.T) {

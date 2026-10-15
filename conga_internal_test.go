@@ -237,6 +237,80 @@ func TestApp_Fluent_Stdin(t *testing.T) {
 	assert.False(t, app.stdin == io.Reader(os.Stdin))
 }
 
+func TestApp_StdoutNil_IsNoOp(t *testing.T) {
+	t.Parallel()
+
+	t.Run("defaults to os.Stdout", func(t *testing.T) {
+		t.Parallel()
+
+		app := New[struct{}]()
+
+		assert.True(t, app.stdout == io.Writer(os.Stdout))
+	})
+
+	t.Run("sets non-nil writer", func(t *testing.T) {
+		t.Parallel()
+
+		app := New[struct{}]()
+
+		writer := &bytes.Buffer{}
+
+		got := app.Stdout(writer)
+
+		assert.True(t, got == app)
+		assert.True(t, app.stdout == io.Writer(writer))
+	})
+
+	t.Run("nil is no-op", func(t *testing.T) {
+		t.Parallel()
+
+		app := New[struct{}]()
+		writer := &bytes.Buffer{}
+		app.Stdout(writer)
+
+		app.Stdout(nil)
+
+		assert.True(t, app.stdout == io.Writer(writer))
+	})
+}
+
+func TestApp_StderrNil_IsNoOp(t *testing.T) {
+	t.Parallel()
+
+	t.Run("defaults to os.Stderr", func(t *testing.T) {
+		t.Parallel()
+
+		app := New[struct{}]()
+
+		assert.True(t, app.stderr == io.Writer(os.Stderr))
+	})
+
+	t.Run("sets non-nil writer", func(t *testing.T) {
+		t.Parallel()
+
+		app := New[struct{}]()
+
+		writer := &bytes.Buffer{}
+
+		got := app.Stderr(writer)
+
+		assert.True(t, got == app)
+		assert.True(t, app.stderr == io.Writer(writer))
+	})
+
+	t.Run("nil is no-op", func(t *testing.T) {
+		t.Parallel()
+
+		app := New[struct{}]()
+		writer := &bytes.Buffer{}
+		app.Stderr(writer)
+
+		app.Stderr(nil)
+
+		assert.True(t, app.stderr == io.Writer(writer))
+	})
+}
+
 type validatorFailingCLI struct {
 	Port OptionalFlag[int] `name:"port"`
 }

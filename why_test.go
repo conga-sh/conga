@@ -402,11 +402,18 @@ func TestWhy_UnsetRows(t *testing.T) {
 	// Root invocations render no Global Flags section.
 	assert.NotContains(t, output, "Global Flags:")
 
+	portRow := ""
+
 	for line := range strings.SplitSeq(output, "\n") {
 		if strings.Contains(line, "--port") {
-			assert.Contains(t, line, " unset")
+			portRow = line
+
+			break
 		}
 	}
+
+	assert.True(t, portRow != "", "report must contain the --port row")
+	assert.Contains(t, portRow, " unset")
 }
 
 func TestWhy_DefaultValuesDisplayed(t *testing.T) {
@@ -455,19 +462,28 @@ func TestWhy_BoolAndCounterVisibleByDefault(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotContains(t, output, "s3cr3t-token")
 
+	var verboseRow, loudRow, tokenRow string
+
 	for line := range strings.SplitSeq(output, "\n") {
 		if strings.Contains(line, "--verbose") {
-			assert.True(t, strings.Contains(line, "true"), "boolean value renders by default: %q", line)
+			verboseRow = line
 		}
 
 		if strings.Contains(line, "--loud") {
-			assert.True(t, strings.Contains(line, "2"), "counter total renders by default: %q", line)
+			loudRow = line
 		}
 
 		if strings.Contains(line, "--token") {
-			assert.True(t, strings.Contains(line, "██████"), "string value stays redacted: %q", line)
+			tokenRow = line
 		}
 	}
+
+	assert.True(t, verboseRow != "", "report must contain the --verbose row")
+	assert.True(t, loudRow != "", "report must contain the --loud row")
+	assert.True(t, tokenRow != "", "report must contain the --token row")
+	assert.Contains(t, verboseRow, "true")
+	assert.Contains(t, loudRow, "2")
+	assert.Contains(t, tokenRow, "██████")
 
 	// The redacted string row still drives the footer hint.
 	assert.Contains(t, output, `values are redacted — tag fields safe:"true" to display`)
@@ -495,11 +511,18 @@ func TestWhy_BoolSafeFalseOverrideRedacts(t *testing.T) {
 
 	assert.NoError(t, err)
 
+	telemetryRow := ""
+
 	for line := range strings.SplitSeq(output, "\n") {
 		if strings.Contains(line, "--telemetry") {
-			assert.True(t, strings.Contains(line, "██████"), "safe:\"false\" re-redacts a boolean: %q", line)
+			telemetryRow = line
+
+			break
 		}
 	}
+
+	assert.True(t, telemetryRow != "", "report must contain the --telemetry row")
+	assert.Contains(t, telemetryRow, "██████")
 
 	assert.Contains(t, output, `values are redacted — tag fields safe:"true" to display`)
 }
@@ -552,11 +575,18 @@ func TestWhy_NegatedBoolDisplaysFalse(t *testing.T) {
 
 	assert.NoError(t, err)
 
+	colorRow := ""
+
 	for line := range strings.SplitSeq(output, "\n") {
 		if strings.Contains(line, "--color") {
-			assert.True(t, strings.Contains(line, "false"), "negated boolean renders its value: %q", line)
+			colorRow = line
+
+			break
 		}
 	}
+
+	assert.True(t, colorRow != "", "report must contain the --color row")
+	assert.Contains(t, colorRow, "false")
 }
 
 func TestWhy_MapDeterminism(t *testing.T) {
@@ -1248,6 +1278,7 @@ func TestWhy_ConfigPathsChecked_DefaultXDGTier(t *testing.T) {
 		assert.Contains(t, output, tierPath)
 
 		inSection := false
+		found := false
 
 		for line := range strings.SplitSeq(output, "\n") {
 			switch {
@@ -1256,9 +1287,13 @@ func TestWhy_ConfigPathsChecked_DefaultXDGTier(t *testing.T) {
 			case strings.HasPrefix(line, "Create a config file"):
 				inSection = false
 			case inSection && strings.HasPrefix(strings.TrimSpace(line), tierPath):
+				found = true
+
 				assert.True(t, strings.HasSuffix(strings.TrimSpace(line), "directory does not exist"), "missing default tier must report the absence: %q", line)
 			}
 		}
+
+		assert.True(t, found, "config paths section must list the missing default tier")
 	})
 
 	t.Run("loaded app directory reports the file", func(t *testing.T) {
