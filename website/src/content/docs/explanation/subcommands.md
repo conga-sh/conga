@@ -70,12 +70,15 @@ func (w *WorkerCommand) Run(ctx context.Context, session *conga.Session) error {
 }
 ```
 
-`session.Root[T]()` returns a typed pointer to the root application struct (`*T`), giving handlers compiler-verified access to root flags without global variables. To inspect intermediate commands along the path, handlers navigate downward from the root using `Command[T].Get()`.
+`session.Root[T]()` returns a typed pointer to the root application struct (`*T`), giving handlers compiler-verified access to root flags without global variables. The type argument must match the exact root struct type supplied to `conga.New`; passing any other type panics immediately at runtime, and `conga-lint` catches type mismatches statically during build. To inspect intermediate commands along the path, handlers navigate downward from the root using `Command[T].Get()`.
 
 ### Branch activation
 An invocation selects exactly one path through the command tree, from the root application to the target leaf. The engine populates and binds flags only along this active chain. Unselected sibling branches remain untouched: their containers receive no values, and their lifecycle hooks never execute.
 
 Handlers can check whether a specific subcommand was selected on the active path by calling `cmd.IsSelected()`.
+
+### Feature-gated subcommands
+Subcommand fields accept the `feature:"..."` struct tag. When a subcommand carries a feature requirement whose expression evaluates to false, CONGA prunes the subcommand and its entire descendant subtree from the active command tree. Pruned subcommands do not route, do not appear in parent help screens, and do not complete during shell tab completion. Attempting to invoke an inactive gated subcommand fails with a usage error (exit code 2). See [About feature toggles](/explanation/feature-toggles/).
 
 ## Hierarchical configuration mapping
 

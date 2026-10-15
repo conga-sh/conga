@@ -76,6 +76,8 @@ Config decoders: none
 
 Config paths checked:
   none
+
+values are redacted — tag fields safe:"true" to display
 ```
 
 The report contains these diagnostic sections (the feature table appears only when the root command declares `conga.Features[T]`):
@@ -123,6 +125,7 @@ Features:
 
 ## Where to go next
 
+- [About feature toggles](/explanation/feature-toggles/) — design rationale, sparse gate merging, and member pruning.
 - [About value precedence](/explanation/value-precedence/) — the deterministic four-tier resolution ladder and provenance rules.
 - [How to bind environment variables](/how-to/bind-environment-variables/) — configure environment variable prefixes and explicit overrides.
 - [How to manage config files](/how-to/manage-config-files/) — register file decoders and configure search paths.

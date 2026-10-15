@@ -16,6 +16,7 @@ CONGA derives the CLI schema from struct fields and their tags. The engine valid
 | `default` | ✅ | – | – | Default value when no other source provides one. Coerced with the same parser as CLI input. |
 | `deprecated` | ✅ | – | ✅ | Deprecation notice; suppresses flag from completion. |
 | `enum` | ✅ | ✅ | – | Comma-separated allowed values, checked against the coerced value, rendered in help as `[enum: …]`. |
+| `enumhint` | ✅ | ✅ | – | Set to `-` to suppress the automatic `[enum: …]` help hint while keeping values validated and completed. |
 | `env` | ✅ | ✅ | ✅ | Comma-separated environment variable names. `env:"-"` disables environment binding. Explicit names ignore `envprefix`. |
 | `feature` | ✅ | – | ✅ | Feature-gate expression: the flag exists only while the expression is satisfied (see [Feature toggles](#feature-toggles-congafeaturest)). Required flags reject this tag. |
 | `group` | ✅ | ✅ | ✅ | Help-screen grouping header. Flags sharing a group render under their own titled section. |
@@ -46,6 +47,7 @@ Positional arguments bind to command-line input.
 | `conga` | ✅ | ✅ | Directives (see [`conga` directives](#conga-directives)). |
 | `default` | ✅ | – | Default value for optional arguments. |
 | `enum` | ✅ | ✅ | Comma-separated allowed values, checked against the coerced value, rendered in help as `[enum: …]`. |
+| `enumhint` | ✅ | ✅ | Set to `-` to suppress the automatic `[enum: …]` help hint while keeping values validated and completed. |
 | `help` | ✅ | ✅ | Help text. Supports [help variables](#help-variables). |
 | `items` | ✅ | ✅ | Element count bound for slices or maps. |
 | `len` | ✅ | ✅ | Length bound for strings, slices, or maps. |

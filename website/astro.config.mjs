@@ -95,6 +95,7 @@ export default defineConfig({
             'explanation/config-cascade',
             'explanation/flags-and-args',
             'explanation/subcommands',
+            'explanation/feature-toggles',
             'explanation/lifecycle',
             'explanation/error-reporting',
             'explanation/domain-kits',

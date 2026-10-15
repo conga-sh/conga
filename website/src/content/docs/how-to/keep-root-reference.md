@@ -47,7 +47,7 @@ func main() {
 When `conga.New(cli)` is called:
 - The engine binds directly to the provided instance pointer instead of allocating a fresh struct.
 - Flags and arguments resolve into the instance's typed containers during the resolution phase.
-- Lifecycle hooks (`PreRun`, `Run`, `PostRun`) execute using the bound instance, and `session.Root[CLI]()` returns the same pointer.
+- Lifecycle hooks (`PreRun`, `Run`, `PostRun`) execute using the bound instance, and `session.Root[CLI]()` returns the same pointer. The type argument must match the root struct type exactly; passing a different type panics at runtime, and `conga-lint` verifies this statically.
 
 ## Enforce initialization invariants
 

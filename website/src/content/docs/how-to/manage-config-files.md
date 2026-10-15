@@ -140,7 +140,7 @@ app.ConfigOptions(
 )
 ```
 
-Use `conga.ConfigPaths(...)` to declare search tiers and `conga.ConfigExplicit(...)` to name one concrete file. [About the config cascade](/explanation/config-cascade/) covers discovery precedence, the built-in XDG tier, and per-tier existence semantics.
+Use `conga.ConfigPaths(...)` to declare search tiers and `conga.ConfigExplicit(...)` to name one concrete file. `ConfigExplicit` specifies an absolute, standalone configuration file and cannot be combined with `ConfigPaths` or `ConfigCascading`; combining them fails schema build with `ErrSchema` and is flagged by `conga-lint`. [About the config cascade](/explanation/config-cascade/) covers discovery precedence, the built-in XDG tier, and per-tier existence semantics.
 
 ## Merge multiple files with cascading
 

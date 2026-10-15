@@ -75,6 +75,7 @@ type Context struct {
 	FlagMultiValues map[string][]string
 	Dir             string
 	Env             map[string]string
+	EnvLookup       func(key string) (string, bool)
 }
 
 func (c Context) Arg(index int) string
@@ -83,6 +84,7 @@ func (c Context) FlagValues(name string) []string
 func (c Context) Getenv(key string) string
 func (c Context) HasFlag(name string) bool
 func (c Context) LastArg() string
+func (c Context) WithFlagValues(flagValues map[string][]string) Context
 ```
 
 `predict.Context` is a plain struct distinct from `context.Context`; the driver manages deadlines through `Timeout` and `predict.DefaultTimeout`.

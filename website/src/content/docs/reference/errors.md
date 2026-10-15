@@ -54,9 +54,9 @@ type CompletionError interface {
 
 The concrete error implementations (parse, coercion, validation, config) are unexported; `IsUsageError`, `IsCompletionError`, `UsageError`, `CompletionError`, and the base category sentinels form the public classification API.
 
-## Feature-gating failures
+## Feature-gating and map-folding failures
 
-Feature gating classifies by input source:
+Feature gating and map folding classify errors by the input tier that introduced the invalid data:
 
 | Failure | Category | Exit |
 |---------|----------|:----:|
@@ -65,6 +65,18 @@ Feature gating classifies by input source:
 | Config key naming a flag whose gating feature is inactive | `ErrConfig` | 1 |
 | Environment variable naming an inactive gated flag | Ignored (the pruned flag never reaches environment binding) | – |
 | Unknown or invalid feature key in the feature map environment variable | `ErrParse` (usage error) | 2 |
+| Malformed map flag syntax in a config file (even when overridden by CLI) | `ErrConfig` | 1 |
+| Malformed map flag syntax in an environment variable | `ErrParse` (usage error) | 2 |
+
+## Schema errors (`ErrSchema`)
+
+Programmer errors during schema construction abort at startup before execution begins (exit code 1):
+- Declaring `conga.Features[T]` or `feature:"..."` tags without calling `app.EnableFeatures()`.
+- Combining `conga.ConfigExplicit(...)` with `conga.ConfigPaths(...)` or `conga.ConfigCascading()`.
+- Inconsistent `stage` tags violating the all-or-nothing requirement on feature structs.
+- Setting `enumhint:"-"` on a field without declared enums, or where the `help` tag already references `{{enum}}`.
+- Ancestor flag shadowing across command-subcommand hierarchies (`ErrDuplicateFlag`).
+- Declaring `ConfigFile` or `Features` on any command struct other than the root.
 
 ## Custom error handling
 

@@ -12,8 +12,11 @@ The analyzer delegates to the exported validators in `internal/spec`, so static 
 | Check | Runtime contract mirrored |
 |-------|---------------------------|
 | Leaf command Runner enforcement | The bind-time `noRunnerError`: any command struct without `Command[T]` fields must implement `Run(context.Context, *conga.Session) error`. |
-| Struct tag validation | Tag syntax, `required:"true"` rejection, `help` on `Command[T]`, directive validity, predictor vocabulary, `range`/`len`/`items` bounds, unregistered `predictor:"..."` names, and unknown or undeclared `{{...}}` help variables. |
-| Feature schema checks | The `conga.Features[T]` contract: root-only single declaration, feature-tag syntax on flags, subcommands, and config-file flags, `feature` rejected on `RequiredFlag`, feature-field type and tag vocabulary, duplicate normalized feature names, and the enum/default domain rules (integer features require non-zero `enum` levels). |
+| Struct tag validation | Tag syntax, `required:"true"` rejection, `help` on `Command[T]`, directive validity, predictor vocabulary, `range`/`len`/`items` bounds, unregistered `predictor:"..."` names, `enumhint:"-"` usage, and unknown or undeclared `{{...}}` help variables. |
+| Feature schema checks | The `conga.Features[T]` contract: root-only single declaration, feature-tag syntax on flags, subcommands, and config-file flags, `feature` rejected on `RequiredFlag`, feature-field type and tag vocabulary, `stage` tag validity (`alpha`, `beta`, `ga`, `deprecated`) and the all-or-nothing stage rule, duplicate normalized feature names, and integer feature non-zero `enum` levels. |
+| Opt-in subsystem guards | Flags `conga.Features[T]` or `feature:"..."` tags when `app.EnableFeatures()` is missing, and completion features when `app.EnableCompletion()` is missing. |
+| `Session.Root[T]` type safety | Flags calls to `session.Root[T]()` where the type argument `T` does not match the root application struct type passed to `conga.New`. |
+| `ConfigExplicit` exclusivity | Flags builder calls combining `conga.ConfigExplicit(...)` with `conga.ConfigPaths(...)` or `conga.ConfigCascading()`. |
 | Synthesized feature flag shadowing | The `flag:"..."` name installed for a CLI-exposed `Features[T]` container joins the ancestor shadow map, so a descendant flag cannot redeclare it. |
 | Ancestor flag shadowing | The runtime `ErrDuplicateFlag` rule: a flag name, alias, or short rune declared on an ancestor cannot be redeclared on any descendant command. |
 | Cascading guard | The schema rejection of `conga.ConfigCascading()` when the root command lacks a `multi:"true"` `ConfigFile` flag. |

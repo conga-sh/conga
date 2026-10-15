@@ -139,6 +139,7 @@ Features:
 
 ## Where to go next
 
+- [About feature toggles](/explanation/feature-toggles/) — design rationale, sparse gate merging, member pruning, and maturity lifecycle.
 - [Struct tag reference](/reference/struct-tags/#feature-toggles-congafeaturest) — the full container and feature-field tag vocabulary.
 - [About value precedence](/explanation/value-precedence/) — how the four tiers merge, including sparse feature maps.
 - [How to inspect value provenance](/how-to/inspect-value-provenance/) — the `--why` report.

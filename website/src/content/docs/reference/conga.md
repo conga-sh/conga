@@ -27,7 +27,7 @@ func New[T any](root ...*T) *App[T]
 | `Version(version)` | `--version` display string (falls back to build metadata) |
 | `EnvPrefix(prefix)` | Environment tier prefix (normalized to trailing `_`) |
 | `Dotenv(paths...)` | Enable `.env` loading (default `.env` + `.env.local`; [rules](/reference/dotenv/)) |
-| `ConfigOptions(options...)` | Config resolution: `conga.ConfigExplicit(path)`, `conga.ConfigPaths(paths...)`, `conga.ConfigCascading()` |
+| `ConfigOptions(options...)` | Config resolution: `conga.ConfigExplicit(path)`, `conga.ConfigPaths(paths...)`, `conga.ConfigCascading()`; `ConfigExplicit` cannot be combined with paths or cascading |
 | `RegisterDecoder(ext, decoder)` | Per-app config format decoder |
 | `StrictTagValidation(strict)` | Toggle tag linting (default on) |
 | `AllowTags(tags...)` | Allow additional struct tags |
@@ -39,7 +39,7 @@ func New[T any](root ...*T) *App[T]
 | `UsageOnError(mode)` | Error-time usage rendering mode |
 | `Stdout(w)` / `Stderr(w)` | Output writers (default `os.Stdout`/`os.Stderr`) |
 | `ExitFunc(handler)` | Custom exit handler for `Exit` |
-| `EnableWhy()` / `EnableCompletion()` | Opt in to the `--why` report and shell completion |
+| `EnableWhy()` / `EnableCompletion()` / `EnableFeatures()` | Opt in to the `--why` report, shell completion, and struct-declared feature toggles |
 | `DisableHelpFlag()` / `DisableVersionFlag()` | Remove the `--help`/`--version` flags |
 
 ### Execution methods
@@ -68,11 +68,11 @@ func WithPredictor(p predict.Predictor) RegisterTypeOption
 | `OptionalArg[T]` / `RequiredArg[T]` | same as flags |
 | `Counter` | same as flags, value is `int` |
 | `ConfigFile` | root-only config path flag; `multi:"true"` for multi-path (`Path`, `Paths`) |
-| `Features[T]` | root-only feature declaration; values read through `Get`, plus `IsSet`, `Changed`, `Source`, `SourceDetail` |
+| `Features[T]` | root-only feature declaration; values read through `Get`, plus `IsSet`, `Changed`, `Source`, `SourceDetail`, `String` |
 | `DashArgs` / `RawArgs` | `Get []string`, `GetOr`, `Len`, `IsSet`, `String` |
 | `Command[T]` | `Get() *T`, `IsSelected()` |
 
-`HelpCommand` (with `Path []string`), `VersionCommand` (with `JSON bool`), and `CompletionCommand` (with `Shell string`) are the opt-in built-in subcommand containers.
+`HelpCommand` (with `Path() []string`), `VersionCommand` (with `JSON() bool`), and `CompletionCommand` (with `Shell() string`) are the opt-in built-in subcommand containers.
 
 ## Lifecycle interfaces
 
@@ -104,7 +104,8 @@ func (s *Session) LoadedConfigFiles() []string
 ```
 
 `Root` returns the application struct bound to `T`: the instance passed to
-`New`, or the engine-allocated instance. Enclosing command structs are reached
+`New`, or the engine-allocated instance. The type argument `T` must match the
+exact root command struct type, or `Root` panics. Enclosing command structs are reached
 by walking the selected `Command[T]` fields (`root.Cluster.Get()`).
 
 The App snapshots standard streams at the start of execution for the active session.

@@ -17,9 +17,10 @@ Every app gets `--help` and a generated help screen. CONGA derives the help outp
 6. **Positional arguments**: argument names and descriptions under `Arguments:`.
 7. **Completion footer**: supported shells list rendered on generic completion help screens.
 8. **Flags**: flags declared on the active command, grouped under `group:"..."` headers or the default `Flags:` heading. Built-in flags (`--help`, `--version`, `--why`) appear here.
-9. **Global flags**: persistent flags inherited from ancestor commands.
-10. **Examples**: usage examples configured via `app.Examples(...)` on the root builder, or `Examples() string` on subcommand structs.
-11. **Global help footer**: text configured via `app.HelpFooter(...)`.
+9. **Features** (root screen only): feature toggles declared via `conga.Features[T]`, rendered under `Features:` with help text, stage (`[alpha]`, `[beta]`), integer levels, and defaults. Toggles staged `ga` or `deprecated` are omitted.
+10. **Global flags**: persistent flags inherited from ancestor commands.
+11. **Examples**: usage examples configured via `app.Examples(...)` on the root builder, or `Examples() string` on subcommand structs.
+12. **Global help footer**: text configured via `app.HelpFooter(...)`.
 
 ### Global help footers and top matter
 
@@ -46,7 +47,7 @@ type App struct {
 }
 ```
 
-`HelpCommand` resolves the requested path (with aliases) and returns the target's help screen; unknown paths are parse errors with suggestions. `app.DisableHelpFlag()` removes `--help` flag injection entirely.
+`HelpCommand` resolves the requested path (with aliases) and returns the target's help screen; unknown paths are parse errors with suggestions. Call `Path() []string` to inspect the requested subcommand path. `app.DisableHelpFlag()` removes `--help` flag injection entirely.
 
 ## Version
 
@@ -87,7 +88,7 @@ hello:
  OS/Arch:    linux/amd64
 ```
 
-`hello version --json` renders a flat machine-readable object with the same fields (`version`, `gitCommit`, `built`, `goVersion`, `os`, `arch`, `modified`). The `--json` flag is engine-owned: a user-defined `--json` flag on an ancestor command cannot collide with it, and a non-boolean value is a usage error (exit 2).
+`hello version --json` renders a flat machine-readable object with the same fields (`version`, `gitCommit`, `built`, `goVersion`, `os`, `arch`, `modified`). Call `JSON() bool` on the command struct to query whether JSON format was requested. The `--json` flag is engine-owned: a user-defined `--json` flag on an ancestor command cannot collide with it, and a non-boolean value is a usage error (exit 2).
 
 `app.DisableVersionFlag()` removes the flag while keeping the version summary line available through `session.Version()` and `VersionCommand`.
 
@@ -104,7 +105,7 @@ When the root command declares `conga.Features[T]`, the report ends with a `Feat
 | Style | Surface | When |
 |-------|---------|------|
 | Flat flag | `--completion <shell>` | Enabled flat, single-command CLIs |
-| Subcommand | `completion <shell>` via `conga.CompletionCommand` | Declare the field and enable `app.EnableCompletion()` |
+| Subcommand | `completion <shell>` via `conga.CompletionCommand` | Declare the field and enable `app.EnableCompletion()` (inspect requested shell with `Shell() string`) |
 | Hidden driver | `<cmd> __complete <shell> <words...>` | Used internally by generated shell functions |
 
 When the user presses tab, the installed shell function invokes the binary through the hidden driver with the partial words:

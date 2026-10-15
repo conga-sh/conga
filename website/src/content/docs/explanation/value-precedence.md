@@ -77,11 +77,32 @@ Positional containers (`RequiredArg[T]`, `OptionalArg[T]`, `DashArgs`, and `RawA
 
 ### Map flags
 
-`map[K]V` flags merge key by key across all four tiers instead of resolving a single winning tier. Each tier supplies a set of `key=value` pairs, and the effective map is the fold of `default < config < env < CLI`, with a higher tier overriding only the keys it names. A config file can therefore set one key while the command line sets another, and both apply. This matches the established convention for map-like flags (Kubernetes `--feature-gates`, Helm `--set`, `git -c`). A key a lower tier sets can be overridden from a higher tier but never removed.
+Unlike scalar and slice flags where a single winning tier replaces all lower tiers, `map[K]V` flags (and registered custom map types) merge key by key across all four tiers. Each tier contributes a set of `key=value` pairs, and the effective map folds in ascending order: `default < config < env < CLI`.
+
+A higher tier overrides only the specific keys it names. Keys supplied by lower tiers persist into the final map unless explicitly overridden:
+
+| Tier | Contributed keys | Effective map after tier |
+|---|---|---|
+| **1. Default tag** | `region=us-east-1`, `timeout=30s` | `region=us-east-1`, `timeout=30s` |
+| **2. Config file** | `timeout=60s`, `retries=3` | `region=us-east-1`, `timeout=60s`, `retries=3` |
+| **3. Environment** | `retries=5`, `debug=true` | `region=us-east-1`, `timeout=60s`, `retries=5`, `debug=true` |
+| **4. CLI flag** | `debug=false`, `profile=dev` | `region=us-east-1`, `timeout=60s`, `retries=5`, `debug=false`, `profile=dev` |
+
+This folding model matches conventions established by tools such as Kubernetes (`--feature-gates`), Helm (`--set`), and Git (`git -c`). A key set by a lower tier can be updated from a higher tier, but cannot be removed entirely.
+
+#### Lower-tier validation and attribution
+
+Because every tier contributes to the merged map, CONGA parses and validates map entries across all active tiers. A malformed entry or syntax error in a configuration file or environment variable produces an error even if an operator also specifies the flag on the command line. Errors attribute to the specific tier that supplied the malformed token:
+- Malformed configuration entries fail during file decoding with `ErrConfig` (exit code 1).
+- Malformed environment entries fail during parsing with `ErrParse` (exit code 2).
 
 ### Feature maps
 
-A `conga.Features[T]` container resolves as a map flag: every tier contributes `name=value` pairs, higher tiers override per key, and the merged result overlays the inner features' `default` tags key by key, so features no tier lists keep their declared defaults (sparse overrides). Keys accept any spelling of a declared name and are canonicalized before the merge, so a higher tier overrides the same feature regardless of the spelling each tier used. The container records the highest contributing tier once; `Features.Source()` reports it, and `--why` renders each feature's effective value against the tier that last wrote its key. See [Feature toggles](/reference/struct-tags/#feature-toggles-congafeaturest) and the [container accessors](/reference/conga/#containers).
+A `conga.Features[T]` container resolves through the same key-by-key map merge. Every tier contributes `name=value` pairs, higher tiers override matching keys, and the resulting map overlays the inner feature struct's `default` tags key by key. Features not listed in any tier retain their field defaults (sparse overrides).
+
+Before merging, CONGA canonicalizes all feature keys to the declared feature name. Whether a configuration file specifies `gentle_force`, an environment variable sets `GENTLE_FORCE`, or the command line sets `gentle-force`, all three match the `GentleForce` toggle. Precedence follows the resolution tier, never the spelling variant.
+
+The container records the highest contributing tier as its `Source()`, and `--why` renders each individual feature against the tier that last wrote its key. See [About feature toggles](/explanation/feature-toggles/) and [How to inspect value provenance](/how-to/inspect-value-provenance/).
 
 ### Environment file integration
 
