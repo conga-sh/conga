@@ -426,7 +426,9 @@ func TestDomainTypes_ValueReceiverChaining(t *testing.T) {
 		"-l", "en_US.UTF-8",
 		"-r", "nginx",
 	})
+
 	err := app.Run()
+
 	assert.NoError(t, err)
 
 	assert.Equal(t, 1234, cli.PID.Get().Int())
@@ -441,11 +443,22 @@ func TestDomainTypes_ValueReceiverChaining(t *testing.T) {
 	assert.Equal(t, "nginx", cli.Process.Get().String())
 }
 
-func TestPIDs_Processes_Aliases(t *testing.T) {
+func TestPIDs_AliasesProcessIDs(t *testing.T) {
 	t.Parallel()
 
-	assert.NotZero(t, system.PIDs())
-	assert.NotZero(t, system.Processes())
+	aliasItems := system.PIDs().Invoke(predict.Context{}).Items
+	canonicalItems := system.ProcessIDs().Invoke(predict.Context{}).Items
+
+	assert.Equal(t, itemValues(canonicalItems), itemValues(aliasItems))
+}
+
+func TestProcesses_AliasesProcessNames(t *testing.T) {
+	t.Parallel()
+
+	aliasItems := system.Processes().Invoke(predict.Context{}).Items
+	canonicalItems := system.ProcessNames().Invoke(predict.Context{}).Items
+
+	assert.Equal(t, itemValues(canonicalItems), itemValues(aliasItems))
 }
 
 func itemValues(items []predict.Item) []string {

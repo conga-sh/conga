@@ -251,6 +251,7 @@ func TestSession_Root_TypeMismatchPanics(t *testing.T) {
 		Args([]string{"deploy"})
 
 	expectedPanic := "conga: Session.Root[conga_test.wrongRootType] called, but root command type is *conga_test.sessionMismatchRoot"
+
 	assertx.PanicsWithValue(t, expectedPanic, func() {
 		_ = app.Run()
 	})

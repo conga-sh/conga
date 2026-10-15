@@ -170,6 +170,48 @@ func TestHelpCommand_SubcommandRouting(t *testing.T) {
 	assert.Contains(t, buffer.String(), "Usage:\n  testapp cluster node drain")
 }
 
+func TestHelpCommand_Path(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	cli := new(TestHelpRootCLI)
+	app := conga.New(cli).Stdout(&buffer).Args([]string{"help", "cluster", "node", "drain"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"cluster", "node", "drain"}, cli.Help.Path())
+}
+
+func TestHelpCommand_Path_DefensiveCopy(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	cli := new(TestHelpRootCLI)
+	app := conga.New(cli).Stdout(&buffer).Args([]string{"help", "cluster", "node", "drain"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+
+	returned := cli.Help.Path()
+	returned[0] = "mutated"
+
+	assert.Equal(t, []string{"cluster", "node", "drain"}, cli.Help.Path())
+}
+
+func TestHelpCommand_PathNilReceiver(t *testing.T) {
+	t.Parallel()
+
+	var command *conga.HelpCommand
+
+	result := command.Path()
+
+	assert.Zero(t, result)
+}
+
 func TestHelpCommand_UnknownSubcommand(t *testing.T) {
 	t.Parallel()
 

@@ -157,7 +157,7 @@ func main() {
 	app := conga.New[Router]()
 
 	app.RegisterType(parseCIDR)
-	app.RegisterMap(map[string]net.IPNet(nil))
+	app.RegisterMap[map[string]net.IPNet]()
 
 	if err := app.Run(); err != nil {
 		app.Exit(err)
@@ -165,7 +165,7 @@ func main() {
 }
 ```
 
-Map keys must be strings. Registering a map type with a non-string key panics during application initialisation.
+Map keys must have an underlying string type, enforced at compile time by RegisterMap's type constraints.
 
 Supply map entries using `KEY=VALUE` syntax across repeated flags or separated by commas:
 

@@ -11,18 +11,15 @@ import (
 )
 
 // Stringify converts any value into its canonical string representation,
-// applying zero-allocation and reflection-free fast paths for string,
-// fmt.Stringer, encoding.TextMarshaler, boolean, numeric, and standard CLI types.
+// applying zero-allocation and reflection-free fast paths for string, boolean,
+// numeric, and standard CLI types; fmt.Stringer and encoding.TextMarshaler
+// values are checked for typed nil pointers before being rendered.
 func Stringify(value any) string {
 	switch typedValue := value.(type) {
 	case string:
 		return typedValue
 	case fmt.Stringer:
-		if typedValue != nil {
-			return typedValue.String()
-		}
-
-		return ""
+		return stringifyStringer(typedValue)
 	case encoding.TextMarshaler:
 		return stringifyTextMarshaler(typedValue)
 	case bool:
@@ -71,7 +68,7 @@ func stringifyReflect(value any) string {
 	case reflect.Map:
 		return stringifyMap(reflected)
 	case reflect.Slice:
-		return stringifySlice(reflected, value)
+		return stringifySlice(reflected)
 	default:
 		return fmt.Sprint(value)
 	}
@@ -82,11 +79,29 @@ func stringifyTextMarshaler(marshaler encoding.TextMarshaler) string {
 		return ""
 	}
 
+	reflected := reflect.ValueOf(marshaler)
+	if reflected.Kind() == reflect.Pointer && reflected.IsNil() {
+		return ""
+	}
+
 	if text, err := marshaler.MarshalText(); err == nil {
 		return string(text)
 	}
 
 	return ""
+}
+
+func stringifyStringer(stringer fmt.Stringer) string {
+	if stringer == nil {
+		return ""
+	}
+
+	reflected := reflect.ValueOf(stringer)
+	if reflected.Kind() == reflect.Pointer && reflected.IsNil() {
+		return ""
+	}
+
+	return stringer.String()
 }
 
 func stringifyAddressable(reflected reflect.Value) (string, bool) {
@@ -130,9 +145,9 @@ func stringifyMap(reflected reflect.Value) string {
 	pairs := make([]string, 0, len(keys))
 
 	for _, key := range keys {
-		kStr := Stringify(key.Interface())
-		vStr := Stringify(reflected.MapIndex(key).Interface())
-		pairs = append(pairs, kStr+"="+vStr)
+		keyString := Stringify(key.Interface())
+		valueString := Stringify(reflected.MapIndex(key).Interface())
+		pairs = append(pairs, keyString+"="+valueString)
 	}
 
 	slices.Sort(pairs)
@@ -140,7 +155,7 @@ func stringifyMap(reflected reflect.Value) string {
 	return strings.Join(pairs, ", ")
 }
 
-func stringifySlice(reflected reflect.Value, value any) string {
+func stringifySlice(reflected reflect.Value) string {
 	if reflected.Type().Elem().Kind() == reflect.Uint8 {
 		return string(reflected.Bytes())
 	}
@@ -149,14 +164,14 @@ func stringifySlice(reflected reflect.Value, value any) string {
 		return ""
 	}
 
-	if reflected.Type().Elem().Kind() == reflect.String {
-		items := make([]string, reflected.Len())
-		for i := range reflected.Len() {
-			items[i] = reflected.Index(i).String()
+	items := make([]string, reflected.Len())
+	for index := range reflected.Len() {
+		if reflected.Type().Elem().Kind() == reflect.String {
+			items[index] = reflected.Index(index).String()
+		} else {
+			items[index] = Stringify(reflected.Index(index).Interface())
 		}
-
-		return "[" + strings.Join(items, ", ") + "]"
 	}
 
-	return fmt.Sprint(value)
+	return "[" + strings.Join(items, ", ") + "]"
 }

@@ -31,6 +31,30 @@ type FeatureSemanticsCLI struct {
 	Features conga.Features[featureSemanticsSet] `flag:"feature-gates"`
 }
 
+func TestFeatures_String(t *testing.T) {
+	t.Parallel()
+
+	cli := new(FeatureSemanticsCLI)
+	app := conga.New(cli).
+		EnableFeatures().
+		Args([]string{"--feature-gates", "enabled=false"})
+
+	err := app.RunContext(t.Context())
+
+	assert.NoError(t, err)
+	assert.Equal(t, "{false}", cli.Features.String())
+}
+
+func TestFeatures_StringNilReceiver(t *testing.T) {
+	t.Parallel()
+
+	var features *conga.Features[featureSemanticsSet]
+
+	result := features.String()
+
+	assert.Zero(t, result)
+}
+
 func TestChangedSemantics_DefaultSource(t *testing.T) {
 	t.Parallel()
 

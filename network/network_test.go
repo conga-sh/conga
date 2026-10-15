@@ -3,6 +3,7 @@ package network_test
 import (
 	"bytes"
 	"context"
+	"encoding"
 	"net"
 	"os"
 	"path/filepath"
@@ -399,29 +400,29 @@ func TestDomainTypes(t *testing.T) {
 func TestDomainTypes_MarshalText(t *testing.T) {
 	t.Parallel()
 
-	hostData, err := network.Host("example.com").MarshalText()
-	assert.NoError(t, err)
-	assert.Equal(t, "example.com", string(hostData))
+	tests := []struct {
+		name     string
+		input    encoding.TextMarshaler
+		expected string
+	}{
+		{"Host", network.Host("example.com"), "example.com"},
+		{"HTTPMethod", network.HTTPMethod("POST"), "POST"},
+		{"HTTPStatus", network.HTTPStatus(200), "200"},
+		{"MIMEType", network.MIMEType("application/json"), "application/json"},
+		{"NetInterface", network.NetInterface("lo"), "lo"},
+		{"Port", network.Port(8080), "8080"},
+	}
 
-	methodData, err := network.HTTPMethod("POST").MarshalText()
-	assert.NoError(t, err)
-	assert.Equal(t, "POST", string(methodData))
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
 
-	statusData, err := network.HTTPStatus(200).MarshalText()
-	assert.NoError(t, err)
-	assert.Equal(t, "200", string(statusData))
+			encoded, err := testCase.input.MarshalText()
 
-	mimeData, err := network.MIMEType("application/json").MarshalText()
-	assert.NoError(t, err)
-	assert.Equal(t, "application/json", string(mimeData))
-
-	netifData, err := network.NetInterface("lo").MarshalText()
-	assert.NoError(t, err)
-	assert.Equal(t, "lo", string(netifData))
-
-	portData, err := network.Port(8080).MarshalText()
-	assert.NoError(t, err)
-	assert.Equal(t, "8080", string(portData))
+			assert.NoError(t, err)
+			assert.Equal(t, testCase.expected, string(encoded))
+		})
+	}
 }
 
 type chainingCLI struct {
@@ -439,7 +440,9 @@ func TestDomainTypes_ValueReceiverChaining(t *testing.T) {
 
 	cli := &chainingCLI{}
 	app := conga.New(cli).Args([]string{"--port", "80", "--status", "204", "--method", "get"})
+
 	err := app.Run()
+
 	assert.NoError(t, err)
 
 	assert.True(t, cli.Port.Get().IsPrivileged())
@@ -455,15 +458,29 @@ func TestDomainTypes_ValueReceiverChaining(t *testing.T) {
 	assert.Equal(t, "GET", cli.Method.Get().String())
 }
 
-func TestRegisterNetInterface(t *testing.T) {
+func TestRegisterNetInterface_CoercesInterface(t *testing.T) {
 	t.Parallel()
 
-	type CLI struct {
-		Iface conga.OptionalFlag[*net.Interface] `short:"i"`
+	ifaces, err := net.Interfaces()
+	assert.NoError(t, err)
+
+	if len(ifaces) == 0 {
+		t.Skip("no network interfaces available")
 	}
 
-	app := conga.New[CLI]().Use(network.RegisterNetInterface)
-	assert.NotZero(t, app)
+	targetName := ifaces[0].Name
+	cli := new(netTestCLI)
+	app := conga.New(cli).
+		Args([]string{"-i", targetName}).
+		Use(network.RegisterNetInterface)
+
+	err = app.Run()
+
+	assert.NoError(t, err)
+
+	iface := cli.Iface.Get()
+	assert.NotZero(t, iface)
+	assert.Equal(t, targetName, iface.Name)
 }
 
 func itemValues(items []predict.Item) []string {

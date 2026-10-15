@@ -141,6 +141,34 @@ func TestCompletionScriptGeneration_AllShells(t *testing.T) {
 	})
 }
 
+func TestCompletionCommand_Shell(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	cli := new(StructCompletionCLI)
+	app := conga.New(cli).
+		EnableCompletion().
+		Name("myapp").
+		Stdout(&buffer).
+		Args([]string{"completion", "bash"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, "bash", cli.Completion.Shell())
+}
+
+func TestCompletionCommand_ShellNilReceiver(t *testing.T) {
+	t.Parallel()
+
+	var command *conga.CompletionCommand
+
+	result := command.Shell()
+
+	assert.Zero(t, result)
+}
+
 func TestCompletionCommand_StructBased(t *testing.T) {
 	t.Parallel()
 

@@ -22,6 +22,14 @@ func (c *customStringer) String() string {
 	return c.text
 }
 
+type strictStringer struct {
+	text string
+}
+
+func (s *strictStringer) String() string {
+	return s.text
+}
+
 type unhandledType struct {
 	field int
 }
@@ -31,6 +39,14 @@ type customTextMarshaler struct {
 }
 
 func (c customTextMarshaler) MarshalText() ([]byte, error) {
+	return []byte(c.text), nil
+}
+
+type customPointerTextMarshaler struct {
+	text string
+}
+
+func (c *customPointerTextMarshaler) MarshalText() ([]byte, error) {
 	return []byte(c.text), nil
 }
 
@@ -68,7 +84,9 @@ func TestStringify(t *testing.T) {
 	t.Run("fmt.Stringer typed nil", func(t *testing.T) {
 		t.Parallel()
 
-		var nilStringer *customStringer
+		// strictStringer.String dereferences fields without a nil-receiver
+		// check, so Stringify must guard before invoking it.
+		var nilStringer *strictStringer
 
 		result := stringx.Stringify(nilStringer)
 
@@ -139,6 +157,26 @@ func TestStringify(t *testing.T) {
 		assert.Equal(t, "marshaled-text", result)
 	})
 
+	t.Run("encoding.TextMarshaler pointer", func(t *testing.T) {
+		t.Parallel()
+
+		marshaler := &customPointerTextMarshaler{text: "ptr-text"}
+
+		result := stringx.Stringify(marshaler)
+
+		assert.Equal(t, "ptr-text", result)
+	})
+
+	t.Run("encoding.TextMarshaler typed nil", func(t *testing.T) {
+		t.Parallel()
+
+		var marshaler *customPointerTextMarshaler
+
+		result := stringx.Stringify(marshaler)
+
+		assert.Equal(t, "", result)
+	})
+
 	t.Run("map formatting", func(t *testing.T) {
 		t.Parallel()
 
@@ -154,11 +192,13 @@ func TestStringify(t *testing.T) {
 
 		stringSliceResult := stringx.Stringify([]string{"a", "b", "c"})
 		intSliceResult := stringx.Stringify([]int{1, 2, 3})
+		boolSliceResult := stringx.Stringify([]bool{true, false})
 		emptySliceResult := stringx.Stringify([]string{})
 		byteSliceResult := stringx.Stringify([]byte("raw-bytes"))
 
 		assert.Equal(t, "[a, b, c]", stringSliceResult)
-		assert.Equal(t, "[1 2 3]", intSliceResult)
+		assert.Equal(t, "[1, 2, 3]", intSliceResult)
+		assert.Equal(t, "[true, false]", boolSliceResult)
 		assert.Equal(t, "", emptySliceResult)
 		assert.Equal(t, "raw-bytes", byteSliceResult)
 	})

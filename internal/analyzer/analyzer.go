@@ -89,8 +89,6 @@ type appOptions struct {
 	// that could hide one. Ambiguous evidence skips the cascading guard.
 	configCascading          bool
 	configCascadingAmbiguous bool
-	configExplicit           bool
-	configPaths              bool
 }
 
 func (o *appOptions) absorbCall(pass *analysis.Pass, node ast.Node) {
@@ -170,30 +168,36 @@ func (o *appOptions) absorbEnvPrefixCall(pass *analysis.Pass, call *ast.CallExpr
 
 // absorbConfigCall classifies the option-constructor arguments of an
 // app.ConfigOptions(...) call: a statically identified conga.ConfigCascading()
-// enables the cascading guard, known non-cascading options are inert, and
-// anything else is ambiguous evidence that could hide a Cascading option.
-// It reports a diagnostic when ConfigExplicit is combined with ConfigPaths or
-// ConfigCascading.
+// enables the cascading guard, and anything else is ambiguous evidence that
+// could hide a Cascading option. Conflicts between ConfigExplicit and
+// ConfigPaths/ConfigCascading are detected per call and reported at the
+// argument that completes the conflict: evidence never leaks across distinct
+// apps in one package. Conflicts spanning multiple ConfigOptions calls on a
+// single app are intentionally missed here — the analyzer may only miss
+// diagnostics, never invent them, and the runtime foldConfigOptions guard
+// remains the source of truth for that case.
 func (o *appOptions) absorbConfigCall(pass *analysis.Pass, call *ast.CallExpr) {
+	var hasExplicit, hasPaths, hasCascading bool
+
+	reported := false
+
 	for _, argument := range call.Args {
 		switch configOptionName(pass, argument) {
 		case "ConfigCascading":
+			hasCascading = true
 			o.configCascading = true
-			if o.configExplicit {
-				pass.Reportf(argument.Pos(), "%s", spec.ConfigExplicitConflictError().Error())
-			}
 		case "ConfigPaths":
-			o.configPaths = true
-			if o.configExplicit {
-				pass.Reportf(argument.Pos(), "%s", spec.ConfigExplicitConflictError().Error())
-			}
+			hasPaths = true
 		case "ConfigExplicit":
-			o.configExplicit = true
-			if o.configCascading || o.configPaths {
-				pass.Reportf(argument.Pos(), "%s", spec.ConfigExplicitConflictError().Error())
-			}
+			hasExplicit = true
 		default:
 			o.configCascadingAmbiguous = true
+		}
+
+		if !reported && hasExplicit && (hasPaths || hasCascading) {
+			pass.Reportf(argument.Pos(), "%s", spec.ConfigExplicitConflictError().Error())
+
+			reported = true
 		}
 	}
 }

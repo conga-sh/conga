@@ -34,7 +34,7 @@ func New[T any](root ...*T) *App[T]
 | `Predictor(name, p)` | Register named completion predictor (panics on misuse) |
 | `Use(bindings...)` | Apply builder bindings (`network.RegisterInterface`, `timezone.RegisterLocation`, …) |
 | `RegisterType[U](parser, opts...)` | Register a parser (and optional predictor) for type `U` |
-| `RegisterMap[M](sample, opts...)` | Register a `map[K]V` parser from a sample map |
+| `RegisterMap[M](opts...)` | Register a `map[K]V` parser for a map type with string-compatible keys |
 | `Args(args)` | Custom argument slice (defaults to `os.Args[1:]`) |
 | `UsageOnError(mode)` | Error-time usage rendering mode |
 | `Stdout(w)` / `Stderr(w)` | Output writers (default `os.Stdout`/`os.Stderr`) |
@@ -54,7 +54,7 @@ func New[T any](root ...*T) *App[T]
 
 ```go
 func (a *App[T]) RegisterType[U any](parser func(string) (U, error), opts ...RegisterTypeOption) *App[T]
-func (a *App[T]) RegisterMap[M ~map[K]V, K comparable, V any](sample M, opts ...RegisterTypeOption) *App[T]
+func (a *App[T]) RegisterMap[M ~map[K]V, K ~string, V any](opts ...RegisterTypeOption) *App[T]
 func WithPredictor(p predict.Predictor) RegisterTypeOption
 ```
 
