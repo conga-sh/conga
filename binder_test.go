@@ -532,6 +532,254 @@ func TestBinder_MapFlagMergesTiers(t *testing.T) {
 	})
 }
 
+// CascadeMapCLI exercises map flags against cascading config files with the
+// environment and CLI tiers.
+type CascadeMapCLI struct {
+	noopRunner
+
+	Config conga.ConfigFile                      `help:"Config file"         multi:"true"`
+	Tags   conga.OptionalFlag[map[string]string] `env:"CASCADE_TAGS"         help:"Tags map"`
+	Sizes  conga.OptionalFlag[map[string]int]    `help:"Registered size map"`
+}
+
+// CascadeLadderCLI exercises the full four-tier ladder with a map default.
+type CascadeLadderCLI struct {
+	noopRunner
+
+	Config conga.ConfigFile                      `help:"Config file"            multi:"true"`
+	Tags   conga.OptionalFlag[map[string]string] `default:"base=def,common=def" env:"LADDER_TAGS" help:"Tags map"`
+}
+
+func writeCascadeTagsPair(t *testing.T) (string, string) {
+	t.Helper()
+
+	lowPath := writeConfigFile(t, `{"tags": {"shared": "low", "onlyLow": "1"}}`)
+	highPath := writeConfigFile(t, `{"tags": {"onlyHigh": "2"}}`)
+
+	return lowPath, highPath
+}
+
+// TestBinder_MapFlagMergesCascadingFiles pins the within-tier merge of map
+// flags across cascading config files.
+func TestBinder_MapFlagMergesCascadingFiles(t *testing.T) {
+	t.Parallel()
+
+	t.Run("disjoint keys across two files merge", func(t *testing.T) {
+		t.Parallel()
+
+		lowPath, highPath := writeCascadeTagsPair(t)
+
+		cli := new(CascadeMapCLI)
+		app := conga.New(cli).
+			RegisterDecoder(".json", json.Decode).
+			ConfigOptions(conga.ConfigPaths(highPath, lowPath), conga.ConfigCascading()).
+			Args([]string{})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]string{"shared": "low", "onlyLow": "1", "onlyHigh": "2"}, cli.Tags.Get())
+		assert.Equal(t, conga.SourceConfig, cli.Tags.Source())
+	})
+
+	t.Run("nearest file wins overlapping key", func(t *testing.T) {
+		t.Parallel()
+
+		lowPath := writeConfigFile(t, `{"tags": {"shared": "low", "keep": "low"}}`)
+		highPath := writeConfigFile(t, `{"tags": {"shared": "high"}}`)
+
+		cli := new(CascadeMapCLI)
+		app := conga.New(cli).
+			RegisterDecoder(".json", json.Decode).
+			ConfigOptions(conga.ConfigPaths(highPath, lowPath), conga.ConfigCascading()).
+			Args([]string{})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]string{"shared": "high", "keep": "low"}, cli.Tags.Get())
+	})
+
+	t.Run("registered map type merges across files", func(t *testing.T) {
+		t.Parallel()
+
+		lowPath := writeConfigFile(t, `{"sizes": {"small": 1, "shared": 2}}`)
+		highPath := writeConfigFile(t, `{"sizes": {"shared": 3, "large": 4}}`)
+
+		cli := new(CascadeMapCLI)
+		app := conga.New(cli).
+			RegisterDecoder(".json", json.Decode).
+			RegisterMap[map[string]int]().
+			ConfigOptions(conga.ConfigPaths(highPath, lowPath), conga.ConfigCascading()).
+			Args([]string{})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]int{"small": 1, "shared": 3, "large": 4}, cli.Sizes.Get())
+	})
+
+	t.Run("value containing separator survives nested form", func(t *testing.T) {
+		t.Parallel()
+
+		configPath := writeConfigFile(t, `{"tags": {"note": "a,b"}}`)
+
+		cli := new(CascadeMapCLI)
+		app := conga.New(cli).
+			RegisterDecoder(".json", json.Decode).
+			ConfigOptions(conga.ConfigExplicit(configPath)).
+			Args([]string{})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]string{"note": "a,b"}, cli.Tags.Get())
+	})
+
+	t.Run("registered map value containing separator survives nested form", func(t *testing.T) {
+		t.Parallel()
+
+		configPath := writeConfigFile(t, `{"tags": {"note": "a,b,c"}}`)
+
+		type registeredMapCLI struct {
+			noopRunner
+
+			Config conga.ConfigFile                      `help:"Config file"`
+			Tags   conga.OptionalFlag[map[string]string] `help:"Registered string map"`
+		}
+
+		cli := new(registeredMapCLI)
+		app := conga.New(cli).
+			RegisterDecoder(".json", json.Decode).
+			RegisterMap[map[string]string]().
+			ConfigOptions(conga.ConfigExplicit(configPath)).
+			Args([]string{})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]string{"note": "a,b,c"}, cli.Tags.Get())
+	})
+
+	t.Run("pairless map section yields to a later file's pairs", func(t *testing.T) {
+		t.Parallel()
+
+		lowPath := writeConfigFile(t, `{"tags": {"a": "low"}}`)
+		highPath := writeConfigFile(t, `{"tags": {}}`)
+
+		cli := new(CascadeMapCLI)
+		app := conga.New(cli).
+			RegisterDecoder(".json", json.Decode).
+			ConfigOptions(conga.ConfigPaths(highPath, lowPath), conga.ConfigCascading()).
+			Args([]string{})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]string{"a": "low"}, cli.Tags.Get())
+	})
+
+	t.Run("empty map section alone leaves map unset", func(t *testing.T) {
+		t.Parallel()
+
+		configPath := writeConfigFile(t, `{"tags": {}}`)
+
+		cli := new(CascadeMapCLI)
+		app := conga.New(cli).
+			RegisterDecoder(".json", json.Decode).
+			ConfigOptions(conga.ConfigExplicit(configPath)).
+			Args([]string{})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.False(t, cli.Tags.IsSet())
+	})
+
+	t.Run("malformed flat string errors with config attribution", func(t *testing.T) {
+		t.Parallel()
+
+		configPath := writeConfigFile(t, `{"tags": "novalue"}`)
+
+		app := conga.New[CascadeMapCLI]().
+			RegisterDecoder(".json", json.Decode).
+			ConfigOptions(conga.ConfigExplicit(configPath)).
+			Args([]string{})
+
+		err := app.Run()
+
+		assert.Error(t, err)
+		assert.IsError(t, err, conga.ErrCoerce)
+		assert.Contains(t, err.Error(), "config")
+	})
+}
+
+// TestBinder_MapFlagCascadingTierOverrides pins how the environment and CLI
+// tiers overlay cascading config files key by key. The subtests stay
+// sequential: t.Setenv mutates process-wide state.
+func TestBinder_MapFlagCascadingTierOverrides(t *testing.T) {
+	t.Run("env overrides cascaded files per key", func(t *testing.T) {
+		t.Setenv("CASCADE_TAGS", "shared=env")
+
+		lowPath, highPath := writeCascadeTagsPair(t)
+
+		cli := new(CascadeMapCLI)
+		app := conga.New(cli).
+			RegisterDecoder(".json", json.Decode).
+			ConfigOptions(conga.ConfigPaths(highPath, lowPath), conga.ConfigCascading()).
+			Args([]string{})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]string{"shared": "env", "onlyLow": "1", "onlyHigh": "2"}, cli.Tags.Get())
+		assert.Equal(t, conga.SourceEnv, cli.Tags.Source())
+	})
+
+	t.Run("CLI overrides cascaded files and env per key", func(t *testing.T) {
+		t.Setenv("CASCADE_TAGS", "env=env")
+
+		lowPath, highPath := writeCascadeTagsPair(t)
+
+		cli := new(CascadeMapCLI)
+		app := conga.New(cli).
+			RegisterDecoder(".json", json.Decode).
+			ConfigOptions(conga.ConfigPaths(highPath, lowPath), conga.ConfigCascading()).
+			Args([]string{"--tags", "shared=cli,cli=cli"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]string{"shared": "cli", "onlyLow": "1", "onlyHigh": "2", "env": "env", "cli": "cli"}, cli.Tags.Get())
+		assert.Equal(t, conga.SourceCLI, cli.Tags.Source())
+	})
+
+	t.Run("full ladder folds every tier per key", func(t *testing.T) {
+		t.Setenv("LADDER_TAGS", "env=1")
+
+		lowPath := writeConfigFile(t, `{"tags": {"common": "low", "onlyLow": "1"}}`)
+		highPath := writeConfigFile(t, `{"tags": {"common": "high", "onlyHigh": "2"}}`)
+
+		cli := new(CascadeLadderCLI)
+		app := conga.New(cli).
+			RegisterDecoder(".json", json.Decode).
+			ConfigOptions(conga.ConfigPaths(highPath, lowPath), conga.ConfigCascading()).
+			Args([]string{"--tags", "cli=1"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]string{
+			"base":     "def",
+			"common":   "high",
+			"onlyLow":  "1",
+			"onlyHigh": "2",
+			"env":      "1",
+			"cli":      "1",
+		}, cli.Tags.Get())
+	})
+}
+
 func TestBinder_RegisterTypeMapFlag(t *testing.T) {
 	t.Parallel()
 

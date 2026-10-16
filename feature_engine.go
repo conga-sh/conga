@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/conga-sh/conga/internal/casing"
+	"github.com/conga-sh/conga/internal/configdata"
 	"github.com/conga-sh/conga/internal/levenshtein"
 	"github.com/conga-sh/conga/internal/slicex"
 	"github.com/conga-sh/conga/internal/spec"
@@ -485,12 +486,10 @@ func checkFeatureFlagCLIRestrictions(flagValues map[*spec.Flag][]string, activeF
 // flag pruned by feature gating, so an inactive flag's value is never silently
 // ignored. It runs only on real executions (never on a tolerated builtin
 // request whose configuration may legitimately be unresolved).
-func checkFeatureConfigRestrictions(pruned []prunedFlag, configData map[string]string) error {
+func checkFeatureConfigRestrictions(pruned []prunedFlag, configData *configdata.Data) error {
 	for _, prunedMember := range pruned {
-		for _, key := range prunedMember.configKeys() {
-			if _, exists := configData[key]; exists {
-				return fmt.Errorf("%w: config file declares flag '--%s' which requires feature %q", ErrConfig, prunedMember.flag.Name, prunedMember.featureExpr)
-			}
+		if slices.ContainsFunc(prunedMember.configKeys(), configData.HasKey) {
+			return fmt.Errorf("%w: config file declares flag '--%s' which requires feature %q", ErrConfig, prunedMember.flag.Name, prunedMember.featureExpr)
 		}
 	}
 

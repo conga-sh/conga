@@ -72,6 +72,9 @@ var (
 	//go:embed testdata/why/defaults.golden
 	goldenWhyDefaults string
 
+	//go:embed testdata/why/map-cascade-merge.golden
+	goldenWhyMapCascadeMerge string
+
 	//go:embed testdata/why/map-entry-width.golden
 	goldenWhyMapEntryWidth string
 

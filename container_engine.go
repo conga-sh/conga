@@ -1,6 +1,7 @@
 package conga
 
 import (
+	"github.com/conga-sh/conga/internal/configdata"
 	"github.com/conga-sh/conga/internal/container"
 	"github.com/conga-sh/conga/internal/spec"
 )
@@ -21,7 +22,7 @@ type flagState interface {
 type featureState interface {
 	flagState
 	resolveFeatures(cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, state *bindingState) ([]prunedFlag, error)
-	rejectPrunedConfig(pruned []prunedFlag, configData map[string]string) error
+	rejectPrunedConfig(pruned []prunedFlag, configData *configdata.Data) error
 	pruneForCompletion(cmd *spec.Command, flagValues map[*spec.Flag][]string, state *bindingState)
 }
 

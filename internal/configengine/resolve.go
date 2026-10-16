@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/conga-sh/conga/internal/configdata"
 	"github.com/conga-sh/conga/internal/container"
 	"github.com/conga-sh/conga/internal/filex"
 	"github.com/conga-sh/conga/internal/pathx"
@@ -74,9 +75,9 @@ func (r Resolver) CandidatePaths(explicitPaths []string, cmd *spec.Command) []st
 // missing is a fatal error. Tier paths are probed opportunistically: the first
 // existing file wins, or — in cascading mode — every existing file is
 // collected in precedence order (lowest to highest) for merging. Returns the
-// loaded paths, the validated key-value map, and the value source; an empty
-// file set yields a source of SourceNone.
-func (r Resolver) Resolve(explicitTargets []string, cmd *spec.Command) ([]string, map[string]string, container.Source, error) {
+// loaded paths, the validated configuration data, and the value source; an
+// empty file set yields a source of SourceNone.
+func (r Resolver) Resolve(explicitTargets []string, cmd *spec.Command) ([]string, *configdata.Data, container.Source, error) {
 	envKeys := EnvKeys(r.EnvPrefix, cmd)
 	extensions := r.Registry.Extensions()
 
@@ -93,7 +94,7 @@ func (r Resolver) Resolve(explicitTargets []string, cmd *spec.Command) ([]string
 		return nil, nil, container.SourceNone, err
 	}
 
-	values := make(map[string]string)
+	values := configdata.New()
 
 	for _, file := range files {
 		if err := r.loadAndValidateFile(file, cmd, values); err != nil {
@@ -259,7 +260,7 @@ func (r Resolver) defaultSearchCandidatePaths() []string {
 	return paths
 }
 
-func (r Resolver) loadAndValidateFile(path string, cmd *spec.Command, dest map[string]string) error {
+func (r Resolver) loadAndValidateFile(path string, cmd *spec.Command, dest *configdata.Data) error {
 	cleanPath := filepath.Clean(path)
 
 	data, err := filex.ReadLimited(cleanPath, maxConfigFileSize)

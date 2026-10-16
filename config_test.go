@@ -47,6 +47,23 @@ var (
 	//go:embed testdata/fixtures/excluded_field.toml
 	fixtureExcludedField []byte
 
+	// Cascading map payloads: the tags map split across system, user, and
+	// local tiers, plus the subcommand-scoped tier pair.
+	//go:embed testdata/fixtures/map_cascade_local.toml
+	fixtureMapCascadeLocal []byte
+
+	//go:embed testdata/fixtures/map_cascade_sub_local.toml
+	fixtureMapCascadeSubLocal []byte
+
+	//go:embed testdata/fixtures/map_cascade_sub_sys.toml
+	fixtureMapCascadeSubSys []byte
+
+	//go:embed testdata/fixtures/map_cascade_sys.toml
+	fixtureMapCascadeSys []byte
+
+	//go:embed testdata/fixtures/map_cascade_user.toml
+	fixtureMapCascadeUser []byte
+
 	// Multi-flag first-hit payloads for the lower- and higher-precedence tiers.
 	//go:embed testdata/fixtures/multi_flag_first.toml
 	fixtureMultiFlagFirst []byte
@@ -67,6 +84,9 @@ var (
 
 	//go:embed testdata/fixtures/native_map.yaml
 	fixtureNativeMapYAML []byte
+
+	//go:embed testdata/fixtures/nested_namespace_map.yaml
+	fixtureNestedNamespaceMap []byte
 
 	//go:embed testdata/fixtures/nested_native_map.toml
 	fixtureNestedNativeMap []byte
@@ -513,6 +533,205 @@ func TestConfig_CascadingResolution(t *testing.T) {
 	assert.Equal(t, 9500, cli.Port.Get())              // from local.toml (highest precedence)
 	assert.Equal(t, 20*time.Second, cli.Timeout.Get()) // from user.toml
 	assert.Equal(t, "sys-host", cli.Host.Get())        // from sys.toml
+}
+
+// MapCascadeCLI exercises map and slice flags against cascading config files.
+type MapCascadeCLI struct {
+	noopRunner
+
+	Config conga.ConfigFile                      `help:"Config file" multi:"true"`
+	Tags   conga.OptionalFlag[map[string]string] `help:"Tags map"`
+	Hosts  conga.OptionalFlag[[]string]          `help:"Host list"`
+}
+
+// TestConfig_CascadingMapKeyMerge pins that map flags merge key by key across
+// cascading files: disjoint keys from every file survive, while scalar and
+// slice flags keep nearest-file-wins semantics.
+func TestConfig_CascadingMapKeyMerge(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	sysCfg := filepath.Join(tmpDir, "sys.toml")
+	localCfg := filepath.Join(tmpDir, "local.toml")
+
+	err := os.WriteFile(sysCfg, fixtureMapCascadeSys, 0o600)
+	assert.NoError(t, err)
+	err = os.WriteFile(localCfg, fixtureMapCascadeLocal, 0o600)
+	assert.NoError(t, err)
+
+	cli := new(MapCascadeCLI)
+	app := conga.New(cli).
+		RegisterDecoder(".toml", toml.Decode).
+		ConfigOptions(conga.ConfigPaths(localCfg, sysCfg), conga.ConfigCascading()).
+		Args([]string{})
+
+	err = app.Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]string{"base": "sys", "shared": "sys", "local": "local"}, cli.Tags.Get())
+	assert.Equal(t, []string{"local-a"}, cli.Hosts.Get())
+	assert.Equal(t, conga.SourceConfig, cli.Tags.Source())
+}
+
+// TestConfig_CascadingMapKeyNearestFileWins pins the per-key file-order rule
+// across three cascading files: an overlapping key resolves to the nearest
+// file and disjoint keys from lower files survive.
+func TestConfig_CascadingMapKeyNearestFileWins(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	sysCfg := filepath.Join(tmpDir, "sys.toml")
+	userCfg := filepath.Join(tmpDir, "user.toml")
+	localCfg := filepath.Join(tmpDir, "local.toml")
+
+	err := os.WriteFile(sysCfg, fixtureMapCascadeSys, 0o600)
+	assert.NoError(t, err)
+	err = os.WriteFile(userCfg, fixtureMapCascadeUser, 0o600)
+	assert.NoError(t, err)
+	err = os.WriteFile(localCfg, fixtureMapCascadeLocal, 0o600)
+	assert.NoError(t, err)
+
+	cli := new(MapCascadeCLI)
+	app := conga.New(cli).
+		RegisterDecoder(".toml", toml.Decode).
+		ConfigOptions(conga.ConfigPaths(localCfg, userCfg, sysCfg), conga.ConfigCascading()).
+		Args([]string{})
+
+	err = app.Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]string{"base": "sys", "shared": "user", "extra": "user", "local": "local"}, cli.Tags.Get())
+	assert.Equal(t, []string{"local-a"}, cli.Hosts.Get())
+}
+
+// MapCascadeDeployCLI exercises a map flag declared on a subcommand against
+// cascading config files nesting the section under the command path.
+type MapCascadeDeployCLI struct {
+	noopRunner
+
+	Config conga.ConfigFile                `help:"Config file"       multi:"true"`
+	Deploy conga.Command[MapCascadeDeploy] `summary:"Deploy command"`
+}
+
+type MapCascadeDeploy struct {
+	Tags conga.OptionalFlag[map[string]string] `help:"Deploy tags"`
+}
+
+func (deploy *MapCascadeDeploy) Run(_ context.Context, _ *conga.Session) error { return nil }
+
+// TestConfig_CascadingMapSubcommandKeyMerge pins that a subcommand-owned map
+// flag merges key by key across cascading files addressing it under the
+// command path.
+func TestConfig_CascadingMapSubcommandKeyMerge(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	sysCfg := filepath.Join(tmpDir, "sys.toml")
+	localCfg := filepath.Join(tmpDir, "local.toml")
+
+	err := os.WriteFile(sysCfg, fixtureMapCascadeSubSys, 0o600)
+	assert.NoError(t, err)
+	err = os.WriteFile(localCfg, fixtureMapCascadeSubLocal, 0o600)
+	assert.NoError(t, err)
+
+	cli := new(MapCascadeDeployCLI)
+	app := conga.New(cli).
+		RegisterDecoder(".toml", toml.Decode).
+		ConfigOptions(conga.ConfigPaths(localCfg, sysCfg), conga.ConfigCascading()).
+		Args([]string{"deploy"})
+
+	err = app.Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]string{"base": "sys", "shared": "sys", "local": "local"}, cli.Deploy.Get().Tags.Get())
+}
+
+// TestConfig_FirstHitMapKeepsFirstFileValue pins that without cascading a map
+// flag takes its whole value from the first existing tier file.
+func TestConfig_FirstHitMapKeepsFirstFileValue(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	sysCfg := filepath.Join(tmpDir, "sys.toml")
+	localCfg := filepath.Join(tmpDir, "local.toml")
+
+	err := os.WriteFile(sysCfg, fixtureMapCascadeSys, 0o600)
+	assert.NoError(t, err)
+	err = os.WriteFile(localCfg, fixtureMapCascadeLocal, 0o600)
+	assert.NoError(t, err)
+
+	cli := new(MapCascadeCLI)
+	app := conga.New(cli).
+		RegisterDecoder(".toml", toml.Decode).
+		ConfigOptions(conga.ConfigPaths(localCfg, sysCfg)).
+		Args([]string{})
+
+	err = app.Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]string{"local": "local"}, cli.Tags.Get())
+	assert.Equal(t, []string{"local-a"}, cli.Hosts.Get())
+	assert.Equal(t, []string{localCfg}, cli.Config.Paths())
+}
+
+// NamespacedMapCLI exercises a map flag addressed through a dotted config
+// namespace alongside a scalar sibling.
+type NamespacedMapCLI struct {
+	noopRunner
+
+	Config   conga.ConfigFile                      `help:"Config file"       multi:"true"`
+	Insecure conga.OptionalFlag[bool]              `config:"remote.insecure" help:"Insecure mode"`
+	Pairs    conga.OptionalFlag[map[string]string] `config:"remote.pairs"    help:"Remote pairs"`
+}
+
+// TestConfig_NamespacedMapFlagBinding pins that a map flag behind a dotted
+// config namespace binds its nested section, alongside the scalar sibling in
+// the same namespace.
+func TestConfig_NamespacedMapFlagBinding(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	cfgPath := filepath.Join(tmpDir, "remote.yaml")
+	err := os.WriteFile(cfgPath, fixtureNestedNamespaceMap, 0o600)
+	assert.NoError(t, err)
+
+	cli := new(NamespacedMapCLI)
+	app := conga.New(cli).
+		RegisterDecoder(".yaml", yaml.Decode).
+		ConfigOptions(conga.ConfigExplicit(cfgPath)).
+		Args([]string{})
+
+	err = app.Run()
+
+	assert.NoError(t, err)
+	assert.True(t, cli.Insecure.Get())
+	assert.Equal(t, map[string]string{"a": "1", "b": "2"}, cli.Pairs.Get())
+	assert.Equal(t, conga.SourceConfig, cli.Pairs.Source())
+}
+
+// TestConfig_NamespacedMapFlagCascadingMerge pins that a dotted-namespace map
+// flag merges key by key across cascading files.
+func TestConfig_NamespacedMapFlagCascadingMerge(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	sysCfg := filepath.Join(tmpDir, "remote.yaml")
+	err := os.WriteFile(sysCfg, fixtureNestedNamespaceMap, 0o600)
+	assert.NoError(t, err)
+
+	localCfg := writeConfigFile(t, `{"remote": {"pairs": {"c": "3"}}}`)
+
+	cli := new(NamespacedMapCLI)
+	app := conga.New(cli).
+		RegisterDecoder(".yaml", yaml.Decode).
+		RegisterDecoder(".json", json.Decode).
+		ConfigOptions(conga.ConfigPaths(localCfg, sysCfg), conga.ConfigCascading()).
+		Args([]string{})
+
+	err = app.Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]string{"a": "1", "b": "2", "c": "3"}, cli.Pairs.Get())
 }
 
 func TestConfigFiles_MultiFlag(t *testing.T) {

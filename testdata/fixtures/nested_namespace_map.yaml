@@ -1,0 +1,5 @@
+remote:
+  insecure: true
+  pairs:
+    a: "1"
+    b: "2"

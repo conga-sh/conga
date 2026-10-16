@@ -1,18 +1,18 @@
 Value provenance for "whyapp":
 
-  FLAG              VALUE                                     SOURCE   ENV                  CONFIG PATH
-  --feature-gates   alpha=true, beta=false                    cli      WHY_MERGE_FEATURES   experiments
-  --headers         region=eu-west-1, shared=cli, team=core   cli      -                    headers
-                    region=eu-west-1                          config
+  FLAG              VALUE                                     SOURCE                    ENV                  CONFIG PATH
+  --feature-gates   alpha=true, beta=false                    cli                       WHY_MERGE_FEATURES   experiments
+  --headers         region=eu-west-1, shared=cli, team=core   cli                       -                    headers
+                    region=eu-west-1                          config (why-merge.json)
                     shared=cli                                cli
                     team=core                                 cli
-  --secrets         ██████                                    cli      -                    secrets
+  --secrets         ██████                                    cli                       -                    secrets
                     clikey=██████                             cli
-                    token=██████                              config
+                    token=██████                              config (why-merge.json)
 
 Features:
   FEATURE   VALUE   SOURCE
-  alpha     true    config
+  alpha     true    config (why-merge.json)
   beta      false   cli
 
 Config decoders: .json

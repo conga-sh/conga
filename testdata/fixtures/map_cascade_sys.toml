@@ -1,0 +1,5 @@
+hosts = ["sys-a", "sys-b"]
+
+[tags]
+shared = "sys"
+base = "sys"

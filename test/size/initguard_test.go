@@ -37,6 +37,7 @@ var optInInitGuardPackages = []string{
 	"internal/completion/powershell",
 	"internal/completion/wire",
 	"internal/completion/zsh",
+	"internal/configdata",
 	"internal/configengine",
 	"internal/dotenv",
 	"internal/jsonwire",

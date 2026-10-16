@@ -94,7 +94,7 @@ hello:
 
 ## The `--why` report
 
-`app.EnableWhy()` enables `--why`, which prints a per-field provenance report — every resolved value in the active command chain with its [origin tier](/explanation/value-precedence/) (`● cli`, `● env VAR`, `● config key`, `· default`, `○ unset`). Map flags merge key by key across tiers, so a map row is followed by one indented sub-row per key carrying the tier that last wrote it. Values are redacted by default; fields opt in to display with `safe:"true"`. The report machinery is linked only when `app.EnableWhy()` is called; otherwise `--why` remains an unknown flag.
+`app.EnableWhy()` enables `--why`, which prints a per-field provenance report — every resolved value in the active command chain with its [origin tier](/explanation/value-precedence/) (`● cli`, `● env VAR`, `● config key`, `· default`, `○ unset`). Map flags merge key by key across tiers, so a map row is followed by one indented sub-row per key carrying the tier that last wrote it, annotated with the config file that contributed the key when the tier is config. Values are redacted by default; fields opt in to display with `safe:"true"`. The report machinery is linked only when `app.EnableWhy()` is called; otherwise `--why` remains an unknown flag.
 
 When the root command declares `conga.Features[T]`, the report ends with a `Features:` table listing every declared feature, its resolved value, and its source. Each feature reports the tier that last wrote its key; keys no tier sets fall back to the field default (`· default`) or render unset (`○ unset`). See [Feature toggles](/reference/struct-tags/#feature-toggles-congafeaturest).
 

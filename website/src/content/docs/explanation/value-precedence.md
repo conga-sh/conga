@@ -77,7 +77,7 @@ Positional containers (`RequiredArg[T]`, `OptionalArg[T]`, `DashArgs`, and `RawA
 
 ### Map flags
 
-Unlike scalar and slice flags where a single winning tier replaces all lower tiers, `map[K]V` flags (and registered custom map types) merge key by key across all four tiers. Each tier contributes a set of `key=value` pairs, and the effective map folds in ascending order: `default < config < env < CLI`.
+Unlike scalar and slice flags where a single winning tier replaces all lower tiers, `map[K]V` flags (and registered custom map types) merge key by key across all four tiers. Each tier contributes a set of `key=value` pairs, and the effective map folds in ascending order: `default < config < env < CLI`. Within the config tier, [cascading](/explanation/config-cascade/) extends the same rule to the loaded files: every cascaded file contributes its pairs in lowest-to-highest precedence and the nearest file wins each key. A nested-map section binds per key without separator splitting, so values containing the flag's `sep` survive intact.
 
 A higher tier overrides only the specific keys it names. Keys supplied by lower tiers persist into the final map unless explicitly overridden:
 
@@ -98,7 +98,7 @@ Because every tier contributes to the merged map, CONGA parses and validates map
 
 ### Feature maps
 
-A `conga.Features[T]` container resolves through the same key-by-key map merge. Every tier contributes `name=value` pairs, higher tiers override matching keys, and the resulting map overlays the inner feature struct's `default` tags key by key. Features not listed in any tier retain their field defaults (sparse overrides).
+A `conga.Features[T]` container resolves through the same key-by-key map merge. Every tier contributes `name=value` pairs, higher tiers override matching keys, and the resulting map overlays the inner feature struct's `default` tags key by key. Features not listed in any tier retain their field defaults (sparse overrides). Cascading config files merge their gate sections per key under the same nearest-file-wins rule.
 
 Before merging, CONGA canonicalizes all feature keys to the declared feature name. Whether a configuration file specifies `gentle_force`, an environment variable sets `GENTLE_FORCE`, or the command line sets `gentle-force`, all three match the `GentleForce` toggle. Precedence follows the resolution tier, never the spelling variant.
 
