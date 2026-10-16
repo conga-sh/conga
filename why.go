@@ -32,10 +32,34 @@ type configPathError interface {
 // drift fails at compile time instead of silently dropping the table.
 type featureWhyRowsFunc func(root *spec.Command, result mapMergeResult) []why.FeatureRow
 
-func (a *App[T]) renderWhy(cmdChain []*spec.Command, cliValues map[*spec.Flag][]string) {
+func (a *App[T]) renderWhy(cmdChain []*spec.Command, cliValues map[*spec.Flag][]string, rawFormat string) error {
+	var format string
+
+	switch rawFormat {
+	case "", "true", "text":
+		format = "text"
+	case "json":
+		format = "json"
+	default:
+		return &validationError{
+			msg:         fmt.Sprintf("invalid value %q (must be one of: text, json) for --why", truncateForDisplay(rawFormat)),
+			cmdChain:    cmdChain,
+			cause:       errInvalidValue,
+			valueShaped: true,
+		}
+	}
+
 	report := a.buildWhyReport(cmdChain, cliValues)
 
+	if format == "json" {
+		fmt.Fprintln(a.stdout, report.FormatJSON())
+
+		return nil
+	}
+
 	fmt.Fprintln(a.stdout, report.Format())
+
+	return nil
 }
 
 // buildWhyReport replays the flag-tier cascade (CLI -> env -> config ->

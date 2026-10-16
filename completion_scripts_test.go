@@ -898,7 +898,7 @@ func TestCompletionFlag_FlatCLI(t *testing.T) {
 		assert.Contains(t, output, "source <(myapp --completion zsh)")
 		assert.Contains(t, output, "echo 'source <(myapp --completion zsh)' >> ~/.zshrc")
 		assert.Contains(t, output, "myapp --completion zsh > ~/.zfunc/_myapp")
-		assert.Contains(t, output, "Flags:\n      --why   Show resolved field values and where they came from (values redacted unless tagged safe)")
+		assert.Contains(t, output, "Flags:\n      --why   Show resolved field values and where they came from (values redacted unless tagged safe); accepts text or json")
 		assert.True(t, strings.Index(output, "--why") < strings.Index(output, "--help  Show help"), "--why must render before --help")
 		assert.NotContains(t, output, "Supported shells:")
 	})
@@ -954,6 +954,25 @@ func TestCompletionFlag_FlatCLI(t *testing.T) {
 			Name("myapp").
 			Stdout(&buffer).
 			Args([]string{"--completion=zsh"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+
+		output := buffer.String()
+		assert.Contains(t, output, "#compdef myapp")
+	})
+
+	t.Run("repeated completion flag selects last value", func(t *testing.T) {
+		t.Parallel()
+
+		var buffer bytes.Buffer
+
+		app := conga.New[PlainAppCLI]().
+			EnableCompletion().
+			Name("myapp").
+			Stdout(&buffer).
+			Args([]string{"--completion=bash", "--completion=zsh"})
 
 		err := app.Run()
 

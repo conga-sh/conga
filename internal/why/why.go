@@ -10,6 +10,8 @@ import (
 	"fmt"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/conga-sh/conga/internal/jsonwire"
 )
 
 // Redacted is the fixed-width placeholder shown for every value whose field is
@@ -171,6 +173,90 @@ func (r Report) Format() string {
 	}
 
 	return strings.TrimRight(builder.String(), "\n")
+}
+
+// FormatJSON renders the report as a machine-readable JSON object following RFC
+// 8259, using internal/jsonwire to avoid linking encoding/json.
+func (r Report) FormatJSON() string {
+	buffer := make([]byte, 0, 1024)
+
+	buffer = append(buffer, `{"command":`...)
+
+	path := r.CommandPath
+	if path == "" {
+		path = "app"
+	}
+
+	buffer = jsonwire.AppendString(buffer, path)
+
+	buffer = append(buffer, `,"flags":[`...)
+
+	for i, row := range r.Rows {
+		if i > 0 {
+			buffer = append(buffer, ',')
+		}
+
+		buffer = appendRowJSON(buffer, row)
+	}
+
+	buffer = append(buffer, `],"globalFlags":[`...)
+
+	for i, row := range r.GlobalRows {
+		if i > 0 {
+			buffer = append(buffer, ',')
+		}
+
+		buffer = appendRowJSON(buffer, row)
+	}
+
+	buffer = append(buffer, `],"features":[`...)
+
+	for i, feat := range r.Features {
+		if i > 0 {
+			buffer = append(buffer, ',')
+		}
+
+		buffer = appendFeatureJSON(buffer, feat)
+	}
+
+	buffer = append(buffer, `],"config":{"decoders":[`...)
+
+	for i, dec := range r.ConfigDecoders {
+		if i > 0 {
+			buffer = append(buffer, ',')
+		}
+
+		buffer = jsonwire.AppendString(buffer, dec)
+	}
+
+	buffer = append(buffer, `],"paths":[`...)
+
+	for i, configPath := range r.ConfigPaths {
+		if i > 0 {
+			buffer = append(buffer, ',')
+		}
+
+		buffer = appendConfigPathJSON(buffer, configPath)
+	}
+
+	buffer = append(buffer, `],"examples":[`...)
+
+	for i, ex := range r.ConfigExamples {
+		if i > 0 {
+			buffer = append(buffer, ',')
+		}
+
+		buffer = jsonwire.AppendString(buffer, ex)
+	}
+
+	buffer = append(buffer, `]},"redacted":`...)
+	if r.Redacted {
+		buffer = append(buffer, "true}"...)
+	} else {
+		buffer = append(buffer, "false}"...)
+	}
+
+	return string(buffer)
 }
 
 // ConfigPath is one candidate configuration file path probed during config
@@ -416,4 +502,90 @@ func pad(cell string, width int) string {
 	}
 
 	return cell + strings.Repeat(" ", padding)
+}
+
+func appendRowJSON(buffer []byte, row Row) []byte {
+	buffer = append(buffer, `{"label":`...)
+	buffer = jsonwire.AppendString(buffer, row.Label)
+	buffer = append(buffer, `,"value":`...)
+	buffer = jsonwire.AppendString(buffer, row.Value)
+	buffer = append(buffer, `,"source":`...)
+	buffer = jsonwire.AppendString(buffer, row.Source)
+	buffer = append(buffer, `,"detail":`...)
+	buffer = jsonwire.AppendString(buffer, row.Detail)
+	buffer = append(buffer, `,"env":`...)
+	buffer = jsonwire.AppendString(buffer, row.Env)
+	buffer = append(buffer, `,"configPath":`...)
+	buffer = jsonwire.AppendString(buffer, row.ConfigPath)
+	buffer = append(buffer, `,"error":`...)
+	buffer = jsonwire.AppendString(buffer, row.Error)
+
+	buffer = append(buffer, `,"hidden":`...)
+	if row.Hidden {
+		buffer = append(buffer, "true"...)
+	} else {
+		buffer = append(buffer, "false"...)
+	}
+
+	buffer = append(buffer, `,"entries":[`...)
+
+	for i, entry := range row.Entries {
+		if i > 0 {
+			buffer = append(buffer, ',')
+		}
+
+		buffer = appendMapEntryJSON(buffer, entry)
+	}
+
+	buffer = append(buffer, "]}"...)
+
+	return buffer
+}
+
+func appendMapEntryJSON(buffer []byte, entry MapEntry) []byte {
+	buffer = append(buffer, `{"key":`...)
+	buffer = jsonwire.AppendString(buffer, entry.Key)
+	buffer = append(buffer, `,"value":`...)
+	buffer = jsonwire.AppendString(buffer, entry.Value)
+	buffer = append(buffer, `,"source":`...)
+	buffer = jsonwire.AppendString(buffer, entry.Source)
+	buffer = append(buffer, `,"detail":`...)
+	buffer = jsonwire.AppendString(buffer, entry.Detail)
+	buffer = append(buffer, '}')
+
+	return buffer
+}
+
+func appendFeatureJSON(buffer []byte, feat FeatureRow) []byte {
+	buffer = append(buffer, `{"name":`...)
+	buffer = jsonwire.AppendString(buffer, feat.Name)
+	buffer = append(buffer, `,"value":`...)
+	buffer = jsonwire.AppendString(buffer, feat.Value)
+	buffer = append(buffer, `,"source":`...)
+	buffer = jsonwire.AppendString(buffer, feat.Source)
+	buffer = append(buffer, `,"detail":`...)
+	buffer = jsonwire.AppendString(buffer, feat.Detail)
+	buffer = append(buffer, '}')
+
+	return buffer
+}
+
+func appendConfigPathJSON(buffer []byte, configPath ConfigPath) []byte {
+	buffer = append(buffer, `{"path":`...)
+	buffer = jsonwire.AppendString(buffer, configPath.Path)
+	buffer = append(buffer, `,"status":`...)
+	buffer = jsonwire.AppendString(buffer, configPath.Status)
+	buffer = append(buffer, `,"probedFiles":[`...)
+
+	for i, probed := range configPath.ProbedFiles {
+		if i > 0 {
+			buffer = append(buffer, ',')
+		}
+
+		buffer = jsonwire.AppendString(buffer, probed)
+	}
+
+	buffer = append(buffer, "]}"...)
+
+	return buffer
 }

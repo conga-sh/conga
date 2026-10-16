@@ -293,6 +293,7 @@ func (a *App[T]) ConfigOptions(options ...ConfigOption) *App[T] {
 	a.configLoader = extractConfigLoaderFunc(a.configOptions)
 	if a.configLoader != nil {
 		a.loadConfigDocument = (*App[T]).loadDocumentConfigData
+		a.loaderResolver = (*App[T]).resolveLoaderConfig
 	} else {
 		a.installConfigEngine()
 	}
@@ -983,7 +984,8 @@ type appConfig[T any] struct {
 	// The following feature hooks are method expressions: they receive the
 	// executing App as their first argument. Nil means the subsystem is
 	// disabled and unreferenced, so its packages drop at link time.
-	whyRenderer                func(app *App[T], cmdChain []*spec.Command, flagValues map[*spec.Flag][]string)
+	whyRenderer                func(app *App[T], cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, format string) error
+	loaderResolver             func(app *App[T], cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string) *configResolution
 	defaultPredictors          func(app *App[T])
 	mountCompletion            func(app *App[T], cmd *spec.Command)
 	handleCompletionInvocation func(app *App[T]) error
@@ -1586,6 +1588,9 @@ func (a *App[T]) handleBuiltinFlags(session *Session, flagValues map[*spec.Flag]
 	}
 
 	// 3. Standard --help
+	// Help and version render ahead of the --why-format check below, so an
+	// invalid --why value is deliberately ignored when --help or --version is
+	// also present. This matches the help-wins precedence for every builtin.
 	if request.hasHelp {
 		fmt.Fprintln(a.stdout, session.Help())
 
@@ -1601,7 +1606,9 @@ func (a *App[T]) handleBuiltinFlags(session *Session, flagValues map[*spec.Flag]
 
 	// 5. Value-provenance report (e.g. app --why)
 	if request.hasWhy && a.whyRenderer != nil {
-		a.whyRenderer(a, cmdChain, flagValues)
+		if err := a.whyRenderer(a, cmdChain, flagValues, request.whyValue); err != nil {
+			return false, err
+		}
 
 		return true, nil
 	}
@@ -1866,8 +1873,8 @@ func (a *App[T]) resolveConfig(cmd *spec.Command, cmdChain []*spec.Command, flag
 		return a.configResolution
 	}
 
-	if a.loadConfigDocument != nil {
-		a.configResolution = a.resolveLoaderConfig(cmd, cmdChain, flagValues)
+	if a.loaderResolver != nil {
+		a.configResolution = a.loaderResolver(a, cmd, cmdChain, flagValues)
 
 		return a.configResolution
 	}

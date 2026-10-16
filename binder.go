@@ -485,6 +485,7 @@ type builtinRequest struct {
 	hasHelp         bool
 	hasVersion      bool
 	hasWhy          bool
+	whyValue        string
 	hasCompletion   bool
 	completionValue string
 }
@@ -1091,9 +1092,10 @@ func scanBuiltinRequest(cliValues map[*spec.Flag][]string) builtinRequest {
 			request.hasVersion = true
 		case spec.BuiltinWhyFlag:
 			request.hasWhy = true
+			request.whyValue = values[len(values)-1]
 		case spec.BuiltinCompletionFlag:
 			request.hasCompletion = true
-			request.completionValue = values[0]
+			request.completionValue = values[len(values)-1]
 		}
 	}
 
