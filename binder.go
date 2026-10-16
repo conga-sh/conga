@@ -568,6 +568,37 @@ type mapMergeResult struct {
 	highestName string
 }
 
+// mapTierInput is one contributing tier of a map flag's merge: either raw
+// string tokens (values) or the config tier's pre-merged per-key entries.
+type mapTierInput struct {
+	has     bool
+	values  []string
+	entries map[string]configdata.Value
+	source  ValueSource
+	name    string
+}
+
+// fold merges the tier's contribution into the string-map merge state,
+// dispatching to the config-tier fold when the tier carries pre-merged
+// per-key entries and to the raw-token fold otherwise.
+func (tier mapTierInput) fold(cmdChain []*spec.Command, flagSpec *spec.Flag, merged map[string]string, provenance map[string]ValueSource, origins map[string]string, result *mapMergeResult) error {
+	if tier.entries != nil {
+		return foldMapConfigTier(cmdChain, flagSpec, tier.entries, tier.name, merged, provenance, origins, result)
+	}
+
+	return foldMapTier(cmdChain, flagSpec, tier.values, tier.source, tier.name, "", merged, provenance, origins, result)
+}
+
+// foldRegistered merges the tier's contribution into the registered-map
+// merge state using the same entries-vs-values dispatch as fold.
+func (tier mapTierInput) foldRegistered(flagSpec *spec.Flag, cmdChain []*spec.Command, state *bindingState, merged reflect.Value, provenance map[string]ValueSource, origins map[string]string, result *mapMergeResult) error {
+	if tier.entries != nil {
+		return foldRegisteredMapConfigTier(cmdChain, flagSpec, tier.entries, tier.name, state, merged, provenance, origins, result)
+	}
+
+	return foldRegisteredMapTier(tier.values, tier.source, tier.name, "", flagSpec, cmdChain, state, merged, provenance, origins, result)
+}
+
 func bindSpecialArgs(leaf *spec.Command, dashArgs, rawTokens []string) {
 	if leaf.DashArgs != nil && dashArgs != nil {
 		argsStateOf(leaf.DashArgs.Handle).setArgs(dashArgs)
@@ -2215,9 +2246,28 @@ func foldMapTiers(cmd *spec.Command, cmdChain []*spec.Command, flagSpec *spec.Fl
 		origins = make(map[string]string)
 	}
 
-	lastSource, lastName, err := foldMapTierSequence(cmdChain, flagSpec, cliValues[flagSpec], configEntries, configKey, hasConfig, envValue, envName, hasEnv, merged, provenance, origins, result)
-	if err != nil {
-		return err
+	tiers := [...]mapTierInput{
+		{has: flagSpec.Default != "", values: []string{flagSpec.Default}, source: SourceDefault, name: flagSpec.Default},
+		{has: hasConfig, entries: configEntries, source: SourceConfig, name: configKey},
+		{has: hasEnv, values: []string{envValue}, source: SourceEnv, name: envName},
+		{has: len(cliValuesForFlag) > 0, values: cliValuesForFlag, source: SourceCLI, name: "--" + flagSpec.Name},
+	}
+
+	var lastSource ValueSource
+
+	var lastName string
+
+	for _, tier := range tiers {
+		if !tier.has {
+			continue
+		}
+
+		lastSource = tier.source
+		lastName = tier.name
+
+		if err := tier.fold(cmdChain, flagSpec, merged, provenance, origins, result); err != nil {
+			return err
+		}
 	}
 
 	if !result.hasValues {
@@ -2227,55 +2277,6 @@ func foldMapTiers(cmd *spec.Command, cmdChain []*spec.Command, flagSpec *spec.Fl
 	finalizeMapMerge(flagSpec, merged, provenance, origins, lastSource, lastName, result)
 
 	return nil
-}
-
-// foldMapTierSequence folds a map flag's contributing tiers (default, config,
-// env, CLI) into merged in ascending precedence, returning the highest tier
-// that contributed any value.
-func foldMapTierSequence(cmdChain []*spec.Command, flagSpec *spec.Flag, cliValuesForFlag []string, configEntries map[string]configdata.Value, configKey string, hasConfig bool, envValue string, envName string, hasEnv bool, merged map[string]string, provenance map[string]ValueSource, origins map[string]string, result *mapMergeResult) (ValueSource, string, error) {
-	var lastSource ValueSource
-
-	var lastName string
-
-	foldRawTier := func(rawValues []string, source ValueSource, name string) error {
-		if len(rawValues) == 0 {
-			return nil
-		}
-
-		lastSource = source
-		lastName = name
-
-		return foldMapTier(cmdChain, flagSpec, rawValues, source, name, "", merged, provenance, origins, result)
-	}
-
-	if flagSpec.Default != "" {
-		if err := foldRawTier([]string{flagSpec.Default}, SourceDefault, flagSpec.Default); err != nil {
-			return lastSource, lastName, err
-		}
-	}
-
-	if hasConfig {
-		lastSource = SourceConfig
-		lastName = configKey
-
-		if err := foldMapConfigTier(cmdChain, flagSpec, configEntries, configKey, merged, provenance, origins, result); err != nil {
-			return lastSource, lastName, err
-		}
-	}
-
-	if hasEnv {
-		if err := foldRawTier([]string{envValue}, SourceEnv, envName); err != nil {
-			return lastSource, lastName, err
-		}
-	}
-
-	if len(cliValuesForFlag) > 0 {
-		if err := foldRawTier(cliValuesForFlag, SourceCLI, "--"+flagSpec.Name); err != nil {
-			return lastSource, lastName, err
-		}
-	}
-
-	return lastSource, lastName, nil
 }
 
 // finalizeMapMerge publishes a completed map fold into the merge result:
@@ -2402,44 +2403,32 @@ func mergeRegisteredMapTiers(cmd *spec.Command, cmdChain []*spec.Command, flagSp
 		origins = make(map[string]string)
 	}
 
+	envValue, envName, hasEnv := lookupEnv(flagSpec, cmd, state)
+
+	configEntries, configKey, hasConfig := lookupConfigMap(flagSpec, cmd, cmdChain, state)
+
+	cliValuesForFlag := cliValues[flagSpec]
+
+	tiers := [...]mapTierInput{
+		{has: flagSpec.Default != "", values: []string{flagSpec.Default}, source: SourceDefault, name: flagSpec.Default},
+		{has: hasConfig, entries: configEntries, source: SourceConfig, name: configKey},
+		{has: hasEnv, values: []string{envValue}, source: SourceEnv, name: envName},
+		{has: len(cliValuesForFlag) > 0, values: cliValuesForFlag, source: SourceCLI, name: "--" + flagSpec.Name},
+	}
+
 	var lastSource ValueSource
 
 	var lastName string
 
-	foldTier := func(rawValues []string, source ValueSource, name string) error {
-		if len(rawValues) == 0 {
-			return nil
+	for _, tier := range tiers {
+		if !tier.has {
+			continue
 		}
 
-		lastSource = source
-		lastName = name
+		lastSource = tier.source
+		lastName = tier.name
 
-		return foldRegisteredMapTier(rawValues, source, name, "", flagSpec, cmdChain, state, merged, provenance, origins, result)
-	}
-
-	if flagSpec.Default != "" {
-		if err := foldTier([]string{flagSpec.Default}, SourceDefault, flagSpec.Default); err != nil {
-			return err
-		}
-	}
-
-	if entries, configKey, ok := lookupConfigMap(flagSpec, cmd, cmdChain, state); ok {
-		lastSource = SourceConfig
-		lastName = configKey
-
-		if err := foldRegisteredMapConfigTier(cmdChain, flagSpec, entries, configKey, state, merged, provenance, origins, result); err != nil {
-			return err
-		}
-	}
-
-	if envValue, envName, ok := lookupEnv(flagSpec, cmd, state); ok {
-		if err := foldTier([]string{envValue}, SourceEnv, envName); err != nil {
-			return err
-		}
-	}
-
-	if values, ok := cliValues[flagSpec]; ok && len(values) > 0 {
-		if err := foldTier(values, SourceCLI, "--"+flagSpec.Name); err != nil {
+		if err := tier.foldRegistered(flagSpec, cmdChain, state, merged, provenance, origins, result); err != nil {
 			return err
 		}
 	}

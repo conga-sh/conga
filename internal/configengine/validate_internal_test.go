@@ -253,3 +253,68 @@ func TestValidateNamespaceConfig_NonMapFlagWithNestedValueStillErrors(t *testing
 	assert.IsError(t, err, sentinel.ErrConfigUnknownField)
 	assert.Contains(t, err.Error(), `unknown field "a" in namespace "remote.tags"`)
 }
+
+func TestValidateCommandConfig_SubcommandNamespaceErrorLabel(t *testing.T) {
+	t.Parallel()
+
+	root := &spec.Command{
+		Name: "app",
+		Subcommands: []*spec.Command{
+			{
+				Name:  "deploy",
+				Flags: []*spec.Flag{{Name: "port", ConfigKey: "cache.port"}},
+			},
+		},
+	}
+
+	dest := configdata.New()
+
+	err := validateCommandConfig("", map[string]any{
+		"deploy": map[string]any{
+			"cache": map[string]any{"bogus": "1"},
+		},
+	}, root, dest, "app.toml")
+
+	assert.Error(t, err)
+	assert.IsError(t, err, sentinel.ErrConfigUnknownField)
+	assert.Contains(t, err.Error(), `unknown field "bogus" in namespace "deploy.cache"`)
+}
+
+func TestValidateCommandConfig_ExcludedMapSectionRejected(t *testing.T) {
+	t.Parallel()
+
+	cmd := &spec.Command{
+		Name:  "app",
+		Flags: []*spec.Flag{{Name: "tags", ConfigKey: "-", IsMap: true}},
+	}
+
+	dest := configdata.New()
+
+	err := validateCommandConfig("", map[string]any{"tags": map[string]any{"a": "1"}}, cmd, dest, "app.toml")
+
+	assert.Error(t, err)
+	assert.IsError(t, err, sentinel.ErrConfigUnknownField)
+	assert.Contains(t, err.Error(), `field "tags" is excluded from config files in command "app"`)
+	assert.False(t, dest.HasKey("tags"))
+}
+
+func TestValidateCommandConfig_ArrayFormSplitsPerElement(t *testing.T) {
+	t.Parallel()
+
+	cmd := &spec.Command{
+		Name:  "app",
+		Flags: []*spec.Flag{{Name: "tags", IsMap: true, Sep: ";"}},
+	}
+
+	dest := configdata.New()
+
+	err := validateCommandConfig("", map[string]any{"tags": []any{"a=1", "b=2"}}, cmd, dest, "app.toml")
+
+	assert.NoError(t, err)
+
+	entries := dest.Map("tags")
+
+	assert.Equal(t, 2, len(entries))
+	assert.Equal(t, configdata.Value{Raw: "1", Origin: "app.toml"}, entries["a"])
+	assert.Equal(t, configdata.Value{Raw: "2", Origin: "app.toml"}, entries["b"])
+}

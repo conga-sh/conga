@@ -4,12 +4,12 @@
 // documents, and package conga folds it into the tier cascade.
 package configdata
 
-// Value is a resolved configuration value and the origin that supplied it
-// (such as a configuration file path or a ConfigLoader source label).
+// Value is a resolved configuration value and the origin that supplied it.
 type Value struct {
 	// Raw is the stringified value.
 	Raw string
-	// Origin is the configuration file path or source label that supplied the value.
+	// Origin is the configuration file path that supplied the value;
+	// programmatic loaders may supply other source labels.
 	Origin string
 }
 
@@ -69,6 +69,8 @@ func (data *Data) Scalar(key string) (string, bool) {
 }
 
 // ScalarValue returns the scalar value and its origin stored under key.
+// Consumers that need the provenance — such as the programmatic
+// configuration loader — prefer it over Scalar.
 func (data *Data) ScalarValue(key string) (Value, bool) {
 	val, exists := data.scalars[key]
 
