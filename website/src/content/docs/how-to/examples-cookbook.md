@@ -1,9 +1,9 @@
 ---
 title: How to run the examples
-description: Run the repository's 30 self-contained example programs and find the one covering a given feature.
+description: Run the repository's 31 self-contained example programs and find the one covering a given feature.
 ---
 
-The CONGA repository provides 30 self-contained example programs under [`_examples/`](https://github.com/conga-sh/conga/tree/main/_examples). Each example implements a focused architecture pattern, accompanied by a dedicated README and an automated end-to-end test suite.
+The CONGA repository provides 31 self-contained example programs under [`_examples/`](https://github.com/conga-sh/conga/tree/main/_examples). Each example implements a focused architecture pattern, accompanied by a dedicated README and an automated end-to-end test suite.
 
 ## Run an example locally
 
@@ -76,6 +76,7 @@ go test ./_examples/...
 | 17 | [config-profiles](https://github.com/conga-sh/conga/tree/main/_examples/17-config-profiles) | `ConfigFile` with `multi:"true"` multi-file merging (base plus profile pattern). |
 | 18 | [config-searchpaths](https://github.com/conga-sh/conga/tree/main/_examples/18-config-searchpaths) | `app.ConfigOptions(conga.ConfigPaths(...))` single-file search mode where the first existing file wins. |
 | 28 | [explicit-config-file](https://github.com/conga-sh/conga/tree/main/_examples/28-explicit-config-file) | `app.ConfigOptions(conga.ConfigExplicit(...))` fatal-if-missing programmatic target. |
+| 30 | [config-loader](https://github.com/conga-sh/conga/tree/main/_examples/30-config-loader) | `app.ConfigOptions(conga.ConfigLoader(...))` building the config tier in code, with `conga.ConfigContext` invocation facts, origin labels in `--why`, and feature gates riding the document. |
 
 ### Completion
 

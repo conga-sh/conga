@@ -78,7 +78,7 @@ func Build(target any, defaultName string, opts Options) (*Command, error) {
 
 	cmd.ConfigSettings = opts.ConfigSettings
 
-	if err := validateConfigSettings(cmd); err != nil {
+	if err := validateConfigSettings(cmd, opts); err != nil {
 		return nil, err
 	}
 
@@ -830,9 +830,17 @@ func (t *flagCollisionTracker) CheckAndAdd(flagSpec *Flag, fieldName string) err
 // validateConfigSettings enforces the app-level configuration settings against
 // the built schema: cascading merge mode loads multiple configuration files,
 // so a declared root config-file flag must accept multiple values
-// (multi:"true") to report every merged file. Apps without a root config-file
-// field cascade without one.
-func validateConfigSettings(root *Command) error {
+// (multi:"true") to report every merged file; apps without a root config-file
+// field cascade without one. A programmatic loader replaces file resolution
+// entirely, so it cannot be combined with file-based settings, decoders, or a
+// root config-file flag.
+func validateConfigSettings(root *Command, opts Options) error {
+	if root.ConfigSettings.Loader {
+		if err := validateLoaderConfigSettings(root, opts); err != nil {
+			return err
+		}
+	}
+
 	if root.ConfigSettings.Explicit != "" {
 		if len(root.ConfigSettings.Tier) > 0 || root.ConfigSettings.Cascading {
 			return ConfigExplicitConflictError()
@@ -844,6 +852,27 @@ func validateConfigSettings(root *Command) error {
 	}
 
 	return CascadingRequiresMultiError(root.ConfigFileFlag.Name)
+}
+
+// validateLoaderConfigSettings rejects combining a programmatic configuration
+// loader with any file-based resolution setting, a registered decoder, or a
+// root config-file flag: the loader replaces file discovery and validation
+// runs on the supplied document, so every file-facing mechanism would be dead
+// configuration.
+func validateLoaderConfigSettings(root *Command, opts Options) error {
+	if len(root.ConfigSettings.Tier) > 0 || root.ConfigSettings.Explicit != "" || root.ConfigSettings.Cascading {
+		return ConfigLoaderOptionsConflictError()
+	}
+
+	if len(opts.ConfigFilePatterns) > 0 {
+		return ConfigLoaderDecoderConflictError()
+	}
+
+	if root.ConfigFileFlag != nil {
+		return ConfigLoaderConfigFileConflictError(root.ConfigFileFlag.Name)
+	}
+
+	return nil
 }
 
 // validateMapConstraints rejects map-typed flag/arg fields whose key type is

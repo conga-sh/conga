@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `conga.ConfigLoader` lets an application supply the run's configuration tier from code. `app.ConfigOptions(conga.ConfigLoader(load))` replaces file resolution with the `conga.ConfigDocument` the loader returns (built with `Set(key, value, origin)`), validated exactly like a decoded config file. `conga.ConfigContext` exposes the invocation facts at loader time (`CommandPath`, `FlagValue`, `FlagValues`, `LookupEnv`), values keep the config rank (`CLI > environment > document > default`), map flags merge key by key, per-entry origins surface in `--why`, feature gates ride the document, and loader failures wrap `ErrConfig` (exit 1). Loader applications must not also register decoders, declare file resolution options, or declare a root `ConfigFile` field; schema build rejects the combination with `ErrSchema` and `conga-lint` mirrors the guard.
 - `App.EnableFeatures()` activates struct-declared feature toggles: it installs the feature resolver and validator hooks, and is required for any application declaring a `conga.Features[T]` container or a `feature:"..."` tag.
 
 ### Changed

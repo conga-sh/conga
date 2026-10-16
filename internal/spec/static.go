@@ -201,6 +201,37 @@ func CascadingRequiresMultiError(flagName string) error {
 	return fmt.Errorf("%w: conga.ConfigCascading() merges multiple config files; the root config-file flag %q must declare multi:\"true\" (or drop conga.ConfigCascading() from app.ConfigOptions(...))", ErrSchema, flagName)
 }
 
+// ConfigLoaderOptionsConflictError builds the error when conga.ConfigLoader()
+// is combined with a file-based configuration option (conga.ConfigPaths,
+// conga.ConfigExplicit, or conga.ConfigCascading). The loader replaces file
+// discovery entirely, so the options would be silently ignored. The error
+// wraps ErrSchema so runtime schema validation returns it directly and the
+// static analyzer reports it verbatim, keeping the lint-time and runtime
+// messages a single source of truth.
+func ConfigLoaderOptionsConflictError() error {
+	return fmt.Errorf("%w: conga.ConfigLoader() supplies the configuration document programmatically and cannot be combined with conga.ConfigPaths(), conga.ConfigExplicit(), or conga.ConfigCascading()", ErrSchema)
+}
+
+// ConfigLoaderDecoderConflictError builds the error when conga.ConfigLoader()
+// is combined with a registered configuration decoder. With a loader there is
+// no file loading, so decoders would be dead weight. The error wraps ErrSchema
+// so runtime schema validation returns it directly and the static analyzer
+// reports it verbatim, keeping the lint-time and runtime messages a single
+// source of truth.
+func ConfigLoaderDecoderConflictError() error {
+	return fmt.Errorf("%w: conga.ConfigLoader() replaces file loading and cannot be combined with app.RegisterDecoder (remove the decoder registrations or the loader)", ErrSchema)
+}
+
+// ConfigLoaderConfigFileConflictError builds the error when conga.ConfigLoader()
+// is combined with a root conga.ConfigFile field. The loader replaces file
+// loading, so the config-file flag would never load a file. The error wraps
+// ErrSchema so runtime schema validation returns it directly and the static
+// analyzer reports it verbatim, keeping the lint-time and runtime messages a
+// single source of truth.
+func ConfigLoaderConfigFileConflictError(flagName string) error {
+	return fmt.Errorf("%w: the root command declares config-file flag %q, but conga.ConfigLoader() replaces file loading and never loads a file (remove the conga.ConfigFile field or the loader)", ErrSchema, flagName)
+}
+
 // CompletionRequiresEnableError builds the completion⟹enable schema guard: a
 // command struct that declares a CompletionCommand field while completion is
 // disabled would have the field silently dropped, so schema build rejects it

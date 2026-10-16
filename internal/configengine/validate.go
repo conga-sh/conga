@@ -16,6 +16,17 @@ import (
 	"github.com/conga-sh/conga/internal/stringx"
 )
 
+// ValidateDocument validates one programmatic configuration document entry
+// against the Command AST and populates dest with the resolved values, exactly
+// as a decoded file entry is validated. rawMap holds one top-level document
+// key in the decoder output shape (a scalar, a slice, or a nested map for
+// sections and map flags); origin labels the value's provenance in stored
+// values and validation errors, and may be any free-form application-supplied
+// source label.
+func ValidateDocument(rawMap map[string]any, cmd *spec.Command, dest *configdata.Data, origin string) error {
+	return validateCommandConfig("", rawMap, cmd, dest, origin)
+}
+
 // validateCommandConfig validates raw parsed configuration data against the
 // Command AST and populates dest with the resolved values. Unknown keys or
 // sections trigger strict configError failures.
@@ -225,6 +236,18 @@ func storeMapEntries(flag *spec.Flag, value any, entries map[string]configdata.V
 			}
 
 			entries[key] = configdata.Value{Raw: stringx.Stringify(item), Origin: origin}
+		}
+
+		return
+	}
+
+	if stringMap, isStringMap := value.(map[string]string); isStringMap {
+		for key, item := range stringMap {
+			if flag.KeyCanonicalizer != nil {
+				key = flag.KeyCanonicalizer(key)
+			}
+
+			entries[key] = configdata.Value{Raw: item, Origin: origin}
 		}
 
 		return

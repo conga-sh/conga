@@ -1,0 +1,35 @@
+# TestScript for 30-config-loader — the programmatic configuration document.
+# The conga.ConfigLoader hook builds the config tier in code: --profile selects
+# a stored profile whose values bind at the config rank with --why origins,
+# and the prod profile carries the force-all feature gate.
+
+# 1. The default dev profile supplies host, port, and headers from the document.
+exec deploy
+stdout '--host\s+string\s+dev\.example\.com\s+● config host'
+stdout '--port\s+int\s+7100\s+● config port'
+stdout '--headers\s+map\[string\]string\s+X-Region=eu\s+● config headers'
+stdout 'connect dev\.example\.com:7100 headers=1 force-all=false'
+
+# 2. Command-line values outrank the document.
+exec deploy --host cli.example.com
+stdout '--host\s+string\s+cli\.example\.com\s+● cli --host'
+
+# 3. The prod profile carries the force-all gate: the gated flag appears and is
+#    usable, while the dev profile gates it off (exit 2).
+exec deploy --profile prod
+stdout '--profile\s+string\s+prod\s+● cli --profile'
+stdout 'connect prod\.example\.com:7200 headers=2 force-all=true'
+exec deploy --profile prod --force-all
+stdout 'connect prod\.example\.com:7200 headers=2 force-all=true'
+exit-status 2 deploy --force-all
+stderr 'flag .--force-all. requires feature "force-all"'
+
+# 4. An unknown profile fails the loader: app-authored data is a runtime error
+#    (exit 1), never a usage error.
+exit-status 1 deploy --profile staging
+stderr 'config loader failed: unknown profile "staging"'
+
+# 5. --why attributes document values to their origin labels.
+exec deploy --profile prod --why
+stdout 'config \(profile prod\)'
+stdout 'profile prod\s+loaded: profile prod'

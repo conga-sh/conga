@@ -215,3 +215,4 @@ func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
 
 - [About the config cascade](/explanation/config-cascade/) — search-tier mechanics, merging order, and XDG resolution.
 - [Package decoder reference](/reference/decoders/) — decoders for JSON, TOML, YAML, and HCL.
+- [How to supply configuration from code](/how-to/supply-config-from-code/) — replace file resolution with `conga.ConfigLoader` when configuration comes from an embedded filesystem, a remote store, or application computation.

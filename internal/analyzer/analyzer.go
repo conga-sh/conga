@@ -284,6 +284,8 @@ func run(pass *analysis.Pass) (any, error) {
 		checkSessionRootCalls(pass, anchors[0])
 	}
 
+	checkLoaderConflicts(pass, anchors)
+
 	congaTypes, err := resolveCongaTypes(anchors[0].packageObject)
 	if err != nil {
 		return nil, err

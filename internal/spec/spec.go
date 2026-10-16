@@ -372,6 +372,13 @@ type ConfigSettings struct {
 	// Cascading merges every existing tier file in precedence order (lowest to
 	// highest) instead of stopping at the first existing file.
 	Cascading bool
+
+	// Loader reports that the application declared a programmatic
+	// configuration document source via conga.ConfigLoader(...). The loader
+	// function itself lives on the root conga.App; the marker rides here so
+	// runtime schema validation and the static analyzer can reject
+	// combinations with the file-based resolution settings and decoders.
+	Loader bool
 }
 
 // Options configure schema reflection, validation, and predictors.
