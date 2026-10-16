@@ -16,9 +16,9 @@ import (
 type CLI struct {
 	ConfigFiles conga.ConfigFile `multi:"true" short:"c"`
 
-	Host     conga.OptionalFlag[string] `default:"localhost" help:"Server host"`
-	Port     conga.OptionalFlag[int]    `default:"8080"      help:"Server port"           short:"p"`
-	LogLevel conga.OptionalFlag[string] `default:"info"      enum:"debug,info,warn,error"`
+	Host     conga.OptionalFlag[string] `default:"localhost" help:"Server host"           safe:"true"`
+	Port     conga.OptionalFlag[int]    `default:"8080"      help:"Server port"           safe:"true" short:"p"`
+	LogLevel conga.OptionalFlag[string] `default:"info"      enum:"debug,info,warn,error" safe:"true"`
 }
 
 func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
@@ -32,6 +32,7 @@ func main() {
 		Name("profiles").
 		Description("Multi-file config merging via conga.ConfigFile with multi:\"true\"").
 		Version("1.0.0").
+		EnableWhy().
 		RegisterDecoder(".yaml", yaml.Decode).
 		RegisterDecoder(".yml", yaml.Decode).
 		ConfigOptions(conga.ConfigPaths("deploy/prod.yaml", "deploy/base.yaml"), conga.ConfigCascading())

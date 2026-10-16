@@ -26,7 +26,7 @@ func (c *ConfigCmd) Run(ctx context.Context, session *conga.Session) error {
 // MapConfigCmd demonstrates the two supported map encodings in config files:
 // a native map value and an array of KEY=VALUE strings.
 type MapConfigCmd struct {
-	Vars   conga.OptionalFlag[map[string]string] `help:"Environment variables (native map encoding)" safe:"true"`
+	Vars   conga.OptionalFlag[map[string]string] `help:"Environment variables (native map encoding)"`
 	Labels conga.OptionalFlag[map[string]string] `help:"Resource labels (array-of-strings encoding)" safe:"true"`
 }
 

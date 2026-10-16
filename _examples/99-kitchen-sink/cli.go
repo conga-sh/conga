@@ -16,11 +16,11 @@ type KitchenSinkCLI struct {
 	Verbosity conga.Counter              `short:"v"`
 	Format    conga.OptionalFlag[string] `default:"json"      enum:"json,yaml,toml,hcl"                    safe:"true"`
 	Cache     conga.OptionalFlag[bool]   `default:"true"      help:"Enable cache"                          negatable:"true"`
-	SecretKey conga.OptionalFlag[string] `config:"api_secret" help:"API secret (config key remapped)"      safe:"true"`
+	SecretKey conga.OptionalFlag[string] `config:"api_secret" help:"API secret (config key remapped)"`
 	TempFlag  conga.OptionalFlag[string] `config:"-"          help:"CLI only (excluded from config files)" safe:"true"`
 
 	// app.AllowTags("kong") permits this foreign tag schema-wide
-	Metadata conga.OptionalFlag[string] `help:"Arbitrary deployment metadata" kong:"default='none'" safe:"true"`
+	Metadata conga.OptionalFlag[string] `help:"Arbitrary deployment metadata" kong:"default='none'"`
 
 	// The conga:"allow-unknown-tags" directive on any root field permits the
 	// foreign tag on this field; recurse widens the permission into every

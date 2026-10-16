@@ -61,21 +61,16 @@ The `safe` tag applies exclusively to flag containers; positional arguments and 
 Invoke the binary with `--why` alongside any other flags or environment variables:
 
 ```sh
-SERVER_PORT=9002 server --why --port 9003
+SERVER_PORT=9002 SERVER_TOKEN=hunter2 server --why --port 9003
 ```
 
 ```text no-copy
 Value provenance for "server":
 
-  FLAG     VALUE       SOURCE   ENV           CONFIG PATH
-  --host   127.0.0.1   default  SERVER_HOST   host
-  --port   9003        cli      SERVER_PORT   port
-  --token  ██████      default  SERVER_TOKEN  token
-
-Config decoders: none
-
-Config paths checked:
-  none
+  FLAG      VALUE       SOURCE    ENV            CONFIG PATH
+  --host    127.0.0.1   default   SERVER_HOST    host
+  --port    9003        cli       SERVER_PORT    port
+  --token   ██████      env       SERVER_TOKEN   token
 
 values are redacted — tag fields safe:"true" to display
 ```
@@ -95,14 +90,14 @@ The report contains these diagnostic sections (the feature table appears only wh
 Map flags merge key by key across tiers, so their row is followed by one indented sub-row per key carrying the tier that last wrote it:
 
 ```sh
-server --why --headers shared=cli,team=core
+SERVER_LABELS=region=eu-west-1 server --why --labels shared=cli,team=core
 ```
 
 ```text no-copy
-  --headers   region=eu-west-1, shared=cli, team=core   cli      -   headers
-              region=eu-west-1                          config
-              shared=cli                                cli
-              team=core                                 cli
+  --labels   region=eu-west-1, shared=cli, team=core   cli       SERVER_LABELS   labels
+             region=eu-west-1                          env
+             shared=cli                                cli
+             team=core                                 cli
 ```
 
 ## Inspect feature provenance

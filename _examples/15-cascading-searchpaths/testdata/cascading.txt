@@ -13,23 +13,34 @@ stdout '--timeout\s+time\.Duration\s+15s\s+● config timeout'
 stdout '--theme\s+string\s+light\s+● config theme'
 stdout '--telemetry\s+bool\s+false\s+● config telemetry'
 
-# 2. CLI flag overrides cascading merged values
+# 2. --why attributes each winning value to its tier and lists every loaded
+#    cascade file
+exec cascading-app --why
+stdout '--api-endpoint\s+https://api\.local\.dev\s+config'
+stdout '--timeout\s+15s\s+config'
+stdout '--theme\s+light\s+config'
+stdout 'loaded: .*etc[/\\]cascading-app[/\\]cascading-app\.yaml'
+stdout 'loaded: .*home[/\\]\.config[/\\]cascading-app[/\\]cascading-app\.yaml'
+stdout 'loaded: cascading-app\.yaml'
+! stdout '██████'
+
+# 3. CLI flag overrides cascading merged values
 exec cascading-app --theme solarized --timeout 5s
 stdout '--theme\s+string\s+solarized\s+● cli --theme'
 stdout '--timeout\s+time\.Duration\s+5s\s+● cli --timeout'
 
-# 3. Explicit -c disables cascading: only that single file is loaded
+# 4. Explicit -c disables cascading: only that single file is loaded
 exec cascading-app -c home/.config/cascading-app/cascading-app.yaml
 stdout '--theme\s+string\s+light\s+● config theme'
 stdout '--timeout\s+time\.Duration\s+15s\s+● config timeout'
 stdout '--api-endpoint\s+string\s+https://api\.default\.io\s+· default'
 stdout '--telemetry\s+bool\s+true\s+· default'
 
-# 4. Missing explicit config file fails with a clean error (exit 1)
+# 5. Missing explicit config file fails with a clean error (exit 1)
 exit-status 1 cascading-app -c missing.yaml
 stderr 'cannot read config file "missing\.yaml"'
 
-# 5. Partial cascade: missing intermediate files are skipped silently
+# 6. Partial cascade: missing intermediate files are skipped silently
 rm home/.config/cascading-app/cascading-app.yaml
 exec cascading-app
 stdout '--api-endpoint\s+string\s+https://api\.local\.dev\s+● config api-endpoint'

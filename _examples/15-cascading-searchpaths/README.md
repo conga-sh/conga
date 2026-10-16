@@ -9,6 +9,7 @@ highest), partial cascades skip missing files silently, and an explicit
 
 ```sh
 go run ./_examples/15-cascading-searchpaths
+go run ./_examples/15-cascading-searchpaths --why
 go run ./_examples/15-cascading-searchpaths --theme solarized --timeout 5s
 ```
 
@@ -21,6 +22,8 @@ The complete scenarios, fixtures included, live in
   `● config timeout`) show the merge.
 - Later tiers override earlier ones per key; missing tier files are skipped.
 - A missing explicit file is fatal (exit code 1).
+- `--why` attributes each winning value to its tier and lists every loaded
+  cascade file in resolution order.
 
 ## Test
 

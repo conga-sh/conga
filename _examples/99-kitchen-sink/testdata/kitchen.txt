@@ -130,6 +130,20 @@ stdout 'advanced\s+Required flags, arguments, trailing args, provenance'
 ! stdout 'internal'
 ! stdout 'session-id'
 
+# 12. --why attributes values to their winning tier, redacts the API secret
+#     and the env-var carrier, and shows per-key file origins for safe maps
+exec kitchen-sink --config-file config.toml --why
+stdout '--format\s+yaml\s+config'
+stdout '--secret-key\s+██████\s+config'
+stdout 'config\.toml\s+loaded: config\.toml'
+stdout 'values are redacted'
+
+exec kitchen-sink --config-file config.toml config maps --why
+stdout '--vars\s+██████'
+stdout 'APP_ENV=██████'
+stdout 'config \(config\.toml\)'
+stdout '--labels\s+team=platform, tier=frontend, version=2\.1'
+
 -- run.sh --
 #!/bin/sh
 echo hook executed

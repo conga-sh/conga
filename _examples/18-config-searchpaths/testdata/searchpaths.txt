@@ -11,20 +11,29 @@ stdout '-c, --config-file\s+conga\.ConfigFile\s+firstfound\.hcl\s+● config fir
 stdout '--region\s+string\s+local-region\s+● config region'
 stdout '--mode\s+string\s+local\s+● config mode'
 
-# 2. First-found mode skips missing files and picks the next existing one
+# 2. --why reports the first-found candidate and the probed locations of the
+#    remaining tiers
+exec firstfound --why
+stdout '--region\s+local-region\s+config'
+stdout 'loaded: firstfound\.hcl'
+stdout 'no config file'
+stdout 'looked for: .*home[/\\]\.config[/\\]firstfound[/\\]firstfound\.hcl'
+! stdout '██████'
+
+# 3. First-found mode skips missing files and picks the next existing one
 rm firstfound.hcl
 exec firstfound
 stdout '-c, --config-file\s+conga\.ConfigFile\s+.*home[/\\]\.config[/\\]firstfound[/\\]firstfound\.hcl\s+● config .*firstfound\.hcl'
 stdout '--region\s+string\s+user-region\s+● config region'
 stdout '--mode\s+string\s+user\s+● config mode'
 
-# 3. Explicit -c overrides the search list entirely
+# 4. Explicit -c overrides the search list entirely
 exec firstfound -c etc/firstfound/firstfound.hcl
 stdout '-c, --config-file\s+conga\.ConfigFile\s+etc[/\\]firstfound[/\\]firstfound\.hcl\s+● cli --config-file'
 stdout '--region\s+string\s+system-region\s+● config region'
 stdout '--mode\s+string\s+system\s+● config mode'
 
-# 4. No config file found at all: struct defaults apply
+# 5. No config file found at all: struct defaults apply
 rm home/.config/firstfound/firstfound.hcl
 rm etc/firstfound/firstfound.hcl
 exec firstfound

@@ -33,12 +33,12 @@ var profileStore = map[string]profile{
 // (CLI > environment > document > default), so --host and DEPLOY_HOST still
 // outrank it, and the prod profile additionally carries the force-all gate.
 type CLI struct {
-	Profile conga.OptionalFlag[string] `default:"dev" help:"Stored profile to load"`
+	Profile conga.OptionalFlag[string] `default:"dev" help:"Stored profile to load" safe:"true"`
 
 	Features conga.Features[experiments] `config:"experiments" env:"-"`
 
-	Host     conga.OptionalFlag[string]            `default:"localhost"          help:"API host"`
-	Port     conga.OptionalFlag[int]               `default:"8000"               help:"API port"`
+	Host     conga.OptionalFlag[string]            `default:"localhost"          help:"API host"                              safe:"true"`
+	Port     conga.OptionalFlag[int]               `default:"8000"               help:"API port"                              safe:"true"`
 	Headers  conga.OptionalFlag[map[string]string] `help:"Extra request headers"`
 	ForceAll conga.OptionalFlag[bool]              `feature:"force-all"          help:"Skip confirmation prompts (prod only)"`
 }

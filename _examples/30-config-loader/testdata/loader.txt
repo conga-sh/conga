@@ -29,7 +29,12 @@ stderr 'flag .--force-all. requires feature "force-all"'
 exit-status 1 deploy --profile staging
 stderr 'config loader failed: unknown profile "staging"'
 
-# 5. --why attributes document values to their origin labels.
+# 5. --why attributes document values to their origin labels; non-sensitive
+#    values display via safe:"true", while request headers stay redacted.
 exec deploy --profile prod --why
+stdout '--profile\s+prod\s+cli'
+stdout '--host\s+prod\.example\.com\s+config'
+stdout '--port\s+7200\s+config'
+stdout 'X-Force=██████'
 stdout 'config \(profile prod\)'
 stdout 'profile prod\s+loaded: profile prod'
