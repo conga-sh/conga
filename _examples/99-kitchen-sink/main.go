@@ -14,6 +14,7 @@ func main() {
 		Description("Exhaustive type, configuration-mapping, and schema-directive reference").
 		Version("1.0.0").
 		EnableCompletion().
+		EnableWhy().
 		RegisterDecoder(".toml", toml.Decode).
 		RegisterDecoder(".json", json.Decode).
 		RegisterDecoder(".yaml", yaml.Decode).

@@ -38,11 +38,18 @@ type Row struct {
 	// Label is the flag display label (e.g. "--port").
 	Label string
 	// Value is the display value, redacted or formatted by the caller; empty
-	// for unset values (the source column says "unset").
+	// for unset values (the source column says "unset"). Not rendered for a
+	// row carrying per-key entries: the sub-rows state each key's value.
 	Value string
 	// Source is the bare source-tier word ("cli", "env", "config", "default",
 	// "unset"). For a merged map flag this is the highest contributing tier.
+	// Not rendered for a row carrying per-key entries: the sub-rows state each
+	// key's tier.
 	Source string
+	// Detail optionally annotates the source with the concrete origin, e.g.
+	// the configuration file that supplied the value. Rendered in parentheses
+	// after the source word; empty renders the bare word.
+	Detail string
 	// Env lists the environment variables that can set the flag, or "-" when
 	// none apply.
 	Env string
@@ -357,10 +364,15 @@ func rowLabel(row Row) string {
 	return row.Label
 }
 
-// rowCells renders a row's table cells; an error row blanks the source column
-// because the diagnostic replaces it.
+// rowCells renders a row's table cells. A row carrying per-key entries blanks
+// its value and source columns because the sub-rows state them per key, and an
+// error row blanks the source column because the diagnostic replaces it.
 func rowCells(row Row) []string {
-	source := row.Source
+	if len(row.Entries) > 0 {
+		return []string{rowLabel(row), "-", "-", row.Env, row.ConfigPath}
+	}
+
+	source := sourceCell(row.Source, row.Detail)
 	if row.Error != "" {
 		source = ""
 	}

@@ -14,88 +14,88 @@ symlink deploy-hook -> run.sh
 #    including the api_secret key remap
 exec kitchen-sink --config-file config.toml
 stdout '-c, --config-file\s+conga\.ConfigFile\s+config\.toml\s+● cli --config-file'
-stdout '-v, --verbosity\s+conga\.Counter\s+2\s+● config verbosity'
-stdout '--format\s+string\s+yaml\s+● config format'
-stdout '--cache\s+bool\s+false\s+● config cache'
-stdout '--secret-key\s+string\s+remapped-secret\s+● config api_secret'
+stdout '-v, --verbosity\s+conga\.Counter\s+2\s+● config config\.toml'
+stdout '--format\s+string\s+yaml\s+● config config\.toml'
+stdout '--cache\s+bool\s+false\s+● config config\.toml'
+stdout '--secret-key\s+string\s+remapped-secret\s+● config config\.toml'
 ! stdout '--session-id'
 
 exec kitchen-sink --config-file config.json
-stdout '-v, --verbosity\s+conga\.Counter\s+4\s+● config verbosity'
-stdout '--format\s+string\s+hcl\s+● config format'
-stdout '--secret-key\s+string\s+json-secret-key-abc123\s+● config api_secret'
+stdout '-v, --verbosity\s+conga\.Counter\s+4\s+● config config\.json'
+stdout '--format\s+string\s+hcl\s+● config config\.json'
+stdout '--secret-key\s+string\s+json-secret-key-abc123\s+● config config\.json'
 
 exec kitchen-sink --config-file config.yaml
-stdout '-v, --verbosity\s+conga\.Counter\s+3\s+● config verbosity'
-stdout '--format\s+string\s+toml\s+● config format'
-stdout '--secret-key\s+string\s+yaml-secret-key-def456\s+● config api_secret'
+stdout '-v, --verbosity\s+conga\.Counter\s+3\s+● config config\.yaml'
+stdout '--format\s+string\s+toml\s+● config config\.yaml'
+stdout '--secret-key\s+string\s+yaml-secret-key-def456\s+● config config\.yaml'
 
 exec kitchen-sink --config-file config.hcl
-stdout '-v, --verbosity\s+conga\.Counter\s+9\s+● config verbosity'
-stdout '--format\s+string\s+json\s+● config format'
-stdout '--secret-key\s+string\s+hcl-secret-key-xyz789\s+● config api_secret'
+stdout '-v, --verbosity\s+conga\.Counter\s+9\s+● config config\.hcl'
+stdout '--format\s+string\s+json\s+● config config\.hcl'
+stdout '--secret-key\s+string\s+hcl-secret-key-xyz789\s+● config config\.hcl'
 
 # 2. Primitives: every integer, unsigned, float, and slice width
 exec kitchen-sink --config-file config.toml types primitives
-stdout '--string-flag\s+string\s+toml-configured\s+● config types.primitives.string-flag'
-stdout '--bool-flag\s+bool\s+true\s+● config types.primitives.bool-flag'
-stdout '--int8-flag\s+int8\s+8\s+● config types.primitives.int8-flag'
-stdout '--int32-flag\s+int32\s+3200\s+● config types.primitives.int32-flag'
-stdout '--uint16-flag\s+uint16\s+1600\s+● config types.primitives.uint16-flag'
-stdout '--uint64-flag\s+uint64\s+64000\s+● config types.primitives.uint64-flag'
-stdout '--float32-flag\s+float32\s+1\.5\s+● config types.primitives.float32-flag'
-stdout '--float64-flag\s+float64\s+3\.14159265359\s+● config types.primitives.float64-flag'
-stdout '--tags\s+\[\]string\s+\[toml, prod, monitored\]\s+● config types.primitives.tags'
-stdout '--ports\s+\[\]int\s+\[8080, 8443, 9090\]\s+● config types.primitives.ports'
+stdout '--string-flag\s+string\s+toml-configured\s+● config config\.toml'
+stdout '--bool-flag\s+bool\s+true\s+● config config\.toml'
+stdout '--int8-flag\s+int8\s+8\s+● config config\.toml'
+stdout '--int32-flag\s+int32\s+3200\s+● config config\.toml'
+stdout '--uint16-flag\s+uint16\s+1600\s+● config config\.toml'
+stdout '--uint64-flag\s+uint64\s+64000\s+● config config\.toml'
+stdout '--float32-flag\s+float32\s+1\.5\s+● config config\.toml'
+stdout '--float64-flag\s+float64\s+3\.14159265359\s+● config config\.toml'
+stdout '--tags\s+\[\]string\s+\[toml, prod, monitored\]\s+● config config\.toml'
+stdout '--ports\s+\[\]int\s+\[8080, 8443, 9090\]\s+● config config\.toml'
 
 exec kitchen-sink --config-file config.json types primitives
-stdout '--string-flag\s+string\s+json-configured\s+● config types.primitives.string-flag'
-stdout '--float64-flag\s+float64\s+3\.04\s+● config types.primitives.float64-flag'
+stdout '--string-flag\s+string\s+json-configured\s+● config config\.json'
+stdout '--float64-flag\s+float64\s+3\.04\s+● config config\.json'
 
 exec kitchen-sink --config-file config.yaml types primitives
-stdout '--string-flag\s+string\s+yaml-configured\s+● config types.primitives.string-flag'
+stdout '--string-flag\s+string\s+yaml-configured\s+● config config\.yaml'
 
 exec kitchen-sink --config-file config.hcl types primitives
-stdout '--string-flag\s+string\s+hcl-parsed\s+● config types.primitives.string-flag'
+stdout '--string-flag\s+string\s+hcl-parsed\s+● config config\.hcl'
 
 # 3. Value types: duration, URL, byte size, enum, native map
 exec kitchen-sink --config-file config.toml types values
-stdout '--timeout\s+time\.Duration\s+1m30s\s+● config types.values.timeout'
-stdout '--endpoint\s+url\.URL\s+https://api\.example\.com/v2\s+● config types.values.endpoint'
-stdout '--max-size\s+conga\.ByteSize\s+50MB\s+● config types.values.max-size'
-stdout '--level\s+string\s+warn\s+● config types.values.level'
-stdout '--shard-map\s+map\[string\]string\s+web=3, worker=5\s+● config types.values.shard-map'
+stdout '--timeout\s+time\.Duration\s+1m30s\s+● config config\.toml'
+stdout '--endpoint\s+url\.URL\s+https://api\.example\.com/v2\s+● config config\.toml'
+stdout '--max-size\s+conga\.ByteSize\s+50MB\s+● config config\.toml'
+stdout '--level\s+string\s+warn\s+● config config\.toml'
+stdout '--shard-map\s+map\[string\]string\s+web=3, worker=5\s+● config config\.toml'
 
 exec kitchen-sink --config-file config.json types values
-stdout '--max-size\s+conga\.ByteSize\s+60MB\s+● config types.values.max-size'
+stdout '--max-size\s+conga\.ByteSize\s+60MB\s+● config config\.json'
 
 # 4. Filesystem domain types (File with existing/executable/symlink tags, Dir)
 exec kitchen-sink --config-file config.toml types filesystem
-stdout '-i, --input-file\s+conga\.File\s+/etc/hosts\s+● config types.filesystem.input-file'
-stdout '-o, --output-dir\s+conga\.Dir\s+/tmp\s+● config types.filesystem.output-dir'
-stdout '--log-file\s+conga\.File\s+/var/log/demo\.log\s+● config types.filesystem.log-file'
-stdout '--data-dir\s+conga\.Dir\s+/var/lib/demo\s+● config types.filesystem.data-dir'
-stdout '-e, --editor\s+conga\.File\s+.*sh\s+● config types.filesystem.editor'
-stdout '--hook\s+conga\.File\s+deploy-hook\s+● config types.filesystem.hook'
+stdout '-i, --input-file\s+conga\.File\s+/etc/hosts\s+● config config\.toml'
+stdout '-o, --output-dir\s+conga\.Dir\s+/tmp\s+● config config\.toml'
+stdout '--log-file\s+conga\.File\s+/var/log/demo\.log\s+● config config\.toml'
+stdout '--data-dir\s+conga\.Dir\s+/var/lib/demo\s+● config config\.toml'
+stdout '-e, --editor\s+conga\.File\s+.*sh\s+● config config\.toml'
+stdout '--hook\s+conga\.File\s+deploy-hook\s+● config config\.toml'
 
 # 5. Config mapping patterns: native map vs array-of-strings encodings
 exec kitchen-sink --config-file config.toml config maps
-stdout '--context\s+string\s+production\s+● config config.context'
-stdout '--vars\s+map\[string\]string\s+APP_ENV=production, DB_HOST=localhost, LOG_LEVEL=debug\s+● config config.maps.vars'
-stdout '--labels\s+map\[string\]string\s+team=platform, tier=frontend, version=2\.1\s+● config config.maps.labels'
+stdout '--context\s+string\s+production\s+● config config\.toml'
+stdout '--vars\s+map\[string\]string\s+APP_ENV=production, DB_HOST=localhost, LOG_LEVEL=debug\s+● config config\.toml'
+stdout '--labels\s+map\[string\]string\s+team=platform, tier=frontend, version=2\.1\s+● config config\.toml'
 
 exec kitchen-sink --config-file config.json config maps
-stdout '--context\s+string\s+staging\s+● config config.context'
-stdout '--vars\s+map\[string\]string\s+APP_ENV=qa, DB_HOST=db\.local, LOG_LEVEL=info\s+● config config.maps.vars'
+stdout '--context\s+string\s+staging\s+● config config\.json'
+stdout '--vars\s+map\[string\]string\s+APP_ENV=qa, DB_HOST=db\.local, LOG_LEVEL=info\s+● config config\.json'
 
 # 6. Deeply nested config sections
 exec kitchen-sink --config-file config.toml config nested
-stdout '--zone\s+string\s+eu-west-1a\s+● config config.nested.zone'
-stdout '--count\s+int\s+5\s+● config config.nested.count'
+stdout '--zone\s+string\s+eu-west-1a\s+● config config\.toml'
+stdout '--count\s+int\s+5\s+● config config\.toml'
 
 exec kitchen-sink --config-file config.hcl config nested
-stdout '--zone\s+string\s+ca-central-1a\s+● config config.nested.zone'
-stdout '--count\s+int\s+15\s+● config config.nested.count'
+stdout '--zone\s+string\s+ca-central-1a\s+● config config\.hcl'
+stdout '--count\s+int\s+15\s+● config config\.hcl'
 
 # 7. Advanced: required flag, positional arguments, placeholders, DashArgs
 exec kitchen-sink --config-file config.toml advanced required -k mykey web-api hello extra1 extra2 -- pass1 pass2
@@ -113,8 +113,8 @@ stderr 'missing required flag: --api-key'
 # 9. Provenance: programmatic Changed/Source/SourceDetail reporting
 exec kitchen-sink --config-file config.toml advanced provenance
 stdout 'verbosity:  changed=true source=config'
-stdout 'format:     changed=true source=config detail=format'
-stdout 'secret-key: changed=true source=config detail=api_secret'
+stdout 'format:     changed=true source=config detail=config.toml'
+stdout 'secret-key: changed=true source=config detail=config.toml'
 stdout 'config:     changed=true source=cli detail=--config-file'
 
 # 10. Field tagged config:"-" is rejected inside config files
@@ -129,6 +129,20 @@ stdout 'config\s+Configuration mapping patterns'
 stdout 'advanced\s+Required flags, arguments, trailing args, provenance'
 ! stdout 'internal'
 ! stdout 'session-id'
+
+# 12. --why attributes values to their winning tier, redacts the API secret
+#     and the env-var carrier, and shows per-key file origins for safe maps
+exec kitchen-sink --config-file config.toml --why
+stdout '--format\s+yaml\s+config \(config\.toml\)'
+stdout '--secret-key\s+██████\s+config \(config\.toml\)'
+stdout 'config\.toml\s+loaded: config\.toml'
+stdout 'values are redacted'
+
+exec kitchen-sink --config-file config.toml config maps --why
+stdout '--vars\s+-\s+-\s+-\s+config\.maps\.vars'
+stdout 'APP_ENV=██████'
+stdout 'config \(config\.toml\)'
+stdout 'version=2\.1'
 
 -- run.sh --
 #!/bin/sh

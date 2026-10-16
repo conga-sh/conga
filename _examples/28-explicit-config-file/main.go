@@ -15,8 +15,8 @@ import (
 type CLI struct {
 	ConfigFile conga.ConfigFile `short:"c"`
 
-	Host conga.OptionalFlag[string] `default:"localhost" help:"Server host"`
-	Port conga.OptionalFlag[int]    `default:"8080"      help:"Server port" short:"p"`
+	Host conga.OptionalFlag[string] `default:"localhost" help:"Server host" safe:"true"`
+	Port conga.OptionalFlag[int]    `default:"8080"      help:"Server port" safe:"true" short:"p"`
 }
 
 func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
@@ -30,6 +30,7 @@ func main() {
 		Name("explicit-config").
 		Description("Programmatic explicit config file (fatal-if-missing)").
 		Version("1.0.0").
+		EnableWhy().
 		EnvPrefix("EXPLICIT").
 		RegisterDecoder(".yaml", yaml.Decode).
 		RegisterDecoder(".yml", yaml.Decode).

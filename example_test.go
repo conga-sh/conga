@@ -95,6 +95,18 @@ func (c *ConfigCLI) Run(_ context.Context, session *conga.Session) error {
 	return err
 }
 
+// LoaderCLI is an application whose configuration document comes from code.
+type LoaderCLI struct {
+	Host conga.OptionalFlag[string] `default:"localhost"`
+	Port conga.OptionalFlag[int]    `default:"8000"`
+}
+
+func (c *LoaderCLI) Run(_ context.Context, session *conga.Session) error {
+	_, err := fmt.Fprintf(session.Stdout(), "port=%d host=%s\n", c.Port.Get(), c.Host.Get())
+
+	return err
+}
+
 // RegionCLI is an application whose flag completes from a registered predictor.
 type RegionCLI struct {
 	Region conga.OptionalFlag[string] `help:"Deployment region" predictor:"regions"`
@@ -328,6 +340,32 @@ func ExampleApp_RegisterDecoder() {
 
 	// Output:
 	// port=8080 host=localhost
+}
+
+// Supply the configuration tier from code with [ConfigLoader]: the returned
+// document is validated like a decoded config file, outranks defaults, and
+// still loses to command-line and environment values.
+func ExampleConfigLoader() {
+	app := conga.New[LoaderCLI]().
+		ConfigOptions(conga.ConfigLoader(func(ctx conga.ConfigContext) (*conga.ConfigDocument, error) {
+			document := &conga.ConfigDocument{}
+			document.Set("host", "document.example.com", "embedded defaults")
+			document.Set("port", 9200, "embedded defaults")
+
+			if profile, ok := ctx.FlagValue("profile"); ok {
+				document.Set("host", profile+".example.com", "flag --profile")
+			}
+
+			return document, nil
+		})).
+		Args([]string{"--host", "cli.example.com"})
+
+	if err := app.Run(); err != nil {
+		panic(err)
+	}
+
+	// Output:
+	// port=9200 host=cli.example.com
 }
 
 // Register a named predictor and reference it from a flag's predictor tag;

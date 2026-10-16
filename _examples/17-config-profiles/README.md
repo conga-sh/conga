@@ -9,6 +9,7 @@ of stopping at the first.
 
 ```sh
 go run ./_examples/17-config-profiles -c deploy/base.yaml -c deploy/prod.yaml
+go run ./_examples/17-config-profiles -c deploy/base.yaml -c deploy/prod.yaml --why
 go run ./_examples/17-config-profiles -c 'deploy/base.yaml,deploy/prod.yaml'
 go run ./_examples/17-config-profiles
 ```
@@ -21,6 +22,7 @@ exact contents are in [`testdata/profiles.txt`](testdata/profiles.txt).
 - `port: 9443` from `prod.yaml` overrides `port: 9000` from `base.yaml`.
 - The config-file container reports every loaded file in order.
 - Without `-c`, the declared fallback paths cascade in lowest-first order.
+- `--why` lists both loaded files and names the contributing file for each value.
 
 ## Test
 

@@ -38,8 +38,21 @@ func TestRenderRows_MapEntriesWidenValueColumn(t *testing.T) {
 	output := renderRows(rows)
 
 	assert.Equal(t, "\n  FLAG        VALUE          SOURCE   ENV   CONFIG PATH\n"+
-		"  --secrets   ██████         cli      -     secrets\n"+
+		"  --secrets   -              -        -     secrets\n"+
 		"              token=██████   cli\n", output)
+}
+
+func TestRenderRows_SourceDetailRendered(t *testing.T) {
+	t.Parallel()
+
+	rows := []Row{
+		{Label: "--port", Value: "9000", Source: "config", Detail: "app.json", Env: "-", ConfigPath: "port"},
+	}
+
+	output := renderRows(rows)
+
+	assert.Equal(t, "\n  FLAG     VALUE   SOURCE              ENV   CONFIG PATH\n"+
+		"  --port   9000    config (app.json)   -     port\n", output)
 }
 
 func TestRenderRows_ErrorRowStopsAfterValue(t *testing.T) {

@@ -329,8 +329,11 @@ func (f *OptionalFlag[T]) Source() ValueSource {
 }
 
 // SourceDetail returns the concrete origin recorded with [OptionalFlag.Source]:
-// the flag token, the environment variable name, the configuration key, or the
-// default tag literal. It is empty when the flag is unset.
+// the flag token, the environment variable name, the contributing
+// configuration origin (a file path for file-loaded values, or the loader's
+// label), or the default tag literal. For a merged map flag the origin lists
+// every contributing configuration file in load order, separated by commas.
+// It is empty when the flag is unset.
 func (f *OptionalFlag[T]) SourceDetail() string {
 	return f.sourceDetail
 }
@@ -386,8 +389,11 @@ func (f *RequiredFlag[T]) Source() ValueSource {
 }
 
 // SourceDetail returns the concrete origin recorded with [RequiredFlag.Source]:
-// the flag token, the environment variable name, the configuration key, or the
-// default tag literal. It is empty when the flag is unset.
+// the flag token, the environment variable name, the contributing
+// configuration origin (a file path for file-loaded values, or the loader's
+// label), or the default tag literal. For a merged map flag the origin lists
+// every contributing configuration file in load order, separated by commas.
+// It is empty when the flag is unset.
 func (f *RequiredFlag[T]) SourceDetail() string {
 	return f.sourceDetail
 }
@@ -1007,8 +1013,9 @@ func (c *Counter) Source() ValueSource {
 }
 
 // SourceDetail returns the concrete origin recorded with [Counter.Source]:
-// the flag token, the environment variable name, or the configuration key.
-// It is empty when the counter is unset.
+// the flag token, the environment variable name, or the contributing
+// configuration origin (a file path for file-loaded values, or the loader's
+// label). It is empty when the counter is unset.
 func (c *Counter) SourceDetail() string {
 	return c.sourceDetail
 }

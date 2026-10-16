@@ -1,6 +1,7 @@
 package conga
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -279,15 +280,22 @@ func (a *App[T]) Dotenv(paths ...string) *App[T] {
 }
 
 // ConfigOptions sets how CONGA discovers and merges config files. Options come
-// from the [ConfigOption] constructors: [ConfigPaths], [ConfigExplicit], and
-// [ConfigCascading], each declaring one resolution rule.
+// from the [ConfigOption] constructors: [ConfigPaths], [ConfigExplicit],
+// [ConfigCascading], and [ConfigLoader], each declaring one resolution rule.
 //
-// Config files also require a registered decoder (see [App.RegisterDecoder]).
-// See https://docs.conga.sh/how-to/manage-config-files/.
+// Config files also require a registered decoder (see [App.RegisterDecoder]),
+// unless a [ConfigLoader] supplies the configuration document programmatically
+// instead. See https://docs.conga.sh/how-to/manage-config-files/.
 func (a *App[T]) ConfigOptions(options ...ConfigOption) *App[T] {
 	a.configOptions = append(a.configOptions, options...)
 	a.configSettings = foldConfigOptions(a.configOptions)
-	a.installConfigEngine()
+
+	a.configLoader = extractConfigLoaderFunc(a.configOptions)
+	if a.configLoader != nil {
+		a.loadConfigDocument = (*App[T]).loadDocumentConfigData
+	} else {
+		a.installConfigEngine()
+	}
 
 	return a
 }
@@ -924,18 +932,27 @@ type configResolution struct {
 // of truth for configuration state: New populates it with defaults and the
 // builder methods mutate it.
 type appConfig[T any] struct {
-	name                  string
-	description           string
-	examples              string
-	helpFooter            string
-	deprecated            string
-	deprecationNotices    []string
-	version               string
-	envPrefix             string
-	configOptions         []ConfigOption
-	configSettings        spec.ConfigSettings
-	configRegistry        *configengine.Registry
-	configEngine          configEngineFactory
+	name               string
+	description        string
+	examples           string
+	helpFooter         string
+	deprecated         string
+	deprecationNotices []string
+	version            string
+	envPrefix          string
+	configOptions      []ConfigOption
+	configSettings     spec.ConfigSettings
+	configRegistry     *configengine.Registry
+	configEngine       configEngineFactory
+	// configLoader is the application's programmatic configuration document
+	// source declared via conga.ConfigLoader. Nil means no loader is declared
+	// and file resolution applies.
+	configLoader ConfigLoaderFunc
+	// loadConfigDocument runs the declared loader and validates the returned
+	// document. ConfigOptions installs it only when a loader is declared; nil
+	// keeps the document validation pipeline unreferenced at link time for
+	// applications without a loader.
+	loadConfigDocument    func(app *App[T], cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string) (*configdata.Data, []string, error)
 	dotenvPaths           []string
 	dotenvLoader          func(paths ...string) error
 	configData            *configdata.Data
@@ -1163,6 +1180,15 @@ func (a *App[T]) completeCompLineForShell(targetShell string, compLine string, c
 }
 
 func (a *App[T]) loadConfigDataForCompletion(cmd *spec.Command, flagValues map[*spec.Flag][]string) *configdata.Data {
+	if a.loadConfigDocument != nil {
+		data, _, err := a.loadConfigDocument(a, cmd, []*spec.Command{cmd}, flagValues)
+		if err != nil {
+			return nil
+		}
+
+		return data
+	}
+
 	if a.configEngine == nil {
 		return nil
 	}
@@ -1372,8 +1398,12 @@ func (a *App[T]) mountCompletionSubcommand(cmd *spec.Command) {
 // flag supplied on the command line (a usage error even under --help, symmetric
 // with a gated subcommand). It returns the pruned flags.
 func (a *App[T]) prepareFeatures(featureBinding featureState, cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, request builtinRequest) ([]prunedFlag, error) {
+	var loadedPaths []string
+
 	if !request.versionOnly() {
 		resolution := a.resolveConfig(cmd, cmdChain, flagValues)
+		loadedPaths = resolution.loadedPaths
+
 		if !request.toleratesFeatureErrors() {
 			if err := resolution.err; err != nil {
 				return nil, err
@@ -1384,6 +1414,7 @@ func (a *App[T]) prepareFeatures(featureBinding featureState, cmd *spec.Command,
 	featureBindingState := &bindingState{
 		EnvPrefix:             a.envPrefix,
 		ConfigData:            a.configData,
+		ConfigOrigins:         loadedPaths,
 		TypeParsers:           a.collectTypeParsers(),
 		TolerateFeatureErrors: request.toleratesFeatureErrors(),
 	}
@@ -1424,6 +1455,7 @@ func (a *App[T]) prepareNonMetaExecution(session *Session, cmd *spec.Command, cm
 	state := &bindingState{
 		EnvPrefix:       a.envPrefix,
 		ConfigData:      a.configData,
+		ConfigOrigins:   resolution.loadedPaths,
 		TypeParsers:     a.collectTypeParsers(),
 		CustomMapMerger: a.customMapMerger,
 		Stdin:           session.stdin,
@@ -1706,8 +1738,12 @@ func (a *App[T]) appendFlagDeprecationNotice(flagSpec *spec.Flag) {
 		a.deprecationNotices = append(a.deprecationNotices,
 			fmt.Sprintf("WARNING: environment variable '%s' is deprecated: %s", detail, flagSpec.Deprecated))
 	case SourceConfig:
+		// The container detail names the origin file (or loader label), so the
+		// warning derives the key from the declaration: the config tag when
+		// present, otherwise the flag name.
+		configKey := cmp.Or(flagSpec.ConfigKey, flagSpec.Name)
 		a.deprecationNotices = append(a.deprecationNotices,
-			fmt.Sprintf("WARNING: config key '%s' is deprecated: %s", detail, flagSpec.Deprecated))
+			fmt.Sprintf("WARNING: config key '%s' is deprecated: %s", configKey, flagSpec.Deprecated))
 	case SourceDefault, SourceNone:
 		// Defaulted or unset values are never warned about.
 	}
@@ -1827,6 +1863,12 @@ func (a *App[T]) handleUsageFatal(writer io.Writer, err error, appName string) {
 // validated a single time per run.
 func (a *App[T]) resolveConfig(cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string) *configResolution {
 	if a.configResolution != nil {
+		return a.configResolution
+	}
+
+	if a.loadConfigDocument != nil {
+		a.configResolution = a.resolveLoaderConfig(cmd, cmdChain, flagValues)
+
 		return a.configResolution
 	}
 

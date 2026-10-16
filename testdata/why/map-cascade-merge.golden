@@ -1,11 +1,11 @@
 Value provenance for "whyapp":
 
-  FLAG            VALUE                                       SOURCE                ENV   CONFIG PATH
-  --config-file   sys.json,local.json                         config                -     -
-  --tags          region=eu-west-1, shared=local, team=core   config                -     tags
-                  region=eu-west-1                            config (sys.json)
-                  shared=local                                config (local.json)
-                  team=core                                   config (local.json)
+  FLAG            VALUE                 SOURCE                ENV   CONFIG PATH
+  --config-file   sys.json,local.json   config                -     -
+  --tags          -                     -                     -     tags
+                  region=eu-west-1      config (sys.json)
+                  shared=local          config (local.json)
+                  team=core             config (local.json)
 
 Config decoders: .json
 

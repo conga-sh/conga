@@ -222,10 +222,10 @@ func TestValidateNamespaceConfig_MapFlagAtDottedConfigKey(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	scalarValue, hasScalar := dest.Scalar("remote.insecure")
+	scalarValue, hasScalar := dest.ScalarValue("remote.insecure")
 
 	assert.True(t, hasScalar)
-	assert.Equal(t, "true", scalarValue)
+	assert.Equal(t, "true", scalarValue.Raw)
 
 	entries := dest.Map("remote.pairs")
 
@@ -317,4 +317,59 @@ func TestValidateCommandConfig_ArrayFormSplitsPerElement(t *testing.T) {
 	assert.Equal(t, 2, len(entries))
 	assert.Equal(t, configdata.Value{Raw: "1", Origin: "app.toml"}, entries["a"])
 	assert.Equal(t, configdata.Value{Raw: "2", Origin: "app.toml"}, entries["b"])
+}
+
+func TestValidateDocument_ScalarStoresOrigin(t *testing.T) {
+	t.Parallel()
+
+	cmd := &spec.Command{
+		Name:  "app",
+		Flags: []*spec.Flag{{Name: "host"}},
+	}
+
+	dest := configdata.New()
+	err := ValidateDocument(map[string]any{"host": "doc.example.com"}, cmd, dest, "embedded defaults")
+
+	assert.NoError(t, err)
+
+	value, exists := dest.ScalarValue("host")
+
+	assert.True(t, exists)
+	assert.Equal(t, configdata.Value{Raw: "doc.example.com", Origin: "embedded defaults"}, value)
+}
+
+func TestValidateDocument_StringMapSectionStoresOrigin(t *testing.T) {
+	t.Parallel()
+
+	cmd := &spec.Command{
+		Name:  "app",
+		Flags: []*spec.Flag{{Name: "headers", IsMap: true}},
+	}
+
+	dest := configdata.New()
+	err := ValidateDocument(map[string]any{"headers": map[string]string{"Region": "eu"}}, cmd, dest, "taskrc")
+
+	assert.NoError(t, err)
+
+	entries := dest.Map("headers")
+
+	assert.Equal(t, 1, len(entries))
+	assert.Equal(t, configdata.Value{Raw: "eu", Origin: "taskrc"}, entries["Region"])
+}
+
+func TestValidateDocument_UnknownKeyAttributesOrigin(t *testing.T) {
+	t.Parallel()
+
+	cmd := &spec.Command{
+		Name:  "app",
+		Flags: []*spec.Flag{{Name: "host"}},
+	}
+
+	dest := configdata.New()
+	err := ValidateDocument(map[string]any{"hots": "x"}, cmd, dest, "taskrc")
+
+	assert.Error(t, err)
+	assert.IsError(t, err, sentinel.ErrConfigUnknownField)
+	assert.Contains(t, err.Error(), `config file "taskrc"`)
+	assert.Contains(t, err.Error(), `unknown field "hots" in command "app"`)
 }

@@ -18,15 +18,15 @@ stdout '--worker-id\s+string\s+—\s+○ unset'
 # 2. Tier 3: config file overrides defaults
 exec server-precedence -c server.toml
 stdout '-c, --config-file\s+conga\.ConfigFile\s+server\.toml\s+● cli --config-file'
-stdout '-p, --port\s+int\s+9001\s+● config port'
-stdout '--host\s+string\s+10\.0\.0\.1\s+● config host'
-stdout '-e, --environment\s+string\s+staging\s+● config environment'
-stdout '-d, --debug\s+bool\s+true\s+● config debug'
-stdout '--worker-id\s+string\s+w-file\s+● config worker-id'
+stdout '-p, --port\s+int\s+9001\s+● config server\.toml'
+stdout '--host\s+string\s+10\.0\.0\.1\s+● config server\.toml'
+stdout '-e, --environment\s+string\s+staging\s+● config server\.toml'
+stdout '-d, --debug\s+bool\s+true\s+● config server\.toml'
+stdout '--worker-id\s+string\s+w-file\s+● config server\.toml'
 
 # 3. --why displays non-sensitive flag values tagged safe:"true"
 exec server-precedence -c server.toml --why
-stdout '--port\s+9001\s+config\s+PORT\s+port'
+stdout '--port\s+9001\s+config \(server\.toml\)\s+PORT\s+port'
 ! stdout '██████'
 
 # 4. Tier 2: environment variable overrides config file
@@ -34,12 +34,12 @@ stdout '--port\s+9001\s+config\s+PORT\s+port'
 env PORT=9002
 exec server-precedence -c server.toml
 stdout '-p, --port\s+int\s+9002\s+● env PORT'
-stdout '--host\s+string\s+10\.0\.0\.1\s+● config host'
+stdout '--host\s+string\s+10\.0\.0\.1\s+● config server\.toml'
 
 # 5. Tier 1: CLI flag overrides environment variable and config file
 exec server-precedence -c server.toml -p 9003
 stdout '-p, --port\s+int\s+9003\s+● cli --port'
-stdout '--host\s+string\s+10\.0\.0\.1\s+● config host'
+stdout '--host\s+string\s+10\.0\.0\.1\s+● config server\.toml'
 
 # 6. --why indicates the loaded decoders, the missing built-in tier, and how
 #    to create a config file the application will see
@@ -57,7 +57,7 @@ mkdir xdg/server-precedence
 cp xdg-config.toml xdg/server-precedence/config.toml
 exec server-precedence
 stdout '-c, --config-file\s+conga\.ConfigFile\s+.*xdg[/\\]server-precedence[/\\]config\.toml\s+● config .*xdg[/\\]server-precedence[/\\]config\.toml'
-stdout '-p, --port\s+int\s+7001\s+● config port'
+stdout '-p, --port\s+int\s+7001\s+● config .*xdg[/\\]server-precedence[/\\]config\.toml'
 stdout '--host\s+string\s+127\.0\.0\.1\s+· default'
 
 # 8. --why lists the built-in conventional tier with the loaded outcome
@@ -72,7 +72,7 @@ stdout 'xdg[/\\]server-precedence\s+loaded: .*xdg[/\\]server-precedence[/\\]conf
 env SERVER_CONFIG=server.toml
 exec server-precedence
 stdout '-c, --config-file\s+conga\.ConfigFile\s+server\.toml\s+● env SERVER_CONFIG'
-stdout '-p, --port\s+int\s+9001\s+● config port'
+stdout '-p, --port\s+int\s+9001\s+● config server\.toml'
 env SERVER_CONFIG=
 
 # 10. env:"-" disables environment binding entirely: neither the verbatim

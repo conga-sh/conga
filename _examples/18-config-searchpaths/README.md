@@ -8,6 +8,7 @@ explicit `-c` overrides the whole search list.
 
 ```sh
 go run ./_examples/18-config-searchpaths
+go run ./_examples/18-config-searchpaths --why
 go run ./_examples/18-config-searchpaths --help
 ```
 
@@ -19,6 +20,8 @@ The complete scenarios, fixtures included, live in
 - The first existing path wins; the others are never read.
 - Removing the top candidate falls through to the next one.
 - With no file at all, struct defaults apply and the container is `○ unset`.
+- `--why` reports the first-found candidate plus the probed file locations of
+  the remaining tiers.
 
 ## Test
 

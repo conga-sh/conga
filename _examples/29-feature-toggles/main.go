@@ -23,10 +23,10 @@ type CLI struct {
 
 	Features conga.Features[experiments] `config:"features" env:"SERVE_FEATURES" flag:"feature-gates"`
 
-	Listen        conga.OptionalFlag[string] `default:":8080"       help:"Listen address"`
+	Listen        conga.OptionalFlag[string] `default:":8080"       help:"Listen address"                                safe:"true"`
 	HTTP3         conga.OptionalFlag[bool]   `feature:"http3"       help:"Enable the QUIC/HTTP3 listener (experimental)"`
 	AllowInsecure conga.OptionalFlag[bool]   `feature:"!strict-tls" help:"Serve plaintext (development only)"`
-	Cache         conga.OptionalFlag[int]    `default:"128"         help:"Response cache size in MB"`
+	Cache         conga.OptionalFlag[int]    `default:"128"         help:"Response cache size in MB"                     safe:"true"`
 
 	Admin conga.Command[AdminCmd] `feature:"admin-api" summary:"Experimental admin API"`
 }
@@ -55,7 +55,7 @@ func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
 
 // AdminCmd is the experimental admin API gated behind the admin-api feature.
 type AdminCmd struct {
-	Port conga.OptionalFlag[int] `default:"9090" help:"Admin API port"`
+	Port conga.OptionalFlag[int] `default:"9090" help:"Admin API port" safe:"true"`
 }
 
 // Run executes the admin API command.

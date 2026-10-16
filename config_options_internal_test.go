@@ -178,3 +178,45 @@ func TestConfigExplicit_Blank_Panics(t *testing.T) {
 		})
 	}
 }
+
+func TestFoldConfigOptions_Loader_SetsMarker(t *testing.T) {
+	t.Parallel()
+
+	settings := foldConfigOptions([]ConfigOption{ConfigLoader(func(ConfigContext) (*ConfigDocument, error) {
+		return nil, nil //nolint:nilnil // the nil document contract: returning no document keeps the tier inactive
+	})})
+
+	assert.True(t, settings.Loader)
+	assert.Equal(t, "", settings.Explicit)
+	assert.Equal(t, []string(nil), settings.Tier)
+	assert.False(t, settings.Cascading)
+}
+
+func TestExtractConfigLoaderFunc_NoLoader_ReturnsNil(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, ConfigLoaderFunc(nil), extractConfigLoaderFunc([]ConfigOption{ConfigPaths("a.json")}))
+	assert.Equal(t, ConfigLoaderFunc(nil), extractConfigLoaderFunc(nil))
+}
+
+func TestExtractConfigLoaderFunc_RepeatedDeclaration_LastWins(t *testing.T) {
+	t.Parallel()
+
+	first := func(ConfigContext) (*ConfigDocument, error) {
+		return new(ConfigDocument).Set("who", "first", "first"), nil
+	}
+	second := func(ConfigContext) (*ConfigDocument, error) {
+		return new(ConfigDocument).Set("who", "second", "second"), nil
+	}
+
+	load := extractConfigLoaderFunc([]ConfigOption{
+		ConfigLoader(first),
+		ConfigPaths("a.json"),
+		ConfigLoader(second),
+	})
+
+	document, err := load(nil)
+
+	assert.NoError(t, err)
+	assert.Equal(t, "second", document.entries[0].value)
+}

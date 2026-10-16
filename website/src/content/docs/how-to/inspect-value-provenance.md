@@ -61,21 +61,16 @@ The `safe` tag applies exclusively to flag containers; positional arguments and 
 Invoke the binary with `--why` alongside any other flags or environment variables:
 
 ```sh
-SERVER_PORT=9002 server --why --port 9003
+SERVER_PORT=9002 SERVER_TOKEN=hunter2 server --why --port 9003
 ```
 
 ```text no-copy
 Value provenance for "server":
 
-  FLAG     VALUE       SOURCE   ENV           CONFIG PATH
-  --host   127.0.0.1   default  SERVER_HOST   host
-  --port   9003        cli      SERVER_PORT   port
-  --token  ██████      default  SERVER_TOKEN  token
-
-Config decoders: none
-
-Config paths checked:
-  none
+  FLAG      VALUE       SOURCE    ENV            CONFIG PATH
+  --host    127.0.0.1   default   SERVER_HOST    host
+  --port    9003        cli       SERVER_PORT    port
+  --token   ██████      env       SERVER_TOKEN   token
 
 values are redacted — tag fields safe:"true" to display
 ```
@@ -84,25 +79,25 @@ The report contains these diagnostic sections (the feature table appears only wh
 
 - **Flag table**:
   - `FLAG`: The declared flag name.
-  - `VALUE`: The winning value, or `██████` if untagged.
-  - `SOURCE`: The winning tier (`cli`, `env`, `config`, or `default`). For a map flag, the highest contributing tier.
+  - `VALUE`: The winning value, or `██████` if untagged. Entry-bearing map rows render `-` because the sub-rows state each key's value.
+  - `SOURCE`: The winning tier (`cli`, `env`, `config`, or `default`). A config-sourced value names the contributing file in parentheses (`config (app.yaml)`). Entry-bearing map rows render `-` because the sub-rows state each key's tier.
   - `ENV`: The derived or explicit environment variable evaluated for this flag.
   - `CONFIG PATH`: The evaluated config file key.
 - **Config decoders**: All file format decoders registered on the application.
 - **Config paths checked**: Every file path probed during resolution, annotated with its status (`(none found)` or loaded).
 - **Features**: Every declared feature, its resolved value, and its source.
 
-Map flags merge key by key across tiers, so their row is followed by one indented sub-row per key carrying the tier that last wrote it:
+Map flags merge key by key across tiers, so their row renders `-` for value and source and is followed by one indented sub-row per key carrying that key's value and the tier that last wrote it:
 
 ```sh
-server --why --headers shared=cli,team=core
+SERVER_LABELS=region=eu-west-1 server --why --labels shared=cli,team=core
 ```
 
 ```text no-copy
-  --headers   region=eu-west-1, shared=cli, team=core   cli      -   headers
-              region=eu-west-1                          config
-              shared=cli                                cli
-              team=core                                 cli
+  --labels   -                  -        SERVER_LABELS   labels
+             region=eu-west-1   env
+             shared=cli         cli
+             team=core          cli
 ```
 
 ## Inspect feature provenance

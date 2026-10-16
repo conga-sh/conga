@@ -42,3 +42,9 @@ stdout '--listen'
 stdout 'Features:'
 stdout 'http3'
 stdout 'strict-tls'
+
+# 6. Non-sensitive flag values display once tagged safe: no redaction footer.
+exec serve --listen :9000 --cache 256 --why
+stdout '--listen\s+:9000\s+cli'
+stdout '--cache\s+256\s+cli'
+! stdout '██████'

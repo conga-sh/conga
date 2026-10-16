@@ -12,8 +12,8 @@ import (
 // emits provenance-aware warnings at runtime, marks help columns, and hides
 // deprecated members from shell completion.
 type CLI struct {
-	Old    conga.OptionalFlag[string] `deprecated:"use --modern instead" safe:"true"`
-	Modern conga.OptionalFlag[string] `safe:"true"`
+	Old    conga.OptionalFlag[string] `deprecated:"use --modern instead"`
+	Modern conga.OptionalFlag[string]
 
 	Legacy conga.Command[LegacyCmd] `deprecated:"use deploy instead" summary:"Legacy command"`
 	Deploy conga.Command[DeployCmd] `summary:"Deploy command"`

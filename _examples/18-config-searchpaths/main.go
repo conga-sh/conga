@@ -12,8 +12,8 @@ import (
 type CLI struct {
 	ConfigFile conga.ConfigFile `short:"c"`
 
-	Region conga.OptionalFlag[string] `default:"us-east-1" help:"Deployment region"`
-	Mode   conga.OptionalFlag[string] `default:"standby"   enum:"local,user,system,standby,active" help:"Operating mode"`
+	Region conga.OptionalFlag[string] `default:"us-east-1" help:"Deployment region"                safe:"true"`
+	Mode   conga.OptionalFlag[string] `default:"standby"   enum:"local,user,system,standby,active" help:"Operating mode" safe:"true"`
 }
 
 func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
@@ -27,6 +27,7 @@ func main() {
 		Name("firstfound").
 		Description("Single-file config mode: first existing search path wins").
 		Version("1.0.0").
+		EnableWhy().
 		RegisterDecoder(".hcl", hcl.Decode).
 		ConfigOptions(conga.ConfigPaths(".", "~/.config/firstfound", "${SYSCONF_DIR:-/etc/firstfound}"))
 

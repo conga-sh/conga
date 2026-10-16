@@ -35,11 +35,15 @@ const (
 // external configuration maps, and the engine-configured standard streams
 // projected from the session into per-value decode contexts.
 type bindingState struct {
-	EnvPrefix   string
-	ConfigData  *configdata.Data
-	TypeParsers coerce.Registry
-	Stdin       io.Reader
-	Stdout      io.Writer
+	EnvPrefix  string
+	ConfigData *configdata.Data
+	// ConfigOrigins lists the loaded configuration origins in precedence
+	// order (lowest to highest). It orders the contributing files reported as
+	// a merged map flag's source detail.
+	ConfigOrigins []string
+	TypeParsers   coerce.Registry
+	Stdin         io.Reader
+	Stdout        io.Writer
 	// EnvLookup overrides os.LookupEnv for environment binding. The completion
 	// path supplies the shell's injected environment; nil reads the process
 	// environment directly.
@@ -566,6 +570,22 @@ type mapMergeResult struct {
 	failedRaw   string
 	highestTier ValueSource
 	highestName string
+	// highestOrigins lists the distinct configuration origins contributing to
+	// the merged map, in load order, when the config tier is the highest
+	// contributor. Empty for other highest tiers.
+	highestOrigins []string
+}
+
+// sourceDetail renders the container-level source detail for a completed map
+// merge: the contributing configuration origins when the config tier is the
+// highest contributor, falling back to the highest tier's name (config key,
+// environment variable, flag token, or default literal).
+func (result mapMergeResult) sourceDetail() string {
+	if len(result.highestOrigins) > 0 {
+		return strings.Join(result.highestOrigins, ", ")
+	}
+
+	return result.highestName
 }
 
 // mapTierInput is one contributing tier of a map flag's merge: either raw
@@ -916,7 +936,12 @@ func parseTokens(cmdChain []*spec.Command, tokens []tokenizer.Token, index *flag
 	return parser.flagValues, parser.posTokens, parser.dashTokens, parser.rawTokens, nil
 }
 
-func applyFlagCoercion(cmdChain []*spec.Command, flagSpec *spec.Flag, rawValues []string, source ValueSource, sourceName string, state *bindingState) error {
+// applyFlagCoercion coerces the winning tier's raw values and records the
+// result on the flag container. sourceName attributes coercion failures to the
+// failing key, variable, or token; detail is the concrete origin stored on the
+// container, which differs from sourceName only for configuration values
+// (origin file instead of config key).
+func applyFlagCoercion(cmdChain []*spec.Command, flagSpec *spec.Flag, rawValues []string, source ValueSource, sourceName, detail string, state *bindingState) error {
 	if flagSpec.IsCounter {
 		totalCount := 0
 
@@ -938,7 +963,7 @@ func applyFlagCoercion(cmdChain []*spec.Command, flagSpec *spec.Flag, rawValues 
 			totalCount += parsedCount
 		}
 
-		flagStateOf(flagSpec.Handle).setValue(totalCount, source, sourceName)
+		flagStateOf(flagSpec.Handle).setValue(totalCount, source, detail)
 
 		return nil
 	}
@@ -951,7 +976,7 @@ func applyFlagCoercion(cmdChain []*spec.Command, flagSpec *spec.Flag, rawValues 
 			return newFlagCoercionError(cmdChain, flagSpec, source, sourceName, strings.Join(rawValues, flagSpec.Sep), err)
 		}
 
-		flagStateOf(flagSpec.Handle).setValue(typedSlice, source, sourceName)
+		flagStateOf(flagSpec.Handle).setValue(typedSlice, source, detail)
 
 		return nil
 	}
@@ -963,7 +988,7 @@ func applyFlagCoercion(cmdChain []*spec.Command, flagSpec *spec.Flag, rawValues 
 		return newFlagCoercionError(cmdChain, flagSpec, source, sourceName, lastValue, err)
 	}
 
-	flagStateOf(flagSpec.Handle).setValue(typedValue, source, sourceName)
+	flagStateOf(flagSpec.Handle).setValue(typedValue, source, detail)
 
 	return nil
 }
@@ -979,7 +1004,7 @@ func applyFlagValue(cmd *spec.Command, cmdChain []*spec.Command, flagSpec *spec.
 		}
 
 		if result.hasValues {
-			flagStateOf(flagSpec.Handle).setValue(result.merged, result.highestTier, result.highestName)
+			flagStateOf(flagSpec.Handle).setValue(result.merged, result.highestTier, result.sourceDetail())
 		}
 
 		return nil
@@ -987,22 +1012,24 @@ func applyFlagValue(cmd *spec.Command, cmdChain []*spec.Command, flagSpec *spec.
 
 	// Tier 1: CLI Flags
 	if values, ok := cliValues[flagSpec]; ok && len(values) > 0 {
-		return applyFlagCoercion(cmdChain, flagSpec, values, SourceCLI, "--"+flagSpec.Name, state)
+		flagToken := "--" + flagSpec.Name
+
+		return applyFlagCoercion(cmdChain, flagSpec, values, SourceCLI, flagToken, flagToken, state)
 	}
 
 	// Tier 2: Environment Variables
 	if envValue, envName, ok := lookupEnv(flagSpec, cmd, state); ok {
-		return applyFlagCoercion(cmdChain, flagSpec, []string{envValue}, SourceEnv, envName, state)
+		return applyFlagCoercion(cmdChain, flagSpec, []string{envValue}, SourceEnv, envName, envName, state)
 	}
 
 	// Tier 3: Configuration Files
 	if configValue, configKey, ok := lookupConfig(flagSpec, cmd, cmdChain, state); ok {
-		return applyFlagCoercion(cmdChain, flagSpec, []string{configValue}, SourceConfig, configKey, state)
+		return applyFlagCoercion(cmdChain, flagSpec, []string{configValue.Raw}, SourceConfig, configKey, cmp.Or(configValue.Origin, configKey), state)
 	}
 
 	// Tier 4: Default Values
 	if flagSpec.Default != "" {
-		return applyFlagCoercion(cmdChain, flagSpec, []string{flagSpec.Default}, SourceDefault, flagSpec.Default, state)
+		return applyFlagCoercion(cmdChain, flagSpec, []string{flagSpec.Default}, SourceDefault, flagSpec.Default, flagSpec.Default, state)
 	}
 
 	return nil
@@ -1144,20 +1171,20 @@ func envLookupFunc(state *bindingState) func(string) (string, bool) {
 	return os.LookupEnv
 }
 
-func lookupConfig(flagSpec *spec.Flag, cmd *spec.Command, cmdChain []*spec.Command, state *bindingState) (string, string, bool) {
+func lookupConfig(flagSpec *spec.Flag, cmd *spec.Command, cmdChain []*spec.Command, state *bindingState) (configdata.Value, string, bool) {
 	if state == nil || state.ConfigData == nil || flagSpec.ConfigKey == "-" {
-		return "", "", false
+		return configdata.Value{}, "", false
 	}
 
 	isString := flagSpec.TargetType != nil && flagSpec.TargetType.Kind() == reflect.String
 
 	for _, key := range candidateConfigKeys(flagSpec, cmd, cmdChain) {
-		if value, exists := state.ConfigData.Scalar(key); exists && (value != "" || isString) {
+		if value, exists := state.ConfigData.ScalarValue(key); exists && (value.Raw != "" || isString) {
 			return value, key, true
 		}
 	}
 
-	return "", "", false
+	return configdata.Value{}, "", false
 }
 
 // lookupConfigMap resolves a map flag's config-tier entries through the
@@ -2276,7 +2303,47 @@ func foldMapTiers(cmd *spec.Command, cmdChain []*spec.Command, flagSpec *spec.Fl
 
 	finalizeMapMerge(flagSpec, merged, provenance, origins, lastSource, lastName, result)
 
+	if result.highestTier == SourceConfig {
+		result.highestOrigins = orderedConfigOrigins(state, configEntries)
+	}
+
 	return nil
+}
+
+// orderedConfigOrigins lists the distinct origins contributing entries to a
+// merged map, ordered by configuration load order (lowest to highest
+// precedence). Origins absent from the recorded load order follow, sorted, so
+// the detail stays deterministic when the tier has no origin order (e.g.
+// completion-time resolution).
+func orderedConfigOrigins(state *bindingState, entries map[string]configdata.Value) []string {
+	present := make(map[string]bool, len(entries))
+
+	for _, entry := range entries {
+		if entry.Origin != "" {
+			present[entry.Origin] = true
+		}
+	}
+
+	if len(present) == 0 {
+		return nil
+	}
+
+	var ordered []string
+
+	if state != nil {
+		for _, origin := range state.ConfigOrigins {
+			if present[origin] {
+				ordered = append(ordered, origin)
+				delete(present, origin)
+			}
+		}
+	}
+
+	if len(present) > 0 {
+		ordered = append(ordered, slices.Sorted(maps.Keys(present))...)
+	}
+
+	return ordered
 }
 
 // finalizeMapMerge publishes a completed map fold into the merge result:
@@ -2440,6 +2507,10 @@ func mergeRegisteredMapTiers(cmd *spec.Command, cmdChain []*spec.Command, flagSp
 	if result.highestTier == SourceNone {
 		result.highestTier = lastSource
 		result.highestName = lastName
+	}
+
+	if result.highestTier == SourceConfig {
+		result.highestOrigins = orderedConfigOrigins(state, configEntries)
 	}
 
 	result.merged = merged.Interface()

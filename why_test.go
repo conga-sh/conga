@@ -291,11 +291,15 @@ type whyMergeCLI struct {
 	Secrets  conga.OptionalFlag[map[string]string] `help:"Secret headers"`
 }
 
+// TestWhy_MapMergePerKeyProvenance pins the per-key source attribution of a
+// map flag merged across the config, environment, and CLI tiers. Relative
+// config paths keep the reported origins stable across machines.
+//
+//nolint:paralleltest // Swaps the process working directory via t.Chdir.
 func TestWhy_MapMergePerKeyProvenance(t *testing.T) {
-	t.Parallel()
+	t.Chdir(t.TempDir())
 
-	tempDir := t.TempDir()
-	configPath := filepath.Join(tempDir, "why-merge.json")
+	configPath := "why-merge.json"
 
 	assert.NoError(t, os.WriteFile(configPath, []byte(`{
 		"experiments": {"alpha": true},
@@ -317,10 +321,7 @@ func TestWhy_MapMergePerKeyProvenance(t *testing.T) {
 	err := app.Run()
 
 	assert.NoError(t, err)
-
-	output := normalizeWhyGolden(buffer.String(), tempDir, "<TMP>")
-
-	assertGolden(t, "testdata/why/map-merge.golden", goldenWhyMapMerge, output)
+	assertGolden(t, "testdata/why/map-merge.golden", goldenWhyMapMerge, buffer.String())
 }
 
 // whyCascadeCLI exercises a map flag loaded from two cascading files so the
@@ -359,6 +360,46 @@ func TestWhy_CascadingMapOriginsPerKey(t *testing.T) {
 
 	assert.NoError(t, err)
 	assertGolden(t, "testdata/why/map-cascade-merge.golden", goldenWhyMapCascadeMerge, buffer.String())
+}
+
+// whyCascadeScalarCLI exercises scalar flags loaded from two cascading files
+// so the report can attribute each value to its contributing file.
+type whyCascadeScalarCLI struct {
+	noopRunner
+
+	Config conga.ConfigFile           `help:"Config file" multi:"true"`
+	Region conga.OptionalFlag[string] `help:"Region"      safe:"true"`
+	Team   conga.OptionalFlag[string] `help:"Team"        safe:"true"`
+}
+
+// TestWhy_CascadingScalarOriginsPerFile pins that a config-sourced scalar
+// reports the contributing file in the source cell: the nearest file for a
+// key set by several files, and the lower file for a key it alone sets.
+//
+//nolint:paralleltest // Swaps the process working directory via t.Chdir.
+func TestWhy_CascadingScalarOriginsPerFile(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	sysPath := "sys.json"
+	localPath := "local.json"
+
+	assert.NoError(t, os.WriteFile(sysPath, []byte(`{"region": "eu-west-1", "team": "core"}`), 0o600))
+	assert.NoError(t, os.WriteFile(localPath, []byte(`{"region": "us-east-1"}`), 0o600))
+
+	var buffer bytes.Buffer
+
+	app := conga.New[whyCascadeScalarCLI]().
+		Name("whyapp").
+		RegisterDecoder(".json", json.Decode).
+		ConfigOptions(conga.ConfigPaths(localPath, sysPath), conga.ConfigCascading()).
+		Stdout(&buffer).
+		EnableWhy().
+		Args([]string{"--why"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assertGolden(t, "testdata/why/scalar-cascade-merge.golden", goldenWhyScalarCascadeMerge, buffer.String())
 }
 
 type whyMapEntryWidthCLI struct {
@@ -857,20 +898,23 @@ func TestWhy_ConfigPathsChecked_NothingFound(t *testing.T) {
 	assertGolden(t, "testdata/why/config-paths-missing.golden", goldenWhyConfigPathsMissing, output)
 }
 
+// TestWhy_ConfigPathsChecked_LoadedTiers pins that a loaded search tier
+// reports the file that resolved it. Relative tier paths keep the reported
+// origins stable across machines.
+//
+//nolint:paralleltest // Swaps the process working directory via t.Chdir.
 func TestWhy_ConfigPathsChecked_LoadedTiers(t *testing.T) {
-	t.Parallel()
-
-	tmpDir := t.TempDir()
+	t.Chdir(t.TempDir())
 
 	// Stem tier: "<stem>.json" is probed when the stem path does not exist.
-	stemPath := filepath.Join(tmpDir, "user", "whyapp")
+	stemPath := filepath.Join("user", "whyapp")
 	assert.NoError(t, os.MkdirAll(filepath.Dir(stemPath), 0o700))
 
 	stemFile := stemPath + ".json"
 	assert.NoError(t, os.WriteFile(stemFile, []byte(`{"port": 9000}`), 0o600))
 
 	// Directory tier: candidate config names are probed inside the directory.
-	dirTier := filepath.Join(tmpDir, "system")
+	dirTier := "system"
 	assert.NoError(t, os.MkdirAll(dirTier, 0o700))
 
 	dirFile := filepath.Join(dirTier, "config.json")
@@ -889,9 +933,7 @@ func TestWhy_ConfigPathsChecked_LoadedTiers(t *testing.T) {
 	err := app.Run()
 
 	assert.NoError(t, err)
-
-	output := normalizeWhyGolden(buffer.String(), tmpDir, "<TMP>")
-	assertGolden(t, "testdata/why/config-paths-loaded.golden", goldenWhyConfigPathsLoaded, output)
+	assertGolden(t, "testdata/why/config-paths-loaded.golden", goldenWhyConfigPathsLoaded, buffer.String())
 }
 
 func TestWhy_ConfigPathsChecked_ExplicitPath(t *testing.T) {
