@@ -17,7 +17,7 @@ const (
 	DefaultCompletionFlagHelp = "Generate shell completion script"
 
 	// DefaultWhyFlagHelp is the default description for the --why flag.
-	DefaultWhyFlagHelp = "Show resolved field values and where they came from (values redacted unless tagged safe)"
+	DefaultWhyFlagHelp = "Show resolved field values and where they came from (values redacted unless tagged safe); accepts text or json"
 
 	// VersionJSONFlagName is the engine-owned name of the opt-in version
 	// command's machine-readable output selector. Schema building synthesizes

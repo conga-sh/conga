@@ -96,6 +96,8 @@ hello:
 
 `app.EnableWhy()` enables `--why`, which prints a per-field provenance report — every resolved value in the active command chain with its [origin tier](/explanation/value-precedence/) (`● cli`, `● env VAR`, `● config file`, `· default`, `○ unset`). A config-sourced value names the contributing configuration file in parentheses (`config (app.yaml)`), for scalars, slices, and every merged map key. Map flags merge key by key across tiers, so an entry-bearing map row renders placeholder `-` cells for its value and source and is followed by one indented sub-row per key carrying that key's value and the tier that last wrote it, annotated with the contributing file when the tier is config. The `CONFIG PATH` column still names the config-document key. Values are redacted by default; fields opt in to display with `safe:"true"`. The report machinery is linked only when `app.EnableWhy()` is called; otherwise `--why` remains an unknown flag.
 
+By default (or with `--why=text`), the report renders as formatted human-readable tables. Pass `--why=json` to emit a machine-readable JSON document detailing `command`, `flags`, `globalFlags`, `features`, `config` paths, and the `redacted` state. Values other than `text` or `json` are rejected with a usage error (exit 2).
+
 When the root command declares `conga.Features[T]`, the report ends with a `Features:` table listing every declared feature, its resolved value, and its source. Each feature reports the tier that last wrote its key; keys no tier sets fall back to the field default (`· default`) or render unset (`○ unset`). See [Feature toggles](/reference/struct-tags/#feature-toggles-congafeaturest).
 
 ## Completion surface

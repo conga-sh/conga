@@ -96,7 +96,7 @@
     {
       "value": "--why",
       "display": "--why",
-      "description": "Show resolved field values and where they came from (values redacted unless tagged safe)",
+      "description": "Show resolved field values and where they came from (values redacted unless tagged safe); accepts text or json",
       "tag": "longhand flags"
     }
   ],

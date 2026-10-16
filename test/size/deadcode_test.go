@@ -46,6 +46,19 @@ func TestMinimalHello_ConfigResolverEliminated(t *testing.T) {
 	}
 }
 
+func TestMinimalHello_ConfigLoaderEliminated(t *testing.T) {
+	t.Parallel()
+
+	symbols := buildAndListSymbols(t, minimalExamplePath)
+
+	assert.True(t, symbols["main.main"], "sanity check: the analysis build must expose symbols")
+
+	for symbol := range symbols {
+		assert.False(t, strings.Contains(symbol, "resolveLoaderConfig"), "linker must drop the programmatic config loader: "+symbol)
+		assert.False(t, strings.Contains(symbol, "loadDocumentConfigData"), "linker must drop loader document validation: "+symbol)
+	}
+}
+
 func TestMinimalHello_WhyEliminated(t *testing.T) {
 	t.Parallel()
 
@@ -56,6 +69,17 @@ func TestMinimalHello_WhyEliminated(t *testing.T) {
 	for symbol := range symbols {
 		assert.False(t, strings.Contains(symbol, "internal/why."), "linker must drop the why report: "+symbol)
 	}
+}
+
+func TestMinimalHello_ScanBuiltinRequestInlined(t *testing.T) {
+	t.Parallel()
+
+	symbols := buildAndListSymbols(t, minimalExamplePath)
+
+	assert.True(t, symbols["main.main"], "sanity check: the analysis build must expose symbols")
+	// scanBuiltinRequest must stay within the compiler's inlining budget (<= 80)
+	// so it inlines into App.execute and avoids emitting a standalone symbol.
+	assert.False(t, symbols["github.com/conga-sh/conga.scanBuiltinRequest"], "scanBuiltinRequest must stay inlined")
 }
 
 func TestMinimalHello_CompletionEliminated(t *testing.T) {

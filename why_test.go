@@ -3,12 +3,15 @@ package conga_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/alecthomas/assert/v2"
+
+	stdjson "encoding/json"
 
 	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/decoder/json"
@@ -1704,4 +1707,360 @@ type whyLeafCLI struct {
 	Port    conga.OptionalFlag[int]      `help:"Listen port"`
 	CLIOnly conga.OptionalFlag[string]   `config:"-"           help:"CLI-only override"`
 	Sub     conga.Command[whyLeafRunner] `summary:"Subcommand"`
+}
+
+func TestBuiltinWhy_JSONFormat(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	app := conga.New[whyCLI]().
+		Name("cloudctl").
+		EnableWhy().
+		Stdout(&buffer).
+		Args([]string{"--port", "8080", "--shown", "visible-value", "--why=json"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+
+	type mapEntryPayload struct {
+		Key    string `json:"key"`
+		Value  string `json:"value"`
+		Source string `json:"source"`
+		Detail string `json:"detail"`
+	}
+
+	type flagPayload struct {
+		Label      string            `json:"label"`
+		Value      string            `json:"value"`
+		Source     string            `json:"source"`
+		Detail     string            `json:"detail"`
+		Env        string            `json:"env"`
+		ConfigPath string            `json:"configPath"`
+		Error      string            `json:"error"`
+		Hidden     bool              `json:"hidden"`
+		Entries    []mapEntryPayload `json:"entries"`
+	}
+
+	type featurePayload struct {
+		Name   string `json:"name"`
+		Value  string `json:"value"`
+		Source string `json:"source"`
+		Detail string `json:"detail"`
+	}
+
+	type configPathPayload struct {
+		Path        string   `json:"path"`
+		Status      string   `json:"status"`
+		ProbedFiles []string `json:"probedFiles"`
+	}
+
+	type configPayload struct {
+		Decoders []string            `json:"decoders"`
+		Paths    []configPathPayload `json:"paths"`
+		Examples []string            `json:"examples"`
+	}
+
+	type whyJSONPayload struct {
+		Command     string           `json:"command"`
+		Flags       []flagPayload    `json:"flags"`
+		GlobalFlags []flagPayload    `json:"globalFlags"`
+		Features    []featurePayload `json:"features"`
+		Config      configPayload    `json:"config"`
+		Redacted    bool             `json:"redacted"`
+	}
+
+	var payload whyJSONPayload
+
+	err = stdjson.Unmarshal(buffer.Bytes(), &payload)
+
+	assert.NoError(t, err)
+
+	assert.Equal(t, "cloudctl", payload.Command)
+
+	var foundPort, foundShown, foundSecret bool
+
+	for _, flag := range payload.Flags {
+		switch flag.Label {
+		case "--port":
+			foundPort = true
+
+			assert.Equal(t, "██████", flag.Value)
+			assert.Equal(t, "cli", flag.Source)
+		case "--shown":
+			foundShown = true
+
+			assert.Equal(t, "visible-value", flag.Value)
+			assert.Equal(t, "cli", flag.Source)
+		case "--secret":
+			foundSecret = true
+
+			assert.True(t, flag.Hidden)
+		}
+	}
+
+	assert.True(t, foundPort)
+	assert.True(t, foundShown)
+	assert.True(t, foundSecret)
+}
+
+func TestBuiltinWhy_JSONMapAndFeatures(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	app := conga.New[whyMergeCLI]().
+		Name("cloudctl").
+		EnableWhy().
+		EnableFeatures().
+		Stdout(&buffer).
+		Args([]string{"--headers", "region=eu-central-1,env=prod", "--secrets", "api=xyz", "--feature-gates", "alpha=true", "--why=json"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+
+	var raw map[string]any
+
+	err = stdjson.Unmarshal(buffer.Bytes(), &raw)
+
+	assert.NoError(t, err)
+
+	flags, ok := raw["flags"].([]any)
+	assert.True(t, ok)
+
+	var foundHeaders, foundSecrets bool
+
+	for _, flagRaw := range flags {
+		flagMap, mapOk := flagRaw.(map[string]any)
+		if !mapOk {
+			continue
+		}
+
+		switch flagMap["label"] {
+		case "--headers":
+			foundHeaders = true
+			entries, entriesOk := flagMap["entries"].([]any)
+			assert.True(t, entriesOk)
+			assert.Equal(t, 2, len(entries))
+		case "--secrets":
+			foundSecrets = true
+
+			assert.Equal(t, "██████", flagMap["value"])
+			entries, entriesOk := flagMap["entries"].([]any)
+			assert.True(t, entriesOk)
+			assert.Equal(t, 1, len(entries))
+			entryMap, entryOk := entries[0].(map[string]any)
+			assert.True(t, entryOk)
+			assert.Equal(t, "api", entryMap["key"])
+			assert.Equal(t, "██████", entryMap["value"])
+		}
+	}
+
+	assert.True(t, foundHeaders)
+	assert.True(t, foundSecrets)
+
+	features, ok := raw["features"].([]any)
+	assert.True(t, ok)
+	assert.True(t, len(features) >= 2)
+}
+
+func TestBuiltinWhy_TextFormatExplicit(t *testing.T) {
+	t.Parallel()
+
+	var bareBuffer, explicitBuffer bytes.Buffer
+
+	app1 := conga.New[whyCLI]().
+		Name("cloudctl").
+		EnableWhy().
+		Stdout(&bareBuffer).
+		Args([]string{"--port", "8080", "--why"})
+
+	err1 := app1.Run()
+
+	assert.NoError(t, err1)
+
+	app2 := conga.New[whyCLI]().
+		Name("cloudctl").
+		EnableWhy().
+		Stdout(&explicitBuffer).
+		Args([]string{"--port", "8080", "--why=text"})
+
+	err2 := app2.Run()
+
+	assert.NoError(t, err2)
+
+	assert.Equal(t, bareBuffer.String(), explicitBuffer.String())
+}
+
+func TestBuiltinWhy_InvalidFormat(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	app := conga.New[whyCLI]().
+		Name("cloudctl").
+		EnableWhy().
+		Stdout(&buffer).
+		Args([]string{"--why=banana"})
+
+	err := app.Run()
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), `invalid value "banana" (must be one of: text, json) for --why`)
+	assert.IsError(t, err, conga.ErrValidation)
+	assert.True(t, conga.IsUsageError(err))
+
+	var usage conga.UsageError
+
+	assert.True(t, errors.As(err, &usage))
+	assert.Equal(t, "cloudctl", usage.CommandPath())
+}
+
+func TestBuiltinWhy_FalseFlagRejected(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	app := conga.New[whyCLI]().
+		Name("cloudctl").
+		EnableWhy().
+		Stdout(&buffer).
+		Args([]string{"sub", "--why=false"})
+
+	err := app.Run()
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), `invalid value "false" (must be one of: text, json) for --why`)
+	assert.IsError(t, err, conga.ErrValidation)
+	assert.True(t, conga.IsUsageError(err))
+}
+
+func TestBuiltinWhy_LastValueWinsOverInvalid(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	app := conga.New[whyCLI]().
+		Name("cloudctl").
+		EnableWhy().
+		Stdout(&buffer).
+		Args([]string{"--port", "8080", "--why=banana", "--why=json"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Contains(t, buffer.String(), `"command":"cloudctl"`)
+}
+
+func TestBuiltinWhy_EmptyAttachedValue(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	app := conga.New[whyCLI]().
+		Name("cloudctl").
+		EnableWhy().
+		Stdout(&buffer).
+		Args([]string{"--port", "8080", "--why="})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Contains(t, buffer.String(), "Value provenance")
+}
+
+func TestBuiltinWhy_RepeatedFormatLastValueWins(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	app := conga.New[whyCLI]().
+		Name("cloudctl").
+		EnableWhy().
+		Stdout(&buffer).
+		Args([]string{"--port", "8080", "--why=json", "--why=text"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Contains(t, buffer.String(), "Value provenance")
+}
+
+func TestBuiltinWhy_HelpWinsOverInvalidFormat(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	app := conga.New[whyCLI]().
+		Name("cloudctl").
+		EnableWhy().
+		Stdout(&buffer).
+		Args([]string{"--help", "--why=banana"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Contains(t, buffer.String(), "Usage:\n  cloudctl")
+}
+
+func TestBuiltinWhy_VersionWinsOverInvalidFormat(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	app := conga.New[whyCLI]().
+		Name("cloudctl").
+		Version("1.2.3").
+		EnableWhy().
+		Stdout(&buffer).
+		Args([]string{"--version", "--why=banana"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Contains(t, buffer.String(), "cloudctl has version 1.2.3")
+}
+
+func TestBuiltinWhy_TrueFlag(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	app := conga.New[whyCLI]().
+		Name("cloudctl").
+		EnableWhy().
+		Stdout(&buffer).
+		Args([]string{"--port", "8080", "--why=true"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Contains(t, buffer.String(), "Value provenance")
+}
+
+func TestBuiltinWhy_NonFormatBoolsRejected(t *testing.T) {
+	t.Parallel()
+
+	for _, invalid := range []string{"True", "0", "1", "FALSE", "TRUE"} {
+		t.Run(invalid, func(t *testing.T) {
+			t.Parallel()
+
+			var buffer bytes.Buffer
+
+			app := conga.New[whyCLI]().
+				Name("cloudctl").
+				EnableWhy().
+				Stdout(&buffer).
+				Args([]string{"--why=" + invalid})
+
+			err := app.Run()
+
+			assert.Error(t, err)
+			assert.Contains(t, err.Error(), `invalid value "`+invalid+`" (must be one of: text, json) for --why`)
+			assert.IsError(t, err, conga.ErrValidation)
+			assert.True(t, conga.IsUsageError(err))
+		})
+	}
 }
