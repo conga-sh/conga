@@ -11,7 +11,7 @@ func TestNew_EmptyDataCarriesNoValues(t *testing.T) {
 
 	data := New()
 
-	_, hasScalar := data.Scalar("port")
+	_, hasScalar := data.ScalarValue("port")
 
 	assert.False(t, hasScalar)
 	assert.Zero(t, data.Map("tags"))
@@ -26,15 +26,11 @@ func TestSetScalar_ReadsBackStoredValue(t *testing.T) {
 
 	data.SetScalar("port", "8080", "app.yaml")
 
-	value, hasScalar := data.Scalar("port")
-
-	assert.True(t, hasScalar)
-	assert.Equal(t, "8080", value)
-	assert.True(t, data.HasKey("port"))
-
 	scalarVal, hasVal := data.ScalarValue("port")
+
 	assert.True(t, hasVal)
 	assert.Equal(t, Value{Raw: "8080", Origin: "app.yaml"}, scalarVal)
+	assert.True(t, data.HasKey("port"))
 }
 
 func TestSetScalar_LaterStoreReplacesEarlierValue(t *testing.T) {
@@ -44,12 +40,8 @@ func TestSetScalar_LaterStoreReplacesEarlierValue(t *testing.T) {
 	data.SetScalar("port", "8000", "low.yaml")
 	data.SetScalar("port", "9500", "high.yaml")
 
-	value, hasScalar := data.Scalar("port")
-
-	assert.True(t, hasScalar)
-	assert.Equal(t, "9500", value)
-
 	scalarVal, hasVal := data.ScalarValue("port")
+
 	assert.True(t, hasVal)
 	assert.Equal(t, Value{Raw: "9500", Origin: "high.yaml"}, scalarVal)
 }

@@ -222,10 +222,10 @@ func TestValidateNamespaceConfig_MapFlagAtDottedConfigKey(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	scalarValue, hasScalar := dest.Scalar("remote.insecure")
+	scalarValue, hasScalar := dest.ScalarValue("remote.insecure")
 
 	assert.True(t, hasScalar)
-	assert.Equal(t, "true", scalarValue)
+	assert.Equal(t, "true", scalarValue.Raw)
 
 	entries := dest.Map("remote.pairs")
 

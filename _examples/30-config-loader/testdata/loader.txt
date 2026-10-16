@@ -5,9 +5,9 @@
 
 # 1. The default dev profile supplies host, port, and headers from the document.
 exec deploy
-stdout '--host\s+string\s+dev\.example\.com\s+● config host'
-stdout '--port\s+int\s+7100\s+● config port'
-stdout '--headers\s+map\[string\]string\s+X-Region=eu\s+● config headers'
+stdout '--host\s+string\s+dev\.example\.com\s+● config profile dev'
+stdout '--port\s+int\s+7100\s+● config profile dev'
+stdout '--headers\s+map\[string\]string\s+X-Region=eu\s+● config profile dev'
 stdout 'connect dev\.example\.com:7100 headers=1 force-all=false'
 
 # 2. Command-line values outrank the document.
@@ -33,8 +33,8 @@ stderr 'config loader failed: unknown profile "staging"'
 #    values display via safe:"true", while request headers stay redacted.
 exec deploy --profile prod --why
 stdout '--profile\s+prod\s+cli'
-stdout '--host\s+prod\.example\.com\s+config'
-stdout '--port\s+7200\s+config'
+stdout '--host\s+prod\.example\.com\s+config \(profile prod\)'
+stdout '--port\s+7200\s+config \(profile prod\)'
 stdout 'X-Force=██████'
 stdout 'config \(profile prod\)'
 stdout 'profile prod\s+loaded: profile prod'

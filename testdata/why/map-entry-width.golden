@@ -1,7 +1,7 @@
 Value provenance for "whyapp":
 
   FLAG        VALUE          SOURCE   ENV   CONFIG PATH
-  --secrets   ██████         cli      -     secrets
+  --secrets   -              -        -     secrets
               token=██████   cli
 
 values are redacted — tag fields safe:"true" to display

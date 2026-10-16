@@ -17,7 +17,7 @@ The complete scenarios, fixtures included, live in
 
 ## What to look for
 
-- Each value's origin badge (`● cli`, `● env PORT`, `● config port`,
+- Each value's origin badge (`● cli`, `● env PORT`, `● config server.toml`,
   `· default`) in the inspector output.
 - The built-in tier probes `${XDG_CONFIG_HOME:-~/.config}/server-precedence`.
 - `config:"-"` fields are rejected inside config files (exit 1).

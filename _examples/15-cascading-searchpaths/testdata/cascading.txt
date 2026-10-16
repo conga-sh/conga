@@ -8,17 +8,17 @@ env SYSCONF_DIR=$WORK/etc/cascading-app
 exec cascading-app
 stdout '⚙  cascading-app'
 stdout '-c, --config-file\s+conga\.ConfigFile\s+.*etc[/\\]cascading-app[/\\]cascading-app\.yaml, .*cascading-app\.yaml, cascading-app\.yaml\s+● config '
-stdout '--api-endpoint\s+string\s+https://api\.local\.dev\s+● config api-endpoint'
-stdout '--timeout\s+time\.Duration\s+15s\s+● config timeout'
-stdout '--theme\s+string\s+light\s+● config theme'
-stdout '--telemetry\s+bool\s+false\s+● config telemetry'
+stdout '--api-endpoint\s+string\s+https://api\.local\.dev\s+● config cascading-app\.yaml'
+stdout '--timeout\s+time\.Duration\s+15s\s+● config .*home[/\\]\.config[/\\]cascading-app[/\\]cascading-app\.yaml'
+stdout '--theme\s+string\s+light\s+● config .*home[/\\]\.config[/\\]cascading-app[/\\]cascading-app\.yaml'
+stdout '--telemetry\s+bool\s+false\s+● config .*etc[/\\]cascading-app[/\\]cascading-app\.yaml'
 
 # 2. --why attributes each winning value to its tier and lists every loaded
 #    cascade file
 exec cascading-app --why
-stdout '--api-endpoint\s+https://api\.local\.dev\s+config'
-stdout '--timeout\s+15s\s+config'
-stdout '--theme\s+light\s+config'
+stdout '--api-endpoint\s+https://api\.local\.dev\s+config \(cascading-app\.yaml\)'
+stdout '--timeout\s+15s\s+config \(.*home[/\\]\.config[/\\]cascading-app[/\\]cascading-app\.yaml\)'
+stdout '--theme\s+light\s+config \(.*home[/\\]\.config[/\\]cascading-app[/\\]cascading-app\.yaml\)'
 stdout 'loaded: .*etc[/\\]cascading-app[/\\]cascading-app\.yaml'
 stdout 'loaded: .*home[/\\]\.config[/\\]cascading-app[/\\]cascading-app\.yaml'
 stdout 'loaded: cascading-app\.yaml'
@@ -31,8 +31,8 @@ stdout '--timeout\s+time\.Duration\s+5s\s+● cli --timeout'
 
 # 4. Explicit -c disables cascading: only that single file is loaded
 exec cascading-app -c home/.config/cascading-app/cascading-app.yaml
-stdout '--theme\s+string\s+light\s+● config theme'
-stdout '--timeout\s+time\.Duration\s+15s\s+● config timeout'
+stdout '--theme\s+string\s+light\s+● config home[/\\]\.config[/\\]cascading-app[/\\]cascading-app\.yaml'
+stdout '--timeout\s+time\.Duration\s+15s\s+● config home[/\\]\.config[/\\]cascading-app[/\\]cascading-app\.yaml'
 stdout '--api-endpoint\s+string\s+https://api\.default\.io\s+· default'
 stdout '--telemetry\s+bool\s+true\s+· default'
 
@@ -43,8 +43,8 @@ stderr 'cannot read config file "missing\.yaml"'
 # 6. Partial cascade: missing intermediate files are skipped silently
 rm home/.config/cascading-app/cascading-app.yaml
 exec cascading-app
-stdout '--api-endpoint\s+string\s+https://api\.local\.dev\s+● config api-endpoint'
-stdout '--timeout\s+time\.Duration\s+30s\s+● config timeout'
+stdout '--api-endpoint\s+string\s+https://api\.local\.dev\s+● config cascading-app\.yaml'
+stdout '--timeout\s+time\.Duration\s+30s\s+● config .*etc[/\\]cascading-app[/\\]cascading-app\.yaml'
 stdout '--theme\s+string\s+dark\s+· default'
 
 -- etc/cascading-app/cascading-app.yaml --

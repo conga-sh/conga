@@ -22,12 +22,12 @@ The complete scenarios, fixtures included, live in
 
 ## What to look for
 
-- Document values bind with `● config <key>` provenance and outrank `default`
-  tags while losing to `--host` and `DEPLOY_HOST`.
+- Document values bind with `● config profile dev` provenance and outrank
+  `default` tags while losing to `--host` and `DEPLOY_HOST`.
 - The prod profile's document carries the `force-all` feature gate; the dev
   profile gates it off, so `--force-all` is a usage error (exit 2).
-- `--why` attributes map keys and features to the origin labels the loader
-  recorded (`config (profile prod)`, `loaded: profile prod`).
+- `--why` attributes scalars, map keys, and features to the origin labels the
+  loader recorded (`config (profile prod)`, `loaded: profile prod`).
 - A failing loader is app-authored data: exit 1 with the wrapped cause, never a
   usage error.
 

@@ -8,13 +8,13 @@ env SYSCONF_DIR=$WORK/etc/firstfound
 exec firstfound
 stdout '⚙  firstfound'
 stdout '-c, --config-file\s+conga\.ConfigFile\s+firstfound\.hcl\s+● config firstfound\.hcl'
-stdout '--region\s+string\s+local-region\s+● config region'
-stdout '--mode\s+string\s+local\s+● config mode'
+stdout '--region\s+string\s+local-region\s+● config firstfound\.hcl'
+stdout '--mode\s+string\s+local\s+● config firstfound\.hcl'
 
 # 2. --why reports the first-found candidate and the probed locations of the
 #    remaining tiers
 exec firstfound --why
-stdout '--region\s+local-region\s+config'
+stdout '--region\s+local-region\s+config \(firstfound\.hcl\)'
 stdout 'loaded: firstfound\.hcl'
 stdout 'no config file'
 stdout 'looked for: .*home[/\\]\.config[/\\]firstfound[/\\]firstfound\.hcl'
@@ -24,14 +24,14 @@ stdout 'looked for: .*home[/\\]\.config[/\\]firstfound[/\\]firstfound\.hcl'
 rm firstfound.hcl
 exec firstfound
 stdout '-c, --config-file\s+conga\.ConfigFile\s+.*home[/\\]\.config[/\\]firstfound[/\\]firstfound\.hcl\s+● config .*firstfound\.hcl'
-stdout '--region\s+string\s+user-region\s+● config region'
-stdout '--mode\s+string\s+user\s+● config mode'
+stdout '--region\s+string\s+user-region\s+● config .*home[/\\]\.config[/\\]firstfound[/\\]firstfound\.hcl'
+stdout '--mode\s+string\s+user\s+● config .*home[/\\]\.config[/\\]firstfound[/\\]firstfound\.hcl'
 
 # 4. Explicit -c overrides the search list entirely
 exec firstfound -c etc/firstfound/firstfound.hcl
 stdout '-c, --config-file\s+conga\.ConfigFile\s+etc[/\\]firstfound[/\\]firstfound\.hcl\s+● cli --config-file'
-stdout '--region\s+string\s+system-region\s+● config region'
-stdout '--mode\s+string\s+system\s+● config mode'
+stdout '--region\s+string\s+system-region\s+● config etc[/\\]firstfound[/\\]firstfound\.hcl'
+stdout '--mode\s+string\s+system\s+● config etc[/\\]firstfound[/\\]firstfound\.hcl'
 
 # 5. No config file found at all: struct defaults apply
 rm home/.config/firstfound/firstfound.hcl

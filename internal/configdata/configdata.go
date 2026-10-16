@@ -61,16 +61,9 @@ func (data *Data) EnsureMap(keys []string) map[string]Value {
 	return entries
 }
 
-// Scalar returns the raw scalar string stored under key.
-func (data *Data) Scalar(key string) (string, bool) {
-	val, exists := data.scalars[key]
-
-	return val.Raw, exists
-}
-
 // ScalarValue returns the scalar value and its origin stored under key.
-// Consumers that need the provenance — such as the programmatic
-// configuration loader — prefer it over Scalar.
+// Consumers that need the provenance — such as the value binder and the
+// programmatic configuration loader — prefer it over a raw-string accessor.
 func (data *Data) ScalarValue(key string) (Value, bool) {
 	val, exists := data.scalars[key]
 

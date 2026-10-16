@@ -39,24 +39,24 @@ env -u API_KEY
 # 4. JSON config decoding
 exec multiformat-app -c config.json
 stdout '-c, --config-file\s+conga\.ConfigFile\s+config\.json\s+● cli --config-file'
-stdout '-p, --port\s+int\s+3000\s+● config port'
-stdout '--max-workers\s+int\s+8\s+● config max-workers'
-stdout '--service-name\s+string\s+json-service\s+● config service-name'
+stdout '-p, --port\s+int\s+3000\s+● config config\.json'
+stdout '--max-workers\s+int\s+8\s+● config config\.json'
+stdout '--service-name\s+string\s+json-service\s+● config config\.json'
 
 # 5. YAML config decoding (with snake_case and kebab-case normalization)
 exec multiformat-app -c config.yaml
-stdout '--service-name\s+string\s+yaml-service\s+● config service-name'
-stdout '-p, --port\s+int\s+4000\s+● config port'
+stdout '--service-name\s+string\s+yaml-service\s+● config config\.yaml'
+stdout '-p, --port\s+int\s+4000\s+● config config\.yaml'
 
 # 6. TOML config decoding
 exec multiformat-app -c config.toml
-stdout '-p, --port\s+int\s+5000\s+● config port'
-stdout '--max-workers\s+int\s+16\s+● config max-workers'
+stdout '-p, --port\s+int\s+5000\s+● config config\.toml'
+stdout '--max-workers\s+int\s+16\s+● config config\.toml'
 
 # 7. HCL config decoding
 exec multiformat-app -c config.hcl
-stdout '-p, --port\s+int\s+6000\s+● config port'
-stdout '--service-name\s+string\s+hcl-service\s+● config service-name'
+stdout '-p, --port\s+int\s+6000\s+● config config\.hcl'
+stdout '--service-name\s+string\s+hcl-service\s+● config config\.hcl'
 
 # 8. Strict validation typo suggestions (config-parse errors exit 1)
 exit-status 1 multiformat-app -c typo.yaml

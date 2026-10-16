@@ -22,7 +22,7 @@ exact contents are in [`testdata/profiles.txt`](testdata/profiles.txt).
 - `port: 9443` from `prod.yaml` overrides `port: 9000` from `base.yaml`.
 - The config-file container reports every loaded file in order.
 - Without `-c`, the declared fallback paths cascade in lowest-first order.
-- `--why` lists both loaded files and the winning tier per value.
+- `--why` lists both loaded files and names the contributing file for each value.
 
 ## Test
 

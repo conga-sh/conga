@@ -1,6 +1,7 @@
 package conga
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -1397,8 +1398,12 @@ func (a *App[T]) mountCompletionSubcommand(cmd *spec.Command) {
 // flag supplied on the command line (a usage error even under --help, symmetric
 // with a gated subcommand). It returns the pruned flags.
 func (a *App[T]) prepareFeatures(featureBinding featureState, cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, request builtinRequest) ([]prunedFlag, error) {
+	var loadedPaths []string
+
 	if !request.versionOnly() {
 		resolution := a.resolveConfig(cmd, cmdChain, flagValues)
+		loadedPaths = resolution.loadedPaths
+
 		if !request.toleratesFeatureErrors() {
 			if err := resolution.err; err != nil {
 				return nil, err
@@ -1409,6 +1414,7 @@ func (a *App[T]) prepareFeatures(featureBinding featureState, cmd *spec.Command,
 	featureBindingState := &bindingState{
 		EnvPrefix:             a.envPrefix,
 		ConfigData:            a.configData,
+		ConfigOrigins:         loadedPaths,
 		TypeParsers:           a.collectTypeParsers(),
 		TolerateFeatureErrors: request.toleratesFeatureErrors(),
 	}
@@ -1449,6 +1455,7 @@ func (a *App[T]) prepareNonMetaExecution(session *Session, cmd *spec.Command, cm
 	state := &bindingState{
 		EnvPrefix:       a.envPrefix,
 		ConfigData:      a.configData,
+		ConfigOrigins:   resolution.loadedPaths,
 		TypeParsers:     a.collectTypeParsers(),
 		CustomMapMerger: a.customMapMerger,
 		Stdin:           session.stdin,
@@ -1731,8 +1738,12 @@ func (a *App[T]) appendFlagDeprecationNotice(flagSpec *spec.Flag) {
 		a.deprecationNotices = append(a.deprecationNotices,
 			fmt.Sprintf("WARNING: environment variable '%s' is deprecated: %s", detail, flagSpec.Deprecated))
 	case SourceConfig:
+		// The container detail names the origin file (or loader label), so the
+		// warning derives the key from the declaration: the config tag when
+		// present, otherwise the flag name.
+		configKey := cmp.Or(flagSpec.ConfigKey, flagSpec.Name)
 		a.deprecationNotices = append(a.deprecationNotices,
-			fmt.Sprintf("WARNING: config key '%s' is deprecated: %s", detail, flagSpec.Deprecated))
+			fmt.Sprintf("WARNING: config key '%s' is deprecated: %s", configKey, flagSpec.Deprecated))
 	case SourceDefault, SourceNone:
 		// Defaulted or unset values are never warned about.
 	}

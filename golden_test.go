@@ -84,6 +84,9 @@ var (
 	//go:embed testdata/why/redaction-badges.golden
 	goldenWhyRedactionBadges string
 
+	//go:embed testdata/why/scalar-cascade-merge.golden
+	goldenWhyScalarCascadeMerge string
+
 	//go:embed testdata/why/subcommand-report.golden
 	goldenWhySubcommandReport string
 )

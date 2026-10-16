@@ -499,6 +499,50 @@ func TestConfigLoader_WhyReportsOrigins(t *testing.T) {
 	assert.Contains(t, output, "loaded: taskrc")
 }
 
+// TestConfigLoader_SourceDetailReportsOrigin pins that a document-supplied
+// scalar records the application-supplied origin label as its source detail,
+// matching the map-flag behavior.
+func TestConfigLoader_SourceDetailReportsOrigin(t *testing.T) {
+	t.Parallel()
+
+	cli := new(loaderBasicCLI)
+	app := conga.New(cli).
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+			return loaderDocument(func(document *conga.ConfigDocument) {
+				document.Set("port", 7100, "profile dev")
+			}), nil
+		})).
+		Args([]string{})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, conga.SourceConfig, cli.Port.Source())
+	assert.Equal(t, "profile dev", cli.Port.SourceDetail())
+}
+
+// TestConfigLoader_SourceDetailFallsBackToConfigKey pins the documented
+// fallback: when the loader supplies no origin for a key, the source detail
+// reports the matched configuration key.
+func TestConfigLoader_SourceDetailFallsBackToConfigKey(t *testing.T) {
+	t.Parallel()
+
+	cli := new(loaderBasicCLI)
+	app := conga.New(cli).
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+			return loaderDocument(func(document *conga.ConfigDocument) {
+				document.Set("port", 7100, "")
+			}), nil
+		})).
+		Args([]string{})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, conga.SourceConfig, cli.Port.Source())
+	assert.Equal(t, "port", cli.Port.SourceDetail())
+}
+
 func TestConfigLoader_WhyAttributesAppError(t *testing.T) {
 	t.Parallel()
 

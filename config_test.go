@@ -436,6 +436,44 @@ func TestConfig_MultiFlagTierCascadingMerge(t *testing.T) {
 	assert.Equal(t, localCfg, cli.Config.Path())
 }
 
+// TestConfig_CascadingScalarSourceDetailNamesFile pins that a config-sourced
+// scalar records the contributing file as its source detail: the nearest file
+// for a key set by several files, and the lower file for a key it alone sets.
+func TestConfig_CascadingScalarSourceDetailNamesFile(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	sysCfg := filepath.Join(tmpDir, "sys.toml")
+	localCfg := filepath.Join(tmpDir, "local.toml")
+
+	err := os.WriteFile(sysCfg, fixtureTierSys, 0o600)
+	assert.NoError(t, err)
+	err = os.WriteFile(localCfg, fixtureTierLocal, 0o600)
+	assert.NoError(t, err)
+
+	type ScalarSourceDetailCLI struct {
+		noopRunner
+
+		Config conga.ConfigFile        `multi:"true"`
+		Port   conga.OptionalFlag[int] `default:"8080"`
+		Host   conga.OptionalFlag[string]
+	}
+
+	cli := new(ScalarSourceDetailCLI)
+	app := conga.New(cli).
+		RegisterDecoder(".toml", toml.Decode).
+		ConfigOptions(conga.ConfigPaths(localCfg, sysCfg), conga.ConfigCascading()).
+		Args([]string{})
+
+	err = app.Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, conga.SourceConfig, cli.Port.Source())
+	assert.Equal(t, localCfg, cli.Port.SourceDetail())
+	assert.Equal(t, conga.SourceConfig, cli.Host.Source())
+	assert.Equal(t, sysCfg, cli.Host.SourceDetail())
+}
+
 // TestConfigOptions_MultipleCalls_AccumulateSlots verifies that separate
 // app.ConfigOptions calls accumulate independent option slots instead of
 // replacing the settings declared by earlier calls.
@@ -571,6 +609,34 @@ func TestConfig_CascadingMapKeyMerge(t *testing.T) {
 	assert.Equal(t, map[string]string{"base": "sys", "shared": "sys", "local": "local"}, cli.Tags.Get())
 	assert.Equal(t, []string{"local-a"}, cli.Hosts.Get())
 	assert.Equal(t, conga.SourceConfig, cli.Tags.Source())
+}
+
+// TestConfig_CascadingMapSourceDetailListsFiles pins that a config-sourced map
+// flag records every contributing file as its source detail, in configuration
+// load order (lowest precedence first).
+func TestConfig_CascadingMapSourceDetailListsFiles(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	sysCfg := filepath.Join(tmpDir, "sys.toml")
+	localCfg := filepath.Join(tmpDir, "local.toml")
+
+	err := os.WriteFile(sysCfg, fixtureMapCascadeSys, 0o600)
+	assert.NoError(t, err)
+	err = os.WriteFile(localCfg, fixtureMapCascadeLocal, 0o600)
+	assert.NoError(t, err)
+
+	cli := new(MapCascadeCLI)
+	app := conga.New(cli).
+		RegisterDecoder(".toml", toml.Decode).
+		ConfigOptions(conga.ConfigPaths(localCfg, sysCfg), conga.ConfigCascading()).
+		Args([]string{})
+
+	err = app.Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, conga.SourceConfig, cli.Tags.Source())
+	assert.Equal(t, sysCfg+", "+localCfg, cli.Tags.SourceDetail())
 }
 
 // TestConfig_CascadingMapKeyNearestFileWins pins the per-key file-order rule

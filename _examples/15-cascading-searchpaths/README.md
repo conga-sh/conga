@@ -18,12 +18,12 @@ The complete scenarios, fixtures included, live in
 
 ## What to look for
 
-- Values resolved from different files at once (`● config api-endpoint`,
-  `● config timeout`) show the merge.
+- Values resolved from different files at once (`● config cascading-app.yaml`)
+  show the merge, and each value names the file it came from.
 - Later tiers override earlier ones per key; missing tier files are skipped.
 - A missing explicit file is fatal (exit code 1).
-- `--why` attributes each winning value to its tier and lists every loaded
-  cascade file in resolution order.
+- `--why` attributes each winning value to its contributing file and lists every
+  loaded cascade file in resolution order.
 
 ## Test
 

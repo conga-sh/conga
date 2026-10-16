@@ -63,6 +63,7 @@ func (a *App[T]) buildWhyReport(cmdChain []*spec.Command, cliValues map[*spec.Fl
 	state := &bindingState{
 		EnvPrefix:       a.envPrefix,
 		ConfigData:      a.configData,
+		ConfigOrigins:   loadedPaths,
 		TypeParsers:     a.collectTypeParsers(),
 		CustomMapMerger: a.customMapMerger,
 		Stdin:           a.stdin,
@@ -168,7 +169,10 @@ func (a *App[T]) whyFlagRow(cmd *spec.Command, cmdChain []*spec.Command, flagSpe
 
 	// Tier 3: Configuration Files
 	if configValue, configKey, ok := lookupConfig(flagSpec, cmd, cmdChain, state); ok {
-		return a.whyCoercedRow(cmdChain, flagSpec, []string{configValue}, SourceConfig, configKey, state, row, !flagSpec.Safe)
+		row = a.whyCoercedRow(cmdChain, flagSpec, []string{configValue.Raw}, SourceConfig, configKey, state, row, !flagSpec.Safe)
+		row.Detail = whyOriginDetail(configValue.Origin)
+
+		return row
 	}
 
 	// Tier 4: Default Values: defaults are always displayed, matching --help.
@@ -383,15 +387,12 @@ func whyFeatureRows(root *spec.Command, result mapMergeResult) []why.FeatureRow 
 	return rows
 }
 
-// whyOriginDetail renders the per-key origin annotation for --why source
-// cells: the contributing configuration file's base name, or "" when the key
-// carries no origin (non-config tiers).
+// whyOriginDetail renders the origin annotation for --why source cells: the
+// recorded origin verbatim — a config file path as resolved (or the loader's
+// label). Cascading files commonly share a base name across directories, so
+// the full recorded origin is kept to keep the rows unambiguous.
 func whyOriginDetail(origin string) string {
-	if origin == "" {
-		return ""
-	}
-
-	return filepath.Base(origin)
+	return origin
 }
 
 // whyConfigPaths annotates every candidate configuration path probed during

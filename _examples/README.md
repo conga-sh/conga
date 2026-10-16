@@ -60,7 +60,7 @@ task test:examples
   active command chain, from root down to the leaf: a rounded-box title with
   the command path, one section per command (siblings marked `▸ selected`),
   and per-field rows with value and origin badges (`● cli`, `● env VAR`,
-  `● config key`, `· default`, `○ unset`). Colour is enabled on terminals and
+  `● config FILE`, `· default`, `○ unset`). Colour is enabled on terminals and
   honours `NO_COLOR`, `CLICOLOR=0`, and `CONGA_COLOR` (`0`/`1`). Used by every
   example except `01-minimal-hello` and `26-library-embedding` so you can
   *see* the precedence engine at work.

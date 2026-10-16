@@ -228,7 +228,7 @@ func bindFeatureMap(cmd *spec.Command, cmdChain []*spec.Command, flagValues map[
 	}
 
 	if result.hasValues {
-		flagStateOf(cmd.FeatureFlag.Handle).setValue(result.merged, result.highestTier, result.highestName)
+		flagStateOf(cmd.FeatureFlag.Handle).setValue(result.merged, result.highestTier, result.sourceDetail())
 	}
 
 	var provided map[string]string

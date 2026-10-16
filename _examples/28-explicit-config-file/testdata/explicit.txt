@@ -7,27 +7,27 @@
 exec explicit-config
 stdout '⚙  explicit-config'
 stdout '-c, --config-file\s+conga\.ConfigFile\s+bootstrap\.yaml\s+● cli bootstrap\.yaml'
-stdout '--host\s+string\s+explicit\.example\.com\s+● config host'
-stdout '-p, --port\s+int\s+9100\s+● config port'
+stdout '--host\s+string\s+explicit\.example\.com\s+● config bootstrap\.yaml'
+stdout '-p, --port\s+int\s+9100\s+● config bootstrap\.yaml'
 
 # 2. EXPLICIT_CONFIG is not consulted: the explicit option still wins
 env EXPLICIT_CONFIG=env.yaml
 exec explicit-config
-stdout '--host\s+string\s+explicit\.example\.com\s+● config host'
-stdout '-p, --port\s+int\s+9100\s+● config port'
+stdout '--host\s+string\s+explicit\.example\.com\s+● config bootstrap\.yaml'
+stdout '-p, --port\s+int\s+9100\s+● config bootstrap\.yaml'
 env EXPLICIT_CONFIG=
 
 # 3. The --config-file flag outranks the explicit option
 exec explicit-config -c override.yaml
 stdout '-c, --config-file\s+conga\.ConfigFile\s+override\.yaml\s+● cli --config-file'
-stdout '--host\s+string\s+override\.example\.com\s+● config host'
-stdout '-p, --port\s+int\s+9200\s+● config port'
+stdout '--host\s+string\s+override\.example\.com\s+● config override\.yaml'
+stdout '-p, --port\s+int\s+9200\s+● config override\.yaml'
 
 # 4. --why shows the explicit candidate that loaded
 exec explicit-config --why
 stdout 'bootstrap\.yaml\s+loaded: bootstrap\.yaml'
-stdout '--host\s+explicit\.example\.com\s+config'
-stdout '--port\s+9100\s+config'
+stdout '--host\s+explicit\.example\.com\s+config \(bootstrap\.yaml\)'
+stdout '--port\s+9100\s+config \(bootstrap\.yaml\)'
 ! stdout '██████'
 
 # 5. Missing explicit file is fatal: exit 1, not a usage error

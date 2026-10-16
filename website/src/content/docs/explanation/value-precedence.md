@@ -113,7 +113,7 @@ When `.env` loading is enabled via `app.Dotenv()`, variables from `.env` files p
 
 ## Provenance tracking
 
-CONGA records the origin of every resolved value. Rather than discarding resolution history after binding, containers retain their winning tier and source detail throughout execution (map containers record the highest contributing tier):
+CONGA records the origin of every resolved value. Rather than discarding resolution history after binding, containers retain their winning tier and concrete source detail throughout execution. For a config-sourced value the detail is the contributing origin — the config file path as resolved, or the loader's label — falling back to the matched config key only when a programmatic loader supplies no origin. Scalars and slices name the single winning file; a merged map container lists every contributing file in load order:
 
 ```go
 source := cmd.Addr.Source()       // conga.SourceCLI, SourceEnv, SourceConfig, etc.

@@ -28,9 +28,9 @@ The complete scenarios, fixtures included, live in
 
 - The same values bound from the TOML, JSON, YAML, and HCL variants of the
   schema, including `api_secret` → `--secret-key` remapping.
-- Every `● config` origin detail naming the exact key that supplied the value.
-- `--why` lists the loaded file, shows per-key file origins for map values, and
-  redacts the API secret and the env-var carrier.
+- Every `● config` origin detail naming the exact file that supplied the value.
+- `--why` lists the loaded file and the contributing file for each value,
+  and redacts the API secret and the env-var carrier.
 - Help omits `internal` (ignored command) and plain ignored fields.
 
 ## Test

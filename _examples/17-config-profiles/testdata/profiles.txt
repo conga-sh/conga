@@ -5,15 +5,15 @@
 exec profiles -c deploy/base.yaml -c deploy/prod.yaml
 stdout '⚙  profiles'
 stdout '-c, --config-files\s+conga\.ConfigFile\s+deploy/base\.yaml, deploy/prod\.yaml\s+● cli --config-file'
-stdout '--host\s+string\s+base\.example\.com\s+● config host'
-stdout '-p, --port\s+int\s+9443\s+● config port'
-stdout '--log-level\s+string\s+warn\s+● config log-level'
+stdout '--host\s+string\s+base\.example\.com\s+● config deploy/base\.yaml'
+stdout '-p, --port\s+int\s+9443\s+● config deploy/prod\.yaml'
+stdout '--log-level\s+string\s+warn\s+● config deploy/prod\.yaml'
 
 # 2. --why lists both loaded files and each value's winning tier
 exec profiles -c deploy/base.yaml -c deploy/prod.yaml --why
-stdout '--host\s+base\.example\.com\s+config'
-stdout '--port\s+9443\s+config'
-stdout '--log-level\s+warn\s+config'
+stdout '--host\s+base\.example\.com\s+config \(deploy/base\.yaml\)'
+stdout '--port\s+9443\s+config \(deploy/prod\.yaml\)'
+stdout '--log-level\s+warn\s+config \(deploy/prod\.yaml\)'
 stdout 'deploy/base\.yaml\s+loaded: deploy/base\.yaml'
 stdout 'deploy/prod\.yaml\s+loaded: deploy/prod\.yaml'
 ! stdout '██████'
@@ -21,13 +21,13 @@ stdout 'deploy/prod\.yaml\s+loaded: deploy/prod\.yaml'
 # 3. Comma-separated file list in a single flag
 exec profiles -c 'deploy/base.yaml,deploy/prod.yaml'
 stdout '-c, --config-files\s+conga\.ConfigFile\s+deploy/base\.yaml, deploy/prod\.yaml\s+● cli --config-file'
-stdout '-p, --port\s+int\s+9443\s+● config port'
+stdout '-p, --port\s+int\s+9443\s+● config deploy/prod\.yaml'
 
 # 4. Search-path fallback: Cascading() merges all existing fallback files
 #    (lowest precedence first) instead of single-file first-found resolution
 exec profiles
-stdout '-p, --port\s+int\s+9443\s+● config port'
-stdout '--host\s+string\s+base\.example\.com\s+● config host'
+stdout '-p, --port\s+int\s+9443\s+● config deploy/prod\.yaml'
+stdout '--host\s+string\s+base\.example\.com\s+● config deploy/base\.yaml'
 
 -- deploy/base.yaml --
 host: base.example.com
