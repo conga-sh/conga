@@ -3,11 +3,13 @@ title: About the config cascade
 description: How config files are discovered, merged, and classified — the XDG tier, cascading, and error semantics.
 ---
 
-CONGA loads config files into a flat `map[string]string` view that feeds tier 3 of the [value precedence ladder](/explanation/value-precedence/). Formats are opt-in packages; only registered formats are linked into the application binary. The practical steps — registering decoders, declaring search paths, and cascading — live in [How to manage config files](/how-to/manage-config-files/).
+CONGA validates config files into the tier-3 value view that feeds the [value precedence ladder](/explanation/value-precedence/): scalar and slice values flatten to strings, and map flags keep their per-key pairs with the contributing file recorded as their origin. Formats are opt-in packages; only registered formats are linked into the application binary. The practical steps — registering decoders, declaring search paths, and cascading — live in [How to manage config files](/how-to/manage-config-files/).
 
 ## Cascading merges
 
-By default a search tier is first-hit: `conga.ConfigPaths(...)` lists files in precedence order and the first existing one wins. Declaring `conga.ConfigCascading()` changes the model to a merge: every existing file contributes, from lowest to highest precedence, so higher-precedence paths override keys set earlier. Partial cascades are supported: any subset of the list may exist.
+By default a search tier is first-hit: `conga.ConfigPaths(...)` lists files in precedence order and the first existing one wins. Declaring `conga.ConfigCascading()` changes the model to a merge: every existing file contributes, from lowest to highest precedence. Partial cascades are supported: any subset of the list may exist.
+
+Merge semantics differ by value shape. Scalar and slice flags take the nearest file's value: a later file replaces what an earlier file set. Map flags (`map[K]V` fields, registered `RegisterMap` types, and `conga.Features[T]` gates) merge key by key across the files: files apply in lowest-to-highest precedence, a later file overrides only the keys it names, and keys set only by an earlier file survive. The `--why` report attributes each merged map key to the file that last wrote it.
 
 Because a cascade can load more than one file, a declared root config-file flag must accept multiple values (`multi:"true"`) so it can report every merged file; the schema rejects the combination otherwise.
 

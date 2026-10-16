@@ -21,3 +21,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The `--why` report renders one indented sub-row per map key with the tier that last wrote it, and the Features table reports each toggle's actual source tier instead of the winning tier of the whole map.
 
 ### Fixed
+
+- `conga.ConfigCascading()` now merges map flags key by key across the cascaded config files themselves: a key set only by a lower-precedence file survives instead of being silently dropped when a higher-precedence file rewrites the flag. The nearest file wins each overlapping key. Feature gates (`conga.Features[T]`) merge per key the same way, and gate-off pruning is unaffected. Scalar and slice flags keep nearest-file-wins semantics. Map flags behind a dotted `config:` namespace key now bind their nested section (previously rejected as an unknown field), and values containing the flag's `sep` survive the nested-map form without separator round-tripping. The `--why` report attributes each merged map key to the config file that last wrote it.

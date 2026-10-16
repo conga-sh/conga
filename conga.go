@@ -19,6 +19,7 @@ import (
 	"github.com/conga-sh/conga/internal/completion/lex"
 	"github.com/conga-sh/conga/internal/completion/wire"
 	"github.com/conga-sh/conga/internal/cond"
+	"github.com/conga-sh/conga/internal/configdata"
 	"github.com/conga-sh/conga/internal/configengine"
 	"github.com/conga-sh/conga/internal/container"
 	"github.com/conga-sh/conga/internal/dotenv"
@@ -937,7 +938,7 @@ type appConfig[T any] struct {
 	configEngine          configEngineFactory
 	dotenvPaths           []string
 	dotenvLoader          func(paths ...string) error
-	configData            map[string]string
+	configData            *configdata.Data
 	configResolution      *configResolution
 	args                  []string
 	argsExplicitlySet     bool
@@ -984,7 +985,7 @@ type appConfig[T any] struct {
 // deliberately mentions no configengine type so the engine package is reachable
 // only through the factory installed by installConfigEngine.
 type configView interface {
-	Resolve(explicitTargets []string, cmd *spec.Command) ([]string, map[string]string, ValueSource, error)
+	Resolve(explicitTargets []string, cmd *spec.Command) ([]string, *configdata.Data, ValueSource, error)
 	CandidatePaths(explicitPaths []string, cmd *spec.Command) []string
 	EffectiveSearchPaths() []string
 	ProbedFiles(candidate string, extensions []string) []string
@@ -1004,7 +1005,7 @@ type emptyConfigView struct {
 	envPrefix string
 }
 
-func (view emptyConfigView) Resolve(explicitTargets []string, cmd *spec.Command) ([]string, map[string]string, ValueSource, error) {
+func (view emptyConfigView) Resolve(explicitTargets []string, cmd *spec.Command) ([]string, *configdata.Data, ValueSource, error) {
 	if len(explicitTargets) > 0 {
 		return nil, nil, SourceNone, newDecoderRequiredError("flag --"+configFlagName(cmd), explicitTargets[len(explicitTargets)-1])
 	}
@@ -1161,7 +1162,7 @@ func (a *App[T]) completeCompLineForShell(targetShell string, compLine string, c
 	return a.completeForShellWithEnv(targetShell, words, lookup)
 }
 
-func (a *App[T]) loadConfigDataForCompletion(cmd *spec.Command, flagValues map[*spec.Flag][]string) map[string]string {
+func (a *App[T]) loadConfigDataForCompletion(cmd *spec.Command, flagValues map[*spec.Flag][]string) *configdata.Data {
 	if a.configEngine == nil {
 		return nil
 	}
@@ -1211,7 +1212,7 @@ func (a *App[T]) applyDefaults() {
 	}
 
 	if a.configData == nil {
-		a.configData = make(map[string]string)
+		a.configData = configdata.New()
 	}
 
 	if a.typeRegistry == nil {
@@ -1831,7 +1832,7 @@ func (a *App[T]) resolveConfig(cmd *spec.Command, cmdChain []*spec.Command, flag
 
 	explicitTargets, extractErr := a.extractExplicitConfigTargets(cmd, cmdChain, flagValues)
 
-	a.configData = make(map[string]string)
+	a.configData = configdata.New()
 
 	var (
 		loadedPaths  []string

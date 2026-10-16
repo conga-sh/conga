@@ -1,0 +1,4 @@
+hosts = ["local-a"]
+
+[tags]
+local = "local"

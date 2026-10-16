@@ -11,6 +11,7 @@ import (
 	"github.com/conga-sh/conga/internal/appname"
 	"github.com/conga-sh/conga/internal/coerce"
 	"github.com/conga-sh/conga/internal/completion"
+	"github.com/conga-sh/conga/internal/configdata"
 	"github.com/conga-sh/conga/internal/container"
 	"github.com/conga-sh/conga/internal/help"
 	"github.com/conga-sh/conga/internal/spec"
@@ -1230,7 +1231,7 @@ func (f *Features[T]) resolveFeatures(cmd *spec.Command, cmdChain []*spec.Comman
 	return resolveFeatureGates(f, &f.value, cmd, cmdChain, flagValues, state)
 }
 
-func (f *Features[T]) rejectPrunedConfig(pruned []prunedFlag, configData map[string]string) error {
+func (f *Features[T]) rejectPrunedConfig(pruned []prunedFlag, configData *configdata.Data) error {
 	return checkFeatureConfigRestrictions(pruned, configData)
 }
 

@@ -285,7 +285,7 @@ func whyMapFoldRow(flagSpec *spec.Flag, result mapMergeResult, err error, row wh
 	var hasNonDefaultKey bool
 
 	if includeEntries {
-		row.Entries, hasNonDefaultKey = whyMapEntries(iter, result.provenance, flagSpec, mergedReflect.Len())
+		row.Entries, hasNonDefaultKey = whyMapEntries(iter, result.provenance, result.origins, flagSpec, mergedReflect.Len())
 	} else {
 		hasNonDefaultKey = whyHasNonDefaultKey(iter, result.provenance)
 	}
@@ -299,7 +299,7 @@ func whyMapFoldRow(flagSpec *spec.Flag, result mapMergeResult, err error, row wh
 	return row
 }
 
-func whyMapEntries(iter *reflect.MapIter, provenance map[string]ValueSource, flagSpec *spec.Flag, count int) ([]why.MapEntry, bool) {
+func whyMapEntries(iter *reflect.MapIter, provenance map[string]ValueSource, origins map[string]string, flagSpec *spec.Flag, count int) ([]why.MapEntry, bool) {
 	keys := make([]string, 0, count)
 	entryMap := make(map[string]why.MapEntry, count)
 	hasNonDefault := false
@@ -312,7 +312,7 @@ func whyMapEntries(iter *reflect.MapIter, provenance map[string]ValueSource, fla
 			hasNonDefault = true
 		}
 
-		entry := why.MapEntry{Key: key, Source: whySourceWord(keySource)}
+		entry := why.MapEntry{Key: key, Source: whySourceWord(keySource), Detail: whyOriginDetail(origins[key])}
 		if !flagSpec.Safe && keySource != SourceDefault {
 			entry.Value = why.Redacted
 		} else {
@@ -376,10 +376,22 @@ func whyFeatureRows(root *spec.Command, result mapMergeResult) []why.FeatureRow 
 			Name:   feature.Name,
 			Value:  values[feature.Name],
 			Source: source,
+			Detail: whyOriginDetail(result.origins[feature.Name]),
 		})
 	}
 
 	return rows
+}
+
+// whyOriginDetail renders the per-key origin annotation for --why source
+// cells: the contributing configuration file's base name, or "" when the key
+// carries no origin (non-config tiers).
+func whyOriginDetail(origin string) string {
+	if origin == "" {
+		return ""
+	}
+
+	return filepath.Base(origin)
 }
 
 // whyConfigPaths annotates every candidate configuration path probed during

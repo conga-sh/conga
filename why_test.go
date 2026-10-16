@@ -323,6 +323,44 @@ func TestWhy_MapMergePerKeyProvenance(t *testing.T) {
 	assertGolden(t, "testdata/why/map-merge.golden", goldenWhyMapMerge, output)
 }
 
+// whyCascadeCLI exercises a map flag loaded from two cascading files so the
+// report can attribute each key to its contributing file.
+type whyCascadeCLI struct {
+	noopRunner
+
+	Config conga.ConfigFile                      `help:"Config file" multi:"true"`
+	Tags   conga.OptionalFlag[map[string]string] `help:"Tags"        safe:"true"`
+}
+
+// TestWhy_CascadingMapOriginsPerKey pins that a map flag merged across
+// cascading files reports each key's contributing file in the source cell.
+//
+//nolint:paralleltest // Swaps the process working directory via t.Chdir.
+func TestWhy_CascadingMapOriginsPerKey(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	sysPath := "sys.json"
+	localPath := "local.json"
+
+	assert.NoError(t, os.WriteFile(sysPath, []byte(`{"tags": {"region": "eu-west-1", "shared": "sys"}}`), 0o600))
+	assert.NoError(t, os.WriteFile(localPath, []byte(`{"tags": {"shared": "local", "team": "core"}}`), 0o600))
+
+	var buffer bytes.Buffer
+
+	app := conga.New[whyCascadeCLI]().
+		Name("whyapp").
+		RegisterDecoder(".json", json.Decode).
+		ConfigOptions(conga.ConfigPaths(localPath, sysPath), conga.ConfigCascading()).
+		Stdout(&buffer).
+		EnableWhy().
+		Args([]string{"--why"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assertGolden(t, "testdata/why/map-cascade-merge.golden", goldenWhyMapCascadeMerge, buffer.String())
+}
+
 type whyMapEntryWidthCLI struct {
 	noopRunner
 

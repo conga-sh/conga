@@ -14,12 +14,21 @@ import (
 	_ "embed"
 
 	"github.com/conga-sh/conga"
+	"github.com/conga-sh/conga/decoder/json"
 	"github.com/conga-sh/conga/decoder/yaml"
 )
 
 var (
 	//go:embed testdata/fixtures/feature_camel_case.yml
 	fixtureFeatureCamelCase []byte
+
+	// Cascade payloads splitting the feature gates across a system and a
+	// local config tier.
+	//go:embed testdata/fixtures/feature_cascade_local.yml
+	fixtureFeatureCascadeLocal []byte
+
+	//go:embed testdata/fixtures/feature_cascade_sys.yml
+	fixtureFeatureCascadeSys []byte
 
 	//go:embed testdata/fixtures/feature_gentle_force.yml
 	fixtureFeatureGentleForce []byte
@@ -353,6 +362,200 @@ func TestFeature_MergesEnvAboveConfig(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, cli.Features.Get().GentleForce)
 	assert.True(t, cli.Features.Get().Packages)
+}
+
+// featureCascadeCLI exercises feature gates against cascading config files.
+type featureCascadeCLI struct {
+	ConfigFile conga.ConfigFile `help:"Config file" multi:"true"`
+
+	Features conga.Features[featureExperiments] `config:"experiments" env:"TASK_X_FEATURES" flag:"feature-gates"`
+
+	ForceAll conga.OptionalFlag[bool] `feature:"gentle-force" help:"Forces all dependent tasks"`
+
+	Ran            bool
+	ActiveGentle   bool
+	ActivePackages bool
+}
+
+func (cli *featureCascadeCLI) Run(_ context.Context, _ *conga.Session) error {
+	cli.Ran = true
+	cli.ActiveGentle = cli.Features.Get().GentleForce
+	cli.ActivePackages = cli.Features.Get().Packages
+
+	return nil
+}
+
+// TestFeature_CascadingConfigMergesPerKey pins that feature gates merge key
+// by key across cascading config files: a gate enabled only in a lower file
+// survives alongside gates from higher files.
+func TestFeature_CascadingConfigMergesPerKey(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	sysPath := filepath.Join(tempDir, "sys.yml")
+	localPath := filepath.Join(tempDir, "local.yml")
+
+	assert.NoError(t, os.WriteFile(sysPath, fixtureFeatureCascadeSys, 0o600))
+	assert.NoError(t, os.WriteFile(localPath, fixtureFeatureCascadeLocal, 0o600))
+
+	var cli featureCascadeCLI
+
+	app := conga.New(&cli).
+		Name("task").
+		EnableFeatures().
+		RegisterDecoder(".yml", yaml.Decode).
+		ConfigOptions(conga.ConfigPaths(localPath, sysPath), conga.ConfigCascading()).
+		Args([]string{})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.True(t, cli.ActiveGentle)
+	assert.True(t, cli.ActivePackages)
+}
+
+// TestFeature_CascadingConfigNearestFileWinsGate pins that a gate declared by
+// two cascading files resolves to the nearest file.
+func TestFeature_CascadingConfigNearestFileWinsGate(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	sysPath := filepath.Join(tempDir, "sys.yml")
+	assert.NoError(t, os.WriteFile(sysPath, fixtureFeatureCascadeSys, 0o600))
+
+	// The local tier re-declares the sys file's gate with the opposite value.
+	localPath := writeConfigFile(t, `{"experiments": {"gentle-force": "false", "packages": "true"}}`)
+
+	var cli featureCascadeCLI
+
+	app := conga.New(&cli).
+		Name("task").
+		EnableFeatures().
+		RegisterDecoder(".yml", yaml.Decode).
+		RegisterDecoder(".json", json.Decode).
+		ConfigOptions(conga.ConfigPaths(localPath, sysPath), conga.ConfigCascading()).
+		Args([]string{})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.False(t, cli.ActiveGentle)
+	assert.True(t, cli.ActivePackages)
+}
+
+// TestFeature_CascadingConfigEnvOverridesPerKey pins that the feature
+// environment variable overrides one cascaded gate key without dropping the
+// files' remaining gates.
+func TestFeature_CascadingConfigEnvOverridesPerKey(t *testing.T) {
+	t.Setenv("TASK_X_FEATURES", "gentle-force=false")
+
+	tempDir := t.TempDir()
+	sysPath := filepath.Join(tempDir, "sys.yml")
+	localPath := filepath.Join(tempDir, "local.yml")
+
+	assert.NoError(t, os.WriteFile(sysPath, fixtureFeatureCascadeSys, 0o600))
+	assert.NoError(t, os.WriteFile(localPath, fixtureFeatureCascadeLocal, 0o600))
+
+	var cli featureCascadeCLI
+
+	app := conga.New(&cli).
+		Name("task").
+		EnableFeatures().
+		RegisterDecoder(".yml", yaml.Decode).
+		ConfigOptions(conga.ConfigPaths(localPath, sysPath), conga.ConfigCascading()).
+		Args([]string{})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.False(t, cli.ActiveGentle)
+	assert.True(t, cli.ActivePackages)
+}
+
+// TestFeature_CascadingConfigCLIOverridesPerKey pins that the feature CLI flag
+// overrides one cascaded gate key without dropping the files' remaining gates.
+func TestFeature_CascadingConfigCLIOverridesPerKey(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	sysPath := filepath.Join(tempDir, "sys.yml")
+	localPath := filepath.Join(tempDir, "local.yml")
+
+	assert.NoError(t, os.WriteFile(sysPath, fixtureFeatureCascadeSys, 0o600))
+	assert.NoError(t, os.WriteFile(localPath, fixtureFeatureCascadeLocal, 0o600))
+
+	var cli featureCascadeCLI
+
+	app := conga.New(&cli).
+		Name("task").
+		EnableFeatures().
+		RegisterDecoder(".yml", yaml.Decode).
+		ConfigOptions(conga.ConfigPaths(localPath, sysPath), conga.ConfigCascading()).
+		Args([]string{"--feature-gates", "packages=false"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.True(t, cli.ActiveGentle)
+	assert.False(t, cli.ActivePackages)
+}
+
+// TestFeature_CascadingConfigGateOffPrunesFlag pins that a gate turned off by
+// the nearest cascading file prunes the gated flag's CLI invocation.
+func TestFeature_CascadingConfigGateOffPrunesFlag(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	sysPath := filepath.Join(tempDir, "sys.yml")
+	assert.NoError(t, os.WriteFile(sysPath, fixtureFeatureCascadeSys, 0o600))
+
+	// The local tier turns the gate off.
+	localPath := writeConfigFile(t, `{"experiments": {"gentle-force": "false"}}`)
+
+	var cli featureCascadeCLI
+
+	app := conga.New(&cli).
+		Name("task").
+		EnableFeatures().
+		RegisterDecoder(".yml", yaml.Decode).
+		RegisterDecoder(".json", json.Decode).
+		ConfigOptions(conga.ConfigPaths(localPath, sysPath), conga.ConfigCascading()).
+		Args([]string{"--force-all"})
+
+	err := app.Run()
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "requires feature")
+}
+
+// TestFeature_CascadingConfigRestrictsPrunedConfigKey pins that a gated-off
+// flag's config key in a cascading file still fails the run instead of being
+// silently ignored.
+func TestFeature_CascadingConfigRestrictsPrunedConfigKey(t *testing.T) {
+	t.Parallel()
+
+	tempDir := t.TempDir()
+	sysPath := filepath.Join(tempDir, "sys.yml")
+	assert.NoError(t, os.WriteFile(sysPath, fixtureFeatureCascadeSys, 0o600))
+
+	// The local tier turns the gate off and declares the gated flag's key.
+	localPath := writeConfigFile(t, `{"experiments": {"gentle-force": "false"}, "force-all": true}`)
+
+	var cli featureCascadeCLI
+
+	app := conga.New(&cli).
+		Name("task").
+		EnableFeatures().
+		RegisterDecoder(".yml", yaml.Decode).
+		RegisterDecoder(".json", json.Decode).
+		ConfigOptions(conga.ConfigPaths(localPath, sysPath), conga.ConfigCascading()).
+		Args([]string{})
+
+	err := app.Run()
+
+	assert.Error(t, err)
+	assert.IsError(t, err, conga.ErrConfig)
+	assert.Contains(t, err.Error(), "requires feature")
 }
 
 func TestFeature_EnvSpellingLosesToCLI(t *testing.T) {

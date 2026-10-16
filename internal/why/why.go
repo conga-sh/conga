@@ -69,6 +69,10 @@ type MapEntry struct {
 	Value string
 	// Source is the bare source-tier word for the tier that last wrote the key.
 	Source string
+	// Detail optionally annotates the source with the concrete origin, e.g.
+	// the configuration file that contributed the key. Rendered in
+	// parentheses after the source word; empty renders the bare word.
+	Detail string
 }
 
 // FeatureRow is one feature-toggle line in the report.
@@ -80,6 +84,9 @@ type FeatureRow struct {
 	// Source is the bare source-tier word ("cli", "env", "config", "default",
 	// "unset").
 	Source string
+	// Detail optionally annotates the source with the concrete origin, e.g.
+	// the configuration file that contributed the toggle.
+	Detail string
 }
 
 // Report is the complete --why report: the invocation's command path, the
@@ -204,7 +211,7 @@ func renderRows(rows []Row) string {
 		if len(row.Entries) > 0 {
 			entryCells = make([][]string, 0, len(row.Entries))
 			for _, entry := range row.Entries {
-				entryLine := []string{"", entry.Key + "=" + entry.Value, entry.Source}
+				entryLine := []string{"", entry.Key + "=" + entry.Value, sourceCell(entry.Source, entry.Detail)}
 				measurement = append(measurement, []string{"", entryLine[1], entryLine[2], "", ""})
 				entryCells = append(entryCells, entryLine)
 			}
@@ -253,7 +260,7 @@ func renderFeatureRows(rows []FeatureRow) string {
 	grid = append(grid, header)
 
 	for _, row := range rows {
-		grid = append(grid, []string{row.Name, row.Value, row.Source})
+		grid = append(grid, []string{row.Name, row.Value, sourceCell(row.Source, row.Detail)})
 	}
 
 	widths := measureColumnWidths(grid)
@@ -267,6 +274,16 @@ func renderFeatureRows(rows []FeatureRow) string {
 	}
 
 	return builder.String()
+}
+
+// sourceCell renders the SOURCE cell for report rows: the bare tier word,
+// annotated with the origin detail in parentheses when one is recorded.
+func sourceCell(source string, detail string) string {
+	if detail == "" {
+		return source
+	}
+
+	return source + " (" + detail + ")"
 }
 
 // writeGridRow writes one indented grid row: every cell but the last is padded

@@ -35,7 +35,7 @@ func TestIsUsageError_Classification(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Zero(t, len(loadedPaths))
-	assert.Zero(t, len(values))
+	assert.Zero(t, values)
 	assert.Equal(t, SourceNone, source)
 	assert.False(t, IsUsageError(err))
 
