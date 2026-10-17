@@ -937,6 +937,144 @@ func TestConfigDocument_RepeatedSetLastValueWins(t *testing.T) {
 	assert.Equal(t, "second.example.com", cli.Host.Get())
 }
 
+func TestConfigDocument_SetKeyRecordsMapEntry(t *testing.T) {
+	t.Parallel()
+
+	cli := new(loaderMapCLI)
+	app := conga.New(cli).
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+			return loaderDocument(func(document *conga.ConfigDocument) {
+				document.SetKey("headers", "region", "eu", "taskrc")
+			}), nil
+		})).
+		Args([]string{})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]string{"region": "eu"}, cli.Headers.Get())
+	assert.Equal(t, conga.SourceConfig, cli.Headers.Source())
+}
+
+func TestConfigDocument_SetKeyAcceptsTypedValue(t *testing.T) {
+	t.Parallel()
+
+	cli := new(loaderFeaturesCLI)
+	app := conga.New(cli).
+		EnableFeatures().
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+			return loaderDocument(func(document *conga.ConfigDocument) {
+				document.SetKey("experiments", "force-all", true, "taskrc")
+			}), nil
+		})).
+		Args([]string{"--force-all"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.True(t, cli.Features.Get().ForceAll)
+	assert.True(t, cli.ForceAll.Get())
+}
+
+func TestConfigDocument_SetKeyOverlaysEarlierSet(t *testing.T) {
+	t.Parallel()
+
+	cli := new(loaderMapCLI)
+	app := conga.New(cli).
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+			return loaderDocument(
+				func(document *conga.ConfigDocument) {
+					document.Set("headers", map[string]string{"region": "eu", "shared": "base"}, "base")
+				},
+				func(document *conga.ConfigDocument) {
+					document.SetKey("headers", "shared", "overlay", "workspace")
+				},
+			), nil
+		})).
+		Args([]string{})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]string{"region": "eu", "shared": "overlay"}, cli.Headers.Get())
+}
+
+func TestConfigDocument_SetReplacesEarlierSetKeyOverlays(t *testing.T) {
+	t.Parallel()
+
+	cli := new(loaderMapCLI)
+	app := conga.New(cli).
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+			return loaderDocument(
+				func(document *conga.ConfigDocument) {
+					document.SetKey("headers", "region", "eu", "overlay")
+				},
+				func(document *conga.ConfigDocument) {
+					document.Set("headers", map[string]string{"team": "core"}, "replacement")
+				},
+			), nil
+		})).
+		Args([]string{})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]string{"team": "core"}, cli.Headers.Get())
+}
+
+func TestConfigDocument_RepeatedSetKeyLastValueWins(t *testing.T) {
+	t.Parallel()
+
+	cli := new(loaderMapCLI)
+	app := conga.New(cli).
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+			return loaderDocument(
+				func(document *conga.ConfigDocument) {
+					document.SetKey("headers", "region", "eu", "first")
+				},
+				func(document *conga.ConfigDocument) {
+					document.SetKey("headers", "region", "us", "second")
+				},
+			), nil
+		})).
+		Args([]string{})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]string{"region": "us"}, cli.Headers.Get())
+}
+
+func TestConfigDocument_SetKeyOnNilPanics(t *testing.T) {
+	t.Parallel()
+
+	var document *conga.ConfigDocument
+
+	assertx.PanicsWithValue(t, "conga: nil ConfigDocument; use the zero value (var document conga.ConfigDocument)", func() {
+		document.SetKey("headers", "region", "eu", "origin")
+	})
+}
+
+func TestConfigDocument_SetKeyUnknownKeyFailsUnderErrConfig(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[loaderMapCLI]().
+		Name("app").
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+			return loaderDocument(func(document *conga.ConfigDocument) {
+				document.SetKey("header", "region", "eu", "taskrc")
+			}), nil
+		})).
+		Args([]string{})
+
+	err := app.Run()
+
+	assert.Error(t, err)
+	assert.IsError(t, err, conga.ErrConfig)
+	assert.Contains(t, err.Error(), `unknown section "header" in command "app"`)
+	assert.Contains(t, err.Error(), `did you mean "headers"?`)
+}
+
 func TestConfigLoader_ContextFlagValues(t *testing.T) {
 	t.Parallel()
 

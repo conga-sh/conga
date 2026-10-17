@@ -1,0 +1,23 @@
+version: "1"
+
+parallelism: 4
+log_level: info
+env:
+  FLOW_ENV: dev
+  LOG_FORMAT: json
+
+pipelines:
+  build:
+    desc: Build all packages
+    steps:
+      - go build ./...
+  deploy:
+    desc: Deploy the release
+    needs: [build]
+    parallelism: 1
+    log_level: debug
+    env:
+      FLOW_ENV: prod
+      DEPLOY_REGION: eu-west-1
+    steps:
+      - ./deploy.sh

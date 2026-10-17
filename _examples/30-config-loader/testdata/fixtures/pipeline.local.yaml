@@ -1,0 +1,15 @@
+version: "1"
+
+parallelism: 2
+env:
+  FLOW_ENV: local
+
+pipelines:
+  deploy:
+    needs: [lint]
+    log_level: debug
+    env:
+      DEPLOY_REGION: us-east-1
+      RELEASE_CHANNEL: canary
+    steps:
+      - ./notify.sh

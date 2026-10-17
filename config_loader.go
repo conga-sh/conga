@@ -43,24 +43,28 @@ type ConfigContext interface {
 //
 //	document := &conga.ConfigDocument{}
 //	document.Set("port", 8080, "embedded defaults")
-//	document.Set("headers", map[string]string{"X-Region": "eu"}, "taskrc")
+//	document.SetKey("headers", "X-Region", "eu", "taskrc")
 //	document.Set("deploy", map[string]any{"replicas": 3}, "taskrc")
 //
 // Scalar values stringify the same way decoded-file values do, and list values
 // comma-join before binding; supply a pre-joined string when the target flag
 // declares a custom sep. Map flags accept a nested map[string]any or
 // map[string]string section, a []string or []any of key=value tokens, or a
-// flat token string. The origin is a free-form label CONGA never parses; it
-// surfaces in the --why report and attributes each merged map key to the
-// source that last wrote it. Do not set nil values: like a null in a decoded
-// file, a nil value stringifies rather than being dropped.
+// flat token string. [ConfigDocument.SetKey] records a single map entry and
+// merges it key by key with earlier writes.
+//
+// The origin is a free-form label CONGA never parses; it surfaces in the --why
+// report and attributes each merged map key to the source that last wrote it.
+// Do not set nil values: like a null in a decoded file, a nil value stringifies
+// rather than being dropped.
 type ConfigDocument struct {
 	entries []documentEntry
 	index   map[string]int
 }
 
 // Set records value under key with the given origin and returns the document
-// for chaining. A later Set of the same key replaces the earlier entry.
+// for chaining. A later Set of the same key replaces the earlier entry,
+// including every [ConfigDocument.SetKey] contribution recorded for it.
 //
 // Panics:
 //   - If the receiver is nil; mutate the zero value instead.
@@ -74,13 +78,60 @@ func (d *ConfigDocument) Set(key string, value any, origin string) *ConfigDocume
 	}
 
 	if index, exists := d.index[key]; exists {
-		d.entries[index] = documentEntry{key: key, value: value, origin: origin}
+		d.entries[index] = documentEntry{key: key, value: value, origin: origin, baseSet: true}
 
 		return d
 	}
 
 	d.index[key] = len(d.entries)
-	d.entries = append(d.entries, documentEntry{key: key, value: value, origin: origin})
+	d.entries = append(d.entries, documentEntry{key: key, value: value, origin: origin, baseSet: true})
+
+	return d
+}
+
+// SetKey records value under entryKey within the map entry named key with the
+// given origin and returns the document for chaining. It is the per-key
+// counterpart of [ConfigDocument.Set]: a later layer overlays a single map
+// entry without re-supplying the whole map.
+//
+// A SetKey entry merges key by key with a map recorded by Set: the later call
+// wins for the entry keys it names, while keys set by an earlier call survive.
+// A later Set of the same key replaces the whole entry and clears every
+// SetKey contribution recorded for it. Each entry key keeps the origin it was
+// last written with, so the --why report attributes map keys individually.
+//
+// Panics:
+//   - If the receiver is nil; mutate the zero value instead.
+func (d *ConfigDocument) SetKey(key, entryKey string, value any, origin string) *ConfigDocument {
+	if d == nil {
+		panic("conga: nil ConfigDocument; use the zero value (var document conga.ConfigDocument)")
+	}
+
+	if d.index == nil {
+		d.index = make(map[string]int)
+	}
+
+	index, exists := d.index[key]
+	if !exists {
+		d.index[key] = len(d.entries)
+		d.entries = append(d.entries, documentEntry{
+			key:      key,
+			overlays: []documentMapEntry{{key: entryKey, value: value, origin: origin}},
+		})
+
+		return d
+	}
+
+	entry := &d.entries[index]
+	for overlayIndex := range entry.overlays {
+		if entry.overlays[overlayIndex].key == entryKey {
+			entry.overlays[overlayIndex] = documentMapEntry{key: entryKey, value: value, origin: origin}
+
+			return d
+		}
+	}
+
+	entry.overlays = append(entry.overlays, documentMapEntry{key: entryKey, value: value, origin: origin})
 
 	return d
 }
@@ -146,8 +197,18 @@ func (option loaderOption) applyTo(settings *spec.ConfigSettings) {
 	settings.Loader = true
 }
 
-// documentEntry is one top-level configuration document entry.
+// documentEntry is one top-level configuration document entry: an optional
+// whole-key write and the ordered per-entry-key overlays recorded under it.
 type documentEntry struct {
+	key      string
+	value    any
+	origin   string
+	baseSet  bool
+	overlays []documentMapEntry
+}
+
+// documentMapEntry is one per-key overlay recorded by [ConfigDocument.SetKey].
+type documentMapEntry struct {
 	key    string
 	value  any
 	origin string
@@ -214,14 +275,26 @@ func (d *ConfigDocument) validate(cmd *spec.Command, dest *configdata.Data) ([]s
 	var origins []string
 
 	for _, entry := range d.entries {
-		// The entry's origin is collected before validation so a failing
-		// entry's source still appears in the tolerant --why candidate table.
-		if entry.origin != "" {
-			origins = append(origins, entry.origin)
+		if entry.baseSet {
+			// The write's origin is collected before validation so a failing
+			// entry's source still appears in the tolerant --why candidate table.
+			if entry.origin != "" {
+				origins = append(origins, entry.origin)
+			}
+
+			if err := configengine.ValidateDocument(map[string]any{entry.key: entry.value}, cmd, dest, entry.origin); err != nil {
+				return slicex.Unique(origins), err
+			}
 		}
 
-		if err := configengine.ValidateDocument(map[string]any{entry.key: entry.value}, cmd, dest, entry.origin); err != nil {
-			return slicex.Unique(origins), err
+		for _, overlay := range entry.overlays {
+			if overlay.origin != "" {
+				origins = append(origins, overlay.origin)
+			}
+
+			if err := configengine.ValidateDocument(map[string]any{entry.key: map[string]any{overlay.key: overlay.value}}, cmd, dest, overlay.origin); err != nil {
+				return slicex.Unique(origins), err
+			}
 		}
 	}
 

@@ -155,10 +155,15 @@ type ConfigContext interface {
 type ConfigDocument struct{ /* ... */ }
 
 func (d *ConfigDocument) Set(key string, value any, origin string) *ConfigDocument
+
+func (d *ConfigDocument) SetKey(key, entryKey string, value any, origin string) *ConfigDocument
 ```
 
 `ConfigLoader` replaces file resolution for every run: the returned document is
 validated like a decoded config file, binds at the config tier
 (`CLI > environment > document > default`), and its per-entry origins surface in
-`--why`. A nil document leaves the tier inactive; loader errors wrap `ErrConfig`
-and exit 1. See [How to supply configuration from code](/how-to/supply-config-from-code/).
+`--why`. `SetKey` records one entry inside a map value and merges it key by key
+with earlier writes, so a later layer overrides only the map keys it names; a
+later `Set` of the same top-level key replaces the whole entry. A nil document
+leaves the tier inactive; loader errors wrap `ErrConfig` and exit 1. See
+[How to supply configuration from code](/how-to/supply-config-from-code/).

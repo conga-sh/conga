@@ -5,7 +5,7 @@ description: Build the run's configuration document in code with conga.ConfigLoa
 
 Config files are not the only place configuration can come from. `app.ConfigOptions(conga.ConfigLoader(...))` installs a programmatic document source that replaces file resolution (decoders, search paths, and probing) for every run. The loader runs after the command line is tokenized and before flags bind, so it can shape the document from the invocation itself, and the returned document is validated exactly like a decoded config file.
 
-Use it when configuration lives in an embedded filesystem, a remote store, a secrets manager, or any in-process computation — and when the *interpretation* of a file is application-specific enough that a generic decoder cannot express it.
+Use it when configuration lives in an embedded filesystem, a remote store, a secrets manager, or any in-process computation — and when the *interpretation* of a file is application-specific enough that a generic decoder cannot express it. A domain document such as a pipeline file mixes configuration with data: the loader maps the configuration keys into the tier, keeps the rest as application data, and merges list values that the config tiers replace instead of concatenating.
 
 ## Install the loader
 
@@ -35,6 +35,14 @@ func loadDocument(ctx conga.ConfigContext) (*conga.ConfigDocument, error) {
 document.Set("headers", map[string]string{"X-Region": "eu"}, "embedded defaults")
 document.Set("deploy", map[string]any{"replicas": 3}, "embedded defaults")
 ```
+
+`SetKey` records one map entry and merges it key by key with earlier writes. Use it when a higher-precedence layer overrides individual map keys without re-supplying the whole map; each entry key keeps the origin that last wrote it:
+
+```go
+document.SetKey("headers", "X-Region", "eu", "embedded defaults")
+```
+
+A later `Set` of the same top-level key replaces the whole entry and clears the `SetKey` contributions recorded for it.
 
 The origin is a free-form label CONGA never parses; it attributes the value in the `--why` report. Returning a nil document leaves the configuration tier inactive.
 
@@ -66,6 +74,27 @@ func loadDocument(ctx conga.ConfigContext) (*conga.ConfigDocument, error) {
 - `CommandPath()` returns the selected invocation path, such as `server deploy worker`.
 
 The loader runs at most once per execution. Applications that enable features may have it run for `--help` and `--why` rendering, and shell completion invocations run it too, so keep it free of side effects, prompts, and blocking I/O.
+
+## Load a domain document
+
+A configuration decoder maps a file onto the flag schema. A domain document carries more than flags: a pipeline file stores steps and dependencies alongside the settings that become flags. Map only the configuration keys into the document, keep the rest as application data, and merge lists in the loader — the config tiers replace slices instead of concatenating them:
+
+```go
+document := &conga.ConfigDocument{}
+
+for _, file := range files { // lowest precedence first
+	document.Set("parallelism", file.parallelism, file.path)
+	document.Set("log-level", file.logLevel, file.path)
+
+	for key, value := range file.env {
+		document.SetKey("env", key, value, file.path)
+	}
+}
+
+return document, nil
+```
+
+The [30 — Programmatic config loader](https://github.com/conga-sh/conga/tree/main/_examples/30-config-loader) example loads pipeline files this way: `--pipeline` selects which pipeline's configuration overlay applies before any flag binds, `steps` and `needs` concatenate across files, and the per-key origins of merged `env` entries surface in `--why`.
 
 ## Precedence and validation
 
