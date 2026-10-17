@@ -79,25 +79,25 @@ The report contains these diagnostic sections (the feature table appears only wh
 
 - **Flag table**:
   - `FLAG`: The declared flag name.
-  - `VALUE`: The winning value, or `██████` if untagged. Entry-bearing map rows render `-` because the sub-rows state each key's value.
-  - `SOURCE`: The winning tier (`cli`, `env`, `config`, or `default`). A config-sourced value names the contributing file in parentheses (`config (app.yaml)`). Entry-bearing map rows render `-` because the sub-rows state each key's tier.
+  - `VALUE`: The winning value, or `██████` if untagged. Entry-bearing map rows display the key count `(N keys)`. Under cascading config or multi-file flags, file paths display by their legend index (`[1], [2]`).
+  - `SOURCE`: The winning tier (`cli`, `env`, `config`, or `default`). A config-sourced value names the contributing file or index (`config (app.yaml)` or `config [1]`).
   - `ENV`: The derived or explicit environment variable evaluated for this flag.
   - `CONFIG PATH`: The evaluated config file key.
 - **Config decoders**: All file format decoders registered on the application.
-- **Config paths checked**: Every file path probed during resolution, annotated with its status (`(none found)` or loaded).
+- **Config paths checked / Config files**: Evaluated file paths and their probe outcome (`(loaded)`, `(not found)`). In cascading or multi-file setups, paths are indexed (`[1]`, `[2]`) with absolute, clickable terminal links.
 - **Features**: Every declared feature, its resolved value, and its source.
 
-Map flags merge key by key across tiers, so their row renders `-` for value and source and is followed by one indented sub-row per key carrying that key's value and the tier that last wrote it:
+Map flags merge key by key across tiers: the flag row displays the key count and highest contributing tier, followed by tree-structured sub-rows (`├─ `, `└─ `) detailing each key's value and source:
 
 ```sh
 SERVER_LABELS=region=eu-west-1 server --why --labels shared=cli,team=core
 ```
 
 ```text no-copy
-  --labels   -                  -        SERVER_LABELS   labels
-             region=eu-west-1   env
-             shared=cli         cli
-             team=core          cli
+  --labels   (3 keys)              cli   SERVER_LABELS   labels
+             ├─ region=eu-west-1   env
+             ├─ shared=cli         cli
+             └─ team=core          cli
 ```
 
 ## Inspect feature provenance

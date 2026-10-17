@@ -37,9 +37,9 @@ func TestRenderRows_MapEntriesWidenValueColumn(t *testing.T) {
 
 	output := renderRows(rows)
 
-	assert.Equal(t, "\n  FLAG        VALUE          SOURCE   ENV   CONFIG PATH\n"+
-		"  --secrets   -              -        -     secrets\n"+
-		"              token=██████   cli\n", output)
+	assert.Equal(t, "\n  FLAG        VALUE     SOURCE   ENV   CONFIG PATH\n"+
+		"  --secrets   (1 key)   cli      -     secrets\n"+
+		"              └─ token=██████   cli\n", output)
 }
 
 func TestRenderRows_SourceDetailRendered(t *testing.T) {

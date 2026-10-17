@@ -50,6 +50,7 @@ func (a *App[T]) renderWhy(cmdChain []*spec.Command, cliValues map[*spec.Flag][]
 	}
 
 	report := a.buildWhyReport(cmdChain, cliValues)
+	report.Color = why.IsColorEnabled(a.stdout)
 
 	if format == "json" {
 		fmt.Fprintln(a.stdout, report.FormatJSON())
@@ -245,16 +246,16 @@ func (a *App[T]) whyConfigFileRow(cmd *spec.Command, cmdChain []*spec.Command, f
 	}
 
 	resolvedPath := loadedPaths[len(loadedPaths)-1]
-	if flagSpec.IsSlice {
-		resolvedPath = strings.Join(loadedPaths, ", ")
+	if len(loadedPaths) >= 1 {
+		indices := make([]string, len(loadedPaths))
+		for i := range loadedPaths {
+			indices[i] = "[" + strconv.Itoa(i+1) + "]"
+		}
+
+		resolvedPath = strings.Join(indices, ", ")
 	}
 
-	var displayValue any = resolvedPath
-	if flagSpec.IsSlice {
-		displayValue = loadedPaths
-	}
-
-	row.Value = whyDisplayValue(flagSpec, displayValue)
+	row.Value = whyDisplayValue(flagSpec, resolvedPath)
 	row.Source = whySourceWord(loadedSource)
 
 	return row
@@ -265,6 +266,14 @@ func (a *App[T]) whyConfigFileRow(cmd *spec.Command, cmdChain []*spec.Command, f
 // selects between the fixed-width redaction block and the formatted value.
 func (a *App[T]) whyCoercedRow(cmdChain []*spec.Command, flagSpec *spec.Flag, rawValues []string, source ValueSource, sourceName string, state *bindingState, row why.Row, redact bool) why.Row {
 	row.Source = whySourceWord(source)
+
+	if len(rawValues) >= 1 {
+		if matched := matchConfigOriginIndices(rawValues, state.ConfigOrigins); matched != "" {
+			row.Value = cond.If(redact, why.Redacted, matched)
+
+			return row
+		}
+	}
 
 	value, err := whyCoerceValue(flagSpec, rawValues, state)
 	if err != nil {
@@ -417,6 +426,35 @@ func whyFeatureRows(root *spec.Command, result mapMergeResult) []why.FeatureRow 
 // the full recorded origin is kept to keep the rows unambiguous.
 func whyOriginDetail(origin string) string {
 	return origin
+}
+
+func matchConfigOriginIndices(values []string, origins []string) string {
+	if len(origins) == 0 {
+		return ""
+	}
+
+	indices := make([]string, len(values))
+
+	for i, v := range values {
+		cleanV := filepath.Clean(v)
+		idx := -1
+
+		for j, o := range origins {
+			if o == v || filepath.Clean(o) == cleanV || whyPathsReferToSameLocation(v, o) {
+				idx = j
+
+				break
+			}
+		}
+
+		if idx == -1 {
+			return ""
+		}
+
+		indices[i] = "[" + strconv.Itoa(idx+1) + "]"
+	}
+
+	return strings.Join(indices, ", ")
 }
 
 // whyConfigPaths annotates every candidate configuration path probed during
@@ -676,5 +714,5 @@ func whyLoadedConfigFile(candidate string, loadedPaths []string) string {
 // same location as a reported failure path, which may still be in raw,
 // pre-expansion form (e.g. "~/.config/app.yaml" or "${VAR:-fallback}").
 func whyPathsReferToSameLocation(candidate string, failedPath string) bool {
-	return candidate == failedPath || candidate == pathx.Expand(failedPath)
+	return candidate == failedPath || candidate == pathx.Expand(failedPath) || filepath.Clean(candidate) == filepath.Clean(failedPath)
 }

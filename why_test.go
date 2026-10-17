@@ -255,7 +255,8 @@ func TestBuiltinHoist_DeprecationNotices(t *testing.T) {
 
 func TestWhy_ReportRedactionAndBadges(t *testing.T) {
 	t.Setenv("WHY_TOKEN", "s3cr3t-token")
-	t.Chdir(t.TempDir())
+	tmpDir := t.TempDir()
+	t.Chdir(tmpDir)
 
 	const configPath = "why-config.json"
 
@@ -300,7 +301,8 @@ type whyMergeCLI struct {
 //
 //nolint:paralleltest // Swaps the process working directory via t.Chdir.
 func TestWhy_MapMergePerKeyProvenance(t *testing.T) {
-	t.Chdir(t.TempDir())
+	tmpDir := t.TempDir()
+	t.Chdir(tmpDir)
 
 	configPath := "why-merge.json"
 
@@ -341,7 +343,8 @@ type whyCascadeCLI struct {
 //
 //nolint:paralleltest // Swaps the process working directory via t.Chdir.
 func TestWhy_CascadingMapOriginsPerKey(t *testing.T) {
-	t.Chdir(t.TempDir())
+	tmpDir := t.TempDir()
+	t.Chdir(tmpDir)
 
 	sysPath := "sys.json"
 	localPath := "local.json"
@@ -362,7 +365,9 @@ func TestWhy_CascadingMapOriginsPerKey(t *testing.T) {
 	err := app.Run()
 
 	assert.NoError(t, err)
-	assertGolden(t, "testdata/why/map-cascade-merge.golden", goldenWhyMapCascadeMerge, buffer.String())
+
+	output := normalizeWhyGolden(buffer.String(), tmpDir, "<TMP>")
+	assertGolden(t, "testdata/why/map-cascade-merge.golden", goldenWhyMapCascadeMerge, output)
 }
 
 // whyCascadeScalarCLI exercises scalar flags loaded from two cascading files
@@ -381,7 +386,8 @@ type whyCascadeScalarCLI struct {
 //
 //nolint:paralleltest // Swaps the process working directory via t.Chdir.
 func TestWhy_CascadingScalarOriginsPerFile(t *testing.T) {
-	t.Chdir(t.TempDir())
+	tmpDir := t.TempDir()
+	t.Chdir(tmpDir)
 
 	sysPath := "sys.json"
 	localPath := "local.json"
@@ -402,7 +408,9 @@ func TestWhy_CascadingScalarOriginsPerFile(t *testing.T) {
 	err := app.Run()
 
 	assert.NoError(t, err)
-	assertGolden(t, "testdata/why/scalar-cascade-merge.golden", goldenWhyScalarCascadeMerge, buffer.String())
+
+	output := normalizeWhyGolden(buffer.String(), tmpDir, "<TMP>")
+	assertGolden(t, "testdata/why/scalar-cascade-merge.golden", goldenWhyScalarCascadeMerge, output)
 }
 
 type whyMapEntryWidthCLI struct {
@@ -867,7 +875,9 @@ func TestWhy_ConfigFileRowsRender(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.Contains(t, output, "--config-files")
-		assert.Contains(t, output, firstPath+","+secondPath)
+		assert.Contains(t, output, "[1], [2]")
+		assert.Contains(t, output, firstPath)
+		assert.Contains(t, output, secondPath)
 		assert.NotContains(t, output, "error:")
 	})
 }
@@ -907,7 +917,8 @@ func TestWhy_ConfigPathsChecked_NothingFound(t *testing.T) {
 //
 //nolint:paralleltest // Swaps the process working directory via t.Chdir.
 func TestWhy_ConfigPathsChecked_LoadedTiers(t *testing.T) {
-	t.Chdir(t.TempDir())
+	tmpDir := t.TempDir()
+	t.Chdir(tmpDir)
 
 	// Stem tier: "<stem>.json" is probed when the stem path does not exist.
 	stemPath := filepath.Join("user", "whyapp")
@@ -936,7 +947,9 @@ func TestWhy_ConfigPathsChecked_LoadedTiers(t *testing.T) {
 	err := app.Run()
 
 	assert.NoError(t, err)
-	assertGolden(t, "testdata/why/config-paths-loaded.golden", goldenWhyConfigPathsLoaded, buffer.String())
+
+	output := normalizeWhyGolden(buffer.String(), tmpDir, "<TMP>")
+	assertGolden(t, "testdata/why/config-paths-loaded.golden", goldenWhyConfigPathsLoaded, output)
 }
 
 func TestWhy_ConfigPathsChecked_ExplicitPath(t *testing.T) {

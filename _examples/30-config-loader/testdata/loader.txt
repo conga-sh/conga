@@ -42,12 +42,13 @@ stdout 'DEPLOY_REGION=us-east-1, FLOW_ENV=ci, LOG_FORMAT=json, RELEASE_CHANNEL=c
 # 5. --why attributes each config key and map entry to the file and pipeline
 #    that supplied it.
 exec flowctl -f pipeline.yaml -f pipeline.local.yaml --pipeline deploy --why
-stdout '--parallelism\s+2\s+config \(pipeline\.local\.yaml\)'
-stdout '--log-level\s+debug\s+config \(pipeline\.local\.yaml \(pipeline deploy\)\)'
-stdout 'DEPLOY_REGION=██████\s+config \(pipeline\.local\.yaml \(pipeline deploy\)\)'
-stdout 'LOG_FORMAT=██████\s+config \(pipeline\.yaml\)'
-stdout 'loaded: pipeline\.yaml'
-stdout 'loaded: pipeline\.local\.yaml'
+stdout '--parallelism\s+2\s+config \[1\]'
+stdout '--log-level\s+debug\s+config \[2\]'
+stdout 'DEPLOY_REGION=██████\s+config \[2\]'
+stdout 'LOG_FORMAT=██████\s+config \[3\]'
+stdout '\[1\] .*/pipeline\.local\.yaml\s+\(loaded\)'
+stdout '\[2\] .*/pipeline\.local\.yaml \(pipeline deploy\)\s+\(loaded\)'
+stdout '\[3\] .*/pipeline\.yaml\s+\(loaded\)'
 
 # 6. A loader failure is app-authored data: exit 1, never a usage error.
 exit-status 1 flowctl --pipeline nope

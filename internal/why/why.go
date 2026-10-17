@@ -8,6 +8,10 @@ package why
 
 import (
 	"fmt"
+	"io"
+	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -34,6 +38,18 @@ const (
 
 // rowIndent is the leading indentation shared by every rendered table row.
 const rowIndent = 2
+
+// ANSI escape sequences for terminal styling.
+const (
+	ansiReset    = "\033[0m"
+	ansiBold     = "\033[1m"
+	ansiDim      = "\033[2m"
+	ansiRed      = "\033[31m"
+	ansiGreen    = "\033[32m"
+	ansiYellow   = "\033[33m"
+	ansiCyan     = "\033[36m"
+	ansiDarkGray = "\033[90m"
+)
 
 // Row is one neutral report line for a single flag or config-file container.
 type Row struct {
@@ -121,6 +137,9 @@ type Report struct {
 	// was loaded anywhere.
 	ConfigExamples []string
 	Redacted       bool
+	// Color enables ANSI color styling in Format(). When false, plain text is
+	// rendered.
+	Color bool
 }
 
 // Format renders the report as plain text following internal/help table
@@ -129,6 +148,8 @@ type Report struct {
 // ancestors contribute flags, per-row diagnostics, and the redaction footer
 // hint.
 func (r Report) Format() string {
+	renderCtx := newRenderContext(r)
+
 	var builder strings.Builder
 
 	path := r.CommandPath
@@ -138,16 +159,20 @@ func (r Report) Format() string {
 
 	fmt.Fprintf(&builder, "Value provenance for %q:\n", path)
 
-	builder.WriteString(renderRows(r.Rows))
+	builder.WriteString(renderRows(r.Rows, renderCtx))
 
 	if len(r.GlobalRows) > 0 {
-		builder.WriteString("\nGlobal Flags:\n")
-		builder.WriteString(renderRows(r.GlobalRows))
+		builder.WriteString("\n")
+		builder.WriteString(styleText("Global Flags:", ansiBold, renderCtx.color))
+		builder.WriteString("\n")
+		builder.WriteString(renderRows(r.GlobalRows, renderCtx))
 	}
 
 	if len(r.Features) > 0 {
-		builder.WriteString("\nFeatures:\n")
-		builder.WriteString(renderFeatureRows(r.Features))
+		builder.WriteString("\n")
+		builder.WriteString(styleText("Features:", ansiBold, renderCtx.color))
+		builder.WriteString("\n")
+		builder.WriteString(renderFeatureRows(r.Features, renderCtx))
 	}
 
 	if len(r.ConfigPaths) > 0 {
@@ -157,8 +182,16 @@ func (r Report) Format() string {
 			builder.WriteString("\n")
 		}
 
-		builder.WriteString("\nConfig paths checked:\n")
-		builder.WriteString(renderConfigPaths(r.ConfigPaths))
+		builder.WriteString("\n")
+
+		sectionTitle := "Config paths checked:"
+		if renderCtx.useIndices {
+			sectionTitle = "Config files:"
+		}
+
+		builder.WriteString(styleText(sectionTitle, ansiBold, renderCtx.color))
+		builder.WriteString("\n")
+		builder.WriteString(renderConfigPaths(r.ConfigPaths, renderCtx))
 
 		if len(r.ConfigExamples) > 0 {
 			builder.WriteString("\nCreate a config file at one of:\n")
@@ -168,7 +201,7 @@ func (r Report) Format() string {
 
 	if r.Redacted {
 		builder.WriteString("\n")
-		builder.WriteString(FooterHint)
+		builder.WriteString(styleText(FooterHint, ansiDim, renderCtx.color))
 		builder.WriteString("\n")
 	}
 
@@ -279,38 +312,222 @@ type ConfigPath struct {
 	ProbedFiles []string
 }
 
+// IsColorEnabled reports whether styled color output should be enabled for writer,
+// honoring CONGA_COLOR, NO_COLOR, CLICOLOR, TERM=dumb, and TTY detection.
+func IsColorEnabled(writer io.Writer) bool {
+	if val, ok := os.LookupEnv("CONGA_COLOR"); ok && val != "" {
+		return val != "0"
+	}
+
+	if val, ok := os.LookupEnv("NO_COLOR"); ok && val != "" {
+		return false
+	}
+
+	if os.Getenv("CLICOLOR") == "0" || os.Getenv("TERM") == "dumb" {
+		return false
+	}
+
+	return isTerminalWriter(writer)
+}
+
+// renderContext carries terminal capabilities and origin indexing state for
+// layout formatting.
+type renderContext struct {
+	color         bool
+	originIndices map[string]int
+	useIndices    bool
+}
+
+func newRenderContext(report Report) renderContext {
+	renderCtx := renderContext{
+		color:         report.Color,
+		originIndices: make(map[string]int),
+	}
+
+	nextIndex := 1
+
+	for _, configPath := range report.ConfigPaths {
+		if strings.HasPrefix(configPath.Status, "loaded") {
+			loadedFile := configPath.Path
+			if file, ok := strings.CutPrefix(configPath.Status, "loaded: "); ok {
+				loadedFile = file
+			}
+
+			if _, exists := renderCtx.originIndices[loadedFile]; !exists {
+				renderCtx.originIndices[loadedFile] = nextIndex
+				nextIndex++
+			}
+
+			renderCtx.originIndices[configPath.Path] = renderCtx.originIndices[loadedFile]
+		}
+	}
+
+	collectConfigDetail := func(source, detail string) {
+		if source == "config" && detail != "" {
+			if _, exists := renderCtx.originIndices[detail]; !exists {
+				renderCtx.originIndices[detail] = nextIndex
+				nextIndex++
+			}
+		}
+	}
+
+	for _, row := range report.Rows {
+		collectConfigDetail(row.Source, row.Detail)
+
+		for _, entry := range row.Entries {
+			collectConfigDetail(entry.Source, entry.Detail)
+		}
+	}
+
+	for _, row := range report.GlobalRows {
+		collectConfigDetail(row.Source, row.Detail)
+
+		for _, entry := range row.Entries {
+			collectConfigDetail(entry.Source, entry.Detail)
+		}
+	}
+
+	for _, feat := range report.Features {
+		collectConfigDetail(feat.Source, feat.Detail)
+	}
+
+	distinctCount := 0
+	seen := make(map[int]bool)
+
+	for _, idx := range renderCtx.originIndices {
+		if !seen[idx] {
+			seen[idx] = true
+			distinctCount++
+		}
+	}
+
+	renderCtx.useIndices = distinctCount >= 1
+
+	return renderCtx
+}
+
+func (rc renderContext) sourceText(source, detail string) (string, string) {
+	if source == "config" && rc.useIndices && detail != "" {
+		if idx, ok := rc.originIndices[detail]; ok {
+			badge := "[" + strconv.Itoa(idx) + "]"
+
+			base := "config " + badge
+			if rc.color {
+				plain := "● " + base
+				styled := styleText("●", ansiYellow, true) + " " + styleText(base, ansiBold, true)
+
+				return plain, styled
+			}
+
+			return base, base
+		}
+	}
+
+	text := source
+	if detail != "" {
+		text = source + " (" + detail + ")"
+	}
+
+	if !rc.color {
+		return text, text
+	}
+
+	switch source {
+	case "cli":
+		return "● " + text, styleText("●", ansiCyan, true) + " " + styleText(text, ansiBold, true)
+	case "env":
+		return "● " + text, styleText("●", ansiGreen, true) + " " + styleText(text, ansiBold, true)
+	case "config":
+		return "● " + text, styleText("●", ansiYellow, true) + " " + styleText(text, ansiBold, true)
+	case "default":
+		return "· " + text, styleText("·", ansiDim, true) + " " + styleText(text, ansiDim, true)
+	default:
+		return "○ " + text, styleText("○", ansiDarkGray, true) + " " + styleText(text, ansiDarkGray, true)
+	}
+}
+
+func (rc renderContext) rowCells(row Row) ([]string, []string) {
+	lbl := rowLabel(row)
+
+	styledLbl := lbl
+	if rc.color {
+		styledLbl = styleText(lbl, ansiBold, true)
+	}
+
+	if len(row.Entries) > 0 {
+		count := len(row.Entries)
+
+		keyLabel := "keys"
+		if count == 1 {
+			keyLabel = "key"
+		}
+
+		val := "(" + strconv.Itoa(count) + " " + keyLabel + ")"
+		srcPlain, srcStyled := rc.sourceText(row.Source, row.Detail)
+
+		return []string{lbl, val, srcPlain, row.Env, row.ConfigPath},
+			[]string{styledLbl, val, srcStyled, row.Env, row.ConfigPath}
+	}
+
+	val := row.Value
+
+	styledVal := val
+	if rc.color && val == Redacted {
+		styledVal = styleText(val, ansiDarkGray, true)
+	}
+
+	srcPlain, srcStyled := rc.sourceText(row.Source, row.Detail)
+	if row.Error != "" {
+		srcPlain = ""
+		srcStyled = ""
+	}
+
+	return []string{lbl, val, srcPlain, row.Env, row.ConfigPath},
+		[]string{styledLbl, styledVal, srcStyled, row.Env, row.ConfigPath}
+}
+
+type renderedRow struct {
+	cells        []string
+	styledCells  []string
+	row          Row
+	errorMessage string
+}
+
+type renderedPath struct {
+	badge       string
+	badgeStyled string
+	bullet      string
+	path        string
+	status      string
+	probedFiles []string
+}
+
 // renderRows lays out the aligned flag · value · source · env · config-path
 // table beneath a header row. Error rows replace the source column with an
 // "error: ..." diagnostic and stop there, so long messages never push the
 // later columns out of alignment for the remaining rows.
-func renderRows(rows []Row) string {
-	header := []string{headerLabel, headerValue, headerSource, headerEnv, headerConfigPath}
-
-	type renderedRow struct {
-		cells        []string
-		entries      [][]string
-		errorMessage string
+func renderRows(rows []Row, optionalRC ...renderContext) string {
+	var renderCtx renderContext
+	if len(optionalRC) > 0 {
+		renderCtx = optionalRC[0]
 	}
+
+	header := []string{headerLabel, headerValue, headerSource, headerEnv, headerConfigPath}
 
 	lines := make([]renderedRow, 0, len(rows))
 	measurement := make([][]string, 0, len(rows)+1)
 	measurement = append(measurement, header)
 
 	for _, row := range rows {
-		cells := rowCells(row)
-		measurement = append(measurement, cells)
+		plainCells, styledCells := renderCtx.rowCells(row)
+		measurement = append(measurement, plainCells)
 
-		var entryCells [][]string
-		if len(row.Entries) > 0 {
-			entryCells = make([][]string, 0, len(row.Entries))
-			for _, entry := range row.Entries {
-				entryLine := []string{"", entry.Key + "=" + entry.Value, sourceCell(entry.Source, entry.Detail)}
-				measurement = append(measurement, []string{"", entryLine[1], entryLine[2], "", ""})
-				entryCells = append(entryCells, entryLine)
-			}
-		}
-
-		lines = append(lines, renderedRow{cells: cells, entries: entryCells, errorMessage: row.Error})
+		lines = append(lines, renderedRow{
+			cells:        plainCells,
+			styledCells:  styledCells,
+			row:          row,
+			errorMessage: row.Error,
+		})
 	}
 
 	widths := measureColumnWidths(measurement)
@@ -321,100 +538,271 @@ func renderRows(rows []Row) string {
 		builder.WriteString("\n")
 	}
 
-	writeGridRow(&builder, header, widths)
+	styledHeader := make([]string, len(header))
+	for i, h := range header {
+		styledHeader[i] = styleText(h, ansiBold, renderCtx.color)
+	}
+
+	writeGridRowWithStyled(&builder, header, styledHeader, widths)
 
 	for _, line := range lines {
 		if line.errorMessage != "" {
 			builder.WriteString(strings.Repeat(" ", rowIndent))
-			writeTableCells(&builder, line.cells[:2], widths)
-			builder.WriteString("error: ")
-			builder.WriteString(line.errorMessage)
+			writeTableCellsWithStyled(&builder, line.cells[:2], line.styledCells[:2], widths)
+			builder.WriteString(styleText("error: ", ansiRed+ansiBold, renderCtx.color))
+			builder.WriteString(styleText(line.errorMessage, ansiRed, renderCtx.color))
 			builder.WriteString("\n")
 
 			continue
 		}
 
-		writeGridRow(&builder, line.cells, widths)
+		writeGridRowWithStyled(&builder, line.cells, line.styledCells, widths)
 
-		for _, entryLine := range line.entries {
-			writeGridRow(&builder, entryLine, widths)
+		if len(line.row.Entries) > 0 {
+			renderMapSubRows(&builder, line.row.Entries, widths, renderCtx)
 		}
 	}
 
 	return builder.String()
 }
 
+func renderMapSubRows(builder *strings.Builder, entries []MapEntry, widths []int, renderCtx renderContext) {
+	maxTokenWidth := 0
+
+	for _, entry := range entries {
+		token := entry.Key + "=" + entry.Value
+		maxTokenWidth = max(maxTokenWidth, utf8.RuneCountInString(token))
+	}
+
+	valColIndent := rowIndent + widths[0] + 3
+
+	for entryIdx, entry := range entries {
+		branch := "├─ "
+		if entryIdx == len(entries)-1 {
+			branch = "└─ "
+		}
+
+		token := entry.Key + "=" + entry.Value
+		_, srcStyled := renderCtx.sourceText(entry.Source, entry.Detail)
+
+		builder.WriteString(strings.Repeat(" ", valColIndent))
+		builder.WriteString(styleText(branch, ansiDim, renderCtx.color))
+
+		styledToken := token
+		if renderCtx.color && entry.Value == Redacted {
+			styledToken = entry.Key + "=" + styleText(entry.Value, ansiDarkGray, true)
+		}
+
+		builder.WriteString(styledToken)
+		builder.WriteString(strings.Repeat(" ", maxTokenWidth-utf8.RuneCountInString(token)))
+		builder.WriteString(strings.Repeat(" ", 3))
+		builder.WriteString(srcStyled)
+		builder.WriteString("\n")
+	}
+}
+
 // renderFeatureRows lays out the aligned feature-name · value · source table
 // beneath a header row.
-func renderFeatureRows(rows []FeatureRow) string {
+func renderFeatureRows(rows []FeatureRow, optionalRC ...renderContext) string {
+	var renderCtx renderContext
+	if len(optionalRC) > 0 {
+		renderCtx = optionalRC[0]
+	}
+
 	header := []string{"FEATURE", headerValue, headerSource}
 
 	grid := make([][]string, 0, len(rows)+1)
 	grid = append(grid, header)
 
+	styledHeader := make([]string, len(header))
+	for i, h := range header {
+		styledHeader[i] = styleText(h, ansiBold, renderCtx.color)
+	}
+
+	styledGrid := make([][]string, 0, len(rows)+1)
+	styledGrid = append(styledGrid, styledHeader)
+
 	for _, row := range rows {
-		grid = append(grid, []string{row.Name, row.Value, sourceCell(row.Source, row.Detail)})
+		srcPlain, srcStyled := renderCtx.sourceText(row.Source, row.Detail)
+		plainCells := []string{row.Name, row.Value, srcPlain}
+		styledCells := []string{styleText(row.Name, ansiBold, renderCtx.color), row.Value, srcStyled}
+
+		grid = append(grid, plainCells)
+		styledGrid = append(styledGrid, styledCells)
 	}
 
 	widths := measureColumnWidths(grid)
 
 	var builder strings.Builder
 
-	writeGridRow(&builder, header, widths)
+	writeGridRowWithStyled(&builder, header, styledHeader, widths)
 
 	for index := range rows {
-		writeGridRow(&builder, grid[index+1], widths)
+		writeGridRowWithStyled(&builder, grid[index+1], styledGrid[index+1], widths)
 	}
 
 	return builder.String()
 }
 
-// sourceCell renders the SOURCE cell for report rows: the bare tier word,
-// annotated with the origin detail in parentheses when one is recorded.
-func sourceCell(source string, detail string) string {
-	if detail == "" {
-		return source
+func renderLoadedIndexedConfigPath(configPath ConfigPath, renderCtx renderContext) renderedPath {
+	item := renderedPath{
+		path:        cleanAndAbsPath(configPath.Path),
+		probedFiles: configPath.ProbedFiles,
 	}
 
-	return source + " (" + detail + ")"
+	loadedFile := configPath.Path
+	if file, ok := strings.CutPrefix(configPath.Status, "loaded: "); ok {
+		loadedFile = file
+	}
+
+	idx := renderCtx.originIndices[configPath.Path]
+	if idx == 0 {
+		idx = renderCtx.originIndices[loadedFile]
+	}
+
+	item.badge = "[" + strconv.Itoa(idx) + "]"
+	item.badgeStyled = styleText(item.badge, ansiDim, renderCtx.color)
+
+	if renderCtx.color {
+		item.bullet = styleText("●", ansiGreen, true) + " "
+	}
+
+	if cleanAndAbsPath(loadedFile) == item.path {
+		item.status = styleText("(loaded)", ansiGreen, renderCtx.color)
+	} else {
+		item.status = styleText("(loaded: "+cleanAndAbsPath(loadedFile)+")", ansiGreen, renderCtx.color)
+	}
+
+	return item
 }
 
-// writeGridRow writes one indented grid row: every cell but the last is padded
-// to its measured width and gap-separated, and the final cell is written flush.
-// Header and data rows share the layout.
-func writeGridRow(builder *strings.Builder, cells []string, widths []int) {
-	builder.WriteString(strings.Repeat(" ", rowIndent))
-	writeTableCells(builder, cells[:len(cells)-1], widths)
-	builder.WriteString(cells[len(cells)-1])
-	builder.WriteString("\n")
+func renderIndexedConfigPath(configPath ConfigPath, renderCtx renderContext) renderedPath {
+	if strings.HasPrefix(configPath.Status, "loaded") {
+		return renderLoadedIndexedConfigPath(configPath, renderCtx)
+	}
+
+	item := renderedPath{
+		path:        cleanAndAbsPath(configPath.Path),
+		probedFiles: configPath.ProbedFiles,
+	}
+
+	if configPath.Status == "error" {
+		item.badge = "[!]"
+		item.badgeStyled = styleText("[!]", ansiRed, renderCtx.color)
+
+		if renderCtx.color {
+			item.bullet = styleText("✖", ansiRed, true) + " "
+		}
+
+		item.status = styleText("(error)", ansiRed, renderCtx.color)
+
+		return item
+	}
+
+	item.badge = "[—]"
+	item.badgeStyled = styleText("[—]", ansiDim, renderCtx.color)
+
+	if renderCtx.color {
+		item.bullet = styleText("○", ansiDarkGray, true) + " "
+	}
+
+	item.status = styleText("("+configPath.Status+")", ansiDarkGray, renderCtx.color)
+
+	return item
 }
 
-// renderConfigPaths lays out the aligned candidate-path · status list beneath
-// its header, appending one indented probed-file line per filename under
-// tiers where nothing was found.
-func renderConfigPaths(paths []ConfigPath) string {
+func renderPlainConfigPath(configPath ConfigPath, renderCtx renderContext) renderedPath {
+	item := renderedPath{
+		path:        cleanAndAbsPath(configPath.Path),
+		probedFiles: configPath.ProbedFiles,
+	}
+
+	isLoaded := strings.HasPrefix(configPath.Status, "loaded")
+	isError := configPath.Status == "error"
+
+	if isLoaded {
+		loadedFile := configPath.Path
+		if file, ok := strings.CutPrefix(configPath.Status, "loaded: "); ok {
+			loadedFile = file
+		}
+
+		if renderCtx.color {
+			item.bullet = styleText("●", ansiGreen, true) + " "
+		}
+
+		if cleanAndAbsPath(loadedFile) == item.path {
+			item.status = styleText("(loaded)", ansiGreen, renderCtx.color)
+		} else {
+			item.status = styleText("(loaded: "+cleanAndAbsPath(loadedFile)+")", ansiGreen, renderCtx.color)
+		}
+
+		return item
+	}
+
+	if isError {
+		item.status = styleText("(error)", ansiRed, renderCtx.color)
+
+		if renderCtx.color {
+			item.bullet = styleText("✖", ansiRed, true) + " "
+		}
+
+		return item
+	}
+
+	item.status = styleText("("+configPath.Status+")", ansiDarkGray, renderCtx.color)
+
+	if renderCtx.color {
+		item.bullet = styleText("○", ansiDarkGray, true) + " "
+	}
+
+	return item
+}
+
+// renderConfigPaths lays out the candidate-path list beneath its header,
+// annotating each path with its probe outcome.
+func renderConfigPaths(paths []ConfigPath, optionalRC ...renderContext) string {
+	var renderCtx renderContext
+	if len(optionalRC) > 0 {
+		renderCtx = optionalRC[0]
+	}
+
 	const (
-		rowIndent   = 2
 		probeIndent = 4
 		columnGap   = 3
 	)
 
-	pathWidth := 0
+	rendered := make([]renderedPath, 0, len(paths))
+	maxPathWidth := 0
 
 	for _, configPath := range paths {
-		pathWidth = max(pathWidth, utf8.RuneCountInString(configPath.Path))
+		var item renderedPath
+		if renderCtx.useIndices {
+			item = renderIndexedConfigPath(configPath, renderCtx)
+		} else {
+			item = renderPlainConfigPath(configPath, renderCtx)
+		}
+
+		maxPathWidth = max(maxPathWidth, utf8.RuneCountInString(item.path))
+		rendered = append(rendered, item)
 	}
 
 	var builder strings.Builder
 
-	for _, configPath := range paths {
+	for _, item := range rendered {
 		builder.WriteString(strings.Repeat(" ", rowIndent))
-		builder.WriteString(pad(configPath.Path, pathWidth))
+		builder.WriteString(item.bullet)
+
+		if item.badge != "" {
+			builder.WriteString(item.badgeStyled)
+			builder.WriteString(" ")
+		}
+
+		builder.WriteString(pad(item.path, maxPathWidth))
 		builder.WriteString(strings.Repeat(" ", columnGap))
-		builder.WriteString(configPath.Status)
+		builder.WriteString(item.status)
 		builder.WriteString("\n")
 
-		for _, probed := range configPath.ProbedFiles {
+		for _, probed := range item.probedFiles {
 			builder.WriteString(strings.Repeat(" ", probeIndent))
 			builder.WriteString("looked for: ")
 			builder.WriteString(probed)
@@ -428,8 +816,6 @@ func renderConfigPaths(paths []ConfigPath) string {
 // renderConfigExamples lays out the indented example configuration locations
 // beneath the creation hint.
 func renderConfigExamples(examples []string) string {
-	const rowIndent = 2
-
 	var builder strings.Builder
 
 	for _, example := range examples {
@@ -450,20 +836,26 @@ func rowLabel(row Row) string {
 	return row.Label
 }
 
-// rowCells renders a row's table cells. A row carrying per-key entries blanks
-// its value and source columns because the sub-rows state them per key, and an
-// error row blanks the source column because the diagnostic replaces it.
-func rowCells(row Row) []string {
-	if len(row.Entries) > 0 {
-		return []string{rowLabel(row), "-", "-", row.Env, row.ConfigPath}
-	}
+func writeGridRowWithStyled(builder *strings.Builder, plainCells, styledCells []string, widths []int) {
+	builder.WriteString(strings.Repeat(" ", rowIndent))
+	writeTableCellsWithStyled(builder, plainCells[:len(plainCells)-1], styledCells[:len(styledCells)-1], widths)
+	builder.WriteString(styledCells[len(styledCells)-1])
+	builder.WriteString("\n")
+}
 
-	source := sourceCell(row.Source, row.Detail)
-	if row.Error != "" {
-		source = ""
-	}
+func writeTableCellsWithStyled(builder *strings.Builder, plainCells, styledCells []string, widths []int) {
+	for column, plain := range plainCells {
+		styled := styledCells[column]
 
-	return []string{rowLabel(row), row.Value, source, row.Env, row.ConfigPath}
+		builder.WriteString(styled)
+
+		padding := widths[column] - utf8.RuneCountInString(plain)
+		if padding > 0 {
+			builder.WriteString(strings.Repeat(" ", padding))
+		}
+
+		builder.WriteString(strings.Repeat(" ", 3))
+	}
 }
 
 // measureColumnWidths measures the display width of every table column across
@@ -485,16 +877,6 @@ func measureColumnWidths(rows [][]string) []int {
 	return widths
 }
 
-// writeTableCells writes each cell space-padded to its measured width and
-// followed by the column gap. Callers write the final table column themselves,
-// so trailing values never carry padding.
-func writeTableCells(builder *strings.Builder, cells []string, widths []int) {
-	for column, cell := range cells {
-		builder.WriteString(pad(cell, widths[column]))
-		builder.WriteString(strings.Repeat(" ", 3))
-	}
-}
-
 func pad(cell string, width int) string {
 	padding := width - utf8.RuneCountInString(cell)
 	if padding <= 0 {
@@ -502,6 +884,28 @@ func pad(cell string, width int) string {
 	}
 
 	return cell + strings.Repeat(" ", padding)
+}
+
+func styleText(text, escape string, enableColor bool) string {
+	if !enableColor || escape == "" || text == "" {
+		return text
+	}
+
+	return escape + text + ansiReset
+}
+
+func isTerminalWriter(writer io.Writer) bool {
+	file, ok := writer.(*os.File)
+	if !ok {
+		return false
+	}
+
+	fileInfo, err := file.Stat()
+	if err != nil {
+		return false
+	}
+
+	return fileInfo.Mode()&os.ModeCharDevice != 0
 }
 
 func appendRowJSON(buffer []byte, row Row) []byte {
@@ -588,4 +992,31 @@ func appendConfigPathJSON(buffer []byte, configPath ConfigPath) []byte {
 	buffer = append(buffer, "]}"...)
 
 	return buffer
+}
+
+func cleanAndAbsPath(rawPath string) string {
+	if rawPath == "" {
+		return ""
+	}
+
+	suffix := ""
+	basePath := rawPath
+
+	if idx := strings.Index(rawPath, " ("); idx != -1 && strings.HasSuffix(rawPath, ")") {
+		basePath = rawPath[:idx]
+		suffix = rawPath[idx:]
+	}
+
+	if !strings.ContainsAny(basePath, `/\.`) {
+		if _, err := os.Stat(basePath); err != nil {
+			return rawPath
+		}
+	}
+
+	cleaned := filepath.Clean(basePath)
+	if abs, err := filepath.Abs(cleaned); err == nil {
+		return abs + suffix
+	}
+
+	return cleaned + suffix
 }
