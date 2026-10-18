@@ -94,7 +94,7 @@ hello:
 
 ## The `--why` report
 
-`app.EnableWhy()` enables `--why`, which prints a per-field provenance report — every resolved value in the active command chain with its [origin tier](/explanation/value-precedence/) (`● cli`, `● env VAR`, `● config file`, `· default`, `○ unset`). Configuration origins are reported as the resolved file paths, without index footnotes; a multi-file `ConfigFile` row renders `(N files)` and lists each path as a tree sub-row (`├─ `, `└─ `).
+`app.EnableWhy()` enables `--why`, which prints a per-field provenance report — every resolved value in the active command chain with its [origin tier](/explanation/value-precedence/) (`● cli`, `● env VAR`, `● config file`, `· default`, `○ unset`). Configuration origins render as the file basename when it is unambiguous, or as the shortest unique directory prefix followed by `...` when basenames collide; the JSON report keeps the resolved paths verbatim. A multi-file `ConfigFile` row renders `(N files)` and lists each path as a tree sub-row (`├─ `, `└─ `), while any other slice flag with more than one item renders `(N values)` and lists each item vertically.
 
 Map flags merge key by key across tiers: the flag row displays the key count `(N keys)` alongside the highest contributing tier, followed by tree-structured sub-rows detailing each key's value and the tier that last wrote it (annotated with its config origin). The `CONFIG PATH` column names the config-document key. Values are redacted by default; fields opt in to display with `safe:"true"`. The report machinery is linked only when `app.EnableWhy()` is called; otherwise `--why` remains an unknown flag.
 

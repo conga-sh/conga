@@ -9,6 +9,6 @@ Value provenance for "whyapp":
 
 Config decoders: .json
 
-Config paths checked:
-  local.json   loaded: local.json
-  sys.json     loaded: sys.json
+Config paths:
+  local.json   loaded
+  sys.json     loaded

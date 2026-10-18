@@ -256,6 +256,10 @@ func (a *App[T]) buildWhyFlagRow(session *Session, cmd *spec.Command, cmdChain [
 		return row
 	}
 
+	if flagSpec.IsSlice {
+		return buildWhySliceRow(flagSpec, value, row)
+	}
+
 	row.Value = whyDisplayValue(flagSpec, value)
 
 	return row
@@ -364,10 +368,12 @@ func (a *App[T]) buildWhyConfigPaths(session *Session, configProbed map[string][
 	paths := make([]why.ConfigPath, 0, len(candidates))
 	for _, candidate := range candidates {
 		if loadedFile := whyLoadedConfigFile(candidate, session.loadedFiles); loadedFile != "" {
-			paths = append(paths, why.ConfigPath{
-				Path:   candidate,
-				Status: "loaded: " + loadedFile,
-			})
+			configPath := why.ConfigPath{Path: candidate, Status: "loaded"}
+			if loadedFile != candidate {
+				configPath.Loaded = loadedFile
+			}
+
+			paths = append(paths, configPath)
 		} else {
 			probed := configProbed[candidate]
 			paths = append(paths, whyAbsentConfigPath(candidate, probed))
@@ -379,6 +385,29 @@ func (a *App[T]) buildWhyConfigPaths(session *Session, configProbed map[string][
 
 func (a *App[T]) bindWhySession(session *Session) {
 	session.whyRenderer = a.renderWhyString
+}
+
+func buildWhySliceRow(flagSpec *spec.Flag, value any, row why.Row) why.Row {
+	reflected := reflect.ValueOf(value)
+	if !reflected.IsValid() || reflected.Kind() != reflect.Slice || reflected.Len() <= 1 {
+		row.Value = whyDisplayValue(flagSpec, value)
+
+		return row
+	}
+
+	items := make([]string, reflected.Len())
+	for index := range reflected.Len() {
+		items[index] = stringx.Stringify(reflected.Index(index).Interface())
+	}
+
+	row.Value = fmt.Sprintf("(%d values)", len(items))
+	row.SubRows = make([]why.SubRow, len(items))
+
+	for index, item := range items {
+		row.SubRows[index] = why.SubRow{Value: item}
+	}
+
+	return row
 }
 
 func buildWhyConfigFileRow(flagSpec *spec.Flag, value any, row why.Row) why.Row {

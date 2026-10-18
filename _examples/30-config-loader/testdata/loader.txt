@@ -21,8 +21,8 @@ stdout 'deploy\s+Deploy the release'
 
 # 2. The selected pipeline's config keys outrank the file's top-level keys.
 exec flowctl --pipeline deploy
-stdout '--parallelism\s+int\s+1\s+● config pipeline\.yaml \(pipeline deploy\)'
-stdout '--log-level\s+string\s+debug\s+● config pipeline\.yaml \(pipeline deploy\)'
+stdout '--parallelism\s+int\s+1\s+● config pipeline\.yaml › pipeline deploy'
+stdout '--log-level\s+string\s+debug\s+● config pipeline\.yaml › pipeline deploy'
 stdout 'DEPLOY_REGION=eu-west-1, FLOW_ENV=prod, LOG_FORMAT=json'
 stdout 'pipeline deploy: needs=\[build\] steps=\[\./deploy\.sh\]'
 
@@ -30,7 +30,7 @@ stdout 'pipeline deploy: needs=\[build\] steps=\[\./deploy\.sh\]'
 exec flowctl -f pipeline.yaml -f pipeline.local.yaml --pipeline deploy
 stdout '--file\s+\[\]string\s+\[pipeline\.yaml, pipeline\.local\.yaml\]'
 stdout '--parallelism\s+int\s+2\s+● config pipeline\.local\.yaml'
-stdout '--log-level\s+string\s+debug\s+● config pipeline\.local\.yaml \(pipeline deploy\)'
+stdout '--log-level\s+string\s+debug\s+● config pipeline\.local\.yaml › pipeline deploy'
 stdout 'DEPLOY_REGION=us-east-1, FLOW_ENV=local, LOG_FORMAT=json, RELEASE_CHANNEL=canary'
 stdout 'pipeline deploy: needs=\[build lint\] steps=\[\./deploy\.sh \./notify\.sh\]'
 
@@ -43,12 +43,12 @@ stdout 'DEPLOY_REGION=us-east-1, FLOW_ENV=ci, LOG_FORMAT=json, RELEASE_CHANNEL=c
 #    that supplied it.
 exec flowctl -f pipeline.yaml -f pipeline.local.yaml --pipeline deploy --why
 stdout '--parallelism\s+2\s+config \(pipeline\.local\.yaml\)'
-stdout '--log-level\s+debug\s+config \(pipeline\.local\.yaml \(pipeline deploy\)\)'
-stdout 'DEPLOY_REGION=██████\s+config \(pipeline\.local\.yaml \(pipeline deploy\)\)'
+stdout '--log-level\s+debug\s+config \(pipeline\.local\.yaml › pipeline deploy\)'
+stdout 'DEPLOY_REGION=██████\s+config \(pipeline\.local\.yaml › pipeline deploy\)'
 stdout 'LOG_FORMAT=██████\s+config \(pipeline\.yaml\)'
-stdout 'pipeline\.local\.yaml\s+loaded: pipeline\.local\.yaml'
-stdout 'pipeline\.local\.yaml \(pipeline deploy\)\s+loaded: pipeline\.local\.yaml \(pipeline deploy\)'
-stdout 'pipeline\.yaml\s+loaded: pipeline\.yaml'
+stdout 'pipeline\.local\.yaml\s+loaded'
+stdout 'pipeline\.local\.yaml › pipeline deploy\s+loaded'
+stdout 'pipeline\.yaml\s+loaded'
 
 # 6. A loader failure is app-authored data: exit 1, never a usage error.
 exit-status 1 flowctl --pipeline nope

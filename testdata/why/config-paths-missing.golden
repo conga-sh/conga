@@ -5,7 +5,7 @@ Value provenance for "whyapp":
 
 Config decoders: .json
 
-Config paths checked:
+Config paths:
   <TMP>/local   no config file
     looked for: <TMP>/local/config.json
     looked for: <TMP>/local/whyapp.json

@@ -17,9 +17,9 @@ stdout '--telemetry\s+bool\s+false\s+● config .*etc[/\\]cascading-app[/\\]casc
 #    cascade file
 exec cascading-app --why
 stdout '--api-endpoint\s+https://api\.local\.dev\s+config \(cascading-app\.yaml\)'
-stdout '--timeout\s+15s\s+config \(.*home[/\\]\.config[/\\]cascading-app[/\\]cascading-app\.yaml\)'
-stdout '--theme\s+light\s+config \(.*home[/\\]\.config[/\\]cascading-app[/\\]cascading-app\.yaml\)'
-stdout '--telemetry\s+false\s+config \(.*etc[/\\]cascading-app[/\\]cascading-app\.yaml\)'
+stdout '--timeout\s+15s\s+config \(.*home[/\\]\.\.\.[/\\]cascading-app\.yaml\)'
+stdout '--theme\s+light\s+config \(.*home[/\\]\.\.\.[/\\]cascading-app\.yaml\)'
+stdout '--telemetry\s+false\s+config \(.*etc[/\\]\.\.\.[/\\]cascading-app\.yaml\)'
 stdout '\.\s+loaded: cascading-app\.yaml'
 stdout '.*home[/\\]\.config[/\\]cascading-app\s+loaded: .*home[/\\]\.config[/\\]cascading-app[/\\]cascading-app\.yaml'
 stdout '.*etc[/\\]cascading-app\s+loaded: .*etc[/\\]cascading-app[/\\]cascading-app\.yaml'

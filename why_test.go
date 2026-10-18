@@ -869,6 +869,41 @@ func TestWhy_ConfigFileRowsRender(t *testing.T) {
 	})
 }
 
+func TestWhy_SliceValuesRenderedVertically(t *testing.T) {
+	t.Parallel()
+
+	type sliceCLI struct {
+		noopRunner
+
+		Tags  conga.OptionalFlag[[]string] `help:"Tags"  safe:"true"`
+		Flags conga.OptionalFlag[[]bool]   `help:"Flags" safe:"true"`
+	}
+
+	var buffer bytes.Buffer
+
+	app := conga.New[sliceCLI]().
+		Name("whyapp").
+		Stdout(&buffer).
+		EnableWhy().
+		Args([]string{"--tags", "go,cli,conga", "--flags", "true,false", "--why"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+
+	output := buffer.String()
+
+	assert.Contains(t, output, "--tags")
+	assert.Contains(t, output, "(3 values)")
+	assert.Contains(t, output, "├─ go")
+	assert.Contains(t, output, "├─ cli")
+	assert.Contains(t, output, "└─ conga")
+	assert.Contains(t, output, "--flags")
+	assert.Contains(t, output, "(2 values)")
+	assert.Contains(t, output, "├─ true")
+	assert.Contains(t, output, "└─ false")
+}
+
 func TestWhy_ConfigPathsChecked_NothingFound(t *testing.T) {
 	t.Parallel()
 
@@ -965,9 +1000,10 @@ func TestWhy_ConfigPathsChecked_ExplicitPath(t *testing.T) {
 		output := buffer.String()
 
 		assert.NoError(t, err)
-		assert.Contains(t, output, "Config paths checked")
+		assert.Contains(t, output, "Config paths")
 		assert.Contains(t, output, configPath)
-		assert.Contains(t, output, "loaded: "+configPath)
+		assert.Contains(t, output, "loaded")
+		assert.NotContains(t, output, "loaded: "+configPath)
 	})
 
 	t.Run("failing explicit path returns error", func(t *testing.T) {
@@ -1043,7 +1079,7 @@ func TestWhy_ConfigPathsChecked_OmittedWithoutConfigResolution(t *testing.T) {
 	output := buffer.String()
 
 	assert.NoError(t, err)
-	assert.NotContains(t, output, "Config paths checked")
+	assert.NotContains(t, output, "Config paths")
 }
 
 func TestWhy_BuiltinPriority(t *testing.T) {
@@ -1337,7 +1373,7 @@ func TestWhy_ConfigPathsChecked_DefaultXDGTier(t *testing.T) {
 		output := buffer.String()
 
 		assert.NoError(t, err)
-		assert.Contains(t, output, "Config paths checked")
+		assert.Contains(t, output, "Config paths")
 		assert.Contains(t, output, tierPath)
 
 		inSection := false
@@ -1345,7 +1381,7 @@ func TestWhy_ConfigPathsChecked_DefaultXDGTier(t *testing.T) {
 
 		for line := range strings.SplitSeq(output, "\n") {
 			switch {
-			case strings.HasPrefix(line, "Config paths checked"):
+			case strings.HasPrefix(line, "Config paths"):
 				inSection = true
 			case strings.HasPrefix(line, "Create a config file"):
 				inSection = false
@@ -1412,7 +1448,7 @@ func TestWhy_ConfigDecoders_HeaderSuffixListsRegisteredDecoders(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Contains(t, output, "Config decoders: .json")
-	assert.Contains(t, output, "Config paths checked")
+	assert.Contains(t, output, "Config paths")
 }
 
 func TestWhy_ConfigDecoders_OmittedWithoutRegisteredDecoders(t *testing.T) {
@@ -1433,7 +1469,7 @@ func TestWhy_ConfigDecoders_OmittedWithoutRegisteredDecoders(t *testing.T) {
 	output := buffer.String()
 
 	assert.NoError(t, err)
-	assert.Contains(t, output, "Config paths checked")
+	assert.Contains(t, output, "Config paths")
 	assert.NotContains(t, output, "Config decoders:")
 }
 

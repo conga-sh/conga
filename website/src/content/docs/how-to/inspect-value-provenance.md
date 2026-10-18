@@ -81,12 +81,12 @@ The report contains these diagnostic sections (the feature table appears only wh
 
 - **Flag table**:
   - `FLAG`: The declared flag name.
-  - `VALUE`: The winning value, or `██████` if untagged. Entry-bearing map rows display the key count `(N keys)`. Multi-file `ConfigFile` rows display `(N files)` and list each path as a sub-row.
-  - `SOURCE`: The winning tier (`cli`, `env`, `config`, or `default`). A config-sourced value names the contributing file (`config (app.yaml)`).
+  - `VALUE`: The winning value, or `██████` if untagged. Entry-bearing map rows display the key count `(N keys)`. Multi-file `ConfigFile` rows display `(N files)` and list each path as a sub-row. Other slice flags with more than one item display `(N values)` and list each item as a sub-row.
+  - `SOURCE`: The winning tier (`cli`, `env`, `config`, or `default`). A config-sourced value names the contributing file, using its basename when unambiguous and the shortest unique directory prefix followed by `...` when basenames collide (`config (app.yaml)`, `config (/etc/.../app.yaml)`). The JSON report keeps the full resolved paths.
   - `ENV`: The derived or explicit environment variable evaluated for this flag.
   - `CONFIG PATH`: The evaluated config file key.
 - **Config decoders**: All file format decoders registered on the application.
-- **Config paths checked**: Evaluated file paths and their probe outcome (`(loaded)`, `(not found)`), reported as resolved without index footnotes.
+- **Config paths**: Evaluated file paths and their probe outcome (`loaded`, `not found`), reported as resolved without index footnotes. A candidate that resolved to a different file, such as a search directory, names that file (`loaded: config.yaml`).
 - **Features**: Every declared feature, its resolved value, and its source.
 
 The same report is available programmatically: `session.Why()` returns the text table and `session.WhyJSON()` returns the JSON document (empty unless Why and the JSON option are enabled, respectively).

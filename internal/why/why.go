@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"reflect"
 	"slices"
 	"strconv"
@@ -73,7 +74,9 @@ type Row struct {
 	Label string
 	// Value is the display value, redacted or formatted by the caller; empty
 	// for unset values (the source column says "unset"). Not rendered for a
-	// row carrying per-key entries: the sub-rows state each key's value.
+	// row carrying per-key entries: the sub-rows state each key's value. For
+	// a row carrying sub-rows it is the parent value cell, such as
+	// "(2 files)" or "(3 values)".
 	Value string
 	// Source is the bare source-tier word ("cli", "env", "config", "default",
 	// "unset"). For a merged map flag this is the highest contributing tier.
@@ -148,12 +151,16 @@ type ConfigPath struct {
 	// Path is the expanded candidate location (a search-path tier, an
 	// environment-derived path, or an explicit --config-file location).
 	Path string
-	// Status is the probe outcome: "loaded: <file>" when the candidate
-	// resolved to a configuration file, "directory does not exist" when the
-	// candidate location is absent, "no config file" when the candidate is
-	// an existing directory holding no matching file, or "error" when
-	// reading the candidate failed.
+	// Status is the probe outcome: "loaded" when the candidate resolved to a
+	// configuration file, "directory does not exist" when the candidate
+	// location is absent, "no config file" when the candidate is an existing
+	// directory holding no matching file, or "error" when reading the
+	// candidate failed.
 	Status string
+	// Loaded is the concrete file the candidate resolved to when it differs
+	// from Path, such as a search-directory tier or a stem candidate. It is
+	// empty when Path itself loaded.
+	Loaded string
 	// ProbedFiles lists the concrete configuration file locations the
 	// resolution probed for a search-path tier that found nothing, as full
 	// paths (e.g. "<tier>/config.json", "<tier>.yaml"). One report line is
@@ -234,7 +241,7 @@ func (r Report) Format() string {
 		}
 
 		builder.WriteString("\n")
-		builder.WriteString(styleText("Config paths checked:", ansiBold, renderCtx.color))
+		builder.WriteString(styleText("Config paths:", ansiBold, renderCtx.color))
 		builder.WriteString("\n")
 		builder.WriteString(renderConfigPaths(r.ConfigPaths, renderCtx))
 
@@ -336,13 +343,64 @@ func IsColorEnabled(writer io.Writer) bool {
 	return isTerminalWriter(writer)
 }
 
+// originShortener maps displayed provenance origins to concise forms. A
+// unique basename is used when it is unambiguous; colliding basenames fall
+// back to the shortest unique directory prefix followed by "...".
+type originShortener struct {
+	displays map[string]string
+}
+
+func newOriginShortener(report Report) originShortener {
+	origins := collectReportOrigins(report)
+	if len(origins) == 0 {
+		return originShortener{}
+	}
+
+	groups := make(map[string][]string, len(origins))
+
+	for origin := range origins {
+		candidate := originCandidate(origin)
+		groups[candidate] = append(groups[candidate], origin)
+	}
+
+	displays := make(map[string]string, len(origins))
+
+	for candidate, group := range groups {
+		if len(group) == 1 {
+			if group[0] != candidate {
+				displays[group[0]] = candidate
+			}
+
+			continue
+		}
+
+		for origin, display := range disambiguateOrigins(group) {
+			if origin != display {
+				displays[origin] = display
+			}
+		}
+	}
+
+	return originShortener{displays: displays}
+}
+
+func (s originShortener) display(origin string) string {
+	if display, ok := s.displays[origin]; ok {
+		return display
+	}
+
+	return origin
+}
+
 type renderContext struct {
-	color bool
+	color   bool
+	origins originShortener
 }
 
 func newRenderContext(report Report) renderContext {
 	return renderContext{
-		color: report.Color,
+		color:   report.Color,
+		origins: newOriginShortener(report),
 	}
 }
 
@@ -350,6 +408,8 @@ func (rc renderContext) sourceText(source, detail string) (string, string) {
 	if detail == "" {
 		return formatSourceTier(source, rc.color)
 	}
+
+	detail = rc.origins.display(detail)
 
 	plainTier, styledTier := formatSourceTier(source, rc.color)
 	plain := plainTier + " (" + detail + ")"
@@ -380,14 +440,7 @@ func (rc renderContext) rowCells(row Row) ([]string, []string) {
 		return []string{lbl, value, srcPlain, row.Env, row.ConfigPath},
 			[]string{styledLbl, value, srcStyled, row.Env, row.ConfigPath}
 	} else if len(row.SubRows) > 0 {
-		count := len(row.SubRows)
-
-		fileLabel := "files"
-		if count == 1 {
-			fileLabel = "file"
-		}
-
-		value := "(" + strconv.Itoa(count) + " " + fileLabel + ")"
+		value := subRowValue(row)
 		srcPlain, srcStyled := rc.sourceText(row.Source, row.Detail)
 
 		return []string{lbl, value, srcPlain, row.Env, row.ConfigPath},
@@ -418,6 +471,159 @@ type renderedPath struct {
 	status      string
 	bullet      string
 	probedFiles []string
+}
+
+func subRowValue(row Row) string {
+	if row.Value != "" {
+		return row.Value
+	}
+
+	count := len(row.SubRows)
+
+	fileLabel := "files"
+	if count == 1 {
+		fileLabel = "file"
+	}
+
+	return "(" + strconv.Itoa(count) + " " + fileLabel + ")"
+}
+
+func collectReportOrigins(report Report) map[string]struct{} {
+	origins := make(map[string]struct{})
+
+	add := func(origin string) {
+		if origin != "" {
+			origins[origin] = struct{}{}
+		}
+	}
+
+	addRows := func(rows []Row) {
+		for _, row := range rows {
+			add(row.Detail)
+
+			for _, entry := range row.Entries {
+				add(entry.Detail)
+			}
+
+			for _, subRow := range row.SubRows {
+				add(subRow.Value)
+				add(subRow.Detail)
+			}
+		}
+	}
+
+	addRows(report.Rows)
+	addRows(report.GlobalRows)
+
+	for _, feature := range report.Features {
+		add(feature.Detail)
+	}
+
+	for _, configPath := range report.ConfigPaths {
+		add(configPath.Path)
+		add(configPath.Loaded)
+
+		for _, probed := range configPath.ProbedFiles {
+			add(probed)
+		}
+	}
+
+	for _, example := range report.ConfigExamples {
+		add(example)
+	}
+
+	return origins
+}
+
+func originCandidate(origin string) string {
+	if !isPathLike(origin) {
+		return origin
+	}
+
+	base := filepath.Base(origin)
+	if base == "." || base == ".." || base == string(filepath.Separator) {
+		return origin
+	}
+
+	return base
+}
+
+func disambiguateOrigins(origins []string) map[string]string {
+	displays := make(map[string]string, len(origins))
+
+	for _, origin := range origins {
+		if display := disambiguateOrigin(origin, origins); display != origin {
+			displays[origin] = display
+		}
+	}
+
+	seen := make(map[string]string, len(displays))
+
+	for origin, display := range displays {
+		if previous, duplicate := seen[display]; duplicate {
+			delete(displays, previous)
+			delete(displays, origin)
+
+			continue
+		}
+
+		seen[display] = origin
+	}
+
+	return displays
+}
+
+func disambiguateOrigin(origin string, group []string) string {
+	if !isPathLike(origin) {
+		return origin
+	}
+
+	base := filepath.Base(origin)
+	if base == "." || base == ".." || base == string(filepath.Separator) {
+		return origin
+	}
+
+	shared := 0
+
+	for _, other := range group {
+		if other != origin && isPathLike(other) {
+			shared = max(shared, sharedPrefixLength(origin, other))
+		}
+	}
+
+	if shared == 0 || shared >= len(origin) {
+		return origin
+	}
+
+	remainder := origin[shared:]
+	if index := strings.IndexByte(remainder, byte(filepath.Separator)); index > 0 {
+		prefix := origin[:shared+index]
+		if prefix == filepath.Dir(origin) {
+			return origin
+		}
+
+		separator := string(filepath.Separator)
+
+		return prefix + separator + "..." + separator + base
+	}
+
+	return origin
+}
+
+func sharedPrefixLength(first, second string) int {
+	length := min(len(first), len(second))
+
+	for index := range length {
+		if first[index] != second[index] {
+			return index
+		}
+	}
+
+	return length
+}
+
+func isPathLike(value string) bool {
+	return strings.ContainsAny(value, `/\`)
 }
 
 func formatSourceTier(source string, enableColor bool) (string, string) {
@@ -604,8 +810,14 @@ func renderFeatureRows(rows []FeatureRow, optionalRC ...renderContext) string {
 }
 
 func renderPlainConfigPath(configPath ConfigPath, renderCtx renderContext) renderedPath {
+	status := configPath.Status
+	if configPath.Loaded != "" && configPath.Loaded != configPath.Path {
+		status += ": " + configPath.Loaded
+	}
+
 	item := renderedPath{
 		path:        configPath.Path,
+		status:      status,
 		probedFiles: configPath.ProbedFiles,
 	}
 
@@ -614,13 +826,13 @@ func renderPlainConfigPath(configPath ConfigPath, renderCtx renderContext) rende
 			item.bullet = styleText("●", ansiGreen, true) + " "
 		}
 
-		item.status = styleText(configPath.Status, ansiGreen, renderCtx.color)
+		item.status = styleText(item.status, ansiGreen, renderCtx.color)
 	} else {
 		if renderCtx.color {
 			item.bullet = styleText("○", ansiDarkGray, true) + " "
 		}
 
-		item.status = styleText(configPath.Status, ansiDarkGray, renderCtx.color)
+		item.status = styleText(item.status, ansiDarkGray, renderCtx.color)
 	}
 
 	return item

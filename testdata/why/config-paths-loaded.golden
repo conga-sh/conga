@@ -1,11 +1,11 @@
 Value provenance for "whyapp":
 
-  FLAG     VALUE    SOURCE                      ENV   CONFIG PATH
-  --port   ██████   config (user/whyapp.json)   -     port
+  FLAG     VALUE    SOURCE                 ENV   CONFIG PATH
+  --port   ██████   config (whyapp.json)   -     port
 
 Config decoders: .json
 
-Config paths checked:
+Config paths:
   system        loaded: system/config.json
   user/whyapp   loaded: user/whyapp.json
 

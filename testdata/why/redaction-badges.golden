@@ -13,7 +13,7 @@ Value provenance for "whyapp":
 
 Config decoders: .json
 
-Config paths checked:
-  why-config.json   loaded: why-config.json
+Config paths:
+  why-config.json   loaded
 
 values are redacted — tag fields safe:"true" to display

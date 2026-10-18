@@ -495,7 +495,8 @@ func TestConfigLoader_WhyReportsOrigins(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Contains(t, output, "--headers")
 	assert.Contains(t, output, "config (taskrc)")
-	assert.Contains(t, output, "loaded: taskrc")
+	assert.Contains(t, output, "loaded")
+	assert.NotContains(t, output, "loaded: taskrc")
 }
 
 // TestConfigLoader_SourceDetailReportsOrigin pins that a document-supplied

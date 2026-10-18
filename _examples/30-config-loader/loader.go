@@ -55,7 +55,7 @@ func (c *CLI) loadPipelines(ctx conga.ConfigContext) (*conga.ConfigDocument, err
 			continue
 		}
 
-		applyPipelineConfig(document, loaded.path+" (pipeline "+selected+")", definition.Parallelism, definition.LogLevel, definition.Env)
+		applyPipelineConfig(document, loaded.path+" › pipeline "+selected, definition.Parallelism, definition.LogLevel, definition.Env)
 	}
 
 	return document, nil

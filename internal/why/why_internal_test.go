@@ -82,6 +82,105 @@ func TestRenderRows_SubRowsRendered(t *testing.T) {
 		"                   └─ b.yaml   cli\n", output)
 }
 
+func TestRenderRows_SubRowsUseParentValueCell(t *testing.T) {
+	t.Parallel()
+
+	rows := []Row{
+		{
+			Label:      "--tags",
+			Value:      "(2 values)",
+			Source:     "cli",
+			Env:        "-",
+			ConfigPath: "tags",
+			SubRows: []SubRow{
+				{Value: "go"},
+				{Value: "cli"},
+			},
+		},
+	}
+
+	output := renderRows(rows, newRenderContext(Report{}))
+
+	assert.Equal(t, "\n  FLAG     VALUE        SOURCE   ENV   CONFIG PATH\n"+
+		"  --tags   (2 values)   cli      -     tags\n"+
+		"           ├─ go\n"+
+		"           └─ cli\n", output)
+}
+
+func TestReport_Format_ShortensUniqueOriginBasename(t *testing.T) {
+	t.Parallel()
+
+	report := Report{
+		Rows: []Row{
+			{Label: "--port", Value: "9000", Source: "config", Detail: "/srv/app/config.yaml", Env: "-", ConfigPath: "port"},
+		},
+		ConfigPaths: []ConfigPath{
+			{Path: "/srv/app/config.yaml", Status: "loaded"},
+		},
+	}
+
+	output := report.Format()
+
+	assert.Contains(t, output, "config (config.yaml)")
+	assert.NotContains(t, output, "config (/srv/app/config.yaml)")
+}
+
+func TestReport_Format_DisambiguatesCollidingBasenames(t *testing.T) {
+	t.Parallel()
+
+	report := Report{
+		Rows: []Row{
+			{Label: "--host", Value: "a", Source: "config", Detail: "/srv/prod/env/config.yaml", Env: "-", ConfigPath: "host"},
+			{Label: "--port", Value: "1", Source: "config", Detail: "/srv/dev/env/config.yaml", Env: "-", ConfigPath: "port"},
+		},
+		ConfigPaths: []ConfigPath{
+			{Path: "/srv/prod/env/config.yaml", Status: "loaded"},
+			{Path: "/srv/dev/env/config.yaml", Status: "loaded"},
+		},
+	}
+
+	output := report.Format()
+
+	assert.Contains(t, output, "config (/srv/prod/.../config.yaml)")
+	assert.Contains(t, output, "config (/srv/dev/.../config.yaml)")
+}
+
+func TestReport_Format_PreservesOriginAnnotation(t *testing.T) {
+	t.Parallel()
+
+	report := Report{
+		Rows: []Row{
+			{Label: "--port", Value: "9000", Source: "config", Detail: "/srv/app/config.yaml (profile dev)", Env: "-", ConfigPath: "port"},
+			{Label: "--host", Value: "localhost", Source: "config", Detail: "/srv/app/config.yaml (profile prod)", Env: "-", ConfigPath: "host"},
+		},
+		ConfigPaths: []ConfigPath{
+			{Path: "/srv/app/config.yaml (profile dev)", Status: "loaded"},
+			{Path: "/srv/app/config.yaml (profile prod)", Status: "loaded"},
+		},
+	}
+
+	output := report.Format()
+
+	assert.Contains(t, output, "config (config.yaml (profile dev))")
+	assert.Contains(t, output, "config (config.yaml (profile prod))")
+}
+
+func TestReport_Format_ConfigPathOmitsDuplicateLoadedPath(t *testing.T) {
+	t.Parallel()
+
+	report := Report{
+		ConfigPaths: []ConfigPath{
+			{Path: "/srv/app/config.yaml", Status: "loaded"},
+			{Path: "/srv/app", Status: "loaded", Loaded: "/srv/app/config.yaml"},
+		},
+	}
+
+	output := report.Format()
+
+	assert.Contains(t, output, "  /srv/app/config.yaml   loaded\n")
+	assert.Contains(t, output, "  /srv/app               loaded: /srv/app/config.yaml")
+}
+
 func TestRenderRows_ColorColumnsAligned(t *testing.T) {
 	t.Parallel()
 
@@ -196,7 +295,7 @@ func TestReport_FormatJSON(t *testing.T) {
 		ConfigPaths: []ConfigPath{
 			{
 				Path:        "/etc/app.yaml",
-				Status:      "loaded: /etc/app.yaml",
+				Status:      "loaded",
 				ProbedFiles: nil,
 			},
 			{
