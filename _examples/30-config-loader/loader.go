@@ -44,7 +44,7 @@ func (c *CLI) loadPipelines(ctx conga.ConfigContext) (*conga.ConfigDocument, err
 	document := &conga.ConfigDocument{}
 
 	for _, loaded := range files {
-		applyPipelineConfig(document, loaded.path, loaded.file.Parallelism, loaded.file.LogLevel, loaded.file.Env)
+		applyPipelineConfig(document, loaded.path, "", loaded.file.Parallelism, loaded.file.LogLevel, loaded.file.Env)
 
 		if selected == "" {
 			continue
@@ -55,7 +55,7 @@ func (c *CLI) loadPipelines(ctx conga.ConfigContext) (*conga.ConfigDocument, err
 			continue
 		}
 
-		applyPipelineConfig(document, loaded.path+" › pipeline "+selected, definition.Parallelism, definition.LogLevel, definition.Env)
+		applyPipelineConfig(document, loaded.path, "pipeline "+selected, definition.Parallelism, definition.LogLevel, definition.Env)
 	}
 
 	return document, nil
@@ -63,18 +63,19 @@ func (c *CLI) loadPipelines(ctx conga.ConfigContext) (*conga.ConfigDocument, err
 
 // applyPipelineConfig records one file's (or one pipeline's) configuration
 // keys in the document. Scalars replace earlier writes; env entries merge key
-// by key so a later layer overrides only the variables it names.
-func applyPipelineConfig(document *conga.ConfigDocument, origin string, parallelism *int, logLevel *string, env map[string]string) {
+// by key so a later layer overrides only the variables it names. The scope
+// names the pipeline section when the values come from a selected pipeline.
+func applyPipelineConfig(document *conga.ConfigDocument, origin, scope string, parallelism *int, logLevel *string, env map[string]string) {
 	if parallelism != nil {
-		document.Set("parallelism", *parallelism, origin)
+		document.SetScoped("parallelism", *parallelism, origin, scope)
 	}
 
 	if logLevel != nil {
-		document.Set("log-level", *logLevel, origin)
+		document.SetScoped("log-level", *logLevel, origin, scope)
 	}
 
 	for _, key := range slices.Sorted(maps.Keys(env)) {
-		document.SetKey("env", key, env[key], origin)
+		document.SetKeyScoped("env", key, env[key], origin, scope)
 	}
 }
 

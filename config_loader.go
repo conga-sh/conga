@@ -10,6 +10,10 @@ import (
 	"github.com/conga-sh/conga/internal/spec"
 )
 
+// originScopeSeparator joins a document origin and its scope in value
+// attribution. The Config paths table reports only the origin path.
+const originScopeSeparator = " › "
+
 // ConfigContext exposes the invocation facts CONGA knows when the
 // configuration loader runs: the selected command path, the raw command-line
 // values parsed before binding, and the run's environment view. The engine
@@ -43,6 +47,7 @@ type ConfigContext interface {
 //	document := &conga.ConfigDocument{}
 //	document.Set("port", 8080, "embedded defaults")
 //	document.SetKey("headers", "X-Region", "eu", "taskrc")
+//	document.SetScoped("log-level", "debug", "pipeline.yaml", "pipeline deploy")
 //	document.Set("deploy", map[string]any{"replicas": 3}, "taskrc")
 //
 // Scalar values stringify the same way decoded-file values do, and list values
@@ -54,6 +59,10 @@ type ConfigContext interface {
 //
 // The origin is a free-form label CONGA never parses; it surfaces in the --why
 // report and attributes each merged map key to the source that last wrote it.
+// [ConfigDocument.SetScoped] and [ConfigDocument.SetKeyScoped] add an optional
+// scope within the origin; value attribution renders it as origin › scope while
+// the Config paths table lists the origin path once.
+//
 // Do not set nil values: like a null in a decoded file, a nil value stringifies
 // rather than being dropped.
 type ConfigDocument struct {
@@ -68,24 +77,22 @@ type ConfigDocument struct {
 // Panics:
 //   - If the receiver is nil; mutate the zero value instead.
 func (d *ConfigDocument) Set(key string, value any, origin string) *ConfigDocument {
-	if d == nil {
-		panic("conga: nil ConfigDocument; use the zero value (var document conga.ConfigDocument)")
-	}
+	return d.set(key, value, origin, "")
+}
 
-	if d.index == nil {
-		d.index = make(map[string]int)
-	}
-
-	if index, exists := d.index[key]; exists {
-		d.entries[index] = documentEntry{key: key, value: value, origin: origin, baseSet: true}
-
-		return d
-	}
-
-	d.index[key] = len(d.entries)
-	d.entries = append(d.entries, documentEntry{key: key, value: value, origin: origin, baseSet: true})
-
-	return d
+// SetScoped records value under key with the given origin and scope and
+// returns the document for chaining. It behaves like [ConfigDocument.Set]; the
+// scope names a region within the origin, such as a section of a configuration
+// file. Value attribution in the --why report renders the pair as
+// origin › scope, while the Config paths table lists the origin once.
+//
+// An empty scope is equivalent to [ConfigDocument.Set]. An empty origin
+// records no provenance detail and ignores the scope.
+//
+// Panics:
+//   - If the receiver is nil; mutate the zero value instead.
+func (d *ConfigDocument) SetScoped(key string, value any, origin, scope string) *ConfigDocument {
+	return d.set(key, value, origin, scope)
 }
 
 // SetKey records value under entryKey within the map entry named key with the
@@ -102,37 +109,22 @@ func (d *ConfigDocument) Set(key string, value any, origin string) *ConfigDocume
 // Panics:
 //   - If the receiver is nil; mutate the zero value instead.
 func (d *ConfigDocument) SetKey(key, entryKey string, value any, origin string) *ConfigDocument {
-	if d == nil {
-		panic("conga: nil ConfigDocument; use the zero value (var document conga.ConfigDocument)")
-	}
+	return d.setKey(key, entryKey, value, origin, "")
+}
 
-	if d.index == nil {
-		d.index = make(map[string]int)
-	}
-
-	index, exists := d.index[key]
-	if !exists {
-		d.index[key] = len(d.entries)
-		d.entries = append(d.entries, documentEntry{
-			key:      key,
-			overlays: []documentMapEntry{{key: entryKey, value: value, origin: origin}},
-		})
-
-		return d
-	}
-
-	entry := &d.entries[index]
-	for overlayIndex := range entry.overlays {
-		if entry.overlays[overlayIndex].key == entryKey {
-			entry.overlays[overlayIndex] = documentMapEntry{key: entryKey, value: value, origin: origin}
-
-			return d
-		}
-	}
-
-	entry.overlays = append(entry.overlays, documentMapEntry{key: entryKey, value: value, origin: origin})
-
-	return d
+// SetKeyScoped records value under entryKey within the map entry named key with
+// the given origin and scope and returns the document for chaining. It behaves
+// like [ConfigDocument.SetKey]; value attribution in the --why report renders
+// the pair as origin › scope, while the Config paths table lists the origin
+// once.
+//
+// An empty scope is equivalent to [ConfigDocument.SetKey]. An empty origin
+// records no provenance detail and ignores the scope.
+//
+// Panics:
+//   - If the receiver is nil; mutate the zero value instead.
+func (d *ConfigDocument) SetKeyScoped(key, entryKey string, value any, origin, scope string) *ConfigDocument {
+	return d.setKey(key, entryKey, value, origin, scope)
 }
 
 // ConfigLoaderFunc supplies the run's configuration document. Returning a nil
@@ -202,6 +194,7 @@ type documentEntry struct {
 	key      string
 	value    any
 	origin   string
+	scope    string
 	baseSet  bool
 	overlays []documentMapEntry
 }
@@ -211,6 +204,22 @@ type documentMapEntry struct {
 	key    string
 	value  any
 	origin string
+	scope  string
+}
+
+// documentOrigins carries the distinct origins recorded by a configuration
+// document: labels include the optional scope for value attribution, while
+// paths omit it for the Config paths table.
+type documentOrigins struct {
+	labels []string
+	paths  []string
+}
+
+func (o documentOrigins) unique() documentOrigins {
+	return documentOrigins{
+		labels: slicex.Unique(o.labels),
+		paths:  slicex.Unique(o.paths),
+	}
 }
 
 // loaderContext implements [ConfigContext] over the parsed invocation state.
@@ -265,39 +274,107 @@ func (e *loaderError) Unwrap() []error {
 	return []error{ErrConfig, e.cause}
 }
 
+func (d *ConfigDocument) set(key string, value any, origin, scope string) *ConfigDocument {
+	if d == nil {
+		panic("conga: nil ConfigDocument; use the zero value (var document conga.ConfigDocument)")
+	}
+
+	if d.index == nil {
+		d.index = make(map[string]int)
+	}
+
+	entry := documentEntry{key: key, value: value, origin: origin, scope: scope, baseSet: true}
+	if index, exists := d.index[key]; exists {
+		d.entries[index] = entry
+
+		return d
+	}
+
+	d.index[key] = len(d.entries)
+	d.entries = append(d.entries, entry)
+
+	return d
+}
+
+func (d *ConfigDocument) setKey(key, entryKey string, value any, origin, scope string) *ConfigDocument {
+	if d == nil {
+		panic("conga: nil ConfigDocument; use the zero value (var document conga.ConfigDocument)")
+	}
+
+	if d.index == nil {
+		d.index = make(map[string]int)
+	}
+
+	overlay := documentMapEntry{key: entryKey, value: value, origin: origin, scope: scope}
+
+	index, exists := d.index[key]
+	if !exists {
+		d.index[key] = len(d.entries)
+		d.entries = append(d.entries, documentEntry{
+			key:      key,
+			overlays: []documentMapEntry{overlay},
+		})
+
+		return d
+	}
+
+	entry := &d.entries[index]
+	for overlayIndex := range entry.overlays {
+		if entry.overlays[overlayIndex].key == entryKey {
+			entry.overlays[overlayIndex] = overlay
+
+			return d
+		}
+	}
+
+	entry.overlays = append(entry.overlays, overlay)
+
+	return d
+}
+
 // validate validates every entry against the command schema, populating dest
 // with the resolved values, and returns the distinct non-empty origins in
-// first-set order for provenance reporting. On a validation failure the
-// origins collected so far are returned alongside the error so partial
-// provenance survives.
-func (d *ConfigDocument) validate(cmd *spec.Command, dest *configdata.Data) ([]string, error) {
-	var origins []string
+// first-set order for provenance reporting. Display labels include the optional
+// scope; paths omit it so the Config paths table lists each file once. On a
+// validation failure the origins collected so far are returned alongside the
+// error so partial provenance survives.
+func (d *ConfigDocument) validate(cmd *spec.Command, dest *configdata.Data) (documentOrigins, error) {
+	var origins documentOrigins
+
+	record := func(origin, scope string) string {
+		// The write's origin is collected before validation so a failing
+		// entry's source still appears in the tolerant --why candidate table.
+		if origin != "" {
+			origins.paths = append(origins.paths, origin)
+		}
+
+		label := originLabel(origin, scope)
+		if label != "" {
+			origins.labels = append(origins.labels, label)
+		}
+
+		return label
+	}
 
 	for _, entry := range d.entries {
 		if entry.baseSet {
-			// The write's origin is collected before validation so a failing
-			// entry's source still appears in the tolerant --why candidate table.
-			if entry.origin != "" {
-				origins = append(origins, entry.origin)
-			}
+			label := record(entry.origin, entry.scope)
 
-			if err := configengine.ValidateDocument(map[string]any{entry.key: entry.value}, cmd, dest, entry.origin); err != nil {
-				return slicex.Unique(origins), err
+			if err := configengine.ValidateDocument(map[string]any{entry.key: entry.value}, cmd, dest, label); err != nil {
+				return origins.unique(), err
 			}
 		}
 
 		for _, overlay := range entry.overlays {
-			if overlay.origin != "" {
-				origins = append(origins, overlay.origin)
-			}
+			label := record(overlay.origin, overlay.scope)
 
-			if err := configengine.ValidateDocument(map[string]any{entry.key: map[string]any{overlay.key: overlay.value}}, cmd, dest, overlay.origin); err != nil {
-				return slicex.Unique(origins), err
+			if err := configengine.ValidateDocument(map[string]any{entry.key: map[string]any{overlay.key: overlay.value}}, cmd, dest, label); err != nil {
+				return origins.unique(), err
 			}
 		}
 	}
 
-	return slicex.Unique(origins), nil
+	return origins.unique(), nil
 }
 
 // loadDocumentConfigData runs the application's configuration loader and
@@ -307,14 +384,14 @@ func (d *ConfigDocument) validate(cmd *spec.Command, dest *configdata.Data) ([]s
 // (nil data) leaves the tier inactive; on a validation failure the partially
 // resolved data is returned so the tolerant --why report can still describe
 // the values that resolved.
-func (a *App[T]) loadDocumentConfigData(cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string) (*configdata.Data, []string, error) {
+func (a *App[T]) loadDocumentConfigData(cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string) (*configdata.Data, documentOrigins, error) {
 	document, err := a.configLoader(loaderContext{cmdChain: cmdChain, flagValues: flagValues})
 	if err != nil {
-		return nil, nil, &loaderError{cause: err}
+		return nil, documentOrigins{}, &loaderError{cause: err}
 	}
 
 	if document == nil {
-		return nil, nil, nil
+		return nil, documentOrigins{}, nil
 	}
 
 	data := configdata.New()
@@ -328,9 +405,10 @@ func (a *App[T]) loadDocumentConfigData(cmd *spec.Command, cmdChain []*spec.Comm
 }
 
 // resolveLoaderConfig resolves the run's programmatic configuration document
-// exactly once, memoizing the outcome like the file resolver does. The loaded
-// paths report the distinct origins as the loader supplied them, and the
-// candidates mirror them so the --why path table shows the document sources.
+// exactly once, memoizing the outcome like the file resolver does. Loaded
+// paths and candidates report the distinct origins without their scopes, while
+// configOrigins keeps the scoped labels for value attribution and map-origin
+// ordering.
 func (a *App[T]) resolveLoaderConfig(cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string) *configResolution {
 	a.configData = configdata.New()
 
@@ -340,7 +418,7 @@ func (a *App[T]) resolveLoaderConfig(cmd *spec.Command, cmdChain []*spec.Command
 	}
 
 	if err != nil {
-		return &configResolution{err: err, candidates: origins}
+		return &configResolution{err: err, candidates: origins.paths}
 	}
 
 	if data == nil {
@@ -348,10 +426,20 @@ func (a *App[T]) resolveLoaderConfig(cmd *spec.Command, cmdChain []*spec.Command
 	}
 
 	return &configResolution{
-		loadedPaths:  origins,
-		loadedSource: SourceConfig,
-		candidates:   origins,
+		loadedPaths:   origins.paths,
+		configOrigins: origins.labels,
+		loadedSource:  SourceConfig,
+		candidates:    origins.paths,
 	}
+}
+
+// originLabel renders an origin with its optional scope for value attribution.
+func originLabel(origin, scope string) string {
+	if origin == "" || scope == "" {
+		return origin
+	}
+
+	return origin + originScopeSeparator + scope
 }
 
 // extractConfigLoaderFunc returns the loader declared by the last

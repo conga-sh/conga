@@ -37,7 +37,9 @@ The complete scenarios, fixtures included, live in
   provenance; they outrank `default` tags and lose to `FLOWCTL_*` environment
   variables and CLI flags.
 - Selecting a pipeline overlays its `parallelism`/`log_level`/`env` keys, and
-  `--why` attributes every map entry to the file that last wrote it.
+  `--why` attributes every map entry to the file and pipeline section that last
+  wrote it (`config (pipeline.local.yaml › pipeline deploy)`), while the Config
+  paths table still lists each file once.
 - With two files, scalar config is nearest-file-wins, while `steps` and `needs`
   concatenate (`needs` deduplicated) — a merge the config tier cannot express.
 - Pipeline selection is `--pipeline` (environment fallback `FLOWCTL_PIPELINE`);

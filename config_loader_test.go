@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -541,6 +542,90 @@ func TestConfigLoader_SourceDetailFallsBackToConfigKey(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, conga.SourceConfig, cli.Port.Source())
 	assert.Equal(t, "port", cli.Port.SourceDetail())
+}
+
+func TestConfigLoader_ScopedOriginSeparatesDetailFromConfigPath(t *testing.T) {
+	t.Parallel()
+
+	var stdoutBuffer bytes.Buffer
+
+	cli := new(loaderBasicCLI)
+	app := conga.New(cli).
+		Name("app").
+		EnableWhy().
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+			return loaderDocument(func(document *conga.ConfigDocument) {
+				document.SetScoped("port", 9200, "pipeline.local.yaml", "pipeline deploy")
+			}), nil
+		})).
+		Stdout(&stdoutBuffer).
+		Args([]string{"--why"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, "pipeline.local.yaml › pipeline deploy", cli.Port.SourceDetail())
+
+	rows, configPaths, found := strings.Cut(stdoutBuffer.String(), "Config paths:")
+
+	assert.True(t, found)
+	assert.Contains(t, rows, "config (pipeline.local.yaml › pipeline deploy)")
+	assert.Contains(t, configPaths, "pipeline.local.yaml")
+	assert.Contains(t, configPaths, "loaded")
+	assert.NotContains(t, configPaths, "pipeline deploy")
+}
+
+func TestConfigLoader_SetKeyScopedSeparatesDetailFromConfigPath(t *testing.T) {
+	t.Parallel()
+
+	var stdoutBuffer bytes.Buffer
+
+	app := conga.New[loaderMapCLI]().
+		Name("app").
+		EnableWhy().
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+			return loaderDocument(func(document *conga.ConfigDocument) {
+				document.SetKeyScoped("headers", "region", "eu", "taskrc", "profile dev")
+			}), nil
+		})).
+		Stdout(&stdoutBuffer).
+		Args([]string{"--why"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+
+	rows, configPaths, found := strings.Cut(stdoutBuffer.String(), "Config paths:")
+
+	assert.True(t, found)
+	assert.Contains(t, rows, "region=██████")
+	assert.Contains(t, rows, "config (taskrc › profile dev)")
+	assert.Contains(t, configPaths, "taskrc")
+	assert.NotContains(t, configPaths, "profile dev")
+}
+
+func TestConfigLoader_SessionAccessorsExcludeScope(t *testing.T) {
+	t.Parallel()
+
+	cli := new(loaderSessionCLI)
+	app := conga.New(cli).
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+			return loaderDocument(
+				func(document *conga.ConfigDocument) {
+					document.SetScoped("host", "document.example.com", "taskrc", "profile dev")
+				},
+				func(document *conga.ConfigDocument) {
+					document.SetScoped("port", 9200, "taskrc", "profile prod")
+				},
+			), nil
+		})).
+		Args([]string{})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"taskrc"}, cli.Loaded)
+	assert.Equal(t, []string{"taskrc"}, cli.Candidate)
 }
 
 func TestConfigLoader_WhyAttributesAppError(t *testing.T) {

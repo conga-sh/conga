@@ -114,7 +114,7 @@ by walking the selected `Command[T]` fields (`root.Cluster.Get()`).
 
 The App snapshots standard streams at the start of execution for the active session.
 
-`CandidateConfigFiles`/`LoadedConfigFiles` report the configuration sources the run evaluated: file paths for file-based resolution, or the origin labels the application recorded when a [`conga.ConfigLoader`](/how-to/supply-config-from-code/) supplies the document.
+`CandidateConfigFiles`/`LoadedConfigFiles` report the configuration sources the run evaluated: file paths for file-based resolution, or the distinct origin paths the application recorded when a [`conga.ConfigLoader`](/how-to/supply-config-from-code/) supplies the document. Document scopes recorded with `ConfigDocument.SetScoped` are not part of the reported path.
 
 `Help`, `Usage`, and `Version` are the formatting primitives behind the built-in `help` and `version` commands: `Help` returns the active command's help screen as a string, `Usage` returns the syntax usage summary as a string, and `Version` returns the formatted version summary line as a string, falling back to the module version (or `dev`) plus the embedded build metadata when no version string was configured.
 
@@ -160,14 +160,21 @@ type ConfigDocument struct{ /* ... */ }
 
 func (d *ConfigDocument) Set(key string, value any, origin string) *ConfigDocument
 
+func (d *ConfigDocument) SetScoped(key string, value any, origin, scope string) *ConfigDocument
+
 func (d *ConfigDocument) SetKey(key, entryKey string, value any, origin string) *ConfigDocument
+
+func (d *ConfigDocument) SetKeyScoped(key, entryKey string, value any, origin, scope string) *ConfigDocument
 ```
 
 `ConfigLoader` replaces file resolution for every run: the returned document is
 validated like a decoded config file, binds at the config tier
 (`CLI > environment > document > default`), and its per-entry origins surface in
-`--why`. `SetKey` records one entry inside a map value and merges it key by key
-with earlier writes, so a later layer overrides only the map keys it names; a
-later `Set` of the same top-level key replaces the whole entry. A nil document
+`--why`. `SetScoped` and `SetKeyScoped` add an optional scope within the origin;
+value attribution renders it as `origin › scope` while the Config paths table
+lists the origin path once. `SetKey` records one entry inside a map value and
+merges it key by key with earlier writes, so a later layer overrides only the
+map keys it names; a later `Set` of the same top-level key replaces the whole
+entry. A nil document
 leaves the tier inactive; loader errors wrap `ErrConfig` and exit 1. See
 [How to supply configuration from code](/how-to/supply-config-from-code/).

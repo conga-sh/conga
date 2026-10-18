@@ -86,7 +86,7 @@ The report contains these diagnostic sections (the feature table appears only wh
   - `ENV`: The derived or explicit environment variable evaluated for this flag.
   - `CONFIG PATH`: The evaluated config file key.
 - **Config decoders**: All file format decoders registered on the application.
-- **Config paths**: Evaluated file paths and their probe outcome (`loaded`, `not found`), reported as resolved without index footnotes. A candidate that resolved to a different file, such as a search directory, names that file (`loaded: config.yaml`).
+- **Config paths**: Evaluated file paths and their probe outcome (`loaded`, `not found`), reported as resolved without index footnotes. A candidate that resolved to a different file, such as a search directory, names that file (`loaded: config.yaml`). For a programmatic `conga.ConfigLoader` document, the table lists each distinct origin path once; a scope recorded with `conga.ConfigDocument.SetScoped` appears only in the value's SOURCE annotation (`config (pipeline.local.yaml › pipeline deploy)`).
 - **Features**: Every declared feature, its resolved value, and its source.
 
 The same report is available programmatically: `session.Why()` returns the text table and `session.WhyJSON()` returns the JSON document (empty unless Why and the JSON option are enabled, respectively).

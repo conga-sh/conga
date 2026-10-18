@@ -44,7 +44,15 @@ document.SetKey("headers", "X-Region", "eu", "embedded defaults")
 
 A later `Set` of the same top-level key replaces the whole entry and clears the `SetKey` contributions recorded for it.
 
-The origin is a free-form label CONGA never parses; it attributes the value in the `--why` report. Returning a nil document leaves the configuration tier inactive.
+The origin is a free-form label CONGA never parses; it attributes the value in the `--why` report. When a value comes from a region within the origin, record that region as a scope with `SetScoped` (or `SetKeyScoped` for one map entry):
+
+```go
+document.SetScoped("log-level", "debug", "pipeline.local.yaml", "pipeline deploy")
+```
+
+`--why` attributes the value to `pipeline.local.yaml › pipeline deploy`, while its Config paths table lists `pipeline.local.yaml` once.
+
+Returning a nil document leaves the configuration tier inactive.
 
 ## Shape the document from the invocation
 

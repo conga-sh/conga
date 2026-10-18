@@ -936,12 +936,14 @@ type typeRegistration struct {
 // configResolution memoizes the outcome of the run's single configuration
 // resolution: the loaded files and their winning source, the resolution
 // failure (extraction or load, mutually exclusive), and the candidate paths
-// probed.
+// probed. configOrigins carries the display origins used for value attribution
+// and map-origin ordering; it includes document scopes that loadedPaths omits.
 type configResolution struct {
-	loadedPaths  []string
-	loadedSource ValueSource
-	err          error
-	candidates   []string
+	loadedPaths   []string
+	configOrigins []string
+	loadedSource  ValueSource
+	err           error
+	candidates    []string
 }
 
 // appConfig holds every configuration field for an App. It is the single source
@@ -968,7 +970,7 @@ type appConfig[T any] struct {
 	// document. ConfigOptions installs it only when a loader is declared; nil
 	// keeps the document validation pipeline unreferenced at link time for
 	// applications without a loader.
-	loadConfigDocument    func(app *App[T], cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string) (*configdata.Data, []string, error)
+	loadConfigDocument    func(app *App[T], cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string) (*configdata.Data, documentOrigins, error)
 	dotenvPaths           []string
 	dotenvLoader          func(paths ...string) error
 	configData            *configdata.Data
@@ -1409,11 +1411,11 @@ func (a *App[T]) mountCompletionSubcommand(cmd *spec.Command) {
 // flag supplied on the command line (a usage error even under --help, symmetric
 // with a gated subcommand). It returns the pruned flags.
 func (a *App[T]) prepareFeatures(featureBinding featureState, cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, request builtinRequest) ([]prunedFlag, error) {
-	var loadedPaths []string
+	var configOrigins []string
 
 	if !request.versionOnly() {
 		resolution := a.resolveConfig(cmd, cmdChain, flagValues)
-		loadedPaths = resolution.loadedPaths
+		configOrigins = resolution.configOrigins
 
 		if !request.toleratesFeatureErrors() {
 			if err := resolution.err; err != nil {
@@ -1425,7 +1427,7 @@ func (a *App[T]) prepareFeatures(featureBinding featureState, cmd *spec.Command,
 	featureBindingState := &bindingState{
 		EnvPrefix:             a.envPrefix,
 		ConfigData:            a.configData,
-		ConfigOrigins:         loadedPaths,
+		ConfigOrigins:         configOrigins,
 		TypeParsers:           a.collectTypeParsers(),
 		TolerateFeatureErrors: request.toleratesFeatureErrors(),
 		WantMapProvenance:     true,
@@ -1476,7 +1478,7 @@ func (a *App[T]) prepareNonMetaExecution(session *Session, cmd *spec.Command, cm
 		WantMapProvenance:   a.whyHooks != nil,
 		EnvPrefix:           a.envPrefix,
 		ConfigData:          a.configData,
-		ConfigOrigins:       resolution.loadedPaths,
+		ConfigOrigins:       resolution.configOrigins,
 		TypeParsers:         a.collectTypeParsers(),
 		CustomMapMerger:     a.customMapMerger,
 		Stdin:               session.stdin,
@@ -1952,10 +1954,11 @@ func (a *App[T]) resolveConfig(cmd *spec.Command, cmdChain []*spec.Command, flag
 	}
 
 	a.configResolution = &configResolution{
-		loadedPaths:  loadedPaths,
-		loadedSource: loadedSource,
-		err:          resolutionErr,
-		candidates:   a.configurationView(cmd).CandidatePaths(explicitTargets, cmd),
+		loadedPaths:   loadedPaths,
+		configOrigins: loadedPaths,
+		loadedSource:  loadedSource,
+		err:           resolutionErr,
+		candidates:    a.configurationView(cmd).CandidatePaths(explicitTargets, cmd),
 	}
 
 	return a.configResolution
