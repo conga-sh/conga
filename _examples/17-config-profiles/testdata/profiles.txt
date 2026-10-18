@@ -11,11 +11,11 @@ stdout '--log-level\s+string\s+warn\s+● config deploy/prod\.yaml'
 
 # 2. --why lists both loaded files and each value's winning tier
 exec profiles -c deploy/base.yaml -c deploy/prod.yaml --why
-stdout '--host\s+base\.example\.com\s+config \[1\]'
-stdout '--port\s+9443\s+config \[2\]'
-stdout '--log-level\s+warn\s+config \[2\]'
-stdout '\[1\] .*/deploy/base\.yaml\s+\(loaded\)'
-stdout '\[2\] .*/deploy/prod\.yaml\s+\(loaded\)'
+stdout '--host\s+base\.example\.com\s+config \(deploy/base\.yaml\)'
+stdout '--port\s+9443\s+config \(deploy/prod\.yaml\)'
+stdout '--log-level\s+warn\s+config \(deploy/prod\.yaml\)'
+stdout 'deploy/base\.yaml\s+loaded: deploy/base\.yaml'
+stdout 'deploy/prod\.yaml\s+loaded: deploy/prod\.yaml'
 ! stdout '██████'
 
 # 3. Comma-separated file list in a single flag

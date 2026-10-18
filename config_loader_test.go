@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"errors"
-	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -559,11 +558,8 @@ func TestConfigLoader_WhyAttributesAppError(t *testing.T) {
 
 	err := app.Run()
 
-	output := stdoutBuffer.String()
-
-	assert.NoError(t, err)
-	assert.Contains(t, output, "taskrc")
-	assert.Contains(t, output, "error")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "taskrc unreadable")
 }
 
 func TestConfigLoader_WhyValidationFailureReportsUniqueCandidate(t *testing.T) {
@@ -584,19 +580,8 @@ func TestConfigLoader_WhyValidationFailureReportsUniqueCandidate(t *testing.T) {
 
 	err := app.Run()
 
-	assert.NoError(t, err)
-
-	candidateRows := 0
-
-	for line := range strings.SplitSeq(stdoutBuffer.String(), "\n") {
-		if strings.HasPrefix(strings.TrimSpace(line), "taskrc") {
-			candidateRows++
-
-			assert.True(t, strings.HasSuffix(strings.TrimSpace(line), "error"), "failed candidate must report the error status: %q", line)
-		}
-	}
-
-	assert.Equal(t, 1, candidateRows, "the failing origin must render exactly one candidate row")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), `unknown field "hots"`)
 }
 
 func TestConfigLoader_SessionAccessorsReportOrigins(t *testing.T) {

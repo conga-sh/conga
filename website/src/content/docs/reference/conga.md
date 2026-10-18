@@ -39,7 +39,7 @@ func New[T any](root ...*T) *App[T]
 | `UsageOnError(mode)` | Error-time usage rendering mode |
 | `Stdout(w)` / `Stderr(w)` | Output writers (default `os.Stdout`/`os.Stderr`) |
 | `ExitFunc(handler)` | Custom exit handler for `Exit` |
-| `EnableWhy()` / `EnableCompletion()` / `EnableFeatures()` | Opt in to the `--why` report, shell completion, and struct-declared feature toggles |
+| `EnableWhy(options...)` / `EnableCompletion()` / `EnableFeatures()` | Opt in to the `--why` report, shell completion, and struct-declared feature toggles; pass `conga.WhyJSON()` to `EnableWhy` to enable `--why=json` |
 | `DisableHelpFlag()` / `DisableVersionFlag()` | Remove the `--help`/`--version` flags |
 
 ### Execution methods
@@ -97,6 +97,8 @@ func (s *Session) Stderr() io.Writer
 func (s *Session) Help() string
 func (s *Session) Usage() string
 func (s *Session) Version() string
+func (s *Session) Why() string
+func (s *Session) WhyJSON() string
 func (s *Session) Path() string
 func (s *Session) Name() string
 func (s *Session) CandidateConfigFiles() []string
@@ -107,6 +109,8 @@ func (s *Session) LoadedConfigFiles() []string
 `New`, or the engine-allocated instance. The type argument `T` must match the
 exact root command struct type, or `Root` panics. Enclosing command structs are reached
 by walking the selected `Command[T]` fields (`root.Cluster.Get()`).
+
+`Why` and `WhyJSON` render the same value-provenance report as the built-in `--why` flag; they return an empty string when Why is not enabled, and `WhyJSON` also requires `app.EnableWhy(conga.WhyJSON())`.
 
 The App snapshots standard streams at the start of execution for the active session.
 

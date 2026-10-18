@@ -1,7 +1,6 @@
 package conga
 
 import (
-	"errors"
 	"os"
 	"slices"
 
@@ -341,15 +340,6 @@ func (a *App[T]) resolveLoaderConfig(cmd *spec.Command, cmdChain []*spec.Command
 	}
 
 	if err != nil {
-		// A loader error that attributes itself to a configuration path (the
-		// configPathError contract) surfaces on that candidate row in the
-		// tolerant --why report.
-		if pathErr, ok := errors.AsType[configPathError](err); ok {
-			if path := pathErr.ConfigPath(); path != "" && !slices.Contains(origins, path) {
-				origins = append(origins, path)
-			}
-		}
-
 		return &configResolution{err: err, candidates: origins}
 	}
 

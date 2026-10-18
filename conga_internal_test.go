@@ -15,6 +15,7 @@ import (
 	"github.com/conga-sh/conga/internal/completion"
 	"github.com/conga-sh/conga/internal/slicex"
 	"github.com/conga-sh/conga/internal/spec"
+	"github.com/conga-sh/conga/internal/why"
 	"github.com/conga-sh/conga/predict"
 )
 
@@ -25,7 +26,7 @@ func TestAppConfig_ConfigHooks_NilByDefault(t *testing.T) {
 
 	assert.True(t, app.dotenvLoader == nil)
 	assert.True(t, app.configEngine == nil)
-	assert.True(t, app.whyRenderer == nil)
+	assert.True(t, app.whyHooks == nil)
 	assert.True(t, app.defaultPredictors == nil)
 	assert.True(t, app.mountCompletion == nil)
 	assert.True(t, app.handleCompletionInvocation == nil)
@@ -374,4 +375,16 @@ func TestPrunedFlag_ConfigKeys(t *testing.T) {
 			assert.Equal(t, test.want, got)
 		})
 	}
+}
+
+func TestEnrichWhyJSONReport_IgnoresInvalidPWD(t *testing.T) {
+	t.Setenv("PWD", "/definitely/not/the/cwd")
+
+	report := why.Report{}
+
+	enrichWhyJSONReport(&report)
+
+	workingDirectory, err := os.Getwd()
+	assert.NoError(t, err)
+	assert.Equal(t, workingDirectory, report.WorkingDirectory)
 }

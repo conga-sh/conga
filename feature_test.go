@@ -843,7 +843,7 @@ func TestFeature_ConfigTypo_VersionStillRenders(t *testing.T) {
 	assert.Contains(t, buffer.String(), "has version")
 }
 
-func TestFeature_ConfigTypo_WhyStillRenders(t *testing.T) {
+func TestFeature_ConfigTypo_WhyFails(t *testing.T) {
 	t.Parallel()
 
 	tempDir := t.TempDir()
@@ -867,17 +867,16 @@ func TestFeature_ConfigTypo_WhyStillRenders(t *testing.T) {
 		Args([]string{"--why"})
 
 	err = app.Run()
-	assert.NoError(t, err)
-	assert.Contains(t, buffer.String(), "gentle-force")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "unknown feature")
 }
 
-// TestFeature_Why_RejectedValueProvenance pins honest --why provenance: a
-// CLI feature value the tolerant overlay drops must render its defaulted value
-// under the "unset"/"default" source, never the CLI tier it was rejected from.
-func TestFeature_Why_RejectedValueProvenance(t *testing.T) {
+// TestFeature_Why_RejectedValueErrors pins that invalid feature values or unknown
+// feature names return errors even when --why is passed.
+func TestFeature_Why_RejectedValueErrors(t *testing.T) {
 	t.Parallel()
 
-	t.Run("invalid value falls back to unset", func(t *testing.T) {
+	t.Run("invalid value returns error", func(t *testing.T) {
 		t.Parallel()
 
 		var (
@@ -893,14 +892,11 @@ func TestFeature_Why_RejectedValueProvenance(t *testing.T) {
 			Args([]string{"--feature-gates", "syntax=9", "--why"})
 
 		err := app.Run()
-		assert.NoError(t, err)
-		assert.Contains(t, buffer.String(), "  FEATURE        VALUE   SOURCE\n"+
-			"  gentle-force   false   default\n"+
-			"  packages       false   unset\n"+
-			"  syntax         0       unset\n")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "invalid value")
 	})
 
-	t.Run("unknown key leaves declared default", func(t *testing.T) {
+	t.Run("unknown key returns error", func(t *testing.T) {
 		t.Parallel()
 
 		var (
@@ -916,8 +912,8 @@ func TestFeature_Why_RejectedValueProvenance(t *testing.T) {
 			Args([]string{"--feature-gates", "gentle-forse=true", "--why"})
 
 		err := app.Run()
-		assert.NoError(t, err)
-		assert.Contains(t, buffer.String(), "  gentle-force   false   default\n")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "unknown feature")
 	})
 }
 

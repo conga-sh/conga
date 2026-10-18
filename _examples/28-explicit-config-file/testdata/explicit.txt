@@ -35,11 +35,9 @@ rm bootstrap.yaml
 exit-status 1 explicit-config
 stderr 'cannot read config file "bootstrap\.yaml"'
 
-# 6. --why stays tolerant: the fatal read renders as an error row (exit 0)
-exec explicit-config --why
-stdout 'error: cannot read config file "bootstrap\.yaml"'
-stdout 'bootstrap\.yaml\s+error'
-stdout '--host\s+localhost\s+default'
+# 6. Missing explicit file under --why fails fast with ErrConfig (non-tolerant pipeline)
+exit-status 1 explicit-config --why
+stderr 'cannot read config file "bootstrap\.yaml"'
 
 -- bootstrap.yaml --
 host: explicit.example.com

@@ -22,9 +22,12 @@ type Session struct {
 	cmdChain       []*spec.Command
 	candidateFiles []string
 	loadedFiles    []string
+	envPrefix      string
 	appName        string
 	appVersion     string
 	helpOptions    help.Options
+	whyRenderer    func(s *Session, format string) string
+	mapProvenance  map[*spec.Flag]mapFlagProvenance
 }
 
 // Stdout returns the configured standard output writer for this session.
@@ -149,6 +152,32 @@ func (s *Session) LoadedConfigFiles() []string {
 	}
 
 	return append([]string(nil), s.loadedFiles...)
+}
+
+// Why returns the formatted value-provenance report for the active command,
+// rendered with the same engine the built-in --why flag uses.
+//
+// If the session is nil, uninitialized, or Why reporting is not enabled on the
+// application, Why returns an empty string.
+func (s *Session) Why() string {
+	if s == nil || s.whyRenderer == nil {
+		return ""
+	}
+
+	return s.whyRenderer(s, "text")
+}
+
+// WhyJSON returns the machine-readable JSON value-provenance report for the
+// active command, rendered with the same engine --why=json uses.
+//
+// If the session is nil, uninitialized, or WhyJSON is not enabled on the
+// application, WhyJSON returns an empty string.
+func (s *Session) WhyJSON() string {
+	if s == nil || s.whyRenderer == nil {
+		return ""
+	}
+
+	return s.whyRenderer(s, "json")
 }
 
 // Root returns a pointer to the root application struct of type T: either the

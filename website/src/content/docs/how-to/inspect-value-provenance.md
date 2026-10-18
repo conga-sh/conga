@@ -40,7 +40,9 @@ func main() {
 }
 ```
 
-Passing `--why` intercepts execution during the resolution phase. CONGA computes the provenance table, prints the report to stdout, and exits with code 0 before any lifecycle hooks (`PreRun`, `Run`, `PostRun`) execute.
+Passing `--why` intercepts execution during the resolution phase. CONGA binds every flag and configuration source with the regular resolution pipeline, prints the report to stdout, and exits with code 0 before any lifecycle hooks (`PreRun`, `Run`, `PostRun`) execute. Invalid configuration or flag values fail with their normal errors instead of rendering partial diagnostic rows.
+
+To enable the machine-readable `--why=json` document as well, pass `conga.WhyJSON()`: `app.EnableWhy(conga.WhyJSON())`. The same report is available programmatically from `session.Why()` and `session.WhyJSON()` inside lifecycle hooks.
 
 ## Protect sensitive data with value redaction
 
@@ -79,13 +81,15 @@ The report contains these diagnostic sections (the feature table appears only wh
 
 - **Flag table**:
   - `FLAG`: The declared flag name.
-  - `VALUE`: The winning value, or `██████` if untagged. Entry-bearing map rows display the key count `(N keys)`. Under cascading config or multi-file flags, file paths display by their legend index (`[1], [2]`).
-  - `SOURCE`: The winning tier (`cli`, `env`, `config`, or `default`). A config-sourced value names the contributing file or index (`config (app.yaml)` or `config [1]`).
+  - `VALUE`: The winning value, or `██████` if untagged. Entry-bearing map rows display the key count `(N keys)`. Multi-file `ConfigFile` rows display `(N files)` and list each path as a sub-row.
+  - `SOURCE`: The winning tier (`cli`, `env`, `config`, or `default`). A config-sourced value names the contributing file (`config (app.yaml)`).
   - `ENV`: The derived or explicit environment variable evaluated for this flag.
   - `CONFIG PATH`: The evaluated config file key.
 - **Config decoders**: All file format decoders registered on the application.
-- **Config paths checked / Config files**: Evaluated file paths and their probe outcome (`(loaded)`, `(not found)`). In cascading or multi-file setups, paths are indexed (`[1]`, `[2]`) with absolute, clickable terminal links.
+- **Config paths checked**: Evaluated file paths and their probe outcome (`(loaded)`, `(not found)`), reported as resolved without index footnotes.
 - **Features**: Every declared feature, its resolved value, and its source.
+
+The same report is available programmatically: `session.Why()` returns the text table and `session.WhyJSON()` returns the JSON document (empty unless Why and the JSON option are enabled, respectively).
 
 Map flags merge key by key across tiers: the flag row displays the key count and highest contributing tier, followed by tree-structured sub-rows (`├─ `, `└─ `) detailing each key's value and source:
 

@@ -11,7 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `conga.ConfigLoader` lets an application supply the run's configuration tier from code. `app.ConfigOptions(conga.ConfigLoader(load))` replaces file resolution with the `conga.ConfigDocument` the loader returns (built with `Set(key, value, origin)`), validated exactly like a decoded config file. `conga.ConfigContext` exposes the invocation facts at loader time (`CommandPath`, `FlagValue`, `FlagValues`, `LookupEnv`), values keep the config rank (`CLI > environment > document > default`), map flags merge key by key, per-entry origins surface in `--why`, feature gates ride the document, and loader failures wrap `ErrConfig` (exit 1). Loader applications must not also register decoders, declare file resolution options, or declare a root `ConfigFile` field; schema build rejects the combination with `ErrSchema` and `conga-lint` mirrors the guard.
 - `App.EnableFeatures()` activates struct-declared feature toggles: it installs the feature resolver and validator hooks, and is required for any application declaring a `conga.Features[T]` container or a `feature:"..."` tag.
-- The `--why` provenance flag accepts an optional output format selector: bare `--why` or `--why=text` renders human-readable tables, and `--why=json` outputs a machine-readable JSON document. Non-format values are rejected with a usage error (exit 2).
+- The `--why` provenance flag accepts an optional output format selector: bare `--why` or `--why=text` renders human-readable tables. `app.EnableWhy(conga.WhyJSON())` additionally enables `--why=json`, which emits a versioned machine-readable document (`$schema`, `schemaVersion`, `command`, `version`, `timestamp`, `workingDirectory`, `flags`, `globalFlags`, `features`, `config`, `redacted`). Non-format values and `--why=json` without the option are rejected with a usage error (exit 2).
+- `Session.Why()` and `Session.WhyJSON()` expose the same provenance report programmatically inside `PreRun`, `Run`, and other lifecycle hooks. They return an empty string when Why (or the JSON option, for `WhyJSON`) is not enabled on the application.
 
 ### Changed
 
@@ -23,6 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Positional-argument `enum` validation now checks the coerced value's string form, matching flag validation, so normalizing `encoding.TextUnmarshaler` types compose with the `enum` tag.
 - The `--why` report renders one indented sub-row per map key with the tier that last wrote it, and the Features table reports each toggle's actual source tier instead of the winning tier of the whole map.
 - The `--why` report annotates every config-sourced row with the contributing file (`config (app.yaml)`), and an entry-bearing map row renders `-` for its value and source instead of repeating what its per-key sub-rows state.
+- The `--why` report now binds through the normal resolution pipeline (including on the built-in `version` and `completion` commands) and fails fast on invalid configuration, coercion, or feature input instead of rendering partial diagnostic rows.
+- Multi-file `ConfigFile` rows render `(N files)` with tree sub-rows listing each resolved path; the sequential `[1]`, `[2]` configuration-origin indices and the `Config files:` legend are removed in favor of directly reported origins.
 
 ### Fixed
 

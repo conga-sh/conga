@@ -7,10 +7,12 @@
 package why
 
 import (
+	"encoding"
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
+	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -26,6 +28,12 @@ const Redacted = "██████"
 // FooterHint is the point-of-use self-documentation rendered after any
 // redacted row, advertising the safe struct tag.
 const FooterHint = `values are redacted — tag fields safe:"true" to display`
+
+// SchemaVersion is the current JSON schema version emitted by --why=json.
+const SchemaVersion = 1
+
+// SchemaURI is the canonical JSON schema URI for --why=json.
+const SchemaURI = "https://conga.sh/schemas/why/v1.json"
 
 // Table headers shared by the main table and the Global Flags section.
 const (
@@ -53,6 +61,14 @@ const (
 
 // Row is one neutral report line for a single flag or config-file container.
 type Row struct {
+	// Name is the bare flag identifier (e.g. "port").
+	Name string
+	// Type is the schema type name ("int", "string", "string[]", "map", etc.).
+	Type string
+	// RawValue is the coerced native value for machine-readable export.
+	RawValue any
+	// Redacted marks this individual row's value as sensitive/redacted.
+	Redacted bool
 	// Label is the flag display label (e.g. "--port").
 	Label string
 	// Value is the display value, redacted or formatted by the caller; empty
@@ -74,15 +90,23 @@ type Row struct {
 	// ConfigPath is the config-document key that can set the flag, or "-" when
 	// the flag is excluded from configuration files.
 	ConfigPath string
-	// Error optionally carries a diagnostic message (coercion failure,
-	// config-file read failure) rendered as an "error: ..." row diagnostic.
-	Error string
 	// Hidden marks flags hidden from help and completion.
 	Hidden bool
 	// Entries lists the per-key provenance of a merged map flag value,
 	// rendered as sub-rows beneath the flag row. Empty for scalar and slice
 	// flags and for error rows.
 	Entries []MapEntry
+	// SubRows lists sub-items (such as multiple loaded config file paths)
+	// rendered as tree branches beneath the flag row.
+	SubRows []SubRow
+}
+
+// SubRow is a single sub-item beneath a row, such as one loaded file of a
+// multi-file configuration container.
+type SubRow struct {
+	Value  string
+	Source string
+	Detail string
 }
 
 // MapEntry is one key of a merged map flag value with the source tier that
@@ -92,6 +116,10 @@ type MapEntry struct {
 	Key string
 	// Value is the key's display value, redacted or formatted by the caller.
 	Value string
+	// RawValue is the coerced native value for machine-readable export.
+	RawValue any
+	// Redacted marks this entry's value as sensitive/redacted.
+	Redacted bool
 	// Source is the bare source-tier word for the tier that last wrote the key.
 	Source string
 	// Detail optionally annotates the source with the concrete origin, e.g.
@@ -114,6 +142,26 @@ type FeatureRow struct {
 	Detail string
 }
 
+// ConfigPath is one candidate configuration file path probed during config
+// resolution, annotated with the outcome of the probe.
+type ConfigPath struct {
+	// Path is the expanded candidate location (a search-path tier, an
+	// environment-derived path, or an explicit --config-file location).
+	Path string
+	// Status is the probe outcome: "loaded: <file>" when the candidate
+	// resolved to a configuration file, "directory does not exist" when the
+	// candidate location is absent, "no config file" when the candidate is
+	// an existing directory holding no matching file, or "error" when
+	// reading the candidate failed.
+	Status string
+	// ProbedFiles lists the concrete configuration file locations the
+	// resolution probed for a search-path tier that found nothing, as full
+	// paths (e.g. "<tier>/config.json", "<tier>.yaml"). One report line is
+	// rendered per entry. Empty for whole-path candidates and for tiers
+	// that loaded a file or failed.
+	ProbedFiles []string
+}
+
 // Report is the complete --why report: the invocation's command path, the
 // rows for the active command's flags, the rows for inherited ancestor flags,
 // the candidate configuration paths probed during resolution, the registered
@@ -121,9 +169,12 @@ type FeatureRow struct {
 // configuration file locations suggested when nothing was loaded, and whether
 // any value was redacted (driving the footer hint).
 type Report struct {
-	CommandPath string
-	Rows        []Row
-	GlobalRows  []Row
+	CommandPath      string
+	Version          string
+	Timestamp        string
+	WorkingDirectory string
+	Rows             []Row
+	GlobalRows       []Row
 	// Features lists the declared feature toggles of the root command with
 	// their resolved value and source tier.
 	Features    []FeatureRow
@@ -136,7 +187,7 @@ type Report struct {
 	// create for the application to see, rendered when no configuration file
 	// was loaded anywhere.
 	ConfigExamples []string
-	Redacted       bool
+	RedactedRows   bool
 	// Color enables ANSI color styling in Format(). When false, plain text is
 	// rendered.
 	Color bool
@@ -145,8 +196,8 @@ type Report struct {
 // Format renders the report as plain text following internal/help table
 // conventions: a titled line, the aligned flag/value/source/env/config-path
 // table for the active command, an inherited "Global Flags" table when
-// ancestors contribute flags, per-row diagnostics, and the redaction footer
-// hint.
+// ancestors contribute flags, the map-entry and sub-row trees, and the
+// redaction footer hint.
 func (r Report) Format() string {
 	renderCtx := newRenderContext(r)
 
@@ -183,13 +234,7 @@ func (r Report) Format() string {
 		}
 
 		builder.WriteString("\n")
-
-		sectionTitle := "Config paths checked:"
-		if renderCtx.useIndices {
-			sectionTitle = "Config files:"
-		}
-
-		builder.WriteString(styleText(sectionTitle, ansiBold, renderCtx.color))
+		builder.WriteString(styleText("Config paths checked:", ansiBold, renderCtx.color))
 		builder.WriteString("\n")
 		builder.WriteString(renderConfigPaths(r.ConfigPaths, renderCtx))
 
@@ -199,7 +244,7 @@ func (r Report) Format() string {
 		}
 	}
 
-	if r.Redacted {
+	if r.RedactedRows {
 		builder.WriteString("\n")
 		builder.WriteString(styleText(FooterHint, ansiDim, renderCtx.color))
 		builder.WriteString("\n")
@@ -213,7 +258,11 @@ func (r Report) Format() string {
 func (r Report) FormatJSON() string {
 	buffer := make([]byte, 0, 1024)
 
-	buffer = append(buffer, `{"command":`...)
+	buffer = append(buffer, `{"$schema":"`...)
+	buffer = append(buffer, SchemaURI...)
+	buffer = append(buffer, `","schemaVersion":`...)
+	buffer = strconv.AppendInt(buffer, SchemaVersion, 10)
+	buffer = append(buffer, `,"command":`...)
 
 	path := r.CommandPath
 	if path == "" {
@@ -222,228 +271,91 @@ func (r Report) FormatJSON() string {
 
 	buffer = jsonwire.AppendString(buffer, path)
 
-	buffer = append(buffer, `,"flags":[`...)
+	if r.Version != "" {
+		buffer = append(buffer, `,"version":`...)
+		buffer = jsonwire.AppendString(buffer, r.Version)
+	}
 
-	for i, row := range r.Rows {
-		if i > 0 {
-			buffer = append(buffer, ',')
+	if r.Timestamp != "" {
+		buffer = append(buffer, `,"timestamp":`...)
+		buffer = jsonwire.AppendString(buffer, r.Timestamp)
+	}
+
+	if r.WorkingDirectory != "" {
+		buffer = append(buffer, `,"workingDirectory":`...)
+		buffer = jsonwire.AppendString(buffer, r.WorkingDirectory)
+	}
+
+	buffer = append(buffer, `,"redacted":`...)
+	buffer = strconv.AppendBool(buffer, r.RedactedRows)
+
+	buffer = appendRowArrayJSON(buffer, `,"flags":[`, r.Rows)
+
+	if len(r.GlobalRows) > 0 {
+		buffer = appendRowArrayJSON(buffer, `,"globalFlags":[`, r.GlobalRows)
+	}
+
+	if len(r.Features) > 0 {
+		buffer = append(buffer, `,"features":[`...)
+
+		for i, feat := range r.Features {
+			if i > 0 {
+				buffer = append(buffer, ',')
+			}
+
+			buffer = appendFeatureJSON(buffer, feat)
 		}
 
-		buffer = appendRowJSON(buffer, row)
+		buffer = append(buffer, ']')
 	}
 
-	buffer = append(buffer, `],"globalFlags":[`...)
-
-	for i, row := range r.GlobalRows {
-		if i > 0 {
-			buffer = append(buffer, ',')
-		}
-
-		buffer = appendRowJSON(buffer, row)
-	}
-
-	buffer = append(buffer, `],"features":[`...)
-
-	for i, feat := range r.Features {
-		if i > 0 {
-			buffer = append(buffer, ',')
-		}
-
-		buffer = appendFeatureJSON(buffer, feat)
-	}
-
-	buffer = append(buffer, `],"config":{"decoders":[`...)
-
-	for i, dec := range r.ConfigDecoders {
-		if i > 0 {
-			buffer = append(buffer, ',')
-		}
-
-		buffer = jsonwire.AppendString(buffer, dec)
-	}
-
-	buffer = append(buffer, `],"paths":[`...)
-
-	for i, configPath := range r.ConfigPaths {
-		if i > 0 {
-			buffer = append(buffer, ',')
-		}
-
-		buffer = appendConfigPathJSON(buffer, configPath)
-	}
-
-	buffer = append(buffer, `],"examples":[`...)
-
-	for i, ex := range r.ConfigExamples {
-		if i > 0 {
-			buffer = append(buffer, ',')
-		}
-
-		buffer = jsonwire.AppendString(buffer, ex)
-	}
-
-	buffer = append(buffer, `]},"redacted":`...)
-	if r.Redacted {
-		buffer = append(buffer, "true}"...)
-	} else {
-		buffer = append(buffer, "false}"...)
-	}
+	buffer = appendConfigJSON(buffer, r)
 
 	return string(buffer)
-}
-
-// ConfigPath is one candidate configuration file path probed during config
-// resolution, annotated with the outcome of the probe.
-type ConfigPath struct {
-	// Path is the expanded candidate location (a search-path tier, an
-	// environment-derived path, or an explicit --config-file location).
-	Path string
-	// Status is the probe outcome: "loaded: <file>" when the candidate
-	// resolved to a configuration file, "directory does not exist" when the
-	// candidate location is absent, "no config file" when the candidate is
-	// an existing directory holding no matching file, or "error" when
-	// reading the candidate failed.
-	Status string
-	// ProbedFiles lists the concrete configuration file locations the
-	// resolution probed for a search-path tier that found nothing, as full
-	// paths (e.g. "<tier>/config.json", "<tier>.yaml"). One report line is
-	// rendered per entry. Empty for whole-path candidates and for tiers
-	// that loaded a file or failed.
-	ProbedFiles []string
 }
 
 // IsColorEnabled reports whether styled color output should be enabled for writer,
 // honoring CONGA_COLOR, NO_COLOR, CLICOLOR, TERM=dumb, and TTY detection.
 func IsColorEnabled(writer io.Writer) bool {
-	if val, ok := os.LookupEnv("CONGA_COLOR"); ok && val != "" {
-		return val != "0"
+	if value, ok := os.LookupEnv("CONGA_COLOR"); ok && value != "" {
+		return value != "0"
 	}
 
-	if val, ok := os.LookupEnv("NO_COLOR"); ok && val != "" {
+	if value, ok := os.LookupEnv("NO_COLOR"); ok && value != "" {
 		return false
 	}
 
-	if os.Getenv("CLICOLOR") == "0" || os.Getenv("TERM") == "dumb" {
+	if value, ok := os.LookupEnv("CLICOLOR"); ok && value == "0" {
+		return false
+	}
+
+	if os.Getenv("TERM") == "dumb" {
 		return false
 	}
 
 	return isTerminalWriter(writer)
 }
 
-// renderContext carries terminal capabilities and origin indexing state for
-// layout formatting.
 type renderContext struct {
-	color         bool
-	originIndices map[string]int
-	useIndices    bool
+	color bool
 }
 
 func newRenderContext(report Report) renderContext {
-	renderCtx := renderContext{
-		color:         report.Color,
-		originIndices: make(map[string]int),
+	return renderContext{
+		color: report.Color,
 	}
-
-	nextIndex := 1
-
-	for _, configPath := range report.ConfigPaths {
-		if strings.HasPrefix(configPath.Status, "loaded") {
-			loadedFile := configPath.Path
-			if file, ok := strings.CutPrefix(configPath.Status, "loaded: "); ok {
-				loadedFile = file
-			}
-
-			if _, exists := renderCtx.originIndices[loadedFile]; !exists {
-				renderCtx.originIndices[loadedFile] = nextIndex
-				nextIndex++
-			}
-
-			renderCtx.originIndices[configPath.Path] = renderCtx.originIndices[loadedFile]
-		}
-	}
-
-	collectConfigDetail := func(source, detail string) {
-		if source == "config" && detail != "" {
-			if _, exists := renderCtx.originIndices[detail]; !exists {
-				renderCtx.originIndices[detail] = nextIndex
-				nextIndex++
-			}
-		}
-	}
-
-	for _, row := range report.Rows {
-		collectConfigDetail(row.Source, row.Detail)
-
-		for _, entry := range row.Entries {
-			collectConfigDetail(entry.Source, entry.Detail)
-		}
-	}
-
-	for _, row := range report.GlobalRows {
-		collectConfigDetail(row.Source, row.Detail)
-
-		for _, entry := range row.Entries {
-			collectConfigDetail(entry.Source, entry.Detail)
-		}
-	}
-
-	for _, feat := range report.Features {
-		collectConfigDetail(feat.Source, feat.Detail)
-	}
-
-	distinctCount := 0
-	seen := make(map[int]bool)
-
-	for _, idx := range renderCtx.originIndices {
-		if !seen[idx] {
-			seen[idx] = true
-			distinctCount++
-		}
-	}
-
-	renderCtx.useIndices = distinctCount >= 1
-
-	return renderCtx
 }
 
 func (rc renderContext) sourceText(source, detail string) (string, string) {
-	if source == "config" && rc.useIndices && detail != "" {
-		if idx, ok := rc.originIndices[detail]; ok {
-			badge := "[" + strconv.Itoa(idx) + "]"
-
-			base := "config " + badge
-			if rc.color {
-				plain := "● " + base
-				styled := styleText("●", ansiYellow, true) + " " + styleText(base, ansiBold, true)
-
-				return plain, styled
-			}
-
-			return base, base
-		}
+	if detail == "" {
+		return formatSourceTier(source, rc.color)
 	}
 
-	text := source
-	if detail != "" {
-		text = source + " (" + detail + ")"
-	}
+	plainTier, styledTier := formatSourceTier(source, rc.color)
+	plain := plainTier + " (" + detail + ")"
+	styled := styledTier + " " + styleText("("+detail+")", ansiDim, rc.color)
 
-	if !rc.color {
-		return text, text
-	}
-
-	switch source {
-	case "cli":
-		return "● " + text, styleText("●", ansiCyan, true) + " " + styleText(text, ansiBold, true)
-	case "env":
-		return "● " + text, styleText("●", ansiGreen, true) + " " + styleText(text, ansiBold, true)
-	case "config":
-		return "● " + text, styleText("●", ansiYellow, true) + " " + styleText(text, ansiBold, true)
-	case "default":
-		return "· " + text, styleText("·", ansiDim, true) + " " + styleText(text, ansiDim, true)
-	default:
-		return "○ " + text, styleText("○", ansiDarkGray, true) + " " + styleText(text, ansiDarkGray, true)
-	}
+	return plain, styled
 }
 
 func (rc renderContext) rowCells(row Row) ([]string, []string) {
@@ -462,104 +374,121 @@ func (rc renderContext) rowCells(row Row) ([]string, []string) {
 			keyLabel = "key"
 		}
 
-		val := "(" + strconv.Itoa(count) + " " + keyLabel + ")"
+		value := "(" + strconv.Itoa(count) + " " + keyLabel + ")"
 		srcPlain, srcStyled := rc.sourceText(row.Source, row.Detail)
 
-		return []string{lbl, val, srcPlain, row.Env, row.ConfigPath},
-			[]string{styledLbl, val, srcStyled, row.Env, row.ConfigPath}
-	}
+		return []string{lbl, value, srcPlain, row.Env, row.ConfigPath},
+			[]string{styledLbl, value, srcStyled, row.Env, row.ConfigPath}
+	} else if len(row.SubRows) > 0 {
+		count := len(row.SubRows)
 
-	val := row.Value
+		fileLabel := "files"
+		if count == 1 {
+			fileLabel = "file"
+		}
 
-	styledVal := val
-	if rc.color && val == Redacted {
-		styledVal = styleText(val, ansiDarkGray, true)
+		value := "(" + strconv.Itoa(count) + " " + fileLabel + ")"
+		srcPlain, srcStyled := rc.sourceText(row.Source, row.Detail)
+
+		return []string{lbl, value, srcPlain, row.Env, row.ConfigPath},
+			[]string{styledLbl, value, srcStyled, row.Env, row.ConfigPath}
 	}
 
 	srcPlain, srcStyled := rc.sourceText(row.Source, row.Detail)
-	if row.Error != "" {
-		srcPlain = ""
-		srcStyled = ""
+
+	value := row.Value
+	styledValue := value
+
+	if rc.color && row.Redacted {
+		styledValue = styleText(value, ansiDarkGray, true)
 	}
 
-	return []string{lbl, val, srcPlain, row.Env, row.ConfigPath},
-		[]string{styledLbl, styledVal, srcStyled, row.Env, row.ConfigPath}
+	return []string{lbl, value, srcPlain, row.Env, row.ConfigPath},
+		[]string{styledLbl, styledValue, srcStyled, row.Env, row.ConfigPath}
 }
 
-type renderedRow struct {
-	cells        []string
-	styledCells  []string
-	row          Row
-	errorMessage string
+type tableLine struct {
+	cells       []string
+	styledCells []string
+	row         Row
 }
 
 type renderedPath struct {
-	badge       string
-	badgeStyled string
-	bullet      string
 	path        string
 	status      string
+	bullet      string
 	probedFiles []string
 }
 
-// renderRows lays out the aligned flag · value · source · env · config-path
-// table beneath a header row. Error rows replace the source column with an
-// "error: ..." diagnostic and stop there, so long messages never push the
-// later columns out of alignment for the remaining rows.
-func renderRows(rows []Row, optionalRC ...renderContext) string {
-	var renderCtx renderContext
-	if len(optionalRC) > 0 {
-		renderCtx = optionalRC[0]
+func formatSourceTier(source string, enableColor bool) (string, string) {
+	if !enableColor {
+		return source, source
+	}
+
+	switch source {
+	case "cli":
+		return "● " + source, styleText("●", ansiCyan, true) + " " + styleText(source, ansiCyan, true)
+	case "env":
+		return "● " + source, styleText("●", ansiYellow, true) + " " + styleText(source, ansiYellow, true)
+	case "config":
+		return "● " + source, styleText("●", ansiGreen, true) + " " + styleText(source, ansiGreen, true)
+	case "default":
+		return "○ " + source, styleText("○", ansiDarkGray, true) + " " + styleText(source, ansiDarkGray, true)
+	default:
+		return source, styleText(source, ansiDim, true)
+	}
+}
+
+func renderRows(rows []Row, renderCtx renderContext) string {
+	if len(rows) == 0 {
+		return ""
 	}
 
 	header := []string{headerLabel, headerValue, headerSource, headerEnv, headerConfigPath}
-
-	lines := make([]renderedRow, 0, len(rows))
-	measurement := make([][]string, 0, len(rows)+1)
-	measurement = append(measurement, header)
-
-	for _, row := range rows {
-		plainCells, styledCells := renderCtx.rowCells(row)
-		measurement = append(measurement, plainCells)
-
-		lines = append(lines, renderedRow{
-			cells:        plainCells,
-			styledCells:  styledCells,
-			row:          row,
-			errorMessage: row.Error,
-		})
-	}
-
-	widths := measureColumnWidths(measurement)
-
-	var builder strings.Builder
-
-	if len(rows) > 0 {
-		builder.WriteString("\n")
-	}
 
 	styledHeader := make([]string, len(header))
 	for i, h := range header {
 		styledHeader[i] = styleText(h, ansiBold, renderCtx.color)
 	}
 
-	writeGridRowWithStyled(&builder, header, styledHeader, widths)
+	grid := make([][]string, 0, len(rows)+1)
+	grid = append(grid, header)
+
+	styledGrid := make([][]string, 0, len(rows)+1)
+	styledGrid = append(styledGrid, styledHeader)
+
+	lines := make([]tableLine, 0, len(rows))
+
+	for _, row := range rows {
+		plainCells, styledCells := renderCtx.rowCells(row)
+		grid = append(grid, plainCells)
+		styledGrid = append(styledGrid, styledCells)
+
+		lines = append(lines, tableLine{
+			cells:       plainCells,
+			styledCells: styledCells,
+			row:         row,
+		})
+	}
+
+	widths := measureColumnWidths(grid)
+
+	return renderTableRows(grid, styledGrid, widths, lines, renderCtx)
+}
+
+func renderTableRows(grid [][]string, styledGrid [][]string, widths []int, lines []tableLine, renderCtx renderContext) string {
+	var builder strings.Builder
+
+	builder.WriteString("\n")
+	writeGridRowWithStyled(&builder, grid[0], styledGrid[0], widths)
 
 	for _, line := range lines {
-		if line.errorMessage != "" {
-			builder.WriteString(strings.Repeat(" ", rowIndent))
-			writeTableCellsWithStyled(&builder, line.cells[:2], line.styledCells[:2], widths)
-			builder.WriteString(styleText("error: ", ansiRed+ansiBold, renderCtx.color))
-			builder.WriteString(styleText(line.errorMessage, ansiRed, renderCtx.color))
-			builder.WriteString("\n")
-
-			continue
-		}
-
 		writeGridRowWithStyled(&builder, line.cells, line.styledCells, widths)
 
 		if len(line.row.Entries) > 0 {
 			renderMapSubRows(&builder, line.row.Entries, widths, renderCtx)
+		} else if len(line.row.SubRows) > 0 {
+			renderSubRows(&builder, line.row.SubRows, widths, renderCtx)
 		}
 	}
 
@@ -601,6 +530,36 @@ func renderMapSubRows(builder *strings.Builder, entries []MapEntry, widths []int
 	}
 }
 
+func renderSubRows(builder *strings.Builder, subRows []SubRow, widths []int, renderCtx renderContext) {
+	maxTokenWidth := 0
+
+	for _, subRow := range subRows {
+		maxTokenWidth = max(maxTokenWidth, utf8.RuneCountInString(subRow.Value))
+	}
+
+	valColIndent := rowIndent + widths[0] + 3
+
+	for idx, subRow := range subRows {
+		branch := "├─ "
+		if idx == len(subRows)-1 {
+			branch = "└─ "
+		}
+
+		builder.WriteString(strings.Repeat(" ", valColIndent))
+		builder.WriteString(styleText(branch, ansiDim, renderCtx.color))
+		builder.WriteString(subRow.Value)
+
+		if subRow.Source != "" {
+			_, srcStyled := renderCtx.sourceText(subRow.Source, subRow.Detail)
+			builder.WriteString(strings.Repeat(" ", maxTokenWidth-utf8.RuneCountInString(subRow.Value)))
+			builder.WriteString(strings.Repeat(" ", 3))
+			builder.WriteString(srcStyled)
+		}
+
+		builder.WriteString("\n")
+	}
+}
+
 // renderFeatureRows lays out the aligned feature-name · value · source table
 // beneath a header row.
 func renderFeatureRows(rows []FeatureRow, optionalRC ...renderContext) string {
@@ -623,8 +582,8 @@ func renderFeatureRows(rows []FeatureRow, optionalRC ...renderContext) string {
 	styledGrid = append(styledGrid, styledHeader)
 
 	for _, row := range rows {
-		srcPlain, srcStyled := renderCtx.sourceText(row.Source, row.Detail)
-		plainCells := []string{row.Name, row.Value, srcPlain}
+		_, srcStyled := renderCtx.sourceText(row.Source, row.Detail)
+		plainCells := []string{row.Name, row.Value, row.Source}
 		styledCells := []string{styleText(row.Name, ansiBold, renderCtx.color), row.Value, srcStyled}
 
 		grid = append(grid, plainCells)
@@ -644,115 +603,24 @@ func renderFeatureRows(rows []FeatureRow, optionalRC ...renderContext) string {
 	return builder.String()
 }
 
-func renderLoadedIndexedConfigPath(configPath ConfigPath, renderCtx renderContext) renderedPath {
-	item := renderedPath{
-		path:        cleanAndAbsPath(configPath.Path),
-		probedFiles: configPath.ProbedFiles,
-	}
-
-	loadedFile := configPath.Path
-	if file, ok := strings.CutPrefix(configPath.Status, "loaded: "); ok {
-		loadedFile = file
-	}
-
-	idx := renderCtx.originIndices[configPath.Path]
-	if idx == 0 {
-		idx = renderCtx.originIndices[loadedFile]
-	}
-
-	item.badge = "[" + strconv.Itoa(idx) + "]"
-	item.badgeStyled = styleText(item.badge, ansiDim, renderCtx.color)
-
-	if renderCtx.color {
-		item.bullet = styleText("●", ansiGreen, true) + " "
-	}
-
-	if cleanAndAbsPath(loadedFile) == item.path {
-		item.status = styleText("(loaded)", ansiGreen, renderCtx.color)
-	} else {
-		item.status = styleText("(loaded: "+cleanAndAbsPath(loadedFile)+")", ansiGreen, renderCtx.color)
-	}
-
-	return item
-}
-
-func renderIndexedConfigPath(configPath ConfigPath, renderCtx renderContext) renderedPath {
-	if strings.HasPrefix(configPath.Status, "loaded") {
-		return renderLoadedIndexedConfigPath(configPath, renderCtx)
-	}
-
-	item := renderedPath{
-		path:        cleanAndAbsPath(configPath.Path),
-		probedFiles: configPath.ProbedFiles,
-	}
-
-	if configPath.Status == "error" {
-		item.badge = "[!]"
-		item.badgeStyled = styleText("[!]", ansiRed, renderCtx.color)
-
-		if renderCtx.color {
-			item.bullet = styleText("✖", ansiRed, true) + " "
-		}
-
-		item.status = styleText("(error)", ansiRed, renderCtx.color)
-
-		return item
-	}
-
-	item.badge = "[—]"
-	item.badgeStyled = styleText("[—]", ansiDim, renderCtx.color)
-
-	if renderCtx.color {
-		item.bullet = styleText("○", ansiDarkGray, true) + " "
-	}
-
-	item.status = styleText("("+configPath.Status+")", ansiDarkGray, renderCtx.color)
-
-	return item
-}
-
 func renderPlainConfigPath(configPath ConfigPath, renderCtx renderContext) renderedPath {
 	item := renderedPath{
-		path:        cleanAndAbsPath(configPath.Path),
+		path:        configPath.Path,
 		probedFiles: configPath.ProbedFiles,
 	}
 
-	isLoaded := strings.HasPrefix(configPath.Status, "loaded")
-	isError := configPath.Status == "error"
-
-	if isLoaded {
-		loadedFile := configPath.Path
-		if file, ok := strings.CutPrefix(configPath.Status, "loaded: "); ok {
-			loadedFile = file
-		}
-
+	if strings.HasPrefix(configPath.Status, "loaded") {
 		if renderCtx.color {
 			item.bullet = styleText("●", ansiGreen, true) + " "
 		}
 
-		if cleanAndAbsPath(loadedFile) == item.path {
-			item.status = styleText("(loaded)", ansiGreen, renderCtx.color)
-		} else {
-			item.status = styleText("(loaded: "+cleanAndAbsPath(loadedFile)+")", ansiGreen, renderCtx.color)
-		}
-
-		return item
-	}
-
-	if isError {
-		item.status = styleText("(error)", ansiRed, renderCtx.color)
-
+		item.status = styleText(configPath.Status, ansiGreen, renderCtx.color)
+	} else {
 		if renderCtx.color {
-			item.bullet = styleText("✖", ansiRed, true) + " "
+			item.bullet = styleText("○", ansiDarkGray, true) + " "
 		}
 
-		return item
-	}
-
-	item.status = styleText("("+configPath.Status+")", ansiDarkGray, renderCtx.color)
-
-	if renderCtx.color {
-		item.bullet = styleText("○", ansiDarkGray, true) + " "
+		item.status = styleText(configPath.Status, ansiDarkGray, renderCtx.color)
 	}
 
 	return item
@@ -775,13 +643,7 @@ func renderConfigPaths(paths []ConfigPath, optionalRC ...renderContext) string {
 	maxPathWidth := 0
 
 	for _, configPath := range paths {
-		var item renderedPath
-		if renderCtx.useIndices {
-			item = renderIndexedConfigPath(configPath, renderCtx)
-		} else {
-			item = renderPlainConfigPath(configPath, renderCtx)
-		}
-
+		item := renderPlainConfigPath(configPath, renderCtx)
 		maxPathWidth = max(maxPathWidth, utf8.RuneCountInString(item.path))
 		rendered = append(rendered, item)
 	}
@@ -791,12 +653,6 @@ func renderConfigPaths(paths []ConfigPath, optionalRC ...renderContext) string {
 	for _, item := range rendered {
 		builder.WriteString(strings.Repeat(" ", rowIndent))
 		builder.WriteString(item.bullet)
-
-		if item.badge != "" {
-			builder.WriteString(item.badgeStyled)
-			builder.WriteString(" ")
-		}
-
 		builder.WriteString(pad(item.path, maxPathWidth))
 		builder.WriteString(strings.Repeat(" ", columnGap))
 		builder.WriteString(item.status)
@@ -908,53 +764,203 @@ func isTerminalWriter(writer io.Writer) bool {
 	return fileInfo.Mode()&os.ModeCharDevice != 0
 }
 
-func appendRowJSON(buffer []byte, row Row) []byte {
-	buffer = append(buffer, `{"label":`...)
-	buffer = jsonwire.AppendString(buffer, row.Label)
-	buffer = append(buffer, `,"value":`...)
-	buffer = jsonwire.AppendString(buffer, row.Value)
-	buffer = append(buffer, `,"source":`...)
-	buffer = jsonwire.AppendString(buffer, row.Source)
-	buffer = append(buffer, `,"detail":`...)
-	buffer = jsonwire.AppendString(buffer, row.Detail)
-	buffer = append(buffer, `,"env":`...)
-	buffer = jsonwire.AppendString(buffer, row.Env)
-	buffer = append(buffer, `,"configPath":`...)
-	buffer = jsonwire.AppendString(buffer, row.ConfigPath)
-	buffer = append(buffer, `,"error":`...)
-	buffer = jsonwire.AppendString(buffer, row.Error)
+func appendRowArrayJSON(buffer []byte, field string, rows []Row) []byte {
+	buffer = append(buffer, field...)
 
-	buffer = append(buffer, `,"hidden":`...)
-	if row.Hidden {
-		buffer = append(buffer, "true"...)
-	} else {
-		buffer = append(buffer, "false"...)
-	}
-
-	buffer = append(buffer, `,"entries":[`...)
-
-	for i, entry := range row.Entries {
+	for i, row := range rows {
 		if i > 0 {
 			buffer = append(buffer, ',')
 		}
 
-		buffer = appendMapEntryJSON(buffer, entry)
+		buffer = appendRowJSON(buffer, row)
 	}
 
-	buffer = append(buffer, "]}"...)
+	return append(buffer, ']')
+}
+
+func appendConfigJSON(buffer []byte, report Report) []byte {
+	buffer = append(buffer, `,"config":{"decoders":[`...)
+
+	for i, dec := range report.ConfigDecoders {
+		if i > 0 {
+			buffer = append(buffer, ',')
+		}
+
+		buffer = jsonwire.AppendString(buffer, dec)
+	}
+
+	buffer = append(buffer, `],"paths":[`...)
+
+	for i, configPath := range report.ConfigPaths {
+		if i > 0 {
+			buffer = append(buffer, ',')
+		}
+
+		buffer = appendConfigPathJSON(buffer, configPath)
+	}
+
+	buffer = append(buffer, ']')
+
+	if len(report.ConfigExamples) > 0 {
+		buffer = append(buffer, `,"examples":[`...)
+
+		for i, ex := range report.ConfigExamples {
+			if i > 0 {
+				buffer = append(buffer, ',')
+			}
+
+			buffer = jsonwire.AppendString(buffer, ex)
+		}
+
+		buffer = append(buffer, ']')
+	}
+
+	return append(buffer, `}}`...)
+}
+
+func appendConfigPathJSON(buffer []byte, configPath ConfigPath) []byte {
+	buffer = append(buffer, '{')
+	buffer = append(buffer, `"path":`...)
+	buffer = jsonwire.AppendString(buffer, configPath.Path)
+	buffer = append(buffer, `,"status":`...)
+	buffer = jsonwire.AppendString(buffer, normalizeStatusEnum(configPath.Status))
+
+	if len(configPath.ProbedFiles) > 0 {
+		buffer = append(buffer, `,"probedFiles":[`...)
+
+		for i, probed := range configPath.ProbedFiles {
+			if i > 0 {
+				buffer = append(buffer, ',')
+			}
+
+			buffer = jsonwire.AppendString(buffer, probed)
+		}
+
+		buffer = append(buffer, ']')
+	}
+
+	buffer = append(buffer, '}')
 
 	return buffer
+}
+
+func normalizeStatusEnum(status string) string {
+	switch {
+	case strings.HasPrefix(status, "loaded"):
+		return "loaded"
+	case strings.Contains(status, "directory does not exist"):
+		return "not_found"
+	case strings.Contains(status, "no config file"):
+		return "no_config_file"
+	case strings.Contains(status, "error"):
+		return "error"
+	case strings.Contains(status, "skipped"):
+		return "skipped"
+	default:
+		return status
+	}
+}
+
+func appendRowJSON(buffer []byte, row Row) []byte {
+	buffer = append(buffer, '{')
+	buffer = append(buffer, `"name":`...)
+
+	name := row.Name
+	if name == "" {
+		name = strings.TrimPrefix(row.Label, "--")
+	}
+
+	buffer = jsonwire.AppendString(buffer, name)
+
+	if row.Type != "" {
+		buffer = append(buffer, `,"type":`...)
+		buffer = jsonwire.AppendString(buffer, row.Type)
+	}
+
+	if row.Redacted {
+		buffer = append(buffer, `,"redacted":true`...)
+		if row.Type != "map" {
+			buffer = append(buffer, `,"value":null`...)
+		}
+	} else if len(row.Entries) == 0 {
+		buffer = append(buffer, `,"value":`...)
+
+		value := row.RawValue
+		if value == nil && row.Value != "" {
+			value = row.Value
+		}
+
+		buffer = appendValueJSON(buffer, value)
+	}
+
+	buffer = append(buffer, `,"source":`...)
+	buffer = jsonwire.AppendString(buffer, row.Source)
+
+	if row.Detail != "" {
+		buffer = append(buffer, `,"detail":`...)
+		buffer = jsonwire.AppendString(buffer, row.Detail)
+	}
+
+	return appendRowMetadataJSON(buffer, row)
+}
+
+func appendRowMetadataJSON(buffer []byte, row Row) []byte {
+	if row.Env != "" && row.Env != "-" {
+		buffer = append(buffer, `,"env":`...)
+		buffer = jsonwire.AppendString(buffer, row.Env)
+	}
+
+	if row.ConfigPath != "" && row.ConfigPath != "-" {
+		buffer = append(buffer, `,"configPath":`...)
+		buffer = jsonwire.AppendString(buffer, row.ConfigPath)
+	}
+
+	if row.Hidden {
+		buffer = append(buffer, `,"hidden":true`...)
+	}
+
+	if len(row.Entries) > 0 {
+		buffer = append(buffer, `,"entries":[`...)
+
+		for i, entry := range row.Entries {
+			if i > 0 {
+				buffer = append(buffer, ',')
+			}
+
+			buffer = appendMapEntryJSON(buffer, entry)
+		}
+
+		buffer = append(buffer, ']')
+	}
+
+	return append(buffer, '}')
 }
 
 func appendMapEntryJSON(buffer []byte, entry MapEntry) []byte {
 	buffer = append(buffer, `{"key":`...)
 	buffer = jsonwire.AppendString(buffer, entry.Key)
-	buffer = append(buffer, `,"value":`...)
-	buffer = jsonwire.AppendString(buffer, entry.Value)
+
+	if entry.Redacted {
+		buffer = append(buffer, `,"redacted":true,"value":null`...)
+	} else {
+		buffer = append(buffer, `,"value":`...)
+
+		value := entry.RawValue
+		if value == nil && entry.Value != "" {
+			value = entry.Value
+		}
+
+		buffer = appendValueJSON(buffer, value)
+	}
+
 	buffer = append(buffer, `,"source":`...)
 	buffer = jsonwire.AppendString(buffer, entry.Source)
-	buffer = append(buffer, `,"detail":`...)
-	buffer = jsonwire.AppendString(buffer, entry.Detail)
+
+	if entry.Detail != "" {
+		buffer = append(buffer, `,"detail":`...)
+		buffer = jsonwire.AppendString(buffer, entry.Detail)
+	}
+
 	buffer = append(buffer, '}')
 
 	return buffer
@@ -967,56 +973,114 @@ func appendFeatureJSON(buffer []byte, feat FeatureRow) []byte {
 	buffer = jsonwire.AppendString(buffer, feat.Value)
 	buffer = append(buffer, `,"source":`...)
 	buffer = jsonwire.AppendString(buffer, feat.Source)
-	buffer = append(buffer, `,"detail":`...)
-	buffer = jsonwire.AppendString(buffer, feat.Detail)
+
+	if feat.Detail != "" {
+		buffer = append(buffer, `,"detail":`...)
+		buffer = jsonwire.AppendString(buffer, feat.Detail)
+	}
+
 	buffer = append(buffer, '}')
 
 	return buffer
 }
 
-func appendConfigPathJSON(buffer []byte, configPath ConfigPath) []byte {
-	buffer = append(buffer, `{"path":`...)
-	buffer = jsonwire.AppendString(buffer, configPath.Path)
-	buffer = append(buffer, `,"status":`...)
-	buffer = jsonwire.AppendString(buffer, configPath.Status)
-	buffer = append(buffer, `,"probedFiles":[`...)
+func appendValueJSON(buffer []byte, value any) []byte {
+	if value == nil {
+		return append(buffer, "null"...)
+	}
 
-	for i, probed := range configPath.ProbedFiles {
+	if text, ok := stringForm(value); ok {
+		return jsonwire.AppendString(buffer, text)
+	}
+
+	return appendKindValueJSON(buffer, reflect.ValueOf(value))
+}
+
+// stringForm renders values that carry their own textual representation,
+// matching whyDisplayValue's fmt.Stringer/encoding.TextMarshaler precedence.
+func stringForm(value any) (string, bool) {
+	if stringer, ok := value.(fmt.Stringer); ok {
+		if reflected := reflect.ValueOf(stringer); reflected.Kind() != reflect.Pointer || !reflected.IsNil() {
+			return stringer.String(), true
+		}
+	}
+
+	if marshaler, ok := value.(encoding.TextMarshaler); ok {
+		if reflected := reflect.ValueOf(marshaler); reflected.Kind() != reflect.Pointer || !reflected.IsNil() {
+			if text, err := marshaler.MarshalText(); err == nil {
+				return string(text), true
+			}
+		}
+	}
+
+	return "", false
+}
+
+func appendKindValueJSON(buffer []byte, value reflect.Value) []byte {
+	switch value.Kind() {
+	case reflect.Bool:
+		return strconv.AppendBool(buffer, value.Bool())
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return strconv.AppendInt(buffer, value.Int(), 10)
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+		return strconv.AppendUint(buffer, value.Uint(), 10)
+	case reflect.Float32:
+		return strconv.AppendFloat(buffer, value.Float(), 'f', -1, 32)
+	case reflect.Float64:
+		return strconv.AppendFloat(buffer, value.Float(), 'f', -1, 64)
+	case reflect.String:
+		return jsonwire.AppendString(buffer, value.String())
+	case reflect.Slice:
+		return appendSliceValueJSON(buffer, value)
+	case reflect.Map:
+		return appendMapValueJSON(buffer, value)
+	default:
+		return jsonwire.AppendString(buffer, fmt.Sprint(value.Interface()))
+	}
+}
+
+func appendSliceValueJSON(buffer []byte, value reflect.Value) []byte {
+	buffer = append(buffer, '[')
+
+	for i := range value.Len() {
 		if i > 0 {
 			buffer = append(buffer, ',')
 		}
 
-		buffer = jsonwire.AppendString(buffer, probed)
+		buffer = appendValueJSON(buffer, value.Index(i).Interface())
 	}
 
-	buffer = append(buffer, "]}"...)
-
-	return buffer
+	return append(buffer, ']')
 }
 
-func cleanAndAbsPath(rawPath string) string {
-	if rawPath == "" {
-		return ""
+func appendMapValueJSON(buffer []byte, value reflect.Value) []byte {
+	type mapEntry struct {
+		key   string
+		value reflect.Value
 	}
 
-	suffix := ""
-	basePath := rawPath
+	entries := make([]mapEntry, 0, value.Len())
 
-	if idx := strings.Index(rawPath, " ("); idx != -1 && strings.HasSuffix(rawPath, ")") {
-		basePath = rawPath[:idx]
-		suffix = rawPath[idx:]
+	iter := value.MapRange()
+	for iter.Next() {
+		entries = append(entries, mapEntry{key: fmt.Sprint(iter.Key().Interface()), value: iter.Value()})
 	}
 
-	if !strings.ContainsAny(basePath, `/\.`) {
-		if _, err := os.Stat(basePath); err != nil {
-			return rawPath
+	slices.SortFunc(entries, func(a, b mapEntry) int {
+		return strings.Compare(a.key, b.key)
+	})
+
+	buffer = append(buffer, '{')
+
+	for i, entry := range entries {
+		if i > 0 {
+			buffer = append(buffer, ',')
 		}
+
+		buffer = jsonwire.AppendString(buffer, entry.key)
+		buffer = append(buffer, ':')
+		buffer = appendValueJSON(buffer, entry.value.Interface())
 	}
 
-	cleaned := filepath.Clean(basePath)
-	if abs, err := filepath.Abs(cleaned); err == nil {
-		return abs + suffix
-	}
-
-	return cleaned + suffix
+	return append(buffer, '}')
 }

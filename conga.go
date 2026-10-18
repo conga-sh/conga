@@ -452,9 +452,24 @@ func (a *App[T]) EnableFeatures() *App[T] {
 // where every flag value originated (CLI, environment, configuration file, or
 // struct default) and why competing sources were overridden.
 //
+// By default, [App.EnableWhy] links only the human-readable text table
+// renderer, keeping the binary footprint lean and dead-code eliminating the
+// RFC 8259 JSON serialization pipeline. Pass [WhyJSON] to opt into
+// machine-readable provenance reports:
+//
+//	app.EnableWhy(conga.WhyJSON())
+//
 // See https://docs.conga.sh/how-to/inspect-value-provenance/.
-func (a *App[T]) EnableWhy() *App[T] {
-	a.installWhyRenderer()
+func (a *App[T]) EnableWhy(opts ...WhyOption) *App[T] {
+	var settings whySettings
+
+	for _, opt := range opts {
+		if opt != nil {
+			opt.applyWhy(&settings)
+		}
+	}
+
+	a.installWhyRenderer(settings)
 
 	return a
 }
@@ -984,7 +999,7 @@ type appConfig[T any] struct {
 	// The following feature hooks are method expressions: they receive the
 	// executing App as their first argument. Nil means the subsystem is
 	// disabled and unreferenced, so its packages drop at link time.
-	whyRenderer                func(app *App[T], cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, format string) error
+	whyHooks                   *whyHooks
 	loaderResolver             func(app *App[T], cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string) *configResolution
 	defaultPredictors          func(app *App[T])
 	mountCompletion            func(app *App[T], cmd *spec.Command)
@@ -995,8 +1010,7 @@ type appConfig[T any] struct {
 	processFeatures            func(builder any, structField reflect.StructField, fieldHandle any, classification container.Classification) error
 	validateFeatures           func(root *spec.Command) error
 	parseFeatureTag            func(feature string, required bool) (string, error)
-	whyFeatures                featureWhyRowsFunc
-	customMapMerger            func(cmd *spec.Command, cmdChain []*spec.Command, flagSpec *spec.Flag, cliValues map[*spec.Flag][]string, state *bindingState, wantProvenance bool, result *mapMergeResult) error
+	customMapMerger            func(cmd *spec.Command, cmdChain []*spec.Command, flagSpec *spec.Flag, cliValues map[*spec.Flag][]string, state *bindingState, result *mapMergeResult) error
 }
 
 // configView is the root package's view over the configuration resolution
@@ -1026,12 +1040,12 @@ type emptyConfigView struct {
 
 func (view emptyConfigView) Resolve(explicitTargets []string, cmd *spec.Command) ([]string, *configdata.Data, ValueSource, error) {
 	if len(explicitTargets) > 0 {
-		return nil, nil, SourceNone, newDecoderRequiredError("flag --"+configFlagName(cmd), explicitTargets[len(explicitTargets)-1])
+		return nil, nil, SourceNone, newDecoderRequiredError("flag --" + configFlagName(cmd))
 	}
 
 	for _, envKey := range configengine.EnvKeys(view.envPrefix, cmd) {
 		if envValue := os.Getenv(envKey); envValue != "" {
-			return nil, nil, SourceNone, newDecoderRequiredError("environment variable "+envKey, envValue)
+			return nil, nil, SourceNone, newDecoderRequiredError("environment variable " + envKey)
 		}
 	}
 
@@ -1057,25 +1071,20 @@ func (emptyConfigView) ProbedFiles(_ string, _ []string) []string { return nil }
 func (emptyConfigView) ConfigExamples(_ []string, _ []string, _ []string) []string { return nil }
 
 // decoderRequiredError is the config-incapable rejection of a named
-// configuration target. It carries the offending path so the tolerant --why
-// report marks the matching candidate row as failed.
+// configuration target.
 type decoderRequiredError struct {
 	cause error
-	path  string
 }
 
-func newDecoderRequiredError(source string, path string) *decoderRequiredError {
+func newDecoderRequiredError(source string) *decoderRequiredError {
 	return &decoderRequiredError{
 		cause: fmt.Errorf("%w: %s requires a registered config decoder: call App.RegisterDecoder with a format decoder (e.g. decoder/json)", ErrConfig, source),
-		path:  path,
 	}
 }
 
 func (e *decoderRequiredError) Error() string { return e.cause.Error() }
 
 func (e *decoderRequiredError) Unwrap() error { return e.cause }
-
-func (e *decoderRequiredError) ConfigPath() string { return e.path }
 
 // installConfigEngine lazily creates the decoder registry and installs the
 // resolution engine factory. It is called exclusively from the config builder
@@ -1329,7 +1338,7 @@ func (a *App[T]) buildSpec() (*spec.Command, error) {
 		ConfigCapable:             a.configEngine != nil,
 		DisableHelp:               a.helpDisabled,
 		DisableVersion:            a.versionDisabled,
-		DisableWhy:                a.whyRenderer == nil,
+		DisableWhy:                a.whyHooks == nil,
 		DisableCompletion:         a.mountCompletion == nil,
 		CompletionShells:          a.completionShells,
 		InferPredictor:            a.inferPredictor,
@@ -1419,6 +1428,7 @@ func (a *App[T]) prepareFeatures(featureBinding featureState, cmd *spec.Command,
 		ConfigOrigins:         loadedPaths,
 		TypeParsers:           a.collectTypeParsers(),
 		TolerateFeatureErrors: request.toleratesFeatureErrors(),
+		WantMapProvenance:     true,
 	}
 
 	return featureBinding.resolveFeatures(cmd, cmdChain, flagValues, featureBindingState)
@@ -1437,11 +1447,12 @@ func (a *App[T]) extractExplicitConfigTargets(cmd *spec.Command, cmdChain []*spe
 	return nil, nil
 }
 
-func (a *App[T]) prepareNonMetaExecution(session *Session, cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, featureBinding featureState, prunedFlags []prunedFlag) error {
+func (a *App[T]) prepareNonMetaExecution(session *Session, cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, featureBinding featureState, prunedFlags []prunedFlag, skipRequiredFlags bool) error {
 	resolution := a.resolveConfig(cmd, cmdChain, flagValues)
 	if session != nil {
 		session.candidateFiles = resolution.candidates
 		session.loadedFiles = resolution.loadedPaths
+		session.envPrefix = a.envPrefix
 	}
 
 	if err := resolution.err; err != nil {
@@ -1454,14 +1465,23 @@ func (a *App[T]) prepareNonMetaExecution(session *Session, cmd *spec.Command, cm
 		}
 	}
 
+	var recordMapProvenance func(session *Session, flag *spec.Flag, sources map[string]ValueSource, origins map[string]string)
+	if a.whyHooks != nil {
+		recordMapProvenance = a.whyHooks.recordMapProvenance
+	}
+
 	state := &bindingState{
-		EnvPrefix:       a.envPrefix,
-		ConfigData:      a.configData,
-		ConfigOrigins:   resolution.loadedPaths,
-		TypeParsers:     a.collectTypeParsers(),
-		CustomMapMerger: a.customMapMerger,
-		Stdin:           session.stdin,
-		Stdout:          session.stdout,
+		Session:             session,
+		RecordMapProvenance: recordMapProvenance,
+		WantMapProvenance:   a.whyHooks != nil,
+		EnvPrefix:           a.envPrefix,
+		ConfigData:          a.configData,
+		ConfigOrigins:       resolution.loadedPaths,
+		TypeParsers:         a.collectTypeParsers(),
+		CustomMapMerger:     a.customMapMerger,
+		Stdin:               session.stdin,
+		Stdout:              session.stdout,
+		SkipRequiredFlags:   skipRequiredFlags,
 	}
 
 	if err := resolveFlags(cmdChain, flagValues, state); err != nil {
@@ -1511,40 +1531,38 @@ func (a *App[T]) prepare(ctx context.Context) (*Session, bool, error) {
 		helpOptions: a.helpOptions,
 	}
 
-	var (
-		featureBinding featureState
-		prunedFlags    []prunedFlag
-	)
+	if a.whyHooks != nil {
+		a.whyHooks.bindSession(session)
+	}
 
 	request := scanBuiltinRequest(flagValues)
 
-	// Feature gating sources gates from the configuration tier, so
-	// feature-capable applications resolve configuration before builtin
-	// rendering and pruning. A lone --version renders from app metadata alone
-	// and skips configuration resolution entirely.
-	if a.featurePreparer != nil {
-		featureBinding = featureStateOfCommand(cmd)
-		if featureBinding != nil {
-			pruned, err := a.featurePreparer(a, featureBinding, cmd, cmdChain, flagValues, request)
-			if err != nil {
-				return nil, false, err
-			}
-
-			prunedFlags = pruned
-		}
+	featureBinding, prunedFlags, err := a.resolveFeatureState(cmd, cmdChain, flagValues, request)
+	if err != nil {
+		return nil, false, err
 	}
 
 	// Featureless applications defer configuration resolution below builtin
-	// detection, so help/version/why never pay configuration I/O or fail on
-	// resolution errors (e.g. a missing env-sourced config path).
-	if handled, err := a.handleBuiltinFlags(session, flagValues, request); handled || err != nil {
+	// detection, so help and version never pay configuration I/O or fail on
+	// resolution errors (e.g. a missing env-sourced config path). --why is not
+	// exempt: it runs the regular binding pipeline, so it resolves
+	// configuration and surfaces resolution, coercion, and feature errors.
+	if handled, err := a.handleBuiltinFlags(session, request); handled || err != nil {
 		return nil, handled, err
 	}
 
-	if !isMetaCommand(leaf) {
-		if err := a.prepareNonMetaExecution(session, cmd, cmdChain, flagValues, featureBinding, prunedFlags); err != nil {
+	if a.shouldPrepareNonMetaExecution(leaf, request) {
+		if err := a.prepareNonMetaExecution(session, cmd, cmdChain, flagValues, featureBinding, prunedFlags, request.hasWhy); err != nil {
 			return nil, false, err
 		}
+	}
+
+	if request.hasWhy && a.whyHooks != nil {
+		if err := a.whyHooks.render(session, request.whyValue); err != nil {
+			return nil, false, err
+		}
+
+		return nil, true, nil
 	}
 
 	if err := resolveArgs(leaf, cmdChain, posTokens, a.collectTypeParsers(), coerce.DecodeContext{Stdin: session.stdin, Stdout: session.stdout}); err != nil {
@@ -1558,6 +1576,13 @@ func (a *App[T]) prepare(ctx context.Context) (*Session, bool, error) {
 	}
 
 	return session, false, nil
+}
+
+// shouldPrepareNonMetaExecution reports whether the regular binding pipeline
+// runs for this invocation. Meta commands skip it, except when --why needs the
+// bound containers to render a complete provenance report.
+func (a *App[T]) shouldPrepareNonMetaExecution(leaf *spec.Command, request builtinRequest) bool {
+	return !isMetaCommand(leaf) || (request.hasWhy && a.whyHooks != nil)
 }
 
 func (a *App[T]) validateExecution(ctx context.Context, session *Session, leaf *spec.Command, cmdChain []*spec.Command) error {
@@ -1574,17 +1599,29 @@ func (a *App[T]) validateExecution(ctx context.Context, session *Session, leaf *
 	return runValidators(ctx, session, cmdChain)
 }
 
-func (a *App[T]) handleBuiltinFlags(session *Session, flagValues map[*spec.Flag][]string, request builtinRequest) (bool, error) {
-	cmdChain := session.cmdChain
-
-	// 1. Completion flag + --help (e.g. app --completion zsh --help or app --completion --help)
-	if request.hasCompletion && request.hasHelp && a.completionHelp != nil {
-		return a.completionHelp(a, cmdChain, request.completionValue, true)
+func (a *App[T]) resolveFeatureState(cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, request builtinRequest) (featureState, []prunedFlag, error) {
+	if a.featurePreparer == nil {
+		return nil, nil, nil
 	}
 
-	// 2. Bare completion flag (e.g. app --completion)
-	if request.hasCompletion && request.completionValue == "" && a.completionHelp != nil {
-		return a.completionHelp(a, cmdChain, "", false)
+	featureBinding := featureStateOfCommand(cmd)
+	if featureBinding == nil {
+		return nil, nil, nil
+	}
+
+	pruned, err := a.featurePreparer(a, featureBinding, cmd, cmdChain, flagValues, request)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return featureBinding, pruned, nil
+}
+
+func (a *App[T]) handleBuiltinFlags(session *Session, request builtinRequest) (bool, error) {
+	cmdChain := session.cmdChain
+
+	if handled, err := a.handleCompletionBuiltin(session, request); handled || err != nil {
+		return handled, err
 	}
 
 	// 3. Standard --help
@@ -1604,18 +1641,32 @@ func (a *App[T]) handleBuiltinFlags(session *Session, flagValues map[*spec.Flag]
 		return true, nil
 	}
 
-	// 5. Value-provenance report (e.g. app --why)
-	if request.hasWhy && a.whyRenderer != nil {
-		if err := a.whyRenderer(a, cmdChain, flagValues, request.whyValue); err != nil {
+	// 5. Value-provenance format check (e.g. app --why)
+	if request.hasWhy && a.whyHooks != nil && a.whyHooks.validateFormat != nil {
+		if err := a.whyHooks.validateFormat(cmdChain, request.whyValue); err != nil {
 			return false, err
 		}
-
-		return true, nil
 	}
 
 	// 6. Completion script generation (e.g. app --completion zsh)
-	if request.hasCompletion && request.completionValue != "" && a.renderCompletionScript != nil {
+	if !request.hasWhy && request.hasCompletion && request.completionValue != "" && a.renderCompletionScript != nil {
 		return a.renderCompletionScript(a, cmdChain, request.completionValue)
+	}
+
+	return false, nil
+}
+
+func (a *App[T]) handleCompletionBuiltin(session *Session, request builtinRequest) (bool, error) {
+	cmdChain := session.cmdChain
+
+	// 1. Completion flag + --help (e.g. app --completion zsh --help or app --completion --help)
+	if request.hasCompletion && request.hasHelp && a.completionHelp != nil {
+		return a.completionHelp(a, cmdChain, request.completionValue, true)
+	}
+
+	// 2. Bare completion flag (e.g. app --completion)
+	if request.hasCompletion && request.completionValue == "" && a.completionHelp != nil {
+		return a.completionHelp(a, cmdChain, "", false)
 	}
 
 	return false, nil
@@ -1950,15 +2001,7 @@ func (a *App[T]) installFeatureHooks() {
 	a.processFeatures = spec.ProcessFeaturesField
 	a.validateFeatures = spec.ValidateFeatureReferences
 	a.parseFeatureTag = spec.ParseFeatureTag
-	a.whyFeatures = whyFeatureRows
 	a.helpOptions.FeaturesSection = help.RenderFeatures
-}
-
-// installWhyRenderer binds the value-provenance renderer to a. It is reached
-// exclusively through EnableWhy, so applications that never enable the report
-// keep the why machinery unreferenced.
-func (a *App[T]) installWhyRenderer() {
-	a.whyRenderer = (*App[T]).renderWhy
 }
 
 func (a *App[T]) exit(code int) {

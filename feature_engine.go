@@ -112,14 +112,14 @@ func featureGates(cmd *spec.Command, values map[string]string) map[string]bool {
 }
 
 // featureValues overlays the source-provided feature map on the field defaults,
-// recording the canonical values and the accepted keys, and returns the first
-// diagnostic in sorted key order. Diagnostics attribute each key to the tier
-// that supplied it via provenance, falling back to the container's recorded
-// source when a key has no recorded tier.
+// recording the canonical values, and returns the first diagnostic in sorted
+// key order. Diagnostics attribute each key to the tier that supplied it via
+// provenance, falling back to the container's recorded source when a key has no
+// recorded tier.
 func featureValues(cmd *spec.Command, cmdChain []*spec.Command, provided map[string]string, provenance map[string]ValueSource, fallback ValueSource) (map[string]string, error) {
 	var firstErr error
 
-	values, _ := collectFeatureValues(cmd, provided, func(name string, raw string, feature *spec.FeatureField, cause error) {
+	values := collectFeatureValues(cmd, provided, func(name string, raw string, feature *spec.FeatureField, cause error) {
 		if firstErr != nil {
 			return
 		}
@@ -143,18 +143,17 @@ func featureValues(cmd *spec.Command, cmdChain []*spec.Command, provided map[str
 
 // featureValuesLenient overlays the provided feature map on the field defaults
 // without building diagnostics: unknown or invalid keys fall back to their
-// declared defaults. It backs tolerant paths (--why, completion binding),
-// where a rejected key must render its defaulted value rather than an error.
-func featureValuesLenient(cmd *spec.Command, provided map[string]string) (map[string]string, map[string]string) {
+// declared defaults. It backs completion binding, where a rejected key must
+// resolve its defaulted value rather than aborting the completion.
+func featureValuesLenient(cmd *spec.Command, provided map[string]string) map[string]string {
 	return collectFeatureValues(cmd, provided, nil)
 }
 
 // collectFeatureValues is the shared overlay loop: known keys are canonicalized
 // and recorded, and unknown or invalid keys invoke reject when it is non-nil.
 // Keys are processed in sorted order for deterministic diagnostics.
-func collectFeatureValues(cmd *spec.Command, provided map[string]string, reject func(name string, raw string, feature *spec.FeatureField, cause error)) (map[string]string, map[string]string) {
+func collectFeatureValues(cmd *spec.Command, provided map[string]string, reject func(name string, raw string, feature *spec.FeatureField, cause error)) map[string]string {
 	values := featureDefaults(cmd)
-	accepted := make(map[string]string, len(provided))
 
 	names := slices.Sorted(maps.Keys(provided))
 
@@ -180,35 +179,28 @@ func collectFeatureValues(cmd *spec.Command, provided map[string]string, reject 
 		}
 
 		values[feature.Name] = canonical
-		accepted[feature.Name] = canonical
 	}
 
-	return values, accepted
+	return values
 }
 
 // bindFeatureValues binds the synthesized feature map flag, overlays the
 // provided feature map onto the defaults, and materializes the typed feature
 // struct.
-func bindFeatureValues(binding flagState, target any, cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, state *bindingState) (map[string]bool, error) {
+func bindFeatureValues(binding featureState, target any, cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, state *bindingState) (map[string]bool, error) {
 	provided, err := bindFeatureMap(cmd, cmdChain, flagValues, state)
 	if err != nil && !state.TolerateFeatureErrors {
 		return nil, err
 	}
 
-	values, err := featureValues(cmd, cmdChain, provided, nil, binding.Source())
-	if err != nil && !state.TolerateFeatureErrors {
-		if cmd.FeatureFlag != nil {
-			var result mapMergeResult
-			if foldErr := foldMapTiers(cmd, cmdChain, cmd.FeatureFlag, flagValues, state, true, &result); foldErr == nil {
-				values, err = featureValues(cmd, cmdChain, provided, result.provenance, binding.Source())
-			}
-		}
+	sources, _ := binding.mapProvenance()
 
-		if err != nil {
-			return nil, err
-		}
+	values, err := featureValues(cmd, cmdChain, provided, sources, binding.Source())
+	if err != nil && !state.TolerateFeatureErrors {
+		return nil, err
 	}
 
+	binding.setResolvedValues(values)
 	materializeFeatureValues(target, cmd.FeatureFields, values)
 
 	return featureGates(cmd, values), nil
@@ -223,12 +215,16 @@ func bindFeatureMap(cmd *spec.Command, cmdChain []*spec.Command, flagValues map[
 	}
 
 	var result mapMergeResult
-	if err := foldMapTiers(cmd, cmdChain, cmd.FeatureFlag, flagValues, state, false, &result); err != nil {
+	if err := foldMapTiers(cmd, cmdChain, cmd.FeatureFlag, flagValues, state, &result); err != nil {
 		return nil, err
 	}
 
-	if result.hasValues {
-		flagStateOf(cmd.FeatureFlag.Handle).setValue(result.merged, result.highestTier, result.sourceDetail())
+	if target := featureStateOfCommand(cmd); target != nil {
+		if result.hasValues {
+			target.setValue(result.merged, result.highestTier, result.sourceDetail())
+		}
+
+		target.setMapProvenance(result.provenance, result.origins)
 	}
 
 	var provided map[string]string
@@ -250,7 +246,7 @@ func bindFeatureMap(cmd *spec.Command, cmdChain []*spec.Command, flagValues map[
 // run. A malformed feature map degrades to the declared defaults rather than
 // aborting the completion.
 func completionFeatureGates(cmd *spec.Command, flagValues map[*spec.Flag][]string, state *bindingState) map[string]bool {
-	values, _ := featureValuesLenient(cmd, completionProvidedMap(cmd, flagValues, state))
+	values := featureValuesLenient(cmd, completionProvidedMap(cmd, flagValues, state))
 
 	return featureGates(cmd, values)
 }
@@ -263,7 +259,7 @@ func completionProvidedMap(cmd *spec.Command, flagValues map[*spec.Flag][]string
 	}
 
 	var result mapMergeResult
-	if err := foldMapTiers(cmd, []*spec.Command{cmd}, cmd.FeatureFlag, flagValues, state, false, &result); err != nil {
+	if err := foldMapTiers(cmd, []*spec.Command{cmd}, cmd.FeatureFlag, flagValues, state, &result); err != nil {
 		return nil
 	}
 
@@ -284,7 +280,7 @@ func pruneFeaturesForCompletion(cmd *spec.Command, flagValues map[*spec.Flag][]s
 // resolveFeatureGates binds the feature map flag, materializes the typed
 // feature struct, enforces subcommand gates, prunes inactive flags and
 // subcommands, and enforces CLI flag restrictions.
-func resolveFeatureGates(binding flagState, target any, cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, state *bindingState) ([]prunedFlag, error) {
+func resolveFeatureGates(binding featureState, target any, cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, state *bindingState) ([]prunedFlag, error) {
 	gates, err := bindFeatureValues(binding, target, cmd, cmdChain, flagValues, state)
 	if err != nil {
 		return nil, err

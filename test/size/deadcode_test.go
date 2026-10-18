@@ -68,6 +68,8 @@ func TestMinimalHello_WhyEliminated(t *testing.T) {
 
 	for symbol := range symbols {
 		assert.False(t, strings.Contains(symbol, "internal/why."), "linker must drop the why report: "+symbol)
+		assert.False(t, strings.Contains(symbol, "recordMapProvenance"), "linker must drop the map provenance recorder: "+symbol)
+		assert.False(t, strings.Contains(symbol, "lookupMapProvenance"), "linker must drop the map provenance lookup: "+symbol)
 	}
 }
 
@@ -227,6 +229,21 @@ func TestOptedInWhyExample_RetainsReport(t *testing.T) {
 	symbols := buildAndListSymbols(t, whyExamplePath)
 
 	assert.True(t, symbols["github.com/conga-sh/conga/internal/why.Report.Format"], "app.EnableWhy() must link the why report")
+
+	for _, symbol := range []string{
+		"github.com/conga-sh/conga.collectFeatureValues",
+		"github.com/conga-sh/conga.featureDefaults",
+	} {
+		assert.False(t, symbols[symbol], "bare EnableWhy() must not link the feature resolution payload: "+symbol)
+	}
+}
+
+func TestOptedInWhyExample_JSONReportEliminated(t *testing.T) {
+	t.Parallel()
+
+	symbols := buildAndListSymbols(t, whyExamplePath)
+
+	assert.False(t, symbols["github.com/conga-sh/conga/internal/why.Report.FormatJSON"], "bare app.EnableWhy() must drop the JSON format payload")
 }
 
 func TestOptedInCompletionExample_RetainsDriver(t *testing.T) {

@@ -1,6 +1,8 @@
 package why
 
 import (
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/alecthomas/assert/v2"
@@ -35,7 +37,7 @@ func TestRenderRows_MapEntriesWidenValueColumn(t *testing.T) {
 		},
 	}
 
-	output := renderRows(rows)
+	output := renderRows(rows, newRenderContext(Report{}))
 
 	assert.Equal(t, "\n  FLAG        VALUE     SOURCE   ENV   CONFIG PATH\n"+
 		"  --secrets   (1 key)   cli      -     secrets\n"+
@@ -49,25 +51,93 @@ func TestRenderRows_SourceDetailRendered(t *testing.T) {
 		{Label: "--port", Value: "9000", Source: "config", Detail: "app.json", Env: "-", ConfigPath: "port"},
 	}
 
-	output := renderRows(rows)
+	output := renderRows(rows, newRenderContext(Report{}))
 
 	assert.Equal(t, "\n  FLAG     VALUE   SOURCE              ENV   CONFIG PATH\n"+
 		"  --port   9000    config (app.json)   -     port\n", output)
 }
 
-func TestRenderRows_ErrorRowStopsAfterValue(t *testing.T) {
+func TestRenderRows_SubRowsRendered(t *testing.T) {
 	t.Parallel()
 
 	rows := []Row{
-		{Label: "--port", Value: "9000", Source: "cli", Env: "APP_PORT", ConfigPath: "port"},
-		{Label: "--bad", Value: "x", Error: "invalid value", Env: "-", ConfigPath: "bad"},
+		{
+			Label:      "--config-files",
+			Value:      "(2 files)",
+			Source:     "cli",
+			Env:        "-",
+			ConfigPath: "-",
+			SubRows: []SubRow{
+				{Value: "a.yaml", Source: "cli"},
+				{Value: "b.yaml", Source: "cli"},
+			},
+		},
 	}
 
-	output := renderRows(rows)
+	output := renderRows(rows, newRenderContext(Report{}))
 
-	assert.Equal(t, "\n  FLAG     VALUE   SOURCE   ENV        CONFIG PATH\n"+
-		"  --port   9000    cli      APP_PORT   port\n"+
-		"  --bad    x       error: invalid value\n", output)
+	assert.Equal(t, "\n  FLAG             VALUE       SOURCE   ENV   CONFIG PATH\n"+
+		"  --config-files   (2 files)   cli      -     -\n"+
+		"                   ├─ a.yaml   cli\n"+
+		"                   └─ b.yaml   cli\n", output)
+}
+
+func TestRenderRows_ColorColumnsAligned(t *testing.T) {
+	t.Parallel()
+
+	rows := []Row{
+		{Label: "--port", Value: "8080", Source: "cli", Env: "PORT", ConfigPath: "port"},
+		{Label: "--host", Value: "pending", Source: "unset", Env: "-", ConfigPath: "host"},
+	}
+
+	output := renderRows(rows, newRenderContext(Report{Color: true}))
+
+	assert.Equal(t, "\n  FLAG     VALUE     SOURCE   ENV    CONFIG PATH\n"+
+		"  --port   8080      ● cli    PORT   port\n"+
+		"  --host   pending   unset    -      host\n", stripANSI(output))
+}
+
+func TestIsColorEnabled_EmptyNoColorIgnored(t *testing.T) {
+	t.Setenv("CONGA_COLOR", "")
+	t.Setenv("NO_COLOR", "")
+	t.Setenv("CLICOLOR", "")
+	t.Setenv("TERM", "xterm")
+
+	assert.True(t, IsColorEnabled(openCharDevice(t)))
+}
+
+func TestIsColorEnabled_NoColorDisables(t *testing.T) {
+	t.Setenv("CONGA_COLOR", "")
+	t.Setenv("NO_COLOR", "1")
+	t.Setenv("CLICOLOR", "")
+	t.Setenv("TERM", "xterm")
+
+	assert.False(t, IsColorEnabled(openCharDevice(t)))
+}
+
+func openCharDevice(t *testing.T) *os.File {
+	t.Helper()
+
+	null, err := os.Open(os.DevNull)
+	assert.NoError(t, err)
+	t.Cleanup(func() { assert.NoError(t, null.Close()) })
+
+	info, err := null.Stat()
+	assert.NoError(t, err)
+
+	if info.Mode()&os.ModeCharDevice == 0 {
+		t.Skip("os.DevNull is not a character device")
+	}
+
+	return null
+}
+
+func stripANSI(text string) string {
+	for _, escape := range []string{ansiReset, ansiBold, ansiDim, ansiGreen, ansiYellow, ansiCyan, ansiDarkGray} {
+		text = strings.ReplaceAll(text, escape, "")
+	}
+
+	return text
 }
 
 func TestReport_FormatJSON(t *testing.T) {
@@ -136,12 +206,90 @@ func TestReport_FormatJSON(t *testing.T) {
 			},
 		},
 		ConfigExamples: []string{"~/.config/app/config.json"},
-		Redacted:       true,
+		RedactedRows:   true,
 	}
 
 	jsonOutput := report.FormatJSON()
 
-	expected := `{"command":"cloudctl deploy worker","flags":[{"label":"--port","value":"8080","source":"cli","detail":"","env":"PORT","configPath":"server.port","error":"","hidden":false,"entries":[]},{"label":"--headers","value":"██████","source":"config","detail":"app.yaml","env":"-","configPath":"headers","error":"","hidden":false,"entries":[{"key":"timeout","value":"30s","source":"config","detail":"app.yaml"}]}],"globalFlags":[{"label":"--verbose","value":"true","source":"default","detail":"","env":"-","configPath":"-","error":"","hidden":false,"entries":[]}],"features":[{"name":"streaming","value":"true","source":"env","detail":"FEATURE_STREAMING"}],"config":{"decoders":[".json",".yaml"],"paths":[{"path":"/etc/app.yaml","status":"loaded: /etc/app.yaml","probedFiles":[]},{"path":"~/.config/app","status":"no config file","probedFiles":["~/.config/app/config.json"]}],"examples":["~/.config/app/config.json"]},"redacted":true}`
+	expected := `{"$schema":"https://conga.sh/schemas/why/v1.json","schemaVersion":1,"command":"cloudctl deploy worker","redacted":true,"flags":[{"name":"port","value":"8080","source":"cli","env":"PORT","configPath":"server.port"},{"name":"headers","source":"config","detail":"app.yaml","configPath":"headers","entries":[{"key":"timeout","value":"30s","source":"config","detail":"app.yaml"}]}],"globalFlags":[{"name":"verbose","value":"true","source":"default"}],"features":[{"name":"streaming","value":"true","source":"env","detail":"FEATURE_STREAMING"}],"config":{"decoders":[".json",".yaml"],"paths":[{"path":"/etc/app.yaml","status":"loaded"},{"path":"~/.config/app","status":"no_config_file","probedFiles":["~/.config/app/config.json"]}],"examples":["~/.config/app/config.json"]}}`
+
+	assert.Equal(t, expected, jsonOutput)
+}
+
+func TestReport_FormatJSON_StructuredTypesAndRedaction(t *testing.T) {
+	t.Parallel()
+
+	report := Report{
+		CommandPath:      "flowctl",
+		Version:          "1.0.0",
+		Timestamp:        "2026-10-18T00:00:00Z",
+		WorkingDirectory: "/workspace/flow",
+		RedactedRows:     true,
+		Rows: []Row{
+			{
+				Name:     "file",
+				Type:     "string[]",
+				RawValue: []string{"/workspace/flow/pipeline.yaml", "/workspace/flow/pipeline.local.yaml"},
+				Source:   "cli",
+				Env:      "FLOWCTL_FILE",
+			},
+			{
+				Name:       "parallelism",
+				Type:       "int",
+				RawValue:   2,
+				Source:     "config",
+				Detail:     "/workspace/flow/pipeline.local.yaml",
+				Env:        "FLOWCTL_PARALLELISM",
+				ConfigPath: "parallelism",
+			},
+			{
+				Name:       "log-level",
+				Type:       "string",
+				RawValue:   "debug",
+				Source:     "config",
+				Detail:     "/workspace/flow/pipeline.local.yaml",
+				Env:        "FLOWCTL_LOG_LEVEL",
+				ConfigPath: "log-level",
+			},
+			{
+				Name:       "env",
+				Type:       "map",
+				Source:     "config",
+				Env:        "FLOWCTL_ENV",
+				ConfigPath: "env",
+				Redacted:   true,
+				Entries: []MapEntry{
+					{
+						Key:      "DEPLOY_REGION",
+						Redacted: true,
+						Source:   "config",
+						Detail:   "/workspace/flow/pipeline.local.yaml",
+					},
+					{
+						Key:      "FLOW_ENV",
+						RawValue: "ci",
+						Value:    "ci",
+						Source:   "config",
+						Detail:   "/workspace/flow/pipeline.local.yaml",
+					},
+				},
+			},
+		},
+		ConfigPaths: []ConfigPath{
+			{
+				Path:   "/workspace/flow/pipeline.yaml",
+				Status: "loaded",
+			},
+			{
+				Path:   "/workspace/flow/pipeline.local.yaml",
+				Status: "loaded",
+			},
+		},
+	}
+
+	jsonOutput := report.FormatJSON()
+
+	expected := `{"$schema":"https://conga.sh/schemas/why/v1.json","schemaVersion":1,"command":"flowctl","version":"1.0.0","timestamp":"2026-10-18T00:00:00Z","workingDirectory":"/workspace/flow","redacted":true,"flags":[{"name":"file","type":"string[]","value":["/workspace/flow/pipeline.yaml","/workspace/flow/pipeline.local.yaml"],"source":"cli","env":"FLOWCTL_FILE"},{"name":"parallelism","type":"int","value":2,"source":"config","detail":"/workspace/flow/pipeline.local.yaml","env":"FLOWCTL_PARALLELISM","configPath":"parallelism"},{"name":"log-level","type":"string","value":"debug","source":"config","detail":"/workspace/flow/pipeline.local.yaml","env":"FLOWCTL_LOG_LEVEL","configPath":"log-level"},{"name":"env","type":"map","redacted":true,"source":"config","env":"FLOWCTL_ENV","configPath":"env","entries":[{"key":"DEPLOY_REGION","redacted":true,"value":null,"source":"config","detail":"/workspace/flow/pipeline.local.yaml"},{"key":"FLOW_ENV","value":"ci","source":"config","detail":"/workspace/flow/pipeline.local.yaml"}]}],"config":{"decoders":[],"paths":[{"path":"/workspace/flow/pipeline.yaml","status":"loaded"},{"path":"/workspace/flow/pipeline.local.yaml","status":"loaded"}]}}`
 
 	assert.Equal(t, expected, jsonOutput)
 }

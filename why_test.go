@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/alecthomas/assert/v2"
 
@@ -725,7 +726,7 @@ func TestWhy_HiddenFlagMarked(t *testing.T) {
 	}
 }
 
-func TestWhy_TolerantCoercionErrorRow(t *testing.T) {
+func TestWhy_TolerantCoercionError(t *testing.T) {
 	t.Setenv("WHY_PORT", "not-a-number")
 
 	type envPortCLI struct {
@@ -741,15 +742,11 @@ func TestWhy_TolerantCoercionErrorRow(t *testing.T) {
 
 	err := app.Run()
 
-	assert.NoError(t, err)
-
-	output := buffer.String()
-
-	assert.NoError(t, err)
-	assert.Contains(t, output, "error: invalid integer value")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "invalid integer value")
 }
 
-func TestWhy_MapCoercionErrorUsesDisplaySeparator(t *testing.T) {
+func TestWhy_MapCoercionErrorFailsFast(t *testing.T) {
 	t.Parallel()
 
 	type mapCLI struct {
@@ -765,12 +762,11 @@ func TestWhy_MapCoercionErrorUsesDisplaySeparator(t *testing.T) {
 
 	err := app.Run()
 
-	assert.NoError(t, err)
-	assert.Contains(t, buffer.String(), "bad1 bad2")
-	assert.NotContains(t, buffer.String(), "bad1nonebad2")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), `invalid key-value pair "bad1"`)
 }
 
-func TestWhy_ConfigFileReadFailureDiagnosticRow(t *testing.T) {
+func TestWhy_ConfigFileReadFailureError(t *testing.T) {
 	t.Setenv("WHY_CONFIG", "missing-why-config.json")
 
 	var buffer bytes.Buffer
@@ -783,16 +779,11 @@ func TestWhy_ConfigFileReadFailureDiagnosticRow(t *testing.T) {
 
 	err := app.Run()
 
-	assert.NoError(t, err)
-
-	output := buffer.String()
-
-	assert.NoError(t, err)
-	assert.Contains(t, output, `error: cannot read config file "missing-why-config.json"`)
-	assert.Contains(t, output, "missing-why-config.json")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), `cannot read config file "missing-why-config.json"`)
 }
 
-func TestWhy_DecoderlessEnvConfigVarDiagnosticRow(t *testing.T) {
+func TestWhy_DecoderlessEnvConfigVarError(t *testing.T) {
 	missingPath := filepath.Join(t.TempDir(), "missing.json")
 	t.Setenv("DECODERLESS_CONFIG", missingPath)
 
@@ -806,13 +797,9 @@ func TestWhy_DecoderlessEnvConfigVarDiagnosticRow(t *testing.T) {
 
 	err := app.Run()
 
-	assert.NoError(t, err)
-
-	output := buffer.String()
-
-	assert.Contains(t, output, "DECODERLESS_CONFIG")
-	assert.Contains(t, output, "requires a registered config decoder")
-	assert.Contains(t, output, missingPath)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "DECODERLESS_CONFIG")
+	assert.Contains(t, err.Error(), "requires a registered config decoder")
 }
 
 func TestWhy_ConfigFileRowsRender(t *testing.T) {
@@ -875,7 +862,7 @@ func TestWhy_ConfigFileRowsRender(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.Contains(t, output, "--config-files")
-		assert.Contains(t, output, "[1], [2]")
+		assert.Contains(t, output, "(2 files)")
 		assert.Contains(t, output, firstPath)
 		assert.Contains(t, output, secondPath)
 		assert.NotContains(t, output, "error:")
@@ -979,17 +966,16 @@ func TestWhy_ConfigPathsChecked_ExplicitPath(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.Contains(t, output, "Config paths checked")
+		assert.Contains(t, output, configPath)
 		assert.Contains(t, output, "loaded: "+configPath)
 	})
 
-	t.Run("failing explicit path marks the candidate as error", func(t *testing.T) {
+	t.Run("failing explicit path returns error", func(t *testing.T) {
 		t.Parallel()
 
 		missingPath := filepath.Join(t.TempDir(), "missing.json")
 
-		var (
-			buffer bytes.Buffer
-		)
+		var buffer bytes.Buffer
 
 		app := conga.New[whyExplicitConfigCLI]().
 			RegisterDecoder(".json", json.Decode).
@@ -999,28 +985,9 @@ func TestWhy_ConfigPathsChecked_ExplicitPath(t *testing.T) {
 
 		err := app.Run()
 
-		assert.NoError(t, err)
-
-		output := buffer.String()
-
-		assert.NoError(t, err)
-		assert.Contains(t, output, "Config paths checked")
-
-		statusLine := ""
-
-		inSection := false
-
-		for line := range strings.SplitSeq(output, "\n") {
-			switch {
-			case strings.HasPrefix(line, "Config paths checked"):
-				inSection = true
-			case inSection && strings.Contains(line, missingPath):
-				statusLine = line
-			}
-		}
-
-		assert.True(t, statusLine != "", "section must list the failing candidate path")
-		assert.True(t, strings.HasSuffix(strings.TrimSpace(statusLine), "error"), "failed candidate must report the error status: %q", statusLine)
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot read config file")
+		assert.Contains(t, err.Error(), missingPath)
 	})
 }
 
@@ -1587,7 +1554,8 @@ func TestWhy_ConfigExamples_SuggestedWhenNothingLoaded(t *testing.T) {
 func TestWhy_ProbedFiles_ExplicitPathOmitted(t *testing.T) {
 	t.Parallel()
 
-	missingPath := filepath.Join(t.TempDir(), "missing.json")
+	configPath := filepath.Join(t.TempDir(), "app.json")
+	assert.NoError(t, os.WriteFile(configPath, []byte("{}"), 0o600))
 
 	var buffer bytes.Buffer
 
@@ -1595,7 +1563,7 @@ func TestWhy_ProbedFiles_ExplicitPathOmitted(t *testing.T) {
 		RegisterDecoder(".json", json.Decode).
 		Stdout(&buffer).
 		EnableWhy().
-		Args([]string{"--config-file", missingPath, "--why"})
+		Args([]string{"--config-file", configPath, "--why"})
 
 	err := app.Run()
 
@@ -1604,7 +1572,7 @@ func TestWhy_ProbedFiles_ExplicitPathOmitted(t *testing.T) {
 	output := buffer.String()
 
 	assert.NoError(t, err)
-	assert.Contains(t, output, missingPath)
+	assert.Contains(t, output, configPath)
 	assert.NotContains(t, output, "looked for:")
 	assert.NotContains(t, output, "Create a config file")
 }
@@ -1729,7 +1697,7 @@ func TestBuiltinWhy_JSONFormat(t *testing.T) {
 
 	app := conga.New[whyCLI]().
 		Name("cloudctl").
-		EnableWhy().
+		EnableWhy(conga.WhyJSON()).
 		Stdout(&buffer).
 		Args([]string{"--port", "8080", "--shown", "visible-value", "--why=json"})
 
@@ -1738,21 +1706,24 @@ func TestBuiltinWhy_JSONFormat(t *testing.T) {
 	assert.NoError(t, err)
 
 	type mapEntryPayload struct {
-		Key    string `json:"key"`
-		Value  string `json:"value"`
-		Source string `json:"source"`
-		Detail string `json:"detail"`
+		Key      string `json:"key"`
+		Value    any    `json:"value"`
+		Source   string `json:"source"`
+		Detail   string `json:"detail"`
+		Redacted bool   `json:"redacted"`
 	}
 
 	type flagPayload struct {
-		Label      string            `json:"label"`
-		Value      string            `json:"value"`
+		Name       string            `json:"name"`
+		Type       string            `json:"type"`
+		Value      any               `json:"value"`
 		Source     string            `json:"source"`
 		Detail     string            `json:"detail"`
 		Env        string            `json:"env"`
 		ConfigPath string            `json:"configPath"`
 		Error      string            `json:"error"`
 		Hidden     bool              `json:"hidden"`
+		Redacted   bool              `json:"redacted"`
 		Entries    []mapEntryPayload `json:"entries"`
 	}
 
@@ -1766,6 +1737,7 @@ func TestBuiltinWhy_JSONFormat(t *testing.T) {
 	type configPathPayload struct {
 		Path        string   `json:"path"`
 		Status      string   `json:"status"`
+		Scopes      []string `json:"scopes"`
 		ProbedFiles []string `json:"probedFiles"`
 	}
 
@@ -1776,12 +1748,17 @@ func TestBuiltinWhy_JSONFormat(t *testing.T) {
 	}
 
 	type whyJSONPayload struct {
-		Command     string           `json:"command"`
-		Flags       []flagPayload    `json:"flags"`
-		GlobalFlags []flagPayload    `json:"globalFlags"`
-		Features    []featurePayload `json:"features"`
-		Config      configPayload    `json:"config"`
-		Redacted    bool             `json:"redacted"`
+		Schema           string           `json:"$schema"`
+		SchemaVersion    int              `json:"schemaVersion"`
+		Command          string           `json:"command"`
+		Version          string           `json:"version"`
+		Timestamp        string           `json:"timestamp"`
+		WorkingDirectory string           `json:"workingDirectory"`
+		Flags            []flagPayload    `json:"flags"`
+		GlobalFlags      []flagPayload    `json:"globalFlags"`
+		Features         []featurePayload `json:"features"`
+		Config           configPayload    `json:"config"`
+		Redacted         bool             `json:"redacted"`
 	}
 
 	var payload whyJSONPayload
@@ -1790,23 +1767,32 @@ func TestBuiltinWhy_JSONFormat(t *testing.T) {
 
 	assert.NoError(t, err)
 
+	assert.Equal(t, "https://conga.sh/schemas/why/v1.json", payload.Schema)
+	assert.Equal(t, 1, payload.SchemaVersion)
 	assert.Equal(t, "cloudctl", payload.Command)
+	assert.True(t, payload.Timestamp != "")
+	assert.True(t, payload.WorkingDirectory != "")
+	assert.True(t, filepath.IsAbs(payload.WorkingDirectory))
 
 	var foundPort, foundShown, foundSecret bool
 
 	for _, flag := range payload.Flags {
-		switch flag.Label {
-		case "--port":
+		switch flag.Name {
+		case "port":
 			foundPort = true
 
-			assert.Equal(t, "██████", flag.Value)
+			assert.True(t, flag.Redacted)
+			assert.Zero(t, flag.Value)
 			assert.Equal(t, "cli", flag.Source)
-		case "--shown":
+			assert.Equal(t, "int", flag.Type)
+		case "shown":
 			foundShown = true
 
+			assert.False(t, flag.Redacted)
 			assert.Equal(t, "visible-value", flag.Value)
 			assert.Equal(t, "cli", flag.Source)
-		case "--secret":
+			assert.Equal(t, "string", flag.Type)
+		case "secret":
 			foundSecret = true
 
 			assert.True(t, flag.Hidden)
@@ -1825,7 +1811,7 @@ func TestBuiltinWhy_JSONMapAndFeatures(t *testing.T) {
 
 	app := conga.New[whyMergeCLI]().
 		Name("cloudctl").
-		EnableWhy().
+		EnableWhy(conga.WhyJSON()).
 		EnableFeatures().
 		Stdout(&buffer).
 		Args([]string{"--headers", "region=eu-central-1,env=prod", "--secrets", "api=xyz", "--feature-gates", "alpha=true", "--why=json"})
@@ -1840,6 +1826,11 @@ func TestBuiltinWhy_JSONMapAndFeatures(t *testing.T) {
 
 	assert.NoError(t, err)
 
+	schemaVersion, versionOk := raw["schemaVersion"].(float64)
+	assert.True(t, versionOk)
+	assert.Equal(t, float64(1), schemaVersion)
+	assert.Equal(t, "https://conga.sh/schemas/why/v1.json", raw["$schema"])
+
 	flags, ok := raw["flags"].([]any)
 	assert.True(t, ok)
 
@@ -1851,23 +1842,31 @@ func TestBuiltinWhy_JSONMapAndFeatures(t *testing.T) {
 			continue
 		}
 
-		switch flagMap["label"] {
-		case "--headers":
+		switch flagMap["name"] {
+		case "headers":
 			foundHeaders = true
+
+			assert.Equal(t, "map", flagMap["type"])
 			entries, entriesOk := flagMap["entries"].([]any)
 			assert.True(t, entriesOk)
 			assert.Equal(t, 2, len(entries))
-		case "--secrets":
+		case "secrets":
 			foundSecrets = true
 
-			assert.Equal(t, "██████", flagMap["value"])
+			flagRedacted, flagRedactedOk := flagMap["redacted"].(bool)
+			assert.True(t, flagRedactedOk)
+			assert.True(t, flagRedacted)
+			assert.Zero(t, flagMap["value"])
 			entries, entriesOk := flagMap["entries"].([]any)
 			assert.True(t, entriesOk)
 			assert.Equal(t, 1, len(entries))
 			entryMap, entryOk := entries[0].(map[string]any)
 			assert.True(t, entryOk)
 			assert.Equal(t, "api", entryMap["key"])
-			assert.Equal(t, "██████", entryMap["value"])
+			entryRedacted, entryRedactedOk := entryMap["redacted"].(bool)
+			assert.True(t, entryRedactedOk)
+			assert.True(t, entryRedacted)
+			assert.Zero(t, entryMap["value"])
 		}
 	}
 
@@ -1957,7 +1956,7 @@ func TestBuiltinWhy_LastValueWinsOverInvalid(t *testing.T) {
 
 	app := conga.New[whyCLI]().
 		Name("cloudctl").
-		EnableWhy().
+		EnableWhy(conga.WhyJSON()).
 		Stdout(&buffer).
 		Args([]string{"--port", "8080", "--why=banana", "--why=json"})
 
@@ -2076,4 +2075,293 @@ func TestBuiltinWhy_NonFormatBoolsRejected(t *testing.T) {
 			assert.True(t, conga.IsUsageError(err))
 		})
 	}
+}
+
+func TestBuiltinWhy_JSONWithoutOptionRejected(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	app := conga.New[whyCLI]().
+		Name("cloudctl").
+		EnableWhy().
+		Stdout(&buffer).
+		Args([]string{"--port", "8080", "--why=json"})
+
+	err := app.Run()
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), `invalid value "json" for --why: JSON output format is not enabled on this application (enable with app.EnableWhy(conga.WhyJSON()))`)
+	assert.IsError(t, err, conga.ErrValidation)
+	assert.True(t, conga.IsUsageError(err))
+}
+
+type whySessionCLI struct {
+	Port conga.OptionalFlag[int] `default:"8080" help:"Listen port" safe:"true"`
+
+	preText string
+	preJSON string
+	runText string
+	runJSON string
+}
+
+func (c *whySessionCLI) PreRun(_ context.Context, session *conga.Session) error {
+	c.preText = session.Why()
+	c.preJSON = session.WhyJSON()
+
+	return nil
+}
+
+func (c *whySessionCLI) Run(_ context.Context, session *conga.Session) error {
+	c.runText = session.Why()
+	c.runJSON = session.WhyJSON()
+
+	return nil
+}
+
+func TestSessionWhy_InsideLifecycleHooks(t *testing.T) {
+	t.Parallel()
+
+	var (
+		buffer bytes.Buffer
+		cli    whySessionCLI
+	)
+
+	app := conga.New(&cli).
+		Name("whyapp").
+		Stdout(&buffer).
+		EnableWhy(conga.WhyJSON()).
+		Args([]string{"--port", "9000"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Contains(t, cli.preText, "Value provenance")
+	assert.Contains(t, cli.preText, "--port")
+	assert.Contains(t, cli.preText, "9000")
+	assert.Contains(t, cli.preJSON, `"schemaVersion":1`)
+	assert.Contains(t, cli.preJSON, `"name":"port"`)
+	assert.Contains(t, cli.runText, "Value provenance")
+	assert.Contains(t, cli.runText, "--port")
+	assert.Contains(t, cli.runText, "9000")
+	assert.Contains(t, cli.runJSON, `"schemaVersion":1`)
+}
+
+type whyDisabledSessionCLI struct {
+	text string
+	json string
+}
+
+func (c *whyDisabledSessionCLI) Run(_ context.Context, session *conga.Session) error {
+	c.text = session.Why()
+	c.json = session.WhyJSON()
+
+	return nil
+}
+
+func TestSessionWhy_Disabled(t *testing.T) {
+	t.Parallel()
+
+	t.Run("EnableWhy absent", func(t *testing.T) {
+		t.Parallel()
+
+		var cli whyDisabledSessionCLI
+
+		app := conga.New(&cli).
+			Name("whyapp").
+			Args([]string{})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, "", cli.text)
+		assert.Equal(t, "", cli.json)
+	})
+
+	t.Run("WhyJSON option absent", func(t *testing.T) {
+		t.Parallel()
+
+		var cli whyDisabledSessionCLI
+
+		app := conga.New(&cli).
+			Name("whyapp").
+			EnableWhy().
+			Args([]string{})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Contains(t, cli.text, "Value provenance")
+		assert.Equal(t, "", cli.json)
+	})
+}
+
+type whyJSONTypesCLI struct {
+	Int32    conga.OptionalFlag[int32]          `help:"Int32 value"    safe:"true"`
+	Uint16   conga.OptionalFlag[uint16]         `help:"Uint16 value"   safe:"true"`
+	Float32  conga.OptionalFlag[float32]        `help:"Float32 value"  safe:"true"`
+	Duration conga.OptionalFlag[time.Duration]  `help:"Duration value" safe:"true"`
+	Size     conga.OptionalFlag[conga.ByteSize] `help:"Size value"     safe:"true"`
+	Flags    conga.OptionalFlag[[]bool]         `help:"Bool slice"     safe:"true"`
+}
+
+func (c *whyJSONTypesCLI) Run(_ context.Context, _ *conga.Session) error { return nil }
+
+func jsonValue[T any](t *testing.T, value any) T {
+	t.Helper()
+
+	typed, ok := value.(T)
+	assert.True(t, ok)
+
+	return typed
+}
+
+func TestBuiltinWhy_JSONSerializesScalarAndDomainTypes(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	app := conga.New[whyJSONTypesCLI]().
+		Name("cloudctl").
+		EnableWhy(conga.WhyJSON()).
+		Stdout(&buffer).
+		Args([]string{
+			"--int32", "42",
+			"--uint16", "65000",
+			"--float32", "3.14",
+			"--duration", "5s",
+			"--size", "1KiB",
+			"--flags", "true,false",
+			"--why=json",
+		})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+
+	var raw map[string]any
+
+	assert.NoError(t, stdjson.Unmarshal(buffer.Bytes(), &raw))
+
+	flags, ok := raw["flags"].([]any)
+	assert.True(t, ok)
+
+	byName := make(map[string]map[string]any, len(flags))
+
+	for _, flagRaw := range flags {
+		flagMap, mapOk := flagRaw.(map[string]any)
+		if !mapOk {
+			continue
+		}
+
+		name, nameOk := flagMap["name"].(string)
+		if nameOk {
+			byName[name] = flagMap
+		}
+	}
+
+	assert.Equal(t, "int", byName["int32"]["type"])
+	assert.Equal(t, float64(42), jsonValue[float64](t, byName["int32"]["value"]))
+	assert.Equal(t, "uint", byName["uint16"]["type"])
+	assert.Equal(t, float64(65000), jsonValue[float64](t, byName["uint16"]["value"]))
+	assert.Equal(t, "float", byName["float32"]["type"])
+	assert.Equal(t, float64(3.14), jsonValue[float64](t, byName["float32"]["value"]))
+	assert.Equal(t, "string", byName["duration"]["type"])
+	assert.Equal(t, "5s", byName["duration"]["value"])
+	assert.Equal(t, "string", byName["size"]["type"])
+	assert.Equal(t, "1KiB", byName["size"]["value"])
+	assert.Equal(t, "bool[]", byName["flags"]["type"])
+	assert.Equal(t, []any{true, false}, jsonValue[[]any](t, byName["flags"]["value"]))
+}
+
+func TestBuiltinWhy_JSONFeatureFlagValue(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	app := conga.New[whyMergeCLI]().
+		Name("cloudctl").
+		EnableWhy(conga.WhyJSON()).
+		EnableFeatures().
+		Stdout(&buffer).
+		Args([]string{"--feature-gates", "alpha=true", "--why=json"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+
+	var raw map[string]any
+
+	assert.NoError(t, stdjson.Unmarshal(buffer.Bytes(), &raw))
+
+	flags, ok := raw["flags"].([]any)
+	assert.True(t, ok)
+
+	var featureFlag map[string]any
+
+	for _, flagRaw := range flags {
+		flagMap, mapOk := flagRaw.(map[string]any)
+		if mapOk && flagMap["name"] == "feature-gates" {
+			featureFlag = flagMap
+		}
+	}
+
+	assert.True(t, featureFlag != nil)
+	assert.Equal(t, map[string]any{"alpha": "true"}, jsonValue[map[string]any](t, featureFlag["value"]))
+}
+
+type whyVersionMetaCLI struct {
+	Port    conga.OptionalFlag[int] `default:"8080" help:"Listen port" safe:"true"`
+	Version conga.VersionCommand
+}
+
+type whyCompletionMetaCLI struct {
+	Port       conga.OptionalFlag[int] `default:"7070" help:"Listen port" safe:"true"`
+	Completion conga.CompletionCommand
+}
+
+func TestWhy_MetaCommandsBindFlags(t *testing.T) {
+	t.Parallel()
+
+	t.Run("version command with engine-owned flag", func(t *testing.T) {
+		t.Parallel()
+
+		var buffer bytes.Buffer
+
+		app := conga.New[whyVersionMetaCLI]().
+			Name("whyapp").
+			Version("1.0.0").
+			Stdout(&buffer).
+			EnableWhy().
+			Args([]string{"version", "--json", "--why"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Contains(t, buffer.String(), "Value provenance")
+		assert.Contains(t, buffer.String(), "--port")
+		assert.Contains(t, buffer.String(), "8080")
+		assert.Contains(t, buffer.String(), "default")
+	})
+
+	t.Run("completion command", func(t *testing.T) {
+		t.Parallel()
+
+		var buffer bytes.Buffer
+
+		app := conga.New[whyCompletionMetaCLI]().
+			Name("whyapp").
+			Stdout(&buffer).
+			EnableCompletion().
+			EnableWhy().
+			Args([]string{"completion", "bash", "--why"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Contains(t, buffer.String(), "Value provenance")
+		assert.Contains(t, buffer.String(), "--port")
+		assert.Contains(t, buffer.String(), "7070")
+		assert.Contains(t, buffer.String(), "default")
+	})
 }
