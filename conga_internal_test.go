@@ -25,7 +25,7 @@ func TestAppConfig_ConfigHooks_NilByDefault(t *testing.T) {
 
 	assert.True(t, app.dotenvLoader == nil)
 	assert.True(t, app.configEngine == nil)
-	assert.True(t, app.whyRenderer == nil)
+	assert.True(t, app.whyHooks == nil)
 	assert.True(t, app.defaultPredictors == nil)
 	assert.True(t, app.mountCompletion == nil)
 	assert.True(t, app.handleCompletionInvocation == nil)

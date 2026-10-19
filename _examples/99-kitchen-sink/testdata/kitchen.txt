@@ -135,11 +135,11 @@ stdout 'advanced\s+Required flags, arguments, trailing args, provenance'
 exec kitchen-sink --config-file config.toml --why
 stdout '--format\s+yaml\s+config \(config\.toml\)'
 stdout '--secret-key\s+██████\s+config \(config\.toml\)'
-stdout 'config\.toml\s+loaded: config\.toml'
+stdout 'config\.toml\s+loaded'
 stdout 'values are redacted'
 
 exec kitchen-sink --config-file config.toml config maps --why
-stdout '--vars\s+-\s+-\s+-\s+config\.maps\.vars'
+stdout '--vars\s+\(3 keys\)\s+config \(config\.toml\)\s+-\s+config\.maps\.vars'
 stdout 'APP_ENV=██████'
 stdout 'config \(config\.toml\)'
 stdout 'version=2\.1'

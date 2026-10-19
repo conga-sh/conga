@@ -1,40 +1,69 @@
-# TestScript for 30-config-loader — the programmatic configuration document.
-# The conga.ConfigLoader hook builds the config tier in code: --profile selects
-# a stored profile whose values bind at the config rank with --why origins,
-# and the prod profile carries the force-all feature gate.
+# TestScript for 30-config-loader — configuration loaded from pipeline files.
+# flowctl reads pipeline files as domain documents: their top-level
+# parallelism/log_level/env keys feed the config tier through
+# conga.ConfigLoader, while pipelines stay domain data consumed by Run. The
+# loader concatenates the step and needs lists that the config tiers never
+# merge.
 
-# 1. The default dev profile supplies host, port, and headers from the document.
-exec deploy
-stdout '--host\s+string\s+dev\.example\.com\s+● config profile dev'
-stdout '--port\s+int\s+7100\s+● config profile dev'
-stdout '--headers\s+map\[string\]string\s+X-Region=eu\s+● config profile dev'
-stdout 'connect dev\.example\.com:7100 headers=1 force-all=false'
+copy-fixture testdata/fixtures/pipeline.yaml pipeline.yaml
+copy-fixture testdata/fixtures/pipeline.local.yaml pipeline.local.yaml
+copy-fixture testdata/fixtures/bad-version.yaml bad-version.yaml
+copy-fixture testdata/fixtures/unknown-key.yaml unknown-key.yaml
 
-# 2. Command-line values outrank the document.
-exec deploy --host cli.example.com
-stdout '--host\s+string\s+cli\.example\.com\s+● cli --host'
+# 1. Listing pipelines: the file's domain data drives the output, and its
+#    top-level config keys bind at the config tier.
+exec flowctl
+stdout '--parallelism\s+int\s+4\s+● config pipeline\.yaml'
+stdout '--log-level\s+string\s+info\s+● config pipeline\.yaml'
+stdout '--env\s+map\[string\]string\s+FLOW_ENV=dev, LOG_FORMAT=json\s+● config pipeline\.yaml'
+stdout 'build\s+Build all packages'
+stdout 'deploy\s+Deploy the release'
 
-# 3. The prod profile carries the force-all gate: the gated flag appears and is
-#    usable, while the dev profile gates it off (exit 2).
-exec deploy --profile prod
-stdout '--profile\s+string\s+prod\s+● cli --profile'
-stdout 'connect prod\.example\.com:7200 headers=2 force-all=true'
-exec deploy --profile prod --force-all
-stdout 'connect prod\.example\.com:7200 headers=2 force-all=true'
-exit-status 2 deploy --force-all
-stderr 'flag .--force-all. requires feature "force-all"'
+# 2. The selected pipeline's config keys outrank the file's top-level keys.
+exec flowctl --pipeline deploy
+stdout '--parallelism\s+int\s+1\s+● config pipeline\.yaml › pipeline deploy'
+stdout '--log-level\s+string\s+debug\s+● config pipeline\.yaml › pipeline deploy'
+stdout 'DEPLOY_REGION=eu-west-1, FLOW_ENV=prod, LOG_FORMAT=json'
+stdout 'pipeline deploy: needs=\[build\] steps=\[\./deploy\.sh\]'
 
-# 4. An unknown profile fails the loader: app-authored data is a runtime error
-#    (exit 1), never a usage error.
-exit-status 1 deploy --profile staging
-stderr 'config loader failed: unknown profile "staging"'
+# 3. A later file wins scalar config and concatenates the domain lists.
+exec flowctl -f pipeline.yaml -f pipeline.local.yaml --pipeline deploy
+stdout '--file\s+\[\]string\s+\[pipeline\.yaml, pipeline\.local\.yaml\]'
+stdout '--parallelism\s+int\s+2\s+● config pipeline\.local\.yaml'
+stdout '--log-level\s+string\s+debug\s+● config pipeline\.local\.yaml › pipeline deploy'
+stdout 'DEPLOY_REGION=us-east-1, FLOW_ENV=local, LOG_FORMAT=json, RELEASE_CHANNEL=canary'
+stdout 'pipeline deploy: needs=\[build lint\] steps=\[\./deploy\.sh \./notify\.sh\]'
 
-# 5. --why attributes document values to their origin labels; non-sensitive
-#    values display via safe:"true", while request headers stay redacted.
-exec deploy --profile prod --why
-stdout '--profile\s+prod\s+cli'
-stdout '--host\s+prod\.example\.com\s+config \(profile prod\)'
-stdout '--port\s+7200\s+config \(profile prod\)'
-stdout 'X-Force=██████'
-stdout 'config \(profile prod\)'
-stdout 'profile prod\s+loaded: profile prod'
+# 4. CLI flags outrank the configuration supplied by the files.
+exec flowctl -f pipeline.yaml -f pipeline.local.yaml --pipeline deploy --parallelism 8 --env FLOW_ENV=ci
+stdout '--parallelism\s+int\s+8\s+● cli --parallelism'
+stdout 'DEPLOY_REGION=us-east-1, FLOW_ENV=ci, LOG_FORMAT=json, RELEASE_CHANNEL=canary\s+● cli --env'
+
+# 5. --why attributes each config key and map entry to the file and pipeline
+#    that supplied it.
+exec flowctl -f pipeline.yaml -f pipeline.local.yaml --pipeline deploy --why
+stdout '--parallelism\s+2\s+config \(pipeline\.local\.yaml\)'
+stdout '--log-level\s+debug\s+config \(pipeline\.local\.yaml › pipeline deploy\)'
+stdout 'DEPLOY_REGION=██████\s+config \(pipeline\.local\.yaml › pipeline deploy\)'
+stdout 'LOG_FORMAT=██████\s+config \(pipeline\.yaml\)'
+stdout 'pipeline\.local\.yaml\s+loaded'
+stdout 'pipeline\.yaml\s+loaded'
+# The scoped origin attributes values, not a separate candidate path.
+! stdout 'pipeline\.local\.yaml › pipeline deploy\s+loaded'
+
+# 6. A loader failure is app-authored data: exit 1, never a usage error.
+exit-status 1 flowctl --pipeline nope
+stderr 'config loader failed: pipeline not found "nope"'
+exit-status 1 flowctl -f missing.yaml
+stderr 'config loader failed: read pipeline file "missing\.yaml"'
+exit-status 1 flowctl -f bad-version.yaml
+stderr 'unsupported pipeline file version "2"'
+exit-status 1 flowctl -f unknown-key.yaml
+stderr 'field paralelism not found'
+
+# 7. Help does not run the loader: an empty directory has no pipeline file.
+mkdir empty
+cd empty
+exec flowctl --help
+stdout 'Usage:'
+cd ..

@@ -40,7 +40,9 @@ func main() {
 }
 ```
 
-Passing `--why` intercepts execution during the resolution phase. CONGA computes the provenance table, prints the report to stdout, and exits with code 0 before any lifecycle hooks (`PreRun`, `Run`, `PostRun`) execute.
+Passing `--why` intercepts execution during the resolution phase. CONGA binds every flag and configuration source with the regular resolution pipeline, prints the report to stdout, and exits with code 0 before any lifecycle hooks (`PreRun`, `Run`, `PostRun`) execute. Invalid configuration or flag values fail with their normal errors instead of rendering partial diagnostic rows.
+
+To enable the machine-readable `--why=json` document as well, pass `conga.WhyJSON()`: `app.EnableWhy(conga.WhyJSON())`. The same report is available programmatically from `session.Why()` and `session.WhyJSON()` inside lifecycle hooks.
 
 ## Protect sensitive data with value redaction
 
@@ -79,25 +81,27 @@ The report contains these diagnostic sections (the feature table appears only wh
 
 - **Flag table**:
   - `FLAG`: The declared flag name.
-  - `VALUE`: The winning value, or `██████` if untagged. Entry-bearing map rows render `-` because the sub-rows state each key's value.
-  - `SOURCE`: The winning tier (`cli`, `env`, `config`, or `default`). A config-sourced value names the contributing file in parentheses (`config (app.yaml)`). Entry-bearing map rows render `-` because the sub-rows state each key's tier.
+  - `VALUE`: The winning value, or `██████` if untagged. Entry-bearing map rows display the key count `(N keys)`. Multi-file `ConfigFile` rows display `(N files)` and list each path as a sub-row. Other slice flags with more than one item display `(N values)` and list each item as a sub-row.
+  - `SOURCE`: The winning tier (`cli`, `env`, `config`, or `default`). A config-sourced value names the contributing file, using its basename when unambiguous and the shortest unique directory prefix followed by `...` when basenames collide (`config (app.yaml)`, `config (/etc/.../app.yaml)`). The JSON report keeps the full resolved paths.
   - `ENV`: The derived or explicit environment variable evaluated for this flag.
   - `CONFIG PATH`: The evaluated config file key.
 - **Config decoders**: All file format decoders registered on the application.
-- **Config paths checked**: Every file path probed during resolution, annotated with its status (`(none found)` or loaded).
+- **Config paths**: Evaluated file paths and their probe outcome (`loaded`, `not found`), reported as resolved without index footnotes. A candidate that resolved to a different file, such as a search directory, names that file (`loaded: config.yaml`). For a programmatic `conga.ConfigLoader` document, the table lists each distinct origin path once; a scope recorded with `conga.ConfigDocument.SetScoped` appears only in the value's SOURCE annotation (`config (pipeline.local.yaml › pipeline deploy)`).
 - **Features**: Every declared feature, its resolved value, and its source.
 
-Map flags merge key by key across tiers, so their row renders `-` for value and source and is followed by one indented sub-row per key carrying that key's value and the tier that last wrote it:
+The same report is available programmatically: `session.Why()` returns the text table and `session.WhyJSON()` returns the JSON document (empty unless Why and the JSON option are enabled, respectively).
+
+Map flags merge key by key across tiers: the flag row displays the key count and highest contributing tier, followed by tree-structured sub-rows (`├─ `, `└─ `) detailing each key's value and source:
 
 ```sh
 SERVER_LABELS=region=eu-west-1 server --why --labels shared=cli,team=core
 ```
 
 ```text no-copy
-  --labels   -                  -        SERVER_LABELS   labels
-             region=eu-west-1   env
-             shared=cli         cli
-             team=core          cli
+  --labels   (3 keys)              cli   SERVER_LABELS   labels
+             ├─ region=eu-west-1   env
+             ├─ shared=cli         cli
+             └─ team=core          cli
 ```
 
 ## Inspect feature provenance

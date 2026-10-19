@@ -1,0 +1,6 @@
+version: "2"
+
+pipelines:
+  deploy:
+    steps:
+      - ./deploy.sh

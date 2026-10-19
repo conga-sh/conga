@@ -76,7 +76,7 @@ go test ./_examples/...
 | 17 | [config-profiles](https://github.com/conga-sh/conga/tree/main/_examples/17-config-profiles) | `ConfigFile` with `multi:"true"` multi-file merging (base plus profile pattern). |
 | 18 | [config-searchpaths](https://github.com/conga-sh/conga/tree/main/_examples/18-config-searchpaths) | `app.ConfigOptions(conga.ConfigPaths(...))` single-file search mode where the first existing file wins. |
 | 28 | [explicit-config-file](https://github.com/conga-sh/conga/tree/main/_examples/28-explicit-config-file) | `app.ConfigOptions(conga.ConfigExplicit(...))` fatal-if-missing programmatic target. |
-| 30 | [config-loader](https://github.com/conga-sh/conga/tree/main/_examples/30-config-loader) | `app.ConfigOptions(conga.ConfigLoader(...))` building the config tier in code, with `conga.ConfigContext` invocation facts, origin labels in `--why`, and feature gates riding the document. |
+| 30 | [config-loader](https://github.com/conga-sh/conga/tree/main/_examples/30-config-loader) | `app.ConfigOptions(conga.ConfigLoader(...))` loading a domain document: pipeline files whose config keys feed the tier, invocation-selected pipeline overlays, list merging, and per-key `--why` origins. |
 
 ### Completion
 

@@ -97,14 +97,6 @@ type loaderFeaturesCLI struct {
 	ForceAll conga.OptionalFlag[bool] `feature:"force-all"`
 }
 
-type loaderPathError struct {
-	path string
-}
-
-func (e *loaderPathError) Error() string { return "taskrc unreadable" }
-
-func (e *loaderPathError) ConfigPath() string { return e.path }
-
 // loaderNilDocument is a loader that returns no document: the configuration
 // tier stays inactive for the run.
 func loaderNilDocument(conga.ConfigContext) (*conga.ConfigDocument, error) {
@@ -496,7 +488,8 @@ func TestConfigLoader_WhyReportsOrigins(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Contains(t, output, "--headers")
 	assert.Contains(t, output, "config (taskrc)")
-	assert.Contains(t, output, "loaded: taskrc")
+	assert.Contains(t, output, "loaded")
+	assert.NotContains(t, output, "loaded: taskrc")
 }
 
 // TestConfigLoader_SourceDetailReportsOrigin pins that a document-supplied
@@ -543,6 +536,90 @@ func TestConfigLoader_SourceDetailFallsBackToConfigKey(t *testing.T) {
 	assert.Equal(t, "port", cli.Port.SourceDetail())
 }
 
+func TestConfigLoader_ScopedOriginSeparatesDetailFromConfigPath(t *testing.T) {
+	t.Parallel()
+
+	var stdoutBuffer bytes.Buffer
+
+	cli := new(loaderBasicCLI)
+	app := conga.New(cli).
+		Name("app").
+		EnableWhy().
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+			return loaderDocument(func(document *conga.ConfigDocument) {
+				document.SetScoped("port", 9200, "pipeline.local.yaml", "pipeline deploy")
+			}), nil
+		})).
+		Stdout(&stdoutBuffer).
+		Args([]string{"--why"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, "pipeline.local.yaml › pipeline deploy", cli.Port.SourceDetail())
+
+	rows, configPaths, found := strings.Cut(stdoutBuffer.String(), "Config paths:")
+
+	assert.True(t, found)
+	assert.Contains(t, rows, "config (pipeline.local.yaml › pipeline deploy)")
+	assert.Contains(t, configPaths, "pipeline.local.yaml")
+	assert.Contains(t, configPaths, "loaded")
+	assert.NotContains(t, configPaths, "pipeline deploy")
+}
+
+func TestConfigLoader_SetKeyScopedSeparatesDetailFromConfigPath(t *testing.T) {
+	t.Parallel()
+
+	var stdoutBuffer bytes.Buffer
+
+	app := conga.New[loaderMapCLI]().
+		Name("app").
+		EnableWhy().
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+			return loaderDocument(func(document *conga.ConfigDocument) {
+				document.SetKeyScoped("headers", "region", "eu", "taskrc", "profile dev")
+			}), nil
+		})).
+		Stdout(&stdoutBuffer).
+		Args([]string{"--why"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+
+	rows, configPaths, found := strings.Cut(stdoutBuffer.String(), "Config paths:")
+
+	assert.True(t, found)
+	assert.Contains(t, rows, "region=██████")
+	assert.Contains(t, rows, "config (taskrc › profile dev)")
+	assert.Contains(t, configPaths, "taskrc")
+	assert.NotContains(t, configPaths, "profile dev")
+}
+
+func TestConfigLoader_SessionAccessorsExcludeScope(t *testing.T) {
+	t.Parallel()
+
+	cli := new(loaderSessionCLI)
+	app := conga.New(cli).
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+			return loaderDocument(
+				func(document *conga.ConfigDocument) {
+					document.SetScoped("host", "document.example.com", "taskrc", "profile dev")
+				},
+				func(document *conga.ConfigDocument) {
+					document.SetScoped("port", 9200, "taskrc", "profile prod")
+				},
+			), nil
+		})).
+		Args([]string{})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"taskrc"}, cli.Loaded)
+	assert.Equal(t, []string{"taskrc"}, cli.Candidate)
+}
+
 func TestConfigLoader_WhyAttributesAppError(t *testing.T) {
 	t.Parallel()
 
@@ -552,18 +629,15 @@ func TestConfigLoader_WhyAttributesAppError(t *testing.T) {
 		Name("app").
 		EnableWhy().
 		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
-			return nil, &loaderPathError{path: "taskrc"}
+			return nil, errors.New("taskrc unreadable")
 		})).
 		Stdout(&stdoutBuffer).
 		Args([]string{"--why"})
 
 	err := app.Run()
 
-	output := stdoutBuffer.String()
-
-	assert.NoError(t, err)
-	assert.Contains(t, output, "taskrc")
-	assert.Contains(t, output, "error")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "taskrc unreadable")
 }
 
 func TestConfigLoader_WhyValidationFailureReportsUniqueCandidate(t *testing.T) {
@@ -584,19 +658,8 @@ func TestConfigLoader_WhyValidationFailureReportsUniqueCandidate(t *testing.T) {
 
 	err := app.Run()
 
-	assert.NoError(t, err)
-
-	candidateRows := 0
-
-	for line := range strings.SplitSeq(stdoutBuffer.String(), "\n") {
-		if strings.HasPrefix(strings.TrimSpace(line), "taskrc") {
-			candidateRows++
-
-			assert.True(t, strings.HasSuffix(strings.TrimSpace(line), "error"), "failed candidate must report the error status: %q", line)
-		}
-	}
-
-	assert.Equal(t, 1, candidateRows, "the failing origin must render exactly one candidate row")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), `unknown field "hots"`)
 }
 
 func TestConfigLoader_SessionAccessorsReportOrigins(t *testing.T) {
@@ -937,6 +1000,144 @@ func TestConfigDocument_RepeatedSetLastValueWins(t *testing.T) {
 	assert.Equal(t, "second.example.com", cli.Host.Get())
 }
 
+func TestConfigDocument_SetKeyRecordsMapEntry(t *testing.T) {
+	t.Parallel()
+
+	cli := new(loaderMapCLI)
+	app := conga.New(cli).
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+			return loaderDocument(func(document *conga.ConfigDocument) {
+				document.SetKey("headers", "region", "eu", "taskrc")
+			}), nil
+		})).
+		Args([]string{})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]string{"region": "eu"}, cli.Headers.Get())
+	assert.Equal(t, conga.SourceConfig, cli.Headers.Source())
+}
+
+func TestConfigDocument_SetKeyAcceptsTypedValue(t *testing.T) {
+	t.Parallel()
+
+	cli := new(loaderFeaturesCLI)
+	app := conga.New(cli).
+		EnableFeatures().
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+			return loaderDocument(func(document *conga.ConfigDocument) {
+				document.SetKey("experiments", "force-all", true, "taskrc")
+			}), nil
+		})).
+		Args([]string{"--force-all"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.True(t, cli.Features.Get().ForceAll)
+	assert.True(t, cli.ForceAll.Get())
+}
+
+func TestConfigDocument_SetKeyOverlaysEarlierSet(t *testing.T) {
+	t.Parallel()
+
+	cli := new(loaderMapCLI)
+	app := conga.New(cli).
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+			return loaderDocument(
+				func(document *conga.ConfigDocument) {
+					document.Set("headers", map[string]string{"region": "eu", "shared": "base"}, "base")
+				},
+				func(document *conga.ConfigDocument) {
+					document.SetKey("headers", "shared", "overlay", "workspace")
+				},
+			), nil
+		})).
+		Args([]string{})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]string{"region": "eu", "shared": "overlay"}, cli.Headers.Get())
+}
+
+func TestConfigDocument_SetReplacesEarlierSetKeyOverlays(t *testing.T) {
+	t.Parallel()
+
+	cli := new(loaderMapCLI)
+	app := conga.New(cli).
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+			return loaderDocument(
+				func(document *conga.ConfigDocument) {
+					document.SetKey("headers", "region", "eu", "overlay")
+				},
+				func(document *conga.ConfigDocument) {
+					document.Set("headers", map[string]string{"team": "core"}, "replacement")
+				},
+			), nil
+		})).
+		Args([]string{})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]string{"team": "core"}, cli.Headers.Get())
+}
+
+func TestConfigDocument_RepeatedSetKeyLastValueWins(t *testing.T) {
+	t.Parallel()
+
+	cli := new(loaderMapCLI)
+	app := conga.New(cli).
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+			return loaderDocument(
+				func(document *conga.ConfigDocument) {
+					document.SetKey("headers", "region", "eu", "first")
+				},
+				func(document *conga.ConfigDocument) {
+					document.SetKey("headers", "region", "us", "second")
+				},
+			), nil
+		})).
+		Args([]string{})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]string{"region": "us"}, cli.Headers.Get())
+}
+
+func TestConfigDocument_SetKeyOnNilPanics(t *testing.T) {
+	t.Parallel()
+
+	var document *conga.ConfigDocument
+
+	assertx.PanicsWithValue(t, "conga: nil ConfigDocument; use the zero value (var document conga.ConfigDocument)", func() {
+		document.SetKey("headers", "region", "eu", "origin")
+	})
+}
+
+func TestConfigDocument_SetKeyUnknownKeyFailsUnderErrConfig(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[loaderMapCLI]().
+		Name("app").
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+			return loaderDocument(func(document *conga.ConfigDocument) {
+				document.SetKey("header", "region", "eu", "taskrc")
+			}), nil
+		})).
+		Args([]string{})
+
+	err := app.Run()
+
+	assert.Error(t, err)
+	assert.IsError(t, err, conga.ErrConfig)
+	assert.Contains(t, err.Error(), `unknown section "header" in command "app"`)
+	assert.Contains(t, err.Error(), `did you mean "headers"?`)
+}
+
 func TestConfigLoader_ContextFlagValues(t *testing.T) {
 	t.Parallel()
 
@@ -1098,4 +1299,57 @@ func TestConfigLoader_GuardCombinedWithConfigFileField(t *testing.T) {
 	assert.Error(t, err)
 	assert.IsError(t, err, conga.ErrSchema)
 	assert.Equal(t, `schema error: the root command declares config-file flag "config-file", but conga.ConfigLoader() replaces file loading and never loads a file (remove the conga.ConfigFile field or the loader)`, err.Error())
+}
+
+func TestConfigDocument_SetKeyOnScalarFlagReportsNotAMap(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[loaderBasicCLI]().
+		Name("app").
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+			return loaderDocument(func(document *conga.ConfigDocument) {
+				document.SetKey("port", "http", 8080, "taskrc")
+			}), nil
+		})).
+		Args([]string{})
+
+	err := app.Run()
+
+	assert.Error(t, err)
+	assert.IsError(t, err, conga.ErrConfig)
+	assert.Equal(t, `config file "taskrc": field "port" in command "app" is not a map`, err.Error())
+}
+
+func TestConfigLoader_ScopedOriginWithSlashAndCollidingBasenames(t *testing.T) {
+	t.Parallel()
+
+	var stdoutBuffer bytes.Buffer
+
+	cli := new(loaderBasicCLI)
+	app := conga.New(cli).
+		Name("app").
+		EnableWhy().
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+			return loaderDocument(func(document *conga.ConfigDocument) {
+				document.SetScoped("host", "prod.example.com", "/srv/prod/pipelines/pipeline.yaml", "jobs/deploy")
+				document.SetScoped("port", 9200, "/srv/dev/pipelines/pipeline.yaml", "jobs/release")
+			}), nil
+		})).
+		Stdout(&stdoutBuffer).
+		Args([]string{"--why"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, "/srv/prod/pipelines/pipeline.yaml › jobs/deploy", cli.Host.SourceDetail())
+	assert.Equal(t, "/srv/dev/pipelines/pipeline.yaml › jobs/release", cli.Port.SourceDetail())
+
+	output := stdoutBuffer.String()
+
+	assert.Contains(t, output, "config (/srv/prod/.../pipeline.yaml › jobs/deploy)")
+	assert.Contains(t, output, "config (/srv/dev/.../pipeline.yaml › jobs/release)")
+	assert.NotContains(t, output, "config (deploy)")
+	assert.NotContains(t, output, "config (release)")
+	assert.Contains(t, output, "/srv/prod/pipelines/pipeline.yaml")
+	assert.Contains(t, output, "/srv/dev/pipelines/pipeline.yaml")
 }

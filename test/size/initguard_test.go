@@ -42,6 +42,7 @@ var optInInitGuardPackages = []string{
 	"internal/dotenv",
 	"internal/jsonwire",
 	"internal/style",
+	"internal/why",
 	"predict",
 	"timezone",
 }

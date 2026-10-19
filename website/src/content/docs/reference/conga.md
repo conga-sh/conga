@@ -39,7 +39,7 @@ func New[T any](root ...*T) *App[T]
 | `UsageOnError(mode)` | Error-time usage rendering mode |
 | `Stdout(w)` / `Stderr(w)` | Output writers (default `os.Stdout`/`os.Stderr`) |
 | `ExitFunc(handler)` | Custom exit handler for `Exit` |
-| `EnableWhy()` / `EnableCompletion()` / `EnableFeatures()` | Opt in to the `--why` report, shell completion, and struct-declared feature toggles |
+| `EnableWhy(options...)` / `EnableCompletion()` / `EnableFeatures()` | Opt in to the `--why` report, shell completion, and struct-declared feature toggles; pass `conga.WhyJSON()` to `EnableWhy` to enable `--why=json` |
 | `DisableHelpFlag()` / `DisableVersionFlag()` | Remove the `--help`/`--version` flags |
 
 ### Execution methods
@@ -97,6 +97,8 @@ func (s *Session) Stderr() io.Writer
 func (s *Session) Help() string
 func (s *Session) Usage() string
 func (s *Session) Version() string
+func (s *Session) Why() string
+func (s *Session) WhyJSON() string
 func (s *Session) Path() string
 func (s *Session) Name() string
 func (s *Session) CandidateConfigFiles() []string
@@ -108,9 +110,11 @@ func (s *Session) LoadedConfigFiles() []string
 exact root command struct type, or `Root` panics. Enclosing command structs are reached
 by walking the selected `Command[T]` fields (`root.Cluster.Get()`).
 
+`Why` and `WhyJSON` render the same value-provenance report as the built-in `--why` flag; they return an empty string when Why is not enabled, and `WhyJSON` also requires `app.EnableWhy(conga.WhyJSON())`.
+
 The App snapshots standard streams at the start of execution for the active session.
 
-`CandidateConfigFiles`/`LoadedConfigFiles` report the configuration sources the run evaluated: file paths for file-based resolution, or the origin labels the application recorded when a [`conga.ConfigLoader`](/how-to/supply-config-from-code/) supplies the document.
+`CandidateConfigFiles`/`LoadedConfigFiles` report the configuration sources the run evaluated: file paths for file-based resolution, or the distinct origin paths the application recorded when a [`conga.ConfigLoader`](/how-to/supply-config-from-code/) supplies the document. Document scopes recorded with `ConfigDocument.SetScoped` are not part of the reported path.
 
 `Help`, `Usage`, and `Version` are the formatting primitives behind the built-in `help` and `version` commands: `Help` returns the active command's help screen as a string, `Usage` returns the syntax usage summary as a string, and `Version` returns the formatted version summary line as a string, falling back to the module version (or `dev`) plus the embedded build metadata when no version string was configured.
 
@@ -155,10 +159,22 @@ type ConfigContext interface {
 type ConfigDocument struct{ /* ... */ }
 
 func (d *ConfigDocument) Set(key string, value any, origin string) *ConfigDocument
+
+func (d *ConfigDocument) SetScoped(key string, value any, origin, scope string) *ConfigDocument
+
+func (d *ConfigDocument) SetKey(key, entryKey string, value any, origin string) *ConfigDocument
+
+func (d *ConfigDocument) SetKeyScoped(key, entryKey string, value any, origin, scope string) *ConfigDocument
 ```
 
 `ConfigLoader` replaces file resolution for every run: the returned document is
 validated like a decoded config file, binds at the config tier
 (`CLI > environment > document > default`), and its per-entry origins surface in
-`--why`. A nil document leaves the tier inactive; loader errors wrap `ErrConfig`
-and exit 1. See [How to supply configuration from code](/how-to/supply-config-from-code/).
+`--why`. `SetScoped` and `SetKeyScoped` add an optional scope within the origin;
+value attribution renders it as `origin › scope` while the Config paths table
+lists the origin path once. `SetKey` records one entry inside a map value and
+merges it key by key with earlier writes, so a later layer overrides only the
+map keys it names; a later `Set` of the same top-level key replaces the whole
+entry. A nil document
+leaves the tier inactive; loader errors wrap `ErrConfig` and exit 1. See
+[How to supply configuration from code](/how-to/supply-config-from-code/).

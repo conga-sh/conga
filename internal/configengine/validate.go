@@ -22,17 +22,25 @@ import (
 // key in the decoder output shape (a scalar, a slice, or a nested map for
 // sections and map flags); origin labels the value's provenance in stored
 // values and validation errors, and may be any free-form application-supplied
-// source label.
-func ValidateDocument(rawMap map[string]any, cmd *spec.Command, dest *configdata.Data, origin string) error {
-	return validateCommandConfig("", rawMap, cmd, dest, origin)
+// source label. scope optionally names a region within origin.
+func ValidateDocument(rawMap map[string]any, cmd *spec.Command, dest *configdata.Data, origin, scope string) error {
+	return validateCommandConfigScoped("", rawMap, cmd, dest, origin, scope)
 }
 
 // validateCommandConfig validates raw parsed configuration data against the
 // Command AST and populates dest with the resolved values. Unknown keys or
 // sections trigger strict configError failures.
-func validateCommandConfig(prefix string, rawMap map[string]any, cmd *spec.Command, dest *configdata.Data, filePath string) error {
+func validateCommandConfig(rawMap map[string]any, cmd *spec.Command, dest *configdata.Data, origin string) error {
+	return validateCommandConfigScoped("", rawMap, cmd, dest, origin, "")
+}
+
+func validateCommandConfigScoped(prefix string, rawMap map[string]any, cmd *spec.Command, dest *configdata.Data, origin, scope string) error {
+	if origin == "" {
+		scope = ""
+	}
+
 	for key, value := range rawMap {
-		if err := validateSingleCommandEntry(prefix, key, value, cmd, dest, filePath); err != nil {
+		if err := validateSingleCommandEntry(prefix, key, value, cmd, dest, origin, scope); err != nil {
 			return err
 		}
 	}
@@ -40,51 +48,66 @@ func validateCommandConfig(prefix string, rawMap map[string]any, cmd *spec.Comma
 	return nil
 }
 
-func validateSingleCommandEntry(prefix, key string, value any, cmd *spec.Command, dest *configdata.Data, filePath string) error {
+func validateSingleCommandEntry(prefix, key string, value any, cmd *spec.Command, dest *configdata.Data, origin, scope string) error {
 	if nestedMap, isMap := value.(map[string]any); isMap {
-		return handleNestedSection(prefix, key, nestedMap, cmd, dest, filePath)
+		return handleNestedSection(prefix, key, nestedMap, cmd, dest, origin, scope)
 	}
 
 	if flag := findFlag(cmd, key); flag != nil {
 		if flag.ConfigKey == "-" {
-			return newExcludedConfigFieldError(filePath, key, cmd.Name)
+			return newExcludedConfigFieldError(origin, scope, key, cmd.Name)
 		}
 
-		storeFlagValue(prefix, flag, value, dest, filePath)
+		storeFlagValue(prefix, flag, value, dest, origin, scope)
 
 		return nil
 	}
 
 	return newFieldConfigError(
-		filePath,
+		origin,
+		scope,
 		fmt.Sprintf("unknown field %q in command %q%s", key, cmd.Name, suggestionHint(cmd, key)),
 		fmt.Sprintf("unknown field %q in command %q", key, cmd.Name),
 	)
 }
 
-func handleNestedSection(prefix, key string, nestedMap map[string]any, cmd *spec.Command, dest *configdata.Data, filePath string) error {
+func handleNestedSection(prefix, key string, nestedMap map[string]any, cmd *spec.Command, dest *configdata.Data, origin, scope string) error {
 	if subcommand := findSubcommand(cmd, key); subcommand != nil {
 		subPrefix := cond.If(prefix != "", prefix+"."+subcommand.Name, subcommand.Name)
 
-		return validateCommandConfig(subPrefix, nestedMap, subcommand, dest, filePath)
+		return validateCommandConfigScoped(subPrefix, nestedMap, subcommand, dest, origin, scope)
 	}
 
 	if flag := findFlag(cmd, key); flag != nil && flag.IsMap {
 		if flag.ConfigKey == "-" {
-			return newExcludedConfigFieldError(filePath, key, cmd.Name)
+			return newExcludedConfigFieldError(origin, scope, key, cmd.Name)
 		}
 
-		storeFlagValue(prefix, flag, nestedMap, dest, filePath)
+		storeFlagValue(prefix, flag, nestedMap, dest, origin, scope)
 
 		return nil
 	}
 
+	if flag := findFlag(cmd, key); flag != nil && !hasFlagWithPrefix(cmd, key) {
+		if flag.ConfigKey == "-" {
+			return newExcludedConfigFieldError(origin, scope, key, cmd.Name)
+		}
+
+		return newFieldConfigError(
+			origin,
+			scope,
+			fmt.Sprintf("field %q in command %q is not a map", key, cmd.Name),
+			fmt.Sprintf("field %q in command %q is not a map", key, cmd.Name),
+		)
+	}
+
 	if hasFlagWithPrefix(cmd, key) {
-		return validateNamespaceConfig(prefix, key, nestedMap, cmd, dest, filePath)
+		return validateNamespaceConfig(prefix, key, nestedMap, cmd, dest, origin, scope)
 	}
 
 	return newFieldConfigError(
-		filePath,
+		origin,
+		scope,
 		fmt.Sprintf("unknown section %q in command %q%s", key, cmd.Name, suggestionHint(cmd, key)),
 		fmt.Sprintf("unknown section %q in command %q", key, cmd.Name),
 	)
@@ -93,15 +116,16 @@ func handleNestedSection(prefix, key string, nestedMap map[string]any, cmd *spec
 // newExcludedConfigFieldError rejects a configuration entry addressed at a
 // flag excluded from config files, the strict-validation counterpart of the
 // binder's refusal to read such keys.
-func newExcludedConfigFieldError(filePath, fieldKey, commandName string) error {
+func newExcludedConfigFieldError(origin, scope, fieldKey, commandName string) error {
 	return newFieldConfigError(
-		filePath,
+		origin,
+		scope,
 		fmt.Sprintf("field %q is excluded from config files in command %q", fieldKey, commandName),
 		fmt.Sprintf("field %q not allowed in config", fieldKey),
 	)
 }
 
-func validateNamespaceConfig(cmdPrefix, nsPrefix string, rawMap map[string]any, cmd *spec.Command, dest *configdata.Data, filePath string) error {
+func validateNamespaceConfig(cmdPrefix, nsPrefix string, rawMap map[string]any, cmd *spec.Command, dest *configdata.Data, origin, scope string) error {
 	displayNamespace := cond.If(cmdPrefix != "", cmdPrefix+"."+nsPrefix, nsPrefix)
 
 	for key, value := range rawMap {
@@ -119,16 +143,16 @@ func validateNamespaceConfig(cmdPrefix, nsPrefix string, rawMap map[string]any, 
 		// recursing into the namespace.
 		if flag != nil && flag.IsMap && isMap {
 			if flag.ConfigKey == "-" {
-				return newExcludedConfigFieldError(filePath, displayKey, cmd.Name)
+				return newExcludedConfigFieldError(origin, scope, displayKey, cmd.Name)
 			}
 
-			storeFlagValue(cmdPrefix, flag, nestedMap, dest, filePath)
+			storeFlagValue(cmdPrefix, flag, nestedMap, dest, origin, scope)
 
 			continue
 		}
 
 		if isMap {
-			if err := validateNamespaceConfig(cmdPrefix, fullKey, nestedMap, cmd, dest, filePath); err != nil {
+			if err := validateNamespaceConfig(cmdPrefix, fullKey, nestedMap, cmd, dest, origin, scope); err != nil {
 				return err
 			}
 
@@ -137,16 +161,17 @@ func validateNamespaceConfig(cmdPrefix, nsPrefix string, rawMap map[string]any, 
 
 		if flag != nil {
 			if flag.ConfigKey == "-" {
-				return newExcludedConfigFieldError(filePath, displayKey, cmd.Name)
+				return newExcludedConfigFieldError(origin, scope, displayKey, cmd.Name)
 			}
 
-			storeFlagValue(cmdPrefix, flag, value, dest, filePath)
+			storeFlagValue(cmdPrefix, flag, value, dest, origin, scope)
 
 			continue
 		}
 
 		return newFieldConfigError(
-			filePath,
+			origin,
+			scope,
 			fmt.Sprintf("unknown field %q in namespace %q%s", key, displayNamespace, suggestionHint(cmd, key)),
 			fmt.Sprintf("unknown field %q in namespace %q", key, displayNamespace),
 		)
@@ -212,30 +237,30 @@ func findFlagByConfigKeyOrName(cmd *spec.Command, fullKey, subKey string) *spec.
 // bindable config key. Scalar and slice values are stringified and replace
 // whatever an earlier file stored; map flags contribute structured per-key
 // entries so cascading files merge key by key at load time.
-func storeFlagValue(prefix string, flag *spec.Flag, value any, dest *configdata.Data, filePath string) {
+func storeFlagValue(prefix string, flag *spec.Flag, value any, dest *configdata.Data, origin, scope string) {
 	aliasKeys := flagConfigKeys(prefix, flag)
 
 	if flag.IsMap {
 		entries := dest.EnsureMap(aliasKeys)
-		storeMapEntries(flag, value, entries, filePath)
+		storeMapEntries(flag, value, entries, origin, scope)
 
 		return
 	}
 
 	formatted := formatConfigValue(value)
 	for _, aliasKey := range aliasKeys {
-		dest.SetScalar(aliasKey, formatted, filePath)
+		dest.SetScalarScoped(aliasKey, formatted, origin, scope)
 	}
 }
 
-func storeMapEntries(flag *spec.Flag, value any, entries map[string]configdata.Value, origin string) {
+func storeMapEntries(flag *spec.Flag, value any, entries map[string]configdata.Value, origin, scope string) {
 	if nestedMap, isMap := value.(map[string]any); isMap {
 		for key, item := range nestedMap {
 			if flag.KeyCanonicalizer != nil {
 				key = flag.KeyCanonicalizer(key)
 			}
 
-			entries[key] = configdata.Value{Raw: stringx.Stringify(item), Origin: origin}
+			entries[key] = configdata.Value{Raw: stringx.Stringify(item), Origin: origin, Scope: scope}
 		}
 
 		return
@@ -247,7 +272,7 @@ func storeMapEntries(flag *spec.Flag, value any, entries map[string]configdata.V
 				key = flag.KeyCanonicalizer(key)
 			}
 
-			entries[key] = configdata.Value{Raw: item, Origin: origin}
+			entries[key] = configdata.Value{Raw: item, Origin: origin, Scope: scope}
 		}
 
 		return
@@ -256,18 +281,18 @@ func storeMapEntries(flag *spec.Flag, value any, entries map[string]configdata.V
 	switch typedValue := value.(type) {
 	case []any:
 		for _, item := range typedValue {
-			storeFlatMapToken(flag, stringx.Stringify(item), entries, origin)
+			storeFlatMapToken(flag, stringx.Stringify(item), entries, origin, scope)
 		}
 
 	case []string:
 		for _, item := range typedValue {
-			storeFlatMapToken(flag, item, entries, origin)
+			storeFlatMapToken(flag, item, entries, origin, scope)
 		}
 
 	default:
 		sep := cmp.Or(flag.Sep, ",")
 		for item := range strings.SplitSeq(formatConfigValue(value), sep) {
-			storeFlatMapToken(flag, item, entries, origin)
+			storeFlatMapToken(flag, item, entries, origin, scope)
 		}
 	}
 }
@@ -276,7 +301,7 @@ func storeMapEntries(flag *spec.Flag, value any, entries map[string]configdata.V
 // tokens without a separator or key as malformed pairs so binding surfaces
 // them with config attribution. Each token is one pair: a value containing
 // the flag's sep is never re-split.
-func storeFlatMapToken(flag *spec.Flag, token string, entries map[string]configdata.Value, origin string) {
+func storeFlatMapToken(flag *spec.Flag, token string, entries map[string]configdata.Value, origin, scope string) {
 	token = strings.TrimSpace(token)
 	if token == "" {
 		return
@@ -286,7 +311,7 @@ func storeFlatMapToken(flag *spec.Flag, token string, entries map[string]configd
 
 	key = strings.TrimSpace(key)
 	if !ok || key == "" {
-		entries[""] = configdata.Value{Raw: token, Origin: origin}
+		entries[""] = configdata.Value{Raw: token, Origin: origin, Scope: scope}
 
 		return
 	}
@@ -295,7 +320,7 @@ func storeFlatMapToken(flag *spec.Flag, token string, entries map[string]configd
 		key = flag.KeyCanonicalizer(key)
 	}
 
-	entries[key] = configdata.Value{Raw: strings.TrimSpace(val), Origin: origin}
+	entries[key] = configdata.Value{Raw: strings.TrimSpace(val), Origin: origin, Scope: scope}
 }
 
 // flagConfigKeys returns the bindable config keys a flag's stored value is

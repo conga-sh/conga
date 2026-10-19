@@ -846,6 +846,9 @@ type Features[T any] struct {
 	source       ValueSource
 	sourceDetail string
 	provided     map[string]string
+	resolved     map[string]string
+	keySources   map[string]ValueSource
+	keyOrigins   map[string]configdata.Value
 }
 
 // Get returns a pointer to the inner feature struct with every resolved value bound.
@@ -1232,6 +1235,23 @@ func (f *Features[T]) setValue(value any, source ValueSource, detail string) {
 	f.provided = provided
 	f.source = source
 	f.sourceDetail = detail
+}
+
+func (f *Features[T]) setMapProvenance(sources map[string]ValueSource, origins map[string]configdata.Value) {
+	f.keySources = sources
+	f.keyOrigins = origins
+}
+
+func (f *Features[T]) mapProvenance() (map[string]ValueSource, map[string]configdata.Value) {
+	return f.keySources, f.keyOrigins
+}
+
+func (f *Features[T]) setResolvedValues(values map[string]string) {
+	f.resolved = values
+}
+
+func (f *Features[T]) resolvedValues() map[string]string {
+	return f.resolved
 }
 
 func (f *Features[T]) resolveFeatures(cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, state *bindingState) ([]prunedFlag, error) {

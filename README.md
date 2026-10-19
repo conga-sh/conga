@@ -135,7 +135,7 @@ Every CONGA application includes built-in operational flags:
 
 - `--help`: Prints command syntax and flag descriptions.
 - `--version`: Prints version and build information.
-- `--why`: Debugging flag that prints a provenance report explaining where every flag value came from (CLI, env, config, or default) and which competing sources were overridden. The report renders as `text` by default; pass `--why=json` for a machine-readable document. Enable with `app.EnableWhy()`.
+- `--why`: Debugging flag that prints a provenance report explaining where every flag value came from (CLI, env, config, or default) and which competing sources were overridden. Enable the text report with `app.EnableWhy()`; pass `conga.WhyJSON()` (`app.EnableWhy(conga.WhyJSON())`) to also enable the machine-readable `--why=json` document.
 
 For subcommand-based CLIs, CONGA provides `HelpCommand`, `VersionCommand`, and `CompletionCommand`. See the [Built-ins Reference](https://docs.conga.sh/reference/builtins/).
 
