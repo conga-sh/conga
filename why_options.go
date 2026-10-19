@@ -1,5 +1,7 @@
 package conga
 
+import "github.com/conga-sh/conga/internal/why"
+
 // WhyOption configures the built-in --why provenance reporting engine on [App.EnableWhy].
 //
 // WhyOption is a sealed interface: values are produced exclusively by CONGA
@@ -16,8 +18,8 @@ type WhyOption interface {
 // provenance reports.
 func WhyJSON() WhyOption {
 	return whyOptionFunc(func(s *whySettings) {
-		s.jsonFormatter = formatWhyJSON
-		s.rowType = whyFlagType
+		s.jsonFormatter = why.FormatJSONReport
+		s.rowType = why.FlagType
 	})
 }
 

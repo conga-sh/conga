@@ -1,8 +1,10 @@
-// Package why renders the neutral value-provenance report produced by the
-// --why builtin: one row per flag and configuration-file container with its
-// display value (already redacted or formatted by the caller), the source
-// tier, and the env/config channels that can set the value. The package owns
-// layout only; value formatting and redaction policy live in package conga,
+// Package why assembles and renders the neutral value-provenance report
+// produced by the --why builtin: one row per flag and configuration-file
+// container with its display value, the source tier, and the env/config
+// channels that can set the value. It owns row construction, display
+// formatting, redaction, text layout, and the opt-in JSON document. Engine
+// binding state (App and Session internals) is extracted by package conga and
+// passed in as plain values; this package never observes container handles,
 // mirroring the internal/help split.
 package why
 
@@ -72,9 +74,9 @@ type Row struct {
 	Redacted bool
 	// Label is the flag display label (e.g. "--port").
 	Label string
-	// Value is the display value, redacted or formatted by the caller; empty
-	// for unset values (the source column says "unset"). Not rendered for a
-	// row carrying per-key entries: the sub-rows state each key's value. For
+	// Value is the formatted or redacted display value; empty for unset
+	// values (the source column says "unset"). Not rendered for a row
+	// carrying per-key entries: the sub-rows state each key's value. For
 	// a row carrying sub-rows it is the parent value cell, such as
 	// "(2 files)" or "(3 values)".
 	Value string
@@ -121,7 +123,7 @@ type SubRow struct {
 type MapEntry struct {
 	// Key is the map key.
 	Key string
-	// Value is the key's display value, redacted or formatted by the caller.
+	// Value is the key's formatted or redacted display value.
 	Value string
 	// RawValue is the coerced native value for machine-readable export.
 	RawValue any
@@ -1210,7 +1212,7 @@ func appendValueJSON(buffer []byte, value any) []byte {
 }
 
 // stringForm renders values that carry their own textual representation,
-// matching whyDisplayValue's fmt.Stringer/encoding.TextMarshaler precedence.
+// matching displayValue's fmt.Stringer/encoding.TextMarshaler precedence.
 // Pointer-receiver implementations are reached through an addressable copy,
 // mirroring stringx.Stringify.
 func stringForm(value any) (string, bool) {

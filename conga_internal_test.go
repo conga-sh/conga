@@ -15,7 +15,6 @@ import (
 	"github.com/conga-sh/conga/internal/completion"
 	"github.com/conga-sh/conga/internal/slicex"
 	"github.com/conga-sh/conga/internal/spec"
-	"github.com/conga-sh/conga/internal/why"
 	"github.com/conga-sh/conga/predict"
 )
 
@@ -375,16 +374,4 @@ func TestPrunedFlag_ConfigKeys(t *testing.T) {
 			assert.Equal(t, test.want, got)
 		})
 	}
-}
-
-func TestEnrichWhyJSONReport_IgnoresInvalidPWD(t *testing.T) {
-	t.Setenv("PWD", "/definitely/not/the/cwd")
-
-	report := why.Report{}
-
-	enrichWhyJSONReport(&report)
-
-	workingDirectory, err := os.Getwd()
-	assert.NoError(t, err)
-	assert.Equal(t, workingDirectory, report.WorkingDirectory)
 }
