@@ -24,8 +24,8 @@ type featureState interface {
 	resolveFeatures(cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, state *bindingState) ([]prunedFlag, error)
 	rejectPrunedConfig(pruned []prunedFlag, configData *configdata.Data) error
 	pruneForCompletion(cmd *spec.Command, flagValues map[*spec.Flag][]string, state *bindingState)
-	setMapProvenance(sources map[string]ValueSource, origins map[string]string)
-	mapProvenance() (map[string]ValueSource, map[string]string)
+	setMapProvenance(sources map[string]ValueSource, origins map[string]configdata.Value)
+	mapProvenance() (map[string]ValueSource, map[string]configdata.Value)
 	setResolvedValues(values map[string]string)
 	resolvedValues() map[string]string
 }

@@ -103,3 +103,31 @@ func TestEnsureMap_EmptyMapSectionSetsHasKeyTrue(t *testing.T) {
 	assert.True(t, data.HasKey("tags"))
 	assert.Equal(t, 0, len(data.Map("tags")))
 }
+
+func TestSetScalarScoped_ReadsBackOriginAndScope(t *testing.T) {
+	t.Parallel()
+
+	data := New()
+
+	data.SetScalarScoped("port", "8080", "pipeline.yaml", "jobs/deploy")
+
+	scalar, exists := data.ScalarValue("port")
+
+	assert.True(t, exists)
+	assert.Equal(t, Value{Raw: "8080", Origin: "pipeline.yaml", Scope: "jobs/deploy"}, scalar)
+	assert.Equal(t, "pipeline.yaml › jobs/deploy", scalar.SourceDetail())
+}
+
+func TestSetScalarScoped_EmptyOriginIgnoresScope(t *testing.T) {
+	t.Parallel()
+
+	data := New()
+
+	data.SetScalarScoped("port", "8080", "", "jobs/deploy")
+
+	scalar, exists := data.ScalarValue("port")
+
+	assert.True(t, exists)
+	assert.Equal(t, Value{Raw: "8080"}, scalar)
+	assert.Equal(t, "", scalar.SourceDetail())
+}

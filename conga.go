@@ -934,16 +934,15 @@ type typeRegistration struct {
 }
 
 // configResolution memoizes the outcome of the run's single configuration
-// resolution: the loaded files and their winning source, the resolution
+// resolution: the loaded origins and their winning source, the resolution
 // failure (extraction or load, mutually exclusive), and the candidate paths
-// probed. configOrigins carries the display origins used for value attribution
-// and map-origin ordering; it includes document scopes that loadedPaths omits.
+// probed. Document scopes stay on the stored configuration values rather than
+// in this resolution summary.
 type configResolution struct {
-	loadedPaths   []string
-	configOrigins []string
-	loadedSource  ValueSource
-	err           error
-	candidates    []string
+	loadedPaths  []string
+	loadedSource ValueSource
+	err          error
+	candidates   []string
 }
 
 // appConfig holds every configuration field for an App. It is the single source
@@ -970,7 +969,7 @@ type appConfig[T any] struct {
 	// document. ConfigOptions installs it only when a loader is declared; nil
 	// keeps the document validation pipeline unreferenced at link time for
 	// applications without a loader.
-	loadConfigDocument    func(app *App[T], cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string) (*configdata.Data, documentOrigins, error)
+	loadConfigDocument    func(app *App[T], cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string) (*configdata.Data, []string, error)
 	dotenvPaths           []string
 	dotenvLoader          func(paths ...string) error
 	configData            *configdata.Data
@@ -1415,7 +1414,7 @@ func (a *App[T]) prepareFeatures(featureBinding featureState, cmd *spec.Command,
 
 	if !request.versionOnly() {
 		resolution := a.resolveConfig(cmd, cmdChain, flagValues)
-		configOrigins = resolution.configOrigins
+		configOrigins = resolution.loadedPaths
 
 		if !request.toleratesFeatureErrors() {
 			if err := resolution.err; err != nil {
@@ -1467,7 +1466,7 @@ func (a *App[T]) prepareNonMetaExecution(session *Session, cmd *spec.Command, cm
 		}
 	}
 
-	var recordMapProvenance func(session *Session, flag *spec.Flag, sources map[string]ValueSource, origins map[string]string)
+	var recordMapProvenance func(session *Session, flag *spec.Flag, sources map[string]ValueSource, origins map[string]configdata.Value)
 	if a.whyHooks != nil {
 		recordMapProvenance = a.whyHooks.recordMapProvenance
 	}
@@ -1478,7 +1477,7 @@ func (a *App[T]) prepareNonMetaExecution(session *Session, cmd *spec.Command, cm
 		WantMapProvenance:   a.whyHooks != nil,
 		EnvPrefix:           a.envPrefix,
 		ConfigData:          a.configData,
-		ConfigOrigins:       resolution.configOrigins,
+		ConfigOrigins:       resolution.loadedPaths,
 		TypeParsers:         a.collectTypeParsers(),
 		CustomMapMerger:     a.customMapMerger,
 		Stdin:               session.stdin,
@@ -1954,11 +1953,10 @@ func (a *App[T]) resolveConfig(cmd *spec.Command, cmdChain []*spec.Command, flag
 	}
 
 	a.configResolution = &configResolution{
-		loadedPaths:   loadedPaths,
-		configOrigins: loadedPaths,
-		loadedSource:  loadedSource,
-		err:           resolutionErr,
-		candidates:    a.configurationView(cmd).CandidatePaths(explicitTargets, cmd),
+		loadedPaths:  loadedPaths,
+		loadedSource: loadedSource,
+		err:          resolutionErr,
+		candidates:   a.configurationView(cmd).CandidatePaths(explicitTargets, cmd),
 	}
 
 	return a.configResolution

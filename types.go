@@ -848,7 +848,7 @@ type Features[T any] struct {
 	provided     map[string]string
 	resolved     map[string]string
 	keySources   map[string]ValueSource
-	keyOrigins   map[string]string
+	keyOrigins   map[string]configdata.Value
 }
 
 // Get returns a pointer to the inner feature struct with every resolved value bound.
@@ -1237,12 +1237,12 @@ func (f *Features[T]) setValue(value any, source ValueSource, detail string) {
 	f.sourceDetail = detail
 }
 
-func (f *Features[T]) setMapProvenance(sources map[string]ValueSource, origins map[string]string) {
+func (f *Features[T]) setMapProvenance(sources map[string]ValueSource, origins map[string]configdata.Value) {
 	f.keySources = sources
 	f.keyOrigins = origins
 }
 
-func (f *Features[T]) mapProvenance() (map[string]ValueSource, map[string]string) {
+func (f *Features[T]) mapProvenance() (map[string]ValueSource, map[string]configdata.Value) {
 	return f.keySources, f.keyOrigins
 }
 

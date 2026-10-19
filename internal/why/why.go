@@ -18,6 +18,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/conga-sh/conga/internal/configdata"
 	"github.com/conga-sh/conga/internal/jsonwire"
 )
 
@@ -53,7 +54,6 @@ const (
 	ansiReset    = "\033[0m"
 	ansiBold     = "\033[1m"
 	ansiDim      = "\033[2m"
-	ansiRed      = "\033[31m"
 	ansiGreen    = "\033[32m"
 	ansiYellow   = "\033[33m"
 	ansiCyan     = "\033[36m"
@@ -85,8 +85,12 @@ type Row struct {
 	Source string
 	// Detail optionally annotates the source with the concrete origin, e.g.
 	// the configuration file that supplied the value. Rendered in parentheses
-	// after the source word; empty renders the bare word.
+	// after the source word; empty renders the bare word. Detail is always the
+	// pure origin; Scope carries any region within it.
 	Detail string
+	// Scope optionally names a region within Detail. Rendered after Detail
+	// inside the same parentheses; empty renders Detail alone.
+	Scope string
 	// Env lists the environment variables that can set the flag, or "-" when
 	// none apply.
 	Env string
@@ -97,7 +101,7 @@ type Row struct {
 	Hidden bool
 	// Entries lists the per-key provenance of a merged map flag value,
 	// rendered as sub-rows beneath the flag row. Empty for scalar and slice
-	// flags and for error rows.
+	// flags.
 	Entries []MapEntry
 	// SubRows lists sub-items (such as multiple loaded config file paths)
 	// rendered as tree branches beneath the flag row.
@@ -127,8 +131,12 @@ type MapEntry struct {
 	Source string
 	// Detail optionally annotates the source with the concrete origin, e.g.
 	// the configuration file that contributed the key. Rendered in
-	// parentheses after the source word; empty renders the bare word.
+	// parentheses after the source word; empty renders the bare word. Detail
+	// is always the pure origin; Scope carries any region within it.
 	Detail string
+	// Scope optionally names a region within Detail. Rendered after Detail
+	// inside the same parentheses; empty renders Detail alone.
+	Scope string
 }
 
 // FeatureRow is one feature-toggle line in the report.
@@ -141,8 +149,12 @@ type FeatureRow struct {
 	// "unset").
 	Source string
 	// Detail optionally annotates the source with the concrete origin, e.g.
-	// the configuration file that contributed the toggle.
+	// the configuration file that contributed the toggle. Detail is always the
+	// pure origin; Scope carries any region within it.
 	Detail string
+	// Scope optionally names a region within Detail. Rendered after Detail
+	// inside the same parentheses; empty renders Detail alone.
+	Scope string
 }
 
 // ConfigPath is one candidate configuration file path probed during config
@@ -153,9 +165,8 @@ type ConfigPath struct {
 	Path string
 	// Status is the probe outcome: "loaded" when the candidate resolved to a
 	// configuration file, "directory does not exist" when the candidate
-	// location is absent, "no config file" when the candidate is an existing
-	// directory holding no matching file, or "error" when reading the
-	// candidate failed.
+	// location is absent, or "no config file" when the candidate is an
+	// existing directory holding no matching file.
 	Status string
 	// Loaded is the concrete file the candidate resolved to when it differs
 	// from Path, such as a search-directory tier or a stem candidate. It is
@@ -404,12 +415,12 @@ func newRenderContext(report Report) renderContext {
 	}
 }
 
-func (rc renderContext) sourceText(source, detail string) (string, string) {
+func (rc renderContext) sourceText(source, detail, scope string) (string, string) {
 	if detail == "" {
 		return formatSourceTier(source, rc.color)
 	}
 
-	detail = rc.origins.display(detail)
+	detail = configdata.JoinOriginScope(rc.origins.display(detail), scope)
 
 	plainTier, styledTier := formatSourceTier(source, rc.color)
 	plain := plainTier + " (" + detail + ")"
@@ -435,19 +446,19 @@ func (rc renderContext) rowCells(row Row) ([]string, []string) {
 		}
 
 		value := "(" + strconv.Itoa(count) + " " + keyLabel + ")"
-		srcPlain, srcStyled := rc.sourceText(row.Source, row.Detail)
+		srcPlain, srcStyled := rc.sourceText(row.Source, row.Detail, row.Scope)
 
 		return []string{lbl, value, srcPlain, row.Env, row.ConfigPath},
 			[]string{styledLbl, value, srcStyled, row.Env, row.ConfigPath}
 	} else if len(row.SubRows) > 0 {
 		value := subRowValue(row)
-		srcPlain, srcStyled := rc.sourceText(row.Source, row.Detail)
+		srcPlain, srcStyled := rc.sourceText(row.Source, row.Detail, row.Scope)
 
 		return []string{lbl, value, srcPlain, row.Env, row.ConfigPath},
 			[]string{styledLbl, value, srcStyled, row.Env, row.ConfigPath}
 	}
 
-	srcPlain, srcStyled := rc.sourceText(row.Source, row.Detail)
+	srcPlain, srcStyled := rc.sourceText(row.Source, row.Detail, row.Scope)
 
 	value := row.Value
 	styledValue := value
@@ -471,6 +482,10 @@ type renderedPath struct {
 	status      string
 	bullet      string
 	probedFiles []string
+}
+
+func formatDetail(detail, scope string) string {
+	return configdata.JoinOriginScope(detail, scope)
 }
 
 func subRowValue(row Row) string {
@@ -718,7 +733,7 @@ func renderMapSubRows(builder *strings.Builder, entries []MapEntry, widths []int
 		}
 
 		token := entry.Key + "=" + entry.Value
-		_, srcStyled := renderCtx.sourceText(entry.Source, entry.Detail)
+		_, srcStyled := renderCtx.sourceText(entry.Source, entry.Detail, entry.Scope)
 
 		builder.WriteString(strings.Repeat(" ", valColIndent))
 		builder.WriteString(styleText(branch, ansiDim, renderCtx.color))
@@ -756,7 +771,7 @@ func renderSubRows(builder *strings.Builder, subRows []SubRow, widths []int, ren
 		builder.WriteString(subRow.Value)
 
 		if subRow.Source != "" {
-			_, srcStyled := renderCtx.sourceText(subRow.Source, subRow.Detail)
+			_, srcStyled := renderCtx.sourceText(subRow.Source, subRow.Detail, "")
 			builder.WriteString(strings.Repeat(" ", maxTokenWidth-utf8.RuneCountInString(subRow.Value)))
 			builder.WriteString(strings.Repeat(" ", 3))
 			builder.WriteString(srcStyled)
@@ -768,12 +783,7 @@ func renderSubRows(builder *strings.Builder, subRows []SubRow, widths []int, ren
 
 // renderFeatureRows lays out the aligned feature-name · value · source table
 // beneath a header row.
-func renderFeatureRows(rows []FeatureRow, optionalRC ...renderContext) string {
-	var renderCtx renderContext
-	if len(optionalRC) > 0 {
-		renderCtx = optionalRC[0]
-	}
-
+func renderFeatureRows(rows []FeatureRow, renderCtx renderContext) string {
 	header := []string{"FEATURE", headerValue, headerSource}
 
 	grid := make([][]string, 0, len(rows)+1)
@@ -788,7 +798,7 @@ func renderFeatureRows(rows []FeatureRow, optionalRC ...renderContext) string {
 	styledGrid = append(styledGrid, styledHeader)
 
 	for _, row := range rows {
-		_, srcStyled := renderCtx.sourceText(row.Source, row.Detail)
+		_, srcStyled := renderCtx.sourceText(row.Source, row.Detail, row.Scope)
 		plainCells := []string{row.Name, row.Value, row.Source}
 		styledCells := []string{styleText(row.Name, ansiBold, renderCtx.color), row.Value, srcStyled}
 
@@ -840,12 +850,7 @@ func renderPlainConfigPath(configPath ConfigPath, renderCtx renderContext) rende
 
 // renderConfigPaths lays out the candidate-path list beneath its header,
 // annotating each path with its probe outcome.
-func renderConfigPaths(paths []ConfigPath, optionalRC ...renderContext) string {
-	var renderCtx renderContext
-	if len(optionalRC) > 0 {
-		renderCtx = optionalRC[0]
-	}
-
+func renderConfigPaths(paths []ConfigPath, renderCtx renderContext) string {
 	const (
 		probeIndent = 4
 		columnGap   = 3
@@ -1064,10 +1069,6 @@ func normalizeStatusEnum(status string) string {
 		return "not_found"
 	case strings.Contains(status, "no config file"):
 		return "no_config_file"
-	case strings.Contains(status, "error"):
-		return "error"
-	case strings.Contains(status, "skipped"):
-		return "skipped"
 	default:
 		return status
 	}
@@ -1108,9 +1109,9 @@ func appendRowJSON(buffer []byte, row Row) []byte {
 	buffer = append(buffer, `,"source":`...)
 	buffer = jsonwire.AppendString(buffer, row.Source)
 
-	if row.Detail != "" {
+	if detail := formatDetail(row.Detail, row.Scope); detail != "" {
 		buffer = append(buffer, `,"detail":`...)
-		buffer = jsonwire.AppendString(buffer, row.Detail)
+		buffer = jsonwire.AppendString(buffer, detail)
 	}
 
 	return appendRowMetadataJSON(buffer, row)
@@ -1168,9 +1169,9 @@ func appendMapEntryJSON(buffer []byte, entry MapEntry) []byte {
 	buffer = append(buffer, `,"source":`...)
 	buffer = jsonwire.AppendString(buffer, entry.Source)
 
-	if entry.Detail != "" {
+	if detail := formatDetail(entry.Detail, entry.Scope); detail != "" {
 		buffer = append(buffer, `,"detail":`...)
-		buffer = jsonwire.AppendString(buffer, entry.Detail)
+		buffer = jsonwire.AppendString(buffer, detail)
 	}
 
 	buffer = append(buffer, '}')
@@ -1186,9 +1187,9 @@ func appendFeatureJSON(buffer []byte, feat FeatureRow) []byte {
 	buffer = append(buffer, `,"source":`...)
 	buffer = jsonwire.AppendString(buffer, feat.Source)
 
-	if feat.Detail != "" {
+	if detail := formatDetail(feat.Detail, feat.Scope); detail != "" {
 		buffer = append(buffer, `,"detail":`...)
-		buffer = jsonwire.AppendString(buffer, feat.Detail)
+		buffer = jsonwire.AppendString(buffer, detail)
 	}
 
 	buffer = append(buffer, '}')
@@ -1210,6 +1211,8 @@ func appendValueJSON(buffer []byte, value any) []byte {
 
 // stringForm renders values that carry their own textual representation,
 // matching whyDisplayValue's fmt.Stringer/encoding.TextMarshaler precedence.
+// Pointer-receiver implementations are reached through an addressable copy,
+// mirroring stringx.Stringify.
 func stringForm(value any) (string, bool) {
 	if stringer, ok := value.(fmt.Stringer); ok {
 		if reflected := reflect.ValueOf(stringer); reflected.Kind() != reflect.Pointer || !reflected.IsNil() {
@@ -1222,6 +1225,24 @@ func stringForm(value any) (string, bool) {
 			if text, err := marshaler.MarshalText(); err == nil {
 				return string(text), true
 			}
+		}
+	}
+
+	reflected := reflect.ValueOf(value)
+	if !reflected.IsValid() || reflected.Kind() != reflect.Struct {
+		return "", false
+	}
+
+	addressable := reflect.New(reflected.Type())
+	addressable.Elem().Set(reflected)
+
+	if stringer, ok := reflect.TypeAssert[fmt.Stringer](addressable); ok {
+		return stringer.String(), true
+	}
+
+	if marshaler, ok := reflect.TypeAssert[encoding.TextMarshaler](addressable); ok {
+		if text, err := marshaler.MarshalText(); err == nil {
+			return string(text), true
 		}
 	}
 

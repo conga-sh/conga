@@ -726,17 +726,14 @@ func TestWhy_HiddenFlagMarked(t *testing.T) {
 	}
 }
 
-func TestWhy_TolerantCoercionError(t *testing.T) {
+func TestWhy_ScalarCoercionErrorFailsFast(t *testing.T) {
 	t.Setenv("WHY_PORT", "not-a-number")
 
 	type envPortCLI struct {
 		Port conga.OptionalFlag[int] `env:"WHY_PORT" help:"Listen port"`
 	}
 
-	var buffer bytes.Buffer
-
 	app := conga.New[envPortCLI]().
-		Stdout(&buffer).
 		EnableWhy().
 		Args([]string{"--why"})
 
@@ -1757,7 +1754,6 @@ func TestBuiltinWhy_JSONFormat(t *testing.T) {
 		Detail     string            `json:"detail"`
 		Env        string            `json:"env"`
 		ConfigPath string            `json:"configPath"`
-		Error      string            `json:"error"`
 		Hidden     bool              `json:"hidden"`
 		Redacted   bool              `json:"redacted"`
 		Entries    []mapEntryPayload `json:"entries"`
@@ -1773,7 +1769,6 @@ func TestBuiltinWhy_JSONFormat(t *testing.T) {
 	type configPathPayload struct {
 		Path        string   `json:"path"`
 		Status      string   `json:"status"`
-		Scopes      []string `json:"scopes"`
 		ProbedFiles []string `json:"probedFiles"`
 	}
 
@@ -2400,4 +2395,100 @@ func TestWhy_MetaCommandsBindFlags(t *testing.T) {
 		assert.Contains(t, buffer.String(), "7070")
 		assert.Contains(t, buffer.String(), "default")
 	})
+}
+
+type whyPointerTextValue struct {
+	text string
+}
+
+func (v *whyPointerTextValue) UnmarshalText(text []byte) error {
+	v.text = string(text)
+
+	return nil
+}
+
+func (v *whyPointerTextValue) MarshalText() ([]byte, error) {
+	return []byte(v.text), nil
+}
+
+type whyPointerTextCLI struct {
+	Value conga.OptionalFlag[whyPointerTextValue] `help:"Value" safe:"true"`
+}
+
+func TestBuiltinWhy_FeatureFlagRowReportsConfigOrigin(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	app := conga.New[whyMergeCLI]().
+		Name("whyapp").
+		EnableFeatures().
+		EnableWhy().
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+			document := &conga.ConfigDocument{}
+			document.Set("experiments", map[string]any{"alpha": true}, "pipeline.yaml")
+
+			return document, nil
+		})).
+		Stdout(&buffer).
+		Args([]string{"--why"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+
+	output := buffer.String()
+
+	var featureFlagLine string
+
+	for line := range strings.SplitSeq(output, "\n") {
+		if strings.Contains(line, "--feature-gates") {
+			featureFlagLine = line
+		}
+	}
+
+	assert.Contains(t, featureFlagLine, "config (pipeline.yaml)")
+}
+
+func TestBuiltinWhy_JSONPointerReceiverTextMarshaler(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	app := conga.New[whyPointerTextCLI]().
+		Name("whyapp").
+		EnableWhy(conga.WhyJSON()).
+		Stdout(&buffer).
+		Args([]string{"--value", "hello", "--why=json"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+
+	var payload struct {
+		Flags []struct {
+			Name  string `json:"name"`
+			Type  string `json:"type"`
+			Value any    `json:"value"`
+		} `json:"flags"`
+	}
+
+	err = stdjson.Unmarshal(buffer.Bytes(), &payload)
+
+	assert.NoError(t, err)
+
+	var found bool
+
+	for _, flag := range payload.Flags {
+		if flag.Name != "value" {
+			continue
+		}
+
+		found = true
+
+		assert.Equal(t, "string", flag.Type)
+		assert.Equal(t, "hello", flag.Value)
+	}
+
+	assert.True(t, found)
 }

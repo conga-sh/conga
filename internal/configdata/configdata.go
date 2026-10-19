@@ -4,6 +4,10 @@
 // documents, and package conga folds it into the tier cascade.
 package configdata
 
+// ScopeSeparator separates an origin from its optional scope in rendered
+// provenance.
+const ScopeSeparator = " › "
+
 // Value is a resolved configuration value and the origin that supplied it.
 type Value struct {
 	// Raw is the stringified value.
@@ -11,6 +15,16 @@ type Value struct {
 	// Origin is the configuration file path that supplied the value;
 	// programmatic loaders may supply other source labels.
 	Origin string
+	// Scope names the region within Origin that supplied the value, such as a
+	// section of a configuration file. It is empty when Origin is a whole
+	// source or none was supplied.
+	Scope string
+}
+
+// SourceDetail renders the origin with its optional scope for value
+// attribution.
+func (v Value) SourceDetail() string {
+	return JoinOriginScope(v.Origin, v.Scope)
 }
 
 // Data holds the validated configuration tier of one invocation: scalar values
@@ -32,7 +46,18 @@ func New() *Data {
 // SetScalar records a scalar value and its origin under key, overwriting any
 // value stored by an earlier file.
 func (data *Data) SetScalar(key, raw, origin string) {
-	data.scalars[key] = Value{Raw: raw, Origin: origin}
+	data.SetScalarScoped(key, raw, origin, "")
+}
+
+// SetScalarScoped records a scalar value, its origin, and an optional scope
+// within that origin under key, overwriting any value stored by an earlier
+// file. An empty origin records no scope.
+func (data *Data) SetScalarScoped(key, raw, origin, scope string) {
+	if origin == "" {
+		scope = ""
+	}
+
+	data.scalars[key] = Value{Raw: raw, Origin: origin, Scope: scope}
 }
 
 // EnsureMap returns the shared per-key map for the given alias keys of a map
@@ -86,4 +111,14 @@ func (data *Data) HasKey(key string) bool {
 	_, exists := data.maps[key]
 
 	return exists
+}
+
+// JoinOriginScope joins an origin with its optional scope for display. An
+// empty origin records no provenance detail and ignores the scope.
+func JoinOriginScope(origin, scope string) string {
+	if origin == "" || scope == "" {
+		return origin
+	}
+
+	return origin + ScopeSeparator + scope
 }

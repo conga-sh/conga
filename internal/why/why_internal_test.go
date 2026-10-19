@@ -16,7 +16,7 @@ func TestRenderFeatureRows_AlignedColumns(t *testing.T) {
 		{Name: "x", Value: "0", Source: "default"},
 	}
 
-	output := renderFeatureRows(rows)
+	output := renderFeatureRows(rows, newRenderContext(Report{}))
 
 	assert.Equal(t, "  FEATURE        VALUE   SOURCE\n"+
 		"  gentle-force   true    cli\n"+
@@ -145,24 +145,23 @@ func TestReport_Format_DisambiguatesCollidingBasenames(t *testing.T) {
 	assert.Contains(t, output, "config (/srv/dev/.../config.yaml)")
 }
 
-func TestReport_Format_PreservesOriginAnnotation(t *testing.T) {
+func TestReport_Format_PreservesOriginScopeAnnotation(t *testing.T) {
 	t.Parallel()
 
 	report := Report{
 		Rows: []Row{
-			{Label: "--port", Value: "9000", Source: "config", Detail: "/srv/app/config.yaml (profile dev)", Env: "-", ConfigPath: "port"},
-			{Label: "--host", Value: "localhost", Source: "config", Detail: "/srv/app/config.yaml (profile prod)", Env: "-", ConfigPath: "host"},
+			{Label: "--port", Value: "9000", Source: "config", Detail: "/srv/app/config.yaml", Scope: "profile dev", Env: "-", ConfigPath: "port"},
+			{Label: "--host", Value: "localhost", Source: "config", Detail: "/srv/app/config.yaml", Scope: "profile prod", Env: "-", ConfigPath: "host"},
 		},
 		ConfigPaths: []ConfigPath{
-			{Path: "/srv/app/config.yaml (profile dev)", Status: "loaded"},
-			{Path: "/srv/app/config.yaml (profile prod)", Status: "loaded"},
+			{Path: "/srv/app/config.yaml", Status: "loaded"},
 		},
 	}
 
 	output := report.Format()
 
-	assert.Contains(t, output, "config (config.yaml (profile dev))")
-	assert.Contains(t, output, "config (config.yaml (profile prod))")
+	assert.Contains(t, output, "config (config.yaml › profile dev)")
+	assert.Contains(t, output, "config (config.yaml › profile prod)")
 }
 
 func TestReport_Format_ConfigPathOmitsDuplicateLoadedPath(t *testing.T) {
@@ -391,4 +390,101 @@ func TestReport_FormatJSON_StructuredTypesAndRedaction(t *testing.T) {
 	expected := `{"$schema":"https://conga.sh/schemas/why/v1.json","schemaVersion":1,"command":"flowctl","version":"1.0.0","timestamp":"2026-10-18T00:00:00Z","workingDirectory":"/workspace/flow","redacted":true,"flags":[{"name":"file","type":"string[]","value":["/workspace/flow/pipeline.yaml","/workspace/flow/pipeline.local.yaml"],"source":"cli","env":"FLOWCTL_FILE"},{"name":"parallelism","type":"int","value":2,"source":"config","detail":"/workspace/flow/pipeline.local.yaml","env":"FLOWCTL_PARALLELISM","configPath":"parallelism"},{"name":"log-level","type":"string","value":"debug","source":"config","detail":"/workspace/flow/pipeline.local.yaml","env":"FLOWCTL_LOG_LEVEL","configPath":"log-level"},{"name":"env","type":"map","redacted":true,"source":"config","env":"FLOWCTL_ENV","configPath":"env","entries":[{"key":"DEPLOY_REGION","redacted":true,"value":null,"source":"config","detail":"/workspace/flow/pipeline.local.yaml"},{"key":"FLOW_ENV","value":"ci","source":"config","detail":"/workspace/flow/pipeline.local.yaml"}]}],"config":{"decoders":[],"paths":[{"path":"/workspace/flow/pipeline.yaml","status":"loaded"},{"path":"/workspace/flow/pipeline.local.yaml","status":"loaded"}]}}`
 
 	assert.Equal(t, expected, jsonOutput)
+}
+
+func TestReport_Format_ScopeDoesNotLeakIntoOriginShortening(t *testing.T) {
+	t.Parallel()
+
+	report := Report{
+		Rows: []Row{
+			{
+				Label:      "--port",
+				Value:      "9000",
+				Source:     "config",
+				Detail:     "/srv/prod/pipelines/pipeline.yaml",
+				Scope:      "jobs/deploy",
+				Env:        "-",
+				ConfigPath: "port",
+			},
+		},
+		ConfigPaths: []ConfigPath{
+			{Path: "/srv/prod/pipelines/pipeline.yaml", Status: "loaded"},
+		},
+	}
+
+	output := report.Format()
+
+	assert.Contains(t, output, "config (pipeline.yaml › jobs/deploy)")
+	assert.NotContains(t, output, "config (deploy)")
+}
+
+func TestReport_FormatJSON_JoinsOriginAndScopeInDetail(t *testing.T) {
+	t.Parallel()
+
+	report := Report{
+		CommandPath: "app",
+		Rows: []Row{
+			{
+				Name:       "port",
+				Label:      "--port",
+				Value:      "9000",
+				Source:     "config",
+				Detail:     "pipeline.yaml",
+				Scope:      "jobs/deploy",
+				Env:        "-",
+				ConfigPath: "port",
+			},
+			{
+				Name:       "headers",
+				Label:      "--headers",
+				Source:     "config",
+				Detail:     "pipeline.yaml",
+				Env:        "-",
+				ConfigPath: "headers",
+				Entries: []MapEntry{
+					{Key: "region", Value: "eu", Source: "config", Detail: "pipeline.yaml", Scope: "jobs/deploy"},
+				},
+			},
+		},
+		Features: []FeatureRow{
+			{Name: "alpha", Value: "true", Source: "config", Detail: "pipeline.yaml", Scope: "jobs/deploy"},
+		},
+	}
+
+	output := report.FormatJSON()
+
+	assert.Contains(t, output, `"detail":"pipeline.yaml › jobs/deploy"`)
+	assert.Equal(t, 3, strings.Count(output, `"detail":"pipeline.yaml › jobs/deploy"`))
+}
+
+type pointerReceiverText struct {
+	text string
+}
+
+func (v *pointerReceiverText) MarshalText() ([]byte, error) {
+	return []byte(v.text), nil
+}
+
+func TestReport_FormatJSON_PointerReceiverTextMarshaler(t *testing.T) {
+	t.Parallel()
+
+	report := Report{
+		CommandPath: "app",
+		Rows: []Row{
+			{
+				Name:       "value",
+				Label:      "--value",
+				Type:       "string",
+				RawValue:   pointerReceiverText{text: "hello"},
+				Source:     "cli",
+				Env:        "-",
+				ConfigPath: "value",
+			},
+		},
+	}
+
+	output := report.FormatJSON()
+
+	assert.Contains(t, output, `"value":"hello"`)
+	assert.NotContains(t, output, "{hello}")
 }

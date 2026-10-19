@@ -114,7 +114,7 @@ Validation is identical to a decoded file. Unknown keys fail with `ErrConfig` an
 conga: config file "profile prod": unknown field "hots" in command "server" (did you mean "host"?)
 ```
 
-A loader error fails the run and is classified under `ErrConfig` (exit code 1, app-authored data). An error type implementing `ConfigPath() string` is attributed to its candidate row in the tolerant `--why` report.
+A loader error fails the run and is classified under `ErrConfig` (exit code 1, app-authored data).
 
 ## Feature gates ride the document
 

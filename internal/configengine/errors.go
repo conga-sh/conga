@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/conga-sh/conga/internal/configdata"
 	"github.com/conga-sh/conga/internal/sentinel"
 )
 
@@ -14,18 +15,14 @@ type configError struct {
 	cause error
 }
 
-func newFieldConfigError(filePath, msgContext, causeContext string) *configError {
+func newFieldConfigError(origin, scope, msgContext, causeContext string) *configError {
+	path := configdata.JoinOriginScope(origin, scope)
+
 	return &configError{
-		path:  filePath,
-		msg:   fmt.Sprintf("config file %q: %s", filePath, msgContext),
+		path:  path,
+		msg:   fmt.Sprintf("config file %q: %s", path, msgContext),
 		cause: fmt.Errorf("%w: %s", sentinel.ErrConfigUnknownField, causeContext),
 	}
-}
-
-// ConfigPath returns the failing configuration file path, or "" when the
-// error carries none.
-func (e *configError) ConfigPath() string {
-	return e.path
 }
 
 func (e *configError) Error() string {

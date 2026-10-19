@@ -142,6 +142,7 @@ func TestMinimalHello_OptInInitializersEliminated(t *testing.T) {
 		"github.com/conga-sh/conga/internal/dotenv.init",
 		"github.com/conga-sh/conga/internal/configengine.init",
 		"github.com/conga-sh/conga/internal/style.init",
+		"github.com/conga-sh/conga/internal/why.init",
 		"github.com/conga-sh/conga/internal/filex.init",
 		"github.com/conga-sh/conga/predict.init",
 		"github.com/conga-sh/conga/internal/completion.init",

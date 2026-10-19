@@ -97,14 +97,6 @@ type loaderFeaturesCLI struct {
 	ForceAll conga.OptionalFlag[bool] `feature:"force-all"`
 }
 
-type loaderPathError struct {
-	path string
-}
-
-func (e *loaderPathError) Error() string { return "taskrc unreadable" }
-
-func (e *loaderPathError) ConfigPath() string { return e.path }
-
 // loaderNilDocument is a loader that returns no document: the configuration
 // tier stays inactive for the run.
 func loaderNilDocument(conga.ConfigContext) (*conga.ConfigDocument, error) {
@@ -637,7 +629,7 @@ func TestConfigLoader_WhyAttributesAppError(t *testing.T) {
 		Name("app").
 		EnableWhy().
 		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
-			return nil, &loaderPathError{path: "taskrc"}
+			return nil, errors.New("taskrc unreadable")
 		})).
 		Stdout(&stdoutBuffer).
 		Args([]string{"--why"})
@@ -1307,4 +1299,57 @@ func TestConfigLoader_GuardCombinedWithConfigFileField(t *testing.T) {
 	assert.Error(t, err)
 	assert.IsError(t, err, conga.ErrSchema)
 	assert.Equal(t, `schema error: the root command declares config-file flag "config-file", but conga.ConfigLoader() replaces file loading and never loads a file (remove the conga.ConfigFile field or the loader)`, err.Error())
+}
+
+func TestConfigDocument_SetKeyOnScalarFlagReportsNotAMap(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[loaderBasicCLI]().
+		Name("app").
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+			return loaderDocument(func(document *conga.ConfigDocument) {
+				document.SetKey("port", "http", 8080, "taskrc")
+			}), nil
+		})).
+		Args([]string{})
+
+	err := app.Run()
+
+	assert.Error(t, err)
+	assert.IsError(t, err, conga.ErrConfig)
+	assert.Equal(t, `config file "taskrc": field "port" in command "app" is not a map`, err.Error())
+}
+
+func TestConfigLoader_ScopedOriginWithSlashAndCollidingBasenames(t *testing.T) {
+	t.Parallel()
+
+	var stdoutBuffer bytes.Buffer
+
+	cli := new(loaderBasicCLI)
+	app := conga.New(cli).
+		Name("app").
+		EnableWhy().
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+			return loaderDocument(func(document *conga.ConfigDocument) {
+				document.SetScoped("host", "prod.example.com", "/srv/prod/pipelines/pipeline.yaml", "jobs/deploy")
+				document.SetScoped("port", 9200, "/srv/dev/pipelines/pipeline.yaml", "jobs/release")
+			}), nil
+		})).
+		Stdout(&stdoutBuffer).
+		Args([]string{"--why"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, "/srv/prod/pipelines/pipeline.yaml › jobs/deploy", cli.Host.SourceDetail())
+	assert.Equal(t, "/srv/dev/pipelines/pipeline.yaml › jobs/release", cli.Port.SourceDetail())
+
+	output := stdoutBuffer.String()
+
+	assert.Contains(t, output, "config (/srv/prod/.../pipeline.yaml › jobs/deploy)")
+	assert.Contains(t, output, "config (/srv/dev/.../pipeline.yaml › jobs/release)")
+	assert.NotContains(t, output, "config (deploy)")
+	assert.NotContains(t, output, "config (release)")
+	assert.Contains(t, output, "/srv/prod/pipelines/pipeline.yaml")
+	assert.Contains(t, output, "/srv/dev/pipelines/pipeline.yaml")
 }

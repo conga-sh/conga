@@ -292,7 +292,7 @@ func (r Resolver) loadAndValidateFile(path string, cmd *spec.Command, dest *conf
 		}
 	}
 
-	return validateCommandConfig("", rawMap, cmd, dest, cleanPath)
+	return validateCommandConfig(rawMap, cmd, dest, cleanPath)
 }
 
 // findConfigFiles resolves configuration files from explicit targets and the

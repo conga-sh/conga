@@ -17,6 +17,7 @@ type WhyOption interface {
 func WhyJSON() WhyOption {
 	return whyOptionFunc(func(s *whySettings) {
 		s.jsonFormatter = formatWhyJSON
+		s.rowType = whyFlagType
 	})
 }
 
@@ -26,4 +27,5 @@ func (f whyOptionFunc) applyWhy(s *whySettings) { f(s) }
 
 type whySettings struct {
 	jsonFormatter whyJSONFormatterFunc
+	rowType       whyRowTypeFunc
 }

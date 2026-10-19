@@ -1,6 +1,7 @@
 package conga
 
 import (
+	"cmp"
 	"encoding"
 	"fmt"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/conga-sh/conga/internal/casing"
+	"github.com/conga-sh/conga/internal/configdata"
 	"github.com/conga-sh/conga/internal/pathx"
 	"github.com/conga-sh/conga/internal/slicex"
 	"github.com/conga-sh/conga/internal/spec"
@@ -22,13 +24,18 @@ import (
 // It is installed on App only when WhyJSON() is passed to EnableWhy.
 type whyJSONFormatterFunc func(report *why.Report) string
 
+// whyRowTypeFunc classifies a flag's schema type for the JSON report. It is
+// installed on App only when WhyJSON() is passed to EnableWhy so text-only
+// reports keep the reflection machinery unreferenced.
+type whyRowTypeFunc func(flagSpec *spec.Flag) string
+
 type whyHooks struct {
 	render              func(session *Session, rawFormat string) error
-	renderString        func(session *Session, format string) string
 	bindSession         func(session *Session)
 	validateFormat      func(cmdChain []*spec.Command, rawFormat string) error
-	recordMapProvenance func(session *Session, flag *spec.Flag, sources map[string]ValueSource, origins map[string]string)
+	recordMapProvenance func(session *Session, flag *spec.Flag, sources map[string]ValueSource, origins map[string]configdata.Value)
 	jsonFormatter       whyJSONFormatterFunc
+	rowType             whyRowTypeFunc
 }
 
 // mapFlagProvenance is the per-key provenance of a merged map flag recorded
@@ -38,38 +45,13 @@ type whyHooks struct {
 // instantiation in the binary.
 type mapFlagProvenance struct {
 	sources map[string]ValueSource
-	origins map[string]string
-}
-
-func (s *Session) recordMapProvenance(flag *spec.Flag, sources map[string]ValueSource, origins map[string]string) {
-	if s == nil {
-		return
-	}
-
-	if s.mapProvenance == nil {
-		s.mapProvenance = make(map[*spec.Flag]mapFlagProvenance)
-	}
-
-	s.mapProvenance[flag] = mapFlagProvenance{sources: sources, origins: origins}
-}
-
-func (s *Session) lookupMapProvenance(flag *spec.Flag) (map[string]ValueSource, map[string]string) {
-	if s == nil {
-		return nil, nil
-	}
-
-	provenance := s.mapProvenance[flag]
-
-	return provenance.sources, provenance.origins
+	origins map[string]configdata.Value
 }
 
 func (a *App[T]) installWhyRenderer(settings whySettings) {
 	a.whyHooks = &whyHooks{
 		render: func(session *Session, rawFormat string) error {
 			return a.renderWhy(session, rawFormat)
-		},
-		renderString: func(session *Session, format string) string {
-			return a.renderWhyString(session, format)
 		},
 		bindSession: func(session *Session) {
 			a.bindWhySession(session)
@@ -79,6 +61,7 @@ func (a *App[T]) installWhyRenderer(settings whySettings) {
 		},
 		recordMapProvenance: (*Session).recordMapProvenance,
 		jsonFormatter:       settings.jsonFormatter,
+		rowType:             settings.rowType,
 	}
 }
 
@@ -149,6 +132,11 @@ func (a *App[T]) buildWhyReport(session *Session) why.Report {
 		globalRows []why.Row
 	)
 
+	var rowType whyRowTypeFunc
+	if a.whyHooks != nil {
+		rowType = a.whyHooks.rowType
+	}
+
 	for cmdIndex, cmd := range cmdChain {
 		isLeaf := cmd == leaf
 
@@ -163,7 +151,7 @@ func (a *App[T]) buildWhyReport(session *Session) why.Report {
 				continue
 			}
 
-			row := a.buildWhyFlagRow(session, cmd, cmdChain, cmdIndex, flagSpec)
+			row := buildWhyFlagRow(session, cmd, cmdChain, cmdIndex, flagSpec, a.configData, rowType)
 			if isLeaf {
 				rows = append(rows, row)
 			} else {
@@ -174,7 +162,7 @@ func (a *App[T]) buildWhyReport(session *Session) why.Report {
 
 	var features []why.FeatureRow
 	if root.FeatureFields != nil && root.FeatureFlag != nil {
-		features = a.buildWhyFeatureRows(root)
+		features = buildWhyFeatureRows(root)
 	}
 
 	var configDecoders []string
@@ -197,7 +185,7 @@ func (a *App[T]) buildWhyReport(session *Session) why.Report {
 		configExamples = resolver.ConfigExamples(session.candidateFiles, expandedTiers, configDecoders)
 	}
 
-	configPaths := a.buildWhyConfigPaths(session, configProbed)
+	configPaths := buildWhyConfigPaths(session, configProbed)
 
 	return why.Report{
 		CommandPath:    session.Path(),
@@ -212,24 +200,56 @@ func (a *App[T]) buildWhyReport(session *Session) why.Report {
 	}
 }
 
-func (a *App[T]) buildWhyFlagRow(session *Session, cmd *spec.Command, cmdChain []*spec.Command, cmdIndex int, flagSpec *spec.Flag) why.Row {
-	target := flagStateOf(flagSpec.Handle)
-	source := target.Source()
+func (a *App[T]) bindWhySession(session *Session) {
+	session.whyRenderer = a.renderWhyString
+}
 
-	detail := ""
-	if source == SourceConfig && !flagSpec.IsConfigFile && !flagSpec.IsMap {
-		detail = target.SourceDetail()
+func (s *Session) recordMapProvenance(flag *spec.Flag, sources map[string]ValueSource, origins map[string]configdata.Value) {
+	if s == nil {
+		return
 	}
 
+	if s.mapProvenance == nil {
+		s.mapProvenance = make(map[*spec.Flag]mapFlagProvenance)
+	}
+
+	s.mapProvenance[flag] = mapFlagProvenance{sources: sources, origins: origins}
+}
+
+func (s *Session) lookupMapProvenance(flag *spec.Flag) (map[string]ValueSource, map[string]configdata.Value) {
+	if s == nil {
+		return nil, nil
+	}
+
+	provenance := s.mapProvenance[flag]
+
+	return provenance.sources, provenance.origins
+}
+
+func buildWhyFlagRow(session *Session, cmd *spec.Command, cmdChain []*spec.Command, cmdIndex int, flagSpec *spec.Flag, configData *configdata.Data, rowType whyRowTypeFunc) why.Row {
+	target := flagStateOf(flagSpec.Handle)
+	source := target.Source()
+	includeJSON := rowType != nil
+
 	row := why.Row{
-		Name:       flagSpec.Name,
 		Label:      "--" + flagSpec.Name,
-		Type:       whyFlagType(flagSpec),
 		Hidden:     flagSpec.Hidden,
 		Env:        whyEnvColumn(flagSpec, cmd, session.envPrefix),
 		ConfigPath: whyConfigPath(flagSpec, cmdChain, cmdIndex),
 		Source:     whySourceWord(source),
-		Detail:     detail,
+	}
+
+	if includeJSON {
+		row.Name = flagSpec.Name
+		row.Type = rowType(flagSpec)
+	}
+
+	if source == SourceConfig && !flagSpec.IsConfigFile {
+		if flagSpec.IsMap {
+			row.Detail = whyMapConfigOrigin(featureStateOf(flagSpec.Handle), session, flagSpec)
+		} else {
+			row.Detail, row.Scope = whyConfigOrigin(flagSpec, cmd, cmdChain, configData)
+		}
 	}
 
 	if source == SourceNone {
@@ -237,7 +257,9 @@ func (a *App[T]) buildWhyFlagRow(session *Session, cmd *spec.Command, cmdChain [
 	}
 
 	value := target.getValue()
-	row.RawValue = value
+	if includeJSON {
+		row.RawValue = value
+	}
 
 	if flagSpec.IsConfigFile {
 		return buildWhyConfigFileRow(flagSpec, value, row)
@@ -246,7 +268,7 @@ func (a *App[T]) buildWhyFlagRow(session *Session, cmd *spec.Command, cmdChain [
 	if flagSpec.IsMap && flagSpec != cmd.FeatureFlag {
 		sources, origins := session.lookupMapProvenance(flagSpec)
 
-		return a.buildWhyMapRow(flagSpec, value, sources, origins, row)
+		return buildWhyMapRow(flagSpec, value, sources, origins, row, includeJSON)
 	}
 
 	if !flagSpec.Safe && source != SourceDefault {
@@ -257,15 +279,19 @@ func (a *App[T]) buildWhyFlagRow(session *Session, cmd *spec.Command, cmdChain [
 	}
 
 	if flagSpec.IsSlice {
-		return buildWhySliceRow(flagSpec, value, row)
+		row = buildWhySliceRow(flagSpec, value, row)
+	} else {
+		row.Value = whyDisplayValue(flagSpec, value)
 	}
 
-	row.Value = whyDisplayValue(flagSpec, value)
+	if includeJSON && row.Type == "string" {
+		row.RawValue = row.Value
+	}
 
 	return row
 }
 
-func (a *App[T]) buildWhyMapRow(flagSpec *spec.Flag, value any, sources map[string]ValueSource, origins map[string]string, row why.Row) why.Row {
+func buildWhyMapRow(flagSpec *spec.Flag, value any, sources map[string]ValueSource, origins map[string]configdata.Value, row why.Row, includeJSON bool) why.Row {
 	if value == nil {
 		return row
 	}
@@ -309,10 +335,14 @@ func (a *App[T]) buildWhyMapRow(flagSpec *spec.Flag, value any, sources map[stri
 		keySource := sources[key]
 
 		entry := why.MapEntry{
-			Key:      key,
-			Source:   whySourceWord(keySource),
-			Detail:   origins[key],
-			RawValue: rawEntryValue,
+			Key:    key,
+			Source: whySourceWord(keySource),
+			Detail: origins[key].Origin,
+			Scope:  origins[key].Scope,
+		}
+
+		if includeJSON {
+			entry.RawValue = rawEntryValue
 		}
 
 		if !flagSpec.Safe && keySource != SourceDefault {
@@ -330,7 +360,7 @@ func (a *App[T]) buildWhyMapRow(flagSpec *spec.Flag, value any, sources map[stri
 	return row
 }
 
-func (a *App[T]) buildWhyFeatureRows(root *spec.Command) []why.FeatureRow {
+func buildWhyFeatureRows(root *spec.Command) []why.FeatureRow {
 	target := featureStateOfCommand(root)
 	if target == nil {
 		return nil
@@ -352,14 +382,15 @@ func (a *App[T]) buildWhyFeatureRows(root *spec.Command) []why.FeatureRow {
 			Name:   feature.Name,
 			Value:  values[fieldName],
 			Source: whySourceWord(keySource),
-			Detail: origins[fieldName],
+			Detail: origins[fieldName].Origin,
+			Scope:  origins[fieldName].Scope,
 		})
 	}
 
 	return rows
 }
 
-func (a *App[T]) buildWhyConfigPaths(session *Session, configProbed map[string][]string) []why.ConfigPath {
+func buildWhyConfigPaths(session *Session, configProbed map[string][]string) []why.ConfigPath {
 	candidates := session.candidateFiles
 	if len(candidates) == 0 {
 		return nil
@@ -381,10 +412,6 @@ func (a *App[T]) buildWhyConfigPaths(session *Session, configProbed map[string][
 	}
 
 	return paths
-}
-
-func (a *App[T]) bindWhySession(session *Session) {
-	session.whyRenderer = a.renderWhyString
 }
 
 func buildWhySliceRow(flagSpec *spec.Flag, value any, row why.Row) why.Row {
@@ -516,6 +543,58 @@ func whyEnvColumn(flagSpec *spec.Flag, cmd *spec.Command, envPrefix string) stri
 	}
 
 	return prefix + casing.UpperSnake(flagSpec.Name)
+}
+
+// whyConfigOrigin recovers the pure origin and optional scope recorded for a
+// config-sourced scalar or slice flag. Container details keep the display-ready
+// joined form, so the structural pair comes from the resolved configuration
+// data instead.
+func whyConfigOrigin(flagSpec *spec.Flag, cmd *spec.Command, cmdChain []*spec.Command, data *configdata.Data) (string, string) {
+	value, key, ok := lookupConfigValue(flagSpec, cmd, cmdChain, data)
+	if !ok {
+		return "", ""
+	}
+
+	return cmp.Or(value.Origin, key), value.Scope
+}
+
+// whyMapConfigOrigin returns the single configuration origin contributing to a
+// merged map or feature row. Per-key sub-rows carry the individual origins when
+// several files contribute, so the parent row stays unannotated instead of
+// presenting a joined string the origin shortener would treat as one path.
+func whyMapConfigOrigin(featureTarget featureState, session *Session, flagSpec *spec.Flag) string {
+	if featureTarget != nil {
+		sources, origins := featureTarget.mapProvenance()
+
+		return singleConfigOrigin(sources, origins)
+	}
+
+	sources, origins := session.lookupMapProvenance(flagSpec)
+
+	return singleConfigOrigin(sources, origins)
+}
+
+func singleConfigOrigin(sources map[string]ValueSource, origins map[string]configdata.Value) string {
+	var origin string
+
+	for key, source := range sources {
+		if source != SourceConfig {
+			continue
+		}
+
+		entryOrigin := origins[key].Origin
+		if entryOrigin == "" {
+			continue
+		}
+
+		if origin != "" && origin != entryOrigin {
+			return ""
+		}
+
+		origin = entryOrigin
+	}
+
+	return origin
 }
 
 func whyConfigPath(flagSpec *spec.Flag, cmdChain []*spec.Command, cmdIndex int) string {

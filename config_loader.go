@@ -10,10 +10,6 @@ import (
 	"github.com/conga-sh/conga/internal/spec"
 )
 
-// originScopeSeparator joins a document origin and its scope in value
-// attribution. The Config paths table reports only the origin path.
-const originScopeSeparator = " › "
-
 // ConfigContext exposes the invocation facts CONGA knows when the
 // configuration loader runs: the selected command path, the raw command-line
 // values parsed before binding, and the run's environment view. The engine
@@ -207,21 +203,6 @@ type documentMapEntry struct {
 	scope  string
 }
 
-// documentOrigins carries the distinct origins recorded by a configuration
-// document: labels include the optional scope for value attribution, while
-// paths omit it for the Config paths table.
-type documentOrigins struct {
-	labels []string
-	paths  []string
-}
-
-func (o documentOrigins) unique() documentOrigins {
-	return documentOrigins{
-		labels: slicex.Unique(o.labels),
-		paths:  slicex.Unique(o.paths),
-	}
-}
-
 // loaderContext implements [ConfigContext] over the parsed invocation state.
 type loaderContext struct {
 	cmdChain   []*spec.Command
@@ -260,8 +241,7 @@ func (c loaderContext) LookupEnv(key string) (string, bool) {
 }
 
 // loaderError classifies a failure returned by the application's configuration
-// loader under [ErrConfig] while preserving the cause's configuration-path
-// attribution for the tolerant --why report.
+// loader under [ErrConfig].
 type loaderError struct {
 	cause error
 }
@@ -334,47 +314,38 @@ func (d *ConfigDocument) setKey(key, entryKey string, value any, origin, scope s
 
 // validate validates every entry against the command schema, populating dest
 // with the resolved values, and returns the distinct non-empty origins in
-// first-set order for provenance reporting. Display labels include the optional
-// scope; paths omit it so the Config paths table lists each file once. On a
-// validation failure the origins collected so far are returned alongside the
-// error so partial provenance survives.
-func (d *ConfigDocument) validate(cmd *spec.Command, dest *configdata.Data) (documentOrigins, error) {
-	var origins documentOrigins
+// first-set order for provenance reporting. Origins are reported without their
+// scopes, so the Config paths table lists each source once. On a validation
+// failure the origins collected so far are returned alongside the error so the
+// resolution can still name what it accepted.
+func (d *ConfigDocument) validate(cmd *spec.Command, dest *configdata.Data) ([]string, error) {
+	var origins []string
 
-	record := func(origin, scope string) string {
-		// The write's origin is collected before validation so a failing
-		// entry's source still appears in the tolerant --why candidate table.
+	record := func(origin string) {
 		if origin != "" {
-			origins.paths = append(origins.paths, origin)
+			origins = append(origins, origin)
 		}
-
-		label := originLabel(origin, scope)
-		if label != "" {
-			origins.labels = append(origins.labels, label)
-		}
-
-		return label
 	}
 
 	for _, entry := range d.entries {
 		if entry.baseSet {
-			label := record(entry.origin, entry.scope)
+			record(entry.origin)
 
-			if err := configengine.ValidateDocument(map[string]any{entry.key: entry.value}, cmd, dest, label); err != nil {
-				return origins.unique(), err
+			if err := configengine.ValidateDocument(map[string]any{entry.key: entry.value}, cmd, dest, entry.origin, entry.scope); err != nil {
+				return slicex.Unique(origins), err
 			}
 		}
 
 		for _, overlay := range entry.overlays {
-			label := record(overlay.origin, overlay.scope)
+			record(overlay.origin)
 
-			if err := configengine.ValidateDocument(map[string]any{entry.key: map[string]any{overlay.key: overlay.value}}, cmd, dest, label); err != nil {
-				return origins.unique(), err
+			if err := configengine.ValidateDocument(map[string]any{entry.key: map[string]any{overlay.key: overlay.value}}, cmd, dest, overlay.origin, overlay.scope); err != nil {
+				return slicex.Unique(origins), err
 			}
 		}
 	}
 
-	return origins.unique(), nil
+	return slicex.Unique(origins), nil
 }
 
 // loadDocumentConfigData runs the application's configuration loader and
@@ -382,16 +353,16 @@ func (d *ConfigDocument) validate(cmd *spec.Command, dest *configdata.Data) (doc
 // ConfigOptions declares a loader, so applications without one keep the
 // document validation pipeline unreferenced at link time. A nil document
 // (nil data) leaves the tier inactive; on a validation failure the partially
-// resolved data is returned so the tolerant --why report can still describe
-// the values that resolved.
-func (a *App[T]) loadDocumentConfigData(cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string) (*configdata.Data, documentOrigins, error) {
+// resolved data and the origins recorded so far are returned so the resolution
+// can report them.
+func (a *App[T]) loadDocumentConfigData(cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string) (*configdata.Data, []string, error) {
 	document, err := a.configLoader(loaderContext{cmdChain: cmdChain, flagValues: flagValues})
 	if err != nil {
-		return nil, documentOrigins{}, &loaderError{cause: err}
+		return nil, nil, &loaderError{cause: err}
 	}
 
 	if document == nil {
-		return nil, documentOrigins{}, nil
+		return nil, nil, nil
 	}
 
 	data := configdata.New()
@@ -406,9 +377,8 @@ func (a *App[T]) loadDocumentConfigData(cmd *spec.Command, cmdChain []*spec.Comm
 
 // resolveLoaderConfig resolves the run's programmatic configuration document
 // exactly once, memoizing the outcome like the file resolver does. Loaded
-// paths and candidates report the distinct origins without their scopes, while
-// configOrigins keeps the scoped labels for value attribution and map-origin
-// ordering.
+// paths and candidates report the distinct origins without their scopes; the
+// per-value scopes stay on the stored configuration values.
 func (a *App[T]) resolveLoaderConfig(cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string) *configResolution {
 	a.configData = configdata.New()
 
@@ -418,7 +388,7 @@ func (a *App[T]) resolveLoaderConfig(cmd *spec.Command, cmdChain []*spec.Command
 	}
 
 	if err != nil {
-		return &configResolution{err: err, candidates: origins.paths}
+		return &configResolution{err: err, candidates: origins}
 	}
 
 	if data == nil {
@@ -426,20 +396,10 @@ func (a *App[T]) resolveLoaderConfig(cmd *spec.Command, cmdChain []*spec.Command
 	}
 
 	return &configResolution{
-		loadedPaths:   origins.paths,
-		configOrigins: origins.labels,
-		loadedSource:  SourceConfig,
-		candidates:    origins.paths,
+		loadedPaths:  origins,
+		loadedSource: SourceConfig,
+		candidates:   origins,
 	}
-}
-
-// originLabel renders an origin with its optional scope for value attribution.
-func originLabel(origin, scope string) string {
-	if origin == "" || scope == "" {
-		return origin
-	}
-
-	return origin + originScopeSeparator + scope
 }
 
 // extractConfigLoaderFunc returns the loader declared by the last

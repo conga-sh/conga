@@ -33,12 +33,12 @@ func TestValidateCommandConfig_ExcludedFlagByAlias(t *testing.T) {
 	}
 
 	dest := configdata.New()
-	err := validateCommandConfig("", map[string]any{"auth-token": "secret"}, cmd, dest, "config.yaml")
+	err := validateCommandConfig(map[string]any{"auth-token": "secret"}, cmd, dest, "config.yaml")
 	assert.Error(t, err)
 	assert.IsError(t, err, sentinel.ErrConfigUnknownField)
 	assert.Contains(t, err.Error(), `field "auth-token" is excluded from config files in command "app"`)
 
-	errPrimary := validateCommandConfig("", map[string]any{"token": "secret"}, cmd, dest, "config.yaml")
+	errPrimary := validateCommandConfig(map[string]any{"token": "secret"}, cmd, dest, "config.yaml")
 	assert.Error(t, errPrimary)
 	assert.IsError(t, errPrimary, sentinel.ErrConfigUnknownField)
 	assert.Contains(t, errPrimary.Error(), `field "token" is excluded from config files in command "app"`)
@@ -53,7 +53,7 @@ func TestValidateCommandConfig_UnknownSection(t *testing.T) {
 	}
 
 	dest := configdata.New()
-	err := validateCommandConfig("", map[string]any{"cache": map[string]any{"ttl": "30"}}, cmd, dest, "config.yaml")
+	err := validateCommandConfig(map[string]any{"cache": map[string]any{"ttl": "30"}}, cmd, dest, "config.yaml")
 
 	assert.Error(t, err)
 	assert.IsError(t, err, sentinel.ErrConfigUnknownField)
@@ -69,7 +69,7 @@ func TestValidateCommandConfig_UnknownFieldInNamespace(t *testing.T) {
 	}
 
 	dest := configdata.New()
-	err := validateCommandConfig("", map[string]any{"cache": map[string]any{"port": "80"}}, cmd, dest, "config.yaml")
+	err := validateCommandConfig(map[string]any{"cache": map[string]any{"port": "80"}}, cmd, dest, "config.yaml")
 
 	assert.Error(t, err)
 	assert.IsError(t, err, sentinel.ErrConfigUnknownField)
@@ -86,10 +86,10 @@ func TestValidateCommandConfig_MapMergesAcrossFiles(t *testing.T) {
 
 	dest := configdata.New()
 
-	err := validateCommandConfig("", map[string]any{"tags": map[string]any{"shared": "sys", "a": "1"}}, cmd, dest, "sys.toml")
+	err := validateCommandConfig(map[string]any{"tags": map[string]any{"shared": "sys", "a": "1"}}, cmd, dest, "sys.toml")
 	assert.NoError(t, err)
 
-	err = validateCommandConfig("", map[string]any{"tags": map[string]any{"shared": "local", "b": "2"}}, cmd, dest, "local.toml")
+	err = validateCommandConfig(map[string]any{"tags": map[string]any{"shared": "local", "b": "2"}}, cmd, dest, "local.toml")
 	assert.NoError(t, err)
 
 	entries := dest.Map("tags")
@@ -113,13 +113,13 @@ func TestValidateCommandConfig_MapSharedAcrossAllAliasKeys(t *testing.T) {
 
 	dest := configdata.New()
 
-	err := validateCommandConfig("", map[string]any{
+	err := validateCommandConfig(map[string]any{
 		"pairs": map[string]any{"shared": "low", "onlyLow": "1"},
 		"tags":  map[string]any{"b": "2"},
 	}, cmd, dest, "low.toml")
 	assert.NoError(t, err)
 
-	err = validateCommandConfig("", map[string]any{
+	err = validateCommandConfig(map[string]any{
 		"remote": map[string]any{
 			"pairs": map[string]any{"shared": "high", "onlyHigh": "2"},
 		},
@@ -151,7 +151,7 @@ func TestValidateCommandConfig_FlatStringFormStoresEntries(t *testing.T) {
 
 	dest := configdata.New()
 
-	err := validateCommandConfig("", map[string]any{"tags": "a=1,b=2"}, cmd, dest, "app.toml")
+	err := validateCommandConfig(map[string]any{"tags": "a=1,b=2"}, cmd, dest, "app.toml")
 	assert.NoError(t, err)
 
 	entries := dest.Map("tags")
@@ -171,7 +171,7 @@ func TestValidateCommandConfig_ListFormStoresEntries(t *testing.T) {
 
 	dest := configdata.New()
 
-	err := validateCommandConfig("", map[string]any{"tags": []any{"a=1", "b=2"}}, cmd, dest, "app.toml")
+	err := validateCommandConfig(map[string]any{"tags": []any{"a=1", "b=2"}}, cmd, dest, "app.toml")
 	assert.NoError(t, err)
 
 	entries := dest.Map("tags")
@@ -191,7 +191,7 @@ func TestValidateCommandConfig_EmptyMapSectionStoresEmptyMap(t *testing.T) {
 
 	dest := configdata.New()
 
-	err := validateCommandConfig("", map[string]any{"tags": map[string]any{}}, cmd, dest, "app.toml")
+	err := validateCommandConfig(map[string]any{"tags": map[string]any{}}, cmd, dest, "app.toml")
 	assert.NoError(t, err)
 
 	entries := dest.Map("tags")
@@ -213,7 +213,7 @@ func TestValidateNamespaceConfig_MapFlagAtDottedConfigKey(t *testing.T) {
 
 	dest := configdata.New()
 
-	err := validateCommandConfig("", map[string]any{
+	err := validateCommandConfig(map[string]any{
 		"remote": map[string]any{
 			"insecure": true,
 			"pairs":    map[string]any{"a": "1"},
@@ -243,7 +243,7 @@ func TestValidateNamespaceConfig_NonMapFlagWithNestedValueStillErrors(t *testing
 
 	dest := configdata.New()
 
-	err := validateCommandConfig("", map[string]any{
+	err := validateCommandConfig(map[string]any{
 		"remote": map[string]any{
 			"tags": map[string]any{"a": "1"},
 		},
@@ -269,7 +269,7 @@ func TestValidateCommandConfig_SubcommandNamespaceErrorLabel(t *testing.T) {
 
 	dest := configdata.New()
 
-	err := validateCommandConfig("", map[string]any{
+	err := validateCommandConfig(map[string]any{
 		"deploy": map[string]any{
 			"cache": map[string]any{"bogus": "1"},
 		},
@@ -290,7 +290,7 @@ func TestValidateCommandConfig_ExcludedMapSectionRejected(t *testing.T) {
 
 	dest := configdata.New()
 
-	err := validateCommandConfig("", map[string]any{"tags": map[string]any{"a": "1"}}, cmd, dest, "app.toml")
+	err := validateCommandConfig(map[string]any{"tags": map[string]any{"a": "1"}}, cmd, dest, "app.toml")
 
 	assert.Error(t, err)
 	assert.IsError(t, err, sentinel.ErrConfigUnknownField)
@@ -308,7 +308,7 @@ func TestValidateCommandConfig_ArrayFormSplitsPerElement(t *testing.T) {
 
 	dest := configdata.New()
 
-	err := validateCommandConfig("", map[string]any{"tags": []any{"a=1", "b=2"}}, cmd, dest, "app.toml")
+	err := validateCommandConfig(map[string]any{"tags": []any{"a=1", "b=2"}}, cmd, dest, "app.toml")
 
 	assert.NoError(t, err)
 
@@ -328,7 +328,7 @@ func TestValidateDocument_ScalarStoresOrigin(t *testing.T) {
 	}
 
 	dest := configdata.New()
-	err := ValidateDocument(map[string]any{"host": "doc.example.com"}, cmd, dest, "embedded defaults")
+	err := ValidateDocument(map[string]any{"host": "doc.example.com"}, cmd, dest, "embedded defaults", "")
 
 	assert.NoError(t, err)
 
@@ -347,7 +347,7 @@ func TestValidateDocument_StringMapSectionStoresOrigin(t *testing.T) {
 	}
 
 	dest := configdata.New()
-	err := ValidateDocument(map[string]any{"headers": map[string]string{"Region": "eu"}}, cmd, dest, "taskrc")
+	err := ValidateDocument(map[string]any{"headers": map[string]string{"Region": "eu"}}, cmd, dest, "taskrc", "")
 
 	assert.NoError(t, err)
 
@@ -366,10 +366,70 @@ func TestValidateDocument_UnknownKeyAttributesOrigin(t *testing.T) {
 	}
 
 	dest := configdata.New()
-	err := ValidateDocument(map[string]any{"hots": "x"}, cmd, dest, "taskrc")
+	err := ValidateDocument(map[string]any{"hots": "x"}, cmd, dest, "taskrc", "")
 
 	assert.Error(t, err)
 	assert.IsError(t, err, sentinel.ErrConfigUnknownField)
 	assert.Contains(t, err.Error(), `config file "taskrc"`)
 	assert.Contains(t, err.Error(), `unknown field "hots" in command "app"`)
+}
+
+func TestValidateDocument_StoresOriginAndScope(t *testing.T) {
+	t.Parallel()
+
+	cmd := &spec.Command{
+		Name:  "app",
+		Flags: []*spec.Flag{{Name: "host"}, {Name: "headers", IsMap: true}},
+	}
+
+	dest := configdata.New()
+	err := ValidateDocument(map[string]any{
+		"host":    "doc.example.com",
+		"headers": map[string]any{"Region": "eu"},
+	}, cmd, dest, "pipeline.yaml", "jobs/deploy")
+
+	assert.NoError(t, err)
+
+	scalar, exists := dest.ScalarValue("host")
+
+	assert.True(t, exists)
+	assert.Equal(t, configdata.Value{Raw: "doc.example.com", Origin: "pipeline.yaml", Scope: "jobs/deploy"}, scalar)
+	assert.Equal(t, "pipeline.yaml › jobs/deploy", scalar.SourceDetail())
+	assert.Equal(t, configdata.Value{Raw: "eu", Origin: "pipeline.yaml", Scope: "jobs/deploy"}, dest.Map("headers")["Region"])
+}
+
+func TestValidateDocument_EmptyOriginIgnoresScope(t *testing.T) {
+	t.Parallel()
+
+	cmd := &spec.Command{
+		Name:  "app",
+		Flags: []*spec.Flag{{Name: "host"}},
+	}
+
+	dest := configdata.New()
+	err := ValidateDocument(map[string]any{"host": "localhost"}, cmd, dest, "", "jobs/deploy")
+
+	assert.NoError(t, err)
+
+	value, exists := dest.ScalarValue("host")
+
+	assert.True(t, exists)
+	assert.Equal(t, configdata.Value{Raw: "localhost"}, value)
+}
+
+func TestHandleNestedSection_ScalarFlagReportsNotAMap(t *testing.T) {
+	t.Parallel()
+
+	cmd := &spec.Command{
+		Name:  "app",
+		Flags: []*spec.Flag{{Name: "port"}},
+	}
+
+	dest := configdata.New()
+	err := validateCommandConfig(map[string]any{"port": map[string]any{"http": 8080}}, cmd, dest, "taskrc")
+
+	assert.Error(t, err)
+	assert.IsError(t, err, sentinel.ErrConfig)
+	assert.Equal(t, `config file "taskrc": field "port" in command "app" is not a map`, err.Error())
+	assert.NotContains(t, err.Error(), "did you mean")
 }

@@ -80,13 +80,4 @@ func TestConfigError_Classification(t *testing.T) {
 	err := &configError{path: "app.json", cause: errors.New("read failed")}
 
 	assert.IsError(t, err, sentinel.ErrConfig)
-	assert.Equal(t, "app.json", err.ConfigPath())
-}
-
-func TestConfigError_ConfigPathEmptyWhenUnset(t *testing.T) {
-	t.Parallel()
-
-	err := &configError{}
-
-	assert.Equal(t, "", err.ConfigPath())
 }
