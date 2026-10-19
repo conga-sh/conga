@@ -43,6 +43,7 @@ type commandState interface {
 	IsSelected() bool
 	innerValue() any
 	markSelected()
+	setSelected(selected bool)
 }
 
 // argsState is the engine's state view of a trailing-arguments collector.

@@ -19,6 +19,8 @@ func (c *LoaderWithPaths) Run(ctx context.Context, session *conga.Session) error
 	return nil
 }
 
-func loadConfig(ctx conga.ConfigContext) (*conga.ConfigDocument, error) { return nil, nil }
+func loadConfig(ctx conga.ConfigContext, _ *LoaderWithPaths) (*conga.ConfigDocument, error) {
+	return nil, nil
+}
 
 var _ = conga.New[LoaderWithPaths]().ConfigOptions(conga.ConfigLoader(loadConfig), conga.ConfigPaths("search.json")) // want `conga\.ConfigLoader\(\) supplies the configuration document programmatically and cannot be combined with conga\.ConfigPaths\(\), conga\.ConfigExplicit\(\), or conga\.ConfigCascading\(\)`

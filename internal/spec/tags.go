@@ -510,6 +510,11 @@ func parseFlagSpec(structField reflect.StructField, flagHandle any, classificati
 		return nil, err
 	}
 
+	bootstrap, err := parseBootstrapField(structField.Tag, kindInfo.targetType, feature, opts)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Flag{
 		Name:        name,
 		Short:       shortRune,
@@ -535,6 +540,7 @@ func parseFlagSpec(structField reflect.StructField, flagHandle any, classificati
 		Safe:           safe,
 		Deprecated:     structField.Tag.Get("deprecated"),
 		Feature:        feature,
+		Bootstrap:      bootstrap,
 		Sep:            kindInfo.sep,
 		IsBool:         kindInfo.isBool,
 		IsSlice:        kindInfo.isSlice,
@@ -546,6 +552,83 @@ func parseFlagSpec(structField reflect.StructField, flagHandle any, classificati
 		TargetType:     kindInfo.targetType,
 		Handle:         flagHandle,
 	}, nil
+}
+
+// parseBootstrapField validates and reports the bootstrap tag for a flag or
+// positional argument. Bootstrap fields must have a pure scalar shape and may
+// only be declared on loader applications; feature-gated bootstrap inputs are
+// rejected because the loader runs before feature gates resolve.
+func parseBootstrapField(tag reflect.StructTag, targetType reflect.Type, feature string, opts *Options) (bool, error) {
+	bootstrap, err := parseBootstrapTag(tag, feature, opts)
+	if err != nil || !bootstrap {
+		return bootstrap, err
+	}
+
+	if !isBootstrapType(targetType) {
+		return false, BootstrapFieldTypeError()
+	}
+
+	return true, nil
+}
+
+// parseBootstrapTag validates the bootstrap tag's loader requirement and
+// feature exclusion without checking the field's value shape.
+func parseBootstrapTag(tag reflect.StructTag, feature string, opts *Options) (bool, error) {
+	if !parsePresenceOrTrueTag(tag, "bootstrap") {
+		return false, nil
+	}
+
+	if opts == nil || !opts.ConfigSettings.Loader {
+		return false, BootstrapRequiresLoaderError()
+	}
+
+	if feature != "" {
+		return false, BootstrapFeatureConflictError()
+	}
+
+	return true, nil
+}
+
+// isBootstrapType reports whether targetType is a scalar kind or a slice/map
+// whose keys and elements are recursively scalar. Structs such as File and
+// FileContent are rejected so the bootstrap phase cannot perform I/O that the
+// normal binding pass would repeat.
+func isBootstrapType(targetType reflect.Type) bool {
+	return isBootstrapTypeVisiting(targetType, make(map[reflect.Type]bool))
+}
+
+// isBootstrapTypeVisiting walks container types while tracking the types on
+// the current recursion path, rejecting self-referential slice and map shapes
+// instead of recursing until the stack overflows.
+func isBootstrapTypeVisiting(targetType reflect.Type, visiting map[reflect.Type]bool) bool {
+	if targetType == nil {
+		return false
+	}
+
+	switch targetType.Kind() {
+	case reflect.Bool, reflect.String,
+		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+		reflect.Float32, reflect.Float64:
+		return true
+	case reflect.Slice, reflect.Map:
+	default:
+		return false
+	}
+
+	if visiting[targetType] {
+		return false
+	}
+
+	visiting[targetType] = true
+	defer delete(visiting, targetType)
+
+	if targetType.Kind() == reflect.Slice {
+		return isBootstrapTypeVisiting(targetType.Elem(), visiting)
+	}
+
+	return isBootstrapTypeVisiting(targetType.Key(), visiting) &&
+		isBootstrapTypeVisiting(targetType.Elem(), visiting)
 }
 
 func parseTagFeature(tag reflect.StructTag, required bool, opts *Options) (string, error) {
@@ -891,6 +974,11 @@ func parseArgSpec(structField reflect.StructField, argHandle any, classification
 		return nil, err
 	}
 
+	bootstrap, err := parseBootstrapField(structField.Tag, innerType, "", opts)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Arg{
 		Name:     name,
 		Default:  structField.Tag.Get("default"),
@@ -906,6 +994,7 @@ func parseArgSpec(structField reflect.StructField, argHandle any, classification
 		Sep:            sep,
 		IsSlice:        isSlice,
 		IsMap:          isMap,
+		Bootstrap:      bootstrap,
 		Required:       classification.Required,
 		Predictor:      predSpec,
 		TargetType:     innerType,

@@ -1169,3 +1169,222 @@ type customDatasetPathType string
 func (d *customDatasetPathType) MatchPath(path string, entry os.DirEntry) bool {
 	return strings.HasSuffix(entry.Name(), ".csv") || (entry.IsDir() && entry.Name() == "dataset")
 }
+
+type analysisCLI struct {
+	A       mockFlag[bool]   `name:"alpha"   short:"a"`
+	Dir     mockFlag[string] `name:"dir"     short:"d"`
+	Verbose mockCounter      `name:"verbose" short:"v"`
+	Control mockFlag[string] `name:"control"`
+	Trail   mockDashArgs     `name:"trail"`
+
+	Deploy mockCmd[analysisDeployCLI] `summary:"Deploy"`
+}
+
+type analysisDeployCLI struct {
+	Env mockFlag[string] `name:"env"`
+}
+
+type analysisRawCLI struct {
+	First mockArg[string]
+	Raw   mockRawArgs
+}
+
+type analysisOverflowCLI struct {
+	Verbose mockFlag[bool] `name:"verbose"`
+	Raw     mockRawArgs
+}
+
+type analysisLeafRawCLI struct {
+	Deploy mockCmd[analysisLeafRawDeployCLI]
+}
+
+type analysisLeafRawDeployCLI struct {
+	Raw mockRawArgs
+}
+
+func analysisFlagValues(t *testing.T, values map[*spec.Flag][]string, name string) []string {
+	t.Helper()
+
+	for flag, flagValues := range values {
+		if flag.Name == name {
+			return flagValues
+		}
+	}
+
+	return nil
+}
+
+func TestAnalyzeCompletion(t *testing.T) {
+	t.Parallel()
+
+	t.Run("short cluster attached value", func(t *testing.T) {
+		t.Parallel()
+
+		var cli analysisCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+		assert.NoError(t, err)
+
+		analysis := spec.AnalyzeCompletion(cmdSpec, []string{"-vd./service", "deploy", ""})
+
+		assert.Equal(t, []string{"1"}, analysisFlagValues(t, analysis.FlagValues, "verbose"))
+		assert.Equal(t, []string{"./service"}, analysisFlagValues(t, analysis.FlagValues, "dir"))
+		assert.Equal(t, "deploy", analysis.CommandChain[len(analysis.CommandChain)-1].Name)
+		assert.Equal(t, 0, len(analysis.PositionalArgs))
+	})
+
+	t.Run("bool does not consume positional", func(t *testing.T) {
+		t.Parallel()
+
+		var cli analysisCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+		assert.NoError(t, err)
+
+		analysis := spec.AnalyzeCompletion(cmdSpec, []string{"-a", "deploy", "--env", "dev", ""})
+
+		assert.Equal(t, []string{"true"}, analysisFlagValues(t, analysis.FlagValues, "alpha"))
+		assert.Equal(t, []string{"dev"}, analysisFlagValues(t, analysis.FlagValues, "env"))
+		assert.Equal(t, "deploy", analysis.CommandChain[len(analysis.CommandChain)-1].Name)
+	})
+
+	t.Run("unknown flag is ignored", func(t *testing.T) {
+		t.Parallel()
+
+		var cli analysisCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+		assert.NoError(t, err)
+
+		analysis := spec.AnalyzeCompletion(cmdSpec, []string{"--no-aliases", "deploy", ""})
+
+		assert.Equal(t, "deploy", analysis.CommandChain[len(analysis.CommandChain)-1].Name)
+		assert.Equal(t, 0, len(analysis.FlagValues))
+	})
+
+	t.Run("terminator separates dash args", func(t *testing.T) {
+		t.Parallel()
+
+		var cli analysisCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+		assert.NoError(t, err)
+
+		analysis := spec.AnalyzeCompletion(cmdSpec, []string{"--dir", "/tmp", "build", "--", "one", "two", ""})
+
+		assert.Equal(t, []string{"build"}, analysis.PositionalArgs)
+		assert.Equal(t, []string{"one", "two"}, analysis.DashArgs)
+		assert.Equal(t, []string{"/tmp"}, analysisFlagValues(t, analysis.FlagValues, "dir"))
+	})
+
+	t.Run("raw args absorb positional overflow", func(t *testing.T) {
+		t.Parallel()
+
+		var cli analysisOverflowCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+		assert.NoError(t, err)
+
+		analysis := spec.AnalyzeCompletion(cmdSpec, []string{"run", "extra", ""})
+
+		assert.Equal(t, 0, len(analysis.PositionalArgs))
+		assert.Equal(t, []string{"run", "extra"}, analysis.RawArgs)
+	})
+
+	t.Run("raw fallback captures later flags", func(t *testing.T) {
+		t.Parallel()
+
+		var cli analysisOverflowCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+		assert.NoError(t, err)
+
+		analysis := spec.AnalyzeCompletion(cmdSpec, []string{"run", "--verbose", ""})
+
+		assert.Equal(t, []string{"run", "--verbose"}, analysis.RawArgs)
+	})
+
+	t.Run("declared arguments fill before raw overflow", func(t *testing.T) {
+		t.Parallel()
+
+		var cli analysisRawCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+		assert.NoError(t, err)
+
+		analysis := spec.AnalyzeCompletion(cmdSpec, []string{"one", "two", "three", ""})
+
+		assert.Equal(t, []string{"one"}, analysis.PositionalArgs)
+		assert.Equal(t, []string{"two", "three"}, analysis.RawArgs)
+	})
+
+	t.Run("terminator fills declared arguments before raw overflow", func(t *testing.T) {
+		t.Parallel()
+
+		var cli analysisRawCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+		assert.NoError(t, err)
+
+		analysis := spec.AnalyzeCompletion(cmdSpec, []string{"--", "one", "two", "three", ""})
+
+		assert.Equal(t, []string{"one"}, analysis.PositionalArgs)
+		assert.Equal(t, []string{"two", "three"}, analysis.RawArgs)
+	})
+
+	t.Run("negative number binds as positional value", func(t *testing.T) {
+		t.Parallel()
+
+		var cli analysisRawCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+		assert.NoError(t, err)
+
+		analysis := spec.AnalyzeCompletion(cmdSpec, []string{"-10", ""})
+
+		assert.Equal(t, []string{"-10"}, analysis.PositionalArgs)
+		assert.Equal(t, 0, len(analysis.RawArgs))
+	})
+
+	t.Run("negative number overflows to raw args", func(t *testing.T) {
+		t.Parallel()
+
+		var cli analysisOverflowCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+		assert.NoError(t, err)
+
+		analysis := spec.AnalyzeCompletion(cmdSpec, []string{"-10", ""})
+
+		assert.Equal(t, 0, len(analysis.PositionalArgs))
+		assert.Equal(t, []string{"-10"}, analysis.RawArgs)
+	})
+
+	t.Run("unknown shorthand overflows to raw args", func(t *testing.T) {
+		t.Parallel()
+
+		var cli analysisOverflowCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+		assert.NoError(t, err)
+
+		analysis := spec.AnalyzeCompletion(cmdSpec, []string{"-x", ""})
+
+		assert.Equal(t, []string{"-x"}, analysis.RawArgs)
+	})
+
+	t.Run("raw fallback uses routed leaf", func(t *testing.T) {
+		t.Parallel()
+
+		var cli analysisLeafRawCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+		assert.NoError(t, err)
+
+		analysis := spec.AnalyzeCompletion(cmdSpec, []string{"--unknown-flag", "deploy", ""})
+
+		assert.Equal(t, "deploy", analysis.CommandChain[len(analysis.CommandChain)-1].Name)
+		assert.Equal(t, []string{"--unknown-flag"}, analysis.RawArgs)
+		assert.Equal(t, 0, len(analysis.PositionalArgs))
+	})
+}

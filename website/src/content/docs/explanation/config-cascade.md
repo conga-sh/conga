@@ -17,7 +17,7 @@ Because a cascade can load more than one file, a declared root config-file flag 
 
 ## Programmatic documents
 
-`conga.ConfigLoader(...)` replaces file resolution altogether: the application returns the run's configuration document from code, and CONGA validates it through the same pipeline. Loaded values keep the config tier rank, map flags merge key by key, and each entry's origin — the free-form label the application recorded with `Set` — attributes the value in `--why`, exactly as a contributing file path does for files.
+`conga.ConfigLoader(...)` replaces file resolution altogether: the application receives the typed root with `bootstrap:"true"` fields bound, returns the run's configuration document from code, and CONGA validates it through the same pipeline. Loaded values keep the config tier rank, map flags merge key by key, and each entry's origin — the free-form label the application recorded with `Set` — attributes the value in `--why`, exactly as a contributing file path does for files.
 
 The boundary is deliberate: with a loader there is no probing, no decoder registry, no file-size limit, and no stem matching, because the application owns the I/O. A loader application must not also declare file-based configuration — `conga.ConfigPaths`, `conga.ConfigExplicit`, `conga.ConfigCascading`, `app.RegisterDecoder`, or a root `ConfigFile` field — and schema build rejects the combination with `ErrSchema`, mirrored by `conga-lint`. Loader failures classify under `ErrConfig` (exit 1, app-authored data). See [How to supply configuration from code](/how-to/supply-config-from-code/) and the runnable [30 — Programmatic config loader](https://github.com/conga-sh/conga/tree/main/_examples/30-config-loader) example.
 

@@ -1190,6 +1190,12 @@ func (c *Command[T]) markSelected() {
 	c.selected = true
 }
 
+// setSelected restores the command selection after an observation-only
+// completion invocation.
+func (c *Command[T]) setSelected(selected bool) {
+	c.selected = selected
+}
+
 // containerKind classifies the subcommand container for the engine, carrying
 // the inner command struct pointer so the schema builder can reflect over it.
 func (c *Command[T]) containerKind() container.Classification {

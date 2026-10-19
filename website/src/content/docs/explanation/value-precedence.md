@@ -42,7 +42,7 @@ Phase 2: Flag Value Binding                                            v
 
 Before binding individual flags, CONGA determines which config files exist and loads them into a flat key-value map. Discovery follows its own precedence (`--config-file`, then `<PREFIX>_CONFIG`, then `conga.ConfigExplicit(...)`, then probed search tiers), with per-tier existence semantics and merge rules described in [About the config cascade](/explanation/config-cascade/). Once discovered files load and validate against the schema, their keys form the lookup table for Phase 2.
 
-An application can replace this whole phase with [`conga.ConfigLoader`](/how-to/supply-config-from-code/): the loader produces the configuration document in code — after tokenization, before binding — and CONGA validates it through the same pipeline. File discovery, decoders, and search tiers are inactive while a loader is declared.
+An application can replace this whole phase with [`conga.ConfigLoader`](/how-to/supply-config-from-code/): the loader produces the configuration document in code — after tokenization and bootstrap-field binding, before configuration resolution and full binding — and CONGA validates it through the same pipeline. File discovery, decoders, and search tiers are inactive while a loader is declared.
 
 ### Phase 2: Flag value binding
 

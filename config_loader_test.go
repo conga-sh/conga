@@ -99,7 +99,7 @@ type loaderFeaturesCLI struct {
 
 // loaderNilDocument is a loader that returns no document: the configuration
 // tier stays inactive for the run.
-func loaderNilDocument(conga.ConfigContext) (*conga.ConfigDocument, error) {
+func loaderNilDocument[T any](conga.ConfigContext, *T) (*conga.ConfigDocument, error) {
 	return nil, nil //nolint:nilnil // the nil document contract: returning no document keeps the tier inactive
 }
 
@@ -117,7 +117,7 @@ func TestConfigLoader_DocumentOverridesDefault(t *testing.T) {
 
 	cli := new(loaderBasicCLI)
 	app := conga.New(cli).
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderBasicCLI) (*conga.ConfigDocument, error) {
 			return loaderDocument(func(document *conga.ConfigDocument) {
 				document.Set("host", "document.example.com", "embedded")
 			}), nil
@@ -139,7 +139,7 @@ func TestConfigLoader_EnvOverridesDocument(t *testing.T) {
 	cli := new(loaderBasicCLI)
 	app := conga.New(cli).
 		EnvPrefix("LOADER").
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderBasicCLI) (*conga.ConfigDocument, error) {
 			return loaderDocument(func(document *conga.ConfigDocument) {
 				document.Set("host", "document.example.com", "embedded")
 			}), nil
@@ -158,7 +158,7 @@ func TestConfigLoader_CLIOverridesDocument(t *testing.T) {
 
 	cli := new(loaderBasicCLI)
 	app := conga.New(cli).
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderBasicCLI) (*conga.ConfigDocument, error) {
 			return loaderDocument(func(document *conga.ConfigDocument) {
 				document.Set("host", "document.example.com", "embedded")
 			}), nil
@@ -177,7 +177,7 @@ func TestConfigLoader_SliceFlagFromDocument(t *testing.T) {
 
 	cli := new(loaderSliceCLI)
 	app := conga.New(cli).
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderSliceCLI) (*conga.ConfigDocument, error) {
 			return loaderDocument(func(document *conga.ConfigDocument) {
 				document.Set("tags", []string{"alpha", "beta"}, "embedded")
 			}), nil
@@ -196,7 +196,7 @@ func TestConfigLoader_SliceFlagCLIOverridesDocument(t *testing.T) {
 
 	cli := new(loaderSliceCLI)
 	app := conga.New(cli).
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderSliceCLI) (*conga.ConfigDocument, error) {
 			return loaderDocument(func(document *conga.ConfigDocument) {
 				document.Set("tags", []string{"alpha", "beta"}, "embedded")
 			}), nil
@@ -215,7 +215,7 @@ func TestConfigLoader_CounterFromDocument(t *testing.T) {
 
 	cli := new(loaderCounterCLI)
 	app := conga.New(cli).
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderCounterCLI) (*conga.ConfigDocument, error) {
 			return loaderDocument(func(document *conga.ConfigDocument) {
 				document.Set("verbosity", "2", "embedded")
 			}), nil
@@ -234,7 +234,7 @@ func TestConfigLoader_MapFlagMergesAcrossTiers(t *testing.T) {
 
 	cli := new(loaderMapCLI)
 	app := conga.New(cli).
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderMapCLI) (*conga.ConfigDocument, error) {
 			return loaderDocument(func(document *conga.ConfigDocument) {
 				document.Set("headers", map[string]string{"region": "eu", "shared": "document"}, "taskrc")
 			}), nil
@@ -253,7 +253,7 @@ func TestConfigLoader_MapFlagNestedAnySection(t *testing.T) {
 
 	cli := new(loaderMapCLI)
 	app := conga.New(cli).
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderMapCLI) (*conga.ConfigDocument, error) {
 			return loaderDocument(func(document *conga.ConfigDocument) {
 				document.Set("headers", map[string]any{"Region": "eu", "team": 3}, "taskrc")
 			}), nil
@@ -272,7 +272,7 @@ func TestConfigLoader_NilDocumentLeavesTierInactive(t *testing.T) {
 
 	cli := new(loaderBasicCLI)
 	app := conga.New(cli).
-		ConfigOptions(conga.ConfigLoader(loaderNilDocument)).
+		ConfigOptions(conga.ConfigLoader(loaderNilDocument[loaderBasicCLI])).
 		Args([]string{})
 
 	err := app.Run()
@@ -287,7 +287,7 @@ func TestConfigLoader_EmptyDocumentLeavesDefaults(t *testing.T) {
 
 	cli := new(loaderBasicCLI)
 	app := conga.New(cli).
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderBasicCLI) (*conga.ConfigDocument, error) {
 			return &conga.ConfigDocument{}, nil
 		})).
 		Args([]string{})
@@ -307,7 +307,7 @@ func TestConfigLoader_LoaderErrorClassifiedUnderErrConfig(t *testing.T) {
 	exitCode := -1
 
 	app := conga.New[loaderBasicCLI]().
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderBasicCLI) (*conga.ConfigDocument, error) {
 			return nil, errors.New("taskrc unreadable")
 		})).
 		ExitFunc(func(code int) { exitCode = code }).
@@ -330,7 +330,7 @@ func TestConfigLoader_UnknownKeyFailsWithSuggestion(t *testing.T) {
 
 	app := conga.New[loaderBasicCLI]().
 		Name("app").
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderBasicCLI) (*conga.ConfigDocument, error) {
 			return loaderDocument(func(document *conga.ConfigDocument) {
 				document.Set("hots", "typo.example.com", "taskrc")
 			}), nil
@@ -351,7 +351,7 @@ func TestConfigLoader_ExcludedFlagRejected(t *testing.T) {
 
 	app := conga.New[loaderExcludedCLI]().
 		Name("app").
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderExcludedCLI) (*conga.ConfigDocument, error) {
 			return loaderDocument(func(document *conga.ConfigDocument) {
 				document.Set("secret", "leaked", "taskrc")
 			}), nil
@@ -370,7 +370,7 @@ func TestConfigLoader_SubcommandSection(t *testing.T) {
 
 	cli := new(loaderSubcommandCLI)
 	app := conga.New(cli).
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderSubcommandCLI) (*conga.ConfigDocument, error) {
 			return loaderDocument(func(document *conga.ConfigDocument) {
 				document.Set("deploy", map[string]any{"replicas": 3}, "taskrc")
 			}), nil
@@ -389,7 +389,7 @@ func TestConfigLoader_NamespaceSection(t *testing.T) {
 
 	cli := new(loaderNamespaceCLI)
 	app := conga.New(cli).
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderNamespaceCLI) (*conga.ConfigDocument, error) {
 			return loaderDocument(func(document *conga.ConfigDocument) {
 				document.Set("network", map[string]any{"port": 9090}, "taskrc")
 			}), nil
@@ -408,7 +408,7 @@ func TestConfigLoader_EnumViolationMatchesFileMessageShape(t *testing.T) {
 
 	app := conga.New[loaderEnumCLI]().
 		Name("app").
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderEnumCLI) (*conga.ConfigDocument, error) {
 			return loaderDocument(func(document *conga.ConfigDocument) {
 				document.Set("mode", "staging", "taskrc")
 			}), nil
@@ -433,7 +433,7 @@ func TestConfigLoader_RangeViolationMatchesFileMessageShape(t *testing.T) {
 
 	app := conga.New[RangeCLI]().
 		Name("app").
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *RangeCLI) (*conga.ConfigDocument, error) {
 			return loaderDocument(func(document *conga.ConfigDocument) {
 				document.Set("workers", 64, "taskrc")
 			}), nil
@@ -452,7 +452,7 @@ func TestConfigLoader_CoercionViolationAttributesToConfig(t *testing.T) {
 
 	app := conga.New[loaderBasicCLI]().
 		Name("app").
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderBasicCLI) (*conga.ConfigDocument, error) {
 			return loaderDocument(func(document *conga.ConfigDocument) {
 				document.Set("port", "not-a-number", "taskrc")
 			}), nil
@@ -473,7 +473,7 @@ func TestConfigLoader_WhyReportsOrigins(t *testing.T) {
 
 	app := conga.New[loaderMapCLI]().
 		EnableWhy().
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderMapCLI) (*conga.ConfigDocument, error) {
 			return loaderDocument(func(document *conga.ConfigDocument) {
 				document.Set("headers", map[string]string{"region": "eu"}, "taskrc")
 			}), nil
@@ -500,7 +500,7 @@ func TestConfigLoader_SourceDetailReportsOrigin(t *testing.T) {
 
 	cli := new(loaderBasicCLI)
 	app := conga.New(cli).
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderBasicCLI) (*conga.ConfigDocument, error) {
 			return loaderDocument(func(document *conga.ConfigDocument) {
 				document.Set("port", 7100, "profile dev")
 			}), nil
@@ -522,7 +522,7 @@ func TestConfigLoader_SourceDetailFallsBackToConfigKey(t *testing.T) {
 
 	cli := new(loaderBasicCLI)
 	app := conga.New(cli).
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderBasicCLI) (*conga.ConfigDocument, error) {
 			return loaderDocument(func(document *conga.ConfigDocument) {
 				document.Set("port", 7100, "")
 			}), nil
@@ -545,7 +545,7 @@ func TestConfigLoader_ScopedOriginSeparatesDetailFromConfigPath(t *testing.T) {
 	app := conga.New(cli).
 		Name("app").
 		EnableWhy().
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderBasicCLI) (*conga.ConfigDocument, error) {
 			return loaderDocument(func(document *conga.ConfigDocument) {
 				document.SetScoped("port", 9200, "pipeline.local.yaml", "pipeline deploy")
 			}), nil
@@ -575,7 +575,7 @@ func TestConfigLoader_SetKeyScopedSeparatesDetailFromConfigPath(t *testing.T) {
 	app := conga.New[loaderMapCLI]().
 		Name("app").
 		EnableWhy().
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderMapCLI) (*conga.ConfigDocument, error) {
 			return loaderDocument(func(document *conga.ConfigDocument) {
 				document.SetKeyScoped("headers", "region", "eu", "taskrc", "profile dev")
 			}), nil
@@ -601,7 +601,7 @@ func TestConfigLoader_SessionAccessorsExcludeScope(t *testing.T) {
 
 	cli := new(loaderSessionCLI)
 	app := conga.New(cli).
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderSessionCLI) (*conga.ConfigDocument, error) {
 			return loaderDocument(
 				func(document *conga.ConfigDocument) {
 					document.SetScoped("host", "document.example.com", "taskrc", "profile dev")
@@ -628,7 +628,7 @@ func TestConfigLoader_WhyAttributesAppError(t *testing.T) {
 	app := conga.New[loaderBasicCLI]().
 		Name("app").
 		EnableWhy().
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderBasicCLI) (*conga.ConfigDocument, error) {
 			return nil, errors.New("taskrc unreadable")
 		})).
 		Stdout(&stdoutBuffer).
@@ -648,7 +648,7 @@ func TestConfigLoader_WhyValidationFailureReportsUniqueCandidate(t *testing.T) {
 	app := conga.New[loaderBasicCLI]().
 		Name("app").
 		EnableWhy().
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderBasicCLI) (*conga.ConfigDocument, error) {
 			return loaderDocument(func(document *conga.ConfigDocument) {
 				document.Set("hots", "typo.example.com", "taskrc")
 			}), nil
@@ -667,7 +667,7 @@ func TestConfigLoader_SessionAccessorsReportOrigins(t *testing.T) {
 
 	cli := new(loaderSessionCLI)
 	app := conga.New(cli).
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderSessionCLI) (*conga.ConfigDocument, error) {
 			return loaderDocument(
 				func(document *conga.ConfigDocument) {
 					document.Set("host", "document.example.com", "taskrc")
@@ -692,7 +692,7 @@ func TestConfigLoader_FeatureGateFromDocument(t *testing.T) {
 	cli := new(loaderFeaturesCLI)
 	app := conga.New(cli).
 		EnableFeatures().
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderFeaturesCLI) (*conga.ConfigDocument, error) {
 			return loaderDocument(func(document *conga.ConfigDocument) {
 				document.Set("experiments", map[string]string{"force-all": "true"}, "taskrc")
 			}), nil
@@ -713,7 +713,7 @@ func TestConfigLoader_FeatureGateOffPrunesFlag(t *testing.T) {
 
 	app := conga.New[loaderFeaturesCLI]().
 		EnableFeatures().
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderFeaturesCLI) (*conga.ConfigDocument, error) {
 			return &conga.ConfigDocument{}, nil
 		})).
 		Args([]string{"--force-all"})
@@ -730,7 +730,7 @@ func TestConfigLoader_FeatureEnvChannelExcluded(t *testing.T) {
 	app := conga.New[loaderFeaturesCLI]().
 		EnableFeatures().
 		EnvPrefix("LOADER").
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderFeaturesCLI) (*conga.ConfigDocument, error) {
 			return &conga.ConfigDocument{}, nil
 		})).
 		Args([]string{"--force-all"})
@@ -746,7 +746,7 @@ func TestConfigLoader_FeatureInvalidValueFailsUnderErrConfig(t *testing.T) {
 
 	app := conga.New[loaderFeaturesCLI]().
 		EnableFeatures().
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderFeaturesCLI) (*conga.ConfigDocument, error) {
 			return loaderDocument(func(document *conga.ConfigDocument) {
 				document.Set("experiments", map[string]string{"force-all": "maybe"}, "taskrc")
 			}), nil
@@ -765,7 +765,7 @@ func TestConfigLoader_CompletionReflectsDocumentGate(t *testing.T) {
 	app := conga.New[loaderFeaturesCLI]().
 		EnableFeatures().
 		EnableCompletion().
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderFeaturesCLI) (*conga.ConfigDocument, error) {
 			return loaderDocument(func(document *conga.ConfigDocument) {
 				document.Set("experiments", map[string]string{"force-all": "true"}, "taskrc")
 			}), nil
@@ -788,7 +788,7 @@ func TestConfigLoader_CompletionPrunesDisabledGate(t *testing.T) {
 	app := conga.New[loaderFeaturesCLI]().
 		EnableFeatures().
 		EnableCompletion().
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderFeaturesCLI) (*conga.ConfigDocument, error) {
 			return &conga.ConfigDocument{}, nil
 		}))
 
@@ -811,7 +811,7 @@ func TestConfigLoader_CompletionInvokesLoaderOnce(t *testing.T) {
 	app := conga.New[loaderFeaturesCLI]().
 		EnableFeatures().
 		EnableCompletion().
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderFeaturesCLI) (*conga.ConfigDocument, error) {
 			invocations.Add(1)
 
 			return &conga.ConfigDocument{}, nil
@@ -829,7 +829,7 @@ func TestConfigLoader_RunsOncePerRun(t *testing.T) {
 
 	app := conga.New[loaderFeaturesCLI]().
 		EnableFeatures().
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderFeaturesCLI) (*conga.ConfigDocument, error) {
 			invocations.Add(1)
 
 			return &conga.ConfigDocument{}, nil
@@ -852,7 +852,7 @@ func TestConfigLoader_RunsOnceAcrossWhy(t *testing.T) {
 	app := conga.New[loaderFeaturesCLI]().
 		EnableFeatures().
 		EnableWhy().
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderFeaturesCLI) (*conga.ConfigDocument, error) {
 			invocations.Add(1)
 
 			return &conga.ConfigDocument{}, nil
@@ -875,7 +875,7 @@ func TestConfigLoader_RunsForHelpWhenFeaturesEnabled(t *testing.T) {
 
 	app := conga.New[loaderFeaturesCLI]().
 		EnableFeatures().
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderFeaturesCLI) (*conga.ConfigDocument, error) {
 			invocations.Add(1)
 
 			return loaderDocument(func(document *conga.ConfigDocument) {
@@ -902,7 +902,7 @@ func TestConfigLoader_HelpWithoutFeaturesSkipsLoader(t *testing.T) {
 	var stdoutBuffer bytes.Buffer
 
 	app := conga.New[loaderBasicCLI]().
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderBasicCLI) (*conga.ConfigDocument, error) {
 			invocations.Add(1)
 
 			return &conga.ConfigDocument{}, nil
@@ -923,7 +923,7 @@ func TestConfigLoader_VersionSkipsLoader(t *testing.T) {
 
 	app := conga.New[loaderFeaturesCLI]().
 		EnableFeatures().
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderFeaturesCLI) (*conga.ConfigDocument, error) {
 			invocations.Add(1)
 
 			return &conga.ConfigDocument{}, nil
@@ -941,12 +941,12 @@ func TestConfigLoader_RepeatedOptionLastDeclarationWins(t *testing.T) {
 
 	cli := new(loaderBasicCLI)
 	app := conga.New(cli).
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderBasicCLI) (*conga.ConfigDocument, error) {
 			return loaderDocument(func(document *conga.ConfigDocument) {
 				document.Set("host", "first.example.com", "first")
 			}), nil
 		})).
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderBasicCLI) (*conga.ConfigDocument, error) {
 			return loaderDocument(func(document *conga.ConfigDocument) {
 				document.Set("host", "second.example.com", "second")
 			}), nil
@@ -963,7 +963,21 @@ func TestConfigLoader_NilLoaderPanics(t *testing.T) {
 	t.Parallel()
 
 	assertx.PanicsWithValue(t, "conga: app.ConfigOptions(conga.ConfigLoader(...)): the loader function cannot be nil", func() {
-		conga.ConfigLoader(nil)
+		conga.ConfigLoader[struct{}](nil)
+	})
+}
+
+func TestConfigLoader_RootTypeMismatchPanics(t *testing.T) {
+	t.Parallel()
+
+	type mismatchCLI struct{}
+
+	app := conga.New[loaderBasicCLI]()
+
+	assertx.PanicsWithValue(t, "conga: app.ConfigOptions(conga.ConfigLoader(...)): loader root type *conga_test.mismatchCLI does not match application root type *conga_test.loaderBasicCLI", func() {
+		app.ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *mismatchCLI) (*conga.ConfigDocument, error) {
+			return nil, nil //nolint:nilnil // the nil document contract keeps the tier inactive
+		}))
 	})
 }
 
@@ -982,7 +996,7 @@ func TestConfigDocument_RepeatedSetLastValueWins(t *testing.T) {
 
 	cli := new(loaderBasicCLI)
 	app := conga.New(cli).
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderBasicCLI) (*conga.ConfigDocument, error) {
 			return loaderDocument(
 				func(document *conga.ConfigDocument) {
 					document.Set("host", "first.example.com", "first")
@@ -1005,7 +1019,7 @@ func TestConfigDocument_SetKeyRecordsMapEntry(t *testing.T) {
 
 	cli := new(loaderMapCLI)
 	app := conga.New(cli).
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderMapCLI) (*conga.ConfigDocument, error) {
 			return loaderDocument(func(document *conga.ConfigDocument) {
 				document.SetKey("headers", "region", "eu", "taskrc")
 			}), nil
@@ -1025,7 +1039,7 @@ func TestConfigDocument_SetKeyAcceptsTypedValue(t *testing.T) {
 	cli := new(loaderFeaturesCLI)
 	app := conga.New(cli).
 		EnableFeatures().
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderFeaturesCLI) (*conga.ConfigDocument, error) {
 			return loaderDocument(func(document *conga.ConfigDocument) {
 				document.SetKey("experiments", "force-all", true, "taskrc")
 			}), nil
@@ -1044,7 +1058,7 @@ func TestConfigDocument_SetKeyOverlaysEarlierSet(t *testing.T) {
 
 	cli := new(loaderMapCLI)
 	app := conga.New(cli).
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderMapCLI) (*conga.ConfigDocument, error) {
 			return loaderDocument(
 				func(document *conga.ConfigDocument) {
 					document.Set("headers", map[string]string{"region": "eu", "shared": "base"}, "base")
@@ -1067,7 +1081,7 @@ func TestConfigDocument_SetReplacesEarlierSetKeyOverlays(t *testing.T) {
 
 	cli := new(loaderMapCLI)
 	app := conga.New(cli).
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderMapCLI) (*conga.ConfigDocument, error) {
 			return loaderDocument(
 				func(document *conga.ConfigDocument) {
 					document.SetKey("headers", "region", "eu", "overlay")
@@ -1090,7 +1104,7 @@ func TestConfigDocument_RepeatedSetKeyLastValueWins(t *testing.T) {
 
 	cli := new(loaderMapCLI)
 	app := conga.New(cli).
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderMapCLI) (*conga.ConfigDocument, error) {
 			return loaderDocument(
 				func(document *conga.ConfigDocument) {
 					document.SetKey("headers", "region", "eu", "first")
@@ -1123,7 +1137,7 @@ func TestConfigDocument_SetKeyUnknownKeyFailsUnderErrConfig(t *testing.T) {
 
 	app := conga.New[loaderMapCLI]().
 		Name("app").
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderMapCLI) (*conga.ConfigDocument, error) {
 			return loaderDocument(func(document *conga.ConfigDocument) {
 				document.SetKey("header", "region", "eu", "taskrc")
 			}), nil
@@ -1138,46 +1152,6 @@ func TestConfigDocument_SetKeyUnknownKeyFailsUnderErrConfig(t *testing.T) {
 	assert.Contains(t, err.Error(), `did you mean "headers"?`)
 }
 
-func TestConfigLoader_ContextFlagValues(t *testing.T) {
-	t.Parallel()
-
-	type ContextCLI struct {
-		noopRunner
-
-		Profile conga.OptionalFlag[string] `aliases:"profile-alias"`
-	}
-
-	var (
-		lastValue  string
-		lastOK     bool
-		allValues  []string
-		aliasValue string
-		aliasOK    bool
-		missingOK  bool
-	)
-
-	app := conga.New[ContextCLI]().
-		ConfigOptions(conga.ConfigLoader(func(ctx conga.ConfigContext) (*conga.ConfigDocument, error) {
-			lastValue, lastOK = ctx.FlagValue("profile")
-			allValues = ctx.FlagValues("profile")
-			aliasValue, aliasOK = ctx.FlagValue("profile-alias")
-			_, missingOK = ctx.FlagValue("missing")
-
-			return &conga.ConfigDocument{}, nil
-		})).
-		Args([]string{"--profile", "first", "--profile", "second"})
-
-	err := app.Run()
-
-	assert.NoError(t, err)
-	assert.Equal(t, "second", lastValue)
-	assert.True(t, lastOK)
-	assert.Equal(t, []string{"first", "second"}, allValues)
-	assert.Equal(t, "second", aliasValue)
-	assert.True(t, aliasOK)
-	assert.False(t, missingOK)
-}
-
 func TestConfigLoader_ContextCommandPath(t *testing.T) {
 	t.Parallel()
 
@@ -1185,7 +1159,7 @@ func TestConfigLoader_ContextCommandPath(t *testing.T) {
 
 	app := conga.New[loaderSubcommandCLI]().
 		Name("app").
-		ConfigOptions(conga.ConfigLoader(func(ctx conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(ctx conga.ConfigContext, root *loaderSubcommandCLI) (*conga.ConfigDocument, error) {
 			commandPath = ctx.CommandPath()
 
 			return &conga.ConfigDocument{}, nil
@@ -1208,7 +1182,7 @@ func TestConfigLoader_ContextLookupEnv(t *testing.T) {
 	)
 
 	app := conga.New[loaderBasicCLI]().
-		ConfigOptions(conga.ConfigLoader(func(ctx conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(ctx conga.ConfigContext, root *loaderBasicCLI) (*conga.ConfigDocument, error) {
 			value, found = ctx.LookupEnv("LOADER_CONTEXT_KEY")
 			_, missing = ctx.LookupEnv("LOADER_CONTEXT_MISSING")
 
@@ -1228,7 +1202,7 @@ func TestConfigLoader_GuardCombinedWithPaths(t *testing.T) {
 	t.Parallel()
 
 	app := conga.New[loaderBasicCLI]().
-		ConfigOptions(conga.ConfigLoader(loaderNilDocument), conga.ConfigPaths("app.json")).
+		ConfigOptions(conga.ConfigLoader(loaderNilDocument[loaderBasicCLI]), conga.ConfigPaths("app.json")).
 		Args([]string{})
 
 	err := app.Run()
@@ -1242,7 +1216,7 @@ func TestConfigLoader_GuardCombinedWithExplicit(t *testing.T) {
 	t.Parallel()
 
 	app := conga.New[loaderBasicCLI]().
-		ConfigOptions(conga.ConfigLoader(loaderNilDocument), conga.ConfigExplicit("app.json")).
+		ConfigOptions(conga.ConfigLoader(loaderNilDocument[loaderBasicCLI]), conga.ConfigExplicit("app.json")).
 		Args([]string{})
 
 	err := app.Run()
@@ -1256,7 +1230,7 @@ func TestConfigLoader_GuardCombinedWithCascading(t *testing.T) {
 	t.Parallel()
 
 	app := conga.New[loaderBasicCLI]().
-		ConfigOptions(conga.ConfigLoader(loaderNilDocument), conga.ConfigCascading()).
+		ConfigOptions(conga.ConfigLoader(loaderNilDocument[loaderBasicCLI]), conga.ConfigCascading()).
 		Args([]string{})
 
 	err := app.Run()
@@ -1270,7 +1244,7 @@ func TestConfigLoader_GuardCombinedWithDecoder(t *testing.T) {
 	t.Parallel()
 
 	app := conga.New[loaderBasicCLI]().
-		ConfigOptions(conga.ConfigLoader(loaderNilDocument)).
+		ConfigOptions(conga.ConfigLoader(loaderNilDocument[loaderBasicCLI])).
 		RegisterDecoder(".json", json.Decode).
 		Args([]string{})
 
@@ -1291,7 +1265,7 @@ func TestConfigLoader_GuardCombinedWithConfigFileField(t *testing.T) {
 	}
 
 	app := conga.New[ConfigFileCLI]().
-		ConfigOptions(conga.ConfigLoader(loaderNilDocument)).
+		ConfigOptions(conga.ConfigLoader(loaderNilDocument[ConfigFileCLI])).
 		Args([]string{})
 
 	err := app.Run()
@@ -1306,7 +1280,7 @@ func TestConfigDocument_SetKeyOnScalarFlagReportsNotAMap(t *testing.T) {
 
 	app := conga.New[loaderBasicCLI]().
 		Name("app").
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderBasicCLI) (*conga.ConfigDocument, error) {
 			return loaderDocument(func(document *conga.ConfigDocument) {
 				document.SetKey("port", "http", 8080, "taskrc")
 			}), nil
@@ -1329,7 +1303,7 @@ func TestConfigLoader_ScopedOriginWithSlashAndCollidingBasenames(t *testing.T) {
 	app := conga.New(cli).
 		Name("app").
 		EnableWhy().
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderBasicCLI) (*conga.ConfigDocument, error) {
 			return loaderDocument(func(document *conga.ConfigDocument) {
 				document.SetScoped("host", "prod.example.com", "/srv/prod/pipelines/pipeline.yaml", "jobs/deploy")
 				document.SetScoped("port", 9200, "/srv/dev/pipelines/pipeline.yaml", "jobs/release")

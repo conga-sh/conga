@@ -1570,7 +1570,7 @@ func TestBinder_RawArgsWithDoubleDash(t *testing.T) {
 	assert.Equal(t, []string{"arg1", "--flag", "arg2"}, cli.Rest.Get())
 }
 
-func TestBinder_EmptyStringEnv(t *testing.T) {
+func TestBinder_EmptyStringEnvFallsThrough(t *testing.T) {
 	type StringEnvCLI struct {
 		noopRunner
 
@@ -1584,9 +1584,56 @@ func TestBinder_EmptyStringEnv(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assert.NoError(t, err)
-	assert.Equal(t, "", cli.Name.Get())
+	assert.Equal(t, "default-name", cli.Name.Get())
 	assert.True(t, cli.Name.IsSet())
-	assert.Equal(t, conga.SourceEnv, cli.Name.Source())
+	assert.Equal(t, conga.SourceDefault, cli.Name.Source())
+}
+
+//nolint:paralleltest // t.Setenv cannot be used with t.Parallel
+func TestBinder_EmptyEnvFallsThroughForEveryType(t *testing.T) {
+	type namedString string
+
+	type EmptyEnvCLI struct {
+		noopRunner
+
+		Text     conga.OptionalFlag[string]            `default:"text-default"  env:"APP_EMPTY_TEXT"`
+		Named    conga.OptionalFlag[namedString]       `default:"named-default" env:"APP_EMPTY_NAMED"`
+		Flag     conga.OptionalFlag[bool]              `default:"true"          env:"APP_EMPTY_BOOL"`
+		Count    conga.OptionalFlag[int]               `default:"7"             env:"APP_EMPTY_INT"`
+		Timeout  conga.OptionalFlag[time.Duration]     `default:"3s"            env:"APP_EMPTY_DURATION"`
+		Tags     conga.OptionalFlag[[]string]          `default:"one,two"       env:"APP_EMPTY_SLICE"`
+		Metadata conga.OptionalFlag[map[string]string] `default:"key=value"     env:"APP_EMPTY_MAP"`
+		Occurred conga.Counter                         `env:"APP_EMPTY_COUNTER"`
+	}
+
+	for _, key := range []string{
+		"APP_EMPTY_TEXT", "APP_EMPTY_NAMED", "APP_EMPTY_BOOL", "APP_EMPTY_INT",
+		"APP_EMPTY_DURATION", "APP_EMPTY_SLICE", "APP_EMPTY_MAP", "APP_EMPTY_COUNTER",
+	} {
+		t.Setenv(key, "")
+	}
+
+	cli := new(EmptyEnvCLI)
+	app := conga.New(cli).Args([]string{})
+
+	err := app.RunContext(t.Context())
+
+	assert.NoError(t, err)
+	assert.Equal(t, "text-default", cli.Text.Get())
+	assert.Equal(t, namedString("named-default"), cli.Named.Get())
+	assert.True(t, cli.Flag.Get())
+	assert.Equal(t, 7, cli.Count.Get())
+	assert.Equal(t, 3*time.Second, cli.Timeout.Get())
+	assert.Equal(t, []string{"one", "two"}, cli.Tags.Get())
+	assert.Equal(t, map[string]string{"key": "value"}, cli.Metadata.Get())
+	assert.False(t, cli.Occurred.IsSet())
+	assert.Equal(t, conga.SourceDefault, cli.Text.Source())
+	assert.Equal(t, conga.SourceDefault, cli.Named.Source())
+	assert.Equal(t, conga.SourceDefault, cli.Flag.Source())
+	assert.Equal(t, conga.SourceDefault, cli.Count.Source())
+	assert.Equal(t, conga.SourceDefault, cli.Timeout.Source())
+	assert.Equal(t, conga.SourceDefault, cli.Tags.Source())
+	assert.Equal(t, conga.SourceDefault, cli.Metadata.Source())
 }
 
 func TestBinder_EmptyStringConfig(t *testing.T) {

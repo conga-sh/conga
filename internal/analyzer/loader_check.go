@@ -84,8 +84,7 @@ func (s *loaderState) absorbExpression(pass *analysis.Pass, expression ast.Expr)
 // (spec.validateLoaderConfigSettings) remains the source of truth; the
 // analyzer mirrors the conflict messages for statically visible cases and
 // stays silent when the evidence is ambiguous.
-func checkLoaderConflicts(pass *analysis.Pass, anchors []*anchor) {
-	state := detectLoaderState(pass, anchors)
+func checkLoaderConflicts(pass *analysis.Pass, anchors []*anchor, state loaderState) {
 	if state.unknown || !state.declared {
 		return
 	}

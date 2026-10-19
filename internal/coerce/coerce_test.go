@@ -561,6 +561,42 @@ func TestCoerceSlice(t *testing.T) {
 			"Authorization: Bearer token123",
 		}, typed)
 	})
+
+	t.Run("sep none preserves string whitespace", func(t *testing.T) {
+		t.Parallel()
+
+		value, err := coerce.SliceWith([]string{"MSG=  hello  "}, reflect.TypeFor[[]string](), "none", nil, coerce.DecodeContext{})
+
+		assert.NoError(t, err)
+
+		typed, ok := value.([]string)
+		assert.True(t, ok)
+		assert.Equal(t, []string{"MSG=  hello  "}, typed)
+	})
+
+	t.Run("sep none still trims non-string elements", func(t *testing.T) {
+		t.Parallel()
+
+		value, err := coerce.SliceWith([]string{" 1 "}, reflect.TypeFor[[]int](), "none", nil, coerce.DecodeContext{})
+
+		assert.NoError(t, err)
+
+		typed, ok := value.([]int)
+		assert.True(t, ok)
+		assert.Equal(t, []int{1}, typed)
+	})
+
+	t.Run("empty sep keeps trimming string whitespace", func(t *testing.T) {
+		t.Parallel()
+
+		value, err := coerce.SliceWith([]string{"  hello  "}, reflect.TypeFor[[]string](), "", nil, coerce.DecodeContext{})
+
+		assert.NoError(t, err)
+
+		typed, ok := value.([]string)
+		assert.True(t, ok)
+		assert.Equal(t, []string{"hello"}, typed)
+	})
 }
 
 func TestCoerceMap(t *testing.T) {

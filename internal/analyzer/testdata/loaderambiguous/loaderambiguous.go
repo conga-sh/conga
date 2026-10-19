@@ -19,7 +19,9 @@ func (c *LoaderWithOpaqueOptions) Run(ctx context.Context, session *conga.Sessio
 	return nil
 }
 
-func loadConfig(ctx conga.ConfigContext) (*conga.ConfigDocument, error) { return nil, nil }
+func loadConfig(ctx conga.ConfigContext, _ *LoaderWithOpaqueOptions) (*conga.ConfigDocument, error) {
+	return nil, nil
+}
 
 var opaqueOptions = []conga.ConfigOption{conga.ConfigPaths("search.json")}
 

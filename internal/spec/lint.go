@@ -15,20 +15,20 @@ import (
 
 //nolint:gochecknoglobals // Static candidate definitions for schema tag validation.
 var (
-	flagTagCandidates           = []string{"name", "short", "help", "default", "env", "aliases", "group", "hidden", "safe", "xor", "and", "enum", "enumhint", "range", "len", "items", "sep", "negatable", "placeholder", "config", "deprecated", "predictor", "feature", "conga"}
-	argTagCandidates            = []string{"name", "help", "default", "enum", "enumhint", "range", "len", "items", "sep", "predictor", "conga"}
+	flagTagCandidates           = []string{"name", "short", "help", "default", "env", "aliases", "group", "hidden", "safe", "xor", "and", "enum", "enumhint", "range", "len", "items", "sep", "negatable", "placeholder", "config", "deprecated", "predictor", "feature", "bootstrap", "conga"}
+	argTagCandidates            = []string{"name", "help", "default", "enum", "enumhint", "range", "len", "items", "sep", "predictor", "bootstrap", "conga"}
 	builtinCommandTagCandidates = []string{"name", "summary", "aliases", "group", "hidden", "conga"}
 	userCommandTagCandidates    = []string{"name", "summary", "aliases", "group", "hidden", "envprefix", "deprecated", "feature", "conga"}
 	configFileTagCandidates     = []string{"name", "short", "help", "env", "aliases", "placeholder", "group", "hidden", "multi", "sep", "config", "deprecated", "feature", "conga"}
 	featuresFieldTagCandidates  = []string{"flag", "env", "envprefix", "config", "sep", "help", "enumhint", "conga"}
 	featureFieldTagCandidates   = []string{"name", "help", "default", "enum", "stage", "conga"}
-	dashRawTagCandidates        = []string{"name", "conga"}
+	dashRawTagCandidates        = []string{"name", "bootstrap", "conga"}
 	sentinelTagCandidates       = []string{"envprefix", "conga"}
 	allCongaTagCandidates       = []string{
 		"name", "short", "help", "default", "env", "aliases", "group", "hidden", "safe",
 		"xor", "and", "enum", "enumhint", "range", "len", "items", "sep", "negatable", "placeholder",
 		"config", "deprecated", "predictor", "feature", "conga", "summary", "envprefix",
-		"multi", "flag", "stage",
+		"multi", "flag", "stage", "bootstrap",
 	}
 )
 
@@ -84,6 +84,8 @@ func validContextDescription(tag string) string {
 		return "subcommands, flags, and config file flags"
 	case "predictor", "default":
 		return "flags and positional arguments"
+	case "bootstrap":
+		return "flags, positional arguments, and trailing-argument collectors"
 	default:
 		return "other CONGA constructs"
 	}

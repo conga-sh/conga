@@ -9,10 +9,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// defaultPipelineFile is the pipeline file loaded when neither a flag nor an
-// environment variable names one. Keep it in sync with the File flag default.
-const defaultPipelineFile = "pipeline.yaml"
-
 // pipelineVersion is the only supported pipeline file version.
 const pipelineVersion = "1"
 

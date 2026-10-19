@@ -13,8 +13,8 @@ import (
 // loadPipelines is the conga.ConfigLoader: it reads the pipeline files, merges
 // their domain data, and returns the configuration document derived from the
 // files' configuration keys and the selected pipeline's overrides.
-func (c *CLI) loadPipelines(ctx conga.ConfigContext) (*conga.ConfigDocument, error) {
-	paths := pipelinePaths(ctx)
+func (c *CLI) loadPipelines(_ conga.ConfigContext, root *CLI) (*conga.ConfigDocument, error) {
+	paths := pipelinePaths(root)
 
 	files := make([]loadedPipelineFile, 0, len(paths))
 
@@ -32,7 +32,7 @@ func (c *CLI) loadPipelines(ctx conga.ConfigContext) (*conga.ConfigDocument, err
 		files = append(files, loadedPipelineFile{path: path, file: file})
 	}
 
-	selected := selectedPipeline(ctx)
+	selected := selectedPipeline(root)
 	c.pipelines = mergePipelineDefinitions(files)
 
 	if selected != "" {
@@ -79,28 +79,14 @@ func applyPipelineConfig(document *conga.ConfigDocument, origin, scope string, p
 	}
 }
 
-// pipelinePaths returns the pipeline files to load: repeated command-line
-// values first, then FLOWCTL_FILE, then the default file.
-func pipelinePaths(ctx conga.ConfigContext) []string {
-	if paths := ctx.FlagValues("file"); len(paths) > 0 {
-		return paths
-	}
-
-	if value, ok := ctx.LookupEnv("FLOWCTL_FILE"); ok && value != "" {
-		return strings.Split(value, ",")
-	}
-
-	return []string{defaultPipelineFile}
+// pipelinePaths returns the pipeline files to load. The bootstrap binding
+// already applied the CLI > FLOWCTL_FILE > default precedence.
+func pipelinePaths(root *CLI) []string {
+	return root.File.Get()
 }
 
-// selectedPipeline returns the pipeline to run: the command-line flag first,
-// then FLOWCTL_PIPELINE.
-func selectedPipeline(ctx conga.ConfigContext) string {
-	if name, ok := ctx.FlagValue("pipeline"); ok {
-		return name
-	}
-
-	value, _ := ctx.LookupEnv("FLOWCTL_PIPELINE")
-
-	return value
+// selectedPipeline returns the pipeline to run. The bootstrap binding already
+// applied the CLI > FLOWCTL_PIPELINE precedence.
+func selectedPipeline(root *CLI) string {
+	return root.Pipeline.Get()
 }

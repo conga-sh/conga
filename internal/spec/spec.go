@@ -282,6 +282,9 @@ type Flag struct {
 	// NoCLI marks an engine-synthesized flag that binds environment and
 	// configuration values but is excluded from command-line routing and help.
 	NoCLI bool
+	// Bootstrap reports whether the field is bound before the configuration
+	// loader runs and exposed to it typed.
+	Bootstrap bool
 	// Required reports whether the flag was declared through a required
 	// container (conga.RequiredFlag[T]).
 	Required bool
@@ -324,6 +327,7 @@ type Arg struct {
 	Sep        string
 	IsSlice    bool
 	IsMap      bool
+	Bootstrap  bool
 	Required   bool
 	Predictor  *PredictorSpec
 	TargetType reflect.Type
@@ -336,7 +340,8 @@ type Arg struct {
 
 // DashArgs represents the binder for arguments explicitly passed after '--'.
 type DashArgs struct {
-	Name string
+	Name      string
+	Bootstrap bool
 	// Handle is the engine's opaque handle to the '--' trailing-arguments
 	// container value. It is never inspected by this package and nil when not
 	// classified.
@@ -345,7 +350,8 @@ type DashArgs struct {
 
 // RawArgs represents the binder for unparsed trailing raw arguments.
 type RawArgs struct {
-	Name string
+	Name      string
+	Bootstrap bool
 	// Handle is the engine's opaque handle to the raw trailing-tokens
 	// container value. It is never inspected by this package and nil when not
 	// classified.

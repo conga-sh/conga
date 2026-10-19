@@ -14,7 +14,6 @@ import (
 	"github.com/conga-sh/conga/internal/levenshtein"
 	"github.com/conga-sh/conga/internal/slicex"
 	"github.com/conga-sh/conga/internal/spec"
-	"github.com/conga-sh/conga/internal/tokenizer"
 )
 
 // prunedFlag is a flag removed from the schema by feature pruning, carrying the
@@ -490,61 +489,4 @@ func checkFeatureConfigRestrictions(pruned []prunedFlag, configData *configdata.
 	}
 
 	return nil
-}
-
-// cliFlagValues extracts the command-line values supplied for the given target
-// flags from completion words, so completion feature pruning observes the CLI
-// tier of the feature cascade and an explicit --config-file supplied on the
-// completion line. NoCLI targets (such as an unnamed synthesized feature flag)
-// can never appear on the completion line and are skipped. Extraction is
-// deliberately tolerant: unknown tokens, dangling flags, and partial values are
-// ignored rather than failing the invocation.
-func cliFlagValues(cmd *spec.Command, args []string, targets ...*spec.Flag) map[*spec.Flag][]string {
-	wanted := make(map[*spec.Flag]bool, len(targets))
-	for _, target := range targets {
-		if target != nil && !target.NoCLI {
-			wanted[target] = true
-		}
-	}
-
-	if len(wanted) == 0 {
-		return nil
-	}
-
-	index := newFlagIndex(cmd)
-	tokens := tokenizer.Tokenize(args)
-	values := make(map[*spec.Flag][]string)
-
-	for i := 0; i < len(tokens); i++ {
-		tok := tokens[i]
-
-		if tok.Type == tokenizer.TokenTypeTerminator {
-			break
-		}
-
-		if found := index.find(tok); found != nil && wanted[found] {
-			if tok.HasAttachedValue {
-				values[found] = append(values[found], tok.Value)
-
-				continue
-			}
-
-			if i+1 < len(tokens) {
-				values[found] = append(values[found], tokens[i+1].Raw)
-				i++
-			}
-
-			continue
-		}
-
-		if skipped, next := skipFlagValue(tokens, i, index); skipped {
-			i = next
-		}
-	}
-
-	if len(values) == 0 {
-		return nil
-	}
-
-	return values
 }

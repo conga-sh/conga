@@ -27,7 +27,7 @@ func New[T any](root ...*T) *App[T]
 | `Version(version)` | `--version` display string (falls back to build metadata) |
 | `EnvPrefix(prefix)` | Environment tier prefix (normalized to trailing `_`) |
 | `Dotenv(paths...)` | Enable `.env` loading (default `.env` + `.env.local`; [rules](/reference/dotenv/)) |
-| `ConfigOptions(options...)` | Config resolution: `conga.ConfigExplicit(path)`, `conga.ConfigPaths(paths...)`, `conga.ConfigCascading()`, `conga.ConfigLoader(load)`; `ConfigExplicit` cannot be combined with paths or cascading, and `ConfigLoader` cannot be combined with any file-based option, decoder, or `ConfigFile` field |
+| `ConfigOptions(options...)` | Config resolution: `conga.ConfigExplicit(path)`, `conga.ConfigPaths(paths...)`, `conga.ConfigCascading()`, `conga.ConfigLoader[T](load)`; `ConfigExplicit` cannot be combined with paths or cascading, and `ConfigLoader` cannot be combined with any file-based option, decoder, or `ConfigFile` field |
 | `RegisterDecoder(ext, decoder)` | Per-app config format decoder |
 | `StrictTagValidation(strict)` | Toggle tag linting (default on) |
 | `AllowTags(tags...)` | Allow additional struct tags |
@@ -145,14 +145,12 @@ engine's resolution settings.
 The programmatic loader surface:
 
 ```go
-func ConfigLoader(load ConfigLoaderFunc) ConfigOption
+func ConfigLoader[T any](load ConfigLoaderFunc[T]) ConfigOption
 
-type ConfigLoaderFunc func(ctx ConfigContext) (*ConfigDocument, error)
+type ConfigLoaderFunc[T any] func(ctx ConfigContext, root *T) (*ConfigDocument, error)
 
 type ConfigContext interface {
 	CommandPath() string
-	FlagValue(name string) (string, bool)
-	FlagValues(name string) []string
 	LookupEnv(key string) (string, bool)
 }
 
@@ -167,8 +165,9 @@ func (d *ConfigDocument) SetKey(key, entryKey string, value any, origin string) 
 func (d *ConfigDocument) SetKeyScoped(key, entryKey string, value any, origin, scope string) *ConfigDocument
 ```
 
-`ConfigLoader` replaces file resolution for every run: the returned document is
-validated like a decoded config file, binds at the config tier
+`ConfigLoader` replaces file resolution for every run: fields marked
+`bootstrap:"true"` are bound on `root` before the loader runs, the returned
+document is validated like a decoded config file, binds at the config tier
 (`CLI > environment > document > default`), and its per-entry origins surface in
 `--why`. `SetScoped` and `SetKeyScoped` add an optional scope within the origin;
 value attribution renders it as `origin › scope` while the Config paths table

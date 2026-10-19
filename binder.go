@@ -1167,10 +1167,8 @@ func lookupEnv(flagSpec *spec.Flag, cmd *spec.Command, state *bindingState) (str
 
 	lookup := envLookupFunc(state)
 
-	isString := flagSpec.TargetType != nil && flagSpec.TargetType.Kind() == reflect.String
-
 	for _, envVar := range flagSpec.EnvVars {
-		if value, ok := lookup(envVar); ok && (value != "" || isString) {
+		if value, ok := lookup(envVar); ok && value != "" {
 			return value, envVar, true
 		}
 	}
@@ -1182,7 +1180,7 @@ func lookupEnv(flagSpec *spec.Flag, cmd *spec.Command, state *bindingState) (str
 
 	if prefix != "" && len(flagSpec.EnvVars) == 0 {
 		derived := prefix + casing.UpperSnake(flagSpec.Name)
-		if value, ok := lookup(derived); ok && (value != "" || isString) {
+		if value, ok := lookup(derived); ok && value != "" {
 			return value, derived, true
 		}
 	}
