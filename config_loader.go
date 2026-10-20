@@ -23,9 +23,9 @@ type ConfigContext interface {
 	// "cloudctl deploy worker".
 	CommandPath() string
 	// LookupEnv returns the environment visible to this invocation, like
-	// os.LookupEnv. Normal executions include .env values because dotenv runs
-	// before binding; completion uses the shell/process environment and the
-	// injected completion lookup, and does not load .env files.
+	// os.LookupEnv. Normal executions and completion invocations both include
+	// .env values because dotenv runs before resolution; completion tolerates
+	// dotenv loading failures the same way it tolerates loader failures.
 	LookupEnv(key string) (string, bool)
 }
 

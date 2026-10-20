@@ -1530,8 +1530,234 @@ func TestFeaturesContainer_Parsing(t *testing.T) {
 	assert.Equal(t, "feature-gates", cmd.FeatureFlag.Name)
 	assert.True(t, cmd.FeatureFlag.IsMap)
 	assert.Equal(t, "experiments", cmd.FeatureFlag.ConfigKey)
-	assert.Equal(t, []string{"APP_X_FEATURE_GATES"}, cmd.FeatureFlag.EnvVars)
+	// envprefix on the container derives per-feature variables; the combined
+	// map flag itself binds no environment variable.
+	assert.Zero(t, cmd.FeatureFlag.EnvVars)
+	assert.True(t, cmd.FeatureFlag.EnvExcluded)
+	assert.Equal(t, []string{"APP_X_GENTLE_FORCE"}, gentle.EnvVars)
+	assert.False(t, gentle.EnvExcluded)
+	assert.Equal(t, []string{"APP_X_PARALLELISM"}, parallel.EnvVars)
 	assert.Equal(t, []string{"gentle-force", "parallelism"}, cmd.FeatureFlag.Enum)
+}
+
+func TestFeaturesContainer_EnvSurfaces(t *testing.T) {
+	t.Parallel()
+
+	t.Run("explicit container env names bind the map flag", func(t *testing.T) {
+		t.Parallel()
+
+		var cli struct {
+			Features mockFeatures[featureDeclSet] `config:"experiments" env:"APP_FEATURES" flag:"feature-gates"`
+		}
+
+		cmd, err := buildSchema(&cli, "app", spec.Options{})
+
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"APP_FEATURES"}, cmd.FeatureFlag.EnvVars)
+		assert.False(t, cmd.FeatureFlag.EnvExcluded)
+		assert.Zero(t, cmd.FindFeature("gentle-force").EnvVars)
+		assert.True(t, cmd.FindFeature("gentle-force").EnvExcluded)
+	})
+
+	t.Run("container without env is excluded", func(t *testing.T) {
+		t.Parallel()
+
+		var cli struct {
+			Features mockFeatures[featureDeclSet] `config:"experiments" flag:"feature-gates"`
+		}
+
+		cmd, err := buildSchema(&cli, "app", spec.Options{})
+
+		assert.NoError(t, err)
+		assert.Zero(t, cmd.FeatureFlag.EnvVars)
+		assert.True(t, cmd.FeatureFlag.EnvExcluded)
+	})
+
+	t.Run("field env tags resolve against the container prefix", func(t *testing.T) {
+		t.Parallel()
+
+		var cli struct {
+			Features mockFeatures[struct {
+				Explicit bool `env:"CUSTOM_FORCE"`
+				Skipped  bool `env:"-"`
+				Derived  bool
+			}] `envprefix:"TASK_X" flag:"feature-gates"`
+		}
+
+		cmd, err := buildSchema(&cli, "app", spec.Options{})
+
+		assert.NoError(t, err)
+
+		explicit := cmd.FindFeature("explicit")
+		assert.NotZero(t, explicit)
+		assert.Equal(t, []string{"CUSTOM_FORCE"}, explicit.EnvVars)
+		assert.False(t, explicit.EnvExcluded)
+
+		skipped := cmd.FindFeature("skipped")
+		assert.NotZero(t, skipped)
+		assert.Zero(t, skipped.EnvVars)
+		assert.True(t, skipped.EnvExcluded)
+
+		derived := cmd.FindFeature("derived")
+		assert.NotZero(t, derived)
+		assert.Equal(t, []string{"TASK_X_DERIVED"}, derived.EnvVars)
+	})
+
+	t.Run("env and envprefix conflict", func(t *testing.T) {
+		t.Parallel()
+
+		var cli struct {
+			Features mockFeatures[featureDeclSet] `env:"APP_FEATURES" envprefix:"APP_"`
+		}
+
+		_, err := buildSchema(&cli, "app", spec.Options{})
+
+		assert.Error(t, err)
+		assert.IsError(t, err, spec.ErrSchema)
+		assert.Contains(t, err.Error(), `tag "env" and tag "envprefix" cannot both be declared on a conga.Features container (env names the combined map variable; envprefix derives one variable per feature)`)
+	})
+
+	t.Run("field env under container env conflict", func(t *testing.T) {
+		t.Parallel()
+
+		var cli struct {
+			Features mockFeatures[struct {
+				Enabled bool `env:"TASK_X_ENABLED"`
+			}] `env:"APP_FEATURES"`
+		}
+
+		_, err := buildSchema(&cli, "app", spec.Options{})
+
+		assert.Error(t, err)
+		assert.IsError(t, err, spec.ErrSchema)
+		assert.Contains(t, err.Error(), `feature field Enabled declares env while the Features container declares env (the combined map variable); declare one env surface per container`)
+	})
+
+	t.Run("field env absence under container env is accepted", func(t *testing.T) {
+		t.Parallel()
+
+		var cli struct {
+			Features mockFeatures[struct {
+				Excluded bool `env:"-"`
+				Empty    bool `env:""`
+			}] `env:"APP_FEATURES"`
+		}
+
+		_, err := buildSchema(&cli, "app", spec.Options{})
+
+		assert.NoError(t, err)
+	})
+}
+
+func TestFeaturesContainer_EnvCollisions(t *testing.T) {
+	t.Parallel()
+
+	t.Run("duplicate field variables", func(t *testing.T) {
+		t.Parallel()
+
+		var cli struct {
+			Features mockFeatures[struct {
+				First  bool `env:"SHARED_VAR"`
+				Second bool `env:"SHARED_VAR"`
+			}]
+		}
+
+		_, err := buildSchema(&cli, "app", spec.Options{})
+
+		assert.Error(t, err)
+		assert.IsError(t, err, spec.ErrSchema)
+		assert.Contains(t, err.Error(), `environment variable "SHARED_VAR" is bound by both feature "first" and feature "second"`)
+	})
+
+	t.Run("field variable collides with a flag variable", func(t *testing.T) {
+		t.Parallel()
+
+		var cli struct {
+			Features mockFeatures[struct {
+				Enabled bool `env:"SHARED_VAR"`
+			}]
+
+			Port mockFlag[int] `env:"SHARED_VAR" help:"Port"`
+		}
+
+		_, err := buildSchema(&cli, "app", spec.Options{})
+
+		assert.Error(t, err)
+		assert.IsError(t, err, spec.ErrSchema)
+		assert.Contains(t, err.Error(), `environment variable "SHARED_VAR" is bound by both feature "enabled" and flag --port`)
+	})
+
+	t.Run("no collision across distinct variables", func(t *testing.T) {
+		t.Parallel()
+
+		var cli struct {
+			Features mockFeatures[struct {
+				Enabled bool `env:"TASK_X_ENABLED"`
+			}]
+
+			Port mockFlag[int] `env:"APP_PORT" help:"Port"`
+		}
+
+		_, err := buildSchema(&cli, "app", spec.Options{})
+
+		assert.NoError(t, err)
+	})
+
+	t.Run("flag variables do not collide with each other", func(t *testing.T) {
+		t.Parallel()
+
+		var cli struct {
+			Features mockFeatures[struct{}]
+
+			First  mockFlag[int] `env:"SHARED_FLAG" help:"First"`
+			Second mockFlag[int] `env:"SHARED_FLAG" help:"Second"`
+		}
+
+		_, err := buildSchema(&cli, "app", spec.Options{})
+
+		assert.NoError(t, err)
+	})
+
+	t.Run("flag variables do not collide beside a feature variable", func(t *testing.T) {
+		t.Parallel()
+
+		var cli struct {
+			Features mockFeatures[struct {
+				Enabled bool `env:"FEATURE_VAR"`
+			}]
+
+			First  mockFlag[int] `env:"SHARED_FLAG" help:"First"`
+			Second mockFlag[int] `env:"SHARED_FLAG" help:"Second"`
+		}
+
+		_, err := buildSchema(&cli, "app", spec.Options{})
+
+		assert.NoError(t, err)
+	})
+}
+
+type featureOrderCollisionSet struct {
+	First  bool `env:"FLAG_A_VAR"`
+	Second bool `env:"FLAG_B_VAR"`
+}
+
+type featureOrderCollisionCLI struct {
+	Features mockFeatures[featureOrderCollisionSet]
+
+	FlagOne mockFlag[int] `env:"FLAG_B_VAR" help:"Flag one"`
+	FlagTwo mockFlag[int] `env:"FLAG_A_VAR" help:"Flag two"`
+}
+
+func TestFeaturesContainer_EnvCollisionReportsFirstFlag(t *testing.T) {
+	t.Parallel()
+
+	var cli featureOrderCollisionCLI
+
+	_, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.Error(t, err)
+	assert.IsError(t, err, spec.ErrSchema)
+	assert.Equal(t, `struct featureOrderCollisionCLI field Features: schema error: environment variable "FLAG_B_VAR" is bound by both feature "second" and flag --flag-one`, err.Error())
 }
 
 type featureDuplicateCLI struct {
@@ -1860,6 +2086,22 @@ func TestFeaturesContainer_EnvVariableSubstitution(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, "Gates via APP_GATES", cmd.FeatureFlag.Help)
+	assert.True(t, cmd.FeatureFlag.HelpVars.Env)
+}
+
+type featureEnvPrefixHelpCLI struct {
+	Features mockFeatures[featureDeclSet] `envprefix:"APP_X_" help:"Gates via {{env}}"`
+}
+
+func TestFeaturesContainer_EnvVariableSubstitutionUnderEnvPrefix(t *testing.T) {
+	t.Parallel()
+
+	var cli featureEnvPrefixHelpCLI
+
+	cmd, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.NoError(t, err)
+	assert.Equal(t, "Gates via APP_X_GENTLE_FORCE, APP_X_PARALLELISM", cmd.FeatureFlag.Help)
 	assert.True(t, cmd.FeatureFlag.HelpVars.Env)
 }
 

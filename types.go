@@ -810,9 +810,15 @@ func (c *CompletionCommand) Run(ctx context.Context, session *Session) error {
 // build with [ErrSchema].
 //
 // Every feature is
-// carried by a single key=value map surface: the map flag named by the flag tag
-// (omitted when the tag is absent), the environment variable named by env or
-// derived from envprefix, and the configuration section named by config. A key
+// carried by a single key=value map surface: the map flag named by the flag
+// tag (omitted when the tag is absent), the environment surface declared on
+// the container, and the configuration section named by config. The env
+// surface is one of two exclusive shapes: env names a combined map variable
+// carrying name=value pairs, and envprefix derives one variable per feature
+// (<PREFIX>_<UPPER_SNAKE(feature name)>), with each field's env tag
+// overriding its derived variable and env:"-" excluding the field. A
+// container without either tag binds no environment variable, and the app
+// EnvPrefix never reaches features. A key
 // may use any spelling of a declared feature name (kebab-case, snake_case, or
 // camelCase); keys are canonicalized before the merge, so precedence follows
 // the tier rather than the spelling. The field defaults form the base set;

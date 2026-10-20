@@ -115,7 +115,7 @@ func featureGates(cmd *spec.Command, values map[string]string) map[string]bool {
 // key order. Diagnostics attribute each key to the tier that supplied it via
 // provenance, falling back to the container's recorded source when a key has no
 // recorded tier.
-func featureValues(cmd *spec.Command, cmdChain []*spec.Command, provided map[string]string, provenance map[string]ValueSource, fallback ValueSource) (map[string]string, error) {
+func featureValues(cmd *spec.Command, cmdChain []*spec.Command, provided map[string]string, provenance map[string]ValueSource, envNames map[string]string, fallback ValueSource) (map[string]string, error) {
 	var firstErr error
 
 	values := collectFeatureValues(cmd, provided, func(name string, raw string, feature *spec.FeatureField, cause error) {
@@ -134,7 +134,7 @@ func featureValues(cmd *spec.Command, cmdChain []*spec.Command, provided map[str
 			return
 		}
 
-		firstErr = invalidFeatureValueError(cmdChain, feature, raw, cause, source)
+		firstErr = invalidFeatureValueError(cmdChain, feature, raw, cause, source, envNames[name])
 	})
 
 	return values, firstErr
@@ -187,14 +187,14 @@ func collectFeatureValues(cmd *spec.Command, provided map[string]string, reject 
 // provided feature map onto the defaults, and materializes the typed feature
 // struct.
 func bindFeatureValues(binding featureState, target any, cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, state *bindingState) (map[string]bool, error) {
-	provided, err := bindFeatureMap(cmd, cmdChain, flagValues, state)
+	provided, envNames, err := bindFeatureMap(cmd, cmdChain, flagValues, state)
 	if err != nil && !state.TolerateFeatureErrors {
 		return nil, err
 	}
 
 	sources, _ := binding.mapProvenance()
 
-	values, err := featureValues(cmd, cmdChain, provided, sources, binding.Source())
+	values, err := featureValues(cmd, cmdChain, provided, sources, envNames, binding.Source())
 	if err != nil && !state.TolerateFeatureErrors {
 		return nil, err
 	}
@@ -206,24 +206,21 @@ func bindFeatureValues(binding featureState, target any, cmd *spec.Command, cmdC
 }
 
 // bindFeatureMap applies the synthesized feature map flag from the merged
-// tier cascade and returns the resolved provided map (canonical feature-name
-// keys), or an empty map when the flag stays unbound.
-func bindFeatureMap(cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, state *bindingState) (map[string]string, error) {
+// tier cascade, overlays per-feature environment variables, and returns the
+// resolved provided map (canonical feature-name keys), the key-to-variable
+// attribution map backing error messages for combined-map and per-feature env
+// keys, and a nil error when the flag binds.
+func bindFeatureMap(cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, state *bindingState) (map[string]string, map[string]string, error) {
 	if cmd.FeatureFlag == nil {
-		return make(map[string]string), nil
+		return make(map[string]string), nil, nil
 	}
 
 	var result mapMergeResult
+
+	result.wantCLIKeys = state == nil || !state.WantMapProvenance
+
 	if err := foldMapTiers(cmd, cmdChain, cmd.FeatureFlag, flagValues, state, &result); err != nil {
-		return nil, err
-	}
-
-	if target := featureStateOfCommand(cmd); target != nil {
-		if result.hasValues {
-			target.setValue(result.merged, result.highestTier, result.sourceDetail())
-		}
-
-		target.setMapProvenance(result.provenance, result.origins)
+		return nil, nil, err
 	}
 
 	var provided map[string]string
@@ -235,7 +232,139 @@ func bindFeatureMap(cmd *spec.Command, cmdChain []*spec.Command, flagValues map[
 		provided = make(map[string]string)
 	}
 
-	return provided, nil
+	envNames := overlayFeatureFieldEnv(cmd, state, provided, &result)
+
+	// Feature binding always records per-key provenance, so env-sourced keys
+	// can be attributed to the combined-map variable that supplied them.
+	for name, source := range result.provenance {
+		if source != SourceEnv || result.envName == "" {
+			continue
+		}
+
+		if _, ok := envNames[name]; ok {
+			continue
+		}
+
+		if envNames == nil {
+			envNames = make(map[string]string, len(result.provenance))
+		}
+
+		envNames[name] = result.envName
+	}
+
+	if target := featureStateOfCommand(cmd); target != nil {
+		if result.hasValues {
+			target.setValue(result.merged, result.highestTier, result.sourceDetail())
+		}
+
+		target.setMapProvenance(result.provenance, result.origins)
+	}
+
+	return provided, envNames, nil
+}
+
+// overlayFeatureFieldEnv resolves each declared feature field's environment
+// variables onto the merged feature map. Per-feature variables sit between
+// the CLI tier and the configuration tier of the resolution ladder: a key
+// supplied on the command line wins, an env-supplied key overrides config
+// and defaults, and keys the environment does not name keep their
+// lower-tier values. Raw values are recorded as-is; collectFeatureValues
+// canonicalizes every key uniformly, so invalid env values surface through
+// the shared diagnostics. Each contributed key records SourceEnv provenance
+// with a zeroed origin, keeping the --why report identical to combined-map
+// env keys, and envNames maps each contributed key to its winning variable
+// for error attribution.
+func overlayFeatureFieldEnv(cmd *spec.Command, state *bindingState, provided map[string]string, result *mapMergeResult) map[string]string {
+	var (
+		envNames        map[string]string
+		contributedVars []string
+	)
+
+	lookup := envLookupFunc(state)
+
+	// foldMapTiers allocates the provenance maps only when a tier contributed;
+	// a feature map supplied solely by per-feature variables needs them too.
+	if state != nil && state.WantMapProvenance && result.provenance == nil {
+		result.provenance = make(map[string]ValueSource)
+		result.origins = make(map[string]configdata.Value)
+	}
+
+	for _, feature := range cmd.FeatureFields {
+		rawValue, envName, found := resolveFeatureEnvValue(feature, result, lookup)
+		if !found {
+			continue
+		}
+
+		provided[feature.Name] = rawValue
+
+		if result.provenance != nil {
+			result.provenance[feature.Name] = SourceEnv
+		}
+
+		if result.origins != nil {
+			result.origins[feature.Name] = configdata.Value{}
+		}
+
+		if envNames == nil {
+			envNames = make(map[string]string)
+		}
+
+		envNames[feature.Name] = envName
+		contributedVars = append(contributedVars, envName)
+	}
+
+	recordFeatureEnvContribution(contributedVars, provided, result)
+
+	return envNames
+}
+
+// resolveFeatureEnvValue looks up one feature field's environment variables in
+// declaration order: the first set variable wins, an empty value is unset, and
+// a key the command line already supplied keeps its CLI value. CLI presence
+// reads full provenance when it was recorded, else the lightweight key set
+// collected for callers that do not request provenance.
+func resolveFeatureEnvValue(feature *spec.FeatureField, result *mapMergeResult, lookup func(string) (string, bool)) (string, string, bool) {
+	if feature.EnvExcluded || len(feature.EnvVars) == 0 {
+		return "", "", false
+	}
+
+	if result.provenance[feature.Name] == SourceCLI {
+		return "", "", false
+	}
+
+	if _, ok := result.cliKeys[feature.Name]; ok {
+		return "", "", false
+	}
+
+	for _, envVar := range feature.EnvVars {
+		if value, ok := lookup(envVar); ok && value != "" {
+			return value, envVar, true
+		}
+	}
+
+	return "", "", false
+}
+
+// recordFeatureEnvContribution publishes a completed per-feature env overlay
+// into the merge result: contributed keys mark the map as env-sourced, the
+// highest tier moves to the environment unless the command line supplied a
+// key, and an env-only map becomes the merged value.
+func recordFeatureEnvContribution(contributedVars []string, provided map[string]string, result *mapMergeResult) {
+	if len(contributedVars) == 0 {
+		return
+	}
+
+	result.hasValues = true
+
+	if result.highestTier != SourceCLI {
+		result.highestTier = SourceEnv
+		result.highestName = strings.Join(contributedVars, ", ")
+		result.highestOrigins = nil
+	}
+
+	if result.merged == nil {
+		result.merged = provided
+	}
 }
 
 // completionFeatureGates resolves the feature gate map for a completion
@@ -251,21 +380,27 @@ func completionFeatureGates(cmd *spec.Command, flagValues map[*spec.Flag][]strin
 }
 
 // completionProvidedMap resolves the synthesized feature flag's raw provided
-// map from the merged tier cascade without coercing into the container.
+// map from the merged tier cascade plus the per-feature environment overlay,
+// without coercing into the container.
 func completionProvidedMap(cmd *spec.Command, flagValues map[*spec.Flag][]string, state *bindingState) map[string]string {
 	if cmd.FeatureFlag == nil {
 		return nil
 	}
 
 	var result mapMergeResult
+
+	result.wantCLIKeys = state == nil || !state.WantMapProvenance
+
 	if err := foldMapTiers(cmd, []*spec.Command{cmd}, cmd.FeatureFlag, flagValues, state, &result); err != nil {
 		return nil
 	}
 
 	provided, ok := result.merged.(map[string]string)
 	if !ok {
-		return nil
+		provided = make(map[string]string)
 	}
+
+	overlayFeatureFieldEnv(cmd, state, provided, &result)
 
 	return provided
 }
@@ -316,8 +451,13 @@ func unknownFeatureError(cmdChain []*spec.Command, cmd *spec.Command, name strin
 	}
 }
 
-func invalidFeatureValueError(cmdChain []*spec.Command, feature *spec.FeatureField, raw string, cause error, source ValueSource) error {
-	message := fmt.Sprintf("invalid value %q for feature %q: %v", raw, feature.Name, cause)
+func invalidFeatureValueError(cmdChain []*spec.Command, feature *spec.FeatureField, raw string, cause error, source ValueSource, envName string) error {
+	location := ""
+	if source == SourceEnv && envName != "" {
+		location = fmt.Sprintf(" (from environment variable %s)", envName)
+	}
+
+	message := fmt.Sprintf("invalid value %q for feature %q%s: %v", raw, feature.Name, location, cause)
 
 	if source == SourceConfig {
 		return fmt.Errorf("%w: %s", ErrConfig, message)

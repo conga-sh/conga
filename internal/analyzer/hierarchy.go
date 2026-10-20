@@ -8,6 +8,7 @@ import (
 	"go/types"
 	"maps"
 	"reflect"
+	"strings"
 
 	"golang.org/x/tools/go/analysis"
 
@@ -64,8 +65,14 @@ type commandNode struct {
 	allowRecurse bool
 	// envPrefix is the effective environment variable prefix inherited by the
 	// command (its own sentinel tag, else the declaring Command[T] field's
-	// envprefix tag, else the parent's, else the app-level prefix).
+	// envprefix tag, else the parent's, else the app-level prefix), normalized
+	// with the trailing underscore the runtime schema builder applies.
 	envPrefix string
+	// envPrefixKnown reports whether envPrefix was resolved from literal
+	// evidence (a local tag or an unambiguous app-level prefix). An unknown
+	// prefix suppresses derived-name reasoning, so the analyzer may only miss
+	// diagnostics, never invent them.
+	envPrefixKnown bool
 	// isRoot marks the command struct anchored by conga.New. conga.Features is
 	// legal only on the root command struct.
 	isRoot bool
@@ -104,6 +111,19 @@ type walker struct {
 	configFileFlagName    string
 	configFileFieldObject types.Object
 	configFileNode        *commandNode
+	// featureEnvBindings records the environment variables the root Features
+	// container binds — the combined map variable and per-feature fields —
+	// with owner descriptions, for the env collision check. The state is
+	// reset per walked root.
+	featureEnvBindings []envBinding
+	// flagEnvBindings records every flag's environment variable bindings in
+	// declaration order across the walked tree. Feature-vs-flag collisions
+	// iterate it in flag order, mirroring the runtime walk.
+	flagEnvBindings []envBinding
+	// featureEnvNode and featureEnvFieldObject locate the Features container
+	// field for collision diagnostics.
+	featureEnvNode        *commandNode
+	featureEnvFieldObject types.Object
 }
 
 func newWalker(pass *analysis.Pass, congaTypes *congaTypes, options *appOptions, completionState, featureState optInState, loaderState loaderState, singleAnchor bool) *walker {
@@ -130,23 +150,31 @@ func (w *walker) walkRoot(root *anchor) {
 	w.configFileFlagName = ""
 	w.configFileFieldObject = nil
 	w.configFileNode = nil
+	w.featureEnvBindings = nil
+	w.featureEnvNode = nil
+	w.featureEnvFieldObject = nil
+	w.flagEnvBindings = nil
 
 	allowUnknown, allowRecurse := rootDirectiveOptions(structType)
 
+	rootEnvPrefix := nodeEnvPrefix(structType)
+
 	node := &commandNode{
-		named:        root.rootType,
-		structType:   structType,
-		name:         casing.Kebab(root.rootType.Obj().Name()),
-		inPackage:    w.isCurrentPackage(root.rootType.Obj()),
-		reportPos:    root.position,
-		allowUnknown: allowUnknown,
-		allowRecurse: allowRecurse,
-		envPrefix:    cmp.Or(nodeEnvPrefix(structType), w.options.envPrefix),
-		isRoot:       true,
+		named:          root.rootType,
+		structType:     structType,
+		name:           casing.Kebab(root.rootType.Obj().Name()),
+		inPackage:      w.isCurrentPackage(root.rootType.Obj()),
+		reportPos:      root.position,
+		allowUnknown:   allowUnknown,
+		allowRecurse:   allowRecurse,
+		envPrefix:      normalizedEnvPrefix(cmp.Or(rootEnvPrefix, w.options.envPrefix)),
+		envPrefixKnown: rootEnvPrefix != "" || !w.options.envPrefixAmbiguous,
+		isRoot:         true,
 	}
 
 	w.walkCommand(node, map[string]string{}, map[rune]string{})
 	w.checkCascadingArity()
+	w.checkFeatureEnvCollisions()
 }
 
 // walkCommand mirrors the runtime schema walk: struct tag validation per
@@ -289,7 +317,9 @@ func (w *walker) buildChildNode(node *commandNode, fieldObject types.Object, tag
 		return nil
 	}
 
-	return &commandNode{
+	localEnvPrefix := cmp.Or(nodeEnvPrefix(structType), tag.Get("envprefix"))
+
+	childNode := &commandNode{
 		named:        named,
 		structType:   structType,
 		name:         cmp.Or(tag.Get("name"), casing.Kebab(fieldObject.Name())),
@@ -297,8 +327,17 @@ func (w *walker) buildChildNode(node *commandNode, fieldObject types.Object, tag
 		reportPos:    w.fieldReportPos(node, fieldObject),
 		allowUnknown: allowUnknown,
 		allowRecurse: allowRecurse,
-		envPrefix:    cmp.Or(nodeEnvPrefix(structType), tag.Get("envprefix"), node.envPrefix),
 	}
+
+	if localEnvPrefix != "" {
+		childNode.envPrefix = normalizedEnvPrefix(localEnvPrefix)
+		childNode.envPrefixKnown = true
+	} else {
+		childNode.envPrefix = node.envPrefix
+		childNode.envPrefixKnown = node.envPrefixKnown
+	}
+
+	return childNode
 }
 
 func (w *walker) implements(target types.Type, interfaceType *types.Interface) bool {
@@ -338,6 +377,23 @@ func (w *walker) fieldReportPos(node *commandNode, fieldObject types.Object) tok
 	}
 
 	return node.reportPos
+}
+
+// envBinding is one environment variable bound by a feature or a flag, with
+// the owner description the collision diagnostic names.
+type envBinding struct {
+	envVar string
+	owner  string
+}
+
+// normalizedEnvPrefix mirrors the runtime schema builder's trailing-underscore
+// normalization of environment prefixes.
+func normalizedEnvPrefix(prefix string) string {
+	if prefix == "" || strings.HasSuffix(prefix, "_") {
+		return prefix
+	}
+
+	return prefix + "_"
 }
 
 // nodeEnvPrefix mirrors the runtime scanSentinelDirectives envprefix scan: the

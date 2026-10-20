@@ -1117,6 +1117,16 @@ func (a *App[T]) completeForShell(targetShell string, args []string) (predict.Re
 func (a *App[T]) completeForShellWithEnv(targetShell string, args []string, lookup completion.EnvLookup) (predict.Result, string) {
 	a.initDefaults()
 
+	// Completion shares the normal run's environment view: .env files load
+	// before resolution so env-sourced values — including feature gates — are
+	// visible to candidate generation. Failures are tolerated: completion is
+	// an observation, and the real run surfaces the error through the regular
+	// pipeline (matching the tolerated config-loader failures below).
+	if a.dotenvLoader != nil {
+		//nolint:errcheck // completion tolerates dotenv failures like loader failures
+		_ = a.dotenvLoader(a.dotenvPaths...)
+	}
+
 	cmd, err := a.buildSpec()
 	if err != nil {
 		return predict.None().Invoke(predict.Context{}), ""

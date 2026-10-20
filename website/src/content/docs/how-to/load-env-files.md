@@ -42,6 +42,8 @@ func main() {
 
 When invoked without arguments, `Dotenv()` probes `.env` then `.env.local` in the current working directory. Missing files are silently ignored, allowing applications to run normally in production environments where configuration is injected directly through the operating system. Existing process environment variables are preserved, and `.env.local` overrides a key defined in `.env`. [Dotenv files](/reference/dotenv/) has the complete loading contract.
 
+Shell completion loads the same files before resolving candidates, so `.env`-sourced values — including feature gates — shape suggestions identically to a real run. A malformed or missing explicit file is tolerated during completion and only fails the real run.
+
 ## Preserve host environment variables
 
 At startup, `app.Dotenv()` adheres to the 12-factor application principle: host environment variables take precedence over `.env` files. Variables set in the shell, container, or CI runner override matching entries in `.env` or `.env.local`. Variable expansion observes the same precedence: a reference such as `${HOST}` resolves to the host value, keeping derived entries consistent with the preserved variable:

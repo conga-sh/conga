@@ -103,6 +103,8 @@ Because every tier contributes to the merged map, CONGA parses and validates map
 
 A `conga.Features[T]` container resolves through the same key-by-key map merge. Every tier contributes `name=value` pairs, higher tiers override matching keys, and the resulting map overlays the inner feature struct's `default` tags key by key. Features not listed in any tier retain their field defaults (sparse overrides). Cascading config files merge their gate sections per key under the same nearest-file-wins rule.
 
+The environment tier reaches features through one variable or many: a combined map variable named by the container's `env` tag, or one variable per feature derived from the container's `envprefix` (overridable per field with an `env` tag). Both shapes occupy the same ladder position, and the application-level `EnvPrefix(...)` never reaches features. See [About feature toggles](/explanation/feature-toggles/#one-env-surface-per-container) for the exclusivity and collision rules.
+
 Before merging, CONGA canonicalizes all feature keys to the declared feature name. Whether a configuration file specifies `gentle_force`, an environment variable sets `GENTLE_FORCE`, or the command line sets `gentle-force`, all three match the `GentleForce` toggle. Precedence follows the resolution tier, never the spelling variant.
 
 The container records the highest contributing tier as its `Source()`, and `--why` renders each individual feature against the tier that last wrote its key. See [About feature toggles](/explanation/feature-toggles/) and [How to inspect value provenance](/how-to/inspect-value-provenance/).

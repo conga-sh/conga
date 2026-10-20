@@ -21,7 +21,7 @@ var (
 	userCommandTagCandidates    = []string{"name", "summary", "aliases", "group", "hidden", "envprefix", "deprecated", "feature", "conga"}
 	configFileTagCandidates     = []string{"name", "short", "help", "env", "aliases", "placeholder", "group", "hidden", "multi", "sep", "config", "deprecated", "feature", "conga"}
 	featuresFieldTagCandidates  = []string{"flag", "env", "envprefix", "config", "sep", "help", "enumhint", "conga"}
-	featureFieldTagCandidates   = []string{"name", "help", "default", "enum", "stage", "conga"}
+	featureFieldTagCandidates   = []string{"name", "help", "env", "default", "enum", "stage", "conga"}
 	dashRawTagCandidates        = []string{"name", "bootstrap", "conga"}
 	sentinelTagCandidates       = []string{"envprefix", "conga"}
 	allCongaTagCandidates       = []string{

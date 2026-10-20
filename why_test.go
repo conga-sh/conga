@@ -17,6 +17,7 @@ import (
 	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/decoder/json"
 	"github.com/conga-sh/conga/decoder/toml"
+	"github.com/conga-sh/conga/decoder/yaml"
 )
 
 func TestBuiltinHoist_HelpWithEnvSourcedMissingConfigPath(t *testing.T) {
@@ -469,6 +470,80 @@ func TestWhy_NoCLIFeaturesExcludedFromFlagTable(t *testing.T) {
 	assert.True(t, found)
 	assert.NotContains(t, flagSection, "--features")
 	assert.Contains(t, featuresSection, "alpha")
+}
+
+// TestWhy_FieldEnvNoDetail pins that a per-feature env variable renders the
+// same provenance row as a combined-map env key: source "env" with no detail,
+// so the variable name never appears in the report.
+func TestWhy_FieldEnvNoDetail(t *testing.T) {
+	var buffer bytes.Buffer
+
+	app := conga.New[featureFieldEnvCLI]().
+		Name("whyapp").
+		Stdout(&buffer).
+		EnableFeatures().
+		EnableWhy().
+		Args([]string{"--why"})
+
+	t.Setenv("TASK_X_GENTLE_FORCE", "1")
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+
+	_, featuresSection, found := strings.Cut(buffer.String(), "Features:")
+	assert.True(t, found)
+
+	featuresTable, _, _ := strings.Cut(featuresSection, "\n\n")
+
+	assert.Contains(t, featuresTable, "gentle-force")
+
+	for line := range strings.SplitSeq(featuresTable, "\n") {
+		if strings.Contains(line, "gentle-force") {
+			assert.True(t, strings.HasSuffix(strings.TrimSpace(line), "env"))
+			assert.NotContains(t, line, "TASK_X_")
+		}
+	}
+}
+
+// TestWhy_FieldEnvOverridesConfigClearsConfigDetail pins that an env override
+// of a config-sourced key leaves no stale configuration detail: the row
+// reports the env tier only.
+func TestWhy_FieldEnvOverridesConfigClearsConfigDetail(t *testing.T) {
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "experiments.yml")
+	err := os.WriteFile(configPath, fixtureFeatureGentleForce, 0o600)
+	assert.NoError(t, err)
+
+	var buffer bytes.Buffer
+
+	app := conga.New[featureFieldEnvCLI]().
+		Name("whyapp").
+		Stdout(&buffer).
+		EnableFeatures().
+		EnableWhy().
+		RegisterDecoder(".yaml", yaml.Decode).
+		RegisterDecoder(".yml", yaml.Decode).
+		ConfigOptions(conga.ConfigExplicit(configPath)).
+		Args([]string{"--why"})
+
+	t.Setenv("TASK_X_GENTLE_FORCE", "false")
+
+	err = app.Run()
+
+	assert.NoError(t, err)
+
+	_, featuresSection, found := strings.Cut(buffer.String(), "Features:")
+	assert.True(t, found)
+
+	featuresTable, _, _ := strings.Cut(featuresSection, "\n\n")
+
+	assert.Contains(t, featuresTable, "gentle-force")
+	assert.Contains(t, featuresTable, "false")
+	assert.Contains(t, featuresTable, "env")
+	assert.NotContains(t, featuresTable, "config")
+	assert.NotContains(t, featuresTable, configPath)
+	assert.NotContains(t, featuresTable, "TASK_X_")
 }
 
 func TestWhy_UnsetRows(t *testing.T) {
@@ -1907,6 +1982,49 @@ func TestBuiltinWhy_JSONMapAndFeatures(t *testing.T) {
 	features, ok := raw["features"].([]any)
 	assert.True(t, ok)
 	assert.True(t, len(features) >= 2)
+}
+
+// TestBuiltinWhy_FieldEnvJSONSource pins that the JSON why report attributes
+// a field-env feature key to the env tier.
+func TestBuiltinWhy_FieldEnvJSONSource(t *testing.T) {
+	var buffer bytes.Buffer
+
+	app := conga.New[featureFieldEnvCLI]().
+		Name("cloudctl").
+		EnableWhy(conga.WhyJSON()).
+		EnableFeatures().
+		Stdout(&buffer).
+		Args([]string{"--why=json"})
+
+	t.Setenv("TASK_X_GENTLE_FORCE", "1")
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+
+	var raw map[string]any
+
+	err = stdjson.Unmarshal(buffer.Bytes(), &raw)
+
+	assert.NoError(t, err)
+
+	features, ok := raw["features"].([]any)
+	assert.True(t, ok)
+
+	found := false
+
+	for _, featureRaw := range features {
+		featureMap, mapOk := featureRaw.(map[string]any)
+		if !mapOk || featureMap["name"] != "gentle-force" {
+			continue
+		}
+
+		found = true
+
+		assert.Equal(t, "env", featureMap["source"])
+	}
+
+	assert.True(t, found)
 }
 
 func TestBuiltinWhy_TextFormatExplicit(t *testing.T) {

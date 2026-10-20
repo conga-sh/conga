@@ -120,14 +120,19 @@ func helpVarAvailability(tag reflect.StructTag, role string, envPrefix string, e
 	}
 }
 
-// envVarsDeclared mirrors parseFlagEnvVars and extractConfigFileEnvVars: a
-// field binds environment variables when its env tag names them, or when the
-// tag is absent and an env prefix supplies the name; env:"-" disables binding
-// outright. Positional arguments never bind them. The features container binds
-// them under the same rules as flags.
+// envVarsDeclared mirrors ResolveFlagEnvVars and extractConfigFileEnvVars: a
+// field binds environment variables when its env tag names them, or — for
+// flags and config-file flags — when the tag is absent and an env prefix
+// supplies the name; env:"-" disables binding outright. Positional arguments
+// never bind them. The features container binds through explicit env names or
+// a per-feature envprefix; the application-level EnvPrefix never reaches it.
 func envVarsDeclared(tag reflect.StructTag, role string, envPrefix string, envPrefixKnown bool) bool {
 	if role != "flag" && role != "config file flag" && role != "features" {
 		return false
+	}
+
+	if role == "features" && strings.TrimSpace(tag.Get("envprefix")) != "" {
+		return true
 	}
 
 	if envTag, ok := tag.Lookup("env"); ok {
@@ -138,6 +143,10 @@ func envVarsDeclared(tag reflect.StructTag, role string, envPrefix string, envPr
 		if len(SplitTagList(tag, "env")) > 0 {
 			return true
 		}
+	}
+
+	if role == "features" {
+		return false
 	}
 
 	if !envPrefixKnown {

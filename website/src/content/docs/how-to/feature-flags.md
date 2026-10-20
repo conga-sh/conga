@@ -67,6 +67,38 @@ features:
   http3: true
 ```
 
+## Bind features individually with env
+
+Feature fields accept their own `env` tag, binding one variable per feature instead of one combined map. Declare the container's `envprefix` and every untagged field derives `<PREFIX>_<UPPER_SNAKE(feature name)>`:
+
+```go title="main.go"
+type Experiments struct {
+	HTTP3   bool `help:"Experimental HTTP/3 (QUIC) listener"`
+	Metrics bool `default:"true" help:"Expose the metrics endpoint"`
+}
+
+type Server struct {
+	Features conga.Features[Experiments] `envprefix:"SERVER_X" config:"features"`
+}
+```
+
+```sh
+SERVER_X_HTTP3=1 server
+```
+
+A field's `env` tag overrides its derived variable, and `env:"-"` excludes the field from the environment tier — the same rules a normal flag follows:
+
+```go title="main.go"
+type Experiments struct {
+	HTTP3    bool `env:"ENABLE_HTTP3" help:"Experimental HTTP/3 (QUIC) listener"`
+	Internal bool `env:"-"           help:"CLI and config only"`
+}
+```
+
+The two env surfaces are exclusive: a container declares either `env` (one combined `name=value` variable) or `envprefix` (one variable per feature), never both, and field `env` tags are rejected under a combined-map container. Schema build also rejects a feature variable that two fields resolve to, or that a flag also binds. Per-feature variables sit between the command line and configuration files in the [resolution ladder](/explanation/value-precedence/): `--feature-gates` wins per key, the variable overrides the config section, and unlisted keys keep their lower-tier values.
+
+The container `help` tag can inline the resolved variables with `{{env}}`. Under `envprefix`, `help:"Gates via {{env}}"` lists the derived and overridden names in declaration order.
+
 ## Gate members
 
 Inactive gated flags and subcommands are pruned from `--help`, `--why`, and shell completion. Supplying one on the command line is a usage error (exit 2):
