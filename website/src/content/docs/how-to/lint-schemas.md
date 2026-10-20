@@ -10,7 +10,7 @@ description: Catch leaf Runner violations, struct tag typos, and ancestor flag s
 Declare the analyzer as a tool dependency of your Go module, then invoke it over your packages:
 
 ```sh
-go get -tool github.com/conga-sh/conga/cmd/conga-lint
+go get -tool github.com/conga-sh/conga/cmd/conga-lint@latest
 go tool conga-lint ./...
 ```
 

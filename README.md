@@ -1,6 +1,7 @@
 # CONGA
 
 [![check](https://github.com/conga-sh/conga/actions/workflows/check.yaml/badge.svg?branch=main&event=push)](https://github.com/conga-sh/conga/actions/workflows/check.yaml)
+[![release](https://img.shields.io/github/v/release/conga-sh/conga?label=release)](https://github.com/conga-sh/conga/releases)
 [![Go Reference](https://pkg.go.dev/badge/github.com/conga-sh/conga.svg)](https://pkg.go.dev/github.com/conga-sh/conga)
 [![Go 1.27](https://img.shields.io/badge/Go-1.27-00ADD8?logo=go&logoColor=white)](https://go.dev/)
 [![license: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
@@ -9,6 +10,10 @@
 CONGA is a batteries-included CLI framework for Go. Model the command line
 with Go structs, and CONGA derives the flags, environment bindings,
 configuration, validation, and autocompletion.
+
+CONGA is experimental and pre-1.0: breaking changes increment the minor
+version. Pin a tag in production. See [CHANGELOG.md](CHANGELOG.md) for release
+notes.
 
 ## Features
 
@@ -28,8 +33,10 @@ configuration, validation, and autocompletion.
 Requires Go 1.27+.
 
 ```sh
-go get github.com/conga-sh/conga
+go get github.com/conga-sh/conga@latest
 ```
+
+Pin a specific release with `@v0.x.y` when you need reproducible builds.
 
 ## Quickstart
 

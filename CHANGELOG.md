@@ -4,8 +4,9 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+While CONGA is pre-1.0, breaking changes increment the minor version.
 
-## [Unreleased]
+## [0.1.0] - 2026-10-20
 
 ### Added
 
@@ -36,3 +37,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `sep:"none"` slices now preserve string elements verbatim, including leading and trailing whitespace.
 - Shell completion runs a declared `ConfigLoader` before candidate generation, with bootstrap-tagged fields bound from `--dir`-style flags, aliases, attached short values, environment, and defaults. Completion restores bootstrap state before generating candidates.
 - `conga.ConfigCascading()` now merges map flags key by key across the cascaded config files themselves: a key set only by a lower-precedence file survives instead of being silently dropped when a higher-precedence file rewrites the flag. The nearest file wins each overlapping key. Feature gates (`conga.Features[T]`) merge per key the same way, and gate-off pruning is unaffected. Scalar and slice flags keep nearest-file-wins semantics. Map flags behind a dotted `config:` namespace key now bind their nested section (previously rejected as an unknown field), and values containing the flag's `sep` survive the nested-map form without separator round-tripping. Array-valued map sections split per element regardless of the flag's `sep`, so a custom separator no longer swallows later elements. Config sections addressed at a flag excluded with `config:"-"` are now rejected like their scalar counterparts. The `--why` report attributes each merged map key to the config file that last wrote it.
+
+[Unreleased]: https://github.com/conga-sh/conga/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/conga-sh/conga/releases/tag/v0.1.0

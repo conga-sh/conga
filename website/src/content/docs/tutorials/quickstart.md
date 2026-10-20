@@ -34,7 +34,7 @@ Create a directory for the project and initialize a Go module:
 ```sh
 mkdir hello && cd hello
 go mod init hello
-go get github.com/conga-sh/conga
+go get github.com/conga-sh/conga@latest
 ```
 
 ## Write the program
