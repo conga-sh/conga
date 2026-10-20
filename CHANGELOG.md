@@ -8,35 +8,47 @@ While CONGA is pre-1.0, breaking changes increment the minor version.
 
 ## [0.1.0] - 2026-10-20
 
+CONGA v0.1.0 is the initial public release, featuring declarative struct-based CLI modeling, programmatic configuration loading, struct-declared feature toggles, multi-tier map merging, and provenance reporting with `--why`.
+
 ### Added
 
-- `conga.ConfigLoader` lets an application supply the run's configuration tier from code. `app.ConfigOptions(conga.ConfigLoader(load))` replaces file resolution with the `conga.ConfigDocument` the loader returns (built with `Set`, `SetKey`, `SetScoped`, and `SetKeyScoped`), validated exactly like a decoded config file. The loader now receives the typed root (`ConfigLoaderFunc[T]` exposes `root *T`), and fields tagged `bootstrap:"true"` are bound on that root before the loader runs so the loader reads typed containers instead of stringly flag lookups. `conga.ConfigContext` keeps `CommandPath` and `LookupEnv`. Values keep the config rank (`CLI > environment > document > default`), map flags merge key by key, per-entry origins surface in `--why`, feature gates ride the document, and loader failures wrap `ErrConfig` (exit 1). Loader applications must not also register decoders, declare file resolution options, or declare a root `ConfigFile` field; schema build rejects the combination with `ErrSchema` and `conga-lint` mirrors the guard.
-- The `bootstrap` struct tag marks flags, positional arguments, `DashArgs`, and `RawArgs` for binding before the configuration loader runs. Bootstrap fields use normal CLI > environment > default resolution, are exposed typed through `ConfigLoaderFunc[T]`'s root, require a declared `ConfigLoader`, reject `feature`, and are restricted to scalar, slice-of-scalar, and map-of-scalar types.
-- `conga.ConfigDocument.SetScoped` and `conga.ConfigDocument.SetKeyScoped` record an optional scope within a document origin, such as a section of a configuration file. The `--why` report renders a scoped origin as `origin › scope` in value attribution, while its Config paths table lists the origin path once without the scope.
-- `App.EnableFeatures()` activates struct-declared feature toggles: it installs the feature resolver and validator hooks, and is required for any application declaring a `conga.Features[T]` container or a `feature:"..."` tag.
-- The `--why` provenance flag accepts an optional output format selector: bare `--why` or `--why=text` renders human-readable tables. `app.EnableWhy(conga.WhyJSON())` additionally enables `--why=json`, which emits a versioned machine-readable document (`$schema`, `schemaVersion`, `command`, `version`, `timestamp`, `workingDirectory`, `flags`, `globalFlags`, `features`, `config`, `redacted`). Non-format values and `--why=json` without the option are rejected with a usage error (exit 2).
-- `Session.Why()` and `Session.WhyJSON()` expose the same provenance report programmatically inside `PreRun`, `Run`, and other lifecycle hooks. They return an empty string when Why (or the JSON option, for `WhyJSON`) is not enabled on the application.
+- **Programmatic Configuration (`conga.ConfigLoader`)**:
+  - `app.ConfigOptions(conga.ConfigLoader(load))` supplies the run's configuration tier directly from code via `conga.ConfigDocument` (`Set`, `SetKey`, `SetScoped`, `SetKeyScoped`).
+  - `ConfigLoaderFunc[T]` exposes the typed root (`root *T`), allowing loaders to inspect typed fields rather than parsing raw string flags.
+  - Failures wrap `ErrConfig` (exit 1). Mutually exclusive with file decoders or root `ConfigFile` flags (enforced by `ErrSchema` and `conga-lint`).
+- **Bootstrap Struct Tag (`bootstrap:"true"`)**:
+  - Marks flags, positional arguments, `DashArgs`, and `RawArgs` for binding before the configuration loader runs.
+  - Follows standard resolution (`CLI > env > default`) and supports scalar, slice-of-scalar, and map-of-scalar types.
+- **Scoped Document Origins**:
+  - `ConfigDocument.SetScoped` and `SetKeyScoped` record scopes within document origins (rendered as `origin › scope` in `--why` value attribution).
+- **Struct-Declared Feature Toggles**:
+  - `App.EnableFeatures()` activates struct-declared feature toggles for applications using `conga.Features[T]` or `feature:"..."` tags.
+- **Provenance Reports (`--why` & `--why=json`)**:
+  - Bare `--why` or `--why=text` renders human-readable attribution tables.
+  - `app.EnableWhy(conga.WhyJSON())` enables `--why=json`, emitting a versioned schema-backed provenance document.
+  - Programmatic access via `Session.Why()` and `Session.WhyJSON()` inside lifecycle hooks.
 
 ### Changed
 
-- **Breaking**: feature toggles are now opt-in. An application declaring a `conga.Features[T]` container or a `feature:"..."` tag without calling `app.EnableFeatures()` is rejected at schema build with `ErrSchema`, so binaries that never enable features keep the feature machinery unlinked.
-- **Breaking**: map flags (`map[K]V` fields, registered `RegisterMap` types, and the synthesized `conga.Features[T]` map) now merge key-by-key across all source tiers (`default` < config < env < CLI) instead of one winning tier supplying the whole map. A config file can set one key while the command line sets another, and both apply; a higher tier overrides only the keys it names. Feature keys are canonicalized to the declared name, so any accepted spelling (`gentle-force`, `gentle_force`, `gentleForce`) overrides across tiers. Scalars and slices keep winning-tier semantics. A malformed map or unknown feature key in a lower tier (e.g. config) now errors even when a higher tier also sets the flag, attributed to the tier that supplied it.
-- **Breaking**: merged `predict/{network,system,timezone}` and `plugin/{network,system,timezone}` into three topical kits — `network`, `system`, and `timezone`. Each kit bundles its domain types, autocompletion predictors, and standard library bindings in one package.
-- **Breaking**: renamed the standard library bindings to `network.RegisterInterface`, `system.RegisterUser`, `system.RegisterGroup`, `system.RegisterSignal`, and `timezone.RegisterLocation`. This resolves the previous `system.User` type-versus-function collision.
-- **Breaking**: `conga.ConfigLoaderFunc` is now generic (`conga.ConfigLoaderFunc[T]`) and receives the typed root as its second parameter, and `conga.ConfigContext` drops `FlagValue`/`FlagValues`. Migrate flag lookups to `bootstrap:"true"` fields read through the loader's `root *T`.
-- **Breaking**: `SourceDetail()` for config-sourced values now reports the contributing origin instead of the config key: the config file path as resolved, or the loader label (`Set(key, value, origin)`), falling back to the matched config key only when a programmatic loader supplies no origin. A merged map container lists every contributing file in load order, separated by commas. `Source()` is unchanged, and coercion-error attribution and the deprecation warning keep naming the config key.
-- Positional-argument `enum` validation now checks the coerced value's string form, matching flag validation, so normalizing `encoding.TextUnmarshaler` types compose with the `enum` tag.
-- The `--why` report renders one indented sub-row per map key with the tier that last wrote it, and the Features table reports each toggle's actual source tier instead of the winning tier of the whole map.
-- The `--why` report annotates every config-sourced row with the contributing file (`config (app.yaml)`), and an entry-bearing map row renders its key count (`(N keys)`) and highest contributing tier instead of repeating what its per-key sub-rows state.
-- The `--why` report now binds through the normal resolution pipeline (including on the built-in `version` and `completion` commands) and fails fast on invalid configuration, coercion, or feature input instead of rendering partial diagnostic rows.
-- Multi-file `ConfigFile` rows render `(N files)` with tree sub-rows listing each resolved path; the sequential `[1]`, `[2]` configuration-origin indices and the `Config files:` legend are removed in favor of directly reported origins.
+- **Breaking**: Feature toggles are now opt-in. Declaring `conga.Features[T]` or `feature:"..."` without calling `app.EnableFeatures()` is rejected at schema build with `ErrSchema`.
+- **Breaking**: Map flags (`map[K]V`, registered `RegisterMap` types, and `conga.Features[T]`) now merge key-by-key across all source tiers (`default < config < env < CLI`) instead of a single winning tier supplying the entire map. Lower-tier malformed maps or unknown keys now error even when overridden by higher tiers.
+- **Breaking**: Merged `predict/{network,system,timezone}` and `plugin/{network,system,timezone}` into three topical kits: `network`, `system`, and `timezone`.
+- **Breaking**: Renamed standard library bindings to `network.RegisterInterface`, `system.RegisterUser`, `system.RegisterGroup`, `system.RegisterSignal`, and `timezone.RegisterLocation`.
+- **Breaking**: `conga.ConfigLoaderFunc[T]` is now generic and receives the typed root `root *T`. `conga.ConfigContext` dropped `FlagValue`/`FlagValues` in favor of `bootstrap:"true"` fields.
+- **Breaking**: `SourceDetail()` for config-sourced values now reports the contributing origin (resolved file path or loader label) instead of the config key. Merged maps list all contributing files in load order.
+- Positional argument `enum` validation now validates against the coerced string form, matching flag behavior.
+- `--why` report enhancements:
+  - Indented sub-rows per map key with tier attribution and feature toggle sources.
+  - Direct file origin annotations (`config (app.yaml)`) and key count summaries (`(N keys)`).
+  - Fast-fail validation on invalid config, coercion, or feature inputs.
+  - Multi-file `ConfigFile` rows render `(N files)` with tree sub-rows.
 
 ### Fixed
 
-- Empty environment values (`FOO=`) are now unset for every flag type, matching bool/int/duration behavior and allowing taskrc/document/default values to win. A string value can still be cleared explicitly with `--flag ""` on the command line.
-- `sep:"none"` slices now preserve string elements verbatim, including leading and trailing whitespace.
-- Shell completion runs a declared `ConfigLoader` before candidate generation, with bootstrap-tagged fields bound from `--dir`-style flags, aliases, attached short values, environment, and defaults. Completion restores bootstrap state before generating candidates.
-- `conga.ConfigCascading()` now merges map flags key by key across the cascaded config files themselves: a key set only by a lower-precedence file survives instead of being silently dropped when a higher-precedence file rewrites the flag. The nearest file wins each overlapping key. Feature gates (`conga.Features[T]`) merge per key the same way, and gate-off pruning is unaffected. Scalar and slice flags keep nearest-file-wins semantics. Map flags behind a dotted `config:` namespace key now bind their nested section (previously rejected as an unknown field), and values containing the flag's `sep` survive the nested-map form without separator round-tripping. Array-valued map sections split per element regardless of the flag's `sep`, so a custom separator no longer swallows later elements. Config sections addressed at a flag excluded with `config:"-"` are now rejected like their scalar counterparts. The `--why` report attributes each merged map key to the config file that last wrote it.
+- Empty environment variables (`FOO=`) are now treated as unset across all flag types, allowing lower-precedence defaults or config documents to apply.
+- Slices with `sep:"none"` now preserve string elements verbatim, including leading and trailing whitespace.
+- Shell completion executes declared `ConfigLoader` instances with bound `bootstrap` fields before candidate generation.
+- `conga.ConfigCascading()` merges map flags key-by-key across cascaded config files. Nested dotted map keys (`config:`) and array-valued sections now bind without separator splitting issues.
 
 [Unreleased]: https://github.com/conga-sh/conga/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/conga-sh/conga/releases/tag/v0.1.0

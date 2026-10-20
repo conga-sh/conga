@@ -26,7 +26,10 @@ Releases are generated from [Conventional Commits](https://www.conventionalcommi
 - `fix: ...` fixes a defect and bumps the patch version.
 - `feat!: ...` or a `BREAKING CHANGE:` footer marks a breaking change and bumps
   the minor version while the project is pre-1.0.
-- `docs:`, `test:`, `ci:`, `build:`, and `chore:` do not create a release.
+- `docs:`, `test:`, `ci:`, `build:`, and `chore:` do not trigger a version bump.
+  User-facing documentation updates (`docs: ...`) appear in the release notes under
+  Documentation; use `chore(docs): ...` for minor typos or internal doc tweaks to
+  keep them omitted from the public notes.
 
 Prefer squash merges so each pull request lands as one conventional commit on
 `main`. Release Please parses the commits since the previous tag to build the
