@@ -1,0 +1,36 @@
+name: release-guard
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Verify tag format and ancestry
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          if [[ ! "$tag" =~ ^v0\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Only v0.MINOR.PATCH tags are allowed while CONGA is pre-1.0; got ${tag}"
+            exit 1
+          fi
+
+          git fetch origin main --no-tags
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::Tag ${tag} must point to a commit reachable from main"
+            exit 1
+          fi
+
+          manifest_version="$(jq -r '."."' .release-please-manifest.json)"
+          if [[ "v${manifest_version}" != "$tag" ]]; then
+            echo "::error::Tag ${tag} does not match .release-please-manifest.json version ${manifest_version}"
+            exit 1
+          fi

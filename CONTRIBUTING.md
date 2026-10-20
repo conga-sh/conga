@@ -47,3 +47,9 @@ The full ordering hierarchy and its rationale are documented in
   `t.Parallel()` unless it mutates process-wide state.
 - **Update documentation** for any user-visible API or behaviour change, and
   keep [AGENTS.md](AGENTS.md) in sync with architectural decisions.
+
+## Releases
+
+Releases are cut from conventional commits on `main` through Release Please.
+See [RELEASING.md](RELEASING.md) for the version policy, tag format, and release
+checklist.
