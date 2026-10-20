@@ -1041,6 +1041,14 @@ func TestZsh_ColonMultiParts(t *testing.T) {
 		assert.True(t, result.HasItem("v3.1.0") || result.HasItem("api-gateway:v3.1.0"))
 		assert.True(t, result.HasItem("latest") || result.HasItem("api-gateway:latest"))
 	})
+
+	t.Run("unique tag prefix offers colon candidate", func(t *testing.T) {
+		t.Parallel()
+
+		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl deploy --image api-gateway:v3.2.1-")
+
+		assert.True(t, result.HasItem("v3.2.1-rc1") || result.HasItem("api-gateway:v3.2.1-rc1"))
+	})
 }
 
 func TestZsh_DomainType_Region(t *testing.T) {

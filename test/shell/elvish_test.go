@@ -786,6 +786,16 @@ func TestElvish_ColonMultiParts(t *testing.T) {
 		assert.True(t, result.HasItem("latest") || result.HasItem("api-gateway:latest"))
 		assert.Equal(t, "", result.StdoutLeak)
 	})
+
+	t.Run("unique tag prefix completes colon candidate", func(t *testing.T) {
+		t.Parallel()
+
+		result := workspace.RunElvishCompletion(t, "cloudctl", "cloudctl deploy --image api-gateway:v3.2.1-")
+
+		assert.True(t, result.HasItem("v3.2.1-rc1") || result.HasItem("api-gateway:v3.2.1-rc1"))
+		assert.Equal(t, "cloudctl deploy --image api-gateway:v3.2.1-rc1", result.BufferTab1)
+		assert.Equal(t, "", result.StdoutLeak)
+	})
 }
 
 func TestElvish_DomainType_Region(t *testing.T) {
