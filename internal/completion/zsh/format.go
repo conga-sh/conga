@@ -27,7 +27,7 @@ const (
 	longhandFlagsTag   = "longhand flags"
 	shorthandFlagsTag  = "shorthand flags"
 	mergedFlagsTag     = "flags"
-	valueEscapeClass   = " \"'\\$`|&;<>()[]{}*?!^#"
+	valueEscapeClass   = " \"'\\$`|&;<>()[]{}*?!^#:"
 	patternEscapeClass = "\\[]*?()|^~#<>:"
 )
 
@@ -211,7 +211,8 @@ func escapeChars(input, class string) string {
 }
 
 // escapeValue backslash-escapes the zsh metacharacters of an insertion value
-// so _describe -Q can insert it verbatim.
+// so _describe -Q can insert it verbatim. Colon is included because _describe
+// uses it as the value/description separator.
 func escapeValue(value string) string {
 	return escapeChars(value, valueEscapeClass)
 }

@@ -81,6 +81,19 @@ func TestPtyBash_TabListsCandidates(t *testing.T) {
 	assert.Contains(t, result.Screen, ptyClusterCandidateAP)
 }
 
+func TestPtyBash_TabCompletesColonCandidate(t *testing.T) {
+	t.Parallel()
+
+	session := startCloudctlPty(t, "bash")
+
+	session.Type("cloudctl deploy --image api-gateway:v3.2.1-")
+	session.Tab()
+	result := session.Capture()
+
+	assert.Equal(t, "cloudctl deploy --image api-gateway:v3.2.1-rc1", result.BufferAfterPrompt())
+	assert.Equal(t, len("CONGA> cloudctl deploy --image api-gateway:v3.2.1-rc1"), result.CursorX)
+}
+
 func TestPtyZsh_TabCompletesSingleMatch(t *testing.T) {
 	t.Parallel()
 
@@ -125,6 +138,19 @@ func TestPtyZsh_SecondTabKeepsListAndBuffer(t *testing.T) {
 	assert.Contains(t, result.Screen, ptyClusterCandidateUS)
 	assert.Contains(t, result.Screen, ptyClusterCandidateEU)
 	assert.Contains(t, result.Screen, ptyClusterCandidateAP)
+}
+
+func TestPtyZsh_TabCompletesColonCandidate(t *testing.T) {
+	t.Parallel()
+
+	session := startCloudctlPty(t, "zsh")
+
+	session.Type("cloudctl deploy --image api-gateway:v3.2.1-")
+	session.Tab()
+	result := session.Capture()
+
+	assert.Equal(t, "cloudctl deploy --image api-gateway:v3.2.1-rc1", result.BufferAfterPrompt())
+	assert.Equal(t, len("CONGA> cloudctl deploy --image api-gateway:v3.2.1-rc1"), result.CursorX)
 }
 
 func TestPtyFish_TabCompletesSingleMatch(t *testing.T) {

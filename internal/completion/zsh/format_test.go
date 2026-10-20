@@ -175,17 +175,39 @@ func TestFormat_TrailingSpace(t *testing.T) {
 func TestFormat_ValueEscaping(t *testing.T) {
 	t.Setenv("CONGA_COLOR", "0")
 
-	candidates := []wire.Candidate{
-		{Value: "my app.yaml", Display: "my app.yaml"},
-		{Value: "it's", Display: "it's"},
-		{Value: "a$b", Display: "a$b"},
+	for _, test := range []struct {
+		name    string
+		value   string
+		escaped string
+	}{
+		{name: "space", value: "my app.yaml", escaped: `my\ app.yaml`},
+		{name: "single quote", value: "it's", escaped: `it\'s`},
+		{name: "double quote", value: `a"b`, escaped: `a\"b`},
+		{name: "backslash", value: `a\b`, escaped: `a\\b`},
+		{name: "dollar", value: "a$b", escaped: `a\$b`},
+		{name: "backtick", value: "a`b", escaped: "a\\`b"},
+		{name: "pipe", value: "a|b", escaped: `a\|b`},
+		{name: "ampersand", value: "a&b", escaped: `a\&b`},
+		{name: "semicolon", value: "a;b", escaped: `a\;b`},
+		{name: "angle brackets", value: "a<b>c", escaped: `a\<b\>c`},
+		{name: "parentheses", value: "a(b)c", escaped: `a\(b\)c`},
+		{name: "square brackets", value: "a[b]c", escaped: `a\[b\]c`},
+		{name: "braces", value: "a{b}c", escaped: `a\{b\}c`},
+		{name: "glob", value: "a*b?c", escaped: `a\*b\?c`},
+		{name: "bang caret hash", value: "a!b^c#d", escaped: `a\!b\^c\#d`},
+		{name: "colon", value: "docs:serve", escaped: `docs\:serve`},
+		{name: "multiple colons", value: "ns:sub:item", escaped: `ns\:sub\:item`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Setenv("CONGA_COLOR", "0")
+
+			output := zsh.Format("", wire.Directives{}, []wire.Candidate{
+				{Value: test.value, Display: test.value},
+			})
+
+			assert.Contains(t, output, "\x1f"+test.escaped+" \x1f")
+		})
 	}
-
-	output := zsh.Format("", wire.Directives{}, candidates)
-
-	assert.Contains(t, output, "\x1fmy\\ app.yaml \x1f")
-	assert.Contains(t, output, "\x1fit\\'s \x1f")
-	assert.Contains(t, output, "\x1fa\\$b \x1f")
 }
 
 func TestFormat_ValueEscapingPreservesAttachedAndTilde(t *testing.T) {

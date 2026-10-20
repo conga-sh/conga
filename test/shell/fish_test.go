@@ -791,6 +791,16 @@ func TestFish_ColonMultiParts(t *testing.T) {
 		assert.True(t, result.HasItem("api-gateway:v3.1.0") || result.HasItem("v3.1.0"))
 		assert.True(t, result.HasItem("api-gateway:latest") || result.HasItem("latest"))
 	})
+
+	t.Run("unique tag prefix completes colon candidate", func(t *testing.T) {
+		t.Parallel()
+
+		result := workspace.RunFishCompletion(t, "cloudctl", "cloudctl deploy --image api-gateway:v3.2.1-")
+
+		assert.True(t, result.HasItem("api-gateway:v3.2.1-rc1") || result.HasItem("v3.2.1-rc1"))
+		assert.Equal(t, "cloudctl deploy --image api-gateway:v3.2.1-rc1", result.BufferTab1)
+		assert.Equal(t, "", result.Stderr)
+	})
 }
 
 func TestFish_DomainType_Region(t *testing.T) {

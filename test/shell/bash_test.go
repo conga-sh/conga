@@ -672,6 +672,15 @@ func TestBash_ColonMultiParts(t *testing.T) {
 		assert.True(t, result.HasItem("latest") || result.HasItem("api-gateway:latest"))
 		assert.Equal(t, "", result.StdoutLeak)
 	})
+
+	t.Run("unique tag prefix offers colon candidate", func(t *testing.T) {
+		t.Parallel()
+
+		result := workspace.RunBashCompletion(t, "cloudctl", "cloudctl deploy --image api-gateway:v3.2.1-")
+
+		assert.True(t, result.HasItem("v3.2.1-rc1") || result.HasItem("api-gateway:v3.2.1-rc1"))
+		assert.Equal(t, "", result.StdoutLeak)
+	})
 }
 
 func TestBash_TerminatorDashArgs(t *testing.T) {
