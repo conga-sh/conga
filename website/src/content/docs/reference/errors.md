@@ -74,6 +74,8 @@ Feature gating and map folding classify errors by the input tier that introduced
 
 Programmer errors during schema construction abort at startup before execution begins (exit code 1):
 - Declaring `conga.Features[T]` or `feature:"..."` tags without calling `app.EnableFeatures()`.
+- Declaring both `env` and `envprefix` on a `conga.Features` container, or a feature-field `env` tag under a combined-map container.
+- Binding one environment variable through two feature fields (explicitly or through prefix derivation), or through a feature and a flag.
 - Combining `conga.ConfigExplicit(...)` with `conga.ConfigPaths(...)` or `conga.ConfigCascading()`.
 - Combining `conga.ConfigLoader(...)` with file options (`ConfigPaths`, `ConfigExplicit`, `ConfigCascading`), `RegisterDecoder`, or a root `ConfigFile` field.
 - Declaring the `bootstrap` tag without a declared `conga.ConfigLoader`.

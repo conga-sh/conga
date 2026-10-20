@@ -81,7 +81,8 @@ type appOptions struct {
 	// envPrefixAmbiguous marks non-literal or conflicting arguments that leave
 	// the app-level prefix undecided. Ambiguous evidence leaves {{env}}
 	// available in help tags, so the analyzer skips that check rather than
-	// inventing a diagnostic.
+	// inventing a diagnostic, and suppresses derived-name reasoning in the
+	// feature env collision check.
 	envPrefix          string
 	envPrefixAmbiguous bool
 	// configCascading records a statically identified app.ConfigOptions(conga.ConfigCascading())

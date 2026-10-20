@@ -64,6 +64,14 @@ Human operators format keys differently across environments: command-line flags 
 
 CONGA canonicalizes all supplied feature keys to the declared feature name before executing the merge. Regardless of whether a configuration file sets `gentle_force`, an environment variable sets `GENTLE_FORCE`, or the command line sets `gentle-force`, all three refer to the same toggle. Precedence follows the resolution tier, never the spelling variant.
 
+### One env surface per container
+
+The environment tier reaches features through one of two exclusive shapes. The container's `env` tag names a combined map variable carrying `name=value` pairs. Alternatively, the container's `envprefix` tag derives one variable per feature (`<PREFIX>_<UPPER_SNAKE(feature name)>`), and each field may override its derived variable with an explicit `env` tag or opt out with `env:"-"` — the same rules a normal flag follows under a prefix. Declaring both surfaces, or a field `env` tag under a combined-map container, fails schema build: two env surfaces writing the same keys would need an arbitrary precedence rule between them, and the `--why` report could not say which variable won.
+
+The application-level `EnvPrefix(...)` never reaches features. It namespaces normal flags; features bind their environment explicitly, so an ambient prefix cannot silently turn feature names into flag overrides.
+
+Schema build also rejects collisions: two feature fields resolving to the same variable (explicitly or through prefix derivation), or a feature variable a flag also binds, fail with `ErrSchema` before the first run.
+
 ## Member pruning and the active execution surface
 
 A disabled feature should not leave ghost interfaces across your application. Exposing flags or commands for unreleased features confuses users, clutters documentation, and invites accidental misuse.

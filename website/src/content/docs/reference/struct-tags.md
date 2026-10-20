@@ -91,7 +91,7 @@ CONGA appends declared constraints after each field's help text: `range:"1..6553
 | `{{items}}` | The `items` tag's bounds without brackets. | Flags and positional arguments with an `items` tag. |
 | `{{enum}}` | The `enum` values joined with `, `. | Flags and positional arguments with an `enum` tag; the `Features` container substitutes the declared feature names. |
 | `{{default}}` | The `default` tag's value. | Flags and positional arguments with a `default` tag. |
-| `{{env}}` | The `env` variable names joined with `, `. | Flags, config-file flags, and `Features` containers that bind environment variables (via `env` tag or `envprefix`). |
+| `{{env}}` | The bound environment variable names joined with `, `. | Flags, config-file flags, and `Features` containers that bind environment variables (via `env` tag or `envprefix`). |
 
 ```go
 type CLI struct {
@@ -191,13 +191,15 @@ Declare the container once, on the root command struct, and call `app.EnableFeat
 | Tag | Meaning |
 |-----|---------|
 | `flag` | Name of the synthesized CLI map flag carrying `name=value` pairs, for example `--feature-gates gentle-force=true`. Omit the tag or set `flag:"-"` to give the container no CLI surface. |
-| `env` | Comma-separated environment variable names carrying the same `name=value` pairs. Explicit names ignore `envprefix`. |
-| `envprefix` | Prefix for the derived environment variable name `<PREFIX>_<UPPER_SNAKE(flag name)>`. The app-level `EnvPrefix(...)` applies when neither `env` nor `envprefix` is declared. |
+| `env` | Comma-separated environment variable names carrying the same `name=value` pairs. This is the combined-map env surface; it cannot be combined with `envprefix`, or with `env` tags on feature fields. |
+| `envprefix` | Per-feature env prefix: each feature field binds `<PREFIX>_<UPPER_SNAKE(feature name)>` unless the field overrides it with its own `env` tag. This is the per-feature env surface; it cannot be combined with `env`. |
 | `config` | Config section name holding the `name=value` pairs. |
 | `sep` | Pair separator inside one map value (default `","`). |
-| `help` | Help text for the synthesized flag. Defaults to `Enable or disable features (name=value)`; the root help screen's [Features section](/how-to/feature-flags/#features-section) lists every feature, and `{{enum}}` (declared feature names) and `{{env}}` (bound environment variables) can be inlined, suppressing the matching bracket hint. Other help variables are rejected. |
+| `help` | Help text for the synthesized flag. Defaults to `Enable or disable features (name=value)`; the root help screen's [Features section](/how-to/feature-flags/#features-section) lists every feature, and `{{enum}}` (declared feature names) and `{{env}}` (bound environment variables, including per-feature variables derived under `envprefix`) can be inlined, suppressing the matching bracket hint. Other help variables are rejected. |
 | `enumhint` | Set to `-` to suppress the synthesized flag's `[enum: ...]` help hint. Redundant — and rejected — when the `help` tag already references `{{enum}}`. |
 | `conga` | Directives (see [`conga` directives](#conga-directives)). |
+
+A container that declares neither `env` nor `envprefix` binds no environment variable at all — `env:"-"` is equivalent. The application-level `EnvPrefix(...)` never reaches features; it applies to normal flags only.
 
 ### Feature field tags
 
@@ -208,7 +210,10 @@ Declare the container once, on the root command struct, and call `app.EnableFeat
 | `stage` | Feature maturity: `alpha`, `beta`, `ga`, or `deprecated`. Optional, but all-or-nothing — when any feature field declares a stage, every field must. Features staged `ga` or `deprecated` are omitted from the Features section. |
 | `default` | Base value when no source sets the key. Integer defaults must be a declared level; `0` is valid and means off. |
 | `enum` | Integer features only: comma-separated non-zero levels, required on every integer feature. `0` is reserved for off and rejected in the tag. |
+| `env` | Comma-separated environment variable names binding this feature individually (first set wins; an empty value is unset). `env:"-"` excludes the field from the environment tier. Valid only when the container does not declare `env` (the combined-map surface); under a container `envprefix`, the tag overrides the derived variable name. |
 | `conga` | Directives (see [`conga` directives](#conga-directives)). |
+
+Environment variables are validated for collisions at schema build: two feature fields resolving to the same variable (explicitly or through prefix derivation), or a feature variable a flag also binds, fail schema build with `ErrSchema`.
 
 ### Feature expressions
 

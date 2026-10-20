@@ -177,6 +177,32 @@ func FeaturesAlreadyDeclaredError(firstFlagName string) error {
 	return fmt.Errorf("%w: Features (already declared by %s)", ErrDuplicateFlag, firstFlagName)
 }
 
+// FeatureEnvModeConflictError builds the schema error for a conga.Features
+// container declaring both env and envprefix tags: env names the combined
+// map variable while envprefix derives per-feature variables, and the two
+// surfaces would compete over the same keys. The runtime schema builder and
+// the static analyzer share it as the single source of truth.
+func FeatureEnvModeConflictError() error {
+	return fmt.Errorf("%w: tag \"env\" and tag \"envprefix\" cannot both be declared on a conga.Features container (env names the combined map variable; envprefix derives one variable per feature)", ErrSchema)
+}
+
+// FeatureFieldEnvWithContainerEnvError builds the schema error for a feature
+// field declaring env while the Features container names a combined map
+// variable: the two surfaces would write the same keys with no defined
+// precedence between them. The runtime schema builder and the static
+// analyzer share it as the single source of truth.
+func FeatureFieldEnvWithContainerEnvError(fieldName string) error {
+	return fmt.Errorf("%w: feature field %s declares env while the Features container declares env (the combined map variable); declare one env surface per container", ErrSchema, fieldName)
+}
+
+// FeatureEnvCollisionError builds the schema error for one environment
+// variable bound by two schema members: two feature fields resolving to the
+// same variable, or a feature variable a flag also binds. The runtime schema
+// builder and the static analyzer share it as the single source of truth.
+func FeatureEnvCollisionError(envVar string, first string, second string) error {
+	return fmt.Errorf("%w: environment variable %q is bound by both %s and %s", ErrSchema, envVar, first, second)
+}
+
 // FeatureOnRequiredFlagError builds the schema error for a feature tag on a
 // required flag: a feature-gated flag must be optional. The runtime schema
 // builder and the static analyzer share it as the single source of truth.

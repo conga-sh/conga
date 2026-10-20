@@ -57,6 +57,15 @@ type FeatureField struct {
 	// Default is the canonical default value ("true"/"false" for bools, a decimal
 	// string for integers), or "" when no default tag is declared.
 	Default string
+	// EnvVars lists the environment variables the feature binds in declaration
+	// order: the env tag names when present, else the name derived from the
+	// container's envprefix tag. Empty when the field binds no environment
+	// variable.
+	EnvVars []string
+	// EnvExcluded reports that the feature binds no environment variable,
+	// whether through an env:"-" tag or the absence of both an env tag and a
+	// container envprefix.
+	EnvExcluded bool
 	// FieldIndex is the index of the feature field inside the inner feature struct.
 	FieldIndex int
 }
@@ -283,6 +292,49 @@ func ValidateFeatureReferences(root *Command) error {
 	return validateFeatureReferences(root)
 }
 
+// ParseFeatureContainerEnv resolves the combined map variable's environment
+// names from the container tag: explicit env names only, with env:"-" and
+// tag-less containers excluded from the environment tier entirely. Features
+// never derive environment variables from any prefix. The runtime schema
+// builder and the static analyzer share it as the single source of truth.
+func ParseFeatureContainerEnv(containerTag reflect.StructTag) ([]string, bool) {
+	envTag, hasEnvTag := containerTag.Lookup("env")
+	if !hasEnvTag || strings.TrimSpace(envTag) == "-" {
+		return nil, true
+	}
+
+	envVars := SplitTagList(containerTag, "env")
+	if len(envVars) == 0 {
+		return nil, true
+	}
+
+	return envVars, false
+}
+
+// ValidateFeatureEnvSurfaces rejects ambiguous env declarations on the
+// feature container: env and envprefix name different env surfaces (the
+// combined map variable versus per-feature variables), and a field env tag
+// under a combined-map container would create a second env surface writing
+// the same keys. An env tag whose value is "-" or carries no names is
+// absence, so it never conflicts. The runtime schema builder and the static
+// analyzer share it as the single source of truth.
+func ValidateFeatureEnvSurfaces(containerTag reflect.StructTag, envDeclarer string) error {
+	_, envExcluded := ParseFeatureContainerEnv(containerTag)
+	if envExcluded {
+		return nil
+	}
+
+	if strings.TrimSpace(containerTag.Get("envprefix")) != "" {
+		return FeatureEnvModeConflictError()
+	}
+
+	if envDeclarer != "" {
+		return FeatureFieldEnvWithContainerEnvError(envDeclarer)
+	}
+
+	return nil
+}
+
 type featureTerm struct {
 	name    string
 	negated bool
@@ -315,6 +367,11 @@ func (f *FeatureField) parseInteger(raw string) (string, error) {
 // environment, and configuration files. A conga:"-" field is ignored before
 // the root-placement and duplicate checks, matching the other container
 // processors.
+//
+// The environment surface is declared on the container in exactly one of two
+// exclusive shapes: env names the combined map variable, and envprefix
+// derives one variable per feature field. App EnvPrefix never reaches
+// features.
 func (b *schemaBuilder) processFeaturesField(structField reflect.StructField, fieldHandle any, classification container.Classification) error {
 	dirs, err := b.validateFieldTags(structField, "features", featuresFieldTagCandidates)
 	if err != nil {
@@ -338,23 +395,38 @@ func (b *schemaBuilder) processFeaturesField(structField reflect.StructField, fi
 		return err
 	}
 
-	fields, err := b.buildFeatureFields(innerType)
+	envPrefix := strings.TrimSpace(structField.Tag.Get("envprefix"))
+
+	fields, envDeclarer, err := b.buildFeatureFields(innerType, envPrefix)
 	if err != nil {
 		return err
 	}
 
+	if err := ValidateFeatureEnvSurfaces(structField.Tag, envDeclarer); err != nil {
+		return err
+	}
+
 	b.cmd.FeatureFields = fields
+	b.cmd.featureFieldName = structField.Name
+	b.cmd.featureStructName = b.structType.Name()
 
 	return b.installFeatureFlag(structField, fieldHandle, fields)
 }
 
 // buildFeatureFields reflects the exported bool/int fields of the feature
 // struct into feature metadata, deriving the feature key set from the field
-// names.
-func (b *schemaBuilder) buildFeatureFields(innerType reflect.Type) ([]*FeatureField, error) {
+// names. Each field's environment binding resolves against the container's
+// envprefix: an explicit env tag names the variables, env:"-" excludes the
+// field, and an untagged field derives one variable from the prefix when one
+// is declared. The second result names the first field whose env tag declares
+// a variable, so surface validation needs no second reflection walk.
+func (b *schemaBuilder) buildFeatureFields(innerType reflect.Type, envPrefix string) ([]*FeatureField, string, error) {
 	seen := make(map[string]bool)
 
-	var fields []*FeatureField
+	var (
+		envDeclarer string
+		fields      []*FeatureField
+	)
 
 	for index := range innerType.NumField() {
 		fieldSpec := innerType.Field(index)
@@ -364,29 +436,33 @@ func (b *schemaBuilder) buildFeatureFields(innerType reflect.Type) ([]*FeatureFi
 
 		dirs, err := b.validateFieldTags(fieldSpec, "feature", featureFieldTagCandidates)
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
 
 		if dirs.Ignore {
 			continue
 		}
 
-		field, err := b.buildSingleFeatureField(fieldSpec, innerType.Name(), index, seen)
+		field, err := b.buildSingleFeatureField(fieldSpec, innerType.Name(), index, seen, envPrefix)
 		if err != nil {
-			return nil, err
+			return nil, "", err
+		}
+
+		if envDeclarer == "" && FeatureFieldDeclaresEnv(fieldSpec.Tag) {
+			envDeclarer = fieldSpec.Name
 		}
 
 		fields = append(fields, field)
 	}
 
 	if err := enforceFeatureStageAllOrNothing(fields); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
-	return fields, nil
+	return fields, envDeclarer, nil
 }
 
-func (b *schemaBuilder) buildSingleFeatureField(fieldSpec reflect.StructField, typeName string, index int, seen map[string]bool) (*FeatureField, error) {
+func (b *schemaBuilder) buildSingleFeatureField(fieldSpec reflect.StructField, typeName string, index int, seen map[string]bool, envPrefix string) (*FeatureField, error) {
 	var (
 		isInt      bool
 		isUnsigned bool
@@ -430,6 +506,13 @@ func (b *schemaBuilder) buildSingleFeatureField(fieldSpec reflect.StructField, t
 		return nil, err
 	}
 
+	// A feature field with no env tag and no container prefix binds nothing,
+	// which is the excluded state for features: absence and env:"-" are
+	// equivalent on feature fields.
+	envVars, envExcludedTag := ResolveFlagEnvVars(fieldSpec.Tag, name, envPrefix)
+	field.EnvVars = envVars
+	field.EnvExcluded = envExcludedTag || len(envVars) == 0
+
 	return field, nil
 }
 
@@ -449,7 +532,11 @@ func (b *schemaBuilder) installFeatureFlag(structField reflect.StructField, fiel
 		sep = ","
 	}
 
-	envVars, envExcluded := parseFlagEnvVars(structField.Tag, name, structField.Tag.Get("envprefix"))
+	// The combined map variable binds only explicit env names: Features never
+	// derive environment variables from any prefix, so a container without an
+	// env tag is excluded from the environment tier entirely — identical to
+	// declaring env:"-".
+	envVars, envExcluded := ParseFeatureContainerEnv(structField.Tag)
 
 	configKey := strings.TrimSpace(structField.Tag.Get("config"))
 	if configKey == "" {
@@ -461,6 +548,18 @@ func (b *schemaBuilder) installFeatureFlag(structField reflect.StructField, fiel
 		enumKeys = append(enumKeys, field.Name)
 	}
 
+	// {{env}} names every environment variable the feature surface binds: the
+	// explicit combined-map variables when the container declares env, or the
+	// per-feature variables derived from each field otherwise. The synthesized
+	// flag's own EnvVars stay binding-only, so this list is never used by the
+	// environment resolution tier.
+	helpEnvVars := make([]string, 0, len(envVars))
+	helpEnvVars = append(helpEnvVars, envVars...)
+
+	for _, field := range fields {
+		helpEnvVars = append(helpEnvVars, field.EnvVars...)
+	}
+
 	helpText := strings.TrimSpace(structField.Tag.Get("help"))
 	referenced := helpVars{}
 
@@ -469,7 +568,7 @@ func (b *schemaBuilder) installFeatureFlag(structField reflect.StructField, fiel
 	} else {
 		var err error
 
-		helpText, referenced, err = interpolateHelp(helpText, helpVarValuesFor(nil, nil, nil, enumKeys, "", envVars))
+		helpText, referenced, err = interpolateHelp(helpText, helpVarValuesFor(nil, nil, nil, enumKeys, "", helpEnvVars))
 		if err != nil {
 			return err
 		}
@@ -681,7 +780,94 @@ func validateFeatureReferences(root *Command) error {
 		declared[feature.Name] = true
 	}
 
-	return validateFeatureReferencesInCommand(root, declared)
+	if err := validateFeatureReferencesInCommand(root, declared); err != nil {
+		return err
+	}
+
+	return validateFeatureEnvUniqueness(root)
+}
+
+// validateFeatureEnvUniqueness rejects environment variable collisions
+// involving feature bindings: two feature fields resolving to the same
+// variable, or a feature variable that a flag in the command tree also
+// binds. It runs through the ValidateFeatureReferences hook, so the walk
+// stays unreferenced — and dead-code eliminated — for applications that
+// never enable features. Flag-to-flag collisions are a separate, pre-existing
+// gap and are deliberately not reported here.
+func validateFeatureEnvUniqueness(root *Command) error {
+	if root.FeatureFlag == nil {
+		return nil
+	}
+
+	owners := make(map[string]string)
+
+	addOwner := func(envVar string, owner string) error {
+		if previous, ok := owners[envVar]; ok {
+			return FeatureEnvCollisionError(envVar, previous, owner)
+		}
+
+		owners[envVar] = owner
+
+		return nil
+	}
+
+	for _, envVar := range root.FeatureFlag.EnvVars {
+		if err := addOwner(envVar, "the feature map flag --"+root.FeatureFlag.Name); err != nil {
+			return wrapFeatureEnvCollision(root, err)
+		}
+	}
+
+	for _, feature := range root.FeatureFields {
+		for _, envVar := range feature.EnvVars {
+			if err := addOwner(envVar, "feature "+strconv.Quote(feature.Name)); err != nil {
+				return wrapFeatureEnvCollision(root, err)
+			}
+		}
+	}
+
+	if len(owners) == 0 {
+		return nil
+	}
+
+	return wrapFeatureEnvCollision(root, checkFlagEnvCollisions(root, owners))
+}
+
+// wrapFeatureEnvCollision adds the root struct and Features field context to a
+// collision error, matching the analyzer's reportFieldError prefix and the
+// schema-error contract for every other field-scoped diagnostic.
+func wrapFeatureEnvCollision(root *Command, err error) error {
+	if err == nil || root.featureFieldName == "" {
+		return err
+	}
+
+	return fmt.Errorf("struct %s field %s: %w", root.featureStructName, root.featureFieldName, err)
+}
+
+// checkFlagEnvCollisions walks the command tree comparing every flag's
+// environment bindings against the feature-owned variables recorded above.
+// Flag variables are never added to the owner map, so flag-to-flag collisions
+// stay unreported. The feature map flag itself is skipped: in combined-map
+// mode its variables are the feature surface already recorded above.
+func checkFlagEnvCollisions(cmd *Command, owners map[string]string) error {
+	for _, flagSpec := range cmd.Flags {
+		if flagSpec == cmd.FeatureFlag {
+			continue
+		}
+
+		for _, envVar := range flagSpec.EnvVars {
+			if previous, ok := owners[envVar]; ok {
+				return FeatureEnvCollisionError(envVar, previous, "flag --"+flagSpec.Name)
+			}
+		}
+	}
+
+	for _, subcommand := range cmd.Subcommands {
+		if err := checkFlagEnvCollisions(subcommand, owners); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func validateFeatureReferencesInCommand(cmd *Command, declared map[string]bool) error {

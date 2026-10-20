@@ -575,10 +575,18 @@ func (e *mapParserError) Unwrap() error { return ErrCoerce }
 // tiers contributed, the merged value, the per-key source tiers recorded when
 // requested, and the highest contributing tier.
 type mapMergeResult struct {
-	hasValues   bool
-	merged      any
-	provenance  map[string]ValueSource
-	origins     map[string]configdata.Value
+	hasValues  bool
+	merged     any
+	provenance map[string]ValueSource
+	origins    map[string]configdata.Value
+	// envName records the winning environment variable of the map flag's env
+	// tier, so feature-map errors can attribute combined-map keys to it.
+	envName string
+	// wantCLIKeys requests the lightweight set of canonical keys supplied by
+	// the CLI tier when full map provenance is not recorded. Feature env
+	// resolution uses it to keep command-line keys ahead of environment values.
+	wantCLIKeys bool
+	cliKeys     map[string]struct{}
 	highestTier ValueSource
 	highestName string
 	// highestOrigins lists the distinct configuration origins contributing to
@@ -2215,6 +2223,14 @@ func foldMapTier(cmdChain []*spec.Command, flagSpec *spec.Flag, rawValues []stri
 			provenance[key] = source
 		}
 
+		if result.wantCLIKeys && source == SourceCLI {
+			if result.cliKeys == nil {
+				result.cliKeys = make(map[string]struct{}, len(entries))
+			}
+
+			result.cliKeys[key] = struct{}{}
+		}
+
 		if origins != nil {
 			origins[key] = origin
 		}
@@ -2258,12 +2274,16 @@ func foldMapConfigTier(cmdChain []*spec.Command, flagSpec *spec.Flag, entries ma
 	return nil
 }
 
-func hasCustomMapParser(state *bindingState, targetType reflect.Type) bool {
+func hasCustomMapParser(state *bindingState, flagSpec *spec.Flag) bool {
+	if flagSpec.EngineOwned {
+		return false
+	}
+
 	if state == nil || state.CustomMapMerger == nil || len(state.TypeParsers) == 0 {
 		return false
 	}
 
-	_, ok := state.TypeParsers[targetType]
+	_, ok := state.TypeParsers[flagSpec.TargetType]
 
 	return ok
 }
@@ -2292,7 +2312,14 @@ func foldMapTiers(cmd *spec.Command, cmdChain []*spec.Command, flagSpec *spec.Fl
 		return nil
 	}
 
-	if hasCustomMapParser(state, flagSpec.TargetType) {
+	result.envName = envName
+
+	// Engine-owned map flags (the synthesized feature map) always use the
+	// native merge: it canonicalizes feature keys and records the CLI key set
+	// the per-feature env overlay consults. A registered parser for
+	// map[string]string must not divert the engine-owned flag to the generic
+	// registered-map path.
+	if hasCustomMapParser(state, flagSpec) {
 		return state.CustomMapMerger(cmd, cmdChain, flagSpec, cliValues, state, result)
 	}
 

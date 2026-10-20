@@ -371,6 +371,43 @@ func TestHelpVarAvailability(t *testing.T) {
 			envPrefixKnown: true,
 			expected:       helpVars{},
 		},
+		{
+			name:           "features container binds env through explicit names",
+			tag:            `env:"APP_FEATURES"`,
+			role:           "features",
+			envPrefixKnown: true,
+			expected:       helpVars{Enum: true, Env: true},
+		},
+		{
+			name:           "features container ignores the application env prefix",
+			tag:            `help:"plain"`,
+			role:           "features",
+			envPrefix:      "APP_",
+			envPrefixKnown: true,
+			expected:       helpVars{Enum: true},
+		},
+		{
+			name:           "features container derives env from its envprefix tag",
+			tag:            `envprefix:"APP_X_"`,
+			role:           "features",
+			envPrefixKnown: true,
+			expected:       helpVars{Enum: true, Env: true},
+		},
+		{
+			name:           "features container with excluded combined env keeps envprefix",
+			tag:            `env:"-" envprefix:"APP_X_"`,
+			role:           "features",
+			envPrefixKnown: true,
+			expected:       helpVars{Enum: true, Env: true},
+		},
+		{
+			name:           "features container with excluded env",
+			tag:            `env:"-"`,
+			role:           "features",
+			envPrefix:      "APP_",
+			envPrefixKnown: true,
+			expected:       helpVars{Enum: true},
+		},
 	}
 
 	for _, testCase := range testCases {
@@ -382,9 +419,9 @@ func TestHelpVarAvailability(t *testing.T) {
 	}
 }
 
-// TestEnvVarsDeclared_MatchesParseFlagEnvVars pins the analyzer-facing
+// TestEnvVarsDeclared_MatchesResolveFlagEnvVars pins the analyzer-facing
 // predicate to the runtime resolver it mirrors, so the two cannot drift.
-func TestEnvVarsDeclared_MatchesParseFlagEnvVars(t *testing.T) {
+func TestEnvVarsDeclared_MatchesResolveFlagEnvVars(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -405,7 +442,7 @@ func TestEnvVarsDeclared_MatchesParseFlagEnvVars(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			envVars, _ := parseFlagEnvVars(testCase.tag, "port", testCase.envPrefix)
+			envVars, _ := ResolveFlagEnvVars(testCase.tag, "port", testCase.envPrefix)
 
 			assert.Equal(t, len(envVars) > 0, envVarsDeclared(testCase.tag, "flag", testCase.envPrefix, true))
 		})

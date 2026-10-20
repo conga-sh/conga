@@ -167,6 +167,7 @@ func (w *walker) checkConfigFileField(node *commandNode, fieldObject types.Objec
 	w.trackRootConfigFileArity(node, fieldObject, fieldTags, flagName)
 
 	w.checkAndCollectFlag(node, fieldObject, tag, flagName, branchNames, branchShorts)
+	w.recordFlagEnvOwners(node, tag, flagName, true)
 }
 
 // checkFeaturesField validates a root feature-declaration field
@@ -212,9 +213,12 @@ func (w *walker) checkFeaturesField(node *commandNode, fieldObject types.Object,
 	// The runtime installs the synthesized flag only after every inner field
 	// validates, so a failed container neither reserves the flag name against
 	// descendants nor counts as the first declaration.
-	if !w.checkFeatureFields(node, innerType, structType) {
+	valid, envDeclarer := w.checkFeatureFields(node, innerType, structType)
+	if !valid {
 		return
 	}
+
+	envConflict := w.checkFeatureEnvSurfaceConflicts(node, fieldObject, tag, envDeclarer)
 
 	flagName := strings.TrimSpace(tag.Get("flag"))
 	noCLI := flagName == "" || flagName == "-"
@@ -229,17 +233,26 @@ func (w *walker) checkFeaturesField(node *commandNode, fieldObject types.Object,
 	if !noCLI {
 		w.checkAndCollectSynthesizedFlag(node, fieldObject, flagName, branchNames)
 	}
+
+	if !envConflict {
+		w.recordFeatureEnvBindings(node, fieldObject, tag, structType, flagName)
+	}
 }
 
 // checkFeatureFields validates every exported inner field of a feature struct
-// and reports whether the container is valid.
-func (w *walker) checkFeatureFields(node *commandNode, innerType types.Type, structType *types.Struct) bool {
+// and reports whether the container is valid. It also returns the first valid
+// field whose env tag declares a variable, so surface validation and the env
+// binding pass need no additional scan for the declarer.
+func (w *walker) checkFeatureFields(node *commandNode, innerType types.Type, structType *types.Struct) (bool, string) {
 	innerStructName := ""
 	if named, ok := types.Unalias(innerType).(*types.Named); ok {
 		innerStructName = named.Obj().Name()
 	}
 
-	valid := true
+	var (
+		envDeclarer string
+		valid       = true
+	)
 
 	seen := make(map[string]bool)
 
@@ -305,6 +318,10 @@ func (w *walker) checkFeatureFields(node *commandNode, innerType types.Type, str
 			continue
 		}
 
+		if envDeclarer == "" && spec.FeatureFieldDeclaresEnv(innerTag) {
+			envDeclarer = innerField.Name()
+		}
+
 		stagedFields = append(stagedFields, stagedField{obj: innerField, name: name, stage: field.Stage})
 	}
 
@@ -320,7 +337,7 @@ func (w *walker) checkFeatureFields(node *commandNode, innerType types.Type, str
 		}
 	}
 
-	return valid
+	return valid, envDeclarer
 }
 
 // trackRootConfigFileArity records the root command's config-file flag arity
@@ -409,7 +426,10 @@ func (w *walker) checkFlagField(node *commandNode, fieldObject types.Object, tag
 
 	w.reportFieldError(node, fieldObject, strictBoolTagError(tag))
 
-	w.checkAndCollectFlag(node, fieldObject, tag, cmp.Or(tag.Get("name"), casing.Kebab(fieldObject.Name())), branchNames, branchShorts)
+	flagName := cmp.Or(tag.Get("name"), casing.Kebab(fieldObject.Name()))
+
+	w.checkAndCollectFlag(node, fieldObject, tag, flagName, branchNames, branchShorts)
+	w.recordFlagEnvOwners(node, tag, flagName, false)
 }
 
 // checkArgField validates a positional argument field.

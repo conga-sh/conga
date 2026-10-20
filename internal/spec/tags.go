@@ -342,6 +342,47 @@ func ProjectTextValue[T cmp.Ordered](elemType reflect.Type, value reflect.Value)
 	return domainValue[T](domain, bound)
 }
 
+// ResolveFlagEnvVars resolves a flag field's environment variable names the
+// way the schema builder does: an explicit env tag names the variables,
+// env:"-" excludes them, and an untagged field derives one variable from
+// envPrefix (<PREFIX>_<UPPER_SNAKE(flag name)>, with the trailing underscore
+// normalized). The second result reports the exclusion. The static analyzer
+// shares it as the single source of truth for derived variable names.
+func ResolveFlagEnvVars(tag reflect.StructTag, flagName string, envPrefix string) ([]string, bool) {
+	if envTag, ok := tag.Lookup("env"); ok {
+		if strings.TrimSpace(envTag) == "-" {
+			return nil, true
+		}
+
+		vars := SplitTagList(tag, "env")
+		if len(vars) > 0 {
+			return vars, false
+		}
+	}
+
+	if envPrefix != "" {
+		if !strings.HasSuffix(envPrefix, "_") {
+			envPrefix += "_"
+		}
+
+		return []string{envPrefix + casing.UpperSnake(flagName)}, false
+	}
+
+	return nil, false
+}
+
+// FeatureFieldDeclaresEnv reports whether a feature field's env tag names at
+// least one environment variable. A missing tag, env:"-", and an empty tag
+// are absence, so they never conflict with a combined-map container.
+func FeatureFieldDeclaresEnv(tag reflect.StructTag) bool {
+	envTag, ok := tag.Lookup("env")
+	if !ok || strings.TrimSpace(envTag) == "-" {
+		return false
+	}
+
+	return len(SplitTagList(tag, "env")) > 0
+}
+
 type flagKindInfo struct {
 	targetType  reflect.Type
 	isBool      bool
@@ -471,7 +512,7 @@ func parseFlagSpec(structField reflect.StructField, flagHandle any, classificati
 	name := extractFlagName(structField)
 	shortRune := extractFlagShort(structField.Tag)
 
-	envVars, envExcluded := parseFlagEnvVars(structField.Tag, name, opts.EnvPrefix)
+	envVars, envExcluded := ResolveFlagEnvVars(structField.Tag, name, opts.EnvPrefix)
 	enumValues := SplitTagList(structField.Tag, "enum")
 	aliases := SplitTagList(structField.Tag, "aliases")
 
@@ -1030,27 +1071,4 @@ func parsePresenceOrTrueTag(tag reflect.StructTag, key string) bool {
 	}
 
 	return value == "" || value == "true"
-}
-
-func parseFlagEnvVars(tag reflect.StructTag, flagName string, envPrefix string) ([]string, bool) {
-	if envTag, ok := tag.Lookup("env"); ok {
-		if strings.TrimSpace(envTag) == "-" {
-			return nil, true
-		}
-
-		vars := SplitTagList(tag, "env")
-		if len(vars) > 0 {
-			return vars, false
-		}
-	}
-
-	if envPrefix != "" {
-		if !strings.HasSuffix(envPrefix, "_") {
-			envPrefix += "_"
-		}
-
-		return []string{envPrefix + casing.UpperSnake(flagName)}, false
-	}
-
-	return nil, false
 }

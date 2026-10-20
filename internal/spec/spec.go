@@ -88,6 +88,11 @@ type Command struct {
 	// Features container is declared; the flag is always installed for a
 	// declared container (NoCLI only removes CLI routing).
 	FeatureFlag *Flag
+	// featureFieldName and featureStructName locate the root Features
+	// container for field-context error wrapping. They stay unexported because
+	// they are schema-build bookkeeping, not observable command metadata.
+	featureFieldName  string
+	featureStructName string
 }
 
 // FindFeature returns the declared feature matching name, or nil.
