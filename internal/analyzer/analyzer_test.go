@@ -14,7 +14,7 @@ func TestAnalyzer(t *testing.T) {
 	t.Parallel()
 
 	testData := analysistest.TestData()
-	analysistest.Run(t, testData, analyzer.Analyzer, "./valid", "./invalid", "./anchorpkg", "./cascading", "./cascadingclean", "./cascadingnoflag", "./cascadingmasked", "./cascadinginnocent", "./cascadingambiguous", "./envprefixambiguous", "./completiondisabled", "./completionenabled", "./completionenabledstmt", "./completionmulti", "./completionescape", "./completionargeak", "./completionforeign", "./featuretypes", "./featurechecks", "./featureenabled", "./featuredisabled", "./configconflict", "./configconflictsiblings", "./loaderclean", "./loaderconflictpaths", "./loaderconflictcascading", "./loaderconflictdecoder", "./loaderconflictconfigfile", "./loaderstraightline", "./loaderambiguous", "./loadermultianchor", "./loaderescape", "./sessionroot")
+	analysistest.Run(t, testData, analyzer.Analyzer, "./valid", "./invalid", "./anchorpkg", "./cascading", "./cascadingclean", "./cascadingnoflag", "./cascadingmasked", "./cascadinginnocent", "./cascadingambiguous", "./envprefixambiguous", "./completiondisabled", "./completionenabled", "./completionenabledstmt", "./completionmulti", "./completionescape", "./completionargeak", "./completionforeign", "./featuretypes", "./featurechecks", "./featureenabled", "./featuredisabled", "./configconflict", "./configconflictsiblings", "./loaderclean", "./loaderconflictpaths", "./loaderconflictcascading", "./loaderconflictdecoder", "./loaderconflictconfigfile", "./loaderstraightline", "./loaderambiguous", "./loadermultianchor", "./loaderescape", "./bootstrapclean", "./bootstrapnoloader", "./bootstrapfeature", "./bootstraptype", "./bootstraprecursive", "./sessionroot")
 }
 
 func TestAnalyzerStrictFlag(t *testing.T) {

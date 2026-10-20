@@ -182,7 +182,7 @@ func TestConfigExplicit_Blank_Panics(t *testing.T) {
 func TestFoldConfigOptions_Loader_SetsMarker(t *testing.T) {
 	t.Parallel()
 
-	settings := foldConfigOptions([]ConfigOption{ConfigLoader(func(ConfigContext) (*ConfigDocument, error) {
+	settings := foldConfigOptions([]ConfigOption{ConfigLoader(func(ConfigContext, *struct{}) (*ConfigDocument, error) {
 		return nil, nil //nolint:nilnil // the nil document contract: returning no document keeps the tier inactive
 	})})
 
@@ -195,27 +195,27 @@ func TestFoldConfigOptions_Loader_SetsMarker(t *testing.T) {
 func TestExtractConfigLoaderFunc_NoLoader_ReturnsNil(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, ConfigLoaderFunc(nil), extractConfigLoaderFunc([]ConfigOption{ConfigPaths("a.json")}))
-	assert.Equal(t, ConfigLoaderFunc(nil), extractConfigLoaderFunc(nil))
+	assert.Equal(t, ConfigLoaderFunc[struct{}](nil), extractConfigLoaderFunc[struct{}]([]ConfigOption{ConfigPaths("a.json")}))
+	assert.Equal(t, ConfigLoaderFunc[struct{}](nil), extractConfigLoaderFunc[struct{}](nil))
 }
 
 func TestExtractConfigLoaderFunc_RepeatedDeclaration_LastWins(t *testing.T) {
 	t.Parallel()
 
-	first := func(ConfigContext) (*ConfigDocument, error) {
+	first := func(ConfigContext, *struct{}) (*ConfigDocument, error) {
 		return new(ConfigDocument).Set("who", "first", "first"), nil
 	}
-	second := func(ConfigContext) (*ConfigDocument, error) {
+	second := func(ConfigContext, *struct{}) (*ConfigDocument, error) {
 		return new(ConfigDocument).Set("who", "second", "second"), nil
 	}
 
-	load := extractConfigLoaderFunc([]ConfigOption{
+	load := extractConfigLoaderFunc[struct{}]([]ConfigOption{
 		ConfigLoader(first),
 		ConfigPaths("a.json"),
 		ConfigLoader(second),
 	})
 
-	document, err := load(nil)
+	document, err := load(nil, nil)
 
 	assert.NoError(t, err)
 	assert.Equal(t, "second", document.entries[0].value)

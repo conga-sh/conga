@@ -21,6 +21,46 @@ type CompleteOptions struct {
 	TargetShell          string
 }
 
+// CompletionAnalysis carries the invocation facts parsed from the typed
+// portion of a completion command line. It is produced before feature pruning
+// so the engine can resolve configuration and bind bootstrap fields from the
+// same tokens the candidate pass will later see.
+type CompletionAnalysis struct {
+	CommandChain   []*Command
+	FlagValues     map[*Flag][]string
+	PositionalArgs []string
+	DashArgs       []string
+	RawArgs        []string
+}
+
+// AnalyzeCompletion parses every complete word in args (all words except the
+// fragment being completed) with the same tolerant walker used for candidate
+// generation. It performs no candidate resolution and does not mutate the
+// command tree. Command routing runs first so raw fallback is evaluated
+// against the routed leaf, matching the runtime parser.
+func AnalyzeCompletion(rootCmd *Command, args []string) CompletionAnalysis {
+	if rootCmd == nil {
+		return CompletionAnalysis{}
+	}
+
+	normArgs := args
+	if len(normArgs) == 0 {
+		normArgs = []string{""}
+	}
+
+	typedTokens := normArgs[:len(normArgs)-1]
+	toks := tokenizer.Tokenize(typedTokens)
+
+	routingWalker := newASTCompletionWalker(rootCmd, CompleteOptions{})
+	routingWalker.walkTokens(toks)
+
+	walker := newASTCompletionWalker(rootCmd, CompleteOptions{})
+	walker.analysisLeaf = routingWalker.currentCmd
+	walker.walkTokens(toks)
+
+	return walker.analysis()
+}
+
 // Complete evaluates command-line arguments up to the cursor against the AST Command tree
 // and returns the resolved Result containing completion items and shell directives.
 func Complete(rootCmd *Command, args []string, opts CompleteOptions) predict.Result {
@@ -53,6 +93,13 @@ type astCompletionWalker struct {
 	posArgs          []string
 	inTerminator     bool
 	pendingFlagValue *Flag
+
+	analysisLeaf         *Command
+	analysisPositionals  []string
+	analysisDashArgs     []string
+	analysisRawArgs      []string
+	analysisInTerminator bool
+	analysisRawFallback  bool
 }
 
 func newASTCompletionWalker(rootCmd *Command, opts CompleteOptions) *astCompletionWalker {
@@ -81,6 +128,10 @@ func (w *astCompletionWalker) consumeToken(tok tokenizer.Token) {
 		return
 	}
 
+	matchedSubcommand := w.matchSubcommand(tok)
+
+	w.trackAnalysisToken(tok, matchedSubcommand)
+
 	if w.inTerminator {
 		w.posArgs = append(w.posArgs, tok.Raw)
 
@@ -95,10 +146,137 @@ func (w *astCompletionWalker) consumeToken(tok tokenizer.Token) {
 	case tokenizer.TokenTypeShortFlag:
 		w.consumeShortFlag(tok)
 	case tokenizer.TokenTypePositional:
-		w.consumePositional(tok)
+		w.consumePositional(tok, matchedSubcommand)
 	case tokenizer.TokenTypeUnknown:
 		// No-op for unclassified token
 	}
+}
+
+// matchSubcommand resolves a positional token against the current command's
+// subcommands. Tokens after the -- terminator never route to a subcommand.
+func (w *astCompletionWalker) matchSubcommand(tok tokenizer.Token) *Command {
+	if tok.Type != tokenizer.TokenTypePositional || w.inTerminator {
+		return nil
+	}
+
+	return w.currentCmd.FindSubcommand(tok.Raw)
+}
+
+// trackAnalysisToken mirrors the runtime token parser's positional, dash, and
+// raw attribution for the loader's completion-time view. The candidate walker
+// stays tolerant of tokens the runtime parser rejects, so analysis state is
+// tracked alongside it rather than derived from posArgs. Raw fallback uses the
+// routed leaf because routing removes subcommand tokens before parsing.
+func (w *astCompletionWalker) trackAnalysisToken(tok tokenizer.Token, matchedSubcommand *Command) {
+	if matchedSubcommand != nil {
+		return
+	}
+
+	if w.analysisRawFallback {
+		w.analysisRawArgs = append(w.analysisRawArgs, tok.Raw)
+
+		return
+	}
+
+	if w.analysisInTerminator {
+		w.trackAnalysisTerminatorToken(tok)
+
+		return
+	}
+
+	switch tok.Type {
+	case tokenizer.TokenTypeTerminator:
+		w.analysisInTerminator = true
+
+		if w.currentCmd.DashArgs != nil {
+			w.analysisDashArgs = make([]string, 0)
+		}
+	case tokenizer.TokenTypeLongFlag:
+		w.trackAnalysisLongFlag(tok)
+	case tokenizer.TokenTypeShortFlag:
+		w.trackAnalysisShortFlag(tok)
+	case tokenizer.TokenTypePositional:
+		w.trackAnalysisPositional(tok.Raw)
+	case tokenizer.TokenTypeUnknown:
+		// No-op for unclassified token
+	}
+}
+
+// trackAnalysisTerminatorToken attributes a token after the -- terminator:
+// DashArgs captures everything, while RawArgs captures only the overflow.
+func (w *astCompletionWalker) trackAnalysisTerminatorToken(tok tokenizer.Token) {
+	if w.currentCmd.DashArgs != nil {
+		w.analysisDashArgs = append(w.analysisDashArgs, tok.Raw)
+
+		return
+	}
+
+	w.trackAnalysisPositional(tok.Raw)
+}
+
+// trackAnalysisPositional binds a positional token until the declared
+// arguments are full, then falls back to RawArgs like the runtime parser.
+func (w *astCompletionWalker) trackAnalysisPositional(raw string) {
+	if w.canAnalysisRawFallback() {
+		w.startAnalysisRawFallback(raw)
+
+		return
+	}
+
+	w.analysisPositionals = append(w.analysisPositionals, raw)
+}
+
+// trackAnalysisLongFlag starts the raw fallback for an unknown long flag once
+// the declared positional arguments are full. Known flags bind normally.
+func (w *astCompletionWalker) trackAnalysisLongFlag(tok tokenizer.Token) {
+	if FindFlagInChain(w.cmdChain, tok.Name) != nil || FindNegatableFlagInChain(w.cmdChain, tok.Name) != nil {
+		return
+	}
+
+	if w.canAnalysisRawFallback() {
+		w.startAnalysisRawFallback(tok.Raw)
+	}
+}
+
+// trackAnalysisShortFlag mirrors the runtime short-flag rules: a negative
+// number binds as a positional value until the declared arguments are full,
+// and an unknown shorthand starts the raw fallback at the same point.
+func (w *astCompletionWalker) trackAnalysisShortFlag(tok tokenizer.Token) {
+	runes := tok.ShortRunes
+
+	if tok.IsNegativeNumber() && (len(runes) == 0 || FindShortFlagInChain(w.cmdChain, runes[0]) == nil) {
+		if w.canAnalysisRawFallback() {
+			w.startAnalysisRawFallback(tok.Raw)
+
+			return
+		}
+
+		w.analysisPositionals = append(w.analysisPositionals, tok.Raw)
+
+		return
+	}
+
+	if len(runes) > 0 && FindShortFlagInChain(w.cmdChain, runes[0]) == nil && w.canAnalysisRawFallback() {
+		w.startAnalysisRawFallback(tok.Raw)
+	}
+}
+
+// canAnalysisRawFallback reports whether the runtime parser would route the
+// next unbound token into RawArgs.
+func (w *astCompletionWalker) canAnalysisRawFallback() bool {
+	leaf := w.currentCmd
+	if w.analysisLeaf != nil {
+		leaf = w.analysisLeaf
+	}
+
+	return leaf.RawArgs != nil && len(w.analysisPositionals) >= len(leaf.Args)
+}
+
+// startAnalysisRawFallback enters raw mode, capturing this token and every
+// following token into RawArgs.
+func (w *astCompletionWalker) startAnalysisRawFallback(raw string) {
+	w.analysisRawFallback = true
+	w.analysisRawArgs = append(w.analysisRawArgs, raw)
 }
 
 // registerXorGroup records the flag's xor-group as used, when it declares one.
@@ -125,18 +303,32 @@ func (w *astCompletionWalker) consumePendingFlagValue(value string) {
 	w.pendingFlagValue = nil
 }
 
-func (w *astCompletionWalker) markFlagConsumed(flag *Flag, hasAttached bool, attachedValue string) {
+func (w *astCompletionWalker) markFlagConsumed(flag *Flag, hasAttached bool, attachedValue string, negated bool) {
 	w.registerXorGroup(flag)
 
 	if flag.IsBool {
-		w.flagsSet[flag] = append(w.flagsSet[flag], "true")
+		value := "true"
+
+		switch {
+		case negated:
+			value = "false"
+		case hasAttached:
+			value = attachedValue
+		}
+
+		w.flagsSet[flag] = append(w.flagsSet[flag], value)
 		w.markNonRepeatable(flag)
 
 		return
 	}
 
 	if flag.IsCounter {
-		w.flagsSet[flag] = append(w.flagsSet[flag], "1")
+		value := "1"
+		if hasAttached {
+			value = attachedValue
+		}
+
+		w.flagsSet[flag] = append(w.flagsSet[flag], value)
 
 		return
 	}
@@ -151,45 +343,81 @@ func (w *astCompletionWalker) markFlagConsumed(flag *Flag, hasAttached bool, att
 
 func (w *astCompletionWalker) consumeLongFlag(tok tokenizer.Token) {
 	flag := FindFlagInChain(w.cmdChain, tok.Name)
+
+	negated := false
+
 	if flag == nil {
 		flag = FindNegatableFlagInChain(w.cmdChain, tok.Name)
+		negated = flag != nil
 	}
 
 	if flag == nil {
 		return
 	}
 
-	w.markFlagConsumed(flag, tok.HasAttachedValue, tok.Value)
+	w.markFlagConsumed(flag, tok.HasAttachedValue, tok.Value, negated)
 }
 
 func (w *astCompletionWalker) consumeShortFlag(tok tokenizer.Token) {
-	if len(tok.ShortRunes) <= 1 {
-		var r rune
-		if len(tok.ShortRunes) == 1 {
-			r = tok.ShortRunes[0]
+	runes := tok.ShortRunes
+
+	for index := range runes {
+		flag := FindShortFlagInChain(w.cmdChain, runes[index])
+		if flag == nil {
+			return
 		}
 
-		w.applyShortFlagRune(r, tok.HasAttachedValue, tok.Value)
+		w.registerXorGroup(flag)
+
+		if flag.IsCounter {
+			value := "1"
+			if tok.HasAttachedValue && index == len(runes)-1 {
+				value = tok.Value
+			}
+
+			w.flagsSet[flag] = append(w.flagsSet[flag], value)
+
+			continue
+		}
+
+		if flag.IsBool {
+			value := "true"
+			if tok.HasAttachedValue && index == len(runes)-1 {
+				value = tok.Value
+			}
+
+			w.flagsSet[flag] = append(w.flagsSet[flag], value)
+			w.markNonRepeatable(flag)
+
+			continue
+		}
+
+		if index < len(runes)-1 {
+			value := string(runes[index+1:])
+			if tok.HasAttachedValue {
+				value += "=" + tok.Value
+			}
+
+			w.flagsSet[flag] = append(w.flagsSet[flag], value)
+			w.markNonRepeatable(flag)
+
+			return
+		}
+
+		if tok.HasAttachedValue {
+			w.flagsSet[flag] = append(w.flagsSet[flag], tok.Value)
+			w.markNonRepeatable(flag)
+
+			return
+		}
+
+		w.pendingFlagValue = flag
 
 		return
 	}
-
-	for _, r := range tok.ShortRunes {
-		w.applyShortFlagRune(r, tok.HasAttachedValue, tok.Value)
-	}
 }
 
-func (w *astCompletionWalker) applyShortFlagRune(r rune, hasAttached bool, attachedValue string) {
-	flag := FindShortFlagInChain(w.cmdChain, r)
-	if flag == nil {
-		return
-	}
-
-	w.markFlagConsumed(flag, hasAttached, attachedValue)
-}
-
-func (w *astCompletionWalker) consumePositional(tok tokenizer.Token) {
-	matchedSubcommand := w.currentCmd.FindSubcommand(tok.Raw)
+func (w *astCompletionWalker) consumePositional(tok tokenizer.Token, matchedSubcommand *Command) {
 	if matchedSubcommand != nil {
 		w.currentCmd = matchedSubcommand
 		w.cmdChain = append(w.cmdChain, w.currentCmd)
@@ -234,6 +462,30 @@ func (w *astCompletionWalker) buildCompletionContext(toComplete string) predict.
 		Dir:             w.opts.Dir,
 		Env:             w.opts.Env,
 		EnvLookup:       w.opts.EnvLookup,
+	}
+}
+
+// analysis returns the parsed invocation facts for the engine's early loader
+// pass. Positional, dash, and raw attribution mirrors the runtime token parser:
+// declared arguments consume positionals first, and RawArgs captures the
+// overflow. NoCLI engine flags are excluded because they can never be supplied
+// on the command line.
+func (w *astCompletionWalker) analysis() CompletionAnalysis {
+	values := make(map[*Flag][]string, len(w.flagsSet))
+	for flag, flagValues := range w.flagsSet {
+		if flag.NoCLI || len(flagValues) == 0 {
+			continue
+		}
+
+		values[flag] = slices.Clone(flagValues)
+	}
+
+	return CompletionAnalysis{
+		CommandChain:   slices.Clone(w.cmdChain),
+		FlagValues:     values,
+		PositionalArgs: slices.Clone(w.analysisPositionals),
+		DashArgs:       slices.Clone(w.analysisDashArgs),
+		RawArgs:        slices.Clone(w.analysisRawArgs),
 	}
 }
 

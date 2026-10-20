@@ -27,7 +27,7 @@ func New[T any](root ...*T) *App[T]
 | `Version(version)` | `--version` display string (falls back to build metadata) |
 | `EnvPrefix(prefix)` | Environment tier prefix (normalized to trailing `_`) |
 | `Dotenv(paths...)` | Enable `.env` loading (default `.env` + `.env.local`; [rules](/reference/dotenv/)) |
-| `ConfigOptions(options...)` | Config resolution: `conga.ConfigExplicit(path)`, `conga.ConfigPaths(paths...)`, `conga.ConfigCascading()`, `conga.ConfigLoader(load)`; `ConfigExplicit` cannot be combined with paths or cascading, and `ConfigLoader` cannot be combined with any file-based option, decoder, or `ConfigFile` field |
+| `ConfigOptions(options...)` | Config resolution: `conga.ConfigExplicit(path)`, `conga.ConfigPaths(paths...)`, `conga.ConfigCascading()`, `conga.ConfigLoader[T](load)`; `ConfigExplicit` cannot be combined with paths or cascading, and `ConfigLoader` cannot be combined with any file-based option, decoder, or `ConfigFile` field |
 | `RegisterDecoder(ext, decoder)` | Per-app config format decoder |
 | `StrictTagValidation(strict)` | Toggle tag linting (default on) |
 | `AllowTags(tags...)` | Allow additional struct tags |
@@ -114,7 +114,7 @@ by walking the selected `Command[T]` fields (`root.Cluster.Get()`).
 
 The App snapshots standard streams at the start of execution for the active session.
 
-`CandidateConfigFiles`/`LoadedConfigFiles` report the configuration sources the run evaluated: file paths for file-based resolution, or the distinct origin paths the application recorded when a [`conga.ConfigLoader`](/how-to/supply-config-from-code/) supplies the document. Document scopes recorded with `ConfigDocument.SetScoped` are not part of the reported path.
+`CandidateConfigFiles`/`LoadedConfigFiles` report the configuration sources the run evaluated: file paths for file-based resolution, or the distinct origin paths the application recorded when a [`conga.ConfigLoader`](/how-to/load-domain-files/) supplies the document. Document scopes recorded with `ConfigDocument.SetScoped` are not part of the reported path.
 
 `Help`, `Usage`, and `Version` are the formatting primitives behind the built-in `help` and `version` commands: `Help` returns the active command's help screen as a string, `Usage` returns the syntax usage summary as a string, and `Version` returns the formatted version summary line as a string, falling back to the module version (or `dev`) plus the embedded build metadata when no version string was configured.
 
@@ -134,6 +134,18 @@ The App snapshots standard streams at the start of execution for the active sess
 
 Base categories (`ErrSchema`, `ErrParse`, `ErrCoerce`, `ErrValidation`, `ErrConfig`) plus the `UsageError` and `CompletionError` interfaces and `IsUsageError(err)` / `IsCompletionError(err)` classifications — catalogued in [Errors and exit codes](/reference/errors/).
 
+## Provenance options
+
+```go
+func WhyJSON() WhyOption
+
+type WhyOption interface {
+	applyWhy(settings *whySettings)
+}
+```
+
+`WhyOption` is a sealed interface produced by option constructors such as `WhyJSON()`. `WhyJSON` enables machine-readable `--why=json` reports on `App.EnableWhy`. By default, `EnableWhy` compiles only the human-readable text table renderer, dead-code eliminating the JSON serialization pipeline unless opted in.
+
 ## Configuration options
 
 The config-file authoring surface lives in the root `conga` package: the
@@ -145,14 +157,12 @@ engine's resolution settings.
 The programmatic loader surface:
 
 ```go
-func ConfigLoader(load ConfigLoaderFunc) ConfigOption
+func ConfigLoader[T any](load ConfigLoaderFunc[T]) ConfigOption
 
-type ConfigLoaderFunc func(ctx ConfigContext) (*ConfigDocument, error)
+type ConfigLoaderFunc[T any] func(ctx ConfigContext, root *T) (*ConfigDocument, error)
 
 type ConfigContext interface {
 	CommandPath() string
-	FlagValue(name string) (string, bool)
-	FlagValues(name string) []string
 	LookupEnv(key string) (string, bool)
 }
 
@@ -167,8 +177,9 @@ func (d *ConfigDocument) SetKey(key, entryKey string, value any, origin string) 
 func (d *ConfigDocument) SetKeyScoped(key, entryKey string, value any, origin, scope string) *ConfigDocument
 ```
 
-`ConfigLoader` replaces file resolution for every run: the returned document is
-validated like a decoded config file, binds at the config tier
+`ConfigLoader` replaces file resolution for every run: fields marked
+`bootstrap:"true"` are bound on `root` before the loader runs, the returned
+document is validated like a decoded config file, binds at the config tier
 (`CLI > environment > document > default`), and its per-entry origins surface in
 `--why`. `SetScoped` and `SetKeyScoped` add an optional scope within the origin;
 value attribution renders it as `origin › scope` while the Config paths table
@@ -177,4 +188,4 @@ merges it key by key with earlier writes, so a later layer overrides only the
 map keys it names; a later `Set` of the same top-level key replaces the whole
 entry. A nil document
 leaves the tier inactive; loader errors wrap `ErrConfig` and exit 1. See
-[How to supply configuration from code](/how-to/supply-config-from-code/).
+[How to load configuration from domain files](/how-to/load-domain-files/).

@@ -10,6 +10,7 @@ CONGA derives the CLI schema from struct fields and their tags. The engine valid
 | Tag | Optional | Required | Counter | Meaning |
 |-----|:--------:|:--------:|:-------:|---------|
 | `aliases` | ✅ | ✅ | – | Comma-separated long-name aliases. |
+| `bootstrap` | ✅ | ✅ | ✅ | Bind the field before the config loader runs and expose it typed to the loader (`bootstrap` or `bootstrap:"true"`). Requires a `ConfigLoader`; rejected with `feature`; restricted to scalar, slice-of-scalar, and map-of-scalar types. |
 | `and` | ✅ | ✅ | – | Required co-occurrence group name whose members must all be set together. |
 | `config` | ✅ | ✅ | ✅ | Config file key feeding the flag (default: flag name). `config:"-"` excludes the field from config files. |
 | `conga` | ✅ | ✅ | ✅ | Directives (see [`conga` directives](#conga-directives)). |
@@ -30,7 +31,7 @@ CONGA derives the CLI schema from struct fields and their tags. The engine valid
 | `predictor` | ✅ | ✅ | – | Completion predictor identifier (see [Predictors](#predictors)). |
 | `range` | ✅ | ✅ | – | Numeric or duration bounds (see [Bounds syntax](#bounds-syntax)). |
 | `safe` | ✅ | ✅ | ✅ | Controls value display in `--why` provenance (`true` or `false`). Boolean and counter flags default to `true`; other flags default to `false`. Declared defaults are always visible. |
-| `sep` | ✅ (slices) | ✅ (slices) | – | Slice separator (default `","`). `sep:"none"` disables splitting, preserving the unparsed string. |
+| `sep` | ✅ (slices) | ✅ (slices) | – | Slice separator (default `","`). Disabling separators with `none`, `off`, or `-` disables multi-value splitting; `sep:"none"` preserves string elements verbatim, including whitespace. |
 | `short` | ✅ | ✅ | ✅ | Single-rune short flag (e.g. `short:"n"`). |
 | `xor` | ✅ | ✅ | – | Mutually exclusive group name. |
 
@@ -44,6 +45,7 @@ Positional arguments bind to command-line input.
 
 | Tag | Optional | Required | Meaning |
 |-----|:--------:|:--------:|---------|
+| `bootstrap` | ✅ | ✅ | Bind the argument before the config loader runs and expose it typed to the loader. Same restrictions as bootstrap flags. |
 | `conga` | ✅ | ✅ | Directives (see [`conga` directives](#conga-directives)). |
 | `default` | ✅ | – | Default value for optional arguments. |
 | `enum` | ✅ | ✅ | Comma-separated allowed values, checked against the coerced value, rendered in help as `[enum: …]`. |
@@ -54,7 +56,29 @@ Positional arguments bind to command-line input.
 | `name` | ✅ | ✅ | Argument placeholder in usage syntax (default: `<kebab-field-name>`). |
 | `predictor` | ✅ | ✅ | Completion predictor identifier (see [Predictors](#predictors)). |
 | `range` | ✅ | ✅ | Numeric or duration bounds. |
-| `sep` | ✅ (slices) | ✅ (slices) | Slice separator (default `","`). |
+| `sep` | ✅ (slices) | ✅ (slices) | Slice separator (default `","`). Disabling separators with `none`, `off`, or `-` disables multi-value splitting; `sep:"none"` preserves string elements verbatim, including whitespace. |
+
+## Loader bootstrap fields
+
+`bootstrap` is an opt-in bridge for [`conga.ConfigLoader`](/how-to/load-domain-files/). The field is bound on the root struct before the loader runs, using the normal CLI > environment > default precedence, and is bound again during the normal run:
+
+```go
+type CLI struct {
+	Dir      conga.OptionalFlag[string] `bootstrap:"true" short:"d"`
+	Taskfile conga.OptionalFlag[string] `bootstrap:"true" name:"taskfile"`
+}
+```
+
+The loader receives the typed root and reads `root.Dir.Get()` / `root.Taskfile.Get()`; aliases, `env` tags, `EnvPrefix`, and defaults need no loader-side parsing. Other fields hold their zero or caller-seeded value during the loader call.
+
+Constraints:
+
+- The app must declare `conga.ConfigLoader`; otherwise schema build rejects the tag.
+- `bootstrap` cannot be combined with `feature`: the loader runs before feature gates resolve.
+- Allowed types are bool, string, signed/unsigned integers, floats, `time.Duration`, and slices or maps of those. Structs, pointers, and interfaces are rejected so the extra coercion stays cheap.
+- Bootstrap errors are fatal for normal runs and `--why`. For `--help`, `--version`, and completion they are tolerated: the failing field is restored to its pre-bootstrap state and the loader sees it unset.
+
+`DashArgs` and `RawArgs` also accept `bootstrap`. Bootstrap fields are bound twice on a normal run, so keep them idempotent; avoid side-effecting domain types.
 
 ## Help variables
 

@@ -347,14 +347,10 @@ func ExampleApp_RegisterDecoder() {
 // still loses to command-line and environment values.
 func ExampleConfigLoader() {
 	app := conga.New[LoaderCLI]().
-		ConfigOptions(conga.ConfigLoader(func(ctx conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *LoaderCLI) (*conga.ConfigDocument, error) {
 			document := &conga.ConfigDocument{}
 			document.Set("host", "document.example.com", "embedded defaults")
 			document.Set("port", 9200, "embedded defaults")
-
-			if profile, ok := ctx.FlagValue("profile"); ok {
-				document.Set("host", profile+".example.com", "flag --profile")
-			}
 
 			return document, nil
 		})).

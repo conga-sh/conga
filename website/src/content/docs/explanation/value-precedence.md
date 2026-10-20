@@ -42,7 +42,7 @@ Phase 2: Flag Value Binding                                            v
 
 Before binding individual flags, CONGA determines which config files exist and loads them into a flat key-value map. Discovery follows its own precedence (`--config-file`, then `<PREFIX>_CONFIG`, then `conga.ConfigExplicit(...)`, then probed search tiers), with per-tier existence semantics and merge rules described in [About the config cascade](/explanation/config-cascade/). Once discovered files load and validate against the schema, their keys form the lookup table for Phase 2.
 
-An application can replace this whole phase with [`conga.ConfigLoader`](/how-to/supply-config-from-code/): the loader produces the configuration document in code — after tokenization, before binding — and CONGA validates it through the same pipeline. File discovery, decoders, and search tiers are inactive while a loader is declared.
+An application can replace this whole phase with [`conga.ConfigLoader`](/how-to/load-domain-files/): CONGA binds fields tagged `bootstrap:"true"` on the typed root before Phase 1 begins, and the loader produces the configuration document in code before full flag binding in Phase 2. File discovery, decoders, and search tiers are inactive while a loader is declared.
 
 ### Phase 2: Flag value binding
 
@@ -72,7 +72,7 @@ Individual flags can bypass specific tiers using struct tags. Setting `env:"-"` 
 
 ### Decoderless applications
 
-If an application registers no config decoders (`app.RegisterDecoder`), Tier 3 remains inactive for all flags. The engine skips file loading and falls directly from the environment tier to struct defaults. An application can instead supply Tier 3 programmatically with [`conga.ConfigLoader`](/how-to/supply-config-from-code/): the loader replaces file discovery entirely and returns a validated document that binds at exactly this rank.
+If an application registers no config decoders (`app.RegisterDecoder`), Tier 3 remains inactive for all flags. The engine skips file loading and falls directly from the environment tier to struct defaults. An application can instead supply Tier 3 programmatically with [`conga.ConfigLoader`](/how-to/load-domain-files/): the loader replaces file discovery entirely and returns a validated document that binds at exactly this rank.
 
 ### Positional arguments
 
@@ -110,6 +110,10 @@ The container records the highest contributing tier as its `Source()`, and `--wh
 ### Environment file integration
 
 When `.env` loading is enabled via `app.Dotenv()`, variables from `.env` files populate the process environment before flag resolution begins ([Dotenv files](/reference/dotenv/)). These values feed Tier 2 as standard environment variables.
+
+### Empty environment variable unsetting
+
+CONGA treats empty environment variables (`FOO=`) as unset across all flag types, including string flags. An empty variable in the environment does not override lower tiers; configuration files, programmatic documents, and default tags apply instead. To clear or set an empty string flag explicitly, pass `--flag ""` on the command line.
 
 ## Provenance tracking
 

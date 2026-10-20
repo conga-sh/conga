@@ -67,12 +67,18 @@ Feature gating and map folding classify errors by the input tier that introduced
 | Unknown or invalid feature key in the feature map environment variable | `ErrParse` (usage error) | 2 |
 | Malformed map flag syntax in a config file (even when overridden by CLI) | `ErrConfig` | 1 |
 | Malformed map flag syntax in an environment variable | `ErrParse` (usage error) | 2 |
+| Invalid format passed to `--why` or `--why=json` requested without `conga.WhyJSON()` | `ErrParse` (usage error) | 2 |
+| Runtime error returned from a `conga.ConfigLoader` function | `ErrConfig` | 1 |
 
 ## Schema errors (`ErrSchema`)
 
 Programmer errors during schema construction abort at startup before execution begins (exit code 1):
 - Declaring `conga.Features[T]` or `feature:"..."` tags without calling `app.EnableFeatures()`.
 - Combining `conga.ConfigExplicit(...)` with `conga.ConfigPaths(...)` or `conga.ConfigCascading()`.
+- Combining `conga.ConfigLoader(...)` with file options (`ConfigPaths`, `ConfigExplicit`, `ConfigCascading`), `RegisterDecoder`, or a root `ConfigFile` field.
+- Declaring the `bootstrap` tag without a declared `conga.ConfigLoader`.
+- Combining the `bootstrap` and `feature` tags on the same field.
+- Declaring the `bootstrap` tag on unsupported field types (structs, pointers, interfaces).
 - Inconsistent `stage` tags violating the all-or-nothing requirement on feature structs.
 - Setting `enumhint:"-"` on a field without declared enums, or where the `help` tag already references `{{enum}}`.
 - Ancestor flag shadowing across command-subcommand hierarchies (`ErrDuplicateFlag`).

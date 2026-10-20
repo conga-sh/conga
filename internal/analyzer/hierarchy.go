@@ -93,6 +93,10 @@ type walker struct {
 	// feature-tag guards report only when the anchored app definitely never
 	// calls EnableFeatures.
 	featureState optInState
+	// loaderState is the per-anchor configuration loader verdict: bootstrap
+	// tags require a statically identified ConfigLoader and are suppressed
+	// when the evidence is ambiguous.
+	loaderState loaderState
 	// configFileMulti tracks the root command's config-file flag arity
 	// (multi tag) for the cascading guard: nil when no field is declared.
 	// The state is reset per walked root.
@@ -102,7 +106,7 @@ type walker struct {
 	configFileNode        *commandNode
 }
 
-func newWalker(pass *analysis.Pass, congaTypes *congaTypes, options *appOptions, completionState, featureState optInState, singleAnchor bool) *walker {
+func newWalker(pass *analysis.Pass, congaTypes *congaTypes, options *appOptions, completionState, featureState optInState, loaderState loaderState, singleAnchor bool) *walker {
 	return &walker{
 		pass:            pass,
 		conga:           congaTypes,
@@ -112,6 +116,7 @@ func newWalker(pass *analysis.Pass, congaTypes *congaTypes, options *appOptions,
 		singleAnchor:    singleAnchor,
 		completionState: completionState,
 		featureState:    featureState,
+		loaderState:     loaderState,
 	}
 }
 
@@ -222,12 +227,8 @@ func (w *walker) checkField(node *commandNode, fieldObject types.Object, tag ref
 		w.checkFeaturesField(node, fieldObject, tag, branchNames)
 
 		return nil
-	case "dash args":
-		w.validateNodeFieldTags(node, fieldObject, tag, role, nil)
-
-		return nil
-	case "raw args":
-		w.validateNodeFieldTags(node, fieldObject, tag, role, nil)
+	case "dash args", "raw args":
+		w.checkTrailingArgsField(node, fieldObject, tag, role)
 
 		return nil
 	case "flag":
@@ -240,6 +241,14 @@ func (w *walker) checkField(node *commandNode, fieldObject types.Object, tag ref
 		return nil
 	default:
 		return nil
+	}
+}
+
+// checkTrailingArgsField validates a DashArgs/RawArgs field and mirrors the
+// bootstrap-tag guards.
+func (w *walker) checkTrailingArgsField(node *commandNode, fieldObject types.Object, tag reflect.StructTag, role string) {
+	if w.validateNodeFieldTags(node, fieldObject, tag, role, nil) {
+		w.checkBootstrapField(node, fieldObject, tag, nil)
 	}
 }
 

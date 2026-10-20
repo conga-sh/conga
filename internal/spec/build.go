@@ -689,9 +689,15 @@ func (b *schemaBuilder) processDashArgsField(structField reflect.StructField, ha
 
 	dashName := cmp.Or(structField.Tag.Get("name"), "[-- <args...>]")
 
+	bootstrap, err := parseBootstrapTag(structField.Tag, "", &b.opts)
+	if err != nil {
+		return b.fieldContextError(structField.Name, err)
+	}
+
 	b.cmd.DashArgs = &DashArgs{
-		Name:   dashName,
-		Handle: handle,
+		Name:      dashName,
+		Bootstrap: bootstrap,
+		Handle:    handle,
 	}
 
 	return nil
@@ -711,9 +717,15 @@ func (b *schemaBuilder) processRawArgsField(structField reflect.StructField, han
 
 	rawName := cmp.Or(structField.Tag.Get("name"), "[command] [args...]")
 
+	bootstrap, err := parseBootstrapTag(structField.Tag, "", &b.opts)
+	if err != nil {
+		return b.fieldContextError(structField.Name, err)
+	}
+
 	b.cmd.RawArgs = &RawArgs{
-		Name:   rawName,
-		Handle: handle,
+		Name:      rawName,
+		Bootstrap: bootstrap,
+		Handle:    handle,
 	}
 
 	return nil

@@ -400,6 +400,7 @@ func (w *walker) checkFlagField(node *commandNode, fieldObject types.Object, tag
 	}
 
 	w.reportFieldError(node, fieldObject, spec.ValidatePredictorTag(tag, isBasicKind(targetType, types.Bool), w.predictorOptions(), w.options.registeredNames))
+	w.checkBootstrapField(node, fieldObject, tag, targetType)
 	w.checkValidationSpecs(node, fieldObject, tag, targetType, tagSpecs)
 
 	if _, err := spec.ParseFieldTags(tag, tagSpecs); err != nil {
@@ -421,6 +422,7 @@ func (w *walker) checkArgField(node *commandNode, fieldObject types.Object, tag 
 	}
 
 	w.reportFieldError(node, fieldObject, spec.ValidatePredictorTag(tag, false, w.predictorOptions(), w.options.registeredNames))
+	w.checkBootstrapField(node, fieldObject, tag, targetType)
 	w.checkValidationSpecs(node, fieldObject, tag, targetType, tagSpecs)
 
 	if _, err := spec.ParseFieldTags(tag, tagSpecs); err != nil {
@@ -457,6 +459,32 @@ func (w *walker) checkValidationSpecs(node *commandNode, fieldObject types.Objec
 				w.reportFieldError(node, fieldObject, spec.ValidateCountRangeSpec(countSpec, countTag))
 			}
 		}
+	}
+}
+
+// checkBootstrapField mirrors the runtime bootstrap-tag guards: a declared
+// bootstrap tag requires a statically identified ConfigLoader, cannot carry a
+// feature expression, and must target a scalar, slice-of-scalar, or
+// map-of-scalar type. Ambiguous loader evidence suppresses every diagnostic.
+func (w *walker) checkBootstrapField(node *commandNode, fieldObject types.Object, tag reflect.StructTag, targetType types.Type) {
+	if !spec.BootstrapTagged(tag) || w.loaderState.unknown {
+		return
+	}
+
+	if !w.loaderState.declared {
+		w.reportFieldError(node, fieldObject, spec.BootstrapRequiresLoaderError())
+
+		return
+	}
+
+	if strings.TrimSpace(tag.Get("feature")) != "" {
+		w.reportFieldError(node, fieldObject, spec.BootstrapFeatureConflictError())
+
+		return
+	}
+
+	if targetType != nil && !isStaticBootstrapType(targetType) {
+		w.reportFieldError(node, fieldObject, spec.BootstrapFieldTypeError())
 	}
 }
 
@@ -552,6 +580,52 @@ func (w *walker) predictorOptions() spec.ValidationOptions {
 	}
 
 	return options
+}
+
+// isStaticBootstrapType mirrors spec.isBootstrapType over go/types.
+func isStaticBootstrapType(targetType types.Type) bool {
+	return isStaticBootstrapTypeVisiting(targetType, make(map[types.Type]bool))
+}
+
+// isStaticBootstrapTypeVisiting mirrors isBootstrapTypeVisiting over go/types,
+// rejecting self-referential slice and map shapes instead of recursing until
+// the analyzer overflows its stack.
+func isStaticBootstrapTypeVisiting(targetType types.Type, visiting map[types.Type]bool) bool {
+	if targetType == nil {
+		return false
+	}
+
+	switch underlying := targetType.Underlying().(type) {
+	case *types.Basic:
+		if underlying.Kind() == types.Uintptr {
+			return false
+		}
+
+		info := underlying.Info()
+
+		return info&(types.IsBoolean|types.IsString|types.IsInteger|types.IsFloat) != 0
+	case *types.Slice:
+		if visiting[targetType] {
+			return false
+		}
+
+		visiting[targetType] = true
+		defer delete(visiting, targetType)
+
+		return isStaticBootstrapTypeVisiting(underlying.Elem(), visiting)
+	case *types.Map:
+		if visiting[targetType] {
+			return false
+		}
+
+		visiting[targetType] = true
+		defer delete(visiting, targetType)
+
+		return isStaticBootstrapTypeVisiting(underlying.Key(), visiting) &&
+			isStaticBootstrapTypeVisiting(underlying.Elem(), visiting)
+	default:
+		return false
+	}
 }
 
 // featureField mirrors the runtime feature-field kind switch: a feature field

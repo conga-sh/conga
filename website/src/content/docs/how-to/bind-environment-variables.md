@@ -96,6 +96,20 @@ type CLI struct {
 
 Declaring `env:"-"` ensures the flag resolves exclusively from command-line arguments or its default value.
 
+## Unset variables with empty values
+
+When an environment variable is set to an empty string (`FOO=""` or `export FOO=`), CONGA treats the variable as unset across all flag types, including string flags. An empty environment variable does not override lower tiers; configuration files, programmatic documents, and default struct tags apply instead.
+
+To clear or set an empty string flag explicitly, pass `--flag ""` on the command line:
+
+```sh
+# APP_HOST is empty: default tag or config file supplies the host
+APP_HOST= server
+
+# Explicit empty string on CLI: overrides default and config with ""
+server --host ""
+```
+
 ## Where to go next
 
 - [How to load .env files](/how-to/load-env-files/) — feed `.env` and `.env.local` files into the environment tier.

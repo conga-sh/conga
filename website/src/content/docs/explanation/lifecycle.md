@@ -13,13 +13,19 @@ For signature definitions and interface contracts, see [Lifecycle interfaces](/r
 
 Every CONGA command execution operates in two distinct phases: **schema compilation** and the **runtime lifecycle**.
 
-Before input tokens are parsed or lifecycle hooks run, the engine compiles and validates the application schema from struct definitions and tags. Once the schema is verified, the runtime pipeline resolves values from command-line tokens, environment variables, and config files, moving through five sequential phases:
+Before input tokens are parsed or lifecycle hooks run, the engine compiles and validates the application schema from struct definitions and tags. Once the schema is verified, the runtime pipeline resolves values from command-line tokens, environment variables, and config files, moving through sequential phases:
 
 ```text no-copy
 Schema Compilation (conga.New / buildSpec) ──[ErrSchema]──► Exit 1 (Programmer Error)
                 │
                 ▼
-Input Binding & Coercion (SelfValidator)
+Bootstrap Binding (fields tagged bootstrap:"true")
+                │
+                ▼
+Config Resolution (files discovered or ConfigLoaderFunc executes)
+                │
+                ▼
+Input Binding & Coercion (CLI, env, config, defaults) ──[--why]──► Exit 0 (Diagnostics)
                 │
                 ▼
 Cross-Field Validation (Validator, top-down)  ──[error]──► Exit 2 (Usage Error)
@@ -38,6 +44,21 @@ Teardown (Finally, bottom-up)                 ───────────�
 ```
 
 Every phase is optional except for `Runner`, which must be implemented by the selected leaf command. Unimplemented hooks are skipped with zero overhead.
+
+## The bootstrap and configuration phase
+
+Applications reading domain documents or flag-driven configuration face a chicken-and-egg dependency: the loader needs command-line flags (such as `--file`, `--profile`, or `--dir`) to locate and interpret the configuration file, but normal flag binding depends on the configuration file already being loaded.
+
+CONGA solves this by dividing binding into two stages:
+1. **Bootstrap binding**: Fields marked `bootstrap:"true"` bind from the command line, environment variables, and default tags onto the root command struct.
+2. **Configuration resolution**: The engine either discovers and decodes configuration files from disk or invokes the declared `conga.ConfigLoader`. The loader receives the typed root struct with bootstrap containers already populated, and returns a `conga.ConfigDocument`.
+3. **Full input binding**: CONGA resolves all remaining flags and arguments across the four-tier ladder (`CLI > environment > config > default`).
+
+## Interception by built-in diagnostic flags
+
+When invoked with `--why`, CONGA runs the complete resolution pipeline through bootstrap binding, configuration loading, and flag coercion. Once all values are bound and provenance is recorded, CONGA prints the provenance report (or JSON document) and exits with code 0 before any lifecycle hooks (`Validator`, `PreRun`, `Run`, `PostRun`, `Finally`) execute.
+
+Because `--why` evaluates real binding, invalid configuration or malformed flag values fail fast with their normal errors. Commands can also inspect provenance programmatically within lifecycle hooks by calling `session.Why()` or `session.WhyJSON()`.
 
 ## Validation before resource allocation
 

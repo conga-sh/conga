@@ -83,6 +83,10 @@ func (o *Opaque) UnmarshalText(text []byte) error { return nil }
 // integer bound parsing.
 type Plain int64
 
+type selfReferentialSlice []selfReferentialSlice
+
+type selfReferentialMap map[string]selfReferentialMap
+
 func TestTextRangeDomain(t *testing.T) {
 	t.Parallel()
 
@@ -767,4 +771,76 @@ func TestValidateConfigFileConfigTag(t *testing.T) {
 		assert.IsError(t, err, ErrInvalidStructTag)
 		assert.Equal(t, `schema error: invalid struct tag: tag "config" on config file flag must be "-", got "server"`, err.Error())
 	})
+}
+
+func TestParseBootstrapTag(t *testing.T) {
+	t.Parallel()
+
+	t.Run("absent", func(t *testing.T) {
+		t.Parallel()
+
+		bootstrap, err := parseBootstrapTag(reflect.StructTag(``), "", &Options{})
+
+		assert.NoError(t, err)
+		assert.False(t, bootstrap)
+	})
+
+	t.Run("requires loader", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := parseBootstrapTag(reflect.StructTag(`bootstrap:"true"`), "", &Options{})
+
+		assert.Error(t, err)
+		assert.IsError(t, err, ErrSchema)
+		assert.Equal(t, `schema error: tag "bootstrap" requires a configuration loader; declare app.ConfigOptions(conga.ConfigLoader(...)) or remove the tag`, err.Error())
+	})
+
+	t.Run("rejects feature combination", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := parseBootstrapTag(reflect.StructTag(`bootstrap:"true"`), "strict", &Options{ConfigSettings: ConfigSettings{Loader: true}})
+
+		assert.Error(t, err)
+		assert.IsError(t, err, ErrInvalidStructTag)
+		assert.Equal(t, `schema error: invalid struct tag: tag "bootstrap" cannot be combined with tag "feature" (the loader runs before feature gates are resolved)`, err.Error())
+	})
+
+	t.Run("accepted with loader", func(t *testing.T) {
+		t.Parallel()
+
+		bootstrap, err := parseBootstrapTag(reflect.StructTag(`bootstrap:""`), "", &Options{ConfigSettings: ConfigSettings{Loader: true}})
+
+		assert.NoError(t, err)
+		assert.True(t, bootstrap)
+	})
+}
+
+func TestIsBootstrapType(t *testing.T) {
+	t.Parallel()
+
+	allowed := []reflect.Type{
+		reflect.TypeFor[string](),
+		reflect.TypeFor[bool](),
+		reflect.TypeFor[int](),
+		reflect.TypeFor[uint64](),
+		reflect.TypeFor[float64](),
+		reflect.TypeFor[[]string](),
+		reflect.TypeFor[map[string]string](),
+		reflect.TypeFor[map[int][]bool](),
+	}
+	for _, targetType := range allowed {
+		assert.True(t, isBootstrapType(targetType), targetType.String())
+	}
+
+	rejected := []reflect.Type{
+		reflect.TypeFor[*string](),
+		reflect.TypeFor[struct{}](),
+		reflect.TypeFor[[]struct{}](),
+		reflect.TypeFor[map[string]struct{}](),
+		reflect.TypeFor[selfReferentialSlice](),
+		reflect.TypeFor[selfReferentialMap](),
+	}
+	for _, targetType := range rejected {
+		assert.False(t, isBootstrapType(targetType), targetType.String())
+	}
 }

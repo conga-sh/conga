@@ -20,7 +20,9 @@ func (c *LoaderEscaping) Run(ctx context.Context, session *conga.Session) error 
 	return nil
 }
 
-func loadConfig(ctx conga.ConfigContext) (*conga.ConfigDocument, error) { return nil, nil }
+func loadConfig(ctx conga.ConfigContext, _ *LoaderEscaping) (*conga.ConfigDocument, error) {
+	return nil, nil
+}
 
 func decode(data []byte) (map[string]any, error) { return nil, nil }
 

@@ -93,6 +93,10 @@ app.RegisterDecoder(".ini", iniDecoder)
 
 When a decoder returns a non-nil error, CONGA aborts configuration resolution and returns a categorized `conga.ErrConfig` error identifying the file and parse failure.
 
+:::tip[Files with application data]
+Decoders require every top-level key in a file to match a declared flag. If your file mixes configuration with application data (such as tasks in a `Taskfile` or services in a `docker-compose.yml`), use [`conga.ConfigLoader`](/how-to/load-domain-files/) instead. It lets your application parse the document, extract configuration keys into CONGA's config tier, and keep the remaining data for execution.
+:::
+
 ## Structure nested configuration for subcommands
 
 When command structs declare nested subcommands using `conga.Command[T]`, the command hierarchy forms nested configuration namespaces; [About subcommands and hierarchy](/explanation/subcommands/#hierarchical-configuration-mapping) defines the mapping.
@@ -215,4 +219,4 @@ func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
 
 - [About the config cascade](/explanation/config-cascade/) — search-tier mechanics, merging order, and XDG resolution.
 - [Package decoder reference](/reference/decoders/) — decoders for JSON, TOML, YAML, and HCL.
-- [How to supply configuration from code](/how-to/supply-config-from-code/) — replace file resolution with `conga.ConfigLoader` when configuration comes from an embedded filesystem, a remote store, or application computation.
+- [How to load configuration from domain files](/how-to/load-domain-files/) — parse domain manifests, task files, and flag-driven configuration with `conga.ConfigLoader`.

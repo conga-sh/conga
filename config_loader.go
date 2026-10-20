@@ -1,8 +1,9 @@
 package conga
 
 import (
+	"fmt"
 	"os"
-	"slices"
+	"reflect"
 
 	"github.com/conga-sh/conga/internal/configdata"
 	"github.com/conga-sh/conga/internal/configengine"
@@ -11,24 +12,20 @@ import (
 )
 
 // ConfigContext exposes the invocation facts CONGA knows when the
-// configuration loader runs: the selected command path, the raw command-line
-// values parsed before binding, and the run's environment view. The engine
-// supplies the implementation; application tests may implement the interface
-// to exercise a loader in isolation.
+// configuration loader runs: the selected command path and the run's
+// environment view. Bootstrap-tagged fields are bound on the root struct
+// before the loader runs, so the loader reads their typed containers directly.
+//
+// The engine supplies the implementation; application tests may implement the
+// interface to exercise a loader in isolation.
 type ConfigContext interface {
 	// CommandPath returns the selected invocation path, for example
 	// "cloudctl deploy worker".
 	CommandPath() string
-	// FlagValue returns the last raw command-line value supplied for the
-	// named flag or alias, and whether the flag was supplied at all. Only
-	// command-line values are reported; environment and document tiers bind
-	// after the loader runs.
-	FlagValue(name string) (string, bool)
-	// FlagValues returns every raw command-line value supplied for the named
-	// flag or alias in order, or nil when the flag was not supplied.
-	FlagValues(name string) []string
-	// LookupEnv returns the run's environment view (with .env files already
-	// applied), like os.LookupEnv.
+	// LookupEnv returns the environment visible to this invocation, like
+	// os.LookupEnv. Normal executions include .env values because dotenv runs
+	// before binding; completion uses the shell/process environment and the
+	// injected completion lookup, and does not load .env files.
 	LookupEnv(key string) (string, bool)
 }
 
@@ -128,22 +125,30 @@ func (d *ConfigDocument) SetKeyScoped(key, entryKey string, value any, origin, s
 // error fails the run and is classified under [ErrConfig].
 //
 // The function runs at most once per execution, after command-line
-// tokenization and before flag binding and feature pruning. Applications that
-// enable features may have it run for --help and --why rendering, and shell
-// completion invocations run it as well, so it must stay free of side effects,
-// prompts, and blocking I/O.
-type ConfigLoaderFunc func(ctx ConfigContext) (*ConfigDocument, error)
+// tokenization and bootstrap-field binding, and before configuration
+// resolution, full flag binding, and feature pruning. Fields declared with the
+// bootstrap tag are already bound on root; every other field holds its zero or
+// caller-seeded value. Loader applications that enable features may have it
+// run for --help and --why rendering, and shell completion invocations run it
+// as well, so it must be deterministic and may perform only bounded local I/O
+// and updates to app-owned non-schema state.
+type ConfigLoaderFunc[T any] func(ctx ConfigContext, root *T) (*ConfigDocument, error)
 
 // ConfigLoader declares the application's programmatic configuration document
 // source for [App.ConfigOptions], replacing configuration file resolution
 // (decoders, search tiers, and probing) for every run:
 //
-//	app.ConfigOptions(conga.ConfigLoader(func(ctx conga.ConfigContext) (*conga.ConfigDocument, error) {
+//	type ServerCLI struct {
+//		Profile conga.OptionalFlag[string] `bootstrap:"true"`
+//		Host    conga.OptionalFlag[string]
+//	}
+//
+//	app.ConfigOptions(conga.ConfigLoader(func(ctx conga.ConfigContext, root *ServerCLI) (*conga.ConfigDocument, error) {
 //		document := &conga.ConfigDocument{}
 //		document.Set("host", "localhost", "embedded defaults")
 //
-//		if profile, ok := ctx.FlagValue("profile"); ok {
-//			document.Set("host", profile+"-host", "flag --profile")
+//		if root.Profile.IsSet() {
+//			document.Set("host", root.Profile.Get()+"-host", "flag --profile")
 //		}
 //
 //		return document, nil
@@ -164,7 +169,7 @@ type ConfigLoaderFunc func(ctx ConfigContext) (*ConfigDocument, error)
 //
 // Panics:
 //   - If load is nil.
-func ConfigLoader(load ConfigLoaderFunc) ConfigOption {
+func ConfigLoader[T any](load ConfigLoaderFunc[T]) ConfigOption {
 	if load == nil {
 		panic("conga: app.ConfigOptions(conga.ConfigLoader(...)): the loader function cannot be nil")
 	}
@@ -174,10 +179,10 @@ func ConfigLoader(load ConfigLoaderFunc) ConfigOption {
 
 // loaderOption is the sealed [ConfigOption] produced by [ConfigLoader]. The
 // loader marker rides through schema build in spec.ConfigSettings for the
-// conflict guards; the function itself stays on the App, extracted from the
-// option list by [App.ConfigOptions].
+// conflict guards; the typed function itself stays on the App, extracted from
+// the option list by [App.ConfigOptions].
 type loaderOption struct {
-	load ConfigLoaderFunc
+	load any
 }
 
 func (option loaderOption) applyTo(settings *spec.ConfigSettings) {
@@ -203,40 +208,51 @@ type documentMapEntry struct {
 	scope  string
 }
 
-// loaderContext implements [ConfigContext] over the parsed invocation state.
-type loaderContext struct {
+// parsedInvocation carries the parsed command line facts shared by
+// configuration resolution, bootstrap binding, and completion analysis.
+type parsedInvocation struct {
+	root       *spec.Command
+	leaf       *spec.Command
 	cmdChain   []*spec.Command
 	flagValues map[*spec.Flag][]string
+	posTokens  []string
+	dashTokens []string
+	rawTokens  []string
+}
+
+// loaderRequest carries the parsed invocation into the configuration loader,
+// together with the environment view and the bootstrap error policy.
+type loaderRequest struct {
+	invocation        parsedInvocation
+	envLookup         func(string) (string, bool)
+	tolerateBootstrap bool
+}
+
+// loaderResult is the outcome of one programmatic configuration load. restore
+// reverts bootstrap-bound containers and command selection after an
+// observation-only completion invocation; it is nil when nothing was bound.
+type loaderResult struct {
+	data    *configdata.Data
+	origins []string
+	restore func()
+	err     error
+}
+
+// loaderContext implements [ConfigContext] over the parsed invocation state.
+type loaderContext struct {
+	cmdChain  []*spec.Command
+	envLookup func(string) (string, bool)
 }
 
 func (c loaderContext) CommandPath() string {
 	return commandChainPath(c.cmdChain)
 }
 
-func (c loaderContext) FlagValue(name string) (string, bool) {
-	values := c.FlagValues(name)
-	if len(values) == 0 {
-		return "", false
-	}
-
-	return values[len(values)-1], true
-}
-
-func (c loaderContext) FlagValues(name string) []string {
-	for _, cmd := range c.cmdChain {
-		for _, flagSpec := range cmd.Flags {
-			if flagSpec.Name != name && !slices.Contains(flagSpec.Aliases, name) {
-				continue
-			}
-
-			return slices.Clone(c.flagValues[flagSpec])
-		}
-	}
-
-	return nil
-}
-
 func (c loaderContext) LookupEnv(key string) (string, bool) {
+	if c.envLookup != nil {
+		return c.envLookup(key)
+	}
+
 	return os.LookupEnv(key)
 }
 
@@ -355,62 +371,87 @@ func (d *ConfigDocument) validate(cmd *spec.Command, dest *configdata.Data) ([]s
 // (nil data) leaves the tier inactive; on a validation failure the partially
 // resolved data and the origins recorded so far are returned so the resolution
 // can report them.
-func (a *App[T]) loadDocumentConfigData(cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string) (*configdata.Data, []string, error) {
-	document, err := a.configLoader(loaderContext{cmdChain: cmdChain, flagValues: flagValues})
+func (a *App[T]) loadDocumentConfigData(request loaderRequest) loaderResult {
+	restore, err := a.bindBootstrapFields(request.invocation, request.envLookup, request.tolerateBootstrap)
 	if err != nil {
-		return nil, nil, &loaderError{cause: err}
+		if restore != nil {
+			restore()
+		}
+
+		return loaderResult{err: err}
+	}
+
+	result := loaderResult{restore: restore}
+
+	document, err := a.configLoader(loaderContext{cmdChain: request.invocation.cmdChain, envLookup: request.envLookup}, a.rootTarget)
+	if err != nil {
+		result.err = &loaderError{cause: err}
+
+		return result
 	}
 
 	if document == nil {
-		return nil, nil, nil
+		return result
 	}
 
 	data := configdata.New()
 
-	origins, err := document.validate(cmd, data)
-	if err != nil {
-		return data, origins, err
-	}
+	origins, err := document.validate(request.invocation.root, data)
+	result.data = data
+	result.origins = origins
+	result.err = err
 
-	return data, origins, nil
+	return result
 }
 
 // resolveLoaderConfig resolves the run's programmatic configuration document
 // exactly once, memoizing the outcome like the file resolver does. Loaded
 // paths and candidates report the distinct origins without their scopes; the
 // per-value scopes stay on the stored configuration values.
-func (a *App[T]) resolveLoaderConfig(cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string) *configResolution {
+func (a *App[T]) resolveLoaderConfig(request loaderRequest) *configResolution {
 	a.configData = configdata.New()
 
-	data, origins, err := a.loadConfigDocument(a, cmd, cmdChain, flagValues)
-	if data != nil {
-		a.configData = data
+	result := a.loadConfigDocument(a, request)
+	if result.data != nil {
+		a.configData = result.data
 	}
 
-	if err != nil {
-		return &configResolution{err: err, candidates: origins}
+	if result.err != nil {
+		return &configResolution{err: result.err, candidates: result.origins}
 	}
 
-	if data == nil {
+	if result.data == nil {
 		return &configResolution{loadedSource: SourceNone}
 	}
 
 	return &configResolution{
-		loadedPaths:  origins,
+		loadedPaths:  result.origins,
 		loadedSource: SourceConfig,
-		candidates:   origins,
+		candidates:   result.origins,
 	}
 }
 
 // extractConfigLoaderFunc returns the loader declared by the last
 // [ConfigLoader] option in call order, or nil when no option declared one.
-func extractConfigLoaderFunc(options []ConfigOption) ConfigLoaderFunc {
-	var load ConfigLoaderFunc
+func extractConfigLoaderFunc[T any](options []ConfigOption) ConfigLoaderFunc[T] {
+	var load ConfigLoaderFunc[T]
 
 	for _, option := range options {
-		if loader, ok := option.(loaderOption); ok {
-			load = loader.load
+		loader, ok := option.(loaderOption)
+		if !ok {
+			continue
 		}
+
+		typed, ok := loader.load.(ConfigLoaderFunc[T])
+		if !ok {
+			panic(fmt.Sprintf(
+				"conga: app.ConfigOptions(conga.ConfigLoader(...)): loader root type %s does not match application root type %s",
+				reflect.TypeOf(loader.load).In(1),
+				reflect.PointerTo(reflect.TypeFor[T]()),
+			))
+		}
+
+		load = typed
 	}
 
 	return load

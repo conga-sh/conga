@@ -284,7 +284,8 @@ func run(pass *analysis.Pass) (any, error) {
 		checkSessionRootCalls(pass, anchors[0])
 	}
 
-	checkLoaderConflicts(pass, anchors)
+	loaderState := detectLoaderState(pass, anchors)
+	checkLoaderConflicts(pass, anchors, loaderState)
 
 	congaTypes, err := resolveCongaTypes(anchors[0].packageObject)
 	if err != nil {
@@ -296,7 +297,7 @@ func run(pass *analysis.Pass) (any, error) {
 		options.forceStrict()
 	}
 
-	walker := newWalker(pass, congaTypes, options, detectCompletionState(pass, anchors), detectFeatureState(pass, anchors), len(anchors) == 1)
+	walker := newWalker(pass, congaTypes, options, detectCompletionState(pass, anchors), detectFeatureState(pass, anchors), loaderState, len(anchors) == 1)
 	for _, anchor := range anchors {
 		walker.walkRoot(anchor)
 	}

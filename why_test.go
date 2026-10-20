@@ -2424,7 +2424,7 @@ func TestBuiltinWhy_FeatureFlagRowReportsConfigOrigin(t *testing.T) {
 		Name("whyapp").
 		EnableFeatures().
 		EnableWhy().
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext) (*conga.ConfigDocument, error) {
+		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *whyMergeCLI) (*conga.ConfigDocument, error) {
 			document := &conga.ConfigDocument{}
 			document.Set("experiments", map[string]any{"alpha": true}, "pipeline.yaml")
 

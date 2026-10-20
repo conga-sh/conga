@@ -242,6 +242,35 @@ func CompletionRequiresEnableError() error {
 	return fmt.Errorf("%w: completion command declared without completion enabled; call app.EnableCompletion() when constructing the app, or remove the field", ErrSchema)
 }
 
+// BootstrapRequiresLoaderError builds the schema error for a bootstrap-tagged
+// field under an app that never declares a configuration loader. The runtime
+// schema builder and the static analyzer share it as the single source of
+// truth.
+func BootstrapRequiresLoaderError() error {
+	return fmt.Errorf("%w: tag \"bootstrap\" requires a configuration loader; declare app.ConfigOptions(conga.ConfigLoader(...)) or remove the tag", ErrSchema)
+}
+
+// BootstrapFeatureConflictError builds the schema error for a bootstrap field
+// that is also feature-gated. The loader runs before feature gates resolve, so
+// a gated bootstrap field cannot be evaluated reliably.
+func BootstrapFeatureConflictError() error {
+	return fmt.Errorf("%w: tag \"bootstrap\" cannot be combined with tag \"feature\" (the loader runs before feature gates are resolved)", ErrInvalidStructTag)
+}
+
+// BootstrapFieldTypeError builds the schema error for a bootstrap field whose
+// type is not a pure scalar value. Restricting bootstrap fields to scalar,
+// slice, and map shapes keeps the second coercion cheap and free of I/O.
+func BootstrapFieldTypeError() error {
+	return fmt.Errorf("%w: bootstrap fields must be scalars, slices of scalars, or maps of scalars (structs and pointers are not supported)", ErrInvalidStructTag)
+}
+
+// BootstrapTagged reports whether the bootstrap tag is declared with an
+// accepted presence-or-true value. The runtime schema builder and the static
+// analyzer share it as the single source of truth.
+func BootstrapTagged(tag reflect.StructTag) bool {
+	return parsePresenceOrTrueTag(tag, "bootstrap")
+}
+
 // FeaturesRequiresEnableError returns the schema error for a conga.Features
 // container declared under an app that never calls app.EnableFeatures(). The
 // runtime schema builder and the static analyzer share it as the single source

@@ -18,7 +18,9 @@ func (c *LoaderWithDecoder) Run(ctx context.Context, session *conga.Session) err
 	return nil
 }
 
-func loadConfig(ctx conga.ConfigContext) (*conga.ConfigDocument, error) { return nil, nil }
+func loadConfig(ctx conga.ConfigContext, _ *LoaderWithDecoder) (*conga.ConfigDocument, error) {
+	return nil, nil
+}
 
 func decode(data []byte) (map[string]any, error) { return nil, nil }
 

@@ -18,7 +18,9 @@ func (c *LoaderWithCascading) Run(ctx context.Context, session *conga.Session) e
 	return nil
 }
 
-func loadConfig(ctx conga.ConfigContext) (*conga.ConfigDocument, error) { return nil, nil }
+func loadConfig(ctx conga.ConfigContext, _ *LoaderWithCascading) (*conga.ConfigDocument, error) {
+	return nil, nil
+}
 
 var _ = conga.New[LoaderWithCascading]().
 	ConfigOptions(conga.ConfigLoader(loadConfig)).

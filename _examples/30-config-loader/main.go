@@ -14,8 +14,8 @@ import (
 // files' top-level configuration keys feed the config tier through
 // conga.ConfigLoader; the pipeline definitions themselves stay domain data.
 type CLI struct {
-	File     conga.OptionalFlag[[]string] `default:"pipeline.yaml" help:"Pipeline files (later files win)" safe:"true" short:"f"`
-	Pipeline conga.OptionalFlag[string]   `help:"Pipeline to run"  safe:"true"`
+	File     conga.OptionalFlag[[]string] `bootstrap:"true" default:"pipeline.yaml" help:"Pipeline files (later files win)" safe:"true" short:"f"`
+	Pipeline conga.OptionalFlag[string]   `bootstrap:"true" help:"Pipeline to run"  safe:"true"`
 
 	Parallelism conga.OptionalFlag[int]               `default:"1"                 help:"Parallel steps"        safe:"true"`
 	LogLevel    conga.OptionalFlag[string]            `default:"warn"              enum:"debug,info,warn,error" help:"Log level" safe:"true"`

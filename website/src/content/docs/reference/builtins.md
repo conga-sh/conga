@@ -100,7 +100,25 @@ Map flags merge key by key across tiers: the flag row displays the key count `(N
 
 When connected to an interactive terminal, the report uses ANSI color styling (cyan for CLI, yellow for env, green for config, dim/gray for defaults and unset); when piped, redirected, or running under `NO_COLOR=1` or `TERM=dumb`, it automatically falls back to unstyled plain text. Output color can also be forced with `CONGA_COLOR=1` or disabled with `CONGA_COLOR=0`.
 
-By default (or with `--why=text`), the report renders as formatted human-readable tables. Pass `conga.WhyJSON()` to `EnableWhy` (`app.EnableWhy(conga.WhyJSON())`) to enable `--why=json`, which emits a machine-readable document with `$schema`, `schemaVersion`, `command`, `version`, `timestamp`, `workingDirectory`, `flags`, `globalFlags`, `features`, `config`, and `redacted`. Requesting `--why=json` without that option, or passing any value other than `text` or `json`, is a usage error (exit 2).
+Resolution runs through the standard binding pipeline (skipping required-flag presence checks). If configuration is malformed or flag coercion fails, `--why` fails fast with normal error diagnostics instead of printing partial tables.
+
+By default (or with `--why=text`), the report renders as formatted human-readable tables. Pass `conga.WhyJSON()` to `EnableWhy` (`app.EnableWhy(conga.WhyJSON())`) to enable `--why=json`, which emits a versioned machine-readable document:
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `$schema` | `string` | Schema validation URI |
+| `schemaVersion` | `int` | Integer schema version (currently `1`) |
+| `command` | `string` | Executed command path |
+| `version` | `string` | Application version string |
+| `timestamp` | `string` | RFC 3339 timestamp of the invocation |
+| `workingDirectory` | `string` | Current working directory |
+| `flags` | `[]object` | Resolved flags for the active command: `name`, `type`, `value`, `source`, `detail`, `env`, `configPath`, `hidden`, `redacted`, and `entries` (for maps) |
+| `globalFlags` | `[]object` | Resolved flags from ancestor commands |
+| `features` | `[]object` | Feature toggles: `name`, `value`, `source`, `detail` |
+| `config` | `object` | Config status: registered `decoders`, evaluated `paths` (`path`, `status`, `probedFiles`, `loaded`), and `examples` |
+| `redacted` | `bool` | True if one or more sensitive fields were masked |
+
+Requesting `--why=json` without `conga.WhyJSON()` enabled on the application, or passing any value other than `text` or `json`, is a usage error (exit 2).
 
 When the root command declares `conga.Features[T]`, the report ends with a `Features:` table listing every declared feature, its resolved value, and its source. Each feature reports the tier that last wrote its key; keys no tier sets fall back to the field default (`○ default`) or render `unset`. See [Feature toggles](/reference/struct-tags/#feature-toggles-congafeaturest).
 
@@ -121,6 +139,8 @@ cloudctl __complete bash "dep"
 ```
 
 The driver tokenizes the partial line, identifies the target command, flag, or argument, evaluates the applicable predictor and the built-in candidates, writes the shell-native directives to stdout, and exits 0 immediately, preserving the application's single-execution slot.
+
+If an application declares a [`conga.ConfigLoader`](/how-to/load-domain-files/), the completion driver binds fields tagged `bootstrap:"true"` from the command line, environment, and defaults, and runs the loader before candidate generation. This ensures predictors and feature gates evaluate with access to configuration extracted from the document. The driver restores bootstrap and selection state before returning candidates.
 
 With completion enabled, several elements complete without custom code:
 - Flag names (long flags, short runes, aliases, and negatable forms), omitting deprecated flags.

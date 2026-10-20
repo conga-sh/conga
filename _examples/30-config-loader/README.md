@@ -8,6 +8,11 @@ loader turns the configuration keys into a `conga.ConfigDocument`, so they bind
 at the config tier (`CLI > environment > config > default`) and appear in
 `--why` with the file and pipeline that supplied them.
 
+The `--file` and `--pipeline` fields carry `bootstrap:"true"`. They are bound on
+the typed root before the loader runs, so `loadPipelines` reads
+`root.File.Get()` and `root.Pipeline.Get()` directly; aliases, environment
+fallbacks, and defaults are resolved by the normal binder.
+
 ## Why a loader
 
 A decoder maps one file onto the flag schema. A pipeline file is not a flag

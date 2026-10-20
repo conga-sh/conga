@@ -27,14 +27,14 @@ func (c *LoaderSecond) Run(ctx context.Context, session *conga.Session) error {
 	return nil
 }
 
-func loadConfig(ctx conga.ConfigContext) (*conga.ConfigDocument, error) { return nil, nil }
+func loadConfig[T any](ctx conga.ConfigContext, _ *T) (*conga.ConfigDocument, error) { return nil, nil }
 
 func decode(data []byte) (map[string]any, error) { return nil, nil }
 
 var _ = conga.New[LoaderFirst]().
-	ConfigOptions(conga.ConfigLoader(loadConfig)).
+	ConfigOptions(conga.ConfigLoader(loadConfig[LoaderFirst])).
 	RegisterDecoder(".json", decode)
 
 var _ = conga.New[LoaderSecond]().
-	ConfigOptions(conga.ConfigLoader(loadConfig)).
+	ConfigOptions(conga.ConfigLoader(loadConfig[LoaderSecond])).
 	RegisterDecoder(".json", decode)

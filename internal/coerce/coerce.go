@@ -114,11 +114,15 @@ func SliceWith(raws []string, sliceType reflect.Type, sep string, reg Registry, 
 	elemType := sliceType.Elem()
 	sliceValue := reflect.MakeSlice(sliceType, 0, len(raws))
 
+	preserveWhitespace := sep != "" && sepDisabled(sep) && elemType.Kind() == reflect.String
+
 	for _, raw := range raws {
 		items := splitMultiValue(raw, sep)
 
 		for _, item := range items {
-			item = strings.TrimSpace(item)
+			if !preserveWhitespace {
+				item = strings.TrimSpace(item)
+			}
 
 			elem, err := ScalarWith(item, elemType, reg, decodeContext)
 			if err != nil {
@@ -536,11 +540,16 @@ func convertValue(value any, targetType reflect.Type) any {
 }
 
 func splitMultiValue(raw, sep string) []string {
-	if sep != "" && sep != "none" && sep != "off" && sep != "-" && strings.Contains(raw, sep) {
+	if !sepDisabled(sep) && strings.Contains(raw, sep) {
 		return strings.Split(raw, sep)
 	}
 
 	return []string{raw}
+}
+
+// sepDisabled reports whether sep disables multi-value splitting.
+func sepDisabled(sep string) bool {
+	return sep == "" || sep == "none" || sep == "off" || sep == "-"
 }
 
 func integerBitSize(kind reflect.Kind) (int, bool) {
