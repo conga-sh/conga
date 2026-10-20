@@ -77,19 +77,12 @@ Value provenance for "server":
 values are redacted — tag fields safe:"true" to display
 ```
 
-The report contains these diagnostic sections (the feature table appears only when the root command declares `conga.Features[T]`):
+The report divides diagnostics into four areas:
 
-- **Flag table**:
-  - `FLAG`: The declared flag name.
-  - `VALUE`: The winning value, or `██████` if untagged. Entry-bearing map rows display the key count `(N keys)`. Multi-file `ConfigFile` rows display `(N files)` and list each path as a sub-row. Other slice flags with more than one item display `(N values)` and list each item as a sub-row.
-  - `SOURCE`: The winning tier (`cli`, `env`, `config`, or `default`). A config-sourced value names the contributing file, using its basename when unambiguous and the shortest unique directory prefix followed by `...` when basenames collide (`config (app.yaml)`, `config (/etc/.../app.yaml)`). The JSON report keeps the full resolved paths.
-  - `ENV`: The derived or explicit environment variable evaluated for this flag.
-  - `CONFIG PATH`: The evaluated config file key.
-- **Config decoders**: All file format decoders registered on the application.
-- **Config paths**: Evaluated file paths and their probe outcome (`loaded`, `not found`), reported as resolved without index footnotes. A candidate that resolved to a different file, such as a search directory, names that file (`loaded: config.yaml`). For a programmatic `conga.ConfigLoader` document, the table lists each distinct origin path once; a scope recorded with `conga.ConfigDocument.SetScoped` appears only in the value's SOURCE annotation (`config (pipeline.local.yaml › pipeline deploy)`).
-- **Features**: Every declared feature, its resolved value, and its source.
-
-The same report is available programmatically: `session.Why()` returns the text table and `session.WhyJSON()` returns the JSON document (empty unless Why and the JSON option are enabled, respectively).
+1. Flag table: shows the flag name, winning value (or `██████` if untagged), winning source tier (`cli`, `env`, `config`, or `default`), evaluated environment variable, and configuration key. Unambiguous config origins display as the file basename (`config (app.yaml)`), while colliding basenames show the shortest unique directory prefix (`config (/etc/.../app.yaml)`). Entry-bearing map rows display key counts `(N keys)` and tree branches (`├─ `, `└─ `). Multi-file `ConfigFile` rows display `(N files)` with tree sub-rows, and slice flags with multiple values render `(N values)`.
+2. Config decoders: lists all format decoders registered on the application.
+3. Config paths: lists evaluated candidate file paths and probe outcomes (`loaded`, `not found`). When a loader document records scopes via `SetScoped`, the table lists the origin path once while the value's source column includes the scope.
+4. Features: lists every declared feature toggle, its resolved value, and its contributing tier.
 
 Map flags merge key by key across tiers: the flag row displays the key count and highest contributing tier, followed by tree-structured sub-rows (`├─ `, `└─ `) detailing each key's value and source:
 
@@ -103,6 +96,100 @@ SERVER_LABELS=region=eu-west-1 server --why --labels shared=cli,team=core
              ├─ shared=cli         cli
              └─ team=core          cli
 ```
+
+## Inspect provenance as JSON
+
+To emit a machine-readable document for CI or external tooling, pass `conga.WhyJSON()` when enabling Why:
+
+```go title="main.go"
+app := conga.New[Server]().
+	Name("server").
+	EnableWhy(conga.WhyJSON())
+```
+
+Invoking the binary with `--why=json` emits a versioned JSON document to stdout:
+
+```sh
+SERVER_PORT=9002 server --why=json --port 9003
+```
+
+```json no-copy
+{
+  "$schema": "https://conga.sh/schemas/why-v1.json",
+  "schemaVersion": 1,
+  "command": "server",
+  "version": "1.0.0",
+  "timestamp": "2026-10-20T08:00:00Z",
+  "workingDirectory": "/workspace",
+  "flags": [
+    {
+      "name": "--host",
+      "type": "string",
+      "value": "127.0.0.1",
+      "source": "default",
+      "detail": "127.0.0.1",
+      "env": "SERVER_HOST",
+      "configPath": "host",
+      "hidden": false,
+      "redacted": false
+    },
+    {
+      "name": "--port",
+      "type": "int",
+      "value": 9003,
+      "source": "cli",
+      "detail": "--port",
+      "env": "SERVER_PORT",
+      "configPath": "port",
+      "hidden": false,
+      "redacted": false
+    },
+    {
+      "name": "--token",
+      "type": "string",
+      "value": "██████",
+      "source": "env",
+      "detail": "SERVER_TOKEN",
+      "env": "SERVER_TOKEN",
+      "configPath": "token",
+      "hidden": false,
+      "redacted": true
+    }
+  ],
+  "globalFlags": [],
+  "features": [],
+  "config": {
+    "decoders": [".json", ".yaml", ".toml"],
+    "paths": [
+      {
+        "path": "/workspace/config.yaml",
+        "status": "not found",
+        "probedFiles": []
+      }
+    ],
+    "examples": []
+  },
+  "redacted": true
+}
+```
+
+Passing `--why=json` without `conga.WhyJSON()` on the builder fails with a usage error (exit 2).
+
+## Query provenance in lifecycle hooks
+
+Commands can inspect provenance programmatically during execution. Call `session.Why()` for the text table or `session.WhyJSON()` for the JSON document inside lifecycle hooks (`PreRun`, `Run`, `PostRun`):
+
+```go title="main.go"
+func (s *Server) PreRun(ctx context.Context, session *conga.Session) error {
+	// Log provenance or export to telemetry
+	report := session.Why()
+	fmt.Fprintln(session.Stderr(), report)
+
+	return nil
+}
+```
+
+Both methods return an empty string if Why is not enabled on the application. `session.WhyJSON()` also requires `conga.WhyJSON()` on `app.EnableWhy`.
 
 ## Inspect feature provenance
 

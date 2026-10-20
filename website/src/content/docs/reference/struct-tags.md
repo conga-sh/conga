@@ -31,7 +31,7 @@ CONGA derives the CLI schema from struct fields and their tags. The engine valid
 | `predictor` | ✅ | ✅ | – | Completion predictor identifier (see [Predictors](#predictors)). |
 | `range` | ✅ | ✅ | – | Numeric or duration bounds (see [Bounds syntax](#bounds-syntax)). |
 | `safe` | ✅ | ✅ | ✅ | Controls value display in `--why` provenance (`true` or `false`). Boolean and counter flags default to `true`; other flags default to `false`. Declared defaults are always visible. |
-| `sep` | ✅ (slices) | ✅ (slices) | – | Slice separator (default `","`). `sep:"none"` disables splitting, preserving the unparsed string. |
+| `sep` | ✅ (slices) | ✅ (slices) | – | Slice separator (default `","`). Disabling separators with `none`, `off`, or `-` disables multi-value splitting; `sep:"none"` preserves string elements verbatim, including whitespace. |
 | `short` | ✅ | ✅ | ✅ | Single-rune short flag (e.g. `short:"n"`). |
 | `xor` | ✅ | ✅ | – | Mutually exclusive group name. |
 
@@ -56,11 +56,11 @@ Positional arguments bind to command-line input.
 | `name` | ✅ | ✅ | Argument placeholder in usage syntax (default: `<kebab-field-name>`). |
 | `predictor` | ✅ | ✅ | Completion predictor identifier (see [Predictors](#predictors)). |
 | `range` | ✅ | ✅ | Numeric or duration bounds. |
-| `sep` | ✅ (slices) | ✅ (slices) | Slice separator (default `","`). `sep:"none"` preserves string elements verbatim. |
+| `sep` | ✅ (slices) | ✅ (slices) | Slice separator (default `","`). Disabling separators with `none`, `off`, or `-` disables multi-value splitting; `sep:"none"` preserves string elements verbatim, including whitespace. |
 
 ## Loader bootstrap fields
 
-`bootstrap` is an opt-in bridge for [`conga.ConfigLoader`](/how-to/supply-config-from-code/). The field is bound on the root struct before the loader runs, using the normal CLI > environment > default precedence, and is bound again during the normal run:
+`bootstrap` is an opt-in bridge for [`conga.ConfigLoader`](/how-to/load-domain-files/). The field is bound on the root struct before the loader runs, using the normal CLI > environment > default precedence, and is bound again during the normal run:
 
 ```go
 type CLI struct {

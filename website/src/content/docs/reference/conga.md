@@ -114,7 +114,7 @@ by walking the selected `Command[T]` fields (`root.Cluster.Get()`).
 
 The App snapshots standard streams at the start of execution for the active session.
 
-`CandidateConfigFiles`/`LoadedConfigFiles` report the configuration sources the run evaluated: file paths for file-based resolution, or the distinct origin paths the application recorded when a [`conga.ConfigLoader`](/how-to/supply-config-from-code/) supplies the document. Document scopes recorded with `ConfigDocument.SetScoped` are not part of the reported path.
+`CandidateConfigFiles`/`LoadedConfigFiles` report the configuration sources the run evaluated: file paths for file-based resolution, or the distinct origin paths the application recorded when a [`conga.ConfigLoader`](/how-to/load-domain-files/) supplies the document. Document scopes recorded with `ConfigDocument.SetScoped` are not part of the reported path.
 
 `Help`, `Usage`, and `Version` are the formatting primitives behind the built-in `help` and `version` commands: `Help` returns the active command's help screen as a string, `Usage` returns the syntax usage summary as a string, and `Version` returns the formatted version summary line as a string, falling back to the module version (or `dev`) plus the embedded build metadata when no version string was configured.
 
@@ -133,6 +133,18 @@ The App snapshots standard streams at the start of execution for the active sess
 ## Errors
 
 Base categories (`ErrSchema`, `ErrParse`, `ErrCoerce`, `ErrValidation`, `ErrConfig`) plus the `UsageError` and `CompletionError` interfaces and `IsUsageError(err)` / `IsCompletionError(err)` classifications — catalogued in [Errors and exit codes](/reference/errors/).
+
+## Provenance options
+
+```go
+func WhyJSON() WhyOption
+
+type WhyOption interface {
+	applyWhy(settings *whySettings)
+}
+```
+
+`WhyOption` is a sealed interface produced by option constructors such as `WhyJSON()`. `WhyJSON` enables machine-readable `--why=json` reports on `App.EnableWhy`. By default, `EnableWhy` compiles only the human-readable text table renderer, dead-code eliminating the JSON serialization pipeline unless opted in.
 
 ## Configuration options
 
@@ -176,4 +188,4 @@ merges it key by key with earlier writes, so a later layer overrides only the
 map keys it names; a later `Set` of the same top-level key replaces the whole
 entry. A nil document
 leaves the tier inactive; loader errors wrap `ErrConfig` and exit 1. See
-[How to supply configuration from code](/how-to/supply-config-from-code/).
+[How to load configuration from domain files](/how-to/load-domain-files/).
