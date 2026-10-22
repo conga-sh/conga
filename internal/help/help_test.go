@@ -1125,6 +1125,28 @@ func TestFormat_FeaturesSection(t *testing.T) {
 	assert.NotContains(t, formatted, "Legacy mode")
 }
 
+func TestFormat_FeaturesSection_EnvHints(t *testing.T) {
+	t.Parallel()
+
+	root := &spec.Command{
+		Name: "app",
+		FeatureFields: []*spec.FeatureField{
+			{Name: "http3", Help: "Experimental HTTP/3 listener", EnvVars: []string{"APP_HTTP3"}},
+			{Name: "syntax", Help: "Syntax version", IsInt: true, Enum: []string{"1", "2"}, Default: "2", EnvVars: []string{"APP_SYNTAX", "LEGACY_SYNTAX"}},
+			{Name: "cli-only", Help: "CLI only"},
+			{Name: "stable", Help: "Stable core", Stage: spec.FeatureStageGA, EnvVars: []string{"APP_STABLE"}},
+		},
+	}
+
+	formatted := help.FormatWith([]*spec.Command{root}, help.Options{FeaturesSection: help.RenderFeatures})
+
+	assert.Contains(t, formatted, "Experimental HTTP/3 listener [env: APP_HTTP3]")
+	assert.Contains(t, formatted, "Syntax version [levels: 1, 2] [default: 2] [env: APP_SYNTAX, LEGACY_SYNTAX]")
+	assert.Contains(t, lineContaining(formatted, "CLI only"), "CLI only")
+	assert.NotContains(t, lineContaining(formatted, "CLI only"), "[env:")
+	assert.NotContains(t, formatted, "APP_STABLE")
+}
+
 func TestFormat_FeaturesSection_OmittedWhenAllHidden(t *testing.T) {
 	t.Parallel()
 

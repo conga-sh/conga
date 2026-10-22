@@ -24,7 +24,7 @@ func (s *fieldEnvSub) Run(ctx context.Context, session *conga.Session) error {
 }
 
 type fieldEnvApp struct {
-	Features conga.Features[fieldEnvSet] `envprefix:"TASK_X" flag:"feature-gates" help:"Gates via {{env}}"`
+	Features conga.Features[fieldEnvSet] `envprefix:"TASK_X" flag:"feature-gates" help:"Gate toggles"`
 
 	Port conga.OptionalFlag[int] `help:"Port"`
 

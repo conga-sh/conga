@@ -822,6 +822,26 @@ func (c *featureFieldEnvStandaloneCLI) Run(ctx context.Context, session *conga.S
 	return nil
 }
 
+// fieldEnvDefaultSet gives one feature a non-zero default so an environment
+// override of the base value is observable.
+type fieldEnvDefaultSet struct {
+	GentleForce bool `default:"true" help:"Forces all dependent tasks"`
+}
+
+type featureFieldEnvDefaultCLI struct {
+	Features conga.Features[fieldEnvDefaultSet] `envprefix:"CONGA_TEST_TASK_X" flag:"feature-gates"`
+
+	Ran          bool
+	ActiveGentle bool
+}
+
+func (c *featureFieldEnvDefaultCLI) Run(ctx context.Context, session *conga.Session) error {
+	c.Ran = true
+	c.ActiveGentle = c.Features.Get().GentleForce
+
+	return nil
+}
+
 // featureFieldEnvSplitPrefixCLI splits the prefixes: the application prefix
 // drives normal flags while the container envprefix drives features, so the
 // two derivation namespaces coexist without colliding.
@@ -1154,6 +1174,48 @@ func TestFeature_FieldEnv_SparseMergeWithConfig(t *testing.T) {
 	assert.True(t, cli.ActiveGentle)
 }
 
+// TestFeature_FieldEnv_OverridesDefault pins that a per-feature env variable
+// overrides the field default.
+func TestFeature_FieldEnv_OverridesDefault(t *testing.T) {
+	var cli featureFieldEnvDefaultCLI
+
+	app := conga.New(&cli).
+		Name("task").
+		EnableFeatures().
+		Args([]string{})
+
+	t.Setenv("CONGA_TEST_TASK_X_GENTLE_FORCE", "false")
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.True(t, cli.Ran)
+	assert.False(t, cli.ActiveGentle)
+	assert.Equal(t, conga.SourceEnv, cli.Features.Source())
+}
+
+// TestFeature_FieldEnv_CliWinsOneKeyEnvAnother pins that CLI and per-feature
+// env contributions land on different keys: the CLI key wins and the env key
+// stands.
+func TestFeature_FieldEnv_CliWinsOneKeyEnvAnother(t *testing.T) {
+	var cli featureFieldEnvOverrideCLI
+
+	app := conga.New(&cli).
+		Name("task").
+		EnableFeatures().
+		Args([]string{"--feature-gates", "packages=false"})
+
+	t.Setenv("CONGA_TEST_TASK_X_PACKAGES", "1")
+	t.Setenv("CONGA_TEST_CUSTOM_FORCE", "1")
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.True(t, cli.Ran)
+	assert.False(t, cli.ActivePackages)
+	assert.True(t, cli.ActiveGentle)
+}
+
 // TestFeature_FieldEnv_EmptyValueFallsThroughToConfig pins that an empty env
 // variable is unset: the configuration tier's value survives.
 func TestFeature_FieldEnv_EmptyValueFallsThroughToConfig(t *testing.T) {
@@ -1323,6 +1385,27 @@ func TestFeature_FieldEnv_SourceReporting(t *testing.T) {
 	assert.Equal(t, "CONGA_TEST_TASK_X_GENTLE_FORCE", cli.Features.SourceDetail())
 	assert.True(t, cli.Features.IsSet())
 	assert.True(t, cli.Features.Changed())
+}
+
+// TestFeature_FieldEnv_SourceDetailJoinsVariables pins that an env-only map
+// reports every contributing variable in declaration order as its source
+// detail.
+func TestFeature_FieldEnv_SourceDetailJoinsVariables(t *testing.T) {
+	var cli featureFieldEnvOverrideCLI
+
+	app := conga.New(&cli).
+		Name("task").
+		EnableFeatures().
+		Args([]string{})
+
+	t.Setenv("CONGA_TEST_CUSTOM_FORCE", "1")
+	t.Setenv("CONGA_TEST_TASK_X_PACKAGES", "1")
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, conga.SourceEnv, cli.Features.Source())
+	assert.Equal(t, "CONGA_TEST_CUSTOM_FORCE, CONGA_TEST_TASK_X_PACKAGES", cli.Features.SourceDetail())
 }
 
 // TestFeature_FieldEnv_CoexistsWithAppPrefix pins that the application prefix
@@ -1879,6 +1962,33 @@ func TestFeature_HelpFeaturesSection(t *testing.T) {
 	assert.Contains(t, output, "gentle-force  Forces all dependent tasks [default: false]")
 	assert.Contains(t, output, "syntax        Syntax version (0 = off) [levels: 1, 2]")
 	assert.NotContains(t, output, "[enum: gentle-force")
+}
+
+func TestFeature_HelpFeaturesSection_EnvHints(t *testing.T) {
+	t.Parallel()
+
+	var (
+		buffer bytes.Buffer
+		cli    featureFieldEnvOverrideCLI
+	)
+
+	app := conga.New(&cli).
+		Name("task").
+		EnableFeatures().
+		Stdout(&buffer).
+		Args([]string{"--help"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+
+	output := buffer.String()
+
+	assert.Contains(t, output, "Features:")
+	assert.Contains(t, output, "Forces all dependent tasks [env: CONGA_TEST_CUSTOM_FORCE]")
+	assert.Contains(t, output, "Manage Taskfile packages [env: CONGA_TEST_TASK_X_PACKAGES]")
+	assert.Contains(t, output, "CLI and config only")
+	assert.NotContains(t, output, "[env: CONGA_TEST_TASK_X_EXCLUDED]")
 }
 
 func TestFeature_MultiLevel(t *testing.T) {

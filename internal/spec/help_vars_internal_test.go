@@ -387,18 +387,18 @@ func TestHelpVarAvailability(t *testing.T) {
 			expected:       helpVars{Enum: true},
 		},
 		{
-			name:           "features container derives env from its envprefix tag",
+			name:           "features container envprefix does not make env available",
 			tag:            `envprefix:"APP_X_"`,
 			role:           "features",
 			envPrefixKnown: true,
-			expected:       helpVars{Enum: true, Env: true},
+			expected:       helpVars{Enum: true},
 		},
 		{
-			name:           "features container with excluded combined env keeps envprefix",
+			name:           "features container with excluded combined env and envprefix keeps env unavailable",
 			tag:            `env:"-" envprefix:"APP_X_"`,
 			role:           "features",
 			envPrefixKnown: true,
-			expected:       helpVars{Enum: true, Env: true},
+			expected:       helpVars{Enum: true},
 		},
 		{
 			name:           "features container with excluded env",

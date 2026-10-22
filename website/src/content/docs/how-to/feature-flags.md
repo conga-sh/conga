@@ -97,7 +97,7 @@ type Experiments struct {
 
 The two env surfaces are exclusive: a container declares either `env` (one combined `name=value` variable) or `envprefix` (one variable per feature), never both, and field `env` tags are rejected under a combined-map container. Schema build also rejects a feature variable that two fields resolve to, or that a flag also binds. Per-feature variables sit between the command line and configuration files in the [resolution ladder](/explanation/value-precedence/): `--feature-gates` wins per key, the variable overrides the config section, and unlisted keys keep their lower-tier values.
 
-The container `help` tag can inline the resolved variables with `{{env}}`. Under `envprefix`, `help:"Gates via {{env}}"` lists the derived and overridden names in declaration order.
+One environment surface has one display location. The container `help` tag's `{{env}}` inlines only the combined-map variable, so a container whose sole env surface is `envprefix` or field `env` tags rejects `{{env}}` at schema build. Each per-feature variable is rendered beside its feature in the root help screen's [Features section](#features-section).
 
 ## Gate members
 
@@ -120,7 +120,7 @@ A config key that names an inactive gated flag fails with `ErrConfig` (exit 1). 
 
 ## Features section
 
-The root `--help` screen renders an automatic `Features:` section listing every declared toggle: its `help` tag text, its declared stage, and its default. Integer toggles also list their levels. The synthesized feature-gates flag omits its `[enum: ...]` hint because the section already lists the names.
+The root `--help` screen renders an automatic `Features:` section listing every declared toggle: its `help` tag text, its declared stage, and its default. Integer toggles also list their levels, and a feature bound to environment variables appends its variable names as `[env: VAR1, VAR2]` in declaration order. The synthesized feature-gates flag omits its `[enum: ...]` hint because the section already lists the names.
 
 ```go title="main.go"
 type Experiments struct {

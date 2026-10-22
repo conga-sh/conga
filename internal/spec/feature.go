@@ -548,18 +548,12 @@ func (b *schemaBuilder) installFeatureFlag(structField reflect.StructField, fiel
 		enumKeys = append(enumKeys, field.Name)
 	}
 
-	// {{env}} names every environment variable the feature surface binds: the
-	// explicit combined-map variables when the container declares env, or the
-	// per-feature variables derived from each field otherwise. The synthesized
-	// flag's own EnvVars stay binding-only, so this list is never used by the
-	// environment resolution tier.
-	helpEnvVars := make([]string, 0, len(envVars))
-	helpEnvVars = append(helpEnvVars, envVars...)
-
-	for _, field := range fields {
-		helpEnvVars = append(helpEnvVars, field.EnvVars...)
-	}
-
+	// {{env}} on the Features container names only the container's combined-map
+	// variables: one environment surface has one display location, and the
+	// per-feature variables (field env tags or envprefix-derived names) are
+	// rendered next to their feature in the help screen's Features section
+	// instead. The synthesized flag's own EnvVars stay binding-only, so this
+	// list is never used by the environment resolution tier.
 	helpText := strings.TrimSpace(structField.Tag.Get("help"))
 	referenced := helpVars{}
 
@@ -568,7 +562,7 @@ func (b *schemaBuilder) installFeatureFlag(structField reflect.StructField, fiel
 	} else {
 		var err error
 
-		helpText, referenced, err = interpolateHelp(helpText, helpVarValuesFor(nil, nil, nil, enumKeys, "", helpEnvVars))
+		helpText, referenced, err = interpolateHelp(helpText, helpVarValuesFor(nil, nil, nil, enumKeys, "", envVars))
 		if err != nil {
 			return err
 		}
@@ -633,6 +627,25 @@ func (b *schemaBuilder) installFeatureFlag(structField reflect.StructField, fiel
 	b.cmd.FeatureFlag = flagSpec
 
 	return nil
+}
+
+// validateFeatureHelpVariables reports an unavailable {{env}} reference on a
+// Features container with a feature-specific message: the container
+// substitutes {{env}} only for its combined-map env tag, so a container whose
+// sole environment surface is a per-feature envprefix or field env tags cannot
+// inline it. Other unavailable variables fall back to the shared message. Both
+// the runtime schema build and conga-lint report each message verbatim.
+func validateFeatureHelpVariables(helpText string, declared helpVars) error {
+	_, referenced, err := interpolateHelp(helpText, helpVarValues{})
+	if err != nil {
+		return err
+	}
+
+	if referenced.Env && !declared.Env {
+		return fmt.Errorf(`%w: tag "help" references {{env}}, but the Features container declares no combined-map env tag; per-feature variables are rendered in the Features section`, ErrInvalidStructTag)
+	}
+
+	return validateHelpVariables(helpText, declared)
 }
 
 // enforceFeatureStageAllOrNothing reports the first feature field (in

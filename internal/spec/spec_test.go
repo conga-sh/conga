@@ -2093,16 +2093,34 @@ type featureEnvPrefixHelpCLI struct {
 	Features mockFeatures[featureDeclSet] `envprefix:"APP_X_" help:"Gates via {{env}}"`
 }
 
-func TestFeaturesContainer_EnvVariableSubstitutionUnderEnvPrefix(t *testing.T) {
+func TestFeaturesContainer_EnvVariableRejectedUnderEnvPrefix(t *testing.T) {
 	t.Parallel()
 
 	var cli featureEnvPrefixHelpCLI
 
-	cmd, err := buildSchema(&cli, "app", spec.Options{})
+	_, err := buildSchema(&cli, "app", spec.Options{})
 
-	assert.NoError(t, err)
-	assert.Equal(t, "Gates via APP_X_GENTLE_FORCE, APP_X_PARALLELISM", cmd.FeatureFlag.Help)
-	assert.True(t, cmd.FeatureFlag.HelpVars.Env)
+	assert.IsError(t, err, spec.ErrInvalidStructTag)
+	assert.Equal(t, `struct featureEnvPrefixHelpCLI field Features: schema error: invalid struct tag: tag "help" references {{env}}, but the Features container declares no combined-map env tag; per-feature variables are rendered in the Features section`, err.Error())
+}
+
+type featureFieldEnvSet struct {
+	GentleForce bool `env:"GENTLE_FORCE" help:"Force all"`
+}
+
+type featureFieldEnvHelpCLI struct {
+	Features mockFeatures[featureFieldEnvSet] `help:"Gates via {{env}}"`
+}
+
+func TestFeaturesContainer_EnvVariableRejectedUnderFieldEnv(t *testing.T) {
+	t.Parallel()
+
+	var cli featureFieldEnvHelpCLI
+
+	_, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.IsError(t, err, spec.ErrInvalidStructTag)
+	assert.Equal(t, `struct featureFieldEnvHelpCLI field Features: schema error: invalid struct tag: tag "help" references {{env}}, but the Features container declares no combined-map env tag; per-feature variables are rendered in the Features section`, err.Error())
 }
 
 type featureDefaultHelpCLI struct {

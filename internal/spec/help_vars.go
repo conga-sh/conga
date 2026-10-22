@@ -98,7 +98,9 @@ func interpolateHelp(helpText string, values helpVarValues) (string, helpVars, e
 // analyzer never invents a diagnostic the runtime would not report. Config-file
 // flags only ever substitute {{env}}, so the other variables stay unavailable.
 // The features container substitutes {{enum}} (the declared feature names) and
-// {{env}}; container-level default, range, len, and items are not part of the
+// {{env}} — the latter only for its combined-map surface, so a container whose
+// sole environment surface is a per-feature envprefix or field env tags lacks
+// it. Container-level default, range, len, and items are not part of the
 // model, so their variables stay unavailable.
 func helpVarAvailability(tag reflect.StructTag, role string, envPrefix string, envPrefixKnown bool) helpVars {
 	envAvailable := envVarsDeclared(tag, role, envPrefix, envPrefixKnown)
@@ -124,15 +126,12 @@ func helpVarAvailability(tag reflect.StructTag, role string, envPrefix string, e
 // field binds environment variables when its env tag names them, or — for
 // flags and config-file flags — when the tag is absent and an env prefix
 // supplies the name; env:"-" disables binding outright. Positional arguments
-// never bind them. The features container binds through explicit env names or
-// a per-feature envprefix; the application-level EnvPrefix never reaches it.
+// never bind them. The features container substitutes {{env}} only for its
+// combined-map surface, so its explicit env names are the sole source: neither
+// a per-feature envprefix nor the application-level EnvPrefix reaches it.
 func envVarsDeclared(tag reflect.StructTag, role string, envPrefix string, envPrefixKnown bool) bool {
 	if role != "flag" && role != "config file flag" && role != "features" {
 		return false
-	}
-
-	if role == "features" && strings.TrimSpace(tag.Get("envprefix")) != "" {
-		return true
 	}
 
 	if envTag, ok := tag.Lookup("env"); ok {
