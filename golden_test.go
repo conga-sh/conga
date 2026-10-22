@@ -111,7 +111,7 @@ type goldenCLI struct {
 	Tags    conga.OptionalFlag[map[string]string] `help:"Arbitrary tags"              short:"t"`
 	Port    conga.OptionalFlag[int]               `default:"8080"                     help:"Listen port"               range:"1..65535"`
 	Format  conga.OptionalFlag[string]            `enum:"json,yaml"                   help:"Output format"`
-	Token   conga.OptionalFlag[string]            `env:"GOLDEN_TOKEN"                 help:"API token"`
+	Token   conga.OptionalFlag[string]            `env:"CONGA_TEST_GOLDEN_TOKEN"      help:"API token"`
 	Output  conga.OptionalFlag[string]            `group:"Output"                     help:"Output path"`
 	Legacy  conga.OptionalFlag[bool]              `deprecated:"use --name"            help:"Legacy toggle"`
 	Hidden  conga.OptionalFlag[string]            `help:"Internal knob"               hidden:"true"`

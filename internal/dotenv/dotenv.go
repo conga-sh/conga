@@ -76,19 +76,29 @@ func (e *DotenvError) Is(target error) bool {
 // earlier in the same file; a file that overrides a key already supplied by an earlier file
 // in the same call expands to its own value.
 func Load(paths ...string) error {
-	if len(paths) == 0 {
-		return loadDefaultHierarchy()
+	return load(os.Setenv, paths...)
+}
+
+// LoadWith loads environment variables from .env files using setenv to set each
+// variable. Passing the method value of testing.T.Setenv in tests ensures the
+// variables loaded from .env files are restored automatically when the test
+// finishes. When setenv is nil, LoadWith behaves like [Load] and sets the
+// variables through os.Setenv.
+//
+// Resolution follows the same hierarchy, precedence, variable expansion, and
+// 12-factor preservation rules as [Load]; the process environment remains the
+// host view, so a setenv that does not mutate it (a collecting callback) also
+// does not participate in later files' expansion.
+func LoadWith(setenv func(key, value string), paths ...string) error {
+	if setenv == nil {
+		return Load(paths...)
 	}
 
-	loadedKeys := make(map[string]struct{})
+	return load(func(key, value string) error {
+		setenv(key, value)
 
-	for _, path := range paths {
-		if err := loadSingleFile(path, true, loadedKeys); err != nil {
-			return err
-		}
-	}
-
-	return nil
+		return nil
+	}, paths...)
 }
 
 // Parse parses raw .env file contents into a key-value map.
@@ -148,12 +158,15 @@ func parse(data []byte, loadedKeys map[string]struct{}) (map[string]string, erro
 	return result, nil
 }
 
-func loadDefaultHierarchy() error {
-	candidateFiles := []string{".env", ".env.local"}
+func load(set func(key, value string) error, paths ...string) error {
 	loadedKeys := make(map[string]struct{})
 
-	for _, filename := range candidateFiles {
-		if err := loadSingleFile(filename, false, loadedKeys); err != nil {
+	if len(paths) == 0 {
+		return loadDefaultHierarchy(set, loadedKeys)
+	}
+
+	for _, path := range paths {
+		if err := loadSingleFile(set, path, true, loadedKeys); err != nil {
 			return err
 		}
 	}
@@ -161,7 +174,19 @@ func loadDefaultHierarchy() error {
 	return nil
 }
 
-func loadSingleFile(path string, mustExist bool, loadedKeys map[string]struct{}) error {
+func loadDefaultHierarchy(set func(key, value string) error, loadedKeys map[string]struct{}) error {
+	candidateFiles := []string{".env", ".env.local"}
+
+	for _, filename := range candidateFiles {
+		if err := loadSingleFile(set, filename, false, loadedKeys); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func loadSingleFile(set func(key, value string) error, path string, mustExist bool, loadedKeys map[string]struct{}) error {
 	cleanPath := pathx.Expand(path)
 
 	data, err := filex.ReadLimited(cleanPath, maxDotenvFileSize)
@@ -193,7 +218,7 @@ func loadSingleFile(path string, mustExist bool, loadedKeys map[string]struct{})
 			}
 		}
 
-		if err := os.Setenv(key, value); err != nil {
+		if err := set(key, value); err != nil {
 			return &DotenvError{
 				Path:  path,
 				Msg:   fmt.Sprintf("cannot set environment variable %q: %v", key, err),

@@ -672,7 +672,7 @@ func TestHelpScreen_EnvPrefixDerived(t *testing.T) {
 
 	type AppCLI struct {
 		ConfigFile conga.ConfigFile           `help:"Config file"`
-		Port       conga.OptionalFlag[int]    `default:"8080"              env:"CUSTOM_PORT"      help:"Port"`
+		Port       conga.OptionalFlag[int]    `default:"8080"              env:"CONGA_TEST_CUSTOM_PORT" help:"Port"`
 		Worker     conga.OptionalFlag[int]    `default:"4"                 help:"Workers"`
 		Secret     conga.OptionalFlag[string] `env:"-"                     help:"Internal secret"`
 		Deploy     conga.Command[SubCmd]      `summary:"Deploy subcommand"`
@@ -681,7 +681,7 @@ func TestHelpScreen_EnvPrefixDerived(t *testing.T) {
 	var rootBuffer bytes.Buffer
 
 	app := conga.New[AppCLI]().
-		EnvPrefix("MYAPP").
+		EnvPrefix("CONGA_TEST").
 		Args([]string{"--help"}).
 		Stdout(&rootBuffer)
 
@@ -689,16 +689,16 @@ func TestHelpScreen_EnvPrefixDerived(t *testing.T) {
 	assert.NoError(t, err)
 
 	rootHelp := rootBuffer.String()
-	assert.Contains(t, rootHelp, "[env: MYAPP_CONFIG]")
-	assert.Contains(t, rootHelp, "[env: CUSTOM_PORT]")
-	assert.Contains(t, rootHelp, "[env: MYAPP_WORKER]")
-	assert.NotContains(t, rootHelp, "MYAPP_SECRET")
+	assert.Contains(t, rootHelp, "[env: CONGA_TEST_CONFIG]")
+	assert.Contains(t, rootHelp, "[env: CONGA_TEST_CUSTOM_PORT]")
+	assert.Contains(t, rootHelp, "[env: CONGA_TEST_WORKER]")
+	assert.NotContains(t, rootHelp, "CONGA_TEST_SECRET")
 	assert.NotContains(t, rootHelp, "[env: -]")
 
 	var subBuffer bytes.Buffer
 
 	appSub := conga.New[AppCLI]().
-		EnvPrefix("MYAPP").
+		EnvPrefix("CONGA_TEST").
 		Args([]string{"deploy", "--help"}).
 		Stdout(&subBuffer)
 
@@ -706,9 +706,9 @@ func TestHelpScreen_EnvPrefixDerived(t *testing.T) {
 	assert.NoError(t, err)
 
 	subHelp := subBuffer.String()
-	assert.Contains(t, subHelp, "[env: MYAPP_TARGET]")
-	assert.Contains(t, subHelp, "[env: CUSTOM_PORT]")
-	assert.Contains(t, subHelp, "[env: MYAPP_WORKER]")
+	assert.Contains(t, subHelp, "[env: CONGA_TEST_TARGET]")
+	assert.Contains(t, subHelp, "[env: CONGA_TEST_CUSTOM_PORT]")
+	assert.Contains(t, subHelp, "[env: CONGA_TEST_WORKER]")
 }
 
 type plainSubcommand struct{}

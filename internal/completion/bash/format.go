@@ -72,7 +72,7 @@ func (s *Session) resolveWordbreakPrefix(toComplete string) string {
 func (s *Session) isSuccessiveTabs(candidateCount int) bool {
 	compType := s.compType
 	if !s.active {
-		compType = s.getEnvironment(envCompType)
+		compType = s.getEnvironment(wire.EnvCompType)
 	}
 
 	return candidateCount > 1 && compType == compTypeSuccessiveTabs

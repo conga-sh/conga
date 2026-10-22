@@ -113,20 +113,20 @@ func TestDotenv_VariableExpansion(t *testing.T) {
 	result, err := dotenv.Parse(fixtureExpansion)
 
 	assert.NoError(t, err)
-	assert.Equal(t, "localhost", result["TEST_EXPANSION_HOST"])
-	assert.Equal(t, "8080", result["TEST_EXPANSION_PORT"])
-	assert.Equal(t, "http://localhost:8080/api", result["TEST_EXPANSION_BASE_URL"])
-	assert.Equal(t, "Hello localhost", result["TEST_EXPANSION_GREETING"])
+	assert.Equal(t, "localhost", result["CONGA_TEST_EXPANSION_HOST"])
+	assert.Equal(t, "8080", result["CONGA_TEST_EXPANSION_PORT"])
+	assert.Equal(t, "http://localhost:8080/api", result["CONGA_TEST_EXPANSION_BASE_URL"])
+	assert.Equal(t, "Hello localhost", result["CONGA_TEST_EXPANSION_GREETING"])
 }
 
 func TestDotenv_VariableExpansion_HostValueOutranksFile(t *testing.T) {
-	t.Setenv("TEST_EXPANSION_HOST", "from_host")
+	t.Setenv("CONGA_TEST_EXPANSION_HOST", "from_host")
 
 	result, err := dotenv.Parse(fixtureHostPrecedence)
 
 	assert.NoError(t, err)
-	assert.Equal(t, "from_file", result["TEST_EXPANSION_HOST"])
-	assert.Equal(t, "http://from_host:8080", result["TEST_EXPANSION_URL"])
+	assert.Equal(t, "from_file", result["CONGA_TEST_EXPANSION_HOST"])
+	assert.Equal(t, "http://from_host:8080", result["CONGA_TEST_EXPANSION_URL"])
 }
 
 func TestDotenv_InlineComments(t *testing.T) {
@@ -250,18 +250,18 @@ func TestDotenvError_Contract(t *testing.T) {
 }
 
 func TestDotenv_LoadNonDestructive(t *testing.T) {
-	t.Setenv("TEST_EXISTING_OS_KEY", "os_original_value")
+	t.Setenv("CONGA_TEST_EXISTING_OS_KEY", "os_original_value")
 
 	tmpDir := t.TempDir()
 	envPath := filepath.Join(tmpDir, ".env")
 	err := os.WriteFile(envPath, fixtureLoadNonDestructive, 0o600)
 	assert.NoError(t, err)
 
-	err = dotenv.Load(envPath)
+	err = dotenv.LoadWith(t.Setenv, envPath)
 
 	assert.NoError(t, err)
-	assert.Equal(t, "os_original_value", os.Getenv("TEST_EXISTING_OS_KEY"))
-	assert.Equal(t, "from_dotenv_new", os.Getenv("TEST_NEW_KEY"))
+	assert.Equal(t, "os_original_value", os.Getenv("CONGA_TEST_EXISTING_OS_KEY"))
+	assert.Equal(t, "from_dotenv_new", os.Getenv("CONGA_TEST_NEW_KEY"))
 }
 
 func TestDotenv_TildeHomeExpansion(t *testing.T) {
@@ -270,13 +270,13 @@ func TestDotenv_TildeHomeExpansion(t *testing.T) {
 	t.Setenv("USERPROFILE", tmpDir)
 
 	envPath := filepath.Join(tmpDir, ".env")
-	err := os.WriteFile(envPath, []byte("TEST_TILDE_EXPANSION=success\n"), 0o600)
+	err := os.WriteFile(envPath, []byte("CONGA_TEST_TILDE_EXPANSION=success\n"), 0o600)
 	assert.NoError(t, err)
 
-	err = dotenv.Load("~/.env")
+	err = dotenv.LoadWith(t.Setenv, "~/.env")
 
 	assert.NoError(t, err)
-	assert.Equal(t, "success", os.Getenv("TEST_TILDE_EXPANSION"))
+	assert.Equal(t, "success", os.Getenv("CONGA_TEST_TILDE_EXPANSION"))
 }
 
 func TestDotenv_LoadExplicitMissingFile(t *testing.T) {
@@ -292,7 +292,7 @@ func TestDotenv_LoadExplicitMissingFile(t *testing.T) {
 }
 
 func TestDotenv_LoadMultipleFiles_LastFileWins(t *testing.T) {
-	t.Setenv("TEST_MULTI_EXISTING", "original")
+	t.Setenv("CONGA_TEST_MULTI_EXISTING", "original")
 
 	tmpDir := t.TempDir()
 	env1 := filepath.Join(tmpDir, "file1.env")
@@ -303,47 +303,37 @@ func TestDotenv_LoadMultipleFiles_LastFileWins(t *testing.T) {
 	err = os.WriteFile(env2, fixtureMultiFileSecond, 0o600)
 	assert.NoError(t, err)
 
-	err = dotenv.Load(env1, env2)
+	err = dotenv.LoadWith(t.Setenv, env1, env2)
 
 	assert.NoError(t, err)
-	assert.Equal(t, "original", os.Getenv("TEST_MULTI_EXISTING"))
-	assert.Equal(t, "from_file2", os.Getenv("TEST_MULTI_KEY1"))
-	assert.Equal(t, "val2", os.Getenv("TEST_MULTI_KEY2"))
+	assert.Equal(t, "original", os.Getenv("CONGA_TEST_MULTI_EXISTING"))
+	assert.Equal(t, "from_file2", os.Getenv("CONGA_TEST_MULTI_KEY1"))
+	assert.Equal(t, "val2", os.Getenv("CONGA_TEST_MULTI_KEY2"))
 }
 
-//nolint:paralleltest // dotenv.Load mutates the process-global environment
+//nolint:paralleltest // dotenv.LoadWith(t.Setenv) mutates the process-global environment
 func TestDotenv_LoadMultipleFiles_EmptyValueOverrides(t *testing.T) {
-	t.Cleanup(func() {
-		assert.NoError(t, os.Unsetenv("TEST_MULTI_EMPTY"))
-	})
-
 	tmpDir := t.TempDir()
 	env1 := filepath.Join(tmpDir, "file1.env")
 	env2 := filepath.Join(tmpDir, "file2.env")
 
-	err := os.WriteFile(env1, []byte("TEST_MULTI_EMPTY=from_file1\n"), 0o600)
+	err := os.WriteFile(env1, []byte("CONGA_TEST_MULTI_EMPTY=from_file1\n"), 0o600)
 	assert.NoError(t, err)
-	err = os.WriteFile(env2, []byte("TEST_MULTI_EMPTY=\n"), 0o600)
-	assert.NoError(t, err)
-
-	err = dotenv.Load(env1, env2)
-
+	err = os.WriteFile(env2, []byte("CONGA_TEST_MULTI_EMPTY=\n"), 0o600)
 	assert.NoError(t, err)
 
-	value, exists := os.LookupEnv("TEST_MULTI_EMPTY")
+	err = dotenv.LoadWith(t.Setenv, env1, env2)
+
+	assert.NoError(t, err)
+
+	value, exists := os.LookupEnv("CONGA_TEST_MULTI_EMPTY")
 
 	assert.True(t, exists)
 	assert.Equal(t, "", value)
 }
 
-//nolint:paralleltest // dotenv.Load mutates the process-global environment
+//nolint:paralleltest // dotenv.LoadWith(t.Setenv) mutates the process-global environment
 func TestDotenv_LoadMultipleFiles_LastFileWinsAcrossThreeFiles(t *testing.T) {
-	t.Cleanup(func() {
-		assert.NoError(t, os.Unsetenv("TEST_MULTI3_KEY1"))
-		assert.NoError(t, os.Unsetenv("TEST_MULTI3_KEY2"))
-		assert.NoError(t, os.Unsetenv("TEST_MULTI3_KEY3"))
-	})
-
 	tmpDir := t.TempDir()
 	env1 := filepath.Join(tmpDir, "file1.env")
 	env2 := filepath.Join(tmpDir, "file2.env")
@@ -356,23 +346,16 @@ func TestDotenv_LoadMultipleFiles_LastFileWinsAcrossThreeFiles(t *testing.T) {
 	err = os.WriteFile(env3, fixtureMultiFileChainThird, 0o600)
 	assert.NoError(t, err)
 
-	err = dotenv.Load(env1, env2, env3)
+	err = dotenv.LoadWith(t.Setenv, env1, env2, env3)
 
 	assert.NoError(t, err)
-	assert.Equal(t, "from_file2", os.Getenv("TEST_MULTI3_KEY1"))
-	assert.Equal(t, "from_file3", os.Getenv("TEST_MULTI3_KEY2"))
-	assert.Equal(t, "from_file3", os.Getenv("TEST_MULTI3_KEY3"))
+	assert.Equal(t, "from_file2", os.Getenv("CONGA_TEST_MULTI3_KEY1"))
+	assert.Equal(t, "from_file3", os.Getenv("CONGA_TEST_MULTI3_KEY2"))
+	assert.Equal(t, "from_file3", os.Getenv("CONGA_TEST_MULTI3_KEY3"))
 }
 
-//nolint:paralleltest // dotenv.Load mutates the process-global environment
-func TestDotenv_LoadMultipleFiles_ExpandsFromEarlierFile(t *testing.T) {
-	t.Cleanup(func() {
-		assert.NoError(t, os.Unsetenv("TEST_EXPAND_FROM_BASE"))
-		assert.NoError(t, os.Unsetenv("TEST_EXPAND_FROM_BASE_URL"))
-		assert.NoError(t, os.Unsetenv("TEST_EXPAND_HOST"))
-		assert.NoError(t, os.Unsetenv("TEST_EXPAND_HOST_URL"))
-	})
-
+//nolint:paralleltest // dotenv.LoadWith(t.Setenv) mutates the process-global environment
+func TestDotenv_LoadWith_ExpandsFromEarlierFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	base := filepath.Join(tmpDir, "base.env")
 	derived := filepath.Join(tmpDir, "derived.env")
@@ -382,22 +365,15 @@ func TestDotenv_LoadMultipleFiles_ExpandsFromEarlierFile(t *testing.T) {
 	err = os.WriteFile(derived, fixtureMultiFileExpandDerived, 0o600)
 	assert.NoError(t, err)
 
-	err = dotenv.Load(base, derived)
+	err = dotenv.LoadWith(t.Setenv, base, derived)
 
 	assert.NoError(t, err)
-	assert.Equal(t, "from_base", os.Getenv("TEST_EXPAND_FROM_BASE"))
-	assert.Equal(t, "from_base/path", os.Getenv("TEST_EXPAND_FROM_BASE_URL"))
+	assert.Equal(t, "from_base", os.Getenv("CONGA_TEST_EXPAND_FROM_BASE"))
+	assert.Equal(t, "from_base/path", os.Getenv("CONGA_TEST_EXPAND_FROM_BASE_URL"))
 }
 
-//nolint:paralleltest // dotenv.Load mutates the process-global environment
+//nolint:paralleltest // dotenv.LoadWith(t.Setenv) mutates the process-global environment
 func TestDotenv_LoadMultipleFiles_OverrideExpandsFromItself(t *testing.T) {
-	t.Cleanup(func() {
-		assert.NoError(t, os.Unsetenv("TEST_EXPAND_FROM_BASE"))
-		assert.NoError(t, os.Unsetenv("TEST_EXPAND_FROM_BASE_URL"))
-		assert.NoError(t, os.Unsetenv("TEST_EXPAND_HOST"))
-		assert.NoError(t, os.Unsetenv("TEST_EXPAND_HOST_URL"))
-	})
-
 	tmpDir := t.TempDir()
 	base := filepath.Join(tmpDir, "base.env")
 	derived := filepath.Join(tmpDir, "derived.env")
@@ -407,37 +383,83 @@ func TestDotenv_LoadMultipleFiles_OverrideExpandsFromItself(t *testing.T) {
 	err = os.WriteFile(derived, fixtureMultiFileExpandDerived, 0o600)
 	assert.NoError(t, err)
 
-	err = dotenv.Load(base, derived)
+	err = dotenv.LoadWith(t.Setenv, base, derived)
 
 	assert.NoError(t, err)
-	assert.Equal(t, "second", os.Getenv("TEST_EXPAND_HOST"))
-	assert.Equal(t, "http://second:8080", os.Getenv("TEST_EXPAND_HOST_URL"))
+	assert.Equal(t, "second", os.Getenv("CONGA_TEST_EXPAND_HOST"))
+	assert.Equal(t, "http://second:8080", os.Getenv("CONGA_TEST_EXPAND_HOST_URL"))
 }
 
-//nolint:paralleltest // dotenv.Load mutates the process-global environment
+//nolint:paralleltest // dotenv.LoadWith(t.Setenv) mutates the process-global environment
 func TestDotenv_Load_RepeatedCallKeepsFirstLoadedValue(t *testing.T) {
-	t.Cleanup(func() {
-		assert.NoError(t, os.Unsetenv("TEST_REPEAT_KEY"))
-	})
-
 	tmpDir := t.TempDir()
 	env1 := filepath.Join(tmpDir, "file1.env")
 	env2 := filepath.Join(tmpDir, "file2.env")
 
-	err := os.WriteFile(env1, []byte("TEST_REPEAT_KEY=first\n"), 0o600)
+	err := os.WriteFile(env1, []byte("CONGA_TEST_REPEAT_KEY=first\n"), 0o600)
 	assert.NoError(t, err)
-	err = os.WriteFile(env2, []byte("TEST_REPEAT_KEY=second\n"), 0o600)
+	err = os.WriteFile(env2, []byte("CONGA_TEST_REPEAT_KEY=second\n"), 0o600)
 	assert.NoError(t, err)
 
-	err = dotenv.Load(env1)
+	err = dotenv.LoadWith(t.Setenv, env1)
 
 	assert.NoError(t, err)
-	assert.Equal(t, "first", os.Getenv("TEST_REPEAT_KEY"))
+	assert.Equal(t, "first", os.Getenv("CONGA_TEST_REPEAT_KEY"))
 
-	err = dotenv.Load(env2)
+	err = dotenv.LoadWith(t.Setenv, env2)
 
 	assert.NoError(t, err)
-	assert.Equal(t, "first", os.Getenv("TEST_REPEAT_KEY"))
+	assert.Equal(t, "first", os.Getenv("CONGA_TEST_REPEAT_KEY"))
+}
+
+//nolint:paralleltest // dotenv.Load mutates the process-global environment
+func TestDotenv_LoadWritesProcessEnvironment(t *testing.T) {
+	envPath := filepath.Join(t.TempDir(), ".env")
+	err := os.WriteFile(envPath, []byte("CONGA_TEST_DOTENV_LOAD_PROCESS=loaded\n"), 0o600)
+	assert.NoError(t, err)
+
+	t.Cleanup(func() { assert.NoError(t, os.Unsetenv("CONGA_TEST_DOTENV_LOAD_PROCESS")) })
+
+	err = dotenv.Load(envPath)
+
+	assert.NoError(t, err)
+	assert.Equal(t, "loaded", os.Getenv("CONGA_TEST_DOTENV_LOAD_PROCESS"))
+}
+
+//nolint:paralleltest // dotenv.LoadWith(nil) falls back to process mutation
+func TestDotenv_LoadWith_NilFuncUsesDefault(t *testing.T) {
+	envPath := filepath.Join(t.TempDir(), ".env")
+	err := os.WriteFile(envPath, []byte("CONGA_TEST_DOTENV_NIL_SETENV=loaded\n"), 0o600)
+	assert.NoError(t, err)
+
+	t.Cleanup(func() { assert.NoError(t, os.Unsetenv("CONGA_TEST_DOTENV_NIL_SETENV")) })
+
+	err = dotenv.LoadWith(nil, envPath)
+
+	assert.NoError(t, err)
+	assert.Equal(t, "loaded", os.Getenv("CONGA_TEST_DOTENV_NIL_SETENV"))
+}
+
+func TestDotenv_LoadWith_CustomSetenvReceivesValues(t *testing.T) {
+	t.Parallel()
+
+	envPath := filepath.Join(t.TempDir(), ".env")
+	err := os.WriteFile(envPath, []byte("CONGA_TEST_DOTENV_CUSTOM_SETENV=from_file\n"), 0o600)
+	assert.NoError(t, err)
+
+	var collected map[string]string
+
+	err = dotenv.LoadWith(func(key, value string) {
+		if collected == nil {
+			collected = make(map[string]string)
+		}
+
+		collected[key] = value
+	}, envPath)
+
+	assert.NoError(t, err)
+	assert.Equal(t, "from_file", collected["CONGA_TEST_DOTENV_CUSTOM_SETENV"])
+	assert.Equal(t, "", os.Getenv("CONGA_TEST_DOTENV_CUSTOM_SETENV"))
 }
 
 func TestDotenv_ParseCRLF(t *testing.T) {
@@ -530,29 +552,29 @@ func TestDotenv_LoadDefaultHierarchy_LocalOverridesBase(t *testing.T) {
 	err = os.WriteFile(filepath.Join(tmpDir, ".env.local"), fixtureHierarchyLocal, 0o600)
 	assert.NoError(t, err)
 
-	err = dotenv.Load()
+	err = dotenv.LoadWith(t.Setenv)
 
 	assert.NoError(t, err)
-	assert.Equal(t, "from_local", os.Getenv("TEST_DOTENV_HIER_KEY"))
-	assert.Equal(t, "local", os.Getenv("TEST_DOTENV_HIER_LOCAL_ONLY"))
+	assert.Equal(t, "from_local", os.Getenv("CONGA_TEST_DOTENV_HIER_KEY"))
+	assert.Equal(t, "local", os.Getenv("CONGA_TEST_DOTENV_HIER_LOCAL_ONLY"))
 }
 
 func TestDotenv_LoadDefaultHierarchy_HostEnvironmentWins(t *testing.T) {
-	t.Setenv("TEST_DOTENV_HIER_FIRST", "from_host")
+	t.Setenv("CONGA_TEST_DOTENV_HIER_FIRST", "from_host")
 
 	tmpDir := t.TempDir()
 	t.Chdir(tmpDir)
 
-	err := os.WriteFile(filepath.Join(tmpDir, ".env"), []byte("TEST_DOTENV_HIER_FIRST=from_env\n"), 0o600)
+	err := os.WriteFile(filepath.Join(tmpDir, ".env"), []byte("CONGA_TEST_DOTENV_HIER_FIRST=from_env\n"), 0o600)
 	assert.NoError(t, err)
 
-	err = os.WriteFile(filepath.Join(tmpDir, ".env.local"), []byte("TEST_DOTENV_HIER_FIRST=from_local\n"), 0o600)
+	err = os.WriteFile(filepath.Join(tmpDir, ".env.local"), []byte("CONGA_TEST_DOTENV_HIER_FIRST=from_local\n"), 0o600)
 	assert.NoError(t, err)
 
-	err = dotenv.Load()
+	err = dotenv.LoadWith(t.Setenv)
 
 	assert.NoError(t, err)
-	assert.Equal(t, "from_host", os.Getenv("TEST_DOTENV_HIER_FIRST"))
+	assert.Equal(t, "from_host", os.Getenv("CONGA_TEST_DOTENV_HIER_FIRST"))
 }
 
 //nolint:paralleltest // t.Chdir and t.Setenv cannot be used with t.Parallel
@@ -560,13 +582,13 @@ func TestDotenv_LoadDefaultHierarchy_LocalOnlyFileLoaded(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Chdir(tmpDir)
 
-	err := os.WriteFile(filepath.Join(tmpDir, ".env.local"), []byte("TEST_DOTENV_HIER_LOCAL=only_local\n"), 0o600)
+	err := os.WriteFile(filepath.Join(tmpDir, ".env.local"), []byte("CONGA_TEST_DOTENV_HIER_LOCAL=only_local\n"), 0o600)
 	assert.NoError(t, err)
 
-	err = dotenv.Load()
+	err = dotenv.LoadWith(t.Setenv)
 
 	assert.NoError(t, err)
-	assert.Equal(t, "only_local", os.Getenv("TEST_DOTENV_HIER_LOCAL"))
+	assert.Equal(t, "only_local", os.Getenv("CONGA_TEST_DOTENV_HIER_LOCAL"))
 }
 
 //nolint:paralleltest // t.Chdir and t.Setenv cannot be used with t.Parallel
@@ -574,10 +596,10 @@ func TestDotenv_LoadDefaultHierarchy_NoFilesIsSilentNoOp(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Chdir(tmpDir)
 
-	err := dotenv.Load()
+	err := dotenv.LoadWith(t.Setenv)
 
 	assert.NoError(t, err)
-	assert.Equal(t, "", os.Getenv("TEST_DOTENV_HIER_UNSET"))
+	assert.Equal(t, "", os.Getenv("CONGA_TEST_DOTENV_HIER_UNSET"))
 }
 
 //nolint:paralleltest // t.Chdir and t.Setenv cannot be used with t.Parallel
@@ -588,7 +610,7 @@ func TestDotenv_LoadDefaultHierarchy_MalformedFilePropagates(t *testing.T) {
 	err := os.WriteFile(filepath.Join(tmpDir, ".env"), fixtureUnclosedDouble, 0o600)
 	assert.NoError(t, err)
 
-	err = dotenv.Load()
+	err = dotenv.LoadWith(t.Setenv)
 
 	assert.Error(t, err)
 	assert.IsError(t, err, sentinel.ErrDotenv)

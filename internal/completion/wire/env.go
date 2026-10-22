@@ -6,9 +6,18 @@ import (
 	"strings"
 )
 
-// Environment variable names of the CONGA_* completion sideband and the
-// standard color variables.
+// Environment variable names of the shell completion protocol: the bash-native
+// variables and the CONGA_* sideband, plus the standard color variables.
 const (
+	// EnvCompLine is the bash-native current command line.
+	EnvCompLine = "COMP_LINE"
+	// EnvCompPoint is the bash-native cursor offset (bytes) into EnvCompLine.
+	EnvCompPoint = "COMP_POINT"
+	// EnvCompType is the bash-native readline completion type.
+	EnvCompType = "COMP_TYPE"
+	// EnvCompWordbreaks is the bash-native word-break character set.
+	EnvCompWordbreaks = "COMP_WORDBREAKS"
+
 	// EnvColor forces color styling on ("1") or off ("0").
 	EnvColor = "CONGA_COLOR"
 	// EnvDescriptionLength limits the maximum description length in runes.

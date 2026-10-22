@@ -18,6 +18,8 @@ func (a *App[T]) Dotenv(paths ...string) *App[T]
 
 `app.Dotenv()` loads non-destructively: process environment variables take precedence over file values, preserving shell, container, and CI configurations. Files apply in order, so `.env.local` overrides keys defined in `.env`, and each named path overrides preceding paths.
 
+Loaded variables are written into the process environment through `os.Setenv`. `app.SetenvFunc` replaces that writer; tests pass `testing.T.Setenv` (`.SetenvFunc(t.Setenv)`) so loaded values revert automatically when the test finishes.
+
 Completion invocations (`__complete`) load the same files before resolving candidates, so env-sourced values — including [feature gates](/how-to/feature-flags/) — shape suggestions identically to a real run. Loading failures are tolerated during completion rather than aborting it; the real run surfaces them through the regular error pipeline.
 
 ## Grammar

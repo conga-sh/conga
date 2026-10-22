@@ -10,9 +10,9 @@ exec test-app --config-file app.toml
 stdout 'app running: port=9001 host=10.0.0.1 env=staging debug=true \(config=app.toml source=cli\)'
 
 # 3. Environment Variable Overrides Config File
-env TEST_APP_PORT=9002
+env CONGA_TEST_APP_PORT=9203
 exec test-app --config-file app.toml
-stdout 'app running: port=9002 host=10.0.0.1 env=staging debug=true \(config=app.toml source=cli\)'
+stdout 'app running: port=9203 host=10.0.0.1 env=staging debug=true \(config=app.toml source=cli\)'
 
 # 4. CLI Flag Overrides Environment Variable and Config File
 exec test-app --config-file app.toml --port 9003

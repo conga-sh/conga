@@ -27,6 +27,7 @@ func TestMinimalHello_DotenvPayloadEliminated(t *testing.T) {
 
 	for _, symbol := range []string{
 		"github.com/conga-sh/conga/internal/dotenv.Load",
+		"github.com/conga-sh/conga/internal/dotenv.LoadWith",
 		"github.com/conga-sh/conga/internal/dotenv.loadDefaultHierarchy",
 		"github.com/conga-sh/conga/internal/dotenv.loadSingleFile",
 	} {

@@ -18,7 +18,7 @@ Flags:
   -t, --tags=KEY=VALUE,...  Arbitrary tags
       --port=8080           Listen port [1..65535]
       --format=STRING       Output format [enum: json, yaml]
-      --token=STRING        API token [env: GOLDEN_TOKEN]
+      --token=STRING        API token [env: CONGA_TEST_GOLDEN_TOKEN]
       --legacy              Legacy toggle [deprecated: use --name]
 
 Output:

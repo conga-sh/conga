@@ -134,11 +134,11 @@ func TestConfigLoader_DocumentOverridesDefault(t *testing.T) {
 }
 
 func TestConfigLoader_EnvOverridesDocument(t *testing.T) {
-	t.Setenv("LOADER_HOST", "env.example.com")
+	t.Setenv("CONGA_TEST_LOADER_HOST", "env.example.com")
 
 	cli := new(loaderBasicCLI)
 	app := conga.New(cli).
-		EnvPrefix("LOADER").
+		EnvPrefix("CONGA_TEST_LOADER").
 		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderBasicCLI) (*conga.ConfigDocument, error) {
 			return loaderDocument(func(document *conga.ConfigDocument) {
 				document.Set("host", "document.example.com", "embedded")
@@ -725,11 +725,11 @@ func TestConfigLoader_FeatureGateOffPrunesFlag(t *testing.T) {
 }
 
 func TestConfigLoader_FeatureEnvChannelExcluded(t *testing.T) {
-	t.Setenv("LOADER_FEATURES", "force-all=true")
+	t.Setenv("CONGA_TEST_LOADER_FEATURES", "force-all=true")
 
 	app := conga.New[loaderFeaturesCLI]().
 		EnableFeatures().
-		EnvPrefix("LOADER").
+		EnvPrefix("CONGA_TEST_LOADER").
 		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *loaderFeaturesCLI) (*conga.ConfigDocument, error) {
 			return &conga.ConfigDocument{}, nil
 		})).
@@ -1173,7 +1173,7 @@ func TestConfigLoader_ContextCommandPath(t *testing.T) {
 }
 
 func TestConfigLoader_ContextLookupEnv(t *testing.T) {
-	t.Setenv("LOADER_CONTEXT_KEY", "context-value")
+	t.Setenv("CONGA_TEST_LOADER_CONTEXT_KEY", "context-value")
 
 	var (
 		value   string
@@ -1183,8 +1183,8 @@ func TestConfigLoader_ContextLookupEnv(t *testing.T) {
 
 	app := conga.New[loaderBasicCLI]().
 		ConfigOptions(conga.ConfigLoader(func(ctx conga.ConfigContext, root *loaderBasicCLI) (*conga.ConfigDocument, error) {
-			value, found = ctx.LookupEnv("LOADER_CONTEXT_KEY")
-			_, missing = ctx.LookupEnv("LOADER_CONTEXT_MISSING")
+			value, found = ctx.LookupEnv("CONGA_TEST_LOADER_CONTEXT_KEY")
+			_, missing = ctx.LookupEnv("CONGA_TEST_LOADER_CONTEXT_MISSING")
 
 			return &conga.ConfigDocument{}, nil
 		})).

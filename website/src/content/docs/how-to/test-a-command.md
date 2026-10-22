@@ -67,6 +67,60 @@ Configuring `Args` leaves `os.Args` untouched, preventing race conditions when t
 
 Streams and arguments are snapshotted when `RunContext` begins. Builder calls made after execution has started do not affect the running session.
 
+## Isolate environment variables
+
+`t.Setenv` sets a variable for the duration of the test and registers cleanup that restores the previous value:
+
+```go title="main_test.go"
+func TestNameFromEnvironment(t *testing.T) {
+	t.Setenv("HELLO_NAME", "Alice")
+
+	var stdoutBuffer bytes.Buffer
+
+	app := conga.New[CLI]().
+		EnvPrefix("HELLO").
+		Args([]string{}).
+		Stdout(&stdoutBuffer)
+
+	err := app.RunContext(t.Context())
+	if err != nil {
+		t.Fatalf("RunContext() unexpected error: %v", err)
+	}
+
+	if got, want := stdoutBuffer.String(), "Hello, Alice!\n"; got != want {
+		t.Errorf("stdout = %q, want %q", got, want)
+	}
+}
+```
+
+When the application loads `.env` files with `Dotenv`, the loaded variables land in the process environment. Chain `SetenvFunc(t.Setenv)` so every loaded variable is restored when the test completes:
+
+```go title="main_test.go"
+func TestDotenvFile(t *testing.T) {
+	var stdoutBuffer bytes.Buffer
+
+	app := conga.New[CLI]().
+		EnvPrefix("HELLO").
+		Dotenv("testdata/hello.env").
+		SetenvFunc(t.Setenv).
+		Args([]string{}).
+		Stdout(&stdoutBuffer)
+
+	err := app.RunContext(t.Context())
+	if err != nil {
+		t.Fatalf("RunContext() unexpected error: %v", err)
+	}
+
+	if got, want := stdoutBuffer.String(), "Hello, Alice!\n"; got != want {
+		t.Errorf("stdout = %q, want %q", got, want)
+	}
+}
+```
+
+With `testdata/hello.env` containing `HELLO_NAME=Alice`, the loaded variable binds the `Name` flag and `t.Setenv` restores `HELLO_NAME` after the test.
+
+`t.Setenv` mutates process-wide state, so tests that use it (directly or through `SetenvFunc`) cannot call `t.Parallel`.
+
 ## Assert exit codes
 
 By default, `app.Exit` terminates the process using `os.Exit`. To assert exit codes in tests without terminating the test runner, replace the exit handler using `ExitFunc`:

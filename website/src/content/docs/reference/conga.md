@@ -38,6 +38,7 @@ func New[T any](root ...*T) *App[T]
 | `Args(args)` | Custom argument slice (defaults to `os.Args[1:]`) |
 | `UsageOnError(mode)` | Error-time usage rendering mode |
 | `Stdout(w)` / `Stderr(w)` | Output writers (default `os.Stdout`/`os.Stderr`) |
+| `SetenvFunc(fn)` | Writer for variables loaded by [Dotenv](/reference/dotenv/) (default `os.Setenv`) |
 | `ExitFunc(handler)` | Custom exit handler for `Exit` |
 | `EnableWhy(options...)` / `EnableCompletion()` / `EnableFeatures()` | Opt in to the `--why` report, shell completion, and struct-declared feature toggles; pass `conga.WhyJSON()` to `EnableWhy` to enable `--why=json` |
 | `DisableHelpFlag()` / `DisableVersionFlag()` | Remove the `--help`/`--version` flags |

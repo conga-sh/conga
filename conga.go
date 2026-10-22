@@ -267,6 +267,9 @@ func (a *App[T]) EnvPrefix(prefix string) *App[T] {
 // Files must use KEY=VALUE syntax. Empty lines and lines starting with # are ignored;
 // optional export prefixes and surrounding single or double quotes are stripped.
 //
+// Variables are written into the process environment through the setenv
+// function configured by [App.SetenvFunc], which defaults to [os.Setenv].
+//
 // Dotenv files enforce a strict 16MB file size limit to prevent unbounded memory allocation.
 // Files exceeding the limit or missing explicit paths cause execution to halt with an error
 // wrapping [ErrConfig].
@@ -274,7 +277,7 @@ func (a *App[T]) EnvPrefix(prefix string) *App[T] {
 // See https://docs.conga.sh/how-to/load-env-files/.
 func (a *App[T]) Dotenv(paths ...string) *App[T] {
 	a.dotenvPaths = paths
-	a.dotenvLoader = dotenv.Load
+	a.dotenvLoader = dotenv.LoadWith
 
 	return a
 }
@@ -672,7 +675,7 @@ func (a *App[T]) RunContext(ctx context.Context) error {
 
 	// 1. Load Dotenv if enabled
 	if a.dotenvLoader != nil {
-		if err := a.dotenvLoader(a.dotenvPaths...); err != nil {
+		if err := a.dotenvLoader(a.setenvFunc, a.dotenvPaths...); err != nil {
 			return fmt.Errorf("%w: %w", ErrConfig, err)
 		}
 	}
@@ -781,6 +784,24 @@ func (a *App[T]) Stdout(writer io.Writer) *App[T] {
 func (a *App[T]) Stderr(writer io.Writer) *App[T] {
 	if writer != nil {
 		a.stderr = writer
+	}
+
+	return a
+}
+
+// SetenvFunc overrides the function [App.Dotenv] calls to set environment
+// variables loaded from .env files. Defaults to [os.Setenv]. Passing a nil
+// function is a no-op.
+//
+// Pass testing.T.Setenv in tests so variables loaded from .env files are
+// restored automatically when the test completes:
+//
+//	app := conga.New[CLI]().
+//		Dotenv(envPath).
+//		SetenvFunc(t.Setenv)
+func (a *App[T]) SetenvFunc(setenv func(key, value string)) *App[T] {
+	if setenv != nil {
+		a.setenvFunc = setenv
 	}
 
 	return a
@@ -971,7 +992,8 @@ type appConfig[T any] struct {
 	// applications without a loader.
 	loadConfigDocument    func(app *App[T], request loaderRequest) loaderResult
 	dotenvPaths           []string
-	dotenvLoader          func(paths ...string) error
+	dotenvLoader          func(setenv func(key, value string), paths ...string) error
+	setenvFunc            func(key, value string)
 	configData            *configdata.Data
 	configResolution      *configResolution
 	args                  []string
@@ -1124,7 +1146,7 @@ func (a *App[T]) completeForShellWithEnv(targetShell string, args []string, look
 	// pipeline (matching the tolerated config-loader failures below).
 	if a.dotenvLoader != nil {
 		//nolint:errcheck // completion tolerates dotenv failures like loader failures
-		_ = a.dotenvLoader(a.dotenvPaths...)
+		_ = a.dotenvLoader(a.setenvFunc, a.dotenvPaths...)
 	}
 
 	cmd, err := a.buildSpec()
@@ -1213,9 +1235,9 @@ func (a *App[T]) completeCompLineForShell(targetShell string, compLine string, c
 
 	lookup := func(key string) (string, bool) {
 		switch key {
-		case "COMP_LINE":
+		case wire.EnvCompLine:
 			return compLine, true
-		case "COMP_POINT":
+		case wire.EnvCompPoint:
 			return strconv.Itoa(compPoint), true
 		default:
 			return os.LookupEnv(key)
@@ -2169,10 +2191,10 @@ func rootConfigSettings(cmd *spec.Command) spec.ConfigSettings {
 }
 
 func resolveCompLineEnv() ([]string, bool) {
-	if compLine := os.Getenv("COMP_LINE"); compLine != "" {
+	if compLine := os.Getenv(wire.EnvCompLine); compLine != "" {
 		compPoint := len(compLine)
 
-		if compPointStr := os.Getenv("COMP_POINT"); compPointStr != "" {
+		if compPointStr := os.Getenv(wire.EnvCompPoint); compPointStr != "" {
 			if parsed, err := strconv.Atoi(compPointStr); err == nil {
 				compPoint = parsed
 			}

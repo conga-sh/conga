@@ -168,11 +168,11 @@ func parseSSHKnownHostsReader(r io.Reader) []predict.Item {
 	return items
 }
 
-func scanEtcHosts() []predict.Item {
+func scanEtcHosts(ctx predict.Context) []predict.Item {
 	hostsPath := "/etc/hosts"
 
 	if runtime.GOOS == "windows" {
-		if sysRoot := os.Getenv("SystemRoot"); sysRoot != "" {
+		if sysRoot := ctx.Getenv("SystemRoot"); sysRoot != "" {
 			hostsPath = filepath.Join(sysRoot, "System32", "drivers", "etc", "hosts")
 		} else {
 			hostsPath = `C:\Windows\System32\drivers\etc\hosts`
@@ -189,7 +189,7 @@ func scanEtcHosts() []predict.Item {
 }
 
 func scanHosts(ctx predict.Context) []predict.Item {
-	items := append(scanEtcHosts(), scanSSHHosts(ctx)...)
+	items := append(scanEtcHosts(ctx), scanSSHHosts(ctx)...)
 
 	return slicex.UniqueBy(items, func(item predict.Item) string { return item.Value })
 }
@@ -308,9 +308,8 @@ func scanPorts() []predict.Item {
 
 func scanSSHHosts(ctx predict.Context) []predict.Item {
 	homeDir := cmp.Or(
-		ctx.Env["HOME"],
-		os.Getenv("USERPROFILE"),
-		os.Getenv("HOME"),
+		ctx.Getenv("HOME"),
+		ctx.Getenv("USERPROFILE"),
 	)
 	if homeDir == "" {
 		return nil

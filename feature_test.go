@@ -74,7 +74,7 @@ type featureExperiments struct {
 }
 
 type featureTestCLI struct {
-	Features conga.Features[featureExperiments] `config:"experiments" env:"TASK_X_FEATURES" flag:"feature-gates"`
+	Features conga.Features[featureExperiments] `config:"experiments" env:"CONGA_TEST_TASK_X_FEATURES" flag:"feature-gates"`
 
 	Force    conga.OptionalFlag[bool]   `help:"Forces task execution" short:"f"`
 	ForceAll conga.OptionalFlag[bool]   `feature:"gentle-force"       help:"Forces all dependent tasks"`
@@ -114,7 +114,7 @@ func (s *featurePackageSubcommand) Run(ctx context.Context, session *conga.Sessi
 type featureConfigCLI struct {
 	ConfigFile conga.ConfigFile `help:"Config file"`
 
-	Features conga.Features[featureExperiments] `config:"experiments" env:"TASK_X_FEATURES" flag:"feature-gates"`
+	Features conga.Features[featureExperiments] `config:"experiments" env:"CONGA_TEST_TASK_X_FEATURES" flag:"feature-gates"`
 
 	ForceAll conga.OptionalFlag[bool]   `feature:"gentle-force" help:"Forces all dependent tasks"`
 	V2Only   conga.OptionalFlag[string] `feature:"syntax"       help:"Syntax v2 configuration"    name:"syntax"`
@@ -132,7 +132,7 @@ func TestFeature_CLIOverridesEnv(t *testing.T) {
 		EnableFeatures().
 		Args([]string{"--feature-gates", "gentle-force=true", "--force-all"})
 
-	t.Setenv("TASK_X_FEATURES", "gentle-force=false")
+	t.Setenv("CONGA_TEST_TASK_X_FEATURES", "gentle-force=false")
 
 	err := app.Run()
 	assert.NoError(t, err)
@@ -345,7 +345,7 @@ func TestFeature_MergesSourcesPerKey(t *testing.T) {
 }
 
 func TestFeature_MergesEnvAboveConfig(t *testing.T) {
-	t.Setenv("TASK_X_FEATURES", "packages=true")
+	t.Setenv("CONGA_TEST_TASK_X_FEATURES", "packages=true")
 
 	configPath := filepath.Join(t.TempDir(), ".taskrc.yml")
 	assert.NoError(t, os.WriteFile(configPath, fixtureFeatureGentleForce, 0o600))
@@ -371,7 +371,7 @@ func TestFeature_MergesEnvAboveConfig(t *testing.T) {
 type featureCascadeCLI struct {
 	ConfigFile conga.ConfigFile `help:"Config file" multi:"true"`
 
-	Features conga.Features[featureExperiments] `config:"experiments" env:"TASK_X_FEATURES" flag:"feature-gates"`
+	Features conga.Features[featureExperiments] `config:"experiments" env:"CONGA_TEST_TASK_X_FEATURES" flag:"feature-gates"`
 
 	ForceAll conga.OptionalFlag[bool] `feature:"gentle-force" help:"Forces all dependent tasks"`
 
@@ -450,7 +450,7 @@ func TestFeature_CascadingConfigNearestFileWinsGate(t *testing.T) {
 // environment variable overrides one cascaded gate key without dropping the
 // files' remaining gates.
 func TestFeature_CascadingConfigEnvOverridesPerKey(t *testing.T) {
-	t.Setenv("TASK_X_FEATURES", "gentle-force=false")
+	t.Setenv("CONGA_TEST_TASK_X_FEATURES", "gentle-force=false")
 
 	tempDir := t.TempDir()
 	sysPath := filepath.Join(tempDir, "sys.yml")
@@ -562,7 +562,7 @@ func TestFeature_CascadingConfigRestrictsPrunedConfigKey(t *testing.T) {
 }
 
 func TestFeature_EnvSpellingLosesToCLI(t *testing.T) {
-	t.Setenv("TASK_X_FEATURES", "gentle_force=true")
+	t.Setenv("CONGA_TEST_TASK_X_FEATURES", "gentle_force=true")
 
 	var cli featureTestCLI
 
@@ -666,7 +666,7 @@ func TestFeature_FlagGating_EnabledViaEnv(t *testing.T) {
 		EnableFeatures().
 		Args([]string{"--force-all"})
 
-	t.Setenv("TASK_X_FEATURES", "gentle-force=true")
+	t.Setenv("CONGA_TEST_TASK_X_FEATURES", "gentle-force=true")
 
 	err := app.Run()
 	assert.NoError(t, err)
@@ -683,7 +683,7 @@ func TestFeature_SubcommandGating_EnabledViaEnv(t *testing.T) {
 		EnableFeatures().
 		Args([]string{"package", "--name", "lib"})
 
-	t.Setenv("TASK_X_FEATURES", "packages=true")
+	t.Setenv("CONGA_TEST_TASK_X_FEATURES", "packages=true")
 
 	err := app.Run()
 	assert.NoError(t, err)
@@ -706,7 +706,7 @@ func (c *featureDerivedEnvCLI) Run(ctx context.Context, session *conga.Session) 
 
 // TestFeature_AppEnvPrefixNeverTouchesFeatures pins the env-tier isolation of
 // the Features container: the application-level EnvPrefix applies to normal
-// flags only, so a derived combined map variable like TASK_X_FEATURE_GATES
+// flags only, so a derived combined map variable like CONGA_TEST_TASK_X_FEATURE_GATES
 // never reaches feature resolution, and a gated flag stays inactive.
 func TestFeature_AppEnvPrefixNeverTouchesFeatures(t *testing.T) {
 	var cli featureDerivedEnvCLI
@@ -714,10 +714,10 @@ func TestFeature_AppEnvPrefixNeverTouchesFeatures(t *testing.T) {
 	app := conga.New(&cli).
 		Name("task").
 		EnableFeatures().
-		EnvPrefix("TASK_X").
+		EnvPrefix("CONGA_TEST_TASK_X").
 		Args([]string{"--force-all"})
 
-	t.Setenv("TASK_X_FEATURE_GATES", "gentle-force=true")
+	t.Setenv("CONGA_TEST_TASK_X_FEATURE_GATES", "gentle-force=true")
 
 	err := app.Run()
 	assert.Error(t, err)
@@ -737,10 +737,10 @@ func TestFeature_EnvForInactiveGatedFlag_Ignored(t *testing.T) {
 	app := conga.New(&cli).
 		Name("task").
 		EnableFeatures().
-		EnvPrefix("TASK_X").
+		EnvPrefix("CONGA_TEST_TASK_X").
 		Args([]string{})
 
-	t.Setenv("TASK_X_FORCE_ALL", "true")
+	t.Setenv("CONGA_TEST_TASK_X_FORCE_ALL", "true")
 
 	err := app.Run()
 	assert.NoError(t, err)
@@ -759,7 +759,7 @@ type fieldEnvExperiments struct {
 }
 
 type featureFieldEnvCLI struct {
-	Features conga.Features[fieldEnvExperiments] `config:"experiments" envprefix:"TASK_X" flag:"feature-gates"`
+	Features conga.Features[fieldEnvExperiments] `config:"experiments" envprefix:"CONGA_TEST_TASK_X" flag:"feature-gates"`
 
 	ForceAll conga.OptionalFlag[bool] `feature:"gentle-force" help:"Forces all dependent tasks"`
 
@@ -781,13 +781,13 @@ func (c *featureFieldEnvCLI) Run(ctx context.Context, session *conga.Session) er
 // fieldEnvOverrideSet mixes explicit env tags, an excluded field, and an
 // untagged field that keeps deriving from the container prefix.
 type fieldEnvOverrideSet struct {
-	GentleForce bool `env:"CUSTOM_FORCE"              help:"Forces all dependent tasks"`
+	GentleForce bool `env:"CONGA_TEST_CUSTOM_FORCE"   help:"Forces all dependent tasks"`
 	Excluded    bool `env:"-"                         help:"CLI and config only"`
 	Packages    bool `help:"Manage Taskfile packages"`
 }
 
 type featureFieldEnvOverrideCLI struct {
-	Features conga.Features[fieldEnvOverrideSet] `envprefix:"TASK_X" flag:"feature-gates"`
+	Features conga.Features[fieldEnvOverrideSet] `envprefix:"CONGA_TEST_TASK_X" flag:"feature-gates"`
 
 	ForceAll conga.OptionalFlag[bool] `feature:"gentle-force" help:"Forces all dependent tasks"`
 
@@ -826,7 +826,7 @@ func (c *featureFieldEnvStandaloneCLI) Run(ctx context.Context, session *conga.S
 // drives normal flags while the container envprefix drives features, so the
 // two derivation namespaces coexist without colliding.
 type featureFieldEnvSplitPrefixCLI struct {
-	Features conga.Features[fieldEnvExperiments] `envprefix:"TASK_X" flag:"feature-gates"`
+	Features conga.Features[fieldEnvExperiments] `envprefix:"CONGA_TEST_TASK_X" flag:"feature-gates"`
 
 	Port     conga.OptionalFlag[int]  `help:"Port"`
 	ForceAll conga.OptionalFlag[bool] `feature:"gentle-force" help:"Forces all dependent tasks"`
@@ -864,7 +864,7 @@ func TestFeature_FieldEnv_DerivedFromContainerEnvPrefix(t *testing.T) {
 		EnableFeatures().
 		Args([]string{"--force-all"})
 
-	t.Setenv("TASK_X_GENTLE_FORCE", "1")
+	t.Setenv("CONGA_TEST_TASK_X_GENTLE_FORCE", "1")
 
 	err := app.Run()
 
@@ -884,7 +884,7 @@ func TestFeature_FieldEnv_IntLevelViaEnv(t *testing.T) {
 		EnableFeatures().
 		Args([]string{})
 
-	t.Setenv("TASK_X_SYNTAX", "2")
+	t.Setenv("CONGA_TEST_TASK_X_SYNTAX", "2")
 
 	err := app.Run()
 
@@ -904,7 +904,7 @@ func TestFeature_FieldEnv_ExplicitOverride(t *testing.T) {
 			EnableFeatures().
 			Args([]string{"--force-all"})
 
-		t.Setenv("CUSTOM_FORCE", "1")
+		t.Setenv("CONGA_TEST_CUSTOM_FORCE", "1")
 
 		err := app.Run()
 
@@ -921,7 +921,7 @@ func TestFeature_FieldEnv_ExplicitOverride(t *testing.T) {
 			EnableFeatures().
 			Args([]string{})
 
-		t.Setenv("TASK_X_GENTLE_FORCE", "1")
+		t.Setenv("CONGA_TEST_TASK_X_GENTLE_FORCE", "1")
 
 		err := app.Run()
 
@@ -941,8 +941,8 @@ func TestFeature_FieldEnv_ExcludedOptOut(t *testing.T) {
 		EnableFeatures().
 		Args([]string{})
 
-	t.Setenv("TASK_X_EXCLUDED", "1")
-	t.Setenv("TASK_X_PACKAGES", "1")
+	t.Setenv("CONGA_TEST_TASK_X_EXCLUDED", "1")
+	t.Setenv("CONGA_TEST_TASK_X_PACKAGES", "1")
 
 	err := app.Run()
 
@@ -963,7 +963,7 @@ func TestFeature_FieldEnv_Standalone(t *testing.T) {
 			EnableFeatures().
 			Args([]string{"--force-all"})
 
-		t.Setenv("CUSTOM_FORCE", "1")
+		t.Setenv("CONGA_TEST_CUSTOM_FORCE", "1")
 
 		err := app.Run()
 
@@ -980,7 +980,7 @@ func TestFeature_FieldEnv_Standalone(t *testing.T) {
 			EnableFeatures().
 			Args([]string{})
 
-		t.Setenv("TASK_X_PACKAGES", "1")
+		t.Setenv("CONGA_TEST_TASK_X_PACKAGES", "1")
 
 		err := app.Run()
 
@@ -1001,7 +1001,7 @@ func TestFeature_EnvSurfaceAbsentByDefault(t *testing.T) {
 		EnableFeatures().
 		Args([]string{"--force-all"})
 
-	t.Setenv("TASK_X_FEATURE_GATES", "gentle-force=true")
+	t.Setenv("CONGA_TEST_TASK_X_FEATURE_GATES", "gentle-force=true")
 
 	err := app.Run()
 
@@ -1021,7 +1021,7 @@ func TestFeature_ContainerEnvAndPrefixConflict(t *testing.T) {
 	}
 
 	var cli struct {
-		Features conga.Features[conflictingSet] `env:"APP_FEATURES" envprefix:"APP_"`
+		Features conga.Features[conflictingSet] `env:"CONGA_TEST_FEATURES" envprefix:"CONGA_TEST_"`
 	}
 
 	app := conga.New(&cli).Name("task").EnableFeatures().Args([]string{})
@@ -1039,11 +1039,11 @@ func TestFeature_FieldEnvWithContainerEnvConflict(t *testing.T) {
 	t.Parallel()
 
 	type conflictingSet struct {
-		Enabled bool `env:"TASK_X_ENABLED"`
+		Enabled bool `env:"CONGA_TEST_TASK_X_ENABLED"`
 	}
 
 	var cli struct {
-		Features conga.Features[conflictingSet] `env:"APP_FEATURES"`
+		Features conga.Features[conflictingSet] `env:"CONGA_TEST_FEATURES"`
 	}
 
 	app := conga.New(&cli).Name("task").EnableFeatures().Args([]string{})
@@ -1060,7 +1060,7 @@ func TestFeature_FieldEnvWithContainerEnvConflict(t *testing.T) {
 // through to the next name.
 func TestFeature_FieldEnv_MultipleNamesFirstSetWins(t *testing.T) {
 	type multiNameSet struct {
-		GentleForce bool `env:"PRIMARY_FORCE,SECOND_FORCE"`
+		GentleForce bool `env:"CONGA_TEST_PRIMARY_FORCE,CONGA_TEST_SECOND_FORCE"`
 	}
 
 	t.Run("first set variable wins", func(t *testing.T) {
@@ -1072,8 +1072,8 @@ func TestFeature_FieldEnv_MultipleNamesFirstSetWins(t *testing.T) {
 
 		app := conga.New(&cli).Name("task").EnableFeatures().Args([]string{})
 
-		t.Setenv("PRIMARY_FORCE", "false")
-		t.Setenv("SECOND_FORCE", "true")
+		t.Setenv("CONGA_TEST_PRIMARY_FORCE", "false")
+		t.Setenv("CONGA_TEST_SECOND_FORCE", "true")
 
 		err := app.Run()
 
@@ -1090,8 +1090,8 @@ func TestFeature_FieldEnv_MultipleNamesFirstSetWins(t *testing.T) {
 
 		app := conga.New(&cli).Name("task").EnableFeatures().Args([]string{})
 
-		t.Setenv("PRIMARY_FORCE", "")
-		t.Setenv("SECOND_FORCE", "true")
+		t.Setenv("CONGA_TEST_PRIMARY_FORCE", "")
+		t.Setenv("CONGA_TEST_SECOND_FORCE", "true")
 
 		err := app.Run()
 
@@ -1118,7 +1118,7 @@ func TestFeature_FieldEnv_OverridesConfig(t *testing.T) {
 		ConfigOptions(conga.ConfigExplicit(configPath)).
 		Args([]string{})
 
-	t.Setenv("TASK_X_GENTLE_FORCE", "false")
+	t.Setenv("CONGA_TEST_TASK_X_GENTLE_FORCE", "false")
 
 	err = app.Run()
 
@@ -1145,7 +1145,7 @@ func TestFeature_FieldEnv_SparseMergeWithConfig(t *testing.T) {
 		ConfigOptions(conga.ConfigExplicit(configPath)).
 		Args([]string{})
 
-	t.Setenv("TASK_X_GENTLE_FORCE", "1")
+	t.Setenv("CONGA_TEST_TASK_X_GENTLE_FORCE", "1")
 
 	err = app.Run()
 
@@ -1172,7 +1172,7 @@ func TestFeature_FieldEnv_EmptyValueFallsThroughToConfig(t *testing.T) {
 		ConfigOptions(conga.ConfigExplicit(configPath)).
 		Args([]string{})
 
-	t.Setenv("TASK_X_GENTLE_FORCE", "")
+	t.Setenv("CONGA_TEST_TASK_X_GENTLE_FORCE", "")
 
 	err = app.Run()
 
@@ -1191,7 +1191,7 @@ func TestFeature_FieldEnv_CliBeatsEnv(t *testing.T) {
 		EnableFeatures().
 		Args([]string{"--feature-gates", "gentle-force=false"})
 
-	t.Setenv("TASK_X_GENTLE_FORCE", "1")
+	t.Setenv("CONGA_TEST_TASK_X_GENTLE_FORCE", "1")
 
 	err := app.Run()
 
@@ -1212,7 +1212,7 @@ func TestFeature_FieldEnv_CliBeatsEnvWithRegisteredStringMap(t *testing.T) {
 		RegisterMap[map[string]string]().
 		Args([]string{"--feature-gates", "gentle-force=false"})
 
-	t.Setenv("TASK_X_GENTLE_FORCE", "1")
+	t.Setenv("CONGA_TEST_TASK_X_GENTLE_FORCE", "1")
 
 	err := app.Run()
 
@@ -1232,14 +1232,14 @@ func TestFeature_FieldEnv_InvalidValueError(t *testing.T) {
 		EnableFeatures().
 		Args([]string{})
 
-	t.Setenv("TASK_X_SYNTAX", "3")
+	t.Setenv("CONGA_TEST_TASK_X_SYNTAX", "3")
 
 	err := app.Run()
 
 	assert.Error(t, err)
 	assert.IsError(t, err, conga.ErrValidation)
 	assert.True(t, conga.IsUsageError(err))
-	assert.Contains(t, err.Error(), `invalid value "3" for feature "syntax" (from environment variable TASK_X_SYNTAX): must be one of: 0, 1, 2`)
+	assert.Contains(t, err.Error(), `invalid value "3" for feature "syntax" (from environment variable CONGA_TEST_TASK_X_SYNTAX): must be one of: 0, 1, 2`)
 }
 
 // TestFeature_CombinedEnv_InvalidValueError pins that an invalid value from a
@@ -1252,14 +1252,14 @@ func TestFeature_CombinedEnv_InvalidValueError(t *testing.T) {
 		EnableFeatures().
 		Args([]string{})
 
-	t.Setenv("TASK_X_FEATURES", "syntax=3")
+	t.Setenv("CONGA_TEST_TASK_X_FEATURES", "syntax=3")
 
 	err := app.Run()
 
 	assert.Error(t, err)
 	assert.IsError(t, err, conga.ErrValidation)
 	assert.True(t, conga.IsUsageError(err))
-	assert.Contains(t, err.Error(), `invalid value "3" for feature "syntax" (from environment variable TASK_X_FEATURES): must be one of: 0, 1, 2`)
+	assert.Contains(t, err.Error(), `invalid value "3" for feature "syntax" (from environment variable CONGA_TEST_TASK_X_FEATURES): must be one of: 0, 1, 2`)
 }
 
 // TestFeature_CombinedEnv_InvalidValueErrorUnderWhy pins the same attribution
@@ -1273,13 +1273,13 @@ func TestFeature_CombinedEnv_InvalidValueErrorUnderWhy(t *testing.T) {
 		EnableWhy().
 		Args([]string{"--why"})
 
-	t.Setenv("TASK_X_FEATURES", "syntax=3")
+	t.Setenv("CONGA_TEST_TASK_X_FEATURES", "syntax=3")
 
 	err := app.Run()
 
 	assert.Error(t, err)
 	assert.IsError(t, err, conga.ErrValidation)
-	assert.Contains(t, err.Error(), `invalid value "3" for feature "syntax" (from environment variable TASK_X_FEATURES): must be one of: 0, 1, 2`)
+	assert.Contains(t, err.Error(), `invalid value "3" for feature "syntax" (from environment variable CONGA_TEST_TASK_X_FEATURES): must be one of: 0, 1, 2`)
 }
 
 // TestFeature_CombinedEnv_InvalidValueNamesWinningVariable pins that the
@@ -1314,13 +1314,13 @@ func TestFeature_FieldEnv_SourceReporting(t *testing.T) {
 		EnableFeatures().
 		Args([]string{})
 
-	t.Setenv("TASK_X_GENTLE_FORCE", "1")
+	t.Setenv("CONGA_TEST_TASK_X_GENTLE_FORCE", "1")
 
 	err := app.Run()
 
 	assert.NoError(t, err)
 	assert.Equal(t, conga.SourceEnv, cli.Features.Source())
-	assert.Equal(t, "TASK_X_GENTLE_FORCE", cli.Features.SourceDetail())
+	assert.Equal(t, "CONGA_TEST_TASK_X_GENTLE_FORCE", cli.Features.SourceDetail())
 	assert.True(t, cli.Features.IsSet())
 	assert.True(t, cli.Features.Changed())
 }
@@ -1335,11 +1335,11 @@ func TestFeature_FieldEnv_CoexistsWithAppPrefix(t *testing.T) {
 	app := conga.New(&cli).
 		Name("task").
 		EnableFeatures().
-		EnvPrefix("APP").
+		EnvPrefix("CONGA_TEST").
 		Args([]string{"--force-all"})
 
-	t.Setenv("APP_PORT", "8080")
-	t.Setenv("TASK_X_GENTLE_FORCE", "1")
+	t.Setenv("CONGA_TEST_PORT", "8080")
+	t.Setenv("CONGA_TEST_TASK_X_GENTLE_FORCE", "1")
 
 	err := app.Run()
 
@@ -1352,13 +1352,13 @@ func TestFeature_FieldEnv_CoexistsWithAppPrefix(t *testing.T) {
 // featureEnvSingleSet carries one explicitly env-tagged feature for the
 // feature-vs-flag collision tests.
 type featureEnvSingleSet struct {
-	Enabled bool `env:"SHARED_VAR"`
+	Enabled bool `env:"CONGA_TEST_SHARED_VAR"`
 }
 
 type featureEnvFlagDupCLI struct {
 	Features conga.Features[featureEnvSingleSet]
 
-	Port conga.OptionalFlag[int] `env:"SHARED_VAR" help:"Port"`
+	Port conga.OptionalFlag[int] `env:"CONGA_TEST_SHARED_VAR" help:"Port"`
 }
 
 func (c *featureEnvFlagDupCLI) Run(ctx context.Context, session *conga.Session) error {
@@ -1368,7 +1368,7 @@ func (c *featureEnvFlagDupCLI) Run(ctx context.Context, session *conga.Session) 
 // featureEnvDerivedFlagSet names the variable the plain --port flag derives
 // from the application prefix.
 type featureEnvDerivedFlagSet struct {
-	Enabled bool `env:"TASK_X_PORT"`
+	Enabled bool `env:"CONGA_TEST_TASK_X_PORT"`
 }
 
 type featureEnvDerivedFlagCLI struct {
@@ -1382,9 +1382,9 @@ func (c *featureEnvDerivedFlagCLI) Run(ctx context.Context, session *conga.Sessi
 }
 
 type featureEnvMapDupCLI struct {
-	Features conga.Features[featureExperiments] `env:"SHARED_MAP_VAR" flag:"feature-gates"`
+	Features conga.Features[featureExperiments] `env:"CONGA_TEST_SHARED_MAP_VAR" flag:"feature-gates"`
 
-	Port conga.OptionalFlag[int] `env:"SHARED_MAP_VAR" help:"Port"`
+	Port conga.OptionalFlag[int] `env:"CONGA_TEST_SHARED_MAP_VAR" help:"Port"`
 }
 
 func (c *featureEnvMapDupCLI) Run(ctx context.Context, session *conga.Session) error {
@@ -1392,11 +1392,11 @@ func (c *featureEnvMapDupCLI) Run(ctx context.Context, session *conga.Session) e
 }
 
 type featureEnvSubSet struct {
-	Enabled bool `env:"SUB_SHARED_VAR"`
+	Enabled bool `env:"CONGA_TEST_SUB_CONGA_TEST_SHARED_VAR"`
 }
 
 type featureEnvSubcommand struct {
-	Name conga.OptionalFlag[string] `env:"SUB_SHARED_VAR" help:"Name"`
+	Name conga.OptionalFlag[string] `env:"CONGA_TEST_SUB_CONGA_TEST_SHARED_VAR" help:"Name"`
 }
 
 func (c *featureEnvSubcommand) Run(ctx context.Context, session *conga.Session) error {
@@ -1424,8 +1424,8 @@ func TestFeature_FieldEnv_CollisionTests(t *testing.T) {
 
 		var cli struct {
 			Features conga.Features[struct {
-				First  bool `env:"SHARED_VAR"`
-				Second bool `env:"SHARED_VAR"`
+				First  bool `env:"CONGA_TEST_SHARED_VAR"`
+				Second bool `env:"CONGA_TEST_SHARED_VAR"`
 			}]
 		}
 
@@ -1435,7 +1435,7 @@ func TestFeature_FieldEnv_CollisionTests(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.IsError(t, err, conga.ErrSchema)
-		assert.Contains(t, err.Error(), `environment variable "SHARED_VAR" is bound by both feature "first" and feature "second"`)
+		assert.Contains(t, err.Error(), `environment variable "CONGA_TEST_SHARED_VAR" is bound by both feature "first" and feature "second"`)
 	})
 
 	t.Run("explicit field variable collides with a derived sibling", func(t *testing.T) {
@@ -1443,9 +1443,9 @@ func TestFeature_FieldEnv_CollisionTests(t *testing.T) {
 
 		var cli struct {
 			Features conga.Features[struct {
-				First  bool `env:"TASK_X_SECOND"`
+				First  bool `env:"CONGA_TEST_TASK_X_SECOND"`
 				Second bool
-			}] `envprefix:"TASK_X_"`
+			}] `envprefix:"CONGA_TEST_TASK_X_"`
 		}
 
 		app := conga.New(&cli).Name("task").EnableFeatures().Args([]string{})
@@ -1454,7 +1454,7 @@ func TestFeature_FieldEnv_CollisionTests(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.IsError(t, err, conga.ErrSchema)
-		assert.Contains(t, err.Error(), `environment variable "TASK_X_SECOND" is bound by both feature "first" and feature "second"`)
+		assert.Contains(t, err.Error(), `environment variable "CONGA_TEST_TASK_X_SECOND" is bound by both feature "first" and feature "second"`)
 	})
 
 	t.Run("field variable collides with a flag variable", func(t *testing.T) {
@@ -1468,7 +1468,7 @@ func TestFeature_FieldEnv_CollisionTests(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, `struct featureEnvFlagDupCLI field Features: schema error: environment variable "SHARED_VAR" is bound by both feature "enabled" and flag --port`, err.Error())
+		assert.Equal(t, `struct featureEnvFlagDupCLI field Features: schema error: environment variable "CONGA_TEST_SHARED_VAR" is bound by both feature "enabled" and flag --port`, err.Error())
 	})
 
 	t.Run("field variable collides with a derived flag variable", func(t *testing.T) {
@@ -1476,13 +1476,13 @@ func TestFeature_FieldEnv_CollisionTests(t *testing.T) {
 
 		var cli featureEnvDerivedFlagCLI
 
-		app := conga.New(&cli).Name("task").EnableFeatures().EnvPrefix("TASK_X").Args([]string{})
+		app := conga.New(&cli).Name("task").EnableFeatures().EnvPrefix("CONGA_TEST_TASK_X").Args([]string{})
 
 		err := app.Run()
 
 		assert.Error(t, err)
 		assert.IsError(t, err, conga.ErrSchema)
-		assert.Contains(t, err.Error(), `environment variable "TASK_X_PORT" is bound by both feature "enabled" and flag --port`)
+		assert.Contains(t, err.Error(), `environment variable "CONGA_TEST_TASK_X_PORT" is bound by both feature "enabled" and flag --port`)
 	})
 
 	t.Run("combined map variable collides with a flag variable", func(t *testing.T) {
@@ -1496,7 +1496,7 @@ func TestFeature_FieldEnv_CollisionTests(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.IsError(t, err, conga.ErrSchema)
-		assert.Contains(t, err.Error(), `environment variable "SHARED_MAP_VAR" is bound by both the feature map flag --feature-gates and flag --port`)
+		assert.Contains(t, err.Error(), `environment variable "CONGA_TEST_SHARED_MAP_VAR" is bound by both the feature map flag --feature-gates and flag --port`)
 	})
 
 	t.Run("field variable collides with a subcommand flag variable", func(t *testing.T) {
@@ -1510,7 +1510,7 @@ func TestFeature_FieldEnv_CollisionTests(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.IsError(t, err, conga.ErrSchema)
-		assert.Contains(t, err.Error(), `environment variable "SUB_SHARED_VAR" is bound by both feature "enabled" and flag --name`)
+		assert.Contains(t, err.Error(), `environment variable "CONGA_TEST_SUB_CONGA_TEST_SHARED_VAR" is bound by both feature "enabled" and flag --name`)
 	})
 
 	t.Run("flag variables do not collide with each other", func(t *testing.T) {
@@ -1521,8 +1521,8 @@ func TestFeature_FieldEnv_CollisionTests(t *testing.T) {
 
 			Features conga.Features[struct{}]
 
-			First  conga.OptionalFlag[int] `env:"SHARED_FLAG" help:"First"`
-			Second conga.OptionalFlag[int] `env:"SHARED_FLAG" help:"Second"`
+			First  conga.OptionalFlag[int] `env:"CONGA_TEST_SHARED_FLAG" help:"First"`
+			Second conga.OptionalFlag[int] `env:"CONGA_TEST_SHARED_FLAG" help:"Second"`
 		}
 
 		app := conga.New(&cli).Name("task").EnableFeatures().Args([]string{})
@@ -2078,7 +2078,7 @@ func TestFeature_Completion_FieldEnvInactiveGatePruned(t *testing.T) {
 // variables are visible during completion pruning: a gate enabled through its
 // derived variable un-prunes the gated flag's candidates.
 func TestFeature_Completion_FieldEnvUnprunesGates(t *testing.T) {
-	t.Setenv("TASK_X_GENTLE_FORCE", "1")
+	t.Setenv("CONGA_TEST_TASK_X_GENTLE_FORCE", "1")
 
 	var cli featureFieldEnvCLI
 
@@ -2097,7 +2097,7 @@ func TestFeature_Completion_FieldEnvUnprunesGates(t *testing.T) {
 // per-feature environment variable is also set.
 func TestFeature_Completion_FieldEnvCLIBeatsEnv(t *testing.T) {
 	t.Run("env enables the gate", func(t *testing.T) {
-		t.Setenv("TASK_X_GENTLE_FORCE", "1")
+		t.Setenv("CONGA_TEST_TASK_X_GENTLE_FORCE", "1")
 
 		var cli featureFieldEnvCLI
 
@@ -2112,7 +2112,7 @@ func TestFeature_Completion_FieldEnvCLIBeatsEnv(t *testing.T) {
 	})
 
 	t.Run("CLI key wins over env", func(t *testing.T) {
-		t.Setenv("TASK_X_GENTLE_FORCE", "1")
+		t.Setenv("CONGA_TEST_TASK_X_GENTLE_FORCE", "1")
 
 		var cli featureFieldEnvCLI
 
@@ -2127,15 +2127,14 @@ func TestFeature_Completion_FieldEnvCLIBeatsEnv(t *testing.T) {
 	})
 }
 
-// featureDotenvSet backs the dotenv-in-completion tests with a dedicated
-// prefix no other test sets, keeping the process environment leak from
-// dotenv.Load isolated.
+// featureDotenvSet backs the dotenv-in-completion tests; SetenvFunc(t.Setenv)
+// restores loaded variables when each test finishes.
 type featureDotenvSet struct {
 	GentleForce bool `help:"Forces all dependent tasks"`
 }
 
 type featureDotenvCLI struct {
-	Features conga.Features[featureDotenvSet] `envprefix:"TASK_DOTENV_" flag:"feature-gates"`
+	Features conga.Features[featureDotenvSet] `envprefix:"CONGA_TEST_TASK_DOTENV_" flag:"feature-gates"`
 
 	ForceAll conga.OptionalFlag[bool] `feature:"gentle-force" help:"Forces all dependent tasks"`
 }
@@ -2143,11 +2142,11 @@ type featureDotenvCLI struct {
 // TestFeature_Completion_DotenvFieldEnv pins that App.Dotenv values reach
 // completion: a .env file enabling a feature un-prunes its gated flag.
 //
-//nolint:paralleltest // dotenv.Load mutates the process environment.
+//nolint:paralleltest // dotenv.LoadWith(t.Setenv) mutates the process environment.
 func TestFeature_Completion_DotenvFieldEnv(t *testing.T) {
 	tempDir := t.TempDir()
 	envPath := filepath.Join(tempDir, ".env")
-	err := os.WriteFile(envPath, []byte("TASK_DOTENV_GENTLE_FORCE=1\n"), 0o600)
+	err := os.WriteFile(envPath, []byte("CONGA_TEST_TASK_DOTENV_GENTLE_FORCE=1\n"), 0o600)
 	assert.NoError(t, err)
 
 	var cli featureDotenvCLI
@@ -2156,7 +2155,8 @@ func TestFeature_Completion_DotenvFieldEnv(t *testing.T) {
 		Name("task").
 		EnableCompletion().
 		EnableFeatures().
-		Dotenv(envPath)
+		Dotenv(envPath).
+		SetenvFunc(t.Setenv)
 
 	_, formatted := app.CompleteForShell("bash", []string{"--"})
 
@@ -2166,12 +2166,9 @@ func TestFeature_Completion_DotenvFieldEnv(t *testing.T) {
 // TestFeature_Completion_DotenvErrorTolerated pins that a malformed .env does
 // not abort the completion: the failure is tolerated like a loader failure
 // and candidates render from the remaining tiers.
+//
+//nolint:paralleltest // dotenv.LoadWith(t.Setenv) mutates the process environment.
 func TestFeature_Completion_DotenvErrorTolerated(t *testing.T) {
-	// dotenv.Load leaves its values in the process environment, and a sibling
-	// test loaded this variable; unset it so the run's only env surface is
-	// the malformed file that must be tolerated.
-	t.Setenv("TASK_DOTENV_GENTLE_FORCE", "")
-
 	tempDir := t.TempDir()
 	envPath := filepath.Join(tempDir, ".env")
 	err := os.WriteFile(envPath, []byte("this is not dotenv\n"), 0o600)
@@ -2183,7 +2180,8 @@ func TestFeature_Completion_DotenvErrorTolerated(t *testing.T) {
 		Name("task").
 		EnableCompletion().
 		EnableFeatures().
-		Dotenv(envPath)
+		Dotenv(envPath).
+		SetenvFunc(t.Setenv)
 
 	_, formatted := app.CompleteForShell("bash", []string{"--"})
 

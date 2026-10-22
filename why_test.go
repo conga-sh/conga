@@ -25,11 +25,11 @@ func TestBuiltinHoist_HelpWithEnvSourcedMissingConfigPath(t *testing.T) {
 
 	app := conga.New[hoistConfigCLI]().
 		Name("cloudctl").
-		EnvPrefix("HOIST_").
+		EnvPrefix("CONGA_TEST_HOIST_").
 		Stdout(&buffer).
 		Args([]string{"--help"})
 
-	t.Setenv("HOIST_CONFIG", "missing-from-env.yaml")
+	t.Setenv("CONGA_TEST_HOIST_CONFIG", "missing-from-env-help.yaml")
 
 	err := app.Run()
 
@@ -42,12 +42,12 @@ func TestBuiltinHoist_VersionWithEnvSourcedMissingConfigPath(t *testing.T) {
 
 	app := conga.New[hoistConfigCLI]().
 		Name("cloudctl").
-		EnvPrefix("HOIST_").
+		EnvPrefix("CONGA_TEST_HOIST_").
 		Version("1.2.3").
 		Stdout(&buffer).
 		Args([]string{"--version"})
 
-	t.Setenv("HOIST_CONFIG", "missing-from-env.yaml")
+	t.Setenv("CONGA_TEST_HOIST_CONFIG", "missing-from-env-version.yaml")
 
 	err := app.Run()
 
@@ -76,11 +76,11 @@ func TestBuiltinHoist_SubcommandHelpWithEnvSourcedMissingConfigPath(t *testing.T
 
 	app := conga.New[hoistSubCLI]().
 		Name("cloudctl").
-		EnvPrefix("HOIST_").
+		EnvPrefix("CONGA_TEST_HOIST_").
 		Stdout(&buffer).
 		Args([]string{"sub", "--help"})
 
-	t.Setenv("HOIST_CONFIG", "missing-from-env.yaml")
+	t.Setenv("CONGA_TEST_HOIST_CONFIG", "missing-from-env-subhelp.yaml")
 
 	err := app.Run()
 
@@ -93,11 +93,11 @@ func TestBuiltinHoist_HelpSubcommandWithEnvSourcedMissingConfigPath(t *testing.T
 
 	app := conga.New[hoistHelpCLI]().
 		Name("cloudctl").
-		EnvPrefix("HOIST_").
+		EnvPrefix("CONGA_TEST_HOIST_").
 		Stdout(&buffer).
 		Args([]string{"help"})
 
-	t.Setenv("HOIST_CONFIG", "missing-from-env.yaml")
+	t.Setenv("CONGA_TEST_HOIST_CONFIG", "missing-from-env-helpcmd.yaml")
 
 	err := app.Run()
 
@@ -111,11 +111,11 @@ func TestBuiltinHoist_CompletionScriptWithEnvSourcedMissingConfigPath(t *testing
 	app := conga.New[hoistConfigCLI]().
 		EnableCompletion().
 		Name("cloudctl").
-		EnvPrefix("HOIST_").
+		EnvPrefix("CONGA_TEST_HOIST_").
 		Stdout(&buffer).
 		Args([]string{"--completion", "zsh"})
 
-	t.Setenv("HOIST_CONFIG", "missing-from-env.yaml")
+	t.Setenv("CONGA_TEST_HOIST_CONFIG", "missing-from-env-completion.yaml")
 
 	err := app.Run()
 
@@ -256,14 +256,14 @@ func TestBuiltinHoist_DeprecationNotices(t *testing.T) {
 }
 
 func TestWhy_ReportRedactionAndBadges(t *testing.T) {
-	t.Setenv("WHY_TOKEN", "s3cr3t-token")
+	t.Setenv("CONGA_TEST_WHY_TOKEN", "s3cr3t-env-token")
 	tmpDir := t.TempDir()
 	t.Chdir(tmpDir)
 
 	const configPath = "why-config.json"
 
 	assert.NoError(t, os.WriteFile(configPath, []byte(`{"region": "eu-west-1"}`), 0o600))
-	t.Setenv("WHY_CONFIG", configPath)
+	t.Setenv("CONGA_TEST_WHY_CONFIG", configPath)
 
 	var buffer bytes.Buffer
 
@@ -292,7 +292,7 @@ type whyMergeFeatures struct {
 type whyMergeCLI struct {
 	noopRunner
 
-	Features conga.Features[whyMergeFeatures]      `config:"experiments"  env:"WHY_MERGE_FEATURES" flag:"feature-gates"`
+	Features conga.Features[whyMergeFeatures]      `config:"experiments"  env:"CONGA_TEST_WHY_MERGE_FEATURES" flag:"feature-gates"`
 	Headers  conga.OptionalFlag[map[string]string] `help:"Headers"        safe:"true"`
 	Secrets  conga.OptionalFlag[map[string]string] `help:"Secret headers"`
 }
@@ -485,7 +485,7 @@ func TestWhy_FieldEnvNoDetail(t *testing.T) {
 		EnableWhy().
 		Args([]string{"--why"})
 
-	t.Setenv("TASK_X_GENTLE_FORCE", "1")
+	t.Setenv("CONGA_TEST_TASK_X_GENTLE_FORCE", "1")
 
 	err := app.Run()
 
@@ -501,7 +501,7 @@ func TestWhy_FieldEnvNoDetail(t *testing.T) {
 	for line := range strings.SplitSeq(featuresTable, "\n") {
 		if strings.Contains(line, "gentle-force") {
 			assert.True(t, strings.HasSuffix(strings.TrimSpace(line), "env"))
-			assert.NotContains(t, line, "TASK_X_")
+			assert.NotContains(t, line, "CONGA_TEST_TASK_X_")
 		}
 	}
 }
@@ -527,7 +527,7 @@ func TestWhy_FieldEnvOverridesConfigClearsConfigDetail(t *testing.T) {
 		ConfigOptions(conga.ConfigExplicit(configPath)).
 		Args([]string{"--why"})
 
-	t.Setenv("TASK_X_GENTLE_FORCE", "false")
+	t.Setenv("CONGA_TEST_TASK_X_GENTLE_FORCE", "false")
 
 	err = app.Run()
 
@@ -543,7 +543,7 @@ func TestWhy_FieldEnvOverridesConfigClearsConfigDetail(t *testing.T) {
 	assert.Contains(t, featuresTable, "env")
 	assert.NotContains(t, featuresTable, "config")
 	assert.NotContains(t, featuresTable, configPath)
-	assert.NotContains(t, featuresTable, "TASK_X_")
+	assert.NotContains(t, featuresTable, "CONGA_TEST_TASK_X_")
 }
 
 func TestWhy_UnsetRows(t *testing.T) {
@@ -802,10 +802,10 @@ func TestWhy_HiddenFlagMarked(t *testing.T) {
 }
 
 func TestWhy_ScalarCoercionErrorFailsFast(t *testing.T) {
-	t.Setenv("WHY_PORT", "not-a-number")
+	t.Setenv("CONGA_TEST_WHY_PORT", "not-a-number")
 
 	type envPortCLI struct {
-		Port conga.OptionalFlag[int] `env:"WHY_PORT" help:"Listen port"`
+		Port conga.OptionalFlag[int] `env:"CONGA_TEST_WHY_PORT" help:"Listen port"`
 	}
 
 	app := conga.New[envPortCLI]().
@@ -839,7 +839,7 @@ func TestWhy_MapCoercionErrorFailsFast(t *testing.T) {
 }
 
 func TestWhy_ConfigFileReadFailureError(t *testing.T) {
-	t.Setenv("WHY_CONFIG", "missing-why-config.json")
+	t.Setenv("CONGA_TEST_WHY_CONFIG", "missing-why-config.json")
 
 	var buffer bytes.Buffer
 
@@ -857,12 +857,12 @@ func TestWhy_ConfigFileReadFailureError(t *testing.T) {
 
 func TestWhy_DecoderlessEnvConfigVarError(t *testing.T) {
 	missingPath := filepath.Join(t.TempDir(), "missing.json")
-	t.Setenv("DECODERLESS_CONFIG", missingPath)
+	t.Setenv("CONGA_TEST_DECODERLESS_CONFIG", missingPath)
 
 	var buffer bytes.Buffer
 
 	app := conga.New[whyExplicitConfigCLI]().
-		EnvPrefix("DECODERLESS_").
+		EnvPrefix("CONGA_TEST_DECODERLESS_").
 		Stdout(&buffer).
 		EnableWhy().
 		Args([]string{"--why"})
@@ -870,7 +870,7 @@ func TestWhy_DecoderlessEnvConfigVarError(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "DECODERLESS_CONFIG")
+	assert.Contains(t, err.Error(), "CONGA_TEST_DECODERLESS_CONFIG")
 	assert.Contains(t, err.Error(), "requires a registered config decoder")
 }
 
@@ -1275,7 +1275,7 @@ func TestWhy_Collision_SubcommandUserFlag(t *testing.T) {
 }
 
 func TestWhy_UserFlagWithoutOptIn(t *testing.T) {
-	t.Setenv("TAKEOVER_TOKEN", "plain")
+	t.Setenv("CONGA_TEST_TAKEOVER_TOKEN", "plain")
 
 	var buffer bytes.Buffer
 
@@ -1342,7 +1342,7 @@ func TestWhy_OnSubcommands(t *testing.T) {
 		cli := new(whyLeafCLI)
 		app := conga.New(cli).
 			Name("whyapp").
-			EnvPrefix("WHYAPP_").
+			EnvPrefix("CONGA_TEST_WHYAPP_").
 			Stdout(&buffer).
 			EnableWhy().
 			Args([]string{"--port", "8080", "sub", "--depth", "3", "--why"})
@@ -1720,12 +1720,12 @@ func (r *whyRunner) Run(_ context.Context, _ *conga.Session) error {
 
 type whyCLI struct {
 	Port    conga.OptionalFlag[int]               `help:"Listen port"`
-	Token   conga.OptionalFlag[string]            `env:"WHY_TOKEN"      help:"API token"`
-	Shown   conga.OptionalFlag[string]            `help:"Shown value"   safe:"true"`
-	Region  conga.OptionalFlag[string]            `config:"region"      help:"Deployment region"`
-	Headers conga.OptionalFlag[map[string]string] `help:"Headers"       safe:"true"`
-	Secret  conga.OptionalFlag[string]            `help:"Hidden knob"   hidden:"true"`
-	Config  conga.ConfigFile                      `env:"WHY_CONFIG"     help:"Config path"`
+	Token   conga.OptionalFlag[string]            `env:"CONGA_TEST_WHY_TOKEN"  help:"API token"`
+	Shown   conga.OptionalFlag[string]            `help:"Shown value"          safe:"true"`
+	Region  conga.OptionalFlag[string]            `config:"region"             help:"Deployment region"`
+	Headers conga.OptionalFlag[map[string]string] `help:"Headers"              safe:"true"`
+	Secret  conga.OptionalFlag[string]            `help:"Hidden knob"          hidden:"true"`
+	Config  conga.ConfigFile                      `env:"CONGA_TEST_WHY_CONFIG" help:"Config path"`
 	Sub     conga.Command[whyRunner]              `summary:"Subcommand"`
 }
 
@@ -1769,7 +1769,7 @@ type whySubTakeoverCLI struct {
 
 type whyTakeoverCLI struct {
 	Why   conga.OptionalFlag[bool]   `help:"Explain reasoning"`
-	Token conga.OptionalFlag[string] `env:"TAKEOVER_TOKEN"     help:"Token" safe:"true"`
+	Token conga.OptionalFlag[string] `env:"CONGA_TEST_TAKEOVER_TOKEN" help:"Token" safe:"true"`
 
 	ran bool
 }
@@ -1996,7 +1996,7 @@ func TestBuiltinWhy_FieldEnvJSONSource(t *testing.T) {
 		Stdout(&buffer).
 		Args([]string{"--why=json"})
 
-	t.Setenv("TASK_X_GENTLE_FORCE", "1")
+	t.Setenv("CONGA_TEST_TASK_X_GENTLE_FORCE", "1")
 
 	err := app.Run()
 

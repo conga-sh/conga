@@ -18,7 +18,7 @@ type XorDefaultCLI struct {
 type SemanticsCLI struct {
 	noopRunner
 
-	Name conga.OptionalFlag[string] `default:"initial" env:"SEMANTICS_NAME" name:"name"`
+	Name conga.OptionalFlag[string] `default:"initial" env:"CONGA_TEST_SEMANTICS_NAME" name:"name"`
 }
 
 type featureSemanticsSet struct {
@@ -72,7 +72,7 @@ func TestChangedSemantics_DefaultSource(t *testing.T) {
 }
 
 func TestChangedSemantics_EnvSource(t *testing.T) {
-	t.Setenv("SEMANTICS_NAME", "from_env")
+	t.Setenv("CONGA_TEST_SEMANTICS_NAME", "from_env")
 
 	cli := new(SemanticsCLI)
 	app := conga.New(cli).
@@ -184,13 +184,13 @@ func TestXor_ExplicitConflictStillDetected(t *testing.T) {
 }
 
 func TestXor_EnvCountsAsChanged(t *testing.T) {
-	t.Setenv("XOR_GRACEFUL", "true")
+	t.Setenv("CONGA_TEST_XOR_GRACEFUL", "true")
 
 	type XorEnvCLI struct {
 		noopRunner
 
-		Graceful  conga.OptionalFlag[bool] `env:"XOR_GRACEFUL" name:"graceful"  xor:"drain-mode"`
-		Immediate conga.OptionalFlag[bool] `name:"immediate"   xor:"drain-mode"`
+		Graceful  conga.OptionalFlag[bool] `env:"CONGA_TEST_XOR_GRACEFUL" name:"graceful"  xor:"drain-mode"`
+		Immediate conga.OptionalFlag[bool] `name:"immediate"              xor:"drain-mode"`
 	}
 
 	app := conga.New[XorEnvCLI]().
@@ -204,13 +204,13 @@ func TestXor_EnvCountsAsChanged(t *testing.T) {
 }
 
 func TestAndGroup_EnvTriggersGroup(t *testing.T) {
-	t.Setenv("RT_PASS", "hunter2")
+	t.Setenv("CONGA_TEST_RT_PASS", "hunter2")
 
 	type AndGroupCLI struct {
 		noopRunner
 
 		User     conga.OptionalFlag[string] `and:"auth" name:"user"`
-		Password conga.OptionalFlag[string] `and:"auth" env:"RT_PASS" name:"pass"`
+		Password conga.OptionalFlag[string] `and:"auth" env:"CONGA_TEST_RT_PASS" name:"pass"`
 	}
 
 	app := conga.New[AndGroupCLI]().

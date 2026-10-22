@@ -5,6 +5,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"testing"
@@ -36,8 +38,8 @@ type InvalidSchemaTagCLI struct {
 type EnvSemanticsCLI struct {
 	noopRunner
 
-	CustomPort conga.OptionalFlag[int]    `default:"8080"      env:"CUSTOM_PORT" name:"port"`
-	Token      conga.OptionalFlag[string] `default:"secret"    env:"-"           name:"token"`
+	CustomPort conga.OptionalFlag[int]    `default:"8080"      env:"CONGA_TEST_CUSTOM_PORT" name:"port"`
+	Token      conga.OptionalFlag[string] `default:"secret"    env:"-"                      name:"token"`
 	Host       conga.OptionalFlag[string] `default:"127.0.0.1" name:"host"`
 }
 
@@ -80,11 +82,11 @@ func TestApp_NegatedBoolFlag(t *testing.T) {
 }
 
 func TestApp_EnvPrefixDerivation(t *testing.T) {
-	t.Setenv("DEMO_PORT", "4000")
+	t.Setenv("CONGA_TEST_PORT", "4000")
 
 	cli := new(SimpleAppCLI)
 	app := conga.New(cli).
-		EnvPrefix("DEMO").
+		EnvPrefix("CONGA_TEST").
 		Args([]string{})
 
 	err := app.Run()
@@ -95,11 +97,11 @@ func TestApp_EnvPrefixDerivation(t *testing.T) {
 }
 
 func TestApp_EnvPrefixExcluded(t *testing.T) {
-	t.Setenv("DEMO_TOKEN", "injected-value")
+	t.Setenv("CONGA_TEST_TOKEN", "env-injected-token")
 
 	cli := new(EnvSemanticsCLI)
 	app := conga.New(cli).
-		EnvPrefix("DEMO").
+		EnvPrefix("CONGA_TEST").
 		Args([]string{})
 
 	err := app.Run()
@@ -110,12 +112,12 @@ func TestApp_EnvPrefixExcluded(t *testing.T) {
 }
 
 func TestApp_EnvExplicitOverridesPrefix(t *testing.T) {
-	t.Setenv("DEMO_PORT", "9999")
-	t.Setenv("DEMO_HOST", "0.0.0.0")
+	t.Setenv("CONGA_TEST_PORT", "6127")
+	t.Setenv("CONGA_TEST_HOST", "192.0.2.77")
 
 	cli := new(EnvSemanticsCLI)
 	app := conga.New(cli).
-		EnvPrefix("DEMO").
+		EnvPrefix("CONGA_TEST").
 		Args([]string{})
 
 	err := app.Run()
@@ -123,8 +125,117 @@ func TestApp_EnvExplicitOverridesPrefix(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 8080, cli.CustomPort.Get())
 	assert.Equal(t, conga.SourceDefault, cli.CustomPort.Source())
-	assert.Equal(t, "0.0.0.0", cli.Host.Get())
+	assert.Equal(t, "192.0.2.77", cli.Host.Get())
 	assert.Equal(t, conga.SourceEnv, cli.Host.Source())
+}
+
+//nolint:paralleltest // dotenv.LoadWith(t.Setenv) mutates the process environment.
+func TestApp_SetenvFunc_DotenvValueRestoredAfterSubtest(t *testing.T) {
+	t.Run("scoped environment", func(t *testing.T) {
+		envPath := filepath.Join(t.TempDir(), ".env")
+		err := os.WriteFile(envPath, []byte("CONGA_TEST_CUSTOM_PORT=7311\n"), 0o600)
+		assert.NoError(t, err)
+
+		cli := new(EnvSemanticsCLI)
+		app := conga.New(cli).
+			Dotenv(envPath).
+			SetenvFunc(t.Setenv).
+			Args([]string{})
+
+		err = app.RunContext(t.Context())
+
+		assert.NoError(t, err)
+		assert.Equal(t, 7311, cli.CustomPort.Get())
+		assert.Equal(t, "7311", os.Getenv("CONGA_TEST_CUSTOM_PORT"))
+	})
+
+	assert.Equal(t, "", os.Getenv("CONGA_TEST_CUSTOM_PORT"))
+}
+
+func TestApp_SetenvFunc_BuilderOrderIndependent(t *testing.T) {
+	_, present := os.LookupEnv("CONGA_TEST_CUSTOM_PORT")
+	assert.False(t, present, "CONGA_TEST_CUSTOM_PORT must be unset before the test")
+
+	// Register cleanup only after proving the baseline is clean, so a dirty
+	// ambient environment is not clobbered.
+	t.Cleanup(func() { assert.NoError(t, os.Unsetenv("CONGA_TEST_CUSTOM_PORT")) })
+
+	t.Run("dotenv before setenv func", func(t *testing.T) {
+		envPath := filepath.Join(t.TempDir(), ".env")
+		err := os.WriteFile(envPath, []byte("CONGA_TEST_CUSTOM_PORT=7312\n"), 0o600)
+		assert.NoError(t, err)
+
+		setenvValues := map[string]string{}
+		setenv := func(key, value string) {
+			setenvValues[key] = value
+			t.Setenv(key, value)
+		}
+
+		cli := new(EnvSemanticsCLI)
+		app := conga.New(cli).
+			Dotenv(envPath).
+			SetenvFunc(setenv).
+			Args([]string{})
+
+		err = app.RunContext(t.Context())
+
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]string{"CONGA_TEST_CUSTOM_PORT": "7312"}, setenvValues)
+		assert.Equal(t, 7312, cli.CustomPort.Get())
+	})
+
+	// t.Setenv cleanup runs when the subtest finishes, so the restoration
+	// assertion must run after t.Run returns.
+	_, present = os.LookupEnv("CONGA_TEST_CUSTOM_PORT")
+	assert.False(t, present, "CONGA_TEST_CUSTOM_PORT must be restored after the subtest")
+
+	t.Run("setenv func before dotenv", func(t *testing.T) {
+		envPath := filepath.Join(t.TempDir(), ".env")
+		err := os.WriteFile(envPath, []byte("CONGA_TEST_CUSTOM_PORT=7313\n"), 0o600)
+		assert.NoError(t, err)
+
+		setenvValues := map[string]string{}
+		setenv := func(key, value string) {
+			setenvValues[key] = value
+			t.Setenv(key, value)
+		}
+
+		cli := new(EnvSemanticsCLI)
+		app := conga.New(cli).
+			SetenvFunc(setenv).
+			Dotenv(envPath).
+			Args([]string{})
+
+		err = app.RunContext(t.Context())
+
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]string{"CONGA_TEST_CUSTOM_PORT": "7313"}, setenvValues)
+		assert.Equal(t, 7313, cli.CustomPort.Get())
+	})
+
+	_, present = os.LookupEnv("CONGA_TEST_CUSTOM_PORT")
+	assert.False(t, present, "CONGA_TEST_CUSTOM_PORT must be restored after the subtest")
+}
+
+//nolint:paralleltest // dotenv.Load mutates the process environment.
+func TestApp_SetenvFunc_NilKeepsDefaultLoader(t *testing.T) {
+	envPath := filepath.Join(t.TempDir(), ".env")
+	err := os.WriteFile(envPath, []byte("CONGA_TEST_CUSTOM_PORT=7314\n"), 0o600)
+	assert.NoError(t, err)
+
+	t.Cleanup(func() { assert.NoError(t, os.Unsetenv("CONGA_TEST_CUSTOM_PORT")) })
+
+	cli := new(EnvSemanticsCLI)
+	app := conga.New(cli).
+		Dotenv(envPath).
+		SetenvFunc(nil).
+		Args([]string{})
+
+	err = app.RunContext(t.Context())
+
+	assert.NoError(t, err)
+	assert.Equal(t, 7314, cli.CustomPort.Get())
+	assert.Equal(t, "7314", os.Getenv("CONGA_TEST_CUSTOM_PORT"))
 }
 
 func TestApp_SliceFlags(t *testing.T) {
