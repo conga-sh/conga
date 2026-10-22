@@ -910,6 +910,7 @@ func defaultBuilderCallOrder() []string {
 		"Stdin",
 		"Stdout",
 		"Stderr",
+		"SetenvFunc",
 		"ExitFunc",
 		"Run",
 		"RunContext",

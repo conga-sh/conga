@@ -24,6 +24,7 @@ func TestAppConfig_ConfigHooks_NilByDefault(t *testing.T) {
 	app := New[emptyCLI]()
 
 	assert.True(t, app.dotenvLoader == nil)
+	assert.True(t, app.setenvFunc == nil)
 	assert.True(t, app.configEngine == nil)
 	assert.True(t, app.whyHooks == nil)
 	assert.True(t, app.defaultPredictors == nil)

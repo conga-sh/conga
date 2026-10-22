@@ -65,6 +65,18 @@ When explicit paths are provided:
 - Files are loaded sequentially in the specified order; every listed file must exist, and a missing file returns an error wrapping `conga.ErrConfig`.
 - Existing environment variables are preserved; a key defined in more than one file takes the value from the last file that defines it.
 
+## Test .env loads
+
+`Dotenv` writes loaded variables into the process environment through `os.Setenv` by default. In tests, chain `SetenvFunc(t.Setenv)` to route every loaded variable through `testing.T.Setenv`, so each test restores the environment when it finishes:
+
+```go title="main_test.go"
+app := conga.New[CLI]().
+	Dotenv("testdata/.env").
+	SetenvFunc(t.Setenv)
+```
+
+Tests that load `.env` files this way mutate process-wide state and cannot call `t.Parallel`. [How to test a command](/how-to/test-a-command/) covers the surrounding test setup.
+
 ## Where to go next
 
 - [Dotenv files](/reference/dotenv/) — loading rules, grammar, and the 16 MB size limit.

@@ -157,8 +157,8 @@ func actionSignals(ctx predict.Context) predict.Predictor {
 	return predict.Items(items...)
 }
 
-func actionUsers(_ predict.Context) predict.Predictor {
-	items := scanUsers()
+func actionUsers(ctx predict.Context) predict.Predictor {
+	items := scanUsers(ctx)
 
 	return predict.Items(items...)
 }
@@ -448,7 +448,7 @@ func scanRunningProcesses() []procEntry {
 	return []procEntry{{Pid: pid, Exe: exe}}
 }
 
-func scanUsers() []predict.Item {
+func scanUsers(ctx predict.Context) []predict.Item {
 	if runtime.GOOS != "windows" {
 		if file, err := os.Open("/etc/passwd"); err == nil {
 			items := parsePasswdReader(file)
@@ -460,8 +460,8 @@ func scanUsers() []predict.Item {
 
 	var items []predict.Item
 
-	name := cond.SetOrDefaultFunc(os.Getenv("USER"), func() string {
-		return os.Getenv("USERNAME")
+	name := cond.SetOrDefaultFunc(ctx.Getenv("USER"), func() string {
+		return ctx.Getenv("USERNAME")
 	})
 
 	if curr, err := user.Current(); err == nil && curr.Username != "" {

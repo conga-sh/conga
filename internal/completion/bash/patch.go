@@ -13,15 +13,8 @@ import (
 	"strconv"
 
 	"github.com/conga-sh/conga/internal/completion/lex"
+	"github.com/conga-sh/conga/internal/completion/wire"
 	"github.com/conga-sh/conga/internal/sentinel"
-)
-
-// Bash-native completion environment variables.
-const (
-	envCompLine       = "COMP_LINE"
-	envCompPoint      = "COMP_POINT"
-	envCompType       = "COMP_TYPE"
-	envCompWordbreaks = "COMP_WORDBREAKS"
 )
 
 // compTypeSuccessiveTabs is the readline COMP_TYPE of the successive-tabs
@@ -101,12 +94,12 @@ func (s *Session) Patch(args []string) ([]string, error) {
 }
 
 func (s *Session) resolveCompLine() (string, bool) {
-	line, ok := s.lookupEnvironment(envCompLine)
+	line, ok := s.lookupEnvironment(wire.EnvCompLine)
 	if !ok || line == "" {
 		return "", false
 	}
 
-	rawPoint, ok := s.lookupEnvironment(envCompPoint)
+	rawPoint, ok := s.lookupEnvironment(wire.EnvCompPoint)
 	if !ok {
 		return "", false
 	}
@@ -120,7 +113,7 @@ func (s *Session) resolveCompLine() (string, bool) {
 }
 
 func (s *Session) resolveCompType() string {
-	raw, ok := s.lookupEnvironment(envCompType)
+	raw, ok := s.lookupEnvironment(wire.EnvCompType)
 	if !ok {
 		return ""
 	}
@@ -133,7 +126,7 @@ func (s *Session) resolveCompType() string {
 }
 
 func (s *Session) resolveCompWordbreaks() string {
-	if value, ok := s.lookupEnvironment(envCompWordbreaks); ok && value != "" {
+	if value, ok := s.lookupEnvironment(wire.EnvCompWordbreaks); ok && value != "" {
 		return value
 	}
 

@@ -257,7 +257,7 @@ func TestDotenv_LoadNonDestructive(t *testing.T) {
 	err := os.WriteFile(envPath, fixtureLoadNonDestructive, 0o600)
 	assert.NoError(t, err)
 
-	err = dotenv.Load(envPath)
+	err = dotenv.LoadWith(t.Setenv, envPath)
 
 	assert.NoError(t, err)
 	assert.Equal(t, "os_original_value", os.Getenv("TEST_EXISTING_OS_KEY"))
@@ -273,7 +273,7 @@ func TestDotenv_TildeHomeExpansion(t *testing.T) {
 	err := os.WriteFile(envPath, []byte("TEST_TILDE_EXPANSION=success\n"), 0o600)
 	assert.NoError(t, err)
 
-	err = dotenv.Load("~/.env")
+	err = dotenv.LoadWith(t.Setenv, "~/.env")
 
 	assert.NoError(t, err)
 	assert.Equal(t, "success", os.Getenv("TEST_TILDE_EXPANSION"))
@@ -303,7 +303,7 @@ func TestDotenv_LoadMultipleFiles_LastFileWins(t *testing.T) {
 	err = os.WriteFile(env2, fixtureMultiFileSecond, 0o600)
 	assert.NoError(t, err)
 
-	err = dotenv.Load(env1, env2)
+	err = dotenv.LoadWith(t.Setenv, env1, env2)
 
 	assert.NoError(t, err)
 	assert.Equal(t, "original", os.Getenv("TEST_MULTI_EXISTING"))
@@ -311,12 +311,8 @@ func TestDotenv_LoadMultipleFiles_LastFileWins(t *testing.T) {
 	assert.Equal(t, "val2", os.Getenv("TEST_MULTI_KEY2"))
 }
 
-//nolint:paralleltest // dotenv.Load mutates the process-global environment
+//nolint:paralleltest // dotenv.LoadWith(t.Setenv) mutates the process-global environment
 func TestDotenv_LoadMultipleFiles_EmptyValueOverrides(t *testing.T) {
-	t.Cleanup(func() {
-		assert.NoError(t, os.Unsetenv("TEST_MULTI_EMPTY"))
-	})
-
 	tmpDir := t.TempDir()
 	env1 := filepath.Join(tmpDir, "file1.env")
 	env2 := filepath.Join(tmpDir, "file2.env")
@@ -326,7 +322,7 @@ func TestDotenv_LoadMultipleFiles_EmptyValueOverrides(t *testing.T) {
 	err = os.WriteFile(env2, []byte("TEST_MULTI_EMPTY=\n"), 0o600)
 	assert.NoError(t, err)
 
-	err = dotenv.Load(env1, env2)
+	err = dotenv.LoadWith(t.Setenv, env1, env2)
 
 	assert.NoError(t, err)
 
@@ -336,14 +332,8 @@ func TestDotenv_LoadMultipleFiles_EmptyValueOverrides(t *testing.T) {
 	assert.Equal(t, "", value)
 }
 
-//nolint:paralleltest // dotenv.Load mutates the process-global environment
+//nolint:paralleltest // dotenv.LoadWith(t.Setenv) mutates the process-global environment
 func TestDotenv_LoadMultipleFiles_LastFileWinsAcrossThreeFiles(t *testing.T) {
-	t.Cleanup(func() {
-		assert.NoError(t, os.Unsetenv("TEST_MULTI3_KEY1"))
-		assert.NoError(t, os.Unsetenv("TEST_MULTI3_KEY2"))
-		assert.NoError(t, os.Unsetenv("TEST_MULTI3_KEY3"))
-	})
-
 	tmpDir := t.TempDir()
 	env1 := filepath.Join(tmpDir, "file1.env")
 	env2 := filepath.Join(tmpDir, "file2.env")
@@ -356,7 +346,7 @@ func TestDotenv_LoadMultipleFiles_LastFileWinsAcrossThreeFiles(t *testing.T) {
 	err = os.WriteFile(env3, fixtureMultiFileChainThird, 0o600)
 	assert.NoError(t, err)
 
-	err = dotenv.Load(env1, env2, env3)
+	err = dotenv.LoadWith(t.Setenv, env1, env2, env3)
 
 	assert.NoError(t, err)
 	assert.Equal(t, "from_file2", os.Getenv("TEST_MULTI3_KEY1"))
@@ -364,15 +354,8 @@ func TestDotenv_LoadMultipleFiles_LastFileWinsAcrossThreeFiles(t *testing.T) {
 	assert.Equal(t, "from_file3", os.Getenv("TEST_MULTI3_KEY3"))
 }
 
-//nolint:paralleltest // dotenv.Load mutates the process-global environment
-func TestDotenv_LoadMultipleFiles_ExpandsFromEarlierFile(t *testing.T) {
-	t.Cleanup(func() {
-		assert.NoError(t, os.Unsetenv("TEST_EXPAND_FROM_BASE"))
-		assert.NoError(t, os.Unsetenv("TEST_EXPAND_FROM_BASE_URL"))
-		assert.NoError(t, os.Unsetenv("TEST_EXPAND_HOST"))
-		assert.NoError(t, os.Unsetenv("TEST_EXPAND_HOST_URL"))
-	})
-
+//nolint:paralleltest // dotenv.LoadWith(t.Setenv) mutates the process-global environment
+func TestDotenv_LoadWith_ExpandsFromEarlierFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	base := filepath.Join(tmpDir, "base.env")
 	derived := filepath.Join(tmpDir, "derived.env")
@@ -382,22 +365,15 @@ func TestDotenv_LoadMultipleFiles_ExpandsFromEarlierFile(t *testing.T) {
 	err = os.WriteFile(derived, fixtureMultiFileExpandDerived, 0o600)
 	assert.NoError(t, err)
 
-	err = dotenv.Load(base, derived)
+	err = dotenv.LoadWith(t.Setenv, base, derived)
 
 	assert.NoError(t, err)
 	assert.Equal(t, "from_base", os.Getenv("TEST_EXPAND_FROM_BASE"))
 	assert.Equal(t, "from_base/path", os.Getenv("TEST_EXPAND_FROM_BASE_URL"))
 }
 
-//nolint:paralleltest // dotenv.Load mutates the process-global environment
+//nolint:paralleltest // dotenv.LoadWith(t.Setenv) mutates the process-global environment
 func TestDotenv_LoadMultipleFiles_OverrideExpandsFromItself(t *testing.T) {
-	t.Cleanup(func() {
-		assert.NoError(t, os.Unsetenv("TEST_EXPAND_FROM_BASE"))
-		assert.NoError(t, os.Unsetenv("TEST_EXPAND_FROM_BASE_URL"))
-		assert.NoError(t, os.Unsetenv("TEST_EXPAND_HOST"))
-		assert.NoError(t, os.Unsetenv("TEST_EXPAND_HOST_URL"))
-	})
-
 	tmpDir := t.TempDir()
 	base := filepath.Join(tmpDir, "base.env")
 	derived := filepath.Join(tmpDir, "derived.env")
@@ -407,19 +383,15 @@ func TestDotenv_LoadMultipleFiles_OverrideExpandsFromItself(t *testing.T) {
 	err = os.WriteFile(derived, fixtureMultiFileExpandDerived, 0o600)
 	assert.NoError(t, err)
 
-	err = dotenv.Load(base, derived)
+	err = dotenv.LoadWith(t.Setenv, base, derived)
 
 	assert.NoError(t, err)
 	assert.Equal(t, "second", os.Getenv("TEST_EXPAND_HOST"))
 	assert.Equal(t, "http://second:8080", os.Getenv("TEST_EXPAND_HOST_URL"))
 }
 
-//nolint:paralleltest // dotenv.Load mutates the process-global environment
+//nolint:paralleltest // dotenv.LoadWith(t.Setenv) mutates the process-global environment
 func TestDotenv_Load_RepeatedCallKeepsFirstLoadedValue(t *testing.T) {
-	t.Cleanup(func() {
-		assert.NoError(t, os.Unsetenv("TEST_REPEAT_KEY"))
-	})
-
 	tmpDir := t.TempDir()
 	env1 := filepath.Join(tmpDir, "file1.env")
 	env2 := filepath.Join(tmpDir, "file2.env")
@@ -429,15 +401,65 @@ func TestDotenv_Load_RepeatedCallKeepsFirstLoadedValue(t *testing.T) {
 	err = os.WriteFile(env2, []byte("TEST_REPEAT_KEY=second\n"), 0o600)
 	assert.NoError(t, err)
 
-	err = dotenv.Load(env1)
+	err = dotenv.LoadWith(t.Setenv, env1)
 
 	assert.NoError(t, err)
 	assert.Equal(t, "first", os.Getenv("TEST_REPEAT_KEY"))
 
-	err = dotenv.Load(env2)
+	err = dotenv.LoadWith(t.Setenv, env2)
 
 	assert.NoError(t, err)
 	assert.Equal(t, "first", os.Getenv("TEST_REPEAT_KEY"))
+}
+
+//nolint:paralleltest // dotenv.Load mutates the process-global environment
+func TestDotenv_LoadWritesProcessEnvironment(t *testing.T) {
+	envPath := filepath.Join(t.TempDir(), ".env")
+	err := os.WriteFile(envPath, []byte("TEST_DOTENV_LOAD_PROCESS=loaded\n"), 0o600)
+	assert.NoError(t, err)
+
+	t.Cleanup(func() { assert.NoError(t, os.Unsetenv("TEST_DOTENV_LOAD_PROCESS")) })
+
+	err = dotenv.Load(envPath)
+
+	assert.NoError(t, err)
+	assert.Equal(t, "loaded", os.Getenv("TEST_DOTENV_LOAD_PROCESS"))
+}
+
+//nolint:paralleltest // dotenv.LoadWith(nil) falls back to process mutation
+func TestDotenv_LoadWith_NilFuncUsesDefault(t *testing.T) {
+	envPath := filepath.Join(t.TempDir(), ".env")
+	err := os.WriteFile(envPath, []byte("TEST_DOTENV_NIL_SETENV=loaded\n"), 0o600)
+	assert.NoError(t, err)
+
+	t.Cleanup(func() { assert.NoError(t, os.Unsetenv("TEST_DOTENV_NIL_SETENV")) })
+
+	err = dotenv.LoadWith(nil, envPath)
+
+	assert.NoError(t, err)
+	assert.Equal(t, "loaded", os.Getenv("TEST_DOTENV_NIL_SETENV"))
+}
+
+func TestDotenv_LoadWith_CustomSetenvReceivesValues(t *testing.T) {
+	t.Parallel()
+
+	envPath := filepath.Join(t.TempDir(), ".env")
+	err := os.WriteFile(envPath, []byte("TEST_DOTENV_CUSTOM_SETENV=from_file\n"), 0o600)
+	assert.NoError(t, err)
+
+	var collected map[string]string
+
+	err = dotenv.LoadWith(func(key, value string) {
+		if collected == nil {
+			collected = make(map[string]string)
+		}
+
+		collected[key] = value
+	}, envPath)
+
+	assert.NoError(t, err)
+	assert.Equal(t, "from_file", collected["TEST_DOTENV_CUSTOM_SETENV"])
+	assert.Equal(t, "", os.Getenv("TEST_DOTENV_CUSTOM_SETENV"))
 }
 
 func TestDotenv_ParseCRLF(t *testing.T) {
@@ -530,7 +552,7 @@ func TestDotenv_LoadDefaultHierarchy_LocalOverridesBase(t *testing.T) {
 	err = os.WriteFile(filepath.Join(tmpDir, ".env.local"), fixtureHierarchyLocal, 0o600)
 	assert.NoError(t, err)
 
-	err = dotenv.Load()
+	err = dotenv.LoadWith(t.Setenv)
 
 	assert.NoError(t, err)
 	assert.Equal(t, "from_local", os.Getenv("TEST_DOTENV_HIER_KEY"))
@@ -549,7 +571,7 @@ func TestDotenv_LoadDefaultHierarchy_HostEnvironmentWins(t *testing.T) {
 	err = os.WriteFile(filepath.Join(tmpDir, ".env.local"), []byte("TEST_DOTENV_HIER_FIRST=from_local\n"), 0o600)
 	assert.NoError(t, err)
 
-	err = dotenv.Load()
+	err = dotenv.LoadWith(t.Setenv)
 
 	assert.NoError(t, err)
 	assert.Equal(t, "from_host", os.Getenv("TEST_DOTENV_HIER_FIRST"))
@@ -563,7 +585,7 @@ func TestDotenv_LoadDefaultHierarchy_LocalOnlyFileLoaded(t *testing.T) {
 	err := os.WriteFile(filepath.Join(tmpDir, ".env.local"), []byte("TEST_DOTENV_HIER_LOCAL=only_local\n"), 0o600)
 	assert.NoError(t, err)
 
-	err = dotenv.Load()
+	err = dotenv.LoadWith(t.Setenv)
 
 	assert.NoError(t, err)
 	assert.Equal(t, "only_local", os.Getenv("TEST_DOTENV_HIER_LOCAL"))
@@ -574,7 +596,7 @@ func TestDotenv_LoadDefaultHierarchy_NoFilesIsSilentNoOp(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Chdir(tmpDir)
 
-	err := dotenv.Load()
+	err := dotenv.LoadWith(t.Setenv)
 
 	assert.NoError(t, err)
 	assert.Equal(t, "", os.Getenv("TEST_DOTENV_HIER_UNSET"))
@@ -588,7 +610,7 @@ func TestDotenv_LoadDefaultHierarchy_MalformedFilePropagates(t *testing.T) {
 	err := os.WriteFile(filepath.Join(tmpDir, ".env"), fixtureUnclosedDouble, 0o600)
 	assert.NoError(t, err)
 
-	err = dotenv.Load()
+	err = dotenv.LoadWith(t.Setenv)
 
 	assert.Error(t, err)
 	assert.IsError(t, err, sentinel.ErrDotenv)

@@ -5,6 +5,8 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"os"
+	"path/filepath"
 	"slices"
 	"strconv"
 	"testing"
@@ -125,6 +127,87 @@ func TestApp_EnvExplicitOverridesPrefix(t *testing.T) {
 	assert.Equal(t, conga.SourceDefault, cli.CustomPort.Source())
 	assert.Equal(t, "0.0.0.0", cli.Host.Get())
 	assert.Equal(t, conga.SourceEnv, cli.Host.Source())
+}
+
+//nolint:paralleltest // dotenv.LoadWith(t.Setenv) mutates the process environment.
+func TestApp_SetenvFunc_DotenvValueRestoredAfterSubtest(t *testing.T) {
+	t.Run("scoped environment", func(t *testing.T) {
+		envPath := filepath.Join(t.TempDir(), ".env")
+		err := os.WriteFile(envPath, []byte("CUSTOM_PORT=9999\n"), 0o600)
+		assert.NoError(t, err)
+
+		cli := new(EnvSemanticsCLI)
+		app := conga.New(cli).
+			Dotenv(envPath).
+			SetenvFunc(t.Setenv).
+			Args([]string{})
+
+		err = app.RunContext(t.Context())
+
+		assert.NoError(t, err)
+		assert.Equal(t, 9999, cli.CustomPort.Get())
+		assert.Equal(t, "9999", os.Getenv("CUSTOM_PORT"))
+	})
+
+	assert.Equal(t, "", os.Getenv("CUSTOM_PORT"))
+}
+
+//nolint:paralleltest // dotenv.LoadWith(t.Setenv) mutates the process environment.
+func TestApp_SetenvFunc_BuilderOrderIndependent(t *testing.T) {
+	t.Run("dotenv before setenv func", func(t *testing.T) {
+		envPath := filepath.Join(t.TempDir(), ".env")
+		err := os.WriteFile(envPath, []byte("CUSTOM_PORT=9999\n"), 0o600)
+		assert.NoError(t, err)
+
+		cli := new(EnvSemanticsCLI)
+		app := conga.New(cli).
+			Dotenv(envPath).
+			SetenvFunc(t.Setenv).
+			Args([]string{})
+
+		err = app.RunContext(t.Context())
+
+		assert.NoError(t, err)
+		assert.Equal(t, 9999, cli.CustomPort.Get())
+	})
+
+	t.Run("setenv func before dotenv", func(t *testing.T) {
+		envPath := filepath.Join(t.TempDir(), ".env")
+		err := os.WriteFile(envPath, []byte("CUSTOM_PORT=9999\n"), 0o600)
+		assert.NoError(t, err)
+
+		cli := new(EnvSemanticsCLI)
+		app := conga.New(cli).
+			SetenvFunc(t.Setenv).
+			Dotenv(envPath).
+			Args([]string{})
+
+		err = app.RunContext(t.Context())
+
+		assert.NoError(t, err)
+		assert.Equal(t, 9999, cli.CustomPort.Get())
+	})
+}
+
+//nolint:paralleltest // dotenv.Load mutates the process environment.
+func TestApp_SetenvFunc_NilKeepsDefaultLoader(t *testing.T) {
+	envPath := filepath.Join(t.TempDir(), ".env")
+	err := os.WriteFile(envPath, []byte("CUSTOM_PORT=9999\n"), 0o600)
+	assert.NoError(t, err)
+
+	t.Cleanup(func() { assert.NoError(t, os.Unsetenv("CUSTOM_PORT")) })
+
+	cli := new(EnvSemanticsCLI)
+	app := conga.New(cli).
+		Dotenv(envPath).
+		SetenvFunc(nil).
+		Args([]string{})
+
+	err = app.RunContext(t.Context())
+
+	assert.NoError(t, err)
+	assert.Equal(t, 9999, cli.CustomPort.Get())
+	assert.Equal(t, "9999", os.Getenv("CUSTOM_PORT"))
 }
 
 func TestApp_SliceFlags(t *testing.T) {

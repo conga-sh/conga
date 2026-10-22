@@ -69,8 +69,8 @@ func Timezones() predict.Predictor {
 	return predict.Callback(actionTimezones)
 }
 
-func actionTimezones(_ predict.Context) predict.Predictor {
-	items := scanTimezones()
+func actionTimezones(ctx predict.Context) predict.Predictor {
+	items := scanTimezones(ctx)
 
 	return predict.Items(items...)
 }
@@ -118,10 +118,10 @@ func parseZoneTabReader(r io.Reader) []predict.Item {
 	return items
 }
 
-func scanTimezones() []predict.Item {
-	items := scanZoneTabFiles()
+func scanTimezones(ctx predict.Context) []predict.Item {
+	items := scanZoneTabFiles(ctx)
 	if len(items) == 0 {
-		items = scanZoneinfoDirs()
+		items = scanZoneinfoDirs(ctx)
 	}
 
 	if len(items) == 0 {
@@ -139,8 +139,8 @@ func scanTimezones() []predict.Item {
 	return deduped
 }
 
-func scanZoneTabFiles() []predict.Item {
-	searchPaths := zoneinfoSearchPaths()
+func scanZoneTabFiles(ctx predict.Context) []predict.Item {
+	searchPaths := zoneinfoSearchPaths(ctx)
 
 	for _, baseDir := range searchPaths {
 		for _, tabName := range []string{"zone1970.tab", "zone.tab"} {
@@ -163,8 +163,8 @@ func scanZoneTabFiles() []predict.Item {
 	return nil
 }
 
-func scanZoneinfoDirs() []predict.Item {
-	searchPaths := zoneinfoSearchPaths()
+func scanZoneinfoDirs(ctx predict.Context) []predict.Item {
+	searchPaths := zoneinfoSearchPaths(ctx)
 
 	for _, baseDir := range searchPaths {
 		if items := scanZoneinfoDir(baseDir); len(items) > 0 {
@@ -234,8 +234,8 @@ func isSymlinkToDir(path string) bool {
 	return fileInfo.IsDir()
 }
 
-func zoneinfoSearchPaths() []string {
-	if envPath := os.Getenv("ZONEINFO"); envPath != "" {
+func zoneinfoSearchPaths(ctx predict.Context) []string {
+	if envPath := ctx.Getenv("ZONEINFO"); envPath != "" {
 		return []string{envPath}
 	}
 

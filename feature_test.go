@@ -2127,9 +2127,8 @@ func TestFeature_Completion_FieldEnvCLIBeatsEnv(t *testing.T) {
 	})
 }
 
-// featureDotenvSet backs the dotenv-in-completion tests with a dedicated
-// prefix no other test sets, keeping the process environment leak from
-// dotenv.Load isolated.
+// featureDotenvSet backs the dotenv-in-completion tests; SetenvFunc(t.Setenv)
+// restores loaded variables when each test finishes.
 type featureDotenvSet struct {
 	GentleForce bool `help:"Forces all dependent tasks"`
 }
@@ -2143,7 +2142,7 @@ type featureDotenvCLI struct {
 // TestFeature_Completion_DotenvFieldEnv pins that App.Dotenv values reach
 // completion: a .env file enabling a feature un-prunes its gated flag.
 //
-//nolint:paralleltest // dotenv.Load mutates the process environment.
+//nolint:paralleltest // dotenv.LoadWith(t.Setenv) mutates the process environment.
 func TestFeature_Completion_DotenvFieldEnv(t *testing.T) {
 	tempDir := t.TempDir()
 	envPath := filepath.Join(tempDir, ".env")
@@ -2156,7 +2155,8 @@ func TestFeature_Completion_DotenvFieldEnv(t *testing.T) {
 		Name("task").
 		EnableCompletion().
 		EnableFeatures().
-		Dotenv(envPath)
+		Dotenv(envPath).
+		SetenvFunc(t.Setenv)
 
 	_, formatted := app.CompleteForShell("bash", []string{"--"})
 
@@ -2166,12 +2166,9 @@ func TestFeature_Completion_DotenvFieldEnv(t *testing.T) {
 // TestFeature_Completion_DotenvErrorTolerated pins that a malformed .env does
 // not abort the completion: the failure is tolerated like a loader failure
 // and candidates render from the remaining tiers.
+//
+//nolint:paralleltest // dotenv.LoadWith(t.Setenv) mutates the process environment.
 func TestFeature_Completion_DotenvErrorTolerated(t *testing.T) {
-	// dotenv.Load leaves its values in the process environment, and a sibling
-	// test loaded this variable; unset it so the run's only env surface is
-	// the malformed file that must be tolerated.
-	t.Setenv("TASK_DOTENV_GENTLE_FORCE", "")
-
 	tempDir := t.TempDir()
 	envPath := filepath.Join(tempDir, ".env")
 	err := os.WriteFile(envPath, []byte("this is not dotenv\n"), 0o600)
@@ -2183,7 +2180,8 @@ func TestFeature_Completion_DotenvErrorTolerated(t *testing.T) {
 		Name("task").
 		EnableCompletion().
 		EnableFeatures().
-		Dotenv(envPath)
+		Dotenv(envPath).
+		SetenvFunc(t.Setenv)
 
 	_, formatted := app.CompleteForShell("bash", []string{"--"})
 
