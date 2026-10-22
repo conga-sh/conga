@@ -7,6 +7,11 @@ format = "yaml"
 cache = false
 api_secret = "remapped-secret"
 
+# Feature toggles (root Features container -> [features] section)
+[features]
+http3 = true
+compression = 2
+
 # Primitives subcommand
 [types.primitives]
 string_flag = "toml-configured"
