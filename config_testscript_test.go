@@ -15,8 +15,8 @@ import (
 
 type TestAppCLI struct {
 	ConfigFile  conga.ConfigFile           `help:"Config file path"`
-	Port        conga.OptionalFlag[int]    `default:"8080"          env:"TEST_APP_PORT" name:"port" short:"p"`
-	Host        conga.OptionalFlag[string] `default:"127.0.0.1"     env:"TEST_APP_HOST" name:"host" short:"h"`
+	Port        conga.OptionalFlag[int]    `default:"8080"          env:"CONGA_TEST_APP_PORT" name:"port" short:"p"`
+	Host        conga.OptionalFlag[string] `default:"127.0.0.1"     env:"CONGA_TEST_APP_HOST" name:"host" short:"h"`
 	Environment conga.OptionalFlag[string] `default:"dev"           name:"env"`
 	Debug       conga.OptionalFlag[bool]   `name:"debug"            short:"d"`
 	Server      conga.Command[ServerCmd]   `name:"server"`

@@ -34,14 +34,14 @@ func writeConfigFile(t *testing.T, content string) string {
 type FullServerCLI struct {
 	noopRunner
 
-	Port     conga.OptionalFlag[int]           `config:"server.port" default:"8080"         env:"PORT"    name:"port" short:"p"`
+	Port     conga.OptionalFlag[int]           `config:"server.port" default:"8080"           env:"CONGA_TEST_PORT" name:"port" short:"p"`
 	Timeout  conga.OptionalFlag[time.Duration] `default:"30s"        name:"timeout"`
 	Verbose  conga.OptionalFlag[bool]          `name:"verbose"       short:"v"`
-	Format   conga.OptionalFlag[string]        `default:"json"       enum:"json,yaml,table" name:"format"`
+	Format   conga.OptionalFlag[string]        `default:"json"       enum:"json,yaml,table"   name:"format"`
 	TCP      conga.OptionalFlag[bool]          `name:"tcp"           xor:"transport"`
 	UDP      conga.OptionalFlag[bool]          `name:"udp"           xor:"transport"`
 	User     conga.OptionalFlag[string]        `and:"auth"           name:"user"`
-	Password conga.OptionalFlag[string]        `and:"auth"           env:"RT_PASS"          name:"pass"`
+	Password conga.OptionalFlag[string]        `and:"auth"           env:"CONGA_TEST_RT_PASS" name:"pass"`
 	Tags     conga.OptionalFlag[[]string]      `name:"tag"           short:"t"`
 	Required conga.RequiredFlag[string]        `name:"api-key"`
 	Source   conga.RequiredArg[string]         `name:"<source>"`
@@ -71,7 +71,7 @@ func TestBinder_4TierResolution_CLIFlags(t *testing.T) {
 }
 
 func TestBinder_4TierResolution_EnvVar(t *testing.T) {
-	t.Setenv("PORT", "5050")
+	t.Setenv("CONGA_TEST_PORT", "5050")
 
 	cli := new(FullServerCLI)
 	app := conga.New(cli).
@@ -370,7 +370,7 @@ func TestBinder_MapFlagMergesTiers(t *testing.T) {
 		noopRunner
 
 		ConfigFile conga.ConfigFile                      `help:"Config file"`
-		Tags       conga.OptionalFlag[map[string]string] `env:"MERGE_TAGS"                help:"Tags map"`
+		Tags       conga.OptionalFlag[map[string]string] `env:"CONGA_TEST_MERGE_TAGS"     help:"Tags map"`
 		Defaults   conga.OptionalFlag[map[string]string] `default:"base=1,shared=default" help:"Map with default"`
 		Sizes      conga.OptionalFlag[map[string]int]    `help:"Registered map"`
 	}
@@ -537,8 +537,8 @@ func TestBinder_MapFlagMergesTiers(t *testing.T) {
 type CascadeMapCLI struct {
 	noopRunner
 
-	Config conga.ConfigFile                      `help:"Config file"         multi:"true"`
-	Tags   conga.OptionalFlag[map[string]string] `env:"CASCADE_TAGS"         help:"Tags map"`
+	Config conga.ConfigFile                      `help:"Config file"            multi:"true"`
+	Tags   conga.OptionalFlag[map[string]string] `env:"CONGA_TEST_CASCADE_TAGS" help:"Tags map"`
 	Sizes  conga.OptionalFlag[map[string]int]    `help:"Registered size map"`
 }
 
@@ -547,7 +547,7 @@ type CascadeLadderCLI struct {
 	noopRunner
 
 	Config conga.ConfigFile                      `help:"Config file"            multi:"true"`
-	Tags   conga.OptionalFlag[map[string]string] `default:"base=def,common=def" env:"LADDER_TAGS" help:"Tags map"`
+	Tags   conga.OptionalFlag[map[string]string] `default:"base=def,common=def" env:"CONGA_TEST_LADDER_TAGS" help:"Tags map"`
 }
 
 func writeCascadeTagsPair(t *testing.T) (string, string) {
@@ -719,7 +719,7 @@ func TestBinder_MapFlagMergesCascadingFiles(t *testing.T) {
 // sequential: t.Setenv mutates process-wide state.
 func TestBinder_MapFlagCascadingTierOverrides(t *testing.T) {
 	t.Run("env overrides cascaded files per key", func(t *testing.T) {
-		t.Setenv("CASCADE_TAGS", "shared=env")
+		t.Setenv("CONGA_TEST_CASCADE_TAGS", "shared=env")
 
 		lowPath, highPath := writeCascadeTagsPair(t)
 
@@ -737,7 +737,7 @@ func TestBinder_MapFlagCascadingTierOverrides(t *testing.T) {
 	})
 
 	t.Run("CLI overrides cascaded files and env per key", func(t *testing.T) {
-		t.Setenv("CASCADE_TAGS", "env=env")
+		t.Setenv("CONGA_TEST_CASCADE_TAGS", "env=env")
 
 		lowPath, highPath := writeCascadeTagsPair(t)
 
@@ -755,7 +755,7 @@ func TestBinder_MapFlagCascadingTierOverrides(t *testing.T) {
 	})
 
 	t.Run("full ladder folds every tier per key", func(t *testing.T) {
-		t.Setenv("LADDER_TAGS", "env=1")
+		t.Setenv("CONGA_TEST_LADDER_TAGS", "env=1")
 
 		lowPath := writeConfigFile(t, `{"tags": {"common": "low", "onlyLow": "1"}}`)
 		highPath := writeConfigFile(t, `{"tags": {"common": "high", "onlyHigh": "2"}}`)
@@ -845,11 +845,11 @@ func TestBinder_MapFlagMergesEnvTier(t *testing.T) {
 		noopRunner
 
 		ConfigFile conga.ConfigFile                      `help:"Config file"`
-		Tags       conga.OptionalFlag[map[string]string] `env:"MERGE_TAGS"   help:"Tags map"`
+		Tags       conga.OptionalFlag[map[string]string] `env:"CONGA_TEST_MERGE_TAGS" help:"Tags map"`
 	}
 
 	t.Run("env merges above config and below CLI", func(t *testing.T) {
-		t.Setenv("MERGE_TAGS", "shared=env,envkey=env")
+		t.Setenv("CONGA_TEST_MERGE_TAGS", "shared=env,envkey=env")
 		configPath := writeConfigFile(t, `{"tags": {"a": "config", "shared": "config"}}`)
 
 		cli := new(CLI)
@@ -865,7 +865,7 @@ func TestBinder_MapFlagMergesEnvTier(t *testing.T) {
 	})
 
 	t.Run("env wins over config per key without CLI", func(t *testing.T) {
-		t.Setenv("MERGE_TAGS", "shared=env")
+		t.Setenv("CONGA_TEST_MERGE_TAGS", "shared=env")
 		configPath := writeConfigFile(t, `{"tags": {"a": "config", "shared": "config"}}`)
 
 		cli := new(CLI)
@@ -992,12 +992,12 @@ func TestBinder_CounterFlag(t *testing.T) {
 }
 
 func TestBinder_CounterEnvSeed(t *testing.T) {
-	t.Setenv("VERBOSE_LEVEL", "3")
+	t.Setenv("CONGA_TEST_VERBOSE_LEVEL", "3")
 
 	type CLI struct {
 		noopRunner
 
-		Verbose conga.Counter `env:"VERBOSE_LEVEL" help:"Verbosity level" short:"v"`
+		Verbose conga.Counter `env:"CONGA_TEST_VERBOSE_LEVEL" help:"Verbosity level" short:"v"`
 	}
 
 	cli := new(CLI)
@@ -1014,12 +1014,12 @@ func TestBinder_CounterEnvSeed(t *testing.T) {
 }
 
 func TestBinder_CounterCLIOverridesEnv(t *testing.T) {
-	t.Setenv("VERBOSE_LEVEL", "3")
+	t.Setenv("CONGA_TEST_VERBOSE_LEVEL", "7")
 
 	type CLI struct {
 		noopRunner
 
-		Verbose conga.Counter `env:"VERBOSE_LEVEL" help:"Verbosity level" short:"v"`
+		Verbose conga.Counter `env:"CONGA_TEST_VERBOSE_LEVEL" help:"Verbosity level" short:"v"`
 	}
 
 	cli := new(CLI)
@@ -1574,10 +1574,10 @@ func TestBinder_EmptyStringEnvFallsThrough(t *testing.T) {
 	type StringEnvCLI struct {
 		noopRunner
 
-		Name conga.OptionalFlag[string] `default:"default-name" env:"APP_NAME" name:"name"`
+		Name conga.OptionalFlag[string] `default:"default-name" env:"CONGA_TEST_APP_NAME" name:"name"`
 	}
 
-	t.Setenv("APP_NAME", "")
+	t.Setenv("CONGA_TEST_APP_NAME", "")
 
 	cli := new(StringEnvCLI)
 	app := conga.New(cli).Args([]string{})
@@ -1596,19 +1596,19 @@ func TestBinder_EmptyEnvFallsThroughForEveryType(t *testing.T) {
 	type EmptyEnvCLI struct {
 		noopRunner
 
-		Text     conga.OptionalFlag[string]            `default:"text-default"  env:"APP_EMPTY_TEXT"`
-		Named    conga.OptionalFlag[namedString]       `default:"named-default" env:"APP_EMPTY_NAMED"`
-		Flag     conga.OptionalFlag[bool]              `default:"true"          env:"APP_EMPTY_BOOL"`
-		Count    conga.OptionalFlag[int]               `default:"7"             env:"APP_EMPTY_INT"`
-		Timeout  conga.OptionalFlag[time.Duration]     `default:"3s"            env:"APP_EMPTY_DURATION"`
-		Tags     conga.OptionalFlag[[]string]          `default:"one,two"       env:"APP_EMPTY_SLICE"`
-		Metadata conga.OptionalFlag[map[string]string] `default:"key=value"     env:"APP_EMPTY_MAP"`
-		Occurred conga.Counter                         `env:"APP_EMPTY_COUNTER"`
+		Text     conga.OptionalFlag[string]            `default:"text-default"             env:"CONGA_TEST_APP_EMPTY_TEXT"`
+		Named    conga.OptionalFlag[namedString]       `default:"named-default"            env:"CONGA_TEST_APP_EMPTY_NAMED"`
+		Flag     conga.OptionalFlag[bool]              `default:"true"                     env:"CONGA_TEST_APP_EMPTY_BOOL"`
+		Count    conga.OptionalFlag[int]               `default:"7"                        env:"CONGA_TEST_APP_EMPTY_INT"`
+		Timeout  conga.OptionalFlag[time.Duration]     `default:"3s"                       env:"CONGA_TEST_APP_EMPTY_DURATION"`
+		Tags     conga.OptionalFlag[[]string]          `default:"one,two"                  env:"CONGA_TEST_APP_EMPTY_SLICE"`
+		Metadata conga.OptionalFlag[map[string]string] `default:"key=value"                env:"CONGA_TEST_APP_EMPTY_MAP"`
+		Occurred conga.Counter                         `env:"CONGA_TEST_APP_EMPTY_COUNTER"`
 	}
 
 	for _, key := range []string{
-		"APP_EMPTY_TEXT", "APP_EMPTY_NAMED", "APP_EMPTY_BOOL", "APP_EMPTY_INT",
-		"APP_EMPTY_DURATION", "APP_EMPTY_SLICE", "APP_EMPTY_MAP", "APP_EMPTY_COUNTER",
+		"CONGA_TEST_APP_EMPTY_TEXT", "CONGA_TEST_APP_EMPTY_NAMED", "CONGA_TEST_APP_EMPTY_BOOL", "CONGA_TEST_APP_EMPTY_INT",
+		"CONGA_TEST_APP_EMPTY_DURATION", "CONGA_TEST_APP_EMPTY_SLICE", "CONGA_TEST_APP_EMPTY_MAP", "CONGA_TEST_APP_EMPTY_COUNTER",
 	} {
 		t.Setenv(key, "")
 	}

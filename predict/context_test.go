@@ -341,11 +341,11 @@ func TestContext_Getenv_EnvLookup(t *testing.T) {
 // mutates process-wide environment state via t.Setenv, so it does not run in
 // parallel.
 func TestContext_Getenv_ProcessEnvFallback(t *testing.T) {
-	t.Setenv("CONGA_PROCESS_VAR", "from_os")
+	t.Setenv("CONGA_TEST_PROCESS_VAR", "from_os")
 
 	ctx := predict.Context{}
 
-	result := ctx.Getenv("CONGA_PROCESS_VAR")
+	result := ctx.Getenv("CONGA_TEST_PROCESS_VAR")
 
 	assert.Equal(t, "from_os", result)
 }

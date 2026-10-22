@@ -75,7 +75,7 @@ func (c *stdioContentCLI) Run(_ context.Context, _ *conga.Session) error {
 }
 
 type stdioEnvCLI struct {
-	Input conga.OptionalFlag[conga.File] `env:"STDIO_TEST_INPUT" stdin:"true"`
+	Input conga.OptionalFlag[conga.File] `env:"CONGA_TEST_STDIO_TEST_INPUT" stdin:"true"`
 
 	payload string
 }
@@ -196,7 +196,7 @@ func TestStdio_FileContentDashHonorsAppStdin(t *testing.T) {
 }
 
 func TestStdio_EnvTierHonorsStreams(t *testing.T) {
-	t.Setenv("STDIO_TEST_INPUT", "-")
+	t.Setenv("CONGA_TEST_STDIO_TEST_INPUT", "-")
 
 	cli := new(stdioEnvCLI)
 	app := conga.New(cli).

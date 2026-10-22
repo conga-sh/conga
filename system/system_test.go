@@ -24,23 +24,23 @@ func TestEnvVars_ContextEnv(t *testing.T) {
 	pred := system.EnvVars()
 	result := pred.Invoke(predict.Context{
 		Env: map[string]string{
-			"CONGA_ENV":  "production",
-			"CONGA_PORT": "8080",
+			"CONGA_TEST_ENV":  "production",
+			"CONGA_TEST_PORT": "8080",
 		},
 	})
 
 	values := itemValues(result.Items)
 
-	assert.True(t, slices.Contains(values, "CONGA_ENV"))
-	assert.True(t, slices.Contains(values, "CONGA_PORT"))
+	assert.True(t, slices.Contains(values, "CONGA_TEST_ENV"))
+	assert.True(t, slices.Contains(values, "CONGA_TEST_PORT"))
 
 	for _, item := range result.Items {
 		switch item.Value {
-		case "CONGA_ENV":
+		case "CONGA_TEST_ENV":
 			assert.Equal(t, "production", item.Description)
 			assert.Equal(t, "environment variables", item.Tag)
 			assert.Equal(t, "yellow", item.Style)
-		case "CONGA_PORT":
+		case "CONGA_TEST_PORT":
 			assert.Equal(t, "8080", item.Description)
 		}
 	}

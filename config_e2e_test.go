@@ -86,7 +86,7 @@ func TestConfigFile_FourTierPrecedence(t *testing.T) {
 		noopRunner
 
 		Config conga.ConfigFile        `name:"config" short:"c"`
-		Port   conga.OptionalFlag[int] `config:"port" default:"8000" env:"PRECEDENCE_PORT" name:"port"`
+		Port   conga.OptionalFlag[int] `config:"port" default:"8000" env:"CONGA_TEST_PRECEDENCE_PORT" name:"port"`
 	}
 
 	tmpDir := t.TempDir()
@@ -105,7 +105,7 @@ func TestConfigFile_FourTierPrecedence(t *testing.T) {
 	assert.Equal(t, conga.SourceConfig, cliA.Port.Source())
 
 	// Scenario B: Env var overrides config file
-	t.Setenv("PRECEDENCE_PORT", "8081")
+	t.Setenv("CONGA_TEST_PRECEDENCE_PORT", "8081")
 
 	cliB := new(PrecedenceCLI)
 	appB := conga.New(cliB).
@@ -473,7 +473,7 @@ func TestConfigFile_DecoderlessExplicitTargetErrors(t *testing.T) {
 }
 
 func TestConfig_EnvConfigVar_RequiresDecoder(t *testing.T) {
-	t.Setenv("DECODERLESS_CONFIG", filepath.Join(t.TempDir(), "app.json"))
+	t.Setenv("CONGA_TEST_DECODERLESS_CONFIG", filepath.Join(t.TempDir(), "app.json"))
 
 	type EnvConfigCLI struct {
 		noopRunner
@@ -482,14 +482,14 @@ func TestConfig_EnvConfigVar_RequiresDecoder(t *testing.T) {
 	}
 
 	app := conga.New[EnvConfigCLI]().
-		EnvPrefix("DECODERLESS_").
+		EnvPrefix("CONGA_TEST_DECODERLESS_").
 		Args([]string{})
 
 	err := app.Run()
 
 	assert.IsError(t, err, conga.ErrConfig)
 	assert.Equal(t,
-		"config error: environment variable DECODERLESS_CONFIG requires a registered config decoder: call App.RegisterDecoder with a format decoder (e.g. decoder/json)",
+		"config error: environment variable CONGA_TEST_DECODERLESS_CONFIG requires a registered config decoder: call App.RegisterDecoder with a format decoder (e.g. decoder/json)",
 		err.Error())
 }
 

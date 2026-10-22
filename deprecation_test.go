@@ -35,7 +35,7 @@ type DeprecatedLegacyCmd struct {
 type DeprecatedFlagCLI struct {
 	noopRunner
 
-	Legacy conga.OptionalFlag[string] `default:"old" deprecated:"use --modern instead" env:"LEGACY_FLAG" name:"legacy"`
+	Legacy conga.OptionalFlag[string] `default:"old" deprecated:"use --modern instead" env:"CONGA_TEST_LEGACY_FLAG" name:"legacy"`
 }
 
 type DeprecationPurityCLI struct {
@@ -154,7 +154,7 @@ func TestDeprecation_ProvenanceGating(t *testing.T) {
 }
 
 func TestDeprecation_ProvenanceGating_Env(t *testing.T) {
-	t.Setenv("LEGACY_FLAG", "from-env")
+	t.Setenv("CONGA_TEST_LEGACY_FLAG", "from-env")
 
 	var buffer bytes.Buffer
 
@@ -165,7 +165,7 @@ func TestDeprecation_ProvenanceGating_Env(t *testing.T) {
 	err := app.Run()
 
 	assert.NoError(t, err)
-	assert.Equal(t, "WARNING: environment variable 'LEGACY_FLAG' is deprecated: use --modern instead\n", buffer.String())
+	assert.Equal(t, "WARNING: environment variable 'CONGA_TEST_LEGACY_FLAG' is deprecated: use --modern instead\n", buffer.String())
 }
 
 func TestDeprecation_SuppressionOnError(t *testing.T) {

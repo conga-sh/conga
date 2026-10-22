@@ -17,12 +17,12 @@ type bootstrapSubcommand struct {
 func (c *bootstrapSubcommand) Run(_ context.Context, _ *conga.Session) error { return nil }
 
 type bootstrapCLI struct {
-	Dir      conga.OptionalFlag[string]   `bootstrap:"true" env:"BOOTSTRAP_DIR"    name:"dir"      short:"d"`
-	Taskfile conga.OptionalFlag[string]   `bootstrap:"true" default:"Taskfile.yml" name:"taskfile"`
-	Verbose  conga.OptionalFlag[bool]     `bootstrap:"true" name:"verbose"         short:"v"`
+	Dir      conga.OptionalFlag[string]   `bootstrap:"true" env:"CONGA_TEST_BOOTSTRAP_DIR" name:"dir"      short:"d"`
+	Taskfile conga.OptionalFlag[string]   `bootstrap:"true" default:"Taskfile.yml"         name:"taskfile"`
+	Verbose  conga.OptionalFlag[bool]     `bootstrap:"true" name:"verbose"                 short:"v"`
 	Tags     conga.OptionalFlag[[]string] `bootstrap:"true" name:"tag"`
-	Count    conga.Counter                `bootstrap:"true" name:"count"           short:"c"`
-	Tasks    conga.OptionalArg[[]string]  `bootstrap:"true" name:"task"            sep:"none"`
+	Count    conga.Counter                `bootstrap:"true" name:"count"                   short:"c"`
+	Tasks    conga.OptionalArg[[]string]  `bootstrap:"true" name:"task"                    sep:"none"`
 	Other    conga.OptionalFlag[string]   `name:"other"`
 
 	Deploy conga.Command[bootstrapSubcommand]
@@ -31,7 +31,7 @@ type bootstrapCLI struct {
 func (c *bootstrapCLI) Run(_ context.Context, _ *conga.Session) error { return nil }
 
 func TestConfigLoader_BootstrapFlags(t *testing.T) {
-	t.Setenv("BOOTSTRAP_DIR", "env-dir")
+	t.Setenv("CONGA_TEST_BOOTSTRAP_DIR", "env-dir-overridden")
 
 	var (
 		dir      string
@@ -73,7 +73,7 @@ func TestConfigLoader_BootstrapFlags(t *testing.T) {
 }
 
 func TestConfigLoader_BootstrapEnvFallback(t *testing.T) {
-	t.Setenv("BOOTSTRAP_DIR", "env-dir")
+	t.Setenv("CONGA_TEST_BOOTSTRAP_DIR", "env-dir")
 
 	var dir string
 

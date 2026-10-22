@@ -23,11 +23,11 @@ func TestExpand_Tilde(t *testing.T) {
 }
 
 func TestExpand_EnvVars(t *testing.T) {
-	t.Setenv("TEST_APP_CONF_DIR", "/custom/dir")
-	t.Setenv("TEST_APP_FILE", "app.yaml")
+	t.Setenv("CONGA_TEST_APP_CONF_DIR", "/custom/dir")
+	t.Setenv("CONGA_TEST_APP_FILE", "app.yaml")
 
-	assert.Equal(t, filepath.Clean("/custom/dir/app.yaml"), pathx.Expand("$TEST_APP_CONF_DIR/$TEST_APP_FILE"))
-	assert.Equal(t, filepath.Clean("/custom/dir/app.yaml"), pathx.Expand("${TEST_APP_CONF_DIR}/${TEST_APP_FILE}"))
+	assert.Equal(t, filepath.Clean("/custom/dir/app.yaml"), pathx.Expand("$CONGA_TEST_APP_CONF_DIR/$CONGA_TEST_APP_FILE"))
+	assert.Equal(t, filepath.Clean("/custom/dir/app.yaml"), pathx.Expand("${CONGA_TEST_APP_CONF_DIR}/${CONGA_TEST_APP_FILE}"))
 	assert.Equal(t, filepath.Clean("/custom/dir/default.yaml"), pathx.Expand("${UNSET_VAR:-/custom/dir/default.yaml}"))
 }
 

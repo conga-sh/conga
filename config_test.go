@@ -1210,12 +1210,12 @@ func TestConfig_MultipleEnvVarsForConfigFile(t *testing.T) {
 	type MultiEnvConfigCLI struct {
 		noopRunner
 
-		Config conga.ConfigFile           `env:"PRIMARY_CFG,FALLBACK_CFG" name:"config"`
+		Config conga.ConfigFile           `env:"CONGA_TEST_PRIMARY_CFG,CONGA_TEST_FALLBACK_CFG" name:"config"`
 		Host   conga.OptionalFlag[string] `name:"host"`
 	}
 
-	t.Setenv("PRIMARY_CFG", "")
-	t.Setenv("FALLBACK_CFG", cfgPath)
+	t.Setenv("CONGA_TEST_PRIMARY_CFG", "")
+	t.Setenv("CONGA_TEST_FALLBACK_CFG", cfgPath)
 
 	cli := new(MultiEnvConfigCLI)
 	app := conga.New(cli).

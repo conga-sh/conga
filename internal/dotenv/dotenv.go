@@ -166,7 +166,7 @@ func load(set func(key, value string) error, paths ...string) error {
 	}
 
 	for _, path := range paths {
-		if err := loadSingleFile(path, true, loadedKeys, set); err != nil {
+		if err := loadSingleFile(set, path, true, loadedKeys); err != nil {
 			return err
 		}
 	}
@@ -178,7 +178,7 @@ func loadDefaultHierarchy(set func(key, value string) error, loadedKeys map[stri
 	candidateFiles := []string{".env", ".env.local"}
 
 	for _, filename := range candidateFiles {
-		if err := loadSingleFile(filename, false, loadedKeys, set); err != nil {
+		if err := loadSingleFile(set, filename, false, loadedKeys); err != nil {
 			return err
 		}
 	}
@@ -186,7 +186,7 @@ func loadDefaultHierarchy(set func(key, value string) error, loadedKeys map[stri
 	return nil
 }
 
-func loadSingleFile(path string, mustExist bool, loadedKeys map[string]struct{}, set func(key, value string) error) error {
+func loadSingleFile(set func(key, value string) error, path string, mustExist bool, loadedKeys map[string]struct{}) error {
 	cleanPath := pathx.Expand(path)
 
 	data, err := filex.ReadLimited(cleanPath, maxDotenvFileSize)
