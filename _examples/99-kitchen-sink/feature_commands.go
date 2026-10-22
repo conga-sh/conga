@@ -85,6 +85,6 @@ func (c *ExperimentalCmd) Run(ctx context.Context, session *conga.Session) error
 type kitchenFeatures struct {
 	HTTP3       bool `help:"Experimental QUIC/HTTP3 listener" stage:"alpha"`
 	StrictTLS   bool `default:"true"                          env:"KITCHEN_SINK_STRICT" help:"Require TLS and reject weak ciphers"  stage:"beta"`
-	Metrics     bool `default:"true"                          env:"-"                       help:"Expose the metrics endpoint"          stage:"beta"`
-	Compression int  `default:"1"                             enum:"1,2"                    help:"Response compression level (0 = off)" stage:"beta"`
+	Metrics     bool `default:"true"                          env:"-"                   help:"Expose the metrics endpoint"          stage:"beta"`
+	Compression int  `default:"1"                             enum:"1,2"                help:"Response compression level (0 = off)" stage:"beta"`
 }

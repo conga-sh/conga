@@ -170,13 +170,13 @@ env KITCHEN_SINK_FEATURE_COMPRESSION=
 #     Features section renders one automatic [env: ...] hint per bound field.
 exec kitchen-sink --help
 stdout '\[env: KITCHEN_SINK_FEATURE_HTTP3\]'
-stdout '\[env: KITCHEN_SINK_STRICT_TLS\]'
+stdout '\[env: KITCHEN_SINK_STRICT\]'
 ! stdout 'KITCHEN_SINK_FEATURE_METRICS'
 
-env KITCHEN_SINK_STRICT_TLS=false
+env KITCHEN_SINK_STRICT=false
 exec kitchen-sink feature-state --why
 stdout 'strict-tls\s+false\s+env'
-env KITCHEN_SINK_STRICT_TLS=
+env KITCHEN_SINK_STRICT=
 
 env KITCHEN_SINK_FEATURE_METRICS=false
 exec kitchen-sink feature-state
@@ -225,10 +225,10 @@ exec kitchen-sink --config-file config.hcl feature-state
 stdout 'features: http3=false strict-tls=true metrics=true compression=1'
 
 # 19. The validation hook rejects the unobservable plaintext-metrics combination.
-env KITCHEN_SINK_STRICT_TLS=false
+env KITCHEN_SINK_STRICT=false
 exit-status 2 kitchen-sink feature-state
 stderr 'metrics require strict TLS'
-env KITCHEN_SINK_STRICT_TLS=
+env KITCHEN_SINK_STRICT=
 
 # 20. Flag environment binding: EnvPrefix derives KITCHEN_SINK_<NAME>, an env
 #     tag overrides it (KITCHEN_SECRET), and env:"-" removes the tier entirely
