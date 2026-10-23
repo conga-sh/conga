@@ -308,6 +308,116 @@ func TestCompletion_NegationGuard(t *testing.T) {
 	})
 }
 
+func TestCompletion_WhyFormats(t *testing.T) {
+	t.Parallel()
+
+	t.Run("json disabled offers the plain flag", func(t *testing.T) {
+		t.Parallel()
+
+		var cli FlagsTestCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"--why"}, spec.CompleteOptions{})
+
+		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
+
+		assert.Equal(t, []string{"--why"}, values)
+	})
+
+	t.Run("json disabled offers the single text value for the attached flag", func(t *testing.T) {
+		t.Parallel()
+
+		var cli FlagsTestCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"--why="}, spec.CompleteOptions{})
+
+		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
+
+		assert.Equal(t, []string{"--why=text"}, values)
+	})
+
+	t.Run("json enabled replaces the plain flag with format candidates", func(t *testing.T) {
+		t.Parallel()
+
+		var cli FlagsTestCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{WhyJSONEnabled: true})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"--why"}, spec.CompleteOptions{})
+
+		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
+
+		assert.Equal(t, []string{"--why=text", "--why=json"}, values)
+		assert.Equal(t, "Show resolved field values and where they came from (values redacted unless tagged safe)", invoked.Items[0].Description)
+	})
+
+	t.Run("json enabled offers both formats for the attached flag", func(t *testing.T) {
+		t.Parallel()
+
+		var cli FlagsTestCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{WhyJSONEnabled: true})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"--why="}, spec.CompleteOptions{})
+
+		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
+
+		assert.Equal(t, []string{"--why=text", "--why=json"}, values)
+	})
+
+	t.Run("json enabled filters formats by value prefix", func(t *testing.T) {
+		t.Parallel()
+
+		var cli FlagsTestCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{WhyJSONEnabled: true})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"--why=j"}, spec.CompleteOptions{})
+
+		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
+
+		assert.Equal(t, []string{"--why=json"}, values)
+	})
+
+	t.Run("synthesized subcommand inherits root formats for flag names", func(t *testing.T) {
+		t.Parallel()
+
+		var cli BuiltinTestCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{WhyJSONEnabled: true})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"completion", "--why"}, spec.CompleteOptions{})
+
+		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
+
+		assert.Equal(t, []string{"--why=text", "--why=json"}, values)
+	})
+
+	t.Run("synthesized subcommand inherits root formats for attached values", func(t *testing.T) {
+		t.Parallel()
+
+		var cli BuiltinTestCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{WhyJSONEnabled: true})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"completion", "--why="}, spec.CompleteOptions{})
+
+		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
+
+		assert.Equal(t, []string{"--why=text", "--why=json"}, values)
+	})
+}
+
 func TestCompletion_XorSuppression(t *testing.T) {
 	t.Parallel()
 

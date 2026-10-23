@@ -155,6 +155,7 @@ func newSchemaBuilder(target any, defaultName string, structValue reflect.Value,
 		DisableHelp:       opts.DisableHelp,
 		DisableVersion:    opts.DisableVersion,
 		DisableWhy:        opts.DisableWhy,
+		WhyJSONEnabled:    opts.WhyJSONEnabled,
 		DisableCompletion: opts.DisableCompletion,
 	}
 

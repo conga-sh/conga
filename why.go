@@ -59,9 +59,9 @@ func (a *App[T]) installWhyRenderer(settings whySettings) {
 
 func (a *App[T]) resolveWhyFormat(cmdChain []*spec.Command, rawFormat string) (string, error) {
 	switch rawFormat {
-	case "", "true", "text":
-		return "text", nil
-	case "json":
+	case "", "true", spec.WhyFormatText:
+		return spec.WhyFormatText, nil
+	case spec.WhyFormatJSON:
 		if a.whyHooks == nil || a.whyHooks.jsonFormatter == nil {
 			return "", &validationError{
 				msg:         `invalid value "json" for --why: JSON output format is not enabled on this application (enable with app.EnableWhy(conga.WhyJSON()))`,
@@ -71,7 +71,7 @@ func (a *App[T]) resolveWhyFormat(cmdChain []*spec.Command, rawFormat string) (s
 			}
 		}
 
-		return "json", nil
+		return spec.WhyFormatJSON, nil
 	default:
 		return "", &validationError{
 			msg:         fmt.Sprintf("invalid value %q (must be one of: text, json) for --why", truncateForDisplay(rawFormat)),
@@ -103,7 +103,7 @@ func (a *App[T]) renderWhyString(session *Session, format string) string {
 	report := a.buildWhyReport(session)
 	report.Color = why.IsColorEnabled(session.Stdout())
 
-	if format == "json" {
+	if format == spec.WhyFormatJSON {
 		if a.whyHooks != nil && a.whyHooks.jsonFormatter != nil {
 			return a.whyHooks.jsonFormatter(&report)
 		}

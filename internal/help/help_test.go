@@ -98,6 +98,45 @@ func TestFormat_MetavarFallbackForUnknownType(t *testing.T) {
 	assert.Contains(t, formatted, "--blob=VALUE")
 }
 
+// TestFormat_WhyFlagFormats verifies that the built-in --why row advertises a
+// value slot and format list only when the app enabled the JSON output format,
+// and that the advertised formats are read from the chain root so synthesized
+// leaf commands (e.g. the completion help screen) inherit them.
+func TestFormat_WhyFlagFormats(t *testing.T) {
+	t.Parallel()
+
+	t.Run("plain toggle without WhyJSON", func(t *testing.T) {
+		t.Parallel()
+
+		formatted := help.Format([]*spec.Command{{Name: "app"}})
+
+		assert.Contains(t, formatted, "    --why")
+		assert.NotContains(t, formatted, "--why[=FORMAT]")
+		assert.NotContains(t, formatted, "[enum: text")
+	})
+
+	t.Run("value slot and format list with WhyJSON", func(t *testing.T) {
+		t.Parallel()
+
+		formatted := help.Format([]*spec.Command{{Name: "app", WhyJSONEnabled: true}})
+
+		assert.Contains(t, formatted, "    --why[=FORMAT]")
+		assert.Contains(t, formatted, "[enum: text, json]")
+	})
+
+	t.Run("leaf without WhyJSON inherits the root formats", func(t *testing.T) {
+		t.Parallel()
+
+		root := &spec.Command{Name: "app", WhyJSONEnabled: true}
+		leaf := &spec.Command{Name: "completion"}
+
+		formatted := help.Format([]*spec.Command{root, leaf})
+
+		assert.Contains(t, formatted, "    --why[=FORMAT]")
+		assert.Contains(t, formatted, "[enum: text, json]")
+	})
+}
+
 // TestFormat_TypeProvidedHelpFallback verifies that flags without an explicit
 // help tag inherit the default help text contributed by their value type: an
 // explicit tag always wins, pointer and value Help() receivers are both

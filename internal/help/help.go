@@ -274,7 +274,7 @@ func FormatWith(cmdChain []*spec.Command, opts Options) string {
 	visibleHelp := !leaf.DisableHelp
 	visibleVersion := leaf.VersionFlagVisible(len(cmdChain) == 1)
 	visibleWhy := leaf.WhyFlagVisible()
-	builder.WriteString(formatFlags(leaf.Flags, visibleHelp, visibleVersion, leaf.CompletionFlagVisible(len(cmdChain) == 1), visibleWhy))
+	builder.WriteString(formatFlags(leaf.Flags, visibleHelp, visibleVersion, leaf.CompletionFlagVisible(len(cmdChain) == 1), visibleWhy, cmdChain[0].WhyFormats()))
 
 	// 7.5 Features (root screen only)
 	// The automatic Features section renders the root command's feature
@@ -739,7 +739,7 @@ func appendBuiltinFallback(entries []tableEntry, shadowed bool, offered bool, en
 	return append(entries, entry)
 }
 
-func formatFlags(flags []*spec.Flag, hasHelpInfo bool, hasVersionInfo bool, hasCompletionInfo bool, hasWhyInfo bool) string {
+func formatFlags(flags []*spec.Flag, hasHelpInfo bool, hasVersionInfo bool, hasCompletionInfo bool, hasWhyInfo bool, whyFormats []string) string {
 	var (
 		completionEntries []tableEntry
 		helpEntries       []tableEntry
@@ -784,7 +784,7 @@ func formatFlags(flags []*spec.Flag, hasHelpInfo bool, hasVersionInfo bool, hasC
 		}
 	}
 
-	whyEntries = appendBuiltinFallback(whyEntries, hasWhy, hasWhyInfo, builderEntry(spec.BuiltinWhyFlag))
+	whyEntries = appendBuiltinFallback(whyEntries, hasWhy, hasWhyInfo, builtinWhyEntry(whyFormats))
 	completionEntries = appendBuiltinFallback(completionEntries, hasCompletion, hasCompletionInfo, tableEntry{
 		label: formatFlagLabel(spec.BuiltinCompletionFlag),
 		help:  spec.BuiltinCompletionFlag.Help,
@@ -814,6 +814,21 @@ func formatFlags(flags []*spec.Flag, hasHelpInfo bool, hasVersionInfo bool, hasC
 	last.entries = append(last.entries, builtinEntries...)
 
 	return renderSections(sections)
+}
+
+// builtinWhyEntry renders the built-in --why flag row. The optional value
+// slot and the format list are advertised only when more than the default
+// text format is accepted (app.EnableWhy(conga.WhyJSON())); otherwise --why
+// presents as a plain toggle and the text format stays implicit.
+func builtinWhyEntry(whyFormats []string) tableEntry {
+	if len(whyFormats) < 2 {
+		return builderEntry(spec.BuiltinWhyFlag)
+	}
+
+	return tableEntry{
+		label: formatFlagLabel(spec.BuiltinWhyFlag) + "[=FORMAT]",
+		help:  appendNonEmpty(spec.DefaultWhyFlagHelp, formatEnumHint(whyFormats)),
+	}
 }
 
 // builderEntry renders one flag's table row.

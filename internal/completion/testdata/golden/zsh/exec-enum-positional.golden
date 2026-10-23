@@ -10,7 +10,7 @@ Cflags--env-varsEnvironment key=value pairs--env-vars 
 Cflags--shardsShard counts, semicolon-separated--shards 
 Cflags--featuresComma-separated feature flags--features 
 Cflags--helpShow help for command--help 
-Cflags--whyShow resolved field values and where they came from (values redacted unless tagged safe); accepts text or json--why 
+Cflags--whyShow resolved field values and where they came from (values redacted unless tagged safe)--why 
 Cflags-vEnable verbose output-v 
 Cflags-pCloud profile-p 
 Cflags-eEnvironment key=value pairs-e 

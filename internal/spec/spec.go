@@ -76,6 +76,12 @@ type Command struct {
 	DisableHelp       bool
 	DisableVersion    bool
 	DisableWhy        bool
+	// WhyJSONEnabled reports whether the app enabled the machine-readable
+	// JSON output format for the built-in --why flag via
+	// app.EnableWhy(conga.WhyJSON()). The help renderer and completion engine
+	// use it to advertise the value slot only when more than the default text
+	// format is accepted.
+	WhyJSONEnabled bool
 	// Feature holds the feature-gate expression declared through the feature
 	// tag on a subcommand container field. Empty means the subcommand is not
 	// feature-gated.
@@ -162,6 +168,19 @@ func (c *Command) CompletionFlagVisible(isRoot bool) bool {
 // so --why handling stays consistent.
 func (c *Command) WhyFlagVisible() bool {
 	return !c.DisableWhy
+}
+
+// WhyFormats returns the output formats advertised for the built-in --why
+// flag: the default text format alone, or text and json when the app enabled
+// app.EnableWhy(conga.WhyJSON()). Help and completion read this list so the
+// advertised formats stay a single source of truth; parse-time value
+// validation remains with the app's why resolver.
+func (c *Command) WhyFormats() []string {
+	if c.WhyJSONEnabled {
+		return []string{WhyFormatText, WhyFormatJSON}
+	}
+
+	return []string{WhyFormatText}
 }
 
 // FindSubcommand returns the subcommand matching name or alias, or nil.
@@ -413,6 +432,10 @@ type Options struct {
 	DisableHelp    bool
 	DisableVersion bool
 	DisableWhy     bool
+	// WhyJSONEnabled advertises the machine-readable JSON output format for
+	// the built-in --why flag. It only affects help and completion
+	// presentation; value validation stays with the app's why resolver.
+	WhyJSONEnabled bool
 	// DisableCompletion excludes every completion entry point from the schema:
 	// no `completion` subcommand is mounted and no `--completion` flag is
 	// offered. A command struct that declares a completion command field while

@@ -1395,6 +1395,7 @@ func (a *App[T]) buildSpec() (*spec.Command, error) {
 		DisableHelp:               a.helpDisabled,
 		DisableVersion:            a.versionDisabled,
 		DisableWhy:                a.whyHooks == nil,
+		WhyJSONEnabled:            a.whyHooks != nil && a.whyHooks.jsonFormatter != nil,
 		DisableCompletion:         a.mountCompletion == nil,
 		CompletionShells:          a.completionShells,
 		InferPredictor:            a.inferPredictor,

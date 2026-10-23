@@ -1,0 +1,21 @@
+{
+  "items": [
+    {
+      "value": "--why=text",
+      "display": "text",
+      "tag": "values"
+    },
+    {
+      "value": "--why=json",
+      "display": "json",
+      "tag": "values"
+    }
+  ],
+  "directives": {
+    "error": false,
+    "keeporder": false,
+    "nofilecomp": true,
+    "nospace": false
+  },
+  "usage": "Show resolved field values and where they came from (values redacted unless tagged safe)"
+}

@@ -1798,6 +1798,50 @@ type whyLeafCLI struct {
 	Sub     conga.Command[whyLeafRunner] `summary:"Subcommand"`
 }
 
+// TestBuiltinWhy_HelpAdvertisesFormats pins the conditional --why help row:
+// the optional value slot and format list appear only when the app enabled
+// WhyJSON, mirroring the completion candidates.
+func TestBuiltinWhy_HelpAdvertisesFormats(t *testing.T) {
+	t.Parallel()
+
+	t.Run("text-only app renders a plain toggle", func(t *testing.T) {
+		t.Parallel()
+
+		var buffer bytes.Buffer
+
+		app := conga.New[whyCLI]().
+			Name("cloudctl").
+			EnableWhy().
+			Stdout(&buffer).
+			Args([]string{"--help"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Contains(t, buffer.String(), "    --why")
+		assert.NotContains(t, buffer.String(), "--why[=FORMAT]")
+		assert.NotContains(t, buffer.String(), "[enum: text")
+	})
+
+	t.Run("json app renders the value slot and format list", func(t *testing.T) {
+		t.Parallel()
+
+		var buffer bytes.Buffer
+
+		app := conga.New[whyCLI]().
+			Name("cloudctl").
+			EnableWhy(conga.WhyJSON()).
+			Stdout(&buffer).
+			Args([]string{"--help"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Contains(t, buffer.String(), "    --why[=FORMAT]")
+		assert.Contains(t, buffer.String(), "[enum: text, json]")
+	})
+}
+
 func TestBuiltinWhy_JSONFormat(t *testing.T) {
 	t.Parallel()
 

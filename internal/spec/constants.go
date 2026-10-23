@@ -17,7 +17,17 @@ const (
 	DefaultCompletionFlagHelp = "Generate shell completion script"
 
 	// DefaultWhyFlagHelp is the default description for the --why flag.
-	DefaultWhyFlagHelp = "Show resolved field values and where they came from (values redacted unless tagged safe); accepts text or json"
+	// Accepted output formats are advertised structurally — as a value slot
+	// and enum hint in help, and as completion candidates — only when the app
+	// enabled more than the default text format.
+	DefaultWhyFlagHelp = "Show resolved field values and where they came from (values redacted unless tagged safe)"
+
+	// WhyFormatText is the default --why output format.
+	WhyFormatText = "text"
+
+	// WhyFormatJSON is the machine-readable --why output format, available
+	// only when the app enabled app.EnableWhy(conga.WhyJSON()).
+	WhyFormatJSON = "json"
 
 	// VersionJSONFlagName is the engine-owned name of the opt-in version
 	// command's machine-readable output selector. Schema building synthesizes
