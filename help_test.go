@@ -10,6 +10,7 @@ import (
 
 	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/decoder/json"
+	"github.com/conga-sh/conga/decoder/yaml"
 	"github.com/conga-sh/conga/internal/help"
 	"github.com/conga-sh/conga/internal/spec"
 )
@@ -323,7 +324,7 @@ func TestHelpFormatting_ConfigFileDefaultHelp(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.Contains(t, buffer.String(), "--config-file=PATH")
-		assert.Contains(t, buffer.String(), "Path to config file")
+		assert.Contains(t, buffer.String(), "Path to config file [decoders: .json]")
 		assert.NotContains(t, buffer.String(), "config file(s)")
 		assert.NotContains(t, buffer.String(), "no configuration decoder registered")
 	})
@@ -342,7 +343,24 @@ func TestHelpFormatting_ConfigFileDefaultHelp(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.Contains(t, buffer.String(), "--config-file=PATH,...")
-		assert.Contains(t, buffer.String(), "Path to config file(s)")
+		assert.Contains(t, buffer.String(), "Path to config file(s) [decoders: .json]")
+	})
+
+	t.Run("multiple decoders sorted", func(t *testing.T) {
+		t.Parallel()
+
+		var buffer bytes.Buffer
+
+		app := conga.New[ConfigFileDefaultHelpCLI]().
+			RegisterDecoder(".yaml", yaml.Decode).
+			RegisterDecoder(".json", json.Decode).
+			Args([]string{"--help"}).
+			Stdout(&buffer)
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Contains(t, buffer.String(), "Path to config file [decoders: .json, .yaml]")
 	})
 
 	t.Run("single flag without decoder appends warning", func(t *testing.T) {

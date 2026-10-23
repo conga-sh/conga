@@ -1379,12 +1379,15 @@ func (a *App[T]) buildSpec() (*spec.Command, error) {
 		a.defaultPredictors(a)
 	}
 
+	decoderExtensions := a.configRegistry.Extensions()
+
 	opts := spec.Options{
 		AllowedTags:          a.allowedTags,
 		RegisteredPredictors: a.predictors,
 		TypePredictors:       a.collectTypePredictors(),
 		ClassifyContainer:    classifyContainer,
-		ConfigFilePatterns: slicex.Map(a.configRegistry.Extensions(), func(extension string) string {
+		ConfigDecoders:       decoderExtensions,
+		ConfigFilePatterns: slicex.Map(decoderExtensions, func(extension string) string {
 			return "*" + extension
 		}),
 		ConfigSettings:            a.configSettings,

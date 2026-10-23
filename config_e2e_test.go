@@ -445,6 +445,7 @@ func TestConfigFile_WithDecoderHelpOmitsWarning(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Contains(t, buffer.String(), "--config-file=PATH")
+	assert.Contains(t, buffer.String(), "Config file [decoders: .json]")
 	assert.NotContains(t, buffer.String(), "no configuration decoder registered")
 }
 

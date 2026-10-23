@@ -398,6 +398,10 @@ type Options struct {
 	RegisteredPredictors map[string]predict.Predictor
 	TypePredictors       map[reflect.Type]predict.Predictor
 	ConfigFilePatterns   []string
+	// ConfigDecoders lists the raw registered configuration decoder
+	// extensions (e.g. ".json", ".hcl") driving the positive decoder
+	// annotation on the config-file flag's help text.
+	ConfigDecoders []string
 	// ClassifyContainer maps a command-struct field address to its engine
 	// classification (container kind, required flag, command target). Nil
 	// leaves every field unclassified, so no field is treated as a container.
