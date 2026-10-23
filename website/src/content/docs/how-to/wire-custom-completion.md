@@ -53,7 +53,7 @@ func main() {
 }
 ```
 
-In strict tag validation mode (`app.StrictTagValidation(true)` or `conga-lint -strict`), referencing a predictor name that was not registered with `app.Predictor` produces an `ErrSchema` error during initialization.
+Referencing a predictor name that was not registered with `app.Predictor` produces an `ErrSchema` error during initialization.
 
 ## Provide candidate descriptions with predict.Item
 

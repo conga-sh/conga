@@ -394,13 +394,10 @@ type ConfigSettings struct {
 
 // Options configure schema reflection, validation, and predictors.
 type Options struct {
-	StrictTagValidation     bool
-	AllowUnknownTags        bool
-	AllowUnknownTagsRecurse bool
-	AllowedTags             []string
-	RegisteredPredictors    map[string]predict.Predictor
-	TypePredictors          map[reflect.Type]predict.Predictor
-	ConfigFilePatterns      []string
+	AllowedTags          []string
+	RegisteredPredictors map[string]predict.Predictor
+	TypePredictors       map[reflect.Type]predict.Predictor
+	ConfigFilePatterns   []string
 	// ClassifyContainer maps a command-struct field address to its engine
 	// classification (container kind, required flag, command target). Nil
 	// leaves every field unclassified, so no field is treated as a container.

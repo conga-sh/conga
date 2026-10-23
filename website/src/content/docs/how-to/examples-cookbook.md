@@ -63,7 +63,7 @@ go test ./_examples/...
 | 10 | [builtins-help-version](https://github.com/conga-sh/conga/tree/main/_examples/10-builtins-help-version) | Opt-in `HelpCommand`/`VersionCommand` subcommands, `version --json`, `Examples`/`HelpFooter` builders, and custom commands rendering through session helpers. |
 | 11 | [trailing-args-forwarding](https://github.com/conga-sh/conga/tree/main/_examples/11-trailing-args-forwarding) | `DashArgs` (`--` forwarding) versus `RawArgs` (bare forwarding). |
 | 12 | [lifecycle-hooks](https://github.com/conga-sh/conga/tree/main/_examples/12-lifecycle-hooks) | `PreRun -> Run -> PostRun -> Finally` sequence, error short-circuiting, and guaranteed teardown. |
-| 27 | [strict-tag-validation](https://github.com/conga-sh/conga/tree/main/_examples/27-strict-tag-validation) | `app.StrictTagValidation(false)` for schemas carrying foreign struct tags. |
+| 27 | [strict-tag-validation](https://github.com/conga-sh/conga/tree/main/_examples/27-strict-tag-validation) | `app.AllowTags(...)` for schemas carrying foreign struct tags. |
 | 29 | [feature-toggles](https://github.com/conga-sh/conga/tree/main/_examples/29-feature-toggles) | `conga.Features[T]` gating flags and whole subcommands through `feature:"..."` expressions, activated from the CLI, environment, or a config section. |
 
 ### Configuration

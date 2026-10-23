@@ -33,7 +33,6 @@ func orderedChain() {
 		Dotenv().
 		RegisterDecoder(".toml", nil).
 		ConfigOptions().
-		StrictTagValidation(false).
 		AllowTags("custom").
 		Predictor("names", predict.Values("alpha", "beta")).
 		RegisterType(func(raw string) (int, error) {

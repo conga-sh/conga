@@ -23,13 +23,12 @@ func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
 func main() {
 	app := conga.New[CLI]().
 		Name("strict-tags").
-		Description("Opting out of strict struct-tag linting for third-party tags").
-		// Strict tag linting is on by default and rejects unknown tag keys.
-		// The validate/db tags below belong to other libraries, so the whole
-		// schema opts out. Prefer AllowTags(...) or a per-field
-		// conga:"allow-unknown-tags" directive when only a few fields carry
-		// foreign tags.
-		StrictTagValidation(false)
+		Description("Registering third-party struct tags with app.AllowTags").
+		// Tag validation is always on and rejects unknown tag keys with an
+		// ErrSchema error. The db and validate keys below belong to other
+		// libraries, so the app registers them explicitly. Registered keys
+		// are matched exactly, so a misspelling still fails schema build.
+		AllowTags("db", "validate")
 
 	if err := app.Run(); err != nil {
 		app.Exit(err)

@@ -137,6 +137,10 @@ type CustomPredictorTypoCLI struct {
 	Branch mockFlag[string] `help:"Git branch" predictor:"brnaches"`
 }
 
+type CustomPredictorTieCLI struct {
+	Branch mockFlag[string] `help:"Git branch" predictor:"alpha-3"`
+}
+
 type CustomPredictorCloseToBuiltinCLI struct {
 	Image mockFlag[string] `help:"Image path" predictor:"fiel"`
 }
@@ -168,12 +172,12 @@ func TestStrictPredictorLinter_TypoDetection(t *testing.T) {
 
 		var cli TypoPredictorFlagCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
 		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct TypoPredictorFlagCLI field Image: schema error: invalid struct tag: unknown struct tag "predictro" (did you mean "predictor"?). Use conga:"allow-unknown-tags" or app.AllowTags("predictro") to permit external tags`, err.Error())
+		assert.Equal(t, `struct TypoPredictorFlagCLI field Image: schema error: invalid struct tag: unknown struct tag "predictro" (did you mean "predictor"?). Use app.AllowTags("predictro") to permit external tags`, err.Error())
 	})
 
 	t.Run("typo in flag pridictor tag suggests predictor", func(t *testing.T) {
@@ -181,12 +185,12 @@ func TestStrictPredictorLinter_TypoDetection(t *testing.T) {
 
 		var cli TypoPredictorAltFlagCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
 		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct TypoPredictorAltFlagCLI field Config: schema error: invalid struct tag: unknown struct tag "pridictor" (did you mean "predictor"?). Use conga:"allow-unknown-tags" or app.AllowTags("pridictor") to permit external tags`, err.Error())
+		assert.Equal(t, `struct TypoPredictorAltFlagCLI field Config: schema error: invalid struct tag: unknown struct tag "pridictor" (did you mean "predictor"?). Use app.AllowTags("pridictor") to permit external tags`, err.Error())
 	})
 
 	t.Run("typo in positional arg pedictor tag suggests predictor", func(t *testing.T) {
@@ -194,12 +198,12 @@ func TestStrictPredictorLinter_TypoDetection(t *testing.T) {
 
 		var cli TypoPredictorArgCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
 		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct TypoPredictorArgCLI field Target: schema error: invalid struct tag: unknown struct tag "pedictor" (did you mean "predictor"?). Use conga:"allow-unknown-tags" or app.AllowTags("pedictor") to permit external tags`, err.Error())
+		assert.Equal(t, `struct TypoPredictorArgCLI field Target: schema error: invalid struct tag: unknown struct tag "pedictor" (did you mean "predictor"?). Use app.AllowTags("pedictor") to permit external tags`, err.Error())
 	})
 
 	t.Run("empty predictor tag on flag errors", func(t *testing.T) {
@@ -207,7 +211,7 @@ func TestStrictPredictorLinter_TypoDetection(t *testing.T) {
 
 		var cli EmptyPredictorFlagCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
@@ -220,7 +224,7 @@ func TestStrictPredictorLinter_TypoDetection(t *testing.T) {
 
 		var cli WhitespacePredictorArgCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
@@ -237,7 +241,7 @@ func TestStrictPredictorLinter_ContextValidation(t *testing.T) {
 
 		var cli ContextPredictorBoolFlagCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
@@ -250,7 +254,7 @@ func TestStrictPredictorLinter_ContextValidation(t *testing.T) {
 
 		var cli ContextPredictorNegatableBoolCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
@@ -263,7 +267,7 @@ func TestStrictPredictorLinter_ContextValidation(t *testing.T) {
 
 		var cli ContextPredictorSubcommandCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
@@ -276,7 +280,7 @@ func TestStrictPredictorLinter_ContextValidation(t *testing.T) {
 
 		var cli ContextPredictorSentinelCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
@@ -289,7 +293,7 @@ func TestStrictPredictorLinter_ContextValidation(t *testing.T) {
 
 		var cli ContextPredictorDashArgsCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
@@ -302,7 +306,7 @@ func TestStrictPredictorLinter_ContextValidation(t *testing.T) {
 
 		var cli ContextPredictorRawArgsCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
@@ -315,7 +319,7 @@ func TestStrictPredictorLinter_ContextValidation(t *testing.T) {
 
 		var cli ContextPredictorConfigFileCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
@@ -332,7 +336,7 @@ func TestStrictPredictorLinter_BuiltinGrammar(t *testing.T) {
 
 		var cli ValidBuiltinFilesCLI
 
-		cmdSpec, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.NoError(t, err)
 		assert.Equal(t, 6, len(cmdSpec.Flags))
@@ -356,7 +360,7 @@ func TestStrictPredictorLinter_BuiltinGrammar(t *testing.T) {
 
 		var cli MalformedEmptyPatternFileCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
@@ -369,7 +373,7 @@ func TestStrictPredictorLinter_BuiltinGrammar(t *testing.T) {
 
 		var cli MalformedTrailingCommaFileCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
@@ -382,7 +386,7 @@ func TestStrictPredictorLinter_BuiltinGrammar(t *testing.T) {
 
 		var cli MalformedLeadingCommaFileCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
@@ -395,7 +399,7 @@ func TestStrictPredictorLinter_BuiltinGrammar(t *testing.T) {
 
 		var cli MalformedEmptyIntermediatePatternCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
@@ -408,7 +412,7 @@ func TestStrictPredictorLinter_BuiltinGrammar(t *testing.T) {
 
 		var cli MalformedDirWithPatternsCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
@@ -421,7 +425,7 @@ func TestStrictPredictorLinter_BuiltinGrammar(t *testing.T) {
 
 		var cli MalformedNoneWithParamsCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
@@ -434,7 +438,7 @@ func TestStrictPredictorLinter_BuiltinGrammar(t *testing.T) {
 
 		var cli MisspelledPrefixFilesWithColonCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
@@ -447,7 +451,7 @@ func TestStrictPredictorLinter_BuiltinGrammar(t *testing.T) {
 
 		var cli MisspelledPrefixFielsWithColonCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
@@ -460,7 +464,7 @@ func TestStrictPredictorLinter_BuiltinGrammar(t *testing.T) {
 
 		var cli MisspelledPrefixFlieWithColonCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
@@ -473,7 +477,7 @@ func TestStrictPredictorLinter_BuiltinGrammar(t *testing.T) {
 
 		var cli MisspelledStandaloneFilesCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
@@ -486,7 +490,7 @@ func TestStrictPredictorLinter_BuiltinGrammar(t *testing.T) {
 
 		var cli MisspelledStandaloneDirsCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
@@ -499,7 +503,7 @@ func TestStrictPredictorLinter_BuiltinGrammar(t *testing.T) {
 
 		var cli MisspelledStandaloneDirectoryCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
@@ -512,7 +516,7 @@ func TestStrictPredictorLinter_BuiltinGrammar(t *testing.T) {
 
 		var cli MisspelledStandaloneDirectoriesCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
@@ -526,7 +530,7 @@ func TestStrictPredictorLinter_TypeInference(t *testing.T) {
 
 	var cli TypeInferenceCLI
 
-	cmdSpec, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+	cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
 
 	assert.NoError(t, err)
 	assert.Equal(t, 3, len(cmdSpec.Flags))
@@ -584,7 +588,6 @@ func TestStrictPredictorLinter_UnregisteredPredictors(t *testing.T) {
 		var cli CustomPredictorCLI
 
 		cmdSpec, err := buildSchema(&cli, "app", spec.Options{
-			StrictTagValidation:  true,
 			RegisteredPredictors: map[string]predict.Predictor{"branches": predict.Values("main")},
 		})
 
@@ -600,7 +603,6 @@ func TestStrictPredictorLinter_UnregisteredPredictors(t *testing.T) {
 		var cli CustomPredictorTypoCLI
 
 		_, err := buildSchema(&cli, "app", spec.Options{
-			StrictTagValidation:  true,
 			RegisteredPredictors: map[string]predict.Predictor{"branches": predict.Values("main")},
 		})
 
@@ -610,12 +612,30 @@ func TestStrictPredictorLinter_UnregisteredPredictors(t *testing.T) {
 		assert.Equal(t, `struct CustomPredictorTypoCLI field Branch: schema error: invalid struct tag: unregistered predictor "brnaches" (did you mean "branches"?). Register it with app.Predictor("brnaches", action)`, err.Error())
 	})
 
+	t.Run("equidistant registered predictors suggest the lexicographically first", func(t *testing.T) {
+		t.Parallel()
+
+		var cli CustomPredictorTieCLI
+
+		_, err := buildSchema(&cli, "app", spec.Options{
+			RegisteredPredictors: map[string]predict.Predictor{
+				"alpha-1": predict.Values("first"),
+				"alpha-2": predict.Values("second"),
+			},
+		})
+
+		assert.Error(t, err)
+		assert.IsError(t, err, spec.ErrSchema)
+		assert.IsError(t, err, spec.ErrInvalidStructTag)
+		assert.Equal(t, `struct CustomPredictorTieCLI field Branch: schema error: invalid struct tag: unregistered predictor "alpha-3" (did you mean "alpha-1"?). Register it with app.Predictor("alpha-3", action)`, err.Error())
+	})
+
 	t.Run("unregistered custom predictor close to built-in errors suggesting built-in", func(t *testing.T) {
 		t.Parallel()
 
 		var cli CustomPredictorCloseToBuiltinCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
@@ -628,7 +648,7 @@ func TestStrictPredictorLinter_UnregisteredPredictors(t *testing.T) {
 
 		var cli CustomPredictorInvalidCharsCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)

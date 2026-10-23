@@ -409,7 +409,7 @@ func TestApp_ZeroValue_PredictorBeforeRun(t *testing.T) {
 	assert.True(t, slices.Contains(values, "red"))
 }
 
-func TestApp_ZeroValue_StrictTagValidationDefault(t *testing.T) {
+func TestApp_ZeroValue_UnknownTagRejected(t *testing.T) {
 	t.Parallel()
 
 	type ZeroValueUnknownTagCLI struct {
@@ -719,7 +719,7 @@ func TestApp_TagValidationBuilders(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, `struct UnknownTagCLI field Port: schema error: invalid struct tag: unknown struct tag "custom". Use conga:"allow-unknown-tags" or app.AllowTags("custom") to permit external tags`, err.Error())
+		assert.Equal(t, `struct UnknownTagCLI field Port: schema error: invalid struct tag: unknown struct tag "custom". Use app.AllowTags("custom") to permit external tags`, err.Error())
 	})
 
 	t.Run("AllowTags permits the registered custom tag", func(t *testing.T) {
@@ -742,24 +742,22 @@ func TestApp_TagValidationBuilders(t *testing.T) {
 		assert.Equal(t, 8080, cli.Port.Get())
 	})
 
-	t.Run("StrictTagValidation false disables unknown tag rejection", func(t *testing.T) {
+	t.Run("removed allow-unknown-tags directive rejected with exact message", func(t *testing.T) {
 		t.Parallel()
 
-		type LenientTagCLI struct {
+		type RemovedDirectiveCLI struct {
 			noopRunner
 
-			Port conga.OptionalFlag[int] `custom:"x" default:"8080"`
+			Port conga.OptionalFlag[int] `conga:"allow-unknown-tags" custom:"x" default:"8080"`
 		}
 
-		cli := new(LenientTagCLI)
-		app := conga.New(cli).
-			Args([]string{}).
-			StrictTagValidation(false)
+		app := conga.New[RemovedDirectiveCLI]().Args([]string{})
 
 		err := app.Run()
 
-		assert.NoError(t, err)
-		assert.Equal(t, 8080, cli.Port.Get())
+		assert.Error(t, err)
+		assert.IsError(t, err, conga.ErrSchema)
+		assert.Equal(t, `struct RemovedDirectiveCLI field Port: schema error: invalid struct tag: conga directive "allow-unknown-tags" was removed; register foreign tag keys with app.AllowTags(...) instead`, err.Error())
 	})
 }
 

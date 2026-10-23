@@ -99,6 +99,10 @@ type DirectiveRecurseCLI struct {
 	Parent mockCmd[ParentCmdWithRecurse] `conga:"allow-unknown-tags,recurse" summary:"Parent"`
 }
 
+type DirectiveRecurseOnlyCLI struct {
+	Subcommand mockCmd[SubcommandWithCustomTags] `conga:"recurse" summary:"Subcommand"`
+}
+
 type ParentCmdWithRecurse struct {
 	Child mockCmd[ChildCmdWithCustomTags] `summary:"Child"`
 }
@@ -140,12 +144,12 @@ func TestStrictTagLinter_TypoDetection(t *testing.T) {
 
 		var cli TypoTagFlagCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
 		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct TypoTagFlagCLI field Verbose: schema error: invalid struct tag: unknown struct tag "shrot" (did you mean "short"?). Use conga:"allow-unknown-tags" or app.AllowTags("shrot") to permit external tags`, err.Error())
+		assert.Equal(t, `struct TypoTagFlagCLI field Verbose: schema error: invalid struct tag: unknown struct tag "shrot" (did you mean "short"?). Use app.AllowTags("shrot") to permit external tags`, err.Error())
 	})
 
 	t.Run("typo in default tag suggests default", func(t *testing.T) {
@@ -153,12 +157,12 @@ func TestStrictTagLinter_TypoDetection(t *testing.T) {
 
 		var cli TypoTagDefaultCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
 		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct TypoTagDefaultCLI field Port: schema error: invalid struct tag: unknown struct tag "defualt" (did you mean "default"?). Use conga:"allow-unknown-tags" or app.AllowTags("defualt") to permit external tags`, err.Error()) //nolint:misspell // intentionally misspelled in expected test error
+		assert.Equal(t, `struct TypoTagDefaultCLI field Port: schema error: invalid struct tag: unknown struct tag "defualt" (did you mean "default"?). Use app.AllowTags("defualt") to permit external tags`, err.Error()) //nolint:misspell // intentionally misspelled in expected test error
 	})
 
 	t.Run("typo in help tag suggests help", func(t *testing.T) {
@@ -166,12 +170,12 @@ func TestStrictTagLinter_TypoDetection(t *testing.T) {
 
 		var cli TypoTagHelpCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
 		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct TypoTagHelpCLI field Debug: schema error: invalid struct tag: unknown struct tag "hlepp" (did you mean "help"?). Use conga:"allow-unknown-tags" or app.AllowTags("hlepp") to permit external tags`, err.Error())
+		assert.Equal(t, `struct TypoTagHelpCLI field Debug: schema error: invalid struct tag: unknown struct tag "hlepp" (did you mean "help"?). Use app.AllowTags("hlepp") to permit external tags`, err.Error())
 	})
 }
 
@@ -183,7 +187,7 @@ func TestStrictTagLinter_ContextValidation(t *testing.T) {
 
 		var cli ContextInvalidArgShortCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
@@ -196,7 +200,7 @@ func TestStrictTagLinter_ContextValidation(t *testing.T) {
 
 		var cli ContextInvalidCommandXorCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
@@ -209,7 +213,7 @@ func TestStrictTagLinter_ContextValidation(t *testing.T) {
 
 		var cli ContextInvalidNegatableNonBoolCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
@@ -222,7 +226,7 @@ func TestStrictTagLinter_ContextValidation(t *testing.T) {
 
 		var cli ContextInvalidDashArgsHelpCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
@@ -235,7 +239,7 @@ func TestStrictTagLinter_ContextValidation(t *testing.T) {
 
 		var cli ContextInvalidRawArgsHelpCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
@@ -248,12 +252,12 @@ func TestStrictTagLinter_ContextValidation(t *testing.T) {
 
 		var cli ObsoleteCounterTagCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
 		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct ObsoleteCounterTagCLI field Count: schema error: invalid struct tag: unknown struct tag "counter". Use conga:"allow-unknown-tags" or app.AllowTags("counter") to permit external tags`, err.Error())
+		assert.Equal(t, `struct ObsoleteCounterTagCLI field Count: schema error: invalid struct tag: unknown struct tag "counter". Use app.AllowTags("counter") to permit external tags`, err.Error())
 	})
 
 	t.Run("sep tag on config files is permitted", func(t *testing.T) {
@@ -261,7 +265,7 @@ func TestStrictTagLinter_ContextValidation(t *testing.T) {
 
 		var cli ConfigFilesWithSepCLI
 
-		cmdSpec, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(cmdSpec.Flags))
@@ -299,7 +303,7 @@ func TestStrictTagLinter_ContextValidation(t *testing.T) {
 
 		var cli SentinelInvalidTagCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
@@ -316,7 +320,7 @@ func TestStrictTagLinter_ForeignEcosystemTags(t *testing.T) {
 
 		var cli AllowedForeignTagsCLI
 
-		s, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		s, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(s.Flags))
@@ -332,61 +336,76 @@ func TestStrictTagLinter_CongaDirectives(t *testing.T) {
 
 		var cli DirectiveIgnoreCLI
 
-		s, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		s, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(s.Flags))
 		assert.Equal(t, "port", s.Flags[0].Name)
 	})
 
-	t.Run("conga allow-unknown-tags on field permits custom tags", func(t *testing.T) {
+	t.Run("conga allow-unknown-tags on field is rejected", func(t *testing.T) {
 		t.Parallel()
 
 		var cli DirectiveFieldAllowUnknownCLI
 
-		s, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
-		assert.NoError(t, err)
-		assert.Equal(t, 1, len(s.Flags))
-		assert.Equal(t, "metric", s.Flags[0].Name)
+		assert.Error(t, err)
+		assert.IsError(t, err, spec.ErrSchema)
+		assert.IsError(t, err, spec.ErrInvalidStructTag)
+		assert.Equal(t, `struct DirectiveFieldAllowUnknownCLI field Metric: schema error: invalid struct tag: conga directive "allow-unknown-tags" was removed; register foreign tag keys with app.AllowTags(...) instead`, err.Error())
 	})
 
-	t.Run("conga allow-unknown-tags on subcommand permits custom tags in child struct", func(t *testing.T) {
+	t.Run("conga allow-unknown-tags on subcommand field is rejected", func(t *testing.T) {
 		t.Parallel()
 
 		var cli DirectiveCommandAllowUnknownCLI
 
-		s, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
-		assert.NoError(t, err)
-		assert.Equal(t, 1, len(s.Subcommands))
-		assert.Equal(t, 1, len(s.Subcommands[0].Flags))
-		assert.Equal(t, "worker", s.Subcommands[0].Flags[0].Name)
+		assert.Error(t, err)
+		assert.IsError(t, err, spec.ErrSchema)
+		assert.IsError(t, err, spec.ErrInvalidStructTag)
+		assert.Equal(t, `struct DirectiveCommandAllowUnknownCLI field Subcommand: schema error: invalid struct tag: conga directive "allow-unknown-tags" was removed; register foreign tag keys with app.AllowTags(...) instead`, err.Error())
 	})
 
-	t.Run("conga allow-unknown-tags with recurse permits custom tags across hierarchy", func(t *testing.T) {
+	t.Run("conga allow-unknown-tags with recurse is rejected", func(t *testing.T) {
 		t.Parallel()
 
 		var cli DirectiveRecurseCLI
 
-		s, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
-		assert.NoError(t, err)
-		assert.Equal(t, 1, len(s.Subcommands))
-		assert.Equal(t, 1, len(s.Subcommands[0].Subcommands))
-		assert.Equal(t, "token", s.Subcommands[0].Subcommands[0].Flags[0].Name)
+		assert.Error(t, err)
+		assert.IsError(t, err, spec.ErrSchema)
+		assert.IsError(t, err, spec.ErrInvalidStructTag)
+		assert.Equal(t, `struct DirectiveRecurseCLI field Parent: schema error: invalid struct tag: conga directive "allow-unknown-tags" was removed; register foreign tag keys with app.AllowTags(...) instead`, err.Error())
 	})
 
-	t.Run("conga allow-unknown-tags on struct sentinel permits custom tags", func(t *testing.T) {
+	t.Run("conga recurse alone is rejected", func(t *testing.T) {
+		t.Parallel()
+
+		var cli DirectiveRecurseOnlyCLI
+
+		_, err := buildSchema(&cli, "app", spec.Options{})
+
+		assert.Error(t, err)
+		assert.IsError(t, err, spec.ErrSchema)
+		assert.IsError(t, err, spec.ErrInvalidStructTag)
+		assert.Equal(t, `struct DirectiveRecurseOnlyCLI field Subcommand: schema error: invalid struct tag: conga directive "recurse" was removed; register foreign tag keys with app.AllowTags(...) instead`, err.Error())
+	})
+
+	t.Run("conga allow-unknown-tags on struct sentinel is rejected", func(t *testing.T) {
 		t.Parallel()
 
 		var cli StructSentinelAllowUnknownCLI
 
-		s, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
-		assert.NoError(t, err)
-		assert.Equal(t, 1, len(s.Flags))
-		assert.Equal(t, "worker", s.Flags[0].Name)
+		assert.Error(t, err)
+		assert.IsError(t, err, spec.ErrSchema)
+		assert.IsError(t, err, spec.ErrInvalidStructTag)
+		assert.Equal(t, `struct StructSentinelAllowUnknownCLI field _: schema error: invalid struct tag: conga directive "allow-unknown-tags" was removed; register foreign tag keys with app.AllowTags(...) instead`, err.Error())
 	})
 
 	t.Run("legacy conga naming shorthand errors with directive guidance", func(t *testing.T) {
@@ -394,7 +413,7 @@ func TestStrictTagLinter_CongaDirectives(t *testing.T) {
 
 		var cli LegacyShorthandDirectiveCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
@@ -412,27 +431,12 @@ func TestStrictTagLinter_OptionsConfiguration(t *testing.T) {
 		var cli AppLevelCustomTagCLI
 
 		cmdSpec, err := buildSchema(&cli, "app", spec.Options{
-			StrictTagValidation: true,
-			AllowedTags:         []string{"datadog"},
+			AllowedTags: []string{"datadog"},
 		})
 
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(cmdSpec.Flags))
 		assert.Equal(t, "rate", cmdSpec.Flags[0].Name)
-	})
-
-	t.Run("StrictTagValidation false disables validation without panic", func(t *testing.T) {
-		t.Parallel()
-
-		var cli TypoTagFlagCLI
-
-		cmdSpec, err := buildSchema(&cli, "app", spec.Options{
-			StrictTagValidation: false,
-		})
-
-		assert.NoError(t, err)
-		assert.Equal(t, 1, len(cmdSpec.Flags))
-		assert.Equal(t, "verbose", cmdSpec.Flags[0].Name)
 	})
 }
 

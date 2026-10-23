@@ -105,7 +105,7 @@ func parsePredictorSpec(structTag reflect.StructTag, targetType reflect.Type, is
 		return inferPredictorSpec(targetType, tags, opts), nil
 	}
 
-	return validateExplicitPredictor(strings.TrimSpace(tagValue), isBool, opts.StrictTagValidation, slices.Collect(maps.Keys(opts.RegisteredPredictors)))
+	return validateExplicitPredictor(strings.TrimSpace(tagValue), isBool, slices.Sorted(maps.Keys(opts.RegisteredPredictors)), true)
 }
 
 // inferPredictorSpec resolves the predictor for a field without an explicit
@@ -125,9 +125,10 @@ func inferPredictorSpec(targetType reflect.Type, tags FieldTags, opts *Options) 
 }
 
 // validateExplicitPredictor validates the trimmed value of an explicit
-// predictor:"..." struct tag: built-in predictor vocabulary first, then —
-// under strict tag validation — registered custom predictor names.
-func validateExplicitPredictor(trimmedValue string, isBool bool, strict bool, registeredNames []string) (*PredictorSpec, error) {
+// predictor:"..." struct tag: built-in predictor vocabulary first, then
+// registered custom predictor names. A false checkCustomNames skips the
+// registration lookup while keeping every other check.
+func validateExplicitPredictor(trimmedValue string, isBool bool, registeredNames []string, checkCustomNames bool) (*PredictorSpec, error) {
 	if trimmedValue == "" {
 		return nil, fmt.Errorf("%w: predictor tag cannot be empty", ErrInvalidStructTag)
 	}
@@ -145,7 +146,7 @@ func validateExplicitPredictor(trimmedValue string, isBool bool, strict bool, re
 		return spec, nil
 	}
 
-	if !strict {
+	if !checkCustomNames {
 		return &PredictorSpec{Name: trimmedValue, Kind: PredictorKindCustom}, nil
 	}
 

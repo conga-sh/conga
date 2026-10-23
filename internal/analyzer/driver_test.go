@@ -25,23 +25,15 @@ func TestDriverDiagnostics(t *testing.T) {
 	}
 
 	testCases := []struct {
-		name              string
-		arguments         []string
-		wantExit          int
-		wantMessage       string
-		wantAbsentMessage string
+		name        string
+		arguments   []string
+		wantExit    int
+		wantMessage string
 	}{
 		{name: "invalid fixture reports diagnostics", arguments: []string{"./invalid"}, wantExit: 3, wantMessage: "does not implement conga.Runner"},
 		{name: "invalid fixture reports throwaway roots", arguments: []string{"./invalid"}, wantExit: 3, wantMessage: "conga.New root instance is not referenced outside the app"},
+		{name: "invalid fixture reports unknown tags by default", arguments: []string{"./invalid"}, wantExit: 3, wantMessage: "unknown struct tag"},
 		{name: "valid fixture is clean", arguments: []string{"./valid"}, wantExit: 0},
-		{name: "strict flag forces unknown-tag diagnostics", arguments: []string{"-strict", "./strictflag"}, wantExit: 3, wantMessage: "unknown struct tag"},
-		{
-			name:              "lenient default suppresses unknown-tag diagnostics",
-			arguments:         []string{"./strictflag"},
-			wantExit:          3,
-			wantMessage:       "does not implement conga.Runner",
-			wantAbsentMessage: "unknown struct tag",
-		},
 	}
 
 	for _, testCase := range testCases {
@@ -68,10 +60,6 @@ func TestDriverDiagnostics(t *testing.T) {
 
 			if testCase.wantMessage != "" && !strings.Contains(string(output), testCase.wantMessage) {
 				t.Fatalf("output missing %q:\n%s", testCase.wantMessage, output)
-			}
-
-			if testCase.wantAbsentMessage != "" && strings.Contains(string(output), testCase.wantAbsentMessage) {
-				t.Fatalf("output unexpectedly contains %q:\n%s", testCase.wantAbsentMessage, output)
 			}
 		})
 	}

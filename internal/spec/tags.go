@@ -33,9 +33,7 @@ const (
 
 // Directives holds the parsed directives of a conga:"..." struct tag.
 type Directives struct {
-	Ignore           bool
-	AllowUnknownTags bool
-	Recurse          bool
+	Ignore bool
 }
 
 // RangeDomain selects the native comparison domain of a text-grammar range
@@ -55,10 +53,8 @@ func ParseCongaDirectives(congaTag string) (Directives, error) {
 		switch directive {
 		case "-", "ignore":
 			directives.Ignore = true
-		case "allow-unknown-tags":
-			directives.AllowUnknownTags = true
-		case "recurse":
-			directives.Recurse = true
+		case "allow-unknown-tags", "recurse":
+			return Directives{}, fmt.Errorf("%w: conga directive %q was removed; register foreign tag keys with app.AllowTags(...) instead", ErrInvalidStructTag, directive)
 		default:
 			return Directives{}, fmt.Errorf("%w: unrecognized conga directive %q. Note: flag names and short flags must be declared using name:\"...\" and short:\"...\"", ErrInvalidStructTag, directive)
 		}

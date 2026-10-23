@@ -73,6 +73,14 @@ type FlagValueCLI struct {
 	Plain  mockFlag[string]   `help:"Plain string"`
 }
 
+// flagValueOptions registers FlagValueCLI's custom predictor so schema build
+// accepts the predictor:"custom-branches" tag.
+func flagValueOptions() spec.Options {
+	return spec.Options{
+		RegisteredPredictors: map[string]predict.Predictor{"custom-branches": predict.Values("main")},
+	}
+}
+
 type PositionalArgsCLI struct {
 	Environment mockArg[string]   `enum:"staging,production" help:"Target environment"`
 	Directory   mockArg[string]   `help:"Target directory"   predictor:"dir"`
@@ -416,7 +424,7 @@ func TestCompletion_FlagValues(t *testing.T) {
 
 		var cli FlagValueCLI
 
-		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+		cmdSpec, err := buildSchema(&cli, "app", flagValueOptions())
 		assert.NoError(t, err)
 
 		invoked := spec.Complete(cmdSpec, []string{"--format", ""}, spec.CompleteOptions{})
@@ -431,7 +439,7 @@ func TestCompletion_FlagValues(t *testing.T) {
 
 		var cli FlagValueCLI
 
-		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+		cmdSpec, err := buildSchema(&cli, "app", flagValueOptions())
 		assert.NoError(t, err)
 
 		invoked := spec.Complete(cmdSpec, []string{"--format=y"}, spec.CompleteOptions{})
@@ -445,7 +453,7 @@ func TestCompletion_FlagValues(t *testing.T) {
 
 		var cli FlagValueCLI
 
-		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+		cmdSpec, err := buildSchema(&cli, "app", flagValueOptions())
 		assert.NoError(t, err)
 
 		invoked := spec.Complete(cmdSpec, []string{"-f=j"}, spec.CompleteOptions{})
@@ -533,7 +541,7 @@ func TestCompletion_FlagValues(t *testing.T) {
 
 		var cli FlagValueCLI
 
-		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+		cmdSpec, err := buildSchema(&cli, "app", flagValueOptions())
 		assert.NoError(t, err)
 
 		invoked := spec.Complete(cmdSpec, []string{"--config", ""}, spec.CompleteOptions{Dir: tmpDir})
@@ -556,7 +564,7 @@ func TestCompletion_FlagValues(t *testing.T) {
 
 		var cli FlagValueCLI
 
-		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+		cmdSpec, err := buildSchema(&cli, "app", flagValueOptions())
 		assert.NoError(t, err)
 
 		invoked := spec.Complete(cmdSpec, []string{"--out-dir", ""}, spec.CompleteOptions{Dir: tmpDir})
@@ -574,7 +582,7 @@ func TestCompletion_FlagValues(t *testing.T) {
 
 		var cli FlagValueCLI
 
-		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+		cmdSpec, err := buildSchema(&cli, "app", flagValueOptions())
 		assert.NoError(t, err)
 
 		invoked := spec.Complete(cmdSpec, []string{"--quiet", ""}, spec.CompleteOptions{})
@@ -588,7 +596,7 @@ func TestCompletion_FlagValues(t *testing.T) {
 
 		var cli FlagValueCLI
 
-		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+		cmdSpec, err := buildSchema(&cli, "app", flagValueOptions())
 		assert.NoError(t, err)
 
 		invoked := spec.Complete(cmdSpec, []string{"--plain", ""}, spec.CompleteOptions{})
@@ -625,7 +633,7 @@ func TestCompletion_FlagValues(t *testing.T) {
 
 		var cli FlagValueCLI
 
-		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+		cmdSpec, err := buildSchema(&cli, "app", flagValueOptions())
 		assert.NoError(t, err)
 
 		invoked := spec.Complete(cmdSpec, []string{"--tags", "api,"}, spec.CompleteOptions{})
@@ -641,7 +649,7 @@ func TestCompletion_FlagValues(t *testing.T) {
 
 		var cli FlagValueCLI
 
-		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+		cmdSpec, err := buildSchema(&cli, "app", flagValueOptions())
 		assert.NoError(t, err)
 
 		invoked := spec.Complete(cmdSpec, []string{"--tags", "api", "--tags", ""}, spec.CompleteOptions{})

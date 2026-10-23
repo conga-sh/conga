@@ -169,7 +169,7 @@ func TestBuildSchema(t *testing.T) {
 
 		var cli SchemaTestCLI
 
-		cmdSpec, err := buildSchema(&cli, "myapp", spec.Options{StrictTagValidation: true})
+		cmdSpec, err := buildSchema(&cli, "myapp", spec.Options{})
 
 		assert.NoError(t, err)
 		assert.Equal(t, "myapp", cmdSpec.Name)
@@ -865,7 +865,7 @@ func TestEnvPrefix_SubcommandAndBuiltin(t *testing.T) {
 
 		var cli RootCLI
 
-		cmd, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		cmd, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.NoError(t, err)
 		assert.Equal(t, "ROOT_", cmd.EnvPrefix)
@@ -882,7 +882,7 @@ func TestEnvPrefix_SubcommandAndBuiltin(t *testing.T) {
 
 		var cli RootCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrInvalidStructTag)
@@ -898,7 +898,7 @@ func TestEnvPrefix_SubcommandAndBuiltin(t *testing.T) {
 
 		var cli RootCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrInvalidStructTag)

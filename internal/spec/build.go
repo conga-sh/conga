@@ -141,12 +141,7 @@ type schemaBuilder struct {
 func newSchemaBuilder(target any, defaultName string, structValue reflect.Value, isRoot bool, opts Options) (*schemaBuilder, error) {
 	structType := structValue.Type()
 
-	tagEnvPrefix, err := scanSentinelDirectives(structType, &opts)
-	if err != nil {
-		return nil, err
-	}
-
-	envPrefix := cmp.Or(tagEnvPrefix, opts.EnvPrefix)
+	envPrefix := cmp.Or(scanSentinelEnvPrefix(structType), opts.EnvPrefix)
 	if envPrefix != "" && !strings.HasSuffix(envPrefix, "_") {
 		envPrefix += "_"
 	}
@@ -193,11 +188,9 @@ func newSchemaBuilder(target any, defaultName string, structValue reflect.Value,
 
 func (b *schemaBuilder) validateFieldTags(structField reflect.StructField, role string, candidates []string) (Directives, error) {
 	return ValidateFieldTags(structField.Tag, role, candidates, ValidationOptions{
-		StrictTagValidation: b.opts.StrictTagValidation,
-		AllowUnknownTags:    b.opts.AllowUnknownTags,
-		AllowedTags:         b.opts.AllowedTags,
-		EnvPrefix:           b.opts.EnvPrefix,
-		EnvPrefixKnown:      true,
+		AllowedTags:    b.opts.AllowedTags,
+		EnvPrefix:      b.opts.EnvPrefix,
+		EnvPrefixKnown: true,
 	})
 }
 
@@ -216,7 +209,7 @@ func (b *schemaBuilder) checkDuplicateSubcommand(name, fieldName string, isAlias
 	return nil
 }
 
-func (b *schemaBuilder) processSubcommand(structField reflect.StructField, commandHandle any, target any, dirs Directives) error {
+func (b *schemaBuilder) processSubcommand(structField reflect.StructField, commandHandle any, target any) error {
 	subName := cmp.Or(structField.Tag.Get("name"), casing.Kebab(structField.Name))
 
 	if err := b.checkDuplicateSubcommand(subName, structField.Name, false); err != nil {
@@ -240,14 +233,6 @@ func (b *schemaBuilder) processSubcommand(structField reflect.StructField, comma
 	}
 
 	subOpts := b.opts
-	if dirs.AllowUnknownTags {
-		subOpts.AllowUnknownTags = true
-		if dirs.Recurse {
-			subOpts.AllowUnknownTagsRecurse = true
-		}
-	} else if !b.opts.AllowUnknownTagsRecurse {
-		subOpts.AllowUnknownTags = false
-	}
 
 	if subEnvPrefix := structField.Tag.Get("envprefix"); subEnvPrefix != "" {
 		if !strings.HasSuffix(subEnvPrefix, "_") {
@@ -672,7 +657,7 @@ func (b *schemaBuilder) processCommandField(structField reflect.StructField, com
 		return nil
 	}
 
-	return b.processSubcommand(structField, commandHandle, classification.Target, dirs)
+	return b.processSubcommand(structField, commandHandle, classification.Target)
 }
 
 // processDashArgsField validates and stores the '--' trailing-arguments
@@ -1162,16 +1147,16 @@ func validateTagCandidates(keys []string, role string, candidates []string, allo
 
 		suggestion := findClosestTagSuggestion(key, candidates)
 		if suggestion != "" {
-			return fmt.Errorf("%w: unknown struct tag %q (did you mean %q?). Use conga:\"allow-unknown-tags\" or app.AllowTags(%q) to permit external tags", ErrInvalidStructTag, key, suggestion, key)
+			return fmt.Errorf("%w: unknown struct tag %q (did you mean %q?). Use app.AllowTags(%q) to permit external tags", ErrInvalidStructTag, key, suggestion, key)
 		}
 
-		return fmt.Errorf("%w: unknown struct tag %q. Use conga:\"allow-unknown-tags\" or app.AllowTags(%q) to permit external tags", ErrInvalidStructTag, key, key)
+		return fmt.Errorf("%w: unknown struct tag %q. Use app.AllowTags(%q) to permit external tags", ErrInvalidStructTag, key, key)
 	}
 
 	return nil
 }
 
-func scanSentinelDirectives(structType reflect.Type, opts *Options) (string, error) {
+func scanSentinelEnvPrefix(structType reflect.Type) string {
 	var envPrefix string
 
 	for structField := range structType.Fields() {
@@ -1180,21 +1165,7 @@ func scanSentinelDirectives(structType reflect.Type, opts *Options) (string, err
 				envPrefix = prefix
 			}
 		}
-
-		if congaTag, ok := structField.Tag.Lookup("conga"); ok {
-			dirs, err := ParseCongaDirectives(congaTag)
-			if err != nil {
-				return "", fmt.Errorf("struct %s field %s: %w", structType.Name(), structField.Name, err)
-			}
-
-			if dirs.AllowUnknownTags {
-				opts.AllowUnknownTags = true
-				if dirs.Recurse {
-					opts.AllowUnknownTagsRecurse = true
-				}
-			}
-		}
 	}
 
-	return envPrefix, nil
+	return envPrefix
 }

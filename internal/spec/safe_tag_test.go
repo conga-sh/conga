@@ -71,7 +71,7 @@ func TestSafeTag_LintAcceptance(t *testing.T) {
 
 		var cli SafeFlagCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.NoError(t, err)
 	})
@@ -81,7 +81,7 @@ func TestSafeTag_LintAcceptance(t *testing.T) {
 
 		var cli SafeConfigFileCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
@@ -94,7 +94,7 @@ func TestSafeTag_LintAcceptance(t *testing.T) {
 
 		var cli SafeOnArgCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
@@ -113,7 +113,7 @@ func TestSafeTag_StrictBoolMatrix_Flag(t *testing.T) {
 
 		var cli SafeFlagCLI
 
-		cmdSpec, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.NoError(t, err)
 		assert.True(t, cmdSpec.Flags[0].Safe)
@@ -124,7 +124,7 @@ func TestSafeTag_StrictBoolMatrix_Flag(t *testing.T) {
 
 		var cli SafePresentFlagCLI
 
-		cmdSpec, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.NoError(t, err)
 		assert.True(t, cmdSpec.Flags[0].Safe)
@@ -135,7 +135,7 @@ func TestSafeTag_StrictBoolMatrix_Flag(t *testing.T) {
 
 		var cli SafeFalseFlagCLI
 
-		cmdSpec, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.NoError(t, err)
 		assert.False(t, cmdSpec.Flags[0].Safe)
@@ -146,7 +146,7 @@ func TestSafeTag_StrictBoolMatrix_Flag(t *testing.T) {
 
 		var cli SafeTypoFlagCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
@@ -166,7 +166,7 @@ func TestSafeTag_RejectedOnConfigFile(t *testing.T) {
 
 		var cli SafeConfigFileCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
@@ -179,7 +179,7 @@ func TestSafeTag_RejectedOnConfigFile(t *testing.T) {
 
 		var cli SafeTypoConfigFileCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
@@ -196,7 +196,7 @@ func TestSafeTag_AbsentDefaultsFalse(t *testing.T) {
 		Token mockFlag[string] `help:"API token"`
 	}
 
-	cmdSpec, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+	cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
 
 	assert.NoError(t, err)
 	assert.False(t, cmdSpec.Flags[0].Safe)
@@ -214,7 +214,7 @@ func TestSafeTag_BoolAndCounterDefaultVisible(t *testing.T) {
 
 		var cli SafeAbsentBoolCLI
 
-		cmdSpec, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.NoError(t, err)
 		assert.True(t, cmdSpec.Flags[0].Safe)
@@ -225,7 +225,7 @@ func TestSafeTag_BoolAndCounterDefaultVisible(t *testing.T) {
 
 		var cli SafeAbsentCounterCLI
 
-		cmdSpec, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.NoError(t, err)
 		assert.True(t, cmdSpec.Flags[0].Safe)
@@ -243,7 +243,7 @@ func TestSafeTag_ExplicitOverrideWins(t *testing.T) {
 
 		var cli SafeFalseBoolCLI
 
-		cmdSpec, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.NoError(t, err)
 		assert.False(t, cmdSpec.Flags[0].Safe)
@@ -254,7 +254,7 @@ func TestSafeTag_ExplicitOverrideWins(t *testing.T) {
 
 		var cli SafeFalseCounterCLI
 
-		cmdSpec, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.NoError(t, err)
 		assert.False(t, cmdSpec.Flags[0].Safe)
@@ -272,7 +272,7 @@ func TestSafeTag_SliceAndMapOfBoolStayExplicit(t *testing.T) {
 
 		var cli SafeAbsentBoolSliceCLI
 
-		cmdSpec, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.NoError(t, err)
 		assert.False(t, cmdSpec.Flags[0].Safe)
@@ -283,7 +283,7 @@ func TestSafeTag_SliceAndMapOfBoolStayExplicit(t *testing.T) {
 
 		var cli SafeAbsentBoolMapCLI
 
-		cmdSpec, err := buildSchema(&cli, "app", spec.Options{StrictTagValidation: true})
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.NoError(t, err)
 		assert.False(t, cmdSpec.Flags[0].Safe)

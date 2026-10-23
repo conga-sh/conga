@@ -29,17 +29,15 @@ The analyzer delegates to the exported validators in `internal/spec`, so static 
 
 Hierarchies are discovered exclusively from `conga.New` constructor sites (both `conga.New[T]()` and `conga.New(root)`) and then walked through the root type's `Command[T]` fields. Settings are reconstructed from literal builder arguments:
 
-- `app.StrictTagValidation(true)` / `app.StrictTagValidation(false)`
 - `app.AllowTags("...", ...)`
 - `app.Predictor("name", ...)`
 
-Non-literal or computed arguments degrade conservatively to the runtime defaults. `./...` skips directories with leading underscores (such as `_examples/`); pass directory paths or globs explicitly to lint them.
+Non-literal or computed arguments degrade conservatively: the analyzer suppresses the affected diagnostic rather than inventing one. `./...` skips directories with leading underscores (such as `_examples/`); pass directory paths or globs explicitly to lint them.
 
 ## Flags
 
 | Flag | Effect |
 |------|--------|
-| `-strict` | Force strict tag validation for every scanned package, regardless of detected builder calls. |
 | `-builder-order` | Check builder invocations against the canonical order: identity and documentation first, `Enable*`/`Disable*` toggles alphabetically, behavior configuration grouped, execution methods last. |
 | `-builder-order-spec` | Override the order with comma- or newline-separated method names, or `@path` to read one per line. |
 | `-fix` | Apply builder-order fixes in place; barrier calls such as `Use(...)` and other unsafe swaps are never moved. |

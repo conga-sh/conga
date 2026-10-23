@@ -65,14 +65,12 @@ type anchor struct {
 	call *ast.CallExpr
 }
 
-// appOptions holds the statically detected builder options that gate strict
-// tag validation: app.StrictTagValidation, app.AllowTags, and app.Predictor
-// registrations. Non-literal arguments leave the evidence ambiguous; every
-// consumer then falls back to the conservative runtime default (validation
-// off), so the analyzer can only ever miss diagnostics, never invent them.
+// appOptions holds the statically detected builder options that affect tag
+// validation: app.AllowTags and app.Predictor registrations. Non-literal
+// arguments leave the evidence ambiguous; every consumer then falls back to
+// the conservative default (checks suppressed), so the analyzer can only ever
+// miss diagnostics, never invent them.
 type appOptions struct {
-	strictMode               bool
-	strictAmbiguous          bool
 	allowedTags              []string
 	allowedTagsAmbiguous     bool
 	registeredNames          []string
@@ -109,12 +107,6 @@ func (o *appOptions) absorbCall(pass *analysis.Pass, node ast.Node) {
 	}
 
 	switch method.Name() {
-	case "StrictTagValidation":
-		if value, known := boolLiteralValue(pass, call.Args[0]); known {
-			o.strictMode = o.strictMode || value
-		} else {
-			o.strictAmbiguous = true
-		}
 	case "AllowTags":
 		o.absorbAllowTagsCall(pass, call)
 	case "Predictor":
@@ -203,32 +195,14 @@ func (o *appOptions) absorbConfigCall(pass *analysis.Pass, call *ast.CallExpr) {
 	}
 }
 
-func (o *appOptions) forceStrict() {
-	o.strictMode = true
-	o.strictAmbiguous = false
-}
-
 // validationOptionsFor renders the detected options for a command node,
-// folding in the conga directive state threaded through the hierarchy.
+// including the environment prefix threaded through the hierarchy.
 func (o *appOptions) validationOptionsFor(node *commandNode) spec.ValidationOptions {
-	options := o.strictValidationOptions()
-	options.AllowUnknownTags = options.AllowUnknownTags || node.allowUnknown
-	options.EnvPrefix = node.envPrefix
-	options.EnvPrefixKnown = !o.envPrefixAmbiguous
-
-	return options
-}
-
-// strictValidationOptions renders the detected options as spec validation
-// options for the facade. Ambiguous evidence degrades to the conservative
-// runtime default: unknown-tag checks suppressed entirely.
-func (o *appOptions) strictValidationOptions() spec.ValidationOptions {
-	usable := !o.strictAmbiguous && !o.allowedTagsAmbiguous
-
 	return spec.ValidationOptions{
-		StrictTagValidation: usable && o.strictMode,
-		AllowUnknownTags:    !usable,
-		AllowedTags:         o.allowedTags,
+		AllowedTags:            o.allowedTags,
+		SkipUnknownTagKeyCheck: o.allowedTagsAmbiguous,
+		EnvPrefix:              node.envPrefix,
+		EnvPrefixKnown:         !o.envPrefixAmbiguous,
 	}
 }
 
@@ -262,7 +236,6 @@ func configOptionName(pass *analysis.Pass, argument ast.Expr) string {
 // newAnalyzerFlags builds the flag set the conga-lint binary accepts.
 func newAnalyzerFlags() flag.FlagSet {
 	flags := flag.FlagSet{}
-	flags.Bool("strict", false, "force strict tag validation regardless of detected app.StrictTagValidation calls")
 	flags.Bool("builder-order", false, "check that builder calls at conga.New construction sites follow the canonical method order")
 	flags.Var(&builderOrderSpec{}, "builder-order-spec", "canonical builder call order: comma- or newline-separated App method names, or @path to read one per line (defaults to the built-in order)")
 
@@ -294,9 +267,6 @@ func run(pass *analysis.Pass) (any, error) {
 	}
 
 	options := collectAppOptions(pass)
-	if isFlagEnabled(pass, "strict") {
-		options.forceStrict()
-	}
 
 	walker := newWalker(pass, congaTypes, options, detectCompletionState(pass, anchors), detectFeatureState(pass, anchors), loaderState, len(anchors) == 1)
 	for _, anchor := range anchors {
@@ -485,19 +455,6 @@ func isCongaAppMethod(method *types.Func) bool {
 	}
 
 	return named.Obj().Pkg().Path() == congaPackagePath && named.Obj().Name() == "App"
-}
-
-func boolLiteralValue(pass *analysis.Pass, expression ast.Expr) (bool, bool) {
-	identifier, ok := expression.(*ast.Ident)
-	if !ok || (identifier.Name != "true" && identifier.Name != "false") {
-		return false, false
-	}
-
-	if object := pass.TypesInfo.Uses[identifier]; object != types.Universe.Lookup(identifier.Name) {
-		return false, false
-	}
-
-	return identifier.Name == "true", true
 }
 
 func stringLiteralValue(pass *analysis.Pass, expression ast.Expr) (string, bool) {

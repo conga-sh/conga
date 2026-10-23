@@ -92,9 +92,7 @@ func (w *walker) checkSubcommandField(node *commandNode, fieldObject types.Objec
 	w.reportFieldError(node, fieldObject, summaryTagError(tag))
 	w.checkFeatureExpression(node, fieldObject, tag)
 
-	childAllowUnknown, childAllowRecurse := threadDirectiveOptions(node, parseNodeDirectives(tag))
-
-	return w.buildChildNode(node, fieldObject, tag, childAllowUnknown, childAllowRecurse)
+	return w.buildChildNode(node, fieldObject, tag)
 }
 
 // checkFeatureExpression mirrors the runtime feature-tag handling: a declared
@@ -416,7 +414,7 @@ func (w *walker) checkFlagField(node *commandNode, fieldObject types.Object, tag
 		}
 	}
 
-	w.reportFieldError(node, fieldObject, spec.ValidatePredictorTag(tag, isBasicKind(targetType, types.Bool), w.predictorOptions(), w.options.registeredNames))
+	w.reportFieldError(node, fieldObject, spec.ValidatePredictorTag(tag, isBasicKind(targetType, types.Bool), w.options.registeredNames, !w.options.registeredNamesAmbiguous))
 	w.checkBootstrapField(node, fieldObject, tag, targetType)
 	w.checkValidationSpecs(node, fieldObject, tag, targetType, tagSpecs)
 
@@ -441,7 +439,7 @@ func (w *walker) checkArgField(node *commandNode, fieldObject types.Object, tag 
 		return
 	}
 
-	w.reportFieldError(node, fieldObject, spec.ValidatePredictorTag(tag, false, w.predictorOptions(), w.options.registeredNames))
+	w.reportFieldError(node, fieldObject, spec.ValidatePredictorTag(tag, false, w.options.registeredNames, !w.options.registeredNamesAmbiguous))
 	w.checkBootstrapField(node, fieldObject, tag, targetType)
 	w.checkValidationSpecs(node, fieldObject, tag, targetType, tagSpecs)
 
@@ -591,15 +589,6 @@ func (w *walker) containerInnerType(fieldType types.Type) types.Type {
 	}
 
 	return containerType
-}
-
-func (w *walker) predictorOptions() spec.ValidationOptions {
-	options := w.options.strictValidationOptions()
-	if w.options.registeredNamesAmbiguous {
-		options.StrictTagValidation = false
-	}
-
-	return options
 }
 
 // isStaticBootstrapType mirrors spec.isBootstrapType over go/types.
@@ -807,51 +796,4 @@ func flagShortRune(tag reflect.StructTag) rune {
 	}
 
 	return 0
-}
-
-func parseNodeDirectives(tag reflect.StructTag) spec.Directives {
-	dirs, err := spec.ParseCongaDirectives(tag.Get("conga"))
-	if err != nil {
-		return spec.Directives{}
-	}
-
-	return dirs
-}
-
-// threadDirectiveOptions mirrors the runtime subcommand option threading:
-// a conga:"allow-unknown-tags" directive on the subcommand field enables
-// unknown tags for the child, recurse extends it to the whole subtree, and
-// otherwise the inherited state resets unless a parent recursion is active.
-func threadDirectiveOptions(node *commandNode, dirs spec.Directives) (bool, bool) {
-	if dirs.AllowUnknownTags {
-		return true, dirs.Recurse
-	}
-
-	if !node.allowRecurse {
-		return false, false
-	}
-
-	return node.allowUnknown, node.allowRecurse
-}
-
-// rootDirectiveOptions mirrors the runtime scanSentinelDirectives: a
-// conga:"allow-unknown-tags" directive on any root field enables unknown
-// tags for the whole root struct, with recurse extending it downward.
-func rootDirectiveOptions(structType *types.Struct) (bool, bool) {
-	var (
-		allowUnknown bool
-		allowRecurse bool
-	)
-
-	for index := range structType.NumFields() {
-		dirs, err := spec.ParseCongaDirectives(reflect.StructTag(structType.Tag(index)).Get("conga"))
-		if err != nil || !dirs.AllowUnknownTags {
-			continue
-		}
-
-		allowUnknown = true
-		allowRecurse = allowRecurse || dirs.Recurse
-	}
-
-	return allowUnknown, allowRecurse
 }

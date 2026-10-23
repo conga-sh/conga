@@ -8,18 +8,17 @@ import (
 
 // ValidationOptions carries the schema-build options that affect struct tag
 // validation. A static analyzer reconstructs them from the app builder chain
-// (app.StrictTagValidation, app.AllowTags) instead of runtime reflection.
+// (app.AllowTags) instead of runtime reflection.
 type ValidationOptions struct {
-	// StrictTagValidation enables unknown struct tag key checks.
-	StrictTagValidation bool
-
-	// AllowUnknownTags disables unknown struct tag key checks entirely
-	// (conga:"allow-unknown-tags" directive equivalent).
-	AllowUnknownTags bool
-
-	// AllowedTags lists additional struct tag keys accepted under strict
-	// tag validation (app.AllowTags equivalent).
+	// AllowedTags lists additional struct tag keys accepted by tag
+	// validation (app.AllowTags equivalent).
 	AllowedTags []string
+
+	// SkipUnknownTagKeyCheck suppresses unknown struct tag key checks. The
+	// static analyzer sets it when app.AllowTags evidence is ambiguous, so it
+	// may only miss diagnostics, never invent them; the runtime schema builder
+	// never sets it.
+	SkipUnknownTagKeyCheck bool
 
 	// EnvPrefix is the effective environment variable prefix of the command
 	// declaring the field, used to decide whether {{env}} is available in a help
@@ -35,9 +34,8 @@ type ValidationOptions struct {
 // ValidateFieldTags validates the struct tags of a single schema field:
 // tag syntax, conga directives, disallowed tags, {{...}} help-variable
 // references for the flag, positional-argument, and config-file-flag roles,
-// and — under strict tag validation — tag-key candidate membership for the
-// field's role. It returns the parsed conga directives so callers can honor
-// conga:"ignore" and allow-unknown-tags propagation.
+// and tag-key candidate membership for the field's role. It returns the parsed
+// conga directives so callers can honor conga:"ignore".
 func ValidateFieldTags(tag reflect.StructTag, role string, candidates []string, opts ValidationOptions) (Directives, error) {
 	keys, err := parseStructTagKeys(tag)
 	if err != nil {
@@ -65,12 +63,10 @@ func ValidateFieldTags(tag reflect.StructTag, role string, candidates []string, 
 		return Directives{}, err
 	}
 
-	if !opts.StrictTagValidation || opts.AllowUnknownTags || dirs.AllowUnknownTags {
-		return dirs, nil
-	}
-
-	if err := validateTagCandidates(keys, role, candidates, opts.AllowedTags); err != nil {
-		return Directives{}, err
+	if !opts.SkipUnknownTagKeyCheck {
+		if err := validateTagCandidates(keys, role, candidates, opts.AllowedTags); err != nil {
+			return Directives{}, err
+		}
 	}
 
 	return dirs, nil
@@ -314,15 +310,18 @@ func FeatureTagRequiresEnableError() error {
 }
 
 // ValidatePredictorTag validates an explicit predictor:"..." struct tag
-// without runtime predictor inference: built-in predictor vocabulary is
-// always checked; custom predictor names only under strict tag validation.
-func ValidatePredictorTag(tag reflect.StructTag, isBool bool, opts ValidationOptions, registeredNames []string) error {
+// without runtime predictor inference: built-in predictor vocabulary is always
+// checked; custom predictor names must be registered unless checkCustomNames is
+// false. The static analyzer passes false when app.Predictor evidence is
+// ambiguous, so it may only miss diagnostics, never invent them; the runtime
+// schema builder always checks custom names.
+func ValidatePredictorTag(tag reflect.StructTag, isBool bool, registeredNames []string, checkCustomNames bool) error {
 	tagValue, hasPred := tag.Lookup("predictor")
 	if !hasPred {
 		return nil
 	}
 
-	_, err := validateExplicitPredictor(strings.TrimSpace(tagValue), isBool, opts.StrictTagValidation, registeredNames)
+	_, err := validateExplicitPredictor(strings.TrimSpace(tagValue), isBool, registeredNames, checkCustomNames)
 
 	return err
 }
@@ -402,8 +401,7 @@ func validateEnumHintTag(tag reflect.StructTag, role string) error {
 // configuration settings travel as a typed ConfigSettings struct on the root
 // command, never as struct tags, but a source-declared "~"-prefixed tag
 // could collide with the reserved vocabulary, so it is rejected
-// unconditionally — allow-unknown-tags escape hatches never widen the
-// reserved namespace.
+// unconditionally — app.AllowTags never widens the reserved namespace.
 func validateReservedPseudoTagKeys(keys []string) error {
 	for _, key := range keys {
 		if strings.HasPrefix(key, "~") {

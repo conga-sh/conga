@@ -62,15 +62,6 @@ func TestCLI_ViolationExitsThree(t *testing.T) {
 	assert.Contains(t, stderr, "does not implement conga.Runner")
 }
 
-func TestCLI_StrictFlagExitsThree(t *testing.T) {
-	t.Parallel()
-
-	exitCode, stderr := runCLI(t, "-strict", "./strictflag")
-
-	assert.Equal(t, 3, exitCode)
-	assert.Contains(t, stderr, "unknown struct tag")
-}
-
 func TestCLI_UnknownFlagExitsTwo(t *testing.T) {
 	t.Parallel()
 
@@ -107,7 +98,7 @@ func runCLI(t *testing.T, arguments ...string) (int, string) {
 }
 
 // fixtureDirectory resolves the nested analyzer fixture module directory that
-// supplies the valid, invalid, and strictflag packages exercised above.
+// supplies the valid and invalid packages exercised above.
 func fixtureDirectory(t *testing.T) string {
 	t.Helper()
 
