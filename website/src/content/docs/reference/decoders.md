@@ -31,7 +31,7 @@ app.RegisterDecoder("yaml", yaml.Decode)
 
 ## Missing decoders
 
-A named configuration target (an explicit `--config-file`, an environment variable, or `conga.ConfigExplicit(...)`) requires a registered decoder for its file extension. Resolving a target without a matching decoder returns a fatal `ErrConfig` error identifying the missing decoder or unsupported format. The config-file flag's help text appends `(no configuration decoder registered)`, and environment targets still appear in `session.CandidateConfigFiles()`.
+A named configuration target (an explicit `--config-file`, an environment variable, or `conga.ConfigExplicit(...)`) requires a registered decoder for its file extension. Resolving a target without a matching decoder returns a fatal `ErrConfig` error identifying the missing decoder or unsupported format. The config-file flag's help text appends `[decoders: .json, .yaml]` listing the registered extensions in sorted order, or `(no configuration decoder registered)` when no decoder is registered; environment targets still appear in `session.CandidateConfigFiles()`.
 
 ## Isolation guarantee
 
