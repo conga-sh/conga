@@ -6,6 +6,12 @@ tasks:
     cmds:
       - go build -trimpath -ldflags="-s -w" -o ./_examples/bin/ {{.CLI_ARGS | default "./_examples/[0-9]*"}}
 
+  proto:
+    desc: Prototype-phase gate — compile the module and run focused tests (supports custom flags or packages via --)
+    cmds:
+      - go build ./...
+      - go test {{.CLI_ARGS | default "./..."}}
+
   test:
     desc: Run unit tests (supports custom flags or packages via --, e.g. task test -- -v ./internal/...)
     cmds:
@@ -81,6 +87,14 @@ tasks:
       - task: test
       - task: test:examples
       - task: test:size
+
+  harden:
+    desc: Production-phase cleanup — auto-fix lint, reorder declarations, and run the full CI gate
+    cmds:
+      - task: lint
+      - task: reorder
+      - task: reorder:check
+      - task: ci
 
   coverage:
     desc: Report test coverage (supports custom flags or packages via --)

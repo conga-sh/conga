@@ -381,6 +381,8 @@ func (b *schemaBuilder) buildConfigFileFlagSpec(structField reflect.StructField,
 
 	if len(b.opts.ConfigFilePatterns) == 0 {
 		helpText += " (no configuration decoder registered)"
+	} else if len(b.opts.ConfigDecoders) > 0 {
+		helpText += " [decoders: " + strings.Join(b.opts.ConfigDecoders, ", ") + "]"
 	}
 
 	placeholder := extractConfigFilePlaceholder(structField.Tag)
