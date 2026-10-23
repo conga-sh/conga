@@ -30,6 +30,10 @@ task test:all
 - `task test:all` additionally runs the shell-completion and binary-size
   integration suites.
 
+These gates are production-phase requirements. Iterate during prototyping with
+`task proto` (compile plus focused tests), then run the hardening checklist in
+[AGENTS.md](AGENTS.md) §5 before opening the pull request.
+
 ## Declaration Ordering
 
 Every non-test Go source file follows top-down public-to-private declaration

@@ -2,6 +2,8 @@
 
 This document outlines the conventions and architectural style for writing tests in CONGA.
 
+The style rules below are production-phase requirements (see [AGENTS.md §5](../AGENTS.md)). During the prototype phase, tests must still assert real behavior and pass, but their conformance to this guide is cleaned up in the hardening phase.
+
 ---
 
 ## 1. Single Responsibility per Test / Subtest
@@ -126,7 +128,7 @@ All test functions and `t.Run` blocks should invoke `t.Parallel()` unless the te
 
 ## 6. Running Tests via Task
 
-Always execute tests via `Taskfile.yaml` commands:
+In the production phase, always execute tests via `Taskfile.yaml` commands:
 
 - **Fast unit test suite**:
   ```bash
@@ -141,6 +143,8 @@ Always execute tests via `Taskfile.yaml` commands:
   task coverage
   task coverage -- ./internal/coerce
   ```
+
+During prototype-phase iteration, focused `go test ./path/... -run TestX` invocations are acceptable (see [AGENTS.md §5](../AGENTS.md)); production verification uses the tasks above.
 
 ---
 
