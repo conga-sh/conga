@@ -91,7 +91,7 @@ CONGA appends declared constraints after each field's help text: `range:"1..6553
 | `{{items}}` | The `items` tag's bounds without brackets. | Flags and positional arguments with an `items` tag. |
 | `{{enum}}` | The `enum` values joined with `, `. | Flags and positional arguments with an `enum` tag; the `Features` container substitutes the declared feature names. |
 | `{{default}}` | The `default` tag's value. | Flags and positional arguments with a `default` tag. |
-| `{{env}}` | The bound environment variable names joined with `, `. | Flags, config-file flags, and `Features` containers that bind environment variables (via `env` tag or `envprefix`). |
+| `{{env}}` | The bound environment variable names joined with `, `. | Flags, config-file flags, and `Features` containers that declare a combined-map `env` tag. Per-feature variables (`envprefix` or field `env` tags) are rendered in the Features section instead. |
 
 ```go
 type CLI struct {
@@ -105,7 +105,7 @@ The help column renders `Port number (1..65535)`, `Environment (dev, staging, pr
 
 Suppression applies per hint: referencing `{{range}}` leaves `[len: …]`, `[items: …]`, `[enum: …]`, `[default: …]`, and `[env: …]` in place. On flags, referencing `{{default}}` also removes the default from the value slot (`--port=8080` becomes `--port=INT`), displaying the default exclusively where the help text places it. On positional arguments, `{{default}}` inlines the declared default into the prose. Config-file flags support only `{{env}}`.
 
-Referencing an undeclared variable fails schema build with `ErrSchema`: `{{range}}` without a `range` tag, any variable other than `{{env}}` on a config-file flag, any variable other than `{{enum}}` and `{{env}}` on a `Features` container, or `{{env}}` on a positional argument. Unknown names fail the same way and list the six supported names. Empty constraint tags (`range:""`, `len:""`, `items:""`, and `enum:""`) are rejected at schema build unconditionally. Bare `{` and shell-style `${...}` sequences copy verbatim; double the opening braces (`{{{{`) to render a literal `{{`.
+Referencing an undeclared variable fails schema build with `ErrSchema`: `{{range}}` without a `range` tag, any variable other than `{{env}}` on a config-file flag, any variable other than `{{enum}}` and `{{env}}` on a `Features` container, `{{env}}` on a `Features` container without a combined-map `env` tag, or `{{env}}` on a positional argument. Unknown names fail the same way and list the six supported names. Empty constraint tags (`range:""`, `len:""`, `items:""`, and `enum:""`) are rejected at schema build unconditionally. Bare `{` and shell-style `${...}` sequences copy verbatim; double the opening braces (`{{{{`) to render a literal `{{`.
 
 ### Suppressing the enum hint
 
@@ -195,7 +195,7 @@ Declare the container once, on the root command struct, and call `app.EnableFeat
 | `envprefix` | Per-feature env prefix: each feature field binds `<PREFIX>_<UPPER_SNAKE(feature name)>` unless the field overrides it with its own `env` tag. This is the per-feature env surface; it cannot be combined with `env`. |
 | `config` | Config section name holding the `name=value` pairs. |
 | `sep` | Pair separator inside one map value (default `","`). |
-| `help` | Help text for the synthesized flag. Defaults to `Enable or disable features (name=value)`; the root help screen's [Features section](/how-to/feature-flags/#features-section) lists every feature, and `{{enum}}` (declared feature names) and `{{env}}` (bound environment variables, including per-feature variables derived under `envprefix`) can be inlined, suppressing the matching bracket hint. Other help variables are rejected. |
+| `help` | Help text for the synthesized flag. Defaults to `Enable or disable features (name=value)`; the root help screen's [Features section](/how-to/feature-flags/#features-section) lists every feature, and `{{enum}}` (declared feature names) and `{{env}}` (the container's combined-map environment variable names) can be inlined, suppressing the matching bracket hint. `{{env}}` requires an `env` tag: a container whose only env surface is `envprefix` or field `env` tags rejects it at schema build. Other help variables are rejected. |
 | `enumhint` | Set to `-` to suppress the synthesized flag's `[enum: ...]` help hint. Redundant — and rejected — when the `help` tag already references `{{enum}}`. |
 | `conga` | Directives (see [`conga` directives](#conga-directives)). |
 

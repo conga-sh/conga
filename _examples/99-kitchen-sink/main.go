@@ -14,13 +14,16 @@ func main() {
 		Description("Exhaustive type, configuration-mapping, and schema-directive reference").
 		Version("1.0.0").
 		EnableCompletion().
-		EnableWhy().
+		EnableFeatures().
+		EnableWhy(conga.WhyJSON()).
+		AllowTags("kong").
+		Dotenv().
+		EnvPrefix("KITCHEN_SINK").
 		RegisterDecoder(".toml", toml.Decode).
 		RegisterDecoder(".json", json.Decode).
 		RegisterDecoder(".yaml", yaml.Decode).
 		RegisterDecoder(".yml", yaml.Decode).
-		RegisterDecoder(".hcl", hcl.Decode).
-		AllowTags("kong")
+		RegisterDecoder(".hcl", hcl.Decode)
 
 	if err := app.Run(); err != nil {
 		app.Exit(err)

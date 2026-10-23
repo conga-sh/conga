@@ -330,6 +330,19 @@ type HelpVarEnvFlagApp struct { // want `does not implement conga\.Runner`
 
 var _ = conga.New[HelpVarEnvFlagApp]()
 
+// HelpVarEnvFeaturePrefixApp references {{env}} from a Features container whose
+// only environment surface is a per-feature envprefix: the container-level
+// variable substitutes only the combined-map env tag.
+type HelpVarEnvFeaturePrefixApp struct { // want `does not implement conga\.Runner`
+	Features conga.Features[helpVarFeaturePrefixSet] `envprefix:"APP_X_" help:"Gates via {{env}}"` // want `tag "help" references \{\{env\}\}, but the Features container declares no combined-map env tag`
+}
+
+type helpVarFeaturePrefixSet struct {
+	GentleForce bool `help:"Force all"`
+}
+
+var _ = conga.New[HelpVarEnvFeaturePrefixApp]().EnableFeatures()
+
 // EmptyConstraintApp declares a constraint tag with no value.
 type EmptyConstraintApp struct { // want `does not implement conga\.Runner`
 	Port conga.OptionalFlag[int] `name:"port" range:""` // want `tag "range" cannot be empty`

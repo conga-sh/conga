@@ -7,6 +7,12 @@ format = "json"
 cache = true
 api_secret = "hcl-secret-key-xyz789"
 
+# Feature toggles (root Features container -> features block)
+features {
+  http3       = false
+  compression = 1
+}
+
 # Primitives subcommand
 types {
   primitives {

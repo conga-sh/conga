@@ -206,10 +206,11 @@ func bindFeatureValues(binding featureState, target any, cmd *spec.Command, cmdC
 }
 
 // bindFeatureMap applies the synthesized feature map flag from the merged
-// tier cascade, overlays per-feature environment variables, and returns the
-// resolved provided map (canonical feature-name keys), the key-to-variable
-// attribution map backing error messages for combined-map and per-feature env
-// keys, and a nil error when the flag binds.
+// tier cascade, folding the per-feature environment tier between the
+// configuration and CLI tiers, and returns the resolved provided map
+// (canonical feature-name keys), the key-to-variable attribution map backing
+// error messages for combined-map and per-feature env keys, and a nil error
+// when the flag binds.
 func bindFeatureMap(cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string, state *bindingState) (map[string]string, map[string]string, error) {
 	if cmd.FeatureFlag == nil {
 		return make(map[string]string), nil, nil
@@ -217,25 +218,19 @@ func bindFeatureMap(cmd *spec.Command, cmdChain []*spec.Command, flagValues map[
 
 	var result mapMergeResult
 
-	result.wantCLIKeys = state == nil || !state.WantMapProvenance
-
-	if err := foldMapTiers(cmd, cmdChain, cmd.FeatureFlag, flagValues, state, &result); err != nil {
+	if err := foldMapTiers(cmd, cmdChain, cmd.FeatureFlag, flagValues, state, featureEnvTier(cmd, state), &result); err != nil {
 		return nil, nil, err
 	}
 
-	var provided map[string]string
-	if rawProvided, ok := result.merged.(map[string]string); ok {
-		provided = rawProvided
-	}
-
-	if provided == nil {
+	provided, ok := result.merged.(map[string]string)
+	if !ok || provided == nil {
 		provided = make(map[string]string)
 	}
 
-	envNames := overlayFeatureFieldEnv(cmd, state, provided, &result)
+	// Per-feature env keys already carry their winning variable; combined-map
+	// env keys are attributed to the synthesized flag's environment variable.
+	envNames := result.envEntryNames
 
-	// Feature binding always records per-key provenance, so env-sourced keys
-	// can be attributed to the combined-map variable that supplied them.
 	for name, source := range result.provenance {
 		if source != SourceEnv || result.envName == "" {
 			continue
@@ -263,107 +258,69 @@ func bindFeatureMap(cmd *spec.Command, cmdChain []*spec.Command, flagValues map[
 	return provided, envNames, nil
 }
 
-// overlayFeatureFieldEnv resolves each declared feature field's environment
-// variables onto the merged feature map. Per-feature variables sit between
-// the CLI tier and the configuration tier of the resolution ladder: a key
-// supplied on the command line wins, an env-supplied key overrides config
-// and defaults, and keys the environment does not name keep their
-// lower-tier values. Raw values are recorded as-is; collectFeatureValues
-// canonicalizes every key uniformly, so invalid env values surface through
-// the shared diagnostics. Each contributed key records SourceEnv provenance
-// with a zeroed origin, keeping the --why report identical to combined-map
-// env keys, and envNames maps each contributed key to its winning variable
-// for error attribution.
-func overlayFeatureFieldEnv(cmd *spec.Command, state *bindingState, provided map[string]string, result *mapMergeResult) map[string]string {
-	var (
-		envNames        map[string]string
-		contributedVars []string
-	)
-
+// featureEnvEntries resolves each declared feature field's environment
+// variables in declaration order: the first set variable wins and an empty
+// value is unset. It returns the raw per-key entries, the winning variable
+// name per key, and the contributing variable names in declaration order.
+func featureEnvEntries(cmd *spec.Command, state *bindingState) (map[string]configdata.Value, map[string]string, []string) {
 	lookup := envLookupFunc(state)
 
-	// foldMapTiers allocates the provenance maps only when a tier contributed;
-	// a feature map supplied solely by per-feature variables needs them too.
-	if state != nil && state.WantMapProvenance && result.provenance == nil {
-		result.provenance = make(map[string]ValueSource)
-		result.origins = make(map[string]configdata.Value)
-	}
+	var (
+		entries map[string]configdata.Value
+		names   map[string]string
+		ordered []string
+	)
 
 	for _, feature := range cmd.FeatureFields {
-		rawValue, envName, found := resolveFeatureEnvValue(feature, result, lookup)
-		if !found {
+		if feature.EnvExcluded || len(feature.EnvVars) == 0 {
 			continue
 		}
 
-		provided[feature.Name] = rawValue
+		for _, envVar := range feature.EnvVars {
+			value, ok := lookup(envVar)
+			if !ok || value == "" {
+				continue
+			}
 
-		if result.provenance != nil {
-			result.provenance[feature.Name] = SourceEnv
+			if entries == nil {
+				entries = make(map[string]configdata.Value)
+				names = make(map[string]string)
+			}
+
+			entries[feature.Name] = configdata.Value{Raw: value}
+			names[feature.Name] = envVar
+			ordered = append(ordered, envVar)
+
+			break
 		}
-
-		if result.origins != nil {
-			result.origins[feature.Name] = configdata.Value{}
-		}
-
-		if envNames == nil {
-			envNames = make(map[string]string)
-		}
-
-		envNames[feature.Name] = envName
-		contributedVars = append(contributedVars, envName)
 	}
 
-	recordFeatureEnvContribution(contributedVars, provided, result)
-
-	return envNames
+	return entries, names, ordered
 }
 
-// resolveFeatureEnvValue looks up one feature field's environment variables in
-// declaration order: the first set variable wins, an empty value is unset, and
-// a key the command line already supplied keeps its CLI value. CLI presence
-// reads full provenance when it was recorded, else the lightweight key set
-// collected for callers that do not request provenance.
-func resolveFeatureEnvValue(feature *spec.FeatureField, result *mapMergeResult, lookup func(string) (string, bool)) (string, string, bool) {
-	if feature.EnvExcluded || len(feature.EnvVars) == 0 {
-		return "", "", false
+// featureEnvTier builds the per-feature environment tier folded between the
+// configuration and CLI tiers, or nil when no feature field binds a set
+// variable. The tier's name is the declaration-ordered list of contributing
+// variables, so a map supplied only by per-feature variables reports them as
+// its source detail. Variable names are carried for error attribution only
+// when the caller records per-key provenance; completion, which does not,
+// skips that allocation.
+func featureEnvTier(cmd *spec.Command, state *bindingState) *mapTierInput {
+	entries, names, ordered := featureEnvEntries(cmd, state)
+	if len(entries) == 0 {
+		return nil
 	}
 
-	if result.provenance[feature.Name] == SourceCLI {
-		return "", "", false
+	if state == nil || !state.WantMapProvenance {
+		names = nil
 	}
 
-	if _, ok := result.cliKeys[feature.Name]; ok {
-		return "", "", false
-	}
-
-	for _, envVar := range feature.EnvVars {
-		if value, ok := lookup(envVar); ok && value != "" {
-			return value, envVar, true
-		}
-	}
-
-	return "", "", false
-}
-
-// recordFeatureEnvContribution publishes a completed per-feature env overlay
-// into the merge result: contributed keys mark the map as env-sourced, the
-// highest tier moves to the environment unless the command line supplied a
-// key, and an env-only map becomes the merged value.
-func recordFeatureEnvContribution(contributedVars []string, provided map[string]string, result *mapMergeResult) {
-	if len(contributedVars) == 0 {
-		return
-	}
-
-	result.hasValues = true
-
-	if result.highestTier != SourceCLI {
-		result.highestTier = SourceEnv
-		result.highestName = strings.Join(contributedVars, ", ")
-		result.highestOrigins = nil
-	}
-
-	if result.merged == nil {
-		result.merged = provided
+	return &mapTierInput{
+		has:        true,
+		entries:    entries,
+		entryNames: names,
+		source:     SourceEnv,
+		name:       strings.Join(ordered, ", "),
 	}
 }
 
@@ -380,7 +337,7 @@ func completionFeatureGates(cmd *spec.Command, flagValues map[*spec.Flag][]strin
 }
 
 // completionProvidedMap resolves the synthesized feature flag's raw provided
-// map from the merged tier cascade plus the per-feature environment overlay,
+// map from the merged tier cascade, folding the per-feature environment tier,
 // without coercing into the container.
 func completionProvidedMap(cmd *spec.Command, flagValues map[*spec.Flag][]string, state *bindingState) map[string]string {
 	if cmd.FeatureFlag == nil {
@@ -389,18 +346,14 @@ func completionProvidedMap(cmd *spec.Command, flagValues map[*spec.Flag][]string
 
 	var result mapMergeResult
 
-	result.wantCLIKeys = state == nil || !state.WantMapProvenance
-
-	if err := foldMapTiers(cmd, []*spec.Command{cmd}, cmd.FeatureFlag, flagValues, state, &result); err != nil {
+	if err := foldMapTiers(cmd, []*spec.Command{cmd}, cmd.FeatureFlag, flagValues, state, featureEnvTier(cmd, state), &result); err != nil {
 		return nil
 	}
 
 	provided, ok := result.merged.(map[string]string)
-	if !ok {
+	if !ok || provided == nil {
 		provided = make(map[string]string)
 	}
-
-	overlayFeatureFieldEnv(cmd, state, provided, &result)
 
 	return provided
 }

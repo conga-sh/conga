@@ -1,0 +1,15 @@
+# TestScript for 99-kitchen-sink — .env loading.
+# App.Dotenv() probes .env then .env.local in the working directory and writes
+# the loaded variables into the process environment, where they join the
+# environment tier for both flags and per-feature variables.
+
+env HOME=$WORK/home
+env XDG_CONFIG_HOME=$WORK/xdg
+
+exec kitchen-sink feature-state
+stdout '--format\s+string\s+yaml\s+● env KITCHEN_SINK_FORMAT'
+stdout 'features: http3=true strict-tls=true metrics=true compression=1'
+
+-- .env --
+KITCHEN_SINK_FORMAT=yaml
+KITCHEN_SINK_FEATURE_HTTP3=true

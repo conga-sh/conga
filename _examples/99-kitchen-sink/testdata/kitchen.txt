@@ -1,7 +1,12 @@
 # TestScript for 99-kitchen-sink
-# Asserts the exhaustive type matrix, configuration-mapping patterns, and
-# schema directives across all four decoder formats. The configs/ directory
-# is the single fixture source (documentation for manual runs, copied in here).
+# Asserts the exhaustive type matrix, configuration-mapping patterns,
+# schema directives, feature gates, and environment binding across all four
+# decoder formats. The configs/ directory is the single fixture source
+# (documentation for manual runs, copied in here).
+
+# Isolate the conventional XDG config tier from the host machine.
+env HOME=$WORK/home
+env XDG_CONFIG_HOME=$WORK/xdg
 
 copy-fixture configs/config.toml config.toml
 copy-fixture configs/config.json config.json
@@ -139,10 +144,131 @@ stdout 'config\.toml\s+loaded'
 stdout 'values are redacted'
 
 exec kitchen-sink --config-file config.toml config maps --why
-stdout '--vars\s+\(3 keys\)\s+config \(config\.toml\)\s+-\s+config\.maps\.vars'
+stdout '--vars\s+\(3 keys\)\s+config \(config\.toml\)\s+KITCHEN_SINK_VARS\s+config\.maps\.vars'
 stdout 'APP_ENV=██████'
 stdout 'config \(config\.toml\)'
 stdout 'version=2\.1'
+
+# 13. Feature state baseline: only the default-on gates are active, and the
+#     feature-state command runs its post-run and finally lifecycle hooks.
+exec kitchen-sink feature-state
+stdout 'features: http3=false strict-tls=true metrics=true compression=1'
+stdout '\[HOOK\] features PostRun: flushing feature report'
+stdout '\[HOOK\] features Finally: closing feature audit log'
+
+# 14. Per-feature environment variables derived from the container envprefix:
+#     KITCHEN_SINK_FEATURE_<UPPER_SNAKE(feature name)>.
+env KITCHEN_SINK_FEATURE_HTTP3=true
+env KITCHEN_SINK_FEATURE_COMPRESSION=2
+exec kitchen-sink feature-state
+stdout 'features: http3=true strict-tls=true metrics=true compression=2'
+env KITCHEN_SINK_FEATURE_HTTP3=
+env KITCHEN_SINK_FEATURE_COMPRESSION=
+
+# 15. A field env tag overrides the derived name (strict-tls), and env:"-"
+#     opts a field out of the environment entirely (metrics). The help screen's
+#     Features section renders one automatic [env: ...] hint per bound field.
+exec kitchen-sink --help
+stdout '\[env: KITCHEN_SINK_FEATURE_HTTP3\]'
+stdout '\[env: KITCHEN_SINK_STRICT\]'
+! stdout 'KITCHEN_SINK_FEATURE_METRICS'
+
+env KITCHEN_SINK_STRICT=false
+exec kitchen-sink feature-state --why
+stdout 'strict-tls\s+false\s+env'
+env KITCHEN_SINK_STRICT=
+
+env KITCHEN_SINK_FEATURE_METRICS=false
+exec kitchen-sink feature-state
+stdout 'metrics=true'
+env KITCHEN_SINK_FEATURE_METRICS=
+
+# 16. A leveled feature accepts only its enumerated non-zero levels.
+env KITCHEN_SINK_FEATURE_COMPRESSION=3
+exit-status 2 kitchen-sink feature-state
+stderr 'invalid value "3" for feature "compression"'
+env KITCHEN_SINK_FEATURE_COMPRESSION=
+
+# 17. Feature-gated members are pruned from help and completion, and invoking
+#     them while inactive is a usage error (exit 2). The CLI map flag and the
+#     per-feature environment both activate the gate.
+exec kitchen-sink --help
+! stdout 'experimental'
+! stdout 'http3-port'
+
+exec kitchen-sink __complete export --
+! stdout '"value":"--http3-port"'
+exec kitchen-sink __complete export ""
+! stdout '"value":"experimental"'
+
+exit-status 2 kitchen-sink --http3-port 9000
+stderr 'flag .--http3-port. requires feature "http3"'
+exit-status 2 kitchen-sink experimental
+stderr 'command "experimental" requires feature "http3"'
+
+env KITCHEN_SINK_FEATURE_HTTP3=true
+exec kitchen-sink --help
+stdout 'experimental'
+stdout '--http3-port'
+exec kitchen-sink experimental --probe
+stdout 'experimental: QUIC listener on :8443 probe=true'
+env KITCHEN_SINK_FEATURE_HTTP3=
+
+# 18. The features config section maps onto the same gates in every format.
+exec kitchen-sink --config-file config.toml feature-state
+stdout 'features: http3=true strict-tls=true metrics=true compression=2'
+exec kitchen-sink --config-file config.json feature-state
+stdout 'features: http3=true strict-tls=true metrics=true compression=1'
+exec kitchen-sink --config-file config.yaml feature-state
+stdout 'features: http3=true strict-tls=true metrics=true compression=2'
+exec kitchen-sink --config-file config.hcl feature-state
+stdout 'features: http3=false strict-tls=true metrics=true compression=1'
+
+# 19. The validation hook rejects the unobservable plaintext-metrics combination.
+env KITCHEN_SINK_STRICT=false
+exit-status 2 kitchen-sink feature-state
+stderr 'metrics require strict TLS'
+env KITCHEN_SINK_STRICT=
+
+# 20. Flag environment binding: EnvPrefix derives KITCHEN_SINK_<NAME>, an env
+#     tag overrides it (KITCHEN_SECRET), and env:"-" removes the tier entirely
+#     (temp-flag). --why redacts the credential-bearing secret.
+exec kitchen-sink --help
+stdout '\[env: KITCHEN_SINK_CONFIG\]'
+stdout '\[env: KITCHEN_SINK_FORMAT\]'
+stdout '\[env: KITCHEN_SECRET\]'
+! stdout '\[env: KITCHEN_SINK_TEMP_FLAG\]'
+
+env KITCHEN_SINK_FORMAT=yaml
+env KITCHEN_SECRET=hunter2
+exec kitchen-sink --why
+stdout '--format\s+yaml\s+env\s+KITCHEN_SINK_FORMAT\s+format'
+stdout '--secret-key\s+██████\s+env\s+KITCHEN_SECRET\s+api_secret'
+stdout 'values are redacted'
+env KITCHEN_SINK_FORMAT=
+env KITCHEN_SECRET=
+
+env KITCHEN_SINK_TEMP_FLAG=nope
+exec kitchen-sink
+stdout '--temp-flag\s+string\s+—'
+env KITCHEN_SINK_TEMP_FLAG=
+
+# 21. The prefix-derived config-file variable selects the file to load.
+env KITCHEN_SINK_CONFIG=config.toml
+exec kitchen-sink feature-state
+stdout '-c, --config-file\s+conga\.ConfigFile\s+config\.toml\s+● env KITCHEN_SINK_CONFIG'
+stdout 'features: http3=true strict-tls=true metrics=true compression=2'
+env KITCHEN_SINK_CONFIG=
+
+# 22. WhyJSON opts into machine-readable provenance; an unknown format is a
+#     usage error (exit 2). (.env loading is covered in dotenv.txt, which
+#     isolates the process-environment effects in its own working directory.)
+exec kitchen-sink --why=json
+stdout '"schemaVersion":1'
+stdout '"name":"http3"'
+
+exit-status 2 kitchen-sink --why=xml
+stderr 'invalid value "xml" \(must be one of: text, json\) for --why'
 
 -- run.sh --
 #!/bin/sh

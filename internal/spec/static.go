@@ -342,7 +342,13 @@ func validateRoleTagRules(tag reflect.StructTag, role string, opts ValidationOpt
 		fallthrough
 	case "config file flag", "features":
 		declared := helpVarAvailability(tag, role, opts.EnvPrefix, opts.EnvPrefixKnown)
-		if err := validateHelpVariables(tag.Get("help"), declared); err != nil {
+
+		validator := validateHelpVariables
+		if role == "features" {
+			validator = validateFeatureHelpVariables
+		}
+
+		if err := validator(tag.Get("help"), declared); err != nil {
 			return err
 		}
 	}

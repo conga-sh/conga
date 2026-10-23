@@ -582,13 +582,13 @@ type mapMergeResult struct {
 	// envName records the winning environment variable of the map flag's env
 	// tier, so feature-map errors can attribute combined-map keys to it.
 	envName string
-	// wantCLIKeys requests the lightweight set of canonical keys supplied by
-	// the CLI tier when full map provenance is not recorded. Feature env
-	// resolution uses it to keep command-line keys ahead of environment values.
-	wantCLIKeys bool
-	cliKeys     map[string]struct{}
-	highestTier ValueSource
-	highestName string
+	// envEntryNames maps each key contributed by the per-feature environment
+	// tier to the winning variable name, so feature-map errors can name the
+	// offending variable. It records only when the caller requests per-key
+	// provenance, matching the feature error-attribution path.
+	envEntryNames map[string]string
+	highestTier   ValueSource
+	highestName   string
 	// highestOrigins lists the distinct configuration origins contributing to
 	// the merged map, in load order, when the config tier is the highest
 	// contributor. Empty for other highest tiers.
@@ -607,21 +607,32 @@ func (result mapMergeResult) sourceDetail() string {
 	return result.highestName
 }
 
-// mapTierInput is one contributing tier of a map flag's merge: either raw
-// string tokens (values) or the config tier's pre-merged per-key entries.
+// mapTierInput is one contributing tier of a map flag's merge: raw string
+// tokens (values), the config tier's pre-merged per-key entries, or the
+// per-feature environment tier's pre-resolved per-key entries. entryNames
+// carries the contributing variable name of each env-tier entry for feature
+// error attribution; it is nil for config and raw-token tiers.
 type mapTierInput struct {
-	has     bool
-	values  []string
-	entries map[string]configdata.Value
-	source  ValueSource
-	name    string
+	has        bool
+	values     []string
+	entries    map[string]configdata.Value
+	entryNames map[string]string
+	source     ValueSource
+	name       string
 }
 
 // fold merges the tier's contribution into the string-map merge state,
-// dispatching to the config-tier fold when the tier carries pre-merged
-// per-key entries and to the raw-token fold otherwise.
+// dispatching to the env-entry fold for the per-feature environment tier, the
+// config-tier fold when the tier carries pre-merged configuration entries, and
+// the raw-token fold otherwise.
 func (tier mapTierInput) fold(cmdChain []*spec.Command, flagSpec *spec.Flag, merged map[string]string, provenance map[string]ValueSource, origins map[string]configdata.Value, result *mapMergeResult) error {
 	if tier.entries != nil {
+		if tier.source == SourceEnv {
+			foldMapEnvEntriesTier(tier.entries, tier.entryNames, tier.name, merged, provenance, origins, result)
+
+			return nil
+		}
+
 		return foldMapConfigTier(cmdChain, flagSpec, tier.entries, tier.name, merged, provenance, origins, result)
 	}
 
@@ -1026,7 +1037,7 @@ func applyFlagValue(cmd *spec.Command, cmdChain []*spec.Command, flagSpec *spec.
 	// different keys to the same map.
 	if flagSpec.IsMap {
 		var result mapMergeResult
-		if err := foldMapTiers(cmd, cmdChain, flagSpec, cliValues, state, &result); err != nil {
+		if err := foldMapTiers(cmd, cmdChain, flagSpec, cliValues, state, nil, &result); err != nil {
 			return err
 		}
 
@@ -2223,14 +2234,6 @@ func foldMapTier(cmdChain []*spec.Command, flagSpec *spec.Flag, rawValues []stri
 			provenance[key] = source
 		}
 
-		if result.wantCLIKeys && source == SourceCLI {
-			if result.cliKeys == nil {
-				result.cliKeys = make(map[string]struct{}, len(entries))
-			}
-
-			result.cliKeys[key] = struct{}{}
-		}
-
 		if origins != nil {
 			origins[key] = origin
 		}
@@ -2274,6 +2277,44 @@ func foldMapConfigTier(cmdChain []*spec.Command, flagSpec *spec.Flag, entries ma
 	return nil
 }
 
+// foldMapEnvEntriesTier folds the per-feature environment tier's pre-resolved
+// entries into merged: each raw value binds directly, every key records the
+// environment tier as its provenance with a zeroed origin (matching
+// combined-map env keys for --why parity), and the contributing variable names
+// are carried for feature error attribution when the caller supplied them. The
+// tier's name is the declaration-ordered list of contributing variables, so an
+// env-only feature map reports them as its source detail.
+func foldMapEnvEntriesTier(entries map[string]configdata.Value, entryNames map[string]string, detail string, merged map[string]string, provenance map[string]ValueSource, origins map[string]configdata.Value, result *mapMergeResult) {
+	if len(entries) == 0 {
+		return
+	}
+
+	for key, entry := range entries {
+		merged[key] = entry.Raw
+
+		if provenance != nil {
+			provenance[key] = SourceEnv
+		}
+
+		if origins != nil {
+			origins[key] = configdata.Value{}
+		}
+
+		if entryNames != nil {
+			if result.envEntryNames == nil {
+				result.envEntryNames = make(map[string]string, len(entries))
+			}
+
+			result.envEntryNames[key] = entryNames[key]
+		}
+	}
+
+	result.hasValues = true
+	result.highestTier = SourceEnv
+	result.highestName = detail
+	result.highestOrigins = nil
+}
+
 func hasCustomMapParser(state *bindingState, flagSpec *spec.Flag) bool {
 	if flagSpec.EngineOwned {
 		return false
@@ -2293,13 +2334,15 @@ func isStringStringMap(targetType reflect.Type) bool {
 }
 
 // foldMapTiers resolves a map flag's contributing tiers (default, config,
-// env, CLI) and merges their contributions key-by-key in ascending
-// precedence. For feature-map flags, keys are canonicalized during the merge
-// so spelling variants override across tiers and later tokens in the same
-// tier win. The config tier folds the per-file structured contributions in
-// file load order, so cascading files merge key by key and the nearest file
-// wins each key.
-func foldMapTiers(cmd *spec.Command, cmdChain []*spec.Command, flagSpec *spec.Flag, cliValues map[*spec.Flag][]string, state *bindingState, result *mapMergeResult) error {
+// feature environment, combined environment, CLI) and merges their
+// contributions key-by-key in ascending precedence. featureEnv is the
+// synthesized feature map's per-feature environment tier, folded between the
+// configuration and CLI tiers; it is nil for ordinary map flags. For
+// feature-map flags, keys are canonicalized during the merge so spelling
+// variants override across tiers and later tokens in the same tier win. The
+// config tier folds the per-file structured contributions in file load order,
+// so cascading files merge key by key and the nearest file wins each key.
+func foldMapTiers(cmd *spec.Command, cmdChain []*spec.Command, flagSpec *spec.Flag, cliValues map[*spec.Flag][]string, state *bindingState, featureEnv *mapTierInput, result *mapMergeResult) error {
 	if flagSpec == nil {
 		return nil
 	}
@@ -2308,15 +2351,17 @@ func foldMapTiers(cmd *spec.Command, cmdChain []*spec.Command, flagSpec *spec.Fl
 	envValue, envName, hasEnv := lookupEnv(flagSpec, cmd, state)
 	cliValuesForFlag := cliValues[flagSpec]
 
-	if flagSpec.Default == "" && !hasConfig && !hasEnv && len(cliValuesForFlag) == 0 {
+	hasFeatureEnv := featureEnv != nil && featureEnv.has
+
+	if !hasMapContributions(flagSpec, hasConfig, hasEnv, hasFeatureEnv, cliValuesForFlag) {
 		return nil
 	}
 
 	result.envName = envName
 
 	// Engine-owned map flags (the synthesized feature map) always use the
-	// native merge: it canonicalizes feature keys and records the CLI key set
-	// the per-feature env overlay consults. A registered parser for
+	// native merge: it canonicalizes feature keys and folds the per-feature
+	// environment tier ahead of the CLI tier. A registered parser for
 	// map[string]string must not divert the engine-owned flag to the generic
 	// registered-map path.
 	if hasCustomMapParser(state, flagSpec) {
@@ -2340,12 +2385,7 @@ func foldMapTiers(cmd *spec.Command, cmdChain []*spec.Command, flagSpec *spec.Fl
 		origins = make(map[string]configdata.Value)
 	}
 
-	tiers := [...]mapTierInput{
-		{has: flagSpec.Default != "", values: []string{flagSpec.Default}, source: SourceDefault, name: flagSpec.Default},
-		{has: hasConfig, entries: configEntries, source: SourceConfig, name: configKey},
-		{has: hasEnv, values: []string{envValue}, source: SourceEnv, name: envName},
-		{has: len(cliValuesForFlag) > 0, values: cliValuesForFlag, source: SourceCLI, name: "--" + flagSpec.Name},
-	}
+	tiers := buildMapTiers(flagSpec, configEntries, configKey, hasConfig, envValue, envName, hasEnv, cliValuesForFlag, featureEnv)
 
 	var lastSource ValueSource
 
@@ -2375,6 +2415,35 @@ func foldMapTiers(cmd *spec.Command, cmdChain []*spec.Command, flagSpec *spec.Fl
 	}
 
 	return nil
+}
+
+// hasMapContributions reports whether any tier of a map flag supplied a value:
+// a declared default, the config tier, the combined or per-feature environment
+// tier, or the command line.
+func hasMapContributions(flagSpec *spec.Flag, hasConfig, hasEnv, hasFeatureEnv bool, cliValues []string) bool {
+	return flagSpec.Default != "" || hasConfig || hasEnv || hasFeatureEnv || len(cliValues) > 0
+}
+
+// buildMapTiers assembles a map flag's tiers in ascending precedence: default,
+// config, per-feature environment (featureEnv, nil for ordinary map flags),
+// combined environment, then CLI.
+func buildMapTiers(flagSpec *spec.Flag, configEntries map[string]configdata.Value, configKey string, hasConfig bool, envValue, envName string, hasEnv bool, cliValues []string, featureEnv *mapTierInput) []mapTierInput {
+	tiers := make([]mapTierInput, 0, 5)
+	tiers = append(tiers,
+		mapTierInput{has: flagSpec.Default != "", values: []string{flagSpec.Default}, source: SourceDefault, name: flagSpec.Default},
+		mapTierInput{has: hasConfig, entries: configEntries, source: SourceConfig, name: configKey},
+	)
+
+	if featureEnv != nil {
+		tiers = append(tiers, *featureEnv)
+	}
+
+	tiers = append(tiers,
+		mapTierInput{has: hasEnv, values: []string{envValue}, source: SourceEnv, name: envName},
+		mapTierInput{has: len(cliValues) > 0, values: cliValues, source: SourceCLI, name: "--" + flagSpec.Name},
+	)
+
+	return tiers
 }
 
 // orderedConfigOrigins lists the distinct origins contributing entries to a

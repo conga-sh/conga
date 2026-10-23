@@ -70,6 +70,8 @@ The environment tier reaches features through one of two exclusive shapes. The c
 
 The application-level `EnvPrefix(...)` never reaches features. It namespaces normal flags; features bind their environment explicitly, so an ambient prefix cannot silently turn feature names into flag overrides.
 
+Display follows the same split. The combined-map variable is documented on the synthesized flag, where the container `help` tag may inline it with `{{env}}`. Per-feature variables are documented next to the feature they bind, in the help screen's Features section, because a container-level surface cannot present them meaningfully when the synthesized flag is hidden. The two locations never list the same variable.
+
 Schema build also rejects collisions: two feature fields resolving to the same variable (explicitly or through prefix derivation), or a feature variable a flag also binds, fail with `ErrSchema` before the first run.
 
 ## Member pruning and the active execution surface

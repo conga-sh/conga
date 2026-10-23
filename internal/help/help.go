@@ -86,10 +86,11 @@ func RenderCompletionFooter(cmdChain []*spec.Command, useFlag bool, detect func(
 
 // RenderFeatures renders the automatic Features section of the root help
 // screen: one aligned row per feature toggle, in declaration order, carrying
-// the feature's help text followed by its declared stage, integer levels, and
-// default. GA and deprecated features are omitted — they are no longer
-// experimental — and the section renders nothing when no feature remains. It
-// is the feature-enabled implementation behind Options.FeaturesSection.
+// the feature's help text followed by its declared stage, integer levels,
+// default, and bound environment variables. GA and deprecated features are
+// omitted — they are no longer experimental — and the section renders nothing
+// when no feature remains. It is the feature-enabled implementation behind
+// Options.FeaturesSection.
 func RenderFeatures(root *spec.Command) string {
 	entries := make([]tableEntry, 0, len(root.FeatureFields))
 
@@ -110,6 +111,15 @@ func RenderFeatures(root *spec.Command) string {
 
 		if feature.Default != "" {
 			helpText = appendNonEmpty(helpText, "[default: "+feature.Default+"]")
+		}
+
+		// One environment surface has one display location: per-feature
+		// variables are rendered here, next to the feature that binds them,
+		// rather than aggregated into the container's {{env}} substitution.
+		// env:"-" and unbound features carry an empty EnvVars list and so no
+		// hint.
+		if len(feature.EnvVars) > 0 {
+			helpText = appendNonEmpty(helpText, "[env: "+strings.Join(feature.EnvVars, ", ")+"]")
 		}
 
 		entries = append(entries, tableEntry{label: feature.Name, help: helpText})
