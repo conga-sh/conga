@@ -1,0 +1,25 @@
+{
+  "items": [
+    {
+      "value": "--why=text",
+      "display": "--why=text",
+      "description": "Show resolved field values and where they came from (values redacted unless tagged safe)",
+      "style": "blue",
+      "tag": "longhand flags"
+    },
+    {
+      "value": "--why=json",
+      "display": "--why=json",
+      "description": "Show resolved field values and where they came from (values redacted unless tagged safe)",
+      "style": "blue",
+      "tag": "longhand flags"
+    }
+  ],
+  "directives": {
+    "error": false,
+    "keeporder": false,
+    "nofilecomp": true,
+    "nospace": false
+  },
+  "usage": ""
+}

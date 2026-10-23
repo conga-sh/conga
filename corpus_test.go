@@ -206,6 +206,26 @@ func newCorpusApp() *conga.App[corpusRoot] {
 	return app
 }
 
+// newCorpusWhyJSONApp mirrors newCorpusApp with the JSON --why format enabled,
+// exercising the value-bearing --why candidates.
+func newCorpusWhyJSONApp() *conga.App[corpusRoot] {
+	app := conga.New[corpusRoot]().
+		EnableCompletion().
+		Name("corpusctl").
+		Description("Corpus fixture application for completion driver conformance").
+		Version("1.2.3").
+		EnableWhy(conga.WhyJSON())
+
+	app.Predictor("services", predict.Items(
+		predict.NewItem("api", "REST API service"),
+		predict.NewItem("scheduler", "Cron scheduler"),
+		predict.NewItem("worker", "Background worker"),
+	))
+	app.RegisterMap[map[string]int]()
+
+	return app
+}
+
 // corpusMapRoot is the root of the dedicated map fixture application.
 type corpusMapRoot struct {
 	Deploy conga.Command[corpusMapDeploy] `summary:"Deploy service"`
@@ -281,6 +301,10 @@ func corpusScenarios() []corpusScenario {
 		{Name: "root-hidden-flag-excluded", Shell: "export", Words: []string{"--sec"}},
 		{Name: "root-deprecated-flag", Shell: "export", Words: []string{"--leg"}},
 		{Name: "exec-default-flag", Shell: "export", Words: []string{"exec", "--namespace", ""}},
+		{Name: "root-why-attached-bare", Shell: "export", Words: []string{"--why="}},
+		{Name: "whyjson-flag-prefix", Shell: "export", Words: []string{"--why"}, App: "whyjson"},
+		{Name: "whyjson-attached-bare", Shell: "export", Words: []string{"--why="}, App: "whyjson"},
+		{Name: "whyjson-attached-filtered", Shell: "export", Words: []string{"--why=j"}, App: "whyjson"},
 		{Name: "root-bare-zsh", Shell: "zsh", Words: []string{""}},
 		{Name: "root-bare-fish", Shell: "fish", Words: []string{""}},
 		{Name: "root-bare-powershell", Shell: "powershell", Words: []string{""}},
@@ -296,6 +320,10 @@ func captureCorpusScenario(scenario corpusScenario) ([]byte, []byte) {
 	capture := func() []byte {
 		if scenario.App == "map" {
 			return captureCorpusResult(newCorpusMapApp(), scenario)
+		}
+
+		if scenario.App == "whyjson" {
+			return captureCorpusResult(newCorpusWhyJSONApp(), scenario)
 		}
 
 		return captureCorpusResult(newCorpusApp(), scenario)

@@ -523,7 +523,7 @@ func (w *astCompletionWalker) resolveTarget(toComplete string) predict.Result {
 }
 
 func (w *astCompletionWalker) completePendingFlag(toComplete string, compCtx predict.Context) predict.Result {
-	baseAction := resolveFlagAction(w.pendingFlagValue, w.opts.RegisteredPredictors)
+	baseAction := resolveFlagAction(w.pendingFlagValue, w.opts.RegisteredPredictors, w.rootCmd.WhyFormats())
 	previousValues := compCtx.FlagValues(w.pendingFlagValue.Name)
 	action := wrapSliceAction(baseAction, w.pendingFlagValue.IsSlice || w.pendingFlagValue.IsMap, w.pendingFlagValue.Sep, previousValues).Tag("values")
 	compCtx.ToComplete = toComplete
@@ -548,7 +548,7 @@ func (w *astCompletionWalker) completeAttachedFlag(toComplete string, compCtx pr
 		return predict.Result{}, false
 	}
 
-	baseAction := resolveFlagAction(flag, w.opts.RegisteredPredictors)
+	baseAction := resolveFlagAction(flag, w.opts.RegisteredPredictors, w.rootCmd.WhyFormats())
 	previousValues := compCtx.FlagValues(flag.Name)
 	action := wrapSliceAction(baseAction, flag.IsSlice || flag.IsMap, flag.Sep, previousValues).Tag("values")
 
@@ -746,13 +746,7 @@ func (w *astCompletionWalker) appendBuiltinFlags(longItems *[]predict.Item, seen
 	if w.currentCmd.WhyFlagVisible() && !seenLong["--why"] {
 		seenLong["--why"] = true
 
-		*longItems = append(*longItems, predict.Item{
-			Value:       "--why",
-			Display:     "--why",
-			Description: BuiltinWhyFlag.Help,
-			Style:       style.Theme.FlagNoArg,
-			Tag:         "longhand flags",
-		})
+		*longItems = append(*longItems, w.builtinWhyItems()...)
 	}
 
 	if w.currentCmd.CompletionFlagVisible(len(w.cmdChain) == 1) && !seenLong["--completion"] {
@@ -766,6 +760,37 @@ func (w *astCompletionWalker) appendBuiltinFlags(longItems *[]predict.Item, seen
 			Tag:         "longhand flags",
 		})
 	}
+}
+
+// builtinWhyItems returns the flag-name-level completion items for the
+// built-in --why flag. When the app enabled JSON output, the value-bearing
+// --why=<format> forms replace the plain toggle item so shells insert the
+// value slot (--why=) and offer the accepted formats; otherwise --why
+// completes as a plain toggle.
+func (w *astCompletionWalker) builtinWhyItems() []predict.Item {
+	formats := w.rootCmd.WhyFormats()
+	if len(formats) < 2 {
+		return []predict.Item{{
+			Value:       "--why",
+			Display:     "--why",
+			Description: BuiltinWhyFlag.Help,
+			Style:       style.Theme.FlagNoArg,
+			Tag:         "longhand flags",
+		}}
+	}
+
+	items := make([]predict.Item, 0, len(formats))
+	for _, format := range formats {
+		items = append(items, predict.Item{
+			Value:       "--why=" + format,
+			Display:     "--why=" + format,
+			Description: BuiltinWhyFlag.Help,
+			Style:       style.Theme.FlagArg,
+			Tag:         "longhand flags",
+		})
+	}
+
+	return items
 }
 
 func (w *astCompletionWalker) completeSubcommandsAndArgsAction(toComplete string) predict.Predictor {
@@ -902,8 +927,8 @@ func resolveArgAction(arg *Arg, registered map[string]predict.Predictor) predict
 	return predict.None().Usage(helpMsg)
 }
 
-func resolveFlagAction(flag *Flag, registered map[string]predict.Predictor) predict.Predictor {
-	act := resolveBaseFlagAction(flag, registered).Tag("values")
+func resolveFlagAction(flag *Flag, registered map[string]predict.Predictor, whyFormats []string) predict.Predictor {
+	act := resolveBaseFlagAction(flag, registered, whyFormats).Tag("values")
 	if description := flagHelpText(flag); description != "" {
 		act = act.Usage(description)
 	}
@@ -931,7 +956,11 @@ func argHelpText(arg *Arg) string {
 	return DefaultTypeHelp(arg.TargetType, arg.FieldTags)
 }
 
-func resolveBaseFlagAction(flag *Flag, registered map[string]predict.Predictor) predict.Predictor {
+func resolveBaseFlagAction(flag *Flag, registered map[string]predict.Predictor, whyFormats []string) predict.Predictor {
+	if flag == BuiltinWhyFlag {
+		return predict.Values(whyFormats...)
+	}
+
 	if flag.Predictor != nil {
 		if predAct, ok := resolvePredictorSpec(flag.Predictor, registered); ok {
 			return predAct

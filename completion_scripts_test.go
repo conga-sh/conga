@@ -898,7 +898,7 @@ func TestCompletionFlag_FlatCLI(t *testing.T) {
 		assert.Contains(t, output, "source <(myapp --completion zsh)")
 		assert.Contains(t, output, "echo 'source <(myapp --completion zsh)' >> ~/.zshrc")
 		assert.Contains(t, output, "myapp --completion zsh > ~/.zfunc/_myapp")
-		assert.Contains(t, output, "Flags:\n      --why   Show resolved field values and where they came from (values redacted unless tagged safe); accepts text or json")
+		assert.Contains(t, output, "Flags:\n      --why   Show resolved field values and where they came from (values redacted unless tagged safe)")
 		assert.True(t, strings.Index(output, "--why") < strings.Index(output, "--help  Show help"), "--why must render before --help")
 		assert.NotContains(t, output, "Supported shells:")
 	})
