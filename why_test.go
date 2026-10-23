@@ -1395,6 +1395,172 @@ func TestWhy_OnSubcommands(t *testing.T) {
 	})
 }
 
+// TestWhy_SynthesizedCompletionSubcommand pins that the auto-mounted
+// completion subcommand inherits the root's built-in --why visibility: the
+// flag is offered only when the app enabled app.EnableWhy(), matching the
+// binder, help renderer, and completion engine.
+func TestWhy_SynthesizedCompletionSubcommand(t *testing.T) {
+	t.Parallel()
+
+	t.Run("help omits --why when why is disabled", func(t *testing.T) {
+		t.Parallel()
+
+		var buffer bytes.Buffer
+
+		app := conga.New[whyCLI]().
+			EnableCompletion().
+			Stdout(&buffer).
+			Args([]string{"completion", "--help"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.NotContains(t, buffer.String(), "--why")
+	})
+
+	t.Run("--why is a usage error when why is disabled", func(t *testing.T) {
+		t.Parallel()
+
+		app := conga.New[whyCLI]().
+			EnableCompletion().
+			Args([]string{"completion", "--why"})
+
+		err := app.Run()
+
+		assert.Error(t, err)
+		assert.True(t, conga.IsUsageError(err))
+	})
+
+	t.Run("help lists --why when why is enabled", func(t *testing.T) {
+		t.Parallel()
+
+		var buffer bytes.Buffer
+
+		app := conga.New[whyCLI]().
+			EnableCompletion().
+			Stdout(&buffer).
+			EnableWhy().
+			Args([]string{"completion", "--help"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Contains(t, buffer.String(), "--why")
+	})
+
+	t.Run("--why renders the report when why is enabled", func(t *testing.T) {
+		t.Parallel()
+
+		var buffer bytes.Buffer
+
+		app := conga.New[whyCLI]().
+			EnableCompletion().
+			Stdout(&buffer).
+			EnableWhy().
+			Args([]string{"completion", "--why"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Contains(t, buffer.String(), "Value provenance")
+	})
+}
+
+// TestWhy_FlatCompletionHelpVisibility pins that the ephemeral flat-CLI
+// completion help screens inherit the root's built-in flag visibility: --why
+// appears only when app.EnableWhy() was called, and --help only when the help
+// flag was not disabled.
+func TestWhy_FlatCompletionHelpVisibility(t *testing.T) {
+	t.Parallel()
+
+	t.Run("bare completion omits --why when why is disabled", func(t *testing.T) {
+		t.Parallel()
+
+		var buffer bytes.Buffer
+
+		app := conga.New[whyFlatCLI]().
+			EnableCompletion().
+			Name("myapp").
+			Stdout(&buffer).
+			Args([]string{"--completion"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.NotContains(t, buffer.String(), "--why")
+	})
+
+	t.Run("completion help omits --why when why is disabled", func(t *testing.T) {
+		t.Parallel()
+
+		var buffer bytes.Buffer
+
+		app := conga.New[whyFlatCLI]().
+			EnableCompletion().
+			Name("myapp").
+			Stdout(&buffer).
+			Args([]string{"--completion", "--help"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.NotContains(t, buffer.String(), "--why")
+	})
+
+	t.Run("per-shell completion help omits --why when why is disabled", func(t *testing.T) {
+		t.Parallel()
+
+		var buffer bytes.Buffer
+
+		app := conga.New[whyFlatCLI]().
+			EnableCompletion().
+			Name("myapp").
+			Stdout(&buffer).
+			Args([]string{"--completion", "zsh", "--help"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.NotContains(t, buffer.String(), "--why")
+	})
+
+	t.Run("bare completion lists --why when why is enabled", func(t *testing.T) {
+		t.Parallel()
+
+		var buffer bytes.Buffer
+
+		app := conga.New[whyFlatCLI]().
+			EnableCompletion().
+			Name("myapp").
+			Stdout(&buffer).
+			EnableWhy().
+			Args([]string{"--completion"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Contains(t, buffer.String(), "--why")
+	})
+
+	t.Run("bare completion omits --help when the help flag is disabled", func(t *testing.T) {
+		t.Parallel()
+
+		var buffer bytes.Buffer
+
+		app := conga.New[whyFlatCLI]().
+			EnableCompletion().
+			DisableHelpFlag().
+			Name("myapp").
+			Stdout(&buffer).
+			Args([]string{"--completion"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.NotContains(t, buffer.String(), "Show help for command")
+	})
+}
+
 func TestWhy_NoPositionalArgRows(t *testing.T) {
 	t.Parallel()
 

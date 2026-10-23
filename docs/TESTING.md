@@ -118,6 +118,23 @@ Use `github.com/alecthomas/assert/v2` for all test assertions.
 - Use `assert.True(t, condition)` and `assert.False(t, condition)` for booleans.
 - Do not use manual `if err != nil { t.Fatalf(...) }` checks.
 
+### Negative Assertions (Absence Checks)
+Rendering tests must assert what is absent as well as what is present. A `Contains` check on expected content still passes when the renderer leaks unexpected rows, so pair every output assertion with a guard against content that must not appear:
+
+```go
+	var buffer bytes.Buffer
+
+	app := conga.New[FlatCLI]().EnableCompletion().Name("myapp").Stdout(&buffer).Args([]string{"--completion", "--help"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Contains(t, buffer.String(), "Usage:\n  myapp --completion")
+	assert.NotContains(t, buffer.String(), "--why")
+```
+
+Typical absence targets: disabled built-in flags (`--help`, `--version`, `--why`, `--completion`), hidden flags, feature-gated flags and subcommands, and redacted secret values. This matters most for app-wide visibility toggles, where one unpropagated option leaks a flag into a single surface (see issue #60) while presence-only assertions stay green.
+
 ---
 
 ## 5. Parallel Execution

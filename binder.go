@@ -1166,15 +1166,23 @@ func buildCompletionHelpCommand(cmdChain []*spec.Command, completionValue string
 	compCmd := spec.NewCompletionCommand("completion", spec.DefaultCompletionCommandHelp, nil, nil, false, shells)
 	compCmd.IsCompletionFlag = true
 	compCmd.Shell = shell
-	compCmd.Flags = []*spec.Flag{spec.BuiltinHelpFlag}
+	compCmd.InheritBuiltinVisibilityFrom(cmdChain[0])
+
+	if !compCmd.DisableHelp {
+		compCmd.Flags = []*spec.Flag{spec.BuiltinHelpFlag}
+	}
 
 	return compCmd, nil
 }
 
-func buildBareCompletionHelpCommand(shells []string) *spec.Command {
+func buildBareCompletionHelpCommand(cmdChain []*spec.Command, shells []string) *spec.Command {
 	compCmd := spec.NewCompletionCommand("completion", spec.DefaultCompletionCommandHelp, nil, nil, false, shells)
 	compCmd.IsCompletionFlag = true
-	compCmd.Flags = []*spec.Flag{spec.BuiltinHelpFlag}
+	compCmd.InheritBuiltinVisibilityFrom(cmdChain[0])
+
+	if !compCmd.DisableHelp {
+		compCmd.Flags = []*spec.Flag{spec.BuiltinHelpFlag}
+	}
 
 	return compCmd
 }

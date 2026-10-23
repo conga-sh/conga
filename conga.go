@@ -1456,6 +1456,7 @@ func (a *App[T]) mountCompletionSubcommand(cmd *spec.Command) {
 
 	if cmd.HasUserSubcommands() {
 		compCmd := spec.NewCompletionCommand("completion", spec.DefaultCompletionCommandHelp, &CompletionCommand{}, nil, false, a.completionShells)
+		compCmd.InheritBuiltinVisibilityFrom(cmd)
 		cmd.Subcommands = append(cmd.Subcommands, compCmd)
 	}
 }
@@ -1767,7 +1768,7 @@ func (a *App[T]) renderCompletionHelp(cmdChain []*spec.Command, completionValue 
 
 		compCmd = builtCmd
 	} else {
-		compCmd = buildBareCompletionHelpCommand(a.completionShells)
+		compCmd = buildBareCompletionHelpCommand(cmdChain, a.completionShells)
 	}
 
 	fmt.Fprintln(a.stdout, help.FormatWith(append(slices.Clone(cmdChain), compCmd), a.helpOptions))
