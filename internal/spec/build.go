@@ -300,9 +300,11 @@ func (b *schemaBuilder) newBuiltinSubcommand(structField reflect.StructField, ki
 	aliases := SplitTagList(structField.Tag, "aliases")
 	hidden := parsePresenceOrTrueTag(structField.Tag, "hidden")
 
+	var builtin *Command
+
 	switch kind {
 	case builtinHelp:
-		return &Command{
+		builtin = &Command{
 			Name:      name,
 			Summary:   summary,
 			Hidden:    hidden,
@@ -315,9 +317,9 @@ func (b *schemaBuilder) newBuiltinSubcommand(structField reflect.StructField, ki
 					IsSlice: true,
 				},
 			},
-		}, nil
+		}
 	case builtinVersion:
-		return &Command{
+		builtin = &Command{
 			Name:         name,
 			Summary:      summary,
 			Hidden:       hidden,
@@ -331,12 +333,16 @@ func (b *schemaBuilder) newBuiltinSubcommand(structField reflect.StructField, ki
 					EngineOwned: true,
 				},
 			},
-		}, nil
+		}
 	case builtinCompletion:
-		return NewCompletionCommand(name, summary, target, aliases, hidden, b.opts.CompletionShells), nil
+		builtin = NewCompletionCommand(name, summary, target, aliases, hidden, b.opts.CompletionShells)
 	default:
 		panic("unreachable")
 	}
+
+	builtin.InheritBuiltinVisibilityFrom(b.cmd)
+
+	return builtin, nil
 }
 
 func (b *schemaBuilder) processConfigFile(structField reflect.StructField, configHandle any, fieldTags FieldTags) error {

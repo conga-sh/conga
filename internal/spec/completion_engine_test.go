@@ -416,6 +416,36 @@ func TestCompletion_WhyFormats(t *testing.T) {
 
 		assert.Equal(t, []string{"--why=text", "--why=json"}, values)
 	})
+
+	t.Run("disabled why hides the flag from synthesized subcommand names", func(t *testing.T) {
+		t.Parallel()
+
+		var cli BuiltinTestCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{DisableWhy: true})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"completion", "--why"}, spec.CompleteOptions{})
+
+		assert.False(t, slices.ContainsFunc(invoked.Items, func(item predict.Item) bool {
+			return strings.Contains(item.Value, "why")
+		}))
+	})
+
+	t.Run("disabled why yields no attached value candidates on synthesized subcommand", func(t *testing.T) {
+		t.Parallel()
+
+		var cli BuiltinTestCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{DisableWhy: true})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"completion", "--why="}, spec.CompleteOptions{})
+
+		assert.False(t, slices.ContainsFunc(invoked.Items, func(item predict.Item) bool {
+			return strings.Contains(item.Value, "why")
+		}))
+	})
 }
 
 func TestCompletion_XorSuppression(t *testing.T) {

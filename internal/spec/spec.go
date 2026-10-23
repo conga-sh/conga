@@ -183,6 +183,23 @@ func (c *Command) WhyFormats() []string {
 	return []string{WhyFormatText}
 }
 
+// InheritBuiltinVisibilityFrom copies the app-wide built-in flag visibility
+// toggles (DisableHelp, DisableVersion, DisableWhy, WhyJSONEnabled,
+// DisableCompletion) from src onto a synthesized builtin subcommand. The
+// toggles are decided once on the root from the app builder state and are
+// propagated to user-declared subcommands by the schema builder; synthesized
+// commands (help, version, completion, and the ephemeral per-shell completion
+// help screens) are not built through that path, so they inherit explicitly
+// here. Leaf-level visibility checks (binder, help renderer, completion
+// engine) then agree with the root schema options.
+func (c *Command) InheritBuiltinVisibilityFrom(src *Command) {
+	c.DisableHelp = src.DisableHelp
+	c.DisableVersion = src.DisableVersion
+	c.DisableWhy = src.DisableWhy
+	c.WhyJSONEnabled = src.WhyJSONEnabled
+	c.DisableCompletion = src.DisableCompletion
+}
+
 // FindSubcommand returns the subcommand matching name or alias, or nil.
 func (c *Command) FindSubcommand(name string) *Command {
 	for _, subcommand := range c.Subcommands {
@@ -487,7 +504,7 @@ func FindDeclaredFlagInChain(chain []*Command, name string) *Flag {
 }
 
 // FindFlagInChain searches backwards through chain for a flag matching name or alias,
-// falling back to the built-in --help and --version flags.
+// falling back to the built-in --help, --version, --completion, and --why flags.
 func FindFlagInChain(chain []*Command, name string) *Flag {
 	if flag := FindDeclaredFlagInChain(chain, name); flag != nil {
 		return flag
@@ -507,11 +524,11 @@ func FindFlagInChain(chain []*Command, name string) *Flag {
 		return BuiltinVersionFlag
 	}
 
-	if name == "completion" && chain[0].CompletionFlagVisible(len(chain) == 1) {
+	if name == "completion" && leaf.CompletionFlagVisible(len(chain) == 1) {
 		return BuiltinCompletionFlag
 	}
 
-	if name == "why" && chain[0].WhyFlagVisible() {
+	if name == "why" && leaf.WhyFlagVisible() {
 		return BuiltinWhyFlag
 	}
 

@@ -595,6 +595,26 @@ func TestFindFlagInChain(t *testing.T) {
 		assert.Equal(t, spec.DefaultHelpFlagHelp, helpFlag.Help)
 	})
 
+	t.Run("synthesizes why flag from the leaf visibility", func(t *testing.T) {
+		t.Parallel()
+
+		visibleChain := []*spec.Command{{Name: "root"}, {Name: "sub"}}
+
+		flag := spec.FindFlagInChain(visibleChain, "why")
+
+		assert.Equal(t, spec.BuiltinWhyFlag, flag)
+	})
+
+	t.Run("leaf-disabled why is not synthesized even when root is visible", func(t *testing.T) {
+		t.Parallel()
+
+		disabledLeaf := []*spec.Command{{Name: "root"}, {Name: "completion", DisableWhy: true}}
+
+		flag := spec.FindFlagInChain(disabledLeaf, "why")
+
+		assert.Zero(t, flag)
+	})
+
 	t.Run("declared-only lookup finds declared flags", func(t *testing.T) {
 		t.Parallel()
 
@@ -622,6 +642,52 @@ func TestNewCompletionCommand(t *testing.T) {
 	assert.Equal(t, "<shell>", cmd.Args[0].Name)
 	assert.False(t, cmd.Args[0].Required)
 	assert.Equal(t, []string{"bash", "zsh"}, cmd.Args[0].Enum)
+}
+
+func TestBuiltinSubcommandsInheritVisibility(t *testing.T) {
+	t.Parallel()
+
+	t.Run("disabled why hides the flag on every synthesized command", func(t *testing.T) {
+		t.Parallel()
+
+		var cli BuiltinTestCLI
+
+		cmd, err := buildSchema(&cli, "app", spec.Options{DisableWhy: true})
+
+		assert.NoError(t, err)
+		assert.False(t, cmd.FindSubcommand("help").WhyFlagVisible())
+		assert.False(t, cmd.FindSubcommand("version").WhyFlagVisible())
+		assert.False(t, cmd.FindSubcommand("completion").WhyFlagVisible())
+	})
+
+	t.Run("enabled why advertises the flag and JSON formats", func(t *testing.T) {
+		t.Parallel()
+
+		var cli BuiltinTestCLI
+
+		cmd, err := buildSchema(&cli, "app", spec.Options{WhyJSONEnabled: true})
+
+		assert.NoError(t, err)
+		assert.True(t, cmd.FindSubcommand("help").WhyFlagVisible())
+		assert.Equal(t, []string{spec.WhyFormatText, spec.WhyFormatJSON}, cmd.FindSubcommand("help").WhyFormats())
+		assert.True(t, cmd.FindSubcommand("version").WhyFlagVisible())
+		assert.Equal(t, []string{spec.WhyFormatText, spec.WhyFormatJSON}, cmd.FindSubcommand("version").WhyFormats())
+		assert.True(t, cmd.FindSubcommand("completion").WhyFlagVisible())
+		assert.Equal(t, []string{spec.WhyFormatText, spec.WhyFormatJSON}, cmd.FindSubcommand("completion").WhyFormats())
+	})
+
+	t.Run("disabled help propagates to synthesized commands", func(t *testing.T) {
+		t.Parallel()
+
+		var cli BuiltinTestCLI
+
+		cmd, err := buildSchema(&cli, "app", spec.Options{DisableHelp: true})
+
+		assert.NoError(t, err)
+		assert.True(t, cmd.FindSubcommand("help").DisableHelp)
+		assert.True(t, cmd.FindSubcommand("version").DisableHelp)
+		assert.True(t, cmd.FindSubcommand("completion").DisableHelp)
+	})
 }
 
 func TestSubcommand_SummaryTag(t *testing.T) {
