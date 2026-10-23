@@ -53,16 +53,13 @@ type congaTypes struct {
 }
 
 // commandNode is one command struct in the static hierarchy rooted at a
-// conga.New anchor, carrying the conga directive options threaded from
-// its ancestors the way the runtime schema builder threads them.
+// conga.New anchor.
 type commandNode struct {
-	named        *types.Named
-	structType   *types.Struct
-	name         string
-	inPackage    bool
-	reportPos    token.Pos
-	allowUnknown bool
-	allowRecurse bool
+	named      *types.Named
+	structType *types.Struct
+	name       string
+	inPackage  bool
+	reportPos  token.Pos
 	// envPrefix is the effective environment variable prefix inherited by the
 	// command (its own sentinel tag, else the declaring Command[T] field's
 	// envprefix tag, else the parent's, else the app-level prefix), normalized
@@ -155,8 +152,6 @@ func (w *walker) walkRoot(root *anchor) {
 	w.featureEnvFieldObject = nil
 	w.flagEnvBindings = nil
 
-	allowUnknown, allowRecurse := rootDirectiveOptions(structType)
-
 	rootEnvPrefix := nodeEnvPrefix(structType)
 
 	node := &commandNode{
@@ -165,8 +160,6 @@ func (w *walker) walkRoot(root *anchor) {
 		name:           casing.Kebab(root.rootType.Obj().Name()),
 		inPackage:      w.isCurrentPackage(root.rootType.Obj()),
 		reportPos:      root.position,
-		allowUnknown:   allowUnknown,
-		allowRecurse:   allowRecurse,
 		envPrefix:      normalizedEnvPrefix(cmp.Or(rootEnvPrefix, w.options.envPrefix)),
 		envPrefixKnown: rootEnvPrefix != "" || !w.options.envPrefixAmbiguous,
 		isRoot:         true,
@@ -306,7 +299,7 @@ func (w *walker) congaWrapperName(fieldType types.Type) string {
 
 // buildChildNode resolves the command struct referenced by a Command[T]
 // field into a child command node.
-func (w *walker) buildChildNode(node *commandNode, fieldObject types.Object, tag reflect.StructTag, allowUnknown bool, allowRecurse bool) *commandNode {
+func (w *walker) buildChildNode(node *commandNode, fieldObject types.Object, tag reflect.StructTag) *commandNode {
 	named, ok := w.containerInnerType(fieldObject.Type()).(*types.Named)
 	if !ok || named.TypeArgs().Len() > 0 {
 		return nil
@@ -320,13 +313,11 @@ func (w *walker) buildChildNode(node *commandNode, fieldObject types.Object, tag
 	localEnvPrefix := cmp.Or(nodeEnvPrefix(structType), tag.Get("envprefix"))
 
 	childNode := &commandNode{
-		named:        named,
-		structType:   structType,
-		name:         cmp.Or(tag.Get("name"), casing.Kebab(fieldObject.Name())),
-		inPackage:    w.isCurrentPackage(named.Obj()),
-		reportPos:    w.fieldReportPos(node, fieldObject),
-		allowUnknown: allowUnknown,
-		allowRecurse: allowRecurse,
+		named:      named,
+		structType: structType,
+		name:       cmp.Or(tag.Get("name"), casing.Kebab(fieldObject.Name())),
+		inPackage:  w.isCurrentPackage(named.Obj()),
+		reportPos:  w.fieldReportPos(node, fieldObject),
 	}
 
 	if localEnvPrefix != "" {
@@ -396,7 +387,7 @@ func normalizedEnvPrefix(prefix string) string {
 	return prefix + "_"
 }
 
-// nodeEnvPrefix mirrors the runtime scanSentinelDirectives envprefix scan: the
+// nodeEnvPrefix mirrors the runtime scanSentinelEnvPrefix scan: the
 // last sentinel field declaring envprefix wins.
 func nodeEnvPrefix(structType *types.Struct) string {
 	var envPrefix string

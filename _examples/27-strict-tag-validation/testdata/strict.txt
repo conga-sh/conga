@@ -1,7 +1,7 @@
 # TestScript for 27-strict-tag-validation
-# Asserts that StrictTagValidation(false) tolerates the third-party validate/db
-# tag keys: the schema builds and runs normally, while the default strict mode
-# would reject them with an ErrSchema error before Run.
+# Asserts that app.AllowTags("db", "validate") tolerates the third-party
+# validate/db tag keys: the schema builds and runs normally, while an
+# unregistered key would be rejected with an ErrSchema error before Run.
 
 # 1. The schema builds despite the foreign tags; CONGA values resolve normally
 exec strict-tags --email ops@example.com

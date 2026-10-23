@@ -285,8 +285,6 @@ Set on the `conga:"..."` tag, comma-separated:
 | Directive | Meaning |
 |-----------|---------|
 | `ignore` (or `-`) | Exclude the field from the schema. |
-| `recurse` | Recursively inspect nested struct fields into the schema. |
-| `allow-unknown-tags` | Permit unknown foreign tags on this field without error. On the root struct, permits unknown tags across the entire schema. |
 
 ## Allowed foreign tags
 
@@ -300,7 +298,7 @@ Register additional allowed tags at runtime with `app.AllowTags(...)`:
 app.AllowTags("protobuf", "storm")
 ```
 
-`app.StrictTagValidation(false)` disables strict tag checking across the application. Any other unknown tag triggers a schema error with a closest-match suggestion.
+Any other unknown tag triggers a schema error with a closest-match suggestion. Registered keys are matched exactly, so a misspelling of a registered key is still rejected.
 
 ## Bounds syntax
 

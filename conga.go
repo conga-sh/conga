@@ -327,30 +327,16 @@ func (a *App[T]) RegisterDecoder(extension string, decoder ConfigDecoder) *App[T
 	return a
 }
 
-// StrictTagValidation controls whether struct tags are strictly validated when the
-// command schema is compiled (enabled by default).
+// AllowTags adds struct tag keys that tag validation accepts.
 //
-// When strict validation is enabled, CONGA inspects all struct tags on command fields.
-// Unknown tag keys (such as misspelled hlp or deflt), invalid constraint combinations,
-// or tags applied to unsupported field types cause [App.Run] or [App.RunContext] to return
-// an error wrapping [ErrSchema].
+// CONGA inspects all struct tags on command fields when the schema is compiled.
+// Unknown tag keys (such as misspelled hlp or deflt), invalid constraint
+// combinations, or tags applied to unsupported field types cause [App.Run] or
+// [App.RunContext] to return an error wrapping [ErrSchema].
 //
-// Common third-party tags (json, yaml, validate, db, and others listed in the package
-// documentation) are permitted by default. [App.AllowTags] registers additional external
-// tag keys (kong, bson, or custom annotations) without disabling strict validation.
-func (a *App[T]) StrictTagValidation(strict bool) *App[T] {
-	a.tagValidationDisabled = !strict
-
-	return a
-}
-
-// AllowTags adds struct tag keys that strict tag validation accepts.
-//
-// Strict validation (the default) rejects unrecognized tag keys. CONGA accepts
-// common third-party tags out of the box (json, yaml, validate, db, and others
-// listed in the package documentation); register any others your structs carry
-// (for example bson or a custom annotation) instead of disabling strict
-// validation:
+// Common third-party tags (json, yaml, validate, db, and others listed in the
+// package documentation) are permitted out of the box; register any others your
+// structs carry (for example bson or a custom annotation):
 //
 //	type ServerCLI struct {
 //		Port  conga.OptionalFlag[int]    `default:"8080" help:"Listening port" short:"p"`
@@ -360,9 +346,8 @@ func (a *App[T]) StrictTagValidation(strict bool) *App[T] {
 //	app := conga.New[ServerCLI]().AllowTags("audit")
 //
 // Registered keys are ignored by the schema builder on all commands, subcommands,
-// and nested structs; multiple calls append to the permitted tag set. For
-// narrower scope use the conga allow-unknown-tags directive, or call
-// [App.StrictTagValidation] with false to disable tag checking entirely.
+// and nested structs; multiple calls append to the permitted tag set. Keys are
+// matched exactly, so a misspelling of a registered key is still rejected.
 func (a *App[T]) AllowTags(tags ...string) *App[T] {
 	a.allowedTags = append(a.allowedTags, tags...)
 
@@ -990,27 +975,26 @@ type appConfig[T any] struct {
 	// document. ConfigOptions installs it only when a loader is declared; nil
 	// keeps the document validation pipeline unreferenced at link time for
 	// applications without a loader.
-	loadConfigDocument    func(app *App[T], request loaderRequest) loaderResult
-	dotenvPaths           []string
-	dotenvLoader          func(setenv func(key, value string), paths ...string) error
-	setenvFunc            func(key, value string)
-	configData            *configdata.Data
-	configResolution      *configResolution
-	args                  []string
-	argsExplicitlySet     bool
-	usageMode             UsageOnErrorMode
-	stdout                io.Writer
-	stderr                io.Writer
-	stdin                 io.Reader
-	exitFunc              func(code int)
-	tagValidationDisabled bool
-	allowedTags           []string
-	predictors            map[string]predict.Predictor
-	typeRegistry          map[reflect.Type]typeRegistration
-	helpDisabled          bool
-	versionDisabled       bool
-	helpOptions           help.Options
-	completionShells      []string
+	loadConfigDocument func(app *App[T], request loaderRequest) loaderResult
+	dotenvPaths        []string
+	dotenvLoader       func(setenv func(key, value string), paths ...string) error
+	setenvFunc         func(key, value string)
+	configData         *configdata.Data
+	configResolution   *configResolution
+	args               []string
+	argsExplicitlySet  bool
+	usageMode          UsageOnErrorMode
+	stdout             io.Writer
+	stderr             io.Writer
+	stdin              io.Reader
+	exitFunc           func(code int)
+	allowedTags        []string
+	predictors         map[string]predict.Predictor
+	typeRegistry       map[reflect.Type]typeRegistration
+	helpDisabled       bool
+	versionDisabled    bool
+	helpOptions        help.Options
+	completionShells   []string
 	// inferPredictor performs type-based predictor inference during schema
 	// build. Completion installs it; nil keeps the inference machinery
 	// (including its filesystem probes) unreferenced at link time.
@@ -1396,7 +1380,6 @@ func (a *App[T]) buildSpec() (*spec.Command, error) {
 	}
 
 	opts := spec.Options{
-		StrictTagValidation:  !a.tagValidationDisabled,
 		AllowedTags:          a.allowedTags,
 		RegisteredPredictors: a.predictors,
 		TypePredictors:       a.collectTypePredictors(),

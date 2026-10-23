@@ -899,7 +899,6 @@ func defaultBuilderCallOrder() []string {
 		"Dotenv",
 		"RegisterDecoder",
 		"ConfigOptions",
-		"StrictTagValidation",
 		"AllowTags",
 		"Predictor",
 		"RegisterType",

@@ -5,8 +5,8 @@ width, the filesystem and value domain types (`File`, `Dir`, `ByteSize`,
 `time.Duration`, `url.URL`, maps), all four decoder formats over descriptive
 nested subcommands, config-key remap, map encodings, deep nested sections,
 `Changed()`/`Source()` provenance, feature toggles, environment binding, `.env`
-loading, and the schema directives (`conga:"ignore"`, `allow-unknown-tags,recurse`,
-`AllowTags`).
+loading, the `conga:"ignore"` directive, and `AllowTags` for third-party struct
+tags.
 
 The [`configs/`](configs/) directory doubles as browsable documentation: each
 file maps the same schema in a different format, including a `features` section.

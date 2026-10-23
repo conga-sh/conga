@@ -58,26 +58,35 @@ type HelpParent struct { // want `does not implement conga\.Runner`
 
 var _ = conga.New[HelpParent]()
 
-// StrictApp runs with strict tag validation and misspells a tag key.
+// StrictApp misspells a tag key.
 type StrictApp struct { // want `does not implement conga\.Runner`
 	Verbose conga.OptionalFlag[bool] `name:"verbose" verbos:"true" help:"Verbose output"` // want `unknown struct tag "verbos"`
 }
 
-var _ = conga.New[StrictApp]().StrictTagValidation(true)
+var _ = conga.New[StrictApp]()
 
 // AllowedTagApp permits its foreign tag via app.AllowTags.
 type AllowedTagApp struct { // want `does not implement conga\.Runner`
 	Verbose conga.OptionalFlag[bool] `name:"verbose" externaltag:"x" help:"Verbose output"`
 }
 
-var _ = conga.New[AllowedTagApp]().StrictTagValidation(true).AllowTags("externaltag")
+var _ = conga.New[AllowedTagApp]().AllowTags("externaltag")
 
-// NonStrictApp uses an unknown foreign tag without strict validation.
-type NonStrictApp struct { // want `does not implement conga\.Runner`
+// PackageAllowListApp uses the foreign tag another anchor registers via
+// app.AllowTags; the analyzer's allow-list is package-wide, so it stays quiet
+// for every anchor (it may only miss diagnostics, never invent them).
+type PackageAllowListApp struct { // want `does not implement conga\.Runner`
 	Verbose conga.OptionalFlag[bool] `name:"verbose" externaltag:"x" help:"Verbose output"`
 }
 
-var _ = conga.New[NonStrictApp]()
+var _ = conga.New[PackageAllowListApp]()
+
+// RemovedDirectiveApp carries the removed conga:"allow-unknown-tags" directive.
+type RemovedDirectiveApp struct { // want `does not implement conga\.Runner`
+	Verbose conga.OptionalFlag[bool] `name:"verbose" conga:"allow-unknown-tags" help:"Verbose output"` // want `conga directive "allow-unknown-tags" was removed`
+}
+
+var _ = conga.New[RemovedDirectiveApp]()
 
 // ShadowParent declares flags and shorts that its child shadows.
 type ShadowParent struct {
@@ -298,7 +307,7 @@ type FieldTagForeignApp struct { // want `does not implement conga\.Runner`
 	Name conga.OptionalFlag[string] `name:"name" existing:"true" help:"Name"` // want `unknown struct tag "existing"`
 }
 
-var _ = conga.New[FieldTagForeignApp]().StrictTagValidation(true)
+var _ = conga.New[FieldTagForeignApp]()
 
 // HelpVarTypoApp references an unknown help-text variable.
 type HelpVarTypoApp struct { // want `does not implement conga\.Runner`

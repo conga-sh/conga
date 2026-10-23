@@ -29,8 +29,7 @@ func New[T any](root ...*T) *App[T]
 | `Dotenv(paths...)` | Enable `.env` loading (default `.env` + `.env.local`; [rules](/reference/dotenv/)) |
 | `ConfigOptions(options...)` | Config resolution: `conga.ConfigExplicit(path)`, `conga.ConfigPaths(paths...)`, `conga.ConfigCascading()`, `conga.ConfigLoader[T](load)`; `ConfigExplicit` cannot be combined with paths or cascading, and `ConfigLoader` cannot be combined with any file-based option, decoder, or `ConfigFile` field |
 | `RegisterDecoder(ext, decoder)` | Per-app config format decoder |
-| `StrictTagValidation(strict)` | Toggle tag linting (default on) |
-| `AllowTags(tags...)` | Allow additional struct tags |
+| `AllowTags(tags...)` | Allow additional struct tag keys (matched exactly) |
 | `Predictor(name, p)` | Register named completion predictor (panics on misuse) |
 | `Use(bindings...)` | Apply builder bindings (`network.RegisterInterface`, `timezone.RegisterLocation`, …) |
 | `RegisterType[U](parser, opts...)` | Register a parser (and optional predictor) for type `U` |

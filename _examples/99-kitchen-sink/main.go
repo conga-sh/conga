@@ -16,14 +16,14 @@ func main() {
 		EnableCompletion().
 		EnableFeatures().
 		EnableWhy(conga.WhyJSON()).
-		AllowTags("kong").
-		Dotenv().
 		EnvPrefix("KITCHEN_SINK").
+		Dotenv().
 		RegisterDecoder(".toml", toml.Decode).
 		RegisterDecoder(".json", json.Decode).
 		RegisterDecoder(".yaml", yaml.Decode).
 		RegisterDecoder(".yml", yaml.Decode).
-		RegisterDecoder(".hcl", hcl.Decode)
+		RegisterDecoder(".hcl", hcl.Decode).
+		AllowTags("kong")
 
 	if err := app.Run(); err != nil {
 		app.Exit(err)

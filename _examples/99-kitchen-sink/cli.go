@@ -33,13 +33,11 @@ type KitchenSinkCLI struct {
 	// http3 feature is active. Invoking it while inactive is a usage error.
 	HTTP3Port conga.OptionalFlag[int] `default:"8443" feature:"http3" help:"QUIC/HTTP3 listener port (experimental)" safe:"true"`
 
-	// app.AllowTags("kong") permits this foreign tag schema-wide
+	// app.AllowTags("kong") permits this foreign tag schema-wide; registered
+	// keys are matched exactly, so a misspelling still fails schema build
 	Metadata conga.OptionalFlag[string] `help:"Arbitrary deployment metadata" kong:"default='none'"`
 
-	// The conga:"allow-unknown-tags" directive on any root field permits the
-	// foreign tag on this field; recurse widens the permission into every
-	// nested command (the targeted alternative to a blanket AllowTags list)
-	Storm conga.OptionalFlag[bool] `conga:"allow-unknown-tags,recurse" help:"Enable storm mode" storm:"enabled"`
+	Storm conga.OptionalFlag[bool] `help:"Enable storm mode"`
 
 	// conga:"ignore" removes the field from the schema entirely: the command
 	// is not runnable, listed in help, or completed
