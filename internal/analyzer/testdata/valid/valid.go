@@ -87,7 +87,7 @@ type App struct {
 	Count    conga.Counter                    `name:"count" help:"Count invocations"`
 	Extra    conga.DashArgs                   `name:"extra"`
 	Leftover conga.RawArgs                    `name:"leftover"`
-	Help     conga.HelpCommand                `summary:"Show help"`
+	Help     conga.HelpCommand                `summary:"Show help" aliases:"h"`
 	_        struct{}                         `envprefix:"VALID_"`
 }
 

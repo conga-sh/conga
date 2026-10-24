@@ -91,6 +91,28 @@ func TestVersionFlag_BuildInfoWithoutVersion(t *testing.T) {
 	assert.Contains(t, buffer.String(), "testapp has version dev built with ")
 }
 
+type TestVersionAliasCLI struct {
+	Version conga.VersionCommand `aliases:"v"`
+}
+
+func TestVersionCommand_AliasRouting(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	app := conga.New[TestVersionAliasCLI]().
+		Name("testapp").
+		Version("2.1.0").
+		Args([]string{"v"}).
+		Stdout(&buffer)
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Contains(t, buffer.String(), "testapp:\n")
+	assert.Contains(t, buffer.String(), " Version:    2.1.0")
+}
+
 func TestVersionCommand_Root(t *testing.T) {
 	t.Parallel()
 

@@ -300,6 +300,12 @@ func (b *schemaBuilder) newBuiltinSubcommand(structField reflect.StructField, ki
 	aliases := SplitTagList(structField.Tag, "aliases")
 	hidden := parsePresenceOrTrueTag(structField.Tag, "hidden")
 
+	for _, alias := range aliases {
+		if err := b.checkDuplicateSubcommand(alias, structField.Name, true); err != nil {
+			return nil, err
+		}
+	}
+
 	var builtin *Command
 
 	switch kind {
@@ -307,6 +313,7 @@ func (b *schemaBuilder) newBuiltinSubcommand(structField reflect.StructField, ki
 		builtin = &Command{
 			Name:      name,
 			Summary:   summary,
+			Aliases:   aliases,
 			Hidden:    hidden,
 			Target:    target,
 			IsHelpCmd: true,
@@ -322,6 +329,7 @@ func (b *schemaBuilder) newBuiltinSubcommand(structField reflect.StructField, ki
 		builtin = &Command{
 			Name:         name,
 			Summary:      summary,
+			Aliases:      aliases,
 			Hidden:       hidden,
 			Target:       target,
 			IsVersionCmd: true,
@@ -340,6 +348,7 @@ func (b *schemaBuilder) newBuiltinSubcommand(structField reflect.StructField, ki
 		panic("unreachable")
 	}
 
+	builtin.Group = structField.Tag.Get("group")
 	builtin.InheritBuiltinVisibilityFrom(b.cmd)
 
 	return builtin, nil
