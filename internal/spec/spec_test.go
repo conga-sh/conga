@@ -688,6 +688,43 @@ func TestBuiltinSubcommandsInheritVisibility(t *testing.T) {
 		assert.True(t, cmd.FindSubcommand("version").DisableHelp)
 		assert.True(t, cmd.FindSubcommand("completion").DisableHelp)
 	})
+
+	t.Run("disabled version propagates to synthesized commands", func(t *testing.T) {
+		t.Parallel()
+
+		var cli BuiltinTestCLI
+
+		cmd, err := buildSchema(&cli, "app", spec.Options{DisableVersion: true})
+
+		assert.NoError(t, err)
+		assert.True(t, cmd.FindSubcommand("help").DisableVersion)
+		assert.True(t, cmd.FindSubcommand("version").DisableVersion)
+		assert.True(t, cmd.FindSubcommand("completion").DisableVersion)
+	})
+}
+
+// TestCommand_InheritBuiltinVisibilityFrom pins that every app-wide toggle,
+// including DisableCompletion (which no buildSchema fixture can carry alongside
+// a synthesized completion command), is copied from a source command.
+func TestCommand_InheritBuiltinVisibilityFrom(t *testing.T) {
+	t.Parallel()
+
+	src := &spec.Command{
+		DisableHelp:       true,
+		DisableVersion:    true,
+		DisableWhy:        true,
+		WhyJSONEnabled:    true,
+		DisableCompletion: true,
+	}
+	dst := new(spec.Command)
+
+	dst.InheritBuiltinVisibilityFrom(src)
+
+	assert.True(t, dst.DisableHelp)
+	assert.True(t, dst.DisableVersion)
+	assert.True(t, dst.DisableWhy)
+	assert.True(t, dst.WhyJSONEnabled)
+	assert.True(t, dst.DisableCompletion)
 }
 
 func TestSubcommand_SummaryTag(t *testing.T) {

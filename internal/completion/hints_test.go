@@ -183,11 +183,22 @@ func TestEnableInstructions_ZshPersistLines(t *testing.T) {
 func TestNowSection(t *testing.T) {
 	t.Parallel()
 
-	out := NowSection(CurrentShell{Shell: ShellZsh, ExecPath: "/bin/zsh"}, "myapp", false)
+	out := NowSection(CurrentShell{Shell: ShellZsh, ExecPath: "/bin/zsh"}, "myapp", false, true)
 
 	assert.Contains(t, out, "Enable completions for your current zsh shell now:")
 	assert.Contains(t, out, "\tsource <(myapp completion zsh)")
 	assert.Contains(t, out, "For persistent setups, run 'myapp completion zsh --help'.")
+}
+
+func TestNowSection_HelpDisabled(t *testing.T) {
+	t.Parallel()
+
+	out := NowSection(CurrentShell{Shell: ShellZsh, ExecPath: "/bin/zsh"}, "myapp", false, false)
+
+	assert.Contains(t, out, "Enable completions for your current zsh shell now:")
+	assert.Contains(t, out, "\tsource <(myapp completion zsh)")
+	assert.NotContains(t, out, "For persistent setups")
+	assert.NotContains(t, out, "--help")
 }
 
 func TestSessionCommands(t *testing.T) {

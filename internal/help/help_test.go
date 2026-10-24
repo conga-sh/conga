@@ -137,6 +137,70 @@ func TestFormat_WhyFlagFormats(t *testing.T) {
 	})
 }
 
+// TestFormat_BuiltinVisibilityToggles verifies each built-in flag row is
+// gated by its command toggle at the renderer level, so an unpropagated
+// app-wide option cannot leak a row into the Flags section.
+func TestFormat_BuiltinVisibilityToggles(t *testing.T) {
+	t.Parallel()
+
+	t.Run("renders every builtin row by default", func(t *testing.T) {
+		t.Parallel()
+
+		formatted := help.Format([]*spec.Command{{Name: "app"}})
+
+		assert.Contains(t, formatted, "--help")
+		assert.Contains(t, formatted, "--version")
+		assert.Contains(t, formatted, "--why")
+		assert.Contains(t, formatted, "--completion")
+	})
+
+	t.Run("omits help row when help is disabled", func(t *testing.T) {
+		t.Parallel()
+
+		formatted := help.Format([]*spec.Command{{Name: "app", DisableHelp: true}})
+
+		assert.NotContains(t, formatted, "--help")
+	})
+
+	t.Run("omits version row when version is disabled", func(t *testing.T) {
+		t.Parallel()
+
+		formatted := help.Format([]*spec.Command{{Name: "app", DisableVersion: true}})
+
+		assert.NotContains(t, formatted, "--version")
+	})
+
+	t.Run("omits why row when why is disabled", func(t *testing.T) {
+		t.Parallel()
+
+		formatted := help.Format([]*spec.Command{{Name: "app", DisableWhy: true}})
+
+		assert.NotContains(t, formatted, "--why")
+	})
+
+	t.Run("omits completion row when completion is disabled", func(t *testing.T) {
+		t.Parallel()
+
+		formatted := help.Format([]*spec.Command{{Name: "app", DisableCompletion: true}})
+
+		assert.NotContains(t, formatted, "--completion")
+	})
+
+	t.Run("omits completion row on a command with user subcommands", func(t *testing.T) {
+		t.Parallel()
+
+		root := &spec.Command{
+			Name:        "app",
+			Subcommands: []*spec.Command{{Name: "deploy"}},
+		}
+
+		formatted := help.Format([]*spec.Command{root})
+
+		assert.Contains(t, formatted, "--help")
+		assert.NotContains(t, formatted, "--completion")
+	})
+}
+
 // TestFormat_TypeProvidedHelpFallback verifies that flags without an explicit
 // help tag inherit the default help text contributed by their value type: an
 // explicit tag always wins, pointer and value Help() receivers are both

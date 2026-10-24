@@ -169,10 +169,12 @@ func SessionCommands(shell Shell, cmdName string, useFlag bool) []string {
 }
 
 // NowSection renders the "enable for your current shell now" block: the session
-// commands for the detected shell, an upgrade warning when applicable, and a
-// pointer to the per-shell help for persistence options. The useFlag parameter
-// formats the output using either subcommand syntax or flag syntax.
-func NowSection(current CurrentShell, cmdName string, useFlag bool) string {
+// commands for the detected shell, an upgrade warning when applicable, and,
+// when helpAvailable is true, a pointer to the per-shell help for persistence
+// options. The useFlag parameter formats the output using either subcommand
+// syntax or flag syntax. When the completion command's help flag is disabled,
+// the pointer is omitted because the referenced invocation is a usage error.
+func NowSection(current CurrentShell, cmdName string, useFlag bool, helpAvailable bool) string {
 	var builder strings.Builder
 
 	builder.WriteString("\nEnable completions for your current ")
@@ -188,6 +190,10 @@ func NowSection(current CurrentShell, cmdName string, useFlag bool) string {
 		builder.WriteByte('\t')
 		builder.WriteString(line)
 		builder.WriteByte('\n')
+	}
+
+	if !helpAvailable {
+		return builder.String()
 	}
 
 	builder.WriteString("\nFor persistent setups, run '")
