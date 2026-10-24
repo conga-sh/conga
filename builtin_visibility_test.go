@@ -259,10 +259,10 @@ func TestBuiltinVisibility_UsageErrorScreen(t *testing.T) {
 	})
 }
 
-// TestBuiltinVisibility_SynthesizedVersionCommand pairs the version command
-// help screen (reachable via `version --help` or `help version`) with its
-// disabled configurations.
-func TestBuiltinVisibility_SynthesizedVersionCommand(t *testing.T) {
+// TestBuiltinVisibility_VersionCommand pairs the opt-in version command help
+// screen (reachable via `version --help` or `help version`) with its disabled
+// configurations.
+func TestBuiltinVisibility_VersionCommand(t *testing.T) {
 	t.Parallel()
 
 	t.Run("renders json and help flags by default", func(t *testing.T) {

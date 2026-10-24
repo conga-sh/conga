@@ -15,9 +15,6 @@ import (
 func TestRenderCompletionFooter_Generic(t *testing.T) {
 	t.Parallel()
 
-	root := &spec.Command{Name: "myapp"}
-	leaf := &spec.Command{Name: "completion", IsCompletionCmd: true}
-
 	t.Run("empty command chain renders nothing", func(t *testing.T) {
 		t.Parallel()
 
@@ -30,6 +27,9 @@ func TestRenderCompletionFooter_Generic(t *testing.T) {
 
 	t.Run("lists supported shells", func(t *testing.T) {
 		t.Parallel()
+
+		root := &spec.Command{Name: "myapp"}
+		leaf := &spec.Command{Name: "completion", IsCompletionCmd: true}
 
 		formatted := RenderCompletionFooter([]*spec.Command{root, leaf}, false, func() (completion.CurrentShell, bool) {
 			return completion.CurrentShell{}, false
@@ -47,6 +47,9 @@ func TestRenderCompletionFooter_Generic(t *testing.T) {
 	t.Run("static fallback pointer when shell undetected", func(t *testing.T) {
 		t.Parallel()
 
+		root := &spec.Command{Name: "myapp"}
+		leaf := &spec.Command{Name: "completion", IsCompletionCmd: true}
+
 		formatted := RenderCompletionFooter([]*spec.Command{root, leaf}, false, func() (completion.CurrentShell, bool) {
 			return completion.CurrentShell{}, false
 		})
@@ -57,6 +60,9 @@ func TestRenderCompletionFooter_Generic(t *testing.T) {
 
 	t.Run("current shell now section when detected", func(t *testing.T) {
 		t.Parallel()
+
+		root := &spec.Command{Name: "myapp"}
+		leaf := &spec.Command{Name: "completion", IsCompletionCmd: true}
 
 		formatted := RenderCompletionFooter([]*spec.Command{root, leaf}, false, func() (completion.CurrentShell, bool) {
 			return completion.CurrentShell{Shell: completion.ShellZsh, ExecPath: "/bin/zsh"}, true
@@ -71,6 +77,7 @@ func TestRenderCompletionFooter_Generic(t *testing.T) {
 	t.Run("suppresses help pointer when help flag disabled and shell undetected", func(t *testing.T) {
 		t.Parallel()
 
+		root := &spec.Command{Name: "myapp"}
 		disabled := &spec.Command{Name: "completion", IsCompletionCmd: true, DisableHelp: true}
 
 		formatted := RenderCompletionFooter([]*spec.Command{root, disabled}, false, func() (completion.CurrentShell, bool) {
@@ -85,6 +92,7 @@ func TestRenderCompletionFooter_Generic(t *testing.T) {
 	t.Run("suppresses help pointer when help flag disabled and shell detected", func(t *testing.T) {
 		t.Parallel()
 
+		root := &spec.Command{Name: "myapp"}
 		disabled := &spec.Command{Name: "completion", IsCompletionCmd: true, DisableHelp: true}
 
 		formatted := RenderCompletionFooter([]*spec.Command{root, disabled}, false, func() (completion.CurrentShell, bool) {

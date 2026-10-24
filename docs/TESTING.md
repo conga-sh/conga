@@ -118,6 +118,9 @@ Use `github.com/alecthomas/assert/v2` for all test assertions.
 - Use `assert.True(t, condition)` and `assert.False(t, condition)` for booleans.
 - Do not use manual `if err != nil { t.Fatalf(...) }` checks.
 
+> [!WARNING]
+> `assert.Zero`/`assert.NotZero` (and `assert.Equal` on non-`string`/`[]byte` operands) compare via deep `repr` serialization, which reads unexported fields without synchronization. Never apply them to values that transitively hold the live process streams (`os.Stdout`/`os.Stderr`/`os.Stdin`) — a `*conga.Session` with default streams is the canonical case: the walk copies `poll.FD` lock state while a concurrent writer mutates it, which `-race` reports. Use a shallow check instead (e.g. `assert.True(t, session != nil)`).
+
 ### Negative Assertions (Absence Checks)
 Rendering tests must assert what is absent as well as what is present. A `Contains` check on expected content still passes when the renderer leaks unexpected rows, so pair every output assertion with a guard against content that must not appear:
 

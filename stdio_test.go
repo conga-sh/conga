@@ -253,7 +253,10 @@ func TestStdio_SessionStreamsFrozenAfterAppMutation(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assert.NoError(t, err)
-	assert.NotZero(t, cli.session)
+	// Shallow nil check, not assert.NotZero: NotZero falls back to a deep repr
+	// comparison that reads the session's default os.Stdout/os.Stderr internals
+	// unsynchronized, racing with concurrent writers to the process streams.
+	assert.True(t, cli.session != nil)
 
 	app.Stdin(replacement)
 
