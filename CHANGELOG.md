@@ -6,6 +6,38 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 While CONGA is pre-1.0, breaking changes increment the minor version.
 
+## [0.2.0](https://github.com/conga-sh/conga/compare/v0.1.1...v0.2.0) (2026-10-24)
+
+
+### ⚠ BREAKING CHANGES
+
+* remove StrictTagValidation and allow-unknown-tags directive ([#58](https://github.com/conga-sh/conga/issues/58))
+* `{{env}}` on a Features container now substitutes only the combined-map `env` variable; schemas that relied on it to list `envprefix`-derived or field `env` names now fail at schema build.
+
+### ✨ Features
+
+* **dotenv:** add App.SetenvFunc to override the env writer ([#55](https://github.com/conga-sh/conga/issues/55)) ([6a81466](https://github.com/conga-sh/conga/commit/6a8146642c08e19a6dd348de6922f79f56e09d6b))
+* **features:** support per-feature environment variables ([#53](https://github.com/conga-sh/conga/issues/53)) ([97db132](https://github.com/conga-sh/conga/commit/97db132fd5845f38c31bc9c28822412acfaaf389))
+* show per-feature env vars in help and fold per-feature env map tier ([#57](https://github.com/conga-sh/conga/issues/57)) ([2074cf8](https://github.com/conga-sh/conga/commit/2074cf8f1850ac4fe5857954340f1739269fcfa9))
+* **spec:** show registered decoders in config-file flag help ([#59](https://github.com/conga-sh/conga/issues/59)) ([4bfa372](https://github.com/conga-sh/conga/commit/4bfa372f2b9a953e507579b32c55c5d75b09f828))
+* **spec:** support aliases and group tags on builtin subcommands ([#66](https://github.com/conga-sh/conga/issues/66)) ([d14d383](https://github.com/conga-sh/conga/commit/d14d383ee6b5a05b3413647dc4a9aff9542b2481))
+* **why:** advertise --why formats only when JSON is enabled ([#61](https://github.com/conga-sh/conga/issues/61)) ([5d54755](https://github.com/conga-sh/conga/commit/5d54755e314e6b113e94b04db7be6d27adeb9c2a))
+
+
+### 🐛 Bug Fixes
+
+* **spec:** inherit builtin flag visibility on synthesized commands ([#64](https://github.com/conga-sh/conga/issues/64)) ([a4681e7](https://github.com/conga-sh/conga/commit/a4681e796083e25e5610a56e66d776d6a88320fa))
+
+
+### 📚 Documentation
+
+* **website:** document --why flag help and completion rendering ([#67](https://github.com/conga-sh/conga/issues/67)) ([2c61bb4](https://github.com/conga-sh/conga/commit/2c61bb47f03ed8b419a13156fb3d4fe2159366c9))
+
+
+### ♻️ Code Refactoring
+
+* remove StrictTagValidation and allow-unknown-tags directive ([#58](https://github.com/conga-sh/conga/issues/58)) ([3bdcb51](https://github.com/conga-sh/conga/commit/3bdcb510fd23b1ebf98a11545a8fbf15c7184d51))
+
 ## [0.1.1](https://github.com/conga-sh/conga/compare/v0.1.0...v0.1.1) (2026-10-20)
 
 
