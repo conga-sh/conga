@@ -56,9 +56,17 @@ func RenderCompletionInstructions(shell string, useFlag bool, rootName string) s
 // supported-shells list plus the dynamically generated current-shell enable
 // hints. It is the completion-enabled implementation behind
 // Options.CompletionFooter; detect resolves the caller's shell and is
-// injectable for deterministic tests.
+// injectable for deterministic tests. The per-shell instructions pointer is
+// suppressed when the completion command's help flag is disabled, since the
+// referenced invocation would be a usage error. An empty command chain renders
+// nothing.
 func RenderCompletionFooter(cmdChain []*spec.Command, useFlag bool, detect func() (completion.CurrentShell, bool)) string {
+	if len(cmdChain) == 0 {
+		return ""
+	}
+
 	cmdName := rootDisplayName(cmdChain)
+	helpAvailable := !cmdChain[len(cmdChain)-1].DisableHelp
 
 	var builder strings.Builder
 
@@ -69,8 +77,8 @@ func RenderCompletionFooter(cmdChain []*spec.Command, useFlag bool, detect func(
 	builder.WriteString(renderTable("Supported shells", entries))
 
 	if current, ok := detect(); ok {
-		builder.WriteString(completion.NowSection(current, cmdName, useFlag))
-	} else {
+		builder.WriteString(completion.NowSection(current, cmdName, useFlag, helpAvailable))
+	} else if helpAvailable {
 		builder.WriteString("\nTo enable completions for your shell, run:\n  ")
 		builder.WriteString(cmdName)
 

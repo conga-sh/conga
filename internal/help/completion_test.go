@@ -18,6 +18,16 @@ func TestRenderCompletionFooter_Generic(t *testing.T) {
 	root := &spec.Command{Name: "myapp"}
 	leaf := &spec.Command{Name: "completion", IsCompletionCmd: true}
 
+	t.Run("empty command chain renders nothing", func(t *testing.T) {
+		t.Parallel()
+
+		formatted := RenderCompletionFooter(nil, false, func() (completion.CurrentShell, bool) {
+			return completion.CurrentShell{}, false
+		})
+
+		assert.Equal(t, "", formatted)
+	})
+
 	t.Run("lists supported shells", func(t *testing.T) {
 		t.Parallel()
 
@@ -56,6 +66,35 @@ func TestRenderCompletionFooter_Generic(t *testing.T) {
 		assert.Contains(t, formatted, "\tsource <(myapp completion zsh)")
 		assert.Contains(t, formatted, "For persistent setups, run 'myapp completion zsh --help'.")
 		assert.NotContains(t, formatted, "To enable completions for your shell, run:")
+	})
+
+	t.Run("suppresses help pointer when help flag disabled and shell undetected", func(t *testing.T) {
+		t.Parallel()
+
+		disabled := &spec.Command{Name: "completion", IsCompletionCmd: true, DisableHelp: true}
+
+		formatted := RenderCompletionFooter([]*spec.Command{root, disabled}, false, func() (completion.CurrentShell, bool) {
+			return completion.CurrentShell{}, false
+		})
+
+		assert.Contains(t, formatted, "Supported shells:")
+		assert.NotContains(t, formatted, "To enable completions for your shell, run:")
+		assert.NotContains(t, formatted, "--help")
+	})
+
+	t.Run("suppresses help pointer when help flag disabled and shell detected", func(t *testing.T) {
+		t.Parallel()
+
+		disabled := &spec.Command{Name: "completion", IsCompletionCmd: true, DisableHelp: true}
+
+		formatted := RenderCompletionFooter([]*spec.Command{root, disabled}, false, func() (completion.CurrentShell, bool) {
+			return completion.CurrentShell{Shell: completion.ShellZsh, ExecPath: "/bin/zsh"}, true
+		})
+
+		assert.Contains(t, formatted, "Enable completions for your current zsh shell now:")
+		assert.Contains(t, formatted, "\tsource <(myapp completion zsh)")
+		assert.NotContains(t, formatted, "For persistent setups")
+		assert.NotContains(t, formatted, "--help")
 	})
 }
 
