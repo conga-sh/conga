@@ -42,7 +42,7 @@ func main() {
 
 Passing `--why` intercepts execution during the resolution phase. CONGA binds every flag and configuration source with the regular resolution pipeline, prints the report to stdout, and exits with code 0 before any lifecycle hooks (`PreRun`, `Run`, `PostRun`) execute. Invalid configuration or flag values fail with their normal errors instead of rendering partial diagnostic rows.
 
-To enable the machine-readable `--why=json` document as well, pass `conga.WhyJSON()`: `app.EnableWhy(conga.WhyJSON())`. The same report is available programmatically from `session.Why()` and `session.WhyJSON()` inside lifecycle hooks.
+To enable the machine-readable `--why=json` document as well, pass `conga.WhyJSON()`: `app.EnableWhy(conga.WhyJSON())`. The same report is available programmatically from `session.Why()` and `session.WhyJSON()` inside lifecycle hooks. With `conga.WhyJSON()` enabled, the help screen renders the flag as `--why[=FORMAT]` with an enum hint of the accepted formats ([The `--why` report](/reference/builtins/#the---why-report)).
 
 ## Protect sensitive data with value redaction
 
