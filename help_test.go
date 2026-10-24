@@ -155,6 +155,26 @@ func TestHelpCommand_Root(t *testing.T) {
 	assertGolden(t, "testdata/help/root.golden", goldenHelpRoot, buffer.String())
 }
 
+type TestHelpAliasCLI struct {
+	Help conga.HelpCommand `aliases:"h"`
+}
+
+func TestHelpCommand_AliasRouting(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	app := conga.New[TestHelpAliasCLI]().
+		Name("testapp").
+		Args([]string{"h"}).
+		Stdout(&buffer)
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Contains(t, buffer.String(), "Usage:\n  testapp")
+}
+
 func TestHelpCommand_SubcommandRouting(t *testing.T) {
 	t.Parallel()
 

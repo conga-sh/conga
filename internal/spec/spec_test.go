@@ -644,6 +644,102 @@ func TestNewCompletionCommand(t *testing.T) {
 	assert.Equal(t, []string{"bash", "zsh"}, cmd.Args[0].Enum)
 }
 
+type BuiltinAliasCLI struct {
+	Help       mockHelpCmd       `aliases:"h"`
+	Version    mockVersionCmd    `aliases:"v"`
+	Completion mockCompletionCmd `aliases:"comp"`
+}
+
+type builtinAliasCollisionCLI struct {
+	Help mockHelpCmd       `aliases:"h"`
+	Sub  mockCmd[struct{}] `name:"h"`
+}
+
+type builtinAliasCollisionReversedCLI struct {
+	Sub  mockCmd[struct{}] `name:"h"`
+	Help mockHelpCmd       `aliases:"h"`
+}
+
+type BuiltinGroupCLI struct {
+	Help       mockHelpCmd       `group:"Meta"`
+	Version    mockVersionCmd    `group:"Meta"`
+	Completion mockCompletionCmd `group:"Meta"`
+}
+
+func TestBuiltinSubcommandAliases(t *testing.T) {
+	t.Parallel()
+
+	var cli BuiltinAliasCLI
+
+	cmd, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"h"}, cmd.FindSubcommand("h").Aliases)
+	assert.Equal(t, []string{"v"}, cmd.FindSubcommand("v").Aliases)
+	assert.Equal(t, []string{"comp"}, cmd.FindSubcommand("comp").Aliases)
+	assert.Equal(t, "help", cmd.FindSubcommand("h").Name)
+	assert.Equal(t, "version", cmd.FindSubcommand("v").Name)
+	assert.Equal(t, "completion", cmd.FindSubcommand("comp").Name)
+}
+
+func TestBuiltinSubcommandAliasCollision(t *testing.T) {
+	t.Parallel()
+
+	t.Run("subcommand name collides with earlier builtin alias", func(t *testing.T) {
+		t.Parallel()
+
+		var cli builtinAliasCollisionCLI
+
+		_, err := buildSchema(&cli, "app", spec.Options{})
+
+		assert.IsError(t, err, spec.ErrSchema)
+		assert.IsError(t, err, spec.ErrDuplicateFlag)
+		assert.Equal(t, `struct builtinAliasCollisionCLI field Sub: schema error: duplicate flag: subcommand "h" (already declared by field Help)`, err.Error())
+	})
+
+	t.Run("builtin alias collides with earlier subcommand name", func(t *testing.T) {
+		t.Parallel()
+
+		var cli builtinAliasCollisionReversedCLI
+
+		_, err := buildSchema(&cli, "app", spec.Options{})
+
+		assert.IsError(t, err, spec.ErrSchema)
+		assert.IsError(t, err, spec.ErrDuplicateFlag)
+		assert.Equal(t, `struct builtinAliasCollisionReversedCLI field Help: schema error: duplicate flag: subcommand alias "h" (already declared by field Sub)`, err.Error())
+	})
+}
+
+func TestBuiltinSubcommandGroup(t *testing.T) {
+	t.Parallel()
+
+	t.Run("group tag propagates to every builtin", func(t *testing.T) {
+		t.Parallel()
+
+		var cli BuiltinGroupCLI
+
+		cmd, err := buildSchema(&cli, "app", spec.Options{})
+
+		assert.NoError(t, err)
+		assert.Equal(t, "Meta", cmd.FindSubcommand("help").Group)
+		assert.Equal(t, "Meta", cmd.FindSubcommand("version").Group)
+		assert.Equal(t, "Meta", cmd.FindSubcommand("completion").Group)
+	})
+
+	t.Run("absent group tag stays empty", func(t *testing.T) {
+		t.Parallel()
+
+		var cli BuiltinTestCLI
+
+		cmd, err := buildSchema(&cli, "app", spec.Options{})
+
+		assert.NoError(t, err)
+		assert.Equal(t, "", cmd.FindSubcommand("help").Group)
+		assert.Equal(t, "", cmd.FindSubcommand("version").Group)
+		assert.Equal(t, "", cmd.FindSubcommand("completion").Group)
+	})
+}
+
 func TestBuiltinSubcommandsInheritVisibility(t *testing.T) {
 	t.Parallel()
 
