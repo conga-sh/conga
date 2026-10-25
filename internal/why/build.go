@@ -47,6 +47,9 @@ type FlagInput struct {
 	ConfigOrigin string
 	// ConfigScope is the optional region within ConfigOrigin.
 	ConfigScope string
+	// EnvOrigin is the .env file that supplied an environment-sourced scalar
+	// or slice value, or "" for host environment variables.
+	EnvOrigin string
 	// RowType classifies the flag's schema type for the JSON report. It is nil
 	// when JSON output is not enabled, keeping the reflection machinery
 	// unreferenced.
@@ -86,9 +89,7 @@ func BuildFlagRow(input FlagInput) Row {
 		row.Type = input.RowType(input.Flag)
 	}
 
-	if source == container.SourceConfig && !input.Flag.IsConfigFile {
-		row.Detail, row.Scope = input.ConfigOrigin, input.ConfigScope
-	}
+	row.Detail, row.Scope = flagRowDetail(input, source)
 
 	if source == container.SourceNone {
 		return row
@@ -242,6 +243,21 @@ func FormatJSONReport(report *Report) string {
 	enrichJSONReport(report)
 
 	return report.FormatJSON()
+}
+
+// flagRowDetail resolves a flag row's detail and scope: the configuration
+// origin for a config-sourced value, or the .env file for an env-sourced value
+// a dotenv file supplied.
+func flagRowDetail(input FlagInput, source container.Source) (string, string) {
+	if source == container.SourceConfig && !input.Flag.IsConfigFile {
+		return input.ConfigOrigin, input.ConfigScope
+	}
+
+	if source == container.SourceEnv && input.EnvOrigin != "" {
+		return input.EnvOrigin, ""
+	}
+
+	return "", ""
 }
 
 func buildMapRow(flagSpec *spec.Flag, value any, sources map[string]container.Source, origins map[string]configdata.Value, row Row, includeJSON bool) Row {

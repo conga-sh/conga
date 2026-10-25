@@ -65,6 +65,22 @@ When explicit paths are provided:
 - Files are loaded sequentially in the specified order; every listed file must exist, and a missing file returns an error wrapping `conga.ErrConfig`.
 - Existing environment variables are preserved; a key defined in more than one file takes the value from the last file that defines it.
 
+## Load .env from a flag-derived directory
+
+`app.Dotenv` resolves paths at startup, before flags are bound. When the `.env` location derives from a flag such as `--dir`, implement [`conga.Bootstrapper`](/how-to/load-domain-files/) and load it with `Bootstrap.Dotenv`:
+
+```go title="main.go"
+type CLI struct {
+	Dir conga.OptionalFlag[string] `bootstrap:"true" default:"." help:"Project directory"`
+}
+
+func (c *CLI) Bootstrap(_ context.Context, b *conga.Bootstrap) error {
+	return b.Dotenv(filepath.Join(c.Dir.Get(), ".env"))
+}
+```
+
+`Bootstrap.Dotenv` runs after bootstrap-field binding and tolerates missing files, so `--dir ./sub` loads `./sub/.env` and omitting `--dir` loads `./.env`. `Bootstrap.DotenvExplicit` requires each named file to exist. [Dotenv files](/reference/dotenv/) covers the shared origin map and `--why` attribution.
+
 ## Test .env loads
 
 `Dotenv` writes loaded variables into the process environment through `os.Setenv` by default. In tests, chain `SetenvFunc(t.Setenv)` to route every loaded variable through `testing.T.Setenv`, so each test restores the environment when it finishes:

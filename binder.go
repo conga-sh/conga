@@ -41,6 +41,10 @@ type bindingState struct {
 	// order (lowest to highest). It orders the contributing files reported as
 	// a merged map flag's source detail.
 	ConfigOrigins []string
+	// DotenvOrigins maps each environment key loaded from a .env file to its
+	// source path. It attributes env-tier values to their .env file in the
+	// --why report; keys absent from the map are host environment variables.
+	DotenvOrigins map[string]string
 	TypeParsers   coerce.Registry
 	Stdin         io.Reader
 	Stdout        io.Writer
@@ -619,6 +623,10 @@ type mapTierInput struct {
 	entryNames map[string]string
 	source     ValueSource
 	name       string
+	// dotenvOrigins maps an environment variable name to the .env file that
+	// supplied it. It attributes env-tier map keys to their .env file in the
+	// --why report; it is set only on environment tiers.
+	dotenvOrigins map[string]string
 }
 
 // fold merges the tier's contribution into the string-map merge state,
@@ -628,7 +636,7 @@ type mapTierInput struct {
 func (tier mapTierInput) fold(cmdChain []*spec.Command, flagSpec *spec.Flag, merged map[string]string, provenance map[string]ValueSource, origins map[string]configdata.Value, result *mapMergeResult) error {
 	if tier.entries != nil {
 		if tier.source == SourceEnv {
-			foldMapEnvEntriesTier(tier.entries, tier.entryNames, tier.name, merged, provenance, origins, result)
+			foldMapEnvEntriesTier(tier.entries, tier.entryNames, tier.name, tier.dotenvOrigins, merged, provenance, origins, result)
 
 			return nil
 		}
@@ -636,7 +644,17 @@ func (tier mapTierInput) fold(cmdChain []*spec.Command, flagSpec *spec.Flag, mer
 		return foldMapConfigTier(cmdChain, flagSpec, tier.entries, tier.name, merged, provenance, origins, result)
 	}
 
-	return foldMapTier(cmdChain, flagSpec, tier.values, tier.source, tier.name, configdata.Value{}, merged, provenance, origins, result)
+	return foldMapTier(cmdChain, flagSpec, tier.values, tier.source, tier.name, configdata.Value{Origin: tier.envOrigin()}, merged, provenance, origins, result)
+}
+
+// envOrigin returns the .env file that supplied the tier's environment
+// variable, or "" for host environment variables and non-environment tiers.
+func (tier mapTierInput) envOrigin() string {
+	if tier.source != SourceEnv {
+		return ""
+	}
+
+	return tier.dotenvOrigins[tier.name]
 }
 
 // foldRegistered merges the tier's contribution into the registered-map
@@ -646,7 +664,7 @@ func (tier mapTierInput) foldRegistered(flagSpec *spec.Flag, cmdChain []*spec.Co
 		return foldRegisteredMapConfigTier(cmdChain, flagSpec, tier.entries, tier.name, state, merged, provenance, origins, result)
 	}
 
-	return foldRegisteredMapTier(tier.values, tier.source, tier.name, configdata.Value{}, flagSpec, cmdChain, state, merged, provenance, origins, result)
+	return foldRegisteredMapTier(tier.values, tier.source, tier.name, configdata.Value{Origin: tier.envOrigin()}, flagSpec, cmdChain, state, merged, provenance, origins, result)
 }
 
 func bindSpecialArgs(leaf *spec.Command, dashArgs, rawTokens []string) {
@@ -2292,7 +2310,7 @@ func foldMapConfigTier(cmdChain []*spec.Command, flagSpec *spec.Flag, entries ma
 // are carried for feature error attribution when the caller supplied them. The
 // tier's name is the declaration-ordered list of contributing variables, so an
 // env-only feature map reports them as its source detail.
-func foldMapEnvEntriesTier(entries map[string]configdata.Value, entryNames map[string]string, detail string, merged map[string]string, provenance map[string]ValueSource, origins map[string]configdata.Value, result *mapMergeResult) {
+func foldMapEnvEntriesTier(entries map[string]configdata.Value, entryNames map[string]string, detail string, dotenvOrigins map[string]string, merged map[string]string, provenance map[string]ValueSource, origins map[string]configdata.Value, result *mapMergeResult) {
 	if len(entries) == 0 {
 		return
 	}
@@ -2305,7 +2323,7 @@ func foldMapEnvEntriesTier(entries map[string]configdata.Value, entryNames map[s
 		}
 
 		if origins != nil {
-			origins[key] = configdata.Value{}
+			origins[key] = configdata.Value{Origin: dotenvOrigins[entryNames[key]]}
 		}
 
 		if entryNames != nil {
@@ -2394,6 +2412,7 @@ func foldMapTiers(cmd *spec.Command, cmdChain []*spec.Command, flagSpec *spec.Fl
 	}
 
 	tiers := buildMapTiers(flagSpec, configEntries, configKey, hasConfig, envValue, envName, hasEnv, cliValuesForFlag, featureEnv)
+	attachDotenvOrigins(tiers, state)
 
 	var lastSource ValueSource
 
@@ -2423,6 +2442,21 @@ func foldMapTiers(cmd *spec.Command, cmdChain []*spec.Command, flagSpec *spec.Fl
 	}
 
 	return nil
+}
+
+// attachDotenvOrigins records the run's dotenv origins on each environment
+// tier of a map merge, so env-tier keys are attributed to their .env file in
+// the --why report. It is a no-op when provenance is not being recorded.
+func attachDotenvOrigins(tiers []mapTierInput, state *bindingState) {
+	if state == nil || state.DotenvOrigins == nil {
+		return
+	}
+
+	for index := range tiers {
+		if tiers[index].source == SourceEnv {
+			tiers[index].dotenvOrigins = state.DotenvOrigins
+		}
+	}
 }
 
 // hasMapContributions reports whether any tier of a map flag supplied a value:

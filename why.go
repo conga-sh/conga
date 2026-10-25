@@ -229,6 +229,10 @@ func (a *App[T]) whyFlagInput(session *Session, cmd *spec.Command, cmdChain []*s
 		}
 	}
 
+	if source == SourceEnv {
+		input.EnvOrigin = a.dotenvOrigins[target.SourceDetail()]
+	}
+
 	if flagSpec.IsMap && flagSpec != cmd.FeatureFlag {
 		input.MapSources, input.MapOrigins = session.lookupMapProvenance(flagSpec)
 	}

@@ -13,10 +13,8 @@ type BootstrapType struct {
 	Input conga.OptionalFlag[conga.File] `bootstrap:"true"` // want `bootstrap fields must be scalars`
 }
 
+func (c *BootstrapType) Bootstrap(ctx context.Context, b *conga.Bootstrap) error { return nil }
+
 func (c *BootstrapType) Run(ctx context.Context, session *conga.Session) error { return nil }
 
-func loadConfig(ctx conga.ConfigContext, root *BootstrapType) (*conga.ConfigDocument, error) {
-	return nil, nil
-}
-
-var _ = conga.New[BootstrapType]().ConfigOptions(conga.ConfigLoader(loadConfig))
+var _ = conga.New[BootstrapType]()

@@ -18,9 +18,9 @@ stdout '--api-key\s+string\s+local-dev-key-42\s+● env API_KEY'
 #    redacts the credential-bearing fields (DATABASE_URL, API_KEY)
 exec multiformat-app --why
 stdout 'Config decoders: \.hcl, \.json, \.toml, \.yaml, \.yml'
-stdout '--service-name\s+local svc\s+env\s+SERVICE_NAME'
-stdout '--database-url\s+██████\s+env'
-stdout '--api-key\s+██████\s+env'
+stdout '--service-name\s+local svc\s+env \(\.env\)\s+SERVICE_NAME'
+stdout '--database-url\s+██████\s+env \(\.env\)'
+stdout '--api-key\s+██████\s+env \(\.env\.local\)'
 stdout 'values are redacted'
 
 # 3. Real OS environment variables are never overwritten by .env files

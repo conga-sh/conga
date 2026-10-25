@@ -15,7 +15,7 @@ For general configuration flags (`OptionalFlag[T]`), values resolve through a de
 1. CLI          explicit --flag or -f on the command line
 2. Environment  $PREFIX_NAME (via EnvPrefix) or the flag's env tag
 3. Config       keys from the active config file(s), or the document supplied
-                by conga.ConfigLoader
+                by Bootstrap.SetConfig
 4. Default      the `default:"..."` struct tag, or the type's zero value
 ```
 
@@ -42,7 +42,7 @@ Phase 2: Flag Value Binding                                            v
 
 Before binding individual flags, CONGA determines which config files exist and loads them into a flat key-value map. Discovery follows its own precedence (`--config-file`, then `<PREFIX>_CONFIG`, then `conga.ConfigExplicit(...)`, then probed search tiers), with per-tier existence semantics and merge rules described in [About the config cascade](/explanation/config-cascade/). Once discovered files load and validate against the schema, their keys form the lookup table for Phase 2.
 
-An application can replace this whole phase with [`conga.ConfigLoader`](/how-to/load-domain-files/): CONGA binds fields tagged `bootstrap:"true"` on the typed root before Phase 1 begins, and the loader produces the configuration document in code before full flag binding in Phase 2. File discovery, decoders, and search tiers are inactive while a loader is declared.
+An application can contribute to this phase with a [`conga.Bootstrapper`](/how-to/load-domain-files/): CONGA binds fields tagged `bootstrap:"true"` on the selected command chain before Phase 1 begins (`CLI > environment > default`), runs `Bootstrap`, and then resolves Phase 1 and Phase 2 normally. `Bootstrap.SetConfig` supplies a configuration document in code, overlaying file-resolved values key by key; file discovery, decoders, and search tiers stay active. The tagged fields bind a second time in Phase 2, now including the config tier.
 
 ### Phase 2: Flag value binding
 
@@ -72,7 +72,7 @@ Individual flags can bypass specific tiers using struct tags. Setting `env:"-"` 
 
 ### Decoderless applications
 
-If an application registers no config decoders (`app.RegisterDecoder`), Tier 3 remains inactive for all flags. The engine skips file loading and falls directly from the environment tier to struct defaults. An application can instead supply Tier 3 programmatically with [`conga.ConfigLoader`](/how-to/load-domain-files/): the loader replaces file discovery entirely and returns a validated document that binds at exactly this rank.
+If an application registers no config decoders (`app.RegisterDecoder`), Tier 3 remains inactive for all flags. The engine skips file loading and falls directly from the environment tier to struct defaults. An application can instead supply Tier 3 programmatically with a [`conga.Bootstrapper`](/how-to/load-domain-files/): `Bootstrap.SetConfig` supplies a validated document that binds at exactly this rank and overlays any file-resolved keys it names.
 
 ### Positional arguments
 
@@ -119,7 +119,7 @@ CONGA treats empty environment variables (`FOO=`) as unset across all flag types
 
 ## Provenance tracking
 
-CONGA records the origin of every resolved value. Rather than discarding resolution history after binding, containers retain their winning tier and concrete source detail throughout execution. For a config-sourced value the detail is the contributing origin — the config file path as resolved, or the loader's label — falling back to the matched config key only when a programmatic loader supplies no origin. Scalars and slices name the single winning file; a merged map container lists every contributing file in load order:
+CONGA records the origin of every resolved value. Rather than discarding resolution history after binding, containers retain their winning tier and concrete source detail throughout execution. For a config-sourced value the detail is the contributing origin — the config file path as resolved, or the bootstrap document's label — falling back to the matched config key only when the document supplies no origin. Scalars and slices name the single winning file; a merged map container lists every contributing file in load order:
 
 ```go
 source := cmd.Addr.Source()       // conga.SourceCLI, SourceEnv, SourceConfig, etc.

@@ -144,7 +144,7 @@ cloudctl __complete bash "dep"
 
 The driver tokenizes the partial line, identifies the target command, flag, or argument, evaluates the applicable predictor and the built-in candidates, writes the shell-native directives to stdout, and exits 0 immediately, preserving the application's single-execution slot.
 
-If an application declares a [`conga.ConfigLoader`](/how-to/load-domain-files/), the completion driver binds fields tagged `bootstrap:"true"` from the command line, environment, and defaults, and runs the loader before candidate generation. This ensures predictors and feature gates evaluate with access to configuration extracted from the document. The driver restores bootstrap and selection state before returning candidates.
+If an application implements [`conga.Bootstrapper`](/how-to/load-domain-files/), the completion driver binds fields tagged `bootstrap:"true"` from the command line, environment, and defaults, and runs `Bootstrap` before candidate generation. This ensures predictors and feature gates evaluate with access to configuration extracted from the document or `.env` files. The driver restores bootstrap and selection state before returning candidates.
 
 With completion enabled, several elements complete without custom code:
 - Flag names (long flags, short runes, aliases, and negatable forms), omitting deprecated flags.

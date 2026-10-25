@@ -68,7 +68,7 @@ Feature gating and map folding classify errors by the input tier that introduced
 | Malformed map flag syntax in a config file (even when overridden by CLI) | `ErrConfig` | 1 |
 | Malformed map flag syntax in an environment variable | `ErrParse` (usage error) | 2 |
 | Invalid format passed to `--why` or `--why=json` requested without `conga.WhyJSON()` | `ErrValidation` (usage error) | 2 |
-| Runtime error returned from a `conga.ConfigLoader` function | `ErrConfig` | 1 |
+| Runtime error returned from `Bootstrapper.Bootstrap` | `ErrConfig` | 1 |
 
 ## Schema errors (`ErrSchema`)
 
@@ -77,8 +77,7 @@ Programmer errors during schema construction abort at startup before execution b
 - Declaring both `env` and `envprefix` on a `conga.Features` container, or a feature-field `env` tag under a combined-map container.
 - Binding one environment variable through two feature fields (explicitly or through prefix derivation), or through a feature and a flag.
 - Combining `conga.ConfigExplicit(...)` with `conga.ConfigPaths(...)` or `conga.ConfigCascading()`.
-- Combining `conga.ConfigLoader(...)` with file options (`ConfigPaths`, `ConfigExplicit`, `ConfigCascading`), `RegisterDecoder`, or a root `ConfigFile` field.
-- Declaring the `bootstrap` tag without a declared `conga.ConfigLoader`.
+- Declaring the `bootstrap` tag when neither the declaring command nor an ancestor implements `conga.Bootstrapper`.
 - Combining the `bootstrap` and `feature` tags on the same field.
 - Declaring the `bootstrap` tag on unsupported field types (structs, pointers, interfaces).
 - Inconsistent `stage` tags violating the all-or-nothing requirement on feature structs.

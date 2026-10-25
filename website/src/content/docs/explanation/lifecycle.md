@@ -19,10 +19,10 @@ Before input tokens are parsed or lifecycle hooks run, the engine compiles and v
 Schema Compilation (conga.New / buildSpec) ──[ErrSchema]──► Exit 1 (Programmer Error)
                 │
                 ▼
-Bootstrap Binding (fields tagged bootstrap:"true")
+Bootstrap Phase (fields tagged bootstrap:"true" bound; Bootstrapper.Bootstrap runs)
                 │
                 ▼
-Config Resolution (files discovered or ConfigLoaderFunc executes)
+Config Resolution (files discovered and decoded; SetConfig document overlaid)
                 │
                 ▼
 Input Binding & Coercion (CLI, env, config, defaults) ──[--why]──► Exit 0 (Diagnostics)
@@ -47,12 +47,15 @@ Every phase is optional except for `Runner`, which must be implemented by the se
 
 ## The bootstrap and configuration phase
 
-Applications reading domain documents or flag-driven configuration face a chicken-and-egg dependency: the loader needs command-line flags (such as `--file`, `--profile`, or `--dir`) to locate and interpret the configuration file, but normal flag binding depends on the configuration file already being loaded.
+Applications reading domain documents or flag-driven configuration face a chicken-and-egg dependency: `Bootstrap` needs command-line flags (such as `--file`, `--profile`, or `--dir`) to locate and interpret the config file, but normal flag binding depends on the config file already being loaded.
 
-CONGA solves this by dividing binding into two stages:
-1. **Bootstrap binding**: Fields marked `bootstrap:"true"` bind from the command line, environment variables, and default tags onto the root command struct.
-2. **Configuration resolution**: The engine either discovers and decodes configuration files from disk or invokes the declared `conga.ConfigLoader`. The loader receives the typed root struct with bootstrap containers already populated, and returns a `conga.ConfigDocument`.
-3. **Full input binding**: CONGA resolves all remaining flags and arguments across the four-tier ladder (`CLI > environment > config > default`).
+CONGA breaks the cycle by splitting binding into two passes and running the hook between them:
+1. **Bootstrap pass**: Fields marked `bootstrap:"true"` bind from the command line, environment variables, and default tags onto their command structs. Configuration files are not resolved yet, so the config tier is unavailable.
+2. **Bootstrap hook**: `Bootstrapper.Bootstrap` runs with those fields populated. It can load `.env` files and install a document with `Bootstrap.SetConfig`.
+3. **Configuration resolution**: The engine discovers and decodes config files, then overlays the bootstrap document key by key.
+4. **Normal binding pass**: CONGA resolves every flag and argument across the four-tier ladder (`CLI > environment > config > default`), including the bootstrap-tagged fields, which are bound a second time.
+
+The normal pass is authoritative. Because the bootstrap-tagged fields are bound twice, keep them idempotent and limited to the flags needed to locate the external input.
 
 ## Interception by built-in diagnostic flags
 

@@ -481,16 +481,16 @@ func (w *walker) checkValidationSpecs(node *commandNode, fieldObject types.Objec
 }
 
 // checkBootstrapField mirrors the runtime bootstrap-tag guards: a declared
-// bootstrap tag requires a statically identified ConfigLoader, cannot carry a
-// feature expression, and must target a scalar, slice-of-scalar, or
-// map-of-scalar type. Ambiguous loader evidence suppresses every diagnostic.
+// bootstrap tag requires the command or an ancestor command to implement
+// conga.Bootstrapper, cannot carry a feature expression, and must target a
+// scalar, slice-of-scalar, or map-of-scalar type.
 func (w *walker) checkBootstrapField(node *commandNode, fieldObject types.Object, tag reflect.StructTag, targetType types.Type) {
-	if !spec.BootstrapTagged(tag) || w.loaderState.unknown {
+	if !spec.BootstrapTagged(tag) {
 		return
 	}
 
-	if !w.loaderState.declared {
-		w.reportFieldError(node, fieldObject, spec.BootstrapRequiresLoaderError())
+	if !node.hasBootstrapper {
+		w.reportFieldError(node, fieldObject, spec.BootstrapRequiresBootstrapperError())
 
 		return
 	}

@@ -785,30 +785,30 @@ func TestParseBootstrapTag(t *testing.T) {
 		assert.False(t, bootstrap)
 	})
 
-	t.Run("requires loader", func(t *testing.T) {
+	t.Run("requires Bootstrapper", func(t *testing.T) {
 		t.Parallel()
 
 		_, err := parseBootstrapTag(reflect.StructTag(`bootstrap:"true"`), "", &Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, ErrSchema)
-		assert.Equal(t, `schema error: tag "bootstrap" requires a configuration loader; declare app.ConfigOptions(conga.ConfigLoader(...)) or remove the tag`, err.Error())
+		assert.Equal(t, `schema error: tag "bootstrap" requires the command or an ancestor command to implement conga.Bootstrapper; implement Bootstrap(ctx context.Context, b *conga.Bootstrap) error or remove the tag`, err.Error())
 	})
 
 	t.Run("rejects feature combination", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := parseBootstrapTag(reflect.StructTag(`bootstrap:"true"`), "strict", &Options{ConfigSettings: ConfigSettings{Loader: true}})
+		_, err := parseBootstrapTag(reflect.StructTag(`bootstrap:"true"`), "strict", &Options{HasBootstrapper: true})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, ErrInvalidStructTag)
-		assert.Equal(t, `schema error: invalid struct tag: tag "bootstrap" cannot be combined with tag "feature" (the loader runs before feature gates are resolved)`, err.Error())
+		assert.Equal(t, `schema error: invalid struct tag: tag "bootstrap" cannot be combined with tag "feature" (the bootstrap phase runs before feature gates are resolved)`, err.Error())
 	})
 
-	t.Run("accepted with loader", func(t *testing.T) {
+	t.Run("accepted with Bootstrapper", func(t *testing.T) {
 		t.Parallel()
 
-		bootstrap, err := parseBootstrapTag(reflect.StructTag(`bootstrap:""`), "", &Options{ConfigSettings: ConfigSettings{Loader: true}})
+		bootstrap, err := parseBootstrapTag(reflect.StructTag(`bootstrap:""`), "", &Options{HasBootstrapper: true})
 
 		assert.NoError(t, err)
 		assert.True(t, bootstrap)

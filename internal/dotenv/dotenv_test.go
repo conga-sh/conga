@@ -291,6 +291,67 @@ func TestDotenv_LoadExplicitMissingFile(t *testing.T) {
 	assert.IsError(t, err, sentinel.ErrDotenvRead)
 }
 
+func TestDotenv_LoadWithOrigins_SharedMapOverridesEarlierFile(t *testing.T) {
+	t.Setenv("CONGA_TEST_ORIGINS_HOST", "host_value")
+
+	tmpDir := t.TempDir()
+	first := filepath.Join(tmpDir, "first.env")
+	second := filepath.Join(tmpDir, "second.env")
+
+	err := os.WriteFile(first, []byte("CONGA_TEST_ORIGINS_KEY=from_first\nCONGA_TEST_ORIGINS_HOST=from_first\n"), 0o600)
+	assert.NoError(t, err)
+	err = os.WriteFile(second, []byte("CONGA_TEST_ORIGINS_KEY=from_second\n"), 0o600)
+	assert.NoError(t, err)
+
+	origins := make(map[string]string)
+
+	err = dotenv.LoadWithOrigins(t.Setenv, origins, true, first)
+	assert.NoError(t, err)
+
+	err = dotenv.LoadWithOrigins(t.Setenv, origins, true, second)
+	assert.NoError(t, err)
+
+	assert.Equal(t, "from_second", os.Getenv("CONGA_TEST_ORIGINS_KEY"))
+	assert.Equal(t, "host_value", os.Getenv("CONGA_TEST_ORIGINS_HOST"))
+	assert.Equal(t, second, origins["CONGA_TEST_ORIGINS_KEY"])
+	assert.Equal(t, "", origins["CONGA_TEST_ORIGINS_HOST"])
+}
+
+//nolint:paralleltest // dotenv.LoadWithOrigins(t.Setenv, ...) mutates the process-global environment
+func TestDotenv_LoadWithOrigins_MissingToleratedMalformedFails(t *testing.T) {
+	tmpDir := t.TempDir()
+	missing := filepath.Join(tmpDir, "missing.env")
+
+	err := dotenv.LoadWithOrigins(t.Setenv, make(map[string]string), false, missing)
+	assert.NoError(t, err)
+
+	malformed := filepath.Join(tmpDir, "malformed.env")
+	err = os.WriteFile(malformed, []byte("NOT_A_VALID_LINE\n"), 0o600)
+	assert.NoError(t, err)
+
+	err = dotenv.LoadWithOrigins(t.Setenv, make(map[string]string), false, malformed)
+	assert.Error(t, err)
+	assert.IsError(t, err, sentinel.ErrDotenvParse)
+}
+
+//nolint:paralleltest // dotenv.LoadWithOrigins(t.Setenv, ...) mutates the process-global environment
+func TestDotenv_LoadWithOrigins_OversizedFailsWhenMustExistFalse(t *testing.T) {
+	tmpDir := t.TempDir()
+	largeFile := filepath.Join(tmpDir, "large.env")
+
+	file, err := os.Create(largeFile)
+	assert.NoError(t, err)
+	err = file.Truncate(16*1024*1024 + 1)
+	assert.NoError(t, err)
+	err = file.Close()
+	assert.NoError(t, err)
+
+	err = dotenv.LoadWithOrigins(t.Setenv, make(map[string]string), false, largeFile)
+
+	assert.Error(t, err)
+	assert.IsError(t, err, filex.ErrFileSizeLimitExceeded)
+}
+
 func TestDotenv_LoadMultipleFiles_LastFileWins(t *testing.T) {
 	t.Setenv("CONGA_TEST_MULTI_EXISTING", "original")
 

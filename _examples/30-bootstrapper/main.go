@@ -11,8 +11,8 @@ import (
 )
 
 // CLI is flowctl: it runs named pipelines from one or more pipeline files. The
-// files' top-level configuration keys feed the config tier through
-// conga.ConfigLoader; the pipeline definitions themselves stay domain data.
+// files' top-level configuration keys feed the config tier through the
+// Bootstrap method; the pipeline definitions themselves stay domain data.
 type CLI struct {
 	File     conga.OptionalFlag[[]string] `bootstrap:"true" default:"pipeline.yaml" help:"Pipeline files (later files win)" safe:"true" short:"f"`
 	Pipeline conga.OptionalFlag[string]   `bootstrap:"true" help:"Pipeline to run"  safe:"true"`
@@ -45,15 +45,12 @@ func (c *CLI) Run(_ context.Context, session *conga.Session) error {
 }
 
 func main() {
-	cli := &CLI{}
-
-	app := conga.New(cli).
+	app := conga.New[CLI]().
 		Name("flowctl").
 		Description("Run named pipelines whose files supply the configuration tier").
 		Version("1.0.0").
 		EnableWhy().
-		EnvPrefix("FLOWCTL").
-		ConfigOptions(conga.ConfigLoader(cli.loadPipelines))
+		EnvPrefix("FLOWCTL")
 
 	if err := app.Run(); err != nil {
 		app.Exit(err)

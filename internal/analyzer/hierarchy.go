@@ -50,6 +50,7 @@ var congaWrapperRoles = map[string]string{
 type congaTypes struct {
 	packageObject *types.Package
 	runner        *types.Interface
+	bootstrapper  *types.Interface
 }
 
 // commandNode is one command struct in the static hierarchy rooted at a
@@ -73,6 +74,9 @@ type commandNode struct {
 	// isRoot marks the command struct anchored by conga.New. conga.Features is
 	// legal only on the root command struct.
 	isRoot bool
+	// hasBootstrapper reports whether this command or an ancestor implements
+	// conga.Bootstrapper; bootstrap-tagged fields require it.
+	hasBootstrapper bool
 	// featuresDeclared reports whether the root already declared a
 	// conga.Features container; the runtime allows exactly one, and
 	// featureFlagName carries the resolved synthesized flag name of that
@@ -97,10 +101,6 @@ type walker struct {
 	// feature-tag guards report only when the anchored app definitely never
 	// calls EnableFeatures.
 	featureState optInState
-	// loaderState is the per-anchor configuration loader verdict: bootstrap
-	// tags require a statically identified ConfigLoader and are suppressed
-	// when the evidence is ambiguous.
-	loaderState loaderState
 	// configFileMulti tracks the root command's config-file flag arity
 	// (multi tag) for the cascading guard: nil when no field is declared.
 	// The state is reset per walked root.
@@ -123,7 +123,7 @@ type walker struct {
 	featureEnvFieldObject types.Object
 }
 
-func newWalker(pass *analysis.Pass, congaTypes *congaTypes, options *appOptions, completionState, featureState optInState, loaderState loaderState, singleAnchor bool) *walker {
+func newWalker(pass *analysis.Pass, congaTypes *congaTypes, options *appOptions, completionState, featureState optInState, singleAnchor bool) *walker {
 	return &walker{
 		pass:            pass,
 		conga:           congaTypes,
@@ -133,7 +133,6 @@ func newWalker(pass *analysis.Pass, congaTypes *congaTypes, options *appOptions,
 		singleAnchor:    singleAnchor,
 		completionState: completionState,
 		featureState:    featureState,
-		loaderState:     loaderState,
 	}
 }
 
@@ -155,14 +154,15 @@ func (w *walker) walkRoot(root *anchor) {
 	rootEnvPrefix := nodeEnvPrefix(structType)
 
 	node := &commandNode{
-		named:          root.rootType,
-		structType:     structType,
-		name:           casing.Kebab(root.rootType.Obj().Name()),
-		inPackage:      w.isCurrentPackage(root.rootType.Obj()),
-		reportPos:      root.position,
-		envPrefix:      normalizedEnvPrefix(cmp.Or(rootEnvPrefix, w.options.envPrefix)),
-		envPrefixKnown: rootEnvPrefix != "" || !w.options.envPrefixAmbiguous,
-		isRoot:         true,
+		named:           root.rootType,
+		structType:      structType,
+		name:            casing.Kebab(root.rootType.Obj().Name()),
+		inPackage:       w.isCurrentPackage(root.rootType.Obj()),
+		reportPos:       root.position,
+		envPrefix:       normalizedEnvPrefix(cmp.Or(rootEnvPrefix, w.options.envPrefix)),
+		envPrefixKnown:  rootEnvPrefix != "" || !w.options.envPrefixAmbiguous,
+		isRoot:          true,
+		hasBootstrapper: w.implements(types.NewPointer(root.rootType), w.conga.bootstrapper),
 	}
 
 	w.walkCommand(node, map[string]string{}, map[rune]string{})
@@ -313,11 +313,12 @@ func (w *walker) buildChildNode(node *commandNode, fieldObject types.Object, tag
 	localEnvPrefix := cmp.Or(nodeEnvPrefix(structType), tag.Get("envprefix"))
 
 	childNode := &commandNode{
-		named:      named,
-		structType: structType,
-		name:       cmp.Or(tag.Get("name"), casing.Kebab(fieldObject.Name())),
-		inPackage:  w.isCurrentPackage(named.Obj()),
-		reportPos:  w.fieldReportPos(node, fieldObject),
+		named:           named,
+		structType:      structType,
+		name:            cmp.Or(tag.Get("name"), casing.Kebab(fieldObject.Name())),
+		inPackage:       w.isCurrentPackage(named.Obj()),
+		reportPos:       w.fieldReportPos(node, fieldObject),
+		hasBootstrapper: node.hasBootstrapper || w.implements(types.NewPointer(named), w.conga.bootstrapper),
 	}
 
 	if localEnvPrefix != "" {
@@ -417,13 +418,18 @@ func resolveCongaTypes(congaPackage *types.Package) (*congaTypes, error) {
 		return nil, fmt.Errorf("%w: conga.Runner missing from package %q", errUnresolvable, congaPackage.Path())
 	}
 
+	bootstrapper := lookupInterface(congaPackage, "Bootstrapper")
+	if bootstrapper == nil {
+		return nil, fmt.Errorf("%w: conga.Bootstrapper missing from package %q", errUnresolvable, congaPackage.Path())
+	}
+
 	for wrapperName := range congaWrapperRoles {
 		if congaPackage.Scope().Lookup(wrapperName) == nil {
 			return nil, fmt.Errorf("%w: conga.%s missing from package %q", errUnresolvable, wrapperName, congaPackage.Path())
 		}
 	}
 
-	return &congaTypes{packageObject: congaPackage, runner: runner}, nil
+	return &congaTypes{packageObject: congaPackage, runner: runner, bootstrapper: bootstrapper}, nil
 }
 
 func lookupInterface(packageObject *types.Package, name string) *types.Interface {

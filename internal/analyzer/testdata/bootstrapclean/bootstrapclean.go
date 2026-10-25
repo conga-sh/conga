@@ -1,5 +1,6 @@
-// Package bootstrapclean covers bootstrap tags on a loader-enabled app:
-// root and subcommand bootstrap fields are accepted.
+// Package bootstrapclean covers bootstrap tags on an app whose command
+// implements conga.Bootstrapper: root and subcommand bootstrap fields are
+// accepted.
 package bootstrapclean
 
 import (
@@ -19,10 +20,8 @@ type BootstrapClean struct {
 	Deploy conga.Command[Deploy]
 }
 
+func (c *BootstrapClean) Bootstrap(ctx context.Context, b *conga.Bootstrap) error { return nil }
+
 func (c *BootstrapClean) Run(ctx context.Context, session *conga.Session) error { return nil }
 
-func loadConfig(ctx conga.ConfigContext, root *BootstrapClean) (*conga.ConfigDocument, error) {
-	return nil, nil
-}
-
-var _ = conga.New[BootstrapClean]().ConfigOptions(conga.ConfigLoader(loadConfig))
+var _ = conga.New[BootstrapClean]()

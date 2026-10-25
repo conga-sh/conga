@@ -263,6 +263,34 @@ type Finalizer interface {
 	Finally(ctx context.Context, session *Session, err error) error
 }
 
+// Bootstrapper is implemented by command structs that need flag or positional
+// argument values before configuration resolution and the normal binding pass:
+// to locate and parse a config or domain file, to load .env files whose paths
+// come from flags, or to prepare app state consumed by Run.
+//
+// Bootstrap is the earliest lifecycle stage: it runs after the bootstrap pass
+// binds fields tagged bootstrap and before configuration resolution, feature
+// gating, built-in rendering, and the normal binding pass. Hooks run top-down
+// from root to leaf along the selected command chain.
+//
+// A field tagged bootstrap is bound twice on a normal run: in the bootstrap
+// pass from the command line, environment, and default tags; and again in the
+// normal pass, which adds the config tier. Only the tagged fields hold values
+// when Bootstrap runs, so it must be deterministic and free of external side
+// effects beyond bounded local I/O.
+//
+// Bootstrap runs on real executions, --why, and shell completion invocations;
+// a lone --version skips it, --help runs it only when features are enabled, and
+// completion tolerates its errors. The handle loads .env files and supplies an
+// optional [ConfigDocument] that composes with file-resolved configuration.
+//
+// See https://docs.conga.sh/explanation/lifecycle/.
+type Bootstrapper interface {
+	// Bootstrap loads environment files and supplies app state or a
+	// configuration document before the binder resolves values.
+	Bootstrap(ctx context.Context, b *Bootstrap) error
+}
+
 // DescriptionProvider is implemented by subcommand structs to supply a detailed,
 // multi-line overview for their generated help screen.
 type DescriptionProvider interface {
@@ -330,8 +358,8 @@ func (f *OptionalFlag[T]) Source() ValueSource {
 
 // SourceDetail returns the concrete origin recorded with [OptionalFlag.Source]:
 // the flag token, the environment variable name, the contributing
-// configuration origin (a file path for file-loaded values, or the loader's
-// label), or the default tag literal. For a merged map flag the origin lists
+// configuration origin (a file path for file-loaded values, or the bootstrap document's
+// origin label), or the default tag literal. For a merged map flag the origin lists
 // every contributing configuration file in load order, separated by commas.
 // It is empty when the flag is unset.
 func (f *OptionalFlag[T]) SourceDetail() string {
@@ -390,8 +418,8 @@ func (f *RequiredFlag[T]) Source() ValueSource {
 
 // SourceDetail returns the concrete origin recorded with [RequiredFlag.Source]:
 // the flag token, the environment variable name, the contributing
-// configuration origin (a file path for file-loaded values, or the loader's
-// label), or the default tag literal. For a merged map flag the origin lists
+// configuration origin (a file path for file-loaded values, or the bootstrap document's
+// origin label), or the default tag literal. For a merged map flag the origin lists
 // every contributing configuration file in load order, separated by commas.
 // It is empty when the flag is unset.
 func (f *RequiredFlag[T]) SourceDetail() string {
@@ -1023,8 +1051,8 @@ func (c *Counter) Source() ValueSource {
 
 // SourceDetail returns the concrete origin recorded with [Counter.Source]:
 // the flag token, the environment variable name, or the contributing
-// configuration origin (a file path for file-loaded values, or the loader's
-// label). It is empty when the counter is unset.
+// configuration origin (a file path for file-loaded values, or the bootstrap document's
+// origin label). It is empty when the counter is unset.
 func (c *Counter) SourceDetail() string {
 	return c.sourceDetail
 }

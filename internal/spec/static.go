@@ -223,37 +223,6 @@ func CascadingRequiresMultiError(flagName string) error {
 	return fmt.Errorf("%w: conga.ConfigCascading() merges multiple config files; the root config-file flag %q must declare multi:\"true\" (or drop conga.ConfigCascading() from app.ConfigOptions(...))", ErrSchema, flagName)
 }
 
-// ConfigLoaderOptionsConflictError builds the error when conga.ConfigLoader()
-// is combined with a file-based configuration option (conga.ConfigPaths,
-// conga.ConfigExplicit, or conga.ConfigCascading). The loader replaces file
-// discovery entirely, so the options would be silently ignored. The error
-// wraps ErrSchema so runtime schema validation returns it directly and the
-// static analyzer reports it verbatim, keeping the lint-time and runtime
-// messages a single source of truth.
-func ConfigLoaderOptionsConflictError() error {
-	return fmt.Errorf("%w: conga.ConfigLoader() supplies the configuration document programmatically and cannot be combined with conga.ConfigPaths(), conga.ConfigExplicit(), or conga.ConfigCascading()", ErrSchema)
-}
-
-// ConfigLoaderDecoderConflictError builds the error when conga.ConfigLoader()
-// is combined with a registered configuration decoder. With a loader there is
-// no file loading, so decoders would be dead weight. The error wraps ErrSchema
-// so runtime schema validation returns it directly and the static analyzer
-// reports it verbatim, keeping the lint-time and runtime messages a single
-// source of truth.
-func ConfigLoaderDecoderConflictError() error {
-	return fmt.Errorf("%w: conga.ConfigLoader() replaces file loading and cannot be combined with app.RegisterDecoder (remove the decoder registrations or the loader)", ErrSchema)
-}
-
-// ConfigLoaderConfigFileConflictError builds the error when conga.ConfigLoader()
-// is combined with a root conga.ConfigFile field. The loader replaces file
-// loading, so the config-file flag would never load a file. The error wraps
-// ErrSchema so runtime schema validation returns it directly and the static
-// analyzer reports it verbatim, keeping the lint-time and runtime messages a
-// single source of truth.
-func ConfigLoaderConfigFileConflictError(flagName string) error {
-	return fmt.Errorf("%w: the root command declares config-file flag %q, but conga.ConfigLoader() replaces file loading and never loads a file (remove the conga.ConfigFile field or the loader)", ErrSchema, flagName)
-}
-
 // CompletionRequiresEnableError builds the completion⟹enable schema guard: a
 // command struct that declares a CompletionCommand field while completion is
 // disabled would have the field silently dropped, so schema build rejects it
@@ -264,19 +233,19 @@ func CompletionRequiresEnableError() error {
 	return fmt.Errorf("%w: completion command declared without completion enabled; call app.EnableCompletion() when constructing the app, or remove the field", ErrSchema)
 }
 
-// BootstrapRequiresLoaderError builds the schema error for a bootstrap-tagged
-// field under an app that never declares a configuration loader. The runtime
-// schema builder and the static analyzer share it as the single source of
-// truth.
-func BootstrapRequiresLoaderError() error {
-	return fmt.Errorf("%w: tag \"bootstrap\" requires a configuration loader; declare app.ConfigOptions(conga.ConfigLoader(...)) or remove the tag", ErrSchema)
+// BootstrapRequiresBootstrapperError builds the schema error for a
+// bootstrap-tagged field under a command hierarchy that never implements
+// conga.Bootstrapper. The runtime schema builder and the static analyzer share
+// it as the single source of truth.
+func BootstrapRequiresBootstrapperError() error {
+	return fmt.Errorf("%w: tag \"bootstrap\" requires the command or an ancestor command to implement conga.Bootstrapper; implement Bootstrap(ctx context.Context, b *conga.Bootstrap) error or remove the tag", ErrSchema)
 }
 
 // BootstrapFeatureConflictError builds the schema error for a bootstrap field
-// that is also feature-gated. The loader runs before feature gates resolve, so
-// a gated bootstrap field cannot be evaluated reliably.
+// that is also feature-gated. The bootstrap phase runs before feature gates
+// resolve, so a gated bootstrap field cannot be evaluated reliably.
 func BootstrapFeatureConflictError() error {
-	return fmt.Errorf("%w: tag \"bootstrap\" cannot be combined with tag \"feature\" (the loader runs before feature gates are resolved)", ErrInvalidStructTag)
+	return fmt.Errorf("%w: tag \"bootstrap\" cannot be combined with tag \"feature\" (the bootstrap phase runs before feature gates are resolved)", ErrInvalidStructTag)
 }
 
 // BootstrapFieldTypeError builds the schema error for a bootstrap field whose

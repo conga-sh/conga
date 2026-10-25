@@ -26,7 +26,7 @@ func (u *Counter) UnmarshalText(text []byte) error {
 }
 
 // ConfigFile is a user-defined struct named ConfigFile in a test package.
-// It must NOT be hijacked into a CONGA configuration file loader.
+// It must NOT be hijacked into a CONGA configuration-file container.
 type ConfigFile struct {
 	Location string
 }

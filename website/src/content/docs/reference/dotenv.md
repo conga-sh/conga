@@ -20,7 +20,13 @@ func (a *App[T]) Dotenv(paths ...string) *App[T]
 
 Loaded variables are written into the process environment through `os.Setenv`. `app.SetenvFunc` replaces that writer; tests pass `testing.T.Setenv` (`.SetenvFunc(t.Setenv)`) so loaded values revert automatically when the test finishes.
 
-Completion invocations (`__complete`) load the same files before resolving candidates, so env-sourced values — including [feature gates](/how-to/feature-flags/) — shape suggestions identically to a real run. Loading failures are tolerated during completion rather than aborting it; the real run surfaces them through the regular error pipeline.
+## Bootstrap-phase loading
+
+A [`conga.Bootstrapper`](/how-to/load-domain-files/) loads `.env` files whose paths derive from bootstrap-tagged flags with `Bootstrap.Dotenv(paths...)`. It runs after bootstrap-field binding and before configuration resolution, so a path such as `filepath.Join(c.Dir.Get(), ".env")` is available. `Bootstrap.Dotenv` tolerates missing files; `Bootstrap.DotenvExplicit` fails with `conga.ErrConfig` when a named file is absent, matching `Dotenv(path1, path2, ...)`. An argument-less `Bootstrap.Dotenv()` probes `.env` and then `.env.local` in the working directory, matching `app.Dotenv()`.
+
+Both phases share one origin map: variables already present in the host process environment are never overwritten, and a file loaded by `Bootstrap.Dotenv` overrides a key an earlier `app.Dotenv` file set. `--why` attributes an env-sourced value to its `.env` file (for example `env (sub/.env)`), while host variables render as bare `env`.
+
+Completion invocations (`__complete`) run `Bootstrap` before resolving candidates, so env-sourced values — including [feature gates](/how-to/feature-flags/) — shape suggestions identically to a real run. Loading failures are tolerated during completion rather than aborting it; the real run surfaces them through the regular error pipeline.
 
 ## Grammar
 
