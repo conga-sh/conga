@@ -75,7 +75,7 @@ func parsePipelineFile(path string, data []byte) (pipelineFile, error) {
 // mergePipelineDefinitions merges the domain data across files: a later file
 // wins the description, steps concatenate in file order, and needs concatenate
 // while dropping duplicates. The configuration engine merges slices
-// nearest-file-wins, so this merge has to live in the loader.
+// nearest-file-wins, so this merge has to live in Bootstrap.
 func mergePipelineDefinitions(files []loadedPipelineFile) map[string]mergedPipeline {
 	merged := make(map[string]mergedPipeline)
 

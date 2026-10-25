@@ -593,8 +593,9 @@ func parseFlagSpec(structField reflect.StructField, flagHandle any, classificati
 
 // parseBootstrapField validates and reports the bootstrap tag for a flag or
 // positional argument. Bootstrap fields must have a pure scalar shape and may
-// only be declared on loader applications; feature-gated bootstrap inputs are
-// rejected because the loader runs before feature gates resolve.
+// only be declared under a command that implements Bootstrapper; feature-gated
+// bootstrap inputs are rejected because the bootstrap pass runs before feature
+// gates resolve.
 func parseBootstrapField(tag reflect.StructTag, targetType reflect.Type, feature string, opts *Options) (bool, error) {
 	bootstrap, err := parseBootstrapTag(tag, feature, opts)
 	if err != nil || !bootstrap {
@@ -608,15 +609,15 @@ func parseBootstrapField(tag reflect.StructTag, targetType reflect.Type, feature
 	return true, nil
 }
 
-// parseBootstrapTag validates the bootstrap tag's loader requirement and
+// parseBootstrapTag validates the bootstrap tag's Bootstrapper requirement and
 // feature exclusion without checking the field's value shape.
 func parseBootstrapTag(tag reflect.StructTag, feature string, opts *Options) (bool, error) {
 	if !parsePresenceOrTrueTag(tag, "bootstrap") {
 		return false, nil
 	}
 
-	if opts == nil || !opts.ConfigSettings.Loader {
-		return false, BootstrapRequiresLoaderError()
+	if opts == nil || !opts.HasBootstrapper {
+		return false, BootstrapRequiresBootstrapperError()
 	}
 
 	if feature != "" {

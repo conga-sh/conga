@@ -13,7 +13,7 @@ type Value struct {
 	// Raw is the stringified value.
 	Raw string
 	// Origin is the configuration file path that supplied the value;
-	// programmatic loaders may supply other source labels.
+	// programmatic documents may supply other source labels.
 	Origin string
 	// Scope names the region within Origin that supplied the value, such as a
 	// section of a configuration file. It is empty when Origin is a whole
@@ -88,7 +88,7 @@ func (data *Data) EnsureMap(keys []string) map[string]Value {
 
 // ScalarValue returns the scalar value and its origin stored under key.
 // Consumers that need the provenance — such as the value binder and the
-// programmatic configuration loader — prefer it over a raw-string accessor.
+// programmatic configuration document — prefer it over a raw-string accessor.
 func (data *Data) ScalarValue(key string) (Value, bool) {
 	val, exists := data.scalars[key]
 

@@ -91,7 +91,7 @@ app.Predictor("clusters", predict.Callback(func(compCtx predict.Context) predict
 
 `predict.Callback` takes no error return: when the data source fails, return `predict.None()`. Dynamic callbacks run under a 250 ms deadline (`predict.DefaultTimeout`); on overrun, CONGA returns an empty candidate set instead of blocking the interactive prompt. Pass a fallback predictor to `Timeout` to return candidates on overrun.
 
-When an application uses [`conga.ConfigLoader`](/how-to/load-domain-files/), CONGA binds fields tagged `bootstrap:"true"` (such as `--file`, `--dir`, or `--profile`) from the command line and executes the loader before evaluating completion callbacks. This allows dynamic predictors to inspect configuration extracted from the file and return context-aware candidates.
+When an application implements [`conga.Bootstrapper`](/how-to/load-domain-files/), CONGA binds fields tagged `bootstrap:"true"` (such as `--file`, `--dir`, or `--profile`) from the command line and runs `Bootstrap` before evaluating completion callbacks. Dynamic predictors inspect configuration extracted from the document or `.env` files and return context-aware candidates.
 
 ## Make a type self-completing
 

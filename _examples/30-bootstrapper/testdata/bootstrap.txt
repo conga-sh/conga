@@ -1,9 +1,8 @@
-# TestScript for 30-config-loader — configuration loaded from pipeline files.
-# flowctl reads pipeline files as domain documents: their top-level
-# parallelism/log_level/env keys feed the config tier through
-# conga.ConfigLoader, while pipelines stay domain data consumed by Run. The
-# loader concatenates the step and needs lists that the config tiers never
-# merge.
+# TestScript for 30-bootstrapper — bootstrapping a flag-selected domain
+# document. flowctl reads pipeline files as domain documents: their top-level
+# parallelism/log_level/env keys feed the config tier through the Bootstrap
+# method, while pipelines stay domain data consumed by Run. Bootstrap also
+# concatenates the step and needs lists that the config tiers never merge.
 
 copy-fixture testdata/fixtures/pipeline.yaml pipeline.yaml
 copy-fixture testdata/fixtures/pipeline.local.yaml pipeline.local.yaml
@@ -51,17 +50,17 @@ stdout 'pipeline\.yaml\s+loaded'
 # The scoped origin attributes values, not a separate candidate path.
 ! stdout 'pipeline\.local\.yaml › pipeline deploy\s+loaded'
 
-# 6. A loader failure is app-authored data: exit 1, never a usage error.
+# 6. A Bootstrap failure is app-authored data: exit 1, never a usage error.
 exit-status 1 flowctl --pipeline nope
-stderr 'config loader failed: pipeline not found "nope"'
+stderr 'bootstrap failed: pipeline not found "nope"'
 exit-status 1 flowctl -f missing.yaml
-stderr 'config loader failed: read pipeline file "missing\.yaml"'
+stderr 'bootstrap failed: read pipeline file "missing\.yaml"'
 exit-status 1 flowctl -f bad-version.yaml
 stderr 'unsupported pipeline file version "2"'
 exit-status 1 flowctl -f unknown-key.yaml
 stderr 'field paralelism not found'
 
-# 7. Help does not run the loader: an empty directory has no pipeline file.
+# 7. Help does not run Bootstrap: an empty directory has no pipeline file.
 mkdir empty
 cd empty
 exec flowctl --help

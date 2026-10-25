@@ -323,8 +323,8 @@ type Flag struct {
 	// NoCLI marks an engine-synthesized flag that binds environment and
 	// configuration values but is excluded from command-line routing and help.
 	NoCLI bool
-	// Bootstrap reports whether the field is bound before the configuration
-	// loader runs and exposed to it typed.
+	// Bootstrap reports whether the field is bound in the bootstrap pass,
+	// before configuration resolution, and exposed to the Bootstrapper typed.
 	Bootstrap bool
 	// Required reports whether the flag was declared through a required
 	// container (conga.RequiredFlag[T]).
@@ -419,13 +419,6 @@ type ConfigSettings struct {
 	// Cascading merges every existing tier file in precedence order (lowest to
 	// highest) instead of stopping at the first existing file.
 	Cascading bool
-
-	// Loader reports that the application declared a programmatic
-	// configuration document source via conga.ConfigLoader(...). The loader
-	// function itself lives on the root conga.App; the marker rides here so
-	// runtime schema validation and the static analyzer can reject
-	// combinations with the file-based resolution settings and decoders.
-	Loader bool
 }
 
 // Options configure schema reflection, validation, and predictors.
@@ -442,6 +435,16 @@ type Options struct {
 	// classification (container kind, required flag, command target). Nil
 	// leaves every field unclassified, so no field is treated as a container.
 	ClassifyContainer func(any) container.Classification
+	// IsBootstrapper reports whether a command struct implements the
+	// conga.Bootstrapper lifecycle interface. The builder calls it for every
+	// command during schema build and records the result in HasBootstrapper so
+	// a bootstrap-tagged field is only accepted under a command (or ancestor)
+	// that consumes it.
+	IsBootstrapper func(any) bool
+	// HasBootstrapper reports whether this command or one of its ancestors
+	// implements conga.Bootstrapper. It is derived from IsBootstrapper during
+	// the build walk and inherited by descendant commands.
+	HasBootstrapper bool
 	// ConfigSettings carries the app-level configuration resolution settings
 	// (app.ConfigOptions options) onto the root command.
 	ConfigSettings ConfigSettings

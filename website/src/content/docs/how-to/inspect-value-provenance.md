@@ -81,7 +81,7 @@ The report divides diagnostics into four areas:
 
 1. Flag table: shows the flag name, winning value (or `██████` if untagged), winning source tier (`cli`, `env`, `config`, or `default`), evaluated environment variable, and configuration key. Unambiguous config origins display as the file basename (`config (app.yaml)`), while colliding basenames show the shortest unique directory prefix (`config (/etc/.../app.yaml)`). Entry-bearing map rows display key counts `(N keys)` and tree branches (`├─ `, `└─ `). Multi-file `ConfigFile` rows display `(N files)` with tree sub-rows, and slice flags with multiple values render `(N values)`.
 2. Config decoders: lists all format decoders registered on the application.
-3. Config paths: lists evaluated candidate file paths and probe outcomes (`loaded`, `not found`). When a loader document records scopes via `SetScoped`, the table lists the origin path once while the value's source column includes the scope.
+3. Config paths: lists evaluated candidate file paths and probe outcomes (`loaded`, `not found`). When a bootstrap document records scopes via `SetScoped`, the table lists the origin path once while the value's source column includes the scope.
 4. Features: lists every declared feature toggle, its resolved value, and its contributing tier.
 
 Map flags merge key by key across tiers: the flag row displays the key count and highest contributing tier, followed by tree-structured sub-rows (`├─ `, `└─ `) detailing each key's value and source:

@@ -1,5 +1,5 @@
 // Package bootstrapfeature covers a bootstrap field that is also
-// feature-gated: the loader runs before feature gates resolve, so the
+// feature-gated: the bootstrap phase runs before feature gates resolve, so the
 // combination is rejected.
 package bootstrapfeature
 
@@ -13,12 +13,8 @@ type BootstrapFeature struct {
 	Dir conga.OptionalFlag[string] `bootstrap:"true" feature:"strict"` // want `tag "bootstrap" cannot be combined with tag "feature"`
 }
 
+func (c *BootstrapFeature) Bootstrap(ctx context.Context, b *conga.Bootstrap) error { return nil }
+
 func (c *BootstrapFeature) Run(ctx context.Context, session *conga.Session) error { return nil }
 
-func loadConfig(ctx conga.ConfigContext, root *BootstrapFeature) (*conga.ConfigDocument, error) {
-	return nil, nil
-}
-
-var _ = conga.New[BootstrapFeature]().
-	EnableFeatures().
-	ConfigOptions(conga.ConfigLoader(loadConfig))
+var _ = conga.New[BootstrapFeature]().EnableFeatures()

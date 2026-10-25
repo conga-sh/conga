@@ -95,13 +95,23 @@ func (c *ConfigCLI) Run(_ context.Context, session *conga.Session) error {
 	return err
 }
 
-// LoaderCLI is an application whose configuration document comes from code.
-type LoaderCLI struct {
+// BootstrapCLI is an application whose Bootstrap hook supplies a configuration
+// document.
+type BootstrapCLI struct {
 	Host conga.OptionalFlag[string] `default:"localhost"`
 	Port conga.OptionalFlag[int]    `default:"8000"`
 }
 
-func (c *LoaderCLI) Run(_ context.Context, session *conga.Session) error {
+func (c *BootstrapCLI) Bootstrap(_ context.Context, b *conga.Bootstrap) error {
+	document := &conga.ConfigDocument{}
+	document.Set("host", "document.example.com", "embedded defaults")
+	document.Set("port", 9200, "embedded defaults")
+	b.SetConfig(document)
+
+	return nil
+}
+
+func (c *BootstrapCLI) Run(_ context.Context, session *conga.Session) error {
 	_, err := fmt.Fprintf(session.Stdout(), "port=%d host=%s\n", c.Port.Get(), c.Host.Get())
 
 	return err
@@ -342,18 +352,12 @@ func ExampleApp_RegisterDecoder() {
 	// port=8080 host=localhost
 }
 
-// Supply the configuration tier from code with [ConfigLoader]: the returned
-// document is validated like a decoded config file, outranks defaults, and
-// still loses to command-line and environment values.
-func ExampleConfigLoader() {
-	app := conga.New[LoaderCLI]().
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *LoaderCLI) (*conga.ConfigDocument, error) {
-			document := &conga.ConfigDocument{}
-			document.Set("host", "document.example.com", "embedded defaults")
-			document.Set("port", 9200, "embedded defaults")
-
-			return document, nil
-		})).
+// Supply a configuration document with a [conga.Bootstrapper]: the supplied
+// document composes with file resolution, is validated like a decoded config
+// file, outranks defaults, and still loses to command-line and environment
+// values.
+func ExampleBootstrapper() {
+	app := conga.New[BootstrapCLI]().
 		Args([]string{"--host", "cli.example.com"})
 
 	if err := app.Run(); err != nil {

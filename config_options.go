@@ -12,8 +12,8 @@ import (
 // resolution settings for [App.ConfigOptions]. Options compose and are
 // independent of call order; repeating an option replaces its slot.
 // ConfigOption is a sealed interface: values are produced exclusively by the
-// constructors [ConfigPaths], [ConfigExplicit], [ConfigCascading], and
-// [ConfigLoader], and cannot be implemented by other packages.
+// constructors [ConfigPaths], [ConfigExplicit], and [ConfigCascading], and
+// cannot be implemented by other packages.
 type ConfigOption interface {
 	applyTo(settings *spec.ConfigSettings)
 }

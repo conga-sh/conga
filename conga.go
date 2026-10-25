@@ -277,29 +277,24 @@ func (a *App[T]) EnvPrefix(prefix string) *App[T] {
 // See https://docs.conga.sh/how-to/load-env-files/.
 func (a *App[T]) Dotenv(paths ...string) *App[T] {
 	a.dotenvPaths = paths
-	a.dotenvLoader = dotenv.LoadWith
+	a.dotenvLoader = dotenv.LoadWithOrigins
 
 	return a
 }
 
 // ConfigOptions sets how CONGA discovers and merges config files. Options come
-// from the [ConfigOption] constructors: [ConfigPaths], [ConfigExplicit],
-// [ConfigCascading], and [ConfigLoader], each declaring one resolution rule.
+// from the [ConfigOption] constructors: [ConfigPaths], [ConfigExplicit], and
+// [ConfigCascading], each declaring one resolution rule.
 //
-// Config files also require a registered decoder (see [App.RegisterDecoder]),
-// unless a [ConfigLoader] supplies the configuration document programmatically
-// instead. See https://docs.conga.sh/how-to/manage-config-files/.
+// Config files also require a registered decoder (see [App.RegisterDecoder]).
+// A [Bootstrapper] may supply additional configuration programmatically via
+// [Bootstrap.SetConfig], which composes with these options.
+//
+// See https://docs.conga.sh/how-to/manage-config-files/.
 func (a *App[T]) ConfigOptions(options ...ConfigOption) *App[T] {
 	a.configOptions = append(a.configOptions, options...)
 	a.configSettings = foldConfigOptions(a.configOptions)
-
-	a.configLoader = extractConfigLoaderFunc[T](a.configOptions)
-	if a.configLoader != nil {
-		a.loadConfigDocument = (*App[T]).loadDocumentConfigData
-		a.loaderResolver = (*App[T]).resolveLoaderConfig
-	} else {
-		a.installConfigEngine()
-	}
+	a.installConfigEngine()
 
 	return a
 }
@@ -660,7 +655,7 @@ func (a *App[T]) RunContext(ctx context.Context) error {
 
 	// 1. Load Dotenv if enabled
 	if a.dotenvLoader != nil {
-		if err := a.dotenvLoader(a.setenvFunc, a.dotenvPaths...); err != nil {
+		if err := a.dotenvLoader(a.setenvFunc, a.dotenvOriginMap(), len(a.dotenvPaths) > 0, a.dotenvPaths...); err != nil {
 			return fmt.Errorf("%w: %w", ErrConfig, err)
 		}
 	}
@@ -967,34 +962,33 @@ type appConfig[T any] struct {
 	configSettings     spec.ConfigSettings
 	configRegistry     *configengine.Registry
 	configEngine       configEngineFactory
-	// configLoader is the application's programmatic configuration document
-	// source declared via conga.ConfigLoader. Nil means no loader is declared
-	// and file resolution applies.
-	configLoader ConfigLoaderFunc[T]
-	// loadConfigDocument runs the declared loader and validates the returned
-	// document. ConfigOptions installs it only when a loader is declared; nil
-	// keeps the document validation pipeline unreferenced at link time for
-	// applications without a loader.
-	loadConfigDocument func(app *App[T], request loaderRequest) loaderResult
 	dotenvPaths        []string
-	dotenvLoader       func(setenv func(key, value string), paths ...string) error
-	setenvFunc         func(key, value string)
-	configData         *configdata.Data
-	configResolution   *configResolution
-	args               []string
-	argsExplicitlySet  bool
-	usageMode          UsageOnErrorMode
-	stdout             io.Writer
-	stderr             io.Writer
-	stdin              io.Reader
-	exitFunc           func(code int)
-	allowedTags        []string
-	predictors         map[string]predict.Predictor
-	typeRegistry       map[reflect.Type]typeRegistration
-	helpDisabled       bool
-	versionDisabled    bool
-	helpOptions        help.Options
-	completionShells   []string
+	// dotenvLoader loads the static [App.Dotenv] paths. It is a field so the
+	// dotenv subsystem stays unreferenced at link time for applications that
+	// never call [App.Dotenv].
+	dotenvLoader func(setenv func(key, value string), origins map[string]string, mustExist bool, paths ...string) error
+	// dotenvOrigins maps each environment key loaded from a .env file to its
+	// source path. It is shared across the static and bootstrap dotenv phases
+	// and across invocations on the same App, so a later .env load may override
+	// an earlier one while host environment keys stay protected.
+	dotenvOrigins     map[string]string
+	setenvFunc        func(key, value string)
+	configData        *configdata.Data
+	configResolution  *configResolution
+	args              []string
+	argsExplicitlySet bool
+	usageMode         UsageOnErrorMode
+	stdout            io.Writer
+	stderr            io.Writer
+	stdin             io.Reader
+	exitFunc          func(code int)
+	allowedTags       []string
+	predictors        map[string]predict.Predictor
+	typeRegistry      map[reflect.Type]typeRegistration
+	helpDisabled      bool
+	versionDisabled   bool
+	helpOptions       help.Options
+	completionShells  []string
 	// inferPredictor performs type-based predictor inference during schema
 	// build. Completion installs it; nil keeps the inference machinery
 	// (including its filesystem probes) unreferenced at link time.
@@ -1007,13 +1001,12 @@ type appConfig[T any] struct {
 	// executing App as their first argument. Nil means the subsystem is
 	// disabled and unreferenced, so its packages drop at link time.
 	whyHooks                   *whyHooks
-	loaderResolver             func(app *App[T], request loaderRequest) *configResolution
 	defaultPredictors          func(app *App[T])
 	mountCompletion            func(app *App[T], cmd *spec.Command)
 	handleCompletionInvocation func(app *App[T]) error
 	completionHelp             func(app *App[T], cmdChain []*spec.Command, completionValue string, withHelp bool) (bool, error)
 	renderCompletionScript     func(app *App[T], cmdChain []*spec.Command, shell string) (bool, error)
-	featurePreparer            func(app *App[T], featureBinding featureState, invocation parsedInvocation, request builtinRequest) ([]prunedFlag, error)
+	featurePreparer            func(app *App[T], ctx context.Context, featureBinding featureState, invocation parsedInvocation, request builtinRequest) ([]prunedFlag, error)
 	processFeatures            func(builder any, structField reflect.StructField, fieldHandle any, classification container.Classification) error
 	validateFeatures           func(root *spec.Command) error
 	parseFeatureTag            func(feature string, required bool) (string, error)
@@ -1093,6 +1086,16 @@ func (e *decoderRequiredError) Error() string { return e.cause.Error() }
 
 func (e *decoderRequiredError) Unwrap() error { return e.cause }
 
+// dotenvOriginMap returns the App's shared dotenv origins map, allocating it on
+// first use.
+func (a *App[T]) dotenvOriginMap() map[string]string {
+	if a.dotenvOrigins == nil {
+		a.dotenvOrigins = make(map[string]string)
+	}
+
+	return a.dotenvOrigins
+}
+
 // installConfigEngine lazily creates the decoder registry and installs the
 // resolution engine factory. It is called exclusively from the config builder
 // methods, so minimal applications never reference the engine package.
@@ -1127,10 +1130,10 @@ func (a *App[T]) completeForShellWithEnv(targetShell string, args []string, look
 	// before resolution so env-sourced values — including feature gates — are
 	// visible to candidate generation. Failures are tolerated: completion is
 	// an observation, and the real run surfaces the error through the regular
-	// pipeline (matching the tolerated config-loader failures below).
+	// pipeline (matching the tolerated bootstrap failures below).
 	if a.dotenvLoader != nil {
-		//nolint:errcheck // completion tolerates dotenv failures like loader failures
-		_ = a.dotenvLoader(a.setenvFunc, a.dotenvPaths...)
+		//nolint:errcheck // completion tolerates dotenv failures like bootstrap failures
+		_ = a.dotenvLoader(a.setenvFunc, a.dotenvOriginMap(), len(a.dotenvPaths) > 0, a.dotenvPaths...)
 	}
 
 	cmd, err := a.buildSpec()
@@ -1177,13 +1180,35 @@ func (a *App[T]) completeForShellWithEnv(targetShell string, args []string, look
 	}
 
 	var configData *configdata.Data
-	if a.loadConfigDocument != nil {
-		configData = a.loadCompletionConfig(invocation, lookup)
+
+	// Bootstrap runs as an observation: bind bootstrap fields tolerantly, run
+	// every Bootstrapper, then restore container snapshots before candidate
+	// generation. Errors are tolerated because the real run surfaces them.
+	bootstrapResult, _ := a.runBootstrap(context.Background(), configRequest{
+		invocation:        invocation,
+		envLookup:         lookup,
+		tolerateBootstrap: true,
+	})
+	if bootstrapResult.restore != nil {
+		bootstrapResult.restore()
+	}
+
+	if bootstrapResult.configSet {
+		configData = a.loadConfigDataForCompletion(invocation)
+		if configData == nil {
+			configData = configdata.New()
+		}
+
+		if bootstrapResult.err != nil {
+			configData = nil
+		} else if _, err := overlayBootstrapDocument(bootstrapResult, cmd, configData); err != nil {
+			configData = nil
+		}
 	}
 
 	if a.featurePreparer != nil {
 		if featureBinding := featureStateOfCommand(cmd); featureBinding != nil {
-			if a.loadConfigDocument == nil {
+			if !bootstrapResult.configSet {
 				configData = a.loadConfigDataForCompletion(invocation)
 			}
 
@@ -1231,28 +1256,8 @@ func (a *App[T]) completeCompLineForShell(targetShell string, compLine string, c
 	return a.completeForShellWithEnv(targetShell, words, lookup)
 }
 
-// loadCompletionConfig runs the programmatic loader for an observation-only
-// completion invocation, restoring bootstrap fields and command selection
-// before candidate generation. Loader errors are tolerated.
-func (a *App[T]) loadCompletionConfig(invocation parsedInvocation, lookup completion.EnvLookup) *configdata.Data {
-	result := a.loadConfigDocument(a, loaderRequest{
-		invocation:        invocation,
-		envLookup:         lookup,
-		tolerateBootstrap: true,
-	})
-	if result.restore != nil {
-		result.restore()
-	}
-
-	if result.err != nil {
-		return nil
-	}
-
-	return result.data
-}
-
 // loadConfigDataForCompletion resolves the file-based configuration tier for
-// feature pruning when no programmatic loader is declared.
+// feature pruning when no bootstrap document is supplied.
 func (a *App[T]) loadConfigDataForCompletion(invocation parsedInvocation) *configdata.Data {
 	if a.configEngine == nil {
 		return nil
@@ -1386,6 +1391,7 @@ func (a *App[T]) buildSpec() (*spec.Command, error) {
 		RegisteredPredictors: a.predictors,
 		TypePredictors:       a.collectTypePredictors(),
 		ClassifyContainer:    classifyContainer,
+		IsBootstrapper:       isBootstrapper,
 		ConfigDecoders:       decoderExtensions,
 		ConfigFilePatterns: slicex.Map(decoderExtensions, func(extension string) string {
 			return "*" + extension
@@ -1466,11 +1472,11 @@ func (a *App[T]) mountCompletionSubcommand(cmd *spec.Command) {
 // the feature map, prunes inactive flags and subcommands, and rejects a gated
 // flag supplied on the command line (a usage error even under --help, symmetric
 // with a gated subcommand). It returns the pruned flags.
-func (a *App[T]) prepareFeatures(featureBinding featureState, invocation parsedInvocation, request builtinRequest) ([]prunedFlag, error) {
+func (a *App[T]) prepareFeatures(ctx context.Context, featureBinding featureState, invocation parsedInvocation, request builtinRequest) ([]prunedFlag, error) {
 	var configOrigins []string
 
 	if !request.versionOnly() {
-		resolution := a.resolveConfig(loaderRequest{
+		resolution := a.resolveConfig(ctx, configRequest{
 			invocation:        invocation,
 			tolerateBootstrap: request.toleratesFeatureErrors(),
 		})
@@ -1487,6 +1493,7 @@ func (a *App[T]) prepareFeatures(featureBinding featureState, invocation parsedI
 		EnvPrefix:             a.envPrefix,
 		ConfigData:            a.configData,
 		ConfigOrigins:         configOrigins,
+		DotenvOrigins:         a.dotenvOrigins,
 		TypeParsers:           a.collectTypeParsers(),
 		TolerateFeatureErrors: request.toleratesFeatureErrors(),
 		WantMapProvenance:     true,
@@ -1508,8 +1515,8 @@ func (a *App[T]) extractExplicitConfigTargets(invocation parsedInvocation) ([]st
 	return nil, nil
 }
 
-func (a *App[T]) prepareNonMetaExecution(session *Session, invocation parsedInvocation, featureBinding featureState, prunedFlags []prunedFlag, skipRequiredFlags bool) error {
-	resolution := a.resolveConfig(loaderRequest{invocation: invocation})
+func (a *App[T]) prepareNonMetaExecution(ctx context.Context, session *Session, invocation parsedInvocation, featureBinding featureState, prunedFlags []prunedFlag, skipRequiredFlags bool) error {
+	resolution := a.resolveConfig(ctx, configRequest{invocation: invocation})
 	if session != nil {
 		session.candidateFiles = resolution.candidates
 		session.loadedFiles = resolution.loadedPaths
@@ -1538,6 +1545,7 @@ func (a *App[T]) prepareNonMetaExecution(session *Session, invocation parsedInvo
 		EnvPrefix:           a.envPrefix,
 		ConfigData:          a.configData,
 		ConfigOrigins:       resolution.loadedPaths,
+		DotenvOrigins:       a.dotenvOrigins,
 		TypeParsers:         a.collectTypeParsers(),
 		CustomMapMerger:     a.customMapMerger,
 		Stdin:               session.stdin,
@@ -1608,7 +1616,7 @@ func (a *App[T]) prepare(ctx context.Context) (*Session, bool, error) {
 
 	request := scanBuiltinRequest(flagValues)
 
-	featureBinding, prunedFlags, err := a.resolveFeatureState(invocation, request)
+	featureBinding, prunedFlags, err := a.resolveFeatureState(ctx, invocation, request)
 	if err != nil {
 		return nil, false, err
 	}
@@ -1623,7 +1631,7 @@ func (a *App[T]) prepare(ctx context.Context) (*Session, bool, error) {
 	}
 
 	if a.shouldPrepareNonMetaExecution(leaf, request) {
-		if err := a.prepareNonMetaExecution(session, invocation, featureBinding, prunedFlags, request.hasWhy); err != nil {
+		if err := a.prepareNonMetaExecution(ctx, session, invocation, featureBinding, prunedFlags, request.hasWhy); err != nil {
 			return nil, false, err
 		}
 	}
@@ -1670,7 +1678,7 @@ func (a *App[T]) validateExecution(ctx context.Context, session *Session, leaf *
 	return runValidators(ctx, session, cmdChain)
 }
 
-func (a *App[T]) resolveFeatureState(invocation parsedInvocation, request builtinRequest) (featureState, []prunedFlag, error) {
+func (a *App[T]) resolveFeatureState(ctx context.Context, invocation parsedInvocation, request builtinRequest) (featureState, []prunedFlag, error) {
 	if a.featurePreparer == nil {
 		return nil, nil, nil
 	}
@@ -1680,7 +1688,7 @@ func (a *App[T]) resolveFeatureState(invocation parsedInvocation, request builti
 		return nil, nil, nil
 	}
 
-	pruned, err := a.featurePreparer(a, featureBinding, invocation, request)
+	pruned, err := a.featurePreparer(a, ctx, featureBinding, invocation, request)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -1867,9 +1875,9 @@ func (a *App[T]) appendFlagDeprecationNotice(flagSpec *spec.Flag) {
 		a.deprecationNotices = append(a.deprecationNotices,
 			fmt.Sprintf("WARNING: environment variable '%s' is deprecated: %s", detail, flagSpec.Deprecated))
 	case SourceConfig:
-		// The container detail names the origin file (or loader label), so the
-		// warning derives the key from the declaration: the config tag when
-		// present, otherwise the flag name.
+		// The container detail names the origin file (or bootstrap document
+		// origin label), so the warning derives the key from the declaration:
+		// the config tag when present, otherwise the flag name.
 		configKey := cmp.Or(flagSpec.ConfigKey, flagSpec.Name)
 		a.deprecationNotices = append(a.deprecationNotices,
 			fmt.Sprintf("WARNING: config key '%s' is deprecated: %s", configKey, flagSpec.Deprecated))
@@ -1985,66 +1993,79 @@ func (a *App[T]) handleUsageFatal(writer io.Writer, err error, appName string) {
 	a.exit(2)
 }
 
-// resolveConfig resolves and loads the run's configuration exactly once,
-// memoizing the outcome on the App. Feature-capable applications resolve
-// configuration before builtin rendering (gating needs the config tier) and the
-// --why report reuses the memo, so configuration files are probed, decoded, and
-// validated a single time per run.
-func (a *App[T]) resolveConfig(request loaderRequest) *configResolution {
+// resolveConfig resolves the run's configuration exactly once, memoizing the
+// outcome on the App. It runs the bootstrap phase, resolves and loads
+// configuration files for config-capable applications, then overlays any
+// programmatic document supplied by [Bootstrap.SetConfig] key by key so the
+// document wins the keys it names while file keys it does not name survive.
+// Feature-capable applications resolve configuration before builtin rendering
+// (gating needs the config tier) and the --why report reuses the memo, so
+// configuration files are probed, decoded, and validated a single time per run.
+func (a *App[T]) resolveConfig(ctx context.Context, request configRequest) *configResolution {
 	if a.configResolution != nil {
 		return a.configResolution
 	}
 
-	if a.loaderResolver != nil {
-		a.configResolution = a.loaderResolver(a, request)
-
-		return a.configResolution
-	}
+	bootstrap, _ := a.runBootstrap(ctx, request)
 
 	cmd := request.invocation.root
-
 	explicitTargets, extractErr := a.extractExplicitConfigTargets(request.invocation)
 
-	a.configData = configdata.New()
+	data := configdata.New()
 
 	var (
-		loadedPaths  []string
-		loadedSource ValueSource
-		loadErr      error
+		filePaths  []string
+		fileSource ValueSource
+		candidates []string
 	)
 
-	if extractErr == nil {
-		loadedPaths, loadedSource, loadErr = a.resolveAndLoadConfig(cmd, explicitTargets)
-	}
+	var resolutionErr error
 
-	// Extraction and loading are mutually exclusive: loadErr is only produced
-	// when extractErr is nil, so the resolution carries exactly one failure.
-	resolutionErr := loadErr
+	candidates = a.configurationView(cmd).CandidatePaths(explicitTargets, cmd)
+
 	if extractErr != nil {
 		resolutionErr = extractErr
+	} else {
+		var values *configdata.Data
+
+		filePaths, values, fileSource, resolutionErr = a.configurationView(cmd).Resolve(explicitTargets, cmd)
+
+		if values != nil {
+			data = values
+		}
 	}
+
+	loadedPaths := filePaths
+	loadedSource := fileSource
+
+	if bootstrap.err != nil {
+		resolutionErr = bootstrap.err
+	}
+
+	if bootstrap.configSet && bootstrap.err == nil {
+		origins, err := overlayBootstrapDocument(bootstrap, cmd, data)
+		if err != nil && resolutionErr == nil {
+			resolutionErr = err
+		}
+
+		loadedPaths = append(append([]string(nil), origins...), filePaths...)
+		candidates = append(append([]string(nil), origins...), candidates...)
+
+		if loadedSource == SourceNone {
+			loadedSource = SourceConfig
+		}
+	}
+
+	a.configData = data
 
 	a.configResolution = &configResolution{
 		loadedPaths:  loadedPaths,
 		loadedSource: loadedSource,
 		err:          resolutionErr,
-		candidates:   a.configurationView(cmd).CandidatePaths(explicitTargets, cmd),
+		candidates:   candidates,
 	}
 
 	return a.configResolution
-}
-
-func (a *App[T]) resolveAndLoadConfig(root *spec.Command, explicitTargets []string) ([]string, ValueSource, error) {
-	loadedPaths, values, source, err := a.configurationView(root).Resolve(explicitTargets, root)
-	if values != nil {
-		a.configData = values
-	}
-
-	if err != nil {
-		return nil, SourceNone, err
-	}
-
-	return loadedPaths, source, nil
 }
 
 // installCompletionHooks binds the completion hook fields and help renderers

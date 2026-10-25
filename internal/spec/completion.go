@@ -163,7 +163,7 @@ func (w *astCompletionWalker) matchSubcommand(tok tokenizer.Token) *Command {
 }
 
 // trackAnalysisToken mirrors the runtime token parser's positional, dash, and
-// raw attribution for the loader's completion-time view. The candidate walker
+// raw attribution for the bootstrap document's completion-time view. The candidate walker
 // stays tolerant of tokens the runtime parser rejects, so analysis state is
 // tracked alongside it rather than derived from posArgs. Raw fallback uses the
 // routed leaf because routing removes subcommand tokens before parsing.
@@ -465,7 +465,7 @@ func (w *astCompletionWalker) buildCompletionContext(toComplete string) predict.
 	}
 }
 
-// analysis returns the parsed invocation facts for the engine's early loader
+// analysis returns the parsed invocation facts for the engine's early bootstrap
 // pass. Positional, dash, and raw attribution mirrors the runtime token parser:
 // declared arguments consume positionals first, and RawArgs captures the
 // overflow. NoCLI engine flags are excluded because they can never be supplied

@@ -17,8 +17,7 @@ The analyzer delegates to the exported validators in `internal/spec`, so static 
 | Opt-in subsystem guards | Flags `conga.Features[T]` or `feature:"..."` tags when `app.EnableFeatures()` is missing, and completion features when `app.EnableCompletion()` is missing. |
 | `Session.Root[T]` type safety | Flags calls to `session.Root[T]()` where the type argument `T` does not match the root application struct type passed to `conga.New`. |
 | `ConfigExplicit` exclusivity | Flags builder calls combining `conga.ConfigExplicit(...)` with `conga.ConfigPaths(...)` or `conga.ConfigCascading()`. |
-| `ConfigLoader` exclusivity | Flags builder calls combining `conga.ConfigLoader(...)` with file options (`ConfigPaths`, `ConfigExplicit`, `ConfigCascading`), `RegisterDecoder`, or a root `ConfigFile` field. |
-| `bootstrap` tag validation | Flags fields carrying `bootstrap` when `conga.ConfigLoader` is not declared, flags combining `bootstrap` with `feature`, and flags `bootstrap` on unsupported types (structs, pointers, interfaces). |
+| `bootstrap` tag validation | Flags fields carrying `bootstrap` when neither the declaring command nor an ancestor implements `conga.Bootstrapper`, flags combining `bootstrap` with `feature`, and fields carrying `bootstrap` on unsupported types (structs, pointers, interfaces). |
 | Synthesized feature flag shadowing | The `flag:"..."` name installed for a CLI-exposed `Features[T]` container joins the ancestor shadow map, so a descendant flag cannot redeclare it. |
 | Ancestor flag shadowing | The runtime `ErrDuplicateFlag` rule: a flag name, alias, or short rune declared on an ancestor cannot be redeclared on any descendant command. |
 | Cascading guard | The schema rejection of `conga.ConfigCascading()` when the root command lacks a `multi:"true"` `ConfigFile` flag. |

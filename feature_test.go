@@ -2274,7 +2274,7 @@ func TestFeature_Completion_DotenvFieldEnv(t *testing.T) {
 }
 
 // TestFeature_Completion_DotenvErrorTolerated pins that a malformed .env does
-// not abort the completion: the failure is tolerated like a loader failure
+// not abort the completion: the failure is tolerated like a bootstrap failure
 // and candidates render from the remaining tiers.
 //
 //nolint:paralleltest // dotenv.LoadWith(t.Setenv) mutates the process environment.

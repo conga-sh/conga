@@ -76,7 +76,7 @@ func (e *DotenvError) Is(target error) bool {
 // earlier in the same file; a file that overrides a key already supplied by an earlier file
 // in the same call expands to its own value.
 func Load(paths ...string) error {
-	return load(os.Setenv, paths...)
+	return loadWithOrigins(os.Setenv, make(map[string]string), len(paths) > 0, paths...)
 }
 
 // LoadWith loads environment variables from .env files using setenv to set each
@@ -94,11 +94,34 @@ func LoadWith(setenv func(key, value string), paths ...string) error {
 		return Load(paths...)
 	}
 
-	return load(func(key, value string) error {
+	return LoadWithOrigins(setenv, make(map[string]string), len(paths) > 0, paths...)
+}
+
+// LoadWithOrigins loads environment variables from .env files using setenv to
+// set each variable, recording the source file of every variable it sets in
+// origins (environment key to file path). A non-nil origins map may be shared
+// across calls: a key already recorded there was set by an earlier .env file in
+// the same run, so a later file is allowed to override it, while any other key
+// present in the process environment is preserved. When setenv is nil,
+// variables are set through os.Setenv.
+//
+// When paths is empty, LoadWithOrigins probes ".env" and ".env.local" in the
+// current working directory, silently ignoring missing files. When paths are
+// given, each is loaded with the caller-supplied mustExist policy: a missing
+// file is ignored when mustExist is false and fails with a [DotenvError]
+// otherwise. Malformed or oversized files always fail. Resolution follows the
+// same precedence, variable expansion, and 12-factor preservation rules as
+// [Load].
+func LoadWithOrigins(setenv func(key, value string), origins map[string]string, mustExist bool, paths ...string) error {
+	if setenv == nil {
+		return loadWithOrigins(os.Setenv, origins, mustExist, paths...)
+	}
+
+	return loadWithOrigins(func(key, value string) error {
 		setenv(key, value)
 
 		return nil
-	}, paths...)
+	}, origins, mustExist, paths...)
 }
 
 // Parse parses raw .env file contents into a key-value map.
@@ -108,7 +131,7 @@ func Parse(data []byte) (map[string]string, error) {
 	return parse(data, nil)
 }
 
-func parse(data []byte, loadedKeys map[string]struct{}) (map[string]string, error) {
+func parse(data []byte, loadedKeys map[string]string) (map[string]string, error) {
 	reader := bufio.NewReader(bytes.NewReader(data))
 	result := make(map[string]string)
 
@@ -158,15 +181,17 @@ func parse(data []byte, loadedKeys map[string]struct{}) (map[string]string, erro
 	return result, nil
 }
 
-func load(set func(key, value string) error, paths ...string) error {
-	loadedKeys := make(map[string]struct{})
+func loadWithOrigins(set func(key, value string) error, origins map[string]string, mustExist bool, paths ...string) error {
+	if origins == nil {
+		origins = make(map[string]string)
+	}
 
 	if len(paths) == 0 {
-		return loadDefaultHierarchy(set, loadedKeys)
+		return loadDefaultHierarchy(set, origins)
 	}
 
 	for _, path := range paths {
-		if err := loadSingleFile(set, path, true, loadedKeys); err != nil {
+		if err := loadSingleFile(set, path, mustExist, origins); err != nil {
 			return err
 		}
 	}
@@ -174,11 +199,11 @@ func load(set func(key, value string) error, paths ...string) error {
 	return nil
 }
 
-func loadDefaultHierarchy(set func(key, value string) error, loadedKeys map[string]struct{}) error {
+func loadDefaultHierarchy(set func(key, value string) error, origins map[string]string) error {
 	candidateFiles := []string{".env", ".env.local"}
 
 	for _, filename := range candidateFiles {
-		if err := loadSingleFile(set, filename, false, loadedKeys); err != nil {
+		if err := loadSingleFile(set, filename, false, origins); err != nil {
 			return err
 		}
 	}
@@ -186,7 +211,7 @@ func loadDefaultHierarchy(set func(key, value string) error, loadedKeys map[stri
 	return nil
 }
 
-func loadSingleFile(set func(key, value string) error, path string, mustExist bool, loadedKeys map[string]struct{}) error {
+func loadSingleFile(set func(key, value string) error, path string, mustExist bool, origins map[string]string) error {
 	cleanPath := pathx.Expand(path)
 
 	data, err := filex.ReadLimited(cleanPath, maxDotenvFileSize)
@@ -202,7 +227,7 @@ func loadSingleFile(set func(key, value string) error, path string, mustExist bo
 		}
 	}
 
-	envMap, err := parse(data, loadedKeys)
+	envMap, err := parse(data, origins)
 	if err != nil {
 		return &DotenvError{
 			Path:  path,
@@ -213,7 +238,7 @@ func loadSingleFile(set func(key, value string) error, path string, mustExist bo
 
 	for key, value := range envMap {
 		if _, exists := os.LookupEnv(key); exists {
-			if _, loadedByFile := loadedKeys[key]; !loadedByFile {
+			if _, loadedByFile := origins[key]; !loadedByFile {
 				continue
 			}
 		}
@@ -226,7 +251,7 @@ func loadSingleFile(set func(key, value string) error, path string, mustExist bo
 			}
 		}
 
-		loadedKeys[key] = struct{}{}
+		origins[key] = path
 	}
 
 	return nil
@@ -422,7 +447,7 @@ func parseUnquoted(rawValue string) string {
 	return strings.TrimSpace(rawValue)
 }
 
-func expandValue(value string, localMap map[string]string, loadedKeys map[string]struct{}) string {
+func expandValue(value string, localMap map[string]string, loadedKeys map[string]string) string {
 	return os.Expand(value, func(key string) string {
 		localValue, locallyDefined := localMap[key]
 		if _, overriddenEarlier := loadedKeys[key]; overriddenEarlier && locallyDefined {

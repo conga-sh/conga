@@ -60,7 +60,7 @@ func TestAppConfig_ConfigOptions_RepeatedPaths_LastDeclarationWins(t *testing.T)
 	assert.Equal(t, []string{"second.json"}, app.configSettings.Tier)
 }
 
-func TestValidator_HasStreamsAndConfigContext(t *testing.T) {
+func TestValidator_HasStreamsAndConfigPaths(t *testing.T) {
 	t.Parallel()
 
 	var (
@@ -81,7 +81,7 @@ func TestValidator_HasStreamsAndConfigContext(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestValidator_FeatureCapable_HasConfigContext(t *testing.T) {
+func TestValidator_FeatureCapable_HasConfigPaths(t *testing.T) {
 	t.Parallel()
 
 	app := New[featureValidatorCLI]().

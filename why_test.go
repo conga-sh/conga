@@ -2743,21 +2743,31 @@ type whyPointerTextCLI struct {
 	Value conga.OptionalFlag[whyPointerTextValue] `help:"Value" safe:"true"`
 }
 
+// whyBootstrapCLI supplies its feature gate document from code through a
+// Bootstrapper.
+type whyBootstrapCLI struct {
+	noopRunner
+
+	Features conga.Features[whyMergeFeatures] `config:"experiments" flag:"feature-gates"`
+}
+
+func (c *whyBootstrapCLI) Bootstrap(_ context.Context, b *conga.Bootstrap) error {
+	document := &conga.ConfigDocument{}
+	document.Set("experiments", map[string]any{"alpha": true}, "pipeline.yaml")
+	b.SetConfig(document)
+
+	return nil
+}
+
 func TestBuiltinWhy_FeatureFlagRowReportsConfigOrigin(t *testing.T) {
 	t.Parallel()
 
 	var buffer bytes.Buffer
 
-	app := conga.New[whyMergeCLI]().
+	app := conga.New[whyBootstrapCLI]().
 		Name("whyapp").
 		EnableFeatures().
 		EnableWhy().
-		ConfigOptions(conga.ConfigLoader(func(_ conga.ConfigContext, _ *whyMergeCLI) (*conga.ConfigDocument, error) {
-			document := &conga.ConfigDocument{}
-			document.Set("experiments", map[string]any{"alpha": true}, "pipeline.yaml")
-
-			return document, nil
-		})).
 		Stdout(&buffer).
 		Args([]string{"--why"})
 

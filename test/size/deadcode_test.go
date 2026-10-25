@@ -28,6 +28,8 @@ func TestMinimalHello_DotenvPayloadEliminated(t *testing.T) {
 	for _, symbol := range []string{
 		"github.com/conga-sh/conga/internal/dotenv.Load",
 		"github.com/conga-sh/conga/internal/dotenv.LoadWith",
+		"github.com/conga-sh/conga/internal/dotenv.LoadWithOrigins",
+		"github.com/conga-sh/conga/internal/dotenv.loadWithOrigins",
 		"github.com/conga-sh/conga/internal/dotenv.loadDefaultHierarchy",
 		"github.com/conga-sh/conga/internal/dotenv.loadSingleFile",
 	} {
@@ -47,7 +49,7 @@ func TestMinimalHello_ConfigResolverEliminated(t *testing.T) {
 	}
 }
 
-func TestMinimalHello_ConfigLoaderEliminated(t *testing.T) {
+func TestMinimalHello_BootstrapDocumentEliminated(t *testing.T) {
 	t.Parallel()
 
 	symbols := buildAndListSymbols(t, minimalExamplePath)
@@ -55,8 +57,7 @@ func TestMinimalHello_ConfigLoaderEliminated(t *testing.T) {
 	assert.True(t, symbols["main.main"], "sanity check: the analysis build must expose symbols")
 
 	for symbol := range symbols {
-		assert.False(t, strings.Contains(symbol, "resolveLoaderConfig"), "linker must drop the programmatic config loader: "+symbol)
-		assert.False(t, strings.Contains(symbol, "loadDocumentConfigData"), "linker must drop loader document validation: "+symbol)
+		assert.False(t, strings.Contains(symbol, "ConfigDocument).validate"), "linker must drop bootstrap document validation: "+symbol)
 	}
 }
 
