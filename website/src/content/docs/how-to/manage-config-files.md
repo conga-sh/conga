@@ -219,4 +219,4 @@ func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
 
 - [About the config cascade](/explanation/config-cascade/) — search-tier mechanics, merging order, and XDG resolution.
 - [Package decoder reference](/reference/decoders/) — decoders for JSON, TOML, YAML, and HCL.
-- [How to bootstrap before config resolution](/how-to/load-domain-files/) — parse domain manifests, task files, and flag-driven configuration with `conga.Bootstrapper`.
+- [How to load domain documents](/how-to/load-domain-files/) — parse Taskfile-, compose-, and pipeline-style documents that mix configuration with application data.

@@ -201,4 +201,4 @@ earlier writes, so a later layer overrides only the map keys it names; a later
 loads `.env` files through the writer configured by `App.SetenvFunc`;
 `Bootstrap.DotenvExplicit` fails on a missing file. A nil document leaves the
 tier inactive; errors returned from `Bootstrap` wrap `ErrConfig` and exit 1. See
-[How to bootstrap before config resolution](/how-to/load-domain-files/).
+[How to load domain documents](/how-to/load-domain-files/).

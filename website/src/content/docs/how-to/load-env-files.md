@@ -1,6 +1,6 @@
 ---
 title: How to load .env files
-description: Load .env and .env.local files into the process environment with variable expansion and DoS-hardened limits.
+description: Load .env and .env.local files into the process environment — including locations selected by flags — with variable expansion and DoS-hardened limits.
 ---
 
 CONGA provides zero-dependency `.env` file loading through `app.Dotenv()`. Loaded variables populate the process environment before flag resolution, feeding directly into the environment tier of the resolution ladder.
@@ -65,13 +65,18 @@ When explicit paths are provided:
 - Files are loaded sequentially in the specified order; every listed file must exist, and a missing file returns an error wrapping `conga.ErrConfig`.
 - Existing environment variables are preserved; a key defined in more than one file takes the value from the last file that defines it.
 
-## Load .env from a flag-derived directory
+## Load .env from a flag-derived location
 
-`app.Dotenv` resolves paths at startup, before flags are bound. When the `.env` location derives from a flag such as `--dir`, implement [`conga.Bootstrapper`](/how-to/load-domain-files/) and load it with `Bootstrap.Dotenv`:
+`app.Dotenv` fixes its paths when the application starts, before CONGA binds any flag. That covers conventional locations and paths known at build time. When the location depends on a flag — `--dir` selecting a project, or `--env-file` naming the file — the path does not exist at startup. Implement [`conga.Bootstrapper`](/reference/conga/) to bind that flag early and load the file once you know it.
+
+### Bind the location flag early
+
+Tag the location flag with `bootstrap:"true"` and implement `Bootstrap` on the root command:
 
 ```go title="main.go"
 type CLI struct {
-	Dir conga.OptionalFlag[string] `bootstrap:"true" default:"." help:"Project directory"`
+	Dir  conga.OptionalFlag[string] `bootstrap:"true" default:"." help:"Project directory"`
+	Port conga.OptionalFlag[int]    `default:"8080" help:"Listen port"`
 }
 
 func (c *CLI) Bootstrap(_ context.Context, b *conga.Bootstrap) error {
@@ -79,7 +84,49 @@ func (c *CLI) Bootstrap(_ context.Context, b *conga.Bootstrap) error {
 }
 ```
 
-`Bootstrap.Dotenv` runs after bootstrap-field binding and tolerates missing files, so `--dir ./sub` loads `./sub/.env` and omitting `--dir` loads `./.env`. `Bootstrap.DotenvExplicit` requires each named file to exist. [Dotenv files](/reference/dotenv/) covers the shared origin map and `--why` attribution.
+CONGA binds `Dir` from the command line, the environment, and its default before calling `Bootstrap`, so `c.Dir.Get()` already holds the resolved directory. `--dir ./sub` loads `./sub/.env`; omitting `--dir` falls back to `.` and loads `./.env`.
+
+`Bootstrap.Dotenv` tolerates missing files, matching `app.Dotenv()`. With no arguments it probes `.env` and then `.env.local` in the working directory, so an application can keep conventional loading while gaining access to bootstrap-tagged fields.
+
+### Require a flag-named file
+
+When a flag names the file itself, use `Bootstrap.DotenvExplicit` instead:
+
+```go title="main.go"
+type CLI struct {
+	EnvFile conga.OptionalFlag[string] `bootstrap:"true" name:"env-file" help:"Path to the environment file"`
+}
+
+func (c *CLI) Bootstrap(_ context.Context, b *conga.Bootstrap) error {
+	if !c.EnvFile.IsSet() {
+		return nil
+	}
+
+	return b.DotenvExplicit(c.EnvFile.Get())
+}
+```
+
+A missing file fails with an error wrapping `conga.ErrConfig`, which is what a user who named the file expects; `Bootstrap.Dotenv` would silently skip it.
+
+### Combine with app.Dotenv
+
+Both phases write through the same origin map. Variables already present in the host process environment are never overwritten, and a file loaded by `Bootstrap.Dotenv` overrides a key an earlier `app.Dotenv` file set. Loading a conventional file at startup and a flag-located file in `Bootstrap` is therefore safe:
+
+```go title="main.go"
+app := conga.New[CLI]().
+	EnvPrefix("CLOUDCTL").
+	Dotenv() // .env, then .env.local in the working directory
+```
+
+`--why` attributes each env-sourced value to the file that set it (such as `env (sub/.env)`), while host variables render as bare `env`.
+
+### Constraints
+
+- The root command or an ancestor must implement `conga.Bootstrapper`; otherwise schema build rejects the `bootstrap` tag with `ErrSchema`.
+- Bootstrap-tagged fields bind twice — once early, once in the normal pass — so keep them idempotent.
+- `Bootstrap` also runs for `--why` and shell completion. Keep it to bounded local reads. A coercion failure during completion or `--help` is tolerated: CONGA restores the field to its pre-bootstrap state and runs `Bootstrap` with the field unset.
+
+[Dotenv files](/reference/dotenv/) has the full loading contract, grammar, and `--why` attribution. [How to load domain documents](/how-to/load-domain-files/) covers the other use of the same hook: documents that mix configuration with application data.
 
 ## Test .env loads
 
@@ -98,4 +145,5 @@ Tests that load `.env` files this way mutate process-wide state and cannot call 
 - [Dotenv files](/reference/dotenv/) — loading rules, grammar, and the 16 MB size limit.
 - [How to bind environment variables](/how-to/bind-environment-variables/) — map environment variables to command flags.
 - [How to manage config files](/how-to/manage-config-files/) — register file decoders and search paths.
+- [How to load domain documents](/how-to/load-domain-files/) — parse Taskfile-, compose-, and pipeline-style files that mix configuration with application data.
 - [About value precedence](/explanation/value-precedence/) — the deterministic four-tier resolution ladder.
