@@ -20,7 +20,7 @@ type Item struct {
 	Value       string
 	Display     string
 	Description string
-	// …style and tag fields; use NewItem for the common case
+	// …style, tag, and alias fields; use NewItem for the common case
 }
 
 func NewItem(value, description string) Item
@@ -28,7 +28,10 @@ func (i Item) WithDisplay(display string) Item
 func (i Item) WithDescription(description string) Item
 func (i Item) WithStyle(style string) Item
 func (i Item) WithTag(tag string) Item
+func (i Item) WithAlias() Item
 ```
+
+`WithAlias` marks a candidate as an alternative spelling of another candidate, such as a taskfile task alias. Alias candidates are shown by default and suppressed when the user disables them through the `show-aliases` zstyle or the `CONGA_COMPLETION_ALIASES` sideband. Subcommand and flag aliases declared with the `aliases` tag carry the marker automatically. See [How to enable shell completion](/how-to/enable-shell-completion/#customise-completion-behaviour).
 
 ## Constructors
 

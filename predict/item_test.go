@@ -53,4 +53,15 @@ func TestItem(t *testing.T) {
 		assert.Equal(t, "data-formats", modified.Tag)
 		assert.Equal(t, "", item.Tag)
 	})
+
+	t.Run("with alias modifier", func(t *testing.T) {
+		t.Parallel()
+
+		item := predict.NewItem("build", "Build the project")
+
+		modified := item.WithAlias()
+
+		assert.True(t, modified.Alias)
+		assert.False(t, item.Alias)
+	})
 }

@@ -200,6 +200,12 @@ run_test_completion() {
         print "LIST_COLORS:${lc}"
     fi
 
+    # Check for configured group-name
+    local gn=""
+    if zstyle -s ":completion:${curcontext}:*" group-name gn; then
+        print "GROUP_NAME:${gn}"
+    fi
+
     print "COMPSTATE_INSERT:${compstate[insert]}"
 
     local buffer_tab1="$CMD_LINE"

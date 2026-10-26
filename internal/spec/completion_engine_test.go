@@ -268,6 +268,52 @@ func TestCompletion_FlagNames(t *testing.T) {
 	})
 }
 
+func TestCompletion_AliasCandidatesAreMarked(t *testing.T) {
+	t.Parallel()
+
+	t.Run("subcommand alias", func(t *testing.T) {
+		t.Parallel()
+
+		var cli SubcommandTestCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{""}, spec.CompleteOptions{})
+
+		aliasItem, found := findItem(invoked.Items, "d")
+		assert.True(t, found, "completion item %q not found", "d")
+		assert.True(t, aliasItem.Alias)
+
+		commandItem, found := findItem(invoked.Items, "deploy")
+		assert.True(t, found, "completion item %q not found", "deploy")
+		assert.False(t, commandItem.Alias)
+	})
+
+	t.Run("flag alias and negation", func(t *testing.T) {
+		t.Parallel()
+
+		var cli FlagsTestCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"--"}, spec.CompleteOptions{})
+
+		aliasItem, found := findItem(invoked.Items, "--p")
+		assert.True(t, found, "completion item %q not found", "--p")
+		assert.True(t, aliasItem.Alias)
+
+		portItem, found := findItem(invoked.Items, "--port")
+		assert.True(t, found, "completion item %q not found", "--port")
+		assert.False(t, portItem.Alias)
+
+		negationItem, found := findItem(invoked.Items, "--no-debug")
+		assert.True(t, found, "completion item %q not found", "--no-debug")
+		assert.False(t, negationItem.Alias)
+	})
+}
+
 func TestCompletion_NegationGuard(t *testing.T) {
 	t.Parallel()
 
@@ -1535,4 +1581,16 @@ func TestAnalyzeCompletion(t *testing.T) {
 		assert.Equal(t, []string{"--unknown-flag"}, analysis.RawArgs)
 		assert.Equal(t, 0, len(analysis.PositionalArgs))
 	})
+}
+
+// findItem returns the completion item with the given value and reports
+// whether it was found.
+func findItem(items []predict.Item, value string) (predict.Item, bool) {
+	for _, item := range items {
+		if item.Value == value {
+			return item, true
+		}
+	}
+
+	return predict.Item{}, false
 }

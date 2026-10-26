@@ -3,6 +3,7 @@
 package shell_test
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -33,6 +34,13 @@ func startCloudctlPty(t *testing.T, shellName string) *shell.PtySession {
 	workspace := setupCloudctl(t)
 
 	return workspace.StartPtySession(t, "cloudctl", shellName)
+}
+
+// ptyHasToken reports whether the screen contains token as a
+// whitespace-separated field, so candidate aliases can be distinguished from
+// longer words containing the same characters.
+func ptyHasToken(screen, token string) bool {
+	return slices.Contains(strings.Fields(screen), token)
 }
 
 func TestPtyBash_TabCompletesSingleMatch(t *testing.T) {
@@ -151,6 +159,90 @@ func TestPtyZsh_TabCompletesColonCandidate(t *testing.T) {
 
 	assert.Equal(t, "cloudctl deploy --image api-gateway:v3.2.1-rc1", result.BufferAfterPrompt())
 	assert.Equal(t, len("CONGA> cloudctl deploy --image api-gateway:v3.2.1-rc1"), result.CursorX)
+}
+
+func TestPtyZsh_UserZstylesSurvive(t *testing.T) {
+	t.Parallel()
+
+	session := startCloudctlPty(t, "zsh")
+
+	session.Type(`zstyle ':completion:*' group-name '%d'`)
+	session.PressEnter()
+	session.Type(`zstyle ':completion:*' list-colors 'ln=target'`)
+	session.PressEnter()
+
+	session.Type("cloudctl deploy --")
+	session.Tab()
+	session.Capture()
+	session.CtrlC()
+	session.PressEnter()
+
+	session.Type(`zstyle -L ':completion:*' group-name`)
+	session.PressEnter()
+	session.Type(`zstyle -L ':completion:*' list-colors`)
+	session.PressEnter()
+	result := session.Capture()
+
+	assert.Contains(t, result.Screen, "group-name %d")
+	assert.Contains(t, result.Screen, "list-colors 'ln=target'")
+	assert.NotContains(t, result.Screen, "group-name ''")
+	assert.NotContains(t, result.Screen, "=(#b)")
+}
+
+func TestPtyZsh_DescriptionsShownByDefault(t *testing.T) {
+	t.Parallel()
+
+	session := startCloudctlPty(t, "zsh")
+
+	session.Type("cloudctl ")
+	session.Tab()
+	result := session.Capture()
+
+	assert.Contains(t, result.Screen, "Deploy service to a cluster")
+}
+
+func TestPtyZsh_VerboseZstyleHidesDescriptions(t *testing.T) {
+	t.Parallel()
+
+	session := startCloudctlPty(t, "zsh")
+
+	session.Type(`zstyle ':completion:*' verbose false`)
+	session.PressEnter()
+
+	session.Type("cloudctl ")
+	session.Tab()
+	result := session.Capture()
+
+	assert.NotContains(t, result.Screen, "Deploy service to a cluster")
+	assert.True(t, ptyHasToken(result.Screen, "deploy"))
+}
+
+func TestPtyZsh_AliasShownByDefault(t *testing.T) {
+	t.Parallel()
+
+	session := startCloudctlPty(t, "zsh")
+
+	session.Type("cloudctl ")
+	session.Tab()
+	result := session.Capture()
+
+	assert.True(t, ptyHasToken(result.Screen, "d"))
+}
+
+func TestPtyZsh_ShowAliasesZstyleHidesAlias(t *testing.T) {
+	t.Parallel()
+
+	session := startCloudctlPty(t, "zsh")
+
+	session.Type(`zstyle ':completion:*' show-aliases false`)
+	session.PressEnter()
+
+	session.Type("cloudctl ")
+	session.Tab()
+	result := session.Capture()
+
+	assert.True(t, ptyHasToken(result.Screen, "deploy"))
+	assert.False(t, ptyHasToken(result.Screen, "d"))
 }
 
 func TestPtyFish_TabCompletesSingleMatch(t *testing.T) {

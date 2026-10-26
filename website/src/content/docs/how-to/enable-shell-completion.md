@@ -199,6 +199,66 @@ eval (cloudctl completion elvish | slurp)
 cloudctl completion nushell | save -f ~/.config/nushell/completions/cloudctl.nu
 ```
 
+## Customise completion behaviour
+
+Descriptions and alias candidates are shown by default. Two toggles suppress them, and the zsh snippet derives the same toggles from your zsh configuration so existing setups keep working.
+
+### Zsh styles
+
+The generated zsh script honours these styles at completion time:
+
+| Style | Effect |
+|---|---|
+| `verbose` | Set to `false` (or `no`/`off`/`0`) to hide candidate descriptions. This is the standard zsh style; descriptions are shown otherwise |
+| `show-aliases` | Set to `false` (or `no`/`off`/`0`) to hide alias candidates (subcommand aliases, flag aliases, and app-provided aliases such as taskfile task aliases). This is the convention established by go-task |
+
+```zsh title="~/.zshrc"
+zstyle ':completion:*' verbose no             # hide descriptions
+zstyle ':completion:*:*:cloudctl:*' show-aliases no  # hide aliases for cloudctl only
+```
+
+Your own `group-name` and `list-colors` styles are respected: the engine only installs its defaults (flat group headings and per-candidate colours) when you have not configured the style yourself. An empty `list-colors` value, such as Oh-My-Zsh's default, counts as unconfigured and keeps engine colours.
+
+If you migrate an application whose completion honoured these styles before, your existing zstyle lines keep working unchanged.
+
+### Environment toggles for every shell
+
+All six framings honour the same toggles through environment variables. Set them in your shell configuration; they apply to every CONGA-completed command.
+
+| Variable | Effect |
+|---|---|
+| `CONGA_COMPLETION_DESCRIPTIONS=0` | Hide candidate descriptions (`false` also disables; unset or `1` shows them) |
+| `CONGA_COMPLETION_ALIASES=0` | Hide alias candidates (`false` also disables; unset or `1` shows them) |
+
+```sh title="bash"
+export CONGA_COMPLETION_DESCRIPTIONS=0
+export CONGA_COMPLETION_ALIASES=0
+```
+
+```fish title="config.fish"
+set -gx CONGA_COMPLETION_DESCRIPTIONS 0
+set -gx CONGA_COMPLETION_ALIASES 0
+```
+
+```powershell title="$PROFILE"
+$env:CONGA_COMPLETION_DESCRIPTIONS = '0'
+$env:CONGA_COMPLETION_ALIASES = '0'
+```
+
+```nu title="env.nu"
+$env.CONGA_COMPLETION_DESCRIPTIONS = "0"
+$env.CONGA_COMPLETION_ALIASES = "0"
+```
+
+```elvish title="rc.elv"
+set-env CONGA_COMPLETION_DESCRIPTIONS 0
+set-env CONGA_COMPLETION_ALIASES 0
+```
+
+In bash, descriptions only appear in the successive-tab listing, so `CONGA_COMPLETION_DESCRIPTIONS=0` affects that listing only.
+
+If your application completes domain aliases (for example taskfile task aliases) through a custom predictor, mark those candidates with `predict.Item.WithAlias()` so the aliases toggle suppresses them too. Subcommand and flag aliases declared with the `aliases` tag are marked automatically.
+
 ## Completion at runtime
 
 The hidden `__complete` driver, the shell-native output, and the elements that complete without custom code are documented in [Built-ins and deprecation](/reference/builtins/#completion-surface). The completion command itself supports tab-completion: typing `cloudctl completion <TAB>` suggests all supported shell names with descriptions.

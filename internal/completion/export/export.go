@@ -68,8 +68,9 @@ func Marshal(directives wire.Directives, candidates []wire.Candidate, resolve St
 }
 
 // appendCandidate appends one candidate object: value and display always
-// present, description/style/tag omitted when empty, and the optional "sgr"
-// field appended last when the resolver yields a non-empty rendering.
+// present, description/style/tag omitted when empty, the optional "alias"
+// field present only for alias candidates, and the optional "sgr" field
+// appended last when the resolver yields a non-empty rendering.
 func appendCandidate(buffer []byte, candidate wire.Candidate, resolve StyleResolver) []byte {
 	buffer = append(buffer, `{"value":`...)
 	buffer = wire.AppendJSONString(buffer, candidate.Value)
@@ -89,6 +90,10 @@ func appendCandidate(buffer []byte, candidate wire.Candidate, resolve StyleResol
 	if candidate.Tag != "" {
 		buffer = append(buffer, `,"tag":`...)
 		buffer = wire.AppendJSONString(buffer, candidate.Tag)
+	}
+
+	if candidate.Alias {
+		buffer = append(buffer, `,"alias":true`...)
 	}
 
 	if resolve != nil {

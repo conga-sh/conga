@@ -499,6 +499,99 @@ func TestZsh_ListColorsAndANSIStyling(t *testing.T) {
 	assert.True(t, strings.Contains(result.ListColors, "deploy"), "expected deploy in list-colors")
 }
 
+func TestZsh_AliasAndDescriptionSidebands(t *testing.T) {
+	t.Parallel()
+
+	workspace := setupCloudctl(t)
+
+	t.Run("aliases shown by default", func(t *testing.T) {
+		t.Parallel()
+
+		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl ")
+
+		assert.True(t, result.HasItem("deploy"))
+		assert.True(t, result.HasItem("d"))
+	})
+
+	t.Run("aliases suppressed", func(t *testing.T) {
+		t.Parallel()
+
+		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl ", "CONGA_COMPLETION_ALIASES=0")
+
+		assert.True(t, result.HasItem("deploy"))
+		assert.False(t, result.HasItem("d"))
+	})
+
+	t.Run("descriptions suppressed", func(t *testing.T) {
+		t.Parallel()
+
+		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl ", "CONGA_COMPLETION_DESCRIPTIONS=0")
+
+		description, ok := result.ItemDescription("deploy")
+		assert.True(t, ok)
+		assert.Equal(t, "", description)
+	})
+
+	t.Run("show-aliases zstyle suppresses aliases", func(t *testing.T) {
+		t.Parallel()
+
+		result := workspace.RunZshCompletionWithSetup(t, "cloudctl", "cloudctl ", `zstyle ':completion:*' show-aliases false`)
+
+		assert.True(t, result.HasItem("deploy"))
+		assert.False(t, result.HasItem("d"))
+	})
+
+	t.Run("verbose zstyle suppresses descriptions", func(t *testing.T) {
+		t.Parallel()
+
+		result := workspace.RunZshCompletionWithSetup(t, "cloudctl", "cloudctl ", `zstyle ':completion:*' verbose false`)
+
+		description, ok := result.ItemDescription("deploy")
+		assert.True(t, ok)
+		assert.Equal(t, "", description)
+	})
+}
+
+func TestZsh_UserZstylesSurvive(t *testing.T) {
+	t.Parallel()
+
+	workspace := setupCloudctl(t)
+
+	t.Run("group-name", func(t *testing.T) {
+		t.Parallel()
+
+		result := workspace.RunZshCompletionWithSetup(t, "cloudctl", "cloudctl deploy ", `zstyle ':completion:*' group-name '%d'`)
+
+		assert.True(t, result.GroupNameSet, "expected group-name to be set")
+		assert.Equal(t, "%d", result.GroupName)
+	})
+
+	t.Run("list-colors", func(t *testing.T) {
+		t.Parallel()
+
+		result := workspace.RunZshCompletionWithSetup(t, "cloudctl", "cloudctl deploy ", `zstyle ':completion:*' list-colors 'ln=target:di=01;34'`)
+
+		assert.Equal(t, "ln=target:di=01;34", result.ListColors)
+	})
+
+	t.Run("empty list-colors keeps engine colors", func(t *testing.T) {
+		t.Parallel()
+
+		result := workspace.RunZshCompletionWithSetup(t, "cloudctl", "cloudctl deploy ", `zstyle ':completion:*' list-colors ''`)
+
+		assert.True(t, strings.Contains(result.ListColors, "=(#b)"), "expected engine list-colors when the user value is empty")
+	})
+
+	t.Run("engine default group-name without user config", func(t *testing.T) {
+		t.Parallel()
+
+		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl deploy ")
+
+		assert.True(t, result.GroupNameSet, "expected the engine default group-name to be set")
+		assert.Equal(t, "", result.GroupName)
+	})
+}
+
 func TestZsh_FrameworkCompatibility_OhMyZsh(t *testing.T) {
 	t.Parallel()
 

@@ -191,6 +191,42 @@ func TestBash_SuccessiveTabsDescriptions(t *testing.T) {
 	assert.True(t, hasDeployWithDesc, "expected deploy candidate with description in successive tab mode (COMP_TYPE=63), got %v", result.Items)
 }
 
+func TestBash_AliasAndDescriptionSidebands(t *testing.T) {
+	t.Parallel()
+
+	workspace := setupCloudctl(t)
+
+	t.Run("aliases shown by default", func(t *testing.T) {
+		t.Parallel()
+
+		result := workspace.RunBashCompletion(t, "cloudctl", "cloudctl ")
+
+		assert.True(t, result.HasItem("deploy"))
+		assert.True(t, result.HasItem("d"))
+	})
+
+	t.Run("aliases suppressed", func(t *testing.T) {
+		t.Parallel()
+
+		result := workspace.RunBashCompletion(t, "cloudctl", "cloudctl ", "CONGA_COMPLETION_ALIASES=0")
+
+		assert.True(t, result.HasItem("deploy"))
+		assert.False(t, result.HasItem("d"))
+	})
+
+	t.Run("descriptions suppressed in successive-tab listing", func(t *testing.T) {
+		t.Parallel()
+
+		result := workspace.RunBashCompletionType(t, "cloudctl", "cloudctl ", "63", "CONGA_COMPLETION_DESCRIPTIONS=0")
+
+		assert.True(t, result.HasItem("deploy"))
+
+		for _, item := range result.Items {
+			assert.NotContains(t, item, "Deploy service")
+		}
+	})
+}
+
 func TestBash_FileExtensionFiltering(t *testing.T) {
 	t.Parallel()
 

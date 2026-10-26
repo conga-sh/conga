@@ -60,7 +60,7 @@ func Format(toComplete string, directives wire.Directives, candidates []wire.Can
 	lines = append(lines, directivesRecord(directives))
 
 	if colorOn {
-		lines = append(lines, recordListColors+fieldSep+listColorsSpec(candidates))
+		lines = append(lines, recordListColors+fieldSep+listColorsSpec(candidates, wire.DescriptionsEnabled()))
 	}
 
 	lines = append(lines, messageRecords(directives, colorOn)...)
@@ -221,9 +221,11 @@ func escapeValue(value string) string {
 // candidate (a two-tone variant matching "display -- description" renderings
 // and a display-only variant, with an empty value color for unstyled
 // candidates so user-configured list-colors defaults do not leak onto the
-// menu rows), closed by a description-column catch-all. Entry count is capped
-// by CONGA_ZSH_STYLE_LIMIT; a negative limit is unlimited.
-func listColorsSpec(candidates []wire.Candidate) string {
+// menu rows), closed by a description-column catch-all. When descriptions are
+// suppressed only the display-only entries are emitted (the two-tone and
+// catch-all patterns could never match). Entry count is capped by
+// CONGA_ZSH_STYLE_LIMIT; a negative limit is unlimited.
+func listColorsSpec(candidates []wire.Candidate, descriptions bool) string {
 	limit := wire.ZshStyleLimit()
 	descriptionSGR := style.SGR(style.Theme.Description)
 
@@ -241,12 +243,16 @@ func listColorsSpec(candidates []wire.Candidate) string {
 		display := patternEscape(sanitizeField(candidate.Display))
 		valueSGR := style.SGR(cmp.Or(candidate.Style, style.Theme.Value))
 
-		entries = append(entries,
-			"=(#b)("+display+")([ ]## -- *)=0="+valueSGR+"="+descriptionSGR,
-			"=(#b)("+display+")=0="+valueSGR)
+		if descriptions {
+			entries = append(entries, "=(#b)("+display+")([ ]## -- *)=0="+valueSGR+"="+descriptionSGR)
+		}
+
+		entries = append(entries, "=(#b)("+display+")=0="+valueSGR)
 	}
 
-	entries = append(entries, "=(#b)(-- *)=0="+descriptionSGR)
+	if descriptions {
+		entries = append(entries, "=(#b)(-- *)=0="+descriptionSGR)
+	}
 
 	return strings.Join(entries, ":")
 }
