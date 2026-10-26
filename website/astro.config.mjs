@@ -64,7 +64,7 @@ export default defineConfig({
             { label: 'Accept positional arguments', slug: 'how-to/accept-positional-arguments' },
             { label: 'Customize help screens', slug: 'how-to/customize-help-screens' },
             { label: 'Manage config files', slug: 'how-to/manage-config-files' },
-            { label: 'Bootstrap before config', slug: 'how-to/load-domain-files' },
+            { label: 'Load domain documents', slug: 'how-to/load-domain-files' },
             { label: 'Bind environment variables', slug: 'how-to/bind-environment-variables' },
             { label: 'Load .env files', slug: 'how-to/load-env-files' },
             { label: 'Gate features', slug: 'how-to/feature-flags' },

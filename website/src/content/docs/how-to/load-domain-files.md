@@ -3,7 +3,7 @@ title: How to load domain documents
 description: Parse Taskfile-, compose-, and pipeline-style documents with conga.Bootstrapper, keep their application data, and contribute their configuration keys to the config tier.
 ---
 
-A domain document such as a `Taskfile`, `docker-compose.yml`, or pipeline manifest holds application data — tasks, build steps, service dependencies — alongside settings that look like flags (`parallelism`, `log_level`, `env`). Standard config decoders expect every top-level key to map to a flag, so they reject these documents. A `conga.Bootstrapper` parses the document directly, keeps the domain structures for your command, and contributes the settings with `Bootstrap.SetConfig`.
+A domain document such as a `Taskfile`, `docker-compose.yml`, or pipeline manifest holds application data — tasks, build steps, service dependencies — alongside configuration settings that map to flags (`parallelism`, `log_level`, `env`). Standard config decoders expect every top-level key to map to a flag, so they reject these documents. A `conga.Bootstrapper` parses the document directly, keeps the domain structures for your command, and contributes the settings with `Bootstrap.SetConfig`.
 
 ## When to use a Bootstrapper
 
@@ -49,7 +49,7 @@ func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
 }
 ```
 
-CONGA binds these fields from `CLI > environment > default` before calling `Bootstrap`, so the method sees the resolved path and pipeline name. Every other field holds its zero or caller-seeded value during the call. The normal pass then binds all fields again with the configuration tier available, and that second pass is what your command reads, so keep bootstrap-tagged fields idempotent.
+CONGA binds these fields from `CLI > environment > default` before calling `Bootstrap`, so the method sees the resolved path and pipeline name. Other fields retain their zero or caller-seeded values during `Bootstrap`. CONGA binds all fields in the subsequent normal pass with the configuration tier active, so keep bootstrap-tagged fields idempotent.
 
 Constraints:
 
@@ -160,17 +160,13 @@ A document supplied by `b.SetConfig` overlays file-resolved values key by key: t
 
 ## Drive shell completion from configuration
 
-With `app.EnableCompletion()`, CONGA binds bootstrap fields from the partial command line and runs `Bootstrap` before generating candidates, so predictors and feature gates see the document's values. CONGA restores the bootstrap and selection state before returning candidates. A coercion failure during completion or `--help` is tolerated: the field is restored and `Bootstrap` runs with it unset. [Built-in commands](/reference/builtins/) has the completion details.
+When shell completion is enabled (`app.EnableCompletion()`), CONGA runs `Bootstrap` before generating candidates so predictors and feature gates have access to the document's configuration. Coercion errors during completion are silently tolerated to avoid breaking candidate generation. [Built-in commands](/reference/builtins/) has the completion details.
 
 ## Validation and errors
 
-CONGA validates document entries against the application schema:
+CONGA validates document entries against the application schema: unknown keys, `config:"-"` exclusions, and validation constraints (`enum`, `range`, `len`) produce `ErrConfig`.
 
-- Unknown keys fail with `ErrConfig` and a did-you-mean suggestion.
-- `config:"-"` exclusions are enforced.
-- Constraints such as `enum`, `range`, and `len` apply after value coercion.
-
-Document values occupy the same tier as files: the ladder is `CLI > environment > document > default`, and within that tier the document outranks every file. Map flags merge key by key across all tiers. [About value precedence](/explanation/value-precedence/) has the full ladder.
+Document values occupy Tier 3 of the resolution ladder (`CLI > environment > document > default`), overlaying file-resolved configuration. See [About value precedence](/explanation/value-precedence/) for the full ladder.
 
 Any error returned by `Bootstrap` aborts execution and classifies under `ErrConfig` (exit code 1).
 
