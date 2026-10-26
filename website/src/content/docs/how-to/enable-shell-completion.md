@@ -211,13 +211,15 @@ The generated zsh script honours these styles at completion time:
 |---|---|
 | `verbose` | Set to `false` (or `no`/`off`/`0`) to hide candidate descriptions. This is the standard zsh style; descriptions are shown otherwise |
 | `show-aliases` | Set to `false` (or `no`/`off`/`0`) to hide alias candidates (subcommand aliases, flag aliases, and app-provided aliases such as taskfile task aliases). This is the convention established by go-task |
+| `list-separator` | The separator rendered between a match and its description. Engine colours are generated with the configured separator, so both columns keep their colours |
 
 ```zsh title="~/.zshrc"
 zstyle ':completion:*' verbose no             # hide descriptions
 zstyle ':completion:*:*:cloudctl:*' show-aliases no  # hide aliases for cloudctl only
+zstyle ':completion:*' list-separator ' · '   # colour both columns around a custom separator
 ```
 
-Your own `group-name` and `list-colors` styles are respected: the engine only installs its defaults (flat group headings and per-candidate colours) when you have not configured the style yourself. An empty `list-colors` value, such as Oh-My-Zsh's default, counts as unconfigured and keeps engine colours.
+Your own `group-name`, `list-colors`, and `list-separator` styles are respected: the engine only installs its colour defaults when you have not configured `list-colors`, and its colour patterns use your configured `list-separator`. An empty `list-colors` value, such as Oh-My-Zsh's default, counts as unconfigured and keeps engine colours.
 
 If you migrate an application whose completion honoured these styles before, your existing zstyle lines keep working unchanged.
 

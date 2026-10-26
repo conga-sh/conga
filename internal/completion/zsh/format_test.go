@@ -285,7 +285,31 @@ func TestFormat_ListColors(t *testing.T) {
 	assert.Contains(t, output, "=(#b)(--tag)=0=35")
 	assert.Contains(t, output, "=(#b)(--dry-run)=0=")
 	assert.Contains(t, output, "=(#b)(deploy)=0=")
-	assert.Contains(t, output, "=(#b)(-- *)=0=2")
+	assert.Contains(t, output, "=(#b)(*)([ ]## -- *)=0==2")
+}
+
+func TestFormat_ListColorsCustomSeparator(t *testing.T) {
+	t.Setenv("CONGA_COLOR", "1")
+	t.Setenv(wire.EnvZshListSeparator, "=>")
+
+	output := zsh.Format("", wire.Directives{}, []wire.Candidate{
+		{Value: "deploy", Display: "deploy", Style: "blue", Description: "Deploy service"},
+	})
+
+	assert.Contains(t, output, "=(#b)(deploy)([ ]## =\\> *)=0=34=2")
+	assert.Contains(t, output, "=(#b)(*)([ ]## =\\> *)=0==2")
+	assert.NotContains(t, output, " -- *")
+}
+
+func TestFormat_ListColorsSeparatorEscaping(t *testing.T) {
+	t.Setenv("CONGA_COLOR", "1")
+	t.Setenv(wire.EnvZshListSeparator, "a*")
+
+	output := zsh.Format("", wire.Directives{}, []wire.Candidate{
+		{Value: "deploy", Display: "deploy", Style: "blue", Description: "Deploy service"},
+	})
+
+	assert.Contains(t, output, "=(#b)(deploy)([ ]## a\\* *)=0=34=2")
 }
 
 func TestFormat_ListColorsWithoutDescriptions(t *testing.T) {
@@ -349,7 +373,7 @@ func TestFormat_ListColorsPresentWithoutCandidates(t *testing.T) {
 
 	output := zsh.Format("", wire.Directives{}, nil)
 
-	assert.Equal(t, "D\x1f\x1f\nL\x1f=(#b)(-- *)=0=2", output)
+	assert.Equal(t, "D\x1f\x1f\nL\x1f=(#b)(*)([ ]## -- *)=0==2", output)
 }
 
 func TestFormat_StyleLimit(t *testing.T) {

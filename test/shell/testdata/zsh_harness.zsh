@@ -197,7 +197,7 @@ run_test_completion() {
     # Check for configured list-colors
     local lc=""
     if zstyle -s ":completion:${curcontext}:*" list-colors lc; then
-        print "LIST_COLORS:${lc}"
+        print -r -- "LIST_COLORS:${lc}"
     fi
 
     # Check for configured group-name

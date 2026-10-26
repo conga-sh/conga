@@ -11,6 +11,7 @@
 !go.mod
 
 !/.github/workflows/*.yml
+!.mailmap
 
 !/RELEASING.md
 !/release-please-config.json

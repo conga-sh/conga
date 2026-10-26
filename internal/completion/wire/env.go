@@ -4,6 +4,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 // Environment variable names of the shell completion protocol: the bash-native
@@ -33,6 +34,9 @@ const (
 	EnvShell = "CONGA_SHELL"
 	// EnvTooltip enables tooltip-style description rendering (powershell).
 	EnvTooltip = "CONGA_TOOLTIP"
+	// EnvZshListSeparator overrides the separator zsh renders between a match
+	// and its description (the user's list-separator style).
+	EnvZshListSeparator = "CONGA_ZSH_LIST_SEPARATOR"
 	// EnvZshStyleLimit caps the number of candidates inline-styled in zsh.
 	EnvZshStyleLimit = "CONGA_ZSH_STYLE_LIMIT"
 
@@ -111,6 +115,26 @@ func Tooltip() bool {
 	default:
 		return false
 	}
+}
+
+// ZshListSeparator returns the separator to embed in zsh list-colors patterns:
+// CONGA_ZSH_LIST_SEPARATOR when it is a usable literal, "--" otherwise. A value
+// that is empty, longer than 32 bytes, or contains a colon or control character
+// falls back to the default: a colon would corrupt the colon-joined
+// specification and control characters would corrupt the pattern.
+func ZshListSeparator() string {
+	value, ok := os.LookupEnv(EnvZshListSeparator)
+	if !ok || value == "" || len(value) > 32 || strings.ContainsRune(value, ':') {
+		return "--"
+	}
+
+	for _, r := range value {
+		if unicode.IsControl(r) {
+			return "--"
+		}
+	}
+
+	return value
 }
 
 // ZshStyleLimit returns the maximum number of candidates to inline-style in

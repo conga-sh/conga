@@ -1,5 +1,5 @@
 DnoprefixTarget region
-L=(#b)(us-east-1)([ ]## -- *)=0==2:=(#b)(us-east-1)=0=:=(#b)(eu-west-1)([ ]## -- *)=0==2:=(#b)(eu-west-1)=0=:=(#b)(ap-southeast-1)([ ]## -- *)=0==2:=(#b)(ap-southeast-1)=0=:=(#b)(-- *)=0=2
+L=(#b)(us-east-1)([ ]## -- *)=0==2:=(#b)(us-east-1)=0=:=(#b)(eu-west-1)([ ]## -- *)=0==2:=(#b)(eu-west-1)=0=:=(#b)(ap-southeast-1)([ ]## -- *)=0==2:=(#b)(ap-southeast-1)=0=:=(#b)(*)([ ]## -- *)=0==2
 M[2mTarget region[39m
 Cvaluesus-east-1North America (N. Virginia)us-east-1 
 Cvalueseu-west-1Europe (Ireland)eu-west-1 

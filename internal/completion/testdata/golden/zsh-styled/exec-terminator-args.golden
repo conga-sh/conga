@@ -1,5 +1,5 @@
 Dnoprefix
-L=(#b)(sh)([ ]## -- *)=0==2:=(#b)(sh)=0=:=(#b)(bash)([ ]## -- *)=0==2:=(#b)(bash)=0=:=(#b)(python)([ ]## -- *)=0==2:=(#b)(python)=0=:=(#b)(-- *)=0=2
+L=(#b)(sh)([ ]## -- *)=0==2:=(#b)(sh)=0=:=(#b)(bash)([ ]## -- *)=0==2:=(#b)(bash)=0=:=(#b)(python)([ ]## -- *)=0==2:=(#b)(python)=0=:=(#b)(*)([ ]## -- *)=0==2
 Cargumentsshsh 
 Cargumentsbashbash 
 Cargumentspythonpython 

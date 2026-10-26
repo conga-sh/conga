@@ -1,6 +1,7 @@
 package wire_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/alecthomas/assert/v2"
@@ -341,5 +342,54 @@ func TestZshStyleLimit(t *testing.T) {
 		limit := wire.ZshStyleLimit()
 
 		assert.Equal(t, 300, limit)
+	})
+}
+
+//nolint:paralleltest // t.Setenv cannot be used with t.Parallel
+func TestZshListSeparator(t *testing.T) {
+	t.Run("default is two hyphens when unset", func(t *testing.T) {
+		separator := wire.ZshListSeparator()
+
+		assert.Equal(t, "--", separator)
+	})
+
+	t.Run("custom separator", func(t *testing.T) {
+		t.Setenv(wire.EnvZshListSeparator, "=>")
+
+		separator := wire.ZshListSeparator()
+
+		assert.Equal(t, "=>", separator)
+	})
+
+	t.Run("empty value defaults to two hyphens", func(t *testing.T) {
+		t.Setenv(wire.EnvZshListSeparator, "")
+
+		separator := wire.ZshListSeparator()
+
+		assert.Equal(t, "--", separator)
+	})
+
+	t.Run("colon value defaults to two hyphens", func(t *testing.T) {
+		t.Setenv(wire.EnvZshListSeparator, "a:b")
+
+		separator := wire.ZshListSeparator()
+
+		assert.Equal(t, "--", separator)
+	})
+
+	t.Run("control character defaults to two hyphens", func(t *testing.T) {
+		t.Setenv(wire.EnvZshListSeparator, "a\x1fb")
+
+		separator := wire.ZshListSeparator()
+
+		assert.Equal(t, "--", separator)
+	})
+
+	t.Run("oversized value defaults to two hyphens", func(t *testing.T) {
+		t.Setenv(wire.EnvZshListSeparator, strings.Repeat("x", 33))
+
+		separator := wire.ZshListSeparator()
+
+		assert.Equal(t, "--", separator)
 	})
 }

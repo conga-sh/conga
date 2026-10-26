@@ -68,9 +68,12 @@ func TestSnippet_RecordParsing(t *testing.T) {
 	assert.Contains(t, snippet, `(( conga_list_colors )) && zstyle "$style_pattern" list-colors "${line#*$us}"`)
 
 	// zstyle-driven suppression sidebands: verbose hides descriptions,
-	// show-aliases hides alias candidates.
-	assert.Contains(t, snippet, `zstyle -T ":completion:${curcontext}:" verbose || conga_env+=(CONGA_COMPLETION_DESCRIPTIONS=0)`)
-	assert.Contains(t, snippet, `zstyle -T ":completion:${curcontext}:" show-aliases || conga_env+=(CONGA_COMPLETION_ALIASES=0)`)
+	// show-aliases hides alias candidates; list-separator forwards the
+	// separator zsh will render between a match and its description.
+	assert.Contains(t, snippet, `zstyle -T "$probe_context" verbose || conga_env+=(CONGA_COMPLETION_DESCRIPTIONS=0)`)
+	assert.Contains(t, snippet, `zstyle -T "$probe_context" show-aliases || conga_env+=(CONGA_COMPLETION_ALIASES=0)`)
+	assert.Contains(t, snippet, `zstyle -s "$probe_context" list-separator user_list_separator`)
+	assert.Contains(t, snippet, `conga_env+=("CONGA_ZSH_LIST_SEPARATOR=${user_list_separator}")`)
 
 	// Messages forward to _message -r.
 	assert.Contains(t, snippet, `_message -r "${line#*"$us"}"`)

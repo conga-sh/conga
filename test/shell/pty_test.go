@@ -3,6 +3,7 @@
 package shell_test
 
 import (
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
@@ -243,6 +244,76 @@ func TestPtyZsh_ShowAliasesZstyleHidesAlias(t *testing.T) {
 
 	assert.True(t, ptyHasToken(result.Screen, "deploy"))
 	assert.False(t, ptyHasToken(result.Screen, "d"))
+}
+
+func TestPtyZsh_DefaultSeparatorColorsBothColumns(t *testing.T) {
+	t.Parallel()
+
+	session := startCloudctlPty(t, "zsh")
+
+	session.Type(`zstyle ':completion:*' show-aliases false`)
+	session.PressEnter()
+
+	session.Type("cloudctl --")
+	session.Tab()
+	session.Tab()
+	result := session.Capture()
+
+	assert.Contains(t, result.Screen, "-- Path to a file")
+	assert.True(t, ptyStyledBefore(result.ScreenEscaped, "--kubeconfig"), "two-tone entry must color the display column")
+	assert.True(t, ptyDimWithPadding(result.ScreenEscaped, "-- Path to a file"), "the description column must carry the description color")
+}
+
+func TestPtyZsh_ListSeparatorColorsBothColumns(t *testing.T) {
+	t.Parallel()
+
+	session := startCloudctlPty(t, "zsh")
+
+	session.Type(`zstyle ':completion:*' show-aliases false`)
+	session.PressEnter()
+	session.Type(`zstyle ':completion:*' list-separator '<->'`)
+	session.PressEnter()
+
+	session.Type("cloudctl --")
+	session.Tab()
+	session.Tab()
+	result := session.Capture()
+
+	assert.Contains(t, result.Screen, "<-> Path to a file")
+	assert.True(t, ptyStyledBefore(result.ScreenEscaped, "--kubeconfig"), "two-tone entry must color the display column")
+	assert.True(t, ptyDimWithPadding(result.ScreenEscaped, "<-> Path to a file"), "the description column must carry the description color")
+}
+
+func TestPtyZsh_StyleLimitCatchAllColorsDescriptions(t *testing.T) {
+	t.Parallel()
+
+	session := startCloudctlPty(t, "zsh")
+
+	session.Type(`zstyle ':completion:*' show-aliases false`)
+	session.PressEnter()
+	session.Type("export CONGA_ZSH_STYLE_LIMIT=0")
+	session.PressEnter()
+
+	session.Type("cloudctl ")
+	session.Tab()
+	result := session.Capture()
+
+	assert.Contains(t, result.Screen, "-- Stream and export service logs")
+	assert.True(t, ptyDimWithPadding(result.ScreenEscaped, "-- Stream and export service logs"), "the catch-all must color the description column")
+	assert.False(t, ptyStyledBefore(result.ScreenEscaped, "logs"), "no per-candidate entries are emitted when the style limit is zero")
+}
+
+// ptyStyledBefore reports whether text is immediately preceded by an SGR
+// sequence in the escape form of the screen.
+func ptyStyledBefore(screenEscaped, text string) bool {
+	return regexp.MustCompile(`\x1b\[[0-9;]*m` + regexp.QuoteMeta(text)).MatchString(screenEscaped)
+}
+
+// ptyDimWithPadding reports whether text is preceded by the dim SGR sequence
+// and at least one padding space (the description column starts after the
+// aligned display column).
+func ptyDimWithPadding(screenEscaped, text string) bool {
+	return regexp.MustCompile(`\x1b\[2m(?:\x1b\[[0-9;]*m)* +` + regexp.QuoteMeta(text)).MatchString(screenEscaped)
 }
 
 func TestPtyFish_TabCompletesSingleMatch(t *testing.T) {

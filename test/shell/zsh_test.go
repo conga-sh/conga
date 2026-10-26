@@ -552,6 +552,29 @@ func TestZsh_AliasAndDescriptionSidebands(t *testing.T) {
 	})
 }
 
+func TestZsh_ListSeparatorSideband(t *testing.T) {
+	t.Parallel()
+
+	workspace := setupCloudctl(t)
+
+	t.Run("default separator patterns", func(t *testing.T) {
+		t.Parallel()
+
+		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl ")
+
+		assert.Contains(t, result.ListColors, "([ ]## -- *)", "expected the default separator patterns")
+	})
+
+	t.Run("list-separator zstyle drives list-colors patterns", func(t *testing.T) {
+		t.Parallel()
+
+		result := workspace.RunZshCompletionWithSetup(t, "cloudctl", "cloudctl ", `zstyle ':completion:*' list-separator '<->'`)
+
+		assert.Contains(t, result.ListColors, `([ ]## \<-\> *)`, "expected the user separator in list-colors patterns")
+		assert.NotContains(t, result.ListColors, "([ ]## -- *)", "expected the default separator to be replaced")
+	})
+}
+
 func TestZsh_UserZstylesSurvive(t *testing.T) {
 	t.Parallel()
 
