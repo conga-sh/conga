@@ -6,6 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 While CONGA is pre-1.0, breaking changes increment the minor version.
 
+## [0.3.0](https://github.com/conga-sh/conga/compare/v0.2.0...v0.3.0) (2026-10-26)
+
+
+### ⚠ BREAKING CHANGES
+
+* replace ConfigLoader with Bootstrapper lifecycle hook ([#70](https://github.com/conga-sh/conga/issues/70))
+
+### ✨ Features
+
+* **completion:** add alias and description suppression sidebands ([#76](https://github.com/conga-sh/conga/issues/76)) ([759eba1](https://github.com/conga-sh/conga/commit/759eba1c64efd1b6ed5deb6250fed999d9dc78ea))
+* replace ConfigLoader with Bootstrapper lifecycle hook ([#70](https://github.com/conga-sh/conga/issues/70)) ([9b34068](https://github.com/conga-sh/conga/commit/9b34068b03fbbdb96604aae557bb759cf3930f86))
+
+
+### 🐛 Bug Fixes
+
+* **completion:** honor zsh list-separator in list-colors patterns ([#77](https://github.com/conga-sh/conga/issues/77)) ([6a0ae76](https://github.com/conga-sh/conga/commit/6a0ae769f26f815c49830eceb9cf4ac938984ad6))
+
+
+### 📚 Documentation
+
+* **website:** reframe bootstrap docs as domain document loading ([#78](https://github.com/conga-sh/conga/issues/78)) ([ee9fb06](https://github.com/conga-sh/conga/commit/ee9fb062d098a3e94e2d5969672bd9d6d824f804))
+
 ## [0.2.0](https://github.com/conga-sh/conga/compare/v0.1.1...v0.2.0) (2026-10-24)
 
 
