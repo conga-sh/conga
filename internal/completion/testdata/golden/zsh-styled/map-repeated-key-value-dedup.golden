@@ -1,5 +1,5 @@
 Dnoprefix,nospaceMetadata labels in key=value format
-L=(#b)(bob)([ ]## -- *)=0==2:=(#b)(bob)=0=:=(#b)(carol)([ ]## -- *)=0==2:=(#b)(carol)=0=:=(#b)(-- *)=0=2
+L=(#b)(bob)([ ]## -- *)=0==2:=(#b)(bob)=0=:=(#b)(carol)([ ]## -- *)=0==2:=(#b)(carol)=0=:=(#b)(*)([ ]## -- *)=0==2
 M[2mMetadata labels in key=value format[39m
 Cvaluesbobowner=alice,owner=bob
 Cvaluescarolowner=alice,owner=carol

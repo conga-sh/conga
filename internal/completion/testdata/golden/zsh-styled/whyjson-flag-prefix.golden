@@ -1,4 +1,4 @@
 Dnoprefix
-L=(#b)(--why=text)([ ]## -- *)=0=34=2:=(#b)(--why=text)=0=34:=(#b)(--why=json)([ ]## -- *)=0=34=2:=(#b)(--why=json)=0=34:=(#b)(-- *)=0=2
+L=(#b)(--why=text)([ ]## -- *)=0=34=2:=(#b)(--why=text)=0=34:=(#b)(--why=json)([ ]## -- *)=0=34=2:=(#b)(--why=json)=0=34:=(#b)(*)([ ]## -- *)=0==2
 Cflags--why=textShow resolved field values and where they came from (values redacted unless tagged safe)--why=text 34
 Cflags--why=jsonShow resolved field values and where they came from (values redacted unless tagged safe)--why=json 34

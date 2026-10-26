@@ -1,5 +1,5 @@
 DnoprefixCloud profile
-L=(#b)(production)([ ]## -- *)=0==2:=(#b)(production)=0=:=(#b)(staging)([ ]## -- *)=0==2:=(#b)(staging)=0=:=(#b)(development)([ ]## -- *)=0==2:=(#b)(development)=0=:=(#b)(-- *)=0=2
+L=(#b)(production)([ ]## -- *)=0==2:=(#b)(production)=0=:=(#b)(staging)([ ]## -- *)=0==2:=(#b)(staging)=0=:=(#b)(development)([ ]## -- *)=0==2:=(#b)(development)=0=:=(#b)(*)([ ]## -- *)=0==2
 M[2mCloud profile[39m
 CvaluesproductionProduction workloadsproduction 
 CvaluesstagingPre-production staging clusterstaging 

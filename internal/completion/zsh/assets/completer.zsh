@@ -8,13 +8,21 @@
   local target="${words[1]/#\~/$HOME}"
   target="${aliases[$target]:-$target}"
 
+  local probe_context=":completion:${curcontext}:"
+
   # Honor the user's zsh completion styles: zstyle -T is true when the style
   # is unset, so an explicit false suppresses descriptions ("verbose") or
   # aliases ("show-aliases", the go-task convention). The sidebands apply only
-  # to the __complete invocation, never to the user's environment.
+  # to the __complete invocation, never to the user's environment. The engine's
+  # list-colors patterns must match the separator zsh renders between a match
+  # and its description, so the list-separator style is forwarded too.
   local -a conga_env
-  zstyle -T ":completion:${curcontext}:" verbose || conga_env+=(CONGA_COMPLETION_DESCRIPTIONS=0)
-  zstyle -T ":completion:${curcontext}:" show-aliases || conga_env+=(CONGA_COMPLETION_ALIASES=0)
+  local user_list_separator
+  zstyle -T "$probe_context" verbose || conga_env+=(CONGA_COMPLETION_DESCRIPTIONS=0)
+  zstyle -T "$probe_context" show-aliases || conga_env+=(CONGA_COMPLETION_ALIASES=0)
+  if zstyle -s "$probe_context" list-separator user_list_separator && [[ -n "$user_list_separator" ]]; then
+    conga_env+=("CONGA_ZSH_LIST_SEPARATOR=${user_list_separator}")
+  fi
 
   local lines
   if (( ${#conga_env} )); then
@@ -29,7 +37,6 @@
   local -A tag_displays tag_values
 
   local style_pattern=":completion:${curcontext}:*"
-  local probe_context=":completion:${curcontext}:"
   local -a user_group_name user_list_colors
   local conga_list_colors=1
 

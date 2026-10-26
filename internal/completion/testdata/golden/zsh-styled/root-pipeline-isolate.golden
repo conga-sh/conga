@@ -1,3 +1,3 @@
 Dnoprefix
-L=(#b)(deploy)([ ]## -- *)=0=34=2:=(#b)(deploy)=0=34:=(#b)(-- *)=0=2
+L=(#b)(deploy)([ ]## -- *)=0=34=2:=(#b)(deploy)=0=34:=(#b)(*)([ ]## -- *)=0==2
 Ccluster commandsdeployDeploy service to a clusterdeploy 34

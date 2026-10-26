@@ -218,16 +218,19 @@ func escapeValue(value string) string {
 }
 
 // listColorsSpec builds the zsh list-colors specification: one entry pair per
-// candidate (a two-tone variant matching "display -- description" renderings
-// and a display-only variant, with an empty value color for unstyled
-// candidates so user-configured list-colors defaults do not leak onto the
-// menu rows), closed by a description-column catch-all. When descriptions are
-// suppressed only the display-only entries are emitted (the two-tone and
-// catch-all patterns could never match). Entry count is capped by
+// candidate (a two-tone variant matching "<display><separator><description>"
+// renderings and a display-only variant, with an empty value color for
+// unstyled candidates so user-configured list-colors defaults do not leak onto
+// the menu rows), closed by a description-column catch-all. The separator is
+// the user's list-separator style, forwarded as CONGA_ZSH_LIST_SEPARATOR
+// (default "--"), so a configured separator keeps both columns colored. When
+// descriptions are suppressed only the display-only entries are emitted (the
+// two-tone and catch-all patterns could never match). Entry count is capped by
 // CONGA_ZSH_STYLE_LIMIT; a negative limit is unlimited.
 func listColorsSpec(candidates []wire.Candidate, descriptions bool) string {
 	limit := wire.ZshStyleLimit()
 	descriptionSGR := style.SGR(style.Theme.Description)
+	separator := " " + patternEscape(wire.ZshListSeparator()) + " "
 
 	entries := make([]string, 0, 2*len(candidates)+1)
 
@@ -244,14 +247,14 @@ func listColorsSpec(candidates []wire.Candidate, descriptions bool) string {
 		valueSGR := style.SGR(cmp.Or(candidate.Style, style.Theme.Value))
 
 		if descriptions {
-			entries = append(entries, "=(#b)("+display+")([ ]## -- *)=0="+valueSGR+"="+descriptionSGR)
+			entries = append(entries, "=(#b)("+display+")([ ]##"+separator+"*)=0="+valueSGR+"="+descriptionSGR)
 		}
 
 		entries = append(entries, "=(#b)("+display+")=0="+valueSGR)
 	}
 
 	if descriptions {
-		entries = append(entries, "=(#b)(-- *)=0="+descriptionSGR)
+		entries = append(entries, "=(#b)(*)([ ]##"+separator+"*)=0=="+descriptionSGR)
 	}
 
 	return strings.Join(entries, ":")
