@@ -193,10 +193,7 @@ func TestValidateCommandConfig_EmptyMapSectionStoresEmptyMap(t *testing.T) {
 
 	err := validateCommandConfig(map[string]any{"tags": map[string]any{}}, cmd, dest, "app.toml")
 	assert.NoError(t, err)
-
-	entries := dest.Map("tags")
-
-	assert.Equal(t, 0, len(entries))
+	assert.Equal(t, 0, len(dest.Map("tags")))
 	assert.True(t, dest.HasKey("tags"))
 }
 
@@ -365,8 +362,7 @@ func TestValidateDocument_UnknownKeyAttributesOrigin(t *testing.T) {
 		Flags: []*spec.Flag{{Name: "host"}},
 	}
 
-	dest := configdata.New()
-	err := ValidateDocument(map[string]any{"hots": "x"}, cmd, dest, "taskrc", "")
+	err := ValidateDocument(map[string]any{"hots": "x"}, cmd, configdata.New(), "taskrc", "")
 
 	assert.Error(t, err)
 	assert.IsError(t, err, sentinel.ErrConfigUnknownField)

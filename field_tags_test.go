@@ -186,9 +186,7 @@ func TestFileExistingValidation(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.NoError(t, err)
-
-		outputFile := cli.Output.Get()
-		assert.Equal(t, "-", outputFile.String())
+		assert.Equal(t, "-", cli.Output.Get().String())
 	})
 
 	t.Run("dash rejected without capability tags", func(t *testing.T) {
@@ -267,9 +265,7 @@ func TestFileArgExistingValidation(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.NoError(t, err)
-
-		inputFile := cli.Input.Get()
-		assert.Equal(t, testFile, inputFile.String())
+		assert.Equal(t, testFile, cli.Input.Get().String())
 	})
 
 	t.Run("missing file fails", func(t *testing.T) {
@@ -302,8 +298,7 @@ func TestDirExistingValidation(t *testing.T) {
 	t.Run("regular file fails", func(t *testing.T) {
 		t.Parallel()
 
-		testFile := writeFileForTest(t, "not-a-dir.txt")
-		app := conga.New[DirExistingCLI]().Args([]string{"--workdir", testFile})
+		app := conga.New[DirExistingCLI]().Args([]string{"--workdir", writeFileForTest(t, "not-a-dir.txt")})
 
 		err := app.RunContext(t.Context())
 
@@ -378,9 +373,7 @@ func TestFileGlobTag(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.NoError(t, err)
-
-		inputFile := cli.Input.Get()
-		assert.Equal(t, testFile, inputFile.String())
+		assert.Equal(t, testFile, cli.Input.Get().String())
 	})
 
 	t.Run("help mentions the declared glob patterns", func(t *testing.T) {

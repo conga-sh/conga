@@ -630,9 +630,7 @@ func coercePointerTarget(raw string, targetType reflect.Type, reg Registry) (any
 }
 
 func coerceValueTargetFromPointer(raw string, targetType reflect.Type, reg Registry) (any, bool, error) {
-	ptrType := reflect.PointerTo(targetType)
-
-	parser, ok := reg[ptrType]
+	parser, ok := reg[reflect.PointerTo(targetType)]
 	if !ok {
 		return nil, false, nil
 	}

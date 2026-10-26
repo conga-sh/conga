@@ -47,9 +47,13 @@ func TestElvish_Flags(t *testing.T) {
 	assert.True(t, result.HasItem("--kubeconfig"))
 	assert.True(t, result.HasItem("--help"))
 
-	logsResult := workspace.RunElvishCompletion(t, "cloudctl", "cloudctl logs --")
+	t.Run("logs flags", func(t *testing.T) {
+		t.Parallel()
 
-	assert.True(t, logsResult.HasItem("--labels"))
+		logsResult := workspace.RunElvishCompletion(t, "cloudctl", "cloudctl logs --")
+
+		assert.True(t, logsResult.HasItem("--labels"))
+	})
 }
 
 func TestElvish_ContextAwarePredictors(t *testing.T) {
@@ -537,8 +541,7 @@ func TestElvish_DomainTypes_Completion(t *testing.T) {
 	assert.True(t, bareRes.HasItem("-i"))
 
 	// Typing '--comp': must complete --completion flag
-	compRes := workspace.RunElvishCompletion(t, "05-domain-types", "05-domain-types --comp")
-	assert.True(t, compRes.HasItem("--completion"), "expected --completion candidate")
+	assert.True(t, workspace.RunElvishCompletion(t, "05-domain-types", "05-domain-types --comp").HasItem("--completion"), "expected --completion candidate")
 }
 
 func TestElvish_NestedSubcommands(t *testing.T) {
@@ -758,12 +761,10 @@ func TestElvish_DomainFilesystemTypes(t *testing.T) {
 
 	workspace := setupDomainTypes(t)
 
-	sampleFile := filepath.Join(workspace.WorkDir, "sample.txt")
-	err := os.WriteFile(sampleFile, []byte("data"), 0o600)
+	err := os.WriteFile(filepath.Join(workspace.WorkDir, "sample.txt"), []byte("data"), 0o600)
 	assert.NoError(t, err)
 
-	outputDir := filepath.Join(workspace.WorkDir, "output_dir")
-	err = os.Mkdir(outputDir, 0o700)
+	err = os.Mkdir(filepath.Join(workspace.WorkDir, "output_dir"), 0o700)
 	assert.NoError(t, err)
 
 	t.Run("input file completion", func(t *testing.T) {

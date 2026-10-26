@@ -13,18 +13,14 @@ import (
 func TestFormat_DirectiveHeaderAlwaysFirst(t *testing.T) {
 	t.Parallel()
 
-	formatted := NewSession().Format("", wire.Directives{}, []wire.Candidate{{Value: "deploy"}})
-
-	assert.Equal(t, "D\t\nC\tdeploy", formatted)
+	assert.Equal(t, "D\t\nC\tdeploy", NewSession().Format("", wire.Directives{}, []wire.Candidate{{Value: "deploy"}}))
 }
 
 func TestFormat_MessageLinesFollowHeader(t *testing.T) {
 	t.Parallel()
 
 	directives := wire.Directives{Messages: []string{"usage: app <command>"}}
-	formatted := NewSession().Format("", directives, nil)
-
-	assert.Equal(t, "D\t\nM\tusage: app <command>", formatted)
+	assert.Equal(t, "D\t\nM\tusage: app <command>", NewSession().Format("", directives, nil))
 }
 
 func TestFormat_KeepOrderToken(t *testing.T) {
@@ -40,9 +36,7 @@ func TestFormat_NospaceTokenForValueSuffixes(t *testing.T) {
 	t.Parallel()
 
 	candidates := []wire.Candidate{{Value: "owner="}, {Value: "team="}}
-	formatted := NewSession().Format("", wire.Directives{}, candidates)
-
-	assert.Equal(t, "D\tnospace\nC\towner=\nC\tteam=", formatted)
+	assert.Equal(t, "D\tnospace\nC\towner=\nC\tteam=", NewSession().Format("", wire.Directives{}, candidates))
 }
 
 func TestFormat_NospaceTokenForDirectorySuffix(t *testing.T) {
@@ -59,9 +53,7 @@ func TestFormat_NospaceTokenFromEngineSet(t *testing.T) {
 	directives := wire.Directives{NoSpace: wire.SuffixSet{}}
 	directives.NoSpace.Add('*')
 
-	formatted := NewSession().Format("", directives, []wire.Candidate{{Value: "deploy"}})
-
-	assert.Equal(t, "D\tnospace\nC\tdeploy", formatted)
+	assert.Equal(t, "D\tnospace\nC\tdeploy", NewSession().Format("", directives, []wire.Candidate{{Value: "deploy"}}))
 }
 
 func TestFormat_NoprefixTokenForAttachedValues(t *testing.T) {
@@ -115,9 +107,7 @@ func TestFormat_StripsWordbreakPrefixDerivedFromToComplete(t *testing.T) {
 
 	candidates := []wire.Candidate{{Value: "team=core", Display: "core"}}
 
-	formatted := NewSession().Format("team=", wire.Directives{}, candidates)
-
-	assert.Equal(t, "D\tnoprefix\nC\tcore", formatted)
+	assert.Equal(t, "D\tnoprefix\nC\tcore", NewSession().Format("team=", wire.Directives{}, candidates))
 }
 
 func TestFormat_DisplayFallbackWhenPrefixDoesNotMatchValue(t *testing.T) {
@@ -125,9 +115,7 @@ func TestFormat_DisplayFallbackWhenPrefixDoesNotMatchValue(t *testing.T) {
 
 	candidates := []wire.Candidate{{Value: "--env=production", Display: "production"}}
 
-	formatted := NewSession().Format(`--env="pro`, wire.Directives{}, candidates)
-
-	assert.Equal(t, "D\tnoprefix\nC\tproduction", formatted)
+	assert.Equal(t, "D\tnoprefix\nC\tproduction", NewSession().Format(`--env="pro`, wire.Directives{}, candidates))
 }
 
 func TestFormat_CollapsesSharedNonFlagPrefix(t *testing.T) {
@@ -139,9 +127,7 @@ func TestFormat_CollapsesSharedNonFlagPrefix(t *testing.T) {
 		{Value: "prod-ap-southeast-1", Display: "prod-ap-southeast-1"},
 	}
 
-	formatted := NewSession().Format("", wire.Directives{}, candidates)
-
-	assert.Equal(t, "D\tnospace\nC\tprod-", formatted)
+	assert.Equal(t, "D\tnospace\nC\tprod-", NewSession().Format("", wire.Directives{}, candidates))
 }
 
 // Note: common-prefix collapsing is bash-only today (zsh manages its own insertion),
@@ -151,9 +137,7 @@ func TestFormat_CollapsesMultibyteRunePrefix(t *testing.T) {
 
 	candidates := []wire.Candidate{{Value: "café-1"}, {Value: "cafè-2"}}
 
-	formatted := NewSession().Format("", wire.Directives{}, candidates)
-
-	assert.Equal(t, "D\tnospace\nC\tcaf", formatted)
+	assert.Equal(t, "D\tnospace\nC\tcaf", NewSession().Format("", wire.Directives{}, candidates))
 }
 
 func TestFormat_CommonValuePrefixAlwaysValidUTF8(t *testing.T) {
@@ -237,9 +221,7 @@ func TestCommonValuePrefix_AlwaysValidUTF8(t *testing.T) {
 	}
 
 	for _, pair := range candidatePairs {
-		prefix := commonValuePrefix(pair, "")
-
-		assert.True(t, utf8.ValidString(prefix), "commonValuePrefix must be valid UTF-8")
+		assert.True(t, utf8.ValidString(commonValuePrefix(pair, "")), "commonValuePrefix must be valid UTF-8")
 	}
 }
 
@@ -248,9 +230,7 @@ func TestFormat_DoesNotCollapseFlags(t *testing.T) {
 
 	candidates := []wire.Candidate{{Value: "--env"}, {Value: "--env-vars"}}
 
-	formatted := NewSession().Format("--e", wire.Directives{}, candidates)
-
-	assert.Equal(t, "D\t\nC\t--env\nC\t--env-vars", formatted)
+	assert.Equal(t, "D\t\nC\t--env\nC\t--env-vars", NewSession().Format("--e", wire.Directives{}, candidates))
 }
 
 func TestFormat_DoesNotCollapseWhenPrefixFullyTyped(t *testing.T) {
@@ -258,9 +238,7 @@ func TestFormat_DoesNotCollapseWhenPrefixFullyTyped(t *testing.T) {
 
 	candidates := []wire.Candidate{{Value: "prod-east"}, {Value: "prod-west"}}
 
-	formatted := NewSession().Format("prod-", wire.Directives{}, candidates)
-
-	assert.Equal(t, "D\t\nC\tprod-east\nC\tprod-west", formatted)
+	assert.Equal(t, "D\t\nC\tprod-east\nC\tprod-west", NewSession().Format("prod-", wire.Directives{}, candidates))
 }
 
 func TestFormat_DoesNotCollapseUnsharedValues(t *testing.T) {
@@ -268,9 +246,7 @@ func TestFormat_DoesNotCollapseUnsharedValues(t *testing.T) {
 
 	candidates := []wire.Candidate{{Value: "staging"}, {Value: "production"}, {Value: "qa"}}
 
-	formatted := NewSession().Format("", wire.Directives{}, candidates)
-
-	assert.Equal(t, "D\t\nC\tstaging\nC\tproduction\nC\tqa", formatted)
+	assert.Equal(t, "D\t\nC\tstaging\nC\tproduction\nC\tqa", NewSession().Format("", wire.Directives{}, candidates))
 }
 
 func TestFormat_SuccessiveTabsRenderTriplets(t *testing.T) {
@@ -304,9 +280,7 @@ func TestFormat_SuccessiveTabsIgnoreNormalModeWithoutCompType(t *testing.T) {
 
 	candidates := []wire.Candidate{{Value: "deploy"}, {Value: "logs"}}
 	session := sessionWithEnvironment(map[string]string{"COMP_TYPE": "9"})
-	formatted := session.Format("", wire.Directives{}, candidates)
-
-	assert.Equal(t, "D\t\nC\tdeploy\nC\tlogs", formatted)
+	assert.Equal(t, "D\t\nC\tdeploy\nC\tlogs", session.Format("", wire.Directives{}, candidates))
 }
 
 func TestFormat_UsesSessionCompType(t *testing.T) {
@@ -334,7 +308,5 @@ func TestFormat_CollapseForcesNospaceBeyondSuffixes(t *testing.T) {
 
 	candidates := []wire.Candidate{{Value: "prod-east"}, {Value: "prod-west"}}
 
-	formatted := NewSession().Format("", wire.Directives{}, candidates)
-
-	assert.Equal(t, "D\tnospace\nC\tprod-", formatted)
+	assert.Equal(t, "D\tnospace\nC\tprod-", NewSession().Format("", wire.Directives{}, candidates))
 }

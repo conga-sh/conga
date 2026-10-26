@@ -115,9 +115,7 @@ func TestExecTarget(t *testing.T) {
 	t.Run("empty name resolves executable", func(t *testing.T) {
 		t.Parallel()
 
-		target := wire.ExecTarget("")
-
-		assert.True(t, target != "", "empty name must resolve to the running executable")
+		assert.True(t, wire.ExecTarget("") != "", "empty name must resolve to the running executable")
 	})
 }
 

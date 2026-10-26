@@ -102,19 +102,15 @@ func Symlinks() Predictor {
 type fsScanMode int
 
 func actionDirs(ctx Context) Predictor {
-	items := scanFilesystem(ctx, fsModeDirs, nil, nil)
-
 	return Predictor{
-		items:     items,
+		items:     scanFilesystem(ctx, fsModeDirs, nil, nil),
 		directive: DirectiveNoFileCompletion | DirectiveNoSpace,
 	}
 }
 
 func actionDirsFiltered(ctx Context, filter func(path string, entry os.DirEntry) bool) Predictor {
-	items := scanFilesystem(ctx, fsModeDirs, nil, filter)
-
 	return Predictor{
-		items:     items,
+		items:     scanFilesystem(ctx, fsModeDirs, nil, filter),
 		directive: DirectiveNoFileCompletion | DirectiveNoSpace,
 	}
 }
@@ -123,10 +119,9 @@ func actionDirsGlob(ctx Context, patterns []string) Predictor {
 	filter := func(_ string, entry os.DirEntry) bool {
 		return matchesAnyGlob(entry.Name(), patterns)
 	}
-	items := scanFilesystem(ctx, fsModeDirs, nil, filter)
 
 	return Predictor{
-		items:     items,
+		items:     scanFilesystem(ctx, fsModeDirs, nil, filter),
 		directive: DirectiveNoFileCompletion | DirectiveNoSpace,
 	}
 }
@@ -136,32 +131,24 @@ func actionFileContents(ctx Context, filePath string, parser func(content []byte
 		return None()
 	}
 
-	resolvedPath := resolveFilePath(ctx, filePath)
-
-	content, err := os.ReadFile(resolvedPath)
+	content, err := os.ReadFile(resolveFilePath(ctx, filePath))
 	if err != nil {
 		return None()
 	}
 
-	items := parser(content)
-
-	return Items(items...)
+	return Items(parser(content)...)
 }
 
 func actionFiles(ctx Context, extensions ...string) Predictor {
-	items := scanFilesystem(ctx, fsModeFiles, extensions, nil)
-
 	return Predictor{
-		items:     items,
+		items:     scanFilesystem(ctx, fsModeFiles, extensions, nil),
 		directive: DirectiveNoFileCompletion,
 	}
 }
 
 func actionFilesFiltered(ctx Context, filter func(path string, entry os.DirEntry) bool) Predictor {
-	items := scanFilesystem(ctx, fsModeFiles, nil, filter)
-
 	return Predictor{
-		items:     items,
+		items:     scanFilesystem(ctx, fsModeFiles, nil, filter),
 		directive: DirectiveNoFileCompletion,
 	}
 }
@@ -170,19 +157,16 @@ func actionFilesGlob(ctx Context, patterns []string) Predictor {
 	filter := func(_ string, entry os.DirEntry) bool {
 		return matchesAnyGlob(entry.Name(), patterns)
 	}
-	items := scanFilesystem(ctx, fsModeFiles, nil, filter)
 
 	return Predictor{
-		items:     items,
+		items:     scanFilesystem(ctx, fsModeFiles, nil, filter),
 		directive: DirectiveNoFileCompletion,
 	}
 }
 
 func actionPathsFiltered(ctx Context, filter func(path string, entry os.DirEntry) bool) Predictor {
-	items := scanFilesystem(ctx, fsModePaths, nil, filter)
-
 	return Predictor{
-		items:     items,
+		items:     scanFilesystem(ctx, fsModePaths, nil, filter),
 		directive: DirectiveNoFileCompletion,
 	}
 }
@@ -191,10 +175,9 @@ func actionSymlinks(ctx Context) Predictor {
 	filter := func(_ string, entry os.DirEntry) bool {
 		return entry.Type()&os.ModeSymlink != 0
 	}
-	items := scanFilesystem(ctx, fsModePaths, nil, filter)
 
 	return Predictor{
-		items:     items,
+		items:     scanFilesystem(ctx, fsModePaths, nil, filter),
 		directive: DirectiveNoFileCompletion,
 	}
 }
@@ -367,9 +350,7 @@ func resolveFilePath(ctx Context, rawPath string) string {
 		return rawPath
 	}
 
-	baseDir := cmp.Or(ctx.Dir, ".")
-
-	return filepath.Join(baseDir, filepath.FromSlash(rawPath))
+	return filepath.Join(cmp.Or(ctx.Dir, "."), filepath.FromSlash(rawPath))
 }
 
 func resolveSearchDir(ctx Context, dirPrefix string) string {

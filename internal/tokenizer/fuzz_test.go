@@ -31,12 +31,11 @@ func FuzzTokenizer(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, input string) {
 		args := strings.Split(input, "\x00")
-		tokens := tokenizer.Tokenize(args)
 
 		// Scanner traversal: every argument must survive Tokenize exactly
 		// once, in order, with consistent indices, and token formatting or
 		// classification must never panic.
-		scanner := tokenizer.NewScanner(tokens)
+		scanner := tokenizer.NewScanner(tokenizer.Tokenize(args))
 		count := 0
 
 		for scanner.HasNext() {
@@ -56,8 +55,8 @@ func FuzzTokenizer(f *testing.F) {
 		// Round-trip: POSIX-quoting every argument must survive
 		// WordsUpTo byte-for-byte, whatever the argument contents.
 		line := quotedCompLine(args)
-		parsed := lex.WordsUpTo(line, len(line))
-		assert.Equal(t, args, parsed)
+
+		assert.Equal(t, args, lex.WordsUpTo(line, len(line)))
 	})
 }
 

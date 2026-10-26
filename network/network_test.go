@@ -31,9 +31,7 @@ var (
 func TestNetInterfaces_Execution(t *testing.T) {
 	t.Parallel()
 
-	pred := network.NetInterfaces()
-
-	result := pred.Invoke(predict.Context{})
+	result := network.NetInterfaces().Invoke(predict.Context{})
 
 	assert.True(t, len(result.Items) > 0, "expected at least one network interface")
 
@@ -53,9 +51,7 @@ func TestHosts_ParseEtcHosts(t *testing.T) {
 	assert.NoError(t, os.WriteFile(filepath.Join(sshDir, "known_hosts"), fixtureKnownHosts, 0600))
 	assert.NoError(t, os.WriteFile(filepath.Join(sshDir, "config"), fixtureSSHConfig, 0600))
 
-	pred := network.Hosts()
-
-	result := pred.Invoke(predict.Context{
+	result := network.Hosts().Invoke(predict.Context{
 		Env: map[string]string{
 			"HOME": tmpDir,
 		},
@@ -80,9 +76,7 @@ func TestHosts_ParseEtcHosts(t *testing.T) {
 func TestPorts_StandardEntries(t *testing.T) {
 	t.Parallel()
 
-	pred := network.Ports()
-
-	result := pred.Invoke(predict.Context{})
+	result := network.Ports().Invoke(predict.Context{})
 
 	values := itemValues(result.Items)
 
@@ -113,9 +107,7 @@ func TestPorts_StandardEntries(t *testing.T) {
 func TestHTTPStatusCodes_Execution(t *testing.T) {
 	t.Parallel()
 
-	pred := network.HTTPStatusCodes()
-
-	result := pred.Invoke(predict.Context{})
+	result := network.HTTPStatusCodes().Invoke(predict.Context{})
 
 	values := itemValues(result.Items)
 
@@ -145,9 +137,7 @@ func TestHTTPStatusCodes_Execution(t *testing.T) {
 func TestMIMETypes_Execution(t *testing.T) {
 	t.Parallel()
 
-	pred := network.MIMETypes()
-
-	result := pred.Invoke(predict.Context{})
+	result := network.MIMETypes().Invoke(predict.Context{})
 
 	values := itemValues(result.Items)
 
@@ -168,9 +158,7 @@ func TestMIMETypes_Execution(t *testing.T) {
 func TestHTTPMethods_Execution(t *testing.T) {
 	t.Parallel()
 
-	pred := network.HTTPMethods()
-
-	result := pred.Invoke(predict.Context{})
+	result := network.HTTPMethods().Invoke(predict.Context{})
 
 	values := itemValues(result.Items)
 

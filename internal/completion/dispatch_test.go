@@ -73,17 +73,13 @@ func TestFormatFallbackShellsRenderErrorResultsInExportFraming(t *testing.T) {
 func TestFormatNativeFish(t *testing.T) {
 	t.Parallel()
 
-	formatted := completion.NewSession("fish").Format("de", plainResult())
-
-	assert.Equal(t, "deploy\tDeploy service\nlogs", formatted)
+	assert.Equal(t, "deploy\tDeploy service\nlogs", completion.NewSession("fish").Format("de", plainResult()))
 }
 
 func TestFormatNativeBash(t *testing.T) {
 	t.Parallel()
 
-	formatted := completion.NewSession("bash").Format("de", plainResult())
-
-	assert.Equal(t, "D\t\nC\tdeploy\nC\tlogs", formatted)
+	assert.Equal(t, "D\t\nC\tdeploy\nC\tlogs", completion.NewSession("bash").Format("de", plainResult()))
 }
 
 func TestFormatNativeZsh(t *testing.T) {
@@ -109,17 +105,13 @@ func TestFormatNativeZshErrorResult(t *testing.T) {
 func TestFormatNativeBashErrorResult(t *testing.T) {
 	t.Parallel()
 
-	formatted := completion.NewSession("bash").Format("", errorResult())
-
-	assert.Equal(t, "D\t\nM\tusage: app <command>", formatted)
+	assert.Equal(t, "D\t\nM\tusage: app <command>", completion.NewSession("bash").Format("", errorResult()))
 }
 
 func TestFormatNativeFishErrorResult(t *testing.T) {
 	t.Parallel()
 
-	formatted := completion.NewSession("fish").Format("", errorResult())
-
-	assert.Equal(t, "", formatted)
+	assert.Equal(t, "", completion.NewSession("fish").Format("", errorResult()))
 }
 
 func TestFormatNativeExport(t *testing.T) {
@@ -334,10 +326,8 @@ func TestFormatNativeNushell(t *testing.T) {
 func TestFormatNativeNushellErrorResult(t *testing.T) {
 	t.Parallel()
 
-	formatted := completion.NewSession("nushell").Format("", errorResult())
-
 	// Nushell's external-completer contract has no message/usage channel.
-	assert.Equal(t, `[]`, formatted)
+	assert.Equal(t, `[]`, completion.NewSession("nushell").Format("", errorResult()))
 }
 
 func TestFormatNativeNushellQuoting(t *testing.T) {
@@ -443,7 +433,5 @@ func TestSnippetNativeZsh(t *testing.T) {
 func TestNativeSupportedShells(t *testing.T) {
 	t.Parallel()
 
-	shells := completion.SupportedShells()
-
-	assert.Equal(t, []string{"bash", "elvish", "fish", "nushell", "powershell", "zsh"}, shells)
+	assert.Equal(t, []string{"bash", "elvish", "fish", "nushell", "powershell", "zsh"}, completion.SupportedShells())
 }

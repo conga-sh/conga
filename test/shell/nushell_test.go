@@ -49,8 +49,13 @@ func TestNushell_Flags(t *testing.T) {
 	assert.True(t, result.HasItem("--profile"))
 	assert.True(t, result.HasItem("--kubeconfig"))
 
-	logsResult := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl logs --")
-	assert.True(t, logsResult.HasItem("--labels"))
+	t.Run("logs flags", func(t *testing.T) {
+		t.Parallel()
+
+		logsResult := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl logs --")
+
+		assert.True(t, logsResult.HasItem("--labels"))
+	})
 }
 
 func TestNushell_ContextAwarePredictors(t *testing.T) {
@@ -496,8 +501,7 @@ func TestNushell_DomainTypes_Completion(t *testing.T) {
 	assert.True(t, bareRes.HasItem("-i"))
 
 	// Typing '--comp': must complete --completion flag
-	compRes := workspace.RunNushellCompletion(t, "05-domain-types", "05-domain-types --comp")
-	assert.True(t, compRes.HasItem("--completion"), "expected --completion candidate")
+	assert.True(t, workspace.RunNushellCompletion(t, "05-domain-types", "05-domain-types --comp").HasItem("--completion"), "expected --completion candidate")
 }
 
 func TestNushell_NestedSubcommands(t *testing.T) {
@@ -807,12 +811,10 @@ func TestNushell_DomainFilesystemTypes(t *testing.T) {
 
 	workspace := setupDomainTypes(t)
 
-	sampleFile := filepath.Join(workspace.WorkDir, "sample.txt")
-	err := os.WriteFile(sampleFile, []byte("data"), 0o600)
+	err := os.WriteFile(filepath.Join(workspace.WorkDir, "sample.txt"), []byte("data"), 0o600)
 	assert.NoError(t, err)
 
-	outputDir := filepath.Join(workspace.WorkDir, "output_dir")
-	err = os.Mkdir(outputDir, 0o700)
+	err = os.Mkdir(filepath.Join(workspace.WorkDir, "output_dir"), 0o700)
 	assert.NoError(t, err)
 
 	t.Run("input file completion", func(t *testing.T) {

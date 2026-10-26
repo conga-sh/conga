@@ -56,19 +56,13 @@ func TestStringify(t *testing.T) {
 	t.Run("string identity", func(t *testing.T) {
 		t.Parallel()
 
-		result := stringx.Stringify("hello world")
-
-		assert.Equal(t, "hello world", result)
+		assert.Equal(t, "hello world", stringx.Stringify("hello world"))
 	})
 
 	t.Run("fmt.Stringer non-nil", func(t *testing.T) {
 		t.Parallel()
 
-		duration := 5 * time.Second
-
-		result := stringx.Stringify(duration)
-
-		assert.Equal(t, "5s", result)
+		assert.Equal(t, "5s", stringx.Stringify(5*time.Second))
 	})
 
 	t.Run("fmt.Stringer custom pointer", func(t *testing.T) {
@@ -76,9 +70,7 @@ func TestStringify(t *testing.T) {
 
 		stringer := &customStringer{text: "custom"}
 
-		result := stringx.Stringify(stringer)
-
-		assert.Equal(t, "custom", result)
+		assert.Equal(t, "custom", stringx.Stringify(stringer))
 	})
 
 	t.Run("fmt.Stringer typed nil", func(t *testing.T) {
@@ -88,9 +80,7 @@ func TestStringify(t *testing.T) {
 		// check, so Stringify must guard before invoking it.
 		var nilStringer *strictStringer
 
-		result := stringx.Stringify(nilStringer)
-
-		assert.Equal(t, "", result)
+		assert.Equal(t, "", stringx.Stringify(nilStringer))
 	})
 
 	t.Run("pointer-receiver fmt.Stringer reached through an addressable copy", func(t *testing.T) {
@@ -103,58 +93,43 @@ func TestStringify(t *testing.T) {
 		// pointer-receiver String method without an addressable copy.
 		value := *parsedURL
 
-		result := stringx.Stringify(value)
-
-		assert.Equal(t, "https://example.com/path", result)
+		assert.Equal(t, "https://example.com/path", stringx.Stringify(value))
 	})
 
 	t.Run("bool values", func(t *testing.T) {
 		t.Parallel()
 
-		trueResult := stringx.Stringify(true)
-		falseResult := stringx.Stringify(false)
-
-		assert.Equal(t, "true", trueResult)
-		assert.Equal(t, "false", falseResult)
+		assert.Equal(t, "true", stringx.Stringify(true))
+		assert.Equal(t, "false", stringx.Stringify(false))
 	})
 
 	t.Run("integers", func(t *testing.T) {
 		t.Parallel()
 
-		intResult := stringx.Stringify(42)
-		int64Result := stringx.Stringify(int64(9876543210))
-		uintResult := stringx.Stringify(uint(123))
-		uint64Result := stringx.Stringify(uint64(18446744073709551615))
-
-		assert.Equal(t, "42", intResult)
-		assert.Equal(t, "9876543210", int64Result)
-		assert.Equal(t, "123", uintResult)
-		assert.Equal(t, "18446744073709551615", uint64Result)
+		assert.Equal(t, "42", stringx.Stringify(42))
+		assert.Equal(t, "9876543210", stringx.Stringify(int64(9876543210)))
+		assert.Equal(t, "123", stringx.Stringify(uint(123)))
+		assert.Equal(t, "18446744073709551615", stringx.Stringify(uint64(18446744073709551615)))
 	})
 
 	t.Run("floats", func(t *testing.T) {
 		t.Parallel()
 
-		result := stringx.Stringify(3.14159)
-
-		assert.Equal(t, "3.14159", result)
+		assert.Equal(t, "3.14159", stringx.Stringify(3.14159))
 	})
 
 	t.Run("nil any", func(t *testing.T) {
 		t.Parallel()
 
-		result := stringx.Stringify(nil)
-
-		assert.Equal(t, "<nil>", result)
+		assert.Equal(t, "<nil>", stringx.Stringify(nil))
 	})
 
 	t.Run("encoding.TextMarshaler", func(t *testing.T) {
 		t.Parallel()
 
 		marshaler := customTextMarshaler{text: "marshaled-text"}
-		result := stringx.Stringify(marshaler)
 
-		assert.Equal(t, "marshaled-text", result)
+		assert.Equal(t, "marshaled-text", stringx.Stringify(marshaler))
 	})
 
 	t.Run("encoding.TextMarshaler pointer", func(t *testing.T) {
@@ -162,9 +137,7 @@ func TestStringify(t *testing.T) {
 
 		marshaler := &customPointerTextMarshaler{text: "ptr-text"}
 
-		result := stringx.Stringify(marshaler)
-
-		assert.Equal(t, "ptr-text", result)
+		assert.Equal(t, "ptr-text", stringx.Stringify(marshaler))
 	})
 
 	t.Run("encoding.TextMarshaler typed nil", func(t *testing.T) {
@@ -172,43 +145,32 @@ func TestStringify(t *testing.T) {
 
 		var marshaler *customPointerTextMarshaler
 
-		result := stringx.Stringify(marshaler)
-
-		assert.Equal(t, "", result)
+		assert.Equal(t, "", stringx.Stringify(marshaler))
 	})
 
 	t.Run("map formatting", func(t *testing.T) {
 		t.Parallel()
 
 		mapValue := map[string]int{"b": 2, "a": 1, "c": 3}
-		result := stringx.Stringify(mapValue)
 
-		assert.Equal(t, "a=1, b=2, c=3", result)
+		assert.Equal(t, "a=1, b=2, c=3", stringx.Stringify(mapValue))
 		assert.Equal(t, "", stringx.Stringify(map[string]string{}))
 	})
 
 	t.Run("slice formatting", func(t *testing.T) {
 		t.Parallel()
 
-		stringSliceResult := stringx.Stringify([]string{"a", "b", "c"})
-		intSliceResult := stringx.Stringify([]int{1, 2, 3})
-		boolSliceResult := stringx.Stringify([]bool{true, false})
-		emptySliceResult := stringx.Stringify([]string{})
-		byteSliceResult := stringx.Stringify([]byte("raw-bytes"))
-
-		assert.Equal(t, "[a, b, c]", stringSliceResult)
-		assert.Equal(t, "[1, 2, 3]", intSliceResult)
-		assert.Equal(t, "[true, false]", boolSliceResult)
-		assert.Equal(t, "", emptySliceResult)
-		assert.Equal(t, "raw-bytes", byteSliceResult)
+		assert.Equal(t, "[a, b, c]", stringx.Stringify([]string{"a", "b", "c"}))
+		assert.Equal(t, "[1, 2, 3]", stringx.Stringify([]int{1, 2, 3}))
+		assert.Equal(t, "[true, false]", stringx.Stringify([]bool{true, false}))
+		assert.Equal(t, "", stringx.Stringify([]string{}))
+		assert.Equal(t, "raw-bytes", stringx.Stringify([]byte("raw-bytes")))
 	})
 
 	t.Run("unhandled fallback to fmt.Sprint", func(t *testing.T) {
 		t.Parallel()
 
-		structResult := stringx.Stringify(unhandledType{field: 10})
-
-		assert.Equal(t, "{10}", structResult)
+		assert.Equal(t, "{10}", stringx.Stringify(unhandledType{field: 10}))
 	})
 }
 

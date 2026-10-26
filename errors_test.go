@@ -249,8 +249,7 @@ func TestErrorPathWrongKind(t *testing.T) {
 
 	tmpDir := t.TempDir()
 
-	filePath := filepath.Join(tmpDir, "file.txt")
-	err := os.WriteFile(filePath, []byte("x"), 0o600)
+	err := os.WriteFile(filepath.Join(tmpDir, "file.txt"), []byte("x"), 0o600)
 	assert.NoError(t, err)
 
 	var file conga.File
@@ -288,8 +287,7 @@ func TestValidationErrorExecutableRender(t *testing.T) {
 		t.Skip("execute-bit check is not enforced on Windows")
 	}
 
-	tmpDir := t.TempDir()
-	progPath := filepath.Join(tmpDir, "prog")
+	progPath := filepath.Join(t.TempDir(), "prog")
 	assert.NoError(t, os.WriteFile(progPath, []byte("#!/bin/sh\n"), 0o644))
 
 	app := conga.New[ExecutableCLI]().Args([]string{"--prog", progPath})
@@ -304,8 +302,7 @@ func TestValidationErrorExecutableRender(t *testing.T) {
 func TestValidationErrorSymlinkRender(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	hookPath := filepath.Join(tmpDir, "hook.sh")
+	hookPath := filepath.Join(t.TempDir(), "hook.sh")
 	assert.NoError(t, os.WriteFile(hookPath, []byte("#!/bin/sh\n"), 0o755))
 
 	app := conga.New[SymlinkCLI]().Args([]string{"--hook", hookPath})
@@ -320,8 +317,7 @@ func TestValidationErrorSymlinkRender(t *testing.T) {
 func TestSchemaErrorFileTagExclusionExistingExecutable(t *testing.T) {
 	t.Parallel()
 
-	app := conga.New[FileTagExclusionCLI]()
-	err := app.RunContext(t.Context())
+	err := conga.New[FileTagExclusionCLI]().RunContext(t.Context())
 
 	assert.Error(t, err)
 	assert.IsError(t, err, conga.ErrSchema)
@@ -331,8 +327,7 @@ func TestSchemaErrorFileTagExclusionExistingExecutable(t *testing.T) {
 func TestSchemaErrorFileTagExclusionSymlinkStdout(t *testing.T) {
 	t.Parallel()
 
-	app := conga.New[FileStdioExclusionCLI]()
-	err := app.RunContext(t.Context())
+	err := conga.New[FileStdioExclusionCLI]().RunContext(t.Context())
 
 	assert.Error(t, err)
 	assert.IsError(t, err, conga.ErrSchema)
@@ -985,12 +980,8 @@ func TestHelpAndUsageFormatting(t *testing.T) {
 
 	usage := help.Usage([]*spec.Command{cmd})
 	assert.Contains(t, usage, "Usage:\n  clustermgr <command>")
-
-	hint := help.Hint([]*spec.Command{cmd})
-	assert.Equal(t, "Run 'clustermgr --help' for more information.", hint)
-
-	formatted := help.Format([]*spec.Command{cmd})
-	assert.Contains(t, formatted, "Commands:\n  cluster")
+	assert.Equal(t, "Run 'clustermgr --help' for more information.", help.Hint([]*spec.Command{cmd}))
+	assert.Contains(t, help.Format([]*spec.Command{cmd}), "Commands:\n  cluster")
 }
 
 func TestOptionTerminatorLookahead_Issue02(t *testing.T) {
@@ -1087,11 +1078,9 @@ func TestPointerTargetCoercion_Issue07(t *testing.T) {
 func TestJSONArrayFlattening_Issue09(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "config.json")
+	cfgPath := filepath.Join(t.TempDir(), "config.json")
 
-	cfgJSON := `{"tags": ["production", "web-tier", "frontend"], "nums": [10, 20, 30]}`
-	err := os.WriteFile(cfgPath, []byte(cfgJSON), 0o600)
+	err := os.WriteFile(cfgPath, []byte(`{"tags": ["production", "web-tier", "frontend"], "nums": [10, 20, 30]}`), 0o600)
 	assert.NoError(t, err)
 
 	type JSONArrayCLI struct {
@@ -1718,8 +1707,7 @@ func TestErrFileSizeLimitExceeded(t *testing.T) {
 	t.Run("dotenv exceeding size limit classifies as config error", func(t *testing.T) {
 		t.Parallel()
 
-		dir := t.TempDir()
-		envFile := filepath.Join(dir, "large.env")
+		envFile := filepath.Join(t.TempDir(), "large.env")
 		file, err := os.Create(envFile)
 		assert.NoError(t, err)
 

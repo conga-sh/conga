@@ -1225,22 +1225,17 @@ func TestCompletion_FilteringInterfacesAndBuiltinPredictors(t *testing.T) {
 	gitDir := filepath.Join(tmpDir, "myrepo")
 	assert.NoError(t, os.MkdirAll(filepath.Join(gitDir, ".git"), 0755))
 
-	plainDir := filepath.Join(tmpDir, "plaindir")
-	assert.NoError(t, os.MkdirAll(plainDir, 0755))
+	assert.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "plaindir"), 0755))
 
-	datasetDir := filepath.Join(tmpDir, "dataset")
-	assert.NoError(t, os.MkdirAll(datasetDir, 0755))
+	assert.NoError(t, os.MkdirAll(filepath.Join(tmpDir, "dataset"), 0755))
 
-	execBin := filepath.Join(tmpDir, "runner.sh")
-	assert.NoError(t, os.WriteFile(execBin, []byte("#!/bin/sh\n"), 0755))
+	assert.NoError(t, os.WriteFile(filepath.Join(tmpDir, "runner.sh"), []byte("#!/bin/sh\n"), 0755))
 
-	linkPath := filepath.Join(tmpDir, "link.yaml")
-	if err := os.Symlink(filepath.Join(tmpDir, "compose.yaml"), linkPath); err != nil {
+	if err := os.Symlink(filepath.Join(tmpDir, "compose.yaml"), filepath.Join(tmpDir, "link.yaml")); err != nil {
 		t.Skip("symlinks not supported")
 	}
 
-	repoLink := filepath.Join(tmpDir, "repo-link")
-	if err := os.Symlink(gitDir, repoLink); err != nil {
+	if err := os.Symlink(gitDir, filepath.Join(tmpDir, "repo-link")); err != nil {
 		t.Skip("symlinks not supported")
 	}
 

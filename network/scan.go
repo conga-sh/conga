@@ -17,39 +17,27 @@ import (
 )
 
 func actionHosts(ctx predict.Context) predict.Predictor {
-	items := scanHosts(ctx)
-
-	return predict.Items(items...)
+	return predict.Items(scanHosts(ctx)...)
 }
 
 func actionHTTPMethods(_ predict.Context) predict.Predictor {
-	items := scanHTTPMethods()
-
-	return predict.Items(items...)
+	return predict.Items(scanHTTPMethods()...)
 }
 
 func actionHTTPStatusCodes(_ predict.Context) predict.Predictor {
-	items := scanHTTPStatusCodes()
-
-	return predict.Items(items...)
+	return predict.Items(scanHTTPStatusCodes()...)
 }
 
 func actionMIMETypes(_ predict.Context) predict.Predictor {
-	items := scanMIMETypes()
-
-	return predict.Items(items...)
+	return predict.Items(scanMIMETypes()...)
 }
 
 func actionNetInterfaces(_ predict.Context) predict.Predictor {
-	items := scanNetInterfaces()
-
-	return predict.Items(items...)
+	return predict.Items(scanNetInterfaces()...)
 }
 
 func actionPorts(_ predict.Context) predict.Predictor {
-	items := scanPorts()
-
-	return predict.Items(items...)
+	return predict.Items(scanPorts()...)
 }
 
 func parseHostsReader(r io.Reader) []predict.Item {

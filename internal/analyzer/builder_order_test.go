@@ -24,8 +24,7 @@ func TestBuilderOrderAnalyzer(t *testing.T) {
 func TestBuilderOrderAnalyzerSpecOverride(t *testing.T) {
 	t.Parallel()
 
-	testData := analysistest.TestData()
-	analysistest.Run(t, testData, newBuilderOrderAnalyzer("Version,Name"), "./builderorderspec")
+	analysistest.Run(t, analysistest.TestData(), newBuilderOrderAnalyzer("Version,Name"), "./builderorderspec")
 }
 
 // TestBuilderOrderAnalyzerFixes applies the suggested reorderings and compares
@@ -33,8 +32,7 @@ func TestBuilderOrderAnalyzerSpecOverride(t *testing.T) {
 func TestBuilderOrderAnalyzerFixes(t *testing.T) {
 	t.Parallel()
 
-	testData := analysistest.TestData()
-	analysistest.RunWithSuggestedFixes(t, testData, newBuilderOrderAnalyzer(""), "./builderorderfix")
+	analysistest.RunWithSuggestedFixes(t, analysistest.TestData(), newBuilderOrderAnalyzer(""), "./builderorderfix")
 }
 
 // newBuilderOrderAnalyzer clones the conga-lint analyzer with the builder call

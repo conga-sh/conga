@@ -28,8 +28,7 @@ func TestZsh_Subcommands(t *testing.T) {
 	assert.Equal(t, "Deploy service to a cluster", desc)
 
 	// Verify group tag is commands
-	cmdGroup := result.GroupItems("commands")
-	assert.True(t, len(cmdGroup) > 0, "expected commands group to contain candidates")
+	assert.True(t, len(result.GroupItems("commands")) > 0, "expected commands group to contain candidates")
 }
 
 func TestZsh_SubcommandPrefix(t *testing.T) {
@@ -64,16 +63,19 @@ func TestZsh_Flags(t *testing.T) {
 	assert.True(t, result.HasItem("--help"))
 	assert.False(t, result.HasItem("--version"))
 
-	logsResult := workspace.RunZshCompletion(t, "cloudctl", "cloudctl logs --")
-
-	assert.True(t, logsResult.HasItem("--labels"))
-
 	// Verify group tag is flags
-	flagGroup := result.GroupItems("flags")
-	assert.True(t, len(flagGroup) > 0, "expected flags group to contain candidates")
+	assert.True(t, len(result.GroupItems("flags")) > 0, "expected flags group to contain candidates")
 
 	// Ensure files were not called by fallback
 	assert.Zero(t, result.FilesCalled, "expected no file completions for --")
+
+	t.Run("logs flags", func(t *testing.T) {
+		t.Parallel()
+
+		logsResult := workspace.RunZshCompletion(t, "cloudctl", "cloudctl logs --")
+
+		assert.True(t, logsResult.HasItem("--labels"))
+	})
 }
 
 func TestZsh_NegatableFlags(t *testing.T) {
@@ -1076,12 +1078,10 @@ func TestZsh_DomainFilesystemTypes(t *testing.T) {
 
 	workspace := setupDomainTypes(t)
 
-	sampleFile := filepath.Join(workspace.WorkDir, "sample.txt")
-	err := os.WriteFile(sampleFile, []byte("data"), 0o600)
+	err := os.WriteFile(filepath.Join(workspace.WorkDir, "sample.txt"), []byte("data"), 0o600)
 	assert.NoError(t, err)
 
-	outputDir := filepath.Join(workspace.WorkDir, "output_dir")
-	err = os.Mkdir(outputDir, 0o700)
+	err = os.Mkdir(filepath.Join(workspace.WorkDir, "output_dir"), 0o700)
 	assert.NoError(t, err)
 
 	t.Run("input file completion", func(t *testing.T) {

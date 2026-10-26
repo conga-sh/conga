@@ -1389,9 +1389,8 @@ func validateSliceValue(cmdChain []*spec.Command, descriptor string, constraints
 
 	for i := range sliceValue.Len() {
 		elem := sliceValue.Index(i).Interface()
-		elemStr := stringx.Stringify(elem)
 
-		if err := validateScalarValue(cmdChain, descriptor, constraints, elem, elemStr); err != nil {
+		if err := validateScalarValue(cmdChain, descriptor, constraints, elem, stringx.Stringify(elem)); err != nil {
 			return err
 		}
 	}

@@ -20,9 +20,7 @@ var fixtureZone1970Tab []byte
 
 //nolint:paralleltest // timezone package tests mutate the process-global ZONEINFO environment variable.
 func TestTimezones_Execution(t *testing.T) {
-	pred := timezone.Timezones()
-
-	result := pred.Invoke(predict.Context{})
+	result := timezone.Timezones().Invoke(predict.Context{})
 
 	assert.True(t, len(result.Items) > 0, "expected timezone candidates")
 
@@ -41,9 +39,7 @@ func TestTimezones_ParseZoneTab(t *testing.T) {
 	assert.NoError(t, os.WriteFile(filepath.Join(tmpDir, "zone1970.tab"), fixtureZone1970Tab, 0600))
 	t.Setenv("ZONEINFO", tmpDir)
 
-	pred := timezone.Timezones()
-
-	result := pred.Invoke(predict.Context{})
+	result := timezone.Timezones().Invoke(predict.Context{})
 
 	values := itemValues(result.Items)
 	assert.True(t, slices.Contains(values, "America/New_York"))
@@ -79,9 +75,7 @@ func TestTimezones_DirectoryTraversal(t *testing.T) {
 
 	t.Setenv("ZONEINFO", tmpDir)
 
-	pred := timezone.Timezones()
-
-	result := pred.Invoke(predict.Context{})
+	result := timezone.Timezones().Invoke(predict.Context{})
 
 	values := itemValues(result.Items)
 	assert.True(t, slices.Contains(values, "CustomRegion/CustomCity"))
@@ -112,9 +106,7 @@ func TestTimezones_ExcludesNonZoneFiles(t *testing.T) {
 
 	t.Setenv("ZONEINFO", tmpDir)
 
-	pred := timezone.Timezones()
-
-	result := pred.Invoke(predict.Context{})
+	result := timezone.Timezones().Invoke(predict.Context{})
 
 	values := itemValues(result.Items)
 	assert.True(t, slices.Contains(values, "America/New_York"))

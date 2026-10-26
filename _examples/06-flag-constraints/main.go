@@ -48,10 +48,8 @@ func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
 		format = "table"
 	}
 
-	memoryLimit := c.Memory.Get()
-
 	fmt.Fprintf(session.Stdout(), "Validated Constraints: format=%s env=%s port=%d timeout=%s memory=%s zones=%d api_key_source=%s\n",
-		format, c.Env.Get(), c.Port.Get(), c.Timeout.Get(), memoryLimit.String(), len(c.Zones.Get()), c.APIKey.Source())
+		format, c.Env.Get(), c.Port.Get(), c.Timeout.Get(), c.Memory.Get().String(), len(c.Zones.Get()), c.APIKey.Source())
 
 	return nil
 }

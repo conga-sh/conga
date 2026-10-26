@@ -164,9 +164,7 @@ func TestCompletionCommand_ShellNilReceiver(t *testing.T) {
 
 	var command *conga.CompletionCommand
 
-	result := command.Shell()
-
-	assert.Zero(t, result)
+	assert.Zero(t, command.Shell())
 }
 
 func TestCompletionCommand_StructBased(t *testing.T) {

@@ -27,9 +27,7 @@ func TestRegistry_Extensions(t *testing.T) {
 	registry.Register("toml", json.Decode)
 	registry.Register(".json", json.Decode)
 
-	extensions := registry.Extensions()
-
-	assert.Equal(t, []string{".json", ".toml"}, extensions)
+	assert.Equal(t, []string{".json", ".toml"}, registry.Extensions())
 }
 
 func TestRegistry_NilReceiver(t *testing.T) {

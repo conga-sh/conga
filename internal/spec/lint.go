@@ -232,9 +232,7 @@ func parseFileFilterPredictor(value string) (*PredictorSpec, error) {
 }
 
 func validateColonPrefixTypo(value, prefix string) error {
-	dist := levenshtein.Distance(strings.ToLower(prefix), "file")
-
-	if dist <= 2 || prefix == "files" {
+	if levenshtein.Distance(strings.ToLower(prefix), "file") <= 2 || prefix == "files" {
 		return fmt.Errorf("%w: invalid predictor %q (unknown predictor prefix %q, did you mean \"file\"?)", ErrInvalidStructTag, value, prefix)
 	}
 
@@ -300,8 +298,7 @@ func inferPredictorFromOptions(targetType reflect.Type, typePredictors map[refle
 			}
 		}
 	} else {
-		ptrType := reflect.PointerTo(elemType)
-		if pred, ok := typePredictors[ptrType]; ok {
+		if pred, ok := typePredictors[reflect.PointerTo(elemType)]; ok {
 			return &PredictorSpec{
 				Kind:      PredictorKindPredictable,
 				Name:      elemType.String(),

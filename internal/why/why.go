@@ -612,8 +612,7 @@ func disambiguateOrigin(origin string, group []string) string {
 		return origin
 	}
 
-	remainder := origin[shared:]
-	if index := strings.IndexByte(remainder, byte(filepath.Separator)); index > 0 {
+	if index := strings.IndexByte(origin[shared:], byte(filepath.Separator)); index > 0 {
 		prefix := origin[:shared+index]
 		if prefix == filepath.Dir(origin) {
 			return origin

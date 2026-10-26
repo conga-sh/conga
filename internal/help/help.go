@@ -154,11 +154,9 @@ func Usage(cmdChain []*spec.Command) string {
 		return "Usage:\n  " + rootName + " --completion [shell]"
 	}
 
-	fullCmd := strings.Join(cmdPath, " ")
-
 	var parts []string
 
-	parts = append(parts, fullCmd)
+	parts = append(parts, strings.Join(cmdPath, " "))
 
 	// The per-shell completion screen pins the already-supplied shell instead
 	// of restating the <shell> placeholder.
@@ -693,8 +691,7 @@ func formatFlagHelpText(flagSpec *spec.Flag) string {
 	}
 
 	if len(flagSpec.EnvVars) > 0 && !flagSpec.HelpVars.Env {
-		envHint := fmt.Sprintf("[env: %s]", strings.Join(flagSpec.EnvVars, ", "))
-		helpText = appendNonEmpty(helpText, envHint)
+		helpText = appendNonEmpty(helpText, fmt.Sprintf("[env: %s]", strings.Join(flagSpec.EnvVars, ", ")))
 	}
 
 	suppression := hintSuppression{

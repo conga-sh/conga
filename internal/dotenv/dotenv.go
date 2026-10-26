@@ -212,9 +212,7 @@ func loadDefaultHierarchy(set func(key, value string) error, origins map[string]
 }
 
 func loadSingleFile(set func(key, value string) error, path string, mustExist bool, origins map[string]string) error {
-	cleanPath := pathx.Expand(path)
-
-	data, err := filex.ReadLimited(cleanPath, maxDotenvFileSize)
+	data, err := filex.ReadLimited(pathx.Expand(path), maxDotenvFileSize)
 	if err != nil {
 		if !mustExist && errors.Is(err, os.ErrNotExist) {
 			return nil

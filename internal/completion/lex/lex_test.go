@@ -14,33 +14,25 @@ const defaultWordbreaks = " \t\n\"'><=;|&(:"
 func TestParse_WordsSplitsOnWhitespace(t *testing.T) {
 	t.Parallel()
 
-	line := lex.Parse("cloudctl deploy staging")
-
-	assert.Equal(t, []string{"cloudctl", "deploy", "staging"}, line.Words())
+	assert.Equal(t, []string{"cloudctl", "deploy", "staging"}, lex.Parse("cloudctl deploy staging").Words())
 }
 
 func TestParse_TrailingWhitespaceYieldsEmptyWord(t *testing.T) {
 	t.Parallel()
 
-	line := lex.Parse("cloudctl deploy --env ")
-
-	assert.Equal(t, []string{"cloudctl", "deploy", "--env", ""}, line.Words())
+	assert.Equal(t, []string{"cloudctl", "deploy", "--env", ""}, lex.Parse("cloudctl deploy --env ").Words())
 }
 
 func TestParse_EmptyLineYieldsSingleEmptyWord(t *testing.T) {
 	t.Parallel()
 
-	line := lex.Parse("")
-
-	assert.Equal(t, []string{""}, line.Words())
+	assert.Equal(t, []string{""}, lex.Parse("").Words())
 }
 
 func TestParse_NoTrailingWhitespaceOmitsEmptyWord(t *testing.T) {
 	t.Parallel()
 
-	line := lex.Parse("cloudctl deploy --env=")
-
-	assert.Equal(t, []string{"cloudctl", "deploy", "--env="}, line.Words())
+	assert.Equal(t, []string{"cloudctl", "deploy", "--env="}, lex.Parse("cloudctl deploy --env=").Words())
 }
 
 func TestParse_SingleQuotesResolveAndPreserveRaw(t *testing.T) {
@@ -169,11 +161,9 @@ func TestParse_RedirectFormsLongestMatch(t *testing.T) {
 		t.Run(command, func(t *testing.T) {
 			t.Parallel()
 
-			parsed := lex.Parse(command)
-
 			redirects := []lex.Token{}
 
-			for _, token := range parsed.Tokens {
+			for _, token := range lex.Parse(command).Tokens {
 				if token.Kind == lex.Redirect {
 					redirects = append(redirects, token)
 				}
@@ -238,27 +228,19 @@ func TestParse_CommentConsumesRestOfLine(t *testing.T) {
 func TestParse_HashMidWordIsLiteral(t *testing.T) {
 	t.Parallel()
 
-	line := lex.Parse("cloudctl deploy --tag a#b")
-
-	assert.Equal(t, []string{"cloudctl", "deploy", "--tag", "a#b"}, line.Words())
+	assert.Equal(t, []string{"cloudctl", "deploy", "--tag", "a#b"}, lex.Parse("cloudctl deploy --tag a#b").Words())
 }
 
 func TestCurrentPipeline_IsolatesLastSegment(t *testing.T) {
 	t.Parallel()
 
-	line := lex.Parse("echo foo | cloudctl dep")
-
-	pipeline := line.CurrentPipeline()
-
-	assert.Equal(t, []string{"cloudctl", "dep"}, pipeline.Words())
+	assert.Equal(t, []string{"cloudctl", "dep"}, lex.Parse("echo foo | cloudctl dep").CurrentPipeline().Words())
 }
 
 func TestCurrentPipeline_SeparatorSegments(t *testing.T) {
 	t.Parallel()
 
-	line := lex.Parse("echo foo; cloudctl dep && cd /tmp")
-
-	assert.Equal(t, []string{"cd", "/tmp"}, line.CurrentPipeline().Words())
+	assert.Equal(t, []string{"cd", "/tmp"}, lex.Parse("echo foo; cloudctl dep && cd /tmp").CurrentPipeline().Words())
 }
 
 func TestCurrentPipeline_WithoutDelimiterReturnsAll(t *testing.T) {
@@ -274,9 +256,7 @@ func TestWithoutRedirects_DropsOperatorAndTarget(t *testing.T) {
 
 	line := lex.Parse("corpusctl deploy > /tmp/output.log --env ")
 
-	filtered := line.WithoutRedirects()
-
-	assert.Equal(t, []string{"corpusctl", "deploy", "--env", ""}, filtered.Words())
+	assert.Equal(t, []string{"corpusctl", "deploy", "--env", ""}, line.WithoutRedirects().Words())
 }
 
 func TestWithoutRedirects_DropsAttachedTarget(t *testing.T) {
@@ -313,17 +293,13 @@ func TestRedirectAtEnd_FalseForWordCompletion(t *testing.T) {
 func TestWordbreakPrefix_AttachedSeparator(t *testing.T) {
 	t.Parallel()
 
-	line := lex.Parse("cloudctl deploy --env=")
-
-	assert.Equal(t, "--env=", line.WordbreakPrefix(defaultWordbreaks))
+	assert.Equal(t, "--env=", lex.Parse("cloudctl deploy --env=").WordbreakPrefix(defaultWordbreaks))
 }
 
 func TestWordbreakPrefix_UnclosedQuoteIncluded(t *testing.T) {
 	t.Parallel()
 
-	line := lex.Parse(`cloudctl deploy --env="pro`)
-
-	assert.Equal(t, `--env="`, line.WordbreakPrefix(defaultWordbreaks))
+	assert.Equal(t, `--env="`, lex.Parse(`cloudctl deploy --env="pro`).WordbreakPrefix(defaultWordbreaks))
 }
 
 func TestWordbreakPrefix_EscapedQuote(t *testing.T) {
@@ -338,9 +314,7 @@ func TestWordbreakPrefix_EscapedQuote(t *testing.T) {
 func TestWordbreakPrefix_MapKeySeparator(t *testing.T) {
 	t.Parallel()
 
-	line := lex.Parse("cloudctl deploy --labels team=")
-
-	assert.Equal(t, "team=", line.WordbreakPrefix(defaultWordbreaks))
+	assert.Equal(t, "team=", lex.Parse("cloudctl deploy --labels team=").WordbreakPrefix(defaultWordbreaks))
 }
 
 func TestWordbreakPrefix_NoneWithoutWordbreakRune(t *testing.T) {
@@ -404,9 +378,8 @@ func TestWordsUpTo(t *testing.T) {
 		t.Parallel()
 
 		line := "myapp deploy --env=prod"
-		point := len("myapp deploy --en")
 
-		words := lex.WordsUpTo(line, point)
+		words := lex.WordsUpTo(line, len("myapp deploy --en"))
 
 		assert.Equal(t, []string{"myapp", "deploy", "--en"}, words)
 	})

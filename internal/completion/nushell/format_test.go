@@ -175,9 +175,7 @@ func TestFormat_StyleRecords(t *testing.T) {
 func TestFormat_EmptyCandidateList(t *testing.T) {
 	t.Parallel()
 
-	output := nushell.Format("", wire.Directives{}, nil)
-
-	assert.Equal(t, "[]", output)
+	assert.Equal(t, "[]", nushell.Format("", wire.Directives{}, nil))
 }
 
 func TestFormat_IgnoresToComplete(t *testing.T) {

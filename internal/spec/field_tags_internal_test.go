@@ -35,19 +35,16 @@ func validateGlobTagSpecValue(value string) error {
 func TestFieldTagSpecsForField(t *testing.T) {
 	t.Parallel()
 
-	fileType := reflect.TypeFor[congaFileStub]()
-	sliceType := reflect.TypeFor[[]congaFileStub]()
-
 	t.Run("element type resolves pointer-receiver provider", func(t *testing.T) {
 		t.Parallel()
 
-		assert.Equal(t, fileTagSpecs(), fieldTagSpecsForField(fileType))
+		assert.Equal(t, fileTagSpecs(), fieldTagSpecsForField(reflect.TypeFor[congaFileStub]()))
 	})
 
 	t.Run("slice element resolves provider", func(t *testing.T) {
 		t.Parallel()
 
-		assert.Equal(t, fileTagSpecs(), fieldTagSpecsForField(sliceType))
+		assert.Equal(t, fileTagSpecs(), fieldTagSpecsForField(reflect.TypeFor[[]congaFileStub]()))
 	})
 
 	t.Run("unregistered type returns nil", func(t *testing.T) {
@@ -71,9 +68,7 @@ func TestParseFieldTags(t *testing.T) {
 	t.Run("parses declared boolean tags canonically", func(t *testing.T) {
 		t.Parallel()
 
-		tag := reflect.StructTag(`existing:"true" stdin:"true"`)
-
-		fieldTags, err := ParseFieldTags(tag, fileSpecs)
+		fieldTags, err := ParseFieldTags(reflect.StructTag(`existing:"true" stdin:"true"`), fileSpecs)
 
 		assert.NoError(t, err)
 		assert.Equal(t, FieldTags{"existing": "true", "stdin": "true"}, fieldTags)

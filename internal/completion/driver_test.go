@@ -98,9 +98,7 @@ func TestParseShell(t *testing.T) {
 func TestSupportedShells(t *testing.T) {
 	t.Parallel()
 
-	shells := completion.SupportedShells()
-
-	assert.Equal(t, []string{"bash", "elvish", "fish", "nushell", "powershell", "zsh"}, shells)
+	assert.Equal(t, []string{"bash", "elvish", "fish", "nushell", "powershell", "zsh"}, completion.SupportedShells())
 }
 
 func TestGenerate_AllShells(t *testing.T) {

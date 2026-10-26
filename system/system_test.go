@@ -21,8 +21,7 @@ import (
 func TestEnvVars_ContextEnv(t *testing.T) {
 	t.Parallel()
 
-	pred := system.EnvVars()
-	result := pred.Invoke(predict.Context{
+	result := system.EnvVars().Invoke(predict.Context{
 		Env: map[string]string{
 			"CONGA_TEST_ENV":  "production",
 			"CONGA_TEST_PORT": "8080",
@@ -49,8 +48,7 @@ func TestEnvVars_ContextEnv(t *testing.T) {
 func TestEnvVars_DollarPrefix(t *testing.T) {
 	t.Parallel()
 
-	pred := system.EnvVars()
-	result := pred.Invoke(predict.Context{
+	result := system.EnvVars().Invoke(predict.Context{
 		ToComplete: "$CONGA_",
 		Env: map[string]string{
 			"CONGA_MODE": "testing",
@@ -66,11 +64,9 @@ func TestEnvVars_DollarPrefix(t *testing.T) {
 func TestEnvVars_TruncateDescription(t *testing.T) {
 	t.Parallel()
 
-	longValue := strings.Repeat("A", 100)
-	pred := system.EnvVars()
-	result := pred.Invoke(predict.Context{
+	result := system.EnvVars().Invoke(predict.Context{
 		Env: map[string]string{
-			"CONGA_LONG": longValue,
+			"CONGA_LONG": strings.Repeat("A", 100),
 		},
 	})
 
@@ -87,11 +83,9 @@ func TestEnvVars_TruncateDescription(t *testing.T) {
 func TestEnvVars_MultiByteUTF8Truncation(t *testing.T) {
 	t.Parallel()
 
-	valueWithUTF8 := strings.Repeat("a", 36) + "€€€€€"
-	predictor := system.EnvVars()
-	result := predictor.Invoke(predict.Context{
+	result := system.EnvVars().Invoke(predict.Context{
 		Env: map[string]string{
-			"CONGA_UTF8": valueWithUTF8,
+			"CONGA_UTF8": strings.Repeat("a", 36) + "€€€€€",
 		},
 	})
 
@@ -108,8 +102,7 @@ func TestEnvVars_MultiByteUTF8Truncation(t *testing.T) {
 func TestUsers_Execution(t *testing.T) {
 	t.Parallel()
 
-	pred := system.Users()
-	result := pred.Invoke(predict.Context{})
+	result := system.Users().Invoke(predict.Context{})
 
 	assert.True(t, len(result.Items) > 0, "expected at least one user candidate")
 
@@ -123,8 +116,7 @@ func TestUsers_Execution(t *testing.T) {
 func TestGroups_Execution(t *testing.T) {
 	t.Parallel()
 
-	pred := system.Groups()
-	result := pred.Invoke(predict.Context{})
+	result := system.Groups().Invoke(predict.Context{})
 
 	assert.True(t, len(result.Items) > 0, "expected at least one group candidate")
 
@@ -138,8 +130,7 @@ func TestGroups_Execution(t *testing.T) {
 func TestSignals_FullAndShortNames(t *testing.T) {
 	t.Parallel()
 
-	pred := system.Signals()
-	result := pred.Invoke(predict.Context{})
+	result := system.Signals().Invoke(predict.Context{})
 
 	values := itemValues(result.Items)
 
@@ -157,8 +148,7 @@ func TestSignals_FullAndShortNames(t *testing.T) {
 func TestSignals_SeverityStyles(t *testing.T) {
 	t.Parallel()
 
-	pred := system.Signals()
-	result := pred.Invoke(predict.Context{})
+	result := system.Signals().Invoke(predict.Context{})
 
 	for _, item := range result.Items {
 		assert.Equal(t, "signals", item.Tag)
@@ -181,8 +171,7 @@ func TestSignals_SeverityStyles(t *testing.T) {
 func TestProcessNames_Scanning(t *testing.T) {
 	t.Parallel()
 
-	pred := system.ProcessNames()
-	result := pred.Invoke(predict.Context{})
+	result := system.ProcessNames().Invoke(predict.Context{})
 
 	assert.True(t, len(result.Items) > 0, "expected active processes to be returned")
 
@@ -197,15 +186,13 @@ func TestProcessNames_Scanning(t *testing.T) {
 func TestProcessIDs_Scanning(t *testing.T) {
 	t.Parallel()
 
-	pred := system.ProcessIDs()
-	result := pred.Invoke(predict.Context{})
+	result := system.ProcessIDs().Invoke(predict.Context{})
 
 	assert.True(t, len(result.Items) > 0, "expected active process IDs to be returned")
 
 	currentPid := strconv.Itoa(os.Getpid())
-	values := itemValues(result.Items)
 
-	assert.True(t, slices.Contains(values, currentPid), "expected current process PID")
+	assert.True(t, slices.Contains(itemValues(result.Items), currentPid), "expected current process PID")
 
 	for _, item := range result.Items {
 		assert.Equal(t, "pids", item.Tag)
@@ -217,8 +204,7 @@ func TestProcessIDs_Scanning(t *testing.T) {
 func TestPIDs_Execution(t *testing.T) {
 	t.Parallel()
 
-	pred := system.PIDs()
-	result := pred.Invoke(predict.Context{})
+	result := system.PIDs().Invoke(predict.Context{})
 
 	assert.True(t, len(result.Items) > 0, "expected active process IDs to be returned")
 
@@ -232,8 +218,7 @@ func TestPIDs_Execution(t *testing.T) {
 func TestProcesses_Execution(t *testing.T) {
 	t.Parallel()
 
-	pred := system.Processes()
-	result := pred.Invoke(predict.Context{})
+	result := system.Processes().Invoke(predict.Context{})
 
 	assert.True(t, len(result.Items) > 0, "expected active processes to be returned")
 
@@ -247,8 +232,7 @@ func TestProcesses_Execution(t *testing.T) {
 func TestLocales_Fallback(t *testing.T) {
 	t.Parallel()
 
-	pred := system.Locales()
-	result := pred.Invoke(predict.Context{})
+	result := system.Locales().Invoke(predict.Context{})
 
 	values := itemValues(result.Items)
 

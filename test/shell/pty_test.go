@@ -32,9 +32,7 @@ const (
 func startCloudctlPty(t *testing.T, shellName string) *shell.PtySession {
 	t.Helper()
 
-	workspace := setupCloudctl(t)
-
-	return workspace.StartPtySession(t, "cloudctl", shellName)
+	return setupCloudctl(t).StartPtySession(t, "cloudctl", shellName)
 }
 
 // ptyHasToken reports whether the screen contains token as a
@@ -197,9 +195,8 @@ func TestPtyZsh_DescriptionsShownByDefault(t *testing.T) {
 
 	session.Type("cloudctl ")
 	session.Tab()
-	result := session.Capture()
 
-	assert.Contains(t, result.Screen, "Deploy service to a cluster")
+	assert.Contains(t, session.Capture().Screen, "Deploy service to a cluster")
 }
 
 func TestPtyZsh_VerboseZstyleHidesDescriptions(t *testing.T) {
@@ -225,9 +222,8 @@ func TestPtyZsh_AliasShownByDefault(t *testing.T) {
 
 	session.Type("cloudctl ")
 	session.Tab()
-	result := session.Capture()
 
-	assert.True(t, ptyHasToken(result.Screen, "d"))
+	assert.True(t, ptyHasToken(session.Capture().Screen, "d"))
 }
 
 func TestPtyZsh_ShowAliasesZstyleHidesAlias(t *testing.T) {

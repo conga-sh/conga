@@ -45,9 +45,7 @@ func TestFallbackLocales_DefensiveClone(t *testing.T) {
 	first := fallbackLocales()
 	first[0] = "mutated"
 
-	second := fallbackLocales()
-
-	assert.NotEqual(t, first[0], second[0])
+	assert.NotEqual(t, first[0], fallbackLocales()[0])
 }
 
 func TestParsePasswdReader(t *testing.T) {
@@ -134,9 +132,7 @@ func TestUserAndGroup_Lookup(t *testing.T) {
 		current, err := user.Current()
 		assert.NoError(t, err)
 
-		target := User(current.Username)
-
-		found, err := target.Lookup()
+		found, err := User(current.Username).Lookup()
 
 		assert.NoError(t, err)
 		assert.Equal(t, current.Uid, found.Uid)

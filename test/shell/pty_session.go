@@ -342,8 +342,7 @@ func (ws *Workspace) writePtyCompletionScript(t *testing.T, binaryName, shellNam
 // ptySignificantLines splits a captured pane into trimmed lines with trailing
 // blank rows removed, keeping interior spacing (list columns) intact.
 func ptySignificantLines(screen string) []string {
-	trimmed := strings.TrimRight(screen, "\n")
-	lines := strings.Split(trimmed, "\n")
+	lines := strings.Split(strings.TrimRight(screen, "\n"), "\n")
 
 	for len(lines) > 0 && strings.TrimSpace(lines[len(lines)-1]) == "" {
 		lines = lines[:len(lines)-1]

@@ -228,9 +228,7 @@ func TestHelpCommand_PathNilReceiver(t *testing.T) {
 
 	var command *conga.HelpCommand
 
-	result := command.Path()
-
-	assert.Zero(t, result)
+	assert.Zero(t, command.Path())
 }
 
 func TestHelpCommand_UnknownSubcommand(t *testing.T) {

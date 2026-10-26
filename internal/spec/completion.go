@@ -517,9 +517,7 @@ func (w *astCompletionWalker) resolveTarget(toComplete string) predict.Result {
 		}
 	}
 
-	flagAction := w.completeFlagNamesAction(toComplete)
-
-	return predict.Batch(cmdOrArgAction, flagAction).Invoke(compCtx)
+	return predict.Batch(cmdOrArgAction, w.completeFlagNamesAction(toComplete)).Invoke(compCtx)
 }
 
 func (w *astCompletionWalker) completePendingFlag(toComplete string, compCtx predict.Context) predict.Result {

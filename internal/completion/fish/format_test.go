@@ -48,9 +48,7 @@ func TestFormat_NoTrailingNewline(t *testing.T) {
 func TestFormat_EmptyCandidateList(t *testing.T) {
 	t.Parallel()
 
-	output := fish.Format("", wire.Directives{}, nil)
-
-	assert.Equal(t, "", output)
+	assert.Equal(t, "", fish.Format("", wire.Directives{}, nil))
 }
 
 func TestFormat_SanitizesTabsAndCarriageReturns(t *testing.T) {
@@ -76,9 +74,7 @@ func TestFormat_MultiLineDescriptionKeepsFirstLine(t *testing.T) {
 		{Value: "cluster-gamma", Display: "cluster-gamma", Description: "First line\nSecond line"},
 	}
 
-	output := fish.Format("", wire.Directives{}, candidates)
-
-	assert.Equal(t, "cluster-gamma\tFirst line", output)
+	assert.Equal(t, "cluster-gamma\tFirst line", fish.Format("", wire.Directives{}, candidates))
 }
 
 func TestFormat_DropsDirectivesMessagesStylesAndTags(t *testing.T) {
@@ -95,9 +91,7 @@ func TestFormat_DropsDirectivesMessagesStylesAndTags(t *testing.T) {
 		{Value: "deploy", Display: "deploy", Description: "Deploy service", Style: "blue", Tag: "commands"},
 	}
 
-	output := fish.Format("", directives, candidates)
-
-	assert.Equal(t, "deploy\tDeploy service", output)
+	assert.Equal(t, "deploy\tDeploy service", fish.Format("", directives, candidates))
 }
 
 func TestFormat_IgnoresToComplete(t *testing.T) {
@@ -113,11 +107,10 @@ func TestFormat_DescriptionClampedToDefaultLength(t *testing.T) {
 	t.Parallel()
 
 	long := strings.Repeat("x", 100)
-	expected := strings.Repeat("x", 77) + "..."
 
 	output := fish.Format("", wire.Directives{}, []wire.Candidate{{Value: "item", Display: "item", Description: long}})
 
-	assert.Equal(t, "item\t"+expected, output)
+	assert.Equal(t, "item\t"+strings.Repeat("x", 77)+"...", output)
 }
 
 func TestFormat_DescriptionClampCustomLength(t *testing.T) {

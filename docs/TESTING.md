@@ -69,6 +69,16 @@ All tests must follow a strict three-phase visual structure separated by blank l
 	assert.Equal(t, conga.SourceCLI, cli.CacheEnabled.Source())
 ```
 
+### One-Shot Variables Do Not Form an Act Phase
+A named intermediate does not create a distinct Act step when it only renames the call an assertion consumes. Inline it so the assertion shows the subject and the expected outcome together:
+
+```go
+	assert.True(t, wire.AliasesEnabled())
+	assert.Equal(t, "D\t\nC\tdeploy", NewSession().Format("", wire.Directives{}, candidates))
+```
+
+The blank lines around the assert block still separate Arrange from Verify. Keep an intermediate when the name carries meaning the expression does not (a clamped expectation, a rendering index reused by later assertions, a downcast value inspected by several assertions), when the initializer is a multi-line literal or closure, when the value is mutated or captured (defer/closure), or when inlining pushes the line past readability. The Act-step `err := app.Run()` binding stays: it names the single invocation under test.
+
 ---
 
 ## 3. Assertion Grouping & Sub-Target Inspection

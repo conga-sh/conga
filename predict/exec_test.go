@@ -32,9 +32,8 @@ func TestExecutables_PathScanning(t *testing.T) {
 	writeFile(t, nonExec, []byte("docs"))
 
 	pathList := tmpDir1 + string(filepath.ListSeparator) + tmpDir2
-	pred := predict.Executables()
 
-	result := pred.Invoke(predict.Context{
+	result := predict.Executables().Invoke(predict.Context{
 		Env: map[string]string{
 			"PATH": pathList,
 		},
@@ -67,9 +66,8 @@ func TestExecutables_Deduplication(t *testing.T) {
 	writeExecutableFile(t, bin2, []byte("#!/bin/sh\n# version 2"))
 
 	pathList := tmpDir1 + string(filepath.ListSeparator) + tmpDir2
-	pred := predict.Executables()
 
-	result := pred.Invoke(predict.Context{
+	result := predict.Executables().Invoke(predict.Context{
 		Env: map[string]string{
 			"PATH": pathList,
 		},
@@ -99,9 +97,7 @@ func TestExecutables_RelativePath(t *testing.T) {
 	writeExecutableFile(t, bin, []byte("#!/bin/sh\necho local"))
 	writeFile(t, filepath.Join(tmpDir, "notes.md"), []byte("notes"))
 
-	pred := predict.Executables()
-
-	result := pred.Invoke(predict.Context{
+	result := predict.Executables().Invoke(predict.Context{
 		Dir:        tmpDir,
 		ToComplete: "./",
 	})
@@ -119,8 +115,7 @@ func TestExecutables_DirectoryDecoration(t *testing.T) {
 	tmpDir := t.TempDir()
 	assert.NoError(t, os.Mkdir(filepath.Join(tmpDir, "node_modules"), 0755))
 
-	pred := predict.Executables()
-	result := pred.Invoke(predict.Context{
+	result := predict.Executables().Invoke(predict.Context{
 		Dir:        tmpDir,
 		ToComplete: "./",
 	})
