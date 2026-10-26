@@ -194,6 +194,43 @@ func TestElvish_SubcommandAlias(t *testing.T) {
 	assert.True(t, result.HasItem("--dry-run"))
 }
 
+func TestElvish_AliasAndDescriptionSidebands(t *testing.T) {
+	t.Parallel()
+
+	workspace := setupCloudctl(t)
+
+	t.Run("aliases shown by default", func(t *testing.T) {
+		t.Parallel()
+
+		result := workspace.RunElvishCompletion(t, "cloudctl", "cloudctl ")
+
+		assert.Equal(t, "", result.StdoutLeak, "completion function must not emit raw stdout or notify in elvish")
+		assert.True(t, result.HasItem("deploy"))
+		assert.True(t, result.HasItem("d"))
+	})
+
+	t.Run("aliases suppressed", func(t *testing.T) {
+		t.Parallel()
+
+		result := workspace.RunElvishCompletion(t, "cloudctl", "cloudctl ", "CONGA_COMPLETION_ALIASES=0")
+
+		assert.Equal(t, "", result.StdoutLeak, "completion function must not emit raw stdout or notify in elvish")
+		assert.True(t, result.HasItem("deploy"))
+		assert.False(t, result.HasItem("d"))
+	})
+
+	t.Run("descriptions suppressed", func(t *testing.T) {
+		t.Parallel()
+
+		result := workspace.RunElvishCompletion(t, "cloudctl", "cloudctl ", "CONGA_COMPLETION_DESCRIPTIONS=0")
+
+		assert.Equal(t, "", result.StdoutLeak, "completion function must not emit raw stdout or notify in elvish")
+		description, ok := result.ItemDescription("deploy")
+		assert.True(t, ok)
+		assert.Equal(t, "", description)
+	})
+}
+
 func TestElvish_NegatableFlags(t *testing.T) {
 	t.Parallel()
 

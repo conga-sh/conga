@@ -18,10 +18,14 @@ const (
 	// EnvCompWordbreaks is the bash-native word-break character set.
 	EnvCompWordbreaks = "COMP_WORDBREAKS"
 
+	// EnvAliases shows ("1") or suppresses ("0") alias candidates.
+	EnvAliases = "CONGA_COMPLETION_ALIASES"
 	// EnvColor forces color styling on ("1") or off ("0").
 	EnvColor = "CONGA_COLOR"
 	// EnvDescriptionLength limits the maximum description length in runes.
 	EnvDescriptionLength = "CONGA_DESCRIPTION_LENGTH"
+	// EnvDescriptions shows ("1") or suppresses ("0") candidate descriptions.
+	EnvDescriptions = "CONGA_COMPLETION_DESCRIPTIONS"
 	// EnvMergeFlags merges the "shorthand flags" and "longhand flags" tags
 	// into "flags" (zsh grouping).
 	EnvMergeFlags = "CONGA_MERGE_FLAGS"
@@ -37,6 +41,20 @@ const (
 	// EnvNoColor is the standard NO_COLOR variable; presence disables color.
 	EnvNoColor = "NO_COLOR"
 )
+
+// AliasesEnabled reports whether alias candidates are shown:
+// CONGA_COMPLETION_ALIASES parsed as a boolean; unset or unparseable keeps the
+// default (shown).
+func AliasesEnabled() bool {
+	return booleanSetting(EnvAliases)
+}
+
+// DescriptionsEnabled reports whether candidate descriptions are shown:
+// CONGA_COMPLETION_DESCRIPTIONS parsed as a boolean; unset or unparseable
+// keeps the default (shown).
+func DescriptionsEnabled() bool {
+	return booleanSetting(EnvDescriptions)
+}
 
 // ColorDisabled reports whether styled output is disabled: CONGA_COLOR is
 // honored first ("0" disables, any other non-empty value forces color), then
@@ -104,4 +122,20 @@ func ZshStyleLimit() int {
 	}
 
 	return limit
+}
+
+// booleanSetting parses name as a boolean, defaulting to true when it is unset
+// or unparseable.
+func booleanSetting(name string) bool {
+	value, ok := os.LookupEnv(name)
+	if !ok {
+		return true
+	}
+
+	parsed, err := strconv.ParseBool(value)
+	if err != nil {
+		return true
+	}
+
+	return parsed
 }

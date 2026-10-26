@@ -205,6 +205,8 @@ func (r *PowerShellResult) ItemToolTip(value string) (string, bool) {
 type ZshResult struct {
 	RawOutput       string
 	ListColors      string
+	GroupName       string
+	GroupNameSet    bool
 	CompstateInsert string
 	BufferTab1      string
 	CursorTab1      int
@@ -1004,6 +1006,13 @@ func parseZshResult(raw string) *ZshResult {
 func parseZshMetaLine(result *ZshResult, line string, currentTag *string) bool {
 	if listColors, cut := strings.CutPrefix(line, "LIST_COLORS:"); cut {
 		result.ListColors = listColors
+
+		return true
+	}
+
+	if groupName, cut := strings.CutPrefix(line, "GROUP_NAME:"); cut {
+		result.GroupName = groupName
+		result.GroupNameSet = true
 
 		return true
 	}

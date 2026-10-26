@@ -8,6 +8,7 @@ import (
 
 	"github.com/conga-sh/conga/internal/completion/wire"
 	"github.com/conga-sh/conga/internal/completion/zsh"
+	"github.com/conga-sh/conga/predict"
 )
 
 func plainCandidates() []wire.Candidate {
@@ -285,6 +286,23 @@ func TestFormat_ListColors(t *testing.T) {
 	assert.Contains(t, output, "=(#b)(--dry-run)=0=")
 	assert.Contains(t, output, "=(#b)(deploy)=0=")
 	assert.Contains(t, output, "=(#b)(-- *)=0=2")
+}
+
+func TestFormat_ListColorsWithoutDescriptions(t *testing.T) {
+	t.Setenv("CONGA_COLOR", "1")
+	t.Setenv(wire.EnvDescriptions, "0")
+
+	result := predict.Result{Items: []predict.Item{
+		{Value: "--env", Display: "--env", Description: "Target environment", Style: "blue"},
+	}}
+
+	candidates, directives := wire.FromResult(result)
+
+	output := zsh.Format("", directives, candidates)
+
+	assert.Contains(t, output, "=(#b)(--env)=0=34")
+	assert.NotContains(t, output, " -- *", "two-tone and description-column entries must be omitted")
+	assert.NotContains(t, output, "Target environment")
 }
 
 func TestFormat_ListColorsPatternEscaping(t *testing.T) {

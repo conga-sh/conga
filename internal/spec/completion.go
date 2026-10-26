@@ -699,6 +699,7 @@ func (w *astCompletionWalker) collectFlagCandidates(longItems, shortItems *[]pre
 				Description: flagHelpText(flagSpec),
 				Style:       flagStyle,
 				Tag:         "longhand flags",
+				Alias:       true,
 			})
 		}
 	}
@@ -875,6 +876,7 @@ func (w *astCompletionWalker) collectSubcommandCandidates(toComplete string) []p
 				Description: subcommand.Summary,
 				Style:       cmdStyle,
 				Tag:         tag,
+				Alias:       true,
 			})
 		}
 	}
