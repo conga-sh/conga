@@ -1,24 +1,25 @@
 ---
-title: How to bootstrap before config resolution
-description: Break the flag-before-config cycle with conga.Bootstrapper, then load domain documents or .env files from early-bound bootstrap fields.
+title: How to load domain documents
+description: Parse Taskfile-, compose-, and pipeline-style documents with conga.Bootstrapper, keep their application data, and contribute their configuration keys to the config tier.
 ---
 
-CONGA resolves config files before the normal flag binding pass, but a config file or domain document selected by a flag (such as `--file`, `--dir`, or `--pipeline`) is unavailable until that flag resolves. `conga.Bootstrapper` breaks the cycle: CONGA binds only fields tagged `bootstrap:"true"`, runs `Bootstrap`, and then performs the normal binding pass with the configuration tier available.
+A domain document such as a `Taskfile`, `docker-compose.yml`, or pipeline manifest holds application data — tasks, build steps, service dependencies — alongside settings that look like flags (`parallelism`, `log_level`, `env`). Standard config decoders expect every top-level key to map to a flag, so they reject these documents. A `conga.Bootstrapper` parses the document directly, keeps the domain structures for your command, and contributes the settings with `Bootstrap.SetConfig`.
 
-Domain documents such as a `Taskfile`, `docker-compose.yml`, or pipeline manifest add a second problem: they mix configuration settings with application data (tasks, build steps, service dependencies). Standard file decoders expect every key to map to a flag. `Bootstrap` parses the document directly, contributes configuration keys with `Bootstrap.SetConfig`, and keeps the remaining structures for execution.
+## When to use a Bootstrapper
 
-## Understand the two binding passes
+Use the standard config mechanism when the file is pure configuration and its location is fixed or typed by the user directly: register decoders with `app.RegisterDecoder`, declare `config.Paths`/`config.Explicit`/`config.Cascading`, or use the built-in `--config-file` flag. CONGA then discovers, decodes, and maps every top-level key to a flag. [How to manage config files](/how-to/manage-config-files/) covers that setup.
 
-`bootstrap:"true"` marks the fields that must resolve before configuration exists. On a normal run CONGA binds them twice:
+Use `conga.Bootstrapper` when any of these holds:
 
-1. Bootstrap pass: `CLI > environment > default`. Configuration files are not resolved yet, so a value supplied by a config file is unavailable.
-2. Normal pass: `CLI > environment > config file > default`. Every field, tagged or not, is bound, and the normal pass is authoritative.
+- **The path depends on another value.** `--pipeline deploy` selects a section of a file, and `--dir` builds a path such as `dir/taskfile.yaml`. Standard resolution needs the path before flags bind, so it cannot compute these.
+- **The document mixes configuration with application data.** A decoder requires every top-level key to map to a flag, which a task runner or compose file cannot satisfy.
+- **The merge needs custom logic.** The config tier replaces slices; a `Bootstrapper` can concatenate `steps` or deduplicate `needs` across files.
 
-The bootstrap pass binds fields on every command in the selected chain, not only the root command. Keep the tagged set small — the fields needed to locate or select an external document — and keep `Bootstrap` deterministic and limited to bounded local I/O, because it also runs for `--why` and completion.
+A `.env` file located through a flag uses the same hook. [How to load .env files](/how-to/load-env-files/) covers that case, including `Bootstrap.Dotenv` and `Bootstrap.DotenvExplicit`.
 
 ## Declare bootstrap fields
 
-When the file path or profile depends on command-line flags (such as `--file`, `--dir`, or `--pipeline`), mark those container fields with `bootstrap:"true"`:
+Mark the fields that must resolve before the document can be found with `bootstrap:"true"`:
 
 ```go title="main.go"
 package main
@@ -43,17 +44,19 @@ type CLI struct {
 
 func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
 	fmt.Fprintf(session.Stdout(), "parallelism=%d log-level=%s\n", c.Parallelism.Get(), c.LogLevel.Get())
+
 	return nil
 }
 ```
 
-CONGA binds fields tagged `bootstrap:"true"` before running `Bootstrap`. The bootstrap pass resolves them through `CLI > environment > default`. The method reads their typed containers directly, with aliases, environment prefixes, and default tags already applied. All non-bootstrap fields hold their zero or caller-seeded values during the `Bootstrap` call.
+CONGA binds these fields from `CLI > environment > default` before calling `Bootstrap`, so the method sees the resolved path and pipeline name. Every other field holds its zero or caller-seeded value during the call. The normal pass then binds all fields again with the configuration tier available, and that second pass is what your command reads, so keep bootstrap-tagged fields idempotent.
 
 Constraints:
+
 - The root command, or an ancestor command, must implement `conga.Bootstrapper`; otherwise schema build rejects the `bootstrap` tag with `ErrSchema`.
 - `bootstrap` cannot be combined with `feature`: the bootstrap phase executes before feature gates resolve.
 - Types are restricted to scalars, slices of scalars, and maps of scalars. Pointers, structs, and interfaces are rejected.
-- `DashArgs` and `RawArgs` also accept `bootstrap`.
+- `Bootstrap` also runs for `--why` and shell completion. Keep it deterministic and limited to local reads.
 
 ## Implement Bootstrap
 
@@ -126,65 +129,54 @@ func (c *CLI) Bootstrap(_ context.Context, b *conga.Bootstrap) error {
 }
 ```
 
-`Bootstrap` runs at most once per execution, after the bootstrap pass and before configuration resolution, feature gating, and the normal binding pass. A returned error aborts execution and classifies under `ErrConfig` (exit code 1).
+`Bootstrap` runs once per execution, after the bootstrap pass and before configuration resolution, feature gating, and the normal binding pass. A returned error aborts execution and classifies under `ErrConfig` (exit code 1).
 
-## Load environment files
+### Run it
 
-`Bootstrap.Dotenv(paths...)` loads each existing `.env` file in order through the writer configured by `App.SetenvFunc`, which defaults to `os.Setenv`. Missing files are ignored; malformed or oversized files fail with `ErrConfig`. Because the paths can be derived from bootstrap fields, an application can load `.env` next to a discovered project directory rather than the process working directory:
+For a pipeline file whose `deploy` section sets `parallelism: 1` and `log_level: debug`:
 
-```go title="main.go"
-func (c *CLI) Bootstrap(_ context.Context, b *conga.Bootstrap) error {
-	if err := b.Dotenv(filepath.Join(c.Dir.Get(), ".env")); err != nil {
-		return err
-	}
-
-	return nil
-}
+```sh
+$ go run . -f pipeline.yaml --pipeline deploy
+parallelism=1 log-level=debug
 ```
 
-`Bootstrap.DotenvExplicit(paths...)` is the strict counterpart: a missing file fails with `ErrConfig`, which suits a path supplied by an `--env-file` flag. Variables already present in the host process environment are never overwritten; a file loaded later in the run overrides a key an earlier `.env` file set.
+Running the same command with `--why` attributes each value to `pipeline.yaml › pipeline deploy`, the origin and scope recorded by `SetScoped`.
 
-## Record provenance with document methods
+## Contribute configuration keys
 
-`ConfigDocument` provides four write methods to feed the configuration tier:
+`conga.ConfigDocument` reports values to the config tier:
 
-- `Set(key, value, origin)` records a top-level setting. The key matches a flag name or custom `config:"..."` tag. Values accept scalars, slices, and nested maps.
-- `SetScoped(key, value, origin, scope)` adds an optional sub-origin scope. In `--why`, the value's source renders as `origin › scope` (such as `pipeline.yaml › pipeline deploy`), while the Config paths table lists `pipeline.yaml` once.
-- `SetKey(key, entryKey, value, origin)` writes one entry inside a map flag, merging key by key with earlier writes. Each key retains the origin that wrote it. A later `Set` of the same top-level key replaces the entire map and clears previous `SetKey` records.
-- `SetKeyScoped(key, entryKey, value, origin, scope)` combines per-key map writing with scoped origin attribution.
+| Method | Use for |
+|---|---|
+| `Set(key, value, origin)` | A top-level scalar, slice, or nested map. `key` matches a flag name or a custom `config:"..."` tag. |
+| `SetKey(key, entryKey, value, origin)` | One entry of a map flag, merged key by key with earlier writes. |
+| `SetScoped(...)`, `SetKeyScoped(...)` | The same writes with a scope, so `--why` renders the origin as `pipeline.yaml › pipeline deploy`. |
 
-Origins are free-form strings CONGA displays in provenance reports. Calling `b.SetConfig(nil)`, or never calling it, leaves the configuration tier inactive.
+The origin is a free-form string that CONGA displays in provenance reports. A later `Set` of the same top-level key replaces the whole entry, including anything written with `SetKey`. Calling `b.SetConfig(nil)`, or never calling it, leaves the configuration tier inactive. [The conga reference](/reference/conga/) lists the exact signatures.
 
 ## Compose with config files
 
-A document supplied by `b.SetConfig` overlays file-resolved values key by key: the document wins the keys it names, while file keys it does not name survive. `Bootstrap` therefore composes with `conga.ConfigPaths`, `conga.ConfigExplicit`, `conga.ConfigCascading`, `app.RegisterDecoder`, and a root `conga.ConfigFile` field. An application that only loads `.env` files and leaves file resolution untouched implements `Bootstrap` without calling `b.SetConfig`.
+A document supplied by `b.SetConfig` overlays file-resolved values key by key: the document wins the keys it names, while file keys it does not name survive. `Bootstrap` therefore composes with `conga.ConfigPaths`, `conga.ConfigExplicit`, `conga.ConfigCascading`, `app.RegisterDecoder`, and a root `conga.ConfigFile` field. An application that leaves file resolution untouched can also implement `Bootstrap` only to load `.env` files, without calling `b.SetConfig`.
 
 ## Drive shell completion from configuration
 
-When an application enables shell completion (`app.EnableCompletion()`), CONGA runs `Bootstrap` before generating completion candidates.
+With `app.EnableCompletion()`, CONGA binds bootstrap fields from the partial command line and runs `Bootstrap` before generating candidates, so predictors and feature gates see the document's values. CONGA restores the bootstrap and selection state before returning candidates. A coercion failure during completion or `--help` is tolerated: the field is restored and `Bootstrap` runs with it unset. [Built-in commands](/reference/builtins/) has the completion details.
 
-During completion:
-1. CONGA binds bootstrap fields from the partial command line (flags, aliases, short runes, environment, and defaults).
-2. `Bootstrap` executes, loading `.env` files and installing the document.
-3. CONGA binds the document and file tiers.
-4. Candidate generation runs with access to loaded settings and active feature gates.
-5. CONGA restores bootstrap and selection state before returning candidates to the shell.
-
-If a bootstrap field fails coercion during completion or `--help`, CONGA tolerates the error, restores the field to its pre-bootstrap state, and runs `Bootstrap` with the field unset.
-
-## Precedence and validation
-
-Document values occupy Tier 3 unchanged: `CLI > environment > document > default`. Values outrank `default` struct tags, while environment variables and command-line flags outrank document values. Within the config tier the document outranks every config file. Map flags merge key by key across all tiers.
+## Validation and errors
 
 CONGA validates document entries against the application schema:
-- Unknown keys produce `ErrConfig` with a did-you-mean suggestion.
+
+- Unknown keys fail with `ErrConfig` and a did-you-mean suggestion.
 - `config:"-"` exclusions are enforced.
 - Constraints such as `enum`, `range`, and `len` apply after value coercion.
+
+Document values occupy the same tier as files: the ladder is `CLI > environment > document > default`, and within that tier the document outranks every file. Map flags merge key by key across all tiers. [About value precedence](/explanation/value-precedence/) has the full ladder.
 
 Any error returned by `Bootstrap` aborts execution and classifies under `ErrConfig` (exit code 1).
 
 ## Where to go next
 
+- [How to load .env files](/how-to/load-env-files/) — load `.env` files from flag-derived directories and `--env-file` paths.
 - [About the config cascade](/explanation/config-cascade/) — search-tier mechanics and cascading file merges.
 - [About value precedence](/explanation/value-precedence/) — resolution ladder, provenance tracking, and map folding.
 - [How to inspect value provenance](/how-to/inspect-value-provenance/) — diagnose source tiers and scoped origins with `--why`.
