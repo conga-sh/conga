@@ -400,9 +400,8 @@ func (ws *Workspace) RunBashCompletionWithTypeAndSetup(t *testing.T, binaryName,
 	}
 
 	env := append([]string{"TERM=dumb"}, extraEnv...)
-	out := ws.executeShellCommand(t, bashPath, args, env...)
 
-	return parseBashResult(out)
+	return parseBashResult(ws.executeShellCommand(t, bashPath, args, env...))
 }
 
 // RunElvishCompletion executes real Elvish completion for a given binary and command line string.
@@ -477,9 +476,7 @@ func (ws *Workspace) RunNushellCompletion(t *testing.T, binaryName, cmdLine stri
 		_ = os.Remove(nuScriptPath) //nolint:errcheck // Clean up temp script file.
 	}()
 
-	compOut := ws.generateCompletionScript(t, binaryName, "nushell")
-
-	if _, err := nuFile.WriteString(compOut); err != nil {
+	if _, err := nuFile.WriteString(ws.generateCompletionScript(t, binaryName, "nushell")); err != nil {
 		t.Fatalf("failed to write nushell script: %v", err)
 	}
 
@@ -632,9 +629,8 @@ func (ws *Workspace) RunZshCompletionWithSetup(t *testing.T, binaryName, cmdLine
 	}
 
 	env := append([]string{"ZDOTDIR=" + ws.HomeDir, "TERM=dumb", "CONGA_ZCOMPDUMP=" + getZshDumpFile(t, zshPath)}, extraEnv...)
-	out := ws.executeShellCommand(t, zshPath, args, env...)
 
-	return parseZshResult(out)
+	return parseZshResult(ws.executeShellCommand(t, zshPath, args, env...))
 }
 
 func (ws *Workspace) createHarnessFile(t *testing.T, pattern string, script []byte, mode os.FileMode) string {
@@ -805,11 +801,9 @@ func parseElvishResult(t *testing.T, raw, cmdLine string, words []string) *Elvis
 
 	trimmed := strings.TrimSpace(raw)
 	if err := json.Unmarshal([]byte(trimmed), &payload); err != nil {
-		lines := strings.Split(trimmed, "\n")
-
 		var found bool
 
-		for _, line := range slices.Backward(lines) {
+		for _, line := range slices.Backward(strings.Split(trimmed, "\n")) {
 			candidateLine := strings.TrimSpace(line)
 			if strings.HasPrefix(candidateLine, "{") {
 				if err2 := json.Unmarshal([]byte(candidateLine), &payload); err2 == nil {
@@ -953,7 +947,6 @@ func parseFishResult(raw, cmdLine string) *FishResult {
 		}
 
 		parts := strings.SplitN(line, "\t", 2)
-		value := parts[0]
 		desc := ""
 
 		if len(parts) > 1 {
@@ -961,7 +954,7 @@ func parseFishResult(raw, cmdLine string) *FishResult {
 		}
 
 		result.Items = append(result.Items, Candidate{
-			Value:       value,
+			Value:       parts[0],
 			Description: desc,
 		})
 	}
@@ -1124,10 +1117,7 @@ func splitZshDescribeItem(itemString string) (string, string) {
 		return valueBuilder.String(), ""
 	}
 
-	value := valueBuilder.String()
-	description := itemString[splitIndex+1:]
-
-	return value, description
+	return valueBuilder.String(), itemString[splitIndex+1:]
 }
 
 func commonCandidatePrefix(candidates []Candidate) string {

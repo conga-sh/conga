@@ -49,11 +49,8 @@ func TestFormat_DirectivesRecord(t *testing.T) {
 func TestFormat_NoprefixOnlyOnEmptyWord(t *testing.T) {
 	t.Setenv("CONGA_COLOR", "0")
 
-	empty := zsh.Format("", wire.Directives{}, plainCandidates())
-	assert.Contains(t, empty, "D\x1fnoprefix\x1f", "an empty word makes candidates complete replacements")
-
-	prefixed := zsh.Format("de", wire.Directives{}, plainCandidates())
-	assert.NotContains(t, prefixed, "noprefix", "a typed prefix must not suppress auto-insertion")
+	assert.Contains(t, zsh.Format("", wire.Directives{}, plainCandidates()), "D\x1fnoprefix\x1f", "an empty word makes candidates complete replacements")
+	assert.NotContains(t, zsh.Format("de", wire.Directives{}, plainCandidates()), "noprefix", "a typed prefix must not suppress auto-insertion")
 }
 
 func TestFormat_UsageFoldsIntoMessageStream(t *testing.T) {
@@ -371,9 +368,7 @@ func TestFormat_ListColorsAbsentWhenColorDisabled(t *testing.T) {
 func TestFormat_ListColorsPresentWithoutCandidates(t *testing.T) {
 	t.Setenv("CONGA_COLOR", "1")
 
-	output := zsh.Format("", wire.Directives{}, nil)
-
-	assert.Equal(t, "D\x1f\x1f\nL\x1f=(#b)(*)([ ]## -- *)=0==2", output)
+	assert.Equal(t, "D\x1f\x1f\nL\x1f=(#b)(*)([ ]## -- *)=0==2", zsh.Format("", wire.Directives{}, nil))
 }
 
 func TestFormat_StyleLimit(t *testing.T) {

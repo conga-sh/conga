@@ -49,10 +49,7 @@ func TestReadLimited(t *testing.T) {
 	t.Run("returns error for non-existent file", func(t *testing.T) {
 		t.Parallel()
 
-		dir := t.TempDir()
-		missingPath := filepath.Join(dir, "does_not_exist.txt")
-
-		data, err := filex.ReadLimited(missingPath, 100)
+		data, err := filex.ReadLimited(filepath.Join(t.TempDir(), "does_not_exist.txt"), 100)
 
 		assert.Error(t, err)
 		assert.IsError(t, err, os.ErrNotExist)

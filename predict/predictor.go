@@ -494,8 +494,7 @@ func (p Predictor) invokeBatch(ctx Context) Result {
 }
 
 func (p Predictor) invokeCallback(ctx Context) Result {
-	child := p.callback(ctx)
-	childRes := child.Invoke(ctx)
+	childRes := p.callback(ctx).Invoke(ctx)
 
 	return Result{
 		Items:     childRes.Items,
@@ -535,8 +534,7 @@ func (p Predictor) invokeMultiParts(ctx Context) ([]Item, Directive, string) {
 
 	subCtx.Parts = slices.Clone(completedParts)
 
-	childPred := p.multiparts.fn(subCtx)
-	childRes := childPred.Invoke(subCtx)
+	childRes := p.multiparts.fn(subCtx).Invoke(subCtx)
 
 	items := slicex.Map(childRes.Items, func(item Item) Item {
 		item.Value = prefix + item.Value

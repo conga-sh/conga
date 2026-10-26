@@ -166,9 +166,7 @@ func TestParseUnknownTokensIgnored(t *testing.T) {
 		t.Run(token, func(t *testing.T) {
 			t.Parallel()
 
-			parsed := style.Parse(token)
-
-			assert.Equal(t, style.Style{}, parsed, "expected %q to be ignored by the closed vocabulary", token)
+			assert.Equal(t, style.Style{}, style.Parse(token), "expected %q to be ignored by the closed vocabulary", token)
 		})
 	}
 }

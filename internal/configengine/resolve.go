@@ -452,8 +452,7 @@ func probeDirectoryConfigFile(dirPath string, appName string, decoders []string)
 
 		stem := strings.TrimSuffix(name, filepath.Ext(name))
 		if isConfigCandidate(stem, appName) {
-			fullPath := filepath.Join(dirPath, name)
-			matched = append(matched, fullPath)
+			matched = append(matched, filepath.Join(dirPath, name))
 		}
 	}
 

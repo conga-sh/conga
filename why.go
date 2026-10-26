@@ -130,8 +130,6 @@ func (a *App[T]) buildWhyReport(session *Session) why.Report {
 	}
 
 	for cmdIndex, cmd := range cmdChain {
-		isLeaf := cmd == leaf
-
 		for _, flagSpec := range cmd.Flags {
 			if flagSpec.Handle == nil {
 				// Built-in command flags (for example version --json) carry no
@@ -144,7 +142,7 @@ func (a *App[T]) buildWhyReport(session *Session) why.Report {
 			}
 
 			row := why.BuildFlagRow(a.whyFlagInput(session, cmd, cmdChain, cmdIndex, flagSpec, rowType))
-			if isLeaf {
+			if cmd == leaf {
 				rows = append(rows, row)
 			} else {
 				globalRows = append(globalRows, row)
@@ -186,15 +184,13 @@ func (a *App[T]) buildWhyReport(session *Session) why.Report {
 		configExamples = resolver.ConfigExamples(session.candidateFiles, expandedTiers, configDecoders)
 	}
 
-	configPaths := why.BuildConfigPaths(session.candidateFiles, session.loadedFiles, configProbed)
-
 	return why.Report{
 		CommandPath:    session.Path(),
 		Version:        session.appVersion,
 		Rows:           rows,
 		GlobalRows:     globalRows,
 		Features:       features,
-		ConfigPaths:    configPaths,
+		ConfigPaths:    why.BuildConfigPaths(session.candidateFiles, session.loadedFiles, configProbed),
 		ConfigDecoders: configDecoders,
 		ConfigExamples: configExamples,
 		RedactedRows:   why.HasRedactedRows(rows, globalRows),

@@ -30,8 +30,7 @@ func TestConfigFile_DefaultFlagNameAndAccessors(t *testing.T) {
 		Host       conga.OptionalFlag[string] `default:"localhost" name:"host"`
 	}
 
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "app.json")
+	cfgPath := filepath.Join(t.TempDir(), "app.json")
 	err := os.WriteFile(cfgPath, []byte(`{"port": 9090, "host": "10.0.0.1"}`), 0o600)
 	assert.NoError(t, err)
 
@@ -62,8 +61,7 @@ func TestConfigFile_CustomNameAndShortFlag(t *testing.T) {
 		Port   conga.OptionalFlag[int] `default:"8000"            name:"port"`
 	}
 
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "custom.yaml")
+	cfgPath := filepath.Join(t.TempDir(), "custom.yaml")
 	err := os.WriteFile(cfgPath, []byte("port: 7070\n"), 0o600)
 	assert.NoError(t, err)
 
@@ -89,8 +87,7 @@ func TestConfigFile_FourTierPrecedence(t *testing.T) {
 		Port   conga.OptionalFlag[int] `config:"port" default:"8000" env:"CONGA_TEST_PRECEDENCE_PORT" name:"port"`
 	}
 
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "precedence.toml")
+	cfgPath := filepath.Join(t.TempDir(), "precedence.toml")
 	err := os.WriteFile(cfgPath, []byte("port = 8080\n"), 0o600)
 	assert.NoError(t, err)
 
@@ -140,8 +137,7 @@ func TestConfigFile_CollisionResistance(t *testing.T) {
 		Dash       conga.DashArgs
 	}
 
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "real.json")
+	cfgPath := filepath.Join(t.TempDir(), "real.json")
 	err := os.WriteFile(cfgPath, []byte(`{"port": 4545}`), 0o600)
 	assert.NoError(t, err)
 
@@ -185,8 +181,7 @@ func TestConfigFile_SubcommandNamespaceLoading(t *testing.T) {
 		Server     conga.Command[ServerStartCmd] `name:"server"`
 	}
 
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "app.yaml")
+	cfgPath := filepath.Join(t.TempDir(), "app.yaml")
 	err := os.WriteFile(cfgPath, fixtureSubcommandNamespace, 0o600)
 	assert.NoError(t, err)
 
@@ -357,8 +352,7 @@ func TestConfigFile_CounterFromConfig(t *testing.T) {
 		Verbose conga.Counter    `help:"Verbosity level" short:"v"`
 	}
 
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "app.json")
+	cfgPath := filepath.Join(t.TempDir(), "app.json")
 	err := os.WriteFile(cfgPath, []byte(`{"verbose": 3}`), 0o600)
 	assert.NoError(t, err)
 
@@ -385,8 +379,7 @@ func TestConfigFile_CounterCLIOverridesConfig(t *testing.T) {
 		Verbose conga.Counter    `help:"Verbosity level" short:"v"`
 	}
 
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "app.json")
+	cfgPath := filepath.Join(t.TempDir(), "app.json")
 	err := os.WriteFile(cfgPath, []byte(`{"verbose": 5}`), 0o600)
 	assert.NoError(t, err)
 

@@ -51,9 +51,13 @@ func TestFish_Flags(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, "Simulate deployment", desc)
 
-	logsResult := workspace.RunFishCompletion(t, "cloudctl", "cloudctl logs --")
+	t.Run("logs flags", func(t *testing.T) {
+		t.Parallel()
 
-	assert.True(t, logsResult.HasItem("--labels"))
+		logsResult := workspace.RunFishCompletion(t, "cloudctl", "cloudctl logs --")
+
+		assert.True(t, logsResult.HasItem("--labels"))
+	})
 }
 
 func TestFish_FlagValues(t *testing.T) {
@@ -557,8 +561,7 @@ func TestFish_DomainTypes_Completion(t *testing.T) {
 	assert.True(t, bareRes.HasItem("-i"))
 
 	// Typing '--comp': must complete --completion flag
-	compRes := workspace.RunFishCompletion(t, "05-domain-types", "05-domain-types --comp")
-	assert.True(t, compRes.HasItem("--completion"), "expected --completion candidate")
+	assert.True(t, workspace.RunFishCompletion(t, "05-domain-types", "05-domain-types --comp").HasItem("--completion"), "expected --completion candidate")
 
 	// Typing '--completion z': must complete the zsh shell value
 	valueRes := workspace.RunFishCompletion(t, "05-domain-types", "05-domain-types --completion z")
@@ -762,12 +765,10 @@ func TestFish_DomainFilesystemTypes(t *testing.T) {
 
 	workspace := setupDomainTypes(t)
 
-	sampleFile := filepath.Join(workspace.WorkDir, "sample.txt")
-	err := os.WriteFile(sampleFile, []byte("data"), 0o600)
+	err := os.WriteFile(filepath.Join(workspace.WorkDir, "sample.txt"), []byte("data"), 0o600)
 	assert.NoError(t, err)
 
-	outputDir := filepath.Join(workspace.WorkDir, "output_dir")
-	err = os.Mkdir(outputDir, 0o700)
+	err = os.Mkdir(filepath.Join(workspace.WorkDir, "output_dir"), 0o700)
 	assert.NoError(t, err)
 
 	t.Run("input file completion", func(t *testing.T) {

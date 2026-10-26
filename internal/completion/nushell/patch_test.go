@@ -46,8 +46,6 @@ func TestPatch_DoesNotMutateCallerSlice(t *testing.T) {
 	original := []string{`"hello"`, "`world`"}
 	copied := []string{`"hello"`, "`world`"}
 
-	patched := nushell.Patch(original)
-
-	assert.Equal(t, []string{"hello", "world"}, patched)
+	assert.Equal(t, []string{"hello", "world"}, nushell.Patch(original))
 	assert.Equal(t, copied, original, "caller's slice must not be modified in-place")
 }

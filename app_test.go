@@ -464,9 +464,7 @@ func TestApp_RunDefaultContext(t *testing.T) {
 func TestApp_Complete(t *testing.T) {
 	t.Parallel()
 
-	app := conga.New[SimpleAppCLI]()
-
-	invoked, formatted := app.CompleteForShell("fish", []string{"--ca"})
+	invoked, formatted := conga.New[SimpleAppCLI]().CompleteForShell("fish", []string{"--ca"})
 
 	assert.Equal(t, 1, len(invoked.Items))
 	assert.Equal(t, "--cache", invoked.Items[0].Value)

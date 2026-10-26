@@ -50,9 +50,7 @@ func TestFeatures_StringNilReceiver(t *testing.T) {
 
 	var features *conga.Features[featureSemanticsSet]
 
-	result := features.String()
-
-	assert.Zero(t, result)
+	assert.Zero(t, features.String())
 }
 
 func TestChangedSemantics_DefaultSource(t *testing.T) {

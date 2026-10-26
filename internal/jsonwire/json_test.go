@@ -38,9 +38,7 @@ func TestAppendStringEscapeTable(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := string(jsonwire.AppendString(nil, test.input))
-
-			assert.Equal(t, test.want, got)
+			assert.Equal(t, test.want, string(jsonwire.AppendString(nil, test.input)))
 		})
 	}
 }

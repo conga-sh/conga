@@ -12,20 +12,17 @@ func TestMap(t *testing.T) {
 	t.Parallel()
 
 	input := []int{1, 2, 3, 4}
-	mapped := slicex.Map(input, func(n int) int { return n * 2 })
-	assert.Equal(t, []int{2, 4, 6, 8}, mapped)
+	assert.Equal(t, []int{2, 4, 6, 8}, slicex.Map(input, func(n int) int { return n * 2 }))
 
 	strInput := []string{"a", "bb", "ccc"}
-	lengths := slicex.Map(strInput, func(s string) int { return len(s) })
-	assert.Equal(t, []int{1, 2, 3}, lengths)
+	assert.Equal(t, []int{1, 2, 3}, slicex.Map(strInput, func(s string) int { return len(s) }))
 }
 
 func TestFilter(t *testing.T) {
 	t.Parallel()
 
 	input := []int{1, 2, 3, 4, 5, 6}
-	evens := slicex.Filter(input, func(n int) bool { return n%2 == 0 })
-	assert.Equal(t, []int{2, 4, 6}, evens)
+	assert.Equal(t, []int{2, 4, 6}, slicex.Filter(input, func(n int) bool { return n%2 == 0 }))
 }
 
 func TestSplitAndTrim(t *testing.T) {
@@ -45,9 +42,7 @@ func TestUnique(t *testing.T) {
 
 	input := []string{"a", "b", "a", "c", "b"}
 
-	result := slicex.Unique(input)
-
-	assert.Equal(t, []string{"a", "b", "c"}, result)
+	assert.Equal(t, []string{"a", "b", "c"}, slicex.Unique(input))
 }
 
 func TestUniqueBy(t *testing.T) {

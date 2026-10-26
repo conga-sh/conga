@@ -270,12 +270,8 @@ func TestBuildSchema(t *testing.T) {
 		helpCmd := cmdSpec.FindSubcommand("help")
 		assert.True(t, helpCmd.IsHelpCmd)
 		assert.Equal(t, 1, len(helpCmd.Args))
-
-		versionCmd := cmdSpec.FindSubcommand("version")
-		assert.True(t, versionCmd.IsVersionCmd)
-
-		completionCmd := cmdSpec.FindSubcommand("completion")
-		assert.True(t, completionCmd.IsCompletionCmd)
+		assert.True(t, cmdSpec.FindSubcommand("version").IsVersionCmd)
+		assert.True(t, cmdSpec.FindSubcommand("completion").IsCompletionCmd)
 	})
 
 	t.Run("declared completion command without completion enabled rejected", func(t *testing.T) {
@@ -582,9 +578,7 @@ func TestFindFlagInChain(t *testing.T) {
 
 		flag := spec.FindFlagInChain(chain, "global")
 		assert.Equal(t, "global", flag.Name)
-
-		shortFlag := spec.FindShortFlagInChain(chain, 'g')
-		assert.Equal(t, "global", shortFlag.Name)
+		assert.Equal(t, "global", spec.FindShortFlagInChain(chain, 'g').Name)
 	})
 
 	t.Run("synthesizes help flag when not declared", func(t *testing.T) {

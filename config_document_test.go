@@ -887,11 +887,9 @@ func TestBootstrapper_RunsForHelpWhenFeaturesEnabled(t *testing.T) {
 
 	err := app.Run()
 
-	output := stdoutBuffer.String()
-
 	assert.NoError(t, err)
 	assert.Equal(t, int32(1), invocations.Load())
-	assert.Contains(t, output, "--force-all")
+	assert.Contains(t, stdoutBuffer.String(), "--force-all")
 }
 
 func TestBootstrapper_HelpWithoutFeaturesSkipsBootstrap(t *testing.T) {

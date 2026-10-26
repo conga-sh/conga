@@ -31,9 +31,7 @@ func TestItems(t *testing.T) {
 		predict.NewItem("json", "JavaScript Object Notation").WithStyle("green"),
 		predict.NewItem("yaml", "YAML Ain't Markup Language"),
 	}
-	pred := predict.Items(items...)
-
-	result := pred.Invoke(predict.Context{})
+	result := predict.Items(items...).Invoke(predict.Context{})
 
 	assert.Equal(t, 2, len(result.Items))
 	assert.Equal(t, "json", result.Items[0].Value)
@@ -52,9 +50,7 @@ func TestMap(t *testing.T) {
 		"info":  "Informational messages",
 		"error": "Error messages only",
 	}
-	pred := predict.Map(m)
-
-	result := pred.Invoke(predict.Context{})
+	result := predict.Map(m).Invoke(predict.Context{})
 
 	assert.Equal(t, 3, len(result.Items))
 	assert.Equal(t, "debug", result.Items[0].Value)
@@ -140,9 +136,7 @@ func TestExclude(t *testing.T) {
 func TestNone(t *testing.T) {
 	t.Parallel()
 
-	pred := predict.None()
-
-	result := pred.Invoke(predict.Context{})
+	result := predict.None().Invoke(predict.Context{})
 
 	assert.Zero(t, result.Items)
 	assert.Equal(t, predict.DirectiveNoFileCompletion, result.Directive)
@@ -245,9 +239,8 @@ func TestBatch(t *testing.T) {
 
 		pred1 := predict.Values("apple", "banana")
 		pred2 := predict.Values("banana", "cherry").NoSpace()
-		batch := predict.Batch(pred1, pred2)
 
-		result := batch.Invoke(predict.Context{})
+		result := predict.Batch(pred1, pred2).Invoke(predict.Context{})
 
 		assert.Equal(t, 3, len(result.Items))
 		assert.Equal(t, "apple", result.Items[0].Value)
@@ -502,9 +495,8 @@ func TestPredictor_RawAndTag(t *testing.T) {
 		t.Parallel()
 
 		pred := predict.Items(predict.NewItem("item1", "d1"), predict.NewItem("item2", "d2"))
-		raw := pred.Raw()
 
-		assert.Equal(t, []string{"item1", "item2"}, raw)
+		assert.Equal(t, []string{"item1", "item2"}, pred.Raw())
 	})
 }
 
@@ -546,9 +538,7 @@ func TestKeyValueDescribed_EmptyDescriptionsMatchesKeyValue(t *testing.T) {
 		"team": {"core", "infra"},
 	}
 
-	pred := predict.KeyValueDescribed(valuesByKey, nil)
-
-	resKeys := pred.Invoke(predict.Context{})
+	resKeys := predict.KeyValueDescribed(valuesByKey, nil).Invoke(predict.Context{})
 
 	assert.Equal(t, 1, len(resKeys.Items))
 	assert.Equal(t, "team=", resKeys.Items[0].Value)

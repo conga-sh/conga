@@ -322,9 +322,7 @@ func TestDirectivesTokensFixedOrder(t *testing.T) {
 	directives.NoPrefix.Add('-')
 	directives.NoSpace.Add('*')
 
-	tokens := directives.Tokens()
-
-	assert.Equal(t, []string{"keeporder", "noprefix", "nospace"}, tokens)
+	assert.Equal(t, []string{"keeporder", "noprefix", "nospace"}, directives.Tokens())
 }
 
 func TestDirectivesTokensEmpty(t *testing.T) {

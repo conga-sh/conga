@@ -45,9 +45,7 @@ func TestKebab(t *testing.T) {
 		t.Run(testCase.input, func(t *testing.T) {
 			t.Parallel()
 
-			got := casing.Kebab(testCase.input)
-
-			assert.Equal(t, testCase.expected, got)
+			assert.Equal(t, testCase.expected, casing.Kebab(testCase.input))
 		})
 	}
 }
@@ -86,9 +84,7 @@ func TestSnake(t *testing.T) {
 		t.Run(testCase.input, func(t *testing.T) {
 			t.Parallel()
 
-			got := casing.Snake(testCase.input)
-
-			assert.Equal(t, testCase.expected, got)
+			assert.Equal(t, testCase.expected, casing.Snake(testCase.input))
 		})
 	}
 }
@@ -121,9 +117,7 @@ func TestUpperSnake(t *testing.T) {
 		t.Run(testCase.input, func(t *testing.T) {
 			t.Parallel()
 
-			got := casing.UpperSnake(testCase.input)
-
-			assert.Equal(t, testCase.expected, got)
+			assert.Equal(t, testCase.expected, casing.UpperSnake(testCase.input))
 		})
 	}
 }
@@ -158,9 +152,7 @@ func TestUppercaseWords(t *testing.T) {
 		t.Run(testCase.input, func(t *testing.T) {
 			t.Parallel()
 
-			got := casing.UppercaseWords(testCase.input)
-
-			assert.Equal(t, testCase.expected, got)
+			assert.Equal(t, testCase.expected, casing.UppercaseWords(testCase.input))
 		})
 	}
 }

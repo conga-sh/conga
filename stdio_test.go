@@ -53,9 +53,7 @@ type stdioSliceCLI struct {
 }
 
 func (c *stdioSliceCLI) Run(_ context.Context, _ *conga.Session) error {
-	inputs := c.Inputs.Get()
-
-	reader, err := inputs[0].Reader()
+	reader, err := c.Inputs.Get()[0].Reader()
 	if err != nil {
 		return err
 	}

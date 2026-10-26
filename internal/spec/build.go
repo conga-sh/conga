@@ -82,8 +82,7 @@ func Build(target any, defaultName string, opts Options) (*Command, error) {
 		return nil, err
 	}
 
-	isConfigCapable := opts.ConfigCapable || cmd.ConfigFileFlag != nil || len(opts.ConfigFilePatterns) > 0
-	if isConfigCapable {
+	if opts.ConfigCapable || cmd.ConfigFileFlag != nil || len(opts.ConfigFilePatterns) > 0 {
 		if err := validateFlagSubcommandCollisions(cmd); err != nil {
 			return nil, err
 		}

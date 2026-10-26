@@ -132,9 +132,7 @@ func TestConformance_GoldenReplay(t *testing.T) {
 func TestConformance_ExportReplay(t *testing.T) {
 	for name, fixture := range loadCorpusFixtures(t) {
 		t.Run(name, func(t *testing.T) {
-			formatted := completion.NewSession("export").Format("", resultFromFixture(fixture))
-
-			assertExportFraming(t, fixture, formatted)
+			assertExportFraming(t, fixture, completion.NewSession("export").Format("", resultFromFixture(fixture)))
 		})
 	}
 }

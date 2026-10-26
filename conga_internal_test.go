@@ -117,8 +117,7 @@ func TestApp_initDefaultPredictors_PreservesCustomShellPredictor(t *testing.T) {
 	app := New[emptyCLI]()
 	app.EnableCompletion()
 
-	custom := predict.Values("custom-shell")
-	app.predictors["shell"] = custom
+	app.predictors["shell"] = predict.Values("custom-shell")
 
 	app.initDefaultPredictors()
 
@@ -193,9 +192,7 @@ func TestApp_Fluent_Examples(t *testing.T) {
 
 	app := New[struct{}]()
 
-	got := app.Examples("app deploy --image nginx:alpine")
-
-	assert.True(t, got == app)
+	assert.True(t, app.Examples("app deploy --image nginx:alpine") == app)
 	assert.Equal(t, "app deploy --image nginx:alpine", app.examples)
 }
 
@@ -204,9 +201,7 @@ func TestApp_Fluent_HelpFooter(t *testing.T) {
 
 	app := New[struct{}]()
 
-	got := app.HelpFooter("Documentation: https://example.com/docs")
-
-	assert.True(t, got == app)
+	assert.True(t, app.HelpFooter("Documentation: https://example.com/docs") == app)
 	assert.Equal(t, "Documentation: https://example.com/docs", app.helpFooter)
 }
 
@@ -215,9 +210,7 @@ func TestApp_Fluent_Deprecated(t *testing.T) {
 
 	app := New[struct{}]()
 
-	got := app.Deprecated("use the new unified tool")
-
-	assert.True(t, got == app)
+	assert.True(t, app.Deprecated("use the new unified tool") == app)
 	assert.Equal(t, "use the new unified tool", app.deprecated)
 }
 
@@ -228,9 +221,7 @@ func TestApp_Fluent_Stdin(t *testing.T) {
 
 	assert.True(t, app.stdin == io.Reader(os.Stdin))
 
-	got := app.Stdin(strings.NewReader("payload"))
-
-	assert.True(t, got == app)
+	assert.True(t, app.Stdin(strings.NewReader("payload")) == app)
 	assert.False(t, app.stdin == io.Reader(os.Stdin))
 
 	app.Stdin(nil)
@@ -256,9 +247,7 @@ func TestApp_StdoutNil_IsNoOp(t *testing.T) {
 
 		writer := &bytes.Buffer{}
 
-		got := app.Stdout(writer)
-
-		assert.True(t, got == app)
+		assert.True(t, app.Stdout(writer) == app)
 		assert.True(t, app.stdout == io.Writer(writer))
 	})
 
@@ -293,9 +282,7 @@ func TestApp_StderrNil_IsNoOp(t *testing.T) {
 
 		writer := &bytes.Buffer{}
 
-		got := app.Stderr(writer)
-
-		assert.True(t, got == app)
+		assert.True(t, app.Stderr(writer) == app)
 		assert.True(t, app.stderr == io.Writer(writer))
 	})
 
@@ -370,9 +357,7 @@ func TestPrunedFlag_ConfigKeys(t *testing.T) {
 				prefix: test.prefix,
 			}
 
-			got := pruned.configKeys()
-
-			assert.Equal(t, test.want, got)
+			assert.Equal(t, test.want, pruned.configKeys())
 		})
 	}
 }

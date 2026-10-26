@@ -344,8 +344,7 @@ func (c *dotenvCLI) Bootstrap(_ context.Context, b *conga.Bootstrap) error {
 //
 //nolint:paralleltest // t.Chdir and t.Setenv cannot be used with t.Parallel
 func TestBootstrapper_DotenvFeatureGateAttribution(t *testing.T) {
-	dir := t.TempDir()
-	t.Chdir(dir)
+	t.Chdir(t.TempDir())
 
 	err := os.WriteFile(".env", []byte("CONGA_TEST_DOTENV_FEATURES=force-all=true\nCONGA_TEST_DOTENV_HOST=from-dotenv\n"), 0o600)
 	assert.NoError(t, err)
@@ -484,8 +483,7 @@ func (c *bootstrapCWDDotenvCLI) Bootstrap(_ context.Context, b *conga.Bootstrap)
 //
 //nolint:paralleltest // t.Chdir and t.Setenv cannot be used with t.Parallel
 func TestBootstrapper_DotenvDefaultsToCWDHierarchy(t *testing.T) {
-	dir := t.TempDir()
-	t.Chdir(dir)
+	t.Chdir(t.TempDir())
 
 	err := os.WriteFile(".env", []byte("CONGA_TEST_CWD_DOTENV=from-base\n"), 0o600)
 	assert.NoError(t, err)

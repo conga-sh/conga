@@ -238,10 +238,9 @@ func TestContext(t *testing.T) {
 		}
 
 		value := ctx.Getenv("AWS_REGION")
-		absent := ctx.Getenv("MISSING_VAR")
 
 		assert.Equal(t, "eu-west-1", value)
-		assert.Equal(t, "", absent)
+		assert.Equal(t, "", ctx.Getenv("MISSING_VAR"))
 	})
 }
 
@@ -251,9 +250,7 @@ func TestContext_GetenvOSFallback(t *testing.T) {
 
 	ctx := predict.Context{}
 
-	value := ctx.Getenv("CONGA_TEST_VAR_XYZ")
-
-	assert.Equal(t, "hello_conga", value)
+	assert.Equal(t, "hello_conga", ctx.Getenv("CONGA_TEST_VAR_XYZ"))
 }
 
 func TestContext_GetenvMissingKeyFallback(t *testing.T) {
@@ -266,11 +263,8 @@ func TestContext_GetenvMissingKeyFallback(t *testing.T) {
 		},
 	}
 
-	present := ctx.Getenv("AWS_REGION")
-	fallback := ctx.Getenv("CONGA_TEST_FALLBACK_VAR")
-
-	assert.Equal(t, "eu-west-1", present)
-	assert.Equal(t, "from_process", fallback)
+	assert.Equal(t, "eu-west-1", ctx.Getenv("AWS_REGION"))
+	assert.Equal(t, "from_process", ctx.Getenv("CONGA_TEST_FALLBACK_VAR"))
 }
 
 func TestContext_Getenv_EnvLookup(t *testing.T) {
@@ -345,9 +339,7 @@ func TestContext_Getenv_ProcessEnvFallback(t *testing.T) {
 
 	ctx := predict.Context{}
 
-	result := ctx.Getenv("CONGA_TEST_PROCESS_VAR")
-
-	assert.Equal(t, "from_os", result)
+	assert.Equal(t, "from_os", ctx.Getenv("CONGA_TEST_PROCESS_VAR"))
 }
 
 func TestContext_WithFlagValues(t *testing.T) {

@@ -12,9 +12,7 @@ import (
 func TestFoldConfigOptions_NoOptions(t *testing.T) {
 	t.Parallel()
 
-	settings := foldConfigOptions(nil)
-
-	assert.Equal(t, spec.ConfigSettings{}, settings)
+	assert.Equal(t, spec.ConfigSettings{}, foldConfigOptions(nil))
 }
 
 func TestFoldConfigOptions_Paths_SetsTier(t *testing.T) {

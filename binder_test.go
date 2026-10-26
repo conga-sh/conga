@@ -277,10 +277,8 @@ func TestRawArgs(t *testing.T) {
 func TestAppConfigFile(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "config.json")
-	cfgJSON := `{"server": {"port": 9999, "timeout": "10s"}}`
-	err := os.WriteFile(cfgPath, []byte(cfgJSON), 0644)
+	cfgPath := filepath.Join(t.TempDir(), "config.json")
+	err := os.WriteFile(cfgPath, []byte(`{"server": {"port": 9999, "timeout": "10s"}}`), 0644)
 	assert.NoError(t, err)
 
 	type ConfigApp struct {

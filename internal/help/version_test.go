@@ -53,11 +53,9 @@ func TestVersionDetailed(t *testing.T) {
 func TestVersionJSON(t *testing.T) {
 	t.Parallel()
 
-	payload := help.VersionJSON("1.0.0")
-
 	var decoded map[string]any
 
-	assert.NoError(t, json.Unmarshal([]byte(payload), &decoded))
+	assert.NoError(t, json.Unmarshal([]byte(help.VersionJSON("1.0.0")), &decoded))
 	assert.Equal(t, "1.0.0", decoded["version"])
 	assert.Equal(t, false, decoded["modified"])
 	assert.Equal[any](t, runtime.GOOS, decoded["os"])

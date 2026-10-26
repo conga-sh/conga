@@ -111,9 +111,7 @@ func TestFormat_DropsEmptyValues(t *testing.T) {
 func TestFormat_EmptyDisplayFallsBackToSpace(t *testing.T) {
 	t.Setenv("CONGA_COLOR", "0")
 
-	output := powershell.Format("", wire.Directives{}, []wire.Candidate{{Value: "deploy"}})
-
-	assert.Contains(t, output, `"display":" "`)
+	assert.Contains(t, powershell.Format("", wire.Directives{}, []wire.Candidate{{Value: "deploy"}}), `"display":" "`)
 }
 
 func TestFormat_DescriptionClampedToDefaultLength(t *testing.T) {

@@ -54,9 +54,6 @@ func TestParseZoneTabReader_ErrorReturnsNil(t *testing.T) {
 
 	partialInput := "US +4042-07400 America/New_York Eastern Time\n"
 	errorReader := iotest.ErrReader(errors.New("simulated stream error"))
-	r := io.MultiReader(strings.NewReader(partialInput), errorReader)
 
-	items := parseZoneTabReader(r)
-
-	assert.Zero(t, items)
+	assert.Zero(t, parseZoneTabReader(io.MultiReader(strings.NewReader(partialInput), errorReader)))
 }

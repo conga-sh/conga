@@ -79,67 +79,49 @@ func TestSessionGetters_NilSession(t *testing.T) {
 	t.Run("CandidateConfigFiles", func(t *testing.T) {
 		t.Parallel()
 
-		candidates := nilSession.CandidateConfigFiles()
-
-		assert.Equal(t, []string(nil), candidates)
+		assert.Equal(t, []string(nil), nilSession.CandidateConfigFiles())
 	})
 
 	t.Run("LoadedConfigFiles", func(t *testing.T) {
 		t.Parallel()
 
-		loaded := nilSession.LoadedConfigFiles()
-
-		assert.Equal(t, []string(nil), loaded)
+		assert.Equal(t, []string(nil), nilSession.LoadedConfigFiles())
 	})
 
 	t.Run("Root", func(t *testing.T) {
 		t.Parallel()
 
-		root := nilSession.Root[contextTestCLI]()
-
-		assert.Equal(t, (*contextTestCLI)(nil), root)
+		assert.Equal(t, (*contextTestCLI)(nil), nilSession.Root[contextTestCLI]())
 	})
 
 	t.Run("Path", func(t *testing.T) {
 		t.Parallel()
 
-		path := nilSession.Path()
-
-		assert.Equal(t, "", path)
+		assert.Equal(t, "", nilSession.Path())
 	})
 
 	t.Run("Name", func(t *testing.T) {
 		t.Parallel()
 
-		name := nilSession.Name()
-
-		assert.Equal(t, "", name)
+		assert.Equal(t, "", nilSession.Name())
 	})
 
 	t.Run("Stdout", func(t *testing.T) {
 		t.Parallel()
 
-		stdout := nilSession.Stdout()
-
-		assert.Equal(t, io.Discard, stdout)
+		assert.Equal(t, io.Discard, nilSession.Stdout())
 	})
 
 	t.Run("Stderr", func(t *testing.T) {
 		t.Parallel()
 
-		stderr := nilSession.Stderr()
-
-		assert.Equal(t, io.Discard, stderr)
+		assert.Equal(t, io.Discard, nilSession.Stderr())
 	})
 
 	t.Run("Stdin", func(t *testing.T) {
 		t.Parallel()
 
-		stdin := nilSession.Stdin()
-
-		buffer := make([]byte, 8)
-
-		read, err := stdin.Read(buffer)
+		read, err := nilSession.Stdin().Read(make([]byte, 8))
 
 		assert.Zero(t, read)
 		assert.Equal(t, io.EOF, err)

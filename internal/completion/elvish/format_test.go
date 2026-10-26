@@ -152,13 +152,11 @@ func TestFormat_CarriesMessages(t *testing.T) {
 
 	directives := wire.Directives{Messages: []string{"unknown command \"invalid\"", "usage: app [flags]"}}
 
-	output := elvish.Format("", directives, nil)
-
 	var parsed struct {
 		Messages []string `json:"messages"`
 	}
 
-	assert.NoError(t, json.Unmarshal([]byte(output), &parsed))
+	assert.NoError(t, json.Unmarshal([]byte(elvish.Format("", directives, nil)), &parsed))
 	assert.Equal(t, directives.Messages, parsed.Messages)
 }
 

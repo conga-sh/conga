@@ -126,8 +126,7 @@ func TestBuiltinHoist_CompletionScriptWithEnvSourcedMissingConfigPath(t *testing
 func TestBuiltinHoist_VersionSkipsConfigResolutionWithoutFeatures(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
-	configPath := filepath.Join(tempDir, "app.json")
+	configPath := filepath.Join(t.TempDir(), "app.json")
 	err := os.WriteFile(configPath, []byte("{}"), 0o600)
 	assert.NoError(t, err)
 
@@ -157,8 +156,7 @@ func TestBuiltinHoist_VersionSkipsConfigResolutionWithoutFeatures(t *testing.T) 
 func TestBuiltinHoist_HelpSkipsConfigResolutionWithoutFeatures(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
-	configPath := filepath.Join(tempDir, "app.json")
+	configPath := filepath.Join(t.TempDir(), "app.json")
 	err := os.WriteFile(configPath, []byte("{}"), 0o600)
 	assert.NoError(t, err)
 
@@ -187,8 +185,7 @@ func TestBuiltinHoist_HelpSkipsConfigResolutionWithoutFeatures(t *testing.T) {
 func TestBuiltinHoist_WhyResolvesConfigOnceWithoutFeatures(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
-	configPath := filepath.Join(tempDir, "app.json")
+	configPath := filepath.Join(t.TempDir(), "app.json")
 	err := os.WriteFile(configPath, []byte("{}"), 0o600)
 	assert.NoError(t, err)
 
@@ -257,8 +254,7 @@ func TestBuiltinHoist_DeprecationNotices(t *testing.T) {
 
 func TestWhy_ReportRedactionAndBadges(t *testing.T) {
 	t.Setenv("CONGA_TEST_WHY_TOKEN", "s3cr3t-env-token")
-	tmpDir := t.TempDir()
-	t.Chdir(tmpDir)
+	t.Chdir(t.TempDir())
 
 	const configPath = "why-config.json"
 
@@ -303,8 +299,7 @@ type whyMergeCLI struct {
 //
 //nolint:paralleltest // Swaps the process working directory via t.Chdir.
 func TestWhy_MapMergePerKeyProvenance(t *testing.T) {
-	tmpDir := t.TempDir()
-	t.Chdir(tmpDir)
+	t.Chdir(t.TempDir())
 
 	configPath := "why-merge.json"
 
@@ -464,9 +459,7 @@ func TestWhy_NoCLIFeaturesExcludedFromFlagTable(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	output := buffer.String()
-
-	flagSection, featuresSection, found := strings.Cut(output, "Features:")
+	flagSection, featuresSection, found := strings.Cut(buffer.String(), "Features:")
 	assert.True(t, found)
 	assert.NotContains(t, flagSection, "--features")
 	assert.Contains(t, featuresSection, "alpha")
@@ -510,8 +503,7 @@ func TestWhy_FieldEnvNoDetail(t *testing.T) {
 // of a config-sourced key leaves no stale configuration detail: the row
 // reports the env tier only.
 func TestWhy_FieldEnvOverridesConfigClearsConfigDetail(t *testing.T) {
-	tempDir := t.TempDir()
-	configPath := filepath.Join(tempDir, "experiments.yml")
+	configPath := filepath.Join(t.TempDir(), "experiments.yml")
 	err := os.WriteFile(configPath, fixtureFeatureGentleForce, 0o600)
 	assert.NoError(t, err)
 
@@ -1018,15 +1010,13 @@ func TestWhy_ConfigPathsChecked_LoadedTiers(t *testing.T) {
 	stemPath := filepath.Join("user", "whyapp")
 	assert.NoError(t, os.MkdirAll(filepath.Dir(stemPath), 0o700))
 
-	stemFile := stemPath + ".json"
-	assert.NoError(t, os.WriteFile(stemFile, []byte(`{"port": 9000}`), 0o600))
+	assert.NoError(t, os.WriteFile(stemPath+".json", []byte(`{"port": 9000}`), 0o600))
 
 	// Directory tier: candidate config names are probed inside the directory.
 	dirTier := "system"
 	assert.NoError(t, os.MkdirAll(dirTier, 0o700))
 
-	dirFile := filepath.Join(dirTier, "config.json")
-	assert.NoError(t, os.WriteFile(dirFile, []byte(`{}`), 0o600))
+	assert.NoError(t, os.WriteFile(filepath.Join(dirTier, "config.json"), []byte(`{}`), 0o600))
 
 	var buffer bytes.Buffer
 
@@ -1117,11 +1107,9 @@ func TestWhy_ConfigFileRowUnset(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	output := buffer.String()
-
 	configRow := ""
 
-	for line := range strings.SplitSeq(output, "\n") {
+	for line := range strings.SplitSeq(buffer.String(), "\n") {
 		if strings.Contains(line, "--config-file") {
 			configRow = line
 
@@ -1147,11 +1135,7 @@ func TestWhy_ConfigPathsChecked_OmittedWithoutConfigResolution(t *testing.T) {
 	err := app.Run()
 
 	assert.NoError(t, err)
-
-	output := buffer.String()
-
-	assert.NoError(t, err)
-	assert.NotContains(t, output, "Config paths")
+	assert.NotContains(t, buffer.String(), "Config paths")
 }
 
 func TestWhy_BuiltinPriority(t *testing.T) {
@@ -2775,11 +2759,9 @@ func TestBuiltinWhy_FeatureFlagRowReportsConfigOrigin(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	output := buffer.String()
-
 	var featureFlagLine string
 
-	for line := range strings.SplitSeq(output, "\n") {
+	for line := range strings.SplitSeq(buffer.String(), "\n") {
 		if strings.Contains(line, "--feature-gates") {
 			featureFlagLine = line
 		}

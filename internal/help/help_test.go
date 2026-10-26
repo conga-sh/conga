@@ -234,8 +234,7 @@ func TestFormat_TypeProvidedHelpFallback(t *testing.T) {
 	assert.NotContains(t, formatted, "Custom text Byte size")
 
 	// A type without Help() contributes nothing to the help column.
-	plainLine := lineContaining(formatted, "--plain=")
-	assert.Equal(t, "--plain=PLAIN-TYPE", strings.TrimSpace(plainLine))
+	assert.Equal(t, "--plain=PLAIN-TYPE", strings.TrimSpace(lineContaining(formatted, "--plain=")))
 }
 
 func TestHelpFormatting_Basic(t *testing.T) {
@@ -344,9 +343,7 @@ func TestUsage_And_Hint(t *testing.T) {
 
 	usage := help.Usage([]*spec.Command{cmd})
 	assert.Equal(t, "Usage:\n  mycmd <command> [flags]", usage)
-
-	hint := help.Hint([]*spec.Command{cmd})
-	assert.Equal(t, "Run 'mycmd --help' for more information.", hint)
+	assert.Equal(t, "Run 'mycmd --help' for more information.", help.Hint([]*spec.Command{cmd}))
 }
 
 func TestUsage_RequiredGlobalFlagsInSubcommandUsageLine(t *testing.T) {
@@ -1332,9 +1329,6 @@ func TestFormat_EnumHintHiddenSuppressesHint(t *testing.T) {
 
 	formatted := help.Format([]*spec.Command{cmd})
 
-	flagLine := lineContaining(formatted, "Output format")
-	assert.NotContains(t, flagLine, "[enum:")
-
-	argLine := lineContaining(formatted, "Verb")
-	assert.NotContains(t, argLine, "[enum:")
+	assert.NotContains(t, lineContaining(formatted, "Output format"), "[enum:")
+	assert.NotContains(t, lineContaining(formatted, "Verb"), "[enum:")
 }

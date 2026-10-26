@@ -20,9 +20,8 @@ type CLI struct {
 func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
 	inspector.Print(session, c)
 
-	message := c.Message.GetOr("Ping health check")
 	fmt.Fprintf(session.Stdout(), "Broadcast: channel=%s message=%q urgent=%t extra_recipients=%d\n",
-		c.Channel.Get(), message, c.Urgent.Get(), len(c.Recipients.Get()))
+		c.Channel.Get(), c.Message.GetOr("Ping health check"), c.Urgent.Get(), len(c.Recipients.Get()))
 
 	return nil
 }

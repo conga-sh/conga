@@ -63,9 +63,7 @@ func Inspect(target any) []Row {
 			continue
 		}
 
-		fieldAddr := value.Field(i).Addr().Interface()
-
-		row := extractFieldRow(structField, fieldAddr)
+		row := extractFieldRow(structField, value.Field(i).Addr().Interface())
 		if row != nil {
 			rows = append(rows, *row)
 		}
@@ -170,15 +168,12 @@ func collectSections(session *conga.Session, commands []any) []section {
 			continue
 		}
 
-		value := structValueOf(command)
-		if !value.IsValid() {
+		if !structValueOf(command).IsValid() {
 			continue
 		}
 
-		name := resolveSectionName(session, commands, index, chainNames)
-
 		sections = append(sections, section{
-			name: name,
+			name: resolveSectionName(session, commands, index, chainNames),
 			rows: Inspect(command),
 		})
 	}
@@ -231,11 +226,10 @@ func findSubcommandFieldName(parent, child any) string {
 		return ""
 	}
 
-	childType := childVal.Type()
-	parentType := parentVal.Type()
+	childTypeName := childVal.Type().Name()
 
-	for field := range parentType.Fields() {
-		if strings.Contains(field.Type.String(), childType.Name()) {
+	for field := range parentVal.Type().Fields() {
+		if strings.Contains(field.Type.String(), childTypeName) {
 			return subcommandName(field)
 		}
 	}

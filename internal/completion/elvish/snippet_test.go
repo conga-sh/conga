@@ -33,9 +33,7 @@ func TestSnippet_InvokesCompleteEntryPointWithSlicedArgs(t *testing.T) {
 func TestSnippet_SetsSidebandShellVariable(t *testing.T) {
 	t.Parallel()
 
-	script := elvish.Snippet("myapp", nil)
-
-	assert.Contains(t, script, "set-env CONGA_SHELL elvish")
+	assert.Contains(t, elvish.Snippet("myapp", nil), "set-env CONGA_SHELL elvish")
 }
 
 func TestSnippet_RendersCandidates(t *testing.T) {

@@ -1572,9 +1572,7 @@ func (a *App[T]) prepare(ctx context.Context) (*Session, bool, error) {
 		return nil, false, err
 	}
 
-	tokens := tokenizer.Tokenize(a.args)
-
-	cmdChain, remainingTokens, index, err := routeSubcommands(cmd, tokens)
+	cmdChain, remainingTokens, index, err := routeSubcommands(cmd, tokenizer.Tokenize(a.args))
 	if err != nil {
 		return nil, false, err
 	}

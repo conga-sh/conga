@@ -35,9 +35,7 @@ func TestShellFromExecPath_WindowsNames(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := shellFromExecPath(test.execPath)
-
-			assert.Equal(t, test.want, got)
+			assert.Equal(t, test.want, shellFromExecPath(test.execPath))
 		})
 	}
 }

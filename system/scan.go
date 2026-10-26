@@ -43,21 +43,15 @@ type procEntry struct {
 }
 
 func actionEnvVars(ctx predict.Context) predict.Predictor {
-	items := scanEnvVars(ctx)
-
-	return predict.Items(items...)
+	return predict.Items(scanEnvVars(ctx)...)
 }
 
 func actionGroups(_ predict.Context) predict.Predictor {
-	items := scanGroups()
-
-	return predict.Items(items...)
+	return predict.Items(scanGroups()...)
 }
 
 func actionLocales(_ predict.Context) predict.Predictor {
-	items := scanLocales()
-
-	return predict.Items(items...)
+	return predict.Items(scanLocales()...)
 }
 
 func actionProcessIDs(_ predict.Context) predict.Predictor {
@@ -158,9 +152,7 @@ func actionSignals(ctx predict.Context) predict.Predictor {
 }
 
 func actionUsers(ctx predict.Context) predict.Predictor {
-	items := scanUsers(ctx)
-
-	return predict.Items(items...)
+	return predict.Items(scanUsers(ctx)...)
 }
 
 func parseGroupReader(r io.Reader) []predict.Item {
@@ -180,9 +172,8 @@ func parseGroupReader(r io.Reader) []predict.Item {
 		}
 
 		seen[name] = true
-		gid := strings.TrimSpace(parts[2])
 
-		desc := "GID: " + gid
+		desc := "GID: " + strings.TrimSpace(parts[2])
 		if len(parts) >= 4 && strings.TrimSpace(parts[3]) != "" {
 			desc += fmt.Sprintf(" (%s)", strings.TrimSpace(parts[3]))
 		}

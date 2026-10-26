@@ -26,8 +26,7 @@ type CLI struct {
 func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
 	inspector.Print(session, c)
 
-	memory := c.MaxMemory.Get()
-	fmt.Fprintf(session.Stdout(), "Validated Domain Types: max_memory_bytes=%d\n", memory.Bytes())
+	fmt.Fprintf(session.Stdout(), "Validated Domain Types: max_memory_bytes=%d\n", c.MaxMemory.Get().Bytes())
 
 	if payload := c.Payload.Get(); payload != "" {
 		fmt.Fprintf(session.Stdout(), "payload_bytes=%d\n", len(payload.Bytes()))

@@ -252,8 +252,7 @@ func TestDotenvError_Contract(t *testing.T) {
 func TestDotenv_LoadNonDestructive(t *testing.T) {
 	t.Setenv("CONGA_TEST_EXISTING_OS_KEY", "os_original_value")
 
-	tmpDir := t.TempDir()
-	envPath := filepath.Join(tmpDir, ".env")
+	envPath := filepath.Join(t.TempDir(), ".env")
 	err := os.WriteFile(envPath, fixtureLoadNonDestructive, 0o600)
 	assert.NoError(t, err)
 
@@ -282,9 +281,7 @@ func TestDotenv_TildeHomeExpansion(t *testing.T) {
 func TestDotenv_LoadExplicitMissingFile(t *testing.T) {
 	t.Parallel()
 
-	missingPath := filepath.Join(t.TempDir(), "nonexistent.env")
-
-	err := dotenv.Load(missingPath)
+	err := dotenv.Load(filepath.Join(t.TempDir(), "nonexistent.env"))
 
 	assert.Error(t, err)
 	assert.IsError(t, err, sentinel.ErrDotenv)
@@ -320,9 +317,7 @@ func TestDotenv_LoadWithOrigins_SharedMapOverridesEarlierFile(t *testing.T) {
 //nolint:paralleltest // dotenv.LoadWithOrigins(t.Setenv, ...) mutates the process-global environment
 func TestDotenv_LoadWithOrigins_MissingToleratedMalformedFails(t *testing.T) {
 	tmpDir := t.TempDir()
-	missing := filepath.Join(tmpDir, "missing.env")
-
-	err := dotenv.LoadWithOrigins(t.Setenv, make(map[string]string), false, missing)
+	err := dotenv.LoadWithOrigins(t.Setenv, make(map[string]string), false, filepath.Join(tmpDir, "missing.env"))
 	assert.NoError(t, err)
 
 	malformed := filepath.Join(tmpDir, "malformed.env")
@@ -336,8 +331,7 @@ func TestDotenv_LoadWithOrigins_MissingToleratedMalformedFails(t *testing.T) {
 
 //nolint:paralleltest // dotenv.LoadWithOrigins(t.Setenv, ...) mutates the process-global environment
 func TestDotenv_LoadWithOrigins_OversizedFailsWhenMustExistFalse(t *testing.T) {
-	tmpDir := t.TempDir()
-	largeFile := filepath.Join(tmpDir, "large.env")
+	largeFile := filepath.Join(t.TempDir(), "large.env")
 
 	file, err := os.Create(largeFile)
 	assert.NoError(t, err)
@@ -571,8 +565,7 @@ func TestDotenv_ParseErrors(t *testing.T) {
 func TestDotenv_FileSizeLimitExceeded(t *testing.T) {
 	t.Parallel()
 
-	dir := t.TempDir()
-	largeFile := filepath.Join(dir, "large.env")
+	largeFile := filepath.Join(t.TempDir(), "large.env")
 
 	f, err := os.Create(largeFile)
 	assert.NoError(t, err)

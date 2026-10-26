@@ -55,8 +55,13 @@ func TestPowerShell_Flags(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, "Simulate deployment", tooltip)
 
-	logsResult := workspace.RunPowerShellCompletion(t, "cloudctl", "cloudctl logs --")
-	assert.True(t, logsResult.HasItem("--labels"))
+	t.Run("logs flags", func(t *testing.T) {
+		t.Parallel()
+
+		logsResult := workspace.RunPowerShellCompletion(t, "cloudctl", "cloudctl logs --")
+
+		assert.True(t, logsResult.HasItem("--labels"))
+	})
 }
 
 func TestPowerShell_FlagValues(t *testing.T) {
@@ -563,8 +568,7 @@ func TestPowerShell_DomainTypes_Completion(t *testing.T) {
 	assert.True(t, bareRes.HasItem("-i"))
 
 	// Typing '--comp': must complete --completion flag
-	compRes := workspace.RunPowerShellCompletion(t, "05-domain-types", "& 05-domain-types --comp")
-	assert.True(t, compRes.HasItem("--completion"), "expected --completion candidate")
+	assert.True(t, workspace.RunPowerShellCompletion(t, "05-domain-types", "& 05-domain-types --comp").HasItem("--completion"), "expected --completion candidate")
 
 	// Typing '--completion z': must complete the zsh shell value
 	valueRes := workspace.RunPowerShellCompletion(t, "05-domain-types", "& 05-domain-types --completion z")
@@ -847,12 +851,10 @@ func TestPowerShell_DomainFilesystemTypes(t *testing.T) {
 
 	workspace := setupDomainTypes(t)
 
-	sampleFile := filepath.Join(workspace.WorkDir, "sample.txt")
-	err := os.WriteFile(sampleFile, []byte("data"), 0o600)
+	err := os.WriteFile(filepath.Join(workspace.WorkDir, "sample.txt"), []byte("data"), 0o600)
 	assert.NoError(t, err)
 
-	outputDir := filepath.Join(workspace.WorkDir, "output_dir")
-	err = os.Mkdir(outputDir, 0o700)
+	err = os.Mkdir(filepath.Join(workspace.WorkDir, "output_dir"), 0o700)
 	assert.NoError(t, err)
 
 	t.Run("input file completion", func(t *testing.T) {

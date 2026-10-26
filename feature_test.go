@@ -422,8 +422,7 @@ func TestFeature_CascadingConfigMergesPerKey(t *testing.T) {
 func TestFeature_CascadingConfigNearestFileWinsGate(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
-	sysPath := filepath.Join(tempDir, "sys.yml")
+	sysPath := filepath.Join(t.TempDir(), "sys.yml")
 	assert.NoError(t, os.WriteFile(sysPath, fixtureFeatureCascadeSys, 0o600))
 
 	// The local tier re-declares the sys file's gate with the opposite value.
@@ -508,8 +507,7 @@ func TestFeature_CascadingConfigCLIOverridesPerKey(t *testing.T) {
 func TestFeature_CascadingConfigGateOffPrunesFlag(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
-	sysPath := filepath.Join(tempDir, "sys.yml")
+	sysPath := filepath.Join(t.TempDir(), "sys.yml")
 	assert.NoError(t, os.WriteFile(sysPath, fixtureFeatureCascadeSys, 0o600))
 
 	// The local tier turns the gate off.
@@ -537,8 +535,7 @@ func TestFeature_CascadingConfigGateOffPrunesFlag(t *testing.T) {
 func TestFeature_CascadingConfigRestrictsPrunedConfigKey(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
-	sysPath := filepath.Join(tempDir, "sys.yml")
+	sysPath := filepath.Join(t.TempDir(), "sys.yml")
 	assert.NoError(t, os.WriteFile(sysPath, fixtureFeatureCascadeSys, 0o600))
 
 	// The local tier turns the gate off and declares the gated flag's key.
@@ -1123,8 +1120,7 @@ func TestFeature_FieldEnv_MultipleNamesFirstSetWins(t *testing.T) {
 // TestFeature_FieldEnv_OverridesConfig pins the ladder: the per-feature env
 // tier overrides the configuration tier for the same key.
 func TestFeature_FieldEnv_OverridesConfig(t *testing.T) {
-	tempDir := t.TempDir()
-	configPath := filepath.Join(tempDir, ".taskrc.yml")
+	configPath := filepath.Join(t.TempDir(), ".taskrc.yml")
 	err := os.WriteFile(configPath, fixtureFeatureGentleForce, 0o600)
 	assert.NoError(t, err)
 
@@ -1150,8 +1146,7 @@ func TestFeature_FieldEnv_OverridesConfig(t *testing.T) {
 // TestFeature_FieldEnv_SparseMergeWithConfig pins the key-by-key merge: the
 // env tier enables one key while the config tier enables another.
 func TestFeature_FieldEnv_SparseMergeWithConfig(t *testing.T) {
-	tempDir := t.TempDir()
-	configPath := filepath.Join(tempDir, ".taskrc.yml")
+	configPath := filepath.Join(t.TempDir(), ".taskrc.yml")
 	err := os.WriteFile(configPath, fixtureFeaturePackages, 0o600)
 	assert.NoError(t, err)
 
@@ -1219,8 +1214,7 @@ func TestFeature_FieldEnv_CliWinsOneKeyEnvAnother(t *testing.T) {
 // TestFeature_FieldEnv_EmptyValueFallsThroughToConfig pins that an empty env
 // variable is unset: the configuration tier's value survives.
 func TestFeature_FieldEnv_EmptyValueFallsThroughToConfig(t *testing.T) {
-	tempDir := t.TempDir()
-	configPath := filepath.Join(tempDir, ".taskrc.yml")
+	configPath := filepath.Join(t.TempDir(), ".taskrc.yml")
 	err := os.WriteFile(configPath, fixtureFeatureGentleForce, 0o600)
 	assert.NoError(t, err)
 
@@ -1619,8 +1613,7 @@ func TestFeature_FieldEnv_CollisionTests(t *testing.T) {
 func TestFeature_FlagGating_EnabledViaConfig(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
-	configPath := filepath.Join(tempDir, ".taskrc.yml")
+	configPath := filepath.Join(t.TempDir(), ".taskrc.yml")
 	err := os.WriteFile(configPath, fixtureFeatureGentleForce, 0o600)
 	assert.NoError(t, err)
 
@@ -1644,8 +1637,7 @@ func TestFeature_FlagGating_EnabledViaConfig(t *testing.T) {
 func TestFeature_Config_TypoRejection(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
-	configPath := filepath.Join(tempDir, ".taskrc.yml")
+	configPath := filepath.Join(t.TempDir(), ".taskrc.yml")
 	err := os.WriteFile(configPath, fixtureFeatureTypo, 0o600)
 	assert.NoError(t, err)
 
@@ -1668,8 +1660,7 @@ func TestFeature_Config_TypoRejection(t *testing.T) {
 func TestFeature_ConfigTypo_HelpStillRenders(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
-	configPath := filepath.Join(tempDir, ".taskrc.yml")
+	configPath := filepath.Join(t.TempDir(), ".taskrc.yml")
 	err := os.WriteFile(configPath, fixtureFeatureTypo, 0o600)
 	assert.NoError(t, err)
 
@@ -1695,8 +1686,7 @@ func TestFeature_ConfigTypo_HelpStillRenders(t *testing.T) {
 func TestFeature_ConfigTypo_VersionStillRenders(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
-	configPath := filepath.Join(tempDir, ".taskrc.yml")
+	configPath := filepath.Join(t.TempDir(), ".taskrc.yml")
 	err := os.WriteFile(configPath, fixtureFeatureTypo, 0o600)
 	assert.NoError(t, err)
 
@@ -1722,8 +1712,7 @@ func TestFeature_ConfigTypo_VersionStillRenders(t *testing.T) {
 func TestFeature_ConfigTypo_WhyFails(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
-	configPath := filepath.Join(tempDir, ".taskrc.yml")
+	configPath := filepath.Join(t.TempDir(), ".taskrc.yml")
 	err := os.WriteFile(configPath, fixtureFeatureTypo, 0o600)
 	assert.NoError(t, err)
 
@@ -1796,8 +1785,7 @@ func TestFeature_Why_RejectedValueErrors(t *testing.T) {
 func TestFeature_Config_InvalidValue(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
-	configPath := filepath.Join(tempDir, ".taskrc.yml")
+	configPath := filepath.Join(t.TempDir(), ".taskrc.yml")
 	err := os.WriteFile(configPath, fixtureFeatureInvalidValue, 0o600)
 	assert.NoError(t, err)
 
@@ -2254,8 +2242,7 @@ type featureDotenvCLI struct {
 //
 //nolint:paralleltest // dotenv.LoadWith(t.Setenv) mutates the process environment.
 func TestFeature_Completion_DotenvFieldEnv(t *testing.T) {
-	tempDir := t.TempDir()
-	envPath := filepath.Join(tempDir, ".env")
+	envPath := filepath.Join(t.TempDir(), ".env")
 	err := os.WriteFile(envPath, []byte("CONGA_TEST_TASK_DOTENV_GENTLE_FORCE=1\n"), 0o600)
 	assert.NoError(t, err)
 
@@ -2279,8 +2266,7 @@ func TestFeature_Completion_DotenvFieldEnv(t *testing.T) {
 //
 //nolint:paralleltest // dotenv.LoadWith(t.Setenv) mutates the process environment.
 func TestFeature_Completion_DotenvErrorTolerated(t *testing.T) {
-	tempDir := t.TempDir()
-	envPath := filepath.Join(tempDir, ".env")
+	envPath := filepath.Join(t.TempDir(), ".env")
 	err := os.WriteFile(envPath, []byte("this is not dotenv\n"), 0o600)
 	assert.NoError(t, err)
 
@@ -2466,8 +2452,7 @@ func TestFeature_Completion_NoStateLeak(t *testing.T) {
 func TestFeature_VersionSkipsConfigResolution(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
-	configPath := filepath.Join(tempDir, ".taskrc.yml")
+	configPath := filepath.Join(t.TempDir(), ".taskrc.yml")
 	err := os.WriteFile(configPath, fixtureFeatureMultiActive, 0o600)
 	assert.NoError(t, err)
 
@@ -2503,8 +2488,7 @@ func TestFeature_VersionSkipsConfigResolution(t *testing.T) {
 func TestFeature_ConfigFile_InactiveFlagRejection(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
-	configPath := filepath.Join(tempDir, ".taskrc.yml")
+	configPath := filepath.Join(t.TempDir(), ".taskrc.yml")
 	err := os.WriteFile(configPath, fixtureFeatureInactiveFlag, 0o600)
 	assert.NoError(t, err)
 
@@ -2554,8 +2538,7 @@ func (s *featureScopedConfigSubcommand) Run(ctx context.Context, session *conga.
 func TestFeature_ConfigFile_InactiveScopedFlagRejection(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
-	configPath := filepath.Join(tempDir, ".taskrc.yml")
+	configPath := filepath.Join(t.TempDir(), ".taskrc.yml")
 	err := os.WriteFile(configPath, fixtureFeatureScopedFlag, 0o600)
 	assert.NoError(t, err)
 
@@ -2578,8 +2561,7 @@ func TestFeature_ConfigFile_InactiveScopedFlagRejection(t *testing.T) {
 func TestFeature_ConfigFile_InactiveSubcommandSubtreeRejection(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
-	configPath := filepath.Join(tempDir, ".taskrc.yml")
+	configPath := filepath.Join(t.TempDir(), ".taskrc.yml")
 	err := os.WriteFile(configPath, fixtureFeaturePrunedSubtree, 0o600)
 	assert.NoError(t, err)
 
@@ -2602,8 +2584,7 @@ func TestFeature_ConfigFile_InactiveSubcommandSubtreeRejection(t *testing.T) {
 func TestFeature_ConfigFile_ScopedFlagBindsWhenActive(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
-	configPath := filepath.Join(tempDir, ".taskrc.yml")
+	configPath := filepath.Join(t.TempDir(), ".taskrc.yml")
 	err := os.WriteFile(configPath, fixtureFeatureScopedFlag, 0o600)
 	assert.NoError(t, err)
 
@@ -2657,8 +2638,7 @@ func (s *featureScopedKeyAdminSubcommand) Run(ctx context.Context, session *cong
 func TestFeature_ConfigFile_PrunedSubcommandBareKey(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
-	configPath := filepath.Join(tempDir, ".taskrc.yml")
+	configPath := filepath.Join(t.TempDir(), ".taskrc.yml")
 	err := os.WriteFile(configPath, fixtureFeatureScopedKey, 0o600)
 	assert.NoError(t, err)
 
@@ -2712,8 +2692,7 @@ func (s *featureSharedConfigKeyAdmin) Run(ctx context.Context, session *conga.Se
 func TestFeature_ConfigFile_PrunedSubcommandBareConfigKeyNotClaimed(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
-	configPath := filepath.Join(tempDir, ".taskrc.yml")
+	configPath := filepath.Join(t.TempDir(), ".taskrc.yml")
 	err := os.WriteFile(configPath, fixtureFeatureSiblingConfigKey, 0o600)
 	assert.NoError(t, err)
 
@@ -2740,8 +2719,7 @@ func TestFeature_ConfigFile_PrunedSubcommandBareConfigKeyNotClaimed(t *testing.T
 func TestFeature_ConfigFile_PrunedSubcommandScopedConfigKeyRejection(t *testing.T) {
 	t.Parallel()
 
-	tempDir := t.TempDir()
-	configPath := filepath.Join(tempDir, ".taskrc.yml")
+	configPath := filepath.Join(t.TempDir(), ".taskrc.yml")
 	err := os.WriteFile(configPath, fixtureFeatureScopedConfigKey, 0o600)
 	assert.NoError(t, err)
 

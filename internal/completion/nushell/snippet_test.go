@@ -26,9 +26,7 @@ func TestSnippet_GlobalExternalCompleter(t *testing.T) {
 func TestSnippet_SetsSidebandShellVariable(t *testing.T) {
 	t.Parallel()
 
-	script := nushell.Snippet("myapp", nil)
-
-	assert.Contains(t, script, "load-env { CONGA_SHELL: 'nushell' }")
+	assert.Contains(t, nushell.Snippet("myapp", nil), "load-env { CONGA_SHELL: 'nushell' }")
 }
 
 func TestSnippet_DefensiveConfigMerge(t *testing.T) {
@@ -47,10 +45,8 @@ func TestSnippet_DefensiveConfigMerge(t *testing.T) {
 func TestSnippet_ValidatesSpanCount(t *testing.T) {
 	t.Parallel()
 
-	script := nushell.Snippet("myapp", nil)
-
 	// Defensive guard: check span count before indexing
-	assert.Contains(t, script, "if ($spans | length) > 0 {")
+	assert.Contains(t, nushell.Snippet("myapp", nil), "if ($spans | length) > 0 {")
 }
 
 func TestSnippet_ErrorHandlingViaTryCatch(t *testing.T) {

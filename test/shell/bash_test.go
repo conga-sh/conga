@@ -55,9 +55,13 @@ func TestBash_Flags(t *testing.T) {
 	assert.True(t, result.HasItem("--help"))
 	assert.False(t, result.HasItem("--version"))
 
-	logsResult := workspace.RunBashCompletion(t, "cloudctl", "cloudctl logs --")
+	t.Run("logs flags", func(t *testing.T) {
+		t.Parallel()
 
-	assert.True(t, logsResult.HasItem("--labels"))
+		logsResult := workspace.RunBashCompletion(t, "cloudctl", "cloudctl logs --")
+
+		assert.True(t, logsResult.HasItem("--labels"))
+	})
 }
 
 func TestBash_NegatableFlags(t *testing.T) {
@@ -754,12 +758,10 @@ func TestBash_DomainFilesystemTypes(t *testing.T) {
 
 	workspace := setupDomainTypes(t)
 
-	sampleFile := filepath.Join(workspace.WorkDir, "sample.txt")
-	err := os.WriteFile(sampleFile, []byte("data"), 0o600)
+	err := os.WriteFile(filepath.Join(workspace.WorkDir, "sample.txt"), []byte("data"), 0o600)
 	assert.NoError(t, err)
 
-	outputDir := filepath.Join(workspace.WorkDir, "output_dir")
-	err = os.Mkdir(outputDir, 0o700)
+	err = os.Mkdir(filepath.Join(workspace.WorkDir, "output_dir"), 0o700)
 	assert.NoError(t, err)
 
 	t.Run("input file completion", func(t *testing.T) {

@@ -17,10 +17,8 @@ func Executables() Predictor {
 }
 
 func actionExecutables(ctx Context) Predictor {
-	items := scanExecutables(ctx)
-
 	return Predictor{
-		items:     items,
+		items:     scanExecutables(ctx),
 		directive: DirectiveNoFileCompletion,
 	}
 }
@@ -125,16 +123,14 @@ func scanExecutables(ctx Context) []Item {
 		return nil
 	}
 
-	dirs := filepath.SplitList(pathEnv)
 	seen := make(map[string]bool)
 
 	var items []Item
 
 	pathExtensions := windowsPathExts(ctx)
 
-	for _, dir := range dirs {
-		dirItems := scanPathDir(dir, toComplete, seen, pathExtensions)
-		items = append(items, dirItems...)
+	for _, dir := range filepath.SplitList(pathEnv) {
+		items = append(items, scanPathDir(dir, toComplete, seen, pathExtensions)...)
 	}
 
 	return items

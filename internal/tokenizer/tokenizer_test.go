@@ -112,8 +112,7 @@ func TestTokenize_POSIXCompliance(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := tokenizer.Tokenize(testCase.args)
-			assert.Equal(t, testCase.expected, got)
+			assert.Equal(t, testCase.expected, tokenizer.Tokenize(testCase.args))
 		})
 	}
 }

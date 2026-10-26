@@ -38,8 +38,7 @@ func TestFiles_Extensions(t *testing.T) {
 	assert.NoError(t, os.Mkdir(filepath.Join(tmpDir, "build"), 0755))
 	assert.NoError(t, os.Mkdir(filepath.Join(tmpDir, "dist"), 0755))
 
-	pred := predict.Files("*.yaml", "*.yml")
-	result := pred.Invoke(predict.Context{Dir: tmpDir})
+	result := predict.Files("*.yaml", "*.yml").Invoke(predict.Context{Dir: tmpDir})
 
 	values := itemValues(result.Items)
 
@@ -74,8 +73,7 @@ func TestFiles_NoExtensions(t *testing.T) {
 	writeFile(t, filepath.Join(tmpDir, "readme.md"), []byte("# Readme"))
 	assert.NoError(t, os.Mkdir(filepath.Join(tmpDir, "build"), 0755))
 
-	pred := predict.Files()
-	result := pred.Invoke(predict.Context{Dir: tmpDir})
+	result := predict.Files().Invoke(predict.Context{Dir: tmpDir})
 
 	values := itemValues(result.Items)
 
@@ -92,8 +90,7 @@ func TestFiles_MultiDotExtension(t *testing.T) {
 	writeFile(t, filepath.Join(tmpDir, "app.yaml"), []byte("name: app"))
 	assert.NoError(t, os.Mkdir(filepath.Join(tmpDir, "src"), 0755))
 
-	pred := predict.Files("*.tar.gz")
-	result := pred.Invoke(predict.Context{Dir: tmpDir})
+	result := predict.Files("*.tar.gz").Invoke(predict.Context{Dir: tmpDir})
 
 	values := itemValues(result.Items)
 
@@ -108,12 +105,9 @@ func TestFiles_CaseInsensitivity(t *testing.T) {
 	tmpDir := t.TempDir()
 	writeFile(t, filepath.Join(tmpDir, "MANIFEST.YAML"), []byte("name: app"))
 
-	pred := predict.Files("*.yaml")
-	result := pred.Invoke(predict.Context{Dir: tmpDir})
+	result := predict.Files("*.yaml").Invoke(predict.Context{Dir: tmpDir})
 
-	values := itemValues(result.Items)
-
-	assert.True(t, slices.Contains(values, "MANIFEST.YAML"))
+	assert.True(t, slices.Contains(itemValues(result.Items), "MANIFEST.YAML"))
 }
 
 func TestDirs(t *testing.T) {
@@ -124,8 +118,7 @@ func TestDirs(t *testing.T) {
 	assert.NoError(t, os.Mkdir(filepath.Join(tmpDir, "build"), 0755))
 	assert.NoError(t, os.Mkdir(filepath.Join(tmpDir, "dist"), 0755))
 
-	pred := predict.Dirs()
-	result := pred.Invoke(predict.Context{Dir: tmpDir})
+	result := predict.Dirs().Invoke(predict.Context{Dir: tmpDir})
 
 	values := itemValues(result.Items)
 
@@ -303,10 +296,9 @@ func TestFiles_AbsolutePath(t *testing.T) {
 	tmpDir := t.TempDir()
 	writeFile(t, filepath.Join(tmpDir, "abs-test.yaml"), []byte("data"))
 
-	pred := predict.Files("*.yaml")
 	absPrefix := filepath.ToSlash(tmpDir) + "/"
 
-	result := pred.Invoke(predict.Context{
+	result := predict.Files("*.yaml").Invoke(predict.Context{
 		ToComplete: absPrefix,
 	})
 
@@ -385,8 +377,7 @@ func TestDirs_TildePath(t *testing.T) {
 func TestFiles_NonExistentDir(t *testing.T) {
 	t.Parallel()
 
-	pred := predict.Files("*.yaml")
-	result := pred.Invoke(predict.Context{
+	result := predict.Files("*.yaml").Invoke(predict.Context{
 		Dir: filepath.Join(t.TempDir(), "nonexistent", "subfolder"),
 	})
 
@@ -406,8 +397,7 @@ func TestFiles_Symlink(t *testing.T) {
 		t.Skip("symlinks not supported on this platform")
 	}
 
-	pred := predict.Files("*.yaml")
-	result := pred.Invoke(predict.Context{Dir: tmpDir})
+	result := predict.Files("*.yaml").Invoke(predict.Context{Dir: tmpDir})
 
 	values := itemValues(result.Items)
 	assert.True(t, slices.Contains(values, "symlink-dir/"), "expected directory symlink to have trailing slash")
@@ -587,8 +577,7 @@ func TestSymlinks(t *testing.T) {
 		t.Skip("symlinks not supported on this platform")
 	}
 
-	pred := predict.Symlinks()
-	result := pred.Invoke(predict.Context{Dir: tmpDir})
+	result := predict.Symlinks().Invoke(predict.Context{Dir: tmpDir})
 
 	values := itemValues(result.Items)
 
@@ -607,12 +596,10 @@ func TestSymlinks(t *testing.T) {
 func TestFileLines(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	shellsFile := filepath.Join(tmpDir, "shells")
+	shellsFile := filepath.Join(t.TempDir(), "shells")
 	writeFile(t, shellsFile, fixtureShells)
 
-	pred := predict.FileLines(shellsFile)
-	result := pred.Invoke(predict.Context{})
+	result := predict.FileLines(shellsFile).Invoke(predict.Context{})
 
 	values := itemValues(result.Items)
 
@@ -627,8 +614,7 @@ func TestFileContents(t *testing.T) {
 	t.Parallel()
 
 	tmpDir := t.TempDir()
-	dataFile := filepath.Join(tmpDir, "pairs.txt")
-	writeFile(t, dataFile, fixturePairs)
+	writeFile(t, filepath.Join(tmpDir, "pairs.txt"), fixturePairs)
 
 	pred := predict.FileContents("pairs.txt", func(content []byte) []predict.Item {
 		var items []predict.Item
@@ -645,6 +631,7 @@ func TestFileContents(t *testing.T) {
 
 		return items
 	})
+
 	result := pred.Invoke(predict.Context{Dir: tmpDir})
 
 	values := itemValues(result.Items)

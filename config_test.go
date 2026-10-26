@@ -156,8 +156,7 @@ func (m *MultiConfigFileTestCLI) Run(_ context.Context, session *conga.Session) 
 func TestConfig_UnregisteredDecoderRejection(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "config.customext")
+	cfgPath := filepath.Join(t.TempDir(), "config.customext")
 	err := os.WriteFile(cfgPath, []byte("port = 9000\n"), 0o600)
 	assert.NoError(t, err)
 
@@ -174,8 +173,7 @@ func TestConfig_UnregisteredDecoderRejection(t *testing.T) {
 func TestConfig_JSONDecoder(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "config.json")
+	cfgPath := filepath.Join(t.TempDir(), "config.json")
 	err := os.WriteFile(cfgPath, fixtureDecoderJSON, 0o600)
 	assert.NoError(t, err)
 
@@ -200,8 +198,7 @@ func TestConfig_JSONDecoder(t *testing.T) {
 func TestConfig_TOMLDecoder(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "config.toml")
+	cfgPath := filepath.Join(t.TempDir(), "config.toml")
 	err := os.WriteFile(cfgPath, fixtureDecoderTOML, 0o600)
 	assert.NoError(t, err)
 
@@ -226,8 +223,7 @@ func TestConfig_TOMLDecoder(t *testing.T) {
 func TestConfig_YAMLDecoder(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "config.yaml")
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
 	err := os.WriteFile(cfgPath, fixtureDecoderYAML, 0o600)
 	assert.NoError(t, err)
 
@@ -252,8 +248,7 @@ func TestConfig_YAMLDecoder(t *testing.T) {
 func TestConfig_HCLDecoder(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "config.hcl")
+	cfgPath := filepath.Join(t.TempDir(), "config.hcl")
 	err := os.WriteFile(cfgPath, fixtureDecoderHCL, 0o600)
 	assert.NoError(t, err)
 
@@ -278,8 +273,7 @@ func TestConfig_HCLDecoder(t *testing.T) {
 func TestConfig_StrictUnknownFieldRejection(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "config.toml")
+	cfgPath := filepath.Join(t.TempDir(), "config.toml")
 	err := os.WriteFile(cfgPath, fixtureUnknownField, 0o600)
 	assert.NoError(t, err)
 
@@ -297,8 +291,7 @@ func TestConfig_StrictUnknownFieldRejection(t *testing.T) {
 func TestConfig_ExcludedFieldRejection(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "config.toml")
+	cfgPath := filepath.Join(t.TempDir(), "config.toml")
 	err := os.WriteFile(cfgPath, fixtureExcludedField, 0o600)
 	assert.NoError(t, err)
 
@@ -316,8 +309,7 @@ func TestConfig_ExcludedFieldRejection(t *testing.T) {
 func TestConfig_NestedSubcommandTables(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "config.toml")
+	cfgPath := filepath.Join(t.TempDir(), "config.toml")
 	err := os.WriteFile(cfgPath, fixtureNestedSubcommands, 0o600)
 	assert.NoError(t, err)
 
@@ -340,8 +332,7 @@ func TestConfig_NestedSubcommandTables(t *testing.T) {
 func TestConfig_PreParsedFlag(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "dynamic.toml")
+	cfgPath := filepath.Join(t.TempDir(), "dynamic.toml")
 	err := os.WriteFile(cfgPath, fixturePreparsed, 0o600)
 	assert.NoError(t, err)
 
@@ -756,8 +747,7 @@ type NamespacedMapCLI struct {
 func TestConfig_NamespacedMapFlagBinding(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "remote.yaml")
+	cfgPath := filepath.Join(t.TempDir(), "remote.yaml")
 	err := os.WriteFile(cfgPath, fixtureNestedNamespaceMap, 0o600)
 	assert.NoError(t, err)
 
@@ -780,8 +770,7 @@ func TestConfig_NamespacedMapFlagBinding(t *testing.T) {
 func TestConfig_NamespacedMapFlagCascadingMerge(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	sysCfg := filepath.Join(tmpDir, "remote.yaml")
+	sysCfg := filepath.Join(t.TempDir(), "remote.yaml")
 	err := os.WriteFile(sysCfg, fixtureNestedNamespaceMap, 0o600)
 	assert.NoError(t, err)
 
@@ -860,8 +849,7 @@ func (n *NamespacedFlagAliasCLI) Run(_ context.Context, _ *conga.Session) error 
 func TestConfig_NamespacedFlagAlias(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "app.json")
+	cfgPath := filepath.Join(t.TempDir(), "app.json")
 	err := os.WriteFile(cfgPath, []byte(`{"network": {"listen-port": 8888}}`), 0o600)
 	assert.NoError(t, err)
 
@@ -986,8 +974,7 @@ func TestConfig_MultiFormatConflict_Directory(t *testing.T) {
 func TestConfig_MultiFormatConflict_Stem(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	cfgStem := filepath.Join(tmpDir, "config")
+	cfgStem := filepath.Join(t.TempDir(), "config")
 
 	err := os.WriteFile(cfgStem+".toml", []byte("port = 9500\n"), 0o600)
 	assert.NoError(t, err)
@@ -1023,8 +1010,7 @@ func (n *NativeMapEnvCmd) Run(_ context.Context, _ *conga.Session) error { retur
 func TestConfig_NativeMap_TOML(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "config.toml")
+	cfgPath := filepath.Join(t.TempDir(), "config.toml")
 	err := os.WriteFile(cfgPath, fixtureNativeMapTOML, 0o600)
 	assert.NoError(t, err)
 
@@ -1050,8 +1036,7 @@ func TestConfig_NativeMap_TOML(t *testing.T) {
 func TestConfig_NativeMap_YAML(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "config.yaml")
+	cfgPath := filepath.Join(t.TempDir(), "config.yaml")
 	err := os.WriteFile(cfgPath, fixtureNativeMapYAML, 0o600)
 	assert.NoError(t, err)
 
@@ -1077,8 +1062,7 @@ func TestConfig_NativeMap_YAML(t *testing.T) {
 func TestConfig_NativeMap_JSON(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "config.json")
+	cfgPath := filepath.Join(t.TempDir(), "config.json")
 	err := os.WriteFile(cfgPath, fixtureNativeMapJSON, 0o600)
 	assert.NoError(t, err)
 
@@ -1104,8 +1088,7 @@ func TestConfig_NativeMap_JSON(t *testing.T) {
 func TestConfig_NativeMap_HCL(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "config.hcl")
+	cfgPath := filepath.Join(t.TempDir(), "config.hcl")
 	err := os.WriteFile(cfgPath, fixtureNativeMapHCL, 0o600)
 	assert.NoError(t, err)
 
@@ -1148,8 +1131,7 @@ func (n *NestedNativeMapEnvCmd) Run(_ context.Context, _ *conga.Session) error {
 func TestConfig_NestedNativeMap_TOML(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "config.toml")
+	cfgPath := filepath.Join(t.TempDir(), "config.toml")
 	err := os.WriteFile(cfgPath, fixtureNestedNativeMap, 0o600)
 	assert.NoError(t, err)
 
@@ -1175,8 +1157,7 @@ func TestConfig_NestedNativeMap_TOML(t *testing.T) {
 func TestConfig_FileSizeLimitExceeded(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "large.json")
+	cfgPath := filepath.Join(t.TempDir(), "large.json")
 
 	f, err := os.Create(cfgPath)
 	assert.NoError(t, err)
@@ -1202,8 +1183,7 @@ func TestConfig_FileSizeLimitExceeded(t *testing.T) {
 }
 
 func TestConfig_MultipleEnvVarsForConfigFile(t *testing.T) {
-	tmpDir := t.TempDir()
-	cfgPath := filepath.Join(tmpDir, "config.json")
+	cfgPath := filepath.Join(t.TempDir(), "config.json")
 	err := os.WriteFile(cfgPath, []byte(`{"host":"remote"}`), 0o600)
 	assert.NoError(t, err)
 
@@ -1263,8 +1243,7 @@ func TestConfig_NestedSubcommandPrefixing(t *testing.T) {
 
 		assert.NoError(t, err)
 
-		clusterCmd := cli.Cluster.Get()
-		nodeCmd := clusterCmd.Node.Get()
+		nodeCmd := cli.Cluster.Get().Node.Get()
 		assert.Equal(t, "us-east-1", nodeCmd.Zone.Get())
 		assert.Equal(t, conga.SourceConfig, nodeCmd.Zone.Source())
 	})
@@ -1407,8 +1386,7 @@ func TestConfig_DefaultXDGTierInactiveWithoutDecoder(t *testing.T) {
 }
 
 func TestConfig_DefaultXDGTierMissingDirectoryIsSilent(t *testing.T) {
-	tmpDir := t.TempDir()
-	t.Setenv("XDG_CONFIG_HOME", tmpDir)
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
 
 	cli := new(MultiFormatServerCLI)
 	app := conga.New(cli).

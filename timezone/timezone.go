@@ -70,9 +70,7 @@ func Timezones() predict.Predictor {
 }
 
 func actionTimezones(ctx predict.Context) predict.Predictor {
-	items := scanTimezones(ctx)
-
-	return predict.Items(items...)
+	return predict.Items(scanTimezones(ctx)...)
 }
 
 func fallbackTimezones() []predict.Item {
@@ -140,9 +138,7 @@ func scanTimezones(ctx predict.Context) []predict.Item {
 }
 
 func scanZoneTabFiles(ctx predict.Context) []predict.Item {
-	searchPaths := zoneinfoSearchPaths(ctx)
-
-	for _, baseDir := range searchPaths {
+	for _, baseDir := range zoneinfoSearchPaths(ctx) {
 		for _, tabName := range []string{"zone1970.tab", "zone.tab"} {
 			filePath := filepath.Join(baseDir, tabName)
 
@@ -164,9 +160,7 @@ func scanZoneTabFiles(ctx predict.Context) []predict.Item {
 }
 
 func scanZoneinfoDirs(ctx predict.Context) []predict.Item {
-	searchPaths := zoneinfoSearchPaths(ctx)
-
-	for _, baseDir := range searchPaths {
+	for _, baseDir := range zoneinfoSearchPaths(ctx) {
 		if items := scanZoneinfoDir(baseDir); len(items) > 0 {
 			return items
 		}

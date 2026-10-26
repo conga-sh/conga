@@ -439,9 +439,7 @@ func TestDomainTypes(t *testing.T) {
 			{Name: "glob", Kind: conga.TagKindString, Excludes: []string{"executable", "symlink"}},
 		}, fileSpecs)
 
-		dirSpecs := dir.TagSpecs()
-
-		assert.Equal(t, []conga.TagSpec{{Name: "existing", Kind: conga.TagKindBool}}, dirSpecs)
+		assert.Equal(t, []conga.TagSpec{{Name: "existing", Kind: conga.TagKindBool}}, dir.TagSpecs())
 	})
 
 	t.Run("zero value on domain types", func(t *testing.T) {
@@ -700,8 +698,7 @@ func TestFileExecutableTagValidateNotExecutable(t *testing.T) {
 		t.Skip("execute-bit check is not enforced on Windows")
 	}
 
-	tmpDir := t.TempDir()
-	progPath := filepath.Join(tmpDir, "prog")
+	progPath := filepath.Join(t.TempDir(), "prog")
 	assert.NoError(t, os.WriteFile(progPath, []byte("#!/bin/sh\n"), 0o644))
 
 	decodeContext := conga.DecodeContext{Tags: conga.FieldTags{"executable": "true"}}
@@ -1109,8 +1106,7 @@ func TestFileContent(t *testing.T) {
 func TestFileContentSizeLimit(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	largeFile := filepath.Join(tmpDir, "large.txt")
+	largeFile := filepath.Join(t.TempDir(), "large.txt")
 	file, err := os.Create(largeFile)
 	assert.NoError(t, err)
 
@@ -1358,11 +1354,8 @@ func TestFileTypesEndToEnd(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "cli payload", cli.Content.Get().String())
 	assert.Equal(t, []byte("cli payload"), cli.Content.Get().Bytes())
-	inputFile := cli.Input.Get()
-	outputFile := cli.Output.Get()
-
-	assert.Equal(t, inputPath, inputFile.String())
-	assert.Equal(t, outputPath, outputFile.String())
+	assert.Equal(t, inputPath, cli.Input.Get().String())
+	assert.Equal(t, outputPath, cli.Output.Get().String())
 }
 
 func TestContainer_Flag_Source(t *testing.T) {
@@ -1484,8 +1477,7 @@ func TestIssue22DomainTypeValueStringer(t *testing.T) {
 	t.Run("FileContent value Stringer output", func(t *testing.T) {
 		t.Parallel()
 
-		contentValue := contentFlag.Get()
-		assert.Equal(t, "payload-data", fmt.Sprintf("%v", contentValue))
+		assert.Equal(t, "payload-data", fmt.Sprintf("%v", contentFlag.Get()))
 		assert.Equal(t, "payload-data", contentFlag.Get().String())
 		assert.Equal(t, []byte("payload-data"), contentFlag.Get().Bytes())
 	})
@@ -1599,9 +1591,7 @@ func TestDomainTypesJSONSerializationRoundtrip(t *testing.T) {
 	assert.Equal(t, initial.Memory.Bytes(), decoded.Memory.Bytes())
 
 	// FileContent: Marshal outputs text rather than base64; Unmarshal loads file path from JSON
-	content := conga.FileContent("inline payload")
-
-	encodedContent, err := json.Marshal(content)
+	encodedContent, err := json.Marshal(conga.FileContent("inline payload"))
 	assert.NoError(t, err)
 	assert.Equal(t, `"inline payload"`, string(encodedContent))
 

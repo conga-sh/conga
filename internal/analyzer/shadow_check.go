@@ -56,8 +56,7 @@ func (w *walker) checkAndCollectSynthesizedFlag(node *commandNode, fieldObject t
 }
 
 func splitAliases(tag reflect.StructTag) []string {
-	aliasesTag := tag.Get("aliases")
-	if aliasesTag == "" {
+	if tag.Get("aliases") == "" {
 		return nil
 	}
 
