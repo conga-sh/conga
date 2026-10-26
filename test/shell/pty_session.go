@@ -94,6 +94,11 @@ func (s *PtySession) PressEnter() {
 	s.tmux("send-keys", "-t", s.sessionName, "Enter")
 }
 
+// CtrlC sends an interrupt keystroke, aborting an open completion menu.
+func (s *PtySession) CtrlC() {
+	s.tmux("send-keys", "-t", s.sessionName, "C-c")
+}
+
 // Capture waits for the terminal to settle, then returns the visible screen,
 // its escape-sequence form, and the cursor position.
 func (s *PtySession) Capture() *PtyResult {

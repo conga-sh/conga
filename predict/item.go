@@ -20,6 +20,13 @@ type Item struct {
 	// Tag is the optional grouping tag (e.g. commands, flags) used by
 	// tag-aware shells to group candidates in the menu.
 	Tag string
+
+	// Alias marks the candidate as an alternative spelling of another
+	// candidate: a subcommand or flag alias declared on the command schema, or
+	// a domain alias (such as a taskfile task alias) supplied by a predictor.
+	// Aliases are offered by default and can be suppressed by the user with
+	// the completion aliases sideband (CONGA_COMPLETION_ALIASES).
+	Alias bool
 }
 
 // NewItem constructs a new Item candidate with the given value and description.
@@ -29,6 +36,16 @@ func NewItem(value, description string) Item {
 		Display:     value,
 		Description: description,
 	}
+}
+
+// WithAlias returns a copy of the Item marked as an alias of another
+// candidate. Predictors completing domain aliases (for example taskfile task
+// aliases) use this so the user can suppress them with the completion aliases
+// sideband.
+func (i Item) WithAlias() Item {
+	i.Alias = true
+
+	return i
 }
 
 // WithDescription returns a copy of the Item with the specified description.

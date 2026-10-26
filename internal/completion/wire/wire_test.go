@@ -52,6 +52,49 @@ func TestFromResultCopiesFieldsVerbatimInEngineOrder(t *testing.T) {
 	}, candidates)
 }
 
+func TestFromResultSuppressesAliasCandidates(t *testing.T) {
+	t.Setenv(wire.EnvAliases, "0")
+
+	result := predict.Result{Items: []predict.Item{
+		{Value: "deploy", Display: "deploy", Description: "Deploy service"},
+		{Value: "d", Display: "d", Description: "Deploy service", Alias: true},
+	}}
+
+	candidates, _ := wire.FromResult(result)
+
+	assert.Equal(t, []wire.Candidate{
+		{Value: "deploy", Display: "deploy", Description: "Deploy service"},
+	}, candidates)
+}
+
+func TestFromResultKeepsAliasCandidatesMarked(t *testing.T) {
+	t.Setenv(wire.EnvAliases, "1")
+
+	result := predict.Result{Items: []predict.Item{
+		{Value: "deploy", Display: "deploy"},
+		{Value: "d", Display: "d", Alias: true},
+	}}
+
+	candidates, _ := wire.FromResult(result)
+
+	assert.Equal(t, []wire.Candidate{
+		{Value: "deploy", Display: "deploy"},
+		{Value: "d", Display: "d", Alias: true},
+	}, candidates)
+}
+
+func TestFromResultSuppressesDescriptions(t *testing.T) {
+	t.Setenv(wire.EnvDescriptions, "0")
+
+	result := predict.Result{Items: []predict.Item{
+		{Value: "deploy", Display: "deploy", Description: "Deploy service"},
+	}}
+
+	candidates, _ := wire.FromResult(result)
+
+	assert.Equal(t, []wire.Candidate{{Value: "deploy", Display: "deploy"}}, candidates)
+}
+
 func TestFromResultNoSpaceDirectiveSetsWildcard(t *testing.T) {
 	t.Parallel()
 

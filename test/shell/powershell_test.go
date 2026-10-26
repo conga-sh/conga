@@ -249,6 +249,39 @@ func TestPowerShell_SubcommandAlias(t *testing.T) {
 	assert.True(t, result.HasItem("--dry-run"))
 }
 
+func TestPowerShell_AliasAndDescriptionSidebands(t *testing.T) {
+	t.Parallel()
+
+	workspace := setupCloudctl(t)
+
+	t.Run("aliases shown by default", func(t *testing.T) {
+		t.Parallel()
+
+		result := workspace.RunPowerShellCompletion(t, "cloudctl", "cloudctl ")
+
+		assert.True(t, result.HasItem("deploy"))
+		assert.True(t, result.HasItem("d"))
+	})
+
+	t.Run("aliases suppressed", func(t *testing.T) {
+		t.Parallel()
+
+		result := workspace.RunPowerShellCompletion(t, "cloudctl", "cloudctl ", "CONGA_COMPLETION_ALIASES=0")
+
+		assert.True(t, result.HasItem("deploy"))
+		assert.False(t, result.HasItem("d"))
+	})
+
+	t.Run("descriptions suppressed", func(t *testing.T) {
+		t.Parallel()
+
+		result := workspace.RunPowerShellCompletion(t, "cloudctl", "cloudctl ", "CONGA_COMPLETION_DESCRIPTIONS=0")
+
+		_, ok := result.ItemToolTip("deploy")
+		assert.False(t, ok)
+	})
+}
+
 func TestPowerShell_NegatableFlags(t *testing.T) {
 	t.Parallel()
 

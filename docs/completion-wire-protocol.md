@@ -63,6 +63,8 @@ Set and exported by the bash snippet itself, consumed by the driver:
 | Variable | Meaning | Default |
 |---|---|---|
 | `CONGA_SHELL` | Forces the target shell, overriding detection | *(unset)* |
+| `CONGA_COMPLETION_ALIASES` | Shows (`1`/`true`) or suppresses (`0`/`false`) alias candidates; unset or unparseable shows them. Aliases are subcommand/flag aliases declared on the schema and predictor-supplied domain aliases marked with `predict.Item.Alias` | shown |
+| `CONGA_COMPLETION_DESCRIPTIONS` | Shows (`1`/`true`) or suppresses (`0`/`false`) candidate descriptions in every framing; unset or unparseable shows them | shown |
 | `CONGA_MERGE_FLAGS` | Merges `longhand flags`/`shorthand flags` tags into `flags` (zsh grouping); `true`/`false` | `true` for zsh, unset elsewhere |
 | `CONGA_DESCRIPTION_LENGTH` | Maximum description length (runes) for fish/powershell clamping | `80` |
 | `CONGA_TOOLTIP` | Enables tooltip-style description rendering (powershell) | off |
@@ -116,7 +118,7 @@ Single-line JSON object, no trailing newline:
 }
 ```
 
-- Candidate fields `value` and `display` are always present; `description`, `style`, `tag` are omitted when empty. Array order is engine order.
+- Candidate fields `value` and `display` are always present; `description`, `style`, `tag` are omitted when empty; `alias` is present only for alias candidates (`"alias":true`). Array order is engine order.
 - `directives` is always complete: the three booleans and the `messages` array (possibly empty).
 - `usage` is always present (empty string when none).
 - Strings are escaped per RFC 8259 by the zero-dependency escaper (`encoding/json` is restricted by the linker-friendly dependency boundaries). Control characters use `\u00XX`; the exact minimal-escape set is defined by the escaper's tests.
@@ -160,7 +162,7 @@ D\x1f<tok[,tok...]>\x1f<usage>
   - `description` (may be empty; never clamped — zsh manages its own list truncation)
   - `value` (the value to insert into the buffer): framing characters sanitized, zsh metacharacters backslash-escaped — the set `"`, `'`, `\`, `$`, backtick, `|`, `&`, `;`, `<`, `>`, `(`, `)`, `[`, `]`, `{`, `}`, `*`, `?`, `!`, `^`, `#`, `:`, and space — while `=`, `/`, and a leading `~` stay verbatim so attached values, directory candidates, and tilde expansion survive; a trailing space is embedded unless the `nospace` directive is set or the value ends with `=` or `/`. Colon is escaped because `_describe` treats it as the value/description separator.
   - `sgr` (ECMA-48 parameter numbers of the candidate's style; empty when unstyled or color is disabled — informational, list coloring flows through the `L` zstyle)
-- Snippet mapping: `noprefix` in the `D` tokens sets `compstate[insert]=''` (values are complete replacements); the `L` spec is forwarded verbatim; `zstyle ":completion:${curcontext}:*" group-name ''` is always set; `M` lines go to `_message -r`. Candidates are grouped by non-empty `tag` into one `_describe -t <tag> "<tag>" displaysArr valuesArr -Q -S ''` call per tag (any candidate count); elements of `displaysArr` are formatted `<display>:<description>` when the description is non-empty, with embedded colons escaped as `\:`; untagged candidates fall through to `compadd -Q -S '' -a valuesArr`. The words before the one being completed are passed `${(Q)}`-unquoted and the last word raw, so no CLI-side quote re-lexing happens (§3).
+- Snippet mapping: `noprefix` in the `D` tokens sets `compstate[insert]=''` (values are complete replacements); the `L` spec is forwarded verbatim **unless the user configured a non-empty `list-colors`**; `zstyle ":completion:${curcontext}:*" group-name ''` is set **only when the user has not configured a non-empty `group-name`**; `M` lines go to `_message -r`. Probe-before-set hygiene: the snippet first deletes only its own prior definitions (`zstyle -d` matches the pattern literally, never user styles) and then inspects the user's styles for the current context (`zstyle -a ":completion:${curcontext}:"`). An empty style value (for `list-colors`, Oh-My-Zsh's default) counts as "not configured", so engine defaults still apply. Suppression sidebands: the snippet reads the `verbose` and `show-aliases` zstyles (`zstyle -T`, true when unset; `show-aliases` is the go-task convention) and passes `CONGA_COMPLETION_DESCRIPTIONS=0` / `CONGA_COMPLETION_ALIASES=0` inline to the `__complete` invocation only, never exporting them into the user's shell. Candidates are grouped by non-empty `tag` into one `_describe -t <tag> "<tag>" displaysArr valuesArr -Q -S ''` call per tag (any candidate count); elements of `displaysArr` are formatted `<display>:<description>` when the description is non-empty, with embedded colons escaped as `\:`; untagged candidates fall through to `compadd -Q -S '' -a valuesArr`. The words before the one being completed are passed `${(Q)}`-unquoted and the last word raw, so no CLI-side quote re-lexing happens (§3).
 - Flag tag merging (§4.2) happens driver-side before framing: with merging active (default-on for zsh), `shorthand flags` and `longhand flags` candidates are re-tagged `flags`.
 
 ### 7.4 `fish` — native `complete` feed
@@ -228,7 +230,7 @@ Each driver must satisfy specific behavioral requirements across target environm
 4. **powershell** — `Register-ArgumentCompleter -Native` registration (including `.exe` handling on Windows); tooltip mode; color-disable mode; suppression of the default file completion.
 5. **elvish** — terminal display purity (no unmanaged stdout/notify pollution or prompt displacement); styled complex-candidate rendering with description suffix; `codeSuffix`-based nospace; no patching (elvish tokenizes itself and does its own prefix filtering).
 6. **nushell** — insertion-ready pre-quoted values (metacharacter quoting, `~`-outside-quotes rule); trailing-space-in-value nospace; defensive global external-completer registration that preserves a user's existing completer; dequoting `Patch` seam for raw spans.
-7. **Engine** — flat-shell bare-space flag suppression; tag vocabulary (`commands`, `longhand flags`, `shorthand flags`, `values`, `arguments`); negatable `--no-*` candidates; map key dedup; deprecated/hidden filtering; single-command `completion` gating.
+7. **Engine** — flat-shell bare-space flag suppression; tag vocabulary (`commands`, `longhand flags`, `shorthand flags`, `values`, `arguments`); negatable `--no-*` candidates; map key dedup; deprecated/hidden filtering; single-command `completion` gating; alias and description suppression through the `CONGA_COMPLETION_ALIASES`/`CONGA_COMPLETION_DESCRIPTIONS` sidebands applied once before framing.
 
 ## 9. Conformance corpus
 

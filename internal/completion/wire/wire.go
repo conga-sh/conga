@@ -31,6 +31,9 @@ type Candidate struct {
 	Style string
 	// Tag is the optional grouping tag (e.g. "commands", "longhand flags").
 	Tag string
+	// Alias reports that the candidate is an alternative spelling of another
+	// candidate (a subcommand/flag alias or a predictor-supplied domain alias).
+	Alias bool
 }
 
 // TrimmedDescription returns the description clamped for shells with a
@@ -153,17 +156,35 @@ func ClampDescription(description string, maxLength int) string {
 
 // FromResult translates an engine result into the wire vocabulary: candidates
 // in engine order with the display defaulting to the value, and directives
-// derived from the engine's directive bits. The result's file-completion
-// fallback list is engine-internal and is not carried onto the wire.
+// derived from the engine's directive bits. Alias candidates are dropped when
+// CONGA_COMPLETION_ALIASES disables them, and descriptions are blanked when
+// CONGA_COMPLETION_DESCRIPTIONS disables them, so every framing observes the
+// same suppressed stream. The result's file-completion fallback list is
+// engine-internal and is not carried onto the wire.
 func FromResult(result predict.Result) ([]Candidate, Directives) {
-	candidates := slicex.Map(result.Items, func(item predict.Item) Candidate {
-		return Candidate{
-			Value:       item.Value,
-			Display:     cmp.Or(item.Display, item.Value),
-			Description: item.Description,
-			Style:       item.Style,
-			Tag:         item.Tag,
+	items := result.Items
+	descriptions := DescriptionsEnabled()
+
+	if !AliasesEnabled() {
+		items = slicex.Filter(items, func(item predict.Item) bool {
+			return !item.Alias
+		})
+	}
+
+	candidates := slicex.Map(items, func(item predict.Item) Candidate {
+		candidate := Candidate{
+			Value:   item.Value,
+			Display: cmp.Or(item.Display, item.Value),
+			Style:   item.Style,
+			Tag:     item.Tag,
+			Alias:   item.Alias,
 		}
+
+		if descriptions {
+			candidate.Description = item.Description
+		}
+
+		return candidate
 	})
 
 	directives := Directives{

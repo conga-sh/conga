@@ -37,6 +37,23 @@ func TestFormat_PlainResult(t *testing.T) {
 		output)
 }
 
+func TestFormat_AliasField(t *testing.T) {
+	t.Parallel()
+
+	directives := wire.Directives{}
+	candidates := []wire.Candidate{
+		{Value: "build", Display: "build"},
+		{Value: "b", Display: "b", Alias: true},
+	}
+
+	output := export.Format("", directives, candidates)
+
+	assert.Equal(t,
+		`{"candidates":[{"value":"build","display":"build"},{"value":"b","display":"b","alias":true}],`+
+			`"directives":{"keeporder":false,"messages":[],"noprefix":false,"nospace":false},"usage":""}`,
+		output)
+}
+
 func TestFormat_DisplayAlwaysPresent(t *testing.T) {
 	t.Parallel()
 
