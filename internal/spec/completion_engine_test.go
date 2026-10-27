@@ -173,7 +173,7 @@ func (m *ModernCmd) Run(ctx context.Context) error { return nil }
 func TestCompletion_Subcommands(t *testing.T) {
 	t.Parallel()
 
-	t.Run("suggests all non-hidden subcommands and flags on empty input", func(t *testing.T) {
+	t.Run("suggests all non-hidden subcommands on empty input", func(t *testing.T) {
 		t.Parallel()
 
 		var cli SubcommandTestCLI
@@ -185,7 +185,7 @@ func TestCompletion_Subcommands(t *testing.T) {
 
 		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
 
-		assert.Equal(t, []string{"deploy", "d", "status", "--help", "--version", "--why"}, values)
+		assert.Equal(t, []string{"deploy", "d", "status"}, values)
 	})
 
 	t.Run("filters subcommands by prefix", func(t *testing.T) {
@@ -217,6 +217,40 @@ func TestCompletion_Subcommands(t *testing.T) {
 
 		assert.Equal(t, []string{"--env", "--help", "--why"}, values)
 	})
+}
+
+func TestCompletion_BareSpaceFlagSuppression(t *testing.T) {
+	t.Parallel()
+
+	t.Run("command without subcommands or arguments keeps flags at a bare space", func(t *testing.T) {
+		t.Parallel()
+
+		var cli FlagsTestCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{""}, spec.CompleteOptions{})
+
+		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
+		assert.Equal(t, []string{"--port", "--p", "--debug", "--no-debug", "--format", "--tags", "--verbose", "--help", "--version", "--why", "--completion", "-p", "-d", "-v"}, values)
+	})
+}
+
+func TestCompletion_BareSpaceFlagsSideband(t *testing.T) {
+	var cli SubcommandTestCLI
+
+	cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+	assert.NoError(t, err)
+
+	cmdSpec.CompletionEnvPrefix = "APP_"
+
+	t.Setenv("APP_COMPLETION_BARE_SPACE_FLAGS", "1")
+
+	invoked := spec.Complete(cmdSpec, []string{""}, spec.CompleteOptions{})
+
+	values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
+	assert.Equal(t, []string{"deploy", "d", "status", "--help", "--version", "--why"}, values)
 }
 
 func TestCompletion_FlagNames(t *testing.T) {
@@ -577,7 +611,7 @@ func TestCompletion_DeprecatedFiltering(t *testing.T) {
 
 		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
 
-		assert.Equal(t, []string{"new", "--modern", "--help", "--version", "--why"}, values)
+		assert.Equal(t, []string{"new"}, values)
 	})
 
 	t.Run("deprecated grouped subcommand does not skew sibling tags", func(t *testing.T) {
@@ -592,7 +626,7 @@ func TestCompletion_DeprecatedFiltering(t *testing.T) {
 
 		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
 
-		assert.Equal(t, []string{"modern", "--help", "--version", "--why"}, values)
+		assert.Equal(t, []string{"modern"}, values)
 
 		for _, item := range invoked.Items {
 			if item.Value == "modern" {
@@ -849,7 +883,7 @@ func TestCompletion_FlagValues(t *testing.T) {
 func TestCompletion_PositionalArguments(t *testing.T) {
 	t.Parallel()
 
-	t.Run("completes first positional argument from enum and flags", func(t *testing.T) {
+	t.Run("completes first positional argument from enum", func(t *testing.T) {
 		t.Parallel()
 
 		var cli PositionalArgsCLI
@@ -861,7 +895,7 @@ func TestCompletion_PositionalArguments(t *testing.T) {
 
 		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
 
-		assert.Equal(t, []string{"staging", "production", "--help", "--version", "--why", "--completion"}, values)
+		assert.Equal(t, []string{"staging", "production"}, values)
 	})
 
 	t.Run("completes second positional argument with directory predictor", func(t *testing.T) {
@@ -908,7 +942,7 @@ func TestCompletion_PositionalArguments(t *testing.T) {
 		assert.False(t, slices.Contains(values, "data.txt"))
 	})
 
-	t.Run("completes unconstrained positional argument with active help hint and flags", func(t *testing.T) {
+	t.Run("completes unconstrained positional argument with active help hint", func(t *testing.T) {
 		t.Parallel()
 
 		type FreeArgCLI struct {
@@ -924,11 +958,7 @@ func TestCompletion_PositionalArguments(t *testing.T) {
 		invoked := spec.Complete(cmdSpec, []string{""}, spec.CompleteOptions{})
 
 		assert.Equal(t, "<service>: Service name to deploy", invoked.Usage)
-		assert.True(t, len(invoked.Items) > 0)
-
-		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
-
-		assert.Equal(t, []string{"--env", "--help", "--version", "--why", "--completion", "-e"}, values)
+		assert.Zero(t, invoked.Items)
 	})
 
 	t.Run("completes subcommand positional argument evaluating both root and subcommand flags", func(t *testing.T) {

@@ -145,7 +145,7 @@ func TestConformance_ExportReplay(t *testing.T) {
 //
 
 func TestConformance_MergeFlags(t *testing.T) {
-	fixture, ok := loadCorpusFixtures(t)["root-bare-export"]
+	fixture, ok := loadCorpusFixtures(t)["deploy-bare"]
 	assert.True(t, ok)
 
 	result := resultFromFixture(fixture)

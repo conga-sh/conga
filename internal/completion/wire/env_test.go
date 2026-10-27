@@ -115,6 +115,55 @@ func TestDescriptionsEnabled(t *testing.T) {
 }
 
 //nolint:paralleltest // t.Setenv cannot be used with t.Parallel
+func TestBareSpaceFlagsEnabled(t *testing.T) {
+	t.Run("default is false when unset", func(t *testing.T) {
+		assert.False(t, wire.BareSpaceFlagsEnabled(testEnvPrefix))
+	})
+
+	t.Run("restored with 1", func(t *testing.T) {
+		t.Setenv(testEnvPrefix+wire.CompletionBareSpaceFlagsSuffix, "1")
+
+		assert.True(t, wire.BareSpaceFlagsEnabled(testEnvPrefix))
+	})
+
+	t.Run("restored with true", func(t *testing.T) {
+		t.Setenv(testEnvPrefix+wire.CompletionBareSpaceFlagsSuffix, "true")
+
+		assert.True(t, wire.BareSpaceFlagsEnabled(testEnvPrefix))
+	})
+
+	t.Run("suppressed with 0", func(t *testing.T) {
+		t.Setenv(testEnvPrefix+wire.CompletionBareSpaceFlagsSuffix, "0")
+
+		assert.False(t, wire.BareSpaceFlagsEnabled(testEnvPrefix))
+	})
+
+	t.Run("suppressed with false", func(t *testing.T) {
+		t.Setenv(testEnvPrefix+wire.CompletionBareSpaceFlagsSuffix, "false")
+
+		assert.False(t, wire.BareSpaceFlagsEnabled(testEnvPrefix))
+	})
+
+	t.Run("unparseable value defaults to false", func(t *testing.T) {
+		t.Setenv(testEnvPrefix+wire.CompletionBareSpaceFlagsSuffix, "garbage")
+
+		assert.False(t, wire.BareSpaceFlagsEnabled(testEnvPrefix))
+	})
+
+	t.Run("legacy framework-prefixed name is ignored", func(t *testing.T) {
+		t.Setenv("CONGA_COMPLETION_BARE_SPACE_FLAGS", "1")
+
+		assert.False(t, wire.BareSpaceFlagsEnabled(testEnvPrefix))
+	})
+
+	t.Run("empty prefix does not read unprefixed name", func(t *testing.T) {
+		t.Setenv("COMPLETION_BARE_SPACE_FLAGS", "1")
+
+		assert.False(t, wire.BareSpaceFlagsEnabled(""))
+	})
+}
+
+//nolint:paralleltest // t.Setenv cannot be used with t.Parallel
 func TestMergeFlags(t *testing.T) {
 	t.Run("default is disabled and not explicit when unset", func(t *testing.T) {
 		enabled, explicit := wire.MergeFlags()

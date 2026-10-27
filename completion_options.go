@@ -12,10 +12,11 @@ type CompletionOption interface {
 // CompletionEnvPrefix overrides the environment-variable prefix that names the
 // completion sideband toggles.
 //
-// The completion driver reads two per-application variables:
+// The completion driver reads three per-application variables:
 //
-//	<APP>_COMPLETION_DESCRIPTIONS disables candidate descriptions
-//	<APP>_COMPLETION_ALIASES     disables alias candidates
+//	<APP>_COMPLETION_DESCRIPTIONS      disables candidate descriptions
+//	<APP>_COMPLETION_ALIASES           disables alias candidates
+//	<APP>_COMPLETION_BARE_SPACE_FLAGS  restores flags at a bare space
 //
 // The default prefix derives from the application name set with [App.Name],
 // normalized to UPPER_SNAKE_CASE, so an application named task reads

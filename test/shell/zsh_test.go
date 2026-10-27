@@ -277,48 +277,93 @@ func TestZsh_MultiParts(t *testing.T) {
 	})
 }
 
-func TestZsh_PositionalEnumAndFlags(t *testing.T) {
+func TestZsh_PositionalEnumSuppressesFlags(t *testing.T) {
 	t.Parallel()
 
 	workspace := setupCloudctl(t)
 
 	result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl logs ")
 
-	// Positional arguments
+	// Positional arguments are offered at a bare space.
 	assert.True(t, result.HasItem("auth"))
 	assert.True(t, result.HasItem("billing"))
 	assert.True(t, result.HasItem("api"))
 	assert.True(t, result.HasItem("frontend"))
-
-	// Grouped flags
-	assert.True(t, result.HasItem("--env"))
-	assert.True(t, result.HasItem("--follow"))
-	assert.True(t, result.HasItem("--help"))
-
-	// Verify both groups exist
 	assert.True(t, len(result.GroupItems("arguments")) > 0, "expected arguments group")
-	assert.True(t, len(result.GroupItems("flags")) > 0, "expected flags group")
+
+	// Flags are withheld at the bare space.
+	assert.False(t, result.HasItem("--env"))
+	assert.False(t, result.HasItem("--follow"))
+	assert.Zero(t, result.GroupItems("flags"), "flags are reserved for the dash prefix")
+
+	// The dash prefix offers the flags.
+	dashResult := workspace.RunZshCompletion(t, "cloudctl", "cloudctl logs -")
+
+	assert.True(t, dashResult.HasItem("--env"))
+	assert.True(t, dashResult.HasItem("--follow"))
+	assert.True(t, dashResult.HasItem("--help"))
 }
 
-func TestZsh_UnconstrainedPositionalAndFlags(t *testing.T) {
+func TestZsh_BareSpaceFlagsRestore(t *testing.T) {
+	t.Parallel()
+
+	workspace := setupCloudctl(t)
+
+	t.Run("zstyle restores flags at a bare space", func(t *testing.T) {
+		t.Parallel()
+
+		result := workspace.RunZshCompletionWithSetup(t, "cloudctl", "cloudctl logs ", `zstyle ':completion:*' bare-space-flags yes`)
+
+		assert.True(t, result.HasItem("auth"))
+		assert.True(t, result.HasItem("--env"))
+		assert.True(t, result.HasItem("--follow"))
+	})
+
+	t.Run("sideband restores flags at a bare space", func(t *testing.T) {
+		t.Parallel()
+
+		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl logs ", "CLOUDCTL_COMPLETION_BARE_SPACE_FLAGS=1")
+
+		assert.True(t, result.HasItem("auth"))
+		assert.True(t, result.HasItem("--env"))
+		assert.True(t, result.HasItem("--follow"))
+	})
+}
+
+func TestZsh_NamedDirectoryInvocation(t *testing.T) {
+	t.Parallel()
+
+	workspace := setupCloudctl(t)
+
+	result := workspace.RunZshCompletionWithSetup(t, "cloudctl", "~tb/cloudctl logs ", "hash -d tb="+workspace.BinDir)
+
+	assert.True(t, result.HasItem("auth"))
+	assert.True(t, result.HasItem("billing"))
+	assert.False(t, result.HasItem("--env"))
+}
+
+func TestZsh_UnconstrainedPositionalSuppressesFlags(t *testing.T) {
 	t.Parallel()
 
 	workspace := setupCloudctl(t)
 
 	result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl deploy ")
 
-	// Verify active help hint message
+	// The active help hint still describes the unconstrained positional.
 	assert.True(t, slices.Contains(result.Messages, "<service>: Service name to deploy"), "expected active help message for service argument")
 
-	// Verify flags are discoverable
-	assert.True(t, result.HasItem("--env"))
-	assert.True(t, result.HasItem("--region"))
-	assert.True(t, result.HasItem("--cluster"))
-	assert.True(t, result.HasItem("--manifest"))
-	assert.True(t, result.HasItem("--out-dir"))
-	assert.True(t, result.HasItem("--dry-run"))
-	assert.True(t, result.HasItem("--help"))
-	assert.True(t, len(result.GroupItems("flags")) > 0, "expected flags group")
+	// Flags are withheld at the bare space.
+	assert.False(t, result.HasItem("--env"))
+	assert.False(t, result.HasItem("--region"))
+	assert.False(t, result.HasItem("--cluster"))
+	assert.Zero(t, result.GroupItems("flags"), "flags are reserved for the dash prefix")
+
+	// The dash prefix offers the flags.
+	dashResult := workspace.RunZshCompletion(t, "cloudctl", "cloudctl deploy -")
+
+	assert.True(t, dashResult.HasItem("--env"))
+	assert.True(t, dashResult.HasItem("--region"))
+	assert.True(t, dashResult.HasItem("--dry-run"))
 }
 
 func TestZsh_ShortFlags(t *testing.T) {
@@ -375,10 +420,15 @@ func TestZsh_SubcommandAlias(t *testing.T) {
 
 	result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl d ")
 
-	// Verify alias "d" completes flags and arguments for DeployCmd
-	assert.True(t, result.HasItem("--env"))
-	assert.True(t, result.HasItem("--cluster"))
+	// Verify alias "d" completes arguments for DeployCmd and suppresses flags at a bare space.
 	assert.True(t, slices.Contains(result.Messages, "<service>: Service name to deploy"), "expected active help message on alias")
+	assert.False(t, result.HasItem("--env"))
+	assert.False(t, result.HasItem("--cluster"))
+
+	dashResult := workspace.RunZshCompletion(t, "cloudctl", "cloudctl d -")
+
+	assert.True(t, dashResult.HasItem("--env"))
+	assert.True(t, dashResult.HasItem("--cluster"))
 }
 
 func TestZsh_NestedSubcommands(t *testing.T) {
@@ -414,7 +464,7 @@ func TestZsh_NestedSubcommands(t *testing.T) {
 		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl help ")
 
 		assert.True(t, slices.Contains(result.Messages, "<[<command>...]>: Subcommand to show help for"), "expected help command active help message")
-		assert.True(t, result.HasItem("--help"))
+		assert.False(t, result.HasItem("--help"))
 		assert.False(t, result.HasItem("--version"))
 	})
 }
@@ -479,11 +529,8 @@ zstyle ':completion:*:descriptions' format '=== %d ==='
 
 	assert.True(t, result.HasItem("auth"))
 	assert.True(t, result.HasItem("billing"))
-	assert.True(t, result.HasItem("--env"))
-	assert.True(t, result.HasItem("--follow"))
-
 	assert.True(t, len(result.GroupItems("arguments")) > 0, "expected arguments group")
-	assert.True(t, len(result.GroupItems("flags")) > 0, "expected flags group")
+	assert.Zero(t, result.GroupItems("flags"), "flags are reserved for the dash prefix")
 }
 
 func TestZsh_ListColorsAndANSIStyling(t *testing.T) {
@@ -602,7 +649,7 @@ func TestZsh_UserZstylesSurvive(t *testing.T) {
 	t.Run("empty list-colors keeps engine colors", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletionWithSetup(t, "cloudctl", "cloudctl deploy ", `zstyle ':completion:*' list-colors ''`)
+		result := workspace.RunZshCompletionWithSetup(t, "cloudctl", "cloudctl logs ", `zstyle ':completion:*' list-colors ''`)
 
 		assert.True(t, strings.Contains(result.ListColors, "=(#b)"), "expected engine list-colors when the user value is empty")
 	})
@@ -699,7 +746,6 @@ _describe() {
 	result := workspace.RunZshCompletionWithSetup(t, "cloudctl", "cloudctl logs ", fzfTabSetup)
 	assert.True(t, result.HasItem("auth"))
 	assert.True(t, result.HasItem("billing"))
-	assert.True(t, result.HasItem("--env"))
 }
 
 func TestZsh_FrameworkCompatibility_ZshAutocomplete(t *testing.T) {
@@ -749,7 +795,6 @@ compdef _cloudctl_completion c
 		result := workspace.RunZshCompletionWithSetup(t, "cloudctl", "c logs ", aliasSetup)
 		assert.True(t, result.HasItem("auth"))
 		assert.True(t, result.HasItem("billing"))
-		assert.True(t, result.HasItem("--env"))
 	})
 
 	t.Run("aliased invocation with flags", func(t *testing.T) {
@@ -812,7 +857,6 @@ setopt sh_word_split
 
 		result := workspace.RunZshCompletionWithSetup(t, "cloudctl", "cloudctl logs ", optSetup)
 		assert.True(t, result.HasItem("auth"))
-		assert.True(t, result.HasItem("--follow"))
 	})
 }
 

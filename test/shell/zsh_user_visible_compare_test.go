@@ -72,10 +72,9 @@ func TestZshUserVisible_Suite2_PositionalArgumentsAndActiveHelp(t *testing.T) {
 		// ActiveHelp usage hint must be rendered
 		assert.True(t, slices.Contains(result.Messages, "<service>: Service name to deploy"), "expected ActiveHelp message in %v", result.Messages)
 
-		// Documented Exception: CONGA allows simultaneous flag discovery with suppressed insertion
-		assert.Equal(t, "", result.CompstateInsert)
-		assert.True(t, result.HasItem("--env"), "expected simultaneous flag discovery in CONGA")
-		assert.True(t, result.HasItem("--cluster"), "expected simultaneous flag discovery in CONGA")
+		// Flags are withheld at a bare space, uniformly with every shell.
+		assert.False(t, result.HasItem("--env"), "flags must be suppressed on bare space in zsh")
+		assert.False(t, result.HasItem("--cluster"), "flags must be suppressed on bare space in zsh")
 	})
 
 	t.Run("positional_enum_tab1_and_tab2_menu_selection", func(t *testing.T) {

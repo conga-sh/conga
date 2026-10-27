@@ -1,20 +1,5 @@
 Dnoprefix
-L=(#b)(api)([ ]## -- *)=0==2:=(#b)(api)=0=:=(#b)(scheduler)([ ]## -- *)=0==2:=(#b)(scheduler)=0=:=(#b)(worker)([ ]## -- *)=0==2:=(#b)(worker)=0=:=(#b)(--follow)([ ]## -- *)=0==2:=(#b)(--follow)=0=:=(#b)(--tail)([ ]## -- *)=0=35=2:=(#b)(--tail)=0=35:=(#b)(--verbose)([ ]## -- *)=0==2:=(#b)(--verbose)=0=:=(#b)(--no-verbose)([ ]## -- *)=0==2:=(#b)(--no-verbose)=0=:=(#b)(--profile)([ ]## -- *)=0=34=2:=(#b)(--profile)=0=34:=(#b)(--env-vars)([ ]## -- *)=0=35=2:=(#b)(--env-vars)=0=35:=(#b)(--shards)([ ]## -- *)=0=35=2:=(#b)(--shards)=0=35:=(#b)(--features)([ ]## -- *)=0=35=2:=(#b)(--features)=0=35:=(#b)(--help)([ ]## -- *)=0==2:=(#b)(--help)=0=:=(#b)(--why)([ ]## -- *)=0==2:=(#b)(--why)=0=:=(#b)(-F)([ ]## -- *)=0==2:=(#b)(-F)=0=:=(#b)(-v)([ ]## -- *)=0==2:=(#b)(-v)=0=:=(#b)(-p)([ ]## -- *)=0=34=2:=(#b)(-p)=0=34:=(#b)(-e)([ ]## -- *)=0=35=2:=(#b)(-e)=0=35:=(#b)(-f)([ ]## -- *)=0=35=2:=(#b)(-f)=0=35:=(#b)(*)([ ]## -- *)=0==2
+L=(#b)(api)([ ]## -- *)=0==2:=(#b)(api)=0=:=(#b)(scheduler)([ ]## -- *)=0==2:=(#b)(scheduler)=0=:=(#b)(worker)([ ]## -- *)=0==2:=(#b)(worker)=0=:=(#b)(*)([ ]## -- *)=0==2
 CargumentsapiREST API serviceapi 
 CargumentsschedulerCron schedulerscheduler 
 CargumentsworkerBackground workerworker 
-Cflags--followFollow the log stream--follow 
-Cflags--tailServices to tail, comma-separated--tail 35
-Cflags--verboseEnable verbose output--verbose 
-Cflags--no-verboseDisable Enable verbose output--no-verbose 
-Cflags--profileCloud profile--profile 34
-Cflags--env-varsEnvironment key=value pairs--env-vars 35
-Cflags--shardsShard counts, semicolon-separated--shards 35
-Cflags--featuresComma-separated feature flags--features 35
-Cflags--helpShow help for command--help 
-Cflags--whyShow resolved field values and where they came from (values redacted unless tagged safe)--why 
-Cflags-FFollow the log stream-F 
-Cflags-vEnable verbose output-v 
-Cflags-pCloud profile-p 34
-Cflags-eEnvironment key=value pairs-e 35
-Cflags-fComma-separated feature flags-f 35

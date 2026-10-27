@@ -55,6 +55,30 @@ func TestPtyBash_TabCompletesSingleMatch(t *testing.T) {
 	assert.Equal(t, 23, result.CursorX)
 }
 
+// TestPtyPathQualifiedInvocation pins dispatch for a path-qualified command
+// word in the shells that match on the command word: a full path invokes the
+// completer registered under the binary's basename. Elvish keys its
+// arg-completer map on the literal word and is documented as unsupported for
+// path-qualified invocation (see the shell completion how-to).
+func TestPtyPathQualifiedInvocation(t *testing.T) {
+	t.Parallel()
+
+	for _, shellName := range []string{"bash", "zsh", "fish", "powershell", "nushell"} {
+		t.Run(shellName, func(t *testing.T) {
+			t.Parallel()
+
+			workspace := setupCloudctl(t)
+			session := workspace.StartPtySession(t, "cloudctl", shellName)
+
+			session.Type(workspace.BinDir + "/cloudctl de")
+			session.Tab()
+			result := session.Capture()
+
+			assert.Equal(t, workspace.BinDir+"/cloudctl deploy", result.BufferAfterPrompt())
+		})
+	}
+}
+
 func TestPtyBash_TabInsertsCommonPrefix(t *testing.T) {
 	t.Parallel()
 

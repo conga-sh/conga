@@ -13,12 +13,17 @@ import (
 )
 
 // CompleteOptions configures the execution of the completion engine.
+//
+// Env and EnvLookup scope the environment view handed to predictors through
+// predict.Context; EnvLookup is consulted first, then Env. They do not override
+// the application-prefixed sideband toggles (aliases, descriptions, bare-space
+// flags), which the framing layer reads from the process environment because
+// they describe the invoking shell session.
 type CompleteOptions struct {
 	RegisteredPredictors map[string]predict.Predictor
 	Env                  map[string]string
 	EnvLookup            func(string) (string, bool)
 	Dir                  string
-	TargetShell          string
 }
 
 // CompletionAnalysis carries the invocation facts parsed from the typed
@@ -511,13 +516,25 @@ func (w *astCompletionWalker) resolveTarget(toComplete string) predict.Result {
 	}
 
 	cmdOrArgAction := w.completeSubcommandsAndArgsAction(toComplete)
-	if w.isFlatShell() {
-		if w.currentCmd.HasUserSubcommands() || len(w.currentCmd.Args) > 0 || w.currentCmd.RawArgs != nil {
-			return cmdOrArgAction.Invoke(compCtx)
-		}
+	if w.suppressBareSpaceFlags() {
+		return cmdOrArgAction.Invoke(compCtx)
 	}
 
 	return predict.Batch(cmdOrArgAction, w.completeFlagNamesAction(toComplete)).Invoke(compCtx)
+}
+
+// suppressBareSpaceFlags reports whether flag candidates are withheld at a bare
+// space. The engine offers subcommands and positional arguments there and
+// reserves flags for the "-" prefix, uniformly across every shell; the
+// application-prefixed <APP>_COMPLETION_BARE_SPACE_FLAGS sideband restores the
+// flags when a user opts in. A command with no subcommands, positional
+// arguments, or raw args has nothing else to offer, so its flags stay visible.
+func (w *astCompletionWalker) suppressBareSpaceFlags() bool {
+	if wire.BareSpaceFlagsEnabled(w.rootCmd.CompletionEnvPrefix) {
+		return false
+	}
+
+	return w.currentCmd.HasUserSubcommands() || len(w.currentCmd.Args) > 0 || w.currentCmd.RawArgs != nil
 }
 
 func (w *astCompletionWalker) completePendingFlag(toComplete string, compCtx predict.Context) predict.Result {
@@ -616,19 +633,6 @@ func (w *astCompletionWalker) completeFlagNamesAction(toComplete string) predict
 	}
 
 	return predict.Batch(actions...)
-}
-
-func (w *astCompletionWalker) isFlatShell() bool {
-	shell := strings.ToLower(strings.TrimSpace(w.opts.TargetShell))
-	if shell == "" {
-		shell = strings.ToLower(strings.TrimSpace(wire.Shell()))
-	}
-
-	if shell == "" || shell == "zsh" || shell == "export" {
-		return false
-	}
-
-	return true
 }
 
 func (w *astCompletionWalker) isFlagEligible(flagSpec *Flag) bool {

@@ -16,7 +16,9 @@ func TestSnippet_MultiForm(t *testing.T) {
 
 	assert.Contains(t, snippet, "#compdef myapp ma app\n")
 	assert.Contains(t, snippet, "function _myapp_completer {")
-	assert.Contains(t, snippet, `local target="${words[1]/#\~/$HOME}"`)
+	assert.Contains(t, snippet, `local target="${words[1]}"`)
+	assert.Contains(t, snippet, `target="$HOME${target#\~}"`)
+	assert.Contains(t, snippet, `target="${nameddirs[$target_name]%/}${target#$target_lead}"`)
 	assert.Contains(t, snippet, `target="${aliases[$target]:-$target}"`)
 	assert.Contains(t, snippet, `lines="$(env "${conga_env[@]}" "$target" __complete zsh "${args[@]}" 2>/dev/null)" || lines=""`)
 	assert.Contains(t, snippet, "compdef _myapp_completer myapp ma app\n")
@@ -29,7 +31,9 @@ func TestSnippet_SingleForm(t *testing.T) {
 
 	assert.Contains(t, snippet, "#compdef foobar\n")
 	assert.Contains(t, snippet, "function _foobar_completion {")
-	assert.Contains(t, snippet, `local target="${words[1]/#\~/$HOME}"`)
+	assert.Contains(t, snippet, `local target="${words[1]}"`)
+	assert.Contains(t, snippet, `target="$HOME${target#\~}"`)
+	assert.Contains(t, snippet, `target="${nameddirs[$target_name]%/}${target#$target_lead}"`)
 	assert.Contains(t, snippet, `target="${aliases[$target]:-$target}"`)
 	assert.Contains(t, snippet, `lines="$(env "${conga_env[@]}" "$target" __complete zsh "${args[@]}" 2>/dev/null)" || lines=""`)
 	assert.Contains(t, snippet, "compdef _foobar_completion foobar\n")
@@ -74,6 +78,7 @@ func TestSnippet_RecordParsing(t *testing.T) {
 	assert.Contains(t, snippet, "local app_env_prefix=TEST_")
 	assert.Contains(t, snippet, `zstyle -T "$probe_context" verbose || conga_env+=("${app_env_prefix}COMPLETION_DESCRIPTIONS=0")`)
 	assert.Contains(t, snippet, `zstyle -T "$probe_context" show-aliases || conga_env+=("${app_env_prefix}COMPLETION_ALIASES=0")`)
+	assert.Contains(t, snippet, `zstyle -t "$probe_context" bare-space-flags yes true 1 on && conga_env+=("${app_env_prefix}COMPLETION_BARE_SPACE_FLAGS=1")`)
 	assert.Contains(t, snippet, `zstyle -s "$probe_context" list-separator user_list_separator`)
 	assert.Contains(t, snippet, `conga_env+=("CONGA_ZSH_LIST_SEPARATOR=${user_list_separator}")`)
 
@@ -127,7 +132,9 @@ func TestSnippet_IdentifierHygiene(t *testing.T) {
 
 			assert.Contains(t, snippet, "function _"+testCase.identifier+"_completion {")
 			assert.Contains(t, snippet, "compdef _"+testCase.identifier+"_completion "+testCase.target+"\n")
-			assert.Contains(t, snippet, `local target="${words[1]/#\~/$HOME}"`)
+			assert.Contains(t, snippet, `local target="${words[1]}"`)
+			assert.Contains(t, snippet, `target="$HOME${target#\~}"`)
+			assert.Contains(t, snippet, `target="${nameddirs[$target_name]%/}${target#$target_lead}"`)
 			assert.Contains(t, snippet, `lines="$(env "${conga_env[@]}" "$target" __complete zsh "${args[@]}" 2>/dev/null)" || lines=""`)
 
 			// Injection invariant: when sanitization rewrote the identifier,

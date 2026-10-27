@@ -149,7 +149,7 @@ func TestBash_Wordbreaks(t *testing.T) {
 	assert.True(t, result.HasItem(`"team=infra"`) || result.HasItem("team=infra") || result.HasItem("infra"))
 }
 
-func TestBash_PositionalEnumAndFlags(t *testing.T) {
+func TestBash_PositionalEnumSuppressesFlags(t *testing.T) {
 	t.Parallel()
 
 	workspace := setupCloudctl(t)
@@ -162,7 +162,7 @@ func TestBash_PositionalEnumAndFlags(t *testing.T) {
 	assert.True(t, result.HasItem("api"))
 	assert.True(t, result.HasItem("frontend"))
 
-	// Flags are gated behind hyphen in flat shells
+	// Flags are gated behind the dash prefix in every shell
 	assert.False(t, result.HasItem("--env"))
 	assert.False(t, result.HasItem("--follow"))
 	assert.False(t, result.HasItem("--help"))
