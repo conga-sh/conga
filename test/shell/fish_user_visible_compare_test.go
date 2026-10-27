@@ -65,7 +65,7 @@ func TestFishUserVisible_Suite2_PositionalArguments(t *testing.T) {
 		result := workspace.RunFishCompletion(t, "cloudctl", "cloudctl deploy ")
 
 		assert.Equal(t, "cloudctl deploy ", result.BufferTab1, "Tab 1 on unconstrained positional must not insert dash")
-		assert.False(t, result.HasItem("--env"), "flags must be suppressed on bare space in flat shells")
+		assert.False(t, result.HasItem("--env"), "flags must be suppressed on bare space in every shell")
 		assert.Equal(t, "", result.Stderr)
 	})
 

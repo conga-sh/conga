@@ -22,6 +22,10 @@ const (
 	// CompletionAliasesSuffix is appended to the application prefix to form the
 	// alias-suppression variable name (TASK_COMPLETION_ALIASES for a task app).
 	CompletionAliasesSuffix = "COMPLETION_ALIASES"
+	// CompletionBareSpaceFlagsSuffix is appended to the application prefix to
+	// form the bare-space flag-restoration variable name
+	// (TASK_COMPLETION_BARE_SPACE_FLAGS for a task app).
+	CompletionBareSpaceFlagsSuffix = "COMPLETION_BARE_SPACE_FLAGS"
 	// CompletionDescriptionsSuffix is appended to the application prefix to form
 	// the description-suppression variable name.
 	CompletionDescriptionsSuffix = "COMPLETION_DESCRIPTIONS"
@@ -71,6 +75,26 @@ func DescriptionsEnabled(prefix string) bool {
 	}
 
 	return booleanSetting(prefix + CompletionDescriptionsSuffix)
+}
+
+// BareSpaceFlagsEnabled reports whether flag candidates are restored at a bare
+// space: the application-prefixed variable (prefix +
+// CompletionBareSpaceFlagsSuffix) parsed as a boolean. Unset or unparseable
+// keeps the default (suppressed); an empty prefix has no application namespace
+// to match, so it also keeps the default.
+func BareSpaceFlagsEnabled(prefix string) bool {
+	if prefix == "" {
+		return false
+	}
+
+	value, ok := os.LookupEnv(prefix + CompletionBareSpaceFlagsSuffix)
+	if !ok {
+		return false
+	}
+
+	parsed, err := strconv.ParseBool(value)
+
+	return err == nil && parsed
 }
 
 // ColorDisabled reports whether styled output is disabled: CONGA_COLOR is

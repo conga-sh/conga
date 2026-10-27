@@ -1,0 +1,20 @@
+D	
+C	deploy
+C	d
+C	logs
+C	exec
+C	cp
+C	completion
+C	--verbose
+C	--no-verbose
+C	--profile
+C	--env-vars
+C	--shards
+C	--features
+C	--help
+C	--version
+C	--why
+C	-v
+C	-p
+C	-e
+C	-f

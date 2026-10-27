@@ -156,7 +156,7 @@ type CompletionOption interface {
 }
 ```
 
-`CompletionOption` is a sealed interface produced by option constructors such as `CompletionEnvPrefix`. Pass `CompletionEnvPrefix` to `App.EnableCompletion` to override the derived environment-variable prefix (`<APP>_`) that names the completion sideband toggles `<APP>_COMPLETION_DESCRIPTIONS` and `<APP>_COMPLETION_ALIASES`. The prefix is normalized to upper snake case; an empty prefix keeps the application-name derivation, and a prefix that normalizes to a leading digit is rejected at schema build because POSIX shells cannot assign such a variable name.
+`CompletionOption` is a sealed interface produced by option constructors such as `CompletionEnvPrefix`. Pass `CompletionEnvPrefix` to `App.EnableCompletion` to override the derived environment-variable prefix (`<APP>_`) that names the completion sideband toggles `<APP>_COMPLETION_DESCRIPTIONS`, `<APP>_COMPLETION_ALIASES`, and `<APP>_COMPLETION_BARE_SPACE_FLAGS`. The prefix is normalized to upper snake case; an empty prefix keeps the application-name derivation, and a prefix that normalizes to a leading digit is rejected at schema build because POSIX shells cannot assign such a variable name.
 
 ## Configuration options
 

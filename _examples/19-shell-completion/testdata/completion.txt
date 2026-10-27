@@ -311,7 +311,7 @@ stdout 'Severities matching "w": \[warn\]'
 stdout 'KeepOrder directive: true'
 stdout 'Tag: severities'
 
-# 17. Positional argument enums & simultaneous flags
+# 17. Positional argument enums; flags are withheld at a bare space
 exec cloudctl __complete export logs a
 stdout '"value":"auth"'
 stdout '"value":"api"'
@@ -322,15 +322,23 @@ stdout '"value":"auth"'
 stdout '"value":"billing"'
 stdout '"value":"api"'
 stdout '"value":"frontend"'
+! stdout '"tag":"longhand flags"'
+
+# The dash prefix offers the flags
+exec cloudctl __complete export logs --
 stdout '"tag":"longhand flags"'
 stdout '"value":"--env"'
 stdout '"value":"--follow"'
 stdout '"value":"--profile"'
 stdout '"value":"--help"'
 
-# 18. Unconstrained positional argument with active help and flags
+# 18. Unconstrained positional argument with active help; flags are withheld at a bare space
 exec cloudctl __complete export deploy ''
 stdout 'Service name to deploy'
+! stdout '"tag":"longhand flags"'
+
+# The dash prefix offers the flags
+exec cloudctl __complete export deploy --
 stdout '"tag":"longhand flags"'
 stdout '"value":"--env"'
 stdout '"value":"--region"'
@@ -343,12 +351,17 @@ stdout '"value":"--kubeconfig"'
 stdout '"value":"--help"'
 
 # 19. Hierarchical contextual argument autocompletion (pods predictor evaluated
-#     from the global --profile and the subcommand --namespace)
+#     from the global --profile and the subcommand --namespace); flags are
+#     withheld at a bare space
 exec cloudctl __complete export exec ''
 stdout '"usage":"target pod in staging/backend"'
 stdout '"tag":"arguments"'
 stdout '"value":"api-stage-alpha"'
 stdout '"value":"auth-stage-beta"'
+! stdout '"tag":"longhand flags"'
+
+# The dash prefix offers the flags
+exec cloudctl __complete export exec --
 stdout '"tag":"longhand flags"'
 stdout '"value":"--namespace"'
 stdout '"value":"--container"'

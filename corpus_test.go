@@ -259,7 +259,8 @@ func newCorpusMapApp() *conga.App[corpusMapRoot] {
 func corpusScenarios() []corpusScenario {
 	return []corpusScenario{
 		{Name: "root-bare-export", Shell: "export", Words: []string{""}},
-		{Name: "root-bare-bash-flat", Shell: "bash", Words: []string{""}},
+		{Name: "root-bare-flags-enabled", Shell: "export", Words: []string{""}, Env: map[string]string{"CORPUSCTL_COMPLETION_BARE_SPACE_FLAGS": "1"}},
+		{Name: "root-bare-bash", Shell: "bash", Words: []string{""}},
 		{Name: "root-subcommand-prefix", Shell: "export", Words: []string{"dep"}},
 		{Name: "root-completion-candidate", Shell: "export", Words: []string{"comp"}},
 		{Name: "root-flag-prefix", Shell: "export", Words: []string{"--"}},

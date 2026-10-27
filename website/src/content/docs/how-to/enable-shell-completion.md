@@ -199,9 +199,33 @@ eval (cloudctl completion elvish | slurp)
 cloudctl completion nushell | save -f ~/.config/nushell/completions/cloudctl.nu
 ```
 
+## Renamed binaries and path-qualified invocation
+
+The generated script binds its registrations to the binary name it was generated from. A binary installed under a different name generates registrations for the installed name when the completion command runs from that binary: install the binary, then run `cloudctl completion zsh` (or the `--completion zsh` flag) from the installed path.
+
+Path-qualified invocation dispatches to the registered completer by the binary's basename in bash, zsh, fish, powershell, and nushell, so `/usr/local/bin/cloudctl <TAB>` and `./cloudctl <TAB>` complete like `cloudctl <TAB>`. Elvish keys its `edit:completion:arg-completer` map on the literal command word, so a path-qualified invocation falls back to file completion; invoke the command by name to complete it.
+
+In zsh, a named directory resolves through the completer when it is configured with `hash -d` (or the `AUTO_NAME_DIRS` option), so `~dev/cloudctl <TAB>` completes after `hash -d dev=/path/to/project`.
+
+## File and directory completion
+
+CONGA completes file and directory values in-process from the filesystem predictors in `package predict` (`Files`, `Dirs`, `FilesGlob`, `FilesFiltered`, `PathsFiltered`, `DirsGlob`, `DirsFiltered`, `Symlinks`, `Executables`). One engine scans the filesystem and streams matching candidates to every shell, so a typed prefix filters candidates before they reach the shell and bash, zsh, fish, powershell, elvish, and nushell complete identically. A file whose name begins with a dot is offered when the typed prefix begins with a dot, matching the shell default.
+
+Because the scan runs in-process, zsh's shell-side file-completion customisations do not apply to CONGA candidates: the `file-sort` and `file-patterns` zstyles, `cdpath` search directories, and named-directory (`~name`) expansion in file positions. Issue [#85](https://github.com/conga-sh/conga/issues/85) tracks these gaps; the decision to keep completion in-process is recorded in [ADR 0001](https://github.com/conga-sh/conga/blob/main/docs/adr-0001-in-process-file-completion.md).
+
 ## Customise completion behaviour
 
-Descriptions and alias candidates are shown by default. Two toggles suppress them, and the zsh snippet derives the same toggles from your zsh configuration so existing setups keep working.
+Descriptions and alias candidates are shown by default; the two toggles below suppress them. Flag candidates are withheld at a bare space by default, and one toggle restores them. The zsh snippet derives each toggle from your zsh configuration so existing setups keep working.
+
+### Flags at a bare space
+
+At a bare space the engine offers subcommands and positional arguments and reserves flags for the `-` prefix, in every shell. `cloudctl <TAB>` lists the subcommands and `cloudctl -<TAB>` lists the flags, identically in bash, zsh, fish, powershell, elvish, and nushell. A command with no subcommands, positional arguments, or raw args has nothing else to offer, so its flags stay visible at a bare space.
+
+Restore the bare-space flags with the `bare-space-flags` zstyle in zsh, or `<APP>_COMPLETION_BARE_SPACE_FLAGS=1` in any shell.
+
+```zsh title="~/.zshrc"
+zstyle ':completion:*' bare-space-flags yes   # show flags beside subcommands
+```
 
 ### Zsh styles
 
@@ -211,6 +235,7 @@ The generated zsh script honours these styles at completion time:
 |---|---|
 | `verbose` | Set to `false` (or `no`/`off`/`0`) to hide candidate descriptions. This is the standard zsh style; descriptions are shown otherwise |
 | `show-aliases` | Set to `false` (or `no`/`off`/`0`) to hide alias candidates (subcommand aliases, flag aliases, and app-provided aliases such as taskfile task aliases). This is the convention established by go-task |
+| `bare-space-flags` | Set to `yes`/`true`/`1`/`on` to show flag candidates at a bare space; unset or any other value keeps them suppressed |
 | `list-separator` | The separator rendered between a match and its description. Engine colours are generated with the configured separator, so both columns keep their colours |
 
 ```zsh title="~/.zshrc"
@@ -231,6 +256,7 @@ All six framings honour the same toggles through application-prefixed environmen
 |---|---|
 | `<APP>_COMPLETION_DESCRIPTIONS=0` | Hide candidate descriptions (`false` also disables; unset or `1` shows them) |
 | `<APP>_COMPLETION_ALIASES=0` | Hide alias candidates (`false` also disables; unset or `1` shows them) |
+| `<APP>_COMPLETION_BARE_SPACE_FLAGS=1` | Show flag candidates at a bare space (`true` also enables; unset or `0` keeps them suppressed) |
 
 For the example `cloudctl` application:
 

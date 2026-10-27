@@ -1,0 +1,20 @@
+Dnoprefix
+Ccluster commandsdeployDeploy service to a clusterdeploy 
+Ccluster commandsdDeploy service to a clusterd 
+Ccluster commandslogsStream service logslogs 
+Cother commandsexecExecute a command in a podexec 
+Cother commandscpCopy filescp 
+Cother commandscompletionGenerate shell completion scriptscompletion 
+Cflags--verboseEnable verbose output--verbose 
+Cflags--no-verboseDisable Enable verbose output--no-verbose 
+Cflags--profileCloud profile--profile 
+Cflags--env-varsEnvironment key=value pairs--env-vars 
+Cflags--shardsShard counts, semicolon-separated--shards 
+Cflags--featuresComma-separated feature flags--features 
+Cflags--helpShow help for command--help 
+Cflags--versionShow version information--version 
+Cflags--whyShow resolved field values and where they came from (values redacted unless tagged safe)--why 
+Cflags-vEnable verbose output-v 
+Cflags-pCloud profile-p 
+Cflags-eEnvironment key=value pairs-e 
+Cflags-fComma-separated feature flags-f 

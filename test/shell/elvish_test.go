@@ -387,7 +387,7 @@ func TestElvish_MultiParts(t *testing.T) {
 	})
 }
 
-func TestElvish_PositionalEnumAndFlags(t *testing.T) {
+func TestElvish_PositionalEnumSuppressesFlags(t *testing.T) {
 	t.Parallel()
 
 	workspace := setupCloudctl(t)
@@ -400,7 +400,7 @@ func TestElvish_PositionalEnumAndFlags(t *testing.T) {
 	assert.True(t, result.HasItem("api"))
 	assert.True(t, result.HasItem("frontend"))
 
-	// Flags are gated behind hyphen in flat shells
+	// Flags are gated behind the dash prefix in every shell
 	assert.False(t, result.HasItem("--env"))
 	assert.False(t, result.HasItem("--follow"))
 	assert.False(t, result.HasItem("--help"))
@@ -412,7 +412,7 @@ func TestElvish_PositionalEnumAndFlags(t *testing.T) {
 	assert.True(t, resFlags.HasItem("--help"))
 }
 
-func TestElvish_UnconstrainedPositionalAndFlags(t *testing.T) {
+func TestElvish_UnconstrainedPositionalSuppressesFlags(t *testing.T) {
 	t.Parallel()
 
 	workspace := setupCloudctl(t)

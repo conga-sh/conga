@@ -8,23 +8,34 @@ function _myapp_completer {
     args=("")
   fi
 
-  local target="${words[1]/#\~/$HOME}"
+  local target="${words[1]}"
+  local target_lead="${target%%/*}"
+  if [[ "$target_lead" == '~'* ]]; then
+    local target_name="${target_lead#\~}"
+    if [[ -z "$target_name" ]]; then
+      target="$HOME${target#\~}"
+    elif [[ -n "${nameddirs[$target_name]}" ]]; then
+      target="${nameddirs[$target_name]%/}${target#$target_lead}"
+    fi
+  fi
   target="${aliases[$target]:-$target}"
 
   local probe_context=":completion:${curcontext}:"
 
   # Honor the user's zsh completion styles: zstyle -T is true when the style
   # is unset, so an explicit false suppresses descriptions ("verbose") or
-  # aliases ("show-aliases", the go-task convention). The sidebands apply only
-  # to the __complete invocation, never to the user's environment, and use the
-  # application-prefixed names set by the generated wrapper (app_env_prefix).
-  # The engine's list-colors patterns must match the separator zsh renders
-  # between a match and its description, so the list-separator style is
-  # forwarded too.
+  # aliases ("show-aliases", the go-task convention), and an explicit true
+  # restores the otherwise-suppressed bare-space flags ("bare-space-flags").
+  # The sidebands apply only to the __complete invocation, never to the user's
+  # environment, and use the application-prefixed names set by the generated
+  # wrapper (app_env_prefix). The engine's list-colors patterns must match the
+  # separator zsh renders between a match and its description, so the
+  # list-separator style is forwarded too.
   local -a conga_env
   local user_list_separator
   zstyle -T "$probe_context" verbose || conga_env+=("${app_env_prefix}COMPLETION_DESCRIPTIONS=0")
   zstyle -T "$probe_context" show-aliases || conga_env+=("${app_env_prefix}COMPLETION_ALIASES=0")
+  zstyle -t "$probe_context" bare-space-flags yes true 1 on && conga_env+=("${app_env_prefix}COMPLETION_BARE_SPACE_FLAGS=1")
   if zstyle -s "$probe_context" list-separator user_list_separator && [[ -n "$user_list_separator" ]]; then
     conga_env+=("CONGA_ZSH_LIST_SEPARATOR=${user_list_separator}")
   fi

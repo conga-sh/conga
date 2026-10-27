@@ -391,7 +391,7 @@ func TestNushell_MultiParts(t *testing.T) {
 	})
 }
 
-func TestNushell_PositionalEnumAndFlags(t *testing.T) {
+func TestNushell_PositionalEnumSuppressesFlags(t *testing.T) {
 	t.Parallel()
 
 	workspace := setupCloudctl(t)
@@ -404,7 +404,7 @@ func TestNushell_PositionalEnumAndFlags(t *testing.T) {
 	assert.True(t, result.HasItem("api"))
 	assert.True(t, result.HasItem("frontend"))
 
-	// Flags are gated behind hyphen in flat shells
+	// Flags are gated behind the dash prefix in every shell
 	assert.False(t, result.HasItem("--env"))
 	assert.False(t, result.HasItem("--follow"))
 	assert.False(t, result.HasItem("--help"))
@@ -574,7 +574,7 @@ func TestNushell_AppDeprecatedCompletion(t *testing.T) {
 	assert.True(t, result.HasItem("deploy"), "expected deploy subcommand of the deprecated app")
 }
 
-func TestNushell_UnconstrainedPositionalAndFlags(t *testing.T) {
+func TestNushell_UnconstrainedPositionalSuppressesFlags(t *testing.T) {
 	t.Parallel()
 
 	workspace := setupCloudctl(t)
@@ -587,7 +587,7 @@ func TestNushell_UnconstrainedPositionalAndFlags(t *testing.T) {
 		assert.Equal(t, "", result.Stderr, "completion must not write to stderr")
 		assert.Zero(t, result.Candidates, "expected zero completion candidates on unconstrained positional bare space")
 		assert.False(t, result.HasItem("<service>: Service name to deploy"), "usage string must not be treated as a completion candidate")
-		assert.False(t, result.HasItem("--env"), "flags must be gated behind hyphen in flat shells")
+		assert.False(t, result.HasItem("--env"), "flags must be gated behind hyphen in every shell")
 	})
 
 	t.Run("alias bare space yields zero candidates", func(t *testing.T) {

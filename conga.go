@@ -386,8 +386,9 @@ func (a *App[T]) Predictor(name string, predictor predict.Predictor) *App[T] {
 // protocol. A mounted [CompletionCommand] requires it.
 //
 // The generated scripts and the wire protocol read the application-prefixed
-// description and alias toggles, for example TASK_COMPLETION_DESCRIPTIONS for
-// an app named task. Pass [CompletionEnvPrefix] to override the derived prefix.
+// description, alias, and bare-space-flag toggles, for example
+// TASK_COMPLETION_DESCRIPTIONS for an app named task. Pass
+// [CompletionEnvPrefix] to override the derived prefix.
 //
 // See https://docs.conga.sh/how-to/enable-shell-completion/.
 func (a *App[T]) EnableCompletion(opts ...CompletionOption) *App[T] {
@@ -1239,7 +1240,6 @@ func (a *App[T]) completeForShellWithEnv(targetShell string, args []string, look
 
 	opts := spec.CompleteOptions{
 		RegisteredPredictors: a.predictors,
-		TargetShell:          targetShell,
 		EnvLookup:            lookup,
 	}
 

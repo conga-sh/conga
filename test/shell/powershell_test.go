@@ -401,7 +401,7 @@ func TestPowerShell_MultiParts(t *testing.T) {
 	// elvish, and nushell suites cover that contract.
 }
 
-func TestPowerShell_PositionalEnumAndFlags(t *testing.T) {
+func TestPowerShell_PositionalEnumSuppressesFlags(t *testing.T) {
 	t.Parallel()
 
 	workspace := setupCloudctl(t)
@@ -414,7 +414,7 @@ func TestPowerShell_PositionalEnumAndFlags(t *testing.T) {
 	assert.True(t, result.HasItem("api"))
 	assert.True(t, result.HasItem("frontend"))
 
-	// Flags are gated behind hyphen in flat shells
+	// Flags are gated behind the dash prefix in every shell
 	assert.False(t, result.HasItem("--env"))
 	assert.False(t, result.HasItem("--follow"))
 	assert.False(t, result.HasItem("--help"))
@@ -508,7 +508,7 @@ func TestPowerShell_NestedSubcommands(t *testing.T) {
 	})
 }
 
-func TestPowerShell_UnconstrainedPositionalAndFlags(t *testing.T) {
+func TestPowerShell_UnconstrainedPositionalSuppressesFlags(t *testing.T) {
 	t.Parallel()
 
 	workspace := setupCloudctl(t)
@@ -522,7 +522,7 @@ func TestPowerShell_UnconstrainedPositionalAndFlags(t *testing.T) {
 		assert.Equal(t, "", result.StdoutLeak, "completion must not print before the harness payload")
 		assert.Zero(t, result.Items, "expected zero completion candidates on unconstrained positional bare space")
 		assert.False(t, result.HasItem("<service>: Service name to deploy"), "usage string must not be treated as a completion candidate")
-		assert.False(t, result.HasItem("--env"), "flags must be gated behind hyphen in flat shells")
+		assert.False(t, result.HasItem("--env"), "flags must be gated behind hyphen in every shell")
 	})
 
 	t.Run("alias bare space yields zero candidates", func(t *testing.T) {
