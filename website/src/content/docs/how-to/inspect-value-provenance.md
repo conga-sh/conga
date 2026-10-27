@@ -42,7 +42,7 @@ func main() {
 
 Passing `--why` intercepts execution during the resolution phase. CONGA binds every flag and configuration source with the regular resolution pipeline, prints the report to stdout, and exits with code 0 before any lifecycle hooks (`PreRun`, `Run`, `PostRun`) execute. Invalid configuration or flag values fail with their normal errors instead of rendering partial diagnostic rows.
 
-To enable the machine-readable `--why=json` document as well, pass `conga.WhyJSON()`: `app.EnableWhy(conga.WhyJSON())`. The same report is available programmatically from `session.Why()` and `session.WhyJSON()` inside lifecycle hooks. With `conga.WhyJSON()` enabled, the help screen renders the flag as `--why[=FORMAT]` with an enum hint of the accepted formats ([The `--why` report](/reference/builtins/#the---why-report)).
+To enable the machine-readable `--why=json` document as well, pass `conga.WhyOptionJSON()`: `app.EnableWhy(conga.WhyOptionJSON())`. The same report is available programmatically from `session.Why()` and `session.WhyJSON()` inside lifecycle hooks. With `conga.WhyOptionJSON()` enabled, the help screen renders the flag as `--why[=FORMAT]` with an enum hint of the accepted formats ([The `--why` report](/reference/builtins/#the---why-report)).
 
 ## Protect sensitive data with value redaction
 
@@ -99,12 +99,12 @@ SERVER_LABELS=region=eu-west-1 server --why --labels shared=cli,team=core
 
 ## Inspect provenance as JSON
 
-To emit a machine-readable document for CI or external tooling, pass `conga.WhyJSON()` when enabling Why:
+To emit a machine-readable document for CI or external tooling, pass `conga.WhyOptionJSON()` when enabling Why:
 
 ```go title="main.go"
 app := conga.New[Server]().
 	Name("server").
-	EnableWhy(conga.WhyJSON())
+	EnableWhy(conga.WhyOptionJSON())
 ```
 
 Invoking the binary with `--why=json` emits a versioned JSON document to stdout:
@@ -173,7 +173,7 @@ SERVER_PORT=9002 server --why=json --port 9003
 }
 ```
 
-Passing `--why=json` without `conga.WhyJSON()` on the builder fails with a usage error (exit 2).
+Passing `--why=json` without `conga.WhyOptionJSON()` on the builder fails with a usage error (exit 2).
 
 ## Query provenance in lifecycle hooks
 
@@ -189,7 +189,7 @@ func (s *Server) PreRun(ctx context.Context, session *conga.Session) error {
 }
 ```
 
-Both methods return an empty string if Why is not enabled on the application. `session.WhyJSON()` also requires `conga.WhyJSON()` on `app.EnableWhy`.
+Both methods return an empty string if Why is not enabled on the application. `session.WhyJSON()` also requires `conga.WhyOptionJSON()` on `app.EnableWhy`.
 
 ## Inspect feature provenance
 

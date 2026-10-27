@@ -26,7 +26,7 @@ const (
 	WhyFormatText = "text"
 
 	// WhyFormatJSON is the machine-readable --why output format, available
-	// only when the app enabled app.EnableWhy(conga.WhyJSON()).
+	// only when the app enabled app.EnableWhy(conga.WhyOptionJSON()).
 	WhyFormatJSON = "json"
 
 	// VersionJSONFlagName is the engine-owned name of the opt-in version

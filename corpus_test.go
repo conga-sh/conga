@@ -214,7 +214,7 @@ func newCorpusWhyJSONApp() *conga.App[corpusRoot] {
 		Name("corpusctl").
 		Description("Corpus fixture application for completion driver conformance").
 		Version("1.2.3").
-		EnableWhy(conga.WhyJSON())
+		EnableWhy(conga.WhyOptionJSON())
 
 	app.Predictor("services", predict.Items(
 		predict.NewItem("api", "REST API service"),

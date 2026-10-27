@@ -1950,7 +1950,7 @@ type whyLeafCLI struct {
 
 // TestBuiltinWhy_HelpAdvertisesFormats pins the conditional --why help row:
 // the optional value slot and format list appear only when the app enabled
-// WhyJSON, mirroring the completion candidates.
+// WhyOptionJSON, mirroring the completion candidates.
 func TestBuiltinWhy_HelpAdvertisesFormats(t *testing.T) {
 	t.Parallel()
 
@@ -1980,7 +1980,7 @@ func TestBuiltinWhy_HelpAdvertisesFormats(t *testing.T) {
 
 		app := conga.New[whyCLI]().
 			Name("cloudctl").
-			EnableWhy(conga.WhyJSON()).
+			EnableWhy(conga.WhyOptionJSON()).
 			Stdout(&buffer).
 			Args([]string{"--help"})
 
@@ -1999,7 +1999,7 @@ func TestBuiltinWhy_JSONFormat(t *testing.T) {
 
 	app := conga.New[whyCLI]().
 		Name("cloudctl").
-		EnableWhy(conga.WhyJSON()).
+		EnableWhy(conga.WhyOptionJSON()).
 		Stdout(&buffer).
 		Args([]string{"--port", "8080", "--shown", "visible-value", "--why=json"})
 
@@ -2111,7 +2111,7 @@ func TestBuiltinWhy_JSONMapAndFeatures(t *testing.T) {
 
 	app := conga.New[whyMergeCLI]().
 		Name("cloudctl").
-		EnableWhy(conga.WhyJSON()).
+		EnableWhy(conga.WhyOptionJSON()).
 		EnableFeatures().
 		Stdout(&buffer).
 		Args([]string{"--headers", "region=eu-central-1,env=prod", "--secrets", "api=xyz", "--feature-gates", "alpha=true", "--why=json"})
@@ -2185,7 +2185,7 @@ func TestBuiltinWhy_FieldEnvJSONSource(t *testing.T) {
 
 	app := conga.New[featureFieldEnvCLI]().
 		Name("cloudctl").
-		EnableWhy(conga.WhyJSON()).
+		EnableWhy(conga.WhyOptionJSON()).
 		EnableFeatures().
 		Stdout(&buffer).
 		Args([]string{"--why=json"})
@@ -2299,7 +2299,7 @@ func TestBuiltinWhy_LastValueWinsOverInvalid(t *testing.T) {
 
 	app := conga.New[whyCLI]().
 		Name("cloudctl").
-		EnableWhy(conga.WhyJSON()).
+		EnableWhy(conga.WhyOptionJSON()).
 		Stdout(&buffer).
 		Args([]string{"--port", "8080", "--why=banana", "--why=json"})
 
@@ -2434,7 +2434,7 @@ func TestBuiltinWhy_JSONWithoutOptionRejected(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), `invalid value "json" for --why: JSON output format is not enabled on this application (enable with app.EnableWhy(conga.WhyJSON()))`)
+	assert.Contains(t, err.Error(), `invalid value "json" for --why: JSON output format is not enabled on this application (enable with app.EnableWhy(conga.WhyOptionJSON()))`)
 	assert.IsError(t, err, conga.ErrValidation)
 	assert.True(t, conga.IsUsageError(err))
 }
@@ -2473,7 +2473,7 @@ func TestSessionWhy_InsideLifecycleHooks(t *testing.T) {
 	app := conga.New(&cli).
 		Name("whyapp").
 		Stdout(&buffer).
-		EnableWhy(conga.WhyJSON()).
+		EnableWhy(conga.WhyOptionJSON()).
 		Args([]string{"--port", "9000"})
 
 	err := app.Run()
@@ -2521,7 +2521,7 @@ func TestSessionWhy_Disabled(t *testing.T) {
 		assert.Equal(t, "", cli.json)
 	})
 
-	t.Run("WhyJSON option absent", func(t *testing.T) {
+	t.Run("WhyOptionJSON option absent", func(t *testing.T) {
 		t.Parallel()
 
 		var cli whyDisabledSessionCLI
@@ -2566,7 +2566,7 @@ func TestBuiltinWhy_JSONSerializesScalarAndDomainTypes(t *testing.T) {
 
 	app := conga.New[whyJSONTypesCLI]().
 		Name("cloudctl").
-		EnableWhy(conga.WhyJSON()).
+		EnableWhy(conga.WhyOptionJSON()).
 		Stdout(&buffer).
 		Args([]string{
 			"--int32", "42",
@@ -2624,7 +2624,7 @@ func TestBuiltinWhy_JSONFeatureFlagValue(t *testing.T) {
 
 	app := conga.New[whyMergeCLI]().
 		Name("cloudctl").
-		EnableWhy(conga.WhyJSON()).
+		EnableWhy(conga.WhyOptionJSON()).
 		EnableFeatures().
 		Stdout(&buffer).
 		Args([]string{"--feature-gates", "alpha=true", "--why=json"})
@@ -2777,7 +2777,7 @@ func TestBuiltinWhy_JSONPointerReceiverTextMarshaler(t *testing.T) {
 
 	app := conga.New[whyPointerTextCLI]().
 		Name("whyapp").
-		EnableWhy(conga.WhyJSON()).
+		EnableWhy(conga.WhyOptionJSON()).
 		Stdout(&buffer).
 		Args([]string{"--value", "hello", "--why=json"})
 

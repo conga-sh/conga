@@ -451,10 +451,10 @@ func (a *App[T]) EnableFeatures() *App[T] {
 //
 // By default, [App.EnableWhy] links only the human-readable text table
 // renderer, keeping the binary footprint lean and dead-code eliminating the
-// RFC 8259 JSON serialization pipeline. Pass [WhyJSON] to opt into
+// RFC 8259 JSON serialization pipeline. Pass [WhyOptionJSON] to opt into
 // machine-readable provenance reports:
 //
-//	app.EnableWhy(conga.WhyJSON())
+//	app.EnableWhy(conga.WhyOptionJSON())
 //
 // See https://docs.conga.sh/how-to/inspect-value-provenance/.
 func (a *App[T]) EnableWhy(opts ...WhyOption) *App[T] {
@@ -505,7 +505,7 @@ func (a *App[T]) Use(bindings ...func(*App[T])) *App[T] {
 //   - If parser is nil.
 //
 // See https://docs.conga.sh/how-to/add-custom-flag-types/.
-func (a *App[T]) RegisterType[U any](parser func(string) (U, error), opts ...RegisterTypeOption) *App[T] {
+func (a *App[T]) RegisterType[U any](parser func(string) (U, error), opts ...RegistrationOption) *App[T] {
 	if a == nil {
 		panic("conga: RegisterType requires a non-nil app")
 	}
@@ -566,7 +566,7 @@ func (a *App[T]) RegisterType[U any](parser func(string) (U, error), opts ...Reg
 //   - If the receiver App is nil.
 //
 // See https://docs.conga.sh/how-to/add-custom-flag-types/.
-func (a *App[T]) RegisterMap[M ~map[K]V, K ~string, V any](opts ...RegisterTypeOption) *App[T] {
+func (a *App[T]) RegisterMap[M ~map[K]V, K ~string, V any](opts ...RegistrationOption) *App[T] {
 	if a == nil {
 		panic("conga: RegisterMap requires a non-nil app")
 	}
@@ -868,15 +868,15 @@ func (a *App[T]) Exit(err error) {
 	a.exit(1)
 }
 
-// RegisterTypeOption configures a custom type registration on [App.RegisterType]
+// RegistrationOption configures a custom type registration on [App.RegisterType]
 // and [App.RegisterMap]. [WithPredictor] is currently the only constructor.
-type RegisterTypeOption func(*typeRegistration)
+type RegistrationOption func(*typeRegistration)
 
 // WithPredictor attaches a shell autocompletion predictor to a registered custom type.
 //
 // Flags and positional arguments using this type automatically inherit the predictor
 // for shell autocompletion, unless overridden by an explicit predictor struct tag.
-func WithPredictor(p predict.Predictor) RegisterTypeOption {
+func WithPredictor(p predict.Predictor) RegistrationOption {
 	return func(r *typeRegistration) {
 		r.hasPredictor = true
 		r.predictor = p

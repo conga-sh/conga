@@ -49,7 +49,7 @@ The complete scenarios, fixtures included, live in
 - `.env` loading through `App.Dotenv()` feeding both flag and feature variables
   (see [`testdata/dotenv.txt`](testdata/dotenv.txt)); the writer is `os.Setenv`
   by default and overridable with `App.SetenvFunc` for tests.
-- `--why=json` machine-readable provenance, opted in with `conga.WhyJSON()`.
+- `--why=json` machine-readable provenance, opted in with `conga.WhyOptionJSON()`.
 - Help omits `internal` (ignored command), plain ignored fields, and inactive
   gated members.
 

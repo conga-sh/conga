@@ -39,7 +39,7 @@ func New[T any](root ...*T) *App[T]
 | `Stdout(w)` / `Stderr(w)` | Output writers (default `os.Stdout`/`os.Stderr`) |
 | `SetenvFunc(fn)` | Writer for variables loaded by [Dotenv](/reference/dotenv/) (default `os.Setenv`) |
 | `ExitFunc(handler)` | Custom exit handler for `Exit` |
-| `EnableWhy(options...)` / `EnableCompletion(options...)` / `EnableFeatures()` | Opt in to the `--why` report, shell completion, and struct-declared feature toggles; pass `conga.WhyJSON()` to `EnableWhy` to enable `--why=json` |
+| `EnableWhy(options...)` / `EnableCompletion(options...)` / `EnableFeatures()` | Opt in to the `--why` report, shell completion, and struct-declared feature toggles; pass `conga.WhyOptionJSON()` to `EnableWhy` to enable `--why=json` |
 | `DisableHelpFlag()` / `DisableVersionFlag()` | Remove the `--help`/`--version` flags |
 
 ### Execution methods
@@ -53,12 +53,12 @@ func New[T any](root ...*T) *App[T]
 ### Extensibility functions
 
 ```go
-func (a *App[T]) RegisterType[U any](parser func(string) (U, error), opts ...RegisterTypeOption) *App[T]
-func (a *App[T]) RegisterMap[M ~map[K]V, K ~string, V any](opts ...RegisterTypeOption) *App[T]
-func WithPredictor(p predict.Predictor) RegisterTypeOption
+func (a *App[T]) RegisterType[U any](parser func(string) (U, error), opts ...RegistrationOption) *App[T]
+func (a *App[T]) RegisterMap[M ~map[K]V, K ~string, V any](opts ...RegistrationOption) *App[T]
+func WithPredictor(p predict.Predictor) RegistrationOption
 ```
 
-`RegisterTypeOption` customizes registrations; `WithPredictor` attaches default completion to a registered type.
+`RegistrationOption` customizes registrations; `WithPredictor` attaches default completion to a registered type.
 
 ## Containers
 
@@ -110,7 +110,7 @@ func (s *Session) LoadedConfigFiles() []string
 exact root command struct type, or `Root` panics. Enclosing command structs are reached
 by walking the selected `Command[T]` fields (`root.Cluster.Get()`).
 
-`Why` and `WhyJSON` render the same value-provenance report as the built-in `--why` flag; they return an empty string when Why is not enabled, and `WhyJSON` also requires `app.EnableWhy(conga.WhyJSON())`.
+`Why` and `WhyJSON` render the same value-provenance report as the built-in `--why` flag; they return an empty string when Why is not enabled, and `WhyJSON` also requires `app.EnableWhy(conga.WhyOptionJSON())`.
 
 The App snapshots standard streams at the start of execution for the active session.
 
@@ -137,14 +137,14 @@ Base categories (`ErrSchema`, `ErrParse`, `ErrCoerce`, `ErrValidation`, `ErrConf
 ## Provenance options
 
 ```go
-func WhyJSON() WhyOption
+func WhyOptionJSON() WhyOption
 
 type WhyOption interface {
 	applyWhy(settings *whySettings)
 }
 ```
 
-`WhyOption` is a sealed interface produced by option constructors such as `WhyJSON()`. `WhyJSON` enables machine-readable `--why=json` reports on `App.EnableWhy`. By default, `EnableWhy` compiles only the human-readable text table renderer, dead-code eliminating the JSON serialization pipeline unless opted in.
+`WhyOption` is a sealed interface produced by option constructors such as `WhyOptionJSON()`. `WhyOptionJSON` enables machine-readable `--why=json` reports on `App.EnableWhy`. By default, `EnableWhy` compiles only the human-readable text table renderer, dead-code eliminating the JSON serialization pipeline unless opted in.
 
 ## Completion options
 
