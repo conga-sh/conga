@@ -31,7 +31,7 @@ func (i Item) WithTag(tag string) Item
 func (i Item) WithAlias() Item
 ```
 
-`WithAlias` marks a candidate as an alternative spelling of another candidate, such as a taskfile task alias. Alias candidates are shown by default and suppressed when the user disables them through the `show-aliases` zstyle or the `CONGA_COMPLETION_ALIASES` sideband. Subcommand and flag aliases declared with the `aliases` tag carry the marker automatically. See [How to enable shell completion](/how-to/enable-shell-completion/#customise-completion-behaviour).
+`WithAlias` marks a candidate as an alternative spelling of another candidate, such as a taskfile task alias. Alias candidates are shown by default and suppressed when the user disables them through the `show-aliases` zstyle or the application-prefixed `<APP>_COMPLETION_ALIASES` sideband. Subcommand and flag aliases declared with the `aliases` tag carry the marker automatically. See [How to enable shell completion](/how-to/enable-shell-completion/#customise-completion-behaviour).
 
 ## Constructors
 

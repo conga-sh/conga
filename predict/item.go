@@ -25,7 +25,7 @@ type Item struct {
 	// candidate: a subcommand or flag alias declared on the command schema, or
 	// a domain alias (such as a taskfile task alias) supplied by a predictor.
 	// Aliases are offered by default and can be suppressed by the user with
-	// the completion aliases sideband (CONGA_COMPLETION_ALIASES).
+	// the application-prefixed completion aliases sideband (<APP>_COMPLETION_ALIASES).
 	Alias bool
 }
 

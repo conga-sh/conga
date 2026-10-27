@@ -12,7 +12,7 @@ import (
 func TestSnippet_SingleCommand(t *testing.T) {
 	t.Parallel()
 
-	snippet := bash.Snippet("myapp", nil)
+	snippet := bash.Snippet("myapp", nil, "")
 
 	assert.Equal(t,
 		`#!/bin/bash`+"\n"+
@@ -66,7 +66,7 @@ func TestSnippet_SingleCommand(t *testing.T) {
 func TestSnippet_RegistersAliases(t *testing.T) {
 	t.Parallel()
 
-	snippet := bash.Snippet("myapp", []string{"ma", "app"})
+	snippet := bash.Snippet("myapp", []string{"ma", "app"}, "")
 
 	assert.Contains(t, snippet, "complete -o noquote -F _myapp_completion myapp ma app")
 }
@@ -97,7 +97,7 @@ func TestSnippet_IdentifierHygiene(t *testing.T) {
 		t.Run(label, func(t *testing.T) {
 			t.Parallel()
 
-			snippet := bash.Snippet(testCase.name, nil)
+			snippet := bash.Snippet(testCase.name, nil, "")
 
 			assert.Contains(t, snippet, "_"+testCase.identifier+"_completion() {")
 			assert.Contains(t, snippet, "complete -o noquote -F _"+testCase.identifier+"_completion "+testCase.target)

@@ -12,7 +12,7 @@ import (
 func TestSnippet_GlobalExternalCompleter(t *testing.T) {
 	t.Parallel()
 
-	script := nushell.Snippet("myapp", []string{"ma", "app"})
+	script := nushell.Snippet("myapp", []string{"ma", "app"}, "")
 
 	assert.Contains(t, script, "let myapp_completer = {|spans|")
 	assert.Contains(t, script, "if ($spans | length) > 0 {")
@@ -26,13 +26,13 @@ func TestSnippet_GlobalExternalCompleter(t *testing.T) {
 func TestSnippet_SetsSidebandShellVariable(t *testing.T) {
 	t.Parallel()
 
-	assert.Contains(t, nushell.Snippet("myapp", nil), "load-env { CONGA_SHELL: 'nushell' }")
+	assert.Contains(t, nushell.Snippet("myapp", nil, ""), "load-env { CONGA_SHELL: 'nushell' }")
 }
 
 func TestSnippet_DefensiveConfigMerge(t *testing.T) {
 	t.Parallel()
 
-	script := nushell.Snippet("myapp", nil)
+	script := nushell.Snippet("myapp", nil, "")
 
 	assert.Contains(t, script, "mut current = (($env | default {} config).config | default {} completions)")
 	assert.Contains(t, script, "$current.completions = ($current.completions | default {} external)")
@@ -46,13 +46,13 @@ func TestSnippet_ValidatesSpanCount(t *testing.T) {
 	t.Parallel()
 
 	// Defensive guard: check span count before indexing
-	assert.Contains(t, nushell.Snippet("myapp", nil), "if ($spans | length) > 0 {")
+	assert.Contains(t, nushell.Snippet("myapp", nil, ""), "if ($spans | length) > 0 {")
 }
 
 func TestSnippet_ErrorHandlingViaTryCatch(t *testing.T) {
 	t.Parallel()
 
-	script := nushell.Snippet("myapp", nil)
+	script := nushell.Snippet("myapp", nil, "")
 
 	// Wraps completion invocation in try-catch for robustness
 	assert.Contains(t, script, "try {")
@@ -62,12 +62,12 @@ func TestSnippet_ErrorHandlingViaTryCatch(t *testing.T) {
 func TestSnippet_SanitizesIdentifierAndTarget(t *testing.T) {
 	t.Parallel()
 
-	script := nushell.Snippet("my-app", nil)
+	script := nushell.Snippet("my-app", nil, "")
 
 	assert.Contains(t, script, "let my_app_completer = {|spans|")
 	assert.Contains(t, script, "$my_app_completer")
 
-	typed := nushell.Snippet("my app", nil)
+	typed := nushell.Snippet("my app", nil, "")
 
 	assert.Contains(t, typed, "if ($spans | length) > 0 {")
 	assert.Contains(t, typed, `^$spans.0 __complete nushell ...$words | from json`)
@@ -99,7 +99,7 @@ func TestSnippet_IdentifierHygiene(t *testing.T) {
 		t.Run(label, func(t *testing.T) {
 			t.Parallel()
 
-			script := nushell.Snippet(testCase.name, nil)
+			script := nushell.Snippet(testCase.name, nil, "")
 
 			assert.Contains(t, script, "let "+testCase.identifier+"_completer = {|spans|")
 			assert.Contains(t, script, "$"+testCase.identifier+"_completer")

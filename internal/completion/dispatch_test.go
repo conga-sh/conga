@@ -162,7 +162,7 @@ func bashSessionForLine(line string) *completion.Session {
 		default:
 			return "", false
 		}
-	})
+	}, "")
 }
 
 func TestPatchNativeBash(t *testing.T) {
@@ -419,13 +419,14 @@ func TestSnippetNativePowerShell(t *testing.T) {
 func TestSnippetNativeZsh(t *testing.T) {
 	t.Parallel()
 
-	opts := completion.DriverOptions{CommandName: "myapp", Aliases: []string{"ma", "app"}}
+	opts := completion.DriverOptions{CommandName: "myapp", Aliases: []string{"ma", "app"}, EnvPrefix: "MYAPP_"}
 
 	snippet, err := completion.Snippet(opts, "zsh")
 
 	assert.NoError(t, err)
 	assert.Contains(t, snippet, "#compdef myapp ma app")
 	assert.Contains(t, snippet, "function _myapp_completer {")
+	assert.Contains(t, snippet, "local app_env_prefix=MYAPP_")
 	assert.Contains(t, snippet, `"$target" __complete zsh "${args[@]}" 2>/dev/null`)
 	assert.Contains(t, snippet, "compdef _myapp_completer myapp ma app")
 }

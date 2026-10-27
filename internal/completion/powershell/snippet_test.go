@@ -12,7 +12,7 @@ import (
 func TestSnippet_SingleCommand(t *testing.T) {
 	t.Parallel()
 
-	snippet := powershell.Snippet("myapp", nil)
+	snippet := powershell.Snippet("myapp", nil, "")
 
 	assert.Contains(t, snippet, "using namespace System.Management.Automation\nusing namespace System.Management.Automation.Language\n")
 	assert.Contains(t, snippet, "Function _myapp_completer {")
@@ -27,7 +27,7 @@ func TestSnippet_SingleCommand(t *testing.T) {
 func TestSnippet_LegacyProtocolRemoved(t *testing.T) {
 	t.Parallel()
 
-	snippet := powershell.Snippet("myapp", []string{"ma", "app"})
+	snippet := powershell.Snippet("myapp", []string{"ma", "app"}, "")
 
 	assert.False(t, strings.Contains(snippet, "CONGA_"), "the shell is passed via argv, not the environment")
 }
@@ -35,7 +35,7 @@ func TestSnippet_LegacyProtocolRemoved(t *testing.T) {
 func TestSnippet_MultiCommand(t *testing.T) {
 	t.Parallel()
 
-	snippet := powershell.Snippet("myapp", []string{"ma", "app"})
+	snippet := powershell.Snippet("myapp", []string{"ma", "app"}, "")
 
 	assert.Contains(t, snippet, "$_myapp_completer = {")
 	assert.Contains(t, snippet, `& $elems[0] __complete powershell $words ''`)
@@ -47,7 +47,7 @@ func TestSnippet_MultiCommand(t *testing.T) {
 func TestSnippet_SuppressesDefaultFileCompletion(t *testing.T) {
 	t.Parallel()
 
-	snippet := powershell.Snippet("myapp", nil)
+	snippet := powershell.Snippet("myapp", nil, "")
 
 	assert.Contains(t, snippet, "if (!$payload) {")
 	assert.Contains(t, snippet, `return ""`)
@@ -57,7 +57,7 @@ func TestSnippet_SuppressesDefaultFileCompletion(t *testing.T) {
 func TestSnippet_QuotesMetacharacterNames(t *testing.T) {
 	t.Parallel()
 
-	snippet := powershell.Snippet("my app", nil)
+	snippet := powershell.Snippet("my app", nil, "")
 
 	assert.Contains(t, snippet, "Function _my_app_completer {")
 	assert.Contains(t, snippet, `& $elems[0] __complete powershell $words ''`)
@@ -67,7 +67,7 @@ func TestSnippet_QuotesMetacharacterNames(t *testing.T) {
 func TestSnippet_PortableAnsiEscape(t *testing.T) {
 	t.Parallel()
 
-	snippet := powershell.Snippet("myapp", nil)
+	snippet := powershell.Snippet("myapp", nil, "")
 
 	assert.Contains(t, snippet, "$esc = [char]27")
 	assert.Contains(t, snippet, ".replace('`e[', ($esc + '['))")

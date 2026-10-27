@@ -37,7 +37,7 @@ const dynamicTarget = `$elems[0]`
 // __complete entry point; the JSON payload is piped through
 // ConvertFrom-Json into CompletionResult objects. An empty result set
 // returns "" so PowerShell's default file completion is suppressed.
-func Snippet(name string, aliases []string) string {
+func Snippet(name string, aliases []string, _ string) string {
 	if len(aliases) > 0 {
 		return multiSnippet(name, aliases)
 	}

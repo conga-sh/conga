@@ -12,7 +12,7 @@ import (
 func TestSnippet_MultiForm(t *testing.T) {
 	t.Parallel()
 
-	snippet := zsh.Snippet("myapp", []string{"ma", "app"})
+	snippet := zsh.Snippet("myapp", []string{"ma", "app"}, "TEST_")
 
 	assert.Contains(t, snippet, "#compdef myapp ma app\n")
 	assert.Contains(t, snippet, "function _myapp_completer {")
@@ -25,7 +25,7 @@ func TestSnippet_MultiForm(t *testing.T) {
 func TestSnippet_SingleForm(t *testing.T) {
 	t.Parallel()
 
-	snippet := zsh.Snippet("foobar", nil)
+	snippet := zsh.Snippet("foobar", nil, "TEST_")
 
 	assert.Contains(t, snippet, "#compdef foobar\n")
 	assert.Contains(t, snippet, "function _foobar_completion {")
@@ -38,7 +38,7 @@ func TestSnippet_SingleForm(t *testing.T) {
 func TestSnippet_WordCollection(t *testing.T) {
 	t.Parallel()
 
-	snippet := zsh.Snippet("myapp", nil)
+	snippet := zsh.Snippet("myapp", nil, "TEST_")
 
 	// Words before the one being completed are ${(Q)}-unquoted; the last
 	// word is passed raw.
@@ -49,7 +49,7 @@ func TestSnippet_WordCollection(t *testing.T) {
 func TestSnippet_RecordParsing(t *testing.T) {
 	t.Parallel()
 
-	snippet := zsh.Snippet("myapp", nil)
+	snippet := zsh.Snippet("myapp", nil, "TEST_")
 
 	// Records are split on the unit separator field delimiter.
 	assert.Contains(t, snippet, `us=$'\x1f'`)
@@ -69,9 +69,11 @@ func TestSnippet_RecordParsing(t *testing.T) {
 
 	// zstyle-driven suppression sidebands: verbose hides descriptions,
 	// show-aliases hides alias candidates; list-separator forwards the
-	// separator zsh will render between a match and its description.
-	assert.Contains(t, snippet, `zstyle -T "$probe_context" verbose || conga_env+=(CONGA_COMPLETION_DESCRIPTIONS=0)`)
-	assert.Contains(t, snippet, `zstyle -T "$probe_context" show-aliases || conga_env+=(CONGA_COMPLETION_ALIASES=0)`)
+	// separator zsh will render between a match and its description. The
+	// suppression variables use the application prefix set by the wrapper.
+	assert.Contains(t, snippet, "local app_env_prefix=TEST_")
+	assert.Contains(t, snippet, `zstyle -T "$probe_context" verbose || conga_env+=("${app_env_prefix}COMPLETION_DESCRIPTIONS=0")`)
+	assert.Contains(t, snippet, `zstyle -T "$probe_context" show-aliases || conga_env+=("${app_env_prefix}COMPLETION_ALIASES=0")`)
 	assert.Contains(t, snippet, `zstyle -s "$probe_context" list-separator user_list_separator`)
 	assert.Contains(t, snippet, `conga_env+=("CONGA_ZSH_LIST_SEPARATOR=${user_list_separator}")`)
 
@@ -88,7 +90,7 @@ func TestSnippet_RecordParsing(t *testing.T) {
 func TestSnippet_EmptyAliasListUsesSingleForm(t *testing.T) {
 	t.Parallel()
 
-	empty := zsh.Snippet("foobar", []string{})
+	empty := zsh.Snippet("foobar", []string{}, "TEST_")
 
 	assert.Contains(t, empty, "function _foobar_completion {")
 	assert.NotContains(t, empty, "_foobar_completer")
@@ -121,7 +123,7 @@ func TestSnippet_IdentifierHygiene(t *testing.T) {
 		t.Run(label, func(t *testing.T) {
 			t.Parallel()
 
-			snippet := zsh.Snippet(testCase.name, nil)
+			snippet := zsh.Snippet(testCase.name, nil, "TEST_")
 
 			assert.Contains(t, snippet, "function _"+testCase.identifier+"_completion {")
 			assert.Contains(t, snippet, "compdef _"+testCase.identifier+"_completion "+testCase.target+"\n")
@@ -155,7 +157,7 @@ func TestSnippet_IdentifierHygiene(t *testing.T) {
 func TestSnippet_MultiFormUnsafeNameSanitizesFunction(t *testing.T) {
 	t.Parallel()
 
-	snippet := zsh.Snippet("my app", []string{"ma"})
+	snippet := zsh.Snippet("my app", []string{"ma"}, "TEST_")
 
 	assert.Contains(t, snippet, "function _my_app_completer {")
 	assert.Contains(t, snippet, "compdef _my_app_completer 'my app' ma\n")

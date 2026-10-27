@@ -9,6 +9,8 @@ import (
 	"github.com/conga-sh/conga/internal/completion/wire"
 )
 
+const testEnvPrefix = "TEST_"
+
 //nolint:paralleltest // t.Setenv cannot be used with t.Parallel
 func TestShell(t *testing.T) {
 	t.Run("default is empty when unset", func(t *testing.T) {
@@ -29,82 +31,86 @@ func TestShell(t *testing.T) {
 //nolint:paralleltest // t.Setenv cannot be used with t.Parallel
 func TestAliasesEnabled(t *testing.T) {
 	t.Run("default is true when unset", func(t *testing.T) {
-		enabled := wire.AliasesEnabled()
-
-		assert.True(t, enabled)
+		assert.True(t, wire.AliasesEnabled(testEnvPrefix))
 	})
 
 	t.Run("suppressed with 0", func(t *testing.T) {
-		t.Setenv(wire.EnvAliases, "0")
+		t.Setenv(testEnvPrefix+wire.CompletionAliasesSuffix, "0")
 
-		enabled := wire.AliasesEnabled()
-
-		assert.False(t, enabled)
+		assert.False(t, wire.AliasesEnabled(testEnvPrefix))
 	})
 
 	t.Run("suppressed with false", func(t *testing.T) {
-		t.Setenv(wire.EnvAliases, "false")
+		t.Setenv(testEnvPrefix+wire.CompletionAliasesSuffix, "false")
 
-		enabled := wire.AliasesEnabled()
-
-		assert.False(t, enabled)
+		assert.False(t, wire.AliasesEnabled(testEnvPrefix))
 	})
 
 	t.Run("enabled with 1", func(t *testing.T) {
-		t.Setenv(wire.EnvAliases, "1")
+		t.Setenv(testEnvPrefix+wire.CompletionAliasesSuffix, "1")
 
-		enabled := wire.AliasesEnabled()
-
-		assert.True(t, enabled)
+		assert.True(t, wire.AliasesEnabled(testEnvPrefix))
 	})
 
 	t.Run("unparseable value defaults to true", func(t *testing.T) {
-		t.Setenv(wire.EnvAliases, "garbage")
+		t.Setenv(testEnvPrefix+wire.CompletionAliasesSuffix, "garbage")
 
-		enabled := wire.AliasesEnabled()
+		assert.True(t, wire.AliasesEnabled(testEnvPrefix))
+	})
 
-		assert.True(t, enabled)
+	t.Run("legacy framework-prefixed name is ignored", func(t *testing.T) {
+		t.Setenv("CONGA_COMPLETION_ALIASES", "0")
+
+		assert.True(t, wire.AliasesEnabled(testEnvPrefix))
+	})
+
+	t.Run("empty prefix does not read unprefixed name", func(t *testing.T) {
+		t.Setenv("COMPLETION_ALIASES", "0")
+
+		assert.True(t, wire.AliasesEnabled(""))
 	})
 }
 
 //nolint:paralleltest // t.Setenv cannot be used with t.Parallel
 func TestDescriptionsEnabled(t *testing.T) {
 	t.Run("default is true when unset", func(t *testing.T) {
-		enabled := wire.DescriptionsEnabled()
-
-		assert.True(t, enabled)
+		assert.True(t, wire.DescriptionsEnabled(testEnvPrefix))
 	})
 
 	t.Run("suppressed with 0", func(t *testing.T) {
-		t.Setenv(wire.EnvDescriptions, "0")
+		t.Setenv(testEnvPrefix+wire.CompletionDescriptionsSuffix, "0")
 
-		enabled := wire.DescriptionsEnabled()
-
-		assert.False(t, enabled)
+		assert.False(t, wire.DescriptionsEnabled(testEnvPrefix))
 	})
 
 	t.Run("suppressed with false", func(t *testing.T) {
-		t.Setenv(wire.EnvDescriptions, "false")
+		t.Setenv(testEnvPrefix+wire.CompletionDescriptionsSuffix, "false")
 
-		enabled := wire.DescriptionsEnabled()
-
-		assert.False(t, enabled)
+		assert.False(t, wire.DescriptionsEnabled(testEnvPrefix))
 	})
 
 	t.Run("enabled with 1", func(t *testing.T) {
-		t.Setenv(wire.EnvDescriptions, "1")
+		t.Setenv(testEnvPrefix+wire.CompletionDescriptionsSuffix, "1")
 
-		enabled := wire.DescriptionsEnabled()
-
-		assert.True(t, enabled)
+		assert.True(t, wire.DescriptionsEnabled(testEnvPrefix))
 	})
 
 	t.Run("unparseable value defaults to true", func(t *testing.T) {
-		t.Setenv(wire.EnvDescriptions, "garbage")
+		t.Setenv(testEnvPrefix+wire.CompletionDescriptionsSuffix, "garbage")
 
-		enabled := wire.DescriptionsEnabled()
+		assert.True(t, wire.DescriptionsEnabled(testEnvPrefix))
+	})
 
-		assert.True(t, enabled)
+	t.Run("legacy framework-prefixed name is ignored", func(t *testing.T) {
+		t.Setenv("CONGA_COMPLETION_DESCRIPTIONS", "0")
+
+		assert.True(t, wire.DescriptionsEnabled(testEnvPrefix))
+	})
+
+	t.Run("empty prefix does not read unprefixed name", func(t *testing.T) {
+		t.Setenv("COMPLETION_DESCRIPTIONS", "0")
+
+		assert.True(t, wire.DescriptionsEnabled(""))
 	})
 }
 

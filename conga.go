@@ -15,6 +15,7 @@ import (
 	"syscall"
 
 	"github.com/conga-sh/conga/internal/appname"
+	"github.com/conga-sh/conga/internal/casing"
 	"github.com/conga-sh/conga/internal/coerce"
 	"github.com/conga-sh/conga/internal/completion"
 	"github.com/conga-sh/conga/internal/completion/lex"
@@ -384,8 +385,21 @@ func (a *App[T]) Predictor(name string, predictor predict.Predictor) *App[T] {
 // Fish, PowerShell, Elvish, and Nushell, plus the hidden __complete wire
 // protocol. A mounted [CompletionCommand] requires it.
 //
+// The generated scripts and the wire protocol read the application-prefixed
+// description and alias toggles, for example TASK_COMPLETION_DESCRIPTIONS for
+// an app named task. Pass [CompletionEnvPrefix] to override the derived prefix.
+//
 // See https://docs.conga.sh/how-to/enable-shell-completion/.
-func (a *App[T]) EnableCompletion() *App[T] {
+func (a *App[T]) EnableCompletion(opts ...CompletionOption) *App[T] {
+	var settings completionSettings
+
+	for _, opt := range opts {
+		if opt != nil {
+			opt.applyCompletion(&settings)
+		}
+	}
+
+	a.completionSettings = settings
 	a.completionShells = completion.SupportedShells()
 	a.installCompletionHooks()
 
@@ -971,24 +985,25 @@ type appConfig[T any] struct {
 	// source path. It is shared across the static and bootstrap dotenv phases
 	// and across invocations on the same App, so a later .env load may override
 	// an earlier one while host environment keys stay protected.
-	dotenvOrigins     map[string]string
-	setenvFunc        func(key, value string)
-	configData        *configdata.Data
-	configResolution  *configResolution
-	args              []string
-	argsExplicitlySet bool
-	usageMode         UsageOnErrorMode
-	stdout            io.Writer
-	stderr            io.Writer
-	stdin             io.Reader
-	exitFunc          func(code int)
-	allowedTags       []string
-	predictors        map[string]predict.Predictor
-	typeRegistry      map[reflect.Type]typeRegistration
-	helpDisabled      bool
-	versionDisabled   bool
-	helpOptions       help.Options
-	completionShells  []string
+	dotenvOrigins      map[string]string
+	setenvFunc         func(key, value string)
+	configData         *configdata.Data
+	configResolution   *configResolution
+	args               []string
+	argsExplicitlySet  bool
+	usageMode          UsageOnErrorMode
+	stdout             io.Writer
+	stderr             io.Writer
+	stdin              io.Reader
+	exitFunc           func(code int)
+	allowedTags        []string
+	predictors         map[string]predict.Predictor
+	typeRegistry       map[reflect.Type]typeRegistration
+	helpDisabled       bool
+	versionDisabled    bool
+	helpOptions        help.Options
+	completionShells   []string
+	completionSettings completionSettings
 	// inferPredictor performs type-based predictor inference during schema
 	// build. Completion installs it; nil keeps the inference machinery
 	// (including its filesystem probes) unreferenced at link time.
@@ -1143,7 +1158,7 @@ func (a *App[T]) completeForShellWithEnv(targetShell string, args []string, look
 
 	targetShell = cond.SetOrDefaultFunc(targetShell, detectShell)
 
-	completionSession := completion.NewSessionWithEnv(targetShell, lookup)
+	completionSession := completion.NewSessionWithEnv(targetShell, lookup, cmd.CompletionEnvPrefix)
 
 	patchedArgs, err := completionSession.Patch(args)
 	if errors.Is(err, sentinel.ErrRedirectTarget) {
@@ -1423,6 +1438,12 @@ func (a *App[T]) buildSpec() (*spec.Command, error) {
 	}
 
 	if a.mountCompletion != nil {
+		envPrefix, err := a.resolvedCompletionEnvPrefix()
+		if err != nil {
+			return nil, err
+		}
+
+		cmd.CompletionEnvPrefix = envPrefix
 		a.mountCompletion(a, cmd)
 	}
 
@@ -1453,6 +1474,38 @@ func (a *App[T]) buildSpec() (*spec.Command, error) {
 	a.rootCommand = cmd
 
 	return cmd, nil
+}
+
+// resolvedCompletionEnvPrefix returns the normalized environment-variable
+// prefix naming the completion sideband toggles: the explicit
+// [CompletionEnvPrefix] option when set, otherwise the application name
+// (which always resolves to the invoked binary name or "app"). The prefix
+// carries a trailing underscore so callers concatenate the variable suffix
+// directly. A normalized prefix that begins with a digit is rejected because
+// POSIX shells cannot assign such a variable name.
+func (a *App[T]) resolvedCompletionEnvPrefix() (string, error) {
+	prefix := a.completionSettings.envPrefix
+	if prefix == "" {
+		prefix = cond.SetOrDefaultFunc(a.name, getAppName)
+	}
+
+	normalized := casing.UpperSnake(prefix)
+	normalized = strings.Map(func(r rune) rune {
+		if (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '_' {
+			return r
+		}
+
+		return -1
+	}, normalized)
+
+	normalized = strings.Trim(normalized, "_")
+	if normalized == "" {
+		normalized = "APP"
+	} else if normalized[0] >= '0' && normalized[0] <= '9' {
+		return "", fmt.Errorf("%w: completion environment prefix %q begins with a digit, which is not a valid shell variable name; rename the application or pass conga.CompletionEnvPrefix with a prefix beginning with a letter", ErrSchema, normalized+"_")
+	}
+
+	return normalized + "_", nil
 }
 
 func (a *App[T]) mountCompletionSubcommand(cmd *spec.Command) {
@@ -2249,6 +2302,7 @@ func generateCompletionScript(shell completion.Shell, rootCmd *spec.Command, out
 	script, err := completion.Generate(shell, completion.DriverOptions{
 		CommandName: cmdName,
 		Aliases:     rootCmd.Aliases,
+		EnvPrefix:   rootCmd.CompletionEnvPrefix,
 	})
 	if err != nil {
 		return err

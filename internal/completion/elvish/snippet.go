@@ -18,7 +18,7 @@ import (
 // elvish), and each candidate renders as an edit:complex-candidate with a
 // styled display, a description suffix styled by the payload's
 // descriptionStyle, and the codeSuffix controlling post-insert spacing.
-func Snippet(name string, aliases []string) string {
+func Snippet(name string, aliases []string, _ string) string {
 	var builder strings.Builder
 
 	builder.WriteString("var completer~ = {|@args|\n")

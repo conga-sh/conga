@@ -271,7 +271,7 @@ func TestPowerShell_AliasAndDescriptionSidebands(t *testing.T) {
 	t.Run("aliases suppressed", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunPowerShellCompletion(t, "cloudctl", "cloudctl ", "CONGA_COMPLETION_ALIASES=0")
+		result := workspace.RunPowerShellCompletion(t, "cloudctl", "cloudctl ", "CLOUDCTL_COMPLETION_ALIASES=0")
 
 		assert.True(t, result.HasItem("deploy"))
 		assert.False(t, result.HasItem("d"))
@@ -280,7 +280,7 @@ func TestPowerShell_AliasAndDescriptionSidebands(t *testing.T) {
 	t.Run("descriptions suppressed", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunPowerShellCompletion(t, "cloudctl", "cloudctl ", "CONGA_COMPLETION_DESCRIPTIONS=0")
+		result := workspace.RunPowerShellCompletion(t, "cloudctl", "cloudctl ", "CLOUDCTL_COMPLETION_DESCRIPTIONS=0")
 
 		_, ok := result.ItemToolTip("deploy")
 		assert.False(t, ok)

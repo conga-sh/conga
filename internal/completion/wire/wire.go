@@ -62,6 +62,12 @@ type Directives struct {
 	Messages []string
 	// Usage is the raw usage string accompanying an error result.
 	Usage string
+	// SuppressDescriptions reports that the application-prefixed sideband
+	// disabled candidate descriptions, so framings that style a description
+	// column (zsh list-colors) can omit patterns that would never match. It is
+	// framing metadata, not a wire token; the zero value keeps the default
+	// (descriptions shown).
+	SuppressDescriptions bool
 }
 
 // NoSpaceFor reports whether inserting value must suppress the trailing space:
@@ -156,16 +162,18 @@ func ClampDescription(description string, maxLength int) string {
 
 // FromResult translates an engine result into the wire vocabulary: candidates
 // in engine order with the display defaulting to the value, and directives
-// derived from the engine's directive bits. Alias candidates are dropped when
-// CONGA_COMPLETION_ALIASES disables them, and descriptions are blanked when
-// CONGA_COMPLETION_DESCRIPTIONS disables them, so every framing observes the
-// same suppressed stream. The result's file-completion fallback list is
-// engine-internal and is not carried onto the wire.
-func FromResult(result predict.Result) ([]Candidate, Directives) {
+// derived from the engine's directive bits. envPrefix is the application's
+// normalized completion environment prefix (TASK_ for an app named task):
+// alias candidates are dropped when the prefixed alias variable disables them,
+// and descriptions are blanked when the prefixed description variable disables
+// them, so every framing observes the same suppressed stream. The result's
+// file-completion fallback list is engine-internal and is not carried onto the
+// wire.
+func FromResult(envPrefix string, result predict.Result) ([]Candidate, Directives) {
 	items := result.Items
-	descriptions := DescriptionsEnabled()
+	descriptions := DescriptionsEnabled(envPrefix)
 
-	if !AliasesEnabled() {
+	if !AliasesEnabled(envPrefix) {
 		items = slicex.Filter(items, func(item predict.Item) bool {
 			return !item.Alias
 		})
@@ -188,8 +196,9 @@ func FromResult(result predict.Result) ([]Candidate, Directives) {
 	})
 
 	directives := Directives{
-		KeepOrder: result.Directive.Has(predict.DirectiveKeepOrder),
-		Usage:     result.Usage,
+		KeepOrder:            result.Directive.Has(predict.DirectiveKeepOrder),
+		Usage:                result.Usage,
+		SuppressDescriptions: !descriptions,
 	}
 
 	if result.Directive.Has(predict.DirectiveNoSpace) {

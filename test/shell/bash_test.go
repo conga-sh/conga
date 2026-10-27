@@ -212,7 +212,7 @@ func TestBash_AliasAndDescriptionSidebands(t *testing.T) {
 	t.Run("aliases suppressed", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunBashCompletion(t, "cloudctl", "cloudctl ", "CONGA_COMPLETION_ALIASES=0")
+		result := workspace.RunBashCompletion(t, "cloudctl", "cloudctl ", "CLOUDCTL_COMPLETION_ALIASES=0")
 
 		assert.True(t, result.HasItem("deploy"))
 		assert.False(t, result.HasItem("d"))
@@ -221,7 +221,7 @@ func TestBash_AliasAndDescriptionSidebands(t *testing.T) {
 	t.Run("descriptions suppressed in successive-tab listing", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunBashCompletionType(t, "cloudctl", "cloudctl ", "63", "CONGA_COMPLETION_DESCRIPTIONS=0")
+		result := workspace.RunBashCompletionType(t, "cloudctl", "cloudctl ", "63", "CLOUDCTL_COMPLETION_DESCRIPTIONS=0")
 
 		assert.True(t, result.HasItem("deploy"))
 

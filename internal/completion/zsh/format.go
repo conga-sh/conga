@@ -60,7 +60,7 @@ func Format(toComplete string, directives wire.Directives, candidates []wire.Can
 	lines = append(lines, directivesRecord(directives))
 
 	if colorOn {
-		lines = append(lines, recordListColors+fieldSep+listColorsSpec(candidates, wire.DescriptionsEnabled()))
+		lines = append(lines, recordListColors+fieldSep+listColorsSpec(candidates, directives))
 	}
 
 	lines = append(lines, messageRecords(directives, colorOn)...)
@@ -224,11 +224,12 @@ func escapeValue(value string) string {
 // the menu rows), closed by a description-column catch-all. The separator is
 // the user's list-separator style, forwarded as CONGA_ZSH_LIST_SEPARATOR
 // (default "--"), so a configured separator keeps both columns colored. When
-// descriptions are suppressed only the display-only entries are emitted (the
-// two-tone and catch-all patterns could never match). Entry count is capped by
-// CONGA_ZSH_STYLE_LIMIT; a negative limit is unlimited.
-func listColorsSpec(candidates []wire.Candidate, descriptions bool) string {
+// the sideband suppressed descriptions only the display-only entries are
+// emitted (the two-tone and catch-all patterns could never match). Entry count
+// is capped by CONGA_ZSH_STYLE_LIMIT; a negative limit is unlimited.
+func listColorsSpec(candidates []wire.Candidate, directives wire.Directives) string {
 	limit := wire.ZshStyleLimit()
+	descriptions := !directives.SuppressDescriptions
 	descriptionSGR := style.SGR(style.Theme.Description)
 	separator := " " + patternEscape(wire.ZshListSeparator()) + " "
 

@@ -21,24 +21,28 @@ var (
 // single-command form names the function _<name>_completion; the
 // multi-command form _<name>_completer, where <name> is the command name
 // passed through wire.SanitizeIdentifier (registration lines keep the raw
-// name, quoted via wire.QuoteTargetPOSIX).
-func Snippet(name string, aliases []string) string {
+// name, quoted via wire.QuoteTargetPOSIX). envPrefix is the application's
+// normalized completion environment prefix (for example TASK_): the completer
+// forwards the user's zstyle suppression choices through the
+// application-prefixed sideband variable names.
+func Snippet(name string, aliases []string, envPrefix string) string {
 	if len(aliases) > 0 {
-		return multiSnippet(name, aliases)
+		return multiSnippet(name, aliases, envPrefix)
 	}
 
-	return singleSnippet(name)
+	return singleSnippet(name, envPrefix)
 }
 
 // singleSnippet renders the no-aliases form: one completion function and one
 // compdef registration for the command name.
-func singleSnippet(name string) string {
+func singleSnippet(name string, envPrefix string) string {
 	identifier := wire.SanitizeIdentifier(name)
 
 	var builder strings.Builder
 
 	fmt.Fprintf(&builder, "#compdef %[1]s\n", name)
 	fmt.Fprintf(&builder, "function _%[1]s_completion {\n", identifier)
+	fmt.Fprintf(&builder, "  local app_env_prefix=%s\n", envPrefix)
 	builder.WriteString(completerBody)
 	fmt.Fprintf(&builder, "}\n")
 	fmt.Fprintf(&builder, "compdef _%[1]s_completion ", identifier)
@@ -50,13 +54,14 @@ func singleSnippet(name string) string {
 
 // multiSnippet renders the aliases form: one completer function shared by a
 // compdef registration naming the command and every alias.
-func multiSnippet(name string, aliases []string) string {
+func multiSnippet(name string, aliases []string, envPrefix string) string {
 	identifier := wire.SanitizeIdentifier(name)
 
 	var builder strings.Builder
 
 	builder.WriteString("#compdef " + name + " " + strings.Join(aliases, " ") + "\n")
 	fmt.Fprintf(&builder, "function _%[1]s_completer {\n", identifier)
+	fmt.Fprintf(&builder, "  local app_env_prefix=%s\n", envPrefix)
 	builder.WriteString(completerBody)
 	builder.WriteString("}\n")
 

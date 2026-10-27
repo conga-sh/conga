@@ -32,7 +32,7 @@ var (
 // rendered as "display (description)" for readline's listing. The completer
 // function name derives from the command name via wire.SanitizeIdentifier;
 // registration lines keep the raw name, quoted via wire.QuoteTargetPOSIX.
-func Snippet(name string, aliases []string) string {
+func Snippet(name string, aliases []string, _ string) string {
 	identifier := wire.SanitizeIdentifier(name)
 
 	var builder strings.Builder
