@@ -170,7 +170,7 @@ func (s *Session) Why() string {
 // WhyJSON returns the machine-readable JSON value-provenance report for the
 // active command, rendered with the same engine --why=json uses.
 //
-// If the session is nil, uninitialized, or WhyJSON is not enabled on the
+// If the session is nil, uninitialized, or [WhyOptionJSON] is not enabled on the
 // application, WhyJSON returns an empty string.
 func (s *Session) WhyJSON() string {
 	if s == nil || s.whyRenderer == nil {

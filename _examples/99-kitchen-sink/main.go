@@ -15,7 +15,7 @@ func main() {
 		Version("1.0.0").
 		EnableCompletion().
 		EnableFeatures().
-		EnableWhy(conga.WhyJSON()).
+		EnableWhy(conga.WhyOptionJSON()).
 		EnvPrefix("KITCHEN_SINK").
 		Dotenv().
 		RegisterDecoder(".toml", toml.Decode).

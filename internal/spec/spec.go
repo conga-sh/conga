@@ -83,7 +83,7 @@ type Command struct {
 	DisableWhy        bool
 	// WhyJSONEnabled reports whether the app enabled the machine-readable
 	// JSON output format for the built-in --why flag via
-	// app.EnableWhy(conga.WhyJSON()). The help renderer and completion engine
+	// app.EnableWhy(conga.WhyOptionJSON()). The help renderer and completion engine
 	// use it to advertise the value slot only when more than the default text
 	// format is accepted.
 	WhyJSONEnabled bool
@@ -177,7 +177,7 @@ func (c *Command) WhyFlagVisible() bool {
 
 // WhyFormats returns the output formats advertised for the built-in --why
 // flag: the default text format alone, or text and json when the app enabled
-// app.EnableWhy(conga.WhyJSON()). Help and completion read this list so the
+// app.EnableWhy(conga.WhyOptionJSON()). Help and completion read this list so the
 // advertised formats stay a single source of truth; parse-time value
 // validation remains with the app's why resolver.
 func (c *Command) WhyFormats() []string {

@@ -260,7 +260,7 @@ stdout '-c, --config-file\s+conga\.ConfigFile\s+config\.toml\s+● env KITCHEN_S
 stdout 'features: http3=true strict-tls=true metrics=true compression=2'
 env KITCHEN_SINK_CONFIG=
 
-# 22. WhyJSON opts into machine-readable provenance; an unknown format is a
+# 22. WhyOptionJSON opts into machine-readable provenance; an unknown format is a
 #     usage error (exit 2). (.env loading is covered in dotenv.txt, which
 #     isolates the process-environment effects in its own working directory.)
 exec kitchen-sink --why=json

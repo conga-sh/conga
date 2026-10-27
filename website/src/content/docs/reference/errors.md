@@ -67,7 +67,7 @@ Feature gating and map folding classify errors by the input tier that introduced
 | Unknown or invalid feature key in the feature map environment variable | `ErrParse` (usage error) | 2 |
 | Malformed map flag syntax in a config file (even when overridden by CLI) | `ErrConfig` | 1 |
 | Malformed map flag syntax in an environment variable | `ErrParse` (usage error) | 2 |
-| Invalid format passed to `--why` or `--why=json` requested without `conga.WhyJSON()` | `ErrValidation` (usage error) | 2 |
+| Invalid format passed to `--why` or `--why=json` requested without `conga.WhyOptionJSON()` | `ErrValidation` (usage error) | 2 |
 | Runtime error returned from `Bootstrapper.Bootstrap` | `ErrConfig` | 1 |
 
 ## Schema errors (`ErrSchema`)

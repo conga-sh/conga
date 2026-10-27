@@ -823,7 +823,7 @@ func formatFlags(flags []*spec.Flag, hasHelpInfo bool, hasVersionInfo bool, hasC
 
 // builtinWhyEntry renders the built-in --why flag row. The optional value
 // slot and the format list are advertised only when more than the default
-// text format is accepted (app.EnableWhy(conga.WhyJSON())); otherwise --why
+// text format is accepted (app.EnableWhy(conga.WhyOptionJSON())); otherwise --why
 // presents as a plain toggle and the text format stays implicit.
 func builtinWhyEntry(whyFormats []string) tableEntry {
 	if len(whyFormats) < 2 {

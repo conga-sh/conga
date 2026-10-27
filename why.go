@@ -13,11 +13,11 @@ import (
 )
 
 // whyJSONFormatterFunc renders the --why report as a machine-readable JSON object.
-// It is installed on App only when WhyJSON() is passed to EnableWhy.
+// It is installed on App only when WhyOptionJSON() is passed to EnableWhy.
 type whyJSONFormatterFunc func(report *why.Report) string
 
 // whyRowTypeFunc classifies a flag's schema type for the JSON report. It is
-// installed on App only when WhyJSON() is passed to EnableWhy so text-only
+// installed on App only when WhyOptionJSON() is passed to EnableWhy so text-only
 // reports keep the reflection machinery unreferenced.
 type whyRowTypeFunc func(flagSpec *spec.Flag) string
 
@@ -64,7 +64,7 @@ func (a *App[T]) resolveWhyFormat(cmdChain []*spec.Command, rawFormat string) (s
 	case spec.WhyFormatJSON:
 		if a.whyHooks == nil || a.whyHooks.jsonFormatter == nil {
 			return "", &validationError{
-				msg:         `invalid value "json" for --why: JSON output format is not enabled on this application (enable with app.EnableWhy(conga.WhyJSON()))`,
+				msg:         `invalid value "json" for --why: JSON output format is not enabled on this application (enable with app.EnableWhy(conga.WhyOptionJSON()))`,
 				cmdChain:    cmdChain,
 				cause:       errInvalidValue,
 				valueShaped: true,
