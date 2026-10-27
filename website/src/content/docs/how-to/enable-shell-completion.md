@@ -57,7 +57,7 @@ cloudctl --help
 
 ```text no-copy
 Usage:
-  cloudctl <command> [flags]
+  cloudctl <command> [flags...]
 
 Commands:
   completion  Generate shell completion scripts

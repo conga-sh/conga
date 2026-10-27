@@ -251,4 +251,22 @@ func TestHelpArgv0Resolution(t *testing.T) {
 		assert.Contains(t, formatted, "WARNING: default-app is deprecated: use new-cli instead")
 		assert.NotContains(t, formatted, "custom-bin")
 	})
+
+	t.Run("completion screen hint keeps the argv0 binary name", func(t *testing.T) {
+		leaf := &spec.Command{Name: "completion", IsCompletionCmd: true}
+
+		hint := Hint([]*spec.Command{root, leaf})
+
+		assert.Contains(t, hint, "Run 'custom-bin completion --help'")
+		assert.NotContains(t, hint, "default-app")
+	})
+
+	t.Run("non-completion screen hint uses the configured command name", func(t *testing.T) {
+		leaf := &spec.Command{Name: "deploy"}
+
+		hint := Hint([]*spec.Command{root, leaf})
+
+		assert.Contains(t, hint, "Run 'default-app deploy --help'")
+		assert.NotContains(t, hint, "custom-bin")
+	})
 }

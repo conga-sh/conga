@@ -3,7 +3,8 @@
 Opt-in `conga.HelpCommand` and `conga.VersionCommand` subcommands (including
 `version --json`) alongside custom commands that render through
 `session.Help()`, `session.Usage()`, and `session.Version()`. Also covers the
-`Examples`/`HelpFooter` builders and the `Description()`/`Examples()` methods.
+`Examples`/`HelpFooter` builders, the configurable built-in short flags
+(`HelpShortFlag`/`VersionShortFlag`), and the `Description()`/`Examples()` methods.
 
 ## Run it
 
@@ -12,6 +13,8 @@ go run ./_examples/10-builtins-help-version help status
 go run ./_examples/10-builtins-help-version version --json
 go run ./_examples/10-builtins-help-version guide
 go run ./_examples/10-builtins-help-version syntax
+go run ./_examples/10-builtins-help-version -h
+go run ./_examples/10-builtins-help-version -V
 ```
 
 ## What to look for
@@ -19,6 +22,8 @@ go run ./_examples/10-builtins-help-version syntax
 - `help status` renders the multi-line `Description()` and `Examples()`.
 - `guide`/`syntax`/`about` reproduce the built-in renderers without pseudo-error
   sentinels — they return `nil`.
+- `-h`/`-V` are the configured short forms of `--help`/`--version`, assigned
+  through `app.HelpShortFlag('h')`/`app.VersionShortFlag('V')`.
 - Invalid inputs still exit 2 (`UsageOnError(conga.UsageHint)`).
 
 ## Test

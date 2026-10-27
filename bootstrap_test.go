@@ -341,8 +341,6 @@ func (c *dotenvCLI) Bootstrap(_ context.Context, b *conga.Bootstrap) error {
 // path: a bootstrap flag selects the directory, .env there enables a gated
 // feature, and --why attributes the feature and the env-sourced flag to that
 // .env file.
-//
-//nolint:paralleltest // t.Chdir and t.Setenv cannot be used with t.Parallel
 func TestBootstrapper_DotenvFeatureGateAttribution(t *testing.T) {
 	t.Chdir(t.TempDir())
 
@@ -480,8 +478,6 @@ func (c *bootstrapCWDDotenvCLI) Bootstrap(_ context.Context, b *conga.Bootstrap)
 // TestBootstrapper_DotenvDefaultsToCWDHierarchy pins the documented zero-path
 // behavior: an argument-less Bootstrap.Dotenv probes .env then .env.local in
 // the current working directory, so the local file wins.
-//
-//nolint:paralleltest // t.Chdir and t.Setenv cannot be used with t.Parallel
 func TestBootstrapper_DotenvDefaultsToCWDHierarchy(t *testing.T) {
 	t.Chdir(t.TempDir())
 

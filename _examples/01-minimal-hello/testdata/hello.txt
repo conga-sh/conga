@@ -16,7 +16,7 @@ stdout 'HELLO, BOB!'
 # 4. Help screen
 exec hello --help
 stdout 'Usage:'
-stdout 'hello \[flags\]'
+stdout 'hello \[flags\.\.\.\]'
 stdout 'Minimal single-command hello world CLI'
 stdout '-n, --name'
 stdout '-l, --loud'

@@ -143,22 +143,6 @@ func newTokenParser(cmdChain []*spec.Command, tokens []tokenizer.Token, index *f
 	}
 }
 
-// registerBuiltinShort maps a configured built-in short rune onto its shared
-// built-in flag so -h/-V parse without a per-app flag copy. A rune already
-// claimed by a user flag is left untouched: schema build rejects that collision
-// first, so this only guards a user-declared shadow from being shadowed back.
-func registerBuiltinShort(index *flagIndex, short rune, flagSpec *spec.Flag) {
-	if short == 0 {
-		return
-	}
-
-	if _, taken := index.short[short]; taken {
-		return
-	}
-
-	index.short[short] = flagSpec
-}
-
 func (parser *tokenParser) canFallbackToRaw() bool {
 	return parser.leaf.RawArgs != nil && len(parser.posTokens) >= len(parser.leaf.Args)
 }
@@ -689,6 +673,22 @@ func (tier mapTierInput) foldRegistered(flagSpec *spec.Flag, cmdChain []*spec.Co
 	}
 
 	return foldRegisteredMapTier(tier.values, tier.source, tier.name, configdata.Value{Origin: tier.envOrigin()}, flagSpec, cmdChain, state, merged, provenance, origins, result)
+}
+
+// registerBuiltinShort maps a configured built-in short rune onto its shared
+// built-in flag so -h/-V parse without a per-app flag copy. A rune already
+// claimed by a user flag is left untouched: schema build rejects that collision
+// first, so this only guards a user-declared shadow from being shadowed back.
+func registerBuiltinShort(index *flagIndex, short rune, flagSpec *spec.Flag) {
+	if short == 0 {
+		return
+	}
+
+	if _, taken := index.short[short]; taken {
+		return
+	}
+
+	index.short[short] = flagSpec
 }
 
 func bindSpecialArgs(leaf *spec.Command, dashArgs, rawTokens []string) {

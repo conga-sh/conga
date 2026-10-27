@@ -453,6 +453,80 @@ func TestUsage_RequiredFlagsOnly_OmitsFlagsPlaceholder(t *testing.T) {
 	assert.Equal(t, "Usage:\n  deploy --target=STRING", usage)
 }
 
+// TestUsage_ArgTokensFromSchema verifies that the usage synopsis and the
+// Arguments section derive an argument's repetition and optionality from the
+// schema while preserving author-supplied brackets: bracketed names keep a
+// single bracket pair, and the repetition marker lands inside the placeholder.
+func TestUsage_ArgTokensFromSchema(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name      string
+		arg       *spec.Arg
+		wantToken string
+	}{
+		{
+			name:      "required scalar keeps the placeholder",
+			arg:       &spec.Arg{Name: "<target>", Help: "Target", Required: true},
+			wantToken: "<target>",
+		},
+		{
+			name:      "optional scalar is bracketed",
+			arg:       &spec.Arg{Name: "<target>", Help: "Target"},
+			wantToken: "[<target>]",
+		},
+		{
+			name:      "author brackets are preserved",
+			arg:       &spec.Arg{Name: "[target]", Help: "Target"},
+			wantToken: "[target]",
+		},
+		{
+			name:      "required slice gains the marker inside the placeholder",
+			arg:       &spec.Arg{Name: "<file>", Help: "File", Required: true, IsSlice: true},
+			wantToken: "<file...>",
+		},
+		{
+			name:      "optional slice gains the marker and brackets",
+			arg:       &spec.Arg{Name: "<file>", Help: "File", IsSlice: true},
+			wantToken: "[<file...>]",
+		},
+		{
+			name:      "author-bracketed slice keeps one bracket pair",
+			arg:       &spec.Arg{Name: "[file]", Help: "File", IsSlice: true},
+			wantToken: "[file...]",
+		},
+		{
+			name:      "author-bracketed placeholder slice",
+			arg:       &spec.Arg{Name: "[<file>]", Help: "File", IsSlice: true},
+			wantToken: "[<file...>]",
+		},
+		{
+			name:      "author ellipsis is preserved",
+			arg:       &spec.Arg{Name: "[file...]", Help: "File", IsSlice: true},
+			wantToken: "[file...]",
+		},
+		{
+			name:      "optional map argument",
+			arg:       &spec.Arg{Name: "<key=value>", Help: "Entry", IsMap: true},
+			wantToken: "[<key=value...>]",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			cmd := &spec.Command{Name: "app", Args: []*spec.Arg{testCase.arg}}
+
+			usage := help.Usage([]*spec.Command{cmd})
+			formatted := help.Format([]*spec.Command{cmd})
+
+			assert.Equal(t, "Usage:\n  app "+testCase.wantToken, usage)
+			assert.Contains(t, formatted, "Arguments:\n  "+testCase.wantToken+"  "+testCase.arg.Help)
+		})
+	}
+}
+
 func TestUsage_HiddenGlobalFlagsDoNotAffectUsageLine(t *testing.T) {
 	t.Parallel()
 

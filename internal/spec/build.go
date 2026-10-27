@@ -975,36 +975,38 @@ func validateAncestorFlagUniqueness(root *Command) error {
 	return nil
 }
 
-// validateBuiltinShortUniqueness rejects a built-in --help/--version short rune
-// assigned through app.HelpShort/app.VersionShort that collides with a
-// user-declared short flag the binder would otherwise shadow. The built-in
-// --help flag is injected on every command that offers help, so its short is
-// checked across the hierarchy; --version is root-only, so its short is checked
-// against the root's flags alone.
+// validateBuiltinShortUniqueness rejects short runes assigned to the injected
+// built-in --help/--version flags through app.HelpShortFlag/app.VersionShortFlag
+// that the binder could not honor: a rune shared with a user-declared short on a
+// command offering the built-in stays with the user flag while the help screen
+// still advertises it for the built-in, and a rune claimed by both built-ins
+// leaves the second registration dropped.
+//
+// The built-in --help flag is injected on every command that offers help, so
+// its rune is checked across the hierarchy; --version is root-only, so its rune
+// is checked against the root's flags alone. A user flag named help or version
+// cannot exist while the matching built-in is offered — the schema reserves
+// both names — so neither built-in is shadowed here.
 func validateBuiltinShortUniqueness(root *Command) error {
 	if root.HelpShort == 0 && root.VersionShort == 0 {
 		return nil
 	}
 
-	var walk func(cmd *Command, isRoot bool) error
+	if err := validateBuiltinShortPair(root); err != nil {
+		return err
+	}
 
-	walk = func(cmd *Command, isRoot bool) error {
+	var walk func(cmd *Command) error
+
+	walk = func(cmd *Command) error {
 		for _, flagSpec := range cmd.Flags {
-			if flagSpec.EngineOwned || flagSpec.Short == 0 {
-				continue
-			}
-
-			if root.HelpShort != 0 && flagSpec.Short == root.HelpShort && !cmd.DisableHelp {
-				return builtinShortConflictError("help", flagSpec.Short, cmd.Name, flagSpec.Name)
-			}
-
-			if isRoot && root.VersionShort != 0 && flagSpec.Short == root.VersionShort && root.VersionFlagVisible(true) {
-				return builtinShortConflictError("version", flagSpec.Short, cmd.Name, flagSpec.Name)
+			if err := builtinShortConflict(root, cmd, flagSpec); err != nil {
+				return err
 			}
 		}
 
 		for _, subcommand := range cmd.Subcommands {
-			if err := walk(subcommand, false); err != nil {
+			if err := walk(subcommand); err != nil {
 				return err
 			}
 		}
@@ -1012,11 +1014,43 @@ func validateBuiltinShortUniqueness(root *Command) error {
 		return nil
 	}
 
-	return walk(root, true)
+	return walk(root)
 }
 
-func builtinShortConflictError(builtin string, short rune, cmdName, fieldName string) error {
-	return fmt.Errorf("%w: built-in --%s short flag -%c collides with field %s on command %q; choose a different short rune", ErrDuplicateFlag, builtin, short, fieldName, cmdName)
+// validateBuiltinShortPair rejects two equal built-in runes: the binder
+// registers --help first, so the --version rune would be dropped while both
+// flag rows still advertise it.
+func validateBuiltinShortPair(root *Command) error {
+	if root.HelpShort == 0 || root.HelpShort != root.VersionShort || root.DisableHelp || !root.VersionFlagVisible(true) {
+		return nil
+	}
+
+	return fmt.Errorf("%w: built-in --help and --version both claim short flag -%c; assign a different rune to one of them", ErrDuplicateFlag, root.HelpShort)
+}
+
+// builtinShortConflict returns the conflict error for a user-declared flag
+// claiming a built-in rune, or nil when the rune is free.
+func builtinShortConflict(root, cmd *Command, flagSpec *Flag) error {
+	if flagSpec.EngineOwned || flagSpec.Short == 0 {
+		return nil
+	}
+
+	if flagSpec.Short == root.HelpShort && !cmd.DisableHelp {
+		return builtinShortConflictError("help", flagSpec.Short, flagSpec.Name, cmd.Name)
+	}
+
+	if cmd == root && root.VersionFlagVisible(true) && flagSpec.Short == root.VersionShort {
+		return builtinShortConflictError("version", flagSpec.Short, flagSpec.Name, cmd.Name)
+	}
+
+	return nil
+}
+
+// builtinShortConflictError reports a built-in short rune a user-declared flag
+// claims, naming the flag rather than the declaring field: the collision is
+// detected after schema build, where the owning struct is no longer in scope.
+func builtinShortConflictError(builtin string, short rune, flagName, cmdName string) error {
+	return fmt.Errorf("%w: built-in --%s short flag -%c collides with --%s on command %q; assign a different rune to one of them", ErrDuplicateFlag, builtin, short, flagName, cmdName)
 }
 
 func addCommandFlags(cmd *Command, names map[string]string, shorts map[rune]string) {

@@ -429,25 +429,25 @@ func (a *App[T]) DisableVersionFlag() *App[T] {
 	return a
 }
 
-// HelpShort assigns a short rune to the built-in --help flag, so it renders and
-// parses as e.g. "-h, --help". It is opt-in because a short rune can collide
-// with an application flag; a collision is rejected at schema build with
-// [ErrDuplicateFlag]. The zero value keeps --help long-only.
+// HelpShortFlag assigns a short rune to the built-in --help flag, so it renders
+// and parses as e.g. "-h, --help". It is opt-in because a short rune can
+// collide with an application flag; a collision is rejected at schema build
+// with [ErrDuplicateFlag]. The zero value keeps --help long-only.
 //
 // See https://docs.conga.sh/reference/builtins/.
-func (a *App[T]) HelpShort(short rune) *App[T] {
+func (a *App[T]) HelpShortFlag(short rune) *App[T] {
 	a.helpShort = short
 
 	return a
 }
 
-// VersionShort assigns a short rune to the built-in --version flag, so it
+// VersionShortFlag assigns a short rune to the built-in --version flag, so it
 // renders and parses as e.g. "-V, --version". It is opt-in because a short rune
 // can collide with an application flag; a collision is rejected at schema build
 // with [ErrDuplicateFlag]. The zero value keeps --version long-only.
 //
 // See https://docs.conga.sh/reference/builtins/.
-func (a *App[T]) VersionShort(short rune) *App[T] {
+func (a *App[T]) VersionShortFlag(short rune) *App[T] {
 	a.versionShort = short
 
 	return a

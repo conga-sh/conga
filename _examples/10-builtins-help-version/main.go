@@ -75,6 +75,8 @@ func main() {
 		Version("2.4.1").
 		Examples("infomgr status\ninfomgr help status\ninfomgr version").
 		HelpFooter("infomgr home: https://example.com/infomgr").
+		HelpShortFlag('h').
+		VersionShortFlag('V').
 		UsageOnError(conga.UsageHint)
 
 	if err := app.Run(); err != nil {

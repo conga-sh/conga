@@ -182,7 +182,7 @@ func TestHelpFlagRendersUsage(t *testing.T) {
 		t.Fatalf("RunContext() error = %v", err)
 	}
 
-	if !strings.Contains(stdoutBuffer.String(), "Usage:\n  hello [flags]") {
+	if !strings.Contains(stdoutBuffer.String(), "Usage:\n  hello [flags...]") {
 		t.Errorf("stdout = %q, want usage block", stdoutBuffer.String())
 	}
 }

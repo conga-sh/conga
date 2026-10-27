@@ -616,7 +616,7 @@ func (w *astCompletionWalker) completeFlagNamesAction(toComplete string) predict
 		}
 	}
 
-	w.appendBuiltinFlags(&longItems, seenLong)
+	w.appendBuiltinFlags(&longItems, &shortItems, seenLong, seenShort, toComplete)
 
 	var actions []predict.Predictor
 
@@ -721,7 +721,7 @@ func (w *astCompletionWalker) collectFlagCandidates(longItems, shortItems *[]pre
 	}
 }
 
-func (w *astCompletionWalker) appendBuiltinFlags(longItems *[]predict.Item, seenLong map[string]bool) {
+func (w *astCompletionWalker) appendBuiltinFlags(longItems, shortItems *[]predict.Item, seenLong, seenShort map[string]bool, toComplete string) {
 	if !w.currentCmd.DisableHelp && !seenLong["--help"] {
 		seenLong["--help"] = true
 
@@ -732,6 +732,7 @@ func (w *astCompletionWalker) appendBuiltinFlags(longItems *[]predict.Item, seen
 			Style:       style.Theme.FlagNoArg,
 			Tag:         "longhand flags",
 		})
+		w.appendBuiltinShort(shortItems, seenShort, w.rootCmd.HelpShort, BuiltinHelpFlag.Help, toComplete)
 	}
 
 	if w.currentCmd.VersionFlagVisible(len(w.cmdChain) == 1) && !seenLong["--version"] {
@@ -744,6 +745,7 @@ func (w *astCompletionWalker) appendBuiltinFlags(longItems *[]predict.Item, seen
 			Style:       style.Theme.FlagNoArg,
 			Tag:         "longhand flags",
 		})
+		w.appendBuiltinShort(shortItems, seenShort, w.rootCmd.VersionShort, BuiltinVersionFlag.Help, toComplete)
 	}
 
 	if w.currentCmd.WhyFlagVisible() && !seenLong["--why"] {
@@ -763,6 +765,31 @@ func (w *astCompletionWalker) appendBuiltinFlags(longItems *[]predict.Item, seen
 			Tag:         "longhand flags",
 		})
 	}
+}
+
+// appendBuiltinShort adds the shorthand candidate for a built-in flag whose
+// rune was assigned through app.HelpShortFlag/app.VersionShortFlag, mirroring the
+// description and style of the synthesized longhand item. Unassigned runes and
+// longhand prefixes contribute nothing.
+func (w *astCompletionWalker) appendBuiltinShort(shortItems *[]predict.Item, seenShort map[string]bool, short rune, description string, toComplete string) {
+	if short == 0 || strings.HasPrefix(toComplete, "--") {
+		return
+	}
+
+	shortName := "-" + string(short)
+	if seenShort[shortName] {
+		return
+	}
+
+	seenShort[shortName] = true
+
+	*shortItems = append(*shortItems, predict.Item{
+		Value:       shortName,
+		Display:     shortName,
+		Description: description,
+		Style:       style.Theme.FlagNoArg,
+		Tag:         "shorthand flags",
+	})
 }
 
 // builtinWhyItems returns the flag-name-level completion items for the

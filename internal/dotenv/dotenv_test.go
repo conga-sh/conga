@@ -595,7 +595,6 @@ func TestDotenv_ParseUnicode(t *testing.T) {
 	assert.Equal(t, "héllo\n\"wörld\"", result["ESC"])
 }
 
-//nolint:paralleltest // t.Chdir and t.Setenv cannot be used with t.Parallel
 func TestDotenv_LoadDefaultHierarchy_LocalOverridesBase(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Chdir(tmpDir)
@@ -631,7 +630,6 @@ func TestDotenv_LoadDefaultHierarchy_HostEnvironmentWins(t *testing.T) {
 	assert.Equal(t, "from_host", os.Getenv("CONGA_TEST_DOTENV_HIER_FIRST"))
 }
 
-//nolint:paralleltest // t.Chdir and t.Setenv cannot be used with t.Parallel
 func TestDotenv_LoadDefaultHierarchy_LocalOnlyFileLoaded(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Chdir(tmpDir)
@@ -645,7 +643,6 @@ func TestDotenv_LoadDefaultHierarchy_LocalOnlyFileLoaded(t *testing.T) {
 	assert.Equal(t, "only_local", os.Getenv("CONGA_TEST_DOTENV_HIER_LOCAL"))
 }
 
-//nolint:paralleltest // t.Chdir and t.Setenv cannot be used with t.Parallel
 func TestDotenv_LoadDefaultHierarchy_NoFilesIsSilentNoOp(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Chdir(tmpDir)
@@ -656,7 +653,6 @@ func TestDotenv_LoadDefaultHierarchy_NoFilesIsSilentNoOp(t *testing.T) {
 	assert.Equal(t, "", os.Getenv("CONGA_TEST_DOTENV_HIER_UNSET"))
 }
 
-//nolint:paralleltest // t.Chdir and t.Setenv cannot be used with t.Parallel
 func TestDotenv_LoadDefaultHierarchy_MalformedFilePropagates(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Chdir(tmpDir)

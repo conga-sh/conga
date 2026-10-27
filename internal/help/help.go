@@ -144,14 +144,7 @@ func Usage(cmdChain []*spec.Command) string {
 
 	leaf := cmdChain[len(cmdChain)-1]
 
-	// Completion screens describe enabling completion for the concrete binary,
-	// so they keep the invoked binary name; every other screen shows the
-	// configured application name.
-	rootName := displayName(cmdChain)
-	if leaf.IsCompletionCmd {
-		rootName = invokedName(cmdChain)
-	}
-
+	rootName := screenName(cmdChain)
 	cmdPath := resolveCmdPath(cmdChain, rootName)
 
 	if leaf.IsCompletionCmd && leaf.IsCompletionFlag {
@@ -213,7 +206,7 @@ func Hint(cmdChain []*spec.Command) string {
 		return ""
 	}
 
-	cmdPath := resolveCmdPath(cmdChain, displayName(cmdChain))
+	cmdPath := resolveCmdPath(cmdChain, screenName(cmdChain))
 	if len(cmdPath) == 0 {
 		return ""
 	}
@@ -551,14 +544,20 @@ func renderSections(sections []tableSection) string {
 
 // formatArgToken renders a positional argument's synopsis token, deriving
 // repeatability and optionality from the schema so the usage line and the
-// Arguments: section never diverge. A slice or map argument gains a "..."
-// repetition marker, placed inside trailing placeholder brackets when present;
-// an optional argument whose name is not already bracketed is wrapped in
-// brackets. Author-supplied brackets and "..." are preserved.
+// Arguments: section never diverge. Author-supplied brackets are resolved
+// first, so a slice or map argument gains its "..." repetition marker inside
+// them (and inside a trailing placeholder angle bracket when present), and an
+// optional argument gains a single bracket pair unless its name already carries
+// one. Author-written "..." is preserved.
 func formatArgToken(arg *spec.Arg) string {
 	token := arg.Name
 	if token == "" {
 		return ""
+	}
+
+	bracketed := isBracketed(token)
+	if bracketed {
+		token = strings.TrimSuffix(strings.TrimPrefix(token, "["), "]")
 	}
 
 	if (arg.IsSlice || arg.IsMap) && !strings.Contains(token, "...") {
@@ -569,8 +568,8 @@ func formatArgToken(arg *spec.Arg) string {
 		}
 	}
 
-	if !arg.Required && !isBracketed(token) {
-		token = "[" + token + "]"
+	if bracketed || !arg.Required {
+		return "[" + token + "]"
 	}
 
 	return token
@@ -1041,7 +1040,8 @@ func formatExamples(examples string) string {
 
 // commonIndent returns the width of the longest common leading-whitespace prefix
 // shared by every non-blank line, so author source-indentation is stripped
-// before the renderer applies its own two-space indent.
+// before the renderer applies its own two-space indent. The width counts bytes,
+// so a block mixing tabs and spaces keeps the remainder of a longer indent.
 func commonIndent(lines []string) int {
 	indent := -1
 
@@ -1104,6 +1104,22 @@ func displayName(cmdChain []*spec.Command) string {
 	}
 
 	return cmdChain[0].Name
+}
+
+// screenName returns the root name a screen renders: completion screens
+// describe enabling completion for the concrete binary, so they keep the
+// invoked binary name; every other screen shows the configured application
+// name.
+func screenName(cmdChain []*spec.Command) string {
+	if len(cmdChain) == 0 {
+		return ""
+	}
+
+	if cmdChain[len(cmdChain)-1].IsCompletionCmd {
+		return invokedName(cmdChain)
+	}
+
+	return displayName(cmdChain)
 }
 
 // invokedName returns the root command's name, overridden by the invoked binary

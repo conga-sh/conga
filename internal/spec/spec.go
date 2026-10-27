@@ -62,8 +62,8 @@ type Command struct {
 	// shell's enable instructions. Empty on all other commands.
 	Shell string
 	// HelpShort and VersionShort carry the optional short runes assigned to the
-	// injected built-in --help and --version flags through app.HelpShort and
-	// app.VersionShort. They are populated on the root command during schema
+	// injected built-in --help and --version flags through app.HelpShortFlag and
+	// app.VersionShortFlag. They are populated on the root command during schema
 	// build and read by the binder (short-flag registration) and the help
 	// renderer (flag rows). Zero keeps the built-in long-only.
 	HelpShort      rune
@@ -464,7 +464,7 @@ type Options struct {
 	DisableHelp    bool
 	DisableVersion bool
 	// HelpShort and VersionShort assign optional short runes to the injected
-	// built-in --help and --version flags (app.HelpShort / app.VersionShort).
+	// built-in --help and --version flags (app.HelpShortFlag / app.VersionShortFlag).
 	// Zero keeps them long-only. A rune colliding with a user-declared short is
 	// rejected with ErrDuplicateFlag during schema build.
 	HelpShort    rune
@@ -556,12 +556,29 @@ func FindFlagInChain(chain []*Command, name string) *Flag {
 	return nil
 }
 
-// FindShortFlagInChain searches backwards through chain for a flag matching short rune r.
+// FindShortFlagInChain searches backwards through chain for a flag matching
+// short rune r, falling back to the built-in --help and --version flags when
+// r is the rune assigned to them through app.HelpShortFlag/app.VersionShortFlag.
 func FindShortFlagInChain(chain []*Command, r rune) *Flag {
 	for _, cmd := range slices.Backward(chain) {
 		if flag := cmd.FindShortFlag(r); flag != nil {
 			return flag
 		}
+	}
+
+	if len(chain) == 0 || r == 0 {
+		return nil
+	}
+
+	root := chain[0]
+	leaf := chain[len(chain)-1]
+
+	if r == root.HelpShort && !leaf.DisableHelp {
+		return BuiltinHelpFlag
+	}
+
+	if r == root.VersionShort && leaf.VersionFlagVisible(len(chain) == 1) {
+		return BuiltinVersionFlag
 	}
 
 	return nil
