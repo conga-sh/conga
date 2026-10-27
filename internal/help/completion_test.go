@@ -112,7 +112,7 @@ func TestEnableInstructionsSection_PerShell(t *testing.T) {
 	root := &spec.Command{Name: "myapp"}
 	leaf := &spec.Command{Name: "completion", IsCompletionCmd: true, Shell: "zsh"}
 
-	formatted := RenderCompletionInstructions(leaf.Shell, leaf.IsCompletionFlag, rootDisplayName([]*spec.Command{root, leaf}))
+	formatted := RenderCompletionInstructions(leaf.Shell, leaf.IsCompletionFlag, invokedName([]*spec.Command{root, leaf}))
 
 	assert.Contains(t, formatted, "To load completions in your current shell session, run:")
 	assert.Contains(t, strings.ReplaceAll(formatted, "\n", " "), "source <(myapp completion zsh)")
@@ -190,7 +190,7 @@ func TestHelpArgv0Resolution(t *testing.T) {
 	t.Run("per-shell instructions use argv0 binary name", func(t *testing.T) {
 		leaf := &spec.Command{Name: "completion", IsCompletionCmd: true, Shell: "zsh"}
 
-		formatted := RenderCompletionInstructions(leaf.Shell, leaf.IsCompletionFlag, rootDisplayName([]*spec.Command{root, leaf}))
+		formatted := RenderCompletionInstructions(leaf.Shell, leaf.IsCompletionFlag, invokedName([]*spec.Command{root, leaf}))
 
 		assert.Contains(t, formatted, "source <(custom-bin completion zsh)")
 		assert.NotContains(t, formatted, "default-app")
@@ -199,7 +199,7 @@ func TestHelpArgv0Resolution(t *testing.T) {
 	t.Run("flag-style per-shell instructions use argv0 binary name", func(t *testing.T) {
 		leaf := &spec.Command{Name: "completion", IsCompletionCmd: true, IsCompletionFlag: true, Shell: "zsh"}
 
-		formatted := RenderCompletionInstructions(leaf.Shell, leaf.IsCompletionFlag, rootDisplayName([]*spec.Command{root, leaf}))
+		formatted := RenderCompletionInstructions(leaf.Shell, leaf.IsCompletionFlag, invokedName([]*spec.Command{root, leaf}))
 
 		assert.Contains(t, formatted, "source <(custom-bin --completion zsh)")
 		assert.NotContains(t, formatted, "default-app")
@@ -236,19 +236,19 @@ func TestHelpArgv0Resolution(t *testing.T) {
 		assert.NotContains(t, formatted, "default-app")
 	})
 
-	t.Run("root command usage synopsis uses argv0 binary name", func(t *testing.T) {
+	t.Run("root command usage synopsis uses the configured command name", func(t *testing.T) {
 		usage := Usage([]*spec.Command{root})
 
-		assert.Contains(t, usage, "Usage:\n  custom-bin")
-		assert.NotContains(t, usage, "default-app")
+		assert.Contains(t, usage, "Usage:\n  default-app")
+		assert.NotContains(t, usage, "custom-bin")
 	})
 
-	t.Run("deprecation banner uses argv0 binary name", func(t *testing.T) {
+	t.Run("deprecation banner uses the configured command name", func(t *testing.T) {
 		depRoot := &spec.Command{Name: "default-app", Deprecated: "use new-cli instead"}
 
 		formatted := Format([]*spec.Command{depRoot})
 
-		assert.Contains(t, formatted, "WARNING: custom-bin is deprecated: use new-cli instead")
-		assert.NotContains(t, formatted, "default-app")
+		assert.Contains(t, formatted, "WARNING: default-app is deprecated: use new-cli instead")
+		assert.NotContains(t, formatted, "custom-bin")
 	})
 }

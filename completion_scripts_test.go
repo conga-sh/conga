@@ -481,7 +481,7 @@ func TestCompletionCommand_NoShellShowsHelp(t *testing.T) {
 	// derived from the live process chain, so only the static screen is pinned.
 	output := buffer.String()
 	assert.Contains(t, output, "Generate shell completion scripts")
-	assert.Contains(t, output, "Usage:\n  myapp completion <shell>")
+	assert.Contains(t, output, "Usage:\n  myapp completion [<shell>]")
 	assert.Contains(t, output, "Supported shells:\n  bash        Bourne Again SHell\n  elvish      Elvish shell\n  fish        Friendly interactive shell\n  nushell     Nushell shell\n  powershell  PowerShell / pwsh\n  zsh         Z shell")
 }
 

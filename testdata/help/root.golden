@@ -1,7 +1,11 @@
 Golden reference application.
 
 Usage:
-  golden <command> [flags]
+  golden <command> [flags...]
+
+Examples:
+  # Deploy the api target
+  golden deploy api --reason rollout
 
 Commands:
   status   Show status
@@ -25,9 +29,5 @@ Output:
       --output=STRING  Output path
       --help           Show help
       --version        Show version
-
-Examples:
-  # Deploy the api target
-  golden deploy api --reason rollout
 
 Documentation: https://example.com/golden

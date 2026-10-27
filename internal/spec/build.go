@@ -70,6 +70,10 @@ func Build(target any, defaultName string, opts Options) (*Command, error) {
 		return nil, err
 	}
 
+	if err := validateBuiltinShortUniqueness(cmd); err != nil {
+		return nil, err
+	}
+
 	if opts.ValidateFeatureReferences != nil {
 		if err := opts.ValidateFeatureReferences(cmd); err != nil {
 			return nil, err
@@ -158,6 +162,11 @@ func newSchemaBuilder(target any, defaultName string, structValue reflect.Value,
 		DisableWhy:        opts.DisableWhy,
 		WhyJSONEnabled:    opts.WhyJSONEnabled,
 		DisableCompletion: opts.DisableCompletion,
+	}
+
+	if isRoot {
+		cmd.HelpShort = opts.HelpShort
+		cmd.VersionShort = opts.VersionShort
 	}
 
 	if err := applyCommandMethodGuardrails(target, cmd, structType.Name(), isRoot); err != nil {
@@ -964,6 +973,50 @@ func validateAncestorFlagUniqueness(root *Command) error {
 	}
 
 	return nil
+}
+
+// validateBuiltinShortUniqueness rejects a built-in --help/--version short rune
+// assigned through app.HelpShort/app.VersionShort that collides with a
+// user-declared short flag the binder would otherwise shadow. The built-in
+// --help flag is injected on every command that offers help, so its short is
+// checked across the hierarchy; --version is root-only, so its short is checked
+// against the root's flags alone.
+func validateBuiltinShortUniqueness(root *Command) error {
+	if root.HelpShort == 0 && root.VersionShort == 0 {
+		return nil
+	}
+
+	var walk func(cmd *Command, isRoot bool) error
+
+	walk = func(cmd *Command, isRoot bool) error {
+		for _, flagSpec := range cmd.Flags {
+			if flagSpec.EngineOwned || flagSpec.Short == 0 {
+				continue
+			}
+
+			if root.HelpShort != 0 && flagSpec.Short == root.HelpShort && !cmd.DisableHelp {
+				return builtinShortConflictError("help", flagSpec.Short, cmd.Name, flagSpec.Name)
+			}
+
+			if isRoot && root.VersionShort != 0 && flagSpec.Short == root.VersionShort && root.VersionFlagVisible(true) {
+				return builtinShortConflictError("version", flagSpec.Short, cmd.Name, flagSpec.Name)
+			}
+		}
+
+		for _, subcommand := range cmd.Subcommands {
+			if err := walk(subcommand, false); err != nil {
+				return err
+			}
+		}
+
+		return nil
+	}
+
+	return walk(root, true)
+}
+
+func builtinShortConflictError(builtin string, short rune, cmdName, fieldName string) error {
+	return fmt.Errorf("%w: built-in --%s short flag -%c collides with field %s on command %q; choose a different short rune", ErrDuplicateFlag, builtin, short, fieldName, cmdName)
 }
 
 func addCommandFlags(cmd *Command, names map[string]string, shorts map[rune]string) {

@@ -65,7 +65,7 @@ func RenderCompletionFooter(cmdChain []*spec.Command, useFlag bool, detect func(
 		return ""
 	}
 
-	cmdName := rootDisplayName(cmdChain)
+	cmdName := invokedName(cmdChain)
 	helpAvailable := !cmdChain[len(cmdChain)-1].DisableHelp
 
 	var builder strings.Builder
@@ -142,9 +142,17 @@ func Usage(cmdChain []*spec.Command) string {
 		return ""
 	}
 
-	cmdPath := resolveCmdPath(cmdChain)
-	rootName := cmdPath[0]
 	leaf := cmdChain[len(cmdChain)-1]
+
+	// Completion screens describe enabling completion for the concrete binary,
+	// so they keep the invoked binary name; every other screen shows the
+	// configured application name.
+	rootName := displayName(cmdChain)
+	if leaf.IsCompletionCmd {
+		rootName = invokedName(cmdChain)
+	}
+
+	cmdPath := resolveCmdPath(cmdChain, rootName)
 
 	if leaf.IsCompletionCmd && leaf.IsCompletionFlag {
 		if leaf.Shell != "" {
@@ -179,8 +187,8 @@ func Usage(cmdChain []*spec.Command) string {
 	parts, hasOptionalFlags := appendUsageFlags(parts, leaf.Flags)
 
 	for _, arg := range leaf.Args {
-		if arg.Name != "" {
-			parts = append(parts, arg.Name)
+		if token := formatArgToken(arg); token != "" {
+			parts = append(parts, token)
 		}
 	}
 
@@ -193,7 +201,7 @@ func Usage(cmdChain []*spec.Command) string {
 	}
 
 	if hasOptionalFlags || hasOptionalGlobal {
-		parts = append(parts, "[flags]")
+		parts = append(parts, "[flags...]")
 	}
 
 	return "Usage:\n  " + strings.Join(parts, " ")
@@ -205,7 +213,7 @@ func Hint(cmdChain []*spec.Command) string {
 		return ""
 	}
 
-	cmdPath := resolveCmdPath(cmdChain)
+	cmdPath := resolveCmdPath(cmdChain, displayName(cmdChain))
 	if len(cmdPath) == 0 {
 		return ""
 	}
@@ -231,7 +239,7 @@ func FormatWith(cmdChain []*spec.Command, opts Options) string {
 
 	var builder strings.Builder
 
-	rootName := rootDisplayName(cmdChain)
+	rootName := displayName(cmdChain)
 
 	// 0. Root deprecation banner
 	if cmdChain[0].Deprecated != "" {
@@ -248,7 +256,7 @@ func FormatWith(cmdChain []*spec.Command, opts Options) string {
 	// 2. Per-shell completion body: the enable instructions read as the
 	// screen's documentation and precede usage (docker/cobra style).
 	if leaf.IsCompletionCmd && leaf.Shell != "" && opts.CompletionInstructions != nil {
-		builder.WriteString(opts.CompletionInstructions(leaf.Shell, leaf.IsCompletionFlag, rootName))
+		builder.WriteString(opts.CompletionInstructions(leaf.Shell, leaf.IsCompletionFlag, invokedName(cmdChain)))
 		builder.WriteString("\n")
 	}
 
@@ -256,33 +264,45 @@ func FormatWith(cmdChain []*spec.Command, opts Options) string {
 	builder.WriteString(Usage(cmdChain))
 	builder.WriteString("\n")
 
-	// 4. Subcommands
+	// 4. Examples
+	builder.WriteString(formatExamples(leaf.Examples))
+
+	// 5. Subcommands
 	builder.WriteString(formatSubcommands(leaf.Subcommands))
 
-	// 5. Positional Arguments
+	// 6. Positional Arguments
 	// The per-shell completion screen omits Arguments: the shell is already
 	// supplied, so restating the <shell> placeholder adds noise.
 	if (!leaf.IsCompletionCmd || leaf.Shell == "") && !leaf.IsCompletionFlag {
 		builder.WriteString(formatArgs(leaf.Args))
 	}
 
-	// 6. Completion-specific footer: supported shells list and enable hints,
+	// 7. Completion-specific footer: supported shells list and enable hints,
 	// dynamically generated for the caller's current shell. Only rendered on
 	// the generic screen; the per-shell body handled it above.
 	if leaf.IsCompletionCmd && leaf.Shell == "" && opts.CompletionFooter != nil {
 		builder.WriteString(opts.CompletionFooter(cmdChain, leaf.IsCompletionFlag))
 	}
 
-	// 7. Flags
+	// 8. Flags
 	// The built-in --why flag is offered on every command (like --help); the
 	// built-in --version flag is root-only: version information describes the
 	// whole application, so subcommand help screens omit it.
 	visibleHelp := !leaf.DisableHelp
 	visibleVersion := leaf.VersionFlagVisible(len(cmdChain) == 1)
 	visibleWhy := leaf.WhyFlagVisible()
-	builder.WriteString(formatFlags(leaf.Flags, visibleHelp, visibleVersion, leaf.CompletionFlagVisible(len(cmdChain) == 1), visibleWhy, cmdChain[0].WhyFormats()))
+	builder.WriteString(formatFlags(
+		leaf.Flags,
+		visibleHelp,
+		visibleVersion,
+		leaf.CompletionFlagVisible(len(cmdChain) == 1),
+		visibleWhy,
+		cmdChain[0].WhyFormats(),
+		cmdChain[0].HelpShort,
+		cmdChain[0].VersionShort,
+	))
 
-	// 7.5 Features (root screen only)
+	// 8.5 Features (root screen only)
 	// The automatic Features section renders the root command's feature
 	// toggles with their stage, levels, and defaults; it lists every visible
 	// feature by name, so the synthesized feature-gates flag suppresses its
@@ -291,11 +311,8 @@ func FormatWith(cmdChain []*spec.Command, opts Options) string {
 		builder.WriteString(opts.FeaturesSection(cmdChain[0]))
 	}
 
-	// 8. Global Flags (inherited from ancestor commands)
+	// 9. Global Flags (inherited from ancestor commands)
 	builder.WriteString(formatGlobalFlags(cmdChain))
-
-	// 9. Examples
-	builder.WriteString(formatExamples(leaf.Examples))
 
 	// 10. Global help footer
 	if footer := strings.TrimSpace(cmdChain[0].HelpFooter); footer != "" {
@@ -532,6 +549,37 @@ func renderSections(sections []tableSection) string {
 	return builder.String()
 }
 
+// formatArgToken renders a positional argument's synopsis token, deriving
+// repeatability and optionality from the schema so the usage line and the
+// Arguments: section never diverge. A slice or map argument gains a "..."
+// repetition marker, placed inside trailing placeholder brackets when present;
+// an optional argument whose name is not already bracketed is wrapped in
+// brackets. Author-supplied brackets and "..." are preserved.
+func formatArgToken(arg *spec.Arg) string {
+	token := arg.Name
+	if token == "" {
+		return ""
+	}
+
+	if (arg.IsSlice || arg.IsMap) && !strings.Contains(token, "...") {
+		if trimmed, ok := strings.CutSuffix(token, ">"); ok {
+			token = trimmed + "...>"
+		} else {
+			token += "..."
+		}
+	}
+
+	if !arg.Required && !isBracketed(token) {
+		token = "[" + token + "]"
+	}
+
+	return token
+}
+
+func isBracketed(token string) bool {
+	return strings.HasPrefix(token, "[") && strings.HasSuffix(token, "]")
+}
+
 func formatArgLabel(arg *spec.Arg) (string, string) {
 	helpText := arg.Help
 
@@ -553,7 +601,7 @@ func formatArgLabel(arg *spec.Arg) (string, string) {
 		helpText = appendNonEmpty(helpText, hint)
 	}
 
-	return arg.Name, helpText
+	return formatArgToken(arg), helpText
 }
 
 func formatArgs(args []*spec.Arg) string {
@@ -744,7 +792,22 @@ func appendBuiltinFallback(entries []tableEntry, shadowed bool, offered bool, en
 	return append(entries, entry)
 }
 
-func formatFlags(flags []*spec.Flag, hasHelpInfo bool, hasVersionInfo bool, hasCompletionInfo bool, hasWhyInfo bool, whyFormats []string) string {
+// withBuiltinShort returns flagSpec with the configured built-in short rune
+// applied when it carries none, so a shared built-in flag row (the completion
+// subcommand's --help, for example) renders the same short as the synthesized
+// fallback rows. A user-declared shadow keeps its own short.
+func withBuiltinShort(flagSpec *spec.Flag, short rune) *spec.Flag {
+	if short == 0 || flagSpec.Short != 0 {
+		return flagSpec
+	}
+
+	withShort := *flagSpec
+	withShort.Short = short
+
+	return &withShort
+}
+
+func formatFlags(flags []*spec.Flag, hasHelpInfo bool, hasVersionInfo bool, hasCompletionInfo bool, hasWhyInfo bool, whyFormats []string, helpShort rune, versionShort rune) string {
 	var (
 		completionEntries []tableEntry
 		helpEntries       []tableEntry
@@ -772,12 +835,12 @@ func formatFlags(flags []*spec.Flag, hasHelpInfo bool, hasVersionInfo bool, hasC
 		case "help":
 			hasHelp = true
 
-			helpEntries = append(helpEntries, builderEntry(flagSpec))
+			helpEntries = append(helpEntries, builderEntry(withBuiltinShort(flagSpec, helpShort)))
 
 		case "version":
 			hasVersion = true
 
-			versionEntries = append(versionEntries, builderEntry(flagSpec))
+			versionEntries = append(versionEntries, builderEntry(withBuiltinShort(flagSpec, versionShort)))
 
 		case "why":
 			hasWhy = true
@@ -795,11 +858,11 @@ func formatFlags(flags []*spec.Flag, hasHelpInfo bool, hasVersionInfo bool, hasC
 		help:  spec.BuiltinCompletionFlag.Help,
 	})
 	helpEntries = appendBuiltinFallback(helpEntries, hasHelp, hasHelpInfo, tableEntry{
-		label: formatFlagLabel(&spec.Flag{Name: "help", IsBool: true}),
+		label: formatFlagLabel(&spec.Flag{Name: "help", IsBool: true, Short: helpShort}),
 		help:  "Show help",
 	})
 	versionEntries = appendBuiltinFallback(versionEntries, hasVersion, hasVersionInfo, tableEntry{
-		label: formatFlagLabel(&spec.Flag{Name: "version", IsBool: true}),
+		label: formatFlagLabel(&spec.Flag{Name: "version", IsBool: true, Short: versionShort}),
 		help:  "Show version",
 	})
 
@@ -937,8 +1000,9 @@ func appendNonEmpty(base, suffix string) string {
 }
 
 // formatExamples renders the Examples: section, trimming leading/trailing blank
-// lines and indenting every remaining line 2 spaces. It returns "" when there
-// are no examples (or only blank lines), so the section is omitted entirely.
+// lines, stripping the block's common source indentation, and indenting every
+// remaining line 2 spaces. It returns "" when there are no examples (or only
+// blank lines), so the section is omitted entirely.
 func formatExamples(examples string) string {
 	lines := strings.Split(examples, "\n")
 
@@ -954,6 +1018,8 @@ func formatExamples(examples string) string {
 		return ""
 	}
 
+	indent := commonIndent(lines)
+
 	var builder strings.Builder
 
 	builder.WriteString("\nExamples:\n")
@@ -966,11 +1032,39 @@ func formatExamples(examples string) string {
 		}
 
 		builder.WriteString("  ")
-		builder.WriteString(line)
+		builder.WriteString(line[indent:])
 		builder.WriteString("\n")
 	}
 
 	return builder.String()
+}
+
+// commonIndent returns the width of the longest common leading-whitespace prefix
+// shared by every non-blank line, so author source-indentation is stripped
+// before the renderer applies its own two-space indent.
+func commonIndent(lines []string) int {
+	indent := -1
+
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+
+		width := len(line) - len(strings.TrimLeft(line, " \t"))
+		if indent == -1 || width < indent {
+			indent = width
+		}
+
+		if indent == 0 {
+			return 0
+		}
+	}
+
+	if indent < 0 {
+		return 0
+	}
+
+	return indent
 }
 
 // deprecationMarker returns the "[deprecated: <reason>]" suffix for a help
@@ -1000,10 +1094,22 @@ func formatHelpDescription(leaf *spec.Command) string {
 	return description + "\n\n"
 }
 
-// rootDisplayName returns the root command's declared name, overridden by the
-// invoked binary name when the binary was installed or invoked under a
-// different name.
-func rootDisplayName(cmdChain []*spec.Command) string {
+// displayName returns the root command's configured name: the application name
+// set with app.Name, or the invoked binary name it defaulted to when no name
+// was configured. Help, usage, hints, and the deprecation banner use it so an
+// explicitly configured name always wins over the binary.
+func displayName(cmdChain []*spec.Command) string {
+	if len(cmdChain) == 0 {
+		return ""
+	}
+
+	return cmdChain[0].Name
+}
+
+// invokedName returns the root command's name, overridden by the invoked binary
+// name. Completion screens use it because their instructions and generated
+// script must reference the binary the user actually runs.
+func invokedName(cmdChain []*spec.Command) string {
 	if len(cmdChain) == 0 {
 		return ""
 	}
@@ -1016,12 +1122,10 @@ func rootDisplayName(cmdChain []*spec.Command) string {
 	return rootName
 }
 
-func resolveCmdPath(cmdChain []*spec.Command) []string {
+func resolveCmdPath(cmdChain []*spec.Command, rootName string) []string {
 	if len(cmdChain) == 0 {
 		return nil
 	}
-
-	rootName := rootDisplayName(cmdChain)
 
 	var cmdPath []string
 

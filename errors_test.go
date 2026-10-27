@@ -1798,7 +1798,7 @@ func TestErrorCommandAndChain_EndToEnd(t *testing.T) {
 
 		assert.True(t, errors.As(err, &usage))
 		assert.Equal(t, "app sub", usage.CommandPath())
-		assert.Contains(t, usage.Usage(), "app sub [flags]")
+		assert.Contains(t, usage.Usage(), "app sub [flags...]")
 	})
 
 	t.Run("parse error exposes Usage syntax", func(t *testing.T) {
@@ -1815,7 +1815,7 @@ func TestErrorCommandAndChain_EndToEnd(t *testing.T) {
 		var usage conga.UsageError
 
 		assert.True(t, errors.As(err, &usage))
-		assert.Contains(t, usage.Usage(), "Usage:\n  app sub [flags]")
+		assert.Contains(t, usage.Usage(), "Usage:\n  app sub [flags...]")
 	})
 
 	t.Run("coercion error exposes Usage syntax", func(t *testing.T) {
@@ -1832,7 +1832,7 @@ func TestErrorCommandAndChain_EndToEnd(t *testing.T) {
 		var usage conga.UsageError
 
 		assert.True(t, errors.As(err, &usage))
-		assert.Contains(t, usage.Usage(), "Usage:\n  app sub [flags]")
+		assert.Contains(t, usage.Usage(), "Usage:\n  app sub [flags...]")
 	})
 
 	t.Run("validation error exposes Usage syntax", func(t *testing.T) {
@@ -1849,7 +1849,7 @@ func TestErrorCommandAndChain_EndToEnd(t *testing.T) {
 		var usage conga.UsageError
 
 		assert.True(t, errors.As(err, &usage))
-		assert.Contains(t, usage.Usage(), "Usage:\n  app sub [flags]")
+		assert.Contains(t, usage.Usage(), "Usage:\n  app sub [flags...]")
 	})
 
 	t.Run("CompletionError classification and decoupling from UsageError", func(t *testing.T) {

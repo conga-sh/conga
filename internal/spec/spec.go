@@ -60,7 +60,14 @@ type Command struct {
 	// Shell names the completion target shell for IsCompletionCmd commands,
 	// populated during binding so `completion <shell> --help` renders that
 	// shell's enable instructions. Empty on all other commands.
-	Shell          string
+	Shell string
+	// HelpShort and VersionShort carry the optional short runes assigned to the
+	// injected built-in --help and --version flags through app.HelpShort and
+	// app.VersionShort. They are populated on the root command during schema
+	// build and read by the binder (short-flag registration) and the help
+	// renderer (flag rows). Zero keeps the built-in long-only.
+	HelpShort      rune
+	VersionShort   rune
 	Flags          []*Flag
 	Args           []*Arg
 	Subcommands    []*Command
@@ -456,7 +463,13 @@ type Options struct {
 	ConfigCapable  bool
 	DisableHelp    bool
 	DisableVersion bool
-	DisableWhy     bool
+	// HelpShort and VersionShort assign optional short runes to the injected
+	// built-in --help and --version flags (app.HelpShort / app.VersionShort).
+	// Zero keeps them long-only. A rune colliding with a user-declared short is
+	// rejected with ErrDuplicateFlag during schema build.
+	HelpShort    rune
+	VersionShort rune
+	DisableWhy   bool
 	// WhyJSONEnabled advertises the machine-readable JSON output format for
 	// the built-in --why flag. It only affects help and completion
 	// presentation; value validation stays with the app's why resolver.

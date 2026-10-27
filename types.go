@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/conga-sh/conga/internal/appname"
 	"github.com/conga-sh/conga/internal/coerce"
 	"github.com/conga-sh/conga/internal/completion"
 	"github.com/conga-sh/conga/internal/configdata"
@@ -740,12 +739,7 @@ func (v *VersionCommand) Run(ctx context.Context, session *Session) error {
 		return nil
 	}
 
-	name := session.appName
-	if invoked, ok := appname.Binary(); ok {
-		name = invoked
-	}
-
-	fmt.Fprintln(session.Stdout(), help.VersionDetailed(name, session.appVersion))
+	fmt.Fprintln(session.Stdout(), help.VersionDetailed(session.appName, session.appVersion))
 
 	return nil
 }

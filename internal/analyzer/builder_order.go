@@ -895,6 +895,8 @@ func defaultBuilderCallOrder() []string {
 		"EnableCompletion",
 		"EnableFeatures",
 		"EnableWhy",
+		"HelpShort",
+		"VersionShort",
 		"EnvPrefix",
 		"Dotenv",
 		"RegisterDecoder",

@@ -1,5 +1,5 @@
 Usage:
-  testapp [flags]
+  testapp [flags...]
 
 Flags:
   -v, --verbose           Verbose logging

@@ -99,6 +99,10 @@ func newTokenParser(cmdChain []*spec.Command, tokens []tokenizer.Token, index *f
 		index.long["help"] = spec.BuiltinHelpFlag
 	}
 
+	if index.long["help"] == spec.BuiltinHelpFlag {
+		registerBuiltinShort(index, cmdChain[0].HelpShort, spec.BuiltinHelpFlag)
+	}
+
 	isRoot := len(cmdChain) == 1
 
 	// The built-in --version flag only exists on the root command. Version
@@ -107,6 +111,10 @@ func newTokenParser(cmdChain []*spec.Command, tokens []tokenizer.Token, index *f
 	// click, etc.) and force each help screen to repeat it.
 	if _, hasVersion := index.long["version"]; !hasVersion && leaf.VersionFlagVisible(isRoot) {
 		index.long["version"] = spec.BuiltinVersionFlag
+	}
+
+	if index.long["version"] == spec.BuiltinVersionFlag {
+		registerBuiltinShort(index, cmdChain[0].VersionShort, spec.BuiltinVersionFlag)
 	}
 
 	// The built-in --why flag is available on every command, like --help: the
@@ -133,6 +141,22 @@ func newTokenParser(cmdChain []*spec.Command, tokens []tokenizer.Token, index *f
 		dashTokens: nil,
 		rawTokens:  make([]string, 0),
 	}
+}
+
+// registerBuiltinShort maps a configured built-in short rune onto its shared
+// built-in flag so -h/-V parse without a per-app flag copy. A rune already
+// claimed by a user flag is left untouched: schema build rejects that collision
+// first, so this only guards a user-declared shadow from being shadowed back.
+func registerBuiltinShort(index *flagIndex, short rune, flagSpec *spec.Flag) {
+	if short == 0 {
+		return
+	}
+
+	if _, taken := index.short[short]; taken {
+		return
+	}
+
+	index.short[short] = flagSpec
 }
 
 func (parser *tokenParser) canFallbackToRaw() bool {
