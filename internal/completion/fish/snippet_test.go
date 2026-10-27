@@ -12,7 +12,7 @@ import (
 func TestSnippet_SingleName(t *testing.T) {
 	t.Parallel()
 
-	output := fish.Snippet("myapp", nil)
+	output := fish.Snippet("myapp", nil, "")
 
 	assert.Equal(t,
 		`function _myapp_completion`+"\n"+
@@ -31,7 +31,7 @@ func TestSnippet_SingleName(t *testing.T) {
 func TestSnippet_AliasesShareFunction(t *testing.T) {
 	t.Parallel()
 
-	output := fish.Snippet("myapp", []string{"ma", "app"})
+	output := fish.Snippet("myapp", []string{"ma", "app"}, "")
 
 	assert.Equal(t,
 		`function _myapp_completion`+"\n"+
@@ -56,7 +56,7 @@ func TestSnippet_AliasesShareFunction(t *testing.T) {
 func TestSnippet_NoLegacyProtocolRemnants(t *testing.T) {
 	t.Parallel()
 
-	output := fish.Snippet("myapp", []string{"ma"})
+	output := fish.Snippet("myapp", []string{"ma"}, "")
 
 	for _, remnant := range []string{"sed ", "xargs", "commandline -cp"} {
 		assert.False(t, strings.Contains(output, remnant), "snippet must not contain %q", remnant)
@@ -66,7 +66,7 @@ func TestSnippet_NoLegacyProtocolRemnants(t *testing.T) {
 func TestSnippet_QuotesNonIdentifierNames(t *testing.T) {
 	t.Parallel()
 
-	output := fish.Snippet("my-app", nil)
+	output := fish.Snippet("my-app", nil, "")
 
 	assert.Equal(t,
 		`function _my_app_completion`+"\n"+
@@ -106,7 +106,7 @@ func TestSnippet_IdentifierHygiene(t *testing.T) {
 		t.Run(label, func(t *testing.T) {
 			t.Parallel()
 
-			output := fish.Snippet(testCase.name, nil)
+			output := fish.Snippet(testCase.name, nil, "")
 
 			assert.Contains(t, output, "function _"+testCase.identifier+"_completion\n")
 			assert.Contains(t, output, `$words[1] __complete fish $words[2..-1] $current 2>/dev/null`)

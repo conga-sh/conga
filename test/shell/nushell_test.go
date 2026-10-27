@@ -218,7 +218,7 @@ func TestNushell_AliasAndDescriptionSidebands(t *testing.T) {
 	t.Run("aliases suppressed", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl ", "CONGA_COMPLETION_ALIASES=0")
+		result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl ", "CLOUDCTL_COMPLETION_ALIASES=0")
 
 		assert.Equal(t, "", result.Stderr, "completion must not write to stderr")
 		assert.True(t, result.HasItem("deploy"))
@@ -228,7 +228,7 @@ func TestNushell_AliasAndDescriptionSidebands(t *testing.T) {
 	t.Run("descriptions suppressed", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl ", "CONGA_COMPLETION_DESCRIPTIONS=0")
+		result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl ", "CLOUDCTL_COMPLETION_DESCRIPTIONS=0")
 
 		assert.Equal(t, "", result.Stderr, "completion must not write to stderr")
 		description, ok := result.ItemDescription("deploy")

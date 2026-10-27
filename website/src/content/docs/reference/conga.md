@@ -39,7 +39,7 @@ func New[T any](root ...*T) *App[T]
 | `Stdout(w)` / `Stderr(w)` | Output writers (default `os.Stdout`/`os.Stderr`) |
 | `SetenvFunc(fn)` | Writer for variables loaded by [Dotenv](/reference/dotenv/) (default `os.Setenv`) |
 | `ExitFunc(handler)` | Custom exit handler for `Exit` |
-| `EnableWhy(options...)` / `EnableCompletion()` / `EnableFeatures()` | Opt in to the `--why` report, shell completion, and struct-declared feature toggles; pass `conga.WhyJSON()` to `EnableWhy` to enable `--why=json` |
+| `EnableWhy(options...)` / `EnableCompletion(options...)` / `EnableFeatures()` | Opt in to the `--why` report, shell completion, and struct-declared feature toggles; pass `conga.WhyJSON()` to `EnableWhy` to enable `--why=json` |
 | `DisableHelpFlag()` / `DisableVersionFlag()` | Remove the `--help`/`--version` flags |
 
 ### Execution methods
@@ -145,6 +145,18 @@ type WhyOption interface {
 ```
 
 `WhyOption` is a sealed interface produced by option constructors such as `WhyJSON()`. `WhyJSON` enables machine-readable `--why=json` reports on `App.EnableWhy`. By default, `EnableWhy` compiles only the human-readable text table renderer, dead-code eliminating the JSON serialization pipeline unless opted in.
+
+## Completion options
+
+```go
+func CompletionEnvPrefix(prefix string) CompletionOption
+
+type CompletionOption interface {
+	applyCompletion(settings *completionSettings)
+}
+```
+
+`CompletionOption` is a sealed interface produced by option constructors such as `CompletionEnvPrefix`. Pass `CompletionEnvPrefix` to `App.EnableCompletion` to override the derived environment-variable prefix (`<APP>_`) that names the completion sideband toggles `<APP>_COMPLETION_DESCRIPTIONS` and `<APP>_COMPLETION_ALIASES`. The prefix is normalized to upper snake case; an empty prefix keeps the application-name derivation, and a prefix that normalizes to a leading digit is rejected at schema build because POSIX shells cannot assign such a variable name.
 
 ## Configuration options
 

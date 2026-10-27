@@ -84,6 +84,7 @@ func TestCompletionScriptGeneration_AllShells(t *testing.T) {
 	opts := completion.DriverOptions{
 		CommandName: "myapp",
 		Aliases:     []string{"ma", "app"},
+		EnvPrefix:   "MYAPP_",
 	}
 
 	t.Run("bash script generation", func(t *testing.T) {
@@ -241,7 +242,7 @@ func TestCompletionCommand_Argv0(t *testing.T) {
 
 	assert.NoError(t, err)
 
-	expected, err := completion.Generate(completion.ShellZsh, completion.DriverOptions{CommandName: "foobar"})
+	expected, err := completion.Generate(completion.ShellZsh, completion.DriverOptions{CommandName: "foobar", EnvPrefix: "MYAPP_"})
 	assert.NoError(t, err)
 	assert.Equal(t, expected, buffer.String())
 }
@@ -358,6 +359,88 @@ func TestApp_Completion_Fluent(t *testing.T) {
 		assert.Error(t, err)
 		assert.IsError(t, err, conga.ErrParse)
 	})
+}
+
+func TestCompletionScript_EnvPrefix(t *testing.T) {
+	t.Parallel()
+
+	tests := map[string]struct {
+		name       string
+		options    []conga.CompletionOption
+		wantPrefix string
+	}{
+		"derives from application name":      {name: "myapp", wantPrefix: "MYAPP_"},
+		"normalizes the application name":    {name: "my-app", wantPrefix: "MY_APP_"},
+		"punctuation-only name falls back":   {name: "!!!", wantPrefix: "APP_"},
+		"explicit prefix overrides the name": {name: "myapp", options: []conga.CompletionOption{conga.CompletionEnvPrefix("taskctl")}, wantPrefix: "TASKCTL_"},
+		"normalizes the explicit prefix":     {name: "myapp", options: []conga.CompletionOption{conga.CompletionEnvPrefix("task-ctl")}, wantPrefix: "TASK_CTL_"},
+		"empty prefix keeps derivation":      {name: "myapp", options: []conga.CompletionOption{conga.CompletionEnvPrefix("")}, wantPrefix: "MYAPP_"},
+		"nil option is skipped":              {name: "myapp", options: []conga.CompletionOption{nil}, wantPrefix: "MYAPP_"},
+	}
+
+	for label, testCase := range tests {
+		t.Run(label, func(t *testing.T) {
+			t.Parallel()
+
+			var buffer bytes.Buffer
+
+			app := conga.New[PlainAppCLI]().
+				Name(testCase.name).
+				EnableCompletion(testCase.options...).
+				Stdout(&buffer).
+				Args([]string{"--completion", "zsh"})
+
+			err := app.Run()
+
+			assert.NoError(t, err)
+			assert.Contains(t, buffer.String(), "local app_env_prefix="+testCase.wantPrefix)
+		})
+	}
+}
+
+func TestCompletionScript_DigitLeadingEnvPrefixRejected(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[PlainAppCLI]().
+		Name("7z").
+		EnableCompletion().
+		Args([]string{"--completion", "zsh"})
+
+	err := app.Run()
+
+	assert.IsError(t, err, conga.ErrSchema)
+	assert.Equal(t, `schema error: completion environment prefix "7Z_" begins with a digit, which is not a valid shell variable name; rename the application or pass conga.CompletionEnvPrefix with a prefix beginning with a letter`, err.Error())
+}
+
+func TestCompletionScript_DigitLeadingExplicitEnvPrefixRejected(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[PlainAppCLI]().
+		Name("myapp").
+		EnableCompletion(conga.CompletionEnvPrefix("2fa")).
+		Args([]string{"--completion", "zsh"})
+
+	err := app.Run()
+
+	assert.IsError(t, err, conga.ErrSchema)
+	assert.Equal(t, `schema error: completion environment prefix "2FA_" begins with a digit, which is not a valid shell variable name; rename the application or pass conga.CompletionEnvPrefix with a prefix beginning with a letter`, err.Error())
+}
+
+func TestCompletionScript_EnvPrefixResolvedAfterBuilderChain(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	app := conga.New[PlainAppCLI]().
+		EnableCompletion().
+		Name("lateapp").
+		Stdout(&buffer).
+		Args([]string{"--completion", "zsh"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Contains(t, buffer.String(), "local app_env_prefix=LATEAPP_")
 }
 
 func TestCompletionCommand_Errors(t *testing.T) {
@@ -607,7 +690,7 @@ func TestCompletion_PureFlagsCommandWithRequiredFlag(t *testing.T) {
 
 			assert.NoError(t, err)
 
-			expected, err := completion.Generate(completion.Shell(shell), completion.DriverOptions{CommandName: "constraints-demo"})
+			expected, err := completion.Generate(completion.Shell(shell), completion.DriverOptions{CommandName: "constraints-demo", EnvPrefix: "CONSTRAINTS_DEMO_"})
 			assert.NoError(t, err)
 			assert.Equal(t, expected, buffer.String())
 		})

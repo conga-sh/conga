@@ -14,7 +14,7 @@ func TestFromResultDefaultsDisplayToValue(t *testing.T) {
 
 	result := predict.Values("deploy", "logs").Invoke(predict.Context{})
 
-	candidates, _ := wire.FromResult(result)
+	candidates, _ := wire.FromResult(testEnvPrefix, result)
 
 	assert.Equal(t, []wire.Candidate{
 		{Value: "deploy", Display: "deploy"},
@@ -27,7 +27,7 @@ func TestFromResultPreservesDisplayOverride(t *testing.T) {
 
 	result := predict.Items(predict.NewItem("region", "us-east-1").WithDisplay("us-east-1 (N. Virginia)")).Invoke(predict.Context{})
 
-	candidates, _ := wire.FromResult(result)
+	candidates, _ := wire.FromResult(testEnvPrefix, result)
 
 	assert.Equal(t, []wire.Candidate{
 		{Value: "region", Display: "us-east-1 (N. Virginia)", Description: "us-east-1"},
@@ -44,7 +44,7 @@ func TestFromResultCopiesFieldsVerbatimInEngineOrder(t *testing.T) {
 		},
 	}
 
-	candidates, _ := wire.FromResult(result)
+	candidates, _ := wire.FromResult(testEnvPrefix, result)
 
 	assert.Equal(t, []wire.Candidate{
 		{Value: "deploy", Display: "deploy", Description: "Deploy service", Style: "blue", Tag: "commands"},
@@ -53,14 +53,14 @@ func TestFromResultCopiesFieldsVerbatimInEngineOrder(t *testing.T) {
 }
 
 func TestFromResultSuppressesAliasCandidates(t *testing.T) {
-	t.Setenv(wire.EnvAliases, "0")
+	t.Setenv(testEnvPrefix+wire.CompletionAliasesSuffix, "0")
 
 	result := predict.Result{Items: []predict.Item{
 		{Value: "deploy", Display: "deploy", Description: "Deploy service"},
 		{Value: "d", Display: "d", Description: "Deploy service", Alias: true},
 	}}
 
-	candidates, _ := wire.FromResult(result)
+	candidates, _ := wire.FromResult(testEnvPrefix, result)
 
 	assert.Equal(t, []wire.Candidate{
 		{Value: "deploy", Display: "deploy", Description: "Deploy service"},
@@ -68,14 +68,14 @@ func TestFromResultSuppressesAliasCandidates(t *testing.T) {
 }
 
 func TestFromResultKeepsAliasCandidatesMarked(t *testing.T) {
-	t.Setenv(wire.EnvAliases, "1")
+	t.Setenv(testEnvPrefix+wire.CompletionAliasesSuffix, "1")
 
 	result := predict.Result{Items: []predict.Item{
 		{Value: "deploy", Display: "deploy"},
 		{Value: "d", Display: "d", Alias: true},
 	}}
 
-	candidates, _ := wire.FromResult(result)
+	candidates, _ := wire.FromResult(testEnvPrefix, result)
 
 	assert.Equal(t, []wire.Candidate{
 		{Value: "deploy", Display: "deploy"},
@@ -84,13 +84,13 @@ func TestFromResultKeepsAliasCandidatesMarked(t *testing.T) {
 }
 
 func TestFromResultSuppressesDescriptions(t *testing.T) {
-	t.Setenv(wire.EnvDescriptions, "0")
+	t.Setenv(testEnvPrefix+wire.CompletionDescriptionsSuffix, "0")
 
 	result := predict.Result{Items: []predict.Item{
 		{Value: "deploy", Display: "deploy", Description: "Deploy service"},
 	}}
 
-	candidates, _ := wire.FromResult(result)
+	candidates, _ := wire.FromResult(testEnvPrefix, result)
 
 	assert.Equal(t, []wire.Candidate{{Value: "deploy", Display: "deploy"}}, candidates)
 }
@@ -100,7 +100,7 @@ func TestFromResultNoSpaceDirectiveSetsWildcard(t *testing.T) {
 
 	result := predict.Values("deploy=").NoSpace().Invoke(predict.Context{})
 
-	_, directives := wire.FromResult(result)
+	_, directives := wire.FromResult(testEnvPrefix, result)
 
 	assert.True(t, directives.NoSpace.Matches("anything"))
 	assert.Equal(t, []string{"nospace"}, directives.Tokens())
@@ -111,7 +111,7 @@ func TestFromResultWithoutNoSpaceDirectiveLeavesSetEmpty(t *testing.T) {
 
 	result := predict.Values("deploy").Invoke(predict.Context{})
 
-	_, directives := wire.FromResult(result)
+	_, directives := wire.FromResult(testEnvPrefix, result)
 
 	assert.True(t, directives.NoSpace.IsEmpty())
 	assert.Zero(t, directives.Tokens())
@@ -125,7 +125,7 @@ func TestFromResultKeepOrderFlag(t *testing.T) {
 
 		result := predict.Values("b", "a").KeepOrder().Invoke(predict.Context{})
 
-		_, directives := wire.FromResult(result)
+		_, directives := wire.FromResult(testEnvPrefix, result)
 
 		assert.True(t, directives.KeepOrder)
 		assert.Equal(t, []string{"keeporder"}, directives.Tokens())
@@ -136,7 +136,7 @@ func TestFromResultKeepOrderFlag(t *testing.T) {
 
 		result := predict.Values("a").Invoke(predict.Context{})
 
-		_, directives := wire.FromResult(result)
+		_, directives := wire.FromResult(testEnvPrefix, result)
 
 		assert.False(t, directives.KeepOrder)
 	})
@@ -149,7 +149,7 @@ func TestFromResultErrorWithUsageAddsUsageMessage(t *testing.T) {
 	result.Usage = "usage: app <command>"
 	result.Directive |= predict.DirectiveError
 
-	_, directives := wire.FromResult(result)
+	_, directives := wire.FromResult(testEnvPrefix, result)
 
 	assert.Equal(t, []string{"usage: app <command>"}, directives.Messages)
 	assert.Equal(t, "usage: app <command>", directives.Usage)
@@ -161,7 +161,7 @@ func TestFromResultErrorWithoutUsageAddsErrorMessage(t *testing.T) {
 	result := predict.None().Invoke(predict.Context{})
 	result.Directive |= predict.DirectiveError
 
-	_, directives := wire.FromResult(result)
+	_, directives := wire.FromResult(testEnvPrefix, result)
 
 	assert.Equal(t, []string{"ERROR"}, directives.Messages)
 	assert.Equal(t, "", directives.Usage)
@@ -173,7 +173,7 @@ func TestFromResultUsagePassthroughWithoutError(t *testing.T) {
 	result := predict.None().Invoke(predict.Context{})
 	result.Usage = "usage: app <command>"
 
-	_, directives := wire.FromResult(result)
+	_, directives := wire.FromResult(testEnvPrefix, result)
 
 	assert.Equal(t, "usage: app <command>", directives.Usage)
 	assert.Zero(t, directives.Messages)

@@ -12,7 +12,7 @@ import (
 func TestSnippet_RegistersCompleterPerNameAndAlias(t *testing.T) {
 	t.Parallel()
 
-	script := elvish.Snippet("myapp", []string{"ma", "app"})
+	script := elvish.Snippet("myapp", []string{"ma", "app"}, "")
 
 	assert.Equal(t, 3, strings.Count(script, "set edit:completion:arg-completer["), "one registration per name and alias")
 	assert.Contains(t, script, "set edit:completion:arg-completer[myapp] = $completer~")
@@ -23,7 +23,7 @@ func TestSnippet_RegistersCompleterPerNameAndAlias(t *testing.T) {
 func TestSnippet_InvokesCompleteEntryPointWithSlicedArgs(t *testing.T) {
 	t.Parallel()
 
-	script := elvish.Snippet("myapp", nil)
+	script := elvish.Snippet("myapp", nil, "")
 
 	assert.Contains(t, script, "set cmd = (search-external $args[0])")
 	assert.Contains(t, script, "var completion = ($cmd __complete elvish (all $args[1..]) 2>/dev/null | from-json)")
@@ -33,13 +33,13 @@ func TestSnippet_InvokesCompleteEntryPointWithSlicedArgs(t *testing.T) {
 func TestSnippet_SetsSidebandShellVariable(t *testing.T) {
 	t.Parallel()
 
-	assert.Contains(t, elvish.Snippet("myapp", nil), "set-env CONGA_SHELL elvish")
+	assert.Contains(t, elvish.Snippet("myapp", nil, ""), "set-env CONGA_SHELL elvish")
 }
 
 func TestSnippet_RendersCandidates(t *testing.T) {
 	t.Parallel()
 
-	script := elvish.Snippet("myapp", nil)
+	script := elvish.Snippet("myapp", nil, "")
 
 	assert.Contains(t, script, "edit:complex-candidate $c[value] &display=(styled $c[display] $styling)$description &code-suffix=$c[codeSuffix]")
 	assert.NotContains(t, script, "echo", "must not echo output during completion")
@@ -50,7 +50,7 @@ func TestSnippet_RendersCandidates(t *testing.T) {
 func TestSnippet_InvokesTypedCommandName(t *testing.T) {
 	t.Parallel()
 
-	script := elvish.Snippet("my app", nil)
+	script := elvish.Snippet("my app", nil, "")
 
 	assert.Contains(t, script, "set cmd = (search-external $args[0])")
 	assert.Contains(t, script, "var completion = ($cmd __complete elvish (all $args[1..]) 2>/dev/null | from-json)")
@@ -59,7 +59,7 @@ func TestSnippet_InvokesTypedCommandName(t *testing.T) {
 func TestSnippet_QuotesNameWithMetacharacters(t *testing.T) {
 	t.Parallel()
 
-	script := elvish.Snippet("my app", []string{"app[x]"})
+	script := elvish.Snippet("my app", []string{"app[x]"}, "")
 
 	assert.Contains(t, script, `set edit:completion:arg-completer['my app'] = $completer~`)
 	assert.Contains(t, script, `set edit:completion:arg-completer['app[x]'] = $completer~`)
@@ -97,7 +97,7 @@ func TestSnippet_IdentifierHygiene(t *testing.T) {
 		t.Run(label, func(t *testing.T) {
 			t.Parallel()
 
-			script := elvish.Snippet(testCase.name, nil)
+			script := elvish.Snippet(testCase.name, nil, "")
 
 			assert.Contains(t, script, "set cmd = (search-external $args[0])")
 			assert.Contains(t, script, "var completion = ($cmd __complete elvish (all $args[1..]) 2>/dev/null | from-json)")

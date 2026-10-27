@@ -62,7 +62,7 @@ func TestBash_SnippetParses(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			snippetPath := writeSnippetFile(t, t.TempDir(), "snippet.bash", bash.Snippet(name, nil))
+			snippetPath := writeSnippetFile(t, t.TempDir(), "snippet.bash", bash.Snippet(name, nil, ""))
 
 			out, err := exec.CommandContext(t.Context(), bashPath, "--noprofile", "--norc", "-n", snippetPath).CombinedOutput()
 
@@ -73,7 +73,7 @@ func TestBash_SnippetParses(t *testing.T) {
 	t.Run("aliases form", func(t *testing.T) {
 		t.Parallel()
 
-		snippetPath := writeSnippetFile(t, t.TempDir(), "snippet.bash", bash.Snippet("my app", []string{"ma"}))
+		snippetPath := writeSnippetFile(t, t.TempDir(), "snippet.bash", bash.Snippet("my app", []string{"ma"}, ""))
 
 		out, err := exec.CommandContext(t.Context(), bashPath, "--noprofile", "--norc", "-n", snippetPath).CombinedOutput()
 
@@ -90,7 +90,7 @@ func TestZsh_SnippetParses(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			snippetPath := writeSnippetFile(t, t.TempDir(), "snippet.zsh", zsh.Snippet(name, nil))
+			snippetPath := writeSnippetFile(t, t.TempDir(), "snippet.zsh", zsh.Snippet(name, nil, "TEST_"))
 
 			out, err := exec.CommandContext(t.Context(), zshPath, "-f", "-d", "-n", snippetPath).CombinedOutput()
 
@@ -101,7 +101,7 @@ func TestZsh_SnippetParses(t *testing.T) {
 	t.Run("aliases form", func(t *testing.T) {
 		t.Parallel()
 
-		snippetPath := writeSnippetFile(t, t.TempDir(), "snippet.zsh", zsh.Snippet("my app", []string{"ma"}))
+		snippetPath := writeSnippetFile(t, t.TempDir(), "snippet.zsh", zsh.Snippet("my app", []string{"ma"}, "TEST_"))
 
 		out, err := exec.CommandContext(t.Context(), zshPath, "-f", "-d", "-n", snippetPath).CombinedOutput()
 
@@ -118,7 +118,7 @@ func TestFish_SnippetParses(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			snippetPath := writeSnippetFile(t, t.TempDir(), "snippet.fish", fish.Snippet(name, nil))
+			snippetPath := writeSnippetFile(t, t.TempDir(), "snippet.fish", fish.Snippet(name, nil, ""))
 
 			out, err := exec.CommandContext(t.Context(), fishPath, "--no-execute", snippetPath).CombinedOutput()
 
@@ -136,7 +136,7 @@ func TestNushell_SnippetParses(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			out, err := exec.CommandContext(t.Context(), nuPath, "-c", nushell.Snippet(name, nil)).CombinedOutput()
+			out, err := exec.CommandContext(t.Context(), nuPath, "-c", nushell.Snippet(name, nil, "")).CombinedOutput()
 
 			assert.NoError(t, err, "nu -c must parse the generated snippet:\n%s", out)
 		})
@@ -156,7 +156,7 @@ func TestPowerShell_SnippetParses(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			snippetPath := writeSnippetFile(t, t.TempDir(), "snippet.ps1", powershell.Snippet(name, nil))
+			snippetPath := writeSnippetFile(t, t.TempDir(), "snippet.ps1", powershell.Snippet(name, nil, ""))
 
 			out, err := exec.CommandContext(t.Context(), pwshPath, "-NoProfile", "-NonInteractive", "-Command", parseScript(snippetPath)).CombinedOutput()
 
@@ -167,7 +167,7 @@ func TestPowerShell_SnippetParses(t *testing.T) {
 	t.Run("aliases form", func(t *testing.T) {
 		t.Parallel()
 
-		snippetPath := writeSnippetFile(t, t.TempDir(), "snippet.ps1", powershell.Snippet("my app", []string{"ma"}))
+		snippetPath := writeSnippetFile(t, t.TempDir(), "snippet.ps1", powershell.Snippet("my app", []string{"ma"}, ""))
 
 		out, err := exec.CommandContext(t.Context(), pwshPath, "-NoProfile", "-NonInteractive", "-Command", parseScript(snippetPath)).CombinedOutput()
 
@@ -201,7 +201,7 @@ print (to-string (keys $edit:completion:arg-completer | count)) "\n"
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			snippetPath := writeSnippetFile(t, t.TempDir(), "snippet.elv", elvish.Snippet(name, nil))
+			snippetPath := writeSnippetFile(t, t.TempDir(), "snippet.elv", elvish.Snippet(name, nil, ""))
 
 			out, err := exec.CommandContext(t.Context(), elvishPath, "-c", registrationScript(snippetPath)).CombinedOutput()
 
@@ -213,7 +213,7 @@ print (to-string (keys $edit:completion:arg-completer | count)) "\n"
 	t.Run("aliases form", func(t *testing.T) {
 		t.Parallel()
 
-		snippetPath := writeSnippetFile(t, t.TempDir(), "snippet.elv", elvish.Snippet("my app", []string{"ma"}))
+		snippetPath := writeSnippetFile(t, t.TempDir(), "snippet.elv", elvish.Snippet("my app", []string{"ma"}, ""))
 
 		out, err := exec.CommandContext(t.Context(), elvishPath, "-c", registrationScript(snippetPath)).CombinedOutput()
 

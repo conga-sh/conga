@@ -201,7 +201,7 @@ func TestFormat_SeamEquivalence(t *testing.T) {
 		Usage:     "usage: app <command>",
 	}
 
-	candidates, directives := wire.FromResult(result)
+	candidates, directives := wire.FromResult("", result)
 
 	output := export.Format("", directives, candidates)
 

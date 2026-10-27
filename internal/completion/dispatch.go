@@ -35,24 +35,26 @@ type EnvLookup = bash.EnvLookup
 // share state. Unknown identifiers — and the empty auto-detect form — render in
 // the export framing.
 type Session struct {
-	driver *shellDriver
-	state  driverSession
+	driver    *shellDriver
+	state     driverSession
+	envPrefix string
 }
 
 // NewSession returns the invocation-scoped driver for targetShell.
 func NewSession(targetShell string) *Session {
-	return NewSessionWithEnv(targetShell, nil)
+	return NewSessionWithEnv(targetShell, nil, "")
 }
 
 // NewSessionWithEnv returns the invocation-scoped driver for targetShell using
-// lookup to resolve environment variables.
-func NewSessionWithEnv(targetShell string, lookup EnvLookup) *Session {
+// lookup to resolve shell environment variables and envPrefix to name the
+// application-prefixed description and alias sideband toggles.
+func NewSessionWithEnv(targetShell string, lookup EnvLookup, envPrefix string) *Session {
 	driver := findDriver(normalizeShell(targetShell))
 	if driver == nil {
-		return &Session{}
+		return &Session{envPrefix: envPrefix}
 	}
 
-	return &Session{driver: driver, state: driver.open(lookup)}
+	return &Session{driver: driver, state: driver.open(lookup), envPrefix: envPrefix}
 }
 
 // Patch applies shell-specific completion argument patching: bash's redirect
@@ -70,7 +72,7 @@ func (s *Session) Patch(args []string) ([]string, error) {
 // protocol shells render natively; an unknown, removed, or empty identifier
 // falls back to the export framing.
 func (s *Session) Format(toComplete string, result predict.Result) string {
-	candidates, directives := wire.FromResult(result)
+	candidates, directives := wire.FromResult(s.envPrefix, result)
 
 	if s.driver == nil {
 		return export.Format(toComplete, directives, candidates)
@@ -89,7 +91,7 @@ func Snippet(opts DriverOptions, shellName string) (string, error) {
 		return "", fmt.Errorf("%w %q, supported shells: %s", sentinel.ErrUnknownShell, shellName, strings.Join(SupportedShells(), ", "))
 	}
 
-	return driver.snippet(opts.CommandName, opts.Aliases), nil
+	return driver.snippet(opts.CommandName, opts.Aliases, opts.EnvPrefix), nil
 }
 
 // SupportedShells returns the shells of the wire protocol
@@ -124,7 +126,7 @@ type shellDriver struct {
 	session driverSession
 	// newSession mints the per-invocation session of a stateful driver.
 	newSession func(lookup EnvLookup) driverSession
-	snippet    func(name string, aliases []string) string
+	snippet    func(name string, aliases []string, envPrefix string) string
 }
 
 // open returns the driver session of one completion invocation.

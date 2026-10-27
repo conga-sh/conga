@@ -24,7 +24,7 @@ import (
 // is needed. The 2>/dev/null suppression keeps diagnostics off the terminal:
 // a non-zero exit yields an empty substitution, which fish treats as "no
 // completions".
-func Snippet(name string, aliases []string) string {
+func Snippet(name string, aliases []string, _ string) string {
 	identifier := wire.SanitizeIdentifier(name)
 
 	var builder strings.Builder

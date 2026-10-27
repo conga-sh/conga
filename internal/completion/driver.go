@@ -35,6 +35,10 @@ type Shell string
 type DriverOptions struct {
 	CommandName string
 	Aliases     []string
+	// EnvPrefix is the application's normalized completion environment prefix
+	// (for example TASK_), used by drivers whose generated script forwards
+	// description and alias suppression to the binary.
+	EnvPrefix string
 }
 
 // Generate renders the completion driver script for the specified shell and options.

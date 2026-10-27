@@ -311,13 +311,13 @@ func TestFormat_ListColorsSeparatorEscaping(t *testing.T) {
 
 func TestFormat_ListColorsWithoutDescriptions(t *testing.T) {
 	t.Setenv("CONGA_COLOR", "1")
-	t.Setenv(wire.EnvDescriptions, "0")
+	t.Setenv("TEST_COMPLETION_DESCRIPTIONS", "0")
 
 	result := predict.Result{Items: []predict.Item{
 		{Value: "--env", Display: "--env", Description: "Target environment", Style: "blue"},
 	}}
 
-	candidates, directives := wire.FromResult(result)
+	candidates, directives := wire.FromResult("TEST_", result)
 
 	output := zsh.Format("", directives, candidates)
 

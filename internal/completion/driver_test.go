@@ -111,6 +111,7 @@ func TestGenerate_AllShells(t *testing.T) {
 			opts := completion.DriverOptions{
 				CommandName: "myapp",
 				Aliases:     []string{"ma", "app"},
+				EnvPrefix:   "MYAPP_",
 			}
 
 			out, err := completion.Generate(completion.Shell(shell), opts)

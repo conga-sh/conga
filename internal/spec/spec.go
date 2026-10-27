@@ -35,20 +35,25 @@ const (
 
 // Command represents the metadata and AST definition of a command node.
 type Command struct {
-	Name            string
-	Aliases         []string
-	Summary         string
-	Description     string
-	Examples        string
-	HelpFooter      string
-	Deprecated      string
-	Group           string
-	Hidden          bool
-	EnvPrefix       string
-	Version         string
-	IsHelpCmd       bool
-	IsVersionCmd    bool
-	IsCompletionCmd bool
+	Name        string
+	Aliases     []string
+	Summary     string
+	Description string
+	Examples    string
+	HelpFooter  string
+	Deprecated  string
+	Group       string
+	Hidden      bool
+	EnvPrefix   string
+	Version     string
+	// CompletionEnvPrefix is the normalized (trailing-underscore) prefix of the
+	// application-prefixed completion sideband variables, for example TASK_.
+	// It is populated on the root command during schema build and read by
+	// completion script generation and the __complete runtime path.
+	CompletionEnvPrefix string
+	IsHelpCmd           bool
+	IsVersionCmd        bool
+	IsCompletionCmd     bool
 	// IsCompletionFlag is true when a completion command was synthesized from the
 	// --completion flag on a flat CLI, tailoring help screens to flag syntax.
 	IsCompletionFlag bool

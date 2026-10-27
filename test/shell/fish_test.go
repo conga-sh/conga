@@ -262,7 +262,7 @@ func TestFish_AliasAndDescriptionSidebands(t *testing.T) {
 	t.Run("aliases suppressed", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunFishCompletion(t, "cloudctl", "cloudctl ", "CONGA_COMPLETION_ALIASES=0")
+		result := workspace.RunFishCompletion(t, "cloudctl", "cloudctl ", "CLOUDCTL_COMPLETION_ALIASES=0")
 
 		assert.True(t, result.HasItem("deploy"))
 		assert.False(t, result.HasItem("d"))
@@ -271,7 +271,7 @@ func TestFish_AliasAndDescriptionSidebands(t *testing.T) {
 	t.Run("descriptions suppressed", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunFishCompletion(t, "cloudctl", "cloudctl ", "CONGA_COMPLETION_DESCRIPTIONS=0")
+		result := workspace.RunFishCompletion(t, "cloudctl", "cloudctl ", "CLOUDCTL_COMPLETION_DESCRIPTIONS=0")
 
 		description, ok := result.ItemDescription("deploy")
 		assert.True(t, ok)

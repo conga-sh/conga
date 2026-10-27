@@ -13,13 +13,15 @@
   # Honor the user's zsh completion styles: zstyle -T is true when the style
   # is unset, so an explicit false suppresses descriptions ("verbose") or
   # aliases ("show-aliases", the go-task convention). The sidebands apply only
-  # to the __complete invocation, never to the user's environment. The engine's
-  # list-colors patterns must match the separator zsh renders between a match
-  # and its description, so the list-separator style is forwarded too.
+  # to the __complete invocation, never to the user's environment, and use the
+  # application-prefixed names set by the generated wrapper (app_env_prefix).
+  # The engine's list-colors patterns must match the separator zsh renders
+  # between a match and its description, so the list-separator style is
+  # forwarded too.
   local -a conga_env
   local user_list_separator
-  zstyle -T "$probe_context" verbose || conga_env+=(CONGA_COMPLETION_DESCRIPTIONS=0)
-  zstyle -T "$probe_context" show-aliases || conga_env+=(CONGA_COMPLETION_ALIASES=0)
+  zstyle -T "$probe_context" verbose || conga_env+=("${app_env_prefix}COMPLETION_DESCRIPTIONS=0")
+  zstyle -T "$probe_context" show-aliases || conga_env+=("${app_env_prefix}COMPLETION_ALIASES=0")
   if zstyle -s "$probe_context" list-separator user_list_separator && [[ -n "$user_list_separator" ]]; then
     conga_env+=("CONGA_ZSH_LIST_SEPARATOR=${user_list_separator}")
   fi

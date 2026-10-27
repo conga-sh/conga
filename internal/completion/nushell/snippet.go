@@ -17,7 +17,7 @@ import (
 // binary's __complete entry point (docs/completion-wire-protocol.md).
 // Aliases need no separate registration: the global completer resolves the name the
 // user typed from the spans.
-func Snippet(name string, aliases []string) string {
+func Snippet(name string, aliases []string, _ string) string {
 	identifier := wire.SanitizeIdentifier(name)
 
 	var builder strings.Builder

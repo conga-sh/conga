@@ -225,39 +225,43 @@ If you migrate an application whose completion honoured these styles before, you
 
 ### Environment toggles for every shell
 
-All six framings honour the same toggles through environment variables. Set them in your shell configuration; they apply to every CONGA-completed command.
+All six framings honour the same toggles through application-prefixed environment variables. The prefix is the application name in `UPPER_SNAKE_CASE`, so an application named `cloudctl` reads `CLOUDCTL_COMPLETION_*`. Applications can override it with `conga.CompletionEnvPrefix`. Set the variables in your shell configuration; each one affects only its own application.
 
 | Variable | Effect |
 |---|---|
-| `CONGA_COMPLETION_DESCRIPTIONS=0` | Hide candidate descriptions (`false` also disables; unset or `1` shows them) |
-| `CONGA_COMPLETION_ALIASES=0` | Hide alias candidates (`false` also disables; unset or `1` shows them) |
+| `<APP>_COMPLETION_DESCRIPTIONS=0` | Hide candidate descriptions (`false` also disables; unset or `1` shows them) |
+| `<APP>_COMPLETION_ALIASES=0` | Hide alias candidates (`false` also disables; unset or `1` shows them) |
+
+For the example `cloudctl` application:
 
 ```sh title="bash"
-export CONGA_COMPLETION_DESCRIPTIONS=0
-export CONGA_COMPLETION_ALIASES=0
+export CLOUDCTL_COMPLETION_DESCRIPTIONS=0
+export CLOUDCTL_COMPLETION_ALIASES=0
 ```
 
 ```fish title="config.fish"
-set -gx CONGA_COMPLETION_DESCRIPTIONS 0
-set -gx CONGA_COMPLETION_ALIASES 0
+set -gx CLOUDCTL_COMPLETION_DESCRIPTIONS 0
+set -gx CLOUDCTL_COMPLETION_ALIASES 0
 ```
 
 ```powershell title="$PROFILE"
-$env:CONGA_COMPLETION_DESCRIPTIONS = '0'
-$env:CONGA_COMPLETION_ALIASES = '0'
+$env:CLOUDCTL_COMPLETION_DESCRIPTIONS = '0'
+$env:CLOUDCTL_COMPLETION_ALIASES = '0'
 ```
 
 ```nu title="env.nu"
-$env.CONGA_COMPLETION_DESCRIPTIONS = "0"
-$env.CONGA_COMPLETION_ALIASES = "0"
+$env.CLOUDCTL_COMPLETION_DESCRIPTIONS = "0"
+$env.CLOUDCTL_COMPLETION_ALIASES = "0"
 ```
 
 ```elvish title="rc.elv"
-set-env CONGA_COMPLETION_DESCRIPTIONS 0
-set-env CONGA_COMPLETION_ALIASES 0
+set-env CLOUDCTL_COMPLETION_DESCRIPTIONS 0
+set-env CLOUDCTL_COMPLETION_ALIASES 0
 ```
 
-In bash, descriptions only appear in the successive-tab listing, so `CONGA_COMPLETION_DESCRIPTIONS=0` affects that listing only.
+In bash, descriptions only appear in the successive-tab listing, so `<APP>_COMPLETION_DESCRIPTIONS=0` affects that listing only.
+
+Earlier CONGA releases exposed these toggles as `CONGA_COMPLETION_DESCRIPTIONS` and `CONGA_COMPLETION_ALIASES`; the framework-named pair was removed in favour of the per-application names.
 
 If your application completes domain aliases (for example taskfile task aliases) through a custom predictor, mark those candidates with `predict.Item.WithAlias()` so the aliases toggle suppresses them too. Subcommand and flag aliases declared with the `aliases` tag are marked automatically.
 
