@@ -32,9 +32,9 @@ app := conga.New[CLI]().
 	VersionShortFlag('V')
 ```
 
-The zero value keeps a built-in long-only. The builders are opt-in because a short rune an application flag already declares cannot serve both: a collision between the rune and a user-declared short, or between the two built-in runes, fails schema build with `ErrDuplicateFlag` naming the flag and command.
+The zero value keeps a built-in long-only. The builders are opt-in because a short rune an application flag already declares cannot serve both: a collision between the rune and a user-declared short, or between the two built-in runes, fails schema build with `ErrDuplicateFlag` naming the flag and command. Disabling the matching built-in leaves the rune inert: it binds to nothing, and the `help` or `version` name and the rune stay free for your own flags.
 
-The help rune applies to every command screen, and the version rune to the root screen, matching the root-only `--version` flag. Completion offers each configured rune as a shorthand candidate next to the declared short flags.
+The help rune applies to every command screen, and the version rune to the root screen, matching the root-only `--version` flag. Completion offers each configured rune as a shorthand candidate next to the declared short flags whenever the matching built-in is offered on the active command.
 
 ### Global help footers and top matter
 

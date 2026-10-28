@@ -341,6 +341,42 @@ func TestBuiltinVisibility_SynthesizedCompletionCommand(t *testing.T) {
 			strings.Contains(buffer.String(), "To enable completions for your shell, run:"))
 	})
 
+	t.Run("renders the configured help short on the shared help row", func(t *testing.T) {
+		t.Parallel()
+
+		var buffer bytes.Buffer
+
+		app := newGoldenApp().
+			EnableCompletion().
+			HelpShortFlag('h').
+			VersionShortFlag('V').
+			Stdout(&buffer).
+			Args([]string{"completion", "--help"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Contains(t, buffer.String(), "-h, --help")
+		assert.NotContains(t, buffer.String(), "-V, --version")
+	})
+
+	t.Run("configured help short parses on the completion screen", func(t *testing.T) {
+		t.Parallel()
+
+		var buffer bytes.Buffer
+
+		app := newGoldenApp().
+			EnableCompletion().
+			HelpShortFlag('h').
+			Stdout(&buffer).
+			Args([]string{"completion", "-h"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Contains(t, buffer.String(), "Supported shells")
+	})
+
 	t.Run("omits help flag and footer pointer when help is disabled", func(t *testing.T) {
 		t.Parallel()
 

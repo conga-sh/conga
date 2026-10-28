@@ -1346,7 +1346,9 @@ func TestSchemaFlagCollisions_Issue05(t *testing.T) {
 
 		var cli BuiltinHelpShortCLI
 
-		err := conga.New(&cli).Name("app").HelpShortFlag('h').Args([]string{}).RunContext(t.Context())
+		app := conga.New(&cli).Name("app").HelpShortFlag('h').Args([]string{})
+
+		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
 		assert.IsError(t, err, conga.ErrSchema)
@@ -1364,7 +1366,9 @@ func TestSchemaFlagCollisions_Issue05(t *testing.T) {
 
 		var cli BuiltinVersionShortCLI
 
-		err := conga.New(&cli).Name("app").VersionShortFlag('V').Args([]string{}).RunContext(t.Context())
+		app := conga.New(&cli).Name("app").VersionShortFlag('V').Args([]string{})
+
+		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
 		assert.IsError(t, err, conga.ErrSchema)
@@ -1380,7 +1384,9 @@ func TestSchemaFlagCollisions_Issue05(t *testing.T) {
 
 		var cli BuiltinShortPairCLI
 
-		err := conga.New(&cli).Name("app").HelpShortFlag('h').VersionShortFlag('h').Args([]string{}).RunContext(t.Context())
+		app := conga.New(&cli).Name("app").HelpShortFlag('h').VersionShortFlag('h').Args([]string{})
+
+		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
 		assert.IsError(t, err, conga.ErrSchema)
@@ -1402,7 +1408,9 @@ func TestSchemaFlagCollisions_Issue05(t *testing.T) {
 
 		var cli SubcommandShortCLI
 
-		err := conga.New(&cli).Name("app").HelpShortFlag('h').Args([]string{}).RunContext(t.Context())
+		app := conga.New(&cli).Name("app").HelpShortFlag('h').Args([]string{})
+
+		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
 		assert.IsError(t, err, conga.ErrSchema)
@@ -1420,7 +1428,9 @@ func TestSchemaFlagCollisions_Issue05(t *testing.T) {
 
 		var cli DisabledHelpShortCLI
 
-		err := conga.New(&cli).Name("app").DisableHelpFlag().HelpShortFlag('h').Args([]string{}).RunContext(t.Context())
+		app := conga.New(&cli).Name("app").DisableHelpFlag().HelpShortFlag('h').Args([]string{})
+
+		err := app.RunContext(t.Context())
 
 		assert.NoError(t, err)
 	})

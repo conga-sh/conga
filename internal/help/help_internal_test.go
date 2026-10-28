@@ -86,6 +86,85 @@ func TestFormatConstraintHints(t *testing.T) {
 	})
 }
 
+// TestWithBuiltinShort pins the rule that the configured built-in rune only
+// adorns engine-built-in rows: the binder registers it on the injected --help
+// and --version flags alone, so a user-declared shadow advertising the same
+// rune would promise a short the parser rejects.
+func TestWithBuiltinShort(t *testing.T) {
+	t.Parallel()
+
+	t.Run("shared built-in help row receives the rune", func(t *testing.T) {
+		t.Parallel()
+
+		applied := withBuiltinShort(spec.BuiltinHelpFlag, 'h')
+
+		assert.Equal(t, 'h', applied.Short)
+		assert.Equal(t, rune(0), spec.BuiltinHelpFlag.Short)
+	})
+
+	t.Run("shared built-in version row receives the rune", func(t *testing.T) {
+		t.Parallel()
+
+		applied := withBuiltinShort(spec.BuiltinVersionFlag, 'V')
+
+		assert.Equal(t, 'V', applied.Short)
+		assert.Equal(t, rune(0), spec.BuiltinVersionFlag.Short)
+	})
+
+	t.Run("user-declared shadow keeps no short", func(t *testing.T) {
+		t.Parallel()
+
+		shadow := &spec.Flag{Name: "help", IsBool: true}
+
+		applied := withBuiltinShort(shadow, 'h')
+
+		assert.True(t, applied == shadow)
+		assert.Equal(t, rune(0), applied.Short)
+	})
+
+	t.Run("flag with its own short keeps it", func(t *testing.T) {
+		t.Parallel()
+
+		applied := withBuiltinShort(&spec.Flag{Name: "help", IsBool: true, Short: 'x'}, 'h')
+
+		assert.Equal(t, 'x', applied.Short)
+	})
+
+	t.Run("zero configured rune is a no-op", func(t *testing.T) {
+		t.Parallel()
+
+		applied := withBuiltinShort(spec.BuiltinHelpFlag, 0)
+
+		assert.True(t, applied == spec.BuiltinHelpFlag)
+		assert.Equal(t, rune(0), applied.Short)
+	})
+}
+
+// TestFormatFlags_BuiltinShortRows asserts the rendered rows: the completion
+// command's shared --help row carries the configured rune, while a
+// user-declared help shadow renders long-only so the screen matches the parser.
+func TestFormatFlags_BuiltinShortRows(t *testing.T) {
+	t.Parallel()
+
+	t.Run("shared built-in help row renders the configured short", func(t *testing.T) {
+		t.Parallel()
+
+		rendered := formatFlags([]*spec.Flag{spec.BuiltinHelpFlag}, false, false, false, false, nil, 'h', 0)
+
+		assert.Contains(t, rendered, "-h, --help")
+	})
+
+	t.Run("user-declared help shadow renders long-only", func(t *testing.T) {
+		t.Parallel()
+
+		rendered := formatFlags([]*spec.Flag{{Name: "help", IsBool: true, Help: "Custom help"}}, false, false, false, false, nil, 'h', 0)
+
+		assert.Contains(t, rendered, "--help")
+		assert.Contains(t, rendered, "Custom help")
+		assert.NotContains(t, rendered, "-h, --help")
+	})
+}
+
 func TestKindMetavar(t *testing.T) {
 	t.Parallel()
 

@@ -581,6 +581,62 @@ func TestFindFlagInChain(t *testing.T) {
 		assert.Equal(t, "global", spec.FindShortFlagInChain(chain, 'g').Name)
 	})
 
+	t.Run("user short wins over the built-in rune", func(t *testing.T) {
+		t.Parallel()
+
+		conflicting := []*spec.Command{
+			{Name: "root", HelpShort: 'h', Flags: []*spec.Flag{{Name: "host", Short: 'h'}}},
+		}
+
+		assert.Equal(t, "host", spec.FindShortFlagInChain(conflicting, 'h').Name)
+	})
+
+	t.Run("synthesizes the help short from the root", func(t *testing.T) {
+		t.Parallel()
+
+		helpShortChain := []*spec.Command{{Name: "root", HelpShort: 'h'}}
+
+		assert.Equal(t, spec.BuiltinHelpFlag, spec.FindShortFlagInChain(helpShortChain, 'h'))
+	})
+
+	t.Run("leaf-disabled help is not synthesized by short", func(t *testing.T) {
+		t.Parallel()
+
+		disabledLeaf := []*spec.Command{{Name: "root", HelpShort: 'h'}, {Name: "sub", DisableHelp: true}}
+
+		assert.Zero(t, spec.FindShortFlagInChain(disabledLeaf, 'h'))
+	})
+
+	t.Run("synthesizes the version short on the root chain", func(t *testing.T) {
+		t.Parallel()
+
+		versionShortChain := []*spec.Command{{Name: "root", VersionShort: 'V'}}
+
+		assert.Equal(t, spec.BuiltinVersionFlag, spec.FindShortFlagInChain(versionShortChain, 'V'))
+	})
+
+	t.Run("does not synthesize the version short on subcommands", func(t *testing.T) {
+		t.Parallel()
+
+		subcommandChain := []*spec.Command{{Name: "root", VersionShort: 'V'}, {Name: "sub"}}
+
+		assert.Zero(t, spec.FindShortFlagInChain(subcommandChain, 'V'))
+	})
+
+	t.Run("zero rune does not synthesize an unassigned built-in rune", func(t *testing.T) {
+		t.Parallel()
+
+		unassignedChain := []*spec.Command{{Name: "root"}}
+
+		assert.Zero(t, spec.FindShortFlagInChain(unassignedChain, 0))
+	})
+
+	t.Run("empty chain stays unresolved", func(t *testing.T) {
+		t.Parallel()
+
+		assert.Zero(t, spec.FindShortFlagInChain(nil, 'g'))
+	})
+
 	t.Run("synthesizes help flag when not declared", func(t *testing.T) {
 		t.Parallel()
 

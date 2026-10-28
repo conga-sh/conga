@@ -2,6 +2,8 @@ package conga_test
 
 import (
 	"bytes"
+	"context"
+	"fmt"
 	"io"
 	"testing"
 
@@ -141,9 +143,124 @@ func TestBuiltinShort_Parsing(t *testing.T) {
 
 		var cli UserShortCLI
 
-		err := conga.New(&cli).Name("app").Args([]string{"-h", "example.com"}).RunContext(t.Context())
+		app := conga.New(&cli).Name("app").Args([]string{"-h", "example.com"})
+
+		err := app.RunContext(t.Context())
 
 		assert.NoError(t, err)
 		assert.Equal(t, "example.com", cli.Host.Get())
+	})
+}
+
+// shadowedHelpCLI reuses the built-in help name, which only
+// app.DisableHelpFlag frees; its runner renders the active screen so tests can
+// assert what row the shadow flag actually gets.
+type shadowedHelpCLI struct {
+	Help conga.OptionalFlag[bool] `help:"Custom help" name:"help"`
+}
+
+func (c *shadowedHelpCLI) Run(_ context.Context, session *conga.Session) error {
+	fmt.Fprint(session.Stdout(), session.Help())
+
+	return nil
+}
+
+// shadowedHelpAliasCLI reaches the help classification through an alias rather
+// than the flag name.
+type shadowedHelpAliasCLI struct {
+	Assist conga.OptionalFlag[bool] `aliases:"help" help:"Custom assist"`
+}
+
+func (c *shadowedHelpAliasCLI) Run(_ context.Context, session *conga.Session) error {
+	fmt.Fprint(session.Stdout(), session.Help())
+
+	return nil
+}
+
+type shadowedVersionCLI struct {
+	Version conga.OptionalFlag[bool] `help:"Custom version" name:"version"`
+}
+
+func (c *shadowedVersionCLI) Run(_ context.Context, session *conga.Session) error {
+	fmt.Fprint(session.Stdout(), session.Help())
+
+	return nil
+}
+
+// TestBuiltinShort_UserShadows pins the rule that a configured built-in rune
+// never leaks onto a user-declared flag reusing the freed help/version name or
+// alias: the binder registers the rune on the injected built-in alone, so a
+// shadow row advertising it would promise a short the parser rejects.
+func TestBuiltinShort_UserShadows(t *testing.T) {
+	t.Parallel()
+
+	t.Run("help shadow renders long-only", func(t *testing.T) {
+		t.Parallel()
+
+		var buffer bytes.Buffer
+
+		app := conga.New[shadowedHelpCLI]().
+			DisableHelpFlag().
+			HelpShortFlag('h').
+			Stdout(&buffer).
+			Args([]string{})
+
+		err := app.RunContext(t.Context())
+
+		assert.NoError(t, err)
+		assert.Contains(t, buffer.String(), "Custom help")
+		assert.NotContains(t, buffer.String(), "-h, --help")
+	})
+
+	t.Run("help alias shadow renders long-only", func(t *testing.T) {
+		t.Parallel()
+
+		var buffer bytes.Buffer
+
+		app := conga.New[shadowedHelpAliasCLI]().
+			DisableHelpFlag().
+			HelpShortFlag('h').
+			Stdout(&buffer).
+			Args([]string{})
+
+		err := app.RunContext(t.Context())
+
+		assert.NoError(t, err)
+		assert.Contains(t, buffer.String(), "Custom assist")
+		assert.NotContains(t, buffer.String(), "-h, --assist")
+	})
+
+	t.Run("version shadow renders long-only", func(t *testing.T) {
+		t.Parallel()
+
+		var buffer bytes.Buffer
+
+		app := conga.New[shadowedVersionCLI]().
+			DisableVersionFlag().
+			VersionShortFlag('V').
+			Stdout(&buffer).
+			Args([]string{})
+
+		err := app.RunContext(t.Context())
+
+		assert.NoError(t, err)
+		assert.Contains(t, buffer.String(), "Custom version")
+		assert.NotContains(t, buffer.String(), "-V, --version")
+	})
+
+	t.Run("help shadow rune stays unknown at parse time", func(t *testing.T) {
+		t.Parallel()
+
+		app := conga.New[shadowedHelpCLI]().
+			DisableHelpFlag().
+			HelpShortFlag('h').
+			Stdout(io.Discard).
+			Args([]string{"-h"})
+
+		err := app.RunContext(t.Context())
+
+		assert.Error(t, err)
+		assert.IsError(t, err, conga.ErrParse)
+		assert.Equal(t, "unknown flag: -h", err.Error())
 	})
 }

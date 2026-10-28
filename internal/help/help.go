@@ -794,9 +794,11 @@ func appendBuiltinFallback(entries []tableEntry, shadowed bool, offered bool, en
 // withBuiltinShort returns flagSpec with the configured built-in short rune
 // applied when it carries none, so a shared built-in flag row (the completion
 // subcommand's --help, for example) renders the same short as the synthesized
-// fallback rows. A user-declared shadow keeps its own short.
+// fallback rows. A user-declared shadow never inherits the rune: the binder
+// registers it on the injected built-in alone, so advertising it on a shadow
+// would promise a short the parser rejects.
 func withBuiltinShort(flagSpec *spec.Flag, short rune) *spec.Flag {
-	if short == 0 || flagSpec.Short != 0 {
+	if short == 0 || flagSpec.Short != 0 || !inheritsBuiltinShort(flagSpec) {
 		return flagSpec
 	}
 
@@ -804,6 +806,13 @@ func withBuiltinShort(flagSpec *spec.Flag, short rune) *spec.Flag {
 	withShort.Short = short
 
 	return &withShort
+}
+
+// inheritsBuiltinShort reports whether a flag row may advertise the configured
+// built-in rune: only engine-built-in flags — the shared --help/--version
+// definitions, or another engine-synthesized flag.
+func inheritsBuiltinShort(flagSpec *spec.Flag) bool {
+	return flagSpec.EngineOwned || flagSpec == spec.BuiltinHelpFlag || flagSpec == spec.BuiltinVersionFlag
 }
 
 func formatFlags(flags []*spec.Flag, hasHelpInfo bool, hasVersionInfo bool, hasCompletionInfo bool, hasWhyInfo bool, whyFormats []string, helpShort rune, versionShort rune) string {
