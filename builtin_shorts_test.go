@@ -187,6 +187,30 @@ func (c *shadowedVersionCLI) Run(_ context.Context, session *conga.Session) erro
 	return nil
 }
 
+type featureShadowGates struct {
+	Alpha bool
+}
+
+type featureHelpShadowCLI struct {
+	Features conga.Features[featureShadowGates] `flag:"help"`
+}
+
+func (c *featureHelpShadowCLI) Run(_ context.Context, session *conga.Session) error {
+	fmt.Fprint(session.Stdout(), session.Help())
+
+	return nil
+}
+
+type featureVersionShadowCLI struct {
+	Features conga.Features[featureShadowGates] `flag:"version"`
+}
+
+func (c *featureVersionShadowCLI) Run(_ context.Context, session *conga.Session) error {
+	fmt.Fprint(session.Stdout(), session.Help())
+
+	return nil
+}
+
 // TestBuiltinShort_UserShadows pins the rule that a configured built-in rune
 // never leaks onto a user-declared flag reusing the freed help/version name or
 // alias: the binder registers the rune on the injected built-in alone, so a
@@ -262,5 +286,68 @@ func TestBuiltinShort_UserShadows(t *testing.T) {
 		assert.Error(t, err)
 		assert.IsError(t, err, conga.ErrParse)
 		assert.Equal(t, "unknown flag: -h", err.Error())
+	})
+}
+
+// TestBuiltinShort_EngineOwnedShadows pins that an engine-owned Features map
+// flag reusing a freed built-in name renders long-only: the binder registers
+// the configured rune on the injected built-in alone, so the synthesized flag
+// must not advertise a short the parser rejects.
+func TestBuiltinShort_EngineOwnedShadows(t *testing.T) {
+	t.Parallel()
+
+	t.Run("features help shadow renders long-only", func(t *testing.T) {
+		t.Parallel()
+
+		var buffer bytes.Buffer
+
+		app := conga.New[featureHelpShadowCLI]().
+			EnableFeatures().
+			DisableHelpFlag().
+			HelpShortFlag('h').
+			Stdout(&buffer).
+			Args([]string{})
+
+		err := app.RunContext(t.Context())
+
+		assert.NoError(t, err)
+		assert.Contains(t, buffer.String(), "--help=KEY=VALUE")
+		assert.NotContains(t, buffer.String(), "-h, --help")
+	})
+
+	t.Run("features help shadow rune stays unknown at parse time", func(t *testing.T) {
+		t.Parallel()
+
+		app := conga.New[featureHelpShadowCLI]().
+			EnableFeatures().
+			DisableHelpFlag().
+			HelpShortFlag('h').
+			Stdout(io.Discard).
+			Args([]string{"-h"})
+
+		err := app.RunContext(t.Context())
+
+		assert.Error(t, err)
+		assert.IsError(t, err, conga.ErrParse)
+		assert.Equal(t, "unknown flag: -h", err.Error())
+	})
+
+	t.Run("features version shadow renders long-only", func(t *testing.T) {
+		t.Parallel()
+
+		var buffer bytes.Buffer
+
+		app := conga.New[featureVersionShadowCLI]().
+			EnableFeatures().
+			DisableVersionFlag().
+			VersionShortFlag('V').
+			Stdout(&buffer).
+			Args([]string{})
+
+		err := app.RunContext(t.Context())
+
+		assert.NoError(t, err)
+		assert.Contains(t, buffer.String(), "--version=KEY=VALUE")
+		assert.NotContains(t, buffer.String(), "-V, --version")
 	})
 }

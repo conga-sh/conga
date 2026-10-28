@@ -2,6 +2,7 @@ package help
 
 import (
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/alecthomas/assert/v2"
@@ -123,6 +124,17 @@ func TestWithBuiltinShort(t *testing.T) {
 		assert.Equal(t, rune(0), applied.Short)
 	})
 
+	t.Run("engine-owned non-builtin shadow keeps no short", func(t *testing.T) {
+		t.Parallel()
+
+		shadow := &spec.Flag{Name: "help", IsMap: true, EngineOwned: true}
+
+		applied := withBuiltinShort(shadow, 'h')
+
+		assert.True(t, applied == shadow)
+		assert.Equal(t, rune(0), applied.Short)
+	})
+
 	t.Run("flag with its own short keeps it", func(t *testing.T) {
 		t.Parallel()
 
@@ -163,6 +175,77 @@ func TestFormatFlags_BuiltinShortRows(t *testing.T) {
 		assert.Contains(t, rendered, "--help")
 		assert.Contains(t, rendered, "Custom help")
 		assert.NotContains(t, rendered, "-h, --help")
+	})
+}
+
+func TestCellWidth(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		text     string
+		expected int
+	}{
+		{name: "ascii", text: "abc", expected: 3},
+		{name: "wide CJK", text: "界面", expected: 4},
+		{name: "fullwidth", text: "Ａ", expected: 2},
+		{name: "combining mark", text: "e\u0301", expected: 1},
+		{name: "format control", text: "\u200b", expected: 0},
+		{name: "emoji", text: "😀", expected: 2},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, testCase.expected, cellWidth(testCase.text))
+		})
+	}
+}
+
+func TestWrapLine(t *testing.T) {
+	t.Parallel()
+
+	t.Run("reversed brackets fall back to words", func(t *testing.T) {
+		t.Parallel()
+
+		lines := wrapLine("] one two three [", 10)
+
+		assert.Equal(t, []string{"] one two", "three ["}, lines)
+	})
+
+	t.Run("wide runes count as two cells", func(t *testing.T) {
+		t.Parallel()
+
+		line := "界 面 文 字 漢 語 日 本 中 華"
+		lines := wrapLine(line, 20)
+
+		assert.Equal(t, 2, len(lines))
+		assert.Equal(t, line, strings.Join(lines, " "))
+
+		for _, wrapped := range lines {
+			assert.True(t, cellWidth(wrapped) <= 20)
+		}
+	})
+}
+
+func TestWrapCell(t *testing.T) {
+	t.Parallel()
+
+	t.Run("preserves explicit line breaks and blank lines", func(t *testing.T) {
+		t.Parallel()
+
+		lines := wrapCell("First line.\n\nSecond paragraph that is long enough to wrap.", 20)
+
+		assert.Equal(t, []string{"First line.", "", "Second paragraph", "that is long enough", "to wrap."}, lines)
+	})
+
+	t.Run("preserves a leading blank line", func(t *testing.T) {
+		t.Parallel()
+
+		lines := wrapCell("\nFirst line.", 20)
+
+		assert.Equal(t, []string{"", "First line."}, lines)
 	})
 }
 

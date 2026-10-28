@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/conga-sh/conga/internal/appname"
 	"github.com/conga-sh/conga/internal/casing"
@@ -504,11 +503,11 @@ func resolveWidth(width int) int {
 }
 
 // renderTable renders one titled, column-aligned table, wrapping help cells to
-// the available width. Labels are measured in runes so non-ASCII identifiers
-// keep the help column aligned, and rows whose help cell is empty end at the
-// label so the output carries no trailing whitespace. The help column never
-// grows past half the width; a label too wide for it renders on its own line
-// above its help text.
+// the available width. Labels are measured in terminal cells so wide and
+// non-ASCII identifiers keep the help column aligned, and rows whose help cell
+// is empty end at the label so the output carries no trailing whitespace. The
+// help column never grows past half the width; a label too wide for it renders
+// on its own line above its help text.
 func renderTable(title string, entries []tableEntry, width int) string {
 	if len(entries) == 0 {
 		return ""
@@ -523,7 +522,7 @@ func renderTable(title string, entries []tableEntry, width int) string {
 	maxLength := 0
 
 	for _, entry := range entries {
-		if entryWidth := utf8.RuneCountInString(entry.label); entryWidth > maxLength {
+		if entryWidth := cellWidth(entry.label); entryWidth > maxLength {
 			maxLength = entryWidth
 		}
 	}
@@ -542,32 +541,35 @@ func renderTable(title string, entries []tableEntry, width int) string {
 			continue
 		}
 
-		if 2+utf8.RuneCountInString(entry.label)+2 > helpColumn {
+		if 2+cellWidth(entry.label)+2 > helpColumn {
 			fmt.Fprintf(&builder, "  %s\n", entry.label)
-			writeWrappedHelp(&builder, entry.help, continuation, width-helpColumn)
+			writeHelpLines(&builder, wrapCell(entry.help, width-helpColumn), continuation)
 
 			continue
 		}
 
-		labelPadding := helpColumn - 2 - utf8.RuneCountInString(entry.label)
-		lines := wrapLine(entry.help, width-helpColumn)
+		labelPadding := helpColumn - 2 - cellWidth(entry.label)
+		lines := wrapCell(entry.help, width-helpColumn)
+
+		if lines[0] == "" {
+			fmt.Fprintf(&builder, "  %s\n", entry.label)
+			writeHelpLines(&builder, lines[1:], continuation)
+
+			continue
+		}
 
 		fmt.Fprintf(&builder, "  %s%s%s\n", entry.label, strings.Repeat(" ", labelPadding), lines[0])
-
-		for _, line := range lines[1:] {
-			builder.WriteString(continuation)
-			builder.WriteString(line)
-			builder.WriteByte('\n')
-		}
+		writeHelpLines(&builder, lines[1:], continuation)
 	}
 
 	return builder.String()
 }
 
-// writeWrappedHelp writes one cell's help text wrapped to width, indenting
-// every line. Blank lines stay blank so the output carries no trailing spaces.
-func writeWrappedHelp(builder *strings.Builder, help string, indent string, width int) {
-	for _, line := range wrapLine(help, width) {
+// writeHelpLines writes wrapped cell lines below a label, indenting every
+// non-blank line to the help column and leaving blank lines empty so the output
+// carries no trailing spaces.
+func writeHelpLines(builder *strings.Builder, lines []string, indent string) {
+	for _, line := range lines {
 		if line == "" {
 			builder.WriteByte('\n')
 
@@ -580,11 +582,24 @@ func writeWrappedHelp(builder *strings.Builder, help string, indent string, widt
 	}
 }
 
+// wrapCell wraps every author line of a help cell to width, preserving explicit
+// line breaks and blank lines.
+func wrapCell(cell string, width int) []string {
+	authorLines := strings.Split(cell, "\n")
+	lines := make([]string, 0, len(authorLines))
+
+	for _, line := range authorLines {
+		lines = append(lines, wrapLine(line, width)...)
+	}
+
+	return lines
+}
+
 // wrapLine folds one logical line at space boundaries so no emitted line
-// exceeds width runes. A line that already fits is returned untouched, and an
+// exceeds width cells. A line that already fits is returned untouched, and an
 // atom longer than width occupies its own line unbroken.
 func wrapLine(line string, width int) []string {
-	if utf8.RuneCountInString(line) <= width {
+	if cellWidth(line) <= width {
 		return []string{line}
 	}
 
@@ -602,7 +617,7 @@ func wrapLine(line string, width int) []string {
 		switch {
 		case current == "":
 			current = atom
-		case utf8.RuneCountInString(current)+1+utf8.RuneCountInString(atom) <= width:
+		case cellWidth(current)+1+cellWidth(atom) <= width:
 			current += " " + atom
 		default:
 			lines = append(lines, current)
@@ -617,9 +632,9 @@ func wrapLine(line string, width int) []string {
 // splitWrapAtoms splits one line into wrap atoms at space boundaries, keeping a
 // balanced bracketed group (e.g. "[env: NAME]", "[default: true]") whole so its
 // interior space never becomes a break point and the closing bracket is never
-// orphaned onto its own line. A line whose brackets do not balance — author
-// prose carrying a stray "[" — wraps on plain whitespace, as does a bracketless
-// line.
+// orphaned onto its own line. A line whose brackets do not balance or whose
+// nesting turns negative — author prose carrying a stray "[" or a "]" before
+// its "[" — wraps on plain whitespace, as does a bracketless line.
 func splitWrapAtoms(line string) []string {
 	words := strings.Fields(line)
 	if len(words) == 0 {
@@ -638,13 +653,17 @@ func splitWrapAtoms(line string) []string {
 	)
 
 	for _, word := range words {
+		depth += bracketDepth(word)
+
+		if depth < 0 {
+			return words
+		}
+
 		if current == "" {
 			current = word
 		} else {
 			current += " " + word
 		}
-
-		depth += bracketDepth(word)
 
 		if depth == 0 {
 			atoms = append(atoms, current)
@@ -1019,10 +1038,12 @@ func withBuiltinShort(flagSpec *spec.Flag, short rune) *spec.Flag {
 }
 
 // inheritsBuiltinShort reports whether a flag row may advertise the configured
-// built-in rune: only engine-built-in flags — the shared --help/--version
-// definitions, or another engine-synthesized flag.
+// built-in rune: only the shared --help/--version definitions. Other
+// engine-owned flags (the synthesized Features map flag) bind by their own
+// name, so advertising the rune on them would promise a short the parser
+// rejects.
 func inheritsBuiltinShort(flagSpec *spec.Flag) bool {
-	return flagSpec.EngineOwned || flagSpec == spec.BuiltinHelpFlag || flagSpec == spec.BuiltinVersionFlag
+	return isEngineBuiltinFlag(flagSpec)
 }
 
 func formatFlags(flags []*spec.Flag, hasHelpInfo bool, hasVersionInfo bool, hasCompletionInfo bool, hasWhyInfo bool, whyFormats []string, helpShort rune, versionShort rune, width int) string {

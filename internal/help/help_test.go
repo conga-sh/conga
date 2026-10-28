@@ -352,22 +352,43 @@ func TestFormat_RequiredFlagPlaceholderInUsageLine(t *testing.T) {
 	assert.Contains(t, formatted, "--server-port=PORT  Server port")
 }
 
-// TestFormat_TableAlignmentCountsRunes verifies that column widths are
-// measured in runes, so a multi-byte label does not push the help column.
-func TestFormat_TableAlignmentCountsRunes(t *testing.T) {
+// TestFormat_TableAlignmentCountsCells verifies that column widths are
+// measured in terminal cells, so multi-byte narrow labels do not push the help
+// column and wide labels keep it aligned.
+func TestFormat_TableAlignmentCountsCells(t *testing.T) {
 	t.Parallel()
 
-	cmd := &spec.Command{
-		Name: "app",
-		Args: []*spec.Arg{
-			{Name: "<café>", Help: "Coffee", Required: true},
-			{Name: "<ab>", Help: "Short", Required: true},
-		},
-	}
+	t.Run("narrow multi-byte label", func(t *testing.T) {
+		t.Parallel()
 
-	formatted := help.Format([]*spec.Command{cmd})
+		cmd := &spec.Command{
+			Name: "app",
+			Args: []*spec.Arg{
+				{Name: "<café>", Help: "Coffee", Required: true},
+				{Name: "<ab>", Help: "Short", Required: true},
+			},
+		}
 
-	assert.Contains(t, formatted, "Arguments:\n  <café>  Coffee\n  <ab>    Short")
+		formatted := help.Format([]*spec.Command{cmd})
+
+		assert.Contains(t, formatted, "Arguments:\n  <café>  Coffee\n  <ab>    Short")
+	})
+
+	t.Run("wide label", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := &spec.Command{
+			Name: "app",
+			Args: []*spec.Arg{
+				{Name: "<界面>", Help: "Wide label", Required: true},
+				{Name: "<ab>", Help: "Short", Required: true},
+			},
+		}
+
+		formatted := help.Format([]*spec.Command{cmd})
+
+		assert.Contains(t, formatted, "Arguments:\n  <界面>  Wide label\n  <ab>    Short")
+	})
 }
 
 // TestFormat_EmptyHelpCellHasNoTrailingWhitespace verifies that a table row
@@ -386,6 +407,91 @@ func TestFormat_EmptyHelpCellHasNoTrailingWhitespace(t *testing.T) {
 	formatted := help.Format([]*spec.Command{cmd})
 
 	assert.Contains(t, formatted, "Commands:\n  empty\n\nFlags:")
+}
+
+// TestFormat_WrapPreservesMultilineCells pins that table cells keep explicit
+// line breaks, blank lines, and continuation indentation in both inline and
+// stacked layouts.
+func TestFormat_WrapPreservesMultilineCells(t *testing.T) {
+	t.Parallel()
+
+	t.Run("inline cell indents continuation lines", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := &spec.Command{
+			Name:              "app",
+			DisableHelp:       true,
+			DisableVersion:    true,
+			DisableWhy:        true,
+			DisableCompletion: true,
+			Flags: []*spec.Flag{
+				{Name: "alpha", Help: "First line.\nSecond line.", IsBool: true},
+			},
+		}
+
+		formatted := help.FormatWith([]*spec.Command{cmd}, help.Options{Width: 40})
+
+		assert.Contains(t, formatted, "      --alpha  First line.\n"+strings.Repeat(" ", 15)+"Second line.")
+	})
+
+	t.Run("stacked cell indents continuation lines", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := &spec.Command{
+			Name:              "app",
+			DisableHelp:       true,
+			DisableVersion:    true,
+			DisableWhy:        true,
+			DisableCompletion: true,
+			Flags: []*spec.Flag{
+				{Name: "very-long-flag-name", Help: "First line.\nSecond line.", IsBool: true},
+			},
+		}
+
+		formatted := help.FormatWith([]*spec.Command{cmd}, help.Options{Width: 40})
+
+		assert.Contains(t, formatted, "      --very-long-flag-name\n"+strings.Repeat(" ", 20)+"First line.\n"+strings.Repeat(" ", 20)+"Second line.")
+	})
+
+	t.Run("wrapped cell preserves blank lines", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := &spec.Command{
+			Name:              "app",
+			DisableHelp:       true,
+			DisableVersion:    true,
+			DisableWhy:        true,
+			DisableCompletion: true,
+			Flags: []*spec.Flag{
+				{Name: "alpha", Help: "First line.\n\nSecond paragraph that is long enough to wrap.", IsBool: true},
+			},
+		}
+
+		formatted := help.FormatWith([]*spec.Command{cmd}, help.Options{Width: 46})
+
+		assert.Contains(t, formatted, "First line.\n\n"+strings.Repeat(" ", 15)+"Second paragraph that is long")
+		assert.NotContains(t, formatted, "First line.\n \n")
+	})
+
+	t.Run("leading blank line leaves no trailing padding", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := &spec.Command{
+			Name:              "app",
+			DisableHelp:       true,
+			DisableVersion:    true,
+			DisableWhy:        true,
+			DisableCompletion: true,
+			Flags: []*spec.Flag{
+				{Name: "alpha", Help: "\nFirst line.", IsBool: true},
+			},
+		}
+
+		formatted := help.FormatWith([]*spec.Command{cmd}, help.Options{Width: 40})
+
+		assert.Contains(t, formatted, "      --alpha\n"+strings.Repeat(" ", 15)+"First line.")
+		assert.NotContains(t, formatted, "      --alpha  \n")
+	})
 }
 
 // TestFormat_WidthWrapsCells pins the wrap contract: cells fold at space
