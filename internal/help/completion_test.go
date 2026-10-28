@@ -10,7 +10,15 @@ import (
 
 	"github.com/conga-sh/conga/internal/completion"
 	"github.com/conga-sh/conga/internal/spec"
+	"github.com/conga-sh/conga/internal/termwidth"
 )
+
+// renderFooterWithDefaultWidth renders the generic completion footer at the
+// engine default width so assertions stay independent of the invoking
+// terminal.
+func renderFooterWithDefaultWidth(cmdChain []*spec.Command, useFlag bool, detect func() (completion.CurrentShell, bool)) string {
+	return RenderCompletionFooter(cmdChain, useFlag, detect, termwidth.Default)
+}
 
 func TestRenderCompletionFooter_Generic(t *testing.T) {
 	t.Parallel()
@@ -18,7 +26,7 @@ func TestRenderCompletionFooter_Generic(t *testing.T) {
 	t.Run("empty command chain renders nothing", func(t *testing.T) {
 		t.Parallel()
 
-		formatted := RenderCompletionFooter(nil, false, func() (completion.CurrentShell, bool) {
+		formatted := renderFooterWithDefaultWidth(nil, false, func() (completion.CurrentShell, bool) {
 			return completion.CurrentShell{}, false
 		})
 
@@ -31,7 +39,7 @@ func TestRenderCompletionFooter_Generic(t *testing.T) {
 		root := &spec.Command{Name: "myapp"}
 		leaf := &spec.Command{Name: "completion", IsCompletionCmd: true}
 
-		formatted := RenderCompletionFooter([]*spec.Command{root, leaf}, false, func() (completion.CurrentShell, bool) {
+		formatted := renderFooterWithDefaultWidth([]*spec.Command{root, leaf}, false, func() (completion.CurrentShell, bool) {
 			return completion.CurrentShell{}, false
 		})
 
@@ -50,7 +58,7 @@ func TestRenderCompletionFooter_Generic(t *testing.T) {
 		root := &spec.Command{Name: "myapp"}
 		leaf := &spec.Command{Name: "completion", IsCompletionCmd: true}
 
-		formatted := RenderCompletionFooter([]*spec.Command{root, leaf}, false, func() (completion.CurrentShell, bool) {
+		formatted := renderFooterWithDefaultWidth([]*spec.Command{root, leaf}, false, func() (completion.CurrentShell, bool) {
 			return completion.CurrentShell{}, false
 		})
 
@@ -64,7 +72,7 @@ func TestRenderCompletionFooter_Generic(t *testing.T) {
 		root := &spec.Command{Name: "myapp"}
 		leaf := &spec.Command{Name: "completion", IsCompletionCmd: true}
 
-		formatted := RenderCompletionFooter([]*spec.Command{root, leaf}, false, func() (completion.CurrentShell, bool) {
+		formatted := renderFooterWithDefaultWidth([]*spec.Command{root, leaf}, false, func() (completion.CurrentShell, bool) {
 			return completion.CurrentShell{Shell: completion.ShellZsh, ExecPath: "/bin/zsh"}, true
 		})
 
@@ -80,7 +88,7 @@ func TestRenderCompletionFooter_Generic(t *testing.T) {
 		root := &spec.Command{Name: "myapp"}
 		disabled := &spec.Command{Name: "completion", IsCompletionCmd: true, DisableHelp: true}
 
-		formatted := RenderCompletionFooter([]*spec.Command{root, disabled}, false, func() (completion.CurrentShell, bool) {
+		formatted := renderFooterWithDefaultWidth([]*spec.Command{root, disabled}, false, func() (completion.CurrentShell, bool) {
 			return completion.CurrentShell{}, false
 		})
 
@@ -95,7 +103,7 @@ func TestRenderCompletionFooter_Generic(t *testing.T) {
 		root := &spec.Command{Name: "myapp"}
 		disabled := &spec.Command{Name: "completion", IsCompletionCmd: true, DisableHelp: true}
 
-		formatted := RenderCompletionFooter([]*spec.Command{root, disabled}, false, func() (completion.CurrentShell, bool) {
+		formatted := renderFooterWithDefaultWidth([]*spec.Command{root, disabled}, false, func() (completion.CurrentShell, bool) {
 			return completion.CurrentShell{Shell: completion.ShellZsh, ExecPath: "/bin/zsh"}, true
 		})
 
@@ -168,7 +176,7 @@ func TestHelpArgv0Resolution(t *testing.T) {
 	t.Run("generic completion footer uses argv0 binary name", func(t *testing.T) {
 		leaf := &spec.Command{Name: "completion", IsCompletionCmd: true}
 
-		formatted := RenderCompletionFooter([]*spec.Command{root, leaf}, false, func() (completion.CurrentShell, bool) {
+		formatted := renderFooterWithDefaultWidth([]*spec.Command{root, leaf}, false, func() (completion.CurrentShell, bool) {
 			return completion.CurrentShell{}, false
 		})
 
@@ -179,7 +187,7 @@ func TestHelpArgv0Resolution(t *testing.T) {
 	t.Run("flag-style generic completion footer uses argv0 binary name", func(t *testing.T) {
 		leaf := &spec.Command{Name: "completion", IsCompletionCmd: true, IsCompletionFlag: true}
 
-		formatted := RenderCompletionFooter([]*spec.Command{root, leaf}, true, func() (completion.CurrentShell, bool) {
+		formatted := renderFooterWithDefaultWidth([]*spec.Command{root, leaf}, true, func() (completion.CurrentShell, bool) {
 			return completion.CurrentShell{}, false
 		})
 

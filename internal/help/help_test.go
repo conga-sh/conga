@@ -328,6 +328,219 @@ func TestFormat_RequiredFlagsInUsageLine(t *testing.T) {
 	assert.NotContains(t, formatted, "[required]")
 }
 
+func TestFormat_RequiredFlagPlaceholderInUsageLine(t *testing.T) {
+	t.Parallel()
+
+	cmd := &spec.Command{
+		Name:    "server",
+		Summary: "Server subcommand",
+		Flags: []*spec.Flag{
+			{
+				Name:        "server-port",
+				Help:        "Server port",
+				Placeholder: "PORT",
+				TargetType:  reflect.TypeFor[int](),
+				Required:    true,
+				Handle:      testContainerHandle{},
+			},
+		},
+	}
+
+	formatted := help.Format([]*spec.Command{cmd})
+
+	assert.Contains(t, formatted, "Usage:\n  server --server-port=PORT")
+	assert.Contains(t, formatted, "--server-port=PORT  Server port")
+}
+
+// TestFormat_TableAlignmentCountsRunes verifies that column widths are
+// measured in runes, so a multi-byte label does not push the help column.
+func TestFormat_TableAlignmentCountsRunes(t *testing.T) {
+	t.Parallel()
+
+	cmd := &spec.Command{
+		Name: "app",
+		Args: []*spec.Arg{
+			{Name: "<café>", Help: "Coffee", Required: true},
+			{Name: "<ab>", Help: "Short", Required: true},
+		},
+	}
+
+	formatted := help.Format([]*spec.Command{cmd})
+
+	assert.Contains(t, formatted, "Arguments:\n  <café>  Coffee\n  <ab>    Short")
+}
+
+// TestFormat_EmptyHelpCellHasNoTrailingWhitespace verifies that a table row
+// with an empty help cell ends at its label: no padding is emitted when there
+// is nothing to align.
+func TestFormat_EmptyHelpCellHasNoTrailingWhitespace(t *testing.T) {
+	t.Parallel()
+
+	cmd := &spec.Command{
+		Name: "app",
+		Subcommands: []*spec.Command{
+			{Name: "empty"},
+		},
+	}
+
+	formatted := help.Format([]*spec.Command{cmd})
+
+	assert.Contains(t, formatted, "Commands:\n  empty\n\nFlags:")
+}
+
+// TestFormat_WidthWrapsCells pins the wrap contract: cells fold at space
+// boundaries and continuations align under the help column.
+func TestFormat_WidthWrapsCells(t *testing.T) {
+	t.Parallel()
+
+	cmd := &spec.Command{
+		Name:              "app",
+		DisableHelp:       true,
+		DisableVersion:    true,
+		DisableWhy:        true,
+		DisableCompletion: true,
+		Flags: []*spec.Flag{
+			{
+				Name:        "config",
+				Help:        "Path to the configuration file used by the application",
+				Placeholder: "FILE",
+				TargetType:  reflect.TypeFor[string](),
+			},
+		},
+	}
+
+	formatted := help.FormatWith([]*spec.Command{cmd}, help.Options{Width: 60})
+
+	assert.Contains(t, formatted, "      --config=FILE  Path to the configuration file used by\n")
+	assert.Contains(t, formatted, "                     the application")
+}
+
+// TestFormat_WrapKeepsHintGroupIntact pins that a bracketed hint group is never
+// split: the space inside "[env: NAME]" must not become a wrap point, so the
+// closing bracket is never orphaned onto its own line.
+func TestFormat_WrapKeepsHintGroupIntact(t *testing.T) {
+	t.Parallel()
+
+	cmd := &spec.Command{
+		Name:              "app",
+		DisableHelp:       true,
+		DisableVersion:    true,
+		DisableWhy:        true,
+		DisableCompletion: true,
+		Flags: []*spec.Flag{
+			{
+				Name:       "secret-key",
+				Help:       "API secret (config key remapped, explicit env name)",
+				EnvVars:    []string{"KITCHEN_SECRET"},
+				TargetType: reflect.TypeFor[string](),
+			},
+		},
+	}
+
+	formatted := help.FormatWith([]*spec.Command{cmd}, help.Options{Width: 63})
+
+	assert.Contains(t, formatted, "[env: KITCHEN_SECRET]")
+	assert.NotContains(t, formatted, "[env:\n")
+}
+
+// TestFormat_WidthStacksLongLabels pins the narrow-width contract: a label too
+// wide for the help column (capped at half the width) renders on its own line,
+// while shorter labels keep the inline layout.
+func TestFormat_WidthStacksLongLabels(t *testing.T) {
+	t.Parallel()
+
+	cmd := &spec.Command{
+		Name: "app",
+		Flags: []*spec.Flag{
+			{Name: "very-long-flag-name", Help: "Explains the long flag", IsBool: true},
+			{Name: "short", Help: "Explains the short flag", IsBool: true},
+		},
+	}
+
+	formatted := help.FormatWith([]*spec.Command{cmd}, help.Options{Width: 40})
+
+	assert.Contains(t, formatted, "      --very-long-flag-name\n                    Explains the long")
+	assert.Contains(t, formatted, "      --short       Explains the short")
+}
+
+// TestFormat_WidthWrapsDescription pins that overlong description lines wrap
+// to the width while the author's explicit line breaks survive.
+func TestFormat_WidthWrapsDescription(t *testing.T) {
+	t.Parallel()
+
+	cmd := &spec.Command{
+		Name:              "app",
+		Description:       "First paragraph stays short.\nA second paragraph that is long enough to fold at the wrap width.",
+		DisableHelp:       true,
+		DisableVersion:    true,
+		DisableWhy:        true,
+		DisableCompletion: true,
+	}
+
+	formatted := help.FormatWith([]*spec.Command{cmd}, help.Options{Width: 40})
+
+	assert.Contains(t, formatted, "First paragraph stays short.\nA second paragraph that is long enough\nto fold at the wrap width.\n\nUsage:")
+}
+
+// TestUsage_UserDeclaredBuiltinShadows verifies that user flags reusing the
+// freed --help/--version names and aliases stay first-class: only the shared
+// engine built-in rows are excluded from the synopsis and Global Flags.
+func TestUsage_UserDeclaredBuiltinShadows(t *testing.T) {
+	t.Parallel()
+
+	t.Run("required help shadow renders in the synopsis", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := &spec.Command{
+			Name: "app",
+			Flags: []*spec.Flag{
+				{
+					Name:        "help",
+					Help:        "Custom help topic",
+					Placeholder: "TOPIC",
+					TargetType:  reflect.TypeFor[string](),
+					Required:    true,
+					Handle:      testContainerHandle{},
+				},
+			},
+		}
+
+		usage := help.Usage([]*spec.Command{cmd})
+
+		assert.Equal(t, "Usage:\n  app --help=TOPIC", usage)
+	})
+
+	t.Run("ancestor alias shadow stays in the leaf synopsis and Global Flags", func(t *testing.T) {
+		t.Parallel()
+
+		root := &spec.Command{
+			Name: "app",
+			Flags: []*spec.Flag{
+				{Name: "assist", Aliases: []string{"help"}, Help: "Show assistance", IsBool: true, Required: true},
+			},
+			Subcommands: []*spec.Command{{Name: "build"}},
+		}
+
+		formatted := help.Format([]*spec.Command{root, root.Subcommands[0]})
+
+		assert.Contains(t, formatted, "Usage:\n  app build --assist")
+		assert.Contains(t, formatted, "Global Flags:\n      --assist  Show assistance")
+	})
+
+	t.Run("shared engine builtin row stays out of the synopsis", func(t *testing.T) {
+		t.Parallel()
+
+		cmd := &spec.Command{
+			Name:  "app",
+			Flags: []*spec.Flag{spec.BuiltinHelpFlag},
+		}
+
+		usage := help.Usage([]*spec.Command{cmd})
+
+		assert.Equal(t, "Usage:\n  app", usage)
+	})
+}
+
 func TestUsage_And_Hint(t *testing.T) {
 	t.Parallel()
 
@@ -575,7 +788,7 @@ func TestFormat_GlobalFlags(t *testing.T) {
 		Name: "app",
 		Flags: []*spec.Flag{
 			{Name: "verbose", Short: 'v', Help: "Verbose logging", IsBool: true},
-			{Name: "help", Help: "Show help", IsBool: true},
+			spec.BuiltinHelpFlag,
 		},
 		Subcommands: []*spec.Command{
 			{
@@ -738,6 +951,46 @@ func TestFormat_RootDeprecationBanner(t *testing.T) {
 	assert.Contains(t, formatted, "WARNING: testapp is deprecated: use the new unified CLI")
 	assert.Contains(t, formatted, "A test CLI application")
 	assert.True(t, strings.Index(formatted, "WARNING:") < strings.Index(formatted, "A test CLI application"))
+}
+
+// TestFormat_SubcommandDeprecationBanner pins that a deprecated command's own
+// screen carries the runtime warning wording, with the command path resolved
+// from the chain, above the screen content.
+func TestFormat_SubcommandDeprecationBanner(t *testing.T) {
+	t.Parallel()
+
+	root := &spec.Command{
+		Name: "app",
+		Subcommands: []*spec.Command{
+			{Name: "legacy", Summary: "Legacy command", Deprecated: "use deploy instead"},
+		},
+	}
+
+	formatted := help.Format([]*spec.Command{root, root.Subcommands[0]})
+
+	assert.Contains(t, formatted, "WARNING: command 'app legacy' is deprecated: use deploy instead\n\nLegacy command\n\nUsage:")
+}
+
+// TestFormat_NestedSubcommandDeprecationBanner pins the command path of a
+// banner for a deprecation deeper in the chain.
+func TestFormat_NestedSubcommandDeprecationBanner(t *testing.T) {
+	t.Parallel()
+
+	root := &spec.Command{
+		Name: "app",
+		Subcommands: []*spec.Command{
+			{
+				Name: "admin",
+				Subcommands: []*spec.Command{
+					{Name: "legacy", Summary: "Legacy admin command", Deprecated: "use admin migrate"},
+				},
+			},
+		},
+	}
+
+	formatted := help.Format([]*spec.Command{root, root.Subcommands[0], root.Subcommands[0].Subcommands[0]})
+
+	assert.Contains(t, formatted, "WARNING: command 'app admin legacy' is deprecated: use admin migrate\n\n")
 }
 
 func TestFormat_NoDeprecationBannerWhenNotDeprecated(t *testing.T) {
@@ -953,10 +1206,10 @@ func TestFormat_UngroupedFlagsRegression(t *testing.T) {
 	assert.Equal(t, goldenUngroupedFlags, formatted)
 }
 
-// TestFormat_AllFlagsGrouped_KeepBuiltinsLast verifies that the built-in
-// --completion and --help flags close the entire Flags area even when every
-// user flag carries a group (the trailing group section hosts the built-ins).
-func TestFormat_AllFlagsGrouped_KeepBuiltinsLast(t *testing.T) {
+// TestFormat_AllFlagsGrouped_BuiltinsKeepOwnSection verifies that the built-in
+// --completion and --help flags close the screen under a trailing "Flags"
+// heading when every user flag carries a group.
+func TestFormat_AllFlagsGrouped_BuiltinsKeepOwnSection(t *testing.T) {
 	t.Parallel()
 
 	cmd := &spec.Command{
@@ -969,18 +1222,16 @@ func TestFormat_AllFlagsGrouped_KeepBuiltinsLast(t *testing.T) {
 
 	formatted := help.Format([]*spec.Command{cmd})
 
-	// No ungrouped user flags: no plain "Flags:" section may render.
-	assert.NotContains(t, formatted, "\nFlags:")
-
-	// Built-ins close the final group section.
 	sourceIndex := strings.Index(formatted, "Source:")
 	outputIndex := strings.Index(formatted, "Output:")
-	helpIndex := strings.LastIndex(formatted, "--help")
+	flagsIndex := strings.LastIndex(formatted, "\nFlags:")
 	completionIndex := strings.LastIndex(formatted, "--completion")
+	helpIndex := strings.LastIndex(formatted, "--help")
 
 	assert.True(t, sourceIndex < outputIndex, "groups must render in first-appearance order")
-	assert.True(t, completionIndex > outputIndex, "--completion must close the Flags area")
-	assert.True(t, helpIndex > completionIndex, "--help must close the Flags area")
+	assert.True(t, flagsIndex > outputIndex, "the trailing Flags section must follow the groups")
+	assert.True(t, completionIndex > flagsIndex, "--completion must open the trailing built-in block")
+	assert.True(t, helpIndex > completionIndex, "--help must close the trailing built-in block")
 }
 
 // TestFormat_GroupedHiddenFlag_OmitsEmptyGroup verifies that a group whose
@@ -1051,6 +1302,51 @@ func TestFormat_GroupedGlobalFlags(t *testing.T) {
 	connectionIndex := strings.Index(formatted, "Connection:")
 
 	assert.True(t, globalIndex < connectionIndex, "ungrouped global flags must render first")
+}
+
+// TestFormat_BoolDefaultHint verifies the transparency rule for bool defaults:
+// a plain bool declaring a true default carries the [default: true] hint while
+// the false zero value stays implicit.
+func TestFormat_BoolDefaultHint(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		flag     *spec.Flag
+		wantHint bool
+	}{
+		{
+			name:     "true default is advertised",
+			flag:     &spec.Flag{Name: "color", Help: "Colorize output", IsBool: true, Default: "true"},
+			wantHint: true,
+		},
+		{
+			name: "false default stays implicit",
+			flag: &spec.Flag{Name: "debug", Help: "Debug mode", IsBool: true, Default: "false"},
+		},
+		{
+			name: "non-canonical false default stays implicit",
+			flag: &spec.Flag{Name: "verbose", Help: "Verbose mode", IsBool: true, Default: "0"},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			cmd := &spec.Command{Name: "app", Flags: []*spec.Flag{testCase.flag}}
+
+			formatted := help.Format([]*spec.Command{cmd})
+
+			if testCase.wantHint {
+				assert.Contains(t, formatted, "[default: true]")
+
+				return
+			}
+
+			assert.NotContains(t, formatted, "[default:")
+		})
+	}
 }
 
 // TestFormat_DefaultReferenceDropsValueSlotDefault verifies that referencing

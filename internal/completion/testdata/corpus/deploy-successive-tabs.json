@@ -90,7 +90,7 @@
     {
       "value": "--help",
       "display": "--help",
-      "description": "Show help for command",
+      "description": "Show help",
       "tag": "longhand flags"
     },
     {

@@ -1533,7 +1533,7 @@ func TestWhy_FlatCompletionHelpVisibility(t *testing.T) {
 		err := app.Run()
 
 		assert.NoError(t, err)
-		assert.NotContains(t, buffer.String(), "Show help for command")
+		assert.NotContains(t, buffer.String(), "Show help")
 	})
 }
 

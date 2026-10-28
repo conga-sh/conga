@@ -30,6 +30,7 @@ import (
 	"github.com/conga-sh/conga/internal/sentinel"
 	"github.com/conga-sh/conga/internal/slicex"
 	"github.com/conga-sh/conga/internal/spec"
+	"github.com/conga-sh/conga/internal/termwidth"
 	"github.com/conga-sh/conga/internal/tokenizer"
 	"github.com/conga-sh/conga/predict"
 )
@@ -682,6 +683,8 @@ func (a *App[T]) RunContext(ctx context.Context) error {
 
 	a.initDefaults()
 
+	a.resolveHelpWidth()
+
 	if a.handleCompletionInvocation != nil && a.isCompletionInvocation() {
 		return a.handleCompletionInvocation(a)
 	}
@@ -867,6 +870,8 @@ func (a *App[T]) ExitFunc(exitHandler func(code int)) *App[T] {
 // See https://docs.conga.sh/explanation/error-reporting/.
 func (a *App[T]) Exit(err error) {
 	a.applyDefaults()
+
+	a.resolveHelpWidth()
 
 	if err == nil {
 		a.exit(0)
@@ -1368,6 +1373,20 @@ func (a *App[T]) initDefaults() {
 			a.args = []string{}
 		}
 	}
+}
+
+// resolveHelpWidth pins the help wrap width for the active run: a COLUMNS
+// override wins, otherwise the configured stdout is probed when it is a
+// terminal, otherwise the engine default width applies. Resolving once per
+// entry point keeps every screen — help, usage-on-error, completion — on the
+// same width.
+func (a *App[T]) resolveHelpWidth() {
+	var stdoutFile *os.File
+	if file, ok := a.stdout.(*os.File); ok {
+		stdoutFile = file
+	}
+
+	a.helpOptions.Width = termwidth.Resolve(stdoutFile)
 }
 
 func (a *App[T]) initDefaultPredictors() {
@@ -2160,8 +2179,8 @@ func (a *App[T]) installCompletionHooks() {
 	a.completionHelp = (*App[T]).renderCompletionHelp
 	a.renderCompletionScript = (*App[T]).renderCompletionScriptBuiltin
 	a.helpOptions.CompletionInstructions = help.RenderCompletionInstructions
-	a.helpOptions.CompletionFooter = func(cmdChain []*spec.Command, useFlag bool) string {
-		return help.RenderCompletionFooter(cmdChain, useFlag, completion.DetectCurrentShell)
+	a.helpOptions.CompletionFooter = func(cmdChain []*spec.Command, useFlag bool, width int) string {
+		return help.RenderCompletionFooter(cmdChain, useFlag, completion.DetectCurrentShell, width)
 	}
 }
 

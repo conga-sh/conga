@@ -24,10 +24,10 @@ Flags:
       --format=STRING       Output format [enum: json, yaml]
       --token=STRING        API token [env: CONGA_TEST_GOLDEN_TOKEN]
       --legacy              Legacy toggle [deprecated: use --name]
+      --help                Show help
+      --version             Show version
 
 Output:
       --output=STRING  Output path
-      --help           Show help
-      --version        Show version
 
 Documentation: https://example.com/golden

@@ -542,7 +542,7 @@ func TestCompletionCommand_InteractiveTAB(t *testing.T) {
 		invoked, formatted := app.CompleteCompLineForShell("fish", compLine, len(compLine))
 
 		assert.True(t, len(invoked.Items) >= 2)
-		assert.True(t, strings.Contains(formatted, "--help\tShow help for command"))
+		assert.True(t, strings.Contains(formatted, "--help\tShow help"))
 		assert.True(t, strings.Contains(formatted, "--verbose\tVerbose output"))
 	})
 
@@ -558,7 +558,7 @@ func TestCompletionCommand_InteractiveTAB(t *testing.T) {
 
 		assert.Equal(t, 1, len(invoked.Items))
 		assert.Equal(t, "--help", invoked.Items[0].Value)
-		assert.Equal(t, "--help\tShow help for command", formatted)
+		assert.Equal(t, "--help\tShow help", formatted)
 	})
 }
 
@@ -580,7 +580,7 @@ func TestSingleCommand_InteractiveTAB(t *testing.T) {
 		assert.True(t, strings.Contains(formatted, "--output-dir\tPath to existing directory"))
 		assert.True(t, strings.Contains(formatted, "--max-memory\tMaximum memory limit"))
 		assert.True(t, strings.Contains(formatted, "--ports\tPort range"))
-		assert.True(t, strings.Contains(formatted, "--help\tShow help for command"))
+		assert.True(t, strings.Contains(formatted, "--help\tShow help"))
 
 		for _, item := range invoked.Items {
 			assert.NotEqual(t, "completion", item.Value)

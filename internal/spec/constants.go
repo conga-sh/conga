@@ -1,14 +1,22 @@
 package spec
 
 const (
-	// DefaultHelpFlagHelp is the default description for the --help flag.
-	DefaultHelpFlagHelp = "Show help for command"
+	// DefaultHelpFlagHelp is the description of the built-in --help flag. It is
+	// the single source rendered on help screens, completion candidates, and
+	// the shared built-in row of synthesized commands.
+	DefaultHelpFlagHelp = "Show help"
 
 	// DefaultHelpCommandHelp is the default description for the help subcommand.
 	DefaultHelpCommandHelp = "Show help for a command"
 
-	// DefaultVersionFlagHelp is the default description for the --version flag.
-	DefaultVersionFlagHelp = "Show version information"
+	// DefaultVersionFlagHelp is the description of the built-in --version flag,
+	// the single source rendered on help screens and completion candidates.
+	DefaultVersionFlagHelp = "Show version"
+
+	// DefaultVersionCommandHelp is the default description for the version
+	// subcommand; it stays richer than the flag's row because the command list
+	// has room for the full phrase.
+	DefaultVersionCommandHelp = "Show version information"
 
 	// DefaultCompletionCommandHelp is the default description for the completion subcommand.
 	DefaultCompletionCommandHelp = "Generate shell completion scripts"

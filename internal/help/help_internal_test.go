@@ -7,6 +7,7 @@ import (
 	"github.com/alecthomas/assert/v2"
 
 	"github.com/conga-sh/conga/internal/spec"
+	"github.com/conga-sh/conga/internal/termwidth"
 )
 
 func TestFormatRangeHint(t *testing.T) {
@@ -149,7 +150,7 @@ func TestFormatFlags_BuiltinShortRows(t *testing.T) {
 	t.Run("shared built-in help row renders the configured short", func(t *testing.T) {
 		t.Parallel()
 
-		rendered := formatFlags([]*spec.Flag{spec.BuiltinHelpFlag}, false, false, false, false, nil, 'h', 0)
+		rendered := formatFlags([]*spec.Flag{spec.BuiltinHelpFlag}, false, false, false, false, nil, 'h', 0, termwidth.Default)
 
 		assert.Contains(t, rendered, "-h, --help")
 	})
@@ -157,7 +158,7 @@ func TestFormatFlags_BuiltinShortRows(t *testing.T) {
 	t.Run("user-declared help shadow renders long-only", func(t *testing.T) {
 		t.Parallel()
 
-		rendered := formatFlags([]*spec.Flag{{Name: "help", IsBool: true, Help: "Custom help"}}, false, false, false, false, nil, 'h', 0)
+		rendered := formatFlags([]*spec.Flag{{Name: "help", IsBool: true, Help: "Custom help"}}, false, false, false, false, nil, 'h', 0, termwidth.Default)
 
 		assert.Contains(t, rendered, "--help")
 		assert.Contains(t, rendered, "Custom help")

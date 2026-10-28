@@ -9,7 +9,7 @@ CONGA provides five built-in surfaces: help, version, `--why`, completion, and d
 
 Every app gets `--help` and a generated help screen. CONGA derives the help output from the command schema and renders sections in a fixed order:
 
-1. **Deprecation banner**: configured via `app.Deprecated(...)` or the member `deprecated:"..."` tag.
+1. **Deprecation banner**: configured via `app.Deprecated(...)` or the member `deprecated:"..."` tag. A deprecated command renders its own banner on its screen, mirroring the runtime warning (`WARNING: command '<path>' is deprecated: <reason>`).
 2. **Description**: configured via `app.Description(...)` on the root builder, or `Description() string` on subcommand structs. Subcommands fall back to their `summary:"..."` tag when no description method is defined. Root structs must not implement `Description()` or `Summary()`.
 3. **Completion instructions**: per-shell setup steps rendered when inspecting a completion command (e.g. `--completion bash --help`).
 4. **Usage syntax**: command invocation syntax including flags, positional arguments, and trailing arguments (`DashArgs`, `RawArgs`). Optional flags collapse into a `[flags...]` placeholder; positional arguments carry their optionality and repetition (`[<target>]`, `<file...>`), and author-supplied brackets and `...` are preserved.
@@ -21,6 +21,10 @@ Every app gets `--help` and a generated help screen. CONGA derives the help outp
 10. **Features** (root screen only): feature toggles declared via `conga.Features[T]`, rendered under `Features:` with help text, stage (`[alpha]`, `[beta]`), integer levels, and defaults. Toggles staged `ga` or `deprecated` are omitted.
 11. **Global flags**: persistent flags inherited from ancestor commands.
 12. **Global help footer**: text configured via `app.HelpFooter(...)`.
+
+### Wrap width
+
+Help text wraps to the terminal. An explicit `COLUMNS` value of at least 20 takes precedence; otherwise the width of the app's stdout is probed when it is a terminal; piped or redirected output (and terminals reporting no width) falls back to a default of 100 columns. Overlong descriptions and table help text fold at space boundaries, with continuation lines aligned under the help column; a bracketed hint group such as `[env: NAME]` stays on one line, and a label wider than half the width renders on its own line above its help text. The `Usage:` syntax, the `Examples:` block, and the global help footer stay unwrapped.
 
 ### Configurable short flags
 

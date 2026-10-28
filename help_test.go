@@ -3,6 +3,7 @@ package conga_test
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -658,10 +659,81 @@ func TestHelp_CustomFlagWithDisableHelpFlag(t *testing.T) {
 	assert.Equal(t, "custom-topic", cli.Help.Get())
 }
 
+// requiredHelpShadowCLI reuses the freed help name on a required flag; its
+// runner renders the active screen so tests can pin the synopsis and row.
+type requiredHelpShadowCLI struct {
+	Help conga.RequiredFlag[string] `help:"Custom help topic" placeholder:"TOPIC"`
+}
+
+func (c *requiredHelpShadowCLI) Run(_ context.Context, session *conga.Session) error {
+	fmt.Fprint(session.Stdout(), session.Help())
+
+	return nil
+}
+
+// aliasHelpShadowCLI reaches the built-in help classification through an alias
+// on an ancestor flag, which must stay a regular flag on subcommand screens.
+type aliasHelpShadowCLI struct {
+	Assist conga.RequiredFlag[bool]               `aliases:"help"              help:"Show assistance"`
+	Build  conga.Command[aliasHelpShadowBuildCmd] `summary:"Build the project"`
+}
+
+// aliasHelpShadowBuildCmd renders its own screen so the test can pin what a
+// subcommand help screen shows for an ancestor flag carrying the help alias.
+type aliasHelpShadowBuildCmd struct{}
+
+func (c *aliasHelpShadowBuildCmd) Run(_ context.Context, session *conga.Session) error {
+	fmt.Fprint(session.Stdout(), session.Help())
+
+	return nil
+}
+
+// TestHelp_RequiredHelpShadowStaysFirstClass pins that a required user flag
+// reusing the freed help name stays a regular flag: it renders in both the
+// usage synopsis and the Flags table.
+func TestHelp_RequiredHelpShadowStaysFirstClass(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	app := conga.New[requiredHelpShadowCLI]().
+		Name("app").
+		DisableHelpFlag().
+		Args([]string{"--help", "topic"}).
+		Stdout(&buffer)
+
+	err := app.RunContext(t.Context())
+
+	assert.NoError(t, err)
+	assert.Contains(t, buffer.String(), "Usage:\n  app --help=TOPIC")
+	assert.Contains(t, buffer.String(), "--help=TOPIC  Custom help topic")
+}
+
+// TestHelp_AliasShadowStaysVisibleOnSubcommandScreen pins that an ancestor
+// flag carrying the help alias is not treated as the built-in: it stays in the
+// leaf synopsis and the Global Flags section.
+func TestHelp_AliasShadowStaysVisibleOnSubcommandScreen(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	app := conga.New[aliasHelpShadowCLI]().
+		Name("app").
+		DisableHelpFlag().
+		Args([]string{"--assist", "build"}).
+		Stdout(&buffer)
+
+	err := app.RunContext(t.Context())
+
+	assert.NoError(t, err)
+	assert.Contains(t, buffer.String(), "Usage:\n  app build --assist")
+	assert.Contains(t, buffer.String(), "Global Flags:\n      --assist  Show assistance")
+}
+
 // TestHelpScreen_GroupTags_Flags verifies that the group struct tag drives
 // titled sections on the rendered help screen: ungrouped flags first, then
 // group sections in first-appearance order, with the built-in --help flag
-// closing the entire Flags area.
+// closing the ungrouped Flags section.
 func TestHelpScreen_GroupTags_Flags(t *testing.T) {
 	t.Parallel()
 
@@ -679,7 +751,7 @@ func TestHelpScreen_GroupTags_Flags(t *testing.T) {
 	assert.True(t, flagsIndex >= 0 && flagsIndex < sourceIndex, "ungrouped flags must render before groups")
 	assert.True(t, sourceIndex < outputIndex, "groups must render in first-appearance order")
 	assert.True(t, outputIndex < configIndex, "groups must render in first-appearance order")
-	assert.True(t, helpIndex > configIndex, "built-in --help must close the Flags area")
+	assert.True(t, helpIndex > flagsIndex && helpIndex < sourceIndex, "built-in --help must close the ungrouped Flags section")
 }
 
 // TestHelpScreen_GroupTags_Subcommands verifies that a grouped subcommand

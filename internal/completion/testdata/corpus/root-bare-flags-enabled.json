@@ -82,13 +82,13 @@
     {
       "value": "--help",
       "display": "--help",
-      "description": "Show help for command",
+      "description": "Show help",
       "tag": "longhand flags"
     },
     {
       "value": "--version",
       "display": "--version",
-      "description": "Show version information",
+      "description": "Show version",
       "tag": "longhand flags"
     },
     {

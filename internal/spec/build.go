@@ -290,7 +290,7 @@ func (b *schemaBuilder) newBuiltinSubcommand(structField reflect.StructField, ki
 	case builtinHelp:
 		defaultName, defaultSummary = "help", DefaultHelpCommandHelp
 	case builtinVersion:
-		defaultName, defaultSummary = "version", DefaultVersionFlagHelp
+		defaultName, defaultSummary = "version", DefaultVersionCommandHelp
 	case builtinCompletion:
 		defaultName, defaultSummary = "completion", DefaultCompletionCommandHelp
 	default:

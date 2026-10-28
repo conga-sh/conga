@@ -4,7 +4,7 @@ Usage:
   clustermgr <command>
 
 Commands:
-  cluster  
+  cluster
 
 Flags:
       --help     Show help

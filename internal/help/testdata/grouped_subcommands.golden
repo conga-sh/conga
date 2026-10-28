@@ -12,6 +12,7 @@ Pipeline:
   build  Build project
 
 Flags:
-      --why      Show resolved field values and where they came from (values redacted unless tagged safe)
+      --why      Show resolved field values and where they came from (values redacted unless tagged
+                 safe)
       --help     Show help
       --version  Show version

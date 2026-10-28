@@ -2,15 +2,16 @@ Usage:
   testapp [flags...]
 
 Flags:
-  -v, --verbose  Verbose logging
+  -v, --verbose           Verbose logging
+      --why               Show resolved field values and where they came from (values redacted
+                          unless tagged safe)
+      --completion=SHELL  Generate shell completion script
+      --help              Show help
+      --version           Show version
 
 Source:
       --repo=STRING  Repository path
 
 Output:
-  -q, --quiet             Suppress output
-  -c, --color             Colorize output
-      --why               Show resolved field values and where they came from (values redacted unless tagged safe)
-      --completion=SHELL  Generate shell completion script
-      --help              Show help
-      --version           Show version
+  -q, --quiet  Suppress output
+  -c, --color  Colorize output
