@@ -34,6 +34,9 @@ var (
 	//go:embed testdata/errors/invalid-value.golden
 	goldenErrorsInvalidValue string
 
+	//go:embed testdata/errors/missing-oneof-flag.golden
+	goldenErrorsMissingOneOfFlag string
+
 	//go:embed testdata/errors/missing-required-flag.golden
 	goldenErrorsMissingRequiredFlag string
 

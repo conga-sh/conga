@@ -136,6 +136,13 @@ type MissingRequiredFlagCLI struct {
 	Port conga.RequiredFlag[int] `name:"port"`
 }
 
+type MissingOneOfFlagCLI struct {
+	noopRunner
+
+	JSON conga.OptionalFlag[bool] `name:"json" oneof:"format"`
+	YAML conga.OptionalFlag[bool] `name:"yaml" oneof:"format"`
+}
+
 func TestErrorCategories(t *testing.T) {
 	t.Parallel()
 
@@ -967,6 +974,31 @@ func TestExit_ValueErrorsRenderWithoutUsage(t *testing.T) {
 
 		assert.Equal(t, 2, exitCode)
 		assertGolden(t, "testdata/errors/missing-required-flag.golden", goldenErrorsMissingRequiredFlag, buffer.String())
+	})
+
+	t.Run("missing oneof flag error still renders usage", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			buffer   bytes.Buffer
+			exitCode int
+		)
+
+		app := conga.New[MissingOneOfFlagCLI]().
+			Name("app").
+			Args([]string{}).
+			Stderr(&buffer).
+			ExitFunc(func(code int) {
+				exitCode = code
+			})
+
+		err := app.RunContext(t.Context())
+		assert.Error(t, err)
+
+		app.Exit(err)
+
+		assert.Equal(t, 2, exitCode)
+		assertGolden(t, "testdata/errors/missing-oneof-flag.golden", goldenErrorsMissingOneOfFlag, buffer.String())
 	})
 }
 
@@ -1898,7 +1930,7 @@ func TestErrorCommandAndChain_EndToEnd(t *testing.T) {
 
 		assert.True(t, errors.As(err, &usage))
 		assert.Equal(t, "app sub", usage.CommandPath())
-		assert.Contains(t, usage.Usage(), "app sub [flags...]")
+		assert.Contains(t, usage.Usage(), "app sub [flags]")
 	})
 
 	t.Run("parse error exposes Usage syntax", func(t *testing.T) {
@@ -1915,7 +1947,7 @@ func TestErrorCommandAndChain_EndToEnd(t *testing.T) {
 		var usage conga.UsageError
 
 		assert.True(t, errors.As(err, &usage))
-		assert.Contains(t, usage.Usage(), "Usage:\n  app sub [flags...]")
+		assert.Contains(t, usage.Usage(), "Usage:\n  app sub [flags]")
 	})
 
 	t.Run("coercion error exposes Usage syntax", func(t *testing.T) {
@@ -1932,7 +1964,7 @@ func TestErrorCommandAndChain_EndToEnd(t *testing.T) {
 		var usage conga.UsageError
 
 		assert.True(t, errors.As(err, &usage))
-		assert.Contains(t, usage.Usage(), "Usage:\n  app sub [flags...]")
+		assert.Contains(t, usage.Usage(), "Usage:\n  app sub [flags]")
 	})
 
 	t.Run("validation error exposes Usage syntax", func(t *testing.T) {
@@ -1949,7 +1981,7 @@ func TestErrorCommandAndChain_EndToEnd(t *testing.T) {
 		var usage conga.UsageError
 
 		assert.True(t, errors.As(err, &usage))
-		assert.Contains(t, usage.Usage(), "Usage:\n  app sub [flags...]")
+		assert.Contains(t, usage.Usage(), "Usage:\n  app sub [flags]")
 	})
 
 	t.Run("CompletionError classification and decoupling from UsageError", func(t *testing.T) {

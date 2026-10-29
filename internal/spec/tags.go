@@ -562,6 +562,7 @@ func parseFlagSpec(structField reflect.StructField, flagHandle any, classificati
 		ConfigKey:   structField.Tag.Get("config"),
 		XorGroup:    structField.Tag.Get("xor"),
 		AndGroup:    structField.Tag.Get("and"),
+		OneOfGroup:  structField.Tag.Get("oneof"),
 		Enum:        enumValues,
 		Range:       rangeSpec,
 		Len:         lenSpec,

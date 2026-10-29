@@ -111,7 +111,7 @@ server --http3
 server: error: flag '--http3' requires feature "http3"
 
 Usage:
-  server [flags...]
+  server [flags]
 
 Run 'server --help' for more information.
 ```

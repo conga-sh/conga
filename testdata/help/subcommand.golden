@@ -1,7 +1,7 @@
 Deploy the application
 
 Usage:
-  golden deploy --reason=STRING <target> [flags...]
+  golden deploy --reason=STRING [flags] <target>
 
 Arguments:
   <target>  Deployment target

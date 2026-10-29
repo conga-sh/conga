@@ -1,7 +1,7 @@
 Golden reference application.
 
 Usage:
-  golden <command> [flags...]
+  golden <command> [flags]
 
 Examples:
   # Deploy the api target

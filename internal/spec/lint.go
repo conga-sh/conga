@@ -15,7 +15,7 @@ import (
 
 //nolint:gochecknoglobals // Static candidate definitions for schema tag validation.
 var (
-	flagTagCandidates           = []string{"name", "short", "help", "default", "env", "aliases", "group", "hidden", "safe", "xor", "and", "enum", "enumhint", "range", "len", "items", "sep", "negatable", "placeholder", "config", "deprecated", "predictor", "feature", "bootstrap", "conga"}
+	flagTagCandidates           = []string{"name", "short", "help", "default", "env", "aliases", "group", "hidden", "safe", "xor", "and", "oneof", "enum", "enumhint", "range", "len", "items", "sep", "negatable", "placeholder", "config", "deprecated", "predictor", "feature", "bootstrap", "conga"}
 	argTagCandidates            = []string{"name", "help", "default", "enum", "enumhint", "range", "len", "items", "sep", "predictor", "bootstrap", "conga"}
 	builtinCommandTagCandidates = []string{"name", "summary", "aliases", "group", "hidden", "conga"}
 	userCommandTagCandidates    = []string{"name", "summary", "aliases", "group", "hidden", "envprefix", "deprecated", "feature", "conga"}
@@ -26,7 +26,7 @@ var (
 	sentinelTagCandidates       = []string{"envprefix", "conga"}
 	allCongaTagCandidates       = []string{
 		"name", "short", "help", "default", "env", "aliases", "group", "hidden", "safe",
-		"xor", "and", "enum", "enumhint", "range", "len", "items", "sep", "negatable", "placeholder",
+		"xor", "and", "oneof", "enum", "enumhint", "range", "len", "items", "sep", "negatable", "placeholder",
 		"config", "deprecated", "predictor", "feature", "conga", "summary", "envprefix",
 		"multi", "flag", "stage", "bootstrap",
 	}
@@ -74,7 +74,7 @@ func isAnyCongaTag(tag string) bool {
 
 func validContextDescription(tag string) string {
 	switch tag {
-	case "short", "xor", "and", "negatable", "config", "placeholder", "safe":
+	case "short", "xor", "and", "oneof", "negatable", "config", "placeholder", "safe":
 		return "flags"
 	case "envprefix":
 		return "subcommands and sentinel fields"

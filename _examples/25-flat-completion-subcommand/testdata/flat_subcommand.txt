@@ -5,7 +5,7 @@
 
 # 1. Opt-in CompletionCommand: --help displays Commands: section and suppresses --completion flag
 exec runner --help
-stdout 'Usage:\n  runner <task> \[flags\.\.\.\]'
+stdout 'Usage:\n  runner \[flags\] <task>'
 stdout 'Commands:'
 stdout 'completion\s+Generate shell completion script'
 ! stdout '--completion'

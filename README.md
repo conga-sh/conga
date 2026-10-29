@@ -24,7 +24,7 @@ notes.
 - Multi-format configuration decoding for JSON, YAML, TOML, and HCL, with
   directory search paths and cascading file merges.
 - Built-in autocompletion for Bash, Zsh, Fish, PowerShell, Elvish, and NuShell.
-- Rich validation constraints (`range`, `len`, `enum`, `xor`, `and`) evaluated
+- Rich validation constraints (`range`, `len`, `enum`, `xor`, `oneof`, `and`) evaluated
   at startup and parse time.
 - Opt-in modular architecture keeping unreferenced subsystems pruned at link time.
 
@@ -107,12 +107,13 @@ Common metadata and validation tags:
 | Tag | Example | Description |
 | --- | --- | --- |
 | `short` | `short:"p"` | Single-character flag alias (`-p`) |
-| `default` | `default:"8080"` | Fallback value if no other source supplies one |
+| `default` | `default:"8080"` | Fallback value if no other source supplies one (rejected on required flags and `oneof` members) |
 | `env` | `env:"PORT"` | Environment variable binding |
 | `help` | `help:"Port to bind"` | Usage description shown in `--help` |
 | `range` | `range:"1..65535"` | Inclusive bounds for numbers, durations, and byte sizes |
 | `enum` | `enum:"json,yaml,text"` | Restricts accepted values to a fixed set |
-| `xor` | `xor:"auth"` | Mutual exclusivity group (only one flag in group allowed) |
+| `xor` | `xor:"auth"` | Mutually exclusive group (at most one optional flag in the group) |
+| `oneof` | `oneof:"format"` | Exactly-one group (exactly one optional flag in the group must be supplied) |
 | `config` | `config:"listen_port"` | Configuration file key name (or `"-"` to ignore) |
 
 For advanced constraints (`len`, `items`, `and`, `conga` directives) and per-container applicability, see the [Struct Tag Reference](https://docs.conga.sh/reference/struct-tags/).

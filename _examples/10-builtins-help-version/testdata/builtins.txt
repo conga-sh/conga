@@ -43,7 +43,7 @@ stdout 'infomgr home: https://example\.com/infomgr'
 # 6. Subcommand `help status` (Description and Examples methods enrich the screen)
 exec infomgr help status
 stdout 'Usage:'
-stdout 'infomgr status \[flags\.\.\.\]'
+stdout 'infomgr status \[flags\]'
 stdout 'Reports the health of every subsystem infomgr manages\.'
 stdout 'Flags:'
 stdout '-d, --detailed\s+Show detailed subsystem diagnostics'
@@ -88,5 +88,5 @@ stdout 'infomgr has version 2\.4\.1 built with go'
 
 exec infomgr status -h
 stdout 'Usage:'
-stdout 'infomgr status \[flags\.\.\.\]'
+stdout 'infomgr status \[flags\]'
 stdout '-h, --help'

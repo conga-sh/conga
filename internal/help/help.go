@@ -181,13 +181,15 @@ func Usage(cmdChain []*spec.Command) string {
 		parts = append(parts, "<command>")
 	}
 
-	globalRequired, hasOptionalGlobal := globalUsageFlags(cmdChain)
+	globalParts, hasOptionalGlobal := globalUsageFlags(cmdChain)
 
-	for _, flagSpec := range globalRequired {
-		parts = append(parts, formatUsageFlag(flagSpec))
-	}
+	parts = append(parts, globalParts...)
 
 	parts, hasOptionalFlags := appendUsageFlags(parts, leaf.Flags)
+
+	if hasOptionalFlags || hasOptionalGlobal {
+		parts = append(parts, "[flags]")
+	}
 
 	for _, arg := range leaf.Args {
 		if token := formatArgToken(arg); token != "" {
@@ -201,10 +203,6 @@ func Usage(cmdChain []*spec.Command) string {
 
 	if leaf.RawArgs != nil {
 		parts = append(parts, leaf.RawArgs.Name)
-	}
-
-	if hasOptionalFlags || hasOptionalGlobal {
-		parts = append(parts, "[flags...]")
 	}
 
 	return "Usage:\n  " + strings.Join(parts, " ")
@@ -381,12 +379,15 @@ type hintSuppression struct {
 	rangeRef, lenRef, itemsRef bool
 }
 
-// appendUsageFlags appends long-form tokens for required flags to the usage
-// synopsis and reports whether any optional flags remain to be collapsed.
-// Only the shared engine definitions are skipped: a user-declared shadow of
-// --help/--version is a regular flag and contributes to the synopsis.
+// appendUsageFlags appends long-form tokens for required flags and exactly-one
+// groups to the usage synopsis and reports whether any visible optional flags
+// remain to be collapsed into the [flags] placeholder. Group members are
+// represented by a single alternation token and do not set the placeholder on
+// their own. Only the shared engine definitions are skipped: a user-declared
+// shadow of --help/--version is a regular flag and contributes to the synopsis.
 func appendUsageFlags(parts []string, flags []*spec.Flag) ([]string, bool) {
 	hasOptionalFlags := false
+	seenOneOfGroups := make(map[string]bool)
 
 	for _, flag := range flags {
 		if flag.Hidden {
@@ -394,6 +395,20 @@ func appendUsageFlags(parts []string, flags []*spec.Flag) ([]string, bool) {
 		}
 
 		if isEngineBuiltinFlag(flag) {
+			continue
+		}
+
+		if flag.OneOfGroup != "" {
+			if seenOneOfGroups[flag.OneOfGroup] {
+				continue
+			}
+
+			seenOneOfGroups[flag.OneOfGroup] = true
+
+			if token := formatUsageOneOfGroup(flags, flag.OneOfGroup); token != "" {
+				parts = append(parts, token)
+			}
+
 			continue
 		}
 
@@ -407,16 +422,43 @@ func appendUsageFlags(parts []string, flags []*spec.Flag) ([]string, bool) {
 	return parts, hasOptionalFlags
 }
 
+// formatUsageOneOfGroup renders the visible members of an exactly-one group as
+// a parenthesized alternation. A group with a single visible member renders as
+// a plain required token; a group with no visible members renders nothing.
+func formatUsageOneOfGroup(flags []*spec.Flag, group string) string {
+	tokens := make([]string, 0, len(flags))
+
+	for _, flag := range flags {
+		if flag.OneOfGroup != group {
+			continue
+		}
+
+		if flag.Hidden || isEngineBuiltinFlag(flag) {
+			continue
+		}
+
+		tokens = append(tokens, formatUsageFlag(flag))
+	}
+
+	switch len(tokens) {
+	case 0:
+		return ""
+	case 1:
+		return tokens[0]
+	default:
+		return "(" + strings.Join(tokens, " | ") + ")"
+	}
+}
+
 // globalUsageFlags scans the ancestor commands of the given chain and returns
-// their visible, non-built-in flags: required flags to render explicitly in
-// the usage synopsis (in chain order, before the leaf's own required flags)
-// plus whether optional flags remain to be collapsed into the [flags]
-// placeholder. It mirrors the visibility rules of formatGlobalFlags: hidden
-// flags and the shared built-in --help/--version definitions are skipped,
-// while user-declared shadows stay regular flags. Built-in infrastructure
-// leaves (completion, help, version) never surface ancestor flags because
-// their operation never uses them.
-func globalUsageFlags(cmdChain []*spec.Command) ([]*spec.Flag, bool) {
+// their visible, non-built-in usage tokens: required flags and exactly-one
+// groups render explicitly (in chain order, before the leaf's own tokens) plus
+// whether optional flags remain to be collapsed into the [flags] placeholder.
+// It mirrors the visibility rules of formatGlobalFlags: hidden flags and the
+// shared built-in --help/--version definitions are skipped, while user-declared
+// shadows stay regular flags. Built-in infrastructure leaves (completion, help,
+// version) never surface ancestor flags because their operation never uses them.
+func globalUsageFlags(cmdChain []*spec.Command) ([]string, bool) {
 	if len(cmdChain) <= 1 {
 		return nil, false
 	}
@@ -427,29 +469,19 @@ func globalUsageFlags(cmdChain []*spec.Command) ([]*spec.Flag, bool) {
 		return nil, false
 	}
 
-	var required []*spec.Flag
-
-	hasOptional := false
+	var (
+		parts       []string
+		hasOptional bool
+	)
 
 	for _, cmd := range cmdChain[:len(cmdChain)-1] {
-		for _, flagSpec := range cmd.Flags {
-			if flagSpec.Hidden {
-				continue
-			}
+		var optional bool
 
-			if isEngineBuiltinFlag(flagSpec) {
-				continue
-			}
-
-			if flagSpec.Required {
-				required = append(required, flagSpec)
-			} else {
-				hasOptional = true
-			}
-		}
+		parts, optional = appendUsageFlags(parts, cmd.Flags)
+		hasOptional = hasOptional || optional
 	}
 
-	return required, hasOptional
+	return parts, hasOptional
 }
 
 // formatUsageFlag renders a required flag's long-form token for the usage

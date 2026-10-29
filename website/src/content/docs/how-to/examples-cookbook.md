@@ -56,6 +56,7 @@ go test ./_examples/...
 | # | Example | Demonstrates |
 |---|---------|--------------|
 | 06 | [flag-constraints](https://github.com/conga-sh/conga/tree/main/_examples/06-flag-constraints) | `xor`, `and`, `range` (int, duration, byte size), `len`, `items`, and `enum`. |
+| 31 | [oneof-groups](https://github.com/conga-sh/conga/tree/main/_examples/31-oneof-groups) | Exactly-one `oneof:"group"` groups: missing and duplicate selections both exit 2, and the usage synopsis renders the alternation. |
 | 16 | [help-variables](https://github.com/conga-sh/conga/tree/main/_examples/16-help-variables) | `{{...}}` help variables that inline a declared constraint instead of the automatic bracket hint, including `{{default}}` value-slot suppression. |
 | 07 | [dynamic-validation](https://github.com/conga-sh/conga/tree/main/_examples/07-dynamic-validation) | The `Validator` interface for cross-field semantic validation before hooks execute. |
 | 08 | [subcommands-basic](https://github.com/conga-sh/conga/tree/main/_examples/08-subcommands-basic) | `Command[T]` routing, aliases, visual groups, hidden commands, and typo suggestions. |

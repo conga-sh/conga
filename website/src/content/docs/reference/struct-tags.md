@@ -11,10 +11,10 @@ CONGA derives the CLI schema from struct fields and their tags. The engine valid
 |-----|:--------:|:--------:|:-------:|---------|
 | `aliases` | ✅ | ✅ | – | Comma-separated long-name aliases. |
 | `bootstrap` | ✅ | ✅ | ✅ | Bind the field before the bootstrap phase runs and expose it typed to `Bootstrap` (`bootstrap` or `bootstrap:"true"`). Requires a `conga.Bootstrapper`; rejected with `feature`; restricted to scalar, slice-of-scalar, and map-of-scalar types. |
-| `and` | ✅ | ✅ | – | Required co-occurrence group name whose members must all be set together. |
+| `and` | ✅ | ✅ | ✅ | Required co-occurrence group name whose members must all be set together. |
 | `config` | ✅ | ✅ | ✅ | Config file key feeding the flag (default: flag name). `config:"-"` excludes the field from config files. |
 | `conga` | ✅ | ✅ | ✅ | Directives (see [`conga` directives](#conga-directives)). |
-| `default` | ✅ | – | – | Default value when no other source provides one. Coerced with the same parser as CLI input. |
+| `default` | ✅ | – | – | Default value when no other source provides one. Coerced with the same parser as CLI input. Rejected on required flags and `oneof` members. |
 | `deprecated` | ✅ | – | ✅ | Deprecation notice; suppresses flag from completion. |
 | `enum` | ✅ | ✅ | – | Comma-separated allowed values, checked against the coerced value, rendered in help as `[enum: …]`. |
 | `enumhint` | ✅ | ✅ | – | Set to `-` to suppress the automatic `[enum: …]` help hint while keeping values validated and completed. |
@@ -27,15 +27,18 @@ CONGA derives the CLI schema from struct fields and their tags. The engine valid
 | `len` | ✅ | ✅ | – | Length bound for strings, slices, or maps. |
 | `name` | ✅ | ✅ | ✅ | Flag name override (default: kebab-case of field name, e.g. `MaxRetries` → `--max-retries`). |
 | `negatable` | ✅ (bool) | – | – | Boolean flags only: enables `--[no-]flag` syntax (`negatable` or `negatable:"true"`). |
+| `oneof` | ✅ | – | ✅ | Exactly-one group name: exactly one member must be supplied by CLI, environment, or configuration. `default` is rejected on members. |
 | `placeholder` | ✅ | ✅ | – | Argument placeholder displayed in syntax and help. |
 | `predictor` | ✅ | ✅ | – | Completion predictor identifier (see [Predictors](#predictors)). |
 | `range` | ✅ | ✅ | – | Numeric or duration bounds (see [Bounds syntax](#bounds-syntax)). |
 | `safe` | ✅ | ✅ | ✅ | Controls value display in `--why` provenance (`true` or `false`). Boolean and counter flags default to `true`; other flags default to `false`. Declared defaults are always visible. |
 | `sep` | ✅ (slices) | ✅ (slices) | – | Slice separator (default `","`). Disabling separators with `none`, `off`, or `-` disables multi-value splitting; `sep:"none"` preserves string elements verbatim, including whitespace. |
 | `short` | ✅ | ✅ | ✅ | Single-rune short flag (e.g. `short:"n"`). |
-| `xor` | ✅ | ✅ | – | Mutually exclusive group name. |
+| `xor` | ✅ | – | ✅ | Mutually exclusive group name: at most one member may be supplied. Optional flags only. |
 
-The `default` tag is rejected on `Counter` flags. Counters count command-line occurrences starting at 0; seed a base level with an `env` or config-file binding, or use `OptionalFlag[int]` for a numeric default.
+The `default` tag is rejected on `Counter` flags, `RequiredFlag`s, and `oneof` members. Counters count command-line occurrences starting at 0; seed a base level with an `env` or config-file binding, or use `OptionalFlag[int]` for a numeric default. A required flag must receive a value from the CLI, environment, or configuration, and a oneof member's default would always satisfy the exactly-one group.
+
+Group names are scoped to the command that declares them: a same-named group on an ancestor or descendant command is an independent group, and validation, completion suppression, and the usage synopsis treat them separately. A flag may belong to one group of each kind. Two members of the same `oneof` group may not also share an `and` group: selecting either member would force the other, so the exactly-one group could never be satisfied, and the schema rejects the pair at startup.
 
 The `enum` tag validates against the field's coerced value. When a type's `UnmarshalText` normalizes input (such as `get` to `GET`), validation compares against that normalized form, so declared enum values must match the normalized output.
 
@@ -347,6 +350,8 @@ type Deploy struct {
 	Region   conga.OptionalFlag[string]        `env:"AWS_REGION" config:"aws_region"`
 	DryRun   conga.OptionalFlag[bool]          `xor:"mode"`
 	Force    conga.OptionalFlag[bool]          `xor:"mode"`
+	JSON     conga.OptionalFlag[bool]          `oneof:"format"`
+	YAML     conga.OptionalFlag[bool]          `oneof:"format"`
 }
 
 type Root struct {

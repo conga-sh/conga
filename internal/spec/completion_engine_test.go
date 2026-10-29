@@ -56,6 +56,24 @@ type XorGroupCLI struct {
 	Port mockFlag[int]  `help:"Port"`
 }
 
+type OneOfGroupCLI struct {
+	JSON mockFlag[bool] `help:"Output JSON" oneof:"format"`
+	YAML mockFlag[bool] `help:"Output YAML" oneof:"format"`
+	Text mockFlag[bool] `help:"Output Text" oneof:"format"`
+	Port mockFlag[int]  `help:"Port"`
+}
+
+type ScopedGroupLeaf struct {
+	JSON mockFlag[bool] `name:"json" oneof:"choice" xor:"transport"`
+	YAML mockFlag[bool] `name:"yaml" oneof:"choice" xor:"transport"`
+}
+
+type ScopedGroupCLI struct {
+	JSON mockFlag[bool]           `name:"root-json" oneof:"choice" xor:"transport"`
+	YAML mockFlag[bool]           `name:"root-yaml" oneof:"choice" xor:"transport"`
+	Sub  mockCmd[ScopedGroupLeaf] `name:"sub"`
+}
+
 type RepeatableFlagsCLI struct {
 	Port    mockFlag[int]      `help:"Port"`
 	Tag     mockFlag[[]string] `help:"Tags"`
@@ -577,6 +595,71 @@ func TestCompletion_WhyFormats(t *testing.T) {
 		assert.False(t, slices.ContainsFunc(invoked.Items, func(item predict.Item) bool {
 			return strings.Contains(item.Value, "why")
 		}))
+	})
+}
+
+func TestCompletion_OneOfSuppression(t *testing.T) {
+	t.Parallel()
+
+	t.Run("shows all oneof options before selection", func(t *testing.T) {
+		t.Parallel()
+
+		var cli OneOfGroupCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"--"}, spec.CompleteOptions{})
+
+		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
+
+		assert.Equal(t, []string{"--json", "--yaml", "--text", "--port", "--help", "--version", "--why", "--completion"}, values)
+	})
+
+	t.Run("suppresses conflicting oneof flags when one is supplied", func(t *testing.T) {
+		t.Parallel()
+
+		var cli OneOfGroupCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"--json", "--"}, spec.CompleteOptions{})
+
+		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
+
+		assert.Equal(t, []string{"--port", "--help", "--version", "--why", "--completion"}, values)
+	})
+}
+
+func TestCompletion_GroupsScopedPerCommand(t *testing.T) {
+	t.Parallel()
+
+	var cli ScopedGroupCLI
+
+	cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+	assert.NoError(t, err)
+
+	t.Run("root member leaves leaf group candidates visible", func(t *testing.T) {
+		t.Parallel()
+
+		invoked := spec.Complete(cmdSpec, []string{"--root-json", "sub", "--"}, spec.CompleteOptions{})
+		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
+
+		assert.True(t, slices.Contains(values, "--json"))
+		assert.True(t, slices.Contains(values, "--yaml"))
+		assert.False(t, slices.Contains(values, "--root-yaml"))
+	})
+
+	t.Run("leaf member leaves root group candidates visible", func(t *testing.T) {
+		t.Parallel()
+
+		invoked := spec.Complete(cmdSpec, []string{"sub", "--json", "--"}, spec.CompleteOptions{})
+		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
+
+		assert.True(t, slices.Contains(values, "--root-json"))
+		assert.True(t, slices.Contains(values, "--root-yaml"))
+		assert.False(t, slices.Contains(values, "--yaml"))
 	})
 }
 

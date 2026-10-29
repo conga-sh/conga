@@ -32,7 +32,7 @@ stdout 'Broadcast: channel=email message="Database failover" urgent=true extra_r
 # 6. Help screen shows positional argument names and enum
 exec notify --help
 stdout 'Usage:'
-stdout 'notify <channel> \[message\] \[recipients\.\.\.\] \[flags\.\.\.\]'
+stdout 'notify \[flags\] <channel> \[message\] \[recipients\.\.\.\]'
 stdout '<channel>\s+Target channel \[enum: slack, email, sms, webhook\]'
 stdout '\[message\]\s+Broadcast message payload'
 stdout '\[recipients\.\.\.\]\s+Additional recipient tags or handles'

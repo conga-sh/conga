@@ -293,12 +293,18 @@ type Flag struct {
 	EnvVars     []string
 	EnvExcluded bool
 	ConfigKey   string
-	XorGroup    string
-	AndGroup    string
-	Enum        []string
-	Range       *Range
-	Len         *Range
-	Items       *Range
+	// XorGroup names an optional mutually-exclusive group: at most one member
+	// may be supplied. Declared through xor:"group"; rejected on required flags.
+	XorGroup string
+	// AndGroup names a co-occurrence group: members must be supplied together.
+	AndGroup string
+	// OneOfGroup names an exactly-one group: exactly one member must be
+	// supplied. Declared through oneof:"group"; rejected on required flags.
+	OneOfGroup string
+	Enum       []string
+	Range      *Range
+	Len        *Range
+	Items      *Range
 	// FieldTags holds the custom tag values declared on the flag that were
 	// registered by its domain type (see spec.TagSpecProvider). Nil when the
 	// flag's type registers no tags or declares none.

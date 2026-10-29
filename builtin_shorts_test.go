@@ -94,7 +94,7 @@ func TestBuiltinShort_Parsing(t *testing.T) {
 		err := app.Run()
 
 		assert.NoError(t, err)
-		assert.Contains(t, buffer.String(), "Usage:\n  golden deploy --reason=STRING <target> [flags...]")
+		assert.Contains(t, buffer.String(), "Usage:\n  golden deploy --reason=STRING [flags] <target>")
 	})
 
 	t.Run("short version flag prints the version summary", func(t *testing.T) {

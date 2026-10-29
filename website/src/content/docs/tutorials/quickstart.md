@@ -124,7 +124,7 @@ go run . --help
 A greeting command
 
 Usage:
-  hello [flags...]
+  hello [flags]
 
 Flags:
   -n, --name="World"  Name of the person to greet

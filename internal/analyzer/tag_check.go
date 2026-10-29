@@ -384,7 +384,7 @@ func (w *walker) checkCascadingArity() {
 // checkFlagField validates a flag field: the shared facade, the
 // flag-specific value tags, the domain-type field tags, and the ancestor
 // shadow contract.
-func (w *walker) checkFlagField(node *commandNode, fieldObject types.Object, tag reflect.StructTag, branchNames map[string]string, branchShorts map[rune]string) {
+func (w *walker) checkFlagField(node *commandNode, fieldObject types.Object, tag reflect.StructTag, branchNames map[string]string, branchShorts map[rune]string, branchGroups map[groupPair]string) {
 	targetType := w.flagTargetType(fieldObject)
 	tagSpecs := w.congaFieldTagSpecs(targetType)
 
@@ -392,9 +392,38 @@ func (w *walker) checkFlagField(node *commandNode, fieldObject types.Object, tag
 		return
 	}
 
-	if w.congaWrapperName(fieldObject.Type()) == "Counter" {
+	wrapperName := w.congaWrapperName(fieldObject.Type())
+
+	if wrapperName == "Counter" {
 		w.reportFieldError(node, fieldObject, spec.ValidateCounterDefaultTag(tag))
 	}
+
+	_, hasDefault := tag.Lookup("default")
+	_, hasDeprecated := tag.Lookup("deprecated")
+	_, hasXor := tag.Lookup("xor")
+	_, hasOneOf := tag.Lookup("oneof")
+
+	flagName := cmp.Or(tag.Get("name"), casing.Kebab(fieldObject.Name()))
+
+	if wrapperName == "RequiredFlag" {
+		switch {
+		case hasDeprecated:
+			w.reportFieldError(node, fieldObject, spec.DeprecatedOnRequiredFlagError())
+		case hasDefault:
+			w.reportFieldError(node, fieldObject, spec.DefaultOnRequiredFlagError())
+		case hasXor:
+			w.reportFieldError(node, fieldObject, spec.GroupTagOnRequiredFlagError("xor"))
+		case hasOneOf:
+			w.reportFieldError(node, fieldObject, spec.GroupTagOnRequiredFlagError("oneof"))
+		}
+	} else if hasOneOf && hasDefault {
+		w.reportFieldError(node, fieldObject, spec.DefaultOnOneOfFlagError())
+	}
+
+	// A flag that shares both its oneof group and its and group with another
+	// member can never be supplied: selecting it forces the other member, which
+	// then violates the exactly-one rule.
+	w.checkOneOfAndOverlap(node, fieldObject, tag, flagName, wrapperName == "RequiredFlag", branchGroups)
 
 	// Feature-tag syntax is validated before the required-flag guard, mirroring
 	// the runtime parse order: an invalid expression reports its syntax error
@@ -408,7 +437,7 @@ func (w *walker) checkFlagField(node *commandNode, fieldObject types.Object, tag
 			syntaxErr := spec.ValidateFeatureExpression(featureExpr)
 			w.reportFieldError(node, fieldObject, syntaxErr)
 
-			if syntaxErr == nil && w.congaWrapperName(fieldObject.Type()) == "RequiredFlag" {
+			if syntaxErr == nil && wrapperName == "RequiredFlag" {
 				w.reportFieldError(node, fieldObject, spec.FeatureOnRequiredFlagError())
 			}
 		}
@@ -424,10 +453,39 @@ func (w *walker) checkFlagField(node *commandNode, fieldObject types.Object, tag
 
 	w.reportFieldError(node, fieldObject, strictBoolTagError(tag))
 
-	flagName := cmp.Or(tag.Get("name"), casing.Kebab(fieldObject.Name()))
-
 	w.checkAndCollectFlag(node, fieldObject, tag, flagName, branchNames, branchShorts)
 	w.recordFlagEnvOwners(node, tag, flagName, false)
+}
+
+// checkOneOfAndOverlap rejects a flag that shares both its oneof group and its
+// and group with another member of the same exactly-one group: selecting either
+// member forces the other, which then violates the exactly-one rule. Flags that
+// already failed a schema guard above are never built at runtime, so they are
+// not paired here.
+func (w *walker) checkOneOfAndOverlap(node *commandNode, fieldObject types.Object, tag reflect.StructTag, flagName string, required bool, branchGroups map[groupPair]string) {
+	if required {
+		return
+	}
+
+	oneOfGroup := tag.Get("oneof")
+	andGroup := tag.Get("and")
+
+	if oneOfGroup == "" || andGroup == "" {
+		return
+	}
+
+	if _, hasDefault := tag.Lookup("default"); hasDefault {
+		return
+	}
+
+	pair := groupPair{oneOf: oneOfGroup, and: andGroup}
+	if firstFlag, ok := branchGroups[pair]; ok {
+		w.reportFieldError(node, fieldObject, spec.OneOfAndOverlapError(oneOfGroup, andGroup, firstFlag, flagName))
+
+		return
+	}
+
+	branchGroups[pair] = flagName
 }
 
 // checkArgField validates a positional argument field.

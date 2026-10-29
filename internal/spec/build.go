@@ -70,6 +70,10 @@ func Build(target any, defaultName string, opts Options) (*Command, error) {
 		return nil, err
 	}
 
+	if err := validateFlagGroupOverlaps(cmd); err != nil {
+		return nil, err
+	}
+
 	if err := validateBuiltinShortUniqueness(cmd); err != nil {
 		return nil, err
 	}
@@ -486,12 +490,30 @@ func (b *schemaBuilder) processFlag(structField reflect.StructField, flagHandle 
 	}
 
 	if classification.Required && hasTag(structField.Tag, "deprecated") {
-		return fmt.Errorf("%w: tag \"deprecated\" cannot be used on required flags (make the flag optional before deprecating it so callers can migrate without error)", ErrInvalidStructTag)
+		return DeprecatedOnRequiredFlagError()
+	}
+
+	if classification.Required && hasTag(structField.Tag, "default") {
+		return DefaultOnRequiredFlagError()
+	}
+
+	if classification.Required {
+		if hasTag(structField.Tag, "xor") {
+			return GroupTagOnRequiredFlagError("xor")
+		}
+
+		if hasTag(structField.Tag, "oneof") {
+			return GroupTagOnRequiredFlagError("oneof")
+		}
 	}
 
 	flagSpec, err := parseFlagSpec(structField, flagHandle, classification, fieldTags, &b.opts)
 	if err != nil {
 		return err
+	}
+
+	if flagSpec.OneOfGroup != "" && hasTag(structField.Tag, "default") {
+		return DefaultOnOneOfFlagError()
 	}
 
 	flagSpec.FieldTags = fieldTags
@@ -968,6 +990,41 @@ func validateAncestorFlagUniqueness(root *Command) error {
 		addCommandFlags(root, ancestorFlags, ancestorShorts)
 
 		if err := checkDescendantFlags(subcommand, ancestorFlags, ancestorShorts); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// validateFlagGroupOverlaps rejects two members of the same oneof group that
+// also share an and group: selecting either member forces the other, which the
+// exactly-one rule then rejects, so neither flag can ever be supplied. Legitimate
+// combinations (an and group shared with non-members) stay valid. Groups are
+// scoped per command, so each command is checked independently.
+func validateFlagGroupOverlaps(cmd *Command) error {
+	type groupPair struct {
+		oneOf string
+		and   string
+	}
+
+	firstFlagByPair := make(map[groupPair]string)
+
+	for _, flagSpec := range cmd.Flags {
+		if flagSpec.OneOfGroup == "" || flagSpec.AndGroup == "" {
+			continue
+		}
+
+		pair := groupPair{oneOf: flagSpec.OneOfGroup, and: flagSpec.AndGroup}
+		if firstFlag, ok := firstFlagByPair[pair]; ok {
+			return fmt.Errorf("command %q: %w", cmd.Name, OneOfAndOverlapError(flagSpec.OneOfGroup, flagSpec.AndGroup, firstFlag, flagSpec.Name))
+		}
+
+		firstFlagByPair[pair] = flagSpec.Name
+	}
+
+	for _, subcommand := range cmd.Subcommands {
+		if err := validateFlagGroupOverlaps(subcommand); err != nil {
 			return err
 		}
 	}

@@ -155,5 +155,5 @@ func (g *GuideCmd) Run(ctx context.Context, session *conga.Session) error {
 ```
 
 - `session.Help()` returns the complete help screen string.
-- `session.Usage()` returns the one-line syntax usage summary (for example, `"cloudctl deploy [flags...]"`).
+- `session.Usage()` returns the one-line syntax usage summary (for example, `"cloudctl deploy [flags]"`).
 - Both accessors return strings without writing to streams, giving commands full control over formatting, paging, or stream routing.

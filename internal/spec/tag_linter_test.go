@@ -29,6 +29,14 @@ type ContextInvalidCommandXorCLI struct {
 	Subcommand mockCmd[LeafTestCmd] `summary:"Subcommand" xor:"group1"`
 }
 
+type ContextInvalidCommandOneOfCLI struct {
+	Subcommand mockCmd[LeafTestCmd] `oneof:"group1" summary:"Subcommand"`
+}
+
+type ContextInvalidConfigFileOneOfCLI struct {
+	Config mockConfigFile `name:"config" oneof:"group1"`
+}
+
 type LeafTestCmd struct {
 	Data mockFlag[string] `help:"Data payload"`
 }
@@ -206,6 +214,32 @@ func TestStrictTagLinter_ContextValidation(t *testing.T) {
 		assert.IsError(t, err, spec.ErrSchema)
 		assert.IsError(t, err, spec.ErrInvalidStructTag)
 		assert.Equal(t, `struct ContextInvalidCommandXorCLI field Subcommand: schema error: invalid struct tag: tag "xor" is invalid on subcommand (tag "xor" is only valid on flags)`, err.Error())
+	})
+
+	t.Run("oneof tag on subcommand errors", func(t *testing.T) {
+		t.Parallel()
+
+		var cli ContextInvalidCommandOneOfCLI
+
+		_, err := buildSchema(&cli, "app", spec.Options{})
+
+		assert.Error(t, err)
+		assert.IsError(t, err, spec.ErrSchema)
+		assert.IsError(t, err, spec.ErrInvalidStructTag)
+		assert.Equal(t, `struct ContextInvalidCommandOneOfCLI field Subcommand: schema error: invalid struct tag: tag "oneof" is invalid on subcommand (tag "oneof" is only valid on flags)`, err.Error())
+	})
+
+	t.Run("oneof tag on config file flag errors", func(t *testing.T) {
+		t.Parallel()
+
+		var cli ContextInvalidConfigFileOneOfCLI
+
+		_, err := buildSchema(&cli, "app", spec.Options{})
+
+		assert.Error(t, err)
+		assert.IsError(t, err, spec.ErrSchema)
+		assert.IsError(t, err, spec.ErrInvalidStructTag)
+		assert.Equal(t, `struct ContextInvalidConfigFileOneOfCLI field Config: schema error: invalid struct tag: tag "oneof" is invalid on config file flag (tag "oneof" is only valid on flags)`, err.Error())
 	})
 
 	t.Run("negatable tag on non-bool flag errors", func(t *testing.T) {

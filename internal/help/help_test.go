@@ -271,7 +271,7 @@ func TestHelpFormatting_Basic(t *testing.T) {
 
 	formatted := help.Format([]*spec.Command{cmd})
 	assert.Contains(t, formatted, "A test CLI application")
-	assert.Contains(t, formatted, "Usage:\n  testapp <target> [flags...]")
+	assert.Contains(t, formatted, "Usage:\n  testapp [flags] <target>")
 	assert.Contains(t, formatted, "-v, --verbose")
 	assert.Contains(t, formatted, "-p, --port=PORT")
 	assert.Contains(t, formatted, "[default: 8080]")
@@ -319,7 +319,7 @@ func TestFormat_RequiredFlagsInUsageLine(t *testing.T) {
 
 	formatted := help.Format([]*spec.Command{cmd})
 
-	assert.Contains(t, formatted, "Usage:\n  deploy --target=STRING --profile=\"dev\" <name> [flags...]")
+	assert.Contains(t, formatted, "Usage:\n  deploy --target=STRING --profile=\"dev\" [flags] <name>")
 	assert.Contains(t, formatted, "--target=STRING")
 	assert.Contains(t, formatted, "Deploy target")
 	assert.Contains(t, formatted, "--profile=\"dev\"")
@@ -661,7 +661,7 @@ func TestUsage_And_Hint(t *testing.T) {
 	}
 
 	usage := help.Usage([]*spec.Command{cmd})
-	assert.Equal(t, "Usage:\n  mycmd <command> [flags...]", usage)
+	assert.Equal(t, "Usage:\n  mycmd <command> [flags]", usage)
 	assert.Equal(t, "Run 'mycmd --help' for more information.", help.Hint([]*spec.Command{cmd}))
 }
 
@@ -735,7 +735,7 @@ func TestUsage_OptionalGlobalFlagsAppendFlagsPlaceholder(t *testing.T) {
 
 	usage := help.Usage([]*spec.Command{root, root.Subcommands[0]})
 
-	assert.Equal(t, "Usage:\n  behave-conga build --profile=\"dev\" <artifact> [flags...]", usage)
+	assert.Equal(t, "Usage:\n  behave-conga build --profile=\"dev\" [flags] <artifact>", usage)
 }
 
 func TestUsage_MixedGlobalFlagsRenderRequiredAndPlaceholder(t *testing.T) {
@@ -754,7 +754,7 @@ func TestUsage_MixedGlobalFlagsRenderRequiredAndPlaceholder(t *testing.T) {
 
 	usage := help.Usage([]*spec.Command{root, root.Subcommands[0]})
 
-	assert.Equal(t, "Usage:\n  app build --api-key=STRING [flags...]", usage)
+	assert.Equal(t, "Usage:\n  app build --api-key=STRING [flags]", usage)
 }
 
 func TestUsage_RequiredFlagsOnly_OmitsFlagsPlaceholder(t *testing.T) {
