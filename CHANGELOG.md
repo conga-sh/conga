@@ -6,6 +6,26 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 While CONGA is pre-1.0, breaking changes increment the minor version.
 
+## [0.4.0](https://github.com/conga-sh/conga/compare/v0.3.0...v0.4.0) (2026-10-30)
+
+
+### ⚠ BREAKING CHANGES
+
+* `default` and `xor` tags on `RequiredFlag` are now schema errors. Use `oneof` groups with optional flags instead.
+* **api:** WhyJSON() is now WhyOptionJSON() and RegisterTypeOption is now RegistrationOption; update callers, signatures, and docs accordingly.
+* **completion:** CONGA_COMPLETION_ALIASES and CONGA_COMPLETION_DESCRIPTIONS are replaced by the application-prefixed variants; update shell configuration accordingly.
+
+### ✨ Features
+
+* **completion:** app-prefixed sideband environment variables ([#82](https://github.com/conga-sh/conga/issues/82)) ([4b57717](https://github.com/conga-sh/conga/commit/4b57717c5bf2d9e63307a0ad19b810c6d17f3dd6)), closes [#81](https://github.com/conga-sh/conga/issues/81)
+* **completion:** suppress bare-space flags uniformly across shells ([#86](https://github.com/conga-sh/conga/issues/86)) ([bcd58b5](https://github.com/conga-sh/conga/commit/bcd58b531b3db74d364dbacb092cdcb520b83cf4))
+* help wrapping, configurable built-in shorts, oneof groups, and directive removal ([#88](https://github.com/conga-sh/conga/issues/88)) ([81e2ad6](https://github.com/conga-sh/conga/commit/81e2ad6e24f5f58d9daf4d616d659aeab5adf7e6))
+
+
+### ♻️ Code Refactoring
+
+* **api:** rename WhyJSON and RegisterTypeOption ([#84](https://github.com/conga-sh/conga/issues/84)) ([c6122f0](https://github.com/conga-sh/conga/commit/c6122f0d62dbcbe291dd22a668de358594cd2c5b))
+
 ## [0.3.0](https://github.com/conga-sh/conga/compare/v0.2.0...v0.3.0) (2026-10-26)
 
 
