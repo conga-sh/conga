@@ -6,7 +6,8 @@ Flags:
       --repo=STRING       Repository path
   -q, --quiet             Suppress output
   -c, --color             Colorize output
-      --why               Show resolved field values and where they came from (values redacted unless tagged safe)
+      --why               Show resolved field values and where they came from (values redacted
+                          unless tagged safe)
       --completion=SHELL  Generate shell completion script
       --help              Show help
       --version           Show version

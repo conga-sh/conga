@@ -30,6 +30,7 @@ import (
 	"github.com/conga-sh/conga/internal/sentinel"
 	"github.com/conga-sh/conga/internal/slicex"
 	"github.com/conga-sh/conga/internal/spec"
+	"github.com/conga-sh/conga/internal/termwidth"
 	"github.com/conga-sh/conga/internal/tokenizer"
 	"github.com/conga-sh/conga/predict"
 )
@@ -211,8 +212,8 @@ func (a *App[T]) Deprecated(reason string) *App[T] {
 //
 // The version renders when the user passes the built-in --version flag, when
 // running a mounted [VersionCommand], or when calling [Session.Version]. The
-// --version flag prefers the invoked binary's name over the configured
-// application name.
+// name shown is the configured application name, falling back to the invoked
+// binary name when no name was configured with [App.Name].
 //
 // When omitted, CONGA falls back to the Go module version recorded in the
 // binary, or "dev" when the module version is unavailable. An embedded VCS
@@ -425,6 +426,34 @@ func (a *App[T]) DisableHelpFlag() *App[T] {
 // See https://docs.conga.sh/reference/builtins/.
 func (a *App[T]) DisableVersionFlag() *App[T] {
 	a.versionDisabled = true
+
+	return a
+}
+
+// HelpShortFlag assigns a short rune to the built-in --help flag, so it renders
+// and parses as e.g. "-h, --help". It is opt-in because a short rune can
+// collide with an application flag; a collision is rejected at schema build
+// with [ErrDuplicateFlag]. The zero value keeps --help long-only, and the rune
+// stays inert when [App.DisableHelpFlag] disables the built-in, leaving the
+// "help" name and the rune free for your own flags.
+//
+// See https://docs.conga.sh/reference/builtins/.
+func (a *App[T]) HelpShortFlag(short rune) *App[T] {
+	a.helpShort = short
+
+	return a
+}
+
+// VersionShortFlag assigns a short rune to the built-in --version flag, so it
+// renders and parses as e.g. "-V, --version". It is opt-in because a short rune
+// can collide with an application flag; a collision is rejected at schema build
+// with [ErrDuplicateFlag]. The zero value keeps --version long-only, and the
+// rune stays inert when [App.DisableVersionFlag] disables the built-in, leaving
+// the "version" name and the rune free for your own flags.
+//
+// See https://docs.conga.sh/reference/builtins/.
+func (a *App[T]) VersionShortFlag(short rune) *App[T] {
+	a.versionShort = short
 
 	return a
 }
@@ -654,6 +683,8 @@ func (a *App[T]) RunContext(ctx context.Context) error {
 
 	a.initDefaults()
 
+	a.resolveHelpWidth()
+
 	if a.handleCompletionInvocation != nil && a.isCompletionInvocation() {
 		return a.handleCompletionInvocation(a)
 	}
@@ -840,6 +871,8 @@ func (a *App[T]) ExitFunc(exitHandler func(code int)) *App[T] {
 func (a *App[T]) Exit(err error) {
 	a.applyDefaults()
 
+	a.resolveHelpWidth()
+
 	if err == nil {
 		a.exit(0)
 
@@ -854,9 +887,6 @@ func (a *App[T]) Exit(err error) {
 	}
 
 	name := cond.SetOrDefaultFunc(a.name, getAppName)
-	if invoked, ok := appname.Binary(); ok {
-		name = invoked
-	}
 
 	if IsUsageError(err) {
 		a.handleUsageFatal(a.stderr, err, name)
@@ -1002,6 +1032,8 @@ type appConfig[T any] struct {
 	typeRegistry       map[reflect.Type]typeRegistration
 	helpDisabled       bool
 	versionDisabled    bool
+	helpShort          rune
+	versionShort       rune
 	helpOptions        help.Options
 	completionShells   []string
 	completionSettings completionSettings
@@ -1343,6 +1375,20 @@ func (a *App[T]) initDefaults() {
 	}
 }
 
+// resolveHelpWidth pins the help wrap width for the active run: a COLUMNS
+// override wins, otherwise the configured stdout is probed when it is a
+// terminal, otherwise the engine default width applies. Resolving once per
+// entry point keeps every screen — help, usage-on-error, completion — on the
+// same width.
+func (a *App[T]) resolveHelpWidth() {
+	var stdoutFile *os.File
+	if file, ok := a.stdout.(*os.File); ok {
+		stdoutFile = file
+	}
+
+	a.helpOptions.Width = termwidth.Resolve(stdoutFile)
+}
+
 func (a *App[T]) initDefaultPredictors() {
 	if _, ok := a.predictors["shell"]; !ok {
 		items := slicex.Map(completion.ShellDescriptions(), func(info completion.ShellInfo) predict.Item {
@@ -1415,6 +1461,8 @@ func (a *App[T]) buildSpec() (*spec.Command, error) {
 		ConfigCapable:             a.configEngine != nil,
 		DisableHelp:               a.helpDisabled,
 		DisableVersion:            a.versionDisabled,
+		HelpShort:                 a.helpShort,
+		VersionShort:              a.versionShort,
 		DisableWhy:                a.whyHooks == nil,
 		WhyJSONEnabled:            a.whyHooks != nil && a.whyHooks.jsonFormatter != nil,
 		DisableCompletion:         a.mountCompletion == nil,
@@ -1802,13 +1850,11 @@ func (a *App[T]) handleCompletionBuiltin(session *Session, request builtinReques
 	return false, nil
 }
 
-// renderVersionBuiltin prints the version summary to stdout, preferring the
-// invoked binary name over the configured application name.
+// renderVersionBuiltin prints the version summary to stdout under the
+// configured application name, falling back to the invoked binary name when no
+// name was configured.
 func (a *App[T]) renderVersionBuiltin() {
 	appName := cond.SetOrDefaultFunc(a.name, getAppName)
-	if invoked, ok := appname.Binary(); ok {
-		appName = invoked
-	}
 
 	fmt.Fprintln(a.stdout, help.VersionSummary(appName, a.version))
 }
@@ -2133,8 +2179,8 @@ func (a *App[T]) installCompletionHooks() {
 	a.completionHelp = (*App[T]).renderCompletionHelp
 	a.renderCompletionScript = (*App[T]).renderCompletionScriptBuiltin
 	a.helpOptions.CompletionInstructions = help.RenderCompletionInstructions
-	a.helpOptions.CompletionFooter = func(cmdChain []*spec.Command, useFlag bool) string {
-		return help.RenderCompletionFooter(cmdChain, useFlag, completion.DetectCurrentShell)
+	a.helpOptions.CompletionFooter = func(cmdChain []*spec.Command, useFlag bool, width int) string {
+		return help.RenderCompletionFooter(cmdChain, useFlag, completion.DetectCurrentShell, width)
 	}
 }
 

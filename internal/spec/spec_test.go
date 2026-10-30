@@ -581,6 +581,62 @@ func TestFindFlagInChain(t *testing.T) {
 		assert.Equal(t, "global", spec.FindShortFlagInChain(chain, 'g').Name)
 	})
 
+	t.Run("user short wins over the built-in rune", func(t *testing.T) {
+		t.Parallel()
+
+		conflicting := []*spec.Command{
+			{Name: "root", HelpShort: 'h', Flags: []*spec.Flag{{Name: "host", Short: 'h'}}},
+		}
+
+		assert.Equal(t, "host", spec.FindShortFlagInChain(conflicting, 'h').Name)
+	})
+
+	t.Run("synthesizes the help short from the root", func(t *testing.T) {
+		t.Parallel()
+
+		helpShortChain := []*spec.Command{{Name: "root", HelpShort: 'h'}}
+
+		assert.Equal(t, spec.BuiltinHelpFlag, spec.FindShortFlagInChain(helpShortChain, 'h'))
+	})
+
+	t.Run("leaf-disabled help is not synthesized by short", func(t *testing.T) {
+		t.Parallel()
+
+		disabledLeaf := []*spec.Command{{Name: "root", HelpShort: 'h'}, {Name: "sub", DisableHelp: true}}
+
+		assert.Zero(t, spec.FindShortFlagInChain(disabledLeaf, 'h'))
+	})
+
+	t.Run("synthesizes the version short on the root chain", func(t *testing.T) {
+		t.Parallel()
+
+		versionShortChain := []*spec.Command{{Name: "root", VersionShort: 'V'}}
+
+		assert.Equal(t, spec.BuiltinVersionFlag, spec.FindShortFlagInChain(versionShortChain, 'V'))
+	})
+
+	t.Run("does not synthesize the version short on subcommands", func(t *testing.T) {
+		t.Parallel()
+
+		subcommandChain := []*spec.Command{{Name: "root", VersionShort: 'V'}, {Name: "sub"}}
+
+		assert.Zero(t, spec.FindShortFlagInChain(subcommandChain, 'V'))
+	})
+
+	t.Run("zero rune does not synthesize an unassigned built-in rune", func(t *testing.T) {
+		t.Parallel()
+
+		unassignedChain := []*spec.Command{{Name: "root"}}
+
+		assert.Zero(t, spec.FindShortFlagInChain(unassignedChain, 0))
+	})
+
+	t.Run("empty chain stays unresolved", func(t *testing.T) {
+		t.Parallel()
+
+		assert.Zero(t, spec.FindShortFlagInChain(nil, 'g'))
+	})
+
 	t.Run("synthesizes help flag when not declared", func(t *testing.T) {
 		t.Parallel()
 
@@ -1006,38 +1062,6 @@ func TestSubcommand_SummaryTag(t *testing.T) {
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrInvalidStructTag)
 		assert.Equal(t, "struct RootCLI field Help: schema error: invalid struct tag: tag 'help' is not supported on built-in command fields; use 'summary' for the 1-line synopsis", err.Error())
-	})
-
-	t.Run("subcommand with conga ignore permits help tag", func(t *testing.T) {
-		t.Parallel()
-
-		type SubCmd struct{}
-
-		type RootCLI struct {
-			Deploy mockCmd[SubCmd] `conga:"ignore" help:"Deploy service"`
-		}
-
-		var cli RootCLI
-
-		cmd, err := buildSchema(&cli, "app", spec.Options{})
-
-		assert.NoError(t, err)
-		assert.Zero(t, cmd.Subcommands)
-	})
-
-	t.Run("builtin command with conga ignore permits help tag", func(t *testing.T) {
-		t.Parallel()
-
-		type RootCLI struct {
-			Help mockHelpCmd `conga:"ignore" help:"Help text"`
-		}
-
-		var cli RootCLI
-
-		cmd, err := buildSchema(&cli, "app", spec.Options{})
-
-		assert.NoError(t, err)
-		assert.Zero(t, cmd.Subcommands)
 	})
 }
 
@@ -1972,43 +1996,6 @@ func TestFeaturesContainer_DuplicateDeclaration_EmptyInnerStruct(t *testing.T) {
 	assert.Error(t, err)
 	assert.IsError(t, err, spec.ErrDuplicateFlag)
 	assert.Equal(t, "struct featureDuplicateCLI field Second: schema error: duplicate flag: Features (already declared by gates-a)", err.Error())
-}
-
-type featureIgnoredDuplicateCLI struct {
-	First  mockFeatures[struct{}]   `flag:"gates-a"`
-	Second mockFeatures[featureSet] `conga:"-"`
-}
-
-func TestFeaturesContainer_IgnoredSecondDeclaration(t *testing.T) {
-	t.Parallel()
-
-	var cli featureIgnoredDuplicateCLI
-
-	cmd, err := buildSchema(&cli, "app", spec.Options{})
-
-	assert.NoError(t, err)
-	assert.NotZero(t, cmd.FeatureFlag)
-	assert.Equal(t, "gates-a", cmd.FeatureFlag.Name)
-}
-
-type featureIgnoredNonRootSub struct {
-	Features mockFeatures[featureSet] `conga:"-"`
-}
-
-type featureIgnoredNonRootCLI struct {
-	Sub mockCmd[featureIgnoredNonRootSub]
-}
-
-func TestFeaturesContainer_IgnoredOnNonRoot(t *testing.T) {
-	t.Parallel()
-
-	var cli featureIgnoredNonRootCLI
-
-	cmd, err := buildSchema(&cli, "app", spec.Options{})
-
-	assert.NoError(t, err)
-	assert.Zero(t, cmd.FeatureFlag)
-	assert.NotZero(t, cmd.FindSubcommand("sub"))
 }
 
 type featureNoCLINameAfterCLI struct {

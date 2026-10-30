@@ -11,7 +11,7 @@
 --env-vars	Environment key=value pairs
 --shards	Shard counts, semicolon-separated
 --features	Comma-separated feature flags
---help	Show help for command
+--help	Show help
 --why	Show resolved field values and where they came from (values redacted unless t...
 -v	Enable verbose output
 -p	Cloud profile

@@ -75,3 +75,18 @@ stdout 'infomgr has version 2\.4\.1'
 # 10. Invalid --json value is a usage error
 exit-status 2 infomgr version --json=banana
 stderr 'invalid boolean value "banana"'
+
+# 11. Configured built-in short flags (app.HelpShortFlag/app.VersionShortFlag)
+exec infomgr -h
+stdout 'Usage:'
+stdout 'infomgr <command>'
+stdout '-h, --help'
+stdout '-V, --version'
+
+exec infomgr -V
+stdout 'infomgr has version 2\.4\.1 built with go'
+
+exec infomgr status -h
+stdout 'Usage:'
+stdout 'infomgr status \[flags\]'
+stdout '-h, --help'

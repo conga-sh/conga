@@ -1,6 +1,6 @@
 # TestScript for 99-kitchen-sink
 # Asserts the exhaustive type matrix, configuration-mapping patterns,
-# schema directives, feature gates, and environment binding across all four
+# feature gates, and environment binding across all four
 # decoder formats. The configs/ directory is the single fixture source
 # (documentation for manual runs, copied in here).
 
@@ -132,7 +132,6 @@ stdout 'Commands:'
 stdout 'types\s+Type system matrix \(primitives, filesystem, value types\)'
 stdout 'config\s+Configuration mapping patterns'
 stdout 'advanced\s+Required flags, arguments, trailing args, provenance'
-! stdout 'internal'
 ! stdout 'session-id'
 
 # 12. --why attributes values to their winning tier, redacts the API secret

@@ -99,6 +99,10 @@ func newTokenParser(cmdChain []*spec.Command, tokens []tokenizer.Token, index *f
 		index.long["help"] = spec.BuiltinHelpFlag
 	}
 
+	if index.long["help"] == spec.BuiltinHelpFlag {
+		registerBuiltinShort(index, cmdChain[0].HelpShort, spec.BuiltinHelpFlag)
+	}
+
 	isRoot := len(cmdChain) == 1
 
 	// The built-in --version flag only exists on the root command. Version
@@ -107,6 +111,10 @@ func newTokenParser(cmdChain []*spec.Command, tokens []tokenizer.Token, index *f
 	// click, etc.) and force each help screen to repeat it.
 	if _, hasVersion := index.long["version"]; !hasVersion && leaf.VersionFlagVisible(isRoot) {
 		index.long["version"] = spec.BuiltinVersionFlag
+	}
+
+	if index.long["version"] == spec.BuiltinVersionFlag {
+		registerBuiltinShort(index, cmdChain[0].VersionShort, spec.BuiltinVersionFlag)
 	}
 
 	// The built-in --why flag is available on every command, like --help: the
@@ -667,6 +675,22 @@ func (tier mapTierInput) foldRegistered(flagSpec *spec.Flag, cmdChain []*spec.Co
 	return foldRegisteredMapTier(tier.values, tier.source, tier.name, configdata.Value{Origin: tier.envOrigin()}, flagSpec, cmdChain, state, merged, provenance, origins, result)
 }
 
+// registerBuiltinShort maps a configured built-in short rune onto its shared
+// built-in flag so -h/-V parse without a per-app flag copy. A rune already
+// claimed by a user flag is left untouched: schema build rejects that collision
+// first, so this only guards a user-declared shadow from being shadowed back.
+func registerBuiltinShort(index *flagIndex, short rune, flagSpec *spec.Flag) {
+	if short == 0 {
+		return
+	}
+
+	if _, taken := index.short[short]; taken {
+		return
+	}
+
+	index.short[short] = flagSpec
+}
+
 func bindSpecialArgs(leaf *spec.Command, dashArgs, rawTokens []string) {
 	if leaf.DashArgs != nil && dashArgs != nil {
 		argsStateOf(leaf.DashArgs.Handle).setArgs(dashArgs)
@@ -1117,6 +1141,83 @@ func resolveRequiredFlags(cmdChain []*spec.Command) error {
 	return nil
 }
 
+// resolveOneOfGroups enforces exactly-one groups: every oneof group on the
+// command chain must have at least one explicitly supplied member. The check
+// shares required-flag enforcement's skip switch (notably --why), while the
+// more-than-one conflict remains in validateFlagConstraints.
+func resolveOneOfGroups(cmdChain []*spec.Command) error {
+	leaf := cmdChain[len(cmdChain)-1]
+	if isMetaCommand(leaf) {
+		return nil
+	}
+
+	for _, cmd := range cmdChain {
+		groups, groupOrder := oneOfGroupsByDeclaration(cmd)
+
+		for _, group := range groupOrder {
+			members := groups[group]
+			supplied := false
+
+			for _, member := range members {
+				if flagStateOf(member.Handle).Changed() {
+					supplied = true
+
+					break
+				}
+			}
+
+			if !supplied {
+				return missingOneOfError(cmdChain, members)
+			}
+		}
+	}
+
+	return nil
+}
+
+// oneOfGroupsByDeclaration collects the oneof groups declared on cmd, keyed by
+// group name and ordered by first declaration. Built-in flags carry no
+// container and cannot belong to a user-declared group, so nil handles are
+// skipped.
+func oneOfGroupsByDeclaration(cmd *spec.Command) (map[string][]*spec.Flag, []string) {
+	groups := make(map[string][]*spec.Flag, len(cmd.Flags))
+	groupOrder := make([]string, 0, len(cmd.Flags))
+
+	for _, flagSpec := range cmd.Flags {
+		if flagSpec.OneOfGroup == "" || flagSpec.Handle == nil {
+			continue
+		}
+
+		if _, ok := groups[flagSpec.OneOfGroup]; !ok {
+			groupOrder = append(groupOrder, flagSpec.OneOfGroup)
+		}
+
+		groups[flagSpec.OneOfGroup] = append(groups[flagSpec.OneOfGroup], flagSpec)
+	}
+
+	return groups, groupOrder
+}
+
+// missingOneOfError builds the usage error for an exactly-one group with no
+// supplied member.
+func missingOneOfError(cmdChain []*spec.Command, members []*spec.Flag) error {
+	names := make([]string, 0, len(members))
+	for _, member := range members {
+		names = append(names, "--"+member.Name)
+	}
+
+	msg := "missing required flag: " + names[0]
+	if len(names) > 1 {
+		msg = "missing required flag: one of " + strings.Join(names, ", ")
+	}
+
+	return &validationError{
+		msg:      msg,
+		cmdChain: cmdChain,
+		cause:    errMissingFlag,
+	}
+}
+
 func resolveFlags(cmdChain []*spec.Command, cliValues map[*spec.Flag][]string, state *bindingState) error {
 	for _, cmd := range cmdChain {
 		for _, flagSpec := range cmd.Flags {
@@ -1137,7 +1238,11 @@ func resolveFlags(cmdChain []*spec.Command, cliValues map[*spec.Flag][]string, s
 		return nil
 	}
 
-	return resolveRequiredFlags(cmdChain)
+	if err := resolveRequiredFlags(cmdChain); err != nil {
+		return err
+	}
+
+	return resolveOneOfGroups(cmdChain)
 }
 
 // scanBuiltinRequest inspects the raw CLI flag values for builtin flag requests.
@@ -1423,7 +1528,15 @@ func validateMapValue(cmdChain []*spec.Command, descriptor string, items *spec.R
 }
 
 func validateXorGroups(cmdChain []*spec.Command, xorGroups map[string][]*spec.Flag) error {
-	for _, flags := range xorGroups {
+	return validateMutuallyExclusiveGroups(cmdChain, xorGroups)
+}
+
+func validateOneOfGroups(cmdChain []*spec.Command, oneOfGroups map[string][]*spec.Flag) error {
+	return validateMutuallyExclusiveGroups(cmdChain, oneOfGroups)
+}
+
+func validateMutuallyExclusiveGroups(cmdChain []*spec.Command, groups map[string][]*spec.Flag) error {
+	for _, flags := range groups {
 		var setFlags []string
 
 		for _, flag := range flags {
@@ -1502,6 +1615,7 @@ func validateFlagConstraints(cmdChain []*spec.Command) error {
 	for _, cmd := range cmdChain {
 		xorGroups := make(map[string][]*spec.Flag)
 		andGroups := make(map[string][]*spec.Flag)
+		oneOfGroups := make(map[string][]*spec.Flag)
 
 		for _, flagSpec := range cmd.Flags {
 			if flagSpec.Handle == nil {
@@ -1520,9 +1634,17 @@ func validateFlagConstraints(cmdChain []*spec.Command) error {
 			if flagSpec.AndGroup != "" {
 				andGroups[flagSpec.AndGroup] = append(andGroups[flagSpec.AndGroup], flagSpec)
 			}
+
+			if flagSpec.OneOfGroup != "" {
+				oneOfGroups[flagSpec.OneOfGroup] = append(oneOfGroups[flagSpec.OneOfGroup], flagSpec)
+			}
 		}
 
 		if err := validateXorGroups(cmdChain, xorGroups); err != nil {
+			return err
+		}
+
+		if err := validateOneOfGroups(cmdChain, oneOfGroups); err != nil {
 			return err
 		}
 

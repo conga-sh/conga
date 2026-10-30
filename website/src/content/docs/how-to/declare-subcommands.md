@@ -37,6 +37,8 @@ Use struct tags on the `conga.Command[T]` field to control how subcommands route
 
 ```go title="main.go"
 type CLI struct {
+	Verbose conga.OptionalFlag[bool] `short:"v" help:"Enable verbose output"`
+
 	Deploy conga.Command[DeployCmd] `summary:"Deploy a service"`
 	List   conga.Command[ListCmd]   `aliases:"ls,ps" group:"Inspection" summary:"List active services"`
 	Debug  conga.Command[DebugCmd]  `hidden:"true" summary:"Internal debugging command"`
@@ -56,7 +58,7 @@ cloudctl --help
 
 ```text no-copy
 Usage:
-  cloudctl <command>
+  cloudctl <command> [flags]
 
 Commands:
   deploy  Deploy a service
@@ -65,8 +67,9 @@ Inspection Commands:
   list    List active services (aliases: ls, ps)
 
 Flags:
-  --help     Show help
-  --version  Show version
+  -v, --verbose  Enable verbose output
+      --help     Show help
+      --version  Show version
 ```
 
 ## Access root state and execution context

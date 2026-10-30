@@ -7,9 +7,21 @@ import (
 	"os"
 	"os/exec"
 	"strconv"
+	"testing"
 
 	"github.com/rogpeppe/go-internal/testscript"
 )
+
+// Main runs the example suite's test binary with COLUMNS cleared, so help
+// screens render at the engine default width regardless of the invoking shell:
+// an exported COLUMNS would otherwise wrap every fixture at the developer's
+// terminal width. Scripts inherit the test process environment, so clearing it
+// here covers every example that calls testscript.Run.
+func Main(m *testing.M, commands map[string]func()) {
+	os.Unsetenv("COLUMNS") //nolint:errcheck // "COLUMNS" is a valid key, so Unsetenv cannot fail.
+
+	testscript.Main(m, commands)
+}
 
 // Commands returns the shared custom testscript commands registered by the
 // example test suites.

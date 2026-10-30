@@ -296,8 +296,6 @@ type whyMergeCLI struct {
 // TestWhy_MapMergePerKeyProvenance pins the per-key source attribution of a
 // map flag merged across the config, environment, and CLI tiers. Relative
 // config paths keep the reported origins stable across machines.
-//
-//nolint:paralleltest // Swaps the process working directory via t.Chdir.
 func TestWhy_MapMergePerKeyProvenance(t *testing.T) {
 	t.Chdir(t.TempDir())
 
@@ -337,8 +335,6 @@ type whyCascadeCLI struct {
 
 // TestWhy_CascadingMapOriginsPerKey pins that a map flag merged across
 // cascading files reports each key's contributing file in the source cell.
-//
-//nolint:paralleltest // Swaps the process working directory via t.Chdir.
 func TestWhy_CascadingMapOriginsPerKey(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Chdir(tmpDir)
@@ -380,8 +376,6 @@ type whyCascadeScalarCLI struct {
 // TestWhy_CascadingScalarOriginsPerFile pins that a config-sourced scalar
 // reports the contributing file in the source cell: the nearest file for a
 // key set by several files, and the lower file for a key it alone sets.
-//
-//nolint:paralleltest // Swaps the process working directory via t.Chdir.
 func TestWhy_CascadingScalarOriginsPerFile(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Chdir(tmpDir)
@@ -1000,8 +994,6 @@ func TestWhy_ConfigPathsChecked_NothingFound(t *testing.T) {
 // TestWhy_ConfigPathsChecked_LoadedTiers pins that a loaded search tier
 // reports the file that resolved it. Relative tier paths keep the reported
 // origins stable across machines.
-//
-//nolint:paralleltest // Swaps the process working directory via t.Chdir.
 func TestWhy_ConfigPathsChecked_LoadedTiers(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Chdir(tmpDir)
@@ -1541,7 +1533,7 @@ func TestWhy_FlatCompletionHelpVisibility(t *testing.T) {
 		err := app.Run()
 
 		assert.NoError(t, err)
-		assert.NotContains(t, buffer.String(), "Show help for command")
+		assert.NotContains(t, buffer.String(), "Show help")
 	})
 }
 

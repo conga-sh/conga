@@ -31,37 +31,10 @@ const (
 	RangeFloat
 )
 
-// Directives holds the parsed directives of a conga:"..." struct tag.
-type Directives struct {
-	Ignore bool
-}
-
 // RangeDomain selects the native comparison domain of a text-grammar range
 // type. Bytes() int64 projections and signed integer kinds compare as int64,
 // unsigned integer kinds as uint64, and float kinds as float64.
 type RangeDomain uint8
-
-// ParseCongaDirectives parses the directives of a conga:"..." struct tag.
-func ParseCongaDirectives(congaTag string) (Directives, error) {
-	var directives Directives
-	if congaTag == "" {
-		return directives, nil
-	}
-
-	parts := slicex.SplitAndTrim(congaTag, ",")
-	for _, directive := range parts {
-		switch directive {
-		case "-", "ignore":
-			directives.Ignore = true
-		case "allow-unknown-tags", "recurse":
-			return Directives{}, fmt.Errorf("%w: conga directive %q was removed; register foreign tag keys with app.AllowTags(...) instead", ErrInvalidStructTag, directive)
-		default:
-			return Directives{}, fmt.Errorf("%w: unrecognized conga directive %q. Note: flag names and short flags must be declared using name:\"...\" and short:\"...\"", ErrInvalidStructTag, directive)
-		}
-	}
-
-	return directives, nil
-}
 
 // ParseRangeSpec parses a range tag value (min..max, min.., ..max, or exact).
 func ParseRangeSpec(tag string) (*Range, error) {
@@ -379,6 +352,14 @@ func FeatureFieldDeclaresEnv(tag reflect.StructTag) bool {
 	return len(SplitTagList(tag, "env")) > 0
 }
 
+// ParseFlagShort returns the rune declared by a flag's short tag, or 0 when the
+// tag is absent. It is the shared decoding rule for the runtime schema builder
+// and the static analyzer, so both see the same rune when deciding whether a
+// user-declared short collides with a built-in one.
+func ParseFlagShort(tag reflect.StructTag) rune {
+	return extractFlagShort(tag)
+}
+
 type flagKindInfo struct {
 	targetType  reflect.Type
 	isBool      bool
@@ -562,6 +543,7 @@ func parseFlagSpec(structField reflect.StructField, flagHandle any, classificati
 		ConfigKey:   structField.Tag.Get("config"),
 		XorGroup:    structField.Tag.Get("xor"),
 		AndGroup:    structField.Tag.Get("and"),
+		OneOfGroup:  structField.Tag.Get("oneof"),
 		Enum:        enumValues,
 		Range:       rangeSpec,
 		Len:         lenSpec,

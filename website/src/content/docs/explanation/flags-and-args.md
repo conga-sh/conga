@@ -88,7 +88,7 @@ Both trailing containers expose `Get() []string`, `GetOr()`, `Len()`, and `IsSet
 
 ## Declarative constraints
 
-Input validation frequently clutters command handlers with manual range checks, length bounds, and mutual exclusivity tests. CONGA allows these constraints to be declared directly on container fields with struct tags such as `enum`, `range`, `len`, `xor`, and `and`.
+Input validation frequently clutters command handlers with manual range checks, length bounds, and mutual exclusivity tests. CONGA allows these constraints to be declared directly on container fields with struct tags such as `enum`, `range`, `len`, `xor`, `oneof`, and `and`.
 
 The engine evaluates declared constraints after type coercion but before invoking lifecycle hooks (`Validate`, `PreRun`, `Run`). When an input violates a constraint, the engine halts execution with a usage error (exit code 2). This separates input validation from command business logic, ensuring that command bodies receive values that already satisfy domain requirements.
 

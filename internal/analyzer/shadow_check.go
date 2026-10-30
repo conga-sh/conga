@@ -12,7 +12,7 @@ import (
 // flag's name, aliases, and short rune are checked against every ancestor
 // declaration, then folded into the branch maps for descendants.
 func (w *walker) checkAndCollectFlag(node *commandNode, fieldObject types.Object, tag reflect.StructTag, flagName string, branchNames map[string]string, branchShorts map[rune]string) {
-	shortRune := flagShortRune(tag)
+	shortRune := spec.ParseFlagShort(tag)
 	position := w.fieldReportPos(node, fieldObject)
 
 	if ancestorCommand, ok := branchNames[flagName]; ok {

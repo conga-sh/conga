@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/conga-sh/conga/internal/appname"
 	"github.com/conga-sh/conga/internal/coerce"
 	"github.com/conga-sh/conga/internal/completion"
 	"github.com/conga-sh/conga/internal/configdata"
@@ -379,14 +378,15 @@ func (f *OptionalFlag[T]) String() string {
 // RequiredFlag represents a mandatory command-line flag of type T.
 //
 // The requirement is satisfied if a value is supplied by a command-line flag,
-// an environment variable, a configuration file, or a struct default tag.
-// If no source provides a value, Run returns a usage error before any lifecycle
-// stage, starting with [Validator.Validate], executes; [IsUsageError] reports true and
+// an environment variable, or a configuration file. The schema builder rejects
+// the default struct tag on required flags: a fallback value would satisfy the
+// requirement without any caller input and make it meaningless. If no source
+// provides a value, Run returns a usage error before any lifecycle stage,
+// starting with [Validator.Validate], executes; [IsUsageError] reports true and
 // [App.Exit] exits with status 2.
 //
-// When satisfied by explicit input, [RequiredFlag.Changed] reports true. When
-// satisfied by a struct default tag, [RequiredFlag.IsSet] reports true while
-// [RequiredFlag.Changed] stays false.
+// When satisfied, [RequiredFlag.Changed] reports true and [RequiredFlag.IsSet]
+// reports true.
 type RequiredFlag[T any] struct {
 	value        T
 	set          bool
@@ -404,8 +404,7 @@ func (f *RequiredFlag[T]) Get() T {
 }
 
 // Changed reports whether the flag was explicitly provided by the caller via
-// CLI, environment variable, or configuration file, returning false if satisfied
-// exclusively by a struct default tag.
+// CLI, environment variable, or configuration file.
 func (f *RequiredFlag[T]) Changed() bool {
 	return f.changed
 }
@@ -417,11 +416,9 @@ func (f *RequiredFlag[T]) Source() ValueSource {
 }
 
 // SourceDetail returns the concrete origin recorded with [RequiredFlag.Source]:
-// the flag token, the environment variable name, the contributing
-// configuration origin (a file path for file-loaded values, or the bootstrap document's
-// origin label), or the default tag literal. For a merged map flag the origin lists
-// every contributing configuration file in load order, separated by commas.
-// It is empty when the flag is unset.
+// the flag token, the environment variable name, or the contributing
+// configuration origin (a file path for file-loaded values, or the bootstrap
+// document's origin label). It is empty when the flag is unset.
 func (f *RequiredFlag[T]) SourceDetail() string {
 	return f.sourceDetail
 }
@@ -740,12 +737,7 @@ func (v *VersionCommand) Run(ctx context.Context, session *Session) error {
 		return nil
 	}
 
-	name := session.appName
-	if invoked, ok := appname.Binary(); ok {
-		name = invoked
-	}
-
-	fmt.Fprintln(session.Stdout(), help.VersionDetailed(name, session.appVersion))
+	fmt.Fprintln(session.Stdout(), help.VersionDetailed(session.appName, session.appVersion))
 
 	return nil
 }

@@ -41,6 +41,7 @@ func New[T any](root ...*T) *App[T]
 | `ExitFunc(handler)` | Custom exit handler for `Exit` |
 | `EnableWhy(options...)` / `EnableCompletion(options...)` / `EnableFeatures()` | Opt in to the `--why` report, shell completion, and struct-declared feature toggles; pass `conga.WhyOptionJSON()` to `EnableWhy` to enable `--why=json` |
 | `DisableHelpFlag()` / `DisableVersionFlag()` | Remove the `--help`/`--version` flags |
+| `HelpShortFlag('h')` / `VersionShortFlag('V')` | Assign short runes to the `--help`/`--version` flags (collisions fail schema build with `ErrDuplicateFlag`) |
 
 ### Execution methods
 

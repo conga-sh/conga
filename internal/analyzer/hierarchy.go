@@ -53,6 +53,14 @@ type congaTypes struct {
 	bootstrapper  *types.Interface
 }
 
+// groupPair identifies a oneof/and group combination on a single command.
+// Runtime group validation is command-scoped, so the analyzer tracks pairs per
+// command rather than across the hierarchy.
+type groupPair struct {
+	oneOf string
+	and   string
+}
+
 // commandNode is one command struct in the static hierarchy rooted at a
 // conga.New anchor.
 type commandNode struct {
@@ -182,8 +190,11 @@ func (w *walker) walkCommand(node *commandNode, ancestorNames map[string]string,
 	w.visitPath[typeObject] = true
 	defer delete(w.visitPath, typeObject)
 
+	w.checkBuiltinShortPair(node)
+
 	branchNames := maps.Clone(ancestorNames)
 	branchShorts := maps.Clone(ancestorShorts)
+	branchGroups := make(map[groupPair]string)
 
 	subcommandCount := 0
 
@@ -193,7 +204,7 @@ func (w *walker) walkCommand(node *commandNode, ancestorNames map[string]string,
 		fieldObject := node.structType.Field(index)
 		tag := reflect.StructTag(node.structType.Tag(index))
 
-		childNode := w.checkField(node, fieldObject, tag, branchNames, branchShorts)
+		childNode := w.checkField(node, fieldObject, tag, branchNames, branchShorts, branchGroups)
 		if childNode != nil {
 			subcommandCount++
 
@@ -211,7 +222,7 @@ func (w *walker) walkCommand(node *commandNode, ancestorNames map[string]string,
 // checkField validates the tags of a single field and returns the child
 // command node for user subcommand fields. Flag fields are folded into the
 // shadow maps.
-func (w *walker) checkField(node *commandNode, fieldObject types.Object, tag reflect.StructTag, branchNames map[string]string, branchShorts map[rune]string) *commandNode {
+func (w *walker) checkField(node *commandNode, fieldObject types.Object, tag reflect.StructTag, branchNames map[string]string, branchShorts map[rune]string, branchGroups map[groupPair]string) *commandNode {
 	if !fieldObject.Exported() {
 		if fieldObject.Name() == "_" {
 			w.validateNodeFieldTags(node, fieldObject, tag, "sentinel field", nil)
@@ -253,7 +264,7 @@ func (w *walker) checkField(node *commandNode, fieldObject types.Object, tag ref
 
 		return nil
 	case "flag":
-		w.checkFlagField(node, fieldObject, tag, branchNames, branchShorts)
+		w.checkFlagField(node, fieldObject, tag, branchNames, branchShorts, branchGroups)
 
 		return nil
 	case "positional argument":

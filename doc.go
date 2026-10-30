@@ -15,7 +15,7 @@
 //   - Subcommands: [Command]
 //
 // Struct tags declare names, help text, fallback values, feature-gating (feature),
-// and constraints such as range, len, enum, xor, and and. For the full tag
+// and constraints such as range, len, enum, xor, oneof, and and. For the full tag
 // specification, see https://docs.conga.sh/reference/struct-tags/.
 //
 // Commands execute by implementing [Runner]. Lifecycle hooks can be added

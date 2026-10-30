@@ -93,6 +93,34 @@ type App struct {
 
 var _ = conga.New[App]().Name("valid")
 
+// OneOfLeaf is a leaf command with an exactly-one group.
+type OneOfLeaf struct {
+	JSON conga.OptionalFlag[bool] `name:"json" oneof:"format" help:"JSON output"`
+	YAML conga.OptionalFlag[bool] `name:"yaml" oneof:"format" help:"YAML output"`
+}
+
+// Run executes the leaf.
+func (o *OneOfLeaf) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[OneOfLeaf]()
+
+// OneOfAndLeaf pairs a oneof member with an and-group partner outside the
+// group, which stays satisfiable and must not be flagged.
+type OneOfAndLeaf struct {
+	JSON conga.OptionalFlag[bool]   `name:"json" oneof:"format" and:"auth" help:"JSON output"`
+	Key  conga.OptionalFlag[string] `name:"key" and:"auth" help:"Encryption key"`
+	YAML conga.OptionalFlag[bool]   `name:"yaml" oneof:"format" help:"YAML output"`
+}
+
+// Run executes the leaf.
+func (o *OneOfAndLeaf) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[OneOfAndLeaf]()
+
 // newRootUsedOutsideApp exercises the throwaway-root suppression path: the
 // caller-owned instance is read after construction, so conga-lint must stay
 // silent. The inferred New(root) dedup coverage lives in the invalid fixture,

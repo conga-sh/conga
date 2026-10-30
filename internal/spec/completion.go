@@ -87,13 +87,23 @@ func Complete(rootCmd *Command, args []string, opts CompleteOptions) predict.Res
 	return walker.resolveTarget(toComplete)
 }
 
+// completionGroupKey identifies a mutually-exclusive group on the command that
+// declares its members. Runtime validation scopes xor/and/oneof groups per
+// command, so a same-named group on an ancestor must not suppress a
+// descendant's candidates.
+type completionGroupKey struct {
+	owner *Command
+	name  string
+}
+
 type astCompletionWalker struct {
 	rootCmd          *Command
 	opts             CompleteOptions
 	currentCmd       *Command
 	cmdChain         []*Command
 	flagsSet         map[*Flag][]string
-	xorGroupsSet     map[string]*Flag
+	xorGroupsSet     map[completionGroupKey]*Flag
+	oneOfGroupsSet   map[completionGroupKey]*Flag
 	nonRepeatableSet map[*Flag]bool
 	posArgs          []string
 	inTerminator     bool
@@ -114,7 +124,8 @@ func newASTCompletionWalker(rootCmd *Command, opts CompleteOptions) *astCompleti
 		currentCmd:       rootCmd,
 		cmdChain:         []*Command{rootCmd},
 		flagsSet:         make(map[*Flag][]string),
-		xorGroupsSet:     make(map[string]*Flag),
+		xorGroupsSet:     make(map[completionGroupKey]*Flag),
+		oneOfGroupsSet:   make(map[completionGroupKey]*Flag),
 		nonRepeatableSet: make(map[*Flag]bool),
 		posArgs:          make([]string, 0),
 	}
@@ -284,10 +295,17 @@ func (w *astCompletionWalker) startAnalysisRawFallback(raw string) {
 	w.analysisRawArgs = append(w.analysisRawArgs, raw)
 }
 
-// registerXorGroup records the flag's xor-group as used, when it declares one.
-func (w *astCompletionWalker) registerXorGroup(flag *Flag) {
+// registerGroups records the flag's xor and oneof groups as used, scoped to the
+// command that declares the flag.
+func (w *astCompletionWalker) registerGroups(flag *Flag) {
+	owner := w.flagOwner(flag)
+
 	if flag.XorGroup != "" {
-		w.xorGroupsSet[flag.XorGroup] = flag
+		w.xorGroupsSet[completionGroupKey{owner: owner, name: flag.XorGroup}] = flag
+	}
+
+	if flag.OneOfGroup != "" {
+		w.oneOfGroupsSet[completionGroupKey{owner: owner, name: flag.OneOfGroup}] = flag
 	}
 }
 
@@ -302,14 +320,14 @@ func (w *astCompletionWalker) markNonRepeatable(flag *Flag) {
 func (w *astCompletionWalker) consumePendingFlagValue(value string) {
 	flag := w.pendingFlagValue
 	w.flagsSet[flag] = append(w.flagsSet[flag], value)
-	w.registerXorGroup(flag)
+	w.registerGroups(flag)
 	w.markNonRepeatable(flag)
 
 	w.pendingFlagValue = nil
 }
 
 func (w *astCompletionWalker) markFlagConsumed(flag *Flag, hasAttached bool, attachedValue string, negated bool) {
-	w.registerXorGroup(flag)
+	w.registerGroups(flag)
 
 	if flag.IsBool {
 		value := "true"
@@ -372,7 +390,7 @@ func (w *astCompletionWalker) consumeShortFlag(tok tokenizer.Token) {
 			return
 		}
 
-		w.registerXorGroup(flag)
+		w.registerGroups(flag)
 
 		if flag.IsCounter {
 			value := "1"
@@ -616,7 +634,7 @@ func (w *astCompletionWalker) completeFlagNamesAction(toComplete string) predict
 		}
 	}
 
-	w.appendBuiltinFlags(&longItems, seenLong)
+	w.appendBuiltinFlags(&longItems, &shortItems, seenLong, seenShort, toComplete)
 
 	var actions []predict.Predictor
 
@@ -644,7 +662,13 @@ func (w *astCompletionWalker) isFlagEligible(flagSpec *Flag) bool {
 		return false
 	}
 
-	if flagSpec.XorGroup != "" && w.xorGroupsSet[flagSpec.XorGroup] != nil {
+	owner := w.flagOwner(flagSpec)
+
+	if flagSpec.XorGroup != "" && w.xorGroupsSet[completionGroupKey{owner: owner, name: flagSpec.XorGroup}] != nil {
+		return false
+	}
+
+	if flagSpec.OneOfGroup != "" && w.oneOfGroupsSet[completionGroupKey{owner: owner, name: flagSpec.OneOfGroup}] != nil {
 		return false
 	}
 
@@ -721,7 +745,7 @@ func (w *astCompletionWalker) collectFlagCandidates(longItems, shortItems *[]pre
 	}
 }
 
-func (w *astCompletionWalker) appendBuiltinFlags(longItems *[]predict.Item, seenLong map[string]bool) {
+func (w *astCompletionWalker) appendBuiltinFlags(longItems, shortItems *[]predict.Item, seenLong, seenShort map[string]bool, toComplete string) {
 	if !w.currentCmd.DisableHelp && !seenLong["--help"] {
 		seenLong["--help"] = true
 
@@ -732,6 +756,7 @@ func (w *astCompletionWalker) appendBuiltinFlags(longItems *[]predict.Item, seen
 			Style:       style.Theme.FlagNoArg,
 			Tag:         "longhand flags",
 		})
+		w.appendBuiltinShort(shortItems, seenShort, w.rootCmd.HelpShort, BuiltinHelpFlag.Help, toComplete)
 	}
 
 	if w.currentCmd.VersionFlagVisible(len(w.cmdChain) == 1) && !seenLong["--version"] {
@@ -744,6 +769,7 @@ func (w *astCompletionWalker) appendBuiltinFlags(longItems *[]predict.Item, seen
 			Style:       style.Theme.FlagNoArg,
 			Tag:         "longhand flags",
 		})
+		w.appendBuiltinShort(shortItems, seenShort, w.rootCmd.VersionShort, BuiltinVersionFlag.Help, toComplete)
 	}
 
 	if w.currentCmd.WhyFlagVisible() && !seenLong["--why"] {
@@ -763,6 +789,31 @@ func (w *astCompletionWalker) appendBuiltinFlags(longItems *[]predict.Item, seen
 			Tag:         "longhand flags",
 		})
 	}
+}
+
+// appendBuiltinShort adds the shorthand candidate for a built-in flag whose
+// rune was assigned through app.HelpShortFlag/app.VersionShortFlag, mirroring the
+// description and style of the synthesized longhand item. Unassigned runes and
+// longhand prefixes contribute nothing.
+func (w *astCompletionWalker) appendBuiltinShort(shortItems *[]predict.Item, seenShort map[string]bool, short rune, description string, toComplete string) {
+	if short == 0 || strings.HasPrefix(toComplete, "--") {
+		return
+	}
+
+	shortName := "-" + string(short)
+	if seenShort[shortName] {
+		return
+	}
+
+	seenShort[shortName] = true
+
+	*shortItems = append(*shortItems, predict.Item{
+		Value:       shortName,
+		Display:     shortName,
+		Description: description,
+		Style:       style.Theme.FlagNoArg,
+		Tag:         "shorthand flags",
+	})
 }
 
 // builtinWhyItems returns the flag-name-level completion items for the
@@ -884,6 +935,19 @@ func (w *astCompletionWalker) collectSubcommandCandidates(toComplete string) []p
 	}
 
 	return subCmdItems
+}
+
+// flagOwner returns the command that declares flag within the active chain.
+// Flags can only be consumed from the chain and chains only grow, so the
+// declaring command is always present. Group suppression is scoped to it.
+func (w *astCompletionWalker) flagOwner(flag *Flag) *Command {
+	for _, cmd := range slices.Backward(w.cmdChain) {
+		if slices.Contains(cmd.Flags, flag) {
+			return cmd
+		}
+	}
+
+	return nil
 }
 
 func subcommandTagAndStyle(subcommand *Command, groupIndexMap map[string]int) (string, string) {

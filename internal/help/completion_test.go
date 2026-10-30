@@ -10,7 +10,15 @@ import (
 
 	"github.com/conga-sh/conga/internal/completion"
 	"github.com/conga-sh/conga/internal/spec"
+	"github.com/conga-sh/conga/internal/termwidth"
 )
+
+// renderFooterWithDefaultWidth renders the generic completion footer at the
+// engine default width so assertions stay independent of the invoking
+// terminal.
+func renderFooterWithDefaultWidth(cmdChain []*spec.Command, useFlag bool, detect func() (completion.CurrentShell, bool)) string {
+	return RenderCompletionFooter(cmdChain, useFlag, detect, termwidth.Default)
+}
 
 func TestRenderCompletionFooter_Generic(t *testing.T) {
 	t.Parallel()
@@ -18,7 +26,7 @@ func TestRenderCompletionFooter_Generic(t *testing.T) {
 	t.Run("empty command chain renders nothing", func(t *testing.T) {
 		t.Parallel()
 
-		formatted := RenderCompletionFooter(nil, false, func() (completion.CurrentShell, bool) {
+		formatted := renderFooterWithDefaultWidth(nil, false, func() (completion.CurrentShell, bool) {
 			return completion.CurrentShell{}, false
 		})
 
@@ -31,7 +39,7 @@ func TestRenderCompletionFooter_Generic(t *testing.T) {
 		root := &spec.Command{Name: "myapp"}
 		leaf := &spec.Command{Name: "completion", IsCompletionCmd: true}
 
-		formatted := RenderCompletionFooter([]*spec.Command{root, leaf}, false, func() (completion.CurrentShell, bool) {
+		formatted := renderFooterWithDefaultWidth([]*spec.Command{root, leaf}, false, func() (completion.CurrentShell, bool) {
 			return completion.CurrentShell{}, false
 		})
 
@@ -50,7 +58,7 @@ func TestRenderCompletionFooter_Generic(t *testing.T) {
 		root := &spec.Command{Name: "myapp"}
 		leaf := &spec.Command{Name: "completion", IsCompletionCmd: true}
 
-		formatted := RenderCompletionFooter([]*spec.Command{root, leaf}, false, func() (completion.CurrentShell, bool) {
+		formatted := renderFooterWithDefaultWidth([]*spec.Command{root, leaf}, false, func() (completion.CurrentShell, bool) {
 			return completion.CurrentShell{}, false
 		})
 
@@ -64,7 +72,7 @@ func TestRenderCompletionFooter_Generic(t *testing.T) {
 		root := &spec.Command{Name: "myapp"}
 		leaf := &spec.Command{Name: "completion", IsCompletionCmd: true}
 
-		formatted := RenderCompletionFooter([]*spec.Command{root, leaf}, false, func() (completion.CurrentShell, bool) {
+		formatted := renderFooterWithDefaultWidth([]*spec.Command{root, leaf}, false, func() (completion.CurrentShell, bool) {
 			return completion.CurrentShell{Shell: completion.ShellZsh, ExecPath: "/bin/zsh"}, true
 		})
 
@@ -80,7 +88,7 @@ func TestRenderCompletionFooter_Generic(t *testing.T) {
 		root := &spec.Command{Name: "myapp"}
 		disabled := &spec.Command{Name: "completion", IsCompletionCmd: true, DisableHelp: true}
 
-		formatted := RenderCompletionFooter([]*spec.Command{root, disabled}, false, func() (completion.CurrentShell, bool) {
+		formatted := renderFooterWithDefaultWidth([]*spec.Command{root, disabled}, false, func() (completion.CurrentShell, bool) {
 			return completion.CurrentShell{}, false
 		})
 
@@ -95,7 +103,7 @@ func TestRenderCompletionFooter_Generic(t *testing.T) {
 		root := &spec.Command{Name: "myapp"}
 		disabled := &spec.Command{Name: "completion", IsCompletionCmd: true, DisableHelp: true}
 
-		formatted := RenderCompletionFooter([]*spec.Command{root, disabled}, false, func() (completion.CurrentShell, bool) {
+		formatted := renderFooterWithDefaultWidth([]*spec.Command{root, disabled}, false, func() (completion.CurrentShell, bool) {
 			return completion.CurrentShell{Shell: completion.ShellZsh, ExecPath: "/bin/zsh"}, true
 		})
 
@@ -112,7 +120,7 @@ func TestEnableInstructionsSection_PerShell(t *testing.T) {
 	root := &spec.Command{Name: "myapp"}
 	leaf := &spec.Command{Name: "completion", IsCompletionCmd: true, Shell: "zsh"}
 
-	formatted := RenderCompletionInstructions(leaf.Shell, leaf.IsCompletionFlag, rootDisplayName([]*spec.Command{root, leaf}))
+	formatted := RenderCompletionInstructions(leaf.Shell, leaf.IsCompletionFlag, invokedName([]*spec.Command{root, leaf}))
 
 	assert.Contains(t, formatted, "To load completions in your current shell session, run:")
 	assert.Contains(t, strings.ReplaceAll(formatted, "\n", " "), "source <(myapp completion zsh)")
@@ -168,7 +176,7 @@ func TestHelpArgv0Resolution(t *testing.T) {
 	t.Run("generic completion footer uses argv0 binary name", func(t *testing.T) {
 		leaf := &spec.Command{Name: "completion", IsCompletionCmd: true}
 
-		formatted := RenderCompletionFooter([]*spec.Command{root, leaf}, false, func() (completion.CurrentShell, bool) {
+		formatted := renderFooterWithDefaultWidth([]*spec.Command{root, leaf}, false, func() (completion.CurrentShell, bool) {
 			return completion.CurrentShell{}, false
 		})
 
@@ -179,7 +187,7 @@ func TestHelpArgv0Resolution(t *testing.T) {
 	t.Run("flag-style generic completion footer uses argv0 binary name", func(t *testing.T) {
 		leaf := &spec.Command{Name: "completion", IsCompletionCmd: true, IsCompletionFlag: true}
 
-		formatted := RenderCompletionFooter([]*spec.Command{root, leaf}, true, func() (completion.CurrentShell, bool) {
+		formatted := renderFooterWithDefaultWidth([]*spec.Command{root, leaf}, true, func() (completion.CurrentShell, bool) {
 			return completion.CurrentShell{}, false
 		})
 
@@ -190,7 +198,7 @@ func TestHelpArgv0Resolution(t *testing.T) {
 	t.Run("per-shell instructions use argv0 binary name", func(t *testing.T) {
 		leaf := &spec.Command{Name: "completion", IsCompletionCmd: true, Shell: "zsh"}
 
-		formatted := RenderCompletionInstructions(leaf.Shell, leaf.IsCompletionFlag, rootDisplayName([]*spec.Command{root, leaf}))
+		formatted := RenderCompletionInstructions(leaf.Shell, leaf.IsCompletionFlag, invokedName([]*spec.Command{root, leaf}))
 
 		assert.Contains(t, formatted, "source <(custom-bin completion zsh)")
 		assert.NotContains(t, formatted, "default-app")
@@ -199,7 +207,7 @@ func TestHelpArgv0Resolution(t *testing.T) {
 	t.Run("flag-style per-shell instructions use argv0 binary name", func(t *testing.T) {
 		leaf := &spec.Command{Name: "completion", IsCompletionCmd: true, IsCompletionFlag: true, Shell: "zsh"}
 
-		formatted := RenderCompletionInstructions(leaf.Shell, leaf.IsCompletionFlag, rootDisplayName([]*spec.Command{root, leaf}))
+		formatted := RenderCompletionInstructions(leaf.Shell, leaf.IsCompletionFlag, invokedName([]*spec.Command{root, leaf}))
 
 		assert.Contains(t, formatted, "source <(custom-bin --completion zsh)")
 		assert.NotContains(t, formatted, "default-app")
@@ -236,19 +244,37 @@ func TestHelpArgv0Resolution(t *testing.T) {
 		assert.NotContains(t, formatted, "default-app")
 	})
 
-	t.Run("root command usage synopsis uses argv0 binary name", func(t *testing.T) {
+	t.Run("root command usage synopsis uses the configured command name", func(t *testing.T) {
 		usage := Usage([]*spec.Command{root})
 
-		assert.Contains(t, usage, "Usage:\n  custom-bin")
-		assert.NotContains(t, usage, "default-app")
+		assert.Contains(t, usage, "Usage:\n  default-app")
+		assert.NotContains(t, usage, "custom-bin")
 	})
 
-	t.Run("deprecation banner uses argv0 binary name", func(t *testing.T) {
+	t.Run("deprecation banner uses the configured command name", func(t *testing.T) {
 		depRoot := &spec.Command{Name: "default-app", Deprecated: "use new-cli instead"}
 
 		formatted := Format([]*spec.Command{depRoot})
 
-		assert.Contains(t, formatted, "WARNING: custom-bin is deprecated: use new-cli instead")
-		assert.NotContains(t, formatted, "default-app")
+		assert.Contains(t, formatted, "WARNING: default-app is deprecated: use new-cli instead")
+		assert.NotContains(t, formatted, "custom-bin")
+	})
+
+	t.Run("completion screen hint keeps the argv0 binary name", func(t *testing.T) {
+		leaf := &spec.Command{Name: "completion", IsCompletionCmd: true}
+
+		hint := Hint([]*spec.Command{root, leaf})
+
+		assert.Contains(t, hint, "Run 'custom-bin completion --help'")
+		assert.NotContains(t, hint, "default-app")
+	})
+
+	t.Run("non-completion screen hint uses the configured command name", func(t *testing.T) {
+		leaf := &spec.Command{Name: "deploy"}
+
+		hint := Hint([]*spec.Command{root, leaf})
+
+		assert.Contains(t, hint, "Run 'default-app deploy --help'")
+		assert.NotContains(t, hint, "custom-bin")
 	})
 }

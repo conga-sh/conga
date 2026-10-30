@@ -14,6 +14,7 @@ import (
 	"go/types"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
@@ -88,6 +89,19 @@ type appOptions struct {
 	// that could hide one. Ambiguous evidence skips the cascading guard.
 	configCascading          bool
 	configCascadingAmbiguous bool
+	// helpShort and versionShort record the runes assigned to the built-in
+	// --help/--version flags through app.HelpShortFlag/app.VersionShortFlag;
+	// the ambiguous markers cover non-literal or conflicting arguments, which
+	// suppress the collision checks instead of inventing a diagnostic.
+	// disableHelp and disableVersion record the builder calls that leave the
+	// matching rune inert. Like the allow-list evidence, the scan is
+	// package-wide: a call anywhere in the package pins the option.
+	helpShort             rune
+	helpShortAmbiguous    bool
+	versionShort          rune
+	versionShortAmbiguous bool
+	disableHelp           bool
+	disableVersion        bool
 }
 
 func (o *appOptions) absorbCall(pass *analysis.Pass, node ast.Node) {
@@ -123,6 +137,14 @@ func (o *appOptions) absorbCall(pass *analysis.Pass, node ast.Node) {
 		o.absorbConfigCall(pass, call)
 	case "EnvPrefix":
 		o.absorbEnvPrefixCall(pass, call)
+	case "HelpShortFlag":
+		o.helpShort, o.helpShortAmbiguous = absorbRuneCall(pass, call, o.helpShort, o.helpShortAmbiguous)
+	case "VersionShortFlag":
+		o.versionShort, o.versionShortAmbiguous = absorbRuneCall(pass, call, o.versionShort, o.versionShortAmbiguous)
+	case "DisableHelpFlag":
+		o.disableHelp = true
+	case "DisableVersionFlag":
+		o.disableVersion = true
 	}
 }
 
@@ -204,6 +226,43 @@ func (o *appOptions) validationOptionsFor(node *commandNode) spec.ValidationOpti
 		EnvPrefix:              node.envPrefix,
 		EnvPrefixKnown:         !o.envPrefixAmbiguous,
 	}
+}
+
+// absorbRuneCall records the rune argument of an app.HelpShortFlag or
+// app.VersionShortFlag call; a non-literal or conflicting argument marks the
+// rune ambiguous.
+func absorbRuneCall(pass *analysis.Pass, call *ast.CallExpr, current rune, ambiguous bool) (rune, bool) {
+	if len(call.Args) == 0 {
+		return current, ambiguous
+	}
+
+	value, known := runeLiteralValue(pass, call.Args[0])
+	if !known {
+		return current, true
+	}
+
+	if current != 0 && current != value {
+		return current, true
+	}
+
+	return value, ambiguous
+}
+
+// runeLiteralValue resolves a constant rune argument. Unresolvable expressions
+// yield no value, so callers degrade to ambiguous evidence rather than
+// inventing a collision.
+func runeLiteralValue(pass *analysis.Pass, expression ast.Expr) (rune, bool) {
+	typeAndValue, ok := pass.TypesInfo.Types[expression]
+	if !ok || typeAndValue.Value == nil || typeAndValue.Value.Kind() != constant.Int {
+		return 0, false
+	}
+
+	codePoint, exact := constant.Int64Val(typeAndValue.Value)
+	if !exact || codePoint < 0 || codePoint > utf8.MaxRune {
+		return 0, false
+	}
+
+	return rune(codePoint), true
 }
 
 // configOptionName reports the name of the conga option constructor an

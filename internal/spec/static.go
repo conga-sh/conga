@@ -32,44 +32,40 @@ type ValidationOptions struct {
 }
 
 // ValidateFieldTags validates the struct tags of a single schema field:
-// tag syntax, conga directives, disallowed tags, {{...}} help-variable
-// references for the flag, positional-argument, and config-file-flag roles,
-// and tag-key candidate membership for the field's role. It returns the parsed
-// conga directives so callers can honor conga:"ignore".
-func ValidateFieldTags(tag reflect.StructTag, role string, candidates []string, opts ValidationOptions) (Directives, error) {
+// tag syntax, disallowed tags, {{...}} help-variable references for the flag,
+// positional-argument, and config-file-flag roles, and tag-key candidate
+// membership for the field's role.
+func ValidateFieldTags(tag reflect.StructTag, role string, candidates []string, opts ValidationOptions) error {
 	keys, err := parseStructTagKeys(tag)
 	if err != nil {
-		return Directives{}, err
+		return err
 	}
 
 	if err := validateReservedPseudoTagKeys(keys); err != nil {
-		return Directives{}, err
-	}
-
-	dirs, err := ParseCongaDirectives(tag.Get("conga"))
-	if err != nil {
-		return Directives{}, err
-	}
-
-	if dirs.Ignore {
-		return dirs, nil
+		return err
 	}
 
 	if err := validateDisallowedTags(tag, keys, role); err != nil {
-		return Directives{}, err
+		return err
+	}
+
+	if role == "flag" {
+		if err := validateFlagGroupTagValues(tag); err != nil {
+			return err
+		}
 	}
 
 	if err := validateRoleTagRules(tag, role, opts); err != nil {
-		return Directives{}, err
+		return err
 	}
 
 	if !opts.SkipUnknownTagKeyCheck {
 		if err := validateTagCandidates(keys, role, candidates, opts.AllowedTags); err != nil {
-			return Directives{}, err
+			return err
 		}
 	}
 
-	return dirs, nil
+	return nil
 }
 
 // TagCandidatesForRole returns the allowed struct tag key candidates for a
@@ -204,6 +200,65 @@ func FeatureEnvCollisionError(envVar string, first string, second string) error 
 // builder and the static analyzer share it as the single source of truth.
 func FeatureOnRequiredFlagError() error {
 	return fmt.Errorf("%w: tag \"feature\" cannot be used on required flags (feature-gated flags must be optional)", ErrInvalidStructTag)
+}
+
+// DeprecatedOnRequiredFlagError builds the schema error for a deprecated tag
+// on a required flag: callers cannot migrate away from a flag they are still
+// forced to supply. The runtime schema builder and the static analyzer share
+// it as the single source of truth.
+func DeprecatedOnRequiredFlagError() error {
+	return fmt.Errorf("%w: tag \"deprecated\" cannot be used on required flags (make the flag optional before deprecating it so callers can migrate without error)", ErrInvalidStructTag)
+}
+
+// GroupTagOnRequiredFlagError builds the schema error for an xor or oneof
+// group tag declared on a required flag. Required flags are individually
+// mandatory, so group tags belong on optional flags; oneof is the tag that
+// expresses exactly-one semantics. The runtime schema builder and the static
+// analyzer share it as the single source of truth.
+func GroupTagOnRequiredFlagError(tag string) error {
+	return fmt.Errorf("%w: tag %q cannot be used on required flags (required flags are individually mandatory; declare xor/oneof groups on optional flags, and use oneof when exactly one must be supplied)", ErrInvalidStructTag, tag)
+}
+
+// DefaultOnRequiredFlagError builds the schema error for a default tag on a
+// required flag: a default would satisfy the requirement without any caller
+// input, making the requirement meaningless. The runtime schema builder and
+// the static analyzer share it as the single source of truth.
+func DefaultOnRequiredFlagError() error {
+	return fmt.Errorf("%w: tag \"default\" cannot be used on required flags (the requirement must be satisfied by CLI, environment, or configuration input)", ErrInvalidStructTag)
+}
+
+// DefaultOnOneOfFlagError builds the schema error for a default tag on a
+// oneof member: the default would always satisfy the exactly-one group. The
+// runtime schema builder and the static analyzer share it as the single source
+// of truth.
+func DefaultOnOneOfFlagError() error {
+	return fmt.Errorf("%w: tag \"default\" cannot be used on oneof flags (a default would always satisfy the group; remove the default or the oneof tag)", ErrInvalidStructTag)
+}
+
+// OneOfAndOverlapError builds the schema error for two members of the same
+// oneof group that also share an and group: selecting either member forces the
+// other, so the exactly-one rule can never be satisfied. The runtime schema
+// builder and the static analyzer share it as the single source of truth.
+func OneOfAndOverlapError(oneOfGroup, andGroup, firstFlag, secondFlag string) error {
+	return fmt.Errorf("%w: flags --%s and --%s belong to oneof group %q and share \"and\" group %q (selecting either flag forces the other, so the exactly-one group can never be satisfied; remove one of the group tags)", ErrInvalidStructTag, firstFlag, secondFlag, oneOfGroup, andGroup)
+}
+
+// BuiltinShortConflictError builds the schema error for a user-declared short
+// flag rune that claims the rune assigned to a built-in flag the command
+// offers: the binder would keep the user flag while the help screen still
+// advertises the rune for the built-in. The runtime schema builder and the
+// static analyzer share it as the single source of truth.
+func BuiltinShortConflictError(builtin string, short rune, flagName string) error {
+	return fmt.Errorf("%w: built-in --%s short flag -%c collides with --%s; assign a different rune to one of them", ErrDuplicateFlag, builtin, short, flagName)
+}
+
+// BuiltinShortPairError builds the schema error for app.HelpShortFlag and
+// app.VersionShortFlag claiming the same rune while both built-ins are offered:
+// the binder registers --help first, so the --version rune would be dropped
+// while both flag rows still advertise it. The runtime schema builder and the
+// static analyzer share it as the single source of truth.
+func BuiltinShortPairError(short rune) error {
+	return fmt.Errorf("%w: built-in --help and --version both claim short flag -%c; assign a different rune to one of them", ErrDuplicateFlag, short)
 }
 
 // ConfigExplicitConflictError builds the error when ConfigExplicit is combined with ConfigPaths or ConfigCascading.
@@ -394,6 +449,31 @@ func validateConstraintTagValues(tag reflect.StructTag) error {
 
 	if _, ok := tag.Lookup("enum"); ok && len(SplitTagList(tag, "enum")) == 0 {
 		return fmt.Errorf("%w: tag %q cannot be empty", ErrInvalidStructTag, "enum")
+	}
+
+	return nil
+}
+
+// validateFlagGroupTagValues rejects group tags that are present but carry no
+// usable group name, or that would silently form a different group because of
+// surrounding whitespace. The runtime schema builder and the static analyzer
+// share the check through ValidateFieldTags.
+func validateFlagGroupTagValues(tag reflect.StructTag) error {
+	for _, key := range []string{"xor", "and", "oneof"} {
+		value, ok := tag.Lookup(key)
+		if !ok {
+			continue
+		}
+
+		trimmed := strings.TrimSpace(value)
+
+		if trimmed == "" {
+			return fmt.Errorf("%w: tag %q cannot be empty", ErrInvalidStructTag, key)
+		}
+
+		if trimmed != value {
+			return fmt.Errorf("%w: tag %q cannot have leading or trailing whitespace", ErrInvalidStructTag, key)
+		}
 	}
 
 	return nil

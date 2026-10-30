@@ -56,6 +56,24 @@ type XorGroupCLI struct {
 	Port mockFlag[int]  `help:"Port"`
 }
 
+type OneOfGroupCLI struct {
+	JSON mockFlag[bool] `help:"Output JSON" oneof:"format"`
+	YAML mockFlag[bool] `help:"Output YAML" oneof:"format"`
+	Text mockFlag[bool] `help:"Output Text" oneof:"format"`
+	Port mockFlag[int]  `help:"Port"`
+}
+
+type ScopedGroupLeaf struct {
+	JSON mockFlag[bool] `name:"json" oneof:"choice" xor:"transport"`
+	YAML mockFlag[bool] `name:"yaml" oneof:"choice" xor:"transport"`
+}
+
+type ScopedGroupCLI struct {
+	JSON mockFlag[bool]           `name:"root-json" oneof:"choice" xor:"transport"`
+	YAML mockFlag[bool]           `name:"root-yaml" oneof:"choice" xor:"transport"`
+	Sub  mockCmd[ScopedGroupLeaf] `name:"sub"`
+}
+
 type RepeatableFlagsCLI struct {
 	Port    mockFlag[int]      `help:"Port"`
 	Tag     mockFlag[[]string] `help:"Tags"`
@@ -302,6 +320,58 @@ func TestCompletion_FlagNames(t *testing.T) {
 	})
 }
 
+// TestCompletion_BuiltinShortFlags verifies that the runes assigned to the
+// built-in --help/--version flags through app.HelpShortFlag/app.VersionShortFlag join
+// the shorthand candidates, matching the runes the binder parses.
+func TestCompletion_BuiltinShortFlags(t *testing.T) {
+	t.Parallel()
+
+	t.Run("configured built-in runes are offered", func(t *testing.T) {
+		t.Parallel()
+
+		var cli FlagsTestCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{HelpShort: 'h', VersionShort: 'V'})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"-"}, spec.CompleteOptions{})
+
+		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
+
+		assert.Equal(t, []string{"--port", "--p", "--debug", "--no-debug", "--format", "--tags", "--verbose", "--help", "--version", "--why", "--completion", "-p", "-d", "-v", "-h", "-V"}, values)
+	})
+
+	t.Run("unassigned built-in runes stay absent", func(t *testing.T) {
+		t.Parallel()
+
+		var cli FlagsTestCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"-"}, spec.CompleteOptions{})
+
+		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
+
+		assert.Equal(t, []string{"--port", "--p", "--debug", "--no-debug", "--format", "--tags", "--verbose", "--help", "--version", "--why", "--completion", "-p", "-d", "-v"}, values)
+	})
+
+	t.Run("built-in shorthand is not offered for a longhand prefix", func(t *testing.T) {
+		t.Parallel()
+
+		var cli FlagsTestCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{HelpShort: 'h', VersionShort: 'V'})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"--"}, spec.CompleteOptions{})
+
+		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
+
+		assert.Equal(t, []string{"--port", "--p", "--debug", "--no-debug", "--format", "--tags", "--verbose", "--help", "--version", "--why", "--completion"}, values)
+	})
+}
+
 func TestCompletion_AliasCandidatesAreMarked(t *testing.T) {
 	t.Parallel()
 
@@ -525,6 +595,71 @@ func TestCompletion_WhyFormats(t *testing.T) {
 		assert.False(t, slices.ContainsFunc(invoked.Items, func(item predict.Item) bool {
 			return strings.Contains(item.Value, "why")
 		}))
+	})
+}
+
+func TestCompletion_OneOfSuppression(t *testing.T) {
+	t.Parallel()
+
+	t.Run("shows all oneof options before selection", func(t *testing.T) {
+		t.Parallel()
+
+		var cli OneOfGroupCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"--"}, spec.CompleteOptions{})
+
+		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
+
+		assert.Equal(t, []string{"--json", "--yaml", "--text", "--port", "--help", "--version", "--why", "--completion"}, values)
+	})
+
+	t.Run("suppresses conflicting oneof flags when one is supplied", func(t *testing.T) {
+		t.Parallel()
+
+		var cli OneOfGroupCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"--json", "--"}, spec.CompleteOptions{})
+
+		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
+
+		assert.Equal(t, []string{"--port", "--help", "--version", "--why", "--completion"}, values)
+	})
+}
+
+func TestCompletion_GroupsScopedPerCommand(t *testing.T) {
+	t.Parallel()
+
+	var cli ScopedGroupCLI
+
+	cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+	assert.NoError(t, err)
+
+	t.Run("root member leaves leaf group candidates visible", func(t *testing.T) {
+		t.Parallel()
+
+		invoked := spec.Complete(cmdSpec, []string{"--root-json", "sub", "--"}, spec.CompleteOptions{})
+		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
+
+		assert.True(t, slices.Contains(values, "--json"))
+		assert.True(t, slices.Contains(values, "--yaml"))
+		assert.False(t, slices.Contains(values, "--root-yaml"))
+	})
+
+	t.Run("leaf member leaves root group candidates visible", func(t *testing.T) {
+		t.Parallel()
+
+		invoked := spec.Complete(cmdSpec, []string{"sub", "--json", "--"}, spec.CompleteOptions{})
+		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
+
+		assert.True(t, slices.Contains(values, "--root-json"))
+		assert.True(t, slices.Contains(values, "--root-yaml"))
+		assert.False(t, slices.Contains(values, "--yaml"))
 	})
 }
 
@@ -1590,6 +1725,21 @@ func TestAnalyzeCompletion(t *testing.T) {
 		analysis := spec.AnalyzeCompletion(cmdSpec, []string{"-x", ""})
 
 		assert.Equal(t, []string{"-x"}, analysis.RawArgs)
+	})
+
+	t.Run("configured built-in shorthands resolve as flags", func(t *testing.T) {
+		t.Parallel()
+
+		var cli analysisOverflowCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{HelpShort: 'h', VersionShort: 'V'})
+		assert.NoError(t, err)
+
+		analysis := spec.AnalyzeCompletion(cmdSpec, []string{"-h", "-V", ""})
+
+		assert.Equal(t, 0, len(analysis.RawArgs))
+		assert.Equal(t, []string{"true"}, analysisFlagValues(t, analysis.FlagValues, "help"))
+		assert.Equal(t, []string{"true"}, analysisFlagValues(t, analysis.FlagValues, "version"))
 	})
 
 	t.Run("raw fallback uses routed leaf", func(t *testing.T) {

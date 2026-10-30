@@ -29,6 +29,14 @@ type ContextInvalidCommandXorCLI struct {
 	Subcommand mockCmd[LeafTestCmd] `summary:"Subcommand" xor:"group1"`
 }
 
+type ContextInvalidCommandOneOfCLI struct {
+	Subcommand mockCmd[LeafTestCmd] `oneof:"group1" summary:"Subcommand"`
+}
+
+type ContextInvalidConfigFileOneOfCLI struct {
+	Config mockConfigFile `name:"config" oneof:"group1"`
+}
+
 type LeafTestCmd struct {
 	Data mockFlag[string] `help:"Data payload"`
 }
@@ -74,62 +82,12 @@ type AllowedForeignTagsCLI struct {
 	Name mockFlag[string] `db:"user_name" doc:"User name" help:"User name" json:"name" toml:"name" validate:"required" yaml:"name"`
 }
 
-type DirectiveIgnoreCLI struct {
-	Port   mockFlag[int]    `default:"8080" help:"Listen port"`
-	Secret mockFlag[string] `conga:"-"      unknown_weird_tag:"val"`
-}
-
-type DirectiveFieldAllowUnknownCLI struct {
-	Metric mockFlag[string] `conga:"allow-unknown-tags" help:"Metric" prometheus:"gauge"`
-}
-
-type DirectiveCommandAllowUnknownCLI struct {
-	Subcommand mockCmd[SubcommandWithCustomTags] `conga:"allow-unknown-tags" summary:"Subcommand with custom tags"`
-}
-
-type SubcommandWithCustomTags struct {
-	Worker mockFlag[string] `customtag:"worker1" help:"Worker name"`
-}
-
-func (s *SubcommandWithCustomTags) Run(ctx context.Context) error {
-	return nil
-}
-
-type DirectiveRecurseCLI struct {
-	Parent mockCmd[ParentCmdWithRecurse] `conga:"allow-unknown-tags,recurse" summary:"Parent"`
-}
-
-type DirectiveRecurseOnlyCLI struct {
-	Subcommand mockCmd[SubcommandWithCustomTags] `conga:"recurse" summary:"Subcommand"`
-}
-
-type ParentCmdWithRecurse struct {
-	Child mockCmd[ChildCmdWithCustomTags] `summary:"Child"`
-}
-
-type ChildCmdWithCustomTags struct {
-	Token mockFlag[string] `deepcustom:"true" help:"Token"`
-}
-
-func (c *ChildCmdWithCustomTags) Run(ctx context.Context) error {
-	return nil
-}
-
-type StructSentinelAllowUnknownCLI struct {
-	_      struct{}         `conga:"allow-unknown-tags"`
-	Worker mockFlag[string] `customtag:"worker1"        help:"Worker name"`
-}
-
-type LegacyShorthandDirectiveCLI struct {
-	Verbose mockFlag[bool] `conga:"-v, --verbose" help:"Verbose output"`
+type RemovedCongaTagCLI struct {
+	Subcommand mockCmd[LeafTestCmd] `conga:"ignore" summary:"Subcommand"`
 }
 
 type AppLevelCustomTagCLI struct {
 	Rate mockFlag[float64] `datadog:"rate" help:"Sample rate"`
-}
-
-type RequiredCongaTagCLI struct {
-	Port mockFlag[int] `conga:"required"`
 }
 
 type RequiredStandaloneTagCLI struct {
@@ -206,6 +164,32 @@ func TestStrictTagLinter_ContextValidation(t *testing.T) {
 		assert.IsError(t, err, spec.ErrSchema)
 		assert.IsError(t, err, spec.ErrInvalidStructTag)
 		assert.Equal(t, `struct ContextInvalidCommandXorCLI field Subcommand: schema error: invalid struct tag: tag "xor" is invalid on subcommand (tag "xor" is only valid on flags)`, err.Error())
+	})
+
+	t.Run("oneof tag on subcommand errors", func(t *testing.T) {
+		t.Parallel()
+
+		var cli ContextInvalidCommandOneOfCLI
+
+		_, err := buildSchema(&cli, "app", spec.Options{})
+
+		assert.Error(t, err)
+		assert.IsError(t, err, spec.ErrSchema)
+		assert.IsError(t, err, spec.ErrInvalidStructTag)
+		assert.Equal(t, `struct ContextInvalidCommandOneOfCLI field Subcommand: schema error: invalid struct tag: tag "oneof" is invalid on subcommand (tag "oneof" is only valid on flags)`, err.Error())
+	})
+
+	t.Run("oneof tag on config file flag errors", func(t *testing.T) {
+		t.Parallel()
+
+		var cli ContextInvalidConfigFileOneOfCLI
+
+		_, err := buildSchema(&cli, "app", spec.Options{})
+
+		assert.Error(t, err)
+		assert.IsError(t, err, spec.ErrSchema)
+		assert.IsError(t, err, spec.ErrInvalidStructTag)
+		assert.Equal(t, `struct ContextInvalidConfigFileOneOfCLI field Config: schema error: invalid struct tag: tag "oneof" is invalid on config file flag (tag "oneof" is only valid on flags)`, err.Error())
 	})
 
 	t.Run("negatable tag on non-bool flag errors", func(t *testing.T) {
@@ -328,98 +312,17 @@ func TestStrictTagLinter_ForeignEcosystemTags(t *testing.T) {
 	})
 }
 
-func TestStrictTagLinter_CongaDirectives(t *testing.T) {
+func TestStrictTagLinter_CongaTagRejected(t *testing.T) {
 	t.Parallel()
 
-	t.Run("conga ignore directive skips field", func(t *testing.T) {
-		t.Parallel()
+	var cli RemovedCongaTagCLI
 
-		var cli DirectiveIgnoreCLI
+	_, err := buildSchema(&cli, "app", spec.Options{})
 
-		s, err := buildSchema(&cli, "app", spec.Options{})
-
-		assert.NoError(t, err)
-		assert.Equal(t, 1, len(s.Flags))
-		assert.Equal(t, "port", s.Flags[0].Name)
-	})
-
-	t.Run("conga allow-unknown-tags on field is rejected", func(t *testing.T) {
-		t.Parallel()
-
-		var cli DirectiveFieldAllowUnknownCLI
-
-		_, err := buildSchema(&cli, "app", spec.Options{})
-
-		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct DirectiveFieldAllowUnknownCLI field Metric: schema error: invalid struct tag: conga directive "allow-unknown-tags" was removed; register foreign tag keys with app.AllowTags(...) instead`, err.Error())
-	})
-
-	t.Run("conga allow-unknown-tags on subcommand field is rejected", func(t *testing.T) {
-		t.Parallel()
-
-		var cli DirectiveCommandAllowUnknownCLI
-
-		_, err := buildSchema(&cli, "app", spec.Options{})
-
-		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct DirectiveCommandAllowUnknownCLI field Subcommand: schema error: invalid struct tag: conga directive "allow-unknown-tags" was removed; register foreign tag keys with app.AllowTags(...) instead`, err.Error())
-	})
-
-	t.Run("conga allow-unknown-tags with recurse is rejected", func(t *testing.T) {
-		t.Parallel()
-
-		var cli DirectiveRecurseCLI
-
-		_, err := buildSchema(&cli, "app", spec.Options{})
-
-		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct DirectiveRecurseCLI field Parent: schema error: invalid struct tag: conga directive "allow-unknown-tags" was removed; register foreign tag keys with app.AllowTags(...) instead`, err.Error())
-	})
-
-	t.Run("conga recurse alone is rejected", func(t *testing.T) {
-		t.Parallel()
-
-		var cli DirectiveRecurseOnlyCLI
-
-		_, err := buildSchema(&cli, "app", spec.Options{})
-
-		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct DirectiveRecurseOnlyCLI field Subcommand: schema error: invalid struct tag: conga directive "recurse" was removed; register foreign tag keys with app.AllowTags(...) instead`, err.Error())
-	})
-
-	t.Run("conga allow-unknown-tags on struct sentinel is rejected", func(t *testing.T) {
-		t.Parallel()
-
-		var cli StructSentinelAllowUnknownCLI
-
-		_, err := buildSchema(&cli, "app", spec.Options{})
-
-		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct StructSentinelAllowUnknownCLI field _: schema error: invalid struct tag: conga directive "allow-unknown-tags" was removed; register foreign tag keys with app.AllowTags(...) instead`, err.Error())
-	})
-
-	t.Run("legacy conga naming shorthand errors with directive guidance", func(t *testing.T) {
-		t.Parallel()
-
-		var cli LegacyShorthandDirectiveCLI
-
-		_, err := buildSchema(&cli, "app", spec.Options{})
-
-		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct LegacyShorthandDirectiveCLI field Verbose: schema error: invalid struct tag: unrecognized conga directive "-v". Note: flag names and short flags must be declared using name:"..." and short:"..."`, err.Error())
-	})
+	assert.Error(t, err)
+	assert.IsError(t, err, spec.ErrSchema)
+	assert.IsError(t, err, spec.ErrInvalidStructTag)
+	assert.Equal(t, `struct RemovedCongaTagCLI field Subcommand: schema error: invalid struct tag: unknown struct tag "conga" (did you mean "range"?). Use app.AllowTags("conga") to permit external tags`, err.Error())
 }
 
 func TestStrictTagLinter_OptionsConfiguration(t *testing.T) {
@@ -442,19 +345,6 @@ func TestStrictTagLinter_OptionsConfiguration(t *testing.T) {
 
 func TestStrictTagLinter_RequiredTagRejected(t *testing.T) {
 	t.Parallel()
-
-	t.Run("conga:required tag is rejected with error", func(t *testing.T) {
-		t.Parallel()
-
-		var cli RequiredCongaTagCLI
-
-		_, err := buildSchema(&cli, "app", spec.Options{})
-
-		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct RequiredCongaTagCLI field Port: schema error: invalid struct tag: unrecognized conga directive "required". Note: flag names and short flags must be declared using name:"..." and short:"..."`, err.Error())
-	})
 
 	t.Run("standalone required:true tag is rejected with error", func(t *testing.T) {
 		t.Parallel()

@@ -8,7 +8,7 @@ import (
 )
 
 // KitchenSinkCLI is the exhaustive reference application: every supported
-// flag type, configuration-mapping pattern, and schema directive lives here.
+// flag type and configuration-mapping pattern lives here.
 type KitchenSinkCLI struct {
 	Config conga.ConfigFile `name:"config-file" short:"c"`
 
@@ -39,11 +39,8 @@ type KitchenSinkCLI struct {
 
 	Storm conga.OptionalFlag[bool] `help:"Enable storm mode"`
 
-	// conga:"ignore" removes the field from the schema entirely: the command
-	// is not runnable, listed in help, or completed
-	Session string `conga:"ignore"` // plain fields are inert either way; the directive targets schema elements
-
-	Internal conga.Command[PrimitivesCmd] `conga:"ignore"`
+	// Session is a plain field, so it never becomes a flag or a help entry.
+	Session string
 
 	Types        conga.Command[TypesCmd]        `summary:"Type system matrix (primitives, filesystem, value types)"`
 	Configs      conga.Command[ConfigCmd]       `name:"config"                                                             summary:"Configuration mapping patterns"`

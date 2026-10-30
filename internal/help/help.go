@@ -16,6 +16,7 @@ import (
 	"github.com/conga-sh/conga/internal/cond"
 	"github.com/conga-sh/conga/internal/slicex"
 	"github.com/conga-sh/conga/internal/spec"
+	"github.com/conga-sh/conga/internal/termwidth"
 )
 
 // Options carries optional feature renderers for feature-specific help
@@ -23,17 +24,20 @@ import (
 // sections: the completion subsystem is reachable only through renderers
 // installed by the completion-enabled engine path.
 type Options struct {
+	// Width is the column width help text wraps at. Zero resolves through
+	// termwidth: a COLUMNS override when set, else the default width.
+	Width int
 	// CompletionInstructions renders the per-shell enable instructions of a
 	// completion command pinned to one shell (e.g. `--completion zsh --help`).
 	CompletionInstructions func(shell string, useFlag bool, rootName string) string
 	// CompletionFooter renders the supported-shells footer of the generic
 	// completion screen.
-	CompletionFooter func(cmdChain []*spec.Command, useFlag bool) string
+	CompletionFooter func(cmdChain []*spec.Command, useFlag bool, width int) string
 	// FeaturesSection renders the automatic Features section of the root help
 	// screen. It is reached exclusively through the feature-enabled engine
 	// path, so applications that never enable features keep the feature help
 	// payload unreferenced.
-	FeaturesSection func(root *spec.Command) string
+	FeaturesSection func(root *spec.Command, width int) string
 }
 
 // RenderCompletionInstructions renders the enable instructions body of a
@@ -56,16 +60,19 @@ func RenderCompletionInstructions(shell string, useFlag bool, rootName string) s
 // supported-shells list plus the dynamically generated current-shell enable
 // hints. It is the completion-enabled implementation behind
 // Options.CompletionFooter; detect resolves the caller's shell and is
-// injectable for deterministic tests. The per-shell instructions pointer is
+// injectable for deterministic tests, and width carries the wrap width
+// (zero resolves through termwidth). The per-shell instructions pointer is
 // suppressed when the completion command's help flag is disabled, since the
 // referenced invocation would be a usage error. An empty command chain renders
 // nothing.
-func RenderCompletionFooter(cmdChain []*spec.Command, useFlag bool, detect func() (completion.CurrentShell, bool)) string {
+func RenderCompletionFooter(cmdChain []*spec.Command, useFlag bool, detect func() (completion.CurrentShell, bool), width int) string {
 	if len(cmdChain) == 0 {
 		return ""
 	}
 
-	cmdName := rootDisplayName(cmdChain)
+	width = resolveWidth(width)
+
+	cmdName := invokedName(cmdChain)
 	helpAvailable := !cmdChain[len(cmdChain)-1].DisableHelp
 
 	var builder strings.Builder
@@ -74,7 +81,7 @@ func RenderCompletionFooter(cmdChain []*spec.Command, useFlag bool, detect func(
 		return tableEntry{label: info.Name, help: info.Description}
 	})
 
-	builder.WriteString(renderTable("Supported shells", entries))
+	builder.WriteString(renderTable("Supported shells", entries, width))
 
 	if current, ok := detect(); ok {
 		builder.WriteString(completion.NowSection(current, cmdName, useFlag, helpAvailable))
@@ -97,9 +104,12 @@ func RenderCompletionFooter(cmdChain []*spec.Command, useFlag bool, detect func(
 // the feature's help text followed by its declared stage, integer levels,
 // default, and bound environment variables. GA and deprecated features are
 // omitted — they are no longer experimental — and the section renders nothing
-// when no feature remains. It is the feature-enabled implementation behind
+// when no feature remains. Width carries the wrap width (zero resolves through
+// termwidth). It is the feature-enabled implementation behind
 // Options.FeaturesSection.
-func RenderFeatures(root *spec.Command) string {
+func RenderFeatures(root *spec.Command, width int) string {
+	width = resolveWidth(width)
+
 	entries := make([]tableEntry, 0, len(root.FeatureFields))
 
 	for _, feature := range root.FeatureFields {
@@ -133,7 +143,7 @@ func RenderFeatures(root *spec.Command) string {
 		entries = append(entries, tableEntry{label: feature.Name, help: helpText})
 	}
 
-	return renderTable("Features", entries)
+	return renderTable("Features", entries, width)
 }
 
 // Usage returns the standard 1-2 line usage syntax for the given command chain.
@@ -142,9 +152,10 @@ func Usage(cmdChain []*spec.Command) string {
 		return ""
 	}
 
-	cmdPath := resolveCmdPath(cmdChain)
-	rootName := cmdPath[0]
 	leaf := cmdChain[len(cmdChain)-1]
+
+	rootName := screenName(cmdChain)
+	cmdPath := resolveCmdPath(cmdChain, rootName)
 
 	if leaf.IsCompletionCmd && leaf.IsCompletionFlag {
 		if leaf.Shell != "" {
@@ -170,17 +181,19 @@ func Usage(cmdChain []*spec.Command) string {
 		parts = append(parts, "<command>")
 	}
 
-	globalRequired, hasOptionalGlobal := globalUsageFlags(cmdChain)
+	globalParts, hasOptionalGlobal := globalUsageFlags(cmdChain)
 
-	for _, flagSpec := range globalRequired {
-		parts = append(parts, formatUsageFlag(flagSpec))
-	}
+	parts = append(parts, globalParts...)
 
 	parts, hasOptionalFlags := appendUsageFlags(parts, leaf.Flags)
 
+	if hasOptionalFlags || hasOptionalGlobal {
+		parts = append(parts, "[flags]")
+	}
+
 	for _, arg := range leaf.Args {
-		if arg.Name != "" {
-			parts = append(parts, arg.Name)
+		if token := formatArgToken(arg); token != "" {
+			parts = append(parts, token)
 		}
 	}
 
@@ -192,10 +205,6 @@ func Usage(cmdChain []*spec.Command) string {
 		parts = append(parts, leaf.RawArgs.Name)
 	}
 
-	if hasOptionalFlags || hasOptionalGlobal {
-		parts = append(parts, "[flags]")
-	}
-
 	return "Usage:\n  " + strings.Join(parts, " ")
 }
 
@@ -205,7 +214,7 @@ func Hint(cmdChain []*spec.Command) string {
 		return ""
 	}
 
-	cmdPath := resolveCmdPath(cmdChain)
+	cmdPath := resolveCmdPath(cmdChain, screenName(cmdChain))
 	if len(cmdPath) == 0 {
 		return ""
 	}
@@ -231,24 +240,18 @@ func FormatWith(cmdChain []*spec.Command, opts Options) string {
 
 	var builder strings.Builder
 
-	rootName := rootDisplayName(cmdChain)
+	rootName := displayName(cmdChain)
+	width := resolveWidth(opts.Width)
 
-	// 0. Root deprecation banner
-	if cmdChain[0].Deprecated != "" {
-		builder.WriteString("WARNING: ")
-		builder.WriteString(rootName)
-		builder.WriteString(" is deprecated: ")
-		builder.WriteString(cmdChain[0].Deprecated)
-		builder.WriteString("\n\n")
-	}
+	writeDeprecationBanners(&builder, cmdChain, rootName)
 
 	// 1. Description
-	builder.WriteString(formatHelpDescription(leaf))
+	builder.WriteString(formatHelpDescription(leaf, width))
 
 	// 2. Per-shell completion body: the enable instructions read as the
 	// screen's documentation and precede usage (docker/cobra style).
 	if leaf.IsCompletionCmd && leaf.Shell != "" && opts.CompletionInstructions != nil {
-		builder.WriteString(opts.CompletionInstructions(leaf.Shell, leaf.IsCompletionFlag, rootName))
+		builder.WriteString(opts.CompletionInstructions(leaf.Shell, leaf.IsCompletionFlag, invokedName(cmdChain)))
 		builder.WriteString("\n")
 	}
 
@@ -256,46 +259,56 @@ func FormatWith(cmdChain []*spec.Command, opts Options) string {
 	builder.WriteString(Usage(cmdChain))
 	builder.WriteString("\n")
 
-	// 4. Subcommands
-	builder.WriteString(formatSubcommands(leaf.Subcommands))
+	// 4. Examples
+	builder.WriteString(formatExamples(leaf.Examples))
 
-	// 5. Positional Arguments
+	// 5. Subcommands
+	builder.WriteString(formatSubcommands(leaf.Subcommands, width))
+
+	// 6. Positional Arguments
 	// The per-shell completion screen omits Arguments: the shell is already
 	// supplied, so restating the <shell> placeholder adds noise.
 	if (!leaf.IsCompletionCmd || leaf.Shell == "") && !leaf.IsCompletionFlag {
-		builder.WriteString(formatArgs(leaf.Args))
+		builder.WriteString(formatArgs(leaf.Args, width))
 	}
 
-	// 6. Completion-specific footer: supported shells list and enable hints,
+	// 7. Completion-specific footer: supported shells list and enable hints,
 	// dynamically generated for the caller's current shell. Only rendered on
 	// the generic screen; the per-shell body handled it above.
 	if leaf.IsCompletionCmd && leaf.Shell == "" && opts.CompletionFooter != nil {
-		builder.WriteString(opts.CompletionFooter(cmdChain, leaf.IsCompletionFlag))
+		builder.WriteString(opts.CompletionFooter(cmdChain, leaf.IsCompletionFlag, width))
 	}
 
-	// 7. Flags
+	// 8. Flags
 	// The built-in --why flag is offered on every command (like --help); the
 	// built-in --version flag is root-only: version information describes the
 	// whole application, so subcommand help screens omit it.
 	visibleHelp := !leaf.DisableHelp
 	visibleVersion := leaf.VersionFlagVisible(len(cmdChain) == 1)
 	visibleWhy := leaf.WhyFlagVisible()
-	builder.WriteString(formatFlags(leaf.Flags, visibleHelp, visibleVersion, leaf.CompletionFlagVisible(len(cmdChain) == 1), visibleWhy, cmdChain[0].WhyFormats()))
+	builder.WriteString(formatFlags(
+		leaf.Flags,
+		visibleHelp,
+		visibleVersion,
+		leaf.CompletionFlagVisible(len(cmdChain) == 1),
+		visibleWhy,
+		cmdChain[0].WhyFormats(),
+		cmdChain[0].HelpShort,
+		cmdChain[0].VersionShort,
+		width,
+	))
 
-	// 7.5 Features (root screen only)
+	// 8.5 Features (root screen only)
 	// The automatic Features section renders the root command's feature
 	// toggles with their stage, levels, and defaults; it lists every visible
 	// feature by name, so the synthesized feature-gates flag suppresses its
 	// own [enum: ...] hint. Features are declared on the root only.
 	if len(cmdChain) == 1 && opts.FeaturesSection != nil {
-		builder.WriteString(opts.FeaturesSection(cmdChain[0]))
+		builder.WriteString(opts.FeaturesSection(cmdChain[0], width))
 	}
 
-	// 8. Global Flags (inherited from ancestor commands)
-	builder.WriteString(formatGlobalFlags(cmdChain))
-
-	// 9. Examples
-	builder.WriteString(formatExamples(leaf.Examples))
+	// 9. Global Flags (inherited from ancestor commands)
+	builder.WriteString(formatGlobalFlags(cmdChain, width))
 
 	// 10. Global help footer
 	if footer := strings.TrimSpace(cmdChain[0].HelpFooter); footer != "" {
@@ -366,17 +379,36 @@ type hintSuppression struct {
 	rangeRef, lenRef, itemsRef bool
 }
 
-// appendUsageFlags appends long-form tokens for required flags to the usage
-// synopsis and reports whether any optional flags remain to be collapsed.
+// appendUsageFlags appends long-form tokens for required flags and exactly-one
+// groups to the usage synopsis and reports whether any visible optional flags
+// remain to be collapsed into the [flags] placeholder. Group members are
+// represented by a single alternation token and do not set the placeholder on
+// their own. Only the shared engine definitions are skipped: a user-declared
+// shadow of --help/--version is a regular flag and contributes to the synopsis.
 func appendUsageFlags(parts []string, flags []*spec.Flag) ([]string, bool) {
 	hasOptionalFlags := false
+	seenOneOfGroups := make(map[string]bool)
 
 	for _, flag := range flags {
 		if flag.Hidden {
 			continue
 		}
 
-		if flag.Name == "help" || flag.Name == "version" {
+		if isEngineBuiltinFlag(flag) {
+			continue
+		}
+
+		if flag.OneOfGroup != "" {
+			if seenOneOfGroups[flag.OneOfGroup] {
+				continue
+			}
+
+			seenOneOfGroups[flag.OneOfGroup] = true
+
+			if token := formatUsageOneOfGroup(flags, flag.OneOfGroup); token != "" {
+				parts = append(parts, token)
+			}
+
 			continue
 		}
 
@@ -390,15 +422,43 @@ func appendUsageFlags(parts []string, flags []*spec.Flag) ([]string, bool) {
 	return parts, hasOptionalFlags
 }
 
+// formatUsageOneOfGroup renders the visible members of an exactly-one group as
+// a parenthesized alternation. A group with a single visible member renders as
+// a plain required token; a group with no visible members renders nothing.
+func formatUsageOneOfGroup(flags []*spec.Flag, group string) string {
+	tokens := make([]string, 0, len(flags))
+
+	for _, flag := range flags {
+		if flag.OneOfGroup != group {
+			continue
+		}
+
+		if flag.Hidden || isEngineBuiltinFlag(flag) {
+			continue
+		}
+
+		tokens = append(tokens, formatUsageFlag(flag))
+	}
+
+	switch len(tokens) {
+	case 0:
+		return ""
+	case 1:
+		return tokens[0]
+	default:
+		return "(" + strings.Join(tokens, " | ") + ")"
+	}
+}
+
 // globalUsageFlags scans the ancestor commands of the given chain and returns
-// their visible, non-built-in flags: required flags to render explicitly in
-// the usage synopsis (in chain order, before the leaf's own required flags)
-// plus whether optional flags remain to be collapsed into the [flags]
-// placeholder. It mirrors the visibility rules of formatGlobalFlags: hidden
-// flags and the built-in --help/--version flags are skipped, and built-in
-// infrastructure leaves (completion, help, version) never surface ancestor
-// flags because their operation never uses them.
-func globalUsageFlags(cmdChain []*spec.Command) ([]*spec.Flag, bool) {
+// their visible, non-built-in usage tokens: required flags and exactly-one
+// groups render explicitly (in chain order, before the leaf's own tokens) plus
+// whether optional flags remain to be collapsed into the [flags] placeholder.
+// It mirrors the visibility rules of formatGlobalFlags: hidden flags and the
+// shared built-in --help/--version definitions are skipped, while user-declared
+// shadows stay regular flags. Built-in infrastructure leaves (completion, help,
+// version) never surface ancestor flags because their operation never uses them.
+func globalUsageFlags(cmdChain []*spec.Command) ([]string, bool) {
 	if len(cmdChain) <= 1 {
 		return nil, false
 	}
@@ -409,30 +469,19 @@ func globalUsageFlags(cmdChain []*spec.Command) ([]*spec.Flag, bool) {
 		return nil, false
 	}
 
-	var required []*spec.Flag
-
-	hasOptional := false
+	var (
+		parts       []string
+		hasOptional bool
+	)
 
 	for _, cmd := range cmdChain[:len(cmdChain)-1] {
-		for _, flagSpec := range cmd.Flags {
-			if flagSpec.Hidden {
-				continue
-			}
+		var optional bool
 
-			if flagSpec.Name == "help" || flagSpec.Name == "version" ||
-				slices.Contains(flagSpec.Aliases, "help") || slices.Contains(flagSpec.Aliases, "version") {
-				continue
-			}
-
-			if flagSpec.Required {
-				required = append(required, flagSpec)
-			} else {
-				hasOptional = true
-			}
-		}
+		parts, optional = appendUsageFlags(parts, cmd.Flags)
+		hasOptional = hasOptional || optional
 	}
 
-	return required, hasOptional
+	return parts, hasOptional
 }
 
 // formatUsageFlag renders a required flag's long-form token for the usage
@@ -448,7 +497,7 @@ func formatUsageFlag(flagSpec *spec.Flag) string {
 		return "--" + name
 	}
 
-	value := formatFlagValue(flagSpec)
+	value := flagValueSlot(flagSpec)
 
 	if flagSpec.IsSlice || flagSpec.IsMap {
 		value += ",..."
@@ -475,7 +524,23 @@ func kindMetavar(kind reflect.Kind) string {
 	}
 }
 
-func renderTable(title string, entries []tableEntry) string {
+// resolveWidth normalizes a configured wrap width: zero (or negative) follows
+// the termwidth resolution — a COLUMNS override when set, else the default.
+func resolveWidth(width int) int {
+	if width > 0 {
+		return width
+	}
+
+	return termwidth.Resolve(nil)
+}
+
+// renderTable renders one titled, column-aligned table, wrapping help cells to
+// the available width. Labels are measured in terminal cells so wide and
+// non-ASCII identifiers keep the help column aligned, and rows whose help cell
+// is empty end at the label so the output carries no trailing whitespace. The
+// help column never grows past half the width; a label too wide for it renders
+// on its own line above its help text.
+func renderTable(title string, entries []tableEntry, width int) string {
 	if len(entries) == 0 {
 		return ""
 	}
@@ -486,23 +551,197 @@ func renderTable(title string, entries []tableEntry) string {
 	builder.WriteString(title)
 	builder.WriteString(":\n")
 
-	maxLen := 0
+	maxLength := 0
 
 	for _, entry := range entries {
-		if len(entry.label) > maxLen {
-			maxLen = len(entry.label)
+		if entryWidth := cellWidth(entry.label); entryWidth > maxLength {
+			maxLength = entryWidth
 		}
 	}
 
+	helpColumn := 2 + maxLength + 2
+	if maxColumn := width / 2; helpColumn > maxColumn {
+		helpColumn = maxColumn
+	}
+
+	continuation := strings.Repeat(" ", helpColumn)
+
 	for _, entry := range entries {
-		padding := strings.Repeat(" ", maxLen-len(entry.label)+2)
-		fmt.Fprintf(&builder, "  %s%s%s\n", entry.label, padding, entry.help)
+		if entry.help == "" {
+			fmt.Fprintf(&builder, "  %s\n", entry.label)
+
+			continue
+		}
+
+		if 2+cellWidth(entry.label)+2 > helpColumn {
+			fmt.Fprintf(&builder, "  %s\n", entry.label)
+			writeHelpLines(&builder, wrapCell(entry.help, width-helpColumn), continuation)
+
+			continue
+		}
+
+		labelPadding := helpColumn - 2 - cellWidth(entry.label)
+		lines := wrapCell(entry.help, width-helpColumn)
+
+		if lines[0] == "" {
+			fmt.Fprintf(&builder, "  %s\n", entry.label)
+			writeHelpLines(&builder, lines[1:], continuation)
+
+			continue
+		}
+
+		fmt.Fprintf(&builder, "  %s%s%s\n", entry.label, strings.Repeat(" ", labelPadding), lines[0])
+		writeHelpLines(&builder, lines[1:], continuation)
 	}
 
 	return builder.String()
 }
 
-func formatSubcommands(subcommands []*spec.Command) string {
+// writeHelpLines writes wrapped cell lines below a label, indenting every
+// non-blank line to the help column and leaving blank lines empty so the output
+// carries no trailing spaces.
+func writeHelpLines(builder *strings.Builder, lines []string, indent string) {
+	for _, line := range lines {
+		if line == "" {
+			builder.WriteByte('\n')
+
+			continue
+		}
+
+		builder.WriteString(indent)
+		builder.WriteString(line)
+		builder.WriteByte('\n')
+	}
+}
+
+// wrapCell wraps every author line of a help cell to width, preserving explicit
+// line breaks and blank lines.
+func wrapCell(cell string, width int) []string {
+	authorLines := strings.Split(cell, "\n")
+	lines := make([]string, 0, len(authorLines))
+
+	for _, line := range authorLines {
+		lines = append(lines, wrapLine(line, width)...)
+	}
+
+	return lines
+}
+
+// wrapLine folds one logical line at space boundaries so no emitted line
+// exceeds width cells. A line that already fits is returned untouched, and an
+// atom longer than width occupies its own line unbroken.
+func wrapLine(line string, width int) []string {
+	if cellWidth(line) <= width {
+		return []string{line}
+	}
+
+	atoms := splitWrapAtoms(line)
+	if len(atoms) == 0 {
+		return []string{""}
+	}
+
+	var (
+		lines   []string
+		current string
+	)
+
+	for _, atom := range atoms {
+		switch {
+		case current == "":
+			current = atom
+		case cellWidth(current)+1+cellWidth(atom) <= width:
+			current += " " + atom
+		default:
+			lines = append(lines, current)
+
+			current = atom
+		}
+	}
+
+	return append(lines, current)
+}
+
+// splitWrapAtoms splits one line into wrap atoms at space boundaries, keeping a
+// balanced bracketed group (e.g. "[env: NAME]", "[default: true]") whole so its
+// interior space never becomes a break point and the closing bracket is never
+// orphaned onto its own line. A line whose brackets do not balance or whose
+// nesting turns negative — author prose carrying a stray "[" or a "]" before
+// its "[" — wraps on plain whitespace, as does a bracketless line.
+func splitWrapAtoms(line string) []string {
+	words := strings.Fields(line)
+	if len(words) == 0 {
+		return nil
+	}
+
+	if bracketDepth(line) != 0 {
+		return words
+	}
+
+	atoms := make([]string, 0, len(words))
+
+	var (
+		current string
+		depth   int
+	)
+
+	for _, word := range words {
+		depth += bracketDepth(word)
+
+		if depth < 0 {
+			return words
+		}
+
+		if current == "" {
+			current = word
+		} else {
+			current += " " + word
+		}
+
+		if depth == 0 {
+			atoms = append(atoms, current)
+
+			current = ""
+		}
+	}
+
+	if current != "" {
+		atoms = append(atoms, current)
+	}
+
+	return atoms
+}
+
+// bracketDepth returns the net bracket nesting contributed by one word, so
+// splitWrapAtoms can tell whether a bracketed group is still open. Nested
+// brackets (a "[default: [a, b]]" hint) balance correctly.
+func bracketDepth(word string) int {
+	depth := 0
+
+	for _, char := range word {
+		switch char {
+		case '[':
+			depth++
+		case ']':
+			depth--
+		}
+	}
+
+	return depth
+}
+
+// wrapText wraps every author line of text to width, preserving explicit line
+// breaks and blank lines.
+func wrapText(text string, width int) string {
+	lines := strings.Split(text, "\n")
+
+	for index, line := range lines {
+		lines[index] = strings.Join(wrapLine(line, width), "\n")
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+func formatSubcommands(subcommands []*spec.Command, width int) string {
 	builder := newSectionBuilder("Commands")
 
 	for _, subcommand := range subcommands {
@@ -516,20 +755,57 @@ func formatSubcommands(subcommands []*spec.Command) string {
 		})
 	}
 
-	return renderSections(builder.sections())
+	return renderSections(builder.sections(), width)
 }
 
 // renderSections renders every section as its own titled table. An empty
 // section list renders nothing; each title carries renderTable's leading
 // blank line so sections stay visually separated.
-func renderSections(sections []tableSection) string {
+func renderSections(sections []tableSection, width int) string {
 	var builder strings.Builder
 
 	for _, section := range sections {
-		builder.WriteString(renderTable(section.title, section.entries))
+		builder.WriteString(renderTable(section.title, section.entries, width))
 	}
 
 	return builder.String()
+}
+
+// formatArgToken renders a positional argument's synopsis token, deriving
+// repeatability and optionality from the schema so the usage line and the
+// Arguments: section never diverge. Author-supplied brackets are resolved
+// first, so a slice or map argument gains its "..." repetition marker inside
+// them (and inside a trailing placeholder angle bracket when present), and an
+// optional argument gains a single bracket pair unless its name already carries
+// one. Author-written "..." is preserved.
+func formatArgToken(arg *spec.Arg) string {
+	token := arg.Name
+	if token == "" {
+		return ""
+	}
+
+	bracketed := isBracketed(token)
+	if bracketed {
+		token = strings.TrimSuffix(strings.TrimPrefix(token, "["), "]")
+	}
+
+	if (arg.IsSlice || arg.IsMap) && !strings.Contains(token, "...") {
+		if trimmed, ok := strings.CutSuffix(token, ">"); ok {
+			token = trimmed + "...>"
+		} else {
+			token += "..."
+		}
+	}
+
+	if bracketed || !arg.Required {
+		return "[" + token + "]"
+	}
+
+	return token
+}
+
+func isBracketed(token string) bool {
+	return strings.HasPrefix(token, "[") && strings.HasSuffix(token, "]")
 }
 
 func formatArgLabel(arg *spec.Arg) (string, string) {
@@ -553,10 +829,10 @@ func formatArgLabel(arg *spec.Arg) (string, string) {
 		helpText = appendNonEmpty(helpText, hint)
 	}
 
-	return arg.Name, helpText
+	return formatArgToken(arg), helpText
 }
 
-func formatArgs(args []*spec.Arg) string {
+func formatArgs(args []*spec.Arg, width int) string {
 	if len(args) == 0 {
 		return ""
 	}
@@ -571,14 +847,11 @@ func formatArgs(args []*spec.Arg) string {
 		})
 	}
 
-	return renderTable("Arguments", entries)
+	return renderTable("Arguments", entries, width)
 }
 
-// formatFlagLabel renders the flag label column. The value slot follows kong's
-// FormatPlaceHolder precedence: an explicit placeholder tag wins, then the
-// formatted default value (strings quoted, skipped when the help tag
-// references {{default}}), then an informative metavar for well-known domain
-// kinds, then the uppercase flag name. Multi-value flags (slices and maps) gain
+// formatFlagLabel renders the flag label column. The value slot follows the
+// shared flagValueSlot precedence and multi-value flags (slices and maps) gain
 // a ",..." tail to signal repetition.
 func formatFlagLabel(flagSpec *spec.Flag) string {
 	flagPrefix := cond.If(flagSpec.IsNegatable, "--[no-]", "--")
@@ -595,15 +868,25 @@ func formatFlagLabel(flagSpec *spec.Flag) string {
 		return label
 	}
 
-	value := cond.SetOrDefaultFunc(flagSpec.Placeholder, func() string {
-		return formatFlagValue(flagSpec)
-	})
+	value := flagValueSlot(flagSpec)
 
 	if flagSpec.IsSlice || flagSpec.IsMap {
 		value += ",..."
 	}
 
 	return label + "=" + value
+}
+
+// flagValueSlot returns the flag's value slot with the help table's
+// precedence: an explicit placeholder tag wins, then the formatted default
+// value (strings quoted, skipped when the help tag references {{default}}),
+// then the IsConfigFile PATH placeholder, then the metavar of the resolved
+// type. The usage synopsis and the flag table share it so the two never
+// diverge.
+func flagValueSlot(flagSpec *spec.Flag) string {
+	return cond.SetOrDefaultFunc(flagSpec.Placeholder, func() string {
+		return formatFlagValue(flagSpec)
+	})
 }
 
 // formatFlagValue returns the placeholder text for a flag's value slot. The
@@ -681,13 +964,8 @@ func formatFlagHelpText(flagSpec *spec.Flag) string {
 
 	hasDefaultInLabel := flagSpec.Placeholder == "" && flagSpec.Default != "" && flagSpec.Handle != nil
 
-	if flagSpec.Default != "" && !flagSpec.HelpVars.Default {
-		// A negatable flag with a default (e.g. --[no-]cache default true) has
-		// no value slot, so its default only lives in the help column. Plain
-		// bools defaulting to false add noise without information.
-		if flagSpec.IsNegatable || (!flagSpec.IsBool && !hasDefaultInLabel) {
-			helpText = appendNonEmpty(helpText, fmt.Sprintf("[default: %s]", flagSpec.Default))
-		}
+	if flagSpec.Default != "" && !flagSpec.HelpVars.Default && showsDefaultHint(flagSpec, hasDefaultInLabel) {
+		helpText = appendNonEmpty(helpText, fmt.Sprintf("[default: %s]", flagSpec.Default))
 	}
 
 	if len(flagSpec.EnvVars) > 0 && !flagSpec.HelpVars.Env {
@@ -711,6 +989,26 @@ func formatFlagHelpText(flagSpec *spec.Flag) string {
 	helpText = appendNonEmpty(helpText, deprecationMarker(flagSpec.Deprecated))
 
 	return helpText
+}
+
+// showsDefaultHint reports whether a flag's default needs the help-column
+// [default: ...] hint. A negatable flag has no value slot, so its default only
+// lives in the help column. A non-bool flag needs the hint only when its value
+// slot does not already carry the default. A plain bool needs it only when its
+// declared default is true: the false zero value adds noise without
+// information.
+func showsDefaultHint(flagSpec *spec.Flag, hasDefaultInLabel bool) bool {
+	if flagSpec.IsNegatable {
+		return true
+	}
+
+	if !flagSpec.IsBool {
+		return !hasDefaultInLabel
+	}
+
+	enabled, err := strconv.ParseBool(flagSpec.Default)
+
+	return err == nil && enabled
 }
 
 // builtinFlagKind classifies a flag as a user-declared shadow of a built-in
@@ -744,7 +1042,43 @@ func appendBuiltinFallback(entries []tableEntry, shadowed bool, offered bool, en
 	return append(entries, entry)
 }
 
-func formatFlags(flags []*spec.Flag, hasHelpInfo bool, hasVersionInfo bool, hasCompletionInfo bool, hasWhyInfo bool, whyFormats []string) string {
+// isEngineBuiltinFlag reports whether a flag row is one of the shared engine
+// built-in definitions (--help/--version) rather than a user-declared flag
+// that merely carries the same name or alias. Only engine rows are excluded
+// from usage synopses and Global Flags sections: a user shadow — sanctioned
+// after DisableHelpFlag/DisableVersionFlag — is a regular flag and stays
+// visible.
+func isEngineBuiltinFlag(flagSpec *spec.Flag) bool {
+	return flagSpec == spec.BuiltinHelpFlag || flagSpec == spec.BuiltinVersionFlag
+}
+
+// withBuiltinShort returns flagSpec with the configured built-in short rune
+// applied when it carries none, so a shared built-in flag row (the completion
+// subcommand's --help, for example) renders the same short as the synthesized
+// fallback rows. A user-declared shadow never inherits the rune: the binder
+// registers it on the injected built-in alone, so advertising it on a shadow
+// would promise a short the parser rejects.
+func withBuiltinShort(flagSpec *spec.Flag, short rune) *spec.Flag {
+	if short == 0 || flagSpec.Short != 0 || !inheritsBuiltinShort(flagSpec) {
+		return flagSpec
+	}
+
+	withShort := *flagSpec
+	withShort.Short = short
+
+	return &withShort
+}
+
+// inheritsBuiltinShort reports whether a flag row may advertise the configured
+// built-in rune: only the shared --help/--version definitions. Other
+// engine-owned flags (the synthesized Features map flag) bind by their own
+// name, so advertising the rune on them would promise a short the parser
+// rejects.
+func inheritsBuiltinShort(flagSpec *spec.Flag) bool {
+	return isEngineBuiltinFlag(flagSpec)
+}
+
+func formatFlags(flags []*spec.Flag, hasHelpInfo bool, hasVersionInfo bool, hasCompletionInfo bool, hasWhyInfo bool, whyFormats []string, helpShort rune, versionShort rune, width int) string {
 	var (
 		completionEntries []tableEntry
 		helpEntries       []tableEntry
@@ -772,12 +1106,12 @@ func formatFlags(flags []*spec.Flag, hasHelpInfo bool, hasVersionInfo bool, hasC
 		case "help":
 			hasHelp = true
 
-			helpEntries = append(helpEntries, builderEntry(flagSpec))
+			helpEntries = append(helpEntries, builderEntry(withBuiltinShort(flagSpec, helpShort)))
 
 		case "version":
 			hasVersion = true
 
-			versionEntries = append(versionEntries, builderEntry(flagSpec))
+			versionEntries = append(versionEntries, builderEntry(withBuiltinShort(flagSpec, versionShort)))
 
 		case "why":
 			hasWhy = true
@@ -795,30 +1129,30 @@ func formatFlags(flags []*spec.Flag, hasHelpInfo bool, hasVersionInfo bool, hasC
 		help:  spec.BuiltinCompletionFlag.Help,
 	})
 	helpEntries = appendBuiltinFallback(helpEntries, hasHelp, hasHelpInfo, tableEntry{
-		label: formatFlagLabel(&spec.Flag{Name: "help", IsBool: true}),
-		help:  "Show help",
+		label: formatFlagLabel(&spec.Flag{Name: "help", IsBool: true, Short: helpShort}),
+		help:  spec.DefaultHelpFlagHelp,
 	})
 	versionEntries = appendBuiltinFallback(versionEntries, hasVersion, hasVersionInfo, tableEntry{
-		label: formatFlagLabel(&spec.Flag{Name: "version", IsBool: true}),
-		help:  "Show version",
+		label: formatFlagLabel(&spec.Flag{Name: "version", IsBool: true, Short: versionShort}),
+		help:  spec.DefaultVersionFlagHelp,
 	})
 
-	sections := builder.sections()
-
-	// No user flags at all: the built-ins still deserve their "Flags" section.
-	if len(sections) == 0 {
-		sections = append(sections, tableSection{title: "Flags"})
-	}
+	builtinEntries := slices.Concat(whyEntries, completionEntries, helpEntries, versionEntries)
 
 	// Built-in --why/--completion/--help/--version (or user-declared shadows
-	// of them) always close the Flags area — regardless of grouping or
-	// declaration order — so they stay easy to find at the very end. --why
-	// renders before the closing --help/--version lines.
-	builtinEntries := slices.Concat(whyEntries, completionEntries, helpEntries, versionEntries)
-	last := &sections[len(sections)-1]
-	last.entries = append(last.entries, builtinEntries...)
+	// of them) close the ungrouped Flags section — regardless of declaration
+	// order — so they never inherit a user group's heading. When every flag
+	// carries a group, they close the screen under a trailing "Flags"
+	// heading of their own.
+	if len(builtinEntries) > 0 {
+		if len(builder.defaults) > 0 || len(builder.grouped) == 0 {
+			builder.defaults = append(builder.defaults, builtinEntries...)
+		} else {
+			builder.grouped = append(builder.grouped, tableSection{title: "Flags", entries: builtinEntries})
+		}
+	}
 
-	return renderSections(sections)
+	return renderSections(builder.sections(), width)
 }
 
 // builtinWhyEntry renders the built-in --why flag row. The optional value
@@ -846,11 +1180,12 @@ func builderEntry(flagSpec *spec.Flag) tableEntry {
 
 // formatGlobalFlags renders the "Global Flags" section listing non-hidden flags
 // inherited from ancestor commands. It only appears on subcommand help screens
-// (chains longer than one command), excludes the built-in --help/--version
-// flags (injected into the binder lookup map rather than cmd.Flags), and is
-// suppressed entirely for built-in infrastructure commands (completion, help,
-// version), whose operation never uses the root flags.
-func formatGlobalFlags(cmdChain []*spec.Command) string {
+// (chains longer than one command), excludes the shared built-in --help/--version
+// definitions (injected into the binder lookup map rather than cmd.Flags, while
+// user-declared shadows stay regular flags), and is suppressed entirely for
+// built-in infrastructure commands (completion, help, version), whose operation
+// never uses the root flags.
+func formatGlobalFlags(cmdChain []*spec.Command, width int) string {
 	if len(cmdChain) <= 1 {
 		return ""
 	}
@@ -869,8 +1204,7 @@ func formatGlobalFlags(cmdChain []*spec.Command) string {
 				continue
 			}
 
-			if flagSpec.Name == "help" || flagSpec.Name == "version" ||
-				slices.Contains(flagSpec.Aliases, "help") || slices.Contains(flagSpec.Aliases, "version") {
+			if isEngineBuiltinFlag(flagSpec) {
 				continue
 			}
 
@@ -878,7 +1212,7 @@ func formatGlobalFlags(cmdChain []*spec.Command) string {
 		}
 	}
 
-	return renderSections(builder.sections())
+	return renderSections(builder.sections(), width)
 }
 
 func formatConstraintHints(valueRange, lengthRange, itemsRange *spec.Range, suppression hintSuppression) string {
@@ -937,8 +1271,9 @@ func appendNonEmpty(base, suffix string) string {
 }
 
 // formatExamples renders the Examples: section, trimming leading/trailing blank
-// lines and indenting every remaining line 2 spaces. It returns "" when there
-// are no examples (or only blank lines), so the section is omitted entirely.
+// lines, stripping the block's common source indentation, and indenting every
+// remaining line 2 spaces. It returns "" when there are no examples (or only
+// blank lines), so the section is omitted entirely.
 func formatExamples(examples string) string {
 	lines := strings.Split(examples, "\n")
 
@@ -954,6 +1289,8 @@ func formatExamples(examples string) string {
 		return ""
 	}
 
+	indent := commonIndentPrefix(lines)
+
 	var builder strings.Builder
 
 	builder.WriteString("\nExamples:\n")
@@ -966,11 +1303,56 @@ func formatExamples(examples string) string {
 		}
 
 		builder.WriteString("  ")
-		builder.WriteString(line)
+		builder.WriteString(strings.TrimPrefix(line, indent))
 		builder.WriteString("\n")
 	}
 
 	return builder.String()
+}
+
+// commonIndentPrefix returns the longest leading-whitespace prefix shared by
+// every non-blank line, so author source-indentation is stripped before the
+// renderer applies its own two-space indent. Comparing the actual prefix keeps
+// blocks that mix tabs and spaces exact instead of stripping a byte count.
+func commonIndentPrefix(lines []string) string {
+	prefix := ""
+	initialized := false
+
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+
+		leading := line[:len(line)-len(strings.TrimLeft(line, " \t"))]
+
+		if !initialized {
+			prefix = leading
+			initialized = true
+
+			continue
+		}
+
+		prefix = sharedWhitespacePrefix(prefix, leading)
+
+		if prefix == "" {
+			return ""
+		}
+	}
+
+	return prefix
+}
+
+// sharedWhitespacePrefix returns the common leading-whitespace prefix of two
+// indentation strings.
+func sharedWhitespacePrefix(left, right string) string {
+	limit := min(len(left), len(right))
+
+	index := 0
+	for index < limit && left[index] == right[index] {
+		index++
+	}
+
+	return left[:index]
 }
 
 // deprecationMarker returns the "[deprecated: <reason>]" suffix for a help
@@ -983,7 +1365,39 @@ func deprecationMarker(reason string) string {
 	return "[deprecated: " + reason + "]"
 }
 
-func formatHelpDescription(leaf *spec.Command) string {
+// writeDeprecationBanners writes the step-0 deprecation warnings for the
+// command chain: the root keeps its historic form, while a deprecated command
+// carries the runtime warning's wording so the help screen and the execution
+// warning agree.
+func writeDeprecationBanners(builder *strings.Builder, cmdChain []*spec.Command, rootName string) {
+	if cmdChain[0].Deprecated != "" {
+		appendDeprecationBanner(builder, rootName, cmdChain[0].Deprecated)
+	}
+
+	for index, deprecatedCmd := range cmdChain[1:] {
+		if deprecatedCmd.Deprecated == "" {
+			continue
+		}
+
+		cmdPath := strings.Join(resolveCmdPath(cmdChain[:index+2], rootName), " ")
+
+		appendDeprecationBanner(builder, "command '"+cmdPath+"'", deprecatedCmd.Deprecated)
+	}
+}
+
+// appendDeprecationBanner writes one deprecation warning line followed by the
+// blank separator that keeps banners above the screen content.
+func appendDeprecationBanner(builder *strings.Builder, subject string, reason string) {
+	builder.WriteString("WARNING: ")
+	builder.WriteString(subject)
+	builder.WriteString(" is deprecated: ")
+	builder.WriteString(reason)
+	builder.WriteString("\n\n")
+}
+
+// formatHelpDescription renders the command's description paragraph, wrapping
+// overlong lines to width while preserving the author's explicit line breaks.
+func formatHelpDescription(leaf *spec.Command, width int) string {
 	description := strings.TrimSpace(leaf.Description)
 	if description == "" {
 		description = strings.TrimSpace(leaf.Summary)
@@ -997,13 +1411,41 @@ func formatHelpDescription(leaf *spec.Command) string {
 		description = "Generate the shell completion script for the " + leaf.Shell + " shell."
 	}
 
-	return description + "\n\n"
+	return wrapText(description, width) + "\n\n"
 }
 
-// rootDisplayName returns the root command's declared name, overridden by the
-// invoked binary name when the binary was installed or invoked under a
-// different name.
-func rootDisplayName(cmdChain []*spec.Command) string {
+// displayName returns the root command's configured name: the application name
+// set with app.Name, or the invoked binary name it defaulted to when no name
+// was configured. Help, usage, hints, and the deprecation banner use it so an
+// explicitly configured name always wins over the binary.
+func displayName(cmdChain []*spec.Command) string {
+	if len(cmdChain) == 0 {
+		return ""
+	}
+
+	return cmdChain[0].Name
+}
+
+// screenName returns the root name a screen renders: completion screens
+// describe enabling completion for the concrete binary, so they keep the
+// invoked binary name; every other screen shows the configured application
+// name.
+func screenName(cmdChain []*spec.Command) string {
+	if len(cmdChain) == 0 {
+		return ""
+	}
+
+	if cmdChain[len(cmdChain)-1].IsCompletionCmd {
+		return invokedName(cmdChain)
+	}
+
+	return displayName(cmdChain)
+}
+
+// invokedName returns the root command's name, overridden by the invoked binary
+// name. Completion screens use it because their instructions and generated
+// script must reference the binary the user actually runs.
+func invokedName(cmdChain []*spec.Command) string {
 	if len(cmdChain) == 0 {
 		return ""
 	}
@@ -1016,12 +1458,10 @@ func rootDisplayName(cmdChain []*spec.Command) string {
 	return rootName
 }
 
-func resolveCmdPath(cmdChain []*spec.Command) []string {
+func resolveCmdPath(cmdChain []*spec.Command, rootName string) []string {
 	if len(cmdChain) == 0 {
 		return nil
 	}
-
-	rootName := rootDisplayName(cmdChain)
 
 	var cmdPath []string
 

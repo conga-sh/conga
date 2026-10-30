@@ -5,6 +5,6 @@ C	--profile	--profile	Cloud profile
 C	--env-vars	--env-vars	Environment key=value pairs
 C	--shards	--shards	Shard counts, semicolon-separated
 C	--features	--features	Comma-separated feature flags
-C	--help	--help	Show help for command
-C	--version	--version	Show version information
+C	--help	--help	Show help
+C	--version	--version	Show version
 C	--why	--why	Show resolved field values and where they came from (values redacted unless t...

@@ -9,7 +9,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	testscript.Main(m, map[string]func(){
+	testutil.Main(m, map[string]func(){
 		"negmap": main,
 	})
 }

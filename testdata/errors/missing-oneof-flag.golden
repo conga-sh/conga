@@ -1,0 +1,6 @@
+app: error: missing required flag: one of --json, --yaml
+
+Usage:
+  app (--json | --yaml)
+
+Run 'app --help' for more information.

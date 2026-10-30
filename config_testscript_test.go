@@ -3,6 +3,7 @@ package conga_test
 import (
 	"context"
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/rogpeppe/go-internal/testscript"
@@ -54,6 +55,11 @@ func mainTestApp() {
 }
 
 func TestMain(m *testing.M) {
+	// Keep golden help screens at the engine default width: an exported
+	// COLUMNS would otherwise wrap every fixture at the developer's terminal
+	// width.
+	os.Unsetenv("COLUMNS")
+
 	testscript.Main(m, map[string]func(){
 		"test-app": mainTestApp,
 	})

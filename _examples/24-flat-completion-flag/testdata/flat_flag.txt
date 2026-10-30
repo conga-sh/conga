@@ -5,7 +5,7 @@
 
 # 1. Default flat CLI: --help displays the --completion flag with no Commands: section
 exec minify --help
-stdout 'Usage:\n  minify <input> \[flags\]'
+stdout 'Usage:\n  minify \[flags\] <input>'
 stdout 'Flags:'
 stdout '--completion=SHELL\s+Generate shell completion script'
 ! stdout 'Commands:'

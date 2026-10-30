@@ -31,3 +31,8 @@ stdout '"value":"--modern"'
 exec member-deprecated __complete export ''
 ! stdout '"value":"legacy"'
 stdout '"value":"deploy"'
+
+# 6. Deprecated subcommand's own help screen carries the banner above the usage
+exec member-deprecated legacy --help
+stdout 'WARNING: command ''member-deprecated legacy'' is deprecated: use deploy instead'
+stdout 'Usage:'

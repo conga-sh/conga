@@ -3,24 +3,42 @@ title: Built-ins and deprecation
 description: Help, version, why, completion commands, deprecation notices, and flat-CLI completion styles.
 ---
 
-CONGA provides five built-in surfaces: help, version, `--why`, completion, and deprecation notices. Help and version are injected by default and disabled with builder calls; `--why` and completion are opt-in. The injected `--help` and `--version` flags provide long forms only.
+CONGA provides five built-in surfaces: help, version, `--why`, completion, and deprecation notices. Help and version are injected by default and disabled with builder calls; `--why` and completion are opt-in. The injected `--help` and `--version` flags are long-only unless a short rune is assigned with `app.HelpShortFlag(...)` or `app.VersionShortFlag(...)`.
 
 ## Help
 
 Every app gets `--help` and a generated help screen. CONGA derives the help output from the command schema and renders sections in a fixed order:
 
-1. **Deprecation banner**: configured via `app.Deprecated(...)` or the member `deprecated:"..."` tag.
+1. **Deprecation banner**: configured via `app.Deprecated(...)` or the member `deprecated:"..."` tag. A deprecated command renders its own banner on its screen, mirroring the runtime warning (`WARNING: command '<path>' is deprecated: <reason>`).
 2. **Description**: configured via `app.Description(...)` on the root builder, or `Description() string` on subcommand structs. Subcommands fall back to their `summary:"..."` tag when no description method is defined. Root structs must not implement `Description()` or `Summary()`.
 3. **Completion instructions**: per-shell setup steps rendered when inspecting a completion command (e.g. `--completion bash --help`).
-4. **Usage syntax**: command invocation syntax including flags, positional arguments, and trailing arguments (`DashArgs`, `RawArgs`).
-5. **Subcommands**: child commands listed under their `group:"..."` section headers or the default `Commands:` heading.
-6. **Positional arguments**: argument names and descriptions under `Arguments:`.
-7. **Completion footer**: supported shells list rendered on generic completion help screens.
-8. **Flags**: flags declared on the active command, grouped under `group:"..."` headers or the default `Flags:` heading. Built-in flags (`--help`, `--version`, `--why`) appear here.
-9. **Features** (root screen only): feature toggles declared via `conga.Features[T]`, rendered under `Features:` with help text, stage (`[alpha]`, `[beta]`), integer levels, and defaults. Toggles staged `ga` or `deprecated` are omitted.
-10. **Global flags**: persistent flags inherited from ancestor commands.
-11. **Examples**: usage examples configured via `app.Examples(...)` on the root builder, or `Examples() string` on subcommand structs.
+4. **Usage syntax**: command invocation syntax including flags, positional arguments, and trailing arguments (`DashArgs`, `RawArgs`). Required flags and `oneof` groups render explicitly before `[flags]`; optional flags collapse into a `[flags]` placeholder, which precedes positional arguments and trailing collectors. Positional arguments carry their optionality and repetition (`[<target>]`, `<file...>`), and author-supplied brackets and `...` are preserved.
+5. **Examples**: usage examples configured via `app.Examples(...)` on the root builder, or `Examples() string` on subcommand structs.
+6. **Subcommands**: child commands listed under their `group:"..."` section headers or the default `Commands:` heading.
+7. **Positional arguments**: argument names and descriptions under `Arguments:`.
+8. **Completion footer**: supported shells list rendered on generic completion help screens.
+9. **Flags**: flags declared on the active command, grouped under `group:"..."` headers or the default `Flags:` heading. Built-in flags (`--help`, `--version`, `--why`) appear here.
+10. **Features** (root screen only): feature toggles declared via `conga.Features[T]`, rendered under `Features:` with help text, stage (`[alpha]`, `[beta]`), integer levels, and defaults. Toggles staged `ga` or `deprecated` are omitted.
+11. **Global flags**: persistent flags inherited from ancestor commands.
 12. **Global help footer**: text configured via `app.HelpFooter(...)`.
+
+### Wrap width
+
+Help text wraps to the terminal. An explicit `COLUMNS` value of at least 20 takes precedence; otherwise the width of the app's stdout is probed when it is a terminal; piped or redirected output (and terminals reporting no width) falls back to a default of 100 columns. Windows consoles are not probed: set `COLUMNS` or accept the 100-column default. Overlong descriptions and table help text fold at space boundaries, with continuation lines aligned under the help column; a bracketed hint group such as `[env: NAME]` stays on one line, and a label wider than half the width renders on its own line above its help text. The `Usage:` syntax, the `Examples:` block, and the global help footer stay unwrapped.
+
+### Configurable short flags
+
+The injected `--help` and `--version` flags render and parse as long flags. `app.HelpShortFlag('h')` and `app.VersionShortFlag('V')` assign them short runes, after which `-h` and `-V` parse to the same built-ins and the help screen renders `-h, --help` and `-V, --version`:
+
+```go
+app := conga.New[CLI]().
+	HelpShortFlag('h').
+	VersionShortFlag('V')
+```
+
+The zero value keeps a built-in long-only. The builders are opt-in because a short rune an application flag already declares cannot serve both: a collision between the rune and a user-declared short, or between the two built-in runes, fails schema build with `ErrDuplicateFlag` naming the flag and command. Disabling the matching built-in leaves the rune inert: it binds to nothing, and the `help` or `version` name and the rune stay free for your own flags.
+
+The help rune applies to every command screen, and the version rune to the root screen, matching the root-only `--version` flag. Completion offers each configured rune as a shorthand candidate next to the declared short flags whenever the matching built-in is offered on the active command.
 
 ### Global help footers and top matter
 
@@ -92,7 +110,7 @@ hello:
 
 `hello version --json` renders a flat machine-readable object with the same fields (`version`, `gitCommit`, `built`, `goVersion`, `os`, `arch`, `modified`). Call `JSON() bool` on the command struct to query whether JSON format was requested. The `--json` flag is engine-owned: a user-defined `--json` flag on an ancestor command cannot collide with it, and a non-boolean value is a usage error (exit 2).
 
-`app.DisableVersionFlag()` removes the flag while keeping the version summary line available through `session.Version()` and `VersionCommand`.
+`app.DisableVersionFlag()` removes the flag while keeping the version summary line available through `session.Version()` and `VersionCommand`. `app.VersionShortFlag('V')` assigns the rune rendered and parsed as `-V` (see [Configurable short flags](#configurable-short-flags)).
 
 ## The `--why` report
 

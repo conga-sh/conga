@@ -64,7 +64,7 @@ Not all input containers traverse all four tiers:
 
 ### Mandatory flags
 
-`RequiredFlag[T]` enforces presence without fallback. The schema builder rejects `default` tags on required flags. If tiers 1 through 3 leave a required flag unset, resolution halts before command execution with a usage error (exit code 2).
+`RequiredFlag[T]` enforces presence without fallback. The schema builder rejects `default` tags on required flags, and rejects them on `oneof` members because a default would always satisfy the exactly-one group. If tiers 1 through 3 leave a required flag unset, resolution halts before command execution with a usage error (exit code 2).
 
 ### Tier opt-outs
 

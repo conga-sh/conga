@@ -136,6 +136,13 @@ type MissingRequiredFlagCLI struct {
 	Port conga.RequiredFlag[int] `name:"port"`
 }
 
+type MissingOneOfFlagCLI struct {
+	noopRunner
+
+	JSON conga.OptionalFlag[bool] `name:"json" oneof:"format"`
+	YAML conga.OptionalFlag[bool] `name:"yaml" oneof:"format"`
+}
+
 func TestErrorCategories(t *testing.T) {
 	t.Parallel()
 
@@ -968,6 +975,31 @@ func TestExit_ValueErrorsRenderWithoutUsage(t *testing.T) {
 		assert.Equal(t, 2, exitCode)
 		assertGolden(t, "testdata/errors/missing-required-flag.golden", goldenErrorsMissingRequiredFlag, buffer.String())
 	})
+
+	t.Run("missing oneof flag error still renders usage", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			buffer   bytes.Buffer
+			exitCode int
+		)
+
+		app := conga.New[MissingOneOfFlagCLI]().
+			Name("app").
+			Args([]string{}).
+			Stderr(&buffer).
+			ExitFunc(func(code int) {
+				exitCode = code
+			})
+
+		err := app.RunContext(t.Context())
+		assert.Error(t, err)
+
+		app.Exit(err)
+
+		assert.Equal(t, 2, exitCode)
+		assertGolden(t, "testdata/errors/missing-oneof-flag.golden", goldenErrorsMissingOneOfFlag, buffer.String())
+	})
 }
 
 func TestHelpAndUsageFormatting(t *testing.T) {
@@ -1333,6 +1365,106 @@ func TestSchemaFlagCollisions_Issue05(t *testing.T) {
 		assert.Equal(t, "run", cli.Config.Get())
 		assert.True(t, cli.Run.IsSelected())
 		assert.Equal(t, "mytask", cli.Run.Get().Task.Get())
+	})
+
+	t.Run("built-in help short colliding with a user short is rejected", func(t *testing.T) {
+		t.Parallel()
+
+		type BuiltinHelpShortCLI struct {
+			noopRunner
+
+			Host conga.OptionalFlag[string] `help:"Host" short:"h"`
+		}
+
+		var cli BuiltinHelpShortCLI
+
+		app := conga.New(&cli).Name("app").HelpShortFlag('h').Args([]string{})
+
+		err := app.RunContext(t.Context())
+
+		assert.Error(t, err)
+		assert.IsError(t, err, conga.ErrSchema)
+		assert.Equal(t, `struct BuiltinHelpShortCLI field Host: schema error: duplicate flag: built-in --help short flag -h collides with --host; assign a different rune to one of them`, err.Error())
+	})
+
+	t.Run("built-in version short colliding with a user short is rejected", func(t *testing.T) {
+		t.Parallel()
+
+		type BuiltinVersionShortCLI struct {
+			noopRunner
+
+			Verbose conga.OptionalFlag[bool] `help:"Verbose logging" short:"V"`
+		}
+
+		var cli BuiltinVersionShortCLI
+
+		app := conga.New(&cli).Name("app").VersionShortFlag('V').Args([]string{})
+
+		err := app.RunContext(t.Context())
+
+		assert.Error(t, err)
+		assert.IsError(t, err, conga.ErrSchema)
+		assert.Equal(t, `struct BuiltinVersionShortCLI field Verbose: schema error: duplicate flag: built-in --version short flag -V collides with --verbose; assign a different rune to one of them`, err.Error())
+	})
+
+	t.Run("built-in help and version shorts colliding with each other is rejected", func(t *testing.T) {
+		t.Parallel()
+
+		type BuiltinShortPairCLI struct {
+			noopRunner
+		}
+
+		var cli BuiltinShortPairCLI
+
+		app := conga.New(&cli).Name("app").HelpShortFlag('h').VersionShortFlag('h').Args([]string{})
+
+		err := app.RunContext(t.Context())
+
+		assert.Error(t, err)
+		assert.IsError(t, err, conga.ErrSchema)
+		assert.Equal(t, "schema error: duplicate flag: built-in --help and --version both claim short flag -h; assign a different rune to one of them", err.Error())
+	})
+
+	t.Run("built-in help short colliding on a subcommand is rejected", func(t *testing.T) {
+		t.Parallel()
+
+		type DeployCmd struct {
+			noopRunner
+
+			Host conga.OptionalFlag[string] `help:"Host" short:"h"`
+		}
+
+		type SubcommandShortCLI struct {
+			Deploy conga.Command[DeployCmd] `summary:"Deploy"`
+		}
+
+		var cli SubcommandShortCLI
+
+		app := conga.New(&cli).Name("app").HelpShortFlag('h').Args([]string{})
+
+		err := app.RunContext(t.Context())
+
+		assert.Error(t, err)
+		assert.IsError(t, err, conga.ErrSchema)
+		assert.Equal(t, `struct DeployCmd field Host: schema error: duplicate flag: built-in --help short flag -h collides with --host; assign a different rune to one of them`, err.Error())
+	})
+
+	t.Run("built-in short rune is free when the built-in is disabled", func(t *testing.T) {
+		t.Parallel()
+
+		type DisabledHelpShortCLI struct {
+			noopRunner
+
+			Host conga.OptionalFlag[string] `help:"Host" short:"h"`
+		}
+
+		var cli DisabledHelpShortCLI
+
+		app := conga.New(&cli).Name("app").DisableHelpFlag().HelpShortFlag('h').Args([]string{})
+
+		err := app.RunContext(t.Context())
+
+		assert.NoError(t, err)
 	})
 }
 

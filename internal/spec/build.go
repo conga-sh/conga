@@ -70,6 +70,10 @@ func Build(target any, defaultName string, opts Options) (*Command, error) {
 		return nil, err
 	}
 
+	if err := validateBuiltinShortPair(cmd); err != nil {
+		return nil, err
+	}
+
 	if opts.ValidateFeatureReferences != nil {
 		if err := opts.ValidateFeatureReferences(cmd); err != nil {
 			return nil, err
@@ -122,12 +126,20 @@ func NewCompletionCommand(name, summary string, target any, aliases []string, hi
 	}
 }
 
+// groupPair identifies a oneof/and group combination on one command. Group
+// validation is command-scoped, so pairs are tracked per schema builder.
+type groupPair struct {
+	oneOf string
+	and   string
+}
+
 type schemaBuilder struct {
 	cmd             *Command
 	structType      reflect.Type
 	structValue     reflect.Value
 	flagTracker     *flagCollisionTracker
 	seenSubcommands map[string]string
+	oneOfAndPairs   map[groupPair]string
 	sliceArgField   string
 	sliceArgName    string
 	mapArgField     string
@@ -160,6 +172,11 @@ func newSchemaBuilder(target any, defaultName string, structValue reflect.Value,
 		DisableCompletion: opts.DisableCompletion,
 	}
 
+	if isRoot {
+		cmd.HelpShort = opts.HelpShort
+		cmd.VersionShort = opts.VersionShort
+	}
+
 	if err := applyCommandMethodGuardrails(target, cmd, structType.Name(), isRoot); err != nil {
 		return nil, err
 	}
@@ -183,12 +200,13 @@ func newSchemaBuilder(target any, defaultName string, structValue reflect.Value,
 		structValue:     structValue,
 		flagTracker:     flagTracker,
 		seenSubcommands: make(map[string]string),
+		oneOfAndPairs:   make(map[groupPair]string),
 		isRoot:          isRoot,
 		opts:            opts,
 	}, nil
 }
 
-func (b *schemaBuilder) validateFieldTags(structField reflect.StructField, role string, candidates []string) (Directives, error) {
+func (b *schemaBuilder) validateFieldTags(structField reflect.StructField, role string, candidates []string) error {
 	return ValidateFieldTags(structField.Tag, role, candidates, ValidationOptions{
 		AllowedTags:    b.opts.AllowedTags,
 		EnvPrefix:      b.opts.EnvPrefix,
@@ -281,7 +299,7 @@ func (b *schemaBuilder) newBuiltinSubcommand(structField reflect.StructField, ki
 	case builtinHelp:
 		defaultName, defaultSummary = "help", DefaultHelpCommandHelp
 	case builtinVersion:
-		defaultName, defaultSummary = "version", DefaultVersionFlagHelp
+		defaultName, defaultSummary = "version", DefaultVersionCommandHelp
 	case builtinCompletion:
 		defaultName, defaultSummary = "completion", DefaultCompletionCommandHelp
 	default:
@@ -476,12 +494,24 @@ func (b *schemaBuilder) processFlag(structField reflect.StructField, flagHandle 
 		return err
 	}
 
-	if classification.Required && hasTag(structField.Tag, "deprecated") {
-		return fmt.Errorf("%w: tag \"deprecated\" cannot be used on required flags (make the flag optional before deprecating it so callers can migrate without error)", ErrInvalidStructTag)
+	if err := b.checkRequiredFlagTags(structField, classification); err != nil {
+		return err
 	}
 
 	flagSpec, err := parseFlagSpec(structField, flagHandle, classification, fieldTags, &b.opts)
 	if err != nil {
+		return err
+	}
+
+	if flagSpec.OneOfGroup != "" && hasTag(structField.Tag, "default") {
+		return DefaultOnOneOfFlagError()
+	}
+
+	if err := b.checkFlagGroupOverlap(flagSpec); err != nil {
+		return err
+	}
+
+	if err := b.checkBuiltinShortConflict(flagSpec); err != nil {
 		return err
 	}
 
@@ -492,6 +522,72 @@ func (b *schemaBuilder) processFlag(structField reflect.StructField, flagHandle 
 	}
 
 	b.cmd.Flags = append(b.cmd.Flags, flagSpec)
+
+	return nil
+}
+
+// checkRequiredFlagTags rejects value and group tags that cannot apply to a
+// required flag: the requirement is individually mandatory, so a fallback or a
+// group membership would be meaningless or contradictory.
+func (b *schemaBuilder) checkRequiredFlagTags(structField reflect.StructField, classification container.Classification) error {
+	if !classification.Required {
+		return nil
+	}
+
+	if hasTag(structField.Tag, "deprecated") {
+		return DeprecatedOnRequiredFlagError()
+	}
+
+	if hasTag(structField.Tag, "default") {
+		return DefaultOnRequiredFlagError()
+	}
+
+	if hasTag(structField.Tag, "xor") {
+		return GroupTagOnRequiredFlagError("xor")
+	}
+
+	if hasTag(structField.Tag, "oneof") {
+		return GroupTagOnRequiredFlagError("oneof")
+	}
+
+	return nil
+}
+
+// checkFlagGroupOverlap rejects two members of the same oneof group that also
+// share an and group: selecting either member forces the other, which the
+// exactly-one rule then rejects, so neither flag can ever be supplied.
+// Legitimate combinations (an and group shared with non-members) stay valid.
+func (b *schemaBuilder) checkFlagGroupOverlap(flagSpec *Flag) error {
+	if flagSpec.OneOfGroup == "" || flagSpec.AndGroup == "" {
+		return nil
+	}
+
+	pair := groupPair{oneOf: flagSpec.OneOfGroup, and: flagSpec.AndGroup}
+	if firstFlag, ok := b.oneOfAndPairs[pair]; ok {
+		return OneOfAndOverlapError(flagSpec.OneOfGroup, flagSpec.AndGroup, firstFlag, flagSpec.Name)
+	}
+
+	b.oneOfAndPairs[pair] = flagSpec.Name
+
+	return nil
+}
+
+// checkBuiltinShortConflict rejects a user-declared short that claims the rune
+// assigned to a built-in the command offers. The built-in --help flag is
+// injected on every command that offers help; --version is root-only. A
+// disabled built-in leaves its rune free for application flags.
+func (b *schemaBuilder) checkBuiltinShortConflict(flagSpec *Flag) error {
+	if flagSpec.Short == 0 {
+		return nil
+	}
+
+	if b.opts.HelpShort != 0 && !b.opts.DisableHelp && flagSpec.Short == b.opts.HelpShort {
+		return BuiltinShortConflictError("help", flagSpec.Short, flagSpec.Name)
+	}
+
+	if b.isRoot && b.opts.VersionShort != 0 && !b.opts.DisableVersion && flagSpec.Short == b.opts.VersionShort {
+		return BuiltinShortConflictError("version", flagSpec.Short, flagSpec.Name)
+	}
 
 	return nil
 }
@@ -558,13 +654,8 @@ func (b *schemaBuilder) processBuiltinCommand(structField reflect.StructField, c
 		return nil
 	}
 
-	dirs, err := b.validateFieldTags(structField, role, builtinCommandTagCandidates)
-	if err != nil {
+	if err := b.validateFieldTags(structField, role, builtinCommandTagCandidates); err != nil {
 		return err
-	}
-
-	if dirs.Ignore {
-		return nil
 	}
 
 	// A declared completion command requires completion to be enabled: the
@@ -595,13 +686,8 @@ func (b *schemaBuilder) processConfigFileField(structField reflect.StructField, 
 	tagSpecs := ConfigFileFieldTagSpecs()
 	candidates := slices.Concat(configFileTagCandidates, FieldTagKeys(tagSpecs))
 
-	dirs, err := b.validateFieldTags(structField, "config file flag", candidates)
-	if err != nil {
+	if err := b.validateFieldTags(structField, "config file flag", candidates); err != nil {
 		return err
-	}
-
-	if dirs.Ignore {
-		return nil
 	}
 
 	fieldTags, err := ParseFieldTags(structField.Tag, tagSpecs)
@@ -651,14 +737,14 @@ func (b *schemaBuilder) processField(structField reflect.StructField, fieldValue
 	}
 }
 
-// processUnexportedField validates the conga directives on blank sentinel
-// fields; every other unexported field is ignored.
+// processUnexportedField validates the struct tags of blank sentinel fields;
+// every other unexported field is ignored.
 func (b *schemaBuilder) processUnexportedField(structField reflect.StructField) error {
 	if structField.Name != "_" {
 		return nil
 	}
 
-	if _, err := b.validateFieldTags(structField, "sentinel field", sentinelTagCandidates); err != nil {
+	if err := b.validateFieldTags(structField, "sentinel field", sentinelTagCandidates); err != nil {
 		return b.fieldContextError(structField.Name, err)
 	}
 
@@ -667,13 +753,8 @@ func (b *schemaBuilder) processUnexportedField(structField reflect.StructField) 
 
 // processCommandField validates and builds a subcommand container field.
 func (b *schemaBuilder) processCommandField(structField reflect.StructField, commandHandle any, classification container.Classification) error {
-	dirs, err := b.validateFieldTags(structField, "subcommand", userCommandTagCandidates)
-	if err != nil {
+	if err := b.validateFieldTags(structField, "subcommand", userCommandTagCandidates); err != nil {
 		return b.fieldContextError(structField.Name, err)
-	}
-
-	if dirs.Ignore {
-		return nil
 	}
 
 	return b.processSubcommand(structField, commandHandle, classification.Target)
@@ -682,13 +763,8 @@ func (b *schemaBuilder) processCommandField(structField reflect.StructField, com
 // processDashArgsField validates and stores the '--' trailing-arguments
 // collector field.
 func (b *schemaBuilder) processDashArgsField(structField reflect.StructField, handle any) error {
-	dirs, err := b.validateFieldTags(structField, "dash args", dashRawTagCandidates)
-	if err != nil {
+	if err := b.validateFieldTags(structField, "dash args", dashRawTagCandidates); err != nil {
 		return b.fieldContextError(structField.Name, err)
-	}
-
-	if dirs.Ignore {
-		return nil
 	}
 
 	dashName := cmp.Or(structField.Tag.Get("name"), "[-- <args...>]")
@@ -710,13 +786,8 @@ func (b *schemaBuilder) processDashArgsField(structField reflect.StructField, ha
 // processRawArgsField validates and stores the raw trailing-tokens collector
 // field.
 func (b *schemaBuilder) processRawArgsField(structField reflect.StructField, handle any) error {
-	dirs, err := b.validateFieldTags(structField, "raw args", dashRawTagCandidates)
-	if err != nil {
+	if err := b.validateFieldTags(structField, "raw args", dashRawTagCandidates); err != nil {
 		return b.fieldContextError(structField.Name, err)
-	}
-
-	if dirs.Ignore {
-		return nil
 	}
 
 	rawName := cmp.Or(structField.Tag.Get("name"), "[command] [args...]")
@@ -763,22 +834,17 @@ func (b *schemaBuilder) processArgField(structField reflect.StructField, argHand
 
 // processContainerField is the shared skeleton of flag and positional-argument
 // field processing: tag validation (with the field's domain-type tag keys
-// merged into the strict candidates), the ignore short-circuit, custom
-// field-tag parsing, and delegation to the container-specific processor,
-// wrapped in the struct/field error context.
+// merged into the strict candidates), custom field-tag parsing, and delegation
+// to the container-specific processor, wrapped in the struct/field error
+// context.
 func (b *schemaBuilder) processContainerField(structField reflect.StructField, role string, tagCandidates []string, tagSpecs []TagSpec, process func(FieldTags) error) error {
 	candidates := tagCandidates
 	if len(tagSpecs) > 0 {
 		candidates = slices.Concat(tagCandidates, FieldTagKeys(tagSpecs))
 	}
 
-	dirs, err := b.validateFieldTags(structField, role, candidates)
-	if err != nil {
+	if err := b.validateFieldTags(structField, role, candidates); err != nil {
 		return fmt.Errorf("struct %s field %s: %w", b.structType.Name(), structField.Name, err)
-	}
-
-	if dirs.Ignore {
-		return nil
 	}
 
 	fieldTags, err := ParseFieldTags(structField.Tag, tagSpecs)
@@ -964,6 +1030,18 @@ func validateAncestorFlagUniqueness(root *Command) error {
 	}
 
 	return nil
+}
+
+// validateBuiltinShortPair rejects two equal built-in runes: the binder
+// registers --help first, so the --version rune would be dropped while both
+// flag rows still advertise it. User-declared collisions are reported with
+// struct/field context by schemaBuilder.checkBuiltinShortConflict.
+func validateBuiltinShortPair(root *Command) error {
+	if root.HelpShort == 0 || root.HelpShort != root.VersionShort || root.DisableHelp || !root.VersionFlagVisible(true) {
+		return nil
+	}
+
+	return BuiltinShortPairError(root.HelpShort)
 }
 
 func addCommandFlags(cmd *Command, names map[string]string, shorts map[rune]string) {

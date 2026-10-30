@@ -5,8 +5,7 @@ width, the filesystem and value domain types (`File`, `Dir`, `ByteSize`,
 `time.Duration`, `url.URL`, maps), all four decoder formats over descriptive
 nested subcommands, config-key remap, map encodings, deep nested sections,
 `Changed()`/`Source()` provenance, feature toggles, environment binding, `.env`
-loading, the `conga:"ignore"` directive, and `AllowTags` for third-party struct
-tags.
+loading, and `AllowTags` for third-party struct tags.
 
 The [`configs/`](configs/) directory doubles as browsable documentation: each
 file maps the same schema in a different format, including a `features` section.
@@ -50,8 +49,7 @@ The complete scenarios, fixtures included, live in
   (see [`testdata/dotenv.txt`](testdata/dotenv.txt)); the writer is `os.Setenv`
   by default and overridable with `App.SetenvFunc` for tests.
 - `--why=json` machine-readable provenance, opted in with `conga.WhyOptionJSON()`.
-- Help omits `internal` (ignored command), plain ignored fields, and inactive
-  gated members.
+- Help omits plain non-schema fields and inactive gated members.
 
 ## Test
 

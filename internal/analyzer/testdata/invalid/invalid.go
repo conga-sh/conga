@@ -41,6 +41,64 @@ type CounterDefaultApp struct { // want `does not implement conga\.Runner`
 
 var _ = conga.New[CounterDefaultApp]()
 
+// OneOfRequiredApp declares an exactly-one group on a required flag.
+type OneOfRequiredApp struct { // want `does not implement conga\.Runner`
+	Format conga.RequiredFlag[string] `name:"format" oneof:"format" help:"Format"` // want `tag "oneof" cannot be used on required flags`
+}
+
+var _ = conga.New[OneOfRequiredApp]()
+
+// XorRequiredApp declares a mutually-exclusive group on a required flag.
+type XorRequiredApp struct { // want `does not implement conga\.Runner`
+	Format conga.RequiredFlag[string] `name:"format" xor:"format" help:"Format"` // want `tag "xor" cannot be used on required flags`
+}
+
+var _ = conga.New[XorRequiredApp]()
+
+// DefaultRequiredApp declares a default on a required flag.
+type DefaultRequiredApp struct { // want `does not implement conga\.Runner`
+	APIKey conga.RequiredFlag[string] `name:"api-key" default:"secret" help:"API key"` // want `tag "default" cannot be used on required flags`
+}
+
+var _ = conga.New[DefaultRequiredApp]()
+
+// DeprecatedRequiredApp declares a deprecated tag on a required flag.
+type DeprecatedRequiredApp struct { // want `does not implement conga\.Runner`
+	Token conga.RequiredFlag[string] `name:"token" deprecated:"use --new-token" help:"Token"` // want `tag "deprecated" cannot be used on required flags`
+}
+
+var _ = conga.New[DeprecatedRequiredApp]()
+
+// DefaultOneOfApp declares a default on a oneof member.
+type DefaultOneOfApp struct { // want `does not implement conga\.Runner`
+	JSON conga.OptionalFlag[bool] `name:"json" oneof:"format" default:"true" help:"JSON"` // want `tag "default" cannot be used on oneof flags`
+}
+
+var _ = conga.New[DefaultOneOfApp]()
+
+// EmptyOneOfApp declares a oneof group with an empty name.
+type EmptyOneOfApp struct { // want `does not implement conga\.Runner`
+	JSON conga.OptionalFlag[bool] `name:"json" oneof:"" help:"JSON"` // want `tag "oneof" cannot be empty`
+}
+
+var _ = conga.New[EmptyOneOfApp]()
+
+// WhitespaceOneOfApp declares a oneof group with surrounding whitespace.
+type WhitespaceOneOfApp struct { // want `does not implement conga\.Runner`
+	JSON conga.OptionalFlag[bool] `name:"json" oneof:" format" help:"JSON"` // want `tag "oneof" cannot have leading or trailing whitespace`
+}
+
+var _ = conga.New[WhitespaceOneOfApp]()
+
+// OneOfAndOverlapApp declares two members of the same oneof group that also
+// share an and group, so neither member can ever be supplied.
+type OneOfAndOverlapApp struct { // want `does not implement conga\.Runner`
+	JSON conga.OptionalFlag[bool] `name:"json" oneof:"format" and:"auth" help:"JSON"`
+	YAML conga.OptionalFlag[bool] `name:"yaml" oneof:"format" and:"auth" help:"YAML"` // want `flags --json and --yaml belong to oneof group "format" and share "and" group "auth"`
+}
+
+var _ = conga.New[OneOfAndOverlapApp]()
+
 // HelpChild is a leaf subcommand.
 type HelpChild struct {
 	Leaf conga.OptionalFlag[bool] `name:"leaf" help:"Leaf flag"`
@@ -80,13 +138,6 @@ type PackageAllowListApp struct { // want `does not implement conga\.Runner`
 }
 
 var _ = conga.New[PackageAllowListApp]()
-
-// RemovedDirectiveApp carries the removed conga:"allow-unknown-tags" directive.
-type RemovedDirectiveApp struct { // want `does not implement conga\.Runner`
-	Verbose conga.OptionalFlag[bool] `name:"verbose" conga:"allow-unknown-tags" help:"Verbose output"` // want `conga directive "allow-unknown-tags" was removed`
-}
-
-var _ = conga.New[RemovedDirectiveApp]()
 
 // ShadowParent declares flags and shorts that its child shadows.
 type ShadowParent struct {
@@ -215,13 +266,6 @@ func (e *EmptySummaryChild) Run(ctx context.Context, session *conga.Session) err
 }
 
 var _ = conga.New[EmptySummaryParent]()
-
-// DirectiveTypoApp misspells a conga directive.
-type DirectiveTypoApp struct { // want `does not implement conga\.Runner`
-	Verbose conga.OptionalFlag[bool] `name:"verbose" conga:"alow-unknown-tags" help:"Verbose output"` // want `unrecognized conga directive`
-}
-
-var _ = conga.New[DirectiveTypoApp]()
 
 // MalformedTagApp declares a syntactically invalid struct tag.
 type MalformedTagApp struct { // want `does not implement conga\.Runner`

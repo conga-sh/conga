@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 
@@ -146,6 +147,67 @@ func TestVersionFlag_SummaryOmitsBuildDetails(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.NotContains(t, buffer.String(), "Go version:")
+}
+
+// TestVersion_NamePrecedence pins the display name: a name configured with
+// App.Name always wins over the invoked binary, while an unnamed app falls
+// back to the invoked binary name.
+//
+//nolint:paralleltest // Mutates global os.Args for invocation name testing.
+func TestVersion_NamePrecedence(t *testing.T) {
+	oldArgs := os.Args
+
+	t.Cleanup(func() { os.Args = oldArgs })
+
+	os.Args = []string{"/usr/local/bin/invoked-binary"}
+
+	t.Run("configured name wins over the invoked binary", func(t *testing.T) {
+		var buffer bytes.Buffer
+
+		app := conga.New[TestVersionRootCLI]().
+			Name("tool").
+			Version("1.0.0").
+			Args([]string{"--version"}).
+			Stdout(&buffer)
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Contains(t, buffer.String(), "tool has version 1.0.0")
+		assert.NotContains(t, buffer.String(), "invoked-binary")
+	})
+
+	t.Run("unnamed app uses the invoked binary", func(t *testing.T) {
+		var buffer bytes.Buffer
+
+		app := conga.New[TestVersionRootCLI]().
+			Version("1.0.0").
+			Args([]string{"--version"}).
+			Stdout(&buffer)
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Contains(t, buffer.String(), "invoked-binary has version 1.0.0")
+	})
+
+	t.Run("runtime error prefix uses the configured name", func(t *testing.T) {
+		var buffer bytes.Buffer
+
+		app := conga.New[TestVersionRootCLI]().
+			Name("tool").
+			Args([]string{}).
+			Stderr(&buffer).
+			ExitFunc(func(int) {})
+
+		err := app.RunContext(t.Context())
+		assert.Error(t, err)
+
+		app.Exit(err)
+
+		assert.Contains(t, buffer.String(), "tool: error: ")
+		assert.NotContains(t, buffer.String(), "invoked-binary")
+	})
 }
 
 func TestVersionFlag_RendersToConfiguredStdout(t *testing.T) {

@@ -10,7 +10,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/internal/casing"
@@ -44,10 +43,10 @@ func (w *walker) validateNodeFieldTags(node *commandNode, fieldObject types.Obje
 		candidates = slices.Concat(candidates, spec.FieldTagKeys(tagSpecs))
 	}
 
-	dirs, err := spec.ValidateFieldTags(tag, role, candidates, w.options.validationOptionsFor(node))
+	err := spec.ValidateFieldTags(tag, role, candidates, w.options.validationOptionsFor(node))
 	w.reportFieldError(node, fieldObject, err)
 
-	return err == nil && !dirs.Ignore
+	return err == nil
 }
 
 // congaFieldTagSpecs resolves the field-tag specs of a flag or positional
@@ -128,9 +127,9 @@ func (w *walker) checkBuiltinCommandField(node *commandNode, fieldObject types.O
 // checkCompletionCommandField validates a built-in completion command field
 // and mirrors the runtime opt-in guard: a declared CompletionCommand under an
 // app that never calls EnableCompletion is rejected at schema build. Tag
-// validation runs first (an ignored or invalid field short-circuits the guard,
-// exactly like the runtime), and undecided per-anchor evidence leaves the
-// diagnostic suppressed.
+// validation runs first (an invalid field short-circuits the guard, exactly
+// like the runtime), and undecided per-anchor evidence leaves the diagnostic
+// suppressed.
 func (w *walker) checkCompletionCommandField(node *commandNode, fieldObject types.Object, tag reflect.StructTag) {
 	if !w.validateNodeFieldTags(node, fieldObject, tag, "completion command", nil) {
 		return
@@ -384,7 +383,7 @@ func (w *walker) checkCascadingArity() {
 // checkFlagField validates a flag field: the shared facade, the
 // flag-specific value tags, the domain-type field tags, and the ancestor
 // shadow contract.
-func (w *walker) checkFlagField(node *commandNode, fieldObject types.Object, tag reflect.StructTag, branchNames map[string]string, branchShorts map[rune]string) {
+func (w *walker) checkFlagField(node *commandNode, fieldObject types.Object, tag reflect.StructTag, branchNames map[string]string, branchShorts map[rune]string, branchGroups map[groupPair]string) {
 	targetType := w.flagTargetType(fieldObject)
 	tagSpecs := w.congaFieldTagSpecs(targetType)
 
@@ -392,8 +391,33 @@ func (w *walker) checkFlagField(node *commandNode, fieldObject types.Object, tag
 		return
 	}
 
-	if w.congaWrapperName(fieldObject.Type()) == "Counter" {
-		w.reportFieldError(node, fieldObject, spec.ValidateCounterDefaultTag(tag))
+	wrapperName := w.congaWrapperName(fieldObject.Type())
+
+	guardRejected := false
+
+	if wrapperName == "Counter" {
+		if err := spec.ValidateCounterDefaultTag(tag); err != nil {
+			guardRejected = true
+
+			w.reportFieldError(node, fieldObject, err)
+		}
+	}
+
+	if w.checkFlagValueGuards(node, fieldObject, tag, wrapperName) {
+		guardRejected = true
+	}
+
+	flagName := cmp.Or(tag.Get("name"), casing.Kebab(fieldObject.Name()))
+
+	// A flag that shares both its oneof group and its and group with another
+	// member can never be supplied: selecting it forces the other member, which
+	// then violates the exactly-one rule.
+	w.checkOneOfAndOverlap(node, fieldObject, tag, flagName, wrapperName == "RequiredFlag", branchGroups)
+
+	// Flags the runtime rejects before the built-in short guard are never
+	// checked for a collision, so skip them here as well.
+	if !guardRejected {
+		w.checkBuiltinShortConflict(node, fieldObject, tag, flagName)
 	}
 
 	// Feature-tag syntax is validated before the required-flag guard, mirroring
@@ -408,7 +432,7 @@ func (w *walker) checkFlagField(node *commandNode, fieldObject types.Object, tag
 			syntaxErr := spec.ValidateFeatureExpression(featureExpr)
 			w.reportFieldError(node, fieldObject, syntaxErr)
 
-			if syntaxErr == nil && w.congaWrapperName(fieldObject.Type()) == "RequiredFlag" {
+			if syntaxErr == nil && wrapperName == "RequiredFlag" {
 				w.reportFieldError(node, fieldObject, spec.FeatureOnRequiredFlagError())
 			}
 		}
@@ -424,10 +448,137 @@ func (w *walker) checkFlagField(node *commandNode, fieldObject types.Object, tag
 
 	w.reportFieldError(node, fieldObject, strictBoolTagError(tag))
 
-	flagName := cmp.Or(tag.Get("name"), casing.Kebab(fieldObject.Name()))
-
 	w.checkAndCollectFlag(node, fieldObject, tag, flagName, branchNames, branchShorts)
 	w.recordFlagEnvOwners(node, tag, flagName, false)
+}
+
+// checkFlagValueGuards reports the value-tag guards the runtime applies while
+// building a flag and reports whether one rejected it. Required flags reject
+// fallback, deprecation, and group tags; optional oneof members reject a
+// default.
+func (w *walker) checkFlagValueGuards(node *commandNode, fieldObject types.Object, tag reflect.StructTag, wrapperName string) bool {
+	_, hasDefault := tag.Lookup("default")
+	_, hasDeprecated := tag.Lookup("deprecated")
+	_, hasXor := tag.Lookup("xor")
+	_, hasOneOf := tag.Lookup("oneof")
+
+	if wrapperName == "RequiredFlag" {
+		switch {
+		case hasDeprecated:
+			w.reportFieldError(node, fieldObject, spec.DeprecatedOnRequiredFlagError())
+
+			return true
+		case hasDefault:
+			w.reportFieldError(node, fieldObject, spec.DefaultOnRequiredFlagError())
+
+			return true
+		case hasXor:
+			w.reportFieldError(node, fieldObject, spec.GroupTagOnRequiredFlagError("xor"))
+
+			return true
+		case hasOneOf:
+			w.reportFieldError(node, fieldObject, spec.GroupTagOnRequiredFlagError("oneof"))
+
+			return true
+		}
+
+		return false
+	}
+
+	if hasOneOf && hasDefault {
+		w.reportFieldError(node, fieldObject, spec.DefaultOnOneOfFlagError())
+
+		return true
+	}
+
+	return false
+}
+
+// checkOneOfAndOverlap rejects a flag that shares both its oneof group and its
+// and group with another member of the same exactly-one group: selecting either
+// member forces the other, which then violates the exactly-one rule. Flags that
+// already failed a schema guard above are never built at runtime, so they are
+// not paired here.
+func (w *walker) checkOneOfAndOverlap(node *commandNode, fieldObject types.Object, tag reflect.StructTag, flagName string, required bool, branchGroups map[groupPair]string) {
+	if required {
+		return
+	}
+
+	oneOfGroup := tag.Get("oneof")
+	andGroup := tag.Get("and")
+
+	if oneOfGroup == "" || andGroup == "" {
+		return
+	}
+
+	if _, hasDefault := tag.Lookup("default"); hasDefault {
+		return
+	}
+
+	pair := groupPair{oneOf: oneOfGroup, and: andGroup}
+	if firstFlag, ok := branchGroups[pair]; ok {
+		w.reportFieldError(node, fieldObject, spec.OneOfAndOverlapError(oneOfGroup, andGroup, firstFlag, flagName))
+
+		return
+	}
+
+	branchGroups[pair] = flagName
+}
+
+// checkBuiltinShortConflict rejects a user-declared short that claims the rune
+// assigned to a built-in the command offers, mirroring the runtime schema
+// guard: the built-in --help flag is injected on every command that offers
+// help, --version is root-only, and a disabled built-in leaves its rune free.
+// Ambiguous rune evidence suppresses the check instead of inventing it, and
+// packages anchoring more than one conga.New root skip it entirely: the rune
+// evidence is aggregated package-wide, so it cannot be attributed to a
+// specific root without risking a diagnostic on an innocent sibling — the
+// analyzer may only miss diagnostics, never invent them. The runtime schema
+// guard stays per-root and remains the source of truth for multi-root packages.
+func (w *walker) checkBuiltinShortConflict(node *commandNode, fieldObject types.Object, tag reflect.StructTag, flagName string) {
+	if !w.singleAnchor {
+		return
+	}
+
+	short := spec.ParseFlagShort(tag)
+	if short == 0 {
+		return
+	}
+
+	if !w.options.helpShortAmbiguous && w.options.helpShort != 0 && !w.options.disableHelp && short == w.options.helpShort {
+		w.reportFieldError(node, fieldObject, spec.BuiltinShortConflictError("help", short, flagName))
+
+		return
+	}
+
+	if !w.options.versionShortAmbiguous && w.options.versionShort != 0 && !w.options.disableVersion && node.isRoot && short == w.options.versionShort {
+		w.reportFieldError(node, fieldObject, spec.BuiltinShortConflictError("version", short, flagName))
+	}
+}
+
+// checkBuiltinShortPair mirrors the runtime root-level guard: assigning the
+// same rune to both built-ins while both are offered leaves the second
+// registration dropped while the help screen still advertises it. Like
+// checkBuiltinShortConflict, package-wide rune evidence suppresses the check in
+// packages anchoring more than one conga.New root rather than risking a
+// diagnostic on an innocent sibling.
+func (w *walker) checkBuiltinShortPair(node *commandNode) {
+	if !w.singleAnchor || !node.isRoot {
+		return
+	}
+
+	if w.options.helpShortAmbiguous || w.options.versionShortAmbiguous ||
+		w.options.helpShort == 0 || w.options.helpShort != w.options.versionShort ||
+		w.options.disableHelp || w.options.disableVersion {
+		return
+	}
+
+	position := node.reportPos
+	if node.inPackage {
+		position = node.named.Obj().Pos()
+	}
+
+	w.report(position, spec.BuiltinShortPairError(w.options.helpShort).Error())
 }
 
 // checkArgField validates a positional argument field.
@@ -786,14 +937,4 @@ func summaryTagError(tag reflect.StructTag) error {
 	_, err := spec.ParseSummaryTag(tag, "")
 
 	return err
-}
-
-func flagShortRune(tag reflect.StructTag) rune {
-	if shortTag := tag.Get("short"); shortTag != "" {
-		shortRune, _ := utf8.DecodeRuneInString(shortTag)
-
-		return shortRune
-	}
-
-	return 0
 }
