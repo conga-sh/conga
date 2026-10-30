@@ -28,6 +28,6 @@ jobs:
           version: 3.52.0
       - uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.14.0
+          version: v2.15.0
           install-only: true
       - run: task ci
