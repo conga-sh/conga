@@ -1,7 +1,5 @@
 package help
 
-import "unicode"
-
 // wideRuneRanges lists inclusive Unicode East Asian Width W and F code point
 // ranges (Unicode 17.0), sorted by first rune. The table is static data
 // compiled into .rodata, keeping display-width measurement free of a runtime
@@ -133,6 +131,32 @@ var wideRuneRanges = [...][2]rune{
 	{0x20000, 0x3FFFF},
 }
 
+// zeroWidthRuneRanges lists inclusive Unicode combining diacritical marks,
+// enclosing marks, and zero-width format control code point ranges, sorted by
+// first rune.
+//
+//nolint:gochecknoglobals // static Unicode zero-width table
+var zeroWidthRuneRanges = [...][2]rune{
+	{0x0300, 0x036F}, // Combining Diacritical Marks
+	{0x0483, 0x0489}, // Cyrillic Combining Marks
+	{0x0591, 0x05BD}, // Hebrew Cantillation and Points
+	{0x05BF, 0x05BF}, // Hebrew Rafe
+	{0x05C1, 0x05C2}, // Hebrew Shin/Sin Dots
+	{0x05C4, 0x05C5}, // Hebrew Puncta
+	{0x05C7, 0x05C7}, // Hebrew Qamats Qatan
+	{0x0610, 0x061A}, // Arabic Harakat
+	{0x064B, 0x065F}, // Arabic Diacritics
+	{0x0670, 0x0670}, // Arabic Dagger Alif
+	{0x06D6, 0x06ED}, // Arabic Quranic Marks
+	{0x1DC0, 0x1DFF}, // Combining Diacritical Marks Supplement
+	{0x200B, 0x200F}, // Zero Width Space, ZWNJ, ZWJ, LRM, RLM
+	{0x202A, 0x202E}, // Bidi embedding and override marks
+	{0x2060, 0x206F}, // Invisible format separators
+	{0x20D0, 0x20FF}, // Combining Diacritical Marks for Symbols
+	{0xFE20, 0xFE2F}, // Combining Half Marks
+	{0xFEFF, 0xFEFF}, // Byte Order Mark / Zero Width No-Break Space
+}
+
 // cellWidth returns the number of terminal cells text occupies at a fixed
 // pitch: East Asian Width W and F runes count as two, combining marks and
 // format controls as zero, and every other rune (including East Asian
@@ -142,7 +166,7 @@ func cellWidth(text string) int {
 	width := 0
 
 	for _, char := range text {
-		if unicode.Is(unicode.Mn, char) || unicode.Is(unicode.Me, char) || unicode.Is(unicode.Cf, char) {
+		if isZeroWidth(char) {
 			continue
 		}
 
@@ -154,6 +178,28 @@ func cellWidth(text string) int {
 	}
 
 	return width
+}
+
+// isZeroWidth reports whether char contributes zero cells to terminal output
+// (combining diacritical marks, enclosing marks, and zero-width format controls).
+func isZeroWidth(char rune) bool {
+	low, high := 0, len(zeroWidthRuneRanges)
+
+	for low < high {
+		middle := low + (high-low)/2
+		first, last := zeroWidthRuneRanges[middle][0], zeroWidthRuneRanges[middle][1]
+
+		switch {
+		case char < first:
+			high = middle
+		case char > last:
+			low = middle + 1
+		default:
+			return true
+		}
+	}
+
+	return false
 }
 
 // isWideRune reports whether char occupies two terminal cells under the East
