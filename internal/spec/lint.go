@@ -15,19 +15,19 @@ import (
 
 //nolint:gochecknoglobals // Static candidate definitions for schema tag validation.
 var (
-	flagTagCandidates           = []string{"name", "short", "help", "default", "env", "aliases", "group", "hidden", "safe", "xor", "and", "oneof", "enum", "enumhint", "range", "len", "items", "sep", "negatable", "placeholder", "config", "deprecated", "predictor", "feature", "bootstrap", "conga"}
-	argTagCandidates            = []string{"name", "help", "default", "enum", "enumhint", "range", "len", "items", "sep", "predictor", "bootstrap", "conga"}
-	builtinCommandTagCandidates = []string{"name", "summary", "aliases", "group", "hidden", "conga"}
-	userCommandTagCandidates    = []string{"name", "summary", "aliases", "group", "hidden", "envprefix", "deprecated", "feature", "conga"}
-	configFileTagCandidates     = []string{"name", "short", "help", "env", "aliases", "placeholder", "group", "hidden", "multi", "sep", "config", "deprecated", "feature", "conga"}
-	featuresFieldTagCandidates  = []string{"flag", "env", "envprefix", "config", "sep", "help", "enumhint", "conga"}
-	featureFieldTagCandidates   = []string{"name", "help", "env", "default", "enum", "stage", "conga"}
-	dashRawTagCandidates        = []string{"name", "bootstrap", "conga"}
-	sentinelTagCandidates       = []string{"envprefix", "conga"}
+	flagTagCandidates           = []string{"name", "short", "help", "default", "env", "aliases", "group", "hidden", "safe", "xor", "and", "oneof", "enum", "enumhint", "range", "len", "items", "sep", "negatable", "placeholder", "config", "deprecated", "predictor", "feature", "bootstrap"}
+	argTagCandidates            = []string{"name", "help", "default", "enum", "enumhint", "range", "len", "items", "sep", "predictor", "bootstrap"}
+	builtinCommandTagCandidates = []string{"name", "summary", "aliases", "group", "hidden"}
+	userCommandTagCandidates    = []string{"name", "summary", "aliases", "group", "hidden", "envprefix", "deprecated", "feature"}
+	configFileTagCandidates     = []string{"name", "short", "help", "env", "aliases", "placeholder", "group", "hidden", "multi", "sep", "config", "deprecated", "feature"}
+	featuresFieldTagCandidates  = []string{"flag", "env", "envprefix", "config", "sep", "help", "enumhint"}
+	featureFieldTagCandidates   = []string{"name", "help", "env", "default", "enum", "stage"}
+	dashRawTagCandidates        = []string{"name", "bootstrap"}
+	sentinelTagCandidates       = []string{"envprefix"}
 	allCongaTagCandidates       = []string{
 		"name", "short", "help", "default", "env", "aliases", "group", "hidden", "safe",
 		"xor", "and", "oneof", "enum", "enumhint", "range", "len", "items", "sep", "negatable", "placeholder",
-		"config", "deprecated", "predictor", "feature", "conga", "summary", "envprefix",
+		"config", "deprecated", "predictor", "feature", "summary", "envprefix",
 		"multi", "flag", "stage", "bootstrap",
 	}
 )

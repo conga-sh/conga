@@ -201,7 +201,7 @@ func newSchemaBuilder(target any, defaultName string, structValue reflect.Value,
 	}, nil
 }
 
-func (b *schemaBuilder) validateFieldTags(structField reflect.StructField, role string, candidates []string) (Directives, error) {
+func (b *schemaBuilder) validateFieldTags(structField reflect.StructField, role string, candidates []string) error {
 	return ValidateFieldTags(structField.Tag, role, candidates, ValidationOptions{
 		AllowedTags:    b.opts.AllowedTags,
 		EnvPrefix:      b.opts.EnvPrefix,
@@ -589,13 +589,8 @@ func (b *schemaBuilder) processBuiltinCommand(structField reflect.StructField, c
 		return nil
 	}
 
-	dirs, err := b.validateFieldTags(structField, role, builtinCommandTagCandidates)
-	if err != nil {
+	if err := b.validateFieldTags(structField, role, builtinCommandTagCandidates); err != nil {
 		return err
-	}
-
-	if dirs.Ignore {
-		return nil
 	}
 
 	// A declared completion command requires completion to be enabled: the
@@ -626,13 +621,8 @@ func (b *schemaBuilder) processConfigFileField(structField reflect.StructField, 
 	tagSpecs := ConfigFileFieldTagSpecs()
 	candidates := slices.Concat(configFileTagCandidates, FieldTagKeys(tagSpecs))
 
-	dirs, err := b.validateFieldTags(structField, "config file flag", candidates)
-	if err != nil {
+	if err := b.validateFieldTags(structField, "config file flag", candidates); err != nil {
 		return err
-	}
-
-	if dirs.Ignore {
-		return nil
 	}
 
 	fieldTags, err := ParseFieldTags(structField.Tag, tagSpecs)
@@ -682,14 +672,14 @@ func (b *schemaBuilder) processField(structField reflect.StructField, fieldValue
 	}
 }
 
-// processUnexportedField validates the conga directives on blank sentinel
-// fields; every other unexported field is ignored.
+// processUnexportedField validates the struct tags of blank sentinel fields;
+// every other unexported field is ignored.
 func (b *schemaBuilder) processUnexportedField(structField reflect.StructField) error {
 	if structField.Name != "_" {
 		return nil
 	}
 
-	if _, err := b.validateFieldTags(structField, "sentinel field", sentinelTagCandidates); err != nil {
+	if err := b.validateFieldTags(structField, "sentinel field", sentinelTagCandidates); err != nil {
 		return b.fieldContextError(structField.Name, err)
 	}
 
@@ -698,13 +688,8 @@ func (b *schemaBuilder) processUnexportedField(structField reflect.StructField) 
 
 // processCommandField validates and builds a subcommand container field.
 func (b *schemaBuilder) processCommandField(structField reflect.StructField, commandHandle any, classification container.Classification) error {
-	dirs, err := b.validateFieldTags(structField, "subcommand", userCommandTagCandidates)
-	if err != nil {
+	if err := b.validateFieldTags(structField, "subcommand", userCommandTagCandidates); err != nil {
 		return b.fieldContextError(structField.Name, err)
-	}
-
-	if dirs.Ignore {
-		return nil
 	}
 
 	return b.processSubcommand(structField, commandHandle, classification.Target)
@@ -713,13 +698,8 @@ func (b *schemaBuilder) processCommandField(structField reflect.StructField, com
 // processDashArgsField validates and stores the '--' trailing-arguments
 // collector field.
 func (b *schemaBuilder) processDashArgsField(structField reflect.StructField, handle any) error {
-	dirs, err := b.validateFieldTags(structField, "dash args", dashRawTagCandidates)
-	if err != nil {
+	if err := b.validateFieldTags(structField, "dash args", dashRawTagCandidates); err != nil {
 		return b.fieldContextError(structField.Name, err)
-	}
-
-	if dirs.Ignore {
-		return nil
 	}
 
 	dashName := cmp.Or(structField.Tag.Get("name"), "[-- <args...>]")
@@ -741,13 +721,8 @@ func (b *schemaBuilder) processDashArgsField(structField reflect.StructField, ha
 // processRawArgsField validates and stores the raw trailing-tokens collector
 // field.
 func (b *schemaBuilder) processRawArgsField(structField reflect.StructField, handle any) error {
-	dirs, err := b.validateFieldTags(structField, "raw args", dashRawTagCandidates)
-	if err != nil {
+	if err := b.validateFieldTags(structField, "raw args", dashRawTagCandidates); err != nil {
 		return b.fieldContextError(structField.Name, err)
-	}
-
-	if dirs.Ignore {
-		return nil
 	}
 
 	rawName := cmp.Or(structField.Tag.Get("name"), "[command] [args...]")
@@ -794,22 +769,17 @@ func (b *schemaBuilder) processArgField(structField reflect.StructField, argHand
 
 // processContainerField is the shared skeleton of flag and positional-argument
 // field processing: tag validation (with the field's domain-type tag keys
-// merged into the strict candidates), the ignore short-circuit, custom
-// field-tag parsing, and delegation to the container-specific processor,
-// wrapped in the struct/field error context.
+// merged into the strict candidates), custom field-tag parsing, and delegation
+// to the container-specific processor, wrapped in the struct/field error
+// context.
 func (b *schemaBuilder) processContainerField(structField reflect.StructField, role string, tagCandidates []string, tagSpecs []TagSpec, process func(FieldTags) error) error {
 	candidates := tagCandidates
 	if len(tagSpecs) > 0 {
 		candidates = slices.Concat(tagCandidates, FieldTagKeys(tagSpecs))
 	}
 
-	dirs, err := b.validateFieldTags(structField, role, candidates)
-	if err != nil {
+	if err := b.validateFieldTags(structField, role, candidates); err != nil {
 		return fmt.Errorf("struct %s field %s: %w", b.structType.Name(), structField.Name, err)
-	}
-
-	if dirs.Ignore {
-		return nil
 	}
 
 	fieldTags, err := ParseFieldTags(structField.Tag, tagSpecs)

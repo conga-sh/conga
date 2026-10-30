@@ -139,13 +139,6 @@ type PackageAllowListApp struct { // want `does not implement conga\.Runner`
 
 var _ = conga.New[PackageAllowListApp]()
 
-// RemovedDirectiveApp carries the removed conga:"allow-unknown-tags" directive.
-type RemovedDirectiveApp struct { // want `does not implement conga\.Runner`
-	Verbose conga.OptionalFlag[bool] `name:"verbose" conga:"allow-unknown-tags" help:"Verbose output"` // want `conga directive "allow-unknown-tags" was removed`
-}
-
-var _ = conga.New[RemovedDirectiveApp]()
-
 // ShadowParent declares flags and shorts that its child shadows.
 type ShadowParent struct {
 	Verbose conga.OptionalFlag[bool]   `name:"verbose" short:"v" help:"Verbose output"`
@@ -273,13 +266,6 @@ func (e *EmptySummaryChild) Run(ctx context.Context, session *conga.Session) err
 }
 
 var _ = conga.New[EmptySummaryParent]()
-
-// DirectiveTypoApp misspells a conga directive.
-type DirectiveTypoApp struct { // want `does not implement conga\.Runner`
-	Verbose conga.OptionalFlag[bool] `name:"verbose" conga:"alow-unknown-tags" help:"Verbose output"` // want `unrecognized conga directive`
-}
-
-var _ = conga.New[DirectiveTypoApp]()
 
 // MalformedTagApp declares a syntactically invalid struct tag.
 type MalformedTagApp struct { // want `does not implement conga\.Runner`

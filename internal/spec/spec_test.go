@@ -1063,38 +1063,6 @@ func TestSubcommand_SummaryTag(t *testing.T) {
 		assert.IsError(t, err, spec.ErrInvalidStructTag)
 		assert.Equal(t, "struct RootCLI field Help: schema error: invalid struct tag: tag 'help' is not supported on built-in command fields; use 'summary' for the 1-line synopsis", err.Error())
 	})
-
-	t.Run("subcommand with conga ignore permits help tag", func(t *testing.T) {
-		t.Parallel()
-
-		type SubCmd struct{}
-
-		type RootCLI struct {
-			Deploy mockCmd[SubCmd] `conga:"ignore" help:"Deploy service"`
-		}
-
-		var cli RootCLI
-
-		cmd, err := buildSchema(&cli, "app", spec.Options{})
-
-		assert.NoError(t, err)
-		assert.Zero(t, cmd.Subcommands)
-	})
-
-	t.Run("builtin command with conga ignore permits help tag", func(t *testing.T) {
-		t.Parallel()
-
-		type RootCLI struct {
-			Help mockHelpCmd `conga:"ignore" help:"Help text"`
-		}
-
-		var cli RootCLI
-
-		cmd, err := buildSchema(&cli, "app", spec.Options{})
-
-		assert.NoError(t, err)
-		assert.Zero(t, cmd.Subcommands)
-	})
 }
 
 func TestEnvPrefix_SubcommandAndBuiltin(t *testing.T) {
@@ -2028,43 +1996,6 @@ func TestFeaturesContainer_DuplicateDeclaration_EmptyInnerStruct(t *testing.T) {
 	assert.Error(t, err)
 	assert.IsError(t, err, spec.ErrDuplicateFlag)
 	assert.Equal(t, "struct featureDuplicateCLI field Second: schema error: duplicate flag: Features (already declared by gates-a)", err.Error())
-}
-
-type featureIgnoredDuplicateCLI struct {
-	First  mockFeatures[struct{}]   `flag:"gates-a"`
-	Second mockFeatures[featureSet] `conga:"-"`
-}
-
-func TestFeaturesContainer_IgnoredSecondDeclaration(t *testing.T) {
-	t.Parallel()
-
-	var cli featureIgnoredDuplicateCLI
-
-	cmd, err := buildSchema(&cli, "app", spec.Options{})
-
-	assert.NoError(t, err)
-	assert.NotZero(t, cmd.FeatureFlag)
-	assert.Equal(t, "gates-a", cmd.FeatureFlag.Name)
-}
-
-type featureIgnoredNonRootSub struct {
-	Features mockFeatures[featureSet] `conga:"-"`
-}
-
-type featureIgnoredNonRootCLI struct {
-	Sub mockCmd[featureIgnoredNonRootSub]
-}
-
-func TestFeaturesContainer_IgnoredOnNonRoot(t *testing.T) {
-	t.Parallel()
-
-	var cli featureIgnoredNonRootCLI
-
-	cmd, err := buildSchema(&cli, "app", spec.Options{})
-
-	assert.NoError(t, err)
-	assert.Zero(t, cmd.FeatureFlag)
-	assert.NotZero(t, cmd.FindSubcommand("sub"))
 }
 
 type featureNoCLINameAfterCLI struct {

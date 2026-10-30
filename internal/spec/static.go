@@ -32,50 +32,40 @@ type ValidationOptions struct {
 }
 
 // ValidateFieldTags validates the struct tags of a single schema field:
-// tag syntax, conga directives, disallowed tags, {{...}} help-variable
-// references for the flag, positional-argument, and config-file-flag roles,
-// and tag-key candidate membership for the field's role. It returns the parsed
-// conga directives so callers can honor conga:"ignore".
-func ValidateFieldTags(tag reflect.StructTag, role string, candidates []string, opts ValidationOptions) (Directives, error) {
+// tag syntax, disallowed tags, {{...}} help-variable references for the flag,
+// positional-argument, and config-file-flag roles, and tag-key candidate
+// membership for the field's role.
+func ValidateFieldTags(tag reflect.StructTag, role string, candidates []string, opts ValidationOptions) error {
 	keys, err := parseStructTagKeys(tag)
 	if err != nil {
-		return Directives{}, err
+		return err
 	}
 
 	if err := validateReservedPseudoTagKeys(keys); err != nil {
-		return Directives{}, err
-	}
-
-	dirs, err := ParseCongaDirectives(tag.Get("conga"))
-	if err != nil {
-		return Directives{}, err
-	}
-
-	if dirs.Ignore {
-		return dirs, nil
+		return err
 	}
 
 	if err := validateDisallowedTags(tag, keys, role); err != nil {
-		return Directives{}, err
+		return err
 	}
 
 	if role == "flag" {
 		if err := validateFlagGroupTagValues(tag); err != nil {
-			return Directives{}, err
+			return err
 		}
 	}
 
 	if err := validateRoleTagRules(tag, role, opts); err != nil {
-		return Directives{}, err
+		return err
 	}
 
 	if !opts.SkipUnknownTagKeyCheck {
 		if err := validateTagCandidates(keys, role, candidates, opts.AllowedTags); err != nil {
-			return Directives{}, err
+			return err
 		}
 	}
 
-	return dirs, nil
+	return nil
 }
 
 // TagCandidatesForRole returns the allowed struct tag key candidates for a

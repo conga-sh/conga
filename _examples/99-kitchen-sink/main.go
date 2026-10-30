@@ -11,7 +11,7 @@ import (
 func main() {
 	app := conga.New[KitchenSinkCLI]().
 		Name("kitchen-sink").
-		Description("Exhaustive type, configuration-mapping, and schema-directive reference").
+		Description("Exhaustive type, configuration-mapping, and value-provenance reference").
 		Version("1.0.0").
 		EnableCompletion().
 		EnableFeatures().

@@ -364,22 +364,15 @@ func (f *FeatureField) parseInteger(raw string) (string, error) {
 // processFeaturesField validates and reflects the root feature-declaration
 // container (conga.Features[T]) into per-feature metadata and synthesizes the
 // single map flag that carries feature values from the command line,
-// environment, and configuration files. A conga:"-" field is ignored before
-// the root-placement and duplicate checks, matching the other container
-// processors.
+// environment, and configuration files.
 //
 // The environment surface is declared on the container in exactly one of two
 // exclusive shapes: env names the combined map variable, and envprefix
 // derives one variable per feature field. App EnvPrefix never reaches
 // features.
 func (b *schemaBuilder) processFeaturesField(structField reflect.StructField, fieldHandle any, classification container.Classification) error {
-	dirs, err := b.validateFieldTags(structField, "features", featuresFieldTagCandidates)
-	if err != nil {
+	if err := b.validateFieldTags(structField, "features", featuresFieldTagCandidates); err != nil {
 		return err
-	}
-
-	if dirs.Ignore {
-		return nil
 	}
 
 	if !b.isRoot {
@@ -434,13 +427,8 @@ func (b *schemaBuilder) buildFeatureFields(innerType reflect.Type, envPrefix str
 			continue
 		}
 
-		dirs, err := b.validateFieldTags(fieldSpec, "feature", featureFieldTagCandidates)
-		if err != nil {
+		if err := b.validateFieldTags(fieldSpec, "feature", featureFieldTagCandidates); err != nil {
 			return nil, "", err
-		}
-
-		if dirs.Ignore {
-			continue
 		}
 
 		field, err := b.buildSingleFeatureField(fieldSpec, innerType.Name(), index, seen, envPrefix)

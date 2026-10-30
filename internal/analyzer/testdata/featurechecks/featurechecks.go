@@ -38,7 +38,6 @@ var _ = conga.New[featureChecksApp]()
 
 type nonRootFeatureSub struct {
 	Features conga.Features[goodFeatureSet] // want `struct nonRootFeatureSub field Features: schema error: conga.Features must be declared on the root command struct`
-	Ignored  conga.Features[goodFeatureSet] `conga:"-"`
 }
 
 func (s *nonRootFeatureSub) Run(ctx context.Context, session *conga.Session) error {

@@ -6,8 +6,8 @@ site:
 - [Struct Tag Reference](https://docs.conga.sh/reference/struct-tags/)
 
 It catalogues every tag per construct (flags, positional arguments, subcommands,
-config-file flags, trailing args, domain types), the `conga` directives, bounds
-syntax, predictor values, and the allowed foreign tag list.
+config-file flags, trailing args, domain types), bounds syntax, predictor values,
+and the allowed foreign tag list.
 
 Related pages:
 

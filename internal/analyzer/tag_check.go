@@ -44,10 +44,10 @@ func (w *walker) validateNodeFieldTags(node *commandNode, fieldObject types.Obje
 		candidates = slices.Concat(candidates, spec.FieldTagKeys(tagSpecs))
 	}
 
-	dirs, err := spec.ValidateFieldTags(tag, role, candidates, w.options.validationOptionsFor(node))
+	err := spec.ValidateFieldTags(tag, role, candidates, w.options.validationOptionsFor(node))
 	w.reportFieldError(node, fieldObject, err)
 
-	return err == nil && !dirs.Ignore
+	return err == nil
 }
 
 // congaFieldTagSpecs resolves the field-tag specs of a flag or positional
@@ -128,9 +128,9 @@ func (w *walker) checkBuiltinCommandField(node *commandNode, fieldObject types.O
 // checkCompletionCommandField validates a built-in completion command field
 // and mirrors the runtime opt-in guard: a declared CompletionCommand under an
 // app that never calls EnableCompletion is rejected at schema build. Tag
-// validation runs first (an ignored or invalid field short-circuits the guard,
-// exactly like the runtime), and undecided per-anchor evidence leaves the
-// diagnostic suppressed.
+// validation runs first (an invalid field short-circuits the guard, exactly
+// like the runtime), and undecided per-anchor evidence leaves the diagnostic
+// suppressed.
 func (w *walker) checkCompletionCommandField(node *commandNode, fieldObject types.Object, tag reflect.StructTag) {
 	if !w.validateNodeFieldTags(node, fieldObject, tag, "completion command", nil) {
 		return

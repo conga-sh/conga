@@ -116,7 +116,7 @@ Common metadata and validation tags:
 | `oneof` | `oneof:"format"` | Exactly-one group (exactly one optional flag in the group must be supplied) |
 | `config` | `config:"listen_port"` | Configuration file key name (or `"-"` to ignore) |
 
-For advanced constraints (`len`, `items`, `and`, `conga` directives) and per-container applicability, see the [Struct Tag Reference](https://docs.conga.sh/reference/struct-tags/).
+For advanced constraints (`len`, `items`, `and`) and per-container applicability, see the [Struct Tag Reference](https://docs.conga.sh/reference/struct-tags/).
 
 ## Subcommands
 

@@ -13,7 +13,6 @@ CONGA derives the CLI schema from struct fields and their tags. The engine valid
 | `bootstrap` | ✅ | ✅ | ✅ | Bind the field before the bootstrap phase runs and expose it typed to `Bootstrap` (`bootstrap` or `bootstrap:"true"`). Requires a `conga.Bootstrapper`; rejected with `feature`; restricted to scalar, slice-of-scalar, and map-of-scalar types. |
 | `and` | ✅ | ✅ | ✅ | Required co-occurrence group name whose members must all be set together. |
 | `config` | ✅ | ✅ | ✅ | Config file key feeding the flag (default: flag name). `config:"-"` excludes the field from config files. |
-| `conga` | ✅ | ✅ | ✅ | Directives (see [`conga` directives](#conga-directives)). |
 | `default` | ✅ | – | – | Default value when no other source provides one. Coerced with the same parser as CLI input. Rejected on required flags and `oneof` members. |
 | `deprecated` | ✅ | – | ✅ | Deprecation notice; suppresses flag from completion. |
 | `enum` | ✅ | ✅ | – | Comma-separated allowed values, checked against the coerced value, rendered in help as `[enum: …]`. |
@@ -49,7 +48,6 @@ Positional arguments bind to command-line input.
 | Tag | Optional | Required | Meaning |
 |-----|:--------:|:--------:|---------|
 | `bootstrap` | ✅ | ✅ | Bind the argument before the bootstrap phase runs and expose it typed to `Bootstrap`. Same restrictions as bootstrap flags. |
-| `conga` | ✅ | ✅ | Directives (see [`conga` directives](#conga-directives)). |
 | `default` | ✅ | – | Default value for optional arguments. |
 | `enum` | ✅ | ✅ | Comma-separated allowed values, checked against the coerced value, rendered in help as `[enum: …]`. |
 | `enumhint` | ✅ | ✅ | Set to `-` to suppress the automatic `[enum: …]` help hint while keeping values validated and completed. |
@@ -119,7 +117,6 @@ Long value lists can overwhelm a help line. Set `enumhint:"-"` on a flag, positi
 | Tag | Meaning |
 |-----|---------|
 | `aliases` | Comma-separated command aliases. |
-| `conga` | Directives (see [`conga` directives](#conga-directives)). |
 | `deprecated` | Deprecation notice displayed in help. |
 | `envprefix` | Environment variable prefix for this command's flags. |
 | `feature` | Feature-gate expression: the subcommand and its subtree exist only while the expression is satisfied (see [Feature toggles](#feature-toggles-congafeaturest)). |
@@ -143,7 +140,6 @@ type Server struct {
 |-----|---------|
 | `aliases` | Comma-separated long-name aliases. |
 | `config` | Configuration file key feeding the flag. `config:"-"` disables configuration binding. |
-| `conga` | Directives (see [`conga` directives](#conga-directives)). |
 | `deprecated` | Deprecation notice; suppresses flag from completion. |
 | `env` | Comma-separated environment variable names. `env:"-"` disables environment binding. |
 | `feature` | Feature-gate expression: the config-file flag exists only while the expression is satisfied (see [Feature toggles](#feature-toggles-congafeaturest)). |
@@ -200,7 +196,6 @@ Declare the container once, on the root command struct, and call `app.EnableFeat
 | `sep` | Pair separator inside one map value (default `","`). |
 | `help` | Help text for the synthesized flag. Defaults to `Enable or disable features (name=value)`; the root help screen's [Features section](/how-to/feature-flags/#features-section) lists every feature, and `{{enum}}` (declared feature names) and `{{env}}` (the container's combined-map environment variable names) can be inlined, suppressing the matching bracket hint. `{{env}}` requires an `env` tag: a container whose only env surface is `envprefix` or field `env` tags rejects it at schema build. Other help variables are rejected. |
 | `enumhint` | Set to `-` to suppress the synthesized flag's `[enum: ...]` help hint. Redundant — and rejected — when the `help` tag already references `{{enum}}`. |
-| `conga` | Directives (see [`conga` directives](#conga-directives)). |
 
 A container that declares neither `env` nor `envprefix` binds no environment variable at all — `env:"-"` is equivalent. The application-level `EnvPrefix(...)` never reaches features; it applies to normal flags only.
 
@@ -214,7 +209,6 @@ A container that declares neither `env` nor `envprefix` binds no environment var
 | `default` | Base value when no source sets the key. Integer defaults must be a declared level; `0` is valid and means off. |
 | `enum` | Integer features only: comma-separated non-zero levels, required on every integer feature. `0` is reserved for off and rejected in the tag. |
 | `env` | Comma-separated environment variable names binding this feature individually (first set wins; an empty value is unset). `env:"-"` excludes the field from the environment tier. Valid only when the container does not declare `env` (the combined-map surface); under a container `envprefix`, the tag overrides the derived variable name. |
-| `conga` | Directives (see [`conga` directives](#conga-directives)). |
 
 Environment variables are validated for collisions at schema build: two feature fields resolving to the same variable (explicitly or through prefix derivation), or a feature variable a flag also binds, fail schema build with `ErrSchema`.
 
@@ -236,7 +230,6 @@ Feature names are kebab-cased. A key may use any spelling of a declared name (ke
 
 | Tag | Meaning |
 |-----|---------|
-| `conga` | Directives (see [`conga` directives](#conga-directives)). |
 | `name` | Placeholder name in usage syntax. |
 
 ## Domain-type tags
@@ -280,14 +273,6 @@ type CLI struct {
 ```
 
 Tag values are strict booleans (`"true"` or `"false"`). Runtime validation behavior and the full interface catalog are in [Domain types](/reference/domain-types/).
-
-## `conga` directives
-
-Set on the `conga:"..."` tag, comma-separated:
-
-| Directive | Meaning |
-|-----------|---------|
-| `ignore` (or `-`) | Exclude the field from the schema. |
 
 ## Allowed foreign tags
 

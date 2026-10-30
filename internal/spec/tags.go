@@ -31,37 +31,10 @@ const (
 	RangeFloat
 )
 
-// Directives holds the parsed directives of a conga:"..." struct tag.
-type Directives struct {
-	Ignore bool
-}
-
 // RangeDomain selects the native comparison domain of a text-grammar range
 // type. Bytes() int64 projections and signed integer kinds compare as int64,
 // unsigned integer kinds as uint64, and float kinds as float64.
 type RangeDomain uint8
-
-// ParseCongaDirectives parses the directives of a conga:"..." struct tag.
-func ParseCongaDirectives(congaTag string) (Directives, error) {
-	var directives Directives
-	if congaTag == "" {
-		return directives, nil
-	}
-
-	parts := slicex.SplitAndTrim(congaTag, ",")
-	for _, directive := range parts {
-		switch directive {
-		case "-", "ignore":
-			directives.Ignore = true
-		case "allow-unknown-tags", "recurse":
-			return Directives{}, fmt.Errorf("%w: conga directive %q was removed; register foreign tag keys with app.AllowTags(...) instead", ErrInvalidStructTag, directive)
-		default:
-			return Directives{}, fmt.Errorf("%w: unrecognized conga directive %q. Note: flag names and short flags must be declared using name:\"...\" and short:\"...\"", ErrInvalidStructTag, directive)
-		}
-	}
-
-	return directives, nil
-}
 
 // ParseRangeSpec parses a range tag value (min..max, min.., ..max, or exact).
 func ParseRangeSpec(tag string) (*Range, error) {

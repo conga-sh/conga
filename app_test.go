@@ -739,24 +739,6 @@ func TestApp_TagValidationBuilders(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, 8080, cli.Port.Get())
 	})
-
-	t.Run("removed allow-unknown-tags directive rejected with exact message", func(t *testing.T) {
-		t.Parallel()
-
-		type RemovedDirectiveCLI struct {
-			noopRunner
-
-			Port conga.OptionalFlag[int] `conga:"allow-unknown-tags" custom:"x" default:"8080"`
-		}
-
-		app := conga.New[RemovedDirectiveCLI]().Args([]string{})
-
-		err := app.Run()
-
-		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, `struct RemovedDirectiveCLI field Port: schema error: invalid struct tag: conga directive "allow-unknown-tags" was removed; register foreign tag keys with app.AllowTags(...) instead`, err.Error())
-	})
 }
 
 type ctxKey struct{}

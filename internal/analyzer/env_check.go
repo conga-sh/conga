@@ -52,11 +52,6 @@ func (w *walker) recordFeatureEnvBindings(node *commandNode, fieldObject types.O
 
 		innerTag := reflect.StructTag(structType.Tag(index))
 
-		dirs, err := spec.ParseCongaDirectives(innerTag.Get("conga"))
-		if err == nil && dirs.Ignore {
-			continue
-		}
-
 		name, err := spec.FeatureFieldName(innerField.Name(), innerTag)
 		if err != nil {
 			continue
