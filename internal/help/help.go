@@ -1289,7 +1289,7 @@ func formatExamples(examples string) string {
 		return ""
 	}
 
-	indent := commonIndent(lines)
+	indent := commonIndentPrefix(lines)
 
 	var builder strings.Builder
 
@@ -1303,40 +1303,56 @@ func formatExamples(examples string) string {
 		}
 
 		builder.WriteString("  ")
-		builder.WriteString(line[indent:])
+		builder.WriteString(strings.TrimPrefix(line, indent))
 		builder.WriteString("\n")
 	}
 
 	return builder.String()
 }
 
-// commonIndent returns the width of the longest common leading-whitespace prefix
-// shared by every non-blank line, so author source-indentation is stripped
-// before the renderer applies its own two-space indent. The width counts bytes,
-// so a block mixing tabs and spaces keeps the remainder of a longer indent.
-func commonIndent(lines []string) int {
-	indent := -1
+// commonIndentPrefix returns the longest leading-whitespace prefix shared by
+// every non-blank line, so author source-indentation is stripped before the
+// renderer applies its own two-space indent. Comparing the actual prefix keeps
+// blocks that mix tabs and spaces exact instead of stripping a byte count.
+func commonIndentPrefix(lines []string) string {
+	prefix := ""
+	initialized := false
 
 	for _, line := range lines {
 		if strings.TrimSpace(line) == "" {
 			continue
 		}
 
-		width := len(line) - len(strings.TrimLeft(line, " \t"))
-		if indent == -1 || width < indent {
-			indent = width
+		leading := line[:len(line)-len(strings.TrimLeft(line, " \t"))]
+
+		if !initialized {
+			prefix = leading
+			initialized = true
+
+			continue
 		}
 
-		if indent == 0 {
-			return 0
+		prefix = sharedWhitespacePrefix(prefix, leading)
+
+		if prefix == "" {
+			return ""
 		}
 	}
 
-	if indent < 0 {
-		return 0
+	return prefix
+}
+
+// sharedWhitespacePrefix returns the common leading-whitespace prefix of two
+// indentation strings.
+func sharedWhitespacePrefix(left, right string) string {
+	limit := min(len(left), len(right))
+
+	index := 0
+	for index < limit && left[index] == right[index] {
+		index++
 	}
 
-	return indent
+	return left[:index]
 }
 
 // deprecationMarker returns the "[deprecated: <reason>]" suffix for a help

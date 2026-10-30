@@ -352,6 +352,14 @@ func FeatureFieldDeclaresEnv(tag reflect.StructTag) bool {
 	return len(SplitTagList(tag, "env")) > 0
 }
 
+// ParseFlagShort returns the rune declared by a flag's short tag, or 0 when the
+// tag is absent. It is the shared decoding rule for the runtime schema builder
+// and the static analyzer, so both see the same rune when deciding whether a
+// user-declared short collides with a built-in one.
+func ParseFlagShort(tag reflect.StructTag) rune {
+	return extractFlagShort(tag)
+}
+
 type flagKindInfo struct {
 	targetType  reflect.Type
 	isBool      bool

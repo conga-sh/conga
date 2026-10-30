@@ -164,7 +164,7 @@ func TestBuild_OneOfSchemaErrors(t *testing.T) {
 		{
 			name:   "oneof member sharing an and group",
 			target: func() any { return new(OneOfAndOverlapCLI) },
-			want:   `command "app": schema error: invalid struct tag: flags --json and --yaml belong to oneof group "format" and share "and" group "auth" (selecting either flag forces the other, so the exactly-one group can never be satisfied; remove one of the group tags)`,
+			want:   `struct OneOfAndOverlapCLI field YAML: schema error: invalid struct tag: flags --json and --yaml belong to oneof group "format" and share "and" group "auth" (selecting either flag forces the other, so the exactly-one group can never be satisfied; remove one of the group tags)`,
 		},
 		{
 			name:   "empty oneof group",

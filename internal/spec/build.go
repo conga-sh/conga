@@ -70,11 +70,7 @@ func Build(target any, defaultName string, opts Options) (*Command, error) {
 		return nil, err
 	}
 
-	if err := validateFlagGroupOverlaps(cmd); err != nil {
-		return nil, err
-	}
-
-	if err := validateBuiltinShortUniqueness(cmd); err != nil {
+	if err := validateBuiltinShortPair(cmd); err != nil {
 		return nil, err
 	}
 
@@ -130,12 +126,20 @@ func NewCompletionCommand(name, summary string, target any, aliases []string, hi
 	}
 }
 
+// groupPair identifies a oneof/and group combination on one command. Group
+// validation is command-scoped, so pairs are tracked per schema builder.
+type groupPair struct {
+	oneOf string
+	and   string
+}
+
 type schemaBuilder struct {
 	cmd             *Command
 	structType      reflect.Type
 	structValue     reflect.Value
 	flagTracker     *flagCollisionTracker
 	seenSubcommands map[string]string
+	oneOfAndPairs   map[groupPair]string
 	sliceArgField   string
 	sliceArgName    string
 	mapArgField     string
@@ -196,6 +200,7 @@ func newSchemaBuilder(target any, defaultName string, structValue reflect.Value,
 		structValue:     structValue,
 		flagTracker:     flagTracker,
 		seenSubcommands: make(map[string]string),
+		oneOfAndPairs:   make(map[groupPair]string),
 		isRoot:          isRoot,
 		opts:            opts,
 	}, nil
@@ -489,22 +494,8 @@ func (b *schemaBuilder) processFlag(structField reflect.StructField, flagHandle 
 		return err
 	}
 
-	if classification.Required && hasTag(structField.Tag, "deprecated") {
-		return DeprecatedOnRequiredFlagError()
-	}
-
-	if classification.Required && hasTag(structField.Tag, "default") {
-		return DefaultOnRequiredFlagError()
-	}
-
-	if classification.Required {
-		if hasTag(structField.Tag, "xor") {
-			return GroupTagOnRequiredFlagError("xor")
-		}
-
-		if hasTag(structField.Tag, "oneof") {
-			return GroupTagOnRequiredFlagError("oneof")
-		}
+	if err := b.checkRequiredFlagTags(structField, classification); err != nil {
+		return err
 	}
 
 	flagSpec, err := parseFlagSpec(structField, flagHandle, classification, fieldTags, &b.opts)
@@ -516,6 +507,14 @@ func (b *schemaBuilder) processFlag(structField reflect.StructField, flagHandle 
 		return DefaultOnOneOfFlagError()
 	}
 
+	if err := b.checkFlagGroupOverlap(flagSpec); err != nil {
+		return err
+	}
+
+	if err := b.checkBuiltinShortConflict(flagSpec); err != nil {
+		return err
+	}
+
 	flagSpec.FieldTags = fieldTags
 
 	if err := b.flagTracker.CheckAndAdd(flagSpec, structField.Name); err != nil {
@@ -523,6 +522,72 @@ func (b *schemaBuilder) processFlag(structField reflect.StructField, flagHandle 
 	}
 
 	b.cmd.Flags = append(b.cmd.Flags, flagSpec)
+
+	return nil
+}
+
+// checkRequiredFlagTags rejects value and group tags that cannot apply to a
+// required flag: the requirement is individually mandatory, so a fallback or a
+// group membership would be meaningless or contradictory.
+func (b *schemaBuilder) checkRequiredFlagTags(structField reflect.StructField, classification container.Classification) error {
+	if !classification.Required {
+		return nil
+	}
+
+	if hasTag(structField.Tag, "deprecated") {
+		return DeprecatedOnRequiredFlagError()
+	}
+
+	if hasTag(structField.Tag, "default") {
+		return DefaultOnRequiredFlagError()
+	}
+
+	if hasTag(structField.Tag, "xor") {
+		return GroupTagOnRequiredFlagError("xor")
+	}
+
+	if hasTag(structField.Tag, "oneof") {
+		return GroupTagOnRequiredFlagError("oneof")
+	}
+
+	return nil
+}
+
+// checkFlagGroupOverlap rejects two members of the same oneof group that also
+// share an and group: selecting either member forces the other, which the
+// exactly-one rule then rejects, so neither flag can ever be supplied.
+// Legitimate combinations (an and group shared with non-members) stay valid.
+func (b *schemaBuilder) checkFlagGroupOverlap(flagSpec *Flag) error {
+	if flagSpec.OneOfGroup == "" || flagSpec.AndGroup == "" {
+		return nil
+	}
+
+	pair := groupPair{oneOf: flagSpec.OneOfGroup, and: flagSpec.AndGroup}
+	if firstFlag, ok := b.oneOfAndPairs[pair]; ok {
+		return OneOfAndOverlapError(flagSpec.OneOfGroup, flagSpec.AndGroup, firstFlag, flagSpec.Name)
+	}
+
+	b.oneOfAndPairs[pair] = flagSpec.Name
+
+	return nil
+}
+
+// checkBuiltinShortConflict rejects a user-declared short that claims the rune
+// assigned to a built-in the command offers. The built-in --help flag is
+// injected on every command that offers help; --version is root-only. A
+// disabled built-in leaves its rune free for application flags.
+func (b *schemaBuilder) checkBuiltinShortConflict(flagSpec *Flag) error {
+	if flagSpec.Short == 0 {
+		return nil
+	}
+
+	if b.opts.HelpShort != 0 && !b.opts.DisableHelp && flagSpec.Short == b.opts.HelpShort {
+		return BuiltinShortConflictError("help", flagSpec.Short, flagSpec.Name)
+	}
+
+	if b.isRoot && b.opts.VersionShort != 0 && !b.opts.DisableVersion && flagSpec.Short == b.opts.VersionShort {
+		return BuiltinShortConflictError("version", flagSpec.Short, flagSpec.Name)
+	}
 
 	return nil
 }
@@ -967,117 +1032,16 @@ func validateAncestorFlagUniqueness(root *Command) error {
 	return nil
 }
 
-// validateFlagGroupOverlaps rejects two members of the same oneof group that
-// also share an and group: selecting either member forces the other, which the
-// exactly-one rule then rejects, so neither flag can ever be supplied. Legitimate
-// combinations (an and group shared with non-members) stay valid. Groups are
-// scoped per command, so each command is checked independently.
-func validateFlagGroupOverlaps(cmd *Command) error {
-	type groupPair struct {
-		oneOf string
-		and   string
-	}
-
-	firstFlagByPair := make(map[groupPair]string)
-
-	for _, flagSpec := range cmd.Flags {
-		if flagSpec.OneOfGroup == "" || flagSpec.AndGroup == "" {
-			continue
-		}
-
-		pair := groupPair{oneOf: flagSpec.OneOfGroup, and: flagSpec.AndGroup}
-		if firstFlag, ok := firstFlagByPair[pair]; ok {
-			return fmt.Errorf("command %q: %w", cmd.Name, OneOfAndOverlapError(flagSpec.OneOfGroup, flagSpec.AndGroup, firstFlag, flagSpec.Name))
-		}
-
-		firstFlagByPair[pair] = flagSpec.Name
-	}
-
-	for _, subcommand := range cmd.Subcommands {
-		if err := validateFlagGroupOverlaps(subcommand); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// validateBuiltinShortUniqueness rejects short runes assigned to the injected
-// built-in --help/--version flags through app.HelpShortFlag/app.VersionShortFlag
-// that the binder could not honor: a rune shared with a user-declared short on a
-// command offering the built-in stays with the user flag while the help screen
-// still advertises it for the built-in, and a rune claimed by both built-ins
-// leaves the second registration dropped.
-//
-// The built-in --help flag is injected on every command that offers help, so
-// its rune is checked across the hierarchy; --version is root-only, so its rune
-// is checked against the root's flags alone. A user flag named help or version
-// cannot exist while the matching built-in is offered — the schema reserves
-// both names — so neither built-in is shadowed here.
-func validateBuiltinShortUniqueness(root *Command) error {
-	if root.HelpShort == 0 && root.VersionShort == 0 {
-		return nil
-	}
-
-	if err := validateBuiltinShortPair(root); err != nil {
-		return err
-	}
-
-	var walk func(cmd *Command) error
-
-	walk = func(cmd *Command) error {
-		for _, flagSpec := range cmd.Flags {
-			if err := builtinShortConflict(root, cmd, flagSpec); err != nil {
-				return err
-			}
-		}
-
-		for _, subcommand := range cmd.Subcommands {
-			if err := walk(subcommand); err != nil {
-				return err
-			}
-		}
-
-		return nil
-	}
-
-	return walk(root)
-}
-
 // validateBuiltinShortPair rejects two equal built-in runes: the binder
 // registers --help first, so the --version rune would be dropped while both
-// flag rows still advertise it.
+// flag rows still advertise it. User-declared collisions are reported with
+// struct/field context by schemaBuilder.checkBuiltinShortConflict.
 func validateBuiltinShortPair(root *Command) error {
 	if root.HelpShort == 0 || root.HelpShort != root.VersionShort || root.DisableHelp || !root.VersionFlagVisible(true) {
 		return nil
 	}
 
-	return fmt.Errorf("%w: built-in --help and --version both claim short flag -%c; assign a different rune to one of them", ErrDuplicateFlag, root.HelpShort)
-}
-
-// builtinShortConflict returns the conflict error for a user-declared flag
-// claiming a built-in rune, or nil when the rune is free.
-func builtinShortConflict(root, cmd *Command, flagSpec *Flag) error {
-	if flagSpec.EngineOwned || flagSpec.Short == 0 {
-		return nil
-	}
-
-	if flagSpec.Short == root.HelpShort && !cmd.DisableHelp {
-		return builtinShortConflictError("help", flagSpec.Short, flagSpec.Name, cmd.Name)
-	}
-
-	if cmd == root && root.VersionFlagVisible(true) && flagSpec.Short == root.VersionShort {
-		return builtinShortConflictError("version", flagSpec.Short, flagSpec.Name, cmd.Name)
-	}
-
-	return nil
-}
-
-// builtinShortConflictError reports a built-in short rune a user-declared flag
-// claims, naming the flag rather than the declaring field: the collision is
-// detected after schema build, where the owning struct is no longer in scope.
-func builtinShortConflictError(builtin string, short rune, flagName, cmdName string) error {
-	return fmt.Errorf("%w: built-in --%s short flag -%c collides with --%s on command %q; assign a different rune to one of them", ErrDuplicateFlag, builtin, short, flagName, cmdName)
+	return BuiltinShortPairError(root.HelpShort)
 }
 
 func addCommandFlags(cmd *Command, names map[string]string, shorts map[rune]string) {

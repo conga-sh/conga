@@ -190,6 +190,8 @@ func (w *walker) walkCommand(node *commandNode, ancestorNames map[string]string,
 	w.visitPath[typeObject] = true
 	defer delete(w.visitPath, typeObject)
 
+	w.checkBuiltinShortPair(node)
+
 	branchNames := maps.Clone(ancestorNames)
 	branchShorts := maps.Clone(ancestorShorts)
 	branchGroups := make(map[groupPair]string)

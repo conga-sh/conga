@@ -77,6 +77,27 @@ func TestUsage_OneOfGroupAllMembersHiddenRendersNothing(t *testing.T) {
 	assert.Equal(t, "Usage:\n  app <target>", usage)
 }
 
+// TestFormat_OneOfGroupAllMembersHiddenOmitsRowsAndHint pins the documented
+// behavior: a fully hidden exactly-one group is still enforced at runtime, but
+// the help screen neither lists its members nor advertises the group.
+func TestFormat_OneOfGroupAllMembersHiddenOmitsRowsAndHint(t *testing.T) {
+	t.Parallel()
+
+	cmd := &spec.Command{
+		Name: "app",
+		Flags: []*spec.Flag{
+			{Name: "json", IsBool: true, Hidden: true, Help: "JSON output", OneOfGroup: "format"},
+			{Name: "yaml", IsBool: true, Hidden: true, Help: "YAML output", OneOfGroup: "format"},
+		},
+	}
+
+	formatted := help.Format([]*spec.Command{cmd})
+
+	assert.Contains(t, formatted, "Usage:\n  app")
+	assert.NotContains(t, formatted, "--json")
+	assert.NotContains(t, formatted, "--yaml")
+}
+
 func TestUsage_OneOfGroupDoesNotSetFlagsPlaceholder(t *testing.T) {
 	t.Parallel()
 

@@ -21,6 +21,7 @@ The analyzer delegates to the exported validators in `internal/spec`, so static 
 | `bootstrap` tag validation | Flags fields carrying `bootstrap` when neither the declaring command nor an ancestor implements `conga.Bootstrapper`, flags combining `bootstrap` with `feature`, and fields carrying `bootstrap` on unsupported types (structs, pointers, interfaces). |
 | Synthesized feature flag shadowing | The `flag:"..."` name installed for a CLI-exposed `Features[T]` container joins the ancestor shadow map, so a descendant flag cannot redeclare it. |
 | Ancestor flag shadowing | The runtime `ErrDuplicateFlag` rule: a flag name, alias, or short rune declared on an ancestor cannot be redeclared on any descendant command. |
+| Built-in short collisions | The runtime rejection of a user-declared `short` that claims the rune assigned with `app.HelpShortFlag(...)` (every command offering help) or `app.VersionShortFlag(...)` (root only), and of assigning the same rune to both built-ins. A disabled built-in leaves its rune free; non-constant runes suppress the check. |
 | Cascading guard | The schema rejection of `conga.ConfigCascading()` when the root command lacks a `multi:"true"` `ConfigFile` flag. |
 | Throwaway root detection | Lint-only: flags `conga.New(root)` when the root pointer is never referenced outside the application builder, steering code to the engine-allocating `conga.New[T]()` form. |
 | Builder call order (opt-in) | With `-builder-order`, validates fluent builder invocations at `conga.New` construction sites against canonical ordering. |
@@ -31,8 +32,10 @@ Hierarchies are discovered exclusively from `conga.New` constructor sites (both 
 
 - `app.AllowTags("...", ...)`
 - `app.Predictor("name", ...)`
+- `app.HelpShortFlag('h')`, `app.VersionShortFlag('V')`
+- `app.DisableHelpFlag()`, `app.DisableVersionFlag()`
 
-Non-literal or computed arguments degrade conservatively: the analyzer suppresses the affected diagnostic rather than inventing one. `./...` skips directories with leading underscores (such as `_examples/`); pass directory paths or globs explicitly to lint them.
+Non-literal or computed arguments degrade conservatively: the analyzer suppresses the affected diagnostic rather than inventing one. Builder-option evidence is aggregated package-wide, so checks that could turn it into a diagnostic — the cascading guard and the built-in short collisions — are skipped entirely in packages anchoring more than one `conga.New` root; a diagnostic is never attributed to an innocent sibling root. `./...` skips directories with leading underscores (such as `_examples/`); pass directory paths or globs explicitly to lint them.
 
 ## Flags
 

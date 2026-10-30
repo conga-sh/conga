@@ -24,7 +24,7 @@ Every app gets `--help` and a generated help screen. CONGA derives the help outp
 
 ### Wrap width
 
-Help text wraps to the terminal. An explicit `COLUMNS` value of at least 20 takes precedence; otherwise the width of the app's stdout is probed when it is a terminal; piped or redirected output (and terminals reporting no width) falls back to a default of 100 columns. Overlong descriptions and table help text fold at space boundaries, with continuation lines aligned under the help column; a bracketed hint group such as `[env: NAME]` stays on one line, and a label wider than half the width renders on its own line above its help text. The `Usage:` syntax, the `Examples:` block, and the global help footer stay unwrapped.
+Help text wraps to the terminal. An explicit `COLUMNS` value of at least 20 takes precedence; otherwise the width of the app's stdout is probed when it is a terminal; piped or redirected output (and terminals reporting no width) falls back to a default of 100 columns. Windows consoles are not probed: set `COLUMNS` or accept the 100-column default. Overlong descriptions and table help text fold at space boundaries, with continuation lines aligned under the help column; a bracketed hint group such as `[env: NAME]` stays on one line, and a label wider than half the width renders on its own line above its help text. The `Usage:` syntax, the `Examples:` block, and the global help footer stay unwrapped.
 
 ### Configurable short flags
 

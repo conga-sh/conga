@@ -1384,7 +1384,7 @@ func TestSchemaFlagCollisions_Issue05(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, `schema error: duplicate flag: built-in --help short flag -h collides with --host on command "app"; assign a different rune to one of them`, err.Error())
+		assert.Equal(t, `struct BuiltinHelpShortCLI field Host: schema error: duplicate flag: built-in --help short flag -h collides with --host; assign a different rune to one of them`, err.Error())
 	})
 
 	t.Run("built-in version short colliding with a user short is rejected", func(t *testing.T) {
@@ -1404,7 +1404,7 @@ func TestSchemaFlagCollisions_Issue05(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, `schema error: duplicate flag: built-in --version short flag -V collides with --verbose on command "app"; assign a different rune to one of them`, err.Error())
+		assert.Equal(t, `struct BuiltinVersionShortCLI field Verbose: schema error: duplicate flag: built-in --version short flag -V collides with --verbose; assign a different rune to one of them`, err.Error())
 	})
 
 	t.Run("built-in help and version shorts colliding with each other is rejected", func(t *testing.T) {
@@ -1446,7 +1446,7 @@ func TestSchemaFlagCollisions_Issue05(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, `schema error: duplicate flag: built-in --help short flag -h collides with --host on command "deploy"; assign a different rune to one of them`, err.Error())
+		assert.Equal(t, `struct DeployCmd field Host: schema error: duplicate flag: built-in --help short flag -h collides with --host; assign a different rune to one of them`, err.Error())
 	})
 
 	t.Run("built-in short rune is free when the built-in is disabled", func(t *testing.T) {

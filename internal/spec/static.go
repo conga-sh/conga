@@ -243,6 +243,24 @@ func OneOfAndOverlapError(oneOfGroup, andGroup, firstFlag, secondFlag string) er
 	return fmt.Errorf("%w: flags --%s and --%s belong to oneof group %q and share \"and\" group %q (selecting either flag forces the other, so the exactly-one group can never be satisfied; remove one of the group tags)", ErrInvalidStructTag, firstFlag, secondFlag, oneOfGroup, andGroup)
 }
 
+// BuiltinShortConflictError builds the schema error for a user-declared short
+// flag rune that claims the rune assigned to a built-in flag the command
+// offers: the binder would keep the user flag while the help screen still
+// advertises the rune for the built-in. The runtime schema builder and the
+// static analyzer share it as the single source of truth.
+func BuiltinShortConflictError(builtin string, short rune, flagName string) error {
+	return fmt.Errorf("%w: built-in --%s short flag -%c collides with --%s; assign a different rune to one of them", ErrDuplicateFlag, builtin, short, flagName)
+}
+
+// BuiltinShortPairError builds the schema error for app.HelpShortFlag and
+// app.VersionShortFlag claiming the same rune while both built-ins are offered:
+// the binder registers --help first, so the --version rune would be dropped
+// while both flag rows still advertise it. The runtime schema builder and the
+// static analyzer share it as the single source of truth.
+func BuiltinShortPairError(short rune) error {
+	return fmt.Errorf("%w: built-in --help and --version both claim short flag -%c; assign a different rune to one of them", ErrDuplicateFlag, short)
+}
+
 // ConfigExplicitConflictError builds the error when ConfigExplicit is combined with ConfigPaths or ConfigCascading.
 // The error wraps ErrSchema so runtime schema validation returns it directly and the static analyzer reports it verbatim,
 // keeping the lint-time and runtime messages a single source of truth.

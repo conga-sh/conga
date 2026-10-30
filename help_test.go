@@ -844,3 +844,31 @@ func (c *exampleSubcommand) Examples() string {
 }
 
 func (c *exampleSubcommand) Run(_ context.Context, _ *conga.Session) error { return nil }
+
+// TestHelp_WidthHonorsColumns pins the width plumbing: COLUMNS reaches the
+// help renderer through RunContext and folds an overlong help cell under a
+// continuation line aligned to the help column. It cannot run in parallel
+// because t.Setenv mutates the process environment.
+func TestHelp_WidthHonorsColumns(t *testing.T) {
+	t.Setenv("COLUMNS", "48")
+
+	type columnsCLI struct {
+		noopRunner
+
+		Config conga.OptionalFlag[string] `help:"Path to the configuration file used by every command" placeholder:"FILE"`
+	}
+
+	var buffer bytes.Buffer
+
+	app := conga.New[columnsCLI]().
+		Name("app").
+		Args([]string{"--help"}).
+		Stdout(&buffer)
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Contains(t, buffer.String(), "      --config=FILE  Path to the configuration\n")
+	assert.Contains(t, buffer.String(), "\n                     file used by every command\n")
+	assert.NotContains(t, buffer.String(), "Path to the configuration file used by every command")
+}

@@ -283,3 +283,26 @@ func TestKindMetavar(t *testing.T) {
 		})
 	}
 }
+
+// TestFormatExamples_StripsCommonWhitespacePrefix pins the exact-prefix rule:
+// a block mixing tabs and spaces only loses the prefix every line shares, so
+// relative indentation survives instead of being truncated by a byte count.
+func TestFormatExamples_StripsCommonWhitespacePrefix(t *testing.T) {
+	t.Parallel()
+
+	t.Run("shared mixed prefix", func(t *testing.T) {
+		t.Parallel()
+
+		formatted := formatExamples("\t  tab-indented\n\t    nested")
+
+		assert.Equal(t, "\nExamples:\n  tab-indented\n    nested\n", formatted)
+	})
+
+	t.Run("disjoint indentation characters are kept", func(t *testing.T) {
+		t.Parallel()
+
+		formatted := formatExamples("\tfoo\n  bar")
+
+		assert.Equal(t, "\nExamples:\n  \tfoo\n    bar\n", formatted)
+	})
+}
