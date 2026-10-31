@@ -24,7 +24,7 @@ Every app gets `--help` and a generated help screen. CONGA derives the help outp
 
 ### Wrap width
 
-Help text wraps to the terminal. An explicit `COLUMNS` value of at least 20 takes precedence; otherwise the width of the app's stdout is probed when it is a terminal; piped or redirected output (and terminals reporting no width) falls back to a default of 100 columns. Windows consoles are not probed: set `COLUMNS` or accept the 100-column default. Overlong descriptions and table help text fold at space boundaries, with continuation lines aligned under the help column; a bracketed hint group such as `[env: NAME]` stays on one line, and a label wider than half the width renders on its own line above its help text. The `Usage:` syntax, the `Examples:` block, and the global help footer stay unwrapped.
+Help text wraps to the terminal. An explicit `COLUMNS` value of at least 20 takes precedence; otherwise the width of the app's stdout is probed when it is a terminal; piped or redirected output (and terminals reporting no width) falls back to a default of 100 columns. Windows consoles are not probed: set `COLUMNS` or accept the 100-column default. Column measurements use terminal cell widths, preventing wide CJK characters and combining marks from misaligning columns. Explicit line breaks and blank lines within descriptions are preserved with aligned continuation indents. Overlong descriptions and table help text fold at space boundaries, with continuation lines aligned under the help column; a bracketed hint group such as `[env: NAME]` stays on one line where possible, and a label wider than half the width renders on its own line above its help text. Boolean flag defaults appear only when explicitly `true` (`[default: true]`). The `Usage:` syntax, the `Examples:` block, and the global help footer stay unwrapped.
 
 ### Configurable short flags
 
@@ -36,7 +36,7 @@ app := conga.New[CLI]().
 	VersionShortFlag('V')
 ```
 
-The zero value keeps a built-in long-only. The builders are opt-in because a short rune an application flag already declares cannot serve both: a collision between the rune and a user-declared short, or between the two built-in runes, fails schema build with `ErrDuplicateFlag` naming the flag and command. Disabling the matching built-in leaves the rune inert: it binds to nothing, and the `help` or `version` name and the rune stay free for your own flags.
+The zero value keeps a built-in long-only. The builders are opt-in because a short rune an application flag already declares cannot serve both: a collision between the rune and a user-declared short, or between the two built-in runes, fails schema build with `ErrDuplicateFlag` naming the flag and command. Disabling the matching built-in leaves the rune inert: it binds to nothing, and the `help` or `version` name and the rune stay free for your own flags. User-declared `--help` or `--version` flags shadow built-in rows and render long-only without inheriting the configured short rune.
 
 The help rune applies to every command screen, and the version rune to the root screen, matching the root-only `--version` flag. Completion offers each configured rune as a shorthand candidate next to the declared short flags whenever the matching built-in is offered on the active command.
 
@@ -71,7 +71,7 @@ The built-in command fields accept `name`, `summary`, `aliases`, `group`, and `h
 
 ## Version
 
-Every root command gets `--version`. `app.Version("1.0.0")` sets the rendered string; the default is the module version (or `dev`) plus the embedded build metadata (VCS commit and date, when available).
+Every root command gets `--version`. `app.Version("1.0.0")` sets the rendered string; the default is the module version (or `dev`) plus the embedded build metadata (VCS commit and date, when available). The summary line renders under the configured application name (`App.Name(...)`), falling back to the invoked binary name (`os.Args[0]`) only when unset.
 
 The flag renders a single summary line, and `session.Version()` returns that same line. The commit and build timestamp are appended when the build info carries them and the version string does not already embed them (Go 1.27 records a pseudo-version for source builds):
 

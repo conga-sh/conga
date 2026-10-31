@@ -94,7 +94,7 @@ This alignment ensures that command line flags, environment variable prefixes, a
 
 CONGA enforces a strict grammar invariant across the entire command hierarchy: **ancestor commands reserve their flag names, aliases, and short runes throughout all descendant command branches**.
 
-Attempting to register a descendant flag that collides with an ancestor flag fails schema construction with `ErrSchema` (wrapping `ErrDuplicateFlag`).
+Attempting to register a descendant flag that collides with an ancestor flag fails schema construction with `ErrSchema` (wrapping `ErrDuplicateFlag`). Short runes assigned to built-in help (`HelpShortFlag`) or version (`VersionShortFlag`) participate in this reservation: a descendant command cannot declare a short flag that collides with an ancestor's built-in short rune.
 
 ```text no-copy
 cloudctl deploy --force      + cloudctl remove --force   (allowed: sibling commands)

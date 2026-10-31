@@ -83,6 +83,10 @@ Programmer errors during schema construction abort at startup before execution b
 - Inconsistent `stage` tags violating the all-or-nothing requirement on feature structs.
 - Setting `enumhint:"-"` on a field without declared enums, or where the `help` tag already references `{{enum}}`.
 - Ancestor flag shadowing across command-subcommand hierarchies (`ErrDuplicateFlag`).
+- Built-in short flag collisions: assigning a short rune via `app.HelpShortFlag` or `app.VersionShortFlag` that collides with an application flag, or assigning the same rune to both built-in flags (`ErrDuplicateFlag`).
+- Declaring `default`, `xor`, or `oneof` on a `RequiredFlag[T]`.
+- Invalid `oneof` group definitions: declaring `default` on a `oneof` member, combining `oneof` with `xor` or `and` on the same flag, two `oneof` members sharing an `and` group, or using an empty or whitespace group name.
+- Unrecognized struct tags without calling `app.AllowTags(...)` (including `conga:"..."` directives).
 - Declaring `ConfigFile` or `Features` on any command struct other than the root.
 
 ## Custom error handling

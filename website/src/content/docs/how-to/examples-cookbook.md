@@ -61,7 +61,7 @@ go test ./_examples/...
 | 07 | [dynamic-validation](https://github.com/conga-sh/conga/tree/main/_examples/07-dynamic-validation) | The `Validator` interface for cross-field semantic validation before hooks execute. |
 | 08 | [subcommands-basic](https://github.com/conga-sh/conga/tree/main/_examples/08-subcommands-basic) | `Command[T]` routing, aliases, visual groups, hidden commands, and typo suggestions. |
 | 09 | [deep-hierarchy-context](https://github.com/conga-sh/conga/tree/main/_examples/09-deep-hierarchy-context) | `session.Root[T]()`, root-down `Command[T].Get()` traversal, `session.Path()`, `session.Name()`, and `envprefix` tags. |
-| 10 | [builtins-help-version](https://github.com/conga-sh/conga/tree/main/_examples/10-builtins-help-version) | Opt-in `HelpCommand`/`VersionCommand` subcommands, `version --json`, `Examples`/`HelpFooter` builders, and custom commands rendering through session helpers. |
+| 10 | [builtins-help-version](https://github.com/conga-sh/conga/tree/main/_examples/10-builtins-help-version) | Opt-in `HelpCommand`/`VersionCommand` subcommands, `version --json`, `HelpShortFlag`/`VersionShortFlag` short flags, and session renderers. |
 | 11 | [trailing-args-forwarding](https://github.com/conga-sh/conga/tree/main/_examples/11-trailing-args-forwarding) | `DashArgs` (`--` forwarding) versus `RawArgs` (bare forwarding). |
 | 12 | [lifecycle-hooks](https://github.com/conga-sh/conga/tree/main/_examples/12-lifecycle-hooks) | `PreRun -> Run -> PostRun -> Finally` sequence, error short-circuiting, and guaranteed teardown. |
 | 27 | [strict-tag-validation](https://github.com/conga-sh/conga/tree/main/_examples/27-strict-tag-validation) | `app.AllowTags(...)` for schemas carrying foreign struct tags. |
