@@ -6,6 +6,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 While CONGA is pre-1.0, breaking changes increment the minor version.
 
+## [0.4.1](https://github.com/conga-sh/conga/compare/v0.4.0...v0.4.1) (2026-10-31)
+
+
+### 📚 Documentation
+
+* **website:** document flag grouping, built-in short flags, and help wrapping ([2d443b4](https://github.com/conga-sh/conga/commit/2d443b438697375695f6f8b8a9a6d674186a6dd6))
+
 ## [0.4.0](https://github.com/conga-sh/conga/compare/v0.3.0...v0.4.0) (2026-10-30)
 
 
