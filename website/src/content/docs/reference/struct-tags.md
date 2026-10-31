@@ -10,8 +10,8 @@ CONGA derives the CLI schema from struct fields and their tags. The engine valid
 | Tag | Optional | Required | Counter | Meaning |
 |-----|:--------:|:--------:|:-------:|---------|
 | `aliases` | ✅ | ✅ | – | Comma-separated long-name aliases. |
-| `bootstrap` | ✅ | ✅ | ✅ | Bind the field before the bootstrap phase runs and expose it typed to `Bootstrap` (`bootstrap` or `bootstrap:"true"`). Requires a `conga.Bootstrapper`; rejected with `feature`; restricted to scalar, slice-of-scalar, and map-of-scalar types. |
 | `and` | ✅ | ✅ | ✅ | Required co-occurrence group name whose members must all be set together. |
+| `bootstrap` | ✅ | ✅ | ✅ | Bind the field before the bootstrap phase runs and expose it typed to `Bootstrap` (`bootstrap` or `bootstrap:"true"`). Requires a `conga.Bootstrapper`; rejected with `feature`; restricted to scalar, slice-of-scalar, and map-of-scalar types. |
 | `config` | ✅ | ✅ | ✅ | Config file key feeding the flag (default: flag name). `config:"-"` excludes the field from config files. |
 | `default` | ✅ | – | – | Default value when no other source provides one. Coerced with the same parser as CLI input. Rejected on required flags and `oneof` members. |
 | `deprecated` | ✅ | – | ✅ | Deprecation notice; suppresses flag from completion. |
@@ -35,7 +35,7 @@ CONGA derives the CLI schema from struct fields and their tags. The engine valid
 | `short` | ✅ | ✅ | ✅ | Single-rune short flag (e.g. `short:"n"`). |
 | `xor` | ✅ | – | ✅ | Mutually exclusive group name: at most one member may be supplied. Optional flags only. |
 
-The `default` tag is rejected on `Counter` flags, `RequiredFlag`s, and `oneof` members. Counters count command-line occurrences starting at 0; seed a base level with an `env` or config-file binding, or use `OptionalFlag[int]` for a numeric default. A required flag must receive a value from the CLI, environment, or configuration, and a oneof member's default would always satisfy the exactly-one group.
+The `default` tag is rejected on `Counter` flags, `RequiredFlag`s, and `oneof` members. `xor` and `oneof` tags are also rejected on `RequiredFlag`s. Counters count command-line occurrences starting at 0; seed a base level with an `env` or config-file binding, or use `OptionalFlag[int]` for a numeric default. A required flag must receive a value from the CLI, environment, or configuration, and a oneof member's default would always satisfy the exactly-one group.
 
 Group names are scoped to the command that declares them: a same-named group on an ancestor or descendant command is an independent group, and validation, completion suppression, and the usage synopsis treat them separately. A flag may belong to one group of each kind. Two members of the same `oneof` group may not also share an `and` group: selecting either member would force the other, so the exactly-one group could never be satisfied, and the schema rejects the pair at startup. A group whose members are all `hidden` renders no synopsis token — like a hidden required flag — but is still enforced, and the missing-group error names the hidden members.
 

@@ -92,6 +92,16 @@ Input validation frequently clutters command handlers with manual range checks, 
 
 The engine evaluates declared constraints after type coercion but before invoking lifecycle hooks (`Validate`, `PreRun`, `Run`). When an input violates a constraint, the engine halts execution with a usage error (exit code 2). This separates input validation from command business logic, ensuring that command bodies receive values that already satisfy domain requirements.
 
+### Flag grouping semantics
+
+Flags often interact with one another: certain options conflict, others require companion flags, and some require callers to make an explicit choice among alternatives. CONGA models these relationships through three grouping tags:
+
+- **Mutual exclusivity (`xor:"group"`)**: At most one flag in the group may be supplied (zero or one). Supplying neither flag is valid; supplying two or more halts execution with a usage error.
+- **Exactly-one selection (`oneof:"group"`)**: Exactly one flag in the group must be supplied. Supplying zero flags or more than one flag halts execution with a usage error (exit 2). Because a default value would satisfy the group automatically on every run and bypass caller choice, the schema builder rejects `default` tags on `oneof` members. The usage synopsis renders `oneof` groups as parenthesized alternations (for example, `(--input-file=PATH | --input-url=URL)`), making the requirement explicit in syntax help. Shell completion automatically hides sibling members once any group member is present on the command line.
+- **Co-occurrence (`and:"group"`)**: All flags in the group must be supplied together. Providing one flag without its companions halts execution with a usage error.
+
+Group names are scoped to the command that declares them. A group name used on an ancestor or descendant command remains completely independent, preventing accidental coupling across the command hierarchy.
+
 ## Immutability during execution
 
 Once execution reaches the lifecycle hooks, container state is immutable. Command handlers read resolved values; they cannot re-run the resolution ladder or modify container values in place. Configuration is resolved once at startup; restarting the process applies file changes.

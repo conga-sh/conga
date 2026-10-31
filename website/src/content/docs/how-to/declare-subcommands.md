@@ -49,6 +49,7 @@ type CLI struct {
 - `aliases:"ls,ps"`: Registers comma-separated alternatives that route to the same command.
 - `group:"Inspection"`: Collects related commands under a dedicated section header in parent help screens.
 - `hidden:"true"`: Keeps the command executable while suppressing it from help listings and completion suggestions.
+- `deprecated:"..."`: Marks the command as deprecated, emitting a warning at runtime, rendering a `[deprecated: <reason>]` banner on its help screen, and suppressing it from shell completion.
 
 Help screens organize subcommands by their declared groups:
 

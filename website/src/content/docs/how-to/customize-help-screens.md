@@ -1,9 +1,9 @@
 ---
 title: How to customize help screens
-description: Configure command descriptions, footers, section groups, and help variables across help screens.
+description: Configure command descriptions, short flags, footers, section groups, and terminal wrapping across help screens.
 ---
 
-CONGA generates help screens automatically from your command structs. This guide explains how to customize top-matter descriptions, usage examples, global footers, visual section groups, and constraint formatting.
+CONGA generates help screens automatically from your command structs. This guide explains how to customize top-matter descriptions, usage examples, global footers, built-in short flags, visual section groups, and terminal width wrapping.
 
 ## Configure descriptions, examples, and footers
 
@@ -78,6 +78,28 @@ type CLI struct {
 
 When a subcommand struct does not implement `Description()`, its own help screen falls back to the `summary` tag.
 
+## Assign short flags to built-in help and version
+
+By default, CONGA injects `--help` and `--version` as long-only flags so they do not consume short runes your application flags might need. To assign single-rune short flags, call `HelpShortFlag` and `VersionShortFlag` on the builder:
+
+```go title="main.go"
+app := conga.New[CLI]().
+	HelpShortFlag('h').
+	VersionShortFlag('V')
+```
+
+With these short flags assigned, help output renders `-h, --help` across all commands and `-V, --version` on the root command:
+
+```text no-copy
+Flags:
+  -h, --help     Show help
+  -V, --version  Show version
+```
+
+Both `-h` and `-V` parse to the matching built-in actions and appear in shell completion suggestions.
+
+If an application flag claims the same short rune, or if help and version share the same rune, schema construction fails at startup with `conga.ErrDuplicateFlag` (and `conga-lint` reports the collision statically). Disabling a built-in flag via `app.DisableHelpFlag()` or `app.DisableVersionFlag()` leaves its configured short rune inert, keeping the rune available for your own flags. User-declared `--help` or `--version` flags shadow built-in rows and render long-only.
+
 ## Organize flags and subcommands into section groups
 
 Use the `group:"..."` tag to divide flags or subcommands into titled sections:
@@ -133,6 +155,22 @@ type CLI struct {
 ```
 
 The flag enforces the allowed values during resolution and completes them during shell tab completion, but omits `[enum: ...]` from the help screen. The tag's only accepted value is `-`. Setting `enumhint:"-"` on a field without an `enum` tag, or combining it with a `help` tag that references `{{enum}}`, fails schema build with `ErrSchema`.
+
+## Wrap help text to terminal width
+
+CONGA wraps description text and table columns to fit the active terminal width. The wrap width resolves through three tiers:
+
+1. `COLUMNS` environment variable: An explicit value of at least 20 columns takes precedence.
+2. Terminal probing: If stdout connects to an interactive terminal, CONGA queries the terminal width via ioctl.
+3. Fallback default: Piped commands, redirected output, and environments reporting no width wrap at 100 columns.
+
+Wrapping and formatting follow these rules:
+
+- **Cell width alignment**: Column widths and wrapping measure terminal cell width rather than byte or rune counts. Wide CJK characters, combining marks, and emojis align without column drift.
+- **Preserved line breaks**: Explicit newlines and blank lines inside `help:"..."` tags or `Description()` methods are preserved, with continuation lines indented to match the description column.
+- **Bracketed hint preservation**: Bracketed constraint hints such as `[env: PORT]` or `[default: 8080]` stay unbroken on a single line where possible.
+- **Boolean defaults**: Flag listings display boolean defaults only when explicitly `true` (`[default: true]`). False defaults are omitted because boolean flags default to false when unset.
+- **Subcommand deprecation banners**: Deprecated subcommands display a `[deprecated: <reason>]` banner at the top of their help screen.
 
 ## Automatic Features section
 

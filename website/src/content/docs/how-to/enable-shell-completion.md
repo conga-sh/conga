@@ -293,7 +293,7 @@ If your application completes domain aliases (for example taskfile task aliases)
 
 ## Completion at runtime
 
-The hidden `__complete` driver, the shell-native output, and the elements that complete without custom code are documented in [Built-ins and deprecation](/reference/builtins/#completion-surface). The completion command itself supports tab-completion: typing `cloudctl completion <TAB>` suggests all supported shell names with descriptions.
+The hidden `__complete` driver, the shell-native output, and the elements that complete without custom code are documented in [Built-ins and deprecation](/reference/builtins/#completion-surface). The completion command itself supports tab-completion: typing `cloudctl completion <TAB>` suggests all supported shell names with descriptions. Mutually exclusive (`xor`) and exactly-one (`oneof`) flags suppress their sibling members once a group member is present on the command line.
 
 ## Where to go next
 

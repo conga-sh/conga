@@ -19,7 +19,7 @@ func New[T any](root ...*T) *App[T]
 
 | Method | Purpose |
 |--------|---------|
-| `Name(name)` | Binary name (defaults to `os.Args[0]`) |
+| `Name(name)` | Application name shown in help, usage, and version output (falls back to `os.Args[0]`) |
 | `Description(desc)` | Root description |
 | `Examples(examples)` | Usage examples on `--help` |
 | `HelpFooter(footer)` | Footer rendered on every help screen |
@@ -74,6 +74,8 @@ func WithPredictor(p predict.Predictor) RegistrationOption
 | `Command[T]` | `Get() *T`, `IsSelected()` |
 
 `HelpCommand` (with `Path() []string`), `VersionCommand` (with `JSON() bool`), and `CompletionCommand` (with `Shell() string`) are the opt-in built-in subcommand containers.
+
+`RequiredFlag[T]` rejects `default`, `xor`, and `oneof` tags. When satisfied by input, environment, or configuration, both `Changed()` and `IsSet()` report true.
 
 ## Lifecycle interfaces
 
