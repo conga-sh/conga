@@ -102,7 +102,7 @@ Flags often interact with one another: certain options conflict, others require 
 
 Group names are scoped to the command that declares them. A group name used on an ancestor or descendant command remains completely independent, preventing accidental coupling across the command hierarchy. Every `xor` or `and` group needs at least two members; a one-member group is a no-op and fails schema construction. A `oneof` group needs at least two members unless its sole member is a `Counter`, where it means "require at least one occurrence" (use `RequiredFlag` for a single mandatory flag instead). Two members of the same `oneof` or `xor` group may not also share an `and` group: supplying either member forces the other, so the exclusive rule could never hold.
 
-Group membership is provenance-based: `--flag=false`, `--flag=`, `--count=0`, and `--no-flag` all count as supplying a member because `Changed()` is true. Shell completion suppresses sibling members only after a member is present on the command line; a group satisfied by an environment variable or config file still offers siblings, and selecting one then fails at runtime. Help-screen headings use the separate `section:"..."` tag; the group tags are validation-only.
+Group membership is provenance-based: `--flag=false`, `--flag=`, `--count=0`, and `--no-flag` all count as supplying a member because `Changed()` is true. Shell completion suppresses sibling members only after a member is present on the command line; a group satisfied by an environment variable or config file still offers siblings, and selecting one then fails at runtime. Help-screen headings use the `section` tag; the `xor`, `and`, and `oneof` tags govern validation only.
 
 ## Immutability during execution
 

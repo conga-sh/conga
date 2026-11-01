@@ -23,13 +23,13 @@ task test:examples
 | # | Example | What it teaches |
 |---|---------|-----------------|
 | 01 | [01-minimal-hello](01-minimal-hello/) | Minimal single-command app: `OptionalFlag[T]`, defaults, short flags, `--help` |
-| 02 | [02-flag-primitives](02-flag-primitives/) | Primitive types, `time.Duration`, `conga.Counter` clustering (`-vvv`), aliases, flag groups, hidden flags, coercion errors |
+| 02 | [02-flag-primitives](02-flag-primitives/) | Primitive types, `time.Duration`, `conga.Counter` clustering (`-vvv`), aliases, flag sections, hidden flags, coercion errors |
 | 03 | [03-negatable-and-maps](03-negatable-and-maps/) | Negatable booleans (`--[no-]color`, last-flag-wins), native `map[K]V` key-value flags with `items` bounds, slice separators (`sep:"none"`, `sep:";"`) |
 | 04 | [04-positional-args](04-positional-args/) | `RequiredArg[T]`, `OptionalArg[T]`, trailing positional slices, `GetOr` fallbacks |
 | 05 | [05-domain-types](05-domain-types/) | `File` with `existing`/`stdin`/`stdout`/`symlink`/`glob` tags, `Dir`, `ByteSize`, `FileContent`, custom `TextUnmarshaler` + `SelfValidator` domain types (including custom map types); domain types earn file/dir/symlink completion for free |
 | 06 | [06-flag-constraints](06-flag-constraints/) | `xor`, `and`, `conga.RequiredFlag`, `range` (int, duration, byte size), `len`, `items`, `enum`; full-help rendering on usage errors; exit code 2 |
 | 07 | [07-dynamic-validation](07-dynamic-validation/) | The `conga.Validator` interface for cross-field semantic validation before any hook runs |
-| 08 | [08-subcommands-basic](08-subcommands-basic/) | `Command[T]` routing, command aliases, command groups, hidden commands, did-you-mean suggestions |
+| 08 | [08-subcommands-basic](08-subcommands-basic/) | `Command[T]` routing, command aliases, command sections, hidden commands, did-you-mean suggestions |
 | 09 | [09-deep-hierarchy-context](09-deep-hierarchy-context/) | Deep nesting with `session.Root`, root-down `Command[T].Get()` traversal, `session.Path()`, `session.Name()`; per-command `envprefix` tags (inheritance and override) |
 | 10 | [10-builtins-help-version](10-builtins-help-version/) | Opt-in `conga.HelpCommand` / `conga.VersionCommand` subcommands vs `--help` / `--version` flags; `Examples`/`HelpFooter` builders and the `Description()`/`Examples()` subcommand methods |
 | 11 | [11-trailing-args-forwarding](11-trailing-args-forwarding/) | `conga.DashArgs` (`--` forwarding, go-test style) vs `conga.RawArgs` (bare forwarding, docker style) |

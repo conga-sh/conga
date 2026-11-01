@@ -1248,10 +1248,6 @@ func validateDisallowedTags(tag reflect.StructTag, keys []string, role string) e
 
 func validateTagCandidates(keys []string, role string, candidates []string, allowedTags []string) error {
 	for _, key := range keys {
-		if err := validateRenamedTag(key, allowedTags, false); err != nil {
-			return err
-		}
-
 		if slices.Contains(candidates, key) || isAllowedForeignTag(key) || slices.Contains(allowedTags, key) {
 			continue
 		}

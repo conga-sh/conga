@@ -182,19 +182,6 @@ func (o *OneOfXorAndOverlapApp) Run(ctx context.Context, session *conga.Session)
 
 var _ = conga.New[OneOfXorAndOverlapApp]()
 
-// RenamedGroupTagApp declares the removed group tag, which must report the
-// section migration error instead of a generic unknown-tag diagnostic.
-type RenamedGroupTagApp struct {
-	Verbose conga.OptionalFlag[bool] `name:"verbose" group:"Logging" help:"Enable verbose"` // want `tag "group" was renamed to "section"`
-}
-
-// Run executes the leaf.
-func (r *RenamedGroupTagApp) Run(ctx context.Context, session *conga.Session) error {
-	return nil
-}
-
-var _ = conga.New[RenamedGroupTagApp]()
-
 // CounterDefaultXorApp puts a default on a counter that also declares a
 // one-member xor group. The runtime rejects the default before the group
 // census runs, so only the default diagnostic may be reported.

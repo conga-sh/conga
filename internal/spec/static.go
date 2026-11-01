@@ -271,13 +271,6 @@ func SingleMemberGroupError(kind, group, flagName, suggestion string) error {
 	return fmt.Errorf("%w: %s", ErrInvalidStructTag, msg)
 }
 
-// RenamedGroupTagError builds the schema error for the removed group tag,
-// renamed to section for help-screen headings. The runtime schema builder and
-// the static analyzer share it as the single source of truth.
-func RenamedGroupTagError() error {
-	return fmt.Errorf("%w: tag %q was renamed to %q for help-screen headings; use section:\"...\" instead (xor/and/oneof remain validation-group tags). Use app.AllowTags(%q) to keep it as an external tag", ErrInvalidStructTag, "group", "section", "group")
-}
-
 // OneOfAndOverlapError builds the schema error for two members of the same
 // oneof group that also share an and group: selecting either member forces the
 // other, so the exactly-one rule can never be satisfied. The runtime schema
@@ -407,8 +400,7 @@ func ValidatePredictorTag(tag reflect.StructTag, isBool bool, registeredNames []
 // keeps the declaration honest. fieldTagKeys carries the domain-type tags the
 // field's value type registers, which are equally ignored on a plain field.
 // Tag syntax is always validated; well-formed foreign keys are ignored, and
-// keys listed in AllowedTags are accepted. The removed group tag reports the
-// section migration error. The reserved ~-prefixed namespace and the required
+// keys listed in AllowedTags are accepted. The reserved ~-prefixed namespace and the required
 // tag stay rejected regardless of AllowedTags, mirroring container roles. The
 // static analyzer resolves only the built-in CONGA domain types, so
 // user-defined TagSpecProviders stay runtime-only, and it skips the key
@@ -430,10 +422,6 @@ func ValidateNonContainerFieldTags(tag reflect.StructTag, fieldTagKeys []string,
 	}
 
 	for _, key := range keys {
-		if err := validateRenamedTag(key, opts.AllowedTags, opts.SkipUnknownTagKeyCheck); err != nil {
-			return err
-		}
-
 		if !isAnyCongaTag(key) && !slices.Contains(fieldTagKeys, key) {
 			continue
 		}
@@ -566,21 +554,6 @@ func validateSectionTagValue(tag reflect.StructTag) error {
 	}
 
 	return nil
-}
-
-// validateRenamedTag rejects a tag CONGA renamed, naming the replacement.
-// AllowTags still permits the key as an external tag, mirroring the unknown-tag
-// contract; the analyzer's ambiguous-evidence mode skips the check.
-func validateRenamedTag(key string, allowedTags []string, skipUnknownTagKeyCheck bool) error {
-	if key != "group" {
-		return nil
-	}
-
-	if skipUnknownTagKeyCheck || slices.Contains(allowedTags, key) {
-		return nil
-	}
-
-	return RenamedGroupTagError()
 }
 
 // validateFlagGroupTagValues rejects group tags that are present but carry no

@@ -86,14 +86,6 @@ type RemovedCongaTagCLI struct {
 	Subcommand mockCmd[LeafTestCmd] `conga:"ignore" summary:"Subcommand"`
 }
 
-type RenamedGroupTagCLI struct {
-	Verbose mockFlag[bool] `group:"Logging" help:"Enable verbose"`
-}
-
-type RenamedGroupPlainCLI struct {
-	Extra PlainStruct `group:"Logging"`
-}
-
 type AppLevelCustomTagCLI struct {
 	Rate mockFlag[float64] `datadog:"rate" help:"Sample rate"`
 }
@@ -331,50 +323,6 @@ func TestStrictTagLinter_CongaTagRejected(t *testing.T) {
 	assert.IsError(t, err, spec.ErrSchema)
 	assert.IsError(t, err, spec.ErrInvalidStructTag)
 	assert.Equal(t, `struct RemovedCongaTagCLI field Subcommand: schema error: invalid struct tag: unknown struct tag "conga" (did you mean "range"?). Use app.AllowTags("conga") to permit external tags`, err.Error())
-}
-
-func TestStrictTagLinter_RenamedGroupTag(t *testing.T) {
-	t.Parallel()
-
-	const wantSuffix = `schema error: invalid struct tag: tag "group" was renamed to "section" for help-screen headings; use section:"..." instead (xor/and/oneof remain validation-group tags). Use app.AllowTags("group") to keep it as an external tag`
-
-	t.Run("flag role reports the section migration", func(t *testing.T) {
-		t.Parallel()
-
-		var cli RenamedGroupTagCLI
-
-		_, err := buildSchema(&cli, "app", spec.Options{})
-
-		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct RenamedGroupTagCLI field Verbose: `+wantSuffix, err.Error())
-	})
-
-	t.Run("plain field reports the section migration", func(t *testing.T) {
-		t.Parallel()
-
-		var cli RenamedGroupPlainCLI
-
-		_, err := buildSchema(&cli, "app", spec.Options{})
-
-		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct RenamedGroupPlainCLI field Extra: `+wantSuffix, err.Error())
-	})
-
-	t.Run("AllowedTags keeps it as an external tag", func(t *testing.T) {
-		t.Parallel()
-
-		var cli RenamedGroupTagCLI
-
-		cmdSpec, err := buildSchema(&cli, "app", spec.Options{AllowedTags: []string{"group"}})
-
-		assert.NoError(t, err)
-		assert.Equal(t, 1, len(cmdSpec.Flags))
-		assert.Equal(t, "verbose", cmdSpec.Flags[0].Name)
-	})
 }
 
 func TestStrictTagLinter_OptionsConfiguration(t *testing.T) {
