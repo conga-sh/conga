@@ -643,6 +643,7 @@ func TestCompletion_EnvSatisfiedOneOfDoesNotSuppress(t *testing.T) {
 	var cli EnvOneOfGroupCLI
 
 	cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+
 	assert.NoError(t, err)
 
 	env := map[string]string{"CONGA_TEST_COMPLETION_JSON": "true"}
