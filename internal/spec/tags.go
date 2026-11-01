@@ -554,7 +554,7 @@ func parseFlagSpec(structField reflect.StructField, flagHandle any, classificati
 		// parsing; presence alone opts the flag out of the enum hint.
 		EnumHintHidden: hasTag(structField.Tag, "enumhint"),
 		Placeholder:    placeholder,
-		Group:          structField.Tag.Get("group"),
+		Section:        structField.Tag.Get("section"),
 		Hidden:         parsePresenceOrTrueTag(structField.Tag, "hidden"),
 		Safe:           safe,
 		Deprecated:     structField.Tag.Get("deprecated"),

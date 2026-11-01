@@ -1,7 +1,7 @@
 # 02 — Flag primitives
 
 Primitive flag types (`string`, `bool`, `int`, `float64`, `time.Duration`),
-`conga.Counter` (`-vvv` clustering), flag aliases, flag groups, hidden flags, and
+`conga.Counter` (`-vvv` clustering), flag aliases, flag sections, hidden flags, and
 coercion errors.
 
 ## Run it

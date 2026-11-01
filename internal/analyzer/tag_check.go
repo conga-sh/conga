@@ -60,12 +60,14 @@ func (w *walker) congaFieldTagSpecs(targetType types.Type) []spec.TagSpec {
 		return nil
 	}
 
+	targetType = types.Unalias(targetType)
+
 	if slice, ok := targetType.Underlying().(*types.Slice); ok {
-		targetType = slice.Elem()
+		targetType = types.Unalias(slice.Elem())
 	}
 
 	if mapping, ok := targetType.Underlying().(*types.Map); ok {
-		targetType = mapping.Elem()
+		targetType = types.Unalias(mapping.Elem())
 	}
 
 	named, ok := targetType.(*types.Named)
@@ -383,7 +385,7 @@ func (w *walker) checkCascadingArity() {
 // checkFlagField validates a flag field: the shared facade, the
 // flag-specific value tags, the domain-type field tags, and the ancestor
 // shadow contract.
-func (w *walker) checkFlagField(node *commandNode, fieldObject types.Object, tag reflect.StructTag, branchNames map[string]string, branchShorts map[rune]string, branchGroups map[groupPair]string) {
+func (w *walker) checkFlagField(node *commandNode, fieldObject types.Object, tag reflect.StructTag, branchNames map[string]string, branchShorts map[rune]string, branchGroups map[groupPair]string, census *groupCensus) {
 	targetType := w.flagTargetType(fieldObject)
 	tagSpecs := w.congaFieldTagSpecs(targetType)
 
@@ -409,16 +411,23 @@ func (w *walker) checkFlagField(node *commandNode, fieldObject types.Object, tag
 
 	flagName := cmp.Or(tag.Get("name"), casing.Kebab(fieldObject.Name()))
 
-	// A flag that shares both its oneof group and its and group with another
+	// A flag that shares both an exclusive group and an and group with another
 	// member can never be supplied: selecting it forces the other member, which
-	// then violates the exactly-one rule.
-	w.checkOneOfAndOverlap(node, fieldObject, tag, flagName, wrapperName == "RequiredFlag", branchGroups)
+	// then violates the exclusive rule.
+	if w.checkExclusiveAndOverlap(node, fieldObject, tag, flagName, wrapperName == "RequiredFlag", branchGroups) {
+		guardRejected = true
+	}
 
 	// Flags the runtime rejects before the built-in short guard are never
 	// checked for a collision, so skip them here as well.
 	if !guardRejected {
 		w.checkBuiltinShortConflict(node, fieldObject, tag, flagName)
 	}
+
+	// Census registration mirrors the declared membership rather than the
+	// runtime append point; helper keeps the flag check within the complexity
+	// budget.
+	w.recordFlagGroups(census, fieldObject, tag, flagName, wrapperName)
 
 	// Feature-tag syntax is validated before the required-flag guard, mirroring
 	// the runtime parse order: an invalid expression reports its syntax error
@@ -450,6 +459,19 @@ func (w *walker) checkFlagField(node *commandNode, fieldObject types.Object, tag
 
 	w.checkAndCollectFlag(node, fieldObject, tag, flagName, branchNames, branchShorts)
 	w.recordFlagEnvOwners(node, tag, flagName, false)
+}
+
+// recordFlagGroups records a flag's declared group memberships for the
+// single-member census. A pair-level overlap still leaves both flags as
+// declared members, so counting them avoids spurious single-member
+// diagnostics. Any field-level guard failure on this command sets node.rejected
+// and suppresses the census, mirroring the runtime's first-error abort.
+func (w *walker) recordFlagGroups(census *groupCensus, fieldObject types.Object, tag reflect.StructTag, flagName, wrapperName string) {
+	isCounter := wrapperName == "Counter"
+
+	census.Add("oneof", tag.Get("oneof"), flagName, isCounter, fieldObject)
+	census.Add("xor", tag.Get("xor"), flagName, isCounter, fieldObject)
+	census.Add("and", tag.Get("and"), flagName, isCounter, fieldObject)
 }
 
 // checkFlagValueGuards reports the value-tag guards the runtime applies while
@@ -494,35 +516,64 @@ func (w *walker) checkFlagValueGuards(node *commandNode, fieldObject types.Objec
 	return false
 }
 
-// checkOneOfAndOverlap rejects a flag that shares both its oneof group and its
-// and group with another member of the same exactly-one group: selecting either
-// member forces the other, which then violates the exactly-one rule. Flags that
-// already failed a schema guard above are never built at runtime, so they are
-// not paired here.
-func (w *walker) checkOneOfAndOverlap(node *commandNode, fieldObject types.Object, tag reflect.StructTag, flagName string, required bool, branchGroups map[groupPair]string) {
+// checkExclusiveAndOverlap rejects a flag that shares both a oneof or xor group
+// and an and group with another member: supplying either member forces the
+// other, which then violates the exclusive rule. It reports whether an overlap
+// was found, so the caller can skip the built-in short conflict check for a
+// flag the runtime rejects before reaching it. The runtime returns the oneof
+// overlap first; the analyzer reports every overlap so a second broken pair is
+// not hidden behind the first. Both diagnostics are genuine, so this stays
+// within the analyzer contract.
+func (w *walker) checkExclusiveAndOverlap(node *commandNode, fieldObject types.Object, tag reflect.StructTag, flagName string, required bool, branchGroups map[groupPair]string) bool {
 	if required {
-		return
+		return false
 	}
 
-	oneOfGroup := tag.Get("oneof")
 	andGroup := tag.Get("and")
-
-	if oneOfGroup == "" || andGroup == "" {
-		return
+	if andGroup == "" {
+		return false
 	}
 
-	if _, hasDefault := tag.Lookup("default"); hasDefault {
-		return
+	_, hasDefault := tag.Lookup("default")
+	reported := false
+
+	for _, exclusive := range []struct {
+		kind string
+		tag  string
+	}{
+		{kind: "oneof", tag: "oneof"},
+		{kind: "xor", tag: "xor"},
+	} {
+		group := tag.Get(exclusive.tag)
+		if group == "" {
+			continue
+		}
+
+		// A default on a oneof member is rejected by the value guard above; the
+		// runtime never reaches the overlap check for that flag. An xor member
+		// may carry a default, so its pair is still checked.
+		if exclusive.kind == "oneof" && hasDefault {
+			continue
+		}
+
+		pair := groupPair{kind: exclusive.kind, exclusive: group, and: andGroup}
+		if firstFlag, ok := branchGroups[pair]; ok {
+			switch exclusive.kind {
+			case "oneof":
+				w.reportFieldError(node, fieldObject, spec.OneOfAndOverlapError(group, andGroup, firstFlag, flagName))
+			case "xor":
+				w.reportFieldError(node, fieldObject, spec.XorAndOverlapError(group, andGroup, firstFlag, flagName))
+			}
+
+			reported = true
+
+			continue
+		}
+
+		branchGroups[pair] = flagName
 	}
 
-	pair := groupPair{oneOf: oneOfGroup, and: andGroup}
-	if firstFlag, ok := branchGroups[pair]; ok {
-		w.reportFieldError(node, fieldObject, spec.OneOfAndOverlapError(oneOfGroup, andGroup, firstFlag, flagName))
-
-		return
-	}
-
-	branchGroups[pair] = flagName
+	return reported
 }
 
 // checkBuiltinShortConflict rejects a user-declared short that claims the rune
@@ -716,12 +767,14 @@ func (w *walker) flagTargetType(fieldObject types.Object) types.Type {
 	return w.containerInnerType(fieldObject.Type())
 }
 
-// containerInnerType extracts the type parameter T of a generic container
-// field, mirroring the runtime extractGenericType.
+// containerInnerType extracts the value type of a container field, mirroring
+// the runtime extractGenericType: the wrapper's own type argument for a CONGA
+// generic, otherwise the promoted value field of an embedded wrapper. Returned
+// types are unaliased so callers can assert on the named underlying type.
 func (w *walker) containerInnerType(fieldType types.Type) types.Type {
-	containerType := fieldType
+	containerType := types.Unalias(fieldType)
 	if pointer, ok := containerType.(*types.Pointer); ok {
-		containerType = pointer.Elem()
+		containerType = types.Unalias(pointer.Elem())
 	}
 
 	named, ok := containerType.(*types.Named)
@@ -729,13 +782,18 @@ func (w *walker) containerInnerType(fieldType types.Type) types.Type {
 		return containerType
 	}
 
-	if arguments := named.TypeArgs(); arguments != nil && arguments.Len() > 0 {
-		return arguments.At(0)
+	// Only a CONGA wrapper's own type argument is the inner value. A
+	// user-defined generic struct that embeds a wrapper carries unrelated type
+	// arguments; its promoted value field is authoritative.
+	if congaNamedWrapperName(named) != "" {
+		if arguments := named.TypeArgs(); arguments != nil && arguments.Len() > 0 {
+			return types.Unalias(arguments.At(0))
+		}
 	}
 
 	if valueObject, _, _ := types.LookupFieldOrMethod(named, true, w.conga.packageObject, "value"); valueObject != nil {
 		if valueField, ok := valueObject.(*types.Var); ok {
-			return valueField.Type()
+			return types.Unalias(valueField.Type())
 		}
 	}
 

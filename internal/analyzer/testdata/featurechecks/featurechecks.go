@@ -133,7 +133,7 @@ var _ = conga.New[featureShadowApp]()
 type featureFlagCollisionApp struct {
 	Features conga.Features[goodFeatureSet] `flag:"gates"`
 
-	Gates conga.OptionalFlag[bool] `name:"gates" help:"Collides with the synthesized flag"` // want `already declared by ancestor`
+	Gates conga.OptionalFlag[bool] `name:"gates" help:"Collides with the synthesized flag"` // want `already declared by another field on this command`
 }
 
 func (a *featureFlagCollisionApp) Run(ctx context.Context, session *conga.Session) error {
@@ -141,6 +141,22 @@ func (a *featureFlagCollisionApp) Run(ctx context.Context, session *conga.Sessio
 }
 
 var _ = conga.New[featureFlagCollisionApp]()
+
+// featureFlagCollisionOrderApp declares the user flag before the Features
+// container, so the synthesized flag collides second. The runtime aborts
+// inside processFeaturesField before the group census, so the one-member xor
+// group must not be reported.
+type featureFlagCollisionOrderApp struct {
+	Gates    conga.OptionalFlag[bool]       `name:"gates" help:"Collides with the synthesized flag"`
+	Solo     conga.OptionalFlag[bool]       `name:"solo" xor:"choice" help:"Solo"`
+	Features conga.Features[goodFeatureSet] `flag:"gates"` // want `already declared by another field on this command`
+}
+
+func (a *featureFlagCollisionOrderApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[featureFlagCollisionOrderApp]()
 
 type badStageSet struct {
 	Level bool `stage:"stable" help:"Level"` // want `struct badStageApp field Level: schema error: invalid struct tag: tag "stage" must be one of alpha, beta, ga, or deprecated, got "stable"`

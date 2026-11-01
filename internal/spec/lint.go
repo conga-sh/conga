@@ -15,17 +15,17 @@ import (
 
 //nolint:gochecknoglobals // Static candidate definitions for schema tag validation.
 var (
-	flagTagCandidates           = []string{"name", "short", "help", "default", "env", "aliases", "group", "hidden", "safe", "xor", "and", "oneof", "enum", "enumhint", "range", "len", "items", "sep", "negatable", "placeholder", "config", "deprecated", "predictor", "feature", "bootstrap"}
+	flagTagCandidates           = []string{"name", "short", "help", "default", "env", "aliases", "section", "hidden", "safe", "xor", "and", "oneof", "enum", "enumhint", "range", "len", "items", "sep", "negatable", "placeholder", "config", "deprecated", "predictor", "feature", "bootstrap"}
 	argTagCandidates            = []string{"name", "help", "default", "enum", "enumhint", "range", "len", "items", "sep", "predictor", "bootstrap"}
-	builtinCommandTagCandidates = []string{"name", "summary", "aliases", "group", "hidden"}
-	userCommandTagCandidates    = []string{"name", "summary", "aliases", "group", "hidden", "envprefix", "deprecated", "feature"}
-	configFileTagCandidates     = []string{"name", "short", "help", "env", "aliases", "placeholder", "group", "hidden", "multi", "sep", "config", "deprecated", "feature"}
+	builtinCommandTagCandidates = []string{"name", "summary", "aliases", "section", "hidden"}
+	userCommandTagCandidates    = []string{"name", "summary", "aliases", "section", "hidden", "envprefix", "deprecated", "feature"}
+	configFileTagCandidates     = []string{"name", "short", "help", "env", "aliases", "placeholder", "section", "hidden", "multi", "sep", "config", "deprecated", "feature"}
 	featuresFieldTagCandidates  = []string{"flag", "env", "envprefix", "config", "sep", "help", "enumhint"}
 	featureFieldTagCandidates   = []string{"name", "help", "env", "default", "enum", "stage"}
 	dashRawTagCandidates        = []string{"name", "bootstrap"}
 	sentinelTagCandidates       = []string{"envprefix"}
 	allCongaTagCandidates       = []string{
-		"name", "short", "help", "default", "env", "aliases", "group", "hidden", "safe",
+		"name", "short", "help", "default", "env", "aliases", "section", "hidden", "safe",
 		"xor", "and", "oneof", "enum", "enumhint", "range", "len", "items", "sep", "negatable", "placeholder",
 		"config", "deprecated", "predictor", "feature", "summary", "envprefix",
 		"multi", "flag", "stage", "bootstrap",
@@ -80,6 +80,8 @@ func validContextDescription(tag string) string {
 		return "subcommands and sentinel fields"
 	case "summary":
 		return "commands"
+	case "section":
+		return "flags, subcommands, built-in commands, and config file flags"
 	case "deprecated":
 		return "subcommands, flags, and config file flags"
 	case "predictor", "default":

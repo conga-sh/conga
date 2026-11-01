@@ -46,7 +46,7 @@ go test ./_examples/...
 | # | Example | Demonstrates |
 |---|---------|--------------|
 | 01 | [minimal-hello](https://github.com/conga-sh/conga/tree/main/_examples/01-minimal-hello) | `OptionalFlag[T]`, default values, short flags, and `--help`. |
-| 02 | [flag-primitives](https://github.com/conga-sh/conga/tree/main/_examples/02-flag-primitives) | Primitive types, `time.Duration`, `Counter` (`-vvv`), aliases, flag groups, hidden flags, and coercion errors. |
+| 02 | [flag-primitives](https://github.com/conga-sh/conga/tree/main/_examples/02-flag-primitives) | Primitive types, `time.Duration`, `Counter` (`-vvv`), aliases, flag sections, hidden flags, and coercion errors. |
 | 03 | [negatable-and-maps](https://github.com/conga-sh/conga/tree/main/_examples/03-negatable-and-maps) | Negatable booleans, native `map[K]V` flags with `items` bounds, and slice separators (`sep:"none"`, `sep:";"`). |
 | 04 | [positional-args](https://github.com/conga-sh/conga/tree/main/_examples/04-positional-args) | `RequiredArg[T]`, `OptionalArg[T]`, trailing slices, and `GetOr` fallbacks. |
 | 05 | [domain-types](https://github.com/conga-sh/conga/tree/main/_examples/05-domain-types) | `File` with `existing`/`stdin`/`stdout`/`symlink`/`glob` tags, `Dir`, `ByteSize`, `FileContent`, and custom `TextUnmarshaler` types. |
@@ -59,7 +59,7 @@ go test ./_examples/...
 | 31 | [oneof-groups](https://github.com/conga-sh/conga/tree/main/_examples/31-oneof-groups) | Exactly-one `oneof:"group"` groups: missing and duplicate selections both exit 2, and the usage synopsis renders the alternation. |
 | 16 | [help-variables](https://github.com/conga-sh/conga/tree/main/_examples/16-help-variables) | `{{...}}` help variables that inline a declared constraint instead of the automatic bracket hint, including `{{default}}` value-slot suppression. |
 | 07 | [dynamic-validation](https://github.com/conga-sh/conga/tree/main/_examples/07-dynamic-validation) | The `Validator` interface for cross-field semantic validation before hooks execute. |
-| 08 | [subcommands-basic](https://github.com/conga-sh/conga/tree/main/_examples/08-subcommands-basic) | `Command[T]` routing, aliases, visual groups, hidden commands, and typo suggestions. |
+| 08 | [subcommands-basic](https://github.com/conga-sh/conga/tree/main/_examples/08-subcommands-basic) | `Command[T]` routing, aliases, visual sections, hidden commands, and typo suggestions. |
 | 09 | [deep-hierarchy-context](https://github.com/conga-sh/conga/tree/main/_examples/09-deep-hierarchy-context) | `session.Root[T]()`, root-down `Command[T].Get()` traversal, `session.Path()`, `session.Name()`, and `envprefix` tags. |
 | 10 | [builtins-help-version](https://github.com/conga-sh/conga/tree/main/_examples/10-builtins-help-version) | Opt-in `HelpCommand`/`VersionCommand` subcommands, `version --json`, `HelpShortFlag`/`VersionShortFlag` short flags, and session renderers. |
 | 11 | [trailing-args-forwarding](https://github.com/conga-sh/conga/tree/main/_examples/11-trailing-args-forwarding) | `DashArgs` (`--` forwarding) versus `RawArgs` (bare forwarding). |

@@ -1,9 +1,9 @@
 ---
 title: How to customize help screens
-description: Configure command descriptions, short flags, footers, section groups, and terminal wrapping across help screens.
+description: Configure command descriptions, short flags, footers, sections, and terminal wrapping across help screens.
 ---
 
-CONGA generates help screens automatically from your command structs. This guide explains how to customize top-matter descriptions, usage examples, global footers, built-in short flags, visual section groups, and terminal width wrapping.
+CONGA generates help screens automatically from your command structs. This guide explains how to customize top-matter descriptions, usage examples, global footers, built-in short flags, visual sections, and terminal width wrapping.
 
 ## Configure descriptions, examples, and footers
 
@@ -100,25 +100,25 @@ Both `-h` and `-V` parse to the matching built-in actions and appear in shell co
 
 If an application flag claims the same short rune, or if help and version share the same rune, schema construction fails at startup with `conga.ErrDuplicateFlag` (and `conga-lint` reports the collision statically). Disabling a built-in flag via `app.DisableHelpFlag()` or `app.DisableVersionFlag()` leaves its configured short rune inert, keeping the rune available for your own flags. User-declared `--help` or `--version` flags shadow built-in rows and render long-only.
 
-## Organize flags and subcommands into section groups
+## Organize flags and subcommands into sections
 
-Use the `group:"..."` tag to divide flags or subcommands into titled sections:
+Use the `section:"..."` tag to divide flags or subcommands into titled sections:
 
 ```go title="cli.go"
 type CLI struct {
-	// Subcommand grouped under 'Workload Commands:'
-	Deploy conga.Command[DeployCmd] `group:"Workload" summary:"Deploy workloads"`
+	// Subcommand sectioned under 'Workload Commands:'
+	Deploy conga.Command[DeployCmd] `section:"Workload" summary:"Deploy workloads"`
 
-	// Flags grouped under 'Authentication Flags:'
-	Token  conga.RequiredFlag[string] `group:"Authentication" help:"API access token"`
-	Region conga.OptionalFlag[string] `group:"Authentication" help:"Target cloud region"`
+	// Flags sectioned under 'Authentication Flags:'
+	Token  conga.RequiredFlag[string] `section:"Authentication" help:"API access token"`
+	Region conga.OptionalFlag[string] `section:"Authentication" help:"Target cloud region"`
 
-	// Ungrouped flag: renders under default 'Flags:' heading
+	// Unsectioned flag: renders under default 'Flags:' heading
 	Debug  conga.OptionalFlag[bool]   `help:"Enable debug logging"`
 }
 ```
 
-Help screens collect fields sharing the same group under `<Group> Commands:` or `<Group> Flags:` headers, preserving declaration order within each section.
+Help screens collect fields sharing the same section under `<Section> Commands:` or `<Section> Flags:` headers, preserving declaration order within each section.
 
 ## Format constraint hints with help variables
 

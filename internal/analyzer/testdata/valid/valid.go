@@ -121,6 +121,52 @@ func (o *OneOfAndLeaf) Run(ctx context.Context, session *conga.Session) error {
 
 var _ = conga.New[OneOfAndLeaf]()
 
+// CounterOneOfLeaf is the legal single-member oneof case: a Counter can be
+// required declaratively by a oneof group with one member.
+type CounterOneOfLeaf struct {
+	Verbose conga.Counter `name:"verbose" oneof:"mode" help:"Verbose output"`
+}
+
+// Run executes the leaf.
+func (c *CounterOneOfLeaf) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[CounterOneOfLeaf]()
+
+// XorAndPartnerLeaf pairs an xor choice with a conditional and companion: the
+// and group is shared with one xor member, not both, so it stays satisfiable.
+type XorAndPartnerLeaf struct {
+	Cert     conga.OptionalFlag[string] `name:"cert" and:"inline-cert" xor:"cert-source" help:"Inline certificate"`
+	CertFile conga.OptionalFlag[string] `name:"cert-file" xor:"cert-source" help:"Certificate file"`
+	CertKey  conga.OptionalFlag[string] `name:"cert-key" and:"inline-cert" help:"Inline certificate key"`
+}
+
+// Run executes the leaf.
+func (x *XorAndPartnerLeaf) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[XorAndPartnerLeaf]()
+
+// PlainUntaggedLeaf has a plain exported struct field without CONGA tags; the
+// schema ignores it and the analyzer must stay silent.
+type PlainUntaggedLeaf struct {
+	Extra PlainExtra
+}
+
+// PlainExtra is a plain helper struct, not a schema container.
+type PlainExtra struct {
+	Value string
+}
+
+// Run executes the leaf.
+func (p *PlainUntaggedLeaf) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[PlainUntaggedLeaf]()
+
 // newRootUsedOutsideApp exercises the throwaway-root suppression path: the
 // caller-owned instance is read after construction, so conga-lint must stay
 // silent. The inferred New(root) dedup coverage lives in the invalid fixture,
@@ -130,3 +176,126 @@ func newRootUsedOutsideApp() {
 	_ = conga.New(cli)
 	_ = cli
 }
+
+// AliasedFlag is an alias of a flag container; the runtime classifies the
+// alias as the container it names, so the analyzer must validate it as a flag.
+type AliasedFlag = conga.OptionalFlag[string]
+
+// AliasedFlagLeaf declares a flag through a type alias.
+type AliasedFlagLeaf struct {
+	Value AliasedFlag `name:"value" help:"Value"`
+}
+
+// Run executes the leaf.
+func (a *AliasedFlagLeaf) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[AliasedFlagLeaf]()
+
+// EmbeddedFlag embeds a flag container. Go promotes the container marker, so
+// the runtime classifies the outer type as a flag.
+type EmbeddedFlag struct {
+	conga.OptionalFlag[string]
+}
+
+// EmbeddedFlagLeaf declares a flag through an embedded container.
+type EmbeddedFlagLeaf struct {
+	Value EmbeddedFlag `name:"value" help:"Value"`
+}
+
+// Run executes the leaf.
+func (e *EmbeddedFlagLeaf) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[EmbeddedFlagLeaf]()
+
+// AliasedChild is the leaf subcommand used by the command container fixtures.
+type AliasedChild struct{}
+
+// Run executes the leaf.
+func (a *AliasedChild) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+// AliasedCommand is an alias of a command container.
+type AliasedCommand = conga.Command[AliasedChild]
+
+// AliasedCommandLeaf declares a subcommand through a type alias.
+type AliasedCommandLeaf struct {
+	Child AliasedCommand `summary:"Child"`
+}
+
+var _ = conga.New[AliasedCommandLeaf]()
+
+// EmbeddedCommand embeds a command container. Go promotes the command state
+// methods, so the runtime routes the outer type as a subcommand.
+type EmbeddedCommand struct {
+	conga.Command[AliasedChild]
+}
+
+// EmbeddedCommandLeaf declares a subcommand through an embedded container.
+type EmbeddedCommandLeaf struct {
+	Child EmbeddedCommand `summary:"Child"`
+}
+
+var _ = conga.New[EmbeddedCommandLeaf]()
+
+// AliasArgChild is the leaf subcommand routed through an aliased type argument.
+type AliasArgChild struct{}
+
+// Run executes the leaf.
+func (a *AliasArgChild) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+// AliasArgChildAlias aliases the subcommand struct used as a Command[T] argument.
+type AliasArgChildAlias = AliasArgChild
+
+// AliasArgCommandLeaf routes through Command[T] with an aliased type argument;
+// the analyzer must resolve the alias instead of misreading the parent as a leaf.
+type AliasArgCommandLeaf struct {
+	Child conga.Command[AliasArgChildAlias] `summary:"Child"`
+}
+
+var _ = conga.New[AliasArgCommandLeaf]()
+
+// EmbeddedGenericFlag embeds a flag container and carries an unrelated outer
+// type parameter that must not be mistaken for the flag's value type.
+type EmbeddedGenericFlag[M any] struct {
+	conga.OptionalFlag[int]
+	Meta M
+}
+
+// EmbeddedGenericFlagLeaf validates value tags against the embedded int value.
+type EmbeddedGenericFlagLeaf struct {
+	Value EmbeddedGenericFlag[string] `range:"1..10" help:"Value"`
+}
+
+// Run executes the leaf.
+func (e *EmbeddedGenericFlagLeaf) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[EmbeddedGenericFlagLeaf]()
+
+// PointerSharedRoot holds a pointer-to-container field, which the runtime
+// classifies as plain because the field address has an empty method set.
+type PointerSharedRoot struct {
+	Shared *conga.OptionalFlag[string]
+	Child  conga.Command[PointerSharedChild] `summary:"Child"`
+}
+
+// PointerSharedChild redeclares the name as a real flag; it must not collide
+// with the ignored pointer field on the ancestor.
+type PointerSharedChild struct {
+	Shared conga.OptionalFlag[string] `name:"shared" help:"Shared value"`
+}
+
+// Run executes the leaf.
+func (p *PointerSharedChild) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[PointerSharedRoot]()

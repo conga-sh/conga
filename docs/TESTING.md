@@ -202,7 +202,7 @@ Test fixtures live in `testdata/` and are embedded one-to-one with `//go:embed` 
 | Category | Pattern | Example |
 |----------|---------|---------|
 | Input fixture | `fixture<Subject>` | `//go:embed testdata/fixtures/native_map.toml` → `fixtureNativeMap` |
-| Expected output | `golden<Subject>` | `//go:embed testdata/grouped_flags.golden` → `goldenGroupedFlags` |
+| Expected output | `golden<Subject>` | `//go:embed testdata/sectioned_flags.golden` → `goldenSectionedFlags` |
 | Directory corpus | `<domain>Fixtures` (`embed.FS`) | `corpusFixtures`, `elvishSnapshotFixtures` |
 
 Rules:

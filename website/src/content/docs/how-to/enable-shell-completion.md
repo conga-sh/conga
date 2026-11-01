@@ -71,7 +71,7 @@ Flags:
 You can customize the completion command field using standard command struct tags:
 - `summary:"..."`: Overrides the synopsis displayed in the parent command listing.
 - `aliases:"comp,complete"`: Registers alternative command tokens that route to completion.
-- `group:"..."`: Organizes the command under a custom section header in `--help`.
+- `section:"..."`: Organizes the command under a custom section header in `--help`.
 - `hidden:"true"`: Keeps completion executable while hiding it from `--help` and shell suggestions.
 
 ## Inspect completion help and active shell hints

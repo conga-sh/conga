@@ -330,47 +330,47 @@ type tableSection struct {
 	entries []tableEntry
 }
 
-// sectionBuilder accumulates table entries into titled sections: ungrouped
-// entries collect under the default title, grouped entries under one section
-// per group, ordered by the group's first appearance. Declaration order is
-// preserved within every section.
+// sectionBuilder accumulates table entries into titled sections: entries
+// without a section collect under the default title, sectioned entries under
+// one section per title, ordered by the title's first appearance. Declaration
+// order is preserved within every section.
 type sectionBuilder struct {
-	defaultTitle string
-	defaults     []tableEntry
-	grouped      []tableSection
-	index        map[string]int
+	defaultTitle   string
+	defaults       []tableEntry
+	titledSections []tableSection
+	index          map[string]int
 }
 
 func newSectionBuilder(defaultTitle string) *sectionBuilder {
 	return &sectionBuilder{defaultTitle: defaultTitle, index: make(map[string]int)}
 }
 
-func (b *sectionBuilder) add(group string, entry tableEntry) {
-	if group == "" {
+func (b *sectionBuilder) add(section string, entry tableEntry) {
+	if section == "" {
 		b.defaults = append(b.defaults, entry)
 
 		return
 	}
 
-	if index, ok := b.index[group]; ok {
-		b.grouped[index].entries = append(b.grouped[index].entries, entry)
+	if index, ok := b.index[section]; ok {
+		b.titledSections[index].entries = append(b.titledSections[index].entries, entry)
 
 		return
 	}
 
-	b.index[group] = len(b.grouped)
-	b.grouped = append(b.grouped, tableSection{title: group, entries: []tableEntry{entry}})
+	b.index[section] = len(b.titledSections)
+	b.titledSections = append(b.titledSections, tableSection{title: section, entries: []tableEntry{entry}})
 }
 
-// sections returns the ordered section list: the default (ungrouped) section
-// first when non-empty, then the group sections in first-appearance order.
+// sections returns the ordered section list: the default (unsectioned) section
+// first when non-empty, then the titled sections in first-appearance order.
 func (b *sectionBuilder) sections() []tableSection {
-	sections := make([]tableSection, 0, len(b.grouped)+1)
+	sections := make([]tableSection, 0, len(b.titledSections)+1)
 	if len(b.defaults) > 0 {
 		sections = append(sections, tableSection{title: b.defaultTitle, entries: b.defaults})
 	}
 
-	return append(sections, b.grouped...)
+	return append(sections, b.titledSections...)
 }
 
 // hintSuppression records which automatic constraint hints the field's help tag
@@ -749,7 +749,7 @@ func formatSubcommands(subcommands []*spec.Command, width int) string {
 			continue
 		}
 
-		builder.add(subcommand.Group, tableEntry{
+		builder.add(subcommand.Section, tableEntry{
 			label: subcommand.Name,
 			help:  appendNonEmpty(subcommand.Summary, deprecationMarker(subcommand.Deprecated)),
 		})
@@ -1119,7 +1119,7 @@ func formatFlags(flags []*spec.Flag, hasHelpInfo bool, hasVersionInfo bool, hasC
 			whyEntries = append(whyEntries, builderEntry(flagSpec))
 
 		default:
-			builder.add(flagSpec.Group, builderEntry(flagSpec))
+			builder.add(flagSpec.Section, builderEntry(flagSpec))
 		}
 	}
 
@@ -1140,15 +1140,15 @@ func formatFlags(flags []*spec.Flag, hasHelpInfo bool, hasVersionInfo bool, hasC
 	builtinEntries := slices.Concat(whyEntries, completionEntries, helpEntries, versionEntries)
 
 	// Built-in --why/--completion/--help/--version (or user-declared shadows
-	// of them) close the ungrouped Flags section — regardless of declaration
-	// order — so they never inherit a user group's heading. When every flag
-	// carries a group, they close the screen under a trailing "Flags"
+	// of them) close the unsectioned Flags section — regardless of declaration
+	// order — so they never inherit a user section's heading. When every flag
+	// carries a section, they close the screen under a trailing "Flags"
 	// heading of their own.
 	if len(builtinEntries) > 0 {
-		if len(builder.defaults) > 0 || len(builder.grouped) == 0 {
+		if len(builder.defaults) > 0 || len(builder.titledSections) == 0 {
 			builder.defaults = append(builder.defaults, builtinEntries...)
 		} else {
-			builder.grouped = append(builder.grouped, tableSection{title: "Flags", entries: builtinEntries})
+			builder.titledSections = append(builder.titledSections, tableSection{title: "Flags", entries: builtinEntries})
 		}
 	}
 
@@ -1208,7 +1208,7 @@ func formatGlobalFlags(cmdChain []*spec.Command, width int) string {
 				continue
 			}
 
-			builder.add(flagSpec.Group, builderEntry(flagSpec))
+			builder.add(flagSpec.Section, builderEntry(flagSpec))
 		}
 	}
 

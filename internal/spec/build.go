@@ -126,27 +126,31 @@ func NewCompletionCommand(name, summary string, target any, aliases []string, hi
 	}
 }
 
-// groupPair identifies a oneof/and group combination on one command. Group
-// validation is command-scoped, so pairs are tracked per schema builder.
+// groupPair identifies an exclusive/and group combination on one command.
+// Group validation is command-scoped, so pairs are tracked per schema builder.
+// The kind distinguishes oneof from xor, whose group names live in independent
+// namespaces.
 type groupPair struct {
-	oneOf string
-	and   string
+	kind      string
+	exclusive string
+	and       string
 }
 
 type schemaBuilder struct {
-	cmd             *Command
-	structType      reflect.Type
-	structValue     reflect.Value
-	flagTracker     *flagCollisionTracker
-	seenSubcommands map[string]string
-	oneOfAndPairs   map[groupPair]string
-	sliceArgField   string
-	sliceArgName    string
-	mapArgField     string
-	mapArgName      string
-	hasOptionalArg  bool
-	isRoot          bool
-	opts            Options
+	cmd               *Command
+	structType        reflect.Type
+	structValue       reflect.Value
+	flagTracker       *flagCollisionTracker
+	groupCensus       *GroupCensus[string]
+	seenSubcommands   map[string]string
+	exclusiveAndPairs map[groupPair]string
+	sliceArgField     string
+	sliceArgName      string
+	mapArgField       string
+	mapArgName        string
+	hasOptionalArg    bool
+	isRoot            bool
+	opts              Options
 }
 
 func newSchemaBuilder(target any, defaultName string, structValue reflect.Value, isRoot bool, opts Options) (*schemaBuilder, error) {
@@ -195,14 +199,15 @@ func newSchemaBuilder(target any, defaultName string, structValue reflect.Value,
 	}
 
 	return &schemaBuilder{
-		cmd:             cmd,
-		structType:      structType,
-		structValue:     structValue,
-		flagTracker:     flagTracker,
-		seenSubcommands: make(map[string]string),
-		oneOfAndPairs:   make(map[groupPair]string),
-		isRoot:          isRoot,
-		opts:            opts,
+		cmd:               cmd,
+		structType:        structType,
+		structValue:       structValue,
+		flagTracker:       flagTracker,
+		groupCensus:       NewGroupCensus[string](),
+		seenSubcommands:   make(map[string]string),
+		exclusiveAndPairs: make(map[groupPair]string),
+		isRoot:            isRoot,
+		opts:              opts,
 	}, nil
 }
 
@@ -272,7 +277,7 @@ func (b *schemaBuilder) processSubcommand(structField reflect.StructField, comma
 	subcommand.Handle = commandHandle
 	subcommand.Summary = summary
 	subcommand.Deprecated = structField.Tag.Get("deprecated")
-	subcommand.Group = structField.Tag.Get("group")
+	subcommand.Section = structField.Tag.Get("section")
 	subcommand.Hidden = parsePresenceOrTrueTag(structField.Tag, "hidden")
 	subcommand.Aliases = aliases
 
@@ -367,7 +372,7 @@ func (b *schemaBuilder) newBuiltinSubcommand(structField reflect.StructField, ki
 		panic("unreachable")
 	}
 
-	builtin.Group = structField.Tag.Get("group")
+	builtin.Section = structField.Tag.Get("section")
 	builtin.InheritBuiltinVisibilityFrom(b.cmd)
 
 	return builtin, nil
@@ -451,7 +456,7 @@ func (b *schemaBuilder) buildConfigFileFlagSpec(structField reflect.StructField,
 		Help:         helpText,
 		HelpVars:     referenced,
 		Placeholder:  placeholder,
-		Group:        structField.Tag.Get("group"),
+		Section:      structField.Tag.Get("section"),
 		Hidden:       parsePresenceOrTrueTag(structField.Tag, "hidden"),
 		Deprecated:   structField.Tag.Get("deprecated"),
 		Feature:      feature,
@@ -521,6 +526,12 @@ func (b *schemaBuilder) processFlag(structField reflect.StructField, flagHandle 
 		return err
 	}
 
+	if !flagSpec.EngineOwned && !flagSpec.NoCLI {
+		b.groupCensus.Add("oneof", flagSpec.OneOfGroup, flagSpec.Name, flagSpec.IsCounter, structField.Name)
+		b.groupCensus.Add("xor", flagSpec.XorGroup, flagSpec.Name, flagSpec.IsCounter, structField.Name)
+		b.groupCensus.Add("and", flagSpec.AndGroup, flagSpec.Name, flagSpec.IsCounter, structField.Name)
+	}
+
 	b.cmd.Flags = append(b.cmd.Flags, flagSpec)
 
 	return nil
@@ -553,21 +564,43 @@ func (b *schemaBuilder) checkRequiredFlagTags(structField reflect.StructField, c
 	return nil
 }
 
-// checkFlagGroupOverlap rejects two members of the same oneof group that also
-// share an and group: selecting either member forces the other, which the
-// exactly-one rule then rejects, so neither flag can ever be supplied.
-// Legitimate combinations (an and group shared with non-members) stay valid.
+// checkFlagGroupOverlap rejects two members of the same oneof or xor group that
+// also share an and group: supplying either member forces the other, which the
+// exclusive rule then rejects, so neither flag can ever be supplied.
+// Legitimate combinations (an and group shared with non-members, or an xor pair
+// whose members belong to different and groups) stay valid.
 func (b *schemaBuilder) checkFlagGroupOverlap(flagSpec *Flag) error {
-	if flagSpec.OneOfGroup == "" || flagSpec.AndGroup == "" {
+	if flagSpec.AndGroup == "" {
 		return nil
 	}
 
-	pair := groupPair{oneOf: flagSpec.OneOfGroup, and: flagSpec.AndGroup}
-	if firstFlag, ok := b.oneOfAndPairs[pair]; ok {
-		return OneOfAndOverlapError(flagSpec.OneOfGroup, flagSpec.AndGroup, firstFlag, flagSpec.Name)
+	if flagSpec.OneOfGroup != "" {
+		if err := b.checkExclusiveAndOverlap("oneof", flagSpec.OneOfGroup, flagSpec.AndGroup, flagSpec.Name); err != nil {
+			return err
+		}
 	}
 
-	b.oneOfAndPairs[pair] = flagSpec.Name
+	if flagSpec.XorGroup != "" {
+		if err := b.checkExclusiveAndOverlap("xor", flagSpec.XorGroup, flagSpec.AndGroup, flagSpec.Name); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (b *schemaBuilder) checkExclusiveAndOverlap(kind, exclusiveGroup, andGroup, flagName string) error {
+	pair := groupPair{kind: kind, exclusive: exclusiveGroup, and: andGroup}
+	if firstFlag, ok := b.exclusiveAndPairs[pair]; ok {
+		switch kind {
+		case "oneof":
+			return OneOfAndOverlapError(exclusiveGroup, andGroup, firstFlag, flagName)
+		case "xor":
+			return XorAndOverlapError(exclusiveGroup, andGroup, firstFlag, flagName)
+		}
+	}
+
+	b.exclusiveAndPairs[pair] = flagName
 
 	return nil
 }
@@ -733,7 +766,9 @@ func (b *schemaBuilder) processField(structField reflect.StructField, fieldValue
 	case container.KindArg:
 		return b.processArgField(structField, fieldAddr, classification)
 	default:
-		return nil
+		fieldTagKeys := FieldTagKeys(fieldTagSpecsForField(structField.Type))
+
+		return b.fieldContextError(structField.Name, ValidateNonContainerFieldTags(structField.Tag, fieldTagKeys, ValidationOptions{AllowedTags: b.opts.AllowedTags}))
 	}
 }
 
@@ -1174,6 +1209,14 @@ func buildInternal(target any, defaultName string, isRoot bool, opts Options) (*
 		if err := builder.processField(structField, fieldValue); err != nil {
 			return nil, err
 		}
+	}
+
+	if singleMemberGroups := builder.groupCensus.SingleMemberGroups(); len(singleMemberGroups) > 0 {
+		group := singleMemberGroups[0]
+
+		return nil, fmt.Errorf("struct %s field %s: %w",
+			builder.structType.Name(), group.Attribution,
+			SingleMemberGroupError(group.Kind, group.Group, group.FlagName, group.Suggestion))
 	}
 
 	return builder.cmd, nil

@@ -69,7 +69,9 @@ type DeprecatedRequiredApp struct { // want `does not implement conga\.Runner`
 
 var _ = conga.New[DeprecatedRequiredApp]()
 
-// DefaultOneOfApp declares a default on a oneof member.
+// DefaultOneOfApp declares a default on a single-member oneof group. The
+// default is rejected, and the group's census diagnostic must stay suppressed:
+// the runtime aborts before the group census runs.
 type DefaultOneOfApp struct { // want `does not implement conga\.Runner`
 	JSON conga.OptionalFlag[bool] `name:"json" oneof:"format" default:"true" help:"JSON"` // want `tag "default" cannot be used on oneof flags`
 }
@@ -98,6 +100,185 @@ type OneOfAndOverlapApp struct { // want `does not implement conga\.Runner`
 }
 
 var _ = conga.New[OneOfAndOverlapApp]()
+
+// SingleOneOfApp declares a one-member oneof on an optional flag, which
+// duplicates RequiredFlag.
+type SingleOneOfApp struct {
+	Format conga.OptionalFlag[string] `name:"format" oneof:"format" help:"Format"` // want `oneof group "format" has only one member \(--format\)`
+}
+
+// Run executes the leaf.
+func (s *SingleOneOfApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[SingleOneOfApp]()
+
+// SingleXorApp declares a one-member xor group, which is a no-op.
+type SingleXorApp struct {
+	Format conga.OptionalFlag[string] `name:"format" xor:"format" help:"Format"` // want `xor group "format" has only one member \(--format\)`
+}
+
+// Run executes the leaf.
+func (s *SingleXorApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[SingleXorApp]()
+
+// SingleAndApp declares a one-member and group, which is a no-op.
+type SingleAndApp struct {
+	Format conga.OptionalFlag[string] `name:"format" and:"format" help:"Format"` // want `and group "format" has only one member \(--format\)`
+}
+
+// Run executes the leaf.
+func (s *SingleAndApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[SingleAndApp]()
+
+// SplitOneOfSuggestionApp has a one-member typo group next to a populated
+// group, so the diagnostic can suggest the populated spelling.
+type SplitOneOfSuggestionApp struct {
+	JSON conga.OptionalFlag[bool] `name:"json" oneof:"format" help:"JSON"`
+	YAML conga.OptionalFlag[bool] `name:"yaml" oneof:"format" help:"YAML"`
+	Text conga.OptionalFlag[bool] `name:"text" oneof:"fromat" help:"Text"` // want `oneof group "fromat" has only one member \(--text\).*did you mean "format"\?`
+}
+
+// Run executes the leaf.
+func (s *SplitOneOfSuggestionApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[SplitOneOfSuggestionApp]()
+
+// XorAndOverlapApp declares two members of the same xor group that also share
+// an and group, so neither member can ever be supplied.
+type XorAndOverlapApp struct {
+	JSON conga.OptionalFlag[bool] `name:"json" xor:"format" and:"auth" help:"JSON"`
+	YAML conga.OptionalFlag[bool] `name:"yaml" xor:"format" and:"auth" help:"YAML"` // want `flags --json and --yaml belong to xor group "format" and share "and" group "auth"`
+}
+
+// Run executes the leaf.
+func (x *XorAndOverlapApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[XorAndOverlapApp]()
+
+// OneOfXorAndOverlapApp declares two flags sharing a oneof group, an xor group,
+// and an and group. Both pairs are unsatisfiable, so both overlap diagnostics
+// are reported (the runtime returns the oneof error first).
+type OneOfXorAndOverlapApp struct {
+	JSON conga.OptionalFlag[bool] `name:"json" oneof:"format" xor:"source" and:"auth" help:"JSON"`
+	YAML conga.OptionalFlag[bool] `name:"yaml" oneof:"format" xor:"source" and:"auth" help:"YAML"` // want `flags --json and --yaml belong to oneof group "format" and share "and" group "auth"` `flags --json and --yaml belong to xor group "source" and share "and" group "auth"`
+}
+
+// Run executes the leaf.
+func (o *OneOfXorAndOverlapApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[OneOfXorAndOverlapApp]()
+
+// CounterDefaultXorApp puts a default on a counter that also declares a
+// one-member xor group. The runtime rejects the default before the group
+// census runs, so only the default diagnostic may be reported.
+type CounterDefaultXorApp struct {
+	Count conga.Counter `name:"count" default:"1" xor:"solo" help:"Count"` // want `tag "default" is not supported on counter flags`
+}
+
+// Run executes the leaf.
+func (c *CounterDefaultXorApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[CounterDefaultXorApp]()
+
+// RejectedGroupMemberApp has a second member whose empty xor tag fails tag
+// validation before the census registers it. The remaining member's group must
+// not be reported as single-member.
+type RejectedGroupMemberApp struct {
+	First  conga.OptionalFlag[bool] `name:"first"  help:"First"  xor:"choice"`
+	Second conga.OptionalFlag[bool] `name:"second" help:"Second" xor:""` // want `tag "xor" cannot be empty`
+}
+
+// Run executes the leaf.
+func (r *RejectedGroupMemberApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[RejectedGroupMemberApp]()
+
+// PlainTaggedApp puts a CONGA tag on a plain non-container field, which schema
+// building never reads.
+type PlainTaggedApp struct {
+	Extra PlainExtra `name:"extra"` // want `tag "name" is not valid on a plain field`
+}
+
+// PlainExtra is a plain helper struct, not a schema container.
+type PlainExtra struct {
+	Value string
+}
+
+// Run executes the leaf.
+func (p *PlainTaggedApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[PlainTaggedApp]()
+
+// PlainRequiredApp tags a plain field with required, which schema building
+// never reads.
+type PlainRequiredApp struct {
+	Host string `required:"true"` // want `tag "required" is not supported`
+}
+
+// Run executes the leaf.
+func (p *PlainRequiredApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[PlainRequiredApp]()
+
+// PlainReservedApp uses the reserved ~ namespace on a plain field.
+type PlainReservedApp struct {
+	Extra PlainExtra `~explicit:"/etc/app.yaml"` // want `reserved for CONGA`
+}
+
+// Run executes the leaf.
+func (p *PlainReservedApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[PlainReservedApp]()
+
+// PointerFlagApp tags a pointer-to-container field. The runtime classifies the
+// field address (**OptionalFlag) as plain, so the CONGA tag is rejected.
+type PointerFlagApp struct {
+	Flag *conga.OptionalFlag[string] `name:"flag" help:"Flag"` // want `tag "name" is not valid on a plain field`
+}
+
+// Run executes the leaf.
+func (p *PointerFlagApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[PointerFlagApp]()
+
+// PlainDomainTagApp puts a domain-type tag on a plain conga.File field, which
+// schema building never reads as a flag.
+type PlainDomainTagApp struct {
+	Log conga.File `existing:"true"` // want `tag "existing" is not valid on a plain field`
+}
+
+// Run executes the leaf.
+func (p *PlainDomainTagApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[PlainDomainTagApp]()
 
 // HelpChild is a leaf subcommand.
 type HelpChild struct {
@@ -157,6 +338,43 @@ func (s *ShadowChild) Run(ctx context.Context, session *conga.Session) error {
 }
 
 var _ = conga.New[ShadowParent]()
+
+// SiblingFlagCollisionSingleGroupApp duplicates a short rune on the same
+// command. The runtime flag tracker rejects the duplicate before the group
+// census runs, so the one-member xor group on First must not be reported.
+type SiblingFlagCollisionSingleGroupApp struct {
+	First  conga.OptionalFlag[string] `name:"first"  short:"a" xor:"solo" help:"First"`
+	Second conga.OptionalFlag[string] `name:"second" short:"a" help:"Second"` // want `short flag -a`
+}
+
+// Run executes the leaf.
+func (s *SiblingFlagCollisionSingleGroupApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[SiblingFlagCollisionSingleGroupApp]()
+
+// AncestorShadowKeepsCensusApp shadows an ancestor flag while the descendant
+// also declares a one-member xor group. The runtime validates ancestor
+// shadowing only after the descendant's census, so the census error stays
+// reportable.
+type AncestorShadowKeepsCensusApp struct {
+	Mode  conga.OptionalFlag[string]                    `name:"mode" help:"Mode"`
+	Child conga.Command[AncestorShadowKeepsCensusChild] `name:"child" summary:"Child"`
+}
+
+// AncestorShadowKeepsCensusChild shadows the parent flag and declares a
+// single-member xor group.
+type AncestorShadowKeepsCensusChild struct {
+	Mode conga.OptionalFlag[string] `name:"mode" xor:"solo" help:"Mode"` // want `already declared by ancestor` `xor group "solo" has only one member`
+}
+
+// Run executes the child.
+func (a *AncestorShadowKeepsCensusChild) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[AncestorShadowKeepsCensusApp]()
 
 // PredictorTypoApp misspells a built-in predictor name.
 type PredictorTypoApp struct { // want `does not implement conga\.Runner`

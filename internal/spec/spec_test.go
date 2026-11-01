@@ -122,7 +122,7 @@ type SchemaTestCLI struct {
 	Config mockArg[string]   `name:"[config]"`
 	Files  mockArg[[]string] `name:"<files...>"`
 
-	Subcommand Subcommand `aliases:"s" help:"Subcommand" name:"sub"`
+	Subcommand Subcommand
 }
 
 type Subcommand struct {
@@ -710,10 +710,10 @@ type builtinAliasCollisionReversedCLI struct {
 	Help mockHelpCmd       `aliases:"h"`
 }
 
-type BuiltinGroupCLI struct {
-	Help       mockHelpCmd       `group:"Meta"`
-	Version    mockVersionCmd    `group:"Meta"`
-	Completion mockCompletionCmd `group:"Meta"`
+type BuiltinSectionCLI struct {
+	Help       mockHelpCmd       `section:"Meta"`
+	Version    mockVersionCmd    `section:"Meta"`
+	Completion mockCompletionCmd `section:"Meta"`
 }
 
 func TestBuiltinSubcommandAliases(t *testing.T) {
@@ -760,23 +760,23 @@ func TestBuiltinSubcommandAliasCollision(t *testing.T) {
 	})
 }
 
-func TestBuiltinSubcommandGroup(t *testing.T) {
+func TestBuiltinSubcommandSection(t *testing.T) {
 	t.Parallel()
 
-	t.Run("group tag propagates to every builtin", func(t *testing.T) {
+	t.Run("section tag propagates to every builtin", func(t *testing.T) {
 		t.Parallel()
 
-		var cli BuiltinGroupCLI
+		var cli BuiltinSectionCLI
 
 		cmd, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.NoError(t, err)
-		assert.Equal(t, "Meta", cmd.FindSubcommand("help").Group)
-		assert.Equal(t, "Meta", cmd.FindSubcommand("version").Group)
-		assert.Equal(t, "Meta", cmd.FindSubcommand("completion").Group)
+		assert.Equal(t, "Meta", cmd.FindSubcommand("help").Section)
+		assert.Equal(t, "Meta", cmd.FindSubcommand("version").Section)
+		assert.Equal(t, "Meta", cmd.FindSubcommand("completion").Section)
 	})
 
-	t.Run("absent group tag stays empty", func(t *testing.T) {
+	t.Run("absent section tag stays empty", func(t *testing.T) {
 		t.Parallel()
 
 		var cli BuiltinTestCLI
@@ -784,9 +784,9 @@ func TestBuiltinSubcommandGroup(t *testing.T) {
 		cmd, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.NoError(t, err)
-		assert.Equal(t, "", cmd.FindSubcommand("help").Group)
-		assert.Equal(t, "", cmd.FindSubcommand("version").Group)
-		assert.Equal(t, "", cmd.FindSubcommand("completion").Group)
+		assert.Equal(t, "", cmd.FindSubcommand("help").Section)
+		assert.Equal(t, "", cmd.FindSubcommand("version").Section)
+		assert.Equal(t, "", cmd.FindSubcommand("completion").Section)
 	})
 }
 

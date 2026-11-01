@@ -3,6 +3,7 @@ package spec
 import (
 	"fmt"
 	"reflect"
+	"slices"
 	"strings"
 )
 
@@ -51,6 +52,13 @@ func ValidateFieldTags(tag reflect.StructTag, role string, candidates []string, 
 
 	if role == "flag" {
 		if err := validateFlagGroupTagValues(tag); err != nil {
+			return err
+		}
+	}
+
+	switch role {
+	case "flag", "subcommand", "help command", "version command", "completion command", "config file flag":
+		if err := validateSectionTagValue(tag); err != nil {
 			return err
 		}
 	}
@@ -228,11 +236,39 @@ func DefaultOnRequiredFlagError() error {
 }
 
 // DefaultOnOneOfFlagError builds the schema error for a default tag on a
-// oneof member: the default would always satisfy the exactly-one group. The
-// runtime schema builder and the static analyzer share it as the single source
-// of truth.
+// oneof member: the default marks the member as set in Get/IsSet and in --why
+// without satisfying the Changed()-based exactly-one group, so the flag would
+// look chosen while validation still demands a choice. The runtime schema
+// builder and the static analyzer share it as the single source of truth.
 func DefaultOnOneOfFlagError() error {
-	return fmt.Errorf("%w: tag \"default\" cannot be used on oneof flags (a default would always satisfy the group; remove the default or the oneof tag)", ErrInvalidStructTag)
+	return fmt.Errorf("%w: tag \"default\" cannot be used on oneof flags (a default sets the flag's value and marks it as set in --why without satisfying the exactly-one group; remove the default or the oneof tag)", ErrInvalidStructTag)
+}
+
+// SingleMemberGroupError builds the schema error for a group with only one
+// member. A one-member xor or and group is a no-op; a one-member oneof group on
+// an optional flag duplicates RequiredFlag. A one-member oneof on a Counter is
+// legal and never reaches this constructor. The runtime schema builder and the
+// static analyzer share it as the single source of truth.
+func SingleMemberGroupError(kind, group, flagName, suggestion string) error {
+	var guidance string
+
+	switch kind {
+	case "oneof":
+		guidance = "exactly-one groups need at least two members (use RequiredFlag for a single mandatory flag)"
+	case "xor":
+		guidance = "a one-member xor group has no effect (remove the tag or add another member)"
+	case "and":
+		guidance = "a one-member and group has no effect (remove the tag or add another member)"
+	default:
+		guidance = "groups need at least two members"
+	}
+
+	msg := fmt.Sprintf("%s group %q has only one member (--%s); %s", kind, group, flagName, guidance)
+	if suggestion != "" {
+		msg += fmt.Sprintf("; did you mean %q?", suggestion)
+	}
+
+	return fmt.Errorf("%w: %s", ErrInvalidStructTag, msg)
 }
 
 // OneOfAndOverlapError builds the schema error for two members of the same
@@ -241,6 +277,14 @@ func DefaultOnOneOfFlagError() error {
 // builder and the static analyzer share it as the single source of truth.
 func OneOfAndOverlapError(oneOfGroup, andGroup, firstFlag, secondFlag string) error {
 	return fmt.Errorf("%w: flags --%s and --%s belong to oneof group %q and share \"and\" group %q (selecting either flag forces the other, so the exactly-one group can never be satisfied; remove one of the group tags)", ErrInvalidStructTag, firstFlag, secondFlag, oneOfGroup, andGroup)
+}
+
+// XorAndOverlapError builds the schema error for two members of the same xor
+// group that also share an and group: supplying either member forces the other,
+// so the mutually-exclusive rule can never be satisfied. The runtime schema
+// builder and the static analyzer share it as the single source of truth.
+func XorAndOverlapError(xorGroup, andGroup, firstFlag, secondFlag string) error {
+	return fmt.Errorf("%w: flags --%s and --%s belong to xor group %q and share \"and\" group %q (supplying either flag forces the other, so the mutually-exclusive group can never be satisfied; remove one of the group tags)", ErrInvalidStructTag, firstFlag, secondFlag, xorGroup, andGroup)
 }
 
 // BuiltinShortConflictError builds the schema error for a user-declared short
@@ -350,6 +394,48 @@ func ValidatePredictorTag(tag reflect.StructTag, isBool bool, registeredNames []
 	return err
 }
 
+// ValidateNonContainerFieldTags rejects CONGA tags on fields that schema
+// building ignores. Plain struct fields are not flattened, so a tag such as
+// name or help on one would silently do nothing; surfacing it as a schema error
+// keeps the declaration honest. fieldTagKeys carries the domain-type tags the
+// field's value type registers, which are equally ignored on a plain field.
+// Tag syntax is always validated; well-formed foreign keys are ignored, and
+// keys listed in AllowedTags are accepted. The reserved ~-prefixed namespace and the required
+// tag stay rejected regardless of AllowedTags, mirroring container roles. The
+// static analyzer resolves only the built-in CONGA domain types, so
+// user-defined TagSpecProviders stay runtime-only, and it skips the key
+// rejection when it cannot prove the allow-list (SkipUnknownTagKeyCheck), so it
+// never invents a diagnostic. Unexported fields never reach this check, so
+// embedded behavior mixins remain supported.
+func ValidateNonContainerFieldTags(tag reflect.StructTag, fieldTagKeys []string, opts ValidationOptions) error {
+	keys, err := parseStructTagKeys(tag)
+	if err != nil {
+		return err
+	}
+
+	if err := validateReservedPseudoTagKeys(keys); err != nil {
+		return err
+	}
+
+	if err := validateDisallowedTags(tag, keys, "plain field"); err != nil {
+		return err
+	}
+
+	for _, key := range keys {
+		if !isAnyCongaTag(key) && !slices.Contains(fieldTagKeys, key) {
+			continue
+		}
+
+		if opts.SkipUnknownTagKeyCheck || slices.Contains(opts.AllowedTags, key) {
+			continue
+		}
+
+		return fmt.Errorf("%w: tag %q is not valid on a plain field (declare a flag, argument, command, config-file, features, or trailing-args container)", ErrInvalidStructTag, key)
+	}
+
+	return nil
+}
+
 // validateRoleTagRules applies the role-specific tag rules shared by schema
 // build and the static analyzer: constraint tag values for flags and
 // positional arguments, {{...}} help-variable availability for the roles that
@@ -449,6 +535,22 @@ func validateConstraintTagValues(tag reflect.StructTag) error {
 
 	if _, ok := tag.Lookup("enum"); ok && len(SplitTagList(tag, "enum")) == 0 {
 		return fmt.Errorf("%w: tag %q cannot be empty", ErrInvalidStructTag, "enum")
+	}
+
+	return nil
+}
+
+// validateSectionTagValue rejects a section title padded with whitespace: the
+// padded and unpadded spellings would render as separate help sections. An
+// empty section value means "no section" and stays valid.
+func validateSectionTagValue(tag reflect.StructTag) error {
+	value, ok := tag.Lookup("section")
+	if !ok {
+		return nil
+	}
+
+	if strings.TrimSpace(value) != value {
+		return fmt.Errorf("%w: tag %q cannot have leading or trailing whitespace", ErrInvalidStructTag, "section")
 	}
 
 	return nil

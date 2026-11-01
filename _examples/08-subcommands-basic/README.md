@@ -1,6 +1,6 @@
 # 08 — Subcommands basic
 
-`conga.Command[T]` routing with command aliases, help groups, a hidden
+`conga.Command[T]` routing with command aliases, help sections, a hidden
 command, and did-you-mean suggestions for typos.
 
 ## Run it

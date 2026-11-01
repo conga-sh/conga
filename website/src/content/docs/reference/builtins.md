@@ -14,10 +14,10 @@ Every app gets `--help` and a generated help screen. CONGA derives the help outp
 3. **Completion instructions**: per-shell setup steps rendered when inspecting a completion command (e.g. `--completion bash --help`).
 4. **Usage syntax**: command invocation syntax including flags, positional arguments, and trailing arguments (`DashArgs`, `RawArgs`). Required flags and `oneof` groups render explicitly before `[flags]`; optional flags collapse into a `[flags]` placeholder, which precedes positional arguments and trailing collectors. Positional arguments carry their optionality and repetition (`[<target>]`, `<file...>`), and author-supplied brackets and `...` are preserved.
 5. **Examples**: usage examples configured via `app.Examples(...)` on the root builder, or `Examples() string` on subcommand structs.
-6. **Subcommands**: child commands listed under their `group:"..."` section headers or the default `Commands:` heading.
+6. **Subcommands**: child commands listed under their `section:"..."` section headers or the default `Commands:` heading.
 7. **Positional arguments**: argument names and descriptions under `Arguments:`.
 8. **Completion footer**: supported shells list rendered on generic completion help screens.
-9. **Flags**: flags declared on the active command, grouped under `group:"..."` headers or the default `Flags:` heading. Built-in flags (`--help`, `--version`, `--why`) appear here.
+9. **Flags**: flags declared on the active command, grouped under `section:"..."` headers or the default `Flags:` heading. Built-in flags (`--help`, `--version`, `--why`) appear here.
 10. **Features** (root screen only): feature toggles declared via `conga.Features[T]`, rendered under `Features:` with help text, stage (`[alpha]`, `[beta]`), integer levels, and defaults. Toggles staged `ga` or `deprecated` are omitted.
 11. **Global flags**: persistent flags inherited from ancestor commands.
 12. **Global help footer**: text configured via `app.HelpFooter(...)`.
@@ -67,7 +67,7 @@ type App struct {
 
 `HelpCommand` resolves the requested path (with aliases) and returns the target's help screen; unknown paths are parse errors with suggestions. Call `Path() []string` to inspect the requested subcommand path. `app.DisableHelpFlag()` removes `--help` flag injection entirely.
 
-The built-in command fields accept `name`, `summary`, `aliases`, `group`, and `hidden` tags. A declared `aliases:"h"` adds a routing alias, so `hello h` resolves the `help` subcommand; the same tag applies to `conga.VersionCommand` and `conga.CompletionCommand` fields.
+The built-in command fields accept `name`, `summary`, `aliases`, `section`, and `hidden` tags. A declared `aliases:"h"` adds a routing alias, so `hello h` resolves the `help` subcommand; the same tag applies to `conga.VersionCommand` and `conga.CompletionCommand` fields.
 
 ## Version
 
@@ -166,7 +166,7 @@ If an application implements [`conga.Bootstrapper`](/how-to/load-domain-files/),
 
 With completion enabled, several elements complete without custom code:
 - Flag names (long flags, short runes, aliases, and negatable forms), omitting deprecated flags.
-- Subcommands, command aliases, and command groups with typo-correction suggestions.
+- Subcommands, command aliases, and command sections with typo-correction suggestions.
 - Enum values restricted by `enum:"..."` tags.
 - Domain types with built-in path or unit predictions (`conga.File`, `conga.Dir`, `conga.ByteSize`).
 

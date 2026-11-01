@@ -77,21 +77,21 @@ func (u *UserHelpFlagCLI) Run(_ context.Context, _ *conga.Session) error {
 	return nil
 }
 
-type TestGroupTagsFlagsCLI struct {
-	Verbose conga.OptionalFlag[bool]   `help:"Verbose logging" short:"v"`
-	Repo    conga.OptionalFlag[string] `group:"Source control" help:"Repository path"`
-	Quiet   conga.OptionalFlag[bool]   `group:"Output"         help:"Suppress output" short:"q"`
-	Color   conga.OptionalFlag[bool]   `group:"Output"         help:"Colorize output"`
-	Config  conga.ConfigFile           `group:"Configuration"`
+type TestSectionTagsFlagsCLI struct {
+	Verbose conga.OptionalFlag[bool]   `help:"Verbose logging"  short:"v"`
+	Repo    conga.OptionalFlag[string] `help:"Repository path"  section:"Source control"`
+	Quiet   conga.OptionalFlag[bool]   `help:"Suppress output"  section:"Output"         short:"q"`
+	Color   conga.OptionalFlag[bool]   `help:"Colorize output"  section:"Output"`
+	Config  conga.ConfigFile           `section:"Configuration"`
 }
 
-type TestGroupTagsServerCmd struct{}
+type TestSectionTagsServerCmd struct{}
 
-func (c *TestGroupTagsServerCmd) Run(_ context.Context, _ *conga.Session) error { return nil }
+func (c *TestSectionTagsServerCmd) Run(_ context.Context, _ *conga.Session) error { return nil }
 
-type TestGroupTagsSubcommandsCLI struct {
-	Deploy conga.Command[TestGroupTagsServerCmd] `group:"Lifecycle"     summary:"Deploy the application"`
-	Status conga.Command[plainSubcommand]        `summary:"Show status"`
+type TestSectionTagsSubcommandsCLI struct {
+	Deploy conga.Command[TestSectionTagsServerCmd] `section:"Lifecycle"   summary:"Deploy the application"`
+	Status conga.Command[plainSubcommand]          `summary:"Show status"`
 }
 
 func TestHelpFlag_Root(t *testing.T) {
@@ -730,14 +730,14 @@ func TestHelp_AliasShadowStaysVisibleOnSubcommandScreen(t *testing.T) {
 	assert.Contains(t, buffer.String(), "Global Flags:\n      --assist  Show assistance")
 }
 
-// TestHelpScreen_GroupTags_Flags verifies that the group struct tag drives
-// titled sections on the rendered help screen: ungrouped flags first, then
-// group sections in first-appearance order, with the built-in --help flag
-// closing the ungrouped Flags section.
-func TestHelpScreen_GroupTags_Flags(t *testing.T) {
+// TestHelpScreen_SectionTags_Flags verifies that the section struct tag drives
+// titled sections on the rendered help screen: unsectioned flags first, then
+// section headings in first-appearance order, with the built-in --help flag
+// closing the unsectioned Flags section.
+func TestHelpScreen_SectionTags_Flags(t *testing.T) {
 	t.Parallel()
 
-	cmd, err := spec.Build(&TestGroupTagsFlagsCLI{}, "testapp", conga.SpecOptionsWithContainers(spec.Options{}))
+	cmd, err := spec.Build(&TestSectionTagsFlagsCLI{}, "testapp", conga.SpecOptionsWithContainers(spec.Options{}))
 	assert.NoError(t, err)
 
 	formatted := help.Format([]*spec.Command{cmd})
@@ -748,26 +748,25 @@ func TestHelpScreen_GroupTags_Flags(t *testing.T) {
 	configIndex := strings.Index(formatted, "Configuration:")
 	helpIndex := strings.LastIndex(formatted, "--help")
 
-	assert.True(t, flagsIndex >= 0 && flagsIndex < sourceIndex, "ungrouped flags must render before groups")
-	assert.True(t, sourceIndex < outputIndex, "groups must render in first-appearance order")
-	assert.True(t, outputIndex < configIndex, "groups must render in first-appearance order")
-	assert.True(t, helpIndex > flagsIndex && helpIndex < sourceIndex, "built-in --help must close the ungrouped Flags section")
+	assert.True(t, flagsIndex >= 0 && flagsIndex < sourceIndex, "unsectioned flags must render before sections")
+	assert.True(t, sourceIndex < outputIndex, "sections must render in first-appearance order")
+	assert.True(t, outputIndex < configIndex, "sections must render in first-appearance order")
+	assert.True(t, helpIndex > flagsIndex && helpIndex < sourceIndex, "built-in --help must close the unsectioned Flags section")
 }
 
-// TestHelpScreen_GroupTags_Subcommands verifies that a grouped subcommand
-// renders under its own titled Commands section, after ungrouped commands.
-func TestHelpScreen_GroupTags_Subcommands(t *testing.T) {
+// TestHelpScreen_SectionTags_Subcommands verifies that a sectioned subcommand
+// renders under its own titled Commands section, after unsectioned commands.
+func TestHelpScreen_SectionTags_Subcommands(t *testing.T) {
 	t.Parallel()
 
-	cmd, err := spec.Build(&TestGroupTagsSubcommandsCLI{}, "testapp", conga.SpecOptionsWithContainers(spec.Options{}))
+	cmd, err := spec.Build(&TestSectionTagsSubcommandsCLI{}, "testapp", conga.SpecOptionsWithContainers(spec.Options{}))
 	assert.NoError(t, err)
 
 	formatted := help.Format([]*spec.Command{cmd})
 
 	commandsIndex := strings.Index(formatted, "\nCommands:")
 	lifecycleIndex := strings.Index(formatted, "Lifecycle:")
-
-	assert.True(t, commandsIndex >= 0 && commandsIndex < lifecycleIndex, "ungrouped commands must render before groups")
+	assert.True(t, commandsIndex >= 0 && commandsIndex < lifecycleIndex, "unsectioned commands must render before sections")
 	assert.Contains(t, formatted, "Lifecycle:\n  deploy  Deploy the application")
 }
 

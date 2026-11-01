@@ -85,7 +85,9 @@ Programmer errors during schema construction abort at startup before execution b
 - Ancestor flag shadowing across command-subcommand hierarchies (`ErrDuplicateFlag`).
 - Built-in short flag collisions: assigning a short rune via `app.HelpShortFlag` or `app.VersionShortFlag` that collides with an application flag, or assigning the same rune to both built-in flags (`ErrDuplicateFlag`).
 - Declaring `default`, `xor`, or `oneof` on a `RequiredFlag[T]`.
-- Invalid `oneof` group definitions: declaring `default` on a `oneof` member, combining `oneof` with `xor` or `and` on the same flag, two `oneof` members sharing an `and` group, or using an empty or whitespace group name.
+- Invalid group definitions: declaring `default` on a `oneof` member; two members of the same `oneof` or `xor` group sharing an `and` group; a `xor` or `and` group with fewer than two members; a `oneof` group with fewer than two members unless its sole member is a `Counter`; or an empty or whitespace group name.
+- Invalid section definitions: declaring a `section` value with leading or trailing whitespace.
+- CONGA tags on plain non-container fields, such as `name` or `help` on a plain struct field, instead of silently ignoring them.
 - Unrecognized struct tags without calling `app.AllowTags(...)` (including `conga:"..."` directives).
 - Declaring `ConfigFile` or `Features` on any command struct other than the root.
 

@@ -5,7 +5,7 @@ import "github.com/conga-sh/conga"
 func main() {
 	app := conga.New[CLI]().
 		Name("service-mgr").
-		Description("Service management CLI demonstrating subcommands, aliases, and groups").
+		Description("Service management CLI demonstrating subcommands, aliases, and sections").
 		Version("1.0.0").
 		EnableCompletion()
 
