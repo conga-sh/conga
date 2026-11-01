@@ -617,7 +617,7 @@ func (d Dir) Help(tags FieldTags) string {
 // parse range bounds (a decimal bound on a units:"binary" field is a schema error).
 //
 //	type Cache struct {
-//		Memory conga.ByteSize `units:"binary" display:"input"`
+//		Memory conga.OptionalFlag[conga.ByteSize] `units:"binary" display:"input"`
 //	}
 //
 // See https://docs.conga.sh/reference/domain-types/.

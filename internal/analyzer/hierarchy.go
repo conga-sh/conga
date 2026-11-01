@@ -13,6 +13,7 @@ import (
 	"golang.org/x/tools/go/analysis"
 
 	"github.com/conga-sh/conga/internal/casing"
+	"github.com/conga-sh/conga/internal/spec"
 )
 
 // errUnresolvable marks analyzer setup failures: the compiled conga package
@@ -53,13 +54,19 @@ type congaTypes struct {
 	bootstrapper  *types.Interface
 }
 
-// groupPair identifies a oneof/and group combination on a single command.
+// groupPair identifies an exclusive/and group combination on a single command.
 // Runtime group validation is command-scoped, so the analyzer tracks pairs per
-// command rather than across the hierarchy.
+// command rather than across the hierarchy. The kind distinguishes oneof from
+// xor, whose group names live in independent namespaces.
 type groupPair struct {
-	oneOf string
-	and   string
+	kind      string
+	exclusive string
+	and       string
 }
+
+// groupCensus is the shared single-member group census; violations are
+// attributed to the declaring field object.
+type groupCensus = spec.GroupCensus[types.Object]
 
 // commandNode is one command struct in the static hierarchy rooted at a
 // conga.New anchor.
@@ -91,6 +98,18 @@ type commandNode struct {
 	// container for the duplicate-container diagnostic.
 	featuresDeclared bool
 	featureFlagName  string
+	// rejected records that a field-level schema error was reported for this
+	// command. The runtime aborts the command build on the first error, so its
+	// group census never runs; single-member group diagnostics would be
+	// unreachable and are suppressed. Same-command flag collisions count as
+	// field-level errors (the flag tracker rejects them inside the field loop),
+	// while ancestor shadowing is validated after the whole tree is built and
+	// therefore does not suppress the census. A descendant's field error does
+	// not suppress an ancestor's census either: the runtime would stop before
+	// reaching it, but the ancestor's declaration error is still genuine and
+	// the analyzer contract permits reporting every genuine diagnostic while
+	// forbidding invented ones.
+	rejected bool
 }
 
 // walker drives the static hierarchy traversal and emits diagnostics.
@@ -195,6 +214,7 @@ func (w *walker) walkCommand(node *commandNode, ancestorNames map[string]string,
 	branchNames := maps.Clone(ancestorNames)
 	branchShorts := maps.Clone(ancestorShorts)
 	branchGroups := make(map[groupPair]string)
+	census := spec.NewGroupCensus[types.Object]()
 
 	subcommandCount := 0
 
@@ -204,7 +224,7 @@ func (w *walker) walkCommand(node *commandNode, ancestorNames map[string]string,
 		fieldObject := node.structType.Field(index)
 		tag := reflect.StructTag(node.structType.Tag(index))
 
-		childNode := w.checkField(node, fieldObject, tag, branchNames, branchShorts, branchGroups)
+		childNode := w.checkField(node, fieldObject, tag, branchNames, branchShorts, branchGroups, census)
 		if childNode != nil {
 			subcommandCount++
 
@@ -212,6 +232,7 @@ func (w *walker) walkCommand(node *commandNode, ancestorNames map[string]string,
 		}
 	}
 
+	w.checkSingleMemberGroups(node, census)
 	w.checkRunner(node, subcommandCount)
 
 	for _, childNode := range childNodes {
@@ -222,7 +243,7 @@ func (w *walker) walkCommand(node *commandNode, ancestorNames map[string]string,
 // checkField validates the tags of a single field and returns the child
 // command node for user subcommand fields. Flag fields are folded into the
 // shadow maps.
-func (w *walker) checkField(node *commandNode, fieldObject types.Object, tag reflect.StructTag, branchNames map[string]string, branchShorts map[rune]string, branchGroups map[groupPair]string) *commandNode {
+func (w *walker) checkField(node *commandNode, fieldObject types.Object, tag reflect.StructTag, branchNames map[string]string, branchShorts map[rune]string, branchGroups map[groupPair]string, census *groupCensus) *commandNode {
 	if !fieldObject.Exported() {
 		if fieldObject.Name() == "_" {
 			w.validateNodeFieldTags(node, fieldObject, tag, "sentinel field", nil)
@@ -233,6 +254,8 @@ func (w *walker) checkField(node *commandNode, fieldObject types.Object, tag ref
 
 	role, known := congaWrapperRoles[w.congaWrapperName(fieldObject.Type())]
 	if !known {
+		w.reportFieldError(node, fieldObject, spec.ValidateNonContainerFieldTags(tag, spec.FieldTagKeys(w.congaFieldTagSpecs(fieldObject.Type())), w.options.validationOptionsFor(node)))
+
 		return nil
 	}
 
@@ -264,7 +287,7 @@ func (w *walker) checkField(node *commandNode, fieldObject types.Object, tag ref
 
 		return nil
 	case "flag":
-		w.checkFlagField(node, fieldObject, tag, branchNames, branchShorts, branchGroups)
+		w.checkFlagField(node, fieldObject, tag, branchNames, branchShorts, branchGroups, census)
 
 		return nil
 	case "positional argument":
@@ -273,6 +296,23 @@ func (w *walker) checkField(node *commandNode, fieldObject types.Object, tag ref
 		return nil
 	default:
 		return nil
+	}
+}
+
+// checkSingleMemberGroups reports declared groups with a single member,
+// mirroring the runtime census. A one-member oneof on a Counter stays legal:
+// it is the tag-declarative way to require at least one occurrence. A command
+// with any field-level schema error never reaches the runtime census, so its
+// group diagnostics are suppressed. Descendant errors do not suppress an
+// ancestor's census: the analyzer reports every genuine declaration error,
+// while the runtime stops at the first error anywhere in the tree.
+func (w *walker) checkSingleMemberGroups(node *commandNode, census *groupCensus) {
+	if node.rejected {
+		return
+	}
+
+	for _, group := range census.SingleMemberGroups() {
+		w.reportFieldError(node, group.Attribution, spec.SingleMemberGroupError(group.Kind, group.Group, group.FlagName, group.Suggestion))
 	}
 }
 
@@ -286,26 +326,40 @@ func (w *walker) checkTrailingArgsField(node *commandNode, fieldObject types.Obj
 
 // congaWrapperName returns the name of the conga container wrapper type
 // referenced by a field type, or "" when the field is not a conga container.
-// Wrapper structs declare their marker methods on pointer receivers, so a
-// value-typed field is classified after dereferencing to mirror the runtime's
-// addressable interface assertions.
+// A pointer-to-container field is not a container: the runtime classifies the
+// field address (a pointer to the pointer), whose method set is empty. Wrapper
+// structs declare their marker methods on pointer receivers, so a value-typed
+// field is classified through the runtime's addressable interface assertion.
+// Type aliases resolve to the wrapper they name, and a type that embeds a
+// wrapper is classified through Go's promoted marker method.
 func (w *walker) congaWrapperName(fieldType types.Type) string {
-	containerType := fieldType
-	if pointer, ok := containerType.(*types.Pointer); ok {
-		containerType = pointer.Elem()
+	containerType := types.Unalias(fieldType)
+	if _, isPointer := containerType.(*types.Pointer); isPointer {
+		return ""
 	}
 
-	named, ok := containerType.(*types.Named)
+	if name := congaNamedWrapperName(containerType); name != "" {
+		return name
+	}
+
+	methodObject, _, _ := types.LookupFieldOrMethod(containerType, true, w.conga.packageObject, "containerKind")
+
+	method, ok := methodObject.(*types.Func)
 	if !ok {
 		return ""
 	}
 
-	object := named.Obj()
-	if object.Pkg() == nil || object.Pkg().Path() != congaPackagePath {
+	signature, ok := method.Type().(*types.Signature)
+	if !ok || signature.Recv() == nil {
 		return ""
 	}
 
-	return object.Name()
+	receiver := types.Unalias(signature.Recv().Type())
+	if pointer, ok := receiver.(*types.Pointer); ok {
+		receiver = types.Unalias(pointer.Elem())
+	}
+
+	return congaNamedWrapperName(receiver)
 }
 
 // buildChildNode resolves the command struct referenced by a Command[T]
@@ -368,6 +422,8 @@ func (w *walker) reportFieldError(node *commandNode, fieldObject types.Object, e
 		return
 	}
 
+	node.rejected = true
+
 	w.report(w.fieldReportPos(node, fieldObject), fmt.Sprintf("struct %s field %s: %s", node.named.Obj().Name(), fieldObject.Name(), err.Error()))
 }
 
@@ -387,6 +443,26 @@ func (w *walker) fieldReportPos(node *commandNode, fieldObject types.Object) tok
 type envBinding struct {
 	envVar string
 	owner  string
+}
+
+// congaNamedWrapperName returns the classified wrapper name of a named conga
+// type, or "" for any other type.
+func congaNamedWrapperName(containerType types.Type) string {
+	named, ok := containerType.(*types.Named)
+	if !ok {
+		return ""
+	}
+
+	object := named.Obj()
+	if object.Pkg() == nil || object.Pkg().Path() != congaPackagePath {
+		return ""
+	}
+
+	if _, classified := congaWrapperRoles[object.Name()]; !classified {
+		return ""
+	}
+
+	return object.Name()
 }
 
 // normalizedEnvPrefix mirrors the runtime schema builder's trailing-underscore

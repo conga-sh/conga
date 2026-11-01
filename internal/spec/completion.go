@@ -895,12 +895,12 @@ func (w *astCompletionWalker) collectSubcommandCandidates(toComplete string) []p
 		return nil
 	}
 
-	groupIndexMap := make(map[string]int)
+	sectionIndexMap := make(map[string]int)
 
 	for _, subcommand := range w.currentCmd.Subcommands {
-		if subcommand.Group != "" && !subcommand.Hidden && !subcommand.IsHelpCmd && !subcommand.IsVersionCmd && subcommand.Deprecated == "" {
-			if _, ok := groupIndexMap[subcommand.Group]; !ok {
-				groupIndexMap[subcommand.Group] = len(groupIndexMap)
+		if subcommand.Section != "" && !subcommand.Hidden && !subcommand.IsHelpCmd && !subcommand.IsVersionCmd && subcommand.Deprecated == "" {
+			if _, ok := sectionIndexMap[subcommand.Section]; !ok {
+				sectionIndexMap[subcommand.Section] = len(sectionIndexMap)
 			}
 		}
 	}
@@ -912,7 +912,7 @@ func (w *astCompletionWalker) collectSubcommandCandidates(toComplete string) []p
 			continue
 		}
 
-		tag, cmdStyle := subcommandTagAndStyle(subcommand, groupIndexMap)
+		tag, cmdStyle := subcommandTagAndStyle(subcommand, sectionIndexMap)
 
 		subCmdItems = append(subCmdItems, predict.Item{
 			Value:       subcommand.Name,
@@ -950,12 +950,12 @@ func (w *astCompletionWalker) flagOwner(flag *Flag) *Command {
 	return nil
 }
 
-func subcommandTagAndStyle(subcommand *Command, groupIndexMap map[string]int) (string, string) {
-	if subcommand.Group != "" {
-		return strings.ToLower(subcommand.Group) + " commands", style.Theme.Highlight(groupIndexMap[subcommand.Group])
+func subcommandTagAndStyle(subcommand *Command, sectionIndexMap map[string]int) (string, string) {
+	if subcommand.Section != "" {
+		return strings.ToLower(subcommand.Section) + " commands", style.Theme.Highlight(sectionIndexMap[subcommand.Section])
 	}
 
-	if len(groupIndexMap) > 0 {
+	if len(sectionIndexMap) > 0 {
 		return "other commands", style.Default
 	}
 

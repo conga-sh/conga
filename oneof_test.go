@@ -45,6 +45,26 @@ type OneOfCounterCLI struct {
 	YAML conga.Counter `name:"yaml" oneof:"format"`
 }
 
+type OneOfSingleCounterCLI struct {
+	noopRunner
+
+	Verbose conga.Counter `name:"verbose" oneof:"mode" short:"v"`
+}
+
+type OneOfStringCLI struct {
+	noopRunner
+
+	Format conga.OptionalFlag[string] `name:"format" oneof:"encoding"`
+	Mode   conga.OptionalFlag[string] `name:"mode"   oneof:"encoding"`
+}
+
+type OneOfNegatableCLI struct {
+	noopRunner
+
+	Color conga.OptionalFlag[bool] `name:"color" negatable:"true"   oneof:"color-mode"`
+	Plain conga.OptionalFlag[bool] `name:"plain" oneof:"color-mode"`
+}
+
 type OneOfHiddenCLI struct {
 	noopRunner
 
@@ -210,7 +230,7 @@ func TestOneOf_GatedMembers(t *testing.T) {
 	})
 }
 
-func TestOneOf_SingleMemberUsesRequiredMessage(t *testing.T) {
+func TestOneOf_SingleMemberRejected(t *testing.T) {
 	t.Parallel()
 
 	app := conga.New[OneOfSingleCLI]().Args([]string{})
@@ -218,8 +238,34 @@ func TestOneOf_SingleMemberUsesRequiredMessage(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.Equal(t, "missing required flag: --json", err.Error())
-	assert.IsError(t, err, conga.ErrValidation)
+	assert.Equal(t, `struct OneOfSingleCLI field JSON: schema error: invalid struct tag: oneof group "format" has only one member (--json); exactly-one groups need at least two members (use RequiredFlag for a single mandatory flag)`, err.Error())
+	assert.IsError(t, err, conga.ErrSchema)
+}
+
+func TestOneOf_SingleMemberCounterRequiresOccurrence(t *testing.T) {
+	t.Parallel()
+
+	t.Run("missing counter fails", func(t *testing.T) {
+		t.Parallel()
+
+		app := conga.New[OneOfSingleCounterCLI]().Args([]string{})
+
+		err := app.RunContext(t.Context())
+
+		assert.Error(t, err)
+		assert.Equal(t, "missing required flag: --verbose", err.Error())
+		assert.IsError(t, err, conga.ErrValidation)
+	})
+
+	t.Run("supplied counter runs", func(t *testing.T) {
+		t.Parallel()
+
+		app := conga.New[OneOfSingleCounterCLI]().Args([]string{"-v"})
+
+		err := app.RunContext(t.Context())
+
+		assert.NoError(t, err)
+	})
 }
 
 func TestOneOf_CounterMember(t *testing.T) {
@@ -410,5 +456,93 @@ func TestOneOf_WhyReportsConflict(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, "flags --json and --yaml are mutually exclusive", err.Error())
+	assert.IsError(t, err, conga.ErrValidation)
+}
+
+func TestOneOf_ExplicitFalseSatisfiesGroup(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[OneOfCLI]().Args([]string{"--json=false"})
+
+	err := app.RunContext(t.Context())
+
+	assert.NoError(t, err)
+}
+
+func TestOneOf_ExplicitFalseConflictsWithSibling(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[OneOfCLI]().Args([]string{"--json=false", "--yaml"})
+
+	err := app.RunContext(t.Context())
+
+	assert.Error(t, err)
+	assert.Equal(t, "flags --json and --yaml are mutually exclusive", err.Error())
+	assert.IsError(t, err, conga.ErrValidation)
+}
+
+func TestOneOf_CounterZeroSatisfiesGroup(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[OneOfCounterCLI]().Args([]string{"--json=0"})
+
+	err := app.RunContext(t.Context())
+
+	assert.NoError(t, err)
+}
+
+func TestOneOf_CounterZeroConflictsWithSibling(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[OneOfCounterCLI]().Args([]string{"--json=0", "--yaml"})
+
+	err := app.RunContext(t.Context())
+
+	assert.Error(t, err)
+	assert.Equal(t, "flags --json and --yaml are mutually exclusive", err.Error())
+	assert.IsError(t, err, conga.ErrValidation)
+}
+
+func TestOneOf_EmptyStringSatisfiesGroup(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[OneOfStringCLI]().Args([]string{"--format="})
+
+	err := app.RunContext(t.Context())
+
+	assert.NoError(t, err)
+}
+
+func TestOneOf_EmptyStringConflictsWithSibling(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[OneOfStringCLI]().Args([]string{"--format=", "--mode=json"})
+
+	err := app.RunContext(t.Context())
+
+	assert.Error(t, err)
+	assert.Equal(t, "flags --format and --mode are mutually exclusive", err.Error())
+	assert.IsError(t, err, conga.ErrValidation)
+}
+
+func TestOneOf_NegatedBoolSatisfiesGroup(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[OneOfNegatableCLI]().Args([]string{"--no-color"})
+
+	err := app.RunContext(t.Context())
+
+	assert.NoError(t, err)
+}
+
+func TestOneOf_NegatedBoolConflictsWithSibling(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[OneOfNegatableCLI]().Args([]string{"--no-color", "--plain"})
+
+	err := app.RunContext(t.Context())
+
+	assert.Error(t, err)
+	assert.Equal(t, "flags --color and --plain are mutually exclusive", err.Error())
 	assert.IsError(t, err, conga.ErrValidation)
 }

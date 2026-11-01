@@ -15,15 +15,15 @@ import (
 )
 
 var (
-	// Expected help renderings for grouped and ungrouped section layouts.
-	//go:embed testdata/grouped_flags.golden
-	goldenGroupedFlags string
+	// Expected help renderings for sectioned and unsectioned layouts.
+	//go:embed testdata/sectioned_flags.golden
+	goldenSectionedFlags string
 
-	//go:embed testdata/grouped_subcommands.golden
-	goldenGroupedSubcommands string
+	//go:embed testdata/sectioned_subcommands.golden
+	goldenSectionedSubcommands string
 
-	//go:embed testdata/ungrouped_flags.golden
-	goldenUngroupedFlags string
+	//go:embed testdata/unsectioned_flags.golden
+	goldenUnsectionedFlags string
 )
 
 type ExistingFile string
@@ -1255,46 +1255,46 @@ func subcommandByName(cmd *spec.Command, name string) *spec.Command {
 	return nil
 }
 
-func TestFormat_GroupedFlags_Sections(t *testing.T) {
+func TestFormat_SectionedFlags_Sections(t *testing.T) {
 	t.Parallel()
 
 	cmd := &spec.Command{
 		Name: "testapp",
 		Flags: []*spec.Flag{
 			{Name: "verbose", Short: 'v', Help: "Verbose logging", IsBool: true},
-			{Name: "repo", Group: "Source", Help: "Repository path", TargetType: reflect.TypeFor[string]()},
-			{Name: "quiet", Short: 'q', Group: "Output", Help: "Suppress output", IsBool: true},
-			{Name: "color", Short: 'c', Group: "Output", Help: "Colorize output", IsBool: true},
+			{Name: "repo", Section: "Source", Help: "Repository path", TargetType: reflect.TypeFor[string]()},
+			{Name: "quiet", Short: 'q', Section: "Output", Help: "Suppress output", IsBool: true},
+			{Name: "color", Short: 'c', Section: "Output", Help: "Colorize output", IsBool: true},
 		},
 	}
 
 	formatted := help.Format([]*spec.Command{cmd})
 
-	assert.Equal(t, goldenGroupedFlags, formatted)
+	assert.Equal(t, goldenSectionedFlags, formatted)
 }
 
-func TestFormat_GroupedSubcommands_Sections(t *testing.T) {
+func TestFormat_SectionedSubcommands_Sections(t *testing.T) {
 	t.Parallel()
 
 	cmd := &spec.Command{
 		Name: "tool",
 		Subcommands: []*spec.Command{
 			{Name: "serve", Summary: "Start server"},
-			{Name: "commit", Group: "VCS", Summary: "Commit changes"},
-			{Name: "status", Group: "VCS", Summary: "Show status"},
-			{Name: "build", Group: "Pipeline", Summary: "Build project"},
+			{Name: "commit", Section: "VCS", Summary: "Commit changes"},
+			{Name: "status", Section: "VCS", Summary: "Show status"},
+			{Name: "build", Section: "Pipeline", Summary: "Build project"},
 		},
 	}
 
 	formatted := help.Format([]*spec.Command{cmd})
 
-	assert.Equal(t, goldenGroupedSubcommands, formatted)
+	assert.Equal(t, goldenSectionedSubcommands, formatted)
 }
 
-// TestFormat_UngroupedFlagsRegression verifies that schemas without any group
-// tags render byte-identical to the single-table layout used before grouped
-// sections were introduced.
-func TestFormat_UngroupedFlagsRegression(t *testing.T) {
+// TestFormat_UnsectionedFlagsRegression verifies that schemas without any
+// section tags render byte-identical to the single-table layout used before
+// sectioned layouts were introduced.
+func TestFormat_UnsectionedFlagsRegression(t *testing.T) {
 	t.Parallel()
 
 	cmd := &spec.Command{
@@ -1309,20 +1309,20 @@ func TestFormat_UngroupedFlagsRegression(t *testing.T) {
 
 	formatted := help.Format([]*spec.Command{cmd})
 
-	assert.Equal(t, goldenUngroupedFlags, formatted)
+	assert.Equal(t, goldenUnsectionedFlags, formatted)
 }
 
-// TestFormat_AllFlagsGrouped_BuiltinsKeepOwnSection verifies that the built-in
+// TestFormat_AllFlagsSectioned_BuiltinsKeepOwnSection verifies that the built-in
 // --completion and --help flags close the screen under a trailing "Flags"
-// heading when every user flag carries a group.
-func TestFormat_AllFlagsGrouped_BuiltinsKeepOwnSection(t *testing.T) {
+// heading when every user flag carries a section.
+func TestFormat_AllFlagsSectioned_BuiltinsKeepOwnSection(t *testing.T) {
 	t.Parallel()
 
 	cmd := &spec.Command{
 		Name: "testapp",
 		Flags: []*spec.Flag{
-			{Name: "repo", Group: "Source", Help: "Repository path", TargetType: reflect.TypeFor[string]()},
-			{Name: "quiet", Short: 'q', Group: "Output", Help: "Suppress output", IsBool: true},
+			{Name: "repo", Section: "Source", Help: "Repository path", TargetType: reflect.TypeFor[string]()},
+			{Name: "quiet", Short: 'q', Section: "Output", Help: "Suppress output", IsBool: true},
 		},
 	}
 
@@ -1334,41 +1334,41 @@ func TestFormat_AllFlagsGrouped_BuiltinsKeepOwnSection(t *testing.T) {
 	completionIndex := strings.LastIndex(formatted, "--completion")
 	helpIndex := strings.LastIndex(formatted, "--help")
 
-	assert.True(t, sourceIndex < outputIndex, "groups must render in first-appearance order")
-	assert.True(t, flagsIndex > outputIndex, "the trailing Flags section must follow the groups")
+	assert.True(t, sourceIndex < outputIndex, "sections must render in first-appearance order")
+	assert.True(t, flagsIndex > outputIndex, "the trailing Flags section must follow the sections")
 	assert.True(t, completionIndex > flagsIndex, "--completion must open the trailing built-in block")
 	assert.True(t, helpIndex > completionIndex, "--help must close the trailing built-in block")
 }
 
-// TestFormat_GroupedHiddenFlag_OmitsEmptyGroup verifies that a group whose
+// TestFormat_SectionedHiddenFlag_OmitsEmptySection verifies that a section whose
 // only members are hidden renders no section at all.
-func TestFormat_GroupedHiddenFlag_OmitsEmptyGroup(t *testing.T) {
+func TestFormat_SectionedHiddenFlag_OmitsEmptySection(t *testing.T) {
 	t.Parallel()
 
 	cmd := &spec.Command{
 		Name: "testapp",
 		Flags: []*spec.Flag{
-			{Name: "secret", Group: "Hidden group", Help: "Internal", Hidden: true},
+			{Name: "secret", Section: "Hidden section", Help: "Internal", Hidden: true},
 			{Name: "verbose", Short: 'v', Help: "Verbose logging", IsBool: true},
 		},
 	}
 
 	formatted := help.Format([]*spec.Command{cmd})
 
-	assert.NotContains(t, formatted, "Hidden group")
+	assert.NotContains(t, formatted, "Hidden section")
 	assert.Contains(t, formatted, "Flags:")
 	assert.Contains(t, formatted, "-v, --verbose")
 }
 
-// TestFormat_GroupedConfigFileFlag verifies that a ConfigFile flag's group tag
+// TestFormat_SectionedConfigFileFlag verifies that a ConfigFile flag's section tag
 // drives its own titled section like any other flag.
-func TestFormat_GroupedConfigFileFlag(t *testing.T) {
+func TestFormat_SectionedConfigFileFlag(t *testing.T) {
 	t.Parallel()
 
 	cmd := &spec.Command{
 		Name: "testapp",
 		Flags: []*spec.Flag{
-			{Name: "config", Group: "Configuration", Help: "Path to config file", IsConfigFile: true, Placeholder: "PATH"},
+			{Name: "config", Section: "Configuration", Help: "Path to config file", IsConfigFile: true, Placeholder: "PATH"},
 			{Name: "verbose", Short: 'v', Help: "Verbose logging", IsBool: true},
 		},
 	}
@@ -1381,16 +1381,16 @@ func TestFormat_GroupedConfigFileFlag(t *testing.T) {
 	assert.Contains(t, formatted, "-v, --verbose")
 }
 
-// TestFormat_GroupedGlobalFlags verifies that inherited ancestor flags group
+// TestFormat_SectionedGlobalFlags verifies that inherited ancestor flags section
 // into titled sections within the Global Flags area.
-func TestFormat_GroupedGlobalFlags(t *testing.T) {
+func TestFormat_SectionedGlobalFlags(t *testing.T) {
 	t.Parallel()
 
 	root := &spec.Command{
 		Name: "app",
 		Flags: []*spec.Flag{
 			{Name: "verbose", Short: 'v', Help: "Verbose logging", IsBool: true},
-			{Name: "profile", Group: "Connection", Help: "Server profile", TargetType: reflect.TypeFor[string]()},
+			{Name: "profile", Section: "Connection", Help: "Server profile", TargetType: reflect.TypeFor[string]()},
 		},
 		Subcommands: []*spec.Command{
 			{Name: "server", Summary: "Server subcommand"},
@@ -1403,11 +1403,10 @@ func TestFormat_GroupedGlobalFlags(t *testing.T) {
 	assert.Contains(t, formatted, "Connection:")
 	assert.Contains(t, formatted, "    --profile=STRING")
 
-	// Ungrouped global flags still render under the default title.
+	// Unsectioned global flags still render under the default title.
 	globalIndex := strings.Index(formatted, "Global Flags:")
 	connectionIndex := strings.Index(formatted, "Connection:")
-
-	assert.True(t, globalIndex < connectionIndex, "ungrouped global flags must render first")
+	assert.True(t, globalIndex < connectionIndex, "unsectioned global flags must render first")
 }
 
 // TestFormat_BoolDefaultHint verifies the transparency rule for bool defaults:

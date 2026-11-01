@@ -675,6 +675,15 @@ func (tier mapTierInput) foldRegistered(flagSpec *spec.Flag, cmdChain []*spec.Co
 	return foldRegisteredMapTier(tier.values, tier.source, tier.name, configdata.Value{Origin: tier.envOrigin()}, flagSpec, cmdChain, state, merged, provenance, origins, result)
 }
 
+// orderedFlagGroups holds flags grouped by group name while preserving the
+// first-declaration order of the group names. Group validation is
+// command-scoped, and declaration order keeps multi-group failures
+// deterministic.
+type orderedFlagGroups struct {
+	members map[string][]*spec.Flag
+	order   []string
+}
+
 // registerBuiltinShort maps a configured built-in short rune onto its shared
 // built-in flag so -h/-V parse without a per-app flag copy. A rune already
 // claimed by a user flag is left untouched: schema build rejects that collision
@@ -1152,10 +1161,10 @@ func resolveOneOfGroups(cmdChain []*spec.Command) error {
 	}
 
 	for _, cmd := range cmdChain {
-		groups, groupOrder := oneOfGroupsByDeclaration(cmd)
+		groups := collectFlagGroups(cmd.Flags, func(flagSpec *spec.Flag) string { return flagSpec.OneOfGroup })
 
-		for _, group := range groupOrder {
-			members := groups[group]
+		for _, group := range groups.order {
+			members := groups.members[group]
 			supplied := false
 
 			for _, member := range members {
@@ -1175,27 +1184,33 @@ func resolveOneOfGroups(cmdChain []*spec.Command) error {
 	return nil
 }
 
-// oneOfGroupsByDeclaration collects the oneof groups declared on cmd, keyed by
-// group name and ordered by first declaration. Built-in flags carry no
-// container and cannot belong to a user-declared group, so nil handles are
-// skipped.
-func oneOfGroupsByDeclaration(cmd *spec.Command) (map[string][]*spec.Flag, []string) {
-	groups := make(map[string][]*spec.Flag, len(cmd.Flags))
-	groupOrder := make([]string, 0, len(cmd.Flags))
+// collectFlagGroups groups flags by the name returned by groupOf, skipping
+// ungrouped flags and engine-owned flags that carry no container. Built-in
+// flags cannot belong to a user-declared group, so nil handles are skipped.
+func collectFlagGroups(flags []*spec.Flag, groupOf func(*spec.Flag) string) orderedFlagGroups {
+	groups := orderedFlagGroups{
+		members: make(map[string][]*spec.Flag, len(flags)),
+		order:   make([]string, 0, len(flags)),
+	}
 
-	for _, flagSpec := range cmd.Flags {
-		if flagSpec.OneOfGroup == "" || flagSpec.Handle == nil {
+	for _, flagSpec := range flags {
+		if flagSpec.Handle == nil {
 			continue
 		}
 
-		if _, ok := groups[flagSpec.OneOfGroup]; !ok {
-			groupOrder = append(groupOrder, flagSpec.OneOfGroup)
+		group := groupOf(flagSpec)
+		if group == "" {
+			continue
 		}
 
-		groups[flagSpec.OneOfGroup] = append(groups[flagSpec.OneOfGroup], flagSpec)
+		if _, ok := groups.members[group]; !ok {
+			groups.order = append(groups.order, group)
+		}
+
+		groups.members[group] = append(groups.members[group], flagSpec)
 	}
 
-	return groups, groupOrder
+	return groups
 }
 
 // missingOneOfError builds the usage error for an exactly-one group with no
@@ -1527,16 +1542,18 @@ func validateMapValue(cmdChain []*spec.Command, descriptor string, items *spec.R
 	return nil
 }
 
-func validateXorGroups(cmdChain []*spec.Command, xorGroups map[string][]*spec.Flag) error {
+func validateXorGroups(cmdChain []*spec.Command, xorGroups orderedFlagGroups) error {
 	return validateMutuallyExclusiveGroups(cmdChain, xorGroups)
 }
 
-func validateOneOfGroups(cmdChain []*spec.Command, oneOfGroups map[string][]*spec.Flag) error {
+func validateOneOfGroups(cmdChain []*spec.Command, oneOfGroups orderedFlagGroups) error {
 	return validateMutuallyExclusiveGroups(cmdChain, oneOfGroups)
 }
 
-func validateMutuallyExclusiveGroups(cmdChain []*spec.Command, groups map[string][]*spec.Flag) error {
-	for _, flags := range groups {
+func validateMutuallyExclusiveGroups(cmdChain []*spec.Command, groups orderedFlagGroups) error {
+	for _, group := range groups.order {
+		flags := groups.members[group]
+
 		var setFlags []string
 
 		for _, flag := range flags {
@@ -1558,8 +1575,10 @@ func validateMutuallyExclusiveGroups(cmdChain []*spec.Command, groups map[string
 	return nil
 }
 
-func validateAndGroups(cmdChain []*spec.Command, andGroups map[string][]*spec.Flag) error {
-	for _, flags := range andGroups {
+func validateAndGroups(cmdChain []*spec.Command, andGroups orderedFlagGroups) error {
+	for _, group := range andGroups.order {
+		flags := andGroups.members[group]
+
 		var (
 			setFlags   []string
 			unsetFlags []string
@@ -1613,10 +1632,6 @@ func validateFlagGroupConstraints(cmdChain []*spec.Command, flagSpec *spec.Flag)
 
 func validateFlagConstraints(cmdChain []*spec.Command) error {
 	for _, cmd := range cmdChain {
-		xorGroups := make(map[string][]*spec.Flag)
-		andGroups := make(map[string][]*spec.Flag)
-		oneOfGroups := make(map[string][]*spec.Flag)
-
 		for _, flagSpec := range cmd.Flags {
 			if flagSpec.Handle == nil {
 				// Built-in command flags carry no container to validate.
@@ -1626,19 +1641,11 @@ func validateFlagConstraints(cmdChain []*spec.Command) error {
 			if err := validateFlagGroupConstraints(cmdChain, flagSpec); err != nil {
 				return err
 			}
-
-			if flagSpec.XorGroup != "" {
-				xorGroups[flagSpec.XorGroup] = append(xorGroups[flagSpec.XorGroup], flagSpec)
-			}
-
-			if flagSpec.AndGroup != "" {
-				andGroups[flagSpec.AndGroup] = append(andGroups[flagSpec.AndGroup], flagSpec)
-			}
-
-			if flagSpec.OneOfGroup != "" {
-				oneOfGroups[flagSpec.OneOfGroup] = append(oneOfGroups[flagSpec.OneOfGroup], flagSpec)
-			}
 		}
+
+		xorGroups := collectFlagGroups(cmd.Flags, func(flagSpec *spec.Flag) string { return flagSpec.XorGroup })
+		oneOfGroups := collectFlagGroups(cmd.Flags, func(flagSpec *spec.Flag) string { return flagSpec.OneOfGroup })
+		andGroups := collectFlagGroups(cmd.Flags, func(flagSpec *spec.Flag) string { return flagSpec.AndGroup })
 
 		if err := validateXorGroups(cmdChain, xorGroups); err != nil {
 			return err

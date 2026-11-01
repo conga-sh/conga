@@ -1,5 +1,5 @@
 # TestScript for 08-subcommands-basic
-# Asserts subcommand routing, command aliases, command groups, and hidden commands
+# Asserts subcommand routing, command aliases, command sections, and hidden commands
 
 # 1. Root without subcommand displays usage / required error
 exit-status 2 service-mgr

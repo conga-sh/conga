@@ -63,6 +63,11 @@ type OneOfGroupCLI struct {
 	Port mockFlag[int]  `help:"Port"`
 }
 
+type EnvOneOfGroupCLI struct {
+	JSON mockFlag[bool] `env:"CONGA_TEST_COMPLETION_JSON" help:"Output JSON" oneof:"format"`
+	YAML mockFlag[bool] `help:"Output YAML"               oneof:"format"`
+}
+
 type ScopedGroupLeaf struct {
 	JSON mockFlag[bool] `name:"json" oneof:"choice" xor:"transport"`
 	YAML mockFlag[bool] `name:"yaml" oneof:"choice" xor:"transport"`
@@ -175,8 +180,8 @@ type NewCmd struct {
 
 func (n *NewCmd) Run(ctx context.Context) error { return nil }
 
-type DeprecatedGroupCLI struct {
-	Legacy mockCmd[LegacyCmd] `deprecated:"removed"     group:"legacy" summary:"Legacy command"`
+type DeprecatedSectionCLI struct {
+	Legacy mockCmd[LegacyCmd] `deprecated:"removed"     section:"legacy" summary:"Legacy command"`
 	Modern mockCmd[ModernCmd] `summary:"Modern command"`
 }
 
@@ -632,6 +637,30 @@ func TestCompletion_OneOfSuppression(t *testing.T) {
 	})
 }
 
+func TestCompletion_EnvSatisfiedOneOfDoesNotSuppress(t *testing.T) {
+	t.Parallel()
+
+	var cli EnvOneOfGroupCLI
+
+	cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+	assert.NoError(t, err)
+
+	env := map[string]string{"CONGA_TEST_COMPLETION_JSON": "true"}
+
+	invoked := spec.Complete(cmdSpec, []string{"--"}, spec.CompleteOptions{
+		Env: env,
+		EnvLookup: func(key string) (string, bool) {
+			value, ok := env[key]
+
+			return value, ok
+		},
+	})
+
+	values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
+	assert.True(t, slices.Contains(values, "--json"))
+	assert.True(t, slices.Contains(values, "--yaml"))
+}
+
 func TestCompletion_GroupsScopedPerCommand(t *testing.T) {
 	t.Parallel()
 
@@ -749,10 +778,10 @@ func TestCompletion_DeprecatedFiltering(t *testing.T) {
 		assert.Equal(t, []string{"new"}, values)
 	})
 
-	t.Run("deprecated grouped subcommand does not skew sibling tags", func(t *testing.T) {
+	t.Run("deprecated sectioned subcommand does not skew sibling tags", func(t *testing.T) {
 		t.Parallel()
 
-		var cli DeprecatedGroupCLI
+		var cli DeprecatedSectionCLI
 
 		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
 		assert.NoError(t, err)

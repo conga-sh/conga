@@ -149,7 +149,7 @@ hello has version 1.0.0 built with go1.27.1
 ## Where to go next
 
 **How-to guides**
-- [How to declare subcommands](/how-to/declare-subcommands/): route subcommands with `Command[T]`, command aliases, and groups.
+- [How to declare subcommands](/how-to/declare-subcommands/): route subcommands with `Command[T]`, command aliases, and sections.
 - [How to accept positional arguments](/how-to/accept-positional-arguments/): define required, optional, and trailing positional arguments.
 - [How to bind environment variables](/how-to/bind-environment-variables/): map environment variables to flags with prefixes and struct tags.
 - [How to manage config files](/how-to/manage-config-files/): register decoders, declare search paths, and cascade tiers.

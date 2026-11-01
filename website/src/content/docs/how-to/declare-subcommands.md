@@ -1,6 +1,6 @@
 ---
 title: How to declare subcommands
-description: Route nested subcommands with Command[T], assign aliases and groups, and reach root state.
+description: Route nested subcommands with Command[T], assign aliases and sections, and reach root state.
 ---
 
 Commands in CONGA compose hierarchically by declaring struct fields of type `conga.Command[T]`. This guide explains how to define subcommands, configure routing tags, access root state, and prevent ancestor flag shadowing.
@@ -31,7 +31,7 @@ Leaf commands must implement `Run(ctx context.Context, session *conga.Session) e
 
 An enclosing parent command may also implement `Run`, executing when the application is invoked without a subcommand; [About subcommands and hierarchy](/explanation/subcommands/#routing-nodes-versus-runnable-commands) covers routing versus executable nodes.
 
-## Configure aliases, groups, and visibility
+## Configure aliases, sections, and visibility
 
 Use struct tags on the `conga.Command[T]` field to control how subcommands route and display in `--help`:
 
@@ -40,18 +40,18 @@ type CLI struct {
 	Verbose conga.OptionalFlag[bool] `short:"v" help:"Enable verbose output"`
 
 	Deploy conga.Command[DeployCmd] `summary:"Deploy a service"`
-	List   conga.Command[ListCmd]   `aliases:"ls,ps" group:"Inspection" summary:"List active services"`
+	List   conga.Command[ListCmd]   `aliases:"ls,ps" section:"Inspection" summary:"List active services"`
 	Debug  conga.Command[DebugCmd]  `hidden:"true" summary:"Internal debugging command"`
 }
 ```
 
 - `name:"..."`: Overrides the kebab-case field name with a custom command token.
 - `aliases:"ls,ps"`: Registers comma-separated alternatives that route to the same command.
-- `group:"Inspection"`: Collects related commands under a dedicated section header in parent help screens.
+- `section:"Inspection"`: Collects related commands under a dedicated section header in parent help screens.
 - `hidden:"true"`: Keeps the command executable while suppressing it from help listings and completion suggestions.
 - `deprecated:"..."`: Marks the command as deprecated, emitting a warning at runtime, rendering a `[deprecated: <reason>]` banner on its help screen, and suppressing it from shell completion.
 
-Help screens organize subcommands by their declared groups:
+Help screens organize subcommands by their declared sections:
 
 ```sh
 cloudctl --help

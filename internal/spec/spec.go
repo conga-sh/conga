@@ -42,7 +42,7 @@ type Command struct {
 	Examples    string
 	HelpFooter  string
 	Deprecated  string
-	Group       string
+	Section     string
 	Hidden      bool
 	EnvPrefix   string
 	Version     string
@@ -318,7 +318,7 @@ type Flag struct {
 	// and completed; only the help-screen listing is suppressed.
 	EnumHintHidden bool
 	Placeholder    string
-	Group          string
+	Section        string
 	Hidden         bool
 	// Safe reports whether the resolved value may be displayed in the --why
 	// provenance report. Declared via the safe struct tag; an absent tag

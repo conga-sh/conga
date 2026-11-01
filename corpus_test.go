@@ -105,8 +105,8 @@ type corpusRoot struct {
 	Secret   conga.OptionalFlag[string]            `help:"Hidden tuning knob"                hidden:"true"`
 	Legacy   conga.OptionalFlag[string]            `deprecated:"use --profile"               help:"Legacy tuning knob"`
 
-	Deploy     conga.Command[corpusDeploy] `aliases:"d"                                 group:"cluster"               summary:"Deploy service to a cluster"`
-	Logs       conga.Command[corpusLogs]   `group:"cluster"                             summary:"Stream service logs"`
+	Deploy     conga.Command[corpusDeploy] `aliases:"d"                                 section:"cluster"             summary:"Deploy service to a cluster"`
+	Logs       conga.Command[corpusLogs]   `section:"cluster"                           summary:"Stream service logs"`
 	Exec       conga.Command[corpusExec]   `summary:"Execute a command in a pod"`
 	CP         conga.Command[corpusCopy]   `summary:"Copy files"`
 	Completion conga.CompletionCommand     `summary:"Generate shell completion scripts"`

@@ -242,12 +242,12 @@ func tagSpecByName(tagSpecs []TagSpec, name string) TagSpec {
 	return TagSpec{}
 }
 
-// fieldTagSpecsForField resolves the field-tag specs of a flag or positional
-// argument's element type: types implementing TagSpecProvider contribute their
-// registered specs (value receiver first, then pointer receiver, mirroring how
-// predictor inference resolves Predictable domain types). Slice and map
-// containers resolve to their element type so repeated File values receive
-// the same tags.
+// fieldTagSpecsForField resolves the field-tag specs of a schema field's value
+// type: a flag or positional argument's element type, or a plain field's own
+// type. Types implementing TagSpecProvider contribute their registered specs
+// (value receiver first, then pointer receiver, mirroring how predictor
+// inference resolves Predictable domain types). Slice and map containers
+// resolve to their element type so repeated File values receive the same tags.
 func fieldTagSpecsForField(containerType reflect.Type) []TagSpec {
 	if containerType == nil {
 		return nil

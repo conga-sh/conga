@@ -102,9 +102,10 @@ var (
 var updateGolden = flag.Bool("update", false, "rewrite golden files from current output")
 
 // goldenCLI is the canonical reference application: one struct exercises every
-// rendering axis (description, footer, examples, grouped and ungrouped flags,
-// negatable bool, counter, map, enum, range, env, hidden, deprecated, and a
-// nested subcommand) so the help, usage, and error screens share one fixture.
+// rendering axis (description, footer, examples, sectioned and unsectioned
+// flags, negatable bool, counter, map, enum, range, env, hidden, deprecated,
+// and a nested subcommand) so the help, usage, and error screens share one
+// fixture.
 type goldenCLI struct {
 	noopRunner
 
@@ -115,10 +116,10 @@ type goldenCLI struct {
 	Port    conga.OptionalFlag[int]               `default:"8080"                     help:"Listen port"               range:"1..65535"`
 	Format  conga.OptionalFlag[string]            `enum:"json,yaml"                   help:"Output format"`
 	Token   conga.OptionalFlag[string]            `env:"CONGA_TEST_GOLDEN_TOKEN"      help:"API token"`
-	Output  conga.OptionalFlag[string]            `group:"Output"                     help:"Output path"`
+	Output  conga.OptionalFlag[string]            `help:"Output path"                 section:"Output"`
 	Legacy  conga.OptionalFlag[bool]              `deprecated:"use --name"            help:"Legacy toggle"`
 	Hidden  conga.OptionalFlag[string]            `help:"Internal knob"               hidden:"true"`
-	Deploy  conga.Command[goldenDeployCmd]        `group:"Lifecycle"                  summary:"Deploy the application"`
+	Deploy  conga.Command[goldenDeployCmd]        `section:"Lifecycle"                summary:"Deploy the application"`
 	Status  conga.Command[goldenStatusCmd]        `summary:"Show status"`
 	Help    conga.HelpCommand                     `summary:"Show help for a command"`
 	Version conga.VersionCommand                  `summary:"Show version information"`

@@ -3,7 +3,7 @@ title: Struct tag reference
 description: Every struct tag CONGA understands, per construct.
 ---
 
-CONGA derives the CLI schema from struct fields and their tags. The engine validates tags at schema initialization: unknown tags, typos, or tags on incompatible field types fail schema construction with `ErrSchema` (see [How to lint schemas](/how-to/lint-schemas/)). Recognized foreign tags (such as `json` or `yaml`) pass validation silently.
+CONGA derives the CLI schema from struct fields and their tags. The engine validates tags at schema initialization: unknown tags, typos, or tags on incompatible field types fail schema construction with `ErrSchema` (see [How to lint schemas](/how-to/lint-schemas/)). Recognized foreign tags (such as `json` or `yaml`) pass validation silently. The `group` tag from earlier releases was renamed to `section`; declaring `group` now fails schema construction with a migration error (`app.AllowTags("group")` keeps it as an external tag).
 
 ## Flags (`OptionalFlag[T]`, `RequiredFlag[T]`, `Counter`)
 
@@ -19,7 +19,6 @@ CONGA derives the CLI schema from struct fields and their tags. The engine valid
 | `enumhint` | ✅ | ✅ | – | Set to `-` to suppress the automatic `[enum: …]` help hint while keeping values validated and completed. |
 | `env` | ✅ | ✅ | ✅ | Comma-separated environment variable names. `env:"-"` disables environment binding. Explicit names ignore `envprefix`. |
 | `feature` | ✅ | – | ✅ | Feature-gate expression: the flag exists only while the expression is satisfied (see [Feature toggles](#feature-toggles-congafeaturest)). Required flags reject this tag. |
-| `group` | ✅ | ✅ | ✅ | Help-screen grouping header. Flags sharing a group render under their own titled section. |
 | `help` | ✅ | ✅ | ✅ | Help text displayed on the help screen. Supports [help variables](#help-variables). |
 | `hidden` | ✅ | ✅ | ✅ | Suppress from help and completion (`hidden` or `hidden:"true"`). |
 | `items` | ✅ | ✅ | – | Element count bound for slices or maps (see [Bounds syntax](#bounds-syntax)). |
@@ -31,13 +30,18 @@ CONGA derives the CLI schema from struct fields and their tags. The engine valid
 | `predictor` | ✅ | ✅ | – | Completion predictor identifier (see [Predictors](#predictors)). |
 | `range` | ✅ | ✅ | – | Numeric or duration bounds (see [Bounds syntax](#bounds-syntax)). |
 | `safe` | ✅ | ✅ | ✅ | Controls value display in `--why` provenance (`true` or `false`). Boolean and counter flags default to `true`; other flags default to `false`. Declared defaults are always visible. |
+| `section` | ✅ | ✅ | ✅ | Help-screen section title. Flags sharing a section render under their own titled section. |
 | `sep` | ✅ (slices) | ✅ (slices) | – | Slice separator (default `","`). Disabling separators with `none`, `off`, or `-` disables multi-value splitting; `sep:"none"` preserves string elements verbatim, including whitespace. |
 | `short` | ✅ | ✅ | ✅ | Single-rune short flag (e.g. `short:"n"`). |
 | `xor` | ✅ | – | ✅ | Mutually exclusive group name: at most one member may be supplied. Optional flags only. |
 
-The `default` tag is rejected on `Counter` flags, `RequiredFlag`s, and `oneof` members. `xor` and `oneof` tags are also rejected on `RequiredFlag`s. Counters count command-line occurrences starting at 0; seed a base level with an `env` or config-file binding, or use `OptionalFlag[int]` for a numeric default. A required flag must receive a value from the CLI, environment, or configuration, and a oneof member's default would always satisfy the exactly-one group.
+The `default` tag is rejected on `Counter` flags, `RequiredFlag`s, and `oneof` members. `xor` and `oneof` tags are also rejected on `RequiredFlag`s. Counters count command-line occurrences starting at 0; seed a base level with an `env` or config-file binding, or use `OptionalFlag[int]` for a numeric default. A required flag must receive a value from the CLI, environment, or configuration. A `default` on a `oneof` member is rejected because it sets the flag's value and marks it as set in `--why` without satisfying the `Changed()`-based exactly-one group.
 
-Group names are scoped to the command that declares them: a same-named group on an ancestor or descendant command is an independent group, and validation, completion suppression, and the usage synopsis treat them separately. A flag may belong to one group of each kind. Two members of the same `oneof` group may not also share an `and` group: selecting either member would force the other, so the exactly-one group could never be satisfied, and the schema rejects the pair at startup. A group whose members are all `hidden` renders no synopsis token — like a hidden required flag — but is still enforced, and the missing-group error names the hidden members.
+Group names are scoped to the command that declares them: a same-named group on an ancestor or descendant command is an independent group, and validation, completion suppression, and the usage synopsis treat them separately. A flag may belong to one group of each kind. Every declared `xor` or `and` group needs at least two members; a one-member group is a no-op, so it fails schema construction. A `oneof` group needs at least two members unless its sole member is a `Counter`, where it means "require at least one occurrence" (use `RequiredFlag` for a single mandatory flag instead). Two members of the same `oneof` group may not also share an `and` group, and two members of the same `xor` group may not also share an `and` group: supplying either member would force the other, so the exclusive rule could never hold, and the schema rejects the pair at startup. A group whose members are all `hidden` renders no synopsis token — like a hidden required flag — but is still enforced, and the missing-group error names the hidden members.
+
+Group membership is provenance-based: `--flag=false`, `--flag=`, `--count=0`, and `--no-flag` all count as supplying the flag because `Changed()` is true. Shell completion suppresses sibling members only after a member is present on the command line; a group satisfied by an environment variable or config file still offers siblings, and selecting one then fails at runtime.
+
+Plain struct fields and exported non-container fields are ignored by schema building. CONGA tags on such fields are rejected at schema build instead of being silently dropped; `app.AllowTags(...)` accepts the listed keys, and tag syntax is validated on every field. Unexported embedded behavior mixins remain supported.
 
 The `enum` tag validates against the field's coerced value. When a type's `UnmarshalText` normalizes input (such as `get` to `GET`), validation compares against that normalized form, so declared enum values must match the normalized output.
 
@@ -120,9 +124,9 @@ Long value lists can overwhelm a help line. Set `enumhint:"-"` on a flag, positi
 | `deprecated` | Deprecation notice displayed in help. |
 | `envprefix` | Environment variable prefix for this command's flags. |
 | `feature` | Feature-gate expression: the subcommand and its subtree exist only while the expression is satisfied (see [Feature toggles](#feature-toggles-congafeaturest)). |
-| `group` | Help-screen grouping header. Subcommands sharing a group render under their own titled section and are tagged as `<group> commands` in completion. |
 | `hidden` | Suppress from help and completion (`hidden` or `hidden:"true"`). |
 | `name` | Subcommand token override (default: kebab-case field name). |
+| `section` | Help-screen section title. Subcommands sharing a section render under their own titled section and are tagged as `<section> commands` in completion. |
 | `summary` | One-line synopsis displayed in parent command listings and shell completion. |
 
 The `envprefix` tag may stand alone on a blank field to set the command's environment prefix without contributing a schema element:
@@ -143,12 +147,12 @@ type Server struct {
 | `deprecated` | Deprecation notice; suppresses flag from completion. |
 | `env` | Comma-separated environment variable names. `env:"-"` disables environment binding. |
 | `feature` | Feature-gate expression: the config-file flag exists only while the expression is satisfied (see [Feature toggles](#feature-toggles-congafeaturest)). |
-| `group` | Help-screen grouping header. Flags sharing a group render under their own titled section. |
 | `help` | Help text (default: `Path to config file`, or `Path to config file(s)` when `multi:"true"`). |
 | `hidden` | Suppress from help and completion (`hidden` or `hidden:"true"`). |
 | `multi` | Enable multi-value arity for repeated flags and slice values (`multi` or `multi:"true"`). |
 | `name` | Flag name (default: `--config-file`). |
 | `placeholder` | Value placeholder in help (default: `PATH`). |
+| `section` | Help-screen section title. Flags sharing a section render under their own titled section. |
 | `sep` | Multi-value flags only: value separator for repeated flags and environment variables (default `","`). |
 | `short` | Single-rune short flag. |
 
