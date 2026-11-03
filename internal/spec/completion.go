@@ -722,16 +722,16 @@ func (w *astCompletionWalker) completeTerminatorPositional(compCtx predict.Conte
 	}
 
 	posIndex := len(w.posArgs)
+
 	arg := getArgSpec(w.currentCmd, posIndex)
-
-	if arg != nil {
-		baseAction := resolveArgAction(arg, w.opts.RegisteredPredictors)
-		action := wrapSliceAction(baseAction, arg.IsSlice, arg.Sep, compCtx.Args).Tag("arguments")
-
-		return action.Invoke(compCtx)
+	if arg == nil {
+		return predict.None().Invoke(compCtx)
 	}
 
-	return predict.Files().Invoke(compCtx)
+	baseAction := resolveArgAction(arg, w.opts.RegisteredPredictors)
+	action := wrapSliceAction(baseAction, arg.IsSlice, arg.Sep, compCtx.Args).Tag("arguments")
+
+	return action.Invoke(compCtx)
 }
 
 func (w *astCompletionWalker) completeFlagNamesAction(toComplete string) predict.Predictor {

@@ -2042,6 +2042,49 @@ func TestCompletion_TrailingArgsPrediction(t *testing.T) {
 	})
 }
 
+func TestCompletion_TerminatorWithoutCollector(t *testing.T) {
+	t.Parallel()
+
+	t.Run("branch command offers no candidates after the terminator", func(t *testing.T) {
+		t.Parallel()
+
+		tmpDir := t.TempDir()
+		assert.NoError(t, os.WriteFile(filepath.Join(tmpDir, "manifest.yaml"), []byte("x"), 0o600))
+
+		var cli SubcommandTestCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"--", ""}, spec.CompleteOptions{Dir: tmpDir})
+
+		assert.Zero(t, invoked.Items)
+		assert.True(t, invoked.Directive.Has(predict.DirectiveNoFileCompletion))
+	})
+
+	t.Run("leaf with exhausted positionals offers no candidates after the terminator", func(t *testing.T) {
+		t.Parallel()
+
+		type LeafCLI struct {
+			First  mockReqArg[string]
+			Second mockReqArg[string]
+		}
+
+		tmpDir := t.TempDir()
+		assert.NoError(t, os.WriteFile(filepath.Join(tmpDir, "manifest.yaml"), []byte("x"), 0o600))
+
+		var cli LeafCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"one", "two", "--", ""}, spec.CompleteOptions{Dir: tmpDir})
+
+		assert.Zero(t, invoked.Items)
+		assert.True(t, invoked.Directive.Has(predict.DirectiveNoFileCompletion))
+	})
+}
+
 func TestCompletion_PendingFlagValueBoundary(t *testing.T) {
 	t.Parallel()
 
