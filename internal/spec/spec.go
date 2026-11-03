@@ -578,7 +578,8 @@ func FindFlagInChain(chain []*Command, name string) *Flag {
 
 // FindShortFlagInChain searches backwards through chain for a flag matching
 // short rune r, falling back to the built-in --help and --version flags when
-// r is the rune assigned to them through app.HelpShortFlag/app.VersionShortFlag.
+// r is the rune assigned to them through app.HelpShortFlag/app.VersionShortFlag
+// and no declared CLI flag shadows the corresponding built-in long name.
 func FindShortFlagInChain(chain []*Command, r rune) *Flag {
 	for _, cmd := range slices.Backward(chain) {
 		if flag := cmd.FindShortFlag(r); flag != nil {
@@ -593,11 +594,11 @@ func FindShortFlagInChain(chain []*Command, r rune) *Flag {
 	root := chain[0]
 	leaf := chain[len(chain)-1]
 
-	if r == root.HelpShort && !leaf.DisableHelp {
+	if r == root.HelpShort && !leaf.DisableHelp && !hasDeclaredCLIFlagInChain(chain, "help") {
 		return BuiltinHelpFlag
 	}
 
-	if r == root.VersionShort && leaf.VersionFlagVisible(len(chain) == 1) {
+	if r == root.VersionShort && leaf.VersionFlagVisible(len(chain) == 1) && !hasDeclaredCLIFlagInChain(chain, "version") {
 		return BuiltinVersionFlag
 	}
 
@@ -627,4 +628,24 @@ func FindNegatableFlagInChain(chain []*Command, name string) *Flag {
 	}
 
 	return flag
+}
+
+// hasDeclaredCLIFlagInChain reports whether chain declares a CLI-routable flag
+// matching name or alias. NoCLI flags are excluded, mirroring the binder's flag
+// index: they can never be supplied on the command line and therefore cannot
+// shadow a built-in long flag.
+func hasDeclaredCLIFlagInChain(chain []*Command, name string) bool {
+	for _, cmd := range slices.Backward(chain) {
+		for _, flagSpec := range cmd.Flags {
+			if flagSpec.NoCLI {
+				continue
+			}
+
+			if flagSpec.Name == name || slices.Contains(flagSpec.Aliases, name) {
+				return true
+			}
+		}
+	}
+
+	return false
 }

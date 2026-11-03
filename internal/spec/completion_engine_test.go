@@ -1788,6 +1788,47 @@ func TestAnalyzeCompletion(t *testing.T) {
 	})
 }
 
+// TestAnalyzeCompletion_ShadowedBuiltinShorts pins that a declared --help or
+// --version flag keeps the configured built-in rune unregistered, so the
+// completion walker routes -h/-V into RawArgs exactly like the binder. The
+// commands are built directly because schema build rejects a shadow while the
+// corresponding built-in remains enabled.
+func TestAnalyzeCompletion_ShadowedBuiltinShorts(t *testing.T) {
+	t.Parallel()
+
+	t.Run("help short", func(t *testing.T) {
+		t.Parallel()
+
+		rootCmd := &spec.Command{
+			Name:      "app",
+			HelpShort: 'h',
+			Flags:     []*spec.Flag{{Name: "help", IsBool: true}},
+			RawArgs:   &spec.RawArgs{Name: "raw"},
+		}
+
+		analysis := spec.AnalyzeCompletion(rootCmd, []string{"-h", ""})
+
+		assert.Equal(t, []string{"-h"}, analysis.RawArgs)
+		assert.Equal(t, 0, len(analysis.FlagValues))
+	})
+
+	t.Run("version short", func(t *testing.T) {
+		t.Parallel()
+
+		rootCmd := &spec.Command{
+			Name:         "app",
+			VersionShort: 'V',
+			Flags:        []*spec.Flag{{Name: "version", IsBool: true}},
+			RawArgs:      &spec.RawArgs{Name: "raw"},
+		}
+
+		analysis := spec.AnalyzeCompletion(rootCmd, []string{"-V", ""})
+
+		assert.Equal(t, []string{"-V"}, analysis.RawArgs)
+		assert.Equal(t, 0, len(analysis.FlagValues))
+	})
+}
+
 // trailingPredictors returns the registered custom predictors shared by the
 // trailing-collector completion fixtures.
 func trailingPredictors() map[string]predict.Predictor {
