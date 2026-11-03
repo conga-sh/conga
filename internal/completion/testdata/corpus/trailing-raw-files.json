@@ -1,0 +1,17 @@
+{
+  "items": [
+    {
+      "value": "script.sh",
+      "display": "script.sh",
+      "style": "green",
+      "tag": "files"
+    }
+  ],
+  "directives": {
+    "error": false,
+    "keeporder": false,
+    "nofilecomp": true,
+    "nospace": false
+  },
+  "usage": ""
+}

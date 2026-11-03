@@ -513,6 +513,136 @@ func (t *TrailingHelpApp) Run(ctx context.Context, session *conga.Session) error
 
 var _ = conga.New[TrailingHelpApp]()
 
+// TrailingPredictorTypoApp misspells the predictor name on trailing-argument
+// collectors.
+type TrailingPredictorTypoApp struct {
+	Extra    conga.DashArgs `predictor:"files"` // want `unknown predictor "files"`
+	Leftover conga.RawArgs  `predictor:"files"` // want `unknown predictor "files"`
+}
+
+// Run executes the trailing predictor fixture.
+func (t *TrailingPredictorTypoApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[TrailingPredictorTypoApp]()
+
+// RawArgsWithSubcommandApp combines a raw collector with a command branch.
+type RawArgsWithSubcommandApp struct {
+	Deploy conga.Command[RawArgsSubcommandLeaf] `name:"deploy"`
+	Raw    conga.RawArgs                        // want `raw args cannot be combined with command field Deploy`
+}
+
+var _ = conga.New[RawArgsWithSubcommandApp]()
+
+// RawArgsSubcommandLeaf is the branch referenced by RawArgsWithSubcommandApp.
+type RawArgsSubcommandLeaf struct{}
+
+// Run executes the subcommand branch fixture.
+func (r *RawArgsSubcommandLeaf) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+// RawArgsWithBuiltinHelpApp combines a raw collector with a declared built-in
+// help command field; built-in commands still count as command fields.
+type RawArgsWithBuiltinHelpApp struct {
+	Help conga.HelpCommand
+	Raw  conga.RawArgs // want `raw args cannot be combined with command field Help`
+}
+
+// Run executes the built-in help conflict fixture.
+func (r *RawArgsWithBuiltinHelpApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[RawArgsWithBuiltinHelpApp]()
+
+// MixedBranchApp declares positional arguments and a subcommand on the same
+// command, which the branch/leaf invariant rejects.
+type MixedBranchApp struct {
+	RootArg conga.RequiredArg[string]       `name:"root-arg"`
+	Child   conga.Command[MixedBranchChild] `name:"child"` // want `positional argument RootArg cannot be combined with subcommand Child`
+}
+
+var _ = conga.New[MixedBranchApp]()
+
+// MixedBranchChild is the branch referenced by MixedBranchApp.
+type MixedBranchChild struct{}
+
+// Run executes the mixed-branch fixture.
+func (m *MixedBranchChild) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+// RawArgsWithOptionalArgApp places an optional positional before a raw
+// collector.
+type RawArgsWithOptionalArgApp struct {
+	Target conga.OptionalArg[string]
+	Raw    conga.RawArgs // want `positional argument <target> must be a required scalar`
+}
+
+// Run executes the optional-prefix fixture.
+func (r *RawArgsWithOptionalArgApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[RawArgsWithOptionalArgApp]()
+
+// RawArgsWithSliceArgApp places a variadic positional before a raw collector.
+type RawArgsWithSliceArgApp struct {
+	Targets conga.RequiredArg[[]string]
+	Raw     conga.RawArgs // want `positional argument <targets> must be a required scalar`
+}
+
+// Run executes the slice-prefix fixture.
+func (r *RawArgsWithSliceArgApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[RawArgsWithSliceArgApp]()
+
+// DuplicateRawArgsApp declares two raw collectors on one command; the second
+// one is rejected by the one-collector-per-kind guard.
+type DuplicateRawArgsApp struct {
+	First  conga.RawArgs
+	Second conga.RawArgs // want `duplicate flag: RawArgs \(already declared by field First\)`
+}
+
+// Run executes the duplicate raw collector fixture.
+func (d *DuplicateRawArgsApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[DuplicateRawArgsApp]()
+
+// DuplicateDashArgsApp declares two '--' collectors on one command; the second
+// one is rejected by the one-collector-per-kind guard.
+type DuplicateDashArgsApp struct {
+	First  conga.DashArgs
+	Second conga.DashArgs // want `duplicate flag: DashArgs \(already declared by field First\)`
+}
+
+// Run executes the duplicate dash collector fixture.
+func (d *DuplicateDashArgsApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[DuplicateDashArgsApp]()
+
+// TrailingBootstrapPredictorApp declares an unusable bootstrap tag and a
+// misspelled predictor on one collector; both diagnostics are genuine, and
+// field validation checks bootstrap before predictor like schema build.
+type TrailingBootstrapPredictorApp struct {
+	Raw conga.RawArgs `bootstrap:"true" predictor:"files"` // want `tag "bootstrap" requires` `unknown predictor "files"`
+}
+
+// Run executes the trailing bootstrap/predictor fixture.
+func (t *TrailingBootstrapPredictorApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[TrailingBootstrapPredictorApp]()
+
 // FlatLeaf is a leaf root command without a Run method.
 type FlatLeaf struct { // want `does not implement conga\.Runner`
 	Verbose conga.OptionalFlag[bool] `name:"verbose" help:"Verbose output"`

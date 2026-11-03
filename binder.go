@@ -282,7 +282,7 @@ func (parser *tokenParser) handleCompletionFlag(flagSpec *spec.Flag) error {
 		return nil
 	}
 
-	if (nextTok.Type == tokenizer.TokenTypeLongFlag || nextTok.Type == tokenizer.TokenTypeShortFlag || nextTok.Type == tokenizer.TokenTypeTerminator) && !nextTok.IsNegativeNumber() {
+	if !nextTok.CanBindAsFlagValue() {
 		parser.flagValues[flagSpec] = append(parser.flagValues[flagSpec], "")
 
 		return nil
@@ -307,7 +307,7 @@ func (parser *tokenParser) consumeNextValue(flagSpec *spec.Flag, flagName, rawTo
 	if parser.scanner.HasNext() {
 		nextTok, _ := parser.scanner.Next()
 
-		if (nextTok.Type == tokenizer.TokenTypeLongFlag || nextTok.Type == tokenizer.TokenTypeShortFlag || nextTok.Type == tokenizer.TokenTypeTerminator) && !nextTok.IsNegativeNumber() {
+		if !nextTok.CanBindAsFlagValue() {
 			return flagRequiresValueError()
 		}
 
@@ -914,6 +914,18 @@ func routeSubcommands(cmd *spec.Command, tokens []tokenizer.Token) ([]*spec.Comm
 	for i := 0; i < len(tokens); i++ {
 		tok := tokens[i]
 
+		// The -- terminator ends option parsing for the rest of the invocation.
+		// No token after it may route into a subcommand, matching the
+		// completion walker's matchSubcommand guard. A command with DashArgs
+		// owns everything after the delimiter; otherwise the tokens are
+		// operands, which a branch command rejects because it declares no
+		// positionals.
+		if tok.Type == tokenizer.TokenTypeTerminator {
+			remaining = append(remaining, tokens[i:]...)
+
+			break
+		}
+
 		if skipped, next := skipFlagValue(tokens, i, index); skipped {
 			remaining = append(remaining, tok)
 
@@ -944,7 +956,7 @@ func routeSubcommands(cmd *spec.Command, tokens []tokenizer.Token) ([]*spec.Comm
 		}
 
 		if isHelpDone {
-			return newChain, nil, index, nil
+			return newChain, remaining, index, nil
 		}
 
 		if changed {
@@ -975,7 +987,7 @@ func skipFlagValue(tokens []tokenizer.Token, position int, index *flagIndex) (bo
 		return false, position
 	}
 
-	if position+1 < len(tokens) {
+	if position+1 < len(tokens) && tokens[position+1].CanBindAsFlagValue() {
 		return true, position + 1
 	}
 
@@ -1828,7 +1840,12 @@ func suggestSubcommand(cmd *spec.Command, input string) string {
 		}
 	}
 
-	return levenshtein.Suggest(input, subNames, 3)
+	suggestion := levenshtein.Suggest(input, subNames, 3)
+	if suggestion == input {
+		return ""
+	}
+
+	return suggestion
 }
 
 // resolveArgs binds positional argument tokens. decodeContext carries the

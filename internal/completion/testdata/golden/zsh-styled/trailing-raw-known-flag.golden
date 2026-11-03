@@ -1,0 +1,5 @@
+Dnoprefix
+L=(#b)(--verbose)([ ]## -- *)=0==2:=(#b)(--verbose)=0=:=(#b)(--help)([ ]## -- *)=0==2:=(#b)(--help)=0=:=(#b)(-v)([ ]## -- *)=0==2:=(#b)(-v)=0=:=(#b)(*)([ ]## -- *)=0==2
+Cflags--verboseEnable verbose output--verbose 
+Cflags--helpShow help--help 
+Cflags-vEnable verbose output-v 

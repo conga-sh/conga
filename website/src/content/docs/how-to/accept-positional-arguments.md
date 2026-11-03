@@ -5,6 +5,8 @@ description: Define required, optional, and trailing positional arguments, and f
 
 CONGA binds command-line tokens to struct fields using typed argument containers. This guide demonstrates how to define required and optional positional arguments, capture trailing arguments in a slice, and forward unparsed tokens after `--`.
 
+Positional arguments are declared on leaf commands. A command that declares `Command[T]` subcommands is a branch and cannot also declare positional arguments; schema build rejects the mix with `ErrSchema`. Declare positionals on the leaf that executes and pass shared context through inherited flags.
+
 ## Define required and optional positional arguments
 
 Declare fields on the command struct using `conga.RequiredArg[T]` and `conga.OptionalArg[T]`:
@@ -110,7 +112,20 @@ testrunner ./pkg/... -- -v -run TestUpload
 package: ./pkg/..., forwarded: [-v -run TestUpload]
 ```
 
-To capture trailing unparsed tokens without requiring the `--` delimiter, declare a `conga.RawArgs` field instead.
+To capture trailing unparsed tokens without requiring the `--` delimiter, declare a `conga.RawArgs` field instead. `RawArgs` is a leaf-only collector: the command cannot also declare subcommands, and every positional argument declared before it must be a required scalar. Use `DashArgs` when the command also branches; `--` is the explicit boundary.
+
+### Completion for forwarded arguments
+
+Forwarded words are opaque by default: the completion engine offers no candidates, because it cannot know whether the child process expects files, flags, or something else. Declare a predictor when the forwarded arguments have a known domain:
+
+```go title="main.go"
+type TestRunner struct {
+	Package conga.RequiredArg[string] `help:"Package to test"`
+	Extra   conga.DashArgs            `predictor:"file"`
+}
+```
+
+The tag accepts the same predictor vocabulary as flags and positional arguments (`file`, `file:*.yml`, `dir`, `exec`, `symlink`, `none`, or a registered custom name). `RawArgs` accepts the same tag; its candidates apply from the moment raw mode begins — the first token that cannot bind after every declared required positional is filled. Once raw mode starts, host flags are no longer completed.
 
 ## Where to go next
 

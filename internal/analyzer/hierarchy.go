@@ -98,6 +98,12 @@ type commandNode struct {
 	// container for the duplicate-container diagnostic.
 	featuresDeclared bool
 	featureFlagName  string
+	// rawArgsFieldName and dashArgsFieldName carry the struct field of the
+	// first declared trailing-argument collector of each kind; the runtime
+	// allows exactly one of each and rejects a second one, naming the first
+	// declaration in the duplicate-container diagnostic.
+	rawArgsFieldName  string
+	dashArgsFieldName string
 	// rejected records that a field-level schema error was reported for this
 	// command. The runtime aborts the command build on the first error, so its
 	// group census never runs; single-member group diagnostics would be
@@ -234,6 +240,8 @@ func (w *walker) walkCommand(node *commandNode, ancestorNames map[string]string,
 
 	w.checkSingleMemberGroups(node, census)
 	w.checkRunner(node, subcommandCount)
+	w.checkBranchGrammar(node)
+	w.checkTrailingGrammar(node)
 
 	for _, childNode := range childNodes {
 		w.walkCommand(childNode, branchNames, branchShorts)
@@ -317,11 +325,138 @@ func (w *walker) checkSingleMemberGroups(node *commandNode, census *groupCensus)
 }
 
 // checkTrailingArgsField validates a DashArgs/RawArgs field and mirrors the
-// bootstrap-tag guards.
+// duplicate-container, bootstrap-tag, and predictor-tag guards in the runtime
+// schema builder's field order.
 func (w *walker) checkTrailingArgsField(node *commandNode, fieldObject types.Object, tag reflect.StructTag, role string) {
 	if w.validateNodeFieldTags(node, fieldObject, tag, role, nil) {
+		w.checkDuplicateTrailingCollector(node, fieldObject, role)
 		w.checkBootstrapField(node, fieldObject, tag, nil)
+		w.reportFieldError(node, fieldObject, spec.ValidatePredictorTag(tag, false, w.options.registeredNames, !w.options.registeredNamesAmbiguous))
 	}
+}
+
+// checkDuplicateTrailingCollector mirrors the runtime's one-collector-per-kind
+// guard: a second RawArgs or DashArgs field on one command struct is a schema
+// error naming the first declaration.
+func (w *walker) checkDuplicateTrailingCollector(node *commandNode, fieldObject types.Object, role string) {
+	if role == "dash args" {
+		if node.dashArgsFieldName == "" {
+			node.dashArgsFieldName = fieldObject.Name()
+
+			return
+		}
+
+		w.reportFieldError(node, fieldObject, spec.TrailingCollectorAlreadyDeclaredError("DashArgs", node.dashArgsFieldName))
+
+		return
+	}
+
+	if node.rawArgsFieldName == "" {
+		node.rawArgsFieldName = fieldObject.Name()
+
+		return
+	}
+
+	w.reportFieldError(node, fieldObject, spec.TrailingCollectorAlreadyDeclaredError("RawArgs", node.rawArgsFieldName))
+}
+
+// checkBranchGrammar mirrors the runtime branch/leaf invariant: a command may
+// declare positional arguments or user subcommands, never both. Built-in help,
+// version, and completion commands are not branching.
+func (w *walker) checkBranchGrammar(node *commandNode) {
+	if node.rejected {
+		return
+	}
+
+	grammar := spec.BranchGrammar{}
+
+	var subcommandField types.Object
+
+	for fieldObject := range node.structType.Fields() {
+		if !fieldObject.Exported() {
+			continue
+		}
+
+		role, known := congaWrapperRoles[w.congaWrapperName(fieldObject.Type())]
+		if !known {
+			continue
+		}
+
+		switch role {
+		case "subcommand":
+			if grammar.SubcommandField == "" {
+				grammar.SubcommandField = fieldObject.Name()
+				subcommandField = fieldObject
+			}
+		case "positional argument":
+			if grammar.PositionalField == "" {
+				grammar.PositionalField = fieldObject.Name()
+			}
+		}
+	}
+
+	if subcommandField == nil {
+		return
+	}
+
+	w.reportFieldError(node, subcommandField, spec.ValidateBranchGrammar(grammar))
+}
+
+// checkTrailingGrammar mirrors the runtime RawArgs boundary invariant: a raw
+// collector cannot coexist with command branches, and its positional prefix
+// must contain only required scalar arguments.
+func (w *walker) checkTrailingGrammar(node *commandNode) {
+	if node.rejected {
+		return
+	}
+
+	grammar := spec.TrailingGrammar{}
+
+	var rawField types.Object
+
+	for index := range node.structType.NumFields() {
+		fieldObject := node.structType.Field(index)
+		if !fieldObject.Exported() {
+			continue
+		}
+
+		wrapperName := w.congaWrapperName(fieldObject.Type())
+
+		role, known := congaWrapperRoles[wrapperName]
+		if !known {
+			continue
+		}
+
+		tag := reflect.StructTag(node.structType.Tag(index))
+
+		switch role {
+		case "raw args":
+			grammar.HasRawArgs = true
+			rawField = fieldObject
+		case "subcommand", "help command", "version command", "completion command":
+			if grammar.CommandField == "" {
+				grammar.CommandField = fieldObject.Name()
+			}
+		case "positional argument":
+			underlying := types.Unalias(w.containerInnerType(fieldObject.Type())).Underlying()
+
+			_, isSlice := underlying.(*types.Slice)
+			_, isMap := underlying.(*types.Map)
+
+			grammar.Args = append(grammar.Args, spec.TrailingArgGrammar{
+				Name:     spec.DefaultArgName(fieldObject.Name(), tag),
+				Required: wrapperName == "RequiredArg",
+				IsSlice:  isSlice,
+				IsMap:    isMap,
+			})
+		}
+	}
+
+	if rawField == nil {
+		return
+	}
+
+	w.reportFieldError(node, rawField, spec.ValidateTrailingGrammar(grammar))
 }
 
 // congaWrapperName returns the name of the conga container wrapper type

@@ -72,6 +72,7 @@ type Deploy struct {
 // ValueReceiverLeaf implements conga.Runner with a value receiver.
 type ValueReceiverLeaf struct {
 	LeafName conga.OptionalFlag[string] `name:"leaf-name" help:"Leaf name"`
+	Leftover conga.RawArgs              `name:"leftover" predictor:"dir"`
 }
 
 // Run executes the leaf with a value receiver.
@@ -85,13 +86,42 @@ type App struct {
 	Leaf     conga.Command[ValueReceiverLeaf] `name:"leaf"`
 	ConfigIn conga.ConfigFile                 `name:"config" short:"c" help:"Path to configuration file"`
 	Count    conga.Counter                    `name:"count" help:"Count invocations"`
-	Extra    conga.DashArgs                   `name:"extra"`
-	Leftover conga.RawArgs                    `name:"leftover"`
+	Extra    conga.DashArgs                   `name:"extra" predictor:"file"`
 	Help     conga.HelpCommand                `summary:"Show help" aliases:"h"`
 	_        struct{}                         `envprefix:"VALID_"`
 }
 
 var _ = conga.New[App]().Name("valid")
+
+// ArgsWithBuiltinHelp declares positional arguments alongside a built-in help
+// command field; built-in commands are not branching, so the branch/leaf
+// invariant stays satisfied.
+type ArgsWithBuiltinHelp struct {
+	Target conga.RequiredArg[string] `name:"target"`
+	Help   conga.HelpCommand         `summary:"Show help"`
+}
+
+// Run executes the leaf.
+func (a *ArgsWithBuiltinHelp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[ArgsWithBuiltinHelp]()
+
+// BothCollectorsLeaf declares one DashArgs and one RawArgs collector; the
+// one-collector-per-kind guard is per kind, so this shape stays legal.
+type BothCollectorsLeaf struct {
+	Target conga.RequiredArg[string] `name:"target"`
+	Dash   conga.DashArgs            `name:"extra" predictor:"file"`
+	Raw    conga.RawArgs             `name:"leftover" predictor:"dir"`
+}
+
+// Run executes the both-collectors leaf.
+func (b *BothCollectorsLeaf) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[BothCollectorsLeaf]()
 
 // OneOfLeaf is a leaf command with an exactly-one group.
 type OneOfLeaf struct {

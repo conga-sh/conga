@@ -61,6 +61,15 @@ func (m *mockArg[T]) testClassification() container.Classification {
 	return container.Classification{Kind: container.KindArg, Required: m.required}
 }
 
+type mockReqArg[T any] struct {
+	//nolint:unused // read reflectively by spec.extractGenericType
+	value T
+}
+
+func (m *mockReqArg[T]) testClassification() container.Classification {
+	return container.Classification{Kind: container.KindArg, Required: true}
+}
+
 type mockCmd[T any] struct {
 	inner T
 }

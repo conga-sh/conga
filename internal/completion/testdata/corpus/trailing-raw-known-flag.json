@@ -1,0 +1,29 @@
+{
+  "items": [
+    {
+      "value": "--verbose",
+      "display": "--verbose",
+      "description": "Enable verbose output",
+      "tag": "longhand flags"
+    },
+    {
+      "value": "--help",
+      "display": "--help",
+      "description": "Show help",
+      "tag": "longhand flags"
+    },
+    {
+      "value": "-v",
+      "display": "-v",
+      "description": "Enable verbose output",
+      "tag": "shorthand flags"
+    }
+  ],
+  "directives": {
+    "error": false,
+    "keeporder": false,
+    "nofilecomp": true,
+    "nospace": false
+  },
+  "usage": ""
+}

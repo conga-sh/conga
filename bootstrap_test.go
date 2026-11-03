@@ -47,11 +47,20 @@ type bootstrapCLI struct {
 	Verbose  conga.OptionalFlag[bool]     `bootstrap:"true" name:"verbose"                 short:"v"`
 	Tags     conga.OptionalFlag[[]string] `bootstrap:"true" name:"tag"`
 	Count    conga.Counter                `bootstrap:"true" name:"count"                   short:"c"`
-	Tasks    conga.OptionalArg[[]string]  `bootstrap:"true" name:"task"                    sep:"none"`
 	Other    conga.OptionalFlag[string]   `name:"other"`
 
 	Deploy conga.Command[bootstrapSubcommand]
+	Task   conga.Command[bootstrapTaskCLI]
 }
+
+// bootstrapTaskCLI is the leaf that owns the task positional arguments; a
+// command that branches cannot declare positionals itself.
+type bootstrapTaskCLI struct {
+	Tasks conga.OptionalArg[[]string] `bootstrap:"true" name:"task" sep:"none"`
+}
+
+// Run is the no-op task execution hook.
+func (c *bootstrapTaskCLI) Run(_ context.Context, _ *conga.Session) error { return nil }
 
 func (c *bootstrapCLI) Bootstrap(_ context.Context, handle *conga.Bootstrap) error {
 	c.obs = bootstrapObservation{
@@ -60,7 +69,7 @@ func (c *bootstrapCLI) Bootstrap(_ context.Context, handle *conga.Bootstrap) err
 		verbose:     c.Verbose.Get(),
 		tags:        c.Tags.Get(),
 		count:       c.Count.Get(),
-		tasks:       c.Tasks.Get(),
+		tasks:       c.Task.Get().Tasks.Get(),
 		other:       c.Other.Get(),
 		otherSet:    c.Other.IsSet(),
 		profile:     c.Deploy.Get().Profile.Get(),
@@ -81,7 +90,7 @@ func TestBootstrapper_BootstrapFlags(t *testing.T) {
 	root := &bootstrapCLI{}
 
 	app := conga.New(root).
-		Args([]string{"--dir", "cli-dir", "-v", "--tag", "one,two", "-ccc", "--other", "hidden", "build", "LIST=a,b"})
+		Args([]string{"--dir", "cli-dir", "-v", "--tag", "one,two", "-ccc", "--other", "hidden", "task", "build", "LIST=a,b"})
 
 	err := app.RunContext(t.Context())
 

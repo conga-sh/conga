@@ -251,6 +251,76 @@ func TestDashArgs(t *testing.T) {
 	})
 }
 
+func TestRouteSubcommands_TerminatorStopsRouting(t *testing.T) {
+	t.Parallel()
+
+	type SubCLI struct {
+		noopRunner
+	}
+
+	type RootCLI struct {
+		noopRunner
+
+		Deploy conga.Command[SubCLI]
+		Extra  conga.DashArgs
+	}
+
+	cli := new(RootCLI)
+	app := conga.New(cli).Args([]string{"--", "deploy"})
+
+	err := app.RunContext(t.Context())
+
+	assert.NoError(t, err)
+	assert.False(t, cli.Deploy.IsSelected())
+	assert.Equal(t, []string{"deploy"}, cli.Extra.Get())
+}
+
+func TestRouteSubcommands_TerminatorStopsPlainBranchRouting(t *testing.T) {
+	t.Parallel()
+
+	t.Run("user branch", func(t *testing.T) {
+		t.Parallel()
+
+		type SubCLI struct {
+			noopRunner
+		}
+
+		type RootCLI struct {
+			noopRunner
+
+			Deploy conga.Command[SubCLI]
+		}
+
+		cli := new(RootCLI)
+		app := conga.New(cli).Args([]string{"--", "deploy"})
+
+		err := app.RunContext(t.Context())
+
+		assert.Error(t, err)
+		assert.IsError(t, err, conga.ErrValidation)
+		assert.Equal(t, `unexpected argument "deploy"`, err.Error())
+		assert.False(t, cli.Deploy.IsSelected())
+	})
+
+	t.Run("built-in help", func(t *testing.T) {
+		t.Parallel()
+
+		type RootCLI struct {
+			noopRunner
+
+			Help conga.HelpCommand
+		}
+
+		app := conga.New[RootCLI]().Args([]string{"--", "help"})
+
+		err := app.RunContext(t.Context())
+
+		assert.Error(t, err)
+		assert.IsError(t, err, conga.ErrValidation)
+		assert.Equal(t, `unexpected argument "help"`, err.Error())
+	})
+}
+
 func TestRawArgs(t *testing.T) {
 	t.Parallel()
 
@@ -1371,6 +1441,40 @@ func TestBinder_FlagMissingValue(t *testing.T) {
 		assert.Error(t, err)
 		assert.IsError(t, err, conga.ErrParse)
 	})
+
+	t.Run("long flag followed by terminator", func(t *testing.T) {
+		t.Parallel()
+
+		app := conga.New[MissingValCLI]().Args([]string{"--port", "--"})
+		err := app.RunContext(t.Context())
+
+		assert.Error(t, err)
+		assert.IsError(t, err, conga.ErrParse)
+		assert.Equal(t, "flag requires an argument: --port", err.Error())
+	})
+}
+
+func TestBinder_TerminatorAfterValueFlagDoesNotRouteSubcommand(t *testing.T) {
+	t.Parallel()
+
+	type ChildCLI struct {
+		noopRunner
+	}
+
+	type RootCLI struct {
+		noopRunner
+
+		Port  conga.OptionalFlag[int] `name:"port"`
+		Child conga.Command[ChildCLI]
+	}
+
+	app := conga.New[RootCLI]().Args([]string{"--port", "--", "child"})
+
+	err := app.RunContext(t.Context())
+
+	assert.Error(t, err)
+	assert.IsError(t, err, conga.ErrParse)
+	assert.Equal(t, "flag requires an argument: --port", err.Error())
 }
 
 func TestBinder_SliceValidationDelegation(t *testing.T) {

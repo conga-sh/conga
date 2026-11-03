@@ -1094,6 +1094,8 @@ func TestZsh_TerminatorDashArgs(t *testing.T) {
 
 	workspace := setupTrailingArgs(t)
 
+	assert.NoError(t, os.WriteFile(filepath.Join(workspace.WorkDir, "forwarded.txt"), []byte("fixture\n"), 0o600))
+
 	t.Run("flags suppressed after double dash", func(t *testing.T) {
 		t.Parallel()
 
@@ -1101,6 +1103,37 @@ func TestZsh_TerminatorDashArgs(t *testing.T) {
 
 		assert.False(t, result.HasItem("--verbose"))
 		assert.False(t, result.HasItem("--help"))
+	})
+
+	t.Run("dash args predictor completes files", func(t *testing.T) {
+		t.Parallel()
+
+		result := workspace.RunZshCompletion(t, "runner", "runner test mypkg -- forw")
+
+		assert.Equal(t, "runner test mypkg -- forwarded.txt ", result.BufferTab1)
+		assert.Zero(t, result.Messages)
+		assert.True(t, result.HasItem("forwarded.txt"))
+	})
+
+	t.Run("raw args predictor completes files after overflow", func(t *testing.T) {
+		t.Parallel()
+
+		result := workspace.RunZshCompletion(t, "runner", "runner exec mycontainer forw")
+
+		assert.Equal(t, "runner exec mycontainer forwarded.txt ", result.BufferTab1)
+		assert.Zero(t, result.Messages)
+		assert.True(t, result.HasItem("forwarded.txt"))
+	})
+
+	t.Run("flags suppressed once raw mode is active", func(t *testing.T) {
+		t.Parallel()
+
+		result := workspace.RunZshCompletion(t, "runner", "runner exec mycontainer extra -")
+
+		assert.Equal(t, "runner exec mycontainer extra -", result.BufferTab1)
+		assert.Zero(t, result.Messages)
+		assert.False(t, result.HasItem("--verbose"))
+		assert.False(t, result.HasItem("-v"))
 	})
 }
 
