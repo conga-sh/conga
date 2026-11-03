@@ -160,6 +160,54 @@ type TestHelpAliasCLI struct {
 	Help conga.HelpCommand `aliases:"h"`
 }
 
+type helpPrecedingFlagsCLI struct {
+	noopRunner
+
+	Format conga.OptionalFlag[string] `help:"Output format" name:"format"`
+	Help   conga.HelpCommand
+}
+
+func TestHelpCommand_PrecedingFlags(t *testing.T) {
+	t.Parallel()
+
+	t.Run("unknown flag before help is a parse error", func(t *testing.T) {
+		t.Parallel()
+
+		app := conga.New[helpPrecedingFlagsCLI]().Args([]string{"--bogus", "help"})
+
+		err := app.RunContext(t.Context())
+
+		assert.Error(t, err)
+		assert.IsError(t, err, conga.ErrParse)
+		assert.Equal(t, "unknown flag: --bogus", err.Error())
+	})
+
+	t.Run("terminator after a value flag is not its value before help", func(t *testing.T) {
+		t.Parallel()
+
+		app := conga.New[helpPrecedingFlagsCLI]().Args([]string{"--format", "--", "help"})
+
+		err := app.RunContext(t.Context())
+
+		assert.Error(t, err)
+		assert.IsError(t, err, conga.ErrParse)
+		assert.Equal(t, "flag requires an argument: --format", err.Error())
+	})
+
+	t.Run("valid flag before help still renders help", func(t *testing.T) {
+		t.Parallel()
+
+		var buffer bytes.Buffer
+
+		app := conga.New[helpPrecedingFlagsCLI]().Name("testapp").Stdout(&buffer).Args([]string{"--format", "json", "help"})
+
+		err := app.RunContext(t.Context())
+
+		assert.NoError(t, err)
+		assert.Contains(t, buffer.String(), "Usage:\n  testapp")
+	})
+}
+
 func TestHelpCommand_AliasRouting(t *testing.T) {
 	t.Parallel()
 

@@ -22,7 +22,7 @@ var (
 	configFileTagCandidates     = []string{"name", "short", "help", "env", "aliases", "placeholder", "section", "hidden", "multi", "sep", "config", "deprecated", "feature"}
 	featuresFieldTagCandidates  = []string{"flag", "env", "envprefix", "config", "sep", "help", "enumhint"}
 	featureFieldTagCandidates   = []string{"name", "help", "env", "default", "enum", "stage"}
-	dashRawTagCandidates        = []string{"name", "bootstrap"}
+	dashRawTagCandidates        = []string{"name", "bootstrap", "predictor"}
 	sentinelTagCandidates       = []string{"envprefix"}
 	allCongaTagCandidates       = []string{
 		"name", "short", "help", "default", "env", "aliases", "section", "hidden", "safe",
@@ -84,7 +84,9 @@ func validContextDescription(tag string) string {
 		return "flags, subcommands, built-in commands, and config file flags"
 	case "deprecated":
 		return "subcommands, flags, and config file flags"
-	case "predictor", "default":
+	case "predictor":
+		return "flags, positional arguments, and trailing-argument collectors"
+	case "default":
 		return "flags and positional arguments"
 	case "bootstrap":
 		return "flags, positional arguments, and trailing-argument collectors"
@@ -108,6 +110,19 @@ func parsePredictorSpec(structTag reflect.StructTag, targetType reflect.Type, is
 	}
 
 	return validateExplicitPredictor(strings.TrimSpace(tagValue), isBool, slices.Sorted(maps.Keys(opts.RegisteredPredictors)), true)
+}
+
+// parseTrailingArgsPredictor parses the explicit predictor tag on a
+// DashArgs/RawArgs collector. Unlike flags and positional arguments, trailing
+// collectors have no element type of their own, so type-based inference never
+// runs; an absent tag defaults to the none predictor (no candidates).
+func parseTrailingArgsPredictor(structTag reflect.StructTag, opts *Options) (*PredictorSpec, error) {
+	tagValue, hasPredictor := structTag.Lookup("predictor")
+	if !hasPredictor {
+		return &PredictorSpec{Kind: PredictorKindNone, Name: "none"}, nil
+	}
+
+	return validateExplicitPredictor(strings.TrimSpace(tagValue), false, slices.Sorted(maps.Keys(opts.RegisteredPredictors)), true)
 }
 
 // inferPredictorSpec resolves the predictor for a field without an explicit

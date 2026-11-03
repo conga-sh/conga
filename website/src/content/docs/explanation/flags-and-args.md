@@ -74,6 +74,8 @@ Because parsing does not backtrack, CONGA enforces a strict structural invariant
 
 This rule eliminates grammar ambiguity. If an optional argument could precede a required argument, an invocation supplying fewer tokens than parameters would be ambiguous: the first token could satisfy either the optional parameter or the mandatory one. Requiring mandatory arguments first ensures that every token binding is predictable.
 
+Positional arguments belong to leaf commands. A command that declares `Command[T]` subcommands routes to those branches and cannot also declare positional arguments; schema build rejects the mix with `ErrSchema`. This keeps every positional token attributable to a single command level: argument indexes and the `RawArgs` boundary follow from the schema, not from tokens typed before a subcommand name. Branch commands inherit flags from their ancestors, so shared context such as `-C <path>` or `--context` belongs in a flag.
+
 ## Forwarding and raw payloads
 
 Many command-line tools wrap existing utilities or forward arguments to compilers, test runners, or sub-processes. CONGA provides two dedicated containers for trailing tokens:
@@ -81,8 +83,10 @@ Many command-line tools wrap existing utilities or forward arguments to compiler
 ### DashArgs for delimited forwarding
 `conga.DashArgs` captures tokens that appear after the standard POSIX `--` delimiter. The host application parses its own flags up to the delimiter, and places all subsequent tokens into `DashArgs`. Tools like `go test` use this pattern to separate build options from test binary flags (for example, `go test ./... -- -v`).
 
+`--` also ends subcommand routing for the rest of the invocation: no token after the delimiter is matched against a `Command[T]` name, even when the active command declares no trailing collector. Without a `DashArgs` field, post-terminator tokens are positional input, and a branch command (which cannot also declare positional arguments) rejects them; `myctl -- deploy` therefore fails instead of selecting the `deploy` subcommand. Shell completion follows the same boundary: it offers no subcommand candidates after `--`, and no candidates at all when the active command has neither a positional slot nor a trailing collector for the word.
+
 ### RawArgs for command passthrough
-`conga.RawArgs` captures trailing tokens without requiring a `--` delimiter. Once the parser encounters an argument at the `RawArgs` position, flag parsing stops immediately and all remaining arguments are captured as-is. Tools like `docker run` use this pattern to pass arbitrary commands to container runtimes (for example, `docker run alpine echo hello`).
+`conga.RawArgs` captures trailing tokens without requiring a `--` delimiter. It is a leaf-only collector: the command cannot declare subcommands, and the positional arguments before it must be required scalars; use `conga.DashArgs` when the command also branches. Once the parser encounters an argument at the `RawArgs` position, flag parsing stops immediately and all remaining arguments are captured as-is. Tools like `docker run` use this pattern to pass arbitrary commands to container runtimes (for example, `docker run alpine echo hello`).
 
 Both trailing containers expose `Get() []string`, `GetOr()`, `Len()`, and `IsSet()`.
 

@@ -1569,7 +1569,7 @@ type analysisDeployCLI struct {
 }
 
 type analysisRawCLI struct {
-	First mockArg[string]
+	First mockReqArg[string]
 	Raw   mockRawArgs
 }
 
@@ -1785,6 +1785,392 @@ func TestAnalyzeCompletion(t *testing.T) {
 		assert.Equal(t, "deploy", analysis.CommandChain[len(analysis.CommandChain)-1].Name)
 		assert.Equal(t, []string{"--unknown-flag"}, analysis.RawArgs)
 		assert.Equal(t, 0, len(analysis.PositionalArgs))
+	})
+}
+
+// trailingPredictors returns the registered custom predictors shared by the
+// trailing-collector completion fixtures.
+func trailingPredictors() map[string]predict.Predictor {
+	return map[string]predict.Predictor{
+		"tasks":       predict.Values("build", "deploy"),
+		"trailing":    predict.Values("forwarded-one", "forwarded-two"),
+		"dash-values": predict.Values("dash-one"),
+		"raw-values":  predict.Values("raw-one"),
+	}
+}
+
+type trailingDashTaggedCLI struct {
+	Tasks mockArg[[]string] `name:"task"          predictor:"tasks" sep:"none"`
+	Dash  mockDashArgs      `predictor:"trailing"`
+}
+
+type trailingDashCLI struct {
+	Tasks mockArg[[]string] `name:"task" predictor:"tasks" sep:"none"`
+	Dash  mockDashArgs
+}
+
+type trailingDashNoneCLI struct {
+	Tasks mockArg[[]string] `name:"task"      predictor:"tasks" sep:"none"`
+	Dash  mockDashArgs      `predictor:"none"`
+}
+
+type trailingRawCLI struct {
+	Image   mockReqArg[string] `name:"image"`
+	Verbose mockFlag[bool]     `short:"v"`
+	Raw     mockRawArgs        `predictor:"trailing"`
+}
+
+type trailingBothCLI struct {
+	First mockReqArg[string] `name:"first"`
+	Dash  mockDashArgs       `predictor:"dash-values"`
+	Raw   mockRawArgs        `predictor:"raw-values"`
+}
+
+type trailingRawAttachedCLI struct {
+	Image   mockReqArg[string] `name:"image"`
+	Profile mockFlag[string]   `name:"profile"         predictor:"tasks"`
+	Raw     mockRawArgs        `predictor:"raw-values"`
+}
+
+type trailingDashAttachedCLI struct {
+	Target mockReqArg[string] `name:"target"`
+	Tag    mockFlag[string]   `name:"tag"              predictor:"tasks"`
+	Dash   mockDashArgs       `predictor:"dash-values"`
+}
+
+type trailingPendingValueCLI struct {
+	Target mockReqArg[string] `name:"target"`
+	Tag    mockFlag[string]   `name:"tag"              predictor:"tasks"`
+	Group  mockFlag[string]   `name:"group"            predictor:"dash-values"`
+	Dash   mockDashArgs       `predictor:"dash-values"`
+}
+
+func TestCompletion_TrailingArgsPrediction(t *testing.T) {
+	t.Parallel()
+
+	t.Run("declared positional completes while no terminator is present", func(t *testing.T) {
+		t.Parallel()
+
+		var cli trailingDashTaggedCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{RegisteredPredictors: trailingPredictors()})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"bu"}, spec.CompleteOptions{RegisteredPredictors: trailingPredictors()})
+
+		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
+		assert.Equal(t, []string{"build"}, values)
+	})
+
+	t.Run("dash args use their own predictor instead of the positional predictor", func(t *testing.T) {
+		t.Parallel()
+
+		var cli trailingDashTaggedCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{RegisteredPredictors: trailingPredictors()})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"build", "--", ""}, spec.CompleteOptions{RegisteredPredictors: trailingPredictors()})
+
+		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
+		assert.Equal(t, []string{"forwarded-one", "forwarded-two"}, values)
+		assert.False(t, slices.Contains(values, "deploy"))
+	})
+
+	t.Run("untagged dash args offer no candidates", func(t *testing.T) {
+		t.Parallel()
+
+		var cli trailingDashCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{RegisteredPredictors: trailingPredictors()})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"build", "--", ""}, spec.CompleteOptions{RegisteredPredictors: trailingPredictors()})
+
+		assert.Zero(t, invoked.Items)
+	})
+
+	t.Run("dash args predictor none offers no candidates", func(t *testing.T) {
+		t.Parallel()
+
+		var cli trailingDashNoneCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{RegisteredPredictors: trailingPredictors()})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"build", "--", ""}, spec.CompleteOptions{RegisteredPredictors: trailingPredictors()})
+
+		assert.Zero(t, invoked.Items)
+	})
+
+	t.Run("dash args win over raw args at the terminator", func(t *testing.T) {
+		t.Parallel()
+
+		var cli trailingBothCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{RegisteredPredictors: trailingPredictors()})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"a", "--", ""}, spec.CompleteOptions{RegisteredPredictors: trailingPredictors()})
+
+		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
+		assert.Equal(t, []string{"dash-one"}, values)
+	})
+
+	t.Run("raw args take over once declared arguments are full", func(t *testing.T) {
+		t.Parallel()
+
+		var cli trailingRawCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{RegisteredPredictors: trailingPredictors()})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"img", ""}, spec.CompleteOptions{RegisteredPredictors: trailingPredictors()})
+
+		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
+		assert.Equal(t, []string{"forwarded-one", "forwarded-two"}, values)
+	})
+
+	t.Run("known flags stay available before raw mode starts", func(t *testing.T) {
+		t.Parallel()
+
+		var cli trailingRawCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{RegisteredPredictors: trailingPredictors()})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"img", "-"}, spec.CompleteOptions{RegisteredPredictors: trailingPredictors()})
+
+		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
+		assert.True(t, slices.Contains(values, "--verbose"))
+		assert.True(t, slices.Contains(values, "-v"))
+	})
+
+	t.Run("host flags are suppressed once raw mode is active", func(t *testing.T) {
+		t.Parallel()
+
+		var cli trailingRawCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{RegisteredPredictors: trailingPredictors()})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"img", "extra", "-"}, spec.CompleteOptions{RegisteredPredictors: trailingPredictors()})
+
+		assert.Zero(t, invoked.Items)
+	})
+
+	t.Run("an unknown flag starts raw mode", func(t *testing.T) {
+		t.Parallel()
+
+		var cli trailingRawCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{RegisteredPredictors: trailingPredictors()})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"img", "--unknown", ""}, spec.CompleteOptions{RegisteredPredictors: trailingPredictors()})
+
+		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
+		assert.Equal(t, []string{"forwarded-one", "forwarded-two"}, values)
+	})
+
+	t.Run("raw mode swallows a later terminator", func(t *testing.T) {
+		t.Parallel()
+
+		var cli trailingBothCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{RegisteredPredictors: trailingPredictors()})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"a", "extra", "--", ""}, spec.CompleteOptions{RegisteredPredictors: trailingPredictors()})
+
+		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
+		assert.Equal(t, []string{"raw-one"}, values)
+	})
+
+	t.Run("attached flag values stay hidden in raw mode", func(t *testing.T) {
+		t.Parallel()
+
+		var cli trailingRawAttachedCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{RegisteredPredictors: trailingPredictors()})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"img", "extra", "--profile=bu"}, spec.CompleteOptions{RegisteredPredictors: trailingPredictors()})
+
+		assert.Zero(t, invoked.Items)
+	})
+
+	t.Run("attached flag values stay hidden after the terminator", func(t *testing.T) {
+		t.Parallel()
+
+		var cli trailingDashAttachedCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{RegisteredPredictors: trailingPredictors()})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"target", "--", "--tag=bu"}, spec.CompleteOptions{RegisteredPredictors: trailingPredictors()})
+
+		assert.Zero(t, invoked.Items)
+	})
+
+	t.Run("attached flag values complete before raw mode starts", func(t *testing.T) {
+		t.Parallel()
+
+		var cli trailingRawAttachedCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{RegisteredPredictors: trailingPredictors()})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"--profile=bu"}, spec.CompleteOptions{RegisteredPredictors: trailingPredictors()})
+
+		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
+		assert.Equal(t, []string{"--profile=build"}, values)
+	})
+
+	t.Run("attached flag values complete before the terminator", func(t *testing.T) {
+		t.Parallel()
+
+		var cli trailingDashAttachedCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{RegisteredPredictors: trailingPredictors()})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"target", "--tag=bu"}, spec.CompleteOptions{RegisteredPredictors: trailingPredictors()})
+
+		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
+		assert.Equal(t, []string{"--tag=build"}, values)
+	})
+}
+
+func TestCompletion_TerminatorWithoutCollector(t *testing.T) {
+	t.Parallel()
+
+	t.Run("branch command offers no candidates after the terminator", func(t *testing.T) {
+		t.Parallel()
+
+		tmpDir := t.TempDir()
+		assert.NoError(t, os.WriteFile(filepath.Join(tmpDir, "manifest.yaml"), []byte("x"), 0o600))
+
+		var cli SubcommandTestCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"--", ""}, spec.CompleteOptions{Dir: tmpDir})
+
+		assert.Zero(t, invoked.Items)
+		assert.True(t, invoked.Directive.Has(predict.DirectiveNoFileCompletion))
+	})
+
+	t.Run("leaf with exhausted positionals offers no candidates after the terminator", func(t *testing.T) {
+		t.Parallel()
+
+		type LeafCLI struct {
+			First  mockReqArg[string]
+			Second mockReqArg[string]
+		}
+
+		tmpDir := t.TempDir()
+		assert.NoError(t, os.WriteFile(filepath.Join(tmpDir, "manifest.yaml"), []byte("x"), 0o600))
+
+		var cli LeafCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"one", "two", "--", ""}, spec.CompleteOptions{Dir: tmpDir})
+
+		assert.Zero(t, invoked.Items)
+		assert.True(t, invoked.Directive.Has(predict.DirectiveNoFileCompletion))
+	})
+}
+
+func TestCompletion_PendingFlagValueBoundary(t *testing.T) {
+	t.Parallel()
+
+	t.Run("terminator abandons the pending flag value and starts the trailing section", func(t *testing.T) {
+		t.Parallel()
+
+		var cli trailingPendingValueCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{RegisteredPredictors: trailingPredictors()})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"target", "--tag", "--", ""}, spec.CompleteOptions{RegisteredPredictors: trailingPredictors()})
+
+		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
+		assert.Equal(t, []string{"dash-one"}, values)
+	})
+
+	t.Run("flag-shaped token abandons the pending flag value", func(t *testing.T) {
+		t.Parallel()
+
+		var cli trailingPendingValueCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{RegisteredPredictors: trailingPredictors()})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"target", "--tag", "--group", ""}, spec.CompleteOptions{RegisteredPredictors: trailingPredictors()})
+
+		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
+		assert.Equal(t, []string{"dash-one"}, values)
+	})
+
+	t.Run("built-in completion flag takes an empty value at the terminator", func(t *testing.T) {
+		t.Parallel()
+
+		var cli trailingPendingValueCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{RegisteredPredictors: trailingPredictors()})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"--completion", "--", ""}, spec.CompleteOptions{RegisteredPredictors: trailingPredictors()})
+
+		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
+		assert.Equal(t, []string{"dash-one"}, values)
+	})
+
+	t.Run("terminator and flag-shaped tokens are not bound as flag values", func(t *testing.T) {
+		t.Parallel()
+
+		var cli trailingPendingValueCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{RegisteredPredictors: trailingPredictors()})
+		assert.NoError(t, err)
+
+		analysis := spec.AnalyzeCompletion(cmdSpec, []string{"target", "--tag", "--", "forwarded", ""})
+
+		assert.Zero(t, analysisFlagValues(t, analysis.FlagValues, "tag"))
+		assert.Equal(t, []string{"forwarded"}, analysis.DashArgs)
+		assert.Equal(t, []string{"target"}, analysis.PositionalArgs)
+	})
+
+	t.Run("built-in completion flag records an empty value in the analysis", func(t *testing.T) {
+		t.Parallel()
+
+		var cli trailingPendingValueCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{RegisteredPredictors: trailingPredictors()})
+		assert.NoError(t, err)
+
+		analysis := spec.AnalyzeCompletion(cmdSpec, []string{"--completion", "--", "forwarded", ""})
+
+		assert.Equal(t, []string{""}, analysisFlagValues(t, analysis.FlagValues, "completion"))
+		assert.Equal(t, []string{"forwarded"}, analysis.DashArgs)
+	})
+
+	t.Run("negative number still binds as the flag value", func(t *testing.T) {
+		t.Parallel()
+
+		var cli trailingPendingValueCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{RegisteredPredictors: trailingPredictors()})
+		assert.NoError(t, err)
+
+		analysis := spec.AnalyzeCompletion(cmdSpec, []string{"target", "--tag", "-5", ""})
+
+		assert.Equal(t, []string{"-5"}, analysisFlagValues(t, analysis.FlagValues, "tag"))
+		assert.Equal(t, []string{"target"}, analysis.PositionalArgs)
 	})
 }
 

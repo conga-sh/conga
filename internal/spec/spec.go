@@ -276,7 +276,8 @@ func (r *Range) HintText() string {
 // PredictorKind identifies the type of completion predictor.
 type PredictorKind int
 
-// PredictorSpec represents the parsed predictor configuration on a flag or positional argument.
+// PredictorSpec represents the parsed predictor configuration on a flag,
+// positional argument, or trailing-argument collector.
 type PredictorSpec struct {
 	Kind      PredictorKind
 	Name      string
@@ -399,7 +400,13 @@ type Arg struct {
 
 // DashArgs represents the binder for arguments explicitly passed after '--'.
 type DashArgs struct {
-	Name      string
+	Name string
+	// Predictor declares the completion candidates for the captured tokens.
+	// The none predictor means no candidates (the collector is opaque); schema
+	// build stores it when the tag is absent, and a nil field behaves the same
+	// for hand-built specs. Only the explicit predictor struct tag applies;
+	// type inference never runs for a trailing collector.
+	Predictor *PredictorSpec
 	Bootstrap bool
 	// Handle is the engine's opaque handle to the '--' trailing-arguments
 	// container value. It is never inspected by this package and nil when not
@@ -409,7 +416,14 @@ type DashArgs struct {
 
 // RawArgs represents the binder for unparsed trailing raw arguments.
 type RawArgs struct {
-	Name      string
+	Name string
+	// Predictor declares the completion candidates for the captured tokens
+	// once raw mode begins. The none predictor means no candidates (the
+	// collector is opaque); schema build stores it when the tag is absent, and
+	// a nil field behaves the same for hand-built specs. Only the explicit
+	// predictor struct tag applies; type inference never runs for a trailing
+	// collector.
+	Predictor *PredictorSpec
 	Bootstrap bool
 	// Handle is the engine's opaque handle to the raw trailing-tokens
 	// container value. It is never inspected by this package and nil when not

@@ -1,0 +1,16 @@
+{
+  "items": [
+    {
+      "value": "forwarded.txt",
+      "display": "forwarded.txt",
+      "tag": "files"
+    }
+  ],
+  "directives": {
+    "error": false,
+    "keeporder": false,
+    "nofilecomp": true,
+    "nospace": false
+  },
+  "usage": ""
+}

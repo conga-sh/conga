@@ -184,7 +184,8 @@ type corpusScenario struct {
 	CompPoint int               `json:"comppoint,omitempty"`
 	// App selects the fixture application: "" is the main corpus app, "map"
 	// the dedicated map app whose labels flag carries a registered map value
-	// predictor (key/value phase and multi-entry dedup semantics).
+	// predictor (key/value phase and multi-entry dedup semantics), "trailing"
+	// the dedicated trailing-collector app.
 	App string `json:"app,omitempty"`
 }
 
@@ -256,6 +257,61 @@ func newCorpusMapApp() *conga.App[corpusMapRoot] {
 	return app
 }
 
+// corpusTrailingRoot is the root of the dedicated trailing-collector fixture
+// application: DashArgs with and without a predictor, RawArgs after overflow,
+// and a command declaring both collectors.
+type corpusTrailingRoot struct {
+	Verbose conga.OptionalFlag[bool] `help:"Enable verbose output" short:"v"`
+
+	Forward conga.Command[corpusTrailingRun]   `summary:"Forward via tagged DashArgs"`
+	Quiet   conga.Command[corpusTrailingQuiet] `summary:"Forward via untagged DashArgs"`
+	Exec    conga.Command[corpusTrailingExec]  `summary:"Forward via tagged RawArgs"`
+	Both    conga.Command[corpusTrailingBoth]  `summary:"Declare both collectors"`
+}
+
+// Run is the no-op trailing root execution hook.
+func (c *corpusTrailingRoot) Run(ctx context.Context, session *conga.Session) error { return nil }
+
+type corpusTrailingRun struct {
+	Target conga.RequiredArg[string] `name:"<target>"`
+	Dash   conga.DashArgs            `predictor:"file"`
+}
+
+// Run is the no-op tagged dash execution hook.
+func (c *corpusTrailingRun) Run(ctx context.Context, session *conga.Session) error { return nil }
+
+type corpusTrailingQuiet struct {
+	Target conga.RequiredArg[string] `name:"<target>"`
+	Dash   conga.DashArgs
+}
+
+// Run is the no-op untagged dash execution hook.
+func (c *corpusTrailingQuiet) Run(ctx context.Context, session *conga.Session) error { return nil }
+
+type corpusTrailingExec struct {
+	Image conga.RequiredArg[string] `name:"<image>"`
+	Raw   conga.RawArgs             `predictor:"file"`
+}
+
+// Run is the no-op raw execution hook.
+func (c *corpusTrailingExec) Run(ctx context.Context, session *conga.Session) error { return nil }
+
+type corpusTrailingBoth struct {
+	Target conga.RequiredArg[string] `name:"<target>"`
+	Dash   conga.DashArgs
+	Raw    conga.RawArgs `predictor:"file"`
+}
+
+// Run is the no-op combined-collector execution hook.
+func (c *corpusTrailingBoth) Run(ctx context.Context, session *conga.Session) error { return nil }
+
+func newCorpusTrailingApp() *conga.App[corpusTrailingRoot] {
+	return conga.New[corpusTrailingRoot]().
+		EnableCompletion().
+		Name("corpusctl").
+		Description("Corpus trailing-argument fixture application for completion driver conformance")
+}
+
 func corpusScenarios() []corpusScenario {
 	return []corpusScenario{
 		{Name: "root-bare-export", Shell: "export", Words: []string{""}},
@@ -299,6 +355,13 @@ func corpusScenarios() []corpusScenario {
 		{Name: "map-values-separate", Shell: "export", Words: []string{"deploy", "--labels", "team="}, App: "map"},
 		{Name: "map-multi-entry-key-dedup", Shell: "export", Words: []string{"deploy", "--labels", "team=core,"}, App: "map"},
 		{Name: "map-repeated-key-value-dedup", Shell: "export", Words: []string{"deploy", "--labels", "owner=alice,owner="}, App: "map"},
+		{Name: "trailing-dash-files", Shell: "export", Words: []string{"forward", "svc", "--", ""}, Files: []string{"manifest.yaml"}, App: "trailing"},
+		{Name: "trailing-dash-none", Shell: "export", Words: []string{"quiet", "svc", "--", ""}, App: "trailing"},
+		{Name: "trailing-both-dash-wins", Shell: "export", Words: []string{"both", "svc", "--", ""}, App: "trailing"},
+		{Name: "trailing-both-raw-swallows", Shell: "export", Words: []string{"both", "svc", "extra", "--", ""}, Files: []string{"forwarded.txt"}, App: "trailing"},
+		{Name: "trailing-raw-files", Shell: "export", Words: []string{"exec", "img", ""}, Files: []string{"script.sh"}, App: "trailing"},
+		{Name: "trailing-raw-known-flag", Shell: "export", Words: []string{"exec", "img", "-"}, App: "trailing"},
+		{Name: "trailing-raw-active-suppresses-flags", Shell: "export", Words: []string{"exec", "img", "extra", "-"}, App: "trailing"},
 		{Name: "root-hidden-flag-excluded", Shell: "export", Words: []string{"--sec"}},
 		{Name: "root-deprecated-flag", Shell: "export", Words: []string{"--leg"}},
 		{Name: "exec-default-flag", Shell: "export", Words: []string{"exec", "--namespace", ""}},
@@ -325,6 +388,10 @@ func captureCorpusScenario(scenario corpusScenario) ([]byte, []byte) {
 
 		if scenario.App == "whyjson" {
 			return captureCorpusResult(newCorpusWhyJSONApp(), scenario)
+		}
+
+		if scenario.App == "trailing" {
+			return captureCorpusResult(newCorpusTrailingApp(), scenario)
 		}
 
 		return captureCorpusResult(newCorpusApp(), scenario)

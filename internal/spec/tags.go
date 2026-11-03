@@ -360,6 +360,16 @@ func ParseFlagShort(tag reflect.StructTag) rune {
 	return extractFlagShort(tag)
 }
 
+// DefaultArgName returns the positional-argument display name used in usage
+// syntax and diagnostics: the name tag when present, else the angle-bracketed
+// kebab-case struct field name. The runtime schema builder and the static
+// analyzer share it as the single source of truth.
+func DefaultArgName(fieldName string, tag reflect.StructTag) string {
+	return cond.SetOrDefaultFunc(tag.Get("name"), func() string {
+		return "<" + casing.Kebab(fieldName) + ">"
+	})
+}
+
 type flagKindInfo struct {
 	targetType  reflect.Type
 	isBool      bool
@@ -961,9 +971,7 @@ func isUnsignedKind(kind reflect.Kind) bool {
 }
 
 func parseArgSpec(structField reflect.StructField, argHandle any, classification container.Classification, fieldTags FieldTags, opts *Options) (*Arg, error) {
-	name := cond.SetOrDefaultFunc(structField.Tag.Get("name"), func() string {
-		return fmt.Sprintf("<%s>", casing.Kebab(structField.Name))
-	})
+	name := DefaultArgName(structField.Name, structField.Tag)
 
 	innerType := extractGenericType(structField.Type)
 	isSlice := innerType.Kind() == reflect.Slice

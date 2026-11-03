@@ -47,7 +47,7 @@ The `enum` tag validates against the field's coerced value. When a type's `Unmar
 
 ## Positional arguments (`OptionalArg[T]`, `RequiredArg[T]`)
 
-Positional arguments bind to command-line input.
+Positional arguments bind to command-line input. They belong to leaf commands: a command that declares positional arguments cannot also declare `Command[T]` subcommands, and schema build rejects the mix with `ErrSchema`. Declare positionals on the leaf that executes, and pass shared context through inherited flags instead.
 
 | Tag | Optional | Required | Meaning |
 |-----|:--------:|:--------:|---------|
@@ -117,6 +117,8 @@ Referencing an undeclared variable fails schema build with `ErrSchema`: `{{range
 Long value lists can overwhelm a help line. Set `enumhint:"-"` on a flag, positional argument, or `Features` container to suppress the automatic `[enum: ...]` hint while keeping the values validated and completed. The tag's only accepted value is `-`; it is rejected on fields that declare no enum values, and it conflicts with a `help` tag that already references `{{enum}}` (inlining the values and hiding them are contradictory requests).
 
 ## Subcommands (`Command[T]`)
+
+A command that declares `Command[T]` fields is a branch: it routes to its subcommands and may not also declare positional arguments. Built-in help, version, and completion command fields do not count as branching.
 
 | Tag | Meaning |
 |-----|---------|
@@ -235,6 +237,11 @@ Feature names are kebab-cased. A key may use any spelling of a declared name (ke
 | Tag | Meaning |
 |-----|---------|
 | `name` | Placeholder name in usage syntax. |
+| `predictor` | Completion candidates for the collected words, using the same vocabulary as flags and positional arguments (`file`, `file:*.yml`, `dir`, `exec`, `symlink`, `none`, or a registered custom name). |
+
+An untagged collector offers no completion candidates: the collected words are opaque forwarded arguments, so the framework does not guess a domain. `DashArgs` candidates cover the words after `--`; `RawArgs` candidates cover the words captured once raw mode begins (the first overflowing positional or unknown flag after every declared required positional is filled). Forwarded words never reuse a declared positional argument's predictor, and they do not suppress previously forwarded values.
+
+`RawArgs` is a leaf-only collector: it cannot be combined with subcommands, and every positional argument declared before it must be required and scalar. Use `DashArgs` when the command also declares subcommands. Schema build and `conga-lint` reject the ambiguous combinations.
 
 ## Domain-type tags
 

@@ -118,6 +118,19 @@ func (t Token) IsNegativeNumber() bool {
 	return false
 }
 
+// CanBindAsFlagValue reports whether the token may be consumed as the next
+// value of a flag. A flag-shaped token (long flag, short flag, or the "--"
+// terminator) never binds as a value unless it is a negative number, which the
+// parser treats as an operand. The runtime parser and the completion walker
+// share this rule so their value attribution cannot drift.
+func (t Token) CanBindAsFlagValue() bool {
+	if t.Type == TokenTypeLongFlag || t.Type == TokenTypeShortFlag || t.Type == TokenTypeTerminator {
+		return t.IsNegativeNumber()
+	}
+
+	return true
+}
+
 func tokenizeLongFlag(arg string, index int) Token {
 	nameAndValue := arg[2:]
 	before, after, ok := strings.Cut(nameAndValue, "=")

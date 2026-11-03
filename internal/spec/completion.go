@@ -107,6 +107,7 @@ type astCompletionWalker struct {
 	nonRepeatableSet map[*Flag]bool
 	posArgs          []string
 	inTerminator     bool
+	rawActive        bool
 	pendingFlagValue *Flag
 
 	analysisLeaf         *Command
@@ -137,19 +138,43 @@ func (w *astCompletionWalker) walkTokens(toks []tokenizer.Token) {
 	}
 }
 
+// canFallbackToRaw reports whether the runtime parser would route the next
+// unbound token into RawArgs: the routed command declares RawArgs and every
+// declared positional argument is already filled.
+func (w *astCompletionWalker) canFallbackToRaw() bool {
+	return w.currentCmd.RawArgs != nil && len(w.posArgs) >= len(w.currentCmd.Args)
+}
+
 func (w *astCompletionWalker) consumeToken(tok tokenizer.Token) {
 	if w.pendingFlagValue != nil {
-		w.consumePendingFlagValue(tok.Raw)
+		if tok.CanBindAsFlagValue() {
+			w.consumePendingFlagValue(tok.Raw)
 
-		return
+			return
+		}
+
+		// binder.go consumeNextValue refuses this token as a flag value and
+		// reports "flag requires an argument"; the walker stays tolerant: the
+		// flag is left unfilled and the token is processed on its own shape.
+		// The built-in --completion flag takes an empty value instead
+		// (handleCompletionFlag) and keeps parsing.
+		if w.pendingFlagValue == BuiltinCompletionFlag {
+			w.consumePendingFlagValue("")
+		} else {
+			w.pendingFlagValue = nil
+		}
 	}
 
 	matchedSubcommand := w.matchSubcommand(tok)
 
 	w.trackAnalysisToken(tok, matchedSubcommand)
 
+	if w.rawActive {
+		return
+	}
+
 	if w.inTerminator {
-		w.posArgs = append(w.posArgs, tok.Raw)
+		w.consumeTerminatorToken(tok)
 
 		return
 	}
@@ -166,6 +191,24 @@ func (w *astCompletionWalker) consumeToken(tok tokenizer.Token) {
 	case tokenizer.TokenTypeUnknown:
 		// No-op for unclassified token
 	}
+}
+
+// consumeTerminatorToken attributes a token after the -- terminator. Words
+// captured by DashArgs are opaque and never fill declared positionals; without
+// DashArgs they bind positionals until the runtime parser overflows into
+// RawArgs.
+func (w *astCompletionWalker) consumeTerminatorToken(tok tokenizer.Token) {
+	if w.currentCmd.DashArgs != nil {
+		return
+	}
+
+	if w.canFallbackToRaw() {
+		w.rawActive = true
+
+		return
+	}
+
+	w.posArgs = append(w.posArgs, tok.Raw)
 }
 
 // matchSubcommand resolves a positional token against the current command's
@@ -364,6 +407,36 @@ func (w *astCompletionWalker) markFlagConsumed(flag *Flag, hasAttached bool, att
 	}
 }
 
+// consumeUnregisteredShorthand handles a short-flag token before cluster
+// parsing when it is an unregistered shorthand — including a negative number
+// that is not a registered shorthand — and reports whether the token was
+// consumed. The runtime parser binds an unregistered shorthand to RawArgs when
+// the declared positionals are full and reports an unknown flag otherwise; a
+// negative number binds as a positional when raw fallback is not available.
+func (w *astCompletionWalker) consumeUnregisteredShorthand(tok tokenizer.Token) bool {
+	runes := tok.ShortRunes
+
+	if tok.IsNegativeNumber() && (len(runes) == 0 || FindShortFlagInChain(w.cmdChain, runes[0]) == nil) {
+		if w.canFallbackToRaw() {
+			w.rawActive = true
+		} else {
+			w.posArgs = append(w.posArgs, tok.Raw)
+		}
+
+		return true
+	}
+
+	if len(runes) > 0 && FindShortFlagInChain(w.cmdChain, runes[0]) == nil {
+		if w.canFallbackToRaw() {
+			w.rawActive = true
+		}
+
+		return true
+	}
+
+	return false
+}
+
 func (w *astCompletionWalker) consumeLongFlag(tok tokenizer.Token) {
 	flag := FindFlagInChain(w.cmdChain, tok.Name)
 
@@ -375,6 +448,10 @@ func (w *astCompletionWalker) consumeLongFlag(tok tokenizer.Token) {
 	}
 
 	if flag == nil {
+		if w.canFallbackToRaw() {
+			w.rawActive = true
+		}
+
 		return
 	}
 
@@ -383,6 +460,10 @@ func (w *astCompletionWalker) consumeLongFlag(tok tokenizer.Token) {
 
 func (w *astCompletionWalker) consumeShortFlag(tok tokenizer.Token) {
 	runes := tok.ShortRunes
+
+	if w.consumeUnregisteredShorthand(tok) {
+		return
+	}
 
 	for index := range runes {
 		flag := FindShortFlagInChain(w.cmdChain, runes[index])
@@ -445,9 +526,17 @@ func (w *astCompletionWalker) consumePositional(tok tokenizer.Token, matchedSubc
 		w.currentCmd = matchedSubcommand
 		w.cmdChain = append(w.cmdChain, w.currentCmd)
 		w.posArgs = make([]string, 0)
-	} else {
-		w.posArgs = append(w.posArgs, tok.Raw)
+
+		return
 	}
+
+	if w.canFallbackToRaw() {
+		w.rawActive = true
+
+		return
+	}
+
+	w.posArgs = append(w.posArgs, tok.Raw)
 }
 
 func (w *astCompletionWalker) buildCompletionContext(toComplete string) predict.Context {
@@ -519,18 +608,27 @@ func (w *astCompletionWalker) resolveTarget(toComplete string) predict.Result {
 		return w.completePendingFlag(toComplete, compCtx)
 	}
 
-	if strings.Contains(toComplete, "=") {
-		if invoked, handled := w.completeAttachedFlag(toComplete, compCtx); handled {
-			return invoked
-		}
+	if w.rawActive {
+		return w.trailingArgsAction(w.currentCmd.RawArgs.Predictor).Invoke(compCtx)
 	}
 
 	if w.inTerminator {
 		return w.completeTerminatorPositional(compCtx)
 	}
 
+	if strings.Contains(toComplete, "=") {
+		if invoked, handled := w.completeAttachedFlag(toComplete, compCtx); handled {
+			return invoked
+		}
+	}
+
 	if strings.HasPrefix(toComplete, "-") {
-		return w.completeFlagNamesAction(compCtx.ToComplete).Invoke(compCtx)
+		flagAction := w.completeFlagNamesAction(compCtx.ToComplete)
+		if w.canFallbackToRaw() {
+			return predict.Batch(flagAction, w.trailingArgsAction(w.currentCmd.RawArgs.Predictor)).Invoke(compCtx)
+		}
+
+		return flagAction.Invoke(compCtx)
 	}
 
 	cmdOrArgAction := w.completeSubcommandsAndArgsAction(toComplete)
@@ -597,18 +695,43 @@ func (w *astCompletionWalker) completeAttachedFlag(toComplete string, compCtx pr
 	return invoked, true
 }
 
-func (w *astCompletionWalker) completeTerminatorPositional(compCtx predict.Context) predict.Result {
-	posIndex := len(w.posArgs)
-	arg := getArgSpec(w.currentCmd, posIndex)
-
-	if arg != nil {
-		baseAction := resolveArgAction(arg, w.opts.RegisteredPredictors)
-		action := wrapSliceAction(baseAction, arg.IsSlice, arg.Sep, compCtx.Args).Tag("arguments")
-
-		return action.Invoke(compCtx)
+// trailingArgsAction resolves the completion strategy for a trailing
+// collector. An untagged collector yields no candidates: the words are opaque,
+// so the engine does not guess a domain. Unlike a slice positional, repeated
+// words are legitimate forwarded arguments, so no value exclusion applies.
+func (w *astCompletionWalker) trailingArgsAction(predictorSpec *PredictorSpec) predict.Predictor {
+	if predictorSpec == nil {
+		return predict.None().Tag("arguments")
 	}
 
-	return predict.Files().Invoke(compCtx)
+	action, ok := resolvePredictorSpec(predictorSpec, w.opts.RegisteredPredictors)
+	if !ok {
+		return predict.None().Tag("arguments")
+	}
+
+	return action.Tag("arguments")
+}
+
+func (w *astCompletionWalker) completeTerminatorPositional(compCtx predict.Context) predict.Result {
+	if w.currentCmd.DashArgs != nil {
+		return w.trailingArgsAction(w.currentCmd.DashArgs.Predictor).Invoke(compCtx)
+	}
+
+	if w.canFallbackToRaw() {
+		return w.trailingArgsAction(w.currentCmd.RawArgs.Predictor).Invoke(compCtx)
+	}
+
+	posIndex := len(w.posArgs)
+
+	arg := getArgSpec(w.currentCmd, posIndex)
+	if arg == nil {
+		return predict.None().Invoke(compCtx)
+	}
+
+	baseAction := resolveArgAction(arg, w.opts.RegisteredPredictors)
+	action := wrapSliceAction(baseAction, arg.IsSlice, arg.Sep, compCtx.Args).Tag("arguments")
+
+	return action.Invoke(compCtx)
 }
 
 func (w *astCompletionWalker) completeFlagNamesAction(toComplete string) predict.Predictor {
@@ -848,7 +971,12 @@ func (w *astCompletionWalker) builtinWhyItems() []predict.Item {
 }
 
 func (w *astCompletionWalker) completeSubcommandsAndArgsAction(toComplete string) predict.Predictor {
+	if w.canFallbackToRaw() {
+		return w.trailingArgsAction(w.currentCmd.RawArgs.Predictor)
+	}
+
 	subCmdItems := w.collectSubcommandCandidates(toComplete)
+
 	posIndex := len(w.posArgs)
 	arg := getArgSpec(w.currentCmd, posIndex)
 

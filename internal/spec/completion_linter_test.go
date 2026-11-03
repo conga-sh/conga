@@ -64,6 +64,31 @@ type ContextPredictorRawArgsCLI struct {
 	Raw mockRawArgs `name:"raw" predictor:"file"`
 }
 
+type InvalidTrailingDashPredictorCLI struct {
+	Trailing mockDashArgs `predictor:"files"`
+}
+
+type InvalidTrailingRawPredictorCLI struct {
+	Raw mockRawArgs `predictor:"dir:*.png"`
+}
+
+type EmptyTrailingDashPredictorCLI struct {
+	Trailing mockDashArgs `predictor:""`
+}
+
+type UnregisteredTrailingRawPredictorCLI struct {
+	Raw mockRawArgs `predictor:"branches"`
+}
+
+type RegisteredTrailingDashPredictorCLI struct {
+	Trailing mockDashArgs `predictor:"branches"`
+}
+
+type UntaggedTrailingCLI struct {
+	Trailing mockDashArgs
+	Raw      mockRawArgs
+}
+
 type ContextPredictorConfigFileCLI struct {
 	Config mockConfigFile `help:"Config file" predictor:"file"`
 }
@@ -272,7 +297,7 @@ func TestStrictPredictorLinter_ContextValidation(t *testing.T) {
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
 		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct ContextPredictorSubcommandCLI field Subcommand: schema error: invalid struct tag: tag "predictor" is invalid on subcommand (tag "predictor" is only valid on flags and positional arguments)`, err.Error())
+		assert.Equal(t, `struct ContextPredictorSubcommandCLI field Subcommand: schema error: invalid struct tag: tag "predictor" is invalid on subcommand (tag "predictor" is only valid on flags, positional arguments, and trailing-argument collectors)`, err.Error())
 	})
 
 	t.Run("predictor tag on sentinel field errors", func(t *testing.T) {
@@ -285,33 +310,109 @@ func TestStrictPredictorLinter_ContextValidation(t *testing.T) {
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
 		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct ContextPredictorSentinelCLI field _: schema error: invalid struct tag: tag "predictor" is invalid on sentinel field (tag "predictor" is only valid on flags and positional arguments)`, err.Error())
+		assert.Equal(t, `struct ContextPredictorSentinelCLI field _: schema error: invalid struct tag: tag "predictor" is invalid on sentinel field (tag "predictor" is only valid on flags, positional arguments, and trailing-argument collectors)`, err.Error())
 	})
 
-	t.Run("predictor tag on dash args errors", func(t *testing.T) {
+	t.Run("predictor tag on dash args builds successfully", func(t *testing.T) {
 		t.Parallel()
 
 		var cli ContextPredictorDashArgsCLI
 
-		_, err := buildSchema(&cli, "app", spec.Options{})
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
 
-		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct ContextPredictorDashArgsCLI field Trailing: schema error: invalid struct tag: tag "predictor" is invalid on dash args (tag "predictor" is only valid on flags and positional arguments)`, err.Error())
+		assert.NoError(t, err)
+		assert.Equal(t, spec.PredictorKindFile, cmdSpec.DashArgs.Predictor.Kind)
+		assert.Equal(t, "file", cmdSpec.DashArgs.Predictor.Name)
 	})
 
-	t.Run("predictor tag on raw args errors", func(t *testing.T) {
+	t.Run("predictor tag on raw args builds successfully", func(t *testing.T) {
 		t.Parallel()
 
 		var cli ContextPredictorRawArgsCLI
 
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+
+		assert.NoError(t, err)
+		assert.Equal(t, spec.PredictorKindFile, cmdSpec.RawArgs.Predictor.Kind)
+		assert.Equal(t, "file", cmdSpec.RawArgs.Predictor.Name)
+	})
+
+	t.Run("untagged trailing collectors default to the none predictor", func(t *testing.T) {
+		t.Parallel()
+
+		var cli UntaggedTrailingCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+
+		assert.NoError(t, err)
+		assert.Equal(t, spec.PredictorKindNone, cmdSpec.DashArgs.Predictor.Kind)
+		assert.Equal(t, spec.PredictorKindNone, cmdSpec.RawArgs.Predictor.Kind)
+	})
+
+	t.Run("wrong spelling on dash args errors", func(t *testing.T) {
+		t.Parallel()
+
+		var cli InvalidTrailingDashPredictorCLI
+
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
 		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct ContextPredictorRawArgsCLI field Raw: schema error: invalid struct tag: tag "predictor" is invalid on raw args (tag "predictor" is only valid on flags and positional arguments)`, err.Error())
+		assert.Equal(t, `struct InvalidTrailingDashPredictorCLI field Trailing: schema error: invalid struct tag: unknown predictor "files" (did you mean "file"?)`, err.Error())
+	})
+
+	t.Run("biased builtin grammar on raw args errors", func(t *testing.T) {
+		t.Parallel()
+
+		var cli InvalidTrailingRawPredictorCLI
+
+		_, err := buildSchema(&cli, "app", spec.Options{})
+
+		assert.Error(t, err)
+		assert.IsError(t, err, spec.ErrSchema)
+		assert.IsError(t, err, spec.ErrInvalidStructTag)
+		assert.Equal(t, `struct InvalidTrailingRawPredictorCLI field Raw: schema error: invalid struct tag: invalid predictor "dir:*.png" (directories predictor does not accept filter patterns, use predictor:"dir")`, err.Error())
+	})
+
+	t.Run("empty predictor on dash args errors", func(t *testing.T) {
+		t.Parallel()
+
+		var cli EmptyTrailingDashPredictorCLI
+
+		_, err := buildSchema(&cli, "app", spec.Options{})
+
+		assert.Error(t, err)
+		assert.IsError(t, err, spec.ErrSchema)
+		assert.IsError(t, err, spec.ErrInvalidStructTag)
+		assert.Equal(t, `struct EmptyTrailingDashPredictorCLI field Trailing: schema error: invalid struct tag: predictor tag cannot be empty`, err.Error())
+	})
+
+	t.Run("unregistered custom predictor on raw args errors", func(t *testing.T) {
+		t.Parallel()
+
+		var cli UnregisteredTrailingRawPredictorCLI
+
+		_, err := buildSchema(&cli, "app", spec.Options{})
+
+		assert.Error(t, err)
+		assert.IsError(t, err, spec.ErrSchema)
+		assert.IsError(t, err, spec.ErrInvalidStructTag)
+		assert.Equal(t, `struct UnregisteredTrailingRawPredictorCLI field Raw: schema error: invalid struct tag: unregistered predictor "branches". Register it with app.Predictor("branches", action)`, err.Error())
+	})
+
+	t.Run("registered custom predictor on dash args builds successfully", func(t *testing.T) {
+		t.Parallel()
+
+		var cli RegisteredTrailingDashPredictorCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{
+			RegisteredPredictors: map[string]predict.Predictor{"branches": predict.Values("main")},
+		})
+
+		assert.NoError(t, err)
+		assert.Equal(t, spec.PredictorKindCustom, cmdSpec.DashArgs.Predictor.Kind)
+		assert.Equal(t, "branches", cmdSpec.DashArgs.Predictor.Name)
 	})
 
 	t.Run("predictor tag on config file flag errors", func(t *testing.T) {
@@ -324,7 +425,7 @@ func TestStrictPredictorLinter_ContextValidation(t *testing.T) {
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
 		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct ContextPredictorConfigFileCLI field Config: schema error: invalid struct tag: tag "predictor" is invalid on config file flag (tag "predictor" is only valid on flags and positional arguments)`, err.Error())
+		assert.Equal(t, `struct ContextPredictorConfigFileCLI field Config: schema error: invalid struct tag: tag "predictor" is invalid on config file flag (tag "predictor" is only valid on flags, positional arguments, and trailing-argument collectors)`, err.Error())
 	})
 }
 

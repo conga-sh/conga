@@ -549,9 +549,14 @@ func (a *RequiredArg[T]) String() string {
 
 // DashArgs captures trailing arguments passed explicitly after the -- token.
 //
-// All arguments following -- are captured verbatim without flag parsing.
+// All arguments following -- are captured verbatim without flag parsing. The
+// terminator also ends subcommand routing for the rest of the invocation: no
+// token after it is matched against a Command[T] name.
 //
-// A DashArgs field accepts only the name and conga tags.
+// A DashArgs field accepts the name, predictor, and bootstrap tags. The
+// predictor declares completion candidates for the captured words; an absent
+// predictor does not guess a domain. Only one DashArgs field may be declared
+// per command.
 type DashArgs struct {
 	rawSlice
 }
@@ -571,7 +576,15 @@ func (raw *DashArgs) String() string {
 // Parsing stops at the first unrecognized flag or argument, forwarding all remaining
 // tokens into the container. This container supports proxy commands and CLI wrappers.
 //
-// A RawArgs field accepts only the name and conga tags.
+// RawArgs is a leaf-only collector: a command declaring it cannot also declare
+// subcommands, including declared built-in help, version, and completion command
+// fields, and every positional argument before the collector must be a required
+// scalar. Only one RawArgs field may be declared per command. Use DashArgs when the
+// command also branches.
+//
+// A RawArgs field accepts the name, predictor, and bootstrap tags. The predictor
+// declares completion candidates for the words captured once raw mode begins; an
+// absent predictor does not guess a domain.
 type RawArgs struct {
 	rawSlice
 }

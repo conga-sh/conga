@@ -152,6 +152,31 @@ func TestToken_IsNegativeNumber(t *testing.T) {
 	}
 }
 
+func TestToken_CanBindAsFlagValue(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		token    tokenizer.Token
+		expected bool
+	}{
+		{"long flag", tokenizer.Token{Type: tokenizer.TokenTypeLongFlag, Raw: "--port"}, false},
+		{"short flag", tokenizer.Token{Type: tokenizer.TokenTypeShortFlag, Raw: "-v"}, false},
+		{"terminator", tokenizer.Token{Type: tokenizer.TokenTypeTerminator, Raw: "--"}, false},
+		{"negative number shorthand", tokenizer.Token{Type: tokenizer.TokenTypeShortFlag, Raw: "-5"}, true},
+		{"positional", tokenizer.Token{Type: tokenizer.TokenTypePositional, Raw: "file.go"}, true},
+		{"unknown", tokenizer.Token{Type: tokenizer.TokenTypeUnknown}, true},
+	}
+
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, testCase.expected, testCase.token.CanBindAsFlagValue())
+		})
+	}
+}
+
 func TestScanner(t *testing.T) {
 	t.Parallel()
 

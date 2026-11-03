@@ -815,6 +815,26 @@ func TestParseBootstrapTag(t *testing.T) {
 	})
 }
 
+func TestDefaultArgName(t *testing.T) {
+	t.Parallel()
+
+	t.Run("name tag wins", func(t *testing.T) {
+		t.Parallel()
+
+		name := DefaultArgName("TargetFile", reflect.StructTag(`name:"target"`))
+
+		assert.Equal(t, "target", name)
+	})
+
+	t.Run("absent name tag yields kebab case placeholder", func(t *testing.T) {
+		t.Parallel()
+
+		name := DefaultArgName("TargetFile", reflect.StructTag(``))
+
+		assert.Equal(t, "<target-file>", name)
+	})
+}
+
 func TestIsBootstrapType(t *testing.T) {
 	t.Parallel()
 

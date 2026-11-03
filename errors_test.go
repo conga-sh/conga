@@ -1778,7 +1778,6 @@ func TestInvalidArgOrder_Issue08(t *testing.T) {
 		}
 
 		type ParentCLI struct {
-			RootArg    conga.RequiredArg[string]        `name:"<root-arg>"`
 			Subcommand conga.Command[InvalidSubcommand] `name:"sub"`
 		}
 

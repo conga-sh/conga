@@ -137,20 +137,25 @@ type groupPair struct {
 }
 
 type schemaBuilder struct {
-	cmd               *Command
-	structType        reflect.Type
-	structValue       reflect.Value
-	flagTracker       *flagCollisionTracker
-	groupCensus       *GroupCensus[string]
-	seenSubcommands   map[string]string
-	exclusiveAndPairs map[groupPair]string
-	sliceArgField     string
-	sliceArgName      string
-	mapArgField       string
-	mapArgName        string
-	hasOptionalArg    bool
-	isRoot            bool
-	opts              Options
+	cmd                  *Command
+	structType           reflect.Type
+	structValue          reflect.Value
+	flagTracker          *flagCollisionTracker
+	groupCensus          *GroupCensus[string]
+	seenSubcommands      map[string]string
+	exclusiveAndPairs    map[groupPair]string
+	sliceArgField        string
+	sliceArgName         string
+	mapArgField          string
+	mapArgName           string
+	rawArgsField         string
+	dashArgsField        string
+	firstArgField        string
+	firstSubcommandField string
+	firstCommandField    string
+	hasOptionalArg       bool
+	isRoot               bool
+	opts                 Options
 }
 
 func newSchemaBuilder(target any, defaultName string, structValue reflect.Value, isRoot bool, opts Options) (*schemaBuilder, error) {
@@ -290,6 +295,14 @@ func (b *schemaBuilder) processSubcommand(structField reflect.StructField, comma
 
 	if subcommand.EnvPrefix == "" {
 		subcommand.EnvPrefix = subOpts.EnvPrefix
+	}
+
+	if b.firstSubcommandField == "" {
+		b.firstSubcommandField = structField.Name
+	}
+
+	if b.firstCommandField == "" {
+		b.firstCommandField = structField.Name
 	}
 
 	b.cmd.Subcommands = append(b.cmd.Subcommands, subcommand)
@@ -665,6 +678,10 @@ func (b *schemaBuilder) processArg(structField reflect.StructField, argHandle an
 		b.mapArgName = argSpec.Name
 	}
 
+	if b.firstArgField == "" {
+		b.firstArgField = structField.Name
+	}
+
 	b.cmd.Args = append(b.cmd.Args, argSpec)
 
 	return nil
@@ -702,6 +719,10 @@ func (b *schemaBuilder) processBuiltinCommand(structField reflect.StructField, c
 	subcommand, err := b.newBuiltinSubcommand(structField, kind, classification.Target)
 	if err != nil {
 		return err
+	}
+
+	if b.firstCommandField == "" {
+		b.firstCommandField = structField.Name
 	}
 
 	b.cmd.Subcommands = append(b.cmd.Subcommands, subcommand)
@@ -795,22 +816,46 @@ func (b *schemaBuilder) processCommandField(structField reflect.StructField, com
 	return b.processSubcommand(structField, commandHandle, classification.Target)
 }
 
-// processDashArgsField validates and stores the '--' trailing-arguments
-// collector field.
-func (b *schemaBuilder) processDashArgsField(structField reflect.StructField, handle any) error {
-	if err := b.validateFieldTags(structField, "dash args", dashRawTagCandidates); err != nil {
-		return b.fieldContextError(structField.Name, err)
+// validateTrailingCollectorField validates a DashArgs/RawArgs field and
+// parses the bootstrap and predictor tags shared by both collector kinds. It
+// also enforces the one-collector-per-kind invariant: firstFieldName carries
+// the already declared collector's struct field, and a second declaration of
+// the same kind is rejected.
+func (b *schemaBuilder) validateTrailingCollectorField(structField reflect.StructField, role, containerName, firstFieldName string) (bool, *PredictorSpec, error) {
+	if err := b.validateFieldTags(structField, role, dashRawTagCandidates); err != nil {
+		return false, nil, b.fieldContextError(structField.Name, err)
 	}
 
-	dashName := cmp.Or(structField.Tag.Get("name"), "[-- <args...>]")
+	if firstFieldName != "" {
+		return false, nil, b.fieldContextError(structField.Name, TrailingCollectorAlreadyDeclaredError(containerName, firstFieldName))
+	}
 
 	bootstrap, err := parseBootstrapTag(structField.Tag, "", &b.opts)
 	if err != nil {
-		return b.fieldContextError(structField.Name, err)
+		return false, nil, b.fieldContextError(structField.Name, err)
 	}
 
+	predictorSpec, err := parseTrailingArgsPredictor(structField.Tag, &b.opts)
+	if err != nil {
+		return false, nil, b.fieldContextError(structField.Name, err)
+	}
+
+	return bootstrap, predictorSpec, nil
+}
+
+// processDashArgsField validates and stores the '--' trailing-arguments
+// collector field.
+func (b *schemaBuilder) processDashArgsField(structField reflect.StructField, handle any) error {
+	bootstrap, predictorSpec, err := b.validateTrailingCollectorField(structField, "dash args", "DashArgs", b.dashArgsField)
+	if err != nil {
+		return err
+	}
+
+	b.dashArgsField = structField.Name
+
 	b.cmd.DashArgs = &DashArgs{
-		Name:      dashName,
+		Name:      cmp.Or(structField.Tag.Get("name"), "[-- <args...>]"),
+		Predictor: predictorSpec,
 		Bootstrap: bootstrap,
 		Handle:    handle,
 	}
@@ -821,24 +866,62 @@ func (b *schemaBuilder) processDashArgsField(structField reflect.StructField, ha
 // processRawArgsField validates and stores the raw trailing-tokens collector
 // field.
 func (b *schemaBuilder) processRawArgsField(structField reflect.StructField, handle any) error {
-	if err := b.validateFieldTags(structField, "raw args", dashRawTagCandidates); err != nil {
-		return b.fieldContextError(structField.Name, err)
-	}
-
-	rawName := cmp.Or(structField.Tag.Get("name"), "[command] [args...]")
-
-	bootstrap, err := parseBootstrapTag(structField.Tag, "", &b.opts)
+	bootstrap, predictorSpec, err := b.validateTrailingCollectorField(structField, "raw args", "RawArgs", b.rawArgsField)
 	if err != nil {
-		return b.fieldContextError(structField.Name, err)
+		return err
 	}
+
+	b.rawArgsField = structField.Name
 
 	b.cmd.RawArgs = &RawArgs{
-		Name:      rawName,
+		Name:      cmp.Or(structField.Tag.Get("name"), "[command] [args...]"),
+		Predictor: predictorSpec,
 		Bootstrap: bootstrap,
 		Handle:    handle,
 	}
 
 	return nil
+}
+
+// validateTrailingGrammar enforces the deterministic RawArgs boundary after
+// every field has been processed, so declaration order is irrelevant. It names
+// the first declared command field in the conflict diagnostic.
+func (b *schemaBuilder) validateTrailingGrammar() error {
+	if b.cmd.RawArgs == nil {
+		return nil
+	}
+
+	args := make([]TrailingArgGrammar, 0, len(b.cmd.Args))
+	for _, arg := range b.cmd.Args {
+		args = append(args, TrailingArgGrammar{
+			Name:     arg.Name,
+			Required: arg.Required,
+			IsSlice:  arg.IsSlice,
+			IsMap:    arg.IsMap,
+		})
+	}
+
+	err := ValidateTrailingGrammar(TrailingGrammar{
+		HasRawArgs:   true,
+		CommandField: b.firstCommandField,
+		Args:         args,
+	})
+
+	return b.fieldContextError(b.rawArgsField, err)
+}
+
+// validateBranchGrammar enforces the branch/leaf invariant after every field
+// has been processed: a command with positional arguments may not declare user
+// subcommands, so ancestor positionals can never shift a routed leaf's
+// positional indexes or its RawArgs boundary. Built-in help, version, and
+// completion commands do not count as branching.
+func (b *schemaBuilder) validateBranchGrammar() error {
+	err := ValidateBranchGrammar(BranchGrammar{
+		PositionalField: b.firstArgField,
+		SubcommandField: b.firstSubcommandField,
+	})
+
+	return b.fieldContextError(b.firstSubcommandField, err)
 }
 
 // fieldContextError wraps a schema-build error with the owning struct and
@@ -1217,6 +1300,14 @@ func buildInternal(target any, defaultName string, isRoot bool, opts Options) (*
 		return nil, fmt.Errorf("struct %s field %s: %w",
 			builder.structType.Name(), group.Attribution,
 			SingleMemberGroupError(group.Kind, group.Group, group.FlagName, group.Suggestion))
+	}
+
+	if err := builder.validateBranchGrammar(); err != nil {
+		return nil, err
+	}
+
+	if err := builder.validateTrailingGrammar(); err != nil {
+		return nil, err
 	}
 
 	return builder.cmd, nil

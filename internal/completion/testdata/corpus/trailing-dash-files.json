@@ -1,0 +1,17 @@
+{
+  "items": [
+    {
+      "value": "manifest.yaml",
+      "display": "manifest.yaml",
+      "style": "yellow",
+      "tag": "files"
+    }
+  ],
+  "directives": {
+    "error": false,
+    "keeporder": false,
+    "nofilecomp": true,
+    "nospace": false
+  },
+  "usage": ""
+}
