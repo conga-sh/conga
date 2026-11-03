@@ -104,6 +104,7 @@ type commandNode struct {
 	// declaration in the duplicate-container diagnostic.
 	rawArgsFieldName  string
 	dashArgsFieldName string
+	implicitFieldName string
 	// rejected records that a field-level schema error was reported for this
 	// command. The runtime aborts the command build on the first error, so its
 	// group census never runs; single-member group diagnostics would be

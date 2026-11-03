@@ -87,3 +87,10 @@ func ValidateBranchGrammar(grammar BranchGrammar) error {
 func TrailingCollectorAlreadyDeclaredError(containerName, firstFieldName string) error {
 	return fmt.Errorf("%w: %s (already declared by field %s)", ErrDuplicateFlag, containerName, firstFieldName)
 }
+
+// ImplicitCommandAlreadyDeclaredError builds the duplicate-command error for a
+// second implicit command on one command struct. The runtime schema builder and
+// the static analyzer share it as the single source of truth.
+func ImplicitCommandAlreadyDeclaredError(firstFieldName string) error {
+	return fmt.Errorf("%w: only one implicit command is allowed per command; implicit command already declared by field %s", ErrSchema, firstFieldName)
+}

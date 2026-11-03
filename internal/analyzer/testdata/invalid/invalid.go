@@ -793,3 +793,43 @@ var _ = conga.New(&ThrowawayRootApp{}) // want `conga\.New root instance is not 
 var _ = conga.New(new(ThrowawayRootApp)) // want `conga\.New root instance is not referenced outside the app`
 
 var _ = conga.New[ThrowawayRootApp]()
+
+// ImplicitDuplicateApp declares two implicit commands on one command.
+type ImplicitDuplicateApp struct {
+	First  conga.Command[ImplicitLeaf] `implicit:"true"`
+	Second conga.Command[ImplicitLeaf] `implicit:"true"` // want `only one implicit command is allowed per command; implicit command already declared by field First`
+}
+
+// ImplicitLeaf is a runnable leaf used by the implicit-command fixtures.
+type ImplicitLeaf struct{}
+
+// Run executes the implicit fixture leaf.
+func (i *ImplicitLeaf) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[ImplicitDuplicateApp]()
+
+// ImplicitInvalidTagApp declares an invalid implicit tag value.
+type ImplicitInvalidTagApp struct {
+	Exec conga.Command[ImplicitLeaf] `implicit:"ture"` // want `tag "implicit" expects "true" or "false", got "ture"`
+}
+
+// Run executes the root command.
+func (i *ImplicitInvalidTagApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[ImplicitInvalidTagApp]()
+
+// ImplicitBuiltinApp declares implicit on a built-in command field.
+type ImplicitBuiltinApp struct {
+	Help conga.HelpCommand `implicit:"true"` // want `tag "implicit" is invalid on help command \(tag "implicit" is only valid on subcommands\)`
+}
+
+// Run executes the root command.
+func (i *ImplicitBuiltinApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[ImplicitBuiltinApp]()

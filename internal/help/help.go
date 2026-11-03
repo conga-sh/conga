@@ -178,7 +178,11 @@ func Usage(cmdChain []*spec.Command) string {
 	}
 
 	if leaf.HasUserSubcommands() {
-		parts = append(parts, "<command>")
+		if leaf.ImplicitCommand() != nil {
+			parts = append(parts, "[<command>]")
+		} else {
+			parts = append(parts, "<command>")
+		}
 	}
 
 	globalParts, hasOptionalGlobal := globalUsageFlags(cmdChain)
@@ -749,9 +753,14 @@ func formatSubcommands(subcommands []*spec.Command, width int) string {
 			continue
 		}
 
+		helpText := subcommand.Summary
+		if subcommand.Implicit {
+			helpText = appendNonEmpty(helpText, "(default)")
+		}
+
 		builder.add(subcommand.Section, tableEntry{
 			label: subcommand.Name,
-			help:  appendNonEmpty(subcommand.Summary, deprecationMarker(subcommand.Deprecated)),
+			help:  appendNonEmpty(helpText, deprecationMarker(subcommand.Deprecated)),
 		})
 	}
 

@@ -1,0 +1,41 @@
+# TestScript for 32-implicit-command
+# Asserts Bun-style implicit execution and help rendering.
+
+# 1. Bare invocation runs the parent Runner, which prints help.
+exec bunlike
+stdout 'Usage:\n  bunlike \[<command>\]'
+stdout 'run\s+Execute a file \(default\)'
+stdout 'install\s+Install dependencies'
+
+# 2. An unmatched operand enters the implicit command.
+exec bunlike ./script.ts one two
+stdout 'run file=script.ts dry-run=false args=\[one two\]'
+
+# 3. Explicit naming is equivalent.
+exec bunlike run ./script.ts
+stdout 'run file=script.ts dry-run=false args=\[\]'
+
+# 4. The implicit child's flag binds before the operand.
+exec bunlike -n ./script.ts
+stdout 'run file=script.ts dry-run=true args=\[\]'
+
+# 5. Explicit siblings win.
+exec bunlike install
+stdout 'install frozen=false'
+
+# 6. A flag belonging only to the implicit child is invalid on a sibling.
+exit-status 2 bunlike -n install
+stderr 'unknown flag: -n'
+
+# 7. Help stays parent-scoped at a bare --help request.
+exec bunlike --help
+stdout 'Usage:\n  bunlike \[<command>\]'
+stdout 'run\s+Execute a file \(default\)'
+
+# 8. The terminator forwards dash-prefixed operands to the implicit command.
+exec bunlike -- -e.ts
+stdout 'run file=-e.ts dry-run=false args=\[\]'
+
+# 9. A builtin request before the terminator keeps parent help scope.
+exec bunlike --help -- ignored.ts
+stdout 'Usage:\n  bunlike \[<command>\]'

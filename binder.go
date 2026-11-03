@@ -452,9 +452,31 @@ func newFlagIndex(cmd *spec.Command) *flagIndex {
 		long:  make(map[string]*spec.Flag),
 		short: make(map[rune]*spec.Flag),
 	}
-	index.addCommand(cmd)
+	index.addCommandWithImplicit(cmd)
 
 	return index
+}
+
+// newParseFlagIndex builds the flag index used by the token parser. Unlike the
+// routing index, it contains only commands on the final routed chain, so an
+// implicit command's flags never bind when an explicit sibling was selected.
+func newParseFlagIndex(cmdChain []*spec.Command) *flagIndex {
+	index := &flagIndex{
+		long:  make(map[string]*spec.Flag),
+		short: make(map[rune]*spec.Flag),
+	}
+
+	for _, cmd := range cmdChain {
+		index.addCommand(cmd)
+	}
+
+	return index
+}
+
+func (index *flagIndex) addCommandWithImplicit(cmd *spec.Command) {
+	for current := cmd; current != nil; current = current.ImplicitCommand() {
+		index.addCommand(current)
+	}
 }
 
 func (index *flagIndex) addCommand(cmd *spec.Command) {
@@ -843,13 +865,17 @@ func bindVersionCommandJSON(cmdChain []*spec.Command, versionCmd *spec.Command, 
 	return nil
 }
 
+// handlePositionalRouting routes an operand-shaped token: a positional word, or
+// a negative-number value the token parser binds as a positional. It reports
+// whether the token was consumed by subcommand routing (consumed) and whether a
+// help request ended routing (isHelpDone).
 func handlePositionalRouting(
 	current *spec.Command,
 	chain []*spec.Command,
 	index *flagIndex,
 	tokens []tokenizer.Token,
 	position int,
-) (*spec.Command, []*spec.Command, bool, error) {
+) (*spec.Command, []*spec.Command, bool, bool, error) {
 	tok := tokens[position]
 	matched := current.FindSubcommand(tok.Raw)
 
@@ -861,38 +887,46 @@ func handlePositionalRouting(
 		if matched.IsHelpCmd {
 			populateHelpCommandPath(matched, tokens, position+1)
 
-			return matched, append(chain, matched), true, nil
+			return matched, append(chain, matched), true, true, nil
 		}
 
 		if matched.IsCompletionCmd {
 			populateCompletionCommandShell(matched, tokens, position+1)
 
-			return matched, append(chain, matched), false, nil
+			return matched, append(chain, matched), true, false, nil
 		}
 
-		return matched, append(chain, matched), false, nil
+		return matched, append(chain, matched), true, false, nil
 	}
 
 	if current.IsHelpCmd {
 		populateHelpCommandPath(current, tokens, position)
 
-		return current, chain, true, nil
+		return current, chain, true, true, nil
 	}
 
 	if current.IsCompletionCmd {
 		populateCompletionCommandShell(current, tokens, position)
 
-		return current, chain, false, nil
+		return current, chain, true, false, nil
+	}
+
+	if implicit := current.ImplicitCommand(); implicit != nil {
+		if implicit.Handle != nil {
+			commandStateOf(implicit.Handle).markSelected()
+		}
+
+		return implicit, append(chain, implicit), false, false, nil
 	}
 
 	if current.HasUserSubcommands() && len(current.Args) == 0 && current.RawArgs == nil {
 		if hasUnknownFlagInTokens(index, tokens) {
-			return current, chain, false, nil
+			return current, chain, true, false, nil
 		}
 
 		suggestion := suggestSubcommand(current, tok.Raw)
 
-		return nil, nil, false, &parseError{
+		return nil, nil, true, false, &parseError{
 			msg:        "unknown command: " + tok.Raw,
 			token:      tok.Raw,
 			cmdChain:   chain,
@@ -901,10 +935,10 @@ func handlePositionalRouting(
 		}
 	}
 
-	return current, chain, false, nil
+	return current, chain, true, false, nil
 }
 
-func routeSubcommands(cmd *spec.Command, tokens []tokenizer.Token) ([]*spec.Command, []tokenizer.Token, *flagIndex, error) {
+func routeSubcommands(cmd *spec.Command, tokens []tokenizer.Token) ([]*spec.Command, []tokenizer.Token, error) {
 	current := cmd
 	chain := []*spec.Command{current}
 	index := newFlagIndex(current)
@@ -937,26 +971,32 @@ func routeSubcommands(cmd *spec.Command, tokens []tokenizer.Token) ([]*spec.Comm
 			continue
 		}
 
-		if tok.Type != tokenizer.TokenTypePositional {
+		if tok.Type != tokenizer.TokenTypePositional && !routesAsImplicitOperand(current, index, tok) {
 			remaining = append(remaining, tok)
 
 			continue
 		}
 
-		newCurrent, newChain, isHelpDone, err := handlePositionalRouting(current, chain, index, tokens, i)
+		newCurrent, newChain, consumed, isHelpDone, err := handlePositionalRouting(current, chain, index, tokens, i)
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, err
 		}
 
 		changed := newCurrent != current
 		if changed {
-			index.addCommand(newCurrent)
+			index.addCommandWithImplicit(newCurrent)
 			current = newCurrent
 			chain = newChain
 		}
 
 		if isHelpDone {
-			return newChain, remaining, index, nil
+			return newChain, remaining, nil
+		}
+
+		if !consumed {
+			i--
+
+			continue
 		}
 
 		if changed {
@@ -973,7 +1013,120 @@ func routeSubcommands(cmd *spec.Command, tokens []tokenizer.Token) ([]*spec.Comm
 		remaining = append(remaining, tok)
 	}
 
-	return chain, remaining, index, nil
+	chain = applyTerminalImplicitRoute(current, chain, index, remaining)
+
+	return chain, remaining, nil
+}
+
+// applyTerminalImplicitRoute selects implicit commands when the invocation
+// ends without an explicitly named subcommand. A runnable command runs itself
+// unless operands follow the -- terminator and it declares no DashArgs to own
+// them, in which case routing continues into its implicit child. A built-in
+// rendering request keeps the current command active so tool --help shows the
+// parent screen rather than the implicit child's.
+func applyTerminalImplicitRoute(current *spec.Command, chain []*spec.Command, index *flagIndex, remaining []tokenizer.Token) []*spec.Command {
+	if hasBuiltinRequest(remaining, chain, index) {
+		return chain
+	}
+
+	terminatorOperands := hasOperandsAfterTerminator(remaining)
+
+	for {
+		if commandRunsItself(current) && spec.KeepsTerminatorOperands(current, terminatorOperands) {
+			return chain
+		}
+
+		implicit := current.ImplicitCommand()
+		if implicit == nil {
+			return chain
+		}
+
+		if implicit.Handle != nil {
+			commandStateOf(implicit.Handle).markSelected()
+		}
+
+		chain = append(chain, implicit)
+		current = implicit
+	}
+}
+
+// hasOperandsAfterTerminator reports whether any token follows the -- terminator.
+func hasOperandsAfterTerminator(tokens []tokenizer.Token) bool {
+	for position, tok := range tokens {
+		if tok.Type == tokenizer.TokenTypeTerminator {
+			return position+1 < len(tokens)
+		}
+	}
+
+	return false
+}
+
+// commandRunsItself reports whether cmd implements conga.Runner. The routing
+// index cannot rely on spec.Command.IsRunnable because hand-built specs used by
+// tests and internal callers do not populate it.
+func commandRunsItself(cmd *spec.Command) bool {
+	_, ok := getCmdTarget(cmd).(Runner)
+
+	return ok
+}
+
+// routesAsImplicitOperand reports whether tok is a negative-number value that
+// the token parser binds as a positional, so it may enter an implicit command.
+// A registered shorthand is a flag and keeps the existing flag path.
+func routesAsImplicitOperand(current *spec.Command, index *flagIndex, tok tokenizer.Token) bool {
+	return tok.Type == tokenizer.TokenTypeShortFlag && tok.IsNegativeNumber() &&
+		current.ImplicitCommand() != nil && index.find(tok) == nil
+}
+
+// hasBuiltinRequest reports whether tokens request a built-in rendering flag
+// before the -- terminator. Declared user flags shadow the built-ins through
+// FindFlagInChain and FindShortFlagInChain, so a user-declared --help does not
+// suppress implicit selection. Short clusters are scanned rune by rune: the
+// parser binds a trailing help or version rune after any bool or counter runes,
+// while a value-taking rune consumes the rest of the cluster as its value.
+func hasBuiltinRequest(tokens []tokenizer.Token, chain []*spec.Command, index *flagIndex) bool {
+	for _, tok := range tokens {
+		switch tok.Type {
+		case tokenizer.TokenTypeTerminator:
+			return false
+		case tokenizer.TokenTypeLongFlag:
+			flagSpec := spec.FindFlagInChain(chain, tok.Name)
+			if flagSpec == spec.BuiltinHelpFlag || flagSpec == spec.BuiltinVersionFlag ||
+				flagSpec == spec.BuiltinWhyFlag || flagSpec == spec.BuiltinCompletionFlag {
+				return true
+			}
+		case tokenizer.TokenTypeShortFlag:
+			if shortClusterRequestsBuiltin(tok, chain, index) {
+				return true
+			}
+		case tokenizer.TokenTypePositional, tokenizer.TokenTypeUnknown:
+			continue
+		}
+	}
+
+	return false
+}
+
+// shortClusterRequestsBuiltin reports whether a short-flag cluster binds the
+// built-in help or version flag. A rune that is neither declared nor a built-in
+// or that takes a value ends the cluster before any later built-in rune.
+func shortClusterRequestsBuiltin(tok tokenizer.Token, chain []*spec.Command, index *flagIndex) bool {
+	for _, r := range tok.ShortRunes {
+		flagSpec := spec.FindShortFlagInChain(chain, r)
+		if flagSpec == spec.BuiltinHelpFlag || flagSpec == spec.BuiltinVersionFlag {
+			return true
+		}
+
+		if flagSpec == nil {
+			flagSpec = index.short[r]
+		}
+
+		if flagSpec == nil || (!flagSpec.IsBool && !flagSpec.IsCounter) {
+			return false
+		}
+	}
+
+	return false
 }
 
 func skipFlagValue(tokens []tokenizer.Token, position int, index *flagIndex) (bool, int) {

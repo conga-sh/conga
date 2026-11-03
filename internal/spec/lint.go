@@ -18,7 +18,7 @@ var (
 	flagTagCandidates           = []string{"name", "short", "help", "default", "env", "aliases", "section", "hidden", "safe", "xor", "and", "oneof", "enum", "enumhint", "range", "len", "items", "sep", "negatable", "placeholder", "config", "deprecated", "predictor", "feature", "bootstrap"}
 	argTagCandidates            = []string{"name", "help", "default", "enum", "enumhint", "range", "len", "items", "sep", "predictor", "bootstrap"}
 	builtinCommandTagCandidates = []string{"name", "summary", "aliases", "section", "hidden"}
-	userCommandTagCandidates    = []string{"name", "summary", "aliases", "section", "hidden", "envprefix", "deprecated", "feature"}
+	userCommandTagCandidates    = []string{"name", "summary", "aliases", "section", "hidden", "envprefix", "deprecated", "feature", "implicit"}
 	configFileTagCandidates     = []string{"name", "short", "help", "env", "aliases", "placeholder", "section", "hidden", "multi", "sep", "config", "deprecated", "feature"}
 	featuresFieldTagCandidates  = []string{"flag", "env", "envprefix", "config", "sep", "help", "enumhint"}
 	featureFieldTagCandidates   = []string{"name", "help", "env", "default", "enum", "stage"}
@@ -28,7 +28,7 @@ var (
 		"name", "short", "help", "default", "env", "aliases", "section", "hidden", "safe",
 		"xor", "and", "oneof", "enum", "enumhint", "range", "len", "items", "sep", "negatable", "placeholder",
 		"config", "deprecated", "predictor", "feature", "summary", "envprefix",
-		"multi", "flag", "stage", "bootstrap",
+		"multi", "flag", "stage", "bootstrap", "implicit",
 	}
 )
 
@@ -88,6 +88,8 @@ func validContextDescription(tag string) string {
 		return "flags, positional arguments, and trailing-argument collectors"
 	case "default":
 		return "flags and positional arguments"
+	case "implicit":
+		return "subcommands"
 	case "bootstrap":
 		return "flags, positional arguments, and trailing-argument collectors"
 	default:

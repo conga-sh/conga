@@ -127,9 +127,12 @@ A command that declares `Command[T]` fields is a branch: it routes to its subcom
 | `envprefix` | Environment variable prefix for this command's flags. |
 | `feature` | Feature-gate expression: the subcommand and its subtree exist only while the expression is satisfied (see [Feature toggles](#feature-toggles-congafeaturest)). |
 | `hidden` | Suppress from help and completion (`hidden` or `hidden:"true"`). |
+| `implicit` | Select this subcommand when no explicit subcommand claims the invocation; unmatched operands route into it. At most one per command. |
 | `name` | Subcommand token override (default: kebab-case field name). |
 | `section` | Help-screen section title. Subcommands sharing a section render under their own titled section and are tagged as `<section> commands` in completion. |
 | `summary` | One-line synopsis displayed in parent command listings and shell completion. |
+
+An implicit command makes the `<command>` token optional in the parent usage line and is marked `(default)` in the parent listing without changing declaration order. An unmatched operand routes into it, and operands after `--` route into it unless the parent declares trailing `DashArgs`. A built-in rendering request (`--help`, `--version`, `--why`, `--completion`) keeps the parent active, and a parent that implements `Runner` still runs itself when the invocation ends without an operand.
 
 The `envprefix` tag may stand alone on a blank field to set the command's environment prefix without contributing a schema element:
 

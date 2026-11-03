@@ -66,11 +66,19 @@ type Command struct {
 	// app.VersionShortFlag. They are populated on the root command during schema
 	// build and read by the binder (short-flag registration) and the help
 	// renderer (flag rows). Zero keeps the built-in long-only.
-	HelpShort      rune
-	VersionShort   rune
-	Flags          []*Flag
-	Args           []*Arg
-	Subcommands    []*Command
+	HelpShort    rune
+	VersionShort rune
+	Flags        []*Flag
+	Args         []*Arg
+	Subcommands  []*Command
+	// Implicit marks a subcommand that may be selected without naming it.
+	Implicit bool
+	// IsRunnable records whether the command target implements conga.Runner.
+	// The builder populates it from Options.IsRunner for user and declared
+	// built-in commands so completion analysis can mirror the runtime terminal
+	// implicit-command rule. Specs built without Options.IsRunner and ephemeral
+	// synthesized completion screens report false.
+	IsRunnable     bool
 	DashArgs       *DashArgs
 	RawArgs        *RawArgs
 	ConfigFileFlag *Flag
@@ -216,6 +224,19 @@ func (c *Command) InheritBuiltinVisibilityFrom(src *Command) {
 func (c *Command) FindSubcommand(name string) *Command {
 	for _, subcommand := range c.Subcommands {
 		if subcommand.Name == name || slices.Contains(subcommand.Aliases, name) {
+			return subcommand
+		}
+	}
+
+	return nil
+}
+
+// ImplicitCommand returns the subcommand selected when no explicit subcommand
+// claims the invocation, or nil. Schema build accepts at most one implicit
+// command per command, so the first match is authoritative.
+func (c *Command) ImplicitCommand() *Command {
+	for _, subcommand := range c.Subcommands {
+		if subcommand.Implicit {
 			return subcommand
 		}
 	}
@@ -477,6 +498,11 @@ type Options struct {
 	// implements conga.Bootstrapper. It is derived from IsBootstrapper during
 	// the build walk and inherited by descendant commands.
 	HasBootstrapper bool
+	// IsRunner reports whether a command struct implements conga.Runner. The
+	// builder records the result in Command.IsRunnable so completion analysis
+	// can mirror the runtime terminal implicit-command rule. Hand-built specs
+	// that omit it report every command as non-runnable.
+	IsRunner func(any) bool
 	// ConfigSettings carries the app-level configuration resolution settings
 	// (app.ConfigOptions options) onto the root command.
 	ConfigSettings ConfigSettings
@@ -530,6 +556,14 @@ type Options struct {
 	// ParseFeatureTag parses, validates, and normalizes a feature struct tag.
 	ParseFeatureTag func(raw string, required bool) (string, error)
 	EnvPrefix       string
+}
+
+// KeepsTerminatorOperands reports whether a runnable command owns the operands
+// following the -- terminator instead of forwarding them to its implicit
+// child: a command declaring DashArgs captures them, and a command with no
+// following operand runs itself.
+func KeepsTerminatorOperands(cmd *Command, operandFollows bool) bool {
+	return cmd.DashArgs != nil || !operandFollows
 }
 
 // FindDeclaredFlagInChain searches backwards through chain for a declared flag

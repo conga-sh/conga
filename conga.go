@@ -1453,6 +1453,7 @@ func (a *App[T]) buildSpec() (*spec.Command, error) {
 		TypePredictors:       a.collectTypePredictors(),
 		ClassifyContainer:    classifyContainer,
 		IsBootstrapper:       isBootstrapper,
+		IsRunner:             isRunner,
 		ConfigDecoders:       decoderExtensions,
 		ConfigFilePatterns: slicex.Map(decoderExtensions, func(extension string) string {
 			return "*" + extension
@@ -1673,12 +1674,13 @@ func (a *App[T]) prepare(ctx context.Context) (*Session, bool, error) {
 		return nil, false, err
 	}
 
-	cmdChain, remainingTokens, index, err := routeSubcommands(cmd, tokenizer.Tokenize(a.args))
+	cmdChain, remainingTokens, err := routeSubcommands(cmd, tokenizer.Tokenize(a.args))
 	if err != nil {
 		return nil, false, err
 	}
 
 	leaf := cmdChain[len(cmdChain)-1]
+	index := newParseFlagIndex(cmdChain)
 
 	flagValues, posTokens, dashArgs, rawTokens, err := parseTokens(cmdChain, remainingTokens, index)
 	if err != nil {
@@ -2333,6 +2335,14 @@ func getAppName() string {
 	}
 
 	return "app"
+}
+
+// isRunner reports whether a command struct value implements [Runner]; it
+// backs spec.Options.IsRunner during schema build.
+func isRunner(target any) bool {
+	_, ok := target.(Runner)
+
+	return ok
 }
 
 // generateCompletionScript renders the completion driver script for shell and
