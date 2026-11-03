@@ -600,6 +600,77 @@ func TestFindFlagInChain(t *testing.T) {
 		assert.Equal(t, "host", spec.FindShortFlagInChain(conflicting, 'h').Name)
 	})
 
+	t.Run("declared help name suppresses the synthesized short", func(t *testing.T) {
+		t.Parallel()
+
+		shadowedChain := []*spec.Command{{
+			Name:      "root",
+			HelpShort: 'h',
+			Flags:     []*spec.Flag{{Name: "help"}},
+		}}
+
+		assert.Zero(t, spec.FindShortFlagInChain(shadowedChain, 'h'))
+	})
+
+	t.Run("declared help alias suppresses the synthesized short", func(t *testing.T) {
+		t.Parallel()
+
+		shadowedChain := []*spec.Command{{
+			Name:      "root",
+			HelpShort: 'h',
+			Flags:     []*spec.Flag{{Name: "assist", Aliases: []string{"help"}}},
+		}}
+
+		assert.Zero(t, spec.FindShortFlagInChain(shadowedChain, 'h'))
+	})
+
+	t.Run("declared leaf help suppresses the synthesized short", func(t *testing.T) {
+		t.Parallel()
+
+		shadowedChain := []*spec.Command{
+			{Name: "root", HelpShort: 'h'},
+			{Name: "sub", Flags: []*spec.Flag{{Name: "help"}}},
+		}
+
+		assert.Zero(t, spec.FindShortFlagInChain(shadowedChain, 'h'))
+	})
+
+	t.Run("declared version name suppresses the synthesized short", func(t *testing.T) {
+		t.Parallel()
+
+		shadowedChain := []*spec.Command{{
+			Name:         "root",
+			VersionShort: 'V',
+			Flags:        []*spec.Flag{{Name: "version"}},
+		}}
+
+		assert.Zero(t, spec.FindShortFlagInChain(shadowedChain, 'V'))
+	})
+
+	t.Run("declared version alias suppresses the synthesized short", func(t *testing.T) {
+		t.Parallel()
+
+		shadowedChain := []*spec.Command{{
+			Name:         "root",
+			VersionShort: 'V',
+			Flags:        []*spec.Flag{{Name: "release", Aliases: []string{"version"}}},
+		}}
+
+		assert.Zero(t, spec.FindShortFlagInChain(shadowedChain, 'V'))
+	})
+
+	t.Run("NoCLI help flag does not suppress the synthesized short", func(t *testing.T) {
+		t.Parallel()
+
+		hiddenChain := []*spec.Command{{
+			Name:      "root",
+			HelpShort: 'h',
+			Flags:     []*spec.Flag{{Name: "help", NoCLI: true}},
+		}}
+
+		assert.Equal(t, spec.BuiltinHelpFlag, spec.FindShortFlagInChain(hiddenChain, 'h'))
+	})
+
 	t.Run("synthesizes the help short from the root", func(t *testing.T) {
 		t.Parallel()
 
