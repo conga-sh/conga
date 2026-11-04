@@ -449,6 +449,10 @@ type flagIndex struct {
 	short map[rune]*spec.Flag
 }
 
+// newFlagIndex seeds the routing index with cmd and each implicit descendant so
+// flags that can select an implicit level participate in routing lookahead.
+// Synthesized built-in flags are resolved from the active chain by
+// flagTokenConsumesNext instead of being stored here.
 func newFlagIndex(cmd *spec.Command) *flagIndex {
 	index := &flagIndex{
 		long:  make(map[string]*spec.Flag),
@@ -526,7 +530,9 @@ func (index *flagIndex) find(tok tokenizer.Token) *spec.Flag {
 // value-taking rune consumes the rest of the shorthand cluster as its value
 // when it is not the last rune, and only a final value-taking rune consumes the
 // next token. An unresolved rune ends the cluster without consuming anything.
-func (index *flagIndex) flagTokenConsumesNext(tok tokenizer.Token) bool {
+// Built-ins are resolved from chain because the routing index stores only
+// declared flags; the parser registers synthesized built-ins separately.
+func (index *flagIndex) flagTokenConsumesNext(tok tokenizer.Token, chain []*spec.Command) bool {
 	if tok.HasAttachedValue {
 		return false
 	}
@@ -534,6 +540,9 @@ func (index *flagIndex) flagTokenConsumesNext(tok tokenizer.Token) bool {
 	switch tok.Type {
 	case tokenizer.TokenTypeLongFlag:
 		flagSpec := index.find(tok)
+		if flagSpec == nil {
+			flagSpec = spec.FindFlagInChain(chain, tok.Name)
+		}
 
 		return flagSpec != nil && flagSpec.TakesValue()
 	case tokenizer.TokenTypeShortFlag:
@@ -541,6 +550,10 @@ func (index *flagIndex) flagTokenConsumesNext(tok tokenizer.Token) bool {
 
 		for position, r := range runes {
 			flagSpec := index.short[r]
+			if flagSpec == nil {
+				flagSpec = spec.FindShortFlagInChain(chain, r)
+			}
+
 			if flagSpec == nil {
 				return false
 			}
@@ -1005,7 +1018,7 @@ func routeSubcommands(cmd *spec.Command, tokens []tokenizer.Token) ([]*spec.Comm
 			break
 		}
 
-		if skipped, next := skipFlagValue(tokens, i, index); skipped {
+		if skipped, next := skipFlagValue(tokens, i, index, chain); skipped {
 			remaining = append(remaining, tok)
 
 			if next != i {
@@ -1112,10 +1125,10 @@ func routesAsImplicitOperand(current *spec.Command, index *flagIndex, tok tokeni
 		current.ImplicitCommand() != nil && !index.leadingShortRegistered(tok)
 }
 
-func skipFlagValue(tokens []tokenizer.Token, position int, index *flagIndex) (bool, int) {
+func skipFlagValue(tokens []tokenizer.Token, position int, index *flagIndex, chain []*spec.Command) (bool, int) {
 	tok := tokens[position]
 	if (tok.Type != tokenizer.TokenTypeLongFlag && tok.Type != tokenizer.TokenTypeShortFlag) ||
-		!index.flagTokenConsumesNext(tok) {
+		!index.flagTokenConsumesNext(tok, chain) {
 		return false, position
 	}
 

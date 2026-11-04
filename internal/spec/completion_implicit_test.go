@@ -510,12 +510,28 @@ func TestAnalyzeCompletion_HelpBeforeTerminatorStopsAtRequiredDepth(t *testing.T
 func TestAnalyzeCompletion_RootOnlyVersionDoesNotStopAtRequiredDepth(t *testing.T) {
 	t.Parallel()
 
-	root := buildCompletionDeepRunnableRoot(t)
+	t.Run("long flag", func(t *testing.T) {
+		t.Parallel()
 
-	analysis := spec.AnalyzeCompletion(root, []string{"--mid-flag", "--version", "--", "x", ""})
+		root := buildCompletionDeepRunnableRoot(t)
 
-	assert.Equal(t, []string{"tool", "mid", "run"}, commandNames(analysis.CommandChain))
-	assert.Equal(t, []string{"x"}, analysis.PositionalArgs)
+		analysis := spec.AnalyzeCompletion(root, []string{"--mid-flag", "--version", "--", "x", ""})
+
+		assert.Equal(t, []string{"tool", "mid", "run"}, commandNames(analysis.CommandChain))
+		assert.Equal(t, []string{"x"}, analysis.PositionalArgs)
+	})
+
+	t.Run("short flag", func(t *testing.T) {
+		t.Parallel()
+
+		root := buildCompletionDeepRunnableRoot(t)
+		root.VersionShort = 'V'
+
+		analysis := spec.AnalyzeCompletion(root, []string{"--mid-flag", "-V", "--", "x", ""})
+
+		assert.Equal(t, []string{"tool", "mid", "run"}, commandNames(analysis.CommandChain))
+		assert.Equal(t, []string{"x"}, analysis.PositionalArgs)
+	})
 }
 
 func TestAnalyzeCompletion_VersionBuiltinNotShadowedByImplicitCommand(t *testing.T) {

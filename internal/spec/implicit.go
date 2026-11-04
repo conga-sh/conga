@@ -62,8 +62,11 @@ func TerminalImplicitLevels(chain []*Command, tokens []tokenizer.Token, terminat
 		}
 
 		ownsTerminatorOperands := current.DashArgs != nil || !terminatorOperands
+		// levelChains is relative to the routed chain; slice to the levels
+		// below activeChain so resolveShortFlag's depth stays relative to the
+		// chain in hand.
 		if entered >= requiredDepth &&
-			(builtinRequestedAt(activeChain, levelChains, tokens) ||
+			(builtinRequestedAt(activeChain, levelChains[entered:], tokens) ||
 				(current.IsRunnable && ownsTerminatorOperands)) {
 			return entered
 		}
@@ -127,9 +130,10 @@ func flagDepthInLevels(chain []*Command, levelChains [][]*Command, tokens []toke
 
 // builtinRequestedAt reports whether tokens request a built-in rendering flag,
 // before the -- terminator, that is visible on chain. Declared user flags shadow
-// the built-ins through FindFlagInChain and FindShortFlagInChain. The level
-// chains supply the arity of shorthands declared only by implicit descendants,
-// so a value-taking rune ends the cluster exactly as the parser does.
+// the built-ins through FindFlagInChain and FindShortFlagInChain. levelChains
+// holds the implicit levels strictly below chain; it supplies the arity of
+// shorthands declared only there, so a value-taking rune ends the cluster
+// exactly as the parser does.
 func builtinRequestedAt(chain []*Command, levelChains [][]*Command, tokens []tokenizer.Token) bool {
 	for _, tok := range tokens {
 		switch tok.Type {
@@ -154,7 +158,7 @@ func builtinRequestedAt(chain []*Command, levelChains [][]*Command, tokens []tok
 // shortClusterRequestsBuiltin reports whether a shorthand cluster binds the
 // built-in help or version flag. A rune that takes a value consumes the rest of
 // the cluster, and an unresolved rune ends it, so neither can reveal a later
-// built-in rune.
+// built-in rune. levelChains holds the implicit levels strictly below chain.
 func shortClusterRequestsBuiltin(chain []*Command, levelChains [][]*Command, tok tokenizer.Token) bool {
 	for _, r := range tok.ShortRunes {
 		flagSpec, _ := resolveShortFlag(chain, levelChains, r)
@@ -268,8 +272,9 @@ func shortFlagRegistered(chain []*Command, levelChains [][]*Command, r rune) boo
 }
 
 // resolveShortFlag returns the flag declared for r and the implicit level that
-// first declares it: 0 for the routed chain or a built-in, 1 for its nearest
-// implicit child.
+// first declares it: 0 for chain or a built-in, 1 for the nearest level in
+// levelChains. levelChains[i] must be the chain after entering i+1 levels below
+// chain; the returned depth is therefore relative to chain.
 func resolveShortFlag(chain []*Command, levelChains [][]*Command, r rune) (*Flag, int) {
 	if flagSpec := findCLIShortFlagInChain(chain, r); flagSpec != nil {
 		return flagSpec, 0
