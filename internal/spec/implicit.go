@@ -23,6 +23,71 @@ func ImplicitFlagDepth(chain []*Command, tokens []tokenizer.Token) int {
 		return 0
 	}
 
+	return flagDepthInLevels(chain, implicitLevelChains(chain, levels), tokens)
+}
+
+// TerminalImplicitLevels returns the number of implicit descendant levels the
+// terminal route enters. The chain's leaf is the current command. A runnable
+// command runs itself unless a flag declared only by its implicit descendants
+// selects a deeper level; a command that does not own the operands after the --
+// terminator forwards them to its implicit child. A built-in rendering request
+// counts only on the command where the built-in is visible, so a root-only
+// --version never keeps a selected implicit child active. Callers perform the
+// entry side effects for the returned levels.
+func TerminalImplicitLevels(chain []*Command, tokens []tokenizer.Token, terminatorOperands bool) int {
+	if len(chain) == 0 {
+		return 0
+	}
+
+	current := chain[len(chain)-1]
+
+	levels := implicitDescendants(current)
+	if len(levels) == 0 {
+		return 0
+	}
+
+	levelChains := implicitLevelChains(chain, levels)
+	requiredDepth := flagDepthInLevels(chain, levelChains, tokens)
+	entered := 0
+
+	for {
+		implicit := current.ImplicitCommand()
+		if implicit == nil {
+			return entered
+		}
+
+		activeChain := chain
+		if entered > 0 {
+			activeChain = levelChains[entered-1]
+		}
+
+		ownsTerminatorOperands := current.DashArgs != nil || !terminatorOperands
+		if entered >= requiredDepth &&
+			(builtinRequestedAt(activeChain, levelChains, tokens) ||
+				(current.IsRunnable && ownsTerminatorOperands)) {
+			return entered
+		}
+
+		current = implicit
+		entered++
+	}
+}
+
+// implicitDescendants returns the implicit command chain below cmd, nearest
+// first. Schema build accepts at most one implicit command per command.
+func implicitDescendants(cmd *Command) []*Command {
+	var descendants []*Command
+
+	for implicit := cmd.ImplicitCommand(); implicit != nil; implicit = implicit.ImplicitCommand() {
+		descendants = append(descendants, implicit)
+	}
+
+	return descendants
+}
+
+// implicitLevelChains returns the command chain active after entering each
+// implicit level below chain's leaf.
+func implicitLevelChains(chain []*Command, levels []*Command) [][]*Command {
 	levelChains := make([][]*Command, len(levels))
 	cumulativeChain := slices.Clone(chain)
 
@@ -31,6 +96,13 @@ func ImplicitFlagDepth(chain []*Command, tokens []tokenizer.Token) int {
 		levelChains[depth] = slices.Clone(cumulativeChain)
 	}
 
+	return levelChains
+}
+
+// flagDepthInLevels reports the deepest implicit level required by tokens. It
+// follows the token parser's arity handling, so a value consumed by a preceding
+// flag is never mistaken for a flag itself.
+func flagDepthInLevels(chain []*Command, levelChains [][]*Command, tokens []tokenizer.Token) int {
 	requiredDepth := 0
 
 	for position := 0; position < len(tokens); position++ {
@@ -53,52 +125,49 @@ func ImplicitFlagDepth(chain []*Command, tokens []tokenizer.Token) int {
 	return requiredDepth
 }
 
-// TerminalImplicitLevels returns the number of implicit descendant levels the
-// terminal route enters. The chain's leaf is the current command. A runnable
-// command runs itself unless a built-in rendering request or a flag declared
-// only by its implicit descendants selects a deeper level; a command that does
-// not own the operands after the -- terminator forwards them to its implicit
-// child. Callers perform the entry side effects for the returned levels.
-func TerminalImplicitLevels(chain []*Command, tokens []tokenizer.Token, builtinRequested, terminatorOperands bool) int {
-	if len(chain) == 0 {
-		return 0
+// builtinRequestedAt reports whether tokens request a built-in rendering flag,
+// before the -- terminator, that is visible on chain. Declared user flags shadow
+// the built-ins through FindFlagInChain and FindShortFlagInChain. The level
+// chains supply the arity of shorthands declared only by implicit descendants,
+// so a value-taking rune ends the cluster exactly as the parser does.
+func builtinRequestedAt(chain []*Command, levelChains [][]*Command, tokens []tokenizer.Token) bool {
+	for _, tok := range tokens {
+		switch tok.Type {
+		case tokenizer.TokenTypeTerminator:
+			return false
+		case tokenizer.TokenTypeLongFlag:
+			if IsBuiltinFlag(FindFlagInChain(chain, tok.Name)) {
+				return true
+			}
+		case tokenizer.TokenTypeShortFlag:
+			if shortClusterRequestsBuiltin(chain, levelChains, tok) {
+				return true
+			}
+		case tokenizer.TokenTypePositional, tokenizer.TokenTypeUnknown:
+			continue
+		}
 	}
 
-	return terminalImplicitLevels(chain[len(chain)-1], ImplicitFlagDepth(chain, tokens), builtinRequested, terminatorOperands)
+	return false
 }
 
-// terminalImplicitLevels applies the terminal rules to a precomputed depth so
-// completion can reuse the depth it already scanned.
-func terminalImplicitLevels(current *Command, requiredDepth int, builtinRequested, terminatorOperands bool) int {
-	entered := 0
-
-	for {
-		implicit := current.ImplicitCommand()
-		if implicit == nil {
-			return entered
+// shortClusterRequestsBuiltin reports whether a shorthand cluster binds the
+// built-in help or version flag. A rune that takes a value consumes the rest of
+// the cluster, and an unresolved rune ends it, so neither can reveal a later
+// built-in rune.
+func shortClusterRequestsBuiltin(chain []*Command, levelChains [][]*Command, tok tokenizer.Token) bool {
+	for _, r := range tok.ShortRunes {
+		flagSpec, _ := resolveShortFlag(chain, levelChains, r)
+		if IsBuiltinShortFlag(flagSpec) {
+			return true
 		}
 
-		ownsTerminatorOperands := current.DashArgs != nil || !terminatorOperands
-		if entered >= requiredDepth &&
-			(builtinRequested || (current.IsRunnable && ownsTerminatorOperands)) {
-			return entered
+		if flagSpec == nil || flagSpec.TakesValue() {
+			return false
 		}
-
-		current = implicit
-		entered++
-	}
-}
-
-// implicitDescendants returns the implicit command chain below cmd, nearest
-// first. Schema build accepts at most one implicit command per command.
-func implicitDescendants(cmd *Command) []*Command {
-	var descendants []*Command
-
-	for implicit := cmd.ImplicitCommand(); implicit != nil; implicit = implicit.ImplicitCommand() {
-		descendants = append(descendants, implicit)
 	}
 
-	return descendants
+	return false
 }
 
 // hasFlagTokenBeforeTerminator reports whether a flag token before the --

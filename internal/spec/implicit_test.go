@@ -74,7 +74,7 @@ func TestTerminalImplicitLevels(t *testing.T) {
 
 		root := &spec.Command{Name: "tool", IsRunnable: true}
 
-		levels := spec.TerminalImplicitLevels([]*spec.Command{root}, nil, false, false)
+		levels := spec.TerminalImplicitLevels([]*spec.Command{root}, nil, false)
 
 		assert.Equal(t, 0, levels)
 	})
@@ -85,7 +85,7 @@ func TestTerminalImplicitLevels(t *testing.T) {
 		leaf := &spec.Command{Name: "run", Implicit: true}
 		root := &spec.Command{Name: "tool", IsRunnable: true, Subcommands: []*spec.Command{leaf}}
 
-		levels := spec.TerminalImplicitLevels([]*spec.Command{root}, nil, false, false)
+		levels := spec.TerminalImplicitLevels([]*spec.Command{root}, nil, false)
 
 		assert.Equal(t, 0, levels)
 	})
@@ -95,8 +95,9 @@ func TestTerminalImplicitLevels(t *testing.T) {
 
 		leaf := &spec.Command{Name: "run", Implicit: true}
 		root := &spec.Command{Name: "tool", IsRunnable: true, Subcommands: []*spec.Command{leaf}}
+		tokens := tokenizer.Tokenize([]string{"--help"})
 
-		levels := spec.TerminalImplicitLevels([]*spec.Command{root}, nil, true, false)
+		levels := spec.TerminalImplicitLevels([]*spec.Command{root}, tokens, false)
 
 		assert.Equal(t, 0, levels)
 	})
@@ -112,7 +113,7 @@ func TestTerminalImplicitLevels(t *testing.T) {
 		root := &spec.Command{Name: "tool", IsRunnable: true, Subcommands: []*spec.Command{leaf}}
 		tokens := tokenizer.Tokenize([]string{"--child"})
 
-		levels := spec.TerminalImplicitLevels([]*spec.Command{root}, tokens, false, false)
+		levels := spec.TerminalImplicitLevels([]*spec.Command{root}, tokens, false)
 
 		assert.Equal(t, 1, levels)
 	})
@@ -126,11 +127,100 @@ func TestTerminalImplicitLevels(t *testing.T) {
 			Flags:    []*spec.Flag{{Name: "child", IsBool: true}},
 		}
 		root := &spec.Command{Name: "tool", IsRunnable: true, Subcommands: []*spec.Command{leaf}}
-		tokens := tokenizer.Tokenize([]string{"--child"})
+		tokens := tokenizer.Tokenize([]string{"--child", "--help"})
 
-		levels := spec.TerminalImplicitLevels([]*spec.Command{root}, tokens, true, false)
+		levels := spec.TerminalImplicitLevels([]*spec.Command{root}, tokens, false)
 
 		assert.Equal(t, 1, levels)
+	})
+
+	t.Run("root-only version descends past a non-runnable intermediate", func(t *testing.T) {
+		t.Parallel()
+
+		leaf := &spec.Command{Name: "run", Implicit: true, IsRunnable: true}
+		mid := &spec.Command{
+			Name:        "mid",
+			Implicit:    true,
+			Flags:       []*spec.Flag{{Name: "mid-flag", IsBool: true}},
+			Subcommands: []*spec.Command{leaf},
+		}
+		root := &spec.Command{Name: "tool", Subcommands: []*spec.Command{mid}}
+		tokens := tokenizer.Tokenize([]string{"--mid-flag", "--version"})
+
+		levels := spec.TerminalImplicitLevels([]*spec.Command{root}, tokens, false)
+
+		assert.Equal(t, 2, levels)
+	})
+
+	t.Run("help stops at a non-runnable intermediate", func(t *testing.T) {
+		t.Parallel()
+
+		leaf := &spec.Command{Name: "run", Implicit: true, IsRunnable: true}
+		mid := &spec.Command{
+			Name:        "mid",
+			Implicit:    true,
+			Flags:       []*spec.Flag{{Name: "mid-flag", IsBool: true}},
+			Subcommands: []*spec.Command{leaf},
+		}
+		root := &spec.Command{Name: "tool", Subcommands: []*spec.Command{mid}}
+		tokens := tokenizer.Tokenize([]string{"--mid-flag", "--help"})
+
+		levels := spec.TerminalImplicitLevels([]*spec.Command{root}, tokens, false)
+
+		assert.Equal(t, 1, levels)
+	})
+
+	t.Run("version before terminator operands forwards past the branch", func(t *testing.T) {
+		t.Parallel()
+
+		leaf := &spec.Command{Name: "run", Implicit: true, IsRunnable: true}
+		mid := &spec.Command{
+			Name:        "mid",
+			Implicit:    true,
+			Flags:       []*spec.Flag{{Name: "mid-flag", IsBool: true}},
+			Subcommands: []*spec.Command{leaf},
+		}
+		root := &spec.Command{Name: "tool", Subcommands: []*spec.Command{mid}}
+		tokens := tokenizer.Tokenize([]string{"--mid-flag", "--version", "--", "x"})
+
+		levels := spec.TerminalImplicitLevels([]*spec.Command{root}, tokens, true)
+
+		assert.Equal(t, 2, levels)
+	})
+
+	t.Run("NoCLI long help shadow does not mask the builtin", func(t *testing.T) {
+		t.Parallel()
+
+		leaf := &spec.Command{Name: "run", Implicit: true}
+		root := &spec.Command{
+			Name:        "tool",
+			Flags:       []*spec.Flag{{Name: "help", NoCLI: true}},
+			Subcommands: []*spec.Command{leaf},
+		}
+		tokens := tokenizer.Tokenize([]string{"--help"})
+
+		levels := spec.TerminalImplicitLevels([]*spec.Command{root}, tokens, false)
+
+		assert.Equal(t, 0, levels)
+	})
+
+	t.Run("NoCLI short help shadow does not mask the builtin", func(t *testing.T) {
+		t.Parallel()
+
+		leaf := &spec.Command{Name: "run", Implicit: true}
+		root := &spec.Command{
+			Name:      "tool",
+			HelpShort: 'h',
+			Flags: []*spec.Flag{
+				{Name: "help", NoCLI: true, Short: 'h', IsBool: true},
+			},
+			Subcommands: []*spec.Command{leaf},
+		}
+		tokens := tokenizer.Tokenize([]string{"-h"})
+
+		levels := spec.TerminalImplicitLevels([]*spec.Command{root}, tokens, false)
+
+		assert.Equal(t, 0, levels)
 	})
 
 	t.Run("non-runnable parent enters the implicit child", func(t *testing.T) {
@@ -139,7 +229,7 @@ func TestTerminalImplicitLevels(t *testing.T) {
 		leaf := &spec.Command{Name: "run", Implicit: true}
 		root := &spec.Command{Name: "tool", Subcommands: []*spec.Command{leaf}}
 
-		levels := spec.TerminalImplicitLevels([]*spec.Command{root}, nil, false, false)
+		levels := spec.TerminalImplicitLevels([]*spec.Command{root}, nil, false)
 
 		assert.Equal(t, 1, levels)
 	})
@@ -150,7 +240,7 @@ func TestTerminalImplicitLevels(t *testing.T) {
 		leaf := &spec.Command{Name: "run", Implicit: true}
 		root := &spec.Command{Name: "tool", IsRunnable: true, Subcommands: []*spec.Command{leaf}}
 
-		levels := spec.TerminalImplicitLevels([]*spec.Command{root}, nil, false, true)
+		levels := spec.TerminalImplicitLevels([]*spec.Command{root}, nil, true)
 
 		assert.Equal(t, 1, levels)
 	})
@@ -168,7 +258,7 @@ func TestTerminalImplicitLevels(t *testing.T) {
 			},
 		}
 
-		levels := spec.TerminalImplicitLevels([]*spec.Command{root}, nil, false, true)
+		levels := spec.TerminalImplicitLevels([]*spec.Command{root}, nil, true)
 
 		assert.Equal(t, 0, levels)
 	})
@@ -185,7 +275,7 @@ func TestTerminalImplicitLevels(t *testing.T) {
 		root := &spec.Command{Name: "tool", IsRunnable: true, Subcommands: []*spec.Command{mid}}
 		tokens := tokenizer.Tokenize([]string{"--deep"})
 
-		levels := spec.TerminalImplicitLevels([]*spec.Command{root}, tokens, false, false)
+		levels := spec.TerminalImplicitLevels([]*spec.Command{root}, tokens, false)
 
 		assert.Equal(t, 2, levels)
 	})

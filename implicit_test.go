@@ -101,6 +101,28 @@ type implicitDeepRootCLI struct {
 	Mid conga.Command[implicitDeepMidCmd] `implicit:"true" name:"mid"`
 }
 
+type implicitVersionRawLeafCmd struct {
+	Args     conga.RawArgs
+	executed bool
+	raw      []string
+}
+
+func (c *implicitVersionRawLeafCmd) Run(_ context.Context, _ *conga.Session) error {
+	c.executed = true
+	c.raw = c.Args.Get()
+
+	return nil
+}
+
+type implicitVersionMidCmd struct {
+	MidFlag conga.OptionalFlag[bool]                 `name:"mid-flag"`
+	Exec    conga.Command[implicitVersionRawLeafCmd] `implicit:"true" name:"run"`
+}
+
+type implicitVersionRootCLI struct {
+	Mid conga.Command[implicitVersionMidCmd] `implicit:"true" name:"mid"`
+}
+
 type implicitNumericRunCmd struct {
 	Value conga.RequiredArg[int]
 
@@ -136,6 +158,31 @@ type implicitNumericShortRootCLI struct {
 
 func (c *implicitNumericShortRootCLI) Run(_ context.Context, _ *conga.Session) error {
 	c.executed = true
+
+	return nil
+}
+
+type implicitNumericValueLeafCmd struct {
+	executed bool
+}
+
+func (c *implicitNumericValueLeafCmd) Run(_ context.Context, _ *conga.Session) error {
+	c.executed = true
+
+	return nil
+}
+
+type implicitNumericValueRootCLI struct {
+	Level conga.OptionalFlag[string]                 `short:"5"`
+	Exec  conga.Command[implicitNumericValueLeafCmd] `implicit:"true" name:"run"`
+
+	executed bool
+	level    string
+}
+
+func (c *implicitNumericValueRootCLI) Run(_ context.Context, _ *conga.Session) error {
+	c.executed = true
+	c.level = c.Level.Get()
 
 	return nil
 }
@@ -559,6 +606,69 @@ func TestImplicitCommand_RegisteredNegativeShortBindsAsFlag(t *testing.T) {
 	assert.False(t, cli.Exec.Get().executed)
 }
 
+func TestImplicitCommand_RegisteredLeadingNegativeShorthandBindsAsFlag(t *testing.T) {
+	t.Parallel()
+
+	cli := new(implicitNumericValueRootCLI)
+	app := conga.New(cli).Name("tool").Args([]string{"-50"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.True(t, cli.executed)
+	assert.Equal(t, "0", cli.level)
+	assert.False(t, cli.Exec.Get().executed)
+}
+
+func TestImplicitCommand_MultiDigitNegativeOperandRoutesToImplicit(t *testing.T) {
+	t.Parallel()
+
+	cli := new(implicitNumericRootCLI)
+	app := conga.New(cli).Name("tool").Args([]string{"-50"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.True(t, cli.Exec.Get().executed)
+	assert.Equal(t, -50, cli.Exec.Get().value)
+	assert.False(t, cli.executed)
+}
+
+func TestImplicitCommand_ShortClusterValueBeforeExplicitSubcommand(t *testing.T) {
+	t.Parallel()
+
+	t.Run("root shorthand", func(t *testing.T) {
+		t.Parallel()
+
+		cli := new(implicitRunnableFlagsRoot)
+		app := conga.New(cli).Name("tool").Args([]string{"-vo", "install"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.True(t, cli.Exec.Get().executed)
+		assert.Equal(t, "install", cli.Exec.Get().output)
+		assert.Equal(t, 1, cli.Verbose.Get())
+		assert.False(t, cli.Install.Get().executed)
+		assert.False(t, cli.executed)
+	})
+
+	t.Run("implicit shorthand", func(t *testing.T) {
+		t.Parallel()
+
+		cli := new(implicitRunnableFlagsRoot)
+		app := conga.New(cli).Name("tool").Args([]string{"-no", "install"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.True(t, cli.Exec.Get().executed)
+		assert.True(t, cli.Exec.Get().dryRun)
+		assert.Equal(t, "install", cli.Exec.Get().output)
+		assert.False(t, cli.Install.Get().executed)
+	})
+}
+
 func TestImplicitCommand_ChildFlagSelectsRunnableImplicit(t *testing.T) {
 	t.Parallel()
 
@@ -729,6 +839,71 @@ func TestImplicitCommand_ChildFlagBeforeVersionStaysUnknown(t *testing.T) {
 	assert.Contains(t, err.Error(), "unknown flag: --version")
 	assert.False(t, cli.executed)
 	assert.False(t, cli.Exec.Get().executed)
+}
+
+func TestImplicitCommand_MidFlagVersionReachesRunnableLeaf(t *testing.T) {
+	t.Parallel()
+
+	t.Run("long flag implicit route", func(t *testing.T) {
+		t.Parallel()
+
+		var stdoutBuffer bytes.Buffer
+
+		cli := new(implicitVersionRootCLI)
+		app := conga.New(cli).
+			Name("tool").
+			Version("1.0.0").
+			Stdout(&stdoutBuffer).
+			Args([]string{"--mid-flag", "--version"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, "", stdoutBuffer.String())
+		assert.True(t, cli.Mid.Get().Exec.Get().executed)
+		assert.Equal(t, []string{"--version"}, cli.Mid.Get().Exec.Get().raw)
+	})
+
+	t.Run("long flag explicit route", func(t *testing.T) {
+		t.Parallel()
+
+		var stdoutBuffer bytes.Buffer
+
+		cli := new(implicitVersionRootCLI)
+		app := conga.New(cli).
+			Name("tool").
+			Version("1.0.0").
+			Stdout(&stdoutBuffer).
+			Args([]string{"mid", "--version"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, "", stdoutBuffer.String())
+		assert.True(t, cli.Mid.Get().Exec.Get().executed)
+		assert.Equal(t, []string{"--version"}, cli.Mid.Get().Exec.Get().raw)
+	})
+
+	t.Run("short flag implicit route", func(t *testing.T) {
+		t.Parallel()
+
+		var stdoutBuffer bytes.Buffer
+
+		cli := new(implicitVersionRootCLI)
+		app := conga.New(cli).
+			Name("tool").
+			Version("1.0.0").
+			VersionShortFlag('V').
+			Stdout(&stdoutBuffer).
+			Args([]string{"--mid-flag", "-V"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, "", stdoutBuffer.String())
+		assert.True(t, cli.Mid.Get().Exec.Get().executed)
+		assert.Equal(t, []string{"-V"}, cli.Mid.Get().Exec.Get().raw)
+	})
 }
 
 func TestImplicitCommand_VersionBeforeChildFlagStaysUnknown(t *testing.T) {

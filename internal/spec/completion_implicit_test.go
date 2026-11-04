@@ -90,6 +90,20 @@ type completionDeepFlagRoot struct {
 	Mid mockCmd[completionDeepFlagMid] `implicit:"true" name:"mid"`
 }
 
+type completionDeepBranchLeaf struct {
+	File mockReqArg[string] `enum:"branch-a.ts,branch-b.ts"`
+}
+
+type completionDeepBranchMid struct {
+	MidFlag mockFlag[bool]                    `name:"mid-flag"`
+	JSON    mockCmd[completionDeepLeaf]       `name:"json"`
+	Run     mockCmd[completionDeepBranchLeaf] `implicit:"true" name:"run"`
+}
+
+type completionDeepBranchRoot struct {
+	Mid mockCmd[completionDeepBranchMid] `implicit:"true" name:"mid"`
+}
+
 type completionExplicitTask struct{}
 
 type completionExplicitRunBranch struct {
@@ -482,14 +496,25 @@ func TestAnalyzeCompletion_BuiltinVersionKeepsRootChain(t *testing.T) {
 	})
 }
 
-func TestAnalyzeCompletion_BuiltinBeforeTerminatorStopsAtRequiredDepth(t *testing.T) {
+func TestAnalyzeCompletion_HelpBeforeTerminatorStopsAtRequiredDepth(t *testing.T) {
+	t.Parallel()
+
+	root := buildCompletionDeepRunnableRoot(t)
+
+	analysis := spec.AnalyzeCompletion(root, []string{"--mid-flag", "--help", "--", "x", ""})
+
+	assert.Equal(t, []string{"tool", "mid"}, commandNames(analysis.CommandChain))
+	assert.Equal(t, []string{"x"}, analysis.PositionalArgs)
+}
+
+func TestAnalyzeCompletion_RootOnlyVersionDoesNotStopAtRequiredDepth(t *testing.T) {
 	t.Parallel()
 
 	root := buildCompletionDeepRunnableRoot(t)
 
 	analysis := spec.AnalyzeCompletion(root, []string{"--mid-flag", "--version", "--", "x", ""})
 
-	assert.Equal(t, []string{"tool", "mid"}, commandNames(analysis.CommandChain))
+	assert.Equal(t, []string{"tool", "mid", "run"}, commandNames(analysis.CommandChain))
 	assert.Equal(t, []string{"x"}, analysis.PositionalArgs)
 }
 
@@ -550,6 +575,20 @@ func TestComplete_FlagSelectedDeepImplicitPositionals(t *testing.T) {
 
 	assert.True(t, slices.Contains(values, "deep-a.ts"))
 	assert.True(t, slices.Contains(values, "deep-b.ts"))
+}
+
+func TestComplete_FlagSelectedNonRunnableImplicitBranchKeepsChildren(t *testing.T) {
+	t.Parallel()
+
+	root := buildCompletionImplicitRoot(t, &completionDeepBranchRoot{})
+
+	result := spec.Complete(root, []string{"--mid-flag", ""}, spec.CompleteOptions{})
+
+	values := itemValues(result.Items)
+
+	assert.True(t, slices.Contains(values, "json"))
+	assert.True(t, slices.Contains(values, "branch-a.ts"))
+	assert.True(t, slices.Contains(values, "branch-b.ts"))
 }
 
 func TestComplete_FlagSelectedImplicitNarrowsSiblingSurface(t *testing.T) {

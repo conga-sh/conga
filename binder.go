@@ -521,6 +521,48 @@ func (index *flagIndex) find(tok tokenizer.Token) *spec.Flag {
 	}
 }
 
+// flagTokenConsumesNext reports whether the token parser takes the following
+// token as this flag token's value. It mirrors parseShortFlagCluster: a
+// value-taking rune consumes the rest of the shorthand cluster as its value
+// when it is not the last rune, and only a final value-taking rune consumes the
+// next token. An unresolved rune ends the cluster without consuming anything.
+func (index *flagIndex) flagTokenConsumesNext(tok tokenizer.Token) bool {
+	if tok.HasAttachedValue {
+		return false
+	}
+
+	switch tok.Type {
+	case tokenizer.TokenTypeLongFlag:
+		flagSpec := index.find(tok)
+
+		return flagSpec != nil && flagSpec.TakesValue()
+	case tokenizer.TokenTypeShortFlag:
+		runes := tok.ShortRunes
+
+		for position, r := range runes {
+			flagSpec := index.short[r]
+			if flagSpec == nil {
+				return false
+			}
+
+			if flagSpec.TakesValue() {
+				return position == len(runes)-1
+			}
+		}
+
+		return false
+	default:
+		return false
+	}
+}
+
+// leadingShortRegistered reports whether the token's first shorthand resolves
+// to a declared flag. The token parser classifies a negative number as a flag
+// cluster when its first rune is registered, regardless of later runes.
+func (index *flagIndex) leadingShortRegistered(tok tokenizer.Token) bool {
+	return len(tok.ShortRunes) > 0 && index.short[tok.ShortRunes[0]] != nil
+}
+
 type constraintSet struct {
 	enum       []string
 	length     *spec.Range
@@ -1016,26 +1058,20 @@ func routeSubcommands(cmd *spec.Command, tokens []tokenizer.Token) ([]*spec.Comm
 		remaining = append(remaining, tok)
 	}
 
-	chain = applyTerminalImplicitRoute(chain, index, remaining)
+	chain = applyTerminalImplicitRoute(chain, remaining)
 
 	return chain, remaining, nil
 }
 
 // applyTerminalImplicitRoute selects implicit commands when the invocation
-// ends without an explicitly named subcommand. A runnable command runs itself
-// unless operands follow the -- terminator and it declares no DashArgs to own
-// them, or unless the supplied flags are declared only by its implicit
-// descendants, in which case routing continues into the implicit chain. A
-// built-in rendering request keeps the current command active when no flag
-// selects a deeper implicit command, so tool --help shows the parent screen
-// while tool -n --help shows the implicit child's screen.
-func applyTerminalImplicitRoute(chain []*spec.Command, index *flagIndex, remaining []tokenizer.Token) []*spec.Command {
-	levels := spec.TerminalImplicitLevels(
-		chain,
-		remaining,
-		hasBuiltinRequest(remaining, chain, index),
-		hasOperandsAfterTerminator(remaining),
-	)
+// ends without an explicitly named subcommand. The terminal rule is shared with
+// completion through spec.TerminalImplicitLevels: a runnable command runs
+// itself unless operands after the -- terminator are owned by an implicit child
+// or the flags select a deeper implicit command. A built-in rendering request
+// keeps the command active only where that built-in is visible. Callers perform
+// the entry side effects for the returned levels.
+func applyTerminalImplicitRoute(chain []*spec.Command, remaining []tokenizer.Token) []*spec.Command {
+	levels := spec.TerminalImplicitLevels(chain, remaining, hasOperandsAfterTerminator(remaining))
 
 	current := chain[len(chain)-1]
 
@@ -1069,69 +1105,17 @@ func hasOperandsAfterTerminator(tokens []tokenizer.Token) bool {
 
 // routesAsImplicitOperand reports whether tok is a negative-number value that
 // the token parser binds as a positional, so it may enter an implicit command.
-// A registered shorthand is a flag and keeps the existing flag path.
+// A registered leading shorthand makes the token a flag cluster and keeps the
+// existing flag path.
 func routesAsImplicitOperand(current *spec.Command, index *flagIndex, tok tokenizer.Token) bool {
 	return tok.Type == tokenizer.TokenTypeShortFlag && tok.IsNegativeNumber() &&
-		current.ImplicitCommand() != nil && index.find(tok) == nil
-}
-
-// hasBuiltinRequest reports whether tokens request a built-in rendering flag
-// before the -- terminator. Declared user flags shadow the built-ins through
-// FindFlagInChain and FindShortFlagInChain, so a user-declared --help does not
-// suppress implicit selection. Short clusters are scanned rune by rune: the
-// parser binds a trailing help or version rune after any bool or counter runes,
-// while a value-taking rune consumes the rest of the cluster as its value.
-func hasBuiltinRequest(tokens []tokenizer.Token, chain []*spec.Command, index *flagIndex) bool {
-	for _, tok := range tokens {
-		switch tok.Type {
-		case tokenizer.TokenTypeTerminator:
-			return false
-		case tokenizer.TokenTypeLongFlag:
-			if spec.IsBuiltinFlag(spec.FindFlagInChain(chain, tok.Name)) {
-				return true
-			}
-		case tokenizer.TokenTypeShortFlag:
-			if shortClusterRequestsBuiltin(tok, chain, index) {
-				return true
-			}
-		case tokenizer.TokenTypePositional, tokenizer.TokenTypeUnknown:
-			continue
-		}
-	}
-
-	return false
-}
-
-// shortClusterRequestsBuiltin reports whether a short-flag cluster binds the
-// built-in help or version flag. A rune that is neither declared nor a built-in
-// or that takes a value ends the cluster before any later built-in rune.
-func shortClusterRequestsBuiltin(tok tokenizer.Token, chain []*spec.Command, index *flagIndex) bool {
-	for _, r := range tok.ShortRunes {
-		flagSpec := spec.FindShortFlagInChain(chain, r)
-		if spec.IsBuiltinShortFlag(flagSpec) {
-			return true
-		}
-
-		if flagSpec == nil {
-			flagSpec = index.short[r]
-		}
-
-		if flagSpec == nil || flagSpec.TakesValue() {
-			return false
-		}
-	}
-
-	return false
+		current.ImplicitCommand() != nil && !index.leadingShortRegistered(tok)
 }
 
 func skipFlagValue(tokens []tokenizer.Token, position int, index *flagIndex) (bool, int) {
 	tok := tokens[position]
-	if (tok.Type != tokenizer.TokenTypeLongFlag && tok.Type != tokenizer.TokenTypeShortFlag) || tok.HasAttachedValue {
-		return false, position
-	}
-
-	flagSpec := index.find(tok)
-	if !flagSpec.TakesValue() {
+	if (tok.Type != tokenizer.TokenTypeLongFlag && tok.Type != tokenizer.TokenTypeShortFlag) ||
+		!index.flagTokenConsumesNext(tok) {
 		return false, position
 	}
 
