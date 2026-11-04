@@ -66,6 +66,15 @@ type completionRunnableSiblingRoot struct {
 	Build mockCmd[completionSiblingLeaf]  `name:"build"`
 }
 
+type completionSiblingValueLeaf struct {
+	Env mockFlag[string] `name:"env"`
+}
+
+type completionSiblingValueRoot struct {
+	Exec   mockCmd[completionImplicitLeaf]     `implicit:"true" name:"run"`
+	Deploy mockCmd[completionSiblingValueLeaf] `name:"deploy"`
+}
+
 type completionDeepRunnableMid struct {
 	MidFlag mockFlag[bool]              `name:"mid-flag"`
 	JSON    mockCmd[completionDeepLeaf] `name:"json"`
@@ -333,6 +342,16 @@ func TestAnalyzeCompletion_SiblingFlagDoesNotSelectImplicit(t *testing.T) {
 	analysis := spec.AnalyzeCompletion(root, []string{"--frozen", ""})
 
 	assert.Equal(t, []string{"tool"}, commandNames(analysis.CommandChain))
+}
+
+func TestAnalyzeCompletion_SiblingValueFlagBeforeNameRoutesToImplicit(t *testing.T) {
+	t.Parallel()
+
+	root := buildCompletionImplicitRoot(t, &completionSiblingValueRoot{})
+
+	analysis := spec.AnalyzeCompletion(root, []string{"--env", "prod", "deploy", ""})
+
+	assert.Equal(t, []string{"tool", "run"}, commandNames(analysis.CommandChain))
 }
 
 func TestAnalyzeCompletion_DeepChainFlagSelectsNeededDepth(t *testing.T) {

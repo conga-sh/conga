@@ -106,3 +106,17 @@ func TestSkipFlagValue_MatchesParserArity(t *testing.T) {
 		})
 	}
 }
+
+func TestRoutesAsImplicitOperand_BuiltinShortRune(t *testing.T) {
+	t.Parallel()
+
+	root := &spec.Command{
+		Name:        "tool",
+		HelpShort:   '5',
+		Subcommands: []*spec.Command{{Name: "run", Implicit: true}},
+	}
+	chain := []*spec.Command{root}
+	tokens := tokenizer.Tokenize([]string{"-5"})
+
+	assert.False(t, routesAsImplicitOperand(root, newFlagIndex(root), tokens[0], chain))
+}

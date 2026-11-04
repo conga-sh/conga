@@ -44,6 +44,47 @@ type implicitRootCLI struct {
 	Install conga.Command[implicitInstallCmd] `summary:"Install dependencies"`
 }
 
+type implicitSiblingValueCmd struct {
+	Env    conga.OptionalFlag[string] `name:"env"`
+	Frozen conga.OptionalFlag[bool]   `name:"frozen"`
+
+	executed bool
+	env      string
+	frozen   bool
+}
+
+func (c *implicitSiblingValueCmd) Run(_ context.Context, _ *conga.Session) error {
+	c.executed = true
+	c.env = c.Env.Get()
+	c.frozen = c.Frozen.Get()
+
+	return nil
+}
+
+type implicitSiblingValueRootCLI struct {
+	Exec   conga.Command[implicitRunCmd]          `implicit:"true" name:"run"`
+	Deploy conga.Command[implicitSiblingValueCmd] `name:"deploy"`
+}
+
+type implicitSiblingRawRunCmd struct {
+	Args conga.RawArgs
+
+	executed bool
+	raw      []string
+}
+
+func (c *implicitSiblingRawRunCmd) Run(_ context.Context, _ *conga.Session) error {
+	c.executed = true
+	c.raw = c.Args.Get()
+
+	return nil
+}
+
+type implicitSiblingRawRootCLI struct {
+	Exec   conga.Command[implicitSiblingRawRunCmd] `implicit:"true" name:"run"`
+	Deploy conga.Command[implicitSiblingValueCmd]  `name:"deploy"`
+}
+
 type implicitRunnableRootCLI struct {
 	Exec    conga.Command[implicitRunCmd]     `implicit:"true"                name:"run" summary:"Execute a file"`
 	Install conga.Command[implicitInstallCmd] `summary:"Install dependencies"`
@@ -63,6 +104,19 @@ type implicitShortClusterCLI struct {
 	Verbose conga.Counter                     `help:"Increase verbosity" short:"v"`
 	Output  conga.OptionalFlag[string]        `short:"o"`
 	Exec    conga.Command[implicitInstallCmd] `implicit:"true"           name:"run"`
+}
+
+type implicitRootValueFlagCLI struct {
+	Output conga.OptionalFlag[string]        `short:"o"`
+	Exec   conga.Command[implicitInstallCmd] `implicit:"true" name:"run"`
+
+	executed bool
+}
+
+func (c *implicitRootValueFlagCLI) Run(_ context.Context, _ *conga.Session) error {
+	c.executed = true
+
+	return nil
 }
 
 type implicitDeepJSONCmd struct {
@@ -395,6 +449,20 @@ func TestImplicitCommand_ExplicitSiblingWins(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, cli.Install.Get().executed)
 	assert.False(t, cli.Exec.Get().executed)
+}
+
+func TestImplicitCommand_SiblingTypoRoutesToImplicit(t *testing.T) {
+	t.Parallel()
+
+	cli := new(implicitRootCLI)
+	app := conga.New(cli).Name("tool").Args([]string{"instal"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.True(t, cli.Exec.Get().executed)
+	assert.Equal(t, "instal", cli.Exec.Get().File.Get())
+	assert.False(t, cli.Install.Get().executed)
 }
 
 func TestImplicitCommand_ExplicitNameIsEquivalent(t *testing.T) {
@@ -809,6 +877,87 @@ func TestImplicitCommand_SiblingFlagDoesNotSelectImplicit(t *testing.T) {
 	assert.False(t, cli.Exec.Get().executed)
 }
 
+func TestImplicitCommand_SiblingValueFlagBeforeNameSelectsImplicitChild(t *testing.T) {
+	t.Parallel()
+
+	t.Run("separate value selects the implicit child", func(t *testing.T) {
+		t.Parallel()
+
+		cli := new(implicitSiblingValueRootCLI)
+		app := conga.New(cli).Name("tool").Args([]string{"--env", "prod", "deploy"})
+
+		err := app.Run()
+
+		assert.IsError(t, err, conga.ErrParse)
+		assert.Contains(t, err.Error(), "unknown flag: --env")
+
+		var usage conga.UsageError
+
+		assert.True(t, errors.As(err, &usage))
+		assert.Equal(t, "tool run", usage.CommandPath())
+		assert.False(t, cli.Deploy.Get().executed)
+		assert.False(t, cli.Exec.Get().executed)
+	})
+
+	t.Run("name before the flag routes to the sibling", func(t *testing.T) {
+		t.Parallel()
+
+		cli := new(implicitSiblingValueRootCLI)
+		app := conga.New(cli).Name("tool").Args([]string{"deploy", "--env", "prod"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.True(t, cli.Deploy.Get().executed)
+		assert.Equal(t, "prod", cli.Deploy.Get().env)
+		assert.False(t, cli.Exec.Get().executed)
+	})
+
+	t.Run("attached value routes to the sibling", func(t *testing.T) {
+		t.Parallel()
+
+		cli := new(implicitSiblingValueRootCLI)
+		app := conga.New(cli).Name("tool").Args([]string{"--env=prod", "deploy"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.True(t, cli.Deploy.Get().executed)
+		assert.Equal(t, "prod", cli.Deploy.Get().env)
+		assert.False(t, cli.Exec.Get().executed)
+	})
+
+	t.Run("bool flag before the name routes to the sibling", func(t *testing.T) {
+		t.Parallel()
+
+		cli := new(implicitSiblingValueRootCLI)
+		app := conga.New(cli).Name("tool").Args([]string{"--frozen", "deploy"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.True(t, cli.Deploy.Get().executed)
+		assert.True(t, cli.Deploy.Get().frozen)
+		assert.False(t, cli.Exec.Get().executed)
+	})
+}
+
+func TestImplicitCommand_SiblingValueFlagBeforeNameForwardsRawArgs(t *testing.T) {
+	t.Parallel()
+
+	// The routing rule selects the implicit child at the separate value token;
+	// a child with RawArgs then forwards the whole tail instead of failing.
+	cli := new(implicitSiblingRawRootCLI)
+	app := conga.New(cli).Name("tool").Args([]string{"--env", "prod", "deploy"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.True(t, cli.Exec.Get().executed)
+	assert.Equal(t, []string{"--env", "prod", "deploy"}, cli.Exec.Get().raw)
+	assert.False(t, cli.Deploy.Get().executed)
+}
+
 func TestImplicitCommand_ChildFlagBeforeHelpSelectsImplicit(t *testing.T) {
 	t.Parallel()
 
@@ -1176,6 +1325,22 @@ func TestImplicitCommand_HelpShortInClusterSelectsImplicit(t *testing.T) {
 	assert.NotContains(t, stdoutBuffer.String(), "Usage:\n  tool [<command>]")
 	assert.False(t, cli.executed)
 	assert.False(t, cli.Exec.Get().executed)
+}
+
+func TestImplicitCommand_HelpShortValueClusterKeepsParentHelp(t *testing.T) {
+	t.Parallel()
+
+	var stdoutBuffer bytes.Buffer
+
+	cli := new(implicitRootValueFlagCLI)
+	app := conga.New(cli).Name("tool").HelpShortFlag('h').Stdout(&stdoutBuffer).Args([]string{"-ho", "json"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Contains(t, stdoutBuffer.String(), "Usage:\n  tool [<command>]")
+	assert.NotContains(t, stdoutBuffer.String(), "Usage:\n  tool run")
+	assert.False(t, cli.executed)
 }
 
 func TestImplicitCommand_TerminatorOperandsFollowFlagSelectedChain(t *testing.T) {

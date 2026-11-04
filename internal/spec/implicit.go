@@ -8,11 +8,12 @@ import (
 
 // ImplicitFlagDepth returns the number of implicit descendant levels required
 // to resolve the flag tokens in tokens. The chain's leaf is the current command.
-// It is the single authority shared by the binder's terminal implicit selection
-// and the completion walker, so routing and candidate generation cannot drift:
-// flags already declared by the routed chain, built-ins, and flags declared
-// nowhere contribute nothing, and tokens after the -- terminator are operands
-// that never select a command.
+// It is the completion walker's entry point; the binder's terminal implicit
+// selection computes the same depth through flagDepthInLevels inside
+// TerminalImplicitLevels. Both surfaces therefore share one scan and cannot
+// drift: flags already declared by the routed chain, built-ins, and flags
+// declared nowhere contribute nothing, and tokens after the -- terminator are
+// operands that never select a command.
 func ImplicitFlagDepth(chain []*Command, tokens []tokenizer.Token) int {
 	if len(chain) == 0 || !hasFlagTokenBeforeTerminator(tokens) {
 		return 0
@@ -241,10 +242,6 @@ func shortClusterDepth(chain []*Command, levelChains [][]*Command, tok tokenizer
 	for position, r := range runes {
 		flagSpec, depth := resolveShortFlag(chain, levelChains, r)
 		if flagSpec == nil {
-			if IsBuiltinShortFlag(FindShortFlagInChain(chain, r)) {
-				continue
-			}
-
 			return false, requiredDepth
 		}
 

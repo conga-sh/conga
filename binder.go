@@ -570,10 +570,18 @@ func (index *flagIndex) flagTokenConsumesNext(tok tokenizer.Token, chain []*spec
 }
 
 // leadingShortRegistered reports whether the token's first shorthand resolves
-// to a declared flag. The token parser classifies a negative number as a flag
-// cluster when its first rune is registered, regardless of later runes.
-func (index *flagIndex) leadingShortRegistered(tok tokenizer.Token) bool {
-	return len(tok.ShortRunes) > 0 && index.short[tok.ShortRunes[0]] != nil
+// to a flag the token parser registers: a declared flag on the command or an
+// implicit descendant, or a synthesized built-in short. The token parser
+// classifies a negative number as a flag cluster when its first rune is
+// registered, regardless of later runes.
+func (index *flagIndex) leadingShortRegistered(tok tokenizer.Token, chain []*spec.Command) bool {
+	if len(tok.ShortRunes) == 0 {
+		return false
+	}
+
+	first := tok.ShortRunes[0]
+
+	return index.short[first] != nil || spec.FindShortFlagInChain(chain, first) != nil
 }
 
 type constraintSet struct {
@@ -792,7 +800,7 @@ func bindSpecialArgs(leaf *spec.Command, dashArgs, rawTokens []string) {
 func validateRunnableContract(leaf *spec.Command, cmdChain []*spec.Command) error {
 	leafTarget := getCmdTarget(leaf)
 
-	if _, isRunner := leafTarget.(Runner); !isRunner {
+	if !isRunner(leafTarget) {
 		if leaf.HasUserSubcommands() {
 			return &parseError{
 				msg:      fmt.Sprintf("subcommand required for %q", leaf.Name),
@@ -1029,7 +1037,7 @@ func routeSubcommands(cmd *spec.Command, tokens []tokenizer.Token) ([]*spec.Comm
 			continue
 		}
 
-		if tok.Type != tokenizer.TokenTypePositional && !routesAsImplicitOperand(current, index, tok) {
+		if tok.Type != tokenizer.TokenTypePositional && !routesAsImplicitOperand(current, index, tok, chain) {
 			remaining = append(remaining, tok)
 
 			continue
@@ -1120,9 +1128,9 @@ func hasOperandsAfterTerminator(tokens []tokenizer.Token) bool {
 // the token parser binds as a positional, so it may enter an implicit command.
 // A registered leading shorthand makes the token a flag cluster and keeps the
 // existing flag path.
-func routesAsImplicitOperand(current *spec.Command, index *flagIndex, tok tokenizer.Token) bool {
+func routesAsImplicitOperand(current *spec.Command, index *flagIndex, tok tokenizer.Token, chain []*spec.Command) bool {
 	return tok.Type == tokenizer.TokenTypeShortFlag && tok.IsNegativeNumber() &&
-		current.ImplicitCommand() != nil && !index.leadingShortRegistered(tok)
+		current.ImplicitCommand() != nil && !index.leadingShortRegistered(tok, chain)
 }
 
 func skipFlagValue(tokens []tokenizer.Token, position int, index *flagIndex, chain []*spec.Command) (bool, int) {

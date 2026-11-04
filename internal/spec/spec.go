@@ -567,13 +567,6 @@ type Options struct {
 	EnvPrefix       string
 }
 
-// FindDeclaredFlagInChain searches backwards through chain for a declared flag
-// matching name or alias, without the built-in fallback. It includes NoCLI
-// engine flags; use FindFlagInChain for CLI routing and completion.
-func FindDeclaredFlagInChain(chain []*Command, name string) *Flag {
-	return findFlagInChain(chain, name, false)
-}
-
 // FindFlagInChain searches backwards through chain for a CLI-routable flag
 // matching name or alias, falling back to the built-in --help, --version,
 // --completion, and --why flags. NoCLI engine flags are excluded.
@@ -680,13 +673,13 @@ func (c *Command) findCLIShortFlag(r rune) *Flag {
 	return nil
 }
 
-// findFlagInChain searches backwards through chain for a flag matching name or
-// alias. cliOnly excludes NoCLI engine flags, which can never be supplied on the
-// command line and therefore never participate in CLI routing or completion.
-func findFlagInChain(chain []*Command, name string, cliOnly bool) *Flag {
+// findCLIFlagInChain searches backwards through chain for a CLI-routable flag
+// matching name or alias. NoCLI engine flags can never be supplied on the
+// command line, so they never participate in CLI routing or completion.
+func findCLIFlagInChain(chain []*Command, name string) *Flag {
 	for _, cmd := range slices.Backward(chain) {
 		for _, flagSpec := range cmd.Flags {
-			if cliOnly && flagSpec.NoCLI {
+			if flagSpec.NoCLI {
 				continue
 			}
 
@@ -697,12 +690,6 @@ func findFlagInChain(chain []*Command, name string, cliOnly bool) *Flag {
 	}
 
 	return nil
-}
-
-// findCLIFlagInChain searches backwards through chain for a CLI-routable flag
-// matching name or alias.
-func findCLIFlagInChain(chain []*Command, name string) *Flag {
-	return findFlagInChain(chain, name, true)
 }
 
 // findCLIShortFlagInChain searches backwards through chain for a CLI-routable

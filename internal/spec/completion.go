@@ -272,9 +272,10 @@ func (w *astCompletionWalker) applySelectedImplicitForCandidates() bool {
 }
 
 // implicitFlagDepth returns the number of implicit descendant levels required
-// to resolve the typed flag tokens. It delegates to the same scan the binder
-// runs at terminal routing, so a flag typed before the command that declares it
-// contributes the depth the runtime will charge it.
+// to resolve the typed flag tokens. It delegates to ImplicitFlagDepth, which
+// shares flagDepthInLevels with the binder's TerminalImplicitLevels, so a flag
+// typed before the command that declares it contributes the depth the runtime
+// will charge it.
 func (w *astCompletionWalker) implicitFlagDepth() int {
 	return ImplicitFlagDepth(w.cmdChain, w.tokens)
 }

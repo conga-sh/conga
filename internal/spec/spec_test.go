@@ -744,19 +744,6 @@ func TestFindFlagInChain(t *testing.T) {
 
 		assert.Zero(t, flag)
 	})
-
-	t.Run("declared-only lookup finds declared flags", func(t *testing.T) {
-		t.Parallel()
-
-		flag := spec.FindDeclaredFlagInChain(chain, "global")
-		assert.Equal(t, "global", flag.Name)
-	})
-
-	t.Run("declared-only lookup skips builtin help fallback", func(t *testing.T) {
-		t.Parallel()
-
-		assert.Equal(t, (*spec.Flag)(nil), spec.FindDeclaredFlagInChain(chain, "help"))
-	})
 }
 
 func TestNewCompletionCommand(t *testing.T) {

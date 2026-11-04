@@ -263,6 +263,23 @@ func TestTerminalImplicitLevels(t *testing.T) {
 		assert.Equal(t, 0, levels)
 	})
 
+	t.Run("non-runnable parent with dash args forwards terminator operands", func(t *testing.T) {
+		t.Parallel()
+
+		leaf := &spec.Command{Name: "run", Implicit: true}
+		root := &spec.Command{
+			Name:     "tool",
+			DashArgs: &spec.DashArgs{},
+			Subcommands: []*spec.Command{
+				leaf,
+			},
+		}
+
+		levels := spec.TerminalImplicitLevels([]*spec.Command{root}, nil, true)
+
+		assert.Equal(t, 1, levels)
+	})
+
 	t.Run("nested chain enters both selected levels", func(t *testing.T) {
 		t.Parallel()
 
