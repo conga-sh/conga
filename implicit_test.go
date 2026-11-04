@@ -223,6 +223,28 @@ type implicitVersionLongShadowRoot struct {
 	Exec conga.Command[implicitVersionLongShadowCmd] `implicit:"true" name:"run"`
 }
 
+type implicitExplicitRunCmd struct {
+	Format conga.OptionalFlag[string]
+
+	executed bool
+	format   string
+}
+
+func (c *implicitExplicitRunCmd) Run(_ context.Context, _ *conga.Session) error {
+	c.executed = true
+	c.format = c.Format.Get()
+
+	return nil
+}
+
+type implicitExplicitMidCmd struct {
+	Run conga.Command[implicitExplicitRunCmd] `implicit:"true" name:"run"`
+}
+
+type implicitExplicitRootCLI struct {
+	Mid conga.Command[implicitExplicitMidCmd] `name:"mid"`
+}
+
 type implicitClusterValueLeafCmd struct {
 	Five conga.OptionalFlag[bool] `short:"5"`
 
@@ -615,6 +637,36 @@ func TestImplicitCommand_RootFlagKeepsRunnableParent(t *testing.T) {
 	assert.True(t, cli.executed)
 	assert.Equal(t, 1, cli.Verbose.Get())
 	assert.False(t, cli.Exec.Get().executed)
+}
+
+func TestImplicitCommand_FlagBeforeExplicitNameSelectsImplicitChild(t *testing.T) {
+	t.Parallel()
+
+	t.Run("flag before the explicit name", func(t *testing.T) {
+		t.Parallel()
+
+		cli := new(implicitExplicitRootCLI)
+		app := conga.New(cli).Name("tool").Args([]string{"--format", "json", "mid"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.True(t, cli.Mid.Get().Run.Get().executed)
+		assert.Equal(t, "json", cli.Mid.Get().Run.Get().format)
+	})
+
+	t.Run("flag after the explicit name", func(t *testing.T) {
+		t.Parallel()
+
+		cli := new(implicitExplicitRootCLI)
+		app := conga.New(cli).Name("tool").Args([]string{"mid", "--format", "json"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.True(t, cli.Mid.Get().Run.Get().executed)
+		assert.Equal(t, "json", cli.Mid.Get().Run.Get().format)
+	})
 }
 
 func TestImplicitCommand_ShortClusterChildFlagSelectsImplicit(t *testing.T) {

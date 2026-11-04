@@ -128,6 +128,10 @@ type astCompletionWalker struct {
 	// child's positional candidates are offered. Analysis walkers leave it
 	// false and mirror the runtime using only the tokens present.
 	predictsTerminatorOperands bool
+	// tokens is the typed token stream walked so far. The shared implicit
+	// depth scan reads it directly, exactly like the binder's routing scan, so
+	// a flag that precedes the command declaring it still selects the child.
+	tokens []tokenizer.Token
 
 	analysisLeaf         *Command
 	analysisPositionals  []string
@@ -152,6 +156,8 @@ func newASTCompletionWalker(rootCmd *Command, opts CompleteOptions) *astCompleti
 }
 
 func (w *astCompletionWalker) walkTokens(toks []tokenizer.Token) {
+	w.tokens = toks
+
 	for i := range toks {
 		operandsFollow := w.predictsTerminatorOperands || i+1 < len(toks)
 		w.consumeToken(toks[i], operandsFollow)
@@ -279,42 +285,11 @@ func (w *astCompletionWalker) applySelectedImplicitForCandidates() bool {
 }
 
 // implicitFlagDepth returns the number of implicit descendant levels required
-// to resolve the flags bound so far. Built-in flags and flags declared on the
-// active chain contribute nothing.
+// to resolve the typed flag tokens. It delegates to the same scan the binder
+// runs at terminal routing, so a flag typed before the command that declares it
+// contributes the depth the runtime will charge it.
 func (w *astCompletionWalker) implicitFlagDepth() int {
-	requiredDepth := 0
-
-	for flagSpec := range w.flagsSet {
-		requiredDepth = max(requiredDepth, w.implicitFlagLevel(flagSpec))
-	}
-
-	if w.pendingFlagValue != nil {
-		requiredDepth = max(requiredDepth, w.implicitFlagLevel(w.pendingFlagValue))
-	}
-
-	return requiredDepth
-}
-
-// implicitFlagLevel reports the implicit descendant level that first declares
-// flagSpec: 0 for built-ins, flags on the active chain, and undeclared flags.
-func (w *astCompletionWalker) implicitFlagLevel(flagSpec *Flag) int {
-	if isBuiltinFlagSpec(flagSpec) || slices.ContainsFunc(w.cmdChain, func(cmd *Command) bool {
-		return commandDeclaresFlag(cmd, flagSpec)
-	}) {
-		return 0
-	}
-
-	depth := 0
-
-	for implicit := w.currentCmd.ImplicitCommand(); implicit != nil; implicit = implicit.ImplicitCommand() {
-		depth++
-
-		if commandDeclaresFlag(implicit, flagSpec) {
-			return depth
-		}
-	}
-
-	return 0
+	return ImplicitFlagDepth(w.currentCmd, w.cmdChain, w.tokens)
 }
 
 // hasBuiltinFlagRequest reports whether a bound flag requests a built-in
@@ -1400,19 +1375,6 @@ func (w *astCompletionWalker) flagOwner(flag *Flag) *Command {
 	}
 
 	return nil
-}
-
-// commandDeclaresFlag reports whether cmd declares flagSpec. Pointer identity
-// distinguishes same-named flags on sibling commands.
-func commandDeclaresFlag(cmd *Command, flagSpec *Flag) bool {
-	return slices.Contains(cmd.Flags, flagSpec)
-}
-
-// isBuiltinFlagSpec reports whether flagSpec is one of the engine-synthesized
-// built-in flags, which never select an implicit command.
-func isBuiltinFlagSpec(flagSpec *Flag) bool {
-	return flagSpec == BuiltinHelpFlag || flagSpec == BuiltinVersionFlag ||
-		flagSpec == BuiltinWhyFlag || flagSpec == BuiltinCompletionFlag
 }
 
 func subcommandTagAndStyle(subcommand *Command, sectionIndexMap map[string]int) (string, string) {

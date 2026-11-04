@@ -90,6 +90,22 @@ type completionDeepFlagRoot struct {
 	Mid mockCmd[completionDeepFlagMid] `implicit:"true" name:"mid"`
 }
 
+type completionExplicitTask struct{}
+
+type completionExplicitRunBranch struct {
+	Deep mockFlag[bool]                  `name:"deep"`
+	Task mockCmd[completionExplicitTask] `name:"task"`
+}
+
+type completionExplicitMid struct {
+	JSON mockCmd[completionExplicitTask]      `name:"json"`
+	Run  mockCmd[completionExplicitRunBranch] `implicit:"true" name:"run"`
+}
+
+type completionExplicitRoot struct {
+	Mid mockCmd[completionExplicitMid] `name:"mid"`
+}
+
 type completionVersionShortShadowLeaf struct {
 	Verbose mockFlag[bool] `short:"V"`
 }
@@ -183,6 +199,22 @@ func buildCompletionDeepRunnableRoot(t *testing.T) *spec.Command {
 		ClassifyContainer: classifyTestContainer,
 		IsRunner: func(target any) bool {
 			_, ok := target.(*completionDeepRunnableMid)
+
+			return ok
+		},
+	})
+	assert.NoError(t, err)
+
+	return cmd
+}
+
+func buildCompletionExplicitRoot(t *testing.T) *spec.Command {
+	t.Helper()
+
+	cmd, err := spec.Build(&completionExplicitRoot{}, "tool", spec.Options{
+		ClassifyContainer: classifyTestContainer,
+		IsRunner: func(target any) bool {
+			_, ok := target.(*completionExplicitMid)
 
 			return ok
 		},
@@ -311,6 +343,39 @@ func TestAnalyzeCompletion_DeepChainFlagSelectsNeededDepth(t *testing.T) {
 
 		assert.Equal(t, []string{"tool", "mid", "run"}, commandNames(analysis.CommandChain))
 	})
+}
+
+func TestAnalyzeCompletion_FlagBeforeExplicitNameRoutesToChild(t *testing.T) {
+	t.Parallel()
+
+	root := buildCompletionExplicitRoot(t)
+
+	analysis := spec.AnalyzeCompletion(root, []string{"--deep", "mid", ""})
+
+	assert.Equal(t, []string{"tool", "mid", "run"}, commandNames(analysis.CommandChain))
+}
+
+func TestComplete_FlagBeforeExplicitNameSelectsChild(t *testing.T) {
+	t.Parallel()
+
+	root := buildCompletionExplicitRoot(t)
+
+	result := spec.Complete(root, []string{"--deep", "mid", ""}, spec.CompleteOptions{})
+
+	values := itemValues(result.Items)
+
+	assert.True(t, slices.Contains(values, "task"))
+	assert.False(t, slices.Contains(values, "run"))
+}
+
+func TestAnalyzeCompletion_PendingFlagBeforeTerminatorRoutesToChild(t *testing.T) {
+	t.Parallel()
+
+	root := buildCompletionDeepRunnableRoot(t)
+
+	analysis := spec.AnalyzeCompletion(root, []string{"--deep", "--", ""})
+
+	assert.Equal(t, []string{"tool", "mid", "run"}, commandNames(analysis.CommandChain))
 }
 
 func TestAnalyzeCompletion_BuiltinShortInClusterSelectsImplicit(t *testing.T) {
