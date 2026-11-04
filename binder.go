@@ -1044,7 +1044,7 @@ func applyTerminalImplicitRoute(current *spec.Command, chain []*spec.Command, in
 			return chain
 		}
 
-		if commandRunsItself(current) && spec.KeepsTerminatorOperands(current, terminatorOperands) && entered >= requiredDepth {
+		if current.IsRunnable && spec.KeepsTerminatorOperands(current, terminatorOperands) && entered >= requiredDepth {
 			return chain
 		}
 
@@ -1066,15 +1066,6 @@ func hasOperandsAfterTerminator(tokens []tokenizer.Token) bool {
 	}
 
 	return false
-}
-
-// commandRunsItself reports whether cmd implements conga.Runner. The routing
-// index cannot rely on spec.Command.IsRunnable because hand-built specs used by
-// tests and internal callers do not populate it.
-func commandRunsItself(cmd *spec.Command) bool {
-	_, ok := getCmdTarget(cmd).(Runner)
-
-	return ok
 }
 
 // routesAsImplicitOperand reports whether tok is a negative-number value that

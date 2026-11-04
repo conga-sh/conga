@@ -75,9 +75,10 @@ type Command struct {
 	Implicit bool
 	// IsRunnable records whether the command target implements conga.Runner.
 	// The builder populates it from Options.IsRunner for user and declared
-	// built-in commands so completion analysis can mirror the runtime terminal
-	// implicit-command rule. Specs built without Options.IsRunner and ephemeral
-	// synthesized completion screens report false.
+	// built-in commands; routing and completion use it as the single authority
+	// for the terminal implicit-command rule. Specs built without
+	// Options.IsRunner report false, so callers building specs manually must set
+	// it when implicit routing matters.
 	IsRunnable     bool
 	DashArgs       *DashArgs
 	RawArgs        *RawArgs
