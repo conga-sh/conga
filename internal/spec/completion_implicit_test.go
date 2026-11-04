@@ -657,6 +657,23 @@ func TestAnalyzeCompletion_NegativeNumberRoutesToImplicit(t *testing.T) {
 	assert.Equal(t, []string{"-5"}, analysis.PositionalArgs)
 }
 
+func TestAnalyzeCompletion_NoCLIHelpShadowDoesNotEnterImplicit(t *testing.T) {
+	t.Parallel()
+
+	leaf := &spec.Command{Name: "run", Implicit: true, IsRunnable: true}
+	root := &spec.Command{
+		Name: "tool",
+		Flags: []*spec.Flag{
+			{Name: "help", NoCLI: true, Hidden: true},
+		},
+		Subcommands: []*spec.Command{leaf},
+	}
+
+	analysis := spec.AnalyzeCompletion(root, []string{"--help", ""})
+
+	assert.Equal(t, []string{"tool"}, commandNames(analysis.CommandChain))
+}
+
 func TestComplete_HiddenImplicitCommandSurfaceSuppressed(t *testing.T) {
 	t.Parallel()
 

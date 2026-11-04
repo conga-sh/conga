@@ -54,6 +54,37 @@ func TestIsBuiltinShortFlag(t *testing.T) {
 	}
 }
 
+func TestFindFlagInChain_NoCLIHelpShadow(t *testing.T) {
+	t.Parallel()
+
+	root := &spec.Command{
+		Name: "tool",
+		Flags: []*spec.Flag{
+			{Name: "help", NoCLI: true},
+		},
+	}
+
+	flagSpec := spec.FindFlagInChain([]*spec.Command{root}, "help")
+
+	assert.Equal(t, spec.BuiltinHelpFlag, flagSpec)
+}
+
+func TestFindShortFlagInChain_NoCLIHelpShadow(t *testing.T) {
+	t.Parallel()
+
+	root := &spec.Command{
+		Name:      "tool",
+		HelpShort: 'h',
+		Flags: []*spec.Flag{
+			{Name: "help", NoCLI: true, Short: 'h', IsBool: true},
+		},
+	}
+
+	flagSpec := spec.FindShortFlagInChain([]*spec.Command{root}, 'h')
+
+	assert.Equal(t, spec.BuiltinHelpFlag, flagSpec)
+}
+
 func TestResolveNegatedFlag(t *testing.T) {
 	t.Parallel()
 

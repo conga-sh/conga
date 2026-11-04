@@ -197,7 +197,7 @@ func (w *astCompletionWalker) resolveLongFlag(name string) *Flag {
 		return flag
 	}
 
-	return FindDeclaredFlagInChain(w.lookupChain(), name)
+	return findCLIFlagInChain(w.lookupChain(), name)
 }
 
 // resolveNegatableFlag resolves the positive flag behind a no--prefixed token
@@ -207,7 +207,7 @@ func (w *astCompletionWalker) resolveNegatableFlag(name string) *Flag {
 }
 
 // resolveShortFlag resolves a shorthand against the active chain first so
-// root-only built-ins keep their visibility, then against flags declared by
+// root-only built-ins keep their visibility, then against CLI flags declared by
 // unentered implicit commands.
 func (w *astCompletionWalker) resolveShortFlag(r rune) *Flag {
 	if flag := FindShortFlagInChain(w.cmdChain, r); flag != nil {
@@ -215,7 +215,7 @@ func (w *astCompletionWalker) resolveShortFlag(r rune) *Flag {
 	}
 
 	for implicit := w.currentCmd.ImplicitCommand(); implicit != nil; implicit = implicit.ImplicitCommand() {
-		if flag := implicit.FindShortFlag(r); flag != nil {
+		if flag := implicit.findCLIShortFlag(r); flag != nil {
 			return flag
 		}
 	}
