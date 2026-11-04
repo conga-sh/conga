@@ -2,7 +2,6 @@ package spec
 
 import (
 	"slices"
-	"strings"
 
 	"github.com/conga-sh/conga/internal/tokenizer"
 )
@@ -93,7 +92,7 @@ func flagTokenDepth(chain []*Command, levelChains [][]*Command, tok tokenizer.To
 			return consumesNextFlagValue(flagSpec, tok), 0
 		}
 
-		if isBuiltinLongFlag(chain, tok.Name) {
+		if IsBuiltinFlag(FindFlagInChain(chain, tok.Name)) {
 			return false, 0
 		}
 
@@ -132,7 +131,7 @@ func shortClusterDepth(chain []*Command, levelChains [][]*Command, tok tokenizer
 	for position, r := range runes {
 		flagSpec, depth := resolveShortFlag(chain, levelChains, r)
 		if flagSpec == nil {
-			if isBuiltinShortFlag(chain, r) {
+			if IsBuiltinShortFlag(FindShortFlagInChain(chain, r)) {
 				continue
 			}
 
@@ -153,55 +152,29 @@ func shortClusterDepth(chain []*Command, levelChains [][]*Command, tok tokenizer
 	return false, requiredDepth
 }
 
-// isBuiltinLongFlag reports whether name resolves to a built-in flag on the
-// routed chain.
-func isBuiltinLongFlag(chain []*Command, name string) bool {
-	flagSpec := FindFlagInChain(chain, name)
-
-	return flagSpec == BuiltinHelpFlag || flagSpec == BuiltinVersionFlag ||
-		flagSpec == BuiltinWhyFlag || flagSpec == BuiltinCompletionFlag
-}
-
-// isBuiltinShortFlag reports whether r is assigned to the built-in help or
-// version flag on the routed chain. Both built-ins are boolean flags, so a
-// cluster scan continues past them.
-func isBuiltinShortFlag(chain []*Command, r rune) bool {
-	flagSpec := FindShortFlagInChain(chain, r)
-
-	return flagSpec == BuiltinHelpFlag || flagSpec == BuiltinVersionFlag
-}
-
 // shortFlagRegistered reports whether r is declared as a shorthand on the
 // routed chain, is a built-in shorthand, or is declared anywhere in its
 // implicit descendants.
 func shortFlagRegistered(chain []*Command, levelChains [][]*Command, r rune) bool {
-	if findDeclaredCLIShortFlagInChain(chain, r) != nil || isBuiltinShortFlag(chain, r) {
-		return true
-	}
+	flagSpec, _ := resolveShortFlag(chain, levelChains, r)
 
-	for _, levelChain := range levelChains {
-		if findDeclaredCLIShortFlagInChain(levelChain, r) != nil {
-			return true
-		}
-	}
-
-	return false
+	return flagSpec != nil
 }
 
 // resolveShortFlag returns the flag declared for r and the implicit level that
 // first declares it: 0 for the routed chain or a built-in, 1 for its nearest
 // implicit child.
 func resolveShortFlag(chain []*Command, levelChains [][]*Command, r rune) (*Flag, int) {
-	if flagSpec := findDeclaredCLIShortFlagInChain(chain, r); flagSpec != nil {
+	if flagSpec := findCLIShortFlagInChain(chain, r); flagSpec != nil {
 		return flagSpec, 0
 	}
 
-	if flagSpec := FindShortFlagInChain(chain, r); flagSpec == BuiltinHelpFlag || flagSpec == BuiltinVersionFlag {
+	if flagSpec := FindShortFlagInChain(chain, r); IsBuiltinShortFlag(flagSpec) {
 		return flagSpec, 0
 	}
 
 	for depth, levelChain := range levelChains {
-		if flagSpec := findDeclaredCLIShortFlagInChain(levelChain, r); flagSpec != nil {
+		if flagSpec := findCLIShortFlagInChain(levelChain, r); flagSpec != nil {
 			return flagSpec, depth + 1
 		}
 	}
@@ -219,55 +192,11 @@ func consumesNextFlagValue(flagSpec *Flag, tok tokenizer.Token) bool {
 // no- negation form. NoCLI engine flags are never CLI-routable, so they do not
 // contribute depth.
 func declaredCLILongFlag(chain []*Command, name string) *Flag {
-	if flagSpec := findDeclaredCLIFlagInChain(chain, name); flagSpec != nil {
+	if flagSpec := findCLIFlagInChain(chain, name); flagSpec != nil {
 		return flagSpec
 	}
 
-	positiveName, cut := strings.CutPrefix(name, "no-")
-	if !cut {
-		return nil
-	}
-
-	flagSpec := findDeclaredCLIFlagInChain(chain, positiveName)
-	if !CanNegate(flagSpec) {
-		return nil
-	}
-
-	return flagSpec
-}
-
-// findDeclaredCLIFlagInChain searches backwards through chain for a CLI-routable
-// declared flag matching name or alias.
-func findDeclaredCLIFlagInChain(chain []*Command, name string) *Flag {
-	for _, cmd := range slices.Backward(chain) {
-		for _, flagSpec := range cmd.Flags {
-			if flagSpec.NoCLI {
-				continue
-			}
-
-			if flagSpec.Name == name || slices.Contains(flagSpec.Aliases, name) {
-				return flagSpec
-			}
-		}
-	}
-
-	return nil
-}
-
-// findDeclaredCLIShortFlagInChain searches backwards through chain for a
-// CLI-routable declared flag matching shorthand r.
-func findDeclaredCLIShortFlagInChain(chain []*Command, r rune) *Flag {
-	for _, cmd := range slices.Backward(chain) {
-		for _, flagSpec := range cmd.Flags {
-			if flagSpec.NoCLI || flagSpec.Short == 0 {
-				continue
-			}
-
-			if flagSpec.Short == r {
-				return flagSpec
-			}
-		}
-	}
-
-	return nil
+	return ResolveNegatedFlag(name, func(candidate string) *Flag {
+		return findCLIFlagInChain(chain, candidate)
+	})
 }

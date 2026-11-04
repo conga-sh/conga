@@ -66,3 +66,16 @@ var (
 	// BuiltinWhyFlag is the shared definition for the standard --why flag.
 	BuiltinWhyFlag = &Flag{Name: "why", Help: DefaultWhyFlagHelp, IsBool: true}
 )
+
+// IsBuiltinFlag reports whether flagSpec is one of the engine-synthesized
+// built-in flags.
+func IsBuiltinFlag(flagSpec *Flag) bool {
+	return flagSpec == BuiltinHelpFlag || flagSpec == BuiltinVersionFlag ||
+		flagSpec == BuiltinWhyFlag || flagSpec == BuiltinCompletionFlag
+}
+
+// IsBuiltinShortFlag reports whether flagSpec is a built-in flag that can be
+// selected by a shorthand (help or version).
+func IsBuiltinShortFlag(flagSpec *Flag) bool {
+	return flagSpec == BuiltinHelpFlag || flagSpec == BuiltinVersionFlag
+}

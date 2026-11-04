@@ -191,7 +191,7 @@ func (parser *tokenParser) lookupLongFlag(name string) (*spec.Flag, bool) {
 		return flagSpec, false
 	}
 
-	if flagSpec := negatedLongFlag(name, func(n string) *spec.Flag { return parser.flagMap[n] }); flagSpec != nil {
+	if flagSpec := spec.ResolveNegatedFlag(name, func(candidate string) *spec.Flag { return parser.flagMap[candidate] }); flagSpec != nil {
 		return flagSpec, true
 	}
 
@@ -505,7 +505,7 @@ func (index *flagIndex) find(tok tokenizer.Token) *spec.Flag {
 			return flagSpec
 		}
 
-		if flagSpec := negatedLongFlag(tok.Name, func(n string) *spec.Flag { return index.long[n] }); flagSpec != nil {
+		if flagSpec := spec.ResolveNegatedFlag(tok.Name, func(candidate string) *spec.Flag { return index.long[candidate] }); flagSpec != nil {
 			return flagSpec
 		}
 
@@ -1097,9 +1097,7 @@ func hasBuiltinRequest(tokens []tokenizer.Token, chain []*spec.Command, index *f
 		case tokenizer.TokenTypeTerminator:
 			return false
 		case tokenizer.TokenTypeLongFlag:
-			flagSpec := spec.FindFlagInChain(chain, tok.Name)
-			if flagSpec == spec.BuiltinHelpFlag || flagSpec == spec.BuiltinVersionFlag ||
-				flagSpec == spec.BuiltinWhyFlag || flagSpec == spec.BuiltinCompletionFlag {
+			if spec.IsBuiltinFlag(spec.FindFlagInChain(chain, tok.Name)) {
 				return true
 			}
 		case tokenizer.TokenTypeShortFlag:
@@ -1120,7 +1118,7 @@ func hasBuiltinRequest(tokens []tokenizer.Token, chain []*spec.Command, index *f
 func shortClusterRequestsBuiltin(tok tokenizer.Token, chain []*spec.Command, index *flagIndex) bool {
 	for _, r := range tok.ShortRunes {
 		flagSpec := spec.FindShortFlagInChain(chain, r)
-		if flagSpec == spec.BuiltinHelpFlag || flagSpec == spec.BuiltinVersionFlag {
+		if spec.IsBuiltinShortFlag(flagSpec) {
 			return true
 		}
 
@@ -2101,23 +2099,6 @@ func checkOrderedRange[T cmp.Ordered](value, minValue, maxValue T, hasMin, hasMa
 	}
 
 	return "", true
-}
-
-// negatedLongFlag re-resolves a long flag name prefixed with no- through lookup,
-// enforcing the spec.CanNegate guard: a no- token may only re-bind a boolean
-// negatable flag.
-func negatedLongFlag(name string, lookup func(string) *spec.Flag) *spec.Flag {
-	posName, ok := strings.CutPrefix(name, "no-")
-	if !ok {
-		return nil
-	}
-
-	flagSpec := lookup(posName)
-	if !spec.CanNegate(flagSpec) {
-		return nil
-	}
-
-	return flagSpec
 }
 
 func checkTypedRange[T cmp.Ordered](value T, rangeSpec *spec.Range, parse func(string) (T, error)) (string, bool) {

@@ -203,17 +203,7 @@ func (w *astCompletionWalker) resolveLongFlag(name string) *Flag {
 // resolveNegatableFlag resolves the positive flag behind a no--prefixed token
 // while preserving builtin visibility.
 func (w *astCompletionWalker) resolveNegatableFlag(name string) *Flag {
-	positiveName, cut := strings.CutPrefix(name, "no-")
-	if !cut {
-		return nil
-	}
-
-	flag := w.resolveLongFlag(positiveName)
-	if !CanNegate(flag) {
-		return nil
-	}
-
-	return flag
+	return ResolveNegatedFlag(name, w.resolveLongFlag)
 }
 
 // resolveShortFlag resolves a shorthand against the active chain first so
@@ -299,23 +289,8 @@ func (w *astCompletionWalker) implicitFlagDepth() int {
 // resolves flags against the final routed chain.
 func (w *astCompletionWalker) hasBuiltinFlagRequest() bool {
 	for flag := range w.flagsSet {
-		switch flag {
-		case BuiltinHelpFlag:
-			if FindFlagInChain(w.cmdChain, "help") == BuiltinHelpFlag {
-				return true
-			}
-		case BuiltinVersionFlag:
-			if FindFlagInChain(w.cmdChain, "version") == BuiltinVersionFlag {
-				return true
-			}
-		case BuiltinWhyFlag:
-			if FindFlagInChain(w.cmdChain, "why") == BuiltinWhyFlag {
-				return true
-			}
-		case BuiltinCompletionFlag:
-			if FindFlagInChain(w.cmdChain, "completion") == BuiltinCompletionFlag {
-				return true
-			}
+		if IsBuiltinFlag(flag) && FindFlagInChain(w.cmdChain, flag.Name) == flag {
+			return true
 		}
 	}
 
