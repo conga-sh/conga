@@ -269,26 +269,6 @@ func (c *Command) FindShortFlag(r rune) *Flag {
 	return nil
 }
 
-// findCLIShortFlag returns the CLI-routable flag matching short rune r, or nil.
-// NoCLI engine flags are never CLI-routable and are excluded.
-func (c *Command) findCLIShortFlag(r rune) *Flag {
-	if r == 0 {
-		return nil
-	}
-
-	for _, flagSpec := range c.Flags {
-		if flagSpec.NoCLI {
-			continue
-		}
-
-		if flagSpec.Short == r {
-			return flagSpec
-		}
-	}
-
-	return nil
-}
-
 // Range represents parsed range bounds for numeric, length, or collection constraints.
 type Range struct {
 	MinStr string
@@ -405,6 +385,12 @@ type Flag struct {
 	// tag on the flag's owning field. Empty means the flag is not
 	// feature-gated.
 	Feature string
+}
+
+// TakesValue reports whether the flag consumes a value from the command line.
+// Boolean and counter flags are toggles and do not take a value.
+func (f *Flag) TakesValue() bool {
+	return f != nil && !f.IsBool && !f.IsCounter
 }
 
 // Arg represents the metadata and binder for a positional argument.
@@ -649,12 +635,6 @@ func FindShortFlagInChain(chain []*Command, r rune) *Flag {
 	return nil
 }
 
-// TakesValue reports whether the flag consumes a value from the command line.
-// Boolean and counter flags are toggles and do not take a value.
-func (f *Flag) TakesValue() bool {
-	return f != nil && !f.IsBool && !f.IsCounter
-}
-
 // CanNegate reports whether flagSpec may be re-bound by a `no-`-prefixed
 // token: only boolean negatable flags qualify. Every `no-` retry path (binder
 // token parsing, flag-index lookup, and completion consumption) funnels
@@ -678,6 +658,26 @@ func ResolveNegatedFlag(name string, lookup func(string) *Flag) *Flag {
 	}
 
 	return flagSpec
+}
+
+// findCLIShortFlag returns the CLI-routable flag matching short rune r, or nil.
+// NoCLI engine flags are never CLI-routable and are excluded.
+func (c *Command) findCLIShortFlag(r rune) *Flag {
+	if r == 0 {
+		return nil
+	}
+
+	for _, flagSpec := range c.Flags {
+		if flagSpec.NoCLI {
+			continue
+		}
+
+		if flagSpec.Short == r {
+			return flagSpec
+		}
+	}
+
+	return nil
 }
 
 // findFlagInChain searches backwards through chain for a flag matching name or

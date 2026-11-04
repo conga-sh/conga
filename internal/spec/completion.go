@@ -236,7 +236,7 @@ func (w *astCompletionWalker) applyTerminalImplicit() {
 
 // enterTerminalImplicitLevels enters the requested number of implicit levels.
 func (w *astCompletionWalker) enterTerminalImplicitLevels(levels int) {
-	for entered := 0; entered < levels; entered++ {
+	for range levels {
 		implicit := w.currentCmd.ImplicitCommand()
 		if implicit == nil {
 			return

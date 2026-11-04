@@ -1039,7 +1039,7 @@ func applyTerminalImplicitRoute(chain []*spec.Command, index *flagIndex, remaini
 
 	current := chain[len(chain)-1]
 
-	for entered := 0; entered < levels; entered++ {
+	for range levels {
 		implicit := current.ImplicitCommand()
 		if implicit == nil {
 			break
