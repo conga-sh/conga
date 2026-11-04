@@ -579,14 +579,6 @@ type Options struct {
 	EnvPrefix       string
 }
 
-// KeepsTerminatorOperands reports whether a runnable command owns the operands
-// following the -- terminator instead of forwarding them to its implicit
-// child: a command declaring DashArgs captures them, and a command with no
-// following operand runs itself.
-func KeepsTerminatorOperands(cmd *Command, operandFollows bool) bool {
-	return cmd.DashArgs != nil || !operandFollows
-}
-
 // FindDeclaredFlagInChain searches backwards through chain for a declared flag
 // matching name or alias, without the built-in --help/--version fallback.
 func FindDeclaredFlagInChain(chain []*Command, name string) *Flag {

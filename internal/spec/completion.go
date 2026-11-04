@@ -231,27 +231,23 @@ func (w *astCompletionWalker) resolveShortFlag(r rune) *Flag {
 // those rules require. A built-in rendering request keeps the current command
 // active when no flag selects a deeper implicit command.
 func (w *astCompletionWalker) applyTerminalImplicit() {
-	builtinRequested := w.hasBuiltinFlagRequest()
-	requiredDepth := w.implicitFlagDepth()
-	entered := 0
+	w.enterTerminalImplicitLevels(TerminalImplicitLevels(
+		w.cmdChain,
+		w.tokens,
+		w.hasBuiltinFlagRequest(),
+		w.terminatorOperandsFollow,
+	))
+}
 
-	for {
+// enterTerminalImplicitLevels enters the requested number of implicit levels.
+func (w *astCompletionWalker) enterTerminalImplicitLevels(levels int) {
+	for entered := 0; entered < levels; entered++ {
 		implicit := w.currentCmd.ImplicitCommand()
 		if implicit == nil {
 			return
 		}
 
-		if builtinRequested && entered >= requiredDepth {
-			return
-		}
-
-		if w.currentCmd.IsRunnable && KeepsTerminatorOperands(w.currentCmd, w.terminatorOperandsFollow) && entered >= requiredDepth {
-			return
-		}
-
 		w.enterCommand(implicit)
-
-		entered++
 	}
 }
 
@@ -260,8 +256,18 @@ func (w *astCompletionWalker) applyTerminalImplicit() {
 // the runtime route. A selected hidden or deprecated command is rolled back:
 // its surface stays suppressed exactly like an unentered implicit command's.
 func (w *astCompletionWalker) applySelectedImplicitForCandidates() bool {
+	requiredDepth := w.implicitFlagDepth()
+	if requiredDepth == 0 {
+		return false
+	}
+
 	previousCommand, previousChain, previousPosArgs := w.currentCmd, w.cmdChain, w.posArgs
-	w.applyTerminalImplicit()
+	w.enterTerminalImplicitLevels(terminalImplicitLevels(
+		w.currentCmd,
+		requiredDepth,
+		w.hasBuiltinFlagRequest(),
+		w.terminatorOperandsFollow,
+	))
 
 	for _, cmd := range w.cmdChain[len(previousChain):] {
 		if cmd.Hidden || cmd.Deprecated != "" {
@@ -279,7 +285,7 @@ func (w *astCompletionWalker) applySelectedImplicitForCandidates() bool {
 // runs at terminal routing, so a flag typed before the command that declares it
 // contributes the depth the runtime will charge it.
 func (w *astCompletionWalker) implicitFlagDepth() int {
-	return ImplicitFlagDepth(w.currentCmd, w.cmdChain, w.tokens)
+	return ImplicitFlagDepth(w.cmdChain, w.tokens)
 }
 
 // hasBuiltinFlagRequest reports whether a bound flag requests a built-in
@@ -853,7 +859,7 @@ func (w *astCompletionWalker) resolveTarget(toComplete string) predict.Result {
 	// A child-only flag selects the implicit chain at runtime. Flag-name
 	// completion above deliberately stays on the literal root surface, but
 	// positional and subcommand candidates must follow the selected command.
-	if w.implicitFlagDepth() > 0 && w.applySelectedImplicitForCandidates() {
+	if w.applySelectedImplicitForCandidates() {
 		compCtx = w.buildCompletionContext(toComplete)
 	}
 

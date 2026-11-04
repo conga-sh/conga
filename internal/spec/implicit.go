@@ -7,17 +7,18 @@ import (
 )
 
 // ImplicitFlagDepth returns the number of implicit descendant levels required
-// to resolve the flag tokens in tokens. It is the single authority shared by the
-// binder's terminal implicit selection and the completion walker, so routing and
-// candidate generation cannot drift: flags already declared by the routed chain,
-// built-ins, and flags declared nowhere contribute nothing, and tokens after the
-// -- terminator are operands that never select a command.
-func ImplicitFlagDepth(current *Command, chain []*Command, tokens []tokenizer.Token) int {
-	if !hasFlagTokenBeforeTerminator(tokens) {
+// to resolve the flag tokens in tokens. The chain's leaf is the current command.
+// It is the single authority shared by the binder's terminal implicit selection
+// and the completion walker, so routing and candidate generation cannot drift:
+// flags already declared by the routed chain, built-ins, and flags declared
+// nowhere contribute nothing, and tokens after the -- terminator are operands
+// that never select a command.
+func ImplicitFlagDepth(chain []*Command, tokens []tokenizer.Token) int {
+	if len(chain) == 0 || !hasFlagTokenBeforeTerminator(tokens) {
 		return 0
 	}
 
-	levels := implicitDescendants(current)
+	levels := implicitDescendants(chain[len(chain)-1])
 	if len(levels) == 0 {
 		return 0
 	}
@@ -50,6 +51,42 @@ func ImplicitFlagDepth(current *Command, chain []*Command, tokens []tokenizer.To
 	}
 
 	return requiredDepth
+}
+
+// TerminalImplicitLevels returns the number of implicit descendant levels the
+// terminal route enters. The chain's leaf is the current command. A runnable
+// command runs itself unless a built-in rendering request or a flag declared
+// only by its implicit descendants selects a deeper level; a command that does
+// not own the operands after the -- terminator forwards them to its implicit
+// child. Callers perform the entry side effects for the returned levels.
+func TerminalImplicitLevels(chain []*Command, tokens []tokenizer.Token, builtinRequested, terminatorOperands bool) int {
+	if len(chain) == 0 {
+		return 0
+	}
+
+	return terminalImplicitLevels(chain[len(chain)-1], ImplicitFlagDepth(chain, tokens), builtinRequested, terminatorOperands)
+}
+
+// terminalImplicitLevels applies the terminal rules to a precomputed depth so
+// completion can reuse the depth it already scanned.
+func terminalImplicitLevels(current *Command, requiredDepth int, builtinRequested, terminatorOperands bool) int {
+	entered := 0
+
+	for {
+		implicit := current.ImplicitCommand()
+		if implicit == nil {
+			return entered
+		}
+
+		ownsTerminatorOperands := current.DashArgs != nil || !terminatorOperands
+		if entered >= requiredDepth &&
+			(builtinRequested || (current.IsRunnable && ownsTerminatorOperands)) {
+			return entered
+		}
+
+		current = implicit
+		entered++
+	}
 }
 
 // implicitDescendants returns the implicit command chain below cmd, nearest

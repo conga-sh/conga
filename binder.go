@@ -1016,7 +1016,7 @@ func routeSubcommands(cmd *spec.Command, tokens []tokenizer.Token) ([]*spec.Comm
 		remaining = append(remaining, tok)
 	}
 
-	chain = applyTerminalImplicitRoute(current, chain, index, remaining)
+	chain = applyTerminalImplicitRoute(chain, index, remaining)
 
 	return chain, remaining, nil
 }
@@ -1029,23 +1029,20 @@ func routeSubcommands(cmd *spec.Command, tokens []tokenizer.Token) ([]*spec.Comm
 // built-in rendering request keeps the current command active when no flag
 // selects a deeper implicit command, so tool --help shows the parent screen
 // while tool -n --help shows the implicit child's screen.
-func applyTerminalImplicitRoute(current *spec.Command, chain []*spec.Command, index *flagIndex, remaining []tokenizer.Token) []*spec.Command {
-	builtinRequested := hasBuiltinRequest(remaining, chain, index)
-	terminatorOperands := hasOperandsAfterTerminator(remaining)
-	requiredDepth := spec.ImplicitFlagDepth(current, chain, remaining)
+func applyTerminalImplicitRoute(chain []*spec.Command, index *flagIndex, remaining []tokenizer.Token) []*spec.Command {
+	levels := spec.TerminalImplicitLevels(
+		chain,
+		remaining,
+		hasBuiltinRequest(remaining, chain, index),
+		hasOperandsAfterTerminator(remaining),
+	)
 
-	for entered := 0; ; entered++ {
+	current := chain[len(chain)-1]
+
+	for entered := 0; entered < levels; entered++ {
 		implicit := current.ImplicitCommand()
 		if implicit == nil {
-			return chain
-		}
-
-		if builtinRequested && entered >= requiredDepth {
-			return chain
-		}
-
-		if current.IsRunnable && spec.KeepsTerminatorOperands(current, terminatorOperands) && entered >= requiredDepth {
-			return chain
+			break
 		}
 
 		if implicit.Handle != nil {
@@ -1055,6 +1052,8 @@ func applyTerminalImplicitRoute(current *spec.Command, chain []*spec.Command, in
 		chain = append(chain, implicit)
 		current = implicit
 	}
+
+	return chain
 }
 
 // hasOperandsAfterTerminator reports whether any token follows the -- terminator.
