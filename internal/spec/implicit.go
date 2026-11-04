@@ -179,7 +179,7 @@ func shortClusterDepth(chain []*Command, levelChains [][]*Command, tok tokenizer
 			requiredDepth = depth
 		}
 
-		if flagSpec.IsBool || flagSpec.IsCounter {
+		if !flagSpec.TakesValue() {
 			continue
 		}
 
@@ -222,7 +222,7 @@ func resolveShortFlag(chain []*Command, levelChains [][]*Command, r rune) (*Flag
 // consumesNextFlagValue reports whether a parsed flag takes its value from the
 // next token rather than an attached =value.
 func consumesNextFlagValue(flagSpec *Flag, tok tokenizer.Token) bool {
-	return !flagSpec.IsBool && !flagSpec.IsCounter && !tok.HasAttachedValue
+	return flagSpec.TakesValue() && !tok.HasAttachedValue
 }
 
 // declaredCLILongFlag resolves a long flag name or alias on chain, honoring the

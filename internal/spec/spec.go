@@ -649,6 +649,12 @@ func FindShortFlagInChain(chain []*Command, r rune) *Flag {
 	return nil
 }
 
+// TakesValue reports whether the flag consumes a value from the command line.
+// Boolean and counter flags are toggles and do not take a value.
+func (f *Flag) TakesValue() bool {
+	return f != nil && !f.IsBool && !f.IsCounter
+}
+
 // CanNegate reports whether flagSpec may be re-bound by a `no-`-prefixed
 // token: only boolean negatable flags qualify. Every `no-` retry path (binder
 // token parsing, flag-index lookup, and completion consumption) funnels

@@ -497,7 +497,7 @@ func formatUsageFlag(flagSpec *spec.Flag) string {
 		name = "[no-]" + name
 	}
 
-	if flagSpec.IsBool || flagSpec.IsCounter {
+	if !flagSpec.TakesValue() {
 		return "--" + name
 	}
 
@@ -873,7 +873,7 @@ func formatFlagLabel(flagSpec *spec.Flag) string {
 		return label
 	}
 
-	if flagSpec.IsBool || flagSpec.IsCounter {
+	if !flagSpec.TakesValue() {
 		return label
 	}
 

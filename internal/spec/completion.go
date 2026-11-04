@@ -181,12 +181,7 @@ func (w *astCompletionWalker) lookupChain() []*Command {
 		return w.cmdChain
 	}
 
-	chain := slices.Clone(w.cmdChain)
-	for implicit := w.currentCmd.ImplicitCommand(); implicit != nil; implicit = implicit.ImplicitCommand() {
-		chain = append(chain, implicit)
-	}
-
-	return chain
+	return append(slices.Clone(w.cmdChain), implicitDescendants(w.currentCmd)...)
 }
 
 // resolveLongFlag resolves a long flag against the active chain first so
@@ -365,6 +360,20 @@ func (w *astCompletionWalker) enterPositionalImplicit(raw string) *Command {
 	}
 }
 
+// negativeNumberOperand reports whether tok is a negative-number token the
+// runtime parser binds as a positional because its first shorthand is not
+// registered.
+func (w *astCompletionWalker) negativeNumberOperand(tok tokenizer.Token) bool {
+	return tok.IsNegativeNumber() &&
+		(len(tok.ShortRunes) == 0 || w.resolveShortFlag(tok.ShortRunes[0]) == nil)
+}
+
+// unregisteredShorthand reports whether tok's first shorthand resolves to no
+// flag on the active chain or its implicit descendants.
+func (w *astCompletionWalker) unregisteredShorthand(tok tokenizer.Token) bool {
+	return len(tok.ShortRunes) > 0 && w.resolveShortFlag(tok.ShortRunes[0]) == nil
+}
+
 // entersImplicitOnToken reports whether tok is an operand-shaped token that
 // should trigger implicit-chain entry during the tolerant walk: a positional
 // word, or a negative-number value the runtime parser binds as a positional.
@@ -377,8 +386,7 @@ func (w *astCompletionWalker) entersImplicitOnToken(tok tokenizer.Token) bool {
 		return true
 	}
 
-	return tok.Type == tokenizer.TokenTypeShortFlag && tok.IsNegativeNumber() &&
-		(len(tok.ShortRunes) == 0 || w.resolveShortFlag(tok.ShortRunes[0]) == nil)
+	return tok.Type == tokenizer.TokenTypeShortFlag && w.negativeNumberOperand(tok)
 }
 
 func (w *astCompletionWalker) consumeToken(tok tokenizer.Token, operandsFollow bool) {
@@ -530,9 +538,7 @@ func (w *astCompletionWalker) trackAnalysisLongFlag(tok tokenizer.Token) {
 // number binds as a positional value until the declared arguments are full,
 // and an unknown shorthand starts the raw fallback at the same point.
 func (w *astCompletionWalker) trackAnalysisShortFlag(tok tokenizer.Token) {
-	runes := tok.ShortRunes
-
-	if tok.IsNegativeNumber() && (len(runes) == 0 || w.resolveShortFlag(runes[0]) == nil) {
+	if w.negativeNumberOperand(tok) {
 		if w.canAnalysisRawFallback() {
 			w.startAnalysisRawFallback(tok.Raw)
 
@@ -544,7 +550,7 @@ func (w *astCompletionWalker) trackAnalysisShortFlag(tok tokenizer.Token) {
 		return
 	}
 
-	if len(runes) > 0 && w.resolveShortFlag(runes[0]) == nil && w.canAnalysisRawFallback() {
+	if w.unregisteredShorthand(tok) && w.canAnalysisRawFallback() {
 		w.startAnalysisRawFallback(tok.Raw)
 	}
 }
@@ -643,9 +649,7 @@ func (w *astCompletionWalker) markFlagConsumed(flag *Flag, hasAttached bool, att
 // the declared positionals are full and reports an unknown flag otherwise; a
 // negative number binds as a positional when raw fallback is not available.
 func (w *astCompletionWalker) consumeUnregisteredShorthand(tok tokenizer.Token) bool {
-	runes := tok.ShortRunes
-
-	if tok.IsNegativeNumber() && (len(runes) == 0 || w.resolveShortFlag(runes[0]) == nil) {
+	if w.negativeNumberOperand(tok) {
 		if w.canFallbackToRaw() {
 			w.rawActive = true
 		} else {
@@ -655,7 +659,7 @@ func (w *astCompletionWalker) consumeUnregisteredShorthand(tok tokenizer.Token) 
 		return true
 	}
 
-	if len(runes) > 0 && w.resolveShortFlag(runes[0]) == nil {
+	if w.unregisteredShorthand(tok) {
 		if w.canFallbackToRaw() {
 			w.rawActive = true
 		}

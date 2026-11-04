@@ -85,6 +85,42 @@ func TestFindShortFlagInChain_NoCLIHelpShadow(t *testing.T) {
 	assert.Equal(t, spec.BuiltinHelpFlag, flagSpec)
 }
 
+func TestFlagTakesValue(t *testing.T) {
+	t.Parallel()
+
+	t.Run("boolean", func(t *testing.T) {
+		t.Parallel()
+
+		assert.False(t, (&spec.Flag{IsBool: true}).TakesValue())
+	})
+
+	t.Run("counter", func(t *testing.T) {
+		t.Parallel()
+
+		assert.False(t, (&spec.Flag{IsCounter: true}).TakesValue())
+	})
+
+	t.Run("string", func(t *testing.T) {
+		t.Parallel()
+
+		assert.True(t, (&spec.Flag{Name: "name"}).TakesValue())
+	})
+
+	t.Run("slice", func(t *testing.T) {
+		t.Parallel()
+
+		assert.True(t, (&spec.Flag{IsSlice: true}).TakesValue())
+	})
+
+	t.Run("nil", func(t *testing.T) {
+		t.Parallel()
+
+		var flag *spec.Flag
+
+		assert.False(t, flag.TakesValue())
+	})
+}
+
 func TestResolveNegatedFlag(t *testing.T) {
 	t.Parallel()
 

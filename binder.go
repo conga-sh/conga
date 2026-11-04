@@ -1116,7 +1116,7 @@ func shortClusterRequestsBuiltin(tok tokenizer.Token, chain []*spec.Command, ind
 			flagSpec = index.short[r]
 		}
 
-		if flagSpec == nil || (!flagSpec.IsBool && !flagSpec.IsCounter) {
+		if flagSpec == nil || flagSpec.TakesValue() {
 			return false
 		}
 	}
@@ -1131,7 +1131,7 @@ func skipFlagValue(tokens []tokenizer.Token, position int, index *flagIndex) (bo
 	}
 
 	flagSpec := index.find(tok)
-	if flagSpec == nil || flagSpec.IsBool || flagSpec.IsCounter {
+	if !flagSpec.TakesValue() {
 		return false, position
 	}
 
