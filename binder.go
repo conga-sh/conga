@@ -108,7 +108,9 @@ func newTokenParser(cmdChain []*spec.Command, tokens []tokenizer.Token, index *f
 	// The built-in --version flag only exists on the root command. Version
 	// information describes the whole application, so accepting --version on
 	// subcommands would diverge from every major framework (cobra, clap,
-	// click, etc.) and force each help screen to repeat it.
+	// click, etc.) and force each help screen to repeat it. An implicitly
+	// selected command is still a subcommand: once an operand or child-only
+	// flag routes into it, --version is rejected like any unknown flag.
 	if _, hasVersion := index.long["version"]; !hasVersion && leaf.VersionFlagVisible(isRoot) {
 		index.long["version"] = spec.BuiltinVersionFlag
 	}
@@ -938,6 +940,7 @@ func handlePositionalRouting(
 	return current, chain, true, false, nil
 }
 
+// routeSubcommands walks the token stream and selects the command chain.
 func routeSubcommands(cmd *spec.Command, tokens []tokenizer.Token) ([]*spec.Command, []tokenizer.Token, error) {
 	current := cmd
 	chain := []*spec.Command{current}
@@ -1021,23 +1024,27 @@ func routeSubcommands(cmd *spec.Command, tokens []tokenizer.Token) ([]*spec.Comm
 // applyTerminalImplicitRoute selects implicit commands when the invocation
 // ends without an explicitly named subcommand. A runnable command runs itself
 // unless operands follow the -- terminator and it declares no DashArgs to own
-// them, in which case routing continues into its implicit child. A built-in
-// rendering request keeps the current command active so tool --help shows the
-// parent screen rather than the implicit child's.
+// them, or unless the supplied flags are declared only by its implicit
+// descendants, in which case routing continues into the implicit chain. A
+// built-in rendering request keeps the current command active when no flag
+// selects a deeper implicit command, so tool --help shows the parent screen
+// while tool -n --help shows the implicit child's screen.
 func applyTerminalImplicitRoute(current *spec.Command, chain []*spec.Command, index *flagIndex, remaining []tokenizer.Token) []*spec.Command {
-	if hasBuiltinRequest(remaining, chain, index) {
-		return chain
-	}
-
+	builtinRequested := hasBuiltinRequest(remaining, chain, index)
 	terminatorOperands := hasOperandsAfterTerminator(remaining)
+	requiredDepth := implicitFlagDepth(current, chain, remaining)
 
-	for {
-		if commandRunsItself(current) && spec.KeepsTerminatorOperands(current, terminatorOperands) {
+	for entered := 0; ; entered++ {
+		implicit := current.ImplicitCommand()
+		if implicit == nil {
 			return chain
 		}
 
-		implicit := current.ImplicitCommand()
-		if implicit == nil {
+		if builtinRequested && entered >= requiredDepth {
+			return chain
+		}
+
+		if commandRunsItself(current) && spec.KeepsTerminatorOperands(current, terminatorOperands) && entered >= requiredDepth {
 			return chain
 		}
 
@@ -1048,6 +1055,213 @@ func applyTerminalImplicitRoute(current *spec.Command, chain []*spec.Command, in
 		chain = append(chain, implicit)
 		current = implicit
 	}
+}
+
+// implicitFlagDepth returns the number of implicit descendant levels required
+// to resolve the flag tokens in tokens. Flags already declared by the routed
+// chain, built-ins, and flags declared nowhere contribute nothing. Tokens after
+// the -- terminator are operands and never select a command.
+func implicitFlagDepth(current *spec.Command, chain []*spec.Command, tokens []tokenizer.Token) int {
+	if !hasFlagTokenBeforeTerminator(tokens) {
+		return 0
+	}
+
+	levels := implicitDescendants(current)
+	if len(levels) == 0 {
+		return 0
+	}
+
+	chainIndex := newParseFlagIndex(chain)
+	levelIndexes := make([]*flagIndex, len(levels))
+	cumulativeChain := slices.Clone(chain)
+
+	for depth, level := range levels {
+		cumulativeChain = append(cumulativeChain, level)
+		levelIndexes[depth] = newParseFlagIndex(cumulativeChain)
+	}
+
+	requiredDepth := 0
+
+	for position := 0; position < len(tokens); position++ {
+		tok := tokens[position]
+
+		if tok.Type == tokenizer.TokenTypeTerminator {
+			break
+		}
+
+		consumesNext, depth := flagTokenDepth(chain, chainIndex, levelIndexes, tok)
+		if depth > requiredDepth {
+			requiredDepth = depth
+		}
+
+		if consumesNext && position+1 < len(tokens) && tokens[position+1].CanBindAsFlagValue() {
+			position++
+		}
+	}
+
+	return requiredDepth
+}
+
+// implicitDescendants returns the implicit command chain below cmd, nearest
+// first. Schema build accepts at most one implicit command per command.
+func implicitDescendants(cmd *spec.Command) []*spec.Command {
+	var descendants []*spec.Command
+
+	for implicit := cmd.ImplicitCommand(); implicit != nil; implicit = implicit.ImplicitCommand() {
+		descendants = append(descendants, implicit)
+	}
+
+	return descendants
+}
+
+// hasFlagTokenBeforeTerminator reports whether a flag token before the --
+// terminator can still select an implicit command.
+func hasFlagTokenBeforeTerminator(tokens []tokenizer.Token) bool {
+	for _, tok := range tokens {
+		if tok.Type == tokenizer.TokenTypeTerminator {
+			return false
+		}
+
+		if tok.Type == tokenizer.TokenTypeLongFlag || tok.Type == tokenizer.TokenTypeShortFlag {
+			return true
+		}
+	}
+
+	return false
+}
+
+// flagTokenDepth reports the first implicit level at which tok resolves, 0 when
+// it already resolves on the routed chain, and 0 when it resolves nowhere. It
+// also reports whether the token consumes the following token as a flag value,
+// mirroring the token parser's arity handling so a value is never mistaken for
+// a flag.
+func flagTokenDepth(chain []*spec.Command, chainIndex *flagIndex, levelIndexes []*flagIndex, tok tokenizer.Token) (bool, int) {
+	switch tok.Type {
+	case tokenizer.TokenTypeLongFlag:
+		if flagSpec := chainIndex.find(tok); flagSpec != nil {
+			return consumesNextFlagValue(flagSpec, tok), 0
+		}
+
+		if isBuiltinLongFlag(chain, tok.Name) {
+			return false, 0
+		}
+
+		for depth, levelIndex := range levelIndexes {
+			if flagSpec := levelIndex.find(tok); flagSpec != nil {
+				return consumesNextFlagValue(flagSpec, tok), depth + 1
+			}
+		}
+
+		return false, 0
+	case tokenizer.TokenTypeShortFlag:
+		return shortClusterDepth(chain, chainIndex, levelIndexes, tok)
+	default:
+		return false, 0
+	}
+}
+
+// shortClusterDepth walks a shorthand cluster the way the token parser does,
+// reporting the deepest implicit level any resolved rune requires and whether
+// the cluster consumes the following token as a value. A negative number is an
+// operand unless its first rune is registered at some level. Built-in help and
+// version runes never end the scan (the parser resolves them after implicit
+// selection), while an unresolved rune does.
+func shortClusterDepth(chain []*spec.Command, chainIndex *flagIndex, levelIndexes []*flagIndex, tok tokenizer.Token) (bool, int) {
+	runes := tok.ShortRunes
+	if len(runes) == 0 {
+		return false, 0
+	}
+
+	if tok.IsNegativeNumber() && !shortFlagRegistered(chain, chainIndex, levelIndexes, runes[0]) {
+		return false, 0
+	}
+
+	requiredDepth := 0
+
+	for position, r := range runes {
+		flagSpec, depth := resolveShortFlag(chain, chainIndex, levelIndexes, r)
+		if flagSpec == nil {
+			if isBuiltinShortFlag(chain, r) {
+				continue
+			}
+
+			return false, requiredDepth
+		}
+
+		if depth > requiredDepth {
+			requiredDepth = depth
+		}
+
+		if flagSpec.IsBool || flagSpec.IsCounter {
+			continue
+		}
+
+		return position == len(runes)-1 && !tok.HasAttachedValue, requiredDepth
+	}
+
+	return false, requiredDepth
+}
+
+// isBuiltinLongFlag reports whether name resolves to a built-in flag on the
+// routed chain.
+func isBuiltinLongFlag(chain []*spec.Command, name string) bool {
+	flagSpec := spec.FindFlagInChain(chain, name)
+
+	return flagSpec == spec.BuiltinHelpFlag || flagSpec == spec.BuiltinVersionFlag ||
+		flagSpec == spec.BuiltinWhyFlag || flagSpec == spec.BuiltinCompletionFlag
+}
+
+// isBuiltinShortFlag reports whether r is assigned to the built-in help or
+// version flag on the routed chain. Both built-ins are boolean flags, so a
+// cluster scan continues past them.
+func isBuiltinShortFlag(chain []*spec.Command, r rune) bool {
+	flagSpec := spec.FindShortFlagInChain(chain, r)
+
+	return flagSpec == spec.BuiltinHelpFlag || flagSpec == spec.BuiltinVersionFlag
+}
+
+// shortFlagRegistered reports whether r is declared as a shorthand on the
+// routed chain, is a built-in shorthand, or is declared anywhere in its
+// implicit descendants.
+func shortFlagRegistered(chain []*spec.Command, chainIndex *flagIndex, levelIndexes []*flagIndex, r rune) bool {
+	if chainIndex.short[r] != nil || isBuiltinShortFlag(chain, r) {
+		return true
+	}
+
+	for _, levelIndex := range levelIndexes {
+		if levelIndex.short[r] != nil {
+			return true
+		}
+	}
+
+	return false
+}
+
+// resolveShortFlag returns the flag declared for r and the implicit level that
+// first declares it: 0 for the routed chain or a built-in, 1 for its nearest
+// implicit child.
+func resolveShortFlag(chain []*spec.Command, chainIndex *flagIndex, levelIndexes []*flagIndex, r rune) (*spec.Flag, int) {
+	if flagSpec := chainIndex.short[r]; flagSpec != nil {
+		return flagSpec, 0
+	}
+
+	if flagSpec := spec.FindShortFlagInChain(chain, r); flagSpec == spec.BuiltinHelpFlag || flagSpec == spec.BuiltinVersionFlag {
+		return flagSpec, 0
+	}
+
+	for depth, levelIndex := range levelIndexes {
+		if flagSpec := levelIndex.short[r]; flagSpec != nil {
+			return flagSpec, depth + 1
+		}
+	}
+
+	return nil, 0
+}
+
+// consumesNextFlagValue reports whether a parsed flag takes its value from the
+// next token rather than an attached =value.
+func consumesNextFlagValue(flagSpec *spec.Flag, tok tokenizer.Token) bool {
+	return !flagSpec.IsBool && !flagSpec.IsCounter && !tok.HasAttachedValue
 }
 
 // hasOperandsAfterTerminator reports whether any token follows the -- terminator.

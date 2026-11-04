@@ -31,6 +31,7 @@ stderr 'unknown flag: -n'
 exec bunlike --help
 stdout 'Usage:\n  bunlike \[<command>\]'
 stdout 'run\s+Execute a file \(default\)'
+stdout '--version'
 
 # 8. The terminator forwards dash-prefixed operands to the implicit command.
 exec bunlike -- -e.ts
@@ -39,3 +40,35 @@ stdout 'run file=-e.ts dry-run=false args=\[\]'
 # 9. A builtin request before the terminator keeps parent help scope.
 exec bunlike --help -- ignored.ts
 stdout 'Usage:\n  bunlike \[<command>\]'
+
+# 10. A child-only flag selects the implicit command without an operand.
+exit-status 2 bunlike -n
+stderr 'missing required positional argument <file>'
+
+# 11. Help follows the flag-selected implicit child.
+exec bunlike -n --help
+stdout 'Usage:\n  bunlike run'
+! stdout '--version'
+
+# 12. --version is root-only: a child-only flag selects the child and rejects it.
+exit-status 2 bunlike -n --version
+stderr 'unknown flag: --version'
+
+# 13. After the operand fills the positionals, --version is a raw argument,
+# exactly like the named form.
+exec bunlike ./script.ts --version
+stdout 'run file=script.ts dry-run=false args=\[--version\]'
+exec bunlike run ./script.ts --version
+stdout 'run file=script.ts dry-run=false args=\[--version\]'
+
+# 14. Explicit naming keeps --version root-only.
+exit-status 2 bunlike run --version
+stderr 'unknown flag: --version'
+
+# 15. Naming the child anywhere keeps --version unknown, even before the flag.
+exit-status 2 bunlike --version run
+stderr 'unknown flag: --version'
+
+# 16. The bare root invocation accepts it.
+exec bunlike --version
+stdout 'bunlike has version 1.0.0'

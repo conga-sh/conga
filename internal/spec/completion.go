@@ -58,12 +58,20 @@ func AnalyzeCompletion(rootCmd *Command, args []string) CompletionAnalysis {
 
 	routingWalker := newASTCompletionWalker(rootCmd, CompleteOptions{})
 	routingWalker.walkTokens(toks)
-	routingWalker.applyTerminalImplicit()
+	// The -- terminator already ran terminal implicit selection through
+	// enterTerminatorImplicit. Running it again would re-resolve builtin
+	// visibility against the grown chain and descend a level too far.
+	if !routingWalker.inTerminator {
+		routingWalker.applyTerminalImplicit()
+	}
 
 	walker := newASTCompletionWalker(rootCmd, CompleteOptions{})
 	walker.analysisLeaf = routingWalker.currentCmd
 	walker.walkTokens(toks)
-	walker.applyTerminalImplicit()
+
+	if !walker.inTerminator {
+		walker.applyTerminalImplicit()
+	}
 
 	return walker.analysis()
 }
@@ -112,6 +120,9 @@ type astCompletionWalker struct {
 	inTerminator     bool
 	rawActive        bool
 	pendingFlagValue *Flag
+	// terminatorOperandsFollow records whether operands follow the -- terminator,
+	// so the terminal implicit selection mirrors the binder's ownership rule.
+	terminatorOperandsFollow bool
 	// predictsTerminatorOperands makes the candidate walker treat the word
 	// being completed as an operand after the -- terminator, so the implicit
 	// child's positional candidates are offered. Analysis walkers leave it
@@ -216,22 +227,94 @@ func (w *astCompletionWalker) resolveShortFlag(r rune) *Flag {
 	return nil
 }
 
-// applyTerminalImplicit mirrors the runtime end-of-tokens implicit selection.
-// Runnable commands run themselves, and a built-in rendering request keeps the
-// requested command active.
+// applyTerminalImplicit mirrors the runtime terminal implicit selection: end of
+// tokens, or the -- terminator once enterTerminatorImplicit records its operand
+// rule. A runnable command runs itself unless a flag bound so far is declared
+// only by its implicit descendants, or unless it does not own operands that
+// follow the -- terminator, in which case the walker enters as many levels as
+// those rules require. A built-in rendering request keeps the current command
+// active when no flag selects a deeper implicit command.
 func (w *astCompletionWalker) applyTerminalImplicit() {
-	if w.hasBuiltinFlagRequest() {
-		return
-	}
+	builtinRequested := w.hasBuiltinFlagRequest()
+	requiredDepth := w.implicitFlagDepth()
+	entered := 0
 
-	for !w.currentCmd.IsRunnable {
+	for {
 		implicit := w.currentCmd.ImplicitCommand()
 		if implicit == nil {
 			return
 		}
 
+		if builtinRequested && entered >= requiredDepth {
+			return
+		}
+
+		if w.currentCmd.IsRunnable && KeepsTerminatorOperands(w.currentCmd, w.terminatorOperandsFollow) && entered >= requiredDepth {
+			return
+		}
+
 		w.enterCommand(implicit)
+
+		entered++
 	}
+}
+
+// applySelectedImplicitForCandidates enters the implicit chain selected by the
+// flags bound so far, so bare-space positional and subcommand candidates match
+// the runtime route. A selected hidden or deprecated command is rolled back:
+// its surface stays suppressed exactly like an unentered implicit command's.
+func (w *astCompletionWalker) applySelectedImplicitForCandidates() bool {
+	previousCommand, previousChain, previousPosArgs := w.currentCmd, w.cmdChain, w.posArgs
+	w.applyTerminalImplicit()
+
+	for _, cmd := range w.cmdChain[len(previousChain):] {
+		if cmd.Hidden || cmd.Deprecated != "" {
+			w.currentCmd, w.cmdChain, w.posArgs = previousCommand, previousChain, previousPosArgs
+
+			return false
+		}
+	}
+
+	return len(w.cmdChain) > len(previousChain)
+}
+
+// implicitFlagDepth returns the number of implicit descendant levels required
+// to resolve the flags bound so far. Built-in flags and flags declared on the
+// active chain contribute nothing.
+func (w *astCompletionWalker) implicitFlagDepth() int {
+	requiredDepth := 0
+
+	for flagSpec := range w.flagsSet {
+		requiredDepth = max(requiredDepth, w.implicitFlagLevel(flagSpec))
+	}
+
+	if w.pendingFlagValue != nil {
+		requiredDepth = max(requiredDepth, w.implicitFlagLevel(w.pendingFlagValue))
+	}
+
+	return requiredDepth
+}
+
+// implicitFlagLevel reports the implicit descendant level that first declares
+// flagSpec: 0 for built-ins, flags on the active chain, and undeclared flags.
+func (w *astCompletionWalker) implicitFlagLevel(flagSpec *Flag) int {
+	if isBuiltinFlagSpec(flagSpec) || slices.ContainsFunc(w.cmdChain, func(cmd *Command) bool {
+		return commandDeclaresFlag(cmd, flagSpec)
+	}) {
+		return 0
+	}
+
+	depth := 0
+
+	for implicit := w.currentCmd.ImplicitCommand(); implicit != nil; implicit = implicit.ImplicitCommand() {
+		depth++
+
+		if commandDeclaresFlag(implicit, flagSpec) {
+			return depth
+		}
+	}
+
+	return 0
 }
 
 // hasBuiltinFlagRequest reports whether a bound flag requests a built-in
@@ -265,26 +348,12 @@ func (w *astCompletionWalker) hasBuiltinFlagRequest() bool {
 }
 
 // enterTerminatorImplicit moves the walker into the implicit chain the runtime
-// selects for operands after the -- terminator. A built-in rendering request
-// keeps the current command active, and a runnable command keeps
-// post-terminator tokens when it declares DashArgs or when no operand follows.
+// selects for tokens after the -- terminator. It applies the same rules as the
+// end-of-tokens selection, including a child-only flag selecting a deeper
+// implicit command, so candidate suggestions match the routed runtime chain.
 func (w *astCompletionWalker) enterTerminatorImplicit(operandsFollow bool) {
-	if w.hasBuiltinFlagRequest() {
-		return
-	}
-
-	for {
-		if w.currentCmd.IsRunnable && KeepsTerminatorOperands(w.currentCmd, operandsFollow) {
-			return
-		}
-
-		implicit := w.currentCmd.ImplicitCommand()
-		if implicit == nil {
-			return
-		}
-
-		w.enterCommand(implicit)
-	}
+	w.terminatorOperandsFollow = operandsFollow
+	w.applyTerminalImplicit()
 }
 
 // canFallbackToRaw reports whether the runtime parser would route the next
@@ -831,6 +900,13 @@ func (w *astCompletionWalker) resolveTarget(toComplete string) predict.Result {
 		return flagAction.Invoke(compCtx)
 	}
 
+	// A child-only flag selects the implicit chain at runtime. Flag-name
+	// completion above deliberately stays on the literal root surface, but
+	// positional and subcommand candidates must follow the selected command.
+	if w.implicitFlagDepth() > 0 && w.applySelectedImplicitForCandidates() {
+		compCtx = w.buildCompletionContext(toComplete)
+	}
+
 	cmdOrArgAction := w.completeSubcommandsAndArgsAction(toComplete)
 	if w.suppressBareSpaceFlags() {
 		return cmdOrArgAction.Invoke(compCtx)
@@ -1098,7 +1174,12 @@ func (w *astCompletionWalker) appendBuiltinFlags(longItems, shortItems *[]predic
 		w.appendBuiltinShort(shortItems, seenShort, w.rootCmd.HelpShort, BuiltinHelpFlag.Help, toComplete)
 	}
 
-	if w.currentCmd.VersionFlagVisible(len(w.cmdChain) == 1) && !seenLong["--version"] {
+	// Root-only built-ins are advertised only while the invocation still routes
+	// to the literal root command. A bound child-only flag already selects the
+	// implicit child at runtime, so --version is not offered at the root
+	// surface: the parser rejects it once the child is routed.
+	if w.currentCmd.VersionFlagVisible(len(w.cmdChain) == 1) &&
+		w.implicitFlagDepth() == 0 && !seenLong["--version"] {
 		seenLong["--version"] = true
 
 		*longItems = append(*longItems, predict.Item{
@@ -1319,6 +1400,19 @@ func (w *astCompletionWalker) flagOwner(flag *Flag) *Command {
 	}
 
 	return nil
+}
+
+// commandDeclaresFlag reports whether cmd declares flagSpec. Pointer identity
+// distinguishes same-named flags on sibling commands.
+func commandDeclaresFlag(cmd *Command, flagSpec *Flag) bool {
+	return slices.Contains(cmd.Flags, flagSpec)
+}
+
+// isBuiltinFlagSpec reports whether flagSpec is one of the engine-synthesized
+// built-in flags, which never select an implicit command.
+func isBuiltinFlagSpec(flagSpec *Flag) bool {
+	return flagSpec == BuiltinHelpFlag || flagSpec == BuiltinVersionFlag ||
+		flagSpec == BuiltinWhyFlag || flagSpec == BuiltinCompletionFlag
 }
 
 func subcommandTagAndStyle(subcommand *Command, sectionIndexMap map[string]int) (string, string) {

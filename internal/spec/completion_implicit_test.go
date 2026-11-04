@@ -7,6 +7,7 @@ import (
 	"github.com/alecthomas/assert/v2"
 
 	"github.com/conga-sh/conga/internal/spec"
+	"github.com/conga-sh/conga/predict"
 )
 
 type completionImplicitLeaf struct {
@@ -56,6 +57,83 @@ type completionDeprecatedImplicitRoot struct {
 	Build mockCmd[completionImplicitLeaf]           `name:"build"`
 }
 
+type completionSiblingLeaf struct {
+	Frozen mockFlag[bool] `name:"frozen"`
+}
+
+type completionRunnableSiblingRoot struct {
+	Exec  mockCmd[completionImplicitLeaf] `implicit:"true" name:"run"`
+	Build mockCmd[completionSiblingLeaf]  `name:"build"`
+}
+
+type completionDeepRunnableMid struct {
+	MidFlag mockFlag[bool]              `name:"mid-flag"`
+	JSON    mockCmd[completionDeepLeaf] `name:"json"`
+	Run     mockCmd[completionDeepLeaf] `implicit:"true" name:"run"`
+}
+
+type completionDeepRunnableRoot struct {
+	Mid mockCmd[completionDeepRunnableMid] `implicit:"true" name:"mid"`
+}
+
+type completionDeepFlagLeaf struct {
+	Deep mockFlag[bool]     `name:"deep"`
+	File mockReqArg[string] `enum:"deep-a.ts,deep-b.ts"`
+}
+
+type completionDeepFlagMid struct {
+	JSON mockCmd[completionDeepLeaf]     `name:"json"`
+	Run  mockCmd[completionDeepFlagLeaf] `implicit:"true" name:"run"`
+}
+
+type completionDeepFlagRoot struct {
+	Mid mockCmd[completionDeepFlagMid] `implicit:"true" name:"mid"`
+}
+
+type completionVersionShortShadowLeaf struct {
+	Verbose mockFlag[bool] `short:"V"`
+}
+
+type completionVersionShortShadowRoot struct {
+	Exec mockCmd[completionVersionShortShadowLeaf] `implicit:"true" name:"run"`
+}
+
+type completionVersionLongShadowLeaf struct {
+	Version mockFlag[bool]
+}
+
+type completionVersionLongShadowRoot struct {
+	Exec mockCmd[completionVersionLongShadowLeaf] `implicit:"true" name:"run"`
+}
+
+type completionDashLeaf struct {
+	Rest mockDashArgs
+}
+
+type completionDashMid struct {
+	MidFlag mockFlag[bool]              `name:"mid-flag"`
+	Run     mockCmd[completionDashLeaf] `implicit:"true" name:"run"`
+}
+
+type completionDashRoot struct {
+	Rest mockDashArgs
+	Mid  mockCmd[completionDashMid] `implicit:"true" name:"mid"`
+}
+
+type completionDashPredictLeaf struct {
+	Rest mockDashArgs `predictor:"leaf-dash"`
+}
+
+type completionDashPredictMid struct {
+	MidFlag mockFlag[bool]                     `name:"mid-flag"`
+	Run     mockCmd[completionDashPredictLeaf] `implicit:"true" name:"run"`
+}
+
+type completionDashPredictRoot struct {
+	Rest mockDashArgs                      `predictor:"root-dash"`
+	Mid  mockCmd[completionDashPredictMid] `implicit:"true"       name:"mid"`
+}
+
 func buildCompletionImplicitRoot(t *testing.T, root any) *spec.Command {
 	t.Helper()
 
@@ -70,10 +148,57 @@ func buildCompletionRunnableImplicitRoot(t *testing.T) *spec.Command {
 
 	cmd, err := spec.Build(&completionRunnableImplicitRoot{}, "tool", spec.Options{
 		ClassifyContainer: classifyTestContainer,
+		HelpShort:         'h',
 		IsRunner: func(target any) bool {
 			_, ok := target.(*completionRunnableImplicitRoot)
 
 			return ok
+		},
+	})
+	assert.NoError(t, err)
+
+	return cmd
+}
+
+func buildCompletionRunnableSiblingRoot(t *testing.T) *spec.Command {
+	t.Helper()
+
+	cmd, err := spec.Build(&completionRunnableSiblingRoot{}, "tool", spec.Options{
+		ClassifyContainer: classifyTestContainer,
+		IsRunner: func(target any) bool {
+			_, ok := target.(*completionRunnableSiblingRoot)
+
+			return ok
+		},
+	})
+	assert.NoError(t, err)
+
+	return cmd
+}
+
+func buildCompletionDeepRunnableRoot(t *testing.T) *spec.Command {
+	t.Helper()
+
+	cmd, err := spec.Build(&completionDeepRunnableRoot{}, "tool", spec.Options{
+		ClassifyContainer: classifyTestContainer,
+		IsRunner: func(target any) bool {
+			_, ok := target.(*completionDeepRunnableMid)
+
+			return ok
+		},
+	})
+	assert.NoError(t, err)
+
+	return cmd
+}
+
+func buildCompletionDashRoot(t *testing.T) *spec.Command {
+	t.Helper()
+
+	cmd, err := spec.Build(&completionDashRoot{}, "tool", spec.Options{
+		ClassifyContainer: classifyTestContainer,
+		IsRunner: func(any) bool {
+			return true
 		},
 	})
 	assert.NoError(t, err)
@@ -132,6 +257,91 @@ func TestAnalyzeCompletion_RunnableParentKeepsChain(t *testing.T) {
 	analysis := spec.AnalyzeCompletion(root, []string{""})
 
 	assert.Equal(t, []string{"tool"}, commandNames(analysis.CommandChain))
+}
+
+func TestAnalyzeCompletion_FlagSelectsRunnableImplicit(t *testing.T) {
+	t.Parallel()
+
+	root := buildCompletionRunnableImplicitRoot(t)
+
+	analysis := spec.AnalyzeCompletion(root, []string{"-n", ""})
+
+	assert.Equal(t, []string{"tool", "run"}, commandNames(analysis.CommandChain))
+}
+
+func TestAnalyzeCompletion_ChildFlagBeforeHelpSelectsImplicit(t *testing.T) {
+	t.Parallel()
+
+	root := buildCompletionRunnableImplicitRoot(t)
+
+	analysis := spec.AnalyzeCompletion(root, []string{"-n", "--help", ""})
+
+	assert.Equal(t, []string{"tool", "run"}, commandNames(analysis.CommandChain))
+}
+
+func TestAnalyzeCompletion_SiblingFlagDoesNotSelectImplicit(t *testing.T) {
+	t.Parallel()
+
+	root := buildCompletionRunnableSiblingRoot(t)
+
+	analysis := spec.AnalyzeCompletion(root, []string{"--frozen", ""})
+
+	assert.Equal(t, []string{"tool"}, commandNames(analysis.CommandChain))
+}
+
+func TestAnalyzeCompletion_DeepChainFlagSelectsNeededDepth(t *testing.T) {
+	t.Parallel()
+
+	t.Run("mid flag stops at the runnable intermediate", func(t *testing.T) {
+		t.Parallel()
+
+		root := buildCompletionDeepRunnableRoot(t)
+
+		analysis := spec.AnalyzeCompletion(root, []string{"--mid-flag", ""})
+
+		assert.Equal(t, []string{"tool", "mid"}, commandNames(analysis.CommandChain))
+	})
+
+	t.Run("leaf flag descends to the implicit leaf", func(t *testing.T) {
+		t.Parallel()
+
+		root := buildCompletionDeepRunnableRoot(t)
+
+		analysis := spec.AnalyzeCompletion(root, []string{"--deep", ""})
+
+		assert.Equal(t, []string{"tool", "mid", "run"}, commandNames(analysis.CommandChain))
+	})
+}
+
+func TestAnalyzeCompletion_BuiltinShortInClusterSelectsImplicit(t *testing.T) {
+	t.Parallel()
+
+	root := buildCompletionRunnableImplicitRoot(t)
+
+	analysis := spec.AnalyzeCompletion(root, []string{"-hn", ""})
+
+	assert.Equal(t, []string{"tool", "run"}, commandNames(analysis.CommandChain))
+}
+
+func TestAnalyzeCompletion_ChildFlagBeforeVersionRoutesToChild(t *testing.T) {
+	t.Parallel()
+
+	root := buildCompletionRunnableImplicitRoot(t)
+
+	analysis := spec.AnalyzeCompletion(root, []string{"-n", "--version", ""})
+
+	assert.Equal(t, []string{"tool", "run"}, commandNames(analysis.CommandChain))
+}
+
+func TestAnalyzeCompletion_TerminatorOperandsFollowFlagSelectedChain(t *testing.T) {
+	t.Parallel()
+
+	root := buildCompletionDashRoot(t)
+
+	analysis := spec.AnalyzeCompletion(root, []string{"--mid-flag", "--", "x", ""})
+
+	assert.Equal(t, []string{"tool", "mid", "run"}, commandNames(analysis.CommandChain))
+	assert.Equal(t, []string{"x"}, analysis.DashArgs)
 }
 
 func TestAnalyzeCompletion_BuiltinRequestKeepsChain(t *testing.T) {
@@ -207,6 +417,48 @@ func TestAnalyzeCompletion_BuiltinVersionKeepsRootChain(t *testing.T) {
 	})
 }
 
+func TestAnalyzeCompletion_BuiltinBeforeTerminatorStopsAtRequiredDepth(t *testing.T) {
+	t.Parallel()
+
+	root := buildCompletionDeepRunnableRoot(t)
+
+	analysis := spec.AnalyzeCompletion(root, []string{"--mid-flag", "--version", "--", "x", ""})
+
+	assert.Equal(t, []string{"tool", "mid"}, commandNames(analysis.CommandChain))
+	assert.Equal(t, []string{"x"}, analysis.PositionalArgs)
+}
+
+func TestAnalyzeCompletion_VersionBuiltinNotShadowedByImplicitCommand(t *testing.T) {
+	t.Parallel()
+
+	t.Run("short flag", func(t *testing.T) {
+		t.Parallel()
+
+		root, err := spec.Build(&completionVersionShortShadowRoot{}, "tool", spec.Options{
+			ClassifyContainer: classifyTestContainer,
+			VersionShort:      'V',
+		})
+		assert.NoError(t, err)
+
+		analysis := spec.AnalyzeCompletion(root, []string{"-V", ""})
+
+		assert.Equal(t, []string{"tool"}, commandNames(analysis.CommandChain))
+	})
+
+	t.Run("long flag", func(t *testing.T) {
+		t.Parallel()
+
+		root, err := spec.Build(&completionVersionLongShadowRoot{}, "tool", spec.Options{
+			ClassifyContainer: classifyTestContainer,
+		})
+		assert.NoError(t, err)
+
+		analysis := spec.AnalyzeCompletion(root, []string{"--version", ""})
+
+		assert.Equal(t, []string{"tool"}, commandNames(analysis.CommandChain))
+	})
+}
+
 func TestComplete_DeepImplicitChainFlag(t *testing.T) {
 	t.Parallel()
 
@@ -220,6 +472,47 @@ func TestComplete_DeepImplicitChainFlag(t *testing.T) {
 	}
 
 	assert.True(t, slices.Contains(values, "--deep"))
+}
+
+func TestComplete_FlagSelectedDeepImplicitPositionals(t *testing.T) {
+	t.Parallel()
+
+	root := buildCompletionImplicitRoot(t, &completionDeepFlagRoot{})
+
+	result := spec.Complete(root, []string{"--deep", ""}, spec.CompleteOptions{})
+
+	values := itemValues(result.Items)
+
+	assert.True(t, slices.Contains(values, "deep-a.ts"))
+	assert.True(t, slices.Contains(values, "deep-b.ts"))
+}
+
+func TestComplete_FlagSelectedImplicitNarrowsSiblingSurface(t *testing.T) {
+	t.Parallel()
+
+	root := buildCompletionRunnableSiblingRoot(t)
+
+	result := spec.Complete(root, []string{"-n", ""}, spec.CompleteOptions{})
+
+	values := itemValues(result.Items)
+
+	assert.True(t, slices.Contains(values, "a.ts"))
+	assert.True(t, slices.Contains(values, "b.ts"))
+	assert.False(t, slices.Contains(values, "build"))
+}
+
+func TestComplete_FlagSelectedHiddenImplicitStaysSuppressed(t *testing.T) {
+	t.Parallel()
+
+	root := buildCompletionImplicitRoot(t, &completionHiddenImplicitRoot{})
+
+	result := spec.Complete(root, []string{"--hidden-flag=value", ""}, spec.CompleteOptions{})
+
+	values := itemValues(result.Items)
+
+	assert.False(t, slices.Contains(values, "secret-a.ts"))
+	assert.False(t, slices.Contains(values, "secret-b.ts"))
+	assert.True(t, slices.Contains(values, "build"))
 }
 
 func TestAnalyzeCompletion_BuiltinBeforeTerminatorKeepsChain(t *testing.T) {
@@ -363,6 +656,74 @@ func TestComplete_DeprecatedImplicitCommandSurfaceSuppressed(t *testing.T) {
 	assert.True(t, slices.Contains(values, "build"))
 }
 
+func TestComplete_VersionFlagLiteralRootOnly(t *testing.T) {
+	t.Parallel()
+
+	t.Run("child-only flag removes the root-only candidate", func(t *testing.T) {
+		t.Parallel()
+
+		root := buildCompletionRunnableImplicitRoot(t)
+
+		result := spec.Complete(root, []string{"-n", "-"}, spec.CompleteOptions{})
+
+		assert.False(t, slices.Contains(itemValues(result.Items), "--version"))
+	})
+
+	t.Run("root flag keeps the root-only candidate", func(t *testing.T) {
+		t.Parallel()
+
+		root := buildCompletionImplicitRoot(t, &completionHiddenImplicitRoot{})
+
+		result := spec.Complete(root, []string{"-v", "-"}, spec.CompleteOptions{})
+
+		assert.True(t, slices.Contains(itemValues(result.Items), "--version"))
+	})
+
+	t.Run("implicit operand enters the child", func(t *testing.T) {
+		t.Parallel()
+
+		root := buildCompletionRunnableImplicitRoot(t)
+
+		result := spec.Complete(root, []string{"script.ts", "-"}, spec.CompleteOptions{})
+
+		assert.False(t, slices.Contains(itemValues(result.Items), "--version"))
+	})
+
+	t.Run("explicit name enters the child", func(t *testing.T) {
+		t.Parallel()
+
+		root := buildCompletionRunnableImplicitRoot(t)
+
+		result := spec.Complete(root, []string{"run", "-"}, spec.CompleteOptions{})
+
+		assert.False(t, slices.Contains(itemValues(result.Items), "--version"))
+	})
+}
+
+func TestComplete_TerminatorFollowsFlagSelectedChain(t *testing.T) {
+	t.Parallel()
+
+	predictors := map[string]predict.Predictor{
+		"root-dash": predict.Items(predict.Item{Value: "ROOT-DASH"}),
+		"leaf-dash": predict.Items(predict.Item{Value: "LEAF-DASH"}),
+	}
+
+	root, err := spec.Build(&completionDashPredictRoot{}, "tool", spec.Options{
+		ClassifyContainer:    classifyTestContainer,
+		RegisteredPredictors: predictors,
+		IsRunner: func(target any) bool {
+			_, ok := target.(*completionDashPredictRoot)
+
+			return ok
+		},
+	})
+	assert.NoError(t, err)
+
+	result := spec.Complete(root, []string{"--mid-flag", "--", "x", ""}, spec.CompleteOptions{RegisteredPredictors: predictors})
+
+	assert.Equal(t, []string{"LEAF-DASH"}, itemValues(result.Items))
+}
+
 func commandNames(commands []*spec.Command) []string {
 	names := make([]string, 0, len(commands))
 	for _, cmd := range commands {
@@ -370,4 +731,13 @@ func commandNames(commands []*spec.Command) []string {
 	}
 
 	return names
+}
+
+func itemValues(items []predict.Item) []string {
+	values := make([]string, 0, len(items))
+	for _, item := range items {
+		values = append(values, item.Value)
+	}
+
+	return values
 }
