@@ -250,7 +250,7 @@ If you migrate an application whose completion honoured these styles before, you
 
 ### Environment toggles for every shell
 
-All six framings honour the same toggles through application-prefixed environment variables. The prefix is the application name in `UPPER_SNAKE_CASE`, so an application named `cloudctl` reads `CLOUDCTL_COMPLETION_*`. Applications can override it with `conga.CompletionEnvPrefix`. Set the variables in your shell configuration; each one affects only its own application.
+All six framings honour the same toggles through application-prefixed environment variables. The prefix is the application name in `UPPER_SNAKE_CASE`, so an application named `cloudctl` reads `CLOUDCTL_COMPLETION_*`. A name that starts with a digit gains a leading underscore, because shell variable names cannot start with one: an application named `7z` reads `_7Z_COMPLETION_*`. Applications can override the prefix with `conga.CompletionEnvPrefix`. Set the variables in your shell configuration; each one affects only its own application.
 
 | Variable | Effect |
 |---|---|

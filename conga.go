@@ -1530,11 +1530,15 @@ func (a *App[T]) buildSpec() (*spec.Command, error) {
 // [CompletionEnvPrefix] option when set, otherwise the application name
 // (which always resolves to the invoked binary name or "app"). The prefix
 // carries a trailing underscore so callers concatenate the variable suffix
-// directly. A normalized prefix that begins with a digit is rejected because
-// POSIX shells cannot assign such a variable name.
+// directly. POSIX shells cannot assign a variable name that begins with a
+// digit: a derived prefix in that shape gains a leading underscore (an
+// application named 7z reads _7Z_COMPLETION_DESCRIPTIONS), while an explicit
+// [CompletionEnvPrefix] value in that shape is rejected as an author mistake.
 func (a *App[T]) resolvedCompletionEnvPrefix() (string, error) {
 	prefix := a.completionSettings.envPrefix
-	if prefix == "" {
+	explicit := prefix != ""
+
+	if !explicit {
 		prefix = cond.SetOrDefaultFunc(a.name, getAppName)
 	}
 
@@ -1551,7 +1555,11 @@ func (a *App[T]) resolvedCompletionEnvPrefix() (string, error) {
 	if normalized == "" {
 		normalized = "APP"
 	} else if normalized[0] >= '0' && normalized[0] <= '9' {
-		return "", fmt.Errorf("%w: completion environment prefix %q begins with a digit, which is not a valid shell variable name; rename the application or pass conga.CompletionEnvPrefix with a prefix beginning with a letter", ErrSchema, normalized+"_")
+		if explicit {
+			return "", fmt.Errorf("%w: completion environment prefix %q begins with a digit, which is not a valid shell variable name; pass conga.CompletionEnvPrefix with a prefix beginning with a letter", ErrSchema, normalized+"_")
+		}
+
+		normalized = "_" + normalized
 	}
 
 	return normalized + "_", nil
