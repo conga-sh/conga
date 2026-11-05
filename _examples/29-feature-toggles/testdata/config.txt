@@ -8,7 +8,7 @@ env HOME=$WORK/home
 env XDG_CONFIG_HOME=$WORK/xdg
 
 # 1. The features section activates http3 and admin-api.
-exec feature-toggles -c features.yaml --http3
+exec feature-toggles -c features.yaml --quic
 stdout 'features: http3=true admin-api=true strict-tls=true metrics=true'
 
 exec feature-toggles -c features.yaml admin
@@ -16,8 +16,8 @@ stdout 'admin: API listening on :9090'
 
 # 2. Environment outranks configuration: a config-enabled feature is disabled.
 env API_FEATURES=http3=false
-exit-status 2 feature-toggles -c features.yaml --http3
-stderr 'flag .--http3. requires feature "http3"'
+exit-status 2 feature-toggles -c features.yaml --quic
+stderr 'flag .--quic. requires feature "http3"'
 env API_FEATURES=
 
 # 3. An unknown feature in the section fails with a did-you-mean hint (exit 1).
@@ -26,7 +26,7 @@ stderr 'unknown feature "htt3" \(did you mean "http3"\?\)'
 
 # 4. A config key for an inactive gated flag is rejected (exit 1).
 exit-status 1 feature-toggles -c flagkey.yaml
-stderr 'config file declares flag .--http3. which requires feature "http3"'
+stderr 'config file declares flag .--quic. which requires feature "http3"'
 
 -- features.yaml --
 features:
@@ -38,4 +38,4 @@ features:
   htt3: true
 
 -- flagkey.yaml --
-http3: true
+quic: true

@@ -1,143 +1,43 @@
 ---
-title: How to gate features
-description: Declare feature toggles on the root command and gate flags and subcommands behind them.
+title: How to gate flags and subcommands behind features
+description: Declare named features, hide flags and subcommands until a feature is on, and let users switch features from the command line, the environment, or a config file.
 ---
 
-Feature toggles activate optional flags and whole subcommands at runtime. A feature is declared once as a field of a `conga.Features[T]` container on the root command struct, and gated members carry a `feature:"..."` expression that must hold for them to exist. Values arrive through the standard resolution tiers: a `--feature-gates` map flag, an environment variable, a config section, or a struct default.
+A feature is a named setting the person running your CLI changes at run time: on or off, or a numbered level. A gated flag or subcommand appears in `--help`, `--why`, and shell completion, and accepts input, while its feature is on.
 
-## Declare the feature toggles
+This guide builds the HTTP server from the [feature toggles example](https://github.com/conga-sh/conga/tree/main/_examples/29-feature-toggles). It declares four features, gates two flags and one subcommand behind them, and turns them on from each source. Every output block below comes from running that example, or the small change to it that the section describes.
 
-Add a `conga.Features[T]` field to the root command struct and give `T` one exported field per feature. A `bool` field is an on/off toggle; an integer field is a leveled toggle whose non-zero levels are listed in the `enum` tag.
+## Declare the features
 
-```go title="main.go"
-type Experiments struct {
-	HTTP3   bool `help:"Experimental HTTP/3 (QUIC) listener"`
-	Metrics bool `default:"true" help:"Expose the metrics endpoint"`
-}
-
-type Server struct {
-	Features conga.Features[Experiments] `flag:"feature-gates" env:"SERVER_FEATURES" config:"features"`
-
-	Listen conga.OptionalFlag[string] `default:":8080" help:"Listen address"`
-	HTTP3  conga.OptionalFlag[bool]   `feature:"http3" help:"Enable the QUIC/HTTP3 listener"`
-}
-```
-
-Each `feature` tag holds a comma-separated conjunction of feature names; prefix a name with `!` to require it off, as in `feature:"!strict-tls"`. The tag is accepted on `OptionalFlag`, `Counter`, `Command[T]`, and `ConfigFile` fields; `RequiredFlag` rejects it because a required input cannot be absent.
-
-## Enable feature resolution
-
-Call `EnableFeatures()` on the application builder. Without it, schema build rejects the `conga.Features` container and every `feature` tag with `ErrSchema`:
+Add a `conga.Features[T]` field to the root command struct. Each exported field of `T` is one feature, named after the field in kebab-case (`AdminAPI` becomes `admin-api`). A `bool` field is off unless its `default` tag says otherwise:
 
 ```go title="main.go"
-func main() {
-	app := conga.New[Server]().
-		Name("server").
-		EnableFeatures().
-		EnableWhy()
-
-	if err := app.Run(); err != nil {
-		app.Exit(err)
-	}
-}
-```
-
-`EnableFeatures()` installs the feature resolver only when called, so an application that never declares features does not link the feature machinery.
-
-## Activate features
-
-Every tier contributes `name=value` pairs to one synthesized map, which merges key by key (CLI over environment over config over default). A key accepts any spelling of a declared name (kebab-case, snake_case, or camelCase), so `http3` and `http-3` resolve to the same feature.
-
-Activate a feature from the command line:
-
-```sh
-server --feature-gates http3=true
-```
-
-Activate a feature from the environment:
-
-```sh
-SERVER_FEATURES=metrics=false server
-```
-
-Activate a feature from a config section. The section name comes from the container's `config` tag, and the application must register a decoder for the file format (see [How to manage config files](/how-to/manage-config-files/)):
-
-```yaml title="config.yaml"
-features:
-  http3: true
-```
-
-## Bind features individually with env
-
-Feature fields accept their own `env` tag, binding one variable per feature instead of one combined map. Declare the container's `envprefix` and every untagged field derives `<PREFIX>_<UPPER_SNAKE(feature name)>`:
-
-```go title="main.go"
-type Experiments struct {
-	HTTP3   bool `help:"Experimental HTTP/3 (QUIC) listener"`
-	Metrics bool `default:"true" help:"Expose the metrics endpoint"`
-}
-
-type Server struct {
-	Features conga.Features[Experiments] `envprefix:"SERVER_X" config:"features"`
-}
-```
-
-```sh
-SERVER_X_HTTP3=1 server
-```
-
-A field's `env` tag overrides its derived variable, and `env:"-"` excludes the field from the environment tier — the same rules a normal flag follows:
-
-```go title="main.go"
-type Experiments struct {
-	HTTP3    bool `env:"ENABLE_HTTP3" help:"Experimental HTTP/3 (QUIC) listener"`
-	Internal bool `env:"-"           help:"CLI and config only"`
-}
-```
-
-The two env surfaces are exclusive: a container declares either `env` (one combined `name=value` variable) or `envprefix` (one variable per feature), never both, and field `env` tags are rejected under a combined-map container. Schema build also rejects a feature variable that two fields resolve to, or that a flag also binds. Per-feature variables sit between the command line and configuration files in the [resolution ladder](/explanation/value-precedence/): `--feature-gates` wins per key, the variable overrides the config section, and unlisted keys keep their lower-tier values.
-
-:::note[Application prefixes]
-Application prefixes configured with `App.EnvPrefix` do not reach `Features` containers; a container without an explicit `env` or `envprefix` tag binds no environment variable.
-:::
-
-One environment surface has one display location. The container `help` tag's `{{env}}` inlines only the combined-map variable, so a container whose sole env surface is `envprefix` or field `env` tags rejects `{{env}}` at schema build. Each per-feature variable is rendered beside its feature in the root help screen's [Features section](#features-section).
-
-## Gate members
-
-Inactive gated flags and subcommands are pruned from `--help`, `--why`, and shell completion. Supplying one on the command line is a usage error (exit 2):
-
-```sh
-server --http3
-```
-
-```text no-copy
-server: error: flag '--http3' requires feature "http3"
-
-Usage:
-  server [flags]
-
-Run 'server --help' for more information.
-```
-
-A config key that names an inactive gated flag fails with `ErrConfig` (exit 1). An environment variable that names one is ignored, so ambient environment state never breaks a run it does not control.
-
-## Features section
-
-The root `--help` screen renders an automatic `Features:` section listing every declared toggle: its `help` tag text, its declared stage, and its default. Integer toggles also list their levels, and a feature bound to environment variables appends its variable names as `[env: VAR1, VAR2]` in declaration order. The synthesized feature-gates flag omits its `[enum: ...]` hint because the section already lists the names.
-
-```go title="main.go"
-type Experiments struct {
+type experiments struct {
 	HTTP3     bool `stage:"alpha" help:"Experimental HTTP/3 (QUIC) listener"`
 	AdminAPI  bool `stage:"alpha" help:"Experimental admin API"`
 	StrictTLS bool `stage:"beta"  default:"true" help:"Require TLS and reject weak ciphers"`
 	Metrics   bool `stage:"beta"  default:"true" help:"Expose the metrics endpoint"`
 }
+
+type CLI struct {
+	Features conga.Features[experiments] `flag:"feature-gates" env:"API_FEATURES" config:"features"`
+}
 ```
 
-```sh
-server --help
+The three container tags name the places a user can set features from: the `--feature-gates` flag, the `API_FEATURES` variable, and the `features:` section of a config file. Each tag is optional; declare the sources your users need. For the environment you can give each feature its own variable instead; see [Give each feature its own environment variable](#give-each-feature-its-own-environment-variable).
+
+## Enable features
+
+Turn on feature support by calling `EnableFeatures()` on the application builder:
+
+```go title="main.go"
+app := conga.New[CLI]().
+	Name("feature-toggles").
+	EnableFeatures().
+	EnableWhy()
 ```
+
+The root help screen now lists every feature, its stage, and its default:
 
 ```text no-copy
 Features:
@@ -147,36 +47,249 @@ Features:
   metrics     Expose the metrics endpoint [beta] [default: true]
 ```
 
-The `stage` tag records the feature's maturity — `alpha`, `beta`, `ga`, or `deprecated`. It is optional, but all-or-nothing: when any feature field declares a stage, every field must. Features staged `ga` or `deprecated` are omitted from the section, mirroring Kubernetes, which stops listing gates once they leave the experimental stages; the toggles remain fully functional, validated, and completable.
+## Gate a flag
 
-## Read feature values
+Add a `feature` tag naming the feature the flag depends on. Here the feature is `http3` and the flag it gates is `--quic`:
 
-`Features.Get()` returns the resolved `*T`, and `Features.Source()` reports the highest contributing tier:
+```go title="main.go"
+type CLI struct {
+	Features conga.Features[experiments] `flag:"feature-gates" env:"API_FEATURES" config:"features"`
 
-```go
-if s.Features.Get().HTTP3 {
-	// ...
+	Listen conga.OptionalFlag[string] `default:":8080" help:"Listen address"`
+	QUIC   conga.OptionalFlag[bool]   `feature:"http3"  help:"Enable the QUIC/HTTP3 listener (experimental)"`
 }
 ```
 
-Pass `--why` to render a `Features:` table with per-key provenance. Each feature reports the tier that last wrote its key; a key no tier sets falls back to its field default or renders `unset`:
+`--quic` appears in `--help` once `http3` is on. Before that, typing it gives a usage error (exit code 2):
 
 ```sh
-server --why
+feature-toggles --quic
+```
+
+```text no-copy
+feature-toggles: error: flag '--quic' requires feature "http3"
+
+Usage:
+  feature-toggles [flags]
+
+Run 'feature-toggles --help' for more information.
+```
+
+Turn the feature on and the flag appears in `--help` and works:
+
+```sh
+feature-toggles --feature-gates http3=true --quic
+```
+
+The `feature` tag works on `OptionalFlag`, `Counter`, `ConfigFile`, and `Command[T]` fields.
+
+## Gate a subcommand
+
+Put the same tag on a `Command[T]` field. The subcommand and everything beneath it disappear together:
+
+```go title="main.go"
+Admin conga.Command[AdminCmd] `feature:"admin-api" summary:"Experimental admin API"`
+```
+
+```sh
+feature-toggles admin
+```
+
+```text no-copy
+feature-toggles: error: command "admin" requires feature "admin-api"
+
+Usage:
+  feature-toggles admin [flags]
+
+Run 'feature-toggles admin --help' for more information.
+```
+
+## Show a flag only while a feature is off
+
+Prefix the feature name with `!`. The example keeps a plaintext escape hatch that exists only while strict TLS is off:
+
+```go title="main.go"
+AllowInsecure conga.OptionalFlag[bool] `feature:"!strict-tls" help:"Serve plaintext (development only)"`
+```
+
+`strict-tls` defaults to on, so `--allow-insecure` appears once a user runs with `--feature-gates strict-tls=false`.
+
+To require several conditions, separate them with commas; all must hold. `feature:"http3,!strict-tls"` gates a member on `http3` being on *and* `strict-tls` being off. The [expression table](/reference/struct-tags/#feature-expressions) lists the forms.
+
+## Turn features on
+
+Each source changes only the features it names, and the rest keep their values from lower sources.
+
+From the command line:
+
+```sh
+feature-toggles --feature-gates http3=true,admin-api=true
+```
+
+From the environment, using the variable named by the container's `env` tag:
+
+```sh
+API_FEATURES=strict-tls=false feature-toggles --allow-insecure
+```
+
+With `envprefix`, each feature has its own variable instead; see [Give each feature its own environment variable](#give-each-feature-its-own-environment-variable).
+
+From a config file, under the section named by the container's `config` tag. The application must register a decoder for the file format (see [How to manage config files](/how-to/manage-config-files/)):
+
+```yaml title="features.yaml"
+features:
+  http3: true
+  admin-api: true
+```
+
+```sh
+feature-toggles -c features.yaml admin
+```
+
+When two sources set the same feature, the command line beats the environment, which beats the config file, which beats the `default` tag. Here the environment turns `http3` off and the command line turns it back on:
+
+```sh
+API_FEATURES=http3=false feature-toggles --feature-gates http3=true
+```
+
+```text no-copy
+features: http3=true admin-api=false strict-tls=true metrics=true
+```
+
+Users may spell a name in kebab-case, snake_case, or camelCase: `admin-api`, `admin_api`, and `adminApi` are the same feature.
+
+## Check which source set each feature
+
+Run with `--why` to see each feature's value and the source that set it:
+
+```sh
+API_FEATURES=admin-api=true feature-toggles -c features.yaml --why
 ```
 
 ```text no-copy
 Features:
-
-  FEATURE   VALUE   SOURCE
-  http3     false   unset
-  metrics   true    default
+  FEATURE      VALUE   SOURCE
+  http3        true    config (features.yaml)
+  admin-api    true    env
+  strict-tls   true    default
+  metrics      true    default
 ```
+
+`unset` marks a feature that keeps its zero value: it has no `default` and no source sets it. See [How to inspect value provenance](/how-to/inspect-value-provenance/) for the rest of the report.
+
+## Know what users see when input is wrong
+
+Gated members and feature names are checked against every source. Each source reports problems in its own way:
+
+| What the user does | Command line | Environment | Config file |
+|---|---|---|---|
+| Uses a gated flag or command while its feature is off | Usage error, exit 2 | Ignored | Config error, exit 1 |
+| Names an unknown feature (`htt3=true`) | Usage error, exit 2, with a "did you mean" hint | Usage error, exit 2, with a hint (list variable only) | Config error, exit 1, with a hint |
+| Gives a bad value (`http3=maybe`) | Usage error, exit 2 | Usage error, exit 2 | Config error, exit 1 |
+
+When a gated flag has its own variable, such as `API_QUIC` from `EnvPrefix("API")`, the environment skips it while the flag is inactive, so leftover variables from a parent shell or CI runner leave unrelated runs alone. Feature variables, whether the `API_FEATURES` list or per-feature variables such as `API_FEATURE_METRICS`, exist only to set features, so the program checks them the same way as the command line.
+
+The config-file errors look like this:
+
+```text no-copy
+feature-toggles: error: config error: unknown feature "htt3" (did you mean "http3"?)
+feature-toggles: error: config error: config file declares flag '--quic' which requires feature "http3"
+```
+
+## Read features in code
+
+`Features.Get()` returns the resolved struct:
+
+```go title="main.go"
+func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
+	if c.Features.Get().Metrics {
+		// start the metrics collector
+	}
+
+	return nil
+}
+```
+
+A feature can also stand alone: `metrics` gates no member and is read only in code.
+
+## Use a feature with levels
+
+Declare an integer field and list its levels in `enum`. `0` means off, so list only the levels above it:
+
+```go title="main.go"
+Syntax int `stage:"beta" enum:"1,2" help:"Config syntax version (0 = off)"`
+```
+
+Users pick a level with `--feature-gates syntax=2`. The help screen lists the levels, and a value outside them gives a usage error:
+
+```text no-copy
+  syntax      Config syntax version (0 = off) [beta] [levels: 1, 2]
+```
+
+```text no-copy
+feature-toggles: error: invalid value "3" for feature "syntax": must be one of: 0, 1, 2
+```
+
+A gate such as `feature:"syntax"` holds at every level from 1 up. To vary behaviour by level, read it in code with `c.Features.Get().Syntax`.
+
+## Give each feature its own environment variable
+
+The `env` tag on the container gives users one variable holding a list of pairs. To give each feature its own variable instead, replace `env` with `envprefix`:
+
+| Container tag | What the user sets |
+|---|---|
+| `env:"API_FEATURES"` | `API_FEATURES=http3=true,metrics=false` |
+| `envprefix:"API_FEATURE"` | `API_FEATURE_HTTP3=true API_FEATURE_METRICS=false` |
+
+Each feature's variable is the prefix plus its name in upper snake case. A field's own `env` tag renames its variable, and `env:"-"` leaves the feature to the command line and config file:
+
+```go title="main.go"
+type experiments struct {
+	HTTP3     bool `env:"ENABLE_HTTP3" stage:"alpha" help:"Experimental HTTP/3 (QUIC) listener"`
+	AdminAPI  bool `stage:"alpha" help:"Experimental admin API"`
+	StrictTLS bool `env:"-" stage:"beta" default:"true" help:"Require TLS and reject weak ciphers"`
+	Metrics   bool `stage:"beta" default:"true" help:"Expose the metrics endpoint"`
+}
+
+type CLI struct {
+	Features conga.Features[experiments] `flag:"feature-gates" envprefix:"API_FEATURE" config:"features"`
+}
+```
+
+Users find the variables in the help screen, next to each feature:
+
+```text no-copy
+Features:
+  http3       Experimental HTTP/3 (QUIC) listener [alpha] [env: ENABLE_HTTP3]
+  admin-api   Experimental admin API [alpha] [env: API_FEATURE_ADMIN_API]
+  strict-tls  Require TLS and reject weak ciphers [beta] [default: true]
+  metrics     Expose the metrics endpoint [beta] [default: true] [env: API_FEATURE_METRICS]
+```
+
+Switching changes which variables the program reads, so tell your users before you switch:
+
+- `envprefix` replaces the list variable. A container uses one form at a time, so the program reads `API_FEATURE_HTTP3` in place of `API_FEATURES`.
+- A field's `env` tag renames its variable. With `env:"ENABLE_HTTP3"`, the program reads `ENABLE_HTTP3` in place of `API_FEATURE_HTTP3`.
+- Users set `env:"-"` features through the container's other sources, here `--feature-gates` and the `features:` config section, for example `--feature-gates strict-tls=false`.
+- Features take their variables from the container's `env` or `envprefix` tag alone. `EnvPrefix("API")` gives `--listen` the variable `API_LISTEN` and leaves features as they are.
+
+The command line still beats these variables, one feature at a time: `ENABLE_HTTP3=false feature-toggles --feature-gates http3=true` runs with `http3` on.
+
+The application checks at startup that each variable belongs to one feature. Here `AdminAPI` was also given `env:"ENABLE_HTTP3"`:
+
+```text no-copy
+feature-toggles: error: struct CLI field Features: schema error: environment variable "ENABLE_HTTP3" is bound by both feature "http3" and feature "admin-api"
+```
+
+## Mark how mature each feature is
+
+The `stage` tag labels a feature `alpha`, `beta`, `ga`, or `deprecated`, and the label appears in the help screen's `Features:` list. Once you set `stage` on one feature you must set it on all of them.
+
+Features staged `ga` or `deprecated` drop out of the help list but keep working, and users can still set them and see them in `--why`. [About feature toggles](/explanation/feature-toggles/#feature-maturity-stages) explains why.
 
 ## Where to go next
 
-- [About feature toggles](/explanation/feature-toggles/) — design rationale, sparse gate merging, member pruning, and maturity lifecycle.
-- [Struct tag reference](/reference/struct-tags/#feature-toggles-congafeaturest) — the full container and feature-field tag vocabulary.
-- [About value precedence](/explanation/value-precedence/) — how the four tiers merge, including sparse feature maps.
-- [How to inspect value provenance](/how-to/inspect-value-provenance/) — the `--why` report.
-- [Feature toggles example](https://github.com/conga-sh/conga/tree/main/_examples/29-feature-toggles) — a runnable program with CLI, environment, and config activation.
+- [About feature toggles](/explanation/feature-toggles/): why features are typed struct fields and why sources merge feature by feature.
+- [Struct tag reference](/reference/struct-tags/#feature-toggles-congafeaturest): every container tag, feature-field tag, and expression form.
+- [About value precedence](/explanation/value-precedence/): how command line, environment, config, and defaults combine.
+- [Feature toggles example](https://github.com/conga-sh/conga/tree/main/_examples/29-feature-toggles): the program used on this page.

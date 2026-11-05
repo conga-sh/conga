@@ -7,7 +7,7 @@
 env HOME=$WORK/home
 env XDG_CONFIG_HOME=$WORK/xdg
 
-# 1. Default help shows only active members: --http3 and --allow-insecure are
+# 1. Default help shows only active members: --quic and --allow-insecure are
 #    gated off, as is the admin command.
 exec feature-toggles --help
 stdout '--listen'
@@ -19,13 +19,13 @@ stdout '--feature-gates'
 
 # 2. The default run reports the resolved configuration and feature state.
 exec feature-toggles
-stdout 'listen=:8080 cache=128 http3=false insecure=false'
+stdout 'listen=:8080 cache=128 quic=false insecure=false'
 stdout 'features: http3=false admin-api=false strict-tls=true metrics=true'
 stdout 'metrics: collecting on :8080'
 
 # 3. Invoking an inactive flag is a usage error (exit 2).
-exit-status 2 feature-toggles --http3
-stderr 'flag .--http3. requires feature "http3"'
+exit-status 2 feature-toggles --quic
+stderr 'flag .--quic. requires feature "http3"'
 exit-status 2 feature-toggles --allow-insecure
 stderr 'flag .--allow-insecure. requires feature "!strict-tls"'
 
@@ -38,7 +38,7 @@ stderr 'command "admin" requires feature "admin-api"'
 # 5. --why reports only the active flags, plus the resolved feature state.
 exec feature-toggles --why
 stdout '--listen'
-! stdout '--http3'
+! stdout '--quic'
 stdout 'Features:'
 stdout 'http3'
 stdout 'strict-tls'

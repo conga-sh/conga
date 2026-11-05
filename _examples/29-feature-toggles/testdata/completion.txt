@@ -10,7 +10,7 @@ env XDG_CONFIG_HOME=$WORK/xdg
 exec feature-toggles __complete export --
 stdout '"value":"--listen"'
 stdout '"value":"--cache"'
-! stdout '"value":"--http3"'
+! stdout '"value":"--quic"'
 ! stdout '"value":"--allow-insecure"'
 exec feature-toggles __complete export ""
 ! stdout '"value":"admin"'
@@ -18,6 +18,6 @@ exec feature-toggles __complete export ""
 # 2. Enabling the features reveals them in completion.
 env API_FEATURES=http3=true,admin-api=true
 exec feature-toggles __complete export --
-stdout '"value":"--http3"'
+stdout '"value":"--quic"'
 exec feature-toggles __complete export ""
 stdout '"value":"admin"'

@@ -19,8 +19,8 @@ admin API, and a plaintext escape hatch that strict TLS retires.
 ```sh
 go run ./_examples/29-feature-toggles
 go run ./_examples/29-feature-toggles --help
-go run ./_examples/29-feature-toggles --http3                              # exit 2: gated flag
-go run ./_examples/29-feature-toggles --feature-gates http3=true --http3
+go run ./_examples/29-feature-toggles --quic                              # exit 2: gated flag
+go run ./_examples/29-feature-toggles --feature-gates http3=true --quic
 API_FEATURES=strict-tls=false go run ./_examples/29-feature-toggles --allow-insecure
 API_FEATURES=admin-api=true go run ./_examples/29-feature-toggles admin
 ```
@@ -34,10 +34,10 @@ go run ./_examples/29-feature-toggles -c features.yaml admin
 
 ## What to look for
 
-- By default `--http3` and `--allow-insecure` are absent from `--help`, as is
+- By default `--quic` and `--allow-insecure` are absent from `--help`, as is
   the `admin` command. `strict-tls` and `metrics` are declared with
   `default:"true"`, so strict TLS is on out of the box.
-- `--http3` declares `feature:"http3"`: an experimental transport stays hidden
+- `--quic` declares `feature:"http3"`: an experimental transport stays hidden
   until an operator opts in.
 - `--allow-insecure` declares `feature:"!strict-tls"`: the legacy plaintext
   escape hatch exists only while strict TLS is disabled, and disappears the

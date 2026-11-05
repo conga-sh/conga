@@ -26,7 +26,7 @@ type CLI struct {
 	Features conga.Features[experiments] `config:"features" env:"API_FEATURES" flag:"feature-gates"`
 
 	Listen        conga.OptionalFlag[string] `default:":8080"       help:"Listen address"                                safe:"true"`
-	HTTP3         conga.OptionalFlag[bool]   `feature:"http3"       help:"Enable the QUIC/HTTP3 listener (experimental)"`
+	QUIC          conga.OptionalFlag[bool]   `feature:"http3"       help:"Enable the QUIC/HTTP3 listener (experimental)"`
 	AllowInsecure conga.OptionalFlag[bool]   `feature:"!strict-tls" help:"Serve plaintext (development only)"`
 	Cache         conga.OptionalFlag[int]    `default:"128"         help:"Response cache size in MB"                     safe:"true"`
 
@@ -40,8 +40,8 @@ func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
 
 	fmt.Fprintln(session.Stdout())
 
-	fmt.Fprintf(session.Stdout(), "listen=%s cache=%d http3=%v insecure=%v\n",
-		c.Listen.Get(), c.Cache.Get(), c.HTTP3.Get(), c.AllowInsecure.Get())
+	fmt.Fprintf(session.Stdout(), "listen=%s cache=%d quic=%v insecure=%v\n",
+		c.Listen.Get(), c.Cache.Get(), c.QUIC.Get(), c.AllowInsecure.Get())
 
 	experiments := c.Features.Get()
 

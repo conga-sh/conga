@@ -273,7 +273,7 @@ Declare the container once, on the root command struct, and call `app.EnableFeat
 | `envprefix` | Per-feature env prefix: each feature field binds `<PREFIX>_<UPPER_SNAKE(feature name)>` unless the field overrides it with its own `env` tag. This is the per-feature env surface; it cannot be combined with `env`. |
 | `config` | Config section name holding the `name=value` pairs. |
 | `sep` | Pair separator inside one map value (default `","`). |
-| `help` | Help text for the synthesized flag. Defaults to `Enable or disable features (name=value)`; the root help screen's [Features section](/how-to/feature-flags/#features-section) lists every feature, and `{{enum}}` (declared feature names) and `{{env}}` (the container's combined-map environment variable names) can be inlined, suppressing the matching bracket hint. `{{env}}` requires an `env` tag: a container whose only env surface is `envprefix` or field `env` tags rejects it at schema build. Other help variables are rejected. |
+| `help` | Help text for the synthesized flag. Defaults to `Enable or disable features (name=value)`; the root help screen's [Features section](/how-to/feature-flags/#declare-the-features) lists every feature, and `{{enum}}` (declared feature names) and `{{env}}` (the container's combined-map environment variable names) can be inlined, suppressing the matching bracket hint. `{{env}}` requires an `env` tag: a container whose only env surface is `envprefix` or field `env` tags rejects it at schema build. Other help variables are rejected. |
 | `enumhint` | Set to `-` to suppress the synthesized flag's `[enum: ...]` help hint. Redundant — and rejected — when the `help` tag already references `{{enum}}`. |
 
 A container that declares neither `env` nor `envprefix` binds no environment variable at all — `env:"-"` is equivalent. The application-level `EnvPrefix(...)` never reaches features; it applies to normal flags only.
@@ -301,7 +301,25 @@ A `feature` tag holds a comma-separated conjunction of terms. Each term is a fea
 | `!strict-tls` | `strict-tls` is off. |
 | `http3,!strict-tls` | `http3` is on and `strict-tls` is off. |
 
-Feature names are kebab-cased. A key may use any spelling of a declared name (kebab-case, snake_case, or camelCase); keys are canonicalized before the merge, so precedence follows the tier rather than the spelling. Every source contributes to the feature map, which merges key by key (CLI over environment over config), and the merged keys overlay the field defaults key by key, so unlisted features keep their defaults. Gated members are pruned from `--help`, `--why`, and shell completion; supplying a gated flag or subcommand on the command line is a usage error (exit 2), and a config key targeting an inactive gated flag fails with `ErrConfig` (exit 1). An environment variable targeting an inactive gated flag is ignored, so ambient environment state never breaks a run it does not control. See [About value precedence](/explanation/value-precedence/) and [Errors and exit codes](/reference/errors/).
+A `bool` feature is on when its value is `true`. An integer feature is on at any non-zero level; expressions cannot test for a specific level.
+
+### Feature value resolution
+
+Feature names are kebab-cased. A key may use any spelling of a declared name (kebab-case, snake_case, or camelCase); keys are canonicalized before the merge, so precedence follows the source rather than the spelling.
+
+Every source contributes `name=value` pairs, merged key by key: command line over environment over config file over the field's `default` tag. A source changes only the keys it names, so unlisted features keep their lower-source values. See [About value precedence](/explanation/value-precedence/).
+
+### Feature runtime behaviour
+
+Inactive gated flags and subcommands are pruned from `--help`, `--why`, and shell completion. Input that cannot be applied fails by source:
+
+| Input | Command line | Environment | Config file |
+|---|---|---|---|
+| Gated flag or subcommand whose expression does not hold | Usage error (exit 2) | Ignored | `ErrConfig` (exit 1) |
+| Unknown feature name | Usage error (exit 2), with suggestion | Usage error (exit 2), with suggestion | `ErrConfig` (exit 1), with suggestion |
+| Invalid feature value (not `true`/`false`, or a level not in `enum`) | Usage error (exit 2) | Usage error (exit 2), naming the variable | `ErrConfig` (exit 1) |
+
+Only environment variables that bind *gated flags* are ignored when inactive, so ambient variables never break a run they do not control; feature variables (`env` or `envprefix` surfaces) are always validated. See [Errors and exit codes](/reference/errors/).
 
 ## Trailing arguments (`DashArgs`, `RawArgs`)
 

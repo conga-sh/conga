@@ -55,7 +55,7 @@ In the example above, `--port` resolves to `9003`. If `--port` is omitted on the
 Positional arguments do not read environment variables; they resolve only from command-line arguments.
 
 :::note[Feature toggles]
-Application prefixes do not reach `Features` containers. To bind environment variables for feature toggles, declare `env` or `envprefix` directly on the container. See [How to gate features](/how-to/feature-flags/#bind-features-individually-with-env) for the two environment formats.
+Application prefixes do not reach `Features` containers. To bind environment variables for feature toggles, declare `env` or `envprefix` directly on the container. See [How to gate flags and subcommands behind features](/how-to/feature-flags/#give-each-feature-its-own-environment-variable) for the two environment formats and what changes for users when you switch between them.
 :::
 
 ## Namespace subcommands with envprefix
