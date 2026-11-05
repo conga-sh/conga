@@ -79,3 +79,12 @@ func setupNodectl(t *testing.T) *shell.Workspace {
 
 	return workspace
 }
+
+func setupRawtool(t *testing.T) *shell.Workspace {
+	t.Helper()
+
+	workspace := shell.NewWorkspace(t)
+	workspace.BuildBinary(t, "./testdata/implicitraw", "rawtool")
+
+	return workspace
+}

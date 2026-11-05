@@ -19,12 +19,73 @@ func ImplicitFlagDepth(chain []*Command, tokens []tokenizer.Token) int {
 		return 0
 	}
 
-	levels := implicitDescendants(chain[len(chain)-1])
-	if len(levels) == 0 {
+	levelChains := routingLevelChains(chain)
+	if len(levelChains) == 0 {
 		return 0
 	}
 
-	return flagDepthInLevels(chain, implicitLevelChains(chain, levels), tokens)
+	return flagDepthInLevels(chain, levelChains, tokens)
+}
+
+// RoutingFlagConsumesNext reports whether the token parser takes the token
+// after tok as tok's value, resolved the way subcommand routing sees the
+// invocation before an implicit command is entered: CLI flags declared on
+// chain first, then the built-ins visible on chain, then CLI flags declared by
+// the implicit descendants of chain's leaf, nearest first. It shares
+// flagTokenDepth with TerminalImplicitLevels, so routing lookahead and terminal
+// implicit selection agree on every token's arity; a value-taking implicit
+// flag never shadows a built-in visible on chain.
+func RoutingFlagConsumesNext(chain []*Command, tok tokenizer.Token) bool {
+	if len(chain) == 0 {
+		return false
+	}
+
+	consumesNext, _ := flagTokenDepth(chain, routingLevelChains(chain), tok)
+
+	return consumesNext
+}
+
+// RoutingLeadingShortRegistered reports whether the first shorthand of tok
+// resolves on chain, as a built-in visible on chain, or on an implicit
+// descendant of chain's leaf. The token parser classifies a negative number as
+// a flag cluster when its first rune is registered, regardless of later runes.
+func RoutingLeadingShortRegistered(chain []*Command, tok tokenizer.Token) bool {
+	if len(chain) == 0 || len(tok.ShortRunes) == 0 {
+		return false
+	}
+
+	return shortFlagRegistered(chain, routingLevelChains(chain), tok.ShortRunes[0])
+}
+
+// FlagTokenResolves reports whether every flag a flag token names resolves on
+// chain, built-ins visible on chain included. A long flag honors the no-
+// negation form; a shorthand cluster resolves when WalkShorthand visits no
+// unresolved rune, so runes consumed as a value are never resolved.
+func FlagTokenResolves(chain []*Command, tok tokenizer.Token) bool {
+	switch tok.Type {
+	case tokenizer.TokenTypeLongFlag:
+		if FindFlagInChain(chain, tok.Name) != nil {
+			return true
+		}
+
+		return ResolveNegatedFlag(tok.Name, func(candidate string) *Flag {
+			return FindFlagInChain(chain, candidate)
+		}) != nil
+	case tokenizer.TokenTypeShortFlag:
+		walk := WalkShorthand(tok.ShortRunes, tok.HasAttachedValue, func(r rune) (*Flag, int) {
+			return FindShortFlagInChain(chain, r), 0
+		})
+
+		return walk.UnresolvedAt == -1
+	default:
+		return false
+	}
+}
+
+// BuiltinRequested reports whether tokens request a built-in rendering flag
+// visible on chain before the -- terminator.
+func BuiltinRequested(chain []*Command, tokens []tokenizer.Token) bool {
+	return builtinRequestedAt(chain, nil, tokens)
 }
 
 // TerminalImplicitLevels returns the number of implicit descendant levels the
@@ -75,6 +136,12 @@ func TerminalImplicitLevels(chain []*Command, tokens []tokenizer.Token, terminat
 		current = implicit
 		entered++
 	}
+}
+
+// routingLevelChains returns the command chains active after entering each
+// implicit level below chain's leaf, nearest first. chain must be non-empty.
+func routingLevelChains(chain []*Command) [][]*Command {
+	return implicitLevelChains(chain, implicitDescendants(chain[len(chain)-1]))
 }
 
 // implicitDescendants returns the implicit command chain below cmd, nearest
@@ -199,8 +266,8 @@ func flagTokenDepth(chain []*Command, levelChains [][]*Command, tok tokenizer.To
 			return consumesNextFlagValue(flagSpec, tok), 0
 		}
 
-		if IsBuiltinFlag(FindFlagInChain(chain, tok.Name)) {
-			return false, 0
+		if flagSpec := FindFlagInChain(chain, tok.Name); IsBuiltinFlag(flagSpec) {
+			return consumesNextFlagValue(flagSpec, tok), 0
 		}
 
 		if flagSpec, depth := resolveLongFlagInLevels(levelChains, tok.Name, declaredCLILongFlag); flagSpec != nil {

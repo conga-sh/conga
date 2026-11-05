@@ -297,3 +297,189 @@ func TestTerminalImplicitLevels(t *testing.T) {
 		assert.Equal(t, 2, levels)
 	})
 }
+
+func TestRoutingFlagConsumesNext(t *testing.T) {
+	t.Parallel()
+
+	t.Run("value flag on the routed chain", func(t *testing.T) {
+		t.Parallel()
+
+		root := &spec.Command{Name: "tool", Flags: []*spec.Flag{{Name: "output", Short: 'o'}}}
+		tokens := tokenizer.Tokenize([]string{"--output", "value"})
+
+		consumesNext := spec.RoutingFlagConsumesNext([]*spec.Command{root}, tokens[0])
+
+		assert.True(t, consumesNext)
+	})
+
+	t.Run("value flag declared only by the implicit child", func(t *testing.T) {
+		t.Parallel()
+
+		leaf := &spec.Command{Name: "run", Implicit: true, Flags: []*spec.Flag{{Name: "format"}}}
+		root := &spec.Command{Name: "tool", Subcommands: []*spec.Command{leaf}}
+		tokens := tokenizer.Tokenize([]string{"--format", "json"})
+
+		consumesNext := spec.RoutingFlagConsumesNext([]*spec.Command{root}, tokens[0])
+
+		assert.True(t, consumesNext)
+	})
+
+	t.Run("root version builtin wins over an implicit value shadow", func(t *testing.T) {
+		t.Parallel()
+
+		leaf := &spec.Command{Name: "run", Implicit: true, Flags: []*spec.Flag{{Name: "version"}}}
+		root := &spec.Command{Name: "tool", Subcommands: []*spec.Command{leaf}}
+		tokens := tokenizer.Tokenize([]string{"--version", "script.ts"})
+
+		consumesNext := spec.RoutingFlagConsumesNext([]*spec.Command{root}, tokens[0])
+
+		assert.False(t, consumesNext)
+	})
+
+	t.Run("root version short wins over an implicit value shadow", func(t *testing.T) {
+		t.Parallel()
+
+		leaf := &spec.Command{Name: "run", Implicit: true, Flags: []*spec.Flag{{Name: "verbose", Short: 'V'}}}
+		root := &spec.Command{Name: "tool", VersionShort: 'V', Subcommands: []*spec.Command{leaf}}
+		tokens := tokenizer.Tokenize([]string{"-V", "script.ts"})
+
+		consumesNext := spec.RoutingFlagConsumesNext([]*spec.Command{root}, tokens[0])
+
+		assert.False(t, consumesNext)
+	})
+
+	t.Run("value-taking completion builtin consumes the shell", func(t *testing.T) {
+		t.Parallel()
+
+		root := &spec.Command{Name: "tool"}
+		tokens := tokenizer.Tokenize([]string{"--completion", "bash"})
+
+		consumesNext := spec.RoutingFlagConsumesNext([]*spec.Command{root}, tokens[0])
+
+		assert.True(t, consumesNext)
+	})
+
+	t.Run("implicit flags of a sibling-entered parent stay invisible", func(t *testing.T) {
+		t.Parallel()
+
+		leaf := &spec.Command{Name: "run", Implicit: true, Flags: []*spec.Flag{{Name: "format"}}}
+		admin := &spec.Command{Name: "admin"}
+		root := &spec.Command{Name: "tool", Subcommands: []*spec.Command{leaf, admin}}
+		tokens := tokenizer.Tokenize([]string{"--format", "purge"})
+
+		consumesNext := spec.RoutingFlagConsumesNext([]*spec.Command{root, admin}, tokens[0])
+
+		assert.False(t, consumesNext)
+	})
+}
+
+func TestRoutingLeadingShortRegistered(t *testing.T) {
+	t.Parallel()
+
+	t.Run("rune declared by the implicit child", func(t *testing.T) {
+		t.Parallel()
+
+		leaf := &spec.Command{Name: "run", Implicit: true, Flags: []*spec.Flag{{Name: "five", Short: '5', IsBool: true}}}
+		root := &spec.Command{Name: "tool", Subcommands: []*spec.Command{leaf}}
+		tokens := tokenizer.Tokenize([]string{"-5"})
+
+		registered := spec.RoutingLeadingShortRegistered([]*spec.Command{root}, tokens[0])
+
+		assert.True(t, registered)
+	})
+
+	t.Run("builtin short rune", func(t *testing.T) {
+		t.Parallel()
+
+		root := &spec.Command{Name: "tool", HelpShort: '5'}
+		tokens := tokenizer.Tokenize([]string{"-5"})
+
+		registered := spec.RoutingLeadingShortRegistered([]*spec.Command{root}, tokens[0])
+
+		assert.True(t, registered)
+	})
+
+	t.Run("unregistered rune", func(t *testing.T) {
+		t.Parallel()
+
+		leaf := &spec.Command{Name: "run", Implicit: true}
+		root := &spec.Command{Name: "tool", Subcommands: []*spec.Command{leaf}}
+		tokens := tokenizer.Tokenize([]string{"-5"})
+
+		registered := spec.RoutingLeadingShortRegistered([]*spec.Command{root}, tokens[0])
+
+		assert.False(t, registered)
+	})
+}
+
+func TestFlagTokenResolves(t *testing.T) {
+	t.Parallel()
+
+	flags := []*spec.Flag{
+		{Name: "verbose", Short: 'v', IsCounter: true},
+		{Name: "quiet", Short: 'q', IsBool: true, IsNegatable: true},
+		{Name: "output", Short: 'o'},
+	}
+
+	tests := []struct {
+		name     string
+		args     []string
+		resolves bool
+	}{
+		{name: "declared long flag", args: []string{"--output"}, resolves: true},
+		{name: "negated long flag", args: []string{"--no-quiet"}, resolves: true},
+		{name: "builtin long flag", args: []string{"--help"}, resolves: true},
+		{name: "unknown long flag", args: []string{"--unknown"}, resolves: false},
+		{name: "repeated counter cluster", args: []string{"-vv"}, resolves: true},
+		{name: "mixed boolean cluster", args: []string{"-vq"}, resolves: true},
+		{name: "cluster ending in value remainder", args: []string{"-voxyz"}, resolves: true},
+		{name: "builtin short in cluster", args: []string{"-vh"}, resolves: true},
+		{name: "unknown rune in cluster", args: []string{"-vx"}, resolves: false},
+		{name: "positional", args: []string{"deploy"}, resolves: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := &spec.Command{Name: "tool", HelpShort: 'h', Flags: flags}
+			tokens := tokenizer.Tokenize(test.args)
+
+			resolves := spec.FlagTokenResolves([]*spec.Command{root}, tokens[0])
+
+			assert.Equal(t, test.resolves, resolves)
+		})
+	}
+}
+
+func TestBuiltinRequested(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		args      []string
+		requested bool
+	}{
+		{name: "long help", args: []string{"--help", "bogus"}, requested: true},
+		{name: "short help in cluster", args: []string{"-vh", "bogus"}, requested: true},
+		{name: "help after terminator", args: []string{"--", "--help"}, requested: false},
+		{name: "declared flags only", args: []string{"-v", "bogus"}, requested: false},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			root := &spec.Command{
+				Name:      "tool",
+				HelpShort: 'h',
+				Flags:     []*spec.Flag{{Name: "verbose", Short: 'v', IsBool: true}},
+			}
+			tokens := tokenizer.Tokenize(test.args)
+
+			requested := spec.BuiltinRequested([]*spec.Command{root}, tokens)
+
+			assert.Equal(t, test.requested, requested)
+		})
+	}
+}

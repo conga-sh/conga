@@ -324,6 +324,64 @@ type implicitVersionLongShadowRoot struct {
 	Exec conga.Command[implicitVersionLongShadowCmd] `implicit:"true" name:"run"`
 }
 
+type implicitVersionValueShadowCmd struct {
+	Version conga.OptionalFlag[string]
+	File    conga.OptionalArg[string]
+
+	executed bool
+}
+
+func (c *implicitVersionValueShadowCmd) Run(_ context.Context, _ *conga.Session) error {
+	c.executed = true
+
+	return nil
+}
+
+type implicitVersionValueShadowRoot struct {
+	Exec conga.Command[implicitVersionValueShadowCmd] `implicit:"true" name:"run"`
+}
+
+type implicitVersionShortValueShadowCmd struct {
+	Verbose conga.OptionalFlag[string] `short:"V"`
+	File    conga.OptionalArg[string]
+
+	executed bool
+}
+
+func (c *implicitVersionShortValueShadowCmd) Run(_ context.Context, _ *conga.Session) error {
+	c.executed = true
+
+	return nil
+}
+
+type implicitVersionShortValueShadowRoot struct {
+	Exec conga.Command[implicitVersionShortValueShadowCmd] `implicit:"true" name:"run"`
+}
+
+type implicitFormatRunCmd struct {
+	Format conga.OptionalFlag[string]
+	File   conga.OptionalArg[string]
+}
+
+func (c *implicitFormatRunCmd) Run(_ context.Context, _ *conga.Session) error {
+	return nil
+}
+
+type implicitAdminPurgeCmd struct{}
+
+func (c *implicitAdminPurgeCmd) Run(_ context.Context, _ *conga.Session) error {
+	return nil
+}
+
+type implicitAdminCmd struct {
+	Purge conga.Command[implicitAdminPurgeCmd] `name:"purge"`
+}
+
+type implicitSiblingBranchRoot struct {
+	Exec  conga.Command[implicitFormatRunCmd] `implicit:"true" name:"run"`
+	Admin conga.Command[implicitAdminCmd]     `name:"admin"`
+}
+
 type implicitExplicitRunCmd struct {
 	Format conga.OptionalFlag[string]
 
@@ -1474,4 +1532,127 @@ func TestImplicitCommand_VersionBeforeExplicitNameStaysUnknown(t *testing.T) {
 	assert.Contains(t, err.Error(), "unknown flag: --version")
 	assert.False(t, cli.executed)
 	assert.False(t, cli.Exec.Get().executed)
+}
+
+func TestImplicitCommand_OperandAfterVersionValueShadowMatchesExplicitForm(t *testing.T) {
+	t.Parallel()
+
+	var stdoutBuffer bytes.Buffer
+
+	cli := new(implicitVersionValueShadowRoot)
+	app := conga.New(cli).
+		Name("tool").
+		Version("1.0.0").
+		Stdout(&stdoutBuffer).
+		Args([]string{"--version", "script.ts"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, "", stdoutBuffer.String())
+	assert.True(t, cli.Exec.Get().executed)
+	assert.Equal(t, "script.ts", cli.Exec.Get().Version.Get())
+	assert.Equal(t, "", cli.Exec.Get().File.Get())
+}
+
+func TestImplicitCommand_ExplicitNameBindsVersionValueShadow(t *testing.T) {
+	t.Parallel()
+
+	var stdoutBuffer bytes.Buffer
+
+	cli := new(implicitVersionValueShadowRoot)
+	app := conga.New(cli).
+		Name("tool").
+		Version("1.0.0").
+		Stdout(&stdoutBuffer).
+		Args([]string{"run", "--version", "script.ts"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, "", stdoutBuffer.String())
+	assert.True(t, cli.Exec.Get().executed)
+	assert.Equal(t, "script.ts", cli.Exec.Get().Version.Get())
+	assert.Equal(t, "", cli.Exec.Get().File.Get())
+}
+
+func TestImplicitCommand_BareVersionWinsOverImplicitVersionValueShadow(t *testing.T) {
+	t.Parallel()
+
+	var stdoutBuffer bytes.Buffer
+
+	cli := new(implicitVersionValueShadowRoot)
+	app := conga.New(cli).
+		Name("tool").
+		Version("1.0.0").
+		Stdout(&stdoutBuffer).
+		Args([]string{"--version"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Contains(t, stdoutBuffer.String(), "tool has version 1.0.0")
+	assert.False(t, cli.Exec.Get().executed)
+	assert.Equal(t, "", cli.Exec.Get().Version.Get())
+}
+
+func TestImplicitCommand_OperandAfterVersionShortValueShadowMatchesExplicitForm(t *testing.T) {
+	t.Parallel()
+
+	var stdoutBuffer bytes.Buffer
+
+	cli := new(implicitVersionShortValueShadowRoot)
+	app := conga.New(cli).
+		Name("tool").
+		Version("1.0.0").
+		VersionShortFlag('V').
+		Stdout(&stdoutBuffer).
+		Args([]string{"-V", "script.ts"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, "", stdoutBuffer.String())
+	assert.True(t, cli.Exec.Get().executed)
+	assert.Equal(t, "script.ts", cli.Exec.Get().Verbose.Get())
+	assert.Equal(t, "", cli.Exec.Get().File.Get())
+}
+
+func TestImplicitCommand_BareVersionShortWinsOverImplicitValueShadow(t *testing.T) {
+	t.Parallel()
+
+	var stdoutBuffer bytes.Buffer
+
+	cli := new(implicitVersionShortValueShadowRoot)
+	app := conga.New(cli).
+		Name("tool").
+		Version("1.0.0").
+		VersionShortFlag('V').
+		Stdout(&stdoutBuffer).
+		Args([]string{"-V"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Contains(t, stdoutBuffer.String(), "tool has version 1.0.0")
+	assert.False(t, cli.Exec.Get().executed)
+	assert.Equal(t, "", cli.Exec.Get().Verbose.Get())
+}
+
+func TestImplicitCommand_ExplicitSiblingRoutingIgnoresImplicitFlagArity(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[implicitSiblingBranchRoot]().
+		Name("tool").
+		Args([]string{"admin", "--format", "purge"})
+
+	err := app.Run()
+
+	assert.IsError(t, err, conga.ErrParse)
+	assert.Equal(t, "unknown flag: --format", err.Error())
+
+	var usage conga.UsageError
+
+	assert.True(t, errors.As(err, &usage))
+	assert.Equal(t, "tool admin purge", usage.CommandPath())
 }
