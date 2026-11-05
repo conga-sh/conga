@@ -1,6 +1,6 @@
 ---
 title: About subcommands and hierarchy
-description: Command tree modeling with Command[T], routing versus runnable nodes, session state traversal, and the ancestor flag reservation invariant.
+description: Command tree modeling with Command[T], routing versus runnable nodes, implicit subcommands, session state traversal, and the ancestor flag reservation invariant.
 ---
 
 Command-line tools often grow beyond single-purpose utilities into structured suites of operations. CONGA models these multi-command hierarchies through static struct composition: declaring a field of type `conga.Command[T]` mounts `T` as a subcommand, creating a typed command tree derived directly from Go types.
@@ -47,6 +47,34 @@ When an intermediate command struct implements `Runner` and also declares `Comma
 
 ### Leaf commands
 Terminal nodes in the command hierarchy must implement `Runner`. Defining a leaf command struct without a `Run` method produces an `ErrSchema` error during schema initialization.
+
+## Implicit subcommands
+
+Some tools have one operation that operators run far more often than the rest. Bun runs a file with `bun ./script.ts` while keeping `bun run ./script.ts` and `bun install` available. Tagging a subcommand `implicit:"true"` gives a CONGA command the same shape: tokens that no explicit subcommand claims route into the implicit one. The rules follow from one priority: an implicit subcommand fills the gaps, and it never overrides what the operator typed.
+
+### Named subcommands win
+
+A token that matches a sibling's name or alias selects that sibling. The implicit subcommand only receives tokens that would otherwise have nowhere to go. Declaring an implicit subcommand therefore never changes the meaning of an invocation that worked before it existed.
+
+The cost is error reporting. Without an implicit subcommand, `tool instal` is an unknown command and earns a "did you mean install?" suggestion. With one, `instal` is a valid operand for the implicit subcommand, so the engine has no basis to call it a typo. The operator sees whatever the implicit subcommand does with the operand, usually a missing-file error.
+
+### Routing reads left to right
+
+Operands and subcommand names are classified in the order they appear, and a subcommand name takes effect only when the engine reaches it. A value-taking flag before a subcommand name is a problem: in `tool --env prod deploy`, the engine meets `prod` before `deploy`. At that point `--env` belongs to no selected command, so nothing marks `prod` as its value; it is an unmatched operand and selects the implicit subcommand. Writing `tool deploy --env prod` names the subcommand first, and the flag then binds normally. Reinterpreting `prod` after seeing `deploy` would mean backtracking, which the parser avoids for the same reason the [ancestor flag reservation invariant](#deterministic-single-pass-parsing) exists.
+
+Flags give the engine a second, order-independent signal. A flag declared only by the implicit subcommand or its implicit descendants could not belong anywhere else, so it selects that subcommand on its own: `tool -n` enters the subcommand that owns `-n`, and reports its missing required argument rather than an unknown flag.
+
+### Built-in requests stay where they are
+
+`--help`, `--why`, and `--completion` never select a subcommand by themselves. A bare `tool --help` documents the parent, which is the screen that lists the implicit subcommand and its siblings. Once an operand or child-only flag has selected the implicit subcommand, help follows it: `tool -n --help` renders the same screen as `tool run --help`.
+
+`--version` is stricter because it is a root-only flag. After any subcommand is selected, by name or implicitly, the token is no longer a built-in. It is an unknown flag, or a trailing argument once the selected subcommand's declared positionals are full and it collects `RawArgs`. `tool ./script.ts --version` and `tool run ./script.ts --version` therefore pass `--version` to the script identically. Making implicit selection behave exactly like naming the subcommand matters more than offering a version summary from inside a subcommand.
+
+### The parent's role decides the bare invocation
+
+When the invocation selects no subcommand at all, the parent's [routing role](#routing-nodes-versus-runnable-commands) decides the outcome. A pure routing node has nothing of its own to run, so it enters its implicit subcommand. An executable intermediate command runs itself, so `tool` alone can print an overview while `tool ./script.ts` still reaches the implicit subcommand.
+
+An implicit subcommand can declare its own implicit subcommand. The engine descends through the chain only as far as the operands and child-only flags require, stopping at the first runnable command that nothing pushes past.
 
 ## State isolation and branch activation
 
