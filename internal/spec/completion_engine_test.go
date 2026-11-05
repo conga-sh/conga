@@ -463,6 +463,25 @@ func TestCompletion_NegationGuard(t *testing.T) {
 	})
 }
 
+func TestCompletion_ShortClusterBindsResolvedPrefix(t *testing.T) {
+	t.Parallel()
+
+	var cli FlagsTestCLI
+
+	cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+	assert.NoError(t, err)
+
+	// -dz: d (debug) resolves and z is undeclared. The tolerant walk binds the
+	// resolved prefix before the unresolved rune, so debug counts as consumed.
+	invoked := spec.Complete(cmdSpec, []string{"-dz", "--"}, spec.CompleteOptions{})
+
+	values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
+
+	assert.False(t, slices.Contains(values, "--debug"))
+	assert.False(t, slices.Contains(values, "--no-debug"))
+	assert.True(t, slices.Contains(values, "--verbose"))
+}
+
 func TestCompletion_WhyFormats(t *testing.T) {
 	t.Parallel()
 

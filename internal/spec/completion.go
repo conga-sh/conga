@@ -680,11 +680,14 @@ func (w *astCompletionWalker) consumeShortFlag(tok tokenizer.Token) {
 		return
 	}
 
-	for index := range runes {
-		flag := w.resolveShortFlag(runes[index])
-		if flag == nil {
-			return
-		}
+	// Steps is the resolved prefix: runes before an unresolved one stay bound,
+	// exactly as the token parser binds them before reporting the unknown rune.
+	walk := WalkShorthand(runes, tok.HasAttachedValue, func(r rune) (*Flag, int) {
+		return w.resolveShortFlag(r), 0
+	})
+
+	for index, step := range walk.Steps {
+		flag := step.Flag
 
 		w.registerGroups(flag)
 
