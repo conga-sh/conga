@@ -51,7 +51,7 @@ func (s *SubcommandForPredictor) Run(ctx context.Context) error {
 	return nil
 }
 
-type ContextPredictorSentinelCLI struct {
+type ContextPredictorBlankFieldCLI struct {
 	_    struct{}         `predictor:"file"`
 	Data mockFlag[string] `help:"Data"`
 }
@@ -300,17 +300,17 @@ func TestStrictPredictorLinter_ContextValidation(t *testing.T) {
 		assert.Equal(t, `struct ContextPredictorSubcommandCLI field Subcommand: schema error: invalid struct tag: tag "predictor" is invalid on subcommand (tag "predictor" is only valid on flags, positional arguments, and trailing-argument collectors)`, err.Error())
 	})
 
-	t.Run("predictor tag on sentinel field errors", func(t *testing.T) {
+	t.Run("predictor tag on blank field errors", func(t *testing.T) {
 		t.Parallel()
 
-		var cli ContextPredictorSentinelCLI
+		var cli ContextPredictorBlankFieldCLI
 
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
 		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct ContextPredictorSentinelCLI field _: schema error: invalid struct tag: tag "predictor" is invalid on sentinel field (tag "predictor" is only valid on flags, positional arguments, and trailing-argument collectors)`, err.Error())
+		assert.Equal(t, `struct ContextPredictorBlankFieldCLI field _: schema error: invalid struct tag: tag "predictor" is invalid on blank field (tag "predictor" is only valid on flags, positional arguments, and trailing-argument collectors)`, err.Error())
 	})
 
 	t.Run("predictor tag on dash args builds successfully", func(t *testing.T) {

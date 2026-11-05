@@ -121,8 +121,6 @@ func buildSchema(target any, name string, opts spec.Options) (*spec.Command, err
 }
 
 type SchemaTestCLI struct {
-	_ struct{} `envprefix:"TESTAPP_"`
-
 	ServerPort mockFlag[int]       `default:"8080"    help:"Port"      short:"p"`
 	DebugMode  mockFlag[bool]      `help:"Debug mode" short:"d"`
 	Format     mockFlag[string]    `default:"json"    enum:"json,yaml"`
@@ -178,7 +176,7 @@ func TestBuildSchema(t *testing.T) {
 
 		var cli SchemaTestCLI
 
-		cmdSpec, err := buildSchema(&cli, "myapp", spec.Options{})
+		cmdSpec, err := buildSchema(&cli, "myapp", spec.Options{EnvPrefix: "TESTAPP_"})
 
 		assert.NoError(t, err)
 		assert.Equal(t, "myapp", cmdSpec.Name)
@@ -1157,13 +1155,12 @@ func TestEnvPrefix_SubcommandAndBuiltin(t *testing.T) {
 		}
 
 		type RootCLI struct {
-			_      struct{}        `envprefix:"ROOT_"`
 			Deploy mockCmd[SubCmd] `envprefix:"DEPLOY_"`
 		}
 
 		var cli RootCLI
 
-		cmd, err := buildSchema(&cli, "app", spec.Options{})
+		cmd, err := buildSchema(&cli, "app", spec.Options{EnvPrefix: "ROOT_"})
 
 		assert.NoError(t, err)
 		assert.Equal(t, "ROOT_", cmd.EnvPrefix)
@@ -1184,7 +1181,7 @@ func TestEnvPrefix_SubcommandAndBuiltin(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct RootCLI field Help: schema error: invalid struct tag: tag "envprefix" is invalid on help command (tag "envprefix" is only valid on subcommands and sentinel fields)`, err.Error())
+		assert.Equal(t, `struct RootCLI field Help: schema error: invalid struct tag: tag "envprefix" is invalid on help command (tag "envprefix" is only valid on subcommands and Features containers)`, err.Error())
 	})
 
 	t.Run("builtin command deprecated tag is rejected with clarified error", func(t *testing.T) {
@@ -1351,14 +1348,12 @@ func TestArg_HelpEnvVariableRejected(t *testing.T) {
 	t.Parallel()
 
 	type RootCLI struct {
-		_ struct{} `envprefix:"APP_"`
-
 		Target mockArg[string] `help:"Target ({{env}})"`
 	}
 
 	var cli RootCLI
 
-	_, err := buildSchema(&cli, "app", spec.Options{})
+	_, err := buildSchema(&cli, "app", spec.Options{EnvPrefix: "APP_"})
 
 	assert.Error(t, err)
 	assert.IsError(t, err, spec.ErrSchema)
@@ -1370,14 +1365,12 @@ func TestFlag_HelpEnvVariableDerivedFromPrefix(t *testing.T) {
 	t.Parallel()
 
 	type RootCLI struct {
-		_ struct{} `envprefix:"APP_"`
-
 		Port mockFlag[int] `help:"Port from {{env}}"`
 	}
 
 	var cli RootCLI
 
-	cmd, err := buildSchema(&cli, "app", spec.Options{})
+	cmd, err := buildSchema(&cli, "app", spec.Options{EnvPrefix: "APP_"})
 
 	assert.NoError(t, err)
 	assert.Equal(t, "Port from APP_PORT", cmd.Flags[0].Help)

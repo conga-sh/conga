@@ -1516,10 +1516,6 @@ func (a *App[T]) buildSpec() (*spec.Command, error) {
 		cmd.Version = a.version
 	}
 
-	if a.envPrefix != "" && cmd.EnvPrefix == "" {
-		cmd.EnvPrefix = a.envPrefix
-	}
-
 	a.rootCommand = cmd
 
 	return cmd, nil

@@ -88,7 +88,6 @@ type App struct {
 	Count    conga.Counter                    `name:"count" help:"Count invocations"`
 	Extra    conga.DashArgs                   `name:"extra" predictor:"file"`
 	Help     conga.HelpCommand                `summary:"Show help" aliases:"h"`
-	_        struct{}                         `envprefix:"VALID_"`
 }
 
 var _ = conga.New[App]().Name("valid")

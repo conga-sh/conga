@@ -132,14 +132,7 @@ A command that declares `Command[T]` fields is a branch: it routes to its subcom
 | `section` | Help-screen section title. Subcommands sharing a section render under their own titled section and are tagged as `<section> commands` in completion. |
 | `summary` | One-line synopsis displayed in parent command listings and shell completion. |
 
-The `envprefix` tag may stand alone on a blank field to set the command's environment prefix without contributing a schema element:
-
-```go
-type Server struct {
-	_       struct{}                          `envprefix:"SERVER_"`
-	Timeout conga.OptionalFlag[time.Duration] `help:"Request timeout"`
-}
-```
+A subcommand's `envprefix` applies to its own flags and is inherited by its descendants unless they declare their own. The root command has no declaring field, so its prefix comes from `app.EnvPrefix(...)`. Blank (`_`) fields accept no CONGA tags.
 
 ### Implicit subcommands
 
