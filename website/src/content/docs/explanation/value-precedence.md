@@ -13,7 +13,7 @@ For general configuration flags (`OptionalFlag[T]`), values resolve through a de
 
 ```text no-copy
 1. CLI          explicit --flag or -f on the command line
-2. Environment  $PREFIX_NAME (via EnvPrefix) or the flag's env tag
+2. Environment  $PREFIX_NAME (EnvPrefix or the command's envprefix tag) or the flag's env tag
 3. Config       keys from the active config file(s), or the document supplied
                 by Bootstrap.SetConfig
 4. Default      the `default:"..."` struct tag, or the type's zero value

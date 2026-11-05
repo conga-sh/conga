@@ -7,7 +7,7 @@ CONGA automatically binds environment variables to command flags during flag res
 
 ## Set an application prefix
 
-Call `EnvPrefix` on the application builder to namespace all command flags under an environment variable prefix:
+Call `EnvPrefix` on the application builder to namespace command flags under an environment variable prefix. The prefix reaches every command except those that declare their own `envprefix` tag:
 
 ```go title="main.go"
 package main
@@ -56,11 +56,11 @@ Environment variable binding applies to flags; positional arguments resolve excl
 
 ## Namespace subcommands with envprefix
 
-To namespace flags on subcommands, add an `envprefix` struct tag to the command field or struct:
+A subcommand's `envprefix` tag sets the complete environment prefix for its flags. The tag replaces the prefix inherited from the application or an ancestor command; CONGA does not append one to the other.
 
 ```go title="main.go"
 type CLI struct {
-	Worker conga.Command[WorkerCmd] `envprefix:"WORKER" summary:"Background worker"`
+	Worker conga.Command[WorkerCmd] `envprefix:"APP_WORKER" summary:"Background worker"`
 }
 
 type WorkerCmd struct {
@@ -68,13 +68,13 @@ type WorkerCmd struct {
 }
 ```
 
-If the root application configures `EnvPrefix("APP")` and a subcommand declares `envprefix:"WORKER"`, CONGA combines the prefixes:
+With `EnvPrefix("APP")` on the application, `--concurrency` binds to `APP_WORKER_CONCURRENCY` because the tag spells the full prefix. A tag of `WORKER` binds `WORKER_CONCURRENCY` instead, outside the application namespace.
 
-- `--concurrency` binds to `APP_WORKER_CONCURRENCY`.
+Commands without the tag inherit the prefix from their parent, so the same flag binds to `APP_CONCURRENCY` under an untagged `Worker` subcommand.
 
 ## Override variable names per field
 
-Use the `env` struct tag to bind a flag to a custom environment variable name. Explicit `env` tags ignore the application prefix:
+Use the `env` struct tag to bind a flag to a custom environment variable name. Explicit `env` tags ignore the application prefix and any `envprefix` tag on the command:
 
 ```go title="main.go"
 type Database struct {
@@ -82,7 +82,7 @@ type Database struct {
 }
 ```
 
-When `env:"DATABASE_URL"` is declared, CONGA reads `DATABASE_URL` directly, regardless of whether `app.EnvPrefix` is configured.
+When `env:"DATABASE_URL"` is declared, CONGA reads `DATABASE_URL` directly, regardless of `app.EnvPrefix` or the command's `envprefix`.
 
 ## Disable environment binding for sensitive flags
 
