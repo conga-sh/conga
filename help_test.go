@@ -240,6 +240,33 @@ func TestHelpCommand_SubcommandRouting(t *testing.T) {
 	assert.Contains(t, buffer.String(), "Usage:\n  testapp cluster node drain")
 }
 
+// nestedHelpRootCLI declares help on a subcommand, so routing enters the
+// subcommand before matching help.
+type nestedHelpRootCLI struct {
+	Sub conga.Command[nestedHelpSubCmd] `summary:"Subcommand"`
+}
+
+type nestedHelpSubCmd struct {
+	noopRunner
+
+	Help conga.HelpCommand
+}
+
+func TestHelpCommand_NestedRouteSelectsParent(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	cli := new(nestedHelpRootCLI)
+	app := conga.New(cli).Name("testapp").Args([]string{"sub", "help"}).Stdout(&buffer)
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.True(t, cli.Sub.IsSelected())
+	assert.Contains(t, buffer.String(), "testapp sub")
+}
+
 func TestHelpCommand_Path(t *testing.T) {
 	t.Parallel()
 

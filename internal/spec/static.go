@@ -467,6 +467,10 @@ func validateRoleTagRules(tag reflect.StructTag, role string, opts ValidationOpt
 		if err := validateEnumHintTag(tag, role); err != nil {
 			return err
 		}
+	case "subcommand":
+		if _, _, err := ParseStrictBoolTag(tag, "implicit"); err != nil {
+			return err
+		}
 	}
 
 	return nil

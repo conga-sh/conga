@@ -329,3 +329,21 @@ func (p *PointerSharedChild) Run(ctx context.Context, session *conga.Session) er
 }
 
 var _ = conga.New[PointerSharedRoot]()
+
+// ImplicitRun is an implicit leaf command with a positional operand.
+type ImplicitRun struct {
+	File conga.RequiredArg[string] `name:"file"`
+}
+
+// Run executes the implicit command.
+func (i *ImplicitRun) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+// ImplicitRoot exposes an implicit command alongside explicit siblings.
+type ImplicitRoot struct {
+	Exec  conga.Command[ImplicitRun] `name:"run" implicit:"true"`
+	Build conga.Command[ImplicitRun] `name:"build"`
+}
+
+var _ = conga.New[ImplicitRoot]()

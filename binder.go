@@ -108,7 +108,9 @@ func newTokenParser(cmdChain []*spec.Command, tokens []tokenizer.Token, index *f
 	// The built-in --version flag only exists on the root command. Version
 	// information describes the whole application, so accepting --version on
 	// subcommands would diverge from every major framework (cobra, clap,
-	// click, etc.) and force each help screen to repeat it.
+	// click, etc.) and force each help screen to repeat it. An implicitly
+	// selected command is still a subcommand: once an operand or child-only
+	// flag routes into it, --version is rejected like any unknown flag.
 	if _, hasVersion := index.long["version"]; !hasVersion && leaf.VersionFlagVisible(isRoot) {
 		index.long["version"] = spec.BuiltinVersionFlag
 	}
@@ -189,7 +191,7 @@ func (parser *tokenParser) lookupLongFlag(name string) (*spec.Flag, bool) {
 		return flagSpec, false
 	}
 
-	if flagSpec := negatedLongFlag(name, func(n string) *spec.Flag { return parser.flagMap[n] }); flagSpec != nil {
+	if flagSpec := spec.ResolveNegatedFlag(name, func(candidate string) *spec.Flag { return parser.flagMap[candidate] }); flagSpec != nil {
 		return flagSpec, true
 	}
 
@@ -447,14 +449,40 @@ type flagIndex struct {
 	short map[rune]*spec.Flag
 }
 
+// newFlagIndex seeds the routing index with cmd and each implicit descendant so
+// flags that can select an implicit level participate in routing lookahead.
+// Synthesized built-in flags are resolved from the active chain by
+// flagTokenConsumesNext instead of being stored here.
 func newFlagIndex(cmd *spec.Command) *flagIndex {
 	index := &flagIndex{
 		long:  make(map[string]*spec.Flag),
 		short: make(map[rune]*spec.Flag),
 	}
-	index.addCommand(cmd)
+	index.addCommandWithImplicit(cmd)
 
 	return index
+}
+
+// newParseFlagIndex builds the flag index used by the token parser. Unlike the
+// routing index, it contains only commands on the final routed chain, so an
+// implicit command's flags never bind when an explicit sibling was selected.
+func newParseFlagIndex(cmdChain []*spec.Command) *flagIndex {
+	index := &flagIndex{
+		long:  make(map[string]*spec.Flag),
+		short: make(map[rune]*spec.Flag),
+	}
+
+	for _, cmd := range cmdChain {
+		index.addCommand(cmd)
+	}
+
+	return index
+}
+
+func (index *flagIndex) addCommandWithImplicit(cmd *spec.Command) {
+	for current := cmd; current != nil; current = current.ImplicitCommand() {
+		index.addCommand(current)
+	}
 }
 
 func (index *flagIndex) addCommand(cmd *spec.Command) {
@@ -481,7 +509,7 @@ func (index *flagIndex) find(tok tokenizer.Token) *spec.Flag {
 			return flagSpec
 		}
 
-		if flagSpec := negatedLongFlag(tok.Name, func(n string) *spec.Flag { return index.long[n] }); flagSpec != nil {
+		if flagSpec := spec.ResolveNegatedFlag(tok.Name, func(candidate string) *spec.Flag { return index.long[candidate] }); flagSpec != nil {
 			return flagSpec
 		}
 
@@ -495,6 +523,65 @@ func (index *flagIndex) find(tok tokenizer.Token) *spec.Flag {
 	default:
 		return nil
 	}
+}
+
+// flagTokenConsumesNext reports whether the token parser takes the following
+// token as this flag token's value. It mirrors parseShortFlagCluster: a
+// value-taking rune consumes the rest of the shorthand cluster as its value
+// when it is not the last rune, and only a final value-taking rune consumes the
+// next token. An unresolved rune ends the cluster without consuming anything.
+// Built-ins are resolved from chain because the routing index stores only
+// declared flags; the parser registers synthesized built-ins separately.
+func (index *flagIndex) flagTokenConsumesNext(tok tokenizer.Token, chain []*spec.Command) bool {
+	if tok.HasAttachedValue {
+		return false
+	}
+
+	switch tok.Type {
+	case tokenizer.TokenTypeLongFlag:
+		flagSpec := index.find(tok)
+		if flagSpec == nil {
+			flagSpec = spec.FindFlagInChain(chain, tok.Name)
+		}
+
+		return flagSpec != nil && flagSpec.TakesValue()
+	case tokenizer.TokenTypeShortFlag:
+		runes := tok.ShortRunes
+
+		for position, r := range runes {
+			flagSpec := index.short[r]
+			if flagSpec == nil {
+				flagSpec = spec.FindShortFlagInChain(chain, r)
+			}
+
+			if flagSpec == nil {
+				return false
+			}
+
+			if flagSpec.TakesValue() {
+				return position == len(runes)-1
+			}
+		}
+
+		return false
+	default:
+		return false
+	}
+}
+
+// leadingShortRegistered reports whether the token's first shorthand resolves
+// to a flag the token parser registers: a declared flag on the command or an
+// implicit descendant, or a synthesized built-in short. The token parser
+// classifies a negative number as a flag cluster when its first rune is
+// registered, regardless of later runes.
+func (index *flagIndex) leadingShortRegistered(tok tokenizer.Token, chain []*spec.Command) bool {
+	if len(tok.ShortRunes) == 0 {
+		return false
+	}
+
+	first := tok.ShortRunes[0]
+
+	return index.short[first] != nil || spec.FindShortFlagInChain(chain, first) != nil
 }
 
 type constraintSet struct {
@@ -684,6 +771,18 @@ type orderedFlagGroups struct {
 	order   []string
 }
 
+// positionalRoute is the outcome of routing one operand-shaped token.
+type positionalRoute struct {
+	command *spec.Command
+	chain   []*spec.Command
+	// reprocess reports the token must be reprocessed at the new current
+	// level after entering an implicit child. Every other path is finished
+	// with the token: it named a command, or the parser owns it.
+	reprocess bool
+	// helpRequested reports routing must stop so the help command can render.
+	helpRequested bool
+}
+
 // registerBuiltinShort maps a configured built-in short rune onto its shared
 // built-in flag so -h/-V parse without a per-app flag copy. A rune already
 // claimed by a user flag is left untouched: schema build rejects that collision
@@ -713,7 +812,7 @@ func bindSpecialArgs(leaf *spec.Command, dashArgs, rawTokens []string) {
 func validateRunnableContract(leaf *spec.Command, cmdChain []*spec.Command) error {
 	leafTarget := getCmdTarget(leaf)
 
-	if _, isRunner := leafTarget.(Runner); !isRunner {
+	if !isRunner(leafTarget) {
 		if leaf.HasUserSubcommands() {
 			return &parseError{
 				msg:      fmt.Sprintf("subcommand required for %q", leaf.Name),
@@ -843,56 +942,61 @@ func bindVersionCommandJSON(cmdChain []*spec.Command, versionCmd *spec.Command, 
 	return nil
 }
 
+// handlePositionalRouting routes an operand-shaped token: a positional word, or
+// a negative-number value the token parser binds as a positional. The returned
+// route reports the resulting command and chain, whether the token must be
+// reprocessed after entering an implicit child, and whether a help request
+// ended routing.
 func handlePositionalRouting(
 	current *spec.Command,
 	chain []*spec.Command,
 	index *flagIndex,
 	tokens []tokenizer.Token,
 	position int,
-) (*spec.Command, []*spec.Command, bool, error) {
+) (positionalRoute, error) {
 	tok := tokens[position]
 	matched := current.FindSubcommand(tok.Raw)
 
 	if matched != nil {
-		if matched.Handle != nil {
-			commandStateOf(matched.Handle).markSelected()
-		}
-
 		if matched.IsHelpCmd {
 			populateHelpCommandPath(matched, tokens, position+1)
 
-			return matched, append(chain, matched), true, nil
+			return positionalRoute{command: matched, chain: append(chain, matched), helpRequested: true}, nil
 		}
 
 		if matched.IsCompletionCmd {
 			populateCompletionCommandShell(matched, tokens, position+1)
 
-			return matched, append(chain, matched), false, nil
+			return positionalRoute{command: matched, chain: append(chain, matched)}, nil
 		}
 
-		return matched, append(chain, matched), false, nil
+		return positionalRoute{command: matched, chain: append(chain, matched)}, nil
 	}
 
 	if current.IsHelpCmd {
 		populateHelpCommandPath(current, tokens, position)
 
-		return current, chain, true, nil
+		return positionalRoute{command: current, chain: chain, helpRequested: true}, nil
 	}
 
 	if current.IsCompletionCmd {
 		populateCompletionCommandShell(current, tokens, position)
 
-		return current, chain, false, nil
+		return positionalRoute{command: current, chain: chain}, nil
+	}
+
+	if implicit := current.ImplicitCommand(); implicit != nil {
+		return positionalRoute{command: implicit, chain: append(chain, implicit), reprocess: true}, nil
 	}
 
 	if current.HasUserSubcommands() && len(current.Args) == 0 && current.RawArgs == nil {
 		if hasUnknownFlagInTokens(index, tokens) {
-			return current, chain, false, nil
+			return positionalRoute{command: current, chain: chain}, nil
 		}
 
 		suggestion := suggestSubcommand(current, tok.Raw)
 
-		return nil, nil, false, &parseError{
+		return positionalRoute{}, &parseError{
 			msg:        "unknown command: " + tok.Raw,
 			token:      tok.Raw,
 			cmdChain:   chain,
@@ -901,10 +1005,24 @@ func handlePositionalRouting(
 		}
 	}
 
-	return current, chain, false, nil
+	return positionalRoute{command: current, chain: chain}, nil
 }
 
-func routeSubcommands(cmd *spec.Command, tokens []tokenizer.Token) ([]*spec.Command, []tokenizer.Token, *flagIndex, error) {
+// markChainSelected records the routed chain on the command containers. The
+// root is not a subcommand, so it is skipped. Built-in commands carry no
+// Command[T] handle and are skipped too. Selection is recorded only after
+// routing succeeds: a routing error returns before this helper runs, so no
+// partial chain is marked.
+func markChainSelected(chain []*spec.Command) {
+	for _, cmd := range chain[1:] {
+		if cmd.Handle != nil {
+			commandStateOf(cmd.Handle).markSelected()
+		}
+	}
+}
+
+// routeSubcommands walks the token stream and selects the command chain.
+func routeSubcommands(cmd *spec.Command, tokens []tokenizer.Token) ([]*spec.Command, []tokenizer.Token, error) {
 	current := cmd
 	chain := []*spec.Command{current}
 	index := newFlagIndex(current)
@@ -926,7 +1044,7 @@ func routeSubcommands(cmd *spec.Command, tokens []tokenizer.Token) ([]*spec.Comm
 			break
 		}
 
-		if skipped, next := skipFlagValue(tokens, i, index); skipped {
+		if skipped, next := skipFlagValue(tokens, i, index, chain); skipped {
 			remaining = append(remaining, tok)
 
 			if next != i {
@@ -937,26 +1055,34 @@ func routeSubcommands(cmd *spec.Command, tokens []tokenizer.Token) ([]*spec.Comm
 			continue
 		}
 
-		if tok.Type != tokenizer.TokenTypePositional {
+		if tok.Type != tokenizer.TokenTypePositional && !routesAsImplicitOperand(current, index, tok, chain) {
 			remaining = append(remaining, tok)
 
 			continue
 		}
 
-		newCurrent, newChain, isHelpDone, err := handlePositionalRouting(current, chain, index, tokens, i)
+		route, err := handlePositionalRouting(current, chain, index, tokens, i)
 		if err != nil {
-			return nil, nil, nil, err
+			return nil, nil, err
 		}
 
-		changed := newCurrent != current
+		changed := route.command != current
 		if changed {
-			index.addCommand(newCurrent)
-			current = newCurrent
-			chain = newChain
+			index.addCommandWithImplicit(route.command)
+			current = route.command
+			chain = route.chain
 		}
 
-		if isHelpDone {
-			return newChain, remaining, index, nil
+		if route.helpRequested {
+			markChainSelected(route.chain)
+
+			return route.chain, remaining, nil
+		}
+
+		if route.reprocess {
+			i--
+
+			continue
 		}
 
 		if changed {
@@ -973,17 +1099,61 @@ func routeSubcommands(cmd *spec.Command, tokens []tokenizer.Token) ([]*spec.Comm
 		remaining = append(remaining, tok)
 	}
 
-	return chain, remaining, index, nil
+	chain = applyTerminalImplicitRoute(chain, remaining)
+	markChainSelected(chain)
+
+	return chain, remaining, nil
 }
 
-func skipFlagValue(tokens []tokenizer.Token, position int, index *flagIndex) (bool, int) {
-	tok := tokens[position]
-	if (tok.Type != tokenizer.TokenTypeLongFlag && tok.Type != tokenizer.TokenTypeShortFlag) || tok.HasAttachedValue {
-		return false, position
+// applyTerminalImplicitRoute selects implicit commands when the invocation
+// ends without an explicitly named subcommand. The terminal rule is shared with
+// completion through spec.TerminalImplicitLevels: a runnable command runs
+// itself unless operands after the -- terminator are owned by an implicit child
+// or the flags select a deeper implicit command. A built-in rendering request
+// keeps the command active only where that built-in is visible. The caller
+// records selection for the appended commands.
+func applyTerminalImplicitRoute(chain []*spec.Command, remaining []tokenizer.Token) []*spec.Command {
+	levels := spec.TerminalImplicitLevels(chain, remaining, hasOperandsAfterTerminator(remaining))
+
+	current := chain[len(chain)-1]
+
+	for range levels {
+		implicit := current.ImplicitCommand()
+		if implicit == nil {
+			break
+		}
+
+		chain = append(chain, implicit)
+		current = implicit
 	}
 
-	flagSpec := index.find(tok)
-	if flagSpec == nil || flagSpec.IsBool || flagSpec.IsCounter {
+	return chain
+}
+
+// hasOperandsAfterTerminator reports whether any token follows the -- terminator.
+func hasOperandsAfterTerminator(tokens []tokenizer.Token) bool {
+	for position, tok := range tokens {
+		if tok.Type == tokenizer.TokenTypeTerminator {
+			return position+1 < len(tokens)
+		}
+	}
+
+	return false
+}
+
+// routesAsImplicitOperand reports whether tok is a negative-number value that
+// the token parser binds as a positional, so it may enter an implicit command.
+// A registered leading shorthand makes the token a flag cluster and keeps the
+// existing flag path.
+func routesAsImplicitOperand(current *spec.Command, index *flagIndex, tok tokenizer.Token, chain []*spec.Command) bool {
+	return tok.Type == tokenizer.TokenTypeShortFlag && tok.IsNegativeNumber() &&
+		current.ImplicitCommand() != nil && !index.leadingShortRegistered(tok, chain)
+}
+
+func skipFlagValue(tokens []tokenizer.Token, position int, index *flagIndex, chain []*spec.Command) (bool, int) {
+	tok := tokens[position]
+	if (tok.Type != tokenizer.TokenTypeLongFlag && tok.Type != tokenizer.TokenTypeShortFlag) ||
+		!index.flagTokenConsumesNext(tok, chain) {
 		return false, position
 	}
 
@@ -1941,23 +2111,6 @@ func checkOrderedRange[T cmp.Ordered](value, minValue, maxValue T, hasMin, hasMa
 	}
 
 	return "", true
-}
-
-// negatedLongFlag re-resolves a long flag name prefixed with no- through lookup,
-// enforcing the spec.CanNegate guard: a no- token may only re-bind a boolean
-// negatable flag.
-func negatedLongFlag(name string, lookup func(string) *spec.Flag) *spec.Flag {
-	posName, ok := strings.CutPrefix(name, "no-")
-	if !ok {
-		return nil
-	}
-
-	flagSpec := lookup(posName)
-	if !spec.CanNegate(flagSpec) {
-		return nil
-	}
-
-	return flagSpec
 }
 
 func checkTypedRange[T cmp.Ordered](value T, rangeSpec *spec.Range, parse func(string) (T, error)) (string, bool) {

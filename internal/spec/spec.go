@@ -66,11 +66,20 @@ type Command struct {
 	// app.VersionShortFlag. They are populated on the root command during schema
 	// build and read by the binder (short-flag registration) and the help
 	// renderer (flag rows). Zero keeps the built-in long-only.
-	HelpShort      rune
-	VersionShort   rune
-	Flags          []*Flag
-	Args           []*Arg
-	Subcommands    []*Command
+	HelpShort    rune
+	VersionShort rune
+	Flags        []*Flag
+	Args         []*Arg
+	Subcommands  []*Command
+	// Implicit marks a subcommand that may be selected without naming it.
+	Implicit bool
+	// IsRunnable records whether the command target implements conga.Runner.
+	// The builder populates it from Options.IsRunner for user and declared
+	// built-in commands; routing and completion use it as the single authority
+	// for the terminal implicit-command rule. Specs built without
+	// Options.IsRunner report false, so callers building specs manually must set
+	// it when implicit routing matters.
+	IsRunnable     bool
 	DashArgs       *DashArgs
 	RawArgs        *RawArgs
 	ConfigFileFlag *Flag
@@ -223,7 +232,21 @@ func (c *Command) FindSubcommand(name string) *Command {
 	return nil
 }
 
-// FindFlag returns the flag matching name or alias, or nil.
+// ImplicitCommand returns the subcommand selected when no explicit subcommand
+// claims the invocation, or nil. Schema build accepts at most one implicit
+// command per command, so the first match is authoritative.
+func (c *Command) ImplicitCommand() *Command {
+	for _, subcommand := range c.Subcommands {
+		if subcommand.Implicit {
+			return subcommand
+		}
+	}
+
+	return nil
+}
+
+// FindFlag returns the flag matching name or alias, or nil. NoCLI engine flags
+// are included; CLI-facing callers use findCLIFlagInChain instead.
 func (c *Command) FindFlag(name string) *Flag {
 	for _, flagSpec := range c.Flags {
 		if flagSpec.Name == name || slices.Contains(flagSpec.Aliases, name) {
@@ -234,7 +257,8 @@ func (c *Command) FindFlag(name string) *Flag {
 	return nil
 }
 
-// FindShortFlag returns the flag matching short rune r, or nil.
+// FindShortFlag returns the flag matching short rune r, or nil. NoCLI engine
+// flags are included; CLI-facing callers use findCLIShortFlag instead.
 func (c *Command) FindShortFlag(r rune) *Flag {
 	for _, flagSpec := range c.Flags {
 		if flagSpec.Short == r {
@@ -363,6 +387,12 @@ type Flag struct {
 	Feature string
 }
 
+// TakesValue reports whether the flag consumes a value from the command line.
+// Boolean and counter flags are toggles and do not take a value.
+func (f *Flag) TakesValue() bool {
+	return f != nil && !f.IsBool && !f.IsCounter
+}
+
 // Arg represents the metadata and binder for a positional argument.
 type Arg struct {
 	Name    string
@@ -477,6 +507,11 @@ type Options struct {
 	// implements conga.Bootstrapper. It is derived from IsBootstrapper during
 	// the build walk and inherited by descendant commands.
 	HasBootstrapper bool
+	// IsRunner reports whether a command struct implements conga.Runner. The
+	// builder records the result in Command.IsRunnable so completion analysis
+	// can mirror the runtime terminal implicit-command rule. Hand-built specs
+	// that omit it report every command as non-runnable.
+	IsRunner func(any) bool
 	// ConfigSettings carries the app-level configuration resolution settings
 	// (app.ConfigOptions options) onto the root command.
 	ConfigSettings ConfigSettings
@@ -532,22 +567,11 @@ type Options struct {
 	EnvPrefix       string
 }
 
-// FindDeclaredFlagInChain searches backwards through chain for a declared flag
-// matching name or alias, without the built-in --help/--version fallback.
-func FindDeclaredFlagInChain(chain []*Command, name string) *Flag {
-	for _, cmd := range slices.Backward(chain) {
-		if flag := cmd.FindFlag(name); flag != nil {
-			return flag
-		}
-	}
-
-	return nil
-}
-
-// FindFlagInChain searches backwards through chain for a flag matching name or alias,
-// falling back to the built-in --help, --version, --completion, and --why flags.
+// FindFlagInChain searches backwards through chain for a CLI-routable flag
+// matching name or alias, falling back to the built-in --help, --version,
+// --completion, and --why flags. NoCLI engine flags are excluded.
 func FindFlagInChain(chain []*Command, name string) *Flag {
-	if flag := FindDeclaredFlagInChain(chain, name); flag != nil {
+	if flag := findCLIFlagInChain(chain, name); flag != nil {
 		return flag
 	}
 
@@ -576,15 +600,14 @@ func FindFlagInChain(chain []*Command, name string) *Flag {
 	return nil
 }
 
-// FindShortFlagInChain searches backwards through chain for a flag matching
-// short rune r, falling back to the built-in --help and --version flags when
-// r is the rune assigned to them through app.HelpShortFlag/app.VersionShortFlag
-// and no declared CLI flag shadows the corresponding built-in long name.
+// FindShortFlagInChain searches backwards through chain for a CLI-routable flag
+// matching short rune r, falling back to the built-in --help and --version flags
+// when r is the rune assigned to them through app.HelpShortFlag/app.VersionShortFlag
+// and no declared CLI flag shadows the corresponding built-in long name. NoCLI
+// engine flags are excluded.
 func FindShortFlagInChain(chain []*Command, r rune) *Flag {
-	for _, cmd := range slices.Backward(chain) {
-		if flag := cmd.FindShortFlag(r); flag != nil {
-			return flag
-		}
+	if flag := findCLIShortFlagInChain(chain, r); flag != nil {
+		return flag
 	}
 
 	if len(chain) == 0 || r == 0 {
@@ -594,11 +617,11 @@ func FindShortFlagInChain(chain []*Command, r rune) *Flag {
 	root := chain[0]
 	leaf := chain[len(chain)-1]
 
-	if r == root.HelpShort && !leaf.DisableHelp && !hasDeclaredCLIFlagInChain(chain, "help") {
+	if r == root.HelpShort && !leaf.DisableHelp && findCLIFlagInChain(chain, "help") == nil {
 		return BuiltinHelpFlag
 	}
 
-	if r == root.VersionShort && leaf.VersionFlagVisible(len(chain) == 1) && !hasDeclaredCLIFlagInChain(chain, "version") {
+	if r == root.VersionShort && leaf.VersionFlagVisible(len(chain) == 1) && findCLIFlagInChain(chain, "version") == nil {
 		return BuiltinVersionFlag
 	}
 
@@ -613,28 +636,47 @@ func CanNegate(flagSpec *Flag) bool {
 	return flagSpec != nil && flagSpec.IsBool && flagSpec.IsNegatable
 }
 
-// FindNegatableFlagInChain resolves the positive flag behind a `no-`-prefixed
-// long flag token (e.g. --no-color resolving --color), enforcing the
-// spec.CanNegate guard.
-func FindNegatableFlagInChain(chain []*Command, name string) *Flag {
-	posName, cut := strings.CutPrefix(name, "no-")
+// ResolveNegatedFlag resolves the positive flag behind a `no-`-prefixed long
+// flag name through lookup, enforcing the CanNegate guard: a no- token may only
+// re-bind a boolean negatable flag.
+func ResolveNegatedFlag(name string, lookup func(string) *Flag) *Flag {
+	positiveName, cut := strings.CutPrefix(name, "no-")
 	if !cut {
 		return nil
 	}
 
-	flag := FindFlagInChain(chain, posName)
-	if !CanNegate(flag) {
+	flagSpec := lookup(positiveName)
+	if !CanNegate(flagSpec) {
 		return nil
 	}
 
-	return flag
+	return flagSpec
 }
 
-// hasDeclaredCLIFlagInChain reports whether chain declares a CLI-routable flag
-// matching name or alias. NoCLI flags are excluded, mirroring the binder's flag
-// index: they can never be supplied on the command line and therefore cannot
-// shadow a built-in long flag.
-func hasDeclaredCLIFlagInChain(chain []*Command, name string) bool {
+// findCLIShortFlag returns the CLI-routable flag matching short rune r, or nil.
+// NoCLI engine flags are never CLI-routable and are excluded.
+func (c *Command) findCLIShortFlag(r rune) *Flag {
+	if r == 0 {
+		return nil
+	}
+
+	for _, flagSpec := range c.Flags {
+		if flagSpec.NoCLI {
+			continue
+		}
+
+		if flagSpec.Short == r {
+			return flagSpec
+		}
+	}
+
+	return nil
+}
+
+// findCLIFlagInChain searches backwards through chain for a CLI-routable flag
+// matching name or alias. NoCLI engine flags can never be supplied on the
+// command line, so they never participate in CLI routing or completion.
+func findCLIFlagInChain(chain []*Command, name string) *Flag {
 	for _, cmd := range slices.Backward(chain) {
 		for _, flagSpec := range cmd.Flags {
 			if flagSpec.NoCLI {
@@ -642,10 +684,22 @@ func hasDeclaredCLIFlagInChain(chain []*Command, name string) bool {
 			}
 
 			if flagSpec.Name == name || slices.Contains(flagSpec.Aliases, name) {
-				return true
+				return flagSpec
 			}
 		}
 	}
 
-	return false
+	return nil
+}
+
+// findCLIShortFlagInChain searches backwards through chain for a CLI-routable
+// flag matching shorthand r.
+func findCLIShortFlagInChain(chain []*Command, r rune) *Flag {
+	for _, cmd := range slices.Backward(chain) {
+		if flagSpec := cmd.findCLIShortFlag(r); flagSpec != nil {
+			return flagSpec
+		}
+	}
+
+	return nil
 }

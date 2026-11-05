@@ -178,7 +178,11 @@ func Usage(cmdChain []*spec.Command) string {
 	}
 
 	if leaf.HasUserSubcommands() {
-		parts = append(parts, "<command>")
+		if leaf.ImplicitCommand() != nil {
+			parts = append(parts, "[<command>]")
+		} else {
+			parts = append(parts, "<command>")
+		}
 	}
 
 	globalParts, hasOptionalGlobal := globalUsageFlags(cmdChain)
@@ -493,7 +497,7 @@ func formatUsageFlag(flagSpec *spec.Flag) string {
 		name = "[no-]" + name
 	}
 
-	if flagSpec.IsBool || flagSpec.IsCounter {
+	if !flagSpec.TakesValue() {
 		return "--" + name
 	}
 
@@ -749,9 +753,14 @@ func formatSubcommands(subcommands []*spec.Command, width int) string {
 			continue
 		}
 
+		helpText := subcommand.Summary
+		if subcommand.Implicit {
+			helpText = appendNonEmpty(helpText, "(default)")
+		}
+
 		builder.add(subcommand.Section, tableEntry{
 			label: subcommand.Name,
-			help:  appendNonEmpty(subcommand.Summary, deprecationMarker(subcommand.Deprecated)),
+			help:  appendNonEmpty(helpText, deprecationMarker(subcommand.Deprecated)),
 		})
 	}
 
@@ -864,7 +873,7 @@ func formatFlagLabel(flagSpec *spec.Flag) string {
 		return label
 	}
 
-	if flagSpec.IsBool || flagSpec.IsCounter {
+	if !flagSpec.TakesValue() {
 		return label
 	}
 

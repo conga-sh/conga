@@ -744,19 +744,6 @@ func TestFindFlagInChain(t *testing.T) {
 
 		assert.Zero(t, flag)
 	})
-
-	t.Run("declared-only lookup finds declared flags", func(t *testing.T) {
-		t.Parallel()
-
-		flag := spec.FindDeclaredFlagInChain(chain, "global")
-		assert.Equal(t, "global", flag.Name)
-	})
-
-	t.Run("declared-only lookup skips builtin help fallback", func(t *testing.T) {
-		t.Parallel()
-
-		assert.Equal(t, (*spec.Flag)(nil), spec.FindDeclaredFlagInChain(chain, "help"))
-	})
 }
 
 func TestNewCompletionCommand(t *testing.T) {
@@ -927,6 +914,20 @@ func TestBuiltinSubcommandsInheritVisibility(t *testing.T) {
 		assert.True(t, cmd.FindSubcommand("version").DisableVersion)
 		assert.True(t, cmd.FindSubcommand("completion").DisableVersion)
 	})
+}
+
+func TestBuiltinSubcommandsReportRunnable(t *testing.T) {
+	t.Parallel()
+
+	var cli BuiltinTestCLI
+
+	cmd, err := buildSchema(&cli, "app", spec.Options{IsRunner: func(any) bool { return true }})
+
+	assert.NoError(t, err)
+	assert.True(t, cmd.IsRunnable)
+	assert.True(t, cmd.FindSubcommand("help").IsRunnable)
+	assert.True(t, cmd.FindSubcommand("version").IsRunnable)
+	assert.True(t, cmd.FindSubcommand("completion").IsRunnable)
 }
 
 // TestCommand_InheritBuiltinVisibilityFrom pins that every app-wide toggle,

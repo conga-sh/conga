@@ -150,6 +150,7 @@ type schemaBuilder struct {
 	mapArgName           string
 	rawArgsField         string
 	dashArgsField        string
+	implicitFieldName    string
 	firstArgField        string
 	firstSubcommandField string
 	firstCommandField    string
@@ -179,6 +180,7 @@ func newSchemaBuilder(target any, defaultName string, structValue reflect.Value,
 		DisableWhy:        opts.DisableWhy,
 		WhyJSONEnabled:    opts.WhyJSONEnabled,
 		DisableCompletion: opts.DisableCompletion,
+		IsRunnable:        opts.IsRunner != nil && opts.IsRunner(target),
 	}
 
 	if isRoot {
@@ -262,6 +264,11 @@ func (b *schemaBuilder) processSubcommand(structField reflect.StructField, comma
 		return b.fieldContextError(structField.Name, err)
 	}
 
+	implicit, err := b.processImplicitTag(structField)
+	if err != nil {
+		return err
+	}
+
 	subOpts := b.opts
 
 	if subEnvPrefix := structField.Tag.Get("envprefix"); subEnvPrefix != "" {
@@ -285,6 +292,7 @@ func (b *schemaBuilder) processSubcommand(structField reflect.StructField, comma
 	subcommand.Section = structField.Tag.Get("section")
 	subcommand.Hidden = parsePresenceOrTrueTag(structField.Tag, "hidden")
 	subcommand.Aliases = aliases
+	subcommand.Implicit = implicit
 
 	feature, err := parseTagFeature(structField.Tag, false, &b.opts)
 	if err != nil {
@@ -308,6 +316,27 @@ func (b *schemaBuilder) processSubcommand(structField reflect.StructField, comma
 	b.cmd.Subcommands = append(b.cmd.Subcommands, subcommand)
 
 	return nil
+}
+
+// processImplicitTag parses the implicit tag and enforces the one-implicit-
+// command-per-command invariant, reporting whether this field is implicit.
+func (b *schemaBuilder) processImplicitTag(structField reflect.StructField) (bool, error) {
+	implicit, _, err := ParseStrictBoolTag(structField.Tag, "implicit")
+	if err != nil {
+		return false, b.fieldContextError(structField.Name, err)
+	}
+
+	if !implicit {
+		return false, nil
+	}
+
+	if b.implicitFieldName != "" {
+		return false, b.fieldContextError(structField.Name, ImplicitCommandAlreadyDeclaredError(b.implicitFieldName))
+	}
+
+	b.implicitFieldName = structField.Name
+
+	return true, nil
 }
 
 func (b *schemaBuilder) newBuiltinSubcommand(structField reflect.StructField, kind builtinCommandKind, target any) (*Command, error) {
@@ -387,6 +416,7 @@ func (b *schemaBuilder) newBuiltinSubcommand(structField reflect.StructField, ki
 
 	builtin.Section = structField.Tag.Get("section")
 	builtin.InheritBuiltinVisibilityFrom(b.cmd)
+	builtin.IsRunnable = b.opts.IsRunner != nil && b.opts.IsRunner(target)
 
 	return builtin, nil
 }

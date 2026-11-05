@@ -92,8 +92,27 @@ func (w *walker) checkSubcommandField(node *commandNode, fieldObject types.Objec
 
 	w.reportFieldError(node, fieldObject, summaryTagError(tag))
 	w.checkFeatureExpression(node, fieldObject, tag)
+	w.checkImplicitCommand(node, fieldObject, tag)
 
 	return w.buildChildNode(node, fieldObject, tag)
+}
+
+// checkImplicitCommand mirrors the runtime one-implicit-command-per-command
+// invariant. The strict-bool tag value is validated by the shared field tag
+// validator before this check runs.
+func (w *walker) checkImplicitCommand(node *commandNode, fieldObject types.Object, tag reflect.StructTag) {
+	implicit, _, err := spec.ParseStrictBoolTag(tag, "implicit")
+	if err != nil || !implicit {
+		return
+	}
+
+	if node.implicitFieldName != "" {
+		w.reportFieldError(node, fieldObject, spec.ImplicitCommandAlreadyDeclaredError(node.implicitFieldName))
+
+		return
+	}
+
+	node.implicitFieldName = fieldObject.Name()
 }
 
 // checkFeatureExpression mirrors the runtime feature-tag handling: a declared
