@@ -203,10 +203,8 @@ func flagTokenDepth(chain []*Command, levelChains [][]*Command, tok tokenizer.To
 			return false, 0
 		}
 
-		for depth, levelChain := range levelChains {
-			if flagSpec := declaredCLILongFlag(levelChain, tok.Name); flagSpec != nil {
-				return consumesNextFlagValue(flagSpec, tok), depth + 1
-			}
+		if flagSpec, depth := resolveLongFlagInLevels(levelChains, tok.Name, declaredCLILongFlag); flagSpec != nil {
+			return consumesNextFlagValue(flagSpec, tok), depth
 		}
 
 		return false, 0
@@ -293,4 +291,26 @@ func declaredCLILongFlag(chain []*Command, name string) *Flag {
 	return ResolveNegatedFlag(name, func(candidate string) *Flag {
 		return findCLIFlagInChain(chain, candidate)
 	})
+}
+
+// resolveLongFlagInLevels returns the flag that lookup resolves for name on the
+// first implicit level chain that declares it, with that level's depth relative
+// to the routed chain (1 for the nearest level), or nil and 0. Callers keep
+// their own chain-level rules (negation, built-ins) and choose the per-level
+// lookup: the implicit-depth scan honors no- negation through
+// declaredCLILongFlag, while completion passes findCLIFlagInChain so a no-
+// token reaches resolveNegatableFlag and is recorded as negated.
+//
+// The search is nearest level first. Completion previously searched the whole
+// unentered implicit chain deepest first; the two orders agree only because
+// ancestor flag uniqueness (validateAncestorFlagUniqueness) forbids redeclaring
+// a name or alias on any descendant. No runtime assertion guards it.
+func resolveLongFlagInLevels(levelChains [][]*Command, name string, lookup func([]*Command, string) *Flag) (*Flag, int) {
+	for depth, levelChain := range levelChains {
+		if flagSpec := lookup(levelChain, name); flagSpec != nil {
+			return flagSpec, depth + 1
+		}
+	}
+
+	return nil, 0
 }

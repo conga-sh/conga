@@ -203,14 +203,18 @@ func (w *astCompletionWalker) lookupChain() []*Command {
 }
 
 // resolveLongFlag resolves a long flag against the active chain first so
-// root-only built-ins keep their visibility, then against flags declared by
-// unentered implicit commands.
+// root-only built-ins keep their visibility, then against CLI flags declared by
+// unentered implicit commands, nearest first. It never resolves the no- form:
+// consumeLongFlag relies on a nil result to fall back to resolveNegatableFlag
+// and record the flag as negated.
 func (w *astCompletionWalker) resolveLongFlag(name string) *Flag {
 	if flag := FindFlagInChain(w.cmdChain, name); flag != nil {
 		return flag
 	}
 
-	return findCLIFlagInChain(w.lookupChain(), name)
+	flag, _ := resolveLongFlagInLevels(w.levelChainsBelow(), name, findCLIFlagInChain)
+
+	return flag
 }
 
 // resolveNegatableFlag resolves the positive flag behind a no--prefixed token
