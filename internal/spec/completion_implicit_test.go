@@ -173,6 +173,20 @@ type completionDashPredictRoot struct {
 	Mid  mockCmd[completionDashPredictMid] `implicit:"true"       name:"mid"`
 }
 
+type completionRawImplicitLeaf struct {
+	DryRun mockFlag[bool] `short:"n"`
+	Raw    mockRawArgs    `predictor:"leaf-raw"`
+}
+
+type completionRawSiblingLeaf struct {
+	Raw mockRawArgs `predictor:"sibling-raw"`
+}
+
+type completionRawImplicitRoot struct {
+	Exec    mockCmd[completionRawImplicitLeaf] `implicit:"true" name:"run"`
+	Install mockCmd[completionRawSiblingLeaf]  `name:"install"`
+}
+
 func buildCompletionImplicitRoot(t *testing.T, root any) *spec.Command {
 	t.Helper()
 
@@ -878,6 +892,95 @@ func TestComplete_TerminatorFollowsFlagSelectedChain(t *testing.T) {
 	result := spec.Complete(root, []string{"--mid-flag", "--", "x", ""}, spec.CompleteOptions{RegisteredPredictors: predictors})
 
 	assert.Equal(t, []string{"LEAF-DASH"}, itemValues(result.Items))
+}
+
+func completionRawPredictors() map[string]predict.Predictor {
+	return map[string]predict.Predictor{
+		"leaf-raw":    predict.Values("-LEAF-RAW", "LEAF-RAW"),
+		"sibling-raw": predict.Values("-SIBLING-RAW", "SIBLING-RAW"),
+	}
+}
+
+func completeRawImplicit(t *testing.T, words []string) []string {
+	t.Helper()
+
+	predictors := completionRawPredictors()
+
+	root, err := spec.Build(&completionRawImplicitRoot{}, "tool", spec.Options{
+		ClassifyContainer:    classifyTestContainer,
+		RegisteredPredictors: predictors,
+	})
+	assert.NoError(t, err)
+
+	result := spec.Complete(root, words, spec.CompleteOptions{RegisteredPredictors: predictors})
+
+	return itemValues(result.Items)
+}
+
+func TestComplete_ExplicitRawLeafDashWordOffersRawArgs(t *testing.T) {
+	t.Parallel()
+
+	values := completeRawImplicit(t, []string{"run", "-n", "-"})
+
+	assert.True(t, slices.Contains(values, "--help"))
+	assert.True(t, slices.Contains(values, "-LEAF-RAW"))
+}
+
+func TestComplete_FlagSelectedRawLeafDashWordOffersRawArgs(t *testing.T) {
+	t.Parallel()
+
+	values := completeRawImplicit(t, []string{"-n", "-"})
+
+	assert.True(t, slices.Contains(values, "--help"))
+	assert.True(t, slices.Contains(values, "-LEAF-RAW"))
+}
+
+func TestComplete_ExplicitRawLeafUnknownFlagEntersRawMode(t *testing.T) {
+	t.Parallel()
+
+	values := completeRawImplicit(t, []string{"run", "-n", "--unknown-flag", "-"})
+
+	assert.Equal(t, []string{"-LEAF-RAW"}, values)
+}
+
+func TestComplete_FlagSelectedRawLeafUnknownFlagEntersRawMode(t *testing.T) {
+	t.Parallel()
+
+	values := completeRawImplicit(t, []string{"-n", "--unknown-flag", "-"})
+
+	assert.Equal(t, []string{"-LEAF-RAW"}, values)
+}
+
+func TestComplete_FlagSelectedRawLeafUnknownShorthandEntersRawMode(t *testing.T) {
+	t.Parallel()
+
+	values := completeRawImplicit(t, []string{"-n", "-x", "-"})
+
+	assert.Equal(t, []string{"-LEAF-RAW"}, values)
+}
+
+func TestComplete_FlagSelectedRawLeafUnknownFlagBeforeTerminatorStaysRaw(t *testing.T) {
+	t.Parallel()
+
+	values := completeRawImplicit(t, []string{"-n", "--unknown-flag", "--", ""})
+
+	assert.Equal(t, []string{"-LEAF-RAW", "LEAF-RAW"}, values)
+}
+
+func TestComplete_UnknownFlagWithoutSelectionKeepsSiblingCandidates(t *testing.T) {
+	t.Parallel()
+
+	values := completeRawImplicit(t, []string{"--unknown-flag", "inst"})
+
+	assert.Equal(t, []string{"install"}, values)
+}
+
+func TestComplete_UnknownFlagBeforeExplicitRawSiblingEntersRawMode(t *testing.T) {
+	t.Parallel()
+
+	values := completeRawImplicit(t, []string{"--unknown-flag", "install", "-"})
+
+	assert.Equal(t, []string{"-SIBLING-RAW"}, values)
 }
 
 func commandNames(commands []*spec.Command) []string {

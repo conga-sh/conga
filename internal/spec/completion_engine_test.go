@@ -49,6 +49,17 @@ type FlagsTestCLI struct {
 	Verbose mockFlag[int]      `help:"Verbosity"  short:"v"`
 }
 
+type NegatableImplicitLeafCLI struct {
+	Force  mockFlag[bool]     `help:"Force"   negatable:"true"`
+	DryRun mockFlag[bool]     `help:"Dry run"`
+	File   mockReqArg[string] `help:"File"`
+}
+
+type NegatableImplicitRootCLI struct {
+	Exec  mockCmd[NegatableImplicitLeafCLI] `implicit:"true" name:"run"`
+	Build mockCmd[NegatableImplicitLeafCLI] `name:"build"`
+}
+
 type XorGroupCLI struct {
 	JSON mockFlag[bool] `help:"Output JSON" xor:"format"`
 	YAML mockFlag[bool] `help:"Output YAML" xor:"format"`
@@ -461,6 +472,42 @@ func TestCompletion_NegationGuard(t *testing.T) {
 		assert.False(t, slices.Contains(values, "--no-debug"))
 		assert.True(t, slices.Contains(values, "--verbose"))
 	})
+
+	t.Run("negated token consumes a negatable bool on an unentered implicit command", func(t *testing.T) {
+		t.Parallel()
+
+		var cli NegatableImplicitRootCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"--no-force", "--"}, spec.CompleteOptions{})
+
+		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
+
+		assert.False(t, slices.Contains(values, "--force"))
+		assert.False(t, slices.Contains(values, "--no-force"))
+		assert.True(t, slices.Contains(values, "--dry-run"))
+	})
+}
+
+func TestCompletion_ShortClusterBindsResolvedPrefix(t *testing.T) {
+	t.Parallel()
+
+	var cli FlagsTestCLI
+
+	cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+	assert.NoError(t, err)
+
+	// -dz: d (debug) resolves and z is undeclared. The tolerant walk binds the
+	// resolved prefix before the unresolved rune, so debug counts as consumed.
+	invoked := spec.Complete(cmdSpec, []string{"-dz", "--"}, spec.CompleteOptions{})
+
+	values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
+
+	assert.False(t, slices.Contains(values, "--debug"))
+	assert.False(t, slices.Contains(values, "--no-debug"))
+	assert.True(t, slices.Contains(values, "--verbose"))
 }
 
 func TestCompletion_WhyFormats(t *testing.T) {

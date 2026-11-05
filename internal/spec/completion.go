@@ -119,7 +119,13 @@ type astCompletionWalker struct {
 	posArgs          []string
 	inTerminator     bool
 	rawActive        bool
-	pendingFlagValue *Flag
+	// deferredRawFallback records an unknown flag consumed where the current
+	// command cannot fall back to RawArgs. The runtime parser decides the
+	// fallback on the routed command, so the walker settles it when it enters
+	// a command (resolveDeferredRawFallback) or when the flags bound so far
+	// select a raw-capable implicit leaf at target resolution.
+	deferredRawFallback bool
+	pendingFlagValue    *Flag
 	// terminatorOperandsFollow records whether operands follow the -- terminator,
 	// so the terminal implicit selection mirrors the binder's ownership rule.
 	terminatorOperandsFollow bool
@@ -132,6 +138,10 @@ type astCompletionWalker struct {
 	// depth scan reads it directly, exactly like the binder's routing scan, so
 	// a flag that precedes the command declaring it still selects the child.
 	tokens []tokenizer.Token
+	// levelChains memoizes implicitLevelChains for levelChainsOwner. Use
+	// levelChainsBelow rather than reading it directly.
+	levelChains      [][]*Command
+	levelChainsOwner *Command
 
 	analysisLeaf         *Command
 	analysisPositionals  []string
@@ -172,6 +182,20 @@ func (w *astCompletionWalker) enterCommand(cmd *Command) {
 	w.posArgs = make([]string, 0)
 }
 
+// levelChainsBelow returns the command chain active after entering each
+// unentered implicit level below currentCmd, nearest first. The result is
+// memoized per currentCmd: a command has exactly one chain from the root, so
+// the cache stays valid however the walker moves, including the rollback in
+// applySelectedImplicitForCandidates.
+func (w *astCompletionWalker) levelChainsBelow() [][]*Command {
+	if w.levelChainsOwner != w.currentCmd {
+		w.levelChains = implicitLevelChains(w.cmdChain, implicitDescendants(w.currentCmd))
+		w.levelChainsOwner = w.currentCmd
+	}
+
+	return w.levelChains
+}
+
 // lookupChain returns the commands whose flags are reachable at the current
 // position. While an implicit command has not been entered, its flags are still
 // valid before the operand that selects it, so the whole unentered implicit
@@ -185,14 +209,18 @@ func (w *astCompletionWalker) lookupChain() []*Command {
 }
 
 // resolveLongFlag resolves a long flag against the active chain first so
-// root-only built-ins keep their visibility, then against flags declared by
-// unentered implicit commands.
+// root-only built-ins keep their visibility, then against CLI flags declared by
+// unentered implicit commands, nearest first. It never resolves the no- form:
+// consumeLongFlag relies on a nil result to fall back to resolveNegatableFlag
+// and record the flag as negated.
 func (w *astCompletionWalker) resolveLongFlag(name string) *Flag {
 	if flag := FindFlagInChain(w.cmdChain, name); flag != nil {
 		return flag
 	}
 
-	return findCLIFlagInChain(w.lookupChain(), name)
+	flag, _ := resolveLongFlagInLevels(w.levelChainsBelow(), name, findCLIFlagInChain)
+
+	return flag
 }
 
 // resolveNegatableFlag resolves the positive flag behind a no--prefixed token
@@ -203,19 +231,13 @@ func (w *astCompletionWalker) resolveNegatableFlag(name string) *Flag {
 
 // resolveShortFlag resolves a shorthand against the active chain first so
 // root-only built-ins keep their visibility, then against CLI flags declared by
-// unentered implicit commands.
+// unentered implicit commands, nearest first. It shares resolveShortFlagInChain
+// with the implicit-depth scan, so completion and routing cannot disagree on
+// which flag a rune names.
 func (w *astCompletionWalker) resolveShortFlag(r rune) *Flag {
-	if flag := FindShortFlagInChain(w.cmdChain, r); flag != nil {
-		return flag
-	}
+	flag, _ := resolveShortFlagInChain(w.cmdChain, w.levelChainsBelow(), r)
 
-	for implicit := w.currentCmd.ImplicitCommand(); implicit != nil; implicit = implicit.ImplicitCommand() {
-		if flag := implicit.findCLIShortFlag(r); flag != nil {
-			return flag
-		}
-	}
-
-	return nil
+	return flag
 }
 
 // applyTerminalImplicit mirrors the runtime terminal implicit selection: end of
@@ -269,6 +291,34 @@ func (w *astCompletionWalker) applySelectedImplicitForCandidates() bool {
 	}
 
 	return len(w.cmdChain) > len(previousChain)
+}
+
+// rawFallbackCommand returns the command whose RawArgs would take the word being
+// completed: the current command, or the implicit leaf selected by the flags
+// bound so far. It returns nil when neither falls back to RawArgs.
+func (w *astCompletionWalker) rawFallbackCommand() *Command {
+	if w.canFallbackToRaw() {
+		return w.currentCmd
+	}
+
+	return w.selectedImplicitRawCommand()
+}
+
+// selectedImplicitRawCommand returns the implicit leaf selected by the flags
+// bound so far when it falls back to RawArgs, or nil. It probes through
+// applySelectedImplicitForCandidates and restores the walker, so flag-name
+// candidates stay on the literal surface.
+func (w *astCompletionWalker) selectedImplicitRawCommand() *Command {
+	previousCommand, previousChain, previousPosArgs := w.currentCmd, w.cmdChain, w.posArgs
+	defer func() {
+		w.currentCmd, w.cmdChain, w.posArgs = previousCommand, previousChain, previousPosArgs
+	}()
+
+	if !w.applySelectedImplicitForCandidates() || !w.canFallbackToRaw() {
+		return nil
+	}
+
+	return w.currentCmd
 }
 
 // implicitFlagDepth returns the number of implicit descendant levels required
@@ -380,10 +430,13 @@ func (w *astCompletionWalker) consumeToken(tok tokenizer.Token, operandsFollow b
 
 	if matchedSubcommand != nil {
 		w.enterCommand(matchedSubcommand)
+		w.resolveDeferredRawFallback()
 	} else if w.entersImplicitOnToken(tok) {
 		matchedSubcommand = w.enterPositionalImplicit(tok.Raw)
+		w.resolveDeferredRawFallback()
 	} else if tok.Type == tokenizer.TokenTypeTerminator && !w.inTerminator {
 		w.enterTerminatorImplicit(operandsFollow)
+		w.resolveDeferredRawFallback()
 	}
 
 	w.trackAnalysisToken(tok, matchedSubcommand)
@@ -642,9 +695,7 @@ func (w *astCompletionWalker) consumeUnregisteredShorthand(tok tokenizer.Token) 
 	}
 
 	if w.unregisteredShorthand(tok) {
-		if w.canFallbackToRaw() {
-			w.rawActive = true
-		}
+		w.fallBackToRawOnUnknownFlag()
 
 		return true
 	}
@@ -663,14 +714,43 @@ func (w *astCompletionWalker) consumeLongFlag(tok tokenizer.Token) {
 	}
 
 	if flag == nil {
-		if w.canFallbackToRaw() {
-			w.rawActive = true
-		}
+		w.fallBackToRawOnUnknownFlag()
 
 		return
 	}
 
 	w.markFlagConsumed(flag, tok.HasAttachedValue, tok.Value, negated)
+}
+
+// fallBackToRawOnUnknownFlag mirrors the runtime parser's RawArgs fallback for
+// an unknown flag. Where the current command cannot take the fallback, the
+// decision is deferred: the runtime parser makes it on the routed command,
+// which a later subcommand name or the flags' implicit selection may still
+// change.
+func (w *astCompletionWalker) fallBackToRawOnUnknownFlag() {
+	if w.canFallbackToRaw() {
+		w.rawActive = true
+
+		return
+	}
+
+	w.deferredRawFallback = true
+}
+
+// resolveDeferredRawFallback settles a deferred RawArgs fallback after the walker
+// entered a command: no operand was bound since the unknown flag, so the
+// runtime parser routes that flag, and every token after it, into RawArgs when
+// the entered command takes the fallback.
+func (w *astCompletionWalker) resolveDeferredRawFallback() {
+	if !w.deferredRawFallback {
+		return
+	}
+
+	w.deferredRawFallback = false
+
+	if w.canFallbackToRaw() {
+		w.rawActive = true
+	}
 }
 
 func (w *astCompletionWalker) consumeShortFlag(tok tokenizer.Token) {
@@ -680,11 +760,14 @@ func (w *astCompletionWalker) consumeShortFlag(tok tokenizer.Token) {
 		return
 	}
 
-	for index := range runes {
-		flag := w.resolveShortFlag(runes[index])
-		if flag == nil {
-			return
-		}
+	// Steps is the resolved prefix: runes before an unresolved one stay bound,
+	// exactly as the token parser binds them before reporting the unknown rune.
+	walk := WalkShorthand(runes, tok.HasAttachedValue, func(r rune) (*Flag, int) {
+		return w.resolveShortFlag(r), 0
+	})
+
+	for index, step := range walk.Steps {
+		flag := step.Flag
 
 		w.registerGroups(flag)
 
@@ -823,6 +906,15 @@ func (w *astCompletionWalker) resolveTarget(toComplete string) predict.Result {
 		return w.trailingArgsAction(w.currentCmd.RawArgs.Predictor).Invoke(compCtx)
 	}
 
+	// A deferred unknown flag falls back to RawArgs when the flags bound so far
+	// select a raw-capable implicit leaf, exactly like the explicitly named
+	// leaf, where the walker would already be in raw mode.
+	if w.deferredRawFallback {
+		if rawCommand := w.selectedImplicitRawCommand(); rawCommand != nil {
+			return w.trailingArgsAction(rawCommand.RawArgs.Predictor).Invoke(compCtx)
+		}
+	}
+
 	if w.inTerminator {
 		return w.completeTerminatorPositional(compCtx)
 	}
@@ -835,8 +927,8 @@ func (w *astCompletionWalker) resolveTarget(toComplete string) predict.Result {
 
 	if strings.HasPrefix(toComplete, "-") {
 		flagAction := w.completeFlagNamesAction(compCtx.ToComplete)
-		if w.canFallbackToRaw() {
-			return predict.Batch(flagAction, w.trailingArgsAction(w.currentCmd.RawArgs.Predictor)).Invoke(compCtx)
+		if rawCommand := w.rawFallbackCommand(); rawCommand != nil {
+			return predict.Batch(flagAction, w.trailingArgsAction(rawCommand.RawArgs.Predictor)).Invoke(compCtx)
 		}
 
 		return flagAction.Invoke(compCtx)

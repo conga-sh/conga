@@ -99,7 +99,7 @@ func TestSkipFlagValue_MatchesParserArity(t *testing.T) {
 			_, posTokens, _, _, err := parseTokens(chain, tokens, newParseFlagIndex(chain))
 			assert.NoError(t, err)
 
-			skipped, _ := skipFlagValue(tokens, 0, newFlagIndex(root), chain)
+			skipped, _ := skipFlagValue(tokens, 0, chain)
 			parserConsumedNext := len(tokens) > 1 && !slices.Contains(posTokens, tokens[1].Raw)
 
 			assert.Equal(t, parserConsumedNext, skipped)
@@ -118,5 +118,5 @@ func TestRoutesAsImplicitOperand_BuiltinShortRune(t *testing.T) {
 	chain := []*spec.Command{root}
 	tokens := tokenizer.Tokenize([]string{"-5"})
 
-	assert.False(t, routesAsImplicitOperand(root, newFlagIndex(root), tokens[0], chain))
+	assert.False(t, routesAsImplicitOperand(root, tokens[0], chain))
 }

@@ -1,6 +1,7 @@
 package conga_test
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"os"
@@ -1147,6 +1148,85 @@ func TestBinder_UnknownShortFlag(t *testing.T) {
 		assert.IsError(t, err, conga.ErrParse)
 		assert.Equal(t, "unknown shorthand flag: 'Z' in -Zd", err.Error())
 	})
+}
+
+type unknownCommandDeployCmd struct {
+	noopRunner
+}
+
+type unknownCommandBranchCLI struct {
+	Verbose conga.Counter                          `short:"v"`
+	Quiet   conga.OptionalFlag[bool]               `short:"q"`
+	Deploy  conga.Command[unknownCommandDeployCmd] `name:"deploy"`
+}
+
+func TestRouteSubcommands_UnknownCommandAfterShorthandCluster(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{name: "single shorthand", args: []string{"-v", "bogus"}},
+		{name: "repeated counter cluster", args: []string{"-vv", "bogus"}},
+		{name: "mixed boolean cluster", args: []string{"-vq", "bogus"}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			app := conga.New[unknownCommandBranchCLI]().Name("tool").Args(test.args)
+
+			err := app.Run()
+
+			assert.IsError(t, err, conga.ErrParse)
+			assert.Equal(t, "unknown command: bogus", err.Error())
+		})
+	}
+}
+
+func TestRouteSubcommands_UnknownShorthandInClusterReportsUnknownFlag(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[unknownCommandBranchCLI]().Name("tool").Args([]string{"-vx", "deplo"})
+
+	err := app.Run()
+
+	assert.IsError(t, err, conga.ErrParse)
+	assert.Equal(t, "unknown shorthand flag: 'x' in -vx", err.Error())
+}
+
+func TestRouteSubcommands_HelpRequestBeforeUnknownCommandRendersHelp(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{name: "long help", args: []string{"--help", "deplo"}},
+		{name: "short help", args: []string{"-h", "deplo"}},
+		{name: "short help in cluster", args: []string{"-vh", "deplo"}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			var buffer bytes.Buffer
+
+			app := conga.New[unknownCommandBranchCLI]().
+				Name("tool").
+				HelpShortFlag('h').
+				Stdout(&buffer).
+				Args(test.args)
+
+			err := app.Run()
+
+			assert.NoError(t, err)
+			assert.Contains(t, buffer.String(), "Usage:")
+		})
+	}
 }
 
 func TestBinder_SliceSepNone(t *testing.T) {
