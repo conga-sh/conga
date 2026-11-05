@@ -436,6 +436,8 @@ func TestImplicitCommand_OperandRoutesToImplicit(t *testing.T) {
 	assert.Equal(t, []string{"one", "two"}, cli.Exec.Get().Args.Get())
 	assert.Equal(t, "tool run", cli.Exec.Get().path)
 	assert.False(t, cli.Install.Get().executed)
+	assert.True(t, cli.Exec.IsSelected())
+	assert.False(t, cli.Install.IsSelected())
 }
 
 func TestImplicitCommand_ExplicitSiblingWins(t *testing.T) {
@@ -449,6 +451,8 @@ func TestImplicitCommand_ExplicitSiblingWins(t *testing.T) {
 	assert.NoError(t, err)
 	assert.True(t, cli.Install.Get().executed)
 	assert.False(t, cli.Exec.Get().executed)
+	assert.True(t, cli.Install.IsSelected())
+	assert.False(t, cli.Exec.IsSelected())
 }
 
 func TestImplicitCommand_SiblingTypoRoutesToImplicit(t *testing.T) {
@@ -752,6 +756,7 @@ func TestImplicitCommand_ChildFlagSelectsRunnableImplicit(t *testing.T) {
 		assert.True(t, cli.Exec.Get().executed)
 		assert.True(t, cli.Exec.Get().dryRun)
 		assert.False(t, cli.executed)
+		assert.True(t, cli.Exec.IsSelected())
 	})
 
 	t.Run("long flag", func(t *testing.T) {

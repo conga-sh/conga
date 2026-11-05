@@ -771,6 +771,18 @@ type orderedFlagGroups struct {
 	order   []string
 }
 
+// positionalRoute is the outcome of routing one operand-shaped token.
+type positionalRoute struct {
+	command *spec.Command
+	chain   []*spec.Command
+	// reprocess reports the token must be reprocessed at the new current
+	// level after entering an implicit child. Every other path is finished
+	// with the token: it named a command, or the parser owns it.
+	reprocess bool
+	// helpRequested reports routing must stop so the help command can render.
+	helpRequested bool
+}
+
 // registerBuiltinShort maps a configured built-in short rune onto its shared
 // built-in flag so -h/-V parse without a per-app flag copy. A rune already
 // claimed by a user flag is left untouched: schema build rejects that collision
@@ -931,67 +943,60 @@ func bindVersionCommandJSON(cmdChain []*spec.Command, versionCmd *spec.Command, 
 }
 
 // handlePositionalRouting routes an operand-shaped token: a positional word, or
-// a negative-number value the token parser binds as a positional. It reports
-// whether the token was consumed by subcommand routing (consumed) and whether a
-// help request ended routing (isHelpDone).
+// a negative-number value the token parser binds as a positional. The returned
+// route reports the resulting command and chain, whether the token must be
+// reprocessed after entering an implicit child, and whether a help request
+// ended routing.
 func handlePositionalRouting(
 	current *spec.Command,
 	chain []*spec.Command,
 	index *flagIndex,
 	tokens []tokenizer.Token,
 	position int,
-) (*spec.Command, []*spec.Command, bool, bool, error) {
+) (positionalRoute, error) {
 	tok := tokens[position]
 	matched := current.FindSubcommand(tok.Raw)
 
 	if matched != nil {
-		if matched.Handle != nil {
-			commandStateOf(matched.Handle).markSelected()
-		}
-
 		if matched.IsHelpCmd {
 			populateHelpCommandPath(matched, tokens, position+1)
 
-			return matched, append(chain, matched), true, true, nil
+			return positionalRoute{command: matched, chain: append(chain, matched), helpRequested: true}, nil
 		}
 
 		if matched.IsCompletionCmd {
 			populateCompletionCommandShell(matched, tokens, position+1)
 
-			return matched, append(chain, matched), true, false, nil
+			return positionalRoute{command: matched, chain: append(chain, matched)}, nil
 		}
 
-		return matched, append(chain, matched), true, false, nil
+		return positionalRoute{command: matched, chain: append(chain, matched)}, nil
 	}
 
 	if current.IsHelpCmd {
 		populateHelpCommandPath(current, tokens, position)
 
-		return current, chain, true, true, nil
+		return positionalRoute{command: current, chain: chain, helpRequested: true}, nil
 	}
 
 	if current.IsCompletionCmd {
 		populateCompletionCommandShell(current, tokens, position)
 
-		return current, chain, true, false, nil
+		return positionalRoute{command: current, chain: chain}, nil
 	}
 
 	if implicit := current.ImplicitCommand(); implicit != nil {
-		if implicit.Handle != nil {
-			commandStateOf(implicit.Handle).markSelected()
-		}
-
-		return implicit, append(chain, implicit), false, false, nil
+		return positionalRoute{command: implicit, chain: append(chain, implicit), reprocess: true}, nil
 	}
 
 	if current.HasUserSubcommands() && len(current.Args) == 0 && current.RawArgs == nil {
 		if hasUnknownFlagInTokens(index, tokens) {
-			return current, chain, true, false, nil
+			return positionalRoute{command: current, chain: chain}, nil
 		}
 
 		suggestion := suggestSubcommand(current, tok.Raw)
 
-		return nil, nil, true, false, &parseError{
+		return positionalRoute{}, &parseError{
 			msg:        "unknown command: " + tok.Raw,
 			token:      tok.Raw,
 			cmdChain:   chain,
@@ -1000,7 +1005,20 @@ func handlePositionalRouting(
 		}
 	}
 
-	return current, chain, true, false, nil
+	return positionalRoute{command: current, chain: chain}, nil
+}
+
+// markChainSelected records the routed chain on the command containers. The
+// root is not a subcommand, so it is skipped. Built-in commands carry no
+// Command[T] handle and are skipped too. Selection is recorded only after
+// routing succeeds: a routing error returns before this helper runs, so no
+// partial chain is marked.
+func markChainSelected(chain []*spec.Command) {
+	for _, cmd := range chain[1:] {
+		if cmd.Handle != nil {
+			commandStateOf(cmd.Handle).markSelected()
+		}
+	}
 }
 
 // routeSubcommands walks the token stream and selects the command chain.
@@ -1043,23 +1061,25 @@ func routeSubcommands(cmd *spec.Command, tokens []tokenizer.Token) ([]*spec.Comm
 			continue
 		}
 
-		newCurrent, newChain, consumed, isHelpDone, err := handlePositionalRouting(current, chain, index, tokens, i)
+		route, err := handlePositionalRouting(current, chain, index, tokens, i)
 		if err != nil {
 			return nil, nil, err
 		}
 
-		changed := newCurrent != current
+		changed := route.command != current
 		if changed {
-			index.addCommandWithImplicit(newCurrent)
-			current = newCurrent
-			chain = newChain
+			index.addCommandWithImplicit(route.command)
+			current = route.command
+			chain = route.chain
 		}
 
-		if isHelpDone {
-			return newChain, remaining, nil
+		if route.helpRequested {
+			markChainSelected(route.chain)
+
+			return route.chain, remaining, nil
 		}
 
-		if !consumed {
+		if route.reprocess {
 			i--
 
 			continue
@@ -1080,6 +1100,7 @@ func routeSubcommands(cmd *spec.Command, tokens []tokenizer.Token) ([]*spec.Comm
 	}
 
 	chain = applyTerminalImplicitRoute(chain, remaining)
+	markChainSelected(chain)
 
 	return chain, remaining, nil
 }
@@ -1089,8 +1110,8 @@ func routeSubcommands(cmd *spec.Command, tokens []tokenizer.Token) ([]*spec.Comm
 // completion through spec.TerminalImplicitLevels: a runnable command runs
 // itself unless operands after the -- terminator are owned by an implicit child
 // or the flags select a deeper implicit command. A built-in rendering request
-// keeps the command active only where that built-in is visible. Callers perform
-// the entry side effects for the returned levels.
+// keeps the command active only where that built-in is visible. The caller
+// records selection for the appended commands.
 func applyTerminalImplicitRoute(chain []*spec.Command, remaining []tokenizer.Token) []*spec.Command {
 	levels := spec.TerminalImplicitLevels(chain, remaining, hasOperandsAfterTerminator(remaining))
 
@@ -1100,10 +1121,6 @@ func applyTerminalImplicitRoute(chain []*spec.Command, remaining []tokenizer.Tok
 		implicit := current.ImplicitCommand()
 		if implicit == nil {
 			break
-		}
-
-		if implicit.Handle != nil {
-			commandStateOf(implicit.Handle).markSelected()
 		}
 
 		chain = append(chain, implicit)
