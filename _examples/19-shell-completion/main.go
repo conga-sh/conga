@@ -31,10 +31,10 @@ func main() {
 	}
 
 	app := conga.New[CLI]().
-		Name("cloudctl").
+		Name("shell-completion").
 		Description("Cloud management CLI with dynamic shell autocompletion (domain types + predictor registry)").
 		Version("1.0.0").
-		EnableCompletion().
+		EnableCompletion(conga.CompletionEnvPrefix("DEPLOY")).
 		Predictor("pods", predict.Callback(func(compCtx predict.Context) predict.Predictor {
 			profile := compCtx.FlagValue("profile", "staging")
 			namespace := compCtx.FlagValue("namespace", "backend")

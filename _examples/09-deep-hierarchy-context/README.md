@@ -8,14 +8,16 @@ Deep command nesting (`cluster node pod list`) with hierarchy navigation:
 
 ```sh
 go run ./_examples/09-deep-hierarchy-context cluster node pod list -s pending
-CLOUDCTL_GLOBAL_REGION=eu-west-1 go run ./_examples/09-deep-hierarchy-context
+FLEET_GLOBAL_REGION=eu-west-1 go run ./_examples/09-deep-hierarchy-context
 ```
 
 ## What to look for
 
 - The leaf reads ancestor flags through typed `Get()` traversal.
-- `envprefix:"CLOUDCTL_"` binds root flags; `envprefix:"POD_"` overrides it for
-  the pod subtree.
+- `app.EnvPrefix("FLEET")` binds every flag to `FLEET_*`; `envprefix:"FLEET_POD"` on the
+  `pod` command field overrides it for the whole pod subtree (`FLEET_POD_WAIT`,
+  `FLEET_POD_STATUS`). The tag replaces the inherited prefix rather than appending
+  to it, so it spells out the full `FLEET_POD` name.
 - `session.Path()` and `session.Name()` describe the active invocation.
 
 ## Test

@@ -29,7 +29,7 @@ func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
 
 func main() {
 	app := conga.New[CLI]().
-		Name("profiles").
+		Name("config-profiles").
 		Description("Multi-file config merging via conga.ConfigFile with multi:\"true\"").
 		Version("1.0.0").
 		EnableWhy().

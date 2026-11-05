@@ -30,7 +30,7 @@ func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
 
 func main() {
 	app := conga.New[CLI]().
-		Name("server-precedence").
+		Name("twelve-factor-precedence").
 		Description("12-Factor configuration resolution and 4-tier precedence").
 		Version("1.0.0").
 		EnableWhy().

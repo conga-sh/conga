@@ -27,11 +27,11 @@ func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
 
 func main() {
 	app := conga.New[CLI]().
-		Name("explicit-config").
+		Name("explicit-config-file").
 		Description("Programmatic explicit config file (fatal-if-missing)").
 		Version("1.0.0").
 		EnableWhy().
-		EnvPrefix("EXPLICIT").
+		EnvPrefix("WEB").
 		RegisterDecoder(".yaml", yaml.Decode).
 		RegisterDecoder(".yml", yaml.Decode).
 		ConfigOptions(conga.ConfigExplicit("bootstrap.yaml"))

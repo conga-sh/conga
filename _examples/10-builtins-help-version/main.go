@@ -26,12 +26,12 @@ type StatusCmd struct {
 // Description enriches the status help screen with a multi-line overview; the
 // summary tag stays the one-line synopsis in the parent's command list.
 func (s *StatusCmd) Description() string {
-	return "Reports the health of every subsystem infomgr manages.\n\nPass --detailed for per-subsystem diagnostics."
+	return "Reports the health of every subsystem builtins-help-version manages.\n\nPass --detailed for per-subsystem diagnostics."
 }
 
 // Examples renders usage examples under the Examples: heading.
 func (s *StatusCmd) Examples() string {
-	return "infomgr status\ninfomgr status --detailed"
+	return "builtins-help-version status\nbuiltins-help-version status --detailed"
 }
 
 func (s *StatusCmd) Run(ctx context.Context, session *conga.Session) error {
@@ -70,11 +70,11 @@ func (s *SyntaxCmd) Run(_ context.Context, session *conga.Session) error {
 
 func main() {
 	app := conga.New[CLI]().
-		Name("infomgr").
+		Name("builtins-help-version").
 		Description("CLI demonstrating built-in HelpCommand and VersionCommand").
 		Version("2.4.1").
-		Examples("infomgr status\ninfomgr help status\ninfomgr version").
-		HelpFooter("infomgr home: https://example.com/infomgr").
+		Examples("builtins-help-version status\nbuiltins-help-version help status\nbuiltins-help-version version").
+		HelpFooter("builtins-help-version home: https://example.com/builtins-help-version").
 		HelpShortFlag('h').
 		VersionShortFlag('V').
 		UsageOnError(conga.UsageHint)

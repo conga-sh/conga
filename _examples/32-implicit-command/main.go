@@ -4,7 +4,7 @@ import "github.com/conga-sh/conga"
 
 func main() {
 	app := conga.New[CLI]().
-		Name("bunlike").
+		Name("implicit-command").
 		Description("Bun-style implicit file execution").
 		Version("1.0.0")
 

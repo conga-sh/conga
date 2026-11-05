@@ -6,7 +6,7 @@
 # 1. Successful run: the command reads the injected stdin, business output
 #    lands in the injected stdout buffer, the custom exit handler records 0,
 #    and the host exits cleanly
-exec batchrun migrate-data --priority 7
+exec library-embedding migrate-data --priority 7
 stdout '\[host\] captured exit code: 0'
 stdout 'Running job migrate-data \(priority 7\)'
 stdout 'stdin payload: "host-provided stdin\\n"'
@@ -14,26 +14,26 @@ stdout 'stdin payload: "host-provided stdin\\n"'
 
 # 2. Coercion failure: the host inspects the typed error (IsUsageError,
 #    UsageError.CommandPath) and performs the exit itself with code 2
-exit-status 2 batchrun migrate-data --priority notanumber
+exit-status 2 library-embedding migrate-data --priority notanumber
 stdout '\[host\] run error: invalid integer value "notanumber" for flag --priority'
 stdout '\[host\] usage-classified: true'
-stdout '\[host\] usage error at command path: batchrun'
+stdout '\[host\] usage error at command path: library-embedding'
 stdout '\[host\] coercion failure: invalid integer value "notanumber" for flag --priority'
 stdout '\[host\] captured exit code: 2'
 
 # 3. Missing required positional argument (validation-classified usage error)
-exit-status 2 batchrun
+exit-status 2 library-embedding
 stdout '\[host\] run error: missing required positional argument <job>'
 stdout '\[host\] usage-classified: true'
 stdout '\[host\] captured exit code: 2'
 
 # 4. Disabled built-ins: --help is just an unknown flag now
-exit-status 2 batchrun --help
+exit-status 2 library-embedding --help
 stdout '\[host\] run error: unknown flag: --help'
 stdout '\[host\] usage-classified: true'
 stdout '\[host\] captured exit code: 2'
 
 # 5. UsageOnError(UsageSilence): the friendly error renders without any usage dump
-exit-status 2 batchrun migrate-data --priority notanumber
+exit-status 2 library-embedding migrate-data --priority notanumber
 ! stdout 'Usage:'
 ! stdout 'usage:'

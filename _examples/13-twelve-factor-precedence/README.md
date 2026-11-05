@@ -19,7 +19,7 @@ The complete scenarios, fixtures included, live in
 
 - Each value's origin badge (`● cli`, `● env PORT`, `● config server.toml`,
   `· default`) in the inspector output.
-- The built-in tier probes `${XDG_CONFIG_HOME:-~/.config}/server-precedence`.
+- The built-in tier probes `${XDG_CONFIG_HOME:-~/.config}/twelve-factor-precedence`.
 - `config:"-"` fields are rejected inside config files (exit 1).
 
 ## Test

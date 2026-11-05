@@ -13,7 +13,7 @@ var (
 
 func main() {
 	app := conga.New[CLI]().
-		Name("migrator").
+		Name("lifecycle-hooks").
 		Description("CLI demonstrating full lifecycle hooks (PreRun -> Run -> PostRun -> Finally)").
 		Version("1.0.0")
 

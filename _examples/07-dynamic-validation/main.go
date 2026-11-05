@@ -57,7 +57,7 @@ func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
 
 func main() {
 	app := conga.New[CLI]().
-		Name("validator-demo").
+		Name("dynamic-validation").
 		Description("Dynamic programmatic validation via conga.Validator interface").
 		Version("1.0.0")
 

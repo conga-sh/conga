@@ -9,7 +9,7 @@ import (
 
 func main() {
 	app := conga.New[CLI]().
-		Name("pluggable-demo").
+		Name("pluggable-types").
 		Description("Pluggable type parsers, standard library types, and modular bindings").
 		Version("1.0.0").
 		EnableCompletion()

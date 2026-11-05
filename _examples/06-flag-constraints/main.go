@@ -56,7 +56,7 @@ func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
 
 func main() {
 	app := conga.New[CLI]().
-		Name("constraints-demo").
+		Name("flag-constraints").
 		Description("Declarative safety constraints (XOR, And, Range, Len, Items, Enum)").
 		Version("1.0.0").
 		EnableCompletion().

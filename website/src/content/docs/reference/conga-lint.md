@@ -25,6 +25,7 @@ The analyzer delegates to the exported validators in `internal/spec`, so static 
 | `ConfigExplicit` exclusivity | Flags builder calls combining `conga.ConfigExplicit(...)` with `conga.ConfigPaths(...)` or `conga.ConfigCascading()`. |
 | `bootstrap` tag validation | Flags fields carrying `bootstrap` when neither the declaring command nor an ancestor implements `conga.Bootstrapper`, flags combining `bootstrap` with `feature`, and fields carrying `bootstrap` on unsupported types (structs, pointers, interfaces). |
 | Synthesized feature flag shadowing | The `flag:"..."` name installed for a CLI-exposed `Features[T]` container joins the ancestor shadow map, so a descendant flag cannot redeclare it. |
+| Implicit command uniqueness | The runtime `ErrSchema` rule that a command declares at most one `implicit:"true"` subcommand; the diagnostic names the field that declared the first. |
 | Ancestor flag shadowing | The runtime `ErrDuplicateFlag` rule: a flag name, alias, or short rune declared on an ancestor cannot be redeclared on any descendant command. |
 | Built-in short collisions | The runtime rejection of a user-declared `short` that claims the rune assigned with `app.HelpShortFlag(...)` (every command offering help) or `app.VersionShortFlag(...)` (root only), and of assigning the same rune to both built-ins. A disabled built-in leaves its rune free; non-constant runes suppress the check. |
 | Cascading guard | The schema rejection of `conga.ConfigCascading()` when the root command lacks a `multi:"true"` `ConfigFile` flag. |

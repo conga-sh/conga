@@ -2,54 +2,54 @@
 # Asserts ConfigSearchPaths single-file (first-found) mode
 
 env HOME=$WORK/home
-env SYSCONF_DIR=$WORK/etc/firstfound
+env SYSCONF_DIR=$WORK/etc/config-searchpaths
 
 # 1. First-found mode: first existing search path wins, no merging
-exec firstfound
-stdout '⚙  firstfound'
-stdout '-c, --config-file\s+conga\.ConfigFile\s+firstfound\.hcl\s+● config firstfound\.hcl'
-stdout '--region\s+string\s+local-region\s+● config firstfound\.hcl'
-stdout '--mode\s+string\s+local\s+● config firstfound\.hcl'
+exec config-searchpaths
+stdout '⚙  config-searchpaths'
+stdout '-c, --config-file\s+conga\.ConfigFile\s+config-searchpaths\.hcl\s+● config config-searchpaths\.hcl'
+stdout '--region\s+string\s+local-region\s+● config config-searchpaths\.hcl'
+stdout '--mode\s+string\s+local\s+● config config-searchpaths\.hcl'
 
 # 2. --why reports the first-found candidate and the probed locations of the
 #    remaining tiers
-exec firstfound --why
-stdout '--region\s+local-region\s+config \(firstfound\.hcl\)'
-stdout 'loaded: firstfound\.hcl'
+exec config-searchpaths --why
+stdout '--region\s+local-region\s+config \(config-searchpaths\.hcl\)'
+stdout 'loaded: config-searchpaths\.hcl'
 stdout 'no config file'
-stdout 'looked for: .*home[/\\]\.config[/\\]firstfound[/\\]firstfound\.hcl'
+stdout 'looked for: .*home[/\\]\.config[/\\]config-searchpaths[/\\]config-searchpaths\.hcl'
 ! stdout '██████'
 
 # 3. First-found mode skips missing files and picks the next existing one
-rm firstfound.hcl
-exec firstfound
-stdout '-c, --config-file\s+conga\.ConfigFile\s+.*home[/\\]\.config[/\\]firstfound[/\\]firstfound\.hcl\s+● config .*firstfound\.hcl'
-stdout '--region\s+string\s+user-region\s+● config .*home[/\\]\.config[/\\]firstfound[/\\]firstfound\.hcl'
-stdout '--mode\s+string\s+user\s+● config .*home[/\\]\.config[/\\]firstfound[/\\]firstfound\.hcl'
+rm config-searchpaths.hcl
+exec config-searchpaths
+stdout '-c, --config-file\s+conga\.ConfigFile\s+.*home[/\\]\.config[/\\]config-searchpaths[/\\]config-searchpaths\.hcl\s+● config .*config-searchpaths\.hcl'
+stdout '--region\s+string\s+user-region\s+● config .*home[/\\]\.config[/\\]config-searchpaths[/\\]config-searchpaths\.hcl'
+stdout '--mode\s+string\s+user\s+● config .*home[/\\]\.config[/\\]config-searchpaths[/\\]config-searchpaths\.hcl'
 
 # 4. Explicit -c overrides the search list entirely
-exec firstfound -c etc/firstfound/firstfound.hcl
-stdout '-c, --config-file\s+conga\.ConfigFile\s+etc[/\\]firstfound[/\\]firstfound\.hcl\s+● cli --config-file'
-stdout '--region\s+string\s+system-region\s+● config etc[/\\]firstfound[/\\]firstfound\.hcl'
-stdout '--mode\s+string\s+system\s+● config etc[/\\]firstfound[/\\]firstfound\.hcl'
+exec config-searchpaths -c etc/config-searchpaths/config-searchpaths.hcl
+stdout '-c, --config-file\s+conga\.ConfigFile\s+etc[/\\]config-searchpaths[/\\]config-searchpaths\.hcl\s+● cli --config-file'
+stdout '--region\s+string\s+system-region\s+● config etc[/\\]config-searchpaths[/\\]config-searchpaths\.hcl'
+stdout '--mode\s+string\s+system\s+● config etc[/\\]config-searchpaths[/\\]config-searchpaths\.hcl'
 
 # 5. No config file found at all: struct defaults apply
-rm home/.config/firstfound/firstfound.hcl
-rm etc/firstfound/firstfound.hcl
-exec firstfound
+rm home/.config/config-searchpaths/config-searchpaths.hcl
+rm etc/config-searchpaths/config-searchpaths.hcl
+exec config-searchpaths
 stdout '-c, --config-file\s+conga\.ConfigFile\s+—\s+○ unset'
 stdout '--region\s+string\s+us-east-1\s+· default'
 stdout '--mode\s+string\s+standby\s+· default'
 
--- etc/firstfound/firstfound.hcl --
+-- etc/config-searchpaths/config-searchpaths.hcl --
 region = "system-region"
 mode = "system"
 
--- home/.config/firstfound/firstfound.hcl --
+-- home/.config/config-searchpaths/config-searchpaths.hcl --
 region = "user-region"
 mode = "user"
 
--- firstfound.hcl --
+-- config-searchpaths.hcl --
 region = "local-region"
 mode = "local"
 

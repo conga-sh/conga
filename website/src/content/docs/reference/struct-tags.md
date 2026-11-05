@@ -127,12 +127,10 @@ A command that declares `Command[T]` fields is a branch: it routes to its subcom
 | `envprefix` | Environment variable prefix for this command's flags. |
 | `feature` | Feature-gate expression: the subcommand and its subtree exist only while the expression is satisfied (see [Feature toggles](#feature-toggles-congafeaturest)). |
 | `hidden` | Suppress from help and completion (`hidden` or `hidden:"true"`). |
-| `implicit` | Select this subcommand when no explicit subcommand claims the invocation, including when only flags declared by its subtree are supplied; unmatched operands route into it. At most one per command. |
+| `implicit` | Route tokens that no explicit subcommand claims into this subcommand. At most one per command. See [Implicit subcommands](#implicit-subcommands). |
 | `name` | Subcommand token override (default: kebab-case field name). |
 | `section` | Help-screen section title. Subcommands sharing a section render under their own titled section and are tagged as `<section> commands` in completion. |
 | `summary` | One-line synopsis displayed in parent command listings and shell completion. |
-
-An implicit command makes the `<command>` token optional in the parent usage line and is marked `(default)` in the parent listing without changing declaration order. An unmatched operand routes into it, and operands after `--` route into it unless the parent implements `Runner` and declares trailing `DashArgs`. A near-miss of a sibling name is an operand, not an unknown command, so no "did you mean ...?" suggestion is offered. Flags declared only by the implicit subtree also select it, descending only as deep as those flags require; naming a subcommand explicitly always wins. Routing is left to right, so a subcommand's value-taking flag must follow its name: a separate value token before the name is an unmatched operand and selects the implicit child (`tool deploy --env prod`, not `tool --env prod deploy`). Root flags and flags of commands already named may appear on either side. A built-in rendering request (`--help`, `--version`, `--why`, `--completion`) never selects a child by itself: it keeps the parent active unless an operand or child-only flag has already selected one, so `tool -n --help` renders the implicit child's help while `tool --help` renders the parent's. `--help` is offered on every command, but `--version` is root-only: an invocation that resolves to an implicit child never sees it as a builtin. Before the child's raw-args fallback the token is an unknown flag (`tool -n --version` fails like `tool run --version`); once the declared positionals are full and the child declares `RawArgs`, it is a trailing argument forwarded to the child, so `tool ./script.ts --version` behaves exactly like `tool run ./script.ts --version`. Only `tool --version` prints the summary. An implicit child may declare its own `version` flag or claim the `app.VersionShortFlag` rune; the root built-in still decides routing, so a bare `tool --version` prints the summary, while an operand after it selects the child and the invocation then binds exactly like the explicit form. With a value-taking child flag, `tool --version script.ts` therefore behaves like `tool run --version script.ts`: the operand becomes the flag's value. Help and shell completion advertise `--version` only while the invocation still resolves to the root command; a bound child-only flag removes it from flag-name candidates. A parent that implements `Runner` still runs itself when the invocation ends without an operand or child-only flag.
 
 The `envprefix` tag may stand alone on a blank field to set the command's environment prefix without contributing a schema element:
 
@@ -142,6 +140,85 @@ type Server struct {
 	Timeout conga.OptionalFlag[time.Duration] `help:"Request timeout"`
 }
 ```
+
+### Implicit subcommands
+
+`implicit:"true"` marks the subcommand that receives tokens no explicit subcommand claims. The examples below use this schema, where `-n` is declared only by `run`:
+
+```go
+type CLI struct {
+	Exec    conga.Command[RunCmd]     `implicit:"true" name:"run"`
+	Install conga.Command[InstallCmd]
+}
+
+type RunCmd struct {
+	DryRun conga.OptionalFlag[bool] `short:"n"`
+	File   conga.RequiredArg[conga.File]
+	Args   conga.RawArgs
+}
+```
+
+#### Schema rules
+
+- The value is a strict boolean, `"true"` or `"false"`; an empty value means `true`.
+- A command declares at most one implicit subcommand. A second fails schema build with `ErrSchema` and names the field that declared the first; `conga-lint` reports the same error.
+- An implicit subcommand may declare its own implicit subcommand.
+
+#### Help rendering
+
+- The parent usage line shows the command token as optional: `tool [<command>]`.
+- The parent's command listing marks the implicit subcommand `(default)`. Declaration order is unchanged.
+
+#### Selection
+
+A subcommand named explicitly, by name or alias, always takes precedence. Otherwise the implicit subcommand is selected when any of these holds:
+
+- An operand matches no subcommand name or alias. A near-miss of a sibling name is an operand, so no "did you mean ...?" suggestion is offered.
+- Operands follow `--`, unless the parent implements `Runner` and declares `DashArgs`; that parent binds them itself.
+- A flag declared only by the implicit subtree is supplied. Selection descends through nested implicit subcommands only as deep as those flags require.
+- The invocation selects no subcommand and the parent does not implement `Runner`.
+
+A parent that implements `Runner` runs itself when the invocation supplies no operand and no flag declared only by the implicit subtree.
+
+| Invocation | Runs |
+|------------|------|
+| `tool ./script.ts` | `run`, same as `tool run ./script.ts` |
+| `tool -n ./script.ts` | `run` with `-n` set |
+| `tool -- -e.ts` | `run` with the file `-e.ts` |
+| `tool install` | `install` |
+| `tool -n install` | Fails: `unknown flag: -n` |
+| `tool -n` | Fails: `missing required positional argument <file>` |
+
+#### Token order
+
+Routing reads tokens left to right. A subcommand's value-taking flag must follow the subcommand name: in `tool --env prod deploy`, `prod` is an unmatched operand and selects the implicit subcommand. Write `tool deploy --env prod`. Root flags and flags of commands already named may appear on either side of a subcommand name.
+
+#### Built-in requests
+
+`--help`, `--version`, `--why`, and `--completion` never select a subcommand by themselves. A built-in request keeps the parent active unless an operand or child-only flag has already selected the implicit subcommand.
+
+| Invocation | Renders |
+|------------|---------|
+| `tool --help` | The parent's help |
+| `tool --help -- ignored.ts` | The parent's help |
+| `tool -n --help` | `run`'s help, same as `tool run --help` |
+
+#### `--version` after selection
+
+`--version` is a root-only built-in. Once an invocation resolves to a subcommand, implicitly or by name, the token is not a built-in. Until the subcommand's declared positionals are full it is an unknown flag; after that, a subcommand that declares `RawArgs` receives it as a trailing argument.
+
+| Invocation | Result |
+|------------|--------|
+| `tool --version` | Prints the version summary |
+| `tool -n --version` | Fails: `unknown flag: --version`, same as `tool run --version` |
+| `tool --version run` | Fails: `unknown flag: --version` |
+| `tool ./script.ts --version` | `run` receives `--version` in `RawArgs`, same as `tool run ./script.ts --version` |
+
+An implicit subcommand may declare its own `version` flag or claim the `app.VersionShortFlag` rune. The root built-in still decides routing: a bare `tool --version` prints the summary, and an operand after it selects the subcommand, which then binds exactly like the named form. With a value-taking `version` flag on `run`, `tool --version script.ts` behaves like `tool run --version script.ts`, and `script.ts` becomes the flag's value.
+
+Help and shell completion advertise `--version` only while the invocation resolves to the root command. A bound child-only flag removes it from flag-name candidates.
+
+The design rationale is in [About subcommands and hierarchy](/explanation/subcommands/#implicit-subcommands).
 
 ## Config file flags (`ConfigFile`)
 

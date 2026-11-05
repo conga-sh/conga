@@ -43,7 +43,7 @@ func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
 
 func main() {
 	app := conga.New[CLI]().
-		Name("helpvars").
+		Name("help-variables").
 		Description("Help-variable interpolation: state a constraint once").
 		Version("1.0.0")
 

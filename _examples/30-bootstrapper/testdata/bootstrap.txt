@@ -1,5 +1,5 @@
 # TestScript for 30-bootstrapper — bootstrapping a flag-selected domain
-# document. flowctl reads pipeline files as domain documents: their top-level
+# document. bootstrapper reads pipeline files as domain documents: their top-level
 # parallelism/log_level/env keys feed the config tier through the Bootstrap
 # method, while pipelines stay domain data consumed by Run. Bootstrap also
 # concatenates the step and needs lists that the config tiers never merge.
@@ -11,7 +11,7 @@ copy-fixture testdata/fixtures/unknown-key.yaml unknown-key.yaml
 
 # 1. Listing pipelines: the file's domain data drives the output, and its
 #    top-level config keys bind at the config tier.
-exec flowctl
+exec bootstrapper
 stdout '--parallelism\s+int\s+4\s+● config pipeline\.yaml'
 stdout '--log-level\s+string\s+info\s+● config pipeline\.yaml'
 stdout '--env\s+map\[string\]string\s+FLOW_ENV=dev, LOG_FORMAT=json\s+● config pipeline\.yaml'
@@ -19,14 +19,14 @@ stdout 'build\s+Build all packages'
 stdout 'deploy\s+Deploy the release'
 
 # 2. The selected pipeline's config keys outrank the file's top-level keys.
-exec flowctl --pipeline deploy
+exec bootstrapper --pipeline deploy
 stdout '--parallelism\s+int\s+1\s+● config pipeline\.yaml › pipeline deploy'
 stdout '--log-level\s+string\s+debug\s+● config pipeline\.yaml › pipeline deploy'
 stdout 'DEPLOY_REGION=eu-west-1, FLOW_ENV=prod, LOG_FORMAT=json'
 stdout 'pipeline deploy: needs=\[build\] steps=\[\./deploy\.sh\]'
 
 # 3. A later file wins scalar config and concatenates the domain lists.
-exec flowctl -f pipeline.yaml -f pipeline.local.yaml --pipeline deploy
+exec bootstrapper -f pipeline.yaml -f pipeline.local.yaml --pipeline deploy
 stdout '--file\s+\[\]string\s+\[pipeline\.yaml, pipeline\.local\.yaml\]'
 stdout '--parallelism\s+int\s+2\s+● config pipeline\.local\.yaml'
 stdout '--log-level\s+string\s+debug\s+● config pipeline\.local\.yaml › pipeline deploy'
@@ -34,13 +34,13 @@ stdout 'DEPLOY_REGION=us-east-1, FLOW_ENV=local, LOG_FORMAT=json, RELEASE_CHANNE
 stdout 'pipeline deploy: needs=\[build lint\] steps=\[\./deploy\.sh \./notify\.sh\]'
 
 # 4. CLI flags outrank the configuration supplied by the files.
-exec flowctl -f pipeline.yaml -f pipeline.local.yaml --pipeline deploy --parallelism 8 --env FLOW_ENV=ci
+exec bootstrapper -f pipeline.yaml -f pipeline.local.yaml --pipeline deploy --parallelism 8 --env FLOW_ENV=ci
 stdout '--parallelism\s+int\s+8\s+● cli --parallelism'
 stdout 'DEPLOY_REGION=us-east-1, FLOW_ENV=ci, LOG_FORMAT=json, RELEASE_CHANNEL=canary\s+● cli --env'
 
 # 5. --why attributes each config key and map entry to the file and pipeline
 #    that supplied it.
-exec flowctl -f pipeline.yaml -f pipeline.local.yaml --pipeline deploy --why
+exec bootstrapper -f pipeline.yaml -f pipeline.local.yaml --pipeline deploy --why
 stdout '--parallelism\s+2\s+config \(pipeline\.local\.yaml\)'
 stdout '--log-level\s+debug\s+config \(pipeline\.local\.yaml › pipeline deploy\)'
 stdout 'DEPLOY_REGION=██████\s+config \(pipeline\.local\.yaml › pipeline deploy\)'
@@ -51,18 +51,18 @@ stdout 'pipeline\.yaml\s+loaded'
 ! stdout 'pipeline\.local\.yaml › pipeline deploy\s+loaded'
 
 # 6. A Bootstrap failure is app-authored data: exit 1, never a usage error.
-exit-status 1 flowctl --pipeline nope
+exit-status 1 bootstrapper --pipeline nope
 stderr 'bootstrap failed: pipeline not found "nope"'
-exit-status 1 flowctl -f missing.yaml
+exit-status 1 bootstrapper -f missing.yaml
 stderr 'bootstrap failed: read pipeline file "missing\.yaml"'
-exit-status 1 flowctl -f bad-version.yaml
+exit-status 1 bootstrapper -f bad-version.yaml
 stderr 'unsupported pipeline file version "2"'
-exit-status 1 flowctl -f unknown-key.yaml
+exit-status 1 bootstrapper -f unknown-key.yaml
 stderr 'field paralelism not found'
 
 # 7. Help does not run Bootstrap: an empty directory has no pipeline file.
 mkdir empty
 cd empty
-exec flowctl --help
+exec bootstrapper --help
 stdout 'Usage:'
 cd ..

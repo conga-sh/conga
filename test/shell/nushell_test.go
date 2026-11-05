@@ -15,9 +15,9 @@ import (
 func TestNushell_Subcommands(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
-	result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl ")
+	result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion ")
 
 	assert.Equal(t, "", result.Stderr, "completion must not write to stderr")
 	assert.True(t, result.HasItem("deploy"), "expected deploy subcommand")
@@ -32,9 +32,9 @@ func TestNushell_Subcommands(t *testing.T) {
 func TestNushell_Flags(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
-	result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl deploy --")
+	result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion deploy --")
 
 	assert.True(t, result.HasItem("--env"))
 	assert.True(t, result.HasItem("--cluster"))
@@ -52,7 +52,7 @@ func TestNushell_Flags(t *testing.T) {
 	t.Run("logs flags", func(t *testing.T) {
 		t.Parallel()
 
-		logsResult := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl logs --")
+		logsResult := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion logs --")
 
 		assert.True(t, logsResult.HasItem("--labels"))
 	})
@@ -61,9 +61,9 @@ func TestNushell_Flags(t *testing.T) {
 func TestNushell_ContextAwarePredictors(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
-	result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl deploy --env production --cluster ")
+	result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion deploy --env production --cluster ")
 
 	assert.True(t, result.HasItem("prod-us-east-1"))
 	assert.True(t, result.HasItem("prod-eu-west-1"))
@@ -74,7 +74,7 @@ func TestNushell_ContextAwarePredictors(t *testing.T) {
 func TestNushell_FileExtensionFiltering(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
 	workspace.WriteFile(t, "app.yaml", []byte("name: app"))
 	workspace.WriteFile(t, "config.yml", []byte("port: 8080"))
@@ -88,7 +88,7 @@ func TestNushell_FileExtensionFiltering(t *testing.T) {
 	t.Run("separate flag completion in root dir", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl deploy --manifest ")
+		result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion deploy --manifest ")
 
 		assert.True(t, result.HasItem("app.yaml"), "expected app.yaml candidate")
 		assert.True(t, result.HasItem("config.yml"), "expected config.yml candidate")
@@ -102,7 +102,7 @@ func TestNushell_FileExtensionFiltering(t *testing.T) {
 	t.Run("nested directory traversal with separate flag", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl deploy --manifest nested/")
+		result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion deploy --manifest nested/")
 
 		assert.True(t, result.HasItem("manifest.yaml") || result.HasItem("nested/manifest.yaml"), "expected manifest.yaml candidate")
 		assert.True(t, result.HasItem("child/") || result.HasItem("nested/child/"), "expected child/ directory candidate")
@@ -113,7 +113,7 @@ func TestNushell_FileExtensionFiltering(t *testing.T) {
 	t.Run("attached flag completion in root dir", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl deploy --manifest=")
+		result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion deploy --manifest=")
 
 		assert.True(t, result.HasItem("--manifest=app.yaml"), "expected --manifest=app.yaml candidate, got %v", result.Candidates)
 		assert.True(t, result.HasItem("--manifest=config.yml"), "expected --manifest=config.yml candidate, got %v", result.Candidates)
@@ -127,7 +127,7 @@ func TestNushell_FileExtensionFiltering(t *testing.T) {
 	t.Run("nested directory traversal with attached flag", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl deploy --manifest=nested/")
+		result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion deploy --manifest=nested/")
 
 		assert.True(t, result.HasItem("--manifest=nested/manifest.yaml") || result.HasItem("nested/manifest.yaml"), "expected manifest.yaml candidate")
 		assert.True(t, result.HasItem("--manifest=nested/child/") || result.HasItem("nested/child/"), "expected child/ candidate")
@@ -139,7 +139,7 @@ func TestNushell_FileExtensionFiltering(t *testing.T) {
 func TestNushell_DirectoryFiltering(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
 	workspace.Mkdir(t, "build")
 	workspace.Mkdir(t, "build/sub")
@@ -149,7 +149,7 @@ func TestNushell_DirectoryFiltering(t *testing.T) {
 	t.Run("separate flag directory filtering", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl deploy --out-dir ")
+		result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion deploy --out-dir ")
 
 		assert.True(t, result.HasItem("build/"), "expected build/ candidate")
 		assert.True(t, result.HasItem("dist/"), "expected dist/ candidate")
@@ -159,7 +159,7 @@ func TestNushell_DirectoryFiltering(t *testing.T) {
 	t.Run("attached flag directory filtering", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl deploy --out-dir=")
+		result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion deploy --out-dir=")
 
 		assert.True(t, result.HasItem("--out-dir=build/"), "expected --out-dir=build/ candidate, got %v", result.Candidates)
 		assert.True(t, result.HasItem("--out-dir=dist/"), "expected --out-dir=dist/ candidate, got %v", result.Candidates)
@@ -169,7 +169,7 @@ func TestNushell_DirectoryFiltering(t *testing.T) {
 	t.Run("nested directory traversal", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl deploy --out-dir build/")
+		result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion deploy --out-dir build/")
 
 		assert.True(t, result.HasItem("sub/") || result.HasItem("build/sub/"), "expected sub/ candidate")
 		assert.False(t, result.HasItem("app.go"), "did not expect app.go candidate")
@@ -179,9 +179,9 @@ func TestNushell_DirectoryFiltering(t *testing.T) {
 func TestNushell_SubcommandPrefix(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
-	result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl d")
+	result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion d")
 
 	assert.True(t, result.HasItem("deploy"))
 	assert.False(t, result.HasItem("logs"))
@@ -190,9 +190,9 @@ func TestNushell_SubcommandPrefix(t *testing.T) {
 func TestNushell_SubcommandAlias(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
-	result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl d --")
+	result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion d --")
 
 	assert.True(t, result.HasItem("--env"))
 	assert.True(t, result.HasItem("--cluster"))
@@ -203,12 +203,12 @@ func TestNushell_SubcommandAlias(t *testing.T) {
 func TestNushell_AliasAndDescriptionSidebands(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
 	t.Run("aliases shown by default", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl ")
+		result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion ")
 
 		assert.Equal(t, "", result.Stderr, "completion must not write to stderr")
 		assert.True(t, result.HasItem("deploy"))
@@ -218,7 +218,7 @@ func TestNushell_AliasAndDescriptionSidebands(t *testing.T) {
 	t.Run("aliases suppressed", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl ", "CLOUDCTL_COMPLETION_ALIASES=0")
+		result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion ", "DEPLOY_COMPLETION_ALIASES=0")
 
 		assert.Equal(t, "", result.Stderr, "completion must not write to stderr")
 		assert.True(t, result.HasItem("deploy"))
@@ -228,7 +228,7 @@ func TestNushell_AliasAndDescriptionSidebands(t *testing.T) {
 	t.Run("descriptions suppressed", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl ", "CLOUDCTL_COMPLETION_DESCRIPTIONS=0")
+		result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion ", "DEPLOY_COMPLETION_DESCRIPTIONS=0")
 
 		assert.Equal(t, "", result.Stderr, "completion must not write to stderr")
 		description, ok := result.ItemDescription("deploy")
@@ -240,9 +240,9 @@ func TestNushell_AliasAndDescriptionSidebands(t *testing.T) {
 func TestNushell_NegatableFlags(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
-	result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl deploy --no-")
+	result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion deploy --no-")
 
 	assert.True(t, result.HasItem("--no-dry-run"))
 
@@ -254,9 +254,9 @@ func TestNushell_NegatableFlags(t *testing.T) {
 func TestNushell_FlagValues(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
-	result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl deploy --env ")
+	result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion deploy --env ")
 
 	assert.True(t, result.HasItem("staging"))
 	assert.True(t, result.HasItem("production"))
@@ -266,12 +266,12 @@ func TestNushell_FlagValues(t *testing.T) {
 func TestNushell_AttachedFlags(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
 	t.Run("attached long flag value", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl deploy --env=")
+		result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion deploy --env=")
 
 		assert.Equal(t, "", result.Stderr, "completion must not write to stderr")
 		assert.True(t, result.HasItem("--env=staging"), "expected --env=staging candidate, got %v", result.Candidates)
@@ -282,7 +282,7 @@ func TestNushell_AttachedFlags(t *testing.T) {
 	t.Run("attached flag value prefix", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl deploy --env=p")
+		result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion deploy --env=p")
 
 		assert.True(t, result.HasItem("--env=production"), "expected --env=production candidate, got %v", result.Candidates)
 		assert.False(t, result.HasItem("--env=staging"), "did not expect --env=staging candidate")
@@ -292,12 +292,12 @@ func TestNushell_AttachedFlags(t *testing.T) {
 func TestNushell_ShortFlags(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
 	t.Run("short flag enumeration", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl deploy -")
+		result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion deploy -")
 
 		assert.True(t, result.HasItem("-e"))
 		assert.True(t, result.HasItem("-c"))
@@ -307,7 +307,7 @@ func TestNushell_ShortFlags(t *testing.T) {
 	t.Run("separate short flag value completion", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl deploy -e ")
+		result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion deploy -e ")
 
 		assert.True(t, result.HasItem("staging"))
 		assert.True(t, result.HasItem("production"))
@@ -317,7 +317,7 @@ func TestNushell_ShortFlags(t *testing.T) {
 	t.Run("attached short flag value completion", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl deploy -e=")
+		result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion deploy -e=")
 
 		assert.True(t, result.HasItem("-e=staging"), "expected -e=staging candidate, got %v", result.Candidates)
 		assert.True(t, result.HasItem("-e=production"), "expected -e=production candidate, got %v", result.Candidates)
@@ -326,7 +326,7 @@ func TestNushell_ShortFlags(t *testing.T) {
 	t.Run("short flag context-aware prediction", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl deploy -e production -c prod-")
+		result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion deploy -e production -c prod-")
 
 		assert.True(t, result.HasItem("prod-us-east-1"))
 		assert.True(t, result.HasItem("prod-eu-west-1"))
@@ -338,12 +338,12 @@ func TestNushell_ShortFlags(t *testing.T) {
 func TestNushell_MultiParts(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
 	t.Run("top-level tag keys", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl logs --labels ")
+		result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion logs --labels ")
 
 		assert.True(t, result.HasItem("team") || result.HasItem("team="))
 		assert.True(t, result.HasItem("tier") || result.HasItem("tier="))
@@ -353,7 +353,7 @@ func TestNushell_MultiParts(t *testing.T) {
 	t.Run("nested tag values", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl logs --labels team=")
+		result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion logs --labels team=")
 
 		assert.True(t, result.HasItem("team=core"), "expected team=core candidate")
 		assert.True(t, result.HasItem("team=frontend"), "expected team=frontend candidate")
@@ -363,7 +363,7 @@ func TestNushell_MultiParts(t *testing.T) {
 	t.Run("map key deduplication across flags", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl logs --labels team=core --labels ")
+		result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion logs --labels team=core --labels ")
 
 		assert.False(t, result.HasItem("team="), "team= must be excluded as it is already assigned")
 		assert.True(t, result.HasItem("tier="), "expected tier= candidate")
@@ -373,7 +373,7 @@ func TestNushell_MultiParts(t *testing.T) {
 	t.Run("map value deduplication", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl logs --labels owner=alice --labels owner=")
+		result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion logs --labels owner=alice --labels owner=")
 
 		assert.False(t, result.HasItem("owner=alice"), "alice must be excluded as it is already assigned")
 		assert.False(t, result.HasItem("alice"), "bare alice must not be suggested either")
@@ -384,7 +384,7 @@ func TestNushell_MultiParts(t *testing.T) {
 	t.Run("delimited slice flag deduplication", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl deploy --features canary,")
+		result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion deploy --features canary,")
 
 		assert.False(t, result.HasItem("canary,canary"), "canary must not be suggested again")
 		assert.True(t, result.HasItem("canary,tracing"), "expected tracing candidate")
@@ -394,9 +394,9 @@ func TestNushell_MultiParts(t *testing.T) {
 func TestNushell_PositionalEnumSuppressesFlags(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
-	result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl logs ")
+	result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion logs ")
 
 	// Positional arguments
 	assert.True(t, result.HasItem("auth"))
@@ -410,7 +410,7 @@ func TestNushell_PositionalEnumSuppressesFlags(t *testing.T) {
 	assert.False(t, result.HasItem("--help"))
 
 	// Flags are discovered when hyphen is typed
-	resFlags := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl logs --")
+	resFlags := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion logs --")
 	assert.True(t, resFlags.HasItem("--env"))
 	assert.True(t, resFlags.HasItem("--follow"))
 	assert.True(t, resFlags.HasItem("--help"))
@@ -419,12 +419,12 @@ func TestNushell_PositionalEnumSuppressesFlags(t *testing.T) {
 func TestNushell_QuotedArguments(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
 	t.Run("double quoted flag context", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "cloudctl", `cloudctl deploy --env "production" --cluster prod-`)
+		result := workspace.RunNushellCompletion(t, "shell-completion", `shell-completion deploy --env "production" --cluster prod-`)
 
 		assert.True(t, result.HasItem("prod-us-east-1"))
 		assert.True(t, result.HasItem("prod-eu-west-1"))
@@ -434,7 +434,7 @@ func TestNushell_QuotedArguments(t *testing.T) {
 	t.Run("single quoted flag context", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl deploy --env 'qa' --cluster qa-test-")
+		result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion deploy --env 'qa' --cluster qa-test-")
 
 		assert.True(t, result.HasItem("qa-test-1"))
 		assert.True(t, result.HasItem("qa-test-2"))
@@ -444,7 +444,7 @@ func TestNushell_QuotedArguments(t *testing.T) {
 	t.Run("single quoted positional prefix", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl logs 'au")
+		result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion logs 'au")
 
 		assert.True(t, result.HasItem("auth"), "expected auth candidate inside single quotes")
 		assert.False(t, result.HasItem("billing"), "did not expect billing candidate")
@@ -453,7 +453,7 @@ func TestNushell_QuotedArguments(t *testing.T) {
 	t.Run("double quoted positional prefix", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "cloudctl", `cloudctl logs "bi`)
+		result := workspace.RunNushellCompletion(t, "shell-completion", `shell-completion logs "bi`)
 
 		assert.True(t, result.HasItem("billing"), "expected billing candidate inside double quotes")
 		assert.False(t, result.HasItem("auth"), "did not expect auth candidate")
@@ -462,7 +462,7 @@ func TestNushell_QuotedArguments(t *testing.T) {
 	t.Run("flags after quoted positional argument", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl deploy 'my-service' --")
+		result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion deploy 'my-service' --")
 
 		assert.True(t, result.HasItem("--env"), "expected --env after quoted positional argument")
 		assert.True(t, result.HasItem("--cluster"), "expected --cluster after quoted positional argument")
@@ -474,7 +474,7 @@ func TestNushell_PureFlagsCommandWithRequiredFlag(t *testing.T) {
 
 	workspace := setupFlagConstraints(t)
 
-	result := workspace.RunNushellCompletion(t, "06-flag-constraints", "06-flag-constraints --")
+	result := workspace.RunNushellCompletion(t, "flag-constraints", "flag-constraints --")
 
 	assert.True(t, result.HasItem("--api-key"), "expected required flag --api-key")
 	assert.True(t, result.HasItem("--json"))
@@ -494,25 +494,25 @@ func TestNushell_DomainTypes_Completion(t *testing.T) {
 	workspace := setupDomainTypes(t)
 
 	// Bare space: completion subcommand must NOT appear, flags must appear
-	bareRes := workspace.RunNushellCompletion(t, "05-domain-types", "05-domain-types ")
+	bareRes := workspace.RunNushellCompletion(t, "domain-types", "domain-types ")
 	assert.False(t, bareRes.HasItem("completion"))
 	assert.True(t, bareRes.HasItem("--input-file"))
 	assert.True(t, bareRes.HasItem("--completion"))
 	assert.True(t, bareRes.HasItem("-i"))
 
 	// Typing '--comp': must complete --completion flag
-	assert.True(t, workspace.RunNushellCompletion(t, "05-domain-types", "05-domain-types --comp").HasItem("--completion"), "expected --completion candidate")
+	assert.True(t, workspace.RunNushellCompletion(t, "domain-types", "domain-types --comp").HasItem("--completion"), "expected --completion candidate")
 }
 
 func TestNushell_NestedSubcommands(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
 	t.Run("completion shell candidates", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl completion ")
+		result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion completion ")
 
 		assert.True(t, result.HasItem("bash"), "expected bash candidate")
 		assert.True(t, result.HasItem("zsh"), "expected zsh candidate")
@@ -525,7 +525,7 @@ func TestNushell_NestedSubcommands(t *testing.T) {
 	t.Run("completion prefix matching", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl completion z")
+		result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion completion z")
 
 		assert.True(t, result.HasItem("zsh"))
 		assert.False(t, result.HasItem("bash"))
@@ -535,17 +535,17 @@ func TestNushell_NestedSubcommands(t *testing.T) {
 func TestNushell_DeprecatedFiltering(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupMemberDeprecated(t)
+	workspace := setupMemberDeprecation(t)
 
 	t.Run("deprecated flag excluded from flags", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "member-deprecated", "member-deprecated --")
+		result := workspace.RunNushellCompletion(t, "member-deprecation", "member-deprecation --")
 
 		assert.True(t, result.HasItem("--modern"))
 		assert.False(t, result.HasItem("--old"))
 
-		prefixRes := workspace.RunNushellCompletion(t, "member-deprecated", "member-deprecated --o")
+		prefixRes := workspace.RunNushellCompletion(t, "member-deprecation", "member-deprecation --o")
 
 		assert.False(t, prefixRes.HasItem("--old"))
 	})
@@ -553,12 +553,12 @@ func TestNushell_DeprecatedFiltering(t *testing.T) {
 	t.Run("deprecated subcommand excluded from commands", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "member-deprecated", "member-deprecated ")
+		result := workspace.RunNushellCompletion(t, "member-deprecation", "member-deprecation ")
 
 		assert.True(t, result.HasItem("deploy"))
 		assert.False(t, result.HasItem("legacy"))
 
-		prefixRes := workspace.RunNushellCompletion(t, "member-deprecated", "member-deprecated l")
+		prefixRes := workspace.RunNushellCompletion(t, "member-deprecation", "member-deprecation l")
 
 		assert.False(t, prefixRes.HasItem("legacy"))
 	})
@@ -567,9 +567,9 @@ func TestNushell_DeprecatedFiltering(t *testing.T) {
 func TestNushell_AppDeprecatedCompletion(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupAppDeprecated(t)
+	workspace := setupAppDeprecation(t)
 
-	result := workspace.RunNushellCompletion(t, "app-deprecated", "app-deprecated ")
+	result := workspace.RunNushellCompletion(t, "app-deprecation", "app-deprecation ")
 
 	assert.True(t, result.HasItem("deploy"), "expected deploy subcommand of the deprecated app")
 }
@@ -577,12 +577,12 @@ func TestNushell_AppDeprecatedCompletion(t *testing.T) {
 func TestNushell_UnconstrainedPositionalSuppressesFlags(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
 	t.Run("bare space on unconstrained positional yields zero candidates", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl deploy ")
+		result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion deploy ")
 
 		assert.Equal(t, "", result.Stderr, "completion must not write to stderr")
 		assert.Zero(t, result.Candidates, "expected zero completion candidates on unconstrained positional bare space")
@@ -593,7 +593,7 @@ func TestNushell_UnconstrainedPositionalSuppressesFlags(t *testing.T) {
 	t.Run("alias bare space yields zero candidates", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl d ")
+		result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion d ")
 
 		assert.Equal(t, "", result.Stderr, "completion must not write to stderr")
 		assert.Zero(t, result.Candidates, "expected zero completion candidates on alias bare space")
@@ -604,7 +604,7 @@ func TestNushell_UnconstrainedPositionalSuppressesFlags(t *testing.T) {
 func TestNushell_AutoloadPersistence(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
 	nuPath, err := exec.LookPath("nu")
 	if err != nil {
@@ -620,9 +620,9 @@ func TestNushell_AutoloadPersistence(t *testing.T) {
 		t.Skip("nu/nushell binary not found on PATH; skipping real Nushell autoload persistence test")
 	}
 
-	binPath := filepath.Join(workspace.BinDir, "cloudctl")
+	binPath := filepath.Join(workspace.BinDir, "shell-completion")
 
-	// 1. Run cloudctl completion nushell --help and assert instructions match the two-stage autoload format
+	// 1. Run shell-completion completion nushell --help and assert instructions match the two-stage autoload format
 	helpCmd := exec.CommandContext(t.Context(), binPath, "completion", "nushell", "--help")
 	helpCmd.Dir = workspace.WorkDir
 	helpCmd.Env = append(os.Environ(), "HOME="+workspace.HomeDir)
@@ -631,20 +631,20 @@ func TestNushell_AutoloadPersistence(t *testing.T) {
 
 	helpOut := string(helpOutBytes)
 	assert.Contains(t, helpOut, "autoload")
-	assert.Contains(t, helpOut, "cloudctl completion nushell | save -f")
+	assert.Contains(t, helpOut, "shell-completion completion nushell | save -f")
 	assert.Contains(t, helpOut, "source")
 	assert.NotContains(t, helpOut, ">>")
 	assert.NotContains(t, helpOut, "echo '")
 
 	// 2. Execute the setup command in nushell: save completions to the autoload directory
-	setupNu := fmt.Sprintf(`mkdir ($nu.default-config-dir | path join "autoload"); %s completion nushell | save -f ($nu.default-config-dir | path join "autoload/cloudctl.nu")`, binPath)
+	setupNu := fmt.Sprintf(`mkdir ($nu.default-config-dir | path join "autoload"); %s completion nushell | save -f ($nu.default-config-dir | path join "autoload/shell-completion.nu")`, binPath)
 	nuCmd := exec.CommandContext(t.Context(), nuPath, "-c", setupNu)
 	nuCmd.Dir = workspace.WorkDir
 	nuCmd.Env = append(os.Environ(), "HOME="+workspace.HomeDir, "PATH="+workspace.BinDir+":"+os.Getenv("PATH"), "XDG_CONFIG_HOME="+filepath.Join(workspace.HomeDir, ".config"))
 	nuOutBytes, err := nuCmd.CombinedOutput()
 	assert.NoError(t, err, "failed to run nushell setup: %s", string(nuOutBytes))
 
-	autoloadFile := filepath.Join(workspace.HomeDir, ".config", "nushell", "autoload", "cloudctl.nu")
+	autoloadFile := filepath.Join(workspace.HomeDir, ".config", "nushell", "autoload", "shell-completion.nu")
 	data, err := os.ReadFile(autoloadFile)
 	assert.NoError(t, err)
 	assert.True(t, len(data) > 0, "autoload script should not be empty")
@@ -652,7 +652,7 @@ func TestNushell_AutoloadPersistence(t *testing.T) {
 	// 3. Verify that sourcing the autoloaded script in a new Nushell session provides completions
 	testScript := fmt.Sprintf(`
 source %s
-do $cloudctl_completer ["cloudctl", "dep"] | to json
+do $shell_completion_completer ["shell-completion", "dep"] | to json
 `, autoloadFile)
 
 	evalCmd := exec.CommandContext(t.Context(), nuPath, "-c", testScript)
@@ -672,7 +672,7 @@ func TestNushell_XORFlagSuppression(t *testing.T) {
 	t.Run("json suppresses yaml and table", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "06-flag-constraints", "06-flag-constraints --json --")
+		result := workspace.RunNushellCompletion(t, "flag-constraints", "flag-constraints --json --")
 
 		assert.False(t, result.HasItem("--yaml"))
 		assert.False(t, result.HasItem("--table"))
@@ -684,7 +684,7 @@ func TestNushell_XORFlagSuppression(t *testing.T) {
 	t.Run("yaml suppresses json and table", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "06-flag-constraints", "06-flag-constraints --yaml --")
+		result := workspace.RunNushellCompletion(t, "flag-constraints", "flag-constraints --yaml --")
 
 		assert.False(t, result.HasItem("--json"))
 		assert.False(t, result.HasItem("--table"))
@@ -702,7 +702,7 @@ func TestNushell_NonRepeatableFlagSuppression(t *testing.T) {
 	t.Run("scalar flag is suppressed after consumption", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "06-flag-constraints", "06-flag-constraints --port 8080 --")
+		result := workspace.RunNushellCompletion(t, "flag-constraints", "flag-constraints --port 8080 --")
 
 		assert.False(t, result.HasItem("--port"))
 		assert.True(t, result.HasItem("--api-key"))
@@ -713,7 +713,7 @@ func TestNushell_NonRepeatableFlagSuppression(t *testing.T) {
 	t.Run("slice flag remains available after consumption", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "06-flag-constraints", "06-flag-constraints --zones us-east-1a --")
+		result := workspace.RunNushellCompletion(t, "flag-constraints", "flag-constraints --zones us-east-1a --")
 
 		assert.True(t, result.HasItem("--zones"))
 		assert.True(t, result.HasItem("--port"))
@@ -724,12 +724,12 @@ func TestNushell_NonRepeatableFlagSuppression(t *testing.T) {
 func TestNushell_RootFlagInheritanceAndPreSubcommandPlacement(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
 	t.Run("inherited root flag completion after subcommand", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl deploy --pro")
+		result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion deploy --pro")
 
 		assert.True(t, result.HasItem("--profile"))
 		assert.Equal(t, "", result.Stderr)
@@ -738,7 +738,7 @@ func TestNushell_RootFlagInheritanceAndPreSubcommandPlacement(t *testing.T) {
 	t.Run("pre-subcommand root flag affects subcommand predictor", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl --profile production exec ")
+		result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion --profile production exec ")
 
 		assert.True(t, result.HasItem("api-prod-8a"))
 		assert.True(t, result.HasItem("billing-prod-3b"))
@@ -751,12 +751,12 @@ func TestNushell_RootFlagInheritanceAndPreSubcommandPlacement(t *testing.T) {
 func TestNushell_ContextualPositionalPredictor(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
 	t.Run("default profile and namespace pods", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl exec ")
+		result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion exec ")
 
 		assert.True(t, result.HasItem("api-stage-alpha"))
 		assert.True(t, result.HasItem("auth-stage-beta"))
@@ -767,7 +767,7 @@ func TestNushell_ContextualPositionalPredictor(t *testing.T) {
 	t.Run("database namespace pods without common prefix", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl exec --namespace database ")
+		result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion exec --namespace database ")
 
 		assert.True(t, result.HasItem("pg-stage-0"))
 		assert.True(t, result.HasItem("redis-stage-0"))
@@ -779,14 +779,14 @@ func TestNushell_ContextualPositionalPredictor(t *testing.T) {
 func TestNushell_TerminatorDashArgs(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupTrailingArgs(t)
+	workspace := setupTrailingArgsForwarding(t)
 
 	assert.NoError(t, os.WriteFile(filepath.Join(workspace.WorkDir, "forwarded.txt"), []byte("fixture\n"), 0o600))
 
 	t.Run("flags suppressed after double dash", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "runner", "runner test mypkg -- --")
+		result := workspace.RunNushellCompletion(t, "trailing-args-forwarding", "trailing-args-forwarding test mypkg -- --")
 
 		assert.False(t, result.HasItem("--verbose"))
 		assert.False(t, result.HasItem("--help"))
@@ -796,7 +796,7 @@ func TestNushell_TerminatorDashArgs(t *testing.T) {
 	t.Run("dash args predictor completes files", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "runner", "runner test mypkg -- forw")
+		result := workspace.RunNushellCompletion(t, "trailing-args-forwarding", "trailing-args-forwarding test mypkg -- forw")
 
 		assert.True(t, result.HasItem("forwarded.txt"))
 		assert.Equal(t, "", result.Stderr)
@@ -805,7 +805,7 @@ func TestNushell_TerminatorDashArgs(t *testing.T) {
 	t.Run("raw args predictor completes files after overflow", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "runner", "runner exec mycontainer forw")
+		result := workspace.RunNushellCompletion(t, "trailing-args-forwarding", "trailing-args-forwarding exec mycontainer forw")
 
 		assert.True(t, result.HasItem("forwarded.txt"))
 		assert.Equal(t, "", result.Stderr)
@@ -814,7 +814,7 @@ func TestNushell_TerminatorDashArgs(t *testing.T) {
 	t.Run("flags suppressed once raw mode is active", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "runner", "runner exec mycontainer extra -")
+		result := workspace.RunNushellCompletion(t, "trailing-args-forwarding", "trailing-args-forwarding exec mycontainer extra -")
 
 		assert.False(t, result.HasItem("--verbose"))
 		assert.False(t, result.HasItem("-v"))
@@ -827,7 +827,7 @@ func TestNushell_HiddenFlags(t *testing.T) {
 
 	workspace := setupFlagPrimitives(t)
 
-	result := workspace.RunNushellCompletion(t, "02-flag-primitives", "02-flag-primitives --")
+	result := workspace.RunNushellCompletion(t, "flag-primitives", "flag-primitives --")
 
 	assert.True(t, result.HasItem("--verbosity"))
 	assert.True(t, result.HasItem("--debug"))
@@ -850,7 +850,7 @@ func TestNushell_DomainFilesystemTypes(t *testing.T) {
 	t.Run("input file completion", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "05-domain-types", "05-domain-types --input-file ")
+		result := workspace.RunNushellCompletion(t, "domain-types", "domain-types --input-file ")
 
 		assert.True(t, result.HasItem("sample.txt"))
 		assert.Equal(t, "", result.Stderr)
@@ -859,7 +859,7 @@ func TestNushell_DomainFilesystemTypes(t *testing.T) {
 	t.Run("output dir completion", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "05-domain-types", "05-domain-types --output-dir ")
+		result := workspace.RunNushellCompletion(t, "domain-types", "domain-types --output-dir ")
 
 		assert.True(t, result.HasItem("output_dir/") || result.HasItem("output_dir"))
 		assert.False(t, result.HasItem("sample.txt"))
@@ -870,9 +870,9 @@ func TestNushell_DomainFilesystemTypes(t *testing.T) {
 func TestNushell_SidebandDescriptionLength(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
-	result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl ", "CONGA_DESCRIPTION_LENGTH=10")
+	result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion ", "CONGA_DESCRIPTION_LENGTH=10")
 
 	assert.Equal(t, "", result.Stderr)
 	desc, ok := result.ItemDescription("deploy")
@@ -883,12 +883,12 @@ func TestNushell_SidebandDescriptionLength(t *testing.T) {
 func TestNushell_ColonMultiParts(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
 	t.Run("image repository prefixes", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl deploy --image ")
+		result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion deploy --image ")
 
 		assert.True(t, result.HasItem("api-gateway:") || result.HasItem("api-gateway"))
 		assert.True(t, result.HasItem("auth-service:") || result.HasItem("auth-service"))
@@ -897,7 +897,7 @@ func TestNushell_ColonMultiParts(t *testing.T) {
 	t.Run("image tags after repository prefix", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl deploy --image api-gateway:")
+		result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion deploy --image api-gateway:")
 
 		assert.True(t, result.HasItem("v3.1.0") || result.HasItem("api-gateway:v3.1.0"))
 		assert.True(t, result.HasItem("latest") || result.HasItem("api-gateway:latest"))
@@ -906,10 +906,10 @@ func TestNushell_ColonMultiParts(t *testing.T) {
 	t.Run("unique tag prefix completes colon candidate", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl deploy --image api-gateway:v3.2.1-")
+		result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion deploy --image api-gateway:v3.2.1-")
 
 		assert.True(t, result.HasItem("v3.2.1-rc1") || result.HasItem("api-gateway:v3.2.1-rc1"))
-		assert.Equal(t, "cloudctl deploy --image api-gateway:v3.2.1-rc1", result.BufferTab1)
+		assert.Equal(t, "shell-completion deploy --image api-gateway:v3.2.1-rc1", result.BufferTab1)
 		assert.Equal(t, "", result.Stderr)
 	})
 }
@@ -917,9 +917,9 @@ func TestNushell_ColonMultiParts(t *testing.T) {
 func TestNushell_DomainType_Region(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
-	result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl deploy --region ")
+	result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion deploy --region ")
 
 	assert.True(t, result.HasItem("us-east-1"))
 	assert.True(t, result.HasItem("eu-west-1"))
@@ -929,9 +929,9 @@ func TestNushell_DomainType_Region(t *testing.T) {
 func TestNushell_ContainerExclusion(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
-	result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl exec --container ")
+	result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion exec --container ")
 
 	assert.True(t, result.HasItem("app"))
 	assert.True(t, result.HasItem("cache"))
@@ -941,12 +941,12 @@ func TestNushell_ContainerExclusion(t *testing.T) {
 func TestNushell_PredictorSDK_Combinators(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
 	t.Run("keeporder severity values", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl logs --severity ")
+		result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion logs --severity ")
 
 		assert.True(t, result.HasItem("debug"))
 		assert.True(t, result.HasItem("info"))
@@ -957,7 +957,7 @@ func TestNushell_PredictorSDK_Combinators(t *testing.T) {
 	t.Run("rich items sink completion", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl logs --sink ")
+		result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion logs --sink ")
 
 		assert.True(t, result.HasItem("stdout"))
 		assert.True(t, result.HasItem("file"))
@@ -967,11 +967,11 @@ func TestNushell_PredictorSDK_Combinators(t *testing.T) {
 	t.Run("prefix and suffix combinators", func(t *testing.T) {
 		t.Parallel()
 
-		bucketResult := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl logs --bucket ")
+		bucketResult := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion logs --bucket ")
 		assert.True(t, bucketResult.HasItem("s3://logs-primary"))
 		assert.True(t, bucketResult.HasItem("s3://logs-replica"))
 
-		collectorResult := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl logs --collector ")
+		collectorResult := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion logs --collector ")
 		assert.True(t, collectorResult.HasItem("collector-a:5514"))
 		assert.True(t, collectorResult.HasItem("collector-b:5514"))
 	})
@@ -979,7 +979,7 @@ func TestNushell_PredictorSDK_Combinators(t *testing.T) {
 	t.Run("flagvalues deduplication on mute slice", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "cloudctl", "cloudctl logs --mute api,")
+		result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion logs --mute api,")
 
 		assert.False(t, result.HasItem("api,api"))
 		assert.True(t, result.HasItem("api,auth") || result.HasItem("auth"))
@@ -991,12 +991,12 @@ func TestNushell_PredictorSDK_Combinators(t *testing.T) {
 func TestNushell_ModularPredictors(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupNodectl(t)
+	workspace := setupModularPredictors(t)
 
 	t.Run("subcommands discovery", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "nodectl", "nodectl ")
+		result := workspace.RunNushellCompletion(t, "modular-predictors", "modular-predictors ")
 
 		assert.True(t, result.HasItem("system"))
 		assert.True(t, result.HasItem("network"))
@@ -1006,7 +1006,7 @@ func TestNushell_ModularPredictors(t *testing.T) {
 	t.Run("system kill signals", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "nodectl", "nodectl system kill --signal ")
+		result := workspace.RunNushellCompletion(t, "modular-predictors", "modular-predictors system kill --signal ")
 
 		assert.True(t, result.HasItem("SIGTERM") || result.HasItem("15"))
 		assert.True(t, result.HasItem("SIGKILL") || result.HasItem("9"))
@@ -1015,7 +1015,7 @@ func TestNushell_ModularPredictors(t *testing.T) {
 	t.Run("network subcommands", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunNushellCompletion(t, "nodectl", "nodectl network ")
+		result := workspace.RunNushellCompletion(t, "modular-predictors", "modular-predictors network ")
 
 		assert.True(t, result.HasItem("probe"))
 		assert.True(t, result.HasItem("scan"))

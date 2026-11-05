@@ -10,8 +10,8 @@ import (
 )
 
 type PodCmd struct {
-	Wait conga.OptionalFlag[time.Duration] `default:"5s"     help:"Wait for list consistency"         short:"w"`
-	List conga.Command[PodListCmd]         `envprefix:"POD_" summary:"List pods running on this node"`
+	Wait conga.OptionalFlag[time.Duration] `default:"5s"                             help:"Wait for list consistency" short:"w"`
+	List conga.Command[PodListCmd]         `summary:"List pods running on this node"`
 }
 
 type PodListCmd struct {

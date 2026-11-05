@@ -17,13 +17,13 @@ import (
 func TestBareSpaceFlagSymmetry(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
 	for _, shellName := range []string{"bash", "zsh", "fish", "powershell", "elvish", "nushell"} {
 		t.Run(shellName+"/bare_space_withholds_flags", func(t *testing.T) {
 			t.Parallel()
 
-			bare := runShellCompletion(t, workspace, shellName, "cloudctl logs ")
+			bare := runShellCompletion(t, workspace, shellName, "shell-completion logs ")
 
 			assert.True(t, bare("auth"), "expected the positional argument at a bare space")
 			assert.True(t, bare("billing"), "expected the positional argument at a bare space")
@@ -34,7 +34,7 @@ func TestBareSpaceFlagSymmetry(t *testing.T) {
 		t.Run(shellName+"/dash_prefix_restores_flags", func(t *testing.T) {
 			t.Parallel()
 
-			dash := runShellCompletion(t, workspace, shellName, "cloudctl logs --")
+			dash := runShellCompletion(t, workspace, shellName, "shell-completion logs --")
 
 			assert.True(t, dash("--env"), "the dash prefix offers flags")
 			assert.True(t, dash("--follow"), "the dash prefix offers flags")
@@ -49,17 +49,17 @@ func runShellCompletion(t *testing.T, workspace *shell.Workspace, shellName, cmd
 
 	switch shellName {
 	case "bash":
-		return workspace.RunBashCompletion(t, "cloudctl", cmdLine).HasItem
+		return workspace.RunBashCompletion(t, "shell-completion", cmdLine).HasItem
 	case "zsh":
-		return workspace.RunZshCompletion(t, "cloudctl", cmdLine).HasItem
+		return workspace.RunZshCompletion(t, "shell-completion", cmdLine).HasItem
 	case "fish":
-		return workspace.RunFishCompletion(t, "cloudctl", cmdLine).HasItem
+		return workspace.RunFishCompletion(t, "shell-completion", cmdLine).HasItem
 	case "powershell":
-		return workspace.RunPowerShellCompletion(t, "cloudctl", cmdLine).HasItem
+		return workspace.RunPowerShellCompletion(t, "shell-completion", cmdLine).HasItem
 	case "elvish":
-		return workspace.RunElvishCompletion(t, "cloudctl", cmdLine).HasItem
+		return workspace.RunElvishCompletion(t, "shell-completion", cmdLine).HasItem
 	case "nushell":
-		return workspace.RunNushellCompletion(t, "cloudctl", cmdLine).HasItem
+		return workspace.RunNushellCompletion(t, "shell-completion", cmdLine).HasItem
 	default:
 		assertx.Unreachable(t, "unknown shell "+shellName)
 
