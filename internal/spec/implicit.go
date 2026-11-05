@@ -221,12 +221,12 @@ func flagTokenDepth(chain []*Command, levelChains [][]*Command, tok tokenizer.To
 	}
 }
 
-// shortClusterDepth walks a shorthand cluster the way the token parser does,
-// reporting the deepest implicit level any resolved rune requires and whether
-// the cluster consumes the following token as a value. A negative number is an
-// operand unless its first rune is registered at some level. Built-in help and
-// version runes never end the scan (the parser resolves them after implicit
-// selection), while an unresolved rune does.
+// shortClusterDepth walks a shorthand cluster through WalkShorthand, the token
+// parser's arity contract, reporting the deepest implicit level any resolved
+// rune requires and whether the cluster consumes the following token as a
+// value. A negative number is an operand unless its first rune is registered at
+// some level. Built-in help and version runes never end the scan (the parser
+// resolves them after implicit selection), while an unresolved rune does.
 func shortClusterDepth(chain []*Command, levelChains [][]*Command, tok tokenizer.Token) (bool, int) {
 	runes := tok.ShortRunes
 	if len(runes) == 0 {
@@ -237,26 +237,16 @@ func shortClusterDepth(chain []*Command, levelChains [][]*Command, tok tokenizer
 		return false, 0
 	}
 
+	walk := WalkShorthand(runes, tok.HasAttachedValue, func(r rune) (*Flag, int) {
+		return resolveShortFlag(chain, levelChains, r)
+	})
+
 	requiredDepth := 0
-
-	for position, r := range runes {
-		flagSpec, depth := resolveShortFlag(chain, levelChains, r)
-		if flagSpec == nil {
-			return false, requiredDepth
-		}
-
-		if depth > requiredDepth {
-			requiredDepth = depth
-		}
-
-		if !flagSpec.TakesValue() {
-			continue
-		}
-
-		return position == len(runes)-1 && !tok.HasAttachedValue, requiredDepth
+	for _, step := range walk.Steps {
+		requiredDepth = max(requiredDepth, step.ImplicitLevel)
 	}
 
-	return false, requiredDepth
+	return walk.ConsumesNext, requiredDepth
 }
 
 // shortFlagRegistered reports whether r is declared as a shorthand on the
