@@ -64,7 +64,7 @@ func TerminalImplicitLevels(chain []*Command, tokens []tokenizer.Token, terminat
 
 		ownsTerminatorOperands := current.DashArgs != nil || !terminatorOperands
 		// levelChains is relative to the routed chain; slice to the levels
-		// below activeChain so resolveShortFlag's depth stays relative to the
+		// below activeChain so resolveShortFlagInChain's depth stays relative to the
 		// chain in hand.
 		if entered >= requiredDepth &&
 			(builtinRequestedAt(activeChain, levelChains[entered:], tokens) ||
@@ -163,7 +163,7 @@ func builtinRequestedAt(chain []*Command, levelChains [][]*Command, tokens []tok
 // levels strictly below chain.
 func shortClusterRequestsBuiltin(chain []*Command, levelChains [][]*Command, tok tokenizer.Token) bool {
 	walk := WalkShorthand(tok.ShortRunes, tok.HasAttachedValue, func(r rune) (*Flag, int) {
-		return resolveShortFlag(chain, levelChains, r)
+		return resolveShortFlagInChain(chain, levelChains, r)
 	})
 
 	return slices.ContainsFunc(walk.Steps, func(step ShorthandStep) bool {
@@ -234,7 +234,7 @@ func shortClusterDepth(chain []*Command, levelChains [][]*Command, tok tokenizer
 	}
 
 	walk := WalkShorthand(runes, tok.HasAttachedValue, func(r rune) (*Flag, int) {
-		return resolveShortFlag(chain, levelChains, r)
+		return resolveShortFlagInChain(chain, levelChains, r)
 	})
 
 	requiredDepth := 0
@@ -249,16 +249,16 @@ func shortClusterDepth(chain []*Command, levelChains [][]*Command, tok tokenizer
 // routed chain, is a built-in shorthand, or is declared anywhere in its
 // implicit descendants.
 func shortFlagRegistered(chain []*Command, levelChains [][]*Command, r rune) bool {
-	flagSpec, _ := resolveShortFlag(chain, levelChains, r)
+	flagSpec, _ := resolveShortFlagInChain(chain, levelChains, r)
 
 	return flagSpec != nil
 }
 
-// resolveShortFlag returns the flag declared for r and the implicit level that
+// resolveShortFlagInChain returns the flag declared for r and the implicit level that
 // first declares it: 0 for chain or a built-in, 1 for the nearest level in
 // levelChains. levelChains[i] must be the chain after entering i+1 levels below
 // chain; the returned depth is therefore relative to chain.
-func resolveShortFlag(chain []*Command, levelChains [][]*Command, r rune) (*Flag, int) {
+func resolveShortFlagInChain(chain []*Command, levelChains [][]*Command, r rune) (*Flag, int) {
 	if flagSpec := findCLIShortFlagInChain(chain, r); flagSpec != nil {
 		return flagSpec, 0
 	}

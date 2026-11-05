@@ -132,6 +132,10 @@ type astCompletionWalker struct {
 	// depth scan reads it directly, exactly like the binder's routing scan, so
 	// a flag that precedes the command declaring it still selects the child.
 	tokens []tokenizer.Token
+	// levelChains memoizes implicitLevelChains for levelChainsOwner. Use
+	// levelChainsBelow rather than reading it directly.
+	levelChains      [][]*Command
+	levelChainsOwner *Command
 
 	analysisLeaf         *Command
 	analysisPositionals  []string
@@ -172,6 +176,20 @@ func (w *astCompletionWalker) enterCommand(cmd *Command) {
 	w.posArgs = make([]string, 0)
 }
 
+// levelChainsBelow returns the command chain active after entering each
+// unentered implicit level below currentCmd, nearest first. The result is
+// memoized per currentCmd: a command has exactly one chain from the root, so
+// the cache stays valid however the walker moves, including the rollback in
+// applySelectedImplicitForCandidates.
+func (w *astCompletionWalker) levelChainsBelow() [][]*Command {
+	if w.levelChainsOwner != w.currentCmd {
+		w.levelChains = implicitLevelChains(w.cmdChain, implicitDescendants(w.currentCmd))
+		w.levelChainsOwner = w.currentCmd
+	}
+
+	return w.levelChains
+}
+
 // lookupChain returns the commands whose flags are reachable at the current
 // position. While an implicit command has not been entered, its flags are still
 // valid before the operand that selects it, so the whole unentered implicit
@@ -203,19 +221,13 @@ func (w *astCompletionWalker) resolveNegatableFlag(name string) *Flag {
 
 // resolveShortFlag resolves a shorthand against the active chain first so
 // root-only built-ins keep their visibility, then against CLI flags declared by
-// unentered implicit commands.
+// unentered implicit commands, nearest first. It shares resolveShortFlagInChain
+// with the implicit-depth scan, so completion and routing cannot disagree on
+// which flag a rune names.
 func (w *astCompletionWalker) resolveShortFlag(r rune) *Flag {
-	if flag := FindShortFlagInChain(w.cmdChain, r); flag != nil {
-		return flag
-	}
+	flag, _ := resolveShortFlagInChain(w.cmdChain, w.levelChainsBelow(), r)
 
-	for implicit := w.currentCmd.ImplicitCommand(); implicit != nil; implicit = implicit.ImplicitCommand() {
-		if flag := implicit.findCLIShortFlag(r); flag != nil {
-			return flag
-		}
-	}
-
-	return nil
+	return flag
 }
 
 // applyTerminalImplicit mirrors the runtime terminal implicit selection: end of
