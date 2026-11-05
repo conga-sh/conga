@@ -97,6 +97,10 @@ type Experiments struct {
 
 The two env surfaces are exclusive: a container declares either `env` (one combined `name=value` variable) or `envprefix` (one variable per feature), never both, and field `env` tags are rejected under a combined-map container. Schema build also rejects a feature variable that two fields resolve to, or that a flag also binds. Per-feature variables sit between the command line and configuration files in the [resolution ladder](/explanation/value-precedence/): `--feature-gates` wins per key, the variable overrides the config section, and unlisted keys keep their lower-tier values.
 
+:::note[Application prefixes]
+Application prefixes configured with `App.EnvPrefix` do not reach `Features` containers; a container without an explicit `env` or `envprefix` tag binds no environment variable.
+:::
+
 One environment surface has one display location. The container `help` tag's `{{env}}` inlines only the combined-map variable, so a container whose sole env surface is `envprefix` or field `env` tags rejects `{{env}}` at schema build. Each per-feature variable is rendered beside its feature in the root help screen's [Features section](#features-section).
 
 ## Gate members

@@ -21,6 +21,8 @@ import (
 type CLI struct {
 	Config conga.ConfigFile `short:"c"`
 
+	// Features binds the API_FEATURES variable explicitly; App.EnvPrefix does
+	// not apply to Features containers.
 	Features conga.Features[experiments] `config:"features" env:"API_FEATURES" flag:"feature-gates"`
 
 	Listen        conga.OptionalFlag[string] `default:":8080"       help:"Listen address"                                safe:"true"`

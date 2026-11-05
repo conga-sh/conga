@@ -25,7 +25,7 @@ func New[T any](root ...*T) *App[T]
 | `HelpFooter(footer)` | Footer rendered on every help screen |
 | `Deprecated(reason)` | Whole-app deprecation banner |
 | `Version(version)` | `--version` display string (falls back to build metadata) |
-| `EnvPrefix(prefix)` | Default environment variable prefix for flags (appends trailing `_` if omitted). A subcommand's `envprefix` tag replaces it. |
+| `EnvPrefix(prefix)` | Default environment variable prefix for flags (appends trailing `_` if omitted). Does not apply to `Features` containers. A subcommand's `envprefix` tag replaces it. |
 | `Dotenv(paths...)` | Enable `.env` loading (default `.env` + `.env.local`; [rules](/reference/dotenv/)) |
 | `ConfigOptions(options...)` | Config resolution: `conga.ConfigExplicit(path)`, `conga.ConfigPaths(paths...)`, `conga.ConfigCascading()`; `ConfigExplicit` cannot be combined with paths or cascading. A `conga.Bootstrapper` may additionally contribute a document with `Bootstrap.SetConfig` |
 | `RegisterDecoder(ext, decoder)` | Per-app config format decoder |

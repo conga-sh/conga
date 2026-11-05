@@ -47,6 +47,8 @@ go run ./_examples/29-feature-toggles -c features.yaml admin
 - `metrics` has no gated member; it is declared as an ordinary feature field and
   consumed through `Features.Get()`, while an environment variable can switch
   the default back off.
+- `Features` explicitly declares `env:"API_FEATURES"` because `app.EnvPrefix("API")`
+  namespaces flags only and does not reach feature containers.
 - Inactive gated flags and commands are pruned from `--why` and `__complete`
   candidates; the gated members still exist as struct fields (shown unset by
   the inspector) but are never bound.
