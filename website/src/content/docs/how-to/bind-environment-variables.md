@@ -3,11 +3,11 @@ title: How to bind environment variables
 description: Map environment variables to command flags using prefixes, subcommand tags, and custom overrides.
 ---
 
-CONGA automatically binds environment variables to command flags during flag resolution. This guide explains how to namespace environment variables with an application prefix, configure subcommand prefixes, override variable names per field, and disable environment binding for sensitive flags.
+CONGA binds environment variables to command flags during flag resolution. This guide shows how to set application and subcommand prefixes, override variable names per field, and disable environment binding for sensitive flags.
 
 ## Set an application prefix
 
-Call `EnvPrefix` on the application builder to namespace command flags under an environment variable prefix. The prefix reaches every command except those that declare their own `envprefix` tag:
+Call `EnvPrefix` on the application builder to set a prefix for flag environment variables:
 
 ```go title="main.go"
 package main
@@ -38,25 +38,25 @@ func main() {
 }
 ```
 
-CONGA generates the expected environment variable name by converting the flag name to uppercase, replacing hyphens with underscores, and prepending the application prefix with an underscore (`<PREFIX>_<FLAG>`):
+Flag names are converted to uppercase, with hyphens replaced by underscores (`<PREFIX>_<FLAG>`):
 
 - `--host` binds to `SERVER_HOST`.
 - `--port` binds to `SERVER_PORT`.
 - `--max-memory` binds to `SERVER_MAX_MEMORY`.
 
-Command-line flags take precedence over environment variables in the resolution ladder:
+Flags passed on the command line override environment variables:
 
 ```sh
 SERVER_PORT=9002 server --port 9003
 ```
 
-In the example above, the flag resolves to `9003` from `SourceCLI`. If the `--port` flag is omitted on the command line, the flag resolves to `9002` from `SourceEnv`.
+In the example above, `--port` resolves to `9003`. If `--port` is omitted on the command line, it resolves to `9002` from the environment.
 
-Environment variable binding applies to flags; positional arguments resolve exclusively from command-line tokens.
+Positional arguments do not read environment variables; they resolve only from command-line arguments.
 
 ## Namespace subcommands with envprefix
 
-A subcommand's `envprefix` tag sets the complete environment prefix for its flags. The tag replaces the prefix inherited from the application or an ancestor command; CONGA does not append one to the other.
+To scope a subcommand's flags under its own prefix, add an `envprefix` tag to the `Command[T]` field:
 
 ```go title="main.go"
 type CLI struct {
@@ -68,13 +68,15 @@ type WorkerCmd struct {
 }
 ```
 
-With `EnvPrefix("APP")` on the application, `--concurrency` binds to `APP_WORKER_CONCURRENCY` because the tag spells the full prefix. A tag of `WORKER` binds `WORKER_CONCURRENCY` instead, outside the application namespace.
+An `envprefix` tag replaces any inherited prefix; it does not append. To keep the subcommand inside the application namespace, include the parent prefix in the tag (`APP_WORKER`).
 
-Commands without the tag inherit the prefix from their parent, so the same flag binds to `APP_CONCURRENCY` under an untagged `Worker` subcommand.
+- `envprefix:"APP_WORKER"` binds `--concurrency` to `APP_WORKER_CONCURRENCY`.
+- `envprefix:"WORKER"` replaces `APP_` entirely, binding `--concurrency` to `WORKER_CONCURRENCY`.
+- Omitting the tag inherits the parent prefix, binding `--concurrency` to `APP_CONCURRENCY`.
 
 ## Override variable names per field
 
-Use the `env` struct tag to bind a flag to a custom environment variable name. Explicit `env` tags ignore the application prefix and any `envprefix` tag on the command:
+Use the `env` struct tag to bind a flag to an explicit variable name. Explicit `env` tags ignore all prefixes:
 
 ```go title="main.go"
 type Database struct {
@@ -82,7 +84,7 @@ type Database struct {
 }
 ```
 
-When `env:"DATABASE_URL"` is declared, CONGA reads `DATABASE_URL` directly, regardless of `app.EnvPrefix` or the command's `envprefix`.
+CONGA reads `DATABASE_URL` directly, even when an application or subcommand prefix is configured.
 
 ## Disable environment binding for sensitive flags
 
@@ -96,11 +98,11 @@ type CLI struct {
 
 Declaring `env:"-"` ensures the flag resolves exclusively from command-line arguments or its default value.
 
-## Unset variables with empty values
+## Treat empty environment variables as unset
 
-When an environment variable is set to an empty string (`FOO=""` or `export FOO=`), CONGA treats the variable as unset across all flag types, including string flags. An empty environment variable does not override lower tiers; configuration files, programmatic documents, and default struct tags apply instead.
+CONGA treats empty environment variables (`FOO=""` or `export FOO=`) as unset. An empty variable will not override configuration files or default values.
 
-To clear or set an empty string flag explicitly, pass `--flag ""` on the command line:
+To pass an empty string explicitly, provide `--flag ""` on the command line:
 
 ```sh
 # APP_HOST is empty: default tag or config file supplies the host

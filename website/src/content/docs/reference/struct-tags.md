@@ -17,7 +17,7 @@ CONGA derives the CLI schema from struct fields and their tags. The engine valid
 | `deprecated` | ✅ | – | ✅ | Deprecation notice; suppresses flag from completion. |
 | `enum` | ✅ | ✅ | – | Comma-separated allowed values, checked against the coerced value, rendered in help as `[enum: …]`. |
 | `enumhint` | ✅ | ✅ | – | Set to `-` to suppress the automatic `[enum: …]` help hint while keeping values validated and completed. |
-| `env` | ✅ | ✅ | ✅ | Comma-separated environment variable names. `env:"-"` disables environment binding. Explicit names ignore `envprefix`. |
+| `env` | ✅ | ✅ | ✅ | Comma-separated environment variable names. `env:"-"` disables environment binding. Explicit names ignore all prefixes. |
 | `feature` | ✅ | – | ✅ | Feature-gate expression: the flag exists only while the expression is satisfied (see [Feature toggles](#feature-toggles-congafeaturest)). Required flags reject this tag. |
 | `help` | ✅ | ✅ | ✅ | Help text displayed on the help screen. Supports [help variables](#help-variables). |
 | `hidden` | ✅ | ✅ | ✅ | Suppress from help and completion (`hidden` or `hidden:"true"`). |
@@ -124,7 +124,7 @@ A command that declares `Command[T]` fields is a branch: it routes to its subcom
 |-----|---------|
 | `aliases` | Comma-separated command aliases. |
 | `deprecated` | Deprecation notice displayed in help. |
-| `envprefix` | Complete environment prefix for this command's flags, with a trailing underscore added when missing. Replaces the prefix inherited from the application or an ancestor command. |
+| `envprefix` | Environment prefix for this command's flags. Replaces any inherited prefix. Appends a trailing underscore if omitted. |
 | `feature` | Feature-gate expression: the subcommand and its subtree exist only while the expression is satisfied (see [Feature toggles](#feature-toggles-congafeaturest)). |
 | `hidden` | Suppress from help and completion (`hidden` or `hidden:"true"`). |
 | `implicit` | Route tokens that no explicit subcommand claims into this subcommand. At most one per command. See [Implicit subcommands](#implicit-subcommands). |
@@ -132,7 +132,7 @@ A command that declares `Command[T]` fields is a branch: it routes to its subcom
 | `section` | Help-screen section title. Subcommands sharing a section render under their own titled section and are tagged as `<section> commands` in completion. |
 | `summary` | One-line synopsis displayed in parent command listings and shell completion. |
 
-A subcommand's `envprefix` sets the complete prefix for its own flags: it replaces the prefix it would otherwise inherit from the application or an ancestor command. Descendants inherit that prefix unless they declare their own. The root command has no declaring field, so its prefix comes from `app.EnvPrefix(...)`. Blank (`_`) fields accept no CONGA tags.
+Subcommands without an `envprefix` tag inherit their parent's prefix. Set the root command's prefix with `app.EnvPrefix(...)`.
 
 ### Implicit subcommands
 

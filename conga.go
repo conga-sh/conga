@@ -242,9 +242,9 @@ func (a *App[T]) Version(version string) *App[T] {
 //	EnvPrefix("MYAPP")  --database-url  =>  MYAPP_DATABASE_URL
 //	EnvPrefix("MYAPP")  env:"PORT"      =>  PORT
 //
-// A subcommand that declares an envprefix tag replaces this prefix for its own flags
-// rather than appending to it. The tag carries the complete prefix, so repeat the
-// application prefix to keep the subcommand inside it:
+// An envprefix tag on a subcommand replaces this prefix for its own flags rather
+// than appending to it. Include the application prefix in the tag to keep the
+// subcommand within the application namespace:
 //
 //	EnvPrefix("MYAPP")  envprefix:"MYAPP_WORKER"  --concurrency  =>  MYAPP_WORKER_CONCURRENCY
 //
