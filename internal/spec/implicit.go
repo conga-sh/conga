@@ -157,22 +157,18 @@ func builtinRequestedAt(chain []*Command, levelChains [][]*Command, tokens []tok
 }
 
 // shortClusterRequestsBuiltin reports whether a shorthand cluster binds the
-// built-in help or version flag. A rune that takes a value consumes the rest of
-// the cluster, and an unresolved rune ends it, so neither can reveal a later
-// built-in rune. levelChains holds the implicit levels strictly below chain.
+// built-in help or version flag. WalkShorthand stops at a rune that takes a
+// value (it consumes the rest of the cluster) and at an unresolved rune, so
+// neither can reveal a later built-in rune. levelChains holds the implicit
+// levels strictly below chain.
 func shortClusterRequestsBuiltin(chain []*Command, levelChains [][]*Command, tok tokenizer.Token) bool {
-	for _, r := range tok.ShortRunes {
-		flagSpec, _ := resolveShortFlag(chain, levelChains, r)
-		if IsBuiltinShortFlag(flagSpec) {
-			return true
-		}
+	walk := WalkShorthand(tok.ShortRunes, tok.HasAttachedValue, func(r rune) (*Flag, int) {
+		return resolveShortFlag(chain, levelChains, r)
+	})
 
-		if flagSpec == nil || flagSpec.TakesValue() {
-			return false
-		}
-	}
-
-	return false
+	return slices.ContainsFunc(walk.Steps, func(step ShorthandStep) bool {
+		return IsBuiltinShortFlag(step.Flag)
+	})
 }
 
 // hasFlagTokenBeforeTerminator reports whether a flag token before the --
