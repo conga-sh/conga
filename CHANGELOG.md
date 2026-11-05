@@ -6,6 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 While CONGA is pre-1.0, breaking changes increment the minor version.
 
+## [0.6.0](https://github.com/conga-sh/conga/compare/v0.5.0...v0.6.0) (2026-11-05)
+
+
+### ⚠ BREAKING CHANGES
+
+* `--` now ends subcommand routing; schema build rejects positionals mixed with subcommands and RawArgs combined with command fields. Move positionals to leaf commands or use DashArgs for `--` forwarding.
+
+### ✨ Features
+
+* add implicit subcommand selection by unmatched operands ([#98](https://github.com/conga-sh/conga/issues/98)) ([6d90611](https://github.com/conga-sh/conga/commit/6d90611fa09f4114d6bb2841873cdb2b27bd5a2c))
+* complete trailing arguments with predictors and grammar invariants ([#95](https://github.com/conga-sh/conga/issues/95)) ([43b5f3e](https://github.com/conga-sh/conga/commit/43b5f3efedb30f65922761afb20737e74aa97a5e))
+
+
+### 🐛 Bug Fixes
+
+* **spec:** honor declared help/version flags shadowing built-in shorts ([#97](https://github.com/conga-sh/conga/issues/97)) ([965c3a1](https://github.com/conga-sh/conga/commit/965c3a109d5654f6389d1a54baf78e8fb174ba17))
+
+
+### 📚 Documentation
+
+* **website:** document implicit subcommand routing ([#103](https://github.com/conga-sh/conga/issues/103)) ([17178a3](https://github.com/conga-sh/conga/commit/17178a36fc9c852337e802e660feac7d24cb9fc5))
+
 ## [0.5.0](https://github.com/conga-sh/conga/compare/v0.4.0...v0.5.0) (2026-11-01)
 
 
