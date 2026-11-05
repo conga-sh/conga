@@ -44,6 +44,17 @@ type docClaimsCompletionDeprecatedCLI struct {
 	Completion conga.CompletionCommand `deprecated:"gone" summary:"Completion"`
 }
 
+type docClaimsEnvPrefixWorkerCLI struct {
+	noopRunner
+
+	Concurrency conga.OptionalFlag[int]    `default:"4"              help:"Worker concurrency"`
+	Token       conga.OptionalFlag[string] `env:"DOC_EXPLICIT_TOKEN" help:"Worker token"`
+}
+
+type docClaimsEnvPrefixCLI struct {
+	Worker conga.Command[docClaimsEnvPrefixWorkerCLI] `envprefix:"DOC_WORKER" summary:"Background worker"`
+}
+
 func TestDocClaims_DeprecatedAppWarnsOnlyWhenLifecycleRuns(t *testing.T) {
 	t.Parallel()
 
@@ -122,4 +133,50 @@ func TestDocClaims_DeprecatedTagRestrictions(t *testing.T) {
 
 		assert.IsError(t, err, conga.ErrSchema)
 	})
+}
+
+func TestDocClaims_SubcommandEnvPrefixReplacesAppPrefix(t *testing.T) {
+	t.Setenv("DOC_WORKER_CONCURRENCY", "7")
+	t.Setenv("CONGA_TEST_DOC_APP_DOC_WORKER_CONCURRENCY", "9")
+
+	cli := new(docClaimsEnvPrefixCLI)
+
+	err := conga.New(cli).
+		EnvPrefix("CONGA_TEST_DOC_APP").
+		Args([]string{"worker"}).
+		Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, 7, cli.Worker.Get().Concurrency.Get())
+}
+
+func TestDocClaims_SubcommandEnvPrefixHelpHint(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	err := conga.New[docClaimsEnvPrefixCLI]().
+		EnvPrefix("CONGA_TEST_DOC_APP").
+		Stdout(&buffer).
+		Args([]string{"worker", "--help"}).
+		Run()
+
+	assert.NoError(t, err)
+	assert.Contains(t, buffer.String(), "[env: DOC_WORKER_CONCURRENCY]")
+	assert.NotContains(t, buffer.String(), "CONGA_TEST_DOC_APP_DOC_WORKER_CONCURRENCY")
+}
+
+func TestDocClaims_EnvTagOverridesSubcommandEnvPrefix(t *testing.T) {
+	t.Setenv("DOC_EXPLICIT_TOKEN", "explicit")
+	t.Setenv("DOC_WORKER_TOKEN", "derived")
+
+	cli := new(docClaimsEnvPrefixCLI)
+
+	err := conga.New(cli).
+		EnvPrefix("CONGA_TEST_DOC_APP").
+		Args([]string{"worker"}).
+		Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, "explicit", cli.Worker.Get().Token.Get())
 }
