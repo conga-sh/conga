@@ -23,7 +23,6 @@ func TestAllCongaTagCandidates_CoversEveryContainer(t *testing.T) {
 		featuresFieldTagCandidates,
 		featureFieldTagCandidates,
 		dashRawTagCandidates,
-		sentinelTagCandidates,
 	)
 
 	expected := slices.Compact(slices.Sorted(slices.Values(union)))

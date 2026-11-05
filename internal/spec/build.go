@@ -164,7 +164,7 @@ func newSchemaBuilder(target any, defaultName string, structValue reflect.Value,
 
 	opts.HasBootstrapper = opts.HasBootstrapper || (opts.IsBootstrapper != nil && opts.IsBootstrapper(target))
 
-	envPrefix := cmp.Or(scanSentinelEnvPrefix(structType), opts.EnvPrefix)
+	envPrefix := opts.EnvPrefix
 	if envPrefix != "" && !strings.HasSuffix(envPrefix, "_") {
 		envPrefix += "_"
 	}
@@ -823,14 +823,14 @@ func (b *schemaBuilder) processField(structField reflect.StructField, fieldValue
 	}
 }
 
-// processUnexportedField validates the struct tags of blank sentinel fields;
-// every other unexported field is ignored.
+// processUnexportedField validates the struct tags of blank (_) fields, which
+// accept no CONGA tags; every other unexported field is ignored.
 func (b *schemaBuilder) processUnexportedField(structField reflect.StructField) error {
 	if structField.Name != "_" {
 		return nil
 	}
 
-	if err := b.validateFieldTags(structField, "sentinel field", sentinelTagCandidates); err != nil {
+	if err := b.validateFieldTags(structField, "blank field", nil); err != nil {
 		return b.fieldContextError(structField.Name, err)
 	}
 
@@ -1386,18 +1386,4 @@ func validateTagCandidates(keys []string, role string, candidates []string, allo
 	}
 
 	return nil
-}
-
-func scanSentinelEnvPrefix(structType reflect.Type) string {
-	var envPrefix string
-
-	for structField := range structType.Fields() {
-		if structField.Name == "_" {
-			if prefix, ok := structField.Tag.Lookup("envprefix"); ok {
-				envPrefix = prefix
-			}
-		}
-	}
-
-	return envPrefix
 }

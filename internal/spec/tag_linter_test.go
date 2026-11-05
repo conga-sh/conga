@@ -2,6 +2,7 @@ package spec_test
 
 import (
 	"context"
+	"reflect"
 	"testing"
 
 	"github.com/alecthomas/assert/v2"
@@ -73,8 +74,18 @@ type CounterDefaultTagCLI struct {
 	Verbose mockCounter `default:"2" help:"Verbosity level"`
 }
 
-type SentinelInvalidTagCLI struct {
+type BlankFieldInvalidTagCLI struct {
 	_    struct{}      `help:"App description"`
+	Port mockFlag[int] `help:"Port"`
+}
+
+type BlankFieldEnvPrefixCLI struct {
+	_    struct{}      `envprefix:"APP_"`
+	Port mockFlag[int] `help:"Port"`
+}
+
+type BlankFieldForeignTagCLI struct {
+	_    struct{}      `json:"-"`
 	Port mockFlag[int] `help:"Port"`
 }
 
@@ -282,17 +293,30 @@ func TestStrictTagLinter_ContextValidation(t *testing.T) {
 		assert.Equal(t, `struct CounterDefaultTagCLI field Verbose: schema error: invalid struct tag: tag "default" is not supported on counter flags; counters count command-line occurrences starting at 0. Seed a base level with an env or config-file binding, or use OptionalFlag[int] for a numeric default`, err.Error())
 	})
 
-	t.Run("help tag on sentinel field errors", func(t *testing.T) {
+	t.Run("help tag on blank field errors", func(t *testing.T) {
 		t.Parallel()
 
-		var cli SentinelInvalidTagCLI
+		var cli BlankFieldInvalidTagCLI
 
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
 		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct SentinelInvalidTagCLI field _: schema error: invalid struct tag: tag "help" is invalid on sentinel field (tag "help" is only valid on other CONGA constructs)`, err.Error())
+		assert.Equal(t, `struct BlankFieldInvalidTagCLI field _: schema error: invalid struct tag: tag "help" is invalid on blank field (tag "help" is only valid on other CONGA constructs)`, err.Error())
+	})
+
+	t.Run("envprefix tag on blank field errors", func(t *testing.T) {
+		t.Parallel()
+
+		var cli BlankFieldEnvPrefixCLI
+
+		_, err := buildSchema(&cli, "app", spec.Options{})
+
+		assert.Error(t, err)
+		assert.IsError(t, err, spec.ErrSchema)
+		assert.IsError(t, err, spec.ErrInvalidStructTag)
+		assert.Equal(t, `struct BlankFieldEnvPrefixCLI field _: schema error: invalid struct tag: tag "envprefix" is not supported on blank (_) fields; set the root prefix with app.EnvPrefix(...) and a subcommand prefix with the envprefix tag on its Command[T] field`, err.Error())
 	})
 }
 
@@ -310,6 +334,35 @@ func TestStrictTagLinter_ForeignEcosystemTags(t *testing.T) {
 		assert.Equal(t, 1, len(s.Flags))
 		assert.Equal(t, "name", s.Flags[0].Name)
 	})
+}
+
+func TestStrictTagLinter_BlankFieldForeignTagAccepted(t *testing.T) {
+	t.Parallel()
+
+	var cli BlankFieldForeignTagCLI
+
+	_, err := buildSchema(&cli, "app", spec.Options{})
+
+	assert.NoError(t, err)
+}
+
+func TestValidateFieldTags_BlankFieldEnvPrefixRejectedWhenUnknownKeysSkipped(t *testing.T) {
+	t.Parallel()
+
+	err := spec.ValidateFieldTags(reflect.StructTag(`envprefix:"APP_"`), "blank field", nil, spec.ValidationOptions{SkipUnknownTagKeyCheck: true})
+
+	assert.Error(t, err)
+	assert.IsError(t, err, spec.ErrSchema)
+	assert.IsError(t, err, spec.ErrInvalidStructTag)
+	assert.Equal(t, `schema error: invalid struct tag: tag "envprefix" is not supported on blank (_) fields; set the root prefix with app.EnvPrefix(...) and a subcommand prefix with the envprefix tag on its Command[T] field`, err.Error())
+}
+
+func TestValidateFieldTags_BlankFieldHelpAcceptedWhenUnknownKeysSkipped(t *testing.T) {
+	t.Parallel()
+
+	err := spec.ValidateFieldTags(reflect.StructTag(`help:"App description"`), "blank field", nil, spec.ValidationOptions{SkipUnknownTagKeyCheck: true})
+
+	assert.NoError(t, err)
 }
 
 func TestStrictTagLinter_CongaTagRejected(t *testing.T) {

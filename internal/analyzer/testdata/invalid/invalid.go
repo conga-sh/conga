@@ -833,3 +833,16 @@ func (i *ImplicitBuiltinApp) Run(ctx context.Context, session *conga.Session) er
 }
 
 var _ = conga.New[ImplicitBuiltinApp]()
+
+// BlankFieldEnvPrefixApp declares the removed blank-field envprefix form.
+type BlankFieldEnvPrefixApp struct {
+	_    struct{}                `envprefix:"APP_"` // want `tag "envprefix" is not supported on blank \(_\) fields`
+	Port conga.OptionalFlag[int] `help:"Port"`
+}
+
+// Run executes the root command.
+func (b *BlankFieldEnvPrefixApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[BlankFieldEnvPrefixApp]()

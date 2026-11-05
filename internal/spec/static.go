@@ -96,8 +96,10 @@ func TagCandidatesForRole(role string) ([]string, bool) {
 		return featureFieldTagCandidates, true
 	case "dash args", "raw args":
 		return dashRawTagCandidates, true
-	case "sentinel field":
-		return sentinelTagCandidates, true
+	case "blank field":
+		// Known with no candidates: blank fields accept no CONGA tags, and the
+		// analyzer only runs ValidateFieldTags (and its role rules) for known roles.
+		return nil, true
 	default:
 		return nil, false
 	}
@@ -471,9 +473,21 @@ func validateRoleTagRules(tag reflect.StructTag, role string, opts ValidationOpt
 		if _, _, err := ParseStrictBoolTag(tag, "implicit"); err != nil {
 			return err
 		}
+	case "blank field":
+		if _, ok := tag.Lookup("envprefix"); ok {
+			return blankFieldEnvPrefixError()
+		}
 	}
 
 	return nil
+}
+
+// blankFieldEnvPrefixError reports an envprefix tag on a blank (_) field. The
+// blank-field prefix form was removed; the check runs regardless of the
+// unknown-tag-key setting so legacy declarations never silently lose their
+// prefix.
+func blankFieldEnvPrefixError() error {
+	return fmt.Errorf("%w: tag \"envprefix\" is not supported on blank (_) fields; set the root prefix with app.EnvPrefix(...) and a subcommand prefix with the envprefix tag on its Command[T] field", ErrInvalidStructTag)
 }
 
 // validateEnumHintTag validates the enumhint struct tag of a flag, positional

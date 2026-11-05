@@ -23,7 +23,6 @@ var (
 	featuresFieldTagCandidates  = []string{"flag", "env", "envprefix", "config", "sep", "help", "enumhint"}
 	featureFieldTagCandidates   = []string{"name", "help", "env", "default", "enum", "stage"}
 	dashRawTagCandidates        = []string{"name", "bootstrap", "predictor"}
-	sentinelTagCandidates       = []string{"envprefix"}
 	allCongaTagCandidates       = []string{
 		"name", "short", "help", "default", "env", "aliases", "section", "hidden", "safe",
 		"xor", "and", "oneof", "enum", "enumhint", "range", "len", "items", "sep", "negatable", "placeholder",
@@ -77,7 +76,7 @@ func validContextDescription(tag string) string {
 	case "short", "xor", "and", "oneof", "negatable", "config", "placeholder", "safe":
 		return "flags"
 	case "envprefix":
-		return "subcommands and sentinel fields"
+		return "subcommands and Features containers"
 	case "summary":
 		return "commands"
 	case "section":

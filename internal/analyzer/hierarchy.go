@@ -77,8 +77,8 @@ type commandNode struct {
 	inPackage  bool
 	reportPos  token.Pos
 	// envPrefix is the effective environment variable prefix inherited by the
-	// command (its own sentinel tag, else the declaring Command[T] field's
-	// envprefix tag, else the parent's, else the app-level prefix), normalized
+	// command (the declaring Command[T] field's envprefix tag, else the
+	// parent's, else the app-level prefix), normalized
 	// with the trailing underscore the runtime schema builder applies.
 	envPrefix string
 	// envPrefixKnown reports whether envPrefix was resolved from literal
@@ -185,16 +185,14 @@ func (w *walker) walkRoot(root *anchor) {
 	w.featureEnvFieldObject = nil
 	w.flagEnvBindings = nil
 
-	rootEnvPrefix := nodeEnvPrefix(structType)
-
 	node := &commandNode{
 		named:           root.rootType,
 		structType:      structType,
 		name:            casing.Kebab(root.rootType.Obj().Name()),
 		inPackage:       w.isCurrentPackage(root.rootType.Obj()),
 		reportPos:       root.position,
-		envPrefix:       normalizedEnvPrefix(cmp.Or(rootEnvPrefix, w.options.envPrefix)),
-		envPrefixKnown:  rootEnvPrefix != "" || !w.options.envPrefixAmbiguous,
+		envPrefix:       normalizedEnvPrefix(w.options.envPrefix),
+		envPrefixKnown:  !w.options.envPrefixAmbiguous,
 		isRoot:          true,
 		hasBootstrapper: w.implements(types.NewPointer(root.rootType), w.conga.bootstrapper),
 	}
@@ -255,7 +253,7 @@ func (w *walker) walkCommand(node *commandNode, ancestorNames map[string]string,
 func (w *walker) checkField(node *commandNode, fieldObject types.Object, tag reflect.StructTag, branchNames map[string]string, branchShorts map[rune]string, branchGroups map[groupPair]string, census *groupCensus) *commandNode {
 	if !fieldObject.Exported() {
 		if fieldObject.Name() == "_" {
-			w.validateNodeFieldTags(node, fieldObject, tag, "sentinel field", nil)
+			w.validateNodeFieldTags(node, fieldObject, tag, "blank field", nil)
 		}
 
 		return nil
@@ -511,7 +509,7 @@ func (w *walker) buildChildNode(node *commandNode, fieldObject types.Object, tag
 		return nil
 	}
 
-	localEnvPrefix := cmp.Or(nodeEnvPrefix(structType), tag.Get("envprefix"))
+	localEnvPrefix := tag.Get("envprefix")
 
 	childNode := &commandNode{
 		named:           named,
@@ -609,24 +607,6 @@ func normalizedEnvPrefix(prefix string) string {
 	}
 
 	return prefix + "_"
-}
-
-// nodeEnvPrefix mirrors the runtime scanSentinelEnvPrefix scan: the
-// last sentinel field declaring envprefix wins.
-func nodeEnvPrefix(structType *types.Struct) string {
-	var envPrefix string
-
-	for index := range structType.NumFields() {
-		if structType.Field(index).Name() != "_" {
-			continue
-		}
-
-		if prefix, ok := reflect.StructTag(structType.Tag(index)).Lookup("envprefix"); ok {
-			envPrefix = prefix
-		}
-	}
-
-	return envPrefix
 }
 
 // resolveCongaTypes resolves the runtime conga package objects the analyzer

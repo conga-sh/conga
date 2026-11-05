@@ -232,15 +232,21 @@ func (a *App[T]) Version(version string) *App[T] {
 	return a
 }
 
-// EnvPrefix sets the global environment variable prefix applied to derived flag bindings.
+// EnvPrefix sets the default environment variable prefix for derived flag bindings.
 //
 // CONGA appends a trailing underscore when the prefix lacks one, so the prefix MYAPP
 // becomes MYAPP_. Flags without an explicit env tag derive their variable name from the
 // prefix and the uppercase flag name, with hyphens replaced by underscores. A field
-// declaring an env tag uses that name verbatim and ignores the prefix:
+// declaring an env tag uses that name verbatim and ignores any prefix:
 //
 //	EnvPrefix("MYAPP")  --database-url  =>  MYAPP_DATABASE_URL
 //	EnvPrefix("MYAPP")  env:"PORT"      =>  PORT
+//
+// An envprefix tag on a subcommand replaces this prefix for its own flags rather
+// than appending to it. Include the application prefix in the tag to keep the
+// subcommand within the application namespace:
+//
+//	EnvPrefix("MYAPP")  envprefix:"MYAPP_WORKER"  --concurrency  =>  MYAPP_WORKER_CONCURRENCY
 //
 // Environment variable bindings outrank configuration file values and defaults, but
 // yield to explicit command-line flags.
@@ -1514,10 +1520,6 @@ func (a *App[T]) buildSpec() (*spec.Command, error) {
 
 	if a.version != "" {
 		cmd.Version = a.version
-	}
-
-	if a.envPrefix != "" && cmd.EnvPrefix == "" {
-		cmd.EnvPrefix = a.envPrefix
 	}
 
 	a.rootCommand = cmd
