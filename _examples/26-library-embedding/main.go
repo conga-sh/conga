@@ -47,7 +47,7 @@ func main() {
 	capturedCode := 0
 
 	app := conga.New[DeployJobCLI]().
-		Name("batchrun").
+		Name("library-embedding").
 		Description("Batch job runner with a fully hosted lifecycle").
 		Version("1.0.0").
 		// The host renders its own help/version UX; why and shell completion

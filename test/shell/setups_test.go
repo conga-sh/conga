@@ -8,11 +8,11 @@ import (
 	"github.com/conga-sh/conga/test/shell"
 )
 
-func setupCloudctl(t *testing.T) *shell.Workspace {
+func setupShellCompletion(t *testing.T) *shell.Workspace {
 	t.Helper()
 
 	workspace := shell.NewWorkspace(t)
-	workspace.BuildBinary(t, "../../_examples/19-shell-completion", "cloudctl")
+	workspace.BuildBinary(t, "../../_examples/19-shell-completion", "shell-completion")
 
 	return workspace
 }
@@ -21,7 +21,7 @@ func setupFlagConstraints(t *testing.T) *shell.Workspace {
 	t.Helper()
 
 	workspace := shell.NewWorkspace(t)
-	workspace.BuildBinary(t, "../../_examples/06-flag-constraints", "06-flag-constraints")
+	workspace.BuildBinary(t, "../../_examples/06-flag-constraints", "flag-constraints")
 
 	return workspace
 }
@@ -30,34 +30,34 @@ func setupDomainTypes(t *testing.T) *shell.Workspace {
 	t.Helper()
 
 	workspace := shell.NewWorkspace(t)
-	workspace.BuildBinary(t, "../../_examples/05-domain-types", "05-domain-types")
+	workspace.BuildBinary(t, "../../_examples/05-domain-types", "domain-types")
 
 	return workspace
 }
 
-func setupMemberDeprecated(t *testing.T) *shell.Workspace {
+func setupMemberDeprecation(t *testing.T) *shell.Workspace {
 	t.Helper()
 
 	workspace := shell.NewWorkspace(t)
-	workspace.BuildBinary(t, "../../_examples/23-member-deprecation", "member-deprecated")
+	workspace.BuildBinary(t, "../../_examples/23-member-deprecation", "member-deprecation")
 
 	return workspace
 }
 
-func setupAppDeprecated(t *testing.T) *shell.Workspace {
+func setupAppDeprecation(t *testing.T) *shell.Workspace {
 	t.Helper()
 
 	workspace := shell.NewWorkspace(t)
-	workspace.BuildBinary(t, "../../_examples/22-app-deprecation", "app-deprecated")
+	workspace.BuildBinary(t, "../../_examples/22-app-deprecation", "app-deprecation")
 
 	return workspace
 }
 
-func setupTrailingArgs(t *testing.T) *shell.Workspace {
+func setupTrailingArgsForwarding(t *testing.T) *shell.Workspace {
 	t.Helper()
 
 	workspace := shell.NewWorkspace(t)
-	workspace.BuildBinary(t, "../../_examples/11-trailing-args-forwarding", "runner")
+	workspace.BuildBinary(t, "../../_examples/11-trailing-args-forwarding", "trailing-args-forwarding")
 
 	return workspace
 }
@@ -66,16 +66,16 @@ func setupFlagPrimitives(t *testing.T) *shell.Workspace {
 	t.Helper()
 
 	workspace := shell.NewWorkspace(t)
-	workspace.BuildBinary(t, "../../_examples/02-flag-primitives", "02-flag-primitives")
+	workspace.BuildBinary(t, "../../_examples/02-flag-primitives", "flag-primitives")
 
 	return workspace
 }
 
-func setupNodectl(t *testing.T) *shell.Workspace {
+func setupModularPredictors(t *testing.T) *shell.Workspace {
 	t.Helper()
 
 	workspace := shell.NewWorkspace(t)
-	workspace.BuildBinary(t, "../../_examples/20-modular-predictors", "nodectl")
+	workspace.BuildBinary(t, "../../_examples/20-modular-predictors", "modular-predictors")
 
 	return workspace
 }

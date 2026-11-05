@@ -32,7 +32,7 @@ func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
 
 func main() {
 	app := conga.New[CLI]().
-		Name("negmap").
+		Name("negatable-and-maps").
 		Description("Negatable booleans, maps, and slice delimiter controls").
 		Version("1.0.0")
 

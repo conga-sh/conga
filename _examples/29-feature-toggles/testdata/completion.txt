@@ -7,17 +7,17 @@ env HOME=$WORK/home
 env XDG_CONFIG_HOME=$WORK/xdg
 
 # 1. Default: gated flags and the gated command are absent.
-exec serve __complete export --
+exec feature-toggles __complete export --
 stdout '"value":"--listen"'
 stdout '"value":"--cache"'
 ! stdout '"value":"--http3"'
 ! stdout '"value":"--allow-insecure"'
-exec serve __complete export ""
+exec feature-toggles __complete export ""
 ! stdout '"value":"admin"'
 
 # 2. Enabling the features reveals them in completion.
-env SERVE_FEATURES=http3=true,admin-api=true
-exec serve __complete export --
+env API_FEATURES=http3=true,admin-api=true
+exec feature-toggles __complete export --
 stdout '"value":"--http3"'
-exec serve __complete export ""
+exec feature-toggles __complete export ""
 stdout '"value":"admin"'

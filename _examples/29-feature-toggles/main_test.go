@@ -10,7 +10,7 @@ import (
 
 func TestMain(m *testing.M) {
 	testutil.Main(m, map[string]func(){
-		"serve": main,
+		"feature-toggles": main,
 	})
 }
 

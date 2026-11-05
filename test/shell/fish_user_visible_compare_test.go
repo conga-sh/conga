@@ -17,14 +17,14 @@ import (
 func TestFishUserVisible_Suite1_SubcommandsAndBareCommand(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
 	t.Run("bare_root_command_lists_subcommands", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunFishCompletion(t, "cloudctl", "cloudctl ")
+		result := workspace.RunFishCompletion(t, "shell-completion", "shell-completion ")
 
-		assert.Equal(t, "cloudctl ", result.BufferTab1, "Tab 1 on bare root command must not insert flags or mutate buffer")
+		assert.Equal(t, "shell-completion ", result.BufferTab1, "Tab 1 on bare root command must not insert flags or mutate buffer")
 		assert.True(t, result.HasItem("deploy"), "expected deploy subcommand")
 		assert.True(t, result.HasItem("logs"), "expected logs subcommand")
 		assert.True(t, result.HasItem("completion"), "expected completion subcommand")
@@ -34,9 +34,9 @@ func TestFishUserVisible_Suite1_SubcommandsAndBareCommand(t *testing.T) {
 	t.Run("subcommand_prefix_expands_buffer", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunFishCompletion(t, "cloudctl", "cloudctl dep")
+		result := workspace.RunFishCompletion(t, "shell-completion", "shell-completion dep")
 
-		assert.Equal(t, "cloudctl deploy", result.BufferTab1)
+		assert.Equal(t, "shell-completion deploy", result.BufferTab1)
 		assert.True(t, result.HasItem("deploy"))
 		assert.False(t, result.HasItem("logs"))
 		assert.Equal(t, "", result.Stderr)
@@ -45,7 +45,7 @@ func TestFishUserVisible_Suite1_SubcommandsAndBareCommand(t *testing.T) {
 	t.Run("subcommand_alias_resolves", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunFishCompletion(t, "cloudctl", "cloudctl d")
+		result := workspace.RunFishCompletion(t, "shell-completion", "shell-completion d")
 
 		assert.True(t, result.HasItem("deploy"))
 		assert.Equal(t, "", result.Stderr)
@@ -57,14 +57,14 @@ func TestFishUserVisible_Suite1_SubcommandsAndBareCommand(t *testing.T) {
 func TestFishUserVisible_Suite2_PositionalArguments(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
 	t.Run("unconstrained_positional_preserves_buffer_without_dash", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunFishCompletion(t, "cloudctl", "cloudctl deploy ")
+		result := workspace.RunFishCompletion(t, "shell-completion", "shell-completion deploy ")
 
-		assert.Equal(t, "cloudctl deploy ", result.BufferTab1, "Tab 1 on unconstrained positional must not insert dash")
+		assert.Equal(t, "shell-completion deploy ", result.BufferTab1, "Tab 1 on unconstrained positional must not insert dash")
 		assert.False(t, result.HasItem("--env"), "flags must be suppressed on bare space in every shell")
 		assert.Equal(t, "", result.Stderr)
 	})
@@ -72,7 +72,7 @@ func TestFishUserVisible_Suite2_PositionalArguments(t *testing.T) {
 	t.Run("unconstrained_positional_flag_discovery_with_dash", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunFishCompletion(t, "cloudctl", "cloudctl deploy -")
+		result := workspace.RunFishCompletion(t, "shell-completion", "shell-completion deploy -")
 
 		assert.True(t, result.HasItem("--env") || result.HasItem("-e"))
 		assert.True(t, result.HasItem("--cluster") || result.HasItem("-c"))
@@ -82,9 +82,9 @@ func TestFishUserVisible_Suite2_PositionalArguments(t *testing.T) {
 	t.Run("positional_enum_completion", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunFishCompletion(t, "cloudctl", "cloudctl logs ")
+		result := workspace.RunFishCompletion(t, "shell-completion", "shell-completion logs ")
 
-		assert.Equal(t, "cloudctl logs ", result.BufferTab1)
+		assert.Equal(t, "shell-completion logs ", result.BufferTab1)
 		assert.True(t, result.HasItem("auth"))
 		assert.True(t, result.HasItem("billing"))
 		assert.True(t, result.HasItem("api"))
@@ -95,9 +95,9 @@ func TestFishUserVisible_Suite2_PositionalArguments(t *testing.T) {
 	t.Run("positional_prefix_filters_enum", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunFishCompletion(t, "cloudctl", "cloudctl logs bi")
+		result := workspace.RunFishCompletion(t, "shell-completion", "shell-completion logs bi")
 
-		assert.Equal(t, "cloudctl logs billing", result.BufferTab1)
+		assert.Equal(t, "shell-completion logs billing", result.BufferTab1)
 		assert.True(t, result.HasItem("billing"))
 		assert.False(t, result.HasItem("auth"))
 		assert.Equal(t, "", result.Stderr)
@@ -109,14 +109,14 @@ func TestFishUserVisible_Suite2_PositionalArguments(t *testing.T) {
 func TestFishUserVisible_Suite3_FlagsAndModifiers(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
 	t.Run("longhand_flag_prefix_lists_flags", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunFishCompletion(t, "cloudctl", "cloudctl deploy --e")
+		result := workspace.RunFishCompletion(t, "shell-completion", "shell-completion deploy --e")
 
-		assert.Equal(t, "cloudctl deploy --env", result.BufferTab1)
+		assert.Equal(t, "shell-completion deploy --env", result.BufferTab1)
 		assert.True(t, result.HasItem("--env"))
 		assert.Equal(t, "", result.Stderr)
 	})
@@ -124,9 +124,9 @@ func TestFishUserVisible_Suite3_FlagsAndModifiers(t *testing.T) {
 	t.Run("shorthand_flag_prefix_lists_flags", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunFishCompletion(t, "cloudctl", "cloudctl deploy -e")
+		result := workspace.RunFishCompletion(t, "shell-completion", "shell-completion deploy -e")
 
-		assert.Equal(t, "cloudctl deploy -e", result.BufferTab1)
+		assert.Equal(t, "shell-completion deploy -e", result.BufferTab1)
 		assert.True(t, result.HasItem("-e"))
 		assert.Equal(t, "", result.Stderr)
 	})
@@ -134,7 +134,7 @@ func TestFishUserVisible_Suite3_FlagsAndModifiers(t *testing.T) {
 	t.Run("flag_list_on_double_dash", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunFishCompletion(t, "cloudctl", "cloudctl deploy --")
+		result := workspace.RunFishCompletion(t, "shell-completion", "shell-completion deploy --")
 
 		assert.True(t, result.HasItem("--env"))
 		assert.True(t, result.HasItem("--cluster"))
@@ -146,9 +146,9 @@ func TestFishUserVisible_Suite3_FlagsAndModifiers(t *testing.T) {
 	t.Run("documented_exception_automatic_negatable_boolean_flags", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunFishCompletion(t, "cloudctl", "cloudctl deploy --no-")
+		result := workspace.RunFishCompletion(t, "shell-completion", "shell-completion deploy --no-")
 
-		assert.Equal(t, "cloudctl deploy --no-dry-run", result.BufferTab1)
+		assert.Equal(t, "shell-completion deploy --no-dry-run", result.BufferTab1)
 		assert.True(t, result.HasItem("--no-dry-run"))
 		assert.Equal(t, "", result.Stderr)
 	})
@@ -159,14 +159,14 @@ func TestFishUserVisible_Suite3_FlagsAndModifiers(t *testing.T) {
 func TestFishUserVisible_Suite4_FlagValuesAndContext(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
 	t.Run("enum_flag_values", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunFishCompletion(t, "cloudctl", "cloudctl deploy --env ")
+		result := workspace.RunFishCompletion(t, "shell-completion", "shell-completion deploy --env ")
 
-		assert.Equal(t, "cloudctl deploy --env ", result.BufferTab1)
+		assert.Equal(t, "shell-completion deploy --env ", result.BufferTab1)
 		assert.True(t, result.HasItem("staging"))
 		assert.True(t, result.HasItem("production"))
 		assert.True(t, result.HasItem("qa"))
@@ -176,9 +176,9 @@ func TestFishUserVisible_Suite4_FlagValuesAndContext(t *testing.T) {
 	t.Run("attached_flag_prefix_expansion", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunFishCompletion(t, "cloudctl", "cloudctl deploy --env=pr")
+		result := workspace.RunFishCompletion(t, "shell-completion", "shell-completion deploy --env=pr")
 
-		assert.Equal(t, "cloudctl deploy --env=production", result.BufferTab1)
+		assert.Equal(t, "shell-completion deploy --env=production", result.BufferTab1)
 		assert.True(t, result.HasItem("--env=production"))
 		assert.Equal(t, "", result.Stderr)
 	})
@@ -186,12 +186,12 @@ func TestFishUserVisible_Suite4_FlagValuesAndContext(t *testing.T) {
 	t.Run("context_aware_dynamic_cluster_completion", func(t *testing.T) {
 		t.Parallel()
 
-		prodResult := workspace.RunFishCompletion(t, "cloudctl", "cloudctl deploy --env production --cluster prod-")
+		prodResult := workspace.RunFishCompletion(t, "shell-completion", "shell-completion deploy --env production --cluster prod-")
 		assert.True(t, prodResult.HasItem("prod-us-east-1"))
 		assert.True(t, prodResult.HasItem("prod-eu-west-1"))
 		assert.False(t, prodResult.HasItem("qa-test-1"))
 
-		qaResult := workspace.RunFishCompletion(t, "cloudctl", "cloudctl deploy --env qa --cluster qa-test-")
+		qaResult := workspace.RunFishCompletion(t, "shell-completion", "shell-completion deploy --env qa --cluster qa-test-")
 		assert.True(t, qaResult.HasItem("qa-test-1"))
 		assert.True(t, qaResult.HasItem("qa-test-2"))
 		assert.False(t, qaResult.HasItem("prod-us-east-1"))
@@ -203,16 +203,16 @@ func TestFishUserVisible_Suite4_FlagValuesAndContext(t *testing.T) {
 func TestFishUserVisible_Suite5_ComplexTokensAndMapDeduplication(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
 	t.Run("multiparts_key_and_value_segments", func(t *testing.T) {
 		t.Parallel()
 
-		keyResult := workspace.RunFishCompletion(t, "cloudctl", "cloudctl logs --labels ")
+		keyResult := workspace.RunFishCompletion(t, "shell-completion", "shell-completion logs --labels ")
 		assert.True(t, keyResult.HasItem("team=") || keyResult.HasItem("team"))
 		assert.True(t, keyResult.HasItem("tier=") || keyResult.HasItem("tier"))
 
-		valueResult := workspace.RunFishCompletion(t, "cloudctl", "cloudctl logs --labels team=")
+		valueResult := workspace.RunFishCompletion(t, "shell-completion", "shell-completion logs --labels team=")
 		assert.True(t, valueResult.HasItem("core") || valueResult.HasItem("team=core"))
 		assert.True(t, valueResult.HasItem("frontend") || valueResult.HasItem("team=frontend"))
 	})
@@ -220,7 +220,7 @@ func TestFishUserVisible_Suite5_ComplexTokensAndMapDeduplication(t *testing.T) {
 	t.Run("documented_exception_map_key_deduplication_across_flags", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunFishCompletion(t, "cloudctl", "cloudctl logs --labels team=core --labels ")
+		result := workspace.RunFishCompletion(t, "shell-completion", "shell-completion logs --labels team=core --labels ")
 
 		assert.False(t, result.HasItem("team=") || result.HasItem("team"), "team key must be excluded as already assigned")
 		assert.True(t, result.HasItem("tier=") || result.HasItem("tier"))
@@ -230,7 +230,7 @@ func TestFishUserVisible_Suite5_ComplexTokensAndMapDeduplication(t *testing.T) {
 	t.Run("documented_exception_map_value_deduplication", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunFishCompletion(t, "cloudctl", "cloudctl logs --labels owner=alice --labels owner=")
+		result := workspace.RunFishCompletion(t, "shell-completion", "shell-completion logs --labels owner=alice --labels owner=")
 
 		assert.False(t, result.HasItem("alice") || result.HasItem("owner=alice"), "alice must be excluded as already assigned")
 		assert.True(t, result.HasItem("bob") || result.HasItem("owner=bob"))
@@ -240,7 +240,7 @@ func TestFishUserVisible_Suite5_ComplexTokensAndMapDeduplication(t *testing.T) {
 	t.Run("delimited_slice_flags_deduplication", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunFishCompletion(t, "cloudctl", "cloudctl deploy --features canary,")
+		result := workspace.RunFishCompletion(t, "shell-completion", "shell-completion deploy --features canary,")
 
 		candidateValues := slicex.Map(result.Items, func(item shell.Candidate) string { return item.Value })
 
@@ -253,12 +253,12 @@ func TestFishUserVisible_Suite5_ComplexTokensAndMapDeduplication(t *testing.T) {
 func TestFishUserVisible_Suite6_QuotingAndEscaping(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
 	t.Run("single_quoted_positional_prefix", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunFishCompletion(t, "cloudctl", "cloudctl logs 'au")
+		result := workspace.RunFishCompletion(t, "shell-completion", "shell-completion logs 'au")
 
 		assert.True(t, result.HasItem("auth"))
 	})
@@ -266,7 +266,7 @@ func TestFishUserVisible_Suite6_QuotingAndEscaping(t *testing.T) {
 	t.Run("double_quoted_positional_prefix", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunFishCompletion(t, "cloudctl", `cloudctl logs "bi`)
+		result := workspace.RunFishCompletion(t, "shell-completion", `shell-completion logs "bi`)
 
 		assert.True(t, result.HasItem("billing"))
 	})
@@ -274,7 +274,7 @@ func TestFishUserVisible_Suite6_QuotingAndEscaping(t *testing.T) {
 	t.Run("flags_after_quoted_positional_argument", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunFishCompletion(t, "cloudctl", "cloudctl deploy 'my-service' --")
+		result := workspace.RunFishCompletion(t, "shell-completion", "shell-completion deploy 'my-service' --")
 
 		assert.True(t, result.HasItem("--env"))
 		assert.True(t, result.HasItem("--cluster"))

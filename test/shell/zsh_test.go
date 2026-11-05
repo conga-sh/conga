@@ -15,9 +15,9 @@ import (
 func TestZsh_Subcommands(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
-	result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl ")
+	result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion ")
 
 	assert.True(t, result.HasItem("deploy"), "expected deploy subcommand")
 	assert.True(t, result.HasItem("logs"), "expected logs subcommand")
@@ -34,9 +34,9 @@ func TestZsh_Subcommands(t *testing.T) {
 func TestZsh_SubcommandPrefix(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
-	result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl d")
+	result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion d")
 
 	assert.True(t, result.HasItem("deploy"))
 	assert.False(t, result.HasItem("logs"))
@@ -45,9 +45,9 @@ func TestZsh_SubcommandPrefix(t *testing.T) {
 func TestZsh_Flags(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
-	result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl deploy --")
+	result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion deploy --")
 
 	assert.True(t, result.HasItem("--env"))
 	assert.True(t, result.HasItem("--region"))
@@ -72,7 +72,7 @@ func TestZsh_Flags(t *testing.T) {
 	t.Run("logs flags", func(t *testing.T) {
 		t.Parallel()
 
-		logsResult := workspace.RunZshCompletion(t, "cloudctl", "cloudctl logs --")
+		logsResult := workspace.RunZshCompletion(t, "shell-completion", "shell-completion logs --")
 
 		assert.True(t, logsResult.HasItem("--labels"))
 	})
@@ -81,9 +81,9 @@ func TestZsh_Flags(t *testing.T) {
 func TestZsh_NegatableFlags(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
-	result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl deploy --no-")
+	result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion deploy --no-")
 
 	assert.True(t, result.HasItem("--no-dry-run"))
 
@@ -95,9 +95,9 @@ func TestZsh_NegatableFlags(t *testing.T) {
 func TestZsh_AttachedFlags(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
-	result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl deploy --env=")
+	result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion deploy --env=")
 
 	assert.True(t, result.HasItem("staging") || result.HasItem("--env=staging"))
 	assert.True(t, result.HasItem("production") || result.HasItem("--env=production"))
@@ -107,9 +107,9 @@ func TestZsh_AttachedFlags(t *testing.T) {
 func TestZsh_SeparateFlagValue(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
-	result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl deploy --env ")
+	result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion deploy --env ")
 
 	assert.True(t, result.HasItem("staging"))
 	assert.True(t, result.HasItem("production"))
@@ -120,12 +120,12 @@ func TestZsh_SeparateFlagValue(t *testing.T) {
 func TestZsh_ContextAwarePredictors(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
 	t.Run("production clusters", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl deploy --env production --cluster ")
+		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion deploy --env production --cluster ")
 
 		assert.True(t, result.HasItem("prod-us-east-1"))
 		assert.True(t, result.HasItem("prod-eu-west-1"))
@@ -137,7 +137,7 @@ func TestZsh_ContextAwarePredictors(t *testing.T) {
 	t.Run("qa clusters", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl deploy --env qa --cluster ")
+		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion deploy --env qa --cluster ")
 
 		assert.True(t, result.HasItem("qa-test-1"))
 		assert.True(t, result.HasItem("qa-test-2"))
@@ -148,7 +148,7 @@ func TestZsh_ContextAwarePredictors(t *testing.T) {
 func TestZsh_FileExtensionFiltering(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
 	// Create files and directories in workspace
 	workspace.WriteFile(t, "app.yaml", []byte("name: app"))
@@ -163,7 +163,7 @@ func TestZsh_FileExtensionFiltering(t *testing.T) {
 	t.Run("attached flag completion in root dir", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl deploy --manifest=")
+		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion deploy --manifest=")
 
 		assert.True(t, result.HasItem("app.yaml") || result.HasItem("--manifest=app.yaml"), "expected app.yaml candidate")
 		assert.True(t, result.HasItem("config.yml") || result.HasItem("--manifest=config.yml"), "expected config.yml candidate")
@@ -177,7 +177,7 @@ func TestZsh_FileExtensionFiltering(t *testing.T) {
 	t.Run("separate flag completion in root dir", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl deploy --manifest ")
+		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion deploy --manifest ")
 
 		assert.True(t, result.HasItem("app.yaml"), "expected app.yaml candidate")
 		assert.True(t, result.HasItem("config.yml"), "expected config.yml candidate")
@@ -191,7 +191,7 @@ func TestZsh_FileExtensionFiltering(t *testing.T) {
 	t.Run("nested directory traversal with separate flag", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl deploy --manifest nested/")
+		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion deploy --manifest nested/")
 
 		assert.True(t, result.HasItem("manifest.yaml") || result.HasItem("nested/manifest.yaml"), "expected manifest.yaml candidate")
 		assert.True(t, result.HasItem("child/") || result.HasItem("nested/child/"), "expected child/ directory candidate")
@@ -202,7 +202,7 @@ func TestZsh_FileExtensionFiltering(t *testing.T) {
 	t.Run("nested directory traversal with attached flag", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl deploy --manifest=nested/")
+		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion deploy --manifest=nested/")
 
 		assert.True(t, result.HasItem("manifest.yaml") || result.HasItem("nested/manifest.yaml") || result.HasItem("--manifest=nested/manifest.yaml"), "expected manifest.yaml candidate")
 		assert.True(t, result.HasItem("child/") || result.HasItem("nested/child/") || result.HasItem("--manifest=nested/child/"), "expected child/ candidate")
@@ -214,7 +214,7 @@ func TestZsh_FileExtensionFiltering(t *testing.T) {
 func TestZsh_DirectoryFiltering(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
 	workspace.Mkdir(t, "build")
 	workspace.Mkdir(t, "build/sub")
@@ -224,7 +224,7 @@ func TestZsh_DirectoryFiltering(t *testing.T) {
 	t.Run("attached flag directory filtering", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl deploy --out-dir=")
+		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion deploy --out-dir=")
 
 		assert.True(t, result.HasItem("build/") || result.HasItem("--out-dir=build/"), "expected build/ candidate")
 		assert.True(t, result.HasItem("dist/") || result.HasItem("--out-dir=dist/"), "expected dist/ candidate")
@@ -234,7 +234,7 @@ func TestZsh_DirectoryFiltering(t *testing.T) {
 	t.Run("separate flag directory filtering", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl deploy --out-dir ")
+		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion deploy --out-dir ")
 
 		assert.True(t, result.HasItem("build/"), "expected build/ candidate")
 		assert.True(t, result.HasItem("dist/"), "expected dist/ candidate")
@@ -244,7 +244,7 @@ func TestZsh_DirectoryFiltering(t *testing.T) {
 	t.Run("nested directory traversal", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl deploy --out-dir build/")
+		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion deploy --out-dir build/")
 
 		assert.True(t, result.HasItem("sub/") || result.HasItem("build/sub/"), "expected sub/ candidate")
 		assert.False(t, result.HasItem("app.go"), "did not expect app.go candidate")
@@ -254,12 +254,12 @@ func TestZsh_DirectoryFiltering(t *testing.T) {
 func TestZsh_MultiParts(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
 	t.Run("top-level tag keys", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl logs --labels ")
+		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion logs --labels ")
 
 		assert.True(t, result.HasItem("team") || result.HasItem("team="))
 		assert.True(t, result.HasItem("tier") || result.HasItem("tier="))
@@ -269,7 +269,7 @@ func TestZsh_MultiParts(t *testing.T) {
 	t.Run("nested tag values", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl logs --labels team=")
+		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion logs --labels team=")
 
 		assert.True(t, result.HasItem("core") || result.HasItem("team=core"))
 		assert.True(t, result.HasItem("frontend") || result.HasItem("team=frontend"))
@@ -280,9 +280,9 @@ func TestZsh_MultiParts(t *testing.T) {
 func TestZsh_PositionalEnumSuppressesFlags(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
-	result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl logs ")
+	result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion logs ")
 
 	// Positional arguments are offered at a bare space.
 	assert.True(t, result.HasItem("auth"))
@@ -297,7 +297,7 @@ func TestZsh_PositionalEnumSuppressesFlags(t *testing.T) {
 	assert.Zero(t, result.GroupItems("flags"), "flags are reserved for the dash prefix")
 
 	// The dash prefix offers the flags.
-	dashResult := workspace.RunZshCompletion(t, "cloudctl", "cloudctl logs -")
+	dashResult := workspace.RunZshCompletion(t, "shell-completion", "shell-completion logs -")
 
 	assert.True(t, dashResult.HasItem("--env"))
 	assert.True(t, dashResult.HasItem("--follow"))
@@ -307,12 +307,12 @@ func TestZsh_PositionalEnumSuppressesFlags(t *testing.T) {
 func TestZsh_BareSpaceFlagsRestore(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
 	t.Run("zstyle restores flags at a bare space", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletionWithSetup(t, "cloudctl", "cloudctl logs ", `zstyle ':completion:*' bare-space-flags yes`)
+		result := workspace.RunZshCompletionWithSetup(t, "shell-completion", "shell-completion logs ", `zstyle ':completion:*' bare-space-flags yes`)
 
 		assert.True(t, result.HasItem("auth"))
 		assert.True(t, result.HasItem("--env"))
@@ -322,7 +322,7 @@ func TestZsh_BareSpaceFlagsRestore(t *testing.T) {
 	t.Run("sideband restores flags at a bare space", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl logs ", "CLOUDCTL_COMPLETION_BARE_SPACE_FLAGS=1")
+		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion logs ", "DEPLOY_COMPLETION_BARE_SPACE_FLAGS=1")
 
 		assert.True(t, result.HasItem("auth"))
 		assert.True(t, result.HasItem("--env"))
@@ -333,9 +333,9 @@ func TestZsh_BareSpaceFlagsRestore(t *testing.T) {
 func TestZsh_NamedDirectoryInvocation(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
-	result := workspace.RunZshCompletionWithSetup(t, "cloudctl", "~tb/cloudctl logs ", "hash -d tb="+workspace.BinDir)
+	result := workspace.RunZshCompletionWithSetup(t, "shell-completion", "~tb/shell-completion logs ", "hash -d tb="+workspace.BinDir)
 
 	assert.True(t, result.HasItem("auth"))
 	assert.True(t, result.HasItem("billing"))
@@ -345,9 +345,9 @@ func TestZsh_NamedDirectoryInvocation(t *testing.T) {
 func TestZsh_UnconstrainedPositionalSuppressesFlags(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
-	result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl deploy ")
+	result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion deploy ")
 
 	// The active help hint still describes the unconstrained positional.
 	assert.True(t, slices.Contains(result.Messages, "<service>: Service name to deploy"), "expected active help message for service argument")
@@ -359,7 +359,7 @@ func TestZsh_UnconstrainedPositionalSuppressesFlags(t *testing.T) {
 	assert.Zero(t, result.GroupItems("flags"), "flags are reserved for the dash prefix")
 
 	// The dash prefix offers the flags.
-	dashResult := workspace.RunZshCompletion(t, "cloudctl", "cloudctl deploy -")
+	dashResult := workspace.RunZshCompletion(t, "shell-completion", "shell-completion deploy -")
 
 	assert.True(t, dashResult.HasItem("--env"))
 	assert.True(t, dashResult.HasItem("--region"))
@@ -369,12 +369,12 @@ func TestZsh_UnconstrainedPositionalSuppressesFlags(t *testing.T) {
 func TestZsh_ShortFlags(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
 	t.Run("single dash short and long flags", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl deploy -")
+		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion deploy -")
 
 		assert.True(t, result.HasItem("-e"), "expected -e short flag")
 		assert.True(t, result.HasItem("-c"), "expected -c short flag")
@@ -385,7 +385,7 @@ func TestZsh_ShortFlags(t *testing.T) {
 	t.Run("attached short flag", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl deploy -e=")
+		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion deploy -e=")
 
 		assert.True(t, result.HasItem("staging") || result.HasItem("-e=staging"))
 		assert.True(t, result.HasItem("production") || result.HasItem("-e=production"))
@@ -395,7 +395,7 @@ func TestZsh_ShortFlags(t *testing.T) {
 	t.Run("separate short flag", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl deploy -e ")
+		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion deploy -e ")
 
 		assert.True(t, result.HasItem("staging"))
 		assert.True(t, result.HasItem("production"))
@@ -405,7 +405,7 @@ func TestZsh_ShortFlags(t *testing.T) {
 	t.Run("boolean short flag followed by flag value", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl logs -f -e ")
+		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion logs -f -e ")
 
 		assert.True(t, result.HasItem("staging"))
 		assert.True(t, result.HasItem("production"))
@@ -416,16 +416,16 @@ func TestZsh_ShortFlags(t *testing.T) {
 func TestZsh_SubcommandAlias(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
-	result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl d ")
+	result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion d ")
 
 	// Verify alias "d" completes arguments for DeployCmd and suppresses flags at a bare space.
 	assert.True(t, slices.Contains(result.Messages, "<service>: Service name to deploy"), "expected active help message on alias")
 	assert.False(t, result.HasItem("--env"))
 	assert.False(t, result.HasItem("--cluster"))
 
-	dashResult := workspace.RunZshCompletion(t, "cloudctl", "cloudctl d -")
+	dashResult := workspace.RunZshCompletion(t, "shell-completion", "shell-completion d -")
 
 	assert.True(t, dashResult.HasItem("--env"))
 	assert.True(t, dashResult.HasItem("--cluster"))
@@ -434,12 +434,12 @@ func TestZsh_SubcommandAlias(t *testing.T) {
 func TestZsh_NestedSubcommands(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
 	t.Run("completion shell candidates", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl completion ")
+		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion completion ")
 
 		assert.True(t, result.HasItem("zsh"))
 		assert.True(t, result.HasItem("bash"))
@@ -452,7 +452,7 @@ func TestZsh_NestedSubcommands(t *testing.T) {
 	t.Run("completion prefix matching", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl completion z")
+		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion completion z")
 
 		assert.True(t, result.HasItem("zsh"))
 		assert.False(t, result.HasItem("bash"))
@@ -461,7 +461,7 @@ func TestZsh_NestedSubcommands(t *testing.T) {
 	t.Run("help subcommand active help", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl help ")
+		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion help ")
 
 		assert.True(t, slices.Contains(result.Messages, "<[<command>...]>: Subcommand to show help for"), "expected help command active help message")
 		assert.False(t, result.HasItem("--help"))
@@ -472,12 +472,12 @@ func TestZsh_NestedSubcommands(t *testing.T) {
 func TestZsh_QuotedArguments(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
 	t.Run("single quoted prefix candidate", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl logs 'au")
+		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion logs 'au")
 
 		assert.True(t, result.HasItem("auth"))
 		assert.False(t, result.HasItem("billing"))
@@ -486,7 +486,7 @@ func TestZsh_QuotedArguments(t *testing.T) {
 	t.Run("double quoted prefix candidate", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "cloudctl", `cloudctl logs "bi`)
+		result := workspace.RunZshCompletion(t, "shell-completion", `shell-completion logs "bi`)
 
 		assert.True(t, result.HasItem("billing"))
 		assert.False(t, result.HasItem("auth"))
@@ -495,7 +495,7 @@ func TestZsh_QuotedArguments(t *testing.T) {
 	t.Run("flags after single-quoted positional arg", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl deploy 'my-service' --")
+		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion deploy 'my-service' --")
 
 		assert.True(t, result.HasItem("--env"))
 		assert.True(t, result.HasItem("--cluster"))
@@ -505,7 +505,7 @@ func TestZsh_QuotedArguments(t *testing.T) {
 	t.Run("flags after double-quoted positional arg", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "cloudctl", `cloudctl deploy "my-service" --`)
+		result := workspace.RunZshCompletion(t, "shell-completion", `shell-completion deploy "my-service" --`)
 
 		assert.True(t, result.HasItem("--env"))
 		assert.True(t, result.HasItem("--cluster"))
@@ -516,7 +516,7 @@ func TestZsh_QuotedArguments(t *testing.T) {
 func TestZsh_MenuSelectAndGroupHeadings(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
 	setupScript := `
 zmodload -i zsh/complist
@@ -525,7 +525,7 @@ zstyle ':completion:*' group-name ''
 zstyle ':completion:*:descriptions' format '=== %d ==='
 `
 
-	result := workspace.RunZshCompletionWithSetup(t, "cloudctl", "cloudctl logs ", setupScript)
+	result := workspace.RunZshCompletionWithSetup(t, "shell-completion", "shell-completion logs ", setupScript)
 
 	assert.True(t, result.HasItem("auth"))
 	assert.True(t, result.HasItem("billing"))
@@ -536,9 +536,9 @@ zstyle ':completion:*:descriptions' format '=== %d ==='
 func TestZsh_ListColorsAndANSIStyling(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
-	result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl ")
+	result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion ")
 
 	assert.True(t, result.HasItem("deploy"))
 	assert.True(t, result.HasItem("logs"))
@@ -551,12 +551,12 @@ func TestZsh_ListColorsAndANSIStyling(t *testing.T) {
 func TestZsh_AliasAndDescriptionSidebands(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
 	t.Run("aliases shown by default", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl ")
+		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion ")
 
 		assert.True(t, result.HasItem("deploy"))
 		assert.True(t, result.HasItem("d"))
@@ -565,7 +565,7 @@ func TestZsh_AliasAndDescriptionSidebands(t *testing.T) {
 	t.Run("aliases suppressed", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl ", "CLOUDCTL_COMPLETION_ALIASES=0")
+		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion ", "DEPLOY_COMPLETION_ALIASES=0")
 
 		assert.True(t, result.HasItem("deploy"))
 		assert.False(t, result.HasItem("d"))
@@ -574,7 +574,7 @@ func TestZsh_AliasAndDescriptionSidebands(t *testing.T) {
 	t.Run("descriptions suppressed", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl ", "CLOUDCTL_COMPLETION_DESCRIPTIONS=0")
+		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion ", "DEPLOY_COMPLETION_DESCRIPTIONS=0")
 
 		description, ok := result.ItemDescription("deploy")
 		assert.True(t, ok)
@@ -584,7 +584,7 @@ func TestZsh_AliasAndDescriptionSidebands(t *testing.T) {
 	t.Run("show-aliases zstyle suppresses aliases", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletionWithSetup(t, "cloudctl", "cloudctl ", `zstyle ':completion:*' show-aliases false`)
+		result := workspace.RunZshCompletionWithSetup(t, "shell-completion", "shell-completion ", `zstyle ':completion:*' show-aliases false`)
 
 		assert.True(t, result.HasItem("deploy"))
 		assert.False(t, result.HasItem("d"))
@@ -593,7 +593,7 @@ func TestZsh_AliasAndDescriptionSidebands(t *testing.T) {
 	t.Run("verbose zstyle suppresses descriptions", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletionWithSetup(t, "cloudctl", "cloudctl ", `zstyle ':completion:*' verbose false`)
+		result := workspace.RunZshCompletionWithSetup(t, "shell-completion", "shell-completion ", `zstyle ':completion:*' verbose false`)
 
 		description, ok := result.ItemDescription("deploy")
 		assert.True(t, ok)
@@ -604,12 +604,12 @@ func TestZsh_AliasAndDescriptionSidebands(t *testing.T) {
 func TestZsh_ListSeparatorSideband(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
 	t.Run("default separator patterns", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl ")
+		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion ")
 
 		assert.Contains(t, result.ListColors, "([ ]## -- *)", "expected the default separator patterns")
 	})
@@ -617,7 +617,7 @@ func TestZsh_ListSeparatorSideband(t *testing.T) {
 	t.Run("list-separator zstyle drives list-colors patterns", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletionWithSetup(t, "cloudctl", "cloudctl ", `zstyle ':completion:*' list-separator '<->'`)
+		result := workspace.RunZshCompletionWithSetup(t, "shell-completion", "shell-completion ", `zstyle ':completion:*' list-separator '<->'`)
 
 		assert.Contains(t, result.ListColors, `([ ]## \<-\> *)`, "expected the user separator in list-colors patterns")
 		assert.NotContains(t, result.ListColors, "([ ]## -- *)", "expected the default separator to be replaced")
@@ -627,12 +627,12 @@ func TestZsh_ListSeparatorSideband(t *testing.T) {
 func TestZsh_UserZstylesSurvive(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
 	t.Run("group-name", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletionWithSetup(t, "cloudctl", "cloudctl deploy ", `zstyle ':completion:*' group-name '%d'`)
+		result := workspace.RunZshCompletionWithSetup(t, "shell-completion", "shell-completion deploy ", `zstyle ':completion:*' group-name '%d'`)
 
 		assert.True(t, result.GroupNameSet, "expected group-name to be set")
 		assert.Equal(t, "%d", result.GroupName)
@@ -641,7 +641,7 @@ func TestZsh_UserZstylesSurvive(t *testing.T) {
 	t.Run("list-colors", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletionWithSetup(t, "cloudctl", "cloudctl deploy ", `zstyle ':completion:*' list-colors 'ln=target:di=01;34'`)
+		result := workspace.RunZshCompletionWithSetup(t, "shell-completion", "shell-completion deploy ", `zstyle ':completion:*' list-colors 'ln=target:di=01;34'`)
 
 		assert.Equal(t, "ln=target:di=01;34", result.ListColors)
 	})
@@ -649,7 +649,7 @@ func TestZsh_UserZstylesSurvive(t *testing.T) {
 	t.Run("empty list-colors keeps engine colors", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletionWithSetup(t, "cloudctl", "cloudctl logs ", `zstyle ':completion:*' list-colors ''`)
+		result := workspace.RunZshCompletionWithSetup(t, "shell-completion", "shell-completion logs ", `zstyle ':completion:*' list-colors ''`)
 
 		assert.True(t, strings.Contains(result.ListColors, "=(#b)"), "expected engine list-colors when the user value is empty")
 	})
@@ -657,7 +657,7 @@ func TestZsh_UserZstylesSurvive(t *testing.T) {
 	t.Run("engine default group-name without user config", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl deploy ")
+		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion deploy ")
 
 		assert.True(t, result.GroupNameSet, "expected the engine default group-name to be set")
 		assert.Equal(t, "", result.GroupName)
@@ -667,7 +667,7 @@ func TestZsh_UserZstylesSurvive(t *testing.T) {
 func TestZsh_FrameworkCompatibility_OhMyZsh(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
 	omzSetup := `
 zstyle ':completion:*' completer _expand _complete _ignored _approximate
@@ -685,7 +685,7 @@ zstyle ':completion:*' verbose yes
 	t.Run("subcommands", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletionWithSetup(t, "cloudctl", "cloudctl ", omzSetup)
+		result := workspace.RunZshCompletionWithSetup(t, "shell-completion", "shell-completion ", omzSetup)
 		assert.True(t, result.HasItem("deploy"))
 		assert.True(t, result.HasItem("logs"))
 		assert.True(t, result.HasItem("completion"))
@@ -694,7 +694,7 @@ zstyle ':completion:*' verbose yes
 	t.Run("flags", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletionWithSetup(t, "cloudctl", "cloudctl deploy --", omzSetup)
+		result := workspace.RunZshCompletionWithSetup(t, "shell-completion", "shell-completion deploy --", omzSetup)
 		assert.True(t, result.HasItem("--env"))
 		assert.True(t, result.HasItem("--cluster"))
 		assert.True(t, result.HasItem("--dry-run"))
@@ -703,7 +703,7 @@ zstyle ':completion:*' verbose yes
 	t.Run("dynamic context predictors", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletionWithSetup(t, "cloudctl", "cloudctl deploy --env production --cluster ", omzSetup)
+		result := workspace.RunZshCompletionWithSetup(t, "shell-completion", "shell-completion deploy --env production --cluster ", omzSetup)
 		assert.True(t, result.HasItem("prod-us-east-1"))
 		assert.True(t, result.HasItem("prod-eu-west-1"))
 		assert.False(t, result.HasItem("staging-cluster-alpha"))
@@ -713,7 +713,7 @@ zstyle ':completion:*' verbose yes
 func TestZsh_FrameworkCompatibility_Prezto(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
 	preztoSetup := `
 zstyle ':completion:*:*:*:*:*' menu select
@@ -724,7 +724,7 @@ zstyle ':completion:*:approximate:*' max-errors 1 numeric
 zstyle ':completion:*:*:*:*:descriptions' format '%B%d%b'
 `
 
-	result := workspace.RunZshCompletionWithSetup(t, "cloudctl", "cloudctl deploy --env ", preztoSetup)
+	result := workspace.RunZshCompletionWithSetup(t, "shell-completion", "shell-completion deploy --env ", preztoSetup)
 	assert.True(t, result.HasItem("staging"))
 	assert.True(t, result.HasItem("production"))
 	assert.True(t, result.HasItem("qa"))
@@ -733,7 +733,7 @@ zstyle ':completion:*:*:*:*:descriptions' format '%B%d%b'
 func TestZsh_FrameworkCompatibility_FzfTab(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
 	fzfTabSetup := `
 # Emulate fzf-tab hook by wrapping _describe
@@ -743,7 +743,7 @@ _describe() {
 }
 `
 
-	result := workspace.RunZshCompletionWithSetup(t, "cloudctl", "cloudctl logs ", fzfTabSetup)
+	result := workspace.RunZshCompletionWithSetup(t, "shell-completion", "shell-completion logs ", fzfTabSetup)
 	assert.True(t, result.HasItem("auth"))
 	assert.True(t, result.HasItem("billing"))
 }
@@ -751,7 +751,7 @@ _describe() {
 func TestZsh_FrameworkCompatibility_ZshAutocomplete(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
 	zshAutoSetup := `
 zstyle ':autocomplete:*' min-input 0
@@ -759,7 +759,7 @@ zstyle ':autocomplete:*' insert-unambiguous yes
 zstyle ':completion:*' menu yes select
 `
 
-	result := workspace.RunZshCompletionWithSetup(t, "cloudctl", "cloudctl deploy --", zshAutoSetup)
+	result := workspace.RunZshCompletionWithSetup(t, "shell-completion", "shell-completion deploy --", zshAutoSetup)
 	assert.True(t, result.HasItem("--env"))
 	assert.True(t, result.HasItem("--cluster"))
 }
@@ -767,17 +767,17 @@ zstyle ':completion:*' menu yes select
 func TestZsh_ShellAliases(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
 	t.Run("single letter alias", func(t *testing.T) {
 		t.Parallel()
 
 		aliasSetup := `
-alias c=cloudctl
-compdef _cloudctl_completion c
+alias c=shell-completion
+compdef _shell_completion_completion c
 `
 
-		result := workspace.RunZshCompletionWithSetup(t, "cloudctl", "c deploy --env ", aliasSetup)
+		result := workspace.RunZshCompletionWithSetup(t, "shell-completion", "c deploy --env ", aliasSetup)
 		assert.True(t, result.HasItem("staging"))
 		assert.True(t, result.HasItem("production"))
 		assert.True(t, result.HasItem("qa"))
@@ -788,11 +788,11 @@ compdef _cloudctl_completion c
 
 		aliasSetup := `
 setopt complete_aliases
-alias c=cloudctl
-compdef _cloudctl_completion c
+alias c=shell-completion
+compdef _shell_completion_completion c
 `
 
-		result := workspace.RunZshCompletionWithSetup(t, "cloudctl", "c logs ", aliasSetup)
+		result := workspace.RunZshCompletionWithSetup(t, "shell-completion", "c logs ", aliasSetup)
 		assert.True(t, result.HasItem("auth"))
 		assert.True(t, result.HasItem("billing"))
 	})
@@ -801,11 +801,11 @@ compdef _cloudctl_completion c
 		t.Parallel()
 
 		aliasSetup := `
-alias c=cloudctl
-compdef _cloudctl_completion c
+alias c=shell-completion
+compdef _shell_completion_completion c
 `
 
-		result := workspace.RunZshCompletionWithSetup(t, "cloudctl", "c deploy --env production --cluster ", aliasSetup)
+		result := workspace.RunZshCompletionWithSetup(t, "shell-completion", "c deploy --env production --cluster ", aliasSetup)
 		assert.True(t, result.HasItem("prod-us-east-1"))
 		assert.True(t, result.HasItem("prod-eu-west-1"))
 		assert.False(t, result.HasItem("staging-cluster-alpha"))
@@ -815,7 +815,7 @@ compdef _cloudctl_completion c
 func TestZsh_ShellOptions(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
 	t.Run("glob options", func(t *testing.T) {
 		t.Parallel()
@@ -827,7 +827,7 @@ setopt nullglob
 setopt no_case_glob
 `
 
-		result := workspace.RunZshCompletionWithSetup(t, "cloudctl", "cloudctl deploy --env ", optSetup)
+		result := workspace.RunZshCompletionWithSetup(t, "shell-completion", "shell-completion deploy --env ", optSetup)
 		assert.True(t, result.HasItem("staging"))
 		assert.True(t, result.HasItem("production"))
 	})
@@ -842,7 +842,7 @@ setopt auto_menu
 setopt bash_autolist
 `
 
-		result := workspace.RunZshCompletionWithSetup(t, "cloudctl", "cloudctl logs --labels team=", optSetup)
+		result := workspace.RunZshCompletionWithSetup(t, "shell-completion", "shell-completion logs --labels team=", optSetup)
 		assert.True(t, result.HasItem("core") || result.HasItem("team=core"))
 		assert.True(t, result.HasItem("frontend") || result.HasItem("team=frontend"))
 	})
@@ -855,7 +855,7 @@ setopt ksh_glob
 setopt sh_word_split
 `
 
-		result := workspace.RunZshCompletionWithSetup(t, "cloudctl", "cloudctl logs ", optSetup)
+		result := workspace.RunZshCompletionWithSetup(t, "shell-completion", "shell-completion logs ", optSetup)
 		assert.True(t, result.HasItem("auth"))
 	})
 }
@@ -863,7 +863,7 @@ setopt sh_word_split
 func TestZsh_CustomCompleterChains(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
 	t.Run("approximate chain", func(t *testing.T) {
 		t.Parallel()
@@ -872,7 +872,7 @@ func TestZsh_CustomCompleterChains(t *testing.T) {
 zstyle ':completion:*' completer _complete _ignored _approximate
 `
 
-		result := workspace.RunZshCompletionWithSetup(t, "cloudctl", "cloudctl deploy --env ", chainSetup)
+		result := workspace.RunZshCompletionWithSetup(t, "shell-completion", "shell-completion deploy --env ", chainSetup)
 		assert.True(t, result.HasItem("staging"))
 		assert.True(t, result.HasItem("production"))
 	})
@@ -884,7 +884,7 @@ zstyle ':completion:*' completer _complete _ignored _approximate
 zstyle ':completion:*' completer _oldlist _expand _complete
 `
 
-		result := workspace.RunZshCompletionWithSetup(t, "cloudctl", "cloudctl completion ", chainSetup)
+		result := workspace.RunZshCompletionWithSetup(t, "shell-completion", "shell-completion completion ", chainSetup)
 		assert.True(t, result.HasItem("zsh"))
 		assert.True(t, result.HasItem("bash"))
 		assert.True(t, result.HasItem("fish"))
@@ -896,7 +896,7 @@ func TestZsh_PureFlagsCommandWithRequiredFlag(t *testing.T) {
 
 	workspace := setupFlagConstraints(t)
 
-	result := workspace.RunZshCompletion(t, "06-flag-constraints", "06-flag-constraints --")
+	result := workspace.RunZshCompletion(t, "flag-constraints", "flag-constraints --")
 
 	assert.True(t, result.HasItem("--api-key"), "expected required flag --api-key")
 	assert.True(t, result.HasItem("--json"))
@@ -908,7 +908,7 @@ func TestZsh_PureFlagsCommandWithRequiredFlag(t *testing.T) {
 	assert.True(t, result.HasItem("--env"))
 	assert.True(t, result.HasItem("--zones"))
 	assert.True(t, result.HasItem("--help"))
-	assert.Equal(t, "06-flag-constraints --", result.BufferTab1)
+	assert.Equal(t, "flag-constraints --", result.BufferTab1)
 }
 
 func TestZsh_DomainTypes_Completion(t *testing.T) {
@@ -917,24 +917,24 @@ func TestZsh_DomainTypes_Completion(t *testing.T) {
 	workspace := setupDomainTypes(t)
 
 	// Bare space: completion subcommand must NOT appear, flags must appear
-	bareRes := workspace.RunZshCompletion(t, "05-domain-types", "05-domain-types ")
+	bareRes := workspace.RunZshCompletion(t, "domain-types", "domain-types ")
 	assert.False(t, bareRes.HasItem("completion"))
 	assert.True(t, bareRes.HasItem("--input-file"))
 	assert.True(t, bareRes.HasItem("--completion"))
 	assert.True(t, bareRes.HasItem("-i"))
 
 	// Typing '--comp': must complete --completion flag
-	compRes := workspace.RunZshCompletion(t, "05-domain-types", "05-domain-types --comp")
+	compRes := workspace.RunZshCompletion(t, "domain-types", "domain-types --comp")
 	assert.True(t, compRes.HasItem("--completion"), "expected --completion candidate")
-	assert.Equal(t, "05-domain-types --completion ", compRes.BufferTab1)
+	assert.Equal(t, "domain-types --completion ", compRes.BufferTab1)
 
 	// Typing '--completion z': must complete the zsh shell value
-	valueRes := workspace.RunZshCompletion(t, "05-domain-types", "05-domain-types --completion z")
+	valueRes := workspace.RunZshCompletion(t, "domain-types", "domain-types --completion z")
 	assert.True(t, valueRes.HasItem("zsh"), "expected zsh shell candidate")
-	assert.Equal(t, "05-domain-types --completion zsh ", valueRes.BufferTab1)
+	assert.Equal(t, "domain-types --completion zsh ", valueRes.BufferTab1)
 
 	// Typing '--completion ': must list every supported shell
-	listRes := workspace.RunZshCompletion(t, "05-domain-types", "05-domain-types --completion ")
+	listRes := workspace.RunZshCompletion(t, "domain-types", "domain-types --completion ")
 	assert.True(t, listRes.HasItem("bash"), "expected bash shell candidate")
 	assert.True(t, listRes.HasItem("zsh"), "expected zsh shell candidate")
 	assert.True(t, listRes.HasItem("fish"), "expected fish shell candidate")
@@ -944,43 +944,43 @@ func TestZsh_DomainTypes_Completion(t *testing.T) {
 func TestZsh_DeprecatedFiltering(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupMemberDeprecated(t)
+	workspace := setupMemberDeprecation(t)
 
 	t.Run("deprecated flag excluded from flags", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "member-deprecated", "member-deprecated --")
+		result := workspace.RunZshCompletion(t, "member-deprecation", "member-deprecation --")
 
 		assert.True(t, result.HasItem("--modern"))
 		assert.False(t, result.HasItem("--old"))
 
-		prefixRes := workspace.RunZshCompletion(t, "member-deprecated", "member-deprecated --o")
+		prefixRes := workspace.RunZshCompletion(t, "member-deprecation", "member-deprecation --o")
 
 		assert.False(t, prefixRes.HasItem("--old"))
-		assert.Equal(t, "member-deprecated --o", prefixRes.BufferTab1)
+		assert.Equal(t, "member-deprecation --o", prefixRes.BufferTab1)
 	})
 
 	t.Run("deprecated subcommand excluded from commands", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "member-deprecated", "member-deprecated ")
+		result := workspace.RunZshCompletion(t, "member-deprecation", "member-deprecation ")
 
 		assert.True(t, result.HasItem("deploy"))
 		assert.False(t, result.HasItem("legacy"))
 
-		prefixRes := workspace.RunZshCompletion(t, "member-deprecated", "member-deprecated l")
+		prefixRes := workspace.RunZshCompletion(t, "member-deprecation", "member-deprecation l")
 
 		assert.False(t, prefixRes.HasItem("legacy"))
-		assert.Equal(t, "member-deprecated l", prefixRes.BufferTab1)
+		assert.Equal(t, "member-deprecation l", prefixRes.BufferTab1)
 	})
 }
 
 func TestZsh_AppDeprecatedCompletion(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupAppDeprecated(t)
+	workspace := setupAppDeprecation(t)
 
-	result := workspace.RunZshCompletion(t, "app-deprecated", "app-deprecated ")
+	result := workspace.RunZshCompletion(t, "app-deprecation", "app-deprecation ")
 
 	assert.True(t, result.HasItem("deploy"))
 }
@@ -993,7 +993,7 @@ func TestZsh_XORFlagSuppression(t *testing.T) {
 	t.Run("json suppresses yaml and table", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "06-flag-constraints", "06-flag-constraints --json --")
+		result := workspace.RunZshCompletion(t, "flag-constraints", "flag-constraints --json --")
 
 		assert.False(t, result.HasItem("--yaml"))
 		assert.False(t, result.HasItem("--table"))
@@ -1004,7 +1004,7 @@ func TestZsh_XORFlagSuppression(t *testing.T) {
 	t.Run("yaml suppresses json and table", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "06-flag-constraints", "06-flag-constraints --yaml --")
+		result := workspace.RunZshCompletion(t, "flag-constraints", "flag-constraints --yaml --")
 
 		assert.False(t, result.HasItem("--json"))
 		assert.False(t, result.HasItem("--table"))
@@ -1021,7 +1021,7 @@ func TestZsh_NonRepeatableFlagSuppression(t *testing.T) {
 	t.Run("scalar flag is suppressed after consumption", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "06-flag-constraints", "06-flag-constraints --port 8080 --")
+		result := workspace.RunZshCompletion(t, "flag-constraints", "flag-constraints --port 8080 --")
 
 		assert.False(t, result.HasItem("--port"))
 		assert.True(t, result.HasItem("--api-key"))
@@ -1031,7 +1031,7 @@ func TestZsh_NonRepeatableFlagSuppression(t *testing.T) {
 	t.Run("slice flag remains available after consumption", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "06-flag-constraints", "06-flag-constraints --zones us-east-1a --")
+		result := workspace.RunZshCompletion(t, "flag-constraints", "flag-constraints --zones us-east-1a --")
 
 		assert.True(t, result.HasItem("--zones"))
 		assert.True(t, result.HasItem("--port"))
@@ -1041,12 +1041,12 @@ func TestZsh_NonRepeatableFlagSuppression(t *testing.T) {
 func TestZsh_RootFlagInheritanceAndPreSubcommandPlacement(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
 	t.Run("inherited root flag completion after subcommand", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl deploy --pro")
+		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion deploy --pro")
 
 		assert.True(t, result.HasItem("--profile"))
 	})
@@ -1054,7 +1054,7 @@ func TestZsh_RootFlagInheritanceAndPreSubcommandPlacement(t *testing.T) {
 	t.Run("pre-subcommand root flag affects subcommand predictor", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl --profile production exec ")
+		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion --profile production exec ")
 
 		assert.True(t, result.HasItem("api-prod-8a"))
 		assert.True(t, result.HasItem("billing-prod-3b"))
@@ -1066,12 +1066,12 @@ func TestZsh_RootFlagInheritanceAndPreSubcommandPlacement(t *testing.T) {
 func TestZsh_ContextualPositionalPredictor(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
 	t.Run("default profile and namespace pods", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl exec ")
+		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion exec ")
 
 		assert.True(t, result.HasItem("api-stage-alpha"))
 		assert.True(t, result.HasItem("auth-stage-beta"))
@@ -1081,7 +1081,7 @@ func TestZsh_ContextualPositionalPredictor(t *testing.T) {
 	t.Run("database namespace pods without common prefix", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl exec --namespace database ")
+		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion exec --namespace database ")
 
 		assert.True(t, result.HasItem("pg-stage-0"))
 		assert.True(t, result.HasItem("redis-stage-0"))
@@ -1092,14 +1092,14 @@ func TestZsh_ContextualPositionalPredictor(t *testing.T) {
 func TestZsh_TerminatorDashArgs(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupTrailingArgs(t)
+	workspace := setupTrailingArgsForwarding(t)
 
 	assert.NoError(t, os.WriteFile(filepath.Join(workspace.WorkDir, "forwarded.txt"), []byte("fixture\n"), 0o600))
 
 	t.Run("flags suppressed after double dash", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "runner", "runner test mypkg -- --")
+		result := workspace.RunZshCompletion(t, "trailing-args-forwarding", "trailing-args-forwarding test mypkg -- --")
 
 		assert.False(t, result.HasItem("--verbose"))
 		assert.False(t, result.HasItem("--help"))
@@ -1108,9 +1108,9 @@ func TestZsh_TerminatorDashArgs(t *testing.T) {
 	t.Run("dash args predictor completes files", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "runner", "runner test mypkg -- forw")
+		result := workspace.RunZshCompletion(t, "trailing-args-forwarding", "trailing-args-forwarding test mypkg -- forw")
 
-		assert.Equal(t, "runner test mypkg -- forwarded.txt ", result.BufferTab1)
+		assert.Equal(t, "trailing-args-forwarding test mypkg -- forwarded.txt ", result.BufferTab1)
 		assert.Zero(t, result.Messages)
 		assert.True(t, result.HasItem("forwarded.txt"))
 	})
@@ -1118,9 +1118,9 @@ func TestZsh_TerminatorDashArgs(t *testing.T) {
 	t.Run("raw args predictor completes files after overflow", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "runner", "runner exec mycontainer forw")
+		result := workspace.RunZshCompletion(t, "trailing-args-forwarding", "trailing-args-forwarding exec mycontainer forw")
 
-		assert.Equal(t, "runner exec mycontainer forwarded.txt ", result.BufferTab1)
+		assert.Equal(t, "trailing-args-forwarding exec mycontainer forwarded.txt ", result.BufferTab1)
 		assert.Zero(t, result.Messages)
 		assert.True(t, result.HasItem("forwarded.txt"))
 	})
@@ -1128,9 +1128,9 @@ func TestZsh_TerminatorDashArgs(t *testing.T) {
 	t.Run("flags suppressed once raw mode is active", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "runner", "runner exec mycontainer extra -")
+		result := workspace.RunZshCompletion(t, "trailing-args-forwarding", "trailing-args-forwarding exec mycontainer extra -")
 
-		assert.Equal(t, "runner exec mycontainer extra -", result.BufferTab1)
+		assert.Equal(t, "trailing-args-forwarding exec mycontainer extra -", result.BufferTab1)
 		assert.Zero(t, result.Messages)
 		assert.False(t, result.HasItem("--verbose"))
 		assert.False(t, result.HasItem("-v"))
@@ -1142,7 +1142,7 @@ func TestZsh_HiddenFlags(t *testing.T) {
 
 	workspace := setupFlagPrimitives(t)
 
-	result := workspace.RunZshCompletion(t, "02-flag-primitives", "02-flag-primitives --")
+	result := workspace.RunZshCompletion(t, "flag-primitives", "flag-primitives --")
 
 	assert.True(t, result.HasItem("--verbosity"))
 	assert.True(t, result.HasItem("--debug"))
@@ -1164,7 +1164,7 @@ func TestZsh_DomainFilesystemTypes(t *testing.T) {
 	t.Run("input file completion", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "05-domain-types", "05-domain-types --input-file ")
+		result := workspace.RunZshCompletion(t, "domain-types", "domain-types --input-file ")
 
 		assert.True(t, result.HasItem("sample.txt"))
 	})
@@ -1172,7 +1172,7 @@ func TestZsh_DomainFilesystemTypes(t *testing.T) {
 	t.Run("output dir completion", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "05-domain-types", "05-domain-types --output-dir ")
+		result := workspace.RunZshCompletion(t, "domain-types", "domain-types --output-dir ")
 
 		assert.True(t, result.HasItem("output_dir/") || result.HasItem("output_dir"))
 		assert.False(t, result.HasItem("sample.txt"))
@@ -1182,12 +1182,12 @@ func TestZsh_DomainFilesystemTypes(t *testing.T) {
 func TestZsh_Sidebands(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
 	t.Run("merge flags disabled separates longhand and shorthand", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl deploy -", "CONGA_MERGE_FLAGS=false")
+		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion deploy -", "CONGA_MERGE_FLAGS=false")
 
 		assert.True(t, len(result.GroupItems("longhand flags")) > 0, "expected longhand flags group")
 		assert.True(t, len(result.GroupItems("shorthand flags")) > 0, "expected shorthand flags group")
@@ -1197,7 +1197,7 @@ func TestZsh_Sidebands(t *testing.T) {
 	t.Run("merge flags default merges all flags into flags group", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl deploy -")
+		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion deploy -")
 
 		assert.True(t, len(result.GroupItems("flags")) > 0, "expected merged flags group")
 		assert.Zero(t, len(result.GroupItems("longhand flags")), "longhand flags group must be empty under default merge")
@@ -1206,7 +1206,7 @@ func TestZsh_Sidebands(t *testing.T) {
 	t.Run("color disabled strips list colors", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl ", "NO_COLOR=1")
+		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion ", "NO_COLOR=1")
 
 		assert.Equal(t, "", result.ListColors, "list colors must be empty when color is disabled via NO_COLOR")
 	})
@@ -1215,12 +1215,12 @@ func TestZsh_Sidebands(t *testing.T) {
 func TestZsh_ColonMultiParts(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
 	t.Run("image repository prefixes", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl deploy --image ")
+		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion deploy --image ")
 
 		assert.True(t, result.HasItem("api-gateway:") || result.HasItem("api-gateway"))
 		assert.True(t, result.HasItem("auth-service:") || result.HasItem("auth-service"))
@@ -1229,7 +1229,7 @@ func TestZsh_ColonMultiParts(t *testing.T) {
 	t.Run("image tags after repository prefix", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl deploy --image api-gateway:")
+		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion deploy --image api-gateway:")
 
 		assert.True(t, result.HasItem("v3.1.0") || result.HasItem("api-gateway:v3.1.0"))
 		assert.True(t, result.HasItem("latest") || result.HasItem("api-gateway:latest"))
@@ -1238,7 +1238,7 @@ func TestZsh_ColonMultiParts(t *testing.T) {
 	t.Run("unique tag prefix offers colon candidate", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl deploy --image api-gateway:v3.2.1-")
+		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion deploy --image api-gateway:v3.2.1-")
 
 		assert.True(t, result.HasItem("v3.2.1-rc1") || result.HasItem("api-gateway:v3.2.1-rc1"))
 	})
@@ -1247,9 +1247,9 @@ func TestZsh_ColonMultiParts(t *testing.T) {
 func TestZsh_DomainType_Region(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
-	result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl deploy --region ")
+	result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion deploy --region ")
 
 	assert.True(t, result.HasItem("us-east-1"))
 	assert.True(t, result.HasItem("eu-west-1"))
@@ -1259,9 +1259,9 @@ func TestZsh_DomainType_Region(t *testing.T) {
 func TestZsh_ContainerExclusion(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
-	result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl exec --container ")
+	result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion exec --container ")
 
 	assert.True(t, result.HasItem("app"))
 	assert.True(t, result.HasItem("cache"))
@@ -1271,12 +1271,12 @@ func TestZsh_ContainerExclusion(t *testing.T) {
 func TestZsh_PredictorSDK_Combinators(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupCloudctl(t)
+	workspace := setupShellCompletion(t)
 
 	t.Run("keeporder severity values", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl logs --severity ")
+		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion logs --severity ")
 
 		assert.True(t, result.HasItem("debug"))
 		assert.True(t, result.HasItem("info"))
@@ -1287,7 +1287,7 @@ func TestZsh_PredictorSDK_Combinators(t *testing.T) {
 	t.Run("rich items sink completion", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl logs --sink ")
+		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion logs --sink ")
 
 		assert.True(t, result.HasItem("stdout (console)") || result.HasItem("stdout"))
 		assert.True(t, result.HasItem("file"))
@@ -1297,11 +1297,11 @@ func TestZsh_PredictorSDK_Combinators(t *testing.T) {
 	t.Run("prefix and suffix combinators", func(t *testing.T) {
 		t.Parallel()
 
-		bucketResult := workspace.RunZshCompletion(t, "cloudctl", "cloudctl logs --bucket ")
+		bucketResult := workspace.RunZshCompletion(t, "shell-completion", "shell-completion logs --bucket ")
 		assert.True(t, bucketResult.HasItem("logs-primary") || bucketResult.HasItem("s3://logs-primary"))
 		assert.True(t, bucketResult.HasItem("logs-replica") || bucketResult.HasItem("s3://logs-replica"))
 
-		collectorResult := workspace.RunZshCompletion(t, "cloudctl", "cloudctl logs --collector ")
+		collectorResult := workspace.RunZshCompletion(t, "shell-completion", "shell-completion logs --collector ")
 		assert.True(t, collectorResult.HasItem("collector-a") || collectorResult.HasItem("collector-a:5514"))
 		assert.True(t, collectorResult.HasItem("collector-b") || collectorResult.HasItem("collector-b:5514"))
 	})
@@ -1309,7 +1309,7 @@ func TestZsh_PredictorSDK_Combinators(t *testing.T) {
 	t.Run("flagvalues deduplication on mute slice", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "cloudctl", "cloudctl logs --mute api,")
+		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion logs --mute api,")
 
 		assert.False(t, result.HasItem("api,api"))
 		assert.True(t, result.HasItem("api,auth") || result.HasItem("auth"))
@@ -1321,12 +1321,12 @@ func TestZsh_PredictorSDK_Combinators(t *testing.T) {
 func TestZsh_ModularPredictors(t *testing.T) {
 	t.Parallel()
 
-	workspace := setupNodectl(t)
+	workspace := setupModularPredictors(t)
 
 	t.Run("subcommands discovery", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "nodectl", "nodectl ")
+		result := workspace.RunZshCompletion(t, "modular-predictors", "modular-predictors ")
 
 		assert.True(t, result.HasItem("system"))
 		assert.True(t, result.HasItem("network"))
@@ -1336,7 +1336,7 @@ func TestZsh_ModularPredictors(t *testing.T) {
 	t.Run("system kill signals", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "nodectl", "nodectl system kill --signal ")
+		result := workspace.RunZshCompletion(t, "modular-predictors", "modular-predictors system kill --signal ")
 
 		assert.True(t, result.HasItem("SIGTERM") || result.HasItem("15"))
 		assert.True(t, result.HasItem("SIGKILL") || result.HasItem("9"))
@@ -1345,7 +1345,7 @@ func TestZsh_ModularPredictors(t *testing.T) {
 	t.Run("network subcommands", func(t *testing.T) {
 		t.Parallel()
 
-		result := workspace.RunZshCompletion(t, "nodectl", "nodectl network ")
+		result := workspace.RunZshCompletion(t, "modular-predictors", "modular-predictors network ")
 
 		assert.True(t, result.HasItem("probe"))
 		assert.True(t, result.HasItem("scan"))

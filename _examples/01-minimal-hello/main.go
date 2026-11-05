@@ -27,7 +27,7 @@ func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
 
 func main() {
 	app := conga.New[CLI]().
-		Name("hello").
+		Name("minimal-hello").
 		Description("Minimal single-command hello world CLI")
 
 	if err := app.Run(); err != nil {

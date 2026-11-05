@@ -32,7 +32,7 @@ func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
 
 func main() {
 	app := conga.New[CLI]().
-		Name("prims").
+		Name("flag-primitives").
 		Description("Primitive flag types, counters, sections, and aliases").
 		Version("1.0.0").
 		EnableCompletion()

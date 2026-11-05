@@ -3,7 +3,7 @@
 # alternative, which states the constraint once and suppresses the matching hint.
 
 # 1. Automatic form appends the bracket hint after the help text
-exec helpvars --help
+exec help-variables --help
 stdout '--automatic=8080\s+Port using the automatic hint \[1\.\.65535\]'
 
 # 2. Inlined form states the bound in prose and suppresses the bracket hint
@@ -26,5 +26,5 @@ stdout '--profile=STRING\s+Build profile \(default dev\)'
 stdout '--literal=STRING\s+Literal braces: \{\{not-a-variable\}\}'
 
 # 6. Running with values resolves the flags
-exec helpvars --inlined 9000 --environment prod --zones a --zones b
+exec help-variables --inlined 9000 --environment prod --zones a --zones b
 stdout 'inlined'

@@ -6,7 +6,7 @@ import (
 
 func main() {
 	app := conga.New[CLI]().
-		Name("domain-demo").
+		Name("domain-types").
 		Description("Strongly-typed domain types (File with tags, Dir, ByteSize, Custom)").
 		Version("1.0.0").
 		EnableCompletion()

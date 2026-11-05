@@ -10,7 +10,7 @@ import (
 
 func TestMain(m *testing.M) {
 	testutil.Main(m, map[string]func(){
-		"minify": main,
+		"flat-completion-flag": main,
 	})
 }
 

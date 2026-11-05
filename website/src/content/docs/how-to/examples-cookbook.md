@@ -15,12 +15,12 @@ go run ./_examples/08-subcommands-basic create web-api -i redis:7 -r 3
 
 ```text no-copy
 ╭───────────────────────────────────────────────────────────╮
-│  ⚙  service-mgr create                                    │
+│  ⚙  subcommands-basic create                              │
 ╰───────────────────────────────────────────────────────────╯
 
     FIELD              TYPE      VALUE     SOURCE
 
-  service-mgr · root
+  subcommands-basic · root
     -v, --verbose      bool      false     ○ unset
     create             command   —         ▸ selected
     delete (rm, del)   command   —         —

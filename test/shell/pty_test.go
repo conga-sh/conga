@@ -21,7 +21,7 @@ import (
 // listed candidate on their second Tab; bash needs a third Tab to list).
 
 const (
-	ptyClusterCommandLine = "cloudctl deploy --env production --cluster "
+	ptyClusterCommandLine = "shell-completion deploy --env production --cluster "
 	ptyClusterCandidateUS = "prod-us-east-1"
 	ptyClusterCandidateEU = "prod-eu-west-1"
 	ptyClusterCandidateAP = "prod-ap-southeast-1"
@@ -29,10 +29,10 @@ const (
 	ptyClusterFirst       = ptyClusterCommandLine + ptyClusterCandidateAP
 )
 
-func startCloudctlPty(t *testing.T, shellName string) *shell.PtySession {
+func startShellCompletionPty(t *testing.T, shellName string) *shell.PtySession {
 	t.Helper()
 
-	return setupCloudctl(t).StartPtySession(t, "cloudctl", shellName)
+	return setupShellCompletion(t).StartPtySession(t, "shell-completion", shellName)
 }
 
 // ptyHasToken reports whether the screen contains token as a
@@ -45,14 +45,14 @@ func ptyHasToken(screen, token string) bool {
 func TestPtyBash_TabCompletesSingleMatch(t *testing.T) {
 	t.Parallel()
 
-	session := startCloudctlPty(t, "bash")
+	session := startShellCompletionPty(t, "bash")
 
-	session.Type("cloudctl de")
+	session.Type("shell-completion de")
 	session.Tab()
 	result := session.Capture()
 
-	assert.Equal(t, "cloudctl deploy", result.BufferAfterPrompt())
-	assert.Equal(t, 23, result.CursorX)
+	assert.Equal(t, "shell-completion deploy", result.BufferAfterPrompt())
+	assert.Equal(t, len("CONGA> shell-completion deploy "), result.CursorX)
 }
 
 // TestPtyPathQualifiedInvocation pins dispatch for a path-qualified command
@@ -67,14 +67,14 @@ func TestPtyPathQualifiedInvocation(t *testing.T) {
 		t.Run(shellName, func(t *testing.T) {
 			t.Parallel()
 
-			workspace := setupCloudctl(t)
-			session := workspace.StartPtySession(t, "cloudctl", shellName)
+			workspace := setupShellCompletion(t)
+			session := workspace.StartPtySession(t, "shell-completion", shellName)
 
-			session.Type(workspace.BinDir + "/cloudctl de")
+			session.Type(workspace.BinDir + "/shell-completion de")
 			session.Tab()
 			result := session.Capture()
 
-			assert.Equal(t, workspace.BinDir+"/cloudctl deploy", result.BufferAfterPrompt())
+			assert.Equal(t, workspace.BinDir+"/shell-completion deploy", result.BufferAfterPrompt())
 		})
 	}
 }
@@ -82,7 +82,7 @@ func TestPtyPathQualifiedInvocation(t *testing.T) {
 func TestPtyBash_TabInsertsCommonPrefix(t *testing.T) {
 	t.Parallel()
 
-	session := startCloudctlPty(t, "bash")
+	session := startShellCompletionPty(t, "bash")
 
 	session.Type(ptyClusterCommandLine)
 	session.Tab()
@@ -96,7 +96,7 @@ func TestPtyBash_TabInsertsCommonPrefix(t *testing.T) {
 func TestPtyBash_TabListsCandidates(t *testing.T) {
 	t.Parallel()
 
-	session := startCloudctlPty(t, "bash")
+	session := startShellCompletionPty(t, "bash")
 
 	session.Type(ptyClusterCommandLine)
 	session.Tab()
@@ -115,33 +115,33 @@ func TestPtyBash_TabListsCandidates(t *testing.T) {
 func TestPtyBash_TabCompletesColonCandidate(t *testing.T) {
 	t.Parallel()
 
-	session := startCloudctlPty(t, "bash")
+	session := startShellCompletionPty(t, "bash")
 
-	session.Type("cloudctl deploy --image api-gateway:v3.2.1-")
+	session.Type("shell-completion deploy --image api-gateway:v3.2.1-")
 	session.Tab()
 	result := session.Capture()
 
-	assert.Equal(t, "cloudctl deploy --image api-gateway:v3.2.1-rc1", result.BufferAfterPrompt())
-	assert.Equal(t, len("CONGA> cloudctl deploy --image api-gateway:v3.2.1-rc1"), result.CursorX)
+	assert.Equal(t, "shell-completion deploy --image api-gateway:v3.2.1-rc1", result.BufferAfterPrompt())
+	assert.Equal(t, len("CONGA> shell-completion deploy --image api-gateway:v3.2.1-rc1"), result.CursorX)
 }
 
 func TestPtyZsh_TabCompletesSingleMatch(t *testing.T) {
 	t.Parallel()
 
-	session := startCloudctlPty(t, "zsh")
+	session := startShellCompletionPty(t, "zsh")
 
-	session.Type("cloudctl de")
+	session.Type("shell-completion de")
 	session.Tab()
 	result := session.Capture()
 
-	assert.Equal(t, "cloudctl deploy", result.BufferAfterPrompt())
-	assert.Equal(t, 23, result.CursorX)
+	assert.Equal(t, "shell-completion deploy", result.BufferAfterPrompt())
+	assert.Equal(t, len("CONGA> shell-completion deploy "), result.CursorX)
 }
 
 func TestPtyZsh_TabListsCandidatesWithoutInserting(t *testing.T) {
 	t.Parallel()
 
-	session := startCloudctlPty(t, "zsh")
+	session := startShellCompletionPty(t, "zsh")
 
 	session.Type(ptyClusterCommandLine)
 	session.Tab()
@@ -157,7 +157,7 @@ func TestPtyZsh_TabListsCandidatesWithoutInserting(t *testing.T) {
 func TestPtyZsh_SecondTabKeepsListAndBuffer(t *testing.T) {
 	t.Parallel()
 
-	session := startCloudctlPty(t, "zsh")
+	session := startShellCompletionPty(t, "zsh")
 
 	session.Type(ptyClusterCommandLine)
 	session.Tab()
@@ -174,27 +174,27 @@ func TestPtyZsh_SecondTabKeepsListAndBuffer(t *testing.T) {
 func TestPtyZsh_TabCompletesColonCandidate(t *testing.T) {
 	t.Parallel()
 
-	session := startCloudctlPty(t, "zsh")
+	session := startShellCompletionPty(t, "zsh")
 
-	session.Type("cloudctl deploy --image api-gateway:v3.2.1-")
+	session.Type("shell-completion deploy --image api-gateway:v3.2.1-")
 	session.Tab()
 	result := session.Capture()
 
-	assert.Equal(t, "cloudctl deploy --image api-gateway:v3.2.1-rc1", result.BufferAfterPrompt())
-	assert.Equal(t, len("CONGA> cloudctl deploy --image api-gateway:v3.2.1-rc1"), result.CursorX)
+	assert.Equal(t, "shell-completion deploy --image api-gateway:v3.2.1-rc1", result.BufferAfterPrompt())
+	assert.Equal(t, len("CONGA> shell-completion deploy --image api-gateway:v3.2.1-rc1"), result.CursorX)
 }
 
 func TestPtyZsh_UserZstylesSurvive(t *testing.T) {
 	t.Parallel()
 
-	session := startCloudctlPty(t, "zsh")
+	session := startShellCompletionPty(t, "zsh")
 
 	session.Type(`zstyle ':completion:*' group-name '%d'`)
 	session.PressEnter()
 	session.Type(`zstyle ':completion:*' list-colors 'ln=target'`)
 	session.PressEnter()
 
-	session.Type("cloudctl deploy --")
+	session.Type("shell-completion deploy --")
 	session.Tab()
 	session.Capture()
 	session.CtrlC()
@@ -215,9 +215,9 @@ func TestPtyZsh_UserZstylesSurvive(t *testing.T) {
 func TestPtyZsh_DescriptionsShownByDefault(t *testing.T) {
 	t.Parallel()
 
-	session := startCloudctlPty(t, "zsh")
+	session := startShellCompletionPty(t, "zsh")
 
-	session.Type("cloudctl ")
+	session.Type("shell-completion ")
 	session.Tab()
 
 	assert.Contains(t, session.Capture().Screen, "Deploy service to a cluster")
@@ -226,12 +226,12 @@ func TestPtyZsh_DescriptionsShownByDefault(t *testing.T) {
 func TestPtyZsh_VerboseZstyleHidesDescriptions(t *testing.T) {
 	t.Parallel()
 
-	session := startCloudctlPty(t, "zsh")
+	session := startShellCompletionPty(t, "zsh")
 
 	session.Type(`zstyle ':completion:*' verbose false`)
 	session.PressEnter()
 
-	session.Type("cloudctl ")
+	session.Type("shell-completion ")
 	session.Tab()
 	result := session.Capture()
 
@@ -242,9 +242,9 @@ func TestPtyZsh_VerboseZstyleHidesDescriptions(t *testing.T) {
 func TestPtyZsh_AliasShownByDefault(t *testing.T) {
 	t.Parallel()
 
-	session := startCloudctlPty(t, "zsh")
+	session := startShellCompletionPty(t, "zsh")
 
-	session.Type("cloudctl ")
+	session.Type("shell-completion ")
 	session.Tab()
 
 	assert.True(t, ptyHasToken(session.Capture().Screen, "d"))
@@ -253,12 +253,12 @@ func TestPtyZsh_AliasShownByDefault(t *testing.T) {
 func TestPtyZsh_ShowAliasesZstyleHidesAlias(t *testing.T) {
 	t.Parallel()
 
-	session := startCloudctlPty(t, "zsh")
+	session := startShellCompletionPty(t, "zsh")
 
 	session.Type(`zstyle ':completion:*' show-aliases false`)
 	session.PressEnter()
 
-	session.Type("cloudctl ")
+	session.Type("shell-completion ")
 	session.Tab()
 	result := session.Capture()
 
@@ -269,12 +269,12 @@ func TestPtyZsh_ShowAliasesZstyleHidesAlias(t *testing.T) {
 func TestPtyZsh_DefaultSeparatorColorsBothColumns(t *testing.T) {
 	t.Parallel()
 
-	session := startCloudctlPty(t, "zsh")
+	session := startShellCompletionPty(t, "zsh")
 
 	session.Type(`zstyle ':completion:*' show-aliases false`)
 	session.PressEnter()
 
-	session.Type("cloudctl --")
+	session.Type("shell-completion --")
 	session.Tab()
 	session.Tab()
 	result := session.Capture()
@@ -287,14 +287,14 @@ func TestPtyZsh_DefaultSeparatorColorsBothColumns(t *testing.T) {
 func TestPtyZsh_ListSeparatorColorsBothColumns(t *testing.T) {
 	t.Parallel()
 
-	session := startCloudctlPty(t, "zsh")
+	session := startShellCompletionPty(t, "zsh")
 
 	session.Type(`zstyle ':completion:*' show-aliases false`)
 	session.PressEnter()
 	session.Type(`zstyle ':completion:*' list-separator '<->'`)
 	session.PressEnter()
 
-	session.Type("cloudctl --")
+	session.Type("shell-completion --")
 	session.Tab()
 	session.Tab()
 	result := session.Capture()
@@ -307,14 +307,14 @@ func TestPtyZsh_ListSeparatorColorsBothColumns(t *testing.T) {
 func TestPtyZsh_StyleLimitCatchAllColorsDescriptions(t *testing.T) {
 	t.Parallel()
 
-	session := startCloudctlPty(t, "zsh")
+	session := startShellCompletionPty(t, "zsh")
 
 	session.Type(`zstyle ':completion:*' show-aliases false`)
 	session.PressEnter()
 	session.Type("export CONGA_ZSH_STYLE_LIMIT=0")
 	session.PressEnter()
 
-	session.Type("cloudctl ")
+	session.Type("shell-completion ")
 	session.Tab()
 	result := session.Capture()
 
@@ -339,20 +339,20 @@ func ptyDimWithPadding(screenEscaped, text string) bool {
 func TestPtyFish_TabCompletesSingleMatch(t *testing.T) {
 	t.Parallel()
 
-	session := startCloudctlPty(t, "fish")
+	session := startShellCompletionPty(t, "fish")
 
-	session.Type("cloudctl de")
+	session.Type("shell-completion de")
 	session.Tab()
 	result := session.Capture()
 
-	assert.Equal(t, "cloudctl deploy", result.BufferAfterPrompt())
-	assert.Equal(t, 23, result.CursorX)
+	assert.Equal(t, "shell-completion deploy", result.BufferAfterPrompt())
+	assert.Equal(t, len("CONGA> shell-completion deploy "), result.CursorX)
 }
 
 func TestPtyFish_TabInsertsCommonPrefixAndLists(t *testing.T) {
 	t.Parallel()
 
-	session := startCloudctlPty(t, "fish")
+	session := startShellCompletionPty(t, "fish")
 
 	session.Type(ptyClusterCommandLine)
 	session.Tab()
@@ -368,7 +368,7 @@ func TestPtyFish_TabInsertsCommonPrefixAndLists(t *testing.T) {
 func TestPtyFish_SecondTabInsertsFirstCandidate(t *testing.T) {
 	t.Parallel()
 
-	session := startCloudctlPty(t, "fish")
+	session := startShellCompletionPty(t, "fish")
 
 	session.Type(ptyClusterCommandLine)
 	session.Tab()
@@ -385,20 +385,20 @@ func TestPtyFish_SecondTabInsertsFirstCandidate(t *testing.T) {
 func TestPtyPowerShell_TabCompletesSingleMatch(t *testing.T) {
 	t.Parallel()
 
-	session := startCloudctlPty(t, "powershell")
+	session := startShellCompletionPty(t, "powershell")
 
-	session.Type("cloudctl de")
+	session.Type("shell-completion de")
 	session.Tab()
 	result := session.Capture()
 
-	assert.Equal(t, "cloudctl deploy", result.BufferAfterPrompt())
-	assert.Equal(t, 23, result.CursorX)
+	assert.Equal(t, "shell-completion deploy", result.BufferAfterPrompt())
+	assert.Equal(t, len("CONGA> shell-completion deploy "), result.CursorX)
 }
 
 func TestPtyPowerShell_TabInsertsCommonPrefix(t *testing.T) {
 	t.Parallel()
 
-	session := startCloudctlPty(t, "powershell")
+	session := startShellCompletionPty(t, "powershell")
 
 	session.Type(ptyClusterCommandLine)
 	session.Tab()
@@ -412,7 +412,7 @@ func TestPtyPowerShell_TabInsertsCommonPrefix(t *testing.T) {
 func TestPtyPowerShell_SecondTabListsCandidates(t *testing.T) {
 	t.Parallel()
 
-	session := startCloudctlPty(t, "powershell")
+	session := startShellCompletionPty(t, "powershell")
 
 	session.Type(ptyClusterCommandLine)
 	session.Tab()
@@ -429,20 +429,20 @@ func TestPtyPowerShell_SecondTabListsCandidates(t *testing.T) {
 func TestPtyNushell_TabCompletesSingleMatch(t *testing.T) {
 	t.Parallel()
 
-	session := startCloudctlPty(t, "nushell")
+	session := startShellCompletionPty(t, "nushell")
 
-	session.Type("cloudctl de")
+	session.Type("shell-completion de")
 	session.Tab()
 	result := session.Capture()
 
-	assert.Equal(t, "cloudctl deploy", result.BufferAfterPrompt())
-	assert.Equal(t, 23, result.CursorX)
+	assert.Equal(t, "shell-completion deploy", result.BufferAfterPrompt())
+	assert.Equal(t, len("CONGA> shell-completion deploy "), result.CursorX)
 }
 
 func TestPtyNushell_TabInsertsCommonPrefixAndOpensMenu(t *testing.T) {
 	t.Parallel()
 
-	session := startCloudctlPty(t, "nushell")
+	session := startShellCompletionPty(t, "nushell")
 
 	session.Type(ptyClusterCommandLine)
 	session.Tab()
@@ -459,7 +459,7 @@ func TestPtyNushell_TabInsertsCommonPrefixAndOpensMenu(t *testing.T) {
 func TestPtyNushell_SecondTabKeepsMenuAndBuffer(t *testing.T) {
 	t.Parallel()
 
-	session := startCloudctlPty(t, "nushell")
+	session := startShellCompletionPty(t, "nushell")
 
 	session.Type(ptyClusterCommandLine)
 	session.Tab()
@@ -477,20 +477,20 @@ func TestPtyNushell_SecondTabKeepsMenuAndBuffer(t *testing.T) {
 func TestPtyElvish_TabCompletesSingleMatch(t *testing.T) {
 	t.Parallel()
 
-	session := startCloudctlPty(t, "elvish")
+	session := startShellCompletionPty(t, "elvish")
 
-	session.Type("cloudctl de")
+	session.Type("shell-completion de")
 	session.Tab()
 	result := session.Capture()
 
-	assert.Equal(t, "cloudctl deploy", result.BufferAfterPrompt())
-	assert.Equal(t, 23, result.CursorX)
+	assert.Equal(t, "shell-completion deploy", result.BufferAfterPrompt())
+	assert.Equal(t, len("CONGA> shell-completion deploy "), result.CursorX)
 }
 
 func TestPtyElvish_TabInsertsCommonPrefix(t *testing.T) {
 	t.Parallel()
 
-	session := startCloudctlPty(t, "elvish")
+	session := startShellCompletionPty(t, "elvish")
 
 	session.Type(ptyClusterCommandLine)
 	session.Tab()
@@ -504,7 +504,7 @@ func TestPtyElvish_TabInsertsCommonPrefix(t *testing.T) {
 func TestPtyElvish_SecondTabOpensMenuAndInsertsFirstCandidate(t *testing.T) {
 	t.Parallel()
 
-	session := startCloudctlPty(t, "elvish")
+	session := startShellCompletionPty(t, "elvish")
 
 	session.Type(ptyClusterCommandLine)
 	session.Tab()

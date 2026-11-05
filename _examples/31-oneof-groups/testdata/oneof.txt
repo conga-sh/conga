@@ -2,22 +2,22 @@
 # Asserts exactly-one group semantics, the usage alternation, and exit code 2.
 
 # 1. Neither member supplied: missing group
-exit-status 2 oneof-demo
+exit-status 2 oneof-groups
 stderr 'missing required flag: one of --input-file, --input-url'
 stderr 'Usage:'
-stderr 'oneof-demo \(--input-file=PATH \| --input-url=URL\)'
+stderr 'oneof-groups \(--input-file=PATH \| --input-url=URL\)'
 
 # 2. Exactly one member supplied
-exec oneof-demo --input-file data.txt
+exec oneof-groups --input-file data.txt
 stdout 'source=file:data.txt'
 
-exec oneof-demo --input-url https://example.com
+exec oneof-groups --input-url https://example.com
 stdout 'source=url:https://example.com'
 
 # 3. Both members supplied: mutually exclusive
-exit-status 2 oneof-demo --input-file data.txt --input-url https://example.com
+exit-status 2 oneof-groups --input-file data.txt --input-url https://example.com
 stderr 'flags --input-file and --input-url are mutually exclusive'
 
 # 4. Help screen shows the alternation
-exec oneof-demo --help
-stdout 'Usage:\n  oneof-demo \(--input-file=PATH \| --input-url=URL\)'
+exec oneof-groups --help
+stdout 'Usage:\n  oneof-groups \(--input-file=PATH \| --input-url=URL\)'

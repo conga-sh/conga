@@ -24,6 +24,9 @@ The complete scenarios, fixtures included, live in
 - `__complete export` speaks the wire protocol (`docs/completion-wire-protocol.md`).
 - `--list-candidates` evaluates predictors programmatically (`Invoke`, `Raw`,
   `FilterText`, `Tag`) outside the completion engine.
+- `conga.CompletionEnvPrefix("DEPLOY")` names the completion toggles
+  `DEPLOY_COMPLETION_*` (for example `DEPLOY_COMPLETION_DESCRIPTIONS=0`) instead
+  of deriving them from the application name.
 
 ## Test
 

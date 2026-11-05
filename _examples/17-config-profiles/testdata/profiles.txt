@@ -2,15 +2,15 @@
 # Asserts conga.ConfigFile with multi:"true" multi-file merging (repeatable and sep-delimited forms)
 
 # 1. Multi-file merge via repeated -c flags: later files override earlier ones
-exec profiles -c deploy/base.yaml -c deploy/prod.yaml
-stdout '⚙  profiles'
+exec config-profiles -c deploy/base.yaml -c deploy/prod.yaml
+stdout '⚙  config-profiles'
 stdout '-c, --config-files\s+conga\.ConfigFile\s+deploy/base\.yaml, deploy/prod\.yaml\s+● cli --config-file'
 stdout '--host\s+string\s+base\.example\.com\s+● config deploy/base\.yaml'
 stdout '-p, --port\s+int\s+9443\s+● config deploy/prod\.yaml'
 stdout '--log-level\s+string\s+warn\s+● config deploy/prod\.yaml'
 
 # 2. --why lists both loaded files and each value's winning tier
-exec profiles -c deploy/base.yaml -c deploy/prod.yaml --why
+exec config-profiles -c deploy/base.yaml -c deploy/prod.yaml --why
 stdout '--host\s+base\.example\.com\s+config \(base\.yaml\)'
 stdout '--port\s+9443\s+config \(prod\.yaml\)'
 stdout '--log-level\s+warn\s+config \(prod\.yaml\)'
@@ -19,13 +19,13 @@ stdout 'deploy/prod\.yaml\s+loaded'
 ! stdout '██████'
 
 # 3. Comma-separated file list in a single flag
-exec profiles -c 'deploy/base.yaml,deploy/prod.yaml'
+exec config-profiles -c 'deploy/base.yaml,deploy/prod.yaml'
 stdout '-c, --config-files\s+conga\.ConfigFile\s+deploy/base\.yaml, deploy/prod\.yaml\s+● cli --config-file'
 stdout '-p, --port\s+int\s+9443\s+● config deploy/prod\.yaml'
 
 # 4. Search-path fallback: Cascading() merges all existing fallback files
 #    (lowest precedence first) instead of single-file first-found resolution
-exec profiles
+exec config-profiles
 stdout '-p, --port\s+int\s+9443\s+● config deploy/prod\.yaml'
 stdout '--host\s+string\s+base\.example\.com\s+● config deploy/base\.yaml'
 

@@ -9,7 +9,7 @@ env XDG_CONFIG_HOME=$WORK/xdg
 
 # 1. Default help shows only active members: --http3 and --allow-insecure are
 #    gated off, as is the admin command.
-exec serve --help
+exec feature-toggles --help
 stdout '--listen'
 stdout '--cache'
 stdout '--feature-gates'
@@ -18,25 +18,25 @@ stdout '--feature-gates'
 ! stdout 'admin\s+Experimental admin API'
 
 # 2. The default run reports the resolved configuration and feature state.
-exec serve
+exec feature-toggles
 stdout 'listen=:8080 cache=128 http3=false insecure=false'
 stdout 'features: http3=false admin-api=false strict-tls=true metrics=true'
 stdout 'metrics: collecting on :8080'
 
 # 3. Invoking an inactive flag is a usage error (exit 2).
-exit-status 2 serve --http3
+exit-status 2 feature-toggles --http3
 stderr 'flag .--http3. requires feature "http3"'
-exit-status 2 serve --allow-insecure
+exit-status 2 feature-toggles --allow-insecure
 stderr 'flag .--allow-insecure. requires feature "!strict-tls"'
 
 # 4. Invoking an inactive command is a usage error, even when asking for help.
-exit-status 2 serve admin
+exit-status 2 feature-toggles admin
 stderr 'command "admin" requires feature "admin-api"'
-exit-status 2 serve admin --help
+exit-status 2 feature-toggles admin --help
 stderr 'command "admin" requires feature "admin-api"'
 
 # 5. --why reports only the active flags, plus the resolved feature state.
-exec serve --why
+exec feature-toggles --why
 stdout '--listen'
 ! stdout '--http3'
 stdout 'Features:'
@@ -44,7 +44,7 @@ stdout 'http3'
 stdout 'strict-tls'
 
 # 6. Non-sensitive flag values display once tagged safe: no redaction footer.
-exec serve --listen :9000 --cache 256 --why
+exec feature-toggles --listen :9000 --cache 256 --why
 stdout '--listen\s+:9000\s+cli'
 stdout '--cache\s+256\s+cli'
 ! stdout '██████'

@@ -24,7 +24,7 @@ The complete scenarios, fixtures included, live in
 ## What to look for
 
 - `bootstrap.yaml` loads on every run without any flag.
-- `--config-file` wins; `EXPLICIT_CONFIG` is ignored while the option is set.
+- `--config-file` wins; `WEB_CONFIG` is ignored while the option is set.
 - A missing explicit file is a runtime error (exit code 1), not usage exit 2.
 - `--why` shows the loaded explicit candidate; with the file missing it renders
   the read failure as a diagnostic row instead of aborting.

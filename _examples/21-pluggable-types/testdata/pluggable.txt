@@ -4,56 +4,56 @@
 # with a completion predictor for foreign types
 
 # 1. Default values
-exec pluggable-demo
-stdout '⚙  pluggable-demo'
+exec pluggable-types
+stdout '⚙  pluggable-types'
 stdout '-z, --tz\s+\*time\.Location\s+UTC\s+· default'
 stdout '--replica-tz\s+\[\]\*time\.Location\s+—\s+○ unset'
 stdout '-s, --signal\s+syscall\.Signal\s+terminated\s+· default'
 stdout '--load\s+main\.Percent\s+0%\s+○ unset'
 
 # 2. Parsing scalar pointer type and syscall.Signal
-exec pluggable-demo -z Europe/London -s HUP
+exec pluggable-types -z Europe/London -s HUP
 stdout '-z, --tz\s+\*time\.Location\s+Europe/London\s+● cli --tz'
 stdout '-s, --signal\s+syscall\.Signal\s+hangup\s+● cli --signal'
 
 # 3. Parsing slice of pointer types
-exec pluggable-demo --replica-tz Europe/Paris,Asia/Tokyo
+exec pluggable-types --replica-tz Europe/Paris,Asia/Tokyo
 stdout '--replica-tz\s+\[\]\*time\.Location\s+\[Europe/Paris, Asia/Tokyo\]\s+● cli --replica-tz'
 
 # 4. RegisterType parser applies to the custom Percent type
-exec pluggable-demo --load 75%
+exec pluggable-types --load 75%
 stdout '--load\s+main\.Percent\s+75%\s+● cli --load'
 
 # 4b. The trailing percent sign is optional and the value renders canonically
-exec pluggable-demo --load 75
+exec pluggable-types --load 75
 stdout '--load\s+main\.Percent\s+75%\s+● cli --load'
 
 # 5. The registered parser also reports coercion errors for the foreign type
-exit-status 2 pluggable-demo --load 150%
+exit-status 2 pluggable-types --load 150%
 stderr 'invalid load percentage "150%"'
 
 # 5b. Signs, fractions, and a bare percent sign are rejected
-exit-status 2 pluggable-demo --load +75%
+exit-status 2 pluggable-types --load +75%
 stderr 'invalid load percentage "\+75%"'
-exit-status 2 pluggable-demo --load 75.5%
+exit-status 2 pluggable-types --load 75.5%
 stderr 'invalid load percentage "75\.5%"'
-exit-status 2 pluggable-demo --load %
+exit-status 2 pluggable-types --load %
 stderr 'invalid load percentage "%"'
 
 # 6. WithPredictor attaches completion to the registered type
-exec pluggable-demo __complete export --load ''
+exec pluggable-types __complete export --load ''
 stdout '"value":"25%"'
 stdout '"description":"High load"'
 stdout '"value":"90%"'
 
 # 7. Error on unknown timezone
-exit-status 2 pluggable-demo -z Bogus/Location
+exit-status 2 pluggable-types -z Bogus/Location
 stderr 'unknown time zone Bogus/Location'
 
 # 8. Error on invalid signal
-exit-status 2 pluggable-demo -s NOTASIGNAL
+exit-status 2 pluggable-types -s NOTASIGNAL
 stderr 'invalid signal "NOTASIGNAL"'
 
 # 9. Shell completion script generation
-exec pluggable-demo --completion zsh
-stdout '#compdef pluggable-demo'
+exec pluggable-types --completion zsh
+stdout '#compdef pluggable-types'

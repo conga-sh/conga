@@ -21,8 +21,8 @@ go run ./_examples/29-feature-toggles
 go run ./_examples/29-feature-toggles --help
 go run ./_examples/29-feature-toggles --http3                              # exit 2: gated flag
 go run ./_examples/29-feature-toggles --feature-gates http3=true --http3
-SERVE_FEATURES=strict-tls=false go run ./_examples/29-feature-toggles --allow-insecure
-SERVE_FEATURES=admin-api=true go run ./_examples/29-feature-toggles admin
+API_FEATURES=strict-tls=false go run ./_examples/29-feature-toggles --allow-insecure
+API_FEATURES=admin-api=true go run ./_examples/29-feature-toggles admin
 ```
 
 Configuration activation uses the `features` section:

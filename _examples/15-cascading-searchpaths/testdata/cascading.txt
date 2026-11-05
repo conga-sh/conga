@@ -2,61 +2,61 @@
 # Asserts cascading config file search paths and tiered merging (system -> user -> local)
 
 env HOME=$WORK/home
-env SYSCONF_DIR=$WORK/etc/cascading-app
+env SYSCONF_DIR=$WORK/etc/cascading-searchpaths
 
 # 1. Cascading merge of system -> user -> local
-exec cascading-app
-stdout '⚙  cascading-app'
-stdout '-c, --config-file\s+conga\.ConfigFile\s+.*etc[/\\]cascading-app[/\\]cascading-app\.yaml, .*cascading-app\.yaml, cascading-app\.yaml\s+● config '
-stdout '--api-endpoint\s+string\s+https://api\.local\.dev\s+● config cascading-app\.yaml'
-stdout '--timeout\s+time\.Duration\s+15s\s+● config .*home[/\\]\.config[/\\]cascading-app[/\\]cascading-app\.yaml'
-stdout '--theme\s+string\s+light\s+● config .*home[/\\]\.config[/\\]cascading-app[/\\]cascading-app\.yaml'
-stdout '--telemetry\s+bool\s+false\s+● config .*etc[/\\]cascading-app[/\\]cascading-app\.yaml'
+exec cascading-searchpaths
+stdout '⚙  cascading-searchpaths'
+stdout '-c, --config-file\s+conga\.ConfigFile\s+.*etc[/\\]cascading-searchpaths[/\\]cascading-searchpaths\.yaml, .*cascading-searchpaths\.yaml, cascading-searchpaths\.yaml\s+● config '
+stdout '--api-endpoint\s+string\s+https://api\.local\.dev\s+● config cascading-searchpaths\.yaml'
+stdout '--timeout\s+time\.Duration\s+15s\s+● config .*home[/\\]\.config[/\\]cascading-searchpaths[/\\]cascading-searchpaths\.yaml'
+stdout '--theme\s+string\s+light\s+● config .*home[/\\]\.config[/\\]cascading-searchpaths[/\\]cascading-searchpaths\.yaml'
+stdout '--telemetry\s+bool\s+false\s+● config .*etc[/\\]cascading-searchpaths[/\\]cascading-searchpaths\.yaml'
 
 # 2. --why attributes each winning value to its tier and lists every loaded
 #    cascade file
-exec cascading-app --why
-stdout '--api-endpoint\s+https://api\.local\.dev\s+config \(cascading-app\.yaml\)'
-stdout '--timeout\s+15s\s+config \(.*home[/\\]\.\.\.[/\\]cascading-app\.yaml\)'
-stdout '--theme\s+light\s+config \(.*home[/\\]\.\.\.[/\\]cascading-app\.yaml\)'
-stdout '--telemetry\s+false\s+config \(.*etc[/\\]\.\.\.[/\\]cascading-app\.yaml\)'
-stdout '\.\s+loaded: cascading-app\.yaml'
-stdout '.*home[/\\]\.config[/\\]cascading-app\s+loaded: .*home[/\\]\.config[/\\]cascading-app[/\\]cascading-app\.yaml'
-stdout '.*etc[/\\]cascading-app\s+loaded: .*etc[/\\]cascading-app[/\\]cascading-app\.yaml'
+exec cascading-searchpaths --why
+stdout '--api-endpoint\s+https://api\.local\.dev\s+config \(cascading-searchpaths\.yaml\)'
+stdout '--timeout\s+15s\s+config \(.*home[/\\]\.\.\.[/\\]cascading-searchpaths\.yaml\)'
+stdout '--theme\s+light\s+config \(.*home[/\\]\.\.\.[/\\]cascading-searchpaths\.yaml\)'
+stdout '--telemetry\s+false\s+config \(.*etc[/\\]\.\.\.[/\\]cascading-searchpaths\.yaml\)'
+stdout '\.\s+loaded: cascading-searchpaths\.yaml'
+stdout '.*home[/\\]\.config[/\\]cascading-searchpaths\s+loaded: .*home[/\\]\.config[/\\]cascading-searchpaths[/\\]cascading-searchpaths\.yaml'
+stdout '.*etc[/\\]cascading-searchpaths\s+loaded: .*etc[/\\]cascading-searchpaths[/\\]cascading-searchpaths\.yaml'
 ! stdout '██████'
 
 # 3. CLI flag overrides cascading merged values
-exec cascading-app --theme solarized --timeout 5s
+exec cascading-searchpaths --theme solarized --timeout 5s
 stdout '--theme\s+string\s+solarized\s+● cli --theme'
 stdout '--timeout\s+time\.Duration\s+5s\s+● cli --timeout'
 
 # 4. Explicit -c disables cascading: only that single file is loaded
-exec cascading-app -c home/.config/cascading-app/cascading-app.yaml
-stdout '--theme\s+string\s+light\s+● config home[/\\]\.config[/\\]cascading-app[/\\]cascading-app\.yaml'
-stdout '--timeout\s+time\.Duration\s+15s\s+● config home[/\\]\.config[/\\]cascading-app[/\\]cascading-app\.yaml'
+exec cascading-searchpaths -c home/.config/cascading-searchpaths/cascading-searchpaths.yaml
+stdout '--theme\s+string\s+light\s+● config home[/\\]\.config[/\\]cascading-searchpaths[/\\]cascading-searchpaths\.yaml'
+stdout '--timeout\s+time\.Duration\s+15s\s+● config home[/\\]\.config[/\\]cascading-searchpaths[/\\]cascading-searchpaths\.yaml'
 stdout '--api-endpoint\s+string\s+https://api\.default\.io\s+· default'
 stdout '--telemetry\s+bool\s+true\s+· default'
 
 # 5. Missing explicit config file fails with a clean error (exit 1)
-exit-status 1 cascading-app -c missing.yaml
+exit-status 1 cascading-searchpaths -c missing.yaml
 stderr 'cannot read config file "missing\.yaml"'
 
 # 6. Partial cascade: missing intermediate files are skipped silently
-rm home/.config/cascading-app/cascading-app.yaml
-exec cascading-app
-stdout '--api-endpoint\s+string\s+https://api\.local\.dev\s+● config cascading-app\.yaml'
-stdout '--timeout\s+time\.Duration\s+30s\s+● config .*etc[/\\]cascading-app[/\\]cascading-app\.yaml'
+rm home/.config/cascading-searchpaths/cascading-searchpaths.yaml
+exec cascading-searchpaths
+stdout '--api-endpoint\s+string\s+https://api\.local\.dev\s+● config cascading-searchpaths\.yaml'
+stdout '--timeout\s+time\.Duration\s+30s\s+● config .*etc[/\\]cascading-searchpaths[/\\]cascading-searchpaths\.yaml'
 stdout '--theme\s+string\s+dark\s+· default'
 
--- etc/cascading-app/cascading-app.yaml --
+-- etc/cascading-searchpaths/cascading-searchpaths.yaml --
 api_endpoint: "https://api.system.corp"
 timeout: "30s"
 telemetry: false
 
--- home/.config/cascading-app/cascading-app.yaml --
+-- home/.config/cascading-searchpaths/cascading-searchpaths.yaml --
 theme: "light"
 timeout: "15s"
 
--- cascading-app.yaml --
+-- cascading-searchpaths.yaml --
 api_endpoint: "https://api.local.dev"
 

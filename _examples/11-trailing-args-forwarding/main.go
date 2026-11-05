@@ -4,7 +4,7 @@ import "github.com/conga-sh/conga"
 
 func main() {
 	app := conga.New[CLI]().
-		Name("runner").
+		Name("trailing-args-forwarding").
 		Description("Argument forwarding workflows (DashArgs vs RawArgs)").
 		Version("1.0.0").
 		EnableCompletion()

@@ -28,7 +28,7 @@ func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
 
 func main() {
 	app := conga.New[CLI]().
-		Name("oneof-demo").
+		Name("oneof-groups").
 		Description("Exactly-one flag groups with oneof").
 		Version("1.0.0")
 

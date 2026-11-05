@@ -2,8 +2,8 @@
 # Asserts File (with capability tags), Dir, ByteSize, and custom SelfValidator types
 
 # 1. Defaults
-exec domain-demo
-stdout '⚙  domain-demo'
+exec domain-types
+stdout '⚙  domain-types'
 stdout '-m, --max-memory\s+conga\.ByteSize\s+512MiB\s+· default'
 stdout '-l, --deploy-hook\s+conga\.File\s+—\s+○ unset'
 stdout '--payload\s+conga\.FileContent\s+—\s+○ unset'
@@ -13,7 +13,7 @@ stdout 'Validated Domain Types: max_memory_bytes=536870912'
 # 2. Valid domain types with created files/dirs/symlinks
 mkdir output_folder
 symlink deploy-hook -> hook.sh
-exec domain-demo -i valid.txt -o output_folder -m 2GiB -l deploy-hook -p 8000-8080 -H Accept=application/json -H Content-Type=text/html
+exec domain-types -i valid.txt -o output_folder -m 2GiB -l deploy-hook -p 8000-8080 -H Accept=application/json -H Content-Type=text/html
 stdout '-i, --input-file\s+conga\.File\s+valid\.txt\s+● cli --input-file'
 stdout '-o, --output-dir\s+conga\.Dir\s+output_folder\s+● cli --output-dir'
 stdout '-m, --max-memory\s+conga\.ByteSize\s+2GiB\s+● cli --max-memory'
@@ -23,74 +23,74 @@ stdout '-H, --headers\s+main\.HeaderMap\s+Accept=application/json, Content-Type=
 stdout 'Validated Domain Types: max_memory_bytes=2147483648'
 
 # 3. Non-existent file fails existing validation
-exit-status 2 domain-demo -i nonexistent.txt
+exit-status 2 domain-types -i nonexistent.txt
 stderr 'stat nonexistent\.txt: no such file or directory for flag --input-file'
 
 # 4. Directory passed to existing file validation fails
-exit-status 2 domain-demo -i output_folder
+exit-status 2 domain-types -i output_folder
 stderr '"output_folder" is a directory, but a file was expected for flag --input-file'
 
 # 5. File passed to existing dir validation fails
-exit-status 2 domain-demo -o valid.txt
+exit-status 2 domain-types -o valid.txt
 stderr '"valid\.txt" is a file, but a directory was expected for flag --output-dir'
 
 # 6. Invalid port range (min > max) fails custom SelfValidator.Validate()
-exit-status 2 domain-demo -p 9000-8000
+exit-status 2 domain-types -p 9000-8000
 stderr 'invalid port range 9000-8000 \(must be 1\.\.65535 and min <= max\) for flag --ports'
 
 # 7. Malformed byte size unit fails coercion
-exit-status 2 domain-demo -m 5XB
+exit-status 2 domain-types -m 5XB
 stderr 'unknown byte size unit "XB" in "5XB" for flag --max-memory'
 
 # 8. Invalid header name fails custom SelfValidator.Validate() on map domain type
-exit-status 2 domain-demo -H X-Bad@Header=value
+exit-status 2 domain-types -H X-Bad@Header=value
 stderr 'invalid header: header name "X-Bad@Header" contains invalid characters for flag --headers'
 
 # 9. Restricted header fails custom SelfValidator.Validate() on map domain type
-exit-status 2 domain-demo -H Authorization=secret
+exit-status 2 domain-types -H Authorization=secret
 stderr 'invalid header: header "Authorization" cannot be passed via command line for flag --headers'
 
 # 10. Domain types earn file completion for free (File with existing tag)
-exec domain-demo __complete export -i ''
+exec domain-types __complete export -i ''
 stdout '\"value\":\"valid\.txt\"'
 
 # 11. Domain types earn directory completion for free (Dir with existing tag)
-exec domain-demo __complete export -o ''
+exec domain-types __complete export -o ''
 stdout '\"value\":\"output_folder/\"'
 
 # 12. Domain types earn symlink completion for free (Symlink)
-exec domain-demo __complete export -l ''
+exec domain-types __complete export -l ''
 stdout '\"value\":\"deploy-hook\"'
 ! stdout '\"value\":\"valid\.txt\"'
 
 # 13. FileContent loads a payload file into memory at decode time
-exec domain-demo -i valid.txt --payload payload.txt
+exec domain-types -i valid.txt --payload payload.txt
 stdout '--payload\s+conga\.FileContent\s+payload-data'
 stdout 'payload_bytes=[0-9]+'
 
 # 14. FileContent reads '-' from the engine-configured stdin
 stdin streamed.txt
-exec domain-demo -i valid.txt --payload -
+exec domain-types -i valid.txt --payload -
 stdout 'payload_bytes=[0-9]+'
 
 # 15. File.IsStdio detects the '-' sink and keeps the payload stream clean
-exec domain-demo -i valid.txt --payload payload.txt --output -
+exec domain-types -i valid.txt --payload payload.txt --output -
 stdout 'payload-data'
 stderr 'output stream detected; diagnostics stay on stderr'
 
 # 16. A File with stdin:"true" streams lazily via Reader() from the engine stdin
 stdin streamed.txt
-exec domain-demo -q -
+exec domain-types -q -
 stdout '-q, --query\s+conga\.File\s+-\s+● cli --query'
 stdout 'query_bytes=[0-9]+'
 
 # 17. The same stdin-capable flag accepts a regular file path
-exec domain-demo -q valid.txt
+exec domain-types -q valid.txt
 stdout '-q, --query\s+conga\.File\s+valid\.txt\s+● cli --query'
 stdout 'query_bytes=[0-9]+'
 
 # 18. glob:"*.yaml,*.yml" filters file completion candidates by name pattern
-exec domain-demo __complete export --templates ''
+exec domain-types __complete export --templates ''
 stdout '"value":"template\.yaml"'
 stdout '"value":"settings\.yml"'
 ! stdout 'notes\.txt'

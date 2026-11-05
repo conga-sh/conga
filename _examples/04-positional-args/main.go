@@ -28,7 +28,7 @@ func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
 
 func main() {
 	app := conga.New[CLI]().
-		Name("notify").
+		Name("positional-args").
 		Description("Positional argument workflows (notification dispatcher)").
 		Version("1.0.0")
 

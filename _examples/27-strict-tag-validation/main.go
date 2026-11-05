@@ -22,7 +22,7 @@ func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
 
 func main() {
 	app := conga.New[CLI]().
-		Name("strict-tags").
+		Name("strict-tag-validation").
 		Description("Registering third-party struct tags with app.AllowTags").
 		// Tag validation is always on and rejects unknown tag keys with an
 		// ErrSchema error. The db and validate keys below belong to other

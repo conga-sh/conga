@@ -1,6 +1,6 @@
 # 30 — Bootstrapping flag-selected files
 
-`flowctl` reads pipeline files selected by `-f/--file` and runs the pipeline
+`bootstrapper` reads pipeline files selected by `-f/--file` and runs the pipeline
 named by `--pipeline`, but CONGA normally resolves configuration before it binds
 flags. The `-f` value is therefore unavailable when file resolution starts. A
 `conga.Bootstrapper` breaks that cycle: CONGA binds only the fields tagged
@@ -44,7 +44,7 @@ go run ./_examples/30-bootstrapper -f _examples/30-bootstrapper/testdata/fixture
 go run ./_examples/30-bootstrapper -f _examples/30-bootstrapper/testdata/fixtures/pipeline.yaml --pipeline deploy
 go run ./_examples/30-bootstrapper -f _examples/30-bootstrapper/testdata/fixtures/pipeline.yaml -f _examples/30-bootstrapper/testdata/fixtures/pipeline.local.yaml --pipeline deploy
 go run ./_examples/30-bootstrapper -f _examples/30-bootstrapper/testdata/fixtures/pipeline.yaml -f _examples/30-bootstrapper/testdata/fixtures/pipeline.local.yaml --pipeline deploy --why
-FLOWCTL_LOG_LEVEL=debug go run ./_examples/30-bootstrapper -f _examples/30-bootstrapper/testdata/fixtures/pipeline.yaml --pipeline deploy
+FLOW_LOG_LEVEL=debug go run ./_examples/30-bootstrapper -f _examples/30-bootstrapper/testdata/fixtures/pipeline.yaml --pipeline deploy
 ```
 
 The complete scenarios, fixtures included, live in
@@ -57,7 +57,7 @@ The complete scenarios, fixtures included, live in
   bootstrap pass and again in `Run` through the normal pass; environment
   fallbacks and defaults resolve in both.
 - The file's top-level config keys bind with `● config pipeline.yaml`
-  provenance; they outrank `default` tags and lose to `FLOWCTL_*` environment
+  provenance; they outrank `default` tags and lose to `FLOW_*` environment
   variables and CLI flags.
 - Selecting a pipeline overlays its `parallelism`/`log_level`/`env` keys, and
   `--why` attributes every map entry to the file and pipeline section that last
@@ -65,8 +65,8 @@ The complete scenarios, fixtures included, live in
   paths table still lists each file once.
 - With two files, scalar config is nearest-file-wins, while `steps` and `needs`
   concatenate (`needs` deduplicated) — a merge the config tier cannot express.
-- Pipeline selection is `--pipeline` (environment fallback `FLOWCTL_PIPELINE`);
-  file selection is `-f/--file` (environment fallback `FLOWCTL_FILE`).
+- Pipeline selection is `--pipeline` (environment fallback `FLOW_PIPELINE`);
+  file selection is `-f/--file` (environment fallback `FLOW_FILE`).
 - Broken bootstrap input is app-authored data: exit 1 for a missing file, an
   unsupported `version`, an unknown key, or an unknown pipeline.
 

@@ -10,7 +10,7 @@ import (
 	"github.com/conga-sh/conga/_examples/internal/inspector"
 )
 
-// CLI is flowctl: it runs named pipelines from one or more pipeline files. The
+// CLI is bootstrapper: it runs named pipelines from one or more pipeline files. The
 // files' top-level configuration keys feed the config tier through the
 // Bootstrap method; the pipeline definitions themselves stay domain data.
 type CLI struct {
@@ -46,11 +46,11 @@ func (c *CLI) Run(_ context.Context, session *conga.Session) error {
 
 func main() {
 	app := conga.New[CLI]().
-		Name("flowctl").
+		Name("bootstrapper").
 		Description("Run named pipelines whose files supply the configuration tier").
 		Version("1.0.0").
 		EnableWhy().
-		EnvPrefix("FLOWCTL")
+		EnvPrefix("FLOW")
 
 	if err := app.Run(); err != nil {
 		app.Exit(err)

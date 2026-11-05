@@ -14,14 +14,14 @@ import (
 // experimental or is a legacy escape hatch: an experimental HTTP/3 listener,
 // the experimental admin API, and a plaintext escape hatch retired by strict
 // TLS. Every feature is carried by one key=value map surface — the
-// --feature-gates flag, the SERVE_FEATURES environment variable, or the
+// --feature-gates flag, the API_FEATURES environment variable, or the
 // features configuration section — with field defaults as the base. Inactive
 // members are hidden from --help, --why, and shell completion, and invoking
 // them is a usage error (exit 2).
 type CLI struct {
 	Config conga.ConfigFile `short:"c"`
 
-	Features conga.Features[experiments] `config:"features" env:"SERVE_FEATURES" flag:"feature-gates"`
+	Features conga.Features[experiments] `config:"features" env:"API_FEATURES" flag:"feature-gates"`
 
 	Listen        conga.OptionalFlag[string] `default:":8080"       help:"Listen address"                                safe:"true"`
 	HTTP3         conga.OptionalFlag[bool]   `feature:"http3"       help:"Enable the QUIC/HTTP3 listener (experimental)"`
@@ -81,13 +81,13 @@ type experiments struct {
 
 func main() {
 	app := conga.New[CLI]().
-		Name("serve").
+		Name("feature-toggles").
 		Description("HTTP API server gating experimental features behind code, env, and config gates").
 		Version("1.0.0").
 		EnableCompletion().
 		EnableFeatures().
 		EnableWhy().
-		EnvPrefix("SERVE").
+		EnvPrefix("API").
 		RegisterDecoder(".yaml", yaml.Decode).
 		RegisterDecoder(".yml", yaml.Decode)
 

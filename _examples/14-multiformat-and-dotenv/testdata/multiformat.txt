@@ -7,8 +7,8 @@ env XDG_CONFIG_HOME=$WORK/xdg
 
 # 1. Automatic .env + .env.local loading into process environment
 # (DATABASE_URL is expanded from DB_HOST; SERVICE_NAME is single-quoted; API_KEY comes from .env.local)
-exec multiformat-app
-stdout '⚙  multiformat-app'
+exec multiformat-and-dotenv
+stdout '⚙  multiformat-and-dotenv'
 stdout '-p, --port\s+int\s+8000\s+● env PORT'
 stdout '-d, --database-url\s+string\s+postgres://localhost:5432/db\s+● env DATABASE_URL'
 stdout '--service-name\s+string\s+local svc\s+● env SERVICE_NAME'
@@ -16,7 +16,7 @@ stdout '--api-key\s+string\s+local-dev-key-42\s+● env API_KEY'
 
 # 2. --why lists the registered decoders, the winning tier per flag, and
 #    redacts the credential-bearing fields (DATABASE_URL, API_KEY)
-exec multiformat-app --why
+exec multiformat-and-dotenv --why
 stdout 'Config decoders: \.hcl, \.json, \.toml, \.yaml, \.yml'
 stdout '--service-name\s+local svc\s+env \(\.env\)\s+SERVICE_NAME'
 stdout '--database-url\s+██████\s+env \(\.env\)'
@@ -25,7 +25,7 @@ stdout 'values are redacted'
 
 # 3. Real OS environment variables are never overwritten by .env files
 env PORT=7777
-exec multiformat-app
+exec multiformat-and-dotenv
 stdout '-p, --port\s+int\s+7777\s+● env PORT'
 env PORT=
 
@@ -37,38 +37,38 @@ env -u SERVICE_NAME
 env -u API_KEY
 
 # 4. JSON config decoding
-exec multiformat-app -c config.json
+exec multiformat-and-dotenv -c config.json
 stdout '-c, --config-file\s+conga\.ConfigFile\s+config\.json\s+● cli --config-file'
 stdout '-p, --port\s+int\s+3000\s+● config config\.json'
 stdout '--max-workers\s+int\s+8\s+● config config\.json'
 stdout '--service-name\s+string\s+json-service\s+● config config\.json'
 
 # 5. YAML config decoding (with snake_case and kebab-case normalization)
-exec multiformat-app -c config.yaml
+exec multiformat-and-dotenv -c config.yaml
 stdout '--service-name\s+string\s+yaml-service\s+● config config\.yaml'
 stdout '-p, --port\s+int\s+4000\s+● config config\.yaml'
 
 # 6. TOML config decoding
-exec multiformat-app -c config.toml
+exec multiformat-and-dotenv -c config.toml
 stdout '-p, --port\s+int\s+5000\s+● config config\.toml'
 stdout '--max-workers\s+int\s+16\s+● config config\.toml'
 
 # 7. HCL config decoding
-exec multiformat-app -c config.hcl
+exec multiformat-and-dotenv -c config.hcl
 stdout '-p, --port\s+int\s+6000\s+● config config\.hcl'
 stdout '--service-name\s+string\s+hcl-service\s+● config config\.hcl'
 
 # 8. Strict validation typo suggestions (config-parse errors exit 1)
-exit-status 1 multiformat-app -c typo.yaml
+exit-status 1 multiformat-and-dotenv -c typo.yaml
 stderr 'unknown field "prt"'
 stderr 'did you mean "port"\?'
 
 # 9. Unsupported config file extension fails with a clean error (exit 1)
-exit-status 1 multiformat-app -c config.xml
+exit-status 1 multiformat-and-dotenv -c config.xml
 stderr 'unsupported config file format "\.xml"'
 
 # 10. Duplicate JSON object keys are rejected (RFC 7493 strictness, exit 1)
-exit-status 1 multiformat-app -c duplicate.json
+exit-status 1 multiformat-and-dotenv -c duplicate.json
 stderr 'duplicate object member name "port"'
 
 -- .env --

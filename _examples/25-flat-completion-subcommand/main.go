@@ -27,7 +27,7 @@ func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
 
 func main() {
 	app := conga.New[CLI]().
-		Name("runner").
+		Name("flat-completion-subcommand").
 		Description("Task runner (flat CLI with opt-in completion subcommand)").
 		EnableCompletion()
 

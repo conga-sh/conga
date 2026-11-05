@@ -4,26 +4,26 @@
 # 2. No Commands: section is generated in the --help output.
 
 # 1. Default flat CLI: --help displays the --completion flag with no Commands: section
-exec minify --help
-stdout 'Usage:\n  minify \[flags\] <input>'
+exec flat-completion-flag --help
+stdout 'Usage:\n  flat-completion-flag \[flags\] <input>'
 stdout 'Flags:'
 stdout '--completion=SHELL\s+Generate shell completion script'
 ! stdout 'Commands:'
 
 # 2. Default flat CLI: --completion generates completion scripts for supported shells
-exec minify --completion bash
-stdout '_minify_completion'
-stdout 'complete -o noquote -F _minify_completion minify'
+exec flat-completion-flag --completion bash
+stdout '_flat_completion_flag_completion'
+stdout 'complete -o noquote -F _flat_completion_flag_completion flat-completion-flag'
 
-exec minify --completion zsh
-stdout '#compdef minify'
-stdout '_minify_completion'
+exec flat-completion-flag --completion zsh
+stdout '#compdef flat-completion-flag'
+stdout '_flat_completion_flag_completion'
 
 # 3. Default flat CLI: unknown shell returns exit code 2 (usage error)
-exit-status 2 minify --completion invalidshell
+exit-status 2 flat-completion-flag --completion invalidshell
 stderr 'unknown shell "invalidshell"'
 
 # 4. Default flat CLI: normal command execution
-exec minify -l 9 bundle.js
+exec flat-completion-flag -l 9 bundle.js
 stdout '-l, --level\s+int\s+9\s+● cli --level'
 stdout 'Minifying bundle.js \(level=9, output=<stdout>\)'

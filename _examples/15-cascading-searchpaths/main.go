@@ -27,13 +27,13 @@ func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
 
 func main() {
 	app := conga.New[CLI]().
-		Name("cascading-app").
+		Name("cascading-searchpaths").
 		Description("Cascading multi-tier configuration search paths (local > user > system)").
 		Version("1.0.0").
 		EnableWhy().
 		RegisterDecoder(".yaml", yaml.Decode).
 		RegisterDecoder(".yml", yaml.Decode).
-		ConfigOptions(conga.ConfigPaths(".", "~/.config/cascading-app", "${SYSCONF_DIR:-/etc/cascading-app}"), conga.ConfigCascading())
+		ConfigOptions(conga.ConfigPaths(".", "~/.config/cascading-searchpaths", "${SYSCONF_DIR:-/etc/cascading-searchpaths}"), conga.ConfigCascading())
 
 	if err := app.Run(); err != nil {
 		app.Exit(err)

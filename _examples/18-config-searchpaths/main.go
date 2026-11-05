@@ -24,12 +24,12 @@ func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
 
 func main() {
 	app := conga.New[CLI]().
-		Name("firstfound").
+		Name("config-searchpaths").
 		Description("Single-file config mode: first existing search path wins").
 		Version("1.0.0").
 		EnableWhy().
 		RegisterDecoder(".hcl", hcl.Decode).
-		ConfigOptions(conga.ConfigPaths(".", "~/.config/firstfound", "${SYSCONF_DIR:-/etc/firstfound}"))
+		ConfigOptions(conga.ConfigPaths(".", "~/.config/config-searchpaths", "${SYSCONF_DIR:-/etc/config-searchpaths}"))
 
 	if err := app.Run(); err != nil {
 		app.Exit(err)

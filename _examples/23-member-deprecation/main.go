@@ -47,7 +47,7 @@ func (d *DeployCmd) Run(ctx context.Context, session *conga.Session) error {
 }
 
 func main() {
-	app := conga.New[CLI]().Name("member-deprecated").EnableCompletion()
+	app := conga.New[CLI]().Name("member-deprecation").EnableCompletion()
 
 	if err := app.Run(); err != nil {
 		app.Exit(err)

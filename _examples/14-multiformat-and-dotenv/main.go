@@ -30,7 +30,7 @@ func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
 
 func main() {
 	app := conga.New[CLI]().
-		Name("multiformat-app").
+		Name("multiformat-and-dotenv").
 		Description("Multi-format configuration decoders (JSON, TOML, YAML, HCL) and .env loading").
 		Version("1.0.0").
 		EnableWhy().
