@@ -248,6 +248,9 @@ func (a *App[T]) Version(version string) *App[T] {
 //
 //	EnvPrefix("MYAPP")  envprefix:"MYAPP_WORKER"  --concurrency  =>  MYAPP_WORKER_CONCURRENCY
 //
+// The prefix does not apply to a [Features] container. To bind environment
+// variables for feature toggles, declare an env or envprefix tag on the container.
+//
 // Environment variable bindings outrank configuration file values and defaults, but
 // yield to explicit command-line flags.
 //

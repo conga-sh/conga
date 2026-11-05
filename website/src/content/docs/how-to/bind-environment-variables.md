@@ -54,6 +54,10 @@ In the example above, `--port` resolves to `9003`. If `--port` is omitted on the
 
 Positional arguments do not read environment variables; they resolve only from command-line arguments.
 
+:::note[Feature toggles]
+Application prefixes do not reach `Features` containers. To bind environment variables for feature toggles, declare `env` or `envprefix` directly on the container. See [How to gate features](/how-to/feature-flags/#bind-features-individually-with-env) for the two environment formats.
+:::
+
 ## Namespace subcommands with envprefix
 
 To scope a subcommand's flags under its own prefix, add an `envprefix` tag to the `Command[T]` field:
@@ -114,6 +118,7 @@ server --host ""
 
 ## Where to go next
 
+- [How to gate features](/how-to/feature-flags/) — configure feature toggles and their environment surfaces.
 - [How to load .env files](/how-to/load-env-files/) — feed `.env` and `.env.local` files into the environment tier.
 - [How to inspect value provenance](/how-to/inspect-value-provenance/) — diagnose which tier provided each value with `--why`.
 - [About value precedence](/explanation/value-precedence/) — the four-tier resolution ladder and provenance rules.
