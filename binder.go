@@ -321,26 +321,19 @@ func (parser *tokenParser) consumeNextValue(flagSpec *spec.Flag, flagName, rawTo
 	return flagRequiresValueError()
 }
 
+// parseShortFlagCluster binds a shorthand cluster classified by
+// spec.WalkShorthand. Runes before an unknown rune are bound before the unknown
+// flag is reported; the walk never yields a value-start step together with an
+// unresolved rune.
 func (parser *tokenParser) parseShortFlagCluster(tok tokenizer.Token) error {
 	runes := tok.ShortRunes
 
-	for i := range runes {
-		r := runes[i]
+	walk := spec.WalkShorthand(runes, tok.HasAttachedValue, func(r rune) (*spec.Flag, int) {
+		return parser.shortMap[r], 0
+	})
 
-		flagSpec, ok := parser.shortMap[r]
-		if !ok {
-			msg := "unknown flag: -" + string(r)
-			if len(runes) > 1 {
-				msg = "unknown shorthand flag: '" + string(r) + "' in -" + string(runes)
-			}
-
-			return &parseError{
-				msg:      msg,
-				token:    tok.Raw,
-				cmdChain: parser.cmdChain,
-				cause:    errUnknownFlag,
-			}
-		}
+	for i, step := range walk.Steps {
+		flagSpec := step.Flag
 
 		if flagSpec.IsCounter {
 			if tok.HasAttachedValue && i == len(runes)-1 {
@@ -379,7 +372,23 @@ func (parser *tokenParser) parseShortFlagCluster(tok tokenizer.Token) error {
 			return nil
 		}
 
-		return parser.consumeNextValue(flagSpec, fmt.Sprintf("-%c", r), tok.Raw)
+		return parser.consumeNextValue(flagSpec, fmt.Sprintf("-%c", runes[i]), tok.Raw)
+	}
+
+	if walk.UnresolvedAt >= 0 {
+		r := runes[walk.UnresolvedAt]
+
+		msg := "unknown flag: -" + string(r)
+		if len(runes) > 1 {
+			msg = "unknown shorthand flag: '" + string(r) + "' in -" + string(runes)
+		}
+
+		return &parseError{
+			msg:      msg,
+			token:    tok.Raw,
+			cmdChain: parser.cmdChain,
+			cause:    errUnknownFlag,
+		}
 	}
 
 	return nil
