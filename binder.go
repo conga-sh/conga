@@ -526,19 +526,17 @@ func (index *flagIndex) find(tok tokenizer.Token) *spec.Flag {
 }
 
 // flagTokenConsumesNext reports whether the token parser takes the following
-// token as this flag token's value. It mirrors parseShortFlagCluster: a
-// value-taking rune consumes the rest of the shorthand cluster as its value
-// when it is not the last rune, and only a final value-taking rune consumes the
-// next token. An unresolved rune ends the cluster without consuming anything.
+// token as this flag token's value. Shorthand clusters are classified by
+// spec.WalkShorthand, the arity contract shared with parseShortFlagCluster.
 // Built-ins are resolved from chain because the routing index stores only
 // declared flags; the parser registers synthesized built-ins separately.
 func (index *flagIndex) flagTokenConsumesNext(tok tokenizer.Token, chain []*spec.Command) bool {
-	if tok.HasAttachedValue {
-		return false
-	}
-
 	switch tok.Type {
 	case tokenizer.TokenTypeLongFlag:
+		if tok.HasAttachedValue {
+			return false
+		}
+
 		flagSpec := index.find(tok)
 		if flagSpec == nil {
 			flagSpec = spec.FindFlagInChain(chain, tok.Name)
@@ -546,24 +544,15 @@ func (index *flagIndex) flagTokenConsumesNext(tok tokenizer.Token, chain []*spec
 
 		return flagSpec != nil && flagSpec.TakesValue()
 	case tokenizer.TokenTypeShortFlag:
-		runes := tok.ShortRunes
-
-		for position, r := range runes {
-			flagSpec := index.short[r]
-			if flagSpec == nil {
-				flagSpec = spec.FindShortFlagInChain(chain, r)
+		walk := spec.WalkShorthand(tok.ShortRunes, tok.HasAttachedValue, func(r rune) (*spec.Flag, int) {
+			if flagSpec := index.short[r]; flagSpec != nil {
+				return flagSpec, 0
 			}
 
-			if flagSpec == nil {
-				return false
-			}
+			return spec.FindShortFlagInChain(chain, r), 0
+		})
 
-			if flagSpec.TakesValue() {
-				return position == len(runes)-1
-			}
-		}
-
-		return false
+		return walk.ConsumesNext
 	default:
 		return false
 	}
