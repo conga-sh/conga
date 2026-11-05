@@ -369,13 +369,15 @@ func TestCompletionScript_EnvPrefix(t *testing.T) {
 		options    []conga.CompletionOption
 		wantPrefix string
 	}{
-		"derives from application name":      {name: "myapp", wantPrefix: "MYAPP_"},
-		"normalizes the application name":    {name: "my-app", wantPrefix: "MY_APP_"},
-		"punctuation-only name falls back":   {name: "!!!", wantPrefix: "APP_"},
-		"explicit prefix overrides the name": {name: "myapp", options: []conga.CompletionOption{conga.CompletionEnvPrefix("taskctl")}, wantPrefix: "TASKCTL_"},
-		"normalizes the explicit prefix":     {name: "myapp", options: []conga.CompletionOption{conga.CompletionEnvPrefix("task-ctl")}, wantPrefix: "TASK_CTL_"},
-		"empty prefix keeps derivation":      {name: "myapp", options: []conga.CompletionOption{conga.CompletionEnvPrefix("")}, wantPrefix: "MYAPP_"},
-		"nil option is skipped":              {name: "myapp", options: []conga.CompletionOption{nil}, wantPrefix: "MYAPP_"},
+		"derives from application name":       {name: "myapp", wantPrefix: "MYAPP_"},
+		"normalizes the application name":     {name: "my-app", wantPrefix: "MY_APP_"},
+		"punctuation-only name falls back":    {name: "!!!", wantPrefix: "APP_"},
+		"digit-leading name gains underscore": {name: "7z", wantPrefix: "_7Z_"},
+		"digit-leading separated name":        {name: "2fa-tool", wantPrefix: "_2FA_TOOL_"},
+		"explicit prefix overrides the name":  {name: "myapp", options: []conga.CompletionOption{conga.CompletionEnvPrefix("taskctl")}, wantPrefix: "TASKCTL_"},
+		"normalizes the explicit prefix":      {name: "myapp", options: []conga.CompletionOption{conga.CompletionEnvPrefix("task-ctl")}, wantPrefix: "TASK_CTL_"},
+		"empty prefix keeps derivation":       {name: "myapp", options: []conga.CompletionOption{conga.CompletionEnvPrefix("")}, wantPrefix: "MYAPP_"},
+		"nil option is skipped":               {name: "myapp", options: []conga.CompletionOption{nil}, wantPrefix: "MYAPP_"},
 	}
 
 	for label, testCase := range tests {
@@ -398,18 +400,41 @@ func TestCompletionScript_EnvPrefix(t *testing.T) {
 	}
 }
 
-func TestCompletionScript_DigitLeadingEnvPrefixRejected(t *testing.T) {
-	t.Parallel()
+//nolint:paralleltest // t.Setenv cannot be used with t.Parallel
+func TestCompletion_DigitLeadingDerivedPrefixDescriptionsToggle(t *testing.T) {
+	t.Run("unset shows descriptions", func(t *testing.T) {
+		var buffer bytes.Buffer
 
-	app := conga.New[PlainAppCLI]().
-		Name("7z").
-		EnableCompletion().
-		Args([]string{"--completion", "zsh"})
+		app := conga.New[PlainAppCLI]().
+			Name("7z").
+			EnableCompletion().
+			Stdout(&buffer).
+			Args([]string{"__complete", "fish", "--"})
 
-	err := app.Run()
+		err := app.Run()
 
-	assert.IsError(t, err, conga.ErrSchema)
-	assert.Equal(t, `schema error: completion environment prefix "7Z_" begins with a digit, which is not a valid shell variable name; rename the application or pass conga.CompletionEnvPrefix with a prefix beginning with a letter`, err.Error())
+		assert.NoError(t, err)
+		assert.Contains(t, buffer.String(), "--name")
+		assert.Contains(t, buffer.String(), "App name")
+	})
+
+	t.Run("underscore-led variable hides descriptions", func(t *testing.T) {
+		t.Setenv("_7Z_COMPLETION_DESCRIPTIONS", "0")
+
+		var buffer bytes.Buffer
+
+		app := conga.New[PlainAppCLI]().
+			Name("7z").
+			EnableCompletion().
+			Stdout(&buffer).
+			Args([]string{"__complete", "fish", "--"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Contains(t, buffer.String(), "--name")
+		assert.NotContains(t, buffer.String(), "App name")
+	})
 }
 
 func TestCompletionScript_DigitLeadingExplicitEnvPrefixRejected(t *testing.T) {
@@ -423,7 +448,7 @@ func TestCompletionScript_DigitLeadingExplicitEnvPrefixRejected(t *testing.T) {
 	err := app.Run()
 
 	assert.IsError(t, err, conga.ErrSchema)
-	assert.Equal(t, `schema error: completion environment prefix "2FA_" begins with a digit, which is not a valid shell variable name; rename the application or pass conga.CompletionEnvPrefix with a prefix beginning with a letter`, err.Error())
+	assert.Equal(t, `schema error: completion environment prefix "2FA_" begins with a digit, which is not a valid shell variable name; pass conga.CompletionEnvPrefix with a prefix beginning with a letter`, err.Error())
 }
 
 func TestCompletionScript_EnvPrefixResolvedAfterBuilderChain(t *testing.T) {

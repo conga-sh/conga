@@ -75,7 +75,9 @@ Set and exported by the bash snippet itself, consumed by the driver:
 
 `<APP>_` is the application completion environment prefix: the application
 name in UPPER_SNAKE_CASE (an app named task reads `TASK_COMPLETION_*`), rooted
-at the invoked binary when no name is configured. `App.EnableCompletion` accepts
+at the invoked binary when no name is configured, with a leading underscore
+when the name starts with a digit (`7z` reads `_7Z_COMPLETION_*`).
+`App.EnableCompletion` accepts
 a `conga.CompletionEnvPrefix` option that overrides the derivation. The alias
 and description variables replace the former framework-named
 `CONGA_COMPLETION_*` pair; `<APP>_COMPLETION_BARE_SPACE_FLAGS` has no

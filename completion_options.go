@@ -26,9 +26,12 @@ type CompletionOption interface {
 // The value is normalized the same way: letters are upper-cased, separators
 // become underscores, and a trailing underscore is appended when absent, so
 // both "TaskCtl" and "task-ctl" resolve to TASK_CTL_. An empty prefix keeps the
-// application-name derivation. A prefix that normalizes to a leading digit is
-// rejected at schema build because POSIX shells cannot assign such a variable
-// name.
+// application-name derivation.
+//
+// POSIX shells cannot assign a variable name that begins with a digit. A
+// prefix derived from such an application name gains a leading underscore, so
+// an application named 7z reads _7Z_COMPLETION_DESCRIPTIONS. An explicit
+// prefix that normalizes to a leading digit is rejected at schema build.
 //
 // See https://docs.conga.sh/how-to/enable-shell-completion/.
 func CompletionEnvPrefix(prefix string) CompletionOption {
