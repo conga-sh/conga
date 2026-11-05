@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 While CONGA is pre-1.0, breaking changes increment the minor version.
 
+## [0.7.0](https://github.com/conga-sh/conga/compare/v0.6.0...v0.7.0) (2026-11-05)
+
+
+### ⚠ BREAKING CHANGES
+
+* **envprefix:** document replacement semantics and remove blank-field prefix ([#106](https://github.com/conga-sh/conga/issues/106))
+
+### ✨ Features
+
+* **completion:** allow digit-leading app names for derived env prefix ([#104](https://github.com/conga-sh/conga/issues/104)) ([9520fee](https://github.com/conga-sh/conga/commit/9520feea306aef22df3c28912f55912486e686ae))
+
+
+### 🐛 Bug Fixes
+
+* **envprefix:** document replacement semantics and remove blank-field prefix ([#106](https://github.com/conga-sh/conga/issues/106)) ([848fbe8](https://github.com/conga-sh/conga/commit/848fbe82eebe15ac5b81e225cf9c58b30e84f1f5))
+
+
+### 📚 Documentation
+
+* clarify EnvPrefix does not apply to Features containers ([#107](https://github.com/conga-sh/conga/issues/107)) ([ceb3f61](https://github.com/conga-sh/conga/commit/ceb3f61384c07433126eed2bc69ec7d3868e6c84))
+
 ## [0.6.0](https://github.com/conga-sh/conga/compare/v0.5.0...v0.6.0) (2026-11-05)
 
 
