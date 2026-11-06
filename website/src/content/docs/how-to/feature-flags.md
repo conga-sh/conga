@@ -51,7 +51,7 @@ Features:
 
 Add a `feature` tag naming the feature the flag depends on. Here the feature is `http3` and the flag it gates is `--quic`:
 
-```go title="main.go"
+```go title="main.go" ins={5}
 type CLI struct {
 	Features conga.Features[experiments] `flag:"feature-gates" env:"API_FEATURES" config:"features"`
 
@@ -62,11 +62,8 @@ type CLI struct {
 
 `--quic` appears in `--help` once `http3` is on. Before that, typing it gives a usage error (exit code 2):
 
-```sh
-feature-toggles --quic
-```
-
-```text no-copy
+```sh error={2}
+$ feature-toggles --quic
 feature-toggles: error: flag '--quic' requires feature "http3"
 
 Usage:
@@ -91,11 +88,8 @@ Put the same tag on a `Command[T]` field. The subcommand and everything beneath 
 Admin conga.Command[AdminCmd] `feature:"admin-api" summary:"Experimental admin API"`
 ```
 
-```sh
-feature-toggles admin
-```
-
-```text no-copy
+```sh error={2}
+$ feature-toggles admin
 feature-toggles: error: command "admin" requires feature "admin-api"
 
 Usage:
@@ -149,10 +143,7 @@ feature-toggles -c features.yaml admin
 When two sources set the same feature, the command line beats the environment, which beats the config file, which beats the `default` tag. Here the environment turns `http3` off and the command line turns it back on:
 
 ```sh
-API_FEATURES=http3=false feature-toggles --feature-gates http3=true
-```
-
-```text no-copy
+$ API_FEATURES=http3=false feature-toggles --feature-gates http3=true
 features: http3=true admin-api=false strict-tls=true metrics=true
 ```
 
@@ -163,10 +154,7 @@ Users may spell a name in kebab-case, snake_case, or camelCase: `admin-api`, `ad
 Run with `--why` to see each feature's value and the source that set it:
 
 ```sh
-API_FEATURES=admin-api=true feature-toggles -c features.yaml --why
-```
-
-```text no-copy
+$ API_FEATURES=admin-api=true feature-toggles -c features.yaml --why
 Features:
   FEATURE      VALUE   SOURCE
   http3        true    config (features.yaml)
@@ -191,7 +179,7 @@ When a gated flag has its own variable, such as `API_QUIC` from `EnvPrefix("API"
 
 The config-file errors look like this:
 
-```text no-copy
+```text no-copy error={1-2}
 feature-toggles: error: config error: unknown feature "htt3" (did you mean "http3"?)
 feature-toggles: error: config error: config file declares flag '--quic' which requires feature "http3"
 ```
@@ -226,7 +214,7 @@ Users pick a level with `--feature-gates syntax=2`. The help screen lists the le
   syntax      Config syntax version (0 = off) [beta] [levels: 1, 2]
 ```
 
-```text no-copy
+```text no-copy error={1}
 feature-toggles: error: invalid value "3" for feature "syntax": must be one of: 0, 1, 2
 ```
 
@@ -243,7 +231,7 @@ The `env` tag on the container gives users one variable holding a list of pairs.
 
 Each feature's variable is the prefix plus its name in upper snake case. A field's own `env` tag renames its variable, and `env:"-"` leaves the feature to the command line and config file:
 
-```go title="main.go"
+```go title="main.go" {2,4,9}
 type experiments struct {
 	HTTP3     bool `env:"ENABLE_HTTP3" stage:"alpha" help:"Experimental HTTP/3 (QUIC) listener"`
 	AdminAPI  bool `stage:"alpha" help:"Experimental admin API"`
@@ -277,7 +265,7 @@ The command line still beats these variables, one feature at a time: `ENABLE_HTT
 
 The application checks at startup that each variable belongs to one feature. Here `AdminAPI` was also given `env:"ENABLE_HTTP3"`:
 
-```text no-copy
+```text no-copy error={1}
 feature-toggles: error: struct CLI field Features: schema error: environment variable "ENABLE_HTTP3" is bound by both feature "http3" and feature "admin-api"
 ```
 
