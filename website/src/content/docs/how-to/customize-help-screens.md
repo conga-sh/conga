@@ -160,17 +160,17 @@ The flag enforces the allowed values during resolution and completes them during
 
 CONGA wraps description text and table columns to fit the active terminal width. The wrap width resolves through three tiers:
 
-1. `COLUMNS` environment variable: An explicit value of at least 20 columns takes precedence.
-2. Terminal probing: If stdout connects to an interactive terminal, CONGA queries the terminal width via ioctl.
-3. Fallback default: Piped commands, redirected output, and environments reporting no width wrap at 100 columns.
+1. A `COLUMNS` environment variable of at least 20 wins.
+2. Otherwise, when stdout is a terminal, CONGA asks the terminal for its width.
+3. Otherwise, as for piped or redirected output or a terminal that reports no width, text wraps at 100 columns.
 
-Wrapping and formatting follow these rules:
+Wrapping follows these rules:
 
-- **Cell width alignment**: Column widths and wrapping measure terminal cell width rather than byte or rune counts. Wide CJK characters, combining marks, and emojis align without column drift.
-- **Preserved line breaks**: Explicit newlines and blank lines inside `help:"..."` tags or `Description()` methods are preserved, with continuation lines indented to match the description column.
-- **Bracketed hint preservation**: Bracketed constraint hints such as `[env: PORT]` or `[default: 8080]` stay unbroken on a single line where possible.
-- **Boolean defaults**: Flag listings display boolean defaults only when explicitly `true` (`[default: true]`). False defaults are omitted because boolean flags default to false when unset.
-- **Subcommand deprecation banners**: Deprecated subcommands display a `[deprecated: <reason>]` banner at the top of their help screen.
+- Widths count terminal cells, not bytes or runes, so wide CJK characters, combining marks, and emoji stay aligned.
+- Newlines and blank lines in `help:"..."` tags and `Description()` text are kept, and continuation lines are indented to the description column.
+- A bracketed hint such as `[env: PORT]` or `[default: 8080]` stays on one line where it fits.
+- A boolean flag shows its default only when it is `true` (`[default: true]`), since an unset boolean flag is already false.
+- A deprecated subcommand's help screen starts with a `[deprecated: <reason>]` banner.
 
 ## Automatic Features section
 

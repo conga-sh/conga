@@ -21,16 +21,18 @@ func main() {
 }
 ```
 
-Calling `app.EnableCompletion()` installs the hidden `__complete` handler used by shell completion scripts and provides completion endpoints:
+`EnableCompletion()` adds a hidden `__complete` command, which the shell scripts call each time the user presses Tab. Users get those scripts in one of two ways.
 
-- **Flat applications (no subcommands)**: Automatically gain a `--completion <shell>` flag. The flag appears under `Flags:` in `--help`:
-  ```
-  Flags:
-        --completion=SHELL  Generate shell completion script
-        --help              Show help
-        --version           Show version
-  ```
-- **Hierarchical applications (with subcommands)**: Can expose a dedicated `completion` command by declaring a `conga.CompletionCommand` field on the root command struct.
+An application without subcommands gets a `--completion <shell>` flag, listed in `--help`:
+
+```text no-copy
+Flags:
+      --completion=SHELL  Generate shell completion script
+      --help              Show help
+      --version           Show version
+```
+
+An application with subcommands can offer a `completion` subcommand instead, as the next section shows.
 
 ## Expose the completion subcommand
 
@@ -134,10 +136,7 @@ Flags:
       --help  Show help
 ```
 
-Per-shell help outputs:
-- **Session command**: Loads completion functions into the current terminal session without writing files.
-- **Persistent setup**: Shows the config file or directory to update (such as `~/.bashrc`, `~/.zshrc`, fish completion directories, or PowerShell profiles).
-- **Environment notes**: Surfaces platform prerequisites, such as requiring Bash 4+ with `bash-completion@2` on macOS when running the default legacy Bash 3.2, or initializing Zsh `compdef` and `fpath`.
+Each shell's help gives the command that loads completion into the current session, the file to add it to for every new session (such as `~/.bashrc`, `~/.zshrc`, fish's completions directory, or a PowerShell profile), and any prerequisites, such as Bash 4 with `bash-completion@2` on macOS, whose default Bash is 3.2, or setting up zsh's `compdef` and `fpath`.
 
 Flat applications use flag syntax: `cloudctl --completion <shell> --help` (e.g. `cloudctl --completion zsh --help`).
 

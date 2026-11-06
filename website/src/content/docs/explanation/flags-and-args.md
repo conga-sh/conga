@@ -9,10 +9,11 @@ Before any lifecycle hook executes, the engine resolves every container across c
 
 ## Approaches to input in Go
 
-Command-line libraries in the Go ecosystem generally approach input modelling in one of two ways:
+Go command-line libraries model input in one of two ways.
 
-1. **Imperative flag sets**: Standard library `flag`, `spf13/cobra`, and `urfave/cli` register flags imperatively onto flag sets. Flags bind to standalone variables through pointers or are queried by string keys such as `cmd.Flags().GetString("addr")`. This model separates the command-line specification from data structures and defers type and name checks to runtime error returns.
-2. **Struct-field reflection**: Libraries like `alecthomas/kong` and `alexflint/go-arg` derive flag schemas directly from Go struct definitions using struct tags. Flags map to native Go types (`string`, `int`, `bool`) or pointers (`*string`). This keeps declarations concise and feels like ordinary Go code.
+The standard library's `flag`, `spf13/cobra`, and `urfave/cli` register flags on a flag set at run time. Each flag binds to a separate variable through a pointer, or is looked up by name with calls such as `cmd.Flags().GetString("addr")`. The shape of the command line lives apart from the program's data, and a wrong name or type shows up as an error at run time.
+
+`alecthomas/kong` and `alexflint/go-arg` read the shape from a struct instead: each field, with its tags, is a flag of a plain Go type (`string`, `int`, `bool`) or a pointer (`*string`). Declarations stay short and read like ordinary Go.
 
 CONGA follows the struct-based approach with dedicated generic containers: `OptionalFlag[T]`, `RequiredFlag[T]`, and `RequiredArg[T]`.
 
@@ -26,11 +27,7 @@ CONGA accepts this syntactic overhead because containers solve several structura
 
 ### Separating value access from presence checks
 
-Bare fields and pointers conflate presence with value: an omitted flag and an explicit zero are indistinguishable, and a pointer field must be nil-checked before use. Containers decouple value retrieval from presence checks:
-- **Panic-free value retrieval**: `cmd.Port.Get()` returns the resolved value as `T`, with no pointer to check.
-- **Pre-run enforcement for required values**: A required flag or argument that received no value fails validation at the engine boundary before any lifecycle hook (`Validate`, `PreRun`, `Run`) executes. Handlers never observe an unpopulated required container.
-- **Accurate presence when branching**: `cmd.Port.IsSet()` distinguishes an explicit zero value (`--port 0`) from omission.
-- **Convenient fallbacks**: `cmd.Port.GetOr(8080)` supplies a fallback in a single expression.
+Bare fields and pointers conflate presence with value: an omitted flag and an explicit zero look the same, and a pointer field must be nil-checked before use. Containers keep the two apart. `cmd.Port.Get()` returns the value as `T`, with no pointer to check. A required flag or argument without a value fails before any lifecycle hook (`Validate`, `PreRun`, `Run`) runs, so handlers never see an empty required container. When the difference matters, `cmd.Port.IsSet()` tells an explicit `--port 0` from an omitted flag, and `cmd.Port.GetOr(8080)` supplies a fallback in one expression.
 
 ### Decoupling presence and provenance from values
 CONGA is built around a multi-tier resolution ladder where values can originate from CLI flags, environment variables, config files, or hardcoded defaults. Bare fields and pointers discard that origin once populated.
@@ -45,10 +42,11 @@ This metadata powers diagnostic features like the `--why` provenance report and 
 
 ## Schema defaults versus dynamic fallbacks
 
-CONGA provides two distinct ways to supply fallback values for optional inputs:
+CONGA offers two ways to give an optional input a fallback.
 
-- **Declarative schema defaults (`default:"..."`)**: Evaluated at compile time and resolved during engine binding. When no higher tier provides a value, the container populates with the tag's value (`IsSet() == true`, `Changed() == false`, `Source() == SourceDefault`). Help screens automatically display `(default: ...)`.
-- **Imperative dynamic fallbacks (`GetOr(fallback)`)**: Evaluated at runtime inside the command body only when the container is unset (`IsSet() == false`, `SourceNone`). This pattern suits fallbacks derived from operating system state, dynamic directories, or values computed from other flags.
+A `default:"..."` tag is part of the schema. When no other source sets the input, binding fills the container from the tag (`IsSet()` is true, `Changed()` is false, `Source()` is `SourceDefault`), and help screens show the default.
+
+`GetOr(fallback)` runs in the command body and applies only when the container is unset (`IsSet()` is false, `Source()` is `SourceNone`). It suits fallbacks that depend on the running system, such as a directory found at run time, or on other flags.
 
 `GetOr` is available on optional containers; required containers guarantee a validated value prior to execution.
 
@@ -100,9 +98,13 @@ The engine evaluates declared constraints after type coercion but before invokin
 
 Flags often interact with one another: certain options conflict, others require companion flags, and some require callers to make an explicit choice among alternatives. CONGA models these relationships through three grouping tags:
 
-- **Mutual exclusivity (`xor:"group"`)**: At most one flag in the group may be supplied (zero or one). Supplying neither flag is valid; supplying two or more halts execution with a usage error.
-- **Exactly-one selection (`oneof:"group"`)**: Exactly one flag in the group must be supplied. Supplying zero flags or more than one flag halts execution with a usage error (exit 2). A `default` on a `oneof` member is rejected because it sets the flag's value and marks it as set in `--why` without satisfying the `Changed()`-based exactly-one requirement. The usage synopsis renders `oneof` groups as parenthesized alternations (for example, `(--input-file=PATH | --input-url=URL)`), making the requirement explicit in syntax help.
-- **Co-occurrence (`and:"group"`)**: All flags in the group must be supplied together. Providing one flag without its companions halts execution with a usage error.
+| Tag | Users may supply | Otherwise |
+|---|---|---|
+| `xor:"group"` | None of the flags, or one | Usage error (exit 2) |
+| `oneof:"group"` | Exactly one of the flags | Usage error (exit 2) |
+| `and:"group"` | None of the flags, or all of them | Usage error (exit 2) |
+
+The usage synopsis shows a `oneof` group as alternatives, such as `(--input-file=PATH | --input-url=URL)`, so the choice is visible in help. A `default` on a `oneof` member is rejected: it would give the flag a value without counting as supplied, since the rule counts flags whose `Changed()` is true.
 
 Group names are scoped to the command that declares them. A group name used on an ancestor or descendant command remains completely independent, preventing accidental coupling across the command hierarchy. Every `xor` or `and` group needs at least two members; a one-member group is a no-op and fails schema construction. A `oneof` group needs at least two members unless its sole member is a `Counter`, where it means "require at least one occurrence" (use `RequiredFlag` for a single mandatory flag instead). Two members of the same `oneof` or `xor` group may not also share an `and` group: supplying either member forces the other, so the exclusive rule could never hold.
 

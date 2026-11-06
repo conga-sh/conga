@@ -49,13 +49,14 @@ Every phase is optional except for `Runner`, which must be implemented by the se
 
 Applications reading domain documents or flag-driven configuration face a chicken-and-egg dependency: `Bootstrap` needs command-line flags (such as `--file`, `--profile`, or `--dir`) to locate and interpret the config file, but normal flag binding depends on the config file already being loaded.
 
-CONGA breaks the cycle by splitting binding into two passes and running the hook between them:
-1. **Bootstrap pass**: Fields marked `bootstrap:"true"` bind from the command line, environment variables, and default tags onto their command structs. Configuration files are not resolved yet, so the config tier is unavailable.
-2. **Bootstrap hook**: `Bootstrapper.Bootstrap` runs with those fields populated. It can load `.env` files and install a document with `Bootstrap.SetConfig`.
-3. **Configuration resolution**: The engine discovers and decodes config files, then overlays the bootstrap document key by key.
-4. **Normal binding pass**: CONGA resolves every flag and argument across the four-tier ladder (`CLI > environment > config > default`), including the bootstrap-tagged fields, which are bound a second time.
+CONGA breaks the cycle by binding in two passes and running `Bootstrap` between them:
 
-The normal pass is authoritative. Because the bootstrap-tagged fields are bound twice, keep them idempotent and limited to the flags needed to locate the external input.
+1. CONGA binds the fields tagged `bootstrap:"true"` from the command line, the environment, and their defaults. Config files are read later.
+2. `Bootstrapper.Bootstrap` runs with those fields set. It can load `.env` files and hand CONGA a document with `Bootstrap.SetConfig`.
+3. CONGA finds and decodes the config files, then lays the document's settings over them key by key.
+4. CONGA binds every flag and argument from the command line, environment, config, and defaults, including the bootstrap-tagged fields a second time.
+
+The second pass is authoritative. Because the bootstrap-tagged fields are bound twice, keep them idempotent and limited to the flags needed to locate the external input.
 
 ## Interception by built-in diagnostic flags
 

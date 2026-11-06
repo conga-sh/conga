@@ -30,6 +30,7 @@ Reference pages hold the full rule set for each tag family, including a "runtime
 - Name the concept before using it, and keep distinct things visibly distinct in examples (a feature `http3` gating a flag `--quic`, not a flag `--http3`).
 - State behaviour positively: say what the program does (appears, reads, reports) rather than what it doesn't. Keep negatives for real prohibitions, and put each one next to the alternative.
 - When behaviour depends on a configuration choice, name the choice. Write "the variable named by the container's `env` tag", not "the environment", when the example's setup is only one of the options.
+- Use prose for reasons, a table for parallel cases compared on the same attributes, and plain bullets with full sentences for lists. Avoid bold lead-in labels (`- **Label**: fragment`).
 - Prefer everyday words to internal vocabulary: "source" over "tier", "the variable is ignored" over "the env surface is pruned".
 - If a sentence could appear unchanged in another project's docs, it says nothing about CONGA. Rewrite or delete it.
 

@@ -7,24 +7,122 @@ CONGA provides five built-in surfaces: help, version, `--why`, completion, and d
 
 ## Help
 
-Every app gets `--help` and a generated help screen. CONGA derives the help output from the command schema and renders sections in a fixed order:
+Every app gets `--help` and a help screen that CONGA builds from the command schema. This `deploy` program has a description, examples, a feature, a footer, and two subcommands, one of them deprecated:
 
-1. **Deprecation banner**: configured via `app.Deprecated(...)` or the member `deprecated:"..."` tag. A deprecated command renders its own banner on its screen, mirroring the runtime warning (`WARNING: command '<path>' is deprecated: <reason>`).
-2. **Description**: configured via `app.Description(...)` on the root builder, or `Description() string` on subcommand structs. Subcommands fall back to their `summary:"..."` tag when no description method is defined. Root structs must not implement `Description()` or `Summary()`.
-3. **Completion instructions**: per-shell setup steps rendered when inspecting a completion command (e.g. `--completion bash --help`).
-4. **Usage syntax**: command invocation syntax including flags, positional arguments, and trailing arguments (`DashArgs`, `RawArgs`). Required flags and `oneof` groups render explicitly before `[flags]`; optional flags collapse into a `[flags]` placeholder, which precedes positional arguments and trailing collectors. Positional arguments carry their optionality and repetition (`[<target>]`, `<file...>`), and author-supplied brackets and `...` are preserved.
-5. **Examples**: usage examples configured via `app.Examples(...)` on the root builder, or `Examples() string` on subcommand structs.
-6. **Subcommands**: child commands listed under their `section:"..."` section headers or the default `Commands:` heading.
-7. **Positional arguments**: argument names and descriptions under `Arguments:`.
-8. **Completion footer**: supported shells list rendered on generic completion help screens.
-9. **Flags**: flags declared on the active command, grouped under `section:"..."` headers or the default `Flags:` heading. Built-in flags (`--help`, `--version`, `--why`) appear here.
-10. **Features** (root screen only): feature toggles declared via `conga.Features[T]`, rendered under `Features:` with help text, stage (`[alpha]`, `[beta]`), integer levels, and defaults. Toggles staged `ga` or `deprecated` are omitted.
-11. **Global flags**: persistent flags inherited from ancestor commands.
-12. **Global help footer**: text configured via `app.HelpFooter(...)`.
+```sh
+$ deploy --help
+Roll out releases to a fleet.
+
+Usage:
+  deploy <command> [flags]
+
+Examples:
+  deploy rollout v1.4
+  deploy rollout --region eu-west-1 v1.4
+
+Commands:
+  rollout  Roll out a release
+  push     Push a release [deprecated: use rollout]
+
+Flags:
+      --feature-gates=KEY=VALUE,...  Enable or disable features (name=value)
+                                     [env: DEPLOY_FEATURES]
+  -v, --verbose                      Print each step
+      --help                         Show help
+      --version                      Show version
+
+Features:
+  canary  Canary rollouts [beta]
+
+Docs: https://example.com/deploy
+```
+
+```sh
+$ deploy push --help
+WARNING: command 'deploy push' is deprecated: use rollout
+
+Push a release
+
+Usage:
+  deploy push [flags] <release>
+
+Arguments:
+  <release>  Release to push
+
+Flags:
+      --help  Show help
+
+Global Flags:
+      --feature-gates=KEY=VALUE,...  Enable or disable features (name=value)
+                                     [env: DEPLOY_FEATURES]
+  -v, --verbose                      Print each step
+
+Docs: https://example.com/deploy
+```
+
+Sections appear in this order, and a section with nothing to show is left out:
+
+| Section | Heading | Content comes from |
+|---|---|---|
+| Deprecation banner | `WARNING: …` | `app.Deprecated(...)` or a command's `deprecated:"..."` tag. A screen shows the banner of every deprecated command on its path. |
+| Description | none | The root: `app.Description(...)`. A subcommand: its `Description() string` method, or else its `summary:"..."` tag. |
+| Usage | `Usage:` | The schema; see [Usage line](#usage-line). |
+| Examples | `Examples:` | The root: `app.Examples(...)`. A subcommand: its `Examples() string` method. |
+| Subcommands | `Commands:`, or the `section:"..."` headings | The command's `Command[T]` fields and their `summary` tags. |
+| Arguments | `Arguments:` | The command's positional arguments. |
+| Flags | `Flags:`, or the `section:"..."` headings | The command's flags, then the built-in `--help`, `--why`, and, on the root screen, `--version`. |
+| Features | `Features:` | The root's `conga.Features[T]` toggles, on the root screen only. |
+| Global flags | `Global Flags:` | Flags declared on ancestor commands. |
+| Footer | none | `app.HelpFooter(...)`, on every screen. |
+
+The root command takes its description from `app.Description(...)`. A root struct that implements `Description()` or `Summary()` fails schema build.
+
+The Features section shows each feature's help text, stage (`[alpha]`, `[beta]`), integer levels, default, and environment variable. Features staged `ga` or `deprecated` are left out of it.
+
+A boolean flag shows its default only when it is `true` (`[default: true]`).
+
+Completion help screens add two sections. A per-shell screen such as `--completion bash --help` shows that shell's setup steps between the description and `Usage:`. The generic completion screen lists the supported shells after the arguments.
+
+### Usage line
+
+The usage line names the required flags and `oneof` groups first, then `[flags]` for the optional ones, then the positional arguments and any `DashArgs` or `RawArgs` collector. Each argument shows whether it is optional and whether it repeats. Here `rollout` was given a required `--image` flag and an optional list of hosts:
+
+```text no-copy
+Usage:
+  deploy rollout --image=STRING [flags] [<hosts...>]
+```
+
+Brackets and `...` that you write in an argument's name are kept as written.
 
 ### Wrap width
 
-Help text wraps to the terminal. An explicit `COLUMNS` value of at least 20 takes precedence; otherwise the width of the app's stdout is probed when it is a terminal; piped or redirected output (and terminals reporting no width) falls back to a default of 100 columns. Windows consoles are not probed: set `COLUMNS` or accept the 100-column default. Column measurements use terminal cell widths, preventing wide CJK characters and combining marks from misaligning columns. Explicit line breaks and blank lines within descriptions are preserved with aligned continuation indents. Overlong descriptions and table help text fold at space boundaries, with continuation lines aligned under the help column; a bracketed hint group such as `[env: NAME]` stays on one line where possible, and a label wider than half the width renders on its own line above its help text. Boolean flag defaults appear only when explicitly `true` (`[default: true]`). The `Usage:` syntax, the `Examples:` block, and the global help footer stay unwrapped.
+Help text wraps to a width that CONGA picks in this order:
+
+1. A `COLUMNS` environment variable of at least 20.
+2. The width of the terminal on stdout, when it reports one of at least 20. CONGA asks the terminal on Linux, macOS, and the BSDs; on Windows and other platforms, set `COLUMNS`.
+3. 100 columns, as for piped or redirected output.
+
+Within that width:
+
+- Widths count terminal cells, so wide CJK characters and combining marks keep the columns aligned.
+- Line breaks and blank lines that you write in a description are kept, and continuation lines are indented to match.
+- Long descriptions and help cells fold at spaces, with continuation lines under the help column.
+- A bracketed hint such as `[env: NAME]` stays on one line where it fits.
+- The help column starts at most halfway across. A label wider than that goes on its own line, with its help text below.
+- The `Usage:` line, the `Examples:` block, and the footer are printed as written.
+
+The Flags section of `COLUMNS=50 deploy --help` shows three of these rules together:
+
+```text no-copy
+Flags:
+      --feature-gates=KEY=VALUE,...
+                         Enable or disable
+                         features (name=value)
+                         [env: DEPLOY_FEATURES]
+  -v, --verbose          Print each step
+      --help             Show help
+      --version          Show version
+```
 
 ### Configurable short flags
 
