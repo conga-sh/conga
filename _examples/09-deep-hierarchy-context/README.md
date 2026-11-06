@@ -17,7 +17,8 @@ FLEET_GLOBAL_REGION=eu-west-1 go run ./_examples/09-deep-hierarchy-context
 - `app.EnvPrefix("FLEET")` binds every flag to `FLEET_*`; `envprefix:"FLEET_POD"` on the
   `pod` command field overrides it for the whole pod subtree (`FLEET_POD_WAIT`,
   `FLEET_POD_STATUS`). The tag replaces the inherited prefix rather than appending
-  to it, so it spells out the full `FLEET_POD` name.
+  to it; this example repeats `FLEET` in it so the pod variables sit beside the
+  fleet ones.
 - `session.Path()` and `session.Name()` describe the active invocation.
 
 ## Test

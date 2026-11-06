@@ -17,7 +17,7 @@ CONGA derives the CLI schema from struct fields and their tags. The engine valid
 | `deprecated` | ✅ | – | ✅ | Deprecation notice; suppresses flag from completion. |
 | `enum` | ✅ | ✅ | – | Comma-separated allowed values, checked against the coerced value, rendered in help as `[enum: …]`. |
 | `enumhint` | ✅ | ✅ | – | Set to `-` to suppress the automatic `[enum: …]` help hint while keeping values validated and completed. |
-| `env` | ✅ | ✅ | ✅ | Comma-separated environment variable names. `env:"-"` disables environment binding. Explicit names ignore all prefixes. |
+| `env` | ✅ | ✅ | ✅ | Comma-separated environment variable names; the first one set to a non-empty value wins. `env:"-"` disables environment binding. Explicit names ignore all prefixes. |
 | `feature` | ✅ | – | ✅ | Feature-gate expression: the flag exists only while the expression is satisfied (see [Feature toggles](#feature-toggles-congafeaturest)). Required flags reject this tag. |
 | `help` | ✅ | ✅ | ✅ | Help text displayed on the help screen. Supports [help variables](#help-variables). |
 | `hidden` | ✅ | ✅ | ✅ | Suppress from help and completion (`hidden` or `hidden:"true"`). |

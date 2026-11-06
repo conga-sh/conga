@@ -242,11 +242,11 @@ func (a *App[T]) Version(version string) *App[T] {
 //	EnvPrefix("MYAPP")  --database-url  =>  MYAPP_DATABASE_URL
 //	EnvPrefix("MYAPP")  env:"PORT"      =>  PORT
 //
-// An envprefix tag on a subcommand replaces this prefix for its own flags rather
-// than appending to it. Include the application prefix in the tag to keep the
-// subcommand within the application namespace:
+// An envprefix tag on a subcommand replaces this prefix for its own flags. The tag
+// is used as written, so it may repeat the application prefix or not:
 //
 //	EnvPrefix("MYAPP")  envprefix:"MYAPP_WORKER"  --concurrency  =>  MYAPP_WORKER_CONCURRENCY
+//	EnvPrefix("MYAPP")  envprefix:"WORKER"        --concurrency  =>  WORKER_CONCURRENCY
 //
 // The prefix does not apply to a [Features] container. To bind environment
 // variables for feature toggles, declare an env or envprefix tag on the container.

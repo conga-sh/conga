@@ -1,36 +1,29 @@
 ---
 title: How to bind environment variables
-description: Map environment variables to command flags using prefixes, subcommand tags, and custom overrides.
+description: Give flags environment variables with an application prefix, per-flag names, and subcommand prefixes, and see what users set and get.
 ---
 
-CONGA binds environment variables to command flags during flag resolution. This guide shows how to set application and subcommand prefixes, override variable names per field, and disable environment binding for sensitive flags.
+An environment variable gives a flag a value when the user leaves the flag off the command line. This guide gives every flag a variable with one prefix, renames one flag's variable, keeps one flag on the command line only, and gives a subcommand its own prefix.
 
-## Set an application prefix
+The running example is the [twelve-factor precedence example](https://github.com/conga-sh/conga/tree/main/_examples/13-twelve-factor-precedence). Every output block below comes from running it, or the small variation the section describes.
 
-Call `EnvPrefix` on the application builder to set a prefix for flag environment variables:
+## Give every flag a variable with an application prefix
+
+Call `EnvPrefix` on the application builder:
 
 ```go title="main.go"
-package main
-
-import (
-	"context"
-
-	"github.com/conga-sh/conga"
-)
-
-type Server struct {
-	Host      conga.OptionalFlag[string] `default:"127.0.0.1" help:"Listen address"`
-	Port      conga.OptionalFlag[int]    `default:"8080" help:"Listen port" short:"p"`
-	MaxMemory conga.OptionalFlag[string] `default:"512MB" help:"Maximum allocated memory"`
-}
-
-func (s *Server) Run(ctx context.Context, session *conga.Session) error {
-	return nil
+type CLI struct {
+	Host        conga.OptionalFlag[string] `default:"127.0.0.1" safe:"true" help:"Server host"`
+	Environment conga.OptionalFlag[string] `default:"dev" enum:"dev,staging,prod" short:"e" safe:"true" help:"Target environment"`
+	Debug       conga.OptionalFlag[bool]   `default:"false" short:"d" help:"Enable debug logging"`
+	WorkerID    conga.OptionalFlag[string] `safe:"true" help:"Worker instance identifier"`
 }
 
 func main() {
-	app := conga.New[Server]().
-		EnvPrefix("SERVER")
+	app := conga.New[CLI]().
+		Name("twelve-factor-precedence").
+		EnvPrefix("SERVER").
+		EnableWhy()
 
 	if err := app.Run(); err != nil {
 		app.Exit(err)
@@ -38,87 +31,138 @@ func main() {
 }
 ```
 
-Flag names are converted to uppercase, with hyphens replaced by underscores (`<PREFIX>_<FLAG>`):
+Each flag now reads `<PREFIX>_<FLAG NAME>`, with the flag name in upper case and hyphens turned into underscores: `--worker-id` reads `SERVER_WORKER_ID`. Users find the names in `--help`:
 
-- `--host` binds to `SERVER_HOST`.
-- `--port` binds to `SERVER_PORT`.
-- `--max-memory` binds to `SERVER_MAX_MEMORY`.
-
-Flags passed on the command line override environment variables:
-
-```sh
-SERVER_PORT=9002 server --port 9003
+```text no-copy
+Flags:
+      --host="127.0.0.1"   Server host [env: SERVER_HOST]
+  -e, --environment="dev"  Target environment [env: SERVER_ENVIRONMENT] [enum: dev, staging, prod]
+  -d, --debug              Enable debug logging [env: SERVER_DEBUG]
+      --worker-id=STRING   Worker instance identifier [env: SERVER_WORKER_ID]
 ```
 
-In the example above, `--port` resolves to `9003`. If `--port` is omitted on the command line, it resolves to `9002` from the environment.
+A flag on the command line beats its variable, and the variable beats config files and the `default` tag. See [About value precedence](/explanation/value-precedence/) for the full order.
 
-Positional arguments do not read environment variables; they resolve only from command-line arguments.
+Positional arguments take values from the command line alone.
 
-:::note[Feature toggles]
-Application prefixes do not reach `Features` containers. To bind environment variables for feature toggles, declare `env` or `envprefix` directly on the container. See [How to gate flags and subcommands behind features](/how-to/feature-flags/#give-each-feature-its-own-environment-variable) for the two environment formats and what changes for users when you switch between them.
-:::
+## Choose a specific name for one flag
 
-## Namespace subcommands with envprefix
+Add an `env` tag. The flag reads exactly the names you list, whatever the prefix:
 
-To scope a subcommand's flags under its own prefix, add an `envprefix` tag to the `Command[T]` field:
+```go title="main.go"
+Port conga.OptionalFlag[int] `default:"8080" env:"PORT" placeholder:"PORT" short:"p" safe:"true" help:"Server port"`
+```
+
+```text no-copy
+  -p, --port=PORT          Server port [default: 8080] [env: PORT]
+```
+
+To accept more than one name, list them in order: `env:"API_TOKEN,TOKEN"`. The first variable that is set and non-empty wins, so with `API_TOKEN=a TOKEN=b` the flag gets `a`, and with `API_TOKEN= TOKEN=b` it gets `b`. Help lists both: `[env: API_TOKEN, TOKEN]`.
+
+## Keep a flag on the command line only
+
+Set `env:"-"` on a flag that users should pass explicitly every time:
+
+```go title="main.go"
+Trace conga.OptionalFlag[bool] `env:"-" help:"Enable trace output (never environment-bound)"`
+```
+
+The flag's help line carries no `[env: ...]` hint, and `SERVER_TRACE=true` leaves `--trace` unset:
+
+```text no-copy
+      --trace              Enable trace output (never environment-bound)
+```
+
+The flag still takes its value from the command line, a config file, or its `default` tag.
+
+## Give a subcommand its own prefix
+
+By default a subcommand's flags use the application prefix. To change that, add an `envprefix` tag to the `Command[T]` field. The tag sets the subcommand's prefix exactly as written, in place of the parent's. Repeating the application prefix is up to you: `SERVER_WORKER` keeps the subcommand's variables next to the application's, and `MIGRATE` gives them a name of their own.
+
+This variation adds three subcommands under `EnvPrefix("SERVER")`:
 
 ```go title="main.go"
 type CLI struct {
-	Worker conga.Command[WorkerCmd] `envprefix:"APP_WORKER" summary:"Background worker"`
-}
-
-type WorkerCmd struct {
-	Concurrency conga.OptionalFlag[int] `default:"4" help:"Worker concurrency"`
+	Worker  conga.Command[WorkerCmd]  `envprefix:"SERVER_WORKER" summary:"Background worker"`
+	Cron    conga.Command[CronCmd]    `summary:"Scheduled jobs"`
+	Migrate conga.Command[MigrateCmd] `envprefix:"MIGRATE" summary:"Run migrations"`
 }
 ```
 
-An `envprefix` tag replaces any inherited prefix; it does not append. To keep the subcommand inside the application namespace, include the parent prefix in the tag (`APP_WORKER`).
+| Subcommand tag | Flag | Variable |
+|---|---|---|
+| `envprefix:"SERVER_WORKER"` | `worker --concurrency` | `SERVER_WORKER_CONCURRENCY` |
+| none, so it inherits `SERVER` | `cron --schedule` | `SERVER_SCHEDULE` |
+| `envprefix:"MIGRATE"` | `migrate --steps` | `MIGRATE_STEPS` |
 
-- `envprefix:"APP_WORKER"` binds `--concurrency` to `APP_WORKER_CONCURRENCY`.
-- `envprefix:"WORKER"` replaces `APP_` entirely, binding `--concurrency` to `WORKER_CONCURRENCY`.
-- Omitting the tag inherits the parent prefix, binding `--concurrency` to `APP_CONCURRENCY`.
+Each subcommand's `--help` shows its own variables:
 
-## Override variable names per field
-
-Use the `env` struct tag to bind a flag to an explicit variable name. Explicit `env` tags ignore all prefixes:
-
-```go title="main.go"
-type Database struct {
-	URL conga.RequiredFlag[string] `env:"DATABASE_URL" help:"Connection string"`
-}
+```text no-copy
+      --concurrency=4  Worker concurrency [env: SERVER_WORKER_CONCURRENCY]
 ```
 
-CONGA reads `DATABASE_URL` directly, even when an application or subcommand prefix is configured.
+Under `envprefix:"MIGRATE"`, the program reads `MIGRATE_STEPS`, so a user who sets `SERVER_MIGRATE_STEPS=9` still gets the default of `1`.
 
-## Disable environment binding for sensitive flags
+## Set lists, maps, and booleans from the environment
 
-To prevent a flag from reading the environment when an application prefix is configured, declare `env:"-"`:
+In the same variation, users write the same formats they would pass on the command line:
 
-```go title="main.go"
-type CLI struct {
-	Token conga.OptionalFlag[string] `env:"-" help:"One-time token accepted only via CLI"`
-}
-```
+| Flag type | Example variable | Value |
+|---|---|---|
+| `[]string` | `SERVER_TAGS=a,b` | `["a" "b"]` |
+| `map[string]string` | `SERVER_LABELS=env=prod,team=core` | `map[env:prod team:core]` |
+| `bool` | `SERVER_DEBUG=true` | `true` |
 
-Declaring `env:"-"` ensures the flag resolves exclusively from command-line arguments or its default value.
+Spaces after commas are trimmed (`SERVER_TAGS="a, b"` gives the same list). Booleans accept `true`/`false`, `1`/`0`, and upper-case forms such as `TRUE`.
 
-## Treat empty environment variables as unset
+A list on the command line replaces the variable's list rather than adding to it: `SERVER_TAGS=a,b server --tags c` gives `["c"]`.
 
-CONGA treats empty environment variables (`FOO=""` or `export FOO=`) as unset. An empty variable will not override configuration files or default values.
+## Check where a value came from
 
-To pass an empty string explicitly, provide `--flag ""` on the command line:
+Run with `--why`. The `SOURCE` column shows `env` for values from a variable, and the `ENV` column lists the variables each flag reads:
 
 ```sh
-# APP_HOST is empty: default tag or config file supplies the host
-APP_HOST= server
-
-# Explicit empty string on CLI: overrides default and config with ""
-server --host ""
+SERVER_HOST=0.0.0.0 PORT=9001 twelve-factor-precedence -p 9003 --why
 ```
+
+```text no-copy
+  FLAG            VALUE     SOURCE    ENV                  CONFIG PATH
+  --config-file             unset     SERVER_CONFIG        -
+  --port          9003      cli       PORT                 port
+  --host          0.0.0.0   env       SERVER_HOST          host
+  --environment   dev       default   SERVER_ENVIRONMENT   environment
+  --debug         false     default   SERVER_DEBUG         debug
+  --worker-id               unset     SERVER_WORKER_ID     worker-id
+  --trace                   unset     -                    trace
+```
+
+`PORT=9001` lost to `-p 9003` on the command line. `--why` prints values only for flags tagged `safe:"true"` and shows the rest as `██████`. See [How to inspect value provenance](/how-to/inspect-value-provenance/) for the rest of the report.
+
+## Know what users see
+
+| What the user sets | Result |
+|---|---|
+| `SERVER_HOST=0.0.0.0` | `--host` is `0.0.0.0`, source `env` |
+| `SERVER_HOST=` (empty) | Treated as unset: `--host` falls back to the config file or `default` |
+| `PORT=9001` and `-p 9003` | The command line wins: `--port` is `9003` |
+| `PORT=abc` | Usage error, exit 2, naming the variable |
+| `SERVER_TRACE=true` on an `env:"-"` flag | Not read: `--trace` stays unset |
+| A required flag's variable, such as `TOKEN=t` | Satisfies the requirement |
+
+A bad value names both the flag and the variable it came from:
+
+```text no-copy
+twelve-factor-precedence: error: invalid integer value "abc" for flag --port (from environment variable PORT)
+```
+
+To pass an empty string on purpose, use the command line: `twelve-factor-precedence --host ""`.
+
+`Features` containers bind their variables through their own `env` or `envprefix` tags, independently of `EnvPrefix`; see [How to gate flags and subcommands behind features](/how-to/feature-flags/#give-each-feature-its-own-environment-variable).
 
 ## Where to go next
 
-- [How to gate features](/how-to/feature-flags/) — configure feature toggles and their environment surfaces.
-- [How to load .env files](/how-to/load-env-files/) — feed `.env` and `.env.local` files into the environment tier.
-- [How to inspect value provenance](/how-to/inspect-value-provenance/) — diagnose which tier provided each value with `--why`.
-- [About value precedence](/explanation/value-precedence/) — the four-tier resolution ladder and provenance rules.
+- [How to load .env files](/how-to/load-env-files/): feed `.env` and `.env.local` files into the environment.
+- [How to inspect value provenance](/how-to/inspect-value-provenance/): the full `--why` report.
+- [About value precedence](/explanation/value-precedence/): how command line, environment, config, and defaults combine.
+- [Struct tag reference](/reference/struct-tags/): every `env` and `envprefix` rule.
+- [Twelve-factor precedence example](https://github.com/conga-sh/conga/tree/main/_examples/13-twelve-factor-precedence): the program used on this page.
