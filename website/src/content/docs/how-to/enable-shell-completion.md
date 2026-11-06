@@ -253,7 +253,7 @@ $env:CLOUDCTL_COMPLETION_ALIASES = '0'
 $env.CLOUDCTL_COMPLETION_DESCRIPTIONS = "0"
 $env.CLOUDCTL_COMPLETION_ALIASES = "0"
 ```
-```elvish title="rc.elv" label="Elvish"
+```txt title="rc.elv" label="Elvish"
 set-env CLOUDCTL_COMPLETION_DESCRIPTIONS 0
 set-env CLOUDCTL_COMPLETION_ALIASES 0
 ```

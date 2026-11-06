@@ -219,7 +219,7 @@ type booleanError struct {
 }
 
 func (e *booleanError) Error() string {
-	return fmt.Sprintf("invalid boolean value %q, expected true or false", e.raw)
+	return fmt.Sprintf("invalid boolean value %q, expected true or false (or 1 or 0)", e.raw)
 }
 
 func (e *booleanError) Unwrap() error { return ErrCoerce }

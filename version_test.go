@@ -299,7 +299,7 @@ func TestVersionCommand_JSONInvalidValue(t *testing.T) {
 	assert.Error(t, err)
 	assert.IsError(t, err, conga.ErrCoerce)
 	assert.True(t, conga.IsUsageError(err))
-	assert.Equal(t, `invalid boolean value "banana", expected true or false for flag --json`, err.Error())
+	assert.Equal(t, `invalid boolean value "banana", expected true or false (or 1 or 0) for flag --json`, err.Error())
 	assert.Equal(t, "", buffer.String())
 }
 
