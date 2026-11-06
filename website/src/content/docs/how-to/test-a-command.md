@@ -246,13 +246,13 @@ In a test, `os.Exit` would stop the test binary, so pass `ExitFunc` to record th
 func TestUnknownFlagExitsWithUsageError(t *testing.T) {
 	t.Parallel()
 
-	var stderrBuffer bytes.Buffer
+	var stdoutBuffer, stderrBuffer bytes.Buffer
 	exitCode := -1
 
 	app := conga.New[CLI]().
 		Name("hello").
 		Args([]string{"--unknown-flag"}).
-		Stdout(new(bytes.Buffer)).
+		Stdout(&stdoutBuffer).
 		Stderr(&stderrBuffer).
 		ExitFunc(func(code int) { exitCode = code }) // [!code highlight]
 
@@ -270,10 +270,14 @@ func TestUnknownFlagExitsWithUsageError(t *testing.T) {
 	if !strings.Contains(stderrBuffer.String(), "unknown flag: --unknown-flag") {
 		t.Errorf("stderr = %q, want the unknown flag message", stderrBuffer.String())
 	}
+
+	if stdoutBuffer.Len() > 0 {
+		t.Errorf("stdout = %q, want empty", stdoutBuffer.String())
+	}
 }
 ```
 
-After `app.Exit(err)`, `stderrBuffer` holds the error and usage block a user sees:
+After `app.Exit(err)`, `stdoutBuffer` is empty, so a user piping the output gets no partial result, and `stderrBuffer` holds the error and usage block a user sees:
 
 ```text no-copy error={1}
 hello: error: unknown flag: --unknown-flag
