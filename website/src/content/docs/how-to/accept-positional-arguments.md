@@ -29,18 +29,12 @@ func (c *CopyCmd) Run(ctx context.Context, session *conga.Session) error {
 When invoked, CONGA binds tokens in declaration order. If an optional argument is omitted, `GetOr` returns the provided fallback:
 
 ```sh
-copy src.txt
-```
-
-```text no-copy
+$ copy src.txt
 copying src.txt to backup/
 ```
 
 ```sh
-copy src.txt dest.txt
-```
-
-```text no-copy
+$ copy src.txt dest.txt
 copying src.txt to dest.txt
 ```
 
@@ -68,18 +62,12 @@ func (d *DeleteCmd) Run(ctx context.Context, session *conga.Session) error {
 The engine binds initial tokens to the scalar positional fields (`Mode`) and collects all subsequent tokens into the slice:
 
 ```sh
-delete purge file1.txt file2.txt file3.txt
-```
-
-```text no-copy
+$ delete purge file1.txt file2.txt file3.txt
 mode: purge, targets: [file1.txt file2.txt file3.txt]
 ```
 
-```sh
-delete purge
-```
-
-```text no-copy
+```sh error={2}
+$ delete purge
 delete: error: missing required positional argument <files...>
 ```
 
@@ -105,10 +93,7 @@ func (t *TestRunner) Run(ctx context.Context, session *conga.Session) error {
 CONGA forwards all tokens appearing after `--` verbatim into `DashArgs` in their original sequence:
 
 ```sh
-testrunner ./pkg/... -- -v -run TestUpload
-```
-
-```text no-copy
+$ testrunner ./pkg/... -- -v -run TestUpload
 package: ./pkg/..., forwarded: [-v -run TestUpload]
 ```
 

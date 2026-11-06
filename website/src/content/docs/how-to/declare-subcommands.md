@@ -54,10 +54,7 @@ type CLI struct {
 Help screens organize subcommands by their declared sections:
 
 ```sh
-cloudctl --help
-```
-
-```text no-copy
+$ cloudctl --help
 Usage:
   cloudctl <command> [flags]
 
@@ -153,7 +150,7 @@ type Root struct {
 }
 
 type Child struct {
-	Verbose conga.OptionalFlag[bool] `short:"v"` // schema error: duplicate flag -v
+	Verbose conga.OptionalFlag[bool] `short:"v"` // [!code error] Schema error: duplicate flag -v
 }
 ```
 

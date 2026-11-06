@@ -34,11 +34,8 @@ type Service struct {
 
 When a flag value cannot be parsed, CONGA wraps the returned error in `conga.ErrCoerce`, identifies the flag name, and exits with code 2:
 
-```sh
-service --ports 80
-```
-
-```text no-copy
+```sh error={2}
+$ service --ports 80
 service: error: invalid value "80" for flag --ports: invalid port range "80", expected START-END
 ```
 

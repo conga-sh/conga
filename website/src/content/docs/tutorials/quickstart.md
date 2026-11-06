@@ -10,20 +10,14 @@ In this tutorial, we will build `hello`, a command-line tool that greets a user 
 The command accepts an optional `--name` flag:
 
 ```sh
-hello --name conga
-```
-
-```text no-copy
+$ hello --name conga
 Hello, conga!
 ```
 
 When invoked without flags, it prints a default greeting:
 
 ```sh
-hello
-```
-
-```text no-copy
+$ hello
 Hello, World!
 ```
 
@@ -83,10 +77,7 @@ Notice the three parts of the program:
 Run the program with no arguments to observe the default output:
 
 ```sh
-go run .
-```
-
-```text no-copy
+$ go run .
 Hello, World!
 ```
 
@@ -95,20 +86,14 @@ Because `--name` was omitted, CONGA used the `default:"World"` from the struct t
 Pass `--name` to override the default value:
 
 ```sh
-go run . --name conga
-```
-
-```text no-copy
+$ go run . --name conga
 Hello, conga!
 ```
 
 The short flag `-n` produces the same result:
 
 ```sh
-go run . -n Bob
-```
-
-```text no-copy
+$ go run . -n Bob
 Hello, Bob!
 ```
 
@@ -117,10 +102,7 @@ Hello, Bob!
 CONGA generates `--help` automatically from the struct tags and application metadata:
 
 ```sh
-go run . --help
-```
-
-```text no-copy
+$ go run . --help
 A greeting command
 
 Usage:
@@ -139,10 +121,7 @@ The overview line comes from `Description(...)`, the usage line uses the applica
 The `--version` flag renders the application name, the version string set by `Version(...)`, and the Go toolchain that built the binary:
 
 ```sh
-go run . --version
-```
-
-```text no-copy
+$ go run . --version
 hello has version 1.0.0 built with go1.27.1
 ```
 

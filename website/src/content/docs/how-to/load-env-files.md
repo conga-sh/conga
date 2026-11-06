@@ -9,7 +9,7 @@ CONGA provides zero-dependency `.env` file loading through `app.Dotenv()`. Loade
 
 Call `Dotenv()` on the application builder without arguments to enable conventional loading:
 
-```go title="main.go"
+```go title="main.go" hidden={1-9}
 package main
 
 import (

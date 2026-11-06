@@ -9,7 +9,7 @@ Test CONGA applications in-process by constructing the `App` directly, injecting
 
 Inject custom arguments and memory buffers using `Args`, `Stdout`, and `Stderr`:
 
-```go title="main_test.go"
+```go title="main_test.go" hidden={1-12}
 package main
 
 import (

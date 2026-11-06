@@ -9,7 +9,7 @@ When flags resolve across multiple tiers (CLI flags, environment variables, conf
 
 Call `EnableWhy()` on the application builder to install the `--why` flag:
 
-```go title="main.go"
+```go title="main.go" hidden={1-8}
 package main
 
 import (
@@ -49,10 +49,10 @@ To enable the machine-readable `--why=json` document as well, pass `conga.WhyOpt
 The report redacts values by default (see [The `--why` report](/reference/builtins/#the---why-report)). To display a field in plaintext, declare `safe:"true"`:
 
 ```go title="main.go"
-// Renders plaintext in --why report
+// [!callout /safe/] Shown in plaintext in the --why report
 Port conga.OptionalFlag[int] `default:"8080" safe:"true"`
 
-// Redacted as ██████ in --why report
+// [!callout /Token/] Shown as ██████ in the --why report
 Token conga.OptionalFlag[string] `help:"API secret token"`
 ```
 
@@ -63,10 +63,7 @@ The `safe` tag applies exclusively to flag containers; positional arguments and 
 Invoke the binary with `--why` alongside any other flags or environment variables:
 
 ```sh
-SERVER_PORT=9002 SERVER_TOKEN=hunter2 server --why --port 9003
-```
-
-```text no-copy
+$ SERVER_PORT=9002 SERVER_TOKEN=hunter2 server --why --port 9003
 Value provenance for "server":
 
   FLAG      VALUE       SOURCE    ENV            CONFIG PATH
@@ -87,10 +84,7 @@ The report divides diagnostics into four areas:
 Map flags merge key by key across tiers: the flag row displays the key count and highest contributing tier, followed by tree-structured sub-rows (`├─ `, `└─ `) detailing each key's value and source:
 
 ```sh
-SERVER_LABELS=region=eu-west-1 server --why --labels shared=cli,team=core
-```
-
-```text no-copy
+$ SERVER_LABELS=region=eu-west-1 server --why --labels shared=cli,team=core
   --labels   (3 keys)              cli   SERVER_LABELS   labels
              ├─ region=eu-west-1   env
              ├─ shared=cli         cli
@@ -196,10 +190,7 @@ Both methods return an empty string if Why is not enabled on the application. `s
 When the root command declares a `conga.Features[T]` container (see [Feature toggles](/reference/struct-tags/#feature-toggles-congafeaturest)), the report ends with a `Features:` table. Each feature reports the tier that last wrote its key; keys no tier set fall back to the field default (`default`) or render `unset`:
 
 ```sh
-serve --why
-```
-
-```text no-copy
+$ serve --why
 Features:
 
   FEATURE      VALUE   SOURCE

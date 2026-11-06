@@ -52,10 +52,7 @@ func (d *DeployCmd) Run(ctx context.Context, session *conga.Session) error {
 When declared, CONGA promotes `completion` into the `Commands:` section of `--help` and suppresses the `--completion` flag:
 
 ```sh
-cloudctl --help
-```
-
-```text no-copy
+$ cloudctl --help
 Usage:
   cloudctl <command> [flags]
 
@@ -79,10 +76,7 @@ You can customize the completion command field using standard command struct tag
 Running `cloudctl completion` without arguments or with `--help` displays the completion help screen:
 
 ```sh
-cloudctl completion
-```
-
-```text no-copy
+$ cloudctl completion
 Generate shell completion scripts
 
 Usage:
@@ -120,10 +114,7 @@ If an unknown shell name is passed (such as `cloudctl completion myshell`), CONG
 To view step-by-step installation and configuration instructions for a specific shell, pass `--help` with the shell name:
 
 ```sh
-cloudctl completion bash --help
-```
-
-```text no-copy
+$ cloudctl completion bash --help
 Generate the shell completion script for the bash shell.
 
 To load completions in your current shell session, run:
@@ -154,50 +145,35 @@ Flat applications use flag syntax: `cloudctl --completion <shell> --help` (e.g. 
 
 Run `cloudctl completion <shell>` to generate the completion script for your shell. For flat applications, replace `completion <shell>` with `--completion <shell>`.
 
-### Bash
-
-```sh
+:::code-tabs{sync="shell"}
+```sh label="Bash"
 # Load in current session
 source <(cloudctl completion bash)
 
 # Persist for future sessions
 cloudctl completion bash > /etc/bash_completion.d/cloudctl
 ```
-
-### Zsh
-
-```sh
+```sh label="Zsh"
 # Ensure completion directory is in $fpath and reload
 cloudctl completion zsh > "${fpath[1]}/_cloudctl"
 ```
-
-### Fish
-
-```sh
+```sh label="Fish"
 # Install to user completions directory
 cloudctl completion fish > ~/.config/fish/completions/cloudctl.fish
 ```
-
-### PowerShell
-
-```sh
+```sh label="PowerShell"
 # Add to current profile
 cloudctl completion powershell | Out-String | Invoke-Expression
 ```
-
-### Elvish
-
-```sh
+```sh label="Elvish"
 # Evaluate completion definition
 eval (cloudctl completion elvish | slurp)
 ```
-
-### Nushell
-
-```sh
+```sh label="Nushell"
 # Save and register completion script
 cloudctl completion nushell | save -f ~/.config/nushell/completions/cloudctl.nu
 ```
+:::
 
 ## Renamed binaries and path-qualified invocation
 
@@ -260,30 +236,28 @@ All six framings honour the same toggles through application-prefixed environmen
 
 For the example `cloudctl` application:
 
-```sh title="bash" frame="code"
+:::code-tabs{sync="shell"}
+```sh title="bash" label="Bash" frame="code"
 export CLOUDCTL_COMPLETION_DESCRIPTIONS=0
 export CLOUDCTL_COMPLETION_ALIASES=0
 ```
-
-```fish title="config.fish"
+```fish title="config.fish" label="Fish"
 set -gx CLOUDCTL_COMPLETION_DESCRIPTIONS 0
 set -gx CLOUDCTL_COMPLETION_ALIASES 0
 ```
-
-```powershell title="$PROFILE" frame="code"
+```powershell title="$PROFILE" label="PowerShell" frame="code"
 $env:CLOUDCTL_COMPLETION_DESCRIPTIONS = '0'
 $env:CLOUDCTL_COMPLETION_ALIASES = '0'
 ```
-
-```nu title="env.nu"
+```nu title="env.nu" label="Nushell"
 $env.CLOUDCTL_COMPLETION_DESCRIPTIONS = "0"
 $env.CLOUDCTL_COMPLETION_ALIASES = "0"
 ```
-
-```elvish title="rc.elv"
+```elvish title="rc.elv" label="Elvish"
 set-env CLOUDCTL_COMPLETION_DESCRIPTIONS 0
 set-env CLOUDCTL_COMPLETION_ALIASES 0
 ```
+:::
 
 In bash, descriptions only appear in the successive-tab listing, so `<APP>_COMPLETION_DESCRIPTIONS=0` affects that listing only.
 

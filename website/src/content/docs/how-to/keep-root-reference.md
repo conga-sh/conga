@@ -9,7 +9,7 @@ CONGA supports two root initialization patterns: engine-allocated (`conga.New[T]
 
 To retain access to the root struct outside the execution lifecycle, construct the instance and pass its pointer to `conga.New`:
 
-```go title="main.go"
+```go title="main.go" hidden={1-9}
 package main
 
 import (

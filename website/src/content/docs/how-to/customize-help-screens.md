@@ -9,7 +9,7 @@ CONGA generates help screens automatically from your command structs. This guide
 
 Configure root-level help metadata on the `App` builder:
 
-```go title="main.go"
+```go title="main.go" hidden={1-8}
 package main
 
 import (

@@ -122,10 +122,7 @@ A list on the command line replaces the variable's list rather than adding to it
 Run with `--why`. The `SOURCE` column shows `env` for values from a variable, and the `ENV` column lists the variables each flag reads:
 
 ```sh
-SERVER_HOST=0.0.0.0 PORT=9001 twelve-factor-precedence -p 9003 --why
-```
-
-```text no-copy
+$ SERVER_HOST=0.0.0.0 PORT=9001 twelve-factor-precedence -p 9003 --why
   FLAG            VALUE     SOURCE    ENV                  CONFIG PATH
   --config-file             unset     SERVER_CONFIG        -
   --port          9003      cli       PORT                 port
@@ -151,7 +148,7 @@ SERVER_HOST=0.0.0.0 PORT=9001 twelve-factor-precedence -p 9003 --why
 
 A bad value names both the flag and the variable it came from:
 
-```text no-copy
+```text no-copy error={1}
 twelve-factor-precedence: error: invalid integer value "abc" for flag --port (from environment variable PORT)
 ```
 

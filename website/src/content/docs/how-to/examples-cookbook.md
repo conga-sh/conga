@@ -10,10 +10,7 @@ The CONGA repository provides 31 self-contained example programs under [`_exampl
 Execute any example directly from the repository root:
 
 ```sh
-go run ./_examples/08-subcommands-basic create web-api -i redis:7 -r 3
-```
-
-```text no-copy
+$ go run ./_examples/08-subcommands-basic create web-api -i redis:7 -r 3
 ╭───────────────────────────────────────────────────────────╮
 │  ⚙  subcommands-basic create                              │
 ╰───────────────────────────────────────────────────────────╯
