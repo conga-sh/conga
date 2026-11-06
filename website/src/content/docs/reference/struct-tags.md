@@ -12,7 +12,7 @@ CONGA derives the CLI schema from struct fields and their tags. The engine valid
 | `aliases` | ✅ | ✅ | – | Comma-separated long-name aliases. |
 | `and` | ✅ | ✅ | ✅ | Required co-occurrence group name whose members must all be set together. |
 | `bootstrap` | ✅ | ✅ | ✅ | Bind the field before the bootstrap phase runs and expose it typed to `Bootstrap` (`bootstrap` or `bootstrap:"true"`). Requires a `conga.Bootstrapper`; rejected with `feature`; restricted to scalar, slice-of-scalar, and map-of-scalar types. |
-| `config` | ✅ | ✅ | ✅ | Config file key feeding the flag (default: flag name). `config:"-"` excludes the field from config files. |
+| `config` | ✅ | ✅ | ✅ | Config file key feeding the flag (default: flag name, also matched in snake_case, so `api_endpoint` sets `--api-endpoint`). `config:"-"` excludes the field from config files. |
 | `default` | ✅ | – | – | Default value when no other source provides one. Coerced with the same parser as CLI input. Rejected on required flags and `oneof` members. |
 | `deprecated` | ✅ | – | ✅ | Deprecation notice; suppresses flag from completion. |
 | `enum` | ✅ | ✅ | – | Comma-separated allowed values, checked against the coerced value, rendered in help as `[enum: …]`. |

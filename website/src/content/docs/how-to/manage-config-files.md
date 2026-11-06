@@ -1,29 +1,34 @@
 ---
 title: How to manage config files
-description: Register decoders, configure search paths, enable cascading file merges, and inspect config files at runtime.
+description: Register config formats, search for files in several places, merge them, let users name their own, and see what users get when a file is wrong.
 ---
 
-Config files in CONGA are opt-in. An application registers file decoders for desired formats, then configures resolution rules using `app.ConfigOptions(...)`. This guide explains format registration, search-tier probing, cascading merges, key mapping, and runtime inspection.
+A config file gives flags their values when the user leaves them off the command line and no environment variable sets them. This guide registers a format, searches three places for a file, merges every file found, lets users name their own files, and maps fields to keys.
 
-## Register configuration formats
+The running example is the [cascading search paths example](https://github.com/conga-sh/conga/tree/main/_examples/15-cascading-searchpaths). Every output block below comes from running it, or the small variation the section describes. The runs used `/home/alice` as the home directory.
 
-Register decoders on the application builder for each file format the application accepts:
+## Register the formats you accept
+
+Register a decoder for each file extension the application reads. Decoders are separate packages, so an application links only the formats it registers:
 
 ```go title="main.go"
 package main
 
 import (
 	"context"
+	"time"
 
 	"github.com/conga-sh/conga"
-	"github.com/conga-sh/conga/decoder/hcl"
-	"github.com/conga-sh/conga/decoder/json"
-	"github.com/conga-sh/conga/decoder/toml"
 	"github.com/conga-sh/conga/decoder/yaml"
 )
 
 type CLI struct {
-	Port conga.OptionalFlag[int] `default:"8080" help:"Listen port"`
+	ConfigFile conga.ConfigFile `multi:"true" short:"c"`
+
+	APIEndpoint conga.OptionalFlag[string]        `default:"https://api.default.io" safe:"true"`
+	Timeout     conga.OptionalFlag[time.Duration] `default:"10s" help:"Request timeout" safe:"true"`
+	Theme       conga.OptionalFlag[string]        `default:"dark" enum:"dark,light,solarized,system" safe:"true"`
+	Telemetry   conga.OptionalFlag[bool]          `default:"true" help:"Enable telemetry reporting"`
 }
 
 func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
@@ -32,11 +37,10 @@ func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
 
 func main() {
 	app := conga.New[CLI]().
-		RegisterDecoder(".json", json.Decode).
-		RegisterDecoder(".toml", toml.Decode).
+		Name("cascading-searchpaths").
+		EnableWhy().
 		RegisterDecoder(".yaml", yaml.Decode).
-		RegisterDecoder(".yml", yaml.Decode).
-		RegisterDecoder(".hcl", hcl.Decode)
+		RegisterDecoder(".yml", yaml.Decode)
 
 	if err := app.Run(); err != nil {
 		app.Exit(err)
@@ -44,21 +48,153 @@ func main() {
 }
 ```
 
-CONGA provides four opt-in decoder packages: JSON, TOML, YAML, and HCL. Each package exposes a `Decode` function matching the `conga.ConfigDecoder` func type; [package decoder](/reference/decoders/) covers extension normalization and the missing-decoder rule.
+Users see the accepted formats on the config flag in `--help`:
 
-## Implement and register a custom decoder
+```text no-copy
+  -c, --config-file=PATH,...                   Path to config file(s) [decoders: .yaml, .yml]
+```
 
-To support custom, proprietary, or legacy formats, provide a function with the `conga.ConfigDecoder` signature, `func(data []byte) (map[string]any, error)` (see [package decoder](/reference/decoders/)). The decoder receives the raw config file bytes and parses them into a generic `map[string]any`. Keys in the map correspond to flag names (or custom `config:"..."` tags), and nested `map[string]any` values correspond to subcommands or native Go map flags.
+CONGA ships decoders for JSON, TOML, YAML, and HCL in `conga/decoder/...`; see [package decoder](/reference/decoders/).
+
+## Search for a file in several places
+
+Add `ConfigPaths` with the places to look, highest precedence first. Each entry is a directory; the program looks there for `config.<ext>` and `<app-name>.<ext>` for every registered extension. `~` and `${VAR:-default}` expand:
+
+```go title="main.go" ins={6}
+app := conga.New[CLI]().
+	Name("cascading-searchpaths").
+	EnableWhy().
+	RegisterDecoder(".yaml", yaml.Decode).
+	RegisterDecoder(".yml", yaml.Decode).
+	ConfigOptions(conga.ConfigPaths(".", "~/.config/cascading-searchpaths", "${SYSCONF_DIR:-/etc/cascading-searchpaths}"))
+```
+
+The program loads the first file it finds and stops. In this run, all three places have a file, and the one in the working directory wins:
+
+```sh
+$ cascading-searchpaths --why
+  FLAG             VALUE                        SOURCE                                ENV   CONFIG PATH
+  --config-file    cascading-searchpaths.yaml   config                                -     -
+  --api-endpoint   https://api.local.dev        config (cascading-searchpaths.yaml)   -     api-endpoint
+  --timeout        10s                          default                               -     timeout
+  --theme          dark                         default                               -     theme
+  --telemetry      true                         default                               -     telemetry
+```
+
+Without `ConfigPaths`, the program looks in the user's config directory, `${XDG_CONFIG_HOME:-~/.config}`; [About the config cascade](/explanation/config-cascade/) covers that default. To load one fixed file instead of searching, use `conga.ConfigExplicit(path)`; the run fails if that file is missing.
+
+## Merge files from every place
+
+Add `ConfigCascading()` to load every file found and merge them key by key, higher places winning. The `ConfigFile` flag must then accept several files, with `multi:"true"`, as in the struct above:
+
+```go title="main.go" ins={3}
+ConfigOptions(
+	conga.ConfigPaths(".", "~/.config/cascading-searchpaths", "${SYSCONF_DIR:-/etc/cascading-searchpaths}"),
+	conga.ConfigCascading(),
+)
+```
+
+Each value now comes from the highest file that sets it. Here the working directory sets `api_endpoint`, the user's file sets `theme` and `timeout`, and the system file sets `telemetry`:
+
+```sh
+$ cascading-searchpaths --why
+  FLAG             VALUE                   SOURCE                                                ENV   CONFIG PATH
+  --config-file    (3 files)               config                                                -     -
+                   ├─ /etc/cascading-searchpaths/cascading-searchpaths.yaml
+                   ├─ /home/alice/.config/cascading-searchpaths/cascading-searchpaths.yaml
+                   └─ cascading-searchpaths.yaml
+  --api-endpoint   https://api.local.dev   config (cascading-searchpaths.yaml)                   -     api-endpoint
+  --timeout        15s                     config (/home/alice/.../cascading-searchpaths.yaml)   -     timeout
+  --theme          light                   config (/home/alice/.../cascading-searchpaths.yaml)   -     theme
+  --telemetry      false                   config (/etc/.../cascading-searchpaths.yaml)          -     telemetry
+
+Config decoders: .yaml, .yml
+
+Config paths:
+  .                                           loaded: cascading-searchpaths.yaml
+  /home/alice/.config/cascading-searchpaths   loaded: /home/alice/.config/cascading-searchpaths/cascading-searchpaths.yaml
+  /etc/cascading-searchpaths                  loaded: /etc/cascading-searchpaths/cascading-searchpaths.yaml
+```
+
+The system file also sets `timeout: 30s`, but the user's `15s` wins. Flags on the command line and environment variables still beat every file.
+
+## Let users name their own files
+
+The `ConfigFile` field gives users `-c` / `--config-file`. Naming a file replaces the search: the program loads only the named files.
+
+With `multi:"true"`, users can repeat `-c`, and a later file beats an earlier one:
+
+```sh
+$ cascading-searchpaths -c team.yaml -c ci.yaml --why
+  FLAG             VALUE                    SOURCE               ENV   CONFIG PATH
+  --config-file    (2 files)                cli                  -     -
+                   ├─ team.yaml
+                   └─ ci.yaml
+  --api-endpoint   https://api.default.io   default              -     api-endpoint
+  --timeout        5s                       config (ci.yaml)     -     timeout
+  --theme          solarized                config (team.yaml)   -     theme
+  --telemetry      true                     default              -     telemetry
+```
+
+Without `multi:"true"`, the flag takes one file and its help reads `--config-file=PATH`. A named file must exist:
+
+```sh error={2}
+$ cascading-searchpaths -c nope.yaml
+cascading-searchpaths: error: cannot read config file "nope.yaml": stat nope.yaml: no such file or directory
+```
+
+`ConfigFile` belongs on the root command; subcommands read the loaded files through the session (see [List the config files a run loaded](#list-the-config-files-a-run-loaded)).
+
+## Match keys to fields
+
+A key matches the flag's name in kebab-case, and snake_case works too: the example's files write `api_endpoint:` for `--api-endpoint`. The `CONFIG PATH` column of `--why` shows each flag's key.
+
+To read a different key, set `config:"<key>"`. To keep a field out of config files, set `config:"-"`. This variation adds a token that users pass on the command line or in the environment only:
 
 ```go title="main.go"
-import (
-	"bufio"
-	"bytes"
-	"fmt"
-	"strings"
-)
+Token conga.OptionalFlag[string] `config:"-" help:"API token (command line or environment only)"`
+```
 
-// iniDecoder parses simple key=value lines into a configuration map.
+A file that sets it is rejected:
+
+```sh error={2}
+$ cascading-searchpaths -c token.yaml
+cascading-searchpaths: error: config file "token.yaml": field "token" is excluded from config files in command "cascading-searchpaths"
+```
+
+## Nest subcommand settings
+
+A subcommand's flags live under a section named after the subcommand. This variation adds a `server` subcommand:
+
+```go title="main.go"
+type CLI struct {
+	// ...
+	Server conga.Command[ServerCmd] `summary:"Run the API server"`
+}
+
+type ServerCmd struct {
+	Port conga.OptionalFlag[int] `default:"8080" safe:"true" help:"Listen port"`
+}
+```
+
+```yaml title="server.yaml"
+server:
+  port: 9000
+```
+
+```sh
+$ cascading-searchpaths -c server.yaml server --why
+  FLAG     VALUE   SOURCE                 ENV   CONFIG PATH
+  --port   9000    config (server.yaml)   -     server.port
+```
+
+[About subcommands and hierarchy](/explanation/subcommands/#hierarchical-configuration-mapping) describes how deeper hierarchies map.
+
+## Add a format of your own
+
+A decoder is a function with the signature `func(data []byte) (map[string]any, error)` that turns the file into a map of keys to values; nested maps hold subcommand sections. This one reads `key = value` lines:
+
+```go title="main.go"
 func iniDecoder(data []byte) (map[string]any, error) {
 	result := make(map[string]any)
 	scanner := bufio.NewScanner(bytes.NewReader(data))
@@ -85,138 +221,67 @@ func iniDecoder(data []byte) (map[string]any, error) {
 }
 ```
 
-Register the custom decoder on the application builder:
+Register it like a built-in decoder, and `.ini` joins the formats listed in `--help`:
 
 ```go title="main.go"
 app.RegisterDecoder(".ini", iniDecoder)
 ```
 
-When a decoder returns a non-nil error, CONGA aborts configuration resolution and returns a categorized `conga.ErrConfig` error identifying the file and parse failure.
+An error from the decoder names the file:
 
-:::tip[Files with application data]
-Decoders require every top-level key in a file to match a declared flag. If your file mixes configuration with application data (such as tasks in a `Taskfile` or services in a `docker-compose.yml`), use a [`conga.Bootstrapper`](/how-to/load-domain-files/) instead. The `Bootstrap` method parses the document, extracts configuration keys into CONGA's config tier with `Bootstrap.SetConfig`, and keeps the remaining data for execution.
-:::
-
-## Structure nested configuration for subcommands
-
-When command structs declare nested subcommands using `conga.Command[T]`, the command hierarchy forms nested configuration namespaces; [About subcommands and hierarchy](/explanation/subcommands/#hierarchical-configuration-mapping) defines the mapping.
-
-```go title="main.go"
-type RootCLI struct {
-	Verbose conga.OptionalFlag[bool] `help:"Global verbose logging" short:"v"`
-	Server  conga.Command[ServerCmd] `summary:"Server settings"`
-}
-
-type ServerCmd struct {
-	Port     conga.OptionalFlag[int]    `default:"8080" help:"Listen port"`
-	Database conga.Command[DatabaseCmd] `summary:"Database settings"`
-}
-
-type DatabaseCmd struct {
-	Host     conga.OptionalFlag[string] `default:"localhost" help:"Database host"`
-	PoolSize conga.OptionalFlag[int]    `default:"10" help:"Connection pool size"`
-}
+```sh error={2}
+$ cascading-searchpaths -c bad.ini
+cascading-searchpaths: error: cannot parse config file "bad.ini": malformed line: "theme light"
 ```
 
-A YAML file for the same schema nests subcommand keys under their command names:
+For files that mix configuration with application data, such as a Taskfile, use a [`conga.Bootstrapper`](/how-to/load-domain-files/) instead of a decoder.
 
-```yaml title="config.yaml"
-verbose: true
+## List the config files a run loaded
 
-server:
-  port: 9000
-  database:
-    host: "db.internal"
-    pool-size: 20
-```
-
-## Configure resolution tiers and search paths
-
-Configure file discovery using `app.ConfigOptions(...)`:
+`session.CandidateConfigFiles()` returns the places the program searched, and `session.LoadedConfigFiles()` the files it loaded, lowest precedence first:
 
 ```go title="main.go"
-app.ConfigOptions(
-	conga.ConfigPaths(
-		"./cloudctl.yaml",                  // local: highest precedence
-		"~/.config/cloudctl/cloudctl.yaml", // user
-		"/etc/cloudctl/cloudctl.yaml",      // system: lowest precedence
-	),
-)
-```
-
-Use `conga.ConfigPaths(...)` to declare search tiers and `conga.ConfigExplicit(...)` to name one concrete file. `ConfigExplicit` specifies an absolute, standalone configuration file and cannot be combined with `ConfigPaths` or `ConfigCascading`; combining them fails schema build with `ErrSchema` and is flagged by `conga-lint`. [About the config cascade](/explanation/config-cascade/) covers discovery precedence, the built-in XDG tier, and per-tier existence semantics.
-
-## Merge multiple files with cascading
-
-To merge settings across system, user, and project files, add `conga.ConfigCascading()` to the options:
-
-```go title="main.go"
-app.ConfigOptions(
-	conga.ConfigPaths(
-		"./cloudctl.yaml",
-		"~/.config/cloudctl/cloudctl.yaml",
-		"/etc/cloudctl/cloudctl.yaml",
-	),
-	conga.ConfigCascading(),
-)
-```
-
-`conga.ConfigCascading()` merges all matching configuration files across tiers in precedence order; [About the config cascade](/explanation/config-cascade/) describes the merge sequence. The root `ConfigFile` flag must then declare `multi:"true"`:
-
-```go title="main.go"
-type CLI struct {
-	Config conga.ConfigFile `multi:"true"`
-}
-```
-
-Omitting `multi:"true"` on a root `ConfigFile` flag when cascading is active fails schema validation.
-
-## Accept config files on the command line
-
-To let users specify custom config files during invocation, declare a `conga.ConfigFile` container on your root command struct:
-
-```go title="main.go"
-type CLI struct {
-	ConfigFile conga.ConfigFile `short:"c"`
-}
-```
-
-`conga.ConfigFile` can only be declared on the root command struct. Placing it on a subcommand struct produces an `ErrSchema` error (`ConfigFile can only be declared on the root command`) during schema initialization. Subcommands inspect the active files through `session.LoadedConfigFiles()` and reach root state with `session.Root[T]()` ([session accessors](/reference/conga/#session-and-hierarchy-accessors)).
-
-## Map fields to configuration keys
-
-By default, config keys match the flag's kebab-case field name. Use struct tags to customise mapping:
-
-```go title="main.go"
-type Database struct {
-	URL      conga.RequiredFlag[string] `config:"connection_url" help:"Database connection string"`
-	Password conga.OptionalFlag[string] `config:"-" help:"Read password from flags or environment only"`
-}
-```
-
-- `config:"connection_url"`: Reads the value from the specified key in the config file.
-- `config:"-"`: Disables config file resolution for that field, requiring it to be set via CLI, environment variable, or default value.
-
-## Inspect config files at runtime
-
-Access the evaluated file paths using the session:
-
-```go title="main.go"
-func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
-	// Candidate paths evaluated during resolution
-	candidates := session.CandidateConfigFiles()
-
-	// Paths of files that were actually found and decoded
-	loaded := session.LoadedConfigFiles()
+func (s *ServerCmd) Run(ctx context.Context, session *conga.Session) error {
+	fmt.Fprintf(session.Stdout(), "port=%d\n", s.Port.Get())
+	fmt.Fprintf(session.Stdout(), "candidates=%q\n", session.CandidateConfigFiles())
+	fmt.Fprintf(session.Stdout(), "loaded=%q\n", session.LoadedConfigFiles())
 
 	return nil
 }
 ```
 
-`CandidateConfigFiles` lists every path probed during resolution; `LoadedConfigFiles` lists the subset that existed and was decoded.
+```sh
+$ cascading-searchpaths server
+port=8080
+candidates=["." "/home/alice/.config/cascading-searchpaths" "/etc/cascading-searchpaths"]
+loaded=["/etc/cascading-searchpaths/cascading-searchpaths.yaml" "/home/alice/.config/cascading-searchpaths/cascading-searchpaths.yaml" "cascading-searchpaths.yaml"]
+```
+
+## Know what users see when a file is wrong
+
+A problem with the file itself is a config error (exit 1). A bad value in a valid file is reported like the same value on the command line (exit 2), naming the key it came from:
+
+| What the file has | Result |
+|---|---|
+| A `-c` file that doesn't exist | Config error, exit 1 |
+| Text the decoder can't parse | Config error, exit 1, naming the file |
+| An extension with no registered decoder | Config error, exit 1 |
+| An unknown key (`them: dark`) | Config error, exit 1, with a "did you mean" hint |
+| A key for a `config:"-"` field | Config error, exit 1 |
+| A value of the wrong type (`timeout: soon`) | Usage error, exit 2, naming the key |
+| A value outside `enum` or `range` (`theme: pink`) | Usage error, exit 2, naming the key |
+
+```text no-copy error={1-4}
+cascading-searchpaths: error: config file "typo.yaml": unknown field "them" in command "cascading-searchpaths" (did you mean "theme"?)
+cascading-searchpaths: error: unsupported config file format ".toml" for "settings.toml"
+cascading-searchpaths: error: invalid duration "soon" (valid units: ms, s, m, h) for flag --timeout (from config key "timeout")
+cascading-searchpaths: error: invalid value "pink" (must be one of: dark, light, solarized, system) for flag --theme (from config key "theme")
+```
 
 ## Where to go next
 
-- [About the config cascade](/explanation/config-cascade/) — search-tier mechanics, merging order, and XDG resolution.
-- [Package decoder reference](/reference/decoders/) — decoders for JSON, TOML, YAML, and HCL.
-- [How to load domain documents](/how-to/load-domain-files/) — parse Taskfile-, compose-, and pipeline-style documents that mix configuration with application data.
+- [About the config cascade](/explanation/config-cascade/): search order, the XDG default, and how merging works.
+- [Package decoder](/reference/decoders/): the JSON, TOML, YAML, and HCL decoders.
+- [How to load domain documents](/how-to/load-domain-files/): files that mix configuration with application data.
+- [How to inspect value provenance](/how-to/inspect-value-provenance/): the full `--why` report.
+- [Cascading search paths example](https://github.com/conga-sh/conga/tree/main/_examples/15-cascading-searchpaths): the program used on this page.

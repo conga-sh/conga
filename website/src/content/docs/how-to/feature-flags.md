@@ -190,7 +190,7 @@ A bad value in the file names the key it came from:
 feature-toggles: error: invalid value "maybe" for feature "http3" (from config key "features.http3"): must be true or false (or 1 or 0)
 ```
 
-## Read features in code
+## Read a feature's value
 
 `Features.Get()` returns the resolved struct:
 
