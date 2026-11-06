@@ -1,42 +1,77 @@
 ---
 title: How to test a command
-description: Inject arguments and in-memory streams, intercept exit codes, and assert command behavior in Go unit tests.
+description: Run a CONGA command inside a Go test with its own arguments, standard streams, and environment, and check its output and exit code.
 ---
 
-Test CONGA applications in-process by constructing the `App` directly, injecting an in-memory argument slice and I/O buffers, and executing with `RunContext(t.Context())`.
+When a command reads from `session.Stdin()` and writes to `session.Stdout()` and `session.Stderr()` instead of `os.Stdin` and `os.Stdout`, you can run and test it inside a `go test` function. Those methods return the process streams by default; in a test, the builder's `Args`, `Stdin`, `Stdout`, and `Stderr` methods replace the command line and streams for that `App` instance.
 
-## Isolate arguments and I/O streams
+The builder's `Stdout` and `Stderr` methods set the writers that `session.Stdout()` and `session.Stderr()` return and leave `os.Stdout` and `os.Stderr` alone. Output from `fmt.Println` or anything written directly to `os.Stdout` goes to the test binary's own stdout instead of the test's buffer.
 
-Inject custom arguments and memory buffers using `Args`, `Stdout`, and `Stderr`:
+This guide tests a `hello` program that greets a name from `--name`, `HELLO_NAME`, or standard input:
 
-```go title="main_test.go" hidden={1-12}
+```go title="main.go" hidden={1-11}
 package main
 
 import (
-	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"strings"
-	"testing"
 
 	"github.com/conga-sh/conga"
 )
 
 type CLI struct {
-	Name conga.OptionalFlag[string] `default:"World" help:"Name of the person to greet"`
-	Loud conga.OptionalFlag[bool]   `help:"Print greeting in uppercase"`
+	Name  conga.OptionalFlag[string] `default:"World" help:"Name of the person to greet"`
+	Loud  conga.OptionalFlag[bool]   `help:"Print greeting in uppercase"`
+	Stdin conga.OptionalFlag[bool]   `help:"Read the name from standard input"`
 }
 
 func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
-	greeting := fmt.Sprintf("Hello, %s!", c.Name.Get())
+	name := c.Name.Get()
+	if c.Stdin.Get() {
+		input, err := io.ReadAll(session.Stdin()) // [!code highlight]
+		if err != nil {
+			return err
+		}
+		name = strings.TrimSpace(string(input))
+	}
+
+	greeting := fmt.Sprintf("Hello, %s!", name)
 	if c.Loud.Get() {
 		greeting = strings.ToUpper(greeting)
 	}
 
-	fmt.Fprintln(session.Stdout(), greeting)
+	fmt.Fprintln(session.Stdout(), greeting) // [!code highlight]
 
 	return nil
 }
+
+func main() {
+	app := conga.New[CLI]().
+		Name("hello").
+		EnvPrefix("HELLO")
+
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
+}
+```
+
+## Pass arguments and capture output
+
+Build the app in the test with `Args`, `Stdout`, and `Stderr`, then run it with `app.RunContext(t.Context())`:
+
+```go title="main_test.go" hidden={1-10}
+package main
+
+import (
+	"bytes"
+	"strings"
+	"testing"
+
+	"github.com/conga-sh/conga"
+)
 
 func TestHelloGreetsUser(t *testing.T) {
 	t.Parallel()
@@ -63,13 +98,89 @@ func TestHelloGreetsUser(t *testing.T) {
 }
 ```
 
-Configuring `Args` leaves `os.Args` untouched, preventing race conditions when tests run in parallel.
+```sh
+$ go test -run TestHelloGreetsUser -v
+=== RUN   TestHelloGreetsUser
+=== PAUSE TestHelloGreetsUser
+=== CONT  TestHelloGreetsUser
+--- PASS: TestHelloGreetsUser (0.00s)
+PASS
+ok  	example/hello	0.005s
+```
 
-Streams and arguments are snapshotted when `RunContext` begins. Builder calls made after execution has started do not affect the running session.
+To feed standard input to `session.Stdin()`, pass an `io.Reader` to `Stdin`:
 
-## Isolate environment variables
+```go title="main_test.go"
+func TestHelloReadsStdin(t *testing.T) {
+	t.Parallel()
 
-`t.Setenv` sets a variable for the duration of the test and registers cleanup that restores the previous value:
+	var stdoutBuffer bytes.Buffer
+
+	app := conga.New[CLI]().
+		Args([]string{"--stdin"}).
+		Stdin(strings.NewReader("Alice\n")). // [!code highlight]
+		Stdout(&stdoutBuffer)
+
+	err := app.RunContext(t.Context())
+	if err != nil {
+		t.Fatalf("RunContext() unexpected error: %v", err)
+	}
+
+	if got, want := stdoutBuffer.String(), "Hello, Alice!\n"; got != want {
+		t.Errorf("stdout = %q, want %q", got, want)
+	}
+}
+```
+
+Arguments and streams belong to that `App` instance, so these tests can call `t.Parallel()`.
+
+:::caution[Always call Args in tests]
+Without `Args`, the app parses `os.Args`, which holds the flags `go test` passes to the test binary, and `RunContext` returns `unknown shorthand flag: 't' in -test.testlogfile`. Pass `Args(nil)` for a run with no command-line arguments.
+:::
+
+## Run table-driven tests
+
+An `App` executes once; calling `Run` or `RunContext` a second time on the same instance panics with `conga: App already executed`. Call `conga.New` inside each test and each `t.Run` case:
+
+```go title="main_test.go"
+func TestGreetings(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		args []string
+		want string
+	}{
+		{"default", nil, "Hello, World!\n"},
+		{"custom", []string{"--name", "Bob"}, "Hello, Bob!\n"},
+		{"loud", []string{"--name", "Bob", "--loud"}, "HELLO, BOB!\n"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			var stdoutBuffer bytes.Buffer
+
+			app := conga.New[CLI]().
+				Args(tc.args).
+				Stdout(&stdoutBuffer)
+
+			if err := app.RunContext(t.Context()); err != nil {
+				t.Fatalf("RunContext() unexpected error: %v", err)
+			}
+
+			if got := stdoutBuffer.String(); got != tc.want {
+				t.Errorf("stdout = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+```
+
+## Test environment variables and .env files
+
+`t.Setenv` sets an environment variable for the test and restores the previous value when the test finishes. Because `t.Setenv` modifies the process environment, tests that call it cannot call `t.Parallel()`:
 
 ```go title="main_test.go"
 func TestNameFromEnvironment(t *testing.T) {
@@ -79,7 +190,7 @@ func TestNameFromEnvironment(t *testing.T) {
 
 	app := conga.New[CLI]().
 		EnvPrefix("HELLO").
-		Args([]string{}).
+		Args(nil).
 		Stdout(&stdoutBuffer)
 
 	err := app.RunContext(t.Context())
@@ -93,17 +204,17 @@ func TestNameFromEnvironment(t *testing.T) {
 }
 ```
 
-When the application loads `.env` files with `Dotenv`, the loaded variables land in the process environment. Chain `SetenvFunc(t.Setenv)` so every loaded variable is restored when the test completes:
+When an app loads a `.env` file with `Dotenv`, it sets each variable with `os.Setenv` by default, leaving those variables set for later tests in the same binary. Pass `SetenvFunc(t.Setenv)` so each variable loaded from `testdata/hello.env` (`HELLO_NAME=Alice`) is restored when the test ends:
 
-```go title="main_test.go"
-func TestDotenvFile(t *testing.T) {
+```go title="main_test.go" {6-7}
+func TestNameFromDotenvFile(t *testing.T) {
 	var stdoutBuffer bytes.Buffer
 
 	app := conga.New[CLI]().
 		EnvPrefix("HELLO").
 		Dotenv("testdata/hello.env").
 		SetenvFunc(t.Setenv).
-		Args([]string{}).
+		Args(nil).
 		Stdout(&stdoutBuffer)
 
 	err := app.RunContext(t.Context())
@@ -117,57 +228,70 @@ func TestDotenvFile(t *testing.T) {
 }
 ```
 
-With `testdata/hello.env` containing `HELLO_NAME=Alice`, the loaded variable binds the `Name` flag and `t.Setenv` restores `HELLO_NAME` after the test.
+:::caution[Variables already set outrank the file]
+`Dotenv` never overwrites a variable that is already in the process environment. If the shell that runs `go test` exports `HELLO_NAME=Eve`, this test reads `Eve` and fails with `stdout = "Hello, Eve!\n", want "Hello, Alice!\n"`.
+:::
 
-`t.Setenv` mutates process-wide state, so tests that use it (directly or through `SetenvFunc`) cannot call `t.Parallel`.
+## Check errors and exit codes
 
-## Assert exit codes
+`app.Exit(err)` formats the error to the app's `Stderr` and calls `os.Exit`:
 
-By default, `app.Exit` terminates the process using `os.Exit`. To assert exit codes in tests without terminating the test runner, replace the exit handler using `ExitFunc`:
+- Exit code `0` when `err` is `nil`.
+- Exit code `2` when `conga.IsUsageError(err)` is `true` (an unknown flag, a value of the wrong type, or a value that fails `range` or `enum`).
+- Exit code `1` for any other error, such as an error returned from `Run`, a missing or malformed config or `.env` file, or an invalid struct tag. See [Errors](/reference/errors/) for every error category.
+
+In a test, `os.Exit` would stop the test binary, so pass `ExitFunc` to record the code instead:
 
 ```go title="main_test.go"
-func TestUnknownFlagReportsUsageError(t *testing.T) {
+func TestUnknownFlagExitsWithUsageError(t *testing.T) {
 	t.Parallel()
 
-	var stdoutBuffer, stderrBuffer bytes.Buffer
-	exitCode := 0
+	var stderrBuffer bytes.Buffer
+	exitCode := -1
 
 	app := conga.New[CLI]().
+		Name("hello").
 		Args([]string{"--unknown-flag"}).
-		Stdout(&stdoutBuffer).
+		Stdout(new(bytes.Buffer)).
 		Stderr(&stderrBuffer).
-		ExitFunc(func(code int) { exitCode = code })
+		ExitFunc(func(code int) { exitCode = code }) // [!code highlight]
 
 	err := app.RunContext(t.Context())
-
-	// Syntax, validation, and flag errors satisfy IsUsageError
 	if !conga.IsUsageError(err) {
-		t.Fatalf("expected usage error, got %v", err)
+		t.Fatalf("expected a usage error, got %v", err)
 	}
 
-	// Exit prints the usage diagnostic and triggers ExitFunc
 	app.Exit(err)
 
 	if exitCode != 2 {
-		t.Errorf("exit code = %d, want 2 for usage error", exitCode)
+		t.Errorf("exit code = %d, want 2", exitCode)
 	}
 
 	if !strings.Contains(stderrBuffer.String(), "unknown flag: --unknown-flag") {
-		t.Errorf("stderr = %q, missing unknown flag message", stderrBuffer.String())
+		t.Errorf("stderr = %q, want the unknown flag message", stderrBuffer.String())
 	}
 }
 ```
 
-`Exit` maps errors to standardized exit codes: code 2 when `conga.IsUsageError(err)` reports a usage error, and code 1 for schema-build failures and runtime failures returned from `Run`. A nil error exits with code 0.
+After `app.Exit(err)`, `stderrBuffer` holds the error and usage block a user sees:
 
-To test error messages without dumping the full usage block to stderr, add `UsageOnError(conga.UsageSilence)` to the builder chain.
+```text no-copy error={1}
+hello: error: unknown flag: --unknown-flag
 
-## Test built-in flags
+Usage:
+  hello [flags]
 
-Built-in requests (`--help`, `--version`, and `--why`) execute cleanly, writing to `Stdout` and returning `nil`:
+Run 'hello --help' for more information.
+```
+
+To omit the usage block on errors, add `UsageOnError(conga.UsageSilence)` so `Stderr` receives only the error line, or `UsageOnError(conga.UsageHint)` to keep the error line and the `--help` hint.
+
+## Test --help and other built-in flags
+
+`--help`, `--version`, and `--why` write to `Stdout` and return `nil`:
 
 ```go title="main_test.go"
-func TestHelpFlagRendersUsage(t *testing.T) {
+func TestHelpFlagPrintsUsage(t *testing.T) {
 	t.Parallel()
 
 	var stdoutBuffer bytes.Buffer
@@ -179,54 +303,17 @@ func TestHelpFlagRendersUsage(t *testing.T) {
 
 	err := app.RunContext(t.Context())
 	if err != nil {
-		t.Fatalf("RunContext() error = %v", err)
+		t.Fatalf("RunContext() unexpected error: %v", err)
 	}
 
 	if !strings.Contains(stdoutBuffer.String(), "Usage:\n  hello [flags]") {
-		t.Errorf("stdout = %q, want usage block", stdoutBuffer.String())
-	}
-}
-```
-
-## Construct fresh App instances per test
-
-CONGA enforces a single-execution rule: an `App` instance executes exactly once. Calling `Run` or `RunContext` a second time on the same `App` panics with `conga: App already executed`.
-
-Always call `conga.New[T]()` inside each test or table-driven test iteration to ensure a clean schema, fresh containers, and isolated state:
-
-```go title="main_test.go"
-func TestTable(t *testing.T) {
-	cases := []struct {
-		name string
-		args []string
-		want string
-	}{
-		{"default", nil, "Hello, World!\n"},
-		{"custom", []string{"--name", "Bob"}, "Hello, Bob!\n"},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			var stdoutBuffer bytes.Buffer
-
-			app := conga.New[CLI]().
-				Args(tc.args).
-				Stdout(&stdoutBuffer)
-
-			if err := app.RunContext(t.Context()); err != nil {
-				t.Fatalf("unexpected error: %v", err)
-			}
-
-			if got := stdoutBuffer.String(); got != tc.want {
-				t.Errorf("got %q, want %q", got, tc.want)
-			}
-		})
+		t.Errorf("stdout = %q, want the usage block", stdoutBuffer.String())
 	}
 }
 ```
 
 ## Where to go next
 
-- [About the command lifecycle](/explanation/lifecycle/) — context propagation, signal handling, and execution lifecycles.
-- [About error reporting](/explanation/error-reporting/) — error categorization, exit codes, and usage silencing.
-- [About flags and args](/explanation/flags-and-args/) — inspecting container state and provenance.
+- [About error reporting](/explanation/error-reporting/): error categories, exit codes, and usage output.
+- [How to load .env files](/how-to/load-env-files/): how `Dotenv` resolves and loads environment files.
+- [About the command lifecycle](/explanation/lifecycle/): context, signals, and the order of lifecycle hooks.
