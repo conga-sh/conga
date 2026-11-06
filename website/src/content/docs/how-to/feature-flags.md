@@ -5,7 +5,7 @@ description: Declare named features, hide flags and subcommands until a feature 
 
 A feature is a named setting the person running your CLI changes at run time: on or off, or a numbered level. A gated flag or subcommand appears in `--help`, `--why`, and shell completion, and accepts input, while its feature is on.
 
-This guide builds the HTTP server from the [feature toggles example](https://github.com/conga-sh/conga/tree/main/_examples/29-feature-toggles). It declares four features, gates two flags and one subcommand behind them, and turns them on from each source. Every output block below comes from running that example, or the small change to it that the section describes.
+This guide builds the HTTP server from the [feature toggles example](https://github.com/conga-sh/conga/tree/main/_examples/29-feature-toggles). It declares four features, gates two flags and one subcommand behind them, and turns them on from each source.
 
 ## Declare the features
 

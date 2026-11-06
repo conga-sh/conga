@@ -5,7 +5,7 @@ description: Load .env and .env.local files, named files, and files a flag point
 
 A `.env` file sets environment variables for a run, so flags bound to those variables pick up its values. This guide loads the conventional `.env` and `.env.local` pair, keeps the host environment in charge, loads named files, and loads a file whose location comes from a flag.
 
-The running example is the [multiformat and dotenv example](https://github.com/conga-sh/conga/tree/main/_examples/14-multiformat-and-dotenv). Every output block below comes from running it, or the small variation the section describes.
+The running example is the [multiformat and dotenv example](https://github.com/conga-sh/conga/tree/main/_examples/14-multiformat-and-dotenv).
 
 ## Load .env and .env.local from the working directory
 

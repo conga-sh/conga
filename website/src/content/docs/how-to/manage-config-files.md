@@ -5,7 +5,7 @@ description: Register config formats, search for files in several places, merge 
 
 A config file gives flags their values when the user leaves them off the command line and no environment variable sets them. This guide registers a format, searches three places for a file, merges every file found, lets users name their own files, and maps fields to keys.
 
-The running example is the [cascading search paths example](https://github.com/conga-sh/conga/tree/main/_examples/15-cascading-searchpaths). Every output block below comes from running it, or the small variation the section describes. The runs used `/home/alice` as the home directory.
+The running example is the [cascading search paths example](https://github.com/conga-sh/conga/tree/main/_examples/15-cascading-searchpaths). Paths in the output use `/home/alice` as the home directory.
 
 ## Register the formats you accept
 

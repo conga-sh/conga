@@ -5,7 +5,7 @@ description: Give flags environment variables with an application prefix, per-fl
 
 An environment variable gives a flag a value when the user leaves the flag off the command line. This guide gives every flag a variable with one prefix, renames one flag's variable, keeps one flag on the command line only, and gives a subcommand its own prefix.
 
-The running example is the [twelve-factor precedence example](https://github.com/conga-sh/conga/tree/main/_examples/13-twelve-factor-precedence). Every output block below comes from running it, or the small variation the section describes.
+The running example is the [twelve-factor precedence example](https://github.com/conga-sh/conga/tree/main/_examples/13-twelve-factor-precedence).
 
 ## Give every flag a variable with an application prefix
 
