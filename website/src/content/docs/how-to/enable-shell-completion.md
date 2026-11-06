@@ -230,7 +230,9 @@ In zsh, a named directory resolves through the completer when it is configured w
 
 CONGA completes file and directory values in-process from the filesystem predictors in `package predict` (`Files`, `Dirs`, `FilesGlob`, `FilesFiltered`, `PathsFiltered`, `DirsGlob`, `DirsFiltered`, `Symlinks`, `Executables`). One engine scans the filesystem and streams matching candidates to every shell, so a typed prefix filters candidates before they reach the shell and bash, zsh, fish, powershell, elvish, and nushell complete identically. A file whose name begins with a dot is offered when the typed prefix begins with a dot, matching the shell default.
 
-Because the scan runs in-process, zsh's shell-side file-completion customisations do not apply to CONGA candidates: the `file-sort` and `file-patterns` zstyles, `cdpath` search directories, and named-directory (`~name`) expansion in file positions. Issue [#85](https://github.com/conga-sh/conga/issues/85) tracks these gaps.
+:::note[zsh file-completion settings]
+CONGA lists files itself rather than through zsh's `_files`, so zsh's file-completion settings leave its candidates unchanged: the `file-sort` and `file-patterns` zstyles, `cdpath`, and `~name` directories in file values. Issue [#85](https://github.com/conga-sh/conga/issues/85) tracks this.
+:::
 
 ## Customise completion behaviour
 
