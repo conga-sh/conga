@@ -134,7 +134,7 @@ func featureValues(cmd *spec.Command, cmdChain []*spec.Command, provided map[str
 			return
 		}
 
-		firstErr = invalidFeatureValueError(cmdChain, feature, raw, cause, source, envNames[name])
+		firstErr = invalidFeatureValueError(cmdChain, feature, raw, cause, source, featureSourceName(cmd, feature, source, envNames[name]))
 	})
 
 	return values, firstErr
@@ -404,23 +404,36 @@ func unknownFeatureError(cmdChain []*spec.Command, cmd *spec.Command, name strin
 	}
 }
 
-func invalidFeatureValueError(cmdChain []*spec.Command, feature *spec.FeatureField, raw string, cause error, source ValueSource, envName string) error {
-	location := ""
-	if source == SourceEnv && envName != "" {
-		location = fmt.Sprintf(" (from environment variable %s)", envName)
-	}
-
-	message := fmt.Sprintf("invalid value %q for feature %q%s: %v", raw, feature.Name, location, cause)
-
-	if source == SourceConfig {
-		return fmt.Errorf("%w: %s", ErrConfig, message)
-	}
+// invalidFeatureValueError reports a feature value that fails canonicalization.
+// Every source yields the same usage-class validation error (exit 2), matching
+// a bad flag value; sourceName attributes env- and config-sourced values.
+func invalidFeatureValueError(cmdChain []*spec.Command, feature *spec.FeatureField, raw string, cause error, source ValueSource, sourceName string) error {
+	message := fmt.Sprintf("invalid value %q for feature %q%s: %v", raw, feature.Name, sourceLocation(source, sourceName), cause)
 
 	return &validationError{
 		msg:         message,
 		cmdChain:    cmdChain,
 		cause:       errInvalidValue,
 		valueShaped: true,
+	}
+}
+
+// featureSourceName names where a feature value came from for diagnostics: the
+// environment variable for env-sourced keys, and the config key (the feature
+// container's config section joined with the feature name) for config-sourced
+// keys.
+func featureSourceName(cmd *spec.Command, feature *spec.FeatureField, source ValueSource, envName string) string {
+	switch source {
+	case SourceEnv:
+		return envName
+	case SourceConfig:
+		if cmd.FeatureFlag == nil || cmd.FeatureFlag.ConfigKey == "" || cmd.FeatureFlag.ConfigKey == "-" {
+			return ""
+		}
+
+		return cmd.FeatureFlag.ConfigKey + "." + feature.Name
+	default:
+		return ""
 	}
 }
 

@@ -317,7 +317,7 @@ Inactive gated flags and subcommands are pruned from `--help`, `--why`, and shel
 |---|---|---|---|
 | Gated flag or subcommand whose expression does not hold | Usage error (exit 2) | Ignored | `ErrConfig` (exit 1) |
 | Unknown feature name | Usage error (exit 2), with suggestion | Usage error (exit 2), with suggestion | `ErrConfig` (exit 1), with suggestion |
-| Invalid feature value (not `true`/`false`, or a level not in `enum`) | Usage error (exit 2) | Usage error (exit 2), naming the variable | `ErrConfig` (exit 1) |
+| Invalid feature value (not `true`/`false`, or a level not in `enum`) | Usage error (exit 2) | Usage error (exit 2), naming the variable | Usage error (exit 2), naming the config key |
 
 Only environment variables that bind *gated flags* are ignored when inactive, so ambient variables never break a run they do not control; feature variables (`env` or `envprefix` surfaces) are always validated. See [Errors and exit codes](/reference/errors/).
 

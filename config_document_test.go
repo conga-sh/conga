@@ -432,7 +432,7 @@ func TestBootstrapper_EnumViolationMatchesFileMessageShape(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.IsError(t, err, conga.ErrValidation)
-	assert.Equal(t, `invalid value "staging" (must be one of: dev, prod) for flag --mode`, err.Error())
+	assert.Equal(t, `invalid value "staging" (must be one of: dev, prod) for flag --mode (from config key "mode")`, err.Error())
 }
 
 func TestBootstrapper_RangeViolationMatchesFileMessageShape(t *testing.T) {
@@ -735,7 +735,7 @@ func TestBootstrapper_FeatureEnvChannelExcluded(t *testing.T) {
 	assert.True(t, conga.IsUsageError(err))
 }
 
-func TestBootstrapper_FeatureInvalidValueFailsUnderErrConfig(t *testing.T) {
+func TestBootstrapper_FeatureInvalidValueFailsAsUsageError(t *testing.T) {
 	t.Parallel()
 
 	cli := &documentFeaturesCLI{doc: documentWith(func(document *conga.ConfigDocument) {
@@ -749,7 +749,9 @@ func TestBootstrapper_FeatureInvalidValueFailsUnderErrConfig(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrConfig)
+	assert.IsError(t, err, conga.ErrValidation)
+	assert.True(t, conga.IsUsageError(err))
+	assert.Equal(t, `invalid value "maybe" for feature "force-all" (from config key "experiments.force-all"): must be true or false (or 1 or 0)`, err.Error())
 }
 
 func TestBootstrapper_CompletionReflectsDocumentGate(t *testing.T) {

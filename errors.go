@@ -377,24 +377,16 @@ func (e *completionError) IsCompletionError() bool {
 }
 
 func formatCoercionLocation(errObj *coercionError) string {
-	if errObj.source == SourceEnv && errObj.sourceName != "" {
-		if errObj.isFlag {
-			return fmt.Sprintf("for flag --%s (from environment variable %s)", errObj.targetName, errObj.sourceName)
-		}
+	if errObj.isFlag {
+		return "for flag --" + errObj.targetName + sourceLocation(errObj.source, errObj.sourceName)
+	}
 
+	if errObj.source == SourceEnv && errObj.sourceName != "" {
 		return "for environment variable " + errObj.sourceName
 	}
 
 	if errObj.source == SourceConfig && errObj.sourceName != "" {
-		if errObj.isFlag {
-			return fmt.Sprintf("for flag --%s (from config key %q)", errObj.targetName, errObj.sourceName)
-		}
-
 		return fmt.Sprintf("for config key %q", errObj.sourceName)
-	}
-
-	if errObj.isFlag {
-		return "for flag --" + errObj.targetName
 	}
 
 	if errObj.targetName != "" {
@@ -402,6 +394,25 @@ func formatCoercionLocation(errObj *coercionError) string {
 	}
 
 	return ""
+}
+
+// sourceLocation renders the parenthesized origin suffix shared by value
+// diagnostics: " (from environment variable NAME)" for env-sourced values and
+// " (from config key "KEY")" for config-sourced values. CLI, default, and
+// unnamed sources render no suffix.
+func sourceLocation(source ValueSource, sourceName string) string {
+	if sourceName == "" {
+		return ""
+	}
+
+	switch source {
+	case SourceEnv:
+		return fmt.Sprintf(" (from environment variable %s)", sourceName)
+	case SourceConfig:
+		return fmt.Sprintf(" (from config key %q)", sourceName)
+	default:
+		return ""
+	}
 }
 
 func friendlyTypeName(targetType reflect.Type) string {

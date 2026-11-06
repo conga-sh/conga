@@ -1678,7 +1678,7 @@ func (a *App[T]) prepareNonMetaExecution(ctx context.Context, session *Session, 
 
 	a.collectDeprecationNotices(invocation.cmdChain)
 
-	return validateFlagConstraints(invocation.cmdChain)
+	return validateFlagConstraints(invocation.cmdChain, state.SourceNames)
 }
 
 func (a *App[T]) prepare(ctx context.Context) (*Session, bool, error) {

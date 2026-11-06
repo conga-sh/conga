@@ -1801,8 +1801,9 @@ func TestFeature_Config_InvalidValue(t *testing.T) {
 
 	err = app.Run()
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrConfig)
-	assert.Contains(t, err.Error(), `invalid value "3" for feature "syntax": must be one of: 0, 1, 2`)
+	assert.IsError(t, err, conga.ErrValidation)
+	assert.True(t, conga.IsUsageError(err))
+	assert.Equal(t, `invalid value "3" for feature "syntax" (from config key "experiments.syntax"): must be one of: 0, 1, 2`, err.Error())
 }
 
 func TestFeature_CLI_UnknownFeature(t *testing.T) {

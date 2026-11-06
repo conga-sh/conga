@@ -79,6 +79,8 @@ The command line represents direct operator intent for the immediate run. Supply
 ### Configuration files (exit code 1)
 Configuration files represent persistent settings applied to hosts or projects. A configuration file that names an unknown feature or targets a flag pruned by an inactive gate indicates an invalid or stale deployment configuration. CONGA fails during the configuration loading phase with a configuration error (`ErrConfig`, exit code 1), providing "did you mean" suggestions for near misses.
 
+A bad *value* is different: `http3: maybe` in the file is reported exactly like `--feature-gates http3=maybe` on the command line, as a usage error (exit code 2) naming the config key it came from. Every source reports a bad value the same way, for features and flags alike.
+
 ### Environment variables (silently ignored)
 Environment variables leak in from parent shells, CI runners, and container orchestrators. If `API_QUIC=true` is left over in a shell where `http3` is off, failing would break a run the variable was never meant for, so CONGA ignores variables that set inactive gated flags.
 
