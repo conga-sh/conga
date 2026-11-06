@@ -116,6 +116,20 @@ app.Predictor("stack", predict.Callback(func(c predict.Context) predict.Predicto
 | `TagAwarePredictable` | `Predict(tags FieldTags) Predictor` |
 | `FileFilterable` / `DirFilterable` / `PathFilterable` | Filesystem filtering hooks |
 
+`Predict` runs once, when CONGA builds the schema, so it must not depend on values parsed at run time; return a `Callback` for candidates that do. Implement either `Predictable` or `TagAwarePredictable`, not both.
+
+### Which predictor a field uses
+
+CONGA takes a field's predictor from the first source that applies:
+
+1. An explicit `predictor:"<name>"` tag: a name registered with `app.Predictor`, or a built-in (`file`, `dir`, `exec`, `symlink`, `none`, `off`).
+2. A predictor registered for the field's type with `app.RegisterType(..., conga.WithPredictor(p))`.
+3. `FileFilterable`, then `DirFilterable`, then `PathFilterable` on the field's type.
+4. `TagAwarePredictable` on the field's type (for example `conga.File`).
+5. `Predictable` on the field's type (for example `conga.Dir`).
+
+For a slice field, the element type decides.
+
 ## Constants
 
 `DefaultTimeout = 250 * time.Millisecond` — callback deadline applied by dynamic predictors; `Timeout(0)` reapplies it and a negative duration disables enforcement.

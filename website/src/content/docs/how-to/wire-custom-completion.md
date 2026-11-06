@@ -1,144 +1,181 @@
 ---
 title: How to wire custom completion
-description: Supply dynamic completion candidates for flags and arguments using predict SDK combinators, registries, and interfaces.
+description: Offer completion candidates for flags and arguments, with descriptions, values computed at Tab time, self-completing types, and tag-aware types.
 ---
 
-When flags or positional arguments accept dynamic values — such as server names, cluster regions, or API resources — implement custom completion using `package predict`. This guide explains predictor resolution precedence, static and dynamic candidate generation, and self-completing types.
+Shell completion lists the values a flag accepts when the user presses Tab. CONGA already completes `enum` values and the `conga.File` and `conga.Dir` types; a plain `string` flag offers nothing until you give it candidates. This guide adds them: a fixed list, values with descriptions, types that complete themselves, and values computed from other flags.
 
-## Predictor resolution precedence
+This guide builds a small `deploy` command with four flags, each completed a different way. The listings are zsh's; other shells show the same candidates in their own layout. The [shell completion example](https://github.com/conga-sh/conga/tree/main/_examples/19-shell-completion) uses every predictor and combinator in `package predict`.
 
-When generating completion candidates for a field, CONGA evaluates candidate sources in strict precedence:
+Completion needs `EnableCompletion()` on the builder and the script installed in the user's shell; see [How to enable shell completion](/how-to/enable-shell-completion/).
 
-1. Field-level tag: an explicit `predictor:"name"` tag overrides all other sources.
-2. Type-level registration: the field type was registered with `app.RegisterType(..., conga.WithPredictor(p))`.
-3. Filesystem filter interfaces: the field type implements `predict.FileFilterable`, `predict.DirFilterable`, or `predict.PathFilterable`.
-4. Tag-aware type interface: the field type implements `conga.TagAwarePredictable` (including built-in `conga.File`).
-5. Parameterless type interface: the field type implements `conga.Predictable` (including built-in `conga.Dir`).
+## Offer a fixed list of values
 
-## Register named predictors on the builder
+Register a named predictor with `Predictor`, and point the flag at it with a `predictor` tag:
 
-For field-specific completion logic, register a named predictor on the application builder, then reference it using the `predictor` struct tag:
-
-```go title="main.go"
-package main
-
-import (
-	"context"
-
-	"github.com/conga-sh/conga"
-	"github.com/conga-sh/conga/predict"
-)
-
+```go title="main.go" ins={3,10}
 type CLI struct {
-	Region conga.RequiredFlag[string] `help:"Deployment region" predictor:"regions"`
-}
-
-func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
-	return nil
+	// ...
+	Image conga.OptionalFlag[string] `help:"Container image" predictor:"images"`
 }
 
 func main() {
 	app := conga.New[CLI]().
-		EnableCompletion()
-
-	app.Predictor("regions", predict.Values(
-		"us-east-1",
-		"us-west-2",
-		"eu-west-1",
-	))
-
-	if err := app.Run(); err != nil {
-		app.Exit(err)
-	}
+		Name("deploy").
+		EnableCompletion().
+		Predictor("images", predict.Values("api:1.4", "api:1.5", "worker:2.0"))
+	// ...
 }
 ```
 
-Referencing a predictor name that was not registered with `app.Predictor` produces an `ErrSchema` error during initialization.
-
-## Provide candidate descriptions with predict.Item
-
-To render descriptions alongside completion candidates in shells that support rich completions (such as zsh, fish, and nushell), return `predict.Item` values through `predict.Items`:
-
-```go title="main.go"
-app.Predictor("environments", predict.Items(
-	predict.NewItem("dev", "Local development environment"),
-	predict.NewItem("staging", "Pre-production verification cluster"),
-	predict.NewItem("prod", "Production live cluster"),
-))
+```text no-copy
+$ deploy --image <Tab>
+Container image
+api:1.4     api:1.5     worker:2.0
 ```
 
-## Generate dynamic candidates at runtime
+zsh shows the flag's `help` text above the candidates.
 
-To query a database, read a configuration directory, or inspect an API at completion time, use `predict.Callback`:
+## Show a description with each value
+
+Use `predict.Items` with `predict.NewItem(value, description)` in place of `predict.Values`. Shells that support descriptions, such as zsh, fish, and nushell, show them beside each value. The next section wraps this predictor in a type:
+
+```go title="main.go"
+predict.Items(
+	predict.NewItem("us-east-1", "North America (N. Virginia)"),
+	predict.NewItem("eu-west-1", "Europe (Ireland)"),
+	predict.NewItem("ap-southeast-1", "Asia Pacific (Singapore)"),
+)
+```
+
+```text no-copy
+$ deploy --region <Tab>
+Target region
+ap-southeast-1  -- Asia Pacific (Singapore)
+eu-west-1       -- Europe (Ireland)
+us-east-1       -- North America (N. Virginia)
+```
+
+## Make a type complete itself
+
+When a type always offers the same candidates, give it a `Predict` method. Every field of that type then completes with no `predictor` tag:
+
+```go title="main.go"
+type Region string
+
+func (r Region) Predict() predict.Predictor {
+	return predict.Items(
+		predict.NewItem("us-east-1", "North America (N. Virginia)"),
+		predict.NewItem("eu-west-1", "Europe (Ireland)"),
+		predict.NewItem("ap-southeast-1", "Asia Pacific (Singapore)"),
+	)
+}
+
+type CLI struct {
+	Region conga.OptionalFlag[Region] `default:"us-east-1" help:"Target region"`
+	// ...
+}
+```
+
+CONGA calls `Predict` once, when it builds the schema, so the candidates are fixed for the run. For candidates that depend on what the user has typed, return a callback.
+
+## Compute values when the user presses Tab
+
+`predict.Callback` runs at completion time and can read other flags already on the command line. Here the clusters depend on `--region`:
 
 ```go title="main.go"
 app.Predictor("clusters", predict.Callback(func(compCtx predict.Context) predict.Predictor {
 	region := compCtx.FlagValue("region", "us-east-1")
 
-	clusters, err := lookupClusters(region)
-	if err != nil {
-		return predict.None()
-	}
-
-	items := make([]predict.Item, len(clusters))
-	for index, cluster := range clusters {
-		items[index] = predict.NewItem(cluster.Name, cluster.Status)
-	}
-
-	return predict.Items(items...)
+	return predict.Values(clustersByRegion[region]...)
 }))
 ```
 
-`predict.Callback` takes no error return: when the data source fails, return `predict.None()`. Dynamic callbacks run under a 250 ms deadline (`predict.DefaultTimeout`); on overrun, CONGA returns an empty candidate set instead of blocking the interactive prompt. Pass a fallback predictor to `Timeout` to return candidates on overrun.
-
-When an application implements [`conga.Bootstrapper`](/how-to/load-domain-files/), CONGA binds fields tagged `bootstrap:"true"` (such as `--file`, `--dir`, or `--profile`) from the command line and runs `Bootstrap` before evaluating completion callbacks. Dynamic predictors inspect configuration extracted from the document or `.env` files and return context-aware candidates.
-
-## Make a type self-completing
-
-To associate completion directly with a Go type across the entire application, implement `conga.Predictable`:
-
 ```go title="main.go"
-type ClusterID string
-
-func (c ClusterID) Predict() predict.Predictor {
-	return predict.Values("alpha", "beta", "gamma")
-}
-
-type CLI struct {
-	Target conga.RequiredFlag[ClusterID] `help:"Target cluster identifier"`
-}
+Cluster conga.OptionalFlag[string] `help:"Cluster in the region" predictor:"clusters"`
 ```
 
-Fields using `ClusterID` complete automatically without requiring an explicit `predictor` tag.
+The second argument to `FlagValue` is the value to use when the flag is absent, so the list follows the default region until the user picks another:
 
-## Inspect struct tags with TagAwarePredictable
+```text no-copy
+$ deploy --cluster <Tab>
+Cluster in the region
+prod-us-1     staging-us-1
+```
 
-When completion candidates depend on metadata declared on the field (such as file extensions or resource filters), implement `conga.TagAwarePredictable` and register the tags the type accepts with `conga.TagSpecProvider`:
+```text no-copy
+$ deploy --region eu-west-1 --cluster <Tab>
+Cluster in the region
+prod-eu-1
+```
+
+A callback has 250 ms (`predict.DefaultTimeout`) to answer. A slower one gives no candidates, so the prompt stays responsive. To offer something on a slow lookup, chain `.Timeout(0, fallback)`, which keeps the default deadline and returns `fallback` when it passes. When the data source fails, return `predict.None()`.
+
+When the application implements [`conga.Bootstrapper`](/how-to/load-domain-files/), `Bootstrap` runs before callbacks, so values from a document or `.env` file can shape the candidates.
+
+## Read field tags in a type's completion
+
+A type can read tags from the field that uses it. List the tags in `TagSpecs`, and implement `Predict(tags conga.FieldTags)` in place of `Predict()`:
 
 ```go title="main.go"
-type DocumentPath string
+type Manifest string
 
-func (d DocumentPath) TagSpecs() []conga.TagSpec {
+func (m Manifest) TagSpecs() []conga.TagSpec {
 	return []conga.TagSpec{{Name: "ext", Kind: conga.TagKindString}}
 }
 
-func (d DocumentPath) Predict(tags conga.FieldTags) predict.Predictor {
-	allowedExtension := tags.String("ext") // reads `ext:".yaml"` from the field tag
-	if allowedExtension == "" {
-		return predict.Files()
+func (m Manifest) Predict(tags conga.FieldTags) predict.Predictor {
+	if extension := tags.String("ext"); extension != "" {
+		return predict.Files(extension)
 	}
 
-	return predict.Files(allowedExtension)
+	return predict.Files()
 }
 
 type CLI struct {
-	Config conga.RequiredFlag[DocumentPath] `ext:".yaml" help:"Path to configuration YAML"`
+	// ...
+	Manifest conga.OptionalFlag[Manifest] `ext:".yaml" help:"Deployment manifest"`
 }
 ```
 
-The `tags` parameter provides read-only access to the tags registered by the type: `Has(key)`, `Bool(key)`, and `String(key)`. A type declaring custom tags without a `TagSpecProvider` fails strict tag validation at schema build.
+With `ext:".yaml"`, the listing offers directories, so the user can move through them, and YAML files only:
+
+```text no-copy
+$ deploy --manifest <Tab>
+Deployment manifest
+charts/
+deploy.yaml   staging.yaml
+```
+
+`TagSpecs` also tells strict tag validation that `ext` belongs on this field. `FieldTags` offers `Has`, `Bool`, and `String`.
+
+## Check candidates without a shell
+
+Run the program with `__complete export` and the words a user would have typed. It prints the candidates as JSON, which suits tests and quick checks:
+
+```sh
+$ deploy __complete export --region eu-west-1 --cluster ''
+{"candidates":[{"value":"prod-eu-1","display":"prod-eu-1","tag":"values"}],"directives":{"keeporder":false,"messages":[],"noprefix":false,"nospace":false},"usage":"Cluster in the region"}
+```
+
+The `''` stands for the word being completed. [The completion wire protocol](https://github.com/conga-sh/conga/blob/main/docs/completion-wire-protocol.md) describes every field.
+
+## Know what users see
+
+| Situation | Result |
+|---|---|
+| A `predictor` tag names an unregistered predictor | The program fails at startup, before any completion (exit 1), with a "did you mean" hint |
+| A callback takes longer than 250 ms | No candidates, or the `Timeout` fallback |
+| A callback returns `predict.None()` | No candidates |
+
+```text no-copy error={1}
+deploy: error: struct CLI field Image: schema error: invalid struct tag: unregistered predictor "imgs" (did you mean "images"?). Register it with app.Predictor("imgs", action)
+```
+
+When a field has several possible sources, such as a tag and a self-completing type, the tag wins; [Which predictor a field uses](/reference/predict/#which-predictor-a-field-uses) lists the full order.
 
 ## Where to go next
 
-- [How to enable shell completion](/how-to/enable-shell-completion/) — generate completion scripts for bash, zsh, fish, powershell, elvish, and nushell.
-- [Package predict reference](/reference/predict/) — constructor and combinator reference for candidate filtering and caching.
+- [How to enable shell completion](/how-to/enable-shell-completion/): install the completion script in each shell.
+- [Package predict](/reference/predict/): every constructor, combinator, and interface.
+- [Shell completion example](https://github.com/conga-sh/conga/tree/main/_examples/19-shell-completion): every predictor in one program.
