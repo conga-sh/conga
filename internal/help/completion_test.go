@@ -125,7 +125,7 @@ func TestEnableInstructionsSection_PerShell(t *testing.T) {
 	assert.Contains(t, formatted, "To load completions in your current shell session, run:")
 	assert.Contains(t, strings.ReplaceAll(formatted, "\n", " "), "source <(myapp completion zsh)")
 	assert.Contains(t, formatted, "echo 'source <(myapp completion zsh)' >> ~/.zshrc")
-	assert.Contains(t, formatted, "mkdir -p ~/.zfunc")
+	assert.Contains(t, formatted, "For faster startup, write the completion file once instead")
 
 	// The per-shell body renders enable instructions, not the shell list.
 	assert.NotContains(t, formatted, "Supported shells:")

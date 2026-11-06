@@ -127,7 +127,12 @@ To load completions in every new session, append the following to ~/.bashrc:
 
 	echo 'source <(cloudctl completion bash)' >> ~/.bashrc
 
-You will need to start a new shell for the setup to take effect.
+For faster startup with the bash-completion package installed, write the completion file once instead. bash-completion loads it the first time you press Tab:
+
+	mkdir -p ~/.local/share/bash-completion/completions
+	cloudctl completion bash > ~/.local/share/bash-completion/completions/cloudctl
+
+Note: restart your shell for the changes to take effect.
 
 Usage:
   cloudctl completion bash
@@ -136,41 +141,80 @@ Flags:
       --help  Show help
 ```
 
-Each shell's help gives the command that loads completion into the current session, the file to add it to for every new session (such as `~/.bashrc`, `~/.zshrc`, fish's completions directory, or a PowerShell profile), and any prerequisites, such as Bash 4 with `bash-completion@2` on macOS, whose default Bash is 3.2, or setting up zsh's `compdef` and `fpath`.
+Each shell's help gives the command that loads completion into the current session, the steps that load it in every new session, and any prerequisites, such as zsh's `compinit`, or a newer Bash on macOS, whose bundled Bash is 3.2.
 
 Flat applications use flag syntax: `cloudctl --completion <shell> --help` (e.g. `cloudctl --completion zsh --help`).
 
 ## Install completion scripts per shell
 
-Run `cloudctl completion <shell>` to generate the completion script for your shell. For flat applications, replace `completion <shell>` with `--completion <shell>`.
+These are the steps each shell's help prints. Each tab loads completion for the current session and for every new session. For flat applications, replace `completion <shell>` with `--completion <shell>`.
 
 :::code-tabs{sync="shell"}
 ```sh label="Bash"
-# Load in current session
+# Current session
 source <(cloudctl completion bash)
 
-# Persist for future sessions
-cloudctl completion bash > /etc/bash_completion.d/cloudctl
+# Every new session
+echo 'source <(cloudctl completion bash)' >> ~/.bashrc
+
+# Or, for faster startup with the bash-completion package installed,
+# a file that bash-completion loads on the first Tab
+mkdir -p ~/.local/share/bash-completion/completions
+cloudctl completion bash > ~/.local/share/bash-completion/completions/cloudctl
 ```
 ```sh label="Zsh"
-# Ensure completion directory is in $fpath and reload
-cloudctl completion zsh > "${fpath[1]}/_cloudctl"
+# If Tab does nothing, enable zsh's completion system first
+echo 'autoload -U compinit; compinit' >> ~/.zshrc
+
+# Current session
+source <(cloudctl completion zsh)
+
+# Every new session
+echo 'source <(cloudctl completion zsh)' >> ~/.zshrc
+
+# Or, for faster startup, a completion file
+mkdir -p ~/.zfunc
+cloudctl completion zsh > ~/.zfunc/_cloudctl
+# ~/.zshrc must add ~/.zfunc to fpath before compinit runs:
+#   fpath=(~/.zfunc $fpath)
+
+# Or, with Homebrew, a completion file in the directory brew shellenv adds to fpath
+cloudctl completion zsh > "$HOMEBREW_PREFIX/share/zsh/site-functions/_cloudctl"
 ```
 ```sh label="Fish"
-# Install to user completions directory
+# Current session
+cloudctl completion fish | source
+
+# Every new session
+mkdir -p ~/.config/fish/completions
 cloudctl completion fish > ~/.config/fish/completions/cloudctl.fish
 ```
-```sh label="PowerShell"
-# Add to current profile
+```powershell label="PowerShell"
+# Current session
 cloudctl completion powershell | Out-String | Invoke-Expression
+
+# Every new session
+if (!(Test-Path $PROFILE)) { New-Item -ItemType File -Path $PROFILE -Force | Out-Null }
+Add-Content -Path $PROFILE -Value 'cloudctl completion powershell | Out-String | Invoke-Expression'
+
+# If PowerShell reports that running scripts is disabled
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
 ```
 ```sh label="Elvish"
-# Evaluate completion definition
+# Current session
 eval (cloudctl completion elvish | slurp)
+
+# Every new session
+mkdir -p ~/.config/elvish
+echo 'eval (cloudctl completion elvish | slurp)' >> ~/.config/elvish/rc.elv
 ```
-```sh label="Nushell"
-# Save and register completion script
-cloudctl completion nushell | save -f ~/.config/nushell/completions/cloudctl.nu
+```nu label="Nushell"
+# Every new session (Nushell 0.102 or later loads the autoload directory)
+mkdir ($nu.default-config-dir | path join "autoload")
+cloudctl completion nushell | save -f ($nu.default-config-dir | path join "autoload/cloudctl.nu")
+
+# Current session, after saving the file
+source ($nu.default-config-dir | path join "autoload/cloudctl.nu")
 ```
 :::
 
@@ -186,7 +230,7 @@ In zsh, a named directory resolves through the completer when it is configured w
 
 CONGA completes file and directory values in-process from the filesystem predictors in `package predict` (`Files`, `Dirs`, `FilesGlob`, `FilesFiltered`, `PathsFiltered`, `DirsGlob`, `DirsFiltered`, `Symlinks`, `Executables`). One engine scans the filesystem and streams matching candidates to every shell, so a typed prefix filters candidates before they reach the shell and bash, zsh, fish, powershell, elvish, and nushell complete identically. A file whose name begins with a dot is offered when the typed prefix begins with a dot, matching the shell default.
 
-Because the scan runs in-process, zsh's shell-side file-completion customisations do not apply to CONGA candidates: the `file-sort` and `file-patterns` zstyles, `cdpath` search directories, and named-directory (`~name`) expansion in file positions. Issue [#85](https://github.com/conga-sh/conga/issues/85) tracks these gaps; the decision to keep completion in-process is recorded in [ADR 0001](https://github.com/conga-sh/conga/blob/main/docs/adr-0001-in-process-file-completion.md).
+Because the scan runs in-process, zsh's shell-side file-completion customisations do not apply to CONGA candidates: the `file-sort` and `file-patterns` zstyles, `cdpath` search directories, and named-directory (`~name`) expansion in file positions. Issue [#85](https://github.com/conga-sh/conga/issues/85) tracks these gaps.
 
 ## Customise completion behaviour
 

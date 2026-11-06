@@ -10,7 +10,12 @@ import (
 	"github.com/conga-sh/conga/internal/slicex"
 )
 
-const bashUpgradeNote = "Bash completion requires bash 4.4+. macOS's bundled /bin/bash is still 3.2.57,\nso install a newer bash via Homebrew (or use zsh, the default since Catalina).\n"
+const (
+	bashUpgradeNote = "Bash completion requires bash 4.4+. macOS's bundled /bin/bash is still 3.2.57,\nso install a newer bash via Homebrew (or use zsh, the default since Catalina).\n"
+
+	// restartNote closes every shell's instructions.
+	restartNote = "Note: restart your shell for the changes to take effect.\n"
+)
 
 // ShellInfo pairs a supported shell identifier with a short human description.
 type ShellInfo struct {
@@ -28,8 +33,9 @@ type CurrentShell struct {
 
 // EnableOptions tailors the enable-instructions block to the caller's setup.
 type EnableOptions struct {
-	// Homebrew is true when the command was installed via Homebrew on macOS,
-	// tailoring the zsh lazy-load target to Homebrew's zsh site-functions dir.
+	// Homebrew is true when the user's shell runs brew shellenv, which puts
+	// $HOMEBREW_PREFIX/share/zsh/site-functions on zsh's fpath; the zsh
+	// faster-startup step then writes there instead of ~/.zfunc.
 	Homebrew bool
 
 	// BashNeedsUpgrade is true when the caller's shell is macOS's bundled bash
@@ -77,24 +83,12 @@ func DetectCurrentShell() (CurrentShell, bool) {
 	return CurrentShell{}, false
 }
 
-// DetectHomebrew reports whether the current binary was installed via Homebrew
-// on macOS, detected by resolving the executable path and looking for a
-// Homebrew layout. Returns false on all other platforms.
+// DetectHomebrew reports whether the user's shell environment comes from
+// brew shellenv, on macOS or Linux, by the HOMEBREW_PREFIX variable it
+// exports. brew shellenv also adds Homebrew's zsh site-functions directory to
+// fpath, so a completion file written there loads without editing ~/.zshrc.
 func DetectHomebrew() bool {
-	if runtime.GOOS != "darwin" {
-		return false
-	}
-
-	exe, err := os.Executable()
-	if err != nil {
-		return false
-	}
-
-	if resolved, err := filepath.EvalSymlinks(exe); err == nil {
-		exe = resolved
-	}
-
-	return isHomebrewPath(exe)
+	return os.Getenv("HOMEBREW_PREFIX") != ""
 }
 
 // InferBashNeedsUpgrade inspects the executable path of a detected bash shell
@@ -270,17 +264,22 @@ func writeBashInstructions(builder *strings.Builder, cmdName string, opts Enable
 	writeStep(builder, "To load completions in every new session, append the following to ~/.bashrc:", []string{
 		"echo 'source <(" + completionInvocation(cmdName, ShellBash, opts.UseFlag) + ")' >> ~/.bashrc",
 	})
+	writeStep(builder, "For faster startup with the bash-completion package installed, write the completion file once instead. bash-completion loads it the first time you press Tab:", []string{
+		"mkdir -p ~/.local/share/bash-completion/completions",
+		completionInvocation(cmdName, ShellBash, opts.UseFlag) + " > ~/.local/share/bash-completion/completions/" + cmdName,
+	})
 
-	builder.WriteString("You will need to start a new shell for the setup to take effect.\n")
+	builder.WriteString(restartNote)
 }
 
 func writeElvishInstructions(builder *strings.Builder, cmdName string, opts EnableOptions) {
 	writeStep(builder, "To load completions in your current shell session, run:", SessionCommands(ShellElvish, cmdName, opts.UseFlag))
-	writeStep(builder, "To load completions in every new session, append the following to ~/.config/elvish/rc.elv:", []string{
+	writeStep(builder, "To load completions in every new session, add the session command to ~/.config/elvish/rc.elv. Run once:", []string{
+		"mkdir -p ~/.config/elvish",
 		"echo 'eval (" + completionInvocation(cmdName, ShellElvish, opts.UseFlag) + " | slurp)' >> ~/.config/elvish/rc.elv",
 	})
 
-	builder.WriteString("You will need to start a new shell for the setup to take effect.\n")
+	builder.WriteString(restartNote)
 }
 
 func writeFishInstructions(builder *strings.Builder, cmdName string, opts EnableOptions) {
@@ -290,28 +289,32 @@ func writeFishInstructions(builder *strings.Builder, cmdName string, opts Enable
 		completionInvocation(cmdName, ShellFish, opts.UseFlag) + " > ~/.config/fish/completions/" + cmdName + ".fish",
 	})
 
-	builder.WriteString("You will need to start a new shell for the setup to take effect.\n")
+	builder.WriteString(restartNote)
 }
 
 func writeNushellInstructions(builder *strings.Builder, cmdName string, opts EnableOptions) {
 	autoloadPath := "($nu.default-config-dir | path join \"autoload/" + cmdName + ".nu\")"
 
 	writeStep(builder, "To load completions in your current shell session, run:", SessionCommands(ShellNushell, cmdName, opts.UseFlag))
-	writeStep(builder, "To load completions in every new session, save the completion script once:", []string{
+	writeStep(builder, "To load completions in every new session, save the completion script once. Nushell 0.102 or later loads it at startup:", []string{
 		"mkdir ($nu.default-config-dir | path join \"autoload\")",
 		completionInvocation(cmdName, ShellNushell, opts.UseFlag) + " | save -f " + autoloadPath,
 	})
 
-	builder.WriteString("You will need to start a new shell for the setup to take effect.\n")
+	builder.WriteString(restartNote)
 }
 
 func writePowerShellInstructions(builder *strings.Builder, cmdName string, opts EnableOptions) {
 	writeStep(builder, "To load completions in your current PowerShell session, run:", SessionCommands(ShellPowerShell, cmdName, opts.UseFlag))
-	writeStep(builder, "To load completions in every new session, add the following to your PowerShell profile ($PROFILE):", []string{
-		completionInvocation(cmdName, ShellPowerShell, opts.UseFlag) + " | Out-String | Invoke-Expression",
+	writeStep(builder, "To load completions in every new session, add the session command to your PowerShell profile ($PROFILE), creating the profile if needed:", []string{
+		"if (!(Test-Path $PROFILE)) { New-Item -ItemType File -Path $PROFILE -Force | Out-Null }",
+		"Add-Content -Path $PROFILE -Value '" + completionInvocation(cmdName, ShellPowerShell, opts.UseFlag) + " | Out-String | Invoke-Expression'",
+	})
+	writeStep(builder, "If PowerShell reports that running scripts is disabled when it loads the profile, allow local scripts for your account:", []string{
+		"Set-ExecutionPolicy -Scope CurrentUser RemoteSigned",
 	})
 
-	builder.WriteString("You will need to start a new PowerShell session for the setup to take effect.\n")
+	builder.WriteString(restartNote)
 }
 
 func writeZshInstructions(builder *strings.Builder, cmdName string, opts EnableOptions) {
@@ -321,23 +324,25 @@ func writeZshInstructions(builder *strings.Builder, cmdName string, opts EnableO
 
 	writeStep(builder, "To load completions in your current shell session, run:", SessionCommands(ShellZsh, cmdName, opts.UseFlag))
 
+	writeStep(builder, "To load completions in every new session, append the following to ~/.zshrc:", []string{
+		"echo 'source <(" + completionInvocation(cmdName, ShellZsh, opts.UseFlag) + ")' >> ~/.zshrc",
+	})
+
 	if opts.Homebrew {
-		writeStep(builder, "To load completions in every new session, write the completion file once:", []string{
-			completionInvocation(cmdName, ShellZsh, opts.UseFlag) + " > \"$(brew --prefix)/share/zsh/site-functions/_" + cmdName + "\"",
+		writeStep(builder, "For faster startup, write the completion file once instead, into the directory brew shellenv adds to fpath:", []string{
+			completionInvocation(cmdName, ShellZsh, opts.UseFlag) + " > \"$HOMEBREW_PREFIX/share/zsh/site-functions/_" + cmdName + "\"",
 		})
 	} else {
-		writeStep(builder, "To load completions in every new session, append the following to ~/.zshrc:", []string{
-			"echo 'source <(" + completionInvocation(cmdName, ShellZsh, opts.UseFlag) + ")' >> ~/.zshrc",
-		})
-
 		writeStep(builder, "For faster startup, write the completion file once instead:", []string{
 			"mkdir -p ~/.zfunc",
 			completionInvocation(cmdName, ShellZsh, opts.UseFlag) + " > ~/.zfunc/_" + cmdName,
-			"echo 'fpath=(~/.zfunc $fpath)' >> ~/.zshrc",
+		})
+		writeStep(builder, "Make sure ~/.zshrc adds ~/.zfunc to fpath before compinit runs, since compinit reads fpath only when it starts:", []string{
+			"fpath=(~/.zfunc $fpath)",
 		})
 	}
 
-	builder.WriteString("You will need to start a new shell for the setup to take effect.\n")
+	builder.WriteString(restartNote)
 }
 
 func shellFromExecPath(execPath string) Shell {
