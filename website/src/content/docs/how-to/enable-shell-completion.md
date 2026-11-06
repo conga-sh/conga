@@ -260,7 +260,7 @@ All six framings honour the same toggles through application-prefixed environmen
 
 For the example `cloudctl` application:
 
-```sh title="bash"
+```sh title="bash" frame="code"
 export CLOUDCTL_COMPLETION_DESCRIPTIONS=0
 export CLOUDCTL_COMPLETION_ALIASES=0
 ```
@@ -270,7 +270,7 @@ set -gx CLOUDCTL_COMPLETION_DESCRIPTIONS 0
 set -gx CLOUDCTL_COMPLETION_ALIASES 0
 ```
 
-```powershell title="$PROFILE"
+```powershell title="$PROFILE" frame="code"
 $env:CLOUDCTL_COMPLETION_DESCRIPTIONS = '0'
 $env:CLOUDCTL_COMPLETION_ALIASES = '0'
 ```

@@ -1,5 +1,6 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import codeblocks from 'starlight-codeblocks';
 
 function pluginNoCopy() {
   return {
@@ -47,6 +48,13 @@ export default defineConfig({
         },
       ],
       customCss: ['./src/styles/custom.css'],
+      plugins: [
+        codeblocks({
+          fileIcons: {
+            files: { '.elv': 'file-type-shell', '.env': 'file-type-dotenv' },
+          },
+        }),
+      ],
       expressiveCode: {
         plugins: [pluginNoCopy()],
       },
