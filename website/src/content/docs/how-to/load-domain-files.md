@@ -1,179 +1,220 @@
 ---
 title: How to load domain documents
-description: Parse Taskfile-, compose-, and pipeline-style documents with conga.Bootstrapper, keep their application data, and contribute their configuration keys to the config tier.
+description: Read Taskfile-, compose-, and pipeline-style documents with conga.Bootstrapper, keep their application data, and feed their settings to flags.
 ---
 
-A domain document such as a `Taskfile`, `docker-compose.yml`, or pipeline manifest holds application data — tasks, build steps, service dependencies — alongside configuration settings that map to flags (`parallelism`, `log_level`, `env`). Standard config decoders expect every top-level key to map to a flag, so they reject these documents. A `conga.Bootstrapper` parses the document directly, keeps the domain structures for your command, and contributes the settings with `Bootstrap.SetConfig`.
+A domain document, such as a Taskfile, a `docker-compose.yml`, or a pipeline manifest, holds application data (tasks, steps, services) next to settings that belong to flags (`parallelism`, `log_level`). To read one, implement `conga.Bootstrapper`:
 
-## When to use a Bootstrapper
+```go
+func (c *CLI) Bootstrap(ctx context.Context, handle *conga.Bootstrap) error
+```
 
-Use the standard config mechanism when the file is pure configuration and its location is fixed or typed by the user directly: register decoders with `app.RegisterDecoder`, declare `config.Paths`/`config.Explicit`/`config.Cascading`, or use the built-in `--config-file` flag. CONGA then discovers, decodes, and maps every top-level key to a flag. [How to manage config files](/how-to/manage-config-files/) covers that setup.
+CONGA calls `Bootstrap` once per run, after it binds the flags tagged `bootstrap:"true"` and before it reads config files. To load a domain document, the method reads the file and hands its settings to CONGA with `handle.SetConfig`. Those settings rank like a config file: below the command line and environment, above defaults.
 
-Use `conga.Bootstrapper` when any of these holds:
+`Bootstrap` also runs for `--why` and shell completion, so keep it to quick local reads. During completion its errors stay quiet and surface on the real run.
 
-- **The path depends on another value.** `--pipeline deploy` selects a section of a file, and `--dir` builds a path such as `dir/taskfile.yaml`. Standard resolution needs the path before flags bind, so it cannot compute these.
-- **The document mixes configuration with application data.** A decoder requires every top-level key to map to a flag, which a task runner or compose file cannot satisfy.
-- **The merge needs custom logic.** The config tier replaces slices; a `Bootstrapper` can concatenate `steps` or deduplicate `needs` across files.
+This guide builds a small pipeline runner: `-f` names a YAML file, and `--pipeline` picks a pipeline in it. The [bootstrapper example](https://github.com/conga-sh/conga/tree/main/_examples/30-bootstrapper) is a fuller version that reads several files.
 
-A `.env` file located through a flag uses the same hook. [How to load .env files](/how-to/load-env-files/) covers that case, including `Bootstrap.Dotenv` and `Bootstrap.DotenvExplicit`.
+## Choose a Bootstrapper or a decoder
 
-## Declare bootstrap fields
+A config decoder suits a file that holds only settings, at a path known before flags are read: register it with `app.RegisterDecoder` and locate the file with `conga.ConfigPaths`, `conga.ConfigExplicit`, or `--config-file` (see [How to manage config files](/how-to/manage-config-files/)). Every top-level key must then match a flag.
 
-Mark the fields that must resolve before the document can be found with `bootstrap:"true"`:
+Use a `Bootstrapper` when the document needs more than that:
+
+- Its path or section comes from a flag, and config files are located before any flag is read. Here, `-f` names the file and `--pipeline deploy` picks a section.
+- It mixes settings with application data that matches no flag, such as each pipeline's `steps`.
+- It needs its own merge rules, such as joining `steps` from several files where the config tier would replace the whole list.
+
+`Bootstrap` can also load `.env` files from a location a flag chooses; see [How to load .env files](/how-to/load-env-files/#load-a-env-from-a-directory-the-user-picks).
+
+## Tag the fields that locate the document
+
+Tag the flags that `Bootstrap` reads to find the document with `bootstrap:"true"`:
 
 ```go title="main.go"
-package main
-
-import (
-	"context"
-	"fmt"
-	"os"
-
-	"github.com/conga-sh/conga"
-	"gopkg.in/yaml.v3"
-)
-
 type CLI struct {
-	File     conga.OptionalFlag[string] `bootstrap:"true" default:"pipeline.yaml" help:"Path to pipeline file" short:"f"`
-	Pipeline conga.OptionalFlag[string] `bootstrap:"true" help:"Target pipeline name"`
+	File     conga.OptionalFlag[string] `bootstrap:"true" default:"pipeline.yaml" help:"Pipeline file" safe:"true" short:"f"`
+	Pipeline conga.OptionalFlag[string] `bootstrap:"true" help:"Pipeline to run" safe:"true"`
 
-	Parallelism conga.OptionalFlag[int]               `help:"Worker concurrency"`
-	LogLevel    conga.OptionalFlag[string]            `default:"info" help:"Log verbosity"`
-	Env         conga.OptionalFlag[map[string]string] `help:"Environment variables"`
-}
+	Parallelism conga.OptionalFlag[int]    `default:"1" help:"Parallel steps" safe:"true"`
+	LogLevel    conga.OptionalFlag[string] `default:"warn" enum:"debug,info,warn,error" help:"Log level" safe:"true"`
 
-func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
-	fmt.Fprintf(session.Stdout(), "parallelism=%d log-level=%s\n", c.Parallelism.Get(), c.LogLevel.Get())
-
-	return nil
+	pipelines map[string]pipeline
 }
 ```
 
-CONGA binds these fields from `CLI > environment > default` before calling `Bootstrap`, so the method sees the resolved path and pipeline name. Other fields retain their zero or caller-seeded values during `Bootstrap`. CONGA binds all fields in the subsequent normal pass with the configuration tier active, so keep bootstrap-tagged fields idempotent.
+CONGA binds the tagged fields from the command line, the environment, and their defaults, then calls `Bootstrap`. After it returns, CONGA binds every field again, now with the document's settings in place. CONGA leaves unexported fields alone, so `pipelines` can hold the application data for `Run`. [Bootstrap fields](/reference/struct-tags/#bootstrap-fields) lists which types and fields the tag accepts.
 
-Constraints:
+## Map the document to Go types
 
-- The root command, or an ancestor command, must implement `conga.Bootstrapper`; otherwise schema build rejects the `bootstrap` tag with `ErrSchema`.
-- `bootstrap` cannot be combined with `feature`: the bootstrap phase executes before feature gates resolve.
-- Types are restricted to scalars, slices of scalars, and maps of scalars. Pointers, structs, and interfaces are rejected.
-- `Bootstrap` also runs for `--why` and shell completion. Keep it deterministic and limited to local reads.
+The document sets defaults at the top level and lets each pipeline override them. `parallelism` and `log_level` set flags; `steps` is application data:
 
-## Implement Bootstrap
+```yaml title="pipeline.yaml"
+parallelism: 4
+log_level: info
 
-Implement `Bootstrap` on the root command struct. The method receives the `*conga.Bootstrap` handle and installs the configuration document with `b.SetConfig`:
+pipelines:
+  build:
+    steps:
+      - go build ./...
+  deploy:
+    parallelism: 1
+    log_level: debug
+    steps:
+      - ./deploy.sh
+```
 
 ```go title="main.go"
 type pipelineFile struct {
-	Version     int               `yaml:"version"`
-	Parallelism int               `yaml:"parallelism"`
-	LogLevel    string            `yaml:"log_level"`
-	Env         map[string]string `yaml:"env"`
-	Pipelines   map[string]struct {
-		Parallelism int               `yaml:"parallelism"`
-		LogLevel    string            `yaml:"log_level"`
-		Env         map[string]string `yaml:"env"`
-		Steps       []string          `yaml:"steps"`
-	} `yaml:"pipelines"`
+	Parallelism int                 `yaml:"parallelism"`
+	LogLevel    string              `yaml:"log_level"`
+	Pipelines   map[string]pipeline `yaml:"pipelines"`
 }
 
-func (c *CLI) Bootstrap(_ context.Context, b *conga.Bootstrap) error {
-	filePath := c.File.Get()
-	data, err := os.ReadFile(filePath)
+type pipeline struct {
+	Parallelism int      `yaml:"parallelism"`
+	LogLevel    string   `yaml:"log_level"`
+	Steps       []string `yaml:"steps"`
+}
+```
+
+## Read the document in Bootstrap
+
+`Bootstrap` reads the file and records its settings in a `conga.ConfigDocument`: first the top-level values, then the selected pipeline's, which replace them:
+
+```go title="main.go"
+func (c *CLI) Bootstrap(_ context.Context, handle *conga.Bootstrap) error {
+	path := c.File.Get() // [!annotate] `-f` is already resolved: bootstrap fields bind before `Bootstrap` runs.
+
+	data, err := os.ReadFile(path)
 	if err != nil {
-		if os.IsNotExist(err) && !c.File.Changed() {
-			return nil // Default file absent; leave tier inactive
-		}
-		return fmt.Errorf("reading pipeline file %q: %w", filePath, conga.ErrConfig)
+		return err
 	}
 
 	var file pipelineFile
 	if err := yaml.Unmarshal(data, &file); err != nil {
-		return fmt.Errorf("parsing %s: %w", filePath, conga.ErrConfig)
+		return fmt.Errorf("parse %s: %w", path, err)
 	}
+
+	c.pipelines = file.Pipelines // [!annotate] Keep the application data for `Run`.
 
 	document := &conga.ConfigDocument{}
+	setSettings(document, path, "", file.Parallelism, file.LogLevel) // [!annotate] The top-level settings, with no scope.
 
-	// Map top-level configuration keys
-	if file.Parallelism > 0 {
-		document.Set("parallelism", file.Parallelism, filePath)
-	}
-	if file.LogLevel != "" {
-		document.Set("log-level", file.LogLevel, filePath)
-	}
-	for k, v := range file.Env {
-		document.SetKey("env", k, v, filePath)
-	}
-
-	// Apply pipeline overlay if selected
-	if c.Pipeline.IsSet() {
-		name := c.Pipeline.Get()
-		p, ok := file.Pipelines[name]
+	if name := c.Pipeline.Get(); name != "" {
+		selected, ok := file.Pipelines[name]
 		if !ok {
-			return fmt.Errorf("pipeline %q not found in %s: %w", name, filePath, conga.ErrConfig)
+			return fmt.Errorf("%s has no pipeline %q", path, name)
 		}
-		scope := "pipeline " + name
-		if p.Parallelism > 0 {
-			document.SetScoped("parallelism", p.Parallelism, filePath, scope)
-		}
-		if p.LogLevel != "" {
-			document.SetScoped("log-level", p.LogLevel, filePath, scope)
-		}
-		for k, v := range p.Env {
-			document.SetKeyScoped("env", k, v, filePath, scope)
-		}
+
+		setSettings(document, path, "pipeline "+name, selected.Parallelism, selected.LogLevel) // [!annotate] The selected pipeline's settings. Written later, so they replace the top-level ones.
 	}
 
-	b.SetConfig(document)
+	handle.SetConfig(document) // [!annotate] Hand the settings to CONGA.
+
+	return nil
+}
+
+func setSettings(document *conga.ConfigDocument, origin, scope string, parallelism int, logLevel string) {
+	if parallelism != 0 {
+		document.SetScoped("parallelism", parallelism, origin, scope)
+	}
+
+	if logLevel != "" {
+		document.SetScoped("log-level", logLevel, origin, scope)
+	}
+}
+```
+
+`Run` uses the resolved flags and the kept pipelines:
+
+```go title="main.go"
+func (c *CLI) Run(_ context.Context, session *conga.Session) error {
+	fmt.Fprintf(session.Stdout(), "parallelism=%d log-level=%s\n", c.Parallelism.Get(), c.LogLevel.Get())
+
+	if name := c.Pipeline.Get(); name != "" {
+		fmt.Fprintf(session.Stdout(), "pipeline %s: steps=%v\n", name, c.pipelines[name].Steps)
+	}
 
 	return nil
 }
 ```
 
-`Bootstrap` runs once per execution, after the bootstrap pass and before configuration resolution, feature gating, and the normal binding pass. A returned error aborts execution and classifies under `ErrConfig` (exit code 1).
-
-### Run it
-
-For a pipeline file whose `deploy` section sets `parallelism: 1` and `log_level: debug`:
+Without `--pipeline`, the top-level settings apply; with `--pipeline deploy`, the pipeline's own settings win:
 
 ```sh
-$ go run . -f pipeline.yaml --pipeline deploy
+$ bootstrapper
+parallelism=4 log-level=info
+$ bootstrapper --pipeline deploy
 parallelism=1 log-level=debug
+pipeline deploy: steps=[./deploy.sh]
 ```
 
-Running the same command with `--why` attributes each value to `pipeline.yaml › pipeline deploy`, the origin and scope recorded by `SetScoped`.
+## Record settings with origins
 
-## Contribute configuration keys
+Each `ConfigDocument` write takes an origin, a label you choose (here the file path), and `--why` shows it:
 
-`conga.ConfigDocument` reports values to the config tier:
-
-| Method | Use for |
+| Method | Records |
 |---|---|
-| `Set(key, value, origin)` | A top-level scalar, slice, or nested map. `key` matches a flag name or a custom `config:"..."` tag. |
-| `SetKey(key, entryKey, value, origin)` | One entry of a map flag, merged key by key with earlier writes. |
-| `SetScoped(...)`, `SetKeyScoped(...)` | The same writes with a scope, so `--why` renders the origin as `pipeline.yaml › pipeline deploy`. |
+| `Set(key, value, origin)` | A whole value for one key: a scalar, a slice, or a nested map. `key` matches a flag name or its `config:"..."` tag. |
+| `SetKey(key, entryKey, value, origin)` | One entry of a map flag, merged with earlier entries. |
+| `SetScoped(...)`, `SetKeyScoped(...)` | The same writes with a scope, shown as `pipeline.yaml › pipeline deploy`. |
 
-The origin is a free-form string that CONGA displays in provenance reports. A later `Set` of the same top-level key replaces the whole entry, including anything written with `SetKey`. Calling `b.SetConfig(nil)`, or never calling it, leaves the configuration tier inactive. [The conga reference](/reference/conga/) lists the exact signatures.
+```sh
+$ bootstrapper --pipeline deploy --why
+  FLAG            VALUE           SOURCE                                     ENV                CONFIG PATH
+  --file          pipeline.yaml   default                                    FLOW_FILE          file
+  --pipeline      deploy          cli                                        FLOW_PIPELINE      pipeline
+  --parallelism   1               config (pipeline.yaml › pipeline deploy)   FLOW_PARALLELISM   parallelism
+  --log-level     debug           config (pipeline.yaml › pipeline deploy)   FLOW_LOG_LEVEL     log-level
+```
 
-## Compose with config files
+A later write to the same key replaces the earlier one, and a `Set` replaces any entries written with `SetKey`. Leaving out `SetConfig`, or passing it `nil`, contributes no settings. [The conga reference](/reference/conga/) has the signatures.
 
-A document supplied by `b.SetConfig` overlays file-resolved values key by key: the document wins the keys it names, while file keys it does not name survive. `Bootstrap` therefore composes with `conga.ConfigPaths`, `conga.ConfigExplicit`, `conga.ConfigCascading`, `app.RegisterDecoder`, and a root `conga.ConfigFile` field. An application that leaves file resolution untouched can also implement `Bootstrap` only to load `.env` files, without calling `b.SetConfig`.
+## Keep the command line and environment in charge
 
-## Drive shell completion from configuration
+Document settings rank like a config file, so the command line and environment variables beat them. With `EnvPrefix("FLOW")`:
 
-When shell completion is enabled (`app.EnableCompletion()`), CONGA runs `Bootstrap` before generating candidates so predictors and feature gates have access to the document's configuration. Coercion errors during completion are silently tolerated to avoid breaking candidate generation. [Built-in commands](/reference/builtins/) has the completion details.
+```sh
+$ FLOW_LOG_LEVEL=error bootstrapper --pipeline deploy
+parallelism=1 log-level=error
+pipeline deploy: steps=[./deploy.sh]
+$ bootstrapper --pipeline deploy --parallelism 8
+parallelism=8 log-level=debug
+pipeline deploy: steps=[./deploy.sh]
+```
 
-## Validation and errors
+## Accept several files
 
-CONGA validates document entries against the application schema: unknown keys, `config:"-"` exclusions, and validation constraints (`enum`, `range`, `len`) produce `ErrConfig`.
+To let users pass several files, make `-f` a list and write each file's settings in the order given. A later file then beats an earlier one, as with repeated `-c` for [config files](/how-to/manage-config-files/#let-users-name-their-own-files). The [bootstrapper example](https://github.com/conga-sh/conga/tree/main/_examples/30-bootstrapper) does this, and also merges the pipelines across files, joining their `steps`.
 
-Document values occupy Tier 3 of the resolution ladder (`CLI > environment > document > default`), overlaying file-resolved configuration. See [About value precedence](/explanation/value-precedence/) for the full ladder.
+## Combine with config files
 
-Any error returned by `Bootstrap` aborts execution and classifies under `ErrConfig` (exit code 1).
+A document combines with config files key by key: it wins the keys it sets, and file keys it leaves alone keep their values. `Bootstrap` therefore works alongside `conga.ConfigPaths`, `conga.ConfigExplicit`, `conga.ConfigCascading`, registered decoders, and a root `conga.ConfigFile` flag. A `Bootstrap` that only loads `.env` files skips `SetConfig`.
+
+## Know what users see when a document is wrong
+
+Any error that `Bootstrap` returns is a config error (`ErrConfig`, exit 1) with a `bootstrap failed:` prefix. CONGA checks the settings themselves the way it checks a config file:
+
+| Situation | Result |
+|---|---|
+| The `-f` file is missing | `bootstrap failed: …`, exit 1 |
+| `--pipeline` names a pipeline the file lacks | `bootstrap failed: …`, exit 1 |
+| The file is not valid YAML | `bootstrap failed: …`, exit 1 |
+| `Set` names a key that matches no flag, or a `config:"-"` field | Config error, exit 1, with a "did you mean" hint for typos |
+| A value outside `enum` or `range` (`log_level: loud`) | Usage error, exit 2, naming the key |
+
+```text no-copy error={1-4}
+bootstrapper: error: bootstrap failed: open nope.yaml: no such file or directory
+bootstrapper: error: bootstrap failed: pipeline.yaml has no pipeline "release"
+bootstrapper: error: bootstrap failed: parse broken.yaml: yaml: line 1: did not find expected ',' or ']'
+bootstrapper: error: invalid value "loud" (must be one of: debug, info, warn, error) for flag --log-level (from config key "log-level")
+```
 
 ## Where to go next
 
-- [How to load .env files](/how-to/load-env-files/) — load `.env` files from flag-derived directories and `--env-file` paths.
-- [About the config cascade](/explanation/config-cascade/) — search-tier mechanics and cascading file merges.
-- [About value precedence](/explanation/value-precedence/) — resolution ladder, provenance tracking, and map folding.
-- [How to inspect value provenance](/how-to/inspect-value-provenance/) — diagnose source tiers and scoped origins with `--why`.
-- [30 — Bootstrapping flag-selected files](https://github.com/conga-sh/conga/tree/main/_examples/30-bootstrapper) — runnable example with pipeline files and overlay merging.
+- [How to load .env files](/how-to/load-env-files/): `.env` files located by a flag.
+- [How to manage config files](/how-to/manage-config-files/): settings-only files and decoders.
+- [About value precedence](/explanation/value-precedence/): where document settings sit among the sources.
+- [How to inspect value provenance](/how-to/inspect-value-provenance/): the full `--why` report.
+- [Bootstrapper example](https://github.com/conga-sh/conga/tree/main/_examples/30-bootstrapper): a fuller version that reads several files.
