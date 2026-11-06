@@ -32,7 +32,7 @@ func (c *CLI) Run(_ context.Context, session *conga.Session) error {
 	name := c.Pipeline.Get()
 	if name == "" {
 		for _, pipelineName := range slices.Sorted(maps.Keys(c.pipelines)) {
-			fmt.Fprintf(session.Stdout(), "%-10s %s\n", pipelineName, c.pipelines[pipelineName].desc)
+			fmt.Fprintf(session.Stdout(), "%-10s %s\n", pipelineName, c.pipelines[pipelineName].description)
 		}
 
 		return nil

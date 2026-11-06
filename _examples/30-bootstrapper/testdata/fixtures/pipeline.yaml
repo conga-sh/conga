@@ -3,7 +3,7 @@ version: "1"
 parallelism: 4
 log_level: info
 env:
-  FLOW_ENV: dev
+  APP_ENV: dev
   LOG_FORMAT: json
 
 pipelines:
@@ -17,7 +17,7 @@ pipelines:
     parallelism: 1
     log_level: debug
     env:
-      FLOW_ENV: prod
+      APP_ENV: prod
       DEPLOY_REGION: eu-west-1
     steps:
       - ./deploy.sh

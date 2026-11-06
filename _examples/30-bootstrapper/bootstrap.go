@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io/fs"
 	"maps"
 	"os"
 	"slices"
@@ -23,6 +25,12 @@ func (c *CLI) Bootstrap(_ context.Context, handle *conga.Bootstrap) error {
 
 	for _, path := range paths {
 		data, err := os.ReadFile(path)
+		if errors.Is(err, fs.ErrNotExist) && !c.File.Changed() {
+			// The default pipeline.yaml is optional; a file named with -f
+			// or FLOW_FILE must exist.
+			continue
+		}
+
 		if err != nil {
 			return fmt.Errorf("read pipeline file %q: %w", path, err)
 		}
@@ -40,14 +48,14 @@ func (c *CLI) Bootstrap(_ context.Context, handle *conga.Bootstrap) error {
 
 	if selected != "" {
 		if _, ok := c.pipelines[selected]; !ok {
-			return fmt.Errorf("%w %q in %s", errPipelineNotFound, selected, strings.Join(paths, ", "))
+			return fmt.Errorf("%s has %w %q", strings.Join(paths, ", "), errNoPipeline, selected)
 		}
 	}
 
 	document := &conga.ConfigDocument{}
 
 	for _, loaded := range files {
-		applyPipelineConfig(document, loaded.path, "", loaded.file.Parallelism, loaded.file.LogLevel, loaded.file.Env)
+		applySettings(document, loaded.path, "", loaded.file.pipelineSettings)
 
 		if selected == "" {
 			continue
@@ -58,7 +66,7 @@ func (c *CLI) Bootstrap(_ context.Context, handle *conga.Bootstrap) error {
 			continue
 		}
 
-		applyPipelineConfig(document, loaded.path, "pipeline "+selected, definition.Parallelism, definition.LogLevel, definition.Env)
+		applySettings(document, loaded.path, "pipeline "+selected, definition.pipelineSettings)
 	}
 
 	handle.SetConfig(document)
@@ -66,20 +74,20 @@ func (c *CLI) Bootstrap(_ context.Context, handle *conga.Bootstrap) error {
 	return nil
 }
 
-// applyPipelineConfig records one file's (or one pipeline's) configuration
-// keys in the document. Scalars replace earlier writes; env entries merge key
-// by key so a later layer overrides only the variables it names. The scope
-// names the pipeline section when the values come from a selected pipeline.
-func applyPipelineConfig(document *conga.ConfigDocument, origin, scope string, parallelism *int, logLevel *string, env map[string]string) {
-	if parallelism != nil {
-		document.SetScoped("parallelism", *parallelism, origin, scope)
+// applySettings records one file's (or one pipeline's) settings in the
+// document. Scalars replace earlier writes; env entries merge key by key so a
+// later layer overrides only the variables it names. The scope names the
+// pipeline section when the settings come from a selected pipeline.
+func applySettings(document *conga.ConfigDocument, origin, scope string, settings pipelineSettings) {
+	if settings.Parallelism != nil {
+		document.SetScoped("parallelism", *settings.Parallelism, origin, scope)
 	}
 
-	if logLevel != nil {
-		document.SetScoped("log-level", *logLevel, origin, scope)
+	if settings.LogLevel != nil {
+		document.SetScoped("log-level", *settings.LogLevel, origin, scope)
 	}
 
-	for _, key := range slices.Sorted(maps.Keys(env)) {
-		document.SetKeyScoped("env", key, env[key], origin, scope)
+	for _, key := range slices.Sorted(maps.Keys(settings.Env)) {
+		document.SetKeyScoped("env", key, settings.Env[key], origin, scope)
 	}
 }

@@ -2,7 +2,7 @@ version: "1"
 
 parallelism: 2
 env:
-  FLOW_ENV: local
+  APP_ENV: local
 
 pipelines:
   deploy:

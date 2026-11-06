@@ -67,8 +67,10 @@ The complete scenarios, fixtures included, live in
   concatenate (`needs` deduplicated) — a merge the config tier cannot express.
 - Pipeline selection is `--pipeline` (environment fallback `FLOW_PIPELINE`);
   file selection is `-f/--file` (environment fallback `FLOW_FILE`).
-- Broken bootstrap input is app-authored data: exit 1 for a missing file, an
-  unsupported `version`, an unknown key, or an unknown pipeline.
+- The default `pipeline.yaml` is optional: without it the runner uses flag
+  defaults. A file named with `-f` or `FLOW_FILE` must exist.
+- Broken bootstrap input is app-authored data: exit 1 for a missing named
+  file, an unsupported `version`, an unknown key, or an unknown pipeline.
 
 ## Test
 

@@ -12,38 +12,46 @@ import (
 // pipelineVersion is the only supported pipeline file version.
 const pipelineVersion = "1"
 
-// errPipelineNotFound reports a --pipeline naming no defined pipeline.
-var errPipelineNotFound = errors.New("pipeline not found")
+// errNoPipeline reports a --pipeline naming no defined pipeline. It reads as
+// part of the message: "pipeline.yaml has no pipeline "release"".
+var errNoPipeline = errors.New("no pipeline")
 
 // errUnsupportedVersion reports a pipeline file written for another version.
 var errUnsupportedVersion = errors.New("unsupported pipeline file version")
 
-// pipelineFile is one parsed pipeline file: the configuration keys that feed
-// the config tier plus the pipeline definitions that stay domain data.
-type pipelineFile struct {
-	Version     string                 `yaml:"version"`
-	Parallelism *int                   `yaml:"parallelism"`
-	LogLevel    *string                `yaml:"log_level"`
-	Env         map[string]string      `yaml:"env"`
-	Pipelines   map[string]pipelineDef `yaml:"pipelines"`
-}
-
-// pipelineDef is one named pipeline definition. Its configuration keys
-// override the file's top-level configuration for the selected pipeline.
-type pipelineDef struct {
-	Desc        string            `yaml:"desc"`
-	Needs       []string          `yaml:"needs"`
-	Steps       []string          `yaml:"steps"`
+// pipelineSettings holds the configuration keys a pipeline file feeds to the
+// config tier, at the file's top level or inside one pipeline. Pointer fields
+// tell a key the file leaves out from a key set to its zero value.
+type pipelineSettings struct {
 	Parallelism *int              `yaml:"parallelism"`
 	LogLevel    *string           `yaml:"log_level"`
 	Env         map[string]string `yaml:"env"`
 }
 
+// pipelineFile is one parsed pipeline file: the configuration keys that feed
+// the config tier plus the pipeline definitions that stay domain data.
+type pipelineFile struct {
+	pipelineSettings `yaml:",inline"`
+
+	Version   string                        `yaml:"version"`
+	Pipelines map[string]pipelineDefinition `yaml:"pipelines"`
+}
+
+// pipelineDefinition is one named pipeline. Its settings override the file's
+// top-level settings when the pipeline is selected.
+type pipelineDefinition struct {
+	pipelineSettings `yaml:",inline"`
+
+	Description string   `yaml:"desc"`
+	Needs       []string `yaml:"needs"`
+	Steps       []string `yaml:"steps"`
+}
+
 // mergedPipeline is the domain view of one pipeline after every file merged.
 type mergedPipeline struct {
-	desc  string
-	needs []string
-	steps []string
+	description string
+	needs       []string
+	steps       []string
 }
 
 // loadedPipelineFile is one parsed file paired with the path it was read from.
@@ -83,8 +91,8 @@ func mergePipelineDefinitions(files []loadedPipelineFile) map[string]mergedPipel
 		for name, definition := range loaded.file.Pipelines {
 			entry := merged[name]
 
-			if definition.Desc != "" {
-				entry.desc = definition.Desc
+			if definition.Description != "" {
+				entry.description = definition.Description
 			}
 
 			entry.needs = appendMissing(entry.needs, definition.Needs...)
