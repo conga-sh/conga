@@ -134,7 +134,7 @@ hello has version 1.0.0 built with go1.27.1
 - [How to manage config files](/how-to/manage-config-files/): register decoders, declare search paths, and cascade tiers.
 - [How to test a command](/how-to/test-a-command/): capture streams, mock arguments, and assert exit codes.
 - [How to read resolved values after Run](/how-to/keep-root-reference/): inspect resolved container values after execution with `conga.New(cli)`.
-- [How to run the examples](/how-to/examples-cookbook/): explore runnable sample applications, including the [minimal hello](https://github.com/conga-sh/conga/tree/main/_examples/01-minimal-hello) program.
+- [Examples](/reference/examples/): the runnable example programs, grouped by feature, starting with [minimal hello](https://github.com/conga-sh/conga/tree/main/_examples/01-minimal-hello).
 
 **Concepts and reference**
 - [About flags and args](/explanation/flags-and-args/): container reader guarantees, trade-offs, and positional arguments.

@@ -35,6 +35,7 @@ export default defineConfig({
   base: '/',
   redirects: {
     '/how-to/supply-config-from-code': '/how-to/load-domain-files',
+    '/how-to/examples-cookbook': '/reference/examples',
   },
   integrations: [
     starlight({
@@ -88,7 +89,6 @@ export default defineConfig({
             { label: 'Test commands', slug: 'how-to/test-a-command' },
             { label: 'Read values after Run', slug: 'how-to/keep-root-reference' },
             { label: 'Lint schemas', slug: 'how-to/lint-schemas' },
-            { label: 'Run examples', slug: 'how-to/examples-cookbook' },
           ],
         },
         {
@@ -103,6 +103,7 @@ export default defineConfig({
             'reference/errors',
             'reference/conga-lint',
             'reference/domain-types',
+            'reference/examples',
           ],
         },
         {
