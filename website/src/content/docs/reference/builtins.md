@@ -262,11 +262,13 @@ When the root command declares `conga.Features[T]`, the report ends with a `Feat
 
 | Style | Surface | When |
 |-------|---------|------|
-| Flat flag | `--completion <shell>` | Enabled flat, single-command CLIs |
-| Subcommand | `completion <shell>` via `conga.CompletionCommand` | Declare the field and enable `app.EnableCompletion()` (inspect requested shell with `Shell() string`) |
-| Hidden driver | `<cmd> __complete <shell> <words...>` | Used internally by generated shell functions |
+| Flag | `--completion <shell>` | A root command without subcommands |
+| Subcommand | `completion <shell>`, listed last under `Commands:` | A root command with subcommands, or any root command that declares a `conga.CompletionCommand` field (which also suppresses the flag). The field accepts the `name`, `aliases`, `section`, `summary`, and `hidden` tags, and its `Shell() string` method returns the requested shell. Declaring `conga.CompletionCommand` without `app.EnableCompletion()` fails schema build with `ErrSchema` |
+| Hidden driver | `<cmd> __complete <shell> <words...>` | Called by the generated shell functions; `export` in place of a shell name prints JSON (see [Candidates as JSON](#candidates-as-json)) |
 
-When the user presses tab, the installed shell function invokes the binary through the hidden driver with the partial words:
+Invoked without a shell argument, the flag or subcommand prints the supported shells and, when the active shell is detected, the command to load completion into the current session (exit 0). Invoked with `<shell> --help`, it prints the installation steps for that shell, adjusted to the environment: with `HOMEBREW_PREFIX` set, the zsh steps write to `$HOMEBREW_PREFIX/share/zsh/site-functions`, and on macOS the bash steps warn when the running Bash is older than 4.4. An unknown shell name is a usage error (exit 2).
+
+When the user presses `Tab`, the installed shell function invokes the binary through the hidden driver with the partial words:
 
 ```sh
 cloudctl __complete bash "dep"
@@ -280,7 +282,62 @@ With completion enabled, several elements complete without custom code:
 - Flag names (long flags, short runes, aliases, and negatable forms), omitting deprecated flags.
 - Subcommands, command aliases, and command sections with typo-correction suggestions.
 - Enum values restricted by `enum:"..."` tags.
-- Domain types with built-in path or unit predictions (`conga.File`, `conga.Dir`, `conga.ByteSize`).
+- Paths for the `conga.File`, `conga.FileContent`, and `conga.Dir` domain types.
+- The shell names after `completion` or `--completion`.
+
+Once a member of an `xor` or `oneof` group is on the command line, its sibling members are no longer offered.
+
+### Candidates as JSON
+
+`<cmd> __complete export <words...>` prints the candidates for the last word as one JSON object, with no shell script involved. The last word is the one being completed; pass `''` to complete an empty word. For the `deploy` program in [How to wire custom completion](/how-to/wire-custom-completion/):
+
+```sh
+$ deploy __complete export --region eu-west-1 --cluster ''
+{"candidates":[{"value":"prod-eu-1","display":"prod-eu-1","tag":"values"}],"directives":{"keeporder":false,"messages":[],"noprefix":false,"nospace":false},"usage":"Cluster in the region"}
+```
+
+`candidates` holds each value with its display text, its tag, and, when set, its description and alias marker; `directives` holds the flags the shell scripts act on; `usage` is the `help` text of the flag or argument being completed. [The completion wire protocol](https://github.com/conga-sh/conga/blob/main/docs/completion-wire-protocol.md) defines every field.
+
+### Flags at a bare space
+
+At a bare space, the driver offers subcommands and positional arguments and withholds flags until the user types a `-` prefix (`cloudctl <Tab>` completes subcommands; `cloudctl -<Tab>` completes flags). If a command defines no subcommands, positional arguments, or `RawArgs`, flags are offered at a bare space. Set the `bare-space-flags` zstyle or `<APP>_COMPLETION_BARE_SPACE_FLAGS=1` to include flags at a bare space unconditionally.
+
+### User toggles
+
+The generated scripts read three per-application environment variables. The default prefix is the application name in `UPPER_SNAKE_CASE` (`cloudctl` reads `CLOUDCTL_COMPLETION_*`). A derived prefix that starts with a digit gains a leading underscore (`7z` reads `_7Z_COMPLETION_*`). Pass `conga.CompletionEnvPrefix(prefix)` to `app.EnableCompletion` to override the prefix; an explicit prefix that normalizes to a leading digit fails schema build with `ErrSchema`.
+
+| Variable | Effect |
+|---|---|
+| `<APP>_COMPLETION_DESCRIPTIONS=0` | Hide candidate descriptions (`false` also hides them; unset or `1` shows them) |
+| `<APP>_COMPLETION_ALIASES=0` | Hide alias candidates (`false` also hides them; unset or `1` shows them) |
+| `<APP>_COMPLETION_BARE_SPACE_FLAGS=1` | Show flag candidates at a bare space (`true` also shows them; unset or `0` keeps them for the `-` prefix) |
+
+In bash, descriptions appear only in the listing on the second `Tab`, so `<APP>_COMPLETION_DESCRIPTIONS=0` affects that listing only.
+
+Alias candidates are subcommand and flag aliases declared with the `aliases` tag, plus candidates marked with `predict.Item.WithAlias()`.
+
+The zsh script also reads these `zstyle` keys:
+
+| Style | Effect |
+|---|---|
+| `verbose` | `false`, `no`, `off`, or `0` hides candidate descriptions (the standard zsh style) |
+| `show-aliases` | `false`, `no`, `off`, or `0` hides alias candidates (the go-task convention) |
+| `bare-space-flags` | `yes`, `true`, `1`, or `on` shows flag candidates at a bare space |
+| `list-separator` | The separator between a candidate and its description; the engine's colours follow it |
+
+The engine installs its own colours only when `list-colors` is unset or empty (as in Oh My Zsh's default), and it leaves the user's `group-name` and `list-separator` styles in place.
+
+### Binary names and paths
+
+The generated script binds completion registration to the name of the binary that generated it (`cctl` emits `#compdef cctl`). Generate the script from the installed binary so the registered completer name matches.
+
+In bash, zsh, fish, PowerShell, and Nushell, a path-qualified invocation (`./cloudctl <Tab>`, `/usr/local/bin/cloudctl <Tab>`) dispatches to the registered completer by basename. Elvish keys completers on the literal command word, so path-qualified invocations fall back to file completion there. In zsh, a named directory registered with `hash -d` (or `AUTO_NAME_DIRS`) resolves through the completer (`~dev/cloudctl <Tab>`).
+
+### File and directory candidates
+
+The filesystem predictors in `package predict` (`Files`, `Dirs`, `FilesGlob`, `FilesFiltered`, `PathsFiltered`, `DirsGlob`, `DirsFiltered`, `Symlinks`, `Executables`) evaluate candidate paths in-process rather than delegating to shell file completion, producing identical candidates across all six shells. Dotfiles are offered only when the typed prefix begins with `.`.
+
+Because zsh's `_files` helper is not invoked, zsh-specific file-completion settings do not apply to these candidates: the `file-sort` and `file-patterns` styles, `cdpath`, and `~name` expansion in file values (tracked in [#85](https://github.com/conga-sh/conga/issues/85)).
 
 ## Deprecation
 

@@ -149,17 +149,6 @@ deploy.yaml   staging.yaml
 
 `TagSpecs` also tells strict tag validation that `ext` belongs on this field. `FieldTags` offers `Has`, `Bool`, and `String`.
 
-## Check candidates without a shell
-
-Run the program with `__complete export` and the words a user would have typed. It prints the candidates as JSON, which suits tests and quick checks:
-
-```sh
-$ deploy __complete export --region eu-west-1 --cluster ''
-{"candidates":[{"value":"prod-eu-1","display":"prod-eu-1","tag":"values"}],"directives":{"keeporder":false,"messages":[],"noprefix":false,"nospace":false},"usage":"Cluster in the region"}
-```
-
-The `''` stands for the word being completed. [The completion wire protocol](https://github.com/conga-sh/conga/blob/main/docs/completion-wire-protocol.md) describes every field.
-
 ## Know what users see
 
 | Situation | Result |
