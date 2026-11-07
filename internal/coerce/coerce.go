@@ -39,11 +39,11 @@ const (
 	mapPairErrorEmptyKey                         // key is empty after trimming
 )
 
-// TypeParser parses a raw string token into a concrete value of the registered target type.
-type TypeParser func(string) (any, error)
+// TypeParser parses a raw string token into a value of type U.
+type TypeParser[U any] func(raw string) (U, error)
 
-// Registry maps reflect.Type to custom TypeParser functions.
-type Registry map[reflect.Type]TypeParser
+// Registry maps reflect.Type to registered parsers, erased to TypeParser[any].
+type Registry map[reflect.Type]TypeParser[any]
 
 // DecodeContext carries the ambient input for coercing one raw value into
 // its target type: the owning field's declared custom tags and the

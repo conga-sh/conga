@@ -533,8 +533,8 @@ func (a *App[T]) Use(bindings ...func(*App[T])) *App[T] {
 // RegisterType registers a parser and optional completion predictor
 // for custom type U on the application builder.
 //
-// The parser callback converts raw string input from flags, arguments, or environment
-// variables into an instance of type U. A returned error is wrapped in [ErrCoerce].
+// The parser, a [TypeParser], converts raw string input from flags, arguments, environment
+// variables, or config files into an instance of type U. A returned error is wrapped in [ErrCoerce].
 //
 // If type U was previously registered, the new parser and predictor overwrite the
 // existing registration.
@@ -544,7 +544,7 @@ func (a *App[T]) Use(bindings ...func(*App[T])) *App[T] {
 //   - If parser is nil.
 //
 // See https://docs.conga.sh/how-to/add-custom-flag-types/.
-func (a *App[T]) RegisterType[U any](parser func(string) (U, error), opts ...RegistrationOption) *App[T] {
+func (a *App[T]) RegisterType[U any](parser TypeParser[U], opts ...RegistrationOption) *App[T] {
 	if a == nil {
 		panic("conga: RegisterType requires a non-nil app")
 	}
@@ -983,7 +983,7 @@ func (e *mapEntryError) Unwrap() error {
 func (e *mapEntryError) Is(target error) bool { return target == ErrCoerce }
 
 type typeRegistration struct {
-	parser       coerce.TypeParser
+	parser       coerce.TypeParser[any]
 	hasPredictor bool
 	predictor    predict.Predictor
 }

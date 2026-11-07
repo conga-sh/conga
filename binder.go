@@ -2955,7 +2955,7 @@ func parseMapTokens(rawValues []string, targetType reflect.Type, sep string, par
 	return reflect.ValueOf(parsedMap).Convert(targetType).Interface(), nil
 }
 
-func parseRegisteredMap(rawValues []string, targetType reflect.Type, sep string, parser coerce.TypeParser) (any, error) {
+func parseRegisteredMap(rawValues []string, targetType reflect.Type, sep string, parser coerce.TypeParser[any]) (any, error) {
 	merged := reflect.MakeMap(targetType)
 
 	for _, item := range coerce.SplitMapItems(rawValues, sep) {
