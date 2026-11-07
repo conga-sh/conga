@@ -48,9 +48,13 @@ Non-literal or computed arguments degrade conservatively: the analyzer suppresse
 | Flag | Effect |
 |------|--------|
 | `-builder-order` | Check builder invocations against the canonical order: identity and documentation first, `Enable*`/`Disable*` toggles alphabetically, behavior configuration grouped, execution methods last. |
-| `-builder-order-spec` | Override the order with comma- or newline-separated method names, or `@path` to read one per line. |
+| `-builder-order-spec` | Override the order with comma- or newline-separated method names, or `@path` to read one per line. Methods left out are unconstrained. Takes effect only with `-builder-order`; an unknown method name is a flag error (exit 2). |
 | `-fix` | Apply builder-order fixes in place; barrier calls such as `Use(...)` and other unsafe swaps are never moved. |
 | `-diff` | Preview builder-order fixes as a diff. |
+
+## Output
+
+A report run prints one line per finding, `file:line:column: message`, with the file path relative to the working directory, or absolute when the file lies outside it. It exits 0 when there are no findings, 3 when there are, and 1 when packages fail to load or analysis fails. `-json`, `-c`, and `-fix` (with or without `-diff`) use the standard `golang.org/x/tools` driver output, which prints absolute paths; with `-json` the exit code is always 0. Under `go vet -vettool`, `go vet` prints the findings and exits 1 when there are any.
 
 ## Relationship to runtime errors
 
