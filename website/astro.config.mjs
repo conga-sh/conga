@@ -86,7 +86,7 @@ export default defineConfig({
             { label: 'Wire custom completion', slug: 'how-to/wire-custom-completion' },
             { label: 'Add custom flag types', slug: 'how-to/add-custom-flag-types' },
             { label: 'Test commands', slug: 'how-to/test-a-command' },
-            { label: 'Retain root struct', slug: 'how-to/keep-root-reference' },
+            { label: 'Read values after Run', slug: 'how-to/keep-root-reference' },
             { label: 'Lint schemas', slug: 'how-to/lint-schemas' },
             { label: 'Run examples', slug: 'how-to/examples-cookbook' },
           ],

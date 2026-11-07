@@ -234,4 +234,4 @@ A missing `Run` passes startup and fails only when a user invokes that subcomman
 - [Subcommands (`Command[T]`)](/reference/struct-tags/#subcommands-commandt): every subcommand tag and the implicit routing rules.
 - [About subcommands and hierarchy](/explanation/subcommands/): why flags are reserved down a branch and how routing works.
 - [How to accept positional arguments](/how-to/accept-positional-arguments/): give a leaf command its arguments.
-- [How to retain the root struct](/how-to/keep-root-reference/): read resolved values after `Run` returns.
+- [How to read resolved values after Run](/how-to/keep-root-reference/): read resolved values after `Run` returns.
