@@ -109,3 +109,55 @@ func fixtureDirectory(t *testing.T) string {
 
 	return directory
 }
+
+func TestCLI_ViolationPrintsRelativePaths(t *testing.T) {
+	t.Parallel()
+
+	_, stderr := runCLI(t, "./invalid")
+
+	assert.Contains(t, stderr, filepath.Join("invalid", "invalid.go")+":")
+	assert.NotContains(t, stderr, fixtureDirectory(t))
+}
+
+func TestCLI_AnalyzerFlagKeepsRelativePaths(t *testing.T) {
+	t.Parallel()
+
+	exitCode, stderr := runCLI(t, "-builder-order", "./builderorderinvalid")
+
+	assert.Equal(t, 3, exitCode)
+	assert.Contains(t, stderr, "builder call order violation")
+	assert.NotContains(t, stderr, fixtureDirectory(t))
+}
+
+func TestCLI_ContextFlagUsesStandardDriver(t *testing.T) {
+	t.Parallel()
+
+	exitCode, stderr := runCLI(t, "-c", "0", "./invalid")
+
+	assert.Equal(t, 3, exitCode)
+	assert.Contains(t, stderr, fixtureDirectory(t))
+}
+
+func TestRelativePath_FileBelowDirectory(t *testing.T) {
+	t.Parallel()
+
+	relative := relativePath(filepath.FromSlash("/work/app"), filepath.FromSlash("/work/app/cmd/main.go"))
+
+	assert.Equal(t, filepath.FromSlash("cmd/main.go"), relative)
+}
+
+func TestRelativePath_FileOutsideDirectory(t *testing.T) {
+	t.Parallel()
+
+	relative := relativePath(filepath.FromSlash("/work/app"), filepath.FromSlash("/work/other/main.go"))
+
+	assert.Equal(t, filepath.FromSlash("/work/other/main.go"), relative)
+}
+
+func TestRelativePath_SiblingSharingNamePrefix(t *testing.T) {
+	t.Parallel()
+
+	relative := relativePath(filepath.FromSlash("/work/app"), filepath.FromSlash("/work/application/main.go"))
+
+	assert.Equal(t, filepath.FromSlash("/work/application/main.go"), relative)
+}
