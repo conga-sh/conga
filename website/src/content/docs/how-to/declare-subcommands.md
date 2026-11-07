@@ -1,57 +1,57 @@
 ---
 title: How to declare subcommands
-description: Route nested subcommands with Command[T], assign aliases and sections, set a default subcommand, and reach root state.
+description: Add subcommands with Command[T], group, alias, hide, and deprecate them, read root flags from a subcommand, and make one subcommand the default.
 ---
 
-Commands in CONGA compose hierarchically by declaring struct fields of type `conga.Command[T]`. This guide explains how to define subcommands, configure routing tags, access root state, and prevent ancestor flag shadowing.
+This guide builds a `cloudctl` program with `deploy`, `list`, `debug`, and `push` subcommands. [Subcommands (`Command[T]`)](/reference/struct-tags/#subcommands-commandt) lists every tag a subcommand field takes.
 
-## Mount a subcommand
+## Add a subcommand with `Command[T]`
 
-Declare a field of type `conga.Command[T]` on the enclosing struct, where `T` is a struct implementing the `Runner` interface:
+Declare a `conga.Command[T]` field on the parent struct, where `*T` implements `conga.Runner`:
 
-```go title="main.go"
+```go
+type Runner interface {
+	Run(ctx context.Context, session *Session) error
+}
+```
+
+The field name in kebab case becomes the command name, so `Deploy` is `deploy`, and `summary` is its line in the parent's help:
+
+```go title="main.go" hidden={1-8}
+package main
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/conga-sh/conga"
+)
+
 type CLI struct {
-	Deploy conga.Command[DeployCmd] `summary:"Deploy a service to a cluster"`
+	Verbose conga.OptionalFlag[bool] `help:"Print each step" short:"v"`
+
+	Deploy conga.Command[DeployCmd] `summary:"Deploy a manifest"`
 }
 
 type DeployCmd struct {
-	Replicas conga.OptionalFlag[int] `default:"3" help:"Number of replicas" short:"r"`
+	Replicas conga.OptionalFlag[int]   `default:"3" help:"Number of replicas" short:"r"`
+	Manifest conga.RequiredArg[string] `help:"Manifest file"`
 }
 
 func (d *DeployCmd) Run(ctx context.Context, session *conga.Session) error {
-	fmt.Fprintf(session.Stdout(), "deploying service with %d replicas\n", d.Replicas.Get())
+	fmt.Fprintf(session.Stdout(), "deploying %s with %d replicas\n", d.Manifest.Get(), d.Replicas.Get())
 
 	return nil
 }
-```
 
-Field names convert to kebab-case by default (`Deploy` becomes the `deploy` subcommand). The `summary` tag defines the short text displayed in parent command listings.
+func main() {
+	app := conga.New[CLI]().Name("cloudctl")
 
-Leaf commands must implement `Run(ctx context.Context, session *conga.Session) error`. A leaf command without `Run` fails when a user invokes it, with `runner not implemented: command "<name>" does not implement conga.Runner` (exit 1). [`conga-lint`](/reference/conga-lint/) reports the missing method before you build.
-
-An enclosing parent command may also implement `Run`, executing when the application is invoked without a subcommand; [About subcommands and hierarchy](/explanation/subcommands/#routing-nodes-versus-runnable-commands) covers routing versus executable nodes.
-
-## Configure aliases, sections, and visibility
-
-Use struct tags on the `conga.Command[T]` field to control how subcommands route and display in `--help`:
-
-```go title="main.go"
-type CLI struct {
-	Verbose conga.OptionalFlag[bool] `short:"v" help:"Enable verbose output"`
-
-	Deploy conga.Command[DeployCmd] `summary:"Deploy a service"`
-	List   conga.Command[ListCmd]   `aliases:"ls,ps" section:"Inspection" summary:"List active services"`
-	Debug  conga.Command[DebugCmd]  `hidden:"true" summary:"Internal debugging command"`
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
 }
 ```
-
-- `name:"..."`: Overrides the kebab-case field name with a custom command token.
-- `aliases:"ls,ps"`: Registers comma-separated alternatives that route to the same command.
-- `section:"Inspection"`: Collects related commands under a dedicated section header in parent help screens.
-- `hidden:"true"`: Keeps the command executable while suppressing it from help listings and completion suggestions.
-- `deprecated:"..."`: Marks the command as deprecated, emitting a warning at runtime, rendering a `[deprecated: <reason>]` banner on its help screen, and suppressing it from shell completion.
-
-Help screens organize subcommands by their declared sections:
 
 ```sh
 $ cloudctl --help
@@ -59,106 +59,179 @@ Usage:
   cloudctl <command> [flags]
 
 Commands:
-  deploy  Deploy a service
-
-Inspection Commands:
-  list    List active services (aliases: ls, ps)
+  deploy  Deploy a manifest
 
 Flags:
-  -v, --verbose  Enable verbose output
+  -v, --verbose  Print each step
       --help     Show help
       --version  Show version
 ```
 
-## Make one subcommand the default
-
-To let operators drop the subcommand name, so `tool ./script.ts` runs exactly like `tool run ./script.ts`, tag that subcommand `implicit:"true"`:
-
-```go title="main.go"
-type CLI struct {
-	Exec    conga.Command[RunCmd]     `implicit:"true" name:"run" summary:"Execute a file"`
-	Install conga.Command[InstallCmd] `summary:"Install dependencies"`
-}
-
-type RunCmd struct {
-	DryRun conga.OptionalFlag[bool] `help:"Print what would run" short:"n"`
-	File   conga.RequiredArg[conga.File]
-	Args   conga.RawArgs
-}
-```
-
-Each of these invocations runs `run`:
-
 ```sh
-tool ./script.ts
-tool run ./script.ts
-tool -n ./script.ts
+$ cloudctl deploy web.yaml
+deploying web.yaml with 3 replicas
 ```
 
-`tool install` still runs `install`, because a subcommand named on the command line always wins. Help marks the default and shows the command token as optional:
+`CLI` has no `Run` method, so `cloudctl` alone is a usage error:
 
-```text no-copy
+```sh error={2}
+$ cloudctl
+cloudctl: error: subcommand required for "cloudctl"
+
 Usage:
-  tool [<command>]
+  cloudctl <command> [flags]
 
 Commands:
-  run      Execute a file (default)
-  install  Install dependencies
+  deploy  Deploy a manifest
+
+Flags:
+  -v, --verbose  Print each step
+      --help     Show help
+      --version  Show version
 ```
 
-Declare at most one implicit subcommand per command; a second one fails schema build with `ErrSchema`, and `conga-lint` reports it before then.
+To run code when the user names no subcommand, implement `Runner` on the parent too. Its `Run` handles `cloudctl` alone, and `cloudctl deploy web.yaml` still runs `deploy`.
 
-Adjust for these cases:
+A command declares subcommands or positional arguments, not both; [How to accept positional arguments](/how-to/accept-positional-arguments/) covers positional arguments.
 
-- If an operand begins with a dash, put it after `--`: `tool -- -e.ts` runs `run` with the file `-e.ts`.
-- If a subcommand flag takes a value, write it after the subcommand name: `tool deploy --env prod`, not `tool --env prod deploy`. In the second form, `prod` is an operand and selects the implicit subcommand.
-- If a bare `tool` should do something other than enter the implicit subcommand, implement `Run` on the parent. A parent without `Run` enters its implicit subcommand when the invocation names no subcommand; a parent with `Run` runs itself unless an operand or a flag declared only by the implicit subcommand selects it.
+## Group, alias, hide, and deprecate subcommands
 
-The full routing rules, including how `--help` and `--version` behave, are in the [struct tag reference](/reference/struct-tags/#implicit-subcommands). [About subcommands and hierarchy](/explanation/subcommands/#implicit-subcommands) explains why routing works this way.
+Tags on the `Command[T]` field control how a subcommand is reached and listed:
 
-## Access root state and execution context
-
-Subcommands read global flags and metadata declared on the root command struct through `session.Root[T]()`:
-
-```go title="main.go"
+```go title="main.go" ins={5-7}
 type CLI struct {
-	Verbose conga.OptionalFlag[bool] `help:"Enable verbose output" short:"v"`
-	Deploy  conga.Command[DeployCmd] `summary:"Deploy a service"`
-}
+	Verbose conga.OptionalFlag[bool] `help:"Print each step" short:"v"`
 
+	Deploy conga.Command[DeployCmd] `summary:"Deploy a manifest"`
+	List   conga.Command[ListCmd]   `aliases:"ls,ps" section:"Inspection" summary:"List running services"`
+	Debug  conga.Command[DebugCmd]  `hidden:"true" summary:"Dump internal state"`
+	Push   conga.Command[DeployCmd] `deprecated:"use deploy" summary:"Deploy a manifest (old name)"`
+}
+```
+
+`section` puts `list` under its own heading, `hidden` leaves `debug` out of help and completion, and `deprecated` labels `push`:
+
+```sh {7,9-10}
+$ cloudctl --help
+Usage:
+  cloudctl <command> [flags]
+
+Commands:
+  deploy  Deploy a manifest
+  push    Deploy a manifest (old name) [deprecated: use deploy]
+
+Inspection:
+  list  List running services
+
+Flags:
+  -v, --verbose  Print each step
+      --help     Show help
+      --version  Show version
+```
+
+`aliases` routes `ls` and `ps` to `list`, and `cloudctl debug` still runs. A deprecated command still runs, after a warning on stderr, and completion stops offering it:
+
+```sh
+$ cloudctl ls
+api  worker
+```
+
+```sh
+$ cloudctl push web.yaml
+WARNING: command 'cloudctl push' is deprecated: use deploy
+deploying web.yaml with 3 replicas
+```
+
+Shell completion offers the aliases; `--help` lists each command once, by name. `name:"..."` replaces the kebab-case name.
+
+## Read root flags from a subcommand
+
+Flags on a parent apply to all its descendants, and the user can give them before or after the subcommand name. A subcommand reads them through `session.Root[T]()`, which returns the root struct:
+
+```go title="main.go" ins={2-5}
 func (d *DeployCmd) Run(ctx context.Context, session *conga.Session) error {
 	root := session.Root[CLI]()
-
 	if root.Verbose.Get() {
-		fmt.Fprintf(session.Stdout(), "running %s (leaf: %s)\n", session.Path(), session.Name())
+		fmt.Fprintf(session.Stdout(), "running %s\n", session.Path())
 	}
+
+	fmt.Fprintf(session.Stdout(), "deploying %s with %d replicas\n", d.Manifest.Get(), d.Replicas.Get())
 
 	return nil
 }
 ```
 
-`session.Root[T]()` returns the typed root command struct instance. The full accessor catalog (`Path()`, `Name()`, and the stream accessors) is in [package conga](/reference/conga/#session-and-hierarchy-accessors); navigate down the hierarchy from the root instance by calling `Get()` on a command field (for example, `root.Deploy.Get()`).
+```sh
+$ cloudctl -v deploy web.yaml
+running cloudctl deploy
+deploying web.yaml with 3 replicas
+```
 
-## Share flags across subcommands
+The subcommand's help lists the parent's flags under `Global Flags:`. A descendant can't redeclare a parent's flag name, alias, or short letter; sibling subcommands can share names. `session.Path()` and the other accessors are in [package conga](/reference/conga/#session-and-hierarchy-accessors).
 
-Ancestor flags remain available to all descendant subcommands. Flag names, aliases, and short runes are reserved throughout each command branch; declare shared options once on the parent command:
+## Make one subcommand the default
 
-```go
-type Root struct {
-	Verbose conga.OptionalFlag[bool] `short:"v"`
-	Child   conga.Command[Child]
-}
+Tag a subcommand `implicit:"true"` to run it when the user names none:
 
-type Child struct {
-	Verbose conga.OptionalFlag[bool] `short:"v"` // [!code error] Schema error: duplicate flag -v
+```go title="main.go" {4}
+type CLI struct {
+	Verbose conga.OptionalFlag[bool] `help:"Print each step" short:"v"`
+
+	Deploy conga.Command[DeployCmd] `implicit:"true" summary:"Deploy a manifest"`
+	// ...
 }
 ```
 
-Attempting to register a descendant flag that collides with an ancestor flag fails at startup with `conga.ErrSchema`; [About subcommands and hierarchy](/explanation/subcommands/#the-ancestor-flag-reservation-invariant) explains the invariant. Sibling subcommands may declare identical flag names.
+`cloudctl web.yaml` now deploys, and so does `cloudctl -r 5 web.yaml`, since `-r` belongs to `deploy`. A subcommand named on the command line still wins:
+
+```sh
+$ cloudctl web.yaml
+deploying web.yaml with 3 replicas
+```
+
+```sh
+$ cloudctl list
+api  worker
+```
+
+Help marks the default and shows the command as optional:
+
+```sh {3,6}
+$ cloudctl --help
+Usage:
+  cloudctl [<command>] [flags]
+
+Commands:
+  deploy  Deploy a manifest (default)
+  push    Deploy a manifest (old name) [deprecated: use deploy]
+
+Inspection:
+  list  List running services
+
+Flags:
+  -v, --verbose  Print each step
+      --help     Show help
+      --version  Show version
+```
+
+An operand that starts with `-` goes after `--`: `cloudctl -- -web.yaml` deploys `-web.yaml`. [Implicit subcommands](/reference/struct-tags/#implicit-subcommands) gives the full routing rules, including a parent that also implements `Run`.
+
+## Know what users see
+
+| What happens | When | Result |
+|---|---|---|
+| The user mistypes a subcommand (`cloudctl lst`) | Run | `unknown command: lst. Did you mean "list"?`, exit 2 |
+| The user runs a subcommand whose type has no `Run` method | Run | `runner not implemented: command "list" does not implement conga.Runner`, exit 1 |
+| A subcommand declares a flag its parent already declares | Startup | `schema error: duplicate flag: --verbose (already declared by ancestor command "cloudctl")`, exit 1 |
+| Two subcommands of one parent are tagged `implicit:"true"` | Startup | `schema error: only one implicit command is allowed per command`, exit 1 |
+| With `deploy` implicit, a flag only `list` declares comes before `list` (`cloudctl --format json list`) | Run | `unknown flag: --format`, exit 2; the line routes to `deploy` |
+| With `deploy` implicit, the user runs `cloudctl` alone | Run | `missing required positional argument <manifest>`, exit 2 |
+
+A missing `Run` passes startup and fails only when a user invokes that subcommand. [`conga-lint`](/reference/conga-lint/) reports it before you build.
 
 ## Where to go next
 
-- [How to accept positional arguments](/how-to/accept-positional-arguments/) — define required, optional, and trailing positional arguments.
-- [About subcommands and hierarchy](/explanation/subcommands/) — hierarchy architecture and flag-shadowing rules.
-- [How to retain the root struct](/how-to/keep-root-reference/) — inspect resolved container values after execution.
-- [Example 32 — implicit command](https://github.com/conga-sh/conga/tree/main/_examples/32-implicit-command) — a runnable default subcommand with an explicit sibling.
+- [Subcommands (`Command[T]`)](/reference/struct-tags/#subcommands-commandt): every subcommand tag and the implicit routing rules.
+- [About subcommands and hierarchy](/explanation/subcommands/): why flags are reserved down a branch and how routing works.
+- [How to accept positional arguments](/how-to/accept-positional-arguments/): give a leaf command its arguments.
+- [How to retain the root struct](/how-to/keep-root-reference/): read resolved values after `Run` returns.
