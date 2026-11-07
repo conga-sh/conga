@@ -205,7 +205,30 @@ hello:
 
 `app.EnableWhy()` enables `--why`, which prints a per-field provenance report — every resolved value in the active command chain with its [source](/explanation/value-precedence/): `cli`, `env`, `config (file)`, `default`, or `unset`. Configuration origins render as the file basename when it is unambiguous, or as the shortest unique directory prefix followed by `...` when basenames collide; the JSON report keeps the resolved paths verbatim. A multi-file `ConfigFile` row renders `(N files)` and lists each path as a tree sub-row (`├─ `, `└─ `), while any other slice flag with more than one item renders `(N values)` and lists each item vertically.
 
-Map flags merge key by key across tiers: the flag row displays the key count `(N keys)` alongside the highest contributing tier (annotated with its config origin when a single file contributes), followed by tree-structured sub-rows detailing each key's value and the tier that last wrote it (annotated with its config origin). The `CONFIG PATH` column names the config-document key. Values are redacted by default; fields opt in to display with `safe:"true"`. The report machinery is linked only when `app.EnableWhy()` is called; otherwise `--why` remains an unknown flag.
+Map flags merge key by key across tiers: the flag row displays the key count `(N keys)` alongside the highest contributing tier (annotated with its config origin when a single file contributes), followed by tree-structured sub-rows detailing each key's value and the tier that last wrote it (annotated with its config origin). The `CONFIG PATH` column names the config-document key. The report machinery is linked only when `app.EnableWhy()` is called; otherwise `--why` remains an unknown flag.
+
+The text report has these parts, in this order, and leaves out any part with nothing to show:
+
+1. Flag table: each flag of the active command, with its value (`██████` for a flag without `safe:"true"`), source, environment variable, and config key.
+2. Global flags: the same table for flags declared on parent commands.
+3. Features: every declared feature toggle, its value, and its source.
+4. Config decoders: the registered config file extensions.
+5. Config paths: each place the program searched and what it found there (`loaded: <file>`, `directory does not exist`), with the files it looked for. When a bootstrap document records scopes with `SetScoped`, the origin path appears once and the flag's source shows the scope.
+6. Config file suggestions: where the user could create a config file, when none was loaded.
+7. A redaction note, when any value is shown as `██████`.
+
+A value prints as `██████` unless one of these makes it visible:
+
+| Value | Shown |
+|---|---|
+| Any flag tagged `safe:"true"` | Always |
+| A value from the flag's `default` tag | Always, whatever `safe` says |
+| A boolean or `conga.Counter` flag | Unless tagged `safe:"false"` |
+| The paths of a `conga.ConfigFile` flag | Always |
+| Feature toggles | Always |
+| Any other flag, set from the command line, the environment, or a config file | No |
+
+A map flag applies the rule key by key: keys from the default show, and keys set elsewhere print as `KEY=██████`. Unset flags have no value to show. Positional arguments are not part of the report. In JSON, a hidden value is `null` with `"redacted": true`.
 
 When connected to an interactive terminal, the report uses colour: each source gets a marker and a colour (`● cli` cyan, `● env` yellow, `● config` green, `○ default` grey, `unset` dim). When piped, redirected, or running under `NO_COLOR=1` or `TERM=dumb`, it prints plain text with no markers, as shown on the how-to pages. Output color can also be forced with `CONGA_COLOR=1` or disabled with `CONGA_COLOR=0`.
 

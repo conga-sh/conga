@@ -29,7 +29,7 @@ CONGA derives the CLI schema from struct fields and their tags. The engine valid
 | `placeholder` | ✅ | ✅ | – | Argument placeholder displayed in syntax and help. |
 | `predictor` | ✅ | ✅ | – | Completion predictor identifier (see [Predictors](#predictors)). |
 | `range` | ✅ | ✅ | – | Numeric or duration bounds (see [Bounds syntax](#bounds-syntax)). |
-| `safe` | ✅ | ✅ | ✅ | Controls value display in `--why` provenance (`true` or `false`). Boolean and counter flags default to `true`; other flags default to `false`. Declared defaults are always visible. |
+| `safe` | ✅ | ✅ | ✅ | Controls value display in `--why` provenance (`true` or `false`). Boolean and counter flags default to `true`; other flags default to `false`. Values from `default` are always shown (see [the `--why` report](/reference/builtins/#the---why-report)). |
 | `section` | ✅ | ✅ | ✅ | Help-screen section title. Flags sharing a section render under their own titled section. |
 | `sep` | ✅ (slices) | ✅ (slices) | – | Slice separator (default `","`). Disabling separators with `none`, `off`, or `-` disables multi-value splitting; `sep:"none"` preserves string elements verbatim, including whitespace. |
 | `short` | ✅ | ✅ | ✅ | Single-rune short flag (e.g. `short:"n"`). |
