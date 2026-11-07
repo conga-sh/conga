@@ -55,12 +55,12 @@ func New[T any](root ...*T) *App[T]
 ### Extensibility functions
 
 ```go
-func (a *App[T]) RegisterType[U any](parser func(string) (U, error), opts ...RegistrationOption) *App[T]
+func (a *App[T]) RegisterType[U any](parser TypeParser[U], opts ...RegistrationOption) *App[T]
 func (a *App[T]) RegisterMap[M ~map[K]V, K ~string, V any](opts ...RegistrationOption) *App[T]
 func WithPredictor(p predict.Predictor) RegistrationOption
 ```
 
-`RegistrationOption` customizes registrations; `WithPredictor` attaches default completion to a registered type.
+`TypeParser[U]` is a `func(raw string) (U, error)`; an error it returns is wrapped in `ErrCoerce`. `RegistrationOption` customizes registrations; `WithPredictor` attaches default completion to a registered type.
 
 ## Containers
 

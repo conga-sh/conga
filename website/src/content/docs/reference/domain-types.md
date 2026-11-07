@@ -199,6 +199,40 @@ An explicit `help:"..."` tag replaces the type-derived description. Without one,
 
 Implement exactly one form of each tag-aware pair. Filesystem-derived types can additionally participate in shell-side filtering through `FileFilterable`, `DirFilterable`, and `PathFilterable`.
 
+### Decoding order
+
+CONGA decodes a scalar flag, argument, environment, or config value into type `U` with the first of these that applies:
+
+1. A `conga.TypeParser[U]` registered with `app.RegisterType`.
+2. `UnmarshalTextWithContext` on `*U` (`ContextAwareTextUnmarshaler`).
+3. `UnmarshalText` on `*U` (`encoding.TextUnmarshaler`).
+4. Built-in parsing for `string`, `bool`, signed and unsigned integers, `time.Duration`, floats, and `url.URL` / `*url.URL`.
+
+Any other type fails with `unsupported type <U>` (`ErrCoerce`, exit 2) when a value is bound, not at schema build. Values of a map registered with `app.RegisterMap` skip step 1. An error from steps 1 to 3 is wrapped in `ErrCoerce`, with the flag name and the value's source appended to its message.
+
+### Custom tags
+
+`TagSpecs()` returns one `conga.TagSpec` per tag the type accepts on its fields:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `Name` | `string` | The struct tag key |
+| `Kind` | `conga.TagKind` | `conga.TagKindBool` (value must be `true` or `false`) or `conga.TagKindString` |
+| `Validate` | `func(value string) error` | Optional check of a `TagKindString` value at schema build |
+| `Excludes` | `[]string` | Tag keys that can't be declared on the same field as this one |
+
+Schema build rejects, with `ErrSchema`, a tag that no `TagSpec` of the field's type names, a `TagKindBool` tag with another value, a `Validate` error, and a tag declared together with one its `Excludes` lists. `app.AllowTags` exempts listed foreign keys.
+
+`UnmarshalTextWithContext` receives a `conga.DecodeContext`:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `Tags` | `conga.FieldTags` | The owning field's declared custom tags; nil when it declares none |
+| `Stdin` | `io.Reader` | The App's configured stdin (`App.Stdin`); nil means `os.Stdin` |
+| `Stdout` | `io.Writer` | The App's configured stdout (`App.Stdout`); nil means `os.Stdout` |
+
+`FieldTags.Has(key)` reports whether the field declares the tag, `Bool(key)` whether it is `"true"`, and `String(key)` its value, `""` when absent. The zero `DecodeContext` behaves like plain `UnmarshalText`.
+
 ```go
 type ContextAwareTextUnmarshaler interface {
 	UnmarshalTextWithContext(text []byte, decodeContext DecodeContext) error
