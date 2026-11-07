@@ -19,9 +19,10 @@ import (
 )
 
 type Server struct {
-	Host  conga.OptionalFlag[string] `default:"127.0.0.1" help:"Listen address" safe:"true"`
-	Port  conga.OptionalFlag[int]    `default:"8080" help:"Listen port" safe:"true" short:"p"`
-	Token conga.OptionalFlag[string] `help:"API secret token"`
+	Host   conga.OptionalFlag[string]            `default:"127.0.0.1" help:"Listen address" safe:"true"`
+	Port   conga.OptionalFlag[int]               `default:"8080" help:"Listen port" safe:"true" short:"p"`
+	Token  conga.OptionalFlag[string]            `help:"API secret token"`
+	Labels conga.OptionalFlag[map[string]string] `help:"Labels" safe:"true"`
 }
 
 func (s *Server) Run(ctx context.Context, session *conga.Session) error {
@@ -66,26 +67,36 @@ Invoke the binary with `--why` alongside any other flags or environment variable
 $ SERVER_PORT=9002 SERVER_TOKEN=hunter2 server --why --port 9003
 Value provenance for "server":
 
-  FLAG      VALUE       SOURCE    ENV            CONFIG PATH
-  --host    127.0.0.1   default   SERVER_HOST    host
-  --port    9003        cli       SERVER_PORT    port
-  --token   ██████      env       SERVER_TOKEN   token
+  FLAG       VALUE       SOURCE    ENV             CONFIG PATH
+  --host     127.0.0.1   default   SERVER_HOST     host
+  --port     9003        cli       SERVER_PORT     port
+  --token    ██████      env       SERVER_TOKEN    token
+  --labels               unset     SERVER_LABELS   labels
 
 values are redacted — tag fields safe:"true" to display
 ```
 
-The report divides diagnostics into four areas:
+The report has these parts, in this order, and leaves out any part with nothing to show:
 
-1. Flag table: shows the flag name, winning value (or `██████` if untagged), winning source tier (`cli`, `env`, `config`, or `default`), evaluated environment variable, and configuration key. Unambiguous config origins display as the file basename (`config (app.yaml)`), while colliding basenames show the shortest unique directory prefix (`config (/etc/.../app.yaml)`). Entry-bearing map rows display key counts `(N keys)` and tree branches (`├─ `, `└─ `). Multi-file `ConfigFile` rows display `(N files)` with tree sub-rows, and slice flags with multiple values render `(N values)`.
-2. Config decoders: lists all format decoders registered on the application.
-3. Config paths: lists evaluated candidate file paths and probe outcomes (`loaded`, `not found`). When a bootstrap document records scopes via `SetScoped`, the table lists the origin path once while the value's source column includes the scope.
-4. Features: lists every declared feature toggle, its resolved value, and its contributing tier.
+1. Flag table: each flag's name, winning value (or `██████` for a flag without `safe:"true"`), source (`cli`, `env`, `config`, `default`, or `unset`), environment variable, and config key. A config source shows the file's base name (`config (app.yaml)`), or the shortest unique directory prefix when two loaded files share a name (`config (/etc/.../app.yaml)`). A map flag shows `(N keys)` with a tree of its entries, a multi-file `ConfigFile` shows `(N files)`, and a slice with several values shows `(N values)`.
+2. Global flags: the same table for flags declared on ancestor commands.
+3. Features: every declared feature toggle, its value, and its source.
+4. Config decoders: the registered config formats.
+5. Config paths: each place the program searched and what it found there (`loaded`, `directory does not exist`), with the files it looked for. When a bootstrap document records scopes with `SetScoped`, the table lists the origin path once, and the flag's source shows the scope.
+6. Config file suggestions: where the user could create a config file, when none was loaded.
+7. A redaction note, when any value is shown as `██████`.
 
 Map flags merge key by key across tiers: the flag row displays the key count and highest contributing tier, followed by tree-structured sub-rows (`├─ `, `└─ `) detailing each key's value and source:
 
-```sh
+```sh {8-11}
 $ SERVER_LABELS=region=eu-west-1 server --why --labels shared=cli,team=core
-  --labels   (3 keys)              cli   SERVER_LABELS   labels
+Value provenance for "server":
+
+  FLAG       VALUE       SOURCE    ENV             CONFIG PATH
+  --host     127.0.0.1   default   SERVER_HOST     host
+  --port     8080        default   SERVER_PORT     port
+  --token                unset     SERVER_TOKEN    token
+  --labels   (3 keys)    cli       SERVER_LABELS   labels
              ├─ region=eu-west-1   env
              ├─ shared=cli         cli
              └─ team=core          cli
@@ -101,71 +112,60 @@ app := conga.New[Server]().
 	EnableWhy(conga.WhyOptionJSON())
 ```
 
-Invoking the binary with `--why=json` emits a versioned JSON document to stdout:
+Invoking the binary with `--why=json` writes a versioned JSON document to stdout on one line. Here it is piped through `jq` for reading:
 
 ```sh
-SERVER_PORT=9002 server --why=json --port 9003
-```
-
-```json no-copy
+$ SERVER_PORT=9002 SERVER_TOKEN=hunter2 server --why=json --port 9003 | jq
 {
-  "$schema": "https://conga.sh/schemas/why-v1.json",
+  "$schema": "https://conga.sh/schemas/why/v1.json",
   "schemaVersion": 1,
   "command": "server",
-  "version": "1.0.0",
-  "timestamp": "2026-10-20T08:00:00Z",
-  "workingDirectory": "/workspace",
+  "timestamp": "2026-11-06T23:44:06Z",
+  "workingDirectory": "/tmp",
+  "redacted": true,
   "flags": [
     {
-      "name": "--host",
+      "name": "host",
       "type": "string",
       "value": "127.0.0.1",
       "source": "default",
-      "detail": "127.0.0.1",
       "env": "SERVER_HOST",
-      "configPath": "host",
-      "hidden": false,
-      "redacted": false
+      "configPath": "host"
     },
     {
-      "name": "--port",
+      "name": "port",
       "type": "int",
       "value": 9003,
       "source": "cli",
-      "detail": "--port",
       "env": "SERVER_PORT",
-      "configPath": "port",
-      "hidden": false,
-      "redacted": false
+      "configPath": "port"
     },
     {
-      "name": "--token",
+      "name": "token",
       "type": "string",
-      "value": "██████",
+      "redacted": true,
+      "value": null,
       "source": "env",
-      "detail": "SERVER_TOKEN",
       "env": "SERVER_TOKEN",
-      "configPath": "token",
-      "hidden": false,
-      "redacted": true
+      "configPath": "token"
+    },
+    {
+      "name": "labels",
+      "type": "map",
+      "value": null,
+      "source": "unset",
+      "env": "SERVER_LABELS",
+      "configPath": "labels"
     }
   ],
-  "globalFlags": [],
-  "features": [],
   "config": {
-    "decoders": [".json", ".yaml", ".toml"],
-    "paths": [
-      {
-        "path": "/workspace/config.yaml",
-        "status": "not found",
-        "probedFiles": []
-      }
-    ],
-    "examples": []
-  },
-  "redacted": true
+    "decoders": [],
+    "paths": []
+  }
 }
 ```
+
+A redacted value is `null`, with `"redacted": true` on the flag and on the document. Keys with nothing to report are left out, such as `version` when the app sets none, and `globalFlags` and `features` when they're empty.
 
 Passing `--why=json` without `conga.WhyOptionJSON()` on the builder fails with a usage error (exit 2).
 
@@ -187,17 +187,39 @@ Both methods return an empty string if Why is not enabled on the application. `s
 
 ## Inspect feature provenance
 
-When the root command declares a `conga.Features[T]` container (see [Feature toggles](/reference/struct-tags/#feature-toggles-congafeaturest)), the report ends with a `Features:` table. Each feature reports the tier that last wrote its key; keys no tier set fall back to the field default (`default`) or render `unset`:
+When the root command declares a `conga.Features[T]` container (see [Feature toggles](/reference/struct-tags/#feature-toggles-congafeaturest)), the report lists features after the flag tables. Each feature shows the source that last set it; a feature no source sets shows `default` when its field has a `default` tag, and `unset` otherwise. This run of the [feature toggles example](https://github.com/conga-sh/conga/tree/main/_examples/29-feature-toggles) has the flag table and config sections hidden:
 
-```sh
-$ serve --why
+```sh hidden={3-9,16-30}
+$ feature-toggles --why
+Value provenance for "feature-toggles":
+
+  FLAG              VALUE   SOURCE    ENV            CONFIG PATH
+  --config-file             unset     API_CONFIG     -
+  --feature-gates           unset     API_FEATURES   features
+  --listen          :8080   default   API_LISTEN     listen
+  --cache           128     default   API_CACHE      cache
+
 Features:
-
   FEATURE      VALUE   SOURCE
   http3        false   unset
   admin-api    false   unset
   strict-tls   true    default
   metrics      true    default
+
+Config decoders: .yaml, .yml
+
+Config paths:
+  /home/alice/.config/feature-toggles   directory does not exist
+    looked for: /home/alice/.config/feature-toggles.yaml
+    looked for: /home/alice/.config/feature-toggles.yml
+
+Create a config file at one of:
+  /home/alice/.config/feature-toggles/config.yaml
+  /home/alice/.config/feature-toggles/config.yml
+  /home/alice/.config/feature-toggles/feature-toggles.yaml
+  /home/alice/.config/feature-toggles/feature-toggles.yml
+  /home/alice/.config/feature-toggles.yaml
+  /home/alice/.config/feature-toggles.yml
 ```
 
 ## Where to go next

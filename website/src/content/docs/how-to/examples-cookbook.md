@@ -1,9 +1,9 @@
 ---
 title: How to run the examples
-description: Run the repository's 31 self-contained example programs and find the one covering a given feature.
+description: Run the repository's 33 self-contained example programs and find the one covering a given feature.
 ---
 
-The CONGA repository provides 31 self-contained example programs under [`_examples/`](https://github.com/conga-sh/conga/tree/main/_examples). Each example implements a focused architecture pattern, accompanied by a dedicated README and an automated end-to-end test suite.
+The CONGA repository provides 33 self-contained example programs under [`_examples/`](https://github.com/conga-sh/conga/tree/main/_examples). Each example implements a focused architecture pattern, accompanied by a dedicated README and an automated end-to-end test suite.
 
 ## Run an example locally
 
@@ -53,17 +53,17 @@ go test ./_examples/...
 | # | Example | Demonstrates |
 |---|---------|--------------|
 | 06 | [flag-constraints](https://github.com/conga-sh/conga/tree/main/_examples/06-flag-constraints) | `xor`, `and`, `range` (int, duration, byte size), `len`, `items`, and `enum`. |
-| 31 | [oneof-groups](https://github.com/conga-sh/conga/tree/main/_examples/31-oneof-groups) | Exactly-one `oneof:"group"` groups: missing and duplicate selections both exit 2, and the usage synopsis renders the alternation. |
-| 16 | [help-variables](https://github.com/conga-sh/conga/tree/main/_examples/16-help-variables) | `{{...}}` help variables that inline a declared constraint instead of the automatic bracket hint, including `{{default}}` value-slot suppression. |
 | 07 | [dynamic-validation](https://github.com/conga-sh/conga/tree/main/_examples/07-dynamic-validation) | The `Validator` interface for cross-field semantic validation before hooks execute. |
 | 08 | [subcommands-basic](https://github.com/conga-sh/conga/tree/main/_examples/08-subcommands-basic) | `Command[T]` routing, aliases, visual sections, hidden commands, and typo suggestions. |
-| 32 | [implicit-command](https://github.com/conga-sh/conga/tree/main/_examples/32-implicit-command) | `implicit:"true"` default subcommand: `tool ./script.ts` runs like `tool run ./script.ts`, a child-only flag selects it, the explicit sibling `install` still wins, help marks the row `(default)`, and `--version` stays root-only. |
 | 09 | [deep-hierarchy-context](https://github.com/conga-sh/conga/tree/main/_examples/09-deep-hierarchy-context) | `session.Root[T]()`, root-down `Command[T].Get()` traversal, `session.Path()`, `session.Name()`, and `envprefix` tags. |
 | 10 | [builtins-help-version](https://github.com/conga-sh/conga/tree/main/_examples/10-builtins-help-version) | Opt-in `HelpCommand`/`VersionCommand` subcommands, `version --json`, `HelpShortFlag`/`VersionShortFlag` short flags, and session renderers. |
 | 11 | [trailing-args-forwarding](https://github.com/conga-sh/conga/tree/main/_examples/11-trailing-args-forwarding) | `DashArgs` (`--` forwarding) versus `RawArgs` (bare forwarding). |
 | 12 | [lifecycle-hooks](https://github.com/conga-sh/conga/tree/main/_examples/12-lifecycle-hooks) | `PreRun -> Run -> PostRun -> Finally` sequence, error short-circuiting, and guaranteed teardown. |
+| 16 | [help-variables](https://github.com/conga-sh/conga/tree/main/_examples/16-help-variables) | `{{...}}` help variables that inline a declared constraint instead of the automatic bracket hint, including `{{default}}` value-slot suppression. |
 | 27 | [strict-tag-validation](https://github.com/conga-sh/conga/tree/main/_examples/27-strict-tag-validation) | `app.AllowTags(...)` for schemas carrying foreign struct tags. |
 | 29 | [feature-toggles](https://github.com/conga-sh/conga/tree/main/_examples/29-feature-toggles) | `conga.Features[T]` gating flags and whole subcommands through `feature:"..."` expressions, activated from the CLI, environment, or a config section. |
+| 31 | [oneof-groups](https://github.com/conga-sh/conga/tree/main/_examples/31-oneof-groups) | Exactly-one `oneof:"group"` groups: missing and duplicate selections both exit 2, and the usage synopsis renders the alternation. |
+| 32 | [implicit-command](https://github.com/conga-sh/conga/tree/main/_examples/32-implicit-command) | `implicit:"true"` default subcommand: `tool ./script.ts` runs like `tool run ./script.ts`, a child-only flag selects it, the explicit sibling `install` still wins, help marks the row `(default)`, and `--version` stays root-only. |
 
 ### Configuration
 

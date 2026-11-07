@@ -153,14 +153,28 @@ Users may spell a name in kebab-case, snake_case, or camelCase: `admin-api`, `ad
 
 Run with `--why` to see each feature's value and the source that set it:
 
-```sh
+```sh hidden={3-10,17-21}
 $ API_FEATURES=admin-api=true feature-toggles -c features.yaml --why
+Value provenance for "feature-toggles":
+
+  FLAG              VALUE                        SOURCE    ENV            CONFIG PATH
+  --config-file     features.yaml                cli       API_CONFIG     -
+  --feature-gates   admin-api=true, http3=true   env       API_FEATURES   features
+  --listen          :8080                        default   API_LISTEN     listen
+  --quic                                         unset     API_QUIC       quic
+  --cache           128                          default   API_CACHE      cache
+
 Features:
   FEATURE      VALUE   SOURCE
   http3        true    config (features.yaml)
   admin-api    true    env
   strict-tls   true    default
   metrics      true    default
+
+Config decoders: .yaml, .yml
+
+Config paths:
+  features.yaml   loaded
 ```
 
 `unset` marks a feature that keeps its zero value: it has no `default` and no source sets it. See [How to inspect value provenance](/how-to/inspect-value-provenance/) for the rest of the report.

@@ -27,7 +27,7 @@ func (d *DeployCmd) Run(ctx context.Context, session *conga.Session) error {
 
 Field names convert to kebab-case by default (`Deploy` becomes the `deploy` subcommand). The `summary` tag defines the short text displayed in parent command listings.
 
-Leaf commands must implement `Run(ctx context.Context, session *conga.Session) error`. Defining a leaf command struct without a `Run` method produces an `ErrSchema` error during schema initialization.
+Leaf commands must implement `Run(ctx context.Context, session *conga.Session) error`. A leaf command without `Run` fails when a user invokes it, with `runner not implemented: command "<name>" does not implement conga.Runner` (exit 1). [`conga-lint`](/reference/conga-lint/) reports the missing method before you build.
 
 An enclosing parent command may also implement `Run`, executing when the application is invoked without a subcommand; [About subcommands and hierarchy](/explanation/subcommands/#routing-nodes-versus-runnable-commands) covers routing versus executable nodes.
 

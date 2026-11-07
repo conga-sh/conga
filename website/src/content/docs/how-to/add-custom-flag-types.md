@@ -36,7 +36,7 @@ When a flag value cannot be parsed, CONGA wraps the returned error in `conga.Err
 
 ```sh error={2}
 $ service --ports 80
-service: error: invalid value "80" for flag --ports: invalid port range "80", expected START-END
+service: error: invalid port range "80", expected START-END for flag --ports
 ```
 
 ## Access field tags and streams during unmarshaling
@@ -139,22 +139,26 @@ Re-registering a type overwrites the previous parser, allowing applications to r
 
 ## Register custom map values
 
-CONGA natively decodes primitive map types such as `map[string]string` and `map[string]int` without registration. When the map value is a custom type, register the map type with `app.RegisterMap`:
+A `map[string]string` flag binds with no registration. Every other map type needs `app.RegisterMap`, and its value type must be one CONGA can parse: a built-in type such as `int` or `time.Duration`, or a type that implements `encoding.TextUnmarshaler`. This variation adds named port ranges to `Service`, reusing `PortRange` as the map value:
 
-```go title="main.go"
-type Router struct {
-	Routes map[string]net.IPNet `help:"Routing table entries in key=cidr format"`
+```go title="main.go" ins={3,17}
+type Service struct {
+	Ports  conga.RequiredFlag[PortRange]            `help:"Port range in format START-END"`
+	Expose conga.OptionalFlag[map[string]PortRange] `help:"Named port ranges in NAME=START-END format"`
 }
 
-func (r *Router) Run(ctx context.Context, session *conga.Session) error {
+func (s *Service) Run(ctx context.Context, session *conga.Session) error {
+	expose := s.Expose.Get()
+	for _, name := range slices.Sorted(maps.Keys(expose)) {
+		fmt.Fprintf(session.Stdout(), "%s: %d-%d\n", name, expose[name].Start, expose[name].End)
+	}
+
 	return nil
 }
 
 func main() {
-	app := conga.New[Router]()
-
-	app.RegisterType(parseCIDR)
-	app.RegisterMap[map[string]net.IPNet]()
+	app := conga.New[Service]().
+		RegisterMap[map[string]PortRange]()
 
 	if err := app.Run(); err != nil {
 		app.Exit(err)
@@ -162,13 +166,24 @@ func main() {
 }
 ```
 
-Map keys must have an underlying string type, enforced at compile time by RegisterMap's type constraints.
+Map keys must have an underlying string type; `RegisterMap`'s type constraints enforce this at compile time.
 
-Supply map entries using `KEY=VALUE` syntax across repeated flags or separated by commas:
+Users pass entries as `KEY=VALUE`, repeating the flag or separating entries with commas:
 
 ```sh
-router --routes primary=10.0.0.0/8 --routes backup=192.168.0.0/16
+$ service --ports 8000-8100 --expose web=80-90 --expose admin=9000-9010
+admin: 9000-9010
+web: 80-90
 ```
+
+`--expose web=80-90,admin=9000-9010` gives the same map. A bad value names its key:
+
+```sh error={2}
+$ service --ports 8000-8100 --expose web=80
+service: error: value for key "web": invalid port range "80", expected START-END for flag --expose
+```
+
+Without the `RegisterMap` call, the flag fails on first use with `map type map[string]main.PortRange requires registration via app.RegisterMap`.
 
 ## Where to go next
 

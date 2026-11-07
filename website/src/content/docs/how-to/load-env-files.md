@@ -61,14 +61,46 @@ $ multiformat-and-dotenv
 
 `--why` names the file behind each value:
 
-```sh
+```sh hidden={5,11-38}
 $ multiformat-and-dotenv --why
+Value provenance for "multiformat-and-dotenv":
+
   FLAG             VALUE       SOURCE             ENV            CONFIG PATH
+  --config-file                unset              -              -
   --service-name   local svc   env (.env)         SERVICE_NAME   service-name
   --port           8000        env (.env)         PORT           port
   --database-url   ██████      env (.env)         DATABASE_URL   database-url
   --max-workers    4           default            MAX_WORKERS    max-workers
   --api-key        ██████      env (.env.local)   API_KEY        api-key
+
+Config decoders: .hcl, .json, .toml, .yaml, .yml
+
+Config paths:
+  /home/alice/.config/multiformat-and-dotenv   directory does not exist
+    looked for: /home/alice/.config/multiformat-and-dotenv.hcl
+    looked for: /home/alice/.config/multiformat-and-dotenv.json
+    looked for: /home/alice/.config/multiformat-and-dotenv.toml
+    looked for: /home/alice/.config/multiformat-and-dotenv.yaml
+    looked for: /home/alice/.config/multiformat-and-dotenv.yml
+
+Create a config file at one of:
+  /home/alice/.config/multiformat-and-dotenv/config.hcl
+  /home/alice/.config/multiformat-and-dotenv/config.json
+  /home/alice/.config/multiformat-and-dotenv/config.toml
+  /home/alice/.config/multiformat-and-dotenv/config.yaml
+  /home/alice/.config/multiformat-and-dotenv/config.yml
+  /home/alice/.config/multiformat-and-dotenv/multiformat-and-dotenv.hcl
+  /home/alice/.config/multiformat-and-dotenv/multiformat-and-dotenv.json
+  /home/alice/.config/multiformat-and-dotenv/multiformat-and-dotenv.toml
+  /home/alice/.config/multiformat-and-dotenv/multiformat-and-dotenv.yaml
+  /home/alice/.config/multiformat-and-dotenv/multiformat-and-dotenv.yml
+  /home/alice/.config/multiformat-and-dotenv.hcl
+  /home/alice/.config/multiformat-and-dotenv.json
+  /home/alice/.config/multiformat-and-dotenv.toml
+  /home/alice/.config/multiformat-and-dotenv.yaml
+  /home/alice/.config/multiformat-and-dotenv.yml
+
+values are redacted — tag fields safe:"true" to display
 ```
 
 When either file is missing, the program skips it, so the same binary runs where the environment comes from the host alone.
@@ -77,11 +109,46 @@ When either file is missing, the program skips it, so the same binary runs where
 
 A variable already set in the shell, container, or CI runner keeps its value; the files fill in only what the host leaves unset. `--why` shows a host value as plain `env`:
 
-```sh
+```sh {7} hidden={5,8-38}
 $ PORT=9090 multiformat-and-dotenv --why
+Value provenance for "multiformat-and-dotenv":
+
   FLAG             VALUE       SOURCE             ENV            CONFIG PATH
+  --config-file                unset              -              -
   --service-name   local svc   env (.env)         SERVICE_NAME   service-name
   --port           9090        env                PORT           port
+  --database-url   ██████      env (.env)         DATABASE_URL   database-url
+  --max-workers    4           default            MAX_WORKERS    max-workers
+  --api-key        ██████      env (.env.local)   API_KEY        api-key
+
+Config decoders: .hcl, .json, .toml, .yaml, .yml
+
+Config paths:
+  /home/alice/.config/multiformat-and-dotenv   directory does not exist
+    looked for: /home/alice/.config/multiformat-and-dotenv.hcl
+    looked for: /home/alice/.config/multiformat-and-dotenv.json
+    looked for: /home/alice/.config/multiformat-and-dotenv.toml
+    looked for: /home/alice/.config/multiformat-and-dotenv.yaml
+    looked for: /home/alice/.config/multiformat-and-dotenv.yml
+
+Create a config file at one of:
+  /home/alice/.config/multiformat-and-dotenv/config.hcl
+  /home/alice/.config/multiformat-and-dotenv/config.json
+  /home/alice/.config/multiformat-and-dotenv/config.toml
+  /home/alice/.config/multiformat-and-dotenv/config.yaml
+  /home/alice/.config/multiformat-and-dotenv/config.yml
+  /home/alice/.config/multiformat-and-dotenv/multiformat-and-dotenv.hcl
+  /home/alice/.config/multiformat-and-dotenv/multiformat-and-dotenv.json
+  /home/alice/.config/multiformat-and-dotenv/multiformat-and-dotenv.toml
+  /home/alice/.config/multiformat-and-dotenv/multiformat-and-dotenv.yaml
+  /home/alice/.config/multiformat-and-dotenv/multiformat-and-dotenv.yml
+  /home/alice/.config/multiformat-and-dotenv.hcl
+  /home/alice/.config/multiformat-and-dotenv.json
+  /home/alice/.config/multiformat-and-dotenv.toml
+  /home/alice/.config/multiformat-and-dotenv.yaml
+  /home/alice/.config/multiformat-and-dotenv.yml
+
+values are redacted — tag fields safe:"true" to display
 ```
 
 Expansion follows the same rule. With `DB_HOST=db.prod` on the host, `${DB_HOST}` in `.env` expands to the host value:
@@ -103,9 +170,14 @@ In this variation, `base.env` sets `PORT` and `SERVICE_NAME`, and `secrets.env` 
 
 ```sh
 $ multiformat-and-dotenv --why
+Value provenance for "multiformat-and-dotenv":
+
   FLAG             VALUE        SOURCE              ENV            CONFIG PATH
   --service-name   secret-svc   env (secrets.env)   SERVICE_NAME   service-name
   --port           8100         env (base.env)      PORT           port
+  --database-url                unset               DATABASE_URL   database-url
+  --max-workers    4            default             MAX_WORKERS    max-workers
+  --api-key                     unset               API_KEY        api-key
 ```
 
 `--why` shows a file by its name, and adds the directory when two loaded files share a name (`env (.env)` beside `env (sub/.env)`).
@@ -137,6 +209,8 @@ func (c *CLI) Bootstrap(_ context.Context, b *conga.Bootstrap) error {
 
 ```sh
 $ multiformat-and-dotenv --dir sub --why
+Value provenance for "multiformat-and-dotenv":
+
   FLAG             VALUE     SOURCE       ENV            CONFIG PATH
   --dir            sub       cli          -              dir
   --service-name   api-svc   default      SERVICE_NAME   service-name
@@ -175,6 +249,8 @@ multiformat-and-dotenv: error: config error: cannot read .env file "nope.env": o
 
 ```sh
 $ multiformat-and-dotenv --dir sub --why
+Value provenance for "multiformat-and-dotenv":
+
   FLAG             VALUE      SOURCE           ENV            CONFIG PATH
   --dir            sub        cli              -              dir
   --service-name   root-svc   env (.env)       SERVICE_NAME   service-name

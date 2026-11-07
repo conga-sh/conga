@@ -58,7 +58,7 @@ CONGA ships decoders for JSON, TOML, YAML, and HCL in `conga/decoder/...`; see [
 
 ## Search for a file in several places
 
-Add `ConfigPaths` with the places to look, highest precedence first. Each entry is a directory; the program looks there for `config.<ext>` and `<app-name>.<ext>` for every registered extension. `~` and `${VAR:-default}` expand:
+Add `ConfigPaths` with the places to look, highest precedence first. For an entry that is an existing directory, the program looks there for `config.<ext>` and `<app-name>.<ext>` for every registered extension. An existing file is used as it is. An entry that does not exist is tried as `<entry>.<ext>`: without a `~/.config/cascading-searchpaths` directory, the program looks for `~/.config/cascading-searchpaths.yaml`. `~` and `${VAR:-default}` expand:
 
 ```go title="main.go" ins={6}
 app := conga.New[CLI]().
@@ -71,14 +71,31 @@ app := conga.New[CLI]().
 
 The program loads the first file it finds and stops. In this run, all three places have a file, and the one in the working directory wins:
 
-```sh
+```sh {6} hidden={10-24}
 $ cascading-searchpaths --why
+Value provenance for "cascading-searchpaths":
+
   FLAG             VALUE                        SOURCE                                ENV   CONFIG PATH
   --config-file    cascading-searchpaths.yaml   config                                -     -
   --api-endpoint   https://api.local.dev        config (cascading-searchpaths.yaml)   -     api-endpoint
   --timeout        10s                          default                               -     timeout
   --theme          dark                         default                               -     theme
   --telemetry      true                         default                               -     telemetry
+
+Config decoders: .yaml, .yml
+
+Config paths:
+  .                                           loaded: cascading-searchpaths.yaml
+  /home/alice/.config/cascading-searchpaths   no config file
+    looked for: /home/alice/.config/cascading-searchpaths/config.yaml
+    looked for: /home/alice/.config/cascading-searchpaths/config.yml
+    looked for: /home/alice/.config/cascading-searchpaths/cascading-searchpaths.yaml
+    looked for: /home/alice/.config/cascading-searchpaths/cascading-searchpaths.yml
+  /etc/cascading-searchpaths                  no config file
+    looked for: /etc/cascading-searchpaths/config.yaml
+    looked for: /etc/cascading-searchpaths/config.yml
+    looked for: /etc/cascading-searchpaths/cascading-searchpaths.yaml
+    looked for: /etc/cascading-searchpaths/cascading-searchpaths.yml
 ```
 
 Without `ConfigPaths`, the program looks in the user's config directory, `${XDG_CONFIG_HOME:-~/.config}`; [About the config cascade](/explanation/config-cascade/) covers that default. To load one fixed file instead of searching, use `conga.ConfigExplicit(path)`; the run fails if that file is missing.
@@ -98,15 +115,17 @@ Each value now comes from the highest file that sets it. Here the working direct
 
 ```sh
 $ cascading-searchpaths --why
-  FLAG             VALUE                   SOURCE                                                ENV   CONFIG PATH
-  --config-file    (3 files)               config                                                -     -
+Value provenance for "cascading-searchpaths":
+
+  FLAG             VALUE                   SOURCE                                          ENV   CONFIG PATH
+  --config-file    (3 files)               config                                          -     -
                    ├─ /etc/cascading-searchpaths/cascading-searchpaths.yaml
                    ├─ /home/alice/.config/cascading-searchpaths/cascading-searchpaths.yaml
                    └─ cascading-searchpaths.yaml
-  --api-endpoint   https://api.local.dev   config (cascading-searchpaths.yaml)                   -     api-endpoint
-  --timeout        15s                     config (/home/alice/.../cascading-searchpaths.yaml)   -     timeout
-  --theme          light                   config (/home/alice/.../cascading-searchpaths.yaml)   -     theme
-  --telemetry      false                   config (/etc/.../cascading-searchpaths.yaml)          -     telemetry
+  --api-endpoint   https://api.local.dev   config (cascading-searchpaths.yaml)             -     api-endpoint
+  --timeout        15s                     config (/home/.../cascading-searchpaths.yaml)   -     timeout
+  --theme          light                   config (/home/.../cascading-searchpaths.yaml)   -     theme
+  --telemetry      false                   config (/etc/.../cascading-searchpaths.yaml)    -     telemetry
 
 Config decoders: .yaml, .yml
 
@@ -126,6 +145,8 @@ With `multi:"true"`, users can repeat `-c`, and a later file beats an earlier on
 
 ```sh
 $ cascading-searchpaths -c team.yaml -c ci.yaml --why
+Value provenance for "cascading-searchpaths":
+
   FLAG             VALUE                    SOURCE               ENV   CONFIG PATH
   --config-file    (2 files)                cli                  -     -
                    ├─ team.yaml
@@ -134,6 +155,12 @@ $ cascading-searchpaths -c team.yaml -c ci.yaml --why
   --timeout        5s                       config (ci.yaml)     -     timeout
   --theme          solarized                config (team.yaml)   -     theme
   --telemetry      true                     default              -     telemetry
+
+Config decoders: .yaml, .yml
+
+Config paths:
+  team.yaml   loaded
+  ci.yaml     loaded
 ```
 
 Without `multi:"true"`, the flag takes one file and its help reads `--config-file=PATH`. A named file must exist:
@@ -182,10 +209,26 @@ server:
   port: 9000
 ```
 
-```sh
+```sh hidden={6-19}
 $ cascading-searchpaths -c server.yaml server --why
+Value provenance for "cascading-searchpaths server":
+
   FLAG     VALUE   SOURCE                 ENV   CONFIG PATH
   --port   9000    config (server.yaml)   -     server.port
+
+Global Flags:
+
+  FLAG             VALUE                    SOURCE    ENV   CONFIG PATH
+  --config-file    server.yaml              cli       -     -
+  --api-endpoint   https://api.default.io   default   -     api-endpoint
+  --timeout        10s                      default   -     timeout
+  --theme          dark                     default   -     theme
+  --telemetry      true                     default   -     telemetry
+
+Config decoders: .yaml, .yml
+
+Config paths:
+  server.yaml   loaded
 ```
 
 [About subcommands and hierarchy](/explanation/subcommands/#hierarchical-configuration-mapping) describes how deeper hierarchies map.

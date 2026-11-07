@@ -121,8 +121,10 @@ A list on the command line replaces the variable's list rather than adding to it
 
 Run with `--why`. The `SOURCE` column shows `env` for values from a variable, and the `ENV` column lists the variables each flag reads:
 
-```sh
+```sh {6-7} hidden={13-23}
 $ SERVER_HOST=0.0.0.0 PORT=9001 twelve-factor-precedence -p 9003 --why
+Value provenance for "twelve-factor-precedence":
+
   FLAG            VALUE     SOURCE    ENV                  CONFIG PATH
   --config-file             unset     SERVER_CONFIG        -
   --port          9003      cli       PORT                 port
@@ -131,6 +133,18 @@ $ SERVER_HOST=0.0.0.0 PORT=9001 twelve-factor-precedence -p 9003 --why
   --debug         false     default   SERVER_DEBUG         debug
   --worker-id               unset     SERVER_WORKER_ID     worker-id
   --trace                   unset     -                    trace
+  --auth-token              unset     SERVER_AUTH_TOKEN    -
+
+Config decoders: .toml
+
+Config paths:
+  /home/alice/.config/twelve-factor-precedence   directory does not exist
+    looked for: /home/alice/.config/twelve-factor-precedence.toml
+
+Create a config file at one of:
+  /home/alice/.config/twelve-factor-precedence/config.toml
+  /home/alice/.config/twelve-factor-precedence/twelve-factor-precedence.toml
+  /home/alice/.config/twelve-factor-precedence.toml
 ```
 
 `PORT=9001` lost to `-p 9003` on the command line. `--why` prints values only for flags tagged `safe:"true"` and shows the rest as `██████`. See [How to inspect value provenance](/how-to/inspect-value-provenance/) for the rest of the report.

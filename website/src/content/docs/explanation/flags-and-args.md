@@ -79,7 +79,7 @@ Positional arguments belong to leaf commands. A command that declares `Command[T
 Many command-line tools wrap existing utilities or forward arguments to compilers, test runners, or sub-processes. CONGA provides two dedicated containers for trailing tokens:
 
 ### DashArgs for delimited forwarding
-`conga.DashArgs` captures tokens that appear after the standard POSIX `--` delimiter. The host application parses its own flags up to the delimiter, and places all subsequent tokens into `DashArgs`. Tools like `go test` use this pattern to separate build options from test binary flags (for example, `go test ./... -- -v`).
+`conga.DashArgs` captures tokens that appear after the standard POSIX `--` delimiter. The host application parses its own flags up to the delimiter, and places all subsequent tokens into `DashArgs`. Tools like `cargo run` use this pattern to separate their own options from the program's flags (for example, `cargo run --release -- --port 8080`).
 
 `--` also ends subcommand routing for the rest of the invocation: no token after the delimiter is matched against a `Command[T]` name, even when the active command declares no trailing collector. Without a `DashArgs` field, post-terminator tokens are positional input, and a branch command (which cannot also declare positional arguments) rejects them; `myctl -- deploy` therefore fails instead of selecting the `deploy` subcommand. Shell completion follows the same boundary: it offers no subcommand candidates after `--`, and no candidates at all when the active command has neither a positional slot nor a trailing collector for the word.
 

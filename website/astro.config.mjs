@@ -1,6 +1,7 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import codeblocks from 'starlight-codeblocks';
+import starlightLinksValidator from 'starlight-links-validator';
 
 function pluginNoCopy() {
   return {
@@ -47,6 +48,9 @@ export default defineConfig({
           href: 'https://github.com/conga-sh/conga',
         },
       ],
+      editLink: {
+        baseUrl: 'https://github.com/conga-sh/conga/edit/main/website/',
+      },
       customCss: ['./src/styles/custom.css'],
       plugins: [
         codeblocks({
@@ -54,6 +58,7 @@ export default defineConfig({
             files: { '.elv': 'file-type-shell', '.env': 'file-type-dotenv' },
           },
         }),
+        starlightLinksValidator(),
       ],
       expressiveCode: {
         plugins: [pluginNoCopy()],

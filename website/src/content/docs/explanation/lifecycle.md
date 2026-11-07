@@ -203,7 +203,7 @@ Understanding the boundary between these two phases clarifies how errors are cla
 |---|---|---|
 | **Phase** | Application setup and schema compile | Argument parsing, validation, and hook execution |
 | **Trigger** | `conga.New[T]()`, first `Run()`, or `conga-lint` | `app.Run()` or `app.RunContext(ctx)` |
-| **Checks** | Struct tags, type compatibility, flag collisions, leaf `Runner` presence | Value ranges, business constraints, external resources, command actions |
+| **Checks** | Struct tags, type compatibility, flag collisions | Value ranges, business constraints, external resources, command actions |
 | **Error category** | `ErrSchema` (Programmer mistake) | `ErrValidation` (Input mistake) or Runtime failure |
 | **Teardown (`Finally`)** | **Never invoked** (pipeline never initialized) | **Guaranteed** for all initialized commands |
 | **Exit code** | Exit 1 (Programmer error) | Exit 2 (Validation) or Exit 1 (Runtime) |

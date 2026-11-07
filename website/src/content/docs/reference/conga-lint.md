@@ -7,11 +7,11 @@ description: The static schema analyzer — checks, discovery contract, and flag
 
 ## Checks
 
-The analyzer delegates to the exported validators in `internal/spec`, so static diagnostics match runtime validation:
+Each check reports the same mistake, with the same message, that the program reports at startup:
 
 | Check | Runtime contract mirrored |
 |-------|---------------------------|
-| Leaf command Runner enforcement | The bind-time `noRunnerError`: any command struct without `Command[T]` fields must implement `Run(context.Context, *conga.Session) error`. |
+| Leaf command Runner enforcement | A command struct without `Command[T]` fields must implement `Run(context.Context, *conga.Session) error`; without it, the command fails when invoked. |
 | Branch/leaf separation | The runtime `ErrSchema` rule that a command declaring positional arguments cannot also declare `Command[T]` subcommands; declared built-in help, version, and completion command fields do not count as branching. |
 | RawArgs boundary | The runtime `ErrSchema` rule that `RawArgs` cannot coexist with any command field (user subcommands or declared built-in help, version, and completion commands) and that every positional argument before it is a required scalar. |
 | Duplicate trailing collectors | The runtime `ErrDuplicateFlag` rejection of a second `DashArgs` or `RawArgs` field on one command struct, naming the first declaration. |

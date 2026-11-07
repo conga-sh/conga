@@ -36,6 +36,7 @@ func New[T any](root ...*T) *App[T]
 | `RegisterMap[M](opts...)` | Register a `map[K]V` parser for a map type with string-compatible keys |
 | `Args(args)` | Custom argument slice (defaults to `os.Args[1:]`) |
 | `UsageOnError(mode)` | Error-time usage rendering mode |
+| `Stdin(r)` | Input reader for `session.Stdin()`, `File` fields with `stdin`, and `FileContent` reading `-` (default `os.Stdin`) |
 | `Stdout(w)` / `Stderr(w)` | Output writers (default `os.Stdout`/`os.Stderr`) |
 | `SetenvFunc(fn)` | Writer for variables loaded by [Dotenv](/reference/dotenv/) (default `os.Setenv`) |
 | `ExitFunc(handler)` | Custom exit handler for `Exit` |
@@ -142,9 +143,7 @@ Base categories (`ErrSchema`, `ErrParse`, `ErrCoerce`, `ErrValidation`, `ErrConf
 ```go
 func WhyOptionJSON() WhyOption
 
-type WhyOption interface {
-	applyWhy(settings *whySettings)
-}
+type WhyOption interface{ /* sealed */ }
 ```
 
 `WhyOption` is a sealed interface produced by option constructors such as `WhyOptionJSON()`. `WhyOptionJSON` enables machine-readable `--why=json` reports on `App.EnableWhy`. By default, `EnableWhy` compiles only the human-readable text table renderer, dead-code eliminating the JSON serialization pipeline unless opted in.
@@ -154,9 +153,7 @@ type WhyOption interface {
 ```go
 func CompletionEnvPrefix(prefix string) CompletionOption
 
-type CompletionOption interface {
-	applyCompletion(settings *completionSettings)
-}
+type CompletionOption interface{ /* sealed */ }
 ```
 
 `CompletionOption` is a sealed interface produced by option constructors such as `CompletionEnvPrefix`. Pass `CompletionEnvPrefix` to `App.EnableCompletion` to override the derived environment-variable prefix (`<APP>_`) that names the completion sideband toggles `<APP>_COMPLETION_DESCRIPTIONS`, `<APP>_COMPLETION_ALIASES`, and `<APP>_COMPLETION_BARE_SPACE_FLAGS`. The prefix is normalized to upper snake case; an empty prefix keeps the application-name derivation. POSIX shells cannot assign a variable name that begins with a digit, so a prefix derived from such an application name gains a leading underscore (an application named `7z` reads `_7Z_COMPLETION_DESCRIPTIONS`), while an explicit prefix that normalizes to a leading digit is rejected at schema build.

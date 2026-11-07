@@ -28,7 +28,7 @@ Resolution occurs before any lifecycle hook or command body executes. To feed th
 
 ```text no-copy
 Phase 1: Config File Discovery
-  CLI (--config-file) --> Env ($PREFIX_CONFIG) --> Explicit --> Search Tiers (XDG/Paths)
+  CLI (--config-file) --> ConfigExplicit --> Env ($PREFIX_CONFIG) --> Search Tiers (XDG/Paths)
                                                                        |
                                                                        v
                                                              Loaded Config Map
@@ -39,7 +39,7 @@ Phase 2: Flag Value Binding                                            v
 
 ### Phase 1: Config file discovery
 
-Before binding individual flags, CONGA determines which config files exist and loads them into a flat key-value map. Discovery follows its own precedence (`--config-file`, then `<PREFIX>_CONFIG`, then `conga.ConfigExplicit(...)`, then probed search tiers), with per-tier existence semantics and merge rules described in [About the config cascade](/explanation/config-cascade/). Once discovered files load and validate against the schema, their keys form the lookup table for Phase 2.
+Before binding individual flags, CONGA determines which config files exist and loads them into a flat key-value map. Discovery follows its own precedence (`--config-file`, then `conga.ConfigExplicit(...)`, then `<PREFIX>_CONFIG`, then probed search tiers), with per-tier existence semantics and merge rules described in [About the config cascade](/explanation/config-cascade/). Once discovered files load and validate against the schema, their keys form the lookup table for Phase 2.
 
 An application can contribute to this phase with a [`conga.Bootstrapper`](/how-to/load-domain-files/): CONGA binds fields tagged `bootstrap:"true"` on the selected command chain before Phase 1 begins (`CLI > environment > default`), runs `Bootstrap`, and then resolves Phase 1 and Phase 2 normally. `Bootstrap.SetConfig` supplies a configuration document in code, overlaying file-resolved values key by key; file discovery, decoders, and search tiers stay active. The tagged fields bind a second time in Phase 2, now including the config tier.
 
@@ -83,12 +83,12 @@ Unlike scalar and slice flags where a single winning tier replaces all lower tie
 
 A higher tier overrides only the specific keys it names. Keys supplied by lower tiers persist into the final map unless explicitly overridden:
 
-| Tier | Contributed keys | Effective map after tier |
+| Source, lowest first | Contributed keys | Effective map after this source |
 |---|---|---|
-| **1. Default tag** | `region=us-east-1`, `timeout=30s` | `region=us-east-1`, `timeout=30s` |
-| **2. Config file** | `timeout=60s`, `retries=3` | `region=us-east-1`, `timeout=60s`, `retries=3` |
-| **3. Environment** | `retries=5`, `debug=true` | `region=us-east-1`, `timeout=60s`, `retries=5`, `debug=true` |
-| **4. CLI flag** | `debug=false`, `profile=dev` | `region=us-east-1`, `timeout=60s`, `retries=5`, `debug=false`, `profile=dev` |
+| Default tag | `region=us-east-1`, `timeout=30s` | `region=us-east-1`, `timeout=30s` |
+| Config file | `timeout=60s`, `retries=3` | `region=us-east-1`, `timeout=60s`, `retries=3` |
+| Environment | `retries=5`, `debug=true` | `region=us-east-1`, `timeout=60s`, `retries=5`, `debug=true` |
+| Command-line flag | `debug=false`, `profile=dev` | `region=us-east-1`, `timeout=60s`, `retries=5`, `debug=false`, `profile=dev` |
 
 This folding model matches conventions established by tools such as Kubernetes (`--feature-gates`), Helm (`--set`), and Git (`git -c`). A key set by a lower tier can be updated from a higher tier, but cannot be removed entirely.
 

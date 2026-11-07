@@ -23,7 +23,6 @@ type DeployCommand struct {
 ```
 
 Because command nesting is expressed through ordinary struct fields, the shape of the command tree is known at compile time and validated during application startup. Before the engine processes a single command-line token, it inspects the complete struct graph:
-- It confirms that every leaf command implements the `Runner` interface (`Run(ctx context.Context, session *conga.Session) error`).
 - It verifies that names, aliases, and short flags are unique across ancestor-descendant paths.
 - It validates all struct tags, detecting typos and unsupported options immediately.
 
@@ -46,7 +45,7 @@ When an intermediate command struct implements `Runner` and also declares `Comma
 - Supplying a child command token routes execution directly to the child.
 
 ### Leaf commands
-Terminal nodes in the command hierarchy must implement `Runner`. Defining a leaf command struct without a `Run` method produces an `ErrSchema` error during schema initialization.
+Terminal nodes in the command hierarchy must implement `Runner`. The engine checks this only for the command an invocation selects: a leaf without `Run` fails when invoked, with `runner not implemented: command "<name>" does not implement conga.Runner` (exit 1), while its siblings keep working. `conga-lint` checks every leaf statically.
 
 ## Implicit subcommands
 

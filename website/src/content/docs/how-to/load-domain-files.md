@@ -162,11 +162,16 @@ Each `ConfigDocument` write takes an origin, a label you choose (here the file p
 
 ```sh
 $ bootstrapper --pipeline deploy --why
+Value provenance for "bootstrapper":
+
   FLAG            VALUE           SOURCE                                     ENV                CONFIG PATH
   --file          pipeline.yaml   default                                    FLOW_FILE          file
   --pipeline      deploy          cli                                        FLOW_PIPELINE      pipeline
   --parallelism   1               config (pipeline.yaml › pipeline deploy)   FLOW_PARALLELISM   parallelism
   --log-level     debug           config (pipeline.yaml › pipeline deploy)   FLOW_LOG_LEVEL     log-level
+
+Config paths:
+  pipeline.yaml   loaded
 ```
 
 A later write to the same key replaces the earlier one, and a `Set` replaces any entries written with `SetKey`. Leaving out `SetConfig`, or passing it `nil`, contributes no settings. [The conga reference](/reference/conga/) has the signatures.
