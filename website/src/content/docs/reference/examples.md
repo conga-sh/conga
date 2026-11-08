@@ -125,7 +125,7 @@ Uses: `File`, `Dir`, `ByteSize`, `FileContent`, `SelfValidator`, `existing`, `st
 
 ### 21 pluggable-types
 
-[Source](https://github.com/conga-sh/conga/tree/main/_examples/21-pluggable-types) · Guide: [How to add custom flag types](/how-to/add-custom-flag-types/)
+[Source](https://github.com/conga-sh/conga/tree/main/_examples/21-pluggable-types) · Guides: [How to use the network, system, and timezone packages](/how-to/use-system-network-timezone-types/), [How to add custom flag types](/how-to/add-custom-flag-types/)
 
 Flags of the standard library types `*time.Location` and `syscall.Signal`, which `App.Use` adds through the `timezone` and `system` packages, and a custom `Percent` type added with `App.RegisterType`.
 
@@ -728,7 +728,7 @@ Uses: `Predictable`, `predict.FileFilterable`, `predictor`, `App.Predictor`, `Ap
 
 ### 20 modular-predictors
 
-[Source](https://github.com/conga-sh/conga/tree/main/_examples/20-modular-predictors)
+[Source](https://github.com/conga-sh/conga/tree/main/_examples/20-modular-predictors) · Guide: [How to use the network, system, and timezone packages](/how-to/use-system-network-timezone-types/)
 
 `system` and `network` commands whose flags and arguments use the types from CONGA's `system` and `network` packages. The types complete themselves and carry methods such as `Signal.Signal()` and `Port.IsPrivileged()`.
 

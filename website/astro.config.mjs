@@ -82,6 +82,7 @@ export default defineConfig({
             { label: 'Declare subcommands', slug: 'how-to/declare-subcommands' },
             { label: 'Accept positional arguments', slug: 'how-to/accept-positional-arguments' },
             { label: 'Read files and standard input', slug: 'how-to/read-files-and-stdin' },
+            { label: 'Use network, system, and timezone types', slug: 'how-to/use-system-network-timezone-types' },
             { label: 'Customize help screens', slug: 'how-to/customize-help-screens' },
             { label: 'Manage config files', slug: 'how-to/manage-config-files' },
             { label: 'Load domain documents', slug: 'how-to/load-domain-files' },
