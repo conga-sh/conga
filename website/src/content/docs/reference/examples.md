@@ -288,7 +288,7 @@ Uses: `Command[T]`, `implicit`, `name`
 
 ### 06 flag-constraints
 
-[Source](https://github.com/conga-sh/conga/tree/main/_examples/06-flag-constraints)
+[Source](https://github.com/conga-sh/conga/tree/main/_examples/06-flag-constraints) · Guide: [How to validate input](/how-to/validate-input/)
 
 An API client whose flags carry declared limits. `--json`, `--yaml` and `--table` exclude each other, `--password` needs at least 8 characters, and `--port`, `--timeout` and `--memory` have ranges. A violation is a usage error, and this program prints the full help screen after it.
 
@@ -328,7 +328,7 @@ Uses: `RequiredFlag[T]`, `xor`, `and`, `range`, `len`, `items`, `enum`, `App.Usa
 
 ### 07 dynamic-validation
 
-[Source](https://github.com/conga-sh/conga/tree/main/_examples/07-dynamic-validation)
+[Source](https://github.com/conga-sh/conga/tree/main/_examples/07-dynamic-validation) · Guide: [How to validate input](/how-to/validate-input/)
 
 A scheduler that checks flags against each other in a `Validate` method. An end date before the start date, or retries with a zero backoff, is a usage error reported before any hook runs.
 
@@ -372,7 +372,7 @@ Uses: `App.AllowTags`
 
 ### 31 oneof-groups
 
-[Source](https://github.com/conga-sh/conga/tree/main/_examples/31-oneof-groups)
+[Source](https://github.com/conga-sh/conga/tree/main/_examples/31-oneof-groups) · Guide: [How to validate input](/how-to/validate-input/)
 
 A reader that takes its input from exactly one of `--input-file` or `--input-url`. Giving neither, or both, is a usage error, and the usage line shows the choice.
 

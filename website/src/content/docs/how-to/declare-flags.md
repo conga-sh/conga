@@ -304,5 +304,6 @@ fetch: error: map type map[string]int requires registration via app.RegisterMap
 ## Where to go next
 
 - [Flags](/reference/struct-tags/#flags-optionalflagt-requiredflagt-counter): every flag tag and rule.
+- [How to validate input](/how-to/validate-input/): require flags, bound values, and reject conflicting flags.
 - [How to bind environment variables](/how-to/bind-environment-variables/): set flags from the environment.
 - [How to customize help screens](/how-to/customize-help-screens/): group flags into sections and hide flags from help.
