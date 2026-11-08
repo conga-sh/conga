@@ -1,0 +1,307 @@
+---
+title: Build a multi-command CLI
+description: Build cloudctl, a CLI with deploy and status subcommands, a positional argument, a required flag, and a flag that every subcommand shares.
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+In this tutorial, we will build `cloudctl`, a command-line tool that deploys services and reports their status. It has two subcommands, `deploy` and `status`, and a `--region` flag that both of them read. If you haven't built a CONGA program before, start with the [quickstart](/tutorials/quickstart/).
+
+## The command we will build
+
+The finished `cloudctl` deploys a service to a region:
+
+```sh
+$ ./cloudctl --region eu-west-1 deploy web --image nginx:1.27
+deploying web (nginx:1.27) to eu-west-1 with 2 replicas
+```
+
+## Set up the project
+
+We need Go 1.27 or later.
+
+<Steps>
+
+1. Create a directory for the project and move into it:
+
+   ```sh
+   mkdir cloudctl && cd cloudctl
+   ```
+
+2. Initialize a Go module:
+
+   ```sh
+   go mod init cloudctl
+   ```
+
+3. Add CONGA to the module:
+
+   ```sh
+   go get github.com/conga-sh/conga@latest
+   ```
+
+</Steps>
+
+## Write a command with one subcommand
+
+Create `main.go`:
+
+```go title="main.go"
+package main
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/conga-sh/conga"
+)
+
+type CLI struct {
+	// [!callout /Command/] A container: it makes `Deploy` a subcommand, defined by the `DeployCmd` struct.
+	Deploy conga.Command[DeployCmd] `summary:"Deploy a service"`
+}
+
+type DeployCmd struct {
+	// [!callout /RequiredArg/] A positional argument the user must give.
+	Service conga.RequiredArg[string] `help:"Service to deploy"`
+}
+
+func (d *DeployCmd) Run(ctx context.Context, session *conga.Session) error {
+	fmt.Fprintf(session.Stdout(), "deploying %s\n", d.Service.Get())
+
+	return nil
+}
+
+func main() {
+	app := conga.New[CLI]().
+		Name("cloudctl").
+		Description("Manage services in the cloud").
+		Version("0.1.0")
+
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
+}
+```
+
+`CLI` is the command the program starts from, and `DeployCmd` is a command of its own, with its own fields and its own `Run` method. CONGA names the subcommand after the field, so `Deploy` becomes `deploy`.
+
+Build the program, and deploy a service:
+
+```sh
+go build
+```
+
+```sh
+$ ./cloudctl deploy web
+deploying web
+```
+
+Notice that `web` went to the `Service` field: a positional argument takes a word from the command line, with no flag name in front of it.
+
+Now run `cloudctl` on its own:
+
+```sh error={2}
+$ ./cloudctl
+cloudctl: error: subcommand required for "cloudctl"
+
+Manage services in the cloud
+
+Usage:
+  cloudctl <command>
+
+Commands:
+  deploy  Deploy a service
+
+Flags:
+      --help     Show help
+      --version  Show version
+```
+
+`CLI` has no `Run` method, so `cloudctl` needs a subcommand to do anything. CONGA lists the subcommands it has, with each one's `summary` tag, and exits with status 2.
+
+## Require a flag
+
+Every deployment needs an image. Replace `DeployCmd` and its `Run` method:
+
+```go title="main.go" ins={3-4} {8}
+type DeployCmd struct {
+	Service  conga.RequiredArg[string]  `help:"Service to deploy"`
+	// [!callout /RequiredFlag/] A flag the user must give.
+	Image    conga.RequiredFlag[string] `help:"Container image to run"`
+	Replicas conga.OptionalFlag[int]    `default:"2" help:"Number of copies to run"`
+}
+
+func (d *DeployCmd) Run(ctx context.Context, session *conga.Session) error {
+	fmt.Fprintf(session.Stdout(), "deploying %s (%s) with %d replicas\n", d.Service.Get(), d.Image.Get(), d.Replicas.Get())
+
+	return nil
+}
+```
+
+Build the program again, and leave out the image:
+
+```sh
+go build
+```
+
+```sh error={2}
+$ ./cloudctl deploy web
+cloudctl: error: missing required flag: --image
+
+Usage:
+  cloudctl deploy --image=STRING [flags] <service>
+
+Run 'cloudctl deploy --help' for more information.
+```
+
+Notice that the usage line shows `--image=STRING` outside `[flags]`: a user can't leave it out. Now give it:
+
+```sh
+$ ./cloudctl deploy web --image nginx:1.27
+deploying web (nginx:1.27) with 2 replicas
+```
+
+`--replicas` took its value from its `default` tag. A required flag can't have a `default` tag, since the user must give a value.
+
+## Add a flag every subcommand shares
+
+The region applies to everything `cloudctl` does, so its flag goes on `CLI`. Add `Region` to `CLI`, and read it in `DeployCmd`'s `Run` method:
+
+```go title="main.go" ins={2,7} {8}
+type CLI struct {
+	Region conga.OptionalFlag[string] `default:"us-east-1" help:"Region to work in" short:"r"`
+	Deploy conga.Command[DeployCmd]   `summary:"Deploy a service"`
+}
+
+func (d *DeployCmd) Run(ctx context.Context, session *conga.Session) error {
+	// [!callout /Root/] Returns the `CLI` struct, with its flags filled in.
+	root := session.Root[CLI]()
+	fmt.Fprintf(session.Stdout(), "deploying %s (%s) to %s with %d replicas\n", d.Service.Get(), d.Image.Get(), root.Region.Get(), d.Replicas.Get())
+
+	return nil
+}
+```
+
+`DeployCmd` has no `Region` field of its own. `session.Root[CLI]()` gives it the struct the program started from, so it reads `--region` there.
+
+Build the program, and give the region before the subcommand:
+
+```sh
+go build
+```
+
+```sh
+$ ./cloudctl --region eu-west-1 deploy web --image nginx:1.27
+deploying web (nginx:1.27) to eu-west-1 with 2 replicas
+```
+
+Now give it after the subcommand, with its short name:
+
+```sh
+$ ./cloudctl deploy web --image nginx:1.27 -r eu-west-1
+deploying web (nginx:1.27) to eu-west-1 with 2 replicas
+```
+
+Notice that both runs give the same result. A flag on `CLI` belongs to every subcommand below it, so the user can put it on either side of the subcommand name.
+
+## Add a second subcommand
+
+Add a `Status` field to `CLI`, and a `StatusCmd` struct with its own `Run` method:
+
+```go title="main.go" ins={4,7-14}
+type CLI struct {
+	Region conga.OptionalFlag[string] `default:"us-east-1" help:"Region to work in" short:"r"`
+	Deploy conga.Command[DeployCmd]   `summary:"Deploy a service"`
+	Status conga.Command[StatusCmd]   `summary:"Show service status"`
+}
+
+type StatusCmd struct{}
+
+func (s *StatusCmd) Run(ctx context.Context, session *conga.Session) error {
+	root := session.Root[CLI]()
+	fmt.Fprintf(session.Stdout(), "all services healthy in %s\n", root.Region.Get())
+
+	return nil
+}
+```
+
+`StatusCmd` has no fields: `status` takes no arguments or flags of its own, and reads the region from `CLI` as `deploy` does.
+
+Build the program, and ask for the status of a region:
+
+```sh
+go build
+```
+
+```sh
+$ ./cloudctl -r eu-west-1 status
+all services healthy in eu-west-1
+```
+
+The help screen now lists both subcommands:
+
+```sh
+$ ./cloudctl --help
+Manage services in the cloud
+
+Usage:
+  cloudctl <command> [flags]
+
+Commands:
+  deploy  Deploy a service
+  status  Show service status
+
+Flags:
+  -r, --region="us-east-1"  Region to work in
+      --help                Show help
+      --version             Show version
+```
+
+Let's misspell one:
+
+```sh error={2}
+$ ./cloudctl stats
+cloudctl: error: unknown command: stats. Did you mean "status"?
+
+Usage:
+  cloudctl <command> [flags]
+
+Run 'cloudctl --help' for more information.
+```
+
+As with a misspelled flag, CONGA suggests the closest name and exits with status 2.
+
+## Read a subcommand's help
+
+Each subcommand has its own help screen:
+
+```sh
+$ ./cloudctl deploy --help
+Deploy a service
+
+Usage:
+  cloudctl deploy --image=STRING [flags] <service>
+
+Arguments:
+  <service>  Service to deploy
+
+Flags:
+      --image=STRING  Container image to run
+      --replicas=2    Number of copies to run
+      --help          Show help
+
+Global Flags:
+  -r, --region="us-east-1"  Region to work in
+```
+
+Notice that `--region` appears under `Global Flags`: `deploy` accepts it, though `CLI` declares it. The first line is the `summary` tag from the `Deploy` field.
+
+## Where to go next
+
+We now have a `cloudctl` with two subcommands and a flag they share.
+
+- [How to declare subcommands](/how-to/declare-subcommands/): aliases, sections, hidden commands, and a default subcommand.
+- [How to accept positional arguments](/how-to/accept-positional-arguments/): optional arguments, lists of arguments, and the words after `--`.
+- [How to declare flags](/how-to/declare-flags/): give flags other types, aliases, counters, lists, and key=value pairs.
+- [About subcommands](/explanation/subcommands/): why a flag on a parent can't be declared again on a subcommand.
