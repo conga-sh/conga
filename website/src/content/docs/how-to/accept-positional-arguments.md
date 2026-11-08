@@ -3,7 +3,7 @@ title: How to accept positional arguments
 description: Declare required and optional positional arguments, collect a variable number into a slice, forward the words after -- with DashArgs, and pass everything through with RawArgs.
 ---
 
-This guide builds a `mirror` command that copies directories to a target and forwards options to rsync. [Positional arguments](/reference/struct-tags/#positional-arguments-optionalargt-requiredargt) and [Trailing arguments](/reference/struct-tags/#trailing-arguments-dashargs-rawargs) list every tag and rule.
+This guide builds a `mirror` command that copies directories to a target and forwards options to rsync. [Positional arguments](/reference/struct-tags/#positional-arguments-optionalargt-requiredargt) and [Trailing arguments](/reference/struct-tags/#trailing-arguments-dashargs-rawargs) list every tag and rule. If you're new to CONGA, [Build a multi-command CLI](/tutorials/multi-command-cli/) builds a command with a positional argument step by step.
 
 ## Declare required and optional arguments
 

@@ -7,6 +7,8 @@ When a command reads from `session.Stdin()` and writes to `session.Stdout()` and
 
 The builder's `Stdout` and `Stderr` methods set the writers that `session.Stdout()` and `session.Stderr()` return and leave `os.Stdout` and `os.Stderr` alone. Output from `fmt.Println` or anything written directly to `os.Stdout` goes to the test binary's own stdout instead of the test's buffer.
 
+If you're new to testing a CONGA program, [Test a CLI](/tutorials/test-a-cli/) builds tests like these step by step, and [About testing CONGA programs](/explanation/testing/) compares this approach with testing the built binary.
+
 This guide tests a `hello` program that greets a name from `--name`, `HELLO_NAME`, or standard input:
 
 ```go title="main.go" hidden={1-11}

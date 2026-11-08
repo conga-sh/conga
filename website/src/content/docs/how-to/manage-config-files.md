@@ -9,7 +9,7 @@ The running example is the [cascading search paths example](https://github.com/c
 
 ## Register the formats you accept
 
-Register a decoder for each file extension the application reads. Decoders are separate packages, so an application links only the formats it registers:
+Register a decoder for each file extension the application reads. Decoders are separate packages, so an application links only the formats it registers. The struct below also declares a `conga.ConfigFile` field, the container for the config-file flag: it gives users `-c` / `--config-file` and holds the paths they name ([Let users name their own files](#let-users-name-their-own-files)):
 
 ```go title="main.go"
 package main

@@ -9,7 +9,7 @@ This guide builds the HTTP server from the [feature toggles example](https://git
 
 ## Declare the features
 
-Add a `conga.Features[T]` field to the root command struct. Each exported field of `T` is one feature, named after the field in kebab-case (`AdminAPI` becomes `admin-api`). A `bool` field is off unless its `default` tag says otherwise:
+Declare the features in a field of the root command struct whose type is the container `conga.Features[...]`. The type in the brackets is a struct, and each of its exported fields is one feature, named after the field in kebab-case (`AdminAPI` becomes `admin-api`). A `bool` field is off unless its `default` tag says otherwise:
 
 ```go title="main.go"
 type experiments struct {

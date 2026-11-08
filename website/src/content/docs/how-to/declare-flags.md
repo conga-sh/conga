@@ -3,7 +3,7 @@ title: How to declare flags
 description: Declare typed flags with defaults, short names and aliases, negatable booleans, repeat counters, list flags, and key=value map flags.
 ---
 
-This guide builds a `fetch` command that downloads a URL, and gives it one flag of each kind. [Flags](/reference/struct-tags/#flags-optionalflagt-requiredflagt-counter) lists every flag tag and rule.
+This guide builds a `fetch` command that downloads a URL, and gives it one flag of each kind. [Flags](/reference/struct-tags/#flags-optionalflagt-requiredflagt-counter) lists every flag tag and rule. If you're new to CONGA, [the quickstart](/tutorials/quickstart/) builds a first command step by step.
 
 ## Give a flag a type and a default
 

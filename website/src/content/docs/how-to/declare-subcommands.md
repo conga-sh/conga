@@ -3,7 +3,7 @@ title: How to declare subcommands
 description: Add subcommands with Command[T], group, alias, hide, and deprecate them, read root flags from a subcommand, and make one subcommand the default.
 ---
 
-This guide builds a `cloudctl` program with `deploy`, `list`, `debug`, and `push` subcommands. [Subcommands (`Command[T]`)](/reference/struct-tags/#subcommands-commandt) lists every tag a subcommand field takes.
+This guide builds a `cloudctl` program with `deploy`, `list`, `debug`, and `push` subcommands. [Subcommands (`Command[T]`)](/reference/struct-tags/#subcommands-commandt) lists every tag a subcommand field takes. If you're new to CONGA, [Build a multi-command CLI](/tutorials/multi-command-cli/) builds a program with subcommands step by step.
 
 ## Add a subcommand
 
