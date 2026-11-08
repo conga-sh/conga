@@ -1,0 +1,188 @@
+---
+title: Configure a CLI from a file and the environment
+description: Give cloudctl a YAML config file and environment variables, override them on the command line, and see what a broken config file does.
+---
+
+In this tutorial, we will make `cloudctl` remember its settings. In [Build a multi-command CLI](/tutorials/multi-command-cli/) we typed `--image nginx:1.27` on every deployment; now a config file will supply it, an environment variable will override the file, and a flag will override both. We continue in the `cloudctl` directory from that tutorial.
+
+## The command we will build
+
+With the settings in a file, a deployment needs no flags:
+
+```sh
+$ ./cloudctl deploy web
+deploying web (nginx:1.27) to eu-west-1 with 3 replicas
+```
+
+## Put the settings in a file
+
+CONGA reads config files through a decoder for each file format. Add the YAML decoder to the imports, and register it and the place to look for the file on the builder:
+
+```go title="main.go" ins={6,16-17} {15}
+import (
+	"context"
+	"fmt"
+
+	"github.com/conga-sh/conga"
+	"github.com/conga-sh/conga/decoder/yaml"
+)
+
+// ...
+
+func main() {
+	app := conga.New[CLI]().
+		Name("cloudctl").
+		Description("Manage services in the cloud").
+		Version("0.1.0").
+		// [!callout /RegisterDecoder/] Reads files ending in `.yaml` with the YAML decoder.
+		RegisterDecoder(".yaml", yaml.Decode).
+		// [!callout /ConfigPaths/] Looks for the file in the current directory.
+		ConfigOptions(conga.ConfigPaths("."))
+
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
+}
+```
+
+:::note[Where a real program keeps its file]
+We look in the current directory to keep everything in the project, so the program finds the file only when we run it from there. A real program usually leaves out `ConfigOptions`, and CONGA then reads `config.yaml` or `cloudctl.yaml` from the user's config directory, `~/.config/cloudctl/`. [How to manage config files](/how-to/manage-config-files/) covers the places a program can look.
+:::
+
+The decoder brings a new dependency into the module. Add it, and build the program:
+
+```sh
+go mod tidy
+go build
+```
+
+Now create `cloudctl.yaml` next to `main.go`:
+
+```yaml title="cloudctl.yaml"
+region: eu-west-1
+deploy:
+  image: nginx:1.27
+  replicas: 3
+```
+
+Deploy without any flags:
+
+```sh
+$ ./cloudctl deploy web
+deploying web (nginx:1.27) to eu-west-1 with 3 replicas
+```
+
+Notice that each key in the file is a flag name. `region` sits at the top because `--region` belongs to `CLI`, and `image` and `replicas` sit under `deploy` because they belong to the `deploy` subcommand. `--image` is still a required flag; the file gives it a value, so we no longer have to.
+
+`status` reads the region from the same file:
+
+```sh
+$ ./cloudctl status
+all services healthy in eu-west-1
+```
+
+## Override a setting from the environment
+
+Suppose we want one deployment in another region without editing the file. Give the builder an environment prefix:
+
+```go title="main.go" ins={6}
+func main() {
+	app := conga.New[CLI]().
+		Name("cloudctl").
+		Description("Manage services in the cloud").
+		Version("0.1.0").
+		// [!callout /EnvPrefix/] Lets each flag read a variable named `CLOUDCTL_` and the flag name.
+		EnvPrefix("CLOUDCTL").
+		RegisterDecoder(".yaml", yaml.Decode).
+		ConfigOptions(conga.ConfigPaths("."))
+	// ...
+}
+```
+
+Build the program, and set the region in the environment for one run:
+
+```sh
+go build
+```
+
+```sh
+$ CLOUDCTL_REGION=ap-south-1 ./cloudctl deploy web
+deploying web (nginx:1.27) to ap-south-1 with 3 replicas
+```
+
+Notice that only the region changed: the image and replicas still came from the file. The help screen now names the variable each flag reads:
+
+```sh {11-12,16}
+$ ./cloudctl deploy --help
+Deploy a service
+
+Usage:
+  cloudctl deploy --image=STRING [flags] <service>
+
+Arguments:
+  <service>  Service to deploy
+
+Flags:
+      --image=STRING  Container image to run [env: CLOUDCTL_IMAGE]
+      --replicas=2    Number of copies to run [env: CLOUDCTL_REPLICAS]
+      --help          Show help
+
+Global Flags:
+  -r, --region="us-east-1"  Region to work in [env: CLOUDCTL_REGION]
+```
+
+The variables for `deploy`'s flags are `CLOUDCTL_IMAGE` and `CLOUDCTL_REPLICAS`, without the command name.
+
+## Override it on the command line
+
+Keep the variable set, and give the region as a flag too:
+
+```sh
+$ CLOUDCTL_REGION=ap-south-1 ./cloudctl deploy web -r us-west-2
+deploying web (nginx:1.27) to us-west-2 with 3 replicas
+```
+
+The flag won. We have now set `--region` in four places, and each run took the value from the first of these that had one:
+
+1. The command line.
+2. The environment variable.
+3. The config file.
+4. The `default` tag.
+
+[About value precedence](/explanation/value-precedence/) explains why CONGA uses this order.
+
+## Make a mistake in the file
+
+Misspell `replicas` in `cloudctl.yaml`:
+
+```yaml title="cloudctl.yaml" {4}
+region: eu-west-1
+deploy:
+  image: nginx:1.27
+  replcas: 3
+```
+
+Run a deployment:
+
+```sh error={2}
+$ ./cloudctl deploy web
+cloudctl: error: config file "cloudctl.yaml": unknown field "replcas" in command "deploy" (did you mean "replicas"?)
+```
+
+CONGA checks every key in the file against the flags, and stops before any command runs. This time the program exits with status 1, not the 2 of a mistyped flag:
+
+```sh
+$ echo $?
+1
+```
+
+Exit status 2 marks a mistake on the command line, and 1 marks a run that failed for another reason, here a broken file. Put `replicas` back before going on.
+
+## Where to go next
+
+We now have a `cloudctl` that reads its settings from a file and the environment, and lets the command line override both.
+
+- [How to manage config files](/how-to/manage-config-files/): other formats, the places a program looks, and merging several files.
+- [How to bind environment variables](/how-to/bind-environment-variables/): choose each flag's variable, or turn the environment off for a flag.
+- [How to inspect value provenance](/how-to/inspect-value-provenance/): ask the program where each value came from with `--why`.
+- [About value precedence](/explanation/value-precedence/): why the command line beats the environment, and the environment beats the file.

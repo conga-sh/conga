@@ -70,6 +70,7 @@ export default defineConfig({
           items: [
             'tutorials/quickstart',
             'tutorials/multi-command-cli',
+            'tutorials/configure-a-cli',
           ],
         },
         {
