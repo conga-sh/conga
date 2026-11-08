@@ -67,7 +67,7 @@ type DeployCmd struct {
 }
 
 func (d *DeployCmd) Run(ctx context.Context, session *conga.Session) error {
-	fmt.Fprintf(session.Stdout(), "deploying %s\n", d.Service.Get())
+	fmt.Printf("deploying %s\n", d.Service.Get())
 
 	return nil
 }
@@ -133,7 +133,7 @@ type DeployCmd struct {
 }
 
 func (d *DeployCmd) Run(ctx context.Context, session *conga.Session) error {
-	fmt.Fprintf(session.Stdout(), "deploying %s (%s) with %d replicas\n", d.Service.Get(), d.Image.Get(), d.Replicas.Get())
+	fmt.Printf("deploying %s (%s) with %d replicas\n", d.Service.Get(), d.Image.Get(), d.Replicas.Get())
 
 	return nil
 }
@@ -177,7 +177,7 @@ type CLI struct {
 func (d *DeployCmd) Run(ctx context.Context, session *conga.Session) error {
 	// [!callout /Root/] Returns the `CLI` struct, with its flags filled in.
 	root := session.Root[CLI]()
-	fmt.Fprintf(session.Stdout(), "deploying %s (%s) to %s with %d replicas\n", d.Service.Get(), d.Image.Get(), root.Region.Get(), d.Replicas.Get())
+	fmt.Printf("deploying %s (%s) to %s with %d replicas\n", d.Service.Get(), d.Image.Get(), root.Region.Get(), d.Replicas.Get())
 
 	return nil
 }
@@ -220,7 +220,7 @@ type StatusCmd struct{}
 
 func (s *StatusCmd) Run(ctx context.Context, session *conga.Session) error {
 	root := session.Root[CLI]()
-	fmt.Fprintf(session.Stdout(), "all services healthy in %s\n", root.Region.Get())
+	fmt.Printf("all services healthy in %s\n", root.Region.Get())
 
 	return nil
 }

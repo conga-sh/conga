@@ -318,6 +318,7 @@ func TestHelpFlagPrintsUsage(t *testing.T) {
 
 ## Where to go next
 
+- [About testing CONGA programs](/explanation/testing/): running the app inside a test compared with running the built binary, and where unit tests fit.
 - [About error reporting](/explanation/error-reporting/): error categories, exit codes, and usage output.
 - [How to load .env files](/how-to/load-env-files/): how `Dotenv` resolves and loads environment files.
 - [About the command lifecycle](/explanation/lifecycle/): context, signals, and the order of lifecycle hooks.

@@ -71,6 +71,7 @@ export default defineConfig({
             'tutorials/quickstart',
             'tutorials/multi-command-cli',
             'tutorials/configure-a-cli',
+            'tutorials/test-a-cli',
           ],
         },
         {
@@ -119,6 +120,7 @@ export default defineConfig({
             'explanation/feature-toggles',
             'explanation/lifecycle',
             'explanation/error-reporting',
+            'explanation/testing',
             'explanation/domain-kits',
           ],
         },
