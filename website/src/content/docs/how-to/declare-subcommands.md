@@ -5,9 +5,9 @@ description: Add subcommands with Command[T], group, alias, hide, and deprecate 
 
 This guide builds a `cloudctl` program with `deploy`, `list`, `debug`, and `push` subcommands. [Subcommands (`Command[T]`)](/reference/struct-tags/#subcommands-commandt) lists every tag a subcommand field takes.
 
-## Add a subcommand with `Command[T]`
+## Add a subcommand
 
-Declare a `conga.Command[T]` field on the parent struct, where `*T` implements `conga.Runner`:
+A subcommand is a field of its parent command's struct, and its type is the container `conga.Command[...]`. The type in the brackets is the subcommand's own struct, which declares the subcommand's flags and arguments; a pointer to it implements `conga.Runner`:
 
 ```go
 type Runner interface {
@@ -96,7 +96,7 @@ A command declares subcommands or positional arguments, not both; [How to accept
 
 ## Group, alias, hide, and deprecate subcommands
 
-Tags on the `Command[T]` field control how a subcommand is reached and listed:
+Tags on the `conga.Command[...]` field control how a subcommand is reached and listed:
 
 ```go title="main.go" ins={5-7}
 type CLI struct {
@@ -146,7 +146,7 @@ Shell completion offers the aliases; `--help` lists each command once, by name. 
 
 ## Read root flags from a subcommand
 
-Flags on a parent apply to all its descendants, and the user can give them before or after the subcommand name. A subcommand reads them through `session.Root[T]()`, which returns the root struct:
+Flags on a parent apply to all its descendants, and the user can give them before or after the subcommand name. A subcommand reads them through `session.Root[CLI]()`, which returns the root struct:
 
 ```go title="main.go" ins={2-5}
 func (d *DeployCmd) Run(ctx context.Context, session *conga.Session) error {

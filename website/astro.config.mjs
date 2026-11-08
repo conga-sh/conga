@@ -74,6 +74,7 @@ export default defineConfig({
         {
           label: 'How-to Guides',
           items: [
+            { label: 'Declare flags', slug: 'how-to/declare-flags' },
             { label: 'Declare subcommands', slug: 'how-to/declare-subcommands' },
             { label: 'Accept positional arguments', slug: 'how-to/accept-positional-arguments' },
             { label: 'Customize help screens', slug: 'how-to/customize-help-screens' },

@@ -7,7 +7,7 @@ This guide builds a `mirror` command that copies directories to a target and for
 
 ## Declare required and optional arguments
 
-Declare `conga.RequiredArg[T]` and `conga.OptionalArg[T]` fields. CONGA binds the words on the command line to them in declaration order, and `GetOr` gives an optional argument's fallback:
+CONGA builds a command's positional arguments from the fields of its struct, as it does flags. The type of each argument field is a container: `conga.RequiredArg[...]` for a required argument, `conga.OptionalArg[...]` for an optional one, with the type of the argument's value in the brackets. CONGA binds the words on the command line to the fields in declaration order, and `GetOr` gives an optional argument's fallback:
 
 ```go title="main.go" hidden={1-8}
 package main

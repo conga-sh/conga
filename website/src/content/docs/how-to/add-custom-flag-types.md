@@ -296,4 +296,5 @@ The last two pass startup and every run that leaves the flag unset. Run the flag
 
 - [Domain type interfaces](/reference/domain-types/#domain-type-interfaces): every interface, the decoding order, and the `TagSpec` and `DecodeContext` fields.
 - [How to wire custom completion](/how-to/wire-custom-completion/): give a type its own `Predict` method.
+- [How to declare flags](/how-to/declare-flags/): the scalar, list, and map flags CONGA parses without a custom type.
 - [Domain types](/reference/domain-types/): the built-in `File`, `Dir`, `FileContent`, and `ByteSize` types.

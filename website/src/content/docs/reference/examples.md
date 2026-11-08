@@ -54,7 +54,7 @@ Uses: `OptionalFlag[T]`, `default`, `short`
 
 ### 02 flag-primitives
 
-[Source](https://github.com/conga-sh/conga/tree/main/_examples/02-flag-primitives)
+[Source](https://github.com/conga-sh/conga/tree/main/_examples/02-flag-primitives) · Guide: [How to declare flags](/how-to/declare-flags/)
 
 Flags of type `string`, `bool`, `int`, `float64` and `time.Duration`, plus a `-v` counter. `-vvv` counts to 3, `--dbg` is an alias of `--debug`, `--secret-key` is left out of help, and the flags sit under help sections. A malformed duration is a usage error.
 
@@ -75,7 +75,7 @@ Uses: `Counter`, `aliases`, `hidden`, `section`
 
 ### 03 negatable-and-maps
 
-[Source](https://github.com/conga-sh/conga/tree/main/_examples/03-negatable-and-maps)
+[Source](https://github.com/conga-sh/conga/tree/main/_examples/03-negatable-and-maps) · Guide: [How to declare flags](/how-to/declare-flags/)
 
 `--color` also takes a `--no-color` form, and the last one given wins. `-e` collects `KEY=VALUE` pairs into a `map[string]string`. `-H` keeps the commas inside a value because its slice is declared with `sep:"none"`.
 
