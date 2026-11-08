@@ -97,7 +97,7 @@ Uses: `negatable`, `map[K]V`, `items`, `sep`, `App.RegisterMap`
 
 ### 05 domain-types
 
-[Source](https://github.com/conga-sh/conga/tree/main/_examples/05-domain-types) · Guide: [How to add custom flag types](/how-to/add-custom-flag-types/)
+[Source](https://github.com/conga-sh/conga/tree/main/_examples/05-domain-types) · Guides: [How to read files and standard input](/how-to/read-files-and-stdin/), [How to add custom flag types](/how-to/add-custom-flag-types/)
 
 Flags typed as files, directories, byte sizes, and two custom types. `--input-file` must name an existing file, `--max-memory` reads `2GiB`, and `--ports` parses and checks a `PortRange`. Each failure is a usage error.
 

@@ -95,7 +95,7 @@ Compare `ByteSize` values with `Equal`, order with `Compare`, and retrieve raw m
 
 ### File streaming
 
-`File` streams through `Reader()` and `Writer()`, which return `io.ReadCloser` and `io.WriteCloser`. When the value is `-`, `Reader()` wraps `os.Stdin` and `Writer()` wraps `os.Stdout` — the wrappers absorb `Close()`, so callers can always `defer Close()`. `Stat()` exposes the file metadata, and `IsStdio()` reports the `-` case so commands can skip filesystem-only side effects (backups, atomic renames) and route diagnostics away from a stdout payload stream. Reading beyond these helpers is the caller's responsibility (`io.ReadAll(f.Reader())`); `FileContent` is the bounded whole-file shortcut.
+`File` streams through `Reader()` and `Writer()`, which return `io.ReadCloser` and `io.WriteCloser`. When the value is `-`, `Reader()` wraps the app's standard input and `Writer()` its standard output (the streams set with `App.Stdin` and `App.Stdout`, which default to `os.Stdin` and `os.Stdout`); a `File` that no app bound uses `os.Stdin` and `os.Stdout`. The wrappers absorb `Close()`, so callers can always `defer Close()`. `Stat()` exposes the file metadata, and `IsStdio()` reports the `-` case so commands can skip filesystem-only side effects (backups, atomic renames) and route diagnostics away from a stdout payload stream. Reading beyond these helpers is the caller's responsibility (`io.ReadAll(f.Reader())`); `FileContent` is the bounded whole-file shortcut.
 
 ```go
 func (c *Convert) Run(ctx context.Context, session *conga.Session) error {
