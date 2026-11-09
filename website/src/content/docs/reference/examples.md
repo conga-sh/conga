@@ -125,7 +125,7 @@ Uses: `File`, `Dir`, `ByteSize`, `FileContent`, `SelfValidator`, `existing`, `st
 
 ### 21 pluggable-types
 
-[Source](https://github.com/conga-sh/conga/tree/main/_examples/21-pluggable-types) · Guides: [How to use the network, system, and timezone packages](/how-to/use-system-network-timezone-types/), [How to add custom flag types](/how-to/add-custom-flag-types/)
+[Source](https://github.com/conga-sh/conga/tree/main/_examples/21-pluggable-types) · Guides: [How to use the network, system, and timezone packages](/how-to/use-domain-packages/), [How to add custom flag types](/how-to/add-custom-flag-types/)
 
 Flags of the standard library types `*time.Location` and `syscall.Signal`, which `App.Use` adds through the `timezone` and `system` packages, and a custom `Percent` type added with `App.RegisterType`.
 
@@ -659,7 +659,7 @@ Uses: `App.ConfigOptions`, `ConfigExplicit`
 
 ### 29 feature-toggles
 
-[Source](https://github.com/conga-sh/conga/tree/main/_examples/29-feature-toggles) · Guide: [How to gate flags and subcommands behind features](/how-to/feature-flags/)
+[Source](https://github.com/conga-sh/conga/tree/main/_examples/29-feature-toggles) · Guide: [How to gate flags and subcommands behind features](/how-to/gate-behind-features/)
 
 An HTTP server with named features declared on the root. `--quic` exists only while the `http3` feature is on, and the `admin` command only while `admin-api` is on. Features are switched on from `--feature-gates`, the `API_FEATURES` variable, or a `features` config section.
 
@@ -689,7 +689,7 @@ Uses: `Features[T]`, `feature`, `flag`, `stage`, `App.EnableFeatures`
 
 ### 30 bootstrapper
 
-[Source](https://github.com/conga-sh/conga/tree/main/_examples/30-bootstrapper) · Guide: [How to load domain documents](/how-to/load-domain-files/)
+[Source](https://github.com/conga-sh/conga/tree/main/_examples/30-bootstrapper) · Guide: [How to load domain documents](/how-to/load-domain-documents/)
 
 A pipeline runner whose `-f` names a YAML file that has to be read before configuration resolves. `Bootstrap` reads it, keeps the pipelines for `Run`, and passes the file's `parallelism`, `log_level` and `env` keys to the config source.
 
@@ -706,7 +706,7 @@ Uses: `Bootstrapper`, `Bootstrap.SetConfig`, `ConfigDocument`, `bootstrap`
 
 ### 19 shell-completion
 
-[Source](https://github.com/conga-sh/conga/tree/main/_examples/19-shell-completion) · Guide: [How to wire custom completion](/how-to/wire-custom-completion/)
+[Source](https://github.com/conga-sh/conga/tree/main/_examples/19-shell-completion) · Guide: [How to compute and shape completion candidates](/how-to/compute-completion-candidates/)
 
 A deploy tool that completes values three ways: types that complete themselves on `deploy`, named predictors on `exec`, and the `predict` package's constructors and combinators on `logs`. `--list-candidates` calls the predictors directly, outside completion.
 
@@ -728,7 +728,7 @@ Uses: `Predictable`, `predict.FileFilterable`, `predictor`, `App.Predictor`, `Ap
 
 ### 20 modular-predictors
 
-[Source](https://github.com/conga-sh/conga/tree/main/_examples/20-modular-predictors) · Guide: [How to use the network, system, and timezone packages](/how-to/use-system-network-timezone-types/)
+[Source](https://github.com/conga-sh/conga/tree/main/_examples/20-modular-predictors) · Guide: [How to use the network, system, and timezone packages](/how-to/use-domain-packages/)
 
 `system` and `network` commands whose flags and arguments use the types from CONGA's `system` and `network` packages. The types complete themselves and carry methods such as `Signal.Signal()` and `Port.IsPrivileged()`.
 

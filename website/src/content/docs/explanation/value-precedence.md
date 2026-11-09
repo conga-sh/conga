@@ -41,7 +41,7 @@ Phase 2: Flag Value Binding                                            v
 
 Before binding individual flags, CONGA determines which config files exist and loads them into a flat key-value map. Discovery follows its own precedence (`--config-file`, then `conga.ConfigExplicit(...)`, then `<PREFIX>_CONFIG`, then probed search tiers), with per-tier existence semantics and merge rules described in [About the config cascade](/explanation/config-cascade/). Once discovered files load and validate against the schema, their keys form the lookup table for Phase 2.
 
-An application can contribute to this phase with a [`conga.Bootstrapper`](/how-to/load-domain-files/): CONGA binds fields tagged `bootstrap:"true"` on the selected command chain before Phase 1 begins (`CLI > environment > default`), runs `Bootstrap`, and then resolves Phase 1 and Phase 2 normally. `Bootstrap.SetConfig` supplies a configuration document in code, overlaying file-resolved values key by key; file discovery, decoders, and search tiers stay active. The tagged fields bind a second time in Phase 2, now including the config tier.
+An application can contribute to this phase with a [`conga.Bootstrapper`](/how-to/load-domain-documents/): CONGA binds fields tagged `bootstrap:"true"` on the selected command chain before Phase 1 begins (`CLI > environment > default`), runs `Bootstrap`, and then resolves Phase 1 and Phase 2 normally. `Bootstrap.SetConfig` supplies a configuration document in code, overlaying file-resolved values key by key; file discovery, decoders, and search tiers stay active. The tagged fields bind a second time in Phase 2, now including the config tier.
 
 ### Phase 2: Flag value binding
 
@@ -71,7 +71,7 @@ Individual flags can bypass specific tiers using struct tags. Setting `env:"-"` 
 
 ### Decoderless applications
 
-If an application registers no config decoders (`app.RegisterDecoder`), Tier 3 remains inactive for all flags. The engine skips file loading and falls directly from the environment tier to struct defaults. An application can instead supply Tier 3 programmatically with a [`conga.Bootstrapper`](/how-to/load-domain-files/): `Bootstrap.SetConfig` supplies a validated document that binds at exactly this rank and overlays any file-resolved keys it names.
+If an application registers no config decoders (`app.RegisterDecoder`), Tier 3 remains inactive for all flags. The engine skips file loading and falls directly from the environment tier to struct defaults. An application can instead supply Tier 3 programmatically with a [`conga.Bootstrapper`](/how-to/load-domain-documents/): `Bootstrap.SetConfig` supplies a validated document that binds at exactly this rank and overlays any file-resolved keys it names.
 
 ### Positional arguments
 

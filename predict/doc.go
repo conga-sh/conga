@@ -46,7 +46,7 @@
 //
 // Predictors reach the command line through the root package's App.Predictor
 // builder method and the conga.Predictable interface; see
-// https://docs.conga.sh/how-to/wire-custom-completion/ for the wiring guide.
+// https://docs.conga.sh/how-to/compute-completion-candidates/ for the wiring guide.
 //
 // Domain-specific types and their predictors live in the topical network,
 // system, and timezone packages; see

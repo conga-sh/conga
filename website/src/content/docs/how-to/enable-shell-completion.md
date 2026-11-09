@@ -3,7 +3,7 @@ title: How to enable shell completion
 description: Enable shell completion for bash, zsh, fish, PowerShell, Elvish, and Nushell, customize the completion command, and install the shell scripts.
 ---
 
-This guide adds completion to a `cloudctl` CLI with `deploy` and `status` subcommands, then to a flat `minify` CLI. The interactive listings use zsh; other shells render the same candidates in their native layout. To attach custom predictors to flags and arguments, see [How to wire custom completion](/how-to/wire-custom-completion/).
+This guide adds completion to a `cloudctl` CLI with `deploy` and `status` subcommands, then to a flat `minify` CLI. The interactive listings use zsh; other shells render the same candidates in their native layout. To compute candidates in Go, see [How to compute and shape completion candidates](/how-to/compute-completion-candidates/).
 
 ## Enable completion on the builder
 
@@ -389,6 +389,6 @@ cloudctl: error: unknown shell "myshell", supported shells: bash, elvish, fish, 
 
 ## Where to go next
 
-- [How to wire custom completion](/how-to/wire-custom-completion/): attach static, callback, and type-bound predictors to flags and arguments.
+- [How to compute and shape completion candidates](/how-to/compute-completion-candidates/): compute candidates from loaded data or an API, combine predictors, and complete values in parts.
 - [Completion surface](/reference/builtins/#completion-surface): flag vs. subcommand rules, user toggles, binary names, and file candidates.
 - [Package predict](/reference/predict/): predictor constructors, combinators, and interfaces.

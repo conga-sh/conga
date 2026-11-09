@@ -26,7 +26,7 @@ A [`conga.Bootstrapper`](/how-to/load-env-files/) loads `.env` files whose paths
 
 Both phases share one origin map: variables already present in the host process environment are never overwritten, and a file loaded by `Bootstrap.Dotenv` overrides a key an earlier `app.Dotenv` file set. `--why` attributes an env-sourced value to its `.env` file (for example `env (sub/.env)`), while host variables render as bare `env`.
 
-Completion invocations (`__complete`) run `Bootstrap` before resolving candidates, so env-sourced values — including [feature gates](/how-to/feature-flags/) — shape suggestions identically to a real run. Loading failures are tolerated during completion rather than aborting it; the real run surfaces them through the regular error pipeline.
+Completion invocations (`__complete`) run `Bootstrap` before resolving candidates, so env-sourced values — including [feature gates](/how-to/gate-behind-features/) — shape suggestions identically to a real run. Loading failures are tolerated during completion rather than aborting it; the real run surfaces them through the regular error pipeline.
 
 ## Grammar
 

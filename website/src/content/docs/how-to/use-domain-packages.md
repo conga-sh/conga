@@ -235,5 +235,5 @@ The same checks apply when the value comes from an environment variable or a con
 ## Where to go next
 
 - [Topical domain packages](/reference/domain-types/#topical-domain-packages): every type, binding, and predictor in the three packages.
-- [About domain packages](/explanation/domain-kits/): why the packages are separate, and what they add to a binary.
+- [About domain packages](/explanation/domain-packages/): why the packages are separate, and what they add to a binary.
 - [How to add custom flag types](/how-to/add-custom-flag-types/): register a parser of your own with `RegisterType`.

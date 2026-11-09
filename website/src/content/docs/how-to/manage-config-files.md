@@ -277,7 +277,7 @@ $ cascading-searchpaths -c bad.ini
 cascading-searchpaths: error: cannot parse config file "bad.ini": malformed line: "theme light"
 ```
 
-For files that mix configuration with application data, such as a Taskfile, use a [`conga.Bootstrapper`](/how-to/load-domain-files/) instead of a decoder.
+For files that mix configuration with application data, such as a Taskfile, use a [`conga.Bootstrapper`](/how-to/load-domain-documents/) instead of a decoder.
 
 ## List the config files a run loaded
 
@@ -325,6 +325,6 @@ cascading-searchpaths: error: invalid value "pink" (must be one of: dark, light,
 
 - [About the config cascade](/explanation/config-cascade/): search order, the XDG default, and how merging works.
 - [Package decoder](/reference/decoders/): the JSON, TOML, YAML, and HCL decoders.
-- [How to load domain documents](/how-to/load-domain-files/): files that mix configuration with application data.
+- [How to load domain documents](/how-to/load-domain-documents/): files that mix configuration with application data.
 - [How to inspect value provenance](/how-to/inspect-value-provenance/): the full `--why` report.
 - [Cascading search paths example](https://github.com/conga-sh/conga/tree/main/_examples/15-cascading-searchpaths): the program used on this page.

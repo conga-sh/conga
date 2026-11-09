@@ -65,7 +65,7 @@ Positional arguments bind to command-line input. They belong to leaf commands: a
 
 ## Bootstrap fields
 
-`bootstrap` is an opt-in bridge for [`conga.Bootstrapper`](/how-to/load-domain-files/). The field is bound in the bootstrap pass before `Bootstrap` runs, using `CLI > environment > default` precedence, and is bound again during the normal pass, which adds the config tier:
+`bootstrap` is an opt-in bridge for [`conga.Bootstrapper`](/how-to/load-domain-documents/). The field is bound in the bootstrap pass before `Bootstrap` runs, using `CLI > environment > default` precedence, and is bound again during the normal pass, which adds the config tier:
 
 ```go
 type CLI struct {
@@ -262,7 +262,7 @@ func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
 }
 ```
 
-Declare the container once, on the root command struct, and call `app.EnableFeatures()` on the application builder to activate feature resolution. Without the builder call, schema build rejects the container and every `feature` tag with `ErrSchema`. The `feature` tag is accepted on `OptionalFlag`, `Counter`, `Command[T]`, and `ConfigFile` fields; `RequiredFlag` rejects it because a required input cannot be absent. See [How to gate features](/how-to/feature-flags/).
+Declare the container once, on the root command struct, and call `app.EnableFeatures()` on the application builder to activate feature resolution. Without the builder call, schema build rejects the container and every `feature` tag with `ErrSchema`. The `feature` tag is accepted on `OptionalFlag`, `Counter`, `Command[T]`, and `ConfigFile` fields; `RequiredFlag` rejects it because a required input cannot be absent. See [How to gate features](/how-to/gate-behind-features/).
 
 ### Feature container tags
 
@@ -273,7 +273,7 @@ Declare the container once, on the root command struct, and call `app.EnableFeat
 | `envprefix` | Per-feature env prefix: each feature field binds `<PREFIX>_<UPPER_SNAKE(feature name)>` unless the field overrides it with its own `env` tag. This is the per-feature env surface; it cannot be combined with `env`. |
 | `config` | Config section name holding the `name=value` pairs. |
 | `sep` | Pair separator inside one map value (default `","`). |
-| `help` | Help text for the synthesized flag. Defaults to `Enable or disable features (name=value)`; the root help screen's [Features section](/how-to/feature-flags/#declare-the-features) lists every feature, and `{{enum}}` (declared feature names) and `{{env}}` (the container's combined-map environment variable names) can be inlined, suppressing the matching bracket hint. `{{env}}` requires an `env` tag: a container whose only env surface is `envprefix` or field `env` tags rejects it at schema build. Other help variables are rejected. |
+| `help` | Help text for the synthesized flag. Defaults to `Enable or disable features (name=value)`; the root help screen's [Features section](/how-to/gate-behind-features/#declare-the-features) lists every feature, and `{{enum}}` (declared feature names) and `{{env}}` (the container's combined-map environment variable names) can be inlined, suppressing the matching bracket hint. `{{env}}` requires an `env` tag: a container whose only env surface is `envprefix` or field `env` tags rejects it at schema build. Other help variables are rejected. |
 | `enumhint` | Set to `-` to suppress the synthesized flag's `[enum: ...]` help hint. Redundant — and rejected — when the `help` tag already references `{{enum}}`. |
 
 A container that declares neither `env` nor `envprefix` binds no environment variable at all — `env:"-"` is equivalent. The application-level `EnvPrefix(...)` never reaches features; it applies to normal flags only.

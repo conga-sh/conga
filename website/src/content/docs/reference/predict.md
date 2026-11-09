@@ -3,7 +3,7 @@ title: package predict
 description: The decoupled completion SDK — predictors, combinators, items, context, directives.
 ---
 
-Complete package API documentation is on [pkg.go.dev/github.com/conga-sh/conga/predict](https://pkg.go.dev/github.com/conga-sh/conga/predict); wiring guidance is in [How to wire custom completion](/how-to/wire-custom-completion/).
+Complete package API documentation is on [pkg.go.dev/github.com/conga-sh/conga/predict](https://pkg.go.dev/github.com/conga-sh/conga/predict); task guidance is in [How to compute and shape completion candidates](/how-to/compute-completion-candidates/).
 
 ## Core types
 

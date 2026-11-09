@@ -276,7 +276,7 @@ cloudctl __complete bash "dep"
 
 The driver tokenizes the partial line, identifies the target command, flag, or argument, evaluates the applicable predictor and the built-in candidates, writes the shell-native directives to stdout, and exits 0 immediately, preserving the application's single-execution slot.
 
-If an application implements [`conga.Bootstrapper`](/how-to/load-domain-files/), the completion driver binds fields tagged `bootstrap:"true"` from the command line, environment, and defaults, and runs `Bootstrap` before candidate generation. This ensures predictors and feature gates evaluate with access to configuration extracted from the document or `.env` files. The driver restores bootstrap and selection state before returning candidates.
+If an application implements [`conga.Bootstrapper`](/how-to/load-domain-documents/), the completion driver binds fields tagged `bootstrap:"true"` from the command line, environment, and defaults, and runs `Bootstrap` before candidate generation. This ensures predictors and feature gates evaluate with access to configuration extracted from the document or `.env` files. The driver restores bootstrap and selection state before returning candidates.
 
 With completion enabled, several elements complete without custom code:
 - Flag names (long flags, short runes, aliases, and negatable forms), omitting deprecated flags.
@@ -289,11 +289,11 @@ Once a member of an `xor` or `oneof` group is on the command line, its sibling m
 
 ### Candidates as JSON
 
-`<cmd> __complete export <words...>` prints the candidates for the last word as one JSON object, with no shell script involved. The last word is the one being completed; pass `''` to complete an empty word. For the `deploy` program in [How to wire custom completion](/how-to/wire-custom-completion/):
+`<cmd> __complete export <words...>` prints the candidates for the last word as one JSON object, with no shell script involved. The last word is the one being completed; pass `''` to complete an empty word. For the `deploy` program in [How to compute and shape completion candidates](/how-to/compute-completion-candidates/):
 
 ```sh
-$ deploy __complete export --region eu-west-1 --cluster ''
-{"candidates":[{"value":"prod-eu-1","display":"prod-eu-1","tag":"values"}],"directives":{"keeporder":false,"messages":[],"noprefix":false,"nospace":false},"usage":"Cluster in the region"}
+$ deploy __complete export --pin ''
+{"candidates":[{"value":"api:","display":"api:","tag":"values"},{"value":"web:","display":"web:","tag":"values"},{"value":"worker:","display":"worker:","tag":"values"}],"directives":{"keeporder":false,"messages":[],"noprefix":false,"nospace":true},"usage":"Deploy a service at one of its tags (service:tag)"}
 ```
 
 `candidates` holds each value with its display text, its tag, and, when set, its description and alias marker; `directives` holds the flags the shell scripts act on; `usage` is the `help` text of the flag or argument being completed. [The completion wire protocol](https://github.com/conga-sh/conga/blob/main/docs/completion-wire-protocol.md) defines every field.

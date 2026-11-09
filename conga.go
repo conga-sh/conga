@@ -370,7 +370,7 @@ func (a *App[T]) AllowTags(tags ...string) *App[T] {
 //     executables, symlinks, none).
 //   - If a predictor with the same name has already been registered.
 //
-// See https://docs.conga.sh/how-to/wire-custom-completion/.
+// See https://docs.conga.sh/how-to/compute-completion-candidates/.
 func (a *App[T]) Predictor(name string, predictor predict.Predictor) *App[T] {
 	a.applyDefaults()
 
@@ -476,7 +476,7 @@ func (a *App[T]) VersionShortFlag(short rune) *App[T] {
 //	app := conga.New[CLI]().
 //		EnableFeatures()
 //
-// See https://docs.conga.sh/how-to/feature-flags/.
+// See https://docs.conga.sh/how-to/gate-behind-features/.
 func (a *App[T]) EnableFeatures() *App[T] {
 	a.installFeatureHooks()
 

@@ -295,7 +295,7 @@ The last two pass startup and every run that leaves the flag unset. Run the flag
 ## Where to go next
 
 - [Domain type interfaces](/reference/domain-types/#domain-type-interfaces): every interface, the decoding order, and the `TagSpec` and `DecodeContext` fields.
-- [How to wire custom completion](/how-to/wire-custom-completion/): give a type its own `Predict` method.
+- [How to compute and shape completion candidates](/how-to/compute-completion-candidates/): choose where a type's candidates come from, and read field tags in its completion.
 - [How to declare flags](/how-to/declare-flags/): the scalar, list, and map flags CONGA parses without a custom type.
 - [How to read files and standard input](/how-to/read-files-and-stdin/): use the built-in `File`, `Dir`, `FileContent`, and `ByteSize` types.
 - [Domain types](/reference/domain-types/): the built-in `File`, `Dir`, `FileContent`, and `ByteSize` types.

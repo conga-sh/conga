@@ -168,7 +168,7 @@ twelve-factor-precedence: error: invalid integer value "abc" for flag --port (fr
 
 To pass an empty string on purpose, use the command line: `twelve-factor-precedence --host ""`.
 
-`Features` containers bind their variables through their own `env` or `envprefix` tags, independently of `EnvPrefix`; see [How to gate flags and subcommands behind features](/how-to/feature-flags/#give-each-feature-its-own-environment-variable).
+`Features` containers bind their variables through their own `env` or `envprefix` tags, independently of `EnvPrefix`; see [How to gate flags and subcommands behind features](/how-to/gate-behind-features/#give-each-feature-its-own-environment-variable).
 
 ## Where to go next
 

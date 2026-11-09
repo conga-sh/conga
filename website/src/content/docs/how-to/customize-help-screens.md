@@ -69,7 +69,7 @@ Flags:
 Documentation: https://example.com/docs
 ```
 
-The footer appears on every help screen, including each subcommand's. When the root declares [feature toggles](/how-to/feature-flags/), the root screen also lists them under `Features:`.
+The footer appears on every help screen, including each subcommand's. When the root declares [feature toggles](/how-to/gate-behind-features/), the root screen also lists them under `Features:`.
 
 ## Describe a subcommand
 
@@ -385,5 +385,5 @@ The usage string includes its `Usage:` heading, as on the help screen.
 
 - [Built-ins and deprecation](/reference/builtins/#help): every help section, the usage line, and wrapping rules.
 - [Help variables](/reference/struct-tags/#help-variables): the full variable catalogue.
-- [How to gate features](/how-to/feature-flags/): the `Features:` section.
+- [How to gate features](/how-to/gate-behind-features/): the `Features:` section.
 - [Built-ins example](https://github.com/conga-sh/conga/tree/main/_examples/10-builtins-help-version): custom help, usage, and version commands.

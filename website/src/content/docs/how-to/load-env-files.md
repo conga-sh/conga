@@ -287,12 +287,12 @@ multiformat-and-dotenv: error: config error: cannot parse .env file "bad.env": l
 multiformat-and-dotenv: error: config error: cannot read .env file "big.env": file size limit exceeded: file size 17000002 bytes exceeds maximum limit of 16777216 bytes
 ```
 
-Shell completion reads the same files before suggesting values, so `.env` settings, including [feature gates](/how-to/feature-flags/), shape completion the same way they shape a run. A missing or broken file stays quiet during completion and fails the run itself.
+Shell completion reads the same files before suggesting values, so `.env` settings, including [feature gates](/how-to/gate-behind-features/), shape completion the same way they shape a run. A missing or broken file stays quiet during completion and fails the run itself.
 
 ## Where to go next
 
 - [Dotenv files](/reference/dotenv/): loading rules, the file grammar, and the size limit.
 - [How to bind environment variables](/how-to/bind-environment-variables/): connect variables to flags.
 - [How to manage config files](/how-to/manage-config-files/): the tier below the environment.
-- [How to load domain documents](/how-to/load-domain-files/): the other use of `Bootstrap`.
+- [How to load domain documents](/how-to/load-domain-documents/): the other use of `Bootstrap`.
 - [Multiformat and dotenv example](https://github.com/conga-sh/conga/tree/main/_examples/14-multiformat-and-dotenv): the program used on this page.

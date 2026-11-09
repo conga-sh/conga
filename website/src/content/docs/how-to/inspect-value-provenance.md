@@ -281,7 +281,7 @@ A bad config value stops the report, so the user fixes the value first:
 server: error: invalid integer value "eighty" for flag --port (from config key "port")
 ```
 
-The report also lists [feature toggles](/how-to/feature-flags/#check-which-source-set-each-feature) and the flags of parent commands; colour and markers appear only on a terminal.
+The report also lists [feature toggles](/how-to/gate-behind-features/#check-which-source-set-each-feature) and the flags of parent commands; colour and markers appear only on a terminal.
 
 ## Where to go next
 
