@@ -82,6 +82,7 @@ export default defineConfig({
             { label: 'Validate input', slug: 'how-to/validate-input' },
             { label: 'Declare subcommands', slug: 'how-to/declare-subcommands' },
             { label: 'Accept positional arguments', slug: 'how-to/accept-positional-arguments' },
+            { label: 'Use lifecycle hooks', slug: 'how-to/use-lifecycle-hooks' },
             { label: 'Read files and standard input', slug: 'how-to/read-files-and-stdin' },
             { label: 'Use network, system, and timezone types', slug: 'how-to/use-domain-packages' },
             { label: 'Customize help screens', slug: 'how-to/customize-help-screens' },

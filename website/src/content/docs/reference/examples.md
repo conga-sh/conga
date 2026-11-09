@@ -810,7 +810,7 @@ Uses: `CompletionCommand`, `App.EnableCompletion`
 
 ### 12 lifecycle-hooks
 
-[Source](https://github.com/conga-sh/conga/tree/main/_examples/12-lifecycle-hooks)
+[Source](https://github.com/conga-sh/conga/tree/main/_examples/12-lifecycle-hooks) · Guide: [How to use lifecycle hooks](/how-to/use-lifecycle-hooks/)
 
 A migration tool that prints each hook as it runs, on the root and on the selected command. When `Run` fails, `PostRun` is skipped and `Finally` still runs. When a command's `PreRun` fails, its own `Run`, `PostRun` and `Finally` are skipped, and the root's `Finally` still runs. Both failures exit with code 1.
 
