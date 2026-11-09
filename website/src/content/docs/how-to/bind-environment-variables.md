@@ -77,11 +77,50 @@ The flag still takes its value from the command line, a config file, or its `def
 
 ## Give a subcommand its own prefix
 
-By default a subcommand's flags use the application prefix. To change that, add an `envprefix` tag to the `Command[T]` field. The tag sets the subcommand's prefix exactly as written, in place of the parent's. Repeating the application prefix is up to you: `SERVER_WORKER` keeps the subcommand's variables next to the application's, and `MIGRATE` gives them a name of their own.
+A subcommand's flags use the application prefix, so flags with the same name on sibling subcommands read the same variable. A flag that means the same thing in every subcommand belongs on the parent, where subcommands [read it through `session.Root`](/how-to/declare-subcommands/#read-root-flags-from-a-subcommand). When the name means something different in each command, the shared variable sets both.
 
-This variation adds three subcommands under `EnvPrefix("SERVER")`:
+This variation adds `worker`, `cron`, and `migrate` subcommands under `EnvPrefix("SERVER")`. `worker --timeout` limits each job, and `migrate --timeout` is how long to wait for the schema lock:
 
 ```go title="main.go"
+type CLI struct {
+	Worker  conga.Command[WorkerCmd]  `summary:"Background worker"`
+	Cron    conga.Command[CronCmd]    `summary:"Scheduled jobs"`
+	Migrate conga.Command[MigrateCmd] `summary:"Run migrations"`
+}
+
+type WorkerCmd struct {
+	Timeout conga.OptionalFlag[time.Duration] `default:"5m" help:"Time limit for each job" safe:"true"`
+}
+
+type MigrateCmd struct {
+	Timeout conga.OptionalFlag[time.Duration] `default:"30s" help:"Time to wait for the schema lock" safe:"true"`
+}
+```
+
+Both help screens name `SERVER_TIMEOUT`:
+
+```text no-copy
+      --timeout=5m  Time limit for each job [env: SERVER_TIMEOUT]
+      --timeout=30s  Time to wait for the schema lock [env: SERVER_TIMEOUT]
+```
+
+A user who exports `SERVER_TIMEOUT=10m` to give jobs more time also makes `migrate` wait ten minutes for the lock:
+
+```sh
+$ SERVER_TIMEOUT=10m twelve-factor-precedence worker
+worker: job timeout 10m0s
+```
+
+```sh
+$ SERVER_TIMEOUT=10m twelve-factor-precedence migrate
+migrate: lock timeout 10m0s
+```
+
+A config file keeps the two apart, because each command's keys sit under its own section (`[worker]` and `[migrate]` in TOML).
+
+To give a subcommand its own variables, add an `envprefix` tag to the `Command[T]` field. The tag sets the subcommand's prefix exactly as written, in place of the parent's. You choose whether to repeat the application prefix. `SERVER_WORKER` keeps the subcommand's variables next to the application's, and `MIGRATE` gives them a name of their own:
+
+```go title="main.go" {2,4}
 type CLI struct {
 	Worker  conga.Command[WorkerCmd]  `envprefix:"SERVER_WORKER" summary:"Background worker"`
 	Cron    conga.Command[CronCmd]    `summary:"Scheduled jobs"`
@@ -91,21 +130,39 @@ type CLI struct {
 
 | Subcommand tag | Flag | Variable |
 |---|---|---|
-| `envprefix:"SERVER_WORKER"` | `worker --concurrency` | `SERVER_WORKER_CONCURRENCY` |
+| `envprefix:"SERVER_WORKER"` | `worker --timeout` | `SERVER_WORKER_TIMEOUT` |
 | none, so it inherits `SERVER` | `cron --schedule` | `SERVER_SCHEDULE` |
-| `envprefix:"MIGRATE"` | `migrate --steps` | `MIGRATE_STEPS` |
+| `envprefix:"MIGRATE"` | `migrate --timeout` | `MIGRATE_TIMEOUT` |
 
 Each subcommand's `--help` shows its own variables:
 
 ```text no-copy
-      --concurrency=4  Worker concurrency [env: SERVER_WORKER_CONCURRENCY]
+      --timeout=30s  Time to wait for the schema lock [env: MIGRATE_TIMEOUT]
 ```
 
-Under `envprefix:"MIGRATE"`, the program reads `MIGRATE_STEPS`, so a user who sets `SERVER_MIGRATE_STEPS=9` still gets the default of `1`.
+`SERVER_TIMEOUT` now reaches neither command. Under `envprefix:"MIGRATE"`, the program reads `MIGRATE_TIMEOUT`, so a user who sets `SERVER_MIGRATE_TIMEOUT=2m` still gets the default of `30s`.
+
+To separate a single flag instead, give it an [`env` tag](#choose-a-specific-name-for-one-flag). With `env:"MIGRATE_LOCK_TIMEOUT"` on `migrate`'s flag, and no `envprefix` tags, `SERVER_TIMEOUT` sets `worker` alone:
+
+```text no-copy
+      --timeout=30s  Time to wait for the schema lock [env: MIGRATE_LOCK_TIMEOUT]
+```
 
 ## Set lists, maps, and booleans from the environment
 
-In the same variation, users write the same formats they would pass on the command line:
+This variation adds a list flag and a map flag to the example's root struct, next to its `Debug` flag:
+
+```go title="main.go"
+Tags   conga.OptionalFlag[[]string]          `help:"Instance tags"`
+Labels conga.OptionalFlag[map[string]string] `help:"Instance labels"`
+```
+
+```text no-copy
+      --tags=STRING,...       Instance tags [env: SERVER_TAGS]
+      --labels=KEY=VALUE,...  Instance labels [env: SERVER_LABELS]
+```
+
+Each variable takes its value in the format the flag takes on the command line, a comma-separated list for `--tags` and `key=value` pairs for `--labels`:
 
 | Flag type | Example variable | Value |
 |---|---|---|
@@ -113,13 +170,20 @@ In the same variation, users write the same formats they would pass on the comma
 | `map[string]string` | `SERVER_LABELS=env=prod,team=core` | `map[env:prod team:core]` |
 | `bool` | `SERVER_DEBUG=true` | `true` |
 
-Spaces after commas are trimmed (`SERVER_TAGS="a, b"` gives the same list). Booleans accept `true`/`false`, `1`/`0`, and upper-case forms such as `TRUE`.
+Spaces after commas are trimmed (`SERVER_TAGS="a, b"` gives the same list). Booleans accept `true`/`false`, `1`/`0`, and upper-case forms such as `TRUE`. Any other value, such as `yes`, is a usage error that names the variable.
 
-A list on the command line replaces the variable's list rather than adding to it: `SERVER_TAGS=a,b server --tags c` gives `["c"]`.
+A list on the command line replaces the variable's list, so `SERVER_TAGS=a,b` with `--tags c` gives `["c"]`. A map on the command line merges with the variable's map key by key, and the command line wins on a shared key. The variation's `Run` prints `--tags`, `--labels`, and `--debug`:
+
+```sh
+$ SERVER_LABELS=env=prod,team=core twelve-factor-precedence --labels team=web
+tags=[] labels=map[env:prod team:web] debug=false
+```
+
+[Map flags](/explanation/value-precedence/#map-flags) gives the merge order across every source.
 
 ## Check where a value came from
 
-Run with `--why`. The `SOURCE` column shows `env` for values from a variable, and the `ENV` column lists the variables each flag reads:
+Back in the example program, run with `--why`. The `SOURCE` column shows `env` for values from a variable, and the `ENV` column lists the variables each flag reads:
 
 ```sh {6-7} hidden={13-23}
 $ SERVER_HOST=0.0.0.0 PORT=9001 twelve-factor-precedence -p 9003 --why
@@ -158,7 +222,8 @@ Create a config file at one of:
 | `PORT=9001` and `-p 9003` | The command line wins: `--port` is `9003` |
 | `PORT=abc` | Usage error, exit 2, naming the variable |
 | `SERVER_TRACE=true` on an `env:"-"` flag | Not read: `--trace` stays unset |
-| A required flag's variable, such as `TOKEN=t` | Satisfies the requirement |
+| `SERVER_TIMEOUT=10m`, with `worker` and `migrate` both declaring `--timeout` and neither tagged | Both commands read `10m` |
+| The variable of a `RequiredFlag` | Satisfies the requirement |
 
 A bad value names both the flag and the variable it came from:
 
@@ -168,7 +233,7 @@ twelve-factor-precedence: error: invalid integer value "abc" for flag --port (fr
 
 To pass an empty string on purpose, use the command line: `twelve-factor-precedence --host ""`.
 
-`Features` containers bind their variables through their own `env` or `envprefix` tags, independently of `EnvPrefix`; see [How to gate flags and subcommands behind features](/how-to/gate-behind-features/#give-each-feature-its-own-environment-variable).
+`Features` containers bind their variables through their own `env` or `envprefix` tags, independently of `EnvPrefix`. [How to gate flags and subcommands behind features](/how-to/gate-behind-features/#give-each-feature-its-own-environment-variable) covers them.
 
 ## Where to go next
 
