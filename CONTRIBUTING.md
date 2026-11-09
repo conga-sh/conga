@@ -25,22 +25,23 @@ task test:all
 ```
 
 - `task test` runs the unit suite with the race detector enabled.
-- `task lint` runs `golangci-lint run --fix ./...` plus the `conga-lint` schema
-  analyzer.
+- `task lint` runs golangci-lint with `--fix` (it rewrites files) over the
+  core packages, examples, and integration suites, plus the `conga-lint`
+  schema analyzer.
 - `task test:all` additionally runs the shell-completion and binary-size
   integration suites.
 
-These gates are production-phase requirements. Iterate during prototyping with
-`task proto` (compile plus focused tests), then run the hardening checklist in
-[AGENTS.md](AGENTS.md) §5 before opening the pull request.
+These gates are hardening-phase requirements. Iterate during prototyping with
+`task proto -- ./path/to/pkg/...` (compile plus focused tests), then run
+`task harden` (auto-fix lint, declaration reordering, and the full CI gate)
+before opening the pull request; see [AGENTS.md](AGENTS.md) §1.
 
 ## Declaration Ordering
 
 Every non-test Go source file follows top-down public-to-private declaration
 ordering (public API first, then the public/private boundary, then internal
-helpers). `*_test.go` files are exempt.
-The full ordering hierarchy and its rationale are documented in
-[AGENTS.md](AGENTS.md) §1.
+helpers). `*_test.go` files are exempt, and `conga-reorder` skips them.
+The full ordering hierarchy is documented in [AGENTS.md](AGENTS.md) §4.
 
 ## Pull Requests
 
