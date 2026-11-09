@@ -137,7 +137,7 @@ The root command takes its description from `app.Description(...)` and its examp
 
 ## Mark a subcommand deprecated
 
-Add a `deprecated` tag with the reason. Here a `push` command gives way to `rollout`:
+Add a `deprecated` tag with the reason, and the parent's list marks the command. Here a `push` command gives way to `rollout`:
 
 ```go title="cli.go" ins={4}
 type CLI struct {
@@ -147,8 +147,6 @@ type CLI struct {
 }
 ```
 
-The parent's list marks the command:
-
 ```text no-copy
 Commands:
   deploy   Deploy workloads to clusters
@@ -156,23 +154,7 @@ Commands:
   push     Push a release [deprecated: use rollout]
 ```
 
-The command's own help screen opens with a warning:
-
-```sh
-$ cloudctl push --help
-WARNING: command 'cloudctl push' is deprecated: use rollout
-
-Push a release
-```
-
-The command still runs, and prints the same warning to stderr first:
-
-```sh
-$ cloudctl push v1.4
-WARNING: command 'cloudctl push' is deprecated: use rollout
-```
-
-`app.Deprecated(...)` marks the whole application the same way.
+[How to deprecate flags and commands](/how-to/deprecate-flags-and-commands/) shows the warnings users see, and deprecates flags and whole applications.
 
 ## Give help and version short flags
 
@@ -386,4 +368,5 @@ The usage string includes its `Usage:` heading, as on the help screen.
 - [Built-ins and deprecation](/reference/builtins/#help): every help section, the usage line, and wrapping rules.
 - [Help variables](/reference/struct-tags/#help-variables): the full variable catalogue.
 - [How to gate features](/how-to/gate-behind-features/): the `Features:` section.
+- [How to deprecate flags and commands](/how-to/deprecate-flags-and-commands/): the deprecation markers and warnings.
 - [Built-ins example](https://github.com/conga-sh/conga/tree/main/_examples/10-builtins-help-version): custom help, usage, and version commands.

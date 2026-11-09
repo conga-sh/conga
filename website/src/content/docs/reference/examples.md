@@ -472,7 +472,7 @@ Uses: `{{range}}`, `{{enum}}`, `{{items}}`, `{{default}}`, `{{env}}`
 
 ### 22 app-deprecation
 
-[Source](https://github.com/conga-sh/conga/tree/main/_examples/22-app-deprecation)
+[Source](https://github.com/conga-sh/conga/tree/main/_examples/22-app-deprecation) · Guide: [How to deprecate flags and commands](/how-to/deprecate-flags-and-commands/)
 
 A retired tool that still works but prints a deprecation warning on every run, `--help` included.
 
@@ -486,7 +486,7 @@ Uses: `App.Deprecated`
 
 ### 23 member-deprecation
 
-[Source](https://github.com/conga-sh/conga/tree/main/_examples/23-member-deprecation)
+[Source](https://github.com/conga-sh/conga/tree/main/_examples/23-member-deprecation) · Guide: [How to deprecate flags and commands](/how-to/deprecate-flags-and-commands/)
 
 A CLI where the `--old` flag and the `legacy` command still work but warn and name their replacements. Completion stops offering them: the candidates below include `--modern` and leave out `--old`.
 

@@ -86,6 +86,7 @@ export default defineConfig({
             { label: 'Read files and standard input', slug: 'how-to/read-files-and-stdin' },
             { label: 'Use network, system, and timezone types', slug: 'how-to/use-domain-packages' },
             { label: 'Customize help screens', slug: 'how-to/customize-help-screens' },
+            { label: 'Deprecate flags and commands', slug: 'how-to/deprecate-flags-and-commands' },
             { label: 'Manage config files', slug: 'how-to/manage-config-files' },
             { label: 'Load domain documents', slug: 'how-to/load-domain-documents' },
             { label: 'Bind environment variables', slug: 'how-to/bind-environment-variables' },

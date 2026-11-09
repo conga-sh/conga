@@ -142,7 +142,7 @@ WARNING: command 'cloudctl push' is deprecated: use deploy
 deploying web.yaml with 3 replicas
 ```
 
-Shell completion offers the aliases; `--help` lists each command once, by name. `name:"..."` replaces the kebab-case name.
+Shell completion offers the aliases; `--help` lists each command once, by name. `name:"..."` replaces the kebab-case name. [How to deprecate flags and commands](/how-to/deprecate-flags-and-commands/) also deprecates flags and whole applications.
 
 ## Read root flags from a subcommand
 
