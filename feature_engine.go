@@ -427,7 +427,7 @@ func featureSourceName(cmd *spec.Command, feature *spec.FeatureField, source Val
 	case SourceEnv:
 		return envName
 	case SourceConfig:
-		if cmd.FeatureFlag == nil || cmd.FeatureFlag.ConfigKey == "" || cmd.FeatureFlag.ConfigKey == "-" {
+		if cmd.FeatureFlag == nil || cmd.FeatureFlag.ConfigKey == "-" {
 			return ""
 		}
 

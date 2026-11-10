@@ -58,11 +58,17 @@ func runRelative(lintAnalyzer *analysis.Analyzer, arguments []string, output io.
 	flagSet := flag.NewFlagSet(lintAnalyzer.Name, flag.ContinueOnError)
 	flagSet.SetOutput(io.Discard)
 
+	includeTests := flagSet.Bool("test", true, "indicates whether test files should be analyzed, too")
+
+	// Driver flags win over analyzer flags of the same name, as in
+	// analysisflags.Parse.
 	lintAnalyzer.Flags.VisitAll(func(analyzerFlag *flag.Flag) {
+		if flagSet.Lookup(analyzerFlag.Name) != nil {
+			return
+		}
+
 		flagSet.Var(analyzerFlag.Value, analyzerFlag.Name, analyzerFlag.Usage)
 	})
-
-	includeTests := flagSet.Bool("test", true, "indicates whether test files should be analyzed, too")
 
 	if err := flagSet.Parse(arguments); err != nil {
 		return 0, false
@@ -129,8 +135,8 @@ func analyzePatterns(lintAnalyzer *analysis.Analyzer, patterns []string, include
 }
 
 // printRelativeDiagnostics mirrors checker.Graph.PrintText without context
-// lines: it prints action errors and de-duplicated root diagnostics, with each
-// file path made relative to workingDirectory when the file lies beneath it.
+// lines: it prints action errors and de-duplicated root diagnostics with their
+// related information, with each file path made relative to workingDirectory when the file lies beneath it.
 func printRelativeDiagnostics(graph *checker.Graph, workingDirectory string, output io.Writer) int {
 	type diagnosticKey struct {
 		position string
@@ -172,6 +178,13 @@ func printRelativeDiagnostics(graph *checker.Graph, workingDirectory string, out
 			position.Filename = relativePath(workingDirectory, position.Filename)
 
 			fmt.Fprintf(output, "%s: %s\n", position, diagnostic.Message)
+
+			for _, related := range diagnostic.Related {
+				relatedPosition := action.Package.Fset.Position(related.Pos)
+				relatedPosition.Filename = relativePath(workingDirectory, relatedPosition.Filename)
+
+				fmt.Fprintf(output, "%s: \t%s\n", relatedPosition, related.Message)
+			}
 		}
 	}
 

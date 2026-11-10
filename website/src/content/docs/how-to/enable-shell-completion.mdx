@@ -262,8 +262,8 @@ source <(cloudctl completion bash)
 echo 'source <(cloudctl completion bash)' >> ~/.bashrc
 
 # Or, with bash-completion installed, write a lazy-loaded completion file
-mkdir -p ~/.local/share/bash-completion/completions
-cloudctl completion bash > ~/.local/share/bash-completion/completions/cloudctl
+mkdir -p "${XDG_DATA_HOME:-$HOME/.local/share}/bash-completion/completions"
+cloudctl completion bash > "${XDG_DATA_HOME:-$HOME/.local/share}/bash-completion/completions/cloudctl"
 ```
 ```sh label="Zsh"
 # Ensure compinit is enabled
