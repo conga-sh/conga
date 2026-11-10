@@ -390,5 +390,5 @@ cloudctl: error: unknown shell "myshell", supported shells: bash, elvish, fish, 
 ## Where to go next
 
 - [How to compute and shape completion candidates](/how-to/compute-completion-candidates/): compute candidates from loaded data or an API, combine predictors, and complete values in parts.
-- [Completion surface](/reference/builtins/#completion-surface): flag vs. subcommand rules, user toggles, binary names, and file candidates.
+- [Completion](/reference/builtins/#completion): flag vs. subcommand rules, user toggles, binary names, and file candidates.
 - [Package predict](/reference/predict/): predictor constructors, combinators, and interfaces.

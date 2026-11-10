@@ -3,7 +3,13 @@ title: Built-ins and deprecation
 description: Help, version, why, completion commands, deprecation notices, and flat-CLI completion styles.
 ---
 
-CONGA provides five built-in surfaces: help, version, `--why`, completion, and deprecation notices. Help and version are injected by default and disabled with builder calls; `--why` and completion are opt-in. The injected `--help` and `--version` flags are long-only unless a short rune is assigned with `app.HelpShortFlag(...)` or `app.VersionShortFlag(...)`.
+CONGA has five built-ins:
+
+- Help and version, on by default. `app.DisableHelpFlag()` and `app.DisableVersionFlag()` remove their flags.
+- `--why` and shell completion, opt-in through `app.EnableWhy()` and `app.EnableCompletion()`.
+- Deprecation notices, from `app.Deprecated(...)` and `deprecated` tags.
+
+The injected `--help` and `--version` flags are long-only unless a short rune is assigned with `app.HelpShortFlag(...)` or `app.VersionShortFlag(...)`.
 
 ## Help
 
@@ -134,13 +140,11 @@ app := conga.New[CLI]().
 	VersionShortFlag('V')
 ```
 
-The zero value keeps a built-in long-only. The builders are opt-in because a short rune an application flag already declares cannot serve both: a collision between the rune and a user-declared short, or between the two built-in runes, fails schema build with `ErrDuplicateFlag` naming the flag and command. Disabling the matching built-in leaves the rune inert: it binds to nothing, and the `help` or `version` name and the rune stay free for your own flags. User-declared `--help` or `--version` flags shadow built-in rows and render long-only without inheriting the configured short rune.
+The zero value keeps a built-in long-only. A collision between the rune and a user-declared short, or between the two built-in runes, fails schema build with `ErrDuplicateFlag` naming the flag and command. Disabling the matching built-in leaves the rune inert: it binds to nothing, and the `help` or `version` name and the rune stay free for your own flags. User-declared `--help` or `--version` flags shadow built-in rows and render long-only without inheriting the configured short rune.
 
-The help rune applies to every command screen, and the version rune to the root screen, matching the root-only `--version` flag. Once a subcommand is selected — explicitly by name, by implicit operand routing, or by a child-only flag — `--version` is no longer a builtin there: the token is rejected as an unknown flag, or captured by the selected command's trailing `RawArgs` when its declared positionals are already full (the raw-args grammar applies identically to the named form). Use `tool --version` for the version summary. See [Implicit subcommands](/reference/struct-tags/#implicit-subcommands). Completion offers each configured rune as a shorthand candidate next to the declared short flags whenever the matching built-in is offered on the active command.
+The help rune applies to every command screen, and the version rune to the root screen, matching the root-only `--version` flag. Once a subcommand is selected, `--version` is no longer a built-in ([`--version` after selection](/reference/struct-tags/#--version-after-selection)). Completion offers each configured rune as a shorthand candidate next to the declared short flags whenever the matching built-in is offered on the active command.
 
-### Global help footers and top matter
-
-Top-matter text consists of command descriptions and the deprecation banner.
+### Help footer
 
 `app.HelpFooter(footer)` sets a global help footer rendered at the bottom of every help screen across the application, including subcommands:
 
@@ -150,7 +154,7 @@ app := conga.New[CLI]().
 	HelpFooter("Documentation: https://example.com/docs\nReport issues: https://example.com/issues")
 ```
 
-Help footers are strictly global. Defining a `HelpFooter() string` method on a root command struct or a subcommand struct fails schema construction with `ErrSchema`.
+The footer is set only through `app.HelpFooter`. A `HelpFooter() string` method on a root command struct or a subcommand struct fails schema build with `ErrSchema`.
 
 ### The `help` subcommand
 
@@ -205,7 +209,7 @@ hello:
 
 `app.EnableWhy()` enables `--why`, which prints a per-field provenance report — every resolved value in the active command chain with its [source](/explanation/value-precedence/): `cli`, `env`, `config (file)`, `default`, or `unset`. Configuration origins render as the file basename when it is unambiguous, or as the shortest unique directory prefix followed by `...` when basenames collide; the JSON report keeps the resolved paths verbatim. A multi-file `ConfigFile` row renders `(N files)` and lists each path as a tree sub-row (`├─ `, `└─ `), while any other slice flag with more than one item renders `(N values)` and lists each item vertically.
 
-Map flags merge key by key across tiers: the flag row displays the key count `(N keys)` alongside the highest contributing tier (annotated with its config origin when a single file contributes), followed by tree-structured sub-rows detailing each key's value and the tier that last wrote it (annotated with its config origin). The `CONFIG PATH` column names the config-document key. The report machinery is linked only when `app.EnableWhy()` is called; otherwise `--why` remains an unknown flag.
+A map flag's row shows `(N keys)` and the highest source that contributed, with its config file when only one file contributed. A sub-row for each key shows its value and the source that last wrote it, with its config file. The `CONFIG PATH` column names the config-document key. The report code is linked only when `app.EnableWhy()` is called, and otherwise `--why` is an unknown flag.
 
 The text report has these parts, in this order, and leaves out any part with nothing to show:
 
@@ -232,7 +236,7 @@ A map flag applies the rule key by key: keys from the default show, and keys set
 
 When connected to an interactive terminal, the report uses colour: each source gets a marker and a colour (`● cli` cyan, `● env` yellow, `● config` green, `○ default` grey, `unset` dim). When piped, redirected, or running under `NO_COLOR=1` or `TERM=dumb`, it prints plain text with no markers, as shown on the how-to pages. Output color can also be forced with `CONGA_COLOR=1` or disabled with `CONGA_COLOR=0`.
 
-Resolution runs through the standard binding pipeline (skipping required-flag presence checks). If configuration is malformed or flag coercion fails, `--why` fails fast with normal error diagnostics instead of printing partial tables.
+`--why` binds values as a normal run does, except that a missing required flag is not an error. Malformed configuration or a value that fails to parse produces the normal error, and no report.
 
 By default (or with `--why=text`), the report renders as formatted human-readable tables. Pass `conga.WhyOptionJSON()` to `EnableWhy` (`app.EnableWhy(conga.WhyOptionJSON())`) to enable `--why=json`, which emits a versioned machine-readable document:
 
@@ -254,13 +258,13 @@ Requesting `--why=json` without `conga.WhyOptionJSON()` enabled on the applicati
 
 When `conga.WhyOptionJSON()` is enabled, the help screen renders the flag as `--why[=FORMAT]` with the accepted formats appended as an enum hint (`[enum: text, json]`); otherwise `--why` renders as a plain toggle. Completion mirrors the split: the flag-name candidates are the value-bearing forms `--why=text` and `--why=json`, and completing after `--why=` offers the enabled formats filtered by prefix.
 
-When the root command declares `conga.Features[T]`, the report ends with a `Features:` table listing every declared feature, its resolved value, and its source. Each feature reports the tier that last wrote its key; keys no tier sets fall back to the field default (`○ default`) or render `unset`. See [Feature toggles](/reference/struct-tags/#feature-toggles-congafeaturest).
+When the root command declares `conga.Features[T]`, the report ends with a `Features:` table listing every declared feature, its resolved value, and its source. Each feature reports the source that last wrote its key. Keys no source sets fall back to the field default (`○ default`) or render `unset`. See [Feature toggles](/reference/struct-tags/#feature-toggles-congafeaturest).
 
-## Completion surface
+## Completion
 
 `app.EnableCompletion()` enables shell completion. The completion flag, the `completion` subcommand, the `__complete` protocol, and their shell drivers are linked only when this call is present.
 
-| Style | Surface | When |
+| Style | Invocation | When |
 |-------|---------|------|
 | Flag | `--completion <shell>` | A root command without subcommands |
 | Subcommand | `completion <shell>`, listed last under `Commands:` | A root command with subcommands, or any root command that declares a `conga.CompletionCommand` field (which also suppresses the flag). The field accepts the `name`, `aliases`, `section`, `summary`, and `hidden` tags, and its `Shell() string` method returns the requested shell. Declaring `conga.CompletionCommand` without `app.EnableCompletion()` fails schema build with `ErrSchema` |
@@ -274,9 +278,9 @@ When the user presses `Tab`, the installed shell function invokes the binary thr
 cloudctl __complete bash "dep"
 ```
 
-The driver tokenizes the partial line, identifies the target command, flag, or argument, evaluates the applicable predictor and the built-in candidates, writes the shell-native directives to stdout, and exits 0 immediately, preserving the application's single-execution slot.
+The driver prints the candidates for the last word in the shell's format and exits 0. A completion invocation does not count as the app's one execution.
 
-If an application implements [`conga.Bootstrapper`](/how-to/load-domain-documents/), the completion driver binds fields tagged `bootstrap:"true"` from the command line, environment, and defaults, and runs `Bootstrap` before candidate generation. This ensures predictors and feature gates evaluate with access to configuration extracted from the document or `.env` files. The driver restores bootstrap and selection state before returning candidates.
+If an application implements [`conga.Bootstrapper`](/how-to/load-domain-documents/), the completion driver binds fields tagged `bootstrap:"true"` from the command line, environment, and defaults, and runs `Bootstrap` before candidate generation. Predictors and feature gates therefore see the values `Bootstrap` loads from `.env` files or a document. The driver restores bootstrap and selection state before returning candidates.
 
 With completion enabled, several elements complete without custom code:
 - Flag names (long flags, short runes, aliases, and negatable forms), omitting deprecated flags.
