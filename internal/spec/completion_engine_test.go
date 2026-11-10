@@ -2273,3 +2273,94 @@ func findItem(items []predict.Item, value string) (predict.Item, bool) {
 
 	return predict.Item{}, false
 }
+
+type BatchSliceCLI struct {
+	Repeated mockFlag[[]string] `help:"Repeated tags"   predictor:"batch-tags" sep:"none"`
+	Joined   mockFlag[[]string] `help:"Joined tags"     predictor:"batch-tags"`
+}
+
+func batchSlicePredictors() map[string]predict.Predictor {
+	return map[string]predict.Predictor{
+		"batch-tags": predict.Batch(predict.Values("api", "cli"), predict.Values("docs")),
+	}
+}
+
+func TestCompletion_SliceFlagExcludesBatchValues(t *testing.T) {
+	t.Parallel()
+
+	t.Run("repeated flag drops values already given", func(t *testing.T) {
+		t.Parallel()
+
+		var cli BatchSliceCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{RegisteredPredictors: batchSlicePredictors()})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"--repeated", "api", "--repeated", ""}, spec.CompleteOptions{
+			RegisteredPredictors: batchSlicePredictors(),
+		})
+
+		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
+		assert.Equal(t, []string{"cli", "docs"}, values)
+	})
+
+	t.Run("joined flag drops parts already typed", func(t *testing.T) {
+		t.Parallel()
+
+		var cli BatchSliceCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{RegisteredPredictors: batchSlicePredictors()})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"--joined", "docs,"}, spec.CompleteOptions{
+			RegisteredPredictors: batchSlicePredictors(),
+		})
+
+		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
+		assert.Equal(t, []string{"docs,api", "docs,cli"}, values)
+	})
+}
+
+type UsageHintCLI struct {
+	Image mockFlag[string] `help:"Image name" predictor:"images"`
+}
+
+func TestCompletion_FlagPredictorUsageOutranksHelp(t *testing.T) {
+	t.Parallel()
+
+	t.Run("predictor hint wins over flag help", func(t *testing.T) {
+		t.Parallel()
+
+		var cli UsageHintCLI
+
+		predictors := map[string]predict.Predictor{
+			"images": predict.Callback(func(predict.Context) predict.Predictor {
+				return predict.None().Usage("Type the service first")
+			}),
+		}
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{RegisteredPredictors: predictors})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"--image", ""}, spec.CompleteOptions{
+			RegisteredPredictors: predictors,
+		})
+
+		assert.Equal(t, "Type the service first", invoked.Usage)
+	})
+
+	t.Run("flag help is the fallback", func(t *testing.T) {
+		t.Parallel()
+
+		var cli UsageHintCLI
+
+		predictors := map[string]predict.Predictor{"images": predict.Values("nginx")}
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{RegisteredPredictors: predictors})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"--image", ""}, spec.CompleteOptions{
+			RegisteredPredictors: predictors,
+		})
+
+		assert.Equal(t, "Image name", invoked.Usage)
+	})
+}
