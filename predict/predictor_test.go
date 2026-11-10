@@ -193,6 +193,7 @@ func TestExclude_TimeoutAlternative(t *testing.T) {
 	t.Parallel()
 
 	release := make(chan struct{})
+
 	t.Cleanup(func() { close(release) })
 
 	slow := predict.Callback(func(predict.Context) predict.Predictor {

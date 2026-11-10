@@ -2275,8 +2275,8 @@ func findItem(items []predict.Item, value string) (predict.Item, bool) {
 }
 
 type BatchSliceCLI struct {
-	Repeated mockFlag[[]string] `help:"Repeated tags"   predictor:"batch-tags" sep:"none"`
-	Joined   mockFlag[[]string] `help:"Joined tags"     predictor:"batch-tags"`
+	Repeated mockFlag[[]string] `help:"Repeated tags" predictor:"batch-tags" sep:"none"`
+	Joined   mockFlag[[]string] `help:"Joined tags"   predictor:"batch-tags"`
 }
 
 func batchSlicePredictors() map[string]predict.Predictor {
