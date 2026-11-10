@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -481,7 +482,7 @@ func TestWhy_FieldEnvNoDetail(t *testing.T) {
 	_, featuresSection, found := strings.Cut(buffer.String(), "Features:")
 	assert.True(t, found)
 
-	featuresTable, _, _ := strings.Cut(featuresSection, "\n\n")
+	featuresTable, _, _ := strings.Cut(strings.TrimLeft(featuresSection, "\n"), "\n\n")
 
 	assert.Contains(t, featuresTable, "gentle-force")
 
@@ -522,7 +523,7 @@ func TestWhy_FieldEnvOverridesConfigClearsConfigDetail(t *testing.T) {
 	_, featuresSection, found := strings.Cut(buffer.String(), "Features:")
 	assert.True(t, found)
 
-	featuresTable, _, _ := strings.Cut(featuresSection, "\n\n")
+	featuresTable, _, _ := strings.Cut(strings.TrimLeft(featuresSection, "\n"), "\n\n")
 
 	assert.Contains(t, featuresTable, "gentle-force")
 	assert.Contains(t, featuresTable, "false")
@@ -2827,4 +2828,65 @@ func TestBuiltinWhy_JSONPointerReceiverTextMarshaler(t *testing.T) {
 	}
 
 	assert.True(t, found)
+}
+
+func TestWhy_ConfigPathsChecked_FirstHitSkipsLaterTiers(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	localDir := filepath.Join(tmpDir, "local")
+	userDir := filepath.Join(tmpDir, "user")
+
+	for _, dir := range []string{localDir, userDir} {
+		assert.NoError(t, os.MkdirAll(dir, 0o700))
+		assert.NoError(t, os.WriteFile(filepath.Join(dir, "config.json"), []byte(`{"port": 9000}`), 0o600))
+	}
+
+	var buffer bytes.Buffer
+
+	app := conga.New[whySearchPathCLI]().
+		Name("whyapp").
+		RegisterDecoder(".json", json.Decode).
+		ConfigOptions(conga.ConfigPaths(localDir, userDir)).
+		Stdout(&buffer).
+		EnableWhy().
+		Args([]string{"--why"})
+
+	err := app.Run()
+
+	output := buffer.String()
+	assert.NoError(t, err)
+	assert.Contains(t, output, "  "+localDir+"   loaded: "+filepath.Join(localDir, "config.json"))
+	assert.Contains(t, output, "  "+userDir+"    skipped (an earlier location loaded)")
+	assert.NotContains(t, output, "looked for:")
+	assert.NotContains(t, output, "Create a config file at one of:")
+}
+
+func TestWhy_ConfigPathsChecked_FirstHitSkipsLaterTiersJSON(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	localDir := filepath.Join(tmpDir, "local")
+	userDir := filepath.Join(tmpDir, "user")
+
+	for _, dir := range []string{localDir, userDir} {
+		assert.NoError(t, os.MkdirAll(dir, 0o700))
+		assert.NoError(t, os.WriteFile(filepath.Join(dir, "config.json"), []byte(`{"port": 9000}`), 0o600))
+	}
+
+	var buffer bytes.Buffer
+
+	app := conga.New[whySearchPathCLI]().
+		Name("whyapp").
+		RegisterDecoder(".json", json.Decode).
+		ConfigOptions(conga.ConfigPaths(localDir, userDir)).
+		Stdout(&buffer).
+		EnableWhy(conga.WhyOptionJSON()).
+		Args([]string{"--why=json"})
+
+	err := app.Run()
+
+	output := buffer.String()
+	assert.NoError(t, err)
+	assert.Contains(t, output, `{"path":`+strconv.Quote(userDir)+`,"status":"skipped"}`)
 }

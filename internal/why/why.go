@@ -51,6 +51,14 @@ const (
 // rowIndent is the leading indentation shared by every rendered table row.
 const rowIndent = 2
 
+// Config path statuses rendered in the text report's Config paths section.
+const (
+	statusLoaded           = "loaded"
+	statusSkipped          = "skipped (an earlier location loaded)"
+	statusDirectoryMissing = "directory does not exist"
+	statusNoConfigFile     = "no config file"
+)
+
 // ANSI escape sequences for terminal styling.
 const (
 	ansiReset    = "\033[0m"
@@ -167,8 +175,10 @@ type ConfigPath struct {
 	Path string
 	// Status is the probe outcome: "loaded" when the candidate resolved to a
 	// configuration file, "directory does not exist" when the candidate
-	// location is absent, or "no config file" when the candidate is an
-	// existing directory holding no matching file.
+	// location is absent, "no config file" when the candidate is an existing
+	// directory holding no matching file, or "skipped (an earlier location
+	// loaded)" when first-hit resolution stopped at an earlier search path
+	// before reaching it.
 	Status string
 	// Loaded is the concrete file the candidate resolved to when it differs
 	// from Path, such as a search-directory tier or a stem candidate. It is
@@ -178,7 +188,7 @@ type ConfigPath struct {
 	// resolution probed for a search-path tier that found nothing, as full
 	// paths (e.g. "<tier>/config.json", "<tier>.yaml"). One report line is
 	// rendered per entry. Empty for whole-path candidates and for tiers
-	// that loaded a file or failed.
+	// that loaded a file, failed, or were skipped.
 	ProbedFiles []string
 }
 
@@ -811,6 +821,9 @@ func renderFeatureRows(rows []FeatureRow, renderCtx renderContext) string {
 
 	var builder strings.Builder
 
+	// A blank line separates the section heading from the table, as
+	// renderTableRows does for the flag tables.
+	builder.WriteString("\n")
 	writeGridRowWithStyled(&builder, header, styledHeader, widths)
 
 	for index := range rows {
@@ -832,7 +845,7 @@ func renderPlainConfigPath(configPath ConfigPath, renderCtx renderContext) rende
 		probedFiles: configPath.ProbedFiles,
 	}
 
-	if strings.HasPrefix(configPath.Status, "loaded") {
+	if configPath.Status == statusLoaded {
 		if renderCtx.color {
 			item.bullet = styleText("●", ansiGreen, true) + " "
 		}
@@ -1063,12 +1076,14 @@ func appendConfigPathJSON(buffer []byte, configPath ConfigPath) []byte {
 }
 
 func normalizeStatusEnum(status string) string {
-	switch {
-	case strings.HasPrefix(status, "loaded"):
+	switch status {
+	case statusLoaded:
 		return "loaded"
-	case strings.Contains(status, "directory does not exist"):
+	case statusSkipped:
+		return "skipped"
+	case statusDirectoryMissing:
 		return "not_found"
-	case strings.Contains(status, "no config file"):
+	case statusNoConfigFile:
 		return "no_config_file"
 	default:
 		return status

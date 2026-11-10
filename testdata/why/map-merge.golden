@@ -11,6 +11,7 @@ Value provenance for "whyapp":
                     └─ token=██████    config (why-merge.json)
 
 Features:
+
   FEATURE   VALUE   SOURCE
   alpha     true    config (why-merge.json)
   beta      false   cli

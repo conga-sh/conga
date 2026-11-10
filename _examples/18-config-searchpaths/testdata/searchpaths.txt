@@ -11,13 +11,15 @@ stdout '-c, --config-file\s+conga\.ConfigFile\s+config-searchpaths\.hcl\s+● co
 stdout '--region\s+string\s+local-region\s+● config config-searchpaths\.hcl'
 stdout '--mode\s+string\s+local\s+● config config-searchpaths\.hcl'
 
-# 2. --why reports the first-found candidate and the probed locations of the
-#    remaining tiers
+# 2. --why reports the first-found candidate and marks the remaining tiers
+#    skipped, without probing them
 exec config-searchpaths --why
 stdout '--region\s+local-region\s+config \(config-searchpaths\.hcl\)'
 stdout 'loaded: config-searchpaths\.hcl'
-stdout 'no config file'
-stdout 'looked for: .*home[/\\]\.config[/\\]config-searchpaths[/\\]config-searchpaths\.hcl'
+stdout 'home[/\\]\.config[/\\]config-searchpaths\s+skipped \(an earlier location loaded\)'
+stdout 'etc[/\\]config-searchpaths\s+skipped \(an earlier location loaded\)'
+! stdout 'no config file'
+! stdout 'looked for:'
 ! stdout '██████'
 
 # 3. First-found mode skips missing files and picks the next existing one

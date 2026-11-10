@@ -18,7 +18,8 @@ func TestRenderFeatureRows_AlignedColumns(t *testing.T) {
 
 	output := renderFeatureRows(rows, newRenderContext(Report{}))
 
-	assert.Equal(t, "  FEATURE        VALUE   SOURCE\n"+
+	assert.Equal(t, "\n"+
+		"  FEATURE        VALUE   SOURCE\n"+
 		"  gentle-force   true    cli\n"+
 		"  x              0       default\n", output)
 }
