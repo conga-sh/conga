@@ -47,7 +47,7 @@ The `enum` tag validates against the field's coerced value. When a type's `Unmar
 
 ## Positional arguments (`OptionalArg[T]`, `RequiredArg[T]`)
 
-Positional arguments bind to command-line input. They belong to leaf commands: a command that declares positional arguments cannot also declare `Command[T]` subcommands, and schema build rejects the mix with `ErrSchema`. Declare positionals on the leaf that executes, and pass shared context through inherited flags instead.
+Positional arguments bind to command-line input. They belong to leaf commands: a command that declares positional arguments cannot also declare `Command[T]` subcommands, and schema build rejects the mix with `ErrSchema`. Declare positionals on the leaf that executes, and pass shared context through inherited flags instead. Required arguments must come before optional ones. An optional argument declared before a required one fails schema build with `ErrSchema` (`optional positional argument cannot precede required positional argument <name>`).
 
 | Tag | Optional | Required | Meaning |
 |-----|:--------:|:--------:|---------|
@@ -332,7 +332,7 @@ Only environment variables that bind *gated flags* are ignored when inactive, so
 
 An untagged collector offers no completion candidates: the collected words are opaque forwarded arguments, so the framework does not guess a domain. `DashArgs` candidates cover the words after `--`; `RawArgs` candidates cover the words captured once raw mode begins (the first overflowing positional or unknown flag after every declared required positional is filled). Forwarded words never reuse a declared positional argument's predictor, and they do not suppress previously forwarded values.
 
-`RawArgs` is a leaf-only collector: it cannot be combined with subcommands, and every positional argument declared before it must be required and scalar. Use `DashArgs` when the command also declares subcommands. A non-runnable branch cannot execute, so its `DashArgs` only binds on an invocation that then fails the runner contract; when the branch has an implicit child, terminal routing forwards `--` operands to that child instead. Schema build and `conga-lint` reject the ambiguous combinations.
+`RawArgs` is a leaf-only collector: it cannot be combined with subcommands, and every positional argument declared before it must be required and scalar. Use `DashArgs` when the command also declares subcommands. No word after `--` selects a subcommand, whether or not the command declares `DashArgs`. On a branch without one, `tool -- deploy` fails with `unexpected argument "deploy"` (exit 2). A non-runnable branch cannot execute, so its `DashArgs` only binds on an invocation that then fails the runner contract; when the branch has an implicit child, terminal routing forwards `--` operands to that child instead. Schema build and `conga-lint` reject the ambiguous combinations.
 
 ## Domain-type tags
 
