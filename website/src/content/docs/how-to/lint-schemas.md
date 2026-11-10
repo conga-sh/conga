@@ -58,7 +58,7 @@ func main() {
 }
 ```
 
-```sh error={2-4}
+```sh error={2-4} wrap
 $ go tool conga-lint ./...
 main.go:18:2: command "deploy": schema error: duplicate flag: --verbose (already declared by ancestor command "cli")
 main.go:19:2: struct DeployCmd field Replicas: schema error: invalid struct tag: unknown struct tag "hlep" (did you mean "help"?). Use app.AllowTags("hlep") to permit external tags
@@ -67,7 +67,7 @@ main.go:28:6: leaf command "status" (struct StatusCmd) does not implement conga.
 
 Running the program shows only the first mistake:
 
-```sh error={2}
+```sh error={2} wrap
 $ cloudctl status
 cloudctl: error: struct DeployCmd field Replicas: schema error: invalid struct tag: unknown struct tag "hlep" (did you mean "help"?). Use app.AllowTags("hlep") to permit external tags
 ```
@@ -82,7 +82,7 @@ Go's `./...` pattern skips directories that start with `_`, such as `_examples/`
 
 `-builder-order` also checks the builder calls at each `conga.New` against a canonical order. Identity calls such as `Name` come first, then the `Enable*` and `Disable*` toggles, then behaviour, then execution. In this example `EnableCompletion` comes before `Name`:
 
-```sh error={2}
+```sh error={2} wrap
 $ go tool conga-lint -builder-order ./...
 main.go:33:3: builder call order violation: Name (rank 1) called after EnableCompletion (rank 9); use -fix to reorder
 main.go:18:2: command "deploy": schema error: duplicate flag: --verbose (already declared by ancestor command "cli")
@@ -130,7 +130,7 @@ type DeployCmd struct {
 
 The analyzer reports the first unknown key on each field:
 
-```sh error={2-3}
+```sh error={2-3} wrap
 $ go tool conga-lint ./...
 main.go:18:2: struct DeployCmd field Replicas: schema error: invalid struct tag: unknown struct tag "bson" (did you mean "xor"?). Use app.AllowTags("bson") to permit external tags
 main.go:19:2: struct DeployCmd field Token: schema error: invalid struct tag: unknown struct tag "history". Use app.AllowTags("history") to permit external tags
@@ -138,7 +138,7 @@ main.go:19:2: struct DeployCmd field Token: schema error: invalid struct tag: un
 
 The program fails at startup with the first of them, exit 1:
 
-```sh error={2}
+```sh error={2} wrap
 $ cloudctl deploy
 cloudctl: error: struct DeployCmd field Replicas: schema error: invalid struct tag: unknown struct tag "bson" (did you mean "xor"?). Use app.AllowTags("bson") to permit external tags
 ```
@@ -169,7 +169,7 @@ The analyzer reads the keys from string literals in the `AllowTags` call. When t
 
 `AllowTags` matches keys exactly, so a misspelled `histroy` still fails. The hint names the misspelled key rather than `history`:
 
-```sh error={2}
+```sh error={2} wrap
 $ go tool conga-lint ./...
 main.go:18:2: struct DeployCmd field Replicas: schema error: invalid struct tag: unknown struct tag "histroy". Use app.AllowTags("histroy") to permit external tags
 ```

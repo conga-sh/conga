@@ -136,7 +136,7 @@ func (s *StatusCmd) Run(ctx context.Context, session *conga.Session) error {
 
 Run the test again:
 
-```sh
+```sh wrap
 $ go test
 --- FAIL: TestDeploy (0.00s)
     main_test.go:21: output = "deploying web (nginx:1.27) to eu-west-1 with 3 replicas\n", want "deploying web (nginx:1.27) to us-east-1 with 2 replicas\n"

@@ -162,13 +162,13 @@ relay: error: "Checkout_API" does not match ^[a-z][a-z0-9-]*$ for flag --route
 
 A pattern that doesn't compile stops the program at startup, before it reads any flag (exit 1). Here the field was given `pattern:"^[a-z"`:
 
-```text no-copy error={1}
+```text no-copy error={1} wrap
 relay: error: struct Relay field Route: schema error: invalid struct tag: tag "pattern": error parsing regexp: missing closing ]: `[a-z`
 ```
 
 A misspelled tag stops it the same way:
 
-```text no-copy error={1}
+```text no-copy error={1} wrap
 relay: error: struct Relay field Route: schema error: invalid struct tag: unknown struct tag "patern" (did you mean "pattern"?). Use app.AllowTags("patern") to permit external tags
 ```
 

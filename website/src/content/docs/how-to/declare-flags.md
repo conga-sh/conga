@@ -109,7 +109,7 @@ Flags:
 
 Every short name and alias must be unique in the command and its ancestors. A clash fails at startup with `ErrSchema`, exit 1. Here `Timeout` also has `short:"o"`:
 
-```text no-copy
+```text no-copy wrap
 fetch: error: struct Fetch field Timeout: schema error: duplicate flag: short flag -o (already declared by field Output)
 ```
 

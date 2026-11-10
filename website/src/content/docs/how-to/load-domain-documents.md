@@ -209,7 +209,7 @@ Any error that `Bootstrap` returns is a config error (`ErrConfig`, exit 1) with 
 | `Set` names a key that matches no flag, or a `config:"-"` field | Config error, exit 1, with a "did you mean" hint for typos |
 | A value outside `enum` or `range` (`log_level: loud`) | Usage error, exit 2, naming the key |
 
-```text no-copy error={1-4}
+```text no-copy error={1-4} wrap
 bootstrapper: error: bootstrap failed: open nope.yaml: no such file or directory
 bootstrapper: error: bootstrap failed: pipeline.yaml has no pipeline "release"
 bootstrapper: error: bootstrap failed: parse broken.yaml: yaml: line 1: did not find expected ',' or ']'

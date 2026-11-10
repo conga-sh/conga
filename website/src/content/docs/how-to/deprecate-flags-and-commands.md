@@ -239,7 +239,7 @@ Flags:
 
 Suppose `--count` had been a `conga.RequiredFlag[...]`. A `deprecated` tag on it fails at startup, because users can't stop passing a flag the program requires:
 
-```sh error={2}
+```sh error={2} wrap
 $ cloudctl deploy app.yaml
 cloudctl: error: struct DeployCmd field Count: schema error: invalid struct tag: tag "deprecated" cannot be used on required flags (make the flag optional before deprecating it so callers can migrate without error)
 ```

@@ -496,7 +496,7 @@ $ go run ./_examples/23-member-deprecation --old value
 WARNING: flag '--old' is deprecated: use --modern instead
 old="value" modern=""
 ```
-```sh label="Completion"
+```sh label="Completion" wrap
 $ go run ./_examples/23-member-deprecation __complete export --
 {"candidates":[{"value":"--modern","display":"--modern","style":"blue","tag":"longhand flags"},{"value":"--help","display":"--help","description":"Show help","tag":"longhand flags"},{"value":"--version","display":"--version","description":"Show version","tag":"longhand flags"}],"directives":{"keeporder":false,"messages":[],"noprefix":false,"nospace":false},"usage":""}
 ```
@@ -711,7 +711,7 @@ Uses: `Bootstrapper`, `Bootstrap.SetConfig`, `ConfigDocument`, `bootstrap`
 A deploy tool that completes values three ways: types that complete themselves on `deploy`, named predictors on `exec`, and the `predict` package's constructors and combinators on `logs`. `--list-candidates` calls the predictors directly, outside completion.
 
 :::code-tabs
-```sh label="Completion request"
+```sh label="Completion request" wrap
 $ go run ./_examples/19-shell-completion __complete export deploy --cluster ''
 {"candidates":[{"value":"staging-cluster-alpha","display":"staging-cluster-alpha","tag":"values"},{"value":"staging-cluster-beta","display":"staging-cluster-beta","tag":"values"}],"directives":{"keeporder":false,"messages":[],"noprefix":false,"nospace":false},"usage":"Target cluster (contextual)"}
 ```

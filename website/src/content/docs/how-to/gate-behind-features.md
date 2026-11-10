@@ -200,7 +200,7 @@ feature-toggles: error: config error: config file declares flag '--quic' which r
 
 A bad value in the file names the key it came from:
 
-```text no-copy error={1}
+```text no-copy error={1} wrap
 feature-toggles: error: invalid value "maybe" for feature "http3" (from config key "features.http3"): must be true or false (or 1 or 0)
 ```
 
@@ -285,7 +285,7 @@ The command line still beats these variables, one feature at a time: `ENABLE_HTT
 
 The application checks at startup that each variable belongs to one feature. Here `AdminAPI` was also given `env:"ENABLE_HTTP3"`:
 
-```text no-copy error={1}
+```text no-copy error={1} wrap
 feature-toggles: error: struct CLI field Features: schema error: environment variable "ENABLE_HTTP3" is bound by both feature "http3" and feature "admin-api"
 ```
 

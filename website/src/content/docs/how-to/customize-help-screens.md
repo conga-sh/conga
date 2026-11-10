@@ -279,7 +279,7 @@ Flags:
 
 The flag still accepts only the listed values, and shell completion still offers them:
 
-```sh error={2}
+```sh error={2} wrap
 $ cloudctl deploy --region mars
 cloudctl: error: invalid value "mars" (must be one of: us-east-1, us-west-1, us-west-2, eu-west-1, eu-central-1) for flag --region
 ```
@@ -335,7 +335,7 @@ Each of these mistakes stops the program at startup, before it reads any input, 
 
 Each full message names the struct and field:
 
-```text no-copy error={1-2}
+```text no-copy error={1-2} wrap
 cloudctl: error: struct CLI field Verbose: schema error: duplicate flag: built-in --help short flag -h collides with --verbose; assign a different rune to one of them
 cloudctl: error: struct DeployCmd field Port: schema error: invalid struct tag: tag "help" references unknown variable {{min}}; supported variables are {{range}}, {{len}}, {{items}}, {{enum}}, {{default}}, {{env}}
 ```

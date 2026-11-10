@@ -184,7 +184,7 @@ Token conga.OptionalFlag[string] `config:"-" help:"API token (command line or en
 
 A file that sets it is rejected:
 
-```sh error={2}
+```sh error={2} wrap
 $ cascading-searchpaths -c token.yaml
 cascading-searchpaths: error: config file "token.yaml": field "token" is excluded from config files in command "cascading-searchpaths"
 ```
@@ -293,7 +293,7 @@ func (s *ServerCmd) Run(ctx context.Context, session *conga.Session) error {
 }
 ```
 
-```sh
+```sh wrap
 $ cascading-searchpaths server
 port=8080
 candidates=["." "/home/alice/.config/cascading-searchpaths" "/etc/cascading-searchpaths"]
@@ -314,7 +314,7 @@ A problem with the file itself is a config error (exit 1). A bad value in a vali
 | A value of the wrong type (`timeout: soon`) | Usage error, exit 2, naming the key |
 | A value outside `enum` or `range` (`theme: pink`) | Usage error, exit 2, naming the key |
 
-```text no-copy error={1-4}
+```text no-copy error={1-4} wrap
 cascading-searchpaths: error: config file "typo.yaml": unknown field "them" in command "cascading-searchpaths" (did you mean "theme"?)
 cascading-searchpaths: error: unsupported config file format ".toml" for "settings.toml"
 cascading-searchpaths: error: invalid duration "soon" (valid units: ms, s, m, h) for flag --timeout (from config key "timeout")

@@ -184,7 +184,7 @@ Value provenance for "multiformat-and-dotenv":
 
 Every named file must exist:
 
-```sh error={2}
+```sh error={2} wrap
 $ multiformat-and-dotenv
 multiformat-and-dotenv: error: config error: cannot read .env file "config/secrets.env": open config/secrets.env: no such file or directory
 ```
@@ -238,7 +238,7 @@ func (c *CLI) Bootstrap(_ context.Context, b *conga.Bootstrap) error {
 }
 ```
 
-```sh error={2}
+```sh error={2} wrap
 $ multiformat-and-dotenv --env-file nope.env
 multiformat-and-dotenv: error: config error: cannot read .env file "nope.env": open nope.env: no such file or directory
 ```
@@ -282,7 +282,7 @@ Tests that load `.env` files this way change process-wide state, so they run wit
 | An empty value, such as `PORT=` | Treated as unset: the flag falls back to config or its default |
 | The host sets the same variable | The host value wins |
 
-```text no-copy error={1-2}
+```text no-copy error={1-2} wrap
 multiformat-and-dotenv: error: config error: cannot parse .env file "bad.env": line 1: dotenv error: parsing .env file: missing '=' in statement
 multiformat-and-dotenv: error: config error: cannot read .env file "big.env": file size limit exceeded: file size 17000002 bytes exceeds maximum limit of 16777216 bytes
 ```

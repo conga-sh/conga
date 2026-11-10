@@ -295,7 +295,7 @@ Once a member of an `xor` or `oneof` group is on the command line, its sibling m
 
 `<cmd> __complete export <words...>` prints the candidates for the last word as one JSON object, with no shell script involved. The last word is the one being completed; pass `''` to complete an empty word. For the `deploy` program in [How to compute and shape completion candidates](/how-to/compute-completion-candidates/):
 
-```sh
+```sh wrap
 $ deploy __complete export --pin ''
 {"candidates":[{"value":"api:","display":"api:","tag":"values"},{"value":"web:","display":"web:","tag":"values"},{"value":"worker:","display":"worker:","tag":"values"}],"directives":{"keeporder":false,"messages":[],"noprefix":false,"nospace":true},"usage":"Deploy a service at one of its tags (service:tag)"}
 ```
