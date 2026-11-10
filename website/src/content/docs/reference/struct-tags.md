@@ -67,7 +67,7 @@ Positional arguments bind to command-line input. They belong to leaf commands: a
 
 ## Bootstrap fields
 
-`bootstrap` is an opt-in bridge for [`conga.Bootstrapper`](/how-to/load-domain-documents/). The field is bound in the bootstrap pass before `Bootstrap` runs, using `CLI > environment > default` precedence, and is bound again during the normal pass, which adds the config tier:
+`bootstrap` is an opt-in bridge for [`conga.Bootstrapper`](/how-to/load-domain-documents/). The field is bound in the bootstrap pass before `Bootstrap` runs, using `CLI > environment > default` precedence, and is bound again during the normal pass, which adds the config source:
 
 ```go
 type CLI struct {
@@ -284,12 +284,12 @@ Declare the container once, on the root command struct, and call `app.EnableFeat
 
 | Tag | Meaning |
 |-----|---------|
-| `flag` | Name of the synthesized CLI map flag carrying `name=value` pairs, for example `--feature-gates gentle-force=true`. Omit the tag or set `flag:"-"` to give the container no CLI surface. |
-| `env` | Comma-separated environment variable names carrying the same `name=value` pairs. This is the combined-map env surface; it cannot be combined with `envprefix`, or with `env` tags on feature fields. |
-| `envprefix` | Per-feature env prefix: each feature field binds `<PREFIX>_<UPPER_SNAKE(feature name)>` unless the field overrides it with its own `env` tag. This is the per-feature env surface; it cannot be combined with `env`. |
+| `flag` | Name of the synthesized CLI map flag carrying `name=value` pairs, for example `--feature-gates gentle-force=true`. Omit the tag or set `flag:"-"` to give the container no command-line flag. |
+| `env` | Comma-separated environment variable names carrying the same `name=value` pairs. This is the combined-map variable shape, and it cannot be combined with `envprefix` or with `env` tags on feature fields. |
+| `envprefix` | Per-feature env prefix: each feature field binds `<PREFIX>_<UPPER_SNAKE(feature name)>` unless the field overrides it with its own `env` tag. This is the per-feature variable shape, and it cannot be combined with `env`. |
 | `config` | Config section name holding the `name=value` pairs. |
 | `sep` | Pair separator inside one map value (default `","`). |
-| `help` | Help text for the synthesized flag. Defaults to `Enable or disable features (name=value)`; the root help screen's [Features section](/how-to/gate-behind-features/#declare-the-features) lists every feature, and `{{enum}}` (declared feature names) and `{{env}}` (the container's combined-map environment variable names) can be inlined, suppressing the matching bracket hint. `{{env}}` requires an `env` tag: a container whose only env surface is `envprefix` or field `env` tags rejects it at schema build. Other help variables are rejected. |
+| `help` | Help text for the synthesized flag. Defaults to `Enable or disable features (name=value)`; the root help screen's [Features section](/how-to/gate-behind-features/#declare-the-features) lists every feature, and `{{enum}}` (declared feature names) and `{{env}}` (the container's combined-map environment variable names) can be inlined, suppressing the matching bracket hint. `{{env}}` requires an `env` tag: a container whose only environment variables come from `envprefix` or field `env` tags rejects it at schema build. Other help variables are rejected. |
 | `enumhint` | Set to `-` to suppress the synthesized flag's `[enum: ...]` help hint. Redundant — and rejected — when the `help` tag already references `{{enum}}`. |
 
 A container that declares neither `env` nor `envprefix` binds no environment variable at all — `env:"-"` is equivalent. The application-level `EnvPrefix(...)` never reaches features; it applies to normal flags only.
@@ -303,7 +303,7 @@ A container that declares neither `env` nor `envprefix` binds no environment var
 | `stage` | Feature maturity: `alpha`, `beta`, `ga`, or `deprecated`. Optional, but all-or-nothing — when any feature field declares a stage, every field must. Features staged `ga` or `deprecated` are omitted from the Features section. |
 | `default` | Base value when no source sets the key. Integer defaults must be a declared level; `0` is valid and means off. |
 | `enum` | Integer features only: comma-separated non-zero levels, required on every integer feature. `0` is reserved for off and rejected in the tag. |
-| `env` | Comma-separated environment variable names binding this feature individually (first set wins; an empty value is unset). `env:"-"` excludes the field from the environment tier. Valid only when the container does not declare `env` (the combined-map surface); under a container `envprefix`, the tag overrides the derived variable name. |
+| `env` | Comma-separated environment variable names binding this feature individually (first set wins; an empty value is unset). `env:"-"` excludes the field from the environment source. Valid only when the container does not declare `env` (the combined-map variable); under a container `envprefix`, the tag overrides the derived variable name. |
 
 Environment variables are validated for collisions at schema build: two feature fields resolving to the same variable (explicitly or through prefix derivation), or a feature variable a flag also binds, fail schema build with `ErrSchema`.
 
@@ -335,7 +335,7 @@ Inactive gated flags and subcommands are pruned from `--help`, `--why`, and shel
 | Unknown feature name | Usage error (exit 2), with suggestion | Usage error (exit 2), with suggestion | `ErrConfig` (exit 1), with suggestion |
 | Invalid feature value (not `true`/`false`, or a level not in `enum`) | Usage error (exit 2) | Usage error (exit 2), naming the variable | Usage error (exit 2), naming the config key |
 
-Only environment variables that bind *gated flags* are ignored when inactive, so ambient variables never break a run they do not control; feature variables (`env` or `envprefix` surfaces) are always validated. See [Errors and exit codes](/reference/errors/).
+Only environment variables that bind *gated flags* are ignored when inactive, so ambient variables never break a run they do not control; feature variables (from `env` or `envprefix`) are always validated. See [Errors and exit codes](/reference/errors/).
 
 ## Trailing arguments (`DashArgs`, `RawArgs`)
 

@@ -56,7 +56,7 @@ The concrete error implementations (parse, coercion, validation, config) are une
 
 ## Feature-gating and map-folding failures
 
-Feature gating and map folding classify errors by the input tier that introduced the invalid data:
+Feature gating and map folding classify errors by the input source that introduced the invalid data:
 
 | Failure | Category | Exit |
 |---------|----------|:----:|

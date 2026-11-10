@@ -23,7 +23,7 @@ Use a `Bootstrapper` when the document needs more than that:
 
 - Its path or section comes from a flag, and config files are located before any flag is read. Here, `-f` names the file and `--pipeline deploy` picks a section.
 - It mixes settings with application data that matches no flag, such as each pipeline's `steps`.
-- It needs its own merge rules, such as joining `steps` from several files where the config tier would replace the whole list.
+- It needs its own merge rules, such as joining `steps` from several files where the config source would replace the whole list.
 
 `Bootstrap` can also load `.env` files from a location a flag chooses; see [How to load .env files](/how-to/load-env-files/#load-a-env-from-a-directory-the-user-picks).
 

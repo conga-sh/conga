@@ -3,7 +3,7 @@ title: Dotenv files
 description: app.Dotenv loading rules, .env grammar, and size limits.
 ---
 
-`app.Dotenv(paths...)` enables zero-dependency `.env` loading. Loaded variables populate the process environment before flag resolution, feeding tier 2 of the [value precedence ladder](/explanation/value-precedence/). The task-oriented setup is in [How to load .env files](/how-to/load-env-files/).
+`app.Dotenv(paths...)` enables zero-dependency `.env` loading. Loaded variables populate the process environment before flag resolution, feeding the environment source of the [value precedence order](/explanation/value-precedence/). The task-oriented setup is in [How to load .env files](/how-to/load-env-files/).
 
 ## Loading rules
 
