@@ -18,7 +18,7 @@ type DeployCommand struct {
 }
 ```
 
-The tree's shape is fixed at compile time. Schema build walks the complete struct graph before parsing any command-line token, and validates every tag and every flag name along each ancestor-descendant path. A defect in any subcommand, selected or not, fails startup with `ErrSchema`.
+The tree's shape is fixed at compile time. Schema build walks the complete struct graph before parsing any command-line token, and validates every tag and every flag name along each ancestor-descendant path. A defect in any subcommand, selected or not, fails startup with `ErrSchema`, so a misconfigured subcommand can't ship unnoticed.
 
 ## Routing nodes and runnable commands
 
@@ -64,7 +64,7 @@ The trade-off is in error reporting. Without an implicit subcommand, `tool insta
 
 Operands and subcommand names are classified in the order they appear. In `tool --env prod deploy`, `prod` is read before `deploy`. At that point `--env` belongs to no selected command, so `prod` is an unmatched operand and selects the implicit subcommand, which then rejects `--env` as an unknown flag (exit 2). Reclassifying `prod` after reading `deploy` would require backtracking, which the parser avoids for the same reason that [ancestors reserve their flag names](#deterministic-single-pass-parsing).
 
-A flag declared only by the implicit subcommand or its implicit descendants selects that subcommand regardless of position, since no other command declares it.
+A flag declared only by the implicit subcommand or its implicit descendants selects that subcommand regardless of position, since no other command declares it. `tool -n` therefore reports `missing required positional argument <file>` from `run` rather than an unknown flag.
 
 ### Built-in requests stay where they are
 
