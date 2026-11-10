@@ -636,18 +636,30 @@ Uses: `App.ConfigOptions`, `ConfigPaths`
 
 [Source](https://github.com/conga-sh/conga/tree/main/_examples/28-explicit-config-file) · Guide: [How to manage config files](/how-to/manage-config-files/)
 
-A web server that always loads `bootstrap.yaml` and stops with exit code 1 when the file is missing. Only `--config-file` replaces it, and the `WEB_CONFIG` variable does not. The file comes from the example's `testdata/explicit.txt`. Create it to repeat the first run.
+A web server that loads `bootstrap.yaml` unless the user names another file, and stops with exit code 1 when it is missing. The `WEB_CONFIG` variable replaces it, and `--config-file` replaces both. The files come from the example's `testdata/explicit.txt`. Create them to repeat the runs.
 
 :::code-tabs
 ```yaml label="bootstrap.yaml"
 host: explicit.example.com
 port: 9100
 ```
+```yaml label="env.yaml"
+host: env.example.com
+port: 9300
+```
 ```sh label="File present"
 $ go run ./_examples/28-explicit-config-file
     FIELD               TYPE               VALUE                  SOURCE
+    -c, --config-file   conga.ConfigFile   bootstrap.yaml         ● config bootstrap.yaml
     --host              string             explicit.example.com   ● config bootstrap.yaml
     -p, --port          int                9100                   ● config bootstrap.yaml
+```
+```sh label="WEB_CONFIG set"
+$ WEB_CONFIG=env.yaml go run ./_examples/28-explicit-config-file
+    FIELD               TYPE               VALUE             SOURCE
+    -c, --config-file   conga.ConfigFile   env.yaml          ● env WEB_CONFIG
+    --host              string             env.example.com   ● config env.yaml
+    -p, --port          int                9300              ● config env.yaml
 ```
 ```sh label="File missing" error={2}
 $ go run ./_examples/28-explicit-config-file

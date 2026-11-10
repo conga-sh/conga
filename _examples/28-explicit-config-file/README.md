@@ -1,21 +1,24 @@
 # 28 — Explicit config file
 
-`app.ConfigOptions(conga.ConfigExplicit(...))`: one programmatic concrete config
-file with fatal-if-missing semantics. Only an explicit `--config-file` flag
-outranks it; the `<PREFIX>_CONFIG` environment variable and the search tier are
-not consulted while the option is declared.
+`app.ConfigOptions(conga.ConfigExplicit(...))` names the application's default
+config file, and a missing file is fatal. A file the user names outranks it:
+the `--config-file` flag first, then the `WEB_CONFIG` environment variable
+(`<PREFIX>_CONFIG`). The built-in search location is not consulted while the
+option is declared.
 
 ## Run it
 
 ```sh
 printf 'host: explicit.example.com\nport: 9100\n' > bootstrap.yaml
 printf 'host: override.example.com\nport: 9200\n' > override.yaml
+printf 'host: env.example.com\nport: 9300\n' > env.yaml
 go run ./_examples/28-explicit-config-file
 go run ./_examples/28-explicit-config-file --why
+WEB_CONFIG=env.yaml go run ./_examples/28-explicit-config-file
 go run ./_examples/28-explicit-config-file -c override.yaml
 rm bootstrap.yaml
 go run ./_examples/28-explicit-config-file   # fatal: bootstrap.yaml missing (exit 1)
-go run ./_examples/28-explicit-config-file --why   # error row, exit 0
+go run ./_examples/28-explicit-config-file --why   # also fatal (exit 1)
 ```
 
 The complete scenarios, fixtures included, live in
@@ -23,11 +26,12 @@ The complete scenarios, fixtures included, live in
 
 ## What to look for
 
-- `bootstrap.yaml` loads on every run without any flag.
-- `--config-file` wins; `WEB_CONFIG` is ignored while the option is set.
+- `bootstrap.yaml` loads on every run that names no other file, and the
+  `--config-file` row reports its source as `config`.
+- `WEB_CONFIG` replaces it, and `--config-file` replaces both.
 - A missing explicit file is a runtime error (exit code 1), not usage exit 2.
-- `--why` shows the loaded explicit candidate; with the file missing it renders
-  the read failure as a diagnostic row instead of aborting.
+- `--why` shows the loaded explicit candidate. With the file missing, it stops
+  with the same read error and exit code 1.
 
 ## Test
 

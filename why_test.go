@@ -1801,6 +1801,30 @@ func TestWhy_ConfigExamples_SuggestedWhenNothingLoaded(t *testing.T) {
 	assert.Contains(t, output, "  "+missingTier+".json")
 }
 
+func TestWhy_ConfigExamples_ExistingDirectoryOmitsStemSibling(t *testing.T) {
+	t.Chdir(t.TempDir())
+
+	var buffer bytes.Buffer
+
+	app := conga.New[whySearchPathCLI]().
+		Name("whyapp").
+		RegisterDecoder(".json", json.Decode).
+		ConfigOptions(conga.ConfigPaths("."), conga.ConfigCascading()).
+		Stdout(&buffer).
+		EnableWhy().
+		Args([]string{"--why"})
+
+	err := app.Run()
+
+	output := buffer.String()
+
+	assert.NoError(t, err)
+	assert.Contains(t, output, "Create a config file at one of:")
+	assert.Contains(t, output, "  config.json")
+	assert.Contains(t, output, "  whyapp.json")
+	assert.NotContains(t, output, "..json")
+}
+
 func TestWhy_ProbedFiles_ExplicitPathOmitted(t *testing.T) {
 	t.Parallel()
 

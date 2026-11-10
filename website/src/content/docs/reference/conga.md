@@ -167,8 +167,8 @@ type CompletionOption interface{ /* sealed */ }
 CONGA picks config files in this order, and the first that applies wins:
 
 1. The root `ConfigFile` flag (`--config-file` unless renamed).
-2. `conga.ConfigExplicit(path)`.
-3. The config environment variable, `<PREFIX>_CONFIG` for the app's environment prefix.
+2. The config environment variable, `<PREFIX>_CONFIG` for the app's environment prefix.
+3. `conga.ConfigExplicit(path)`.
 4. The search paths: those given to `conga.ConfigPaths(...)`, in order, or else the built-in location `${XDG_CONFIG_HOME:-~/.config}/<app-name>`.
 
 The built-in location applies when the app has at least one registered decoder and a resolvable name, and only when no `ConfigPaths` are declared. `ConfigExplicit` also bypasses it.

@@ -16,4 +16,3 @@ Config paths:
 Create a config file at one of:
   <TMP>/local/config.json
   <TMP>/local/whyapp.json
-  <TMP>/local.json

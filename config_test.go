@@ -1439,3 +1439,88 @@ func TestConfig_ConfigExplicit_ConflictWithPathsOrCascading_FailsSchema(t *testi
 		assert.Contains(t, err.Error(), "conga.ConfigExplicit() specifies an absolute configuration file and cannot be combined with conga.ConfigPaths() or conga.ConfigCascading()")
 	})
 }
+
+type explicitPrecedenceCLI struct {
+	noopRunner
+
+	ConfigFile conga.ConfigFile           `help:"Config file"`
+	Host       conga.OptionalFlag[string] `name:"host"`
+}
+
+func TestConfig_ConfigExplicit_LoadsWithConfigSource(t *testing.T) {
+	t.Parallel()
+
+	explicitPath := writeConfigFile(t, `{"host": "explicit.example.com"}`)
+
+	cli := new(explicitPrecedenceCLI)
+	app := conga.New(cli).
+		RegisterDecoder(".json", json.Decode).
+		ConfigOptions(conga.ConfigExplicit(explicitPath)).
+		Args([]string{})
+
+	err := app.RunContext(t.Context())
+
+	assert.NoError(t, err)
+	assert.Equal(t, "explicit.example.com", cli.Host.Get())
+	assert.Equal(t, explicitPath, cli.ConfigFile.Path())
+	assert.Equal(t, conga.SourceConfig, cli.ConfigFile.Source())
+}
+
+func TestConfig_ConfigExplicit_EnvVariableOutranksExplicit(t *testing.T) {
+	explicitPath := writeConfigFile(t, `{"host": "explicit.example.com"}`)
+	envPath := writeConfigFile(t, `{"host": "env.example.com"}`)
+	t.Setenv("CONGA_TEST_EXPLICIT_CONFIG", envPath)
+
+	cli := new(explicitPrecedenceCLI)
+	app := conga.New(cli).
+		EnvPrefix("CONGA_TEST_EXPLICIT").
+		RegisterDecoder(".json", json.Decode).
+		ConfigOptions(conga.ConfigExplicit(explicitPath)).
+		Args([]string{})
+
+	err := app.RunContext(t.Context())
+
+	assert.NoError(t, err)
+	assert.Equal(t, "env.example.com", cli.Host.Get())
+	assert.Equal(t, envPath, cli.ConfigFile.Path())
+	assert.Equal(t, conga.SourceEnv, cli.ConfigFile.Source())
+}
+
+func TestConfig_ConfigExplicit_MissingFileIgnoredWhenEnvVariableNamesFile(t *testing.T) {
+	missingPath := filepath.Join(t.TempDir(), "missing.json")
+	envPath := writeConfigFile(t, `{"host": "env.example.com"}`)
+	t.Setenv("CONGA_TEST_EXPLICIT_CONFIG", envPath)
+
+	cli := new(explicitPrecedenceCLI)
+	app := conga.New(cli).
+		EnvPrefix("CONGA_TEST_EXPLICIT").
+		RegisterDecoder(".json", json.Decode).
+		ConfigOptions(conga.ConfigExplicit(missingPath)).
+		Args([]string{})
+
+	err := app.RunContext(t.Context())
+
+	assert.NoError(t, err)
+	assert.Equal(t, "env.example.com", cli.Host.Get())
+}
+
+func TestConfig_ConfigExplicit_FlagOutranksEnvVariableAndExplicit(t *testing.T) {
+	explicitPath := writeConfigFile(t, `{"host": "explicit.example.com"}`)
+	envPath := writeConfigFile(t, `{"host": "env.example.com"}`)
+	flagPath := writeConfigFile(t, `{"host": "flag.example.com"}`)
+	t.Setenv("CONGA_TEST_EXPLICIT_CONFIG", envPath)
+
+	cli := new(explicitPrecedenceCLI)
+	app := conga.New(cli).
+		EnvPrefix("CONGA_TEST_EXPLICIT").
+		RegisterDecoder(".json", json.Decode).
+		ConfigOptions(conga.ConfigExplicit(explicitPath)).
+		Args([]string{"--config-file", flagPath})
+
+	err := app.RunContext(t.Context())
+
+	assert.NoError(t, err)
+	assert.Equal(t, "flag.example.com", cli.Host.Get())
+	assert.Equal(t, flagPath, cli.ConfigFile.Path())
+	assert.Equal(t, conga.SourceCLI, cli.ConfigFile.Source())
+}

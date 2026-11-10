@@ -1,41 +1,47 @@
 # TestScript for 28-explicit-config-file
-# Asserts conga.ConfigExplicit(...) semantics: bootstrap.yaml is the programmatic
-# target (fatal if missing), only --config-file outranks it, and the
-# WEB_CONFIG environment variable is ignored while the option is declared.
+# Asserts conga.ConfigExplicit(...) semantics: bootstrap.yaml is the
+# application's default file (fatal if missing), and a file the user names
+# outranks it: --config-file first, then the WEB_CONFIG environment variable.
 
 # 1. The programmatic explicit file loads without any flag
 exec explicit-config-file
 stdout '⚙  explicit-config-file'
-stdout '-c, --config-file\s+conga\.ConfigFile\s+bootstrap\.yaml\s+● cli bootstrap\.yaml'
+stdout '-c, --config-file\s+conga\.ConfigFile\s+bootstrap\.yaml\s+● config bootstrap\.yaml'
 stdout '--host\s+string\s+explicit\.example\.com\s+● config bootstrap\.yaml'
 stdout '-p, --port\s+int\s+9100\s+● config bootstrap\.yaml'
 
-# 2. WEB_CONFIG is not consulted: the explicit option still wins
+# 2. WEB_CONFIG outranks the explicit option
 env WEB_CONFIG=env.yaml
 exec explicit-config-file
-stdout '--host\s+string\s+explicit\.example\.com\s+● config bootstrap\.yaml'
-stdout '-p, --port\s+int\s+9100\s+● config bootstrap\.yaml'
+stdout '-c, --config-file\s+conga\.ConfigFile\s+env\.yaml\s+● env WEB_CONFIG'
+stdout '--host\s+string\s+env\.example\.com\s+● config env\.yaml'
+stdout '-p, --port\s+int\s+9300\s+● config env\.yaml'
+
+# 3. The --config-file flag outranks WEB_CONFIG
+exec explicit-config-file -c override.yaml
+stdout '-c, --config-file\s+conga\.ConfigFile\s+override\.yaml\s+● cli --config-file'
+stdout '--host\s+string\s+override\.example\.com\s+● config override\.yaml'
 env WEB_CONFIG=
 
-# 3. The --config-file flag outranks the explicit option
+# 4. The --config-file flag outranks the explicit option
 exec explicit-config-file -c override.yaml
 stdout '-c, --config-file\s+conga\.ConfigFile\s+override\.yaml\s+● cli --config-file'
 stdout '--host\s+string\s+override\.example\.com\s+● config override\.yaml'
 stdout '-p, --port\s+int\s+9200\s+● config override\.yaml'
 
-# 4. --why shows the explicit candidate that loaded
+# 5. --why shows the explicit candidate that loaded
 exec explicit-config-file --why
 stdout 'bootstrap\.yaml\s+loaded'
 stdout '--host\s+explicit\.example\.com\s+config \(bootstrap\.yaml\)'
 stdout '--port\s+9100\s+config \(bootstrap\.yaml\)'
 ! stdout '██████'
 
-# 5. Missing explicit file is fatal: exit 1, not a usage error
+# 6. Missing explicit file is fatal: exit 1, not a usage error
 rm bootstrap.yaml
 exit-status 1 explicit-config-file
 stderr 'cannot read config file "bootstrap\.yaml"'
 
-# 6. Missing explicit file under --why fails fast with ErrConfig (non-tolerant pipeline)
+# 7. Missing explicit file under --why fails fast with ErrConfig (non-tolerant pipeline)
 exit-status 1 explicit-config-file --why
 stderr 'cannot read config file "bootstrap\.yaml"'
 

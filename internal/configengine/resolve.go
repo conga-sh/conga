@@ -54,30 +54,35 @@ func (r Resolver) EffectiveSearchPaths() []string {
 }
 
 // CandidatePaths returns the expanded candidate configuration paths evaluated
-// for an invocation, in reported precedence order: explicit paths when named,
-// otherwise the configuration environment variable targets, otherwise the
-// search tier plus the explicit option path.
-func (r Resolver) CandidatePaths(explicitPaths []string, cmd *spec.Command) []string {
-	if len(explicitPaths) > 0 {
-		return slicex.Map(explicitPaths, pathx.Expand)
+// for an invocation, in reported precedence order: the config-file flag paths
+// when named, otherwise the configuration environment variable targets,
+// otherwise the explicit option path, otherwise the search tier.
+func (r Resolver) CandidatePaths(flagPaths []string, cmd *spec.Command) []string {
+	if len(flagPaths) > 0 {
+		return slicex.Map(flagPaths, pathx.Expand)
 	}
 
 	if envPaths := EnvCandidates(r.EnvPrefix, cmd); len(envPaths) > 0 {
 		return envPaths
 	}
 
+	if r.Settings.Explicit != "" {
+		return []string{pathx.Expand(r.Settings.Explicit)}
+	}
+
 	return r.defaultSearchCandidatePaths()
 }
 
 // Resolve resolves, loads, and validates the effective configuration files.
-// Explicit targets (CLI flag values, the configuration environment variable,
-// or the explicit option) must exist and be readable: a named path that is
-// missing is a fatal error. Tier paths are probed opportunistically: the first
+// Named targets resolve in precedence order: the config-file flag paths, then
+// the configuration environment variable, then the explicit option. The first
+// that names a path is used, and each path it names must exist and be
+// readable: a named path that is missing is a fatal error. Tier paths are probed opportunistically: the first
 // existing file wins, or — in cascading mode — every existing file is
 // collected in precedence order (lowest to highest) for merging. Returns the
 // loaded paths, the validated configuration data, and the value source; an
 // empty file set yields a source of SourceNone.
-func (r Resolver) Resolve(explicitTargets []string, cmd *spec.Command) ([]string, *configdata.Data, container.Source, error) {
+func (r Resolver) Resolve(flagTargets []string, cmd *spec.Command) ([]string, *configdata.Data, container.Source, error) {
 	envKeys := EnvKeys(r.EnvPrefix, cmd)
 	extensions := r.Registry.Extensions()
 
@@ -89,7 +94,15 @@ func (r Resolver) Resolve(explicitTargets []string, cmd *spec.Command) ([]string
 		splitEnv = cmd.ConfigFileFlag.IsSlice
 	}
 
-	files, err := findConfigFiles(explicitTargets, envKeys, r.EffectiveSearchPaths(), r.AppName, extensions, separator, splitEnv, r.Settings.Cascading)
+	files, source, err := findConfigFiles(configTargets{
+		flag:      flagTargets,
+		env:       resolveEnvConfigTargets(envKeys, separator, splitEnv),
+		explicit:  r.Settings.Explicit,
+		tier:      r.EffectiveSearchPaths(),
+		appName:   r.AppName,
+		decoders:  extensions,
+		cascading: r.Settings.Cascading,
+	})
 	if err != nil {
 		return nil, nil, container.SourceNone, err
 	}
@@ -108,7 +121,7 @@ func (r Resolver) Resolve(explicitTargets []string, cmd *spec.Command) ([]string
 		return nil, nil, container.SourceNone, nil
 	}
 
-	return files, values, resolveConfigSource(len(explicitTargets) > 0, envKeys), nil
+	return files, values, source, nil
 }
 
 // ProbedFiles lists the concrete configuration file locations resolution
@@ -135,8 +148,8 @@ func (r Resolver) ProbedFiles(candidate string, extensions []string) []string {
 
 // ConfigExamples suggests example configuration file locations the user can
 // create for the application to see, derived from the first search-path tier
-// (the highest-precedence tier): the in-directory candidates plus the stem
-// sibling, deduplicated. Returns nil when no search tier participates in the
+// (the highest-precedence tier): the in-directory candidates, plus the stem
+// sibling when the tier path is not an existing directory, deduplicated. Returns nil when no search tier participates in the
 // candidate list.
 func (r Resolver) ConfigExamples(candidates []string, tiers []string, extensions []string) []string {
 	tier := ""
@@ -153,7 +166,15 @@ func (r Resolver) ConfigExamples(candidates []string, tiers []string, extensions
 		return nil
 	}
 
-	probes := append(directoryProbes(tier, r.AppName, extensions), stemProbes(tier, extensions)...)
+	probes := directoryProbes(tier, r.AppName, extensions)
+
+	// Resolution probes the stem sibling only for a tier path that is not an
+	// existing directory (resolveTierConfigFile), so only then is it a
+	// location the user can create. Suggesting it for an existing directory
+	// would also produce names such as "..yaml" for the "." tier.
+	if fileInfo, err := os.Stat(filepath.Clean(tier)); err != nil || !fileInfo.IsDir() {
+		probes = append(probes, stemProbes(tier, extensions)...)
+	}
 
 	return slicex.Unique(probes)
 }
@@ -221,6 +242,20 @@ func EnvCandidates(envPrefix string, cmd *spec.Command) []string {
 	return nil
 }
 
+// configTargets carries every configuration file source findConfigFiles
+// chooses between, in precedence order: the config-file flag paths, the
+// configuration environment variable paths, the explicit option path, and the
+// search tier.
+type configTargets struct {
+	flag      []string
+	env       []string
+	explicit  string
+	tier      []string
+	appName   string
+	decoders  []string
+	cascading bool
+}
+
 // defaultTier returns the built-in conventional configuration search tier,
 // `${XDG_CONFIG_HOME:-~/.config}/<app-name>`, or "" when the tier is
 // unavailable.
@@ -251,10 +286,6 @@ func (r Resolver) defaultSearchCandidatePaths() []string {
 
 	for _, path := range r.EffectiveSearchPaths() {
 		addPath(path)
-	}
-
-	if r.Settings.Explicit != "" {
-		addPath(r.Settings.Explicit)
 	}
 
 	return paths
@@ -295,48 +326,63 @@ func (r Resolver) loadAndValidateFile(path string, cmd *spec.Command, dest *conf
 	return validateCommandConfig(rawMap, cmd, dest, cleanPath)
 }
 
-// findConfigFiles resolves configuration files from explicit targets and the
-// search tier. Explicit targets (CLI flag values, the <PREFIX>_CONFIG
-// environment variable, or an explicit option) must exist and be readable: a
-// named path that is missing is a fatal error. Tier paths are probed
-// opportunistically: the first existing file wins, or — in cascading mode —
-// every existing file is collected in precedence order (lowest to highest)
-// for merging. Returns an empty set when nothing resolves.
-func findConfigFiles(explicitTargets []string, envKeys []string, tier []string, appName string, decoders []string, separator string, splitEnv bool, cascading bool) ([]string, error) {
-	targets := explicitTargets
-	if len(targets) == 0 {
-		targets = resolveEnvConfigTargets(envKeys, separator, splitEnv)
+// findConfigFiles resolves the configuration files to load and reports their
+// value source. The first named source that is set wins: the config-file flag
+// paths (SourceCLI), then the environment variable paths (SourceEnv), then the
+// explicit option path (SourceConfig). Each named path must exist and be
+// readable: a missing one is a fatal error. Without a named source, the search
+// tier is probed opportunistically (SourceConfig): the first existing file
+// wins, or — in cascading mode — every existing file is collected in
+// precedence order (lowest to highest) for merging. Returns an empty set and
+// SourceNone when nothing resolves.
+func findConfigFiles(targets configTargets) ([]string, container.Source, error) {
+	switch {
+	case len(targets.flag) > 0:
+		return resolveNamedConfigFiles(targets.flag, container.SourceCLI)
+	case len(targets.env) > 0:
+		return resolveNamedConfigFiles(targets.env, container.SourceEnv)
+	case targets.explicit != "":
+		return resolveNamedConfigFiles([]string{targets.explicit}, container.SourceConfig)
 	}
 
-	if len(targets) > 0 {
-		resolved := make([]string, 0, len(targets))
+	var (
+		files []string
+		err   error
+	)
 
-		for _, target := range targets {
-			clean, err := resolveExplicitConfigFile(target)
-			if err != nil {
-				return nil, err
-			}
+	if targets.cascading {
+		files, err = collectTierConfigFiles(targets.tier, targets.appName, targets.decoders)
+	} else {
+		var file string
 
-			resolved = append(resolved, clean)
+		file, err = findFirstTierConfigFile(targets.tier, targets.appName, targets.decoders)
+		if file != "" {
+			files = []string{file}
+		}
+	}
+
+	if err != nil || len(files) == 0 {
+		return nil, container.SourceNone, err
+	}
+
+	return files, container.SourceConfig, nil
+}
+
+// resolveNamedConfigFiles verifies every named configuration path and returns
+// the clean paths with the given source, or the first read failure.
+func resolveNamedConfigFiles(targets []string, source container.Source) ([]string, container.Source, error) {
+	resolved := make([]string, 0, len(targets))
+
+	for _, target := range targets {
+		clean, err := resolveExplicitConfigFile(target)
+		if err != nil {
+			return nil, container.SourceNone, err
 		}
 
-		return resolved, nil
+		resolved = append(resolved, clean)
 	}
 
-	if cascading {
-		return collectTierConfigFiles(tier, appName, decoders)
-	}
-
-	file, err := findFirstTierConfigFile(tier, appName, decoders)
-	if err != nil {
-		return nil, err
-	}
-
-	if file == "" {
-		return nil, nil
-	}
-
-	return []string{file}, nil
+	return resolved, source, nil
 }
 
 // resolveEnvConfigTargets resolves the first matching configuration environment
@@ -544,20 +590,4 @@ func stemProbes(stemPath string, extensions []string) []string {
 	}
 
 	return probes
-}
-
-// resolveConfigSource reports the value source for loaded config files: CLI
-// for explicit paths, env for environment-provided paths, config otherwise.
-func resolveConfigSource(explicit bool, envKeys []string) container.Source {
-	if explicit {
-		return container.SourceCLI
-	}
-
-	for _, envKey := range envKeys {
-		if envKey != "" && os.Getenv(envKey) != "" {
-			return container.SourceEnv
-		}
-	}
-
-	return container.SourceConfig
 }

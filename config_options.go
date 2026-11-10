@@ -80,8 +80,11 @@ func ConfigCascading() ConfigOption {
 
 // ConfigExplicit names one concrete configuration file with fatal-if-missing
 // semantics for [App.ConfigOptions]: the file must exist and be readable.
-// It outranks the configuration environment variable (<PREFIX>_CONFIG) and the
-// search tier, and bypasses the built-in conventional tier.
+// It is the application's default file. A path named by the user outranks it:
+// the root [ConfigFile] flag first, then the configuration environment
+// variable (<PREFIX>_CONFIG). It replaces the built-in conventional search
+// location, and cannot be combined with [ConfigPaths] or [ConfigCascading].
+// Loaded values report the config source, as values from a search path do.
 //
 // Panics:
 //   - If path is empty or whitespace-only.
