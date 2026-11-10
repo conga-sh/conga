@@ -37,7 +37,7 @@ The complete scenarios, fixtures included, live in
   and redacts the API secret and the env-var carrier.
 - Feature toggles declared once on the root: `KITCHEN_SINK_FEATURE_<NAME>`
   variables derived from the container `envprefix`, a field `env` override
-  (`KITCHEN_SINK_STRICT_TLS`), an `env:"-"` opt-out (metrics), and a leveled
+  (`KITCHEN_SINK_STRICT`), an `env:"-"` opt-out (metrics), and a leveled
   integer gate (`compression`) that accepts only its enumerated levels.
 - Gated members (`--http3-port`, the `experimental` subcommand) are pruned from
   `--help`, `--why`, and completion until the `http3` feature is active;

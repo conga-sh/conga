@@ -78,7 +78,7 @@ func TestGroupValidation_DeterministicAndOrder(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.Equal(t, "flags --first-a must be provided together with --first-b", err.Error())
+	assert.Equal(t, "flag --first-a must be given together with --first-b", err.Error())
 	assert.IsError(t, err, conga.ErrValidation)
 }
 
@@ -91,5 +91,38 @@ func TestGroupValidation_PinsCrossKindOrder(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, "flags --xor-a and --xor-b are mutually exclusive", err.Error())
+	assert.IsError(t, err, conga.ErrValidation)
+}
+
+type FourMemberAndGroupCLI struct {
+	noopRunner
+
+	Host conga.OptionalFlag[string] `and:"proxy"`
+	User conga.OptionalFlag[string] `and:"proxy"`
+	Pass conga.OptionalFlag[string] `and:"proxy"`
+	Port conga.OptionalFlag[string] `and:"proxy"`
+}
+
+func TestAndGroupMessage_SeveralGiven(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[FourMemberAndGroupCLI]().Args([]string{"--host", "h", "--user", "u"})
+
+	err := app.RunContext(t.Context())
+
+	assert.Error(t, err)
+	assert.Equal(t, "flags --host and --user must be given together with --pass and --port", err.Error())
+	assert.IsError(t, err, conga.ErrValidation)
+}
+
+func TestAndGroupMessage_SeveralMissing(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[FourMemberAndGroupCLI]().Args([]string{"--user", "u"})
+
+	err := app.RunContext(t.Context())
+
+	assert.Error(t, err)
+	assert.Equal(t, "flag --user must be given together with --host, --pass and --port", err.Error())
 	assert.IsError(t, err, conga.ErrValidation)
 }

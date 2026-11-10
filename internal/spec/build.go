@@ -904,7 +904,7 @@ func (b *schemaBuilder) processRawArgsField(structField reflect.StructField, han
 	b.rawArgsField = structField.Name
 
 	b.cmd.RawArgs = &RawArgs{
-		Name:      cmp.Or(structField.Tag.Get("name"), "[command] [args...]"),
+		Name:      cmp.Or(structField.Tag.Get("name"), "[args...]"),
 		Predictor: predictorSpec,
 		Bootstrap: bootstrap,
 		Handle:    handle,

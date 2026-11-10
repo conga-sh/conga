@@ -217,7 +217,7 @@ func TestAndGroup_EnvTriggersGroup(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "must be provided together")
+	assert.Contains(t, err.Error(), "must be given together")
 	assert.IsError(t, err, conga.ErrValidation)
 }
 

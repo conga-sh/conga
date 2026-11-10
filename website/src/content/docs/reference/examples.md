@@ -190,9 +190,9 @@ DashArgs container: [-v -run TestAuth]
 ```
 ```sh label="Bare"
 $ go run ./_examples/11-trailing-args-forwarding exec my-container ls -la /var/log
-    FIELD                 TYPE      VALUE             SOURCE
-    <container>           string    my-container      ● cli
-    [command] [args...]   RawArgs   ls -la /var/log   ● cli
+    FIELD         TYPE      VALUE             SOURCE
+    <container>   string    my-container      ● cli
+    [args...]     RawArgs   ls -la /var/log   ● cli
 RawArgs container: [ls -la /var/log]
 ```
 :::
