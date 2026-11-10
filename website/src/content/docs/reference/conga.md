@@ -89,7 +89,7 @@ func WithPredictor(p predict.Predictor) RegistrationOption
 | `Finalizer` | `Finally(ctx, session, err) error` | Guaranteed teardown |
 | `DescriptionProvider` / `ExampleProvider` | `Description()` / `Examples()` | Custom command metadata |
 
-Value-shape interfaces (`SelfValidator`, `HelpProvider`, `TagAwareHelpProvider`, `ContextAwareTextUnmarshaler`) and the predictor hooks are catalogued in [Domain types](/reference/domain-types/#domain-type-interfaces).
+Value-shape interfaces (`SelfValidator`, `HelpProvider`, `TagAwareHelpProvider`, `ContextAwareTextUnmarshaler`) and the predictor hooks are cataloged in [Domain types](/reference/domain-types/#domain-type-interfaces).
 
 ## Session and hierarchy accessors
 
@@ -136,7 +136,7 @@ The App snapshots standard streams at the start of execution for the active sess
 
 ## Errors
 
-Base categories (`ErrSchema`, `ErrParse`, `ErrCoerce`, `ErrValidation`, `ErrConfig`) plus the `UsageError` and `CompletionError` interfaces and `IsUsageError(err)` / `IsCompletionError(err)` classifications — catalogued in [Errors and exit codes](/reference/errors/).
+Base categories (`ErrSchema`, `ErrParse`, `ErrCoerce`, `ErrValidation`, `ErrConfig`) plus the `UsageError` and `CompletionError` interfaces and `IsUsageError(err)` / `IsCompletionError(err)` classifications — cataloged in [Errors and exit codes](/reference/errors/).
 
 ## Provenance options
 

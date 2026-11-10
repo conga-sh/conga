@@ -115,7 +115,7 @@ fetch: error: struct Fetch field Timeout: schema error: duplicate flag: short fl
 
 ## Let users turn off a default-on flag
 
-A `negatable` tag on a `bool` flag adds a `--no-` form. Give it `default:"true"` for a behaviour that is on unless the user turns it off:
+A `negatable` tag on a `bool` flag adds a `--no-` form. Give it `default:"true"` for a behavior that is on unless the user turns it off:
 
 ```go title="main.go" ins={6,11}
 type Fetch struct {

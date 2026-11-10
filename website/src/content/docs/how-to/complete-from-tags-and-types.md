@@ -76,7 +76,7 @@ $ deploy --work-dir <Tab>
 [36mcurrent/[2m[39m  -- -> releases/v2[0m
 ```
 
-Directories stay among the candidates whatever the `glob`, so a path completes one directory at a time. CONGA colours each path by kind, following `LS_COLORS` when it is set.
+Directories stay among the candidates whatever the `glob`, so a path completes one directory at a time. CONGA colors each path by kind, following `LS_COLORS` when it is set.
 
 The `glob` patterns filter only the candidates. `existing` checks only that the file exists, so a file outside the patterns still passes:
 

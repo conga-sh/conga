@@ -17,7 +17,7 @@ CONGA reads the shape from a struct too, but wraps each field in a generic conta
 
 ## What the container costs and buys
 
-Containers give up some declaration brevity. Defining a field's behaviour through a wrapper type can feel unusual at first, when `Addr conga.OptionalFlag[string]` stands where `Addr string` would do. Every read then goes through a getter, `cmd.Addr.Get()` rather than `cmd.Addr`, and in a command that reads many values those calls add up.
+Containers give up some declaration brevity. Defining a field's behavior through a wrapper type can feel unusual at first, when `Addr conga.OptionalFlag[string]` stands where `Addr string` would do. Every read then goes through a getter, `cmd.Addr.Get()` rather than `cmd.Addr`, and in a command that reads many values those calls add up.
 
 CONGA accepts that cost for what the type gives back. The field's type says what the field is for and how it behaves. With bare fields, tags carry that. One tag marks a field as a positional argument, another makes it required, another makes it a subcommand, and a reader has to scan every tag to learn the field's role. In CONGA the type carries it. `RequiredFlag[string]`, `OptionalArg[string]`, and `Command[DeployCommand]` say flag or argument or subcommand, and required or optional, before any tag. The tags that remain describe the value, such as its name, help text, default, or bounds.
 

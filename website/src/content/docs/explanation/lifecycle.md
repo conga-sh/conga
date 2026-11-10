@@ -3,7 +3,7 @@ title: About the command lifecycle
 description: How CONGA orders validation, setup, the command body, follow-up, and teardown across a command chain, and why each stage sits where it does.
 ---
 
-A command must validate input before touching disk or network resources, set up connections, carry out its action, run follow-up tasks, and clean up even when an operation fails. CONGA divides execution into stages for these steps, each governed by an interface. Commands implement the lifecycle hooks, of which the selected leaf must implement `Runner` and the rest are optional. Value types can implement `SelfValidator` to validate themselves. Each stage has its own error classification, cancellation behaviour, and traversal order across the selected command chain.
+A command must validate input before touching disk or network resources, set up connections, carry out its action, run follow-up tasks, and clean up even when an operation fails. CONGA divides execution into stages for these steps, each governed by an interface. Commands implement the lifecycle hooks, of which the selected leaf must implement `Runner` and the rest are optional. Value types can implement `SelfValidator` to validate themselves. Each stage has its own error classification, cancellation behavior, and traversal order across the selected command chain.
 
 [Lifecycle interfaces](/reference/conga/#lifecycle-interfaces) lists the signatures, [How to use lifecycle hooks](/how-to/use-lifecycle-hooks/) builds a command that uses them, and [How to test a command](/how-to/test-a-command/) covers testing patterns.
 

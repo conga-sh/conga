@@ -106,7 +106,7 @@ app.Predictor("stack", predict.Callback(func(c predict.Context) predict.Predicto
 
 ## Directives
 
-`Directive` constants instruct shells on post-completion behaviour (e.g. `DirectiveNoFileCompletion` to disable filename fallback). Set per predictor or per `Result`.
+`Directive` constants instruct shells on post-completion behavior (e.g. `DirectiveNoFileCompletion` to disable filename fallback). Set per predictor or per `Result`.
 
 ## Interfaces for custom types
 

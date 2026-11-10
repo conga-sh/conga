@@ -3,7 +3,7 @@ title: Domain types
 description: Built-in and topical domain types that coerce, validate, and complete themselves.
 ---
 
-Types in the root `conga` package and the topical `network` and `system` packages implement `Predictable` interfaces — they carry their own completion behaviour alongside coercion and validation. Using them makes flags and arguments complete automatically in all six shells. To author custom flag types, see [How to add custom flag types](/how-to/add-custom-flag-types/).
+Types in the root `conga` package and the topical `network` and `system` packages implement `Predictable` interfaces — they carry their own completion behavior alongside coercion and validation. Using them makes flags and arguments complete automatically in all six shells. To author custom flag types, see [How to add custom flag types](/how-to/add-custom-flag-types/).
 
 ## Filesystem types
 
@@ -27,7 +27,7 @@ All filesystem capability checks run during the validation phase on the final re
 
 ## Content and I/O types
 
-| Type | Behaviour |
+| Type | Behavior |
 |------|-----------|
 | `conga.FileContent` | Reads the file into memory during parsing; accepts `-` for stdin; 16 MB limit |
 | `conga.ByteSize` | Parses `"10MiB"`, `"1.5GB"`, `"500KiB"`, and exact bytes; `Bytes()` returns `int64`; strict case-sensitive units. See [Byte size parsing](#byte-size-parsing) and [Byte size rendering](#byte-size-rendering) |

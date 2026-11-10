@@ -238,7 +238,7 @@ Users pick a level with `--feature-gates syntax=2`. The help screen lists the le
 feature-toggles: error: invalid value "3" for feature "syntax": must be one of: 0, 1, 2
 ```
 
-A gate such as `feature:"syntax"` holds at every level from 1 up. To vary behaviour by level, read it in code with `c.Features.Get().Syntax`.
+A gate such as `feature:"syntax"` holds at every level from 1 up. To vary behavior by level, read it in code with `c.Features.Get().Syntax`.
 
 ## Give each feature its own environment variable
 

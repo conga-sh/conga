@@ -234,7 +234,7 @@ A value prints as `██████` unless one of these makes it visible:
 
 A map flag applies the rule key by key: keys from the default show, and keys set elsewhere print as `KEY=██████`. Unset flags have no value to show. Positional arguments are not part of the report. In JSON, a hidden value is `null` with `"redacted": true`.
 
-When connected to an interactive terminal, the report uses colour: each source gets a marker and a colour (`● cli` cyan, `● env` yellow, `● config` green, `○ default` grey, `unset` dim). When piped, redirected, or running under `NO_COLOR=1` or `TERM=dumb`, it prints plain text with no markers, as shown on the how-to pages. Output color can also be forced with `CONGA_COLOR=1` or disabled with `CONGA_COLOR=0`.
+When connected to an interactive terminal, the report uses color: each source gets a marker and a color (`● cli` cyan, `● env` yellow, `● config` green, `○ default` grey, `unset` dim). When piped, redirected, or running under `NO_COLOR=1` or `TERM=dumb`, it prints plain text with no markers, as shown on the how-to pages. Output color can also be forced with `CONGA_COLOR=1` or disabled with `CONGA_COLOR=0`.
 
 `--why` binds values as a normal run does, except that a missing required flag is not an error. Malformed configuration or a value that fails to parse produces the normal error, and no report.
 
@@ -327,9 +327,9 @@ The zsh script also reads these `zstyle` keys:
 | `verbose` | `false`, `no`, `off`, or `0` hides candidate descriptions (the standard zsh style) |
 | `show-aliases` | `false`, `no`, `off`, or `0` hides alias candidates (the go-task convention) |
 | `bare-space-flags` | `yes`, `true`, `1`, or `on` shows flag candidates at a bare space |
-| `list-separator` | The separator between a candidate and its description; the engine's colours follow it |
+| `list-separator` | The separator between a candidate and its description; the engine's colors follow it |
 
-The engine installs its own colours only when `list-colors` is unset or empty (as in Oh My Zsh's default), and it leaves the user's `group-name` and `list-separator` styles in place.
+The engine installs its own colors only when `list-colors` is unset or empty (as in Oh My Zsh's default), and it leaves the user's `group-name` and `list-separator` styles in place.
 
 ### Binary names and paths
 

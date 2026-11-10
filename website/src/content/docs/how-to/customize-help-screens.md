@@ -366,7 +366,7 @@ The usage string includes its `Usage:` heading, as on the help screen.
 ## Where to go next
 
 - [Built-ins and deprecation](/reference/builtins/#help): every help section, the usage line, and wrapping rules.
-- [Help variables](/reference/struct-tags/#help-variables): the full variable catalogue.
+- [Help variables](/reference/struct-tags/#help-variables): the full variable catalog.
 - [How to gate features](/how-to/gate-behind-features/): the `Features:` section.
 - [How to deprecate flags and commands](/how-to/deprecate-flags-and-commands/): the deprecation markers and warnings.
 - [Built-ins example](https://github.com/conga-sh/conga/tree/main/_examples/10-builtins-help-version): custom help, usage, and version commands.

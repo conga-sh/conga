@@ -148,7 +148,7 @@ A subcommand's flags read config keys from a section named after the subcommand,
 | A branch that implements `Runner` is invoked with no subcommand | The branch's own `Run` executes. |
 | A leaf that doesn't implement `Runner` is invoked | `runner not implemented: command "<name>" does not implement conga.Runner`, exit 1. Its siblings still run. `conga-lint` reports every such leaf. |
 | A subcommand off the selected path | Its containers receive no values and its lifecycle hooks don't run. `Command[T].IsSelected()` reports whether a subcommand is on the path. |
-| A subcommand whose `feature` expression is false | See [Feature runtime behaviour](#feature-runtime-behaviour). |
+| A subcommand whose `feature` expression is false | See [Feature runtime behavior](#feature-runtime-behavior). |
 
 ### Implicit subcommands
 
@@ -325,7 +325,7 @@ Feature names are kebab-cased. A key may use any spelling of a declared name (ke
 
 Every source contributes `name=value` pairs, merged key by key: command line over environment over config file over the field's `default` tag. A source changes only the keys it names, so unlisted features keep their lower-source values. The container's `Source()` reports the highest source that contributed a key. See [About value precedence](/explanation/value-precedence/).
 
-### Feature runtime behaviour
+### Feature runtime behavior
 
 Inactive gated flags and subcommands are pruned from `--help`, `--why`, and shell completion. Input that cannot be applied fails by source:
 

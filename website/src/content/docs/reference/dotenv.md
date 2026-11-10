@@ -30,7 +30,7 @@ Completion invocations (`__complete`) run `Bootstrap` before resolving candidate
 
 ## Grammar
 
-| Feature | Behaviour |
+| Feature | Behavior |
 |---------|-----------|
 | Comments | Lines whose first non-space character is `#` are ignored; unquoted values drop a trailing `# comment` after whitespace. |
 | `export` prefix | `export PORT=8080` is parsed identically to `PORT=8080`. |

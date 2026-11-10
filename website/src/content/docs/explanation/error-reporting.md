@@ -28,7 +28,7 @@ Standalone command-line applications translate errors into standard error messag
 
 `Exit` terminates through the configured exit function (`app.ExitFunc`, default `os.Exit`). It returns only when that function returns without terminating. All `PostRun` and `Finally` hooks complete inside `app.Run`, so the teardown work is already done by the time `Exit` runs.
 
-`Exit` is optional. Applications that embed CLI commands, collect telemetry, or format errors using structured loggers like `slog` can omit `Exit` and handle the returned error value directly. When callers do use `Exit`, setting `app.ExitFunc(handler)` intercepts the requested exit status code without killing the test process, allowing tests to verify exit behaviour in-process.
+`Exit` is optional. Applications that embed CLI commands, collect telemetry, or format errors using structured loggers like `slog` can omit `Exit` and handle the returned error value directly. When callers do use `Exit`, setting `app.ExitFunc(handler)` intercepts the requested exit status code without killing the test process, allowing tests to verify exit behavior in-process.
 
 ## Self-describing value errors
 

@@ -70,4 +70,4 @@ Each opt-in priced against `CONGA core` (2,580,640 bytes):
 | Conformance | A 15-case suite (`conformance.sh`) checks that the builds behave alike at each capability tier: defaults, aliases, custom values, serve, missing-required, help, version, env binding, config-file precedence, completion, and `--why`. Each case runs only on the builds that claim the capability. |
 | Precedence | kong's resolver ranks configuration above the `env` tag (`kong.Configuration` overwrites the environment), so kong has its own conformance case. cobra + viper, urfave + altsrc, and CONGA all rank env above the file and flags above both. |
 | Isolation | The harness is a nested module (`bench/comparison/go.mod`) with a local `replace` to the repository root, so competitor dependencies stay out of CONGA's `go.mod` and its `depguard` boundaries. |
-| Reproduce | `cd bench/comparison && make conformance` (behaviour), `make report` (regenerate the tables), `make sizes` (raw sizes and per-package `.text`). |
+| Reproduce | `cd bench/comparison && make conformance` (behavior), `make report` (regenerate the tables), `make sizes` (raw sizes and per-package `.text`). |

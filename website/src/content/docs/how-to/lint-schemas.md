@@ -80,7 +80,7 @@ Go's `./...` pattern skips directories that start with `_`, such as `_examples/`
 
 ## Check builder call order
 
-`-builder-order` also checks the builder calls at each `conga.New` against a canonical order. Identity calls such as `Name` come first, then the `Enable*` and `Disable*` toggles, then behaviour, then execution. In this example `EnableCompletion` comes before `Name`:
+`-builder-order` also checks the builder calls at each `conga.New` against a canonical order. Identity calls such as `Name` come first, then the `Enable*` and `Disable*` toggles, then behavior, then execution. In this example `EnableCompletion` comes before `Name`:
 
 ```sh error={2} wrap
 $ go tool conga-lint -builder-order ./...
@@ -117,7 +117,7 @@ The spec takes effect only together with `-builder-order`. A name that isn't an 
 
 ## Keep tags that other code reads
 
-CONGA rejects tag keys it doesn't recognise on flag, argument, and subcommand fields, so a misspelled tag fails at startup instead of being ignored. It accepts the keys that common libraries read, such as `json`, `yaml`, `validate`, and `db`. Any other key looks the same to CONGA as a misspelling, so it fails too. The `AllowTags` builder method lists the extra keys CONGA accepts. [Allowed foreign tags](/reference/struct-tags/#allowed-foreign-tags) lists the default keys.
+CONGA rejects tag keys it doesn't recognize on flag, argument, and subcommand fields, so a misspelled tag fails at startup instead of being ignored. It accepts the keys that common libraries read, such as `json`, `yaml`, `validate`, and `db`. Any other key looks the same to CONGA as a misspelling, so it fails too. The `AllowTags` builder method lists the extra keys CONGA accepts. [Allowed foreign tags](/reference/struct-tags/#allowed-foreign-tags) lists the default keys.
 
 In this variation of the fixed example, `DeployCmd` is also stored with the MongoDB driver, which reads `bson`, and written to a deploy history by the program's own encoder, which reads `history`:
 
