@@ -13,7 +13,7 @@ Merge semantics differ by value shape. Scalar and slice flags take the nearest f
 
 Because a cascade can load more than one file, a declared root config-file flag must accept multiple values (`multi:"true"`) so it can report every merged file. The schema rejects the combination otherwise.
 
-`conga.ConfigExplicit(...)` specifies a single configuration file target. It cannot be combined with `conga.ConfigPaths(...)` or `conga.ConfigCascading()`. Attempting to combine them fails schema initialization with `ErrSchema` and is reported as a violation by `conga-lint`.
+`conga.ConfigExplicit(...)` specifies a single configuration file target, the application's default file. A missing file is an error, and a file the user names with `--config-file` or `<PREFIX>_CONFIG` replaces it. It cannot be combined with `conga.ConfigPaths(...)` or `conga.ConfigCascading()`. Attempting to combine them fails schema initialization with `ErrSchema` and is reported as a violation by `conga-lint`.
 
 ## Programmatic documents
 
@@ -27,7 +27,7 @@ Because `SetConfig` only adds to the config source, a `Bootstrapper` works along
 
 [Config file resolution](/reference/conga/#config-file-resolution) lists the search order and the result of each failure.
 
-A path the user names is one they expect to be read, so a missing file is an error. A search path is only a place to look, so a missing file there is skipped. `kubectl --kubeconfig`, `curl --config`, and `ssh -F` fail on a missing named file in the same way, while a search list such as `KUBECONFIG` skips missing entries. Named targets outrank the environment variable, which outranks the search paths.
+A path the user names is one they expect to be read, so a missing file is an error. A search path is only a place to look, so a missing file there is skipped. `kubectl --kubeconfig`, `curl --config`, and `ssh -F` fail on a missing named file in the same way, while a search list such as `KUBECONFIG` skips missing entries. Paths the user names outrank paths the program sets. The `--config-file` flag comes first, then the environment variable, then `ConfigExplicit`, then the search paths.
 
 ## The built-in search location
 

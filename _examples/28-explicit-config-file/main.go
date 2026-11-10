@@ -8,10 +8,10 @@ import (
 	"github.com/conga-sh/conga/decoder/yaml"
 )
 
-// CLI demonstrates conga.ConfigExplicit(...): one programmatic concrete config file
-// with fatal-if-missing semantics. Only an explicit --config-file flag
-// outranks it; the <PREFIX>_CONFIG environment variable and the search tier
-// are not consulted while the option is declared.
+// CLI demonstrates conga.ConfigExplicit(...): the application's default config
+// file, with fatal-if-missing semantics. A file the user names outranks it:
+// the --config-file flag first, then the WEB_CONFIG environment variable. The
+// built-in search location is not consulted while the option is declared.
 type CLI struct {
 	ConfigFile conga.ConfigFile `short:"c"`
 

@@ -990,14 +990,23 @@ type typeRegistration struct {
 
 // configResolution memoizes the outcome of the run's single configuration
 // resolution: the loaded origins and their winning source, the resolution
-// failure (extraction or load, mutually exclusive), and the candidate paths
-// probed. Document scopes stay on the stored configuration values rather than
-// in this resolution summary.
+// failure (bootstrap, extraction, load, or document overlay), and the
+// candidate paths probed. Document scopes stay on the stored configuration
+// values rather than in this resolution summary.
 type configResolution struct {
 	loadedPaths  []string
 	loadedSource ValueSource
 	err          error
 	candidates   []string
+}
+
+// configFiles is the file half of a configuration resolution: the loaded file
+// paths and their source, the decoded values, and the candidate paths probed.
+type configFiles struct {
+	paths      []string
+	data       *configdata.Data
+	source     ValueSource
+	candidates []string
 }
 
 // appConfig holds every configuration field for an App. It is the single source
@@ -1075,8 +1084,8 @@ type appConfig[T any] struct {
 // deliberately mentions no configengine type so the engine package is reachable
 // only through the factory installed by installConfigEngine.
 type configView interface {
-	Resolve(explicitTargets []string, cmd *spec.Command) ([]string, *configdata.Data, ValueSource, error)
-	CandidatePaths(explicitPaths []string, cmd *spec.Command) []string
+	Resolve(flagTargets []string, cmd *spec.Command) ([]string, *configdata.Data, ValueSource, error)
+	CandidatePaths(flagPaths []string, cmd *spec.Command) []string
 	EffectiveSearchPaths() []string
 	ProbedFiles(candidate string, extensions []string) []string
 	ConfigExamples(candidates []string, tiers []string, extensions []string) []string
@@ -1095,8 +1104,8 @@ type emptyConfigView struct {
 	envPrefix string
 }
 
-func (view emptyConfigView) Resolve(explicitTargets []string, cmd *spec.Command) ([]string, *configdata.Data, ValueSource, error) {
-	if len(explicitTargets) > 0 {
+func (view emptyConfigView) Resolve(flagTargets []string, cmd *spec.Command) ([]string, *configdata.Data, ValueSource, error) {
+	if len(flagTargets) > 0 {
 		return nil, nil, SourceNone, newDecoderRequiredError("flag --" + configFlagName(cmd))
 	}
 
@@ -1109,9 +1118,9 @@ func (view emptyConfigView) Resolve(explicitTargets []string, cmd *spec.Command)
 	return nil, nil, SourceNone, nil
 }
 
-func (view emptyConfigView) CandidatePaths(explicitPaths []string, cmd *spec.Command) []string {
-	if len(explicitPaths) > 0 {
-		return slicex.Map(explicitPaths, pathx.Expand)
+func (view emptyConfigView) CandidatePaths(flagPaths []string, cmd *spec.Command) []string {
+	if len(flagPaths) > 0 {
+		return slicex.Map(flagPaths, pathx.Expand)
 	}
 
 	if envPaths := configengine.EnvCandidates(view.envPrefix, cmd); len(envPaths) > 0 {
@@ -1319,12 +1328,12 @@ func (a *App[T]) loadConfigDataForCompletion(invocation parsedInvocation) *confi
 		return nil
 	}
 
-	explicitTargets, err := a.extractExplicitConfigTargets(invocation)
+	flagTargets, err := flagConfigTargets(invocation.root, invocation.cmdChain, invocation.flagValues)
 	if err != nil {
 		return nil
 	}
 
-	_, values, _, err := a.configurationView(invocation.root).Resolve(explicitTargets, invocation.root)
+	_, values, _, err := a.configurationView(invocation.root).Resolve(flagTargets, invocation.root)
 	if err != nil {
 		return nil
 	}
@@ -1615,19 +1624,6 @@ func (a *App[T]) prepareFeatures(ctx context.Context, featureBinding featureStat
 	}
 
 	return featureBinding.resolveFeatures(invocation.root, invocation.cmdChain, invocation.flagValues, featureBindingState)
-}
-
-func (a *App[T]) extractExplicitConfigTargets(invocation parsedInvocation) ([]string, error) {
-	targets, err := flagConfigTargets(invocation.root, invocation.cmdChain, invocation.flagValues)
-	if err != nil || len(targets) > 0 {
-		return targets, err
-	}
-
-	if a.configSettings.Explicit != "" {
-		return []string{a.configSettings.Explicit}, nil
-	}
-
-	return nil, nil
 }
 
 func (a *App[T]) prepareNonMetaExecution(ctx context.Context, session *Session, invocation parsedInvocation, featureBinding featureState, prunedFlags []prunedFlag, skipRequiredFlags bool) error {
@@ -2119,65 +2115,60 @@ func (a *App[T]) resolveConfig(ctx context.Context, request configRequest) *conf
 	}
 
 	bootstrap, _ := a.runBootstrap(ctx, request)
+	files, filesErr := a.resolveConfigFiles(request.invocation)
 
-	cmd := request.invocation.root
-	explicitTargets, extractErr := a.extractExplicitConfigTargets(request.invocation)
-
-	data := configdata.New()
-
-	var (
-		filePaths  []string
-		fileSource ValueSource
-		candidates []string
-	)
-
-	var resolutionErr error
-
-	candidates = a.configurationView(cmd).CandidatePaths(explicitTargets, cmd)
-
-	if extractErr != nil {
-		resolutionErr = extractErr
-	} else {
-		var values *configdata.Data
-
-		filePaths, values, fileSource, resolutionErr = a.configurationView(cmd).Resolve(explicitTargets, cmd)
-
-		if values != nil {
-			data = values
-		}
-	}
-
-	loadedPaths := filePaths
-	loadedSource := fileSource
-
-	if bootstrap.err != nil {
-		resolutionErr = bootstrap.err
-	}
+	var overlayErr error
 
 	if bootstrap.configSet && bootstrap.err == nil {
-		origins, err := overlayBootstrapDocument(bootstrap, cmd, data)
-		if err != nil && resolutionErr == nil {
-			resolutionErr = err
-		}
+		var origins []string
 
-		loadedPaths = append(append([]string(nil), origins...), filePaths...)
-		candidates = append(append([]string(nil), origins...), candidates...)
+		origins, overlayErr = overlayBootstrapDocument(bootstrap, request.invocation.root, files.data)
+		files.paths = slices.Concat(origins, files.paths)
+		files.candidates = slices.Concat(origins, files.candidates)
 
-		if loadedSource == SourceNone {
-			loadedSource = SourceConfig
+		if files.source == SourceNone {
+			files.source = SourceConfig
 		}
 	}
 
-	a.configData = data
+	a.configData = files.data
 
 	a.configResolution = &configResolution{
-		loadedPaths:  loadedPaths,
-		loadedSource: loadedSource,
-		err:          resolutionErr,
-		candidates:   candidates,
+		loadedPaths:  files.paths,
+		loadedSource: files.source,
+		candidates:   files.candidates,
+		// A bootstrap failure outranks a file failure, which outranks an overlay failure.
+		err: cmp.Or(bootstrap.err, filesErr, overlayErr),
 	}
 
 	return a.configResolution
+}
+
+// resolveConfigFiles resolves and loads the configuration files for an
+// invocation. The returned files are valid alongside a non-nil error: they
+// carry the candidates and any values loaded before the failure, for --why.
+func (a *App[T]) resolveConfigFiles(invocation parsedInvocation) (configFiles, error) {
+	cmd := invocation.root
+	view := a.configurationView(cmd)
+	files := configFiles{data: configdata.New()}
+
+	flagTargets, err := flagConfigTargets(cmd, invocation.cmdChain, invocation.flagValues)
+	if err != nil {
+		files.candidates = view.CandidatePaths(nil, cmd)
+
+		return files, err
+	}
+
+	files.candidates = view.CandidatePaths(flagTargets, cmd)
+
+	paths, values, source, err := view.Resolve(flagTargets, cmd)
+	files.paths, files.source = paths, source
+
+	if values != nil {
+		files.data = values
+	}
+
+	return files, err
 }
 
 // installCompletionHooks binds the completion hook fields and help renderers

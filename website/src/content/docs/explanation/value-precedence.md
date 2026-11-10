@@ -23,7 +23,7 @@ The first source that supplies a value wins. With no source, a flag holds its ty
 Resolution completes before any lifecycle hook runs, in two sequential phases:
 
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 378" role="img" aria-labelledby="precedence-title" class="precedence-diagram">
-  <title id="precedence-title">Resolution runs in two phases. Phase 1 picks the config files. It tries the ConfigFile flag, then ConfigExplicit, then the config environment variable, then the search paths, and the first that applies wins. The files it loads form the config map. Phase 2 binds each flag from the command line, then the environment, then its key in the config map, then its default tag, and the first source that supplies a value wins.</title>
+  <title id="precedence-title">Resolution runs in two phases. Phase 1 picks the config files. It tries the ConfigFile flag, then the config environment variable, then ConfigExplicit, then the search paths, and the first that applies wins. The files it loads form the config map. Phase 2 binds each flag from the command line, then the environment, then its key in the config map, then its default tag, and the first source that supplies a value wins.</title>
   <style>
     .precedence-diagram { font-family: inherit; max-width: 960px; }
     .precedence-diagram .phase { fill: var(--sl-color-gray-6, #edeff4); stroke: var(--sl-color-accent, #3448f5); stroke-width: 1.5; }
@@ -45,13 +45,13 @@ Resolution completes before any lifecycle hook runs, in two sequential phases:
   <path class="flow" d="M226 89 H261"/>
   <path class="head" d="M262 89 L253 83 L253 95 Z"/>
   <rect class="box" x="262" y="60" width="200" height="58" rx="3"/>
-  <text class="label" x="362" y="81">ConfigExplicit</text>
-  <text class="note" x="362" y="102">path set in code</text>
+  <text class="label" x="362" y="81">Config variable</text>
+  <text class="note" x="362" y="102">&lt;PREFIX&gt;_CONFIG</text>
   <path class="flow" d="M462 89 H497"/>
   <path class="head" d="M498 89 L489 83 L489 95 Z"/>
   <rect class="box" x="498" y="60" width="200" height="58" rx="3"/>
-  <text class="label" x="598" y="81">Config variable</text>
-  <text class="note" x="598" y="102">&lt;PREFIX&gt;_CONFIG</text>
+  <text class="label" x="598" y="81">ConfigExplicit</text>
+  <text class="note" x="598" y="102">path set in code</text>
   <path class="flow" d="M698 89 H733"/>
   <path class="head" d="M734 89 L725 83 L725 95 Z"/>
   <rect class="box" x="734" y="60" width="200" height="58" rx="3"/>
@@ -88,7 +88,7 @@ Resolution completes before any lifecycle hook runs, in two sequential phases:
 
 ### Phase 1: Config file discovery
 
-Before binding any flag, CONGA determines which config files to load and decodes them into one key-value map. Discovery has its own precedence, with `--config-file` first, then `conga.ConfigExplicit(...)`, then `<PREFIX>_CONFIG`, then the search paths. [About the config cascade](/explanation/config-cascade/) covers the existence rules and merging. Once the files load and validate against the schema, their keys are the lookup table for Phase 2.
+Before binding any flag, CONGA determines which config files to load and decodes them into one key-value map. Discovery has its own precedence, with `--config-file` first, then `<PREFIX>_CONFIG`, then `conga.ConfigExplicit(...)`, then the search paths. The paths a user names come before the ones the program sets, as values from the command line and environment come before config and defaults in Phase 2. [About the config cascade](/explanation/config-cascade/) covers the existence rules and merging. Once the files load and validate against the schema, their keys are the lookup table for Phase 2.
 
 A [`conga.Bootstrapper`](/explanation/lifecycle/#the-bootstrap-phase) runs before Phase 1 and can contribute a config document with `Bootstrap.SetConfig`. The document's values join the config source, overlaying file values key by key.
 
@@ -104,7 +104,7 @@ A config file cannot name the config file to load, so the config source cannot f
 
 For the same reason, schema build rejects a `default` tag on a `ConfigFile` field. A default path would be neither loaded nor validated by the config engine. Probed locations belong in search paths (`conga.ConfigPaths`), and an example path shown in help belongs in `placeholder`.
 
-`ConfigFile` instead records Phase 1. It names the files that discovery loaded, whether from the command line, the environment, an explicit target, or a search path. When no file loads, it stays unset (`SourceNone`).
+`ConfigFile` instead records Phase 1. It names the files that discovery loaded, whether from the command line, the environment, `ConfigExplicit`, or a search path. When no file loads, it stays unset (`SourceNone`).
 
 ## Departures from the general order
 
