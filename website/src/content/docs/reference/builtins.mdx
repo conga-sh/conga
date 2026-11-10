@@ -3,6 +3,8 @@ title: Built-ins and deprecation
 description: Help, version, why, completion commands, deprecation notices, and flat-CLI completion styles.
 ---
 
+import { Kbd } from 'starlight-kbd/components';
+
 CONGA has five built-ins:
 
 - Help and version, on by default. `app.DisableHelpFlag()` and `app.DisableVersionFlag()` remove their flags.
@@ -272,7 +274,7 @@ When the root command declares `conga.Features[T]`, the report includes a `Featu
 
 Invoked without a shell argument, the flag or subcommand prints the supported shells and, when the active shell is detected, the command to load completion into the current session (exit 0). Invoked with `<shell> --help`, it prints the installation steps for that shell, adjusted to the environment. With `HOMEBREW_PREFIX` set, the zsh steps write to `$HOMEBREW_PREFIX/share/zsh/site-functions`, and on macOS the bash steps warn when the running Bash is older than 4.4. An unknown shell name is a usage error (exit 2).
 
-When the user presses `Tab`, the installed shell function invokes the binary through the hidden driver with the partial words:
+When the user presses <Kbd default="Tab" />, the installed shell function invokes the binary through the hidden driver with the partial words:
 
 ```sh
 cloudctl __complete bash "dep"
@@ -316,7 +318,7 @@ The generated scripts read three per-application environment variables. The defa
 | `<APP>_COMPLETION_ALIASES=0` | Hide alias candidates (`false` also hides them; unset or `1` shows them) |
 | `<APP>_COMPLETION_BARE_SPACE_FLAGS=1` | Show flag candidates at a bare space (`true` also shows them; unset or `0` keeps them for the `-` prefix) |
 
-In bash, descriptions appear only in the listing on the second `Tab`, so `<APP>_COMPLETION_DESCRIPTIONS=0` affects that listing only.
+In bash, descriptions appear only in the listing on the second <Kbd default="Tab" />, so `<APP>_COMPLETION_DESCRIPTIONS=0` affects that listing only.
 
 Alias candidates are subcommand and flag aliases declared with the `aliases` tag, plus candidates marked with `predict.Item.WithAlias()`.
 

@@ -3,6 +3,8 @@ title: About the command lifecycle
 description: How CONGA orders validation, setup, the command body, follow-up, and teardown across a command chain, and why each stage sits where it does.
 ---
 
+import { Kbd } from 'starlight-kbd/components';
+
 A command must validate input before touching disk or network resources, set up connections, carry out its action, run follow-up tasks, and clean up even when an operation fails. CONGA divides execution into stages for these steps, each governed by an interface. Commands implement the lifecycle hooks, of which the selected leaf must implement `Runner` and the rest are optional. Value types can implement `SelfValidator` to validate themselves. Each stage has its own error classification, cancellation behavior, and traversal order across the selected command chain.
 
 [Lifecycle interfaces](/reference/conga/#lifecycle-interfaces) lists the signatures, [How to use lifecycle hooks](/how-to/use-lifecycle-hooks/) builds a command that uses them, and [How to test a command](/how-to/test-a-command/) covers testing patterns.
@@ -13,7 +15,7 @@ Execution has two phases, schema build and the runtime lifecycle. `Run` or `RunC
 
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 651" role="img" aria-labelledby="pipeline-title" class="pipeline-diagram">
   <title id="pipeline-title">Execution runs ten stages in order. Schema build runs first and exits with status 1 on ErrSchema. The bootstrap phase and config resolution follow, and each exits with status 1 on an ErrConfig error. Binding follows them and exits with status 2 on a usage error, and a --why request prints its report after binding and exits with status 0. Value validation with SelfValidator and command validation with Validator, top-down, each exit with status 2 on an error. PreRun runs top-down, Run runs on the leaf command and is the one required hook, drawn with a thick border, and PostRun runs bottom-up. An error in PreRun, Run, or PostRun skips to Finally, which runs bottom-up. After Finally the program exits with status 0, or with status 1 if a stage failed.</title>
-  <style>
+  <style>{`
     .pipeline-diagram { font-family: inherit; max-width: 780px; }
     .pipeline-diagram .stage { fill: var(--sl-color-gray-6, #edeff4); stroke: var(--sl-color-accent, #3448f5); stroke-width: 1.5; }
     .pipeline-diagram .required { stroke-width: 3.5; }
@@ -29,7 +31,7 @@ Execution has two phases, schema build and the runtime lifecycle. `Run` or `RunC
     .pipeline-diagram .note { fill: var(--sl-color-gray-3, #545964); font-size: 14px; font-style: italic; text-anchor: end; dominant-baseline: central; }
     .pipeline-diagram .edge { fill: var(--sl-color-gray-3, #545964); font-size: 14px; font-style: italic; text-anchor: middle; }
     .pipeline-diagram .edge.start { text-anchor: start; dominant-baseline: central; }
-  </style>
+  `}</style>
   <rect class="stage" x="20" y="20" width="420" height="40" rx="4"/>
   <text class="title" x="36" y="40">Schema build</text>
   <text class="note" x="424" y="40">Run / RunContext</text>
@@ -215,7 +217,7 @@ The invocation's context flows through every stage, reaching `SelfValidator`, `V
 
 ### Default signal context versus custom context
 
-`app.Run()` executes the pipeline under a context derived from `context.Background()` with `signal.NotifyContext`, listening for `os.Interrupt` (`SIGINT`, Ctrl+C) and `syscall.SIGTERM`. When the process receives either signal, the context is canceled. The signal listener is removed when `Run` returns.
+`app.Run()` executes the pipeline under a context derived from `context.Background()` with `signal.NotifyContext`, listening for `os.Interrupt` (`SIGINT`, <Kbd default="Ctrl+C" />) and `syscall.SIGTERM`. When the process receives either signal, the context is canceled. The signal listener is removed when `Run` returns.
 
 `app.RunContext(ctx)` hands control of the context to the caller. CONGA passes the context into the pipeline unchanged, adding no signal handlers, timeouts, or wrappers. Supply your own context when execution must follow a caller-managed lifecycle rather than the default signal handling.
 

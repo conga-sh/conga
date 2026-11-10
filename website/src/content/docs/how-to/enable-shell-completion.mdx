@@ -3,6 +3,8 @@ title: How to enable shell completion
 description: Enable shell completion for bash, zsh, fish, PowerShell, Elvish, and Nushell, customize the completion command, and install the shell scripts.
 ---
 
+import { Kbd } from 'starlight-kbd/components';
+
 This guide adds completion to a `cloudctl` CLI with `deploy` and `status` subcommands, then to a flat `minify` CLI. The interactive listings use zsh; other shells render the same candidates in their native layout. To compute candidates in Go, see [How to compute and shape completion candidates](/how-to/compute-completion-candidates/).
 
 ## Enable completion on the builder
@@ -319,7 +321,7 @@ source ($nu.default-config-dir | path join "autoload/cloudctl.nu")
 
 ## Verify completion output
 
-With the script loaded, pressing `Tab` after the command name completes subcommands and their summaries:
+With the script loaded, pressing <Kbd default="Tab" /> after the command name completes subcommands and their summaries:
 
 ```text no-copy
 $ cloudctl <Tab>
@@ -363,7 +365,7 @@ Generated shell scripts read `<APP>_COMPLETION_DESCRIPTIONS`, `<APP>_COMPLETION_
 		)
 ```
 
-The scripts read these variables from the shell's environment at each `Tab`, so users export them in their shell configuration. An assignment typed in front of the command (`CCTL_COMPLETION_DESCRIPTIONS=0 cloudctl <Tab>`) is part of the line being completed and has no effect. With `CCTL_COMPLETION_DESCRIPTIONS=0` exported (or `zstyle ':completion:*' verbose no` in zsh), candidates lose their descriptions:
+The scripts read these variables from the shell's environment at each <Kbd default="Tab" />, so users export them in their shell configuration. An assignment typed in front of the command (`CCTL_COMPLETION_DESCRIPTIONS=0 cloudctl <Tab>`) is part of the line being completed and has no effect. With `CCTL_COMPLETION_DESCRIPTIONS=0` exported (or `zstyle ':completion:*' verbose no` in zsh), candidates lose their descriptions:
 
 ```text no-copy
 $ export CCTL_COMPLETION_DESCRIPTIONS=0

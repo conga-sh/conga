@@ -3,6 +3,8 @@ title: Add shell completion to a CLI
 description: Turn on shell completion for cloudctl, and complete its values from a tag, from a type, and from a function that asks an API for the latest images.
 ---
 
+import { Kbd } from 'starlight-kbd/components';
+
 In this tutorial, we will add shell completion to `cloudctl`. CONGA completes commands and flags from the structs on its own, and we will complete values from a tag, a type, and an API call. We continue in the `cloudctl` directory from [Test a CLI](/tutorials/test-a-cli/).
 
 ## The command we will build
@@ -21,7 +23,7 @@ nginx:1.26  nginx:1.27
 ```
 :::
 
-`<Tab>` marks a Tab press, and the lines under the command are the shell's output.
+`<Tab>` marks a <Kbd default="Tab" /> press, and the lines under the command are the shell's output.
 
 ## Turn completion on
 
