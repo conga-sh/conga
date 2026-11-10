@@ -13,17 +13,20 @@ When the user runs a subcommand, CONGA calls `PreRun` top-down from the root com
 
 This guide builds `snap`, which copies a directory into a snapshot store. The root `snap` command locks the store in `PreRun` and unlocks it in `Finally`. The `snap create` subcommand creates a staging directory in `PreRun`, copies files into it in `Run`, renames it into place in `PostRun`, and deletes it in `Finally` if an earlier stage failed:
 
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 838 258" role="img" aria-labelledby="lifecycle-title" class="lifecycle-diagram">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 950 258" role="img" aria-labelledby="lifecycle-title" class="lifecycle-diagram">
   <title id="lifecycle-title">A snap create run goes PreRun (snap then create), Run (create), PostRun (create), Finally (create then snap). If snap fails in PreRun, the run exits with status 1 without calling Finally. If create fails in PreRun, CONGA skips Run, PostRun, and create's Finally, and calls snap's Finally before exiting with status 1. If create fails in Run or PostRun, CONGA calls create's Finally and then snap's Finally before exiting with status 1. After Finally on a successful run, the program exits with status 0.</title>
   <style>
-    .lifecycle-diagram { font-family: inherit; max-width: 838px; }
+    .lifecycle-diagram { font-family: inherit; max-width: 950px; }
     .lifecycle-diagram .stage { fill: var(--sl-color-gray-6, #edeff4); stroke: var(--sl-color-accent, #3448f5); stroke-width: 1.5; }
     .lifecycle-diagram .required { stroke-width: 3.5; }
     .lifecycle-diagram .cmd { fill: var(--sl-color-black, #ffffff); stroke: var(--sl-color-accent, #3448f5); stroke-width: 1.5; }
-    .lifecycle-diagram .exit { fill: var(--sl-color-accent-low, #d1d6fb); stroke: var(--sl-color-accent, #3448f5); stroke-width: 1.5; }
+    .lifecycle-diagram .exit { stroke-width: 1.5; }
+    .lifecycle-diagram .exit.ok { fill: var(--sl-color-green-low, #defbd0); stroke: var(--sl-color-green-high, #28650b); }
+    .lifecycle-diagram .exit.fail { fill: var(--sl-color-red-low, #fad1df); stroke: var(--sl-color-red-high, #8a0f3a); }
     .lifecycle-diagram .flow { fill: none; stroke: var(--sl-color-accent, #3448f5); stroke-width: 1.5; }
-    .lifecycle-diagram .error { fill: none; stroke: var(--sl-color-accent, #3448f5); stroke-width: 1.5; stroke-dasharray: 5 4; }
+    .lifecycle-diagram .error { fill: none; stroke: var(--sl-color-red-high, #8a0f3a); stroke-width: 1.5; stroke-dasharray: 5 4; }
     .lifecycle-diagram .head { fill: var(--sl-color-accent, #3448f5); stroke: none; }
+    .lifecycle-diagram .head.err { fill: var(--sl-color-red-high, #8a0f3a); }
     .lifecycle-diagram .title { fill: var(--sl-color-white, #17181c); font-size: 17px; font-weight: 600; text-anchor: middle; }
     .lifecycle-diagram .label { fill: var(--sl-color-white, #17181c); font-size: 14px; font-weight: 600; text-anchor: middle; dominant-baseline: central; }
     .lifecycle-diagram .note { fill: var(--sl-color-gray-3, #545964); font-size: 14px; font-style: italic; text-anchor: middle; }
@@ -54,19 +57,23 @@ This guide builds `snap`, which copies a directory into a snapshot store. The ro
   <path class="flow" d="M690 85 H717"/>
   <path class="head" d="M718 85 L709 79 L709 91 Z"/>
   <path class="error" d="M71 102 V204"/>
-  <path class="head" d="M71 205 L65 196 L77 196 Z"/>
+  <path class="head err" d="M71 205 L65 196 L77 196 Z"/>
   <text class="note" x="96" y="164">error</text>
-  <ellipse class="exit" cx="71" cy="226" rx="52" ry="21"/><text class="label" x="71" y="226">Exit 1</text>
+  <ellipse class="exit fail" cx="71" cy="226" rx="52" ry="21"/><text class="label" x="71" y="226">Exit 1</text>
   <path class="error" d="M339 102 V158 H647 V103"/>
   <path class="error" d="M493 102 V158"/>
-  <path class="head" d="M647 102 L641 111 L653 111 Z"/>
+  <path class="head err" d="M647 102 L641 111 L653 111 Z"/>
   <text class="note" x="570" y="150">error</text>
   <path class="error" d="M185 102 V188 H745 V103"/>
-  <path class="head" d="M745 102 L739 111 L751 111 Z"/>
+  <path class="head err" d="M745 102 L739 111 L751 111 Z"/>
   <text class="note" x="465" y="206">error</text>
   <path class="flow" d="M777 102 V204"/>
   <path class="head" d="M777 205 L771 196 L783 196 Z"/>
-  <ellipse class="exit" cx="761" cy="226" rx="66" ry="21"/><text class="label" x="761" y="226">Exit 0 or 1</text>
+  <ellipse class="exit ok" cx="777" cy="226" rx="52" ry="21"/><text class="label" x="777" y="226">Exit 0</text>
+  <path class="error" d="M804 85 H890 V204"/>
+  <path class="head err" d="M890 205 L884 196 L896 196 Z"/>
+  <text class="note" x="884" y="150" style="text-anchor: end">on error</text>
+  <ellipse class="exit fail" cx="890" cy="226" rx="52" ry="21"/><text class="label" x="890" y="226">Exit 1</text>
 </svg>
 
 ## Acquire and release a shared resource

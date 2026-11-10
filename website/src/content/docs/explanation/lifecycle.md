@@ -11,36 +11,103 @@ A command must validate input before touching disk or network resources, set up 
 
 Execution has two phases, schema build and the runtime lifecycle. `Run` or `RunContext` first builds and validates the schema from the struct definitions and tags. Once the schema is valid, the runtime pipeline resolves values from command-line tokens, environment variables, and config files, then runs the hooks:
 
-```text no-copy
-Schema build (Run / RunContext) ──[ErrSchema]──► Exit 1 (Programmer Error)
-                │
-                ▼
-Bootstrap Phase (fields tagged bootstrap:"true" bound; Bootstrapper.Bootstrap runs)
-                │
-                ▼
-Config Resolution (files discovered and decoded; SetConfig document overlaid)
-                │
-                ▼
-Input Binding & Coercion (CLI, env, config, defaults) ──[--why]──► Exit 0 (Diagnostics)
-                │
-                ▼
-Value Validation (SelfValidator)              ──[error]──► Exit 2 (Usage Error)
-                │
-                ▼
-Command Validation (Validator, top-down)      ──[error]──► Exit 2 (Usage Error)
-                │
-                ▼
-Resource Setup (PreRunner, top-down)          ──[error]──┐
-                │                                        │
-                ▼                                        ▼
-Command Body (Runner, leaf only)              ──[error]──┼──► Teardown (Finally, bottom-up) ──► Exit 1 (Runtime Error)
-                │                                        │
-                ▼                                        │
-Post-Execution (PostRunner, bottom-up)        ──[error]──┘
-                │
-                ▼
-Teardown (Finally, bottom-up)                 ───────────► Exit 0 (Success)
-```
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 651" role="img" aria-labelledby="pipeline-title" class="pipeline-diagram">
+  <title id="pipeline-title">Execution runs ten stages in order. Schema build runs first and exits with status 1 on ErrSchema. The bootstrap phase, config resolution, and binding follow, and a --why request prints its report after binding and exits with status 0. Value validation with SelfValidator and command validation with Validator, top-down, each exit with status 2 on an error. PreRun runs top-down, Run runs on the leaf command and is the one required hook, and PostRun runs bottom-up. An error in PreRun, Run, or PostRun skips to Finally, which runs bottom-up. After Finally the program exits with status 0, or with status 1 if a stage failed.</title>
+  <style>
+    .pipeline-diagram { font-family: inherit; max-width: 780px; }
+    .pipeline-diagram .stage { fill: var(--sl-color-gray-6, #edeff4); stroke: var(--sl-color-accent, #3448f5); stroke-width: 1.5; }
+    .pipeline-diagram .required { stroke-width: 3.5; }
+    .pipeline-diagram .exit { stroke-width: 1.5; }
+    .pipeline-diagram .exit.ok { fill: var(--sl-color-green-low, #defbd0); stroke: var(--sl-color-green-high, #28650b); }
+    .pipeline-diagram .exit.fail { fill: var(--sl-color-red-low, #fad1df); stroke: var(--sl-color-red-high, #8a0f3a); }
+    .pipeline-diagram .flow { fill: none; stroke: var(--sl-color-accent, #3448f5); stroke-width: 1.5; }
+    .pipeline-diagram .error { fill: none; stroke: var(--sl-color-red-high, #8a0f3a); stroke-width: 1.5; stroke-dasharray: 5 4; }
+    .pipeline-diagram .head { fill: var(--sl-color-accent, #3448f5); stroke: none; }
+    .pipeline-diagram .head.err { fill: var(--sl-color-red-high, #8a0f3a); }
+    .pipeline-diagram .title { fill: var(--sl-color-white, #17181c); font-size: 15px; font-weight: 600; dominant-baseline: central; }
+    .pipeline-diagram .label { fill: var(--sl-color-white, #17181c); font-size: 14px; font-weight: 600; text-anchor: middle; dominant-baseline: central; }
+    .pipeline-diagram .note { fill: var(--sl-color-gray-3, #545964); font-size: 14px; font-style: italic; text-anchor: end; dominant-baseline: central; }
+    .pipeline-diagram .edge { fill: var(--sl-color-gray-3, #545964); font-size: 14px; font-style: italic; text-anchor: middle; }
+    .pipeline-diagram .edge.start { text-anchor: start; dominant-baseline: central; }
+  </style>
+  <rect class="stage" x="20" y="20" width="420" height="40" rx="4"/>
+  <text class="title" x="36" y="40">Schema build</text>
+  <text class="note" x="424" y="40">Run / RunContext</text>
+  <path class="flow" d="M230 60 V75"/>
+  <path class="head" d="M230 76 L224 67 L236 67 Z"/>
+  <rect class="stage" x="20" y="76" width="420" height="40" rx="4"/>
+  <text class="title" x="36" y="96">Bootstrap</text>
+  <text class="note" x="424" y="96">Bootstrapper, bootstrap fields</text>
+  <path class="flow" d="M230 116 V131"/>
+  <path class="head" d="M230 132 L224 123 L236 123 Z"/>
+  <rect class="stage" x="20" y="132" width="420" height="40" rx="4"/>
+  <text class="title" x="36" y="152">Config resolution</text>
+  <text class="note" x="424" y="152">files, SetConfig document</text>
+  <path class="flow" d="M230 172 V187"/>
+  <path class="head" d="M230 188 L224 179 L236 179 Z"/>
+  <rect class="stage" x="20" y="188" width="420" height="40" rx="4"/>
+  <text class="title" x="36" y="208">Binding and coercion</text>
+  <text class="note" x="424" y="208">CLI, env, config, defaults</text>
+  <path class="flow" d="M230 228 V243"/>
+  <path class="head" d="M230 244 L224 235 L236 235 Z"/>
+  <rect class="stage" x="20" y="244" width="420" height="40" rx="4"/>
+  <text class="title" x="36" y="264">Value validation</text>
+  <text class="note" x="424" y="264">SelfValidator</text>
+  <path class="flow" d="M230 284 V299"/>
+  <path class="head" d="M230 300 L224 291 L236 291 Z"/>
+  <rect class="stage" x="20" y="300" width="420" height="40" rx="4"/>
+  <text class="title" x="36" y="320">Command validation</text>
+  <text class="note" x="424" y="320">Validator, top-down</text>
+  <path class="flow" d="M230 340 V355"/>
+  <path class="head" d="M230 356 L224 347 L236 347 Z"/>
+  <rect class="stage" x="20" y="356" width="420" height="40" rx="4"/>
+  <text class="title" x="36" y="376">Resource setup</text>
+  <text class="note" x="424" y="376">PreRunner, top-down</text>
+  <path class="flow" d="M230 396 V411"/>
+  <path class="head" d="M230 412 L224 403 L236 403 Z"/>
+  <rect class="stage required" x="20" y="412" width="420" height="40" rx="4"/>
+  <text class="title" x="36" y="432">Command body</text>
+  <text class="note" x="424" y="432">Runner, leaf only</text>
+  <path class="flow" d="M230 452 V467"/>
+  <path class="head" d="M230 468 L224 459 L236 459 Z"/>
+  <rect class="stage" x="20" y="468" width="420" height="40" rx="4"/>
+  <text class="title" x="36" y="488">Post-execution</text>
+  <text class="note" x="424" y="488">PostRunner, bottom-up</text>
+  <path class="flow" d="M230 508 V523"/>
+  <path class="head" d="M230 524 L224 515 L236 515 Z"/>
+  <rect class="stage" x="20" y="524" width="420" height="40" rx="4"/>
+  <text class="title" x="36" y="544">Teardown</text>
+  <text class="note" x="424" y="544">Finalizer, bottom-up</text>
+  <path class="error" d="M440 40 H639"/>
+  <path class="head err" d="M640 40 L631 34 L631 46 Z"/>
+  <text class="edge" x="540" y="32">ErrSchema</text>
+  <ellipse class="exit fail" cx="700" cy="40" rx="60" ry="18"/><text class="label" x="700" y="40">Exit 1</text>
+  <path class="flow" d="M440 208 H639"/>
+  <path class="head" d="M640 208 L631 202 L631 214 Z"/>
+  <text class="edge" x="540" y="200">--why</text>
+  <ellipse class="exit ok" cx="700" cy="208" rx="60" ry="18"/><text class="label" x="700" y="208">Exit 0</text>
+  <path class="error" d="M440 264 H639"/>
+  <path class="head err" d="M640 264 L631 258 L631 270 Z"/>
+  <text class="edge" x="540" y="256">error</text>
+  <ellipse class="exit fail" cx="700" cy="264" rx="60" ry="18"/><text class="label" x="700" y="264">Exit 2</text>
+  <path class="error" d="M440 320 H639"/>
+  <path class="head err" d="M640 320 L631 314 L631 326 Z"/>
+  <text class="edge" x="540" y="312">error</text>
+  <ellipse class="exit fail" cx="700" cy="320" rx="60" ry="18"/><text class="label" x="700" y="320">Exit 2</text>
+  <path class="error" d="M440 376 H490"/>
+  <path class="error" d="M440 432 H490"/>
+  <path class="error" d="M440 488 H490"/>
+  <path class="error" d="M490 376 V544 H441"/>
+  <path class="head err" d="M440 544 L449 538 L449 550 Z"/>
+  <text class="edge start" x="500" y="432">error</text>
+  <path class="flow" d="M120 564 V599"/>
+  <path class="head" d="M120 600 L114 591 L126 591 Z"/>
+  <ellipse class="exit ok" cx="120" cy="620" rx="60" ry="19"/><text class="label" x="120" y="620">Exit 0</text>
+  <path class="error" d="M340 564 V599"/>
+  <path class="head err" d="M340 600 L334 591 L346 591 Z"/>
+  <text class="edge start" x="352" y="581.5">if a stage failed</text>
+  <ellipse class="exit fail" cx="340" cy="620" rx="60" ry="19"/><text class="label" x="340" y="620">Exit 1</text>
+</svg>
 
 ## The bootstrap phase
 
