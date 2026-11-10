@@ -3,6 +3,8 @@ title: How to use lifecycle hooks
 description: Acquire resources before a command runs with PreRun, commit its work after success with PostRun, release resources on every outcome with Finally, and stop cleanly on Ctrl+C.
 ---
 
+import { Kbd } from 'starlight-kbd/components';
+
 After CONGA parses and validates the command line, a command can run three hooks around `Run`:
 
 - `PreRun` acquires resources before `Run` starts.
@@ -15,7 +17,7 @@ This guide builds `snap`, which copies a directory into a snapshot store. The ro
 
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 950 258" role="img" aria-labelledby="lifecycle-title" class="lifecycle-diagram">
   <title id="lifecycle-title">A snap create run goes PreRun (snap then create), Run (create), PostRun (create), Finally (create then snap). If snap fails in PreRun, the run exits with status 1 without calling Finally. If create fails in PreRun, CONGA skips Run, PostRun, and create's Finally, and calls snap's Finally before exiting with status 1. If create fails in Run or PostRun, CONGA calls create's Finally and then snap's Finally before exiting with status 1. After Finally on a successful run, the program exits with status 0.</title>
-  <style>
+  <style>{`
     .lifecycle-diagram { font-family: inherit; max-width: 950px; }
     .lifecycle-diagram .stage { fill: var(--sl-color-gray-6, #edeff4); stroke: var(--sl-color-accent, #3448f5); stroke-width: 1.5; }
     .lifecycle-diagram .required { stroke-width: 3.5; }
@@ -30,7 +32,7 @@ This guide builds `snap`, which copies a directory into a snapshot store. The ro
     .lifecycle-diagram .title { fill: var(--sl-color-white, #17181c); font-size: 17px; font-weight: 600; text-anchor: middle; }
     .lifecycle-diagram .label { fill: var(--sl-color-white, #17181c); font-size: 14px; font-weight: 600; text-anchor: middle; dominant-baseline: central; }
     .lifecycle-diagram .note { fill: var(--sl-color-gray-3, #545964); font-size: 14px; font-style: italic; text-anchor: middle; }
-  </style>
+  `}</style>
   <rect class="stage" x="10" y="20" width="236" height="112" rx="4"/>
   <text class="title" x="128" y="46">PreRun</text>
   <rect class="cmd" x="28" y="68" width="86" height="34" rx="3"/><text class="label" x="71" y="85">snap</text>
@@ -342,9 +344,9 @@ Renaming in `PostRun` keeps a failed rename safe. When `os.Rename` fails in `Pos
 
 ## Stop cleanly on Ctrl+C
 
-`app.Run()` passes the hooks a context that is canceled on Ctrl+C (`SIGINT`) or `SIGTERM`, as [Default signal context versus custom context](/explanation/lifecycle/#default-signal-context-versus-custom-context) explains. The process keeps running after the signal. To stop cleanly, a long-running hook checks `ctx` and returns its error, and the `Finally` hooks then clean up.
+`app.Run()` passes the hooks a context that is canceled on <Kbd default="Ctrl+C" /> (`SIGINT`) or `SIGTERM`, as [Default signal context versus custom context](/explanation/lifecycle/#default-signal-context-versus-custom-context) explains. The process keeps running after the signal. To stop cleanly, a long-running hook checks `ctx` and returns its error, and the `Finally` hooks then clean up.
 
-In `CreateCmd.Run`, the `filepath.WalkDir` callback checks `ctx.Err()` before each entry. Pressing Ctrl+C partway through a large copy returns `context.Canceled`, skips `PostRun`, removes the partial snapshot in `CreateCmd.Finally`, and releases `.lock` in `CLI.Finally`. The run exits with status 1:
+In `CreateCmd.Run`, the `filepath.WalkDir` callback checks `ctx.Err()` before each entry. Pressing <Kbd default="Ctrl+C" /> partway through a large copy returns `context.Canceled`, skips `PostRun`, removes the partial snapshot in `CreateCmd.Finally`, and releases `.lock` in `CLI.Finally`. The run exits with status 1:
 
 ```sh error={3}
 $ snap create photos trip
@@ -352,7 +354,7 @@ discarded the partial snapshot
 snap: error: context canceled
 ```
 
-`app.RunContext(ctx)` passes the caller's context to every hook as it is and installs no signal handler. Under a context such as `context.Background()`, Ctrl+C ends the process at once, before any `Finally` hook runs, and leaves `.lock` and the `.partial-*` directory in the store. To stop cleanly under `RunContext`, build the context with `signal.NotifyContext`:
+`app.RunContext(ctx)` passes the caller's context to every hook as it is and installs no signal handler. Under a context such as `context.Background()`, <Kbd default="Ctrl+C" /> ends the process at once, before any `Finally` hook runs, and leaves `.lock` and the `.partial-*` directory in the store. To stop cleanly under `RunContext`, build the context with `signal.NotifyContext`:
 
 ```go title="main.go" {21} ins={8,10,16-17}
 import (
@@ -382,10 +384,10 @@ func main() {
 ```
 
 :::caution[A command that ignores ctx ignores Ctrl+C]
-Under a context that is canceled on Ctrl+C, a command that never checks `ctx` runs until `Run` finishes, however often the user presses Ctrl+C. Check `ctx.Err()` in loops and pass `ctx` to context-aware calls such as `exec.CommandContext` and `http.NewRequestWithContext`.
+Under a context that is canceled on <Kbd default="Ctrl+C" />, a command that never checks `ctx` runs until `Run` finishes, however often the user presses <Kbd default="Ctrl+C" />. Check `ctx.Err()` in loops and pass `ctx` to context-aware calls such as `exec.CommandContext` and `http.NewRequestWithContext`.
 :::
 
-When `Finally` runs after Ctrl+C, `ctx` is already canceled. If a cleanup step calls a function that takes a `context.Context`, such as one that rolls back a database transaction or deletes a remote object, pass it `context.WithoutCancel(ctx)` so the call gets a live context. Wrap that in `context.WithTimeout` when the call can hang.
+When `Finally` runs after <Kbd default="Ctrl+C" />, `ctx` is already canceled. If a cleanup step calls a function that takes a `context.Context`, such as one that rolls back a database transaction or deletes a remote object, pass it `context.WithoutCancel(ctx)` so the call gets a live context. Wrap that in `context.WithTimeout` when the call can hang.
 
 ## Know what users see
 
@@ -397,9 +399,9 @@ When `Finally` runs after Ctrl+C, `ctx` is already canceled. If a cleanup step c
 | `CreateCmd.Run` (a file cannot be read) | `CreateCmd.Finally`, then `CLI.Finally` | 1 |
 | `CreateCmd.PostRun` (`os.Rename` fails) | `CreateCmd.Finally`, then `CLI.Finally` | 1 |
 | A `Finally` hook | The remaining `Finally` hooks, with every error joined | 1 |
-| Ctrl+C under `app.Run()`, in a command that checks `ctx` | Each `Finally` whose `PreRun` succeeded, receiving `context.Canceled` | 1 |
-| Ctrl+C under `app.Run()`, in a command that ignores `ctx` | Every `Finally` hook, once `Run` finishes | The command's own |
-| Ctrl+C under `app.RunContext` with a context that has no signal handler | None | 130, set by the shell |
+| <Kbd default="Ctrl+C" /> under `app.Run()`, in a command that checks `ctx` | Each `Finally` whose `PreRun` succeeded, receiving `context.Canceled` | 1 |
+| <Kbd default="Ctrl+C" /> under `app.Run()`, in a command that ignores `ctx` | Every `Finally` hook, once `Run` finishes | The command's own |
+| <Kbd default="Ctrl+C" /> under `app.RunContext` with a context that has no signal handler | None | 130, set by the shell |
 
 ## Where to go next
 

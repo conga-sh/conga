@@ -1,6 +1,7 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
 import codeblocks from 'starlight-codeblocks';
+import starlightKbd from 'starlight-kbd';
 import starlightLinksValidator from 'starlight-links-validator';
 
 function pluginNoCopy() {
@@ -54,6 +55,10 @@ export default defineConfig({
           fileIcons: {
             files: { '.elv': 'file-type-shell', '.env': 'file-type-dotenv' },
           },
+        }),
+        starlightKbd({
+          globalPicker: false,
+          types: [{ id: 'default', label: 'All platforms', default: true }],
         }),
         starlightLinksValidator(),
       ],

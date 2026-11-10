@@ -17,6 +17,9 @@ importers:
       starlight-codeblocks:
         specifier: ^1.3.0
         version: 1.3.0(@astrojs/starlight@0.42.4(astro@7.3.5(@types/node@24.13.4)(yaml@2.9.1))(supports-color@10.2.2)(typescript@6.0.3))(astro-expressive-code@0.44.2(astro@7.3.5(@types/node@24.13.4)(yaml@2.9.1)))(astro@7.3.5(@types/node@24.13.4)(yaml@2.9.1))
+      starlight-kbd:
+        specifier: ^0.4.0
+        version: 0.4.0(@astrojs/starlight@0.42.4(astro@7.3.5(@types/node@24.13.4)(yaml@2.9.1))(supports-color@10.2.2)(typescript@6.0.3))
     devDependencies:
       '@astrojs/check':
         specifier: ^0.9.10
@@ -2064,6 +2067,12 @@ packages:
         optional: true
       astro-expressive-code:
         optional: true
+
+  starlight-kbd@0.4.0:
+    resolution: {integrity: sha512-Uz/MimnPaRqHsv2EllVnkD78ab2k3SQbVls3VZ53nUMbPMjIzg0+evgicqxrF8ZukQSRdve5sykKlbBEdH4xzQ==}
+    engines: {node: '>=22.12.0'}
+    peerDependencies:
+      '@astrojs/starlight': '>=0.38.0'
 
   starlight-links-validator@0.27.0:
     resolution: {integrity: sha512-UvPl8L9hfWR+yWbLOEtljLmpJCGcM6AVseVy5IO9dmqdOjW4R+Y8FaYyVA5axCC8RvxM5xU7M1WTerpwU8rYbw==}
@@ -4618,6 +4627,10 @@ snapshots:
       - solid-js
       - svelte
       - vue
+
+  starlight-kbd@0.4.0(@astrojs/starlight@0.42.4(astro@7.3.5(@types/node@24.13.4)(yaml@2.9.1))(supports-color@10.2.2)(typescript@6.0.3)):
+    dependencies:
+      '@astrojs/starlight': 0.42.4(astro@7.3.5(@types/node@24.13.4)(yaml@2.9.1))(supports-color@10.2.2)(typescript@6.0.3)
 
   starlight-links-validator@0.27.0(@astrojs/starlight@0.42.4(astro@7.3.5(@types/node@24.13.4)(yaml@2.9.1))(supports-color@10.2.2)(typescript@6.0.3))(astro@7.3.5(@types/node@24.13.4)(yaml@2.9.1))(supports-color@10.2.2):
     dependencies:
