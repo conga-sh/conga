@@ -3,6 +3,8 @@ title: How to manage config files
 description: Register config formats, search for files in several places, merge them, let users name their own, and see what users get when a file is wrong.
 ---
 
+import { FileTree } from '@astrojs/starlight/components';
+
 A config file gives flags their values when the user leaves them off the command line and no environment variable sets them. This guide registers a format, searches three places for a file, merges every file found, lets users name their own files, and maps fields to keys.
 
 The running example is the [cascading search paths example](https://github.com/conga-sh/conga/tree/main/_examples/15-cascading-searchpaths). Paths in the output use `/home/alice` as the home directory.
@@ -56,6 +58,32 @@ Users see the accepted formats on the config flag in `--help`:
 
 CONGA ships decoders for JSON, TOML, YAML, and HCL in `conga/decoder/...`; see [package decoder](/reference/decoders/).
 
+To accept another format, import its decoder package and register its extension:
+
+:::code-tabs{sync="format"}
+```go label="YAML"
+import "github.com/conga-sh/conga/decoder/yaml"
+
+app.RegisterDecoder(".yaml", yaml.Decode)
+app.RegisterDecoder(".yml", yaml.Decode)
+```
+```go label="TOML"
+import "github.com/conga-sh/conga/decoder/toml"
+
+app.RegisterDecoder(".toml", toml.Decode)
+```
+```go label="JSON"
+import "github.com/conga-sh/conga/decoder/json"
+
+app.RegisterDecoder(".json", json.Decode)
+```
+```go label="HCL"
+import "github.com/conga-sh/conga/decoder/hcl"
+
+app.RegisterDecoder(".hcl", hcl.Decode)
+```
+:::
+
 ## Search for a file in several places
 
 Add `ConfigPaths` with the places to look, highest precedence first. For an entry that is an existing directory, the program looks there for `config.<ext>` and `<app-name>.<ext>` for every registered extension. An existing file is used as it is. An entry that does not exist is tried as `<entry>.<ext>`: without a `~/.config/cascading-searchpaths` directory, the program looks for `~/.config/cascading-searchpaths.yaml`. `~` and `${VAR:-default}` expand:
@@ -69,7 +97,20 @@ app := conga.New[CLI]().
 	ConfigOptions(conga.ConfigPaths(".", "~/.config/cascading-searchpaths", "${SYSCONF_DIR:-/etc/cascading-searchpaths}"))
 ```
 
-The program loads the first file it finds and stops. In this run, all three places have a file, and the one in the working directory wins:
+The program loads the first file it finds and stops. In this run, all three places have a file:
+
+<FileTree>
+
+- ./ working directory
+  - **cascading-searchpaths.yaml** loaded
+- ~/.config/cascading-searchpaths/
+  - cascading-searchpaths.yaml
+- /etc/cascading-searchpaths/
+  - cascading-searchpaths.yaml
+
+</FileTree>
+
+The one in the working directory wins:
 
 ```sh {6} hidden={10-24}
 $ cascading-searchpaths --why
@@ -191,7 +232,7 @@ cascading-searchpaths: error: config file "token.yaml": field "token" is exclude
 
 ## Nest subcommand settings
 
-A subcommand's flags live under a section named after the subcommand. This variation adds a `server` subcommand:
+A subcommand's flags live under a section named after the subcommand, and root flags stay at the top level of the file. This variation adds a `server` subcommand with a port and a map of response headers:
 
 ```go title="main.go"
 type CLI struct {
@@ -200,30 +241,82 @@ type CLI struct {
 }
 
 type ServerCmd struct {
-	Port conga.OptionalFlag[int] `default:"8080" safe:"true" help:"Listen port"`
+	Port    conga.OptionalFlag[int]               `default:"8080" safe:"true" help:"Listen port"`
+	Headers conga.OptionalFlag[map[string]string] `safe:"true" help:"Headers added to every response"`
 }
 ```
 
-```yaml title="server.yaml"
+:::code-tabs{sync="format"}
+```yaml title="server.yaml" label="YAML"
+api_endpoint: https://api.example.com
+timeout: 30s
+telemetry: false
+
 server:
   port: 9000
+  headers:
+    Cache-Control: no-store
+    X-Team: payments
 ```
+```toml title="server.toml" label="TOML"
+api_endpoint = "https://api.example.com"
+timeout = "30s"
+telemetry = false
 
-```sh hidden={6-19}
+[server]
+port = 9000
+
+[server.headers]
+Cache-Control = "no-store"
+X-Team = "payments"
+```
+```json title="server.json" label="JSON"
+{
+  "api_endpoint": "https://api.example.com",
+  "timeout": "30s",
+  "telemetry": false,
+  "server": {
+    "port": 9000,
+    "headers": {
+      "Cache-Control": "no-store",
+      "X-Team": "payments"
+    }
+  }
+}
+```
+```hcl title="server.hcl" label="HCL"
+api_endpoint = "https://api.example.com"
+timeout      = "30s"
+telemetry    = false
+
+server {
+  port = 9000
+  headers = {
+    "Cache-Control" = "no-store"
+    "X-Team"        = "payments"
+  }
+}
+```
+:::
+
+```sh hidden={18-22}
 $ cascading-searchpaths -c server.yaml server --why
 Value provenance for "cascading-searchpaths server":
 
-  FLAG     VALUE   SOURCE                 ENV   CONFIG PATH
-  --port   9000    config (server.yaml)   -     server.port
+  FLAG        VALUE      SOURCE                 ENV   CONFIG PATH
+  --port      9000       config (server.yaml)   -     server.port
+  --headers   (2 keys)   config (server.yaml)   -     server.headers
+              ├─ Cache-Control=no-store   config (server.yaml)
+              └─ X-Team=payments          config (server.yaml)
 
 Global Flags:
 
-  FLAG             VALUE                    SOURCE    ENV   CONFIG PATH
-  --config-file    server.yaml              cli       -     -
-  --api-endpoint   https://api.default.io   default   -     api-endpoint
-  --timeout        10s                      default   -     timeout
-  --theme          dark                     default   -     theme
-  --telemetry      true                     default   -     telemetry
+  FLAG             VALUE                     SOURCE                 ENV   CONFIG PATH
+  --config-file    server.yaml               cli                    -     -
+  --api-endpoint   https://api.example.com   config (server.yaml)   -     api-endpoint
+  --timeout        30s                       config (server.yaml)   -     timeout
+  --theme          dark                      default                -     theme
+  --telemetry      false                     config (server.yaml)   -     telemetry
 
 Config decoders: .yaml, .yml
 
