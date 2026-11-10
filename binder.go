@@ -18,6 +18,7 @@ import (
 	"github.com/conga-sh/conga/internal/casing"
 	"github.com/conga-sh/conga/internal/coerce"
 	"github.com/conga-sh/conga/internal/completion"
+	"github.com/conga-sh/conga/internal/cond"
 	"github.com/conga-sh/conga/internal/configdata"
 	"github.com/conga-sh/conga/internal/levenshtein"
 	"github.com/conga-sh/conga/internal/slicex"
@@ -1715,8 +1716,8 @@ func validateAndGroups(cmdChain []*spec.Command, andGroups orderedFlagGroups) er
 
 		if len(setFlags) > 0 && len(unsetFlags) > 0 {
 			return &validationError{
-				msg: fmt.Sprintf("flags %s must be provided together with %s",
-					strings.Join(setFlags, " and "), strings.Join(unsetFlags, ", ")),
+				msg: fmt.Sprintf("%s %s must be given together with %s",
+					cond.If(len(setFlags) == 1, "flag", "flags"), joinNaturalList(setFlags), joinNaturalList(unsetFlags)),
 				cmdChain: cmdChain,
 				cause:    errAndGroup,
 			}
@@ -2995,4 +2996,14 @@ func mergeParsedMapValue(parsed any, targetType reflect.Type, merged reflect.Val
 	}
 
 	return parsedValue, nil
+}
+
+// joinNaturalList joins items as an English list: "a", "a and b",
+// "a, b and c".
+func joinNaturalList(items []string) string {
+	if len(items) < 2 {
+		return strings.Join(items, "")
+	}
+
+	return strings.Join(items[:len(items)-1], ", ") + " and " + items[len(items)-1]
 }

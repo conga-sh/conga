@@ -202,7 +202,7 @@ Help shows the collected words after the required arguments:
 ```sh {3}
 $ mirror --help
 Usage:
-  mirror <target> [command] [args...]
+  mirror <target> [args...]
 
 Arguments:
   <target>  Destination directory
@@ -211,8 +211,6 @@ Flags:
       --help     Show help
       --version  Show version
 ```
-
-The `[command]` placeholder is a rendering bug. A command with `RawArgs` can't have subcommands.
 
 Collection starts after the last required positional, so words up to that point are still parsed. `mirror /mnt/backup --help` prints help, and `mirror /mnt/backup src/ --help` forwards `--help`. Only required scalar arguments can come before `RawArgs`, and the command can't have subcommands. Use `DashArgs` when you need either.
 

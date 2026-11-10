@@ -946,3 +946,26 @@ func TestHelp_WidthHonorsColumns(t *testing.T) {
 	assert.Contains(t, buffer.String(), "\n                     file used by every command\n")
 	assert.NotContains(t, buffer.String(), "Path to the configuration file used by every command")
 }
+
+type rawArgsUsageCLI struct {
+	noopRunner
+
+	Target conga.RequiredArg[string] `help:"Destination directory"`
+	Rest   conga.RawArgs
+}
+
+func TestHelpFlag_RawArgsUsageLineHasNoCommand(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	app := conga.New[rawArgsUsageCLI]().
+		Name("mirror").
+		Stdout(&buffer).
+		Args([]string{"--help"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Contains(t, buffer.String(), "Usage:\n  mirror <target> [args...]\n")
+}

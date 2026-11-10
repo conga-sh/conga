@@ -364,7 +364,7 @@ func extractFieldRow(structField reflect.StructField, fieldAddr any) *Row {
 	if rawArgs, ok := fieldAddr.(*conga.RawArgs); ok {
 		displayName := name
 		if displayName == "" {
-			displayName = "[command] [args...]"
+			displayName = "[args...]"
 		}
 
 		return &Row{

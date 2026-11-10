@@ -72,7 +72,7 @@ var (
 	errInvalidLength     = fmt.Errorf("%w: invalid length", ErrValidation)
 	errInvalidItemCount  = fmt.Errorf("%w: invalid item count", ErrValidation)
 	errMutuallyExclusive = fmt.Errorf("%w: mutually exclusive flags", ErrValidation)
-	errAndGroup          = fmt.Errorf("%w: flags must be provided together", ErrValidation)
+	errAndGroup          = fmt.Errorf("%w: flags must be given together", ErrValidation)
 
 	errPathWrongKind = fmt.Errorf("%w: wrong path kind", ErrCoerce)
 

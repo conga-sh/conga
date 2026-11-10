@@ -211,7 +211,7 @@ type Export struct {
 
 ```sh error={2}
 $ export --token abc --to-file out.json --username ada
-export: error: flags --username must be provided together with --password
+export: error: flag --username must be given together with --password
 
 Usage:
   export --token=STRING (--to-file=PATH | --to-url=URL) [flags]
@@ -291,7 +291,7 @@ Here the app was also given `EnvPrefix("EXPORT")`, so each flag reads a variable
 | Gives `--gzip=false` with `--zstd` | The same error: `--gzip` counts as given |
 | Gives no flag from a `oneof` group | `missing required flag: one of --to-file, --to-url`, then usage, exit 2 |
 | Sets one `oneof` flag in the environment and gives the other on the command line | `flags --to-file and --to-url are mutually exclusive`, then usage, exit 2 |
-| Gives only part of an `and` group, from any source | `flags --username must be provided together with --password`, then usage, exit 2 |
+| Gives only part of an `and` group, from any source | `flag --username must be given together with --password`, then usage, exit 2 |
 | Gives values that `Validate` rejects | The returned message, then usage, exit 2 |
 | Leaves out a flag whose `default` is outside its bound | `value 5000 is out of range [1..1000] for flag --limit`, exit 2, on every such run |
 

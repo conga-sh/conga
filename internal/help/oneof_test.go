@@ -156,9 +156,9 @@ func TestUsage_FlagsPlaceholderPrecedesCollectors(t *testing.T) {
 			cmd: &spec.Command{
 				Name:    "app",
 				Flags:   []*spec.Flag{{Name: "verbose", IsBool: true}},
-				RawArgs: &spec.RawArgs{Name: "[command] [args...]"},
+				RawArgs: &spec.RawArgs{Name: "[args...]"},
 			},
-			want: "Usage:\n  app [flags] [command] [args...]",
+			want: "Usage:\n  app [flags] [args...]",
 		},
 	}
 

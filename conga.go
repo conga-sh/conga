@@ -196,8 +196,9 @@ func (a *App[T]) HelpFooter(footer string) *App[T] {
 //
 // Each run that reaches the command lifecycle first prints a warning containing
 // the reason text to standard error. Execution continues normally; deprecation
-// warnings are non-fatal. Requests that render a built-in and return early, such
-// as --help, --version, and --why, print no warning.
+// warnings are non-fatal. A help screen (--help) shows the same warning as a
+// banner above the usage line, on standard output with the rest of the screen.
+// --version and --why print no warning.
 //
 // Declare the deprecation with this method, not a Deprecated method on the root
 // struct, which fails schema compilation with [ErrSchema]. To deprecate an
