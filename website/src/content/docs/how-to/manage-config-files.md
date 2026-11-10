@@ -231,7 +231,7 @@ Config paths:
   server.yaml   loaded
 ```
 
-[About subcommands and hierarchy](/explanation/subcommands/#hierarchical-configuration-mapping) describes how deeper hierarchies map.
+[About subcommands and hierarchy](/explanation/subcommands/#config-sections-follow-the-command-tree) describes how deeper hierarchies map.
 
 ## Add a format of your own
 

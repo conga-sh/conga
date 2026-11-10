@@ -134,6 +134,20 @@ A command that declares `Command[T]` fields is a branch: it routes to its subcom
 
 Subcommands without an `envprefix` tag inherit their parent's prefix. Set the root command's prefix with `app.EnvPrefix(...)`.
 
+A subcommand's flags read config keys from a section named after the subcommand, nested one level per command. `--concurrency` on `deploy worker` reads `deploy` → `worker` → `concurrency`, which is a `[deploy.worker]` table in TOML. A dotted key such as `deploy.worker.concurrency: 4` in YAML is an unknown field (`ErrConfig`, exit 1). [Nest subcommand settings](/how-to/manage-config-files/#nest-subcommand-settings) shows the layout.
+
+### Command tree rules
+
+| Situation | Result |
+|---|---|
+| A flag name, alias, or short rune declared on an ancestor is declared again on a descendant | Schema build fails with `ErrSchema` wrapping `ErrDuplicateFlag`: `duplicate flag: --verbose (already declared by ancestor command "tool")`. Sibling commands may share names. |
+| A descendant's short rune matches the rune given to `app.HelpShortFlag` or `app.VersionShortFlag` | Schema build fails: `duplicate flag: built-in --help short flag -h collides with --host; assign a different rune to one of them`. |
+| A branch that doesn't implement `Runner` is invoked with no subcommand | `subcommand required for "<name>"` and the command's help screen, exit 2. |
+| A branch that implements `Runner` is invoked with no subcommand | The branch's own `Run` executes. |
+| A leaf that doesn't implement `Runner` is invoked | `runner not implemented: command "<name>" does not implement conga.Runner`, exit 1. Its siblings still run. `conga-lint` reports every such leaf. |
+| A subcommand off the selected path | Its containers receive no values and its lifecycle hooks don't run. `Command[T].IsSelected()` reports whether a subcommand is on the path. |
+| A subcommand whose `feature` expression is false | See [Feature runtime behaviour](#feature-runtime-behaviour). |
+
 ### Implicit subcommands
 
 `implicit:"true"` marks the subcommand that receives tokens no explicit subcommand claims. The examples below use this schema, where `-n` is declared only by `run`:
