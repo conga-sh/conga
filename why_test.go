@@ -2855,6 +2855,7 @@ func TestWhy_ConfigPathsChecked_FirstHitSkipsLaterTiers(t *testing.T) {
 	err := app.Run()
 
 	output := buffer.String()
+
 	assert.NoError(t, err)
 	assert.Contains(t, output, "  "+localDir+"   loaded: "+filepath.Join(localDir, "config.json"))
 	assert.Contains(t, output, "  "+userDir+"    skipped (an earlier location loaded)")
@@ -2887,6 +2888,7 @@ func TestWhy_ConfigPathsChecked_FirstHitSkipsLaterTiersJSON(t *testing.T) {
 	err := app.Run()
 
 	output := buffer.String()
+
 	assert.NoError(t, err)
 	assert.Contains(t, output, `{"path":`+strconv.Quote(userDir)+`,"status":"skipped"}`)
 }
