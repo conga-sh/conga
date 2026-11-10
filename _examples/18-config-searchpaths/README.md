@@ -20,8 +20,8 @@ The complete scenarios, fixtures included, live in
 - The first existing path wins; the others are never read.
 - Removing the top candidate falls through to the next one.
 - With no file at all, struct defaults apply and the container is `○ unset`.
-- `--why` reports the first-found candidate plus the probed file locations of
-  the remaining tiers.
+- `--why` reports the first-found candidate and marks the remaining tiers
+  `skipped (an earlier location loaded)`, since resolution never reads them.
 
 ## Test
 

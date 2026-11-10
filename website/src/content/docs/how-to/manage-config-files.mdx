@@ -112,7 +112,7 @@ The program loads the first file it finds and stops. In this run, all three plac
 
 The one in the working directory wins:
 
-```sh {6} hidden={10-24}
+```sh {6,15-16}
 $ cascading-searchpaths --why
 Value provenance for "cascading-searchpaths":
 
@@ -127,16 +127,8 @@ Config decoders: .yaml, .yml
 
 Config paths:
   .                                           loaded: cascading-searchpaths.yaml
-  /home/alice/.config/cascading-searchpaths   no config file
-    looked for: /home/alice/.config/cascading-searchpaths/config.yaml
-    looked for: /home/alice/.config/cascading-searchpaths/config.yml
-    looked for: /home/alice/.config/cascading-searchpaths/cascading-searchpaths.yaml
-    looked for: /home/alice/.config/cascading-searchpaths/cascading-searchpaths.yml
-  /etc/cascading-searchpaths                  no config file
-    looked for: /etc/cascading-searchpaths/config.yaml
-    looked for: /etc/cascading-searchpaths/config.yml
-    looked for: /etc/cascading-searchpaths/cascading-searchpaths.yaml
-    looked for: /etc/cascading-searchpaths/cascading-searchpaths.yml
+  /home/alice/.config/cascading-searchpaths   skipped (an earlier location loaded)
+  /etc/cascading-searchpaths                  skipped (an earlier location loaded)
 ```
 
 Without `ConfigPaths`, the program looks in the user's config directory, `${XDG_CONFIG_HOME:-~/.config}`, and [About the config cascade](/explanation/config-cascade/) covers that default. To load one fixed file instead of searching, use `conga.ConfigExplicit(path)`. The run then fails if that file is missing. `ConfigExplicit` takes the place of the search, so a program that also passes `ConfigPaths` or `ConfigCascading` fails at startup:

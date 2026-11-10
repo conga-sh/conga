@@ -157,7 +157,7 @@ Users may spell a name in kebab-case, snake_case, or camelCase, so `admin-api`, 
 
 Run with `--why` to see each feature's value and the source that set it:
 
-```sh hidden={3-10,17-21}
+```sh hidden={3-10,18-22}
 $ API_FEATURES=admin-api=true feature-toggles -c features.yaml --why
 Value provenance for "feature-toggles":
 
@@ -169,6 +169,7 @@ Value provenance for "feature-toggles":
   --cache           128                          default   API_CACHE      cache
 
 Features:
+
   FEATURE      VALUE   SOURCE
   http3        true    config (features.yaml)
   admin-api    true    env

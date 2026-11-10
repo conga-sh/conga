@@ -155,23 +155,33 @@ func BuildFeatureRows(input FeatureInput) []FeatureRow {
 
 // BuildConfigPaths assembles the candidate configuration path table from the
 // session's candidate and loaded paths and the per-tier probe results.
-func BuildConfigPaths(candidates, loaded []string, configProbed map[string][]string) []ConfigPath {
+// configProbed holds an entry for every search-path tier candidate. In
+// first-hit mode (firstHit), resolution stops at the first tier that yields a
+// file, so every later tier is reported as skipped rather than probed.
+func BuildConfigPaths(candidates, loaded []string, configProbed map[string][]string, firstHit bool) []ConfigPath {
 	if len(candidates) == 0 {
 		return nil
 	}
 
 	paths := make([]ConfigPath, 0, len(candidates))
+	tierLoaded := false
 
 	for _, candidate := range candidates {
-		if loadedFile := loadedConfigFile(candidate, loaded); loadedFile != "" {
-			configPath := ConfigPath{Path: candidate, Status: "loaded"}
+		probedFiles, isTier := configProbed[candidate]
+
+		switch loadedFile := loadedConfigFile(candidate, loaded); {
+		case loadedFile != "":
+			configPath := ConfigPath{Path: candidate, Status: statusLoaded}
 			if loadedFile != candidate {
 				configPath.Loaded = loadedFile
 			}
 
 			paths = append(paths, configPath)
-		} else {
-			paths = append(paths, absentConfigPath(candidate, configProbed[candidate]))
+			tierLoaded = tierLoaded || isTier
+		case firstHit && isTier && tierLoaded:
+			paths = append(paths, ConfigPath{Path: candidate, Status: statusSkipped})
+		default:
+			paths = append(paths, absentConfigPath(candidate, probedFiles))
 		}
 	}
 
@@ -390,9 +400,9 @@ func absentConfigPath(candidate string, probedFiles []string) ConfigPath {
 	configPath := ConfigPath{Path: candidate, ProbedFiles: probedFiles}
 
 	if _, err := os.Stat(candidate); err != nil {
-		configPath.Status = "directory does not exist"
+		configPath.Status = statusDirectoryMissing
 	} else {
-		configPath.Status = "no config file"
+		configPath.Status = statusNoConfigFile
 	}
 
 	return configPath
