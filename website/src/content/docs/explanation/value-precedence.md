@@ -24,16 +24,69 @@ The first source that supplies a value wins. With no source, a flag holds its ty
 
 Resolution completes before any lifecycle hook runs, in two sequential phases:
 
-```text no-copy
-Phase 1: Config File Discovery
-  CLI (--config-file) --> ConfigExplicit --> Env ($PREFIX_CONFIG) --> Search paths (XDG/Paths)
-                                                                       |
-                                                                       v
-                                                             Loaded Config Map
-                                                                       |
-Phase 2: Flag Value Binding                                            v
-  CLI (--flag) ---------> Environment ($VAR) ----> Config File Key ---> Struct Default
-```
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 378" role="img" aria-labelledby="precedence-title" class="precedence-diagram">
+  <title id="precedence-title">Resolution runs in two phases. Phase 1 picks the config files. It tries the ConfigFile flag, then ConfigExplicit, then the config environment variable, then the search paths, and the first that applies wins. The files it loads form the config map. Phase 2 binds each flag from the command line, then the environment, then its key in the config map, then its default tag, and the first source that supplies a value wins.</title>
+  <style>
+    .precedence-diagram { font-family: inherit; max-width: 960px; }
+    .precedence-diagram .phase { fill: var(--sl-color-gray-6, #edeff4); stroke: var(--sl-color-accent, #3448f5); stroke-width: 1.5; }
+    .precedence-diagram .box { fill: var(--sl-color-black, #ffffff); stroke: var(--sl-color-accent, #3448f5); stroke-width: 1.5; }
+    .precedence-diagram .map { fill: var(--sl-color-accent-low, #d1d6fb); stroke: var(--sl-color-accent, #3448f5); stroke-width: 1.5; }
+    .precedence-diagram .flow { fill: none; stroke: var(--sl-color-accent, #3448f5); stroke-width: 1.5; }
+    .precedence-diagram .head { fill: var(--sl-color-accent, #3448f5); stroke: none; }
+    .precedence-diagram .title { fill: var(--sl-color-white, #17181c); font-size: 17px; font-weight: 600; }
+    .precedence-diagram .label { fill: var(--sl-color-white, #17181c); font-size: 15px; font-weight: 600; text-anchor: middle; }
+    .precedence-diagram .note { fill: var(--sl-color-gray-3, #545964); font-size: 14px; font-style: italic; text-anchor: middle; }
+    .precedence-diagram .note.end { text-anchor: end; }
+  </style>
+  <rect class="phase" x="10" y="10" width="940" height="130" rx="4"/>
+  <text class="title" x="26" y="36">Phase 1: config file discovery</text>
+  <text class="note end" x="934" y="36">first that applies wins</text>
+  <rect class="box" x="26" y="60" width="200" height="58" rx="3"/>
+  <text class="label" x="126" y="81">ConfigFile flag</text>
+  <text class="note" x="126" y="102">--config-file by default</text>
+  <path class="flow" d="M226 89 H261"/>
+  <path class="head" d="M262 89 L253 83 L253 95 Z"/>
+  <rect class="box" x="262" y="60" width="200" height="58" rx="3"/>
+  <text class="label" x="362" y="81">ConfigExplicit</text>
+  <text class="note" x="362" y="102">path set in code</text>
+  <path class="flow" d="M462 89 H497"/>
+  <path class="head" d="M498 89 L489 83 L489 95 Z"/>
+  <rect class="box" x="498" y="60" width="200" height="58" rx="3"/>
+  <text class="label" x="598" y="81">Config variable</text>
+  <text class="note" x="598" y="102">&lt;PREFIX&gt;_CONFIG</text>
+  <path class="flow" d="M698 89 H733"/>
+  <path class="head" d="M734 89 L725 83 L725 95 Z"/>
+  <rect class="box" x="734" y="60" width="200" height="58" rx="3"/>
+  <text class="label" x="834" y="81">Search paths</text>
+  <text class="note" x="834" y="102">ConfigPaths or XDG</text>
+  <rect class="phase" x="10" y="238" width="940" height="130" rx="4"/>
+  <text class="title" x="26" y="264">Phase 2: flag value binding</text>
+  <text class="note end" x="934" y="264">first that applies wins</text>
+  <rect class="box" x="26" y="288" width="200" height="58" rx="3"/>
+  <text class="label" x="126" y="309">Command line</text>
+  <text class="note" x="126" y="330">--flag</text>
+  <path class="flow" d="M226 317 H261"/>
+  <path class="head" d="M262 317 L253 311 L253 323 Z"/>
+  <rect class="box" x="262" y="288" width="200" height="58" rx="3"/>
+  <text class="label" x="362" y="309">Environment</text>
+  <text class="note" x="362" y="330">&lt;PREFIX&gt;_&lt;FLAG&gt;</text>
+  <path class="flow" d="M462 317 H497"/>
+  <path class="head" d="M498 317 L489 311 L489 323 Z"/>
+  <rect class="box" x="498" y="288" width="200" height="58" rx="3"/>
+  <text class="label" x="598" y="309">Config file</text>
+  <text class="note" x="598" y="330">key in the config map</text>
+  <path class="flow" d="M698 317 H733"/>
+  <path class="head" d="M734 317 L725 311 L725 323 Z"/>
+  <rect class="box" x="734" y="288" width="200" height="58" rx="3"/>
+  <text class="label" x="834" y="309">Default</text>
+  <text class="note" x="834" y="330">default tag</text>
+  <path class="flow" d="M598 140 V161"/>
+  <path class="head" d="M598 162 L592 153 L604 153 Z"/>
+  <rect class="map" x="508" y="162" width="180" height="40" rx="3"/>
+  <text class="label" x="598" y="187">Loaded config map</text>
+  <path class="flow" d="M598 202 V287"/>
+  <path class="head" d="M598 288 L592 279 L604 279 Z"/>
+</svg>
 
 ### Phase 1: Config file discovery
 
