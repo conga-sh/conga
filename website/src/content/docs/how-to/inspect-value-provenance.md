@@ -1,38 +1,47 @@
 ---
 title: How to inspect value provenance
-description: Diagnose flag resolution sources across CLI, environment, config files, and defaults with --why.
+description: Let users see where each flag value came from, with --why, as a table or JSON, and print the same report from your own code.
 ---
 
-When flags resolve across multiple tiers (CLI flags, environment variables, config files, and defaults), determining which source provided a specific value can be difficult. Enable CONGA's built-in `--why` flag to output a diagnostic report detailing winning values, sources, and evaluated paths.
+A flag can get its value from the command line, an environment variable, a config file, or its default. When a user can't tell why a setting has the value it has, `--why` answers. It prints every flag's value and the source that set it, then exits without running the command.
 
-## Enable the provenance report
+This guide builds a small `server` program that reads a `server.yaml` file and `SERVER_*` variables.
 
-Call `EnableWhy()` on the application builder to install the `--why` flag:
+## Add `--why` to the program
 
-```go title="main.go"
+Call `EnableWhy()` on the builder:
+
+```go title="main.go" {30}
 package main
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/conga-sh/conga"
+	"github.com/conga-sh/conga/decoder/yaml"
 )
 
 type Server struct {
-	Host  conga.OptionalFlag[string] `default:"127.0.0.1" help:"Listen address" safe:"true"`
-	Port  conga.OptionalFlag[int]    `default:"8080" help:"Listen port" safe:"true" short:"p"`
-	Token conga.OptionalFlag[string] `help:"API secret token"`
+	Host   conga.OptionalFlag[string]            `default:"127.0.0.1" help:"Listen address"`
+	Port   conga.OptionalFlag[int]               `default:"8080" help:"Listen port" short:"p"`
+	Token  conga.OptionalFlag[string]            `help:"API token"`
+	Labels conga.OptionalFlag[map[string]string] `help:"Labels attached to metrics"`
 }
 
 func (s *Server) Run(ctx context.Context, session *conga.Session) error {
+	fmt.Fprintf(session.Stdout(), "listening on %s:%d\n", s.Host.Get(), s.Port.Get())
+
 	return nil
 }
 
 func main() {
 	app := conga.New[Server]().
 		Name("server").
-		EnableWhy().
-		EnvPrefix("SERVER")
+		EnvPrefix("SERVER").
+		ConfigOptions(conga.ConfigPaths(".")).
+		RegisterDecoder(".yaml", yaml.Decode).
+		EnableWhy()
 
 	if err := app.Run(); err != nil {
 		app.Exit(err)
@@ -40,179 +49,243 @@ func main() {
 }
 ```
 
-Passing `--why` intercepts execution during the resolution phase. CONGA binds every flag and configuration source with the regular resolution pipeline, prints the report to stdout, and exits with code 0 before any lifecycle hooks (`PreRun`, `Run`, `PostRun`) execute. Invalid configuration or flag values fail with their normal errors instead of rendering partial diagnostic rows.
+The working directory holds this config file:
 
-To enable the machine-readable `--why=json` document as well, pass `conga.WhyOptionJSON()`: `app.EnableWhy(conga.WhyOptionJSON())`. The same report is available programmatically from `session.Why()` and `session.WhyJSON()` inside lifecycle hooks. With `conga.WhyOptionJSON()` enabled, the help screen renders the flag as `--why[=FORMAT]` with an enum hint of the accepted formats ([The `--why` report](/reference/builtins/#the---why-report)).
-
-## Protect sensitive data with value redaction
-
-The report redacts values by default (see [The `--why` report](/reference/builtins/#the---why-report)). To display a field in plaintext, declare `safe:"true"`:
-
-```go title="main.go"
-// Renders plaintext in --why report
-Port conga.OptionalFlag[int] `default:"8080" safe:"true"`
-
-// Redacted as ██████ in --why report
-Token conga.OptionalFlag[string] `help:"API secret token"`
+```yaml title="server.yaml"
+host: 0.0.0.0
+labels:
+  region: eu-west-1
+  team: payments
 ```
 
-The `safe` tag applies exclusively to flag containers; positional arguments and config-file paths display without redaction.
-
-## Interpret the provenance output
-
-Invoke the binary with `--why` alongside any other flags or environment variables:
+A user who sets the token in the environment and the port on the command line, and adds `--why`, sees [all four sources](/reference/builtins/#the---why-report):
 
 ```sh
-SERVER_PORT=9002 SERVER_TOKEN=hunter2 server --why --port 9003
-```
-
-```text no-copy
+$ SERVER_TOKEN=hunter2 server --why --port 9003
 Value provenance for "server":
 
-  FLAG      VALUE       SOURCE    ENV            CONFIG PATH
-  --host    127.0.0.1   default   SERVER_HOST    host
-  --port    9003        cli       SERVER_PORT    port
-  --token   ██████      env       SERVER_TOKEN   token
+  FLAG       VALUE      SOURCE                 ENV             CONFIG PATH
+  --host     ██████     config (server.yaml)   SERVER_HOST     host
+  --port     ██████     cli                    SERVER_PORT     port
+  --token    ██████     env                    SERVER_TOKEN    token
+  --labels   (2 keys)   config (server.yaml)   SERVER_LABELS   labels
+             ├─ region=██████   config (server.yaml)
+             └─ team=██████     config (server.yaml)
+
+Config decoders: .yaml
+
+Config paths:
+  .   loaded: server.yaml
 
 values are redacted — tag fields safe:"true" to display
 ```
 
-The report divides diagnostics into four areas:
+The `SOURCE` column names where each value came from, and a config source names the file. The `ENV` and `CONFIG PATH` columns show where else the user could set the flag. `Config paths` lists each place the program searched and what it found. The command itself doesn't run, so `listening on …` never prints.
 
-1. Flag table: shows the flag name, winning value (or `██████` if untagged), winning source tier (`cli`, `env`, `config`, or `default`), evaluated environment variable, and configuration key. Unambiguous config origins display as the file basename (`config (app.yaml)`), while colliding basenames show the shortest unique directory prefix (`config (/etc/.../app.yaml)`). Entry-bearing map rows display key counts `(N keys)` and tree branches (`├─ `, `└─ `). Multi-file `ConfigFile` rows display `(N files)` with tree sub-rows, and slice flags with multiple values render `(N values)`.
-2. Config decoders: lists all format decoders registered on the application.
-3. Config paths: lists evaluated candidate file paths and probe outcomes (`loaded`, `not found`). When a bootstrap document records scopes via `SetScoped`, the table lists the origin path once while the value's source column includes the scope.
-4. Features: lists every declared feature toggle, its resolved value, and its contributing tier.
+## Show values that are safe to print
 
-Map flags merge key by key across tiers: the flag row displays the key count and highest contributing tier, followed by tree-structured sub-rows (`├─ `, `└─ `) detailing each key's value and source:
+Users paste `--why` output into bug reports, and a flag can hold a password or a token, so the report hides each value a user set on the command line, in the environment, or in a config file. That is why every value above shows as `██████`. Tag each flag whose value is safe to share with `safe:"true"`:
 
-```sh
-SERVER_LABELS=region=eu-west-1 server --why --labels shared=cli,team=core
-```
-
-```text no-copy
-  --labels   (3 keys)              cli   SERVER_LABELS   labels
-             ├─ region=eu-west-1   env
-             ├─ shared=cli         cli
-             └─ team=core          cli
-```
-
-## Inspect provenance as JSON
-
-To emit a machine-readable document for CI or external tooling, pass `conga.WhyOptionJSON()` when enabling Why:
-
-```go title="main.go"
-app := conga.New[Server]().
-	Name("server").
-	EnableWhy(conga.WhyOptionJSON())
-```
-
-Invoking the binary with `--why=json` emits a versioned JSON document to stdout:
-
-```sh
-SERVER_PORT=9002 server --why=json --port 9003
-```
-
-```json no-copy
-{
-  "$schema": "https://conga.sh/schemas/why-v1.json",
-  "schemaVersion": 1,
-  "command": "server",
-  "version": "1.0.0",
-  "timestamp": "2026-10-20T08:00:00Z",
-  "workingDirectory": "/workspace",
-  "flags": [
-    {
-      "name": "--host",
-      "type": "string",
-      "value": "127.0.0.1",
-      "source": "default",
-      "detail": "127.0.0.1",
-      "env": "SERVER_HOST",
-      "configPath": "host",
-      "hidden": false,
-      "redacted": false
-    },
-    {
-      "name": "--port",
-      "type": "int",
-      "value": 9003,
-      "source": "cli",
-      "detail": "--port",
-      "env": "SERVER_PORT",
-      "configPath": "port",
-      "hidden": false,
-      "redacted": false
-    },
-    {
-      "name": "--token",
-      "type": "string",
-      "value": "██████",
-      "source": "env",
-      "detail": "SERVER_TOKEN",
-      "env": "SERVER_TOKEN",
-      "configPath": "token",
-      "hidden": false,
-      "redacted": true
-    }
-  ],
-  "globalFlags": [],
-  "features": [],
-  "config": {
-    "decoders": [".json", ".yaml", ".toml"],
-    "paths": [
-      {
-        "path": "/workspace/config.yaml",
-        "status": "not found",
-        "probedFiles": []
-      }
-    ],
-    "examples": []
-  },
-  "redacted": true
+```go title="main.go" {2,3,5}
+type Server struct {
+	Host   conga.OptionalFlag[string]            `default:"127.0.0.1" help:"Listen address" safe:"true"`
+	Port   conga.OptionalFlag[int]               `default:"8080" help:"Listen port" safe:"true" short:"p"`
+	// [!callout /Token/] Still shown as ██████
+	Token  conga.OptionalFlag[string]            `help:"API token"`
+	Labels conga.OptionalFlag[map[string]string] `help:"Labels attached to metrics" safe:"true"`
 }
 ```
 
-Passing `--why=json` without `conga.WhyOptionJSON()` on the builder fails with a usage error (exit 2).
+The same run now shows every value except the token:
 
-## Query provenance in lifecycle hooks
+```sh
+$ SERVER_TOKEN=hunter2 server --why --port 9003
+Value provenance for "server":
 
-Commands can inspect provenance programmatically during execution. Call `session.Why()` for the text table or `session.WhyJSON()` for the JSON document inside lifecycle hooks (`PreRun`, `Run`, `PostRun`):
+  FLAG       VALUE      SOURCE                 ENV             CONFIG PATH
+  --host     0.0.0.0    config (server.yaml)   SERVER_HOST     host
+  --port     9003       cli                    SERVER_PORT     port
+  --token    ██████     env                    SERVER_TOKEN    token
+  --labels   (2 keys)   config (server.yaml)   SERVER_LABELS   labels
+             ├─ region=eu-west-1   config (server.yaml)
+             └─ team=payments      config (server.yaml)
+
+Config decoders: .yaml
+
+Config paths:
+  .   loaded: server.yaml
+
+values are redacted — tag fields safe:"true" to display
+```
+
+Some values print without the tag:
+
+- A value that came from the flag's `default` tag prints, because it is already in `--help`. Keep secrets out of `default`, because a token given there appears in the report.
+- Boolean flags and `conga.Counter` flags print, because they can't hold a secret. Tag one `safe:"false"` to hide it.
+- The paths given to a `conga.ConfigFile` flag print.
+
+Positional arguments don't appear in the report.
+
+## Trace each key of a map flag
+
+A map flag merges key by key. A key from a higher source replaces that key only, and keys from lower sources stay. The report lists each key under the flag with the source that set it. Here the user adds `team` in the environment and `tier` on the command line:
+
+```sh {8-11}
+$ SERVER_LABELS=team=core server --why --labels tier=gold
+Value provenance for "server":
+
+  FLAG       VALUE      SOURCE                 ENV             CONFIG PATH
+  --host     0.0.0.0    config (server.yaml)   SERVER_HOST     host
+  --port     8080       default                SERVER_PORT     port
+  --token               unset                  SERVER_TOKEN    token
+  --labels   (3 keys)   cli                    SERVER_LABELS   labels
+             ├─ region=eu-west-1   config (server.yaml)
+             ├─ team=core          env
+             └─ tier=gold          cli
+
+Config decoders: .yaml
+
+Config paths:
+  .   loaded: server.yaml
+```
+
+`team=core` from the environment replaced `team=payments` from the file, and `region` kept its value from the file. The flag row shows the highest source that contributed a key.
+
+## Offer the report as JSON
+
+For scripts and CI checks, pass `conga.WhyOptionJSON()` to `EnableWhy`:
 
 ```go title="main.go"
-func (s *Server) PreRun(ctx context.Context, session *conga.Session) error {
-	// Log provenance or export to telemetry
-	report := session.Why()
-	fmt.Fprintln(session.Stderr(), report)
+EnableWhy(conga.WhyOptionJSON())
+```
+
+Users then choose `--why=json`, which prints one JSON document on one line. Its `flags` array holds the same rows, with the config file in `detail` and a redacted value as `null`:
+
+```sh expandable={20}
+$ SERVER_TOKEN=hunter2 server --why=json --port 9003 | jq '.flags'
+[
+  {
+    "name": "host",
+    "type": "string",
+    "value": "0.0.0.0",
+    "source": "config",
+    "detail": "server.yaml",
+    "env": "SERVER_HOST",
+    "configPath": "host"
+  },
+  {
+    "name": "port",
+    "type": "int",
+    "value": 9003,
+    "source": "cli",
+    "env": "SERVER_PORT",
+    "configPath": "port"
+  },
+  {
+    "name": "token",
+    "type": "string",
+    "redacted": true,
+    "value": null,
+    "source": "env",
+    "env": "SERVER_TOKEN",
+    "configPath": "token"
+  },
+  {
+    "name": "labels",
+    "type": "map",
+    "source": "config",
+    "detail": "server.yaml",
+    "env": "SERVER_LABELS",
+    "configPath": "labels",
+    "entries": [
+      {
+        "key": "region",
+        "value": "eu-west-1",
+        "source": "config",
+        "detail": "server.yaml"
+      },
+      {
+        "key": "team",
+        "value": "payments",
+        "source": "config",
+        "detail": "server.yaml"
+      }
+    ]
+  }
+]
+```
+
+The rest of the document records the command, the working directory, a timestamp, and the config search. [The `--why` report](/reference/builtins/#the---why-report) lists every property. `--why` and `--why=text` still print the table, and `--help` now lists the flag as `--why[=FORMAT]`.
+
+## Print the report from your own code
+
+`session.Why()` returns the same table as a string, so a command can print it on its own terms. This step adds a `--debug` flag that writes the report to stderr before the server starts:
+
+```go title="main.go" ins={6,10-12}
+type Server struct {
+	Host   conga.OptionalFlag[string]            `default:"127.0.0.1" help:"Listen address" safe:"true"`
+	Port   conga.OptionalFlag[int]               `default:"8080" help:"Listen port" safe:"true" short:"p"`
+	Token  conga.OptionalFlag[string]            `help:"API token"`
+	Labels conga.OptionalFlag[map[string]string] `help:"Labels attached to metrics" safe:"true"`
+	Debug  conga.OptionalFlag[bool]              `help:"Print where each setting came from" safe:"true"`
+}
+
+func (s *Server) Run(ctx context.Context, session *conga.Session) error {
+	if s.Debug.Get() {
+		fmt.Fprintln(session.Stderr(), session.Why())
+	}
+
+	fmt.Fprintf(session.Stdout(), "listening on %s:%d\n", s.Host.Get(), s.Port.Get())
 
 	return nil
 }
 ```
 
-Both methods return an empty string if Why is not enabled on the application. `session.WhyJSON()` also requires `conga.WhyOptionJSON()` on `app.EnableWhy`.
-
-## Inspect feature provenance
-
-When the root command declares a `conga.Features[T]` container (see [Feature toggles](/reference/struct-tags/#feature-toggles-congafeaturest)), the report ends with a `Features:` table. Each feature reports the tier that last wrote its key; keys no tier set fall back to the field default (`default`) or render `unset`:
+Unlike `--why`, the command runs after the report:
 
 ```sh
-serve --why
+$ server --debug
+Value provenance for "server":
+
+  FLAG       VALUE      SOURCE                 ENV             CONFIG PATH
+  --host     0.0.0.0    config (server.yaml)   SERVER_HOST     host
+  --port     8080       default                SERVER_PORT     port
+  --token               unset                  SERVER_TOKEN    token
+  --labels   (2 keys)   config (server.yaml)   SERVER_LABELS   labels
+             ├─ region=eu-west-1   config (server.yaml)
+             └─ team=payments      config (server.yaml)
+  --debug    true       cli                    SERVER_DEBUG    debug
+
+Config decoders: .yaml
+
+Config paths:
+  .   loaded: server.yaml
+listening on 0.0.0.0:8080
 ```
 
-```text no-copy
-Features:
+`session.WhyJSON()` returns the JSON document. Both return an empty string when the program doesn't call `EnableWhy`, and `WhyJSON` also needs `conga.WhyOptionJSON()`.
 
-  FEATURE      VALUE   SOURCE
-  http3        false   unset
-  admin-api    false   unset
-  strict-tls   true    default
-  metrics      true    default
+## Know what users see
+
+| What the user runs | Result |
+|---|---|
+| `--why` on a program without `EnableWhy()` | Usage error, exit 2: `unknown flag: --why` |
+| `--why=json` without `conga.WhyOptionJSON()` | Usage error, exit 2, naming the option to enable |
+| `--why=xml` | Usage error, exit 2: `invalid value "xml" (must be one of: text, json) for --why` |
+| `--why` while a config file holds a bad value | The same error a normal run gives, exit 2, and no report |
+| `--why` without a required flag | The report, with the flag `unset`, exit 0 |
+
+A bad config value stops the report, so the user fixes the value first:
+
+```text no-copy error={1}
+server: error: invalid integer value "eighty" for flag --port (from config key "port")
 ```
+
+The report also lists [feature toggles](/how-to/gate-behind-features/#check-which-source-set-each-feature) and the flags of parent commands. Color and markers appear only on a terminal.
 
 ## Where to go next
 
-- [About feature toggles](/explanation/feature-toggles/) — design rationale, sparse gate merging, and member pruning.
-- [About value precedence](/explanation/value-precedence/) — the deterministic four-tier resolution ladder and provenance rules.
-- [How to bind environment variables](/how-to/bind-environment-variables/) — configure environment variable prefixes and explicit overrides.
-- [How to manage config files](/how-to/manage-config-files/) — register file decoders and configure search paths.
-- [The `--why` report](/reference/builtins/#the---why-report) — built-in reference documentation for `--why`.
+- [The `--why` report](/reference/builtins/#the---why-report): every section of the table and every JSON property.
+- [About value precedence](/explanation/value-precedence/): why the command line beats the environment, and the environment beats config.
+- [How to manage config files](/how-to/manage-config-files/): choose where the program looks for config files.
+- [How to bind environment variables](/how-to/bind-environment-variables/): name the variables in the `ENV` column.

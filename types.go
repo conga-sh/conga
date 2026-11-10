@@ -217,6 +217,11 @@ type TagKind = spec.TagKind
 // "true"), and String (its raw value, or "" when absent).
 type FieldTags = spec.FieldTags
 
+// TypeParser converts raw text into a value of type U. It is the parser
+// signature [App.RegisterType] takes: func(raw string) (U, error). A returned
+// error is wrapped in [ErrCoerce].
+type TypeParser[U any] = coerce.TypeParser[U]
+
 // DecodeContext carries ambient metadata for coercing a raw string into a domain type:
 // the owning field's declared custom tags and the engine-configured standard streams
 // ([App.Stdin] / [App.Stdout]).
@@ -879,7 +884,7 @@ func (c *CompletionCommand) Run(ctx context.Context, session *Session) error {
 // an inactive gated flag is ignored rather than rejected, keeping ambient
 // environment state from breaking runs it does not control.
 //
-// See https://docs.conga.sh/how-to/feature-flags/.
+// See https://docs.conga.sh/how-to/gate-behind-features/.
 type Features[T any] struct {
 	value        T
 	source       ValueSource

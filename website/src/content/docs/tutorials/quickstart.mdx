@@ -1,0 +1,257 @@
+---
+title: Quickstart
+description: Build a single-command CLI with two flags, run it with good and bad input, and read the help and version output CONGA generates for it.
+---
+
+import { Steps } from '@astrojs/starlight/components';
+
+In this tutorial, we will build `hello`, a command-line tool that greets someone by name. We will give it two flags, run it with good and bad input, and read the help screen CONGA generates for it.
+
+## The command we will build
+
+The finished command takes a `--name` flag and a `--loud` flag:
+
+```sh
+$ ./hello --name conga --loud
+HELLO, CONGA!
+```
+
+## Set up the project
+
+We need Go 1.27 or later.
+
+<Steps>
+
+1. Create a directory for the project and move into it:
+
+   ```sh
+   mkdir hello && cd hello
+   ```
+
+2. Initialize a Go module:
+
+   ```sh
+   go mod init hello
+   ```
+
+3. Add CONGA to the module:
+
+   ```sh
+   go get github.com/conga-sh/conga@latest
+   ```
+
+</Steps>
+
+## Write the program
+
+Create `main.go`:
+
+```go title="main.go"
+package main
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/conga-sh/conga"
+)
+
+// [!callout /CLI/] The command. CONGA reads its fields to find its flags.
+type CLI struct {
+	// [!callout /OptionalFlag/] A container: it makes `Name` an optional flag whose value is a `string`.
+	Name conga.OptionalFlag[string] `default:"World" help:"Name of the person to greet" short:"n"`
+}
+
+func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
+	// [!callout /Get/] Reads the flag's value.
+	fmt.Printf("Hello, %s!\n", c.Name.Get())
+
+	return nil
+}
+
+func main() {
+	app := conga.New[CLI]().
+		Name("hello").
+		Description("A greeting command").
+		Version("1.0.0")
+
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
+}
+```
+
+CONGA names the flag after the field, so `Name` becomes `--name`. The `Run` method is what the command does. `main` names the application, describes it, gives it a version, and runs it.
+
+## Build and run it
+
+Build the program:
+
+```sh
+go build
+```
+
+Run it without flags:
+
+```sh
+$ ./hello
+Hello, World!
+```
+
+Notice that `--name` took its value from the field's `default` tag:
+
+```go
+// [!callout /default/] Used when the user leaves out `--name`.
+Name conga.OptionalFlag[string] `default:"World" help:"Name of the person to greet" short:"n"`
+```
+
+Now give it a name:
+
+```sh
+$ ./hello --name conga
+Hello, conga!
+```
+
+The `short` tag gives the flag a one-letter name:
+
+```go
+// [!callout /short/] Adds `-n` beside `--name`.
+Name conga.OptionalFlag[string] `default:"World" help:"Name of the person to greet" short:"n"`
+```
+
+Run it with the short name:
+
+```sh
+$ ./hello -n Bob
+Hello, Bob!
+```
+
+## Make a mistake
+
+Let's misspell the flag:
+
+```sh error={2}
+$ ./hello --nme conga
+hello: error: unknown flag: --nme. Did you mean "name"?
+
+Usage:
+  hello [flags]
+
+Run 'hello --help' for more information.
+```
+
+Notice that `Run` never ran. CONGA rejected the unknown `--nme` before calling it, and suggested the closest flag name. The program exits with status 2, which marks a usage error:
+
+```sh
+$ echo $?
+2
+```
+
+## Add a second flag
+
+Add a `Loud` field to the struct, and use it in `Run`:
+
+```go title="main.go" ins={6,13,18-20} {17,22}
+package main
+
+import (
+	"context"
+	"fmt"
+	"strings"
+
+	"github.com/conga-sh/conga"
+)
+
+type CLI struct {
+	Name conga.OptionalFlag[string] `default:"World" help:"Name of the person to greet" short:"n"`
+	Loud conga.OptionalFlag[bool]   `help:"Print the greeting in capitals"`
+}
+
+func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
+	greeting := fmt.Sprintf("Hello, %s!", c.Name.Get())
+	if c.Loud.Get() {
+		greeting = strings.ToUpper(greeting)
+	}
+
+	fmt.Println(greeting)
+
+	return nil
+}
+
+func main() {
+	app := conga.New[CLI]().
+		Name("hello").
+		Description("A greeting command").
+		Version("1.0.0")
+
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
+}
+```
+
+Notice that `Loud` is a `bool` flag with no `default` tag, so it stays `false` until the user gives `--loud`.
+
+Build the program again, and run it with the new flag:
+
+```sh
+go build
+```
+
+```sh
+$ ./hello --loud
+HELLO, WORLD!
+```
+
+```sh
+$ ./hello -n Bob --loud
+HELLO, BOB!
+```
+
+## Read the generated help
+
+Ask the program for help:
+
+```sh
+$ ./hello --help
+A greeting command
+
+Usage:
+  hello [flags]
+
+Flags:
+  -n, --name="World"  Name of the person to greet
+      --loud          Print the greeting in capitals
+      --help          Show help
+      --version       Show version
+```
+
+Notice where each part comes from. The first line is the `Description(...)` text, and the usage line uses the name from `Name(...)`. Each flag line shows the flag's short name, its default, and the text from its `help` tag:
+
+```go
+// [!callout /help/] Becomes the description beside `--name`.
+Name conga.OptionalFlag[string] `default:"World" help:"Name of the person to greet" short:"n"`
+```
+
+CONGA added `--help` and `--version` itself.
+
+## Check the version
+
+Ask for the version:
+
+```sh
+$ ./hello --version
+hello has version 1.0.0 built with go1.27.3
+```
+
+The number comes from `Version(...)`. The line ends with the Go version that built the program, so yours may differ.
+
+## Where to go next
+
+We now have a working command with two flags.
+
+- [Build a multi-command CLI](/tutorials/multi-command-cli/): the next tutorial, a `cloudctl` with subcommands, a positional argument, and a shared flag.
+- [How to declare flags](/how-to/declare-flags/): give flags other types, aliases, counters, lists, and key=value pairs.
+- [How to declare subcommands](/how-to/declare-subcommands/): split a program into several commands.
+- [About flags and args](/explanation/flags-and-args/): why CONGA reads values through containers.
+- [Examples](/reference/examples/): a runnable program for each feature.

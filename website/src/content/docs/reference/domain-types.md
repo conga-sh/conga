@@ -3,7 +3,7 @@ title: Domain types
 description: Built-in and topical domain types that coerce, validate, and complete themselves.
 ---
 
-Types in the root `conga` package and the topical `network` and `system` packages implement `Predictable` interfaces — they carry their own completion behaviour alongside coercion and validation. Using them makes flags and arguments complete automatically in all six shells. To author custom flag types, see [How to add custom flag types](/how-to/add-custom-flag-types/).
+Types in the root `conga` package and the topical `network` and `system` packages implement `Predictable` interfaces — they carry their own completion behavior alongside coercion and validation. Using them makes flags and arguments complete automatically in all six shells. To author custom flag types, see [How to add custom flag types](/how-to/add-custom-flag-types/).
 
 ## Filesystem types
 
@@ -12,7 +12,7 @@ Types in the root `conga` package and the topical `network` and `system` package
 | `conga.File` | Expands `~` and environment variables; capability tags constrain the path | File paths (or per capability tags) |
 | `conga.Dir` | Expands `~` and environment variables; `existing` requires a directory | Directories |
 
-`File` accepts the capability tags `existing`, `stdin`, `stdout`, `executable`, `symlink`, and `glob`; the [struct tag reference](/reference/struct-tags/#domain-type-tags) defines each tag, its mutual exclusions, and the schema-build rules.
+`File` accepts the capability tags `existing`, `stdin`, `stdout`, `executable`, `symlink`, and `glob`. The [struct tag reference](/reference/struct-tags/#domain-type-tags) defines each tag, its mutual exclusions, and the schema-build rules.
 
 ```go
 type Convert struct {
@@ -23,13 +23,13 @@ type Convert struct {
 }
 ```
 
-All filesystem capability checks run during the validation phase on the final resolved value (after the configuration cascade); failures are usage errors (exit 2).
+All filesystem capability checks run during the validation phase on the final resolved value, after the configuration cascade, and a failure is a usage error (exit 2).
 
 ## Content and I/O types
 
-| Type | Behaviour |
+| Type | Behavior |
 |------|-----------|
-| `conga.FileContent` | Reads the file into memory during parsing; accepts `-` for stdin; 16 MB limit |
+| `conga.FileContent` | Reads the file into memory during parsing; accepts `-` for stdin; 16 MiB limit |
 | `conga.ByteSize` | Parses `"10MiB"`, `"1.5GB"`, `"500KiB"`, and exact bytes; `Bytes()` returns `int64`; strict case-sensitive units. See [Byte size parsing](#byte-size-parsing) and [Byte size rendering](#byte-size-rendering) |
 
 ```go
@@ -54,11 +54,11 @@ func (u *Upload) Run(ctx context.Context, session *conga.Session) error {
 | Decimal | `kB`, `MB`, `GB`, `TB`, `PB` | Powers of 1000 |
 | Binary | `KiB`, `MiB`, `GiB`, `TiB`, `PiB` | Powers of 1024 |
 
-The numeric prefix is digits with an optional fraction whose contribution resolves exactly to bytes (`1.5GB`, `0.5GiB`); a sub-byte remainder such as `0.1GiB` is rejected. Naked unit suffixes without `B` (`10G`, `512Mi`) and lowercase casings (`mb`, `kib`) are rejected to prevent ambiguity. `kB` is always 1000 bytes and `KiB` is always 1024; `KB` is rejected as ambiguous because it denotes 1000 bytes in SI usage and 1024 bytes in legacy usage. Text input must be non-negative.
+The numeric prefix is digits with an optional fraction whose contribution resolves exactly to bytes (`1.5GB`, `0.5GiB`), and a sub-byte remainder such as `0.1GiB` is rejected. Naked unit suffixes without `B` (`10G`, `512Mi`) and lowercase casings (`mb`, `kib`) are rejected to prevent ambiguity. `kB` is always 1000 bytes and `KiB` is always 1024. `KB` is rejected as ambiguous because it denotes 1000 bytes in SI usage and 1024 bytes in legacy usage. Text input must be non-negative.
 
 ### Byte size rendering
 
-A value renders in its display family: a `display` tag of `binary` or `decimal` forces that family, and `input`, the default, uses the family of the unit the value was decoded from. Rendering picks the largest unit of that family that divides the byte count exactly, or exact bytes when no unit divides it:
+A value renders in its display family. A `display` tag of `binary` or `decimal` forces that family, and `input`, the default, uses the family of the unit the value was decoded from. Rendering picks the largest unit of that family that divides the byte count exactly, or exact bytes when no unit divides it:
 
 | Input | `display` tag | Output |
 |-------|---------------|--------|
@@ -95,7 +95,7 @@ Compare `ByteSize` values with `Equal`, order with `Compare`, and retrieve raw m
 
 ### File streaming
 
-`File` streams through `Reader()` and `Writer()`, which return `io.ReadCloser` and `io.WriteCloser`. When the value is `-`, `Reader()` wraps `os.Stdin` and `Writer()` wraps `os.Stdout` — the wrappers absorb `Close()`, so callers can always `defer Close()`. `Stat()` exposes the file metadata, and `IsStdio()` reports the `-` case so commands can skip filesystem-only side effects (backups, atomic renames) and route diagnostics away from a stdout payload stream. Reading beyond these helpers is the caller's responsibility (`io.ReadAll(f.Reader())`); `FileContent` is the bounded whole-file shortcut.
+`File` streams through `Reader()` and `Writer()`, which return `io.ReadCloser` and `io.WriteCloser`. When the value is `-`, `Reader()` wraps the app's standard input and `Writer()` its standard output (the streams set with `App.Stdin` and `App.Stdout`, which default to `os.Stdin` and `os.Stdout`). A `File` that no app bound uses `os.Stdin` and `os.Stdout`. The wrappers absorb `Close()`, so callers can always `defer Close()`. `Stat()` exposes the file metadata, and `IsStdio()` reports the `-` case so commands can skip filesystem-only side effects (backups, atomic renames) and route diagnostics away from a stdout payload stream. Reading beyond these helpers is the caller's responsibility (`io.ReadAll(f.Reader())`), and `FileContent` is the bounded whole-file shortcut.
 
 ```go
 func (c *Convert) Run(ctx context.Context, session *conga.Session) error {
@@ -127,7 +127,7 @@ The domain packages (`network`, `system`, `timezone`) bundle value types, autoco
 | `system` | `User`, `Group`, `Signal`, `PID`, `Process`, `EnvVar`, `Locale` | `system.RegisterUser` (`*user.User`), `system.RegisterGroup` (`*user.Group`), `system.RegisterSignal` (`syscall.Signal`) |
 | `timezone` | – | `timezone.RegisterLocation` (`*time.Location`) |
 
-Each package also exports its predictors as standalone constructors: `network.Hosts()`, `network.NetInterfaces()`, `system.Signals()`, `system.Users()`, `system.ProcessIDs()` (alias `system.PIDs()`), `system.ProcessNames()` (alias `system.Processes()`), `system.Locales()`, `system.EnvVars()`, and `timezone.Timezones()`.
+Each package also exports its predictors as standalone constructors, `network.Hosts()`, `network.NetInterfaces()`, `system.Signals()`, `system.Users()`, `system.ProcessIDs()` (alias `system.PIDs()`), `system.ProcessNames()` (alias `system.Processes()`), `system.Locales()`, `system.EnvVars()`, and `timezone.Timezones()`.
 
 Domain types in `network` and `system` implement `encoding.TextMarshaler` with value receivers, supporting canonical text formatting and serialization.
 
@@ -198,6 +198,40 @@ An explicit `help:"..."` tag replaces the type-derived description. Without one,
 | `SelfValidator` | `Validate(ctx context.Context) error` | Post-cascade validation of the resolved value |
 
 Implement exactly one form of each tag-aware pair. Filesystem-derived types can additionally participate in shell-side filtering through `FileFilterable`, `DirFilterable`, and `PathFilterable`.
+
+### Decoding order
+
+CONGA decodes a scalar flag, argument, environment, or config value into type `U` with the first of these that applies:
+
+1. A `conga.TypeParser[U]` registered with `app.RegisterType`.
+2. `UnmarshalTextWithContext` on `*U` (`ContextAwareTextUnmarshaler`).
+3. `UnmarshalText` on `*U` (`encoding.TextUnmarshaler`).
+4. Built-in parsing for `string`, `bool`, signed and unsigned integers, `time.Duration`, floats, and `url.URL` / `*url.URL`.
+
+Any other type fails with `unsupported type <U>` (`ErrCoerce`, exit 2) when a value is bound, not at schema build. Values of a map registered with `app.RegisterMap` skip step 1. An error from steps 1 to 3 is wrapped in `ErrCoerce`, with the flag name and the value's source appended to its message.
+
+### Custom tags
+
+`TagSpecs()` returns one `conga.TagSpec` per tag the type accepts on its fields:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `Name` | `string` | The struct tag key |
+| `Kind` | `conga.TagKind` | `conga.TagKindBool` (value must be `true` or `false`) or `conga.TagKindString` |
+| `Validate` | `func(value string) error` | Optional check of a `TagKindString` value at schema build |
+| `Excludes` | `[]string` | Tag keys that can't be declared on the same field as this one |
+
+Schema build rejects, with `ErrSchema`, a tag that no `TagSpec` of the field's type names, a `TagKindBool` tag with another value, a `Validate` error, and a tag declared together with one its `Excludes` lists. `app.AllowTags` exempts listed foreign keys.
+
+`UnmarshalTextWithContext` receives a `conga.DecodeContext`:
+
+| Field | Type | Meaning |
+|---|---|---|
+| `Tags` | `conga.FieldTags` | The owning field's declared custom tags; nil when it declares none |
+| `Stdin` | `io.Reader` | The App's configured stdin (`App.Stdin`); nil means `os.Stdin` |
+| `Stdout` | `io.Writer` | The App's configured stdout (`App.Stdout`); nil means `os.Stdout` |
+
+`FieldTags.Has(key)` reports whether the field declares the tag, `Bool(key)` whether it is `"true"`, and `String(key)` its value, `""` when absent. The zero `DecodeContext` behaves like plain `UnmarshalText`.
 
 ```go
 type ContextAwareTextUnmarshaler interface {

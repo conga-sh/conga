@@ -1,0 +1,473 @@
+---
+title: Add shell completion to a CLI
+description: Turn on shell completion for cloudctl, and complete its values from a tag, from a type, and from a function that asks an API for the latest images.
+---
+
+In this tutorial, we will add shell completion to `cloudctl`. CONGA completes commands and flags from the structs on its own, and we will complete values from a tag, a type, and an API call. We continue in the `cloudctl` directory from [Test a CLI](/tutorials/test-a-cli/).
+
+## The command we will build
+
+By the end, `--image` completes with the images the API lists for the service being deployed:
+
+:::code-tabs{sync="shell"}
+```text no-copy label="Bash"
+$ ./cloudctl deploy web --image <Tab><Tab><Tab>
+nginx:1.26  nginx:1.27
+```
+```ansi no-copy frame="code" label="Zsh"
+$ ./cloudctl deploy web --image <Tab>
+[2mContainer image to run[0m
+nginx:1.26  nginx:1.27
+```
+:::
+
+`<Tab>` marks a Tab press, and the lines under the command are the shell's output.
+
+## Turn completion on
+
+Add `EnableCompletion` to the builder in `newApp`:
+
+```go title="main.go" ins={6}
+func newApp() *conga.App[CLI] {
+	return conga.New[CLI]().
+		Name("cloudctl").
+		Description("Manage services in the cloud").
+		Version("0.1.0").
+		EnableCompletion().
+		EnvPrefix("CLOUDCTL").
+		RegisterDecoder(".yaml", yaml.Decode).
+		ConfigOptions(conga.ConfigPaths("."))
+}
+```
+
+Build the program, and look at its help:
+
+```sh
+go build
+```
+
+```sh {10}
+$ ./cloudctl --help
+Manage services in the cloud
+
+Usage:
+  cloudctl <command> [flags]
+
+Commands:
+  deploy      Deploy a service
+  status      Show service status
+  completion  Generate shell completion scripts
+
+Flags:
+  -r, --region="us-east-1"  Region to work in [env: CLOUDCTL_REGION]
+      --help                Show help
+      --version             Show version
+```
+
+`EnableCompletion` adds a `completion` command that prints a completion script for each shell. Load the script:
+
+:::code-tabs{sync="shell"}
+```sh label="Bash"
+source <(./cloudctl completion bash)
+```
+```sh label="Zsh"
+# Turns on zsh's completion system, if your setup doesn't already
+autoload -U compinit && compinit
+
+source <(./cloudctl completion zsh)
+```
+:::
+
+[Load or install the completion script](/how-to/enable-shell-completion/#load-or-install-the-completion-script) covers loading it in every new shell, and in fish, PowerShell, Elvish, and Nushell.
+
+Commands complete from the `conga.Command` fields, each described by its `summary` tag:
+
+:::code-tabs{sync="shell"}
+```text no-copy label="Bash"
+$ ./cloudctl <Tab><Tab>
+completion (Generate shell completion scripts)  status (Show service status)
+deploy (Deploy a service)
+```
+```ansi no-copy frame="code" label="Zsh"
+$ ./cloudctl <Tab>
+completion[2m  -- Generate shell completion scripts[0m
+deploy[2m      -- Deploy a service[0m
+status[2m      -- Show service status[0m
+```
+:::
+
+Flags complete from the fields of the command and its parents, so `deploy` offers the root's `--region` too. Each is described by its `help` tag. In zsh, CONGA colors the flags that take a value:
+
+:::code-tabs{sync="shell"}
+```text no-copy label="Bash"
+$ ./cloudctl deploy --<Tab><Tab>
+--help (Show help)                    --region (Region to work in)          --yes (Deploy without asking)
+--image (Container image to run)      --replicas (Number of copies to run)
+```
+```ansi no-copy frame="code" label="Zsh"
+$ ./cloudctl deploy --<Tab>
+--help[2m      -- Show help[0m
+[34m--image[2m[39m     -- Container image to run[0m
+[34m--region[2m[39m    -- Region to work in[0m
+[34m--replicas[2m[39m  -- Number of copies to run[0m
+--yes[2m       -- Deploy without asking[0m
+```
+:::
+
+## Complete values from a tag
+
+`--region` accepts four regions. Add an `enum` tag that lists them:
+
+```go title="main.go" {2}
+type CLI struct {
+	Region conga.OptionalFlag[string] `default:"us-east-1" enum:"us-east-1,us-west-2,eu-west-1,ap-south-1" help:"Region to work in" short:"r"`
+	Deploy conga.Command[DeployCmd]   `summary:"Deploy a service"`
+	Status conga.Command[StatusCmd]   `summary:"Show service status"`
+}
+```
+
+Build the program, and complete `--region`:
+
+```sh
+go build
+```
+
+:::code-tabs{sync="shell"}
+```text no-copy label="Bash"
+$ ./cloudctl deploy web --region <Tab><Tab>
+ap-south-1  eu-west-1   us-east-1   us-west-2
+```
+```ansi no-copy frame="code" label="Zsh"
+$ ./cloudctl deploy web --region <Tab>
+[2mRegion to work in[0m
+ap-south-1  eu-west-1   us-east-1   us-west-2
+```
+:::
+
+The `enum` tag gave `--region` a predictor that offers the four regions.
+
+## Complete file names
+
+`conga.File` is CONGA's type for a path to a file, and its predictor offers file names. We will add an `--env-file` flag that names a file of environment variables for the deployed service. Add the field to `DeployCmd`, and print the file when it is set:
+
+```go title="main.go" ins={5,17-20}
+type DeployCmd struct {
+	Service  conga.RequiredArg[string]      `help:"Service to deploy"`
+	Image    conga.RequiredFlag[string]     `help:"Container image to run"`
+	Replicas conga.OptionalFlag[int]        `default:"2" help:"Number of copies to run"`
+	// [!callout /glob/] `existing` rejects a path that doesn't exist, and `glob` offers only names that match.
+	EnvFile  conga.OptionalFlag[conga.File] `existing:"true" glob:"*.env"`
+	Yes      conga.OptionalFlag[bool]       `help:"Deploy without asking" short:"y"`
+}
+
+func (d *DeployCmd) Run(ctx context.Context, session *conga.Session) error {
+	root := session.Root[CLI]()
+
+	if !d.Yes.Get() {
+		// ...
+	}
+
+	fmt.Fprintf(session.Stdout(), "deploying %s (%s) to %s with %d replicas\n", d.Service.Get(), d.Image.Get(), root.Region.Get(), d.Replicas.Get())
+
+	if d.EnvFile.IsSet() {
+		fmt.Fprintf(session.Stdout(), "environment from %s\n", d.EnvFile.Get())
+	}
+
+	return nil
+}
+```
+
+Create a file for the `web` service, build the program, and complete `--env-file`:
+
+```sh
+touch web.env
+go build
+```
+
+:::code-tabs{sync="shell"}
+```text no-copy label="Bash"
+$ ./cloudctl deploy web --env-file <Tab>
+$ ./cloudctl deploy web --env-file web.env
+```
+```ansi no-copy frame="code" label="Zsh"
+$ ./cloudctl deploy web --env-file <Tab>
+[2mPath to an existing file matching '*.env'[0m
+web.env
+```
+:::
+
+The `glob` tag filters the candidates to `web.env`, leaving out `main.go` and `cloudctl.yaml`. `EnvFile` has no `help` tag, so CONGA writes the description from the type and its tags.
+
+Deploy with the file:
+
+```sh
+$ ./cloudctl deploy web -y --env-file web.env
+deploying web (nginx:1.27) to eu-west-1 with 3 replicas
+environment from web.env
+```
+
+## Write a predictor that fetches the services
+
+The services change as teams add them, so a list in a tag would go out of date. Instead, we will write our own predictor, which fetches the services from an API when the shell completes a service name. CONGA uses the predictor of a type that implements `conga.Predictable` for every field of that type, so we give service names their own type, `Service`.
+
+For this tutorial, the CONGA docs site plays the API, at `https://docs.conga.sh/tutorials/api/v1`. `GET /services.json` lists the services, each with a description:
+
+```json
+{
+  "services": [
+    { "name": "api", "description": "Public API" },
+    { "name": "web", "description": "Website" },
+    { "name": "worker", "description": "Background jobs" }
+  ]
+}
+```
+
+`cloudctl` needs an internet connection to reach it.
+
+Create `predict.go` with a `getJSON` function that calls the API, and a `services` function that turns the answer into candidates. In `main.go`, add the `Service` type, use it for `deploy`'s argument, and give `status` an optional argument of the same type:
+
+:::code-tabs
+```go title="main.go" label="main.go" ins={5,9,14-19,28,33-39} {21,27,29}
+import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+
+	"github.com/conga-sh/conga"
+	"github.com/conga-sh/conga/decoder/yaml"
+	"github.com/conga-sh/conga/predict"
+)
+
+// ...
+
+type Service string
+
+// [!callout /Predict/] `Service` implements `conga.Predictable`, so CONGA uses this predictor for every field of type `Service`.
+func (s Service) Predict() predict.Predictor {
+	return predict.Callback(services).Timeout(2 * time.Second)
+}
+
+type DeployCmd struct {
+	Service  conga.RequiredArg[Service]     `help:"Service to deploy"`
+	// ...
+}
+
+// ...
+
+type StatusCmd struct {
+	// [!callout /OptionalArg/] A container for an optional positional argument.
+	Service conga.OptionalArg[Service] `help:"Service to check"`
+}
+
+func (s *StatusCmd) Run(ctx context.Context, session *conga.Session) error {
+	root := session.Root[CLI]()
+
+	if s.Service.IsSet() {
+		fmt.Fprintf(session.Stdout(), "%s healthy in %s\n", s.Service.Get(), root.Region.Get())
+
+		return nil
+	}
+
+	fmt.Fprintf(session.Stdout(), "all services healthy in %s\n", root.Region.Get())
+
+	return nil
+}
+```
+```go title="predict.go" label="predict.go"
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+
+	"github.com/conga-sh/conga/predict"
+)
+
+const apiURL = "https://docs.conga.sh/tutorials/api/v1"
+
+func getJSON(path string, v any) error {
+	response, err := http.Get(apiURL + path)
+	if err != nil {
+		return err
+	}
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("GET %s: %s", path, response.Status)
+	}
+
+	return json.NewDecoder(response.Body).Decode(v)
+}
+
+func services(predictContext predict.Context) predict.Predictor {
+	var body struct {
+		Services []struct {
+			Name        string `json:"name"`
+			Description string `json:"description"`
+		} `json:"services"`
+	}
+	if err := getJSON("/services.json", &body); err != nil {
+		// [!callout /None/] A failed lookup returns no candidates and prints nothing. The shell reads standard output as the completion result, and discards standard error.
+		return predict.None()
+	}
+
+	var items []predict.Item
+	for _, service := range body.Services {
+		items = append(items, predict.NewItem(service.Name, service.Description))
+	}
+
+	return predict.Items(items...)
+}
+```
+:::
+
+`predict.Callback` turns the `services` function into a predictor, and CONGA calls the function when the shell asks for a service. `services` fetches the current list, and `predict.Items` returns each name with its description.
+
+CONGA gives a callback 250 milliseconds, and returns no candidates after that. A request across the internet can take longer, so `Timeout` gives `services` two seconds.
+
+:::note[Cache the answer in a real tool]
+Completing a service calls the API, and without a connection it returns no candidates. A real tool would keep the last good answer on disk, return it from the callback when the request fails, and pass it to `Timeout` as a second argument, `.Timeout(2*time.Second, cached)`, to use when the API is slow.
+:::
+
+Build the program, and complete `status`'s argument:
+
+```sh
+go build
+```
+
+:::code-tabs{sync="shell"}
+```text no-copy label="Bash"
+$ ./cloudctl status <Tab><Tab>
+api (Public API)          web (Website)             worker (Background jobs)
+```
+```ansi no-copy frame="code" label="Zsh"
+$ ./cloudctl status <Tab>
+api[2m     -- Public API[0m
+web[2m     -- Website[0m
+worker[2m  -- Background jobs[0m
+```
+:::
+
+Notice that neither field has a `predictor` tag, and `deploy`'s argument completes with the same three services.
+
+`status` now reports on one service:
+
+```sh
+$ ./cloudctl status web
+web healthy in eu-west-1
+```
+
+## Complete a value from the rest of the command line
+
+The images `--image` can offer depend on the service being deployed, so its predictor reads the service from the command line. The images also change with every push, so the predictor fetches them from the API. `GET /services/{service}/images.json` lists the images of one service. For `web`, it returns:
+
+```json
+{
+  "images": ["nginx:1.26", "nginx:1.27"]
+}
+```
+
+`Image` is a plain `string`, so it has no type to carry a predictor. Instead, we register the predictor on the builder under a name, and point the field at it with a `predictor` tag. Add the `images` function to `predict.go`, and the tag and the registration to `main.go`:
+
+:::code-tabs
+```go title="main.go" label="main.go" ins={18} {3,17}
+type DeployCmd struct {
+	Service  conga.RequiredArg[Service]     `help:"Service to deploy"`
+	Image    conga.RequiredFlag[string]     `help:"Container image to run" predictor:"images"`
+	// ...
+}
+
+// ...
+
+func newApp() *conga.App[CLI] {
+	return conga.New[CLI]().
+		Name("cloudctl").
+		Description("Manage services in the cloud").
+		Version("0.1.0").
+		EnableCompletion().
+		EnvPrefix("CLOUDCTL").
+		RegisterDecoder(".yaml", yaml.Decode).
+		ConfigOptions(conga.ConfigPaths(".")).
+		Predictor("images", predict.Callback(images).Timeout(2*time.Second))
+}
+```
+```go title="predict.go" label="predict.go" ins={3-17}
+// ...
+
+func images(predictContext predict.Context) predict.Predictor {
+	// [!callout /Arg/] The first positional argument on the command line, here the service.
+	service := predictContext.Arg(0)
+	if service == "" {
+		return predict.None()
+	}
+
+	var body struct {
+		Images []string `json:"images"`
+	}
+	if err := getJSON("/services/"+service+"/images.json", &body); err != nil {
+		return predict.None()
+	}
+
+	return predict.Values(body.Images...)
+}
+```
+:::
+
+CONGA passes each callback a `predict.Context` with the command line typed so far. `Arg` reads the positional arguments, and `FlagValue` reads the flags. `images` reads the service with `Arg(0)` and asks the API for that service's images.
+
+Build the program, and complete `--image` for two services:
+
+```sh
+go build
+```
+
+:::code-tabs{sync="shell"}
+```text no-copy label="Bash"
+$ ./cloudctl deploy web --image <Tab><Tab><Tab>
+nginx:1.26  nginx:1.27
+```
+```ansi no-copy frame="code" label="Zsh"
+$ ./cloudctl deploy web --image <Tab>
+[2mContainer image to run[0m
+nginx:1.26  nginx:1.27
+```
+:::
+
+:::code-tabs{sync="shell"}
+```text no-copy label="Bash"
+$ ./cloudctl deploy api --image <Tab><Tab><Tab>
+api:1.4  api:1.5
+```
+```ansi no-copy frame="code" label="Zsh"
+$ ./cloudctl deploy api --image <Tab>
+[2mContainer image to run[0m
+api:1.4  api:1.5
+```
+:::
+
+The service has to come first. Before it is on the command line, `Arg(0)` is empty, and `images` returns no candidates:
+
+:::code-tabs{sync="shell"}
+```text no-copy label="Bash"
+$ ./cloudctl deploy --image <Tab><Tab>
+```
+```ansi no-copy frame="code" label="Zsh"
+$ ./cloudctl deploy --image <Tab>
+[2mContainer image to run[0m
+```
+:::
+
+:::note[Only the typed command line]
+`FlagValue` sees only flags typed on the command line, not values a flag takes from the environment, a config file, or its `default` tag. A `--region` set in `cloudctl.yaml` reads as unset.
+:::
+
+## Where to go next
+
+We now have a `cloudctl` that completes its commands, flags, and values. Each list of values came from a predictor. The regions came from the `enum` tag, the env files from the `conga.File` type, the services from `Service`, which implements `conga.Predictable`, and the images from the `images` function, registered by name.
+
+- [How to get completion from tags and types](/how-to/complete-from-tags-and-types/): directories, programs on the `PATH`, signals, time zones, and the other values CONGA completes with no code.
+- [How to compute and shape completion candidates](/how-to/compute-completion-candidates/): candidates from loaded data, combined predictors, values in parts, field tags, and fallbacks for slow lookups.
+- [How to enable shell completion](/how-to/enable-shell-completion/): rename or hide the `completion` command, add completion to a CLI without subcommands, and change the prefix of the environment variables the scripts read.
+- [Which predictor a field uses](/reference/predict/#which-predictor-a-field-uses): the order CONGA follows when a field could take its predictor from more than one place.

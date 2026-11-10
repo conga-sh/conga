@@ -862,8 +862,9 @@ func TestCompletionHelp_PerShell(t *testing.T) {
 
 		output := buffer.String()
 		assert.Contains(t, output, "echo 'source <(myapp completion zsh)' >> ~/.zshrc")
-		assert.Contains(t, output, "myapp completion zsh > ~/.zfunc/_myapp")
-		assert.Contains(t, output, "echo 'fpath=(~/.zfunc $fpath)' >> ~/.zshrc")
+		// The faster-startup target depends on HOMEBREW_PREFIX, so only the
+		// branch-independent lead-in is asserted here.
+		assert.Contains(t, output, "For faster startup, write the completion file once instead")
 	})
 
 	t.Run("zsh quick persist avoids autoload", func(t *testing.T) {
@@ -1003,7 +1004,7 @@ func TestCompletionFlag_FlatCLI(t *testing.T) {
 		assert.Contains(t, output, "Usage:\n  myapp --completion zsh")
 		assert.Contains(t, output, "source <(myapp --completion zsh)")
 		assert.Contains(t, output, "echo 'source <(myapp --completion zsh)' >> ~/.zshrc")
-		assert.Contains(t, output, "myapp --completion zsh > ~/.zfunc/_myapp")
+		assert.Contains(t, output, "\tmyapp --completion zsh > ")
 		assert.Contains(t, output, "--help")
 		assert.NotContains(t, output, "--why")
 		assert.NotContains(t, output, "Supported shells:")

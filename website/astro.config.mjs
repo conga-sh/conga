@@ -1,5 +1,7 @@
 import { defineConfig } from 'astro/config';
 import starlight from '@astrojs/starlight';
+import codeblocks from 'starlight-codeblocks';
+import starlightLinksValidator from 'starlight-links-validator';
 
 function pluginNoCopy() {
   return {
@@ -31,9 +33,6 @@ function pluginNoCopy() {
 export default defineConfig({
   site: 'https://docs.conga.sh',
   base: '/',
-  redirects: {
-    '/how-to/supply-config-from-code': '/how-to/load-domain-files',
-  },
   integrations: [
     starlight({
       title: 'CONGA',
@@ -46,7 +45,18 @@ export default defineConfig({
           href: 'https://github.com/conga-sh/conga',
         },
       ],
+      editLink: {
+        baseUrl: 'https://github.com/conga-sh/conga/edit/main/website/',
+      },
       customCss: ['./src/styles/custom.css'],
+      plugins: [
+        codeblocks({
+          fileIcons: {
+            files: { '.elv': 'file-type-shell', '.env': 'file-type-dotenv' },
+          },
+        }),
+        starlightLinksValidator(),
+      ],
       expressiveCode: {
         plugins: [pluginNoCopy()],
       },
@@ -55,27 +65,37 @@ export default defineConfig({
           label: 'Tutorials',
           items: [
             'tutorials/quickstart',
+            'tutorials/multi-command-cli',
+            'tutorials/configure-a-cli',
+            'tutorials/test-a-cli',
+            'tutorials/complete-a-cli',
           ],
         },
         {
           label: 'How-to Guides',
           items: [
+            { label: 'Declare flags', slug: 'how-to/declare-flags' },
+            { label: 'Validate input', slug: 'how-to/validate-input' },
             { label: 'Declare subcommands', slug: 'how-to/declare-subcommands' },
             { label: 'Accept positional arguments', slug: 'how-to/accept-positional-arguments' },
+            { label: 'Use lifecycle hooks', slug: 'how-to/use-lifecycle-hooks' },
+            { label: 'Read files and standard input', slug: 'how-to/read-files-and-stdin' },
+            { label: 'Use the network, system, and timezone packages', slug: 'how-to/use-domain-packages' },
             { label: 'Customize help screens', slug: 'how-to/customize-help-screens' },
+            { label: 'Deprecate flags and commands', slug: 'how-to/deprecate-flags-and-commands' },
             { label: 'Manage config files', slug: 'how-to/manage-config-files' },
-            { label: 'Load domain documents', slug: 'how-to/load-domain-files' },
+            { label: 'Load domain documents', slug: 'how-to/load-domain-documents' },
             { label: 'Bind environment variables', slug: 'how-to/bind-environment-variables' },
             { label: 'Load .env files', slug: 'how-to/load-env-files' },
-            { label: 'Gate features', slug: 'how-to/feature-flags' },
+            { label: 'Gate flags and subcommands behind features', slug: 'how-to/gate-behind-features' },
             { label: 'Inspect value provenance', slug: 'how-to/inspect-value-provenance' },
             { label: 'Enable shell completion', slug: 'how-to/enable-shell-completion' },
-            { label: 'Wire custom completion', slug: 'how-to/wire-custom-completion' },
+            { label: 'Get completion from tags and types', slug: 'how-to/complete-from-tags-and-types' },
+            { label: 'Compute and shape completion candidates', slug: 'how-to/compute-completion-candidates' },
             { label: 'Add custom flag types', slug: 'how-to/add-custom-flag-types' },
-            { label: 'Test commands', slug: 'how-to/test-a-command' },
-            { label: 'Retain root struct', slug: 'how-to/keep-root-reference' },
+            { label: 'Test a command', slug: 'how-to/test-a-command' },
+            { label: 'Read resolved values after Run', slug: 'how-to/read-values-after-run' },
             { label: 'Lint schemas', slug: 'how-to/lint-schemas' },
-            { label: 'Run examples', slug: 'how-to/examples-cookbook' },
           ],
         },
         {
@@ -90,6 +110,7 @@ export default defineConfig({
             'reference/errors',
             'reference/conga-lint',
             'reference/domain-types',
+            'reference/examples',
           ],
         },
         {
@@ -102,7 +123,8 @@ export default defineConfig({
             'explanation/feature-toggles',
             'explanation/lifecycle',
             'explanation/error-reporting',
-            'explanation/domain-kits',
+            'explanation/testing',
+            'explanation/domain-packages',
           ],
         },
       ],

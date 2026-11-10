@@ -39,11 +39,11 @@ const (
 	mapPairErrorEmptyKey                         // key is empty after trimming
 )
 
-// TypeParser parses a raw string token into a concrete value of the registered target type.
-type TypeParser func(string) (any, error)
+// TypeParser parses a raw string token into a value of type U.
+type TypeParser[U any] func(raw string) (U, error)
 
-// Registry maps reflect.Type to custom TypeParser functions.
-type Registry map[reflect.Type]TypeParser
+// Registry maps reflect.Type to registered parsers, erased to TypeParser[any].
+type Registry map[reflect.Type]TypeParser[any]
 
 // DecodeContext carries the ambient input for coercing one raw value into
 // its target type: the owning field's declared custom tags and the
@@ -219,7 +219,7 @@ type booleanError struct {
 }
 
 func (e *booleanError) Error() string {
-	return fmt.Sprintf("invalid boolean value %q, expected true or false", e.raw)
+	return fmt.Sprintf("invalid boolean value %q, expected true or false (or 1 or 0)", e.raw)
 }
 
 func (e *booleanError) Unwrap() error { return ErrCoerce }

@@ -242,11 +242,11 @@ func (a *App[T]) Version(version string) *App[T] {
 //	EnvPrefix("MYAPP")  --database-url  =>  MYAPP_DATABASE_URL
 //	EnvPrefix("MYAPP")  env:"PORT"      =>  PORT
 //
-// An envprefix tag on a subcommand replaces this prefix for its own flags rather
-// than appending to it. Include the application prefix in the tag to keep the
-// subcommand within the application namespace:
+// An envprefix tag on a subcommand replaces this prefix for its own flags. The tag
+// is used as written, so it may repeat the application prefix or not:
 //
 //	EnvPrefix("MYAPP")  envprefix:"MYAPP_WORKER"  --concurrency  =>  MYAPP_WORKER_CONCURRENCY
+//	EnvPrefix("MYAPP")  envprefix:"WORKER"        --concurrency  =>  WORKER_CONCURRENCY
 //
 // The prefix does not apply to a [Features] container. To bind environment
 // variables for feature toggles, declare an env or envprefix tag on the container.
@@ -370,7 +370,7 @@ func (a *App[T]) AllowTags(tags ...string) *App[T] {
 //     executables, symlinks, none).
 //   - If a predictor with the same name has already been registered.
 //
-// See https://docs.conga.sh/how-to/wire-custom-completion/.
+// See https://docs.conga.sh/how-to/compute-completion-candidates/.
 func (a *App[T]) Predictor(name string, predictor predict.Predictor) *App[T] {
 	a.applyDefaults()
 
@@ -476,7 +476,7 @@ func (a *App[T]) VersionShortFlag(short rune) *App[T] {
 //	app := conga.New[CLI]().
 //		EnableFeatures()
 //
-// See https://docs.conga.sh/how-to/feature-flags/.
+// See https://docs.conga.sh/how-to/gate-behind-features/.
 func (a *App[T]) EnableFeatures() *App[T] {
 	a.installFeatureHooks()
 
@@ -533,8 +533,8 @@ func (a *App[T]) Use(bindings ...func(*App[T])) *App[T] {
 // RegisterType registers a parser and optional completion predictor
 // for custom type U on the application builder.
 //
-// The parser callback converts raw string input from flags, arguments, or environment
-// variables into an instance of type U. A returned error is wrapped in [ErrCoerce].
+// The parser, a [TypeParser], converts raw string input from flags, arguments, environment
+// variables, or config files into an instance of type U. A returned error is wrapped in [ErrCoerce].
 //
 // If type U was previously registered, the new parser and predictor overwrite the
 // existing registration.
@@ -544,7 +544,7 @@ func (a *App[T]) Use(bindings ...func(*App[T])) *App[T] {
 //   - If parser is nil.
 //
 // See https://docs.conga.sh/how-to/add-custom-flag-types/.
-func (a *App[T]) RegisterType[U any](parser func(string) (U, error), opts ...RegistrationOption) *App[T] {
+func (a *App[T]) RegisterType[U any](parser TypeParser[U], opts ...RegistrationOption) *App[T] {
 	if a == nil {
 		panic("conga: RegisterType requires a non-nil app")
 	}
@@ -983,7 +983,7 @@ func (e *mapEntryError) Unwrap() error {
 func (e *mapEntryError) Is(target error) bool { return target == ErrCoerce }
 
 type typeRegistration struct {
-	parser       coerce.TypeParser
+	parser       coerce.TypeParser[any]
 	hasPredictor bool
 	predictor    predict.Predictor
 }
@@ -1678,7 +1678,7 @@ func (a *App[T]) prepareNonMetaExecution(ctx context.Context, session *Session, 
 
 	a.collectDeprecationNotices(invocation.cmdChain)
 
-	return validateFlagConstraints(invocation.cmdChain)
+	return validateFlagConstraints(invocation.cmdChain, state.SourceNames)
 }
 
 func (a *App[T]) prepare(ctx context.Context) (*Session, bool, error) {

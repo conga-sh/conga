@@ -3,7 +3,7 @@ title: Dotenv files
 description: app.Dotenv loading rules, .env grammar, and size limits.
 ---
 
-`app.Dotenv(paths...)` enables zero-dependency `.env` loading. Loaded variables populate the process environment before flag resolution, feeding tier 2 of the [value precedence ladder](/explanation/value-precedence/). The task-oriented setup is in [How to load .env files](/how-to/load-env-files/).
+`app.Dotenv(paths...)` enables zero-dependency `.env` loading. Loaded variables populate the process environment before flag resolution, feeding the environment source of the [value precedence order](/explanation/value-precedence/). The task-oriented setup is in [How to load .env files](/how-to/load-env-files/).
 
 ## Loading rules
 
@@ -16,21 +16,21 @@ func (a *App[T]) Dotenv(paths ...string) *App[T]
 | `Dotenv()` | `.env`, then `.env.local`, in the working directory | Silently ignored | The last definition wins; the process environment outranks both files |
 | `Dotenv(path1, path2, ...)` | Each named path, in order | Fatal error wrapping `conga.ErrConfig` | The last definition wins; the process environment outranks files |
 
-`app.Dotenv()` loads non-destructively: process environment variables take precedence over file values, preserving shell, container, and CI configurations. Files apply in order, so `.env.local` overrides keys defined in `.env`, and each named path overrides preceding paths.
+`app.Dotenv()` loads non-destructively, so process environment variables take precedence over file values, preserving shell, container, and CI configurations. Files apply in order, so `.env.local` overrides keys defined in `.env`, and each named path overrides preceding paths.
 
-Loaded variables are written into the process environment through `os.Setenv`. `app.SetenvFunc` replaces that writer; tests pass `testing.T.Setenv` (`.SetenvFunc(t.Setenv)`) so loaded values revert automatically when the test finishes.
+Loaded variables are written into the process environment through `os.Setenv`. `app.SetenvFunc` replaces that writer. Tests pass `testing.T.Setenv` (`.SetenvFunc(t.Setenv)`) so loaded values revert automatically when the test finishes.
 
 ## Bootstrap-phase loading
 
-A [`conga.Bootstrapper`](/how-to/load-env-files/) loads `.env` files whose paths derive from bootstrap-tagged flags with `Bootstrap.Dotenv(paths...)`. It runs after bootstrap-field binding and before configuration resolution, so a path such as `filepath.Join(c.Dir.Get(), ".env")` is available. `Bootstrap.Dotenv` tolerates missing files; `Bootstrap.DotenvExplicit` fails with `conga.ErrConfig` when a named file is absent, matching `Dotenv(path1, path2, ...)`. An argument-less `Bootstrap.Dotenv()` probes `.env` and then `.env.local` in the working directory, matching `app.Dotenv()`.
+A [`conga.Bootstrapper`](/how-to/load-env-files/) loads `.env` files whose paths derive from bootstrap-tagged flags with `Bootstrap.Dotenv(paths...)`. It runs after bootstrap-field binding and before configuration resolution, so a path such as `filepath.Join(c.Dir.Get(), ".env")` is available. `Bootstrap.Dotenv` tolerates missing files, while `Bootstrap.DotenvExplicit` fails with `conga.ErrConfig` when a named file is absent, matching `Dotenv(path1, path2, ...)`. An argument-less `Bootstrap.Dotenv()` probes `.env` and then `.env.local` in the working directory, matching `app.Dotenv()`.
 
-Both phases share one origin map: variables already present in the host process environment are never overwritten, and a file loaded by `Bootstrap.Dotenv` overrides a key an earlier `app.Dotenv` file set. `--why` attributes an env-sourced value to its `.env` file (for example `env (sub/.env)`), while host variables render as bare `env`.
+Both phases share one origin map. Variables already present in the host process environment are never overwritten, and a file loaded by `Bootstrap.Dotenv` overrides a key an earlier `app.Dotenv` file set. `--why` attributes an env-sourced value to its `.env` file (for example `env (sub/.env)`), while host variables render as bare `env`.
 
-Completion invocations (`__complete`) run `Bootstrap` before resolving candidates, so env-sourced values — including [feature gates](/how-to/feature-flags/) — shape suggestions identically to a real run. Loading failures are tolerated during completion rather than aborting it; the real run surfaces them through the regular error pipeline.
+Completion invocations (`__complete`) run `Bootstrap` before resolving candidates, so values from the environment, [feature gates](/how-to/gate-behind-features/) included, shape suggestions as they do in a real run. A loading failure doesn't stop completion. The real run reports it as a normal error.
 
 ## Grammar
 
-| Feature | Behaviour |
+| Feature | Behavior |
 |---------|-----------|
 | Comments | Lines whose first non-space character is `#` are ignored; unquoted values drop a trailing `# comment` after whitespace. |
 | `export` prefix | `export PORT=8080` is parsed identically to `PORT=8080`. |
@@ -47,4 +47,4 @@ PATH=${PATH}:/opt/bin
 
 ## Size limit
 
-`.env` files are capped at 16 MB; a larger file is rejected with an error wrapping `conga.ErrConfig` for DoS hardening.
+`.env` files are capped at 16 MiB. A larger file is rejected with an error wrapping `conga.ErrConfig`, which bounds the memory a hostile file can claim.

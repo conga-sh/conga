@@ -1,94 +1,89 @@
 ---
 title: About subcommands and hierarchy
-description: Command tree modeling with Command[T], routing versus runnable nodes, implicit subcommands, session state traversal, and the ancestor flag reservation invariant.
+description: Why CONGA builds the command tree from struct types, how routing and implicit subcommands select a command, and why ancestors reserve their flag names.
 ---
 
-Command-line tools often grow beyond single-purpose utilities into structured suites of operations. CONGA models these multi-command hierarchies through static struct composition: declaring a field of type `conga.Command[T]` mounts `T` as a subcommand, creating a typed command tree derived directly from Go types.
-
-For step-by-step setup instructions, see [How to declare subcommands](/how-to/declare-subcommands/). For tag syntax, see the [struct tag reference](/reference/struct-tags/).
+A CONGA command tree is built from Go types. A field of type `conga.Command[T]` mounts the struct `T` as a subcommand, and `T` can declare further `Command[U]` fields to any depth. [How to declare subcommands](/how-to/declare-subcommands/) builds one, and [Subcommands](/reference/struct-tags/#subcommands-commandt) in the struct tag reference lists the tags and rules.
 
 ## Command trees as typed graphs
 
-CONGA defines the entire command hierarchy as a static graph of Go types. The root application struct declares its immediate subcommands as `conga.Command[T]` fields. Each child struct `T` can declare further `Command[U]` fields, nesting commands to any depth:
-
 ```go
 type App struct {
-	Deploy conga.Command[DeployCommand] `summary:"Deploy a service to a cluster"`
-	Remove conga.Command[RemoveCommand] `summary:"Remove a service"`
+	Deploy conga.Command[DeployCmd] `summary:"Deploy a service to a cluster"`
+	Remove conga.Command[RemoveCmd] `summary:"Remove a service"`
 }
 
-type DeployCommand struct {
-	Worker conga.Command[WorkerCommand] `summary:"Deploy a background worker"`
+type DeployCmd struct {
+	Worker conga.Command[WorkerCmd] `summary:"Deploy a background worker"`
 }
 ```
 
-Because command nesting is expressed through ordinary struct fields, the shape of the command tree is known at compile time and validated during application startup. Before the engine processes a single command-line token, it inspects the complete struct graph:
-- It confirms that every leaf command implements the `Runner` interface (`Run(ctx context.Context, session *conga.Session) error`).
-- It verifies that names, aliases, and short flags are unique across ancestor-descendant paths.
-- It validates all struct tags, detecting typos and unsupported options immediately.
+The tree's shape is fixed at compile time. Schema build walks the complete struct graph before parsing any command-line token, and validates every tag and every flag name along each ancestor-descendant path. A schema defect in any subcommand, selected or not, fails startup with `ErrSchema`, so a misconfigured subcommand can't ship unnoticed. A leaf without a `Run` method is the exception. CONGA checks it only for the command an invocation selects, so it fails when invoked, with `runner not implemented: command "<name>" does not implement conga.Runner` (exit 1), while its siblings keep working. `conga-lint` reports every such leaf before you build.
 
-A defect anywhere in the tree fails startup with `ErrSchema`, ensuring that misconfigured subcommands cannot escape into production.
+## Routing nodes and runnable commands
 
-## Routing nodes versus runnable commands
+CONGA classifies a command with subcommands by whether its struct implements `Runner`.
 
-Command trees serve two operational roles: organizing related operations under shared categories, and executing concrete actions. CONGA distinguishes these roles by inspecting whether command structs implement the `Runner` interface.
+A command without `Run` is a pure routing node. Invoking it without a subcommand produces a usage error (exit code 2) and renders the command's help screen.
 
-### Pure routing nodes
-Large tools frequently introduce category commands—such as `cloudctl service` or `git remote`—that exist solely to group related child commands. When a command struct does not implement `Runner`, the engine classifies it as a pure routing node.
+A command with `Run` is an executable intermediate command. Invoked alone, it runs its own `Run`. Invoked with a subcommand token, it routes to the child.
 
-Invoking a routing node without a subcommand produces a usage error (exit code 2) and renders the command's help screen, directing the operator to choose a valid child command.
-
-### Executable intermediate commands
-Some commands perform an action on their own while still exposing specialized subcommands. For example, a status command might report an overview when invoked directly, yet offer subcommands for detailed component diagnostics.
-
-When an intermediate command struct implements `Runner` and also declares `Command[T]` fields, CONGA permits both modes:
-- Invoking the command token alone executes the parent command's `Run` method.
-- Supplying a child command token routes execution directly to the child.
-
-### Leaf commands
-Terminal nodes in the command hierarchy must implement `Runner`. Defining a leaf command struct without a `Run` method produces an `ErrSchema` error during schema initialization.
+A leaf command must implement `Runner`. [Command tree rules](/reference/struct-tags/#command-tree-rules) lists the outcome of each case.
 
 ## Implicit subcommands
 
-Some tools have one operation that operators run far more often than the rest. Bun runs a file with `bun ./script.ts` while keeping `bun run ./script.ts` and `bun install` available. Tagging a subcommand `implicit:"true"` gives a CONGA command the same shape: tokens that no explicit subcommand claims route into the implicit one. The rules follow from one priority: an implicit subcommand fills the gaps, and it never overrides what the operator typed.
+Tools such as Bun run their most common operation without naming it, so `bun ./script.ts` runs `bun run ./script.ts`. In CONGA, a subcommand tagged `implicit:"true"` receives the tokens that no explicit subcommand claims. The examples in this section use this schema:
+
+```go
+type CLI struct {
+	Exec    conga.Command[RunCmd] `implicit:"true" name:"run"`
+	Install conga.Command[InstallCmd]
+	Deploy  conga.Command[DeployCmd]
+}
+
+type RunCmd struct {
+	DryRun conga.OptionalFlag[bool] `short:"n"`
+	File   conga.RequiredArg[conga.File]
+	Args   conga.RawArgs
+}
+
+type DeployCmd struct {
+	Env conga.OptionalFlag[string]
+}
+```
+
+`tool ./script.ts` runs as `tool run ./script.ts`. The routing rules follow from one priority. The implicit subcommand takes only tokens that would otherwise be unmatched, and never overrides an explicit selection. [Implicit subcommands](/reference/struct-tags/#implicit-subcommands) lists the rules.
 
 ### Named subcommands win
 
-A token that matches a sibling's name or alias selects that sibling. The implicit subcommand only receives tokens that would otherwise have nowhere to go. Declaring an implicit subcommand therefore never changes the meaning of an invocation that worked before it existed.
+A token that matches a sibling's name or alias selects that sibling. Adding an implicit subcommand therefore never changes the meaning of an invocation that was valid before.
 
-The cost is error reporting. Without an implicit subcommand, `tool instal` is an unknown command and earns a "did you mean install?" suggestion. With one, `instal` is a valid operand for the implicit subcommand, so the engine has no basis to call it a typo. The operator sees whatever the implicit subcommand does with the operand, usually a missing-file error.
+The trade-off is in error reporting. Without an implicit subcommand, `tool instal` is an unknown command and gets a "did you mean install?" suggestion. With one, `instal` is a valid operand, and the implicit subcommand runs with it.
 
 ### Routing reads left to right
 
-Operands and subcommand names are classified in the order they appear, and a subcommand name takes effect only when the engine reaches it. A value-taking flag before a subcommand name is a problem: in `tool --env prod deploy`, the engine meets `prod` before `deploy`. At that point `--env` belongs to no selected command, so nothing marks `prod` as its value; it is an unmatched operand and selects the implicit subcommand. Writing `tool deploy --env prod` names the subcommand first, and the flag then binds normally. Reinterpreting `prod` after seeing `deploy` would mean backtracking, which the parser avoids for the same reason the [ancestor flag reservation invariant](#deterministic-single-pass-parsing) exists.
+Operands and subcommand names are classified in the order they appear. In `tool --env prod deploy`, `prod` is read before `deploy`. At that point `--env` belongs to no selected command, so `prod` is an unmatched operand and selects the implicit subcommand, which then rejects `--env` as an unknown flag (exit 2). Reclassifying `prod` after reading `deploy` would require backtracking, which the parser avoids for the same reason that [ancestors reserve their flag names](#deterministic-single-pass-parsing).
 
-Flags give the engine a second, order-independent signal. A flag declared only by the implicit subcommand or its implicit descendants could not belong anywhere else, so it selects that subcommand on its own: `tool -n` enters the subcommand that owns `-n`, and reports its missing required argument rather than an unknown flag.
+A flag declared only by the implicit subcommand or its implicit descendants selects that subcommand regardless of position, since no other command declares it. `tool -n` therefore reports `missing required positional argument <file>` from `run` rather than an unknown flag.
 
 ### Built-in requests stay where they are
 
-`--help`, `--why`, and `--completion` never select a subcommand by themselves. A bare `tool --help` documents the parent, which is the screen that lists the implicit subcommand and its siblings. Once an operand or child-only flag has selected the implicit subcommand, help follows it: `tool -n --help` renders the same screen as `tool run --help`.
+`--help`, `--why`, and `--completion` do not select a subcommand. `tool --help` renders the parent's help screen, which lists the implicit subcommand and its siblings. After an operand or child-only flag has selected the implicit subcommand, help renders for that subcommand.
 
-`--version` is stricter because it is a root-only flag. After any subcommand is selected, by name or implicitly, the token is no longer a built-in. It is an unknown flag, or a trailing argument once the selected subcommand's declared positionals are full and it collects `RawArgs`. `tool ./script.ts --version` and `tool run ./script.ts --version` therefore pass `--version` to the script identically. Making implicit selection behave exactly like naming the subcommand matters more than offering a version summary from inside a subcommand.
+`--version` is root-only. Once a subcommand is selected, by name or implicitly, `--version` is no longer the built-in, so `tool ./script.ts --version` and `tool run ./script.ts --version` parse identically. Consistency between implicit and named selection takes priority over a version summary inside a subcommand.
 
 ### The parent's role decides the bare invocation
 
-When the invocation selects no subcommand at all, the parent's [routing role](#routing-nodes-versus-runnable-commands) decides the outcome. A pure routing node has nothing of its own to run, so it enters its implicit subcommand. An executable intermediate command runs itself, so `tool` alone can print an overview while `tool ./script.ts` still reaches the implicit subcommand.
+When no subcommand is selected, the parent's [role](#routing-nodes-and-runnable-commands) decides. A routing node enters its implicit subcommand. An executable intermediate command runs its own `Run`.
 
-An implicit subcommand can declare its own implicit subcommand. The engine descends through the chain only as far as the operands and child-only flags require, stopping at the first runnable command that nothing pushes past.
+An implicit subcommand can declare an implicit subcommand of its own. CONGA descends through the chain only as far as the operands and child-only flags require, and stops at the first runnable command.
 
-## State isolation and branch activation
+## Shared options on the root
 
-In multi-command tools, subcommands frequently need access to shared runtime options—such as a verbose flag, an API token, or a database connection pool—declared at the root of the application.
-
-Rather than scattering copies of shared options across subcommands or maintaining package-level global variables, CONGA keeps global options on the root struct and provides typed access to them during execution.
-
-### Scoped command state
-Each command struct in CONGA declares only the flags and arguments relevant to its own scope. Shared options stay at the root command, where they belong conceptually.
-
-When a leaf or intermediate command needs root state, it queries the execution session using `session.Root[T]()`:
+Options for the whole tool are declared on the root struct, and each subcommand declares only its own flags. A handler reads root flags through the session, without copying them onto subcommands or holding them in package-level variables:
 
 ```go
-func (w *WorkerCommand) Run(ctx context.Context, session *conga.Session) error {
+func (w *WorkerCmd) Run(ctx context.Context, session *conga.Session) error {
 	root := session.Root[App]()
 	if root.Verbose.Get() {
 		fmt.Fprintf(session.Stderr(), "invoking: %s\n", session.Path())
@@ -98,46 +93,35 @@ func (w *WorkerCommand) Run(ctx context.Context, session *conga.Session) error {
 }
 ```
 
-`session.Root[T]()` returns a typed pointer to the root application struct (`*T`), giving handlers compiler-verified access to root flags without global variables. The type argument must match the exact root struct type supplied to `conga.New`; passing any other type panics immediately at runtime, and `conga-lint` catches type mismatches statically during build. To inspect intermediate commands along the path, handlers navigate downward from the root using `Command[T].Get()`.
+An invocation selects one path through the tree, from the root to the command that runs. CONGA binds values only along that path. Containers on commands off the path receive no values, and their lifecycle hooks don't run. A handler reaches intermediate commands from the root through `Command[T].Get()`, and `Command[T].IsSelected()` reports whether a command is on the path.
 
-### Branch activation
-An invocation selects exactly one path through the command tree, from the root application to the target leaf. The engine populates and binds flags only along this active chain. Unselected sibling branches remain untouched: their containers receive no values, and their lifecycle hooks never execute.
+## Feature-gated subcommands
 
-Handlers can check whether a specific subcommand was selected on the active path by calling `cmd.IsSelected()`.
+A `Command[T]` field accepts a `feature:"..."` tag. When the expression doesn't hold for a run, CONGA removes the subcommand and everything below it from that run. It doesn't route, doesn't appear in the parent's help, and isn't offered by completion. Invoking it is a usage error (exit code 2). [About feature toggles](/explanation/feature-toggles/) explains why inactive members are removed.
 
-### Feature-gated subcommands
-Subcommand fields accept the `feature:"..."` struct tag. When a subcommand carries a feature requirement whose expression evaluates to false, CONGA prunes the subcommand and its entire descendant subtree from the active command tree. Pruned subcommands do not route, do not appear in parent help screens, and do not complete during shell tab completion. Attempting to invoke an inactive gated subcommand fails with a usage error (exit code 2). See [About feature toggles](/explanation/feature-toggles/).
+## Config sections follow the command tree
 
-## Hierarchical configuration mapping
+Config keys nest by command. The flags of `deploy worker` are read from the `deploy` section, then its `worker` section.
 
-The command tree structure maps directly onto external config files. When an application registers a configuration decoder (such as JSON, YAML, or TOML), the engine routes configuration keys to subcommands using dot-delimited paths or nested configuration tables.
+Environment variables are not nested. A config file holds settings for every command at once, so each command needs its own section. A run selects one path, so a prefix inherited down that path can't collide within the run. A subcommand therefore inherits its parent's prefix, and same-named flags on sibling commands read the same variable unless one sets an `env` or `envprefix` tag. [How to bind environment variables](/how-to/bind-environment-variables/) shows both.
 
-For example, a flag declared on a `WorkerCommand` mounted under a `DeployCommand` maps to:
-- `deploy.worker.concurrency` in flat key-value formats.
-- A nested table `[deploy.worker]` with key `concurrency` in TOML.
+## Ancestors reserve their flag names
 
-This alignment ensures that command line flags, environment variable prefixes, and config files follow the identical structural hierarchy.
-
-## The ancestor flag reservation invariant
-
-CONGA enforces a strict grammar invariant across the entire command hierarchy: **ancestor commands reserve their flag names, aliases, and short runes throughout all descendant command branches**.
-
-Attempting to register a descendant flag that collides with an ancestor flag fails schema construction with `ErrSchema` (wrapping `ErrDuplicateFlag`). Short runes assigned to built-in help (`HelpShortFlag`) or version (`VersionShortFlag`) participate in this reservation: a descendant command cannot declare a short flag that collides with an ancestor's built-in short rune.
+A flag name, alias, or short rune declared on a command is reserved for every descendant, and redeclaring it fails schema build with `ErrSchema`. Siblings may reuse names:
 
 ```text no-copy
 cloudctl deploy --force      + cloudctl remove --force   (allowed: sibling commands)
 cloudctl --verbose           + cloudctl deploy --verbose (reserved: ancestor-descendant collision)
 ```
 
-This invariant provides several fundamental architectural guarantees:
-
 ### Deterministic single-pass parsing
-Command-line operators expect flags to work regardless of where they appear on the command line. An operator might run `cloudctl --verbose deploy worker` or `cloudctl deploy worker --verbose`.
 
-If descendant commands could shadow ancestor flags, parsing would become ambiguous. The parser could not determine whether `--verbose` belongs to the global application runtime or configures the `deploy` subcommand without backtracking or applying arbitrary precedence heuristics. By guaranteeing that every flag token across an active branch belongs to exactly one command, CONGA achieves deterministic, single-pass parsing without backtracking.
+A flag is accepted anywhere on the command line, so `cloudctl --verbose deploy worker` and `cloudctl deploy worker --verbose` are equivalent. If `deploy` could declare its own `--verbose`, the second form would be ambiguous, and resolving it would need backtracking or an arbitrary precedence rule. Because every flag on the selected path has exactly one owner, parsing completes in a single pass.
 
 ### Predictable shell completion
-Shell completion engines must determine valid options at any cursor position. When flags are unique across ancestor chains, the completion engine can immediately identify which flags remain unassigned, regardless of token order, without needing to simulate contextual command state switches.
+
+Completion must determine which flags remain available at the cursor. With one owner per flag on the path, it can do so regardless of token order, without simulating which command each flag binds to.
 
 ### Sibling independence
-The shadowing prohibition applies exclusively along ancestor-descendant lines. Sibling subcommands do not share an ancestor relationship and remain completely independent. Two sibling commands—such as `deploy` and `remove`—may both declare a `--force` flag without collision. Shared options belong on the root command; command-specific options remain encapsulated within their respective subcommands.
+
+The reservation applies only along ancestor-descendant paths. `deploy` and `remove` are never on the same path, so both can declare `--force`. Options shared by the whole tool belong on the root.

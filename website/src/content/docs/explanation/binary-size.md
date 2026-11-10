@@ -20,7 +20,7 @@ CONGA deliberately uses the first style. Completion, configuration, `.env` loadi
 - `app.RegisterDecoder(...)` / `app.ConfigOptions(...)` install the config resolver.
 - `app.Dotenv(...)` installs the `.env` loader hook.
 
-An application that calls none of these leaves every hook nil; the linker proves each call site unreachable and eliminates the subsystem. A checked-in DCE guard (`task test:size`) asserts the payloads are absent, so the property cannot silently regress. See [How to enable shell completion](/how-to/enable-shell-completion/), [How to load .env files](/how-to/load-env-files/), and [How to manage config files](/how-to/manage-config-files/) for the opt-in surface.
+An application that calls none of these leaves every hook nil; the linker proves each call site unreachable and eliminates the subsystem. A checked-in DCE guard (`task test:size`) asserts the payloads are absent, so the property cannot silently regress. See [How to enable shell completion](/how-to/enable-shell-completion/), [How to load .env files](/how-to/load-env-files/), and [How to manage config files](/how-to/manage-config-files/) for the opt-in calls.
 
 Cobra and urfave/cli manage the same subsystems through runtime switches. `DisableDefaultCmd` and `EnableShellCompletion: false` control whether a completion command is registered; the completion code stays linked either way, which is why each framework's "off" build is byte-identical to its "on" build in the measured ladder.
 
@@ -28,7 +28,7 @@ Cobra and urfave/cli manage the same subsystems through runtime switches. `Disab
 
 Every function the linker retains carries runtime metadata on top of its executable text — PC-to-line tables in `.gopclntab` and type descriptors in `.go.type` — whether or not the function ever runs. Function-granularity dead-code elimination is therefore the dominant size lever, not instruction-count trimming.
 
-The completion rung makes this concrete. Enabling completion adds about 232 KB of `.text` across roughly 150 functions; the file grows by 409,600 bytes because the same functions pull ~151 KB of `.gopclntab` and a further ~25 KB of `.rodata` and other sections along with them. Two consequences follow: the least expensive function is one never linked, and a framework whose reachable surface is large carries that metadata cost for every linked function, whether or not it runs.
+The completion rung makes this concrete. Enabling completion adds about 232 KB of `.text` across roughly 150 functions; the file grows by 409,600 bytes because the same functions pull ~151 KB of `.gopclntab` and a further ~25 KB of `.rodata` and other sections along with them. Two consequences follow: the least expensive function is one never linked, and a framework whose reachable code is large carries that metadata cost for every linked function, whether or not it runs.
 
 ## The cost of each battery
 

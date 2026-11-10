@@ -157,6 +157,88 @@ func TestBinder_Constraints(t *testing.T) {
 	})
 }
 
+// Validation error attribution: value constraint errors name the environment
+// variable or config key that supplied the value.
+
+type attributionCLI struct {
+	noopRunner
+
+	Mode    conga.OptionalFlag[string]   `enum:"dev,prod" env:"CONGA_TEST_ATTRIBUTION_MODE"`
+	Workers conga.OptionalFlag[int]      `range:"1..8"`
+	Tags    conga.OptionalFlag[[]string] `enum:"red,blue" env:"CONGA_TEST_ATTRIBUTION_TAGS"`
+}
+
+func TestBinder_ValidationAttribution_EnvEnum(t *testing.T) {
+	t.Setenv("CONGA_TEST_ATTRIBUTION_MODE", "qa")
+
+	app := conga.New[attributionCLI]().
+		Args([]string{})
+
+	err := app.RunContext(t.Context())
+
+	assert.Error(t, err)
+	assert.IsError(t, err, conga.ErrValidation)
+	assert.True(t, conga.IsUsageError(err))
+	assert.Equal(t, `invalid value "qa" (must be one of: dev, prod) for flag --mode (from environment variable CONGA_TEST_ATTRIBUTION_MODE)`, err.Error())
+}
+
+func TestBinder_ValidationAttribution_EnvSliceItem(t *testing.T) {
+	t.Setenv("CONGA_TEST_ATTRIBUTION_TAGS", "red,green")
+
+	app := conga.New[attributionCLI]().
+		Args([]string{})
+
+	err := app.RunContext(t.Context())
+
+	assert.Error(t, err)
+	assert.IsError(t, err, conga.ErrValidation)
+	assert.Equal(t, `invalid value "green" (must be one of: red, blue) for flag --tags (from environment variable CONGA_TEST_ATTRIBUTION_TAGS)`, err.Error())
+}
+
+func TestBinder_ValidationAttribution_ConfigEnum(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[attributionCLI]().
+		RegisterDecoder(".json", json.Decode).
+		ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"mode": "qa"}`))).
+		Args([]string{})
+
+	err := app.RunContext(t.Context())
+
+	assert.Error(t, err)
+	assert.IsError(t, err, conga.ErrValidation)
+	assert.True(t, conga.IsUsageError(err))
+	assert.Equal(t, `invalid value "qa" (must be one of: dev, prod) for flag --mode (from config key "mode")`, err.Error())
+}
+
+func TestBinder_ValidationAttribution_ConfigRange(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[attributionCLI]().
+		RegisterDecoder(".json", json.Decode).
+		ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"workers": 12}`))).
+		Args([]string{})
+
+	err := app.RunContext(t.Context())
+
+	assert.Error(t, err)
+	assert.IsError(t, err, conga.ErrValidation)
+	assert.Equal(t, `value 12 is out of range [1..8] for flag --workers (from config key "workers")`, err.Error())
+}
+
+func TestBinder_ValidationAttribution_CLIUnattributed(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[attributionCLI]().
+		Args([]string{"--mode", "qa"})
+
+	err := app.RunContext(t.Context())
+
+	assert.Error(t, err)
+	assert.IsError(t, err, conga.ErrValidation)
+	assert.Equal(t, `invalid value "qa" (must be one of: dev, prod) for flag --mode`, err.Error())
+}
+
 // Subcommands & Lifecycle Hooks.
 type RootApp struct {
 	Verbose  conga.OptionalFlag[bool]  `short:"v"`

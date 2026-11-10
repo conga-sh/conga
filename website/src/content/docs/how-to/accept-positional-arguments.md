@@ -1,134 +1,237 @@
 ---
 title: How to accept positional arguments
-description: Define required, optional, and trailing positional arguments, and forward raw tokens.
+description: Declare required and optional positional arguments, collect a variable number into a slice, forward the words after -- with DashArgs, and pass everything through with RawArgs.
 ---
 
-CONGA binds command-line tokens to struct fields using typed argument containers. This guide demonstrates how to define required and optional positional arguments, capture trailing arguments in a slice, and forward unparsed tokens after `--`.
+This guide builds a `mirror` command that copies directories to a target and forwards options to rsync. If you're new to CONGA, [Build a multi-command CLI](/tutorials/multi-command-cli/) builds a command with a positional argument step by step.
 
-Positional arguments are declared on leaf commands. A command that declares `Command[T]` subcommands is a branch and cannot also declare positional arguments; schema build rejects the mix with `ErrSchema`. Declare positionals on the leaf that executes and pass shared context through inherited flags.
+## Declare required and optional arguments
 
-## Define required and optional positional arguments
+CONGA builds a command's positional arguments from the fields of its struct, as it does flags. The type of each argument field is a container, `conga.RequiredArg[...]` for a required argument or `conga.OptionalArg[...]` for an optional one, with the type of the argument's value in the brackets. CONGA binds the words on the command line to the fields in declaration order, and `GetOr` gives an optional argument's fallback:
 
-Declare fields on the command struct using `conga.RequiredArg[T]` and `conga.OptionalArg[T]`:
+```go title="main.go" hidden={1-8}
+package main
 
-```go title="main.go"
-type CopyCmd struct {
-	Source conga.RequiredArg[string] `help:"Source file path"`
-	Target conga.OptionalArg[string] `help:"Destination file path"`
+import (
+	"context"
+	"fmt"
+
+	"github.com/conga-sh/conga"
+)
+
+type Mirror struct {
+	Source conga.RequiredArg[string] `help:"Directory to copy"`
+	Target conga.OptionalArg[string] `help:"Destination directory"`
 }
 
-func (c *CopyCmd) Run(ctx context.Context, session *conga.Session) error {
-	destination := c.Target.GetOr("backup/")
+func (m *Mirror) Run(ctx context.Context, session *conga.Session) error {
+	fmt.Fprintf(session.Stdout(), "copying %s to %s\n", m.Source.Get(), m.Target.GetOr("backup/"))
 
-	fmt.Fprintf(session.Stdout(), "copying %s to %s\n", c.Source.Get(), destination)
+	return nil
+}
+
+func main() {
+	app := conga.New[Mirror]().Name("mirror")
+
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
+}
+```
+
+```sh
+$ mirror src/
+copying src/ to backup/
+```
+
+```sh
+$ mirror src/ /mnt/backup
+copying src/ to /mnt/backup
+```
+
+The argument names in help come from the field names:
+
+```sh
+$ mirror --help
+Usage:
+  mirror <source> [<target>]
+
+Arguments:
+  <source>    Directory to copy
+  [<target>]  Destination directory
+
+Flags:
+      --help     Show help
+      --version  Show version
+```
+
+A `name` tag replaces a placeholder exactly as written, so include the angle brackets to keep the usual form. With `name:"<dest>"` on `Target`:
+
+```text no-copy
+Usage:
+  mirror <source> [<dest>]
+
+Arguments:
+  <source>  Directory to copy
+  [<dest>]  Destination directory
+```
+
+Required arguments come before optional ones ([Positional arguments](/reference/struct-tags/#positional-arguments-optionalargt-requiredargt)). Positional arguments bind from the command line only.
+
+## Collect any number of arguments in a slice
+
+Declare a slice as the last positional argument, and CONGA collects every remaining word into it. A `RequiredArg[[]T]` needs at least one word, and an `OptionalArg[[]T]` can be empty:
+
+```go title="main.go" {2-3}
+type Mirror struct {
+	Target  conga.RequiredArg[string]   `help:"Destination directory"`
+	Sources conga.RequiredArg[[]string] `help:"Directories to copy"`
+}
+
+func (m *Mirror) Run(ctx context.Context, session *conga.Session) error {
+	fmt.Fprintf(session.Stdout(), "copying %v to %s\n", m.Sources.Get(), m.Target.Get())
 
 	return nil
 }
 ```
 
-When invoked, CONGA binds tokens in declaration order. If an optional argument is omitted, `GetOr` returns the provided fallback:
-
 ```sh
-copy src.txt
+$ mirror /mnt/backup src/ docs/ photos/
+copying [src/ docs/ photos/] to /mnt/backup
 ```
 
-```text no-copy
-copying src.txt to backup/
+```sh error={2}
+$ mirror /mnt/backup
+mirror: error: missing required positional argument <sources>
+
+Usage:
+  mirror <target> <sources...>
+
+Run 'mirror --help' for more information.
 ```
 
-```sh
-copy src.txt dest.txt
-```
+## Forward the words after `--` with `DashArgs`
 
-```text no-copy
-copying src.txt to dest.txt
-```
+A `conga.DashArgs` [field](/reference/struct-tags/#trailing-arguments-dashargs-rawargs) receives every word after `--`, unparsed, so the command can hand them to another program:
 
-Declare required positional arguments before optional positional arguments in the struct. Placing an optional argument before a required argument produces a schema error (`ErrSchema`) during schema initialisation.
-
-Positional arguments resolve exclusively from command-line tokens.
-
-## Capture trailing arguments in a slice
-
-To accept a variable number of positional arguments, declare `conga.RequiredArg[[]T]` (or `conga.OptionalArg[[]T]`) as the final positional argument:
-
-```go title="main.go"
-type DeleteCmd struct {
-	Mode  conga.RequiredArg[string]   `help:"Deletion mode"`
-	Files conga.RequiredArg[[]string] `help:"Target files to delete" name:"<files...>"`
+```go title="main.go" ins={4,9}
+type Mirror struct {
+	Target  conga.RequiredArg[string]   `help:"Destination directory"`
+	Sources conga.RequiredArg[[]string] `help:"Directories to copy"`
+	Rsync   conga.DashArgs
 }
 
-func (d *DeleteCmd) Run(ctx context.Context, session *conga.Session) error {
-	fmt.Fprintf(session.Stdout(), "mode: %s, targets: %v\n", d.Mode.Get(), d.Files.Get())
+func (m *Mirror) Run(ctx context.Context, session *conga.Session) error {
+	fmt.Fprintf(session.Stdout(), "copying %v to %s\n", m.Sources.Get(), m.Target.Get())
+	fmt.Fprintf(session.Stdout(), "rsync options: %v\n", m.Rsync.Get())
 
 	return nil
 }
 ```
 
-The engine binds initial tokens to the scalar positional fields (`Mode`) and collects all subsequent tokens into the slice:
-
 ```sh
-delete purge file1.txt file2.txt file3.txt
+$ mirror /mnt/backup src/ docs/ -- --delete --dry-run
+copying [src/ docs/] to /mnt/backup
+rsync options: [--delete --dry-run]
 ```
 
-```text no-copy
-mode: purge, targets: [file1.txt file2.txt file3.txt]
+Before the `--`, CONGA parses words as usual, so a forwarded option there is an unknown flag:
+
+```sh error={2}
+$ mirror /mnt/backup src/ --delete
+mirror: error: unknown flag: --delete
+
+Usage:
+  mirror <target> <sources...> [-- <args...>]
+
+Run 'mirror --help' for more information.
 ```
 
-```sh
-delete purge
-```
+`DashArgs` also works on a command with subcommands, because the `--` marks where forwarding starts.
 
-```text no-copy
-delete: error: missing required positional argument <files...>
-```
+## Complete the forwarded words
 
-A struct may declare at most one slice positional argument, and it must follow all scalar positional fields. Multiple slice fields in the same struct produce an `ErrSchema` error at startup.
+To complete the words after `--`, give the `DashArgs` field a `predictor` tag. It takes the same values as on a flag, a built-in such as `file` or `dir` or a name registered with `app.Predictor`:
 
-## Forward unparsed arguments after `--`
-
-To pass arguments directly to child processes or external tools without flag parsing, declare a `conga.DashArgs` field:
-
-```go title="main.go"
-type TestRunner struct {
-	Package conga.RequiredArg[string] `help:"Package to test"`
-	Extra   conga.DashArgs
+```go title="main.go" {4,11-12}
+type Mirror struct {
+	Target  conga.RequiredArg[string]   `help:"Destination directory"`
+	Sources conga.RequiredArg[[]string] `help:"Directories to copy"`
+	Rsync   conga.DashArgs              `predictor:"rsync-options"`
 }
 
-func (t *TestRunner) Run(ctx context.Context, session *conga.Session) error {
-	fmt.Fprintf(session.Stdout(), "package: %s, forwarded: %v\n", t.Package.Get(), t.Extra.Get())
+// ...
+
+func main() {
+	app := conga.New[Mirror]().Name("mirror").
+		EnableCompletion().
+		Predictor("rsync-options", predict.Values("--checksum", "--delete", "--dry-run"))
+	// ...
+}
+```
+
+```text no-copy
+$ mirror /mnt/backup src/ -- --<Tab>
+--checksum  --delete    --dry-run
+```
+
+## Pass everything through with `RawArgs`
+
+A `conga.RawArgs` field collects every word after the required positional arguments, flags included, without a `--`. It suits a wrapper whose own arguments end early, such as one target followed by the other program's arguments:
+
+```go title="main.go"
+type Mirror struct {
+	Target conga.RequiredArg[string] `help:"Destination directory"`
+	Rsync  conga.RawArgs
+}
+
+func (m *Mirror) Run(ctx context.Context, session *conga.Session) error {
+	fmt.Fprintf(session.Stdout(), "target %s, rsync arguments: %v\n", m.Target.Get(), m.Rsync.Get())
 
 	return nil
 }
 ```
 
-CONGA forwards all tokens appearing after `--` verbatim into `DashArgs` in their original sequence:
-
 ```sh
-testrunner ./pkg/... -- -v -run TestUpload
+$ mirror /mnt/backup src/ --delete --dry-run
+target /mnt/backup, rsync arguments: [src/ --delete --dry-run]
 ```
 
-```text no-copy
-package: ./pkg/..., forwarded: [-v -run TestUpload]
+Help shows the collected words after the required arguments:
+
+```sh {3}
+$ mirror --help
+Usage:
+  mirror <target> [command] [args...]
+
+Arguments:
+  <target>  Destination directory
+
+Flags:
+      --help     Show help
+      --version  Show version
 ```
 
-To capture trailing unparsed tokens without requiring the `--` delimiter, declare a `conga.RawArgs` field instead. `RawArgs` is a leaf-only collector: the command cannot also declare subcommands, and every positional argument declared before it must be a required scalar. Use `DashArgs` when the command also branches; `--` is the explicit boundary.
+The `[command]` placeholder is a rendering bug. A command with `RawArgs` can't have subcommands.
 
-### Completion for forwarded arguments
+Collection starts after the last required positional, so words up to that point are still parsed. `mirror /mnt/backup --help` prints help, and `mirror /mnt/backup src/ --help` forwards `--help`. Only required scalar arguments can come before `RawArgs`, and the command can't have subcommands. Use `DashArgs` when you need either.
 
-Forwarded words are opaque by default: the completion engine offers no candidates, because it cannot know whether the child process expects files, flags, or something else. Declare a predictor when the forwarded arguments have a known domain:
+## Know what users see
 
-```go title="main.go"
-type TestRunner struct {
-	Package conga.RequiredArg[string] `help:"Package to test"`
-	Extra   conga.DashArgs            `predictor:"file"`
-}
-```
-
-The tag accepts the same predictor vocabulary as flags and positional arguments (`file`, `file:*.yml`, `dir`, `exec`, `symlink`, `none`, or a registered custom name). `RawArgs` accepts the same tag; its candidates apply from the moment raw mode begins — the first token that cannot bind after every declared required positional is filled. Once raw mode starts, host flags are no longer completed.
+| What happens | When | Result |
+|---|---|---|
+| The user leaves out a required argument | Run | `missing required positional argument <source>`, exit 2 |
+| The user gives more words than the arguments take | Run | `unexpected argument "c"`, exit 2 |
+| The user puts a forwarded option before `--` | Run | `unknown flag: --delete`, exit 2 |
+| An `OptionalArg` is declared before a `RequiredArg` | Startup | `schema error: invalid positional argument order: optional positional argument cannot precede required positional argument <source>`, exit 1 |
+| A slice argument is followed by another positional argument | Startup | `schema error: invalid positional argument order: slice argument <sources> must be the last positional argument`, exit 1 |
+| A slice or optional argument comes before `RawArgs` | Startup | `schema error: raw args requires a deterministic positional prefix`, exit 1 |
+| A command declares both positional arguments and subcommands | Startup | `schema error: positional argument Target cannot be combined with subcommand Check`, exit 1 |
+| A `DashArgs` or `RawArgs` field carries a `help` tag | Startup | `schema error: invalid struct tag: tag "help" is invalid on dash args`, exit 1 |
 
 ## Where to go next
 
-- [About flags and args](/explanation/flags-and-args/) — typed container semantics, constraints, and separators.
-- [How to declare subcommands](/how-to/declare-subcommands/) — mount subcommands on command structs with `Command[T]`.
-- [Struct tag reference](/reference/struct-tags/) — reference catalog for argument metadata and validation tags.
+- [Positional arguments](/reference/struct-tags/#positional-arguments-optionalargt-requiredargt): every tag a positional argument takes.
+- [Trailing arguments](/reference/struct-tags/#trailing-arguments-dashargs-rawargs): the `DashArgs` and `RawArgs` rules and the tags they accept.
+- [How to declare subcommands](/how-to/declare-subcommands/): split a program into commands, each with its own arguments.
+- [About flags and args](/explanation/flags-and-args/): why positional arguments bind only from the command line.

@@ -26,7 +26,7 @@ func TestBooleanError(t *testing.T) {
 
 	err := &booleanError{raw: "maybe"}
 
-	assert.Equal(t, `invalid boolean value "maybe", expected true or false`, err.Error())
+	assert.Equal(t, `invalid boolean value "maybe", expected true or false (or 1 or 0)`, err.Error())
 	assert.IsError(t, err, ErrCoerce)
 }
 

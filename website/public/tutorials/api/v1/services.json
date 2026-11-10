@@ -1,0 +1,7 @@
+{
+  "services": [
+    { "name": "api", "description": "Public API" },
+    { "name": "web", "description": "Website" },
+    { "name": "worker", "description": "Background jobs" }
+  ]
+}

@@ -153,7 +153,8 @@ func TestEnableInstructions_ZshHomebrewTarget(t *testing.T) {
 
 		out := EnableInstructions(ShellZsh, "myapp", EnableOptions{Homebrew: true})
 
-		assert.Contains(t, out, "myapp completion zsh > \"$(brew --prefix)/share/zsh/site-functions/_myapp\"")
+		assert.Contains(t, out, "\tmyapp completion zsh > \"$HOMEBREW_PREFIX/share/zsh/site-functions/_myapp\"\n")
+		assert.Contains(t, out, "\techo 'source <(myapp completion zsh)' >> ~/.zshrc\n")
 		assert.NotContains(t, out, "~/.zfunc")
 	})
 
@@ -164,9 +165,70 @@ func TestEnableInstructions_ZshHomebrewTarget(t *testing.T) {
 
 		assert.Contains(t, out, "mkdir -p ~/.zfunc")
 		assert.Contains(t, out, "myapp completion zsh > ~/.zfunc/_myapp")
-		assert.Contains(t, out, "echo 'fpath=(~/.zfunc $fpath)' >> ~/.zshrc")
-		assert.NotContains(t, out, "brew --prefix")
+		assert.Contains(t, out, "\tfpath=(~/.zfunc $fpath)\n")
+		assert.NotContains(t, out, "HOMEBREW_PREFIX")
 	})
+}
+
+// The fpath line must precede compinit, so it is never offered as an
+// end-of-file append.
+func TestEnableInstructions_ZshFpathBeforeCompinit(t *testing.T) {
+	t.Parallel()
+
+	out := EnableInstructions(ShellZsh, "myapp", EnableOptions{})
+
+	assert.Contains(t, out, "Make sure ~/.zshrc adds ~/.zfunc to fpath before compinit runs")
+	assert.NotContains(t, out, "echo 'fpath=")
+}
+
+func TestEnableInstructions_BashCompletionUserDir(t *testing.T) {
+	t.Parallel()
+
+	out := EnableInstructions(ShellBash, "myapp", EnableOptions{})
+
+	assert.Contains(t, out, "For faster startup with the bash-completion package installed")
+	assert.Contains(t, out, "\tmkdir -p ~/.local/share/bash-completion/completions\n")
+	assert.Contains(t, out, "\tmyapp completion bash > ~/.local/share/bash-completion/completions/myapp\n")
+}
+
+func TestEnableInstructions_PowerShellProfileCommands(t *testing.T) {
+	t.Parallel()
+
+	out := EnableInstructions(ShellPowerShell, "myapp", EnableOptions{})
+
+	assert.Contains(t, out, "\tif (!(Test-Path $PROFILE)) { New-Item -ItemType File -Path $PROFILE -Force | Out-Null }\n")
+	assert.Contains(t, out, "\tAdd-Content -Path $PROFILE -Value 'myapp completion powershell | Out-String | Invoke-Expression'\n")
+	assert.Contains(t, out, "\tSet-ExecutionPolicy -Scope CurrentUser RemoteSigned\n")
+}
+
+func TestEnableInstructions_ElvishCreatesConfigDir(t *testing.T) {
+	t.Parallel()
+
+	out := EnableInstructions(ShellElvish, "myapp", EnableOptions{})
+
+	assert.Contains(t, out, "\tmkdir -p ~/.config/elvish\n\techo 'eval (myapp completion elvish | slurp)' >> ~/.config/elvish/rc.elv\n")
+}
+
+func TestEnableInstructions_NushellVersionNote(t *testing.T) {
+	t.Parallel()
+
+	out := EnableInstructions(ShellNushell, "myapp", EnableOptions{})
+
+	assert.Contains(t, out, "Nushell 0.102 or later loads it at startup:")
+}
+
+func TestEnableInstructions_RestartNote(t *testing.T) {
+	t.Parallel()
+
+	for _, info := range ShellDescriptions() {
+		t.Run(info.Name, func(t *testing.T) {
+			t.Parallel()
+
+			out := EnableInstructions(Shell(info.Name), "myapp", EnableOptions{})
+
+			assert.True(t, strings.HasSuffix(out, "\n\nNote: restart your shell for the changes to take effect.\n"), "expected the restart note to close:\n%s", out)
+		})
+	}
 }
 
 func TestEnableInstructions_ZshPersistLines(t *testing.T) {
@@ -217,6 +279,24 @@ func TestSessionCommands(t *testing.T) {
 			assert.True(t, strings.Contains(lines[0], "myapp completion "+info.Name), "expected invocation in %q", lines[0])
 		})
 	}
+}
+
+// Tests that set HOMEBREW_PREFIX change process-wide state, so they do not run
+// in parallel.
+func TestDetectHomebrew_PrefixSet(t *testing.T) {
+	t.Setenv("HOMEBREW_PREFIX", "/home/linuxbrew/.linuxbrew")
+
+	detected := DetectHomebrew()
+
+	assert.True(t, detected)
+}
+
+func TestDetectHomebrew_PrefixUnset(t *testing.T) {
+	t.Setenv("HOMEBREW_PREFIX", "")
+
+	detected := DetectHomebrew()
+
+	assert.False(t, detected)
 }
 
 func TestDetectHomebrewPath(t *testing.T) {

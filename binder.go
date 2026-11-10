@@ -72,6 +72,25 @@ type bindingState struct {
 	// type is registered through RegisterMap or RegisterType; nil keeps custom
 	// map reflection unreferenced.
 	CustomMapMerger func(cmd *spec.Command, cmdChain []*spec.Command, flagSpec *spec.Flag, cliValues map[*spec.Flag][]string, state *bindingState, result *mapMergeResult) error
+	// SourceNames records, per flag bound from the environment or a config
+	// file, the variable name or config key that supplied its value. Post-bind
+	// constraint validation reads it to attribute value errors to their origin;
+	// the container's SourceDetail stays reserved for the --why report.
+	SourceNames map[*spec.Flag]string
+}
+
+// recordSourceName remembers the env variable or config key that supplied a
+// flag's value, for attribution in post-bind validation errors.
+func (b *bindingState) recordSourceName(flagSpec *spec.Flag, source ValueSource, sourceName string) {
+	if sourceName == "" || (source != SourceEnv && source != SourceConfig) {
+		return
+	}
+
+	if b.SourceNames == nil {
+		b.SourceNames = make(map[*spec.Flag]string)
+	}
+
+	b.SourceNames[flagSpec] = sourceName
 }
 
 // decodeContext composes the per-value context for one field's coercion: the
@@ -1123,6 +1142,8 @@ func parseTokens(cmdChain []*spec.Command, tokens []tokenizer.Token, index *flag
 // container, which differs from sourceName only for configuration values
 // (origin file instead of config key).
 func applyFlagCoercion(cmdChain []*spec.Command, flagSpec *spec.Flag, rawValues []string, source ValueSource, sourceName, detail string, state *bindingState) error {
+	state.recordSourceName(flagSpec, source, sourceName)
+
 	if flagSpec.IsCounter {
 		totalCount := 0
 
@@ -1705,32 +1726,38 @@ func validateAndGroups(cmdChain []*spec.Command, andGroups orderedFlagGroups) er
 	return nil
 }
 
-func validateFlagGroupConstraints(cmdChain []*spec.Command, flagSpec *spec.Flag) error {
-	if !flagStateOf(flagSpec.Handle).IsSet() {
+func validateFlagGroupConstraints(cmdChain []*spec.Command, flagSpec *spec.Flag, sourceName string) error {
+	flagState := flagStateOf(flagSpec.Handle)
+	if !flagState.IsSet() {
 		return nil
 	}
 
-	value := flagStateOf(flagSpec.Handle).getValue()
+	value := flagState.getValue()
 	constraints := constraintSet{
 		enum:       flagSpec.Enum,
 		length:     flagSpec.Len,
 		valueRange: flagSpec.Range,
 		items:      flagSpec.Items,
 	}
-	descriptor := "flag --" + flagSpec.Name
+	descriptor := "flag --" + flagSpec.Name + sourceLocation(flagState.Source(), sourceName)
 
 	if flagSpec.IsSlice {
 		return validateSliceValue(cmdChain, descriptor, constraints, value)
 	}
 
 	if flagSpec.IsMap {
-		return validateMapValue(cmdChain, descriptor, constraints.items, value)
+		// A map merges keys from several sources, so its item count has no
+		// single origin to attribute.
+		return validateMapValue(cmdChain, "flag --"+flagSpec.Name, constraints.items, value)
 	}
 
 	return validateScalarValue(cmdChain, descriptor, constraints, value, stringx.Stringify(value))
 }
 
-func validateFlagConstraints(cmdChain []*spec.Command) error {
+// validateFlagConstraints checks per-flag value constraints and flag group
+// rules after binding. sourceNames attributes env- and config-sourced values
+// (see [bindingState.SourceNames]); a nil map attributes none.
+func validateFlagConstraints(cmdChain []*spec.Command, sourceNames map[*spec.Flag]string) error {
 	for _, cmd := range cmdChain {
 		for _, flagSpec := range cmd.Flags {
 			if flagSpec.Handle == nil {
@@ -1738,7 +1765,7 @@ func validateFlagConstraints(cmdChain []*spec.Command) error {
 				continue
 			}
 
-			if err := validateFlagGroupConstraints(cmdChain, flagSpec); err != nil {
+			if err := validateFlagGroupConstraints(cmdChain, flagSpec, sourceNames[flagSpec]); err != nil {
 				return err
 			}
 		}
@@ -2928,7 +2955,7 @@ func parseMapTokens(rawValues []string, targetType reflect.Type, sep string, par
 	return reflect.ValueOf(parsedMap).Convert(targetType).Interface(), nil
 }
 
-func parseRegisteredMap(rawValues []string, targetType reflect.Type, sep string, parser coerce.TypeParser) (any, error) {
+func parseRegisteredMap(rawValues []string, targetType reflect.Type, sep string, parser coerce.TypeParser[any]) (any, error) {
 	merged := reflect.MakeMap(targetType)
 
 	for _, item := range coerce.SplitMapItems(rawValues, sep) {

@@ -2,7 +2,7 @@
 
 This document outlines the conventions and architectural style for writing tests in CONGA.
 
-The style rules below are production-phase requirements (see [AGENTS.md §5](../AGENTS.md)). During the prototype phase, tests must still assert real behavior and pass, but their conformance to this guide is cleaned up in the hardening phase.
+The rules below are hardening-phase requirements (see [AGENTS.md §1](../AGENTS.md)). During the prototype phase, tests must still assert real behavior and pass; their conformance to this guide is cleaned up when the change is hardened, typically before the pull request.
 
 ---
 
@@ -158,23 +158,19 @@ All test functions and `t.Run` blocks should invoke `t.Parallel()` unless the te
 
 ## 6. Running Tests via Task
 
-In the production phase, always execute tests via `Taskfile.yaml` commands:
+During prototype-phase iteration, use `task proto -- ./path/to/pkg/...` or a focused `go test ./path/... -run TestX` (see [AGENTS.md §1](../AGENTS.md)). Hardening uses the tasks below.
 
-- **Fast unit test suite**:
-  ```bash
-  task test
-  ```
-- **Complete test suite**:
-  ```bash
-  task test:all
-  ```
-- **Test coverage report**:
-  ```bash
-  task coverage
-  task coverage -- ./internal/coerce
-  ```
+| Task | Runs |
+|------|------|
+| `task test` | Unit suite with `-race`; pass `go test` flags or packages after `--` (`task test -- -v -run TestX ./internal/dotenv`) |
+| `task test:examples` | Tests for `_examples` (`./...` skips `_`-prefixed directories) |
+| `task test:shell` | Shell completion suite for all six shells (`-tags shelltest`); filter with `task test:shell -- -run TestBash_Subcommands` |
+| `task test:shell:pty` | The `^TestPty` subset, driving real shells in tmux pseudo-terminals and asserting screen, cursor, and buffer. Fails fast without tmux; inside `test:shell`/`test:all` the subset skips when tmux is absent |
+| `task test:size` | Builds `_examples/01-minimal-hello` (with `10`, `13`, and `19` as positive controls) unstripped and asserts via `go tool nm` that disabled subsystems are eliminated; also runs the init-free package guard (`-tags sizetest`) |
+| `task test:all` | Unit, shell, and size suites together (`-tags shelltest,sizetest`, no `-race`) |
+| `task coverage` | Per-function coverage; `task coverage -- ./internal/coerce` for one package |
 
-During prototype-phase iteration, focused `go test ./path/... -run TestX` invocations are acceptable (see [AGENTS.md §5](../AGENTS.md)); production verification uses the tasks above.
+`task ci` runs check-only lint, `test`, `test:examples`, and `test:size`; `task harden` runs auto-fix lint and reordering first, then `ci`.
 
 ---
 
@@ -191,13 +187,24 @@ The interactive shell completion tests (`test/shell`, `shelltest` build tag) dri
 | powershell | Simulated (derived from `ReplacementIndex`/candidates by the harness parser) | `Stderr` + `StdoutLeak` (must be empty) | `ReplacementIndex`/`CompletionPrefix`: insertion must start at the word being completed so earlier command-line content is never replaced |
 | nushell | Simulated (derived from candidates by the harness parser) | `Stderr` (must be empty) | Buffer derivation models prefix insertion |
 
-Test suites must keep feature parity across all six shells (candidates, filtering, attached/separate flag values, deduplication exceptions, deprecation filtering, nested subcommands, quoting, descriptions) and always assert the purity channel that the shell exposes. Documented limitations that are inherent to the host shell (not CONGA): PowerShell's parser rejects a bare trailing comma inside a command line (array operator in argument mode), so the delimited-slice deduplication contract is exercised with the backtick-escaped form (`` canary`, ``) that real users must type and that the generated snippet unwraps before invoking `__complete`; only bash and zsh observe genuine shell line-editor buffer state — the fish, powershell, and nushell post-Tab buffers are simulated by the Go test harness from returned candidates, never read from a real interactive PTY session.
+Rules:
+
+- **Symmetry across all six shells.** When a completion bug is fixed or a completion feature changes for one shell, add the matching comparison and user-visible tests for every shell. Suites keep feature parity on candidates, filtering, attached/separate flag values, deduplication exceptions, deprecation filtering, nested subcommands, quoting, and descriptions.
+- **Assert the user-visible buffer.** Don't rely only on raw candidate lists (`COMPREPLY`, wire items). Assert `result.BufferTab1`/`result.BufferTab2` so line editors (Readline, ZLE) are proven not to insert unwanted characters or rewrite the prompt.
+- **Assert the negative invariant** for any bug involving prefix auto-insertion, prefix collapsing, or buffer corruption (e.g. `assert.Equal(t, "cloudctl deploy ", result.BufferTab1)`).
+- **Assert the purity channel** the shell exposes (table above). In shells without a message widget (bash), completion must write nothing unmanaged to stdout or stderr: `assert.Equal(t, "", result.StdoutLeak)`.
+- **Script goldens.** Completion script generation is asserted against `testdata/completion/` goldens: `bash`, `zsh`, `fish`, `elvish`, `powershell`, and `nushell` `.golden` files, plus `command-{bash,zsh,powershell}.golden` for scripts generated through a mounted `CompletionCommand`.
+
+Known limits of the suite:
+
+- Only bash and zsh observe genuine line-editor buffer state. The elvish, fish, powershell, and nushell post-Tab buffers are simulated by the Go harness from returned candidates, so driver bugs that corrupt those shells' real buffers are invisible here (the PTY tests cover real buffers). The bash and zsh buffer tests are the authoritative user-visible checks.
+- PowerShell's parser rejects a bare trailing comma inside a command line (array operator in argument mode), so the delimited-slice deduplication contract is exercised with the backtick-escaped form (`` canary`, ``) that real users must type and that the generated snippet unwraps before invoking `__complete`.
 
 ---
 
 ## 8. Embedded Test Fixtures & Goldens
 
-Test fixtures live in `testdata/` and are embedded one-to-one with `//go:embed` directives, so a missing or renamed fixture fails the build instead of failing at read time. Identifiers are category-prefixed so IDE completion lists related fixtures together and readers can tell inputs from expected output:
+Multi-line test payloads (config files in `.json`/`.toml`/`.yaml`/`.hcl`, `.env` payloads, Go source snippets, expected output) never appear as inline multi-line string literals in test files. They live as standalone files in a `testdata/` directory (package-local `testdata/`, or root `testdata/fixtures/`) and are embedded one-to-one with `//go:embed` directives, so a missing or renamed fixture fails the build instead of failing at read time. Embedded fixture variables sit directly after the imports in a single `var (...)` block. Identifiers are category-prefixed so IDE completion lists related fixtures together and readers can tell inputs from expected output:
 
 | Category | Pattern | Example |
 |----------|---------|---------|
@@ -207,7 +214,7 @@ Test fixtures live in `testdata/` and are embedded one-to-one with `//go:embed` 
 
 Rules:
 
-- `<Subject>` is the CamelCase form of the fixture filename stem. Append the uppercase format tag only when the same stem is embedded in more than one format within the file: `fixtureNativeMapTOML` sits next to `fixtureNativeMapYAML` in `config_test.go`, while `decoder/json_test.go` needs no tag at all (`fixtureValidFlat`).
+- `<Subject>` is the CamelCase form of the fixture filename stem. Append the uppercase format tag only when the same stem is embedded in more than one format within the file: `fixtureNativeMapTOML` sits next to `fixtureNativeMapYAML` in `config_test.go`, while `decoder/json/json_test.go` needs no tag at all (`fixtureValidFlat`). Don't use the legacy `test*`, `*Fixture`, or `*Golden` spellings.
 - Order the block alphabetically by embedded fixture path, so multi-format families stay contiguous and diffs stay mechanical.
 - Separate families with a blank line and give each family of two or more members one period-terminated doc comment:
 
@@ -228,5 +235,8 @@ var (
 
 - A file embedding exactly one fixture declares it as a bare `var`, without parentheses.
 - Colliding identifiers inside one package are a compile error; repair a collision by qualifying only the colliding declaration with its owning file stem (e.g. `fixtureDecoderHCL` in `config_test.go` becomes `fixtureConfigDecoderHCL` if a second file in the package embeds the same stem), never as a default.
-- Fixtures mirroring real system file layouts (`passwd`, `group`, `known_hosts`, `ssh_config`, `zone1970.tab`) keep their canonical filenames; shell harness scripts and production embedded assets are not fixtures and stay outside this convention.
-- Full authoring rules — including `[]byte` vs `string` selection, the fixture placement rule, and testscript separation — live in [`AGENTS.md` §3](../AGENTS.md).
+- Embed as `[]byte` whenever the consumer takes bytes (`os.WriteFile`, parsers, tokenizers, decoders), so no `[]byte(...)` conversion is needed.
+- Directory corpora iterated with `fs.ReadDir` use an `embed.FS` named `<domain>Fixtures` and are exempt from the per-fixture naming and ordering rules.
+- Go source fixtures in `testdata/` keep the `.go` extension. The toolchain ignores `testdata/`, so fixtures with different package clauses coexist.
+- In packages using `rogpeppe/go-internal/testscript`, `testdata/` subdirectories holding `.txt` scripts (e.g. `testdata/config/`) are reserved for script discovery; keep embedded fixtures in `testdata/fixtures/` or another dedicated folder.
+- Fixtures mirroring real system file layouts (`passwd`, `group`, `known_hosts`, `ssh_config`, `zone1970.tab`) keep their canonical filenames. Shell harness scripts (`test/shell/`) and production embedded assets (`internal/completion/bash/snippet.go`) are not fixtures and stay outside this convention.

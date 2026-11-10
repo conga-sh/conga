@@ -1,0 +1,408 @@
+---
+title: Test a CLI
+description: Run cloudctl inside go test with its own command line, input, and output, move its output onto the session's streams, and check a confirmation prompt and a usage error.
+---
+
+In this tutorial, we will write Go tests that run `cloudctl` the way a user does: with a command line, input to read, and somewhere to write. Along the way, `deploy` will learn to ask for confirmation before it deploys. We continue in the `cloudctl` directory from [Configure a CLI from a file and the environment](/tutorials/configure-a-cli/), with `cloudctl.yaml` still in place.
+
+Each test starts from a command line and checks what `cloudctl` gives back, running the app inside the test with no binary to build. [About testing CONGA programs](/explanation/testing/) compares this with running the built binary.
+
+## The command we will build
+
+By the end, three tests pass:
+
+```sh
+$ go test -v
+=== RUN   TestDeploy
+--- PASS: TestDeploy (0.00s)
+=== RUN   TestDeployCanceled
+--- PASS: TestDeployCanceled (0.00s)
+=== RUN   TestDeployNeedsImage
+--- PASS: TestDeployNeedsImage (0.00s)
+PASS
+ok  	cloudctl	0.006s
+```
+
+## Let a test build the same app
+
+A test needs the same app that `main` runs, with the same name, prefix, and config settings. Move the builder calls out of `main` into a function, and replace `main`:
+
+```go title="main.go"
+// [!callout /newApp/] `main` and the tests both build the app here.
+func newApp() *conga.App[CLI] {
+	return conga.New[CLI]().
+		Name("cloudctl").
+		Description("Manage services in the cloud").
+		Version("0.1.0").
+		EnvPrefix("CLOUDCTL").
+		RegisterDecoder(".yaml", yaml.Decode).
+		ConfigOptions(conga.ConfigPaths("."))
+}
+
+func main() {
+	app := newApp()
+
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
+}
+```
+
+Build the program, and check that it behaves as before:
+
+```sh
+go build
+```
+
+```sh
+$ ./cloudctl deploy web
+deploying web (nginx:1.27) to eu-west-1 with 3 replicas
+```
+
+## Run the app in a test
+
+Create `main_test.go` with a test that deploys `web` and checks what it prints:
+
+```go title="main_test.go"
+package main
+
+import (
+	"bytes"
+	"testing"
+)
+
+func TestDeploy(t *testing.T) {
+	var stdoutBuffer bytes.Buffer
+
+	app := newApp().
+		// [!callout /Args/] The command line for this run, in place of the real one.
+		Args([]string{"deploy", "web", "--image", "nginx:1.27"}).
+		// [!callout /Stdout/] The app's standard output for this run.
+		Stdout(&stdoutBuffer)
+
+	if err := app.RunContext(t.Context()); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+
+	want := "deploying web (nginx:1.27) to us-east-1 with 2 replicas\n"
+	if got := stdoutBuffer.String(); got != want {
+		t.Errorf("output = %q, want %q", got, want)
+	}
+}
+```
+
+The test gives the app its own command line and an output buffer, runs it, and compares what landed in the buffer. It gives only `--image`, so it expects the defaults, `us-east-1` and 2 replicas. Run it, and list the test as it runs. It fails:
+
+```sh {3}
+$ go test -v
+=== RUN   TestDeploy
+deploying web (nginx:1.27) to eu-west-1 with 3 replicas
+    main_test.go:21: output = "", want "deploying web (nginx:1.27) to us-east-1 with 2 replicas\n"
+--- FAIL: TestDeploy (0.00s)
+FAIL
+exit status 1
+FAIL	cloudctl	0.006s
+```
+
+Notice that the buffer is empty, and the deployment line appears in `go test`'s own output instead. `deploy` prints with `fmt.Printf`, which always writes to `os.Stdout`, the process's standard output. `Stdout(&stdoutBuffer)` sets a separate stream, the app's standard output, and `fmt.Printf` never writes to it.
+
+## Write through the session
+
+The `session` that CONGA passes to `Run` has the app's streams. `session.Stdout()` is the app's standard output, `session.Stderr()` its standard error, and `session.Stdin()` its standard input. A normal run sets them to the process's own streams, so the user sees no difference. A test that calls `Stdout(&stdoutBuffer)` points `session.Stdout()` at the buffer.
+
+Make both commands write through the session:
+
+```go title="main.go" {3,12}
+func (d *DeployCmd) Run(ctx context.Context, session *conga.Session) error {
+	root := session.Root[CLI]()
+	fmt.Fprintf(session.Stdout(), "deploying %s (%s) to %s with %d replicas\n", d.Service.Get(), d.Image.Get(), root.Region.Get(), d.Replicas.Get())
+
+	return nil
+}
+
+// ...
+
+func (s *StatusCmd) Run(ctx context.Context, session *conga.Session) error {
+	root := session.Root[CLI]()
+	fmt.Fprintf(session.Stdout(), "all services healthy in %s\n", root.Region.Get())
+
+	return nil
+}
+```
+
+Run the test again:
+
+```sh wrap
+$ go test
+--- FAIL: TestDeploy (0.00s)
+    main_test.go:21: output = "deploying web (nginx:1.27) to eu-west-1 with 3 replicas\n", want "deploying web (nginx:1.27) to us-east-1 with 2 replicas\n"
+FAIL
+exit status 1
+FAIL	cloudctl	0.005s
+```
+
+The line reached the buffer this time, but with `eu-west-1` and 3 replicas. Notice that those came from `cloudctl.yaml`. The test ran the whole app, and `go test` runs in the package directory, so the app found the file there, as it does when we run `./cloudctl`. It would read `CLOUDCTL_REGION` and the other variables from the shell in the same way.
+
+Give each test a clean start, with no config file and none of the app's variables set:
+
+```go title="main_test.go" ins={1-8,11}
+func isolate(t *testing.T) {
+	t.Helper()
+
+	// [!callout /Chdir/] Runs the test in a new, empty directory.
+	t.Chdir(t.TempDir())
+	// [!callout /Setenv/] Empties the variable for this test, and restores it afterwards.
+	t.Setenv("CLOUDCTL_REGION", "")
+	t.Setenv("CLOUDCTL_IMAGE", "")
+	t.Setenv("CLOUDCTL_REPLICAS", "")
+}
+
+func TestDeploy(t *testing.T) {
+	isolate(t)
+
+	var stdoutBuffer bytes.Buffer
+	// ...
+}
+```
+
+CONGA treats an empty variable as unset. Run the test with a region set in the shell, to check that it no longer reaches the app:
+
+```sh
+$ CLOUDCTL_REGION=ap-south-1 go test
+PASS
+ok  	cloudctl	0.008s
+```
+
+## Ask before deploying
+
+A deployment is worth a second thought. Let's make `deploy` ask first, unless the user passes `--yes`. Add `errors` to the imports, a `Yes` flag, and the question to `Run`:
+
+```go title="main.go" ins={3,16,21-30}
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"github.com/conga-sh/conga"
+	"github.com/conga-sh/conga/decoder/yaml"
+)
+
+// ...
+
+type DeployCmd struct {
+	Service  conga.RequiredArg[string]  `help:"Service to deploy"`
+	Image    conga.RequiredFlag[string] `help:"Container image to run"`
+	Replicas conga.OptionalFlag[int]    `default:"2" help:"Number of copies to run"`
+	Yes      conga.OptionalFlag[bool]   `help:"Deploy without asking" short:"y"`
+}
+
+func (d *DeployCmd) Run(ctx context.Context, session *conga.Session) error {
+	root := session.Root[CLI]()
+
+	if !d.Yes.Get() {
+		// [!callout /Stderr/] The question goes to standard error, so standard output holds only the result.
+		fmt.Fprintf(session.Stderr(), "deploy %s to %s? [y/N] ", d.Service.Get(), root.Region.Get())
+
+		var answer string
+		// [!callout /Stdin/] Reads the answer from the app's standard input.
+		if _, err := fmt.Fscanln(session.Stdin(), &answer); err != nil || answer != "y" {
+			return errors.New("deployment canceled")
+		}
+	}
+
+	fmt.Fprintf(session.Stdout(), "deploying %s (%s) to %s with %d replicas\n", d.Service.Get(), d.Image.Get(), root.Region.Get(), d.Replicas.Get())
+
+	return nil
+}
+```
+
+Build the program, run a deployment, and answer `y`:
+
+```sh
+go build
+```
+
+```sh
+$ ./cloudctl deploy web
+deploy web to eu-west-1? [y/N] y
+deploying web (nginx:1.27) to eu-west-1 with 3 replicas
+```
+
+Run it again, and answer `n`:
+
+```sh error={3}
+$ ./cloudctl deploy web
+deploy web to eu-west-1? [y/N] n
+cloudctl: error: deployment canceled
+```
+
+```sh
+$ echo $?
+1
+```
+
+With `-y`, it deploys without asking:
+
+```sh
+$ ./cloudctl deploy web -y
+deploying web (nginx:1.27) to eu-west-1 with 3 replicas
+```
+
+Because the question goes to standard error, it still reaches the terminal when we send the output to a file, and the file holds only the result:
+
+```sh
+$ echo y | ./cloudctl deploy web > deploy.log
+deploy web to eu-west-1? [y/N]
+```
+
+```sh
+$ cat deploy.log
+deploying web (nginx:1.27) to eu-west-1 with 3 replicas
+```
+
+## Test the question
+
+A test can't type at a prompt, so it gives the app its input instead. Replace `main_test.go`:
+
+```go title="main_test.go" ins={5,16,26,28,38-42,45-65} {22,27}
+package main
+
+import (
+	"bytes"
+	"strings"
+	"testing"
+)
+
+func isolate(t *testing.T) {
+	t.Helper()
+
+	t.Chdir(t.TempDir())
+	t.Setenv("CLOUDCTL_REGION", "")
+	t.Setenv("CLOUDCTL_IMAGE", "")
+	t.Setenv("CLOUDCTL_REPLICAS", "")
+	t.Setenv("CLOUDCTL_YES", "")
+}
+
+func TestDeploy(t *testing.T) {
+	isolate(t)
+
+	var stdoutBuffer, stderrBuffer bytes.Buffer
+
+	app := newApp().
+		Args([]string{"deploy", "web", "--image", "nginx:1.27"}).
+		// [!callout /Stdin/] What `session.Stdin()` reads, as if the user typed `y`.
+		Stdin(strings.NewReader("y\n")).
+		Stdout(&stdoutBuffer).
+		// [!callout /Stderr/] Where `session.Stderr()` writes.
+		Stderr(&stderrBuffer)
+
+	if err := app.RunContext(t.Context()); err != nil {
+		t.Fatalf("run failed: %v", err)
+	}
+
+	want := "deploying web (nginx:1.27) to us-east-1 with 2 replicas\n"
+	if got := stdoutBuffer.String(); got != want {
+		t.Errorf("output = %q, want %q", got, want)
+	}
+
+	wantPrompt := "deploy web to us-east-1? [y/N] "
+	if got := stderrBuffer.String(); got != wantPrompt {
+		t.Errorf("prompt = %q, want %q", got, wantPrompt)
+	}
+}
+
+func TestDeployCanceled(t *testing.T) {
+	isolate(t)
+
+	var stdoutBuffer bytes.Buffer
+
+	app := newApp().
+		Args([]string{"deploy", "web", "--image", "nginx:1.27"}).
+		Stdin(strings.NewReader("n\n")).
+		Stdout(&stdoutBuffer).
+		Stderr(new(bytes.Buffer))
+
+	err := app.RunContext(t.Context())
+	if err == nil || err.Error() != "deployment canceled" {
+		t.Fatalf("err = %v, want deployment canceled", err)
+	}
+
+	if stdoutBuffer.Len() > 0 {
+		t.Errorf("output = %q, want none", stdoutBuffer.String())
+	}
+}
+```
+
+`isolate` now also empties `CLOUDCTL_YES`, the variable the new `--yes` flag reads. `TestDeploy` answers `y` and checks each stream, the result on standard output and the question on standard error. `TestDeployCanceled` answers `n` and checks that nothing was deployed.
+
+```sh
+$ go test -v
+=== RUN   TestDeploy
+--- PASS: TestDeploy (0.00s)
+=== RUN   TestDeployCanceled
+--- PASS: TestDeployCanceled (0.00s)
+PASS
+ok  	cloudctl	0.004s
+```
+
+## Test a usage error
+
+Last, check that leaving out `--image` fails as a usage error. Add `conga` to the imports, and a third test:
+
+```go title="main_test.go" ins={5-6,11-28}
+import (
+	"bytes"
+	"strings"
+	"testing"
+
+	"github.com/conga-sh/conga"
+)
+
+// ...
+
+func TestDeployNeedsImage(t *testing.T) {
+	isolate(t)
+
+	var stderrBuffer bytes.Buffer
+
+	app := newApp().
+		Args([]string{"deploy", "web"}).
+		Stderr(&stderrBuffer)
+
+	err := app.RunContext(t.Context())
+	// [!callout /IsUsageError/] True for a mistake on the command line, the kind that exits with status 2.
+	if !conga.IsUsageError(err) {
+		t.Fatalf("err = %v, want a usage error", err)
+	}
+
+	if stderrBuffer.Len() > 0 {
+		t.Errorf("stderr = %q, want empty", stderrBuffer.String())
+	}
+}
+```
+
+```sh
+$ go test -v
+=== RUN   TestDeploy
+--- PASS: TestDeploy (0.00s)
+=== RUN   TestDeployCanceled
+--- PASS: TestDeployCanceled (0.00s)
+=== RUN   TestDeployNeedsImage
+--- PASS: TestDeployNeedsImage (0.00s)
+PASS
+ok  	cloudctl	0.006s
+```
+
+Notice that the test checks standard error is empty. `RunContext` returns the error and prints nothing. In `main`, `app.Exit` prints the message and picks the exit status. The canceled deployment exited with status 1, because the command line was fine. The missing `--image` exits with status 2, because the command line was wrong.
+
+:::caution[Check that it fits your program]
+A test that runs the app inside the test sees only the input and output that pass through the app's own streams, which this tutorial set up. If your commands use a package that reads `os.Stdin` or writes to `os.Stdout` itself, and can't be given an `io.Reader` or `io.Writer` in their place, the test can't supply that input or see that output. Test such a program by running the built binary instead.
+:::
+
+## Where to go next
+
+We now have a `cloudctl` whose commands read and write through the session, and tests that run it with their own command line and streams.
+
+- [About testing CONGA programs](/explanation/testing/): end-to-end tests with the built binary or inside the test, and where unit tests fit.
+- [How to test a command](/how-to/test-a-command/): table-driven tests, and checking the exit status that `Exit` picks.
+- [Add shell completion to a CLI](/tutorials/complete-a-cli/): the next tutorial, which makes the shell complete `cloudctl`'s commands, flags, and values.

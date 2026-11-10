@@ -1,15 +1,48 @@
 ---
 title: How to enable shell completion
-description: Generate and install shell completion scripts for bash, zsh, fish, powershell, elvish, and nushell.
+description: Enable shell completion for bash, zsh, fish, PowerShell, Elvish, and Nushell, customize the completion command, and install the shell scripts.
 ---
 
-CONGA generates shell completion scripts for bash, zsh, fish, powershell, elvish, and nushell. Completion support is opt-in at link time: the driver hooks and internal completion handlers link into the binary only when `app.EnableCompletion()` is called.
+This guide adds completion to a `cloudctl` CLI with `deploy` and `status` subcommands, then to a flat `minify` CLI. The interactive listings use zsh; other shells render the same candidates in their native layout. To compute candidates in Go, see [How to compute and shape completion candidates](/how-to/compute-completion-candidates/).
 
 ## Enable completion on the builder
 
-Call `EnableCompletion()` when constructing the application:
+Call `EnableCompletion()` on the application builder:
 
-```go title="main.go"
+```go title="main.go" hidden={1-9} {37}
+package main
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/conga-sh/conga"
+)
+
+type CLI struct {
+	Deploy conga.Command[DeployCmd] `summary:"Deploy a service"`
+	Status conga.Command[StatusCmd] `summary:"Show service status"`
+}
+
+type DeployCmd struct {
+	Env     conga.OptionalFlag[string] `default:"staging" enum:"staging,prod" help:"Target environment"`
+	Service conga.RequiredArg[string]  `help:"Service to deploy"`
+}
+
+func (d *DeployCmd) Run(ctx context.Context, session *conga.Session) error {
+	fmt.Fprintf(session.Stdout(), "deploying %s to %s\n", d.Service.Get(), d.Env.Get())
+
+	return nil
+}
+
+type StatusCmd struct{}
+
+func (s *StatusCmd) Run(ctx context.Context, session *conga.Session) error {
+	fmt.Fprintln(session.Stdout(), "all services healthy")
+
+	return nil
+}
+
 func main() {
 	app := conga.New[CLI]().
 		Name("cloudctl").
@@ -21,75 +54,182 @@ func main() {
 }
 ```
 
-Calling `app.EnableCompletion()` installs the hidden `__complete` handler used by shell completion scripts and provides completion endpoints:
+Because `CLI` declares subcommands, CONGA mounts a `completion <shell>` subcommand, listed last under `Commands:`:
 
-- **Flat applications (no subcommands)**: Automatically gain a `--completion <shell>` flag. The flag appears under `Flags:` in `--help`:
-  ```
-  Flags:
-        --completion=SHELL  Generate shell completion script
-        --help              Show help
-        --version           Show version
-  ```
-- **Hierarchical applications (with subcommands)**: Can expose a dedicated `completion` command by declaring a `conga.CompletionCommand` field on the root command struct.
-
-## Expose the completion subcommand
-
-For applications with subcommands, declare a `conga.CompletionCommand` field on the root struct:
-
-```go title="main.go"
-type CLI struct {
-	Completion conga.CompletionCommand  `summary:"Generate shell completion scripts"`
-	Deploy     conga.Command[DeployCmd] `summary:"Deploy a service"`
-}
-
-type DeployCmd struct{}
-
-func (d *DeployCmd) Run(ctx context.Context, session *conga.Session) error {
-	return nil
-}
-```
-
-When declared, CONGA promotes `completion` into the `Commands:` section of `--help` and suppresses the `--completion` flag:
-
-```sh
-cloudctl --help
-```
-
-```text no-copy
+```sh {8}
+$ cloudctl --help
 Usage:
-  cloudctl <command> [flags]
+  cloudctl <command>
 
 Commands:
-  completion  Generate shell completion scripts
   deploy      Deploy a service
+  status      Show service status
+  completion  Generate shell completion scripts
 
 Flags:
       --help     Show help
       --version  Show version
 ```
 
-You can customize the completion command field using standard command struct tags:
-- `summary:"..."`: Overrides the synopsis displayed in the parent command listing.
-- `aliases:"comp,complete"`: Registers alternative command tokens that route to completion.
-- `section:"..."`: Organizes the command under a custom section header in `--help`.
-- `hidden:"true"`: Keeps completion executable while hiding it from `--help` and shell suggestions.
+A root command without subcommands gets a `--completion <shell>` flag instead; see [Enable completion in a flat CLI](#enable-completion-in-a-flat-cli).
 
-## Inspect completion help and active shell hints
+## Customize the completion subcommand
 
-Running `cloudctl completion` without arguments or with `--help` displays the completion help screen:
+Declare a `conga.CompletionCommand` field on the root struct to customize the subcommand with `name`, `aliases`, `section`, `summary`, or `hidden` tags:
 
-```sh
-cloudctl completion
+```go title="main.go" ins={5}
+type CLI struct {
+	Deploy conga.Command[DeployCmd] `summary:"Deploy a service"`
+	Status conga.Command[StatusCmd] `summary:"Show service status"`
+
+	Completion conga.CompletionCommand `aliases:"comp" section:"Setup" summary:"Print the shell completion script"`
+}
 ```
 
-```text no-copy
+```sh {9-10}
+$ cloudctl --help
+Usage:
+  cloudctl <command>
+
+Commands:
+  deploy  Deploy a service
+  status  Show service status
+
+Setup:
+  completion  Print the shell completion script
+
+Flags:
+      --help     Show help
+      --version  Show version
+```
+
+`cloudctl comp zsh` now resolves to the `completion` subcommand. Setting `hidden:"true"` keeps the command executable while omitting it from `--help` and completion candidates.
+
+## Enable completion in a flat CLI
+
+A root command without `conga.Command[T]` fields gets a `--completion <shell>` flag in place of the subcommand. This `minify` program takes one positional argument:
+
+```go title="main.go" hidden={1-8} {25}
+package main
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/conga-sh/conga"
+)
+
+type CLI struct {
+	Level  conga.OptionalFlag[int]    `default:"1" help:"Minification level" range:"1..9" short:"l"`
+	Output conga.OptionalFlag[string] `help:"Output file path" short:"o"`
+	Input  conga.RequiredArg[string]  `help:"Input file to minify"`
+}
+
+func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
+	fmt.Fprintf(session.Stdout(), "minifying %s at level %d\n", c.Input.Get(), c.Level.Get())
+
+	return nil
+}
+
+func main() {
+	app := conga.New[CLI]().
+		Name("minify").
+		EnableCompletion()
+
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
+}
+```
+
+```sh {11}
+$ minify --help
+Usage:
+  minify [flags] <input>
+
+Arguments:
+  <input>  Input file to minify
+
+Flags:
+  -l, --level=1           Minification level [1..9]
+  -o, --output=STRING     Output file path
+      --completion=SHELL  Generate shell completion script
+      --help              Show help
+      --version           Show version
+```
+
+The flag takes the same shell names and prints the same setup screens, in flag syntax. Users of a flat CLI type `--completion <shell>` wherever the install commands below use `completion <shell>`:
+
+```sh
+$ minify --completion
 Generate shell completion scripts
 
 Usage:
-  cloudctl completion <shell>
+  minify --completion [shell]
+
+Supported shells:
+  bash        Bourne Again SHell
+  elvish      Elvish shell
+  fish        Friendly interactive shell
+  nushell     Nushell shell
+  powershell  PowerShell / pwsh
+  zsh         Z shell
+
+Enable completions for your current zsh shell now:
+
+	source <(minify --completion zsh)
+
+For persistent setups, run 'minify --completion zsh --help'.
+
+Flags:
+      --help  Show help
+```
+
+To offer a `completion` subcommand instead, declare a `conga.CompletionCommand` field. CONGA drops the `--completion` flag, and the field takes the tags from the previous section:
+
+```go title="main.go" ins={6}
+type CLI struct {
+	Level  conga.OptionalFlag[int]    `default:"1" help:"Minification level" range:"1..9" short:"l"`
+	Output conga.OptionalFlag[string] `help:"Output file path" short:"o"`
+	Input  conga.RequiredArg[string]  `help:"Input file to minify"`
+
+	Completion conga.CompletionCommand `summary:"Generate shell completion scripts"`
+}
+```
+
+```sh {5-6}
+$ minify --help
+Usage:
+  minify [flags] <input>
+
+Commands:
+  completion  Generate shell completion scripts
 
 Arguments:
-  <shell>  Target shell name
+  <input>  Input file to minify
+
+Flags:
+  -l, --level=1        Minification level [1..9]
+  -o, --output=STRING  Output file path
+      --help           Show help
+      --version        Show version
+```
+
+The command name now shadows a positional value spelled `completion`: `minify completion` prints the setup screen, and `minify -- completion` or `minify ./completion` minifies a file of that name. The [flat completion flag](https://github.com/conga-sh/conga/tree/main/_examples/24-flat-completion-flag) and [flat completion subcommand](https://github.com/conga-sh/conga/tree/main/_examples/25-flat-completion-subcommand) examples show both forms.
+
+## Load or install the completion script
+
+Without a shell name, `cloudctl completion` lists the shells and the setup command for the detected shell:
+
+```sh
+$ cloudctl completion
+Generate shell completion scripts
+
+Usage:
+  cloudctl completion [<shell>]
+
+Arguments:
+  [<shell>]  Target shell name
 
 Supported shells:
   bash        Bourne Again SHell
@@ -109,194 +249,146 @@ Flags:
       --help  Show help
 ```
 
-Invoking `completion` without a shell argument exits with status 0. The output lists all six supported shells and inspects your environment to detect your running shell. If detected, CONGA prints the one-line command to load completions into your active session immediately.
+`cloudctl completion <shell> --help` prints the setup steps for that shell, adjusted to the environment: with `HOMEBREW_PREFIX` set, the zsh steps write to `$HOMEBREW_PREFIX/share/zsh/site-functions`, and on macOS the bash steps warn when the running Bash is older than 4.4.
 
-For flat applications using the flag style, run `cloudctl --completion` or `cloudctl --completion --help` for the equivalent screen with flag syntax (`cloudctl --completion [shell]`).
+:::code-tabs{sync="shell"}
+```sh label="Bash"
+# Current session
+source <(cloudctl completion bash)
 
-If an unknown shell name is passed (such as `cloudctl completion myshell`), CONGA returns a validation error with exit status 2.
+# Every new session
+echo 'source <(cloudctl completion bash)' >> ~/.bashrc
 
-## View per-shell setup instructions
+# Or, with bash-completion installed, write a lazy-loaded completion file
+mkdir -p ~/.local/share/bash-completion/completions
+cloudctl completion bash > ~/.local/share/bash-completion/completions/cloudctl
+```
+```sh label="Zsh"
+# Ensure compinit is enabled
+echo 'autoload -U compinit; compinit' >> ~/.zshrc
 
-To view step-by-step installation and configuration instructions for a specific shell, pass `--help` with the shell name:
+# Current session
+source <(cloudctl completion zsh)
 
-```sh
-cloudctl completion bash --help
+# Every new session
+echo 'source <(cloudctl completion zsh)' >> ~/.zshrc
+
+# Or write a completion file into fpath (add fpath=(~/.zfunc $fpath) before compinit)
+mkdir -p ~/.zfunc
+cloudctl completion zsh > ~/.zfunc/_cloudctl
+
+# Or, with Homebrew, write to the site-functions directory already in fpath
+cloudctl completion zsh > "$HOMEBREW_PREFIX/share/zsh/site-functions/_cloudctl"
+```
+```sh label="Fish"
+# Current session
+cloudctl completion fish | source
+
+# Every new session
+mkdir -p ~/.config/fish/completions
+cloudctl completion fish > ~/.config/fish/completions/cloudctl.fish
+```
+```powershell label="PowerShell"
+# Current session
+cloudctl completion powershell | Out-String | Invoke-Expression
+
+# Every new session
+if (!(Test-Path $PROFILE)) { New-Item -ItemType File -Path $PROFILE -Force | Out-Null }
+Add-Content -Path $PROFILE -Value 'cloudctl completion powershell | Out-String | Invoke-Expression'
+
+# If script execution is disabled
+Set-ExecutionPolicy -Scope CurrentUser RemoteSigned
+```
+```sh label="Elvish"
+# Current session
+eval (cloudctl completion elvish | slurp)
+
+# Every new session
+mkdir -p ~/.config/elvish
+echo 'eval (cloudctl completion elvish | slurp)' >> ~/.config/elvish/rc.elv
+```
+```nu label="Nushell"
+# Every new session (Nushell 0.102+ autoloads this directory)
+mkdir ($nu.default-config-dir | path join "autoload")
+cloudctl completion nushell | save -f ($nu.default-config-dir | path join "autoload/cloudctl.nu")
+
+# Current session, after saving the file
+source ($nu.default-config-dir | path join "autoload/cloudctl.nu")
+```
+:::
+
+## Verify completion output
+
+With the script loaded, pressing `Tab` after the command name completes subcommands and their summaries:
+
+```text no-copy
+$ cloudctl <Tab>
+completion  -- Generate shell completion scripts
+deploy      -- Deploy a service
+status      -- Show service status
+```
+
+The `enum` tag on `--env` supplies its values:
+
+```text no-copy
+$ cloudctl deploy --env <Tab>
+Target environment
+prod     staging
+```
+
+At a bare space, `deploy` offers its positional argument, and flags appear once the user types `-`:
+
+```text no-copy
+$ cloudctl deploy <Tab>
+<service>: Service to deploy
 ```
 
 ```text no-copy
-Generate the shell completion script for the bash shell.
-
-To load completions in your current shell session, run:
-
-	source <(cloudctl completion bash)
-
-To load completions in every new session, append the following to ~/.bashrc:
-
-	echo 'source <(cloudctl completion bash)' >> ~/.bashrc
-
-You will need to start a new shell for the setup to take effect.
-
-Usage:
-  cloudctl completion bash
-
-Flags:
-      --help  Show help
+$ cloudctl deploy --<Tab>
+--env   -- Target environment
+--help  -- Show help
 ```
 
-Per-shell help outputs:
-- **Session command**: Loads completion functions into the current terminal session without writing files.
-- **Persistent setup**: Shows the config file or directory to update (such as `~/.bashrc`, `~/.zshrc`, fish completion directories, or PowerShell profiles).
-- **Environment notes**: Surfaces platform prerequisites, such as requiring Bash 4+ with `bash-completion@2` on macOS when running the default legacy Bash 3.2, or initializing Zsh `compdef` and `fpath`.
+[Flags at a bare space](/reference/builtins/#flags-at-a-bare-space) lists when flags appear without the `-`.
 
-Flat applications use flag syntax: `cloudctl --completion <shell> --help` (e.g. `cloudctl --completion zsh --help`).
+## Override the environment variable prefix
 
-## Install completion scripts per shell
+Generated shell scripts read `<APP>_COMPLETION_DESCRIPTIONS`, `<APP>_COMPLETION_ALIASES`, and `<APP>_COMPLETION_BARE_SPACE_FLAGS`, where `<APP>` defaults to the application name in `UPPER_SNAKE_CASE` (`CLOUDCTL_COMPLETION_*`). Pass `conga.CompletionEnvPrefix` to `EnableCompletion` to override the prefix:
 
-Run `cloudctl completion <shell>` to generate the completion script for your shell. For flat applications, replace `completion <shell>` with `--completion <shell>`.
-
-### Bash
-
-```sh
-# Load in current session
-source <(cloudctl completion bash)
-
-# Persist for future sessions
-cloudctl completion bash > /etc/bash_completion.d/cloudctl
+```go title="main.go" {4}
+	app := conga.New[CLI]().
+		Name("cloudctl").
+		EnableCompletion(
+			conga.CompletionEnvPrefix("CCTL"),
+		)
 ```
 
-### Zsh
+The scripts read these variables from the shell's environment at each `Tab`, so users export them in their shell configuration. An assignment typed in front of the command (`CCTL_COMPLETION_DESCRIPTIONS=0 cloudctl <Tab>`) is part of the line being completed and has no effect. With `CCTL_COMPLETION_DESCRIPTIONS=0` exported (or `zstyle ':completion:*' verbose no` in zsh), candidates lose their descriptions:
 
-```sh
-# Ensure completion directory is in $fpath and reload
-cloudctl completion zsh > "${fpath[1]}/_cloudctl"
+```text no-copy
+$ export CCTL_COMPLETION_DESCRIPTIONS=0
+$ cloudctl <Tab>
+completion  deploy      status
 ```
 
-### Fish
+See [User toggles](/reference/builtins/#user-toggles) for the full variable and `zstyle` reference.
 
-```sh
-# Install to user completions directory
-cloudctl completion fish > ~/.config/fish/completions/cloudctl.fish
-```
+## Know what users see
 
-### PowerShell
-
-```sh
-# Add to current profile
-cloudctl completion powershell | Out-String | Invoke-Expression
-```
-
-### Elvish
-
-```sh
-# Evaluate completion definition
-eval (cloudctl completion elvish | slurp)
-```
-
-### Nushell
-
-```sh
-# Save and register completion script
-cloudctl completion nushell | save -f ~/.config/nushell/completions/cloudctl.nu
-```
-
-## Renamed binaries and path-qualified invocation
-
-The generated script binds its registrations to the binary name it was generated from. A binary installed under a different name generates registrations for the installed name when the completion command runs from that binary: install the binary, then run `cloudctl completion zsh` (or the `--completion zsh` flag) from the installed path.
-
-Path-qualified invocation dispatches to the registered completer by the binary's basename in bash, zsh, fish, powershell, and nushell, so `/usr/local/bin/cloudctl <TAB>` and `./cloudctl <TAB>` complete like `cloudctl <TAB>`. Elvish keys its `edit:completion:arg-completer` map on the literal command word, so a path-qualified invocation falls back to file completion; invoke the command by name to complete it.
-
-In zsh, a named directory resolves through the completer when it is configured with `hash -d` (or the `AUTO_NAME_DIRS` option), so `~dev/cloudctl <TAB>` completes after `hash -d dev=/path/to/project`.
-
-## File and directory completion
-
-CONGA completes file and directory values in-process from the filesystem predictors in `package predict` (`Files`, `Dirs`, `FilesGlob`, `FilesFiltered`, `PathsFiltered`, `DirsGlob`, `DirsFiltered`, `Symlinks`, `Executables`). One engine scans the filesystem and streams matching candidates to every shell, so a typed prefix filters candidates before they reach the shell and bash, zsh, fish, powershell, elvish, and nushell complete identically. A file whose name begins with a dot is offered when the typed prefix begins with a dot, matching the shell default.
-
-Because the scan runs in-process, zsh's shell-side file-completion customisations do not apply to CONGA candidates: the `file-sort` and `file-patterns` zstyles, `cdpath` search directories, and named-directory (`~name`) expansion in file positions. Issue [#85](https://github.com/conga-sh/conga/issues/85) tracks these gaps; the decision to keep completion in-process is recorded in [ADR 0001](https://github.com/conga-sh/conga/blob/main/docs/adr-0001-in-process-file-completion.md).
-
-## Customise completion behaviour
-
-Descriptions and alias candidates are shown by default; the two toggles below suppress them. Flag candidates are withheld at a bare space by default, and one toggle restores them. The zsh snippet derives each toggle from your zsh configuration so existing setups keep working.
-
-### Flags at a bare space
-
-At a bare space the engine offers subcommands and positional arguments and reserves flags for the `-` prefix, in every shell. `cloudctl <TAB>` lists the subcommands and `cloudctl -<TAB>` lists the flags, identically in bash, zsh, fish, powershell, elvish, and nushell. A command with no subcommands, positional arguments, or raw args has nothing else to offer, so its flags stay visible at a bare space.
-
-Restore the bare-space flags with the `bare-space-flags` zstyle in zsh, or `<APP>_COMPLETION_BARE_SPACE_FLAGS=1` in any shell.
-
-```zsh title="~/.zshrc"
-zstyle ':completion:*' bare-space-flags yes   # show flags beside subcommands
-```
-
-### Zsh styles
-
-The generated zsh script honours these styles at completion time:
-
-| Style | Effect |
+| Invocation | Result |
 |---|---|
-| `verbose` | Set to `false` (or `no`/`off`/`0`) to hide candidate descriptions. This is the standard zsh style; descriptions are shown otherwise |
-| `show-aliases` | Set to `false` (or `no`/`off`/`0`) to hide alias candidates (subcommand aliases, flag aliases, and app-provided aliases such as taskfile task aliases). This is the convention established by go-task |
-| `bare-space-flags` | Set to `yes`/`true`/`1`/`on` to show flag candidates at a bare space; unset or any other value keeps them suppressed |
-| `list-separator` | The separator rendered between a match and its description. Engine colours are generated with the configured separator, so both columns keep their colours |
+| `cloudctl completion myshell` | Usage error listing the supported shells (exit 2) |
+| `--completion zsh` on a CLI that has a `completion` subcommand | Usage error, `unknown flag: --completion` (exit 2) |
+| `./cloudctl <Tab>` or `/usr/local/bin/cloudctl <Tab>` | Dispatches to the `cloudctl` completer in bash, zsh, fish, PowerShell, and Nushell |
+| `./cloudctl <Tab>` in Elvish | Falls back to file completion; Elvish keys completers on the literal command word |
+| `cctl <Tab>` using a script generated from `cloudctl` | Falls back to file completion until the user regenerates the script from `cctl` |
 
-```zsh title="~/.zshrc"
-zstyle ':completion:*' verbose no             # hide descriptions
-zstyle ':completion:*:*:cloudctl:*' show-aliases no  # hide aliases for cloudctl only
-zstyle ':completion:*' list-separator ' · '   # colour both columns around a custom separator
+```text no-copy error={1}
+cloudctl: error: unknown shell "myshell", supported shells: bash, elvish, fish, nushell, powershell, zsh
 ```
-
-Your own `group-name`, `list-colors`, and `list-separator` styles are respected: the engine only installs its colour defaults when you have not configured `list-colors`, and its colour patterns use your configured `list-separator`. An empty `list-colors` value, such as Oh-My-Zsh's default, counts as unconfigured and keeps engine colours.
-
-If you migrate an application whose completion honoured these styles before, your existing zstyle lines keep working unchanged.
-
-### Environment toggles for every shell
-
-All six framings honour the same toggles through application-prefixed environment variables. The prefix is the application name in `UPPER_SNAKE_CASE`, so an application named `cloudctl` reads `CLOUDCTL_COMPLETION_*`. A name that starts with a digit gains a leading underscore, because shell variable names cannot start with one: an application named `7z` reads `_7Z_COMPLETION_*`. Applications can override the prefix with `conga.CompletionEnvPrefix`. Set the variables in your shell configuration; each one affects only its own application.
-
-| Variable | Effect |
-|---|---|
-| `<APP>_COMPLETION_DESCRIPTIONS=0` | Hide candidate descriptions (`false` also disables; unset or `1` shows them) |
-| `<APP>_COMPLETION_ALIASES=0` | Hide alias candidates (`false` also disables; unset or `1` shows them) |
-| `<APP>_COMPLETION_BARE_SPACE_FLAGS=1` | Show flag candidates at a bare space (`true` also enables; unset or `0` keeps them suppressed) |
-
-For the example `cloudctl` application:
-
-```sh title="bash"
-export CLOUDCTL_COMPLETION_DESCRIPTIONS=0
-export CLOUDCTL_COMPLETION_ALIASES=0
-```
-
-```fish title="config.fish"
-set -gx CLOUDCTL_COMPLETION_DESCRIPTIONS 0
-set -gx CLOUDCTL_COMPLETION_ALIASES 0
-```
-
-```powershell title="$PROFILE"
-$env:CLOUDCTL_COMPLETION_DESCRIPTIONS = '0'
-$env:CLOUDCTL_COMPLETION_ALIASES = '0'
-```
-
-```nu title="env.nu"
-$env.CLOUDCTL_COMPLETION_DESCRIPTIONS = "0"
-$env.CLOUDCTL_COMPLETION_ALIASES = "0"
-```
-
-```elvish title="rc.elv"
-set-env CLOUDCTL_COMPLETION_DESCRIPTIONS 0
-set-env CLOUDCTL_COMPLETION_ALIASES 0
-```
-
-In bash, descriptions only appear in the successive-tab listing, so `<APP>_COMPLETION_DESCRIPTIONS=0` affects that listing only.
-
-Earlier CONGA releases exposed these toggles as `CONGA_COMPLETION_DESCRIPTIONS` and `CONGA_COMPLETION_ALIASES`; the framework-named pair was removed in favour of the per-application names.
-
-If your application completes domain aliases (for example taskfile task aliases) through a custom predictor, mark those candidates with `predict.Item.WithAlias()` so the aliases toggle suppresses them too. Subcommand and flag aliases declared with the `aliases` tag are marked automatically.
-
-## Completion at runtime
-
-The hidden `__complete` driver, the shell-native output, and the elements that complete without custom code are documented in [Built-ins and deprecation](/reference/builtins/#completion-surface). The completion command itself supports tab-completion: typing `cloudctl completion <TAB>` suggests all supported shell names with descriptions. Mutually exclusive (`xor`) and exactly-one (`oneof`) flags suppress their sibling members once a group member is present on the command line.
 
 ## Where to go next
 
-- [How to wire custom completion](/how-to/wire-custom-completion/) — implement dynamic completion candidates with `package predict`.
-- [Package predict reference](/reference/predict/) — combinator and constructor catalog for candidate generation.
-- [Built-ins and deprecation](/reference/builtins/#completion-surface) — flat flag, subcommand, and hidden driver surfaces.
+- [How to compute and shape completion candidates](/how-to/compute-completion-candidates/): compute candidates from loaded data or an API, combine predictors, and complete values in parts.
+- [Completion](/reference/builtins/#completion): flag vs. subcommand rules, user toggles, binary names, and file candidates.
+- [Package predict](/reference/predict/): predictor constructors, combinators, and interfaces.

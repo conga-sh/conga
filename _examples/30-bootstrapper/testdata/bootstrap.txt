@@ -14,7 +14,7 @@ copy-fixture testdata/fixtures/unknown-key.yaml unknown-key.yaml
 exec bootstrapper
 stdout '--parallelism\s+int\s+4\s+● config pipeline\.yaml'
 stdout '--log-level\s+string\s+info\s+● config pipeline\.yaml'
-stdout '--env\s+map\[string\]string\s+FLOW_ENV=dev, LOG_FORMAT=json\s+● config pipeline\.yaml'
+stdout '--env\s+map\[string\]string\s+APP_ENV=dev, LOG_FORMAT=json\s+● config pipeline\.yaml'
 stdout 'build\s+Build all packages'
 stdout 'deploy\s+Deploy the release'
 
@@ -22,7 +22,7 @@ stdout 'deploy\s+Deploy the release'
 exec bootstrapper --pipeline deploy
 stdout '--parallelism\s+int\s+1\s+● config pipeline\.yaml › pipeline deploy'
 stdout '--log-level\s+string\s+debug\s+● config pipeline\.yaml › pipeline deploy'
-stdout 'DEPLOY_REGION=eu-west-1, FLOW_ENV=prod, LOG_FORMAT=json'
+stdout 'APP_ENV=prod, DEPLOY_REGION=eu-west-1, LOG_FORMAT=json'
 stdout 'pipeline deploy: needs=\[build\] steps=\[\./deploy\.sh\]'
 
 # 3. A later file wins scalar config and concatenates the domain lists.
@@ -30,13 +30,13 @@ exec bootstrapper -f pipeline.yaml -f pipeline.local.yaml --pipeline deploy
 stdout '--file\s+\[\]string\s+\[pipeline\.yaml, pipeline\.local\.yaml\]'
 stdout '--parallelism\s+int\s+2\s+● config pipeline\.local\.yaml'
 stdout '--log-level\s+string\s+debug\s+● config pipeline\.local\.yaml › pipeline deploy'
-stdout 'DEPLOY_REGION=us-east-1, FLOW_ENV=local, LOG_FORMAT=json, RELEASE_CHANNEL=canary'
+stdout 'APP_ENV=local, DEPLOY_REGION=us-east-1, LOG_FORMAT=json, RELEASE_CHANNEL=canary'
 stdout 'pipeline deploy: needs=\[build lint\] steps=\[\./deploy\.sh \./notify\.sh\]'
 
 # 4. CLI flags outrank the configuration supplied by the files.
-exec bootstrapper -f pipeline.yaml -f pipeline.local.yaml --pipeline deploy --parallelism 8 --env FLOW_ENV=ci
+exec bootstrapper -f pipeline.yaml -f pipeline.local.yaml --pipeline deploy --parallelism 8 --env APP_ENV=ci
 stdout '--parallelism\s+int\s+8\s+● cli --parallelism'
-stdout 'DEPLOY_REGION=us-east-1, FLOW_ENV=ci, LOG_FORMAT=json, RELEASE_CHANNEL=canary\s+● cli --env'
+stdout 'APP_ENV=ci, DEPLOY_REGION=us-east-1, LOG_FORMAT=json, RELEASE_CHANNEL=canary\s+● cli --env'
 
 # 5. --why attributes each config key and map entry to the file and pipeline
 #    that supplied it.
@@ -52,7 +52,7 @@ stdout 'pipeline\.yaml\s+loaded'
 
 # 6. A Bootstrap failure is app-authored data: exit 1, never a usage error.
 exit-status 1 bootstrapper --pipeline nope
-stderr 'bootstrap failed: pipeline not found "nope"'
+stderr 'bootstrap failed: pipeline\.yaml has no pipeline "nope"'
 exit-status 1 bootstrapper -f missing.yaml
 stderr 'bootstrap failed: read pipeline file "missing\.yaml"'
 exit-status 1 bootstrapper -f bad-version.yaml
@@ -65,4 +65,16 @@ mkdir empty
 cd empty
 exec bootstrapper --help
 stdout 'Usage:'
+
+# 8. The default pipeline.yaml is optional: without it the runner falls back
+#    to flag defaults, while a file named with -f or FLOW_FILE must exist.
+exec bootstrapper
+stdout '--parallelism\s+int\s+1\s+· default'
+stdout '--log-level\s+string\s+warn\s+· default'
+exit-status 1 bootstrapper -f pipeline.yaml
+stderr 'bootstrap failed: read pipeline file "pipeline\.yaml"'
+env FLOW_FILE=pipeline.yaml
+exit-status 1 bootstrapper
+stderr 'bootstrap failed: read pipeline file "pipeline\.yaml"'
+env FLOW_FILE=
 cd ..

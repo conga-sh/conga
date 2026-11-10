@@ -34,7 +34,7 @@ var (
 	errFeaturesRequiresEnableFeatures   = fmt.Errorf("%w: conga.Features declared on root command requires app.EnableFeatures()", ErrSchema)
 
 	errFeatureMustBeInteger            = errors.New("must be an integer")
-	errFeatureMustBeBoolean            = errors.New("must be true or false")
+	errFeatureMustBeBoolean            = errors.New("must be true or false (or 1 or 0)")
 	errFeatureInvalidEnum              = errors.New("must be one of")
 	errFeatureMustBeNonNegativeInteger = errors.New("must be a non-negative integer")
 	errFeatureIntegerOutOfRange        = errors.New("is out of range for the feature's integer type")

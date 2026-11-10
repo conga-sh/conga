@@ -1,15 +1,32 @@
 ---
 title: How to add custom flag types
-description: Parse user-defined types, unmarshalers, and map containers from command-line strings.
+description: Decode flag, environment, and config values into any type that implements encoding.TextUnmarshaler, declare tags that let each field customize a type, register a TypeParser with RegisterType, and use custom types as map values.
 ---
 
-CONGA supports user-defined flag types through two mechanisms: implementing Go's standard unmarshaling interfaces directly on custom types, or registering external parser functions on the application builder.
+This guide builds a `relay` command with four flags, each of a type outside CONGA's built-in parsing: a port range, a route name checked against a pattern, a CIDR network, and a map of named port ranges.
 
-## Implement standard text unmarshaling
+## Implement `encoding.TextUnmarshaler`
 
-If you own the type, implement standard `encoding.TextUnmarshaler`. Types whose pointer receiver implements `UnmarshalText([]byte) error` are automatically supported without builder registration:
+Implement `encoding.TextUnmarshaler`, one of the [interfaces CONGA decodes](/reference/domain-types/#domain-type-interfaces), with a pointer receiver:
 
-```go title="main.go"
+```go
+type TextUnmarshaler interface {
+	UnmarshalText(text []byte) error
+}
+```
+
+CONGA decodes every type that implements it, including standard library types such as `time.Time` and `netip.Prefix`. Here `*PortRange` implements it:
+
+```go title="main.go" hidden={1-8}
+package main
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/conga-sh/conga"
+)
+
 type PortRange struct {
 	Start int
 	End   int
@@ -21,161 +38,264 @@ func (p *PortRange) UnmarshalText(text []byte) error {
 		return fmt.Errorf("invalid port range %q, expected START-END", text)
 	}
 
-	p.Start = start
-	p.End = end
+	p.Start, p.End = start, end
 
 	return nil
 }
 
-type Service struct {
-	Ports conga.RequiredFlag[PortRange] `help:"Port range in format START-END"`
+type Relay struct {
+	Ports conga.RequiredFlag[PortRange] `help:"Port range to listen on (START-END)"`
+}
+
+func (r *Relay) Run(ctx context.Context, session *conga.Session) error {
+	ports := r.Ports.Get()
+	fmt.Fprintf(session.Stdout(), "listening on ports %d-%d\n", ports.Start, ports.End)
+
+	return nil
+}
+
+func main() {
+	app := conga.New[Relay]().
+		Name("relay").
+		EnvPrefix("RELAY")
+
+	if err := app.Run(); err != nil {
+		app.Exit(err)
+	}
 }
 ```
 
-When a flag value cannot be parsed, CONGA wraps the returned error in `conga.ErrCoerce`, identifies the flag name, and exits with code 2:
-
 ```sh
-service --ports 80
+$ relay --ports 8000-8100
+listening on ports 8000-8100
 ```
 
-```text no-copy
-service: error: invalid value "80" for flag --ports: invalid port range "80", expected START-END
+The default help placeholder comes from the type name:
+
+```sh {6}
+$ relay --help
+Usage:
+  relay --ports=PORT-RANGE
+
+Flags:
+      --ports=PORT-RANGE  Port range to listen on (START-END) [env: RELAY_PORTS]
+      --help              Show help
+      --version           Show version
 ```
 
-## Access field tags and streams during unmarshaling
+An error from `UnmarshalText` is a usage error (`ErrCoerce`, exit 2):
 
-To inspect the owning field's struct tags or read from the engine's configured streams during decoding, implement `conga.ContextAwareTextUnmarshaler`:
+```sh error={2}
+$ relay --ports 80
+relay: error: invalid port range "80", expected START-END for flag --ports
+```
+
+## Declare custom field tags with `TagSpecProvider`
+
+Tags let one type serve fields with different rules, each declared next to its field. A route name and a tenant ID can both be of type `Slug`, each with its own `pattern`. The built-in `conga.File` declares `existing` and `glob` the same way.
+
+Implement `conga.TagSpecProvider` to declare the tags:
+
+```go
+type TagSpecProvider interface {
+	TagSpecs() []TagSpec
+}
+```
+
+Each `conga.TagSpec` names a tag and its kind, and can carry a `Validate` function that CONGA runs on the tag's value at startup.
+
+Implement `conga.ContextAwareTextUnmarshaler` to read the tag values:
 
 ```go
 type ContextAwareTextUnmarshaler interface {
-	UnmarshalTextWithContext(text []byte, decodeContext conga.DecodeContext) error
+	UnmarshalTextWithContext(text []byte, decodeContext DecodeContext) error
 }
 ```
 
-To accept custom struct tags on fields using the type, implement `conga.TagSpecProvider`. CONGA validates struct tags strictly at schema build, rejecting any tags not registered by the type:
+CONGA passes `UnmarshalTextWithContext` a `conga.DecodeContext` with the field's tag values in `Tags`, and the session's `Stdin` and `Stdout` for a type that reads or writes them.
 
-```go title="main.go"
-type SecretInput struct {
-	Value string
+Here `*Slug` implements both. `TagSpecs` declares a `pattern` tag whose `Validate` compiles it at startup, and `UnmarshalTextWithContext` matches each value against it:
+
+```go title="main.go" ins={27}
+type Slug string
+
+func (s *Slug) TagSpecs() []conga.TagSpec {
+	return []conga.TagSpec{{
+		Name: "pattern",
+		Kind: conga.TagKindString,
+		Validate: func(value string) error {
+			_, err := regexp.Compile(value)
+
+			return err
+		},
+	}}
 }
 
-func (s *SecretInput) TagSpecs() []conga.TagSpec {
-	return []conga.TagSpec{
-		{Name: "stdin", Kind: conga.TagKindBool},
-		{Name: "prefix", Kind: conga.TagKindString},
-	}
-}
-
-func (s *SecretInput) UnmarshalTextWithContext(text []byte, decodeContext conga.DecodeContext) error {
-	var raw string
-	if string(text) == "-" {
-		if !decodeContext.Tags.Bool("stdin") {
-			return errors.New("reading from stdin is not enabled for this field")
-		}
-
-		data, err := io.ReadAll(decodeContext.Stdin)
-		if err != nil {
-			return fmt.Errorf("reading secret from stdin: %w", err)
-		}
-
-		raw = strings.TrimSpace(string(data))
-	} else {
-		raw = string(text)
+func (s *Slug) UnmarshalTextWithContext(text []byte, decodeContext conga.DecodeContext) error {
+	if pattern := decodeContext.Tags.String("pattern"); pattern != "" && !regexp.MustCompile(pattern).Match(text) {
+		return fmt.Errorf("%q does not match %s", text, pattern)
 	}
 
-	if prefix := decodeContext.Tags.String("prefix"); prefix != "" {
-		if !strings.HasPrefix(raw, prefix) {
-			return fmt.Errorf("secret must start with prefix %q", prefix)
-		}
-	}
-
-	s.Value = raw
+	*s = Slug(text)
 
 	return nil
 }
 
-type CLI struct {
-	Token conga.RequiredFlag[SecretInput] `help:"API token or - for stdin" stdin:"true" prefix:"sk-"`
+type Relay struct {
+	Ports conga.RequiredFlag[PortRange] `help:"Port range to listen on (START-END)"`
+	Route conga.RequiredFlag[Slug]      `help:"Route name" pattern:"^[a-z][a-z0-9-]*$"`
 }
 ```
 
-The `decodeContext.Tags` accessor methods inspect declared custom tags:
-- `Bool(key)` reports whether a boolean tag was set to `"true"`.
-- `String(key)` returns the declared string tag value, or `""` if omitted.
-- `Has(key)` reports whether the tag was declared on the field.
-
-The coercion pipeline prefers `ContextAwareTextUnmarshaler` over `encoding.TextUnmarshaler`. If `UnmarshalTextWithContext` is implemented, the engine invokes it exclusively.
-
-## Register external types with RegisterType
-
-If you do not own the target type or want to attach type-level autocompletion, register a parser function using `app.RegisterType`:
-
-```go title="main.go"
-func parseCIDR(raw string) (net.IPNet, error) {
-	_, ipnet, err := net.ParseCIDR(raw)
-	if err != nil {
-		return net.IPNet{}, fmt.Errorf("invalid CIDR %q: %w", raw, err)
-	}
-
-	return *ipnet, nil
-}
-
-func main() {
-	app := conga.New[CLI]()
-
-	app.RegisterType(
-		parseCIDR,
-		conga.WithPredictor(predict.Values("10.0.0.0/8", "192.168.0.0/16")),
-	)
-
-	if err := app.Run(); err != nil {
-		app.Exit(err)
-	}
-}
-```
-
-The parser function signature must be `func(string) (U, error)`. The engine infers the target type `U` from the return value.
-
-`conga.WithPredictor(p)` associates a completion provider with every field of type `U`. A field can override this default with an explicit `predictor:"..."` struct tag.
-
-Re-registering a type overwrites the previous parser, allowing applications to replace built-in or library-provided decoders.
-
-## Register custom map values
-
-CONGA natively decodes primitive map types such as `map[string]string` and `map[string]int` without registration. When the map value is a custom type, register the map type with `app.RegisterMap`:
-
-```go title="main.go"
-type Router struct {
-	Routes map[string]net.IPNet `help:"Routing table entries in key=cidr format"`
-}
-
-func (r *Router) Run(ctx context.Context, session *conga.Session) error {
-	return nil
-}
-
-func main() {
-	app := conga.New[Router]()
-
-	app.RegisterType(parseCIDR)
-	app.RegisterMap[map[string]net.IPNet]()
-
-	if err := app.Run(); err != nil {
-		app.Exit(err)
-	}
-}
-```
-
-Map keys must have an underlying string type, enforced at compile time by RegisterMap's type constraints.
-
-Supply map entries using `KEY=VALUE` syntax across repeated flags or separated by commas:
+`Validate` has already compiled the pattern by the time `UnmarshalTextWithContext` runs, so `regexp.MustCompile` can't panic there. `Run` now also prints the route:
 
 ```sh
-router --routes primary=10.0.0.0/8 --routes backup=192.168.0.0/16
+$ relay --ports 8000-8100 --route checkout-api
+listening on ports 8000-8100
+route checkout-api
 ```
+
+```sh error={2}
+$ relay --ports 8000-8100 --route Checkout_API
+relay: error: "Checkout_API" does not match ^[a-z][a-z0-9-]*$ for flag --route
+```
+
+A pattern that doesn't compile stops the program at startup, before it reads any flag (exit 1). Here the field was given `pattern:"^[a-z"`:
+
+```text no-copy error={1} wrap
+relay: error: struct Relay field Route: schema error: invalid struct tag: tag "pattern": error parsing regexp: missing closing ]: `[a-z`
+```
+
+A misspelled tag stops it the same way:
+
+```text no-copy error={1} wrap
+relay: error: struct Relay field Route: schema error: invalid struct tag: unknown struct tag "patern" (did you mean "pattern"?). Use app.AllowTags("patern") to permit external tags
+```
+
+## Register a parser with `RegisterType`
+
+When a type from another package, such as `net.IPNet`, implements none of these interfaces, register a `conga.TypeParser` for it with `RegisterType`. A `TypeParser[U]` is a `func(raw string) (U, error)`, so `parseCIDR` below is a `TypeParser[net.IPNet]`. `conga.WithPredictor` attaches completion candidates to every field of that type:
+
+```go title="main.go" ins={3,6-13,19-20}
+type Relay struct {
+	// ...
+	Allow conga.OptionalFlag[net.IPNet] `help:"Network allowed to connect"`
+}
+
+func parseCIDR(raw string) (net.IPNet, error) {
+	_, network, err := net.ParseCIDR(raw)
+	if err != nil {
+		return net.IPNet{}, fmt.Errorf("invalid CIDR %q", raw)
+	}
+
+	return *network, nil
+}
+
+func main() {
+	app := conga.New[Relay]().
+		Name("relay").
+		EnvPrefix("RELAY").
+		EnableCompletion().
+		RegisterType(parseCIDR, conga.WithPredictor(predict.Values("10.0.0.0/8", "192.168.0.0/16")))
+	// ...
+}
+```
+
+`Run` prints `allowing <network>` when the flag is set:
+
+```sh
+$ relay --ports 8000-8100 --route checkout-api --allow 10.1.0.0/16
+listening on ports 8000-8100
+route checkout-api
+allowing 10.1.0.0/16
+```
+
+```sh error={2}
+$ relay --ports 8000-8100 --route checkout-api --allow 10.1.0.0
+relay: error: invalid CIDR "10.1.0.0" for flag --allow
+```
+
+With the completion script loaded:
+
+```text no-copy
+$ relay --allow <Tab>
+Network allowed to connect
+10.0.0.0/8      192.168.0.0/16
+```
+
+## Register a map type with `RegisterMap`
+
+`map[string]string` binds natively. To support other map types, register each with `RegisterMap`. The key's underlying type must be `string`, and the value type must implement `encoding.TextUnmarshaler` or be one CONGA parses natively. Here the value type is `PortRange`:
+
+```go title="main.go" ins={3,9-12,20}
+type Relay struct {
+	// ...
+	Expose conga.OptionalFlag[map[string]PortRange] `help:"Named port ranges to expose (NAME=START-END)"`
+}
+
+func (r *Relay) Run(ctx context.Context, session *conga.Session) error {
+	// ...
+
+	expose := r.Expose.Get()
+	for _, name := range slices.Sorted(maps.Keys(expose)) {
+		fmt.Fprintf(session.Stdout(), "exposing %s on %d-%d\n", name, expose[name].Start, expose[name].End)
+	}
+
+	return nil
+}
+
+func main() {
+	app := conga.New[Relay]().
+		// ...
+		RegisterMap[map[string]PortRange]()
+	// ...
+}
+```
+
+Users repeat the flag:
+
+```sh
+$ relay --ports 8000-8100 --route checkout-api --expose web=80-90 --expose admin=9000-9010
+listening on ports 8000-8100
+route checkout-api
+exposing admin on 9000-9010
+exposing web on 80-90
+```
+
+Or separate entries with commas:
+
+```sh
+$ relay --ports 8000-8100 --route checkout-api --expose web=80-90,admin=9000-9010
+listening on ports 8000-8100
+route checkout-api
+exposing admin on 9000-9010
+exposing web on 80-90
+```
+
+A bad value names its key:
+
+```sh error={2}
+$ relay --ports 8000-8100 --route checkout-api --expose web=80
+relay: error: value for key "web": invalid port range "80", expected START-END for flag --expose
+```
+
+A registered `TypeParser` decodes scalar and slice fields. Map values decode through the value type's unmarshaler or built-in parsing.
+
+## Know what users see
+
+| Mistake | When it shows | Result |
+|---|---|---|
+| A value the parser or the type's unmarshaler rejects, from the command line, environment, or config | When the value is bound | Usage error naming the flag and source, exit 2 |
+| A misspelled custom tag, a tag value its `Validate` rejects, or a custom tag on a field of another type | Startup, on every run | `schema error: invalid struct tag`, exit 1 |
+| A field of a type with no parser, unmarshaler, or built-in support | Only when a user sets the flag | `unsupported type net.IPNet for flag --allow`, exit 2 |
+| A map flag of an unregistered map type | Only when a user sets the flag | `map type map[string]main.PortRange requires registration via app.RegisterMap`, exit 2 |
+
+The last two pass startup and every run that leaves the flag unset. Run the flag once in a test to catch a missing registration.
 
 ## Where to go next
 
-- [How to wire custom completion](/how-to/wire-custom-completion/) — build completion providers for flags and custom types with `package predict`.
-- [Domain types](/reference/domain-types/) — reference catalog of built-in types including `File`, `Dir`, and `ByteSize`.
-- [Struct tags](/reference/struct-tags/#domain-type-tags) — declare custom tags, validation hooks, and exclusion rules on domain types.
-- [About flags and args](/explanation/flags-and-args/) — typed container semantics and constraints.
+- [Domain type interfaces](/reference/domain-types/#domain-type-interfaces): every interface, the decoding order, and the `TagSpec` and `DecodeContext` fields.
+- [How to compute and shape completion candidates](/how-to/compute-completion-candidates/): choose where a type's candidates come from, and read field tags in its completion.
+- [How to declare flags](/how-to/declare-flags/): the scalar, list, and map flags CONGA parses without a custom type.
+- [How to read files and standard input](/how-to/read-files-and-stdin/): use the built-in `File`, `Dir`, `FileContent`, and `ByteSize` types.
+- [Domain types](/reference/domain-types/): the built-in `File`, `Dir`, `FileContent`, and `ByteSize` types.

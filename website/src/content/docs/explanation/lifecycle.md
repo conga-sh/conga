@@ -1,84 +1,143 @@
 ---
 title: About the command lifecycle
-description: How CONGA coordinates validation, resource acquisition, leaf execution, and guaranteed teardown across command hierarchies.
+description: How CONGA orders validation, setup, the command body, follow-up, and teardown across a command chain, and why each stage sits where it does.
 ---
 
-Command-line execution involves more than invoking a single function. A command-line program must validate input before touching disk or network resources, allocate connections, execute business logic, run post-action tasks, and guarantee cleanup even when operations fail.
+A command must validate input before touching disk or network resources, set up connections, carry out its action, run follow-up tasks, and clean up even when an operation fails. CONGA divides execution into stages for these steps, each governed by an interface. Commands implement the lifecycle hooks, of which the selected leaf must implement `Runner` and the rest are optional. Value types can implement `SelfValidator` to validate themselves. Each stage has its own error classification, cancellation behavior, and traversal order across the selected command chain.
 
-CONGA divides execution into discrete lifecycle stages governed by optional marker interfaces. Each stage serves a specific operational purpose, with distinct error classifications, cancellation handling, and traversal orders across command trees.
-
-For signature definitions and interface contracts, see [Lifecycle interfaces](/reference/conga/#lifecycle-interfaces). For testing patterns, see [How to test a command](/how-to/test-a-command/).
+[Lifecycle interfaces](/reference/conga/#lifecycle-interfaces) lists the signatures, [How to use lifecycle hooks](/how-to/use-lifecycle-hooks/) builds a command that uses them, and [How to test a command](/how-to/test-a-command/) covers testing patterns.
 
 ## The execution pipeline
 
-Every CONGA command execution operates in two distinct phases: **schema compilation** and the **runtime lifecycle**.
+Execution has two phases, schema build and the runtime lifecycle. `Run` or `RunContext` first builds and validates the schema from the struct definitions and tags. Once the schema is valid, the runtime pipeline resolves values from command-line tokens, environment variables, and config files, then runs the hooks:
 
-Before input tokens are parsed or lifecycle hooks run, the engine compiles and validates the application schema from struct definitions and tags. Once the schema is verified, the runtime pipeline resolves values from command-line tokens, environment variables, and config files, moving through sequential phases:
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 651" role="img" aria-labelledby="pipeline-title" class="pipeline-diagram">
+  <title id="pipeline-title">Execution runs ten stages in order. Schema build runs first and exits with status 1 on ErrSchema. The bootstrap phase and config resolution follow, and each exits with status 1 on an ErrConfig error. Binding follows them and exits with status 2 on a usage error, and a --why request prints its report after binding and exits with status 0. Value validation with SelfValidator and command validation with Validator, top-down, each exit with status 2 on an error. PreRun runs top-down, Run runs on the leaf command and is the one required hook, drawn with a thick border, and PostRun runs bottom-up. An error in PreRun, Run, or PostRun skips to Finally, which runs bottom-up. After Finally the program exits with status 0, or with status 1 if a stage failed.</title>
+  <style>
+    .pipeline-diagram { font-family: inherit; max-width: 780px; }
+    .pipeline-diagram .stage { fill: var(--sl-color-gray-6, #edeff4); stroke: var(--sl-color-accent, #3448f5); stroke-width: 1.5; }
+    .pipeline-diagram .required { stroke-width: 3.5; }
+    .pipeline-diagram .exit { stroke-width: 1.5; }
+    .pipeline-diagram .exit.ok { fill: var(--sl-color-green-low, #defbd0); stroke: var(--sl-color-green-high, #28650b); }
+    .pipeline-diagram .exit.fail { fill: var(--sl-color-red-low, #fad1df); stroke: var(--sl-color-red-high, #8a0f3a); }
+    .pipeline-diagram .flow { fill: none; stroke: var(--sl-color-accent, #3448f5); stroke-width: 1.5; }
+    .pipeline-diagram .error { fill: none; stroke: var(--sl-color-red-high, #8a0f3a); stroke-width: 1.5; stroke-dasharray: 5 4; }
+    .pipeline-diagram .head { fill: var(--sl-color-accent, #3448f5); stroke: none; }
+    .pipeline-diagram .head.err { fill: var(--sl-color-red-high, #8a0f3a); }
+    .pipeline-diagram .title { fill: var(--sl-color-white, #17181c); font-size: 15px; font-weight: 600; dominant-baseline: central; }
+    .pipeline-diagram .label { fill: var(--sl-color-white, #17181c); font-size: 14px; font-weight: 600; text-anchor: middle; dominant-baseline: central; }
+    .pipeline-diagram .note { fill: var(--sl-color-gray-3, #545964); font-size: 14px; font-style: italic; text-anchor: end; dominant-baseline: central; }
+    .pipeline-diagram .edge { fill: var(--sl-color-gray-3, #545964); font-size: 14px; font-style: italic; text-anchor: middle; }
+    .pipeline-diagram .edge.start { text-anchor: start; dominant-baseline: central; }
+  </style>
+  <rect class="stage" x="20" y="20" width="420" height="40" rx="4"/>
+  <text class="title" x="36" y="40">Schema build</text>
+  <text class="note" x="424" y="40">Run / RunContext</text>
+  <path class="flow" d="M230 60 V75"/>
+  <path class="head" d="M230 76 L224 67 L236 67 Z"/>
+  <rect class="stage" x="20" y="76" width="420" height="40" rx="4"/>
+  <text class="title" x="36" y="96">Bootstrap</text>
+  <text class="note" x="424" y="96">Bootstrapper, bootstrap fields</text>
+  <path class="flow" d="M230 116 V131"/>
+  <path class="head" d="M230 132 L224 123 L236 123 Z"/>
+  <rect class="stage" x="20" y="132" width="420" height="40" rx="4"/>
+  <text class="title" x="36" y="152">Config resolution</text>
+  <text class="note" x="424" y="152">files, SetConfig document</text>
+  <path class="flow" d="M230 172 V187"/>
+  <path class="head" d="M230 188 L224 179 L236 179 Z"/>
+  <rect class="stage" x="20" y="188" width="420" height="40" rx="4"/>
+  <text class="title" x="36" y="208">Binding and coercion</text>
+  <text class="note" x="424" y="208">CLI, env, config, defaults</text>
+  <path class="flow" d="M230 228 V243"/>
+  <path class="head" d="M230 244 L224 235 L236 235 Z"/>
+  <rect class="stage" x="20" y="244" width="420" height="40" rx="4"/>
+  <text class="title" x="36" y="264">Value validation</text>
+  <text class="note" x="424" y="264">SelfValidator</text>
+  <path class="flow" d="M230 284 V299"/>
+  <path class="head" d="M230 300 L224 291 L236 291 Z"/>
+  <rect class="stage" x="20" y="300" width="420" height="40" rx="4"/>
+  <text class="title" x="36" y="320">Command validation</text>
+  <text class="note" x="424" y="320">Validator, top-down</text>
+  <path class="flow" d="M230 340 V355"/>
+  <path class="head" d="M230 356 L224 347 L236 347 Z"/>
+  <rect class="stage" x="20" y="356" width="420" height="40" rx="4"/>
+  <text class="title" x="36" y="376">Resource setup</text>
+  <text class="note" x="424" y="376">PreRunner, top-down</text>
+  <path class="flow" d="M230 396 V411"/>
+  <path class="head" d="M230 412 L224 403 L236 403 Z"/>
+  <rect class="stage required" x="20" y="412" width="420" height="40" rx="4"/>
+  <text class="title" x="36" y="432">Command body</text>
+  <text class="note" x="424" y="432">Runner, leaf only, required</text>
+  <path class="flow" d="M230 452 V467"/>
+  <path class="head" d="M230 468 L224 459 L236 459 Z"/>
+  <rect class="stage" x="20" y="468" width="420" height="40" rx="4"/>
+  <text class="title" x="36" y="488">Post-execution</text>
+  <text class="note" x="424" y="488">PostRunner, bottom-up</text>
+  <path class="flow" d="M230 508 V523"/>
+  <path class="head" d="M230 524 L224 515 L236 515 Z"/>
+  <rect class="stage" x="20" y="524" width="420" height="40" rx="4"/>
+  <text class="title" x="36" y="544">Teardown</text>
+  <text class="note" x="424" y="544">Finalizer, bottom-up</text>
+  <path class="error" d="M440 40 H639"/>
+  <path class="head err" d="M640 40 L631 34 L631 46 Z"/>
+  <text class="edge" x="540" y="32">ErrSchema</text>
+  <ellipse class="exit fail" cx="700" cy="40" rx="60" ry="18"/><text class="label" x="700" y="40">Exit 1</text>
+  <path class="flow" d="M440 208 H639"/>
+  <path class="head" d="M640 208 L631 202 L631 214 Z"/>
+  <text class="edge" x="540" y="200">--why</text>
+  <ellipse class="exit ok" cx="700" cy="208" rx="60" ry="18"/><text class="label" x="700" y="208">Exit 0</text>
+  <path class="error" d="M440 96 H600 V124 H639"/>
+  <path class="error" d="M440 152 H600 V124"/>
+  <path class="head err" d="M640 124 L631 118 L631 130 Z"/>
+  <text class="edge" x="520" y="88">ErrConfig</text>
+  <text class="edge" x="520" y="144">ErrConfig</text>
+  <ellipse class="exit fail" cx="700" cy="124" rx="60" ry="18"/><text class="label" x="700" y="124">Exit 1</text>
+  <path class="error" d="M440 220 H600 V264"/>
+  <text class="edge" x="520" y="236">error</text>
+  <path class="error" d="M440 264 H639"/>
+  <path class="head err" d="M640 264 L631 258 L631 270 Z"/>
+  <text class="edge" x="540" y="256">error</text>
+  <ellipse class="exit fail" cx="700" cy="264" rx="60" ry="18"/><text class="label" x="700" y="264">Exit 2</text>
+  <path class="error" d="M440 320 H639"/>
+  <path class="head err" d="M640 320 L631 314 L631 326 Z"/>
+  <text class="edge" x="540" y="312">error</text>
+  <ellipse class="exit fail" cx="700" cy="320" rx="60" ry="18"/><text class="label" x="700" y="320">Exit 2</text>
+  <path class="error" d="M440 376 H490"/>
+  <path class="error" d="M440 432 H490"/>
+  <path class="error" d="M440 488 H490"/>
+  <path class="error" d="M490 376 V544 H441"/>
+  <path class="head err" d="M440 544 L449 538 L449 550 Z"/>
+  <text class="edge start" x="500" y="432">error</text>
+  <path class="flow" d="M120 564 V599"/>
+  <path class="head" d="M120 600 L114 591 L126 591 Z"/>
+  <ellipse class="exit ok" cx="120" cy="620" rx="60" ry="19"/><text class="label" x="120" y="620">Exit 0</text>
+  <path class="error" d="M340 564 V599"/>
+  <path class="head err" d="M340 600 L334 591 L346 591 Z"/>
+  <text class="edge start" x="352" y="581.5">if a stage failed</text>
+  <ellipse class="exit fail" cx="340" cy="620" rx="60" ry="19"/><text class="label" x="340" y="620">Exit 1</text>
+</svg>
 
-```text no-copy
-Schema Compilation (conga.New / buildSpec) ──[ErrSchema]──► Exit 1 (Programmer Error)
-                │
-                ▼
-Bootstrap Phase (fields tagged bootstrap:"true" bound; Bootstrapper.Bootstrap runs)
-                │
-                ▼
-Config Resolution (files discovered and decoded; SetConfig document overlaid)
-                │
-                ▼
-Input Binding & Coercion (CLI, env, config, defaults) ──[--why]──► Exit 0 (Diagnostics)
-                │
-                ▼
-Cross-Field Validation (Validator, top-down)  ──[error]──► Exit 2 (Usage Error)
-                │
-                ▼
-Resource Setup (PreRunner, top-down)          ──[error]──┐
-                │                                        │
-                ▼                                        ▼
-Command Body (Runner, leaf only)              ──[error]──┼──► Teardown (Finally, bottom-up) ──► Exit 1 (Runtime Error)
-                │                                        │
-                ▼                                        │
-Post-Execution (PostRunner, bottom-up)        ──[error]──┘
-                │
-                ▼
-Teardown (Finally, bottom-up)                 ───────────► Exit 0 (Success)
-```
+## The bootstrap phase
 
-Every phase is optional except for `Runner`, which must be implemented by the selected leaf command. Unimplemented hooks are skipped with zero overhead.
+Applications that read domain documents or flag-driven configuration face a chicken-and-egg problem when a flag locates a file that sets other flags. If `--profile staging` names `profiles/staging.yaml` and that file sets `region`, `--region` can't be bound until the file is read, and the file can't be read until `--profile` is bound. A `.env` file chosen by a flag poses the same problem, since its variables feed environment binding. Without a bootstrap phase, a program usually scans its arguments by hand for the locating flag, loads the file, and then passes the arguments to its flag package. CONGA runs both passes itself.
 
-## The bootstrap and configuration phase
+The first pass binds the fields tagged `bootstrap:"true"`, and `Bootstrapper.Bootstrap` runs with them set. The second pass binds every field with config files included, and is authoritative. Because the bootstrap-tagged fields are bound twice, keep them idempotent and limited to the flags needed to locate the external input. [Bootstrap fields](/reference/struct-tags/#bootstrap-fields) lists the rules.
 
-Applications reading domain documents or flag-driven configuration face a chicken-and-egg dependency: `Bootstrap` needs command-line flags (such as `--file`, `--profile`, or `--dir`) to locate and interpret the config file, but normal flag binding depends on the config file already being loaded.
+## Interception by `--why`
 
-CONGA breaks the cycle by splitting binding into two passes and running the hook between them:
-1. **Bootstrap pass**: Fields marked `bootstrap:"true"` bind from the command line, environment variables, and default tags onto their command structs. Configuration files are not resolved yet, so the config tier is unavailable.
-2. **Bootstrap hook**: `Bootstrapper.Bootstrap` runs with those fields populated. It can load `.env` files and install a document with `Bootstrap.SetConfig`.
-3. **Configuration resolution**: The engine discovers and decodes config files, then overlays the bootstrap document key by key.
-4. **Normal binding pass**: CONGA resolves every flag and argument across the four-tier ladder (`CLI > environment > config > default`), including the bootstrap-tagged fields, which are bound a second time.
-
-The normal pass is authoritative. Because the bootstrap-tagged fields are bound twice, keep them idempotent and limited to the flags needed to locate the external input.
-
-## Interception by built-in diagnostic flags
-
-When invoked with `--why`, CONGA runs the complete resolution pipeline through bootstrap binding, configuration loading, and flag coercion. Once all values are bound and provenance is recorded, CONGA prints the provenance report (or JSON document) and exits with code 0 before any lifecycle hooks (`Validator`, `PreRun`, `Run`, `PostRun`, `Finally`) execute.
-
-Because `--why` evaluates real binding, invalid configuration or malformed flag values fail fast with their normal errors. Commands can also inspect provenance programmatically within lifecycle hooks by calling `session.Why()` or `session.WhyJSON()`.
+`--why` runs the resolution pipeline through bootstrap binding, config loading, and flag coercion, then prints the provenance report and exits with code 0 before `SelfValidator`, `Validator`, or any later hook runs. Because it performs real binding, malformed configuration or flag values fail with their normal errors. A hook can render the same report with `session.Why()` or `session.WhyJSON()`.
 
 ## Validation before resource allocation
 
-A central invariant of the CONGA lifecycle is that input validation must conclude before any hook acquires external resources. Opening database pools, acquiring file locks, or starting network clients before checking inputs leads to partial initialization and leaked resources when an operator enters invalid arguments.
+Input validation completes before any hook acquires external resources. Opening connections or acquiring locks before checking input leads to partial initialization and leaked resources when the input turns out to be invalid.
 
-CONGA separates validation into two distinct tiers:
+Validation runs at two levels after all values are bound. A value checks itself, then each command checks how its fields relate:
 
-### Domain-level type validation
-
-Custom value types can implement `SelfValidator` (`Validate(ctx context.Context) error`). The engine runs this method immediately during value coercion, validating format, bounds, or internal invariants on individual values as they are decoded from CLI flags, environment variables, or config files. Because it runs during decoding, `SelfValidator` catches malformed values before the complete command structure is assembled.
-
-### Command-level semantic validation
-
-Command structs implement `Validator` (`Validate(ctx context.Context, session *conga.Session) error`) to verify cross-field relationships after all values have resolved. Examples include verifying that `--start-date` precedes `--end-date`, or asserting that mutually exclusive flags were not combined:
+- A value type that implements `SelfValidator` (`Validate(ctx context.Context) error`) checks its own format, bounds, or invariants. CONGA calls it for every set flag and argument, on the final value after all sources have been merged.
+- A command that implements `Validator` (`Validate(ctx context.Context, session *conga.Session) error`) checks relationships between fields, such as one flag's value exceeding another's. Validators run top-down along the selected chain.
 
 ```go
-func (c *DeployCommand) Validate(ctx context.Context, session *conga.Session) error {
+func (c *DeployCmd) Validate(ctx context.Context, session *conga.Session) error {
 	if c.MinReplicas.Get() > c.MaxReplicas.Get() {
 		return errors.New("--min-replicas cannot exceed --max-replicas")
 	}
@@ -87,42 +146,28 @@ func (c *DeployCommand) Validate(ctx context.Context, session *conga.Session) er
 }
 ```
 
-Validation in both tiers is strictly side-effect-free. Returning an error halts execution immediately and wraps the cause in `ErrValidation`. Because invalid input indicates an operator mistake rather than a runtime crash, the engine classifies this failure as a usage error, triggering usage guidance and terminating with exit code 2.
+Validation is intended to be side-effect-free. An error from either level wraps `ErrValidation`, and because invalid input is a user mistake rather than a runtime failure, it is classified as a usage error (exit code 2).
 
-## Staged execution: PreRun, Run, and PostRun
+## PreRun, Run, and PostRun
 
-Once validation passes, the engine transitions to active execution. This progression separates setup, primary work, and follow-up logic into distinct phases.
+After validation, execution separates setup, the primary action, and follow-up into distinct stages.
 
-### Resource setup with PreRun
+`PreRunner` establishes the resources the command body needs. Setup depends on external systems, so it meets environmental faults such as network timeouts or permission errors rather than input mistakes. An error from `PreRun` halts forward progress and is a runtime failure (exit code 1).
 
-Commands implement `PreRunner` (`PreRun(ctx context.Context, session *conga.Session) error`) to establish resources that the command body requires. Typical uses include opening database connections, warming caches, authenticating remote clients, and creating scratch directories.
+`Runner` on the selected leaf performs the action. Ancestor commands act as routers and context providers, and leave the action to the leaf.
 
-Because setup involves external dependencies, operations here can encounter environmental faults such as network timeouts or permission errors. Any error returned from `PreRun` halts forward progress and produces a runtime failure (exit code 1).
-
-### Command body execution with Run
-
-Terminal leaf commands must implement `Runner` (`Run(ctx context.Context, session *conga.Session) error`). The leaf command carries out the concrete action requested by the operator. Ancestor commands in a hierarchy act as grouping routers and context providers, leaving core business logic to the selected leaf.
-
-### Follow-up logic with PostRun
-
-Commands implement `PostRunner` (`PostRun(ctx context.Context, session *conga.Session) error`) for operations that should run only when the primary command succeeds. Common examples include flushing telemetry batches, sending completion notifications, updating local caches, or recording audit events.
-
-If `Run` returns an error, `PostRun` is skipped entirely. This guarantees that follow-up logic never operates on partial or failed executions.
+`PostRunner` holds operations that should run only when the primary action succeeds. If `Run` returns an error, `PostRun` is skipped, so follow-up logic never operates on a failed execution.
 
 ## Guaranteed teardown and outcome-aware cleanup
 
-Clean teardown is essential for command-line tools that manipulate persistent state, and the cleanup handler must observe the invocation's terminal outcome.
-
-CONGA solves this through `Finalizer` (`Finally(ctx context.Context, session *conga.Session, err error) error`).
+Command-line tools that manipulate persistent state need cleanup that runs on every outcome, and the cleanup handler must observe that outcome. CONGA provides both through `Finalizer` (`Finally(ctx context.Context, session *conga.Session, err error) error`).
 
 ### Visibility into the outcome
 
-The `Finally` hook receives the terminal error returned by preceding execution phases. If `PreRun`, `Run`, or `PostRun` returned an error, that error is passed into `Finally` as the `err` argument. If all stages completed successfully, `err` is nil.
-
-This parameter allows cleanup logic to branch on whether the operation succeeded or failed:
+`Finally` receives the terminal error of the preceding stages. If `PreRun`, `Run`, or `PostRun` returned an error, that error is the `err` argument. If all stages succeeded, `err` is nil. Cleanup logic can therefore branch on whether the operation succeeded:
 
 ```go
-func (c *MigrateCommand) Finally(ctx context.Context, session *conga.Session, err error) error {
+func (c *MigrateCmd) Finally(ctx context.Context, session *conga.Session, err error) error {
 	if c.transaction != nil {
 		if err != nil {
 			_ = c.transaction.Rollback()
@@ -141,78 +186,55 @@ func (c *MigrateCommand) Finally(ctx context.Context, session *conga.Session, er
 
 ### Unconditional execution
 
-Unlike `PostRun`, `Finally` is guaranteed to run whenever a command has been initialized, regardless of whether execution succeeded or failed. Even if the process receives a termination signal (`SIGINT` or `SIGTERM`) or an intermediate hook fails, the engine invokes `Finally` to release locks, close file descriptors, and remove temporary files.
+Unlike `PostRun`, `Finally` runs for every initialized command whether execution succeeded or failed, so locks, file descriptors, and temporary files are released after a failing hook as well. Under `app.Run()`, a `SIGINT` or `SIGTERM` cancels the context instead of terminating the process, so `Finally` still runs once the active hook returns.
 
-If `Finally` itself encounters an error while cleaning up after an earlier failure, the engine combines both errors using `errors.Join`, preserving both the primary execution error and the secondary cleanup failure.
+If `Finally` fails while cleaning up after an earlier failure, CONGA combines both errors with `errors.Join`, preserving the primary execution error and the cleanup failure.
 
-## Hierarchical hook composition
+## Hook order across the command chain
 
-In multi-command tools, an invocation activates a path through the command tree, from the root application struct down through intermediate categories to the leaf command. CONGA composes lifecycle hooks across this active chain using a nested, stack-like model.
+An invocation selects a path from the root to a leaf, and CONGA composes the hooks along that path as a stack.
 
-### Top-down initialization
-
-The engine traverses the active command chain from root to leaf, executing `Validator` and `PreRunner` hooks in top-down order. This sequence allows root commands to establish global services, such as loggers, tracing providers, or connection pools, before child commands run. Subcommands inspect these shared resources by calling `session.Root[T]()`:
+`Validator` and `PreRunner` run top-down, from root to leaf. A root command can therefore establish shared services, such as a logger or a connection pool, before its subcommands' hooks run, and subcommands reach them through `session.Root[T]()`:
 
 ```go
-func (c *WorkerCommand) PreRun(ctx context.Context, session *conga.Session) error {
-	root := session.Root[RootCommand]()
+func (c *WorkerCmd) PreRun(ctx context.Context, session *conga.Session) error {
+	root := session.Root[RootCmd]()
 	c.queue = root.QueuePool.GetQueue(c.QueueName.Get())
 
 	return nil
 }
 ```
 
-### Bottom-up teardown
+`PostRun` and `Finally` run bottom-up, from leaf to root. The last-in, first-out order releases a child's resources before the parent infrastructure they depend on.
 
-Teardown follows the inverse order. Both `PostRun` and `Finally` unwind bottom-up, starting from the leaf command and moving back up to the root. This Last-In, First-Out order ensures that child commands release dependent resources before parent infrastructure shuts down.
+A command counts as initialized once its `PreRun` returns nil, or immediately when it has no `PreRun`. If a `PreRun` fails, forward execution stops, and `Finally` runs only on the commands initialized before it, in reverse order. The failing command's own `Finally` doesn't run, so cleanup never sees state that its setup didn't finish.
 
-### Safe partial initialization
+## Context and cancellation
 
-If an error occurs during `PreRun`, forward execution stops immediately. The engine tracks which commands successfully finished their `PreRun` step in an internal initialization list.
-
-When unwinding teardown after a `PreRun` failure, `Finally` executes strictly on commands that completed `PreRun` successfully. If an intermediate subcommand fails during setup, CONGA limits `Finally` calls to visited parent commands, preventing resource leaks while protecting cleanup handlers from uninitialized state.
-
-## Context propagation and cancellation
-
-The application context flows through every lifecycle stage, reaching `SelfValidator`, `Validator`, `PreRunner`, `Runner`, `PostRunner`, and `Finalizer`. Each hook receives `ctx context.Context` as its first parameter, allowing commands to observe cancellation, deadlines, and ambient metadata.
+The invocation's context flows through every stage, reaching `SelfValidator`, `Validator`, `PreRunner`, `Runner`, `PostRunner`, and `Finalizer`. Each receives `ctx context.Context` as its first parameter, so commands can observe cancellation, deadlines, and context values.
 
 ### Default signal context versus custom context
 
-`app.Run()` executes the pipeline under a context derived from `context.Background()` using `signal.NotifyContext`, listening for `os.Interrupt` (`SIGINT` or Ctrl+C) and `syscall.SIGTERM`. When the process receives either signal, the context cancels. The signal listener detaches as soon as execution returns.
+`app.Run()` executes the pipeline under a context derived from `context.Background()` with `signal.NotifyContext`, listening for `os.Interrupt` (`SIGINT`, Ctrl+C) and `syscall.SIGTERM`. When the process receives either signal, the context is canceled. The signal listener is removed when `Run` returns.
 
-`app.RunContext(ctx)` hands control of the context entirely to the caller. CONGA passes the supplied context into the pipeline untouched, adding no signal handlers, timeouts, or wrappers of its own. Developers supply their own context whenever execution needs to follow a caller-managed lifecycle rather than the default OS signal handler.
+`app.RunContext(ctx)` hands control of the context to the caller. CONGA passes the context into the pipeline unchanged, adding no signal handlers, timeouts, or wrappers. Supply your own context when execution must follow a caller-managed lifecycle rather than the default signal handling.
 
 ### Cancellation and teardown guarantees
 
-When a context cancels, the cancellation propagates through `ctx` to all active and pending hooks. Long-running operations in `PreRun` or `Run` observe cancellation by checking `ctx.Done()`, inspecting `ctx.Err()`, or passing `ctx` to cancellable I/O functions.
+Cancellation reaches the running hook through `ctx`. Long-running operations in `PreRun` or `Run` observe it by checking `ctx.Done()`, inspecting `ctx.Err()`, or passing `ctx` to cancellable I/O.
 
-Returning an error from a cancelled hook stops forward progress immediately. If `PreRun` or `Run` returns after cancellation, the engine skips any remaining execution steps, including `PostRun`.
+A hook that returns an error after cancellation stops forward progress, and the remaining stages, `PostRun` included, are skipped. Teardown then runs as for any other failure. CONGA calls `Finally` in reverse order on every command that completed its `PreRun`, with the cancellation error as `err`, so cleanup can roll back transactions, release locks, and remove temporary files before the process exits.
 
-Teardown is guaranteed on cancellation: when forward execution halts, the engine unwinds through every command that finished its `PreRun` step, calling `Finally` in reverse hierarchy order. The `Finally` hook receives the cancellation error as its `err` argument, allowing cleanup code to roll back transactions, release locks, and remove temporary files before the process exits.
+## Schema build versus the runtime lifecycle
 
-## Static schema verification versus runtime lifecycle
+Schema build validates the program's declarations, and the runtime lifecycle validates and acts on user input. The two fail differently:
 
-The execution pipeline governs application runtime. In contrast, schema verification occurs earlier, during application construction in `conga.New` and initial schema building.
-
-Understanding the boundary between these two phases clarifies how errors are classified, when hooks execute, and why teardown behaves differently during startup failures.
-
-### Two distinct failure domains
-
-| Dimension | Schema verification | Runtime lifecycle |
+| | Schema build | Runtime lifecycle |
 |---|---|---|
-| **Phase** | Application setup and schema compile | Argument parsing, validation, and hook execution |
-| **Trigger** | `conga.New[T]()`, first `Run()`, or `conga-lint` | `app.Run()` or `app.RunContext(ctx)` |
-| **Checks** | Struct tags, type compatibility, flag collisions, leaf `Runner` presence | Value ranges, business constraints, external resources, command actions |
-| **Error category** | `ErrSchema` (Programmer mistake) | `ErrValidation` (Input mistake) or Runtime failure |
-| **Teardown (`Finally`)** | **Never invoked** (pipeline never initialized) | **Guaranteed** for all initialized commands |
-| **Exit code** | Exit 1 (Programmer error) | Exit 2 (Validation) or Exit 1 (Runtime) |
+| Runs | At the start of `Run`/`RunContext`, and statically in `conga-lint` | After schema build, on every invocation |
+| Checks | Struct tags, type compatibility, flag collisions, grammar | Input values, constraints, external resources, the command's action |
+| Error category | `ErrSchema` (programmer mistake) | `ErrValidation` (input mistake) or a runtime failure |
+| `Finally` | Never invoked | Invoked for every initialized command |
+| Exit code | 1 | 2 for usage errors, 1 for runtime failures |
 
-### Why schema failures bypass teardown
-
-A fundamental guarantee of CONGA's lifecycle is that `Finally` runs only for commands that successfully completed resource initialization (`PreRun`).
-
-Because schema verification occurs before token parsing or command instantiation, an `ErrSchema` failure halts the process before any command struct receives values or establishes state. Executing lifecycle cleanup hooks on an unverified command tree would risk inspecting uninitialized fields or invoking handlers on broken command graphs.
-
-### Shifting verification to compile time
-
-While the runtime engine catches schema errors immediately at startup, schema defects can be caught even earlier. The [`conga-lint`](/how-to/lint-schemas/) static analysis tool inspects Go AST and type declarations in CI, catching invalid tags, duplicate flags, and malformed command trees before binaries are built.
+A schema failure stops the run before any command struct receives values. Running cleanup hooks on an unvalidated command tree would expose them to uninitialized fields, so no hook runs. [`conga-lint`](/how-to/lint-schemas/) inspects the Go AST and type declarations in CI, and reports invalid tags, duplicate flags, and malformed command trees before the program is built.
