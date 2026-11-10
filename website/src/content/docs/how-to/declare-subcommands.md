@@ -3,7 +3,7 @@ title: How to declare subcommands
 description: Add subcommands with Command[T], group, alias, hide, and deprecate them, read root flags from a subcommand, and make one subcommand the default.
 ---
 
-This guide builds a `cloudctl` program with `deploy`, `list`, `debug`, and `push` subcommands. [Subcommands (`Command[T]`)](/reference/struct-tags/#subcommands-commandt) lists every tag a subcommand field takes. If you're new to CONGA, [Build a multi-command CLI](/tutorials/multi-command-cli/) builds a program with subcommands step by step.
+This guide builds a `cloudctl` program with `deploy`, `list`, `debug`, and `push` subcommands. If you're new to CONGA, [Build a multi-command CLI](/tutorials/multi-command-cli/) builds a program with subcommands step by step.
 
 ## Add a subcommand
 
@@ -15,7 +15,7 @@ type Runner interface {
 }
 ```
 
-The field name in kebab case becomes the command name, so `Deploy` is `deploy`, and `summary` is its line in the parent's help:
+The field name in kebab case becomes the command name, so `Deploy` is `deploy`, and `summary` is its [line in the parent's help](/reference/struct-tags/#subcommands-commandt):
 
 ```go title="main.go" hidden={1-8}
 package main
@@ -227,7 +227,7 @@ An operand that starts with `-` goes after `--`: `cloudctl -- -web.yaml` deploys
 | With `deploy` implicit, a flag only `list` declares comes before `list` (`cloudctl --format json list`) | Run | `unknown flag: --format`, exit 2; the line routes to `deploy` |
 | With `deploy` implicit, the user runs `cloudctl` alone | Run | `missing required positional argument <manifest>`, exit 2 |
 
-A missing `Run` passes startup and fails only when a user invokes that subcommand. [`conga-lint`](/reference/conga-lint/) reports it before you build.
+A missing `Run` passes startup and fails only when a user invokes that subcommand. `conga-lint` reports it before you build, and [How to lint schemas](/how-to/lint-schemas/) sets it up.
 
 ## Where to go next
 

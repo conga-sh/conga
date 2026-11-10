@@ -5,7 +5,7 @@ description: Add descriptions, examples, and footers, mark deprecated commands, 
 
 CONGA builds every help screen from your command structs. This guide adds the text around them, marks a deprecated command, assigns short flags to the built-ins, groups flags and commands into sections, and controls the hints that follow each flag.
 
-This guide builds a small `cloudctl` program with `deploy` and `rollout` subcommands. The [built-ins example](https://github.com/conga-sh/conga/tree/main/_examples/10-builtins-help-version) is a fuller program with custom help, usage, and version commands. [Built-ins and deprecation](/reference/builtins/#help) lists every section of a help screen and where its content comes from.
+This guide builds a small `cloudctl` program with `deploy` and `rollout` subcommands. The [built-ins example](https://github.com/conga-sh/conga/tree/main/_examples/10-builtins-help-version) is a fuller program with custom help, usage, and version commands.
 
 ## Describe the application
 
@@ -42,7 +42,7 @@ func main() {
 }
 ```
 
-The description opens the screen, the examples follow the usage line, and the footer closes it:
+The description opens the [help screen](/reference/builtins/#help), the examples follow the usage line, and the footer closes it:
 
 ```sh
 $ cloudctl --help
@@ -340,7 +340,7 @@ cloudctl: error: struct CLI field Verbose: schema error: duplicate flag: built-i
 cloudctl: error: struct DeployCmd field Port: schema error: invalid struct tag: tag "help" references unknown variable {{min}}; supported variables are {{range}}, {{len}}, {{items}}, {{enum}}, {{default}}, {{env}}
 ```
 
-[`conga-lint`](/reference/conga-lint/) reports the same mistakes before you build.
+`conga-lint` reports the same mistakes before you build, and [How to lint schemas](/how-to/lint-schemas/) sets it up.
 
 ## Print help from your own command
 

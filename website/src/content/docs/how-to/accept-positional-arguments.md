@@ -3,7 +3,7 @@ title: How to accept positional arguments
 description: Declare required and optional positional arguments, collect a variable number into a slice, forward the words after -- with DashArgs, and pass everything through with RawArgs.
 ---
 
-This guide builds a `mirror` command that copies directories to a target and forwards options to rsync. [Positional arguments](/reference/struct-tags/#positional-arguments-optionalargt-requiredargt) and [Trailing arguments](/reference/struct-tags/#trailing-arguments-dashargs-rawargs) list every tag and rule. If you're new to CONGA, [Build a multi-command CLI](/tutorials/multi-command-cli/) builds a command with a positional argument step by step.
+This guide builds a `mirror` command that copies directories to a target and forwards options to rsync. If you're new to CONGA, [Build a multi-command CLI](/tutorials/multi-command-cli/) builds a command with a positional argument step by step.
 
 ## Declare required and optional arguments
 
@@ -65,7 +65,7 @@ Flags:
       --version  Show version
 ```
 
-Required arguments come before optional ones. Positional arguments bind from the command line only.
+Required arguments come before optional ones ([Positional arguments](/reference/struct-tags/#positional-arguments-optionalargt-requiredargt)). Positional arguments bind from the command line only.
 
 ## Collect any number of arguments in a slice
 
@@ -101,7 +101,7 @@ Run 'mirror --help' for more information.
 
 ## Forward the words after `--` with `DashArgs`
 
-A `conga.DashArgs` field receives every word after `--`, unparsed, so the command can hand them to another program:
+A `conga.DashArgs` [field](/reference/struct-tags/#trailing-arguments-dashargs-rawargs) receives every word after `--`, unparsed, so the command can hand them to another program:
 
 ```go title="main.go" ins={4,9}
 type Mirror struct {
@@ -218,6 +218,7 @@ Collection starts after the last required positional, so words up to that point 
 
 ## Where to go next
 
+- [Positional arguments](/reference/struct-tags/#positional-arguments-optionalargt-requiredargt): every tag a positional argument takes.
 - [Trailing arguments](/reference/struct-tags/#trailing-arguments-dashargs-rawargs): the `DashArgs` and `RawArgs` rules and the tags they accept.
 - [How to declare subcommands](/how-to/declare-subcommands/): split a program into commands, each with its own arguments.
 - [About flags and args](/explanation/flags-and-args/): why positional arguments bind only from the command line.

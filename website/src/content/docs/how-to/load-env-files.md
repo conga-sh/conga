@@ -191,7 +191,7 @@ multiformat-and-dotenv: error: config error: cannot read .env file "config/secre
 
 ## Load a .env from a directory the user picks
 
-`Dotenv` fixes its paths when the application starts, before any flag is read. When a flag chooses the location, implement [`conga.Bootstrapper`](/reference/conga/): tag the flag `bootstrap:"true"`, and CONGA binds it before calling `Bootstrap`:
+`Dotenv` fixes its paths when the application starts, before any flag is read. When a flag chooses the location, implement the `conga.Bootstrapper` [interface](/reference/conga/#bootstrap-and-config-documents): tag the flag `bootstrap:"true"`, and CONGA binds it before calling `Bootstrap`:
 
 ```go title="main.go" ins={2,7-9}
 type CLI struct {

@@ -5,7 +5,7 @@ description: Let users see where each flag value came from, with --why, as a tab
 
 A flag can get its value from the command line, an environment variable, a config file, or its default. When a user can't tell why a setting has the value it has, `--why` answers: it prints every flag's value and the source that set it, then exits without running the command.
 
-This guide builds a small `server` program that reads a `server.yaml` file and `SERVER_*` variables. [The `--why` report](/reference/builtins/#the---why-report) describes every part of the report.
+This guide builds a small `server` program that reads a `server.yaml` file and `SERVER_*` variables.
 
 ## Add `--why` to the program
 
@@ -58,7 +58,7 @@ labels:
   team: payments
 ```
 
-A user who sets the token in the environment and the port on the command line, and adds `--why`, sees all four sources:
+A user who sets the token in the environment and the port on the command line, and adds `--why`, sees [all four sources](/reference/builtins/#the---why-report):
 
 ```sh
 $ SERVER_TOKEN=hunter2 server --why --port 9003

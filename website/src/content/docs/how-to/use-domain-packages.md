@@ -3,11 +3,11 @@ title: How to use the network, system, and timezone packages
 description: Give flags host, port, signal, and user types from the network and system packages, look a value up when the command needs it, and bind standard library types such as *time.Location and *user.User with app.Use.
 ---
 
-This guide builds a `restart` command that sends a signal to a service on a host, as a given user. Its flags take types from three CONGA packages: `network`, `system`, and `timezone`. A program links a package only when it imports one, so these types add nothing to a binary that doesn't use them. [Topical domain packages](/reference/domain-types/#topical-domain-packages) lists every type and binding.
+This guide builds a `restart` command that sends a signal to a service on a host, as a given user. Its flags take types from three CONGA packages: `network`, `system`, and `timezone`. A program links a package only when it imports one, so these types add nothing to a binary that doesn't use them.
 
 ## Use a package's value types
 
-Import the package and give the flag one of its types. `network.Host` holds a host name or address, and `network.Port` a port number or a service name:
+Import the package and give the flag one of [its types](/reference/domain-types/#topical-domain-packages). `network.Host` holds a host name or address, and `network.Port` a port number or a service name:
 
 ```go title="main.go"
 package main

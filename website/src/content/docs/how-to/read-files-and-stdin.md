@@ -3,11 +3,11 @@ title: How to read files and standard input
 description: Accept file paths that CONGA checks before Run, read standard input and write standard output with -, take a file's contents as a flag's value, accept directories, and accept sizes such as 10MiB.
 ---
 
-This guide builds a `convert` command that reads text, converts it to upper case, and writes the result. Its flags use CONGA's filesystem and size types, which check the value before `Run` starts. [Domain types](/reference/domain-types/) describes each type, and [Domain-type tags](/reference/struct-tags/#domain-type-tags) lists their tags.
+This guide builds a `convert` command that reads text, converts it to upper case, and writes the result. Its flags use CONGA's filesystem and size types, which check the value before `Run` starts.
 
 ## Accept a file that must exist
 
-Give the flag the type `conga.File`. The `existing` tag makes CONGA check that the path names a file, and the `stdin` tag lets the user pass `-` to read standard input. `Reader` opens whichever the user chose:
+Give the flag the type `conga.File`, one of the [filesystem types](/reference/domain-types/#filesystem-types). The `existing` [tag](/reference/struct-tags/#domain-type-tags) makes CONGA check that the path names a file, and the `stdin` tag lets the user pass `-` to read standard input. `Reader` opens whichever the user chose:
 
 ```go title="main.go" hidden={1-10}
 package main

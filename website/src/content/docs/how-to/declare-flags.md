@@ -3,13 +3,13 @@ title: How to declare flags
 description: Declare typed flags with defaults, short names and aliases, negatable booleans, repeat counters, list flags, and key=value map flags.
 ---
 
-This guide builds a `fetch` command that downloads a URL, and gives it one flag of each kind. [Flags](/reference/struct-tags/#flags-optionalflagt-requiredflagt-counter) lists every flag tag and rule. If you're new to CONGA, [the quickstart](/tutorials/quickstart/) builds a first command step by step.
+This guide builds a `fetch` command that downloads a URL, and gives it one flag of each kind. If you're new to CONGA, [the quickstart](/tutorials/quickstart/) builds a first command step by step.
 
 ## Give a flag a type and a default
 
 CONGA builds a command's flags from the fields of its struct. The type of each flag field is a container: `conga.OptionalFlag[...]` for an optional flag, `conga.RequiredFlag[...]` for a required one. The type in the brackets is the type of the flag's value, so a `conga.OptionalFlag[int]` field is an optional flag that takes an integer.
 
-The field name sets the flag name in kebab case, so `Retries` becomes `--retries`, and the `default` tag sets the value used when the user doesn't give the flag. Here `fetch` has three flags, plus the URL as a [positional argument](/how-to/accept-positional-arguments/):
+The field name sets the flag name in kebab case, so `Retries` becomes `--retries`, and the `default` [tag](/reference/struct-tags/#flags-optionalflagt-requiredflagt-counter) sets the value used when the user doesn't give the flag. Here `fetch` has three flags, plus the URL as a [positional argument](/how-to/accept-positional-arguments/):
 
 ```go title="main.go" hidden={1-9}
 package main

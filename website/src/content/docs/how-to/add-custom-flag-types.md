@@ -3,11 +3,11 @@ title: How to add custom flag types
 description: Decode flag, environment, and config values into any type that implements encoding.TextUnmarshaler, declare tags that let each field customize a type, register a TypeParser with RegisterType, and use custom types as map values.
 ---
 
-This guide builds a `relay` command with four flags, each of a type outside CONGA's built-in parsing: a port range, a route name checked against a pattern, a CIDR network, and a map of named port ranges. [Domain type interfaces](/reference/domain-types/#domain-type-interfaces) lists every interface a type can implement and the order CONGA tries them in.
+This guide builds a `relay` command with four flags, each of a type outside CONGA's built-in parsing: a port range, a route name checked against a pattern, a CIDR network, and a map of named port ranges.
 
 ## Implement `encoding.TextUnmarshaler`
 
-Implement `encoding.TextUnmarshaler` with a pointer receiver:
+Implement `encoding.TextUnmarshaler`, one of the [interfaces CONGA decodes](/reference/domain-types/#domain-type-interfaces), with a pointer receiver:
 
 ```go
 type TextUnmarshaler interface {

@@ -3,11 +3,11 @@ title: How to lint schemas
 description: Run conga-lint to catch schema errors, tag typos, missing Run methods, and flag shadowing before the program runs, allow tags that other code reads, and check builder call order.
 ---
 
-`conga-lint` finds the schema mistakes the program otherwise reports one at a time at startup, and leaf commands without a `Run` method, which fail only when a user invokes them. This guide lints an example `cloudctl` program with three mistakes, then allows tag keys that other code reads. [conga-lint](/reference/conga-lint/) lists every check and flag.
+`conga-lint` finds the schema mistakes the program otherwise reports one at a time at startup, and leaf commands without a `Run` method, which fail only when a user invokes them. This guide lints an example `cloudctl` program with three mistakes, then allows tag keys that other code reads.
 
 ## Add the analyzer to your module
 
-Declare `conga-lint` as a tool dependency:
+Declare `conga-lint` as a [tool dependency](/reference/conga-lint/):
 
 ```sh
 go get -tool github.com/conga-sh/conga/cmd/conga-lint@latest

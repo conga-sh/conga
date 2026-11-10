@@ -3,7 +3,7 @@ title: How to deprecate flags and commands
 description: Rename a flag or a subcommand while the old name keeps working with a warning, reject the old and new flags together, and deprecate a whole application.
 ---
 
-A `deprecated` tag marks a flag or a subcommand for removal. The old name keeps working, help marks it with the reason, every run that uses it prints a warning to stderr, and shell completion stops offering it. This guide renames a flag and a subcommand of a `cloudctl` program, then deprecates the whole application. [Flags](/reference/struct-tags/#flags-optionalflagt-requiredflagt-counter) and [Subcommands](/reference/struct-tags/#subcommands-commandt) list where the tag applies.
+A `deprecated` tag marks a flag or a subcommand for removal. The old name keeps working, help marks it with the reason, every run that uses it prints a warning to stderr, and shell completion stops offering it. This guide renames a flag and a subcommand of a `cloudctl` program, then deprecates the whole application.
 
 The program starts with one `deploy` subcommand, whose `--count` flag sets the number of replicas:
 
@@ -48,7 +48,7 @@ deploying app.yaml with 2 replicas
 
 ## Rename a flag
 
-Add the new flag, and give the old one a `deprecated` tag with the reason. Move the `default` to the new flag, so the old one holds a value only when a user sets it:
+Add the new flag, and give the old one a `deprecated` [tag](/reference/struct-tags/#flags-optionalflagt-requiredflagt-counter) with the reason. Move the `default` to the new flag, so the old one holds a value only when a user sets it:
 
 ```go title="main.go" ins={2} {3}
 type DeployCmd struct {
@@ -137,7 +137,7 @@ The default on `--replicas` doesn't count as given, so `--count` alone still wor
 
 ## Rename a subcommand
 
-Keep the old subcommand as a second field of the same type, so both names run the same code, and give it a `deprecated` tag. Here `push` was the old name for `deploy`:
+Keep the old subcommand as a second field of the same type, so both names run the same code, and give it a `deprecated` [tag](/reference/struct-tags/#subcommands-commandt). Here `push` was the old name for `deploy`:
 
 ```go title="main.go" ins={3}
 type CLI struct {
@@ -291,5 +291,6 @@ Here the app also registered a YAML config decoder, so `cloudctl` reads `~/.conf
 ## Where to go next
 
 - [Flags](/reference/struct-tags/#flags-optionalflagt-requiredflagt-counter): the `deprecated` and `xor` tags with every other flag tag.
+- [Subcommands](/reference/struct-tags/#subcommands-commandt): the `deprecated` tag on a subcommand field.
 - [Built-ins and deprecation](/reference/builtins/#help): where the deprecation banner sits on a help screen.
 - [Example 22](https://github.com/conga-sh/conga/tree/main/_examples/22-app-deprecation) and [example 23](https://github.com/conga-sh/conga/tree/main/_examples/23-member-deprecation): runnable programs that deprecate an app, a flag, and a subcommand.

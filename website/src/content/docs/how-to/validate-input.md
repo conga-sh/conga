@@ -3,7 +3,7 @@ title: How to validate input
 description: Require flags, limit values to a set, bound numbers, durations, lengths and counts, reject conflicting flags, demand exactly one of a group, require flags together, and check values against each other with Validator.
 ---
 
-This guide builds an `export` command that sends records to a file or a URL, and adds one kind of check at each step. Each check runs before `Run`, and a value that fails one is a usage error: the program prints the problem and exits with status 2. [Flags](/reference/struct-tags/#flags-optionalflagt-requiredflagt-counter) lists every validation tag, and [Bounds syntax](/reference/struct-tags/#bounds-syntax) the forms a bound can take.
+This guide builds an `export` command that sends records to a file or a URL, and adds one kind of check at each step. Each check runs before `Run`, and a value that fails one is a usage error: the program prints the problem and exits with status 2.
 
 ## Require a flag
 
@@ -53,7 +53,7 @@ The usage line shows `--token=STRING` outside `[flags]`. When the app reads the 
 
 ## Allow only a set of values
 
-An `enum` tag lists the values the flag accepts, separated by commas:
+An `enum` [tag](/reference/struct-tags/#flags-optionalflagt-requiredflagt-counter) lists the values the flag accepts, separated by commas:
 
 ```go title="main.go" {3}
 type Export struct {
@@ -125,7 +125,7 @@ Help shows each bound:
       --fields=STRING,...  Fields to include [items: 1..5]
 ```
 
-An optional flag with a bound can still be left out; make it a required flag when it must be given. Either side of a bound can be left open, as in `range:"1.."`, and a single number, as in `items:"5"`, means exactly that many.
+An optional flag with a bound can still be left out; make it a required flag when it must be given. Either side of a [bound](/reference/struct-tags/#bounds-syntax) can be left open, as in `range:"1.."`, and a single number, as in `items:"5"`, means exactly that many.
 
 :::caution[Defaults are checked too]
 CONGA checks a `default` against the field's bound at every run. A `default:"5000"` on `Limit` passes startup, then fails every run that leaves `--limit` out, as a usage error the user can't fix:
