@@ -7,7 +7,7 @@ In a server, a feature toggle picks a code path. In a command-line tool it also 
 
 CONGA separates two things. A *feature* is a named value the user sets, declared as a field of `conga.Features[T]`. A *gated member* is a flag or subcommand whose `feature:"..."` expression decides whether it exists for this run. One feature can gate many members, gate none (and be read only in code), or gate a member while switched *off*, as `!strict-tls` does for a plaintext escape hatch.
 
-This page explains why features are typed struct fields, why their sources merge feature by feature, why inactive members are removed rather than rejected late, and why each source fails differently. For the steps, see [How to gate flags and subcommands behind features](/how-to/gate-behind-features/). For tag syntax, see the [Struct tag reference](/reference/struct-tags/#feature-toggles-congafeaturest).
+This page explains why features are typed struct fields, why their sources merge feature by feature, why inactive members are removed rather than rejected late, and why each source fails differently. For the steps, see [How to gate flags and subcommands behind features](/how-to/gate-behind-features/). For tag syntax, see [Struct tags](/reference/struct-tags/#feature-toggles-congafeaturest).
 
 ## Struct-declared toggles versus dynamic registries
 

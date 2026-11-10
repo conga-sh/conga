@@ -298,6 +298,6 @@ Features staged `ga` or `deprecated` drop out of the help list but keep working,
 ## Where to go next
 
 - [About feature toggles](/explanation/feature-toggles/): why features are typed struct fields and why sources merge feature by feature.
-- [Struct tag reference](/reference/struct-tags/#feature-toggles-congafeaturest): every container tag, feature-field tag, and expression form.
+- [Struct tags](/reference/struct-tags/#feature-toggles-congafeaturest): every container tag, feature-field tag, and expression form.
 - [About value precedence](/explanation/value-precedence/): how command line, environment, config, and defaults combine.
 - [Feature toggles example](https://github.com/conga-sh/conga/tree/main/_examples/29-feature-toggles): the program used on this page.

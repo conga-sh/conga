@@ -240,5 +240,5 @@ To pass an empty string on purpose, use the command line: `twelve-factor-precede
 - [How to load .env files](/how-to/load-env-files/): feed `.env` and `.env.local` files into the environment.
 - [How to inspect value provenance](/how-to/inspect-value-provenance/): the full `--why` report.
 - [About value precedence](/explanation/value-precedence/): how command line, environment, config, and defaults combine.
-- [Struct tag reference](/reference/struct-tags/): every `env` and `envprefix` rule.
+- [Struct tags](/reference/struct-tags/): every `env` and `envprefix` rule.
 - [Twelve-factor precedence example](https://github.com/conga-sh/conga/tree/main/_examples/13-twelve-factor-precedence): the program used on this page.

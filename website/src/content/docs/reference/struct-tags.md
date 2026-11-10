@@ -1,5 +1,5 @@
 ---
-title: Struct tag reference
+title: Struct tags
 description: Every struct tag CONGA understands, per construct.
 ---
 

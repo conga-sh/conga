@@ -193,5 +193,5 @@ CONGA checks plain fields, which aren't containers, only for its own tags, so a 
 ## Where to go next
 
 - [conga-lint](/reference/conga-lint/): every check, the discovery rules, and the flags.
-- [Struct tag reference](/reference/struct-tags/): the tags the analyzer validates.
+- [Struct tags](/reference/struct-tags/): the tags the analyzer validates.
 - [Errors and exit codes](/reference/errors/): what each startup error means for the exit code.
