@@ -64,7 +64,7 @@ func WithPredictor(p predict.Predictor) RegistrationOption
 
 ## Containers
 
-| Container | Reader surface |
+| Container | Methods |
 |-----------|----------------|
 | `OptionalFlag[T]` / `RequiredFlag[T]` | `Get`, `IsSet`, `Changed`, `Source`, `SourceDetail`, `String` (`GetOr` on optional only) |
 | `OptionalArg[T]` / `RequiredArg[T]` | same as flags |
@@ -146,7 +146,7 @@ func WhyOptionJSON() WhyOption
 type WhyOption interface{ /* sealed */ }
 ```
 
-`WhyOption` is a sealed interface produced by option constructors such as `WhyOptionJSON()`. `WhyOptionJSON` enables machine-readable `--why=json` reports on `App.EnableWhy`. By default, `EnableWhy` compiles only the human-readable text table renderer, dead-code eliminating the JSON serialization pipeline unless opted in.
+`WhyOption` is a sealed interface produced by option constructors such as `WhyOptionJSON()`. `WhyOptionJSON` enables machine-readable `--why=json` reports on `App.EnableWhy`. Without it, the JSON renderer is not linked into the binary.
 
 ## Completion options
 
@@ -156,15 +156,11 @@ func CompletionEnvPrefix(prefix string) CompletionOption
 type CompletionOption interface{ /* sealed */ }
 ```
 
-`CompletionOption` is a sealed interface produced by option constructors such as `CompletionEnvPrefix`. Pass `CompletionEnvPrefix` to `App.EnableCompletion` to override the derived environment-variable prefix (`<APP>_`) that names the completion sideband toggles `<APP>_COMPLETION_DESCRIPTIONS`, `<APP>_COMPLETION_ALIASES`, and `<APP>_COMPLETION_BARE_SPACE_FLAGS`. The prefix is normalized to upper snake case; an empty prefix keeps the application-name derivation. POSIX shells cannot assign a variable name that begins with a digit, so a prefix derived from such an application name gains a leading underscore (an application named `7z` reads `_7Z_COMPLETION_DESCRIPTIONS`), while an explicit prefix that normalizes to a leading digit is rejected at schema build.
+`CompletionOption` is a sealed interface produced by option constructors such as `CompletionEnvPrefix`. Pass `CompletionEnvPrefix` to `App.EnableCompletion` to override the derived environment-variable prefix (`<APP>_`) that names the completion environment variables `<APP>_COMPLETION_DESCRIPTIONS`, `<APP>_COMPLETION_ALIASES`, and `<APP>_COMPLETION_BARE_SPACE_FLAGS`. The prefix is normalized to upper snake case; an empty prefix keeps the application-name derivation. POSIX shells cannot assign a variable name that begins with a digit, so a prefix derived from such an application name gains a leading underscore (an application named `7z` reads `_7Z_COMPLETION_DESCRIPTIONS`), while an explicit prefix that normalizes to a leading digit is rejected at schema build.
 
 ## Configuration options
 
-The config-file authoring surface lives in the root `conga` package: the
-`app.ConfigOptions` option constructors (`conga.ConfigPaths`, `conga.ConfigExplicit`,
-`conga.ConfigCascading`) and the `conga.ConfigDecoder` type.
-Options are declared as `conga.ConfigOption` values and folded directly into the
-engine's resolution settings.
+`app.ConfigOptions` takes `conga.ConfigOption` values from three constructors. `conga.ConfigPaths(paths...)` sets the search paths, `conga.ConfigExplicit(path)` names one file that must exist, and `conga.ConfigCascading()` merges every file found instead of taking the first. `ConfigExplicit` cannot be combined with the other two. `conga.ConfigDecoder` is the decoder type `app.RegisterDecoder` takes, `func(data []byte) (map[string]any, error)`.
 
 ### Config file resolution
 
@@ -192,7 +188,7 @@ Each search path is probed for every registered extension. An existing directory
 
 With no decoder registered, the `ConfigFile` flag's help text ends in `(no configuration decoder registered)`.
 
-The bootstrap and programmatic document surface:
+### Bootstrap and config documents
 
 ```go
 type Bootstrapper interface {
@@ -222,21 +218,24 @@ func (d *ConfigDocument) SetKey(key, entryKey string, value any, origin string) 
 func (d *ConfigDocument) SetKeyScoped(key, entryKey string, value any, origin, scope string) *ConfigDocument
 ```
 
-A command struct implementing `Bootstrapper` runs `Bootstrap` in the bootstrap
-pass: fields tagged `bootstrap:"true"` bind from `CLI > environment > default`,
-the hook runs with those fields populated, and the normal binding pass then
-resolves every field (including the tagged ones, now with the config tier) before
-`Run`. `Bootstrap.SetConfig`
-supplies a document that composes with file resolution: the document is the
-highest-precedence contributor within the config tier, overlaying file-resolved
-values key by key (`CLI > environment > document > config file > default`). Its
-per-entry origins surface in `--why`. `SetScoped` and `SetKeyScoped` add an
-optional scope within the origin; value attribution renders it as
-`origin › scope` while the Config paths table lists the origin path once.
-`SetKey` records one entry inside a map value and merges it key by key with
-earlier writes, so a later layer overrides only the map keys it names; a later
-`Set` of the same top-level key replaces the whole entry. `Bootstrap.Dotenv`
-loads `.env` files through the writer configured by `App.SetenvFunc`;
-`Bootstrap.DotenvExplicit` fails on a missing file. A nil document leaves the
-tier inactive; errors returned from `Bootstrap` wrap `ErrConfig` and exit 1. See
-[How to load domain documents](/how-to/load-domain-documents/).
+A command struct that implements `Bootstrapper` runs `Bootstrap` after the bootstrap pass, which binds the fields tagged `bootstrap:"true"` from the command line, environment, and defaults. The normal binding pass then binds every field, the tagged ones included, with config added. An error returned from `Bootstrap` wraps `ErrConfig` and exits 1.
+
+| `Bootstrap` method | Effect |
+|---|---|
+| `Path()` | The selected invocation path, such as `cloudctl deploy worker` |
+| `Name()` | The matched leaf command name |
+| `LookupEnv(key)` | The environment this invocation sees, like `os.LookupEnv`, including variables loaded by earlier `Dotenv` calls |
+| `Dotenv(paths...)` | Loads each existing `.env` file through `App.SetenvFunc`, skipping missing ones. With no paths, loads `.env` then `.env.local`. Never overwrites a variable already in the process environment |
+| `DotenvExplicit(paths...)` | Like `Dotenv`, but a missing file is an `ErrConfig` error |
+| `SetConfig(doc)` | Supplies the run's config document. A later call replaces an earlier one, and nil leaves the document inactive |
+
+The document is the highest-precedence part of the config source, overlaying file values key by key: `CLI > environment > document > config file > default`. Each entry's origin appears in `--why`.
+
+| `ConfigDocument` method | Effect |
+|---|---|
+| `Set(key, value, origin)` | Records a whole value for `key`. A later `Set` of the same key replaces the entry, including its `SetKey` entries |
+| `SetKey(key, entryKey, value, origin)` | Records one entry of the map value `key`, merging key by key with earlier writes, so a later layer overrides only the map keys it names |
+| `SetScoped(key, value, origin, scope)` | `Set` with a scope within the origin. `--why` attributes the value as `origin › scope`, and the Config paths table lists the origin once |
+| `SetKeyScoped(key, entryKey, value, origin, scope)` | `SetKey` with a scope, attributed the same way |
+
+All four methods return the document for chaining, and panic on a nil receiver. An empty scope behaves like the unscoped method. See [How to load domain documents](/how-to/load-domain-documents/).
