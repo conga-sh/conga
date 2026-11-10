@@ -91,6 +91,28 @@ Programmer errors during schema construction abort at startup before execution b
 - Unrecognized struct tags without calling `app.AllowTags(...)` (including `conga:"..."` directives).
 - Declaring `ConfigFile` or `Features` on any command struct other than the root.
 
+## Panics
+
+Developer misuse of the API panics with a fixed message instead of returning an error. Schema errors are not panics, and `Run` returns them as `ErrSchema`.
+
+| Misuse | Panic message |
+|---|---|
+| `conga.New` given more than one root | `conga: New accepts at most one root instance` |
+| `conga.New` given a nil root | `conga: New requires a non-nil root instance` |
+| `app.Predictor` with an empty name | `conga: predictor name cannot be empty` |
+| `app.Predictor` with a built-in predictor's name | `conga: cannot register predictor "<name>": reserved built-in predictor name` |
+| `app.Predictor` with a name already registered | `conga: predictor "<name>" is already registered` |
+| `RegisterType` with a nil parser, or on a nil app | `conga: RegisterType requires a non-nil parser`, `conga: RegisterType requires a non-nil app` |
+| `RegisterMap` on a nil app | `conga: RegisterMap requires a non-nil app` |
+| `conga.ConfigPaths()` with no paths, or an empty path | `conga: app.ConfigOptions(conga.ConfigPaths(...)): at least one path is required`, `…: path entries must be non-empty` |
+| `conga.ConfigExplicit("")` | `conga: app.ConfigOptions(conga.ConfigExplicit(...)): the explicit path cannot be empty` |
+| A nil `context.Context` passed to `RunContext`, or to `Run` on `HelpCommand`, `VersionCommand`, or `CompletionCommand` | `conga: nil Context` |
+| A second `Run` or `RunContext` on the same `App` | `conga: App already executed` |
+| `session.Root[T]()` with a `T` other than the root command type | `conga: Session.Root[<T>] called, but root command type is <root>` |
+| A method called on a nil `*ConfigDocument` | `conga: nil ConfigDocument; use the zero value (var document conga.ConfigDocument)` |
+
+A panic whose message starts with `conga: invariant violation:` is a bug in CONGA, not misuse, and is worth reporting.
+
 ## Custom error handling
 
 Custom error handling inspects the error returned by `app.Run()` or `app.RunContext(ctx)` directly instead of delegating to `app.Exit(err)`. The classification is available from the returned error: `conga.IsUsageError(err)` distinguishes input errors, `errors.AsType[conga.UsageError](err)` yields the `UsageError` for `CommandPath()` and `Usage()`, `conga.IsCompletionError(err)` identifies internal completion failures, and `errors.Is` matches the base category sentinels.
