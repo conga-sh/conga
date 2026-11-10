@@ -166,6 +166,32 @@ The config-file authoring surface lives in the root `conga` package: the
 Options are declared as `conga.ConfigOption` values and folded directly into the
 engine's resolution settings.
 
+### Config file resolution
+
+CONGA picks config files in this order, and the first that applies wins:
+
+1. The root `ConfigFile` flag (`--config-file` unless renamed).
+2. `conga.ConfigExplicit(path)`.
+3. The config environment variable, `<PREFIX>_CONFIG` for the app's environment prefix.
+4. The search paths: those given to `conga.ConfigPaths(...)`, in order, or else the built-in location `${XDG_CONFIG_HOME:-~/.config}/<app-name>`.
+
+The built-in location applies when the app has at least one registered decoder and a resolvable name, and only when no `ConfigPaths` are declared. `ConfigExplicit` also bypasses it.
+
+Each search path is probed for every registered extension. An existing directory is searched for `config.<ext>` and `<app-name>.<ext>`, an existing file is used as it is, and a path that doesn't exist is tried as `<path>.<ext>`. Without `ConfigCascading`, the first path that yields a file wins. With it, every path that yields a file is loaded and merged, and the first-listed path wins each key. Cascading requires a declared root `ConfigFile` to carry `multi:"true"`.
+
+| Situation | Result |
+|-----------|--------|
+| A file named by the `ConfigFile` flag, the config environment variable, or `ConfigExplicit` doesn't exist | `ErrConfig`, exit 1 |
+| A named file's extension has no registered decoder | `ErrConfig`, exit 1 |
+| A search path yields no file | Skipped, and probing continues |
+| One search path yields several files with registered extensions | `ErrConfig`, exit 1: `multiple conflicting config files found` |
+| No file is found anywhere | The run continues on the other sources |
+| A file larger than 16 MB | `ErrConfig`, exit 1, naming the size and the limit |
+| Malformed content | `ErrConfig`, exit 1 |
+| An unknown key | `ErrConfig`, exit 1, with a "did you mean" hint for near misses |
+
+With no decoder registered, the `ConfigFile` flag's help text ends in `(no configuration decoder registered)`.
+
 The bootstrap and programmatic document surface:
 
 ```go
