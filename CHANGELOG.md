@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 While CONGA is pre-1.0, breaking changes increment the minor version.
 
+## [0.8.0](https://github.com/conga-sh/conga/compare/v0.7.0...v0.8.0) (2026-11-10)
+
+
+### ⚠ BREAKING CHANGES
+
+* report invalid feature values from config as usage errors
+
+### ✨ Features
+
+* **conga-lint:** print diagnostics with paths relative to the working directory ([8be000e](https://github.com/conga-sh/conga/commit/8be000e86d21c5e8545c809c599e3a6556031196))
+* name the RegisterType parser signature conga.TypeParser ([8be000e](https://github.com/conga-sh/conga/commit/8be000e86d21c5e8545c809c599e3a6556031196))
+
+
+### 🐛 Bug Fixes
+
+* **completion:** correct and complete the per-shell install instructions ([8be000e](https://github.com/conga-sh/conga/commit/8be000e86d21c5e8545c809c599e3a6556031196))
+* list the accepted boolean values, including 1 and 0, in error messages ([8be000e](https://github.com/conga-sh/conga/commit/8be000e86d21c5e8545c809c599e3a6556031196))
+* report invalid feature values from config as usage errors ([8be000e](https://github.com/conga-sh/conga/commit/8be000e86d21c5e8545c809c599e3a6556031196))
+
+
+### 📚 Documentation
+
+* rewrite the documentation site with tutorials, task guides, reference, and explanation pages ([8be000e](https://github.com/conga-sh/conga/commit/8be000e86d21c5e8545c809c599e3a6556031196))
+* **website:** render keyboard keys with starlight-kbd ([b476607](https://github.com/conga-sh/conga/commit/b476607e6b49855f73add47614698ba4a975d98a))
+
 ## [0.7.0](https://github.com/conga-sh/conga/compare/v0.6.0...v0.7.0) (2026-11-05)
 
 
