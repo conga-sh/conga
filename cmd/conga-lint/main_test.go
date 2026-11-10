@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/alecthomas/assert/v2"
+	"golang.org/x/tools/go/analysis"
 )
 
 // congaLintBinary is the path to the conga-lint binary built once in [TestMain]
@@ -160,4 +161,55 @@ func TestRelativePath_SiblingSharingNamePrefix(t *testing.T) {
 	relative := relativePath(filepath.FromSlash("/work/app"), filepath.FromSlash("/work/application/main.go"))
 
 	assert.Equal(t, filepath.FromSlash("/work/application/main.go"), relative)
+}
+
+func TestRunRelative_PrintsRelatedInformation(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	exitCode, handled := runRelative(newStubAnalyzer(), []string{"github.com/conga-sh/conga/internal/cond"}, &buffer)
+
+	output := buffer.String()
+
+	assert.True(t, handled)
+	assert.Equal(t, 3, exitCode)
+	assert.Contains(t, output, ": stub diagnostic\n")
+	assert.Contains(t, output, ": \tstub related note\n")
+}
+
+func TestRunRelative_DriverTestFlagWinsOverAnalyzerFlag(t *testing.T) {
+	t.Parallel()
+
+	stub := newStubAnalyzer()
+	analyzerTest := stub.Flags.Bool("test", false, "analyzer flag colliding with the driver -test flag")
+
+	exitCode, handled := runRelative(stub, []string{"-test=false", "github.com/conga-sh/conga/internal/cond"}, io.Discard)
+
+	assert.True(t, handled)
+	assert.Equal(t, 3, exitCode)
+	assert.False(t, *analyzerTest)
+}
+
+// newStubAnalyzer returns an analyzer reporting one diagnostic, with one
+// related note, at the first file of every package it runs on.
+func newStubAnalyzer() *analysis.Analyzer {
+	return &analysis.Analyzer{
+		Name: "stub",
+		Doc:  "reports one diagnostic with related information per package",
+		Run: func(pass *analysis.Pass) (any, error) {
+			if len(pass.Files) == 0 {
+				return nil, nil
+			}
+
+			position := pass.Files[0].Package
+			pass.Report(analysis.Diagnostic{
+				Pos:     position,
+				Message: "stub diagnostic",
+				Related: []analysis.RelatedInformation{{Pos: position, Message: "stub related note"}},
+			})
+
+			return nil, nil
+		},
+	}
 }

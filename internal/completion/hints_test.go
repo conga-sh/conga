@@ -154,6 +154,7 @@ func TestEnableInstructions_ZshHomebrewTarget(t *testing.T) {
 		out := EnableInstructions(ShellZsh, "myapp", EnableOptions{Homebrew: true})
 
 		assert.Contains(t, out, "\tmyapp completion zsh > \"$HOMEBREW_PREFIX/share/zsh/site-functions/_myapp\"\n")
+		assert.Contains(t, out, "\tfpath=(\"$HOMEBREW_PREFIX/share/zsh/site-functions\" $fpath)\n")
 		assert.Contains(t, out, "\techo 'source <(myapp completion zsh)' >> ~/.zshrc\n")
 		assert.NotContains(t, out, "~/.zfunc")
 	})
@@ -187,8 +188,8 @@ func TestEnableInstructions_BashCompletionUserDir(t *testing.T) {
 	out := EnableInstructions(ShellBash, "myapp", EnableOptions{})
 
 	assert.Contains(t, out, "For faster startup with the bash-completion package installed")
-	assert.Contains(t, out, "\tmkdir -p ~/.local/share/bash-completion/completions\n")
-	assert.Contains(t, out, "\tmyapp completion bash > ~/.local/share/bash-completion/completions/myapp\n")
+	assert.Contains(t, out, "\tmkdir -p \"${XDG_DATA_HOME:-$HOME/.local/share}/bash-completion/completions\"\n")
+	assert.Contains(t, out, "\tmyapp completion bash > \"${XDG_DATA_HOME:-$HOME/.local/share}/bash-completion/completions/myapp\"\n")
 }
 
 func TestEnableInstructions_PowerShellProfileCommands(t *testing.T) {

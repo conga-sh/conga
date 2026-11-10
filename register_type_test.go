@@ -51,6 +51,26 @@ func TestRegisterType_DefaultPointerValue(t *testing.T) {
 	assert.Equal(t, conga.SourceDefault, cli.TZ.Source())
 }
 
+func TestRegisterType_NamedFuncTypeParser(t *testing.T) {
+	t.Parallel()
+
+	type uuidParser func(string) (customUUID, error)
+
+	var parser uuidParser = parseCustomUUID
+
+	cli := new(registeredTypeCLI)
+	app := conga.New(cli).
+		Args([]string{"-u", "uuid-named"})
+
+	app.RegisterType(parser)
+	app.RegisterType(time.LoadLocation)
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, "uuid-named", cli.ID.Get().raw)
+}
+
 func TestRegisterType_SliceFlag(t *testing.T) {
 	t.Parallel()
 

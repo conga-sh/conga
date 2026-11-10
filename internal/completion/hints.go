@@ -265,8 +265,8 @@ func writeBashInstructions(builder *strings.Builder, cmdName string, opts Enable
 		"echo 'source <(" + completionInvocation(cmdName, ShellBash, opts.UseFlag) + ")' >> ~/.bashrc",
 	})
 	writeStep(builder, "For faster startup with the bash-completion package installed, write the completion file once instead. bash-completion loads it the first time you press Tab:", []string{
-		"mkdir -p ~/.local/share/bash-completion/completions",
-		completionInvocation(cmdName, ShellBash, opts.UseFlag) + " > ~/.local/share/bash-completion/completions/" + cmdName,
+		`mkdir -p "${XDG_DATA_HOME:-$HOME/.local/share}/bash-completion/completions"`,
+		completionInvocation(cmdName, ShellBash, opts.UseFlag) + ` > "${XDG_DATA_HOME:-$HOME/.local/share}/bash-completion/completions/` + cmdName + `"`,
 	})
 
 	builder.WriteString(restartNote)
@@ -331,6 +331,9 @@ func writeZshInstructions(builder *strings.Builder, cmdName string, opts EnableO
 	if opts.Homebrew {
 		writeStep(builder, "For faster startup, write the completion file once instead, into the directory brew shellenv adds to fpath:", []string{
 			completionInvocation(cmdName, ShellZsh, opts.UseFlag) + " > \"$HOMEBREW_PREFIX/share/zsh/site-functions/_" + cmdName + "\"",
+		})
+		writeStep(builder, "If compinit does not pick it up, add that directory to fpath in ~/.zshrc before compinit runs:", []string{
+			`fpath=("$HOMEBREW_PREFIX/share/zsh/site-functions" $fpath)`,
 		})
 	} else {
 		writeStep(builder, "For faster startup, write the completion file once instead:", []string{

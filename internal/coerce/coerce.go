@@ -40,7 +40,7 @@ const (
 )
 
 // TypeParser parses a raw string token into a value of type U.
-type TypeParser[U any] func(raw string) (U, error)
+type TypeParser[U any] = func(raw string) (U, error)
 
 // Registry maps reflect.Type to registered parsers, erased to TypeParser[any].
 type Registry map[reflect.Type]TypeParser[any]

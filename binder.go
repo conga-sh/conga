@@ -1728,19 +1728,19 @@ func validateAndGroups(cmdChain []*spec.Command, andGroups orderedFlagGroups) er
 }
 
 func validateFlagGroupConstraints(cmdChain []*spec.Command, flagSpec *spec.Flag, sourceName string) error {
-	flagState := flagStateOf(flagSpec.Handle)
-	if !flagState.IsSet() {
+	target := flagStateOf(flagSpec.Handle)
+	if !target.IsSet() {
 		return nil
 	}
 
-	value := flagState.getValue()
+	value := target.getValue()
 	constraints := constraintSet{
 		enum:       flagSpec.Enum,
 		length:     flagSpec.Len,
 		valueRange: flagSpec.Range,
 		items:      flagSpec.Items,
 	}
-	descriptor := "flag --" + flagSpec.Name + sourceLocation(flagState.Source(), sourceName)
+	descriptor := "flag --" + flagSpec.Name + sourceLocation(target.Source(), sourceName)
 
 	if flagSpec.IsSlice {
 		return validateSliceValue(cmdChain, descriptor, constraints, value)
