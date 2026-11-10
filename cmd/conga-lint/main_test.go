@@ -171,6 +171,7 @@ func TestRunRelative_PrintsRelatedInformation(t *testing.T) {
 	exitCode, handled := runRelative(newStubAnalyzer(), []string{"github.com/conga-sh/conga/internal/cond"}, &buffer)
 
 	output := buffer.String()
+
 	assert.True(t, handled)
 	assert.Equal(t, 3, exitCode)
 	assert.Contains(t, output, ": stub diagnostic\n")
