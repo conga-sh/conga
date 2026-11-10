@@ -19,7 +19,7 @@ CONGA reads the shape from a struct too, but wraps each field in a generic conta
 
 Containers give up some declaration brevity. Defining a field's behavior through a wrapper type can feel unusual at first, when `Addr conga.OptionalFlag[string]` stands where `Addr string` would do. Every read then goes through a getter, `cmd.Addr.Get()` rather than `cmd.Addr`, and in a command that reads many values those calls add up.
 
-CONGA accepts that cost for what the type gives back. The field's type says what the field is for and how it behaves. With bare fields, tags carry that. One tag marks a field as a positional argument, another makes it required, another makes it a subcommand, and a reader has to scan every tag to learn the field's role. In CONGA the type carries it. `RequiredFlag[string]`, `OptionalArg[string]`, and `Command[DeployCommand]` say flag or argument or subcommand, and required or optional, before any tag. The tags that remain describe the value, such as its name, help text, default, or bounds.
+CONGA accepts that cost for what the type gives back. The field's type says what the field is for and how it behaves. With bare fields, tags carry that. One tag marks a field as a positional argument, another makes it required, another makes it a subcommand, and a reader has to scan every tag to learn the field's role. In CONGA the type carries it. `RequiredFlag[string]`, `OptionalArg[string]`, and `Command[DeployCmd]` say flag or argument or subcommand, and required or optional, before any tag. The tags that remain describe the value, such as its name, help text, default, or bounds.
 
 ### Presence apart from value
 
@@ -62,13 +62,15 @@ CONGA has two containers for words that a command hands on to another program.
 
 `DashArgs` collects every word after `--`, the convention `cargo run --release -- --port 8080` follows. The `--` is an explicit boundary that the user types, so `DashArgs` is safe on a command with subcommands. CONGA reads no word after it as a subcommand name or as one of the tool's own flags.
 
-`RawArgs` collects the rest of the line from the first word the declared positionals don't take, without a `--`, as in `docker run alpine echo hello`. No delimiter marks where forwarding starts, so the boundary must follow from the schema alone. `RawArgs` therefore sits only on a leaf command, after required scalar arguments. An optional or repeated argument before it, or a subcommand beside it, would make the boundary ambiguous. With required scalars only, the boundary always falls after the same number of positional words, so parsing and completion stay predictable. [Trailing arguments](/reference/struct-tags/#trailing-arguments-dashargs-rawargs) has the full rules.
+`RawArgs` collects the rest of the line from the first word the declared positionals don't take, without a `--`, as in `docker run alpine echo hello`. From that word on, CONGA stops parsing flags, so the other program's flags pass through unchanged. No delimiter marks where forwarding starts, so the boundary must follow from the schema alone. `RawArgs` therefore sits only on a leaf command, after required scalar arguments. An optional or repeated argument before it, or a subcommand beside it, would make the boundary ambiguous. With required scalars only, the boundary always falls after the same number of positional words, so parsing and completion stay predictable. [Trailing arguments](/reference/struct-tags/#trailing-arguments-dashargs-rawargs) has the full rules.
 
 ## Constraints declared on the field
 
 Range checks, length bounds, and conflicts between flags are declared on the fields, with the tags `enum`, `range`, `len`, and the group tags `xor`, `oneof`, and `and`. CONGA checks them after parsing the values and before any lifecycle hook, and a violation is a usage error (exit 2). This keeps input validation out of the command body, which receives only values that satisfy the declared rules.
 
 A group counts a member as supplied when its `Changed()` is true, whatever its value. `--json --text=false` names both output formats, and an `xor` of the two reports the conflict rather than reading `--text=false` as absent. This is also why a `oneof` member takes no `default`. A default would give the flag a value without making its `Changed()` true, so the flag would hold a value and still not count toward the group.
+
+Completion hides a group's other members only once one appears on the command line. A group already satisfied from the environment or a config file still has its other members offered, and choosing one fails when the program runs.
 
 A group name belongs to the command that declares it. A parent's `xor:"output"` and a child's `xor:"output"` are two unrelated groups, so a shared name can't couple commands by accident. [Flags](/reference/struct-tags/#flags-optionalflagt-requiredflagt-counter) lists the group rules.
 

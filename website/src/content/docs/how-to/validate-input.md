@@ -3,7 +3,7 @@ title: How to validate input
 description: Require flags, limit values to a set, bound numbers, durations, lengths and counts, reject conflicting flags, demand exactly one of a group, require flags together, and check values against each other with Validator.
 ---
 
-This guide builds an `export` command that sends records to a file or a URL, and adds one kind of check at each step. Each check runs before `Run`, and a value that fails one is a usage error: the program prints the problem and exits with status 2.
+This guide builds an `export` command that sends records to a file or a URL, and adds one kind of check at each step. Each check runs before `Run`, and a value that fails one is a usage error. The program prints the problem and exits with status 2.
 
 ## Require a flag
 
@@ -25,7 +25,7 @@ type Export struct {
 }
 
 func (e *Export) Run(ctx context.Context, session *conga.Session) error {
-	fmt.Printf("exporting as %s\n", e.Format.Get())
+	fmt.Fprintf(session.Stdout(), "exporting as %s\n", e.Format.Get())
 
 	return nil
 }
@@ -125,7 +125,7 @@ Help shows each bound:
       --fields=STRING,...  Fields to include [items: 1..5]
 ```
 
-An optional flag with a bound can still be left out; make it a required flag when it must be given. Either side of a [bound](/reference/struct-tags/#bounds-syntax) can be left open, as in `range:"1.."`, and a single number, as in `items:"5"`, means exactly that many.
+An optional flag with a bound can still be left out. Make it a required flag when it must be given. Either side of a [bound](/reference/struct-tags/#bounds-syntax) can be left open, as in `range:"1.."`, and a single number, as in `items:"5"`, means exactly that many.
 
 :::caution[Defaults are checked too]
 CONGA checks a `default` against the field's bound at every run. A `default:"5000"` on `Limit` passes startup, then fails every run that leaves `--limit` out, as a usage error the user can't fix:
@@ -157,7 +157,7 @@ Usage:
 Run 'export --help' for more information.
 ```
 
-A flag counts as given when the user writes it at all, whatever its value, so `--gzip=false --zstd` fails the same way. Help lists `--gzip` and `--zstd` as ordinary flags; name the other flag in each `help` tag if users need to know before they meet the error.
+A flag counts as given when the user writes it at all, whatever its value, so `--gzip=false --zstd` fails the same way. Help lists `--gzip` and `--zstd` as ordinary flags, so name the other flag in each `help` tag if users need to know before they meet the error.
 
 ## Demand exactly one of a group
 
@@ -274,7 +274,7 @@ Usage:
 Run 'export --help' for more information.
 ```
 
-`Validate` runs after every tag check has passed, and before `Run` and any lifecycle hook, so it can trust that the flags hold valid values and the program has opened nothing yet. Write the message the user should see; CONGA prints it after `export: error:`.
+`Validate` runs after every tag check has passed, and before `Run` and any lifecycle hook, so it can trust that the flags hold valid values and the program has opened nothing yet. Write the message the user should see. CONGA prints it after `export: error:`.
 
 ## Know what users see
 

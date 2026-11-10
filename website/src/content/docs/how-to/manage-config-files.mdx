@@ -11,7 +11,7 @@ The running example is the [cascading search paths example](https://github.com/c
 
 ## Register the formats you accept
 
-Register a decoder for each file extension the application reads. Decoders are separate packages, so an application links only the formats it registers. The struct below also declares a `conga.ConfigFile` field, the container for the config-file flag: it gives users `-c` / `--config-file` and holds the paths they name ([Let users name their own files](#let-users-name-their-own-files)):
+Register a decoder for each file extension the application reads. Decoders are separate packages, so an application links only the formats it registers. The struct below also declares a `conga.ConfigFile` field, the container for the config-file flag. It gives users `-c` / `--config-file` and holds the paths they name ([Let users name their own files](#let-users-name-their-own-files)):
 
 ```go title="main.go"
 package main
@@ -56,7 +56,7 @@ Users see the accepted formats on the config flag in `--help`:
   -c, --config-file=PATH,...                   Path to config file(s) [decoders: .yaml, .yml]
 ```
 
-CONGA ships decoders for JSON, TOML, YAML, and HCL in `conga/decoder/...`; see [package decoder](/reference/decoders/).
+CONGA ships decoders for JSON, TOML, YAML, and HCL in `conga/decoder/...` ([package decoder](/reference/decoders/)).
 
 To accept another format, import its decoder package and register its extension:
 
@@ -86,7 +86,7 @@ app.RegisterDecoder(".hcl", hcl.Decode)
 
 ## Search for a file in several places
 
-Add `ConfigPaths` with the places to look, highest precedence first. For an entry that is an existing directory, the program looks there for `config.<ext>` and `<app-name>.<ext>` for every registered extension. An existing file is used as it is. An entry that does not exist is tried as `<entry>.<ext>`: without a `~/.config/cascading-searchpaths` directory, the program looks for `~/.config/cascading-searchpaths.yaml`. `~` and `${VAR:-default}` expand:
+Add `ConfigPaths` with the places to look, highest precedence first. For an entry that is an existing directory, the program looks there for `config.<ext>` and `<app-name>.<ext>` for every registered extension. An existing file is used as it is. An entry that does not exist is tried as `<entry>.<ext>`, so without a `~/.config/cascading-searchpaths` directory, the program looks for `~/.config/cascading-searchpaths.yaml`. `~` and `${VAR:-default}` expand:
 
 ```go title="main.go" ins={6}
 app := conga.New[CLI]().
@@ -139,11 +139,15 @@ Config paths:
     looked for: /etc/cascading-searchpaths/cascading-searchpaths.yml
 ```
 
-Without `ConfigPaths`, the program looks in the user's config directory, `${XDG_CONFIG_HOME:-~/.config}`; [About the config cascade](/explanation/config-cascade/) covers that default. To load one fixed file instead of searching, use `conga.ConfigExplicit(path)`; the run fails if that file is missing.
+Without `ConfigPaths`, the program looks in the user's config directory, `${XDG_CONFIG_HOME:-~/.config}`, and [About the config cascade](/explanation/config-cascade/) covers that default. To load one fixed file instead of searching, use `conga.ConfigExplicit(path)`. The run then fails if that file is missing. `ConfigExplicit` takes the place of the search, so a program that also passes `ConfigPaths` or `ConfigCascading` fails at startup:
+
+```text no-copy error={1} wrap
+cascading-searchpaths: error: schema error: conga.ConfigExplicit() specifies an absolute configuration file and cannot be combined with conga.ConfigPaths() or conga.ConfigCascading()
+```
 
 ## Merge files from every place
 
-Add `ConfigCascading()` to load every file found and merge them key by key, higher places winning. The `ConfigFile` flag must then accept several files, with `multi:"true"`, as in the struct above:
+Add `ConfigCascading()` to load every file found and merge them key by key, higher places winning. The `ConfigFile` flag must then accept several files, with `multi:"true"` as in the struct above, or the program fails at startup with `schema error: conga.ConfigCascading() merges multiple config files; the root config-file flag "config-file" must declare multi:"true"`:
 
 ```go title="main.go" ins={3}
 ConfigOptions(
@@ -180,7 +184,21 @@ The system file also sets `timeout: 30s`, but the user's `15s` wins. Flags on th
 
 ## Let users name their own files
 
-The `ConfigFile` field gives users `-c` / `--config-file`. Naming a file replaces the search: the program loads only the named files.
+The `ConfigFile` field gives users `-c` / `--config-file`. Naming a file replaces the search, and the program loads only the named files.
+
+With an `EnvPrefix`, the flag also reads a variable. Here `EnvPrefix("APP")` was added, and help lists `APP_CONFIG` under the flag:
+
+```text no-copy
+  -c, --config-file=PATH,...                   Path to config file(s) [decoders: .yaml, .yml]
+                                               [env: APP_CONFIG]
+```
+
+A file named in `APP_CONFIG` must exist, as with `-c`:
+
+```sh error={2} wrap
+$ APP_CONFIG=nope.yaml cascading-searchpaths
+cascading-searchpaths: error: cannot read config file "nope.yaml": stat nope.yaml: no such file or directory
+```
 
 With `multi:"true"`, users can repeat `-c`, and a later file beats an earlier one:
 
@@ -211,11 +229,11 @@ $ cascading-searchpaths -c nope.yaml
 cascading-searchpaths: error: cannot read config file "nope.yaml": stat nope.yaml: no such file or directory
 ```
 
-`ConfigFile` belongs on the root command; subcommands read the loaded files through the session (see [List the config files a run loaded](#list-the-config-files-a-run-loaded)).
+`ConfigFile` belongs on the root command, and subcommands read the loaded files through the session (see [List the config files a run loaded](#list-the-config-files-a-run-loaded)).
 
 ## Match keys to fields
 
-A key matches the flag's name in kebab-case, and snake_case works too: the example's files write `api_endpoint:` for `--api-endpoint`. The `CONFIG PATH` column of `--why` shows each flag's key.
+A key matches the flag's name in kebab-case, and snake_case works too. The example's files write `api_endpoint:` for `--api-endpoint`. The `CONFIG PATH` column of `--why` shows each flag's key.
 
 To read a different key, set `config:"<key>"`. To keep a field out of config files, set `config:"-"`. This variation adds a token that users pass on the command line or in the environment only:
 
@@ -328,7 +346,7 @@ Config paths:
 
 ## Add a format of your own
 
-A decoder is a function with the signature `func(data []byte) (map[string]any, error)` that turns the file into a map of keys to values; nested maps hold subcommand sections. This one reads `key = value` lines:
+A decoder is a function with the signature `func(data []byte) (map[string]any, error)` that turns the file into a map of keys to values, with nested maps for subcommand sections. This one reads `key = value` lines:
 
 ```go title="main.go"
 func iniDecoder(data []byte) (map[string]any, error) {

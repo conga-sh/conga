@@ -83,7 +83,7 @@ Usage:
   cloudctl deploy [flags]
 ```
 
-For a longer description and examples, implement `Description()` and `Examples()` on the subcommand struct. Unlike the `summary` tag, they're Go code, so they can build the text when the program starts: `Examples()` can check `runtime.GOOS` and show Windows paths on Windows, for instance. CONGA calls them once, before it reads flags, so the text can't use the command's own flag values:
+For a longer description and examples, implement `Description()` and `Examples()` on the subcommand struct. Unlike the `summary` tag, they're Go code, so they can build the text when the program starts. `Examples()` can check `runtime.GOOS` and show Windows paths on Windows, for instance. CONGA calls them once, before it reads flags, so the text can't use the command's own flag values:
 
 ```go title="deploy.go"
 type DeployCmd struct {
@@ -178,7 +178,7 @@ Flags:
   -V, --version         Show version
 ```
 
-`-h` appears on every command and `-V` on the root, as `--version` does. A rune that one of your flags already uses fails at startup; see [Know what users see](#know-what-users-see). When you disable a built-in with `app.DisableHelpFlag()` or `app.DisableVersionFlag()`, its rune stays free for your own flags.
+`-h` appears on every command and `-V` on the root, as `--version` does. A rune that one of your flags already uses fails at startup (see [Know what users see](#know-what-users-see)). When you disable a built-in with `app.DisableHelpFlag()` or `app.DisableVersionFlag()`, its rune stays free for your own flags.
 
 ## Group flags and commands into sections
 
@@ -228,7 +228,7 @@ Documentation: https://example.com/docs
 
 ## Write constraints into the help text
 
-CONGA appends each flag's constraints to its help: `--port` above shows `8080` in its value slot and `[1..65535]` after the text. To phrase them yourself, put help variables in the `help` tag:
+CONGA appends each flag's constraints to its help. `--port` above shows `8080` in its value slot and `[1..65535]` after the text. To phrase them yourself, put help variables in the `help` tag:
 
 ```go title="deploy.go" {2}
 type DeployCmd struct {
@@ -256,7 +256,7 @@ Flags:
 | `{{len}}`, `{{items}}` | The `[len: …]` and `[items: …]` hints |
 | `{{env}}` | The `[env: …]` hint |
 
-A variable needs the matching tag: `{{range}}` on a field without `range` fails at startup. Write `{{{{` for a literal `{{`. [Help variables](/reference/struct-tags/#help-variables) lists where each variable is available.
+A variable needs the matching tag, so `{{range}}` on a field without `range` fails at startup. Write `{{{{` for a literal `{{`. [Help variables](/reference/struct-tags/#help-variables) lists where each variable is available.
 
 ## Hide a long list of allowed values
 

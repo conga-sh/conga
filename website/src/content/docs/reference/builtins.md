@@ -105,7 +105,7 @@ Brackets and `...` that you write in an argument's name are kept as written.
 Help text wraps to a width that CONGA picks in this order:
 
 1. A `COLUMNS` environment variable of at least 20.
-2. The width of the terminal on stdout, when it reports one of at least 20. CONGA asks the terminal on Linux, macOS, and the BSDs; on Windows and other platforms, set `COLUMNS`.
+2. The width of the terminal on stdout, when it reports one of at least 20. CONGA asks the terminal on Linux, macOS, and the BSDs. On Windows and other platforms, set `COLUMNS`.
 3. 100 columns, as for piped or redirected output.
 
 Within that width:
@@ -140,7 +140,7 @@ app := conga.New[CLI]().
 	VersionShortFlag('V')
 ```
 
-The zero value keeps a built-in long-only. A collision between the rune and a user-declared short, or between the two built-in runes, fails schema build with `ErrDuplicateFlag` naming the flag and command. Disabling the matching built-in leaves the rune inert: it binds to nothing, and the `help` or `version` name and the rune stay free for your own flags. User-declared `--help` or `--version` flags shadow built-in rows and render long-only without inheriting the configured short rune.
+The zero value keeps a built-in long-only. A collision between the rune and a user-declared short, or between the two built-in runes, fails schema build with `ErrDuplicateFlag` naming the flag and command. Disabling the matching built-in leaves the rune inert. It binds to nothing, and the `help` or `version` name and the rune stay free for your own flags. User-declared `--help` or `--version` flags shadow built-in rows and render long-only without inheriting the configured short rune.
 
 The help rune applies to every command screen, and the version rune to the root screen, matching the root-only `--version` flag. Once a subcommand is selected, `--version` is no longer a built-in ([`--version` after selection](/reference/struct-tags/#--version-after-selection)). Completion offers each configured rune as a shorthand candidate next to the declared short flags whenever the matching built-in is offered on the active command.
 
@@ -167,13 +167,13 @@ type App struct {
 }
 ```
 
-`HelpCommand` resolves the requested path (with aliases) and returns the target's help screen; unknown paths are parse errors with suggestions. Call `Path() []string` to inspect the requested subcommand path. `app.DisableHelpFlag()` removes `--help` flag injection entirely.
+`HelpCommand` resolves the requested path (with aliases) and returns the target's help screen, and an unknown path is a parse error with suggestions. Call `Path() []string` to inspect the requested subcommand path. `app.DisableHelpFlag()` removes `--help` flag injection entirely.
 
-The built-in command fields accept `name`, `summary`, `aliases`, `section`, and `hidden` tags. A declared `aliases:"h"` adds a routing alias, so `hello h` resolves the `help` subcommand; the same tag applies to `conga.VersionCommand` and `conga.CompletionCommand` fields.
+The built-in command fields accept `name`, `summary`, `aliases`, `section`, and `hidden` tags. A declared `aliases:"h"` adds a routing alias, so `hello h` resolves the `help` subcommand. The same tag applies to `conga.VersionCommand` and `conga.CompletionCommand` fields.
 
 ## Version
 
-Every root command gets `--version`. `app.Version("1.0.0")` sets the rendered string; the default is the module version (or `dev`) plus the embedded build metadata (VCS commit and date, when available). The summary line renders under the configured application name (`App.Name(...)`), falling back to the invoked binary name (`os.Args[0]`) only when unset.
+Every root command gets `--version`. `app.Version("1.0.0")` sets the rendered string. The default is the module version (or `dev`) plus the embedded build metadata (VCS commit and date, when available). The summary line renders under the configured application name (`App.Name(...)`), falling back to the invoked binary name (`os.Args[0]`) only when unset.
 
 The flag renders a single summary line, and `session.Version()` returns that same line. The commit and build timestamp are appended when the build info carries them and the version string does not already embed them (Go 1.27 records a pseudo-version for source builds):
 
@@ -201,13 +201,13 @@ hello:
  OS/Arch:    linux/amd64
 ```
 
-`hello version --json` renders a flat machine-readable object with the same fields (`version`, `gitCommit`, `built`, `goVersion`, `os`, `arch`, `modified`). Call `JSON() bool` on the command struct to query whether JSON format was requested. The `--json` flag is engine-owned: a user-defined `--json` flag on an ancestor command cannot collide with it, and a non-boolean value is a usage error (exit 2).
+`hello version --json` renders a flat machine-readable object with the same fields (`version`, `gitCommit`, `built`, `goVersion`, `os`, `arch`, `modified`). Call `JSON() bool` on the command struct to query whether JSON format was requested. The `--json` flag is engine-owned, so a user-defined `--json` flag on an ancestor command cannot collide with it, and a non-boolean value is a usage error (exit 2).
 
 `app.DisableVersionFlag()` removes the flag while keeping the version summary line available through `session.Version()` and `VersionCommand`. `app.VersionShortFlag('V')` assigns the rune rendered and parsed as `-V` (see [Configurable short flags](#configurable-short-flags)).
 
 ## The `--why` report
 
-`app.EnableWhy()` enables `--why`, which prints a per-field provenance report — every resolved value in the active command chain with its [source](/explanation/value-precedence/): `cli`, `env`, `config (file)`, `default`, or `unset`. Configuration origins render as the file basename when it is unambiguous, or as the shortest unique directory prefix followed by `...` when basenames collide; the JSON report keeps the resolved paths verbatim. A multi-file `ConfigFile` row renders `(N files)` and lists each path as a tree sub-row (`├─ `, `└─ `), while any other slice flag with more than one item renders `(N values)` and lists each item vertically.
+`app.EnableWhy()` enables `--why`, which prints a per-field provenance report. It lists every resolved value in the active command chain with its [source](/explanation/value-precedence/), one of `cli`, `env`, `config (file)`, `default`, or `unset`. Configuration origins render as the file basename when it is unambiguous, or as the shortest unique directory prefix followed by `...` when basenames collide, and the JSON report keeps the resolved paths verbatim. A multi-file `ConfigFile` row renders `(N files)` and lists each path as a tree sub-row (`├─ `, `└─ `), while any other slice flag with more than one item renders `(N values)` and lists each item vertically.
 
 A map flag's row shows `(N keys)` and the highest source that contributed, with its config file when only one file contributed. A sub-row for each key shows its value and the source that last wrote it, with its config file. The `CONFIG PATH` column names the config-document key. The report code is linked only when `app.EnableWhy()` is called, and otherwise `--why` is an unknown flag.
 
@@ -232,9 +232,9 @@ A value prints as `██████` unless one of these makes it visible:
 | Feature toggles | Always |
 | Any other flag, set from the command line, the environment, or a config file | No |
 
-A map flag applies the rule key by key: keys from the default show, and keys set elsewhere print as `KEY=██████`. Unset flags have no value to show. Positional arguments are not part of the report. In JSON, a hidden value is `null` with `"redacted": true`.
+A map flag applies the rule key by key. Keys from the default show, and keys set elsewhere print as `KEY=██████`. Unset flags have no value to show. Positional arguments are not part of the report. In JSON, a hidden value is `null` with `"redacted": true`.
 
-When connected to an interactive terminal, the report uses color: each source gets a marker and a color (`● cli` cyan, `● env` yellow, `● config` green, `○ default` grey, `unset` dim). When piped, redirected, or running under `NO_COLOR=1` or `TERM=dumb`, it prints plain text with no markers, as shown on the how-to pages. Output color can also be forced with `CONGA_COLOR=1` or disabled with `CONGA_COLOR=0`.
+When connected to an interactive terminal, the report uses color, and each source gets a marker and a color (`● cli` cyan, `● env` yellow, `● config` green, `○ default` grey, `unset` dim). When piped, redirected, or running under `NO_COLOR=1` or `TERM=dumb`, it prints plain text with no markers, as shown on the how-to pages. Output color can also be forced with `CONGA_COLOR=1` or disabled with `CONGA_COLOR=0`.
 
 `--why` binds values as a normal run does, except that a missing required flag is not an error. Malformed configuration or a value that fails to parse produces the normal error, and no report.
 
@@ -256,7 +256,7 @@ By default (or with `--why=text`), the report renders as formatted human-readabl
 
 Requesting `--why=json` without `conga.WhyOptionJSON()` enabled on the application, or passing any value other than `text` or `json`, is a usage error (exit 2).
 
-When `conga.WhyOptionJSON()` is enabled, the help screen renders the flag as `--why[=FORMAT]` with the accepted formats appended as an enum hint (`[enum: text, json]`); otherwise `--why` renders as a plain toggle. Completion mirrors the split: the flag-name candidates are the value-bearing forms `--why=text` and `--why=json`, and completing after `--why=` offers the enabled formats filtered by prefix.
+When `conga.WhyOptionJSON()` is enabled, the help screen renders the flag as `--why[=FORMAT]` with the accepted formats appended as an enum hint (`[enum: text, json]`). Otherwise `--why` renders as a plain toggle. Completion mirrors the split, and the flag-name candidates are the value-bearing forms `--why=text` and `--why=json`, and completing after `--why=` offers the enabled formats filtered by prefix.
 
 When the root command declares `conga.Features[T]`, the report ends with a `Features:` table listing every declared feature, its resolved value, and its source. Each feature reports the source that last wrote its key. Keys no source sets fall back to the field default (`○ default`) or render `unset`. See [Feature toggles](/reference/struct-tags/#feature-toggles-congafeaturest).
 
@@ -270,7 +270,7 @@ When the root command declares `conga.Features[T]`, the report ends with a `Feat
 | Subcommand | `completion <shell>`, listed last under `Commands:` | A root command with subcommands, or any root command that declares a `conga.CompletionCommand` field (which also suppresses the flag). The field accepts the `name`, `aliases`, `section`, `summary`, and `hidden` tags, and its `Shell() string` method returns the requested shell. Declaring `conga.CompletionCommand` without `app.EnableCompletion()` fails schema build with `ErrSchema` |
 | Hidden driver | `<cmd> __complete <shell> <words...>` | Called by the generated shell functions; `export` in place of a shell name prints JSON (see [Candidates as JSON](#candidates-as-json)) |
 
-Invoked without a shell argument, the flag or subcommand prints the supported shells and, when the active shell is detected, the command to load completion into the current session (exit 0). Invoked with `<shell> --help`, it prints the installation steps for that shell, adjusted to the environment: with `HOMEBREW_PREFIX` set, the zsh steps write to `$HOMEBREW_PREFIX/share/zsh/site-functions`, and on macOS the bash steps warn when the running Bash is older than 4.4. An unknown shell name is a usage error (exit 2).
+Invoked without a shell argument, the flag or subcommand prints the supported shells and, when the active shell is detected, the command to load completion into the current session (exit 0). Invoked with `<shell> --help`, it prints the installation steps for that shell, adjusted to the environment. With `HOMEBREW_PREFIX` set, the zsh steps write to `$HOMEBREW_PREFIX/share/zsh/site-functions`, and on macOS the bash steps warn when the running Bash is older than 4.4. An unknown shell name is a usage error (exit 2).
 
 When the user presses `Tab`, the installed shell function invokes the binary through the hidden driver with the partial words:
 
@@ -293,22 +293,22 @@ Once a member of an `xor` or `oneof` group is on the command line, its sibling m
 
 ### Candidates as JSON
 
-`<cmd> __complete export <words...>` prints the candidates for the last word as one JSON object, with no shell script involved. The last word is the one being completed; pass `''` to complete an empty word. For the `deploy` program in [How to compute and shape completion candidates](/how-to/compute-completion-candidates/):
+`<cmd> __complete export <words...>` prints the candidates for the last word as one JSON object, with no shell script involved. The last word is the one being completed, so pass `''` to complete an empty word. For the `deploy` program in [How to compute and shape completion candidates](/how-to/compute-completion-candidates/):
 
 ```sh wrap
 $ deploy __complete export --pin ''
 {"candidates":[{"value":"api:","display":"api:","tag":"values"},{"value":"web:","display":"web:","tag":"values"},{"value":"worker:","display":"worker:","tag":"values"}],"directives":{"keeporder":false,"messages":[],"noprefix":false,"nospace":true},"usage":"Deploy a service at one of its tags (service:tag)"}
 ```
 
-`candidates` holds each value with its display text, its tag, and, when set, its description and alias marker; `directives` holds the flags the shell scripts act on; `usage` is the `help` text of the flag or argument being completed. [The completion wire protocol](https://github.com/conga-sh/conga/blob/main/docs/completion-wire-protocol.md) defines every field.
+`candidates` holds each value with its display text, its tag, and, when set, its description and alias marker. `directives` holds the flags the shell scripts act on, and `usage` is the `help` text of the flag or argument being completed. [The completion wire protocol](https://github.com/conga-sh/conga/blob/main/docs/completion-wire-protocol.md) defines every field.
 
 ### Flags at a bare space
 
-At a bare space, the driver offers subcommands and positional arguments and withholds flags until the user types a `-` prefix (`cloudctl <Tab>` completes subcommands; `cloudctl -<Tab>` completes flags). If a command defines no subcommands, positional arguments, or `RawArgs`, flags are offered at a bare space. Set the `bare-space-flags` zstyle or `<APP>_COMPLETION_BARE_SPACE_FLAGS=1` to include flags at a bare space unconditionally.
+At a bare space, the driver offers subcommands and positional arguments and withholds flags until the user types a `-` prefix. `cloudctl <Tab>` completes subcommands, and `cloudctl -<Tab>` completes flags. If a command defines no subcommands, positional arguments, or `RawArgs`, flags are offered at a bare space. Set the `bare-space-flags` zstyle or `<APP>_COMPLETION_BARE_SPACE_FLAGS=1` to include flags at a bare space unconditionally.
 
 ### User toggles
 
-The generated scripts read three per-application environment variables. The default prefix is the application name in `UPPER_SNAKE_CASE` (`cloudctl` reads `CLOUDCTL_COMPLETION_*`). A derived prefix that starts with a digit gains a leading underscore (`7z` reads `_7Z_COMPLETION_*`). Pass `conga.CompletionEnvPrefix(prefix)` to `app.EnableCompletion` to override the prefix; an explicit prefix that normalizes to a leading digit fails schema build with `ErrSchema`.
+The generated scripts read three per-application environment variables. The default prefix is the application name in `UPPER_SNAKE_CASE` (`cloudctl` reads `CLOUDCTL_COMPLETION_*`). A derived prefix that starts with a digit gains a leading underscore (`7z` reads `_7Z_COMPLETION_*`). Pass `conga.CompletionEnvPrefix(prefix)` to `app.EnableCompletion` to override the prefix. An explicit prefix that normalizes to a leading digit fails schema build with `ErrSchema`.
 
 | Variable | Effect |
 |---|---|
@@ -341,7 +341,7 @@ In bash, zsh, fish, PowerShell, and Nushell, a path-qualified invocation (`./clo
 
 The filesystem predictors in `package predict` (`Files`, `Dirs`, `FilesGlob`, `FilesFiltered`, `PathsFiltered`, `DirsGlob`, `DirsFiltered`, `Symlinks`, `Executables`) evaluate candidate paths in-process rather than delegating to shell file completion, producing identical candidates across all six shells. Dotfiles are offered only when the typed prefix begins with `.`.
 
-Because zsh's `_files` helper is not invoked, zsh-specific file-completion settings do not apply to these candidates: the `file-sort` and `file-patterns` styles, `cdpath`, and `~name` expansion in file values (tracked in [#85](https://github.com/conga-sh/conga/issues/85)).
+Because zsh's `_files` helper is not invoked, zsh-specific file-completion settings do not apply to these candidates. These include the `file-sort` and `file-patterns` styles, `cdpath`, and `~name` expansion in file values (tracked in [#85](https://github.com/conga-sh/conga/issues/85)).
 
 ## Deprecation
 
@@ -356,8 +356,8 @@ Member-level deprecation uses tags and emits a warning when the flag or subcomma
 
 ```go
 type App struct {
-	Old   conga.OptionalFlag[bool]    `deprecated:"use --new instead" help:"Legacy switch"`
-	Purge conga.Command[PurgeCommand] `deprecated:"folded into 'clean'" summary:"Purge caches"`
+	Old   conga.OptionalFlag[bool] `deprecated:"use --new instead" help:"Legacy switch"`
+	Purge conga.Command[PurgeCmd]  `deprecated:"folded into 'clean'" summary:"Purge caches"`
 }
 ```
 

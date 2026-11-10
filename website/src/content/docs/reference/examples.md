@@ -488,7 +488,7 @@ Uses: `App.Deprecated`
 
 [Source](https://github.com/conga-sh/conga/tree/main/_examples/23-member-deprecation) · Guide: [How to deprecate flags and commands](/how-to/deprecate-flags-and-commands/)
 
-A CLI where the `--old` flag and the `legacy` command still work but warn and name their replacements. Completion stops offering them: the candidates below include `--modern` and leave out `--old`.
+A CLI where the `--old` flag and the `legacy` command still work but warn and name their replacements. Completion stops offering them, so the candidates below include `--modern` and leave out `--old`.
 
 :::code-tabs
 ```sh label="Deprecated flag"
@@ -588,7 +588,7 @@ Uses: `App.ConfigOptions`, `ConfigPaths`, `ConfigCascading`
 
 [Source](https://github.com/conga-sh/conga/tree/main/_examples/17-config-profiles) · Guide: [How to manage config files](/how-to/manage-config-files/)
 
-A deploy tool whose `-c` takes several config files and merges them in order, so a profile file overrides a base file key by key. The two files come from the example's `testdata/profiles.txt`; create them to repeat the run.
+A deploy tool whose `-c` takes several config files and merges them in order, so a profile file overrides a base file key by key. The two files come from the example's `testdata/profiles.txt`. Create them to repeat the run.
 
 :::code-tabs
 ```yaml label="deploy/base.yaml"
@@ -636,7 +636,7 @@ Uses: `App.ConfigOptions`, `ConfigPaths`
 
 [Source](https://github.com/conga-sh/conga/tree/main/_examples/28-explicit-config-file) · Guide: [How to manage config files](/how-to/manage-config-files/)
 
-A web server that always loads `bootstrap.yaml` and stops with exit code 1 when the file is missing. Only `--config-file` replaces it; the `WEB_CONFIG` variable does not. The file comes from the example's `testdata/explicit.txt`; create it to repeat the first run.
+A web server that always loads `bootstrap.yaml` and stops with exit code 1 when the file is missing. Only `--config-file` replaces it, and the `WEB_CONFIG` variable does not. The file comes from the example's `testdata/explicit.txt`. Create it to repeat the first run.
 
 :::code-tabs
 ```yaml label="bootstrap.yaml"

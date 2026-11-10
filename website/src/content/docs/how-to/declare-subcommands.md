@@ -7,7 +7,7 @@ This guide builds a `cloudctl` program with `deploy`, `list`, `debug`, and `push
 
 ## Add a subcommand
 
-A subcommand is a field of its parent command's struct, and its type is the container `conga.Command[...]`. The type in the brackets is the subcommand's own struct, which declares the subcommand's flags and arguments; a pointer to it implements `conga.Runner`:
+A subcommand is a field of its parent command's struct, and its type is the container `conga.Command[...]`. The type in the brackets is the subcommand's own struct, which declares the subcommand's flags and arguments. A pointer to it implements `conga.Runner`:
 
 ```go
 type Runner interface {
@@ -92,7 +92,7 @@ Flags:
 
 To run code when the user names no subcommand, implement `Runner` on the parent too. Its `Run` handles `cloudctl` alone, and `cloudctl deploy web.yaml` still runs `deploy`.
 
-A command declares subcommands or positional arguments, not both; [How to accept positional arguments](/how-to/accept-positional-arguments/) covers positional arguments.
+A command declares subcommands or positional arguments, not both. [How to accept positional arguments](/how-to/accept-positional-arguments/) covers positional arguments.
 
 ## Group, alias, hide, and deprecate subcommands
 
@@ -142,7 +142,7 @@ WARNING: command 'cloudctl push' is deprecated: use deploy
 deploying web.yaml with 3 replicas
 ```
 
-Shell completion offers the aliases; `--help` lists each command once, by name. `name:"..."` replaces the kebab-case name. [How to deprecate flags and commands](/how-to/deprecate-flags-and-commands/) also deprecates flags and whole applications.
+Shell completion offers the aliases, and `--help` lists each command once, by name. `name:"..."` replaces the kebab-case name. [How to deprecate flags and commands](/how-to/deprecate-flags-and-commands/) also deprecates flags and whole applications.
 
 ## Read root flags from a subcommand
 
@@ -167,7 +167,7 @@ running cloudctl deploy
 deploying web.yaml with 3 replicas
 ```
 
-The subcommand's help lists the parent's flags under `Global Flags:`. A descendant can't redeclare a parent's flag name, alias, or short letter; sibling subcommands can share names. `session.Path()` and the other accessors are in [package conga](/reference/conga/#session-and-hierarchy-accessors).
+The subcommand's help lists the parent's flags under `Global Flags:`. A descendant can't redeclare a parent's flag name, alias, or short letter, but sibling subcommands can share names. `session.Path()` and the other accessors are in [package conga](/reference/conga/#session-and-hierarchy-accessors).
 
 ## Make one subcommand the default
 
@@ -214,7 +214,7 @@ Flags:
       --version  Show version
 ```
 
-An operand that starts with `-` goes after `--`: `cloudctl -- -web.yaml` deploys `-web.yaml`. [Implicit subcommands](/reference/struct-tags/#implicit-subcommands) gives the full routing rules, including a parent that also implements `Run`.
+An operand that starts with `-` goes after `--`, so `cloudctl -- -web.yaml` deploys `-web.yaml`. [Implicit subcommands](/reference/struct-tags/#implicit-subcommands) gives the full routing rules, including a parent that also implements `Run`.
 
 ## Know what users see
 

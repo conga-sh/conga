@@ -73,7 +73,7 @@ $ restart --host api.internal --port httpz
 restart: error: invalid port: unknown service name "httpz" for flag --port
 ```
 
-`Host` accepts any text; its `LookupIP` method resolves the name when the command needs an address.
+`Host` accepts any text, and its `LookupIP` method resolves the name when the command needs an address.
 
 ## Accept a signal
 
@@ -111,7 +111,7 @@ $ restart --host api.internal --signal SIGFOO
 restart: error: unknown or invalid signal "SIGFOO" for flag --signal
 ```
 
-The value keeps the text the user typed, such as `SIGTERM` or `9`; its `Signal` method returns the `syscall.Signal` to pass to `os.Process.Signal`.
+The value keeps the text the user typed, such as `SIGTERM` or `9`, and its `Signal` method returns the `syscall.Signal` to pass to `os.Process.Signal`.
 
 ## Look up a user when the command needs it
 
@@ -149,7 +149,7 @@ $ restart --host api.internal --as nosuchuser
 restart: error: user lookup: user: unknown user nosuchuser
 ```
 
-`system.Group` and `network.NetInterface` work the same way: they accept a name, and a method looks it up. Use them when the command should decide whether, and when, to look the value up.
+`system.Group` and `network.NetInterface` work the same way. They accept a name, and a method looks it up. Use them when the command should decide whether, and when, to look the value up.
 
 ## Bind standard library types
 

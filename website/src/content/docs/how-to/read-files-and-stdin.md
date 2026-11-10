@@ -79,7 +79,7 @@ The flag has no `help` tag, so help describes what it accepts, including `-`:
       --input=FILE  Path to an existing file or '-' for stdin
 ```
 
-Without the `stdin` tag, CONGA rejects `-`: `"-" requires the stdin or stdout tag on the field for flag --input`. `File` also expands `~` and environment variables in the path. When the app runs inside a test with its own `Stdin`, `Reader` reads that instead of the process's standard input.
+Without the `stdin` tag, CONGA rejects `-` with `"-" requires the stdin or stdout tag on the field for flag --input`. `File` also expands `~` and environment variables in the path. When the app runs inside a test with its own `Stdin`, `Reader` reads that instead of the process's standard input.
 
 ## Write to a file or standard output
 
@@ -155,7 +155,7 @@ $ convert --input notes.txt --header missing.txt
 convert: error: stat missing.txt: no such file or directory for flag --header
 ```
 
-`FileContent` reads at most 16 MiB; use `File` and `Reader` for anything larger. The `placeholder` tag replaces the default placeholder in help, `FILE-CONTENT`.
+`FileContent` reads at most 16 MiB. Use `File` and `Reader` for anything larger. The `placeholder` tag replaces the default placeholder in help, `FILE-CONTENT`.
 
 ## Accept a size such as 10MiB
 
@@ -181,7 +181,7 @@ func (c *Convert) Run(ctx context.Context, session *conga.Session) error {
 }
 ```
 
-Units are case-sensitive and end in `B`: `kB`, `MB`, and `GB` are powers of 1000, and `KiB`, `MiB`, and `GiB` powers of 1024. A unit without the `B` is rejected:
+Units are case-sensitive and end in `B`. `kB`, `MB`, and `GB` are powers of 1000, and `KiB`, `MiB`, and `GiB` powers of 1024. A unit without the `B` is rejected:
 
 ```sh error={2}
 $ convert --input notes.txt --max-size 10M

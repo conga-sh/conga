@@ -3,7 +3,7 @@ title: Errors and exit codes
 description: Categorized base errors, the usage/runtime classification contract, and the 0/1/2 exit code contract.
 ---
 
-CONGA classifies every failure into five base categories, one per pipeline stage. Match the category; the message carries the specifics (field, token, command path, suggestions).
+CONGA classifies every failure into five base categories, one per pipeline stage. Match the category, and read the specifics from the message (field, token, command path, suggestions).
 
 ## Exit codes
 
@@ -52,7 +52,7 @@ type CompletionError interface {
 }
 ```
 
-The concrete error implementations (parse, coercion, validation, config) are unexported; `IsUsageError`, `IsCompletionError`, `UsageError`, `CompletionError`, and the base category sentinels form the public classification API.
+The concrete error implementations (parse, coercion, validation, config) are unexported. `IsUsageError`, `IsCompletionError`, `UsageError`, `CompletionError`, and the base category sentinels form the public classification API.
 
 ## Feature-gating and map-folding failures
 
@@ -61,11 +61,12 @@ Feature gating and map folding classify errors by the input source that introduc
 | Failure | Category | Exit |
 |---------|----------|:----:|
 | Inactive gated flag or subcommand supplied on the command line, unknown feature key, or invalid feature value | `ErrParse` / `ErrValidation` (usage error) | 2 |
-| Unknown feature key or invalid feature value in a config file | `ErrConfig` | 1 |
+| Unknown feature key in a config file | `ErrConfig` | 1 |
+| Invalid feature value in a config file | `ErrValidation` (usage error) | 2 |
 | Config key naming a flag whose gating feature is inactive | `ErrConfig` | 1 |
-| Environment variable naming an inactive gated flag | Ignored (the pruned flag never reaches environment binding) | – |
+| Environment variable naming an inactive gated flag | Ignored (the inactive flag never reaches environment binding) | – |
 | Unknown or invalid feature key in the feature map environment variable | `ErrParse` (usage error) | 2 |
-| Malformed map flag syntax in a config file (even when overridden by CLI) | `ErrConfig` | 1 |
+| Malformed map flag entry in a config file (even when overridden by CLI) | `ErrCoerce` (usage error) | 2 |
 | Malformed map flag syntax in an environment variable | `ErrParse` (usage error) | 2 |
 | Invalid format passed to `--why` or `--why=json` requested without `conga.WhyOptionJSON()` | `ErrValidation` (usage error) | 2 |
 | Runtime error returned from `Bootstrapper.Bootstrap` | `ErrConfig` | 1 |
@@ -85,7 +86,7 @@ Programmer errors during schema construction abort at startup before execution b
 - Ancestor flag shadowing across command-subcommand hierarchies (`ErrDuplicateFlag`).
 - Built-in short flag collisions: assigning a short rune via `app.HelpShortFlag` or `app.VersionShortFlag` that collides with an application flag, or assigning the same rune to both built-in flags (`ErrDuplicateFlag`).
 - Declaring `default`, `xor`, or `oneof` on a `RequiredFlag[T]`.
-- Invalid group definitions: declaring `default` on a `oneof` member; two members of the same `oneof` or `xor` group sharing an `and` group; a `xor` or `and` group with fewer than two members; a `oneof` group with fewer than two members unless its sole member is a `Counter`; or an empty or whitespace group name.
+- Invalid group definitions: declaring `default` on a `oneof` member, two members of the same `oneof` or `xor` group sharing an `and` group, a `xor` or `and` group with fewer than two members, a `oneof` group with fewer than two members unless its sole member is a `Counter`, or an empty or whitespace group name.
 - Invalid section definitions: declaring a `section` value with leading or trailing whitespace.
 - CONGA tags on plain non-container fields, such as `name` or `help` on a plain struct field, instead of silently ignoring them.
 - Unrecognized struct tags without calling `app.AllowTags(...)` (including `conga:"..."` directives).
@@ -115,7 +116,7 @@ A panic whose message starts with `conga: invariant violation:` is a bug in CONG
 
 ## Custom error handling
 
-Custom error handling inspects the error returned by `app.Run()` or `app.RunContext(ctx)` directly instead of delegating to `app.Exit(err)`. The classification is available from the returned error: `conga.IsUsageError(err)` distinguishes input errors, `errors.AsType[conga.UsageError](err)` yields the `UsageError` for `CommandPath()` and `Usage()`, `conga.IsCompletionError(err)` identifies internal completion failures, and `errors.Is` matches the base category sentinels.
+Custom error handling inspects the error returned by `app.Run()` or `app.RunContext(ctx)` directly instead of delegating to `app.Exit(err)`. The returned error carries the classification. `conga.IsUsageError(err)` distinguishes input errors, `errors.AsType[conga.UsageError](err)` yields the `UsageError` for `CommandPath()` and `Usage()`, `conga.IsCompletionError(err)` identifies internal completion failures, and `errors.Is` matches the base category sentinels.
 
 ```go
 if err := app.RunContext(ctx); err != nil {
@@ -156,4 +157,4 @@ if err := app.RunContext(ctx); err != nil {
 | `conga.UsageHint` | Clean error plus a single `Run '<cmd> --help'` hint |
 | `conga.UsageSilence` | Only the clean error message |
 
-Self-describing value errors render only the error line regardless of the configured mode. These are errors whose message already names the flag/argument and the offending value — coercion failures (`unknown byte size unit "XB" in "5XB" for flag --max-memory`, `ambiguous byte size unit "KB" in "5KB": use kB (1000) or KiB (1024) for flag --max-memory`) and value-constraint violations (`"/etc/passwd" is a file, but a directory was expected for flag --dir`, `score 150 must be between 0 and 100 for flag --score`). Errors that benefit from usage context — unknown commands and flags, missing required flags/arguments, mutually exclusive or grouped flags — keep the mode's rendering.
+Self-describing value errors render only the error line regardless of the configured mode. These are errors whose message already names the flag or argument and the offending value, such as coercion failures (`unknown byte size unit "XB" in "5XB" for flag --max-memory`, `ambiguous byte size unit "KB" in "5KB": use kB (1000) or KiB (1024) for flag --max-memory`) and value-constraint violations (`"/etc/passwd" is a file, but a directory was expected for flag --dir`, `score 150 must be between 0 and 100 for flag --score`). Errors that benefit from usage context — unknown commands and flags, missing required flags/arguments, mutually exclusive or grouped flags — keep the mode's rendering.

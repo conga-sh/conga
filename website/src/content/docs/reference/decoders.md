@@ -27,11 +27,11 @@ import (
 app.RegisterDecoder("yaml", yaml.Decode)
 ```
 
-`RegisterDecoder` normalizes extension strings by trimming whitespace, converting to lowercase, and stripping leading `*` and `.` characters, so `"json"`, `".json"`, and `"*.JSON"` are identical. `.yaml` and `.yml` are distinct extensions; register both to accept both filename conventions.
+`RegisterDecoder` normalizes extension strings by trimming whitespace, converting to lowercase, and stripping leading `*` and `.` characters, so `"json"`, `".json"`, and `"*.JSON"` are identical. `.yaml` and `.yml` are distinct extensions, so register both to accept both filename conventions.
 
 ## Missing decoders
 
-A named configuration target (an explicit `--config-file`, an environment variable, or `conga.ConfigExplicit(...)`) requires a registered decoder for its file extension. Resolving a target without a matching decoder returns a fatal `ErrConfig` error identifying the missing decoder or unsupported format. The config-file flag's help text appends `[decoders: .json, .yaml]` listing the registered extensions in sorted order, or `(no configuration decoder registered)` when no decoder is registered; environment targets still appear in `session.CandidateConfigFiles()`.
+A named configuration target (an explicit `--config-file`, an environment variable, or `conga.ConfigExplicit(...)`) requires a registered decoder for its file extension. Resolving a target without a matching decoder returns a fatal `ErrConfig` error identifying the missing decoder or unsupported format. The config-file flag's help text appends `[decoders: .json, .yaml]` listing the registered extensions in sorted order, or `(no configuration decoder registered)` when no decoder is registered, and environment targets still appear in `session.CandidateConfigFiles()`.
 
 ## Isolation guarantee
 

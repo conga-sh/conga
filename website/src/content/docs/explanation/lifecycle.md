@@ -12,7 +12,7 @@ A command must validate input before touching disk or network resources, set up 
 Execution has two phases, schema build and the runtime lifecycle. `Run` or `RunContext` first builds and validates the schema from the struct definitions and tags. Once the schema is valid, the runtime pipeline resolves values from command-line tokens, environment variables, and config files, then runs the hooks:
 
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 651" role="img" aria-labelledby="pipeline-title" class="pipeline-diagram">
-  <title id="pipeline-title">Execution runs ten stages in order. Schema build runs first and exits with status 1 on ErrSchema. The bootstrap phase, config resolution, and binding follow, and a --why request prints its report after binding and exits with status 0. Value validation with SelfValidator and command validation with Validator, top-down, each exit with status 2 on an error. PreRun runs top-down, Run runs on the leaf command and is the one required hook, and PostRun runs bottom-up. An error in PreRun, Run, or PostRun skips to Finally, which runs bottom-up. After Finally the program exits with status 0, or with status 1 if a stage failed.</title>
+  <title id="pipeline-title">Execution runs ten stages in order. Schema build runs first and exits with status 1 on ErrSchema. The bootstrap phase and config resolution follow, and each exits with status 1 on an ErrConfig error. Binding follows them and exits with status 2 on a usage error, and a --why request prints its report after binding and exits with status 0. Value validation with SelfValidator and command validation with Validator, top-down, each exit with status 2 on an error. PreRun runs top-down, Run runs on the leaf command and is the one required hook, drawn with a thick border, and PostRun runs bottom-up. An error in PreRun, Run, or PostRun skips to Finally, which runs bottom-up. After Finally the program exits with status 0, or with status 1 if a stage failed.</title>
   <style>
     .pipeline-diagram { font-family: inherit; max-width: 780px; }
     .pipeline-diagram .stage { fill: var(--sl-color-gray-6, #edeff4); stroke: var(--sl-color-accent, #3448f5); stroke-width: 1.5; }
@@ -67,7 +67,7 @@ Execution has two phases, schema build and the runtime lifecycle. `Run` or `RunC
   <path class="head" d="M230 412 L224 403 L236 403 Z"/>
   <rect class="stage required" x="20" y="412" width="420" height="40" rx="4"/>
   <text class="title" x="36" y="432">Command body</text>
-  <text class="note" x="424" y="432">Runner, leaf only</text>
+  <text class="note" x="424" y="432">Runner, leaf only, required</text>
   <path class="flow" d="M230 452 V467"/>
   <path class="head" d="M230 468 L224 459 L236 459 Z"/>
   <rect class="stage" x="20" y="468" width="420" height="40" rx="4"/>
@@ -86,6 +86,14 @@ Execution has two phases, schema build and the runtime lifecycle. `Run` or `RunC
   <path class="head" d="M640 208 L631 202 L631 214 Z"/>
   <text class="edge" x="540" y="200">--why</text>
   <ellipse class="exit ok" cx="700" cy="208" rx="60" ry="18"/><text class="label" x="700" y="208">Exit 0</text>
+  <path class="error" d="M440 96 H600 V124 H639"/>
+  <path class="error" d="M440 152 H600 V124"/>
+  <path class="head err" d="M640 124 L631 118 L631 130 Z"/>
+  <text class="edge" x="520" y="88">ErrConfig</text>
+  <text class="edge" x="520" y="144">ErrConfig</text>
+  <ellipse class="exit fail" cx="700" cy="124" rx="60" ry="18"/><text class="label" x="700" y="124">Exit 1</text>
+  <path class="error" d="M440 220 H600 V264"/>
+  <text class="edge" x="520" y="236">error</text>
   <path class="error" d="M440 264 H639"/>
   <path class="head err" d="M640 264 L631 258 L631 270 Z"/>
   <text class="edge" x="540" y="256">error</text>
@@ -111,7 +119,7 @@ Execution has two phases, schema build and the runtime lifecycle. `Run` or `RunC
 
 ## The bootstrap phase
 
-Applications that read domain documents or flag-driven configuration face a chicken-and-egg dependency. A flag such as `--file`, `--profile`, or `--dir` locates the config file, but normal flag binding depends on the config file already being loaded. The same cycle applies to `.env` files, whose variables feed environment binding, so `Bootstrap` can load either before the second pass. Programs have usually broken the cycle by parsing their arguments twice by hand, once for the locating flags and again after loading the file. CONGA runs the two passes itself.
+Applications that read domain documents or flag-driven configuration face a chicken-and-egg problem when a flag locates a file that sets other flags. If `--profile staging` names `profiles/staging.yaml` and that file sets `region`, `--region` can't be bound until the file is read, and the file can't be read until `--profile` is bound. A `.env` file chosen by a flag poses the same problem, since its variables feed environment binding. Without a bootstrap phase, a program usually scans its arguments by hand for the locating flag, loads the file, and then passes the arguments to its flag package. CONGA runs both passes itself.
 
 The first pass binds the fields tagged `bootstrap:"true"`, and `Bootstrapper.Bootstrap` runs with them set. The second pass binds every field with config files included, and is authoritative. Because the bootstrap-tagged fields are bound twice, keep them idempotent and limited to the flags needed to locate the external input. [Bootstrap fields](/reference/struct-tags/#bootstrap-fields) lists the rules.
 
@@ -129,7 +137,7 @@ Validation runs at two levels after all values are bound. A value checks itself,
 - A command that implements `Validator` (`Validate(ctx context.Context, session *conga.Session) error`) checks relationships between fields, such as one flag's value exceeding another's. Validators run top-down along the selected chain.
 
 ```go
-func (c *DeployCommand) Validate(ctx context.Context, session *conga.Session) error {
+func (c *DeployCmd) Validate(ctx context.Context, session *conga.Session) error {
 	if c.MinReplicas.Get() > c.MaxReplicas.Get() {
 		return errors.New("--min-replicas cannot exceed --max-replicas")
 	}
@@ -159,7 +167,7 @@ Command-line tools that manipulate persistent state need cleanup that runs on ev
 `Finally` receives the terminal error of the preceding stages. If `PreRun`, `Run`, or `PostRun` returned an error, that error is the `err` argument. If all stages succeeded, `err` is nil. Cleanup logic can therefore branch on whether the operation succeeded:
 
 ```go
-func (c *MigrateCommand) Finally(ctx context.Context, session *conga.Session, err error) error {
+func (c *MigrateCmd) Finally(ctx context.Context, session *conga.Session, err error) error {
 	if c.transaction != nil {
 		if err != nil {
 			_ = c.transaction.Rollback()
@@ -189,8 +197,8 @@ An invocation selects a path from the root to a leaf, and CONGA composes the hoo
 `Validator` and `PreRunner` run top-down, from root to leaf. A root command can therefore establish shared services, such as a logger or a connection pool, before its subcommands' hooks run, and subcommands reach them through `session.Root[T]()`:
 
 ```go
-func (c *WorkerCommand) PreRun(ctx context.Context, session *conga.Session) error {
-	root := session.Root[RootCommand]()
+func (c *WorkerCmd) PreRun(ctx context.Context, session *conga.Session) error {
+	root := session.Root[RootCmd]()
 	c.queue = root.QueuePool.GetQueue(c.QueueName.Get())
 
 	return nil
@@ -207,7 +215,7 @@ The invocation's context flows through every stage, reaching `SelfValidator`, `V
 
 ### Default signal context versus custom context
 
-`app.Run()` executes the pipeline under a context derived from `context.Background()` with `signal.NotifyContext`, listening for `os.Interrupt` (`SIGINT`, Ctrl+C) and `syscall.SIGTERM`. When the process receives either signal, the context is cancelled. The signal listener is removed when `Run` returns.
+`app.Run()` executes the pipeline under a context derived from `context.Background()` with `signal.NotifyContext`, listening for `os.Interrupt` (`SIGINT`, Ctrl+C) and `syscall.SIGTERM`. When the process receives either signal, the context is canceled. The signal listener is removed when `Run` returns.
 
 `app.RunContext(ctx)` hands control of the context to the caller. CONGA passes the context into the pipeline unchanged, adding no signal handlers, timeouts, or wrappers. Supply your own context when execution must follow a caller-managed lifecycle rather than the default signal handling.
 

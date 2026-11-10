@@ -114,7 +114,7 @@ type ContextAwareTextUnmarshaler interface {
 
 CONGA passes `UnmarshalTextWithContext` a `conga.DecodeContext` with the field's tag values in `Tags`, and the session's `Stdin` and `Stdout` for a type that reads or writes them.
 
-Here `*Slug` implements both: `TagSpecs` declares a `pattern` tag whose `Validate` compiles it at startup, and `UnmarshalTextWithContext` matches each value against it:
+Here `*Slug` implements both. `TagSpecs` declares a `pattern` tag whose `Validate` compiles it at startup, and `UnmarshalTextWithContext` matches each value against it:
 
 ```go title="main.go" ins={27}
 type Slug string
@@ -279,7 +279,7 @@ $ relay --ports 8000-8100 --route checkout-api --expose web=80
 relay: error: value for key "web": invalid port range "80", expected START-END for flag --expose
 ```
 
-A registered `TypeParser` decodes scalar and slice fields; map values decode through the value type's unmarshaler or built-in parsing.
+A registered `TypeParser` decodes scalar and slice fields. Map values decode through the value type's unmarshaler or built-in parsing.
 
 ## Know what users see
 

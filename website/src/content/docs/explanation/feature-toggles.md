@@ -1,20 +1,20 @@
 ---
 title: About feature toggles
-description: Architectural design of struct-declared feature toggles, sparse gate merging, removal of inactive members, and maturity stages.
+description: Why CONGA declares features as typed struct fields, merges their sources feature by feature, removes inactive members, and fails differently for each source.
 ---
 
 In a server, a feature toggle picks a code path. In a command-line tool it also decides the interface, including whether `--quic` exists, whether `admin` is a command, what `--help` lists, what completion offers, and whether a config key is valid. A toggle that only guards an `if` in `Run` leaves the flag visible and accepted while the code behind it is switched off.
 
 CONGA separates two things. A *feature* is a named value the user sets, declared as a field of `conga.Features[T]`. A *gated member* is a flag or subcommand whose `feature:"..."` expression decides whether it exists for this run. One feature can gate many members, gate none (and be read only in code), or gate a member while switched *off*, as `!strict-tls` does for a plaintext escape hatch.
 
-This page explains why features are typed struct fields, why their sources merge feature by feature, why inactive members are removed rather than rejected late, and why each source fails differently. For the steps, see [How to gate flags and subcommands behind features](/how-to/gate-behind-features/). For tag syntax, see [Struct tags](/reference/struct-tags/#feature-toggles-congafeaturest).
+[How to gate flags and subcommands behind features](/how-to/gate-behind-features/) shows the steps, and [Struct tags](/reference/struct-tags/#feature-toggles-congafeaturest) lists the tags.
 
 ## Struct-declared toggles versus dynamic registries
 
-Command-line frameworks frequently implement feature flags using dynamic string-based registries or ad-hoc environment lookups:
+Many programs check features by name at run time, through a string-keyed registry or an environment lookup:
 
 ```go
-// Dynamic string-based approach common in other frameworks
+// A lookup by name, as many feature-flag libraries do it
 if featureManager.IsEnabled("http3") { ... }
 ```
 
@@ -37,11 +37,11 @@ Handlers read features as struct fields (`c.Features.Get().HTTP3`), so renaming 
 
 ## Sparse key-by-key map merging
 
-Feature toggles rarely originate from a single source. A baseline configuration file might enable experimental features across a cluster, an operator might override one toggle using a local environment variable, and a developer might toggle another via a command-line flag during an ad-hoc run.
+Features often come from several sources at once. A shared config file might turn on experimental features for a whole team, an environment variable might change one of them, and a flag might change another for a single run.
 
-Scalar and slice flags in CONGA resolve under a winning-source model, where an explicit command-line argument discards any value provided by an environment variable or configuration file. For feature flags, a winning-source model fails. If an operator sets `--feature-gates http3=true` on the command line, they want to enable `http3` without accidentally wiping out ten other features enabled by their team's shared configuration file.
+A scalar or slice flag takes its value from the single source that wins, so a value on the command line discards the environment's and the config file's. Features can't work that way. A user who runs with `--feature-gates http3=true` wants `http3` on, and still wants the ten other features the team's config file turned on.
 
-CONGA evaluates feature toggles using sparse key-by-key merging across all four sources:
+CONGA instead merges features one by one, across all four sources:
 
 ```text no-copy
 Struct Defaults  <  Configuration Files  <  Environment Variables  <  CLI Flags
@@ -51,9 +51,9 @@ The struct's field types and `default` tags give every feature a starting value.
 
 ### Key canonicalization across sources
 
-Human operators format keys differently across environments. Command-line flags favor kebab-case (`--feature-gates gentle-force=true`), configuration files often use snake_case (`gentle_force: true`), and Go source code uses camelCase (`GentleForce`).
+Each place a feature can be set has its own naming convention. Command-line flags use kebab-case (`--feature-gates gentle-force=true`), config files often use snake_case (`gentle_force: true`), environment variables use upper snake case (`GENTLE_FORCE`), and the Go field is camelCase (`GentleForce`).
 
-CONGA canonicalizes all supplied feature keys to the declared feature name before executing the merge. Regardless of whether a configuration file sets `gentle_force`, an environment variable sets `GENTLE_FORCE`, or the command line sets `gentle-force`, all three refer to the same toggle. Precedence follows the source, never the spelling variant.
+CONGA maps every spelling to the declared feature name before merging, so `gentle_force` in a config file, `GENTLE_FORCE` in an environment variable, and `gentle-force` on the command line all set the same feature. Precedence follows the source, never the spelling.
 
 ### One environment shape per container
 
@@ -71,13 +71,13 @@ A flag for an unreleased feature that still shows up in `--help` invites users t
 
 ## Error semantics by source
 
-When an external source references a feature or gated member that cannot be resolved, CONGA applies differentiated error semantics based on the source:
+When a source names a feature that doesn't exist, or a gated member that is inactive for the run, the result depends on the source.
 
 ### Command-line invocations (exit code 2)
-The command line represents direct operator intent for the immediate run. Supplying an unknown feature key or passing a flag whose gating feature is inactive indicates an operator mistake. CONGA aborts before lifecycle execution with a usage error (exit code 2), displaying the command path, the exact missing prerequisite, and syntax usage.
+The command line is what the user typed for this run, so an unknown feature name, or a flag whose feature is off, is a mistake to report to them. The run stops before any hook with a usage error (exit code 2) that names the missing feature and shows the usage.
 
 ### Configuration files (exit code 1)
-Configuration files represent persistent settings applied to hosts or projects. A configuration file that names an unknown feature or targets a flag removed by an inactive gate indicates an invalid or stale deployment configuration. CONGA fails during the configuration loading phase with a configuration error (`ErrConfig`, exit code 1), providing "did you mean" suggestions for near misses.
+A config file holds settings that outlast any one run, so a file that names an unknown feature, or sets a flag that an inactive feature removed, is wrong or out of date. Loading it fails with a config error (`ErrConfig`, exit code 1), with a "did you mean" hint for near misses.
 
 A bad *value* is different. `http3: maybe` in the file is reported exactly like `--feature-gates http3=maybe` on the command line, as a usage error (exit code 2) naming the config key it came from. Every source reports a bad value the same way, for features and flags alike.
 
@@ -105,10 +105,10 @@ The meanings are guidance for the author. A stage decides only whether the featu
 
 ### The all-or-nothing stage rule
 
-Declaring feature stages is optional. However, when any field on `T` declares a `stage` tag, every field on `T` must declare one. Mixed declarations—where some features declare stages and others do not—are rejected at schema build with `ErrSchema`. This rule prevents ambiguous help listings, where staged and unstaged features would sit side by side with no way to tell whether a missing label means stable or forgotten.
+Declaring feature stages is optional. However, when any field on `T` declares a `stage` tag, every field on `T` must declare one, and schema build rejects a mix with `ErrSchema`. This rule prevents ambiguous help listings, where staged and unstaged features would sit side by side with no way to tell whether a missing label means stable or forgotten.
 
 ### Mature features leave the Features section
 
 As in Kubernetes, the automatic `Features:` section on the root help screen displays only experimental toggles (`alpha` and `beta`).
 
-Once a feature reaches `ga` or `deprecated`, it drops out of the help screen's `Features:` table. GA features are expected to remain active, while deprecated features should not be advertised to new users. Both stages remain fully functional, validated, and completable, and their state continues to display in `--why` reports.
+Once a feature reaches `ga` or `deprecated`, it drops out of the help screen's `Features:` table. A GA feature is expected to stay on, and a deprecated one shouldn't be advertised to new users. Features at either stage still work, validate, and complete, and `--why` still shows their state.

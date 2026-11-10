@@ -3,7 +3,7 @@ title: How to test a command
 description: Run a CONGA command inside a Go test with its own arguments, standard streams, and environment, and check its output and exit code.
 ---
 
-When a command reads from `session.Stdin()` and writes to `session.Stdout()` and `session.Stderr()` instead of `os.Stdin` and `os.Stdout`, you can run and test it inside a `go test` function. Those methods return the process streams by default; in a test, the builder's `Args`, `Stdin`, `Stdout`, and `Stderr` methods replace the command line and streams for that `App` instance.
+When a command reads from `session.Stdin()` and writes to `session.Stdout()` and `session.Stderr()` instead of `os.Stdin` and `os.Stdout`, you can run and test it inside a `go test` function. Those methods return the process streams by default. In a test, the builder's `Args`, `Stdin`, `Stdout`, and `Stderr` methods replace the command line and streams for that `App` instance.
 
 The builder's `Stdout` and `Stderr` methods set the writers that `session.Stdout()` and `session.Stderr()` return and leave `os.Stdout` and `os.Stderr` alone. Output from `fmt.Println` or anything written directly to `os.Stdout` goes to the test binary's own stdout instead of the test's buffer.
 
@@ -11,7 +11,7 @@ If you're new to testing a CONGA program, [Test a CLI](/tutorials/test-a-cli/) b
 
 This guide tests a `hello` program that greets a name from `--name`, `HELLO_NAME`, or standard input:
 
-```go title="main.go" hidden={1-11}
+```go title="main.go" hidden={1-11} {21,33}
 package main
 
 import (
@@ -32,7 +32,7 @@ type CLI struct {
 func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
 	name := c.Name.Get()
 	if c.Stdin.Get() {
-		input, err := io.ReadAll(session.Stdin()) // [!code highlight]
+		input, err := io.ReadAll(session.Stdin())
 		if err != nil {
 			return err
 		}
@@ -44,7 +44,7 @@ func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
 		greeting = strings.ToUpper(greeting)
 	}
 
-	fmt.Fprintln(session.Stdout(), greeting) // [!code highlight]
+	fmt.Fprintln(session.Stdout(), greeting)
 
 	return nil
 }
@@ -112,7 +112,7 @@ ok  	example/hello	0.005s
 
 To feed standard input to `session.Stdin()`, pass an `io.Reader` to `Stdin`:
 
-```go title="main_test.go"
+```go title="main_test.go" {8}
 func TestHelloReadsStdin(t *testing.T) {
 	t.Parallel()
 
@@ -120,7 +120,7 @@ func TestHelloReadsStdin(t *testing.T) {
 
 	app := conga.New[CLI]().
 		Args([]string{"--stdin"}).
-		Stdin(strings.NewReader("Alice\n")). // [!code highlight]
+		Stdin(strings.NewReader("Alice\n")).
 		Stdout(&stdoutBuffer)
 
 	err := app.RunContext(t.Context())
@@ -142,7 +142,7 @@ Without `Args`, the app parses `os.Args`, which holds the flags `go test` passes
 
 ## Run table-driven tests
 
-An `App` executes once; calling `Run` or `RunContext` a second time on the same instance panics with `conga: App already executed`. Call `conga.New` inside each test and each `t.Run` case:
+An `App` executes once, and calling `Run` or `RunContext` a second time on the same instance panics with `conga: App already executed`. Call `conga.New` inside each test and each `t.Run` case:
 
 ```go title="main_test.go"
 func TestGreetings(t *testing.T) {
@@ -244,7 +244,7 @@ func TestNameFromDotenvFile(t *testing.T) {
 
 In a test, `os.Exit` would stop the test binary, so pass `ExitFunc` to record the code instead:
 
-```go title="main_test.go"
+```go title="main_test.go" {12}
 func TestUnknownFlagExitsWithUsageError(t *testing.T) {
 	t.Parallel()
 
@@ -256,7 +256,7 @@ func TestUnknownFlagExitsWithUsageError(t *testing.T) {
 		Args([]string{"--unknown-flag"}).
 		Stdout(&stdoutBuffer).
 		Stderr(&stderrBuffer).
-		ExitFunc(func(code int) { exitCode = code }) // [!code highlight]
+		ExitFunc(func(code int) { exitCode = code })
 
 	err := app.RunContext(t.Context())
 	if !conga.IsUsageError(err) {

@@ -3,7 +3,7 @@ title: package predict
 description: The decoupled completion SDK — predictors, combinators, items, context, directives.
 ---
 
-Complete package API documentation is on [pkg.go.dev/github.com/conga-sh/conga/predict](https://pkg.go.dev/github.com/conga-sh/conga/predict); task guidance is in [How to compute and shape completion candidates](/how-to/compute-completion-candidates/).
+Complete package API documentation is on [pkg.go.dev/github.com/conga-sh/conga/predict](https://pkg.go.dev/github.com/conga-sh/conga/predict), and task guidance is in [How to compute and shape completion candidates](/how-to/compute-completion-candidates/).
 
 ## Core types
 
@@ -49,7 +49,7 @@ func (i Item) WithAlias() Item
 
 ## Filesystem constructors
 
-`Files(extensions...)`, `FilesFiltered(filter)`, `FilesGlob(patterns...)`, `Dirs()`, `DirsFiltered(filter)`, `DirsGlob(patterns...)`, `PathsFiltered(filter)`, `Symlinks()`, `Executables()`, `FileLines(filePath)`, and `FileContents(filePath, parser)`. Filters are `func(path string, entry os.DirEntry) bool`. `FilesGlob` matches file base names against `filepath.Match` patterns while keeping directories visible for traversal (a wildcard-free pattern such as `"Makefile"` matches that literal name); `DirsGlob` matches directory base names against the same patterns. `DirsFiltered` is the predicate equivalent for directories.
+`Files(extensions...)`, `FilesFiltered(filter)`, `FilesGlob(patterns...)`, `Dirs()`, `DirsFiltered(filter)`, `DirsGlob(patterns...)`, `PathsFiltered(filter)`, `Symlinks()`, `Executables()`, `FileLines(filePath)`, and `FileContents(filePath, parser)`. Filters are `func(path string, entry os.DirEntry) bool`. `FilesGlob` matches file base names against `filepath.Match` patterns while keeping directories visible for traversal (a wildcard-free pattern such as `"Makefile"` matches that literal name), and `DirsGlob` matches directory base names against the same patterns. `DirsFiltered` is the predicate equivalent for directories.
 
 ## Combinators on `Predictor`
 
@@ -90,7 +90,7 @@ func (c Context) LastArg() string
 func (c Context) WithFlagValues(flagValues map[string][]string) Context
 ```
 
-`predict.Context` is a plain struct distinct from `context.Context`; the driver manages deadlines through `Timeout` and `predict.DefaultTimeout`.
+`predict.Context` is a plain struct distinct from `context.Context`, and the driver manages deadlines through `Timeout` and `predict.DefaultTimeout`.
 
 ```go
 app.Predictor("stack", predict.Callback(func(c predict.Context) predict.Predictor {
@@ -116,7 +116,7 @@ app.Predictor("stack", predict.Callback(func(c predict.Context) predict.Predicto
 | `TagAwarePredictable` | `Predict(tags FieldTags) Predictor` |
 | `FileFilterable` / `DirFilterable` / `PathFilterable` | Filesystem filtering hooks |
 
-`Predict` runs once, when CONGA builds the schema, so it must not depend on values parsed at run time; return a `Callback` for candidates that do. Implement either `Predictable` or `TagAwarePredictable`, not both.
+`Predict` runs once, when CONGA builds the schema, so it must not depend on values parsed at run time. Return a `Callback` for candidates that do. Implement either `Predictable` or `TagAwarePredictable`, not both.
 
 ### Which predictor a field uses
 
@@ -132,7 +132,7 @@ For a slice field, the element type decides.
 
 ## Constants
 
-`DefaultTimeout = 250 * time.Millisecond` — callback deadline applied by dynamic predictors; `Timeout(0)` reapplies it and a negative duration disables enforcement.
+`DefaultTimeout = 250 * time.Millisecond` is the callback deadline that dynamic predictors apply. `Timeout(0)` reapplies it, and a negative duration disables enforcement.
 
 ## Domain types
 

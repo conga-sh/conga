@@ -7,7 +7,7 @@ This guide builds a `fetch` command that downloads a URL, and gives it one flag 
 
 ## Give a flag a type and a default
 
-CONGA builds a command's flags from the fields of its struct. The type of each flag field is a container: `conga.OptionalFlag[...]` for an optional flag, `conga.RequiredFlag[...]` for a required one. The type in the brackets is the type of the flag's value, so a `conga.OptionalFlag[int]` field is an optional flag that takes an integer.
+CONGA builds a command's flags from the fields of its struct. The type of each flag field is a container, `conga.OptionalFlag[...]` for an optional flag or `conga.RequiredFlag[...]` for a required one. The type in the brackets is the type of the flag's value, so a `conga.OptionalFlag[int]` field is an optional flag that takes an integer.
 
 The field name sets the flag name in kebab case, so `Retries` becomes `--retries`, and the `default` [tag](/reference/struct-tags/#flags-optionalflagt-requiredflagt-counter) sets the value used when the user doesn't give the flag. Here `fetch` has three flags, plus the URL as a [positional argument](/how-to/accept-positional-arguments/):
 
@@ -181,7 +181,7 @@ follow redirects: true
 verbosity: 3
 ```
 
-A cluster can end in a short flag that takes a value, as in `-vvvo page.html`, and `--verbose=2` sets the count directly. A counter starts at 0 and rejects a `default` tag at startup; use `OptionalFlag[int]` when you need a different starting value.
+A cluster can end in a short flag that takes a value, as in `-vvvo page.html`, and `--verbose=2` sets the count directly. A counter starts at 0 and rejects a `default` tag at startup. Use `OptionalFlag[int]` when you need a different starting value.
 
 ## Accept a list of values
 
@@ -280,7 +280,7 @@ form: map[lang:rust name:ada]
 ```
 
 :::caution[Other map types]
-Only `map[string]string` binds without registration. Any other map type, such as `map[string]int`, needs `app.RegisterMap`; see [Register a map type with `RegisterMap`](/how-to/add-custom-flag-types/#register-a-map-type-with-registermap). Without it the program starts, and fails only when a user sets the flag, exit 2:
+Only `map[string]string` binds without registration. Any other map type, such as `map[string]int`, needs `app.RegisterMap` (see [Register a map type with `RegisterMap`](/how-to/add-custom-flag-types/#register-a-map-type-with-registermap)). Without it the program starts, and fails only when a user sets the flag, exit 2:
 
 ```text no-copy
 fetch: error: map type map[string]int requires registration via app.RegisterMap

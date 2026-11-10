@@ -97,7 +97,7 @@ $ ./cloudctl deploy web
 deploying web
 ```
 
-Notice that `web` went to the `Service` field: a positional argument takes a word from the command line, with no flag name in front of it.
+Notice that `web` went to the `Service` field. A positional argument takes a word from the command line, with no flag name in front of it.
 
 Now run `cloudctl` on its own:
 
@@ -155,7 +155,7 @@ Usage:
 Run 'cloudctl deploy --help' for more information.
 ```
 
-Notice that the usage line shows `--image=STRING` outside `[flags]`: a user can't leave it out. Now give it:
+Notice that the usage line shows `--image=STRING` outside `[flags]`, because a user can't leave it out. Now give it:
 
 ```sh
 $ ./cloudctl deploy web --image nginx:1.27
@@ -226,7 +226,7 @@ func (s *StatusCmd) Run(ctx context.Context, session *conga.Session) error {
 }
 ```
 
-`StatusCmd` has no fields: `status` takes no arguments or flags of its own, and reads the region from `CLI` as `deploy` does.
+`StatusCmd` has no fields. `status` takes no arguments or flags of its own, and reads the region from `CLI` as `deploy` does.
 
 Build the program, and ask for the status of a region:
 
@@ -295,7 +295,7 @@ Global Flags:
   -r, --region="us-east-1"  Region to work in
 ```
 
-Notice that `--region` appears under `Global Flags`: `deploy` accepts it, though `CLI` declares it. The first line is the `summary` tag from the `Deploy` field.
+Notice that `--region` appears under `Global Flags`. `deploy` accepts it, though `CLI` declares it. The first line is the `summary` tag from the `Deploy` field.
 
 ## Where to go next
 

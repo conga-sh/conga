@@ -31,7 +31,7 @@ func main() {
 }
 ```
 
-Each flag now reads `<PREFIX>_<FLAG NAME>`, with the flag name in upper case and hyphens turned into underscores: `--worker-id` reads `SERVER_WORKER_ID`. Users find the names in `--help`:
+Each flag now reads `<PREFIX>_<FLAG NAME>`, with the flag name in upper case and hyphens turned into underscores, so `--worker-id` reads `SERVER_WORKER_ID`. Users find the names in `--help`:
 
 ```text no-copy
 Flags:
@@ -118,7 +118,7 @@ migrate: lock timeout 10m0s
 
 A config file keeps the two apart, because each command's keys sit under its own section (`[worker]` and `[migrate]` in TOML).
 
-To give a subcommand its own variables, add an `envprefix` tag to the `Command[T]` field. The tag sets the subcommand's prefix exactly as written, in place of the parent's. You choose whether to repeat the application prefix. `SERVER_WORKER` keeps the subcommand's variables next to the application's, and `MIGRATE` gives them a name of their own:
+To give a subcommand its own variables, add an `envprefix` tag to the `Command[T]` field ([subcommand tags](/reference/struct-tags/#subcommands-commandt)). The tag sets the subcommand's prefix exactly as written, in place of the parent's. You choose whether to repeat the application prefix. `SERVER_WORKER` keeps the subcommand's variables next to the application's, and `MIGRATE` gives them a name of their own:
 
 ```go title="main.go" {2,4}
 type CLI struct {
@@ -231,7 +231,7 @@ A bad value names both the flag and the variable it came from:
 twelve-factor-precedence: error: invalid integer value "abc" for flag --port (from environment variable PORT)
 ```
 
-To pass an empty string on purpose, use the command line: `twelve-factor-precedence --host ""`.
+To pass an empty string on purpose, use the command line, as in `twelve-factor-precedence --host ""`.
 
 `Features` containers bind their variables through their own `env` or `envprefix` tags, independently of `EnvPrefix`. [How to gate flags and subcommands behind features](/how-to/gate-behind-features/#give-each-feature-its-own-environment-variable) covers them.
 

@@ -3,7 +3,7 @@ title: Configure a CLI from a file and the environment
 description: Give cloudctl a YAML config file and environment variables, override them on the command line, and see what a broken config file does.
 ---
 
-In this tutorial, we will make `cloudctl` remember its settings. In [Build a multi-command CLI](/tutorials/multi-command-cli/) we typed `--image nginx:1.27` on every deployment; now a config file will supply it, an environment variable will override the file, and a flag will override both. We continue in the `cloudctl` directory from that tutorial.
+In this tutorial, we will make `cloudctl` remember its settings. In [Build a multi-command CLI](/tutorials/multi-command-cli/) we typed `--image nginx:1.27` on every deployment. Now a config file will supply it, an environment variable will override the file, and a flag will override both. We continue in the `cloudctl` directory from that tutorial.
 
 ## The command we will build
 
@@ -72,7 +72,7 @@ $ ./cloudctl deploy web
 deploying web (nginx:1.27) to eu-west-1 with 3 replicas
 ```
 
-Notice that each key in the file is a flag name. `region` sits at the top because `--region` belongs to `CLI`, and `image` and `replicas` sit under `deploy` because they belong to the `deploy` subcommand. `--image` is still a required flag; the file gives it a value, so we no longer have to.
+Notice that each key in the file is a flag name. `region` sits at the top because `--region` belongs to `CLI`, and `image` and `replicas` sit under `deploy` because they belong to the `deploy` subcommand. `--image` is still a required flag, but the file gives it a value, so we no longer have to.
 
 `status` reads the region from the same file:
 
@@ -110,7 +110,7 @@ $ CLOUDCTL_REGION=ap-south-1 ./cloudctl deploy web
 deploying web (nginx:1.27) to ap-south-1 with 3 replicas
 ```
 
-Notice that only the region changed: the image and replicas still came from the file. The help screen now names the variable each flag reads:
+Notice that only the region changed. The image and replicas still came from the file. The help screen now names the variable each flag reads:
 
 ```sh {11-12,16}
 $ ./cloudctl deploy --help

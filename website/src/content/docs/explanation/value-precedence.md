@@ -3,9 +3,7 @@ title: About value precedence
 description: The order CONGA resolves values in (command line, environment, config files, defaults), how map flags merge across those sources, and how provenance is recorded.
 ---
 
-Configuration values in CONGA follow Twelve-Factor principles. Command-line arguments override environment variables, environment variables override config files, and config files override defaults.
-
-This page explains how CONGA resolves input across these sources, why resolution separates file discovery from value binding, and where specialized containers depart from the general order. [How to bind environment variables](/how-to/bind-environment-variables/) and [How to manage config files](/how-to/manage-config-files/) set the sources up.
+Configuration values in CONGA follow Twelve-Factor principles. Command-line arguments override environment variables, environment variables override config files, and config files override defaults. Resolution runs in two phases, one that finds the config files and one that binds values, and a few containers depart from the general order. [How to bind environment variables](/how-to/bind-environment-variables/) and [How to manage config files](/how-to/manage-config-files/) set the sources up.
 
 ## The precedence order
 

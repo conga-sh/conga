@@ -33,10 +33,6 @@ function pluginNoCopy() {
 export default defineConfig({
   site: 'https://docs.conga.sh',
   base: '/',
-  redirects: {
-    '/how-to/supply-config-from-code': '/how-to/load-domain-documents',
-    '/how-to/examples-cookbook': '/reference/examples',
-  },
   integrations: [
     starlight({
       title: 'CONGA',

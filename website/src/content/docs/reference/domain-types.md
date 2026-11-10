@@ -12,7 +12,7 @@ Types in the root `conga` package and the topical `network` and `system` package
 | `conga.File` | Expands `~` and environment variables; capability tags constrain the path | File paths (or per capability tags) |
 | `conga.Dir` | Expands `~` and environment variables; `existing` requires a directory | Directories |
 
-`File` accepts the capability tags `existing`, `stdin`, `stdout`, `executable`, `symlink`, and `glob`; the [struct tag reference](/reference/struct-tags/#domain-type-tags) defines each tag, its mutual exclusions, and the schema-build rules.
+`File` accepts the capability tags `existing`, `stdin`, `stdout`, `executable`, `symlink`, and `glob`. The [struct tag reference](/reference/struct-tags/#domain-type-tags) defines each tag, its mutual exclusions, and the schema-build rules.
 
 ```go
 type Convert struct {
@@ -23,7 +23,7 @@ type Convert struct {
 }
 ```
 
-All filesystem capability checks run during the validation phase on the final resolved value (after the configuration cascade); failures are usage errors (exit 2).
+All filesystem capability checks run during the validation phase on the final resolved value, after the configuration cascade, and a failure is a usage error (exit 2).
 
 ## Content and I/O types
 
@@ -54,11 +54,11 @@ func (u *Upload) Run(ctx context.Context, session *conga.Session) error {
 | Decimal | `kB`, `MB`, `GB`, `TB`, `PB` | Powers of 1000 |
 | Binary | `KiB`, `MiB`, `GiB`, `TiB`, `PiB` | Powers of 1024 |
 
-The numeric prefix is digits with an optional fraction whose contribution resolves exactly to bytes (`1.5GB`, `0.5GiB`); a sub-byte remainder such as `0.1GiB` is rejected. Naked unit suffixes without `B` (`10G`, `512Mi`) and lowercase casings (`mb`, `kib`) are rejected to prevent ambiguity. `kB` is always 1000 bytes and `KiB` is always 1024; `KB` is rejected as ambiguous because it denotes 1000 bytes in SI usage and 1024 bytes in legacy usage. Text input must be non-negative.
+The numeric prefix is digits with an optional fraction whose contribution resolves exactly to bytes (`1.5GB`, `0.5GiB`), and a sub-byte remainder such as `0.1GiB` is rejected. Naked unit suffixes without `B` (`10G`, `512Mi`) and lowercase casings (`mb`, `kib`) are rejected to prevent ambiguity. `kB` is always 1000 bytes and `KiB` is always 1024. `KB` is rejected as ambiguous because it denotes 1000 bytes in SI usage and 1024 bytes in legacy usage. Text input must be non-negative.
 
 ### Byte size rendering
 
-A value renders in its display family: a `display` tag of `binary` or `decimal` forces that family, and `input`, the default, uses the family of the unit the value was decoded from. Rendering picks the largest unit of that family that divides the byte count exactly, or exact bytes when no unit divides it:
+A value renders in its display family. A `display` tag of `binary` or `decimal` forces that family, and `input`, the default, uses the family of the unit the value was decoded from. Rendering picks the largest unit of that family that divides the byte count exactly, or exact bytes when no unit divides it:
 
 | Input | `display` tag | Output |
 |-------|---------------|--------|
@@ -95,7 +95,7 @@ Compare `ByteSize` values with `Equal`, order with `Compare`, and retrieve raw m
 
 ### File streaming
 
-`File` streams through `Reader()` and `Writer()`, which return `io.ReadCloser` and `io.WriteCloser`. When the value is `-`, `Reader()` wraps the app's standard input and `Writer()` its standard output (the streams set with `App.Stdin` and `App.Stdout`, which default to `os.Stdin` and `os.Stdout`); a `File` that no app bound uses `os.Stdin` and `os.Stdout`. The wrappers absorb `Close()`, so callers can always `defer Close()`. `Stat()` exposes the file metadata, and `IsStdio()` reports the `-` case so commands can skip filesystem-only side effects (backups, atomic renames) and route diagnostics away from a stdout payload stream. Reading beyond these helpers is the caller's responsibility (`io.ReadAll(f.Reader())`); `FileContent` is the bounded whole-file shortcut.
+`File` streams through `Reader()` and `Writer()`, which return `io.ReadCloser` and `io.WriteCloser`. When the value is `-`, `Reader()` wraps the app's standard input and `Writer()` its standard output (the streams set with `App.Stdin` and `App.Stdout`, which default to `os.Stdin` and `os.Stdout`). A `File` that no app bound uses `os.Stdin` and `os.Stdout`. The wrappers absorb `Close()`, so callers can always `defer Close()`. `Stat()` exposes the file metadata, and `IsStdio()` reports the `-` case so commands can skip filesystem-only side effects (backups, atomic renames) and route diagnostics away from a stdout payload stream. Reading beyond these helpers is the caller's responsibility (`io.ReadAll(f.Reader())`), and `FileContent` is the bounded whole-file shortcut.
 
 ```go
 func (c *Convert) Run(ctx context.Context, session *conga.Session) error {
@@ -127,7 +127,7 @@ The domain packages (`network`, `system`, `timezone`) bundle value types, autoco
 | `system` | `User`, `Group`, `Signal`, `PID`, `Process`, `EnvVar`, `Locale` | `system.RegisterUser` (`*user.User`), `system.RegisterGroup` (`*user.Group`), `system.RegisterSignal` (`syscall.Signal`) |
 | `timezone` | – | `timezone.RegisterLocation` (`*time.Location`) |
 
-Each package also exports its predictors as standalone constructors: `network.Hosts()`, `network.NetInterfaces()`, `system.Signals()`, `system.Users()`, `system.ProcessIDs()` (alias `system.PIDs()`), `system.ProcessNames()` (alias `system.Processes()`), `system.Locales()`, `system.EnvVars()`, and `timezone.Timezones()`.
+Each package also exports its predictors as standalone constructors, `network.Hosts()`, `network.NetInterfaces()`, `system.Signals()`, `system.Users()`, `system.ProcessIDs()` (alias `system.PIDs()`), `system.ProcessNames()` (alias `system.Processes()`), `system.Locales()`, `system.EnvVars()`, and `timezone.Timezones()`.
 
 Domain types in `network` and `system` implement `encoding.TextMarshaler` with value receivers, supporting canonical text formatting and serialization.
 

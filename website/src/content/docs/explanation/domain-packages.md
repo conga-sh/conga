@@ -1,9 +1,9 @@
 ---
 title: About domain packages
-description: Linker-friendly dependency boundaries, topical domain packages, and the decoupled completion SDK.
+description: Why the network, system, and timezone packages live outside core CONGA, how they adapt standard library types, and why the predict package stands alone.
 ---
 
-CONGA packages completion-capable domain types and predictors into three modular domain packages, `network`, `system`, and `timezone`. The `network` and `system` packages bundle domain value types alongside standard library bindings, while `timezone` provides an autocompletion predictor and a binding for `*time.Location`. This layout satisfies two engineering requirements, keeping minimal binaries small across linker boundaries and adapting standard library types that cannot implement framework interfaces.
+CONGA packages completion-capable domain types and predictors into three modular domain packages, `network`, `system`, and `timezone`. The `network` and `system` packages bundle domain value types alongside standard library bindings, while `timezone` provides an autocompletion predictor and a binding for `*time.Location`. The split serves two purposes. It keeps binaries that don't use these types small, and it adapts standard library types that can't implement CONGA's interfaces themselves.
 
 ## Linker boundaries and binary footprint
 

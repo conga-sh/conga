@@ -9,12 +9,12 @@ A CONGA command tree is built from Go types. A field of type `conga.Command[T]` 
 
 ```go
 type App struct {
-	Deploy conga.Command[DeployCommand] `summary:"Deploy a service to a cluster"`
-	Remove conga.Command[RemoveCommand] `summary:"Remove a service"`
+	Deploy conga.Command[DeployCmd] `summary:"Deploy a service to a cluster"`
+	Remove conga.Command[RemoveCmd] `summary:"Remove a service"`
 }
 
-type DeployCommand struct {
-	Worker conga.Command[WorkerCommand] `summary:"Deploy a background worker"`
+type DeployCmd struct {
+	Worker conga.Command[WorkerCmd] `summary:"Deploy a background worker"`
 }
 ```
 
@@ -36,7 +36,7 @@ Tools such as Bun run their most common operation without naming it, so `bun ./s
 
 ```go
 type CLI struct {
-	Exec    conga.Command[RunCmd]     `implicit:"true" name:"run"`
+	Exec    conga.Command[RunCmd] `implicit:"true" name:"run"`
 	Install conga.Command[InstallCmd]
 	Deploy  conga.Command[DeployCmd]
 }
@@ -76,12 +76,14 @@ A flag declared only by the implicit subcommand or its implicit descendants sele
 
 When no subcommand is selected, the parent's [role](#routing-nodes-and-runnable-commands) decides. A routing node enters its implicit subcommand. An executable intermediate command runs its own `Run`.
 
+An implicit subcommand can declare an implicit subcommand of its own. CONGA descends through the chain only as far as the operands and child-only flags require, and stops at the first runnable command.
+
 ## Shared options on the root
 
 Options for the whole tool are declared on the root struct, and each subcommand declares only its own flags. A handler reads root flags through the session, without copying them onto subcommands or holding them in package-level variables:
 
 ```go
-func (w *WorkerCommand) Run(ctx context.Context, session *conga.Session) error {
+func (w *WorkerCmd) Run(ctx context.Context, session *conga.Session) error {
 	root := session.Root[App]()
 	if root.Verbose.Get() {
 		fmt.Fprintf(session.Stderr(), "invoking: %s\n", session.Path())
@@ -91,13 +93,17 @@ func (w *WorkerCommand) Run(ctx context.Context, session *conga.Session) error {
 }
 ```
 
-`session.Root[T]()` returns `*T`, so access to root flags is type-checked. Intermediate commands are reached from the root through `Command[T].Get()`.
+An invocation selects one path through the tree, from the root to the command that runs. CONGA binds values only along that path. Containers on commands off the path receive no values, and their lifecycle hooks don't run. A handler reaches intermediate commands from the root through `Command[T].Get()`, and `Command[T].IsSelected()` reports whether a command is on the path.
+
+## Feature-gated subcommands
+
+A `Command[T]` field accepts a `feature:"..."` tag. When the expression doesn't hold for a run, CONGA removes the subcommand and everything below it from that run. It doesn't route, doesn't appear in the parent's help, and isn't offered by completion. Invoking it is a usage error (exit code 2). [About feature toggles](/explanation/feature-toggles/) explains why inactive members are removed.
 
 ## Config sections follow the command tree
 
 Config keys nest by command. The flags of `deploy worker` are read from the `deploy` section, then its `worker` section.
 
-Environment variables are not nested. A subcommand inherits its parent's prefix, so same-named flags on sibling commands read the same variable unless one sets an `env` or `envprefix` tag. [How to bind environment variables](/how-to/bind-environment-variables/) shows both.
+Environment variables are not nested. A config file holds settings for every command at once, so each command needs its own section. A run selects one path, so a prefix inherited down that path can't collide within the run. A subcommand therefore inherits its parent's prefix, and same-named flags on sibling commands read the same variable unless one sets an `env` or `envprefix` tag. [How to bind environment variables](/how-to/bind-environment-variables/) shows both.
 
 ## Ancestors reserve their flag names
 

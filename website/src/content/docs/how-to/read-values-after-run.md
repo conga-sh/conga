@@ -87,7 +87,7 @@ name="" source=none detail="" changed=false
 
 Check `IsSet()`, or compare `Source()` with `conga.SourceNone`, before acting on a value after `Run`. On a usage error, `app.Exit` ends the process before that code runs.
 
-## Know what users see
+## Know what goes wrong
 
 | Mistake | When | Result |
 |---|---|---|
@@ -96,7 +96,7 @@ Check `IsSet()`, or compare `Source()` with `conga.SourceNone`, before acting on
 | The code after `Run` reads values on a `--help` or `--version` run | After `Run` | Zero values with source `none` |
 | The instance passed to `conga.New` is never used outside the app | `conga-lint` | `conga.New root instance is not referenced outside the app (use conga.New[CLI]() to let the engine allocate the root)` |
 
-The last row is a lint finding only: the program runs normally. When nothing outside the app reads the root, use `conga.New[CLI]()`.
+The last row is only a lint finding, and the program still runs normally. When nothing outside the app reads the root, use `conga.New[CLI]()`.
 
 ## Where to go next
 

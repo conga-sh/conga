@@ -3,7 +3,7 @@ title: package conga
 description: Core API — App builder, containers, session accessors, extensibility, and errors.
 ---
 
-Deep detail lives on [pkg.go.dev/github.com/conga-sh/conga](https://pkg.go.dev/github.com/conga-sh/conga); this page is the curated map.
+Deep detail lives on [pkg.go.dev/github.com/conga-sh/conga](https://pkg.go.dev/github.com/conga-sh/conga). This page is the curated map.
 
 ## The App builder
 
@@ -11,9 +11,9 @@ Deep detail lives on [pkg.go.dev/github.com/conga-sh/conga](https://pkg.go.dev/g
 func New[T any](root ...*T) *App[T]
 ```
 
-`App[T]` wraps your command struct. `New` defers instance allocation to execution; pass your own instance (`conga.New(cli)`) to inspect bound container values after execution completes — see [How to read resolved values after Run](/how-to/read-values-after-run/). All builder methods return `*App[T]` for chaining.
+`App[T]` wraps your command struct. `New` defers instance allocation to execution. Pass your own instance (`conga.New(cli)`) to inspect bound container values after execution completes, as [How to read resolved values after Run](/how-to/read-values-after-run/) shows. All builder methods return `*App[T]` for chaining.
 
-`New` is the recommended constructor. The zero value of `App[T]` is also usable: the execution entry points install the same defaults `New` sets, so `var app conga.App[CLI]` behaves like `conga.New[CLI]()`.
+`New` is the recommended constructor. The zero value of `App[T]` is also usable, because the execution entry points install the same defaults `New` sets, so `var app conga.App[CLI]` behaves like `conga.New[CLI]()`.
 
 ### Configuration methods
 
@@ -60,7 +60,7 @@ func (a *App[T]) RegisterMap[M ~map[K]V, K ~string, V any](opts ...RegistrationO
 func WithPredictor(p predict.Predictor) RegistrationOption
 ```
 
-`TypeParser[U]` is a `func(raw string) (U, error)`; an error it returns is wrapped in `ErrCoerce`. `RegistrationOption` customizes registrations; `WithPredictor` attaches default completion to a registered type.
+`TypeParser[U]` is a `func(raw string) (U, error)`, and an error it returns is wrapped in `ErrCoerce`. `RegistrationOption` customizes registrations, and `WithPredictor` attaches default completion to a registered type.
 
 ## Containers
 
@@ -109,18 +109,18 @@ func (s *Session) CandidateConfigFiles() []string
 func (s *Session) LoadedConfigFiles() []string
 ```
 
-`Root` returns the application struct bound to `T`: the instance passed to
-`New`, or the engine-allocated instance. The type argument `T` must match the
+`Root` returns the application struct bound to `T`, either the instance passed to
+`New` or the engine-allocated instance. The type argument `T` must match the
 exact root command struct type, or `Root` panics. Enclosing command structs are reached
 by walking the selected `Command[T]` fields (`root.Cluster.Get()`).
 
-`Why` and `WhyJSON` render the same value-provenance report as the built-in `--why` flag; they return an empty string when Why is not enabled, and `WhyJSON` also requires `app.EnableWhy(conga.WhyOptionJSON())`.
+`Why` and `WhyJSON` render the same value-provenance report as the built-in `--why` flag. They return an empty string when Why is not enabled, and `WhyJSON` also requires `app.EnableWhy(conga.WhyOptionJSON())`.
 
 The App snapshots standard streams at the start of execution for the active session.
 
-`CandidateConfigFiles`/`LoadedConfigFiles` report the configuration sources the run evaluated: file paths for file-based resolution, plus the distinct origin paths the application recorded when a [`conga.Bootstrapper`](/how-to/load-domain-documents/) supplies a document with `Bootstrap.SetConfig`. Document scopes recorded with `ConfigDocument.SetScoped` are not part of the reported path.
+`CandidateConfigFiles`/`LoadedConfigFiles` report the configuration sources the run evaluated. These are file paths for file-based resolution, plus the distinct origin paths the application recorded when a [`conga.Bootstrapper`](/how-to/load-domain-documents/) supplies a document with `Bootstrap.SetConfig`. Document scopes recorded with `ConfigDocument.SetScoped` are not part of the reported path.
 
-`Help`, `Usage`, and `Version` are the formatting primitives behind the built-in `help` and `version` commands: `Help` returns the active command's help screen as a string, `Usage` returns the syntax usage summary as a string, and `Version` returns the formatted version summary line as a string, falling back to the module version (or `dev`) plus the embedded build metadata when no version string was configured.
+`Help`, `Usage`, and `Version` are the formatting primitives behind the built-in `help` and `version` commands. `Help` returns the active command's help screen as a string, `Usage` returns the syntax usage summary as a string, and `Version` returns the formatted version summary line as a string, falling back to the module version (or `dev`) plus the embedded build metadata when no version string was configured.
 
 ## Domain types
 
@@ -128,7 +128,7 @@ The App snapshots standard streams at the start of execution for the active sess
 
 ## Value sources
 
-`ValueSource` constants (`SourceNone`, `SourceDefault`, `SourceConfig`, `SourceEnv`, `SourceCLI`); meanings in [About value precedence](/explanation/value-precedence/#provenance-tracking).
+`ValueSource` constants are `SourceNone`, `SourceDefault`, `SourceConfig`, `SourceEnv`, and `SourceCLI`. [About value precedence](/explanation/value-precedence/#provenance-tracking) gives their meanings.
 
 ## Usage rendering modes
 
@@ -156,7 +156,7 @@ func CompletionEnvPrefix(prefix string) CompletionOption
 type CompletionOption interface{ /* sealed */ }
 ```
 
-`CompletionOption` is a sealed interface produced by option constructors such as `CompletionEnvPrefix`. Pass `CompletionEnvPrefix` to `App.EnableCompletion` to override the derived environment-variable prefix (`<APP>_`) that names the completion environment variables `<APP>_COMPLETION_DESCRIPTIONS`, `<APP>_COMPLETION_ALIASES`, and `<APP>_COMPLETION_BARE_SPACE_FLAGS`. The prefix is normalized to upper snake case; an empty prefix keeps the application-name derivation. POSIX shells cannot assign a variable name that begins with a digit, so a prefix derived from such an application name gains a leading underscore (an application named `7z` reads `_7Z_COMPLETION_DESCRIPTIONS`), while an explicit prefix that normalizes to a leading digit is rejected at schema build.
+`CompletionOption` is a sealed interface produced by option constructors such as `CompletionEnvPrefix`. Pass `CompletionEnvPrefix` to `App.EnableCompletion` to override the derived environment-variable prefix (`<APP>_`) that names the completion environment variables `<APP>_COMPLETION_DESCRIPTIONS`, `<APP>_COMPLETION_ALIASES`, and `<APP>_COMPLETION_BARE_SPACE_FLAGS`. The prefix is normalized to upper snake case, and an empty prefix keeps the application-name derivation. POSIX shells cannot assign a variable name that begins with a digit, so a prefix derived from such an application name gains a leading underscore (an application named `7z` reads `_7Z_COMPLETION_DESCRIPTIONS`), while an explicit prefix that normalizes to a leading digit is rejected at schema build.
 
 ## Configuration options
 
@@ -229,7 +229,7 @@ A command struct that implements `Bootstrapper` runs `Bootstrap` after the boots
 | `DotenvExplicit(paths...)` | Like `Dotenv`, but a missing file is an `ErrConfig` error |
 | `SetConfig(doc)` | Supplies the run's config document. A later call replaces an earlier one, and nil leaves the document inactive |
 
-The document is the highest-precedence part of the config source, overlaying file values key by key: `CLI > environment > document > config file > default`. Each entry's origin appears in `--why`.
+The document is the highest-precedence part of the config source and overlays file values key by key, giving `CLI > environment > document > config file > default`. Each entry's origin appears in `--why`.
 
 | `ConfigDocument` method | Effect |
 |---|---|

@@ -3,7 +3,7 @@ title: Struct tags
 description: Every struct tag CONGA understands, per construct.
 ---
 
-CONGA derives the CLI schema from struct fields and their tags. The engine validates tags at schema initialization: unknown tags, typos, or tags on incompatible field types fail schema construction with `ErrSchema` (see [How to lint schemas](/how-to/lint-schemas/)). Recognized foreign tags (such as `json` or `yaml`) pass validation silently.
+CONGA derives the CLI schema from struct fields and their tags. Schema build validates the tags. Unknown tags, typos, or tags on incompatible field types fail schema construction with `ErrSchema` (see [How to lint schemas](/how-to/lint-schemas/)). Recognized foreign tags (such as `json` or `yaml`) pass validation silently.
 
 ## Flags (`OptionalFlag[T]`, `RequiredFlag[T]`, `Counter`)
 
@@ -35,13 +35,13 @@ CONGA derives the CLI schema from struct fields and their tags. The engine valid
 | `short` | ✅ | ✅ | ✅ | Single-rune short flag (e.g. `short:"n"`). |
 | `xor` | ✅ | – | ✅ | Mutually exclusive group name: at most one member may be supplied. Optional flags only. |
 
-The `default` tag is rejected on `Counter` flags, `RequiredFlag`s, and `oneof` members. `xor` and `oneof` tags are also rejected on `RequiredFlag`s. Counters count command-line occurrences starting at 0; seed a base level with an `env` or config-file binding, or use `OptionalFlag[int]` for a numeric default. A required flag must receive a value from the CLI, environment, or configuration. A `default` on a `oneof` member is rejected because it sets the flag's value and marks it as set in `--why` without satisfying the `Changed()`-based exactly-one group.
+The `default` tag is rejected on `Counter` flags, `RequiredFlag`s, and `oneof` members. `xor` and `oneof` tags are also rejected on `RequiredFlag`s. Counters count command-line occurrences starting at 0. Seed a base level with an `env` or config-file binding, or use `OptionalFlag[int]` for a numeric default. A required flag must receive a value from the CLI, environment, or configuration. A `default` on a `oneof` member is rejected because it sets the flag's value and marks it as set in `--why` without satisfying the `Changed()`-based exactly-one group.
 
-Group names are scoped to the command that declares them: a same-named group on an ancestor or descendant command is an independent group, and validation, completion suppression, and the usage synopsis treat them separately. A flag may belong to one group of each kind. Every declared `xor` or `and` group needs at least two members; a one-member group is a no-op, so it fails schema construction. A `oneof` group needs at least two members unless its sole member is a `Counter`, where it means "require at least one occurrence" (use `RequiredFlag` for a single mandatory flag instead). Two members of the same `oneof` group may not also share an `and` group, and two members of the same `xor` group may not also share an `and` group: supplying either member would force the other, so the exclusive rule could never hold, and the schema rejects the pair at startup. A group whose members are all `hidden` renders no synopsis token — like a hidden required flag — but is still enforced, and the missing-group error names the hidden members.
+Group names are scoped to the command that declares them. A same-named group on an ancestor or descendant command is an independent group, and validation, completion suppression, and the usage synopsis treat them separately. A flag may belong to one group of each kind. Every declared `xor` or `and` group needs at least two members. A one-member group is a no-op, so it fails schema construction. A `oneof` group needs at least two members unless its sole member is a `Counter`, where it means "require at least one occurrence" (use `RequiredFlag` for a single mandatory flag instead). Two members of the same `oneof` group may not also share an `and` group, and two members of the same `xor` group may not also share an `and` group, because supplying either member would force the other and the exclusive rule could never hold. Schema build rejects the pair at startup. A group whose members are all `hidden` renders no synopsis token — like a hidden required flag — but is still enforced, and the missing-group error names the hidden members.
 
-Group membership is provenance-based: `--flag=false`, `--flag=`, `--count=0`, and `--no-flag` all count as supplying the flag because `Changed()` is true. Shell completion suppresses sibling members only after a member is present on the command line; a group satisfied by an environment variable or config file still offers siblings, and selecting one then fails at runtime.
+Group membership follows `Changed()`, so `--flag=false`, `--flag=`, `--count=0`, and `--no-flag` all count as supplying the flag. Shell completion suppresses sibling members only after a member is present on the command line. A group satisfied by an environment variable or config file still offers siblings, and selecting one then fails at runtime.
 
-Plain struct fields and exported non-container fields are ignored by schema building. CONGA tags on such fields are rejected at schema build instead of being silently dropped; `app.AllowTags(...)` accepts the listed keys, and tag syntax is validated on every field. Unexported embedded behavior mixins remain supported.
+Plain struct fields and exported non-container fields are ignored by schema building. CONGA tags on such fields are rejected at schema build instead of being silently dropped. `app.AllowTags(...)` accepts the listed keys, and tag syntax is validated on every field. Unexported embedded behavior mixins remain supported.
 
 A map flag merges key by key across sources. A config value written as a nested map binds per key without `sep` splitting, so a `labels` section containing `hosts: a,b` keeps `a,b` as one value, while the string value `labels: hosts=a,b` is split on `sep`.
 
@@ -49,7 +49,7 @@ The `enum` tag validates against the field's coerced value. When a type's `Unmar
 
 ## Positional arguments (`OptionalArg[T]`, `RequiredArg[T]`)
 
-Positional arguments bind to command-line input. They belong to leaf commands: a command that declares positional arguments cannot also declare `Command[T]` subcommands, and schema build rejects the mix with `ErrSchema`. Declare positionals on the leaf that executes, and pass shared context through inherited flags instead. Required arguments must come before optional ones. An optional argument declared before a required one fails schema build with `ErrSchema` (`optional positional argument cannot precede required positional argument <name>`).
+Positional arguments bind to command-line input. They belong to leaf commands. A command that declares positional arguments cannot also declare `Command[T]` subcommands, and schema build rejects the mix with `ErrSchema`. Declare positionals on the leaf that executes, and pass shared context through inherited flags instead. Required arguments must come before optional ones. An optional argument declared before a required one fails schema build with `ErrSchema` (`optional positional argument cannot precede required positional argument <name>`).
 
 | Tag | Optional | Required | Meaning |
 |-----|:--------:|:--------:|---------|
@@ -76,20 +76,20 @@ type CLI struct {
 }
 ```
 
-`Bootstrap` reads the typed containers directly (for example `c.Dir.Get()`); aliases, `env` tags, `EnvPrefix`, and defaults need no method-side parsing. Other fields hold their zero or caller-seeded value during the `Bootstrap` call.
+`Bootstrap` reads the typed containers directly (for example `c.Dir.Get()`), and aliases, `env` tags, `EnvPrefix`, and defaults need no method-side parsing. Other fields hold their zero or caller-seeded value during the `Bootstrap` call.
 
 Constraints:
 
-- The root command, or an ancestor command, must implement `conga.Bootstrapper`; otherwise schema build rejects the tag.
-- `bootstrap` cannot be combined with `feature`: the bootstrap phase runs before feature gates resolve.
+- The root command, or an ancestor command, must implement `conga.Bootstrapper`, or schema build rejects the tag.
+- `bootstrap` cannot be combined with `feature`, because the bootstrap phase runs before feature gates resolve.
 - Allowed types are bool, string, signed/unsigned integers, floats, `time.Duration`, and slices or maps of those. Structs, pointers, and interfaces are rejected so the extra coercion stays cheap.
-- Bootstrap errors are fatal for normal runs and `--why`. Completion tolerates them; `--help` runs the hook only when features are enabled, and a lone `--version` skips it. A tolerated failure restores the field to its pre-bootstrap state, and `Bootstrap` sees it unset.
+- Bootstrap errors are fatal for normal runs and `--why`. Completion tolerates them. `--help` runs the hook only when features are enabled, and a lone `--version` skips it. A tolerated failure restores the field to its pre-bootstrap state, and `Bootstrap` sees it unset.
 
-`DashArgs` and `RawArgs` also accept `bootstrap`. Bootstrap fields are bound twice on a normal run, so keep them idempotent; avoid side-effecting domain types.
+`DashArgs` and `RawArgs` also accept `bootstrap`. Bootstrap fields are bound twice on a normal run, so keep them idempotent and avoid domain types with side effects.
 
 ## Help variables
 
-CONGA appends declared constraints after each field's help text: `range:"1..65535"` renders `[1..65535]`, `enum:"dev,prod"` renders `[enum: dev, prod]`, and `default:"8080"` displays in the flag's value slot. A `help` tag on a flag, positional argument, or config-file flag can inline those values using `{{...}}` variables, suppressing the matching automatic hint so the constraint appears once.
+CONGA appends declared constraints after each field's help text. `range:"1..65535"` renders `[1..65535]`, `enum:"dev,prod"` renders `[enum: dev, prod]`, and `default:"8080"` displays in the flag's value slot. A `help` tag on a flag, positional argument, or config-file flag can inline those values using `{{...}}` variables, suppressing the matching automatic hint so the constraint appears once.
 
 | Variable | Substituted text | Supported fields |
 |----------|------------------|------------------|
@@ -110,17 +110,17 @@ type CLI struct {
 
 The help column renders `Port number (1..65535)`, `Environment (dev, staging, prod)`, and `Tags (1..5 allowed)`.
 
-Suppression applies per hint: referencing `{{range}}` leaves `[len: …]`, `[items: …]`, `[enum: …]`, `[default: …]`, and `[env: …]` in place. On flags, referencing `{{default}}` also removes the default from the value slot (`--port=8080` becomes `--port=INT`), displaying the default exclusively where the help text places it. On positional arguments, `{{default}}` inlines the declared default into the prose. Config-file flags support only `{{env}}`.
+Suppression applies per hint, so referencing `{{range}}` leaves `[len: …]`, `[items: …]`, `[enum: …]`, `[default: …]`, and `[env: …]` in place. On flags, referencing `{{default}}` also removes the default from the value slot (`--port=8080` becomes `--port=INT`), displaying the default exclusively where the help text places it. On positional arguments, `{{default}}` inlines the declared default into the prose. Config-file flags support only `{{env}}`.
 
-Referencing an undeclared variable fails schema build with `ErrSchema`: `{{range}}` without a `range` tag, any variable other than `{{env}}` on a config-file flag, any variable other than `{{enum}}` and `{{env}}` on a `Features` container, `{{env}}` on a `Features` container without a combined-map `env` tag, or `{{env}}` on a positional argument. Unknown names fail the same way and list the six supported names. Empty constraint tags (`range:""`, `len:""`, `items:""`, and `enum:""`) are rejected at schema build unconditionally. Bare `{` and shell-style `${...}` sequences copy verbatim; double the opening braces (`{{{{`) to render a literal `{{`.
+Referencing an undeclared variable fails schema build with `ErrSchema`. That covers `{{range}}` without a `range` tag, any variable other than `{{env}}` on a config-file flag, any variable other than `{{enum}}` and `{{env}}` on a `Features` container, `{{env}}` on a `Features` container without a combined-map `env` tag, or `{{env}}` on a positional argument. Unknown names fail the same way and list the six supported names. Empty constraint tags (`range:""`, `len:""`, `items:""`, and `enum:""`) are rejected at schema build unconditionally. Bare `{` and shell-style `${...}` sequences copy verbatim. Double the opening braces (`{{{{`) to render a literal `{{`.
 
 ### Suppressing the enum hint
 
-Long value lists can overwhelm a help line. Set `enumhint:"-"` on a flag, positional argument, or `Features` container to suppress the automatic `[enum: ...]` hint while keeping the values validated and completed. The tag's only accepted value is `-`; it is rejected on fields that declare no enum values, and it conflicts with a `help` tag that already references `{{enum}}` (inlining the values and hiding them are contradictory requests).
+Long value lists can overwhelm a help line. Set `enumhint:"-"` on a flag, positional argument, or `Features` container to suppress the automatic `[enum: ...]` hint while keeping the values validated and completed. The tag's only accepted value is `-`, and it is rejected on fields that declare no enum values, and it conflicts with a `help` tag that already references `{{enum}}` (inlining the values and hiding them are contradictory requests).
 
 ## Subcommands (`Command[T]`)
 
-A command that declares `Command[T]` fields is a branch: it routes to its subcommands and may not also declare positional arguments. Built-in help, version, and completion command fields do not count as branching.
+A command that declares `Command[T]` fields is a branch. It routes to its subcommands and may not also declare positional arguments. Built-in help, version, and completion command fields do not count as branching.
 
 | Tag | Meaning |
 |-----|---------|
@@ -169,13 +169,13 @@ type RunCmd struct {
 
 #### Schema rules
 
-- The value is a strict boolean, `"true"` or `"false"`; an empty value means `true`.
-- A command declares at most one implicit subcommand. A second fails schema build with `ErrSchema` and names the field that declared the first; `conga-lint` reports the same error.
+- The value is a strict boolean, `"true"` or `"false"`. An empty value means `true`.
+- A command declares at most one implicit subcommand. A second fails schema build with `ErrSchema` and names the field that declared the first. `conga-lint` reports the same error.
 - An implicit subcommand may declare its own implicit subcommand.
 
 #### Help rendering
 
-- The parent usage line shows the command token as optional: `tool [<command>]`.
+- The parent usage line shows the command token as optional, as in `tool [<command>]`.
 - The parent's command listing marks the implicit subcommand `(default)`. Declaration order is unchanged.
 
 #### Selection
@@ -183,7 +183,7 @@ type RunCmd struct {
 A subcommand named explicitly, by name or alias, always takes precedence. Otherwise the implicit subcommand is selected when any of these holds:
 
 - An operand matches no subcommand name or alias. A near-miss of a sibling name is an operand, so no "did you mean ...?" suggestion is offered.
-- Operands follow `--`, unless the parent implements `Runner` and declares `DashArgs`; that parent binds them itself.
+- Operands follow `--`, unless the parent implements `Runner` and declares `DashArgs`, in which case the parent binds them itself.
 - A flag declared only by the implicit subtree is supplied. Selection descends through nested implicit subcommands only as deep as those flags require.
 - The invocation selects no subcommand and the parent does not implement `Runner`.
 
@@ -200,7 +200,7 @@ A parent that implements `Runner` runs itself when the invocation supplies no op
 
 #### Token order
 
-Routing reads tokens left to right. A subcommand's value-taking flag must follow the subcommand name: in `tool --env prod deploy`, `prod` is an unmatched operand and selects the implicit subcommand. Write `tool deploy --env prod`. Root flags and flags of commands already named may appear on either side of a subcommand name.
+Routing reads tokens left to right. A subcommand's value-taking flag must follow the subcommand name. In `tool --env prod deploy`, `prod` is an unmatched operand and selects the implicit subcommand. Write `tool deploy --env prod`. Root flags and flags of commands already named may appear on either side of a subcommand name.
 
 #### Built-in requests
 
@@ -214,7 +214,7 @@ Routing reads tokens left to right. A subcommand's value-taking flag must follow
 
 #### `--version` after selection
 
-`--version` is a root-only built-in. Once an invocation resolves to a subcommand, implicitly or by name, the token is not a built-in. Until the subcommand's declared positionals are full it is an unknown flag; after that, a subcommand that declares `RawArgs` receives it as a trailing argument.
+`--version` is a root-only built-in. Once an invocation resolves to a subcommand, implicitly or by name, the token is not a built-in. Until the subcommand's declared positionals are full it is an unknown flag. After that, a subcommand that declares `RawArgs` receives it as a trailing argument.
 
 | Invocation | Result |
 |------------|--------|
@@ -223,7 +223,7 @@ Routing reads tokens left to right. A subcommand's value-taking flag must follow
 | `tool --version run` | Fails: `unknown flag: --version` |
 | `tool ./script.ts --version` | `run` receives `--version` in `RawArgs`, same as `tool run ./script.ts --version` |
 
-An implicit subcommand may declare its own `version` flag or claim the `app.VersionShortFlag` rune. The root built-in still decides routing: a bare `tool --version` prints the summary, and an operand after it selects the subcommand, which then binds exactly like the named form. With a value-taking `version` flag on `run`, `tool --version script.ts` behaves like `tool run --version script.ts`, and `script.ts` becomes the flag's value.
+An implicit subcommand may declare its own `version` flag or claim the `app.VersionShortFlag` rune. The root built-in still decides routing. A bare `tool --version` prints the summary, and an operand after it selects the subcommand, which then binds exactly like the named form. With a value-taking `version` flag on `run`, `tool --version script.ts` behaves like `tool run --version script.ts`, and `script.ts` becomes the flag's value.
 
 Help and shell completion advertise `--version` only while the invocation resolves to the root command. A bound child-only flag removes it from flag-name candidates.
 
@@ -251,7 +251,7 @@ The `default` tag is rejected on `ConfigFile` flags. Declare default search path
 
 ## Feature toggles (`conga.Features[T]`)
 
-`conga.Features[T]` declares feature toggles on the root command struct. Each exported field of `T` is one feature: the field name converts to kebab-case (or is overridden with the `name` tag), a `bool` field is an on/off toggle, and an integer field is a leveled toggle where `0` means off and every non-zero level must be listed in the `enum` tag.
+`conga.Features[T]` declares feature toggles on the root command struct. Each exported field of `T` is one feature. The field name converts to kebab-case (or is overridden with the `name` tag), a `bool` field is an on/off toggle, and an integer field is a leveled toggle where `0` means off and every non-zero level must be listed in the `enum` tag.
 
 ```go
 type Experiments struct {
@@ -278,7 +278,7 @@ func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
 }
 ```
 
-Declare the container once, on the root command struct, and call `app.EnableFeatures()` on the application builder to activate feature resolution. Without the builder call, schema build rejects the container and every `feature` tag with `ErrSchema`. The `feature` tag is accepted on `OptionalFlag`, `Counter`, `Command[T]`, and `ConfigFile` fields; `RequiredFlag` rejects it because a required input cannot be absent. See [How to gate features](/how-to/gate-behind-features/).
+Declare the container once, on the root command struct, and call `app.EnableFeatures()` on the application builder to activate feature resolution. Without the builder call, schema build rejects the container and every `feature` tag with `ErrSchema`. The `feature` tag is accepted on `OptionalFlag`, `Counter`, `Command[T]`, and `ConfigFile` fields. `RequiredFlag` rejects it because a required input cannot be absent. See [How to gate features](/how-to/gate-behind-features/).
 
 ### Feature container tags
 
@@ -292,7 +292,7 @@ Declare the container once, on the root command struct, and call `app.EnableFeat
 | `help` | Help text for the synthesized flag. Defaults to `Enable or disable features (name=value)`; the root help screen's [Features section](/how-to/gate-behind-features/#declare-the-features) lists every feature, and `{{enum}}` (declared feature names) and `{{env}}` (the container's combined-map environment variable names) can be inlined, suppressing the matching bracket hint. `{{env}}` requires an `env` tag: a container whose only environment variables come from `envprefix` or field `env` tags rejects it at schema build. Other help variables are rejected. |
 | `enumhint` | Set to `-` to suppress the synthesized flag's `[enum: ...]` help hint. Redundant — and rejected — when the `help` tag already references `{{enum}}`. |
 
-A container that declares neither `env` nor `envprefix` binds no environment variable at all — `env:"-"` is equivalent. The application-level `EnvPrefix(...)` never reaches features; it applies to normal flags only.
+A container that declares neither `env` nor `envprefix` binds no environment variable at all, which is equivalent to `env:"-"`. The application-level `EnvPrefix(...)` never reaches features. It applies to normal flags only.
 
 ### Feature field tags
 
@@ -305,7 +305,7 @@ A container that declares neither `env` nor `envprefix` binds no environment var
 | `enum` | Integer features only: comma-separated non-zero levels, required on every integer feature. `0` is reserved for off and rejected in the tag. |
 | `env` | Comma-separated environment variable names binding this feature individually (first set wins; an empty value is unset). `env:"-"` excludes the field from the environment source. Valid only when the container does not declare `env` (the combined-map variable); under a container `envprefix`, the tag overrides the derived variable name. |
 
-Environment variables are validated for collisions at schema build: two feature fields resolving to the same variable (explicitly or through prefix derivation), or a feature variable a flag also binds, fail schema build with `ErrSchema`.
+Environment variables are validated for collisions at schema build. Two feature fields resolving to the same variable (explicitly or through prefix derivation), or a feature variable a flag also binds, fail schema build with `ErrSchema`.
 
 ### Feature expressions
 
@@ -317,17 +317,17 @@ A `feature` tag holds a comma-separated conjunction of terms. Each term is a fea
 | `!strict-tls` | `strict-tls` is off. |
 | `http3,!strict-tls` | `http3` is on and `strict-tls` is off. |
 
-A `bool` feature is on when its value is `true`. An integer feature is on at any non-zero level; expressions cannot test for a specific level.
+A `bool` feature is on when its value is `true`. An integer feature is on at any non-zero level, and expressions cannot test for a specific level.
 
 ### Feature value resolution
 
-Feature names are kebab-cased. A key may use any spelling of a declared name (kebab-case, snake_case, or camelCase); keys are canonicalized before the merge, so precedence follows the source rather than the spelling.
+Feature names are kebab-cased. A key may use any spelling of a declared name (kebab-case, snake_case, or camelCase). Keys are canonicalized before the merge, so precedence follows the source rather than the spelling.
 
-Every source contributes `name=value` pairs, merged key by key: command line over environment over config file over the field's `default` tag. A source changes only the keys it names, so unlisted features keep their lower-source values. The container's `Source()` reports the highest source that contributed a key. See [About value precedence](/explanation/value-precedence/).
+Every source contributes `name=value` pairs, merged key by key. The command line beats the environment, which beats the config file, which beats the field's `default` tag. A source changes only the keys it names, so unlisted features keep their lower-source values. The container's `Source()` reports the highest source that contributed a key. See [About value precedence](/explanation/value-precedence/).
 
 ### Feature runtime behavior
 
-Inactive gated flags and subcommands are pruned from `--help`, `--why`, and shell completion. Input that cannot be applied fails by source:
+Inactive gated flags and subcommands are left out of `--help`, `--why`, and shell completion. Input that cannot be applied fails by source:
 
 | Input | Command line | Environment | Config file |
 |---|---|---|---|
@@ -335,7 +335,7 @@ Inactive gated flags and subcommands are pruned from `--help`, `--why`, and shel
 | Unknown feature name | Usage error (exit 2), with suggestion | Usage error (exit 2), with suggestion | `ErrConfig` (exit 1), with suggestion |
 | Invalid feature value (not `true`/`false`, or a level not in `enum`) | Usage error (exit 2) | Usage error (exit 2), naming the variable | Usage error (exit 2), naming the config key |
 
-Only environment variables that bind *gated flags* are ignored when inactive, so ambient variables never break a run they do not control; feature variables (from `env` or `envprefix`) are always validated. See [Errors and exit codes](/reference/errors/).
+Only environment variables that bind *gated flags* are ignored when inactive, so ambient variables never break a run they do not control. Feature variables (from `env` or `envprefix`) are always validated. See [Errors and exit codes](/reference/errors/).
 
 ## Trailing arguments (`DashArgs`, `RawArgs`)
 
@@ -346,9 +346,11 @@ Only environment variables that bind *gated flags* are ignored when inactive, so
 | `name` | Placeholder name in usage syntax. |
 | `predictor` | Completion candidates for the collected words, using the same vocabulary as flags and positional arguments (`file`, `file:*.yml`, `dir`, `exec`, `symlink`, `none`, or a registered custom name). |
 
-An untagged collector offers no completion candidates: the collected words are opaque forwarded arguments, so the framework does not guess a domain. `DashArgs` candidates cover the words after `--`; `RawArgs` candidates cover the words captured once raw mode begins (the first overflowing positional or unknown flag after every declared required positional is filled). Forwarded words never reuse a declared positional argument's predictor, and they do not suppress previously forwarded values.
+An untagged collector offers no completion candidates, because the collected words are opaque forwarded arguments. `DashArgs` candidates cover the words after `--`, and `RawArgs` candidates cover the words captured once raw mode begins (the first overflowing positional or unknown flag after every declared required positional is filled). Forwarded words never reuse a declared positional argument's predictor, and they do not suppress previously forwarded values.
 
-`RawArgs` is a leaf-only collector: it cannot be combined with subcommands, and every positional argument declared before it must be required and scalar. Use `DashArgs` when the command also declares subcommands. No word after `--` selects a subcommand, whether or not the command declares `DashArgs`. On a branch without one, `tool -- deploy` fails with `unexpected argument "deploy"` (exit 2). Completion follows the same boundary and offers no subcommand names after `--`. A non-runnable branch cannot execute, so its `DashArgs` only binds on an invocation that then fails the runner contract; when the branch has an implicit child, terminal routing forwards `--` operands to that child instead. Schema build and `conga-lint` reject the ambiguous combinations.
+`RawArgs` starts collecting once every declared positional argument is filled, at the first word that is a further positional word or a flag the command doesn't declare. From that word on it collects every word as typed, flags included. Words before it are parsed normally, so a declared flag right after the required arguments still binds.
+
+`RawArgs` is a leaf-only collector. It cannot be combined with subcommands, and every positional argument declared before it must be required and scalar. Use `DashArgs` when the command also declares subcommands. No word after `--` selects a subcommand, whether or not the command declares `DashArgs`. On a branch without one, `tool -- deploy` fails with `unexpected argument "deploy"` (exit 2). Completion follows the same boundary and offers no subcommand names after `--`. A non-runnable branch cannot execute, so its `DashArgs` only binds on an invocation that then fails the runner contract. When the branch has an implicit child, terminal routing forwards `--` operands to that child instead. Schema build and `conga-lint` reject the ambiguous combinations.
 
 ## Domain-type tags
 
@@ -367,7 +369,7 @@ The built-in filesystem domain types register these tags:
 | `stdout` | `"-"` writes standard output. Mutually exclusive with `stdin`, `existing`, `executable`, and `symlink`. |
 | `symlink` | Path must be a symbolic link. Completes as symlinks. Mutually exclusive with `existing`, `stdin`, `stdout`, `executable`, and `glob`. |
 
-The `executable` and `symlink` capabilities are complete value kinds: they exclude each other and every other capability tag, so a field declares exactly one.
+The `executable` and `symlink` capabilities are complete value kinds. They exclude each other and every other capability tag, so a field declares exactly one.
 
 ### `conga.Dir`
 

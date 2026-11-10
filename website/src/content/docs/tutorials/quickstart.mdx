@@ -140,7 +140,7 @@ Usage:
 Run 'hello --help' for more information.
 ```
 
-Notice that `Run` never ran: CONGA rejected the unknown `--nme` before calling it, and suggested the closest flag name. The program exits with status 2, which marks a usage error:
+Notice that `Run` never ran. CONGA rejected the unknown `--nme` before calling it, and suggested the closest flag name. The program exits with status 2, which marks a usage error:
 
 ```sh
 $ echo $?
@@ -190,7 +190,7 @@ func main() {
 }
 ```
 
-Notice that `Loud` is a `bool` flag with no `default` tag: it stays `false` until the user gives `--loud`.
+Notice that `Loud` is a `bool` flag with no `default` tag, so it stays `false` until the user gives `--loud`.
 
 Build the program again, and run it with the new flag:
 

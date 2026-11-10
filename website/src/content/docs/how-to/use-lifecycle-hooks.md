@@ -78,7 +78,7 @@ This guide builds `snap`, which copies a directory into a snapshot store. The ro
 
 ## Acquire and release a shared resource
 
-To set up before a command runs and clean up afterwards, implement `conga.PreRunner` and `conga.Finalizer`:
+To set up before a command runs and clean up afterwards, implement the [lifecycle interfaces](/reference/conga/#lifecycle-interfaces) `conga.PreRunner` and `conga.Finalizer`:
 
 ```go
 type PreRunner interface {
@@ -199,7 +199,7 @@ func (c *CreateCmd) Run(ctx context.Context, session *conga.Session) error {
 			return err
 		}
 
-		// [!callout /ctx.Err/] Stops the copy if `ctx` is cancelled.
+		// [!callout /ctx.Err/] Stops the copy if `ctx` is canceled.
 		if err := ctx.Err(); err != nil {
 			return err
 		}
@@ -342,7 +342,7 @@ Renaming in `PostRun` keeps a failed rename safe. When `os.Rename` fails in `Pos
 
 ## Stop cleanly on Ctrl+C
 
-`app.Run()` passes the hooks a context that is cancelled on Ctrl+C (`SIGINT`) or `SIGTERM`, as [Default signal context versus custom context](/explanation/lifecycle/#default-signal-context-versus-custom-context) explains. The process keeps running after the signal. To stop cleanly, a long-running hook checks `ctx` and returns its error, and the `Finally` hooks then clean up.
+`app.Run()` passes the hooks a context that is canceled on Ctrl+C (`SIGINT`) or `SIGTERM`, as [Default signal context versus custom context](/explanation/lifecycle/#default-signal-context-versus-custom-context) explains. The process keeps running after the signal. To stop cleanly, a long-running hook checks `ctx` and returns its error, and the `Finally` hooks then clean up.
 
 In `CreateCmd.Run`, the `filepath.WalkDir` callback checks `ctx.Err()` before each entry. Pressing Ctrl+C partway through a large copy returns `context.Canceled`, skips `PostRun`, removes the partial snapshot in `CreateCmd.Finally`, and releases `.lock` in `CLI.Finally`. The run exits with status 1:
 
@@ -382,10 +382,10 @@ func main() {
 ```
 
 :::caution[A command that ignores ctx ignores Ctrl+C]
-Under a context that is cancelled on Ctrl+C, a command that never checks `ctx` runs until `Run` finishes, however often the user presses Ctrl+C. Check `ctx.Err()` in loops and pass `ctx` to context-aware calls such as `exec.CommandContext` and `http.NewRequestWithContext`.
+Under a context that is canceled on Ctrl+C, a command that never checks `ctx` runs until `Run` finishes, however often the user presses Ctrl+C. Check `ctx.Err()` in loops and pass `ctx` to context-aware calls such as `exec.CommandContext` and `http.NewRequestWithContext`.
 :::
 
-When `Finally` runs after Ctrl+C, `ctx` is already cancelled. If a cleanup step calls a function that takes a `context.Context`, such as one that rolls back a database transaction or deletes a remote object, pass it `context.WithoutCancel(ctx)` so the call gets a live context. Wrap that in `context.WithTimeout` when the call can hang.
+When `Finally` runs after Ctrl+C, `ctx` is already canceled. If a cleanup step calls a function that takes a `context.Context`, such as one that rolls back a database transaction or deletes a remote object, pass it `context.WithoutCancel(ctx)` so the call gets a live context. Wrap that in `context.WithTimeout` when the call can hang.
 
 ## Know what users see
 

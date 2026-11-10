@@ -5,11 +5,7 @@ description: Run cloudctl inside go test with its own command line, input, and o
 
 In this tutorial, we will write Go tests that run `cloudctl` the way a user does: with a command line, input to read, and somewhere to write. Along the way, `deploy` will learn to ask for confirmation before it deploys. We continue in the `cloudctl` directory from [Configure a CLI from a file and the environment](/tutorials/configure-a-cli/), with `cloudctl.yaml` still in place.
 
-These are end-to-end tests: each one starts from a command line and checks what `cloudctl` gives back. Go programs usually test end to end by building the binary and running it with `os/exec` or a script runner such as [`testscript`](https://pkg.go.dev/github.com/rogpeppe/go-internal/testscript). We will use CONGA's alternative, which builds the app inside the test and runs it there, with no binary. [About testing CONGA programs](/explanation/testing/) compares the two.
-
-:::caution[Check that it fits your program]
-A test that runs the app inside the test sees only the input and output that pass through the app's own streams, which this tutorial sets up. If your commands use a package that reads `os.Stdin` or writes to `os.Stdout` itself, and can't be given an `io.Reader` or `io.Writer` in their place, the test can't supply that input or see that output. Test such a program by running the built binary instead.
-:::
+Each test starts from a command line and checks what `cloudctl` gives back, running the app inside the test with no binary to build. [About testing CONGA programs](/explanation/testing/) compares this with running the built binary.
 
 ## What we will build
 
@@ -19,8 +15,8 @@ By the end, three tests pass:
 $ go test -v
 === RUN   TestDeploy
 --- PASS: TestDeploy (0.00s)
-=== RUN   TestDeployCancelled
---- PASS: TestDeployCancelled (0.00s)
+=== RUN   TestDeployCanceled
+--- PASS: TestDeployCanceled (0.00s)
 === RUN   TestDeployNeedsImage
 --- PASS: TestDeployNeedsImage (0.00s)
 PASS
@@ -112,7 +108,7 @@ Notice that the buffer is empty, and the deployment line appears in `go test`'s 
 
 ## Write through the session
 
-The `session` that CONGA passes to `Run` has the app's streams: `session.Stdout()` is the app's standard output, `session.Stderr()` its standard error, and `session.Stdin()` its standard input. A normal run sets them to the process's own streams, so the user sees no difference. A test that calls `Stdout(&stdoutBuffer)` points `session.Stdout()` at the buffer.
+The `session` that CONGA passes to `Run` has the app's streams. `session.Stdout()` is the app's standard output, `session.Stderr()` its standard error, and `session.Stdin()` its standard input. A normal run sets them to the process's own streams, so the user sees no difference. A test that calls `Stdout(&stdoutBuffer)` points `session.Stdout()` at the buffer.
 
 Make both commands write through the session:
 
@@ -145,7 +141,7 @@ exit status 1
 FAIL	cloudctl	0.005s
 ```
 
-The line reached the buffer this time, but with `eu-west-1` and 3 replicas. Notice where those came from: `cloudctl.yaml`. The test ran the whole app, and `go test` runs in the package directory, so the app found the file there, as it does when we run `./cloudctl`. It would read `CLOUDCTL_REGION` and the other variables from the shell in the same way.
+The line reached the buffer this time, but with `eu-west-1` and 3 replicas. Notice that those came from `cloudctl.yaml`. The test ran the whole app, and `go test` runs in the package directory, so the app found the file there, as it does when we run `./cloudctl`. It would read `CLOUDCTL_REGION` and the other variables from the shell in the same way.
 
 Give each test a clean start, with no config file and none of the app's variables set:
 
@@ -210,7 +206,7 @@ func (d *DeployCmd) Run(ctx context.Context, session *conga.Session) error {
 		var answer string
 		// [!callout /Stdin/] Reads the answer from the app's standard input.
 		if _, err := fmt.Fscanln(session.Stdin(), &answer); err != nil || answer != "y" {
-			return errors.New("deployment cancelled")
+			return errors.New("deployment canceled")
 		}
 	}
 
@@ -237,7 +233,7 @@ Run it again, and answer `n`:
 ```sh error={3}
 $ ./cloudctl deploy web
 deploy web to eu-west-1? [y/N] n
-cloudctl: error: deployment cancelled
+cloudctl: error: deployment canceled
 ```
 
 ```sh
@@ -315,7 +311,7 @@ func TestDeploy(t *testing.T) {
 	}
 }
 
-func TestDeployCancelled(t *testing.T) {
+func TestDeployCanceled(t *testing.T) {
 	isolate(t)
 
 	var stdoutBuffer bytes.Buffer
@@ -327,8 +323,8 @@ func TestDeployCancelled(t *testing.T) {
 		Stderr(new(bytes.Buffer))
 
 	err := app.RunContext(t.Context())
-	if err == nil || err.Error() != "deployment cancelled" {
-		t.Fatalf("err = %v, want deployment cancelled", err)
+	if err == nil || err.Error() != "deployment canceled" {
+		t.Fatalf("err = %v, want deployment canceled", err)
 	}
 
 	if stdoutBuffer.Len() > 0 {
@@ -337,14 +333,14 @@ func TestDeployCancelled(t *testing.T) {
 }
 ```
 
-`isolate` now also empties `CLOUDCTL_YES`, the variable the new `--yes` flag reads. `TestDeploy` answers `y` and checks each stream: the result on standard output, the question on standard error. `TestDeployCancelled` answers `n` and checks that nothing was deployed.
+`isolate` now also empties `CLOUDCTL_YES`, the variable the new `--yes` flag reads. `TestDeploy` answers `y` and checks each stream, the result on standard output and the question on standard error. `TestDeployCanceled` answers `n` and checks that nothing was deployed.
 
 ```sh
 $ go test -v
 === RUN   TestDeploy
 --- PASS: TestDeploy (0.00s)
-=== RUN   TestDeployCancelled
---- PASS: TestDeployCancelled (0.00s)
+=== RUN   TestDeployCanceled
+--- PASS: TestDeployCanceled (0.00s)
 PASS
 ok  	cloudctl	0.004s
 ```
@@ -389,15 +385,19 @@ func TestDeployNeedsImage(t *testing.T) {
 $ go test -v
 === RUN   TestDeploy
 --- PASS: TestDeploy (0.00s)
-=== RUN   TestDeployCancelled
---- PASS: TestDeployCancelled (0.00s)
+=== RUN   TestDeployCanceled
+--- PASS: TestDeployCanceled (0.00s)
 === RUN   TestDeployNeedsImage
 --- PASS: TestDeployNeedsImage (0.00s)
 PASS
 ok  	cloudctl	0.006s
 ```
 
-Notice that the test checks standard error is empty. `RunContext` returns the error and prints nothing; in `main`, `app.Exit` prints the message and picks the exit status. The cancelled deployment exited with status 1, because the command line was fine. The missing `--image` exits with status 2, because the command line was wrong.
+Notice that the test checks standard error is empty. `RunContext` returns the error and prints nothing. In `main`, `app.Exit` prints the message and picks the exit status. The canceled deployment exited with status 1, because the command line was fine. The missing `--image` exits with status 2, because the command line was wrong.
+
+:::caution[Check that it fits your program]
+A test that runs the app inside the test sees only the input and output that pass through the app's own streams, which this tutorial set up. If your commands use a package that reads `os.Stdin` or writes to `os.Stdout` itself, and can't be given an `io.Reader` or `io.Writer` in their place, the test can't supply that input or see that output. Test such a program by running the built binary instead.
+:::
 
 ## Where to go next
 

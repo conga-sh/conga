@@ -3,7 +3,7 @@ title: How to inspect value provenance
 description: Let users see where each flag value came from, with --why, as a table or JSON, and print the same report from your own code.
 ---
 
-A flag can get its value from the command line, an environment variable, a config file, or its default. When a user can't tell why a setting has the value it has, `--why` answers: it prints every flag's value and the source that set it, then exits without running the command.
+A flag can get its value from the command line, an environment variable, a config file, or its default. When a user can't tell why a setting has the value it has, `--why` answers. It prints every flag's value and the source that set it, then exits without running the command.
 
 This guide builds a small `server` program that reads a `server.yaml` file and `SERVER_*` variables.
 
@@ -120,7 +120,7 @@ values are redacted — tag fields safe:"true" to display
 
 Some values print without the tag:
 
-- A value that came from the flag's `default` tag prints, because it is already in `--help`. Keep secrets out of `default`: a token given there appears in the report.
+- A value that came from the flag's `default` tag prints, because it is already in `--help`. Keep secrets out of `default`, because a token given there appears in the report.
 - Boolean flags and `conga.Counter` flags print, because they can't hold a secret. Tag one `safe:"false"` to hide it.
 - The paths given to a `conga.ConfigFile` flag print.
 
@@ -128,7 +128,7 @@ Positional arguments don't appear in the report.
 
 ## Trace each key of a map flag
 
-A map flag merges key by key: a key from a higher source replaces that key only, and keys from lower sources stay. The report lists each key under the flag with the source that set it. Here the user adds `team` in the environment and `tier` on the command line:
+A map flag merges key by key. A key from a higher source replaces that key only, and keys from lower sources stay. The report lists each key under the flag with the source that set it. Here the user adds `team` in the environment and `tier` on the command line:
 
 ```sh {8-11}
 $ SERVER_LABELS=team=core server --why --labels tier=gold
@@ -215,7 +215,7 @@ $ SERVER_TOKEN=hunter2 server --why=json --port 9003 | jq '.flags'
 ]
 ```
 
-The rest of the document records the command, the working directory, a timestamp, and the config search; [the `--why` report](/reference/builtins/#the---why-report) lists every property. `--why` and `--why=text` still print the table, and `--help` now lists the flag as `--why[=FORMAT]`.
+The rest of the document records the command, the working directory, a timestamp, and the config search. [The `--why` report](/reference/builtins/#the---why-report) lists every property. `--why` and `--why=text` still print the table, and `--help` now lists the flag as `--why[=FORMAT]`.
 
 ## Print the report from your own code
 
@@ -281,7 +281,7 @@ A bad config value stops the report, so the user fixes the value first:
 server: error: invalid integer value "eighty" for flag --port (from config key "port")
 ```
 
-The report also lists [feature toggles](/how-to/gate-behind-features/#check-which-source-set-each-feature) and the flags of parent commands; color and markers appear only on a terminal.
+The report also lists [feature toggles](/how-to/gate-behind-features/#check-which-source-set-each-feature) and the flags of parent commands. Color and markers appear only on a terminal.
 
 ## Where to go next
 

@@ -3,7 +3,7 @@ title: How to gate flags and subcommands behind features
 description: Declare named features, hide flags and subcommands until a feature is on, and let users switch features from the command line, the environment, or a config file.
 ---
 
-A feature is a named setting the person running your CLI changes at run time: on or off, or a numbered level. A gated flag or subcommand appears in `--help`, `--why`, and shell completion, and accepts input, while its feature is on.
+A feature is a named setting, on or off or a numbered level, that the person running your CLI changes at run time. A gated flag or subcommand appears in `--help`, `--why`, and shell completion, and accepts input, while its feature is on.
 
 This guide builds the HTTP server from the [feature toggles example](https://github.com/conga-sh/conga/tree/main/_examples/29-feature-toggles). It declares four features, gates two flags and one subcommand behind them, and turns them on from each source.
 
@@ -24,7 +24,7 @@ type CLI struct {
 }
 ```
 
-The three container tags name the places a user can set features from: the `--feature-gates` flag, the `API_FEATURES` variable, and the `features:` section of a config file. Each tag is optional; declare the sources your users need. For the environment you can give each feature its own variable instead; see [Give each feature its own environment variable](#give-each-feature-its-own-environment-variable).
+The three container tags name the places a user can set features from: the `--feature-gates` flag, the `API_FEATURES` variable, and the `features:` section of a config file. Each tag is optional, so declare only the sources your users need. For the environment, each feature can have its own variable instead, as [Give each feature its own environment variable](#give-each-feature-its-own-environment-variable) shows.
 
 ## Enable features
 
@@ -78,7 +78,11 @@ Turn the feature on and the flag appears in `--help` and works:
 feature-toggles --feature-gates http3=true --quic
 ```
 
-The `feature` tag works on `OptionalFlag`, `Counter`, `ConfigFile`, and `Command[T]` fields.
+The `feature` tag works on `OptionalFlag`, `Counter`, `ConfigFile`, and `Command[T]` fields. A required flag can't be gated, because it would be required while it doesn't exist. Here `QUIC` was made a `RequiredFlag`:
+
+```text no-copy error={1} wrap
+feature-toggles: error: struct CLI field QUIC: schema error: invalid struct tag: tag "feature" cannot be used on required flags (feature-gated flags must be optional)
+```
 
 ## Gate a subcommand
 
@@ -108,7 +112,7 @@ AllowInsecure conga.OptionalFlag[bool] `feature:"!strict-tls" help:"Serve plaint
 
 `strict-tls` defaults to on, so `--allow-insecure` appears once a user runs with `--feature-gates strict-tls=false`.
 
-To require several conditions, separate them with commas; all must hold. `feature:"http3,!strict-tls"` gates a member on `http3` being on *and* `strict-tls` being off. The [expression table](/reference/struct-tags/#feature-expressions) lists the forms.
+To require several conditions, separate them with commas. All of them must hold. `feature:"http3,!strict-tls"` gates a member on `http3` being on *and* `strict-tls` being off. The [expression table](/reference/struct-tags/#feature-expressions) lists the forms.
 
 ## Turn features on
 
@@ -126,7 +130,7 @@ From the environment, using the variable named by the container's `env` tag:
 API_FEATURES=strict-tls=false feature-toggles --allow-insecure
 ```
 
-With `envprefix`, each feature has its own variable instead; see [Give each feature its own environment variable](#give-each-feature-its-own-environment-variable).
+With `envprefix`, each feature has its own variable instead (see [Give each feature its own environment variable](#give-each-feature-its-own-environment-variable)).
 
 From a config file, under the section named by the container's `config` tag. The application must register a decoder for the file format (see [How to manage config files](/how-to/manage-config-files/)):
 
@@ -147,7 +151,7 @@ $ API_FEATURES=http3=false feature-toggles --feature-gates http3=true
 features: http3=true admin-api=false strict-tls=true metrics=true
 ```
 
-Users may spell a name in kebab-case, snake_case, or camelCase: `admin-api`, `admin_api`, and `adminApi` are the same feature.
+Users may spell a name in kebab-case, snake_case, or camelCase, so `admin-api`, `admin_api`, and `adminApi` are the same feature.
 
 ## Check which source set each feature
 
@@ -177,7 +181,7 @@ Config paths:
   features.yaml   loaded
 ```
 
-`unset` marks a feature that keeps its zero value: it has no `default` and no source sets it. See [How to inspect value provenance](/how-to/inspect-value-provenance/) for the rest of the report.
+`unset` marks a feature that keeps its zero value, because it has no `default` and no source sets it. See [How to inspect value provenance](/how-to/inspect-value-provenance/) for the rest of the report.
 
 ## Know what users see when input is wrong
 
@@ -218,7 +222,7 @@ func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
 }
 ```
 
-A feature can also stand alone: `metrics` gates no member and is read only in code.
+A feature can also stand alone. `metrics` gates no member and is read only in code.
 
 ## Use a feature with levels
 
@@ -281,12 +285,18 @@ Switching changes which variables the program reads, so tell your users before y
 - Users set `env:"-"` features through the container's other sources, here `--feature-gates` and the `features:` config section, for example `--feature-gates strict-tls=false`.
 - Features take their variables from the container's `env` or `envprefix` tag alone. `EnvPrefix("API")` gives `--listen` the variable `API_LISTEN` and leaves features as they are.
 
-The command line still beats these variables, one feature at a time: `ENABLE_HTTP3=false feature-toggles --feature-gates http3=true` runs with `http3` on.
+The command line still beats these variables, one feature at a time. `ENABLE_HTTP3=false feature-toggles --feature-gates http3=true` runs with `http3` on.
 
 The application checks at startup that each variable belongs to one feature. Here `AdminAPI` was also given `env:"ENABLE_HTTP3"`:
 
 ```text no-copy error={1} wrap
 feature-toggles: error: struct CLI field Features: schema error: environment variable "ENABLE_HTTP3" is bound by both feature "http3" and feature "admin-api"
+```
+
+A feature's variable can't also belong to a flag. With `env:"API_LISTEN"` on `AdminAPI` instead, the variable of `--listen`:
+
+```text no-copy error={1} wrap
+feature-toggles: error: struct CLI field Features: schema error: environment variable "API_LISTEN" is bound by both feature "admin-api" and flag --listen
 ```
 
 ## Mark how mature each feature is

@@ -7,7 +7,7 @@ This guide builds a `mirror` command that copies directories to a target and for
 
 ## Declare required and optional arguments
 
-CONGA builds a command's positional arguments from the fields of its struct, as it does flags. The type of each argument field is a container: `conga.RequiredArg[...]` for a required argument, `conga.OptionalArg[...]` for an optional one, with the type of the argument's value in the brackets. CONGA binds the words on the command line to the fields in declaration order, and `GetOr` gives an optional argument's fallback:
+CONGA builds a command's positional arguments from the fields of its struct, as it does flags. The type of each argument field is a container, `conga.RequiredArg[...]` for a required argument or `conga.OptionalArg[...]` for an optional one, with the type of the argument's value in the brackets. CONGA binds the words on the command line to the fields in declaration order, and `GetOr` gives an optional argument's fallback:
 
 ```go title="main.go" hidden={1-8}
 package main
@@ -65,11 +65,22 @@ Flags:
       --version  Show version
 ```
 
+A `name` tag replaces a placeholder exactly as written, so include the angle brackets to keep the usual form. With `name:"<dest>"` on `Target`:
+
+```text no-copy
+Usage:
+  mirror <source> [<dest>]
+
+Arguments:
+  <source>  Directory to copy
+  [<dest>]  Destination directory
+```
+
 Required arguments come before optional ones ([Positional arguments](/reference/struct-tags/#positional-arguments-optionalargt-requiredargt)). Positional arguments bind from the command line only.
 
 ## Collect any number of arguments in a slice
 
-Declare a slice as the last positional argument, and CONGA collects every remaining word into it. A `RequiredArg[[]T]` needs at least one word; an `OptionalArg[[]T]` can be empty:
+Declare a slice as the last positional argument, and CONGA collects every remaining word into it. A `RequiredArg[[]T]` needs at least one word, and an `OptionalArg[[]T]` can be empty:
 
 ```go title="main.go" {2-3}
 type Mirror struct {
@@ -140,7 +151,7 @@ Run 'mirror --help' for more information.
 
 ## Complete the forwarded words
 
-To complete the words after `--`, give the `DashArgs` field a `predictor` tag. It takes the same values as on a flag: a built-in such as `file` or `dir`, or a name registered with `app.Predictor`:
+To complete the words after `--`, give the `DashArgs` field a `predictor` tag. It takes the same values as on a flag, a built-in such as `file` or `dir` or a name registered with `app.Predictor`:
 
 ```go title="main.go" {4,11-12}
 type Mirror struct {
@@ -201,7 +212,7 @@ Flags:
       --version  Show version
 ```
 
-Collection starts after the last required positional, so words up to that point are still parsed: `mirror /mnt/backup --help` prints help, and `mirror /mnt/backup src/ --help` forwards `--help`. Only required scalar arguments can come before `RawArgs`, and the command can't have subcommands; use `DashArgs` when you need either.
+Collection starts after the last required positional, so words up to that point are still parsed. `mirror /mnt/backup --help` prints help, and `mirror /mnt/backup src/ --help` forwards `--help`. Only required scalar arguments can come before `RawArgs`, and the command can't have subcommands. Use `DashArgs` when you need either.
 
 ## Know what users see
 

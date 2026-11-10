@@ -107,7 +107,7 @@ When either file is missing, the program skips it, so the same binary runs where
 
 ## Let the host environment win
 
-A variable already set in the shell, container, or CI runner keeps its value; the files fill in only what the host leaves unset. `--why` shows a host value as plain `env`:
+A variable already set in the shell, container, or CI runner keeps its value, and the files fill in only what the host leaves unset. `--why` shows a host value as plain `env`:
 
 ```sh {7} hidden={5,8-38}
 $ PORT=9090 multiformat-and-dotenv --why
@@ -191,7 +191,7 @@ multiformat-and-dotenv: error: config error: cannot read .env file "config/secre
 
 ## Load a .env from a directory the user picks
 
-`Dotenv` fixes its paths when the application starts, before any flag is read. When a flag chooses the location, implement the `conga.Bootstrapper` [interface](/reference/conga/#bootstrap-and-config-documents): tag the flag `bootstrap:"true"`, and CONGA binds it before calling `Bootstrap`:
+`Dotenv` fixes its paths when the application starts, before any flag is read. When a flag chooses the location, implement the `conga.Bootstrapper` [interface](/reference/conga/#bootstrap-and-config-documents) and tag the flag `bootstrap:"true"`. CONGA binds the flag before calling `Bootstrap`:
 
 ```go title="main.go" ins={2,7-9}
 type CLI struct {

@@ -41,7 +41,7 @@ Hierarchies are discovered exclusively from `conga.New` constructor sites (both 
 - `app.HelpShortFlag('h')`, `app.VersionShortFlag('V')`
 - `app.DisableHelpFlag()`, `app.DisableVersionFlag()`
 
-Non-literal or computed arguments degrade conservatively: the analyzer suppresses the affected diagnostic rather than inventing one. Builder-option evidence is aggregated package-wide, so checks that could turn it into a diagnostic — the cascading guard and the built-in short collisions — are skipped entirely in packages anchoring more than one `conga.New` root; a diagnostic is never attributed to an innocent sibling root. `./...` skips directories with leading underscores (such as `_examples/`); pass directory paths or globs explicitly to lint them.
+Non-literal or computed arguments degrade conservatively, and the analyzer suppresses the affected diagnostic rather than inventing one. Builder-option evidence is aggregated package-wide, so checks that could turn it into a diagnostic, the cascading guard and the built-in short collisions, are skipped entirely in packages anchoring more than one `conga.New` root. A diagnostic is never attributed to an innocent sibling root. `./...` skips directories with leading underscores (such as `_examples/`), so pass directory paths or globs explicitly to lint them.
 
 ## Flags
 
@@ -54,8 +54,8 @@ Non-literal or computed arguments degrade conservatively: the analyzer suppresse
 
 ## Output
 
-A report run prints one line per finding, `file:line:column: message`, with the file path relative to the working directory, or absolute when the file lies outside it. It exits 0 when there are no findings, 3 when there are, and 1 when packages fail to load or analysis fails. `-json`, `-c`, and `-fix` (with or without `-diff`) use the standard `golang.org/x/tools` driver output, which prints absolute paths; with `-json` the exit code is always 0. Under `go vet -vettool`, `go vet` prints the findings and exits 1 when there are any.
+A report run prints one line per finding, `file:line:column: message`, with the file path relative to the working directory, or absolute when the file lies outside it. It exits 0 when there are no findings, 3 when there are, and 1 when packages fail to load or analysis fails. `-json`, `-c`, and `-fix` (with or without `-diff`) use the standard `golang.org/x/tools` driver output, which prints absolute paths. With `-json` the exit code is always 0. Under `go vet -vettool`, `go vet` prints the findings and exits 1 when there are any.
 
 ## Relationship to runtime errors
 
-Static linting complements runtime verification: the runtime schema builder still enforces every contract at startup, returning descriptive `ErrSchema` errors from `App.Run` if an invalid schema executes.
+Static linting complements runtime verification. The runtime schema builder still enforces every contract at startup, returning descriptive `ErrSchema` errors from `App.Run` if an invalid schema executes.
