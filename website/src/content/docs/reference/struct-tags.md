@@ -43,6 +43,8 @@ Group membership is provenance-based: `--flag=false`, `--flag=`, `--count=0`, an
 
 Plain struct fields and exported non-container fields are ignored by schema building. CONGA tags on such fields are rejected at schema build instead of being silently dropped; `app.AllowTags(...)` accepts the listed keys, and tag syntax is validated on every field. Unexported embedded behavior mixins remain supported.
 
+A map flag merges key by key across sources. A config value written as a nested map binds per key without `sep` splitting, so a `labels` section containing `hosts: a,b` keeps `a,b` as one value, while the string value `labels: hosts=a,b` is split on `sep`.
+
 The `enum` tag validates against the field's coerced value. When a type's `UnmarshalText` normalizes input (such as `get` to `GET`), validation compares against that normalized form, so declared enum values must match the normalized output.
 
 ## Positional arguments (`OptionalArg[T]`, `RequiredArg[T]`)
@@ -321,7 +323,7 @@ A `bool` feature is on when its value is `true`. An integer feature is on at any
 
 Feature names are kebab-cased. A key may use any spelling of a declared name (kebab-case, snake_case, or camelCase); keys are canonicalized before the merge, so precedence follows the source rather than the spelling.
 
-Every source contributes `name=value` pairs, merged key by key: command line over environment over config file over the field's `default` tag. A source changes only the keys it names, so unlisted features keep their lower-source values. See [About value precedence](/explanation/value-precedence/).
+Every source contributes `name=value` pairs, merged key by key: command line over environment over config file over the field's `default` tag. A source changes only the keys it names, so unlisted features keep their lower-source values. The container's `Source()` reports the highest source that contributed a key. See [About value precedence](/explanation/value-precedence/).
 
 ### Feature runtime behaviour
 
