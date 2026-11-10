@@ -133,6 +133,115 @@ func TestExclude(t *testing.T) {
 	assert.Equal(t, []string{"apple", "cherry"}, pred.Raw())
 }
 
+func TestExclude_Batch(t *testing.T) {
+	t.Parallel()
+
+	pred := predict.Batch(predict.Values("apple", "banana"), predict.Values("cherry")).Exclude("banana", "cherry")
+
+	result := pred.Invoke(predict.Context{})
+
+	assert.Equal(t, []predict.Item{{Value: "apple", Display: "apple"}}, result.Items)
+}
+
+func TestExclude_Callback(t *testing.T) {
+	t.Parallel()
+
+	pred := predict.Callback(func(predict.Context) predict.Predictor {
+		return predict.Values("apple", "banana")
+	}).Exclude("apple")
+
+	result := pred.Invoke(predict.Context{})
+
+	assert.Equal(t, []predict.Item{{Value: "banana", Display: "banana"}}, result.Items)
+}
+
+func TestExclude_MatchesDisplay(t *testing.T) {
+	t.Parallel()
+
+	pred := predict.Items(
+		predict.Item{Value: "a", Display: "apple"},
+		predict.Item{Value: "b", Display: "banana"},
+	).Exclude("apple")
+
+	result := pred.Invoke(predict.Context{})
+
+	assert.Equal(t, []predict.Item{{Value: "b", Display: "banana"}}, result.Items)
+}
+
+func TestExclude_Accumulates(t *testing.T) {
+	t.Parallel()
+
+	pred := predict.Values("apple", "banana", "cherry").Exclude("apple").Exclude("cherry")
+
+	result := pred.Invoke(predict.Context{})
+
+	assert.Equal(t, []predict.Item{{Value: "banana", Display: "banana"}}, result.Items)
+	assert.Equal(t, []string{"banana"}, pred.Raw())
+}
+
+func TestExclude_BeforePrefix(t *testing.T) {
+	t.Parallel()
+
+	pred := predict.Values("apple", "banana").Prefix("x-").Exclude("apple")
+
+	result := pred.Invoke(predict.Context{})
+
+	assert.Equal(t, []predict.Item{{Value: "x-banana", Display: "banana"}}, result.Items)
+}
+
+func TestExclude_TimeoutAlternative(t *testing.T) {
+	t.Parallel()
+
+	release := make(chan struct{})
+
+	t.Cleanup(func() { close(release) })
+
+	slow := predict.Callback(func(predict.Context) predict.Predictor {
+		<-release
+
+		return predict.None()
+	})
+	pred := slow.Timeout(time.Millisecond, predict.Values("apple", "banana")).Exclude("apple")
+
+	result := pred.Invoke(predict.Context{})
+
+	assert.Equal(t, []predict.Item{{Value: "banana", Display: "banana"}}, result.Items)
+}
+
+func TestUsage_CallbackHintWins(t *testing.T) {
+	t.Parallel()
+
+	pred := predict.Callback(func(predict.Context) predict.Predictor {
+		return predict.None().Usage("Type the service first")
+	}).Usage("Image name")
+
+	result := pred.Invoke(predict.Context{})
+
+	assert.Equal(t, "Type the service first", result.Usage)
+}
+
+func TestUsage_FallbackWhenCallbackHasNone(t *testing.T) {
+	t.Parallel()
+
+	pred := predict.Callback(func(predict.Context) predict.Predictor {
+		return predict.Values("nginx")
+	}).Usage("Image name")
+
+	result := pred.Invoke(predict.Context{})
+
+	assert.Equal(t, "Image name", result.Usage)
+}
+
+func TestUsage_BatchMemberHintWins(t *testing.T) {
+	t.Parallel()
+
+	pred := predict.Batch(predict.Values("a"), predict.None().Usage("member hint")).Usage("outer hint")
+
+	result := pred.Invoke(predict.Context{})
+
+	assert.Equal(t, "member hint", result.Usage)
+}
+
 func TestNone(t *testing.T) {
 	t.Parallel()
 

@@ -56,10 +56,10 @@ func (i Item) WithAlias() Item
 | Combinator | Purpose |
 |------------|---------|
 | `Prefix(s)` / `Suffix(s)` | Decorate every candidate |
-| `Exclude(values ...string)` | Remove by value or display |
+| `Exclude(values ...string)` | Remove by value or display from whatever the predictor produces, callbacks and batches included; applies before `Prefix`/`Suffix` |
 | `FilterText(toComplete)` | Pre-filter by query |
 | `Style(s)` / `Tag(t)` | Default display style / group |
-| `Usage(msg)` / `Usagef(format, a...)` | ActiveHelp / tooltip hints |
+| `Usage(msg)` / `Usagef(format, a...)` | ActiveHelp / tooltip hint, used when the evaluated result has none of its own (a callback's or batch member's hint wins) |
 | `NoSpace()` | Suppress the trailing space after insertion |
 | `KeepOrder()` | Preserve candidate order |
 | `Timeout(d, alternative...)` | Deadline with optional fallback (panics with >1 alternative) |

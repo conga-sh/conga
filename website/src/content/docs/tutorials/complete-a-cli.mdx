@@ -402,7 +402,7 @@ func images(predictContext predict.Context) predict.Predictor {
 	// [!callout /Arg/] The first positional argument on the command line, here the service.
 	service := predictContext.Arg(0)
 	if service == "" {
-		return predict.None()
+		return predict.None().Usage("Type the service first")
 	}
 
 	var body struct {
@@ -449,7 +449,7 @@ api:1.4  api:1.5
 ```
 :::
 
-The service has to come first. Before it is on the command line, `Arg(0)` is empty, and `images` returns no candidates:
+The service has to come first. Before it is on the command line, `Arg(0)` is empty, so `images` returns no candidates and a hint set with `Usage`. A predictor's own hint replaces the flag's help text:
 
 :::code-tabs{sync="shell"}
 ```text no-copy label="Bash"
@@ -457,7 +457,7 @@ $ ./cloudctl deploy --image <Tab><Tab>
 ```
 ```ansi no-copy frame="code" label="Zsh"
 $ ./cloudctl deploy --image <Tab>
-[2mContainer image to run[0m
+[2mType the service first[0m
 ```
 :::
 

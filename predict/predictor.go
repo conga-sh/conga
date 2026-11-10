@@ -43,6 +43,7 @@ type Predictor struct {
 	style      string
 	tag        string
 	usage      string
+	excluded   []string
 	items      []Item
 	raw        []string
 	timeout    time.Duration
@@ -51,38 +52,15 @@ type Predictor struct {
 	keepOrder  bool
 }
 
-// Exclude returns a new Predictor that filters out candidates whose Value or Display matches any of the specified values.
+// Exclude returns a new Predictor that filters out candidates whose Value or
+// Display matches any of the specified values. The filter applies to whatever
+// the predictor evaluates to, including the candidates produced by callbacks,
+// batches, MultiParts, and a Timeout alternative, and runs before Prefix and
+// Suffix are applied. Repeated calls accumulate.
 func (p Predictor) Exclude(values ...string) Predictor {
-	if len(values) == 0 {
-		return p
-	}
+	p.excluded = slices.Concat(p.excluded, values)
 
-	excluded := make(map[string]bool, len(values))
-	for _, v := range values {
-		excluded[v] = true
-	}
-
-	filtered := p
-	if len(p.items) > 0 {
-		filtered.items = slicex.Filter(p.items, func(item Item) bool {
-			return !excluded[item.Value] && !excluded[item.Display]
-		})
-	}
-
-	if len(p.raw) > 0 {
-		filtered.raw = slicex.Filter(p.raw, func(r string) bool {
-			return !excluded[r]
-		})
-	}
-
-	if p.callback != nil {
-		origCb := p.callback
-		filtered.callback = func(ctx Context) Predictor {
-			return origCb(ctx).Exclude(values...)
-		}
-	}
-
-	return filtered
+	return p
 }
 
 // FilterText filters candidates by matching against the given query prefix.
@@ -135,10 +113,12 @@ func (p Predictor) Prefix(prefix string) Predictor {
 // fresh copy.
 func (p Predictor) Raw() []string {
 	if len(p.raw) > 0 {
-		return slices.Clone(p.raw)
+		return slicex.Filter(p.raw, func(value string) bool {
+			return !slices.Contains(p.excluded, value)
+		})
 	}
 
-	return slicex.Map(p.items, func(item Item) string {
+	return slicex.Map(p.excludeItems(p.items), func(item Item) string {
 		return item.Value
 	})
 }
@@ -185,7 +165,10 @@ func (p Predictor) Timeout(d time.Duration, alternative ...Predictor) Predictor 
 
 // Usage attaches an ActiveHelp/tooltip hint message to the predictor. This is
 // completion-time guidance, not the root package's syntax-help usage summary
-// (Session.Usage and App.UsageOnError).
+// (Session.Usage and App.UsageOnError). The message is a fallback: when the
+// predictor evaluates to a Result that already carries a usage hint (one set
+// by a callback's, batch member's, or MultiParts part's own Usage), that hint
+// is kept.
 func (p Predictor) Usage(message string) Predictor {
 	p.usage = message
 
@@ -305,9 +288,8 @@ type multiPartsConfig struct {
 }
 
 func (p Predictor) applyModifiers(base Result, ctx Context, hasCustomSubcommandCompletion bool) Result {
-	items := slices.Clone(base.Items)
+	items := p.excludeItems(base.Items)
 	directive := base.Directive
-	usage := base.Usage
 
 	if p.prefix != "" {
 		for i := range items {
@@ -333,8 +315,6 @@ func (p Predictor) applyModifiers(base Result, ctx Context, hasCustomSubcommandC
 		}
 	}
 
-	usage = cmp.Or(p.usage, usage)
-
 	if p.noSpace {
 		directive |= DirectiveNoSpace
 	}
@@ -348,7 +328,7 @@ func (p Predictor) applyModifiers(base Result, ctx Context, hasCustomSubcommandC
 	return Result{
 		Items:     items,
 		Directive: directive,
-		Usage:     usage,
+		Usage:     cmp.Or(base.Usage, p.usage),
 	}
 }
 
@@ -438,6 +418,14 @@ func (p Predictor) evaluateBaseRaw(ctx Context) (Result, bool) {
 		Directive: p.directive,
 		Usage:     p.usage,
 	}, false
+}
+
+// excludeItems returns a fresh copy of items without the candidates recorded
+// by Exclude.
+func (p Predictor) excludeItems(items []Item) []Item {
+	return slicex.Filter(items, func(item Item) bool {
+		return !slices.Contains(p.excluded, item.Value) && !slices.Contains(p.excluded, item.Display)
+	})
 }
 
 func (p Predictor) filterItems(items []Item, ctx Context, hasCustomSubcommandCompletion bool) []Item {

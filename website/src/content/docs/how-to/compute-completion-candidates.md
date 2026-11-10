@@ -280,7 +280,7 @@ deploying api:1.5, web:1.27, worker:2.0 to prod-eu-1 in eu-west-1 (replicas: 2)
 
 `predict.Context` holds the positional arguments typed before the cursor in `Args`. To stop offering a service the user has already named, remove them with `Exclude`:
 
-```go title="main.go" {1,9}
+```go title="main.go" {1,10}
 func (d *Deploy) serviceNames(predictContext predict.Context) predict.Predictor {
 	descriptions := make(map[string]string, len(d.project.Services))
 	for name, entry := range d.project.Services {
@@ -289,8 +289,8 @@ func (d *Deploy) serviceNames(predictContext predict.Context) predict.Predictor 
 
 	return predict.Batch(
 		predict.Items(predict.NewItem("all", "Every service in the file")),
-		predict.Map(descriptions).Exclude(predictContext.Args...),
-	)
+		predict.Map(descriptions),
+	).Exclude(predictContext.Args...)
 }
 ```
 
