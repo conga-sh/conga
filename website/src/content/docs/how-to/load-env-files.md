@@ -278,7 +278,7 @@ Tests that load `.env` files this way change process-wide state, so they run wit
 | `.env` or `.env.local` missing, with `Dotenv()` or `Bootstrap.Dotenv` | Skipped |
 | A named file missing, with `Dotenv(paths...)` or `Bootstrap.DotenvExplicit` | Config error, exit 1 |
 | A line without `=`, such as `PORT 8400` | Config error, exit 1, naming the file and line |
-| A file over 16 MB | Config error, exit 1, naming the size and the limit |
+| A file over 16 MiB | Config error, exit 1, naming the size and the limit |
 | An empty value, such as `PORT=` | Treated as unset: the flag falls back to config or its default |
 | The host sets the same variable | The host value wins |
 

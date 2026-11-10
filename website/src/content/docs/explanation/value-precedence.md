@@ -120,7 +120,7 @@ Not every container reads all four sources.
 
 ### Decoderless applications
 
-CONGA skips file loading if an application does not register a config decoder, and values fall from the environment straight to defaults. A `Bootstrapper` can still supply the config source in code with `Bootstrap.SetConfig`.
+CONGA skips the config search paths if an application does not register a config decoder, and values fall from the environment straight to defaults. A file named with `--config-file` or the `<PREFIX>_CONFIG` variable still needs a decoder, and fails with `ErrConfig` (exit 1) without one. A `Bootstrapper` can still supply the config source in code with `Bootstrap.SetConfig`.
 
 ### Positional arguments
 

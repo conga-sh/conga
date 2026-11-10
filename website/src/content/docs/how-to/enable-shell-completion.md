@@ -363,7 +363,7 @@ Generated shell scripts read `<APP>_COMPLETION_DESCRIPTIONS`, `<APP>_COMPLETION_
 		)
 ```
 
-The scripts read these variables from the shell's environment at each `Tab`, so users export them in their shell configuration; an assignment typed in front of the command (`CCTL_COMPLETION_DESCRIPTIONS=0 cloudctl <Tab>`) is part of the line being completed and has no effect. With `CCTL_COMPLETION_DESCRIPTIONS=0` exported (or `zstyle ':completion:*' verbose no` in zsh), candidates lose their descriptions:
+The scripts read these variables from the shell's environment at each `Tab`, so users export them in their shell configuration. An assignment typed in front of the command (`CCTL_COMPLETION_DESCRIPTIONS=0 cloudctl <Tab>`) is part of the line being completed and has no effect. With `CCTL_COMPLETION_DESCRIPTIONS=0` exported (or `zstyle ':completion:*' verbose no` in zsh), candidates lose their descriptions:
 
 ```text no-copy
 $ export CCTL_COMPLETION_DESCRIPTIONS=0

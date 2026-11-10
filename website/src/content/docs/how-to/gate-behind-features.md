@@ -3,7 +3,7 @@ title: How to gate flags and subcommands behind features
 description: Declare named features, hide flags and subcommands until a feature is on, and let users switch features from the command line, the environment, or a config file.
 ---
 
-A feature is a named setting, on or off or a numbered level, that the person running your CLI changes at run time. A gated flag or subcommand appears in `--help`, `--why`, and shell completion, and accepts input, while its feature is on.
+A feature is a named setting, on or off or a numbered level, that the person running your CLI changes at run time. While its feature is on, a gated flag or subcommand appears in `--help` and shell completion and accepts input, and a gated flag gets a row in `--why`.
 
 This guide builds the HTTP server from the [feature toggles example](https://github.com/conga-sh/conga/tree/main/_examples/29-feature-toggles). It declares four features, gates two flags and one subcommand behind them, and turns them on from each source.
 
@@ -181,7 +181,7 @@ Config paths:
   features.yaml   loaded
 ```
 
-`unset` marks a feature that keeps its zero value, because it has no `default` and no source sets it. See [How to inspect value provenance](/how-to/inspect-value-provenance/) for the rest of the report.
+`unset` marks a flag or feature that keeps its zero value, because it has no `default` and no source sets it. See [How to inspect value provenance](/how-to/inspect-value-provenance/) for the rest of the report.
 
 ## Know what users see when input is wrong
 

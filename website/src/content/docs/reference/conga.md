@@ -182,7 +182,7 @@ Each search path is probed for every registered extension. An existing directory
 | A search path yields no file | Skipped, and probing continues |
 | One search path yields several files with registered extensions | `ErrConfig`, exit 1: `multiple conflicting config files found` |
 | No file is found anywhere | The run continues on the other sources |
-| A file larger than 16 MB | `ErrConfig`, exit 1, naming the size and the limit |
+| A file larger than 16 MiB | `ErrConfig`, exit 1, naming the size and the limit |
 | Malformed content | `ErrConfig`, exit 1 |
 | An unknown key | `ErrConfig`, exit 1, with a "did you mean" hint for near misses |
 

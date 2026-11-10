@@ -258,7 +258,7 @@ Requesting `--why=json` without `conga.WhyOptionJSON()` enabled on the applicati
 
 When `conga.WhyOptionJSON()` is enabled, the help screen renders the flag as `--why[=FORMAT]` with the accepted formats appended as an enum hint (`[enum: text, json]`). Otherwise `--why` renders as a plain toggle. Completion mirrors the split, and the flag-name candidates are the value-bearing forms `--why=text` and `--why=json`, and completing after `--why=` offers the enabled formats filtered by prefix.
 
-When the root command declares `conga.Features[T]`, the report ends with a `Features:` table listing every declared feature, its resolved value, and its source. Each feature reports the source that last wrote its key. Keys no source sets fall back to the field default (`○ default`) or render `unset`. See [Feature toggles](/reference/struct-tags/#feature-toggles-congafeaturest).
+When the root command declares `conga.Features[T]`, the report includes a `Features:` table listing every declared feature, its resolved value, and its source. Each feature reports the source that last wrote its key. Keys no source sets fall back to the field default (`default`) or render `unset`. See [Feature toggles](/reference/struct-tags/#feature-toggles-congafeaturest).
 
 ## Completion
 

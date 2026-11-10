@@ -3,7 +3,7 @@ title: Errors and exit codes
 description: Categorized base errors, the usage/runtime classification contract, and the 0/1/2 exit code contract.
 ---
 
-CONGA classifies every failure into five base categories, one per pipeline stage. Match the category, and read the specifics from the message (field, token, command path, suggestions).
+CONGA classifies every failure it detects into five base categories, one per pipeline stage. An error returned by a command's own `Run` or lifecycle hook comes back unchanged. Match the category, and read the specifics from the message (field, token, command path, suggestions).
 
 ## Exit codes
 

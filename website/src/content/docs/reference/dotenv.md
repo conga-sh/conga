@@ -47,4 +47,4 @@ PATH=${PATH}:/opt/bin
 
 ## Size limit
 
-`.env` files are capped at 16 MB. A larger file is rejected with an error wrapping `conga.ErrConfig`, which bounds the memory a hostile file can claim.
+`.env` files are capped at 16 MiB. A larger file is rejected with an error wrapping `conga.ErrConfig`, which bounds the memory a hostile file can claim.

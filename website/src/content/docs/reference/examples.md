@@ -357,7 +357,7 @@ Uses: `Validator`
 
 ### 27 strict-tag-validation
 
-[Source](https://github.com/conga-sh/conga/tree/main/_examples/27-strict-tag-validation)
+[Source](https://github.com/conga-sh/conga/tree/main/_examples/27-strict-tag-validation) · Guide: [How to lint schemas](/how-to/lint-schemas/)
 
 A struct that also carries `validate` and `db` tags for other libraries. Schema build rejects unknown tag keys with `ErrSchema`, so the program registers those keys with `App.AllowTags`. They never appear in help or in the value table.
 
