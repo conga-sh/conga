@@ -1817,6 +1817,7 @@ func TestWhy_ConfigExamples_ExistingDirectoryOmitsStemSibling(t *testing.T) {
 	err := app.Run()
 
 	output := buffer.String()
+
 	assert.NoError(t, err)
 	assert.Contains(t, output, "Create a config file at one of:")
 	assert.Contains(t, output, "  config.json")

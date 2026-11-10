@@ -242,6 +242,20 @@ func EnvCandidates(envPrefix string, cmd *spec.Command) []string {
 	return nil
 }
 
+// configTargets carries every configuration file source findConfigFiles
+// chooses between, in precedence order: the config-file flag paths, the
+// configuration environment variable paths, the explicit option path, and the
+// search tier.
+type configTargets struct {
+	flag      []string
+	env       []string
+	explicit  string
+	tier      []string
+	appName   string
+	decoders  []string
+	cascading bool
+}
+
 // defaultTier returns the built-in conventional configuration search tier,
 // `${XDG_CONFIG_HOME:-~/.config}/<app-name>`, or "" when the tier is
 // unavailable.
@@ -310,20 +324,6 @@ func (r Resolver) loadAndValidateFile(path string, cmd *spec.Command, dest *conf
 	}
 
 	return validateCommandConfig(rawMap, cmd, dest, cleanPath)
-}
-
-// configTargets carries every configuration file source findConfigFiles
-// chooses between, in precedence order: the config-file flag paths, the
-// configuration environment variable paths, the explicit option path, and the
-// search tier.
-type configTargets struct {
-	flag      []string
-	env       []string
-	explicit  string
-	tier      []string
-	appName   string
-	decoders  []string
-	cascading bool
 }
 
 // findConfigFiles resolves the configuration files to load and reports their
