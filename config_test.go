@@ -2,6 +2,7 @@ package conga_test
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -846,7 +847,9 @@ type NamespacedFlagAliasCLI struct {
 
 func (n *NamespacedFlagAliasCLI) Run(_ context.Context, _ *conga.Session) error { return nil }
 
-func TestConfig_NamespacedFlagAlias(t *testing.T) {
+// An explicit config tag replaces the flag's name and aliases as config keys,
+// so an alias inside the tag's section is an unknown field.
+func TestConfig_NamespacedFlagAliasRejected(t *testing.T) {
 	t.Parallel()
 
 	cfgPath := filepath.Join(t.TempDir(), "app.json")
@@ -861,8 +864,37 @@ func TestConfig_NamespacedFlagAlias(t *testing.T) {
 
 	err = app.Run()
 
-	assert.NoError(t, err)
-	assert.Equal(t, 8888, cli.Port.Get())
+	assert.IsError(t, err, conga.ErrConfig)
+	assert.Equal(t, fmt.Sprintf(`config file %q: unknown field "listen-port" in namespace "network"`, cfgPath), err.Error())
+	assert.False(t, cli.Port.IsSet())
+}
+
+type OtherSpellingCLI struct {
+	noopRunner
+
+	DryRun conga.OptionalFlag[bool]
+}
+
+// A key has one spelling. A file with several other spellings of it reports
+// the same first error on every run instead of resolving in map order.
+func TestConfig_OtherSpellingRejectedDeterministically(t *testing.T) {
+	t.Parallel()
+
+	cfgPath := writeConfigFile(t, `{"dry-run": true, "dry_run": false, "dryRun": true}`)
+
+	for range 20 {
+		cli := new(OtherSpellingCLI)
+		app := conga.New(cli).
+			RegisterDecoder(".json", json.Decode).
+			ConfigOptions(conga.ConfigExplicit(cfgPath)).
+			Args([]string{})
+
+		err := app.Run()
+
+		assert.IsError(t, err, conga.ErrConfig)
+		assert.Equal(t, fmt.Sprintf(`config file %q: unknown field "dryRun" in command "app" (did you mean "dry-run"?)`, cfgPath), err.Error())
+		assert.False(t, cli.DryRun.IsSet())
+	}
 }
 
 func TestConfigFiles_CommaSeparated(t *testing.T) {

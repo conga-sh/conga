@@ -151,7 +151,17 @@ $ API_FEATURES=http3=false feature-toggles --feature-gates http3=true
 features: http3=true admin-api=false strict-tls=true metrics=true
 ```
 
-Users may spell a name in kebab-case, snake_case, or camelCase, so `admin-api`, `admin_api`, and `adminApi` are the same feature.
+On the command line and in the environment, users may spell a name in kebab-case, snake_case, or camelCase, so `admin-api`, `admin_api`, and `adminApi` are the same feature. A config file takes the feature name spelled in the app's config [key casing](/how-to/manage-config-files/#choose-the-key-casing) (`admin-api` by default), like every other config key:
+
+```yaml title="features.yaml"
+features:
+  admin_api: true
+```
+
+```sh error={2} wrap
+$ feature-toggles -c features.yaml
+feature-toggles: error: config file "features.yaml": unknown field "admin_api" in section "features" (did you mean "admin-api"?)
+```
 
 ## Check which source set each feature
 

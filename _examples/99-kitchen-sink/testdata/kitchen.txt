@@ -124,7 +124,7 @@ stdout 'config:     changed=true source=cli detail=--config-file'
 
 # 10. Field tagged config:"-" is rejected inside config files
 exit-status 1 kitchen-sink --config-file excluded.toml
-stderr 'field "temp_flag" is excluded from config files'
+stderr 'field "temp-flag" is excluded from config files'
 
 # 11. Help screen: grouped command tree, foreign tags lint-clean
 exec kitchen-sink --help
@@ -274,4 +274,4 @@ stderr 'invalid value "xml" \(must be one of: text, json\) for --why'
 echo hook executed
 
 -- excluded.toml --
-temp_flag = "nope"
+temp-flag = "nope"

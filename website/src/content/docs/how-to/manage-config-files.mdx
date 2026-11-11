@@ -148,7 +148,7 @@ ConfigOptions(
 )
 ```
 
-Each value now comes from the highest file that sets it. Here the working directory sets `api_endpoint`, the user's file sets `theme` and `timeout`, and the system file sets `telemetry`:
+Each value now comes from the highest file that sets it. Here the working directory sets `api-endpoint`, the user's file sets `theme` and `timeout`, and the system file sets `telemetry`:
 
 ```sh
 $ cascading-searchpaths --why
@@ -225,9 +225,9 @@ cascading-searchpaths: error: cannot read config file "nope.yaml": stat nope.yam
 
 ## Match keys to fields
 
-A key matches the flag's name in kebab-case, and snake_case works too. The example's files write `api_endpoint:` for `--api-endpoint`. The `CONFIG PATH` column of `--why` shows each flag's key.
+A key is the flag's name, written exactly, so `--api-endpoint` reads `api-endpoint:` (to use snake_case or camelCase keys, see [Choose the key casing](#choose-the-key-casing)). Other spellings and letter cases, such as `api_endpoint:` or `API-Endpoint:`, are unknown keys, and so are the flag's aliases. The `CONFIG PATH` column of `--why` shows each flag's key.
 
-To read a different key, set `config:"<key>"`. To keep a field out of config files, set `config:"-"`. This variation adds a token that users pass on the command line or in the environment only:
+To read a different key, set `config:"<key>"`. The flag then reads that key and no longer reads its name. To keep a field out of config files, set `config:"-"`. This variation adds a token that users pass on the command line or in the environment only:
 
 ```go title="main.go"
 Token conga.OptionalFlag[string] `config:"-" help:"API token (command line or environment only)"`
@@ -238,6 +238,49 @@ A file that sets it is rejected:
 ```sh error={2} wrap
 $ cascading-searchpaths -c token.yaml
 cascading-searchpaths: error: config file "token.yaml": field "token" is excluded from config files in command "cascading-searchpaths"
+```
+
+## Choose the key casing
+
+Keys derived from names follow one casing for the whole app, kebab-case by default. Add `conga.ConfigKeyCase` to `ConfigOptions` to use `conga.SnakeCase` or `conga.CamelCase` instead. The casing changes only how config files spell the keys: under `SnakeCase`, the flag `--api-endpoint` still has that name on the command line, and its config key becomes `api_endpoint`. Subcommand section names and feature names in the features section follow the same casing. A `config:"<key>"` tag is always read as written.
+
+```go title="main.go" ins={4}
+ConfigOptions(
+	conga.ConfigPaths(".", "~/.config/cascading-searchpaths", "${SYSCONF_DIR:-/etc/cascading-searchpaths}"),
+	conga.ConfigCascading(),
+	conga.ConfigKeyCase(conga.SnakeCase),
+)
+```
+
+`--api-endpoint` now reads `api_endpoint:`, and `--why` shows the new key:
+
+```yaml title="snake.yaml"
+api_endpoint: https://api.example.com
+timeout: 30s
+```
+
+```sh
+$ cascading-searchpaths -c snake.yaml --why
+Value provenance for "cascading-searchpaths":
+
+  FLAG             VALUE                     SOURCE                ENV   CONFIG PATH
+  --config-file    snake.yaml                cli                   -     -
+  --api-endpoint   https://api.example.com   config (snake.yaml)   -     api_endpoint
+  --timeout        30s                       config (snake.yaml)   -     timeout
+  --theme          dark                      default               -     theme
+  --telemetry      true                      default               -     telemetry
+
+Config decoders: .yaml, .yml
+
+Config paths:
+  snake.yaml   loaded
+```
+
+The kebab-case key is now unknown:
+
+```sh error={2} wrap
+$ cascading-searchpaths -c kebab.yaml
+cascading-searchpaths: error: config file "kebab.yaml": unknown field "api-endpoint" in command "cascading-searchpaths" (did you mean "api_endpoint"?)
 ```
 
 ## Nest subcommand settings
@@ -258,7 +301,7 @@ type ServerCmd struct {
 
 :::code-tabs{sync="format"}
 ```yaml title="server.yaml" label="YAML"
-api_endpoint: https://api.example.com
+api-endpoint: https://api.example.com
 timeout: 30s
 telemetry: false
 
@@ -269,7 +312,7 @@ server:
     X-Team: payments
 ```
 ```toml title="server.toml" label="TOML"
-api_endpoint = "https://api.example.com"
+api-endpoint = "https://api.example.com"
 timeout = "30s"
 telemetry = false
 
@@ -282,7 +325,7 @@ X-Team = "payments"
 ```
 ```json title="server.json" label="JSON"
 {
-  "api_endpoint": "https://api.example.com",
+  "api-endpoint": "https://api.example.com",
   "timeout": "30s",
   "telemetry": false,
   "server": {
@@ -295,7 +338,7 @@ X-Team = "payments"
 }
 ```
 ```hcl title="server.hcl" label="HCL"
-api_endpoint = "https://api.example.com"
+api-endpoint = "https://api.example.com"
 timeout      = "30s"
 telemetry    = false
 
@@ -413,12 +456,14 @@ A problem with the file itself is a config error (exit 1). A bad value in a vali
 | Text the decoder can't parse | Config error, exit 1, naming the file |
 | An extension with no registered decoder | Config error, exit 1 |
 | An unknown key (`them: dark`) | Config error, exit 1, with a "did you mean" hint |
+| A key in another spelling (`api_endpoint:` for `--api-endpoint`) | Config error, exit 1, with a "did you mean" hint |
 | A key for a `config:"-"` field | Config error, exit 1 |
 | A value of the wrong type (`timeout: soon`) | Usage error, exit 2, naming the key |
 | A value outside `enum` or `range` (`theme: pink`) | Usage error, exit 2, naming the key |
 
-```text no-copy error={1-4} wrap
+```text no-copy error={1-5} wrap
 cascading-searchpaths: error: config file "typo.yaml": unknown field "them" in command "cascading-searchpaths" (did you mean "theme"?)
+cascading-searchpaths: error: config file "snake.yaml": unknown field "api_endpoint" in command "cascading-searchpaths" (did you mean "api-endpoint"?)
 cascading-searchpaths: error: unsupported config file format ".toml" for "settings.toml"
 cascading-searchpaths: error: invalid duration "soon" (valid units: ms, s, m, h) for flag --timeout (from config key "timeout")
 cascading-searchpaths: error: invalid value "pink" (must be one of: dark, light, solarized, system) for flag --theme (from config key "theme")

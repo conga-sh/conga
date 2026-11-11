@@ -431,7 +431,7 @@ func featureSourceName(cmd *spec.Command, feature *spec.FeatureField, source Val
 			return ""
 		}
 
-		return cmd.FeatureFlag.ConfigKey + "." + feature.Name
+		return spec.ConfigKeyPath(cmd.FeatureFlag, []*spec.Command{cmd}) + "." + cmd.ConfigSettings.KeyCase.Apply(feature.Name)
 	default:
 		return ""
 	}

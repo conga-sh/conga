@@ -856,10 +856,12 @@ func (c *CompletionCommand) Run(ctx context.Context, session *Session) error {
 // (<PREFIX>_<UPPER_SNAKE(feature name)>), with each field's env tag
 // overriding its derived variable and env:"-" excluding the field. A
 // container without either tag binds no environment variable, and the app
-// EnvPrefix never reaches features. A key
-// may use any spelling of a declared feature name (kebab-case, snake_case, or
-// camelCase); keys are canonicalized before the merge, so precedence follows
-// the tier rather than the spelling. The field defaults form the base set;
+// EnvPrefix never reaches features. On the command line and in the
+// environment a key may use any spelling of a declared feature name
+// (kebab-case, snake_case, or camelCase); keys are canonicalized before the
+// merge, so precedence follows the tier rather than the spelling. The config
+// section takes the feature name spelled in the app's config key casing
+// ([ConfigKeyCase]; gentle-force by default). The field defaults form the base set;
 // config, environment, and command line sources merge over it key by key in
 // ascending precedence (config < env < CLI), each source overlaying only the
 // keys it lists (Kubernetes-style sparse overrides), so a config file can

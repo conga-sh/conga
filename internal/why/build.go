@@ -13,7 +13,6 @@ import (
 	"github.com/conga-sh/conga/internal/casing"
 	"github.com/conga-sh/conga/internal/configdata"
 	"github.com/conga-sh/conga/internal/container"
-	"github.com/conga-sh/conga/internal/slicex"
 	"github.com/conga-sh/conga/internal/spec"
 	"github.com/conga-sh/conga/internal/stringx"
 )
@@ -459,21 +458,7 @@ func configPath(flagSpec *spec.Flag, cmdChain []*spec.Command, cmdIndex int) str
 		return "-"
 	}
 
-	prefix := strings.Join(slicex.Map(cmdChain[1:cmdIndex+1], func(cmd *spec.Command) string { return cmd.Name }), ".")
-
-	if flagSpec.ConfigKey != "" {
-		if prefix != "" && !strings.HasPrefix(flagSpec.ConfigKey, prefix+".") {
-			return prefix + "." + flagSpec.ConfigKey
-		}
-
-		return flagSpec.ConfigKey
-	}
-
-	if prefix != "" {
-		return prefix + "." + flagSpec.Name
-	}
-
-	return flagSpec.Name
+	return spec.ConfigKeyPath(flagSpec, cmdChain[:cmdIndex+1])
 }
 
 func displayValue(flagSpec *spec.Flag, value any) string {

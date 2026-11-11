@@ -1494,7 +1494,9 @@ func lookupConfig(flagSpec *spec.Flag, cmd *spec.Command, cmdChain []*spec.Comma
 }
 
 // lookupConfigValue resolves a scalar config value through the candidate key
-// precedence shared by binding and provenance reporting.
+// precedence shared by binding and provenance reporting. The returned key is
+// the flag's config key as a file spells it (spec.ConfigKeyPath), for
+// messages and provenance; storage keys stay internal.
 func lookupConfigValue(flagSpec *spec.Flag, cmd *spec.Command, cmdChain []*spec.Command, data *configdata.Data) (configdata.Value, string, bool) {
 	if data == nil || flagSpec.ConfigKey == "-" {
 		return configdata.Value{}, "", false
@@ -1504,7 +1506,7 @@ func lookupConfigValue(flagSpec *spec.Flag, cmd *spec.Command, cmdChain []*spec.
 
 	for _, key := range candidateConfigKeys(flagSpec, cmd, cmdChain) {
 		if value, exists := data.ScalarValue(key); exists && (value.Raw != "" || isString) {
-			return value, key, true
+			return value, spec.ConfigKeyPath(flagSpec, cmdChain), true
 		}
 	}
 
@@ -1520,7 +1522,7 @@ func lookupConfigMap(flagSpec *spec.Flag, cmd *spec.Command, cmdChain []*spec.Co
 
 	for _, key := range candidateConfigKeys(flagSpec, cmd, cmdChain) {
 		if entries := state.ConfigData.Map(key); len(entries) > 0 {
-			return entries, key, true
+			return entries, spec.ConfigKeyPath(flagSpec, cmdChain), true
 		}
 	}
 

@@ -15,29 +15,29 @@ features:
 # Primitives subcommand
 types:
   primitives:
-    string_flag: yaml-configured
-    bool_flag: true
-    int_flag: 102
-    int8_flag: 10
-    int16_flag: 162
-    int32_flag: 3202
-    int64_flag: 64002
-    uint_flag: 202
-    uint8_flag: 82
-    uint16_flag: 1602
-    uint32_flag: 32002
-    uint64_flag: 64002
-    float32_flag: 1.7
-    float64_flag: 2.95
+    string-flag: yaml-configured
+    bool-flag: true
+    int-flag: 102
+    int8-flag: 10
+    int16-flag: 162
+    int32-flag: 3202
+    int64-flag: 64002
+    uint-flag: 202
+    uint8-flag: 82
+    uint16-flag: 1602
+    uint32-flag: 32002
+    uint64-flag: 64002
+    float32-flag: 1.7
+    float64-flag: 2.95
     tags: ["yaml", "prod", "monitored"]
     ports: [8082, 8445, 9092]
 
   # Filesystem subcommand
   filesystem:
-    input_file: /etc/hosts
-    output_dir: /tmp
-    log_file: /var/log/demo.log
-    data_dir: /var/lib/demo
+    input-file: /etc/hosts
+    output-dir: /tmp
+    log-file: /var/log/demo.log
+    data-dir: /var/lib/demo
     editor: sh
     hook: deploy-hook # created by the test suite (symlink)
 
@@ -45,9 +45,9 @@ types:
   values:
     timeout: 90s
     endpoint: https://yaml.example.com/v2
-    max_size: 70MB
+    max-size: 70MB
     level: debug
-    shard_map:
+    shard-map:
       web: "1"
       worker: "6"
 

@@ -16,30 +16,30 @@ features {
 # Primitives subcommand
 types {
   primitives {
-    string_flag = "hcl-parsed"
-    bool_flag = true
-    int_flag = 400
-    int8_flag = 32
-    int16_flag = 640
-    int32_flag = 12800
-    int64_flag = 256000
-    uint_flag = 800
-    uint8_flag = 200
-    uint16_flag = 6400
-    uint32_flag = 128000
-    uint64_flag = 256000
-    float32_flag = 4.5
-    float64_flag = 12.56637061436
+    string-flag = "hcl-parsed"
+    bool-flag = true
+    int-flag = 400
+    int8-flag = 32
+    int16-flag = 640
+    int32-flag = 12800
+    int64-flag = 256000
+    uint-flag = 800
+    uint8-flag = 200
+    uint16-flag = 6400
+    uint32-flag = 128000
+    uint64-flag = 256000
+    float32-flag = 4.5
+    float64-flag = 12.56637061436
     tags = ["hcl", "test", "validated"]
     ports = [7000, 7001, 7002]
   }
 
   # Filesystem subcommand
   filesystem {
-    input_file = "/etc/hostname"
-    output_dir = "/var/tmp"
-    log_file = "/var/log/hcl-demo.log"
-    data_dir = "/var/lib/hcl-demo"
+    input-file = "/etc/hostname"
+    output-dir = "/var/tmp"
+    log-file = "/var/log/hcl-demo.log"
+    data-dir = "/var/lib/hcl-demo"
     editor = "vi"
     hook = "deploy-hook"
   }
@@ -48,10 +48,10 @@ types {
   values {
     timeout = "4m30s"
     endpoint = "https://hcl.example.com/v4"
-    max_size = "300MB"
+    max-size = "300MB"
     level = "info"
 
-    shard_map = {
+    shard-map = {
       web = "8"
       worker = "2"
     }

@@ -43,7 +43,7 @@ stdout '-p, --port\s+int\s+3000\s+● config config\.json'
 stdout '--max-workers\s+int\s+8\s+● config config\.json'
 stdout '--service-name\s+string\s+json-service\s+● config config\.json'
 
-# 5. YAML config decoding (with snake_case and kebab-case normalization)
+# 5. YAML config decoding
 exec multiformat-and-dotenv -c config.yaml
 stdout '--service-name\s+string\s+yaml-service\s+● config config\.yaml'
 stdout '-p, --port\s+int\s+4000\s+● config config\.yaml'
@@ -85,25 +85,25 @@ API_KEY=local-dev-key-42
 
 -- config.json --
 {
-  "service_name": "json-service",
+  "service-name": "json-service",
   "port": 3000,
-  "max_workers": 8
+  "max-workers": 8
 }
 
 -- config.yaml --
-service_name: yaml-service
+service-name: yaml-service
 port: 4000
-max_workers: 12
+max-workers: 12
 
 -- config.toml --
-service_name = "toml-service"
+service-name = "toml-service"
 port = 5000
-max_workers = 16
+max-workers = 16
 
 -- config.hcl --
-service_name = "hcl-service"
+service-name = "hcl-service"
 port = 6000
-max_workers = 20
+max-workers = 20
 
 -- config.xml --
 <port>7000</port>
@@ -113,7 +113,7 @@ prt: 8080
 
 -- duplicate.json --
 {
-  "service_name": "dup",
+  "service-name": "dup",
   "port": 3000,
   "port": 4000
 }

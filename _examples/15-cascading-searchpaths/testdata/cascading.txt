@@ -49,7 +49,7 @@ stdout '--timeout\s+time\.Duration\s+30s\s+● config .*etc[/\\]cascading-search
 stdout '--theme\s+string\s+dark\s+· default'
 
 -- etc/cascading-searchpaths/cascading-searchpaths.yaml --
-api_endpoint: "https://api.system.corp"
+api-endpoint: "https://api.system.corp"
 timeout: "30s"
 telemetry: false
 
@@ -58,5 +58,5 @@ theme: "light"
 timeout: "15s"
 
 -- cascading-searchpaths.yaml --
-api_endpoint: "https://api.local.dev"
+api-endpoint: "https://api.local.dev"
 

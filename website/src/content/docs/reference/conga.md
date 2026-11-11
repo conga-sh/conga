@@ -27,7 +27,7 @@ func New[T any](root ...*T) *App[T]
 | `Version(version)` | `--version` display string (falls back to build metadata) |
 | `EnvPrefix(prefix)` | Default environment variable prefix for flags (appends trailing `_` if omitted). Does not apply to `Features` containers. A subcommand's `envprefix` tag replaces it. |
 | `Dotenv(paths...)` | Enable `.env` loading (default `.env` + `.env.local`; [rules](/reference/dotenv/)) |
-| `ConfigOptions(options...)` | Config resolution: `conga.ConfigExplicit(path)`, `conga.ConfigPaths(paths...)`, `conga.ConfigCascading()`; `ConfigExplicit` cannot be combined with paths or cascading. A `conga.Bootstrapper` may additionally contribute a document with `Bootstrap.SetConfig` |
+| `ConfigOptions(options...)` | Config resolution: `conga.ConfigExplicit(path)`, `conga.ConfigPaths(paths...)`, `conga.ConfigCascading()`, `conga.ConfigKeyCase(keyCase)`; `ConfigExplicit` cannot be combined with paths or cascading. A `conga.Bootstrapper` may additionally contribute a document with `Bootstrap.SetConfig` |
 | `RegisterDecoder(ext, decoder)` | Per-app config format decoder |
 | `AllowTags(tags...)` | Allow additional struct tag keys (matched exactly) |
 | `Predictor(name, p)` | Register named completion predictor (panics on misuse) |
@@ -160,7 +160,7 @@ type CompletionOption interface{ /* sealed */ }
 
 ## Configuration options
 
-`app.ConfigOptions` takes `conga.ConfigOption` values from three constructors. `conga.ConfigPaths(paths...)` sets the search paths, `conga.ConfigExplicit(path)` names one file that must exist, and `conga.ConfigCascading()` merges every file found instead of taking the first. `ConfigExplicit` cannot be combined with the other two. `conga.ConfigDecoder` is the decoder type `app.RegisterDecoder` takes, `func(data []byte) (map[string]any, error)`.
+`app.ConfigOptions` takes `conga.ConfigOption` values from four constructors. `conga.ConfigPaths(paths...)` sets the search paths, `conga.ConfigExplicit(path)` names one file that must exist, and `conga.ConfigCascading()` merges every file found instead of taking the first. `ConfigExplicit` cannot be combined with `ConfigPaths` or `ConfigCascading`. `conga.ConfigKeyCase(keyCase)` sets the casing of keys derived from flag, subcommand, and feature names: `conga.KebabCase` (the default), `conga.SnakeCase`, or `conga.CamelCase`. Each key has exactly one spelling, explicit `config` tags are read as written, and an unknown `KeyCase` value panics. `conga.ConfigDecoder` is the decoder type `app.RegisterDecoder` takes, `func(data []byte) (map[string]any, error)`.
 
 ### Config file resolution
 
