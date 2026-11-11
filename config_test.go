@@ -1645,4 +1645,8 @@ func TestConfig_EnvConfigVar_MultiValueMissingEntryFails(t *testing.T) {
 
 	assert.IsError(t, err, conga.ErrConfig)
 	assert.Equal(t, "cannot read config file \""+missingPath+"\": stat "+missingPath+": no such file or directory", err.Error())
+	assert.Equal(t, conga.SourceNone, cli.ConfigFile.Source())
+	assert.Equal(t, []string(nil), cli.ConfigFile.Paths())
+	assert.Equal(t, conga.SourceNone, cli.Host.Source())
+	assert.Equal(t, "", cli.Host.Get())
 }
