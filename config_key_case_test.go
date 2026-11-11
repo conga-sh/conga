@@ -52,8 +52,7 @@ func TestConfigKeyCase_CamelCaseRejectsKebabKey(t *testing.T) {
 
 	cfgPath := writeConfigFile(t, `{"api-endpoint": "https://a.example"}`)
 
-	cli := new(keyCaseCLI)
-	app := conga.New(cli).
+	app := conga.New[keyCaseCLI]().
 		Name("app").
 		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigExplicit(cfgPath), conga.ConfigKeyCase(conga.CamelCase)).
@@ -70,8 +69,7 @@ func TestConfigKeyCase_CoercionErrorNamesCasedKey(t *testing.T) {
 
 	cfgPath := writeConfigFile(t, `{"deploy_app": {"max_conns": "many"}}`)
 
-	cli := new(keyCaseCLI)
-	app := conga.New(cli).
+	app := conga.New[keyCaseCLI]().
 		Name("app").
 		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigExplicit(cfgPath), conga.ConfigKeyCase(conga.SnakeCase)).
@@ -88,8 +86,7 @@ func TestConfigKeyCase_WhyShowsCasedConfigPath(t *testing.T) {
 
 	var buffer bytes.Buffer
 
-	cli := new(keyCaseCLI)
-	app := conga.New(cli).
+	app := conga.New[keyCaseCLI]().
 		Name("app").
 		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{}`)), conga.ConfigKeyCase(conga.SnakeCase)).
