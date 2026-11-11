@@ -91,7 +91,7 @@ func TestConfigValues_JSONIntegerBeyond64BitsRejected(t *testing.T) {
 	t.Parallel()
 
 	cfgPath := writeConfigFixture(t, "config.json", []byte(`{"count": 18446744073709551616}`))
-	app := conga.New(new(decodedCountCLI)).
+	app := conga.New[decodedCountCLI]().
 		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigExplicit(cfgPath)).
 		Args([]string{})
@@ -107,7 +107,7 @@ func TestConfigValues_YAMLIntegerBeyond64BitsRejected(t *testing.T) {
 	t.Parallel()
 
 	cfgPath := writeConfigFixture(t, "config.yaml", []byte("count: 999999999999999999999999999999\n"))
-	app := conga.New(new(decodedCountCLI)).
+	app := conga.New[decodedCountCLI]().
 		RegisterDecoder(".yaml", yaml.Decode).
 		ConfigOptions(conga.ConfigExplicit(cfgPath)).
 		Args([]string{})
@@ -123,7 +123,7 @@ func TestConfigValues_HCLIntegerBeyond64BitsRejected(t *testing.T) {
 	t.Parallel()
 
 	cfgPath := writeConfigFixture(t, "config.hcl", []byte("count = 999999999999999999999999999999\n"))
-	app := conga.New(new(decodedCountCLI)).
+	app := conga.New[decodedCountCLI]().
 		RegisterDecoder(".hcl", hcl.Decode).
 		ConfigOptions(conga.ConfigExplicit(cfgPath)).
 		Args([]string{})
@@ -159,7 +159,7 @@ func TestConfigValues_TOMLLocalDatetimeRejectedForTime(t *testing.T) {
 	t.Parallel()
 
 	cfgPath := writeConfigFixture(t, "config.toml", []byte("when = 1979-05-27T07:32:00\n"))
-	app := conga.New(new(decodedWhenCLI)).
+	app := conga.New[decodedWhenCLI]().
 		RegisterDecoder(".toml", toml.Decode).
 		ConfigOptions(conga.ConfigExplicit(cfgPath)).
 		Args([]string{})
@@ -174,7 +174,7 @@ func TestConfigValues_TOMLLocalDateRejectedForTime(t *testing.T) {
 	t.Parallel()
 
 	cfgPath := writeConfigFixture(t, "config.toml", []byte("when = 1979-05-27\n"))
-	app := conga.New(new(decodedWhenCLI)).
+	app := conga.New[decodedWhenCLI]().
 		RegisterDecoder(".toml", toml.Decode).
 		ConfigOptions(conga.ConfigExplicit(cfgPath)).
 		Args([]string{})
