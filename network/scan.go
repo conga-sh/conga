@@ -167,7 +167,7 @@ func scanEtcHosts(ctx predict.Context) []predict.Item {
 		}
 	}
 
-	hostsFile, err := os.Open(filepath.Clean(hostsPath))
+	hostsFile, err := os.Open(hostsPath)
 	if err != nil {
 		return nil
 	}
@@ -305,14 +305,14 @@ func scanSSHHosts(ctx predict.Context) []predict.Item {
 
 	var items []predict.Item
 
-	knownHostsPath := filepath.Clean(filepath.Join(homeDir, ".ssh", "known_hosts"))
+	knownHostsPath := filepath.Join(homeDir, ".ssh", "known_hosts")
 	if knownHostsFile, err := os.Open(knownHostsPath); err == nil {
 		items = append(items, parseSSHKnownHostsReader(knownHostsFile)...)
 
 		_ = knownHostsFile.Close() //nolint:errcheck // read-only file handle
 	}
 
-	sshConfigPath := filepath.Clean(filepath.Join(homeDir, ".ssh", "config"))
+	sshConfigPath := filepath.Join(homeDir, ".ssh", "config")
 	if sshConfigFile, err := os.Open(sshConfigPath); err == nil {
 		items = append(items, parseSSHConfigReader(sshConfigFile)...)
 

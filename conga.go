@@ -999,15 +999,18 @@ type configResolution struct {
 	loadedSource ValueSource
 	err          error
 	candidates   []string
+	skipped      []string
 }
 
 // configFiles is the file half of a configuration resolution: the loaded file
-// paths and their source, the decoded values, and the candidate paths probed.
+// paths and their source, the decoded values, the candidate paths probed, and
+// the named targets skipped because a higher-precedence named source won.
 type configFiles struct {
 	paths      []string
 	data       *configdata.Data
 	source     ValueSource
 	candidates []string
+	skipped    []string
 }
 
 // appConfig holds every configuration field for an App. It is the single source
@@ -1087,6 +1090,7 @@ type appConfig[T any] struct {
 type configView interface {
 	Resolve(flagTargets []string, cmd *spec.Command) ([]string, *configdata.Data, ValueSource, error)
 	CandidatePaths(flagPaths []string, cmd *spec.Command) []string
+	SkippedTargets(flagTargets []string, cmd *spec.Command) []string
 	EffectiveSearchPaths() []string
 	ProbedFiles(candidate string, extensions []string) []string
 	ConfigExamples(candidates []string, tiers []string, extensions []string) []string
@@ -1130,6 +1134,10 @@ func (view emptyConfigView) CandidatePaths(flagPaths []string, cmd *spec.Command
 
 	return nil
 }
+
+// SkippedTargets reports nothing: a config-incapable application rejects any
+// named target before a lower one could be skipped.
+func (emptyConfigView) SkippedTargets(_ []string, _ *spec.Command) []string { return nil }
 
 func (emptyConfigView) EffectiveSearchPaths() []string { return nil }
 
@@ -1631,6 +1639,7 @@ func (a *App[T]) prepareNonMetaExecution(ctx context.Context, session *Session, 
 	resolution := a.resolveConfig(ctx, configRequest{invocation: invocation})
 	if session != nil {
 		session.candidateFiles = resolution.candidates
+		session.skippedFiles = resolution.skipped
 		session.loadedFiles = resolution.loadedPaths
 		session.envPrefix = a.envPrefix
 	}
@@ -2140,6 +2149,7 @@ func (a *App[T]) resolveConfig(ctx context.Context, request configRequest) *conf
 		loadedPaths:  files.paths,
 		loadedSource: files.source,
 		candidates:   files.candidates,
+		skipped:      files.skipped,
 		// A bootstrap failure outranks a file failure, which outranks an overlay failure.
 		err: cmp.Or(bootstrap.err, filesErr, overlayErr),
 	}
@@ -2163,6 +2173,7 @@ func (a *App[T]) resolveConfigFiles(invocation parsedInvocation) (configFiles, e
 	}
 
 	files.candidates = view.CandidatePaths(flagTargets, cmd)
+	files.skipped = view.SkippedTargets(flagTargets, cmd)
 
 	paths, values, source, err := view.Resolve(flagTargets, cmd)
 	files.paths, files.source = paths, source

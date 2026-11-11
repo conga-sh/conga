@@ -21,6 +21,7 @@ type Session struct {
 	stdin          io.Reader
 	cmdChain       []*spec.Command
 	candidateFiles []string
+	skippedFiles   []string
 	loadedFiles    []string
 	envPrefix      string
 	appName        string

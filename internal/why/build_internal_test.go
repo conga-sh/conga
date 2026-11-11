@@ -33,7 +33,7 @@ func TestBuildConfigPaths_FirstHitSkipsLaterTiers(t *testing.T) {
 		systemDir: {filepath.Join(systemDir, "config.json")},
 	}
 
-	paths := BuildConfigPaths([]string{localDir, userDir, systemDir}, []string{loadedFile}, configProbed, true)
+	paths := BuildConfigPaths([]string{localDir, userDir, systemDir}, nil, []string{loadedFile}, configProbed, true)
 
 	assert.Equal(t, []ConfigPath{
 		{Path: localDir, Status: statusLoaded, Loaded: loadedFile},
@@ -51,7 +51,7 @@ func TestBuildConfigPaths_CascadingReportsAbsentTiers(t *testing.T) {
 	userProbes := []string{filepath.Join(userDir, "config.json")}
 	configProbed := map[string][]string{localDir: nil, userDir: userProbes}
 
-	paths := BuildConfigPaths([]string{localDir, userDir}, []string{loadedFile}, configProbed, false)
+	paths := BuildConfigPaths([]string{localDir, userDir}, nil, []string{loadedFile}, configProbed, false)
 
 	assert.Equal(t, []ConfigPath{
 		{Path: localDir, Status: statusLoaded, Loaded: loadedFile},
@@ -66,7 +66,7 @@ func TestBuildConfigPaths_BootstrapOriginDoesNotSkipTiers(t *testing.T) {
 	localProbes := []string{filepath.Join(localDir, "config.json")}
 	configProbed := map[string][]string{localDir: localProbes}
 
-	paths := BuildConfigPaths([]string{"bootstrap document", localDir}, []string{"bootstrap document"}, configProbed, true)
+	paths := BuildConfigPaths([]string{"bootstrap document", localDir}, nil, []string{"bootstrap document"}, configProbed, true)
 
 	assert.Equal(t, []ConfigPath{
 		{Path: "bootstrap document", Status: statusLoaded},
@@ -78,6 +78,36 @@ func TestNormalizeStatusEnum_Skipped(t *testing.T) {
 	t.Parallel()
 
 	status := normalizeStatusEnum(statusSkipped)
+
+	assert.Equal(t, "skipped", status)
+}
+
+func TestBuildConfigPaths_SkippedNamedTargetsFollowCandidates(t *testing.T) {
+	t.Parallel()
+
+	paths := BuildConfigPaths([]string{"/work/ci.json"}, []string{"/work/team.json", "/etc/app.json"}, []string{"/work/ci.json"}, nil, true)
+
+	assert.Equal(t, []ConfigPath{
+		{Path: "/work/ci.json", Status: statusLoaded},
+		{Path: "/work/team.json", Status: statusSkippedNamed},
+		{Path: "/etc/app.json", Status: statusSkippedNamed},
+	}, paths)
+}
+
+func TestBuildConfigPaths_SkippedTargetAlsoLoadedListedOnce(t *testing.T) {
+	t.Parallel()
+
+	paths := BuildConfigPaths([]string{"/etc/app.json"}, []string{"/etc/app.json"}, []string{"/etc/app.json"}, nil, true)
+
+	assert.Equal(t, []ConfigPath{
+		{Path: "/etc/app.json", Status: statusLoaded},
+	}, paths)
+}
+
+func TestNormalizeStatusEnum_SkippedNamedTargetIsSkipped(t *testing.T) {
+	t.Parallel()
+
+	status := normalizeStatusEnum(statusSkippedNamed)
 
 	assert.Equal(t, "skipped", status)
 }

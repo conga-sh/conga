@@ -1556,3 +1556,93 @@ func TestConfig_ConfigExplicit_FlagOutranksEnvVariableAndExplicit(t *testing.T) 
 	assert.Equal(t, flagPath, cli.ConfigFile.Path())
 	assert.Equal(t, conga.SourceCLI, cli.ConfigFile.Source())
 }
+
+type namedTargetSessionCLI struct {
+	ConfigFile conga.ConfigFile           `help:"Config file"`
+	Host       conga.OptionalFlag[string] `name:"host"`
+
+	Loaded    []string
+	Candidate []string
+}
+
+func (c *namedTargetSessionCLI) Run(_ context.Context, session *conga.Session) error {
+	c.Loaded = session.LoadedConfigFiles()
+	c.Candidate = session.CandidateConfigFiles()
+
+	return nil
+}
+
+type namedTargetsMultiSessionCLI struct {
+	ConfigFile conga.ConfigFile           `help:"Config files" multi:"true"`
+	Host       conga.OptionalFlag[string] `name:"host"`
+	Port       conga.OptionalFlag[int]    `name:"port"`
+
+	Loaded    []string
+	Candidate []string
+}
+
+func (c *namedTargetsMultiSessionCLI) Run(_ context.Context, session *conga.Session) error {
+	c.Loaded = session.LoadedConfigFiles()
+	c.Candidate = session.CandidateConfigFiles()
+
+	return nil
+}
+
+func TestConfig_EnvConfigVar_SingleValueKeepsSeparator(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "a,b.json")
+	assert.NoError(t, os.WriteFile(configPath, []byte(`{"host": "comma.example.com"}`), 0o600))
+	t.Setenv("CONGA_TEST_NAMED_SINGLE_CONFIG", configPath)
+
+	cli := new(namedTargetSessionCLI)
+	app := conga.New(cli).
+		EnvPrefix("CONGA_TEST_NAMED_SINGLE").
+		RegisterDecoder(".json", json.Decode).
+		Args([]string{})
+
+	err := app.RunContext(t.Context())
+
+	assert.NoError(t, err)
+	assert.Equal(t, "comma.example.com", cli.Host.Get())
+	assert.Equal(t, []string{configPath}, cli.Loaded)
+	assert.Equal(t, []string{configPath}, cli.Candidate)
+}
+
+func TestConfig_EnvConfigVar_MultiValueSplitsInMergeOrder(t *testing.T) {
+	dir := t.TempDir()
+	firstPath := filepath.Join(dir, "a.json")
+	secondPath := filepath.Join(dir, "b.json")
+	assert.NoError(t, os.WriteFile(firstPath, []byte(`{"host": "first.example.com", "port": 9000}`), 0o600))
+	assert.NoError(t, os.WriteFile(secondPath, []byte(`{"host": "second.example.com"}`), 0o600))
+	t.Setenv("CONGA_TEST_NAMED_MULTI_CONFIG", firstPath+","+secondPath)
+
+	cli := new(namedTargetsMultiSessionCLI)
+	app := conga.New(cli).
+		EnvPrefix("CONGA_TEST_NAMED_MULTI").
+		RegisterDecoder(".json", json.Decode).
+		Args([]string{})
+
+	err := app.RunContext(t.Context())
+
+	assert.NoError(t, err)
+	assert.Equal(t, "second.example.com", cli.Host.Get())
+	assert.Equal(t, 9000, cli.Port.Get())
+	assert.Equal(t, []string{firstPath, secondPath}, cli.Loaded)
+	assert.Equal(t, []string{firstPath, secondPath}, cli.Candidate)
+}
+
+func TestConfig_EnvConfigVar_MultiValueMissingEntryFails(t *testing.T) {
+	presentPath := writeConfigFile(t, `{"host": "present.example.com"}`)
+	missingPath := filepath.Join(t.TempDir(), "missing.json")
+	t.Setenv("CONGA_TEST_NAMED_MISSING_CONFIG", presentPath+","+missingPath)
+
+	cli := new(namedTargetsMultiSessionCLI)
+	app := conga.New(cli).
+		EnvPrefix("CONGA_TEST_NAMED_MISSING").
+		RegisterDecoder(".json", json.Decode).
+		Args([]string{})
+
+	err := app.RunContext(t.Context())
+
+	assert.IsError(t, err, conga.ErrConfig)
+	assert.Equal(t, "cannot read config file \""+missingPath+"\": stat "+missingPath+": no such file or directory", err.Error())
+}
