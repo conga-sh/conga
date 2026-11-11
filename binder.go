@@ -612,7 +612,7 @@ func readsStdin(elemType reflect.Type, tags spec.FieldTags) bool {
 func newStdinReadTwiceError(cmdChain []*spec.Command, first, second string) error {
 	detail := fmt.Sprintf("%s and %s both use \"-\"", first, second)
 	if first == second {
-		detail = fmt.Sprintf("%s uses \"-\" twice", first)
+		detail = first + " uses \"-\" twice"
 	}
 
 	return &validationError{

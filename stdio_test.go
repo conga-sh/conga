@@ -289,9 +289,9 @@ func TestStdio_ExitUsesCurrentStderr(t *testing.T) {
 type stdioConsumersCLI struct {
 	First  conga.OptionalFlag[conga.FileContent] `env:"CONGA_TEST_STDIO_FIRST" name:"first"`
 	Second conga.OptionalFlag[conga.FileContent] `name:"second"`
-	Source conga.OptionalFlag[conga.File]        `name:"source"                 stdin:"true"`
-	Output conga.OptionalFlag[conga.File]        `name:"output"                 stdout:"true"`
-	Inputs conga.OptionalFlag[[]conga.File]      `name:"input"                  stdin:"true"`
+	Source conga.OptionalFlag[conga.File]        `name:"source"                stdin:"true"`
+	Output conga.OptionalFlag[conga.File]        `name:"output"                stdout:"true"`
+	Inputs conga.OptionalFlag[[]conga.File]      `name:"input"                 stdin:"true"`
 	Input  conga.OptionalArg[conga.FileContent]
 }
 
