@@ -722,8 +722,37 @@ func (w *walker) checkBootstrapField(node *commandNode, fieldObject types.Object
 		return
 	}
 
+	if targetType != nil && staticBootstrapReadsWhileParsing(targetType) {
+		w.reportFieldError(node, fieldObject, spec.BootstrapReadsWhileParsingError())
+
+		return
+	}
+
 	if targetType != nil && !isStaticBootstrapType(targetType) {
 		w.reportFieldError(node, fieldObject, spec.BootstrapFieldTypeError())
+	}
+}
+
+// staticBootstrapReadsWhileParsing mirrors the runtime ReadsWhileParsing hook
+// over go/types: conga.FileContent, or a slice or map of it.
+func staticBootstrapReadsWhileParsing(targetType types.Type) bool {
+	isFileContent := func(candidate types.Type) bool {
+		named, ok := types.Unalias(candidate).(*types.Named)
+
+		return ok && named.Obj().Pkg() != nil && named.Obj().Pkg().Path() == congaPackagePath && named.Obj().Name() == "FileContent"
+	}
+
+	if isFileContent(targetType) {
+		return true
+	}
+
+	switch underlying := types.Unalias(targetType).Underlying().(type) {
+	case *types.Slice:
+		return isFileContent(underlying.Elem())
+	case *types.Map:
+		return isFileContent(underlying.Key()) || isFileContent(underlying.Elem())
+	default:
+		return false
 	}
 }
 

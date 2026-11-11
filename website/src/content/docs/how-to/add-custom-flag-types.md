@@ -114,6 +114,10 @@ type ContextAwareTextUnmarshaler interface {
 
 CONGA passes `UnmarshalTextWithContext` a `conga.DecodeContext` with the field's tag values in `Tags`, and the session's `Stdin` and `Stdout` for a type that reads or writes them.
 
+:::caution
+CONGA calls the unmarshaler for every occurrence of a repeated flag, and twice for a `bootstrap` field, once in each binding pass. An unmarshaler that reads a file or `Stdin` reads it each time. CONGA can't tell that a custom type does this, so keep the unmarshaler free of side effects and do the reading in `Run`, as `conga.File` does with `Reader`.
+:::
+
 Here `*Slug` implements both. `TagSpecs` declares a `pattern` tag whose `Validate` compiles it at startup, and `UnmarshalTextWithContext` matches each value against it:
 
 ```go title="main.go" ins={27}

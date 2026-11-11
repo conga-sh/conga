@@ -148,6 +148,18 @@ $ echo "# from stdin" | convert --input notes.txt --header -
 HELLO, WORLD
 ```
 
+Because CONGA reads the file while parsing, a `FileContent` flag can be given only once. A second `--header` is a usage error before either file is read:
+
+```sh error={2} wrap
+$ convert --input notes.txt --header header.txt --header footer.txt
+convert: error: flag --header can only be given once
+
+Usage:
+  convert --input=FILE [flags]
+
+Run 'convert --help' for more information.
+```
+
 Standard input can be read only once, so at most one value in a run can be `-` for a `FileContent` or a `File` with `stdin`. A second one is a usage error, before either is read:
 
 ```sh error={2} wrap
@@ -266,6 +278,7 @@ convert: error: "notes.txt" is a file, but a directory was expected for flag --k
 | Names a file where a directory is expected | `"notes.txt" is a file, but a directory was expected for flag --keep-dir`, exit 2 |
 | Names a directory that doesn't exist, for `Dir` with `existing` | `stat nowhere: no such file or directory for flag --keep-dir`, exit 2 |
 | Passes `-` to a `File` flag without `stdin` or `stdout` | `"-" requires the stdin or stdout tag on the field for flag --input`, exit 2 |
+| Gives a `FileContent` flag twice | `flag --header can only be given once`, then usage, exit 2 |
 | Passes `-` to two values that read standard input | `stdin can only be read once (--input and --header both use "-")`, then usage, exit 2 |
 | Gives a size without the `B` | `unknown byte size unit "M" in "10M" (accepted: B, kB, MB, GB, TB, PB, EB, KiB, MiB, GiB, TiB, PiB, EiB) for flag --max-size`, exit 2 |
 | Gives a size outside the `range` | `value 10B is out of range [1KiB..100MiB] for flag --max-size`, exit 2 |

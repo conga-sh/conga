@@ -328,6 +328,10 @@ func (f File) Help(tags FieldTags) string {
 	}
 }
 
+// dashReadsStdin reports whether a "-" File value reads standard input: only
+// when its field declares stdin:"true".
+func (File) dashReadsStdin(tags FieldTags) bool { return tags.Bool("stdin") }
+
 // IsStdio reports whether the file path is "-" (representing standard input or standard output).
 func (f File) IsStdio() bool {
 	return f.path == "-"
@@ -391,6 +395,13 @@ func (f File) Stat() (os.FileInfo, error) {
 type FileContent string
 
 // Bytes returns the raw bytes of the loaded file content.
+// readsWhileParsing marks FileContent as reading its input during coercion;
+// see the binder's parseTimeReader.
+func (FileContent) readsWhileParsing() {}
+
+// dashReadsStdin reports that a "-" FileContent value reads standard input.
+func (FileContent) dashReadsStdin(FieldTags) bool { return true }
+
 func (f FileContent) Bytes() []byte {
 	return []byte(f)
 }

@@ -1480,6 +1480,7 @@ func (a *App[T]) buildSpec() (*spec.Command, error) {
 		TypePredictors:       a.collectTypePredictors(),
 		ClassifyContainer:    classifyContainer,
 		IsBootstrapper:       isBootstrapper,
+		ReadsWhileParsing:    readsWhileParsing,
 		IsRunner:             isRunner,
 		ConfigDecoders:       decoderExtensions,
 		ConfigFilePatterns: slicex.Map(decoderExtensions, func(extension string) string {

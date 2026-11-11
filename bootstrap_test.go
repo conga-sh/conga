@@ -523,3 +523,45 @@ func TestBootstrapper_CompletionSubcommandRestoresSelection(t *testing.T) {
 	assert.Equal(t, "prod", root.obs.profile)
 	assert.False(t, root.Deploy.IsSelected())
 }
+
+type bootstrapFileContentCLI struct {
+	Seed conga.OptionalFlag[conga.FileContent] `bootstrap:"true" name:"seed"`
+}
+
+func (c *bootstrapFileContentCLI) Bootstrap(_ context.Context, _ *conga.Bootstrap) error {
+	return nil
+}
+
+func (c *bootstrapFileContentCLI) Run(_ context.Context, _ *conga.Session) error {
+	return nil
+}
+
+type bootstrapFileContentSliceCLI struct {
+	Seeds conga.OptionalFlag[[]conga.FileContent] `bootstrap:"true" name:"seed"`
+}
+
+func (c *bootstrapFileContentSliceCLI) Bootstrap(_ context.Context, _ *conga.Bootstrap) error {
+	return nil
+}
+
+func (c *bootstrapFileContentSliceCLI) Run(_ context.Context, _ *conga.Session) error {
+	return nil
+}
+
+func TestBootstrapper_FileContentFieldRejected(t *testing.T) {
+	t.Parallel()
+
+	err := conga.New[bootstrapFileContentCLI]().Args([]string{}).Run()
+
+	assert.IsError(t, err, conga.ErrSchema)
+	assert.Equal(t, `struct bootstrapFileContentCLI field Seed: schema error: invalid struct tag: tag "bootstrap" is not supported on conga.FileContent: bootstrap fields are parsed twice and FileContent reads its file while parsing; use conga.File and read it in Bootstrap`, err.Error())
+}
+
+func TestBootstrapper_FileContentSliceFieldRejected(t *testing.T) {
+	t.Parallel()
+
+	err := conga.New[bootstrapFileContentSliceCLI]().Args([]string{}).Run()
+
+	assert.IsError(t, err, conga.ErrSchema)
+	assert.Equal(t, `struct bootstrapFileContentSliceCLI field Seeds: schema error: invalid struct tag: tag "bootstrap" is not supported on conga.FileContent: bootstrap fields are parsed twice and FileContent reads its file while parsing; use conga.File and read it in Bootstrap`, err.Error())
+}

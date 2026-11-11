@@ -29,7 +29,7 @@ All filesystem capability checks run during the validation phase on the final re
 
 | Type | Behavior |
 |------|-----------|
-| `conga.FileContent` | Reads the file into memory during parsing; accepts `-` for stdin; 16 MiB limit |
+| `conga.FileContent` | Reads the file into memory during parsing; accepts `-` for stdin; 16 MiB limit; a scalar flag can be given only once on the command line, and the type is rejected on `bootstrap` fields |
 | `conga.ByteSize` | Parses `"10MiB"`, `"1.5GB"`, `"500KiB"`, and exact bytes; `Bytes()` returns `int64`; strict case-sensitive units. See [Byte size parsing](#byte-size-parsing) and [Byte size rendering](#byte-size-rendering) |
 
 ```go

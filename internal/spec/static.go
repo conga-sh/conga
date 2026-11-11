@@ -356,6 +356,13 @@ func BootstrapFieldTypeError() error {
 	return fmt.Errorf("%w: bootstrap fields must be scalars, slices of scalars, or maps of scalars (structs and pointers are not supported)", ErrInvalidStructTag)
 }
 
+// BootstrapReadsWhileParsingError builds the schema error for a bootstrap
+// field typed conga.FileContent (or a slice or map of it). Bootstrap fields are
+// coerced in two passes, and FileContent reads its file, or stdin, each time.
+func BootstrapReadsWhileParsingError() error {
+	return fmt.Errorf("%w: tag \"bootstrap\" is not supported on conga.FileContent: bootstrap fields are parsed twice and FileContent reads its file while parsing; use conga.File and read it in Bootstrap", ErrInvalidStructTag)
+}
+
 // BootstrapTagged reports whether the bootstrap tag is declared with an
 // accepted presence-or-true value. The runtime schema builder and the static
 // analyzer share it as the single source of truth.

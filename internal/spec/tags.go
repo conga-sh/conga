@@ -605,11 +605,36 @@ func parseBootstrapField(tag reflect.StructTag, targetType reflect.Type, feature
 		return bootstrap, err
 	}
 
+	if opts.ReadsWhileParsing != nil && bootstrapReadsWhileParsing(targetType, opts.ReadsWhileParsing) {
+		return false, BootstrapReadsWhileParsingError()
+	}
+
 	if !isBootstrapType(targetType) {
 		return false, BootstrapFieldTypeError()
 	}
 
 	return true, nil
+}
+
+// bootstrapReadsWhileParsing reports whether targetType, or the element or
+// key type of a slice or map, reads its input while parsing.
+func bootstrapReadsWhileParsing(targetType reflect.Type, readsWhileParsing func(reflect.Type) bool) bool {
+	if targetType == nil {
+		return false
+	}
+
+	if readsWhileParsing(targetType) {
+		return true
+	}
+
+	switch targetType.Kind() {
+	case reflect.Slice:
+		return readsWhileParsing(targetType.Elem())
+	case reflect.Map:
+		return readsWhileParsing(targetType.Key()) || readsWhileParsing(targetType.Elem())
+	default:
+		return false
+	}
 }
 
 // parseBootstrapTag validates the bootstrap tag's Bootstrapper requirement and

@@ -596,16 +596,41 @@ func (c *stdinClaim) claim(cmdChain []*spec.Command, owner string, targetType re
 	return nil
 }
 
-// readsStdin reports whether a "-" value of elemType reads standard input:
-// FileContent always does, and File does when its field declares stdin:"true".
+// stdinDashReader is implemented by the domain types whose "-" value reads
+// standard input (FileContent, and File with stdin:"true"). The binder asks
+// each field's type through this interface instead of naming the types, so
+// their methods link only into programs that declare them.
+type stdinDashReader interface {
+	dashReadsStdin(tags spec.FieldTags) bool
+}
+
+// parseTimeReader marks domain types whose coercion does irreversible I/O
+// (FileContent reads its file, or stdin, while parsing). Such a value can be
+// coerced only once: a scalar flag may not repeat, and bootstrap fields, which
+// are coerced in two passes, may not use the type.
+type parseTimeReader interface {
+	readsWhileParsing()
+}
+
+// readsStdin reports whether a "-" value of elemType reads standard input.
 func readsStdin(elemType reflect.Type, tags spec.FieldTags) bool {
-	switch elemType {
-	case reflect.TypeFor[FileContent]():
-		return true
-	case reflect.TypeFor[File]():
-		return tags.Bool("stdin")
-	default:
-		return false
+	reader, ok := reflect.New(elemType).Interface().(stdinDashReader)
+
+	return ok && reader.dashReadsStdin(tags)
+}
+
+// readsWhileParsing reports whether coercing a value of targetType does
+// irreversible I/O. It checks the method set without naming the types, so it
+// links no domain type into programs that do not declare one.
+func readsWhileParsing(targetType reflect.Type) bool {
+	return targetType != nil && reflect.PointerTo(targetType).Implements(reflect.TypeFor[parseTimeReader]())
+}
+
+func newRepeatedFlagError(cmdChain []*spec.Command, flagName string) error {
+	return &parseError{
+		msg:      "flag --" + flagName + " can only be given once",
+		token:    "--" + flagName,
+		cmdChain: cmdChain,
 	}
 }
 
@@ -1263,6 +1288,13 @@ func applyFlagCoercion(cmdChain []*spec.Command, flagSpec *spec.Flag, rawValues 
 		flagStateOf(flagSpec.Handle).setValue(totalCount, source, detail)
 
 		return nil
+	}
+
+	// A scalar flag whose type reads its input while parsing cannot be
+	// last-wins: coercing every occurrence would read every file (or stdin)
+	// and discard all but one.
+	if source == SourceCLI && !flagSpec.IsSlice && len(rawValues) > 1 && readsWhileParsing(flagSpec.TargetType) {
+		return newRepeatedFlagError(cmdChain, flagSpec.Name)
 	}
 
 	if err := state.StdinClaim.claim(cmdChain, "--"+flagSpec.Name, flagSpec.TargetType, flagSpec.FieldTags, flagSpec.Sep, rawValues); err != nil {

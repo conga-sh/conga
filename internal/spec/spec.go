@@ -507,6 +507,11 @@ type Options struct {
 	// a bootstrap-tagged field is only accepted under a command (or ancestor)
 	// that consumes it.
 	IsBootstrapper func(any) bool
+	// ReadsWhileParsing reports whether coercing a value of a type does
+	// irreversible I/O (conga.FileContent reads its file). Bootstrap fields
+	// are coerced twice, so schema build rejects such types, and slices or
+	// maps of them, on bootstrap fields. Nil disables the check.
+	ReadsWhileParsing func(reflect.Type) bool
 	// HasBootstrapper reports whether this command or one of its ancestors
 	// implements conga.Bootstrapper. It is derived from IsBootstrapper during
 	// the build walk and inherited by descendant commands.
