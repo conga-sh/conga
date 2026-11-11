@@ -21,14 +21,17 @@ type Session struct {
 	stdin          io.Reader
 	cmdChain       []*spec.Command
 	candidateFiles []string
-	skippedFiles   []string
-	loadedFiles    []string
-	envPrefix      string
-	appName        string
-	appVersion     string
-	helpOptions    help.Options
-	whyRenderer    func(s *Session, format string) string
-	mapProvenance  map[*spec.Flag]mapFlagProvenance
+	// stdinClaim records the first flag or argument value of the run that
+	// reads standard input, shared by flag binding and positional binding.
+	stdinClaim    stdinClaim
+	skippedFiles  []string
+	loadedFiles   []string
+	envPrefix     string
+	appName       string
+	appVersion    string
+	helpOptions   help.Options
+	whyRenderer   func(s *Session, format string) string
+	mapProvenance map[*spec.Flag]mapFlagProvenance
 }
 
 // Stdout returns the configured standard output writer for this session.

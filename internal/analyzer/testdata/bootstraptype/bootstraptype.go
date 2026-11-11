@@ -1,6 +1,6 @@
 // Package bootstraptype covers the bootstrap type restriction: struct-valued
-// fields are rejected because bootstrap coercion must stay cheap and free of
-// I/O.
+// fields, and conga.FileContent (which reads its file while parsing), are
+// rejected because bootstrap coercion must stay cheap and free of I/O.
 package bootstraptype
 
 import (
@@ -18,3 +18,14 @@ func (c *BootstrapType) Bootstrap(ctx context.Context, b *conga.Bootstrap) error
 func (c *BootstrapType) Run(ctx context.Context, session *conga.Session) error { return nil }
 
 var _ = conga.New[BootstrapType]()
+
+type BootstrapFileContent struct {
+	Seed  conga.OptionalFlag[conga.FileContent]   `bootstrap:"true"` // want `tag "bootstrap" is not supported on conga.FileContent`
+	Seeds conga.OptionalFlag[[]conga.FileContent] `bootstrap:"true"` // want `tag "bootstrap" is not supported on conga.FileContent`
+}
+
+func (c *BootstrapFileContent) Bootstrap(ctx context.Context, b *conga.Bootstrap) error { return nil }
+
+func (c *BootstrapFileContent) Run(ctx context.Context, session *conga.Session) error { return nil }
+
+var _ = conga.New[BootstrapFileContent]()

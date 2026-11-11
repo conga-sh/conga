@@ -722,8 +722,37 @@ func (w *walker) checkBootstrapField(node *commandNode, fieldObject types.Object
 		return
 	}
 
+	if targetType != nil && staticBootstrapReadsWhileParsing(targetType) {
+		w.reportFieldError(node, fieldObject, spec.BootstrapReadsWhileParsingError())
+
+		return
+	}
+
 	if targetType != nil && !isStaticBootstrapType(targetType) {
 		w.reportFieldError(node, fieldObject, spec.BootstrapFieldTypeError())
+	}
+}
+
+// staticBootstrapReadsWhileParsing mirrors the runtime ReadsWhileParsing hook
+// over go/types: conga.FileContent, or a slice or map of it.
+func staticBootstrapReadsWhileParsing(targetType types.Type) bool {
+	isFileContent := func(candidate types.Type) bool {
+		named, ok := types.Unalias(candidate).(*types.Named)
+
+		return ok && named.Obj().Pkg() != nil && named.Obj().Pkg().Path() == congaPackagePath && named.Obj().Name() == "FileContent"
+	}
+
+	if isFileContent(targetType) {
+		return true
+	}
+
+	switch underlying := types.Unalias(targetType).Underlying().(type) {
+	case *types.Slice:
+		return isFileContent(underlying.Elem())
+	case *types.Map:
+		return isFileContent(underlying.Key()) || isFileContent(underlying.Elem())
+	default:
+		return false
 	}
 }
 
@@ -769,10 +798,10 @@ func (w *walker) validateRangeBounds(rangeSpec *spec.Range, targetType types.Typ
 		return spec.ValidateScalarRange(rangeSpec, "unsigned integer", func(raw string) (uint64, error) {
 			return strconv.ParseUint(raw, 10, 64)
 		})
-	case types.Float32, types.Float64:
-		return spec.ValidateScalarRange(rangeSpec, "float", func(raw string) (float64, error) {
-			return strconv.ParseFloat(raw, 64)
-		})
+	case types.Float32:
+		return spec.ValidateScalarRange(rangeSpec, "float", spec.FloatBoundParser(32))
+	case types.Float64:
+		return spec.ValidateScalarRange(rangeSpec, "float", spec.FloatBoundParser(64))
 	default:
 		return fmt.Errorf("%w: range tag is not supported on type %s", spec.ErrInvalidRangeSyntax, types.TypeString(elementType, shortPackageQualifier))
 	}

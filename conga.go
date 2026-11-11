@@ -1480,6 +1480,7 @@ func (a *App[T]) buildSpec() (*spec.Command, error) {
 		TypePredictors:       a.collectTypePredictors(),
 		ClassifyContainer:    classifyContainer,
 		IsBootstrapper:       isBootstrapper,
+		ReadsWhileParsing:    readsWhileParsing,
 		IsRunner:             isRunner,
 		ConfigDecoders:       decoderExtensions,
 		ConfigFilePatterns: slicex.Map(decoderExtensions, func(extension string) string {
@@ -1671,6 +1672,7 @@ func (a *App[T]) prepareNonMetaExecution(ctx context.Context, session *Session, 
 		CustomMapMerger:     a.customMapMerger,
 		Stdin:               session.stdin,
 		Stdout:              session.stdout,
+		StdinClaim:          &session.stdinClaim,
 		SkipRequiredFlags:   skipRequiredFlags,
 	}
 
@@ -1764,7 +1766,7 @@ func (a *App[T]) prepare(ctx context.Context) (*Session, bool, error) {
 		return nil, true, nil
 	}
 
-	if err := resolveArgs(leaf, cmdChain, posTokens, a.collectTypeParsers(), coerce.DecodeContext{Stdin: session.stdin, Stdout: session.stdout}); err != nil {
+	if err := resolveArgs(leaf, cmdChain, posTokens, a.collectTypeParsers(), coerce.DecodeContext{Stdin: session.stdin, Stdout: session.stdout}, &session.stdinClaim); err != nil {
 		return nil, false, err
 	}
 

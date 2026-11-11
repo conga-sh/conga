@@ -373,7 +373,7 @@ func TestCoercionErrorByteSizeRender(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.IsError(t, err, conga.ErrCoerce)
-	assert.Equal(t, `unknown byte size unit "ZB" in "10ZB" for flag --max-memory`, err.Error())
+	assert.Equal(t, `unknown byte size unit "ZB" in "10ZB" (accepted: B, kB, MB, GB, TB, PB, EB, KiB, MiB, GiB, TiB, PiB, EiB) for flag --max-memory`, err.Error())
 }
 
 func TestCoercionErrorByteSizeAmbiguousUnitRender(t *testing.T) {
@@ -407,9 +407,8 @@ func TestDomainTypeErrorsSelfCategorize(t *testing.T) {
 	var size conga.ByteSize
 
 	err := size.UnmarshalText([]byte("10ZB"))
-	assert.Error(t, err)
 	assert.IsError(t, err, conga.ErrCoerce)
-	assert.Equal(t, `unknown byte size unit "ZB" in "10ZB"`, err.Error())
+	assert.Equal(t, `unknown byte size unit "ZB" in "10ZB" (accepted: B, kB, MB, GB, TB, PB, EB, KiB, MiB, GiB, TiB, PiB, EiB)`, err.Error())
 }
 
 func TestIsUsageError(t *testing.T) {

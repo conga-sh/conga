@@ -1028,3 +1028,66 @@ func TestHelpConstraintHints(t *testing.T) {
 	assert.Contains(t, helpText, "[<= 50]")
 	assert.Contains(t, helpText, "[-20..-5]")
 }
+
+type float32RangeCLI struct {
+	noopRunner
+
+	// 0.7 rounds down and 0.1 rounds up in float32, so each bound would
+	// reject its own value if compared at float64 precision.
+	Low  conga.OptionalFlag[float32] `name:"low"  range:"0.7..1"`
+	High conga.OptionalFlag[float32] `name:"high" range:"0..0.1"`
+}
+
+type float32OverflowRangeCLI struct {
+	noopRunner
+
+	Ratio conga.OptionalFlag[float32] `name:"ratio" range:"0..1e39"`
+}
+
+func TestValidation_Float32RangeAcceptsItsBounds(t *testing.T) {
+	t.Parallel()
+
+	t.Run("value equal to the min bound", func(t *testing.T) {
+		t.Parallel()
+
+		cli := new(float32RangeCLI)
+		app := conga.New(cli).Args([]string{"--low", "0.7"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, float32(0.7), cli.Low.Get())
+	})
+
+	t.Run("value equal to the max bound", func(t *testing.T) {
+		t.Parallel()
+
+		cli := new(float32RangeCLI)
+		app := conga.New(cli).Args([]string{"--high", "0.1"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, float32(0.1), cli.High.Get())
+	})
+
+	t.Run("next float32 past the max bound is rejected", func(t *testing.T) {
+		t.Parallel()
+
+		app := conga.New[float32RangeCLI]().Args([]string{"--high", "0.10000001"})
+
+		err := app.Run()
+
+		assert.IsError(t, err, conga.ErrValidation)
+		assert.Equal(t, "value 0.10000001 is out of range [0..0.1] for flag --high", err.Error())
+	})
+}
+
+func TestValidation_Float32RangeBoundOutsideFloat32Rejected(t *testing.T) {
+	t.Parallel()
+
+	err := conga.New[float32OverflowRangeCLI]().Args([]string{}).Run()
+
+	assert.IsError(t, err, conga.ErrSchema)
+	assert.Equal(t, `struct float32OverflowRangeCLI field Ratio: schema error: invalid range syntax: invalid float max bound "1e39"`, err.Error())
+}

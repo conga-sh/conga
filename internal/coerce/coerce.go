@@ -112,28 +112,41 @@ func Scalar(raw string, targetType reflect.Type) (any, error) {
 // engine-configured standard streams for context-aware text unmarshaling of each element.
 func SliceWith(raws []string, sliceType reflect.Type, sep string, reg Registry, decodeContext DecodeContext) (any, error) {
 	elemType := sliceType.Elem()
-	sliceValue := reflect.MakeSlice(sliceType, 0, len(raws))
+	items := SliceItems(raws, sep, elemType)
+	sliceValue := reflect.MakeSlice(sliceType, 0, len(items))
 
+	for _, item := range items {
+		elem, err := ScalarWith(item, elemType, reg, decodeContext)
+		if err != nil {
+			return nil, err
+		}
+
+		sliceValue = reflect.Append(sliceValue, reflect.ValueOf(elem))
+	}
+
+	return sliceValue.Interface(), nil
+}
+
+// SliceItems splits raw slice tokens into the element items SliceWith
+// coerces: each token is split by sep, and items are whitespace-trimmed unless
+// splitting is disabled for a string element. Callers that inspect items
+// before coercion (the binder's stdin check) use it so both agree on the items.
+func SliceItems(raws []string, sep string, elemType reflect.Type) []string {
 	preserveWhitespace := sep != "" && sepDisabled(sep) && elemType.Kind() == reflect.String
 
-	for _, raw := range raws {
-		items := splitMultiValue(raw, sep)
+	var items []string
 
-		for _, item := range items {
+	for _, raw := range raws {
+		for _, item := range splitMultiValue(raw, sep) {
 			if !preserveWhitespace {
 				item = strings.TrimSpace(item)
 			}
 
-			elem, err := ScalarWith(item, elemType, reg, decodeContext)
-			if err != nil {
-				return nil, err
-			}
-
-			sliceValue = reflect.Append(sliceValue, reflect.ValueOf(elem))
+			items = append(items, item)
 		}
 	}
 
-	return sliceValue.Interface(), nil
+	return items
 }
 
 // SplitMapItems splits raw string tokens into trimmed KEY=VALUE items using sep.

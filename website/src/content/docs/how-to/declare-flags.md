@@ -79,6 +79,18 @@ $ fetch https://example.com --timeout 30
 fetch: error: invalid duration "30" (valid units: ms, s, m, h) for flag --timeout
 ```
 
+When the user repeats a flag, the last value wins. CONGA still converts every value, so a typo in an earlier one is an error, exit 2:
+
+```sh
+$ fetch https://example.com --retries 2 --retries 5
+fetching https://example.com to -: 5 tries, 30s each
+```
+
+```sh error={2}
+$ fetch https://example.com --retries two --retries 5
+fetch: error: invalid integer value "two" for flag --retries
+```
+
 A `name` tag replaces the derived name. For types CONGA doesn't parse, see [How to add custom flag types](/how-to/add-custom-flag-types/).
 
 ## Add a short name and aliases
@@ -313,6 +325,7 @@ fetch: error: map type map[string]int requires registration via app.RegisterMap
 | What happens | When | Result |
 |---|---|---|
 | The user gives a value of the wrong type | Run | `invalid duration "30" (valid units: ms, s, m, h) for flag --timeout`, exit 2 |
+| The user repeats a flag and an earlier value has the wrong type | Run | `invalid integer value "two" for flag --retries`, exit 2 |
 | An environment variable holds a value of the wrong type | Run | `invalid boolean value "no", expected true or false (or 1 or 0) for flag --redirects (from environment variable FETCH_REDIRECTS)`, exit 2 |
 | The user misspells a flag | Run | `unknown flag: --redirect. Did you mean "redirects"?`, then usage, exit 2 |
 | The user gives `--no-` to a flag without `negatable` | Run | `unknown flag: --no-verbose`, then usage, exit 2 |

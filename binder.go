@@ -73,6 +73,10 @@ type bindingState struct {
 	// type is registered through RegisterMap or RegisterType; nil keeps custom
 	// map reflection unreferenced.
 	CustomMapMerger func(cmd *spec.Command, cmdChain []*spec.Command, flagSpec *spec.Flag, cliValues map[*spec.Flag][]string, state *bindingState, result *mapMergeResult) error
+	// StdinClaim records the first value of this binding pass that reads
+	// standard input, so a second one is rejected before it reads. Nil skips
+	// the check (completion pruning).
+	StdinClaim *stdinClaim
 	// SourceNames records, per flag bound from the environment or a config
 	// file, the variable name or config key that supplied its value. Post-bind
 	// constraint validation reads it to attribute value errors to their origin;
@@ -545,6 +549,102 @@ func (r builtinRequest) toleratesFeatureErrors() bool {
 // is not version-only.
 func (r builtinRequest) versionOnly() bool {
 	return r.hasVersion && !r.hasHelp && !r.hasWhy && !r.hasCompletion
+}
+
+// stdinClaim records which flag or argument first reads standard input during
+// a binding pass. Standard input can be read only once, so a second consumer
+// would silently receive empty input.
+type stdinClaim struct {
+	owner string
+}
+
+// claim records the values of owner that read standard input: a "-" for a
+// FileContent, or for a File declaring stdin:"true", including each item of a
+// slice. A second such value, from owner or another flag or argument, is a
+// usage error; it is checked before coercion, so nothing reads stdin twice.
+func (c *stdinClaim) claim(cmdChain []*spec.Command, owner string, targetType reflect.Type, tags spec.FieldTags, sep string, rawValues []string) error {
+	if c == nil || targetType == nil {
+		return nil
+	}
+
+	elemType := targetType
+	items := rawValues
+
+	if targetType.Kind() == reflect.Slice {
+		elemType = targetType.Elem()
+		items = coerce.SliceItems(rawValues, sep, elemType)
+	}
+
+	if !readsStdin(elemType, tags) {
+		return nil
+	}
+
+	for _, item := range items {
+		if item != "-" {
+			continue
+		}
+
+		if c.owner == "" {
+			c.owner = owner
+
+			continue
+		}
+
+		return newStdinReadTwiceError(cmdChain, c.owner, owner)
+	}
+
+	return nil
+}
+
+// stdinDashReader is implemented by the domain types whose "-" value reads
+// standard input (FileContent, and File with stdin:"true"). The binder asks
+// each field's type through this interface instead of naming the types, so
+// their methods link only into programs that declare them.
+type stdinDashReader interface {
+	dashReadsStdin(tags spec.FieldTags) bool
+}
+
+// parseTimeReader marks domain types whose coercion does irreversible I/O
+// (FileContent reads its file, or stdin, while parsing). Such a value can be
+// coerced only once: a scalar flag may not repeat, and bootstrap fields, which
+// are coerced in two passes, may not use the type.
+type parseTimeReader interface {
+	readsWhileParsing()
+}
+
+// readsStdin reports whether a "-" value of elemType reads standard input.
+func readsStdin(elemType reflect.Type, tags spec.FieldTags) bool {
+	reader, ok := reflect.TypeAssert[stdinDashReader](reflect.New(elemType))
+
+	return ok && reader.dashReadsStdin(tags)
+}
+
+// readsWhileParsing reports whether coercing a value of targetType does
+// irreversible I/O. It checks the method set without naming the types, so it
+// links no domain type into programs that do not declare one.
+func readsWhileParsing(targetType reflect.Type) bool {
+	return targetType != nil && reflect.PointerTo(targetType).Implements(reflect.TypeFor[parseTimeReader]())
+}
+
+func newRepeatedFlagError(cmdChain []*spec.Command, flagName string) error {
+	return &parseError{
+		msg:      "flag --" + flagName + " can only be given once",
+		token:    "--" + flagName,
+		cmdChain: cmdChain,
+	}
+}
+
+func newStdinReadTwiceError(cmdChain []*spec.Command, first, second string) error {
+	detail := fmt.Sprintf("%s and %s both use \"-\"", first, second)
+	if first == second {
+		detail = first + " uses \"-\" twice"
+	}
+
+	return &validationError{
+		msg:      "stdin can only be read once (" + detail + ")",
+		cmdChain: cmdChain,
+		cause:    errStdinReadTwice,
+	}
 }
 
 // newCounterValueError reports a value attached to a counter flag on the
@@ -1190,6 +1290,17 @@ func applyFlagCoercion(cmdChain []*spec.Command, flagSpec *spec.Flag, rawValues 
 		return nil
 	}
 
+	// A scalar flag whose type reads its input while parsing cannot be
+	// last-wins: coercing every occurrence would read every file (or stdin)
+	// and discard all but one.
+	if source == SourceCLI && !flagSpec.IsSlice && len(rawValues) > 1 && readsWhileParsing(flagSpec.TargetType) {
+		return newRepeatedFlagError(cmdChain, flagSpec.Name)
+	}
+
+	if err := state.StdinClaim.claim(cmdChain, "--"+flagSpec.Name, flagSpec.TargetType, flagSpec.FieldTags, flagSpec.Sep, rawValues); err != nil {
+		return err
+	}
+
 	decodeContext := state.decodeContext(flagSpec.FieldTags)
 
 	if flagSpec.IsSlice {
@@ -1203,11 +1314,18 @@ func applyFlagCoercion(cmdChain []*spec.Command, flagSpec *spec.Flag, rawValues 
 		return nil
 	}
 
-	lastValue := rawValues[len(rawValues)-1]
+	// A repeated scalar flag is last-wins, but every occurrence is coerced in
+	// order, so an invalid earlier value (a typo) is reported instead of
+	// vanishing. Constraints (range, enum, Validate) apply to the winning value.
+	var typedValue any
 
-	typedValue, err := coerce.ScalarWith(lastValue, flagSpec.TargetType, state.TypeParsers, decodeContext)
-	if err != nil {
-		return newFlagCoercionError(cmdChain, flagSpec, source, sourceName, lastValue, err)
+	for _, rawValue := range rawValues {
+		coerced, err := coerce.ScalarWith(rawValue, flagSpec.TargetType, state.TypeParsers, decodeContext)
+		if err != nil {
+			return newFlagCoercionError(cmdChain, flagSpec, source, sourceName, rawValue, err)
+		}
+
+		typedValue = coerced
 	}
 
 	flagStateOf(flagSpec.Handle).setValue(typedValue, source, detail)
@@ -1812,11 +1930,21 @@ func validateFlagConstraints(cmdChain []*spec.Command, sourceNames map[*spec.Fla
 	return nil
 }
 
-func resolveSliceArg(cmdChain []*spec.Command, arg *spec.Arg, remaining []string, parsers coerce.Registry, decodeContext coerce.DecodeContext) error {
+func resolveSliceArg(cmdChain []*spec.Command, arg *spec.Arg, remaining []string, parsers coerce.Registry, decodeContext coerce.DecodeContext, stdin *stdinClaim) error {
 	decodeContext.Tags = arg.FieldTags
 
 	if len(remaining) == 0 {
+		if arg.Default != "" {
+			if err := stdin.claim(cmdChain, "argument "+arg.Name, arg.TargetType, arg.FieldTags, arg.Sep, []string{arg.Default}); err != nil {
+				return err
+			}
+		}
+
 		return resolveEmptySliceArg(cmdChain, arg, parsers, decodeContext)
+	}
+
+	if err := stdin.claim(cmdChain, "argument "+arg.Name, arg.TargetType, arg.FieldTags, arg.Sep, remaining); err != nil {
+		return err
 	}
 
 	typedSlice, err := coerce.SliceWith(remaining, arg.TargetType, arg.Sep, parsers, decodeContext)
@@ -1900,11 +2028,15 @@ func resolveMapArg(cmdChain []*spec.Command, arg *spec.Arg, tokens []string, par
 	return nil
 }
 
-func resolveScalarArg(cmdChain []*spec.Command, arg *spec.Arg, posTokens []string, tokenIdx int, parsers coerce.Registry, decodeContext coerce.DecodeContext) (bool, error) {
+func resolveScalarArg(cmdChain []*spec.Command, arg *spec.Arg, posTokens []string, tokenIdx int, parsers coerce.Registry, decodeContext coerce.DecodeContext, stdin *stdinClaim) (bool, error) {
 	decodeContext.Tags = arg.FieldTags
 
 	if tokenIdx < len(posTokens) {
 		raw := posTokens[tokenIdx]
+
+		if err := stdin.claim(cmdChain, "argument "+arg.Name, arg.TargetType, arg.FieldTags, "", []string{raw}); err != nil {
+			return false, err
+		}
 
 		typedValue, err := coerce.ScalarWith(raw, arg.TargetType, parsers, decodeContext)
 		if err != nil {
@@ -1921,6 +2053,10 @@ func resolveScalarArg(cmdChain []*spec.Command, arg *spec.Arg, posTokens []strin
 	}
 
 	if arg.Default != "" {
+		if err := stdin.claim(cmdChain, "argument "+arg.Name, arg.TargetType, arg.FieldTags, "", []string{arg.Default}); err != nil {
+			return false, err
+		}
+
 		typedValue, err := coerce.ScalarWith(arg.Default, arg.TargetType, parsers, decodeContext)
 		if err != nil {
 			return false, newArgCoercionError(cmdChain, arg, SourceDefault, arg.Default, arg.Default, err)
@@ -1988,12 +2124,12 @@ func suggestSubcommand(cmd *spec.Command, input string) string {
 // resolveArgs binds positional argument tokens. decodeContext carries the
 // run's engine-configured standard streams (no tags); each arg's declared
 // tags are composed into the context at its coercion site.
-func resolveArgs(cmd *spec.Command, cmdChain []*spec.Command, posTokens []string, parsers coerce.Registry, decodeContext coerce.DecodeContext) error {
+func resolveArgs(cmd *spec.Command, cmdChain []*spec.Command, posTokens []string, parsers coerce.Registry, decodeContext coerce.DecodeContext, stdin *stdinClaim) error {
 	tokenIdx := 0
 
 	for _, arg := range cmd.Args {
 		if arg.IsSlice {
-			if err := resolveSliceArg(cmdChain, arg, posTokens[tokenIdx:], parsers, decodeContext); err != nil {
+			if err := resolveSliceArg(cmdChain, arg, posTokens[tokenIdx:], parsers, decodeContext, stdin); err != nil {
 				return err
 			}
 
@@ -2016,7 +2152,7 @@ func resolveArgs(cmd *spec.Command, cmdChain []*spec.Command, posTokens []string
 			break
 		}
 
-		advanced, err := resolveScalarArg(cmdChain, arg, posTokens, tokenIdx, parsers, decodeContext)
+		advanced, err := resolveScalarArg(cmdChain, arg, posTokens, tokenIdx, parsers, decodeContext, stdin)
 		if err != nil {
 			return err
 		}
@@ -2115,10 +2251,6 @@ func parseUint64Bound(raw string) (uint64, error) {
 	return strconv.ParseUint(raw, 10, 64)
 }
 
-func parseFloat64Bound(raw string) (float64, error) {
-	return strconv.ParseFloat(raw, 64)
-}
-
 // checkTextRange applies range bounds to a value whose type carries its own
 // text grammar: bounds parse through the type's UnmarshalText and compare with
 // the value in its native domain. handled is false when the value has no
@@ -2192,7 +2324,9 @@ func checkValueRange(value any, rangeSpec *spec.Range) (string, bool) {
 		return checkTypedRange(reflectedValue.Uint(), rangeSpec, parseUint64Bound)
 
 	case reflect.Float32, reflect.Float64:
-		return checkTypedRange(reflectedValue.Float(), rangeSpec, parseFloat64Bound)
+		// Bounds parse at the value's own precision, so a float32 value
+		// equal to its bound compares equal after both widen to float64.
+		return checkTypedRange(reflectedValue.Float(), rangeSpec, spec.FloatBoundParser(reflectedValue.Type().Bits()))
 
 	default:
 		return "", true

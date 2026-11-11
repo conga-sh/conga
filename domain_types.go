@@ -3,6 +3,7 @@ package conga
 import (
 	"context"
 	"encoding"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -32,7 +33,8 @@ const (
 const (
 	byteSizeErrorEmpty           byteSizeErrorKind = iota // empty input
 	byteSizeErrorInvalid                                  // malformed numeric prefix
-	byteSizeErrorInvalidNumber                            // numeric prefix does not parse or overflows
+	byteSizeErrorInvalidNumber                            // numeric prefix does not parse
+	byteSizeErrorOutOfRange                               // value exceeds the int64 byte count
 	byteSizeErrorInexactFraction                          // fraction does not resolve to whole bytes
 	byteSizeErrorUnknownUnit                              // unrecognized unit suffix
 	byteSizeErrorUnitNotAllowed                           // unit excluded by the field's units tag
@@ -42,8 +44,8 @@ const (
 const (
 	byteSizeFamilyUnset   byteSizeFamily = iota // zero value: canonical IEC integer model
 	byteSizeFamilyBytes                         // parsed exact bytes (B suffix or bare count)
-	byteSizeFamilyBinary                        // KiB..PiB
-	byteSizeFamilyDecimal                       // kB..PB
+	byteSizeFamilyBinary                        // KiB..EiB
+	byteSizeFamilyDecimal                       // kB..EB
 )
 
 var (
@@ -370,6 +372,10 @@ func (f File) Stat() (os.FileInfo, error) {
 	return os.Stat(f.path)
 }
 
+// dashReadsStdin reports whether a "-" File value reads standard input: only
+// when its field declares stdin:"true".
+func (File) dashReadsStdin(tags FieldTags) bool { return tags.Bool("stdin") }
+
 // FileContent represents the in-memory contents of a file read during argument decoding.
 //
 // If the value is "-", the content is read into memory from [App.Stdin] (or [os.Stdin]).
@@ -465,6 +471,13 @@ func (f *FileContent) UnmarshalTextWithContext(text []byte, decodeContext Decode
 
 	return nil
 }
+
+// readsWhileParsing marks FileContent as reading its input during coercion;
+// see the binder's parseTimeReader.
+func (FileContent) readsWhileParsing() {}
+
+// dashReadsStdin reports that a "-" FileContent value reads standard input.
+func (FileContent) dashReadsStdin(FieldTags) bool { return true }
 
 // Dir represents a filesystem directory path with an optional existence constraint
 // declared via the existing struct tag.
@@ -574,8 +587,8 @@ func (d Dir) Help(tags FieldTags) string {
 //
 //	1024                 exact bytes
 //	500B                 exact bytes
-//	kB MB GB TB PB       powers of 1000
-//	KiB MiB GiB TiB PiB  powers of 1024
+//	kB MB GB TB PB EB        powers of 1000
+//	KiB MiB GiB TiB PiB EiB  powers of 1024
 //
 // The numeric prefix is digits with an optional fraction whose contribution resolves
 // exactly to bytes (1.5GB, 0.5GiB); a sub-byte remainder such as 0.1GiB is rejected.
@@ -603,8 +616,8 @@ func (d Dir) Help(tags FieldTags) string {
 // Fields may declare the units tag to restrict the accepted unit families and the
 // display tag to force the render family:
 //
-//	units:"binary"    accept only IEC binary units (KiB..PiB)
-//	units:"decimal"   accept only SI metric units (kB..PB)
+//	units:"binary"    accept only IEC binary units (KiB..EiB)
+//	units:"decimal"   accept only SI metric units (kB..EB)
 //	units:"both"      accept every unit family (default)
 //	display:"binary"  render in binary units
 //	display:"decimal" render in decimal units
@@ -844,10 +857,11 @@ type byteSizeErrorKind uint8
 
 // byteSizeError is the root cause for byte-size parse failures.
 type byteSizeError struct {
-	raw     string // full input (invalid/inexactFraction/unknownUnit/unitNotAllowed) or numeric prefix (invalidNumber)
-	unit    string // offending unit (unknownUnit/unitNotAllowed only)
-	allowed string // unit family the field restricts to (unitNotAllowed only)
-	kind    byteSizeErrorKind
+	raw      string // full input (invalid/inexactFraction/outOfRange/unknownUnit/unitNotAllowed) or numeric prefix (invalidNumber)
+	unit     string // offending unit (unknownUnit/unitNotAllowed only)
+	allowed  string // unit family the field restricts to (unitNotAllowed only)
+	accepted string // units the field accepts, comma-separated (unknownUnit only)
+	kind     byteSizeErrorKind
 }
 
 func (e *byteSizeError) Error() string {
@@ -860,8 +874,10 @@ func (e *byteSizeError) Error() string {
 		return fmt.Sprintf("invalid byte size number %q", e.raw)
 	case byteSizeErrorInexactFraction:
 		return fmt.Sprintf("byte size %q is not a whole number of bytes", e.raw)
+	case byteSizeErrorOutOfRange:
+		return fmt.Sprintf("byte size %q is out of range (max %dB)", e.raw, int64(math.MaxInt64))
 	case byteSizeErrorUnknownUnit:
-		return fmt.Sprintf("unknown byte size unit %q in %q", e.unit, e.raw)
+		return fmt.Sprintf("unknown byte size unit %q in %q (accepted: %s)", e.unit, e.raw, e.accepted)
 	case byteSizeErrorUnitNotAllowed:
 		return fmt.Sprintf("byte size unit %q in %q is not allowed: the field accepts %s units only", e.unit, e.raw, e.allowed)
 	case byteSizeErrorAmbiguousUnit:
@@ -896,6 +912,10 @@ func (f *File) applyTags(tags FieldTags) {
 func byteSizeParseParts(numStr, unitStr, rawText string, tags FieldTags) (int64, byteSizeFamily, error) {
 	if unitStr == "" {
 		parsed, err := strconv.ParseInt(numStr, 10, 64)
+		if errors.Is(err, strconv.ErrRange) {
+			return 0, byteSizeFamilyUnset, &byteSizeError{raw: rawText, kind: byteSizeErrorOutOfRange}
+		}
+
 		if err != nil || parsed < 0 {
 			return 0, byteSizeFamilyUnset, &byteSizeError{raw: numStr, kind: byteSizeErrorInvalidNumber}
 		}
@@ -909,16 +929,18 @@ func byteSizeParseParts(numStr, unitStr, rawText string, tags FieldTags) (int64,
 
 	multiplier, family, ok := byteSizeUnitMultiplier(unitStr)
 	if !ok {
-		return 0, byteSizeFamilyUnset, &byteSizeError{raw: rawText, unit: unitStr, kind: byteSizeErrorUnknownUnit}
+		return 0, byteSizeFamilyUnset, &byteSizeError{raw: rawText, unit: unitStr, accepted: byteSizeAcceptedUnits(tags.String("units")), kind: byteSizeErrorUnknownUnit}
 	}
 
 	if err := byteSizeCheckUnitFamily(rawText, unitStr, family, tags.String("units")); err != nil {
 		return 0, byteSizeFamilyUnset, err
 	}
 
+	// byteSizeSplitNumber has already validated the digits, so a failed
+	// scale means the byte count overflows int64.
 	scaled, exact, ok := byteSizeScaleBytes(numStr, multiplier)
 	if !ok {
-		return 0, byteSizeFamilyUnset, &byteSizeError{raw: numStr, kind: byteSizeErrorInvalidNumber}
+		return 0, byteSizeFamilyUnset, &byteSizeError{raw: rawText, kind: byteSizeErrorOutOfRange}
 	}
 
 	if !exact {
@@ -981,6 +1003,8 @@ func byteSizeUnitMultiplier(unit string) (uint64, byteSizeFamily, bool) {
 		return 1000 * 1000 * 1000 * 1000, byteSizeFamilyDecimal, true
 	case "PB":
 		return 1000 * 1000 * 1000 * 1000 * 1000, byteSizeFamilyDecimal, true
+	case "EB":
+		return 1000 * 1000 * 1000 * 1000 * 1000 * 1000, byteSizeFamilyDecimal, true
 	case "KiB":
 		return 1024, byteSizeFamilyBinary, true
 	case "MiB":
@@ -991,6 +1015,8 @@ func byteSizeUnitMultiplier(unit string) (uint64, byteSizeFamily, bool) {
 		return 1024 * 1024 * 1024 * 1024, byteSizeFamilyBinary, true
 	case "PiB":
 		return 1024 * 1024 * 1024 * 1024 * 1024, byteSizeFamilyBinary, true
+	case "EiB":
+		return 1024 * 1024 * 1024 * 1024 * 1024 * 1024, byteSizeFamilyBinary, true
 	default:
 		return 0, byteSizeFamilyUnset, false
 	}
@@ -1097,6 +1123,7 @@ func byteSizeUnits(family byteSizeFamily) []byteSizeUnit {
 		return nil
 	case byteSizeFamilyDecimal:
 		return []byteSizeUnit{
+			{name: "EB", multiplier: 1000 * 1000 * 1000 * 1000 * 1000 * 1000},
 			{name: "PB", multiplier: 1000 * 1000 * 1000 * 1000 * 1000},
 			{name: "TB", multiplier: 1000 * 1000 * 1000 * 1000},
 			{name: "GB", multiplier: 1000 * 1000 * 1000},
@@ -1105,6 +1132,7 @@ func byteSizeUnits(family byteSizeFamily) []byteSizeUnit {
 		}
 	default:
 		return []byteSizeUnit{
+			{name: "EiB", multiplier: 1024 * 1024 * 1024 * 1024 * 1024 * 1024},
 			{name: "PiB", multiplier: 1024 * 1024 * 1024 * 1024 * 1024},
 			{name: "TiB", multiplier: 1024 * 1024 * 1024 * 1024},
 			{name: "GiB", multiplier: 1024 * 1024 * 1024},
@@ -1124,6 +1152,25 @@ func byteSizeResolveFamily(inputFamily byteSizeFamily, tags FieldTags) byteSizeF
 		return byteSizeFamilyDecimal
 	default:
 		return inputFamily
+	}
+}
+
+// byteSizeAcceptedUnits lists the unit suffixes a field accepts under its
+// units tag, for the unknown-unit error: exact bytes plus the SI and IEC
+// ladders, narrowed to one family by units:"decimal" or units:"binary".
+func byteSizeAcceptedUnits(unitsTag string) string {
+	const (
+		decimal = "kB, MB, GB, TB, PB, EB"
+		binary  = "KiB, MiB, GiB, TiB, PiB, EiB"
+	)
+
+	switch unitsTag {
+	case "decimal":
+		return "B, " + decimal
+	case "binary":
+		return "B, " + binary
+	default:
+		return "B, " + decimal + ", " + binary
 	}
 }
 

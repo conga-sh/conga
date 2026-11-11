@@ -285,3 +285,121 @@ func TestStdio_ExitUsesCurrentStderr(t *testing.T) {
 	assert.NotEqual(t, "", updatedBuffer.String())
 	assert.Equal(t, "", initialBuffer.String())
 }
+
+type stdioConsumersCLI struct {
+	First  conga.OptionalFlag[conga.FileContent] `env:"CONGA_TEST_STDIO_FIRST" name:"first"`
+	Second conga.OptionalFlag[conga.FileContent] `name:"second"`
+	Source conga.OptionalFlag[conga.File]        `name:"source"                stdin:"true"`
+	Output conga.OptionalFlag[conga.File]        `name:"output"                stdout:"true"`
+	Inputs conga.OptionalFlag[[]conga.File]      `name:"input"                 stdin:"true"`
+	Input  conga.OptionalArg[conga.FileContent]
+}
+
+func (c *stdioConsumersCLI) Run(_ context.Context, _ *conga.Session) error {
+	return nil
+}
+
+func TestStdio_SecondStdinConsumerRejected(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		args    []string
+		message string
+	}{
+		{name: "two FileContent flags", args: []string{"--first", "-", "--second", "-"}, message: `stdin can only be read once (--first and --second both use "-")`},
+		{name: "File slice with two dashes", args: []string{"--input=-,-"}, message: `stdin can only be read once (--input uses "-" twice)`},
+		{name: "stdin File and FileContent", args: []string{"--source", "-", "--first", "-"}, message: `stdin can only be read once (--first and --source both use "-")`},
+		{name: "flag and positional", args: []string{"--first", "-", "-"}, message: `stdin can only be read once (--first and argument <input> both use "-")`},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			app := conga.New[stdioConsumersCLI]().
+				Stdin(strings.NewReader("payload")).
+				Args(testCase.args)
+
+			err := app.RunContext(t.Context())
+
+			assert.IsError(t, err, conga.ErrValidation)
+			assert.True(t, conga.IsUsageError(err))
+			assert.Equal(t, testCase.message, err.Error())
+		})
+	}
+}
+
+func TestStdio_EnvStdinConsumerConflictsWithPositional(t *testing.T) {
+	t.Setenv("CONGA_TEST_STDIO_FIRST", "-")
+
+	app := conga.New[stdioConsumersCLI]().
+		Stdin(strings.NewReader("payload")).
+		Args([]string{"-"})
+
+	err := app.RunContext(t.Context())
+
+	assert.IsError(t, err, conga.ErrValidation)
+	assert.Equal(t, `stdin can only be read once (--first and argument <input> both use "-")`, err.Error())
+}
+
+func TestStdio_SingleStdinConsumerWithStdoutFile(t *testing.T) {
+	t.Parallel()
+
+	cli := new(stdioConsumersCLI)
+	app := conga.New(cli).
+		Stdin(strings.NewReader("payload")).
+		Args([]string{"--first", "-", "--output", "-"})
+
+	err := app.RunContext(t.Context())
+
+	assert.NoError(t, err)
+	assert.Equal(t, "payload", cli.First.Get().String())
+	assert.True(t, cli.Output.Get().IsStdio())
+}
+
+func TestStdio_RepeatedFileContentFlagRejectedBeforeReading(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		args []string
+	}{
+		{name: "stdin twice", args: []string{"--first", "-", "--first", "-"}},
+		{name: "stdin then a file", args: []string{"--first", "-", "--first", "notes.txt"}},
+		{name: "two files", args: []string{"--first", "a.txt", "--first", "b.txt"}},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			stdin := strings.NewReader("payload")
+			cli := new(stdioConsumersCLI)
+			app := conga.New(cli).
+				Stdin(stdin).
+				Args(testCase.args)
+
+			err := app.RunContext(t.Context())
+
+			assert.IsError(t, err, conga.ErrParse)
+			assert.True(t, conga.IsUsageError(err))
+			assert.Equal(t, "flag --first can only be given once", err.Error())
+			assert.Equal(t, conga.SourceNone, cli.First.Source())
+			assert.Equal(t, len("payload"), stdin.Len())
+		})
+	}
+}
+
+func TestStdio_RepeatedFileFlagLastWins(t *testing.T) {
+	t.Parallel()
+
+	cli := new(stdioConsumersCLI)
+	app := conga.New(cli).
+		Args([]string{"--source", "a.txt", "--source", "b.txt"})
+
+	err := app.RunContext(t.Context())
+
+	assert.NoError(t, err)
+	assert.Equal(t, "b.txt", cli.Source.Get().String())
+}

@@ -11,7 +11,7 @@ CONGA derives the CLI schema from struct fields and their tags. Schema build val
 |-----|:--------:|:--------:|:-------:|---------|
 | `aliases` | ✅ | ✅ | – | Comma-separated long-name aliases. |
 | `and` | ✅ | ✅ | ✅ | Required co-occurrence group name whose members must all be set together. |
-| `bootstrap` | ✅ | ✅ | ✅ | Bind the field before the bootstrap phase runs and expose it typed to `Bootstrap` (`bootstrap` or `bootstrap:"true"`). Requires a `conga.Bootstrapper`; rejected with `feature`; restricted to scalar, slice-of-scalar, and map-of-scalar types. |
+| `bootstrap` | ✅ | ✅ | ✅ | Bind the field before the bootstrap phase runs and expose it typed to `Bootstrap` (`bootstrap` or `bootstrap:"true"`). Requires a `conga.Bootstrapper`; rejected with `feature`; restricted to scalar, slice-of-scalar, and map-of-scalar types, and rejected on `conga.FileContent` (or a slice or map of it), which reads its file while parsing. |
 | `config` | ✅ | ✅ | ✅ | Config file key feeding the flag, matched exactly as written (default: a key derived from the flag name, spelled in the app's key casing, so `--api-endpoint` reads `api-endpoint`, or `api_endpoint` under `conga.ConfigKeyCase(conga.SnakeCase)`). The tag replaces the name, and aliases never match. A dotted key such as `db.host` is read from nested sections, `host` inside `db`. `config:"-"` excludes the field from config files. |
 | `default` | ✅ | – | – | Default value when no other source provides one. Coerced with the same parser as CLI input. Rejected on required flags and `oneof` members. |
 | `deprecated` | ✅ | – | ✅ | Deprecation notice; suppresses flag from completion. |
@@ -381,7 +381,7 @@ The `executable` and `symlink` capabilities are complete value kinds. They exclu
 
 | Tag | Meaning |
 |-----|---------|
-| `units` | Accepted unit families: `binary` (IEC `KiB`…`PiB`), `decimal` (SI `kB`…`PB`), or `both` (default). A parsed unit outside the allowed family is a coercion error. Exact byte counts (`B` suffix or bare) are family-neutral and accepted by both. |
+| `units` | Accepted unit families: `binary` (IEC `KiB`…`EiB`), `decimal` (SI `kB`…`EB`), or `both` (default). A parsed unit outside the allowed family is a coercion error. Exact byte counts (`B` suffix or bare) are family-neutral and accepted by both. |
 | `display` | Render family: `binary`, `decimal`, or `input` (default, echo the entered unit family). |
 
 ```go

@@ -98,7 +98,8 @@ func TestByteSizeError(t *testing.T) {
 		{name: "invalid", err: &byteSizeError{raw: "10G", kind: byteSizeErrorInvalid}, expected: `invalid byte size "10G"`},
 		{name: "invalid number", err: &byteSizeError{raw: "1.2.3", kind: byteSizeErrorInvalidNumber}, expected: `invalid byte size number "1.2.3"`},
 		{name: "inexact fraction", err: &byteSizeError{raw: "0.5B", kind: byteSizeErrorInexactFraction}, expected: `byte size "0.5B" is not a whole number of bytes`},
-		{name: "unknown unit", err: &byteSizeError{raw: "10ZB", unit: "ZB", kind: byteSizeErrorUnknownUnit}, expected: `unknown byte size unit "ZB" in "10ZB"`},
+		{name: "out of range", err: &byteSizeError{raw: "10000PB", kind: byteSizeErrorOutOfRange}, expected: `byte size "10000PB" is out of range (max 9223372036854775807B)`},
+		{name: "unknown unit", err: &byteSizeError{raw: "10ZB", unit: "ZB", accepted: "B, KiB", kind: byteSizeErrorUnknownUnit}, expected: `unknown byte size unit "ZB" in "10ZB" (accepted: B, KiB)`},
 		{name: "ambiguous unit", err: &byteSizeError{raw: "5KB", unit: "KB", kind: byteSizeErrorAmbiguousUnit}, expected: `ambiguous byte size unit "KB" in "5KB": use kB (1000) or KiB (1024)`},
 		{name: "unknown kind", err: &byteSizeError{raw: "10", kind: byteSizeErrorKind(255)}, expected: `invalid byte size "10"`},
 	}
@@ -196,4 +197,36 @@ func assertClassifiedAs(t *testing.T, target resolverCLI, fieldName string, expe
 
 	assert.Equal(t, expectedKind, classification.Kind, "%s must classify as %v", fieldName, expectedKind)
 	assert.Equal(t, expectedRequired, classification.Required, "%s required flag", fieldName)
+}
+
+// TestByteSizeUnknownUnitAcceptedUnits pins the accepted-unit list of the
+// unknown-unit error for every units tag value: the binary and decimal
+// families narrow it, and both (or no tag) lists every unit.
+func TestByteSizeUnknownUnitAcceptedUnits(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		tags     FieldTags
+		expected string
+	}{
+		{name: "no units tag", tags: nil, expected: `unknown byte size unit "G" in "10G" (accepted: B, kB, MB, GB, TB, PB, EB, KiB, MiB, GiB, TiB, PiB, EiB)`},
+		{name: "units both", tags: FieldTags{"units": "both"}, expected: `unknown byte size unit "G" in "10G" (accepted: B, kB, MB, GB, TB, PB, EB, KiB, MiB, GiB, TiB, PiB, EiB)`},
+		{name: "units binary", tags: FieldTags{"units": "binary"}, expected: `unknown byte size unit "G" in "10G" (accepted: B, KiB, MiB, GiB, TiB, PiB, EiB)`},
+		{name: "units decimal", tags: FieldTags{"units": "decimal"}, expected: `unknown byte size unit "G" in "10G" (accepted: B, kB, MB, GB, TB, PB, EB)`},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			var size ByteSize
+
+			err := size.UnmarshalTextWithContext([]byte("10G"), DecodeContext{Tags: testCase.tags})
+
+			assert.IsError(t, err, ErrCoerce)
+			assert.Equal(t, testCase.expected, err.Error())
+			assert.Equal(t, int64(0), size.Bytes())
+		})
+	}
 }

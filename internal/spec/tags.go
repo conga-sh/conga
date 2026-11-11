@@ -75,6 +75,17 @@ func ParseRangeSpec(tag string) (*Range, error) {
 	}, nil
 }
 
+// FloatBoundParser returns the range-bound parser for a float of bitSize bits
+// (32 or 64). A float32 bound parses at float32 precision and widens to
+// float64 the same way a float32 value does, so a value equal to its bound
+// compares equal; a bound outside the float32 range fails to parse. Schema
+// build, the binder, and conga-lint share it.
+func FloatBoundParser(bitSize int) func(string) (float64, error) {
+	return func(raw string) (float64, error) {
+		return strconv.ParseFloat(raw, bitSize)
+	}
+}
+
 // ValidateScalarRange parses the min/max bounds of rangeSpec with parse and
 // checks their order. boundKind names the value kind in parse-error messages
 // ("duration", "integer", "unsigned integer", "float", "byte size", "value").
@@ -594,11 +605,36 @@ func parseBootstrapField(tag reflect.StructTag, targetType reflect.Type, feature
 		return bootstrap, err
 	}
 
+	if opts.ReadsWhileParsing != nil && bootstrapReadsWhileParsing(targetType, opts.ReadsWhileParsing) {
+		return false, BootstrapReadsWhileParsingError()
+	}
+
 	if !isBootstrapType(targetType) {
 		return false, BootstrapFieldTypeError()
 	}
 
 	return true, nil
+}
+
+// bootstrapReadsWhileParsing reports whether targetType, or the element or
+// key type of a slice or map, reads its input while parsing.
+func bootstrapReadsWhileParsing(targetType reflect.Type, readsWhileParsing func(reflect.Type) bool) bool {
+	if targetType == nil {
+		return false
+	}
+
+	if readsWhileParsing(targetType) {
+		return true
+	}
+
+	switch targetType.Kind() {
+	case reflect.Slice:
+		return readsWhileParsing(targetType.Elem())
+	case reflect.Map:
+		return readsWhileParsing(targetType.Key()) || readsWhileParsing(targetType.Elem())
+	default:
+		return false
+	}
 }
 
 // parseBootstrapTag validates the bootstrap tag's Bootstrapper requirement and
@@ -802,9 +838,7 @@ func validateRangeSpec(rangeSpec *Range, targetType reflect.Type, fieldTags Fiel
 		})
 
 	case reflect.Float32, reflect.Float64:
-		return ValidateScalarRange(rangeSpec, "float", func(raw string) (float64, error) {
-			return strconv.ParseFloat(raw, 64)
-		})
+		return ValidateScalarRange(rangeSpec, "float", FloatBoundParser(elemType.Bits()))
 
 	default:
 		return fmt.Errorf("%w: range tag is not supported on type %s", ErrInvalidRangeSyntax, elemType.String())
