@@ -181,7 +181,28 @@ follow redirects: true
 verbosity: 3
 ```
 
-A cluster can end in a short flag that takes a value, as in `-vvvo page.html`, and `--verbose=2` sets the count directly. A counter starts at 0 and rejects a `default` tag at startup. Use `OptionalFlag[int]` when you need a different starting value.
+A cluster can end in a short flag that takes a value, as in `-vvvo page.html`. A counter counts occurrences and takes no value of its own, so `--verbose=2`, `-v=2`, and `-vv=2` are usage errors:
+
+```sh error={2} wrap
+$ fetch https://example.com --verbose=2
+fetch: error: flag does not take a value: --verbose=2
+
+Usage:
+  fetch [flags] <url>
+
+Run 'fetch --help' for more information.
+```
+
+An environment variable or config file can still set the count, as a whole number of 0 or more. Here the builder also calls `EnvPrefix("FETCH")`:
+
+```sh hidden={2-3}
+$ FETCH_VERBOSE=2 fetch https://example.com
+fetching https://example.com to -: 3 tries, 30s each
+follow redirects: true
+verbosity: 2
+```
+
+A counter starts at 0 and rejects a `default` tag at startup. Use `OptionalFlag[int]` when you need a different starting value, a level the user sets directly on the command line, or a negative value.
 
 ## Accept a list of values
 
@@ -295,6 +316,8 @@ fetch: error: map type map[string]int requires registration via app.RegisterMap
 | An environment variable holds a value of the wrong type | Run | `invalid boolean value "no", expected true or false (or 1 or 0) for flag --redirects (from environment variable FETCH_REDIRECTS)`, exit 2 |
 | The user misspells a flag | Run | `unknown flag: --redirect. Did you mean "redirects"?`, then usage, exit 2 |
 | The user gives `--no-` to a flag without `negatable` | Run | `unknown flag: --no-verbose`, then usage, exit 2 |
+| The user gives a counter a value | Run | `flag does not take a value: --verbose=2`, then usage, exit 2 |
+| An environment variable gives a counter a negative or signed value | Run | `invalid unsigned integer value "-1" for flag --verbose (from environment variable FETCH_VERBOSE)`, exit 2 |
 | The user gives a map entry without `=` | Run | `invalid key-value pair "name", expected KEY=VALUE for flag --form`, exit 2 |
 | The user sets a map flag whose type isn't registered | Run | `map type map[string]int requires registration via app.RegisterMap`, then usage, exit 2 |
 | Two flags share a short name or alias | Startup | `schema error: duplicate flag: short flag -o (already declared by field Output)`, exit 1 |

@@ -386,7 +386,7 @@ func TestConfigFile_CounterCLIOverridesConfig(t *testing.T) {
 	cli := new(CounterOverrideCLI)
 	app := conga.New(cli).
 		RegisterDecoder(".json", json.Decode).
-		Args([]string{"--config", cfgPath, "-v=2"})
+		Args([]string{"--config", cfgPath, "-vv"})
 
 	err = app.Run()
 

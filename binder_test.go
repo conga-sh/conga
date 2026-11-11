@@ -1099,7 +1099,7 @@ func TestBinder_CounterFlag(t *testing.T) {
 		assert.Equal(t, 2, cli.Verbose.Get())
 	})
 
-	t.Run("long flag with attached value --verbose=2", func(t *testing.T) {
+	t.Run("long flag with attached value --verbose=2 is rejected", func(t *testing.T) {
 		t.Parallel()
 
 		cli := new(CLI)
@@ -1108,13 +1108,14 @@ func TestBinder_CounterFlag(t *testing.T) {
 
 		err := app.Run()
 
-		assert.NoError(t, err)
-		assert.True(t, cli.Verbose.IsSet())
-		assert.Equal(t, 2, cli.Verbose.Get())
-		assert.Equal(t, conga.SourceCLI, cli.Verbose.Source())
+		assert.IsError(t, err, conga.ErrParse)
+		assert.True(t, conga.IsUsageError(err))
+		assert.Equal(t, "flag does not take a value: --verbose=2", err.Error())
+		assert.Equal(t, conga.SourceNone, cli.Verbose.Source())
+		assert.Equal(t, 0, cli.Verbose.Get())
 	})
 
-	t.Run("short flag with attached value -v=2", func(t *testing.T) {
+	t.Run("short flag with attached value -v=2 is rejected", func(t *testing.T) {
 		t.Parallel()
 
 		cli := new(CLI)
@@ -1123,22 +1124,75 @@ func TestBinder_CounterFlag(t *testing.T) {
 
 		err := app.Run()
 
-		assert.NoError(t, err)
-		assert.True(t, cli.Verbose.IsSet())
-		assert.Equal(t, 2, cli.Verbose.Get())
-		assert.Equal(t, conga.SourceCLI, cli.Verbose.Source())
+		assert.IsError(t, err, conga.ErrParse)
+		assert.True(t, conga.IsUsageError(err))
+		assert.Equal(t, "flag does not take a value: -v=2", err.Error())
+		assert.Equal(t, conga.SourceNone, cli.Verbose.Source())
+		assert.Equal(t, 0, cli.Verbose.Get())
 	})
 
-	t.Run("invalid attached value --verbose=abc returns coercion error", func(t *testing.T) {
+	t.Run("cluster ending in an attached value -vv=2 is rejected", func(t *testing.T) {
 		t.Parallel()
 
-		app := conga.New[CLI]().
+		cli := new(CLI)
+		app := conga.New(cli).
+			Args([]string{"-vv=2"})
+
+		err := app.Run()
+
+		assert.IsError(t, err, conga.ErrParse)
+		assert.True(t, conga.IsUsageError(err))
+		assert.Equal(t, "flag does not take a value: -vv=2", err.Error())
+		assert.Equal(t, conga.SourceNone, cli.Verbose.Source())
+		assert.Equal(t, 0, cli.Verbose.Get())
+	})
+
+	t.Run("empty attached value --verbose= is rejected", func(t *testing.T) {
+		t.Parallel()
+
+		cli := new(CLI)
+		app := conga.New(cli).
+			Args([]string{"--verbose="})
+
+		err := app.Run()
+
+		assert.IsError(t, err, conga.ErrParse)
+		assert.True(t, conga.IsUsageError(err))
+		assert.Equal(t, "flag does not take a value: --verbose=", err.Error())
+		assert.Equal(t, conga.SourceNone, cli.Verbose.Source())
+		assert.Equal(t, 0, cli.Verbose.Get())
+	})
+
+	t.Run("attached value after bare occurrences -v --verbose=2 is rejected", func(t *testing.T) {
+		t.Parallel()
+
+		cli := new(CLI)
+		app := conga.New(cli).
+			Args([]string{"-v", "--verbose=2"})
+
+		err := app.Run()
+
+		assert.IsError(t, err, conga.ErrParse)
+		assert.True(t, conga.IsUsageError(err))
+		assert.Equal(t, "flag does not take a value: --verbose=2", err.Error())
+		assert.Equal(t, conga.SourceNone, cli.Verbose.Source())
+		assert.Equal(t, 0, cli.Verbose.Get())
+	})
+
+	t.Run("non-integer attached value --verbose=abc is rejected", func(t *testing.T) {
+		t.Parallel()
+
+		cli := new(CLI)
+		app := conga.New(cli).
 			Args([]string{"--verbose=abc"})
 
 		err := app.Run()
 
-		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrCoerce)
+		assert.IsError(t, err, conga.ErrParse)
+		assert.True(t, conga.IsUsageError(err))
+		assert.Equal(t, "flag does not take a value: --verbose=abc", err.Error())
+		assert.Equal(t, conga.SourceNone, cli.Verbose.Source())
+		assert.Equal(t, 0, cli.Verbose.Get())
 	})
 }
 
@@ -1162,6 +1216,50 @@ func TestBinder_CounterEnvSeed(t *testing.T) {
 	assert.Equal(t, 3, cli.Verbose.Get())
 	assert.True(t, cli.Verbose.Changed())
 	assert.Equal(t, conga.SourceEnv, cli.Verbose.Source())
+}
+
+func TestBinder_CounterNegativeEnvRejected(t *testing.T) {
+	t.Setenv("CONGA_TEST_VERBOSE_NEGATIVE", "-4")
+
+	type CLI struct {
+		noopRunner
+
+		Verbose conga.Counter `env:"CONGA_TEST_VERBOSE_NEGATIVE" help:"Verbosity level" short:"v"`
+	}
+
+	cli := new(CLI)
+	app := conga.New(cli).
+		Args([]string{})
+
+	err := app.Run()
+
+	assert.IsError(t, err, conga.ErrCoerce)
+	assert.Equal(t, `invalid unsigned integer value "-4" for flag --verbose (from environment variable CONGA_TEST_VERBOSE_NEGATIVE)`, err.Error())
+	assert.Equal(t, conga.SourceNone, cli.Verbose.Source())
+	assert.Equal(t, 0, cli.Verbose.Get())
+}
+
+func TestBinder_CounterNegativeConfigRejected(t *testing.T) {
+	t.Parallel()
+
+	type CLI struct {
+		noopRunner
+
+		Verbose conga.Counter `help:"Verbosity level" short:"v"`
+	}
+
+	cli := new(CLI)
+	app := conga.New(cli).
+		RegisterDecoder(".json", json.Decode).
+		ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"verbose": -2}`))).
+		Args([]string{})
+
+	err := app.Run()
+
+	assert.IsError(t, err, conga.ErrCoerce)
+	assert.Equal(t, `invalid unsigned integer value "-2" for flag --verbose (from config key "verbose")`, err.Error())
+	assert.Equal(t, conga.SourceNone, cli.Verbose.Source())
+	assert.Equal(t, 0, cli.Verbose.Get())
 }
 
 func TestBinder_CounterCLIOverridesEnv(t *testing.T) {
