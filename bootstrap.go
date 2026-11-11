@@ -235,6 +235,9 @@ func (a *App[T]) bindBootstrapContainers(invocation parsedInvocation, envLookup 
 		CustomMapMerger: a.customMapMerger,
 		Stdin:           a.stdin,
 		Stdout:          a.stdout,
+		// The bootstrap pass keeps its own stdin record: bootstrap-tagged
+		// values are bound again in the normal pass.
+		StdinClaim: &stdinClaim{},
 	}
 
 	var snapshots []containerSnapshot
@@ -330,7 +333,7 @@ func (a *App[T]) bindBootstrapTrailingArg(invocation parsedInvocation, state *bi
 	switch {
 	case len(invocation.posTokens[tokenIndex:]) > 0:
 		if arg.IsSlice {
-			err = resolveSliceArg(invocation.cmdChain, arg, invocation.posTokens[tokenIndex:], state.TypeParsers, coerce.DecodeContext{Stdin: state.Stdin, Stdout: state.Stdout})
+			err = resolveSliceArg(invocation.cmdChain, arg, invocation.posTokens[tokenIndex:], state.TypeParsers, coerce.DecodeContext{Stdin: state.Stdin, Stdout: state.Stdout}, state.StdinClaim)
 		} else {
 			err = resolveMapArg(invocation.cmdChain, arg, invocation.posTokens[tokenIndex:], state.TypeParsers)
 		}
@@ -353,7 +356,7 @@ func (a *App[T]) bindBootstrapTokenArg(invocation parsedInvocation, state *bindi
 	snapshot := snapshotContainer(arg.Handle)
 	snapshots = append(snapshots, snapshot)
 
-	_, err := resolveScalarArg(invocation.cmdChain, arg, invocation.posTokens, tokenIndex, state.TypeParsers, coerce.DecodeContext{Stdin: state.Stdin, Stdout: state.Stdout})
+	_, err := resolveScalarArg(invocation.cmdChain, arg, invocation.posTokens, tokenIndex, state.TypeParsers, coerce.DecodeContext{Stdin: state.Stdin, Stdout: state.Stdout}, state.StdinClaim)
 
 	return tolerateBootstrapError(snapshots, snapshot, err, tolerate)
 }
@@ -366,7 +369,7 @@ func (a *App[T]) bindBootstrapDefaultArg(invocation parsedInvocation, state *bin
 	snapshot := snapshotContainer(arg.Handle)
 	snapshots = append(snapshots, snapshot)
 
-	_, err := resolveScalarArg(invocation.cmdChain, arg, invocation.posTokens, tokenIndex, state.TypeParsers, coerce.DecodeContext{Stdin: state.Stdin, Stdout: state.Stdout})
+	_, err := resolveScalarArg(invocation.cmdChain, arg, invocation.posTokens, tokenIndex, state.TypeParsers, coerce.DecodeContext{Stdin: state.Stdin, Stdout: state.Stdout}, state.StdinClaim)
 
 	return tolerateBootstrapError(snapshots, snapshot, err, tolerate)
 }

@@ -148,6 +148,18 @@ $ echo "# from stdin" | convert --input notes.txt --header -
 HELLO, WORLD
 ```
 
+Standard input can be read only once, so at most one value in a run can be `-` for a `FileContent` or a `File` with `stdin`. A second one is a usage error, before either is read:
+
+```sh error={2} wrap
+$ echo "# from stdin" | convert --input - --header -
+convert: error: stdin can only be read once (--input and --header both use "-")
+
+Usage:
+  convert --input=FILE [flags]
+
+Run 'convert --help' for more information.
+```
+
 Because CONGA reads the file before `Run`, a missing file is a usage error, exit 2:
 
 ```sh error={2}
@@ -185,7 +197,7 @@ Units are case-sensitive and end in `B`. `kB`, `MB`, and `GB` are powers of 1000
 
 ```sh error={2}
 $ convert --input notes.txt --max-size 10M
-convert: error: unknown byte size unit "M" in "10M" for flag --max-size
+convert: error: unknown byte size unit "M" in "10M" (accepted: B, kB, MB, GB, TB, PB, EB, KiB, MiB, GiB, TiB, PiB, EiB) for flag --max-size
 ```
 
 ```sh error={2}
@@ -254,7 +266,8 @@ convert: error: "notes.txt" is a file, but a directory was expected for flag --k
 | Names a file where a directory is expected | `"notes.txt" is a file, but a directory was expected for flag --keep-dir`, exit 2 |
 | Names a directory that doesn't exist, for `Dir` with `existing` | `stat nowhere: no such file or directory for flag --keep-dir`, exit 2 |
 | Passes `-` to a `File` flag without `stdin` or `stdout` | `"-" requires the stdin or stdout tag on the field for flag --input`, exit 2 |
-| Gives a size without the `B` | `unknown byte size unit "M" in "10M" for flag --max-size`, exit 2 |
+| Passes `-` to two values that read standard input | `stdin can only be read once (--input and --header both use "-")`, then usage, exit 2 |
+| Gives a size without the `B` | `unknown byte size unit "M" in "10M" (accepted: B, kB, MB, GB, TB, PB, EB, KiB, MiB, GiB, TiB, PiB, EiB) for flag --max-size`, exit 2 |
 | Gives a size outside the `range` | `value 10B is out of range [1KiB..100MiB] for flag --max-size`, exit 2 |
 
 The same checks apply when the value comes from an environment variable or a config file.

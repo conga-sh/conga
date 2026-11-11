@@ -2038,3 +2038,91 @@ func TestBinder_CounterCoercionError(t *testing.T) {
 	assert.Error(t, err)
 	assert.IsError(t, err, conga.ErrCoerce)
 }
+
+type repeatedScalarCLI struct {
+	noopRunner
+
+	Name  conga.OptionalFlag[string] `name:"name"`
+	Port  conga.OptionalFlag[int]    `name:"port"`
+	Token conga.RequiredFlag[int]    `name:"token"`
+}
+
+func TestBinder_RepeatedScalarFlagLastWins(t *testing.T) {
+	t.Parallel()
+
+	t.Run("string", func(t *testing.T) {
+		t.Parallel()
+
+		cli := new(repeatedScalarCLI)
+		app := conga.New(cli).
+			Args([]string{"--token", "1", "--name", "first", "--name", "second"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, "second", cli.Name.Get())
+		assert.Equal(t, conga.SourceCLI, cli.Name.Source())
+	})
+
+	t.Run("int", func(t *testing.T) {
+		t.Parallel()
+
+		cli := new(repeatedScalarCLI)
+		app := conga.New(cli).
+			Args([]string{"--token", "1", "--port", "1", "--port", "2"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, 2, cli.Port.Get())
+		assert.Equal(t, conga.SourceCLI, cli.Port.Source())
+	})
+
+	t.Run("required flag", func(t *testing.T) {
+		t.Parallel()
+
+		cli := new(repeatedScalarCLI)
+		app := conga.New(cli).
+			Args([]string{"--token", "1", "--token", "3"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, 3, cli.Token.Get())
+		assert.Equal(t, conga.SourceCLI, cli.Token.Source())
+	})
+}
+
+func TestBinder_RepeatedScalarFlagInvalidEarlierOccurrence(t *testing.T) {
+	t.Parallel()
+
+	t.Run("optional flag", func(t *testing.T) {
+		t.Parallel()
+
+		cli := new(repeatedScalarCLI)
+		app := conga.New(cli).
+			Args([]string{"--token", "1", "--port", "abc", "--port", "5"})
+
+		err := app.Run()
+
+		assert.IsError(t, err, conga.ErrCoerce)
+		assert.Equal(t, `invalid integer value "abc" for flag --port`, err.Error())
+		assert.Equal(t, conga.SourceNone, cli.Port.Source())
+		assert.Equal(t, 0, cli.Port.Get())
+	})
+
+	t.Run("required flag", func(t *testing.T) {
+		t.Parallel()
+
+		cli := new(repeatedScalarCLI)
+		app := conga.New(cli).
+			Args([]string{"--token", "x", "--token", "3"})
+
+		err := app.Run()
+
+		assert.IsError(t, err, conga.ErrCoerce)
+		assert.Equal(t, `invalid integer value "x" for flag --token`, err.Error())
+		assert.Equal(t, conga.SourceNone, cli.Token.Source())
+		assert.Equal(t, 0, cli.Token.Get())
+	})
+}

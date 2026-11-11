@@ -381,7 +381,7 @@ The `executable` and `symlink` capabilities are complete value kinds. They exclu
 
 | Tag | Meaning |
 |-----|---------|
-| `units` | Accepted unit families: `binary` (IEC `KiB`…`PiB`), `decimal` (SI `kB`…`PB`), or `both` (default). A parsed unit outside the allowed family is a coercion error. Exact byte counts (`B` suffix or bare) are family-neutral and accepted by both. |
+| `units` | Accepted unit families: `binary` (IEC `KiB`…`EiB`), `decimal` (SI `kB`…`EB`), or `both` (default). A parsed unit outside the allowed family is a coercion error. Exact byte counts (`B` suffix or bare) are family-neutral and accepted by both. |
 | `display` | Render family: `binary`, `decimal`, or `input` (default, echo the entered unit family). |
 
 ```go

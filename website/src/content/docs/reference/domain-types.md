@@ -51,10 +51,10 @@ func (u *Upload) Run(ctx context.Context, session *conga.Session) error {
 | Form | Examples | Meaning |
 |------|----------|---------|
 | Exact bytes | `1024`, `500B` | Byte counts |
-| Decimal | `kB`, `MB`, `GB`, `TB`, `PB` | Powers of 1000 |
-| Binary | `KiB`, `MiB`, `GiB`, `TiB`, `PiB` | Powers of 1024 |
+| Decimal | `kB`, `MB`, `GB`, `TB`, `PB`, `EB` | Powers of 1000 |
+| Binary | `KiB`, `MiB`, `GiB`, `TiB`, `PiB`, `EiB` | Powers of 1024 |
 
-The numeric prefix is digits with an optional fraction whose contribution resolves exactly to bytes (`1.5GB`, `0.5GiB`), and a sub-byte remainder such as `0.1GiB` is rejected. Naked unit suffixes without `B` (`10G`, `512Mi`) and lowercase casings (`mb`, `kib`) are rejected to prevent ambiguity. `kB` is always 1000 bytes and `KiB` is always 1024. `KB` is rejected as ambiguous because it denotes 1000 bytes in SI usage and 1024 bytes in legacy usage. Text input must be non-negative.
+The numeric prefix is digits with an optional fraction whose contribution resolves exactly to bytes (`1.5GB`, `0.5GiB`), and a sub-byte remainder such as `0.1GiB` is rejected. Naked unit suffixes without `B` (`10G`, `512Mi`) and lowercase casings (`mb`, `kib`) are rejected to prevent ambiguity. `kB` is always 1000 bytes and `KiB` is always 1024. `KB` is rejected as ambiguous because it denotes 1000 bytes in SI usage and 1024 bytes in legacy usage. An unknown unit error lists the units the field accepts. Text input must be non-negative, and the largest size is 9223372036854775807 bytes (one byte under `8EiB`). A larger size, such as `10000PB`, fails with `byte size "10000PB" is out of range (max 9223372036854775807B)`.
 
 ### Byte size rendering
 
@@ -95,7 +95,7 @@ Compare `ByteSize` values with `Equal`, order with `Compare`, and retrieve raw m
 
 ### File streaming
 
-`File` streams through `Reader()` and `Writer()`, which return `io.ReadCloser` and `io.WriteCloser`. When the value is `-`, `Reader()` wraps the app's standard input and `Writer()` its standard output (the streams set with `App.Stdin` and `App.Stdout`, which default to `os.Stdin` and `os.Stdout`). A `File` that no app bound uses `os.Stdin` and `os.Stdout`. The wrappers absorb `Close()`, so callers can always `defer Close()`. `Stat()` exposes the file metadata, and `IsStdio()` reports the `-` case so commands can skip filesystem-only side effects (backups, atomic renames) and route diagnostics away from a stdout payload stream. Reading beyond these helpers is the caller's responsibility (`io.ReadAll(f.Reader())`), and `FileContent` is the bounded whole-file shortcut.
+`File` streams through `Reader()` and `Writer()`, which return `io.ReadCloser` and `io.WriteCloser`. When the value is `-`, `Reader()` wraps the app's standard input and `Writer()` its standard output (the streams set with `App.Stdin` and `App.Stdout`, which default to `os.Stdin` and `os.Stdout`). A `File` that no app bound uses `os.Stdin` and `os.Stdout`. The wrappers absorb `Close()`, so callers can always `defer Close()`. `Stat()` exposes the file metadata, and `IsStdio()` reports the `-` case so commands can skip filesystem-only side effects (backups, atomic renames) and route diagnostics away from a stdout payload stream. Standard input can be read once per run: at most one value may be `-` for a `FileContent` or for a `File` with `stdin`, counting every flag, positional argument, slice item, and source, and a second one fails before either reads with `stdin can only be read once (--input and --header both use "-")` (`ErrValidation`, exit 2). Any number of `stdout` values may be `-`. Reading beyond these helpers is the caller's responsibility (`io.ReadAll(f.Reader())`), and `FileContent` is the bounded whole-file shortcut.
 
 ```go
 func (c *Convert) Run(ctx context.Context, session *conga.Session) error {

@@ -73,6 +73,7 @@ var (
 	errInvalidItemCount  = fmt.Errorf("%w: invalid item count", ErrValidation)
 	errMutuallyExclusive = fmt.Errorf("%w: mutually exclusive flags", ErrValidation)
 	errAndGroup          = fmt.Errorf("%w: flags must be given together", ErrValidation)
+	errStdinReadTwice    = fmt.Errorf("%w: stdin can only be read once", ErrValidation)
 
 	errPathWrongKind = fmt.Errorf("%w: wrong path kind", ErrCoerce)
 

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"math"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -601,56 +602,67 @@ func TestDomainTypes(t *testing.T) {
 	t.Run("ByteSize table-driven test cases", func(t *testing.T) {
 		t.Parallel()
 
+		const acceptedUnits = "B, kB, MB, GB, TB, PB, EB, KiB, MiB, GiB, TiB, PiB, EiB"
+
 		testCases := []struct {
-			name        string
-			input       string
-			expected    int64
-			expectError bool
+			name         string
+			input        string
+			expected     int64
+			errorMessage string
 		}{
-			{name: "pure integer without unit", input: "1024", expected: 1024, expectError: false},
-			{name: "zero integer", input: "0", expected: 0, expectError: false},
-			{name: "exact bytes B unit", input: "500B", expected: 500, expectError: false},
-			{name: "SI kilobytes lowercase k", input: "1kB", expected: 1000, expectError: false},
-			{name: "SI kilobytes uppercase K rejected as ambiguous", input: "2KB", expected: 0, expectError: true},
-			{name: "IEC kibibytes", input: "1KiB", expected: 1024, expectError: false},
-			{name: "SI megabytes", input: "10MB", expected: 10 * 1000 * 1000, expectError: false},
-			{name: "IEC mebibytes", input: "1MiB", expected: 1024 * 1024, expectError: false},
-			{name: "SI gigabytes", input: "2GB", expected: 2 * 1000 * 1000 * 1000, expectError: false},
-			{name: "IEC gibibytes", input: "1GiB", expected: 1024 * 1024 * 1024, expectError: false},
-			{name: "SI terabytes", input: "1TB", expected: 1000 * 1000 * 1000 * 1000, expectError: false},
-			{name: "IEC tebibytes", input: "1TiB", expected: 1024 * 1024 * 1024 * 1024, expectError: false},
-			{name: "SI petabytes", input: "1PB", expected: 1000 * 1000 * 1000 * 1000 * 1000, expectError: false},
-			{name: "IEC pebibytes", input: "1PiB", expected: 1024 * 1024 * 1024 * 1024 * 1024, expectError: false},
-			{name: "fractional SI megabytes", input: "1.5MB", expected: int64(1.5 * 1000 * 1000), expectError: false},
-			{name: "fractional IEC gibibytes", input: "0.5GiB", expected: int64(0.5 * 1024 * 1024 * 1024), expectError: false},
-			{name: "fractional trailing zeros resolve exactly", input: "1.500GB", expected: 1500 * 1000 * 1000, expectError: false},
-			{name: "outer whitespace trimmed", input: "  256MiB  ", expected: 256 * 1024 * 1024, expectError: false},
-			{name: "512 mebibytes", input: "512MiB", expected: 512 * 1024 * 1024, expectError: false},
-			{name: "2 gibibytes", input: "2GiB", expected: 2 * 1024 * 1024 * 1024, expectError: false},
-			{name: "empty input rejected", input: "", expected: 0, expectError: true},
-			{name: "raw fractional integer rejected", input: "1.5", expected: 0, expectError: true},
-			{name: "leading dot without digits rejected", input: ".B", expected: 0, expectError: true},
-			{name: "leading dot fraction rejected", input: ".5MiB", expected: 0, expectError: true},
-			{name: "trailing dot rejected", input: "1.", expected: 0, expectError: true},
-			{name: "multiple dots rejected", input: "1.2.3B", expected: 0, expectError: true},
-			{name: "fractional byte below one rejected", input: "0.5B", expected: 0, expectError: true},
-			{name: "fractional byte above one rejected", input: "1.5B", expected: 0, expectError: true},
-			{name: "inexact binary fraction rejected", input: "0.1GiB", expected: 0, expectError: true},
-			{name: "inexact decimal sub-byte fraction rejected", input: "0.0000001MB", expected: 0, expectError: true},
-			{name: "lowercase byte unit rejected", input: "500b", expected: 0, expectError: true},
-			{name: "naked K prefix rejected", input: "4K", expected: 0, expectError: true},
-			{name: "naked M prefix rejected", input: "10M", expected: 0, expectError: true},
-			{name: "naked G prefix rejected", input: "1G", expected: 0, expectError: true},
-			{name: "naked Gi prefix rejected", input: "10Gi", expected: 0, expectError: true},
-			{name: "lowercase kib rejected", input: "100kib", expected: 0, expectError: true},
-			{name: "uppercase MIB rejected", input: "512MIB", expected: 0, expectError: true},
-			{name: "megabit casing rejected", input: "10Mb", expected: 0, expectError: true},
-			{name: "lowercase megabyte rejected", input: "10mb", expected: 0, expectError: true},
-			{name: "lowercase gigabyte rejected", input: "1gb", expected: 0, expectError: true},
-			{name: "internal whitespace rejected", input: "256 MiB", expected: 0, expectError: true},
-			{name: "invalid number", input: "abcMB", expected: 0, expectError: true},
-			{name: "invalid unit", input: "100XYZ", expected: 0, expectError: true},
-			{name: "negative value", input: "-5MB", expected: 0, expectError: true},
+			{name: "pure integer without unit", input: "1024", expected: 1024},
+			{name: "zero integer", input: "0", expected: 0},
+			{name: "exact bytes B unit", input: "500B", expected: 500},
+			{name: "SI kilobytes lowercase k", input: "1kB", expected: 1000},
+			{name: "SI kilobytes uppercase K rejected as ambiguous", input: "2KB", errorMessage: `ambiguous byte size unit "KB" in "2KB": use kB (1000) or KiB (1024)`},
+			{name: "IEC kibibytes", input: "1KiB", expected: 1024},
+			{name: "SI megabytes", input: "10MB", expected: 10 * 1000 * 1000},
+			{name: "IEC mebibytes", input: "1MiB", expected: 1024 * 1024},
+			{name: "SI gigabytes", input: "2GB", expected: 2 * 1000 * 1000 * 1000},
+			{name: "IEC gibibytes", input: "1GiB", expected: 1024 * 1024 * 1024},
+			{name: "SI terabytes", input: "1TB", expected: 1000 * 1000 * 1000 * 1000},
+			{name: "IEC tebibytes", input: "1TiB", expected: 1024 * 1024 * 1024 * 1024},
+			{name: "SI petabytes", input: "1PB", expected: 1000 * 1000 * 1000 * 1000 * 1000},
+			{name: "IEC pebibytes", input: "1PiB", expected: 1024 * 1024 * 1024 * 1024 * 1024},
+			{name: "SI exabytes", input: "1EB", expected: 1000 * 1000 * 1000 * 1000 * 1000 * 1000},
+			{name: "IEC exbibytes", input: "1EiB", expected: 1024 * 1024 * 1024 * 1024 * 1024 * 1024},
+			{name: "largest IEC exbibytes that fit", input: "7EiB", expected: 7 * 1024 * 1024 * 1024 * 1024 * 1024 * 1024},
+			{name: "largest SI exabytes that fit", input: "9EB", expected: 9 * 1000 * 1000 * 1000 * 1000 * 1000 * 1000},
+			{name: "largest exact byte count", input: "9223372036854775807", expected: math.MaxInt64},
+			{name: "exact byte count past int64 is out of range", input: "9223372036854775808", errorMessage: `byte size "9223372036854775808" is out of range (max 9223372036854775807B)`},
+			{name: "valid number with overflowing unit is out of range", input: "10000PB", errorMessage: `byte size "10000PB" is out of range (max 9223372036854775807B)`},
+			{name: "8EiB is one byte past the maximum", input: "8EiB", errorMessage: `byte size "8EiB" is out of range (max 9223372036854775807B)`},
+			{name: "10EB is out of range", input: "10EB", errorMessage: `byte size "10EB" is out of range (max 9223372036854775807B)`},
+			{name: "fractional SI megabytes", input: "1.5MB", expected: int64(1.5 * 1000 * 1000)},
+			{name: "fractional IEC gibibytes", input: "0.5GiB", expected: int64(0.5 * 1024 * 1024 * 1024)},
+			{name: "fractional trailing zeros resolve exactly", input: "1.500GB", expected: 1500 * 1000 * 1000},
+			{name: "outer whitespace trimmed", input: "  256MiB  ", expected: 256 * 1024 * 1024},
+			{name: "512 mebibytes", input: "512MiB", expected: 512 * 1024 * 1024},
+			{name: "2 gibibytes", input: "2GiB", expected: 2 * 1024 * 1024 * 1024},
+			{name: "empty input rejected", input: "", errorMessage: `empty byte size`},
+			{name: "raw fractional integer rejected", input: "1.5", errorMessage: `invalid byte size number "1.5"`},
+			{name: "leading dot without digits rejected", input: ".B", errorMessage: `invalid byte size ".B"`},
+			{name: "leading dot fraction rejected", input: ".5MiB", errorMessage: `invalid byte size ".5MiB"`},
+			{name: "trailing dot rejected", input: "1.", errorMessage: `invalid byte size number "1."`},
+			{name: "multiple dots rejected", input: "1.2.3B", errorMessage: `invalid byte size number "1.2.3B"`},
+			{name: "fractional byte below one rejected", input: "0.5B", errorMessage: `byte size "0.5B" is not a whole number of bytes`},
+			{name: "fractional byte above one rejected", input: "1.5B", errorMessage: `byte size "1.5B" is not a whole number of bytes`},
+			{name: "inexact binary fraction rejected", input: "0.1GiB", errorMessage: `byte size "0.1GiB" is not a whole number of bytes`},
+			{name: "inexact decimal sub-byte fraction rejected", input: "0.0000001MB", errorMessage: `byte size "0.0000001MB" is not a whole number of bytes`},
+			{name: "lowercase byte unit rejected", input: "500b", errorMessage: `unknown byte size unit "b" in "500b" (accepted: ` + acceptedUnits + `)`},
+			{name: "naked K prefix rejected", input: "4K", errorMessage: `unknown byte size unit "K" in "4K" (accepted: ` + acceptedUnits + `)`},
+			{name: "naked M prefix rejected", input: "10M", errorMessage: `unknown byte size unit "M" in "10M" (accepted: ` + acceptedUnits + `)`},
+			{name: "naked G prefix rejected", input: "1G", errorMessage: `unknown byte size unit "G" in "1G" (accepted: ` + acceptedUnits + `)`},
+			{name: "naked Gi prefix rejected", input: "10Gi", errorMessage: `unknown byte size unit "Gi" in "10Gi" (accepted: ` + acceptedUnits + `)`},
+			{name: "lowercase kib rejected", input: "100kib", errorMessage: `unknown byte size unit "kib" in "100kib" (accepted: ` + acceptedUnits + `)`},
+			{name: "uppercase MIB rejected", input: "512MIB", errorMessage: `unknown byte size unit "MIB" in "512MIB" (accepted: ` + acceptedUnits + `)`},
+			{name: "megabit casing rejected", input: "10Mb", errorMessage: `unknown byte size unit "Mb" in "10Mb" (accepted: ` + acceptedUnits + `)`},
+			{name: "lowercase megabyte rejected", input: "10mb", errorMessage: `unknown byte size unit "mb" in "10mb" (accepted: ` + acceptedUnits + `)`},
+			{name: "lowercase gigabyte rejected", input: "1gb", errorMessage: `unknown byte size unit "gb" in "1gb" (accepted: ` + acceptedUnits + `)`},
+			{name: "internal whitespace rejected", input: "256 MiB", errorMessage: `unknown byte size unit " MiB" in "256 MiB" (accepted: ` + acceptedUnits + `)`},
+			{name: "invalid number", input: "abcMB", errorMessage: `invalid byte size "abcMB"`},
+			{name: "invalid unit", input: "100XYZ", errorMessage: `unknown byte size unit "XYZ" in "100XYZ" (accepted: ` + acceptedUnits + `)`},
+			{name: "negative value", input: "-5MB", errorMessage: `invalid byte size "-5MB"`},
 		}
 
 		for _, testCase := range testCases {
@@ -660,12 +672,17 @@ func TestDomainTypes(t *testing.T) {
 				var byteSize conga.ByteSize
 
 				err := byteSize.UnmarshalText([]byte(testCase.input))
-				if testCase.expectError {
-					assert.Error(t, err)
-				} else {
-					assert.NoError(t, err)
-					assert.Equal(t, testCase.expected, byteSize.Bytes())
+
+				if testCase.errorMessage != "" {
+					assert.IsError(t, err, conga.ErrCoerce)
+					assert.Equal(t, testCase.errorMessage, err.Error())
+					assert.Equal(t, int64(0), byteSize.Bytes())
+
+					return
 				}
+
+				assert.NoError(t, err)
+				assert.Equal(t, testCase.expected, byteSize.Bytes())
 			})
 		}
 	})
@@ -1901,4 +1918,68 @@ func TestByteSizeEqualAndCompare(t *testing.T) {
 
 	assert.Equal(t, -1, parsedKiB.Compare(parsedBytes))
 	assert.Equal(t, 1, parsedBytes.Compare(parsedKiB))
+}
+
+type byteSizeUnitsHintCLI struct {
+	noopRunner
+
+	Binary  conga.OptionalFlag[conga.ByteSize] `name:"binary"  units:"binary"`
+	Decimal conga.OptionalFlag[conga.ByteSize] `name:"decimal" units:"decimal"`
+}
+
+func TestByteSize_UnknownUnitHintFollowsUnitsTag(t *testing.T) {
+	t.Parallel()
+
+	t.Run("binary field lists binary units", func(t *testing.T) {
+		t.Parallel()
+
+		err := conga.New[byteSizeUnitsHintCLI]().Args([]string{"--binary", "10G"}).Run()
+
+		assert.IsError(t, err, conga.ErrCoerce)
+		assert.Equal(t, `unknown byte size unit "G" in "10G" (accepted: B, KiB, MiB, GiB, TiB, PiB, EiB) for flag --binary`, err.Error())
+	})
+
+	t.Run("decimal field lists decimal units", func(t *testing.T) {
+		t.Parallel()
+
+		err := conga.New[byteSizeUnitsHintCLI]().Args([]string{"--decimal", "10G"}).Run()
+
+		assert.IsError(t, err, conga.ErrCoerce)
+		assert.Equal(t, `unknown byte size unit "G" in "10G" (accepted: B, kB, MB, GB, TB, PB, EB) for flag --decimal`, err.Error())
+	})
+}
+
+func TestByteSize_ExaUnitsRenderAndRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		input    string
+		rendered string
+	}{
+		{name: "1024PiB renders as 1EiB", input: "1024PiB", rendered: "1EiB"},
+		{name: "7EiB renders as 7EiB", input: "7EiB", rendered: "7EiB"},
+		{name: "1000PB renders as 1EB", input: "1000PB", rendered: "1EB"},
+		{name: "8191PiB stays in PiB", input: "8191PiB", rendered: "8191PiB"},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			var parsed conga.ByteSize
+
+			err := parsed.UnmarshalText([]byte(testCase.input))
+
+			assert.NoError(t, err)
+			assert.Equal(t, testCase.rendered, parsed.String())
+
+			var reparsed conga.ByteSize
+
+			err = reparsed.UnmarshalText([]byte(parsed.String()))
+
+			assert.NoError(t, err)
+			assert.Equal(t, parsed.Bytes(), reparsed.Bytes())
+		})
+	}
 }

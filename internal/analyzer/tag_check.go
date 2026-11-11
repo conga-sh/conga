@@ -769,10 +769,10 @@ func (w *walker) validateRangeBounds(rangeSpec *spec.Range, targetType types.Typ
 		return spec.ValidateScalarRange(rangeSpec, "unsigned integer", func(raw string) (uint64, error) {
 			return strconv.ParseUint(raw, 10, 64)
 		})
-	case types.Float32, types.Float64:
-		return spec.ValidateScalarRange(rangeSpec, "float", func(raw string) (float64, error) {
-			return strconv.ParseFloat(raw, 64)
-		})
+	case types.Float32:
+		return spec.ValidateScalarRange(rangeSpec, "float", spec.FloatBoundParser(32))
+	case types.Float64:
+		return spec.ValidateScalarRange(rangeSpec, "float", spec.FloatBoundParser(64))
 	default:
 		return fmt.Errorf("%w: range tag is not supported on type %s", spec.ErrInvalidRangeSyntax, types.TypeString(elementType, shortPackageQualifier))
 	}

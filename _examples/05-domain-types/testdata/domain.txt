@@ -40,7 +40,7 @@ stderr 'invalid port range 9000-8000 \(must be 1\.\.65535 and min <= max\) for f
 
 # 7. Malformed byte size unit fails coercion
 exit-status 2 domain-types -m 5XB
-stderr 'unknown byte size unit "XB" in "5XB" for flag --max-memory'
+stderr 'unknown byte size unit "XB" in "5XB" \(accepted: B, kB, MB, GB, TB, PB, EB, KiB, MiB, GiB, TiB, PiB, EiB\) for flag --max-memory'
 
 # 8. Invalid header name fails custom SelfValidator.Validate() on map domain type
 exit-status 2 domain-types -H X-Bad@Header=value

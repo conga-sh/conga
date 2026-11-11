@@ -390,6 +390,19 @@ type RangeApp struct { // want `does not implement conga\.Runner`
 
 var _ = conga.New[RangeApp]()
 
+// Float32RangeApp declares a bound outside the float32 range; conga-lint
+// parses float32 bounds at float32 precision, as schema build does.
+type Float32RangeApp struct {
+	Ratio conga.OptionalFlag[float32] `name:"ratio" range:"0..1e39" help:"Ratio"` // want `invalid float max bound "1e39"`
+}
+
+// Run executes the float32 range fixture.
+func (f *Float32RangeApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[Float32RangeApp]()
+
 // ByteSizeRangeApp declares an unparseable byte-size bound; conga-lint parses
 // conga.ByteSize bounds with the runtime grammar.
 type ByteSizeRangeApp struct {
