@@ -5,7 +5,6 @@ package completion
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -15,7 +14,7 @@ import (
 // exec path; Linux never needs the full path since the bash upgrade warning is
 // macOS-only.
 func parentProcess(pid int) (int, string, error) {
-	data, err := os.ReadFile(filepath.Clean(fmt.Sprintf("/proc/%d/stat", pid)))
+	data, err := os.ReadFile(fmt.Sprintf("/proc/%d/stat", pid))
 	if err != nil {
 		return 0, "", err
 	}

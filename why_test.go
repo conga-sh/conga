@@ -2892,3 +2892,130 @@ func TestWhy_ConfigPathsChecked_FirstHitSkipsLaterTiersJSON(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Contains(t, output, `{"path":`+strconv.Quote(userDir)+`,"status":"skipped"}`)
 }
+
+// whyConfigPathLines renders the expected "Config paths" block for whole-path
+// candidates, padding each path to the widest one as the report does.
+func whyConfigPathLines(rows ...[2]string) string {
+	width := 0
+	for _, row := range rows {
+		width = max(width, len(row[0]))
+	}
+
+	var builder strings.Builder
+
+	builder.WriteString("Config paths:\n")
+
+	for _, row := range rows {
+		builder.WriteString("  " + row[0] + strings.Repeat(" ", width-len(row[0])) + "   " + row[1] + "\n")
+	}
+
+	return builder.String()
+}
+
+func TestWhy_ConfigPathsChecked_FlagSkipsEnvAndExplicit(t *testing.T) {
+	explicitPath := writeConfigFile(t, `{"port": 1}`)
+	envPath := writeConfigFile(t, `{"port": 2}`)
+	flagPath := writeConfigFile(t, `{"port": 3}`)
+	t.Setenv("CONGA_TEST_WHY_SKIP_FLAG_CONFIG", envPath)
+
+	var buffer bytes.Buffer
+
+	app := conga.New[whyExplicitConfigCLI]().
+		EnvPrefix("CONGA_TEST_WHY_SKIP_FLAG").
+		RegisterDecoder(".json", json.Decode).
+		ConfigOptions(conga.ConfigExplicit(explicitPath)).
+		Stdout(&buffer).
+		EnableWhy().
+		Args([]string{"--config-file", flagPath, "--why"})
+
+	err := app.Run()
+
+	output := buffer.String()
+
+	assert.NoError(t, err)
+	assert.Contains(t, output, whyConfigPathLines(
+		[2]string{flagPath, "loaded"},
+		[2]string{envPath, "skipped"},
+		[2]string{explicitPath, "skipped"},
+	))
+}
+
+func TestWhy_ConfigPathsChecked_FlagSkipsEnvAndExplicitJSON(t *testing.T) {
+	explicitPath := writeConfigFile(t, `{"port": 1}`)
+	envPath := writeConfigFile(t, `{"port": 2}`)
+	flagPath := writeConfigFile(t, `{"port": 3}`)
+	t.Setenv("CONGA_TEST_WHY_SKIP_JSON_CONFIG", envPath)
+
+	var buffer bytes.Buffer
+
+	app := conga.New[whyExplicitConfigCLI]().
+		EnvPrefix("CONGA_TEST_WHY_SKIP_JSON").
+		RegisterDecoder(".json", json.Decode).
+		ConfigOptions(conga.ConfigExplicit(explicitPath)).
+		Stdout(&buffer).
+		EnableWhy(conga.WhyOptionJSON()).
+		Args([]string{"--config-file", flagPath, "--why=json"})
+
+	err := app.Run()
+
+	output := buffer.String()
+
+	assert.NoError(t, err)
+	assert.Contains(t, output, `"paths":[`+
+		`{"path":`+strconv.Quote(flagPath)+`,"status":"loaded"},`+
+		`{"path":`+strconv.Quote(envPath)+`,"status":"skipped"},`+
+		`{"path":`+strconv.Quote(explicitPath)+`,"status":"skipped"}]`)
+}
+
+func TestWhy_ConfigPathsChecked_EnvSkipsExplicit(t *testing.T) {
+	explicitPath := writeConfigFile(t, `{"port": 1}`)
+	envPath := writeConfigFile(t, `{"port": 2}`)
+	t.Setenv("CONGA_TEST_WHY_SKIP_ENV_CONFIG", envPath)
+
+	var buffer bytes.Buffer
+
+	app := conga.New[whyExplicitConfigCLI]().
+		EnvPrefix("CONGA_TEST_WHY_SKIP_ENV").
+		RegisterDecoder(".json", json.Decode).
+		ConfigOptions(conga.ConfigExplicit(explicitPath)).
+		Stdout(&buffer).
+		EnableWhy().
+		Args([]string{"--why"})
+
+	err := app.Run()
+
+	output := buffer.String()
+
+	assert.NoError(t, err)
+	assert.Contains(t, output, whyConfigPathLines(
+		[2]string{envPath, "loaded"},
+		[2]string{explicitPath, "skipped"},
+	))
+}
+
+func TestWhy_ConfigPathsChecked_NamedTargetOmitsSearchTier(t *testing.T) {
+	xdgHome := t.TempDir()
+	tierDir := filepath.Join(xdgHome, "whyapp")
+	assert.NoError(t, os.MkdirAll(tierDir, 0o700))
+	assert.NoError(t, os.WriteFile(filepath.Join(tierDir, "config.json"), []byte(`{"port": 1}`), 0o600))
+	t.Setenv("XDG_CONFIG_HOME", xdgHome)
+
+	flagPath := writeConfigFile(t, `{"port": 2}`)
+
+	var buffer bytes.Buffer
+
+	app := conga.New[whyExplicitConfigCLI]().
+		Name("whyapp").
+		RegisterDecoder(".json", json.Decode).
+		Stdout(&buffer).
+		EnableWhy().
+		Args([]string{"--config-file", flagPath, "--why"})
+
+	err := app.Run()
+
+	output := buffer.String()
+
+	assert.NoError(t, err)
+	assert.Contains(t, output, whyConfigPathLines([2]string{flagPath, "loaded"}))
+	assert.NotContains(t, output, tierDir)
+}

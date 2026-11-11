@@ -153,16 +153,19 @@ func BuildFeatureRows(input FeatureInput) []FeatureRow {
 }
 
 // BuildConfigPaths assembles the candidate configuration path table from the
-// session's candidate and loaded paths and the per-tier probe results.
-// configProbed holds an entry for every search-path tier candidate. In
-// first-hit mode (firstHit), resolution stops at the first tier that yields a
-// file, so every later tier is reported as skipped rather than probed.
-func BuildConfigPaths(candidates, loaded []string, configProbed map[string][]string, firstHit bool) []ConfigPath {
+// session's candidate, skipped, and loaded paths and the per-tier probe
+// results. configProbed holds an entry for every search-path tier candidate.
+// In first-hit mode (firstHit), resolution stops at the first tier that yields
+// a file, so every later tier is reported as skipped rather than probed.
+// Skipped named targets, which lost to a higher-precedence named source, follow
+// the candidates in precedence order; a skipped path that is also a candidate
+// is listed once, as the candidate.
+func BuildConfigPaths(candidates, skipped, loaded []string, configProbed map[string][]string, firstHit bool) []ConfigPath {
 	if len(candidates) == 0 {
 		return nil
 	}
 
-	paths := make([]ConfigPath, 0, len(candidates))
+	paths := make([]ConfigPath, 0, len(candidates)+len(skipped))
 	tierLoaded := false
 
 	for _, candidate := range candidates {
@@ -181,6 +184,12 @@ func BuildConfigPaths(candidates, loaded []string, configProbed map[string][]str
 			paths = append(paths, ConfigPath{Path: candidate, Status: statusSkipped})
 		default:
 			paths = append(paths, absentConfigPath(candidate, probedFiles))
+		}
+	}
+
+	for _, target := range skipped {
+		if !slices.Contains(candidates, target) {
+			paths = append(paths, ConfigPath{Path: target, Status: statusSkippedNamed})
 		}
 	}
 

@@ -73,6 +73,35 @@ func (r Resolver) CandidatePaths(flagPaths []string, cmd *spec.Command) []string
 	return r.defaultSearchCandidatePaths()
 }
 
+// SkippedTargets returns the named configuration targets that were set but
+// lost to a higher-precedence named source, as the expanded paths resolution
+// would have loaded: the environment variable and explicit option paths when
+// the config-file flag names paths, and the explicit option path when the
+// environment variable does. Skipped paths are never opened. Search-path tiers
+// are not named targets and are never reported. Returns nil when no named
+// source lost.
+func (r Resolver) SkippedTargets(flagTargets []string, cmd *spec.Command) []string {
+	named := [][]string{flagTargets, envConfigTargets(r.EnvPrefix, cmd)}
+	if r.Settings.Explicit != "" {
+		named = append(named, []string{r.Settings.Explicit})
+	}
+
+	for i, targets := range named {
+		if len(targets) == 0 {
+			continue
+		}
+
+		skipped := slices.Concat(named[i+1:]...)
+		if len(skipped) == 0 {
+			return nil
+		}
+
+		return slicex.Unique(slicex.Map(skipped, pathx.Expand))
+	}
+
+	return nil
+}
+
 // Resolve resolves, loads, and validates the effective configuration files.
 // Named targets resolve in precedence order: the config-file flag paths, then
 // the configuration environment variable, then the explicit option. The first
@@ -83,20 +112,11 @@ func (r Resolver) CandidatePaths(flagPaths []string, cmd *spec.Command) []string
 // loaded paths, the validated configuration data, and the value source; an
 // empty file set yields a source of SourceNone.
 func (r Resolver) Resolve(flagTargets []string, cmd *spec.Command) ([]string, *configdata.Data, container.Source, error) {
-	envKeys := EnvKeys(r.EnvPrefix, cmd)
 	extensions := r.Registry.Extensions()
-
-	separator := ","
-	splitEnv := false
-
-	if cmd != nil && cmd.ConfigFileFlag != nil {
-		separator = cmp.Or(cmd.ConfigFileFlag.Sep, ",")
-		splitEnv = cmd.ConfigFileFlag.IsSlice
-	}
 
 	files, source, err := findConfigFiles(configTargets{
 		flag:      flagTargets,
-		env:       resolveEnvConfigTargets(envKeys, separator, splitEnv),
+		env:       envConfigTargets(r.EnvPrefix, cmd),
 		explicit:  r.Settings.Explicit,
 		tier:      r.EffectiveSearchPaths(),
 		appName:   r.AppName,
@@ -132,7 +152,7 @@ func (r Resolver) Resolve(flagTargets []string, cmd *spec.Command) ([]string, *c
 // resolved as a whole path and yields no probed locations. All locations are
 // reported as full paths.
 func (r Resolver) ProbedFiles(candidate string, extensions []string) []string {
-	clean := filepath.Clean(pathx.Expand(candidate))
+	clean := pathx.Expand(candidate)
 
 	fileInfo, err := os.Stat(clean)
 	if err != nil {
@@ -172,7 +192,7 @@ func (r Resolver) ConfigExamples(candidates []string, tiers []string, extensions
 	// existing directory (resolveTierConfigFile), so only then is it a
 	// location the user can create. Suggesting it for an existing directory
 	// would also produce names such as "..yaml" for the "." tier.
-	if fileInfo, err := os.Stat(filepath.Clean(tier)); err != nil || !fileInfo.IsDir() {
+	if fileInfo, err := os.Stat(tier); err != nil || !fileInfo.IsDir() {
 		probes = append(probes, stemProbes(tier, extensions)...)
 	}
 
@@ -214,32 +234,16 @@ func EnvKeys(envPrefix string, cmd *spec.Command) []string {
 	return nil
 }
 
-// EnvCandidates returns the expanded candidate configuration paths named by
-// the first set configuration environment variable, or nil when none is set.
+// EnvCandidates returns the expanded candidate configuration paths named by the
+// first set configuration environment variable, split by the same rule
+// resolution applies, or nil when none is set.
 func EnvCandidates(envPrefix string, cmd *spec.Command) []string {
-	var separator string
-	if cmd != nil && cmd.ConfigFileFlag != nil {
-		separator = cmd.ConfigFileFlag.Sep
+	targets := envConfigTargets(envPrefix, cmd)
+	if len(targets) == 0 {
+		return nil
 	}
 
-	for _, envKey := range EnvKeys(envPrefix, cmd) {
-		envValue := os.Getenv(envKey)
-		if envValue == "" {
-			continue
-		}
-
-		items := SplitList(envValue, separator)
-
-		expanded := make([]string, 0, len(items))
-
-		for _, item := range items {
-			expanded = append(expanded, pathx.Expand(item))
-		}
-
-		return expanded
-	}
-
-	return nil
+	return slicex.Map(targets, pathx.Expand)
 }
 
 // configTargets carries every configuration file source findConfigFiles
@@ -292,9 +296,7 @@ func (r Resolver) defaultSearchCandidatePaths() []string {
 }
 
 func (r Resolver) loadAndValidateFile(path string, cmd *spec.Command, dest *configdata.Data) error {
-	cleanPath := filepath.Clean(path)
-
-	data, err := filex.ReadLimited(cleanPath, maxConfigFileSize)
+	data, err := filex.ReadLimited(path, maxConfigFileSize)
 	if err != nil {
 		return &configError{
 			path:  path,
@@ -303,7 +305,7 @@ func (r Resolver) loadAndValidateFile(path string, cmd *spec.Command, dest *conf
 		}
 	}
 
-	extension := strings.ToLower(filepath.Ext(cleanPath))
+	extension := strings.ToLower(filepath.Ext(path))
 
 	decoder := r.Registry.Decoder(extension)
 	if decoder == nil {
@@ -323,7 +325,7 @@ func (r Resolver) loadAndValidateFile(path string, cmd *spec.Command, dest *conf
 		}
 	}
 
-	return validateCommandConfig(rawMap, cmd, dest, cleanPath)
+	return validateCommandConfig(rawMap, cmd, dest, path)
 }
 
 // findConfigFiles resolves the configuration files to load and reports their
@@ -385,12 +387,22 @@ func resolveNamedConfigFiles(targets []string, source container.Source) ([]strin
 	return resolved, source, nil
 }
 
-// resolveEnvConfigTargets resolves the first matching configuration environment
-// variable into explicit targets. Single-value flags treat the variable as one
-// literal path; multi-valued flags split it by the configured separator. It
-// returns nil when no environment variable is set.
-func resolveEnvConfigTargets(envKeys []string, separator string, split bool) []string {
-	for _, envKey := range envKeys {
+// envConfigTargets reads the first set configuration environment variable
+// into named targets. A single-value config-file flag treats the variable as
+// one literal path; a multi-value flag splits it by the configured separator.
+// It returns nil when no environment variable is set.
+func envConfigTargets(envPrefix string, cmd *spec.Command) []string {
+	var (
+		separator string
+		split     bool
+	)
+
+	if cmd != nil && cmd.ConfigFileFlag != nil {
+		separator = cmd.ConfigFileFlag.Sep
+		split = cmd.ConfigFileFlag.IsSlice
+	}
+
+	for _, envKey := range EnvKeys(envPrefix, cmd) {
 		value := os.Getenv(envKey)
 		if value == "" {
 			continue
@@ -409,7 +421,7 @@ func resolveEnvConfigTargets(envKeys []string, separator string, split bool) []s
 // resolveExplicitConfigFile expands and verifies a single explicit config file
 // path, returning its clean path or a configError if it cannot be read.
 func resolveExplicitConfigFile(target string) (string, error) {
-	clean := filepath.Clean(pathx.Expand(target))
+	clean := pathx.Expand(target)
 	if _, err := os.Stat(clean); err != nil {
 		return "", &configError{
 			path:  target,
@@ -461,8 +473,7 @@ func collectTierConfigFiles(searchPaths []string, appName string, decoders []str
 }
 
 func resolveTierConfigFile(tierPath string, appName string, decoders []string) (string, error) {
-	expanded := pathx.Expand(tierPath)
-	clean := filepath.Clean(expanded)
+	clean := pathx.Expand(tierPath)
 
 	fileInfo, err := os.Stat(clean)
 	if err == nil {
@@ -527,7 +538,7 @@ func resolveMatchedConfigCandidates(matched []string, path, location string) (st
 	}
 
 	if len(matched) == 1 {
-		return filepath.Clean(matched[0]), nil
+		return matched[0], nil
 	}
 
 	slices.Sort(matched)

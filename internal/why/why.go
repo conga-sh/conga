@@ -55,6 +55,7 @@ const rowIndent = 2
 const (
 	statusLoaded           = "loaded"
 	statusSkipped          = "skipped (an earlier location loaded)"
+	statusSkippedNamed     = "skipped"
 	statusDirectoryMissing = "directory does not exist"
 	statusNoConfigFile     = "no config file"
 )
@@ -176,9 +177,12 @@ type ConfigPath struct {
 	// Status is the probe outcome: "loaded" when the candidate resolved to a
 	// configuration file, "directory does not exist" when the candidate
 	// location is absent, "no config file" when the candidate is an existing
-	// directory holding no matching file, or "skipped (an earlier location
+	// directory holding no matching file, "skipped (an earlier location
 	// loaded)" when first-hit resolution stopped at an earlier search path
-	// before reaching it.
+	// before reaching it, or "skipped" when the candidate is a named target
+	// (a config-file flag path, a configuration environment variable path, or
+	// the explicit option path) that lost to a higher-precedence named source
+	// and was never opened.
 	Status string
 	// Loaded is the concrete file the candidate resolved to when it differs
 	// from Path, such as a search-directory tier or a stem candidate. It is
@@ -1079,7 +1083,7 @@ func normalizeStatusEnum(status string) string {
 	switch status {
 	case statusLoaded:
 		return "loaded"
-	case statusSkipped:
+	case statusSkipped, statusSkippedNamed:
 		return "skipped"
 	case statusDirectoryMissing:
 		return "not_found"

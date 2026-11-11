@@ -190,7 +190,7 @@ func (a *App[T]) buildWhyReport(session *Session) why.Report {
 		Rows:           rows,
 		GlobalRows:     globalRows,
 		Features:       features,
-		ConfigPaths:    why.BuildConfigPaths(session.candidateFiles, session.loadedFiles, configProbed, !a.configSettings.Cascading),
+		ConfigPaths:    why.BuildConfigPaths(session.candidateFiles, session.skippedFiles, session.loadedFiles, configProbed, !a.configSettings.Cascading),
 		ConfigDecoders: configDecoders,
 		ConfigExamples: configExamples,
 		RedactedRows:   why.HasRedactedRows(rows, globalRows),

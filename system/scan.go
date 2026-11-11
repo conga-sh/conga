@@ -402,7 +402,7 @@ func scanLinuxProc() []procEntry {
 			continue
 		}
 
-		commPath := filepath.Clean(fmt.Sprintf("/proc/%s/comm", entry.Name()))
+		commPath := fmt.Sprintf("/proc/%s/comm", entry.Name())
 
 		commBytes, err := os.ReadFile(commPath)
 		if err != nil {

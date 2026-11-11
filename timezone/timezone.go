@@ -142,7 +142,7 @@ func scanZoneTabFiles(ctx predict.Context) []predict.Item {
 		for _, tabName := range []string{"zone1970.tab", "zone.tab"} {
 			filePath := filepath.Join(baseDir, tabName)
 
-			file, err := os.Open(filepath.Clean(filePath))
+			file, err := os.Open(filePath)
 			if err != nil {
 				continue
 			}
