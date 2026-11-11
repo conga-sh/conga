@@ -1611,6 +1611,7 @@ func TestConfig_EnvConfigVar_MultiValueSplitsInMergeOrder(t *testing.T) {
 	dir := t.TempDir()
 	firstPath := filepath.Join(dir, "a.json")
 	secondPath := filepath.Join(dir, "b.json")
+
 	assert.NoError(t, os.WriteFile(firstPath, []byte(`{"host": "first.example.com", "port": 9000}`), 0o600))
 	assert.NoError(t, os.WriteFile(secondPath, []byte(`{"host": "second.example.com"}`), 0o600))
 	t.Setenv("CONGA_TEST_NAMED_MULTI_CONFIG", firstPath+","+secondPath)
