@@ -26,6 +26,9 @@ var (
 	//go:embed testdata/null.json
 	fixtureNull []byte
 
+	//go:embed testdata/numbers.json
+	fixtureNumbers []byte
+
 	//go:embed testdata/trailing_garbage.json
 	fixtureTrailingGarbage []byte
 
@@ -148,4 +151,54 @@ func TestDecode_InvalidUTF8(t *testing.T) {
 	_, err := json.Decode(fixtureInvalidUTF8)
 
 	assert.IsError(t, err, json.ErrParse)
+}
+
+func TestDecode_NumbersKeepIntegerPrecision(t *testing.T) {
+	t.Parallel()
+
+	result, err := json.Decode(fixtureNumbers)
+
+	assert.NoError(t, err)
+	assert.Equal(t, any(int64(1000000)), result["million"])
+	assert.Equal(t, any(int64(9007199254740993)), result["exact"])
+	assert.Equal(t, any(uint64(18446744073709551615)), result["max_uint64"])
+	assert.Equal(t, any(int64(-9223372036854775808)), result["min_int64"])
+	assert.Equal(t, any(1.5), result["ratio"])
+	assert.Equal(t, any(map[string]any{"list": []any{int64(1), 2.0, int64(-3)}}), result["nested"])
+}
+
+func TestDecode_IntegerAboveUint64Rejected(t *testing.T) {
+	t.Parallel()
+
+	_, err := json.Decode([]byte(`{"id": 18446744073709551616}`))
+
+	assert.IsError(t, err, json.ErrParse)
+	assert.Equal(t, `json parse error: /id: integer 18446744073709551616 out of range`, err.Error())
+}
+
+func TestDecode_IntegerBelowInt64Rejected(t *testing.T) {
+	t.Parallel()
+
+	_, err := json.Decode([]byte(`{"id": -9223372036854775809}`))
+
+	assert.IsError(t, err, json.ErrParse)
+	assert.Equal(t, `json parse error: /id: integer -9223372036854775809 out of range`, err.Error())
+}
+
+func TestDecode_NestedIntegerOutOfRangeRejected(t *testing.T) {
+	t.Parallel()
+
+	_, err := json.Decode([]byte(`{"a": {"b": [1, 99999999999999999999]}}`))
+
+	assert.IsError(t, err, json.ErrParse)
+	assert.Equal(t, `json parse error: /a/b/1: integer 99999999999999999999 out of range`, err.Error())
+}
+
+func TestDecode_FloatOverflowRejected(t *testing.T) {
+	t.Parallel()
+
+	_, err := json.Decode([]byte(`{"ratio": 1e400}`))
+
+	assert.IsError(t, err, json.ErrParse)
+	assert.Equal(t, `json parse error: /ratio: number 1e400 out of range`, err.Error())
 }

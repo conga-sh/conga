@@ -12,16 +12,22 @@ import (
 
 // Stringify converts any value into its canonical string representation,
 // applying zero-allocation and reflection-free fast paths for string, boolean,
-// numeric, and standard CLI types; fmt.Stringer and encoding.TextMarshaler
-// values are checked for typed nil pointers before being rendered.
+// numeric, and standard CLI types.
+//
+// encoding.TextMarshaler takes precedence over fmt.Stringer, as in
+// flag.TextVar and log/slog: MarshalText is the inverse of the UnmarshalText
+// that coercion parses with, so the result parses back into the same value
+// (time.Time renders as RFC 3339, not its String form). When MarshalText
+// fails, a fmt.Stringer implementation is used instead. Both are checked for
+// typed nil pointers before being called.
 func Stringify(value any) string {
 	switch typedValue := value.(type) {
 	case string:
 		return typedValue
-	case fmt.Stringer:
-		return stringifyStringer(typedValue)
 	case encoding.TextMarshaler:
 		return stringifyTextMarshaler(typedValue)
+	case fmt.Stringer:
+		return stringifyStringer(typedValue)
 	case bool:
 		return strconv.FormatBool(typedValue)
 	case int:
@@ -88,6 +94,10 @@ func stringifyTextMarshaler(marshaler encoding.TextMarshaler) string {
 		return string(text)
 	}
 
+	if stringer, ok := marshaler.(fmt.Stringer); ok {
+		return stringer.String()
+	}
+
 	return ""
 }
 
@@ -109,17 +119,6 @@ func stringifyAddressable(reflected reflect.Value) (string, bool) {
 		return "", false
 	}
 
-	stringerType := reflect.TypeFor[fmt.Stringer]()
-	if !reflected.Type().Implements(stringerType) &&
-		reflect.PointerTo(reflected.Type()).Implements(stringerType) {
-		addressable := reflect.New(reflected.Type())
-		addressable.Elem().Set(reflected)
-
-		if stringer, ok := reflect.TypeAssert[fmt.Stringer](addressable); ok {
-			return stringer.String(), true
-		}
-	}
-
 	textMarshalerType := reflect.TypeFor[encoding.TextMarshaler]()
 	if !reflected.Type().Implements(textMarshalerType) &&
 		reflect.PointerTo(reflected.Type()).Implements(textMarshalerType) {
@@ -130,6 +129,17 @@ func stringifyAddressable(reflected reflect.Value) (string, bool) {
 			if text, err := marshaler.MarshalText(); err == nil {
 				return string(text), true
 			}
+		}
+	}
+
+	stringerType := reflect.TypeFor[fmt.Stringer]()
+	if !reflected.Type().Implements(stringerType) &&
+		reflect.PointerTo(reflected.Type()).Implements(stringerType) {
+		addressable := reflect.New(reflected.Type())
+		addressable.Elem().Set(reflected)
+
+		if stringer, ok := reflect.TypeAssert[fmt.Stringer](addressable); ok {
+			return stringer.String(), true
 		}
 	}
 
