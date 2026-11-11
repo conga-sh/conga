@@ -14,6 +14,9 @@ var (
 	//go:embed testdata/invalid_syntax.yaml
 	fixtureInvalidSyntax []byte
 
+	//go:embed testdata/numbers.yaml
+	fixtureNumbers []byte
+
 	//go:embed testdata/trailing_garbage.yaml
 	fixtureTrailingGarbage []byte
 
@@ -104,4 +107,45 @@ func TestDecode_NilInput(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Zero(t, result)
+}
+
+func TestDecode_NumbersWithin64Bits(t *testing.T) {
+	t.Parallel()
+
+	result, err := yaml.Decode(fixtureNumbers)
+
+	assert.NoError(t, err)
+	assert.Equal(t, any(1000000), result["million"])
+	assert.Equal(t, any(uint64(18446744073709551615)), result["max_uint64"])
+	assert.Equal(t, any("999999999999999999999999999999"), result["quoted"])
+	assert.Equal(t, any(1e30), result["tagged"])
+	assert.Equal(t, any(8.0), result["leading_zero"])
+	assert.Equal(t, any(1000), result["underscored"])
+}
+
+func TestDecode_IntegerBeyond64BitsRejected(t *testing.T) {
+	t.Parallel()
+
+	_, err := yaml.Decode([]byte("id: 999999999999999999999999999999\n"))
+
+	assert.IsError(t, err, yaml.ErrParse)
+	assert.Equal(t, "yaml parse error: line 1: integer 999999999999999999999999999999 out of range", err.Error())
+}
+
+func TestDecode_NestedIntegerBeyond64BitsRejected(t *testing.T) {
+	t.Parallel()
+
+	_, err := yaml.Decode([]byte("nested:\n  list: [1, -99999999999999999999]\n"))
+
+	assert.IsError(t, err, yaml.ErrParse)
+	assert.Equal(t, "yaml parse error: line 2: integer -99999999999999999999 out of range", err.Error())
+}
+
+func TestDecode_HexIntegerBeyond64BitsRejected(t *testing.T) {
+	t.Parallel()
+
+	_, err := yaml.Decode([]byte("mask: 0xFFFFFFFFFFFFFFFFFF\n"))
+
+	assert.IsError(t, err, yaml.ErrParse)
+	assert.Equal(t, "yaml parse error: line 1: integer 0xFFFFFFFFFFFFFFFFFF out of range", err.Error())
 }

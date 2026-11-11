@@ -1,6 +1,7 @@
 package stringx_test
 
 import (
+	"errors"
 	"net/url"
 	"testing"
 	"time"
@@ -49,6 +50,21 @@ type customPointerTextMarshaler struct {
 func (c *customPointerTextMarshaler) MarshalText() ([]byte, error) {
 	return []byte(c.text), nil
 }
+
+// dualText returns different text from String and MarshalText, so a test can
+// tell which one Stringify called.
+type dualText struct{}
+
+func (dualText) String() string { return "display" }
+
+func (dualText) MarshalText() ([]byte, error) { return []byte("canonical"), nil }
+
+// failingMarshaler fails MarshalText, so Stringify must fall back to String.
+type failingMarshaler struct{}
+
+func (failingMarshaler) String() string { return "fallback" }
+
+func (failingMarshaler) MarshalText() ([]byte, error) { return nil, errors.New("cannot marshal") }
 
 func TestStringify(t *testing.T) {
 	t.Parallel()
@@ -146,6 +162,26 @@ func TestStringify(t *testing.T) {
 		var marshaler *customPointerTextMarshaler
 
 		assert.Equal(t, "", stringx.Stringify(marshaler))
+	})
+
+	t.Run("encoding.TextMarshaler wins over fmt.Stringer", func(t *testing.T) {
+		t.Parallel()
+
+		assert.Equal(t, "canonical", stringx.Stringify(dualText{}))
+	})
+
+	t.Run("time.Time renders as RFC 3339", func(t *testing.T) {
+		t.Parallel()
+
+		when := time.Date(1979, 5, 27, 7, 32, 0, 0, time.FixedZone("", -7*60*60))
+
+		assert.Equal(t, "1979-05-27T07:32:00-07:00", stringx.Stringify(when))
+	})
+
+	t.Run("failed MarshalText falls back to fmt.Stringer", func(t *testing.T) {
+		t.Parallel()
+
+		assert.Equal(t, "fallback", stringx.Stringify(failingMarshaler{}))
 	})
 
 	t.Run("map formatting", func(t *testing.T) {

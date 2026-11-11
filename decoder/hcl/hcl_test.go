@@ -14,11 +14,20 @@ import (
 )
 
 var (
+	//go:embed testdata/attribute_then_block.hcl
+	fixtureAttributeThenBlock []byte
+
+	//go:embed testdata/block_then_attribute.hcl
+	fixtureBlockThenAttribute []byte
+
 	//go:embed testdata/duplicate_blocks.hcl
 	fixtureDuplicateBlocks []byte
 
 	//go:embed testdata/invalid_syntax.hcl
 	fixtureInvalidSyntax []byte
+
+	//go:embed testdata/labeled_block.hcl
+	fixtureLabeledBlock []byte
 
 	//go:embed testdata/large_number.hcl
 	fixtureLargeNumber []byte
@@ -89,7 +98,7 @@ func TestDecode_DuplicateBlocks(t *testing.T) {
 	_, err := hcl.Decode(fixtureDuplicateBlocks)
 
 	assert.IsError(t, err, hcl.ErrParse)
-	assert.Equal(t, `hcl parse error: duplicate block "server"`, err.Error())
+	assert.Equal(t, `hcl parse error: config.hcl:5,1-7: duplicate block "server", first declared at config.hcl:1,1-7`, err.Error())
 }
 
 func TestDecode_UndefinedVariable(t *testing.T) {
@@ -122,7 +131,60 @@ func TestDecode_LargeNumbers(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, any(uint64(18446744073709551615)), result["large_uint"])
-	assert.Equal(t, any("999999999999999999999999999999"), result["huge_num"])
+}
+
+func TestDecode_IntegerBeyond64BitsRejected(t *testing.T) {
+	t.Parallel()
+
+	_, err := hcl.Decode([]byte("huge_num = 999999999999999999999999999999\n"))
+
+	assert.IsError(t, err, hcl.ErrParse)
+	assert.Equal(t, `hcl parse error: config.hcl:1,1-42: attribute "huge_num": number 999999999999999999999999999999 out of range`, err.Error())
+}
+
+func TestDecode_NestedIntegerBeyond64BitsRejected(t *testing.T) {
+	t.Parallel()
+
+	_, err := hcl.Decode([]byte("list = [1, 99999999999999999999]\n"))
+
+	assert.IsError(t, err, hcl.ErrParse)
+	assert.Equal(t, `hcl parse error: config.hcl:1,1-33: attribute "list": number 99999999999999999999 out of range`, err.Error())
+}
+
+func TestDecode_FloatOverflowRejected(t *testing.T) {
+	t.Parallel()
+
+	_, err := hcl.Decode([]byte("ratio = 1.5e400\n"))
+
+	assert.IsError(t, err, hcl.ErrParse)
+	assert.Equal(t, `hcl parse error: config.hcl:1,1-16: attribute "ratio": number 1.5e+400 out of range`, err.Error())
+}
+
+func TestDecode_LabeledBlockRejected(t *testing.T) {
+	t.Parallel()
+
+	_, err := hcl.Decode(fixtureLabeledBlock)
+
+	assert.IsError(t, err, hcl.ErrParse)
+	assert.Equal(t, `hcl parse error: config.hcl:1,1-13: block "server" has labels ["web"]; labeled blocks are not supported, use an unlabeled block`, err.Error())
+}
+
+func TestDecode_AttributeThenBlockRejected(t *testing.T) {
+	t.Parallel()
+
+	_, err := hcl.Decode(fixtureAttributeThenBlock)
+
+	assert.IsError(t, err, hcl.ErrParse)
+	assert.Equal(t, `hcl parse error: config.hcl:3,1-7: block "server" conflicts with the attribute of the same name at config.hcl:1,1-11`, err.Error())
+}
+
+func TestDecode_BlockThenAttributeRejected(t *testing.T) {
+	t.Parallel()
+
+	_, err := hcl.Decode(fixtureBlockThenAttribute)
+
+	assert.IsError(t, err, hcl.ErrParse)
+	assert.Equal(t, `hcl parse error: config.hcl:1,1-7: block "server" conflicts with the attribute of the same name at config.hcl:5,1-11`, err.Error())
 }
 
 func TestDecode_EmptyValid(t *testing.T) {

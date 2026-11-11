@@ -235,6 +235,24 @@ func (e *durationError) Error() string {
 
 func (e *durationError) Unwrap() error { return ErrCoerce }
 
+// timeError is the root cause for unparseable time.Time values. A detail
+// from time.ParseError (such as "day out of range") replaces the RFC 3339
+// hint when the text has the right shape but an invalid field.
+type timeError struct {
+	raw    string
+	detail string
+}
+
+func (e *timeError) Error() string {
+	if e.detail != "" {
+		return fmt.Sprintf("invalid time %q (%s)", e.raw, e.detail)
+	}
+
+	return fmt.Sprintf("invalid time %q (expected RFC 3339, e.g. 2006-01-02T15:04:05Z)", e.raw)
+}
+
+func (e *timeError) Unwrap() error { return ErrCoerce }
+
 // urlErrorKind identifies the URL expectation violated by a raw value.
 type urlErrorKind uint8
 
@@ -350,7 +368,7 @@ func (e *wrappedError) Is(target error) bool { return target == ErrCoerce }
 func scalar(raw string, targetType reflect.Type, decodeContext DecodeContext) (any, error) {
 	// 1. TextUnmarshaler (context-aware preferred)
 	if value, ok, err := coerceTextUnmarshaler(raw, targetType, decodeContext); ok || err != nil {
-		return value, err
+		return value, explainTimeError(err, raw, targetType)
 	}
 
 	// 2. Standard primitives & specialized types
@@ -478,6 +496,23 @@ func coerceBool(raw string, targetType reflect.Type) (any, error) {
 	}
 
 	return convertValue(parsed, targetType), nil
+}
+
+// explainTimeError replaces the layout-based time.ParseError from
+// time.Time's UnmarshalText with a timeError. It applies only to time.Time and
+// *time.Time targets, because other types may parse a different layout.
+func explainTimeError(err error, raw string, targetType reflect.Type) error {
+	timeType := reflect.TypeFor[time.Time]()
+	if err == nil || (targetType != timeType && targetType != reflect.PointerTo(timeType)) {
+		return err
+	}
+
+	var parseError *time.ParseError
+	if !errors.As(err, &parseError) {
+		return err
+	}
+
+	return &timeError{raw: raw, detail: strings.TrimPrefix(parseError.Message, ": ")}
 }
 
 func coerceDuration(raw string) (time.Duration, error) {

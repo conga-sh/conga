@@ -1226,22 +1226,13 @@ func appendValueJSON(buffer []byte, value any) []byte {
 }
 
 // stringForm renders values that carry their own textual representation,
-// matching displayValue's fmt.Stringer/encoding.TextMarshaler precedence.
-// Pointer-receiver implementations are reached through an addressable copy,
-// mirroring stringx.Stringify.
+// with stringx.Stringify's precedence: encoding.TextMarshaler first, then
+// fmt.Stringer, which also covers a failed MarshalText. Pointer-receiver
+// implementations are reached through an addressable copy, mirroring
+// stringx.Stringify.
 func stringForm(value any) (string, bool) {
-	if stringer, ok := value.(fmt.Stringer); ok {
-		if reflected := reflect.ValueOf(stringer); reflected.Kind() != reflect.Pointer || !reflected.IsNil() {
-			return stringer.String(), true
-		}
-	}
-
-	if marshaler, ok := value.(encoding.TextMarshaler); ok {
-		if reflected := reflect.ValueOf(marshaler); reflected.Kind() != reflect.Pointer || !reflected.IsNil() {
-			if text, err := marshaler.MarshalText(); err == nil {
-				return string(text), true
-			}
-		}
+	if text, ok := textForm(value); ok {
+		return text, true
 	}
 
 	reflected := reflect.ValueOf(value)
@@ -1252,14 +1243,24 @@ func stringForm(value any) (string, bool) {
 	addressable := reflect.New(reflected.Type())
 	addressable.Elem().Set(reflected)
 
-	if stringer, ok := reflect.TypeAssert[fmt.Stringer](addressable); ok {
-		return stringer.String(), true
+	return textForm(addressable.Interface())
+}
+
+// textForm calls value's MarshalText, or its String method when it has no
+// MarshalText or MarshalText fails. Typed nil pointers report false.
+func textForm(value any) (string, bool) {
+	if reflected := reflect.ValueOf(value); reflected.Kind() == reflect.Pointer && reflected.IsNil() {
+		return "", false
 	}
 
-	if marshaler, ok := reflect.TypeAssert[encoding.TextMarshaler](addressable); ok {
+	if marshaler, ok := value.(encoding.TextMarshaler); ok {
 		if text, err := marshaler.MarshalText(); err == nil {
 			return string(text), true
 		}
+	}
+
+	if stringer, ok := value.(fmt.Stringer); ok {
+		return stringer.String(), true
 	}
 
 	return "", false

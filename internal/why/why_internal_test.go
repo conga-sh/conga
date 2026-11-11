@@ -4,6 +4,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/alecthomas/assert/v2"
 )
@@ -488,4 +489,58 @@ func TestReport_FormatJSON_PointerReceiverTextMarshaler(t *testing.T) {
 
 	assert.Contains(t, output, `"value":"hello"`)
 	assert.NotContains(t, output, "{hello}")
+}
+
+type dualText struct{}
+
+func (dualText) String() string { return "display" }
+
+func (dualText) MarshalText() ([]byte, error) { return []byte("canonical"), nil }
+
+func TestReport_FormatJSON_TextMarshalerWinsOverStringer(t *testing.T) {
+	t.Parallel()
+
+	report := Report{
+		CommandPath: "app",
+		Rows: []Row{
+			{
+				Name:       "value",
+				Label:      "--value",
+				Type:       "string",
+				RawValue:   dualText{},
+				Source:     "cli",
+				Env:        "-",
+				ConfigPath: "value",
+			},
+		},
+	}
+
+	output := report.FormatJSON()
+
+	assert.Contains(t, output, `"value":"canonical"`)
+	assert.NotContains(t, output, "display")
+}
+
+func TestReport_FormatJSON_TimeRendersRFC3339(t *testing.T) {
+	t.Parallel()
+
+	report := Report{
+		CommandPath: "app",
+		Rows: []Row{
+			{
+				Name:       "when",
+				Label:      "--when",
+				Type:       "time.Time",
+				RawValue:   time.Date(1979, 5, 27, 7, 32, 0, 0, time.UTC),
+				Source:     "config",
+				Env:        "-",
+				ConfigPath: "when",
+			},
+		},
+	}
+
+	output := report.FormatJSON()
+
+	assert.Contains(t, output, `"value":"1979-05-27T07:32:00Z"`)
+	assert.NotContains(t, output, "+0000 UTC")
 }

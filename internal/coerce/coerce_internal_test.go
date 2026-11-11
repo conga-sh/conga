@@ -39,6 +39,24 @@ func TestDurationError(t *testing.T) {
 	assert.IsError(t, err, ErrCoerce)
 }
 
+func TestTimeError_RFC3339Hint(t *testing.T) {
+	t.Parallel()
+
+	err := &timeError{raw: "1979-05-27"}
+
+	assert.Equal(t, `invalid time "1979-05-27" (expected RFC 3339, e.g. 2006-01-02T15:04:05Z)`, err.Error())
+	assert.IsError(t, err, ErrCoerce)
+}
+
+func TestTimeError_Detail(t *testing.T) {
+	t.Parallel()
+
+	err := &timeError{raw: "1979-02-30T07:32:00Z", detail: "day out of range"}
+
+	assert.Equal(t, `invalid time "1979-02-30T07:32:00Z" (day out of range)`, err.Error())
+	assert.IsError(t, err, ErrCoerce)
+}
+
 func TestURLError(t *testing.T) {
 	t.Parallel()
 

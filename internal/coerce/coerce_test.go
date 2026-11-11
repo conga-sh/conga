@@ -19,6 +19,19 @@ import (
 	"github.com/conga-sh/conga/internal/spec"
 )
 
+// dateOnly parses its own layout, so coercion must pass its time.ParseError
+// through instead of the RFC 3339 hint for time.Time.
+type dateOnly struct {
+	time.Time
+}
+
+func (d *dateOnly) UnmarshalText(text []byte) error {
+	parsed, err := time.Parse(time.DateOnly, string(text))
+	d.Time = parsed
+
+	return err
+}
+
 func TestCoerce(t *testing.T) {
 	t.Parallel()
 
@@ -107,6 +120,51 @@ func TestCoerce(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.IsError(t, err, coerce.ErrCoerce)
+	})
+
+	t.Run("time RFC 3339", func(t *testing.T) {
+		t.Parallel()
+
+		result, err := coerce.Value[time.Time]("1979-05-27T07:32:00Z")
+
+		assert.NoError(t, err)
+		assert.Equal(t, time.Date(1979, 5, 27, 7, 32, 0, 0, time.UTC), result)
+	})
+
+	t.Run("time without offset", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := coerce.Value[time.Time]("1979-05-27T07:32:00")
+
+		assert.IsError(t, err, coerce.ErrCoerce)
+		assert.Equal(t, `invalid time "1979-05-27T07:32:00" (expected RFC 3339, e.g. 2006-01-02T15:04:05Z)`, err.Error())
+	})
+
+	t.Run("time field out of range", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := coerce.Value[time.Time]("1979-02-30T07:32:00Z")
+
+		assert.IsError(t, err, coerce.ErrCoerce)
+		assert.Equal(t, `invalid time "1979-02-30T07:32:00Z" (day out of range)`, err.Error())
+	})
+
+	t.Run("time pointer without offset", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := coerce.Value[*time.Time]("1979-05-27")
+
+		assert.IsError(t, err, coerce.ErrCoerce)
+		assert.Equal(t, `invalid time "1979-05-27" (expected RFC 3339, e.g. 2006-01-02T15:04:05Z)`, err.Error())
+	})
+
+	t.Run("custom time layout keeps its own error", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := coerce.Value[dateOnly]("27/05/1979")
+
+		assert.IsError(t, err, coerce.ErrCoerce)
+		assert.Equal(t, `parsing time "27/05/1979" as "2006-01-02": cannot parse "27/05/1979" as "2006"`, err.Error())
 	})
 
 	t.Run("float64", func(t *testing.T) {
