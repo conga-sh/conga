@@ -91,7 +91,8 @@ func TestConfigValues_JSONIntegerBeyond64BitsRejected(t *testing.T) {
 	t.Parallel()
 
 	cfgPath := writeConfigFixture(t, "config.json", []byte(`{"count": 18446744073709551616}`))
-	app := conga.New[decodedCountCLI]().
+	cli := new(decodedCountCLI)
+	app := conga.New(cli).
 		RegisterDecoder(".json", json.Decode).
 		ConfigOptions(conga.ConfigExplicit(cfgPath)).
 		Args([]string{})
@@ -101,13 +102,16 @@ func TestConfigValues_JSONIntegerBeyond64BitsRejected(t *testing.T) {
 	assert.IsError(t, err, conga.ErrConfig)
 	assert.IsError(t, err, json.ErrParse)
 	assert.Equal(t, fmt.Sprintf(`cannot parse config file %q: json parse error: /count: integer 18446744073709551616 out of range`, cfgPath), err.Error())
+	assert.Equal(t, conga.SourceNone, cli.Count.Source())
+	assert.Equal(t, "", cli.Count.Get())
 }
 
 func TestConfigValues_YAMLIntegerBeyond64BitsRejected(t *testing.T) {
 	t.Parallel()
 
 	cfgPath := writeConfigFixture(t, "config.yaml", []byte("count: 999999999999999999999999999999\n"))
-	app := conga.New[decodedCountCLI]().
+	cli := new(decodedCountCLI)
+	app := conga.New(cli).
 		RegisterDecoder(".yaml", yaml.Decode).
 		ConfigOptions(conga.ConfigExplicit(cfgPath)).
 		Args([]string{})
@@ -117,13 +121,16 @@ func TestConfigValues_YAMLIntegerBeyond64BitsRejected(t *testing.T) {
 	assert.IsError(t, err, conga.ErrConfig)
 	assert.IsError(t, err, yaml.ErrParse)
 	assert.Equal(t, fmt.Sprintf(`cannot parse config file %q: yaml parse error: line 1: integer 999999999999999999999999999999 out of range`, cfgPath), err.Error())
+	assert.Equal(t, conga.SourceNone, cli.Count.Source())
+	assert.Equal(t, "", cli.Count.Get())
 }
 
 func TestConfigValues_HCLIntegerBeyond64BitsRejected(t *testing.T) {
 	t.Parallel()
 
 	cfgPath := writeConfigFixture(t, "config.hcl", []byte("count = 999999999999999999999999999999\n"))
-	app := conga.New[decodedCountCLI]().
+	cli := new(decodedCountCLI)
+	app := conga.New(cli).
 		RegisterDecoder(".hcl", hcl.Decode).
 		ConfigOptions(conga.ConfigExplicit(cfgPath)).
 		Args([]string{})
@@ -133,6 +140,8 @@ func TestConfigValues_HCLIntegerBeyond64BitsRejected(t *testing.T) {
 	assert.IsError(t, err, conga.ErrConfig)
 	assert.IsError(t, err, hcl.ErrParse)
 	assert.Equal(t, fmt.Sprintf(`cannot parse config file %q: hcl parse error: config.hcl:1,1-39: attribute "count": number 999999999999999999999999999999 out of range`, cfgPath), err.Error())
+	assert.Equal(t, conga.SourceNone, cli.Count.Source())
+	assert.Equal(t, "", cli.Count.Get())
 }
 
 func TestConfigValues_TOMLDatetimesBind(t *testing.T) {
@@ -159,7 +168,8 @@ func TestConfigValues_TOMLLocalDatetimeRejectedForTime(t *testing.T) {
 	t.Parallel()
 
 	cfgPath := writeConfigFixture(t, "config.toml", []byte("when = 1979-05-27T07:32:00\n"))
-	app := conga.New[decodedWhenCLI]().
+	cli := new(decodedWhenCLI)
+	app := conga.New(cli).
 		RegisterDecoder(".toml", toml.Decode).
 		ConfigOptions(conga.ConfigExplicit(cfgPath)).
 		Args([]string{})
@@ -168,13 +178,16 @@ func TestConfigValues_TOMLLocalDatetimeRejectedForTime(t *testing.T) {
 
 	assert.IsError(t, err, conga.ErrCoerce)
 	assert.Equal(t, `invalid time "1979-05-27T07:32:00" (expected RFC 3339, e.g. 2006-01-02T15:04:05Z) for flag --when (from config key "when")`, err.Error())
+	assert.Equal(t, conga.SourceNone, cli.When.Source())
+	assert.True(t, cli.When.Get().IsZero())
 }
 
 func TestConfigValues_TOMLLocalDateRejectedForTime(t *testing.T) {
 	t.Parallel()
 
 	cfgPath := writeConfigFixture(t, "config.toml", []byte("when = 1979-05-27\n"))
-	app := conga.New[decodedWhenCLI]().
+	cli := new(decodedWhenCLI)
+	app := conga.New(cli).
 		RegisterDecoder(".toml", toml.Decode).
 		ConfigOptions(conga.ConfigExplicit(cfgPath)).
 		Args([]string{})
@@ -183,6 +196,8 @@ func TestConfigValues_TOMLLocalDateRejectedForTime(t *testing.T) {
 
 	assert.IsError(t, err, conga.ErrCoerce)
 	assert.Equal(t, `invalid time "1979-05-27" (expected RFC 3339, e.g. 2006-01-02T15:04:05Z) for flag --when (from config key "when")`, err.Error())
+	assert.Equal(t, conga.SourceNone, cli.When.Source())
+	assert.True(t, cli.When.Get().IsZero())
 }
 
 func TestConfigValues_YAMLTimestampsBind(t *testing.T) {

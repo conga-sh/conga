@@ -113,7 +113,7 @@ func decodeHCLBody(body *hclsyntax.Body) (map[string]any, error) {
 
 func convertCtyValue(value cty.Value) (any, error) {
 	if value.IsNull() || !value.IsKnown() {
-		return nil, nil
+		return nil, nil //nolint:nilnil // a null HCL value decodes to a nil map entry, which is not an error
 	}
 
 	switch value.Type() {
@@ -162,6 +162,16 @@ func convertCtyValue(value cty.Value) (any, error) {
 	}
 }
 
+// numberRangeError reports an HCL number that no int64, uint64, or float64
+// holds, matching the JSON decoder's wording.
+type numberRangeError struct {
+	literal string
+}
+
+func (e *numberRangeError) Error() string {
+	return "number " + e.literal + " out of range"
+}
+
 // convertCtyNumber narrows an HCL number to int64, uint64, or float64,
 // rejecting values no 64-bit type holds.
 func convertCtyNumber(bigFloat *big.Float) (any, error) {
@@ -174,12 +184,12 @@ func convertCtyNumber(bigFloat *big.Float) (any, error) {
 			return unsigned, nil
 		}
 
-		return nil, fmt.Errorf("number %s out of range", formatOversized(bigFloat))
+		return nil, &numberRangeError{literal: formatOversized(bigFloat)}
 	}
 
 	number, _ := bigFloat.Float64()
 	if math.IsInf(number, 0) {
-		return nil, fmt.Errorf("number %s out of range", formatOversized(bigFloat))
+		return nil, &numberRangeError{literal: formatOversized(bigFloat)}
 	}
 
 	return number, nil
