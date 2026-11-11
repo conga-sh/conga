@@ -614,7 +614,7 @@ type parseTimeReader interface {
 
 // readsStdin reports whether a "-" value of elemType reads standard input.
 func readsStdin(elemType reflect.Type, tags spec.FieldTags) bool {
-	reader, ok := reflect.New(elemType).Interface().(stdinDashReader)
+	reader, ok := reflect.TypeAssert[stdinDashReader](reflect.New(elemType))
 
 	return ok && reader.dashReadsStdin(tags)
 }
