@@ -241,11 +241,12 @@ func (parser *tokenParser) parseLongFlag(tok tokenizer.Token) error {
 	}
 
 	if flagSpec.IsCounter {
+		// A counter counts occurrences and takes no value on the command line.
 		if tok.HasAttachedValue {
-			parser.flagValues[flagSpec] = append(parser.flagValues[flagSpec], tok.Value)
-		} else {
-			parser.flagValues[flagSpec] = append(parser.flagValues[flagSpec], "1")
+			return newCounterValueError(parser.cmdChain, tok.Raw)
 		}
+
+		parser.flagValues[flagSpec] = append(parser.flagValues[flagSpec], "1")
 
 		return nil
 	}
@@ -356,11 +357,13 @@ func (parser *tokenParser) parseShortFlagCluster(tok tokenizer.Token) error {
 		flagSpec := step.Flag
 
 		if flagSpec.IsCounter {
+			// A counter takes no value (see the long-flag path), so a cluster
+			// cannot end in one with an attached value.
 			if tok.HasAttachedValue && i == len(runes)-1 {
-				parser.flagValues[flagSpec] = append(parser.flagValues[flagSpec], tok.Value)
-			} else {
-				parser.flagValues[flagSpec] = append(parser.flagValues[flagSpec], "1")
+				return newCounterValueError(parser.cmdChain, tok.Raw)
 			}
+
+			parser.flagValues[flagSpec] = append(parser.flagValues[flagSpec], "1")
 
 			continue
 		}
@@ -544,14 +547,27 @@ func (r builtinRequest) versionOnly() bool {
 	return r.hasVersion && !r.hasHelp && !r.hasWhy && !r.hasCompletion
 }
 
-// counterError is the root cause for unparseable counter flag values.
+// newCounterValueError reports a value attached to a counter flag on the
+// command line (--verbose=2, -v=2, -vv=2). A counter counts occurrences only,
+// so the attached value is a usage error.
+func newCounterValueError(cmdChain []*spec.Command, raw string) error {
+	return &parseError{
+		msg:      "flag does not take a value: " + raw,
+		token:    raw,
+		cmdChain: cmdChain,
+	}
+}
+
+// counterError is the root cause for environment or configuration counter
+// values that are not an unsigned integer: a sign, a non-integer, or a count
+// too large for an int.
 type counterError struct {
 	raw   string
 	cause error // *strconv.NumError, preserved for errors.As
 }
 
 func (e *counterError) Error() string {
-	return fmt.Sprintf("invalid integer value %q", e.raw)
+	return fmt.Sprintf("invalid unsigned integer value %q", e.raw)
 }
 
 func (e *counterError) Unwrap() error {
@@ -1149,7 +1165,10 @@ func applyFlagCoercion(cmdChain []*spec.Command, flagSpec *spec.Flag, rawValues 
 		totalCount := 0
 
 		for _, raw := range rawValues {
-			parsedCount, err := strconv.Atoi(raw)
+			// Command-line occurrences arrive as "1". An environment or
+			// configuration count is an unsigned integer that fits an int: no
+			// sign, so -1 and +2 are rejected like any other non-count value.
+			parsedCount, err := strconv.ParseUint(raw, 10, strconv.IntSize-1)
 			if err != nil {
 				return &coercionError{
 					targetName: flagSpec.Name,
@@ -1163,7 +1182,7 @@ func applyFlagCoercion(cmdChain []*spec.Command, flagSpec *spec.Flag, rawValues 
 				}
 			}
 
-			totalCount += parsedCount
+			totalCount += int(parsedCount)
 		}
 
 		flagStateOf(flagSpec.Handle).setValue(totalCount, source, detail)

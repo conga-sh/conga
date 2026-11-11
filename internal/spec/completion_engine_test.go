@@ -793,6 +793,52 @@ func TestCompletion_NonRepeatableSuppression(t *testing.T) {
 	})
 }
 
+func TestCompletion_CounterAttachedValue(t *testing.T) {
+	t.Parallel()
+
+	t.Run("long counter offers no value and no usage line", func(t *testing.T) {
+		t.Parallel()
+
+		var cli RepeatableFlagsCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"--verbose="}, spec.CompleteOptions{})
+
+		assert.Equal(t, 0, len(invoked.Items))
+		assert.Equal(t, "", invoked.Usage)
+	})
+
+	t.Run("short counter offers no value and no usage line", func(t *testing.T) {
+		t.Parallel()
+
+		var cli analysisCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"-v="}, spec.CompleteOptions{})
+
+		assert.Equal(t, 0, len(invoked.Items))
+		assert.Equal(t, "", invoked.Usage)
+	})
+
+	t.Run("value flag keeps its usage line", func(t *testing.T) {
+		t.Parallel()
+
+		var cli RepeatableFlagsCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"--port="}, spec.CompleteOptions{})
+
+		assert.Equal(t, 0, len(invoked.Items))
+		assert.Equal(t, "Port", invoked.Usage)
+	})
+}
+
 func TestCompletion_DeprecatedFiltering(t *testing.T) {
 	t.Parallel()
 
@@ -1662,6 +1708,34 @@ func TestAnalyzeCompletion(t *testing.T) {
 		assert.Equal(t, []string{"./service"}, analysisFlagValues(t, analysis.FlagValues, "dir"))
 		assert.Equal(t, "deploy", analysis.CommandChain[len(analysis.CommandChain)-1].Name)
 		assert.Equal(t, 0, len(analysis.PositionalArgs))
+	})
+
+	t.Run("counter attached value counts as one occurrence", func(t *testing.T) {
+		t.Parallel()
+
+		var cli analysisCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+		assert.NoError(t, err)
+
+		analysis := spec.AnalyzeCompletion(cmdSpec, []string{"--verbose=2", "deploy", ""})
+
+		assert.Equal(t, []string{"1"}, analysisFlagValues(t, analysis.FlagValues, "verbose"))
+		assert.Equal(t, "deploy", analysis.CommandChain[len(analysis.CommandChain)-1].Name)
+	})
+
+	t.Run("counter cluster with attached value counts each rune once", func(t *testing.T) {
+		t.Parallel()
+
+		var cli analysisCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+		assert.NoError(t, err)
+
+		analysis := spec.AnalyzeCompletion(cmdSpec, []string{"-vv=2", "deploy", ""})
+
+		assert.Equal(t, []string{"1", "1"}, analysisFlagValues(t, analysis.FlagValues, "verbose"))
+		assert.Equal(t, "deploy", analysis.CommandChain[len(analysis.CommandChain)-1].Name)
 	})
 
 	t.Run("bool does not consume positional", func(t *testing.T) {

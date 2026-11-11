@@ -344,12 +344,14 @@ func TestSchemaErrorFileTagExclusionSymlinkStdout(t *testing.T) {
 func TestCoercionErrorCounterRender(t *testing.T) {
 	t.Parallel()
 
-	app := conga.New[CounterErrorCLI]().Args([]string{"--count=abc"})
+	app := conga.New[CounterErrorCLI]().
+		RegisterDecoder(".json", json.Decode).
+		ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"count": "abc"}`))).
+		Args([]string{})
 	err := app.RunContext(t.Context())
 
-	assert.Error(t, err)
 	assert.IsError(t, err, conga.ErrCoerce)
-	assert.Equal(t, `invalid integer value "abc" for flag --count`, err.Error())
+	assert.Equal(t, `invalid unsigned integer value "abc" for flag --count (from config key "count")`, err.Error())
 }
 
 func TestCoercionErrorUnsupportedTypeRender(t *testing.T) {

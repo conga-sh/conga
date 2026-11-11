@@ -1014,7 +1014,14 @@ func (c *ConfigFile) String() string {
 // Counter represents a repeatable boolean flag that counts its occurrences.
 //
 // Each occurrence on the command line increments the count by 1. With no
-// occurrences and no other source, [Counter.Get] returns 0.
+// occurrences and no other source, [Counter.Get] returns 0. A counter takes no
+// value on the command line: --verbose=2, -v=2, and -vv=2 fail with [ErrParse]
+// as usage errors.
+//
+// An environment or configuration count is an unsigned integer: a sign ("-1",
+// "+2"), a non-integer, or a value too large for an int fails with
+// [ErrCoerce]. Use [OptionalFlag] with an integer type for a value set
+// directly on the command line or for a signed value.
 //
 // Counters count command-line occurrences starting at 0, so a default tag is
 // rejected at schema build. An environment or configuration file binding seeds

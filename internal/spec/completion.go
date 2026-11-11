@@ -659,12 +659,9 @@ func (w *astCompletionWalker) markFlagConsumed(flag *Flag, hasAttached bool, att
 	}
 
 	if flag.IsCounter {
-		value := "1"
-		if hasAttached {
-			value = attachedValue
-		}
-
-		w.flagsSet[flag] = append(w.flagsSet[flag], value)
+		// A counter takes no value: the runtime parser rejects an attached
+		// one, so every occurrence counts as "1", as the binder records it.
+		w.flagsSet[flag] = append(w.flagsSet[flag], "1")
 
 		return
 	}
@@ -772,12 +769,8 @@ func (w *astCompletionWalker) consumeShortFlag(tok tokenizer.Token) {
 		w.registerGroups(flag)
 
 		if flag.IsCounter {
-			value := "1"
-			if tok.HasAttachedValue && index == len(runes)-1 {
-				value = tok.Value
-			}
-
-			w.flagsSet[flag] = append(w.flagsSet[flag], value)
+			// A counter takes no value (see markFlagConsumed).
+			w.flagsSet[flag] = append(w.flagsSet[flag], "1")
 
 			continue
 		}
@@ -987,6 +980,12 @@ func (w *astCompletionWalker) completeAttachedFlag(toComplete string, compCtx pr
 
 	if flag == nil {
 		return predict.Result{}, false
+	}
+
+	// A counter takes no value, so "--verbose=" has nothing to complete and no
+	// value usage line to show.
+	if flag.IsCounter {
+		return predict.Result{}, true
 	}
 
 	baseAction := resolveFlagAction(flag, w.opts.RegisteredPredictors, w.rootCmd.WhyFormats())

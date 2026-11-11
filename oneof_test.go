@@ -484,7 +484,10 @@ func TestOneOf_ExplicitFalseConflictsWithSibling(t *testing.T) {
 func TestOneOf_CounterZeroSatisfiesGroup(t *testing.T) {
 	t.Parallel()
 
-	app := conga.New[OneOfCounterCLI]().Args([]string{"--json=0"})
+	app := conga.New[OneOfCounterCLI]().
+		RegisterDecoder(".json", json.Decode).
+		ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"json": 0}`))).
+		Args([]string{})
 
 	err := app.RunContext(t.Context())
 
@@ -494,7 +497,10 @@ func TestOneOf_CounterZeroSatisfiesGroup(t *testing.T) {
 func TestOneOf_CounterZeroConflictsWithSibling(t *testing.T) {
 	t.Parallel()
 
-	app := conga.New[OneOfCounterCLI]().Args([]string{"--json=0", "--yaml"})
+	app := conga.New[OneOfCounterCLI]().
+		RegisterDecoder(".json", json.Decode).
+		ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"json": 0}`))).
+		Args([]string{"--yaml"})
 
 	err := app.RunContext(t.Context())
 
