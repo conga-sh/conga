@@ -96,7 +96,7 @@ stderr 'cannot read config file "nonexistent\.toml"'
 
 # 13. Field tagged config:"-" is rejected inside config files
 exit-status 1 twelve-factor-precedence -c excluded.toml
-stderr 'field "auth_token" is excluded from config files'
+stderr 'field "auth-token" is excluded from config files'
 
 # 14. Placeholder renders in help output
 exec twelve-factor-precedence --help
@@ -112,7 +112,7 @@ worker-id = "w-file"
 
 -- excluded.toml --
 port = 9001
-auth_token = "hunter2"
+auth-token = "hunter2"
 
 -- xdg-config.toml --
 port = 7001

@@ -1952,7 +1952,7 @@ func (a *App[T]) collectSubcommandDeprecationNotices(cmdChain []*spec.Command) {
 func (a *App[T]) collectFlagDeprecationNotices(cmdChain []*spec.Command) {
 	seen := make(map[*spec.Flag]bool)
 
-	for _, cmd := range cmdChain {
+	for index, cmd := range cmdChain {
 		for _, flagSpec := range cmd.Flags {
 			if flagSpec.Deprecated == "" || seen[flagSpec] || flagSpec.Handle == nil {
 				continue
@@ -1962,13 +1962,15 @@ func (a *App[T]) collectFlagDeprecationNotices(cmdChain []*spec.Command) {
 				continue
 			}
 
-			a.appendFlagDeprecationNotice(flagSpec)
+			a.appendFlagDeprecationNotice(flagSpec, cmdChain[:index+1])
 			seen[flagSpec] = true
 		}
 	}
 }
 
-func (a *App[T]) appendFlagDeprecationNotice(flagSpec *spec.Flag) {
+// appendFlagDeprecationNotice records the warning for a deprecated flag the
+// run set; ownerChain runs from the root to the command declaring it.
+func (a *App[T]) appendFlagDeprecationNotice(flagSpec *spec.Flag, ownerChain []*spec.Command) {
 	detail := flagSpec.Name
 	if state := flagStateOf(flagSpec.Handle); state != nil {
 		if d := state.SourceDetail(); d != "" {
@@ -1986,8 +1988,8 @@ func (a *App[T]) appendFlagDeprecationNotice(flagSpec *spec.Flag) {
 	case SourceConfig:
 		// The container detail names the origin file (or bootstrap document
 		// origin label), so the warning derives the key from the declaration:
-		// the config tag when present, otherwise the flag name.
-		configKey := cmp.Or(flagSpec.ConfigKey, flagSpec.Name)
+		// the key path a config file writes for the flag.
+		configKey := spec.ConfigKeyPath(flagSpec, ownerChain)
 		a.deprecationNotices = append(a.deprecationNotices,
 			fmt.Sprintf("WARNING: config key '%s' is deprecated: %s", configKey, flagSpec.Deprecated))
 	case SourceDefault, SourceNone:

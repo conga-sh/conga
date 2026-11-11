@@ -3,6 +3,7 @@ package conga_test
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -194,50 +195,6 @@ func TestFeature_MergesSourcesPerKey(t *testing.T) {
 		assert.False(t, cli.Features.Get().GentleForce)
 	})
 
-	t.Run("config snake_case key loses to the CLI spelling", func(t *testing.T) {
-		t.Parallel()
-
-		configPath := writeConfig(t, fixtureFeatureSnakeCase)
-
-		var cli featureTestCLI
-
-		app := conga.New(&cli).
-			Name("task").
-			EnableFeatures().
-			RegisterDecoder(".yaml", yaml.Decode).
-			RegisterDecoder(".yml", yaml.Decode).
-			ConfigOptions(conga.ConfigExplicit(configPath)).
-			Args([]string{"--feature-gates", "gentle-force=false"})
-
-		err := app.Run()
-
-		assert.NoError(t, err)
-		assert.False(t, cli.Features.Get().GentleForce)
-		assert.Equal(t, conga.SourceCLI, cli.Features.Source())
-	})
-
-	t.Run("config camelCase key loses to the CLI spelling", func(t *testing.T) {
-		t.Parallel()
-
-		configPath := writeConfig(t, fixtureFeatureCamelCase)
-
-		var cli featureTestCLI
-
-		app := conga.New(&cli).
-			Name("task").
-			EnableFeatures().
-			RegisterDecoder(".yaml", yaml.Decode).
-			RegisterDecoder(".yml", yaml.Decode).
-			ConfigOptions(conga.ConfigExplicit(configPath)).
-			Args([]string{"--feature-gates", "gentle-force=false"})
-
-		err := app.Run()
-
-		assert.NoError(t, err)
-		assert.False(t, cli.Features.Get().GentleForce)
-		assert.Equal(t, conga.SourceCLI, cli.Features.Source())
-	})
-
 	t.Run("CLI same-tier later token overrides earlier token in input sequence", func(t *testing.T) {
 		t.Parallel()
 
@@ -269,7 +226,7 @@ func TestFeature_MergesSourcesPerKey(t *testing.T) {
 	t.Run("why table attributes the canonical key to the CLI tier", func(t *testing.T) {
 		t.Parallel()
 
-		configPath := writeConfig(t, fixtureFeatureSnakeCase)
+		configPath := writeConfig(t, fixtureFeatureGentleForce)
 
 		var buffer bytes.Buffer
 
@@ -2884,6 +2841,90 @@ func TestFeature_DeterministicErrorAcrossIterations(t *testing.T) {
 			assert.Equal(t, firstErrMsg, err.Error(), "error message must be deterministic across iterations")
 		}
 	}
+}
+
+// A config section takes exact feature names. Other spellings, which the
+// command line and the environment accept, are unknown fields naming the
+// declared feature.
+func TestFeature_ConfigOtherSpellingRejected(t *testing.T) {
+	t.Parallel()
+
+	fixtures := map[string]struct {
+		fixture []byte
+		key     string
+	}{
+		"snake_case": {fixtureFeatureSnakeCase, "gentle_force"},
+		"camelCase":  {fixtureFeatureCamelCase, "gentleForce"},
+	}
+
+	for name, testCase := range fixtures {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			configPath := filepath.Join(t.TempDir(), ".taskrc.yml")
+			assert.NoError(t, os.WriteFile(configPath, testCase.fixture, 0o600))
+
+			var cli featureTestCLI
+
+			app := conga.New(&cli).
+				Name("task").
+				EnableFeatures().
+				RegisterDecoder(".yml", yaml.Decode).
+				ConfigOptions(conga.ConfigExplicit(configPath)).
+				Args([]string{})
+
+			err := app.Run()
+
+			assert.IsError(t, err, conga.ErrConfig)
+			assert.Equal(t, fmt.Sprintf(`config file %q: unknown field %q in section "experiments" (did you mean "gentle-force"?)`, configPath, testCase.key), err.Error())
+			assert.False(t, cli.Ran)
+		})
+	}
+}
+
+// The first error for a section with several bad spellings is the same on
+// every run.
+func TestFeature_ConfigOtherSpellingRejectedDeterministically(t *testing.T) {
+	t.Parallel()
+
+	cfgPath := writeConfigFile(t, `{"experiments": {"gentle_force": true, "gentleForce": false, "packages": true}}`)
+
+	for range 20 {
+		var cli featureTestCLI
+
+		app := conga.New(&cli).
+			Name("task").
+			EnableFeatures().
+			RegisterDecoder(".json", json.Decode).
+			ConfigOptions(conga.ConfigExplicit(cfgPath)).
+			Args([]string{})
+
+		err := app.Run()
+
+		assert.IsError(t, err, conga.ErrConfig)
+		assert.Equal(t, fmt.Sprintf(`config file %q: unknown field "gentleForce" in section "experiments" (did you mean "gentle-force"?)`, cfgPath), err.Error())
+	}
+}
+
+func TestFeature_ConfigKeyCaseSpellsFeatureKeys(t *testing.T) {
+	t.Parallel()
+
+	cfgPath := writeConfigFile(t, `{"experiments": {"gentle_force": true}}`)
+
+	var cli featureTestCLI
+
+	app := conga.New(&cli).
+		Name("task").
+		EnableFeatures().
+		RegisterDecoder(".json", json.Decode).
+		ConfigOptions(conga.ConfigExplicit(cfgPath), conga.ConfigKeyCase(conga.SnakeCase)).
+		Args([]string{})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.True(t, cli.Features.Get().GentleForce)
+	assert.Equal(t, conga.SourceConfig, cli.Features.Source())
 }
 
 type clusterExperiments struct {

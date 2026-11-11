@@ -89,6 +89,33 @@ func TestSnake(t *testing.T) {
 	}
 }
 
+func TestCamel(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		input    string
+		expected string
+	}{
+		{"api-endpoint", "apiEndpoint"},
+		{"int8-flag", "int8Flag"},
+		{"dry-run", "dryRun"},
+		{"port", "port"},
+		{"with_underscores", "withUnderscores"},
+		{"ServerPort", "serverPort"},
+		{"--foo--bar--", "fooBar"},
+		{"über-fluss", "überFluss"},
+		{"", ""},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.input, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, testCase.expected, casing.Camel(testCase.input))
+		})
+	}
+}
+
 func TestUpperSnake(t *testing.T) {
 	t.Parallel()
 

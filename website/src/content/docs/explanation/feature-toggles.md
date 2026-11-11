@@ -51,9 +51,11 @@ The struct's field types and `default` tags give every feature a starting value.
 
 ### Key canonicalization across sources
 
-Each place a feature can be set has its own naming convention. Command-line flags use kebab-case (`--feature-gates gentle-force=true`), config files often use snake_case (`gentle_force: true`), environment variables use upper snake case (`GENTLE_FORCE`), and the Go field is camelCase (`GentleForce`).
+Each place a feature can be set has its own naming convention. Command-line flags use kebab-case (`--feature-gates gentle-force=true`), environment variables use upper snake case (`GENTLE_FORCE`), and the Go field is camelCase (`GentleForce`).
 
-CONGA maps every spelling to the declared feature name before merging, so `gentle_force` in a config file, `GENTLE_FORCE` in an environment variable, and `gentle-force` on the command line all set the same feature. Precedence follows the source, never the spelling.
+On the command line and in the environment, CONGA maps every spelling to the declared feature name before merging, so `GENTLE_FORCE` in an environment variable and `gentle_force=true` on the command line set the same feature. Precedence follows the source, never the spelling.
+
+A config file is the exception. Its feature section takes the feature name spelled in the app's config key casing (`gentle-force` by default), as every config key is, and another spelling is an unknown key.
 
 ### One environment shape per container
 

@@ -18,6 +18,28 @@ func Snake(s string) string {
 	return joinWords(s, "_", unicode.ToLower)
 }
 
+// Camel converts a kebab-case, snake_case, PascalCase, or dotted string into
+// camelCase: the first word lowercased, each later word capitalized
+// (api-endpoint -> apiEndpoint, int8-flag -> int8Flag).
+func Camel(s string) string {
+	var builder strings.Builder
+	builder.Grow(len(s))
+
+	for i, word := range strings.Split(Kebab(s), "-") {
+		if i == 0 || word == "" {
+			builder.WriteString(word)
+
+			continue
+		}
+
+		runes := []rune(word)
+		builder.WriteRune(unicode.ToUpper(runes[0]))
+		builder.WriteString(string(runes[1:]))
+	}
+
+	return builder.String()
+}
+
 // UpperSnake converts a CamelCase, PascalCase, kebab-case, or dotted string
 // into UPPER_SNAKE_CASE.
 func UpperSnake(s string) string {

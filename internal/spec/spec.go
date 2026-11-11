@@ -481,6 +481,10 @@ type ConfigSettings struct {
 	// Cascading merges every existing tier file in precedence order (lowest to
 	// highest) instead of stopping at the first existing file.
 	Cascading bool
+
+	// KeyCase spells the config keys derived from flag, subcommand, and
+	// feature names. Explicit config tags are used as written.
+	KeyCase KeyCase
 }
 
 // Options configure schema reflection, validation, and predictors.

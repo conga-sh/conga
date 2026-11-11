@@ -32,8 +32,8 @@ stdout '--host\s+string\s+base\.example\.com\s+● config deploy/base\.yaml'
 -- deploy/base.yaml --
 host: base.example.com
 port: 9000
-log_level: debug
+log-level: debug
 
 -- deploy/prod.yaml --
 port: 9443
-log_level: warn
+log-level: warn

@@ -1,7 +1,7 @@
 {
   "port": 9001,
   "host": "127.0.0.1",
-  "clusterName": "prod-east",
+  "cluster-name": "prod-east",
   "timeout": "15s",
   "debug": true,
   "api_secret": "tok_json_123"

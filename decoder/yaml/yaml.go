@@ -7,12 +7,15 @@
 //
 // # Key Mapping
 //
-// Top-level YAML keys match flag names using kebab-case, snake_case, or camelCase:
+// A top-level YAML key matches a flag's config tag as written or, when it has
+// no tag, the flag name spelled in the app's key casing (conga.ConfigKeyCase,
+// kebab-case by default). Other spellings and letter cases are unknown
+// fields:
 //
 //	# config.yaml
 //	http-port: 8080
-//	database_url: "postgres://localhost/db"
-//	maxRetries: 5
+//	database-url: "postgres://localhost/db"
+//	max-retries: 5
 //
 // Parse failures wrap [ErrParse], and an empty document decodes to an empty map.
 package yaml

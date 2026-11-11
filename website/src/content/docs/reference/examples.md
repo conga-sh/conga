@@ -594,11 +594,11 @@ A deploy tool whose `-c` takes several config files and merges them in order, so
 ```yaml label="deploy/base.yaml"
 host: base.example.com
 port: 9000
-log_level: debug
+log-level: debug
 ```
 ```yaml label="deploy/prod.yaml"
 port: 9443
-log_level: warn
+log-level: warn
 ```
 ```sh label="Run"
 $ go run ./_examples/17-config-profiles -c deploy/base.yaml -c deploy/prod.yaml

@@ -12,11 +12,27 @@ import (
 // resolution settings for [App.ConfigOptions]. Options compose and are
 // independent of call order; repeating an option replaces its slot.
 // ConfigOption is a sealed interface: values are produced exclusively by the
-// constructors [ConfigPaths], [ConfigExplicit], and [ConfigCascading], and
-// cannot be implemented by other packages.
+// constructors [ConfigPaths], [ConfigExplicit], [ConfigCascading], and
+// [ConfigKeyCase], and cannot be implemented by other packages.
 type ConfigOption interface {
 	applyTo(settings *spec.ConfigSettings)
 }
+
+// KeyCase names how config files spell the keys CONGA derives from flag,
+// subcommand, and feature names, for [ConfigKeyCase].
+type KeyCase uint8
+
+const (
+	// KebabCase spells derived keys as the names themselves: --api-endpoint
+	// reads api-endpoint. It is the default.
+	KebabCase KeyCase = iota
+	// SnakeCase spells derived keys in snake_case: --api-endpoint reads
+	// api_endpoint.
+	SnakeCase
+	// CamelCase spells derived keys in camelCase: --api-endpoint reads
+	// apiEndpoint.
+	CamelCase
+)
 
 // ConfigDecoder parses raw configuration bytes into a generic key-value map.
 //
@@ -95,6 +111,36 @@ func ConfigExplicit(path string) ConfigOption {
 
 	return optionFunc(func(settings *spec.ConfigSettings) {
 		settings.Explicit = path
+	})
+}
+
+// ConfigKeyCase sets how config files spell the keys derived from flag names,
+// subcommand section names, and feature names in the features section, for
+// [App.ConfigOptions]. Each key has exactly one spelling: under [SnakeCase],
+// --api-endpoint reads api_endpoint, and api-endpoint is an unknown key.
+// Explicit config tags are used as written in every case. The key case
+// applies to config files and to [ConfigDocument] keys alike; the command
+// line and the environment are unaffected. Without this option, keys use
+// [KebabCase].
+//
+// Panics:
+//   - If keyCase is not [KebabCase], [SnakeCase], or [CamelCase].
+func ConfigKeyCase(keyCase KeyCase) ConfigOption {
+	var internal spec.KeyCase
+
+	switch keyCase {
+	case KebabCase:
+		internal = spec.KeyCaseKebab
+	case SnakeCase:
+		internal = spec.KeyCaseSnake
+	case CamelCase:
+		internal = spec.KeyCaseCamel
+	default:
+		panic("conga: app.ConfigOptions(conga.ConfigKeyCase(...)): unknown key case")
+	}
+
+	return optionFunc(func(settings *spec.ConfigSettings) {
+		settings.KeyCase = internal
 	})
 }
 

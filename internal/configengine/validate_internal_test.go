@@ -18,30 +18,35 @@ func TestFormatConfigValue_SliceFormatting(t *testing.T) {
 	assert.Equal(t, "hello", formatConfigValue("hello"))
 }
 
-func TestValidateCommandConfig_ExcludedFlagByAlias(t *testing.T) {
+func TestValidateCommandConfig_ExcludedFlagByName(t *testing.T) {
 	t.Parallel()
 
 	cmd := &spec.Command{
-		Name: "app",
-		Flags: []*spec.Flag{
-			{
-				Name:      "token",
-				ConfigKey: "-",
-				Aliases:   []string{"auth-token"},
-			},
-		},
+		Name:  "app",
+		Flags: []*spec.Flag{{Name: "token", ConfigKey: "-", Aliases: []string{"auth-token"}}},
+	}
+
+	dest := configdata.New()
+	err := validateCommandConfig(map[string]any{"token": "secret"}, cmd, dest, "config.yaml")
+
+	assert.IsError(t, err, sentinel.ErrConfigUnknownField)
+	assert.Equal(t, `config file "config.yaml": field "token" is excluded from config files in command "app"`, err.Error())
+}
+
+// Aliases are not config keys, so an excluded flag's alias is simply unknown.
+func TestValidateCommandConfig_ExcludedFlagAliasIsUnknown(t *testing.T) {
+	t.Parallel()
+
+	cmd := &spec.Command{
+		Name:  "app",
+		Flags: []*spec.Flag{{Name: "token", ConfigKey: "-", Aliases: []string{"auth-token"}}},
 	}
 
 	dest := configdata.New()
 	err := validateCommandConfig(map[string]any{"auth-token": "secret"}, cmd, dest, "config.yaml")
-	assert.Error(t, err)
-	assert.IsError(t, err, sentinel.ErrConfigUnknownField)
-	assert.Contains(t, err.Error(), `field "auth-token" is excluded from config files in command "app"`)
 
-	errPrimary := validateCommandConfig(map[string]any{"token": "secret"}, cmd, dest, "config.yaml")
-	assert.Error(t, errPrimary)
-	assert.IsError(t, errPrimary, sentinel.ErrConfigUnknownField)
-	assert.Contains(t, errPrimary.Error(), `field "token" is excluded from config files in command "app"`)
+	assert.IsError(t, err, sentinel.ErrConfigUnknownField)
+	assert.Equal(t, `config file "config.yaml": unknown field "auth-token" in command "app"`, err.Error())
 }
 
 func TestValidateCommandConfig_UnknownSection(t *testing.T) {
@@ -114,8 +119,10 @@ func TestValidateCommandConfig_MapSharedAcrossAllAliasKeys(t *testing.T) {
 	dest := configdata.New()
 
 	err := validateCommandConfig(map[string]any{
-		"pairs": map[string]any{"shared": "low", "onlyLow": "1"},
-		"tags":  map[string]any{"b": "2"},
+		"remote": map[string]any{
+			"pairs": map[string]any{"shared": "low", "onlyLow": "1"},
+		},
+		"tags": map[string]any{"b": "2"},
 	}, cmd, dest, "low.toml")
 	assert.NoError(t, err)
 
@@ -428,4 +435,396 @@ func TestHandleNestedSection_ScalarFlagReportsNotAMap(t *testing.T) {
 	assert.IsError(t, err, sentinel.ErrConfig)
 	assert.Equal(t, `config file "taskrc": field "port" in command "app" is not a map`, err.Error())
 	assert.NotContains(t, err.Error(), "did you mean")
+}
+
+func TestValidateCommandConfig_OtherSpellingsRejected(t *testing.T) {
+	t.Parallel()
+
+	messages := map[string]string{
+		"dry_run": `config file "config.yaml": unknown field "dry_run" in command "app" (did you mean "dry-run"?)`,
+		"dryRun":  `config file "config.yaml": unknown field "dryRun" in command "app" (did you mean "dry-run"?)`,
+		"Dry-Run": `config file "config.yaml": unknown field "Dry-Run" in command "app" (did you mean "dry-run"?)`,
+		"n":       `config file "config.yaml": unknown field "n" in command "app"`,
+	}
+
+	for key, message := range messages {
+		t.Run(key, func(t *testing.T) {
+			t.Parallel()
+
+			cmd := &spec.Command{
+				Name:  "app",
+				Flags: []*spec.Flag{{Name: "dry-run", Aliases: []string{"n"}}},
+			}
+
+			dest := configdata.New()
+			err := validateCommandConfig(map[string]any{key: "true"}, cmd, dest, "config.yaml")
+
+			assert.IsError(t, err, sentinel.ErrConfigUnknownField)
+			assert.Equal(t, message, err.Error())
+		})
+	}
+}
+
+func TestValidateCommandConfig_FlagNameBinds(t *testing.T) {
+	t.Parallel()
+
+	cmd := &spec.Command{
+		Name:  "app",
+		Flags: []*spec.Flag{{Name: "dry-run"}},
+	}
+
+	dest := configdata.New()
+	err := validateCommandConfig(map[string]any{"dry-run": "true"}, cmd, dest, "config.yaml")
+
+	assert.NoError(t, err)
+
+	value, exists := dest.ScalarValue("dry-run")
+
+	assert.True(t, exists)
+	assert.Equal(t, configdata.Value{Raw: "true", Origin: "config.yaml"}, value)
+}
+
+// With every other spelling rejected, the first error for a document with
+// several bad keys must not depend on map iteration order.
+func TestValidateCommandConfig_FirstErrorIsStable(t *testing.T) {
+	t.Parallel()
+
+	cmd := &spec.Command{
+		Name:  "app",
+		Flags: []*spec.Flag{{Name: "dry-run"}},
+	}
+
+	for range 50 {
+		dest := configdata.New()
+		err := validateCommandConfig(map[string]any{"dry-run": "true", "dry_run": "false", "dryRun": "x"}, cmd, dest, "config.yaml")
+
+		assert.Equal(t, `config file "config.yaml": unknown field "dryRun" in command "app" (did you mean "dry-run"?)`, err.Error())
+	}
+}
+
+func TestValidateCommandConfig_SubcommandAliasSectionRejected(t *testing.T) {
+	t.Parallel()
+
+	cmd := &spec.Command{
+		Name: "app",
+		Subcommands: []*spec.Command{{
+			Name:    "deploy",
+			Aliases: []string{"d"},
+			Flags:   []*spec.Flag{{Name: "region"}},
+		}},
+	}
+
+	dest := configdata.New()
+	err := validateCommandConfig(map[string]any{"d": map[string]any{"region": "eu"}}, cmd, dest, "config.yaml")
+
+	assert.IsError(t, err, sentinel.ErrConfigUnknownField)
+	assert.Equal(t, `config file "config.yaml": unknown section "d" in command "app"`, err.Error())
+}
+
+func TestValidateCommandConfig_SubcommandSectionOtherSpellingRejected(t *testing.T) {
+	t.Parallel()
+
+	cmd := &spec.Command{
+		Name: "app",
+		Subcommands: []*spec.Command{{
+			Name:  "deploy-app",
+			Flags: []*spec.Flag{{Name: "region"}},
+		}},
+	}
+
+	dest := configdata.New()
+	err := validateCommandConfig(map[string]any{"deploy_app": map[string]any{"region": "eu"}}, cmd, dest, "config.yaml")
+
+	assert.IsError(t, err, sentinel.ErrConfigUnknownField)
+	assert.Equal(t, `config file "config.yaml": unknown section "deploy_app" in command "app" (did you mean "deploy-app"?)`, err.Error())
+}
+
+func TestValidateNamespaceConfig_RootFlagNameRejectedInSection(t *testing.T) {
+	t.Parallel()
+
+	cmd := &spec.Command{
+		Name:  "app",
+		Flags: []*spec.Flag{{Name: "host", ConfigKey: "db.host"}, {Name: "port"}},
+	}
+
+	dest := configdata.New()
+	err := validateCommandConfig(map[string]any{"db": map[string]any{"host": "h", "port": 99}}, cmd, dest, "config.toml")
+
+	assert.IsError(t, err, sentinel.ErrConfigUnknownField)
+	assert.Equal(t, `config file "config.toml": unknown field "port" in namespace "db" (did you mean "host"?)`, err.Error())
+}
+
+func TestValidateNamespaceConfig_ExcludedRootFlagReportedUnknown(t *testing.T) {
+	t.Parallel()
+
+	cmd := &spec.Command{
+		Name:  "app",
+		Flags: []*spec.Flag{{Name: "host", ConfigKey: "db.host"}, {Name: "port", ConfigKey: "-"}},
+	}
+
+	dest := configdata.New()
+	err := validateCommandConfig(map[string]any{"db": map[string]any{"port": 99}}, cmd, dest, "config.toml")
+
+	assert.IsError(t, err, sentinel.ErrConfigUnknownField)
+	assert.Equal(t, `config file "config.toml": unknown field "port" in namespace "db" (did you mean "host"?)`, err.Error())
+}
+
+func TestValidateNamespaceConfig_SuggestsKeyInSection(t *testing.T) {
+	t.Parallel()
+
+	cmd := &spec.Command{
+		Name:  "app",
+		Flags: []*spec.Flag{{Name: "host", ConfigKey: "db.host"}},
+	}
+
+	dest := configdata.New()
+	err := validateCommandConfig(map[string]any{"db": map[string]any{"hots": "h"}}, cmd, dest, "config.toml")
+
+	assert.IsError(t, err, sentinel.ErrConfigUnknownField)
+	assert.Equal(t, `config file "config.toml": unknown field "hots" in namespace "db" (did you mean "host"?)`, err.Error())
+}
+
+func TestValidateCommandConfig_DottedTagOnlyMatchesNestedSections(t *testing.T) {
+	t.Parallel()
+
+	messages := map[string]string{
+		"db.host": `config file "config.toml": unknown field "db.host" in command "app"`,
+		"dbhost":  `config file "config.toml": unknown field "dbhost" in command "app"`,
+		"host":    `config file "config.toml": unknown field "host" in command "app"`,
+	}
+
+	for key, message := range messages {
+		t.Run(key, func(t *testing.T) {
+			t.Parallel()
+
+			cmd := &spec.Command{
+				Name:  "app",
+				Flags: []*spec.Flag{{Name: "host", ConfigKey: "db.host"}},
+			}
+
+			dest := configdata.New()
+			err := validateCommandConfig(map[string]any{key: "x"}, cmd, dest, "config.toml")
+
+			assert.IsError(t, err, sentinel.ErrConfigUnknownField)
+			assert.Equal(t, message, err.Error())
+		})
+	}
+}
+
+func TestValidateCommandConfig_DottedTagBindsAsNestedSections(t *testing.T) {
+	t.Parallel()
+
+	cmd := &spec.Command{
+		Name:  "app",
+		Flags: []*spec.Flag{{Name: "host", ConfigKey: "db.host"}},
+	}
+
+	dest := configdata.New()
+	err := validateCommandConfig(map[string]any{"db": map[string]any{"host": "h"}}, cmd, dest, "config.toml")
+
+	assert.NoError(t, err)
+
+	value, exists := dest.ScalarValue("db.host")
+
+	assert.True(t, exists)
+	assert.Equal(t, configdata.Value{Raw: "h", Origin: "config.toml"}, value)
+}
+
+func TestValidateCommandConfig_ConfigTagReplacesFlagName(t *testing.T) {
+	t.Parallel()
+
+	messages := map[string]string{
+		"api-endpoint": `config file "config.toml": unknown field "api-endpoint" in command "app"`,
+		"Endpoint":     `config file "config.toml": unknown field "Endpoint" in command "app" (did you mean "endpoint"?)`,
+	}
+
+	for key, message := range messages {
+		t.Run(key, func(t *testing.T) {
+			t.Parallel()
+
+			cmd := &spec.Command{
+				Name:  "app",
+				Flags: []*spec.Flag{{Name: "api-endpoint", ConfigKey: "endpoint"}},
+			}
+
+			dest := configdata.New()
+			err := validateCommandConfig(map[string]any{key: "x"}, cmd, dest, "config.toml")
+
+			assert.IsError(t, err, sentinel.ErrConfigUnknownField)
+			assert.Equal(t, message, err.Error())
+		})
+	}
+}
+
+func TestValidateCommandConfig_ConfigTagBinds(t *testing.T) {
+	t.Parallel()
+
+	cmd := &spec.Command{
+		Name:  "app",
+		Flags: []*spec.Flag{{Name: "api-endpoint", ConfigKey: "endpoint"}},
+	}
+
+	dest := configdata.New()
+	err := validateCommandConfig(map[string]any{"endpoint": "x"}, cmd, dest, "config.toml")
+
+	assert.NoError(t, err)
+
+	value, exists := dest.ScalarValue("endpoint")
+
+	assert.True(t, exists)
+	assert.Equal(t, configdata.Value{Raw: "x", Origin: "config.toml"}, value)
+}
+
+func featureMapCommand(keyCase spec.KeyCase) *spec.Command {
+	featureFlag := &spec.Flag{Name: "feature-gates", ConfigKey: "experiments", IsMap: true}
+
+	return &spec.Command{
+		Name:           "app",
+		Flags:          []*spec.Flag{featureFlag},
+		FeatureFlag:    featureFlag,
+		FeatureFields:  []*spec.FeatureField{{Name: "gentle-force"}},
+		ConfigSettings: spec.ConfigSettings{KeyCase: keyCase},
+	}
+}
+
+func TestValidateCommandConfig_FeatureKeyOtherSpellingRejected(t *testing.T) {
+	t.Parallel()
+
+	documents := map[string]any{
+		"nested map": map[string]any{"gentle_force": true},
+		"flat list":  []any{"gentle_force=true"},
+		"flat text":  "gentle_force=true",
+	}
+
+	for name, section := range documents {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			dest := configdata.New()
+			err := validateCommandConfig(map[string]any{"experiments": section}, featureMapCommand(spec.KeyCaseKebab), dest, "config.yaml")
+
+			assert.IsError(t, err, sentinel.ErrConfigUnknownField)
+			assert.Equal(t, `config file "config.yaml": unknown field "gentle_force" in section "experiments" (did you mean "gentle-force"?)`, err.Error())
+		})
+	}
+}
+
+func TestValidateCommandConfig_FeatureKeyExactNameBinds(t *testing.T) {
+	t.Parallel()
+
+	dest := configdata.New()
+	err := validateCommandConfig(map[string]any{"experiments": map[string]any{"gentle-force": true}}, featureMapCommand(spec.KeyCaseKebab), dest, "config.yaml")
+
+	assert.NoError(t, err)
+
+	entries := dest.Map("experiments")
+
+	assert.Equal(t, map[string]configdata.Value{"gentle-force": {Raw: "true", Origin: "config.yaml"}}, entries)
+}
+
+func TestValidateCommandConfig_KeyCaseSpellsDerivedKeys(t *testing.T) {
+	t.Parallel()
+
+	cases := map[spec.KeyCase]map[string]any{
+		spec.KeyCaseKebab: {"dry-run": "true", "deploy-app": map[string]any{"max-retries": "3"}},
+		spec.KeyCaseSnake: {"dry_run": "true", "deploy_app": map[string]any{"max_retries": "3"}},
+		spec.KeyCaseCamel: {"dryRun": "true", "deployApp": map[string]any{"maxRetries": "3"}},
+	}
+
+	for keyCase, document := range cases {
+		t.Run(keyCase.Apply("key-case"), func(t *testing.T) {
+			t.Parallel()
+
+			cmd := &spec.Command{
+				Name:  "app",
+				Flags: []*spec.Flag{{Name: "dry-run"}},
+				Subcommands: []*spec.Command{{
+					Name:  "deploy-app",
+					Flags: []*spec.Flag{{Name: "max-retries"}},
+				}},
+				ConfigSettings: spec.ConfigSettings{KeyCase: keyCase},
+			}
+
+			dest := configdata.New()
+			err := validateCommandConfig(document, cmd, dest, "config.yaml")
+
+			assert.NoError(t, err)
+
+			dryRun, dryRunExists := dest.ScalarValue("dry-run")
+			retries, retriesExists := dest.ScalarValue("deploy-app.max-retries")
+
+			assert.True(t, dryRunExists)
+			assert.Equal(t, configdata.Value{Raw: "true", Origin: "config.yaml"}, dryRun)
+			assert.True(t, retriesExists)
+			assert.Equal(t, configdata.Value{Raw: "3", Origin: "config.yaml"}, retries)
+		})
+	}
+}
+
+func TestValidateCommandConfig_KeyCaseRejectsOtherCasings(t *testing.T) {
+	t.Parallel()
+
+	messages := map[string]string{
+		"dry-run": `config file "config.yaml": unknown field "dry-run" in command "app" (did you mean "dry_run"?)`,
+		"dryRun":  `config file "config.yaml": unknown field "dryRun" in command "app" (did you mean "dry_run"?)`,
+	}
+
+	for key, message := range messages {
+		t.Run(key, func(t *testing.T) {
+			t.Parallel()
+
+			cmd := &spec.Command{
+				Name:           "app",
+				Flags:          []*spec.Flag{{Name: "dry-run"}},
+				ConfigSettings: spec.ConfigSettings{KeyCase: spec.KeyCaseSnake},
+			}
+
+			dest := configdata.New()
+			err := validateCommandConfig(map[string]any{key: "true"}, cmd, dest, "config.yaml")
+
+			assert.IsError(t, err, sentinel.ErrConfigUnknownField)
+			assert.Equal(t, message, err.Error())
+		})
+	}
+}
+
+func TestValidateCommandConfig_KeyCaseLeavesConfigTagAsWritten(t *testing.T) {
+	t.Parallel()
+
+	cmd := &spec.Command{
+		Name:           "app",
+		Flags:          []*spec.Flag{{Name: "api-endpoint", ConfigKey: "api-url"}},
+		ConfigSettings: spec.ConfigSettings{KeyCase: spec.KeyCaseSnake},
+	}
+
+	dest := configdata.New()
+	errTag := validateCommandConfig(map[string]any{"api-url": "x"}, cmd, dest, "config.yaml")
+	errCased := validateCommandConfig(map[string]any{"api_url": "x"}, cmd, dest, "config.yaml")
+
+	assert.NoError(t, errTag)
+	assert.IsError(t, errCased, sentinel.ErrConfigUnknownField)
+	assert.Equal(t, `config file "config.yaml": unknown field "api_url" in command "app" (did you mean "api-url"?)`, errCased.Error())
+}
+
+func TestValidateCommandConfig_KeyCaseSpellsFeatureKeys(t *testing.T) {
+	t.Parallel()
+
+	dest := configdata.New()
+	err := validateCommandConfig(map[string]any{"experiments": map[string]any{"gentle_force": true}}, featureMapCommand(spec.KeyCaseSnake), dest, "config.yaml")
+
+	assert.NoError(t, err)
+
+	entries := dest.Map("experiments")
+
+	assert.Equal(t, map[string]configdata.Value{"gentle-force": {Raw: "true", Origin: "config.yaml"}}, entries)
+}
+
+func TestValidateCommandConfig_KeyCaseRejectsKebabFeatureKey(t *testing.T) {
+	t.Parallel()
+
+	dest := configdata.New()
+	err := validateCommandConfig(map[string]any{"experiments": map[string]any{"gentle-force": true}}, featureMapCommand(spec.KeyCaseCamel), dest, "config.yaml")
+
+	assert.IsError(t, err, sentinel.ErrConfigUnknownField)
+	assert.Equal(t, `config file "config.yaml": unknown field "gentle-force" in section "experiments" (did you mean "gentleForce"?)`, err.Error())
 }

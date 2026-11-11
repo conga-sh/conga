@@ -6,12 +6,15 @@
 //
 // # Key Mapping
 //
-// Top-level HCL attributes match flag names using kebab-case, snake_case, or camelCase:
+// A top-level HCL attribute matches a flag's config tag as written or, when
+// it has no tag, the flag name spelled in the app's key casing
+// (conga.ConfigKeyCase, kebab-case by default). Other spellings and letter
+// cases are unknown fields:
 //
 //	# config.hcl
 //	http-port = 8080
-//	database_url = "postgres://localhost/db"
-//	maxRetries = 5
+//	database-url = "postgres://localhost/db"
+//	max-retries = 5
 //
 // Blocks decode as nested maps keyed by block type; duplicate block types are
 // rejected. Parse and semantic failures (undefined variables) wrap [ErrParse],

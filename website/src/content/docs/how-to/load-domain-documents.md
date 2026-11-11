@@ -189,7 +189,7 @@ Each `ConfigDocument` write takes an origin, a label you choose (here the file p
 
 | Method | Records |
 |---|---|
-| `Set(key, value, origin)` | A whole value for one key: a scalar, a slice, or a nested map. `key` matches a flag name or its `config:"..."` tag. |
+| `Set(key, value, origin)` | A whole value for one key: a scalar, a slice, or a nested map. `key` matches the flag's `config:"..."` tag exactly, or, when it has no tag, the flag name spelled in the app's key casing. |
 | `SetKey(key, entryKey, value, origin)` | One entry of a map flag, merged with earlier entries. |
 | `SetScoped(...)`, `SetKeyScoped(...)` | The same writes with a scope, shown as `pipeline.yaml › pipeline deploy`. |
 

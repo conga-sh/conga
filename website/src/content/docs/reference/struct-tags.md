@@ -12,7 +12,7 @@ CONGA derives the CLI schema from struct fields and their tags. Schema build val
 | `aliases` | ✅ | ✅ | – | Comma-separated long-name aliases. |
 | `and` | ✅ | ✅ | ✅ | Required co-occurrence group name whose members must all be set together. |
 | `bootstrap` | ✅ | ✅ | ✅ | Bind the field before the bootstrap phase runs and expose it typed to `Bootstrap` (`bootstrap` or `bootstrap:"true"`). Requires a `conga.Bootstrapper`; rejected with `feature`; restricted to scalar, slice-of-scalar, and map-of-scalar types. |
-| `config` | ✅ | ✅ | ✅ | Config file key feeding the flag (default: flag name, also matched in snake_case, so `api_endpoint` sets `--api-endpoint`). `config:"-"` excludes the field from config files. |
+| `config` | ✅ | ✅ | ✅ | Config file key feeding the flag, matched exactly as written (default: a key derived from the flag name, spelled in the app's key casing, so `--api-endpoint` reads `api-endpoint`, or `api_endpoint` under `conga.ConfigKeyCase(conga.SnakeCase)`). The tag replaces the name, and aliases never match. A dotted key such as `db.host` is read from nested sections, `host` inside `db`. `config:"-"` excludes the field from config files. |
 | `default` | ✅ | – | – | Default value when no other source provides one. Coerced with the same parser as CLI input. Rejected on required flags and `oneof` members. |
 | `deprecated` | ✅ | – | ✅ | Deprecation notice; suppresses flag from completion. |
 | `enum` | ✅ | ✅ | – | Comma-separated allowed values, checked against the coerced value, rendered in help as `[enum: …]`. |
@@ -321,7 +321,7 @@ A `bool` feature is on when its value is `true`. An integer feature is on at any
 
 ### Feature value resolution
 
-Feature names are kebab-cased. A key may use any spelling of a declared name (kebab-case, snake_case, or camelCase). Keys are canonicalized before the merge, so precedence follows the source rather than the spelling.
+Feature names are kebab-cased. On the command line and in the environment, a key may use any spelling of a declared name (kebab-case, snake_case, or camelCase). Keys are canonicalized before the merge, so precedence follows the source rather than the spelling. A config section takes the feature name spelled in the app's key casing (`gentle_force` under `SnakeCase`), and another spelling is an unknown key (`ErrConfig`, exit 1).
 
 Every source contributes `name=value` pairs, merged key by key. The command line beats the environment, which beats the config file, which beats the field's `default` tag. A source changes only the keys it names, so unlisted features keep their lower-source values. The container's `Source()` reports the highest source that contributed a key. See [About value precedence](/explanation/value-precedence/).
 
