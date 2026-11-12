@@ -495,7 +495,7 @@ func coerceURL(raw string) (*url.URL, error) {
 }
 
 func coerceBool(raw string, targetType reflect.Type) (any, error) {
-	if raw == "" || raw == "true" || raw == "1" {
+	if raw == "true" || raw == "1" {
 		return convertValue(true, targetType), nil
 	}
 

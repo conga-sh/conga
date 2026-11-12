@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -2906,7 +2907,7 @@ func whyConfigPathLines(rows ...[2]string) string {
 	builder.WriteString("Config paths:\n")
 
 	for _, row := range rows {
-		builder.WriteString("  " + row[0] + strings.Repeat(" ", width-len(row[0])) + "   " + row[1] + "\n")
+		fmt.Fprintf(&builder, "  %-*s   %s\n", width, row[0], row[1])
 	}
 
 	return builder.String()

@@ -969,10 +969,14 @@ func (w *astCompletionWalker) completeAttachedFlag(toComplete string, compCtx pr
 	flagPrefix, valuePart, _ := strings.Cut(toComplete, "=")
 
 	var flag *Flag
+
+	negated := false
+
 	if flagName, cut := strings.CutPrefix(flagPrefix, "--"); cut {
 		flag = w.resolveLongFlag(flagName)
 		if flag == nil {
 			flag = w.resolveNegatableFlag(flagName)
+			negated = flag != nil
 		}
 	} else if shortName, shortCut := strings.CutPrefix(flagPrefix, "-"); shortCut && len(shortName) == 1 {
 		flag = w.resolveShortFlag(rune(shortName[0]))
@@ -982,9 +986,10 @@ func (w *astCompletionWalker) completeAttachedFlag(toComplete string, compCtx pr
 		return predict.Result{}, false
 	}
 
-	// A counter takes no value, so "--verbose=" has nothing to complete and no
-	// value usage line to show.
-	if flag.IsCounter {
+	// A counter and a negated bool take no value, so "--verbose=" and
+	// "--no-redirects=" have nothing to complete and no value usage line to
+	// show.
+	if flag.IsCounter || negated {
 		return predict.Result{}, true
 	}
 

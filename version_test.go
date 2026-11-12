@@ -311,7 +311,7 @@ func TestVersionCommand_JSONInvalidValue(t *testing.T) {
 	assert.Equal(t, "", buffer.String())
 }
 
-func TestVersionCommand_JSONEmptyValueTreatedAsTrue(t *testing.T) {
+func TestVersionCommand_JSONEmptyValueRejected(t *testing.T) {
 	t.Parallel()
 
 	var buffer bytes.Buffer
@@ -323,8 +323,11 @@ func TestVersionCommand_JSONEmptyValueTreatedAsTrue(t *testing.T) {
 
 	err := app.Run()
 
-	assert.NoError(t, err)
-	assert.Contains(t, buffer.String(), `{"version":"3.0.0"`)
+	assert.Error(t, err)
+	assert.IsError(t, err, conga.ErrCoerce)
+	assert.True(t, conga.IsUsageError(err))
+	assert.Equal(t, `invalid boolean value "", expected true or false (or 1 or 0) for flag --json`, err.Error())
+	assert.Equal(t, "", buffer.String())
 }
 
 func TestVersionCommand_AncestorJSONFlagCollides(t *testing.T) {

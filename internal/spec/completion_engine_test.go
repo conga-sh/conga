@@ -839,6 +839,40 @@ func TestCompletion_CounterAttachedValue(t *testing.T) {
 	})
 }
 
+func TestCompletion_NegatedBoolAttachedValue(t *testing.T) {
+	t.Parallel()
+
+	t.Run("negated bool offers no value and no usage line", func(t *testing.T) {
+		t.Parallel()
+
+		var cli FlagsTestCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"--no-debug="}, spec.CompleteOptions{})
+
+		assert.Equal(t, 0, len(invoked.Items))
+		assert.Equal(t, "", invoked.Usage)
+	})
+
+	t.Run("positive bool offers true and false", func(t *testing.T) {
+		t.Parallel()
+
+		var cli FlagsTestCLI
+
+		cmdSpec, err := buildSchema(&cli, "app", spec.Options{})
+		assert.NoError(t, err)
+
+		invoked := spec.Complete(cmdSpec, []string{"--debug="}, spec.CompleteOptions{})
+
+		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
+
+		assert.Equal(t, []string{"--debug=true", "--debug=false"}, values)
+		assert.Equal(t, "Debug mode", invoked.Usage)
+	})
+}
+
 func TestCompletion_DeprecatedFiltering(t *testing.T) {
 	t.Parallel()
 
