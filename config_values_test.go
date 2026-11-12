@@ -1,6 +1,7 @@
 package conga_test
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -176,7 +177,9 @@ func TestConfigValues_TOMLLocalDatetimeRejectedForTime(t *testing.T) {
 
 	err := app.Run()
 
-	assert.IsError(t, err, conga.ErrCoerce)
+	assert.IsError(t, err, conga.ErrConfig)
+	assert.False(t, conga.IsUsageError(err))
+	assert.False(t, errors.Is(err, conga.ErrCoerce))
 	assert.Equal(t, `invalid time "1979-05-27T07:32:00" (expected RFC 3339, e.g. 2006-01-02T15:04:05Z) for flag --when (from config key "when")`, err.Error())
 	assert.Equal(t, conga.SourceNone, cli.When.Source())
 	assert.True(t, cli.When.Get().IsZero())
@@ -194,7 +197,9 @@ func TestConfigValues_TOMLLocalDateRejectedForTime(t *testing.T) {
 
 	err := app.Run()
 
-	assert.IsError(t, err, conga.ErrCoerce)
+	assert.IsError(t, err, conga.ErrConfig)
+	assert.False(t, conga.IsUsageError(err))
+	assert.False(t, errors.Is(err, conga.ErrCoerce))
 	assert.Equal(t, `invalid time "1979-05-27" (expected RFC 3339, e.g. 2006-01-02T15:04:05Z) for flag --when (from config key "when")`, err.Error())
 	assert.Equal(t, conga.SourceNone, cli.When.Source())
 	assert.True(t, cli.When.Get().IsZero())

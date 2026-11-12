@@ -83,7 +83,7 @@ Flags:
       --version           Show version
 ```
 
-An error from `UnmarshalText` is a usage error (`ErrCoerce`, exit 2):
+A command-line error from `UnmarshalText` is a usage error (`ErrCoerce`, exit 2):
 
 ```sh error={2}
 $ relay --ports 80
@@ -289,7 +289,8 @@ A registered `TypeParser` decodes scalar and slice fields. Map values decode thr
 
 | Mistake | When it shows | Result |
 |---|---|---|
-| A value the parser or the type's unmarshaler rejects, from the command line, environment, or config | When the value is bound | Usage error naming the flag and source, exit 2 |
+| A value the parser or the type's unmarshaler rejects, from the command line | When the value is bound | Usage error naming the flag, exit 2 |
+| The same rejection from the environment or a config file | When the value is bound | `ErrConfig`, exit 1, naming the flag and source |
 | A misspelled custom tag, a tag value its `Validate` rejects, or a custom tag on a field of another type | Startup, on every run | `schema error: invalid struct tag`, exit 1 |
 | A field of a type with no parser, unmarshaler, or built-in support | Only when a user sets the flag | `unsupported type net.IPNet for flag --allow`, exit 2 |
 | A map flag of an unregistered map type | Only when a user sets the flag | `map type map[string]main.PortRange requires registration via app.RegisterMap`, exit 2 |

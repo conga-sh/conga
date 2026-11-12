@@ -3,6 +3,7 @@ package conga_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"strings"
 	"testing"
@@ -339,7 +340,26 @@ func TestStdio_EnvStdinConsumerConflictsWithPositional(t *testing.T) {
 
 	err := app.RunContext(t.Context())
 
-	assert.IsError(t, err, conga.ErrValidation)
+	assert.IsError(t, err, conga.ErrConfig)
+	assert.False(t, conga.IsUsageError(err))
+	assert.False(t, errors.Is(err, conga.ErrValidation))
+	assert.Equal(t, `stdin can only be read once (--first and argument <input> both use "-")`, err.Error())
+}
+
+func TestStdio_ConfigStdinConsumerConflictsWithPositional(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[stdioConsumersCLI]().
+		RegisterDecoder(".json", json.Decode).
+		ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"first": "-"}`))).
+		Stdin(strings.NewReader("payload")).
+		Args([]string{"-"})
+
+	err := app.Run()
+
+	assert.IsError(t, err, conga.ErrConfig)
+	assert.False(t, conga.IsUsageError(err))
+	assert.False(t, errors.Is(err, conga.ErrValidation))
 	assert.Equal(t, `stdin can only be read once (--first and argument <input> both use "-")`, err.Error())
 }
 

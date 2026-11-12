@@ -2,6 +2,7 @@ package conga_test
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -81,7 +82,9 @@ func TestConfigKeyCase_CoercionErrorNamesCasedKey(t *testing.T) {
 
 	err := app.Run()
 
-	assert.IsError(t, err, conga.ErrCoerce)
+	assert.IsError(t, err, conga.ErrConfig)
+	assert.False(t, conga.IsUsageError(err))
+	assert.False(t, errors.Is(err, conga.ErrCoerce))
 	assert.Equal(t, `invalid integer value "many" for flag --max-conns (from config key "deploy_app.max_conns")`, err.Error())
 	assert.Equal(t, conga.SourceNone, cli.DeployApp.Get().MaxConns.Source())
 	assert.Equal(t, 0, cli.DeployApp.Get().MaxConns.Get())

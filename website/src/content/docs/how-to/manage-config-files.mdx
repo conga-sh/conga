@@ -448,7 +448,7 @@ loaded=["/etc/cascading-searchpaths/cascading-searchpaths.yaml" "/home/alice/.co
 
 ## Know what users see when a file is wrong
 
-A problem with the file itself is a config error (exit 1). A bad value in a valid file is reported like the same value on the command line (exit 2), naming the key it came from:
+A problem with the file itself, or with a value it supplies, is a config error (exit 1). That includes a valid file whose value fails to coerce or validate: the value did not come from the command line, so the failure classifies under `ErrConfig` and names the key it came from. Only command-line values are usage errors (exit 2):
 
 | What the file has | Result |
 |---|---|
@@ -458,8 +458,8 @@ A problem with the file itself is a config error (exit 1). A bad value in a vali
 | An unknown key (`them: dark`) | Config error, exit 1, with a "did you mean" hint |
 | A key in another spelling (`api_endpoint:` for `--api-endpoint`) | Config error, exit 1, with a "did you mean" hint |
 | A key for a `config:"-"` field | Config error, exit 1 |
-| A value of the wrong type (`timeout: soon`) | Usage error, exit 2, naming the key |
-| A value outside `enum` or `range` (`theme: pink`) | Usage error, exit 2, naming the key |
+| A value of the wrong type (`timeout: soon`) | Config error, exit 1, naming the key |
+| A value outside `enum` or `range` (`theme: pink`) | Config error, exit 1, naming the key |
 
 ```text no-copy error={1-5} wrap
 cascading-searchpaths: error: config file "typo.yaml": unknown field "them" in command "cascading-searchpaths" (did you mean "theme"?)

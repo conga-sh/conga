@@ -232,8 +232,10 @@ func TestFileExistingValidation(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
-		assert.Contains(t, err.Error(), " for flag --input")
+		assert.IsError(t, err, conga.ErrConfig)
+		assert.False(t, conga.IsUsageError(err))
+		assert.False(t, errors.Is(err, conga.ErrValidation))
+		assert.Equal(t, fmt.Sprintf("stat %s: no such file or directory for flag --input (from config key \"input\")", missing), err.Error())
 	})
 
 	t.Run("slice elements validated with index context", func(t *testing.T) {
@@ -483,8 +485,10 @@ func TestFileExistingConfigValidation(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
-		assert.Contains(t, err.Error(), " for flag --input")
+		assert.IsError(t, err, conga.ErrConfig)
+		assert.False(t, conga.IsUsageError(err))
+		assert.False(t, errors.Is(err, conga.ErrValidation))
+		assert.Equal(t, fmt.Sprintf("stat %s: no such file or directory for flag --input (from config key \"input\")", missing), err.Error())
 	})
 }
 

@@ -78,15 +78,28 @@ When a source names a feature that doesn't exist, or a gated member that is inac
 ### Command-line invocations (exit code 2)
 The command line is what the user typed for this run, so an unknown feature name, or a flag whose feature is off, is a mistake to report to them. The run stops before any hook with a usage error (exit code 2) that names the missing feature and shows the usage.
 
-### Configuration files (exit code 1)
-A config file holds settings that outlast any one run, so a file that names an unknown feature, or sets a flag that an inactive feature removed, is wrong or out of date. Loading it fails with a config error (`ErrConfig`, exit code 1), with a "did you mean" hint for near misses.
+### Configuration files and feature variables (exit code 1)
+A config file holds settings that outlast any one run, and an environment variable arrives from the shell, CI, or a container. Both are data rather than a command line, so an unknown feature name or a bad value from either source is a config error (`ErrConfig`, exit code 1). A bad value names the key or variable; an unknown name gets the same "did you mean" hint as on the command line. A file that sets a flag an inactive feature removed is also `ErrConfig`.
 
-A bad *value* is different. `http3: maybe` in the file is reported exactly like `--feature-gates http3=maybe` on the command line, as a usage error (exit code 2) naming the config key it came from. Every source reports a bad value the same way, for features and flags alike.
+```sh error={2}
+$ feature-toggles --config-file features.yaml
+feature-toggles: error: invalid value "maybe" for feature "http3" (from config key "features.http3"): must be true or false (or 1 or 0)
+```
 
-### Environment variables (silently ignored)
-Environment variables leak in from parent shells, CI runners, and container orchestrators. If `API_QUIC=true` is left over in a shell where `http3` is off, failing would break a run the variable was never meant for, so CONGA ignores variables that set inactive gated flags.
+```sh error={2}
+$ API_FEATURES=http3=maybe feature-toggles
+feature-toggles: error: invalid value "maybe" for feature "http3" (from environment variable API_FEATURES): must be true or false (or 1 or 0)
+```
 
-Feature variables themselves are different. `API_FEATURES` or `API_FEATURE_HTTP3` exists only to set features, so an unknown name or bad value in it is a usage error (exit code 2), just as on the command line.
+An unknown name gets a hint when the spelling is close:
+
+```sh error={2}
+$ API_FEATURES=htt3=true feature-toggles
+feature-toggles: error: config error: unknown feature "htt3" (did you mean "http3"?)
+```
+
+### Variables for gated flags (silently ignored)
+Environment variables leak in from parent shells, CI runners, and container orchestrators. If `API_QUIC=true` is left over in a shell where `http3` is off, failing would break a run the variable was never meant for, so CONGA ignores variables that set inactive gated flags. Feature variables such as `API_FEATURES` or `API_FEATURE_HTTP3` are always validated, because they exist only to set features.
 
 ## Opt-in activation and linker footprint
 

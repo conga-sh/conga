@@ -176,6 +176,21 @@ func TestBootstrapper_CompletionShowsFailedBootstrapFieldUnset(t *testing.T) {
 	assert.False(t, root.obs.countIsSet)
 }
 
+func TestBootstrapper_CLIBindingErrorKeepsUsageClassification(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[helpBootstrapCLI]().
+		Args([]string{"--count", "not-a-number"})
+
+	err := app.RunContext(t.Context())
+
+	assert.Error(t, err)
+	assert.IsError(t, err, conga.ErrCoerce)
+	assert.False(t, errors.Is(err, conga.ErrConfig))
+	assert.True(t, conga.IsUsageError(err))
+	assert.Equal(t, `invalid integer value "not-a-number" for flag --count`, err.Error())
+}
+
 func TestBootstrapper_CompletionUsesTypedBootstrapFieldsAndRestores(t *testing.T) {
 	t.Parallel()
 

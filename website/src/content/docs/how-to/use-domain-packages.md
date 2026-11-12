@@ -217,11 +217,13 @@ Standard library types carry no help text of their own, so give these flags a `h
 A flag of a standard library type with no registered parser passes startup, and fails when it needs a value. With a `default`, that is every run that leaves the flag out:
 
 ```text no-copy
-restart: error: unsupported type *user.User for flag --as
+restart: error: unsupported type *user.User for flag --as (from default value)
 ```
 :::
 
 ## Know what users see
+
+The rows below cover command-line values. A rejected value from the environment, a config file, or a `default` tag is `ErrConfig`, exit 1, and the message names the source.
 
 | What the user does | `network` and `system` types | Types bound with `app.Use` |
 |---|---|---|

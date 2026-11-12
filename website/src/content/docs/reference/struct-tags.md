@@ -35,7 +35,7 @@ CONGA derives the CLI schema from struct fields and their tags. Schema build val
 | `short` | ✅ | ✅ | ✅ | Single-rune short flag (e.g. `short:"n"`). |
 | `xor` | ✅ | – | ✅ | Mutually exclusive group name: at most one member may be supplied. Optional flags only. |
 
-The `default` tag is rejected on `Counter` flags, `RequiredFlag`s, and `oneof` members. `xor` and `oneof` tags are also rejected on `RequiredFlag`s. Counters count command-line occurrences starting at 0 and take no value there, so `--verbose=2` is a usage error (`ErrParse`, exit 2). Seed a base level with an `env` or config-file binding, which must hold an unsigned integer (`-1` or `+2` fails with `ErrCoerce`), or use `OptionalFlag[int]` for a numeric default. A required flag must receive a value from the CLI, environment, or configuration. A `default` on a `oneof` member is rejected because it sets the flag's value and marks it as set in `--why` without satisfying the `Changed()`-based exactly-one group.
+The `default` tag is rejected on `Counter` flags, `RequiredFlag`s, and `oneof` members. `xor` and `oneof` tags are also rejected on `RequiredFlag`s. Counters count command-line occurrences starting at 0 and take no value there, so `--verbose=2` is a usage error (`ErrParse`, exit 2). Seed a base level with an `env` or config-file binding, which must hold an unsigned integer (`-1` or `+2` fails with `ErrConfig`, exit 1), or use `OptionalFlag[int]` for a numeric default. A required flag must receive a value from the CLI, environment, or configuration. A `default` on a `oneof` member is rejected because it sets the flag's value and marks it as set in `--why` without satisfying the `Changed()`-based exactly-one group.
 
 Group names are scoped to the command that declares them. A same-named group on an ancestor or descendant command is an independent group, and validation, completion suppression, and the usage synopsis treat them separately. A flag may belong to one group of each kind. Every declared `xor` or `and` group needs at least two members. A one-member group is a no-op, so it fails schema construction. A `oneof` group needs at least two members unless its sole member is a `Counter`, where it means "require at least one occurrence" (use `RequiredFlag` for a single mandatory flag instead). Two members of the same `oneof` group may not also share an `and` group, and two members of the same `xor` group may not also share an `and` group, because supplying either member would force the other and the exclusive rule could never hold. Schema build rejects the pair at startup. A group whose members are all `hidden` renders no synopsis token — like a hidden required flag — but is still enforced, and the missing-group error names the hidden members.
 
@@ -146,7 +146,7 @@ A subcommand's flags read config keys from a section named after the subcommand,
 | A descendant's short rune matches the rune given to `app.HelpShortFlag` or `app.VersionShortFlag` | Schema build fails: `duplicate flag: built-in --help short flag -h collides with --host; assign a different rune to one of them`. |
 | A branch that doesn't implement `Runner` is invoked with no subcommand | `subcommand required for "<name>"` and the command's help screen, exit 2. |
 | A branch that implements `Runner` is invoked with no subcommand | The branch's own `Run` executes. |
-| A leaf that doesn't implement `Runner` is invoked | `runner not implemented: command "<name>" does not implement conga.Runner`, exit 1. Its siblings still run. `conga-lint` reports every such leaf. |
+| A leaf that doesn't implement `Runner` is invoked | `schema error: runner not implemented: command "<name>" does not implement conga.Runner (implement Run(context.Context, *conga.Session) error)`, classified as `ErrSchema`, exit 1. Its siblings still run. `conga-lint` reports every such leaf. |
 | A subcommand off the selected path | Its containers receive no values and its lifecycle hooks don't run. `Command[T].IsSelected()` reports whether a subcommand is on the path. |
 | A subcommand whose `feature` expression is false | See [Feature runtime behavior](#feature-runtime-behavior). |
 
@@ -332,8 +332,8 @@ Inactive gated flags and subcommands are left out of `--help`, `--why`, and shel
 | Input | Command line | Environment | Config file |
 |---|---|---|---|
 | Gated flag or subcommand whose expression does not hold | Usage error (exit 2) | Ignored | `ErrConfig` (exit 1) |
-| Unknown feature name | Usage error (exit 2), with suggestion | Usage error (exit 2), with suggestion | `ErrConfig` (exit 1), with suggestion |
-| Invalid feature value (not `true`/`false`, or a level not in `enum`) | Usage error (exit 2) | Usage error (exit 2), naming the variable | Usage error (exit 2), naming the config key |
+| Unknown feature name | Usage error (exit 2), with suggestion | `ErrConfig` (exit 1), with suggestion | `ErrConfig` (exit 1), with suggestion |
+| Invalid feature value (not `true`/`false`, or a level not in `enum`) | Usage error (exit 2) | `ErrConfig` (exit 1), naming the variable | `ErrConfig` (exit 1), naming the config key |
 
 Only environment variables that bind *gated flags* are ignored when inactive, so ambient variables never break a run they do not control. Feature variables (from `env` or `envprefix`) are always validated. See [Errors and exit codes](/reference/errors/).
 

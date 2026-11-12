@@ -154,7 +154,9 @@ func (a *App[T]) runBootstrap(ctx context.Context, request configRequest) (boots
 
 	result := bootstrapResult{restore: restore}
 	if err != nil {
-		result.err = classifyBootstrapError(err)
+		// Binder errors are already categorized by value source. Only errors
+		// returned by Bootstrapper.Bootstrap are config failures.
+		result.err = err
 
 		return result, true
 	}

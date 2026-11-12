@@ -184,7 +184,7 @@ env KITCHEN_SINK_FEATURE_METRICS=
 
 # 16. A leveled feature accepts only its enumerated non-zero levels.
 env KITCHEN_SINK_FEATURE_COMPRESSION=3
-exit-status 2 kitchen-sink feature-state
+exit-status 1 kitchen-sink feature-state
 stderr 'invalid value "3" for feature "compression"'
 env KITCHEN_SINK_FEATURE_COMPRESSION=
 
