@@ -27,7 +27,7 @@ type GroupOneOfConfigCLI struct {
 type GroupAndCLI struct {
 	noopRunner
 
-	User     conga.OptionalFlag[string] `and:"auth" env:"CONGA_TEST_GROUP_USER" name:"user" short:"u"`
+	User     conga.OptionalFlag[string] `and:"auth" env:"CONGA_TEST_GROUP_USER" name:"user"     short:"u"`
 	Password conga.OptionalFlag[string] `and:"auth" env:"CONGA_TEST_GROUP_PASS" name:"password"`
 	Host     conga.OptionalFlag[string] `and:"auth" name:"host"`
 }
@@ -35,8 +35,8 @@ type GroupAndCLI struct {
 type GroupSpellingCLI struct {
 	noopRunner
 
-	JSON conga.OptionalFlag[bool] `aliases:"as-json" name:"json" short:"j" xor:"format"`
-	YAML conga.OptionalFlag[bool] `name:"yaml"       short:"y" xor:"format"`
+	JSON conga.OptionalFlag[bool] `aliases:"as-json" name:"json" short:"j"    xor:"format"`
+	YAML conga.OptionalFlag[bool] `name:"yaml"       short:"y"   xor:"format"`
 }
 
 func TestGroupErrors_XorBothFromEnv(t *testing.T) {
