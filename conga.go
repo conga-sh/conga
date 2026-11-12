@@ -1667,7 +1667,7 @@ func (a *App[T]) clearGatedSuggestion(err error, flagValues map[*spec.Flag][]str
 	if tokens != nil {
 		// The partial flag values are wanted even when a later token fails to
 		// parse, so the parse error itself is irrelevant here.
-		parsed, _, _, _, _ := parseTokens(unknown.cmdChain, tokens, newParseFlagIndex(unknown.cmdChain)) //nolint:dogsled // only the flag values of a lenient parse are used
+		parsed, _, _, _, _ := parseTokens(unknown.cmdChain, tokens, newParseFlagIndex(unknown.cmdChain))
 		flagValues = parsed.values
 	}
 

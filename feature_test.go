@@ -3424,7 +3424,7 @@ type featureImplicitGates struct {
 }
 
 type featureImplicitRun struct {
-	Fast   conga.OptionalFlag[bool]  `feature:"runner" help:"Gated flag on an implicit command"`
+	Fast   conga.OptionalFlag[bool]  `feature:"runner"     help:"Gated flag on an implicit command"`
 	Script conga.RequiredArg[string] `help:"Script to run"`
 
 	Ran bool
