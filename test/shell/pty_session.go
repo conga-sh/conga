@@ -11,7 +11,6 @@ import (
 	"maps"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
@@ -243,18 +242,16 @@ func (ws *Workspace) StartPtySession(t *testing.T, binaryName, shellName string)
 		shellSpec.writeRC(t, ws, scriptPath)
 	}
 
+	socketDir := newTmuxSocketDir(t)
+
 	session := &PtySession{
 		t:           t,
 		tmuxLabel:   fmt.Sprintf("conga_pty_%d", ptySessionCounter.Add(1)),
 		sessionName: "conga",
-		env:         append(ws.ptyEnvironment(), shellSpec.extraEnv...),
+		env:         append(ws.ptyEnvironment(socketDir), shellSpec.extraEnv...),
 	}
 
 	t.Cleanup(session.killServer)
-
-	if err := os.MkdirAll(ws.tmuxDir(), 0o700); err != nil {
-		t.Fatalf("failed to create tmux socket directory: %v", err)
-	}
 
 	commandLine := strings.Join(append([]string{shellPath}, shellSpec.launch...), " ")
 
@@ -291,18 +288,14 @@ func (ws *Workspace) lookupPtyShell(t *testing.T, shellSpec ptyShellSpec) string
 // ptyEnvironment builds the tmux client/server environment: the tmux server
 // inherits it and passes it to the spawned interactive shell, so HOME, PATH,
 // and locale isolation mirror the non-PTY harness.
-func (ws *Workspace) ptyEnvironment() []string {
+func (ws *Workspace) ptyEnvironment(socketDir string) []string {
 	return []string{
 		"HOME=" + ws.HomeDir,
 		"PATH=" + ws.BinDir + ":" + os.Getenv("PATH"),
 		"LC_ALL=C",
 		"TERM=xterm-256color",
-		"TMUX_TMPDIR=" + ws.tmuxDir(),
+		"TMUX_TMPDIR=" + socketDir,
 	}
-}
-
-func (ws *Workspace) tmuxDir() string {
-	return filepath.Join(ws.Root, "tmux")
 }
 
 func (ws *Workspace) writePtyCompletionScript(t *testing.T, binaryName, shellName string) string {
@@ -357,4 +350,24 @@ func ptySignificantLines(screen string) []string {
 
 func ptySupportedShells() []string {
 	return slices.Collect(maps.Keys(ptyShellSpecs))
+}
+
+// newTmuxSocketDir creates the TMUX_TMPDIR for one PTY session directly under
+// the system temp directory. tmux places its socket at
+// $TMUX_TMPDIR/tmux-<uid>/<label>, and a Unix socket path is limited to about
+// 108 bytes, so a directory under the workspace root (whose name contains the
+// test name) makes tmux fail with "File name too long" for long test names.
+func newTmuxSocketDir(t *testing.T) string {
+	t.Helper()
+
+	socketDir, err := os.MkdirTemp("", "cpty") //nolint:usetesting // t.TempDir embeds the test name, which is what makes the socket path too long.
+	if err != nil {
+		t.Fatalf("failed to create tmux socket directory: %v", err)
+	}
+
+	t.Cleanup(func() {
+		_ = os.RemoveAll(socketDir) //nolint:errcheck // Best-effort cleanup.
+	})
+
+	return socketDir
 }
