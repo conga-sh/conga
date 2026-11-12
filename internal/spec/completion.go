@@ -971,6 +971,7 @@ func (w *astCompletionWalker) completeAttachedFlag(toComplete string, compCtx pr
 	var flag *Flag
 
 	negated := false
+
 	if flagName, cut := strings.CutPrefix(flagPrefix, "--"); cut {
 		flag = w.resolveLongFlag(flagName)
 		if flag == nil {
