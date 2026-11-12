@@ -104,16 +104,24 @@ func (b *bindingState) decodeContext(tags spec.FieldTags) coerce.DecodeContext {
 	return coerce.DecodeContext{Tags: tags, Stdin: b.Stdin, Stdout: b.Stdout}
 }
 
+// flagTokens carries the per-flag values and typed spellings parsed from the
+// command line.
+type flagTokens struct {
+	values    map[*spec.Flag][]string
+	spellings map[*spec.Flag]string
+}
+
 type tokenParser struct {
-	cmdChain   []*spec.Command
-	leaf       *spec.Command
-	flagMap    map[string]*spec.Flag
-	shortMap   map[rune]*spec.Flag
-	scanner    *tokenizer.Scanner
-	flagValues map[*spec.Flag][]string
-	posTokens  []string
-	dashTokens []string
-	rawTokens  []string
+	cmdChain      []*spec.Command
+	leaf          *spec.Command
+	flagMap       map[string]*spec.Flag
+	shortMap      map[rune]*spec.Flag
+	scanner       *tokenizer.Scanner
+	flagValues    map[*spec.Flag][]string
+	flagSpellings map[*spec.Flag]string
+	posTokens     []string
+	dashTokens    []string
+	rawTokens     []string
 }
 
 func newTokenParser(cmdChain []*spec.Command, tokens []tokenizer.Token, index *flagIndex) *tokenParser {
@@ -157,16 +165,24 @@ func newTokenParser(cmdChain []*spec.Command, tokens []tokenizer.Token, index *f
 	}
 
 	return &tokenParser{
-		cmdChain:   cmdChain,
-		leaf:       leaf,
-		flagMap:    index.long,
-		shortMap:   index.short,
-		scanner:    tokenizer.NewScanner(tokens),
-		flagValues: make(map[*spec.Flag][]string),
-		posTokens:  make([]string, 0),
-		dashTokens: nil,
-		rawTokens:  make([]string, 0),
+		cmdChain:      cmdChain,
+		leaf:          leaf,
+		flagMap:       index.long,
+		shortMap:      index.short,
+		scanner:       tokenizer.NewScanner(tokens),
+		flagValues:    make(map[*spec.Flag][]string),
+		flagSpellings: make(map[*spec.Flag]string),
+		posTokens:     make([]string, 0),
+		dashTokens:    nil,
+		rawTokens:     make([]string, 0),
 	}
+}
+
+// recordFlagSpelling remembers the spelling the user typed for a command-line
+// flag (an alias, a negation, or a short rune), so group errors name the token
+// rather than the declared flag name. The last occurrence wins.
+func (parser *tokenParser) recordFlagSpelling(flagSpec *spec.Flag, spelling string) {
+	parser.flagSpellings[flagSpec] = spelling
 }
 
 func (parser *tokenParser) canFallbackToRaw() bool {
@@ -243,6 +259,8 @@ func (parser *tokenParser) parseLongFlag(tok tokenizer.Token) error {
 			cause:      errUnknownFlag,
 		}
 	}
+
+	parser.recordFlagSpelling(flagSpec, "--"+name)
 
 	if flagSpec.IsCounter {
 		// A counter counts occurrences and takes no value on the command line.
@@ -359,6 +377,8 @@ func (parser *tokenParser) parseShortFlagCluster(tok tokenizer.Token) error {
 
 	for i, step := range walk.Steps {
 		flagSpec := step.Flag
+
+		parser.recordFlagSpelling(flagSpec, "-"+string(runes[i]))
 
 		if flagSpec.IsCounter {
 			// A counter takes no value (see the long-flag path), so a cluster
@@ -1238,7 +1258,7 @@ func skipFlagValue(tokens []tokenizer.Token, position int, chain []*spec.Command
 	return true, position
 }
 
-func parseTokens(cmdChain []*spec.Command, tokens []tokenizer.Token, index *flagIndex) (map[*spec.Flag][]string, []string, []string, []string, error) {
+func parseTokens(cmdChain []*spec.Command, tokens []tokenizer.Token, index *flagIndex) (flagTokens, []string, []string, []string, error) {
 	parser := newTokenParser(cmdChain, tokens, index)
 
 	for parser.scanner.HasNext() {
@@ -1260,17 +1280,19 @@ func parseTokens(cmdChain []*spec.Command, tokens []tokenizer.Token, index *flag
 		}
 
 		if err != nil {
-			return nil, nil, nil, nil, err
+			return flagTokens{}, nil, nil, nil, err
 		}
 	}
 
 	if leaf := cmdChain[len(cmdChain)-1]; leaf.IsVersionCmd {
 		if err := bindVersionCommandJSON(cmdChain, leaf, parser.flagValues); err != nil {
-			return nil, nil, nil, nil, err
+			return flagTokens{}, nil, nil, nil, err
 		}
 	}
 
-	return parser.flagValues, parser.posTokens, parser.dashTokens, parser.rawTokens, nil
+	parsed := flagTokens{values: parser.flagValues, spellings: parser.flagSpellings}
+
+	return parsed, parser.posTokens, parser.dashTokens, parser.rawTokens, nil
 }
 
 // applyFlagCoercion coerces the winning tier's raw values and records the
@@ -1432,7 +1454,7 @@ func resolveRequiredFlags(cmdChain []*spec.Command) error {
 // resolveOneOfGroups enforces exactly-one groups: every oneof group on the
 // command chain must have at least one explicitly supplied member. The check
 // shares required-flag enforcement's skip switch (notably --why), while the
-// more-than-one conflict remains in validateFlagConstraints.
+// more-than-one conflict remains in validateFlagGroupConstraints.
 func resolveOneOfGroups(cmdChain []*spec.Command) error {
 	leaf := cmdChain[len(cmdChain)-1]
 	if isMetaCommand(leaf) {
@@ -1440,7 +1462,7 @@ func resolveOneOfGroups(cmdChain []*spec.Command) error {
 	}
 
 	for _, cmd := range cmdChain {
-		groups := collectFlagGroups(cmd.Flags, func(flagSpec *spec.Flag) string { return flagSpec.OneOfGroup })
+		groups := collectFlagGroups(cmd.Flags, oneOfGroupName)
 
 		for _, group := range groups.order {
 			members := groups.members[group]
@@ -1847,30 +1869,42 @@ func validateMapValue(cmdChain []*spec.Command, descriptor string, items *spec.R
 	return nil
 }
 
-func validateXorGroups(cmdChain []*spec.Command, xorGroups orderedFlagGroups) error {
-	return validateMutuallyExclusiveGroups(cmdChain, xorGroups)
+func validateXorGroups(cmdChain []*spec.Command, xorGroups orderedFlagGroups, naming flagGroupNaming) error {
+	return validateMutuallyExclusiveGroups(cmdChain, xorGroups, naming)
 }
 
-func validateOneOfGroups(cmdChain []*spec.Command, oneOfGroups orderedFlagGroups) error {
-	return validateMutuallyExclusiveGroups(cmdChain, oneOfGroups)
+func validateOneOfGroups(cmdChain []*spec.Command, oneOfGroups orderedFlagGroups, naming flagGroupNaming) error {
+	return validateMutuallyExclusiveGroups(cmdChain, oneOfGroups, naming)
 }
 
-func validateMutuallyExclusiveGroups(cmdChain []*spec.Command, groups orderedFlagGroups) error {
+// validateMutuallyExclusiveGroups reports a group with more than one supplied
+// member. The error takes the highest source among the supplied members, so a
+// conflict involving a command-line member is a usage error and one built only
+// from environment or configuration members classifies under ErrConfig.
+func validateMutuallyExclusiveGroups(cmdChain []*spec.Command, groups orderedFlagGroups, naming flagGroupNaming) error {
 	for _, group := range groups.order {
 		flags := groups.members[group]
 
-		var setFlags []string
+		var (
+			setFlags []string
+			source   ValueSource
+		)
 
 		for _, flag := range flags {
-			if flagStateOf(flag.Handle).Changed() {
-				setFlags = append(setFlags, "--"+flag.Name)
+			target := flagStateOf(flag.Handle)
+			if !target.Changed() {
+				continue
 			}
+
+			setFlags = append(setFlags, naming.name(flag))
+			source = max(source, target.Source())
 		}
 
 		if len(setFlags) > 1 {
 			return &validationError{
 				msg: fmt.Sprintf("flags %s are mutually exclusive",
 					strings.Join(setFlags, " and ")),
+				source:   source,
 				cmdChain: cmdChain,
 				cause:    errMutuallyExclusive,
 			}
@@ -1880,27 +1914,36 @@ func validateMutuallyExclusiveGroups(cmdChain []*spec.Command, groups orderedFla
 	return nil
 }
 
-func validateAndGroups(cmdChain []*spec.Command, andGroups orderedFlagGroups) error {
+// validateAndGroups reports a partially supplied co-occurrence group. Members
+// count from every source; the error takes the highest source among the
+// supplied members, like validateMutuallyExclusiveGroups.
+func validateAndGroups(cmdChain []*spec.Command, andGroups orderedFlagGroups, naming flagGroupNaming) error {
 	for _, group := range andGroups.order {
 		flags := andGroups.members[group]
 
 		var (
 			setFlags   []string
 			unsetFlags []string
+			source     ValueSource
 		)
 
 		for _, flag := range flags {
-			if flagStateOf(flag.Handle).Changed() {
-				setFlags = append(setFlags, "--"+flag.Name)
-			} else {
+			target := flagStateOf(flag.Handle)
+			if !target.Changed() {
 				unsetFlags = append(unsetFlags, "--"+flag.Name)
+
+				continue
 			}
+
+			setFlags = append(setFlags, naming.name(flag))
+			source = max(source, target.Source())
 		}
 
 		if len(setFlags) > 0 && len(unsetFlags) > 0 {
 			return &validationError{
 				msg: fmt.Sprintf("%s %s must be given together with %s",
 					cond.If(len(setFlags) == 1, "flag", "flags"), joinNaturalList(setFlags), joinNaturalList(unsetFlags)),
+				source:   source,
 				cmdChain: cmdChain,
 				cause:    errAndGroup,
 			}
@@ -1910,7 +1953,9 @@ func validateAndGroups(cmdChain []*spec.Command, andGroups orderedFlagGroups) er
 	return nil
 }
 
-func validateFlagGroupConstraints(cmdChain []*spec.Command, flagSpec *spec.Flag, sourceName string) error {
+// validateFlagValueConstraint checks one flag's per-value constraints after
+// binding. sourceName attributes env- and config-sourced values.
+func validateFlagValueConstraint(cmdChain []*spec.Command, flagSpec *spec.Flag, sourceName string) error {
 	target := flagStateOf(flagSpec.Handle)
 	if !target.IsSet() {
 		return nil
@@ -1939,10 +1984,10 @@ func validateFlagGroupConstraints(cmdChain []*spec.Command, flagSpec *spec.Flag,
 	return validateScalarValue(cmdChain, descriptor, constraints, value, stringx.Stringify(value), target.Source())
 }
 
-// validateFlagConstraints checks per-flag value constraints and flag group
-// rules after binding. sourceNames attributes env- and config-sourced values
-// (see [bindingState.SourceNames]); a nil map attributes none.
-func validateFlagConstraints(cmdChain []*spec.Command, sourceNames map[*spec.Flag]string) error {
+// validateFlagValueConstraints checks per-flag value constraints after binding.
+// sourceNames attributes env- and config-sourced values (see
+// [bindingState.SourceNames]); a nil map attributes none.
+func validateFlagValueConstraints(cmdChain []*spec.Command, sourceNames map[*spec.Flag]string) error {
 	for _, cmd := range cmdChain {
 		for _, flagSpec := range cmd.Flags {
 			if flagSpec.Handle == nil {
@@ -1950,30 +1995,67 @@ func validateFlagConstraints(cmdChain []*spec.Command, sourceNames map[*spec.Fla
 				continue
 			}
 
-			if err := validateFlagGroupConstraints(cmdChain, flagSpec, sourceNames[flagSpec]); err != nil {
+			if err := validateFlagValueConstraint(cmdChain, flagSpec, sourceNames[flagSpec]); err != nil {
 				return err
 			}
 		}
+	}
 
-		xorGroups := collectFlagGroups(cmd.Flags, func(flagSpec *spec.Flag) string { return flagSpec.XorGroup })
-		oneOfGroups := collectFlagGroups(cmd.Flags, func(flagSpec *spec.Flag) string { return flagSpec.OneOfGroup })
-		andGroups := collectFlagGroups(cmd.Flags, func(flagSpec *spec.Flag) string { return flagSpec.AndGroup })
+	return nil
+}
 
-		if err := validateXorGroups(cmdChain, xorGroups); err != nil {
+// validateFlagGroupConstraints checks xor, oneof, and co-occurrence groups
+// after binding. naming spells command-line members as typed and attributes
+// environment- and configuration-sourced members.
+func validateFlagGroupConstraints(cmdChain []*spec.Command, naming flagGroupNaming) error {
+	for _, cmd := range cmdChain {
+		if err := validateXorGroups(cmdChain, collectFlagGroups(cmd.Flags, xorGroupName), naming); err != nil {
 			return err
 		}
 
-		if err := validateOneOfGroups(cmdChain, oneOfGroups); err != nil {
+		if err := validateOneOfGroups(cmdChain, collectFlagGroups(cmd.Flags, oneOfGroupName), naming); err != nil {
 			return err
 		}
 
-		if err := validateAndGroups(cmdChain, andGroups); err != nil {
+		if err := validateAndGroups(cmdChain, collectFlagGroups(cmd.Flags, andGroupName), naming); err != nil {
 			return err
 		}
 	}
 
 	return nil
 }
+
+// flagGroupNaming names supplied group members in group errors.
+type flagGroupNaming struct {
+	// spellings holds the token typed for each command-line flag.
+	spellings map[*spec.Flag]string
+	// sourceNames holds the environment variable or config key that supplied
+	// each env- or config-sourced flag (see [bindingState.SourceNames]).
+	sourceNames map[*spec.Flag]string
+}
+
+// name returns a supplied member's name: a command-line member by the token the
+// user typed, any other by its declared name plus the origin suffix.
+func (naming flagGroupNaming) name(flagSpec *spec.Flag) string {
+	target := flagStateOf(flagSpec.Handle)
+
+	if target.Source() == SourceCLI {
+		if spelling := naming.spellings[flagSpec]; spelling != "" {
+			return spelling
+		}
+	}
+
+	return "--" + flagSpec.Name + sourceLocation(target.Source(), naming.sourceNames[flagSpec])
+}
+
+// xorGroupName returns a flag's xor group name for collectFlagGroups.
+func xorGroupName(flagSpec *spec.Flag) string { return flagSpec.XorGroup }
+
+// oneOfGroupName returns a flag's oneof group name for collectFlagGroups.
+func oneOfGroupName(flagSpec *spec.Flag) string { return flagSpec.OneOfGroup }
+
+// andGroupName returns a flag's and group name for collectFlagGroups.
+func andGroupName(flagSpec *spec.Flag) string { return flagSpec.AndGroup }
 
 func resolveSliceArg(cmdChain []*spec.Command, arg *spec.Arg, remaining []string, parsers coerce.Registry, decodeContext coerce.DecodeContext, stdin *stdinClaim) error {
 	decodeContext.Tags = arg.FieldTags

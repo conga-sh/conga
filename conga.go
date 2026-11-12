@@ -1637,7 +1637,7 @@ func (a *App[T]) prepareFeatures(ctx context.Context, featureBinding featureStat
 	return featureBinding.resolveFeatures(invocation.root, invocation.cmdChain, invocation.flagValues, featureBindingState)
 }
 
-func (a *App[T]) prepareNonMetaExecution(ctx context.Context, session *Session, invocation parsedInvocation, featureBinding featureState, prunedFlags []prunedFlag, skipRequiredFlags bool) error {
+func (a *App[T]) prepareNonMetaExecution(ctx context.Context, session *Session, invocation parsedInvocation, featureBinding featureState, prunedFlags []prunedFlag, whyReport bool) error {
 	resolution := a.resolveConfig(ctx, configRequest{invocation: invocation})
 	if session != nil {
 		session.candidateFiles = resolution.candidates
@@ -1674,7 +1674,7 @@ func (a *App[T]) prepareNonMetaExecution(ctx context.Context, session *Session, 
 		Stdin:               session.stdin,
 		Stdout:              session.stdout,
 		StdinClaim:          &session.stdinClaim,
-		SkipRequiredFlags:   skipRequiredFlags,
+		SkipRequiredFlags:   whyReport,
 	}
 
 	if err := resolveFlags(invocation.cmdChain, invocation.flagValues, state); err != nil {
@@ -1687,7 +1687,20 @@ func (a *App[T]) prepareNonMetaExecution(ctx context.Context, session *Session, 
 
 	a.collectDeprecationNotices(invocation.cmdChain)
 
-	return validateFlagConstraints(invocation.cmdChain, state.SourceNames)
+	if err := validateFlagValueConstraints(invocation.cmdChain, state.SourceNames); err != nil {
+		return err
+	}
+
+	// A group conflict does not stop --why: the report shows each member's
+	// value and source, which is what the user needs to resolve it.
+	if whyReport {
+		return nil
+	}
+
+	return validateFlagGroupConstraints(invocation.cmdChain, flagGroupNaming{
+		spellings:   invocation.flagSpellings,
+		sourceNames: state.SourceNames,
+	})
 }
 
 func (a *App[T]) prepare(ctx context.Context) (*Session, bool, error) {
@@ -1704,7 +1717,7 @@ func (a *App[T]) prepare(ctx context.Context) (*Session, bool, error) {
 	leaf := cmdChain[len(cmdChain)-1]
 	index := newParseFlagIndex(cmdChain)
 
-	flagValues, posTokens, dashArgs, rawTokens, err := parseTokens(cmdChain, remainingTokens, index)
+	parsedFlags, posTokens, dashArgs, rawTokens, err := parseTokens(cmdChain, remainingTokens, index)
 	if err != nil {
 		return nil, false, err
 	}
@@ -1728,16 +1741,17 @@ func (a *App[T]) prepare(ctx context.Context) (*Session, bool, error) {
 	}
 
 	invocation := parsedInvocation{
-		root:       cmd,
-		leaf:       leaf,
-		cmdChain:   cmdChain,
-		flagValues: flagValues,
-		posTokens:  posTokens,
-		dashTokens: dashArgs,
-		rawTokens:  rawTokens,
+		root:          cmd,
+		leaf:          leaf,
+		cmdChain:      cmdChain,
+		flagValues:    parsedFlags.values,
+		flagSpellings: parsedFlags.spellings,
+		posTokens:     posTokens,
+		dashTokens:    dashArgs,
+		rawTokens:     rawTokens,
 	}
 
-	request := scanBuiltinRequest(flagValues)
+	request := scanBuiltinRequest(parsedFlags.values)
 
 	featureBinding, prunedFlags, err := a.resolveFeatureState(ctx, invocation, request)
 	if err != nil {

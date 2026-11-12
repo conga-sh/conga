@@ -3,7 +3,7 @@ title: How to validate input
 description: Require flags, limit values to a set, bound numbers, durations, lengths and counts, reject conflicting flags, demand exactly one of a group, require flags together, and check values against each other with Validator.
 ---
 
-This guide builds an `export` command that sends records to a file or a URL, and adds one kind of check at each step. Each check runs before `Run`. A command-line value that fails one is a usage error; the program prints the problem and exits with status 2. A value from the environment, a config file, or a `default` tag classifies under `ErrConfig` instead and exits with status 1.
+This guide builds an `export` command that sends records to a file or a URL, and adds one kind of check at each step. Each check runs before `Run`. A command-line value that fails one is a usage error; the program prints the problem and exits with status 2. A value from the environment, a config file, or a `default` tag classifies under `ErrConfig` instead and exits with status 1. A failed group check (`xor`, `oneof`, `and`) is a usage error when one of its flags came from the command line, and `ErrConfig` when they all came from the environment or a config file.
 
 ## Require a flag
 
@@ -31,7 +31,7 @@ func (e *Export) Run(ctx context.Context, session *conga.Session) error {
 }
 
 func main() {
-	app := conga.New[Export]().Name("export")
+	app := conga.New[Export]().Name("export").EnvPrefix("EXPORT")
 
 	if err := app.Run(); err != nil {
 		app.Exit(err)
@@ -49,7 +49,7 @@ Usage:
 Run 'export --help' for more information.
 ```
 
-The usage line shows `--token=STRING` outside `[flags]`. When the app reads the environment or a config file, a value from either also satisfies a required flag, so a user who sets the token in the flag's variable can leave it off the command line. A required flag can't have a `default` tag.
+The usage line shows `--token=STRING` outside `[flags]`. `EnvPrefix("EXPORT")` gives each flag an environment variable, `EXPORT_TOKEN` for this one. A value there, or in a config file when the app reads one, also satisfies a required flag, so the user can leave `--token` off the command line. A required flag can't have a `default` tag.
 
 ## Allow only a set of values
 
@@ -162,6 +162,25 @@ Run 'export --help' for more information.
 
 A flag counts as given when the user writes it at all, whatever its value, so `--gzip=false --zstd` fails the same way. Help lists `--gzip` and `--zstd` as ordinary flags, so name the other flag in each `help` tag if users need to know before they meet the error.
 
+A flag set in the environment counts as given too, and the error names its variable:
+
+```sh error={2}
+$ EXPORT_GZIP=true export --token abc --zstd
+export: error: flags --gzip (from environment variable EXPORT_GZIP) and --zstd are mutually exclusive
+
+Usage:
+  export --token=STRING [flags]
+
+Run 'export --help' for more information.
+```
+
+When both flags come from the environment, the user typed nothing that caused the conflict. The program prints the error without usage and exits with status 1:
+
+```sh error={2}
+$ EXPORT_GZIP=true EXPORT_ZSTD=true export --token abc
+export: error: flags --gzip (from environment variable EXPORT_GZIP) and --zstd (from environment variable EXPORT_ZSTD) are mutually exclusive
+```
+
 ## Demand exactly one of a group
 
 Give flags the same `oneof` group name, and the user must give exactly one of them. Here the export goes to a file or a URL:
@@ -202,7 +221,7 @@ The usage line shows the group as `(--to-file=PATH | --to-url=URL)`. A member of
 
 ## Require flags together
 
-Give flags the same `and` group name, and the user must give all of them or none:
+Give flags the same `and` group name, and the user must give all of them or none, from any mix of the command line, the environment, and a config file:
 
 ```go title="main.go" ins={3-4}
 type Export struct {
@@ -225,6 +244,13 @@ Run 'export --help' for more information.
 ```sh
 $ export --token abc --to-file out.json --username ada --password s3cret
 exporting as json
+```
+
+A password left in `EXPORT_PASSWORD` counts as given, so a run without `--username` fails. The program prints the error without usage and exits with status 1:
+
+```sh error={2}
+$ EXPORT_PASSWORD=s3cret export --token abc --to-file out.json
+export: error: flag --password (from environment variable EXPORT_PASSWORD) must be given together with --username
 ```
 
 ## Check values against each other
@@ -281,7 +307,7 @@ Run 'export --help' for more information.
 
 ## Know what users see
 
-Here the app was also given `EnvPrefix("EXPORT")`, so each flag reads a variable such as `EXPORT_LIMIT`.
+`EnvPrefix("EXPORT")` gives each flag a variable such as `EXPORT_LIMIT`.
 
 | What the user does | Result |
 |---|---|
@@ -290,11 +316,16 @@ Here the app was also given `EnvPrefix("EXPORT")`, so each flag reads a variable
 | Gives a value outside the `enum` list | `invalid value "xml" (must be one of: json, csv, yaml) for flag --format`, exit 2 |
 | Gives a value outside a bound | `value 0 is out of range [1..1000] for flag --limit`, exit 2 |
 | Sets a value outside a bound in the environment | `value 5000 is out of range [1..1000] for flag --limit (from environment variable EXPORT_LIMIT)`, exit 1 |
-| Gives two flags from one `xor` group, from any mix of command line and environment | `flags --gzip and --zstd are mutually exclusive`, then usage, exit 2 |
+| Gives two flags from one `xor` group | `flags --gzip and --zstd are mutually exclusive`, then usage, exit 2 |
 | Gives `--gzip=false` with `--zstd` | The same error: `--gzip` counts as given |
+| Sets one `xor` flag in the environment and gives the other on the command line | `flags --gzip (from environment variable EXPORT_GZIP) and --zstd are mutually exclusive`, then usage, exit 2 |
+| Sets both `xor` flags in the environment | `flags --gzip (from environment variable EXPORT_GZIP) and --zstd (from environment variable EXPORT_ZSTD) are mutually exclusive`, exit 1 |
 | Gives no flag from a `oneof` group | `missing required flag: one of --to-file, --to-url`, then usage, exit 2 |
-| Sets one `oneof` flag in the environment and gives the other on the command line | `flags --to-file and --to-url are mutually exclusive`, then usage, exit 2 |
-| Gives only part of an `and` group, from any source | `flag --username must be given together with --password`, then usage, exit 2 |
+| Sets one `oneof` flag in the environment and gives the other on the command line | `flags --to-file and --to-url (from environment variable EXPORT_TO_URL) are mutually exclusive`, then usage, exit 2 |
+| Sets both `oneof` flags in the environment | `flags --to-file (from environment variable EXPORT_TO_FILE) and --to-url (from environment variable EXPORT_TO_URL) are mutually exclusive`, exit 1 |
+| Gives only part of an `and` group | `flag --username must be given together with --password`, then usage, exit 2 |
+| Gives `--username` and sets the password in the environment | Works |
+| Sets only the password in the environment | `flag --password (from environment variable EXPORT_PASSWORD) must be given together with --username`, exit 1 |
 | Gives values that `Validate` rejects | The returned message, then usage, exit 2 |
 | Leaves out a flag whose `default` is outside its bound | `value 5000 is out of range [1..1000] for flag --limit (from default value)`, exit 1, on every such run |
 

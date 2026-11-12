@@ -303,8 +303,9 @@ func TestOneOf_EnvAndCLIConflict(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.Equal(t, "flags --json and --yaml are mutually exclusive", err.Error())
+	assert.Equal(t, "flags --json and --yaml (from environment variable CONGA_TEST_ONEOF_YAML) are mutually exclusive", err.Error())
 	assert.IsError(t, err, conga.ErrValidation)
+	assert.True(t, conga.IsUsageError(err))
 }
 
 func TestOneOf_ConfigCounts(t *testing.T) {
@@ -442,7 +443,7 @@ func TestOneOf_WhySkipsMissingGroup(t *testing.T) {
 	assert.Contains(t, buffer.String(), "--yaml")
 }
 
-func TestOneOf_WhyReportsConflict(t *testing.T) {
+func TestOneOf_WhyRendersOnConflict(t *testing.T) {
 	t.Parallel()
 
 	var buffer bytes.Buffer
@@ -454,9 +455,10 @@ func TestOneOf_WhyReportsConflict(t *testing.T) {
 
 	err := app.RunContext(t.Context())
 
-	assert.Error(t, err)
-	assert.Equal(t, "flags --json and --yaml are mutually exclusive", err.Error())
-	assert.IsError(t, err, conga.ErrValidation)
+	assert.NoError(t, err)
+	assert.Contains(t, buffer.String(), "Value provenance")
+	assert.Contains(t, buffer.String(), "--json")
+	assert.Contains(t, buffer.String(), "--yaml")
 }
 
 func TestOneOf_ExplicitFalseSatisfiesGroup(t *testing.T) {
@@ -505,7 +507,7 @@ func TestOneOf_CounterZeroConflictsWithSibling(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.Equal(t, "flags --json and --yaml are mutually exclusive", err.Error())
+	assert.Equal(t, `flags --json (from config key "json") and --yaml are mutually exclusive`, err.Error())
 	assert.IsError(t, err, conga.ErrValidation)
 }
 
@@ -549,6 +551,6 @@ func TestOneOf_NegatedBoolConflictsWithSibling(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.Equal(t, "flags --color and --plain are mutually exclusive", err.Error())
+	assert.Equal(t, "flags --no-color and --plain are mutually exclusive", err.Error())
 	assert.IsError(t, err, conga.ErrValidation)
 }
