@@ -372,7 +372,7 @@ func (parser *tokenParser) consumeNextValue(flagSpec *spec.Flag, flagName, rawTo
 // spec.WalkShorthand. Runes before an unknown rune are bound before the unknown
 // flag is reported; the walk never yields a value-start step together with an
 // unresolved rune.
-func (parser *tokenParser) parseShortFlagCluster(tok tokenizer.Token) error {
+func (parser *tokenParser) parseShortFlagCluster(tok tokenizer.Token) error { //nolint:cyclop,gocyclo // one walk over the cluster; each rune outcome is one branch
 	runes := tok.ShortRunes
 
 	walk := spec.WalkShorthand(runes, tok.HasAttachedValue, func(r rune) (*spec.Flag, int) {
