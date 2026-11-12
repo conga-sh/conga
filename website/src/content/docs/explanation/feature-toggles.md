@@ -79,7 +79,7 @@ When a source names a feature that doesn't exist, or a gated member that is inac
 The command line is what the user typed for this run, so an unknown feature name, or a flag whose feature is off, is a mistake to report to them. The run stops before any hook with a usage error (exit code 2) that names the missing feature and shows the usage.
 
 ### Configuration files and feature variables (exit code 1)
-A config file holds settings that outlast any one run, and an environment variable arrives from the shell, CI, or a container. Both are data rather than a command line, so an unknown feature name or a bad value from either source is a config error (`ErrConfig`, exit code 1). A bad value names the key or variable; an unknown name gets the same "did you mean" hint as on the command line. A file that sets a flag an inactive feature removed is also `ErrConfig`.
+A config file holds settings that outlast any one run, and an environment variable arrives from the shell, CI, or a container. Both are data rather than a command line, so an unknown feature name or a bad value from either source is a config error (`ErrConfig`, exit code 1). Both errors name their source. A bad value names the key or variable, and an unknown name names the variable or the file and section, with the same "did you mean" hint as on the command line. A file that sets a flag an inactive feature removed is also `ErrConfig`, unless the command line or an environment variable turned that feature off. A higher source overrides the file for that run, so CONGA ignores the key.
 
 ```sh error={2}
 $ feature-toggles --config-file features.yaml
@@ -95,7 +95,7 @@ An unknown name gets a hint when the spelling is close:
 
 ```sh error={2}
 $ API_FEATURES=htt3=true feature-toggles
-feature-toggles: error: config error: unknown feature "htt3" (did you mean "http3"?)
+feature-toggles: error: unknown feature "htt3" (from environment variable API_FEATURES) (did you mean "http3"?)
 ```
 
 ### Variables for gated flags (silently ignored)

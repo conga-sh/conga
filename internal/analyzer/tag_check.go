@@ -106,6 +106,8 @@ func (w *walker) checkImplicitCommand(node *commandNode, fieldObject types.Objec
 		return
 	}
 
+	w.reportFieldError(node, fieldObject, spec.ValidateImplicitFeature(tag))
+
 	if node.implicitFieldName != "" {
 		w.reportFieldError(node, fieldObject, spec.ImplicitCommandAlreadyDeclaredError(node.implicitFieldName))
 

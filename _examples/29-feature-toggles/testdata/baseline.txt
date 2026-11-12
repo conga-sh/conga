@@ -27,7 +27,7 @@ stdout 'metrics: collecting on :8080'
 exit-status 2 feature-toggles --quic
 stderr 'flag .--quic. requires feature "http3"'
 exit-status 2 feature-toggles --allow-insecure
-stderr 'flag .--allow-insecure. requires feature "!strict-tls"'
+stderr 'flag .--allow-insecure. requires feature "strict-tls" to be off'
 
 # 4. Invoking an inactive command is a usage error, even when asking for help.
 exit-status 2 feature-toggles admin

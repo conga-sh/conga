@@ -35,6 +35,9 @@ var (
 	//go:embed testdata/fixtures/feature_gentle_force.yml
 	fixtureFeatureGentleForce []byte
 
+	//go:embed testdata/fixtures/feature_gentle_force_flag.yml
+	fixtureFeatureGentleForceFlag []byte
+
 	//go:embed testdata/fixtures/feature_inactive_flag.yml
 	fixtureFeatureInactiveFlag []byte
 
@@ -64,6 +67,9 @@ var (
 
 	//go:embed testdata/fixtures/feature_snake_case.yml
 	fixtureFeatureSnakeCase []byte
+
+	//go:embed testdata/fixtures/feature_snake_typo.yml
+	fixtureFeatureSnakeTypo []byte
 
 	//go:embed testdata/fixtures/feature_typo.yml
 	fixtureFeatureTypo []byte
@@ -298,7 +304,7 @@ func TestFeature_MergesSourcesPerKey(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.IsError(t, err, conga.ErrConfig)
-		assert.Contains(t, err.Error(), `unknown feature "GNTLE_FORCCE" (did you mean "gentle-force"?)`)
+		assert.Equal(t, fmt.Sprintf(`config file %q: unknown feature "GNTLE_FORCCE" in section "experiments" (did you mean "gentle-force"?)`, configPath), err.Error())
 	})
 }
 
@@ -1682,7 +1688,7 @@ func TestFeature_Config_TypoRejection(t *testing.T) {
 	err = app.Run()
 	assert.Error(t, err)
 	assert.IsError(t, err, conga.ErrConfig)
-	assert.Contains(t, err.Error(), `unknown feature "GNTLE_FORCCE" (did you mean "gentle-force"?)`)
+	assert.Equal(t, fmt.Sprintf(`config file %q: unknown feature "GNTLE_FORCCE" in section "experiments" (did you mean "gentle-force"?)`, configPath), err.Error())
 }
 
 func TestFeature_ConfigTypo_HelpStillRenders(t *testing.T) {
@@ -2535,7 +2541,7 @@ func TestFeature_ConfigFile_InactiveFlagRejection(t *testing.T) {
 	err = app.Run()
 	assert.Error(t, err)
 	assert.IsError(t, err, conga.ErrConfig)
-	assert.Contains(t, err.Error(), `config file declares flag '--force-all' which requires feature "gentle-force"`)
+	assert.Equal(t, fmt.Sprintf(`config file %q: flag '--force-all' requires feature "gentle-force"`, configPath), err.Error())
 }
 
 type featureScopedConfigCLI struct {
@@ -2585,7 +2591,7 @@ func TestFeature_ConfigFile_InactiveScopedFlagRejection(t *testing.T) {
 	err = app.Run()
 	assert.Error(t, err)
 	assert.IsError(t, err, conga.ErrConfig)
-	assert.Contains(t, err.Error(), `config file declares flag '--beta' which requires feature "syntax"`)
+	assert.Equal(t, fmt.Sprintf(`config file %q: flag '--beta' requires feature "syntax"`, configPath), err.Error())
 }
 
 func TestFeature_ConfigFile_InactiveSubcommandSubtreeRejection(t *testing.T) {
@@ -2608,7 +2614,7 @@ func TestFeature_ConfigFile_InactiveSubcommandSubtreeRejection(t *testing.T) {
 	err = app.Run()
 	assert.Error(t, err)
 	assert.IsError(t, err, conga.ErrConfig)
-	assert.Contains(t, err.Error(), `config file declares flag '--name' which requires feature "packages"`)
+	assert.Equal(t, fmt.Sprintf(`config file %q: flag '--name' requires feature "packages"`, configPath), err.Error())
 }
 
 func TestFeature_ConfigFile_ScopedFlagBindsWhenActive(t *testing.T) {
@@ -2766,7 +2772,7 @@ func TestFeature_ConfigFile_PrunedSubcommandScopedConfigKeyRejection(t *testing.
 	err = app.Run()
 	assert.Error(t, err)
 	assert.IsError(t, err, conga.ErrConfig)
-	assert.Contains(t, err.Error(), `config file declares flag '--beta' which requires feature "packages"`)
+	assert.Equal(t, fmt.Sprintf(`config file %q: flag '--beta' requires feature "packages"`, configPath), err.Error())
 }
 
 type featureInvalidEnumTagCLI struct {
@@ -3046,7 +3052,7 @@ func TestFeature_ConfigFile_PrunedCommandLocalKeyRejection(t *testing.T) {
 	err = app.Run()
 	assert.Error(t, err)
 	assert.IsError(t, err, conga.ErrConfig)
-	assert.Contains(t, err.Error(), `config file declares flag '--wait' which requires feature "experimental"`)
+	assert.Equal(t, fmt.Sprintf(`config file %q: flag '--wait' requires feature "experimental"`, configPath), err.Error())
 }
 
 func TestFeature_RequiresEnableFeatures(t *testing.T) {
@@ -3061,4 +3067,470 @@ func TestFeature_RequiresEnableFeatures(t *testing.T) {
 	assert.Error(t, err)
 	assert.IsError(t, err, conga.ErrSchema)
 	assert.Contains(t, err.Error(), "conga.Features declared on root command requires app.EnableFeatures()")
+}
+
+// An unknown feature name from the environment names the variable.
+func TestFeature_EnvUnknownNameNamesVariable(t *testing.T) {
+	t.Setenv("CONGA_TEST_TASK_X_FEATURES", "gentle-forse=true")
+
+	var cli featureTestCLI
+
+	app := conga.New(&cli).
+		Name("task").
+		EnableFeatures().
+		Args([]string{})
+
+	err := app.Run()
+
+	assert.IsError(t, err, conga.ErrConfig)
+	assert.False(t, conga.IsUsageError(err))
+	assert.Equal(t, `unknown feature "gentle-forse" (from environment variable CONGA_TEST_TASK_X_FEATURES) (did you mean "gentle-force"?)`, err.Error())
+	assert.False(t, cli.Ran)
+}
+
+// A config-sourced unknown feature is suggested in the app's config key case,
+// because that is how the file must spell it.
+func TestFeature_ConfigUnknownNameSuggestsConfigKeyCase(t *testing.T) {
+	t.Parallel()
+
+	configPath := filepath.Join(t.TempDir(), ".taskrc.yml")
+	assert.NoError(t, os.WriteFile(configPath, fixtureFeatureSnakeTypo, 0o600))
+
+	var cli featureTestCLI
+
+	app := conga.New(&cli).
+		Name("task").
+		EnableFeatures().
+		RegisterDecoder(".yml", yaml.Decode).
+		ConfigOptions(conga.ConfigExplicit(configPath), conga.ConfigKeyCase(conga.SnakeCase)).
+		Args([]string{})
+
+	err := app.Run()
+
+	assert.IsError(t, err, conga.ErrConfig)
+	assert.Equal(t, fmt.Sprintf(`config file %q: unknown feature "gntle_force" in section "experiments" (did you mean "gentle_force"?)`, configPath), err.Error())
+	assert.False(t, cli.Ran)
+}
+
+// A command-line unknown feature stays kebab-case under a snake_case config
+// key case.
+func TestFeature_CLIUnknownNameSuggestsKebabCase(t *testing.T) {
+	t.Parallel()
+
+	var cli featureTestCLI
+
+	app := conga.New(&cli).
+		Name("task").
+		EnableFeatures().
+		ConfigOptions(conga.ConfigKeyCase(conga.SnakeCase)).
+		Args([]string{"--feature-gates", "gntle_force=true"})
+
+	err := app.Run()
+
+	assert.IsError(t, err, conga.ErrParse)
+	assert.True(t, conga.IsUsageError(err))
+	assert.Equal(t, `unknown feature "gntle_force" (did you mean "gentle-force"?)`, err.Error())
+	assert.False(t, cli.Ran)
+}
+
+type featureGateShapes struct {
+	Alpha bool `help:"Alpha"`
+	Beta  bool `help:"Beta"`
+	Gamma bool `help:"Gamma"`
+}
+
+type featureGateShapesCLI struct {
+	Features conga.Features[featureGateShapes] `config:"features" flag:"feature-gates"`
+
+	Solo    conga.OptionalFlag[bool] `feature:"!alpha"           help:"Negated gate"`
+	Pair    conga.OptionalFlag[bool] `feature:"alpha,beta"       help:"Two-term gate"`
+	Mixed   conga.OptionalFlag[bool] `feature:"alpha,!beta"      help:"Mixed gate"`
+	Neither conga.OptionalFlag[bool] `feature:"!alpha,!beta"     help:"Negated pair gate"`
+	Trio    conga.OptionalFlag[bool] `feature:"alpha,beta,gamma" help:"Three-term gate"`
+
+	Ran bool
+}
+
+func (c *featureGateShapesCLI) Run(ctx context.Context, session *conga.Session) error {
+	c.Ran = true
+
+	return nil
+}
+
+// A gate that rejects a command-line flag is described in words.
+func TestFeature_GateDescribedOnCLI(t *testing.T) {
+	t.Parallel()
+
+	testCases := map[string]struct {
+		args    []string
+		message string
+	}{
+		"negated": {
+			args:    []string{"--feature-gates", "alpha=true", "--solo"},
+			message: `flag '--solo' requires feature "alpha" to be off`,
+		},
+		"pair": {
+			args:    []string{"--pair"},
+			message: `flag '--pair' requires features "alpha" and "beta"`,
+		},
+		"mixed": {
+			args:    []string{"--mixed"},
+			message: `flag '--mixed' requires feature "alpha" on and "beta" off`,
+		},
+		"negated pair": {
+			args:    []string{"--feature-gates", "alpha=true", "--neither"},
+			message: `flag '--neither' requires features "alpha" and "beta" to be off`,
+		},
+		"three terms": {
+			args:    []string{"--trio"},
+			message: `flag '--trio' requires features "alpha", "beta", and "gamma"`,
+		},
+	}
+
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			var cli featureGateShapesCLI
+
+			app := conga.New(&cli).
+				Name("shapes").
+				EnableFeatures().
+				Args(testCase.args)
+
+			err := app.Run()
+
+			assert.IsError(t, err, conga.ErrParse)
+			assert.True(t, conga.IsUsageError(err))
+			assert.Equal(t, testCase.message, err.Error())
+			assert.False(t, cli.Ran)
+		})
+	}
+}
+
+// A config key for a gated-off flag names the file and describes the gate.
+func TestFeature_GateDescribedForConfigKey(t *testing.T) {
+	t.Parallel()
+
+	testCases := map[string]struct {
+		document string
+		message  string
+	}{
+		"negated pair": {
+			document: `{"features": {"alpha": true}, "neither": true}`,
+			message:  `flag '--neither' requires features "alpha" and "beta" to be off`,
+		},
+		"three terms": {
+			document: `{"trio": true}`,
+			message:  `flag '--trio' requires features "alpha", "beta", and "gamma"`,
+		},
+	}
+
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			configPath := writeConfigFile(t, testCase.document)
+
+			var cli featureGateShapesCLI
+
+			app := conga.New(&cli).
+				Name("shapes").
+				EnableFeatures().
+				RegisterDecoder(".json", json.Decode).
+				ConfigOptions(conga.ConfigExplicit(configPath)).
+				Args([]string{})
+
+			err := app.Run()
+
+			assert.IsError(t, err, conga.ErrConfig)
+			assert.False(t, conga.IsUsageError(err))
+			assert.Equal(t, fmt.Sprintf("config file %q: %s", configPath, testCase.message), err.Error())
+			assert.False(t, cli.Ran)
+		})
+	}
+}
+
+// A config key for a flag whose gate the command line switched off is ignored:
+// the file is consistent on its own, and the higher tier overrides it.
+func TestFeature_ConfigKeyIgnoredWhenCLISwitchesGateOff(t *testing.T) {
+	t.Parallel()
+
+	configPath := filepath.Join(t.TempDir(), ".taskrc.yml")
+	assert.NoError(t, os.WriteFile(configPath, fixtureFeatureGentleForceFlag, 0o600))
+
+	var cli featureTestCLI
+
+	app := conga.New(&cli).
+		Name("task").
+		EnableFeatures().
+		RegisterDecoder(".yml", yaml.Decode).
+		ConfigOptions(conga.ConfigExplicit(configPath)).
+		Args([]string{"--feature-gates", "gentle-force=false"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.True(t, cli.Ran)
+	assert.False(t, cli.ActiveGentle)
+	assert.False(t, cli.ForceAll.IsSet())
+}
+
+// A config key for a flag whose gate the environment switched off is ignored.
+func TestFeature_ConfigKeyIgnoredWhenEnvSwitchesGateOff(t *testing.T) {
+	t.Setenv("CONGA_TEST_TASK_X_FEATURES", "gentle-force=false")
+
+	configPath := filepath.Join(t.TempDir(), ".taskrc.yml")
+	assert.NoError(t, os.WriteFile(configPath, fixtureFeatureGentleForceFlag, 0o600))
+
+	var cli featureTestCLI
+
+	app := conga.New(&cli).
+		Name("task").
+		EnableFeatures().
+		RegisterDecoder(".yml", yaml.Decode).
+		ConfigOptions(conga.ConfigExplicit(configPath)).
+		Args([]string{})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.True(t, cli.Ran)
+	assert.False(t, cli.ActiveGentle)
+	assert.False(t, cli.ForceAll.IsSet())
+}
+
+// The same file runs with the flag set when no higher tier switches the gate
+// off.
+func TestFeature_ConfigKeyBindsWhenConfigSwitchesGateOn(t *testing.T) {
+	t.Parallel()
+
+	configPath := filepath.Join(t.TempDir(), ".taskrc.yml")
+	assert.NoError(t, os.WriteFile(configPath, fixtureFeatureGentleForceFlag, 0o600))
+
+	var cli featureTestCLI
+
+	app := conga.New(&cli).
+		Name("task").
+		EnableFeatures().
+		RegisterDecoder(".yml", yaml.Decode).
+		ConfigOptions(conga.ConfigExplicit(configPath)).
+		Args([]string{})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.True(t, cli.Ran)
+	assert.True(t, cli.ActiveGentle)
+	assert.True(t, cli.ForceAll.Get())
+}
+
+// An unknown-flag hint that names a gated-off flag is dropped.
+func TestFeature_UnknownFlagHintDroppedForGatedOffFlag(t *testing.T) {
+	t.Parallel()
+
+	var cli featureTestCLI
+
+	app := conga.New(&cli).
+		Name("task").
+		EnableFeatures().
+		Args([]string{"--force-al"})
+
+	err := app.Run()
+
+	assert.IsError(t, err, conga.ErrParse)
+	assert.Equal(t, "unknown flag: --force-al", err.Error())
+	assert.False(t, cli.Ran)
+}
+
+// An unknown-flag hint stays when a flag parsed before it switches the gate
+// on.
+func TestFeature_UnknownFlagHintKeptForGatedOnFlag(t *testing.T) {
+	t.Parallel()
+
+	var cli featureTestCLI
+
+	app := conga.New(&cli).
+		Name("task").
+		EnableFeatures().
+		Args([]string{"--feature-gates", "gentle-force=true", "--force-al"})
+
+	err := app.Run()
+
+	assert.IsError(t, err, conga.ErrParse)
+	assert.Equal(t, `unknown flag: --force-al. Did you mean "force-all"?`, err.Error())
+	assert.False(t, cli.Ran)
+}
+
+// An unknown-command hint that names a gated-off subcommand is dropped.
+func TestFeature_UnknownCommandHintDroppedForGatedOffCommand(t *testing.T) {
+	t.Parallel()
+
+	var cli featureTestCLI
+
+	app := conga.New(&cli).
+		Name("task").
+		EnableFeatures().
+		Args([]string{"packag"})
+
+	err := app.Run()
+
+	assert.IsError(t, err, conga.ErrParse)
+	assert.Equal(t, "unknown command: packag", err.Error())
+	assert.False(t, cli.Ran)
+}
+
+// An unknown-command hint stays when the environment switches the gate on.
+func TestFeature_UnknownCommandHintKeptForGatedOnCommand(t *testing.T) {
+	t.Setenv("CONGA_TEST_TASK_X_FEATURES", "packages=true")
+
+	var cli featureTestCLI
+
+	app := conga.New(&cli).
+		Name("task").
+		EnableFeatures().
+		Args([]string{"packag"})
+
+	err := app.Run()
+
+	assert.IsError(t, err, conga.ErrParse)
+	assert.Equal(t, `unknown command: packag. Did you mean "package"?`, err.Error())
+	assert.False(t, cli.Ran)
+}
+
+// When configuration fails to resolve, the gates are unknown, so the original
+// hint is kept.
+func TestFeature_UnknownFlagHintKeptWhenConfigFails(t *testing.T) {
+	t.Parallel()
+
+	var cli featureTestCLI
+
+	app := conga.New(&cli).
+		Name("task").
+		EnableFeatures().
+		RegisterDecoder(".yml", yaml.Decode).
+		ConfigOptions(conga.ConfigExplicit(filepath.Join(t.TempDir(), "missing.yml"))).
+		Args([]string{"--force-al"})
+
+	err := app.Run()
+
+	assert.IsError(t, err, conga.ErrParse)
+	assert.Equal(t, `unknown flag: --force-al. Did you mean "force-all"?`, err.Error())
+	assert.False(t, cli.Ran)
+}
+
+type featureImplicitGates struct {
+	Runner bool `help:"Script runner"`
+}
+
+type featureImplicitRun struct {
+	Fast   conga.OptionalFlag[bool]  `feature:"runner"     help:"Gated flag on an implicit command"`
+	Script conga.RequiredArg[string] `help:"Script to run"`
+
+	Ran bool
+}
+
+func (c *featureImplicitRun) Run(ctx context.Context, session *conga.Session) error {
+	c.Ran = true
+
+	return nil
+}
+
+type featureImplicitBuild struct{}
+
+func (c *featureImplicitBuild) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+type featureGatedImplicitCLI struct {
+	Features conga.Features[featureImplicitGates] `flag:"feature-gates"`
+
+	Run   conga.Command[featureImplicitRun]   `feature:"runner" implicit:"true" summary:"Run a script"`
+	Build conga.Command[featureImplicitBuild] `summary:"Build"`
+}
+
+type featureImplicitTools struct {
+	Exec conga.Command[featureImplicitRun] `implicit:"true" summary:"Run a script"`
+}
+
+type featureGatedImplicitParentCLI struct {
+	Features conga.Features[featureImplicitGates] `flag:"feature-gates"`
+
+	Tools conga.Command[featureImplicitTools] `feature:"runner" summary:"Tools"`
+	Build conga.Command[featureImplicitBuild] `summary:"Build"`
+}
+
+// A feature tag on an implicit command fails schema build.
+func TestFeature_ImplicitCommandGateRejected(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[featureGatedImplicitCLI]().
+		Name("tool").
+		EnableFeatures().
+		Args([]string{"script.ts"})
+
+	err := app.Run()
+
+	assert.IsError(t, err, conga.ErrSchema)
+	assert.Equal(t, `struct featureGatedImplicitCLI field Run: schema error: tag "feature" cannot be combined with implicit:"true" (an implicit command is entered without being named, so it cannot be gated; gate the parent, or make the command explicit)`, err.Error())
+}
+
+// Gating the parent of an implicit command, and a flag declared on it, still
+// builds.
+func TestFeature_ImplicitCommandParentAndFlagGatesBuild(t *testing.T) {
+	t.Parallel()
+
+	var cli featureGatedImplicitParentCLI
+
+	app := conga.New(&cli).
+		Name("tool").
+		EnableFeatures().
+		Args([]string{"--feature-gates", "runner=true", "tools", "--fast", "script.ts"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.True(t, cli.Tools.Get().Exec.Get().Ran)
+	assert.True(t, cli.Tools.Get().Exec.Get().Fast.Get())
+	assert.Equal(t, "script.ts", cli.Tools.Get().Exec.Get().Script.Get())
+}
+
+// An unknown-command hint stays when a flag before the command switches the
+// gate on, although routing fails before flags are parsed.
+func TestFeature_UnknownCommandHintKeptForCLIGatedOnCommand(t *testing.T) {
+	t.Parallel()
+
+	var cli featureTestCLI
+
+	app := conga.New(&cli).
+		Name("task").
+		EnableFeatures().
+		Args([]string{"--feature-gates", "packages=true", "packag"})
+
+	err := app.Run()
+
+	assert.IsError(t, err, conga.ErrParse)
+	assert.Equal(t, `unknown command: packag. Did you mean "package"?`, err.Error())
+	assert.False(t, cli.Ran)
+}
+
+// A config file with no matching file still lets the gates resolve, so a hint
+// for a gated-off flag is dropped.
+func TestFeature_UnknownFlagHintDroppedWithoutConfigFile(t *testing.T) {
+	t.Chdir(t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+
+	var cli featureTestCLI
+
+	app := conga.New(&cli).
+		Name("task").
+		EnableFeatures().
+		RegisterDecoder(".yml", yaml.Decode).
+		Args([]string{"--force-al"})
+
+	err := app.Run()
+
+	assert.IsError(t, err, conga.ErrParse)
+	assert.Equal(t, "unknown flag: --force-al", err.Error())
+	assert.False(t, cli.Ran)
 }

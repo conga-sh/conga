@@ -110,7 +110,17 @@ Prefix the feature name with `!`. The example keeps a plaintext escape hatch tha
 AllowInsecure conga.OptionalFlag[bool] `feature:"!strict-tls" help:"Serve plaintext (development only)"`
 ```
 
-`strict-tls` defaults to on, so `--allow-insecure` appears once a user runs with `--feature-gates strict-tls=false`.
+`strict-tls` defaults to on, so `--allow-insecure` appears once a user runs with `--feature-gates strict-tls=false`. Before that, the error says which state the feature must be in:
+
+```sh error={2}
+$ feature-toggles --allow-insecure
+feature-toggles: error: flag '--allow-insecure' requires feature "strict-tls" to be off
+
+Usage:
+  feature-toggles [flags]
+
+Run 'feature-toggles --help' for more information.
+```
 
 To require several conditions, separate them with commas. All of them must hold. `feature:"http3,!strict-tls"` gates a member on `http3` being on *and* `strict-tls` being off. The [expression table](/reference/struct-tags/#feature-expressions) lists the forms.
 
@@ -201,6 +211,7 @@ Gated members and feature names are checked against every source. Each source re
 | What the user does | Command line | Environment | Config file |
 |---|---|---|---|
 | Uses a gated flag or command while its feature is off | Usage error, exit 2 | Ignored | Config error, exit 1 |
+| Sets a gated flag in a file whose feature `--feature-gates` or the environment turned off | — | — | Ignored, the run continues |
 | Names an unknown feature (`htt3=true`) | Usage error, exit 2, with a "did you mean" hint | Config error, exit 1, with a hint (list variable only) | Config error, exit 1, with a hint |
 | Gives a bad value (`http3=maybe`) | Usage error, exit 2 | Config error, exit 1, naming the variable | Config error, exit 1, naming the config key |
 
@@ -210,7 +221,7 @@ An unknown name or a bad value in `API_FEATURES` produces:
 
 ```sh error={2}
 $ API_FEATURES=htt3=true feature-toggles
-feature-toggles: error: config error: unknown feature "htt3" (did you mean "http3"?)
+feature-toggles: error: unknown feature "htt3" (from environment variable API_FEATURES) (did you mean "http3"?)
 ```
 
 ```sh error={2}
@@ -218,11 +229,18 @@ $ API_FEATURES=http3=maybe feature-toggles
 feature-toggles: error: invalid value "maybe" for feature "http3" (from environment variable API_FEATURES): must be true or false (or 1 or 0)
 ```
 
-The config-file errors look like this:
+The config-file errors name the file:
 
-```text no-copy error={1-2}
-feature-toggles: error: config error: unknown feature "htt3" (did you mean "http3"?)
-feature-toggles: error: config error: config file declares flag '--quic' which requires feature "http3"
+```text no-copy error={1-2} wrap
+feature-toggles: error: config file "features.yaml": unknown feature "htt3" in section "features" (did you mean "http3"?)
+feature-toggles: error: config file "features.yaml": flag '--quic' requires feature "http3"
+```
+
+A file that sets `--quic` is still valid when the feature is off only because the command line or the environment turned it off. With `http3: true` and `quic: true` in `features.yaml`, `--feature-gates http3=false` runs without `--quic`:
+
+```sh
+$ feature-toggles -c features.yaml --feature-gates http3=false
+features: http3=false admin-api=false strict-tls=true metrics=true
 ```
 
 A bad value in the file names the key it came from and exits 1:

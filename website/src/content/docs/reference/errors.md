@@ -95,6 +95,7 @@ Feature gating and map folding classify errors by the input source that introduc
 | Unknown feature key in a config file | `ErrConfig` | 1 |
 | Invalid feature value in a config file | `ErrConfig` | 1 |
 | Config key naming a flag whose gating feature is inactive | `ErrConfig` | 1 |
+| Config key naming a flag whose gating feature the command line or environment turned off | Ignored | – |
 | Environment variable naming an inactive gated flag | Ignored (the inactive flag never reaches environment binding) | – |
 | Unknown feature key in the feature map environment variable | `ErrConfig` | 1 |
 | Invalid feature value in the feature map environment variable | `ErrConfig` | 1 |

@@ -1318,7 +1318,7 @@ func (f *Features[T]) resolveFeatures(cmd *spec.Command, cmdChain []*spec.Comman
 }
 
 func (f *Features[T]) rejectPrunedConfig(pruned []prunedFlag, configData *configdata.Data) error {
-	return checkFeatureConfigRestrictions(pruned, configData)
+	return checkFeatureConfigRestrictions(pruned, configData, f.keySources)
 }
 
 // pruneForCompletion prunes inactive features for a completion invocation

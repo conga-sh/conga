@@ -839,13 +839,16 @@ func TestErrorClassificationBySource(t *testing.T) {
 			run: func(t *testing.T) classificationRunResult {
 				t.Helper()
 
+				t.Chdir(t.TempDir())
+				assert.NoError(t, os.WriteFile("config.json", []byte(`{"experiments": {"bogus": true}}`), 0o600))
+
 				return runClassification(t, conga.New[classificationFeaturesCLI]().
 					EnableFeatures().
 					RegisterDecoder(".json", json.Decode).
-					ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"experiments": {"bogus": true}}`))).
+					ConfigOptions(conga.ConfigExplicit("config.json")).
 					Args([]string{}))
 			},
-			message:    `config error: unknown feature "bogus"`,
+			message:    `config file "config.json": unknown feature "bogus" in section "experiments"`,
 			category:   conga.ErrConfig,
 			usage:      false,
 			exitCode:   1,
@@ -862,7 +865,7 @@ func TestErrorClassificationBySource(t *testing.T) {
 					EnableFeatures().
 					Args([]string{}))
 			},
-			message:    `config error: unknown feature "bogus"`,
+			message:    `unknown feature "bogus" (from environment variable APP_FEATURES)`,
 			category:   conga.ErrConfig,
 			usage:      false,
 			exitCode:   1,

@@ -1,6 +1,10 @@
 package spec
 
-import "fmt"
+import (
+	"fmt"
+	"reflect"
+	"strings"
+)
 
 // TrailingGrammar describes the trailing-argument grammar of one command for
 // the RawArgs boundary invariant. It carries only classification metadata so
@@ -93,4 +97,17 @@ func TrailingCollectorAlreadyDeclaredError(containerName, firstFieldName string)
 // the static analyzer share it as the single source of truth.
 func ImplicitCommandAlreadyDeclaredError(firstFieldName string) error {
 	return fmt.Errorf("%w: only one implicit command is allowed per command; implicit command already declared by field %s", ErrSchema, firstFieldName)
+}
+
+// ValidateImplicitFeature rejects a feature tag on an implicit command. An
+// implicit command is entered without being named, so a gate on it would make
+// the parent's operand and flag grammar depend on a feature. Gating the parent,
+// or a flag of the implicit command, stays legal. The runtime schema builder
+// and the static analyzer share it as the single source of truth.
+func ValidateImplicitFeature(tag reflect.StructTag) error {
+	if strings.TrimSpace(tag.Get("feature")) == "" {
+		return nil
+	}
+
+	return fmt.Errorf("%w: tag \"feature\" cannot be combined with implicit:\"true\" (an implicit command is entered without being named, so it cannot be gated; gate the parent, or make the command explicit)", ErrSchema)
 }
