@@ -83,7 +83,7 @@ Programmer errors during schema construction abort at startup before execution b
 - Declaring the `bootstrap` tag on unsupported field types (structs, pointers, interfaces).
 - Inconsistent `stage` tags violating the all-or-nothing requirement on feature structs.
 - Setting `enumhint:"-"` on a field without declared enums, or where the `help` tag already references `{{enum}}`.
-- Ancestor flag shadowing across command-subcommand hierarchies (`ErrDuplicateFlag`).
+- Ancestor flag shadowing across command-subcommand hierarchies (`ErrDuplicateFlag`), including the built-in version command's `--json` and a CLI-exposed `Features[T]` flag.
 - Built-in short flag collisions: assigning a short rune via `app.HelpShortFlag` or `app.VersionShortFlag` that collides with an application flag, or assigning the same rune to both built-in flags (`ErrDuplicateFlag`).
 - Declaring `default`, `xor`, or `oneof` on a `RequiredFlag[T]`.
 - Invalid group definitions: declaring `default` on a `oneof` member, two members of the same `oneof` or `xor` group sharing an `and` group, a `xor` or `and` group with fewer than two members, a `oneof` group with fewer than two members unless its sole member is a `Counter`, or an empty or whitespace group name.

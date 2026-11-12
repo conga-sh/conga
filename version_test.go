@@ -43,6 +43,14 @@ func (s *TestVersionStatusCmd) Run(ctx context.Context, session *conga.Session) 
 	return nil
 }
 
+type TestRootJSONCLI struct {
+	JSON conga.OptionalFlag[bool] `help:"Output in JSON format"`
+}
+
+func (c *TestRootJSONCLI) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
 type TestSessionVersionCLI struct{}
 
 func (c *TestSessionVersionCLI) Run(ctx context.Context, session *conga.Session) error {
@@ -319,41 +327,33 @@ func TestVersionCommand_JSONEmptyValueTreatedAsTrue(t *testing.T) {
 	assert.Contains(t, buffer.String(), `{"version":"3.0.0"`)
 }
 
-func TestVersionCommand_AncestorJSONFlagDoesNotShadow(t *testing.T) {
+func TestVersionCommand_AncestorJSONFlagCollides(t *testing.T) {
 	t.Parallel()
 
-	var buffer bytes.Buffer
-
-	cli := new(TestVersionJSONCollisionCLI)
-	app := conga.New(cli).
-		Version("3.0.0").
-		Args([]string{"version", "--json"}).
-		Stdout(&buffer)
+	app := conga.New[TestVersionJSONCollisionCLI]().
+		Name("tool").
+		Version("3.0.0")
 
 	err := app.Run()
 
-	assert.NoError(t, err)
-	assert.Contains(t, buffer.String(), `{"version":"3.0.0"`)
-	assert.True(t, cli.Version.JSON())
-	assert.False(t, cli.JSON.Get())
+	assert.Error(t, err)
+	assert.IsError(t, err, conga.ErrSchema)
+	assert.Equal(t, `command "version": schema error: duplicate flag: --json (already declared by ancestor command "tool"; the built-in version command owns --json: rename the ancestor flag or remove the VersionCommand field)`, err.Error())
 }
 
-func TestVersionCommand_RootJSONFlagUnaffected(t *testing.T) {
+func TestRootJSONFlagWithoutVersionCommandBuilds(t *testing.T) {
 	t.Parallel()
 
-	var buffer bytes.Buffer
+	var cli TestRootJSONCLI
 
-	cli := new(TestVersionJSONCollisionCLI)
-	app := conga.New(cli).
-		Version("3.0.0").
-		Args([]string{"--json", "status"}).
-		Stdout(&buffer)
+	app := conga.New(&cli).
+		Name("tool").
+		Args([]string{"--json"})
 
 	err := app.Run()
 
 	assert.NoError(t, err)
 	assert.True(t, cli.JSON.Get())
-	assert.False(t, cli.Version.JSON())
 }
 
 func TestHelp_ShowsVersionFlagWhenVersionSet(t *testing.T) {
