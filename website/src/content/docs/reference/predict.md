@@ -61,7 +61,7 @@ func (i Item) WithAlias() Item
 | `Style(s)` / `Tag(t)` | Default display style / group |
 | `Usage(msg)` / `Usagef(format, a...)` | ActiveHelp / tooltip hint, used when the evaluated result has none of its own (a callback's or batch member's hint wins) |
 | `NoSpace()` | Suppress the trailing space after insertion |
-| `KeepOrder()` | Preserve candidate order |
+| `KeepOrder()` | Ask the shell to keep the candidate order. bash 4.4 or later and zsh honor it. zsh keeps the order within each tag group and lists candidates that have a description before those that don't. PowerShell and nushell keep the order anyway. fish and elvish always sort |
 | `Timeout(d, alternative...)` | Deadline with optional fallback (panics with >1 alternative) |
 | `Raw()` | Underlying candidate strings |
 | `Invoke(ctx)` | Evaluate to a `Result` |

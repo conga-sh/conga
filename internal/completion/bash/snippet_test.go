@@ -44,6 +44,7 @@ func TestSnippet_SingleCommand(t *testing.T) {
 			`    case "$line" in`+"\n"+
 			`      'D'$'\t'*)`+"\n"+
 			`        [[ "${line#D?}" == *nospace* ]] && compopt -o nospace`+"\n"+
+			`        [[ " ${line#D?} " == *" keeporder "* ]] && compopt -o nosort 2>/dev/null`+"\n"+
 			`        ;;`+"\n"+
 			`      'M'$'\t'*)`+"\n"+
 			`        ;;`+"\n"+

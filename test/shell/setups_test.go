@@ -80,6 +80,15 @@ func setupModularPredictors(t *testing.T) *shell.Workspace {
 	return workspace
 }
 
+func setupOrdertool(t *testing.T) *shell.Workspace {
+	t.Helper()
+
+	workspace := shell.NewWorkspace(t)
+	workspace.BuildBinary(t, "./testdata/keeporder", "ordertool")
+
+	return workspace
+}
+
 func setupRawtool(t *testing.T) *shell.Workspace {
 	t.Helper()
 

@@ -517,3 +517,84 @@ func TestPtyElvish_SecondTabOpensMenuAndInsertsFirstCandidate(t *testing.T) {
 	assert.Contains(t, result.Screen, ptyClusterCandidateEU)
 	assert.Contains(t, result.Screen, ptyClusterCandidateAP)
 }
+
+// ptyTokenOrder returns the given tokens in the order they appear on screen
+// as whitespace-separated fields.
+func ptyTokenOrder(screen string, tokens ...string) []string {
+	return slices.DeleteFunc(strings.Fields(screen), func(field string) bool {
+		return !slices.Contains(tokens, field)
+	})
+}
+
+// TestPtyKeepOrder pins the candidate order bash and zsh show on screen: a
+// KeepOrder predictor (logs --severity) keeps its declared order, and a plain
+// enum (logs --env, declared staging, production, qa) is sorted by the shell.
+func TestPtyKeepOrder(t *testing.T) {
+	t.Parallel()
+
+	testCases := map[string]struct {
+		shell    string
+		line     string
+		tabs     int
+		tokens   []string
+		expected []string
+	}{
+		"bash keeporder":  {"bash", "shell-completion logs --severity ", 2, []string{"debug", "info", "warn", "error"}, []string{"debug", "info", "warn", "error"}},
+		"bash plain enum": {"bash", "shell-completion logs --env ", 2, []string{"staging", "production", "qa"}, []string{"production", "qa", "staging"}},
+		"zsh keeporder":   {"zsh", "shell-completion logs --severity ", 1, []string{"debug", "info", "warn", "error"}, []string{"debug", "info", "warn", "error"}},
+		"zsh plain enum":  {"zsh", "shell-completion logs --env ", 1, []string{"staging", "production", "qa"}, []string{"production", "qa", "staging"}},
+	}
+
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			session := startShellCompletionPty(t, testCase.shell)
+
+			session.Type(testCase.line)
+
+			var result *shell.PtyResult
+
+			for range testCase.tabs {
+				session.Tab()
+				result = session.Capture()
+			}
+
+			assert.Equal(t, testCase.expected, ptyTokenOrder(result.Screen, testCase.tokens...))
+		})
+	}
+}
+
+// TestPtyZshOrder pins the declared order on screen under the zsh
+// styles that make _describe sort or regroup: verbose set to false, and the
+// default list-grouped with candidates sharing a description.
+func TestPtyZshOrder(t *testing.T) {
+	t.Parallel()
+
+	t.Run("verbose no", func(t *testing.T) {
+		t.Parallel()
+
+		session := startShellCompletionPty(t, "zsh")
+		session.Type("zstyle ':completion:*' verbose no")
+		session.PressEnter()
+		session.Capture()
+		session.Type("shell-completion logs --severity ")
+
+		session.Tab()
+		result := session.Capture()
+
+		assert.Equal(t, []string{"debug", "info", "warn", "error"}, ptyTokenOrder(result.Screen, "debug", "info", "warn", "error"))
+	})
+
+	t.Run("shared descriptions", func(t *testing.T) {
+		t.Parallel()
+
+		session := setupOrdertool(t).StartPtySession(t, "ordertool", "zsh")
+		session.Type("ordertool --level ")
+
+		session.Tab()
+		result := session.Capture()
+
+		assert.Equal(t, []string{"debug", "info", "warn", "error"}, ptyTokenOrder(result.Screen, "debug", "info", "warn", "error"))
+	})
+}

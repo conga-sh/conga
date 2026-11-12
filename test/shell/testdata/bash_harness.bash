@@ -14,9 +14,11 @@ export TERM=dumb
 shopt -s progcomp 2>/dev/null || true
 shopt -s expand_aliases 2>/dev/null || true
 
-# Mock compopt as a no-op in non-interactive shell test scripts
+# Mock compopt, which needs an active completion, by recording its arguments.
+# The log is printed as COMPOPT: lines after the completer has run.
+compopt_log=$(mktemp)
 compopt() {
-    :
+    printf '%s\n' "$*" >>"$compopt_log"
 }
 
 # Source the completion script for the binary (subcommand or --completion flag)
@@ -73,6 +75,11 @@ rm -f "$comp_stdout_tmp"
 if [[ -n "$comp_leak" ]]; then
     echo "STDOUT_LEAK:${comp_leak}"
 fi
+
+while IFS= read -r compopt_call; do
+    echo "COMPOPT:${compopt_call}"
+done <"$compopt_log"
+rm -f "$compopt_log"
 
 # Simulate Readline buffer mutation
 prefix="${COMP_WORDS[COMP_CWORD]}"

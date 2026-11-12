@@ -50,6 +50,7 @@ function _myapp_completion {
   local nl=$'\n' us=$'\x1f'
   local line tag display description composed prior
   local -a tags fields
+  local keeporder=0
   local -A tag_displays tag_values
 
   local style_pattern=":completion:${curcontext}:*"
@@ -79,6 +80,7 @@ function _myapp_completion {
       D)
         IFS=$us read -r -A fields <<<"${line#*"$us"}"
         [[ ",${fields[1]}," == *,noprefix,* ]] && (( ${+compstate} )) && compstate[insert]=''
+        [[ ",${fields[1]}," == *,keeporder,* ]] && keeporder=1
         ;;
       L)
         (( conga_list_colors )) && zstyle "$style_pattern" list-colors "${line#*$us}"
@@ -109,7 +111,19 @@ function _myapp_completion {
     displays=("${(@f)tag_displays[$tag]}")
     values=("${(@f)tag_values[$tag]}")
     if [[ -n "$tag" ]]; then
-      _describe -t "$tag" "$tag" displays values -Q -S ''
+      if (( keeporder )); then
+        # The leading -V keeps the order when descriptions are shown, the
+        # trailing one when the verbose style is false. list-grouped would
+        # merge and reorder candidates that share a description, so it is
+        # turned off for this tag while _describe runs.
+        zstyle ":completion:${curcontext}:${tag}" list-grouped false
+        _describe -V -t "$tag" "$tag" displays values -V "$tag" -Q -S ''
+        zstyle -d ":completion:${curcontext}:${tag}" list-grouped
+      else
+        _describe -t "$tag" "$tag" displays values -Q -S ''
+      fi
+    elif (( keeporder )); then
+      compadd -V conga-values -Q -S '' -a values
     else
       compadd -Q -S '' -a values
     fi

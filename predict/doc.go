@@ -31,11 +31,15 @@
 //
 //   - [Predictor.FilterText]: matches against a typed prefix.
 //   - [Predictor.Exclude]: filters out already selected candidates.
-//   - [Predictor.KeepOrder]: disables alphabetical sorting.
+//   - [Predictor.KeepOrder]: asks the shell to keep the candidate order.
 //   - [Predictor.Timeout]: limits how long completion waits for dynamic callbacks.
 //
-// Candidates keep declaration order; [Map] sorts its keys alphabetically.
-// Shells may re-sort candidates unless [Predictor.KeepOrder] is set.
+// The engine keeps declaration order; [Map] sorts its keys alphabetically.
+// bash and zsh sort candidates for display unless [Predictor.KeepOrder] is set
+// (bash 4.4 or later). zsh keeps the order within each tag group and lists
+// candidates that have a description before those that don't. PowerShell and
+// nushell show the order given. fish and elvish always sort, so KeepOrder has
+// no effect there.
 //
 // Completion waits up to [DefaultTimeout] (250ms) for dynamic callbacks. A timed-out
 // callback is not canceled and may continue running. [Predictor.Timeout] adjusts
