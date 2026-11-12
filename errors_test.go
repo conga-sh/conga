@@ -396,15 +396,15 @@ func TestCoercionErrorByteSizeAmbiguousUnitRender(t *testing.T) {
 type classificationCLI struct {
 	noopRunner
 
-	Port    conga.OptionalFlag[int]               `name:"port"    env:"APP_PORT"`
-	Mode    conga.OptionalFlag[string]            `name:"mode"    enum:"dev,prod" env:"APP_MODE"`
-	Workers conga.OptionalFlag[int]               `name:"workers" range:"1..8"`
-	In      conga.OptionalFlag[conga.File]        `name:"in"      existing:"true" env:"APP_IN"`
-	Exe     conga.OptionalFlag[conga.File]        `name:"exe"     executable:"true"`
+	Port    conga.OptionalFlag[int]               `env:"APP_PORT"    name:"port"`
+	Mode    conga.OptionalFlag[string]            `enum:"dev,prod"   env:"APP_MODE"   name:"mode"`
+	Workers conga.OptionalFlag[int]               `name:"workers"    range:"1..8"`
+	In      conga.OptionalFlag[conga.File]        `env:"APP_IN"      existing:"true"  name:"in"`
+	Exe     conga.OptionalFlag[conga.File]        `executable:"true" name:"exe"`
 	Body    conga.OptionalFlag[conga.FileContent] `name:"body"`
-	Labels  conga.OptionalFlag[map[string]string] `name:"labels"  env:"APP_LABELS"`
+	Labels  conga.OptionalFlag[map[string]string] `env:"APP_LABELS"  name:"labels"`
 	Counts  conga.OptionalFlag[map[string]int]    `name:"counts"`
-	Verbose conga.OptionalFlag[bool]              `name:"verbose" negatable:"true"`
+	Verbose conga.OptionalFlag[bool]              `name:"verbose"    negatable:"true"`
 }
 
 type classificationFeatureSet struct {
@@ -431,7 +431,7 @@ func (c *configKeySubcommand) Run(ctx context.Context, session *conga.Session) e
 // to a subcommand, so config keys must be reported for the declaring command.
 type configKeyAncestorCLI struct {
 	Port   conga.OptionalFlag[int]            `name:"port"`
-	In     conga.OptionalFlag[conga.File]     `name:"in"     existing:"true"`
+	In     conga.OptionalFlag[conga.File]     `existing:"true" name:"in"`
 	Counts conga.OptionalFlag[map[string]int] `name:"counts"`
 
 	Deploy conga.Command[configKeySubcommand] `summary:"Deploy"`
@@ -485,6 +485,8 @@ func classificationApp() *conga.App[classificationCLI] {
 // subtest per failure shape, asserting the exact message, exactly one category,
 // the usage classification, the exit code through App.Exit, and whether the
 // usage block renders.
+//
+//nolint:paralleltest // subtests mutate the process environment with t.Setenv
 func TestErrorClassificationBySource(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Log("path-kind, executable-bit, and $PATH messages are Unix-specific; those rows are skipped")
@@ -510,6 +512,8 @@ func TestErrorClassificationBySource(t *testing.T) {
 		{
 			name: "command-line coercion",
 			run: func(t *testing.T) classificationRunResult {
+				t.Helper()
+
 				return runClassification(t, classificationApp().Args([]string{"--port", "abc"}))
 			},
 			message:    `invalid integer value "abc" for flag --port`,
@@ -521,6 +525,8 @@ func TestErrorClassificationBySource(t *testing.T) {
 		{
 			name: "configuration coercion",
 			run: func(t *testing.T) classificationRunResult {
+				t.Helper()
+
 				return runClassification(t, classificationApp().
 					ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"port": "abc"}`))).
 					Args([]string{}))
@@ -534,6 +540,8 @@ func TestErrorClassificationBySource(t *testing.T) {
 		{
 			name: "configuration map entry",
 			run: func(t *testing.T) classificationRunResult {
+				t.Helper()
+
 				return runClassification(t, classificationApp().
 					ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"counts": {"web": "abc"}}`))).
 					Args([]string{}))
@@ -547,6 +555,8 @@ func TestErrorClassificationBySource(t *testing.T) {
 		{
 			name: "environment coercion",
 			run: func(t *testing.T) classificationRunResult {
+				t.Helper()
+
 				t.Setenv("APP_PORT", "abc")
 
 				return runClassification(t, classificationApp())
@@ -560,6 +570,8 @@ func TestErrorClassificationBySource(t *testing.T) {
 		{
 			name: "environment enum",
 			run: func(t *testing.T) classificationRunResult {
+				t.Helper()
+
 				t.Setenv("APP_MODE", "qa")
 
 				return runClassification(t, classificationApp())
@@ -573,6 +585,8 @@ func TestErrorClassificationBySource(t *testing.T) {
 		{
 			name: "configuration range",
 			run: func(t *testing.T) classificationRunResult {
+				t.Helper()
+
 				return runClassification(t, classificationApp().
 					ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"workers": 12}`))).
 					Args([]string{}))
@@ -586,10 +600,12 @@ func TestErrorClassificationBySource(t *testing.T) {
 		{
 			name: "default range constraint",
 			run: func(t *testing.T) classificationRunResult {
+				t.Helper()
+
 				type CLI struct {
 					noopRunner
 
-					Limit conga.OptionalFlag[int] `name:"limit" default:"5000" range:"1..1000"`
+					Limit conga.OptionalFlag[int] `default:"5000" name:"limit" range:"1..1000"`
 				}
 
 				return runClassification(t, conga.New[CLI]().Args([]string{}))
@@ -603,10 +619,12 @@ func TestErrorClassificationBySource(t *testing.T) {
 		{
 			name: "default positional range constraint",
 			run: func(t *testing.T) classificationRunResult {
+				t.Helper()
+
 				type CLI struct {
 					noopRunner
 
-					Count conga.OptionalArg[int] `name:"[count]" default:"5000" range:"1..1000"`
+					Count conga.OptionalArg[int] `default:"5000" name:"[count]" range:"1..1000"`
 				}
 
 				return runClassification(t, conga.New[CLI]().Args([]string{}))
@@ -620,6 +638,8 @@ func TestErrorClassificationBySource(t *testing.T) {
 		{
 			name: "command-line wrong path kind",
 			run: func(t *testing.T) classificationRunResult {
+				t.Helper()
+
 				return runClassification(t, classificationApp().Args([]string{"--in", dirPath}))
 			},
 			message:    fmt.Sprintf("%q is a directory, but a file was expected for flag --in", dirPath),
@@ -631,6 +651,8 @@ func TestErrorClassificationBySource(t *testing.T) {
 		{
 			name: "configuration wrong path kind",
 			run: func(t *testing.T) classificationRunResult {
+				t.Helper()
+
 				return runClassification(t, classificationApp().
 					ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"in": "`+dirPath+`"}`))).
 					Args([]string{}))
@@ -644,6 +666,8 @@ func TestErrorClassificationBySource(t *testing.T) {
 		{
 			name: "command-line existing path missing",
 			run: func(t *testing.T) classificationRunResult {
+				t.Helper()
+
 				return runClassification(t, classificationApp().Args([]string{"--in", missingPath}))
 			},
 			message:    fmt.Sprintf("stat %s: no such file or directory for flag --in", missingPath),
@@ -655,6 +679,8 @@ func TestErrorClassificationBySource(t *testing.T) {
 		{
 			name: "environment existing path missing",
 			run: func(t *testing.T) classificationRunResult {
+				t.Helper()
+
 				t.Setenv("APP_IN", missingPath)
 
 				return runClassification(t, classificationApp())
@@ -669,6 +695,8 @@ func TestErrorClassificationBySource(t *testing.T) {
 			name:          "command-line executable bit missing",
 			skipOnWindows: true,
 			run: func(t *testing.T) classificationRunResult {
+				t.Helper()
+
 				return runClassification(t, classificationApp().Args([]string{"--exe", noExecPath}))
 			},
 			message:    fmt.Sprintf("%q is not executable for flag --exe", noExecPath),
@@ -681,6 +709,8 @@ func TestErrorClassificationBySource(t *testing.T) {
 			name:          "command-line executable lookup miss",
 			skipOnWindows: true,
 			run: func(t *testing.T) classificationRunResult {
+				t.Helper()
+
 				return runClassification(t, classificationApp().Args([]string{"--exe", "nosuchtool"}))
 			},
 			message:    `exec: "nosuchtool": executable file not found in $PATH for flag --exe`,
@@ -693,6 +723,8 @@ func TestErrorClassificationBySource(t *testing.T) {
 			name:          "command-line executable absolute path missing",
 			skipOnWindows: true,
 			run: func(t *testing.T) classificationRunResult {
+				t.Helper()
+
 				return runClassification(t, classificationApp().Args([]string{"--exe", missingPath}))
 			},
 			message:    fmt.Sprintf("stat %s: no such file or directory for flag --exe", missingPath),
@@ -704,6 +736,8 @@ func TestErrorClassificationBySource(t *testing.T) {
 		{
 			name: "command-line file content missing",
 			run: func(t *testing.T) classificationRunResult {
+				t.Helper()
+
 				return runClassification(t, classificationApp().Args([]string{"--body", missingPath}))
 			},
 			message:    fmt.Sprintf("stat %s: no such file or directory for flag --body", missingPath),
@@ -715,6 +749,8 @@ func TestErrorClassificationBySource(t *testing.T) {
 		{
 			name: "command-line file content wrong kind",
 			run: func(t *testing.T) classificationRunResult {
+				t.Helper()
+
 				return runClassification(t, classificationApp().Args([]string{"--body", dirPath}))
 			},
 			message:    fmt.Sprintf("%q is a directory, but a file was expected for flag --body", dirPath),
@@ -726,6 +762,8 @@ func TestErrorClassificationBySource(t *testing.T) {
 		{
 			name: "unexpected argument",
 			run: func(t *testing.T) classificationRunResult {
+				t.Helper()
+
 				return runClassification(t, classificationApp().Args([]string{"extra"}))
 			},
 			message:    `unexpected argument "extra"`,
@@ -737,6 +775,8 @@ func TestErrorClassificationBySource(t *testing.T) {
 		{
 			name: "environment map entry malformed",
 			run: func(t *testing.T) classificationRunResult {
+				t.Helper()
+
 				t.Setenv("APP_LABELS", "novalue")
 
 				return runClassification(t, classificationApp())
@@ -750,6 +790,8 @@ func TestErrorClassificationBySource(t *testing.T) {
 		{
 			name: "negated flag with value",
 			run: func(t *testing.T) classificationRunResult {
+				t.Helper()
+
 				return runClassification(t, classificationApp().Args([]string{"--no-verbose=true"}))
 			},
 			message:    "negated flag does not take a value: --no-verbose=true",
@@ -761,6 +803,8 @@ func TestErrorClassificationBySource(t *testing.T) {
 		{
 			name: "configuration feature invalid value",
 			run: func(t *testing.T) classificationRunResult {
+				t.Helper()
+
 				return runClassification(t, conga.New[classificationFeaturesCLI]().
 					EnableFeatures().
 					RegisterDecoder(".json", json.Decode).
@@ -776,6 +820,8 @@ func TestErrorClassificationBySource(t *testing.T) {
 		{
 			name: "environment feature invalid value",
 			run: func(t *testing.T) classificationRunResult {
+				t.Helper()
+
 				t.Setenv("APP_FEATURES", "level=7")
 
 				return runClassification(t, conga.New[classificationFeaturesCLI]().
@@ -791,6 +837,8 @@ func TestErrorClassificationBySource(t *testing.T) {
 		{
 			name: "configuration feature unknown name",
 			run: func(t *testing.T) classificationRunResult {
+				t.Helper()
+
 				return runClassification(t, conga.New[classificationFeaturesCLI]().
 					EnableFeatures().
 					RegisterDecoder(".json", json.Decode).
@@ -806,6 +854,8 @@ func TestErrorClassificationBySource(t *testing.T) {
 		{
 			name: "environment feature unknown name",
 			run: func(t *testing.T) classificationRunResult {
+				t.Helper()
+
 				t.Setenv("APP_FEATURES", "bogus=true")
 
 				return runClassification(t, conga.New[classificationFeaturesCLI]().
@@ -821,6 +871,8 @@ func TestErrorClassificationBySource(t *testing.T) {
 		{
 			name: "command-line feature invalid value",
 			run: func(t *testing.T) classificationRunResult {
+				t.Helper()
+
 				return runClassification(t, conga.New[classificationFeaturesCLI]().
 					EnableFeatures().
 					Args([]string{"--features", "level=7"}))
@@ -834,6 +886,8 @@ func TestErrorClassificationBySource(t *testing.T) {
 		{
 			name: "command-line feature unknown name",
 			run: func(t *testing.T) classificationRunResult {
+				t.Helper()
+
 				return runClassification(t, conga.New[classificationFeaturesCLI]().
 					EnableFeatures().
 					Args([]string{"--features", "bogus=true"}))
@@ -848,6 +902,8 @@ func TestErrorClassificationBySource(t *testing.T) {
 			name:          "default-sourced path capability failure",
 			skipOnWindows: true,
 			run: func(t *testing.T) classificationRunResult {
+				t.Helper()
+
 				return runClassification(t, conga.New[classificationDefaultFileCLI]().Args([]string{}))
 			},
 			message:    `stat /nonexistent-conga-test/missing.txt: no such file or directory for flag --in (from default value)`,
@@ -859,6 +915,8 @@ func TestErrorClassificationBySource(t *testing.T) {
 		{
 			name: "leaf without runner",
 			run: func(t *testing.T) classificationRunResult {
+				t.Helper()
+
 				return runClassification(t, conga.New[classificationNoRunnerCLI]().Args([]string{}))
 			},
 			message:    `schema error: runner not implemented: command "app" does not implement conga.Runner (implement Run(context.Context, *conga.Session) error)`,
@@ -880,6 +938,7 @@ func TestErrorClassificationBySource(t *testing.T) {
 		{name: "ErrConfig", sentinel: conga.ErrConfig},
 	}
 
+	//nolint:paralleltest // subtests mutate the process environment with t.Setenv
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
 			if testCase.skipOnWindows && runtime.GOOS == "windows" {
@@ -901,7 +960,7 @@ func TestErrorClassificationBySource(t *testing.T) {
 			}
 
 			for _, category := range categories {
-				if category.sentinel == testCase.category {
+				if errors.Is(category.sentinel, testCase.category) {
 					assert.IsError(t, result.err, category.sentinel)
 				} else {
 					assert.False(t, errors.Is(result.err, category.sentinel),
@@ -961,7 +1020,7 @@ func TestConfigKeyPath_AncestorFlagOnSubcommand(t *testing.T) {
 type classificationDefaultFileCLI struct {
 	noopRunner
 
-	In conga.OptionalFlag[conga.File] `name:"in" existing:"true" default:"/nonexistent-conga-test/missing.txt"`
+	In conga.OptionalFlag[conga.File] `default:"/nonexistent-conga-test/missing.txt" existing:"true" name:"in"`
 }
 
 // TestErrorClassificationDefaultCoercion pins the default-value origin suffix
@@ -976,7 +1035,7 @@ func TestErrorClassificationDefaultCoercion(t *testing.T) {
 		type CLI struct {
 			noopRunner
 
-			Port conga.OptionalFlag[int] `name:"port" default:"abc"`
+			Port conga.OptionalFlag[int] `default:"abc" name:"port"`
 		}
 
 		result := runClassification(t, conga.New[CLI]().Args([]string{}))
@@ -995,7 +1054,7 @@ func TestErrorClassificationDefaultCoercion(t *testing.T) {
 		type CLI struct {
 			noopRunner
 
-			Count conga.OptionalArg[int] `name:"[count]" default:"abc"`
+			Count conga.OptionalArg[int] `default:"abc" name:"[count]"`
 		}
 
 		result := runClassification(t, conga.New[CLI]().Args([]string{}))
@@ -1018,7 +1077,7 @@ func TestErrorClassificationDefaultCoercion(t *testing.T) {
 		type CLI struct {
 			noopRunner
 
-			In conga.OptionalArg[conga.File] `name:"[in]" existing:"true" default:"/nonexistent-conga-test/missing.txt"`
+			In conga.OptionalArg[conga.File] `default:"/nonexistent-conga-test/missing.txt" existing:"true" name:"[in]"`
 		}
 
 		result := runClassification(t, conga.New[CLI]().Args([]string{}))

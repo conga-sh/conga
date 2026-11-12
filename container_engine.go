@@ -30,15 +30,10 @@ type featureState interface {
 	resolvedValues() map[string]string
 }
 
-// argState is the engine's state view of a positional argument container.
-type argState interface {
-	IsSet() bool
-	Changed() bool
-	Source() ValueSource
-	SourceDetail() string
-	getValue() any
-	setValue(value any, source ValueSource, detail string)
-}
+// argState is the engine's state view of a positional argument container. It
+// shares flagState's surface; the name keeps call sites clear about the
+// container kind.
+type argState = flagState
 
 // commandState is the engine's state view of a subcommand container.
 type commandState interface {
