@@ -135,14 +135,18 @@ func (w *walker) checkFeatureExpression(node *commandNode, fieldObject types.Obj
 	w.reportFieldError(node, fieldObject, spec.ValidateFeatureExpression(featureExpr))
 }
 
-// checkBuiltinCommandField validates a built-in help/version/completion
-// command field.
-func (w *walker) checkBuiltinCommandField(node *commandNode, fieldObject types.Object, tag reflect.StructTag, role string) {
+// checkBuiltinCommandField validates the shared tags of a built-in command
+// field and reports whether the field is well-formed enough for the runtime to
+// install the built-in command.
+func (w *walker) checkBuiltinCommandField(node *commandNode, fieldObject types.Object, tag reflect.StructTag, role string) bool {
 	if !w.validateNodeFieldTags(node, fieldObject, tag, role, nil) {
-		return
+		return false
 	}
 
-	w.reportFieldError(node, fieldObject, summaryTagError(tag))
+	err := summaryTagError(tag)
+	w.reportFieldError(node, fieldObject, err)
+
+	return err == nil
 }
 
 // checkCompletionCommandField validates a built-in completion command field

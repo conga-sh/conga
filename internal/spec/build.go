@@ -1162,9 +1162,10 @@ func guardSubcommandMethods(target any, cmd *Command, structName string) error {
 // (leaf wins), a shadowed ancestor flag would silently keep its default, so
 // the collision is a developer setup mistake rather than a runtime choice.
 // Sibling branches are checked independently since they never share a chain.
-// Engine-owned flags (the synthesized version --json selector) are exempt:
-// the engine binds them by identity rather than through the user binding
-// pipeline, so a same-named user flag keeps its own binding.
+// Engine-synthesized flags take part like declared flags, including the
+// built-in version command's --json selector and a CLI-exposed Features
+// container. A NoCLI flag is exempt because it never appears on the command
+// line: a hidden Features container must not reserve its derived name.
 func validateAncestorFlagUniqueness(root *Command) error {
 	for _, subcommand := range root.Subcommands {
 		ancestorFlags := make(map[string]string)
@@ -1194,7 +1195,7 @@ func validateBuiltinShortPair(root *Command) error {
 
 func addCommandFlags(cmd *Command, names map[string]string, shorts map[rune]string) {
 	for _, flagSpec := range cmd.Flags {
-		if flagSpec.EngineOwned {
+		if flagSpec.NoCLI {
 			continue
 		}
 
@@ -1211,12 +1212,12 @@ func addCommandFlags(cmd *Command, names map[string]string, shorts map[rune]stri
 
 func checkDescendantFlags(cmd *Command, ancestorFlags map[string]string, ancestorShorts map[rune]string) error {
 	for _, flagSpec := range cmd.Flags {
-		if flagSpec.EngineOwned {
+		if flagSpec.NoCLI {
 			continue
 		}
 
 		if ancestor, ok := ancestorFlags[flagSpec.Name]; ok {
-			return fmt.Errorf("command %q: %w: --%s (already declared by ancestor command %q)", cmd.Name, ErrDuplicateFlag, flagSpec.Name, ancestor)
+			return ancestorFlagCollisionError(cmd, flagSpec, ancestor)
 		}
 
 		for _, alias := range flagSpec.Aliases {
@@ -1243,6 +1244,20 @@ func checkDescendantFlags(cmd *Command, ancestorFlags map[string]string, ancesto
 	}
 
 	return nil
+}
+
+// ancestorFlagCollisionError builds the duplicate-flag error for a flag on cmd
+// that redeclares an ancestor flag. The built-in version command's --json
+// selector gets a migration hint because the user cannot rename it.
+func ancestorFlagCollisionError(cmd *Command, flagSpec *Flag, ancestor string) error {
+	if cmd.IsVersionCmd && flagSpec.EngineOwned && flagSpec.Name == VersionJSONFlagName {
+		return fmt.Errorf(
+			"command %q: %w: --%s (already declared by ancestor command %q; the built-in version command owns --%s: rename the ancestor flag or remove the VersionCommand field)",
+			cmd.Name, ErrDuplicateFlag, flagSpec.Name, ancestor, flagSpec.Name,
+		)
+	}
+
+	return fmt.Errorf("command %q: %w: --%s (already declared by ancestor command %q)", cmd.Name, ErrDuplicateFlag, flagSpec.Name, ancestor)
 }
 
 func validateFlagSubcommandCollisions(command *Command) error {

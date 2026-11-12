@@ -559,6 +559,72 @@ func TestFeature_RootOnly(t *testing.T) {
 	assert.Contains(t, err.Error(), "conga.Features must be declared on the root command struct")
 }
 
+type featureShadowedDescendantCLI struct {
+	Features conga.Features[featureExperiments] `flag:"gates"`
+
+	Sub conga.Command[featureShadowedDescendantSub] `summary:"Sub"`
+}
+
+type featureShadowedDescendantSub struct {
+	Gates conga.OptionalFlag[bool] `help:"Descendant gates"`
+}
+
+func (c *featureShadowedDescendantSub) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+func TestFeature_CLIExposedFlagShadowedByDescendant(t *testing.T) {
+	t.Parallel()
+
+	var cli featureShadowedDescendantCLI
+
+	app := conga.New(&cli).
+		Name("task").
+		EnableFeatures()
+
+	err := app.Run()
+
+	assert.Error(t, err)
+	assert.IsError(t, err, conga.ErrSchema)
+	assert.Equal(t, `command "sub": schema error: duplicate flag: --gates (already declared by ancestor command "task")`, err.Error())
+}
+
+type featureNoCLIDescendantCLI struct {
+	Features conga.Features[featureExperiments]
+
+	Sub conga.Command[featureNoCLIDescendantSub] `summary:"Sub"`
+}
+
+type featureNoCLIDescendantSub struct {
+	Features conga.OptionalFlag[bool] `help:"Child features flag"`
+
+	Ran bool
+}
+
+func (c *featureNoCLIDescendantSub) Run(ctx context.Context, session *conga.Session) error {
+	c.Ran = true
+
+	return nil
+}
+
+func TestFeature_DefaultContainerDoesNotReserveDescendantFlag(t *testing.T) {
+	t.Parallel()
+
+	var cli featureNoCLIDescendantCLI
+
+	app := conga.New(&cli).
+		Name("task").
+		EnableFeatures().
+		Args([]string{"sub", "--features"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.True(t, cli.Sub.Get().Features.Get())
+	assert.True(t, cli.Sub.Get().Ran)
+	assert.False(t, cli.Features.Changed())
+}
+
 type featureDuplicateCLI struct {
 	Features conga.Features[featureDuplicateSet]
 }

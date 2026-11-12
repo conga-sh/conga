@@ -360,8 +360,9 @@ type Flag struct {
 	IsConfigFile bool
 	// EngineOwned marks flags synthesized by the engine rather than declared
 	// by user struct fields. The engine binds them by identity and they never
-	// resolve into user containers, so ancestor flag shadowing validation
-	// exempts them: a same-named user flag on an ancestor stays reachable.
+	// resolve into user containers. Engine-owned flags take part in ancestor
+	// flag shadowing like declared flags; a NoCLI flag is the exception
+	// because it never appears on the command line.
 	EngineOwned bool
 	// NoCLI marks an engine-synthesized flag that binds environment and
 	// configuration values but is excluded from command-line routing and help.

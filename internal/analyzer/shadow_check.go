@@ -56,6 +56,27 @@ func (w *walker) checkAndCollectSynthesizedFlag(node *commandNode, fieldObject t
 	branchNames[flagName] = node.name
 }
 
+// checkVersionJSONShadows reports the synthesized --json flag of each
+// VersionCommand field on node colliding with an ancestor flag. The runtime
+// validates ancestor shadowing after the whole command tree is built, so this
+// check runs after node's field loop: the declaration order of the version
+// field and the colliding ancestor flag does not decide the diagnostic.
+func (w *walker) checkVersionJSONShadows(node *commandNode, branchNames map[string]string) {
+	for _, versionField := range node.versionJSONFields {
+		owner, ok := branchNames[spec.VersionJSONFlagName]
+		if !ok {
+			continue
+		}
+
+		position := w.fieldReportPos(node, versionField.fieldObject)
+
+		w.report(position, fmt.Sprintf(
+			"command %q: %s: --%s (already declared by ancestor command %q; the built-in version command owns --%s: rename the ancestor flag or remove the VersionCommand field)",
+			versionField.name, spec.ErrDuplicateFlag, spec.VersionJSONFlagName, owner, spec.VersionJSONFlagName,
+		))
+	}
+}
+
 // reportFlagShadow reports a flag-shadow collision and marks the command
 // rejected when the conflicting declaration belongs to the command itself: the
 // runtime's per-command flag tracker rejects a same-command duplicate inside

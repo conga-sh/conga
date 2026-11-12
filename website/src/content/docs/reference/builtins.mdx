@@ -203,7 +203,7 @@ hello:
  OS/Arch:    linux/amd64
 ```
 
-`hello version --json` renders a flat machine-readable object with the same fields (`version`, `gitCommit`, `built`, `goVersion`, `os`, `arch`, `modified`). Call `JSON() bool` on the command struct to query whether JSON format was requested. The `--json` flag is engine-owned, so a user-defined `--json` flag on an ancestor command cannot collide with it, and a non-boolean value is a usage error (exit 2).
+`hello version --json` renders a flat machine-readable object with the same fields (`version`, `gitCommit`, `built`, `goVersion`, `os`, `arch`, `modified`). Call `JSON() bool` on the command struct to query whether JSON format was requested. The built-in command owns `--json`: a user-defined `--json` flag on an ancestor command fails schema build with `ErrDuplicateFlag`, and the error names the fix (rename the ancestor flag or remove the `VersionCommand` field). A non-boolean value is a usage error (exit 2).
 
 `app.DisableVersionFlag()` removes the flag while keeping the version summary line available through `session.Version()` and `VersionCommand`. `app.VersionShortFlag('V')` assigns the rune rendered and parsed as `-V` (see [Configurable short flags](#configurable-short-flags)).
 

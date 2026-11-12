@@ -68,6 +68,13 @@ type groupPair struct {
 // attributed to the declaring field object.
 type groupCensus = spec.GroupCensus[types.Object]
 
+// versionJSONField is one VersionCommand field, with the command name the
+// runtime installs for it.
+type versionJSONField struct {
+	fieldObject types.Object
+	name        string
+}
+
 // commandNode is one command struct in the static hierarchy rooted at a
 // conga.New anchor.
 type commandNode struct {
@@ -105,6 +112,11 @@ type commandNode struct {
 	rawArgsFieldName  string
 	dashArgsFieldName string
 	implicitFieldName string
+	// versionJSONFields records the VersionCommand fields declared on this
+	// command. Their synthesized --json flag is checked against the completed
+	// ancestor shadow map after the field loop, so declaration order does not
+	// decide whether the collision is found.
+	versionJSONFields []versionJSONField
 	// rejected records that a field-level schema error was reported for this
 	// command. The runtime aborts the command build on the first error, so its
 	// group census never runs; single-member group diagnostics would be
@@ -237,6 +249,7 @@ func (w *walker) walkCommand(node *commandNode, ancestorNames map[string]string,
 		}
 	}
 
+	w.checkVersionJSONShadows(node, branchNames)
 	w.checkSingleMemberGroups(node, census)
 	w.checkRunner(node, subcommandCount)
 	w.checkBranchGrammar(node)
@@ -274,7 +287,12 @@ func (w *walker) checkField(node *commandNode, fieldObject types.Object, tag ref
 
 		return nil
 	case "version command":
-		w.checkBuiltinCommandField(node, fieldObject, tag, role)
+		if w.checkBuiltinCommandField(node, fieldObject, tag, role) {
+			node.versionJSONFields = append(node.versionJSONFields, versionJSONField{
+				fieldObject: fieldObject,
+				name:        cmp.Or(tag.Get("name"), "version"),
+			})
+		}
 
 		return nil
 	case "completion command":

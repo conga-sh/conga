@@ -114,6 +114,8 @@ cloudctl deploy --force      + cloudctl remove --force   (allowed: sibling comma
 cloudctl --verbose           + cloudctl deploy --verbose (reserved: ancestor-descendant collision)
 ```
 
+The reservation also covers flags CONGA adds for you when they appear on the command line. The built-in version command's `--json` selector is reserved: an ancestor `--json` flag alongside a mounted `conga.VersionCommand` fails schema build with `ErrDuplicateFlag`, and the error asks you to rename the ancestor flag or remove the field. A `conga.Features[T]` container reserves the name in its `flag` tag the same way. A container without one, or with `flag:"-"`, is excluded from the command line, so its derived name reserves nothing and a descendant can still declare it.
+
 ### Deterministic single-pass parsing
 
 A flag is accepted anywhere on the command line, so `cloudctl --verbose deploy worker` and `cloudctl deploy worker --verbose` are equivalent. If `deploy` could declare its own `--verbose`, the second form would be ambiguous, and resolving it would need backtracking or an arbitrary precedence rule. Because every flag on the selected path has exactly one owner, parsing completes in a single pass.
