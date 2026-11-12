@@ -200,7 +200,7 @@ type parseError struct {
 
 func (e *parseError) Error() string {
 	if e.suggestion != "" {
-		return fmt.Sprintf("%s. Did you mean %q?", e.msg, e.suggestion)
+		return fmt.Sprintf("%s (did you mean %q?)", e.msg, e.suggestion)
 	}
 
 	return e.msg

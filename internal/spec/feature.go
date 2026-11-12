@@ -166,11 +166,11 @@ func DescribeFeatureExpression(featureExpr string) string {
 
 	switch {
 	case len(disabled) == 0:
-		return featureNoun(len(enabled)) + " " + joinFeatureNames(enabled)
+		return featureNoun(len(enabled)) + " " + joinList(enabled)
 	case len(enabled) == 0:
-		return featureNoun(len(disabled)) + " " + joinFeatureNames(disabled) + " to be off"
+		return featureNoun(len(disabled)) + " " + joinList(disabled) + " to be off"
 	default:
-		return featureNoun(len(enabled)) + " " + joinFeatureNames(enabled) + " on and " + joinFeatureNames(disabled) + " off"
+		return featureNoun(len(enabled)) + " " + joinList(enabled) + " on and " + joinList(disabled) + " off"
 	}
 }
 
@@ -306,7 +306,7 @@ func ValidateFeatureFieldTags(field *FeatureField, tag reflect.StructTag) error 
 // normalize to the same kebab-case name. The runtime schema builder and the
 // static analyzer share it as the single source of truth.
 func DuplicateFeatureError(name string, typeName string) error {
-	return fmt.Errorf("%w: feature %q (already declared in %s)", ErrDuplicateFlag, name, typeName)
+	return fmt.Errorf("%w feature %q (already declared in %s)", ErrDuplicateDeclaration, name, typeName)
 }
 
 // FeatureStageAllOrNothingError builds the schema error for a feature field
@@ -669,6 +669,7 @@ func (b *schemaBuilder) installFeatureFlag(structField reflect.StructField, fiel
 		return key
 	}
 
+	flagSpec.StructName, flagSpec.FieldName = b.structType.Name(), structField.Name
 	b.cmd.Flags = append(b.cmd.Flags, flagSpec)
 	b.cmd.FeatureFlag = flagSpec
 
@@ -975,9 +976,8 @@ func featureNoun(count int) string {
 	return "features"
 }
 
-// joinFeatureNames joins quoted feature names as an English list: "a", "a" and
-// "b", or "a", "b", and "c".
-func joinFeatureNames(names []string) string {
+// joinList joins items as an English list: a, a and b, or a, b, and c.
+func joinList(names []string) string {
 	switch len(names) {
 	case 0:
 		return ""

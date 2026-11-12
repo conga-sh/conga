@@ -428,7 +428,7 @@ func TestUnitsRangeValidation(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, `struct ByteSizeUnitsRangeMismatchCLI field Memory: schema error: invalid range syntax: invalid byte size min bound "1MB"`, err.Error())
+		assert.Equal(t, `struct ByteSizeUnitsRangeMismatchCLI field Memory: schema error: invalid range syntax: invalid byte size min bound "1MB": byte size unit "MB" in "1MB" is not allowed: the field accepts binary units only`, err.Error())
 	})
 }
 

@@ -292,7 +292,7 @@ func (h *HelpChild) Run(ctx context.Context, session *conga.Session) error {
 
 // HelpParent declares the unsupported help tag on a subcommand field.
 type HelpParent struct { // want `does not implement conga\.Runner`
-	Child conga.Command[HelpChild] `help:"Child command"` // want `tag 'help' is not supported on Command\[T\]`
+	Child conga.Command[HelpChild] `help:"Child command"` // want `tag "help" is not supported on Command\[T\]`
 }
 
 var _ = conga.New[HelpParent]()
@@ -328,7 +328,7 @@ type ShadowParent struct {
 
 // ShadowChild shadows the parent flag name and short rune.
 type ShadowChild struct {
-	Again conga.OptionalFlag[bool] `name:"verbose" help:"Shadowed name"`         // want `already declared by ancestor`
+	Again conga.OptionalFlag[bool] `name:"verbose" help:"Shadowed name"`         // want `struct ShadowChild field Again: schema error: duplicate flag: --verbose \(already declared by struct ShadowParent field Verbose on ancestor command "shadow-parent"\)`
 	Twin  conga.OptionalFlag[bool] `name:"twin" short:"v" help:"Shadowed short"` // want `short flag -v`
 }
 
@@ -366,7 +366,7 @@ type AncestorShadowKeepsCensusApp struct {
 // AncestorShadowKeepsCensusChild shadows the parent flag and declares a
 // single-member xor group.
 type AncestorShadowKeepsCensusChild struct {
-	Mode conga.OptionalFlag[string] `name:"mode" xor:"solo" help:"Mode"` // want `already declared by ancestor` `xor group "solo" has only one member`
+	Mode conga.OptionalFlag[string] `name:"mode" xor:"solo" help:"Mode"` // want `struct AncestorShadowKeepsCensusChild field Mode: schema error: duplicate flag: --mode \(already declared by struct AncestorShadowKeepsCensusApp field Mode on ancestor command "ancestor-shadow-keeps-census-app"\)` `xor group "solo" has only one member`
 }
 
 // Run executes the child.
@@ -420,7 +420,7 @@ var _ = conga.New[ByteSizeRangeApp]()
 // binary units; conga-lint parses bounds with the field's tags, mirroring
 // runtime schema build.
 type ByteSizeUnitsRangeApp struct {
-	Memory conga.OptionalFlag[conga.ByteSize] `name:"memory" units:"binary" range:"1MB..10MB" help:"Memory"` // want `invalid byte size min bound "1MB"`
+	Memory conga.OptionalFlag[conga.ByteSize] `name:"memory" units:"binary" range:"1MB..10MB" help:"Memory"` // want `invalid byte size min bound "1MB": byte size unit "MB" in "1MB" is not allowed: the field accepts binary units only`
 }
 
 // Run executes the byte-size units-range fixture.
@@ -483,7 +483,7 @@ var _ = conga.New[LenApp]()
 
 // EmptySummaryParent declares an empty summary tag.
 type EmptySummaryParent struct {
-	Child conga.Command[EmptySummaryChild] `summary:""` // want `tag 'summary' cannot be empty`
+	Child conga.Command[EmptySummaryChild] `summary:""` // want `tag "summary" cannot be empty`
 }
 
 // EmptySummaryChild is a leaf subcommand.
@@ -507,7 +507,7 @@ var _ = conga.New[MalformedTagApp]()
 
 // BuiltinHelpTagApp uses help instead of summary on a built-in command field.
 type BuiltinHelpTagApp struct { // want `does not implement conga\.Runner`
-	Help conga.HelpCommand `help:"Show help"` // want `tag 'help' is not supported on built-in command fields`
+	Help conga.HelpCommand `help:"Show help"` // want `tag "help" is not supported on built-in command fields`
 }
 
 var _ = conga.New[BuiltinHelpTagApp]()
@@ -618,7 +618,7 @@ var _ = conga.New[RawArgsWithSliceArgApp]()
 // one is rejected by the one-collector-per-kind guard.
 type DuplicateRawArgsApp struct {
 	First  conga.RawArgs
-	Second conga.RawArgs // want `duplicate flag: RawArgs \(already declared by field First\)`
+	Second conga.RawArgs // want `duplicate RawArgs field \(already declared by field First\)`
 }
 
 // Run executes the duplicate raw collector fixture.
@@ -632,7 +632,7 @@ var _ = conga.New[DuplicateRawArgsApp]()
 // one is rejected by the one-collector-per-kind guard.
 type DuplicateDashArgsApp struct {
 	First  conga.DashArgs
-	Second conga.DashArgs // want `duplicate flag: DashArgs \(already declared by field First\)`
+	Second conga.DashArgs // want `duplicate DashArgs field \(already declared by field First\)`
 }
 
 // Run executes the duplicate dash collector fixture.

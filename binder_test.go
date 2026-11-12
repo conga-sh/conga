@@ -1667,8 +1667,8 @@ func TestBinder_NegatedTokenSuggestionSuppression(t *testing.T) {
 		app := conga.New[NegatedTokenCLI]().Args([]string{"--no-port"})
 		err := app.RunContext(t.Context())
 
-		assert.Error(t, err)
-		assert.NotContains(t, err.Error(), "Did you mean")
+		assert.IsError(t, err, conga.ErrParse)
+		assert.Equal(t, "unknown flag: --no-port", err.Error())
 	})
 }
 
@@ -1680,7 +1680,7 @@ func TestBinder_CaseInsensitiveFlagSuggestion(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.IsError(t, err, conga.ErrParse)
-	assert.Contains(t, err.Error(), `Did you mean "port"?`)
+	assert.Equal(t, `unknown flag: --PORT (did you mean "--port"?)`, err.Error())
 }
 
 func TestBinder_ShortFlagClusteringWithEqual(t *testing.T) {

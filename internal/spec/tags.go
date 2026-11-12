@@ -45,7 +45,7 @@ func ParseRangeSpec(tag string) (*Range, error) {
 
 	if strings.Contains(tag, "..") {
 		parts := strings.Split(tag, "..")
-		if len(parts) != 2 {
+		if len(parts) != 2 || strings.Contains(tag, "...") {
 			return nil, fmt.Errorf("%w: %q (expected min..max, min.., or ..max)", ErrInvalidRangeSyntax, tag)
 		}
 
@@ -73,6 +73,26 @@ func ParseRangeSpec(tag string) (*Range, error) {
 		HasMax: true,
 		Exact:  true,
 	}, nil
+}
+
+// ValidateTextBounds checks each declared bound side with validate, which
+// rejects a bound the field's tags don't accept (a decimal byte size under
+// units:"binary"). The message keeps validate's reason. Schema build and the
+// static analyzer share it, so both report the same diagnostic.
+func ValidateTextBounds(rangeSpec *Range, boundKind string, validate func(string) error) error {
+	if rangeSpec.HasMin {
+		if err := validate(rangeSpec.MinStr); err != nil {
+			return fmt.Errorf("%w: invalid %s min bound %q: %v", ErrInvalidRangeSyntax, boundKind, rangeSpec.MinStr, err) //nolint:errorlint // the cause explains the bound; the category stays ErrInvalidRangeSyntax
+		}
+	}
+
+	if rangeSpec.HasMax {
+		if err := validate(rangeSpec.MaxStr); err != nil {
+			return fmt.Errorf("%w: invalid %s max bound %q: %v", ErrInvalidRangeSyntax, boundKind, rangeSpec.MaxStr, err) //nolint:errorlint // the cause explains the bound; the category stays ErrInvalidRangeSyntax
+		}
+	}
+
+	return nil
 }
 
 // FloatBoundParser returns the range-bound parser for a float of bitSize bits
@@ -223,11 +243,11 @@ func ParseSummaryTag(tag reflect.StructTag, defaultSummary string) (string, erro
 
 	trimmed := strings.TrimSpace(summaryTag)
 	if trimmed == "" {
-		return "", fmt.Errorf("%w: tag 'summary' cannot be empty", ErrInvalidStructTag)
+		return "", fmt.Errorf("%w: tag \"summary\" cannot be empty", ErrInvalidStructTag)
 	}
 
 	if strings.ContainsAny(summaryTag, "\r\n") {
-		return "", fmt.Errorf("%w: tag 'summary' must be a single line without newlines", ErrInvalidStructTag)
+		return "", fmt.Errorf("%w: tag \"summary\" must be a single line without newlines", ErrInvalidStructTag)
 	}
 
 	return trimmed, nil
@@ -846,24 +866,11 @@ func validateRangeSpec(rangeSpec *Range, targetType reflect.Type, fieldTags Fiel
 }
 
 // validateTaggedTextBounds runs the caller-supplied tag-aware bound validator
-// over the declared bound sides. A validator error means the bound is not
-// acceptable under the field's declared tags; the message mirrors
-// ValidateScalarRange's parse-failure format so lint-time and schema-build
-// diagnostics agree.
+// over the declared bound sides through [ValidateTextBounds].
 func validateTaggedTextBounds(rangeSpec *Range, boundKind string, elemType reflect.Type, fieldTags FieldTags, validate func(reflect.Type, FieldTags, string) error) error {
-	if rangeSpec.HasMin {
-		if err := validate(elemType, fieldTags, rangeSpec.MinStr); err != nil {
-			return fmt.Errorf("%w: invalid %s min bound %q", ErrInvalidRangeSyntax, boundKind, rangeSpec.MinStr)
-		}
-	}
-
-	if rangeSpec.HasMax {
-		if err := validate(elemType, fieldTags, rangeSpec.MaxStr); err != nil {
-			return fmt.Errorf("%w: invalid %s max bound %q", ErrInvalidRangeSyntax, boundKind, rangeSpec.MaxStr)
-		}
-	}
-
-	return nil
+	return ValidateTextBounds(rangeSpec, boundKind, func(raw string) error {
+		return validate(elemType, fieldTags, raw)
+	})
 }
 
 func boundValidatorOf(opts *Options) func(reflect.Type, FieldTags, string) error {

@@ -209,7 +209,7 @@ func (w *walker) walkRoot(root *anchor) {
 		hasBootstrapper: w.implements(types.NewPointer(root.rootType), w.conga.bootstrapper),
 	}
 
-	w.walkCommand(node, map[string]string{}, map[rune]string{})
+	w.walkCommand(node, map[string]spec.FlagOwner{}, map[rune]spec.FlagOwner{})
 	w.checkCascadingArity()
 	w.checkFeatureEnvCollisions()
 }
@@ -217,7 +217,7 @@ func (w *walker) walkRoot(root *anchor) {
 // walkCommand mirrors the runtime schema walk: struct tag validation per
 // field, ancestor flag shadowing against the accumulated maps, and the leaf
 // command Runner contract.
-func (w *walker) walkCommand(node *commandNode, ancestorNames map[string]string, ancestorShorts map[rune]string) {
+func (w *walker) walkCommand(node *commandNode, ancestorNames map[string]spec.FlagOwner, ancestorShorts map[rune]spec.FlagOwner) {
 	typeObject := node.named.Obj()
 	if w.visitPath[typeObject] {
 		return
@@ -263,7 +263,7 @@ func (w *walker) walkCommand(node *commandNode, ancestorNames map[string]string,
 // checkField validates the tags of a single field and returns the child
 // command node for user subcommand fields. Flag fields are folded into the
 // shadow maps.
-func (w *walker) checkField(node *commandNode, fieldObject types.Object, tag reflect.StructTag, branchNames map[string]string, branchShorts map[rune]string, branchGroups map[groupPair]string, census *groupCensus) *commandNode {
+func (w *walker) checkField(node *commandNode, fieldObject types.Object, tag reflect.StructTag, branchNames map[string]spec.FlagOwner, branchShorts map[rune]spec.FlagOwner, branchGroups map[groupPair]string, census *groupCensus) *commandNode {
 	if !fieldObject.Exported() {
 		if fieldObject.Name() == "_" {
 			w.validateNodeFieldTags(node, fieldObject, tag, "blank field", nil)

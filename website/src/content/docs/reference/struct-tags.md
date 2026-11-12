@@ -142,7 +142,7 @@ A subcommand's flags read config keys from a section named after the subcommand,
 
 | Situation | Result |
 |---|---|
-| A flag name, alias, or short rune declared on an ancestor is declared again on a descendant | Schema build fails with `ErrSchema` wrapping `ErrDuplicateFlag`: `duplicate flag: --verbose (already declared by ancestor command "tool")`. Sibling commands may share names. |
+| A flag name, alias, or short rune declared on an ancestor is declared again on a descendant | Schema build fails with `ErrSchema` wrapping `ErrDuplicateFlag`: `struct Child field Verbose: schema error: duplicate flag: --verbose (already declared by struct App field Verbose on ancestor command "tool")`. Sibling commands may share names. |
 | A descendant's short rune matches the rune given to `app.HelpShortFlag` or `app.VersionShortFlag` | Schema build fails: `duplicate flag: built-in --help short flag -h collides with --host; assign a different rune to one of them`. |
 | A branch that doesn't implement `Runner` is invoked with no subcommand | `subcommand required for "<name>"` and the command's help screen, exit 2. |
 | A branch that implements `Runner` is invoked with no subcommand | The branch's own `Run` executes. |

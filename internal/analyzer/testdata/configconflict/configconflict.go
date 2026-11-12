@@ -17,4 +17,4 @@ func (c *ConflictApp) Run(ctx context.Context, session *conga.Session) error {
 }
 
 var _ = conga.New[ConflictApp]().
-	ConfigOptions(conga.ConfigExplicit("app.json"), conga.ConfigPaths("search.json")) // want `conga\.ConfigExplicit\(\) specifies an absolute configuration file and cannot be combined with conga\.ConfigPaths\(\) or conga\.ConfigCascading\(\)`
+	ConfigOptions(conga.ConfigExplicit("app.json"), conga.ConfigPaths("search.json")) // want `conga\.ConfigExplicit\(\) names a single configuration file and cannot be combined with conga\.ConfigPaths\(\) or conga\.ConfigCascading\(\)`

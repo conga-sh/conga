@@ -315,8 +315,51 @@ func TestHelpCommand_UnknownSubcommand(t *testing.T) {
 
 	err := app.Run()
 
-	assert.Error(t, err)
 	assert.IsError(t, err, conga.ErrParse)
+	assert.True(t, conga.IsUsageError(err))
+	assert.Equal(t, "unknown command: bogus", err.Error())
+}
+
+// help <name> reports a near miss with the same error and suggestion as
+// routing the name directly.
+func TestHelpCommand_UnknownSubcommandSuggests(t *testing.T) {
+	t.Parallel()
+
+	t.Run("root level", func(t *testing.T) {
+		t.Parallel()
+
+		app := conga.New[TestHelpRootCLI]().
+			Args([]string{"help", "clustr"})
+
+		err := app.Run()
+
+		assert.IsError(t, err, conga.ErrParse)
+		assert.Equal(t, `unknown command: clustr (did you mean "cluster"?)`, err.Error())
+	})
+
+	t.Run("nested level", func(t *testing.T) {
+		t.Parallel()
+
+		app := conga.New[TestHelpRootCLI]().
+			Args([]string{"help", "cluster", "nod"})
+
+		err := app.Run()
+
+		assert.IsError(t, err, conga.ErrParse)
+		assert.Equal(t, `unknown command: nod (did you mean "node"?)`, err.Error())
+	})
+
+	t.Run("routed directly", func(t *testing.T) {
+		t.Parallel()
+
+		app := conga.New[TestHelpRootCLI]().
+			Args([]string{"clustr"})
+
+		err := app.Run()
+
+		assert.IsError(t, err, conga.ErrParse)
+		assert.Equal(t, `unknown command: clustr (did you mean "cluster"?)`, err.Error())
+	})
 }
 
 func TestShortH_Unreserved(t *testing.T) {
@@ -327,8 +370,22 @@ func TestShortH_Unreserved(t *testing.T) {
 
 	err := app.Run()
 
-	assert.Error(t, err)
 	assert.IsError(t, err, conga.ErrParse)
+	assert.Equal(t, `unknown flag: -h (did you mean "--help"?)`, err.Error())
+}
+
+// Without the built-in --help flag, -h gets no hint.
+func TestShortH_NoHintWithoutHelpFlag(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[TestHelpRootCLI]().
+		DisableHelpFlag().
+		Args([]string{"-h"})
+
+	err := app.Run()
+
+	assert.IsError(t, err, conga.ErrParse)
+	assert.Equal(t, "unknown flag: -h", err.Error())
 }
 
 func TestShortH_CustomFieldBinding(t *testing.T) {

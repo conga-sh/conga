@@ -539,6 +539,16 @@ func TestParseRangeSpec_Invalid(t *testing.T) {
 	}
 }
 
+// A triple dot is a syntax error, not a min bound "1" with max bound ".5".
+func TestParseRangeSpec_TripleDotRejected(t *testing.T) {
+	t.Parallel()
+
+	_, err := ParseRangeSpec("1...5")
+
+	assert.IsError(t, err, ErrInvalidRangeSyntax)
+	assert.Equal(t, `schema error: invalid range syntax: "1...5" (expected min..max, min.., or ..max)`, err.Error())
+}
+
 func TestParsePresenceOrTrueTag(t *testing.T) {
 	t.Parallel()
 

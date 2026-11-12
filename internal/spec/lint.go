@@ -71,37 +71,44 @@ func isAnyCongaTag(tag string) bool {
 	return slices.Contains(allCongaTagCandidates, tag)
 }
 
+// validContextDescription lists the field kinds that accept tag, derived from
+// the per-role tag tables so the list cannot drift from what schema build
+// accepts.
 func validContextDescription(tag string) string {
-	switch tag {
-	case "short", "xor", "and", "oneof", "negatable", "config", "placeholder", "safe":
-		return "flags"
-	case "envprefix":
-		return "subcommands and Features containers"
-	case "summary":
-		return "commands"
-	case "section":
-		return "flags, subcommands, built-in commands, and config file flags"
-	case "deprecated":
-		return "subcommands, flags, and config file flags"
-	case "predictor":
-		return "flags, positional arguments, and trailing-argument collectors"
-	case "default":
-		return "flags and positional arguments"
-	case "implicit":
-		return "subcommands"
-	case "bootstrap":
-		return "flags, positional arguments, and trailing-argument collectors"
-	default:
-		return "other CONGA constructs"
+	contexts := []struct {
+		label string
+		tags  []string
+	}{
+		{"flags", flagTagCandidates},
+		{"positional arguments", argTagCandidates},
+		{"subcommands", userCommandTagCandidates},
+		{"built-in commands", builtinCommandTagCandidates},
+		{"config file flags", configFileTagCandidates},
+		{"Features containers", featuresFieldTagCandidates},
+		{"feature fields", featureFieldTagCandidates},
+		{"trailing-argument collectors", dashRawTagCandidates},
 	}
+
+	var labels []string
+
+	for _, context := range contexts {
+		if slices.Contains(context.tags, tag) {
+			labels = append(labels, context.label)
+		}
+	}
+
+	return joinList(labels)
 }
 
-func findClosestTagSuggestion(key string, candidates []string) string {
-	if match := levenshtein.Suggest(key, candidates, 4); match != "" {
+// findClosestTagSuggestion suggests a tag for an unknown key. The role's own
+// tags and the app's allowed tags come first, so a misspelt allowed key gets
+// its own name; every CONGA tag is the fallback.
+func findClosestTagSuggestion(key string, candidates []string, allowedTags []string) string {
+	if match := levenshtein.SuggestFor(key, slices.Concat(candidates, allowedTags)); match != "" {
 		return match
 	}
 
-	return levenshtein.Suggest(key, allCongaTagCandidates, 4)
+	return levenshtein.SuggestFor(key, allCongaTagCandidates)
 }
 
 func parsePredictorSpec(structTag reflect.StructTag, targetType reflect.Type, isBool bool, tags FieldTags, opts *Options) (*PredictorSpec, error) {
@@ -281,7 +288,7 @@ func validateCustomPredictor(value string, registeredNames []string) (*Predictor
 
 	candidates := slices.Concat([]string{"file", "dir", "exec", "symlink", "none", "off"}, registeredNames)
 
-	suggestion := levenshtein.Suggest(value, candidates, 3)
+	suggestion := levenshtein.SuggestFor(value, candidates)
 	if suggestion != "" {
 		return nil, fmt.Errorf("%w: unregistered predictor %q (did you mean %q?). Register it with app.Predictor(%q, action)", ErrInvalidStructTag, value, suggestion, value)
 	}

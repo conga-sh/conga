@@ -134,7 +134,7 @@ Config paths:
 Without `ConfigPaths`, the program looks in the user's config directory, `${XDG_CONFIG_HOME:-~/.config}`, and [About the config cascade](/explanation/config-cascade/) covers that default. To load one fixed file instead of searching, use `conga.ConfigExplicit(path)`. The run then fails if that file is missing. `ConfigExplicit` takes the place of the search, so a program that also passes `ConfigPaths` or `ConfigCascading` fails at startup:
 
 ```text no-copy error={1} wrap
-cascading-searchpaths: error: schema error: conga.ConfigExplicit() specifies an absolute configuration file and cannot be combined with conga.ConfigPaths() or conga.ConfigCascading()
+cascading-searchpaths: error: schema error: conga.ConfigExplicit() names a single configuration file and cannot be combined with conga.ConfigPaths() or conga.ConfigCascading()
 ```
 
 ## Merge files from every place

@@ -352,8 +352,8 @@ func TestBuild_TrailingCollectorUniqueness(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrDuplicateFlag)
-		assert.Equal(t, `struct duplicateRawArgsCLI field Second: schema error: duplicate flag: RawArgs (already declared by field First)`, err.Error())
+		assert.IsError(t, err, spec.ErrDuplicateDeclaration)
+		assert.Equal(t, `struct duplicateRawArgsCLI field Second: schema error: duplicate RawArgs field (already declared by field First)`, err.Error())
 	})
 
 	t.Run("duplicate dash args errors", func(t *testing.T) {
@@ -365,8 +365,8 @@ func TestBuild_TrailingCollectorUniqueness(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrDuplicateFlag)
-		assert.Equal(t, `struct duplicateDashArgsCLI field Second: schema error: duplicate flag: DashArgs (already declared by field First)`, err.Error())
+		assert.IsError(t, err, spec.ErrDuplicateDeclaration)
+		assert.Equal(t, `struct duplicateDashArgsCLI field Second: schema error: duplicate DashArgs field (already declared by field First)`, err.Error())
 	})
 
 	t.Run("one dash and one raw collector builds", func(t *testing.T) {

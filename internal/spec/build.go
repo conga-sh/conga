@@ -233,7 +233,7 @@ func (b *schemaBuilder) checkDuplicateSubcommand(name, fieldName string, isAlias
 			desc = "subcommand alias"
 		}
 
-		return fmt.Errorf("%w: %s %q (already declared by field %s)", ErrDuplicateFlag, desc, name, prevField)
+		return fmt.Errorf("%w %s %q (already declared by field %s)", ErrDuplicateDeclaration, desc, name, prevField)
 	}
 
 	b.seenSubcommands[name] = fieldName
@@ -406,6 +406,8 @@ func (b *schemaBuilder) newBuiltinSubcommand(structField reflect.StructField, ki
 			Flags: []*Flag{
 				{
 					Name:        VersionJSONFlagName,
+					StructName:  b.structType.Name(),
+					FieldName:   structField.Name,
 					Help:        "Render machine-readable JSON output",
 					IsBool:      true,
 					EngineOwned: true,
@@ -447,6 +449,7 @@ func (b *schemaBuilder) processConfigFile(structField reflect.StructField, confi
 		return err
 	}
 
+	flagSpec.StructName, flagSpec.FieldName = b.structType.Name(), structField.Name
 	b.cmd.Flags = append(b.cmd.Flags, flagSpec)
 	b.cmd.ConfigFileFlag = flagSpec
 
@@ -579,6 +582,7 @@ func (b *schemaBuilder) processFlag(structField reflect.StructField, flagHandle 
 		b.groupCensus.Add("and", flagSpec.AndGroup, flagSpec.Name, flagSpec.IsCounter, structField.Name)
 	}
 
+	flagSpec.StructName, flagSpec.FieldName = b.structType.Name(), structField.Name
 	b.cmd.Flags = append(b.cmd.Flags, flagSpec)
 
 	return nil
@@ -1172,8 +1176,8 @@ func guardSubcommandMethods(target any, cmd *Command, structName string) error {
 // line: a hidden Features container must not reserve its derived name.
 func validateAncestorFlagUniqueness(root *Command) error {
 	for _, subcommand := range root.Subcommands {
-		ancestorFlags := make(map[string]string)
-		ancestorShorts := make(map[rune]string)
+		ancestorFlags := make(map[string]FlagOwner)
+		ancestorShorts := make(map[rune]FlagOwner)
 
 		addCommandFlags(root, ancestorFlags, ancestorShorts)
 
@@ -1197,42 +1201,50 @@ func validateBuiltinShortPair(root *Command) error {
 	return BuiltinShortPairError(root.HelpShort)
 }
 
-func addCommandFlags(cmd *Command, names map[string]string, shorts map[rune]string) {
+func addCommandFlags(cmd *Command, names map[string]FlagOwner, shorts map[rune]FlagOwner) {
 	for _, flagSpec := range cmd.Flags {
 		if flagSpec.NoCLI {
 			continue
 		}
 
-		names[flagSpec.Name] = cmd.Name
+		owner := flagOwnerOf(cmd, flagSpec)
+
+		names[flagSpec.Name] = owner
 		for _, alias := range flagSpec.Aliases {
-			names[alias] = cmd.Name
+			names[alias] = owner
 		}
 
 		if flagSpec.Short != 0 {
-			shorts[flagSpec.Short] = cmd.Name
+			shorts[flagSpec.Short] = owner
 		}
 	}
 }
 
-func checkDescendantFlags(cmd *Command, ancestorFlags map[string]string, ancestorShorts map[rune]string) error {
+func checkDescendantFlags(cmd *Command, ancestorFlags map[string]FlagOwner, ancestorShorts map[rune]FlagOwner) error {
 	for _, flagSpec := range cmd.Flags {
 		if flagSpec.NoCLI {
 			continue
 		}
 
+		descendant := flagOwnerOf(cmd, flagSpec)
+
 		if ancestor, ok := ancestorFlags[flagSpec.Name]; ok {
-			return ancestorFlagCollisionError(cmd, flagSpec, ancestor)
+			if cmd.IsVersionCmd && flagSpec.EngineOwned && flagSpec.Name == VersionJSONFlagName {
+				return VersionJSONShadowError(descendant, ancestor)
+			}
+
+			return AncestorShadowError(descendant, "--"+flagSpec.Name, ancestor)
 		}
 
 		for _, alias := range flagSpec.Aliases {
 			if ancestor, ok := ancestorFlags[alias]; ok {
-				return fmt.Errorf("command %q: %w: alias --%s (already declared by ancestor command %q)", cmd.Name, ErrDuplicateFlag, alias, ancestor)
+				return AncestorShadowError(descendant, "alias --"+alias, ancestor)
 			}
 		}
 
 		if flagSpec.Short != 0 {
 			if ancestor, ok := ancestorShorts[flagSpec.Short]; ok {
-				return fmt.Errorf("command %q: %w: short flag -%c (already declared by ancestor command %q)", cmd.Name, ErrDuplicateFlag, flagSpec.Short, ancestor)
+				return AncestorShadowError(descendant, fmt.Sprintf("short flag -%c", flagSpec.Short), ancestor)
 			}
 		}
 	}
@@ -1250,18 +1262,10 @@ func checkDescendantFlags(cmd *Command, ancestorFlags map[string]string, ancesto
 	return nil
 }
 
-// ancestorFlagCollisionError builds the duplicate-flag error for a flag on cmd
-// that redeclares an ancestor flag. The built-in version command's --json
-// selector gets a migration hint because the user cannot rename it.
-func ancestorFlagCollisionError(cmd *Command, flagSpec *Flag, ancestor string) error {
-	if cmd.IsVersionCmd && flagSpec.EngineOwned && flagSpec.Name == VersionJSONFlagName {
-		return fmt.Errorf(
-			"command %q: %w: --%s (already declared by ancestor command %q; the built-in version command owns --%s: rename the ancestor flag or remove the VersionCommand field)",
-			cmd.Name, ErrDuplicateFlag, flagSpec.Name, ancestor, flagSpec.Name,
-		)
-	}
-
-	return fmt.Errorf("command %q: %w: --%s (already declared by ancestor command %q)", cmd.Name, ErrDuplicateFlag, flagSpec.Name, ancestor)
+// flagOwnerOf names the declaration of flagSpec on cmd for shadowing
+// diagnostics.
+func flagOwnerOf(cmd *Command, flagSpec *Flag) FlagOwner {
+	return FlagOwner{Command: cmd.Name, Struct: flagSpec.StructName, Field: flagSpec.FieldName}
 }
 
 func validateFlagSubcommandCollisions(command *Command) error {
@@ -1375,11 +1379,11 @@ func validateDisallowedTags(tag reflect.StructTag, keys []string, role string) e
 
 	if _, ok := tag.Lookup("help"); ok {
 		if role == "subcommand" {
-			return fmt.Errorf("%w: tag 'help' is not supported on Command[T]; use 'summary' for the 1-line synopsis", ErrInvalidStructTag)
+			return fmt.Errorf("%w: tag \"help\" is not supported on Command[T]; use \"summary\" for the 1-line synopsis", ErrInvalidStructTag)
 		}
 
 		if strings.HasSuffix(role, " command") {
-			return fmt.Errorf("%w: tag 'help' is not supported on built-in command fields; use 'summary' for the 1-line synopsis", ErrInvalidStructTag)
+			return fmt.Errorf("%w: tag \"help\" is not supported on built-in command fields; use \"summary\" for the 1-line synopsis", ErrInvalidStructTag)
 		}
 	}
 
@@ -1392,11 +1396,19 @@ func validateTagCandidates(keys []string, role string, candidates []string, allo
 			continue
 		}
 
+		if key == "predictor" && role == "config file flag" {
+			return fmt.Errorf("%w: tag %q is invalid on %s (config file flags always complete file paths)", ErrInvalidStructTag, key, role)
+		}
+
 		if isAnyCongaTag(key) {
 			return fmt.Errorf("%w: tag %q is invalid on %s (tag %q is only valid on %s)", ErrInvalidStructTag, key, role, key, validContextDescription(key))
 		}
 
-		suggestion := findClosestTagSuggestion(key, candidates)
+		suggestion := findClosestTagSuggestion(key, candidates, allowedTags)
+		if slices.Contains(allowedTags, suggestion) {
+			return fmt.Errorf("%w: unknown struct tag %q (did you mean %q?)", ErrInvalidStructTag, key, suggestion)
+		}
+
 		if suggestion != "" {
 			return fmt.Errorf("%w: unknown struct tag %q (did you mean %q?). Use app.AllowTags(%q) to permit external tags", ErrInvalidStructTag, key, suggestion, key)
 		}

@@ -210,7 +210,7 @@ A service-management CLI whose `create`, `delete` and `list` commands sit under 
 :::code-tabs
 ```sh label="Typo" error={2}
 $ go run ./_examples/08-subcommands-basic delte
-subcommands-basic: error: unknown command: delte. Did you mean "delete"?
+subcommands-basic: error: unknown command: delte (did you mean "delete"?)
 ```
 ```sh label="Alias"
 $ go run ./_examples/08-subcommands-basic rm web-api -f

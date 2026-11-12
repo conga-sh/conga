@@ -1,4 +1,4 @@
-clustermgr: error: unknown command: clustr. Did you mean "cluster"?
+clustermgr: error: unknown command: clustr (did you mean "cluster"?)
 
 Usage:
   clustermgr <command>

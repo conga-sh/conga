@@ -398,7 +398,7 @@ func resolveFeatureGates(binding featureState, target any, cmd *spec.Command, cm
 func unknownFeatureError(cmdChain []*spec.Command, cmd *spec.Command, name string, source ValueSource, envName string, origin string) error {
 	var hint string
 
-	if suggestion := levenshtein.Suggest(casing.Kebab(name), cmd.FeatureNames(), 4); suggestion != "" {
+	if suggestion := levenshtein.SuggestFor(casing.Kebab(name), cmd.FeatureNames()); suggestion != "" {
 		if source == SourceConfig {
 			suggestion = cmd.ConfigSettings.KeyCase.Apply(suggestion)
 		}
@@ -598,7 +598,7 @@ func suggestedMemberFeature(unknown *parseError) string {
 	case errors.Is(unknown.cause, errUnknownFlag):
 		for _, cmd := range unknown.cmdChain {
 			for _, flagSpec := range cmd.Flags {
-				if flagSpec.Name == unknown.suggestion {
+				if "--"+flagSpec.Name == unknown.suggestion {
 					return flagSpec.Feature
 				}
 			}

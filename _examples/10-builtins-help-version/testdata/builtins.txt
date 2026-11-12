@@ -53,7 +53,7 @@ stdout '  builtins-help-version status --detailed$'
 
 # 7. Subcommand `help nonexistent`
 exit-status 2 builtins-help-version help nonexistent
-stderr 'unknown command "nonexistent"'
+stderr 'unknown command: nonexistent$'
 
 # 8. Invalid flag with UsageHint mode
 exit-status 2 builtins-help-version status --unknown

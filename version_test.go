@@ -341,7 +341,7 @@ func TestVersionCommand_AncestorJSONFlagCollides(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.IsError(t, err, conga.ErrSchema)
-	assert.Equal(t, `command "version": schema error: duplicate flag: --json (already declared by ancestor command "tool"; the built-in version command owns --json: rename the ancestor flag or remove the VersionCommand field)`, err.Error())
+	assert.Equal(t, `struct TestVersionJSONCollisionCLI field Version: schema error: duplicate flag: --json (already declared by struct TestVersionJSONCollisionCLI field JSON on ancestor command "tool"; the built-in version command owns --json: rename the ancestor flag or remove the VersionCommand field)`, err.Error())
 }
 
 func TestRootJSONFlagWithoutVersionCommandBuilds(t *testing.T) {

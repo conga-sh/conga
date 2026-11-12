@@ -425,7 +425,7 @@ func TestStrictPredictorLinter_ContextValidation(t *testing.T) {
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrSchema)
 		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct ContextPredictorConfigFileCLI field Config: schema error: invalid struct tag: tag "predictor" is invalid on config file flag (tag "predictor" is only valid on flags, positional arguments, and trailing-argument collectors)`, err.Error())
+		assert.Equal(t, `struct ContextPredictorConfigFileCLI field Config: schema error: invalid struct tag: tag "predictor" is invalid on config file flag (config file flags always complete file paths)`, err.Error())
 	})
 }
 

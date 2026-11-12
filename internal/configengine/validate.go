@@ -454,7 +454,7 @@ func findClosestSuggestion(cmd *spec.Command, cmdPrefix string, section []string
 		}
 	}
 
-	return levenshtein.Suggest(key, candidates, 4)
+	return levenshtein.SuggestFor(key, candidates)
 }
 
 func suggestionHint(cmd *spec.Command, cmdPrefix string, section []string, key string, keyCase spec.KeyCase) string {
