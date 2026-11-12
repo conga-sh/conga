@@ -1451,6 +1451,89 @@ func TestBinder_SliceSepNone(t *testing.T) {
 	}, cli.Headers.Get())
 }
 
+func TestBinder_EmptyBoolValue(t *testing.T) {
+	t.Parallel()
+
+	type CLI struct {
+		noopRunner
+
+		Marks   conga.OptionalFlag[map[string]bool] `help:"Marks"`
+		Verbose conga.OptionalFlag[bool]            `help:"Verbose" short:"v"`
+	}
+
+	t.Run("bare long flag is true", func(t *testing.T) {
+		t.Parallel()
+
+		cli := new(CLI)
+		app := conga.New(cli).
+			Args([]string{"--verbose"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.True(t, cli.Verbose.Get())
+	})
+
+	t.Run("bare short flag is true", func(t *testing.T) {
+		t.Parallel()
+
+		cli := new(CLI)
+		app := conga.New(cli).
+			Args([]string{"-v"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.True(t, cli.Verbose.Get())
+	})
+
+	t.Run("empty long value rejected", func(t *testing.T) {
+		t.Parallel()
+
+		cli := new(CLI)
+		app := conga.New(cli).
+			Args([]string{"--verbose="})
+
+		err := app.Run()
+
+		assert.IsError(t, err, conga.ErrCoerce)
+		assert.True(t, conga.IsUsageError(err))
+		assert.Equal(t, `invalid boolean value "", expected true or false (or 1 or 0) for flag --verbose`, err.Error())
+		assert.False(t, cli.Verbose.IsSet())
+	})
+
+	t.Run("empty short value rejected", func(t *testing.T) {
+		t.Parallel()
+
+		cli := new(CLI)
+		app := conga.New(cli).
+			Args([]string{"-v="})
+
+		err := app.Run()
+
+		assert.IsError(t, err, conga.ErrCoerce)
+		assert.True(t, conga.IsUsageError(err))
+		assert.Equal(t, `invalid boolean value "", expected true or false (or 1 or 0) for flag --verbose`, err.Error())
+		assert.False(t, cli.Verbose.IsSet())
+	})
+
+	t.Run("empty map entry value rejected", func(t *testing.T) {
+		t.Parallel()
+
+		cli := new(CLI)
+		app := conga.New(cli).
+			RegisterMap[map[string]bool]().
+			Args([]string{"--marks", "a="})
+
+		err := app.Run()
+
+		assert.IsError(t, err, conga.ErrCoerce)
+		assert.True(t, conga.IsUsageError(err))
+		assert.Equal(t, `value for key "a": invalid boolean value "", expected true or false (or 1 or 0) for flag --marks`, err.Error())
+		assert.False(t, cli.Marks.IsSet())
+	})
+}
+
 func TestBinder_NegatableBool(t *testing.T) {
 	t.Parallel()
 

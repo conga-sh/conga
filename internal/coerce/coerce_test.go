@@ -67,12 +67,21 @@ func TestCoerce(t *testing.T) {
 	t.Run("bool true variations", func(t *testing.T) {
 		t.Parallel()
 
-		for _, raw := range []string{"true", "True", "TRUE", "t", "T", "1", ""} {
+		for _, raw := range []string{"true", "True", "TRUE", "t", "T", "1"} {
 			result, err := coerce.Value[bool](raw)
 
 			assert.NoError(t, err)
 			assert.Equal(t, true, result)
 		}
+	})
+
+	t.Run("bool empty rejected", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := coerce.Value[bool]("")
+
+		assert.IsError(t, err, coerce.ErrCoerce)
+		assert.Equal(t, `invalid boolean value "", expected true or false (or 1 or 0)`, err.Error())
 	})
 
 	t.Run("bool invalid", func(t *testing.T) {
