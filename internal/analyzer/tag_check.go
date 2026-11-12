@@ -783,6 +783,7 @@ func (w *walker) validateRangeBounds(rangeSpec *spec.Range, targetType types.Typ
 		switch {
 		case isCongaByteSize(named.Obj()):
 			parse := parseByteSizeBound(fieldTags)
+
 			if err := spec.ValidateTextBounds(rangeSpec, "byte size", func(raw string) error {
 				_, err := parse(raw)
 

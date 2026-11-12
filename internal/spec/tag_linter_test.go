@@ -468,7 +468,7 @@ func TestStrictTagLinter_ContextListFromRoleTables(t *testing.T) {
 }
 
 type allowedTagTypoCLI struct {
-	Replicas mockFlag[int] `histroy:"replicas" help:"Replicas"`
+	Replicas mockFlag[int] `help:"Replicas" histroy:"replicas"`
 }
 
 type foreignTagCLI struct {
