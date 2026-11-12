@@ -25,6 +25,7 @@
     case "$line" in
       'D'$'\t'*)
         [[ "${line#D?}" == *nospace* ]] && compopt -o nospace
+        [[ " ${line#D?} " == *" keeporder "* ]] && compopt -o nosort 2>/dev/null
         ;;
       'M'$'\t'*)
         ;;

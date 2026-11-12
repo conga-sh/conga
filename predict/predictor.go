@@ -82,7 +82,10 @@ func (p Predictor) Invoke(ctx Context) Result {
 	return p.applyModifiers(base, ctx, hasCustomSubcommandCompletion)
 }
 
-// KeepOrder marks the predictor to instruct the shell to preserve candidate order.
+// KeepOrder asks the shell to keep the candidate order instead of sorting it.
+// bash 4.4 or later and zsh honor it. zsh keeps the order within each tag
+// group and lists candidates that have a description before those that
+// don't. fish and elvish always sort.
 func (p Predictor) KeepOrder() Predictor {
 	p.keepOrder = true
 

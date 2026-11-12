@@ -38,13 +38,20 @@ fi
 # Hook _describe to capture group tags, items, and descriptions
 _describe() {
     local tag=""
+    local describe_unsorted=0 compadd_group=""
     local -a pos_args=()
     local -a args
     args=("$@")
 
     local i=1
     while (( i <= ${#args} )); do
-        if [[ "${args[i]}" == "-t" ]]; then
+        if [[ "${args[i]}" == "-V" && ${#pos_args} -eq 0 ]]; then
+            describe_unsorted=1
+            i=$(( i + 1 ))
+        elif [[ "${args[i]}" == "-V" ]]; then
+            compadd_group="${args[i+1]}"
+            i=$(( i + 2 ))
+        elif [[ "${args[i]}" == "-t" ]]; then
             tag="${args[i+1]}"
             i=$(( i + 2 ))
         elif [[ "${args[i]}" == "-S" || "${args[i]}" == "-p" || "${args[i]}" == "-s" || "${args[i]}" == "-q" || "${args[i]}" == "-d" || "${args[i]}" == "-X" || "${args[i]}" == "-x" ]]; then
@@ -56,6 +63,9 @@ _describe() {
             i=$(( i + 1 ))
         fi
     done
+
+    (( describe_unsorted )) && print "UNSORTED:describe:${tag}"
+    [[ -n "$compadd_group" ]] && print "UNSORTED:compadd:${compadd_group}"
 
     local group_desc="${pos_args[1]}"
     local displays_name="${pos_args[2]}"
@@ -96,6 +106,9 @@ compadd() {
         if [[ "${args[i]}" == "-a" ]]; then
             local aname="${args[i+1]}"
             matches+=("${(@f)${(@P)aname}}")
+            i=$(( i + 2 ))
+        elif [[ "${args[i]}" == "-V" || "${args[i]}" == "-J" ]]; then
+            [[ "${args[i]}" == "-V" ]] && print "UNSORTED:compadd:${args[i+1]}"
             i=$(( i + 2 ))
         elif [[ "${args[i]}" == "--" ]]; then
             i=$(( i + 1 ))

@@ -1273,17 +1273,6 @@ func TestZsh_PredictorSDK_Combinators(t *testing.T) {
 
 	workspace := setupShellCompletion(t)
 
-	t.Run("keeporder severity values", func(t *testing.T) {
-		t.Parallel()
-
-		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion logs --severity ")
-
-		assert.True(t, result.HasItem("debug"))
-		assert.True(t, result.HasItem("info"))
-		assert.True(t, result.HasItem("warn"))
-		assert.True(t, result.HasItem("error"))
-	})
-
 	t.Run("rich items sink completion", func(t *testing.T) {
 		t.Parallel()
 

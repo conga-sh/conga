@@ -57,6 +57,9 @@ type BashResult struct {
 	Items      []string
 	Messages   []string
 	StdoutLeak string
+	// Compopts lists the arguments of each compopt call the completer made,
+	// in order (the harness mocks compopt, which needs a live completion).
+	Compopts []string
 }
 
 // HasItem checks whether the candidate value is present.
@@ -217,6 +220,10 @@ type ZshResult struct {
 	Messages        []string
 	FilesCalled     []string
 	DirsCalled      []string
+	// Unsorted lists the groups added with -V, which zsh shows in the order
+	// given: "describe:<tag>" for _describe's own -V, "compadd:<group>" for a
+	// -V passed through to (or given directly to) compadd.
+	Unsorted []string
 }
 
 // GroupItems returns the list of candidates associated with a specific tag (e.g. "flags", "commands").
@@ -344,6 +351,12 @@ func (r *BashResult) parseLine(line, trimmed string) {
 
 	if leak, cut := strings.CutPrefix(line, "STDOUT_LEAK:"); cut {
 		r.StdoutLeak = leak
+
+		return
+	}
+
+	if call, cut := strings.CutPrefix(line, "COMPOPT:"); cut {
+		r.Compopts = append(r.Compopts, call)
 
 		return
 	}
@@ -997,6 +1010,12 @@ func parseZshResult(raw string) *ZshResult {
 }
 
 func parseZshMetaLine(result *ZshResult, line string, currentTag *string) bool {
+	if group, cut := strings.CutPrefix(line, "UNSORTED:"); cut {
+		result.Unsorted = append(result.Unsorted, group)
+
+		return true
+	}
+
 	if listColors, cut := strings.CutPrefix(line, "LIST_COLORS:"); cut {
 		result.ListColors = listColors
 
