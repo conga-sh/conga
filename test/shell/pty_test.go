@@ -554,6 +554,7 @@ func TestPtyKeepOrder(t *testing.T) {
 			session.Type(testCase.line)
 
 			var result *shell.PtyResult
+
 			for range testCase.tabs {
 				session.Tab()
 				result = session.Capture()
