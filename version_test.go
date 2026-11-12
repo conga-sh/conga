@@ -330,9 +330,7 @@ func TestVersionCommand_JSONEmptyValueTreatedAsTrue(t *testing.T) {
 func TestVersionCommand_AncestorJSONFlagCollides(t *testing.T) {
 	t.Parallel()
 
-	cli := new(TestVersionJSONCollisionCLI)
-
-	app := conga.New(cli).
+	app := conga.New[TestVersionJSONCollisionCLI]().
 		Name("tool").
 		Version("3.0.0")
 
