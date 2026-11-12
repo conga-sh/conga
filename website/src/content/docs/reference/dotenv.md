@@ -34,9 +34,10 @@ Completion invocations (`__complete`) run `Bootstrap` before resolving candidate
 |---------|-----------|
 | Comments | Lines whose first non-space character is `#` are ignored; unquoted values drop a trailing `# comment` after whitespace. |
 | `export` prefix | `export PORT=8080` is parsed identically to `PORT=8080`. |
-| Unquoted values | Taken verbatim after inline-comment stripping. |
-| Single quotes | Literal; escapes remain uninterpreted. |
-| Double quotes | The escapes `\n`, `\r`, `\t`, `\"`, `\\`, and `\$` are evaluated; only whitespace or a comment may follow the closing quote. |
+| Unquoted values | Taken as written after inline-comment stripping, with variable references expanded. A backslash is kept, so `\$` doesn't stop expansion, and `A=cost\$HOME` gives `cost\` followed by the value of `HOME`. Use single quotes, or `\$` inside double quotes, to write a literal `$`. |
+| Single quotes | Literal; escapes remain uninterpreted. A single-quoted value can't contain `'`. Use double quotes and `\"` instead. |
+| Double quotes | The escapes `\n`, `\r`, `\t`, `\"`, `\\`, and `\$` are evaluated, and `\$` is a literal `$` that never starts a variable reference. Only whitespace or a comment may follow the closing quote. |
+| Multi-line values | A single- or double-quoted value may span lines and keeps the line breaks. The closing quote may be on the file's last line. Inside double quotes, `\n` also writes a line break. |
 | Variable expansion | `$VAR` and `${VAR}` resolve from the process environment first, then from keys defined earlier in the file; a file overriding a key from an earlier file in the same call uses its own value. |
 
 ```ini title=".env"
