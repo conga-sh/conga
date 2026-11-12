@@ -593,7 +593,7 @@ func TestFeature_CLIExposedFlagShadowedByDescendant(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.IsError(t, err, conga.ErrSchema)
-	assert.Equal(t, `command "sub": schema error: duplicate flag: --gates (already declared by ancestor command "task")`, err.Error())
+	assert.Equal(t, `struct featureShadowedDescendantSub field Gates: schema error: duplicate flag: --gates (already declared by struct featureShadowedDescendantCLI field Features on ancestor command "task")`, err.Error())
 }
 
 type featureNoCLIDescendantCLI struct {
@@ -3358,7 +3358,7 @@ func TestFeature_UnknownFlagHintKeptForGatedOnFlag(t *testing.T) {
 	err := app.Run()
 
 	assert.IsError(t, err, conga.ErrParse)
-	assert.Equal(t, `unknown flag: --force-al. Did you mean "force-all"?`, err.Error())
+	assert.Equal(t, `unknown flag: --force-al (did you mean "--force-all"?)`, err.Error())
 	assert.False(t, cli.Ran)
 }
 
@@ -3394,7 +3394,7 @@ func TestFeature_UnknownCommandHintKeptForGatedOnCommand(t *testing.T) {
 	err := app.Run()
 
 	assert.IsError(t, err, conga.ErrParse)
-	assert.Equal(t, `unknown command: packag. Did you mean "package"?`, err.Error())
+	assert.Equal(t, `unknown command: packag (did you mean "package"?)`, err.Error())
 	assert.False(t, cli.Ran)
 }
 
@@ -3415,7 +3415,7 @@ func TestFeature_UnknownFlagHintKeptWhenConfigFails(t *testing.T) {
 	err := app.Run()
 
 	assert.IsError(t, err, conga.ErrParse)
-	assert.Equal(t, `unknown flag: --force-al. Did you mean "force-all"?`, err.Error())
+	assert.Equal(t, `unknown flag: --force-al (did you mean "--force-all"?)`, err.Error())
 	assert.False(t, cli.Ran)
 }
 
@@ -3510,7 +3510,7 @@ func TestFeature_UnknownCommandHintKeptForCLIGatedOnCommand(t *testing.T) {
 	err := app.Run()
 
 	assert.IsError(t, err, conga.ErrParse)
-	assert.Equal(t, `unknown command: packag. Did you mean "package"?`, err.Error())
+	assert.Equal(t, `unknown command: packag (did you mean "package"?)`, err.Error())
 	assert.False(t, cli.Ran)
 }
 

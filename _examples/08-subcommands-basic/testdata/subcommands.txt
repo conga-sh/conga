@@ -42,7 +42,7 @@ stdout '-A, --all\s+bool\s+true\s+● cli --all'
 
 # 7. Unknown subcommand fails with a did-you-mean suggestion
 exit-status 2 subcommands-basic creat
-stderr 'unknown command: creat\. Did you mean "create"\?'
+stderr 'unknown command: creat \(did you mean "create"\?\)'
 
 # 8. Help screen shows subcommands (hidden doctor command excluded)
 exec subcommands-basic --help

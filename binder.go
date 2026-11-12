@@ -223,7 +223,11 @@ func (parser *tokenParser) findFlagSuggestion(name string) string {
 		}
 	}
 
-	return levenshtein.Suggest(name, candidates, 3)
+	if suggestion := levenshtein.SuggestFor(name, candidates); suggestion != "" {
+		return "--" + suggestion
+	}
+
+	return ""
 }
 
 func (parser *tokenParser) lookupLongFlag(name string) (*spec.Flag, bool) {
@@ -430,11 +434,19 @@ func (parser *tokenParser) parseShortFlagCluster(tok tokenizer.Token) error {
 			msg = "unknown shorthand flag: '" + string(r) + "' in -" + string(runes)
 		}
 
+		// A single letter has no meaningful near miss, except that -h is the
+		// conventional help spelling: point it at the built-in --help.
+		var suggestion string
+		if len(runes) == 1 && r == 'h' && parser.flagMap["help"] == spec.BuiltinHelpFlag {
+			suggestion = "--help"
+		}
+
 		return &parseError{
-			msg:      msg,
-			token:    tok.Raw,
-			cmdChain: parser.cmdChain,
-			cause:    errUnknownFlag,
+			msg:        msg,
+			token:      tok.Raw,
+			cmdChain:   parser.cmdChain,
+			suggestion: suggestion,
+			cause:      errUnknownFlag,
 		}
 	}
 
@@ -1086,15 +1098,7 @@ func handlePositionalRouting(
 			return positionalRoute{command: current, chain: chain}, nil
 		}
 
-		suggestion := suggestSubcommand(current, tok.Raw)
-
-		return positionalRoute{}, &parseError{
-			msg:        "unknown command: " + tok.Raw,
-			token:      tok.Raw,
-			cmdChain:   chain,
-			suggestion: suggestion,
-			cause:      errUnknownCommand,
-		}
+		return positionalRoute{}, newUnknownCommandError(current, chain, tok.Raw)
 	}
 
 	return positionalRoute{command: current, chain: chain}, nil
@@ -2229,6 +2233,19 @@ func handleUnexpectedPositional(cmd *spec.Command, cmdChain []*spec.Command, une
 	}
 }
 
+// newUnknownCommandError reports input, which names no subcommand of cmd, with
+// a suggestion from cmd's subcommands. Routing and the built-in help command
+// share it, so "tool deplo" and "tool help deplo" report the same error.
+func newUnknownCommandError(cmd *spec.Command, cmdChain []*spec.Command, input string) error {
+	return &parseError{
+		msg:        "unknown command: " + input,
+		token:      input,
+		cmdChain:   cmdChain,
+		suggestion: suggestSubcommand(cmd, input),
+		cause:      errUnknownCommand,
+	}
+}
+
 func suggestSubcommand(cmd *spec.Command, input string) string {
 	if cmd == nil || len(cmd.Subcommands) == 0 {
 		return ""
@@ -2242,7 +2259,7 @@ func suggestSubcommand(cmd *spec.Command, input string) string {
 		}
 	}
 
-	suggestion := levenshtein.Suggest(input, subNames, 3)
+	suggestion := levenshtein.SuggestFor(input, subNames)
 	if suggestion == input {
 		return ""
 	}

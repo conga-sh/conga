@@ -327,7 +327,7 @@ fetch: error: map type map[string]int requires registration via app.RegisterMap
 | The user gives a value of the wrong type | Run | `invalid duration "30" (valid units: ms, s, m, h) for flag --timeout`, exit 2 |
 | The user repeats a flag and an earlier value has the wrong type | Run | `invalid integer value "two" for flag --retries`, exit 2 |
 | An environment variable holds a value of the wrong type | Run | `invalid boolean value "no", expected true or false (or 1 or 0) for flag --redirects (from environment variable FETCH_REDIRECTS)`, exit 1 |
-| The user misspells a flag | Run | `unknown flag: --redirect. Did you mean "redirects"?`, then usage, exit 2 |
+| The user misspells a flag | Run | `unknown flag: --redirect (did you mean "--redirects"?)`, then usage, exit 2 |
 | The user gives `--no-` to a flag without `negatable` | Run | `unknown flag: --no-verbose`, then usage, exit 2 |
 | The user gives a counter a value | Run | `flag does not take a value: --verbose=2`, then usage, exit 2 |
 | An environment variable gives a counter a negative or signed value | Run | `invalid unsigned integer value "-1" for flag --verbose (from environment variable FETCH_VERBOSE)`, exit 1 |

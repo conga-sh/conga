@@ -312,6 +312,11 @@ type PredictorSpec struct {
 // Flag represents the metadata and binder for a command-line flag.
 type Flag struct {
 	Name        string
+	// StructName and FieldName name the Go struct and field that declare the
+	// flag, so diagnostics can point at the declaration. For the built-in
+	// version command's --json they name the VersionCommand field.
+	StructName string
+	FieldName  string
 	Short       rune
 	Aliases     []string
 	Default     string

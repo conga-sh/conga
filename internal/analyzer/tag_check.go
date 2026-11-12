@@ -173,7 +173,7 @@ func (w *walker) checkCompletionCommandField(node *commandNode, fieldObject type
 // the ancestor shadow maps (runtime config file flags join cmd.Flags). The
 // config-file tag vocabulary (multi) is engine-owned and shared through the
 // spec facade, mirroring the runtime schema builder.
-func (w *walker) checkConfigFileField(node *commandNode, fieldObject types.Object, tag reflect.StructTag, branchNames map[string]string, branchShorts map[rune]string) {
+func (w *walker) checkConfigFileField(node *commandNode, fieldObject types.Object, tag reflect.StructTag, branchNames map[string]spec.FlagOwner, branchShorts map[rune]spec.FlagOwner) {
 	tagSpecs := spec.ConfigFileFieldTagSpecs()
 
 	if !w.validateNodeFieldTags(node, fieldObject, tag, "config file flag", tagSpecs) {
@@ -202,7 +202,7 @@ func (w *walker) checkConfigFileField(node *commandNode, fieldObject types.Objec
 // declaration set. A CLI-exposed container registers its synthesized flag name
 // in the branch shadow maps, and a second container on the root reports the
 // duplicate-container error.
-func (w *walker) checkFeaturesField(node *commandNode, fieldObject types.Object, tag reflect.StructTag, branchNames map[string]string) {
+func (w *walker) checkFeaturesField(node *commandNode, fieldObject types.Object, tag reflect.StructTag, branchNames map[string]spec.FlagOwner) {
 	if !w.validateNodeFieldTags(node, fieldObject, tag, "features", nil) {
 		return
 	}
@@ -410,7 +410,7 @@ func (w *walker) checkCascadingArity() {
 // checkFlagField validates a flag field: the shared facade, the
 // flag-specific value tags, the domain-type field tags, and the ancestor
 // shadow contract.
-func (w *walker) checkFlagField(node *commandNode, fieldObject types.Object, tag reflect.StructTag, branchNames map[string]string, branchShorts map[rune]string, branchGroups map[groupPair]string, census *groupCensus) {
+func (w *walker) checkFlagField(node *commandNode, fieldObject types.Object, tag reflect.StructTag, branchNames map[string]spec.FlagOwner, branchShorts map[rune]spec.FlagOwner, branchGroups map[groupPair]string, census *groupCensus) {
 	targetType := w.flagTargetType(fieldObject)
 	tagSpecs := w.congaFieldTagSpecs(targetType)
 
@@ -782,7 +782,16 @@ func (w *walker) validateRangeBounds(rangeSpec *spec.Range, targetType types.Typ
 	if named, ok := elementType.(*types.Named); ok {
 		switch {
 		case isCongaByteSize(named.Obj()):
-			return spec.ValidateScalarRange(rangeSpec, "byte size", parseByteSizeBound(fieldTags))
+			parse := parseByteSizeBound(fieldTags)
+			if err := spec.ValidateTextBounds(rangeSpec, "byte size", func(raw string) error {
+				_, err := parse(raw)
+
+				return err
+			}); err != nil {
+				return err
+			}
+
+			return spec.ValidateScalarRange(rangeSpec, "byte size", parse)
 		case isTimeDuration(named):
 			return spec.ValidateScalarRange(rangeSpec, "duration", time.ParseDuration)
 		case isTextRangeType(named):

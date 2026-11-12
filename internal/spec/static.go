@@ -176,7 +176,7 @@ func FeaturesMustBeStructParameterError() error {
 // builder and the static analyzer share it as the single source of truth;
 // firstFlagName is the resolved synthesized flag name of the first container.
 func FeaturesAlreadyDeclaredError(firstFlagName string) error {
-	return fmt.Errorf("%w: Features (already declared by %s)", ErrDuplicateFlag, firstFlagName)
+	return fmt.Errorf("%w Features container (already declared by %s)", ErrDuplicateDeclaration, firstFlagName)
 }
 
 // FeatureEnvModeConflictError builds the schema error for a conga.Features
@@ -311,7 +311,7 @@ func BuiltinShortPairError(short rune) error {
 // The error wraps ErrSchema so runtime schema validation returns it directly and the static analyzer reports it verbatim,
 // keeping the lint-time and runtime messages a single source of truth.
 func ConfigExplicitConflictError() error {
-	return fmt.Errorf("%w: conga.ConfigExplicit() specifies an absolute configuration file and cannot be combined with conga.ConfigPaths() or conga.ConfigCascading()", ErrSchema)
+	return fmt.Errorf("%w: conga.ConfigExplicit() names a single configuration file and cannot be combined with conga.ConfigPaths() or conga.ConfigCascading()", ErrSchema)
 }
 
 // CascadingRequiresMultiError builds the cascading⟹multi arity-guard error

@@ -11,7 +11,7 @@ import (
 // versionShadowApp declares the VersionCommand field before the colliding
 // root flag, so the diagnostic must not depend on field order.
 type versionShadowApp struct {
-	Version conga.VersionCommand // want `command "version": schema error: duplicate flag: --json \(already declared by ancestor command "version-shadow-app"; the built-in version command owns --json: rename the ancestor flag or remove the VersionCommand field\)`
+	Version conga.VersionCommand // want `struct versionShadowApp field Version: schema error: duplicate flag: --json \(already declared by struct versionShadowApp field JSON on ancestor command "version-shadow-app"; the built-in version command owns --json: rename the ancestor flag or remove the VersionCommand field\)`
 
 	JSON conga.OptionalFlag[bool] `help:"Output JSON"`
 }
@@ -25,7 +25,7 @@ var _ = conga.New[versionShadowApp]()
 // namedVersionShadowApp checks that the diagnostic names the built-in command
 // by its declared name.
 type namedVersionShadowApp struct {
-	Version conga.VersionCommand `name:"v"` // want `command "v": schema error: duplicate flag: --json \(already declared by ancestor command "named-version-shadow-app"; the built-in version command owns --json: rename the ancestor flag or remove the VersionCommand field\)`
+	Version conga.VersionCommand `name:"v"` // want `struct namedVersionShadowApp field Version: schema error: duplicate flag: --json \(already declared by struct namedVersionShadowApp field JSON on ancestor command "named-version-shadow-app"; the built-in version command owns --json: rename the ancestor flag or remove the VersionCommand field\)`
 
 	JSON conga.OptionalFlag[bool] `help:"Output JSON"`
 }

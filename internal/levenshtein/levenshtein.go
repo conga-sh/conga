@@ -24,21 +24,43 @@ func Distance(source, target string) int {
 	return distanceRunes([]rune(source), []rune(target))
 }
 
-// Suggest finds the best matching candidate for input where the case-insensitive
-// edit distance is strictly less than maxDistance. If maxDistance <= 0, a default
-// threshold of 3 is used.
-func Suggest(input string, candidates []string, maxDistance int) string {
-	return suggest(strings.ToLower(input), candidates, maxDistance)
+// SuggestFor finds the best matching candidate for input, comparing case
+// insensitively. A candidate qualifies when its edit distance is at most the
+// threshold for the input's length, so every suggester (flags, commands,
+// config keys, features, tags, predictors, groups) judges near misses the same
+// way:
+//
+//	1 rune      0 (no suggestion short of a case-insensitive match)
+//	2-3 runes   1
+//	4+ runes    min(4, max(2, runes/3))
+//
+// A transposition counts as two edits, so "prot" still suggests "port". The cap
+// keeps a long input from accepting an unrelated candidate.
+func SuggestFor(input string, candidates []string) string {
+	input = strings.ToLower(input)
+
+	return suggest(input, candidates, threshold(utf8.RuneCountInString(input)))
 }
 
-func suggest(input string, candidates []string, maxDistance int) string {
-	if maxDistance <= 0 {
-		maxDistance = 3
+// threshold returns the largest edit distance SuggestFor accepts for an input
+// of the given rune count.
+func threshold(runes int) int {
+	switch {
+	case runes <= 1:
+		return 0
+	case runes <= 3:
+		return 1
+	default:
+		return min(4, max(2, runes/3))
 	}
+}
 
+// suggest returns the closest candidate within maxDistance edits of input, or
+// "" when none qualifies. The first candidate wins a tie.
+func suggest(input string, candidates []string, maxDistance int) string {
 	inputLen := utf8.RuneCountInString(input)
 	bestCandidate := ""
-	bestDistance := maxDistance
+	bestDistance := maxDistance + 1
 
 	for _, cand := range candidates {
 		target := strings.ToLower(cand)

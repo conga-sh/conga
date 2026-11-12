@@ -241,7 +241,7 @@ func TestBuildSchema(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrDuplicateFlag)
+		assert.IsError(t, err, spec.ErrDuplicateDeclaration)
 	})
 
 	t.Run("child command flags collision with parent flags", func(t *testing.T) {
@@ -808,8 +808,8 @@ func TestBuiltinSubcommandAliasCollision(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrDuplicateFlag)
-		assert.Equal(t, `struct builtinAliasCollisionCLI field Sub: schema error: duplicate flag: subcommand "h" (already declared by field Help)`, err.Error())
+		assert.IsError(t, err, spec.ErrDuplicateDeclaration)
+		assert.Equal(t, `struct builtinAliasCollisionCLI field Sub: schema error: duplicate subcommand "h" (already declared by field Help)`, err.Error())
 	})
 
 	t.Run("builtin alias collides with earlier subcommand name", func(t *testing.T) {
@@ -820,8 +820,8 @@ func TestBuiltinSubcommandAliasCollision(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrDuplicateFlag)
-		assert.Equal(t, `struct builtinAliasCollisionReversedCLI field Help: schema error: duplicate flag: subcommand alias "h" (already declared by field Sub)`, err.Error())
+		assert.IsError(t, err, spec.ErrDuplicateDeclaration)
+		assert.Equal(t, `struct builtinAliasCollisionReversedCLI field Help: schema error: duplicate subcommand alias "h" (already declared by field Sub)`, err.Error())
 	})
 }
 
@@ -1006,7 +1006,7 @@ func TestSubcommand_SummaryTag(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, "struct RootCLI field Deploy: schema error: invalid struct tag: tag 'summary' cannot be empty", err.Error())
+		assert.Equal(t, `struct RootCLI field Deploy: schema error: invalid struct tag: tag "summary" cannot be empty`, err.Error())
 	})
 
 	t.Run("whitespace-only summary is rejected", func(t *testing.T) {
@@ -1024,7 +1024,7 @@ func TestSubcommand_SummaryTag(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, "struct RootCLI field Deploy: schema error: invalid struct tag: tag 'summary' cannot be empty", err.Error())
+		assert.Equal(t, `struct RootCLI field Deploy: schema error: invalid struct tag: tag "summary" cannot be empty`, err.Error())
 	})
 
 	t.Run("newline in summary is rejected", func(t *testing.T) {
@@ -1042,7 +1042,7 @@ func TestSubcommand_SummaryTag(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, "struct RootCLI field Deploy: schema error: invalid struct tag: tag 'summary' must be a single line without newlines", err.Error())
+		assert.Equal(t, `struct RootCLI field Deploy: schema error: invalid struct tag: tag "summary" must be a single line without newlines`, err.Error())
 	})
 
 	t.Run("help tag on subcommand is rejected", func(t *testing.T) {
@@ -1060,7 +1060,7 @@ func TestSubcommand_SummaryTag(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, "struct RootCLI field Deploy: schema error: invalid struct tag: tag 'help' is not supported on Command[T]; use 'summary' for the 1-line synopsis", err.Error())
+		assert.Equal(t, `struct RootCLI field Deploy: schema error: invalid struct tag: tag "help" is not supported on Command[T]; use "summary" for the 1-line synopsis`, err.Error())
 	})
 
 	t.Run("builtin command defaults to standard summary", func(t *testing.T) {
@@ -1108,7 +1108,7 @@ func TestSubcommand_SummaryTag(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, "struct RootCLI field Help: schema error: invalid struct tag: tag 'summary' cannot be empty", err.Error())
+		assert.Equal(t, `struct RootCLI field Help: schema error: invalid struct tag: tag "summary" cannot be empty`, err.Error())
 	})
 
 	t.Run("builtin command newline summary is rejected", func(t *testing.T) {
@@ -1124,7 +1124,7 @@ func TestSubcommand_SummaryTag(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, "struct RootCLI field Help: schema error: invalid struct tag: tag 'summary' must be a single line without newlines", err.Error())
+		assert.Equal(t, `struct RootCLI field Help: schema error: invalid struct tag: tag "summary" must be a single line without newlines`, err.Error())
 	})
 
 	t.Run("builtin command help tag is rejected", func(t *testing.T) {
@@ -1140,7 +1140,7 @@ func TestSubcommand_SummaryTag(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, "struct RootCLI field Help: schema error: invalid struct tag: tag 'help' is not supported on built-in command fields; use 'summary' for the 1-line synopsis", err.Error())
+		assert.Equal(t, `struct RootCLI field Help: schema error: invalid struct tag: tag "help" is not supported on built-in command fields; use "summary" for the 1-line synopsis`, err.Error())
 	})
 }
 
@@ -1197,7 +1197,7 @@ func TestEnvPrefix_SubcommandAndBuiltin(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct RootCLI field Help: schema error: invalid struct tag: tag "deprecated" is invalid on help command (tag "deprecated" is only valid on subcommands, flags, and config file flags)`, err.Error())
+		assert.Equal(t, `struct RootCLI field Help: schema error: invalid struct tag: tag "deprecated" is invalid on help command (tag "deprecated" is only valid on flags, subcommands, and config file flags)`, err.Error())
 	})
 }
 
@@ -2068,8 +2068,8 @@ func TestFeaturesContainer_DuplicateDeclaration_EmptyInnerStruct(t *testing.T) {
 	_, err := buildSchema(&cli, "app", spec.Options{})
 
 	assert.Error(t, err)
-	assert.IsError(t, err, spec.ErrDuplicateFlag)
-	assert.Equal(t, "struct featureDuplicateCLI field Second: schema error: duplicate flag: Features (already declared by gates-a)", err.Error())
+	assert.IsError(t, err, spec.ErrDuplicateDeclaration)
+	assert.Equal(t, "struct featureDuplicateCLI field Second: schema error: duplicate Features container (already declared by gates-a)", err.Error())
 }
 
 type featureNoCLINameAfterCLI struct {

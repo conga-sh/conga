@@ -1388,7 +1388,7 @@ func TestSubcommandTypoSuggestion_Issue10(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.IsError(t, err, conga.ErrParse)
-	assert.Contains(t, err.Error(), `Did you mean "cluster"?`)
+	assert.Equal(t, `unknown command: clustr (did you mean "cluster"?)`, err.Error())
 }
 
 func TestSubcommandRequired_Issue11(t *testing.T) {
@@ -2028,7 +2028,7 @@ func TestSchemaFlagCollisions_Issue05(t *testing.T) {
 		_, err := spec.Build(&cli, "app", conga.SpecOptionsWithContainers(spec.Options{}))
 		assert.Error(t, err)
 		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, "struct DuplicateSubCLI field Subcommand2: schema error: duplicate flag: subcommand \"deploy\" (already declared by field Subcommand1)", err.Error())
+		assert.Equal(t, `struct DuplicateSubCLI field Subcommand2: schema error: duplicate subcommand "deploy" (already declared by field Subcommand1)`, err.Error())
 	})
 
 	t.Run("sibling subcommands flag sharing is allowed", func(t *testing.T) {
@@ -2106,7 +2106,7 @@ func TestSchemaFlagCollisions_Issue05(t *testing.T) {
 		_, err := spec.Build(&cli, "app", conga.SpecOptionsWithContainers(spec.Options{}))
 		assert.Error(t, err)
 		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, `command "child": schema error: duplicate flag: --verbose (already declared by ancestor command "app")`, err.Error())
+		assert.Equal(t, `struct ChildCmd field Verbose: schema error: duplicate flag: --verbose (already declared by struct Depth2ShadowCLI field Verbose on ancestor command "app")`, err.Error())
 	})
 
 	t.Run("subcommand flag shadowing ancestor is rejected", func(t *testing.T) {

@@ -634,7 +634,7 @@ func TestValidateCommandConfig_ConfigTagReplacesFlagName(t *testing.T) {
 	t.Parallel()
 
 	messages := map[string]string{
-		"api-endpoint": `config file "config.toml": unknown field "api-endpoint" in command "app"`,
+		"api-endpoint": `config file "config.toml": unknown field "api-endpoint" in command "app" (did you mean "endpoint"?)`,
 		"Endpoint":     `config file "config.toml": unknown field "Endpoint" in command "app" (did you mean "endpoint"?)`,
 	}
 

@@ -2,10 +2,6 @@ package spec
 
 import "github.com/conga-sh/conga/internal/levenshtein"
 
-// groupSuggestionMaxDistance bounds the typo suggestion for a single-member
-// group name; farther candidates are not offered.
-const groupSuggestionMaxDistance = 4
-
 // GroupCensus counts the members of every flag group declared on one command.
 // Group validation is command-scoped, so each command build owns one census.
 // Declaration order is preserved so the first offending group is reported
@@ -122,5 +118,5 @@ func (c *GroupCensus[T]) suggest(key groupCensusKey) string {
 		return ""
 	}
 
-	return levenshtein.Suggest(key.group, candidates, groupSuggestionMaxDistance)
+	return levenshtein.SuggestFor(key.group, candidates)
 }

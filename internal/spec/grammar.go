@@ -89,7 +89,7 @@ func ValidateBranchGrammar(grammar BranchGrammar) error {
 // source of truth; containerName is "RawArgs" or "DashArgs" and firstFieldName
 // is the struct field of the first declaration.
 func TrailingCollectorAlreadyDeclaredError(containerName, firstFieldName string) error {
-	return fmt.Errorf("%w: %s (already declared by field %s)", ErrDuplicateFlag, containerName, firstFieldName)
+	return fmt.Errorf("%w %s field (already declared by field %s)", ErrDuplicateDeclaration, containerName, firstFieldName)
 }
 
 // ImplicitCommandAlreadyDeclaredError builds the duplicate-command error for a
@@ -97,6 +97,33 @@ func TrailingCollectorAlreadyDeclaredError(containerName, firstFieldName string)
 // the static analyzer share it as the single source of truth.
 func ImplicitCommandAlreadyDeclaredError(firstFieldName string) error {
 	return fmt.Errorf("%w: only one implicit command is allowed per command; implicit command already declared by field %s", ErrSchema, firstFieldName)
+}
+
+// FlagOwner names the declaration of a flag name, alias, or short rune for
+// shadowing diagnostics: the command that declares it and the Go struct and
+// field that hold it.
+type FlagOwner struct {
+	Command string
+	Struct  string
+	Field   string
+}
+
+// AncestorShadowError builds the error for a flag name, alias, or short rune
+// (declaration, such as "--verbose", "alias --v", or "short flag -v") that a
+// descendant command redeclares from an ancestor. Both sides are named by
+// struct and field. The runtime schema builder and the static analyzer share it
+// as the single source of truth.
+func AncestorShadowError(descendant FlagOwner, declaration string, ancestor FlagOwner) error {
+	return fmt.Errorf("struct %s field %s: %w: %s (already declared by struct %s field %s on ancestor command %q)",
+		descendant.Struct, descendant.Field, ErrDuplicateFlag, declaration, ancestor.Struct, ancestor.Field, ancestor.Command)
+}
+
+// VersionJSONShadowError builds the shadowing error for the built-in version
+// command's --json selector, which the user cannot rename, with a migration
+// hint. descendant names the VersionCommand field.
+func VersionJSONShadowError(descendant FlagOwner, ancestor FlagOwner) error {
+	return fmt.Errorf("struct %s field %s: %w: --%s (already declared by struct %s field %s on ancestor command %q; the built-in version command owns --%s: rename the ancestor flag or remove the VersionCommand field)",
+		descendant.Struct, descendant.Field, ErrDuplicateFlag, VersionJSONFlagName, ancestor.Struct, ancestor.Field, ancestor.Command, VersionJSONFlagName)
 }
 
 // ValidateImplicitFeature rejects a feature tag on an implicit command. An

@@ -696,12 +696,7 @@ func (h *HelpCommand) Run(ctx context.Context, session *Session) error {
 		}
 
 		if matched == nil {
-			return &parseError{
-				msg:      fmt.Sprintf("unknown command %q", seg),
-				token:    seg,
-				cmdChain: targetChain,
-				cause:    errUnknownCommand,
-			}
+			return newUnknownCommandError(current, targetChain, seg)
 		}
 
 		current = matched

@@ -16,6 +16,12 @@ var (
 	// ErrDuplicateFlag indicates a duplicate flag name or short flag rune was defined.
 	ErrDuplicateFlag = fmt.Errorf("%w: duplicate flag", ErrSchema)
 
+	// ErrDuplicateDeclaration indicates a duplicate declaration other than a
+	// flag: a subcommand name or alias, a trailing-argument collector, a
+	// Features container, or a feature name. Messages name what is duplicated
+	// right after it ("duplicate subcommand \"deploy\" ...").
+	ErrDuplicateDeclaration = fmt.Errorf("%w: duplicate", ErrSchema)
+
 	// ErrInvalidArgOrder indicates an invalid positional argument order.
 	ErrInvalidArgOrder = fmt.Errorf("%w: invalid positional argument order", ErrSchema)
 

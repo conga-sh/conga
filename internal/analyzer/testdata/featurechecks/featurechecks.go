@@ -86,7 +86,7 @@ var _ = conga.New[badFeatureTagApp]()
 
 type duplicateFeatureNameSet struct {
 	Name  bool
-	Alias bool `name:"name"` // want `struct duplicateFeatureNameApp field Alias: schema error: duplicate flag: feature "name" \(already declared in duplicateFeatureNameSet\)`
+	Alias bool `name:"name"` // want `struct duplicateFeatureNameApp field Alias: schema error: duplicate feature "name" \(already declared in duplicateFeatureNameSet\)`
 }
 
 type duplicateFeatureNameApp struct {
@@ -101,7 +101,7 @@ var _ = conga.New[duplicateFeatureNameApp]()
 
 type duplicateFeaturesApp struct {
 	Features conga.Features[goodFeatureSet] `flag:"gates"`
-	Again    conga.Features[goodFeatureSet] // want `struct duplicateFeaturesApp field Again: schema error: duplicate flag: Features \(already declared by gates\)`
+	Again    conga.Features[goodFeatureSet] // want `struct duplicateFeaturesApp field Again: schema error: duplicate Features container \(already declared by gates\)`
 }
 
 func (a *duplicateFeaturesApp) Run(ctx context.Context, session *conga.Session) error {
@@ -111,7 +111,7 @@ func (a *duplicateFeaturesApp) Run(ctx context.Context, session *conga.Session) 
 var _ = conga.New[duplicateFeaturesApp]()
 
 type featureShadowSub struct {
-	Gates conga.OptionalFlag[bool] `help:"Shadowed gate"` // want `command "sub": schema error: duplicate flag: --gates \(already declared by ancestor command "feature-shadow-app"\)`
+	Gates conga.OptionalFlag[bool] `help:"Shadowed gate"` // want `struct featureShadowSub field Gates: schema error: duplicate flag: --gates \(already declared by struct featureShadowApp field Features on ancestor command "feature-shadow-app"\)`
 }
 
 func (s *featureShadowSub) Run(ctx context.Context, session *conga.Session) error {
@@ -202,9 +202,9 @@ func (a *partialStageApp) Run(ctx context.Context, session *conga.Session) error
 var _ = conga.New[partialStageApp]()
 
 type enumHintChecksApp struct {
-	MissingEnum conga.OptionalFlag[string] `enumhint:"-" help:"Format"` // want `struct enumHintChecksApp field MissingEnum: schema error: invalid struct tag: tag "enumhint" suppresses the enum hint, but the field declares no enum values`
+	MissingEnum conga.OptionalFlag[string] `enumhint:"-" help:"Format"`                             // want `struct enumHintChecksApp field MissingEnum: schema error: invalid struct tag: tag "enumhint" suppresses the enum hint, but the field declares no enum values`
 	Redundant   conga.OptionalFlag[string] `enum:"json,yaml" enumhint:"-" help:"Format ({{enum}})"` // want `struct enumHintChecksApp field Redundant: schema error: invalid struct tag: tag "enumhint" is redundant: the help tag already references \{\{enum\}\}`
-	BadValue    conga.OptionalFlag[string] `enum:"json,yaml" enumhint:"true" help:"Format"` // want `struct enumHintChecksApp field BadValue: schema error: invalid struct tag: tag "enumhint" must be "-"`
+	BadValue    conga.OptionalFlag[string] `enum:"json,yaml" enumhint:"true" help:"Format"`         // want `struct enumHintChecksApp field BadValue: schema error: invalid struct tag: tag "enumhint" must be "-"`
 }
 
 func (a *enumHintChecksApp) Run(ctx context.Context, session *conga.Session) error {

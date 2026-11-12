@@ -60,7 +60,7 @@ func main() {
 
 ```sh error={2-4} wrap
 $ go tool conga-lint ./...
-main.go:18:2: command "deploy": schema error: duplicate flag: --verbose (already declared by ancestor command "cli")
+main.go:18:2: struct DeployCmd field Verbose: schema error: duplicate flag: --verbose (already declared by struct CLI field Verbose on ancestor command "cli")
 main.go:19:2: struct DeployCmd field Replicas: schema error: invalid struct tag: unknown struct tag "hlep" (did you mean "help"?). Use app.AllowTags("hlep") to permit external tags
 main.go:28:6: leaf command "status" (struct StatusCmd) does not implement conga.Runner (implement Run(context.Context, *conga.Session) error)
 ```
@@ -85,7 +85,7 @@ Go's `./...` pattern skips directories that start with `_`, such as `_examples/`
 ```sh error={2} wrap
 $ go tool conga-lint -builder-order ./...
 main.go:33:3: builder call order violation: Name (rank 1) called after EnableCompletion (rank 9); use -fix to reorder
-main.go:18:2: command "deploy": schema error: duplicate flag: --verbose (already declared by ancestor command "cli")
+main.go:18:2: struct DeployCmd field Verbose: schema error: duplicate flag: --verbose (already declared by struct CLI field Verbose on ancestor command "cli")
 main.go:19:2: struct DeployCmd field Replicas: schema error: invalid struct tag: unknown struct tag "hlep" (did you mean "help"?). Use app.AllowTags("hlep") to permit external tags
 main.go:28:6: leaf command "status" (struct StatusCmd) does not implement conga.Runner (implement Run(context.Context, *conga.Session) error)
 ```
@@ -132,7 +132,7 @@ The analyzer reports the first unknown key on each field:
 
 ```sh error={2-3} wrap
 $ go tool conga-lint ./...
-main.go:18:2: struct DeployCmd field Replicas: schema error: invalid struct tag: unknown struct tag "bson" (did you mean "xor"?). Use app.AllowTags("bson") to permit external tags
+main.go:18:2: struct DeployCmd field Replicas: schema error: invalid struct tag: unknown struct tag "bson". Use app.AllowTags("bson") to permit external tags
 main.go:19:2: struct DeployCmd field Token: schema error: invalid struct tag: unknown struct tag "history". Use app.AllowTags("history") to permit external tags
 ```
 
@@ -140,7 +140,7 @@ The program fails at startup with the first of them, exit 1:
 
 ```sh error={2} wrap
 $ cloudctl deploy
-cloudctl: error: struct DeployCmd field Replicas: schema error: invalid struct tag: unknown struct tag "bson" (did you mean "xor"?). Use app.AllowTags("bson") to permit external tags
+cloudctl: error: struct DeployCmd field Replicas: schema error: invalid struct tag: unknown struct tag "bson". Use app.AllowTags("bson") to permit external tags
 ```
 
 List both keys in `AllowTags`:
@@ -167,11 +167,11 @@ deploying 3 replicas
 
 The analyzer reads the keys from string literals in the `AllowTags` call. When the call takes a variable, such as `AllowTags(tags...)`, it can't tell which keys are allowed, so it reports no unknown tags for that app.
 
-`AllowTags` matches keys exactly, so a misspelled `histroy` still fails. The hint names the misspelled key rather than `history`:
+`AllowTags` matches keys exactly, so a misspelled `histroy` still fails. The hint names the allowed key it was probably meant to be:
 
 ```sh error={2} wrap
 $ go tool conga-lint ./...
-main.go:18:2: struct DeployCmd field Replicas: schema error: invalid struct tag: unknown struct tag "histroy". Use app.AllowTags("histroy") to permit external tags
+main.go:18:2: struct DeployCmd field Replicas: schema error: invalid struct tag: unknown struct tag "histroy" (did you mean "history"?)
 ```
 
 CONGA checks plain fields, which aren't containers, only for its own tags, so a `Note string` field tagged `history:"note"` needs no `AllowTags`.
@@ -183,7 +183,7 @@ CONGA checks plain fields, which aren't containers, only for its own tags, so a 
 | A misspelled or unknown tag | Startup error on every run, exit 1 | Reported with the field and a "did you mean" hint |
 | A tag key that other code reads, outside the built-in list | Startup error on every run, exit 1 | Reported unless the key is listed in `AllowTags` |
 | A key listed in `AllowTags` | Accepted | Accepted when the call uses string literals |
-| A misspelling of a key listed in `AllowTags` | Startup error on every run, exit 1 | Reported, with a hint that names the misspelled key |
+| A misspelling of a key listed in `AllowTags` | Startup error on every run, exit 1 | Reported, with a hint that names the allowed key |
 | A descendant redeclares a parent's flag | Startup error on every run, exit 1 | Reported at the descendant's field |
 | A leaf command has no `Run` method | Error only when a user invokes that command, exit 1 | Reported at the struct |
 | Builder calls out of order | No effect | Reported with `-builder-order`, and `-fix` reorders them |
