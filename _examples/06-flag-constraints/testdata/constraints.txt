@@ -30,7 +30,7 @@ stderr 'flags --json and --yaml are mutually exclusive'
 
 # 5. And group violation (username without password)
 exit-status 2 flag-constraints -k s3cr3t-key -u alice
-stderr 'flag --username must be given together with --password'
+stderr 'flag -u must be given together with --password'
 
 # 6. And group satisfied
 exec flag-constraints -k s3cr3t-key -u alice --password secretpass123

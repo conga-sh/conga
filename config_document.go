@@ -120,13 +120,14 @@ type documentMapEntry struct {
 // parsedInvocation carries the parsed command line facts shared by
 // configuration resolution, bootstrap binding, and completion analysis.
 type parsedInvocation struct {
-	root       *spec.Command
-	leaf       *spec.Command
-	cmdChain   []*spec.Command
-	flagValues map[*spec.Flag][]string
-	posTokens  []string
-	dashTokens []string
-	rawTokens  []string
+	root          *spec.Command
+	leaf          *spec.Command
+	cmdChain      []*spec.Command
+	flagValues    map[*spec.Flag][]string
+	flagSpellings map[*spec.Flag]string
+	posTokens     []string
+	dashTokens    []string
+	rawTokens     []string
 }
 
 // configRequest carries the parsed invocation into configuration resolution,

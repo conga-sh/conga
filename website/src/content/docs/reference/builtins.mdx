@@ -238,7 +238,7 @@ A map flag applies the rule key by key. Keys from the default show, and keys set
 
 When connected to an interactive terminal, the report uses color, and each source gets a marker and a color (`● cli` cyan, `● env` yellow, `● config` green, `○ default` grey, `unset` dim). When piped, redirected, or running under `NO_COLOR=1` or `TERM=dumb`, it prints plain text with no markers, as shown on the how-to pages. Output color can also be forced with `CONGA_COLOR=1` or disabled with `CONGA_COLOR=0`.
 
-`--why` binds values as a normal run does, except that a missing required flag is not an error. Malformed configuration or a value that fails to parse produces the normal error, and no report.
+`--why` binds values as a normal run does, except that a missing required flag and a failed `xor`, `oneof`, or `and` group are not errors. Malformed configuration, a value that fails to parse, or a value outside its `enum`, `range`, `len`, or `items` bound produces the normal error, and no report.
 
 By default (or with `--why=text`), the report renders as formatted human-readable tables. Pass `conga.WhyOptionJSON()` to `EnableWhy` (`app.EnableWhy(conga.WhyOptionJSON())`) to enable `--why=json`, which emits a versioned machine-readable document:
 
