@@ -68,14 +68,24 @@ var (
 	//go:embed testdata/multi_file_second.env
 	fixtureMultiFileSecond []byte
 
+	// Multi-line quoted values, closed on the last line with and without a
+	// trailing newline.
 	//go:embed testdata/multiline.env
 	fixtureMultiline []byte
+	//go:embed testdata/multiline_no_trailing_newline_double.env
+	fixtureMultilineNoTrailingNewlineDouble []byte
+	//go:embed testdata/multiline_no_trailing_newline_single.env
+	fixtureMultilineNoTrailingNewlineSingle []byte
 
+	// Quoted values that never close, with and without a trailing newline.
 	//go:embed testdata/unclosed_double.env
 	fixtureUnclosedDouble []byte
-
+	//go:embed testdata/unclosed_double_no_trailing_newline.env
+	fixtureUnclosedDoubleNoTrailingNewline []byte
 	//go:embed testdata/unclosed_single.env
 	fixtureUnclosedSingle []byte
+	//go:embed testdata/unclosed_single_no_trailing_newline.env
+	fixtureUnclosedSingleNoTrailingNewline []byte
 
 	//go:embed testdata/unicode.env
 	fixtureUnicode []byte
@@ -105,6 +115,11 @@ func TestDotenv_ParseEscapeSequences(t *testing.T) {
 	assert.Equal(t, "col1\tcol2", result["TAB"])
 	assert.Equal(t, "hello \"world\"", result["QUOTE"])
 	assert.Equal(t, "path\\to\\dir", result["SLASH"])
+	assert.Equal(t, "cost $CONGA_TEST_ESCAPE_NAME", result["DOLLAR"])
+	assert.Equal(t, "${CONGA_TEST_ESCAPE_NAME}", result["DOLLAR_BRACE"])
+	assert.Equal(t, "price 5$", result["DOLLAR_END"])
+	assert.Equal(t, "$CONGA_TEST_ESCAPE_NAME is world", result["DOLLAR_MIXED"])
+	assert.Equal(t, "cost \\world", result["BACKSLASH_DOLLAR"])
 }
 
 func TestDotenv_VariableExpansion(t *testing.T) {
@@ -147,6 +162,28 @@ func TestDotenv_MultiLineDoubleQuoted(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, "-----BEGIN CERTIFICATE-----\nMIIB...\n-----END CERTIFICATE-----", result["CERT"])
+}
+
+func TestDotenv_MultilineClosesOnLastLineWithoutNewline(t *testing.T) {
+	t.Parallel()
+
+	t.Run("double quote", func(t *testing.T) {
+		t.Parallel()
+
+		result, err := dotenv.Parse(fixtureMultilineNoTrailingNewlineDouble)
+
+		assert.NoError(t, err)
+		assert.Equal(t, "-----BEGIN CERTIFICATE-----\nMIIB...\n-----END CERTIFICATE-----", result["CERT"])
+	})
+
+	t.Run("single quote", func(t *testing.T) {
+		t.Parallel()
+
+		result, err := dotenv.Parse(fixtureMultilineNoTrailingNewlineSingle)
+
+		assert.NoError(t, err)
+		assert.Equal(t, "-----BEGIN CERTIFICATE-----\nMIIB...\n-----END CERTIFICATE-----", result["CERT"])
+	})
 }
 
 func TestDotenv_SyntaxErrors(t *testing.T) {
@@ -536,9 +573,8 @@ func TestDotenv_ParseErrors(t *testing.T) {
 
 		_, err := dotenv.Parse(fixtureUnclosedDouble)
 
-		assert.Error(t, err)
 		assert.IsError(t, err, sentinel.ErrDotenvParse)
-		assert.Contains(t, err.Error(), "unclosed double quote")
+		assert.Equal(t, "line 2: dotenv error: parsing .env file: unclosed double quote", err.Error())
 	})
 
 	t.Run("unclosed single quote", func(t *testing.T) {
@@ -546,9 +582,26 @@ func TestDotenv_ParseErrors(t *testing.T) {
 
 		_, err := dotenv.Parse(fixtureUnclosedSingle)
 
-		assert.Error(t, err)
 		assert.IsError(t, err, sentinel.ErrDotenvParse)
-		assert.Contains(t, err.Error(), "unclosed single quote")
+		assert.Equal(t, "line 2: dotenv error: parsing .env file: unclosed single quote", err.Error())
+	})
+
+	t.Run("unclosed double quote without trailing newline", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := dotenv.Parse(fixtureUnclosedDoubleNoTrailingNewline)
+
+		assert.IsError(t, err, sentinel.ErrDotenvParse)
+		assert.Equal(t, "line 2: dotenv error: parsing .env file: unclosed double quote", err.Error())
+	})
+
+	t.Run("unclosed single quote without trailing newline", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := dotenv.Parse(fixtureUnclosedSingleNoTrailingNewline)
+
+		assert.IsError(t, err, sentinel.ErrDotenvParse)
+		assert.Equal(t, "line 2: dotenv error: parsing .env file: unclosed single quote", err.Error())
 	})
 
 	t.Run("garbage after closing quote", func(t *testing.T) {

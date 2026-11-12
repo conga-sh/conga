@@ -159,17 +159,21 @@ func parse(data []byte, loadedKeys map[string]string) (map[string]string, error)
 			continue
 		}
 
-		key, value, isLiteral, parseErr := parseLine(trimmed, reader, &lineNum)
+		expand := func(value string) string {
+			return expandValue(value, result, loadedKeys)
+		}
+
+		key, value, expanded, parseErr := parseLine(trimmed, reader, &lineNum, expand)
 		if parseErr != nil {
 			return nil, fmt.Errorf("line %d: %w", lineNum, parseErr)
 		}
 
 		if key != "" {
-			if isLiteral {
+			if expanded {
 				result[key] = value
 			} else {
 				// Expand variables: ${VAR} or $VAR
-				result[key] = expandValue(value, result, loadedKeys)
+				result[key] = expand(value)
 			}
 		}
 
@@ -255,7 +259,10 @@ func loadSingleFile(set func(key, value string) error, path string, mustExist bo
 	return nil
 }
 
-func parseLine(line string, reader *bufio.Reader, lineNum *int) (string, string, bool, error) {
+// parseLine parses one KEY=VALUE statement. It reports whether the value is
+// final: single-quoted values never expand, and double-quoted values expand
+// while they are parsed, so only unquoted values are left for the caller.
+func parseLine(line string, reader *bufio.Reader, lineNum *int, expand func(string) string) (string, string, bool, error) {
 	// Strip optional "export " prefix
 	if after, ok := strings.CutPrefix(line, "export "); ok {
 		line = strings.TrimSpace(after)
@@ -285,15 +292,15 @@ func parseLine(line string, reader *bufio.Reader, lineNum *int) (string, string,
 	rawValue := strings.TrimSpace(rawValPart)
 
 	// Parse value depending on quoting
-	value, isLiteral, err := parseValue(rawValue, reader, lineNum)
+	value, final, err := parseValue(rawValue, reader, lineNum, expand)
 	if err != nil {
 		return "", "", false, err
 	}
 
-	return key, value, isLiteral, nil
+	return key, value, final, nil
 }
 
-func parseValue(rawValue string, reader *bufio.Reader, lineNum *int) (string, bool, error) {
+func parseValue(rawValue string, reader *bufio.Reader, lineNum *int, expand func(string) string) (string, bool, error) {
 	if rawValue == "" {
 		return "", false, nil
 	}
@@ -307,9 +314,9 @@ func parseValue(rawValue string, reader *bufio.Reader, lineNum *int) (string, bo
 	}
 
 	if firstChar == '"' {
-		value, err := parseDoubleQuoted(rawValue, reader, lineNum)
+		value, err := parseDoubleQuoted(rawValue, reader, lineNum, expand)
 
-		return value, false, err
+		return value, true, err
 	}
 
 	// Unquoted value: strip trailing inline comments
@@ -339,7 +346,7 @@ func parseSingleQuoted(rawValue string, reader *bufio.Reader, lineNum *int) (str
 		builder.WriteByte('\n')
 
 		nextLine, err := reader.ReadString('\n')
-		if err != nil {
+		if !readContinuation(nextLine, err) {
 			return "", fmt.Errorf("%w: unclosed single quote", sentinel.ErrDotenvParse)
 		}
 
@@ -348,27 +355,33 @@ func parseSingleQuoted(rawValue string, reader *bufio.Reader, lineNum *int) (str
 	}
 }
 
-func parseDoubleQuoted(rawValue string, reader *bufio.Reader, lineNum *int) (string, error) {
-	var builder strings.Builder
+// parseDoubleQuoted parses a double-quoted value and expands its variable
+// references. Text is collected in pending and expanded when the value closes
+// or an escaped "$" is reached; the escaped "$" itself is written literally,
+// so it never starts a reference.
+func parseDoubleQuoted(rawValue string, reader *bufio.Reader, lineNum *int, expand func(string) string) (string, error) {
+	var builder, pending strings.Builder
 
 	cur := rawValue[1:] // skip leading double quote
 
 	for {
 		cleanCur := strings.TrimRight(cur, "\r\n")
 
-		closed, err := processDoubleQuotedLine(cleanCur, &builder)
+		closed, err := processDoubleQuotedLine(cleanCur, &builder, &pending, expand)
 		if err != nil {
 			return "", err
 		}
 
 		if closed {
+			builder.WriteString(expand(pending.String()))
+
 			return builder.String(), nil
 		}
 
-		builder.WriteByte('\n')
+		pending.WriteByte('\n')
 
 		nextLine, err := reader.ReadString('\n')
-		if err != nil {
+		if !readContinuation(nextLine, err) {
 			return "", fmt.Errorf("%w: unclosed double quote", sentinel.ErrDotenvParse)
 		}
 
@@ -377,14 +390,20 @@ func parseDoubleQuoted(rawValue string, reader *bufio.Reader, lineNum *int) (str
 	}
 }
 
-func processDoubleQuotedLine(cleanCur string, builder *strings.Builder) (bool, error) {
+func processDoubleQuotedLine(cleanCur string, builder *strings.Builder, pending *strings.Builder, expand func(string) string) (bool, error) {
 	escaped := false
 
 	for index := range len(cleanCur) {
 		char := cleanCur[index]
 
 		if escaped {
-			writeEscapedChar(char, builder)
+			if char == '$' {
+				builder.WriteString(expand(pending.String()))
+				pending.Reset()
+				builder.WriteByte('$')
+			} else {
+				writeEscapedChar(char, pending)
+			}
 
 			escaped = false
 
@@ -406,10 +425,17 @@ func processDoubleQuotedLine(cleanCur string, builder *strings.Builder) (bool, e
 			return true, nil
 		}
 
-		builder.WriteByte(char)
+		pending.WriteByte(char)
 	}
 
 	return false, nil
+}
+
+// readContinuation reports whether a read of a quoted value's next line
+// returned a line to process: a full line, or the file's last line when it has
+// no trailing newline. Any other read ends the value unclosed.
+func readContinuation(line string, err error) bool {
+	return err == nil || (errors.Is(err, io.EOF) && line != "")
 }
 
 func writeEscapedChar(char byte, builder *strings.Builder) {
@@ -424,8 +450,6 @@ func writeEscapedChar(char byte, builder *strings.Builder) {
 		builder.WriteByte('"')
 	case '\\':
 		builder.WriteByte('\\')
-	case '$':
-		builder.WriteByte('$')
 	default:
 		builder.WriteByte('\\')
 		builder.WriteByte(char)
