@@ -344,7 +344,7 @@ func TestApp_Completion_Fluent(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assert.IsError(t, err, conga.ErrParse)
 	})
 
 	t.Run("unknown flag when completion is not enabled", func(t *testing.T) {

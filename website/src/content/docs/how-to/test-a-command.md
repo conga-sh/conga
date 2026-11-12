@@ -239,8 +239,8 @@ func TestNameFromDotenvFile(t *testing.T) {
 `app.Exit(err)` formats the error to the app's `Stderr` and calls `os.Exit`:
 
 - Exit code `0` when `err` is `nil`.
-- Exit code `2` when `conga.IsUsageError(err)` is `true` (an unknown flag, a value of the wrong type, or a value that fails `range` or `enum`).
-- Exit code `1` for any other error, such as an error returned from `Run`, a missing or malformed config or `.env` file, or an invalid struct tag. See [Errors](/reference/errors/) for every error category.
+- Exit code `2` when `conga.IsUsageError(err)` is `true` (an unknown flag, a command-line value of the wrong type, or a command-line value that fails `range` or `enum`).
+- Exit code `1` for any other error, such as an error returned from `Run`, a missing or malformed config or `.env` file, an environment-, config-, or default-sourced value failure (`ErrConfig`), or an invalid struct tag. See [Errors](/reference/errors/) for every error category.
 
 In a test, `os.Exit` would stop the test binary, so pass `ExitFunc` to record the code instead:
 

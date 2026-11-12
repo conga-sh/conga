@@ -34,6 +34,8 @@ type featureState interface {
 type argState interface {
 	IsSet() bool
 	Changed() bool
+	Source() ValueSource
+	SourceDetail() string
 	getValue() any
 	setValue(value any, source ValueSource, detail string)
 }

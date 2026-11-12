@@ -393,7 +393,9 @@ func unknownFeatureError(cmdChain []*spec.Command, cmd *spec.Command, name strin
 		hint = fmt.Sprintf(" (did you mean %q?)", suggestion)
 	}
 
-	if source == SourceConfig {
+	// Only a command-line feature map is a usage error; environment and
+	// configuration values classify under ErrConfig (#133).
+	if !valueErrorIsUsage(source) {
 		return fmt.Errorf("%w: unknown feature %q%s", ErrConfig, name, hint)
 	}
 
@@ -405,13 +407,17 @@ func unknownFeatureError(cmdChain []*spec.Command, cmd *spec.Command, name strin
 }
 
 // invalidFeatureValueError reports a feature value that fails canonicalization.
-// Every source yields the same usage-class validation error (exit 2), matching
-// a bad flag value; sourceName attributes env- and config-sourced values.
+// The error inherits the value's source through valueErrorIsUsage: a
+// command-line value is a usage-class validation error (exit 2), while
+// environment-, configuration-, and default-sourced values classify under
+// [ErrConfig] (exit 1, no usage block). sourceName attributes env- and
+// config-sourced values in the message.
 func invalidFeatureValueError(cmdChain []*spec.Command, feature *spec.FeatureField, raw string, cause error, source ValueSource, sourceName string) error {
 	message := fmt.Sprintf("invalid value %q for feature %q%s: %v", raw, feature.Name, sourceLocation(source, sourceName), cause)
 
 	return &validationError{
 		msg:         message,
+		source:      source,
 		cmdChain:    cmdChain,
 		cause:       errInvalidValue,
 		valueShaped: true,

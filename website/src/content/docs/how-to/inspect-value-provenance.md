@@ -272,10 +272,10 @@ listening on 0.0.0.0:8080
 | `--why` on a program without `EnableWhy()` | Usage error, exit 2: `unknown flag: --why` |
 | `--why=json` without `conga.WhyOptionJSON()` | Usage error, exit 2, naming the option to enable |
 | `--why=xml` | Usage error, exit 2: `invalid value "xml" (must be one of: text, json) for --why` |
-| `--why` while a config file holds a bad value | The same error a normal run gives, exit 2, and no report |
+| `--why` while a config file holds a bad value | The same `ErrConfig` error a normal run gives, exit 1, and no report |
 | `--why` without a required flag | The report, with the flag `unset`, exit 0 |
 
-A bad config value stops the report, so the user fixes the value first:
+A bad config value stops the report, so the user fixes the value first. The error exits 1 because the value came from the file:
 
 ```text no-copy error={1}
 server: error: invalid integer value "eighty" for flag --port (from config key "port")

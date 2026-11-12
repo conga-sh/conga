@@ -459,7 +459,7 @@ func (f *FileContent) UnmarshalTextWithContext(text []byte, decodeContext Decode
 	}
 
 	if info.IsDir() {
-		return &pathKindError{path: path, kind: pathKindExpectFile}
+		return &pathKindConversionError{pathKindError{path: path, kind: pathKindExpectFile}}
 	}
 
 	data, err := filex.ReadLimited(path, maxFileContentSize)
@@ -807,7 +807,8 @@ type pathKind uint8
 
 // pathKindError is the root cause for path-kind mismatches: path and kind are
 // the structured payload, Error composes the user-facing prose, and Unwrap
-// links the errPathWrongKind → ErrCoerce taxonomy for errors.Is.
+// links the errPathWrongKind → ErrValidation taxonomy for errors.Is. A wrong
+// path kind is a failed check on the converted value, not a conversion failure.
 type pathKindError struct {
 	path string
 	kind pathKind
@@ -829,6 +830,17 @@ func (e *pathKindError) Error() string {
 }
 
 func (e *pathKindError) Unwrap() error { return errPathWrongKind }
+
+// pathKindConversionError adapts a path-kind mismatch detected while converting
+// text (FileContent stats its path inside UnmarshalTextWithContext) to the
+// conversion category: the failure happened during conversion, so errors.Is
+// matches ErrCoerce only. Capability checks on an already converted value
+// return pathKindError directly and classify under ErrValidation.
+type pathKindConversionError struct {
+	pathKindError
+}
+
+func (e *pathKindConversionError) Unwrap() error { return ErrCoerce }
 
 // executableError is the root cause for permission deficits on regular files
 // (correct path kind, missing execute bit).

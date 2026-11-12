@@ -13,6 +13,7 @@ In CONGA, `app.Run()` and `app.RunContext(ctx)` parse, coerce, validate, and run
 
 - `nil` on clean execution, including built-in commands. Requests for `--help`, `--version`, and opt-in diagnostics like `--why` and `--completion` render to standard output and return `nil`. A help request succeeds, so `if err != nil` handles only real failures.
 - A usage error when command-line input violates syntax, naming, or value constraints.
+- An `ErrConfig` failure when a value from an environment variable, a configuration file, or a default tag fails to coerce or validate. These exit with status 1 and name the value's origin in the message.
 - A runtime error when the active command's `Run` method or a lifecycle hook returns a failure.
 
 ## Pipeline errors versus programmer defects
@@ -32,7 +33,7 @@ Standalone command-line applications translate errors into standard error messag
 
 ## Self-describing value errors
 
-`Exit` matches the help it prints to the kind of mistake. Unknown flags, unknown subcommands, and missing required positional arguments are interface-discovery mistakes, so `Exit` pairs them with a syntax usage block or `--help` hint. Coercion and constraint failures already name the flag and the offending value, so they render without the usage block. Printing a 40-line usage screen below a value error scrolls the terminal window and buries the actual message under redundant text. [Errors and exit codes](/reference/errors/#usage-rendering-on-errors) lists which failures count as self-describing.
+`Exit` matches the help it prints to the kind of mistake. Unknown flags, unknown subcommands, and missing required positional arguments are interface-discovery mistakes, so `Exit` pairs them with a syntax usage block or `--help` hint. Command-line coercion and constraint failures already name the flag and the offending value, so they render without the usage block. Environment-, configuration-, and default-sourced value failures are not usage errors at all, so they exit with status 1 and print the error line alone. Printing a 40-line usage screen below a value error scrolls the terminal window and buries the actual message under redundant text. [Errors and exit codes](/reference/errors/#usage-rendering-on-errors) lists which failures count as self-describing.
 
 ## Categorical classification without concrete coupling
 

@@ -27,29 +27,37 @@ var (
 	// ErrParse indicates command-line tokens could not be parsed.
 	//
 	// This category includes unknown flags, missing flag arguments, unexpected positional
-	// arguments, and unrecognized subcommand names. All parse errors classify as usage
-	// errors ([IsUsageError] reports true).
+	// arguments, unrecognized subcommand names, and values attached to flags that take
+	// none. All parse errors classify as usage errors ([IsUsageError] reports true).
 	ErrParse = errors.New("parse error")
 
-	// ErrCoerce indicates a raw string value could not be converted to its target type.
+	// ErrCoerce indicates a command-line value could not be converted to its target type.
 	//
 	// This category includes numeric parsing failures, unparseable durations, malformed
 	// URLs, and errors returned by [encoding.TextUnmarshaler] or [ContextAwareTextUnmarshaler].
-	// All coercion errors classify as usage errors ([IsUsageError] reports true).
+	// A conversion failure at command-line binding is a usage error ([IsUsageError] reports
+	// true). Values that reach binding from the environment, a configuration file, or a
+	// default tag classify under [ErrConfig] instead, and [errors.Is] matches only that
+	// category.
 	ErrCoerce = coerce.ErrCoerce
 
 	// ErrValidation indicates a flag or argument constraint was violated.
 	//
 	// This category covers violations of struct tags such as range, len, enum,
 	// xor, and and, as well as failures returned by [SelfValidator.Validate].
-	// All validation errors classify as usage errors ([IsUsageError] reports true).
+	// A constraint violation on a command-line value is a usage error ([IsUsageError]
+	// reports true). Values that reach validation from the environment, a configuration
+	// file, or a default tag classify under [ErrConfig] instead, and [errors.Is] matches
+	// only that category.
 	ErrValidation = errors.New("validation error")
 
-	// ErrConfig indicates a configuration file or .env file could not be loaded.
+	// ErrConfig indicates configuration could not be loaded or a value from the
+	// environment, a configuration file, or a default tag failed to bind.
 	//
 	// This category includes missing explicit configuration files, file read permission
-	// errors, file size limit violations (exceeding the 16MB DoS threshold), and
-	// syntax errors returned by configuration decoders.
+	// errors, file size limit violations (exceeding the 16MB DoS threshold), syntax
+	// errors returned by configuration decoders, and conversion or constraint failures
+	// for environment-, configuration-, and default-sourced values.
 	ErrConfig = sentinel.ErrConfig
 )
 
@@ -66,7 +74,7 @@ var (
 
 	errMissingFlag       = fmt.Errorf("%w: missing required flag", ErrValidation)
 	errMissingArg        = fmt.Errorf("%w: missing required positional argument", ErrValidation)
-	errUnexpectedArg     = fmt.Errorf("%w: unexpected argument", ErrValidation)
+	errUnexpectedArg     = fmt.Errorf("%w: unexpected argument", ErrParse)
 	errInvalidValue      = fmt.Errorf("%w: invalid value", ErrValidation)
 	errOutOfRange        = fmt.Errorf("%w: value out of range", ErrValidation)
 	errInvalidLength     = fmt.Errorf("%w: invalid length", ErrValidation)
@@ -75,7 +83,7 @@ var (
 	errAndGroup          = fmt.Errorf("%w: flags must be given together", ErrValidation)
 	errStdinReadTwice    = fmt.Errorf("%w: stdin can only be read once", ErrValidation)
 
-	errPathWrongKind = fmt.Errorf("%w: wrong path kind", ErrCoerce)
+	errPathWrongKind = fmt.Errorf("%w: wrong path kind", ErrValidation)
 
 	// errStdioCapabilityRequired reports a "-" value on a File field that
 	// declared neither the stdin nor the stdout capability tag.
@@ -87,17 +95,23 @@ var (
 	// errByteSizeDisplayTag reports an unrecognized display tag value on a ByteSize field.
 	errByteSizeDisplayTag = errors.New("unknown display value")
 
-	errNoRunner = errors.New("runner not implemented")
+	errNoRunner = fmt.Errorf("%w: runner not implemented", ErrSchema)
 )
 
-// UsageError is an interface implemented by errors that represent invalid command-line usage.
+// UsageError is an interface implemented by errors that carry command-path and
+// usage-rendering context. Parse, coercion, and validation failures implement
+// it. [IsUsageError] decides whether the failure is a command-line usage error:
+// command-line value failures report true, while environment-,
+// configuration-, and default-sourced value failures report false and classify
+// under [ErrConfig].
 //
-// When [App.Exit] receives an error satisfying UsageError, it prints the
-// message to standard error, appends usage guidance as configured by
-// [UsageOnErrorMode], and terminates the process with exit code 2. Self-describing
-// value errors (coercion failures and value-constraint violations, whose messages
-// already name the offending flag and value) print the message alone regardless of
-// the configured mode.
+// When [App.Exit] receives an error for which [IsUsageError] reports true, it
+// prints the message to standard error, appends usage guidance as configured by
+// [UsageOnErrorMode], and terminates the process with exit code 2. The
+// interface assertion alone does not imply exit code 2; callers that inspect it
+// directly must also check IsUsageError. Self-describing value errors (coercion
+// failures and value-constraint violations) print the message alone regardless
+// of the configured mode.
 type UsageError interface {
 	error
 
@@ -124,8 +138,11 @@ type CompletionError interface {
 //
 // Returns true if err implements [UsageError] and reports true, or if err wraps
 // [ErrParse], [ErrCoerce], or [ErrValidation]. Returns false for developer schema
-// errors ([ErrSchema]), configuration file failures ([ErrConfig]), runtime errors
-// returned by [Runner.Run], or nil errors.
+// errors ([ErrSchema]), configuration failures ([ErrConfig]), runtime errors
+// returned by [Runner.Run], or nil errors. Conversion and constraint failures for
+// environment-, configuration-, and default-sourced values classify under
+// [ErrConfig] and report false, even though the error value still implements
+// [UsageError].
 func IsUsageError(err error) bool {
 	if err == nil {
 		return false
@@ -266,6 +283,10 @@ func (e *coercionError) Error() string {
 }
 
 func (e *coercionError) Unwrap() error {
+	if !valueErrorIsUsage(e.source) {
+		return nil
+	}
+
 	if e.cause != nil {
 		return e.cause
 	}
@@ -273,7 +294,24 @@ func (e *coercionError) Unwrap() error {
 	return ErrCoerce
 }
 
+// As exposes the cause to errors.As for environment-, configuration-, and
+// default-sourced failures, whose Unwrap deliberately stops at the category
+// boundary: the application's own TextUnmarshaler error or a stdlib cause such
+// as *fs.PathError stays reachable even though the failure matches only
+// [ErrConfig].
+func (e *coercionError) As(target any) bool {
+	if e.cause == nil {
+		return false
+	}
+
+	return errors.As(e.cause, target)
+}
+
 func (e *coercionError) Is(target error) bool {
+	if !valueErrorIsUsage(e.source) {
+		return target == ErrConfig
+	}
+
 	if target == ErrCoerce {
 		return true
 	}
@@ -286,7 +324,7 @@ func (e *coercionError) Is(target error) bool {
 }
 
 func (e *coercionError) IsUsageError() bool {
-	return true
+	return valueErrorIsUsage(e.source)
 }
 
 func (e *coercionError) CommandPath() string {
@@ -311,6 +349,7 @@ func (e *coercionError) selfDescribing() bool {
 // validationError represents a constraint violation (required flag/arg, enum, XOR, and group).
 type validationError struct {
 	msg      string
+	source   container.Source
 	cmdChain []*spec.Command
 	cause    error
 
@@ -325,6 +364,10 @@ func (e *validationError) Error() string {
 }
 
 func (e *validationError) Unwrap() error {
+	if !valueErrorIsUsage(e.source) {
+		return nil
+	}
+
 	if e.cause != nil {
 		return e.cause
 	}
@@ -332,7 +375,24 @@ func (e *validationError) Unwrap() error {
 	return ErrValidation
 }
 
+// As exposes the cause to errors.As for environment-, configuration-, and
+// default-sourced failures, whose Unwrap deliberately stops at the category
+// boundary: an application SelfValidator error or a stdlib cause such as
+// *fs.PathError stays reachable even though the failure matches only
+// [ErrConfig].
+func (e *validationError) As(target any) bool {
+	if e.cause == nil {
+		return false
+	}
+
+	return errors.As(e.cause, target)
+}
+
 func (e *validationError) Is(target error) bool {
+	if !valueErrorIsUsage(e.source) {
+		return target == ErrConfig
+	}
+
 	if target == ErrValidation {
 		return true
 	}
@@ -345,7 +405,7 @@ func (e *validationError) Is(target error) bool {
 }
 
 func (e *validationError) IsUsageError() bool {
-	return true
+	return valueErrorIsUsage(e.source)
 }
 
 func (e *validationError) CommandPath() string {
@@ -382,6 +442,10 @@ func formatCoercionLocation(errObj *coercionError) string {
 		return "for flag --" + errObj.targetName + sourceLocation(errObj.source, errObj.sourceName)
 	}
 
+	if errObj.targetName != "" {
+		return "for argument " + errObj.targetName + sourceLocation(errObj.source, errObj.sourceName)
+	}
+
 	if errObj.source == SourceEnv && errObj.sourceName != "" {
 		return "for environment variable " + errObj.sourceName
 	}
@@ -390,18 +454,31 @@ func formatCoercionLocation(errObj *coercionError) string {
 		return fmt.Sprintf("for config key %q", errObj.sourceName)
 	}
 
-	if errObj.targetName != "" {
-		return "for argument " + errObj.targetName
-	}
-
 	return ""
 }
 
+// valueErrorIsUsage reports whether a value failure from source is a command-line
+// usage error. Only command-line tokens produce usage errors; environment,
+// configuration, and default values classify under [ErrConfig] instead (#133).
+func valueErrorIsUsage(source ValueSource) bool {
+	switch source {
+	case SourceEnv, SourceConfig, SourceDefault:
+		return false
+	default:
+		return true
+	}
+}
+
 // sourceLocation renders the parenthesized origin suffix shared by value
-// diagnostics: " (from environment variable NAME)" for env-sourced values and
-// " (from config key "KEY")" for config-sourced values. CLI, default, and
-// unnamed sources render no suffix.
+// diagnostics: " (from environment variable NAME)" for env-sourced values,
+// " (from config key "KEY")" for config-sourced values, and
+// " (from default value)" for values that failed while binding a default tag.
+// CLI, unnamed env/config, and unset sources render no suffix.
 func sourceLocation(source ValueSource, sourceName string) string {
+	if source == SourceDefault {
+		return " (from default value)"
+	}
+
 	if sourceName == "" {
 		return ""
 	}

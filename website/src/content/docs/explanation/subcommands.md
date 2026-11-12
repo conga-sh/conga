@@ -18,7 +18,7 @@ type DeployCmd struct {
 }
 ```
 
-The tree's shape is fixed at compile time. Schema build walks the complete struct graph before parsing any command-line token, and validates every tag and every flag name along each ancestor-descendant path. A schema defect in any subcommand, selected or not, fails startup with `ErrSchema`, so a misconfigured subcommand can't ship unnoticed. A leaf without a `Run` method is the exception. CONGA checks it only for the command an invocation selects, so it fails when invoked, with `runner not implemented: command "<name>" does not implement conga.Runner` (exit 1), while its siblings keep working. `conga-lint` reports every such leaf before you build.
+The tree's shape is fixed at compile time. Schema build walks the complete struct graph before parsing any command-line token, and validates every tag and every flag name along each ancestor-descendant path. A schema defect in any subcommand, selected or not, fails startup with `ErrSchema`, so a misconfigured subcommand can't ship unnoticed. A leaf without a `Run` method is the exception. CONGA checks it only for the command an invocation selects, so it fails when invoked, with `schema error: runner not implemented: command "<name>" does not implement conga.Runner (implement Run(context.Context, *conga.Session) error)`. The error classifies as `ErrSchema` and exits 1, while its siblings keep working. `conga-lint` reports every such leaf before you build.
 
 ## Routing nodes and runnable commands
 

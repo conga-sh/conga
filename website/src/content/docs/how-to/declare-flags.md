@@ -214,7 +214,7 @@ follow redirects: true
 verbosity: 2
 ```
 
-A counter starts at 0 and rejects a `default` tag at startup. Use `OptionalFlag[int]` when you need a different starting value, a level the user sets directly on the command line, or a negative value.
+A count from the environment or a config file must be an unsigned whole number. A negative or signed value is `ErrConfig`, exit 1, because the value did not come from the command line. A counter starts at 0 and rejects a `default` tag at startup. Use `OptionalFlag[int]` when you need a different starting value, a level the user sets directly on the command line, or a negative value.
 
 ## Accept a list of values
 
@@ -326,11 +326,11 @@ fetch: error: map type map[string]int requires registration via app.RegisterMap
 |---|---|---|
 | The user gives a value of the wrong type | Run | `invalid duration "30" (valid units: ms, s, m, h) for flag --timeout`, exit 2 |
 | The user repeats a flag and an earlier value has the wrong type | Run | `invalid integer value "two" for flag --retries`, exit 2 |
-| An environment variable holds a value of the wrong type | Run | `invalid boolean value "no", expected true or false (or 1 or 0) for flag --redirects (from environment variable FETCH_REDIRECTS)`, exit 2 |
+| An environment variable holds a value of the wrong type | Run | `invalid boolean value "no", expected true or false (or 1 or 0) for flag --redirects (from environment variable FETCH_REDIRECTS)`, exit 1 |
 | The user misspells a flag | Run | `unknown flag: --redirect. Did you mean "redirects"?`, then usage, exit 2 |
 | The user gives `--no-` to a flag without `negatable` | Run | `unknown flag: --no-verbose`, then usage, exit 2 |
 | The user gives a counter a value | Run | `flag does not take a value: --verbose=2`, then usage, exit 2 |
-| An environment variable gives a counter a negative or signed value | Run | `invalid unsigned integer value "-1" for flag --verbose (from environment variable FETCH_VERBOSE)`, exit 2 |
+| An environment variable gives a counter a negative or signed value | Run | `invalid unsigned integer value "-1" for flag --verbose (from environment variable FETCH_VERBOSE)`, exit 1 |
 | The user gives a map entry without `=` | Run | `invalid key-value pair "name", expected KEY=VALUE for flag --form`, exit 2 |
 | The user sets a map flag whose type isn't registered | Run | `map type map[string]int requires registration via app.RegisterMap`, then usage, exit 2 |
 | Two flags share a short name or alias | Startup | `schema error: duplicate flag: short flag -o (already declared by field Output)`, exit 1 |

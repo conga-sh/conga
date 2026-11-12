@@ -3,6 +3,7 @@ package conga_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -1316,8 +1317,9 @@ func TestFeature_FieldEnv_InvalidValueError(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrValidation)
-	assert.True(t, conga.IsUsageError(err))
+	assert.IsError(t, err, conga.ErrConfig)
+	assert.False(t, conga.IsUsageError(err))
+	assert.False(t, errors.Is(err, conga.ErrValidation))
 	assert.Contains(t, err.Error(), `invalid value "3" for feature "syntax" (from environment variable CONGA_TEST_TASK_X_SYNTAX): must be one of: 0, 1, 2`)
 }
 
@@ -1336,8 +1338,9 @@ func TestFeature_CombinedEnv_InvalidValueError(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrValidation)
-	assert.True(t, conga.IsUsageError(err))
+	assert.IsError(t, err, conga.ErrConfig)
+	assert.False(t, conga.IsUsageError(err))
+	assert.False(t, errors.Is(err, conga.ErrValidation))
 	assert.Contains(t, err.Error(), `invalid value "3" for feature "syntax" (from environment variable CONGA_TEST_TASK_X_FEATURES): must be one of: 0, 1, 2`)
 }
 
@@ -1357,7 +1360,8 @@ func TestFeature_CombinedEnv_InvalidValueErrorUnderWhy(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrValidation)
+	assert.IsError(t, err, conga.ErrConfig)
+	assert.False(t, conga.IsUsageError(err))
 	assert.Contains(t, err.Error(), `invalid value "3" for feature "syntax" (from environment variable CONGA_TEST_TASK_X_FEATURES): must be one of: 0, 1, 2`)
 }
 
@@ -1378,7 +1382,8 @@ func TestFeature_CombinedEnv_InvalidValueNamesWinningVariable(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrValidation)
+	assert.IsError(t, err, conga.ErrConfig)
+	assert.False(t, conga.IsUsageError(err))
 	assert.Contains(t, err.Error(), `invalid value "3" for feature "syntax" (from environment variable CONGA_TEST_GATES_B): must be one of: 0, 1, 2`)
 	assert.NotContains(t, err.Error(), "CONGA_TEST_GATES_A")
 }
@@ -1824,8 +1829,9 @@ func TestFeature_Config_InvalidValue(t *testing.T) {
 
 	err = app.Run()
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrValidation)
-	assert.True(t, conga.IsUsageError(err))
+	assert.IsError(t, err, conga.ErrConfig)
+	assert.False(t, conga.IsUsageError(err))
+	assert.False(t, errors.Is(err, conga.ErrValidation))
 	assert.Equal(t, `invalid value "3" for feature "syntax" (from config key "experiments.syntax"): must be one of: 0, 1, 2`, err.Error())
 }
 

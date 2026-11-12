@@ -3,7 +3,7 @@ title: How to validate input
 description: Require flags, limit values to a set, bound numbers, durations, lengths and counts, reject conflicting flags, demand exactly one of a group, require flags together, and check values against each other with Validator.
 ---
 
-This guide builds an `export` command that sends records to a file or a URL, and adds one kind of check at each step. Each check runs before `Run`, and a value that fails one is a usage error. The program prints the problem and exits with status 2.
+This guide builds an `export` command that sends records to a file or a URL, and adds one kind of check at each step. Each check runs before `Run`. A command-line value that fails one is a usage error; the program prints the problem and exits with status 2. A value from the environment, a config file, or a `default` tag classifies under `ErrConfig` instead and exits with status 1.
 
 ## Require a flag
 
@@ -128,11 +128,14 @@ Help shows each bound:
 An optional flag with a bound can still be left out. Make it a required flag when it must be given. Either side of a [bound](/reference/struct-tags/#bounds-syntax) can be left open, as in `range:"1.."`, and a single number, as in `items:"5"`, means exactly that many.
 
 :::caution[Defaults are checked too]
-CONGA checks a `default` against the field's bound at every run. A `default:"5000"` on `Limit` passes startup, then fails every run that leaves `--limit` out, as a usage error the user can't fix:
+CONGA checks a `default` against the field's bound at every run. A `default:"5000"` on `Limit` passes startup, then fails every run that leaves `--limit` out, as an `ErrConfig` failure the user can't fix from the command line:
 
-```text no-copy
-export: error: value 5000 is out of range [1..1000] for flag --limit
+```sh error={2}
+$ export
+export: error: value 5000 is out of range [1..1000] for flag --limit (from default value)
 ```
+
+The run exits with status 1. A user who sets the flag on the command line overrides the default and gets a usage error with status 2 if the command-line value is also out of range.
 :::
 
 ## Reject flags that conflict
@@ -286,14 +289,14 @@ Here the app was also given `EnvPrefix("EXPORT")`, so each flag reads a variable
 | Sets the required flag in the environment only | Works |
 | Gives a value outside the `enum` list | `invalid value "xml" (must be one of: json, csv, yaml) for flag --format`, exit 2 |
 | Gives a value outside a bound | `value 0 is out of range [1..1000] for flag --limit`, exit 2 |
-| Sets a value outside a bound in the environment | `value 5000 is out of range [1..1000] for flag --limit (from environment variable EXPORT_LIMIT)`, exit 2 |
+| Sets a value outside a bound in the environment | `value 5000 is out of range [1..1000] for flag --limit (from environment variable EXPORT_LIMIT)`, exit 1 |
 | Gives two flags from one `xor` group, from any mix of command line and environment | `flags --gzip and --zstd are mutually exclusive`, then usage, exit 2 |
 | Gives `--gzip=false` with `--zstd` | The same error: `--gzip` counts as given |
 | Gives no flag from a `oneof` group | `missing required flag: one of --to-file, --to-url`, then usage, exit 2 |
 | Sets one `oneof` flag in the environment and gives the other on the command line | `flags --to-file and --to-url are mutually exclusive`, then usage, exit 2 |
 | Gives only part of an `and` group, from any source | `flag --username must be given together with --password`, then usage, exit 2 |
 | Gives values that `Validate` rejects | The returned message, then usage, exit 2 |
-| Leaves out a flag whose `default` is outside its bound | `value 5000 is out of range [1..1000] for flag --limit`, exit 2, on every such run |
+| Leaves out a flag whose `default` is outside its bound | `value 5000 is out of range [1..1000] for flag --limit (from default value)`, exit 1, on every such run |
 
 ## Where to go next
 

@@ -23,7 +23,7 @@ type Convert struct {
 }
 ```
 
-All filesystem capability checks run during the validation phase on the final resolved value, after the configuration cascade, and a failure is a usage error (exit 2).
+All filesystem capability checks run during the validation phase on the final resolved value, after the configuration cascade. A failed check is `ErrValidation` for a command-line value and `ErrConfig` for a value from the environment, a config file, or a `default` tag. `File` with `executable:"true"` also resolves a bare name on `$PATH` while converting the text; that lookup is conversion-time, so a miss is `ErrCoerce` for a command-line value and `ErrConfig` for a value from another source. [Errors and exit codes](/reference/errors/#which-category-a-value-failure-gets) states the rule.
 
 ## Content and I/O types
 
@@ -95,7 +95,7 @@ Compare `ByteSize` values with `Equal`, order with `Compare`, and retrieve raw m
 
 ### File streaming
 
-`File` streams through `Reader()` and `Writer()`, which return `io.ReadCloser` and `io.WriteCloser`. When the value is `-`, `Reader()` wraps the app's standard input and `Writer()` its standard output (the streams set with `App.Stdin` and `App.Stdout`, which default to `os.Stdin` and `os.Stdout`). A `File` that no app bound uses `os.Stdin` and `os.Stdout`. The wrappers absorb `Close()`, so callers can always `defer Close()`. `Stat()` exposes the file metadata, and `IsStdio()` reports the `-` case so commands can skip filesystem-only side effects (backups, atomic renames) and route diagnostics away from a stdout payload stream. Standard input can be read once per run: at most one value may be `-` for a `FileContent` or for a `File` with `stdin`, counting every flag, positional argument, slice item, and source, and a second one fails before either reads with `stdin can only be read once (--input and --header both use "-")` (`ErrValidation`, exit 2). Any number of `stdout` values may be `-`. Reading beyond these helpers is the caller's responsibility (`io.ReadAll(f.Reader())`), and `FileContent` is the bounded whole-file shortcut.
+`File` streams through `Reader()` and `Writer()`, which return `io.ReadCloser` and `io.WriteCloser`. When the value is `-`, `Reader()` wraps the app's standard input and `Writer()` its standard output (the streams set with `App.Stdin` and `App.Stdout`, which default to `os.Stdin` and `os.Stdout`). A `File` that no app bound uses `os.Stdin` and `os.Stdout`. The wrappers absorb `Close()`, so callers can always `defer Close()`. `Stat()` exposes the file metadata, and `IsStdio()` reports the `-` case so commands can skip filesystem-only side effects (backups, atomic renames) and route diagnostics away from a stdout payload stream. Standard input can be read once per run: at most one value may be `-` for a `FileContent` or for a `File` with `stdin`, counting every flag, positional argument, slice item, and source, and a second one fails before either reads with `stdin can only be read once (--input and --header both use "-")`. Two command-line values are a usage error (`ErrValidation`, exit 2); a conflict involving an environment, configuration, or default value classifies under `ErrConfig` (exit 1). Any number of `stdout` values may be `-`. Reading beyond these helpers is the caller's responsibility (`io.ReadAll(f.Reader())`), and `FileContent` is the bounded whole-file shortcut.
 
 ```go
 func (c *Convert) Run(ctx context.Context, session *conga.Session) error {
@@ -148,7 +148,7 @@ app := conga.New[Legacy]().
 	Use(network.RegisterInterface, timezone.RegisterLocation)
 ```
 
-The engine classifies all domain-type coercion failures under `conga.ErrCoerce`, reporting the flag name and failure reason. Methods that query host state (`network.Host.LookupIP`, `network.NetInterface.Interface`, `system.User.Lookup`, `system.Group.Lookup`) return a descriptive error naming the failed lookup for blank input, or the wrapped OS/network error otherwise.
+A domain-type coercion failure classifies under `conga.ErrCoerce` when the value came from the command line and under `conga.ErrConfig` when it came from the environment, a config file, or a `default` tag. The message reports the flag name, the failure reason, and the value's source. Methods that query host state (`network.Host.LookupIP`, `network.NetInterface.Interface`, `system.User.Lookup`, `system.Group.Lookup`) return a descriptive error naming the failed lookup for blank input, or the wrapped OS/network error otherwise.
 
 ## Default help text
 
@@ -208,7 +208,7 @@ CONGA decodes a scalar flag, argument, environment, or config value into type `U
 3. `UnmarshalText` on `*U` (`encoding.TextUnmarshaler`).
 4. Built-in parsing for `string`, `bool`, signed and unsigned integers, `time.Duration`, floats, and `url.URL` / `*url.URL`.
 
-Any other type fails with `unsupported type <U>` (`ErrCoerce`, exit 2) when a value is bound, not at schema build. Values of a map registered with `app.RegisterMap` skip step 1. An error from steps 1 to 3 is wrapped in `ErrCoerce`, with the flag name and the value's source appended to its message.
+Any other type fails with `unsupported type <U>` when a value is bound, not at schema build: `ErrCoerce`, exit 2, for a command-line value and `ErrConfig`, exit 1, for a value from another source. Values of a map registered with `app.RegisterMap` skip step 1. An error from steps 1 to 3 inherits the value's source: the flag name and origin are appended to its message, and the category follows the source.
 
 ### Custom tags
 

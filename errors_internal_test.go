@@ -29,6 +29,18 @@ func TestIsUsageError_Classification(t *testing.T) {
 	err = &validationError{msg: "missing flag", cause: ErrValidation}
 	assert.True(t, IsUsageError(err))
 
+	err = &coercionError{targetName: "port", source: SourceEnv, cause: ErrCoerce}
+	assert.False(t, IsUsageError(err))
+	assert.True(t, errors.Is(err, ErrConfig))
+	assert.False(t, errors.Is(err, ErrCoerce))
+	assert.False(t, errors.Is(err, ErrValidation))
+
+	err = &validationError{msg: "bad value", source: SourceDefault, cause: ErrValidation, valueShaped: true}
+	assert.False(t, IsUsageError(err))
+	assert.True(t, errors.Is(err, ErrConfig))
+	assert.False(t, errors.Is(err, ErrValidation))
+	assert.False(t, errors.Is(err, ErrCoerce))
+
 	missingPath := filepath.Join(t.TempDir(), "missing.json")
 
 	loadedPaths, values, source, err := configengine.Resolver{Registry: configengine.NewRegistry()}.Resolve([]string{missingPath}, nil)
@@ -129,6 +141,12 @@ func TestFormatCoercionLocation(t *testing.T) {
 
 	eArg := &coercionError{isFlag: false, targetName: "path"}
 	assert.Equal(t, "for argument path", FormatCoercionLocation(eArg))
+
+	eDefaultFlag := &coercionError{source: SourceDefault, sourceName: "abc", isFlag: true, targetName: "port"}
+	assert.Equal(t, "for flag --port (from default value)", FormatCoercionLocation(eDefaultFlag))
+
+	eDefaultArg := &coercionError{source: SourceDefault, sourceName: "abc", isFlag: false, targetName: "[count]"}
+	assert.Equal(t, "for argument [count] (from default value)", FormatCoercionLocation(eDefaultArg))
 
 	eEmpty := &coercionError{}
 	assert.Equal(t, "", FormatCoercionLocation(eEmpty))

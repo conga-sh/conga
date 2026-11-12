@@ -201,10 +201,22 @@ Gated members and feature names are checked against every source. Each source re
 | What the user does | Command line | Environment | Config file |
 |---|---|---|---|
 | Uses a gated flag or command while its feature is off | Usage error, exit 2 | Ignored | Config error, exit 1 |
-| Names an unknown feature (`htt3=true`) | Usage error, exit 2, with a "did you mean" hint | Usage error, exit 2, with a hint (list variable only) | Config error, exit 1, with a hint |
-| Gives a bad value (`http3=maybe`) | Usage error, exit 2 | Usage error, exit 2, naming the variable | Usage error, exit 2, naming the config key |
+| Names an unknown feature (`htt3=true`) | Usage error, exit 2, with a "did you mean" hint | Config error, exit 1, with a hint (list variable only) | Config error, exit 1, with a hint |
+| Gives a bad value (`http3=maybe`) | Usage error, exit 2 | Config error, exit 1, naming the variable | Config error, exit 1, naming the config key |
 
-When a gated flag has its own variable, such as `API_QUIC` from `EnvPrefix("API")`, the environment skips it while the flag is inactive, so leftover variables from a parent shell or CI runner leave unrelated runs alone. Feature variables, whether the `API_FEATURES` list or per-feature variables such as `API_FEATURE_METRICS`, exist only to set features, so the program checks them the same way as the command line.
+When a gated flag has its own variable, such as `API_QUIC` from `EnvPrefix("API")`, the environment skips it while the flag is inactive, so leftover variables from a parent shell or CI runner leave unrelated runs alone. Feature variables, whether the `API_FEATURES` list or per-feature variables such as `API_FEATURE_METRICS`, exist only to set features, so the program always validates them. They come from the environment, so their failures are `ErrConfig` with exit 1.
+
+An unknown name or a bad value in `API_FEATURES` produces:
+
+```sh error={2}
+$ API_FEATURES=htt3=true feature-toggles
+feature-toggles: error: config error: unknown feature "htt3" (did you mean "http3"?)
+```
+
+```sh error={2}
+$ API_FEATURES=http3=maybe feature-toggles
+feature-toggles: error: invalid value "maybe" for feature "http3" (from environment variable API_FEATURES): must be true or false (or 1 or 0)
+```
 
 The config-file errors look like this:
 
@@ -213,7 +225,7 @@ feature-toggles: error: config error: unknown feature "htt3" (did you mean "http
 feature-toggles: error: config error: config file declares flag '--quic' which requires feature "http3"
 ```
 
-A bad value in the file names the key it came from:
+A bad value in the file names the key it came from and exits 1:
 
 ```text no-copy error={1} wrap
 feature-toggles: error: invalid value "maybe" for feature "http3" (from config key "features.http3"): must be true or false (or 1 or 0)

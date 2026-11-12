@@ -60,7 +60,7 @@ func (a *App[T]) RegisterMap[M ~map[K]V, K ~string, V any](opts ...RegistrationO
 func WithPredictor(p predict.Predictor) RegistrationOption
 ```
 
-`TypeParser[U]` is a `func(raw string) (U, error)`, and an error it returns is wrapped in `ErrCoerce`. `RegistrationOption` customizes registrations, and `WithPredictor` attaches default completion to a registered type.
+`TypeParser[U]` is a `func(raw string) (U, error)`, and an error it returns classifies under `ErrCoerce` for a command-line value and `ErrConfig` for one from the environment, a config file, or a `default` tag. `RegistrationOption` customizes registrations, and `WithPredictor` attaches default completion to a registered type.
 
 ## Containers
 

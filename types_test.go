@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -535,7 +536,8 @@ func TestDomainTypes(t *testing.T) {
 		err := exec.Validate(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrCoerce)
+		assert.IsError(t, err, conga.ErrValidation)
+		assert.False(t, errors.Is(err, conga.ErrCoerce))
 		assert.Equal(t, fmt.Sprintf("%q is a directory, but an executable file was expected", tmpDir), err.Error())
 	})
 
@@ -595,7 +597,8 @@ func TestDomainTypes(t *testing.T) {
 		err := symlink.Validate(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrCoerce)
+		assert.IsError(t, err, conga.ErrValidation)
+		assert.False(t, errors.Is(err, conga.ErrCoerce))
 		assert.Equal(t, fmt.Sprintf("%q is not a symbolic link", target), err.Error())
 	})
 
@@ -1117,6 +1120,7 @@ func TestFileContent(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.IsError(t, err, conga.ErrCoerce)
+		assert.False(t, errors.Is(err, conga.ErrValidation))
 	})
 }
 

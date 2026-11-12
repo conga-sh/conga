@@ -1,6 +1,7 @@
 package conga
 
 import (
+	"errors"
 	"reflect"
 	"testing"
 
@@ -64,9 +65,23 @@ func TestPathKindError(t *testing.T) {
 
 			assert.Equal(t, testCase.expected, err.Error())
 			assert.IsError(t, err, errPathWrongKind)
-			assert.IsError(t, err, ErrCoerce)
+			assert.IsError(t, err, ErrValidation)
+			assert.False(t, errors.Is(err, ErrCoerce))
 		})
 	}
+}
+
+// TestPathKindConversionError pins the conversion-time path-kind wrapper:
+// FileContent detects the wrong kind while converting its text, so the failure
+// stays under ErrCoerce and never classifies as ErrValidation.
+func TestPathKindConversionError(t *testing.T) {
+	t.Parallel()
+
+	err := &pathKindConversionError{pathKindError{path: "/tmp", kind: pathKindExpectFile}}
+
+	assert.Equal(t, `"/tmp" is a directory, but a file was expected`, err.Error())
+	assert.IsError(t, err, ErrCoerce)
+	assert.False(t, errors.Is(err, ErrValidation))
 }
 
 func TestPathKindErrorUnknownKind(t *testing.T) {

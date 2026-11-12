@@ -261,7 +261,7 @@ func (parser *tokenParser) parseLongFlag(tok tokenizer.Token) error {
 				msg:      "negated flag does not take a value: " + tok.Raw,
 				token:    tok.Raw,
 				cmdChain: parser.cmdChain,
-				cause:    ErrCoerce,
+				cause:    ErrParse,
 			}
 		}
 
@@ -555,14 +555,17 @@ func (r builtinRequest) versionOnly() bool {
 // a binding pass. Standard input can be read only once, so a second consumer
 // would silently receive empty input.
 type stdinClaim struct {
-	owner string
+	owner  string
+	source ValueSource
 }
 
 // claim records the values of owner that read standard input: a "-" for a
 // FileContent, or for a File declaring stdin:"true", including each item of a
 // slice. A second such value, from owner or another flag or argument, is a
-// usage error; it is checked before coercion, so nothing reads stdin twice.
-func (c *stdinClaim) claim(cmdChain []*spec.Command, owner string, targetType reflect.Type, tags spec.FieldTags, sep string, rawValues []string) error {
+// usage error when both values came from the command line; a conflicting
+// environment, configuration, or default value classifies under ErrConfig. It
+// is checked before coercion, so nothing reads stdin twice.
+func (c *stdinClaim) claim(cmdChain []*spec.Command, owner string, targetType reflect.Type, tags spec.FieldTags, sep string, rawValues []string, source ValueSource) error {
 	if c == nil || targetType == nil {
 		return nil
 	}
@@ -586,14 +589,30 @@ func (c *stdinClaim) claim(cmdChain []*spec.Command, owner string, targetType re
 
 		if c.owner == "" {
 			c.owner = owner
+			c.source = source
 
 			continue
 		}
 
-		return newStdinReadTwiceError(cmdChain, c.owner, owner)
+		return newStdinReadTwiceError(cmdChain, c.owner, owner, stdinErrorSource(c.source, source))
 	}
 
 	return nil
+}
+
+// stdinErrorSource picks the classification for a duplicate stdin claim: any
+// environment, configuration, or default value makes the failure a config
+// error; two command-line values stay a usage error.
+func stdinErrorSource(first, second ValueSource) ValueSource {
+	if !valueErrorIsUsage(first) {
+		return first
+	}
+
+	if !valueErrorIsUsage(second) {
+		return second
+	}
+
+	return SourceCLI
 }
 
 // stdinDashReader is implemented by the domain types whose "-" value reads
@@ -634,7 +653,7 @@ func newRepeatedFlagError(cmdChain []*spec.Command, flagName string) error {
 	}
 }
 
-func newStdinReadTwiceError(cmdChain []*spec.Command, first, second string) error {
+func newStdinReadTwiceError(cmdChain []*spec.Command, first, second string, source ValueSource) error {
 	detail := fmt.Sprintf("%s and %s both use \"-\"", first, second)
 	if first == second {
 		detail = first + " uses \"-\" twice"
@@ -642,6 +661,7 @@ func newStdinReadTwiceError(cmdChain []*spec.Command, first, second string) erro
 
 	return &validationError{
 		msg:      "stdin can only be read once (" + detail + ")",
+		source:   source,
 		cmdChain: cmdChain,
 		cause:    errStdinReadTwice,
 	}
@@ -1297,7 +1317,7 @@ func applyFlagCoercion(cmdChain []*spec.Command, flagSpec *spec.Flag, rawValues 
 		return newRepeatedFlagError(cmdChain, flagSpec.Name)
 	}
 
-	if err := state.StdinClaim.claim(cmdChain, "--"+flagSpec.Name, flagSpec.TargetType, flagSpec.FieldTags, flagSpec.Sep, rawValues); err != nil {
+	if err := state.StdinClaim.claim(cmdChain, "--"+flagSpec.Name, flagSpec.TargetType, flagSpec.FieldTags, flagSpec.Sep, rawValues, source); err != nil {
 		return err
 	}
 
@@ -1640,10 +1660,11 @@ func lookupConfigValue(flagSpec *spec.Flag, cmd *spec.Command, cmdChain []*spec.
 	}
 
 	isString := flagSpec.TargetType != nil && flagSpec.TargetType.Kind() == reflect.String
+	ownerChain := flagOwnerChain(cmdChain, cmd)
 
 	for _, key := range candidateConfigKeys(flagSpec, cmd, cmdChain) {
 		if value, exists := data.ScalarValue(key); exists && (value.Raw != "" || isString) {
-			return value, spec.ConfigKeyPath(flagSpec, cmdChain), true
+			return value, spec.ConfigKeyPath(flagSpec, ownerChain), true
 		}
 	}
 
@@ -1657,13 +1678,31 @@ func lookupConfigMap(flagSpec *spec.Flag, cmd *spec.Command, cmdChain []*spec.Co
 		return nil, "", false
 	}
 
+	ownerChain := flagOwnerChain(cmdChain, cmd)
+
 	for _, key := range candidateConfigKeys(flagSpec, cmd, cmdChain) {
 		if entries := state.ConfigData.Map(key); len(entries) > 0 {
-			return entries, spec.ConfigKeyPath(flagSpec, cmdChain), true
+			return entries, spec.ConfigKeyPath(flagSpec, ownerChain), true
 		}
 	}
 
 	return nil, "", false
+}
+
+// flagOwnerChain truncates cmdChain at the command that declares the flag, as
+// spec.ConfigKeyPath expects. Candidate lookup still uses the full chain so a
+// root flag can be read from a subcommand-scoped fallback key, while the
+// message names the key path of the declaring command.
+func flagOwnerChain(cmdChain []*spec.Command, cmd *spec.Command) []*spec.Command {
+	if cmd == nil {
+		return cmdChain
+	}
+
+	if index := slices.Index(cmdChain, cmd); index >= 0 {
+		return cmdChain[:index+1]
+	}
+
+	return cmdChain
 }
 
 // candidateConfigKeys returns the candidate configuration keys for a flag in
@@ -1706,7 +1745,7 @@ func candidateConfigKeys(flagSpec *spec.Flag, cmd *spec.Command, cmdChain []*spe
 	return keys
 }
 
-func validateEnumValue(cmdChain []*spec.Command, descriptor string, enum []string, cmpStr string) error {
+func validateEnumValue(cmdChain []*spec.Command, descriptor string, enum []string, cmpStr string, source ValueSource) error {
 	if len(enum) == 0 {
 		return nil
 	}
@@ -1715,6 +1754,7 @@ func validateEnumValue(cmdChain []*spec.Command, descriptor string, enum []strin
 		return &validationError{
 			msg: fmt.Sprintf("invalid value %q (must be one of: %s) for %s",
 				truncateForDisplay(cmpStr), strings.Join(enum, ", "), descriptor),
+			source:      source,
 			cmdChain:    cmdChain,
 			cause:       errInvalidValue,
 			valueShaped: true,
@@ -1724,8 +1764,8 @@ func validateEnumValue(cmdChain []*spec.Command, descriptor string, enum []strin
 	return nil
 }
 
-func validateScalarValue(cmdChain []*spec.Command, descriptor string, constraints constraintSet, value any, enumStr string) error {
-	if err := validateEnumValue(cmdChain, descriptor, constraints.enum, enumStr); err != nil {
+func validateScalarValue(cmdChain []*spec.Command, descriptor string, constraints constraintSet, value any, enumStr string, source ValueSource) error {
+	if err := validateEnumValue(cmdChain, descriptor, constraints.enum, enumStr, source); err != nil {
 		return err
 	}
 
@@ -1733,6 +1773,7 @@ func validateScalarValue(cmdChain []*spec.Command, descriptor string, constraint
 		if reason, ok := checkStringLen(value, constraints.length); !ok {
 			return &validationError{
 				msg:         fmt.Sprintf("value %q %s for %s", truncateForDisplay(stringx.Stringify(value)), reason, descriptor),
+				source:      source,
 				cmdChain:    cmdChain,
 				cause:       errInvalidLength,
 				valueShaped: true,
@@ -1744,6 +1785,7 @@ func validateScalarValue(cmdChain []*spec.Command, descriptor string, constraint
 		if reason, ok := checkValueRange(value, constraints.valueRange); !ok {
 			return &validationError{
 				msg:         fmt.Sprintf("value %v %s for %s", value, reason, descriptor),
+				source:      source,
 				cmdChain:    cmdChain,
 				cause:       errOutOfRange,
 				valueShaped: true,
@@ -1754,13 +1796,14 @@ func validateScalarValue(cmdChain []*spec.Command, descriptor string, constraint
 	return nil
 }
 
-func validateSliceValue(cmdChain []*spec.Command, descriptor string, constraints constraintSet, typedSlice any) error {
+func validateSliceValue(cmdChain []*spec.Command, descriptor string, constraints constraintSet, typedSlice any, source ValueSource) error {
 	sliceValue := reflect.ValueOf(typedSlice)
 
 	if constraints.items != nil {
 		if reason, ok := checkItemCount(sliceValue, constraints.items); !ok {
 			return &validationError{
 				msg:         fmt.Sprintf("%s for %s", reason, descriptor),
+				source:      source,
 				cmdChain:    cmdChain,
 				cause:       errInvalidItemCount,
 				valueShaped: true,
@@ -1771,7 +1814,7 @@ func validateSliceValue(cmdChain []*spec.Command, descriptor string, constraints
 	for i := range sliceValue.Len() {
 		elem := sliceValue.Index(i).Interface()
 
-		if err := validateScalarValue(cmdChain, descriptor, constraints, elem, stringx.Stringify(elem)); err != nil {
+		if err := validateScalarValue(cmdChain, descriptor, constraints, elem, stringx.Stringify(elem), source); err != nil {
 			return err
 		}
 	}
@@ -1779,7 +1822,7 @@ func validateSliceValue(cmdChain []*spec.Command, descriptor string, constraints
 	return nil
 }
 
-func validateMapValue(cmdChain []*spec.Command, descriptor string, items *spec.Range, value any) error {
+func validateMapValue(cmdChain []*spec.Command, descriptor string, items *spec.Range, value any, source ValueSource) error {
 	if value == nil {
 		return nil
 	}
@@ -1793,6 +1836,7 @@ func validateMapValue(cmdChain []*spec.Command, descriptor string, items *spec.R
 		if reason, ok := checkItemCount(mapValue, items); !ok {
 			return &validationError{
 				msg:         fmt.Sprintf("%s for %s", reason, descriptor),
+				source:      source,
 				cmdChain:    cmdChain,
 				cause:       errInvalidItemCount,
 				valueShaped: true,
@@ -1882,16 +1926,17 @@ func validateFlagGroupConstraints(cmdChain []*spec.Command, flagSpec *spec.Flag,
 	descriptor := "flag --" + flagSpec.Name + sourceLocation(target.Source(), sourceName)
 
 	if flagSpec.IsSlice {
-		return validateSliceValue(cmdChain, descriptor, constraints, value)
+		return validateSliceValue(cmdChain, descriptor, constraints, value, target.Source())
 	}
 
 	if flagSpec.IsMap {
 		// A map merges keys from several sources, so its item count has no
-		// single origin to attribute.
-		return validateMapValue(cmdChain, "flag --"+flagSpec.Name, constraints.items, value)
+		// single origin to attribute; its category follows the highest
+		// contributing tier recorded on the container.
+		return validateMapValue(cmdChain, "flag --"+flagSpec.Name, constraints.items, value, target.Source())
 	}
 
-	return validateScalarValue(cmdChain, descriptor, constraints, value, stringx.Stringify(value))
+	return validateScalarValue(cmdChain, descriptor, constraints, value, stringx.Stringify(value), target.Source())
 }
 
 // validateFlagConstraints checks per-flag value constraints and flag group
@@ -1935,7 +1980,7 @@ func resolveSliceArg(cmdChain []*spec.Command, arg *spec.Arg, remaining []string
 
 	if len(remaining) == 0 {
 		if arg.Default != "" {
-			if err := stdin.claim(cmdChain, "argument "+arg.Name, arg.TargetType, arg.FieldTags, arg.Sep, []string{arg.Default}); err != nil {
+			if err := stdin.claim(cmdChain, "argument "+arg.Name, arg.TargetType, arg.FieldTags, arg.Sep, []string{arg.Default}, SourceDefault); err != nil {
 				return err
 			}
 		}
@@ -1943,7 +1988,7 @@ func resolveSliceArg(cmdChain []*spec.Command, arg *spec.Arg, remaining []string
 		return resolveEmptySliceArg(cmdChain, arg, parsers, decodeContext)
 	}
 
-	if err := stdin.claim(cmdChain, "argument "+arg.Name, arg.TargetType, arg.FieldTags, arg.Sep, remaining); err != nil {
+	if err := stdin.claim(cmdChain, "argument "+arg.Name, arg.TargetType, arg.FieldTags, arg.Sep, remaining, SourceCLI); err != nil {
 		return err
 	}
 
@@ -1952,7 +1997,7 @@ func resolveSliceArg(cmdChain []*spec.Command, arg *spec.Arg, remaining []string
 		return newArgCoercionError(cmdChain, arg, SourceCLI, "", strings.Join(remaining, arg.Sep), err)
 	}
 
-	if err := validateArgSlice(cmdChain, arg, typedSlice); err != nil {
+	if err := validateArgSlice(cmdChain, arg, typedSlice, SourceCLI); err != nil {
 		return err
 	}
 
@@ -1976,7 +2021,7 @@ func resolveEmptySliceArg(cmdChain []*spec.Command, arg *spec.Arg, parsers coerc
 			return newArgCoercionError(cmdChain, arg, SourceDefault, arg.Default, arg.Default, err)
 		}
 
-		if err := validateArgSlice(cmdChain, arg, typedSlice); err != nil {
+		if err := validateArgSlice(cmdChain, arg, typedSlice, SourceDefault); err != nil {
 			return err
 		}
 
@@ -1993,7 +2038,7 @@ func resolveMapArg(cmdChain []*spec.Command, arg *spec.Arg, tokens []string, par
 			return newArgCoercionError(cmdChain, arg, SourceCLI, "", strings.Join(tokens, " "), err)
 		}
 
-		if err := validateArgMap(cmdChain, arg, parsedMap); err != nil {
+		if err := validateArgMap(cmdChain, arg, parsedMap, SourceCLI); err != nil {
 			return err
 		}
 
@@ -2008,7 +2053,7 @@ func resolveMapArg(cmdChain []*spec.Command, arg *spec.Arg, tokens []string, par
 			return newArgCoercionError(cmdChain, arg, SourceDefault, arg.Default, arg.Default, err)
 		}
 
-		if err := validateArgMap(cmdChain, arg, parsedMap); err != nil {
+		if err := validateArgMap(cmdChain, arg, parsedMap, SourceDefault); err != nil {
 			return err
 		}
 
@@ -2034,7 +2079,7 @@ func resolveScalarArg(cmdChain []*spec.Command, arg *spec.Arg, posTokens []strin
 	if tokenIdx < len(posTokens) {
 		raw := posTokens[tokenIdx]
 
-		if err := stdin.claim(cmdChain, "argument "+arg.Name, arg.TargetType, arg.FieldTags, "", []string{raw}); err != nil {
+		if err := stdin.claim(cmdChain, "argument "+arg.Name, arg.TargetType, arg.FieldTags, "", []string{raw}, SourceCLI); err != nil {
 			return false, err
 		}
 
@@ -2043,7 +2088,7 @@ func resolveScalarArg(cmdChain []*spec.Command, arg *spec.Arg, posTokens []strin
 			return false, newArgCoercionError(cmdChain, arg, SourceCLI, "", raw, err)
 		}
 
-		if err := validateArgScalar(cmdChain, arg, typedValue); err != nil {
+		if err := validateArgScalar(cmdChain, arg, typedValue, SourceCLI); err != nil {
 			return false, err
 		}
 
@@ -2053,7 +2098,7 @@ func resolveScalarArg(cmdChain []*spec.Command, arg *spec.Arg, posTokens []strin
 	}
 
 	if arg.Default != "" {
-		if err := stdin.claim(cmdChain, "argument "+arg.Name, arg.TargetType, arg.FieldTags, "", []string{arg.Default}); err != nil {
+		if err := stdin.claim(cmdChain, "argument "+arg.Name, arg.TargetType, arg.FieldTags, "", []string{arg.Default}, SourceDefault); err != nil {
 			return false, err
 		}
 
@@ -2062,7 +2107,7 @@ func resolveScalarArg(cmdChain []*spec.Command, arg *spec.Arg, posTokens []strin
 			return false, newArgCoercionError(cmdChain, arg, SourceDefault, arg.Default, arg.Default, err)
 		}
 
-		if err := validateArgScalar(cmdChain, arg, typedValue); err != nil {
+		if err := validateArgScalar(cmdChain, arg, typedValue, SourceDefault); err != nil {
 			return false, err
 		}
 
@@ -2093,7 +2138,7 @@ func handleUnexpectedPositional(cmd *spec.Command, cmdChain []*spec.Command, une
 		}
 	}
 
-	return &validationError{
+	return &parseError{
 		msg:      fmt.Sprintf("unexpected argument %q", unexpected),
 		cmdChain: cmdChain,
 		cause:    errUnexpectedArg,
@@ -2170,7 +2215,7 @@ func resolveArgs(cmd *spec.Command, cmdChain []*spec.Command, posTokens []string
 	return nil
 }
 
-func validateArgScalar(cmdChain []*spec.Command, arg *spec.Arg, typedValue any) error {
+func validateArgScalar(cmdChain []*spec.Command, arg *spec.Arg, typedValue any, source ValueSource) error {
 	constraints := constraintSet{
 		enum:       arg.Enum,
 		length:     arg.Len,
@@ -2178,10 +2223,10 @@ func validateArgScalar(cmdChain []*spec.Command, arg *spec.Arg, typedValue any) 
 		items:      arg.Items,
 	}
 
-	return validateScalarValue(cmdChain, "argument "+arg.Name, constraints, typedValue, stringx.Stringify(typedValue))
+	return validateScalarValue(cmdChain, "argument "+arg.Name+sourceLocation(source, ""), constraints, typedValue, stringx.Stringify(typedValue), source)
 }
 
-func validateArgSlice(cmdChain []*spec.Command, arg *spec.Arg, typedSlice any) error {
+func validateArgSlice(cmdChain []*spec.Command, arg *spec.Arg, typedSlice any, source ValueSource) error {
 	constraints := constraintSet{
 		enum:       arg.Enum,
 		length:     arg.Len,
@@ -2189,11 +2234,11 @@ func validateArgSlice(cmdChain []*spec.Command, arg *spec.Arg, typedSlice any) e
 		items:      arg.Items,
 	}
 
-	return validateSliceValue(cmdChain, "argument "+arg.Name, constraints, typedSlice)
+	return validateSliceValue(cmdChain, "argument "+arg.Name+sourceLocation(source, ""), constraints, typedSlice, source)
 }
 
-func validateArgMap(cmdChain []*spec.Command, arg *spec.Arg, typedMap any) error {
-	return validateMapValue(cmdChain, "argument "+arg.Name, arg.Items, typedMap)
+func validateArgMap(cmdChain []*spec.Command, arg *spec.Arg, typedMap any, source ValueSource) error {
+	return validateMapValue(cmdChain, "argument "+arg.Name+sourceLocation(source, ""), arg.Items, typedMap, source)
 }
 
 func checkOrderedRange[T cmp.Ordered](value, minValue, maxValue T, hasMin, hasMax bool, minStr, maxStr string) (string, bool) {
@@ -2455,31 +2500,65 @@ func callSelfValidator(ctx context.Context, value any) error {
 // validateCustomValues runs SelfValidator domain-type validation for every
 // resolved flag and positional argument. It executes after the Session is
 // constructed so validation observes the final value of the configuration
-// cascade, with the context of the active invocation.
+// cascade, with the context of the active invocation. Failures inherit the
+// value's source: environment-, configuration-, and default-sourced values
+// classify under [ErrConfig] and carry the same origin suffix as coercion
+// errors.
 func validateCustomValues(ctx context.Context, cmdChain []*spec.Command) error {
-	for _, cmd := range cmdChain {
+	for index, cmd := range cmdChain {
+		ownerChain := cmdChain[:index+1]
+
 		for _, flagSpec := range cmd.Flags {
-			if !flagStateOf(flagSpec.Handle).IsSet() {
+			target := flagStateOf(flagSpec.Handle)
+			if !target.IsSet() {
 				continue
 			}
 
-			if msg, cause := validateCustomValueTree(ctx, flagStateOf(flagSpec.Handle).getValue(), "flag --"+flagSpec.Name); cause != nil {
-				return &validationError{msg: msg, cmdChain: cmdChain, cause: cause, valueShaped: true}
+			if msg, cause := validateCustomValueTree(ctx, target.getValue(), "flag --"+flagSpec.Name); cause != nil {
+				return &validationError{
+					msg:         msg + sourceLocation(target.Source(), flagValueSourceName(flagSpec, target, ownerChain)),
+					source:      target.Source(),
+					cmdChain:    cmdChain,
+					cause:       cause,
+					valueShaped: true,
+				}
 			}
 		}
 
 		for _, argSpec := range cmd.Args {
-			if !argStateOf(argSpec.Handle).IsSet() {
+			target := argStateOf(argSpec.Handle)
+			if !target.IsSet() {
 				continue
 			}
 
-			if msg, cause := validateCustomValueTree(ctx, argStateOf(argSpec.Handle).getValue(), "argument "+argSpec.Name); cause != nil {
-				return &validationError{msg: msg, cmdChain: cmdChain, cause: cause, valueShaped: true}
+			if msg, cause := validateCustomValueTree(ctx, target.getValue(), "argument "+argSpec.Name); cause != nil {
+				return &validationError{
+					msg:         msg + sourceLocation(target.Source(), target.SourceDetail()),
+					source:      target.Source(),
+					cmdChain:    cmdChain,
+					cause:       cause,
+					valueShaped: true,
+				}
 			}
 		}
 	}
 
 	return nil
+}
+
+// flagValueSourceName names the origin of a bound flag for diagnostics: the
+// winning environment variable, the flag's configuration key, or the default
+// literal. For configuration values the container's SourceDetail records the
+// contributing file (the --why detail), while the message names the key.
+func flagValueSourceName(flagSpec *spec.Flag, target flagState, cmdChain []*spec.Command) string {
+	switch target.Source() {
+	case SourceEnv:
+		return target.SourceDetail()
+	case SourceConfig:
+		return spec.ConfigKeyPath(flagSpec, cmdChain)
+	default:
+		return target.SourceDetail()
+	}
 }
 
 // validateCustomValueTree walks a resolved value like the constraint

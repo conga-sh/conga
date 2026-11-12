@@ -869,9 +869,10 @@ func (a *App[T]) ExitFunc(exitHandler func(code int)) *App[T] {
 //   - A nil err exits with status 0 and no output.
 //   - Exit code 1: runtime errors from command execution ([Runner.Run] or lifecycle
 //     hooks), developer schema defects ([ErrSchema]), and configuration failures
-//     ([ErrConfig], including .env loading).
-//   - Exit code 2: usage errors ([IsUsageError] reports true for parse, coercion,
-//     and validation failures) and internal completion failures.
+//     ([ErrConfig], including .env loading and environment-, configuration-, and
+//     default-sourced value failures).
+//   - Exit code 2: usage errors ([IsUsageError] reports true for command-line parse,
+//     coercion, and validation failures) and internal completion failures.
 //
 // Usage error rendering follows [UsageOnErrorMode], except for self-describing
 // value errors (coercion failures and value-constraint violations), which always
