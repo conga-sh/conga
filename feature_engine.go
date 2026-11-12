@@ -428,12 +428,12 @@ func unknownFeatureError(cmdChain []*spec.Command, cmd *spec.Command, name strin
 			source:   source,
 			cmdChain: cmdChain,
 		}
-	}
-
-	return &parseError{
-		msg:      fmt.Sprintf("unknown feature %q%s", name, hint),
-		cmdChain: cmdChain,
-		cause:    ErrParse,
+	default:
+		return &parseError{
+			msg:      fmt.Sprintf("unknown feature %q%s", name, hint),
+			cmdChain: cmdChain,
+			cause:    ErrParse,
+		}
 	}
 }
 

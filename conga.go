@@ -1667,7 +1667,7 @@ func (a *App[T]) clearGatedSuggestion(err error, flagValues map[*spec.Flag][]str
 	if tokens != nil {
 		// The partial flag values are wanted even when a later token fails to
 		// parse, so the parse error itself is irrelevant here.
-		parsed, _, _, _, _ := parseTokens(unknown.cmdChain, tokens, newParseFlagIndex(unknown.cmdChain))
+		parsed, _, _, _, _ := parseTokens(unknown.cmdChain, tokens, newParseFlagIndex(unknown.cmdChain)) //nolint:errcheck // only the flags parsed before a failure are wanted; the routing error is what gets reported
 		flagValues = parsed.values
 	}
 
@@ -1769,7 +1769,7 @@ func (a *App[T]) prepareNonMetaExecution(ctx context.Context, session *Session, 
 	})
 }
 
-func (a *App[T]) prepare(ctx context.Context) (*Session, bool, error) {
+func (a *App[T]) prepare(ctx context.Context) (*Session, bool, error) { //nolint:cyclop,gocyclo // one linear pipeline whose stage order reads top to bottom; splitting it would scatter that order
 	cmd, err := a.buildSpec()
 	if err != nil {
 		return nil, false, err
