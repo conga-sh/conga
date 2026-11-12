@@ -330,6 +330,10 @@ func (b *schemaBuilder) processImplicitTag(structField reflect.StructField) (boo
 		return false, nil
 	}
 
+	if err := ValidateImplicitFeature(structField.Tag); err != nil {
+		return false, b.fieldContextError(structField.Name, err)
+	}
+
 	if b.implicitFieldName != "" {
 		return false, b.fieldContextError(structField.Name, ImplicitCommandAlreadyDeclaredError(b.implicitFieldName))
 	}

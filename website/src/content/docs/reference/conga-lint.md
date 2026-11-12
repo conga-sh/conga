@@ -27,6 +27,7 @@ Each check reports the same mistake, with the same message, that the program rep
 | Synthesized feature flag shadowing | The `flag:"..."` name installed for a CLI-exposed `Features[T]` container joins the ancestor shadow map, so a descendant flag cannot redeclare it. |
 | Version command flag shadowing | The built-in version command's `--json` selector joins the ancestor shadow map, so an ancestor `--json` flag is rejected with the same `ErrDuplicateFlag` diagnostic and migration hint. |
 | Implicit command uniqueness | The runtime `ErrSchema` rule that a command declares at most one `implicit:"true"` subcommand; the diagnostic names the field that declared the first. |
+| Implicit command gates | The runtime `ErrSchema` rule that an `implicit:"true"` subcommand can't carry a `feature` tag. Gating its parent, or a flag it declares, stays legal. |
 | Ancestor flag shadowing | The runtime `ErrDuplicateFlag` rule: a flag name, alias, or short rune declared on an ancestor cannot be redeclared on any descendant command. |
 | Built-in short collisions | The runtime rejection of a user-declared `short` that claims the rune assigned with `app.HelpShortFlag(...)` (every command offering help) or `app.VersionShortFlag(...)` (root only), and of assigning the same rune to both built-ins. A disabled built-in leaves its rune free; non-constant runes suppress the check. |
 | Cascading guard | The schema rejection of `conga.ConfigCascading()` when the root command lacks a `multi:"true"` `ConfigFile` flag. |

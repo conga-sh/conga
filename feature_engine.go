@@ -2,6 +2,7 @@ package conga
 
 import (
 	"cmp"
+	"errors"
 	"fmt"
 	"maps"
 	"reflect"
@@ -17,12 +18,14 @@ import (
 )
 
 // prunedFlag is a flag removed from the schema by feature pruning, carrying the
-// owning command's dotted path (empty for root flags) and the feature expression
-// whose inactivity removed it.
+// owning command's dotted path (empty for root flags), the feature expression
+// whose inactivity removed it, and the features whose state made that
+// expression false.
 type prunedFlag struct {
-	flag        *spec.Flag
-	prefix      string
-	featureExpr string
+	flag         *spec.Flag
+	prefix       string
+	featureExpr  string
+	failingTerms []string
 }
 
 // configKeys lists the configuration document keys that could supply the pruned
@@ -115,7 +118,7 @@ func featureGates(cmd *spec.Command, values map[string]string) map[string]bool {
 // key order. Diagnostics attribute each key to the tier that supplied it via
 // provenance, falling back to the container's recorded source when a key has no
 // recorded tier.
-func featureValues(cmd *spec.Command, cmdChain []*spec.Command, provided map[string]string, provenance map[string]ValueSource, envNames map[string]string, fallback ValueSource) (map[string]string, error) {
+func featureValues(cmd *spec.Command, cmdChain []*spec.Command, provided map[string]string, provenance map[string]ValueSource, origins map[string]configdata.Value, envNames map[string]string, fallback ValueSource) (map[string]string, error) {
 	var firstErr error
 
 	values := collectFeatureValues(cmd, provided, func(name string, raw string, feature *spec.FeatureField, cause error) {
@@ -129,7 +132,7 @@ func featureValues(cmd *spec.Command, cmdChain []*spec.Command, provided map[str
 		}
 
 		if feature == nil {
-			firstErr = unknownFeatureError(cmdChain, cmd, name, source)
+			firstErr = unknownFeatureError(cmdChain, cmd, name, source, envNames[name], origins[name].SourceDetail())
 
 			return
 		}
@@ -192,9 +195,9 @@ func bindFeatureValues(binding featureState, target any, cmd *spec.Command, cmdC
 		return nil, err
 	}
 
-	sources, _ := binding.mapProvenance()
+	sources, origins := binding.mapProvenance()
 
-	values, err := featureValues(cmd, cmdChain, provided, sources, envNames, binding.Source())
+	values, err := featureValues(cmd, cmdChain, provided, sources, origins, envNames, binding.Source())
 	if err != nil && !state.TolerateFeatureErrors {
 		return nil, err
 	}
@@ -386,17 +389,45 @@ func resolveFeatureGates(binding featureState, target any, cmd *spec.Command, cm
 	return pruned, nil
 }
 
-func unknownFeatureError(cmdChain []*spec.Command, cmd *spec.Command, name string, source ValueSource) error {
+// unknownFeatureError reports a feature map key that names no declared
+// feature. A command-line key is a usage error; environment and configuration
+// keys classify under [ErrConfig] (#133) and name their source: the variable
+// for env, and the file and section for config, in the shape of the config
+// engine's unknown-field errors. A config suggestion is spelled in the app's
+// config key case, because that is how the file must spell it.
+func unknownFeatureError(cmdChain []*spec.Command, cmd *spec.Command, name string, source ValueSource, envName string, origin string) error {
 	var hint string
 
 	if suggestion := levenshtein.Suggest(casing.Kebab(name), cmd.FeatureNames(), 4); suggestion != "" {
+		if source == SourceConfig {
+			suggestion = cmd.ConfigSettings.KeyCase.Apply(suggestion)
+		}
+
 		hint = fmt.Sprintf(" (did you mean %q?)", suggestion)
 	}
 
-	// Only a command-line feature map is a usage error; environment and
-	// configuration values classify under ErrConfig (#133).
-	if !valueErrorIsUsage(source) {
-		return fmt.Errorf("%w: unknown feature %q%s", ErrConfig, name, hint)
+	switch source {
+	case SourceEnv:
+		return &validationError{
+			msg:      fmt.Sprintf("unknown feature %q%s%s", name, sourceLocation(source, envName), hint),
+			source:   source,
+			cmdChain: cmdChain,
+		}
+	case SourceConfig:
+		message := fmt.Sprintf("unknown feature %q", name)
+		if cmd.FeatureFlag != nil && cmd.FeatureFlag.ConfigKey != "-" {
+			message += fmt.Sprintf(" in section %q", spec.ConfigKeyPath(cmd.FeatureFlag, []*spec.Command{cmd}))
+		}
+
+		if origin != "" {
+			message = fmt.Sprintf("config file %q: %s", origin, message)
+		}
+
+		return &validationError{
+			msg:      message + hint,
+			source:   source,
+			cmdChain: cmdChain,
+		}
 	}
 
 	return &parseError{
@@ -506,7 +537,12 @@ func pruneInactiveFeatures(cmd *spec.Command, prefix string, activeFeatures map[
 
 	cmd.Flags = slicex.Filter(cmd.Flags, func(flagSpec *spec.Flag) bool {
 		if flagSpec.Feature != "" && !spec.MatchFeature(flagSpec.Feature, activeFeatures) {
-			pruned = append(pruned, prunedFlag{flag: flagSpec, prefix: prefix, featureExpr: flagSpec.Feature})
+			pruned = append(pruned, prunedFlag{
+				flag:         flagSpec,
+				prefix:       prefix,
+				featureExpr:  flagSpec.Feature,
+				failingTerms: spec.FailingFeatureTerms(flagSpec.Feature, activeFeatures),
+			})
 
 			return false
 		}
@@ -518,7 +554,7 @@ func pruneInactiveFeatures(cmd *spec.Command, prefix string, activeFeatures map[
 		subcommandPrefix := joinSubcommandPrefix(prefix, subcommand.Name)
 
 		if subcommand.Feature != "" && !spec.MatchFeature(subcommand.Feature, activeFeatures) {
-			pruned = append(pruned, collectPrunedSubtree(subcommand, subcommandPrefix, subcommand.Feature)...)
+			pruned = append(pruned, collectPrunedSubtree(subcommand, subcommandPrefix, subcommand.Feature, spec.FailingFeatureTerms(subcommand.Feature, activeFeatures))...)
 
 			return false
 		}
@@ -536,27 +572,53 @@ func pruneInactiveFeatures(cmd *spec.Command, prefix string, activeFeatures map[
 // rather than silently ignored. Every flag is attributed to the subtree's
 // gating expression: that gate is off, which is why nothing in the subtree can
 // be reached.
-func collectPrunedSubtree(cmd *spec.Command, prefix string, featureExpr string) []prunedFlag {
+func collectPrunedSubtree(cmd *spec.Command, prefix string, featureExpr string, failingTerms []string) []prunedFlag {
 	pruned := make([]prunedFlag, 0, len(cmd.Flags))
 
 	for _, flagSpec := range cmd.Flags {
-		pruned = append(pruned, prunedFlag{flag: flagSpec, prefix: prefix, featureExpr: featureExpr})
+		pruned = append(pruned, prunedFlag{flag: flagSpec, prefix: prefix, featureExpr: featureExpr, failingTerms: failingTerms})
 	}
 
 	for _, subcommand := range cmd.Subcommands {
 		subcommandPrefix := joinSubcommandPrefix(prefix, subcommand.Name)
 
-		pruned = append(pruned, collectPrunedSubtree(subcommand, subcommandPrefix, featureExpr)...)
+		pruned = append(pruned, collectPrunedSubtree(subcommand, subcommandPrefix, featureExpr, failingTerms)...)
 	}
 
 	return pruned
+}
+
+// suggestedMemberFeature returns the feature expression gating the flag or
+// subcommand an unknown-flag or unknown-command error suggests, or "" when the
+// suggested member is ungated or is neither. A suggested flag is looked up on
+// every command of the chain, since the parser accepts ancestor flags; a
+// suggested subcommand belongs to the last command of the chain.
+func suggestedMemberFeature(unknown *parseError) string {
+	switch {
+	case errors.Is(unknown.cause, errUnknownFlag):
+		for _, cmd := range unknown.cmdChain {
+			for _, flagSpec := range cmd.Flags {
+				if flagSpec.Name == unknown.suggestion {
+					return flagSpec.Feature
+				}
+			}
+		}
+	case errors.Is(unknown.cause, errUnknownCommand):
+		for _, subcommand := range unknown.cmdChain[len(unknown.cmdChain)-1].Subcommands {
+			if subcommand.Name == unknown.suggestion {
+				return subcommand.Feature
+			}
+		}
+	}
+
+	return ""
 }
 
 func validateSubcommandFeatures(cmdChain []*spec.Command, activeFeatures map[string]bool) error {
 	for _, subcommand := range cmdChain[1:] {
 		if subcommand.Feature != "" && !spec.MatchFeature(subcommand.Feature, activeFeatures) {
 			return &parseError{
-				msg:      fmt.Sprintf("command %q requires feature %q", subcommand.Name, subcommand.Feature),
+				msg:      fmt.Sprintf("command %q requires %s", subcommand.Name, spec.DescribeFeatureExpression(subcommand.Feature)),
 				cmdChain: cmdChain,
 				cause:    ErrParse,
 			}
@@ -579,7 +641,7 @@ func checkFeatureFlagCLIRestrictions(flagValues map[*spec.Flag][]string, activeF
 	for _, flagSpec := range targets {
 		if flagSpec.Feature != "" && !spec.MatchFeature(flagSpec.Feature, activeFeatures) {
 			return &parseError{
-				msg:      fmt.Sprintf("flag '--%s' requires feature %q", flagSpec.Name, flagSpec.Feature),
+				msg:      fmt.Sprintf("flag '--%s' requires %s", flagSpec.Name, spec.DescribeFeatureExpression(flagSpec.Feature)),
 				cmdChain: cmdChain,
 				cause:    ErrParse,
 			}
@@ -591,14 +653,54 @@ func checkFeatureFlagCLIRestrictions(flagValues map[*spec.Flag][]string, activeF
 
 // checkFeatureConfigRestrictions rejects configuration entries that target a
 // flag pruned by feature gating, so an inactive flag's value is never silently
-// ignored. It runs only on real executions (never on a tolerated builtin
-// request whose configuration may legitimately be unresolved).
-func checkFeatureConfigRestrictions(pruned []prunedFlag, configData *configdata.Data) error {
+// ignored. An entry is ignored instead when a command-line or environment
+// value switched off its gate (#161): the file may be consistent on its own,
+// and the higher tier overrides it. The error stays when every failing term
+// took its value from configuration or the default, since the file then
+// contradicts itself or relies on an off default. It runs only on real
+// executions (never on a tolerated builtin request whose configuration may
+// legitimately be unresolved).
+func checkFeatureConfigRestrictions(pruned []prunedFlag, configData *configdata.Data, featureSources map[string]ValueSource) error {
 	for _, prunedMember := range pruned {
-		if slices.ContainsFunc(prunedMember.configKeys(), configData.HasKey) {
-			return fmt.Errorf("%w: config file declares flag '--%s' which requires feature %q", ErrConfig, prunedMember.flag.Name, prunedMember.featureExpr)
+		if slices.ContainsFunc(prunedMember.failingTerms, func(name string) bool {
+			source := featureSources[name]
+
+			return source == SourceCLI || source == SourceEnv
+		}) {
+			continue
+		}
+
+		for _, key := range prunedMember.configKeys() {
+			if !configData.HasKey(key) {
+				continue
+			}
+
+			message := fmt.Sprintf("flag '--%s' requires %s", prunedMember.flag.Name, spec.DescribeFeatureExpression(prunedMember.featureExpr))
+			if origin := configKeyOrigin(configData, key); origin != "" {
+				message = fmt.Sprintf("config file %q: %s", origin, message)
+			}
+
+			return &validationError{msg: message, source: SourceConfig}
 		}
 	}
 
 	return nil
+}
+
+// configKeyOrigin names the source that set key in the configuration tier: a
+// scalar's origin, or the origin of a map section's first entry in key order.
+// It returns "" when the tier recorded no origin.
+func configKeyOrigin(configData *configdata.Data, key string) string {
+	if value, ok := configData.ScalarValue(key); ok {
+		return value.SourceDetail()
+	}
+
+	entries := configData.Map(key)
+	for _, name := range slices.Sorted(maps.Keys(entries)) {
+		if origin := entries[name].SourceDetail(); origin != "" {
+			return origin
+		}
+	}
+
+	return ""
 }

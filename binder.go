@@ -1280,7 +1280,9 @@ func parseTokens(cmdChain []*spec.Command, tokens []tokenizer.Token, index *flag
 		}
 
 		if err != nil {
-			return flagTokens{}, nil, nil, nil, err
+			// The flags parsed before the error let an unknown-flag hint be
+			// checked against the feature gates they set.
+			return flagTokens{values: parser.flagValues}, nil, nil, nil, err
 		}
 	}
 

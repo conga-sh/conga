@@ -136,6 +136,64 @@ func MatchFeature(featureExpr string, activeFeatures map[string]bool) bool {
 	return true
 }
 
+// DescribeFeatureExpression renders a feature expression as the phrase that
+// follows "requires" in gate diagnostics:
+//
+//	x       feature "x"
+//	!x      feature "x" to be off
+//	a,b     features "a" and "b"
+//	!a,!b   features "a" and "b" to be off
+//	a,!b    feature "a" on and "b" off
+//	a,b,!c  features "a" and "b" on and "c" off
+//
+// Terms keep their expression order within the on and off groups. Invalid
+// terms are skipped, as in [NormalizeFeatureExpression].
+func DescribeFeatureExpression(featureExpr string) string {
+	var enabled, disabled []string
+
+	for rawPart := range strings.SplitSeq(featureExpr, ",") {
+		term, ok := parseFeatureTerm(rawPart)
+		if !ok {
+			continue
+		}
+
+		if term.negated {
+			disabled = append(disabled, strconv.Quote(term.name))
+		} else {
+			enabled = append(enabled, strconv.Quote(term.name))
+		}
+	}
+
+	switch {
+	case len(disabled) == 0:
+		return featureNoun(len(enabled)) + " " + joinFeatureNames(enabled)
+	case len(enabled) == 0:
+		return featureNoun(len(disabled)) + " " + joinFeatureNames(disabled) + " to be off"
+	default:
+		return featureNoun(len(enabled)) + " " + joinFeatureNames(enabled) + " on and " + joinFeatureNames(disabled) + " off"
+	}
+}
+
+// FailingFeatureTerms lists the feature names whose state makes featureExpr
+// false under activeFeatures: a plain term whose feature is off, and a negated
+// term whose feature is on. It returns nil when the expression matches.
+func FailingFeatureTerms(featureExpr string, activeFeatures map[string]bool) []string {
+	var failing []string
+
+	for rawPart := range strings.SplitSeq(featureExpr, ",") {
+		term, ok := parseFeatureTerm(rawPart)
+		if !ok {
+			continue
+		}
+
+		if activeFeatures[term.name] == term.negated {
+			failing = append(failing, term.name)
+		}
+	}
+
+	return failing
+}
+
 // ValidateFeatureExpression validates that featureExpr conforms to valid feature tag syntax.
 func ValidateFeatureExpression(featureExpr string) error {
 	if featureExpr == "" {
@@ -906,4 +964,28 @@ func validateFeatureExpressionReferences(owner, featureExpr string, declared map
 	}
 
 	return nil
+}
+
+// featureNoun returns "feature" for one term and "features" for several.
+func featureNoun(count int) string {
+	if count == 1 {
+		return "feature"
+	}
+
+	return "features"
+}
+
+// joinFeatureNames joins quoted feature names as an English list: "a", "a" and
+// "b", or "a", "b", and "c".
+func joinFeatureNames(names []string) string {
+	switch len(names) {
+	case 0:
+		return ""
+	case 1:
+		return names[0]
+	case 2:
+		return names[0] + " and " + names[1]
+	default:
+		return strings.Join(names[:len(names)-1], ", ") + ", and " + names[len(names)-1]
+	}
 }

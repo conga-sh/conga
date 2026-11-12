@@ -1078,6 +1078,7 @@ type appConfig[T any] struct {
 	completionHelp             func(app *App[T], cmdChain []*spec.Command, completionValue string, withHelp bool) (bool, error)
 	renderCompletionScript     func(app *App[T], cmdChain []*spec.Command, shell string) (bool, error)
 	featurePreparer            func(app *App[T], ctx context.Context, featureBinding featureState, invocation parsedInvocation, request builtinRequest) ([]prunedFlag, error)
+	dropGatedSuggestion        func(app *App[T], err error, flagValues map[*spec.Flag][]string, tokens []tokenizer.Token) error
 	processFeatures            func(builder any, structField reflect.StructField, fieldHandle any, classification container.Classification) error
 	validateFeatures           func(root *spec.Command) error
 	parseFeatureTag            func(feature string, required bool) (string, error)
@@ -1637,6 +1638,71 @@ func (a *App[T]) prepareFeatures(ctx context.Context, featureBinding featureStat
 	return featureBinding.resolveFeatures(invocation.root, invocation.cmdChain, invocation.flagValues, featureBindingState)
 }
 
+// clearGatedSuggestion clears the "did you mean" hint of an unknown-flag or
+// unknown-command error when the suggested flag or subcommand is gated off, so
+// the hint never points at a member the run would reject (#161). The parser
+// and router suggest before features resolve, so the gates are resolved here
+// leniently, as completion does: defaults, environment, configuration, and the
+// command-line flags. A parse error passes the flags parsed before it; a
+// routing error, which fails before flags are parsed, passes its tokens, and
+// their flags are parsed here for the routed chain. Bootstrap does not run on
+// this path. When configuration fails to resolve, the original error and its
+// hint are kept.
+func (a *App[T]) clearGatedSuggestion(err error, flagValues map[*spec.Flag][]string, tokens []tokenizer.Token) error {
+	var unknown *parseError
+	if !errors.As(err, &unknown) || unknown.suggestion == "" || len(unknown.cmdChain) == 0 {
+		return err
+	}
+
+	root := unknown.cmdChain[0]
+	if featureStateOfCommand(root) == nil {
+		return err
+	}
+
+	featureExpr := suggestedMemberFeature(unknown)
+	if featureExpr == "" {
+		return err
+	}
+
+	if tokens != nil {
+		// The partial flag values are wanted even when a later token fails to
+		// parse, so the parse error itself is irrelevant here.
+		parsed, _, _, _, _ := parseTokens(unknown.cmdChain, tokens, newParseFlagIndex(unknown.cmdChain)) //nolint:dogsled // only the flag values of a lenient parse are used
+		flagValues = parsed.values
+	}
+
+	var configData *configdata.Data
+
+	if a.configEngine != nil {
+		flagTargets, targetErr := flagConfigTargets(root, unknown.cmdChain, flagValues)
+		if targetErr != nil {
+			return err
+		}
+
+		_, values, _, resolveErr := a.configurationView(root).Resolve(flagTargets, root)
+		if resolveErr != nil {
+			return err
+		}
+
+		configData = values
+	}
+
+	gates := completionFeatureGates(root, flagValues, &bindingState{
+		EnvPrefix:             a.envPrefix,
+		ConfigData:            configData,
+		TypeParsers:           a.collectTypeParsers(),
+		TolerateFeatureErrors: true,
+	})
+	if spec.MatchFeature(featureExpr, gates) {
+		return err
+	}
+
+	cleared := *unknown
+	cleared.suggestion = ""
+
+	return &cleared
+}
+
 func (a *App[T]) prepareNonMetaExecution(ctx context.Context, session *Session, invocation parsedInvocation, featureBinding featureState, prunedFlags []prunedFlag, whyReport bool) error {
 	resolution := a.resolveConfig(ctx, configRequest{invocation: invocation})
 	if session != nil {
@@ -1709,8 +1775,14 @@ func (a *App[T]) prepare(ctx context.Context) (*Session, bool, error) {
 		return nil, false, err
 	}
 
-	cmdChain, remainingTokens, err := routeSubcommands(cmd, tokenizer.Tokenize(a.args))
+	tokens := tokenizer.Tokenize(a.args)
+
+	cmdChain, remainingTokens, err := routeSubcommands(cmd, tokens)
 	if err != nil {
+		if a.dropGatedSuggestion != nil {
+			err = a.dropGatedSuggestion(a, err, nil, tokens)
+		}
+
 		return nil, false, err
 	}
 
@@ -1719,6 +1791,10 @@ func (a *App[T]) prepare(ctx context.Context) (*Session, bool, error) {
 
 	parsedFlags, posTokens, dashArgs, rawTokens, err := parseTokens(cmdChain, remainingTokens, index)
 	if err != nil {
+		if a.dropGatedSuggestion != nil {
+			err = a.dropGatedSuggestion(a, err, parsedFlags.values, nil)
+		}
+
 		return nil, false, err
 	}
 
@@ -2226,6 +2302,7 @@ func (a *App[T]) installCompletionHooks() {
 // keep the feature machinery unreferenced.
 func (a *App[T]) installFeatureHooks() {
 	a.featurePreparer = (*App[T]).prepareFeatures
+	a.dropGatedSuggestion = (*App[T]).clearGatedSuggestion
 	a.processFeatures = spec.ProcessFeaturesField
 	a.validateFeatures = spec.ValidateFeatureReferences
 	a.parseFeatureTag = spec.ParseFeatureTag

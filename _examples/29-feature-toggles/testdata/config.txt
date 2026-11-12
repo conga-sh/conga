@@ -22,11 +22,11 @@ env API_FEATURES=
 
 # 3. An unknown feature in the section fails with a did-you-mean hint (exit 1).
 exit-status 1 feature-toggles -c typo.yaml
-stderr 'unknown feature "htt3" \(did you mean "http3"\?\)'
+stderr 'config file "typo.yaml": unknown feature "htt3" in section "features" \(did you mean "http3"\?\)'
 
 # 4. A config key for an inactive gated flag is rejected (exit 1).
 exit-status 1 feature-toggles -c flagkey.yaml
-stderr 'config file declares flag .--quic. which requires feature "http3"'
+stderr 'config file "flagkey.yaml": flag .--quic. requires feature "http3"'
 
 -- features.yaml --
 features:

@@ -127,7 +127,7 @@ A command that declares `Command[T]` fields is a branch. It routes to its subcom
 | `aliases` | Comma-separated command aliases. |
 | `deprecated` | Deprecation notice displayed in help. |
 | `envprefix` | Environment prefix for this command's flags. Replaces any inherited prefix. Appends a trailing underscore if omitted. |
-| `feature` | Feature-gate expression: the subcommand and its subtree exist only while the expression is satisfied (see [Feature toggles](#feature-toggles-congafeaturest)). |
+| `feature` | Feature-gate expression: the subcommand and its subtree exist only while the expression is satisfied (see [Feature toggles](#feature-toggles-congafeaturest)). An implicit subcommand rejects this tag. |
 | `hidden` | Suppress from help and completion (`hidden` or `hidden:"true"`). |
 | `implicit` | Route tokens that no explicit subcommand claims into this subcommand. At most one per command. See [Implicit subcommands](#implicit-subcommands). |
 | `name` | Subcommand token override (default: kebab-case field name). |
@@ -171,6 +171,7 @@ type RunCmd struct {
 
 - The value is a strict boolean, `"true"` or `"false"`. An empty value means `true`.
 - A command declares at most one implicit subcommand. A second fails schema build with `ErrSchema` and names the field that declared the first. `conga-lint` reports the same error.
+- An implicit subcommand can't carry a `feature` tag. It is entered without being named, so a gate on it would make the parent's operands and flags depend on a feature. Schema build fails with `ErrSchema`, and `conga-lint` reports the same error. Gate the parent instead, or make the subcommand explicit. A flag declared on an implicit subcommand may still carry `feature`.
 - An implicit subcommand may declare its own implicit subcommand.
 
 #### Help rendering
@@ -319,6 +320,8 @@ A `feature` tag holds a comma-separated conjunction of terms. Each term is a fea
 
 A `bool` feature is on when its value is `true`. An integer feature is on at any non-zero level, and expressions cannot test for a specific level.
 
+An error for a member whose expression does not hold describes the expression in words, for example `flag '--allow-insecure' requires feature "strict-tls" to be off` or `requires feature "http3" on and "strict-tls" off`.
+
 ### Feature value resolution
 
 Feature names are kebab-cased. On the command line and in the environment, a key may use any spelling of a declared name (kebab-case, snake_case, or camelCase). Keys are canonicalized before the merge, so precedence follows the source rather than the spelling. A config section takes the feature name spelled in the app's key casing (`gentle_force` under `SnakeCase`), and another spelling is an unknown key (`ErrConfig`, exit 1).
@@ -331,8 +334,8 @@ Inactive gated flags and subcommands are left out of `--help`, `--why`, and shel
 
 | Input | Command line | Environment | Config file |
 |---|---|---|---|
-| Gated flag or subcommand whose expression does not hold | Usage error (exit 2) | Ignored | `ErrConfig` (exit 1) |
-| Unknown feature name | Usage error (exit 2), with suggestion | `ErrConfig` (exit 1), with suggestion | `ErrConfig` (exit 1), with suggestion |
+| Gated flag or subcommand whose expression does not hold | Usage error (exit 2) | Ignored | `ErrConfig` (exit 1), or ignored when the command line or environment set a feature that makes the expression false |
+| Unknown feature name | Usage error (exit 2), with suggestion | `ErrConfig` (exit 1), naming the variable, with suggestion | `ErrConfig` (exit 1), naming the file and section, with a suggestion in the app's key casing |
 | Invalid feature value (not `true`/`false`, or a level not in `enum`) | Usage error (exit 2) | `ErrConfig` (exit 1), naming the variable | `ErrConfig` (exit 1), naming the config key |
 
 Only environment variables that bind *gated flags* are ignored when inactive, so ambient variables never break a run they do not control. Feature variables (from `env` or `envprefix`) are always validated. See [Errors and exit codes](/reference/errors/).
