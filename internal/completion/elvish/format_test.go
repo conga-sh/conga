@@ -172,11 +172,40 @@ func TestFormat_SanitizesControlCharacters(t *testing.T) {
 	}
 
 	assert.NoError(t, json.Unmarshal([]byte(output), &parsed))
-	assert.Equal(t, any("value"), parsed.Candidates[0]["value"])
-	assert.Equal(t, any("displayname"), parsed.Candidates[0]["display"])
+	assert.Equal(t, any("va lue"), parsed.Candidates[0]["value"])
+	assert.Equal(t, any("dis play name"), parsed.Candidates[0]["display"])
 	// Descriptions take the first line (TrimmedDescription) before the
-	// sanitizer strips control characters.
+	// sanitizer replaces control characters with spaces.
 	assert.Equal(t, any("desc"), parsed.Candidates[0]["description"])
+}
+
+func TestFormat_TrailingCarriageReturnRemovedFromValue(t *testing.T) {
+	t.Parallel()
+
+	output := elvish.Format("", wire.Directives{}, []wire.Candidate{{Value: "prod\r", Display: "prod\r"}})
+
+	var parsed struct {
+		Candidates []map[string]any `json:"candidates"`
+	}
+
+	assert.NoError(t, json.Unmarshal([]byte(output), &parsed))
+	assert.Equal(t, any("prod"), parsed.Candidates[0]["value"])
+	assert.Equal(t, any("prod"), parsed.Candidates[0]["display"])
+	assert.Equal(t, any(" "), parsed.Candidates[0]["codeSuffix"])
+}
+
+func TestFormat_TrailingNewlineAfterSlashKeepsNospace(t *testing.T) {
+	t.Parallel()
+
+	output := elvish.Format("", wire.Directives{}, []wire.Candidate{{Value: "dir/\n", Display: "dir/\n"}})
+
+	var parsed struct {
+		Candidates []map[string]any `json:"candidates"`
+	}
+
+	assert.NoError(t, json.Unmarshal([]byte(output), &parsed))
+	assert.Equal(t, any("dir/"), parsed.Candidates[0]["value"])
+	assert.Equal(t, any(""), parsed.Candidates[0]["codeSuffix"])
 }
 
 func TestFormat_StyleVocabularyPassesThrough(t *testing.T) {

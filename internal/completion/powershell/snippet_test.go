@@ -17,11 +17,32 @@ func TestSnippet_SingleCommand(t *testing.T) {
 	assert.Contains(t, snippet, "using namespace System.Management.Automation\nusing namespace System.Management.Automation.Language\n")
 	assert.Contains(t, snippet, "Function _myapp_completer {")
 	assert.Contains(t, snippet, "param($wordToComplete, $commandAst, $cursorPosition)")
-	assert.Contains(t, snippet, `& $elems[0] __complete powershell $words ''`)
+	assert.Contains(t, snippet, `& $elems[0] __complete powershell $words $emptyArg`)
 	assert.Contains(t, snippet, `& $elems[0] __complete powershell $words`)
 	assert.Contains(t, snippet, "ConvertFrom-Json).candidates | ForEach-Object")
 	assert.Contains(t, snippet, "[CompletionResult]::new($_.value, $_.display.replace('`e[', ($esc + '['))")
 	assert.Contains(t, snippet, `Register-ArgumentCompleter -Native -ScriptBlock (Get-Item "Function:_myapp_completer").ScriptBlock -CommandName 'myapp' # 'myapp.exe'`)
+}
+
+func TestSnippet_EmptyArgumentFollowsArgumentPassingMode(t *testing.T) {
+	t.Parallel()
+
+	snippet := powershell.Snippet("myapp", nil, "")
+
+	assert.Contains(t, snippet, `$passing = Get-Variable -Name PSNativeCommandArgumentPassing -ValueOnly -ErrorAction Ignore`)
+	assert.Contains(t, snippet, `$emptyArg = if ($passing -eq 'Standard' -or $passing -eq 'Windows') { '' } else { '""' }`)
+	assert.Contains(t, snippet, `$t = $emptyArg`)
+	assert.NotContains(t, snippet, `$t = '""'`)
+}
+
+func TestSnippet_WordsResolveThroughParser(t *testing.T) {
+	t.Parallel()
+
+	snippet := powershell.Snippet("myapp", nil, "")
+
+	assert.Contains(t, snippet, `$statements = [Parser]::ParseInput("x $t", [ref]$null, [ref]$null).EndBlock.Statements`)
+	assert.Contains(t, snippet, `if ($element -is [StringConstantExpressionAst]) {`)
+	assert.Contains(t, snippet, `$t = $element.Value`)
 }
 
 func TestSnippet_LegacyProtocolRemoved(t *testing.T) {
@@ -38,7 +59,7 @@ func TestSnippet_MultiCommand(t *testing.T) {
 	snippet := powershell.Snippet("myapp", []string{"ma", "app"}, "")
 
 	assert.Contains(t, snippet, "$_myapp_completer = {")
-	assert.Contains(t, snippet, `& $elems[0] __complete powershell $words ''`)
+	assert.Contains(t, snippet, `& $elems[0] __complete powershell $words $emptyArg`)
 	assert.Contains(t, snippet, "Register-ArgumentCompleter -Native -ScriptBlock $_myapp_completer -CommandName 'myapp' # 'myapp.exe'\n")
 	assert.Contains(t, snippet, "Register-ArgumentCompleter -Native -ScriptBlock $_myapp_completer -CommandName 'ma' # 'ma.exe'\n")
 	assert.Contains(t, snippet, "Register-ArgumentCompleter -Native -ScriptBlock $_myapp_completer -CommandName 'app' # 'app.exe'\n")
@@ -60,7 +81,7 @@ func TestSnippet_QuotesMetacharacterNames(t *testing.T) {
 	snippet := powershell.Snippet("my app", nil, "")
 
 	assert.Contains(t, snippet, "Function _my_app_completer {")
-	assert.Contains(t, snippet, `& $elems[0] __complete powershell $words ''`)
+	assert.Contains(t, snippet, `& $elems[0] __complete powershell $words $emptyArg`)
 	assert.Contains(t, snippet, `-CommandName 'my app' # 'my app.exe'`)
 }
 

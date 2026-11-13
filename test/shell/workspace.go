@@ -30,27 +30,6 @@ type Workspace struct {
 	WorkDir string
 }
 
-// RunTests runs the suite with one temp root for the caches shared across
-// tests (compiled binaries, the zsh compinit dump, PTY shells' TMPDIR) and
-// removes it afterwards. Call it from TestMain: os.Exit(shell.RunTests(m)).
-func RunTests(m *testing.M) int {
-	root, err := os.MkdirTemp("", "conga_shelltest_*")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "failed to create shell test temp root: %v\n", err)
-
-		return 1
-	}
-
-	runTempRoot = root
-	code := m.Run()
-
-	if err := os.RemoveAll(root); err != nil {
-		fmt.Fprintf(os.Stderr, "failed to remove shell test temp root %s: %v\n", root, err)
-	}
-
-	return code
-}
-
 // NewWorkspace initializes an isolated filesystem workspace for shell completion testing.
 // It checks CONGA_TEST_ROOT, then TEST_TMPDIR, and falls back to t.TempDir().
 func NewWorkspace(t *testing.T) *Workspace {
@@ -158,6 +137,27 @@ func (ws *Workspace) Mkdir(t *testing.T, relPath string) string {
 	}
 
 	return fullPath
+}
+
+// RunTests runs the suite with one temp root for the caches shared across
+// tests (compiled binaries, the zsh compinit dump, PTY shells' TMPDIR) and
+// removes it afterwards. Call it from TestMain: os.Exit(shell.RunTests(m)).
+func RunTests(m *testing.M) int {
+	root, err := os.MkdirTemp("", "conga_shelltest_*")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to create shell test temp root: %v\n", err)
+
+		return 1
+	}
+
+	runTempRoot = root
+	code := m.Run()
+
+	if err := os.RemoveAll(root); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to remove shell test temp root %s: %v\n", root, err)
+	}
+
+	return code
 }
 
 func sanitizeName(name string) string {

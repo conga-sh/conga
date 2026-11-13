@@ -7,6 +7,7 @@ package powershell
 import (
 	"cmp"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/conga-sh/conga/internal/completion/export"
 	"github.com/conga-sh/conga/internal/completion/wire"
@@ -22,10 +23,16 @@ const (
 )
 
 // metacharacters lists the whitespace and PowerShell metacharacters that
-// force single-quoting of a candidate value.
+// force single-quoting of a candidate value, including the Unicode single
+// quotes (U+2018–U+201B) and double quotes (U+201C–U+201E) PowerShell
+// accepts. leadingMetacharacters force quoting only at the start of a value:
+// '@' starts a splat or here-string, and the en dash, em dash, and horizontal
+// bar (U+2013–U+2015), which PowerShell's tokenizer accepts as a parameter
+// dash, are quoted defensively so the value stays literal.
 const (
-	metacharacters = " `{}()[]*$?\\\"|<>&,;#'"
-	controlCutset  = "\n\t\r"
+	metacharacters        = " `{}()[]*$?\\\"|<>&,;#" + wire.PowerShellSingleQuotes + "\u201c\u201d\u201e"
+	leadingMetacharacters = "@\u2013\u2014\u2015"
+	controlCutset         = "\n\t\r"
 )
 
 // Format renders candidates and directives in the powershell framing: the
@@ -37,19 +44,15 @@ const (
 // (description)" normally, the bare display in tooltip mode); "description"
 // carries the ToolTip content (the clamped description in tooltip mode, a
 // single space otherwise). Styled segments are wrapped in backtick-escaped
-// SGR sequences when color is enabled. Candidates with an empty value are
-// dropped: they have no insertion text. toComplete is accepted for seam
-// symmetry and ignored: the framing is position-independent.
+// SGR sequences when color is enabled. Candidates with an empty value never
+// reach the framing (wire.FromResult drops them). toComplete is accepted for
+// seam symmetry and ignored: the framing is position-independent.
 func Format(toComplete string, directives wire.Directives, candidates []wire.Candidate) string {
 	colorOn := !wire.ColorDisabled()
 	tooltip := wire.Tooltip()
 
 	prepared := make([]wire.Candidate, 0, len(candidates))
 	for _, candidate := range candidates {
-		if candidate.Value == "" {
-			continue
-		}
-
 		prepared = append(prepared, composeCandidate(candidate, directives, colorOn, tooltip))
 	}
 
@@ -162,9 +165,16 @@ func styledText(sgr string, text string) string {
 }
 
 // quoteNeeded reports whether the value contains whitespace or PowerShell
-// metacharacters requiring single-quoting.
+// metacharacters, or starts with a character that is special only there,
+// requiring single-quoting.
 func quoteNeeded(value string) bool {
-	return strings.ContainsAny(value, metacharacters)
+	if strings.ContainsAny(value, metacharacters) {
+		return true
+	}
+
+	first, _ := utf8.DecodeRuneInString(value)
+
+	return strings.ContainsRune(leadingMetacharacters, first)
 }
 
 // ensureNotEmpty substitutes a single space: CompletionResult rejects empty
@@ -179,5 +189,5 @@ func ensureNotEmpty(s string) string {
 }
 
 func sanitizeField(s string) string {
-	return wire.StripControl(s, controlCutset)
+	return wire.FlattenControl(s, controlCutset)
 }

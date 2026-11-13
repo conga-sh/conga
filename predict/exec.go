@@ -1,10 +1,10 @@
 package predict
 
 import (
-	"cmp"
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 
 	"github.com/conga-sh/conga/internal/style"
@@ -23,23 +23,18 @@ func actionExecutables(ctx Context) Predictor {
 	}
 }
 
+// isExecutable reports whether a directory entry counts as executable without
+// resolving symlinks: on Windows by a PATHEXT extension, elsewhere by an
+// execute bit in the entry's own lstat mode. A symlink therefore counts by its
+// own bits (0777 on Linux), which keeps links in PATH directories listed;
+// isExecutableFile judges a resolved target instead.
 func isExecutable(entry os.DirEntry, pathExtensions []string) bool {
 	if entry.IsDir() {
 		return false
 	}
 
-	name := entry.Name()
-
 	if runtime.GOOS == "windows" {
-		lowerName := strings.ToLower(name)
-
-		for _, extension := range pathExtensions {
-			if strings.HasSuffix(lowerName, extension) {
-				return true
-			}
-		}
-
-		return false
+		return hasPathExtension(entry.Name(), pathExtensions)
 	}
 
 	info, err := entry.Info()
@@ -50,26 +45,40 @@ func isExecutable(entry os.DirEntry, pathExtensions []string) bool {
 	return info.Mode()&0111 != 0
 }
 
-func scanFilesystemExecutables(ctx Context) []Item {
-	dirPrefix, filterTerm := splitPathTarget(ctx.ToComplete)
-	searchDir := resolveSearchDir(ctx, dirPrefix)
+// isExecutableFile reports whether a resolved (non-symlink) file counts as
+// executable: a regular file with a PATHEXT extension on Windows, or with an
+// execute bit elsewhere.
+func isExecutableFile(name string, mode os.FileMode, pathExtensions []string) bool {
+	if !mode.IsRegular() {
+		return false
+	}
 
-	entries, err := os.ReadDir(searchDir)
+	if runtime.GOOS == "windows" {
+		return hasPathExtension(name, pathExtensions)
+	}
+
+	return mode&0111 != 0
+}
+
+// hasPathExtension reports whether name ends with one of the lowercased
+// PATHEXT extensions.
+func hasPathExtension(name string, pathExtensions []string) bool {
+	lowerName := strings.ToLower(name)
+
+	return slices.ContainsFunc(pathExtensions, func(extension string) bool {
+		return strings.HasSuffix(lowerName, extension)
+	})
+}
+
+func scanFilesystemExecutables(ctx Context) []Item {
+	scan := newFSScan(ctx, fsModeExecutables, nil, nil)
+
+	entries, err := os.ReadDir(scan.searchDir)
 	if err != nil {
 		return nil
 	}
 
-	pathExtensions := windowsPathExts(ctx)
-
-	var items []Item
-
-	for _, entry := range entries {
-		if item, ok := createCandidateItem(entry, searchDir, dirPrefix, filterTerm, fsModeExecutables, pathExtensions, nil); ok {
-			items = append(items, item)
-		}
-	}
-
-	return items
+	return scan.candidateItems(entries)
 }
 
 func scanPathDir(dir, toComplete string, seen map[string]bool, pathExtensions []string) []Item {
@@ -102,7 +111,7 @@ func scanPathDir(dir, toComplete string, seen map[string]bool, pathExtensions []
 		items = append(items, Item{
 			Value:   name,
 			Display: name,
-			Style:   cmp.Or(style.ForPathExt(name), style.Green),
+			Style:   style.ForExecutable(),
 			Tag:     "executables",
 		})
 	}

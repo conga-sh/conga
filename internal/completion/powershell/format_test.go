@@ -71,16 +71,36 @@ func TestFormat_MetaValueQuoting(t *testing.T) {
 	t.Setenv("CONGA_COLOR", "0")
 
 	candidates := []wire.Candidate{
+		{Value: "plain", Display: "plain"},
 		{Value: "foo bar", Display: "foo bar"},
 		{Value: "it's", Display: "it's"},
 		{Value: "a,b", Display: "a,b"},
+		{Value: "it\u2019s", Display: "it\u2019s"},
+		{Value: "\u2018x\u2019", Display: "\u2018x\u2019"},
+		{Value: "\u201cx\u201d", Display: "\u201cx\u201d"},
+		{Value: "@all", Display: "@all"},
+		{Value: "\u2013x", Display: "\u2013x"},
+		{Value: "\u2014x", Display: "\u2014x"},
+		{Value: "\u2015x", Display: "\u2015x"},
+		{Value: "a@b", Display: "a@b"},
+		{Value: "a\u2013b", Display: "a\u2013b"},
 	}
 
 	output := powershell.Format("", wire.Directives{}, candidates)
 
+	assert.Contains(t, output, `"value":"plain "`)
 	assert.Contains(t, output, `"value":"'foo bar' "`)
 	assert.Contains(t, output, `"value":"'it''s' "`)
 	assert.Contains(t, output, `"value":"'a,b' "`)
+	assert.Contains(t, output, "\"value\":\"'it\u2019\u2019s' \"")
+	assert.Contains(t, output, "\"value\":\"'\u2018\u2018x\u2019\u2019' \"")
+	assert.Contains(t, output, "\"value\":\"'\u201cx\u201d' \"")
+	assert.Contains(t, output, `"value":"'@all' "`)
+	assert.Contains(t, output, "\"value\":\"'\u2013x' \"")
+	assert.Contains(t, output, "\"value\":\"'\u2014x' \"")
+	assert.Contains(t, output, "\"value\":\"'\u2015x' \"")
+	assert.Contains(t, output, `"value":"a@b "`)
+	assert.Contains(t, output, "\"value\":\"a\u2013b \"")
 }
 
 func TestFormat_SanitizesFramingCharacters(t *testing.T) {
@@ -92,20 +112,25 @@ func TestFormat_SanitizesFramingCharacters(t *testing.T) {
 
 	output := powershell.Format("", wire.Directives{}, candidates)
 
-	assert.Contains(t, output, `"value":"abc "`)
-	assert.Contains(t, output, `"display":"xy (Firstline)"`)
+	assert.Contains(t, output, `"value":"'a b c' "`)
+	assert.Contains(t, output, `"display":"x y (First line)"`)
 }
 
-func TestFormat_DropsEmptyValues(t *testing.T) {
+func TestFormat_TrailingCarriageReturnRemovedFromValue(t *testing.T) {
 	t.Setenv("CONGA_COLOR", "0")
 
-	output := powershell.Format("", wire.Directives{}, []wire.Candidate{
-		{Value: "", Display: "ghost"},
-		{Value: "deploy", Display: "deploy"},
-	})
+	output := powershell.Format("", wire.Directives{}, []wire.Candidate{{Value: "prod\r", Display: "prod\r"}})
 
-	assert.Contains(t, output, `"candidates":[{"value":"deploy "`)
-	assert.False(t, strings.Contains(output, "ghost"), "empty-value candidates must be dropped")
+	assert.Contains(t, output, `"value":"prod "`)
+	assert.Contains(t, output, `"display":"prod"`)
+}
+
+func TestFormat_TrailingNewlineAfterSlashKeepsNospace(t *testing.T) {
+	t.Setenv("CONGA_COLOR", "0")
+
+	output := powershell.Format("", wire.Directives{}, []wire.Candidate{{Value: "dir/\n", Display: "dir/\n"}})
+
+	assert.Contains(t, output, `"value":"dir/"`)
 }
 
 func TestFormat_EmptyDisplayFallsBackToSpace(t *testing.T) {

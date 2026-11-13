@@ -15,9 +15,12 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/conga-sh/conga/internal/slicex"
 	"github.com/conga-sh/conga/predict"
 )
+
+// valueControlCutset lists the control characters FromResult flattens out of
+// candidate values and displays (FlattenControl) before any framing.
+const valueControlCutset = "\t\n\r"
 
 // Candidate is a single completion candidate on the wire.
 type Candidate struct {
@@ -166,23 +169,33 @@ func ClampDescription(description string, maxLength int) string {
 // normalized completion environment prefix (TASK_ for an app named task):
 // alias candidates are dropped when the prefixed alias variable disables them,
 // and descriptions are blanked when the prefixed description variable disables
-// them, so every framing observes the same suppressed stream. The result's
-// file-completion fallback list is engine-internal and is not carried onto the
-// wire.
+// them, so every framing observes the same suppressed stream. Tabs, newlines,
+// and carriage returns are flattened out of each value and display
+// (FlattenControl), so every framing sees the same cleaned value; descriptions
+// stay raw because fish and elvish keep only their first line. Candidates whose
+// value is then empty are dropped: they have no insertion text, and a blank
+// candidate next to a real one would keep bash and zsh from inserting the only
+// real match. The result's file-completion fallback list is engine-internal
+// and is not carried onto the wire.
 func FromResult(envPrefix string, result predict.Result) ([]Candidate, Directives) {
-	items := result.Items
+	aliases := AliasesEnabled(envPrefix)
 	descriptions := DescriptionsEnabled(envPrefix)
 
-	if !AliasesEnabled(envPrefix) {
-		items = slicex.Filter(items, func(item predict.Item) bool {
-			return !item.Alias
-		})
-	}
+	candidates := make([]Candidate, 0, len(result.Items))
 
-	candidates := slicex.Map(items, func(item predict.Item) Candidate {
+	for _, item := range result.Items {
+		if item.Alias && !aliases {
+			continue
+		}
+
+		value := FlattenControl(item.Value, valueControlCutset)
+		if value == "" {
+			continue
+		}
+
 		candidate := Candidate{
-			Value:   item.Value,
-			Display: cmp.Or(item.Display, item.Value),
+			Value:   value,
+			Display: cmp.Or(FlattenControl(item.Display, valueControlCutset), value),
 			Style:   item.Style,
 			Tag:     item.Tag,
 			Alias:   item.Alias,
@@ -192,8 +205,8 @@ func FromResult(envPrefix string, result predict.Result) ([]Candidate, Directive
 			candidate.Description = item.Description
 		}
 
-		return candidate
-	})
+		candidates = append(candidates, candidate)
+	}
 
 	directives := Directives{
 		KeepOrder:            result.Directive.Has(predict.DirectiveKeepOrder),
@@ -212,27 +225,20 @@ func FromResult(envPrefix string, result predict.Result) ([]Candidate, Directive
 	return candidates, directives
 }
 
-// StripControl removes all occurrences of any character in cutset from input.
-// It returns input unchanged if input contains no cutset characters.
-func StripControl(input, cutset string) string {
+// FlattenControl flattens the characters in cutset out of input: those at the
+// start and end are removed (a value read from CRLF lines keeps no trailing
+// "\r"), and each remaining one becomes an ASCII space. A CRLF pair counts as
+// one line break and becomes a single space when both characters are in
+// cutset. It returns input unchanged if input contains no cutset characters.
+func FlattenControl(input, cutset string) string {
 	if !strings.ContainsAny(input, cutset) {
 		return input
 	}
 
-	return strings.Map(func(r rune) rune {
-		if strings.ContainsRune(cutset, r) {
-			return -1
-		}
+	input = strings.Trim(input, cutset)
 
-		return r
-	}, input)
-}
-
-// ReplaceControlWithSpace replaces all occurrences of any character in cutset
-// from input with an ASCII space. It returns input unchanged if input contains no cutset characters.
-func ReplaceControlWithSpace(input, cutset string) string {
-	if !strings.ContainsAny(input, cutset) {
-		return input
+	if strings.ContainsRune(cutset, '\r') && strings.ContainsRune(cutset, '\n') {
+		input = strings.ReplaceAll(input, "\r\n", "\n")
 	}
 
 	return strings.Map(func(r rune) rune {

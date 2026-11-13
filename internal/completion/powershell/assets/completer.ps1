@@ -1,25 +1,48 @@
     $esc = [char]27
     $commandElements = $commandAst.CommandElements
+    # An empty argument reaches a native command only as '' under Standard
+    # (and Windows) argument passing; Windows PowerShell 5.1, PowerShell 7.0-7.2
+    # without the feature, and Legacy mode drop '' and need '""' instead.
+    $passing = Get-Variable -Name PSNativeCommandArgumentPassing -ValueOnly -ErrorAction Ignore
+    $emptyArg = if ($passing -eq 'Standard' -or $passing -eq 'Windows') { '' } else { '""' }
 
     $elems = @()
     foreach ($_ in $commandElements) {
       if ($_.Extent.StartOffset -gt $cursorPosition) {
           break
       }
+      $element = $_
       $t = $_.Extent.Text
       if ($_.Extent.EndOffset -gt $cursorPosition) {
           $t = $t.Substring(0, $_.Extent.Text.Length - ($_.Extent.EndOffset - $cursorPosition))
+          # Re-parse the text before the cursor so its quoting resolves
+          # like a whole element's.
+          $element = $null
+          $statements = [Parser]::ParseInput("x $t", [ref]$null, [ref]$null).EndBlock.Statements
+          if ($statements.Count -eq 1 -and $statements[0].PipelineElements.Count -eq 1) {
+            $reparsed = $statements[0].PipelineElements[0].CommandElements
+            if ($reparsed.Count -eq 2) {
+              $element = $reparsed[1]
+            }
+          }
       }
-      if ($t.Length -gt 0 -and ($t[0] -eq "'" -or $t[0] -eq '"')) {
-        $t = $t.Substring(1)
-      }
-      if ($t.Length -gt 0 -and ($t[$t.Length - 1] -eq "'" -or $t[$t.Length - 1] -eq '"')) {
-        $t = $t.Substring(0, $t.Length - 1)
+      if ($element -is [StringConstantExpressionAst]) {
+        # PowerShell's parser has already resolved the quoting: outer
+        # quotes, doubled quotes (ASCII and Unicode), and backtick escapes.
+        $t = $element.Value
+      } else {
+        if ($t.Length -gt 0 -and ($t[0] -eq "'" -or $t[0] -eq '"')) {
+          $t = $t.Substring(1)
+        }
+        if ($t.Length -gt 0 -and ($t[$t.Length - 1] -eq "'" -or $t[$t.Length - 1] -eq '"')) {
+          $t = $t.Substring(0, $t.Length - 1)
+        }
+        $t = $t.replace('`,', ',')
       }
       if ($t.Length -eq 0) {
-        $t = '""'
+        $t = $emptyArg
       }
-      $elems += $t.replace('`,', ',')
+      $elems += $t
     }
 
     if ($elems.Count -eq 0) {
@@ -33,7 +56,7 @@
 
     $payload = @(
       if (!$wordToComplete) {
-        & %[1]s __complete powershell $words '' 2>$null
+        & %[1]s __complete powershell $words $emptyArg 2>$null
       } else {
         & %[1]s __complete powershell $words 2>$null
       }

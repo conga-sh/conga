@@ -17,7 +17,8 @@ const controlCutset = "\t\n\r"
 // (the tab and description are omitted when the candidate has no
 // description). Descriptions are clamped per CONGA_DESCRIPTION_LENGTH
 // (wire.Candidate.TrimmedDescription). Tabs, newlines, and carriage returns
-// inside values and descriptions are normalized to single spaces. Fish has no
+// are removed at the edges of values and descriptions and become single
+// spaces inside them (wire.FlattenControl). Fish has no
 // channel for directives, messages, styles, or tags: they are silently
 // dropped. toComplete is accepted for seam symmetry and ignored: fish
 // pre-filters candidates engine-side.
@@ -37,5 +38,5 @@ func Format(toComplete string, directives wire.Directives, candidates []wire.Can
 }
 
 func sanitizeField(s string) string {
-	return wire.ReplaceControlWithSpace(s, controlCutset)
+	return wire.FlattenControl(s, controlCutset)
 }

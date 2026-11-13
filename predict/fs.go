@@ -20,6 +20,12 @@ const (
 	fsModeExecutables
 )
 
+// executableCheckBudget caps the execute-bit checks one scan spends on
+// styling. Each check is an lstat, and a scan of a very large directory must
+// stay within the predictor timeout, so files past the budget are styled by
+// name instead.
+const executableCheckBudget = 1024
+
 // Dirs configures in-process directory completion.
 func Dirs() Predictor {
 	return Callback(actionDirs)
@@ -100,6 +106,224 @@ func Symlinks() Predictor {
 }
 
 type fsScanMode int
+
+// fsScan holds the settings of one directory scan shared by every entry:
+// where the entries live, the typed word split into its directory prefix and
+// the name being completed, the scan mode with its extension filter (files
+// mode only) and entry predicate, the PATHEXT extensions that mark a file
+// executable on Windows, and the remaining budget of execute-bit checks for
+// styling (see executableCheckBudget).
+type fsScan struct {
+	searchDir        string
+	dirPrefix        string
+	filterTerm       string
+	mode             fsScanMode
+	extensions       []string
+	pathExtensions   []string
+	filter           func(path string, entry os.DirEntry) bool
+	executableChecks int
+}
+
+func newFSScan(ctx Context, mode fsScanMode, extensions []string, filter func(path string, entry os.DirEntry) bool) *fsScan {
+	dirPrefix, filterTerm := splitPathTarget(ctx.ToComplete)
+
+	return &fsScan{
+		searchDir:        resolveSearchDir(ctx, dirPrefix),
+		dirPrefix:        dirPrefix,
+		filterTerm:       filterTerm,
+		mode:             mode,
+		extensions:       extensions,
+		pathExtensions:   windowsPathExts(ctx),
+		filter:           filter,
+		executableChecks: executableCheckBudget,
+	}
+}
+
+// candidateItems turns every directory entry the scan accepts into an item.
+func (scan *fsScan) candidateItems(entries []os.DirEntry) []Item {
+	items := make([]Item, 0, len(entries))
+
+	for _, entry := range entries {
+		if item, ok := scan.candidateItem(entry); ok {
+			items = append(items, item)
+		}
+	}
+
+	return items
+}
+
+func (scan *fsScan) candidateItem(entry os.DirEntry) (Item, bool) {
+	name := entry.Name()
+	if strings.HasPrefix(name, ".") && !strings.HasPrefix(scan.filterTerm, ".") {
+		return Item{}, false
+	}
+
+	fullPath := filepath.Join(scan.searchDir, name)
+	link := scan.resolveLink(entry, fullPath)
+	isDir := entry.IsDir() || (link.target != nil && link.target.IsDir())
+
+	if !scan.matchesMode(entry, fullPath, isDir) {
+		return Item{}, false
+	}
+
+	candidateValue := scan.dirPrefix + name
+	displayValue := name
+
+	if isDir {
+		candidateValue += "/"
+		displayValue += "/"
+	}
+
+	tag := "files"
+	if isDir {
+		tag = "directories"
+	}
+
+	if scan.mode == fsModeExecutables && !isDir {
+		tag = "executables"
+	}
+
+	var description string
+
+	// Executable candidates keep the executables tag and style: the symlink
+	// decoration belongs to the generic filesystem modes.
+	if scan.mode != fsModeExecutables && link.isLink {
+		tag = "symlinks"
+
+		if link.destination != "" {
+			description = "-> " + link.destination
+		}
+	}
+
+	return Item{
+		Value:       candidateValue,
+		Display:     displayValue,
+		Description: description,
+		Style:       scan.entryStyle(entry, isDir, link),
+		Tag:         tag,
+	}, true
+}
+
+// resolveLink stats a symlink entry's target once, and reads the link text
+// in the generic filesystem modes, where it feeds the description and the
+// ln=target style.
+func (scan *fsScan) resolveLink(entry os.DirEntry, fullPath string) fsLink {
+	if entry.Type()&os.ModeSymlink == 0 {
+		return fsLink{}
+	}
+
+	link := fsLink{isLink: true}
+
+	if target, err := os.Stat(fullPath); err == nil {
+		link.target = target
+	}
+
+	if scan.mode != fsModeExecutables {
+		if destination, err := os.Readlink(fullPath); err == nil {
+			link.destination = destination
+		}
+	}
+
+	return link
+}
+
+// entryStyle picks a candidate's style by kind, in ls order: a symlink
+// (generic filesystem modes only) by its link state, a directory, an
+// executable file, then a file by its name. Every file the Executables
+// predictor lists is executable. Elsewhere a file is checked for an execute
+// bit or a PATHEXT extension when it can still match the typed name and the
+// check budget is not spent (styledAsExecutable).
+func (scan *fsScan) entryStyle(entry os.DirEntry, isDir bool, link fsLink) string {
+	if scan.mode != fsModeExecutables && link.isLink {
+		return scan.symlinkStyle(entry.Name(), link)
+	}
+
+	switch {
+	case isDir:
+		return style.ForDirectory()
+	case scan.mode == fsModeExecutables || scan.styledAsExecutable(entry):
+		return style.ForExecutable()
+	default:
+		return style.ForPathExt(entry.Name())
+	}
+}
+
+// styledAsExecutable reports whether a file in a generic filesystem mode
+// takes the executable style. The check costs an lstat on Unix, so it runs
+// only for names that can survive the engine's smart-case prefix filter of
+// the typed word, and at most executableCheckBudget times per scan.
+func (scan *fsScan) styledAsExecutable(entry os.DirEntry) bool {
+	if runtime.GOOS == "windows" {
+		return hasPathExtension(entry.Name(), scan.pathExtensions)
+	}
+
+	if scan.executableChecks <= 0 {
+		return false
+	}
+
+	if term := strings.Trim(scan.filterTerm, `'"`); term != "" && !matchesSmartCase(entry.Name(), term, strings.ToLower(term)) {
+		return false
+	}
+
+	scan.executableChecks--
+
+	return isExecutable(entry, scan.pathExtensions)
+}
+
+// symlinkStyle styles a symbolic link: the orphan style when its target is
+// missing, the link style otherwise, or under "ln=target" the style its
+// target would get, judged by the target's name as ls does.
+func (scan *fsScan) symlinkStyle(name string, link fsLink) string {
+	if link.target == nil {
+		return style.ForOrphanSymlink()
+	}
+
+	if !style.SymlinkAsTarget() {
+		return style.ForSymlink()
+	}
+
+	if link.destination != "" {
+		name = filepath.Base(link.destination)
+	}
+
+	switch {
+	case link.target.IsDir():
+		return style.ForDirectory()
+	case isExecutableFile(name, link.target.Mode(), scan.pathExtensions):
+		return style.ForExecutable()
+	default:
+		return style.ForPathExt(name)
+	}
+}
+
+func (scan *fsScan) matchesMode(entry os.DirEntry, fullPath string, isDir bool) bool {
+	switch scan.mode {
+	case fsModeDirs:
+		return isDir && passesFilter(fullPath, entry, scan.filter)
+
+	case fsModeFiles:
+		return isDir || (matchesExtension(entry.Name(), scan.extensions) && passesFilter(fullPath, entry, scan.filter))
+
+	case fsModePaths:
+		return passesFilter(fullPath, entry, scan.filter)
+
+	case fsModeExecutables:
+		return isDir || isExecutable(entry, scan.pathExtensions)
+
+	default:
+		return true
+	}
+}
+
+// fsLink describes a symbolic link entry, resolved once per entry: whether
+// the entry is a link, the target's file info (nil when the target is
+// missing), and the link text from os.Readlink ("" when it was not read or
+// could not be).
+type fsLink struct {
+	isLink      bool
+	target      os.FileInfo
+	destination string
+}
 
 func actionDirs(ctx Context) Predictor {
 	return Predictor{
@@ -182,84 +406,6 @@ func actionSymlinks(ctx Context) Predictor {
 	}
 }
 
-func createCandidateItem(entry os.DirEntry, searchDir, dirPrefix, filterTerm string, mode fsScanMode, extensions []string, filter func(path string, entry os.DirEntry) bool) (Item, bool) {
-	name := entry.Name()
-	if strings.HasPrefix(name, ".") && !strings.HasPrefix(filterTerm, ".") {
-		return Item{}, false
-	}
-
-	isDir := isEntryDir(entry, searchDir, name)
-	fullPath := filepath.Join(searchDir, name)
-
-	if !matchesScanMode(entry, fullPath, isDir, mode, extensions, filter) {
-		return Item{}, false
-	}
-
-	candidateValue := dirPrefix + name
-	displayValue := name
-
-	if isDir {
-		candidateValue += "/"
-		displayValue += "/"
-	}
-
-	tag := "files"
-	if isDir {
-		tag = "directories"
-	}
-
-	itemStyle := formatItemStyle(name, isDir)
-
-	if mode == fsModeExecutables && !isDir {
-		tag = "executables"
-		itemStyle = cmp.Or(style.ForPathExt(name), style.Green)
-	}
-
-	var description string
-
-	// Executables are reported by executable/directory kind only; symlink
-	// decoration belongs to the generic filesystem modes.
-	if mode != fsModeExecutables && entry.Type()&os.ModeSymlink != 0 {
-		tag = "symlinks"
-		itemStyle = style.Cyan
-
-		if target, err := os.Readlink(fullPath); err == nil {
-			description = "-> " + target
-		}
-	}
-
-	return Item{
-		Value:       candidateValue,
-		Display:     displayValue,
-		Description: description,
-		Style:       itemStyle,
-		Tag:         tag,
-	}, true
-}
-
-func formatItemStyle(name string, isDir bool) string {
-	if isDir {
-		return style.Of(style.Bold, style.Blue)
-	}
-
-	return style.ForPathExt(name)
-}
-
-func isEntryDir(entry os.DirEntry, searchDir, name string) bool {
-	if entry.IsDir() {
-		return true
-	}
-
-	if entry.Type()&os.ModeSymlink != 0 {
-		fullPath := filepath.Join(searchDir, name)
-		if fileInfo, err := os.Stat(fullPath); err == nil {
-			return fileInfo.IsDir()
-		}
-	}
-
-	return false
-}
-
 func matchesAnyGlob(name string, patterns []string) bool {
 	for _, pattern := range patterns {
 		if match, err := filepath.Match(pattern, name); err == nil && match {
@@ -297,25 +443,6 @@ func matchesAnyExtension(filename string, extensions []string) bool {
 	}
 
 	return false
-}
-
-func matchesScanMode(entry os.DirEntry, fullPath string, isDir bool, mode fsScanMode, extensions []string, filter func(path string, entry os.DirEntry) bool) bool {
-	switch mode {
-	case fsModeDirs:
-		return isDir && passesFilter(fullPath, entry, filter)
-
-	case fsModeFiles:
-		return isDir || (matchesExtension(entry.Name(), extensions) && passesFilter(fullPath, entry, filter))
-
-	case fsModePaths:
-		return passesFilter(fullPath, entry, filter)
-
-	case fsModeExecutables:
-		return isDir || isExecutable(entry, extensions)
-
-	default:
-		return true
-	}
 }
 
 func matchesExtension(name string, extensions []string) bool {
@@ -372,35 +499,25 @@ func resolveSearchDir(ctx Context, dirPrefix string) string {
 }
 
 func scanFilesystem(ctx Context, mode fsScanMode, extensions []string, filter func(path string, entry os.DirEntry) bool) []Item {
-	dirPrefix, filterTerm := splitPathTarget(ctx.ToComplete)
-
 	if ctx.ToComplete == "~" {
 		return []Item{
 			{
 				Value:   "~/",
 				Display: "~/",
-				Style:   style.Of(style.Bold, style.Blue),
+				Style:   style.ForDirectory(),
 				Tag:     "directories",
 			},
 		}
 	}
 
-	searchDir := resolveSearchDir(ctx, dirPrefix)
+	scan := newFSScan(ctx, mode, extensions, filter)
 
-	entries, err := os.ReadDir(searchDir)
+	entries, err := os.ReadDir(scan.searchDir)
 	if err != nil {
 		return nil
 	}
 
-	items := make([]Item, 0, len(entries))
-
-	for _, entry := range entries {
-		if item, ok := createCandidateItem(entry, searchDir, dirPrefix, filterTerm, mode, extensions, filter); ok {
-			items = append(items, item)
-		}
-	}
-
-	return items
+	return scan.candidateItems(entries)
 }
 
 func splitPathTarget(toComplete string) (string, string) {

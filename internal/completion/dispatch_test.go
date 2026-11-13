@@ -438,3 +438,26 @@ func TestNativeSupportedShells(t *testing.T) {
 
 	assert.Equal(t, []string{"bash", "elvish", "fish", "nushell", "powershell", "zsh"}, completion.SupportedShells())
 }
+
+func emptyValueResult() predict.Result {
+	return predict.Result{Items: []predict.Item{
+		{Value: "", Display: "ghost"},
+		{Value: "\r\n"},
+		{Value: "prod"},
+	}}
+}
+
+func TestFormatBashDropsEmptyValues(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "D\t\nC\tprod", completion.NewSession("bash").Format("", emptyValueResult()))
+}
+
+func TestFormatPowerShellDropsEmptyValues(t *testing.T) {
+	t.Setenv("CONGA_COLOR", "0")
+
+	formatted := completion.NewSession("powershell").Format("", emptyValueResult())
+
+	assert.Contains(t, formatted, `"candidates":[{"value":"prod "`)
+	assert.NotContains(t, formatted, "ghost")
+}
