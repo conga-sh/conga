@@ -598,3 +598,66 @@ func TestPtyZshOrder(t *testing.T) {
 		assert.Equal(t, []string{"debug", "info", "warn", "error"}, ptyTokenOrder(result.Screen, "debug", "info", "warn", "error"))
 	})
 }
+
+// TestPtyWordHandling pins the bash and zsh buffers for values containing a
+// space: a shared prefix inserts an escaped space and typing on reaches the
+// directory, an open quote is continued and closed without doubling, a
+// quoted directory keeps its path when completing inside it, and a non-ASCII
+// word before the cursor in a UTF-8 locale does not shift the cursor offset.
+// A backslash typed inside a double quote reaches zsh's PREFIX already
+// backslash-quoted, which the zsh harness does not model, and a '!' inside
+// double quotes keeps its backslash only while banghist is on.
+func TestPtyWordHandling(t *testing.T) {
+	t.Parallel()
+
+	testCases := map[string]struct {
+		shell    string
+		utf8     bool
+		options  string
+		typed    []string
+		expected string
+	}{
+		"bash shared prefix then directory":     {"bash", false, "", []string{"wordtool --kubeconfig My", "D"}, `wordtool --kubeconfig My\ Dir/`},
+		"bash open quote value":                 {"bash", false, "", []string{`wordtool --env "m`}, `wordtool --env "my env"`},
+		"bash inside quoted directory":          {"bash", false, "", []string{`wordtool --kubeconfig "My Dir/i`}, `wordtool --kubeconfig "My Dir/inner.yaml"`},
+		"bash non-ascii word before cursor":     {"bash", true, "", []string{"wordtool --kubeconfig héé --env p"}, "wordtool --kubeconfig héé --env prod"},
+		"zsh shared prefix then directory":      {"zsh", false, "", []string{"wordtool --kubeconfig My", "D"}, `wordtool --kubeconfig My\ Dir/`},
+		"zsh open quote value":                  {"zsh", false, "", []string{`wordtool --env "m`}, `wordtool --env "my env"`},
+		"zsh inside quoted directory":           {"zsh", false, "", []string{`wordtool --kubeconfig "My Dir/i`}, `wordtool --kubeconfig "My Dir/inner.yaml"`},
+		"zsh non-ascii word before cursor":      {"zsh", true, "", []string{"wordtool --kubeconfig héé --env p"}, "wordtool --kubeconfig héé --env prod"},
+		"zsh open quote keeps a backslash":      {"zsh", false, "", []string{`wordtool --kubeconfig "back\s`}, `wordtool --kubeconfig "back\\slash.yaml"`},
+		"zsh open quote escapes a history bang": {"zsh", false, "", []string{`wordtool --env "a`}, `wordtool --env "a\!b"`},
+		"zsh open quote bang under nobanghist":  {"zsh", false, "setopt nobanghist", []string{`wordtool --env "a`}, `wordtool --env "a!b"`},
+	}
+
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			workspace := setupWordtool(t)
+			session := workspace.StartPtySession(t, "wordtool", testCase.shell)
+
+			setup := "cd '" + workspace.WorkDir + "'"
+			if testCase.utf8 {
+				setup += " && export LC_ALL=C.UTF-8"
+			}
+
+			if testCase.options != "" {
+				setup += " && " + testCase.options
+			}
+
+			session.Type(setup + " && clear")
+			session.PressEnter()
+			session.Capture()
+
+			for _, text := range testCase.typed {
+				session.Type(text)
+				session.Tab()
+			}
+
+			result := session.Capture()
+
+			assert.Equal(t, testCase.expected, result.BufferAfterPrompt())
+		})
+	}
+}

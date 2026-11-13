@@ -1,9 +1,18 @@
 #compdef myapp ma app
 function _myapp_completer {
   local app_env_prefix=MYAPP_
+  # The word being completed reaches the engine unescaped, like the words
+  # before it. Inside a quote the user opened, PREFIX holds the text after
+  # the quote; single-quoted text is literal, so it skips (Q). The quote
+  # itself travels in CONGA_ZSH_QUOTE so the engine can continue it, and
+  # CONGA_ZSH_BANGHIST=0 says a '!' inside double quotes needs no backslash.
+  local quote="${compstate[quote]}"
+  local current="${PREFIX}${SUFFIX}"
+  [[ "$quote" == "'" ]] || current="${(Q)current}"
+
   local -a args
   if (( CURRENT >= 2 )); then
-    args=("${(@Q)words[2,CURRENT-1]}" "${words[CURRENT]}")
+    args=("${(@Q)words[2,CURRENT-1]}" "$current")
   else
     args=("")
   fi
@@ -36,6 +45,8 @@ function _myapp_completer {
   zstyle -T "$probe_context" verbose || conga_env+=("${app_env_prefix}COMPLETION_DESCRIPTIONS=0")
   zstyle -T "$probe_context" show-aliases || conga_env+=("${app_env_prefix}COMPLETION_ALIASES=0")
   zstyle -t "$probe_context" bare-space-flags yes true 1 on && conga_env+=("${app_env_prefix}COMPLETION_BARE_SPACE_FLAGS=1")
+  [[ -n "$quote" ]] && conga_env+=("CONGA_ZSH_QUOTE=${quote}")
+  [[ -o banghist ]] || conga_env+=("CONGA_ZSH_BANGHIST=0")
   if zstyle -s "$probe_context" list-separator user_list_separator && [[ -n "$user_list_separator" ]]; then
     conga_env+=("CONGA_ZSH_LIST_SEPARATOR=${user_list_separator}")
   fi
@@ -111,6 +122,9 @@ function _myapp_completer {
     displays=("${(@f)tag_displays[$tag]}")
     values=("${(@f)tag_values[$tag]}")
     if [[ -n "$tag" ]]; then
+      # _describe removes one level of backslash escapes from the values and
+      # cuts them at an unescaped colon, so escape both once more.
+      values=("${(@)${(@)values//\\/\\\\}//:/\\:}")
       if (( keeporder )); then
         # The leading -V keeps the order when descriptions are shown, the
         # trailing one when the verbose style is false. list-grouped would

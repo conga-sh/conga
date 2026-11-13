@@ -4,6 +4,10 @@
   export COMP_WORDBREAKS
 
   local compline="${COMP_LINE:0:${COMP_POINT}}"
+  # COMP_POINT counts characters in a UTF-8 locale; the engine slices
+  # COMP_LINE by bytes, so hand it the byte length of the text before the
+  # cursor (counted in the C locale, inside the substitution only).
+  COMP_POINT=$(LC_ALL=C; printf '%s' "${#compline}")
   local words="${compline#"${compline%%[! ]*}"}"
   local cmd="${COMP_WORDS[0]:-${words%% *}}"
   cmd="${cmd/#\~/$HOME}"

@@ -34,7 +34,8 @@ func TestPatch_StashesWordbreakPrefixFromRawLine(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"deploy", "--env=pro"}, patched)
 	assert.True(t, session.active)
-	assert.Equal(t, `--env="`, session.wordbreakPrefix)
+	assert.Equal(t, `--env=`, session.wordbreakPrefix)
+	assert.Equal(t, byte('"'), session.openQuote)
 	assert.Equal(t, "", session.compType, "unset COMP_TYPE must stash the empty raw value")
 }
 
@@ -68,6 +69,21 @@ func TestPatch_UnparseableCompPointFallsBackToLineEnd(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t, []string{"deploy", "--env", ""}, patched)
+}
+
+func TestPatch_MultibyteTextBeforeByteCompPoint(t *testing.T) {
+	t.Parallel()
+
+	line := "cloudctl deploy --label héé --env pr"
+	session := sessionWithEnvironment(map[string]string{
+		"COMP_LINE":  line,
+		"COMP_POINT": strconv.Itoa(len(line)),
+	})
+
+	patched, err := session.Patch(nil)
+
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"deploy", "--label", "héé", "--env", "pr"}, patched)
 }
 
 func TestPatch_EmptyLinePassesThrough(t *testing.T) {

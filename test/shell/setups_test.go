@@ -89,6 +89,20 @@ func setupOrdertool(t *testing.T) *shell.Workspace {
 	return workspace
 }
 
+// setupWordtool builds the word-handling fixture next to a directory and a
+// file whose names contain a space.
+func setupWordtool(t *testing.T) *shell.Workspace {
+	t.Helper()
+
+	workspace := shell.NewWorkspace(t)
+	workspace.BuildBinary(t, "./testdata/wordtool", "wordtool")
+	workspace.WriteFile(t, "My Dir/inner.yaml", []byte("kind: Config"))
+	workspace.WriteFile(t, "My File.yaml", []byte("kind: Config"))
+	workspace.WriteFile(t, `back\slash.yaml`, []byte("kind: Config"))
+
+	return workspace
+}
+
 func setupRawtool(t *testing.T) *shell.Workspace {
 	t.Helper()
 

@@ -193,8 +193,8 @@ func TestFormat_ValueEscaping(t *testing.T) {
 		{name: "braces", value: "a{b}c", escaped: `a\{b\}c`},
 		{name: "glob", value: "a*b?c", escaped: `a\*b\?c`},
 		{name: "bang caret hash", value: "a!b^c#d", escaped: `a\!b\^c\#d`},
-		{name: "colon", value: "docs:serve", escaped: `docs\:serve`},
-		{name: "multiple colons", value: "ns:sub:item", escaped: `ns\:sub\:item`},
+		{name: "colon", value: "docs:serve", escaped: `docs:serve`},
+		{name: "multiple colons", value: "ns:sub:item", escaped: `ns:sub:item`},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Setenv("CONGA_COLOR", "0")
@@ -220,6 +220,71 @@ func TestFormat_ValueEscapingPreservesAttachedAndTilde(t *testing.T) {
 
 	assert.Contains(t, output, "\x1f--env=staging \x1f")
 	assert.Contains(t, output, "\x1f~/bin/tool \x1f")
+}
+
+func TestFormat_UnclosedDoubleQuoteContinuesAndCloses(t *testing.T) {
+	t.Setenv("CONGA_COLOR", "0")
+	t.Setenv("CONGA_ZSH_QUOTE", `"`)
+
+	output := zsh.Format("My F", wire.Directives{}, []wire.Candidate{
+		{Value: "My File $1.yaml", Display: "My File $1.yaml"},
+	})
+
+	assert.Contains(t, output, "\x1f"+`My File \$1.yaml" `+"\x1f")
+}
+
+func TestFormat_UnclosedDoubleQuoteEscapesBang(t *testing.T) {
+	t.Setenv("CONGA_COLOR", "0")
+	t.Setenv("CONGA_ZSH_QUOTE", `"`)
+
+	output := zsh.Format("a", wire.Directives{}, []wire.Candidate{{Value: "a!b", Display: "a!b"}})
+
+	assert.Contains(t, output, "\x1f"+`a\!b" `+"\x1f")
+}
+
+func TestFormat_UnclosedDoubleQuoteKeepsBangBareWithoutBanghist(t *testing.T) {
+	t.Setenv("CONGA_COLOR", "0")
+	t.Setenv("CONGA_ZSH_QUOTE", `"`)
+	t.Setenv("CONGA_ZSH_BANGHIST", "0")
+
+	output := zsh.Format("a", wire.Directives{}, []wire.Candidate{{Value: "a!b", Display: "a!b"}})
+
+	assert.Contains(t, output, "\x1f"+`a!b" `+"\x1f")
+}
+
+func TestFormat_UnquotedWordEscapesBangWithoutBanghist(t *testing.T) {
+	t.Setenv("CONGA_COLOR", "0")
+	t.Setenv("CONGA_ZSH_BANGHIST", "0")
+
+	output := zsh.Format("a", wire.Directives{}, []wire.Candidate{{Value: "a!b", Display: "a!b"}})
+
+	assert.Contains(t, output, "\x1f"+`a\!b `+"\x1f")
+}
+
+func TestFormat_UnclosedSingleQuoteContinuesAndCloses(t *testing.T) {
+	t.Setenv("CONGA_COLOR", "0")
+	t.Setenv("CONGA_ZSH_QUOTE", "'")
+
+	output := zsh.Format("it", wire.Directives{}, []wire.Candidate{{Value: "it's here", Display: "it's here"}})
+
+	assert.Contains(t, output, "\x1f"+`it'\''s here' `+"\x1f")
+}
+
+func TestFormat_UnclosedQuoteLeftOpenForDirectory(t *testing.T) {
+	t.Setenv("CONGA_COLOR", "0")
+	t.Setenv("CONGA_ZSH_QUOTE", `"`)
+
+	output := zsh.Format("My D", wire.Directives{}, []wire.Candidate{{Value: "My Dir/", Display: "My Dir/"}})
+
+	assert.Contains(t, output, "\x1fMy Dir/\x1f")
+}
+
+func TestFormat_UnquotedWordEscapesTildePathTail(t *testing.T) {
+	t.Setenv("CONGA_COLOR", "0")
+
+	output := zsh.Format("~/My", wire.Directives{}, []wire.Candidate{{Value: "~/My Dir/", Display: "~/My Dir/"}})
+
+	assert.Contains(t, output, "\x1f"+`~/My\ Dir/`+"\x1f")
 }
 
 func TestFormat_NamedDirectoriesPassThrough(t *testing.T) {

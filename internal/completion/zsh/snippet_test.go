@@ -44,10 +44,30 @@ func TestSnippet_WordCollection(t *testing.T) {
 
 	snippet := zsh.Snippet("myapp", nil, "TEST_")
 
-	// Words before the one being completed are ${(Q)}-unquoted; the last
-	// word is passed raw.
-	assert.Contains(t, snippet, `args=("${(@Q)words[2,CURRENT-1]}" "${words[CURRENT]}")`)
+	// Words before the one being completed are ${(Q)}-unquoted; the current
+	// word is unquoted from PREFIX and SUFFIX unless it is single-quoted.
+	assert.Contains(t, snippet, `args=("${(@Q)words[2,CURRENT-1]}" "$current")`)
+	assert.Contains(t, snippet, `local current="${PREFIX}${SUFFIX}"`)
+	assert.Contains(t, snippet, `[[ "$quote" == "'" ]] || current="${(Q)current}"`)
 	assert.Contains(t, snippet, `args=("")`)
+}
+
+func TestSnippet_PassesQuoteState(t *testing.T) {
+	t.Parallel()
+
+	snippet := zsh.Snippet("myapp", nil, "TEST_")
+
+	assert.Contains(t, snippet, `local quote="${compstate[quote]}"`)
+	assert.Contains(t, snippet, `[[ -n "$quote" ]] && conga_env+=("CONGA_ZSH_QUOTE=${quote}")`)
+	assert.Contains(t, snippet, `[[ -o banghist ]] || conga_env+=("CONGA_ZSH_BANGHIST=0")`)
+}
+
+func TestSnippet_EscapesDescribeValuesOnceMore(t *testing.T) {
+	t.Parallel()
+
+	snippet := zsh.Snippet("myapp", nil, "TEST_")
+
+	assert.Contains(t, snippet, `values=("${(@)${(@)values//\\/\\\\}//:/\\:}")`)
 }
 
 func TestSnippet_RecordParsing(t *testing.T) {

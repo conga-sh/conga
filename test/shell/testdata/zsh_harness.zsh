@@ -78,6 +78,10 @@ _describe() {
     local -a _captured_values
     _captured_displays=("${(@f)${(@P)displays_name}}")
     _captured_values=("${(@f)${(@P)values_name}}")
+    # Real _describe cuts each value at an unescaped colon and removes one
+    # level of backslash escapes before handing it to compadd.
+    setopt localoptions extendedglob
+    _captured_values=("${(@)${(@M)_captured_values##([^:\\]|\\?)##}//\\(#b)(?)/$match[1]}")
 
     print "TAG:${tag}:${group_desc}"
     for disp in "${_captured_displays[@]}"; do
@@ -176,6 +180,15 @@ run_test_completion() {
     local IPREFIX=""
     local SUFFIX=""
     local ISUFFIX=""
+
+    # Inside a quote opened at the start of the word, zsh reports the quote
+    # in compstate[quote] and leaves the text after it in PREFIX.
+    case "$PREFIX" in
+        \"*|\'*)
+            compstate[quote]="${PREFIX[1]}"
+            PREFIX="${PREFIX[2,-1]}"
+            ;;
+    esac
 
     local first_word="${words[1]}"
     if [[ -z "$first_word" ]]; then
@@ -283,9 +296,9 @@ run_test_completion() {
         fi
     fi
 
-    print "BUFFER_TAB1:${buffer_tab1}"
+    print -r -- "BUFFER_TAB1:${buffer_tab1}"
     print "CURSOR_TAB1:${#buffer_tab1}"
-    print "BUFFER_TAB2:${buffer_tab2}"
+    print -r -- "BUFFER_TAB2:${buffer_tab2}"
     print "CURSOR_TAB2:${#buffer_tab2}"
 }
 

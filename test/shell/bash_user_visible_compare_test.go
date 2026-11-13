@@ -254,14 +254,14 @@ func TestBashUserVisible_Suite6_QuotingAndEscaping(t *testing.T) {
 		t.Parallel()
 
 		result := workspace.RunBashCompletion(t, "shell-completion", "shell-completion logs 'au")
-		assert.True(t, result.HasItem("auth"))
+		assert.True(t, result.HasItem("auth'"))
 	})
 
 	t.Run("double_quoted_positional_prefix", func(t *testing.T) {
 		t.Parallel()
 
 		result := workspace.RunBashCompletion(t, "shell-completion", "shell-completion logs \"bi")
-		assert.True(t, result.HasItem("billing"))
+		assert.True(t, result.HasItem("billing\""))
 	})
 
 	t.Run("flags_after_quoted_positional_argument", func(t *testing.T) {
