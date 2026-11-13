@@ -1015,7 +1015,7 @@ func (c *ConfigFile) String() string {
 //
 // An environment or configuration count is an unsigned integer: a sign ("-1",
 // "+2"), a non-integer, or a value too large for an int fails with
-// [ErrCoerce]. Use [OptionalFlag] with an integer type for a value set
+// [ErrConfig] (exit 1). Use [OptionalFlag] with an integer type for a value set
 // directly on the command line or for a signed value.
 //
 // Counters count command-line occurrences starting at 0, so a default tag is

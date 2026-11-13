@@ -231,14 +231,14 @@ func TestMapEntryErrorNilCausePanics(t *testing.T) {
 func TestCounterError(t *testing.T) {
 	t.Parallel()
 
-	t.Run("prose and taxonomy", func(t *testing.T) {
+	t.Run("prose without category", func(t *testing.T) {
 		t.Parallel()
 
 		_, numError := strconv.ParseUint("abc", 10, strconv.IntSize-1)
 		err := &counterError{raw: "abc", cause: numError}
 
 		assert.Equal(t, `invalid unsigned integer value "abc"`, err.Error())
-		assert.IsError(t, err, ErrCoerce)
+		assert.False(t, errors.Is(err, ErrCoerce))
 	})
 
 	t.Run("cause preserved for errors.As", func(t *testing.T) {
