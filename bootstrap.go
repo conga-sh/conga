@@ -253,7 +253,7 @@ func (a *App[T]) bindBootstrapContainers(invocation parsedInvocation, envLookup 
 			snapshot := snapshotContainer(flagSpec.Handle)
 			snapshots = append(snapshots, snapshot)
 
-			if err := applyFlagValue(cmd, invocation.cmdChain, flagSpec, invocation.flagValues, state); err != nil {
+			if err := applyFlagValue(flagBinding{cmd: cmd, cmdChain: invocation.cmdChain, flagSpec: flagSpec, cliValues: invocation.flagValues, state: state}); err != nil {
 				snapshot.restore()
 
 				if !tolerate {

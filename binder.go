@@ -86,8 +86,8 @@ type bindingState struct {
 
 // recordSourceName remembers the env variable or config key that supplied a
 // flag's value, for attribution in post-bind validation errors.
-func (b *bindingState) recordSourceName(flagSpec *spec.Flag, source ValueSource, sourceName string) {
-	if sourceName == "" || (source != SourceEnv && source != SourceConfig) {
+func (b *bindingState) recordSourceName(flagSpec *spec.Flag, origin valueOrigin) {
+	if origin.name == "" || (origin.source != SourceEnv && origin.source != SourceConfig) {
 		return
 	}
 
@@ -95,7 +95,7 @@ func (b *bindingState) recordSourceName(flagSpec *spec.Flag, source ValueSource,
 		b.SourceNames = make(map[*spec.Flag]string)
 	}
 
-	b.SourceNames[flagSpec] = sourceName
+	b.SourceNames[flagSpec] = origin.name
 }
 
 // decodeContext composes the per-value context for one field's coercion: the
@@ -846,6 +846,48 @@ func (naming flagGroupNaming) name(flagSpec *spec.Flag) string {
 	return "--" + flagSpec.Name + sourceLocation(target.Source(), naming.sourceNames[flagSpec])
 }
 
+// valueOrigin is where a value came from: its tier, and the token, variable,
+// config key, or default text that diagnostics attribute it to.
+type valueOrigin struct {
+	source ValueSource
+	name   string
+}
+
+// flagInput is the winning tier's contribution to a scalar, slice, or counter
+// flag: its raw values, their origin, and the detail recorded on the container
+// (the origin file for configuration values, otherwise the origin's name).
+type flagInput struct {
+	values []string
+	origin valueOrigin
+	detail string
+}
+
+// flagBinding is one flag being bound: the command that declares it, the chain
+// its diagnostics name, the command line's flag values, and the run's binding
+// state.
+type flagBinding struct {
+	cmd       *spec.Command
+	cmdChain  []*spec.Command
+	flagSpec  *spec.Flag
+	cliValues map[*spec.Flag][]string
+	state     *bindingState
+}
+
+// coercionError attributes a failure to convert rawValue to the flag's type to
+// the value's origin.
+func (binding flagBinding) coercionError(origin valueOrigin, rawValue string, cause error) *coercionError {
+	return &coercionError{
+		targetName: binding.flagSpec.Name,
+		isFlag:     true,
+		source:     origin.source,
+		sourceName: origin.name,
+		targetType: binding.flagSpec.TargetType,
+		rawValue:   rawValue,
+		cmdChain:   binding.cmdChain,
+		cause:      cause,
+	}
+}
+
 // stdinErrorSource picks the classification for a duplicate stdin claim: any
 // environment, configuration, or default value makes the failure a config
 // error; two command-line values stay a usage error.
@@ -1064,7 +1106,9 @@ func bindVersionCommandJSON(cmdChain []*spec.Command, versionCmd *spec.Command, 
 
 		enabled, err := coerce.Value[bool](rawValue)
 		if err != nil {
-			return newFlagCoercionError(cmdChain, flagSpec, SourceCLI, "--"+flagSpec.Name, rawValue, err)
+			binding := flagBinding{cmdChain: cmdChain, flagSpec: flagSpec}
+
+			return binding.coercionError(valueOrigin{source: SourceCLI, name: "--" + flagSpec.Name}, rawValue, err)
 		}
 
 		versionCommand.json = enabled
@@ -1330,38 +1374,31 @@ func parseTokens(cmdChain []*spec.Command, tokens []tokenizer.Token, index *flag
 }
 
 // applyFlagCoercion coerces the winning tier's raw values and records the
-// result on the flag container. sourceName attributes coercion failures to the
-// failing key, variable, or token; detail is the concrete origin stored on the
-// container, which differs from sourceName only for configuration values
-// (origin file instead of config key).
-func applyFlagCoercion(cmdChain []*spec.Command, flagSpec *spec.Flag, rawValues []string, source ValueSource, sourceName, detail string, state *bindingState) error {
-	state.recordSourceName(flagSpec, source, sourceName)
+// result on the flag container. The input's origin attributes coercion
+// failures to the failing key, variable, or token; its detail is the concrete
+// origin stored on the container, which differs from the origin's name only
+// for configuration values (origin file instead of config key).
+func applyFlagCoercion(binding flagBinding, input flagInput) error {
+	flagSpec, state, origin := binding.flagSpec, binding.state, input.origin
+
+	state.recordSourceName(flagSpec, origin)
 
 	if flagSpec.IsCounter {
 		totalCount := 0
 
-		for _, raw := range rawValues {
+		for _, raw := range input.values {
 			// Command-line occurrences arrive as "1". An environment or
 			// configuration count is an unsigned integer that fits an int: no
 			// sign, so -1 and +2 are rejected like any other non-count value.
 			parsedCount, err := strconv.ParseUint(raw, 10, strconv.IntSize-1)
 			if err != nil {
-				return &coercionError{
-					targetName: flagSpec.Name,
-					isFlag:     true,
-					source:     source,
-					sourceName: sourceName,
-					targetType: flagSpec.TargetType,
-					rawValue:   raw,
-					cmdChain:   cmdChain,
-					cause:      &counterError{raw: raw, cause: err},
-				}
+				return binding.coercionError(origin, raw, &counterError{raw: raw, cause: err})
 			}
 
 			totalCount += int(parsedCount)
 		}
 
-		flagStateOf(flagSpec.Handle).setValue(totalCount, source, detail)
+		flagStateOf(flagSpec.Handle).setValue(totalCount, origin.source, input.detail)
 
 		return nil
 	}
@@ -1369,23 +1406,23 @@ func applyFlagCoercion(cmdChain []*spec.Command, flagSpec *spec.Flag, rawValues 
 	// A scalar flag whose type reads its input while parsing cannot be
 	// last-wins: coercing every occurrence would read every file (or stdin)
 	// and discard all but one.
-	if source == SourceCLI && !flagSpec.IsSlice && len(rawValues) > 1 && readsWhileParsing(flagSpec.TargetType) {
-		return newRepeatedFlagError(cmdChain, flagSpec.Name)
+	if origin.source == SourceCLI && !flagSpec.IsSlice && len(input.values) > 1 && readsWhileParsing(flagSpec.TargetType) {
+		return newRepeatedFlagError(binding.cmdChain, flagSpec.Name)
 	}
 
-	if err := state.StdinClaim.claim(cmdChain, "--"+flagSpec.Name, flagSpec.TargetType, flagSpec.FieldTags, flagSpec.Sep, rawValues, source); err != nil {
+	if err := state.StdinClaim.claim(binding.cmdChain, "--"+flagSpec.Name, flagSpec.TargetType, flagSpec.FieldTags, flagSpec.Sep, input.values, origin.source); err != nil {
 		return err
 	}
 
 	decodeContext := state.decodeContext(flagSpec.FieldTags)
 
 	if flagSpec.IsSlice {
-		typedSlice, err := coerce.SliceWith(rawValues, flagSpec.TargetType, flagSpec.Sep, state.TypeParsers, decodeContext)
+		typedSlice, err := coerce.SliceWith(input.values, flagSpec.TargetType, flagSpec.Sep, state.TypeParsers, decodeContext)
 		if err != nil {
-			return newFlagCoercionError(cmdChain, flagSpec, source, sourceName, strings.Join(rawValues, flagSpec.Sep), err)
+			return binding.coercionError(origin, strings.Join(input.values, flagSpec.Sep), err)
 		}
 
-		flagStateOf(flagSpec.Handle).setValue(typedSlice, source, detail)
+		flagStateOf(flagSpec.Handle).setValue(typedSlice, origin.source, input.detail)
 
 		return nil
 	}
@@ -1395,21 +1432,25 @@ func applyFlagCoercion(cmdChain []*spec.Command, flagSpec *spec.Flag, rawValues 
 	// vanishing. Constraints (range, enum, Validate) apply to the winning value.
 	var typedValue any
 
-	for _, rawValue := range rawValues {
+	for _, rawValue := range input.values {
 		coerced, err := coerce.ScalarWith(rawValue, flagSpec.TargetType, state.TypeParsers, decodeContext)
 		if err != nil {
-			return newFlagCoercionError(cmdChain, flagSpec, source, sourceName, rawValue, err)
+			return binding.coercionError(origin, rawValue, err)
 		}
 
 		typedValue = coerced
 	}
 
-	flagStateOf(flagSpec.Handle).setValue(typedValue, source, detail)
+	flagStateOf(flagSpec.Handle).setValue(typedValue, origin.source, input.detail)
 
 	return nil
 }
 
-func applyFlagValue(cmd *spec.Command, cmdChain []*spec.Command, flagSpec *spec.Flag, cliValues map[*spec.Flag][]string, state *bindingState) error {
+// applyFlagValue binds one flag from its highest tier that holds a value, or
+// merges every tier key by key for a map flag.
+func applyFlagValue(binding flagBinding) error {
+	flagSpec, state := binding.flagSpec, binding.state
+
 	// Engine-owned flags of built-in commands (for example version --json) have
 	// no container: they bind through their dedicated path. --why on a meta
 	// command runs the regular flag binding pipeline, so those descriptors must
@@ -1423,7 +1464,7 @@ func applyFlagValue(cmd *spec.Command, cmdChain []*spec.Command, flagSpec *spec.
 	// different keys to the same map.
 	if flagSpec.IsMap {
 		var result mapMergeResult
-		if err := foldMapTiers(cmd, cmdChain, flagSpec, cliValues, state, nil, &result); err != nil {
+		if err := foldMapTiers(binding.cmd, binding.cmdChain, flagSpec, binding.cliValues, state, nil, &result); err != nil {
 			return err
 		}
 
@@ -1440,25 +1481,25 @@ func applyFlagValue(cmd *spec.Command, cmdChain []*spec.Command, flagSpec *spec.
 	}
 
 	// Tier 1: CLI Flags
-	if values, ok := cliValues[flagSpec]; ok && len(values) > 0 {
+	if values, ok := binding.cliValues[flagSpec]; ok && len(values) > 0 {
 		flagToken := "--" + flagSpec.Name
 
-		return applyFlagCoercion(cmdChain, flagSpec, values, SourceCLI, flagToken, flagToken, state)
+		return applyFlagCoercion(binding, flagInput{values: values, origin: valueOrigin{source: SourceCLI, name: flagToken}, detail: flagToken})
 	}
 
 	// Tier 2: Environment Variables
-	if envValue, envName, ok := lookupEnv(flagSpec, cmd, state); ok {
-		return applyFlagCoercion(cmdChain, flagSpec, []string{envValue}, SourceEnv, envName, envName, state)
+	if envValue, envName, ok := lookupEnv(flagSpec, binding.cmd, state); ok {
+		return applyFlagCoercion(binding, flagInput{values: []string{envValue}, origin: valueOrigin{source: SourceEnv, name: envName}, detail: envName})
 	}
 
 	// Tier 3: Configuration Files
-	if configValue, configKey, ok := lookupConfig(flagSpec, cmd, cmdChain, state); ok {
-		return applyFlagCoercion(cmdChain, flagSpec, []string{configValue.Raw}, SourceConfig, configKey, cmp.Or(configValue.SourceDetail(), configKey), state)
+	if configValue, configKey, ok := lookupConfig(flagSpec, binding.cmd, binding.cmdChain, state); ok {
+		return applyFlagCoercion(binding, flagInput{values: []string{configValue.Raw}, origin: valueOrigin{source: SourceConfig, name: configKey}, detail: cmp.Or(configValue.SourceDetail(), configKey)})
 	}
 
 	// Tier 4: Default Values
 	if flagSpec.Default != "" {
-		return applyFlagCoercion(cmdChain, flagSpec, []string{flagSpec.Default}, SourceDefault, flagSpec.Default, flagSpec.Default, state)
+		return applyFlagCoercion(binding, flagInput{values: []string{flagSpec.Default}, origin: valueOrigin{source: SourceDefault, name: flagSpec.Default}, detail: flagSpec.Default})
 	}
 
 	return nil
@@ -1578,7 +1619,7 @@ func resolveFlags(cmdChain []*spec.Command, cliValues map[*spec.Flag][]string, s
 				continue
 			}
 
-			if err := applyFlagValue(cmd, cmdChain, flagSpec, cliValues, state); err != nil {
+			if err := applyFlagValue(flagBinding{cmd: cmd, cmdChain: cmdChain, flagSpec: flagSpec, cliValues: cliValues, state: state}); err != nil {
 				return err
 			}
 		}
@@ -2087,7 +2128,7 @@ func resolveSliceArg(cmdChain []*spec.Command, arg *spec.Arg, remaining []string
 
 	typedSlice, err := coerce.SliceWith(remaining, arg.TargetType, arg.Sep, parsers, decodeContext)
 	if err != nil {
-		return newArgCoercionError(cmdChain, arg, SourceCLI, "", strings.Join(remaining, arg.Sep), err)
+		return newArgCoercionError(cmdChain, arg, valueOrigin{source: SourceCLI}, strings.Join(remaining, arg.Sep), err)
 	}
 
 	if err := validateArgSlice(cmdChain, arg, typedSlice, SourceCLI); err != nil {
@@ -2111,7 +2152,7 @@ func resolveEmptySliceArg(cmdChain []*spec.Command, arg *spec.Arg, parsers coerc
 	if arg.Default != "" {
 		typedSlice, err := coerce.SliceWith([]string{arg.Default}, arg.TargetType, arg.Sep, parsers, decodeContext)
 		if err != nil {
-			return newArgCoercionError(cmdChain, arg, SourceDefault, arg.Default, arg.Default, err)
+			return newArgCoercionError(cmdChain, arg, valueOrigin{source: SourceDefault, name: arg.Default}, arg.Default, err)
 		}
 
 		if err := validateArgSlice(cmdChain, arg, typedSlice, SourceDefault); err != nil {
@@ -2128,7 +2169,7 @@ func resolveMapArg(cmdChain []*spec.Command, arg *spec.Arg, tokens []string, par
 	if len(tokens) > 0 {
 		parsedMap, err := parseMapTokens(tokens, arg.TargetType, arg.Sep, parsers)
 		if err != nil {
-			return newArgCoercionError(cmdChain, arg, SourceCLI, "", strings.Join(tokens, " "), err)
+			return newArgCoercionError(cmdChain, arg, valueOrigin{source: SourceCLI}, strings.Join(tokens, " "), err)
 		}
 
 		if err := validateArgMap(cmdChain, arg, parsedMap, SourceCLI); err != nil {
@@ -2143,7 +2184,7 @@ func resolveMapArg(cmdChain []*spec.Command, arg *spec.Arg, tokens []string, par
 	if arg.Default != "" {
 		parsedMap, err := parseMapTokens([]string{arg.Default}, arg.TargetType, arg.Sep, parsers)
 		if err != nil {
-			return newArgCoercionError(cmdChain, arg, SourceDefault, arg.Default, arg.Default, err)
+			return newArgCoercionError(cmdChain, arg, valueOrigin{source: SourceDefault, name: arg.Default}, arg.Default, err)
 		}
 
 		if err := validateArgMap(cmdChain, arg, parsedMap, SourceDefault); err != nil {
@@ -2178,7 +2219,7 @@ func resolveScalarArg(cmdChain []*spec.Command, arg *spec.Arg, posTokens []strin
 
 		typedValue, err := coerce.ScalarWith(raw, arg.TargetType, parsers, decodeContext)
 		if err != nil {
-			return false, newArgCoercionError(cmdChain, arg, SourceCLI, "", raw, err)
+			return false, newArgCoercionError(cmdChain, arg, valueOrigin{source: SourceCLI}, raw, err)
 		}
 
 		if err := validateArgScalar(cmdChain, arg, typedValue, SourceCLI); err != nil {
@@ -2197,7 +2238,7 @@ func resolveScalarArg(cmdChain []*spec.Command, arg *spec.Arg, posTokens []strin
 
 		typedValue, err := coerce.ScalarWith(arg.Default, arg.TargetType, parsers, decodeContext)
 		if err != nil {
-			return false, newArgCoercionError(cmdChain, arg, SourceDefault, arg.Default, arg.Default, err)
+			return false, newArgCoercionError(cmdChain, arg, valueOrigin{source: SourceDefault, name: arg.Default}, arg.Default, err)
 		}
 
 		if err := validateArgScalar(cmdChain, arg, typedValue, SourceDefault); err != nil {
@@ -2794,25 +2835,12 @@ func isMetaCommand(cmd *spec.Command) bool {
 	return cmd != nil && (cmd.IsCompletionCmd || cmd.IsHelpCmd || cmd.IsVersionCmd)
 }
 
-func newFlagCoercionError(cmdChain []*spec.Command, flagSpec *spec.Flag, source ValueSource, sourceName, rawValue string, cause error) *coercionError {
-	return &coercionError{
-		targetName: flagSpec.Name,
-		isFlag:     true,
-		source:     source,
-		sourceName: sourceName,
-		targetType: flagSpec.TargetType,
-		rawValue:   rawValue,
-		cmdChain:   cmdChain,
-		cause:      cause,
-	}
-}
-
-func newArgCoercionError(cmdChain []*spec.Command, arg *spec.Arg, source ValueSource, sourceName, rawValue string, cause error) *coercionError {
+func newArgCoercionError(cmdChain []*spec.Command, arg *spec.Arg, origin valueOrigin, rawValue string, cause error) *coercionError {
 	return &coercionError{
 		targetName: arg.Name,
 		isFlag:     false,
-		source:     source,
-		sourceName: sourceName,
+		source:     origin.source,
+		sourceName: origin.name,
 		targetType: arg.TargetType,
 		rawValue:   rawValue,
 		cmdChain:   cmdChain,
@@ -2829,7 +2857,7 @@ func foldMapTier(cmdChain []*spec.Command, flagSpec *spec.Flag, rawValues []stri
 	if err != nil {
 		result.hasValues = true
 
-		return newFlagCoercionError(cmdChain, flagSpec, source, name, strings.Join(rawValues, flagSpec.Sep), err)
+		return flagBinding{cmdChain: cmdChain, flagSpec: flagSpec}.coercionError(valueOrigin{source: source, name: name}, strings.Join(rawValues, flagSpec.Sep), err)
 	}
 
 	for _, entry := range entries {
@@ -3136,7 +3164,7 @@ func foldRegisteredMapTier(rawValues []string, source ValueSource, name string, 
 	if err != nil {
 		result.hasValues = true
 
-		return newFlagCoercionError(cmdChain, flagSpec, source, name, strings.Join(rawValues, flagSpec.Sep), err)
+		return flagBinding{cmdChain: cmdChain, flagSpec: flagSpec}.coercionError(valueOrigin{source: source, name: name}, strings.Join(rawValues, flagSpec.Sep), err)
 	}
 
 	result.hasValues = true
@@ -3183,14 +3211,14 @@ func foldRegisteredMapConfigTier(cmdChain []*spec.Command, flagSpec *spec.Flag, 
 		if err != nil {
 			result.hasValues = true
 
-			return newFlagCoercionError(cmdChain, flagSpec, SourceConfig, configKey, raw, err)
+			return flagBinding{cmdChain: cmdChain, flagSpec: flagSpec}.coercionError(valueOrigin{source: SourceConfig, name: configKey}, raw, err)
 		}
 
 		parsedValue, mergeErr := mergeParsedMapValue(parsed, flagSpec.TargetType, merged)
 		if mergeErr != nil {
 			result.hasValues = true
 
-			return newFlagCoercionError(cmdChain, flagSpec, SourceConfig, configKey, raw, mergeErr)
+			return flagBinding{cmdChain: cmdChain, flagSpec: flagSpec}.coercionError(valueOrigin{source: SourceConfig, name: configKey}, raw, mergeErr)
 		}
 
 		result.hasValues = true
