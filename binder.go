@@ -600,22 +600,22 @@ type stdinClaim struct {
 // a usage error when both values came from the command line; a conflicting
 // environment, configuration, or default value classifies under ErrConfig. It
 // is checked before coercion, so nothing reads stdin twice.
-func (c *stdinClaim) claim(cmdChain []*spec.Command, owner string, targetType reflect.Type, tags spec.FieldTags, sep string, rawValues []string, source ValueSource) error {
-	if c == nil || targetType == nil {
+func (c *stdinClaim) claim(cmdChain []*spec.Command, owner stdinOwner, rawValues []string, source ValueSource) error {
+	if c == nil || owner.targetType == nil {
 		return nil
 	}
 
-	elemType := targetType
+	elemType := owner.targetType
 	items := rawValues
 
-	if targetType.Kind() == reflect.Slice {
-		elemType = targetType.Elem()
-		items = coerce.SliceItems(rawValues, sep, elemType)
+	if owner.targetType.Kind() == reflect.Slice {
+		elemType = owner.targetType.Elem()
+		items = coerce.SliceItems(rawValues, owner.sep, elemType)
 	} else if slices.Contains(rawValues, "-") {
 		items = []string{"-"}
 	}
 
-	if !readsStdin(elemType, tags) {
+	if !readsStdin(elemType, owner.tags) {
 		return nil
 	}
 
@@ -625,16 +625,36 @@ func (c *stdinClaim) claim(cmdChain []*spec.Command, owner string, targetType re
 		}
 
 		if c.owner == "" {
-			c.owner = owner
+			c.owner = owner.name
 			c.source = source
 
 			continue
 		}
 
-		return newStdinReadTwiceError(cmdChain, c.owner, owner, stdinErrorSource(c.source, source))
+		return newStdinReadTwiceError(cmdChain, c.owner, owner.name, stdinErrorSource(c.source, source))
 	}
 
 	return nil
+}
+
+// claimFlag claims stdin for a flag's values from source.
+func (c *stdinClaim) claimFlag(cmdChain []*spec.Command, flagSpec *spec.Flag, values []string, source ValueSource) error {
+	return c.claim(cmdChain, stdinOwner{name: "--" + flagSpec.Name, targetType: flagSpec.TargetType, tags: flagSpec.FieldTags, sep: flagSpec.Sep}, values, source)
+}
+
+// claimArg claims stdin for a positional argument's values from source.
+func (c *stdinClaim) claimArg(cmdChain []*spec.Command, arg *spec.Arg, values []string, source ValueSource) error {
+	return c.claim(cmdChain, stdinOwner{name: "argument " + arg.Name, targetType: arg.TargetType, tags: arg.FieldTags, sep: arg.Sep}, values, source)
+}
+
+// stdinOwner is a flag or argument that may claim stdin: the name a conflict
+// reports, and the type, tags, and separator that decide which of its values
+// read stdin.
+type stdinOwner struct {
+	name       string
+	targetType reflect.Type
+	tags       spec.FieldTags
+	sep        string
 }
 
 // stdinDashReader is implemented by the domain types whose "-" value reads
@@ -1044,7 +1064,7 @@ func (resolver argResolver) slice(arg *spec.Arg, remaining []string) error {
 
 	if len(remaining) == 0 {
 		if arg.Default != "" {
-			if err := resolver.stdin.claim(resolver.cmdChain, "argument "+arg.Name, arg.TargetType, arg.FieldTags, arg.Sep, []string{arg.Default}, SourceDefault); err != nil {
+			if err := resolver.stdin.claimArg(resolver.cmdChain, arg, []string{arg.Default}, SourceDefault); err != nil {
 				return err
 			}
 		}
@@ -1052,7 +1072,7 @@ func (resolver argResolver) slice(arg *spec.Arg, remaining []string) error {
 		return resolver.emptySlice(arg, decodeContext)
 	}
 
-	if err := resolver.stdin.claim(resolver.cmdChain, "argument "+arg.Name, arg.TargetType, arg.FieldTags, arg.Sep, remaining, SourceCLI); err != nil {
+	if err := resolver.stdin.claimArg(resolver.cmdChain, arg, remaining, SourceCLI); err != nil {
 		return err
 	}
 
@@ -1143,7 +1163,7 @@ func (resolver argResolver) scalar(arg *spec.Arg, posTokens []string, tokenIdx i
 	if tokenIdx < len(posTokens) {
 		raw := posTokens[tokenIdx]
 
-		if err := resolver.stdin.claim(resolver.cmdChain, "argument "+arg.Name, arg.TargetType, arg.FieldTags, "", []string{raw}, SourceCLI); err != nil {
+		if err := resolver.stdin.claimArg(resolver.cmdChain, arg, []string{raw}, SourceCLI); err != nil {
 			return false, err
 		}
 
@@ -1162,7 +1182,7 @@ func (resolver argResolver) scalar(arg *spec.Arg, posTokens []string, tokenIdx i
 	}
 
 	if arg.Default != "" {
-		if err := resolver.stdin.claim(resolver.cmdChain, "argument "+arg.Name, arg.TargetType, arg.FieldTags, "", []string{arg.Default}, SourceDefault); err != nil {
+		if err := resolver.stdin.claimArg(resolver.cmdChain, arg, []string{arg.Default}, SourceDefault); err != nil {
 			return false, err
 		}
 
@@ -1738,7 +1758,7 @@ func applyFlagCoercion(binding flagBinding, input flagInput) error {
 		return newRepeatedFlagError(binding.cmdChain, flagSpec.Name)
 	}
 
-	if err := state.StdinClaim.claim(binding.cmdChain, "--"+flagSpec.Name, flagSpec.TargetType, flagSpec.FieldTags, flagSpec.Sep, input.values, origin.source); err != nil {
+	if err := state.StdinClaim.claimFlag(binding.cmdChain, flagSpec, input.values, origin.source); err != nil {
 		return err
 	}
 
