@@ -6,6 +6,10 @@ import (
 	"strings"
 )
 
+// PowerShellSingleQuotes lists the characters PowerShell treats as a single
+// quote: ASCII ' and U+2018–U+201B.
+const PowerShellSingleQuotes = "'\u2018\u2019\u201a\u201b"
+
 // posixSafePunctuation lists the non-alphanumeric characters that need no
 // quoting in a POSIX shell word.
 const posixSafePunctuation = "-_/.:,@"
@@ -26,15 +30,35 @@ func QuoteFish(s string) string {
 }
 
 // QuotePowerShell quotes s as a PowerShell single-quoted string literal, in
-// which embedded single quotes are doubled.
+// which every character PowerShell reads as a single quote is doubled: the
+// ASCII ' and the Unicode quotes U+2018–U+201B (‘ ’ ‚ ‛), any of which would
+// otherwise end the literal.
 func QuotePowerShell(s string) string {
-	return quoteSingleDoubled(s)
+	if !strings.ContainsAny(s, PowerShellSingleQuotes) {
+		return "'" + s + "'"
+	}
+
+	var builder strings.Builder
+
+	builder.WriteByte('\'')
+
+	for _, r := range s {
+		if strings.ContainsRune(PowerShellSingleQuotes, r) {
+			builder.WriteRune(r)
+		}
+
+		builder.WriteRune(r)
+	}
+
+	builder.WriteByte('\'')
+
+	return builder.String()
 }
 
 // QuoteElvish quotes s for safe evaluation in elvish: single quotes preserve
 // every character except the single quote itself, which is doubled.
 func QuoteElvish(s string) string {
-	return quoteSingleDoubled(s)
+	return "'" + strings.ReplaceAll(s, "'", "''") + "'"
 }
 
 // ExecTarget returns name when set, and otherwise resolves the base name of
@@ -100,12 +124,6 @@ func QuoteIfUnsafe(s string, unsafe string, quote func(string) string) string {
 	}
 
 	return s
-}
-
-// quoteSingleDoubled wraps s in single quotes with embedded single quotes
-// doubled: the shared PowerShell and elvish single-quote literal rule.
-func quoteSingleDoubled(s string) string {
-	return "'" + strings.ReplaceAll(s, "'", "''") + "'"
 }
 
 // isPOSIXSafe reports whether every rune of s is literal in an unquoted POSIX

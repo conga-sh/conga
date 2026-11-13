@@ -122,7 +122,7 @@ func TestFormat_TrailingEqualsAndSlashImpliedNospace(t *testing.T) {
 	assert.Equal(t, any("file.txt "), parsed[2]["value"])
 }
 
-func TestFormat_SanitizesCarriageReturnsAndNewlinesKeepsTabs(t *testing.T) {
+func TestFormat_ReplacesControlCharactersWithSpaces(t *testing.T) {
 	t.Parallel()
 
 	output := nushell.Format("", wire.Directives{}, []wire.Candidate{
@@ -132,11 +132,47 @@ func TestFormat_SanitizesCarriageReturnsAndNewlinesKeepsTabs(t *testing.T) {
 	var parsed []map[string]any
 
 	assert.NoError(t, json.Unmarshal([]byte(output), &parsed))
-	assert.Equal(t, any("va\tlue "), parsed[0]["value"], "tabs are kept")
-	assert.Equal(t, any("displayname"), parsed[0]["display"])
+	assert.Equal(t, any(`"va lue" `), parsed[0]["value"], "a tab becomes a space, which forces quoting")
+	assert.Equal(t, any("dis play name"), parsed[0]["display"])
 	// Descriptions are flattened (sanitized before clamping, unlike fish's
 	// and elvish's first-line cut).
-	assert.Equal(t, any("descwithnewlines"), parsed[0]["description"])
+	assert.Equal(t, any("desc with newlines"), parsed[0]["description"])
+}
+
+func TestFormat_TrailingCarriageReturnRemovedFromValue(t *testing.T) {
+	t.Parallel()
+
+	output := nushell.Format("", wire.Directives{}, []wire.Candidate{{Value: "prod\r", Display: "prod\r"}})
+
+	var parsed []map[string]any
+
+	assert.NoError(t, json.Unmarshal([]byte(output), &parsed))
+	assert.Equal(t, any("prod "), parsed[0]["value"])
+	assert.Equal(t, any("prod"), parsed[0]["display"])
+}
+
+func TestFormat_TrailingNewlineAfterSlashKeepsNospace(t *testing.T) {
+	t.Parallel()
+
+	output := nushell.Format("", wire.Directives{}, []wire.Candidate{{Value: "dir/\n", Display: "dir/\n"}})
+
+	var parsed []map[string]any
+
+	assert.NoError(t, json.Unmarshal([]byte(output), &parsed))
+	assert.Equal(t, any("dir/"), parsed[0]["value"])
+}
+
+func TestFormat_CRLFDescriptionFlattensToOneSpace(t *testing.T) {
+	t.Parallel()
+
+	output := nushell.Format("", wire.Directives{}, []wire.Candidate{
+		{Value: "multi", Display: "multi", Description: "first line\r\nsecond line"},
+	})
+
+	var parsed []map[string]any
+
+	assert.NoError(t, json.Unmarshal([]byte(output), &parsed))
+	assert.Equal(t, any("first line second line"), parsed[0]["description"])
 }
 
 func TestFormat_StyleRecords(t *testing.T) {
@@ -196,7 +232,7 @@ func TestFormat_DescriptionClamped(t *testing.T) {
 	var parsed []map[string]any
 
 	assert.NoError(t, json.Unmarshal([]byte(output), &parsed))
-	assert.Equal(t, any("firstse..."), parsed[0]["description"])
+	assert.Equal(t, any("first s..."), parsed[0]["description"])
 }
 
 func TestFormat_ColorDisabledVariants(t *testing.T) {

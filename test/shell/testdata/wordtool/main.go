@@ -1,5 +1,6 @@
 // Command wordtool is a shell-completion fixture for word handling: a file
-// flag for paths containing spaces and an enum whose values need quoting.
+// flag for paths containing spaces and an enum whose values need quoting,
+// including an ASCII and a Unicode (U+2019) apostrophe.
 package main
 
 import (
@@ -11,7 +12,7 @@ import (
 // CLI declares the flags the word-handling tests complete.
 type CLI struct {
 	Kubeconfig conga.OptionalFlag[conga.File] `help:"Kubeconfig file"`
-	Env        conga.OptionalFlag[string]     `enum:"my env,a!b,prod"  help:"Target environment"`
+	Env        conga.OptionalFlag[string]     `enum:"my env,a!b,prod,it's,it’s"  help:"Target environment"`
 	Completion conga.CompletionCommand
 }
 

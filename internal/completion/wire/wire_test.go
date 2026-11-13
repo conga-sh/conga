@@ -34,6 +34,32 @@ func TestFromResultPreservesDisplayOverride(t *testing.T) {
 	}, candidates)
 }
 
+func TestFromResultDropsValuesEmptyAfterCleaning(t *testing.T) {
+	t.Parallel()
+
+	result := predict.Result{Items: []predict.Item{
+		{Value: "", Display: "ghost"},
+		{Value: "\r\n"},
+		{Value: "prod\r"},
+	}}
+
+	candidates, _ := wire.FromResult(testEnvPrefix, result)
+
+	assert.Equal(t, []wire.Candidate{{Value: "prod", Display: "prod"}}, candidates)
+}
+
+func TestFromResultCleansValueAndDisplayButNotDescription(t *testing.T) {
+	t.Parallel()
+
+	result := predict.Result{Items: []predict.Item{
+		{Value: "prod\r\n", Display: "\tprod (eu)\r", Description: "first\nsecond"},
+	}}
+
+	candidates, _ := wire.FromResult(testEnvPrefix, result)
+
+	assert.Equal(t, []wire.Candidate{{Value: "prod", Display: "prod (eu)", Description: "first\nsecond"}}, candidates)
+}
+
 func TestFromResultCopiesFieldsVerbatimInEngineOrder(t *testing.T) {
 	t.Parallel()
 
@@ -409,18 +435,33 @@ func TestCandidateTrimmedDescription(t *testing.T) {
 	assert.Equal(t, "hé...", runes.TrimmedDescription())
 }
 
-func TestStripControl(t *testing.T) {
+func TestFlattenControl(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, "clean string", wire.StripControl("clean string", "\n\r\t"))
-	assert.Equal(t, "foobar", wire.StripControl("foo\n\r\tbar", "\n\r\t"))
-	assert.Equal(t, "", wire.StripControl("\n\n\r\t", "\n\r\t"))
+	assert.Equal(t, "clean string", wire.FlattenControl("clean string", "\n\r\t"))
+	assert.Equal(t, "foo   bar", wire.FlattenControl("foo\n\r\tbar", "\n\r\t"))
 }
 
-func TestReplaceControlWithSpace(t *testing.T) {
+func TestFlattenControl_EdgesAreRemoved(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, "clean string", wire.ReplaceControlWithSpace("clean string", "\n\r\t"))
-	assert.Equal(t, "foo   bar", wire.ReplaceControlWithSpace("foo\n\r\tbar", "\n\r\t"))
-	assert.Equal(t, "    ", wire.ReplaceControlWithSpace("\n\n\r\t", "\n\r\t"))
+	assert.Equal(t, "prod", wire.FlattenControl("\tprod\r\n", "\t\n\r"))
+}
+
+func TestFlattenControl_OnlyControlCharactersBecomeEmpty(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "", wire.FlattenControl("\n\n\r\t", "\n\r\t"))
+}
+
+func TestFlattenControl_CRLFIsOneSpace(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "first second", wire.FlattenControl("first\r\nsecond", "\t\n\r"))
+}
+
+func TestFlattenControl_CRLFKeepsBothWhenOnlyCRIsCut(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "first \nsecond", wire.FlattenControl("first\r\nsecond", "\r"))
 }

@@ -178,6 +178,22 @@ func TestFormat_SanitizesFramingCharactersInValues(t *testing.T) {
 	assert.Equal(t, "D\t\nC\t"+`with\ tab\ newline`, formatted)
 }
 
+func TestFormat_TrailingCarriageReturnRemovedFromValue(t *testing.T) {
+	t.Parallel()
+
+	formatted := NewSession().Format("", wire.Directives{}, []wire.Candidate{{Value: "prod\r"}})
+
+	assert.Equal(t, "D\t\nC\tprod", formatted)
+}
+
+func TestFormat_TrailingNewlineAfterSlashKeepsNospace(t *testing.T) {
+	t.Parallel()
+
+	formatted := NewSession().Format("", wire.Directives{}, []wire.Candidate{{Value: "dir/\n"}})
+
+	assert.Equal(t, "D\tnospace\nC\tdir/", formatted)
+}
+
 func TestFormat_StripsWordbreakPrefixDerivedFromToComplete(t *testing.T) {
 	t.Parallel()
 
@@ -323,6 +339,22 @@ func TestFormat_DoesNotCollapseUnsharedValues(t *testing.T) {
 	candidates := []wire.Candidate{{Value: "staging"}, {Value: "production"}, {Value: "qa"}}
 
 	assert.Equal(t, "D\t\nC\tstaging\nC\tproduction\nC\tqa", NewSession().Format("", wire.Directives{}, candidates))
+}
+
+func TestFormat_DoesNotCollapseValuesThatDifferOnlyInControlCharacters(t *testing.T) {
+	t.Parallel()
+
+	candidates := []wire.Candidate{{Value: "prod\r\n"}, {Value: "prod\r\t"}}
+
+	assert.Equal(t, "D\t\nC\tprod\nC\tprod", NewSession().Format("prod", wire.Directives{}, candidates))
+}
+
+func TestFormat_CollapsesPrefixSharedAfterCleaning(t *testing.T) {
+	t.Parallel()
+
+	candidates := []wire.Candidate{{Value: "a\tb"}, {Value: "a\nc"}}
+
+	assert.Equal(t, "D\tnospace\nC\ta\\ ", NewSession().Format("a", wire.Directives{}, candidates))
 }
 
 func TestFormat_SuccessiveTabsRenderTriplets(t *testing.T) {

@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"unicode/utf16"
 	"unicode/utf8"
 
 	_ "embed"
@@ -538,6 +539,16 @@ func (ws *Workspace) RunFishCompletion(t *testing.T, binaryName, cmdLine string,
 func (ws *Workspace) RunPowerShellCompletion(t *testing.T, binaryName, cmdLine string, extraEnv ...string) *PowerShellResult {
 	t.Helper()
 
+	return ws.RunPowerShellCompletionWithSetup(t, binaryName, cmdLine, "", extraEnv...)
+}
+
+// RunPowerShellCompletionWithSetup runs setupScript in the PowerShell session
+// before loading the completion script (for example to set
+// $PSNativeCommandArgumentPassing), then completes cmdLine like
+// RunPowerShellCompletion.
+func (ws *Workspace) RunPowerShellCompletionWithSetup(t *testing.T, binaryName, cmdLine, setupScript string, extraEnv ...string) *PowerShellResult {
+	t.Helper()
+
 	pwshPath, err := exec.LookPath("pwsh")
 	if err != nil {
 		pwshPath, err = exec.LookPath("powershell")
@@ -552,12 +563,15 @@ func (ws *Workspace) RunPowerShellCompletion(t *testing.T, binaryName, cmdLine s
 		t.Skip("pwsh/powershell binary not found on PATH; skipping real PowerShell completion test")
 	}
 
-	psEscapedCmdLine := strings.ReplaceAll(cmdLine, "'", "''")
+	// The command line is embedded in a single-quoted PowerShell literal, so
+	// every character PowerShell reads as a single quote (ASCII ' and
+	// U+2018–U+201B) is doubled.
+	psEscapedCmdLine := strings.NewReplacer("'", "''", "\u2018", "\u2018\u2018", "\u2019", "\u2019\u2019", "\u201a", "\u201a\u201a", "\u201b", "\u201b\u201b").Replace(cmdLine)
 	// CompleteInput throws when a native completer returns the documented
 	// empty-result "" sentinel (the contract that suppresses PowerShell's
 	// default file completion); interactive sessions swallow that exception
 	// inside PSReadLine, so the harness mirrors PSReadLine and catches it.
-	psScript := fmt.Sprintf(`& { $comp = & '%s' completion powershell 2>$null; if (-not $comp) { $comp = & '%s' --completion powershell 2>$null }; $comp | Out-String | Invoke-Expression; $cc = $null; try { $cc = [System.Management.Automation.CommandCompletion]::CompleteInput('%s', %d, $null) } catch { }; $matches = @(); if ($cc) { $matches = @($cc.CompletionMatches) }; [PSCustomObject]@{ completionPrefix = [string]$cc.CompletionPrefix; replacementIndex = $cc.ReplacementIndex; items = @($matches | ForEach-Object { [PSCustomObject]@{ completionText = $_.CompletionText; listItemText = $_.ListItemText; toolTip = $_.ToolTip } }) } | ConvertTo-Json -Depth 6 }`, binaryName, binaryName, psEscapedCmdLine, len(cmdLine))
+	psScript := setupScript + "\n" + fmt.Sprintf(`& { $comp = & '%s' completion powershell 2>$null; if (-not $comp) { $comp = & '%s' --completion powershell 2>$null }; $comp | Out-String | Invoke-Expression; $cc = $null; try { $cc = [System.Management.Automation.CommandCompletion]::CompleteInput('%s', %d, $null) } catch { }; $matches = @(); if ($cc) { $matches = @($cc.CompletionMatches) }; [PSCustomObject]@{ completionPrefix = [string]$cc.CompletionPrefix; replacementIndex = $cc.ReplacementIndex; items = @($matches | ForEach-Object { [PSCustomObject]@{ completionText = $_.CompletionText; listItemText = $_.ListItemText; toolTip = $_.ToolTip } }) } | ConvertTo-Json -Depth 6 }`, binaryName, binaryName, psEscapedCmdLine, utf16Length(cmdLine))
 	stdout, stderr := ws.executeShellCommandSplit(t, pwshPath, []string{"-NoProfile", "-NonInteractive", "-Command", psScript}, extraEnv...)
 
 	payload, leak := splitPowerShellPayload(stdout)
@@ -574,11 +588,13 @@ func (ws *Workspace) RunPowerShellCompletion(t *testing.T, binaryName, cmdLine s
 		}
 	}
 
+	// PowerShell offsets count UTF-16 code units; convert to a byte offset.
+	replacementOffset := byteOffsetForUTF16(cmdLine, parsed.ReplacementIndex)
 	bufferTab1 := cmdLine
 
 	bufferTab2 := cmdLine
 	if len(parsed.Items) == 1 {
-		bufferTab1 = cmdLine[:parsed.ReplacementIndex] + parsed.Items[0].CompletionText
+		bufferTab1 = cmdLine[:replacementOffset] + parsed.Items[0].CompletionText
 		bufferTab2 = bufferTab1
 	} else if len(parsed.Items) > 1 {
 		psCandidates := make([]Candidate, len(parsed.Items))
@@ -588,10 +604,10 @@ func (ws *Workspace) RunPowerShellCompletion(t *testing.T, binaryName, cmdLine s
 
 		lcp := commonCandidatePrefix(psCandidates)
 		if len(lcp) > len(parsed.CompletionPrefix) {
-			bufferTab1 = cmdLine[:parsed.ReplacementIndex] + lcp
+			bufferTab1 = cmdLine[:replacementOffset] + lcp
 		}
 
-		bufferTab2 = cmdLine[:parsed.ReplacementIndex] + parsed.Items[0].CompletionText
+		bufferTab2 = cmdLine[:replacementOffset] + parsed.Items[0].CompletionText
 	}
 
 	return &PowerShellResult{
@@ -1157,4 +1173,30 @@ func commonCandidatePrefix(candidates []Candidate) string {
 	}
 
 	return prefix
+}
+
+// utf16Length returns the length of s in UTF-16 code units, the unit
+// PowerShell uses for cursor and replacement offsets.
+func utf16Length(s string) int {
+	length := 0
+	for _, r := range s {
+		length += utf16.RuneLen(r)
+	}
+
+	return length
+}
+
+// byteOffsetForUTF16 converts a UTF-16 code unit offset into s to a byte
+// offset, clamped to len(s).
+func byteOffsetForUTF16(s string, index int) int {
+	units := 0
+	for offset, r := range s {
+		if units >= index {
+			return offset
+		}
+
+		units += utf16.RuneLen(r)
+	}
+
+	return len(s)
 }

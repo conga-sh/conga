@@ -1,5 +1,5 @@
 {
-  "description": "Descriptions beyond the 80-rune default limit and multi-line descriptions (only the first line, clamped, with '...').",
+  "description": "Descriptions beyond the 80-rune default limit and multi-line descriptions (flattened into one line, line breaks becoming spaces, then clamped with '...').",
   "input": {
     "currentWord": "",
     "directives": {
@@ -27,5 +27,5 @@
       }
     ]
   },
-  "observed": "[{\"value\":\"long \",\"display\":\"long\",\"description\":\"This description is deliberately longer than eighty runes so that the clampin...\"},{\"value\":\"multi \",\"display\":\"multi\",\"description\":\"first linesecond linethird line\"},{\"value\":\"exact \",\"display\":\"exact\",\"description\":\"exactly-eighty-runes............................................................\"}]"
+  "observed": "[{\"value\":\"long \",\"display\":\"long\",\"description\":\"This description is deliberately longer than eighty runes so that the clampin...\"},{\"value\":\"multi \",\"display\":\"multi\",\"description\":\"first line second line third line\"},{\"value\":\"exact \",\"display\":\"exact\",\"description\":\"exactly-eighty-runes............................................................\"}]"
 }

@@ -30,6 +30,14 @@ func TestFormat_RecordStream(t *testing.T) {
 		output)
 }
 
+func TestFormat_DropsValueOfOnlyUnitSeparators(t *testing.T) {
+	t.Setenv("CONGA_COLOR", "0")
+
+	output := zsh.Format("d", wire.Directives{}, []wire.Candidate{{Value: "\x1f"}, {Value: "deploy"}})
+
+	assert.Equal(t, "D\x1f\x1f\nC\x1f\x1f\x1f\x1fdeploy \x1f", output)
+}
+
 func TestFormat_DirectivesRecord(t *testing.T) {
 	t.Setenv("CONGA_COLOR", "0")
 
@@ -325,8 +333,24 @@ func TestFormat_FieldSanitization(t *testing.T) {
 		{Value: "a\nb", Display: "x\ty", Description: "d\r\nc\x1fsep"},
 	})
 
-	assert.Contains(t, output, "C\x1f\x1fx y\x1fd  c sep\x1f")
+	assert.Contains(t, output, "C\x1f\x1fx y\x1fd c sep\x1f")
 	assert.Contains(t, output, "\x1fa\\ b \x1f")
+}
+
+func TestFormat_TrailingCarriageReturnRemovedFromValue(t *testing.T) {
+	t.Setenv("CONGA_COLOR", "0")
+
+	output := zsh.Format("", wire.Directives{}, []wire.Candidate{{Value: "prod\r", Display: "prod\r"}})
+
+	assert.Contains(t, output, "C\x1f\x1fprod\x1f\x1fprod \x1f")
+}
+
+func TestFormat_TrailingNewlineAfterSlashKeepsNospace(t *testing.T) {
+	t.Setenv("CONGA_COLOR", "0")
+
+	output := zsh.Format("", wire.Directives{}, []wire.Candidate{{Value: "dir/\n", Display: "dir/\n"}})
+
+	assert.Contains(t, output, "C\x1f\x1fdir/\x1f\x1fdir/\x1f")
 }
 
 func TestFormat_ListColors(t *testing.T) {

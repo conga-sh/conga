@@ -34,7 +34,10 @@ const (
 
 // Format renders candidates and directives in the zsh framing: a directives
 // record ("D", always first), an optional list-colors record ("L"), message
-// records ("M"), and one candidate record ("C") per candidate.
+// records ("M"), and one candidate record ("C") per candidate. A candidate
+// whose value is empty once cleaned (sanitizeField, which also removes a
+// stray unit separator) is dropped, as wire.FromResult drops values left
+// empty by tabs, newlines, and carriage returns.
 //
 // Flag tag merging applies before framing: the "longhand flags" and
 // "shorthand flags" tags merge into "flags" unless CONGA_MERGE_FLAGS is
@@ -50,6 +53,9 @@ const (
 func Format(toComplete string, directives wire.Directives, candidates []wire.Candidate) string {
 	colorOn := !wire.ColorDisabled()
 
+	candidates = slicex.Filter(candidates, func(candidate wire.Candidate) bool {
+		return sanitizeField(candidate.Value) != ""
+	})
 	candidates = mergeFlagTags(candidates)
 	candidates = groupByTag(candidates)
 
@@ -74,10 +80,11 @@ func Format(toComplete string, directives wire.Directives, candidates []wire.Can
 }
 
 // sanitizeField normalizes the characters that would corrupt the
-// line-oriented record stream: every tab, newline, carriage return, and unit
-// separator becomes a single space.
+// line-oriented record stream: tabs, newlines, carriage returns, and unit
+// separators are removed at the edges and become single spaces inside
+// (wire.FlattenControl).
 func sanitizeField(s string) string {
-	return wire.ReplaceControlWithSpace(s, controlCutset)
+	return wire.FlattenControl(s, controlCutset)
 }
 
 // mergeFlagTags re-tags the engine's "longhand flags" and "shorthand flags"
@@ -170,7 +177,8 @@ func styledMessage(message string, colorOn bool) string {
 // trailing space is embedded unless the nospace rules apply (directive set,
 // or the value ends with "=" or "/").
 func candidateRecord(candidate wire.Candidate, directives wire.Directives, colorOn bool) string {
-	value := insertionValue(sanitizeField(candidate.Value), wire.ZshQuote(), wire.ZshBanghist(), !directives.NoSpaceFor(candidate.Value))
+	sanitized := sanitizeField(candidate.Value)
+	value := insertionValue(sanitized, wire.ZshQuote(), wire.ZshBanghist(), !directives.NoSpaceFor(sanitized))
 
 	var sgr string
 	if colorOn && candidate.Style != "" {

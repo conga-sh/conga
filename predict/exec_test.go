@@ -132,6 +132,36 @@ func TestExecutables_DirectoryDecoration(t *testing.T) {
 	}
 }
 
+func TestExecutables_PathScanning_ExecutableEntryBeatsSuffixEntry(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	writeExecutableFile(t, filepath.Join(tmpDir, "plain.exe"), []byte("#!/bin/sh\necho hi"))
+
+	result := predict.Executables().Invoke(predict.Context{
+		Env: map[string]string{"PATH": tmpDir, "PATHEXT": ".EXE"},
+	})
+
+	assert.Equal(t, []string{"plain.exe"}, itemValues(result.Items))
+	assert.Equal(t, "underlined green", result.Items[0].Style, "the ex entry must outrank the *.exe entry")
+}
+
+func TestExecutables_RelativePath_ExecutableEntryBeatsSuffixEntry(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	writeExecutableFile(t, filepath.Join(tmpDir, "plain.exe"), []byte("#!/bin/sh\necho hi"))
+
+	result := predict.Executables().Invoke(predict.Context{
+		Dir:        tmpDir,
+		Env:        map[string]string{"PATHEXT": ".EXE"},
+		ToComplete: "./",
+	})
+
+	assert.Equal(t, []string{"./plain.exe"}, itemValues(result.Items))
+	assert.Equal(t, "underlined green", result.Items[0].Style, "the ex entry must outrank the *.exe entry")
+}
+
 func writeExecutableFile(t *testing.T, path string, data []byte) {
 	t.Helper()
 

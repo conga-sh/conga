@@ -16,7 +16,7 @@ import (
 // insertion.
 const (
 	metacharacters = " {}()[]<>$&\"'|;#\\`"
-	controlCutset  = "\n\r"
+	controlCutset  = "\t\n\r"
 )
 
 // Format renders candidates and directives in the nushell framing: a bare
@@ -47,8 +47,10 @@ func Format(toComplete string, directives wire.Directives, candidates []wire.Can
 // trailing-space rule, the raw display, the optional clamped description, and
 // the optional style record.
 func appendCandidate(buffer []byte, directives wire.Directives, candidate wire.Candidate) []byte {
-	value := quoteInsertionValue(sanitizeField(candidate.Value))
-	if !directives.NoSpaceFor(candidate.Value) {
+	sanitized := sanitizeField(candidate.Value)
+
+	value := quoteInsertionValue(sanitized)
+	if !directives.NoSpaceFor(sanitized) {
 		value += " "
 	}
 
@@ -98,9 +100,9 @@ func escapeDoubleQuoted(value string) string {
 }
 
 // clampedDescription applies the nushell description normalization: the
-// sanitizer strips newlines and carriage returns first — flattening
-// multi-line descriptions into one line (the fork's behavior, unlike fish's
-// and elvish's first-line cut) — and the flattened text is then trimmed and
+// sanitizer turns tabs, newlines, and carriage returns into spaces first —
+// flattening multi-line descriptions into one line (unlike fish's and
+// elvish's first-line cut) — and the flattened text is then trimmed and
 // clamped to the configured maximum length with a "..." suffix (hard cut
 // when the limit is 3 or fewer runes).
 func clampedDescription(description string) string {
@@ -108,5 +110,5 @@ func clampedDescription(description string) string {
 }
 
 func sanitizeField(s string) string {
-	return wire.StripControl(s, controlCutset)
+	return wire.FlattenControl(s, controlCutset)
 }

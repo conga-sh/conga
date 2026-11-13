@@ -30,6 +30,7 @@ const (
 // value prefix collapse to that prefix with the nospace directive so the
 // first tab inserts the shared stem.
 func (s *Session) Format(toComplete string, directives wire.Directives, candidates []wire.Candidate) string {
+	candidates = sanitizedCandidates(candidates)
 	wordbreakPrefix := s.resolveWordbreakPrefix(toComplete)
 	successive := s.isSuccessiveTabs(len(candidates))
 
@@ -82,7 +83,27 @@ func (s *Session) isSuccessiveTabs(candidateCount int) bool {
 }
 
 func sanitizeField(s string) string {
-	return wire.ReplaceControlWithSpace(s, controlCutset)
+	return wire.FlattenControl(s, controlCutset)
+}
+
+// sanitizedCandidates returns a copy of candidates with each value and display
+// cleaned (sanitizeField) and the candidates left without a value dropped, so
+// the shared-prefix collapse, the nospace rule, and the prefix-trim check all
+// read the text bash will insert.
+func sanitizedCandidates(candidates []wire.Candidate) []wire.Candidate {
+	sanitized := make([]wire.Candidate, 0, len(candidates))
+
+	for _, candidate := range candidates {
+		candidate.Value = sanitizeField(candidate.Value)
+		if candidate.Value == "" {
+			continue
+		}
+
+		candidate.Display = sanitizeField(candidate.Display)
+		sanitized = append(sanitized, candidate)
+	}
+
+	return sanitized
 }
 
 // candidateLine renders one candidate: a tab-delimited display/value/

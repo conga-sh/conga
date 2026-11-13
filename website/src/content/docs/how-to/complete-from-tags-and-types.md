@@ -76,7 +76,7 @@ $ deploy --work-dir <Tab>
 [36mcurrent/[2m[39m  -- -> releases/v2[0m
 ```
 
-Directories stay among the candidates whatever the `glob`, so a path completes one directory at a time. CONGA colors each path by kind, following `LS_COLORS` when it is set.
+Directories stay among the candidates whatever the `glob`, so a path completes one directory at a time. CONGA colors each path by kind. When `LS_COLORS` is set, its directory (`di`), symlink (`ln`, `or`), executable (`ex`), and file-name (`*.yaml`, `*README`) entries apply with the same precedence as in `ls`. A file name without an entry keeps CONGA's built-in color for its extension, and other `LS_COLORS` entries are ignored.
 
 The `glob` patterns filter only the candidates. `existing` checks only that the file exists, so a file outside the patterns still passes:
 

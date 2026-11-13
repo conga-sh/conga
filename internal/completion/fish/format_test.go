@@ -67,6 +67,14 @@ func TestFormat_SanitizesTabsAndCarriageReturns(t *testing.T) {
 		output)
 }
 
+func TestFormat_TrailingCarriageReturnRemovedFromValue(t *testing.T) {
+	t.Parallel()
+
+	output := fish.Format("", wire.Directives{}, []wire.Candidate{{Value: "prod\r", Display: "prod\r"}})
+
+	assert.Equal(t, "prod", output)
+}
+
 func TestFormat_MultiLineDescriptionKeepsFirstLine(t *testing.T) {
 	t.Parallel()
 

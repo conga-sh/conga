@@ -101,6 +101,18 @@ func TestQuotePowerShell(t *testing.T) {
 
 		assert.Equal(t, "'it''s'", wire.QuotePowerShell("it's"))
 	})
+
+	t.Run("unicode single quotes doubled", func(t *testing.T) {
+		t.Parallel()
+
+		assert.Equal(t, "'‘‘a’’b‚‚c‛‛'", wire.QuotePowerShell("‘a’b‚c‛"))
+	})
+
+	t.Run("unicode double quotes kept", func(t *testing.T) {
+		t.Parallel()
+
+		assert.Equal(t, "'“x”'", wire.QuotePowerShell("“x”"))
+	})
 }
 
 func TestExecTarget(t *testing.T) {

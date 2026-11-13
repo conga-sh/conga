@@ -1,5 +1,5 @@
 {
-  "description": "Control characters in value/display/description exercise the per-shell sanitizers (elvish strips \\n\\r\\t; nushell strips \\n\\r and keeps \\t).",
+  "description": "Control characters in value/display/description exercise the shared sanitizer rule: \\n, \\r and \\t become a space in every field (elvish then cuts the description at its first line; nushell quotes the value because it now contains a space).",
   "input": {
     "currentWord": "",
     "directives": {
@@ -17,5 +17,5 @@
       }
     ]
   },
-  "observed": "{\"usage\":\"\",\"messages\":[],\"descriptionStyle\":\"dim\",\"candidates\":[{\"value\":\"value\",\"display\":\"displayname\",\"description\":\"desc\",\"codeSuffix\":\" \",\"style\":\"default\"}]}"
+  "observed": "{\"usage\":\"\",\"messages\":[],\"descriptionStyle\":\"dim\",\"candidates\":[{\"value\":\"va lue\",\"display\":\"dis play name\",\"description\":\"desc\",\"codeSuffix\":\" \",\"style\":\"default\"}]}"
 }

@@ -593,6 +593,43 @@ func TestSymlinks(t *testing.T) {
 	}
 }
 
+func TestFiles_ExecutableFileTakesExecutableStyle(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	writeExecutableFile(t, filepath.Join(tmpDir, "run.exe"), []byte("#!/bin/sh\necho hi"))
+	writeFile(t, filepath.Join(tmpDir, "notes.yaml"), []byte("a: 1"))
+
+	result := predict.Files().Invoke(predict.Context{Dir: tmpDir})
+
+	styles := itemStyles(result.Items)
+
+	assert.Equal(t, "underlined green", styles["run.exe"], "the ex entry must outrank the *.exe entry")
+	assert.Equal(t, "yellow", styles["notes.yaml"])
+}
+
+func TestFiles_SymlinkStyles(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	writeFile(t, filepath.Join(tmpDir, "actual.txt"), []byte("target"))
+	assert.NoError(t, os.Mkdir(filepath.Join(tmpDir, "dir"), 0o755))
+
+	if err := os.Symlink(filepath.Join(tmpDir, "actual.txt"), filepath.Join(tmpDir, "link.txt")); err != nil {
+		t.Skip("symlinks not supported on this platform")
+	}
+
+	assert.NoError(t, os.Symlink(filepath.Join(tmpDir, "missing"), filepath.Join(tmpDir, "orphan")))
+
+	result := predict.Files().Invoke(predict.Context{Dir: tmpDir})
+
+	styles := itemStyles(result.Items)
+
+	assert.Equal(t, "cyan", styles["link.txt"], "a link with a live target takes the default link style")
+	assert.Equal(t, "bg-red", styles["orphan"], "a link with a missing target takes the or entry")
+	assert.Equal(t, "bold blue", styles["dir/"])
+}
+
 func TestFileLines(t *testing.T) {
 	t.Parallel()
 
@@ -638,6 +675,15 @@ func TestFileContents(t *testing.T) {
 
 	assert.True(t, slices.Contains(values, "alpha"))
 	assert.True(t, slices.Contains(values, "beta"))
+}
+
+func itemStyles(items []predict.Item) map[string]string {
+	styles := make(map[string]string, len(items))
+	for _, item := range items {
+		styles[item.Value] = item.Style
+	}
+
+	return styles
 }
 
 func itemValues(items []predict.Item) []string {

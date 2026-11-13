@@ -68,18 +68,20 @@ func Format(toComplete string, directives wire.Directives, candidates []wire.Can
 // and clamped description; the codeSuffix carrying the nospace rule; and the
 // style in elvish vocabulary.
 func appendCandidate(buffer []byte, directives wire.Directives, candidate wire.Candidate) []byte {
+	value := sanitizeField(candidate.Value)
+
 	display := sanitizeField(candidate.Display)
 	if display == "" {
-		display = sanitizeField(candidate.Value)
+		display = value
 	}
 
 	codeSuffix := " "
-	if directives.NoSpaceFor(candidate.Value) {
+	if directives.NoSpaceFor(value) {
 		codeSuffix = ""
 	}
 
 	buffer = append(buffer, `{"value":`...)
-	buffer = wire.AppendJSONString(buffer, sanitizeField(candidate.Value))
+	buffer = wire.AppendJSONString(buffer, value)
 	buffer = append(buffer, `,"display":`...)
 	buffer = wire.AppendJSONString(buffer, display)
 	buffer = append(buffer, `,"description":`...)
@@ -93,7 +95,7 @@ func appendCandidate(buffer []byte, directives wire.Directives, candidate wire.C
 }
 
 func sanitizeField(s string) string {
-	return wire.StripControl(s, controlCutset)
+	return wire.FlattenControl(s, controlCutset)
 }
 
 // normalizeStyle translates a style token string to elvish's `styled`

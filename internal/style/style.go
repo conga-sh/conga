@@ -120,6 +120,17 @@ const (
 	sgrDefaultBG   = 49
 )
 
+// Style vocabulary tokens and prefixes without an exported constant.
+const (
+	fgDefault    = "fg-default"
+	bgDefault    = "bg-default"
+	bgPrefix     = "bg-"
+	brightPrefix = "bright-"
+)
+
+//nolint:gochecknoglobals // immutable standard ANSI 8-color table
+var standardColors = [8]string{Black, Red, Green, Yellow, Blue, Magenta, Cyan, White}
+
 // Style represents parsed text styling attributes and colors.
 type Style struct {
 	Foreground string
@@ -236,10 +247,10 @@ func applyToken(style *Style, token string) {
 		style.Blink = true
 	case Inverse:
 		style.Inverse = true
-	case "fg-default":
+	case fgDefault:
 		style.Foreground = "default"
 	default:
-		if bg, ok := strings.CutPrefix(token, "bg-"); ok {
+		if bg, ok := strings.CutPrefix(token, bgPrefix); ok {
 			style.Background = bg
 		} else if isForegroundColor(token) {
 			style.Foreground = token
@@ -285,7 +296,7 @@ func namedColorSGR(name string, background bool) (string, bool) {
 		base = bgStandardBase
 	}
 
-	if bright, ok := strings.CutPrefix(name, "bright-"); ok {
+	if bright, ok := strings.CutPrefix(name, brightPrefix); ok {
 		if index := colorIndex(bright); index >= 0 {
 			return strconv.Itoa(base + brightDelta + index), true
 		}
@@ -301,7 +312,7 @@ func namedColorSGR(name string, background bool) (string, bool) {
 }
 
 func colorIndex(name string) int {
-	for index, color := range []string{Black, Red, Green, Yellow, Blue, Magenta, Cyan, White} {
+	for index, color := range standardColors {
 		if name == color {
 			return index
 		}
