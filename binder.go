@@ -72,7 +72,7 @@ type bindingState struct {
 	// CustomMapMerger merges registered custom map types. Populated when a map
 	// type is registered through RegisterMap or RegisterType; nil keeps custom
 	// map reflection unreferenced.
-	CustomMapMerger func(cmd *spec.Command, cmdChain []*spec.Command, flagSpec *spec.Flag, cliValues map[*spec.Flag][]string, state *bindingState, result *mapMergeResult) error
+	CustomMapMerger func(binding flagBinding, result *mapMergeResult) error
 	// StdinClaim records the first value of this binding pass that reads
 	// standard input, so a second one is rejected before it reads. Nil skips
 	// the check (completion pruning).
@@ -86,8 +86,8 @@ type bindingState struct {
 
 // recordSourceName remembers the env variable or config key that supplied a
 // flag's value, for attribution in post-bind validation errors.
-func (b *bindingState) recordSourceName(flagSpec *spec.Flag, source ValueSource, sourceName string) {
-	if sourceName == "" || (source != SourceEnv && source != SourceConfig) {
+func (b *bindingState) recordSourceName(flagSpec *spec.Flag, origin valueOrigin) {
+	if origin.name == "" || (origin.source != SourceEnv && origin.source != SourceConfig) {
 		return
 	}
 
@@ -95,7 +95,7 @@ func (b *bindingState) recordSourceName(flagSpec *spec.Flag, source ValueSource,
 		b.SourceNames = make(map[*spec.Flag]string)
 	}
 
-	b.SourceNames[flagSpec] = sourceName
+	b.SourceNames[flagSpec] = origin.name
 }
 
 // decodeContext composes the per-value context for one field's coercion: the
@@ -372,7 +372,7 @@ func (parser *tokenParser) consumeNextValue(flagSpec *spec.Flag, flagName, rawTo
 // spec.WalkShorthand. Runes before an unknown rune are bound before the unknown
 // flag is reported; the walk never yields a value-start step together with an
 // unresolved rune.
-func (parser *tokenParser) parseShortFlagCluster(tok tokenizer.Token) error { //nolint:cyclop,gocyclo // one walk over the cluster; each rune outcome is one branch
+func (parser *tokenParser) parseShortFlagCluster(tok tokenizer.Token) error {
 	runes := tok.ShortRunes
 
 	walk := spec.WalkShorthand(runes, tok.HasAttachedValue, func(r rune) (*spec.Flag, int) {
@@ -380,77 +380,94 @@ func (parser *tokenParser) parseShortFlagCluster(tok tokenizer.Token) error { //
 	})
 
 	for i, step := range walk.Steps {
-		flagSpec := step.Flag
-
-		parser.recordFlagSpelling(flagSpec, "-"+string(runes[i]))
-
-		if flagSpec.IsCounter {
-			// A counter takes no value (see the long-flag path), so a cluster
-			// cannot end in one with an attached value.
-			if tok.HasAttachedValue && i == len(runes)-1 {
-				return newCounterValueError(parser.cmdChain, tok.Raw)
-			}
-
-			parser.flagValues[flagSpec] = append(parser.flagValues[flagSpec], "1")
-
-			continue
+		done, err := parser.bindClusterRune(tok, i, step.Flag)
+		if err != nil || done {
+			return err
 		}
-
-		if flagSpec.IsBool {
-			if tok.HasAttachedValue && i == len(runes)-1 {
-				parser.flagValues[flagSpec] = append(parser.flagValues[flagSpec], tok.Value)
-			} else {
-				parser.flagValues[flagSpec] = append(parser.flagValues[flagSpec], "true")
-			}
-
-			continue
-		}
-
-		if i < len(runes)-1 {
-			value := string(runes[i+1:])
-			if tok.HasAttachedValue {
-				value = value + "=" + tok.Value
-			}
-
-			parser.flagValues[flagSpec] = append(parser.flagValues[flagSpec], value)
-
-			return nil
-		}
-
-		if tok.HasAttachedValue {
-			parser.flagValues[flagSpec] = append(parser.flagValues[flagSpec], tok.Value)
-
-			return nil
-		}
-
-		return parser.consumeNextValue(flagSpec, fmt.Sprintf("-%c", runes[i]), tok.Raw)
 	}
 
 	if walk.UnresolvedAt >= 0 {
-		r := runes[walk.UnresolvedAt]
-
-		msg := "unknown flag: -" + string(r)
-		if len(runes) > 1 {
-			msg = "unknown shorthand flag: '" + string(r) + "' in -" + string(runes)
-		}
-
-		// A single letter has no meaningful near miss, except that -h is the
-		// conventional help spelling: point it at the built-in --help.
-		var suggestion string
-		if len(runes) == 1 && r == 'h' && parser.flagMap["help"] == spec.BuiltinHelpFlag {
-			suggestion = "--help"
-		}
-
-		return &parseError{
-			msg:        msg,
-			token:      tok.Raw,
-			cmdChain:   parser.cmdChain,
-			suggestion: suggestion,
-			cause:      errUnknownFlag,
-		}
+		return parser.unknownShorthandError(tok, runes[walk.UnresolvedAt])
 	}
 
 	return nil
+}
+
+// bindClusterRune binds flagSpec, named by the cluster's rune at index. It
+// reports done when the flag took the rest of the cluster, the attached value,
+// or the next token as its value, which ends the walk.
+func (parser *tokenParser) bindClusterRune(tok tokenizer.Token, index int, flagSpec *spec.Flag) (bool, error) {
+	runes := tok.ShortRunes
+	last := index == len(runes)-1
+
+	parser.recordFlagSpelling(flagSpec, "-"+string(runes[index]))
+
+	if flagSpec.IsCounter {
+		// A counter takes no value (see the long-flag path), so a cluster
+		// cannot end in one with an attached value.
+		if tok.HasAttachedValue && last {
+			return true, newCounterValueError(parser.cmdChain, tok.Raw)
+		}
+
+		parser.flagValues[flagSpec] = append(parser.flagValues[flagSpec], "1")
+
+		return false, nil
+	}
+
+	if flagSpec.IsBool {
+		value := "true"
+		if tok.HasAttachedValue && last {
+			value = tok.Value
+		}
+
+		parser.flagValues[flagSpec] = append(parser.flagValues[flagSpec], value)
+
+		return false, nil
+	}
+
+	if !last {
+		value := string(runes[index+1:])
+		if tok.HasAttachedValue {
+			value = value + "=" + tok.Value
+		}
+
+		parser.flagValues[flagSpec] = append(parser.flagValues[flagSpec], value)
+
+		return true, nil
+	}
+
+	if tok.HasAttachedValue {
+		parser.flagValues[flagSpec] = append(parser.flagValues[flagSpec], tok.Value)
+
+		return true, nil
+	}
+
+	return true, parser.consumeNextValue(flagSpec, fmt.Sprintf("-%c", runes[index]), tok.Raw)
+}
+
+// unknownShorthandError reports the cluster rune r that names no flag.
+func (parser *tokenParser) unknownShorthandError(tok tokenizer.Token, r rune) error {
+	runes := tok.ShortRunes
+
+	msg := "unknown flag: -" + string(r)
+	if len(runes) > 1 {
+		msg = "unknown shorthand flag: '" + string(r) + "' in -" + string(runes)
+	}
+
+	// A single letter has no meaningful near miss, except that -h is the
+	// conventional help spelling: point it at the built-in --help.
+	var suggestion string
+	if len(runes) == 1 && r == 'h' && parser.flagMap["help"] == spec.BuiltinHelpFlag {
+		suggestion = "--help"
+	}
+
+	return &parseError{
+		msg:        msg,
+		token:      tok.Raw,
+		cmdChain:   parser.cmdChain,
+		suggestion: suggestion,
+		cause:      errUnknownFlag,
+	}
 }
 
 func (parser *tokenParser) parseShortFlag(tok tokenizer.Token) error {
@@ -600,22 +617,22 @@ type stdinClaim struct {
 // a usage error when both values came from the command line; a conflicting
 // environment, configuration, or default value classifies under ErrConfig. It
 // is checked before coercion, so nothing reads stdin twice.
-func (c *stdinClaim) claim(cmdChain []*spec.Command, owner string, targetType reflect.Type, tags spec.FieldTags, sep string, rawValues []string, source ValueSource) error {
-	if c == nil || targetType == nil {
+func (c *stdinClaim) claim(cmdChain []*spec.Command, owner stdinOwner, rawValues []string, source ValueSource) error {
+	if c == nil || owner.targetType == nil {
 		return nil
 	}
 
-	elemType := targetType
+	elemType := owner.targetType
 	items := rawValues
 
-	if targetType.Kind() == reflect.Slice {
-		elemType = targetType.Elem()
-		items = coerce.SliceItems(rawValues, sep, elemType)
+	if owner.targetType.Kind() == reflect.Slice {
+		elemType = owner.targetType.Elem()
+		items = coerce.SliceItems(rawValues, owner.sep, elemType)
 	} else if slices.Contains(rawValues, "-") {
 		items = []string{"-"}
 	}
 
-	if !readsStdin(elemType, tags) {
+	if !readsStdin(elemType, owner.tags) {
 		return nil
 	}
 
@@ -625,16 +642,36 @@ func (c *stdinClaim) claim(cmdChain []*spec.Command, owner string, targetType re
 		}
 
 		if c.owner == "" {
-			c.owner = owner
+			c.owner = owner.name
 			c.source = source
 
 			continue
 		}
 
-		return newStdinReadTwiceError(cmdChain, c.owner, owner, stdinErrorSource(c.source, source))
+		return newStdinReadTwiceError(cmdChain, c.owner, owner.name, stdinErrorSource(c.source, source))
 	}
 
 	return nil
+}
+
+// claimFlag claims stdin for a flag's values from source.
+func (c *stdinClaim) claimFlag(cmdChain []*spec.Command, flagSpec *spec.Flag, values []string, source ValueSource) error {
+	return c.claim(cmdChain, stdinOwner{name: "--" + flagSpec.Name, targetType: flagSpec.TargetType, tags: flagSpec.FieldTags, sep: flagSpec.Sep}, values, source)
+}
+
+// claimArg claims stdin for a positional argument's values from source.
+func (c *stdinClaim) claimArg(cmdChain []*spec.Command, arg *spec.Arg, values []string, source ValueSource) error {
+	return c.claim(cmdChain, stdinOwner{name: "argument " + arg.Name, targetType: arg.TargetType, tags: arg.FieldTags, sep: arg.Sep}, values, source)
+}
+
+// stdinOwner is a flag or argument that may claim stdin: the name a conflict
+// reports, and the type, tags, and separator that decide which of its values
+// read stdin.
+type stdinOwner struct {
+	name       string
+	targetType reflect.Type
+	tags       spec.FieldTags
+	sep        string
 }
 
 // stdinDashReader is implemented by the domain types whose "-" value reads
@@ -764,24 +801,6 @@ type mapTierInput struct {
 	dotenvOrigins map[string]string
 }
 
-// fold merges the tier's contribution into the string-map merge state,
-// dispatching to the env-entry fold for the per-feature environment tier, the
-// config-tier fold when the tier carries pre-merged configuration entries, and
-// the raw-token fold otherwise.
-func (tier mapTierInput) fold(cmdChain []*spec.Command, flagSpec *spec.Flag, merged map[string]string, provenance map[string]ValueSource, origins map[string]configdata.Value, result *mapMergeResult) error {
-	if tier.entries != nil {
-		if tier.source == SourceEnv {
-			foldMapEnvEntriesTier(tier.entries, tier.entryNames, tier.name, tier.dotenvOrigins, merged, provenance, origins, result)
-
-			return nil
-		}
-
-		return foldMapConfigTier(cmdChain, flagSpec, tier.entries, tier.name, merged, provenance, origins, result)
-	}
-
-	return foldMapTier(cmdChain, flagSpec, tier.values, tier.source, tier.name, configdata.Value{Origin: tier.envOrigin()}, merged, provenance, origins, result)
-}
-
 // envOrigin returns the .env file that supplied the tier's environment
 // variable, or "" for host environment variables and non-environment tiers.
 func (tier mapTierInput) envOrigin() string {
@@ -792,14 +811,307 @@ func (tier mapTierInput) envOrigin() string {
 	return tier.dotenvOrigins[tier.name]
 }
 
-// foldRegistered merges the tier's contribution into the registered-map
-// merge state using the same entries-vs-values dispatch as fold.
-func (tier mapTierInput) foldRegistered(flagSpec *spec.Flag, cmdChain []*spec.Command, state *bindingState, merged reflect.Value, provenance map[string]ValueSource, origins map[string]configdata.Value, result *mapMergeResult) error {
-	if tier.entries != nil {
-		return foldRegisteredMapConfigTier(cmdChain, flagSpec, tier.entries, tier.name, state, merged, provenance, origins, result)
+// mapProvenance records each merged key's tier and origin when the run asks
+// for per-key provenance (--why, feature error attribution). Its zero value
+// records nothing.
+type mapProvenance struct {
+	sources map[string]ValueSource
+	origins map[string]configdata.Value
+}
+
+// newMapProvenance returns a recording mapProvenance when state wants map
+// provenance, and the zero value otherwise.
+func newMapProvenance(state *bindingState) mapProvenance {
+	if state == nil || !state.WantMapProvenance {
+		return mapProvenance{}
 	}
 
-	return foldRegisteredMapTier(tier.values, tier.source, tier.name, configdata.Value{Origin: tier.envOrigin()}, flagSpec, cmdChain, state, merged, provenance, origins, result)
+	return mapProvenance{
+		sources: make(map[string]ValueSource),
+		origins: make(map[string]configdata.Value),
+	}
+}
+
+// recording reports whether record stores anything, so callers can skip
+// building a key they would only record.
+func (provenance mapProvenance) recording() bool {
+	return provenance.sources != nil
+}
+
+// record stores key's tier and origin when recording.
+func (provenance mapProvenance) record(key string, source ValueSource, origin configdata.Value) {
+	if !provenance.recording() {
+		return
+	}
+
+	provenance.sources[key] = source
+	provenance.origins[key] = origin
+}
+
+// publish stores the recorded provenance on result.
+func (provenance mapProvenance) publish(result *mapMergeResult) {
+	result.provenance = provenance.sources
+	result.origins = provenance.origins
+}
+
+// stringMapFold merges a map[string]string flag's tiers key by key into
+// merged, recording each key's provenance and the merge's highest tier on
+// result.
+type stringMapFold struct {
+	binding    flagBinding
+	merged     map[string]string
+	provenance mapProvenance
+	result     *mapMergeResult
+}
+
+// tier folds one tier: the config tier's structured entries, the per-feature
+// environment tier's resolved entries, or any other tier's raw values.
+func (fold stringMapFold) tier(tier mapTierInput) error {
+	if tier.entries != nil {
+		if tier.source == SourceEnv {
+			fold.envEntries(tier)
+
+			return nil
+		}
+
+		return fold.config(tier.entries, tier.name)
+	}
+
+	return fold.values(tier.values, valueOrigin{source: tier.source, name: tier.name}, configdata.Value{Origin: tier.envOrigin()})
+}
+
+// values folds a tier's raw key=value tokens. recorded is the origin each key
+// records for --why.
+func (fold stringMapFold) values(rawValues []string, origin valueOrigin, recorded configdata.Value) error {
+	if len(rawValues) == 0 {
+		return nil
+	}
+
+	flagSpec, result := fold.binding.flagSpec, fold.result
+
+	entries, err := coerce.MapEntries(rawValues, flagSpec.Sep)
+	if err != nil {
+		result.hasValues = true
+
+		return fold.binding.coercionError(origin, strings.Join(rawValues, flagSpec.Sep), err)
+	}
+
+	for _, entry := range entries {
+		key := entry.Key
+		if flagSpec.KeyCanonicalizer != nil {
+			key = flagSpec.KeyCanonicalizer(key)
+		}
+
+		fold.merged[key] = entry.Value
+		fold.provenance.record(key, origin.source, recorded)
+	}
+
+	result.hasValues = true
+	if len(entries) > 0 {
+		result.highestTier = origin.source
+		result.highestName = origin.name
+	}
+
+	return nil
+}
+
+// config folds the config tier's pre-merged map entries: nested-map entries
+// bind directly without the separator round trip, malformed flat tokens
+// surface the same coercion error attribution, and every key records the
+// config tier as its provenance with the contributing file as its origin.
+func (fold stringMapFold) config(entries map[string]configdata.Value, configKey string) error {
+	if bad, hasBad := entries[""]; hasBad {
+		return fold.values([]string{bad.Raw}, valueOrigin{source: SourceConfig, name: configKey}, bad)
+	}
+
+	for key, entry := range entries {
+		fold.merged[key] = entry.Raw
+		fold.provenance.record(key, SourceConfig, configdata.Value{Origin: entry.Origin, Scope: entry.Scope})
+	}
+
+	fold.result.hasValues = true
+	fold.result.highestTier = SourceConfig
+	fold.result.highestName = configKey
+
+	return nil
+}
+
+// envEntries folds the per-feature environment tier's pre-resolved entries:
+// each raw value binds directly, every key records the environment tier as its
+// provenance with its .env file (if any) as its origin, and the contributing
+// variable names are carried for feature error attribution when the tier
+// supplied them. The tier's name is the declaration-ordered list of
+// contributing variables, so an env-only feature map reports them as its
+// source detail.
+func (fold stringMapFold) envEntries(tier mapTierInput) {
+	if len(tier.entries) == 0 {
+		return
+	}
+
+	result := fold.result
+
+	for key, entry := range tier.entries {
+		fold.merged[key] = entry.Raw
+		fold.provenance.record(key, SourceEnv, configdata.Value{Origin: tier.dotenvOrigins[tier.entryNames[key]]})
+
+		if tier.entryNames != nil {
+			if result.envEntryNames == nil {
+				result.envEntryNames = make(map[string]string, len(tier.entries))
+			}
+
+			result.envEntryNames[key] = tier.entryNames[key]
+		}
+	}
+
+	result.hasValues = true
+	result.highestTier = SourceEnv
+	result.highestName = tier.name
+	result.highestOrigins = nil
+}
+
+// finish publishes the completed fold into result: when no tier contributed a
+// pair, last (the last tier that held a value) becomes the highest tier, and a
+// non-native map target type converts from the internal string map.
+func (fold stringMapFold) finish(last valueOrigin) {
+	result := fold.result
+
+	if result.highestTier == SourceNone {
+		result.highestTier = last.source
+		result.highestName = last.name
+	}
+
+	var finalMerged any = fold.merged
+	if targetType := fold.binding.flagSpec.TargetType; targetType != reflect.TypeFor[map[string]string]() {
+		finalMerged = reflect.ValueOf(fold.merged).Convert(targetType).Interface()
+	}
+
+	result.merged = finalMerged
+	fold.provenance.publish(result)
+}
+
+// registeredMapFold merges a map flag whose type has a registered parser:
+// each tier's entries parse through that parser into merged.
+type registeredMapFold struct {
+	binding    flagBinding
+	merged     reflect.Value
+	provenance mapProvenance
+	result     *mapMergeResult
+}
+
+// tier folds one tier: the config tier's structured entries or any other
+// tier's raw values.
+func (fold registeredMapFold) tier(tier mapTierInput) error {
+	if tier.entries != nil {
+		return fold.config(tier.entries, tier.name)
+	}
+
+	return fold.values(tier.values, valueOrigin{source: tier.source, name: tier.name}, configdata.Value{Origin: tier.envOrigin()})
+}
+
+// values parses a tier's raw tokens and merges the result. recorded is the
+// origin each key records for --why.
+func (fold registeredMapFold) values(rawValues []string, origin valueOrigin, recorded configdata.Value) error {
+	if len(rawValues) == 0 {
+		return nil
+	}
+
+	flagSpec, result := fold.binding.flagSpec, fold.result
+
+	parsed, err := parseMapTokens(rawValues, flagSpec.TargetType, flagSpec.Sep, fold.binding.state.TypeParsers)
+	if err != nil {
+		result.hasValues = true
+
+		return fold.binding.coercionError(origin, strings.Join(rawValues, flagSpec.Sep), err)
+	}
+
+	result.hasValues = true
+
+	parsedValue := reflect.ValueOf(parsed)
+	if parsedValue.Len() > 0 {
+		result.highestTier = origin.source
+		result.highestName = origin.name
+	}
+
+	iter := parsedValue.MapRange()
+	for iter.Next() {
+		fold.merged.SetMapIndex(iter.Key(), iter.Value())
+
+		if fold.provenance.recording() {
+			fold.provenance.record(stringx.Stringify(iter.Key().Interface()), origin.source, recorded)
+		}
+	}
+
+	return nil
+}
+
+// config folds the config tier's pre-merged map entries into the registered
+// map type. Keys are sorted for deterministic error reporting; each pair is
+// parsed and merged into the destination map with its originating file path
+// recorded.
+func (fold registeredMapFold) config(entries map[string]configdata.Value, configKey string) error {
+	origin := valueOrigin{source: SourceConfig, name: configKey}
+
+	if bad, hasBad := entries[""]; hasBad {
+		return fold.values([]string{bad.Raw}, origin, bad)
+	}
+
+	flagSpec, result := fold.binding.flagSpec, fold.result
+	parser := fold.binding.state.TypeParsers[flagSpec.TargetType]
+
+	for _, key := range slices.Sorted(maps.Keys(entries)) {
+		entry := entries[key]
+		raw := key + "=" + entry.Raw
+
+		parsed, err := parser(raw)
+		if err != nil {
+			result.hasValues = true
+
+			return fold.binding.coercionError(origin, raw, err)
+		}
+
+		parsedValue, mergeErr := mergeParsedMapValue(parsed, flagSpec.TargetType, fold.merged)
+		if mergeErr != nil {
+			result.hasValues = true
+
+			return fold.binding.coercionError(origin, raw, mergeErr)
+		}
+
+		result.hasValues = true
+		result.highestTier = SourceConfig
+		result.highestName = configKey
+
+		if !fold.provenance.recording() {
+			continue
+		}
+
+		iter := parsedValue.MapRange()
+		for iter.Next() {
+			fold.provenance.record(stringx.Stringify(iter.Key().Interface()), SourceConfig, configdata.Value{Origin: entry.Origin, Scope: entry.Scope})
+		}
+	}
+
+	return nil
+}
+
+// countMessages are the formats a count-range check reports: an exact count
+// missed, a count out of range (count, minimum, maximum), and a count below
+// the minimum or above the maximum. countFirst orders the count before the
+// bound in the exact, minimum, and maximum formats.
+type countMessages struct {
+	exact      string
+	outOfRange string
+	belowMin   string
+	aboveMax   string
+	countFirst bool
+}
+
+// bound formats a message that names the count and one bound.
+func (messages countMessages) bound(format string, count, bound int) string {
+	if messages.countFirst {
+		return fmt.Sprintf(format, count, bound)
+	}
+
+	return fmt.Sprintf(format, bound, count)
 }
 
 // orderedFlagGroups holds flags grouped by group name while preserving the
@@ -844,6 +1156,404 @@ func (naming flagGroupNaming) name(flagSpec *spec.Flag) string {
 	}
 
 	return "--" + flagSpec.Name + sourceLocation(target.Source(), naming.sourceNames[flagSpec])
+}
+
+// valueOrigin is where a value came from: its tier, and the token, variable,
+// config key, or default text that diagnostics attribute it to.
+type valueOrigin struct {
+	source ValueSource
+	name   string
+}
+
+// flagInput is the winning tier's contribution to a scalar, slice, or counter
+// flag: its raw values, their origin, and the detail recorded on the container
+// (the origin file for configuration values, otherwise the origin's name).
+type flagInput struct {
+	values []string
+	origin valueOrigin
+	detail string
+}
+
+// flagBinding is one flag being bound: the command that declares it, the chain
+// its diagnostics name, the command line's flag values, and the run's binding
+// state.
+type flagBinding struct {
+	cmd       *spec.Command
+	cmdChain  []*spec.Command
+	flagSpec  *spec.Flag
+	cliValues map[*spec.Flag][]string
+	state     *bindingState
+}
+
+// coercionError attributes a failure to convert rawValue to the flag's type to
+// the value's origin.
+func (binding flagBinding) coercionError(origin valueOrigin, rawValue string, cause error) *coercionError {
+	return &coercionError{
+		targetName: binding.flagSpec.Name,
+		isFlag:     true,
+		source:     origin.source,
+		sourceName: origin.name,
+		targetType: binding.flagSpec.TargetType,
+		rawValue:   rawValue,
+		cmdChain:   binding.cmdChain,
+		cause:      cause,
+	}
+}
+
+// mapTiers looks up a map flag's tiers in ascending precedence: default,
+// config, per-feature environment (featureEnv, nil for ordinary map flags),
+// combined environment, then CLI. It also returns the config tier's entries
+// and the combined environment variable's name.
+func (binding flagBinding) mapTiers(featureEnv *mapTierInput) ([]mapTierInput, map[string]configdata.Value, string) {
+	flagSpec := binding.flagSpec
+	configEntries, configKey, hasConfig := lookupConfigMap(flagSpec, binding.cmd, binding.cmdChain, binding.state)
+	envValue, envName, hasEnv := lookupEnv(flagSpec, binding.cmd, binding.state)
+	cliValues := binding.cliValues[flagSpec]
+
+	tiers := make([]mapTierInput, 0, 5)
+	tiers = append(tiers,
+		mapTierInput{has: flagSpec.Default != "", values: []string{flagSpec.Default}, source: SourceDefault, name: flagSpec.Default},
+		mapTierInput{has: hasConfig, entries: configEntries, source: SourceConfig, name: configKey},
+	)
+
+	if featureEnv != nil {
+		tiers = append(tiers, *featureEnv)
+	}
+
+	tiers = append(tiers,
+		mapTierInput{has: hasEnv, values: []string{envValue}, source: SourceEnv, name: envName},
+		mapTierInput{has: len(cliValues) > 0, values: cliValues, source: SourceCLI, name: "--" + flagSpec.Name},
+	)
+
+	return tiers, configEntries, envName
+}
+
+// valueCheck applies the per-value constraints of one flag or argument: the
+// chain its errors name, the descriptor that ends their message (for example
+// "flag --port (from environment variable PORT)"), and the source that
+// classifies them.
+type valueCheck struct {
+	cmdChain   []*spec.Command
+	descriptor string
+	source     ValueSource
+}
+
+// enum reports text that is not one of enum's values; an empty enum accepts
+// everything.
+func (check valueCheck) enum(enum []string, text string) error {
+	if len(enum) == 0 || slices.Contains(enum, text) {
+		return nil
+	}
+
+	return check.invalid(fmt.Sprintf("invalid value %q (must be one of: %s) for %s",
+		truncateForDisplay(text), strings.Join(enum, ", "), check.descriptor), errInvalidValue)
+}
+
+// scalar checks one value against the enum, length, and range constraints.
+func (check valueCheck) scalar(constraints constraintSet, value any) error {
+	if err := check.enum(constraints.enum, stringx.Stringify(value)); err != nil {
+		return err
+	}
+
+	if constraints.length != nil {
+		if reason, ok := checkStringLen(value, constraints.length); !ok {
+			return check.invalid(fmt.Sprintf("value %q %s for %s", truncateForDisplay(stringx.Stringify(value)), reason, check.descriptor), errInvalidLength)
+		}
+	}
+
+	if constraints.valueRange != nil {
+		if reason, ok := checkValueRange(value, constraints.valueRange); !ok {
+			return check.invalid(fmt.Sprintf("value %v %s for %s", value, reason, check.descriptor), errOutOfRange)
+		}
+	}
+
+	return nil
+}
+
+// slice checks the item count, then every element as a scalar.
+func (check valueCheck) slice(constraints constraintSet, typedSlice any) error {
+	sliceValue := reflect.ValueOf(typedSlice)
+
+	if constraints.items != nil {
+		if reason, ok := checkItemCount(sliceValue, constraints.items); !ok {
+			return check.invalid(fmt.Sprintf("%s for %s", reason, check.descriptor), errInvalidItemCount)
+		}
+	}
+
+	for i := range sliceValue.Len() {
+		if err := check.scalar(constraints, sliceValue.Index(i).Interface()); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// mapItems checks a map's entry count against items.
+func (check valueCheck) mapItems(items *spec.Range, value any) error {
+	if value == nil || items == nil {
+		return nil
+	}
+
+	mapValue := reflect.ValueOf(value)
+	if !mapValue.IsValid() {
+		return nil
+	}
+
+	if reason, ok := checkItemCount(mapValue, items); !ok {
+		return check.invalid(fmt.Sprintf("%s for %s", reason, check.descriptor), errInvalidItemCount)
+	}
+
+	return nil
+}
+
+// invalid builds the value-shaped validation error every check reports.
+func (check valueCheck) invalid(msg string, cause error) error {
+	return &validationError{
+		msg:         msg,
+		source:      check.source,
+		cmdChain:    check.cmdChain,
+		cause:       cause,
+		valueShaped: true,
+	}
+}
+
+// argResolver binds positional arguments: the chain their errors name, the
+// run's type parsers, the decode context carrying the configured standard
+// streams (each argument adds its own tags), and the run's stdin claim.
+type argResolver struct {
+	cmdChain      []*spec.Command
+	parsers       coerce.Registry
+	decodeContext coerce.DecodeContext
+	stdin         *stdinClaim
+}
+
+// resolve binds cmd's positional arguments from posTokens and reports a
+// token left over after the last argument.
+func (resolver argResolver) resolve(cmd *spec.Command, posTokens []string) error {
+	tokenIdx := 0
+
+	for _, arg := range cmd.Args {
+		if arg.IsSlice {
+			if err := resolver.slice(arg, posTokens[tokenIdx:]); err != nil {
+				return err
+			}
+
+			// Slice positional argument consumes all remaining positional tokens,
+			// satisfying the trailing token check below (tokenIdx == len(posTokens)).
+			tokenIdx = len(posTokens)
+
+			break
+		}
+
+		if arg.IsMap {
+			if err := resolver.mapArg(arg, posTokens[tokenIdx:]); err != nil {
+				return err
+			}
+
+			// Map positional argument consumes all remaining positional tokens,
+			// satisfying the trailing token check below (tokenIdx == len(posTokens)).
+			tokenIdx = len(posTokens)
+
+			break
+		}
+
+		advanced, err := resolver.scalar(arg, posTokens, tokenIdx)
+		if err != nil {
+			return err
+		}
+
+		if advanced {
+			tokenIdx++
+		}
+	}
+
+	// Check for unexpected extra positional arguments
+	if tokenIdx < len(posTokens) {
+		return handleUnexpectedPositional(cmd, resolver.cmdChain, posTokens[tokenIdx])
+	}
+
+	return nil
+}
+
+// slice binds a slice argument from the remaining tokens, or from its default
+// when none remain.
+func (resolver argResolver) slice(arg *spec.Arg, remaining []string) error {
+	decodeContext := resolver.decodeContext
+	decodeContext.Tags = arg.FieldTags
+
+	if len(remaining) == 0 {
+		if arg.Default != "" {
+			if err := resolver.stdin.claimArg(resolver.cmdChain, arg, []string{arg.Default}, SourceDefault); err != nil {
+				return err
+			}
+		}
+
+		return resolver.emptySlice(arg, decodeContext)
+	}
+
+	if err := resolver.stdin.claimArg(resolver.cmdChain, arg, remaining, SourceCLI); err != nil {
+		return err
+	}
+
+	typedSlice, err := coerce.SliceWith(remaining, arg.TargetType, arg.Sep, resolver.parsers, decodeContext)
+	if err != nil {
+		return resolver.coercionError(arg, valueOrigin{source: SourceCLI}, strings.Join(remaining, arg.Sep), err)
+	}
+
+	if err := resolver.check(arg, SourceCLI).slice(argConstraints(arg), typedSlice); err != nil {
+		return err
+	}
+
+	argStateOf(arg.Handle).setValue(typedSlice, SourceCLI, "")
+
+	return nil
+}
+
+// emptySlice binds a slice argument that received no tokens: a required one
+// is missing, an optional one takes its default. decodeContext is used as
+// given.
+func (resolver argResolver) emptySlice(arg *spec.Arg, decodeContext coerce.DecodeContext) error {
+	if arg.Required {
+		return resolver.missing(arg)
+	}
+
+	if arg.Default != "" {
+		typedSlice, err := coerce.SliceWith([]string{arg.Default}, arg.TargetType, arg.Sep, resolver.parsers, decodeContext)
+		if err != nil {
+			return resolver.coercionError(arg, valueOrigin{source: SourceDefault, name: arg.Default}, arg.Default, err)
+		}
+
+		if err := resolver.check(arg, SourceDefault).slice(argConstraints(arg), typedSlice); err != nil {
+			return err
+		}
+
+		argStateOf(arg.Handle).setValue(typedSlice, SourceDefault, arg.Default)
+	}
+
+	return nil
+}
+
+// mapArg binds a map argument from its key=value tokens, or from its default
+// when none remain.
+func (resolver argResolver) mapArg(arg *spec.Arg, tokens []string) error {
+	if len(tokens) > 0 {
+		parsedMap, err := parseMapTokens(tokens, arg.TargetType, arg.Sep, resolver.parsers)
+		if err != nil {
+			return resolver.coercionError(arg, valueOrigin{source: SourceCLI}, strings.Join(tokens, " "), err)
+		}
+
+		if err := resolver.check(arg, SourceCLI).mapItems(arg.Items, parsedMap); err != nil {
+			return err
+		}
+
+		argStateOf(arg.Handle).setValue(parsedMap, SourceCLI, "")
+
+		return nil
+	}
+
+	if arg.Default != "" {
+		parsedMap, err := parseMapTokens([]string{arg.Default}, arg.TargetType, arg.Sep, resolver.parsers)
+		if err != nil {
+			return resolver.coercionError(arg, valueOrigin{source: SourceDefault, name: arg.Default}, arg.Default, err)
+		}
+
+		if err := resolver.check(arg, SourceDefault).mapItems(arg.Items, parsedMap); err != nil {
+			return err
+		}
+
+		argStateOf(arg.Handle).setValue(parsedMap, SourceDefault, arg.Default)
+
+		return nil
+	}
+
+	if arg.Required {
+		return resolver.missing(arg)
+	}
+
+	return nil
+}
+
+// scalar binds a scalar argument from posTokens[tokenIdx], or from its default
+// when the tokens ran out. It reports whether it consumed a token.
+func (resolver argResolver) scalar(arg *spec.Arg, posTokens []string, tokenIdx int) (bool, error) {
+	decodeContext := resolver.decodeContext
+	decodeContext.Tags = arg.FieldTags
+
+	if tokenIdx < len(posTokens) {
+		raw := posTokens[tokenIdx]
+
+		if err := resolver.stdin.claimArg(resolver.cmdChain, arg, []string{raw}, SourceCLI); err != nil {
+			return false, err
+		}
+
+		typedValue, err := coerce.ScalarWith(raw, arg.TargetType, resolver.parsers, decodeContext)
+		if err != nil {
+			return false, resolver.coercionError(arg, valueOrigin{source: SourceCLI}, raw, err)
+		}
+
+		if err := resolver.check(arg, SourceCLI).scalar(argConstraints(arg), typedValue); err != nil {
+			return false, err
+		}
+
+		argStateOf(arg.Handle).setValue(typedValue, SourceCLI, "")
+
+		return true, nil
+	}
+
+	if arg.Default != "" {
+		if err := resolver.stdin.claimArg(resolver.cmdChain, arg, []string{arg.Default}, SourceDefault); err != nil {
+			return false, err
+		}
+
+		typedValue, err := coerce.ScalarWith(arg.Default, arg.TargetType, resolver.parsers, decodeContext)
+		if err != nil {
+			return false, resolver.coercionError(arg, valueOrigin{source: SourceDefault, name: arg.Default}, arg.Default, err)
+		}
+
+		if err := resolver.check(arg, SourceDefault).scalar(argConstraints(arg), typedValue); err != nil {
+			return false, err
+		}
+
+		argStateOf(arg.Handle).setValue(typedValue, SourceDefault, arg.Default)
+
+		return false, nil
+	}
+
+	if arg.Required {
+		return false, resolver.missing(arg)
+	}
+
+	return false, nil
+}
+
+// check is the valueCheck for one of arg's values from source.
+func (resolver argResolver) check(arg *spec.Arg, source ValueSource) valueCheck {
+	return valueCheck{cmdChain: resolver.cmdChain, descriptor: "argument " + arg.Name + sourceLocation(source, ""), source: source}
+}
+
+// coercionError attributes a failure to convert rawValue to arg's type to the
+// value's origin.
+func (resolver argResolver) coercionError(arg *spec.Arg, origin valueOrigin, rawValue string, cause error) *coercionError {
+	return &coercionError{
+		targetName: arg.Name,
+		isFlag:     false,
+		source:     origin.source,
+		sourceName: origin.name,
+		targetType: arg.TargetType,
+		rawValue:   rawValue,
+		cmdChain:   resolver.cmdChain,
+		cause:      cause,
+	}
+}
+
+// missing reports a required argument that received no value.
+func (resolver argResolver) missing(arg *spec.Arg) error {
+	return &validationError{
+		msg:      "missing required positional argument " + arg.Name,
+		cmdChain: resolver.cmdChain,
+		cause:    errMissingArg,
+	}
 }
 
 // stdinErrorSource picks the classification for a duplicate stdin claim: any
@@ -1064,7 +1774,9 @@ func bindVersionCommandJSON(cmdChain []*spec.Command, versionCmd *spec.Command, 
 
 		enabled, err := coerce.Value[bool](rawValue)
 		if err != nil {
-			return newFlagCoercionError(cmdChain, flagSpec, SourceCLI, "--"+flagSpec.Name, rawValue, err)
+			binding := flagBinding{cmdChain: cmdChain, flagSpec: flagSpec}
+
+			return binding.coercionError(valueOrigin{source: SourceCLI, name: "--" + flagSpec.Name}, rawValue, err)
 		}
 
 		versionCommand.json = enabled
@@ -1330,38 +2042,31 @@ func parseTokens(cmdChain []*spec.Command, tokens []tokenizer.Token, index *flag
 }
 
 // applyFlagCoercion coerces the winning tier's raw values and records the
-// result on the flag container. sourceName attributes coercion failures to the
-// failing key, variable, or token; detail is the concrete origin stored on the
-// container, which differs from sourceName only for configuration values
-// (origin file instead of config key).
-func applyFlagCoercion(cmdChain []*spec.Command, flagSpec *spec.Flag, rawValues []string, source ValueSource, sourceName, detail string, state *bindingState) error {
-	state.recordSourceName(flagSpec, source, sourceName)
+// result on the flag container. The input's origin attributes coercion
+// failures to the failing key, variable, or token; its detail is the concrete
+// origin stored on the container, which differs from the origin's name only
+// for configuration values (origin file instead of config key).
+func applyFlagCoercion(binding flagBinding, input flagInput) error {
+	flagSpec, state, origin := binding.flagSpec, binding.state, input.origin
+
+	state.recordSourceName(flagSpec, origin)
 
 	if flagSpec.IsCounter {
 		totalCount := 0
 
-		for _, raw := range rawValues {
+		for _, raw := range input.values {
 			// Command-line occurrences arrive as "1". An environment or
 			// configuration count is an unsigned integer that fits an int: no
 			// sign, so -1 and +2 are rejected like any other non-count value.
 			parsedCount, err := strconv.ParseUint(raw, 10, strconv.IntSize-1)
 			if err != nil {
-				return &coercionError{
-					targetName: flagSpec.Name,
-					isFlag:     true,
-					source:     source,
-					sourceName: sourceName,
-					targetType: flagSpec.TargetType,
-					rawValue:   raw,
-					cmdChain:   cmdChain,
-					cause:      &counterError{raw: raw, cause: err},
-				}
+				return binding.coercionError(origin, raw, &counterError{raw: raw, cause: err})
 			}
 
 			totalCount += int(parsedCount)
 		}
 
-		flagStateOf(flagSpec.Handle).setValue(totalCount, source, detail)
+		flagStateOf(flagSpec.Handle).setValue(totalCount, origin.source, input.detail)
 
 		return nil
 	}
@@ -1369,23 +2074,23 @@ func applyFlagCoercion(cmdChain []*spec.Command, flagSpec *spec.Flag, rawValues 
 	// A scalar flag whose type reads its input while parsing cannot be
 	// last-wins: coercing every occurrence would read every file (or stdin)
 	// and discard all but one.
-	if source == SourceCLI && !flagSpec.IsSlice && len(rawValues) > 1 && readsWhileParsing(flagSpec.TargetType) {
-		return newRepeatedFlagError(cmdChain, flagSpec.Name)
+	if origin.source == SourceCLI && !flagSpec.IsSlice && len(input.values) > 1 && readsWhileParsing(flagSpec.TargetType) {
+		return newRepeatedFlagError(binding.cmdChain, flagSpec.Name)
 	}
 
-	if err := state.StdinClaim.claim(cmdChain, "--"+flagSpec.Name, flagSpec.TargetType, flagSpec.FieldTags, flagSpec.Sep, rawValues, source); err != nil {
+	if err := state.StdinClaim.claimFlag(binding.cmdChain, flagSpec, input.values, origin.source); err != nil {
 		return err
 	}
 
 	decodeContext := state.decodeContext(flagSpec.FieldTags)
 
 	if flagSpec.IsSlice {
-		typedSlice, err := coerce.SliceWith(rawValues, flagSpec.TargetType, flagSpec.Sep, state.TypeParsers, decodeContext)
+		typedSlice, err := coerce.SliceWith(input.values, flagSpec.TargetType, flagSpec.Sep, state.TypeParsers, decodeContext)
 		if err != nil {
-			return newFlagCoercionError(cmdChain, flagSpec, source, sourceName, strings.Join(rawValues, flagSpec.Sep), err)
+			return binding.coercionError(origin, strings.Join(input.values, flagSpec.Sep), err)
 		}
 
-		flagStateOf(flagSpec.Handle).setValue(typedSlice, source, detail)
+		flagStateOf(flagSpec.Handle).setValue(typedSlice, origin.source, input.detail)
 
 		return nil
 	}
@@ -1395,21 +2100,25 @@ func applyFlagCoercion(cmdChain []*spec.Command, flagSpec *spec.Flag, rawValues 
 	// vanishing. Constraints (range, enum, Validate) apply to the winning value.
 	var typedValue any
 
-	for _, rawValue := range rawValues {
+	for _, rawValue := range input.values {
 		coerced, err := coerce.ScalarWith(rawValue, flagSpec.TargetType, state.TypeParsers, decodeContext)
 		if err != nil {
-			return newFlagCoercionError(cmdChain, flagSpec, source, sourceName, rawValue, err)
+			return binding.coercionError(origin, rawValue, err)
 		}
 
 		typedValue = coerced
 	}
 
-	flagStateOf(flagSpec.Handle).setValue(typedValue, source, detail)
+	flagStateOf(flagSpec.Handle).setValue(typedValue, origin.source, input.detail)
 
 	return nil
 }
 
-func applyFlagValue(cmd *spec.Command, cmdChain []*spec.Command, flagSpec *spec.Flag, cliValues map[*spec.Flag][]string, state *bindingState) error {
+// applyFlagValue binds one flag from its highest tier that holds a value, or
+// merges every tier key by key for a map flag.
+func applyFlagValue(binding flagBinding) error {
+	flagSpec, state := binding.flagSpec, binding.state
+
 	// Engine-owned flags of built-in commands (for example version --json) have
 	// no container: they bind through their dedicated path. --why on a meta
 	// command runs the regular flag binding pipeline, so those descriptors must
@@ -1423,7 +2132,7 @@ func applyFlagValue(cmd *spec.Command, cmdChain []*spec.Command, flagSpec *spec.
 	// different keys to the same map.
 	if flagSpec.IsMap {
 		var result mapMergeResult
-		if err := foldMapTiers(cmd, cmdChain, flagSpec, cliValues, state, nil, &result); err != nil {
+		if err := foldMapTiers(binding, nil, &result); err != nil {
 			return err
 		}
 
@@ -1440,25 +2149,25 @@ func applyFlagValue(cmd *spec.Command, cmdChain []*spec.Command, flagSpec *spec.
 	}
 
 	// Tier 1: CLI Flags
-	if values, ok := cliValues[flagSpec]; ok && len(values) > 0 {
+	if values, ok := binding.cliValues[flagSpec]; ok && len(values) > 0 {
 		flagToken := "--" + flagSpec.Name
 
-		return applyFlagCoercion(cmdChain, flagSpec, values, SourceCLI, flagToken, flagToken, state)
+		return applyFlagCoercion(binding, flagInput{values: values, origin: valueOrigin{source: SourceCLI, name: flagToken}, detail: flagToken})
 	}
 
 	// Tier 2: Environment Variables
-	if envValue, envName, ok := lookupEnv(flagSpec, cmd, state); ok {
-		return applyFlagCoercion(cmdChain, flagSpec, []string{envValue}, SourceEnv, envName, envName, state)
+	if envValue, envName, ok := lookupEnv(flagSpec, binding.cmd, state); ok {
+		return applyFlagCoercion(binding, flagInput{values: []string{envValue}, origin: valueOrigin{source: SourceEnv, name: envName}, detail: envName})
 	}
 
 	// Tier 3: Configuration Files
-	if configValue, configKey, ok := lookupConfig(flagSpec, cmd, cmdChain, state); ok {
-		return applyFlagCoercion(cmdChain, flagSpec, []string{configValue.Raw}, SourceConfig, configKey, cmp.Or(configValue.SourceDetail(), configKey), state)
+	if configValue, configKey, ok := lookupConfig(flagSpec, binding.cmd, binding.cmdChain, state); ok {
+		return applyFlagCoercion(binding, flagInput{values: []string{configValue.Raw}, origin: valueOrigin{source: SourceConfig, name: configKey}, detail: cmp.Or(configValue.SourceDetail(), configKey)})
 	}
 
 	// Tier 4: Default Values
 	if flagSpec.Default != "" {
-		return applyFlagCoercion(cmdChain, flagSpec, []string{flagSpec.Default}, SourceDefault, flagSpec.Default, flagSpec.Default, state)
+		return applyFlagCoercion(binding, flagInput{values: []string{flagSpec.Default}, origin: valueOrigin{source: SourceDefault, name: flagSpec.Default}, detail: flagSpec.Default})
 	}
 
 	return nil
@@ -1578,7 +2287,7 @@ func resolveFlags(cmdChain []*spec.Command, cliValues map[*spec.Flag][]string, s
 				continue
 			}
 
-			if err := applyFlagValue(cmd, cmdChain, flagSpec, cliValues, state); err != nil {
+			if err := applyFlagValue(flagBinding{cmd: cmd, cmdChain: cmdChain, flagSpec: flagSpec, cliValues: cliValues, state: state}); err != nil {
 				return err
 			}
 		}
@@ -1801,108 +2510,6 @@ func candidateConfigKeys(flagSpec *spec.Flag, cmd *spec.Command, cmdChain []*spe
 	return keys
 }
 
-func validateEnumValue(cmdChain []*spec.Command, descriptor string, enum []string, cmpStr string, source ValueSource) error {
-	if len(enum) == 0 {
-		return nil
-	}
-
-	if !slices.Contains(enum, cmpStr) {
-		return &validationError{
-			msg: fmt.Sprintf("invalid value %q (must be one of: %s) for %s",
-				truncateForDisplay(cmpStr), strings.Join(enum, ", "), descriptor),
-			source:      source,
-			cmdChain:    cmdChain,
-			cause:       errInvalidValue,
-			valueShaped: true,
-		}
-	}
-
-	return nil
-}
-
-func validateScalarValue(cmdChain []*spec.Command, descriptor string, constraints constraintSet, value any, enumStr string, source ValueSource) error {
-	if err := validateEnumValue(cmdChain, descriptor, constraints.enum, enumStr, source); err != nil {
-		return err
-	}
-
-	if constraints.length != nil {
-		if reason, ok := checkStringLen(value, constraints.length); !ok {
-			return &validationError{
-				msg:         fmt.Sprintf("value %q %s for %s", truncateForDisplay(stringx.Stringify(value)), reason, descriptor),
-				source:      source,
-				cmdChain:    cmdChain,
-				cause:       errInvalidLength,
-				valueShaped: true,
-			}
-		}
-	}
-
-	if constraints.valueRange != nil {
-		if reason, ok := checkValueRange(value, constraints.valueRange); !ok {
-			return &validationError{
-				msg:         fmt.Sprintf("value %v %s for %s", value, reason, descriptor),
-				source:      source,
-				cmdChain:    cmdChain,
-				cause:       errOutOfRange,
-				valueShaped: true,
-			}
-		}
-	}
-
-	return nil
-}
-
-func validateSliceValue(cmdChain []*spec.Command, descriptor string, constraints constraintSet, typedSlice any, source ValueSource) error {
-	sliceValue := reflect.ValueOf(typedSlice)
-
-	if constraints.items != nil {
-		if reason, ok := checkItemCount(sliceValue, constraints.items); !ok {
-			return &validationError{
-				msg:         fmt.Sprintf("%s for %s", reason, descriptor),
-				source:      source,
-				cmdChain:    cmdChain,
-				cause:       errInvalidItemCount,
-				valueShaped: true,
-			}
-		}
-	}
-
-	for i := range sliceValue.Len() {
-		elem := sliceValue.Index(i).Interface()
-
-		if err := validateScalarValue(cmdChain, descriptor, constraints, elem, stringx.Stringify(elem), source); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func validateMapValue(cmdChain []*spec.Command, descriptor string, items *spec.Range, value any, source ValueSource) error {
-	if value == nil {
-		return nil
-	}
-
-	mapValue := reflect.ValueOf(value)
-	if !mapValue.IsValid() {
-		return nil
-	}
-
-	if items != nil {
-		if reason, ok := checkItemCount(mapValue, items); !ok {
-			return &validationError{
-				msg:         fmt.Sprintf("%s for %s", reason, descriptor),
-				source:      source,
-				cmdChain:    cmdChain,
-				cause:       errInvalidItemCount,
-				valueShaped: true,
-			}
-		}
-	}
-
-	return nil
-}
-
 func validateXorGroups(cmdChain []*spec.Command, xorGroups orderedFlagGroups, naming flagGroupNaming) error {
 	return validateMutuallyExclusiveGroups(cmdChain, xorGroups, naming)
 }
@@ -2002,20 +2609,26 @@ func validateFlagValueConstraint(cmdChain []*spec.Command, flagSpec *spec.Flag, 
 		valueRange: flagSpec.Range,
 		items:      flagSpec.Items,
 	}
-	descriptor := "flag --" + flagSpec.Name + sourceLocation(target.Source(), sourceName)
+	check := valueCheck{
+		cmdChain:   cmdChain,
+		descriptor: "flag --" + flagSpec.Name + sourceLocation(target.Source(), sourceName),
+		source:     target.Source(),
+	}
 
 	if flagSpec.IsSlice {
-		return validateSliceValue(cmdChain, descriptor, constraints, value, target.Source())
+		return check.slice(constraints, value)
 	}
 
 	if flagSpec.IsMap {
 		// A map merges keys from several sources, so its item count has no
 		// single origin to attribute; its category follows the highest
 		// contributing tier recorded on the container.
-		return validateMapValue(cmdChain, "flag --"+flagSpec.Name, constraints.items, value, target.Source())
+		check.descriptor = "flag --" + flagSpec.Name
+
+		return check.mapItems(constraints.items, value)
 	}
 
-	return validateScalarValue(cmdChain, descriptor, constraints, value, stringx.Stringify(value), target.Source())
+	return check.scalar(constraints, value)
 }
 
 // validateFlagValueConstraints checks per-flag value constraints after binding.
@@ -2067,158 +2680,6 @@ func oneOfGroupName(flagSpec *spec.Flag) string { return flagSpec.OneOfGroup }
 
 // andGroupName returns a flag's and group name for collectFlagGroups.
 func andGroupName(flagSpec *spec.Flag) string { return flagSpec.AndGroup }
-
-func resolveSliceArg(cmdChain []*spec.Command, arg *spec.Arg, remaining []string, parsers coerce.Registry, decodeContext coerce.DecodeContext, stdin *stdinClaim) error {
-	decodeContext.Tags = arg.FieldTags
-
-	if len(remaining) == 0 {
-		if arg.Default != "" {
-			if err := stdin.claim(cmdChain, "argument "+arg.Name, arg.TargetType, arg.FieldTags, arg.Sep, []string{arg.Default}, SourceDefault); err != nil {
-				return err
-			}
-		}
-
-		return resolveEmptySliceArg(cmdChain, arg, parsers, decodeContext)
-	}
-
-	if err := stdin.claim(cmdChain, "argument "+arg.Name, arg.TargetType, arg.FieldTags, arg.Sep, remaining, SourceCLI); err != nil {
-		return err
-	}
-
-	typedSlice, err := coerce.SliceWith(remaining, arg.TargetType, arg.Sep, parsers, decodeContext)
-	if err != nil {
-		return newArgCoercionError(cmdChain, arg, SourceCLI, "", strings.Join(remaining, arg.Sep), err)
-	}
-
-	if err := validateArgSlice(cmdChain, arg, typedSlice, SourceCLI); err != nil {
-		return err
-	}
-
-	argStateOf(arg.Handle).setValue(typedSlice, SourceCLI, "")
-
-	return nil
-}
-
-func resolveEmptySliceArg(cmdChain []*spec.Command, arg *spec.Arg, parsers coerce.Registry, decodeContext coerce.DecodeContext) error {
-	if arg.Required {
-		return &validationError{
-			msg:      "missing required positional argument " + arg.Name,
-			cmdChain: cmdChain,
-			cause:    errMissingArg,
-		}
-	}
-
-	if arg.Default != "" {
-		typedSlice, err := coerce.SliceWith([]string{arg.Default}, arg.TargetType, arg.Sep, parsers, decodeContext)
-		if err != nil {
-			return newArgCoercionError(cmdChain, arg, SourceDefault, arg.Default, arg.Default, err)
-		}
-
-		if err := validateArgSlice(cmdChain, arg, typedSlice, SourceDefault); err != nil {
-			return err
-		}
-
-		argStateOf(arg.Handle).setValue(typedSlice, SourceDefault, arg.Default)
-	}
-
-	return nil
-}
-
-func resolveMapArg(cmdChain []*spec.Command, arg *spec.Arg, tokens []string, parsers coerce.Registry) error {
-	if len(tokens) > 0 {
-		parsedMap, err := parseMapTokens(tokens, arg.TargetType, arg.Sep, parsers)
-		if err != nil {
-			return newArgCoercionError(cmdChain, arg, SourceCLI, "", strings.Join(tokens, " "), err)
-		}
-
-		if err := validateArgMap(cmdChain, arg, parsedMap, SourceCLI); err != nil {
-			return err
-		}
-
-		argStateOf(arg.Handle).setValue(parsedMap, SourceCLI, "")
-
-		return nil
-	}
-
-	if arg.Default != "" {
-		parsedMap, err := parseMapTokens([]string{arg.Default}, arg.TargetType, arg.Sep, parsers)
-		if err != nil {
-			return newArgCoercionError(cmdChain, arg, SourceDefault, arg.Default, arg.Default, err)
-		}
-
-		if err := validateArgMap(cmdChain, arg, parsedMap, SourceDefault); err != nil {
-			return err
-		}
-
-		argStateOf(arg.Handle).setValue(parsedMap, SourceDefault, arg.Default)
-
-		return nil
-	}
-
-	if arg.Required {
-		return &validationError{
-			msg:      "missing required positional argument " + arg.Name,
-			cmdChain: cmdChain,
-			cause:    errMissingArg,
-		}
-	}
-
-	return nil
-}
-
-func resolveScalarArg(cmdChain []*spec.Command, arg *spec.Arg, posTokens []string, tokenIdx int, parsers coerce.Registry, decodeContext coerce.DecodeContext, stdin *stdinClaim) (bool, error) {
-	decodeContext.Tags = arg.FieldTags
-
-	if tokenIdx < len(posTokens) {
-		raw := posTokens[tokenIdx]
-
-		if err := stdin.claim(cmdChain, "argument "+arg.Name, arg.TargetType, arg.FieldTags, "", []string{raw}, SourceCLI); err != nil {
-			return false, err
-		}
-
-		typedValue, err := coerce.ScalarWith(raw, arg.TargetType, parsers, decodeContext)
-		if err != nil {
-			return false, newArgCoercionError(cmdChain, arg, SourceCLI, "", raw, err)
-		}
-
-		if err := validateArgScalar(cmdChain, arg, typedValue, SourceCLI); err != nil {
-			return false, err
-		}
-
-		argStateOf(arg.Handle).setValue(typedValue, SourceCLI, "")
-
-		return true, nil
-	}
-
-	if arg.Default != "" {
-		if err := stdin.claim(cmdChain, "argument "+arg.Name, arg.TargetType, arg.FieldTags, "", []string{arg.Default}, SourceDefault); err != nil {
-			return false, err
-		}
-
-		typedValue, err := coerce.ScalarWith(arg.Default, arg.TargetType, parsers, decodeContext)
-		if err != nil {
-			return false, newArgCoercionError(cmdChain, arg, SourceDefault, arg.Default, arg.Default, err)
-		}
-
-		if err := validateArgScalar(cmdChain, arg, typedValue, SourceDefault); err != nil {
-			return false, err
-		}
-
-		argStateOf(arg.Handle).setValue(typedValue, SourceDefault, arg.Default)
-
-		return false, nil
-	}
-
-	if arg.Required {
-		return false, &validationError{
-			msg:      "missing required positional argument " + arg.Name,
-			cmdChain: cmdChain,
-			cause:    errMissingArg,
-		}
-	}
-
-	return false, nil
-}
 
 func handleUnexpectedPositional(cmd *spec.Command, cmdChain []*spec.Command, unexpected string) error {
 	if suggestion := suggestSubcommand(cmd, unexpected); suggestion != "" {
@@ -2272,99 +2733,14 @@ func suggestSubcommand(cmd *spec.Command, input string) string {
 	return suggestion
 }
 
-// resolveArgs binds positional argument tokens. decodeContext carries the
-// run's engine-configured standard streams (no tags); each arg's declared
-// tags are composed into the context at its coercion site.
-func resolveArgs(cmd *spec.Command, cmdChain []*spec.Command, posTokens []string, parsers coerce.Registry, decodeContext coerce.DecodeContext, stdin *stdinClaim) error {
-	tokenIdx := 0
-
-	for _, arg := range cmd.Args {
-		if arg.IsSlice {
-			if err := resolveSliceArg(cmdChain, arg, posTokens[tokenIdx:], parsers, decodeContext, stdin); err != nil {
-				return err
-			}
-
-			// Slice positional argument consumes all remaining positional tokens,
-			// satisfying the trailing token check below (tokenIdx == len(posTokens)).
-			tokenIdx = len(posTokens)
-
-			break
-		}
-
-		if arg.IsMap {
-			if err := resolveMapArg(cmdChain, arg, posTokens[tokenIdx:], parsers); err != nil {
-				return err
-			}
-
-			// Map positional argument consumes all remaining positional tokens,
-			// satisfying the trailing token check below (tokenIdx == len(posTokens)).
-			tokenIdx = len(posTokens)
-
-			break
-		}
-
-		advanced, err := resolveScalarArg(cmdChain, arg, posTokens, tokenIdx, parsers, decodeContext, stdin)
-		if err != nil {
-			return err
-		}
-
-		if advanced {
-			tokenIdx++
-		}
-	}
-
-	// Check for unexpected extra positional arguments
-	if tokenIdx < len(posTokens) {
-		return handleUnexpectedPositional(cmd, cmdChain, posTokens[tokenIdx])
-	}
-
-	return nil
-}
-
-func validateArgScalar(cmdChain []*spec.Command, arg *spec.Arg, typedValue any, source ValueSource) error {
-	constraints := constraintSet{
+// argConstraints collects a positional argument's per-value constraints.
+func argConstraints(arg *spec.Arg) constraintSet {
+	return constraintSet{
 		enum:       arg.Enum,
 		length:     arg.Len,
 		valueRange: arg.Range,
 		items:      arg.Items,
 	}
-
-	return validateScalarValue(cmdChain, "argument "+arg.Name+sourceLocation(source, ""), constraints, typedValue, stringx.Stringify(typedValue), source)
-}
-
-func validateArgSlice(cmdChain []*spec.Command, arg *spec.Arg, typedSlice any, source ValueSource) error {
-	constraints := constraintSet{
-		enum:       arg.Enum,
-		length:     arg.Len,
-		valueRange: arg.Range,
-		items:      arg.Items,
-	}
-
-	return validateSliceValue(cmdChain, "argument "+arg.Name+sourceLocation(source, ""), constraints, typedSlice, source)
-}
-
-func validateArgMap(cmdChain []*spec.Command, arg *spec.Arg, typedMap any, source ValueSource) error {
-	return validateMapValue(cmdChain, "argument "+arg.Name+sourceLocation(source, ""), arg.Items, typedMap, source)
-}
-
-func checkOrderedRange[T cmp.Ordered](value, minValue, maxValue T, hasMin, hasMax bool, minStr, maxStr string) (string, bool) {
-	if hasMin && hasMax {
-		if value < minValue || value > maxValue {
-			return fmt.Sprintf("is out of range [%s..%s]", minStr, maxStr), false
-		}
-
-		return "", true
-	}
-
-	if hasMin && value < minValue {
-		return "must be >= " + minStr, false
-	}
-
-	if hasMax && value > maxValue {
-		return "must be <= " + maxStr, false
-	}
-
-	return "", true
 }
 
 func checkTypedRange[T cmp.Ordered](value T, rangeSpec *spec.Range, parse func(string) (T, error)) (string, bool) {
@@ -2391,7 +2767,23 @@ func checkTypedRange[T cmp.Ordered](value T, rangeSpec *spec.Range, parse func(s
 		maxValue = parsed
 	}
 
-	return checkOrderedRange(value, minValue, maxValue, rangeSpec.HasMin, rangeSpec.HasMax, rangeSpec.MinStr, rangeSpec.MaxStr)
+	if rangeSpec.HasMin && rangeSpec.HasMax {
+		if value < minValue || value > maxValue {
+			return fmt.Sprintf("is out of range [%s..%s]", rangeSpec.MinStr, rangeSpec.MaxStr), false
+		}
+
+		return "", true
+	}
+
+	if rangeSpec.HasMin && value < minValue {
+		return "must be >= " + rangeSpec.MinStr, false
+	}
+
+	if rangeSpec.HasMax && value > maxValue {
+		return "must be <= " + rangeSpec.MaxStr, false
+	}
+
+	return "", true
 }
 
 func parseInt64Bound(raw string) (int64, error) {
@@ -2493,15 +2885,7 @@ func parseIntBound(raw string) (int, bool) {
 	return value, true
 }
 
-func formatBoundsError(count, bound int, format string, countFirst bool) string {
-	if countFirst {
-		return fmt.Sprintf(format, count, bound)
-	}
-
-	return fmt.Sprintf(format, bound, count)
-}
-
-func checkIntRange(count int, rangeSpec *spec.Range, exactFmt, rangeFmt, minFmt, maxFmt string, countFirst bool) (string, bool) {
+func checkIntRange(count int, rangeSpec *spec.Range, messages countMessages) (string, bool) {
 	if rangeSpec == nil {
 		return "", true
 	}
@@ -2514,7 +2898,7 @@ func checkIntRange(count int, rangeSpec *spec.Range, exactFmt, rangeFmt, minFmt,
 
 	if rangeSpec.Exact && parsedMin {
 		if count != minValue {
-			return formatBoundsError(count, minValue, exactFmt, countFirst), false
+			return messages.bound(messages.exact, count, minValue), false
 		}
 
 		return "", true
@@ -2522,18 +2906,18 @@ func checkIntRange(count int, rangeSpec *spec.Range, exactFmt, rangeFmt, minFmt,
 
 	if hasMin && hasMax {
 		if count < minValue || count > maxValue {
-			return fmt.Sprintf(rangeFmt, count, minValue, maxValue), false
+			return fmt.Sprintf(messages.outOfRange, count, minValue, maxValue), false
 		}
 
 		return "", true
 	}
 
 	if hasMin && count < minValue {
-		return formatBoundsError(count, minValue, minFmt, countFirst), false
+		return messages.bound(messages.belowMin, count, minValue), false
 	}
 
 	if hasMax && count > maxValue {
-		return formatBoundsError(count, maxValue, maxFmt, countFirst), false
+		return messages.bound(messages.aboveMax, count, maxValue), false
 	}
 
 	return "", true
@@ -2546,13 +2930,13 @@ func checkStringLen(value any, rangeSpec *spec.Range) (string, bool) {
 
 	length := utf8.RuneCountInString(stringx.Stringify(value))
 
-	return checkIntRange(length, rangeSpec,
-		"length %d must be exactly %d",
-		"length %d is out of range [%d..%d]",
-		"length %d must be >= %d",
-		"length %d must be <= %d",
-		true,
-	)
+	return checkIntRange(length, rangeSpec, countMessages{
+		exact:      "length %d must be exactly %d",
+		outOfRange: "length %d is out of range [%d..%d]",
+		belowMin:   "length %d must be >= %d",
+		aboveMax:   "length %d must be <= %d",
+		countFirst: true,
+	})
 }
 
 func checkItemCount(collectionValue reflect.Value, rangeSpec *spec.Range) (string, bool) {
@@ -2560,13 +2944,12 @@ func checkItemCount(collectionValue reflect.Value, rangeSpec *spec.Range) (strin
 		return "", true
 	}
 
-	return checkIntRange(collectionValue.Len(), rangeSpec,
-		"expected exactly %d items, got %d",
-		"item count %d is out of range [%d..%d]",
-		"expected at least %d items, got %d",
-		"expected at most %d items, got %d",
-		false,
-	)
+	return checkIntRange(collectionValue.Len(), rangeSpec, countMessages{
+		exact:      "expected exactly %d items, got %d",
+		outOfRange: "item count %d is out of range [%d..%d]",
+		belowMin:   "expected at least %d items, got %d",
+		aboveMax:   "expected at most %d items, got %d",
+	})
 }
 
 // callSelfValidator invokes SelfValidator on value, asserting both the direct
@@ -2794,137 +3177,6 @@ func isMetaCommand(cmd *spec.Command) bool {
 	return cmd != nil && (cmd.IsCompletionCmd || cmd.IsHelpCmd || cmd.IsVersionCmd)
 }
 
-func newFlagCoercionError(cmdChain []*spec.Command, flagSpec *spec.Flag, source ValueSource, sourceName, rawValue string, cause error) *coercionError {
-	return &coercionError{
-		targetName: flagSpec.Name,
-		isFlag:     true,
-		source:     source,
-		sourceName: sourceName,
-		targetType: flagSpec.TargetType,
-		rawValue:   rawValue,
-		cmdChain:   cmdChain,
-		cause:      cause,
-	}
-}
-
-func newArgCoercionError(cmdChain []*spec.Command, arg *spec.Arg, source ValueSource, sourceName, rawValue string, cause error) *coercionError {
-	return &coercionError{
-		targetName: arg.Name,
-		isFlag:     false,
-		source:     source,
-		sourceName: sourceName,
-		targetType: arg.TargetType,
-		rawValue:   rawValue,
-		cmdChain:   cmdChain,
-		cause:      cause,
-	}
-}
-
-func foldMapTier(cmdChain []*spec.Command, flagSpec *spec.Flag, rawValues []string, source ValueSource, name string, origin configdata.Value, merged map[string]string, provenance map[string]ValueSource, origins map[string]configdata.Value, result *mapMergeResult) error {
-	if len(rawValues) == 0 {
-		return nil
-	}
-
-	entries, err := coerce.MapEntries(rawValues, flagSpec.Sep)
-	if err != nil {
-		result.hasValues = true
-
-		return newFlagCoercionError(cmdChain, flagSpec, source, name, strings.Join(rawValues, flagSpec.Sep), err)
-	}
-
-	for _, entry := range entries {
-		key := entry.Key
-		if flagSpec.KeyCanonicalizer != nil {
-			key = flagSpec.KeyCanonicalizer(key)
-		}
-
-		merged[key] = entry.Value
-
-		if provenance != nil {
-			provenance[key] = source
-		}
-
-		if origins != nil {
-			origins[key] = origin
-		}
-	}
-
-	result.hasValues = true
-	if len(entries) > 0 {
-		result.highestTier = source
-		result.highestName = name
-	}
-
-	return nil
-}
-
-// foldMapConfigTier folds the config tier's pre-merged map entries into
-// merged: nested-map entries bind directly without the separator round trip,
-// malformed flat tokens surface the same coercion error attribution, and
-// every key records the config tier as its provenance with the contributing
-// file as its origin.
-func foldMapConfigTier(cmdChain []*spec.Command, flagSpec *spec.Flag, entries map[string]configdata.Value, configKey string, merged map[string]string, provenance map[string]ValueSource, origins map[string]configdata.Value, result *mapMergeResult) error {
-	if bad, hasBad := entries[""]; hasBad {
-		return foldMapTier(cmdChain, flagSpec, []string{bad.Raw}, SourceConfig, configKey, bad, merged, provenance, origins, result)
-	}
-
-	for key, entry := range entries {
-		merged[key] = entry.Raw
-
-		if provenance != nil {
-			provenance[key] = SourceConfig
-		}
-
-		if origins != nil {
-			origins[key] = configdata.Value{Origin: entry.Origin, Scope: entry.Scope}
-		}
-	}
-
-	result.hasValues = true
-	result.highestTier = SourceConfig
-	result.highestName = configKey
-
-	return nil
-}
-
-// foldMapEnvEntriesTier folds the per-feature environment tier's pre-resolved
-// entries into merged: each raw value binds directly, every key records the
-// environment tier as its provenance with a zeroed origin (matching
-// combined-map env keys for --why parity), and the contributing variable names
-// are carried for feature error attribution when the caller supplied them. The
-// tier's name is the declaration-ordered list of contributing variables, so an
-// env-only feature map reports them as its source detail.
-func foldMapEnvEntriesTier(entries map[string]configdata.Value, entryNames map[string]string, detail string, dotenvOrigins map[string]string, merged map[string]string, provenance map[string]ValueSource, origins map[string]configdata.Value, result *mapMergeResult) {
-	if len(entries) == 0 {
-		return
-	}
-
-	for key, entry := range entries {
-		merged[key] = entry.Raw
-
-		if provenance != nil {
-			provenance[key] = SourceEnv
-		}
-
-		if origins != nil {
-			origins[key] = configdata.Value{Origin: dotenvOrigins[entryNames[key]]}
-		}
-
-		if entryNames != nil {
-			if result.envEntryNames == nil {
-				result.envEntryNames = make(map[string]string, len(entries))
-			}
-
-			result.envEntryNames[key] = entryNames[key]
-		}
-	}
-
-	result.hasValues = true
-	result.highestTier = SourceEnv
-	result.highestName = detail
-	result.highestOrigins = nil
-}
-
 func hasCustomMapParser(state *bindingState, flagSpec *spec.Flag) bool {
 	if flagSpec.EngineOwned {
 		return false
@@ -2952,18 +3204,15 @@ func isStringStringMap(targetType reflect.Type) bool {
 // variants override across tiers and later tokens in the same tier win. The
 // config tier folds the per-file structured contributions in file load order,
 // so cascading files merge key by key and the nearest file wins each key.
-func foldMapTiers(cmd *spec.Command, cmdChain []*spec.Command, flagSpec *spec.Flag, cliValues map[*spec.Flag][]string, state *bindingState, featureEnv *mapTierInput, result *mapMergeResult) error {
-	if flagSpec == nil {
+func foldMapTiers(binding flagBinding, featureEnv *mapTierInput, result *mapMergeResult) error {
+	if binding.flagSpec == nil {
 		return nil
 	}
 
-	configEntries, configKey, hasConfig := lookupConfigMap(flagSpec, cmd, cmdChain, state)
-	envValue, envName, hasEnv := lookupEnv(flagSpec, cmd, state)
-	cliValuesForFlag := cliValues[flagSpec]
+	state := binding.state
 
-	hasFeatureEnv := featureEnv != nil && featureEnv.has
-
-	if !hasMapContributions(flagSpec, hasConfig, hasEnv, hasFeatureEnv, cliValuesForFlag) {
+	tiers, configEntries, envName := binding.mapTiers(featureEnv)
+	if !slices.ContainsFunc(tiers, func(tier mapTierInput) bool { return tier.has }) {
 		return nil
 	}
 
@@ -2974,58 +3223,61 @@ func foldMapTiers(cmd *spec.Command, cmdChain []*spec.Command, flagSpec *spec.Fl
 	// environment tier ahead of the CLI tier. A registered parser for
 	// map[string]string must not divert the engine-owned flag to the generic
 	// registered-map path.
-	if hasCustomMapParser(state, flagSpec) {
-		return state.CustomMapMerger(cmd, cmdChain, flagSpec, cliValues, state, result)
+	if hasCustomMapParser(state, binding.flagSpec) {
+		return state.CustomMapMerger(binding, result)
 	}
 
-	if !isStringStringMap(flagSpec.TargetType) {
+	if !isStringStringMap(binding.flagSpec.TargetType) {
 		result.hasValues = true
 
-		return &mapRegistrationError{targetType: flagSpec.TargetType}
+		return &mapRegistrationError{targetType: binding.flagSpec.TargetType}
 	}
 
-	merged := make(map[string]string)
-
-	var provenance map[string]ValueSource
-
-	var origins map[string]configdata.Value
-
-	if state != nil && state.WantMapProvenance {
-		provenance = make(map[string]ValueSource)
-		origins = make(map[string]configdata.Value)
-	}
-
-	tiers := buildMapTiers(flagSpec, configEntries, configKey, hasConfig, envValue, envName, hasEnv, cliValuesForFlag, featureEnv)
 	attachDotenvOrigins(tiers, state)
 
-	var lastSource ValueSource
+	fold := stringMapFold{
+		binding:    binding,
+		merged:     make(map[string]string),
+		provenance: newMapProvenance(state),
+		result:     result,
+	}
 
-	var lastName string
-
-	for _, tier := range tiers {
-		if !tier.has {
-			continue
-		}
-
-		lastSource = tier.source
-		lastName = tier.name
-
-		if err := tier.fold(cmdChain, flagSpec, merged, provenance, origins, result); err != nil {
-			return err
-		}
+	last, err := foldTiers(tiers, fold.tier)
+	if err != nil {
+		return err
 	}
 
 	if !result.hasValues {
 		return nil
 	}
 
-	finalizeMapMerge(flagSpec, merged, provenance, origins, lastSource, lastName, result)
+	fold.finish(last)
 
 	if result.highestTier == SourceConfig {
 		result.highestOrigins = orderedConfigOrigins(state, configEntries)
 	}
 
 	return nil
+}
+
+// foldTiers folds every tier that holds a value, in order, and returns the
+// origin of the last one.
+func foldTiers(tiers []mapTierInput, fold func(mapTierInput) error) (valueOrigin, error) {
+	var last valueOrigin
+
+	for _, tier := range tiers {
+		if !tier.has {
+			continue
+		}
+
+		last = valueOrigin{source: tier.source, name: tier.name}
+
+		if err := fold(tier); err != nil {
+			return last, err
+		}
+	}
+
+	return last, nil
 }
 
 // attachDotenvOrigins records the run's dotenv origins on each environment
@@ -3041,35 +3293,6 @@ func attachDotenvOrigins(tiers []mapTierInput, state *bindingState) {
 			tiers[index].dotenvOrigins = state.DotenvOrigins
 		}
 	}
-}
-
-// hasMapContributions reports whether any tier of a map flag supplied a value:
-// a declared default, the config tier, the combined or per-feature environment
-// tier, or the command line.
-func hasMapContributions(flagSpec *spec.Flag, hasConfig, hasEnv, hasFeatureEnv bool, cliValues []string) bool {
-	return flagSpec.Default != "" || hasConfig || hasEnv || hasFeatureEnv || len(cliValues) > 0
-}
-
-// buildMapTiers assembles a map flag's tiers in ascending precedence: default,
-// config, per-feature environment (featureEnv, nil for ordinary map flags),
-// combined environment, then CLI.
-func buildMapTiers(flagSpec *spec.Flag, configEntries map[string]configdata.Value, configKey string, hasConfig bool, envValue, envName string, hasEnv bool, cliValues []string, featureEnv *mapTierInput) []mapTierInput {
-	tiers := make([]mapTierInput, 0, 5)
-	tiers = append(tiers,
-		mapTierInput{has: flagSpec.Default != "", values: []string{flagSpec.Default}, source: SourceDefault, name: flagSpec.Default},
-		mapTierInput{has: hasConfig, entries: configEntries, source: SourceConfig, name: configKey},
-	)
-
-	if featureEnv != nil {
-		tiers = append(tiers, *featureEnv)
-	}
-
-	tiers = append(tiers,
-		mapTierInput{has: hasEnv, values: []string{envValue}, source: SourceEnv, name: envName},
-		mapTierInput{has: len(cliValues) > 0, values: cliValues, source: SourceCLI, name: "--" + flagSpec.Name},
-	)
-
-	return tiers
 }
 
 // orderedConfigOrigins lists the distinct origins contributing entries to a
@@ -3108,151 +3331,23 @@ func orderedConfigOrigins(state *bindingState, entries map[string]configdata.Val
 	return ordered
 }
 
-// finalizeMapMerge publishes a completed map fold into the merge result:
-// tiers that contributed no pairs leave the recorded highest tier untouched,
-// and non-native map target types convert from the internal string map.
-func finalizeMapMerge(flagSpec *spec.Flag, merged map[string]string, provenance map[string]ValueSource, origins map[string]configdata.Value, lastSource ValueSource, lastName string, result *mapMergeResult) {
-	if result.highestTier == SourceNone {
-		result.highestTier = lastSource
-		result.highestName = lastName
+// mergeRegisteredMapTiers merges a map flag whose type has a registered
+// parser: every tier's entries parse through that parser and merge key by key
+// in ascending precedence.
+func mergeRegisteredMapTiers(binding flagBinding, result *mapMergeResult) error {
+	state := binding.state
+	tiers, configEntries, _ := binding.mapTiers(nil)
+
+	fold := registeredMapFold{
+		binding:    binding,
+		merged:     reflect.MakeMap(binding.flagSpec.TargetType),
+		provenance: newMapProvenance(state),
+		result:     result,
 	}
 
-	var finalMerged any = merged
-	if flagSpec.TargetType != reflect.TypeFor[map[string]string]() {
-		finalMerged = reflect.ValueOf(merged).Convert(flagSpec.TargetType).Interface()
-	}
-
-	result.merged = finalMerged
-	result.provenance = provenance
-	result.origins = origins
-}
-
-func foldRegisteredMapTier(rawValues []string, source ValueSource, name string, origin configdata.Value, flagSpec *spec.Flag, cmdChain []*spec.Command, state *bindingState, merged reflect.Value, provenance map[string]ValueSource, origins map[string]configdata.Value, result *mapMergeResult) error {
-	if len(rawValues) == 0 {
-		return nil
-	}
-
-	parsed, err := parseMapTokens(rawValues, flagSpec.TargetType, flagSpec.Sep, state.TypeParsers)
+	last, err := foldTiers(tiers, fold.tier)
 	if err != nil {
-		result.hasValues = true
-
-		return newFlagCoercionError(cmdChain, flagSpec, source, name, strings.Join(rawValues, flagSpec.Sep), err)
-	}
-
-	result.hasValues = true
-
-	parsedValue := reflect.ValueOf(parsed)
-	if parsedValue.Len() > 0 {
-		result.highestTier = source
-		result.highestName = name
-	}
-
-	iter := parsedValue.MapRange()
-	for iter.Next() {
-		merged.SetMapIndex(iter.Key(), iter.Value())
-
-		if provenance != nil {
-			provenance[stringx.Stringify(iter.Key().Interface())] = source
-		}
-
-		if origins != nil {
-			origins[stringx.Stringify(iter.Key().Interface())] = origin
-		}
-	}
-
-	return nil
-}
-
-// foldRegisteredMapConfigTier folds the config tier's pre-merged map entries
-// into the registered map type. Keys are sorted for deterministic error
-// reporting; each pair is parsed and merged into the destination map with
-// its originating file path recorded.
-func foldRegisteredMapConfigTier(cmdChain []*spec.Command, flagSpec *spec.Flag, entries map[string]configdata.Value, configKey string, state *bindingState, merged reflect.Value, provenance map[string]ValueSource, origins map[string]configdata.Value, result *mapMergeResult) error {
-	if bad, hasBad := entries[""]; hasBad {
-		return foldRegisteredMapTier([]string{bad.Raw}, SourceConfig, configKey, bad, flagSpec, cmdChain, state, merged, provenance, origins, result)
-	}
-
-	parser := state.TypeParsers[flagSpec.TargetType]
-	keys := slices.Sorted(maps.Keys(entries))
-
-	for _, key := range keys {
-		entry := entries[key]
-		raw := key + "=" + entry.Raw
-
-		parsed, err := parser(raw)
-		if err != nil {
-			result.hasValues = true
-
-			return newFlagCoercionError(cmdChain, flagSpec, SourceConfig, configKey, raw, err)
-		}
-
-		parsedValue, mergeErr := mergeParsedMapValue(parsed, flagSpec.TargetType, merged)
-		if mergeErr != nil {
-			result.hasValues = true
-
-			return newFlagCoercionError(cmdChain, flagSpec, SourceConfig, configKey, raw, mergeErr)
-		}
-
-		result.hasValues = true
-		result.highestTier = SourceConfig
-		result.highestName = configKey
-
-		iter := parsedValue.MapRange()
-		for iter.Next() {
-			entryKey := stringx.Stringify(iter.Key().Interface())
-			if provenance != nil {
-				provenance[entryKey] = SourceConfig
-			}
-
-			if origins != nil {
-				origins[entryKey] = configdata.Value{Origin: entry.Origin, Scope: entry.Scope}
-			}
-		}
-	}
-
-	return nil
-}
-
-func mergeRegisteredMapTiers(cmd *spec.Command, cmdChain []*spec.Command, flagSpec *spec.Flag, cliValues map[*spec.Flag][]string, state *bindingState, result *mapMergeResult) error {
-	merged := reflect.MakeMap(flagSpec.TargetType)
-
-	var provenance map[string]ValueSource
-
-	var origins map[string]configdata.Value
-
-	if state != nil && state.WantMapProvenance {
-		provenance = make(map[string]ValueSource)
-		origins = make(map[string]configdata.Value)
-	}
-
-	envValue, envName, hasEnv := lookupEnv(flagSpec, cmd, state)
-
-	configEntries, configKey, hasConfig := lookupConfigMap(flagSpec, cmd, cmdChain, state)
-
-	cliValuesForFlag := cliValues[flagSpec]
-
-	tiers := [...]mapTierInput{
-		{has: flagSpec.Default != "", values: []string{flagSpec.Default}, source: SourceDefault, name: flagSpec.Default},
-		{has: hasConfig, entries: configEntries, source: SourceConfig, name: configKey},
-		{has: hasEnv, values: []string{envValue}, source: SourceEnv, name: envName},
-		{has: len(cliValuesForFlag) > 0, values: cliValuesForFlag, source: SourceCLI, name: "--" + flagSpec.Name},
-	}
-
-	var lastSource ValueSource
-
-	var lastName string
-
-	for _, tier := range tiers {
-		if !tier.has {
-			continue
-		}
-
-		lastSource = tier.source
-		lastName = tier.name
-
-		if err := tier.foldRegistered(flagSpec, cmdChain, state, merged, provenance, origins, result); err != nil {
-			return err
-		}
+		return err
 	}
 
 	if !result.hasValues {
@@ -3260,17 +3355,16 @@ func mergeRegisteredMapTiers(cmd *spec.Command, cmdChain []*spec.Command, flagSp
 	}
 
 	if result.highestTier == SourceNone {
-		result.highestTier = lastSource
-		result.highestName = lastName
+		result.highestTier = last.source
+		result.highestName = last.name
 	}
 
 	if result.highestTier == SourceConfig {
 		result.highestOrigins = orderedConfigOrigins(state, configEntries)
 	}
 
-	result.merged = merged.Interface()
-	result.provenance = provenance
-	result.origins = origins
+	result.merged = fold.merged.Interface()
+	fold.provenance.publish(result)
 
 	return nil
 }

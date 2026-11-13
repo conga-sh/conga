@@ -1082,7 +1082,7 @@ type appConfig[T any] struct {
 	processFeatures            func(builder any, structField reflect.StructField, fieldHandle any, classification container.Classification) error
 	validateFeatures           func(root *spec.Command) error
 	parseFeatureTag            func(feature string, required bool) (string, error)
-	customMapMerger            func(cmd *spec.Command, cmdChain []*spec.Command, flagSpec *spec.Flag, cliValues map[*spec.Flag][]string, state *bindingState, result *mapMergeResult) error
+	customMapMerger            func(binding flagBinding, result *mapMergeResult) error
 }
 
 // configView is the root package's view over the configuration resolution
@@ -1857,7 +1857,14 @@ func (a *App[T]) prepare(ctx context.Context) (*Session, bool, error) { //nolint
 		return nil, true, nil
 	}
 
-	if err := resolveArgs(leaf, cmdChain, posTokens, a.collectTypeParsers(), coerce.DecodeContext{Stdin: session.stdin, Stdout: session.stdout}, &session.stdinClaim); err != nil {
+	resolver := argResolver{
+		cmdChain:      cmdChain,
+		parsers:       a.collectTypeParsers(),
+		decodeContext: coerce.DecodeContext{Stdin: session.stdin, Stdout: session.stdout},
+		stdin:         &session.stdinClaim,
+	}
+
+	if err := resolver.resolve(leaf, posTokens); err != nil {
 		return nil, false, err
 	}
 

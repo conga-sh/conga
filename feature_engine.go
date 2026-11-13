@@ -221,7 +221,7 @@ func bindFeatureMap(cmd *spec.Command, cmdChain []*spec.Command, flagValues map[
 
 	var result mapMergeResult
 
-	if err := foldMapTiers(cmd, cmdChain, cmd.FeatureFlag, flagValues, state, featureEnvTier(cmd, state), &result); err != nil {
+	if err := foldMapTiers(flagBinding{cmd: cmd, cmdChain: cmdChain, flagSpec: cmd.FeatureFlag, cliValues: flagValues, state: state}, featureEnvTier(cmd, state), &result); err != nil {
 		return nil, nil, err
 	}
 
@@ -349,7 +349,7 @@ func completionProvidedMap(cmd *spec.Command, flagValues map[*spec.Flag][]string
 
 	var result mapMergeResult
 
-	if err := foldMapTiers(cmd, []*spec.Command{cmd}, cmd.FeatureFlag, flagValues, state, featureEnvTier(cmd, state), &result); err != nil {
+	if err := foldMapTiers(flagBinding{cmd: cmd, cmdChain: []*spec.Command{cmd}, flagSpec: cmd.FeatureFlag, cliValues: flagValues, state: state}, featureEnvTier(cmd, state), &result); err != nil {
 		return nil
 	}
 
