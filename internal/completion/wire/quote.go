@@ -29,20 +29,20 @@ func QuoteFish(s string) string {
 	return "'" + strings.ReplaceAll(escaped, "'", `\'`) + "'"
 }
 
-// QuotePowerShell quotes s as a PowerShell single-quoted string literal, in
+// QuotePowerShell quotes value as a PowerShell single-quoted string literal, in
 // which every character PowerShell reads as a single quote is doubled: the
 // ASCII ' and the Unicode quotes U+2018–U+201B (‘ ’ ‚ ‛), any of which would
 // otherwise end the literal.
-func QuotePowerShell(s string) string {
-	if !strings.ContainsAny(s, PowerShellSingleQuotes) {
-		return "'" + s + "'"
+func QuotePowerShell(value string) string {
+	if !strings.ContainsAny(value, PowerShellSingleQuotes) {
+		return "'" + value + "'"
 	}
 
 	var builder strings.Builder
 
 	builder.WriteByte('\'')
 
-	for _, r := range s {
+	for _, r := range value {
 		if strings.ContainsRune(PowerShellSingleQuotes, r) {
 			builder.WriteRune(r)
 		}

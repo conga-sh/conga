@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -92,28 +93,19 @@ type lsColors struct {
 	suffixCount     int
 }
 
-// lsColorsSuffix is one "*<suffix>" entry: the lowercased suffix, its
-// translated style, and its position among the suffix entries, which decides
-// between a matching extension and a matching other suffix.
-type lsColorsSuffix struct {
-	suffix string
-	style  string
-	order  int
-}
-
-func (c lsColors) directoryStyle() string {
+func (c *lsColors) directoryStyle() string {
 	return cmp.Or(c.directory, Of(Bold, Blue))
 }
 
-func (c lsColors) executableStyle() string {
+func (c *lsColors) executableStyle() string {
 	return cmp.Or(c.executable, Green)
 }
 
-func (c lsColors) symlinkStyle() string {
+func (c *lsColors) symlinkStyle() string {
 	return cmp.Or(c.symlink, Cyan)
 }
 
-func (c lsColors) orphanSymlinkStyle() string {
+func (c *lsColors) orphanSymlinkStyle() string {
 	switch {
 	case c.orphan != "":
 		return c.orphan
@@ -130,16 +122,16 @@ func (c lsColors) orphanSymlinkStyle() string {
 // the extension map yields the latest such entry; only other suffix entries
 // declared after it can still win, and the scan stops at the first one
 // declared before it.
-func (c lsColors) suffixStyle(lowerName string) (string, bool) {
+func (c *lsColors) suffixStyle(lowerName string) (string, bool) {
 	extension, found := c.extensions[filepath.Ext(lowerName)]
 
-	for i := len(c.suffixes) - 1; i >= 0; i-- {
-		if found && c.suffixes[i].order < extension.order {
+	for _, entry := range slices.Backward(c.suffixes) {
+		if found && entry.order < extension.order {
 			break
 		}
 
-		if strings.HasSuffix(lowerName, c.suffixes[i].suffix) {
-			return c.suffixes[i].style, true
+		if strings.HasSuffix(lowerName, entry.suffix) {
+			return entry.style, true
 		}
 	}
 
@@ -166,15 +158,24 @@ func (c *lsColors) add(suffix, style string) {
 	c.extensions[suffix] = entry
 }
 
+// lsColorsSuffix is one "*<suffix>" entry: the lowercased suffix, its
+// translated style, and its position among the suffix entries, which decides
+// between a matching extension and a matching other suffix.
+type lsColorsSuffix struct {
+	suffix string
+	style  string
+	order  int
+}
+
 // getLsColors returns the one-time LS_COLORS environment cache. Construction
 // is deferred to first use so the package stays free of package initializers
 // and drops at link time when completion styling is disabled.
-func getLsColors() lsColors {
+func getLsColors() *lsColors {
 	getLsColorsOnce.Do(func() {
 		getLsColorsValue = parseLsColors(os.Getenv("LS_COLORS"))
 	})
 
-	return getLsColorsValue
+	return &getLsColorsValue
 }
 
 // builtinExtensionStyle maps common file extension groups to styles.
@@ -299,6 +300,8 @@ func lsColorsStyle(sgr string) string {
 
 // sgrToken maps one plain SGR code to its vocabulary token, or "" when the
 // vocabulary has none.
+//
+//nolint:cyclop,gocyclo // flat lookup from SGR code to token, one case per code or range; splitting it would scatter the table
 func sgrToken(code int) string {
 	switch {
 	case code == 1:

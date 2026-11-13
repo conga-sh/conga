@@ -1175,22 +1175,22 @@ func commonCandidatePrefix(candidates []Candidate) string {
 	return prefix
 }
 
-// utf16Length returns the length of s in UTF-16 code units, the unit
+// utf16Length returns the length of text in UTF-16 code units, the unit
 // PowerShell uses for cursor and replacement offsets.
-func utf16Length(s string) int {
+func utf16Length(text string) int {
 	length := 0
-	for _, r := range s {
+	for _, r := range text {
 		length += utf16.RuneLen(r)
 	}
 
 	return length
 }
 
-// byteOffsetForUTF16 converts a UTF-16 code unit offset into s to a byte
-// offset, clamped to len(s).
-func byteOffsetForUTF16(s string, index int) int {
+// byteOffsetForUTF16 converts a UTF-16 code unit offset into text to a byte
+// offset, clamped to len(text).
+func byteOffsetForUTF16(text string, index int) int {
 	units := 0
-	for offset, r := range s {
+	for offset, r := range text {
 		if units >= index {
 			return offset
 		}
@@ -1198,5 +1198,5 @@ func byteOffsetForUTF16(s string, index int) int {
 		units += utf16.RuneLen(r)
 	}
 
-	return len(s)
+	return len(text)
 }

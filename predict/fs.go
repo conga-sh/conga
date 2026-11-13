@@ -20,6 +20,12 @@ const (
 	fsModeExecutables
 )
 
+// executableCheckBudget caps the execute-bit checks one scan spends on
+// styling. Each check is an lstat, and a scan of a very large directory must
+// stay within the predictor timeout, so files past the budget are styled by
+// name instead.
+const executableCheckBudget = 1024
+
 // Dirs configures in-process directory completion.
 func Dirs() Predictor {
 	return Callback(actionDirs)
@@ -101,87 +107,6 @@ func Symlinks() Predictor {
 
 type fsScanMode int
 
-func actionDirs(ctx Context) Predictor {
-	return Predictor{
-		items:     scanFilesystem(ctx, fsModeDirs, nil, nil),
-		directive: DirectiveNoFileCompletion | DirectiveNoSpace,
-	}
-}
-
-func actionDirsFiltered(ctx Context, filter func(path string, entry os.DirEntry) bool) Predictor {
-	return Predictor{
-		items:     scanFilesystem(ctx, fsModeDirs, nil, filter),
-		directive: DirectiveNoFileCompletion | DirectiveNoSpace,
-	}
-}
-
-func actionDirsGlob(ctx Context, patterns []string) Predictor {
-	filter := func(_ string, entry os.DirEntry) bool {
-		return matchesAnyGlob(entry.Name(), patterns)
-	}
-
-	return Predictor{
-		items:     scanFilesystem(ctx, fsModeDirs, nil, filter),
-		directive: DirectiveNoFileCompletion | DirectiveNoSpace,
-	}
-}
-
-func actionFileContents(ctx Context, filePath string, parser func(content []byte) []Item) Predictor {
-	if filePath == "" || parser == nil {
-		return None()
-	}
-
-	content, err := os.ReadFile(resolveFilePath(ctx, filePath))
-	if err != nil {
-		return None()
-	}
-
-	return Items(parser(content)...)
-}
-
-func actionFiles(ctx Context, extensions ...string) Predictor {
-	return Predictor{
-		items:     scanFilesystem(ctx, fsModeFiles, extensions, nil),
-		directive: DirectiveNoFileCompletion,
-	}
-}
-
-func actionFilesFiltered(ctx Context, filter func(path string, entry os.DirEntry) bool) Predictor {
-	return Predictor{
-		items:     scanFilesystem(ctx, fsModeFiles, nil, filter),
-		directive: DirectiveNoFileCompletion,
-	}
-}
-
-func actionFilesGlob(ctx Context, patterns []string) Predictor {
-	filter := func(_ string, entry os.DirEntry) bool {
-		return matchesAnyGlob(entry.Name(), patterns)
-	}
-
-	return Predictor{
-		items:     scanFilesystem(ctx, fsModeFiles, nil, filter),
-		directive: DirectiveNoFileCompletion,
-	}
-}
-
-func actionPathsFiltered(ctx Context, filter func(path string, entry os.DirEntry) bool) Predictor {
-	return Predictor{
-		items:     scanFilesystem(ctx, fsModePaths, nil, filter),
-		directive: DirectiveNoFileCompletion,
-	}
-}
-
-func actionSymlinks(ctx Context) Predictor {
-	filter := func(_ string, entry os.DirEntry) bool {
-		return entry.Type()&os.ModeSymlink != 0
-	}
-
-	return Predictor{
-		items:     scanFilesystem(ctx, fsModePaths, nil, filter),
-		directive: DirectiveNoFileCompletion,
-	}
-}
-
 // fsScan holds the settings of one directory scan shared by every entry:
 // where the entries live, the typed word split into its directory prefix and
 // the name being completed, the scan mode with its extension filter (files
@@ -198,22 +123,6 @@ type fsScan struct {
 	filter           func(path string, entry os.DirEntry) bool
 	executableChecks int
 }
-
-// fsLink describes a symbolic link entry, resolved once per entry: whether
-// the entry is a link, the target's file info (nil when the target is
-// missing), and the link text from os.Readlink ("" when it was not read or
-// could not be).
-type fsLink struct {
-	isLink      bool
-	target      os.FileInfo
-	destination string
-}
-
-// executableCheckBudget caps the execute-bit checks one scan spends on
-// styling. Each check is an lstat, and a scan of a very large directory must
-// stay within the predictor timeout, so files past the budget are styled by
-// name instead.
-const executableCheckBudget = 1024
 
 func newFSScan(ctx Context, mode fsScanMode, extensions []string, filter func(path string, entry os.DirEntry) bool) *fsScan {
 	dirPrefix, filterTerm := splitPathTarget(ctx.ToComplete)
@@ -403,6 +312,97 @@ func (scan *fsScan) matchesMode(entry os.DirEntry, fullPath string, isDir bool) 
 
 	default:
 		return true
+	}
+}
+
+// fsLink describes a symbolic link entry, resolved once per entry: whether
+// the entry is a link, the target's file info (nil when the target is
+// missing), and the link text from os.Readlink ("" when it was not read or
+// could not be).
+type fsLink struct {
+	isLink      bool
+	target      os.FileInfo
+	destination string
+}
+
+func actionDirs(ctx Context) Predictor {
+	return Predictor{
+		items:     scanFilesystem(ctx, fsModeDirs, nil, nil),
+		directive: DirectiveNoFileCompletion | DirectiveNoSpace,
+	}
+}
+
+func actionDirsFiltered(ctx Context, filter func(path string, entry os.DirEntry) bool) Predictor {
+	return Predictor{
+		items:     scanFilesystem(ctx, fsModeDirs, nil, filter),
+		directive: DirectiveNoFileCompletion | DirectiveNoSpace,
+	}
+}
+
+func actionDirsGlob(ctx Context, patterns []string) Predictor {
+	filter := func(_ string, entry os.DirEntry) bool {
+		return matchesAnyGlob(entry.Name(), patterns)
+	}
+
+	return Predictor{
+		items:     scanFilesystem(ctx, fsModeDirs, nil, filter),
+		directive: DirectiveNoFileCompletion | DirectiveNoSpace,
+	}
+}
+
+func actionFileContents(ctx Context, filePath string, parser func(content []byte) []Item) Predictor {
+	if filePath == "" || parser == nil {
+		return None()
+	}
+
+	content, err := os.ReadFile(resolveFilePath(ctx, filePath))
+	if err != nil {
+		return None()
+	}
+
+	return Items(parser(content)...)
+}
+
+func actionFiles(ctx Context, extensions ...string) Predictor {
+	return Predictor{
+		items:     scanFilesystem(ctx, fsModeFiles, extensions, nil),
+		directive: DirectiveNoFileCompletion,
+	}
+}
+
+func actionFilesFiltered(ctx Context, filter func(path string, entry os.DirEntry) bool) Predictor {
+	return Predictor{
+		items:     scanFilesystem(ctx, fsModeFiles, nil, filter),
+		directive: DirectiveNoFileCompletion,
+	}
+}
+
+func actionFilesGlob(ctx Context, patterns []string) Predictor {
+	filter := func(_ string, entry os.DirEntry) bool {
+		return matchesAnyGlob(entry.Name(), patterns)
+	}
+
+	return Predictor{
+		items:     scanFilesystem(ctx, fsModeFiles, nil, filter),
+		directive: DirectiveNoFileCompletion,
+	}
+}
+
+func actionPathsFiltered(ctx Context, filter func(path string, entry os.DirEntry) bool) Predictor {
+	return Predictor{
+		items:     scanFilesystem(ctx, fsModePaths, nil, filter),
+		directive: DirectiveNoFileCompletion,
+	}
+}
+
+func actionSymlinks(ctx Context) Predictor {
+	filter := func(_ string, entry os.DirEntry) bool {
+		return entry.Type()&os.ModeSymlink != 0
+	}
+
+	return Predictor{
+		items:     scanFilesystem(ctx, fsModePaths, nil, filter),
+		directive: DirectiveNoFileCompletion,
 	}
 }
 
