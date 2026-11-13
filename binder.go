@@ -888,6 +888,96 @@ func (binding flagBinding) coercionError(origin valueOrigin, rawValue string, ca
 	}
 }
 
+// valueCheck applies the per-value constraints of one flag or argument: the
+// chain its errors name, the descriptor that ends their message (for example
+// "flag --port (from environment variable PORT)"), and the source that
+// classifies them.
+type valueCheck struct {
+	cmdChain   []*spec.Command
+	descriptor string
+	source     ValueSource
+}
+
+// enum reports text that is not one of enum's values; an empty enum accepts
+// everything.
+func (check valueCheck) enum(enum []string, text string) error {
+	if len(enum) == 0 || slices.Contains(enum, text) {
+		return nil
+	}
+
+	return check.invalid(fmt.Sprintf("invalid value %q (must be one of: %s) for %s",
+		truncateForDisplay(text), strings.Join(enum, ", "), check.descriptor), errInvalidValue)
+}
+
+// scalar checks one value against the enum, length, and range constraints.
+func (check valueCheck) scalar(constraints constraintSet, value any) error {
+	if err := check.enum(constraints.enum, stringx.Stringify(value)); err != nil {
+		return err
+	}
+
+	if constraints.length != nil {
+		if reason, ok := checkStringLen(value, constraints.length); !ok {
+			return check.invalid(fmt.Sprintf("value %q %s for %s", truncateForDisplay(stringx.Stringify(value)), reason, check.descriptor), errInvalidLength)
+		}
+	}
+
+	if constraints.valueRange != nil {
+		if reason, ok := checkValueRange(value, constraints.valueRange); !ok {
+			return check.invalid(fmt.Sprintf("value %v %s for %s", value, reason, check.descriptor), errOutOfRange)
+		}
+	}
+
+	return nil
+}
+
+// slice checks the item count, then every element as a scalar.
+func (check valueCheck) slice(constraints constraintSet, typedSlice any) error {
+	sliceValue := reflect.ValueOf(typedSlice)
+
+	if constraints.items != nil {
+		if reason, ok := checkItemCount(sliceValue, constraints.items); !ok {
+			return check.invalid(fmt.Sprintf("%s for %s", reason, check.descriptor), errInvalidItemCount)
+		}
+	}
+
+	for i := range sliceValue.Len() {
+		if err := check.scalar(constraints, sliceValue.Index(i).Interface()); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// mapItems checks a map's entry count against items.
+func (check valueCheck) mapItems(items *spec.Range, value any) error {
+	if value == nil || items == nil {
+		return nil
+	}
+
+	mapValue := reflect.ValueOf(value)
+	if !mapValue.IsValid() {
+		return nil
+	}
+
+	if reason, ok := checkItemCount(mapValue, items); !ok {
+		return check.invalid(fmt.Sprintf("%s for %s", reason, check.descriptor), errInvalidItemCount)
+	}
+
+	return nil
+}
+
+// invalid builds the value-shaped validation error every check reports.
+func (check valueCheck) invalid(msg string, cause error) error {
+	return &validationError{
+		msg:         msg,
+		source:      check.source,
+		cmdChain:    check.cmdChain,
+		cause:       cause,
+		valueShaped: true,
+	}
+}
+
 // stdinErrorSource picks the classification for a duplicate stdin claim: any
 // environment, configuration, or default value makes the failure a config
 // error; two command-line values stay a usage error.
@@ -1842,108 +1932,6 @@ func candidateConfigKeys(flagSpec *spec.Flag, cmd *spec.Command, cmdChain []*spe
 	return keys
 }
 
-func validateEnumValue(cmdChain []*spec.Command, descriptor string, enum []string, cmpStr string, source ValueSource) error {
-	if len(enum) == 0 {
-		return nil
-	}
-
-	if !slices.Contains(enum, cmpStr) {
-		return &validationError{
-			msg: fmt.Sprintf("invalid value %q (must be one of: %s) for %s",
-				truncateForDisplay(cmpStr), strings.Join(enum, ", "), descriptor),
-			source:      source,
-			cmdChain:    cmdChain,
-			cause:       errInvalidValue,
-			valueShaped: true,
-		}
-	}
-
-	return nil
-}
-
-func validateScalarValue(cmdChain []*spec.Command, descriptor string, constraints constraintSet, value any, enumStr string, source ValueSource) error {
-	if err := validateEnumValue(cmdChain, descriptor, constraints.enum, enumStr, source); err != nil {
-		return err
-	}
-
-	if constraints.length != nil {
-		if reason, ok := checkStringLen(value, constraints.length); !ok {
-			return &validationError{
-				msg:         fmt.Sprintf("value %q %s for %s", truncateForDisplay(stringx.Stringify(value)), reason, descriptor),
-				source:      source,
-				cmdChain:    cmdChain,
-				cause:       errInvalidLength,
-				valueShaped: true,
-			}
-		}
-	}
-
-	if constraints.valueRange != nil {
-		if reason, ok := checkValueRange(value, constraints.valueRange); !ok {
-			return &validationError{
-				msg:         fmt.Sprintf("value %v %s for %s", value, reason, descriptor),
-				source:      source,
-				cmdChain:    cmdChain,
-				cause:       errOutOfRange,
-				valueShaped: true,
-			}
-		}
-	}
-
-	return nil
-}
-
-func validateSliceValue(cmdChain []*spec.Command, descriptor string, constraints constraintSet, typedSlice any, source ValueSource) error {
-	sliceValue := reflect.ValueOf(typedSlice)
-
-	if constraints.items != nil {
-		if reason, ok := checkItemCount(sliceValue, constraints.items); !ok {
-			return &validationError{
-				msg:         fmt.Sprintf("%s for %s", reason, descriptor),
-				source:      source,
-				cmdChain:    cmdChain,
-				cause:       errInvalidItemCount,
-				valueShaped: true,
-			}
-		}
-	}
-
-	for i := range sliceValue.Len() {
-		elem := sliceValue.Index(i).Interface()
-
-		if err := validateScalarValue(cmdChain, descriptor, constraints, elem, stringx.Stringify(elem), source); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func validateMapValue(cmdChain []*spec.Command, descriptor string, items *spec.Range, value any, source ValueSource) error {
-	if value == nil {
-		return nil
-	}
-
-	mapValue := reflect.ValueOf(value)
-	if !mapValue.IsValid() {
-		return nil
-	}
-
-	if items != nil {
-		if reason, ok := checkItemCount(mapValue, items); !ok {
-			return &validationError{
-				msg:         fmt.Sprintf("%s for %s", reason, descriptor),
-				source:      source,
-				cmdChain:    cmdChain,
-				cause:       errInvalidItemCount,
-				valueShaped: true,
-			}
-		}
-	}
-
-	return nil
-}
-
 func validateXorGroups(cmdChain []*spec.Command, xorGroups orderedFlagGroups, naming flagGroupNaming) error {
 	return validateMutuallyExclusiveGroups(cmdChain, xorGroups, naming)
 }
@@ -2043,20 +2031,26 @@ func validateFlagValueConstraint(cmdChain []*spec.Command, flagSpec *spec.Flag, 
 		valueRange: flagSpec.Range,
 		items:      flagSpec.Items,
 	}
-	descriptor := "flag --" + flagSpec.Name + sourceLocation(target.Source(), sourceName)
+	check := valueCheck{
+		cmdChain:   cmdChain,
+		descriptor: "flag --" + flagSpec.Name + sourceLocation(target.Source(), sourceName),
+		source:     target.Source(),
+	}
 
 	if flagSpec.IsSlice {
-		return validateSliceValue(cmdChain, descriptor, constraints, value, target.Source())
+		return check.slice(constraints, value)
 	}
 
 	if flagSpec.IsMap {
 		// A map merges keys from several sources, so its item count has no
 		// single origin to attribute; its category follows the highest
 		// contributing tier recorded on the container.
-		return validateMapValue(cmdChain, "flag --"+flagSpec.Name, constraints.items, value, target.Source())
+		check.descriptor = "flag --" + flagSpec.Name
+
+		return check.mapItems(constraints.items, value)
 	}
 
-	return validateScalarValue(cmdChain, descriptor, constraints, value, stringx.Stringify(value), target.Source())
+	return check.scalar(constraints, value)
 }
 
 // validateFlagValueConstraints checks per-flag value constraints after binding.
@@ -2363,29 +2357,30 @@ func resolveArgs(cmd *spec.Command, cmdChain []*spec.Command, posTokens []string
 }
 
 func validateArgScalar(cmdChain []*spec.Command, arg *spec.Arg, typedValue any, source ValueSource) error {
-	constraints := constraintSet{
-		enum:       arg.Enum,
-		length:     arg.Len,
-		valueRange: arg.Range,
-		items:      arg.Items,
-	}
-
-	return validateScalarValue(cmdChain, "argument "+arg.Name+sourceLocation(source, ""), constraints, typedValue, stringx.Stringify(typedValue), source)
+	return argValueCheck(cmdChain, arg, source).scalar(argConstraints(arg), typedValue)
 }
 
 func validateArgSlice(cmdChain []*spec.Command, arg *spec.Arg, typedSlice any, source ValueSource) error {
-	constraints := constraintSet{
+	return argValueCheck(cmdChain, arg, source).slice(argConstraints(arg), typedSlice)
+}
+
+func validateArgMap(cmdChain []*spec.Command, arg *spec.Arg, typedMap any, source ValueSource) error {
+	return argValueCheck(cmdChain, arg, source).mapItems(arg.Items, typedMap)
+}
+
+// argValueCheck is the valueCheck for a positional argument's value.
+func argValueCheck(cmdChain []*spec.Command, arg *spec.Arg, source ValueSource) valueCheck {
+	return valueCheck{cmdChain: cmdChain, descriptor: "argument " + arg.Name + sourceLocation(source, ""), source: source}
+}
+
+// argConstraints collects a positional argument's per-value constraints.
+func argConstraints(arg *spec.Arg) constraintSet {
+	return constraintSet{
 		enum:       arg.Enum,
 		length:     arg.Len,
 		valueRange: arg.Range,
 		items:      arg.Items,
 	}
-
-	return validateSliceValue(cmdChain, "argument "+arg.Name+sourceLocation(source, ""), constraints, typedSlice, source)
-}
-
-func validateArgMap(cmdChain []*spec.Command, arg *spec.Arg, typedMap any, source ValueSource) error {
-	return validateMapValue(cmdChain, "argument "+arg.Name+sourceLocation(source, ""), arg.Items, typedMap, source)
 }
 
 func checkOrderedRange[T cmp.Ordered](value, minValue, maxValue T, hasMin, hasMax bool, minStr, maxStr string) (string, bool) {
