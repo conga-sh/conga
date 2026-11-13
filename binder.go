@@ -1093,6 +1093,27 @@ func (fold registeredMapFold) config(entries map[string]configdata.Value, config
 	return nil
 }
 
+// countMessages are the formats a count-range check reports: an exact count
+// missed, a count out of range (count, minimum, maximum), and a count below
+// the minimum or above the maximum. countFirst orders the count before the
+// bound in the exact, minimum, and maximum formats.
+type countMessages struct {
+	exact      string
+	outOfRange string
+	belowMin   string
+	aboveMax   string
+	countFirst bool
+}
+
+// bound formats a message that names the count and one bound.
+func (messages countMessages) bound(format string, count, bound int) string {
+	if messages.countFirst {
+		return fmt.Sprintf(format, count, bound)
+	}
+
+	return fmt.Sprintf(format, bound, count)
+}
+
 // orderedFlagGroups holds flags grouped by group name while preserving the
 // first-declaration order of the group names. Group validation is
 // command-scoped, and declaration order keeps multi-group failures
@@ -2722,26 +2743,6 @@ func argConstraints(arg *spec.Arg) constraintSet {
 	}
 }
 
-func checkOrderedRange[T cmp.Ordered](value, minValue, maxValue T, hasMin, hasMax bool, minStr, maxStr string) (string, bool) {
-	if hasMin && hasMax {
-		if value < minValue || value > maxValue {
-			return fmt.Sprintf("is out of range [%s..%s]", minStr, maxStr), false
-		}
-
-		return "", true
-	}
-
-	if hasMin && value < minValue {
-		return "must be >= " + minStr, false
-	}
-
-	if hasMax && value > maxValue {
-		return "must be <= " + maxStr, false
-	}
-
-	return "", true
-}
-
 func checkTypedRange[T cmp.Ordered](value T, rangeSpec *spec.Range, parse func(string) (T, error)) (string, bool) {
 	var (
 		minValue T
@@ -2766,7 +2767,23 @@ func checkTypedRange[T cmp.Ordered](value T, rangeSpec *spec.Range, parse func(s
 		maxValue = parsed
 	}
 
-	return checkOrderedRange(value, minValue, maxValue, rangeSpec.HasMin, rangeSpec.HasMax, rangeSpec.MinStr, rangeSpec.MaxStr)
+	if rangeSpec.HasMin && rangeSpec.HasMax {
+		if value < minValue || value > maxValue {
+			return fmt.Sprintf("is out of range [%s..%s]", rangeSpec.MinStr, rangeSpec.MaxStr), false
+		}
+
+		return "", true
+	}
+
+	if rangeSpec.HasMin && value < minValue {
+		return "must be >= " + rangeSpec.MinStr, false
+	}
+
+	if rangeSpec.HasMax && value > maxValue {
+		return "must be <= " + rangeSpec.MaxStr, false
+	}
+
+	return "", true
 }
 
 func parseInt64Bound(raw string) (int64, error) {
@@ -2868,15 +2885,7 @@ func parseIntBound(raw string) (int, bool) {
 	return value, true
 }
 
-func formatBoundsError(count, bound int, format string, countFirst bool) string {
-	if countFirst {
-		return fmt.Sprintf(format, count, bound)
-	}
-
-	return fmt.Sprintf(format, bound, count)
-}
-
-func checkIntRange(count int, rangeSpec *spec.Range, exactFmt, rangeFmt, minFmt, maxFmt string, countFirst bool) (string, bool) {
+func checkIntRange(count int, rangeSpec *spec.Range, messages countMessages) (string, bool) {
 	if rangeSpec == nil {
 		return "", true
 	}
@@ -2889,7 +2898,7 @@ func checkIntRange(count int, rangeSpec *spec.Range, exactFmt, rangeFmt, minFmt,
 
 	if rangeSpec.Exact && parsedMin {
 		if count != minValue {
-			return formatBoundsError(count, minValue, exactFmt, countFirst), false
+			return messages.bound(messages.exact, count, minValue), false
 		}
 
 		return "", true
@@ -2897,18 +2906,18 @@ func checkIntRange(count int, rangeSpec *spec.Range, exactFmt, rangeFmt, minFmt,
 
 	if hasMin && hasMax {
 		if count < minValue || count > maxValue {
-			return fmt.Sprintf(rangeFmt, count, minValue, maxValue), false
+			return fmt.Sprintf(messages.outOfRange, count, minValue, maxValue), false
 		}
 
 		return "", true
 	}
 
 	if hasMin && count < minValue {
-		return formatBoundsError(count, minValue, minFmt, countFirst), false
+		return messages.bound(messages.belowMin, count, minValue), false
 	}
 
 	if hasMax && count > maxValue {
-		return formatBoundsError(count, maxValue, maxFmt, countFirst), false
+		return messages.bound(messages.aboveMax, count, maxValue), false
 	}
 
 	return "", true
@@ -2921,13 +2930,13 @@ func checkStringLen(value any, rangeSpec *spec.Range) (string, bool) {
 
 	length := utf8.RuneCountInString(stringx.Stringify(value))
 
-	return checkIntRange(length, rangeSpec,
-		"length %d must be exactly %d",
-		"length %d is out of range [%d..%d]",
-		"length %d must be >= %d",
-		"length %d must be <= %d",
-		true,
-	)
+	return checkIntRange(length, rangeSpec, countMessages{
+		exact:      "length %d must be exactly %d",
+		outOfRange: "length %d is out of range [%d..%d]",
+		belowMin:   "length %d must be >= %d",
+		aboveMax:   "length %d must be <= %d",
+		countFirst: true,
+	})
 }
 
 func checkItemCount(collectionValue reflect.Value, rangeSpec *spec.Range) (string, bool) {
@@ -2935,13 +2944,12 @@ func checkItemCount(collectionValue reflect.Value, rangeSpec *spec.Range) (strin
 		return "", true
 	}
 
-	return checkIntRange(collectionValue.Len(), rangeSpec,
-		"expected exactly %d items, got %d",
-		"item count %d is out of range [%d..%d]",
-		"expected at least %d items, got %d",
-		"expected at most %d items, got %d",
-		false,
-	)
+	return checkIntRange(collectionValue.Len(), rangeSpec, countMessages{
+		exact:      "expected exactly %d items, got %d",
+		outOfRange: "item count %d is out of range [%d..%d]",
+		belowMin:   "expected at least %d items, got %d",
+		aboveMax:   "expected at most %d items, got %d",
+	})
 }
 
 // callSelfValidator invokes SelfValidator on value, asserting both the direct
