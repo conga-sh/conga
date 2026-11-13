@@ -51,6 +51,8 @@ func (i Item) WithAlias() Item
 
 `Files(extensions...)`, `FilesFiltered(filter)`, `FilesGlob(patterns...)`, `Dirs()`, `DirsFiltered(filter)`, `DirsGlob(patterns...)`, `PathsFiltered(filter)`, `Symlinks()`, `Executables()`, `FileLines(filePath)`, and `FileContents(filePath, parser)`. Filters are `func(path string, entry os.DirEntry) bool`. `FilesGlob` matches file base names against `filepath.Match` patterns while keeping directories visible for traversal (a wildcard-free pattern such as `"Makefile"` matches that literal name), and `DirsGlob` matches directory base names against the same patterns. `DirsFiltered` is the predicate equivalent for directories.
 
+Hidden entries are offered only when the typed name starts with `.`. A typed `..` offers `../`, also after a directory prefix (`src/..` offers `src/../`). A typed `.` offers the hidden entries and nothing else, so in a directory without hidden entries it offers no candidates and the shell doesn't fall back to its own file completion.
+
 ## Combinators on `Predictor`
 
 | Combinator | Purpose |

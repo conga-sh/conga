@@ -290,6 +290,84 @@ func TestFiles_HiddenFiles(t *testing.T) {
 	})
 }
 
+func TestFiles_DotDotOffersParentDirectory(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	writeFile(t, filepath.Join(tmpDir, ".env"), []byte("SECRET=1"))
+
+	result := predict.Files().Invoke(predict.Context{Dir: tmpDir, ToComplete: ".."})
+
+	assert.Equal(t, []predict.Item{{Value: "../", Display: "../", Style: "bold blue", Tag: "directories"}}, result.Items)
+}
+
+func TestFiles_DotDotAfterDirectoryPrefix(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	assert.NoError(t, os.Mkdir(filepath.Join(tmpDir, "src"), 0755))
+
+	result := predict.Files().Invoke(predict.Context{Dir: tmpDir, ToComplete: "src/.."})
+
+	assert.Equal(t, []string{"src/../"}, itemValues(result.Items))
+}
+
+func TestDirs_DotDotOffersParentDirectory(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	result := predict.Dirs().Invoke(predict.Context{Dir: tmpDir, ToComplete: ".."})
+
+	assert.Equal(t, []string{"../"}, itemValues(result.Items))
+}
+
+func TestPaths_DotDotOffersParentDirectory(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	result := predict.PathsFiltered(nil).Invoke(predict.Context{Dir: tmpDir, ToComplete: ".."})
+
+	assert.Equal(t, []string{"../"}, itemValues(result.Items))
+}
+
+func TestFiles_DotOffersHiddenEntriesOnly(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	writeFile(t, filepath.Join(tmpDir, ".env"), []byte("SECRET=1"))
+	writeFile(t, filepath.Join(tmpDir, "normal.txt"), []byte("hello"))
+
+	result := predict.Files().Invoke(predict.Context{Dir: tmpDir, ToComplete: "."})
+
+	assert.Equal(t, []string{".env"}, itemValues(result.Items))
+}
+
+func TestFiles_DotWithoutHiddenEntriesOffersNothing(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	writeFile(t, filepath.Join(tmpDir, "normal.txt"), []byte("hello"))
+
+	result := predict.Files().Invoke(predict.Context{Dir: tmpDir, ToComplete: "."})
+
+	assert.Equal(t, 0, len(result.Items))
+	assert.True(t, result.Directive.Has(predict.DirectiveNoFileCompletion), "the shell must not fall back to its own file completion")
+}
+
+func TestFiles_DotDotSlashListsParentEntries(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+	writeFile(t, filepath.Join(tmpDir, "notes.txt"), []byte("hello"))
+	assert.NoError(t, os.Mkdir(filepath.Join(tmpDir, "work"), 0755))
+
+	result := predict.Files().Invoke(predict.Context{Dir: filepath.Join(tmpDir, "work"), ToComplete: "../"})
+
+	assert.Equal(t, []string{"../notes.txt", "../work/"}, itemValues(result.Items))
+}
+
 func TestFiles_AbsolutePath(t *testing.T) {
 	t.Parallel()
 

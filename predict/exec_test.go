@@ -162,6 +162,16 @@ func TestExecutables_RelativePath_ExecutableEntryBeatsSuffixEntry(t *testing.T) 
 	assert.Equal(t, "underlined green", result.Items[0].Style, "the ex entry must outrank the *.exe entry")
 }
 
+func TestExecutables_RelativePath_DotDotOffersParentDirectory(t *testing.T) {
+	t.Parallel()
+
+	tmpDir := t.TempDir()
+
+	result := predict.Executables().Invoke(predict.Context{Dir: tmpDir, ToComplete: "./.."})
+
+	assert.Equal(t, []string{"./../"}, itemValues(result.Items))
+}
+
 func writeExecutableFile(t *testing.T, path string, data []byte) {
 	t.Helper()
 

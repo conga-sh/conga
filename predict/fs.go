@@ -140,8 +140,20 @@ func newFSScan(ctx Context, mode fsScanMode, extensions []string, filter func(pa
 }
 
 // candidateItems turns every directory entry the scan accepts into an item.
+// os.ReadDir never returns "." or "..", so a typed ".." (after any directory
+// prefix) gets a synthetic "../" directory item; every scan mode lists
+// directories. A typed "." stays limited to the hidden entries.
 func (scan *fsScan) candidateItems(entries []os.DirEntry) []Item {
-	items := make([]Item, 0, len(entries))
+	items := make([]Item, 0, len(entries)+1)
+
+	if scan.filterTerm == ".." {
+		items = append(items, Item{
+			Value:   scan.dirPrefix + "../",
+			Display: "../",
+			Style:   style.ForDirectory(),
+			Tag:     "directories",
+		})
+	}
 
 	for _, entry := range entries {
 		if item, ok := scan.candidateItem(entry); ok {

@@ -42,35 +42,62 @@ func TestNetInterfaces_Execution(t *testing.T) {
 	}
 }
 
-func TestHosts_ParseEtcHosts(t *testing.T) {
+func TestHosts_SSHConfigHostsOffered(t *testing.T) {
 	t.Parallel()
 
-	tmpDir := t.TempDir()
-	sshDir := filepath.Join(tmpDir, ".ssh")
-	assert.NoError(t, os.MkdirAll(sshDir, 0700))
-	assert.NoError(t, os.WriteFile(filepath.Join(sshDir, "known_hosts"), fixtureKnownHosts, 0600))
-	assert.NoError(t, os.WriteFile(filepath.Join(sshDir, "config"), fixtureSSHConfig, 0600))
-
-	result := network.Hosts().Invoke(predict.Context{
-		Env: map[string]string{
-			"HOME": tmpDir,
-		},
-	})
-
-	values := itemValues(result.Items)
+	values := sshHostValues(t)
 
 	assert.True(t, slices.Contains(values, "bastion"), "expected SSH config host bastion")
 	assert.True(t, slices.Contains(values, "prod-api"), "expected SSH config host prod-api")
 	assert.True(t, slices.Contains(values, "prod-web"), "expected SSH config host prod-web")
+}
+
+func TestHosts_SSHConfigPatternsExcluded(t *testing.T) {
+	t.Parallel()
+
+	values := sshHostValues(t)
+
+	assert.False(t, slices.Contains(values, "*"), "wildcard Host patterns must be excluded")
+	assert.False(t, slices.Contains(values, "*.internal"), "wildcard Host patterns must be excluded")
+}
+
+func TestHosts_KnownHostsOffered(t *testing.T) {
+	t.Parallel()
+
+	values := sshHostValues(t)
+
 	assert.True(t, slices.Contains(values, "github.com"), "expected SSH known_host github.com")
 	assert.True(t, slices.Contains(values, "gitlab.com"), "expected SSH known_host gitlab.com")
 	assert.True(t, slices.Contains(values, "ssh.dev.local"), "expected unbracketed SSH host ssh.dev.local")
-	assert.True(t, slices.Contains(values, "*.example.com"), "expected host from @cert-authority line")
+	assert.True(t, slices.Contains(values, "good.example.com"), "expected the plain host next to patterns")
+}
+
+func TestHosts_KnownHostsMarkersExcluded(t *testing.T) {
+	t.Parallel()
+
+	values := sshHostValues(t)
+
 	assert.False(t, slices.Contains(values, "@cert-authority"), "marker token must not be emitted as host")
-	assert.False(t, slices.Contains(values, "revoked.example.com"), "@revoked host must not be emitted")
 	assert.False(t, slices.Contains(values, "@revoked"), "marker token must not be emitted as host")
-	assert.False(t, slices.Contains(values, "*"), "wildcard Host patterns must be excluded")
-	assert.False(t, slices.Contains(values, "*.internal"), "wildcard Host patterns must be excluded")
+	assert.False(t, slices.Contains(values, "revoked.example.com"), "@revoked host must not be emitted")
+}
+
+func TestHosts_KnownHostsPatternsExcluded(t *testing.T) {
+	t.Parallel()
+
+	values := sshHostValues(t)
+
+	assert.False(t, slices.Contains(values, "*.example.com"), "wildcard pattern from @cert-authority must be excluded")
+	assert.False(t, slices.Contains(values, "!bad.example.com"), "negated pattern must be excluded")
+	assert.False(t, slices.Contains(values, "h?st"), "single-character wildcard pattern must be excluded")
+}
+
+func TestHosts_HostInTwoSourcesOfferedOnce(t *testing.T) {
+	t.Parallel()
+
+	values := sshHostValues(t)
+
+	assert.Equal(t, 1, len(slices.DeleteFunc(slices.Clone(values), func(value string) bool { return value != "bastion" })))
 }
 
 func TestPorts_StandardEntries(t *testing.T) {
@@ -467,4 +494,20 @@ func TestRegisterNetInterface_CoercesInterface(t *testing.T) {
 
 func itemValues(items []predict.Item) []string {
 	return slicex.Map(items, func(item predict.Item) string { return item.Value })
+}
+
+// sshHostValues completes Hosts with the known_hosts and ssh_config fixtures
+// installed under a temporary HOME and returns the candidate values.
+func sshHostValues(t *testing.T) []string {
+	t.Helper()
+
+	tmpDir := t.TempDir()
+	sshDir := filepath.Join(tmpDir, ".ssh")
+	assert.NoError(t, os.MkdirAll(sshDir, 0700))
+	assert.NoError(t, os.WriteFile(filepath.Join(sshDir, "known_hosts"), fixtureKnownHosts, 0600))
+	assert.NoError(t, os.WriteFile(filepath.Join(sshDir, "config"), fixtureSSHConfig, 0600))
+
+	result := network.Hosts().Invoke(predict.Context{Env: map[string]string{"HOME": tmpDir}})
+
+	return itemValues(result.Items)
 }
