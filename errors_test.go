@@ -1211,9 +1211,31 @@ func TestErrorClassificationExecutableBoundary(t *testing.T) {
 	})
 }
 
-// TestErrorClassificationExecutableDotSlashMissing changes the working
-// directory, so it doesn't run in parallel.
-func TestErrorClassificationExecutableDotSlashMissing(t *testing.T) {
+// The two ./nosuchtool tests change the working directory, so they don't
+// run in parallel.
+func TestErrorClassificationExecutableDotSlashMissingConvertsForWhy(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("$PATH lookup and execute-bit diagnostics are Unix-specific")
+	}
+
+	t.Chdir(t.TempDir())
+
+	var stdoutBuffer bytes.Buffer
+
+	app := conga.New[classificationCLI]().
+		Name("app").
+		EnableWhy().
+		Stdout(&stdoutBuffer).
+		Args([]string{"--exe", "./nosuchtool", "--why"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Contains(t, stdoutBuffer.String(), `Value provenance for "app":`)
+	assert.Contains(t, stdoutBuffer.String(), "--exe")
+}
+
+func TestErrorClassificationExecutableDotSlashMissingFailsValidation(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("$PATH lookup and execute-bit diagnostics are Unix-specific")
 	}
@@ -1221,33 +1243,15 @@ func TestErrorClassificationExecutableDotSlashMissing(t *testing.T) {
 	workDir := t.TempDir()
 	t.Chdir(workDir)
 
-	t.Run("converts and --why renders", func(t *testing.T) {
-		var stdoutBuffer bytes.Buffer
+	app := conga.New[classificationCLI]().
+		Name("app").
+		Args([]string{"--exe", "./nosuchtool"})
 
-		app := conga.New[classificationCLI]().
-			Name("app").
-			EnableWhy().
-			Stdout(&stdoutBuffer).
-			Args([]string{"--exe", "./nosuchtool", "--why"})
+	err := app.Run()
 
-		err := app.Run()
-
-		assert.NoError(t, err)
-		assert.Contains(t, stdoutBuffer.String(), `Value provenance for "app":`)
-		assert.Contains(t, stdoutBuffer.String(), "--exe")
-	})
-
-	t.Run("fails validation, not the PATH lookup", func(t *testing.T) {
-		app := conga.New[classificationCLI]().
-			Name("app").
-			Args([]string{"--exe", "./nosuchtool"})
-
-		err := app.Run()
-
-		assert.IsError(t, err, conga.ErrValidation)
-		assert.False(t, errors.Is(err, conga.ErrCoerce))
-		assert.Equal(t, fmt.Sprintf("stat %s: no such file or directory for flag --exe", filepath.Join(workDir, "nosuchtool")), err.Error())
-	})
+	assert.IsError(t, err, conga.ErrValidation)
+	assert.False(t, errors.Is(err, conga.ErrCoerce))
+	assert.Equal(t, fmt.Sprintf("stat %s: no such file or directory for flag --exe", filepath.Join(workDir, "nosuchtool")), err.Error())
 }
 
 func TestHookErrorsPassThrough(t *testing.T) {
