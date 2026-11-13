@@ -869,6 +869,28 @@ func TestConfig_NamespacedFlagAliasRejected(t *testing.T) {
 	assert.False(t, cli.Port.IsSet())
 }
 
+// A section written for a scalar flag inside a namespace is reported the same
+// way as one at the command level: the field is not a map.
+func TestConfig_NamespacedScalarFlagSectionRejected(t *testing.T) {
+	t.Parallel()
+
+	cfgPath := filepath.Join(t.TempDir(), "app.json")
+	err := os.WriteFile(cfgPath, []byte(`{"network": {"port": {"http": 8888}}}`), 0o600)
+	assert.NoError(t, err)
+
+	cli := new(NamespacedFlagAliasCLI)
+	app := conga.New(cli).
+		RegisterDecoder(".json", json.Decode).
+		ConfigOptions(conga.ConfigExplicit(cfgPath)).
+		Args([]string{})
+
+	err = app.Run()
+
+	assert.IsError(t, err, conga.ErrConfig)
+	assert.Equal(t, fmt.Sprintf(`config file %q: field "port" in namespace "network" is not a map`, cfgPath), err.Error())
+	assert.False(t, cli.Port.IsSet())
+}
+
 type OtherSpellingCLI struct {
 	noopRunner
 

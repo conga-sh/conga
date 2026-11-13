@@ -77,9 +77,10 @@ var (
 //   - existing: requires the path to exist and not be a directory.
 //   - stdin: permits - to bind to standard input ([App.Stdin] or [os.Stdin]).
 //   - stdout: permits - to bind to standard output ([App.Stdout] or [os.Stdout]).
-//   - executable: requires the path to exist, not be a directory, have execute
-//     permission, and resolves PATH-relative names to their absolute location at
-//     decode time.
+//   - executable: requires the path to exist, not be a directory, and have execute
+//     permission. The path is absolute after decoding: a bare name (no path
+//     separator, so "./tool" is not bare) is looked up on $PATH, and any other
+//     path resolves against the working directory.
 //   - symlink: requires the path to be a symbolic link.
 //   - glob: shell autocompletion filter using comma-separated glob patterns (for
 //     example *.yaml,*.yml or Dockerfile*).

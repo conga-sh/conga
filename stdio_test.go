@@ -312,6 +312,7 @@ func TestStdio_SecondStdinConsumerRejected(t *testing.T) {
 		{name: "File slice with two dashes", args: []string{"--input=-,-"}, message: `stdin can only be read once (--input uses "-" twice)`},
 		{name: "stdin File and FileContent", args: []string{"--source", "-", "--first", "-"}, message: `stdin can only be read once (--first and --source both use "-")`},
 		{name: "flag and positional", args: []string{"--first", "-", "-"}, message: `stdin can only be read once (--first and argument <input> both use "-")`},
+		{name: "overridden stdin File and FileContent", args: []string{"--source", "-", "--source", "a.txt", "--first", "-"}, message: `stdin can only be read once (--first and --source both use "-")`},
 	}
 
 	for _, testCase := range testCases {
@@ -409,6 +410,20 @@ func TestStdio_RepeatedFileContentFlagRejectedBeforeReading(t *testing.T) {
 			assert.Equal(t, len("payload"), stdin.Len())
 		})
 	}
+}
+
+func TestStdio_RepeatedStdinFileFlagClaimsStdinOnce(t *testing.T) {
+	t.Parallel()
+
+	cli := new(stdioConsumersCLI)
+	app := conga.New(cli).
+		Stdin(strings.NewReader("payload")).
+		Args([]string{"--source", "-", "--source", "-"})
+
+	err := app.RunContext(t.Context())
+
+	assert.NoError(t, err)
+	assert.True(t, cli.Source.Get().IsStdio())
 }
 
 func TestStdio_RepeatedFileFlagLastWins(t *testing.T) {

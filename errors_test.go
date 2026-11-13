@@ -1108,10 +1108,20 @@ func (classificationUnmarshaler) UnmarshalText(text []byte) error {
 	return &classificationUnmarshalError{raw: string(text)}
 }
 
+var errClassificationSentinel = errors.New("classification sentinel")
+
+// classificationCategoryUnmarshaler fails with a cause that wraps both an
+// application sentinel and a CONGA category sentinel.
+type classificationCategoryUnmarshaler struct{}
+
+func (classificationCategoryUnmarshaler) UnmarshalText([]byte) error {
+	return fmt.Errorf("%w: %w", errClassificationSentinel, conga.ErrValidation)
+}
+
 // TestErrorClassificationCauseReachable pins decision 1A: an env- or
-// config-sourced failure matches only ErrConfig, while errors.As still reaches
-// the application's TextUnmarshaler error and stdlib causes such as
-// *fs.PathError.
+// config-sourced failure matches ErrConfig and no other category, while
+// errors.As and errors.Is still reach the application's TextUnmarshaler error
+// and stdlib causes such as *fs.PathError.
 func TestErrorClassificationCauseReachable(t *testing.T) {
 	t.Parallel()
 
@@ -1150,10 +1160,33 @@ func TestErrorClassificationCauseReachable(t *testing.T) {
 
 		assert.Error(t, result.err)
 		assert.IsError(t, result.err, conga.ErrConfig)
+		assert.IsError(t, result.err, fs.ErrNotExist)
+		assert.False(t, errors.Is(result.err, conga.ErrValidation))
 
 		var pathErr *fs.PathError
 		assert.True(t, errors.As(result.err, &pathErr))
 		assert.Equal(t, missing, pathErr.Path)
+	})
+
+	t.Run("cause wrapping a category sentinel", func(t *testing.T) {
+		t.Parallel()
+
+		type WrappingCLI struct {
+			noopRunner
+
+			Wrapping conga.OptionalFlag[classificationCategoryUnmarshaler] `name:"wrapping"`
+		}
+
+		result := runClassification(t, conga.New[WrappingCLI]().
+			RegisterDecoder(".json", json.Decode).
+			ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"wrapping": "value"}`))).
+			Args([]string{}))
+
+		assert.Error(t, result.err)
+		assert.IsError(t, result.err, conga.ErrConfig)
+		assert.IsError(t, result.err, errClassificationSentinel)
+		assert.False(t, errors.Is(result.err, conga.ErrValidation))
+		assert.False(t, errors.Is(result.err, conga.ErrCoerce))
 	})
 }
 
