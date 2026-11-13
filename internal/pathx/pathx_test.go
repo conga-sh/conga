@@ -37,6 +37,30 @@ func TestExpand_Empty(t *testing.T) {
 	assert.Equal(t, "", pathx.Expand(""))
 }
 
+func TestExpandUncleaned_KeepsTypedForm(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "./tool", pathx.ExpandUncleaned("./tool"))
+	assert.Equal(t, "tool/", pathx.ExpandUncleaned("tool/"))
+	assert.Equal(t, "tool", pathx.ExpandUncleaned("tool"))
+}
+
+func TestExpandUncleaned_EnvVarsAndFallback(t *testing.T) {
+	t.Setenv("CONGA_TEST_TOOL_DIR", ".")
+
+	assert.Equal(t, "./tool", pathx.ExpandUncleaned("$CONGA_TEST_TOOL_DIR/tool"))
+	assert.Equal(t, "./bin/tool", pathx.ExpandUncleaned("${UNSET_VAR:-./bin}/tool"))
+}
+
+func TestExpandUncleaned_Tilde(t *testing.T) {
+	t.Parallel()
+
+	home, err := os.UserHomeDir()
+	assert.NoError(t, err)
+
+	assert.Equal(t, filepath.Join(home, "bin", "tool"), pathx.ExpandUncleaned("~/bin/tool"))
+}
+
 func TestHomeDir(t *testing.T) {
 	t.Parallel()
 

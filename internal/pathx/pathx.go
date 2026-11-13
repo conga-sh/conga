@@ -14,6 +14,13 @@ func Expand(path string) string {
 		return ""
 	}
 
+	return filepath.Clean(ExpandUncleaned(path))
+}
+
+// ExpandUncleaned resolves environment variables and tilde like Expand but
+// skips filepath.Clean, so the text keeps the form it was typed in: "./tool"
+// stays "./tool" and "tool/" keeps its separator.
+func ExpandUncleaned(path string) string {
 	expanded := os.Expand(path, func(key string) string {
 		if varName, fallback, found := strings.Cut(key, ":-"); found {
 			if value := os.Getenv(varName); value != "" {
@@ -26,7 +33,7 @@ func Expand(path string) string {
 		return os.Getenv(key)
 	})
 
-	return filepath.Clean(ExpandTilde(expanded, os.Getenv))
+	return ExpandTilde(expanded, os.Getenv)
 }
 
 // HomeDir returns the user's home directory: the getenv("HOME") value when
