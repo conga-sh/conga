@@ -499,10 +499,10 @@ func sourceLocation(source ValueSource, sourceName string) string {
 // fs.ErrNotExist under a *fs.PathError, is matched against the cause, so
 // errors.Is reaches the same causes errors.As does.
 func configSourcedIs(cause, target error) bool {
-	switch target {
-	case ErrConfig:
+	switch {
+	case errors.Is(target, ErrConfig):
 		return true
-	case ErrSchema, ErrParse, ErrCoerce, ErrValidation:
+	case errors.Is(target, ErrSchema), errors.Is(target, ErrParse), errors.Is(target, ErrCoerce), errors.Is(target, ErrValidation):
 		return false
 	}
 
