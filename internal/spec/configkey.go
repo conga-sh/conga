@@ -6,11 +6,6 @@ import (
 	"github.com/conga-sh/conga/internal/casing"
 )
 
-// KeyCase selects how config keys derived from flag, subcommand, and feature
-// names are spelled. Every derived key has exactly one spelling; explicit
-// config tags are always used as written.
-type KeyCase uint8
-
 const (
 	// KeyCaseKebab spells derived keys as the names themselves (api-endpoint).
 	KeyCaseKebab KeyCase = iota
@@ -19,6 +14,11 @@ const (
 	// KeyCaseCamel spells derived keys in camelCase (apiEndpoint).
 	KeyCaseCamel
 )
+
+// KeyCase selects how config keys derived from flag, subcommand, and feature
+// names are spelled. Every derived key has exactly one spelling; explicit
+// config tags are always used as written.
+type KeyCase uint8
 
 // Apply spells a kebab-case flag, subcommand, or feature name in the key case.
 func (k KeyCase) Apply(name string) string {

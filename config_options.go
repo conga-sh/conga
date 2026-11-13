@@ -8,6 +8,18 @@ import (
 	"github.com/conga-sh/conga/internal/spec"
 )
 
+const (
+	// KebabCase spells derived keys as the names themselves: --api-endpoint
+	// reads api-endpoint. It is the default.
+	KebabCase KeyCase = iota
+	// SnakeCase spells derived keys in snake_case: --api-endpoint reads
+	// api_endpoint.
+	SnakeCase
+	// CamelCase spells derived keys in camelCase: --api-endpoint reads
+	// apiEndpoint.
+	CamelCase
+)
+
 // ConfigOption declares one slot of the application's configuration
 // resolution settings for [App.ConfigOptions]. Options compose and are
 // independent of call order; repeating an option replaces its slot.
@@ -21,18 +33,6 @@ type ConfigOption interface {
 // KeyCase names how config files spell the keys CONGA derives from flag,
 // subcommand, and feature names, for [ConfigKeyCase].
 type KeyCase uint8
-
-const (
-	// KebabCase spells derived keys as the names themselves: --api-endpoint
-	// reads api-endpoint. It is the default.
-	KebabCase KeyCase = iota
-	// SnakeCase spells derived keys in snake_case: --api-endpoint reads
-	// api_endpoint.
-	SnakeCase
-	// CamelCase spells derived keys in camelCase: --api-endpoint reads
-	// apiEndpoint.
-	CamelCase
-)
 
 // ConfigDecoder parses raw configuration bytes into a generic key-value map.
 //

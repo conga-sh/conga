@@ -185,52 +185,6 @@ func LastWordbreakPrefix(word string, wordbreaks string) string {
 	return prefix
 }
 
-// replacementPrefix resolves raw (one word's source text) and returns the
-// resolved value up to readline's replacement start: after the last
-// wordbreak rune outside quotes and escapes, or after a quote still open at
-// the end of raw. Quote and escape rules match the lexer's.
-func replacementPrefix(raw string, wordbreaks string) string { //nolint:cyclop,gocyclo // one scan whose switch is the quote/escape state table; splitting it would hide the state transitions
-	var value strings.Builder
-
-	keep := 0
-	quote := byte(0)
-	quoteStart := 0
-
-	for i := 0; i < len(raw); i++ {
-		char := raw[i]
-
-		switch {
-		case quote == '\'' && char == '\'', quote == '"' && char == '"':
-			quote = 0
-		case quote == '\'':
-			value.WriteByte(char)
-		case quote == '"' && char == '\\' && i+1 < len(raw) && isEscapableInDoubleQuote(raw[i+1]):
-			i++
-			writeEscaped(&value, raw[i])
-		case quote == '"':
-			value.WriteByte(char)
-		case char == '\'' || char == '"':
-			quote = char
-			quoteStart = value.Len()
-		case char == '\\' && i+1 < len(raw):
-			i++
-			writeEscaped(&value, raw[i])
-		default:
-			value.WriteByte(char)
-
-			if strings.IndexByte(wordbreaks, char) >= 0 {
-				keep = value.Len()
-			}
-		}
-	}
-
-	if quote != 0 {
-		keep = max(keep, quoteStart)
-	}
-
-	return value.String()[:keep]
-}
-
 // lexer holds the scan state for one line.
 type lexer struct {
 	source string
@@ -466,6 +420,52 @@ func (w *wordBuilder) scanEscape(scan *lexer) {
 	w.pushRaw(next)
 
 	scan.pos += 2
+}
+
+// replacementPrefix resolves raw (one word's source text) and returns the
+// resolved value up to readline's replacement start: after the last
+// wordbreak rune outside quotes and escapes, or after a quote still open at
+// the end of raw. Quote and escape rules match the lexer's.
+func replacementPrefix(raw string, wordbreaks string) string { //nolint:cyclop,gocyclo // one scan whose switch is the quote/escape state table; splitting it would hide the state transitions
+	var value strings.Builder
+
+	keep := 0
+	quote := byte(0)
+	quoteStart := 0
+
+	for i := 0; i < len(raw); i++ {
+		char := raw[i]
+
+		switch {
+		case quote == '\'' && char == '\'', quote == '"' && char == '"':
+			quote = 0
+		case quote == '\'':
+			value.WriteByte(char)
+		case quote == '"' && char == '\\' && i+1 < len(raw) && isEscapableInDoubleQuote(raw[i+1]):
+			i++
+			writeEscaped(&value, raw[i])
+		case quote == '"':
+			value.WriteByte(char)
+		case char == '\'' || char == '"':
+			quote = char
+			quoteStart = value.Len()
+		case char == '\\' && i+1 < len(raw):
+			i++
+			writeEscaped(&value, raw[i])
+		default:
+			value.WriteByte(char)
+
+			if strings.IndexByte(wordbreaks, char) >= 0 {
+				keep = value.Len()
+			}
+		}
+	}
+
+	if quote != 0 {
+		keep = max(keep, quoteStart)
+	}
+
+	return value.String()[:keep]
 }
 
 // lexLine scans the full line into tokens and reports whether the line ends

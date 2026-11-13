@@ -183,93 +183,6 @@ func (v *documentValidator) namespace(cmdPrefix string, section []string, rawMap
 	return nil
 }
 
-// newExcludedConfigFieldError rejects a configuration entry addressed at a
-// flag excluded from config files, the strict-validation counterpart of the
-// binder's refusal to read such keys.
-func newExcludedConfigFieldError(origin, scope, fieldKey, commandName string) error {
-	return newFieldConfigError(
-		origin,
-		scope,
-		fmt.Sprintf("field %q is excluded from config files in command %q", fieldKey, commandName),
-		fmt.Sprintf("field %q not allowed in config", fieldKey),
-	)
-}
-
-// validateCommandConfig validates raw parsed configuration data against the
-// Command AST and populates dest with the resolved values. Unknown keys or
-// sections trigger strict configError failures.
-func validateCommandConfig(rawMap map[string]any, cmd *spec.Command, dest *configdata.Data, origin string) error {
-	return newDocumentValidator(cmd, dest, origin, "").command("", rawMap, cmd)
-}
-
-// relativeConfigPath returns a flag's config tag, relative to the command's
-// section path cmdPrefix, split into its section segments; nil when the flag
-// has no tag or is excluded. A tag that already starts with the command path
-// names it absolutely, matching the binder's storage keys in flagConfigKeys.
-func relativeConfigPath(cmdPrefix string, flag *spec.Flag) []string {
-	if flag.ConfigKey == "" || flag.ConfigKey == "-" {
-		return nil
-	}
-
-	configKey := flag.ConfigKey
-	if cmdPrefix != "" {
-		configKey = strings.TrimPrefix(configKey, cmdPrefix+".")
-	}
-
-	return strings.Split(configKey, ".")
-}
-
-// hasFlagUnder reports whether a flag's config tag lies strictly below the
-// section path.
-func hasFlagUnder(cmd *spec.Command, cmdPrefix string, section []string) bool {
-	return slices.ContainsFunc(cmd.Flags, func(flag *spec.Flag) bool {
-		path := relativeConfigPath(cmdPrefix, flag)
-
-		return len(path) > len(section) && slices.Equal(path[:len(section)], section)
-	})
-}
-
-// findFlag resolves a key path within the command (one key at the command
-// level, or a section path plus key inside a namespace) to the flag it sets.
-// A flag with a config tag matches only that tag; a flag without one matches
-// only its name in the key case, at the command level. Excluded flags
-// (`config:"-"`) match their name so the caller can report the exclusion.
-func findFlag(cmd *spec.Command, cmdPrefix string, path []string, keyCase spec.KeyCase) *spec.Flag {
-	for _, flag := range cmd.Flags {
-		if flag.IsConfigFile {
-			continue
-		}
-
-		if configPath := relativeConfigPath(cmdPrefix, flag); configPath != nil {
-			if slices.Equal(configPath, path) {
-				return flag
-			}
-
-			continue
-		}
-
-		if len(path) == 1 && path[0] == keyCase.Apply(flag.Name) {
-			return flag
-		}
-	}
-
-	return nil
-}
-
-func findSubcommand(cmd *spec.Command, key string, keyCase spec.KeyCase) *spec.Command {
-	for _, subcommand := range cmd.Subcommands {
-		if keyCase.Apply(subcommand.Name) == key {
-			return subcommand
-		}
-	}
-
-	return nil
-}
-
-func joinConfigPath(prefix, key string) string {
-	return cond.If(prefix != "", prefix+"."+key, key)
-}
-
 // store records one config value for a flag under every bindable config key.
 // Scalar and slice values are stringified and replace whatever an earlier
 // file stored; map flags contribute structured per-key entries so cascading
@@ -382,6 +295,93 @@ func (v *documentValidator) storeMapEntry(cmd *spec.Command, flag *spec.Flag, ke
 	entries[key] = configdata.Value{Raw: raw, Origin: v.origin, Scope: v.scope}
 
 	return nil
+}
+
+// newExcludedConfigFieldError rejects a configuration entry addressed at a
+// flag excluded from config files, the strict-validation counterpart of the
+// binder's refusal to read such keys.
+func newExcludedConfigFieldError(origin, scope, fieldKey, commandName string) error {
+	return newFieldConfigError(
+		origin,
+		scope,
+		fmt.Sprintf("field %q is excluded from config files in command %q", fieldKey, commandName),
+		fmt.Sprintf("field %q not allowed in config", fieldKey),
+	)
+}
+
+// validateCommandConfig validates raw parsed configuration data against the
+// Command AST and populates dest with the resolved values. Unknown keys or
+// sections trigger strict configError failures.
+func validateCommandConfig(rawMap map[string]any, cmd *spec.Command, dest *configdata.Data, origin string) error {
+	return newDocumentValidator(cmd, dest, origin, "").command("", rawMap, cmd)
+}
+
+// relativeConfigPath returns a flag's config tag, relative to the command's
+// section path cmdPrefix, split into its section segments; nil when the flag
+// has no tag or is excluded. A tag that already starts with the command path
+// names it absolutely, matching the binder's storage keys in flagConfigKeys.
+func relativeConfigPath(cmdPrefix string, flag *spec.Flag) []string {
+	if flag.ConfigKey == "" || flag.ConfigKey == "-" {
+		return nil
+	}
+
+	configKey := flag.ConfigKey
+	if cmdPrefix != "" {
+		configKey = strings.TrimPrefix(configKey, cmdPrefix+".")
+	}
+
+	return strings.Split(configKey, ".")
+}
+
+// hasFlagUnder reports whether a flag's config tag lies strictly below the
+// section path.
+func hasFlagUnder(cmd *spec.Command, cmdPrefix string, section []string) bool {
+	return slices.ContainsFunc(cmd.Flags, func(flag *spec.Flag) bool {
+		path := relativeConfigPath(cmdPrefix, flag)
+
+		return len(path) > len(section) && slices.Equal(path[:len(section)], section)
+	})
+}
+
+// findFlag resolves a key path within the command (one key at the command
+// level, or a section path plus key inside a namespace) to the flag it sets.
+// A flag with a config tag matches only that tag; a flag without one matches
+// only its name in the key case, at the command level. Excluded flags
+// (`config:"-"`) match their name so the caller can report the exclusion.
+func findFlag(cmd *spec.Command, cmdPrefix string, path []string, keyCase spec.KeyCase) *spec.Flag {
+	for _, flag := range cmd.Flags {
+		if flag.IsConfigFile {
+			continue
+		}
+
+		if configPath := relativeConfigPath(cmdPrefix, flag); configPath != nil {
+			if slices.Equal(configPath, path) {
+				return flag
+			}
+
+			continue
+		}
+
+		if len(path) == 1 && path[0] == keyCase.Apply(flag.Name) {
+			return flag
+		}
+	}
+
+	return nil
+}
+
+func findSubcommand(cmd *spec.Command, key string, keyCase spec.KeyCase) *spec.Command {
+	for _, subcommand := range cmd.Subcommands {
+		if keyCase.Apply(subcommand.Name) == key {
+			return subcommand
+		}
+	}
+
+	return nil
+}
+
+func joinConfigPath(prefix, key string) string {
+	return cond.If(prefix != "", prefix+"."+key, key)
 }
 
 // flagConfigKeys returns the bindable config keys a flag's stored value is

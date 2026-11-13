@@ -44,6 +44,15 @@ type BranchGrammar struct {
 	SubcommandField string
 }
 
+// FlagOwner names the declaration of a flag name, alias, or short rune for
+// shadowing diagnostics: the command that declares it and the Go struct and
+// field that hold it.
+type FlagOwner struct {
+	Command string
+	Struct  string
+	Field   string
+}
+
 // ValidateTrailingGrammar enforces a deterministic RawArgs boundary: a command
 // declaring RawArgs may not also declare any command field, and every
 // positional argument before the collector must be a required scalar. RawArgs
@@ -97,15 +106,6 @@ func TrailingCollectorAlreadyDeclaredError(containerName, firstFieldName string)
 // the static analyzer share it as the single source of truth.
 func ImplicitCommandAlreadyDeclaredError(firstFieldName string) error {
 	return fmt.Errorf("%w: only one implicit command is allowed per command; implicit command already declared by field %s", ErrSchema, firstFieldName)
-}
-
-// FlagOwner names the declaration of a flag name, alias, or short rune for
-// shadowing diagnostics: the command that declares it and the Go struct and
-// field that hold it.
-type FlagOwner struct {
-	Command string
-	Struct  string
-	Field   string
 }
 
 // AncestorShadowError builds the error for a flag name, alias, or short rune
