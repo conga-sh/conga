@@ -379,10 +379,6 @@ func (f File) Stat() (os.FileInfo, error) {
 	return os.Stat(f.path)
 }
 
-// dashReadsStdin reports whether a "-" File value reads standard input: only
-// when its field declares stdin:"true".
-func (File) dashReadsStdin(tags FieldTags) bool { return tags.Bool("stdin") }
-
 // FileContent represents the in-memory contents of a file read during argument decoding.
 //
 // If the value is "-", the content is read into memory from [App.Stdin] (or [os.Stdin]).
@@ -478,13 +474,6 @@ func (f *FileContent) UnmarshalTextWithContext(text []byte, decodeContext Decode
 
 	return nil
 }
-
-// readsWhileParsing marks FileContent as reading its input during coercion;
-// see the binder's parseTimeReader.
-func (FileContent) readsWhileParsing() {}
-
-// dashReadsStdin reports that a "-" FileContent value reads standard input.
-func (FileContent) dashReadsStdin(FieldTags) bool { return true }
 
 // Dir represents a filesystem directory path with an optional existence constraint
 // declared via the existing struct tag.
@@ -916,6 +905,10 @@ func (nopWriteCloser) Close() error {
 	return nil
 }
 
+// dashReadsStdin reports whether a "-" File value reads standard input: only
+// when its field declares stdin:"true".
+func (File) dashReadsStdin(tags FieldTags) bool { return tags.Bool("stdin") }
+
 // applyTags captures the declared capability tags on the value.
 func (f *File) applyTags(tags FieldTags) {
 	f.existing = tags.Bool("existing")
@@ -924,6 +917,13 @@ func (f *File) applyTags(tags FieldTags) {
 	f.executable = tags.Bool("executable")
 	f.symlink = tags.Bool("symlink")
 }
+
+// readsWhileParsing marks FileContent as reading its input during coercion;
+// see the binder's parseTimeReader.
+func (FileContent) readsWhileParsing() {}
+
+// dashReadsStdin reports that a "-" FileContent value reads standard input.
+func (FileContent) dashReadsStdin(FieldTags) bool { return true }
 
 // byteSizeParseParts converts the split numeric prefix and unit suffix into a
 // byte count and input family, enforcing the field's declared units tag. A bare

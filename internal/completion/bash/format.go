@@ -82,6 +82,29 @@ func (s *Session) isSuccessiveTabs(candidateCount int) bool {
 	return candidateCount > 1 && compType == compTypeSuccessiveTabs
 }
 
+// candidateLine renders one candidate: a tab-delimited display/value/
+// description triplet in successive-tab mode, or the quoted insertion value
+// otherwise. closeQuote reports whether a quote left open in the word is
+// closed after the value (a complete value that takes a trailing space).
+func (s *Session) candidateLine(candidate wire.Candidate, wordbreakPrefix string, successive bool, closeQuote bool) string {
+	if successive {
+		return sanitizeField(candidate.Display) + "\t" +
+			sanitizeField(candidate.Value) + "\t" +
+			sanitizeField(candidate.TrimmedDescription())
+	}
+
+	value := sanitizeField(insertionValue(candidate, wordbreakPrefix))
+
+	switch s.openQuote {
+	case '"':
+		return continueDoubleQuote(value, closeQuote)
+	case '\'':
+		return continueSingleQuote(value, closeQuote)
+	default:
+		return escapeValue(value)
+	}
+}
+
 func sanitizeField(s string) string {
 	return wire.FlattenControl(s, controlCutset)
 }
@@ -104,29 +127,6 @@ func sanitizedCandidates(candidates []wire.Candidate) []wire.Candidate {
 	}
 
 	return sanitized
-}
-
-// candidateLine renders one candidate: a tab-delimited display/value/
-// description triplet in successive-tab mode, or the quoted insertion value
-// otherwise. closeQuote reports whether a quote left open in the word is
-// closed after the value (a complete value that takes a trailing space).
-func (s *Session) candidateLine(candidate wire.Candidate, wordbreakPrefix string, successive bool, closeQuote bool) string {
-	if successive {
-		return sanitizeField(candidate.Display) + "\t" +
-			sanitizeField(candidate.Value) + "\t" +
-			sanitizeField(candidate.TrimmedDescription())
-	}
-
-	value := sanitizeField(insertionValue(candidate, wordbreakPrefix))
-
-	switch s.openQuote {
-	case '"':
-		return continueDoubleQuote(value, closeQuote)
-	case '\'':
-		return continueSingleQuote(value, closeQuote)
-	default:
-		return escapeValue(value)
-	}
 }
 
 // insertionValue resolves the text bash inserts for one candidate: the value

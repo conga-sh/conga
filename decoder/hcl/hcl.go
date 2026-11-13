@@ -63,6 +63,16 @@ func Decode(data []byte) (map[string]any, error) {
 	return decodeHCLBody(body)
 }
 
+// numberRangeError reports an HCL number that no int64, uint64, or float64
+// holds, matching the JSON decoder's wording.
+type numberRangeError struct {
+	literal string
+}
+
+func (e *numberRangeError) Error() string {
+	return "number " + e.literal + " out of range"
+}
+
 func decodeHCLBody(body *hclsyntax.Body) (map[string]any, error) {
 	result := make(map[string]any)
 
@@ -160,16 +170,6 @@ func convertCtyValue(value cty.Value) (any, error) {
 
 		return list, nil
 	}
-}
-
-// numberRangeError reports an HCL number that no int64, uint64, or float64
-// holds, matching the JSON decoder's wording.
-type numberRangeError struct {
-	literal string
-}
-
-func (e *numberRangeError) Error() string {
-	return "number " + e.literal + " out of range"
 }
 
 // convertCtyNumber narrows an HCL number to int64, uint64, or float64,

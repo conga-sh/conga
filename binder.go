@@ -632,21 +632,6 @@ func (c *stdinClaim) claim(cmdChain []*spec.Command, owner string, targetType re
 	return nil
 }
 
-// stdinErrorSource picks the classification for a duplicate stdin claim: any
-// environment, configuration, or default value makes the failure a config
-// error; two command-line values stay a usage error.
-func stdinErrorSource(first, second ValueSource) ValueSource {
-	if !valueErrorIsUsage(first) {
-		return first
-	}
-
-	if !valueErrorIsUsage(second) {
-		return second
-	}
-
-	return SourceCLI
-}
-
 // stdinDashReader is implemented by the domain types whose "-" value reads
 // standard input (FileContent, and File with stdin:"true"). The binder asks
 // each field's type through this interface instead of naming the types, so
@@ -661,53 +646,6 @@ type stdinDashReader interface {
 // are coerced in two passes, may not use the type.
 type parseTimeReader interface {
 	readsWhileParsing()
-}
-
-// readsStdin reports whether a "-" value of elemType reads standard input.
-func readsStdin(elemType reflect.Type, tags spec.FieldTags) bool {
-	reader, ok := reflect.TypeAssert[stdinDashReader](reflect.New(elemType))
-
-	return ok && reader.dashReadsStdin(tags)
-}
-
-// readsWhileParsing reports whether coercing a value of targetType does
-// irreversible I/O. It checks the method set without naming the types, so it
-// links no domain type into programs that do not declare one.
-func readsWhileParsing(targetType reflect.Type) bool {
-	return targetType != nil && reflect.PointerTo(targetType).Implements(reflect.TypeFor[parseTimeReader]())
-}
-
-func newRepeatedFlagError(cmdChain []*spec.Command, flagName string) error {
-	return &parseError{
-		msg:      "flag --" + flagName + " can only be given once",
-		token:    "--" + flagName,
-		cmdChain: cmdChain,
-	}
-}
-
-func newStdinReadTwiceError(cmdChain []*spec.Command, first, second string, source ValueSource) error {
-	detail := fmt.Sprintf("%s and %s both use \"-\"", first, second)
-	if first == second {
-		detail = first + " uses \"-\" twice"
-	}
-
-	return &validationError{
-		msg:      "stdin can only be read once (" + detail + ")",
-		source:   source,
-		cmdChain: cmdChain,
-		cause:    errStdinReadTwice,
-	}
-}
-
-// newCounterValueError reports a value attached to a counter flag on the
-// command line (--verbose=2, -v=2, -vv=2). A counter counts occurrences only,
-// so the attached value is a usage error.
-func newCounterValueError(cmdChain []*spec.Command, raw string) error {
-	return &parseError{
-		msg:      "flag does not take a value: " + raw,
-		token:    raw,
-		cmdChain: cmdChain,
-	}
 }
 
 // counterError is the root cause for environment or configuration counter
@@ -878,6 +816,91 @@ type positionalRoute struct {
 	reprocess bool
 	// helpRequested reports routing must stop so the help command can render.
 	helpRequested bool
+}
+
+// flagGroupNaming names supplied group members in group errors.
+type flagGroupNaming struct {
+	// spellings holds the token typed for each command-line flag.
+	spellings map[*spec.Flag]string
+	// sourceNames holds the environment variable or config key that supplied
+	// each env- or config-sourced flag (see [bindingState.SourceNames]).
+	sourceNames map[*spec.Flag]string
+}
+
+// name returns a supplied member's name: a command-line member by the token the
+// user typed, any other by its declared name plus the origin suffix.
+func (naming flagGroupNaming) name(flagSpec *spec.Flag) string {
+	target := flagStateOf(flagSpec.Handle)
+
+	if target.Source() == SourceCLI {
+		if spelling := naming.spellings[flagSpec]; spelling != "" {
+			return spelling
+		}
+	}
+
+	return "--" + flagSpec.Name + sourceLocation(target.Source(), naming.sourceNames[flagSpec])
+}
+
+// stdinErrorSource picks the classification for a duplicate stdin claim: any
+// environment, configuration, or default value makes the failure a config
+// error; two command-line values stay a usage error.
+func stdinErrorSource(first, second ValueSource) ValueSource {
+	if !valueErrorIsUsage(first) {
+		return first
+	}
+
+	if !valueErrorIsUsage(second) {
+		return second
+	}
+
+	return SourceCLI
+}
+
+// readsStdin reports whether a "-" value of elemType reads standard input.
+func readsStdin(elemType reflect.Type, tags spec.FieldTags) bool {
+	reader, ok := reflect.TypeAssert[stdinDashReader](reflect.New(elemType))
+
+	return ok && reader.dashReadsStdin(tags)
+}
+
+// readsWhileParsing reports whether coercing a value of targetType does
+// irreversible I/O. It checks the method set without naming the types, so it
+// links no domain type into programs that do not declare one.
+func readsWhileParsing(targetType reflect.Type) bool {
+	return targetType != nil && reflect.PointerTo(targetType).Implements(reflect.TypeFor[parseTimeReader]())
+}
+
+func newRepeatedFlagError(cmdChain []*spec.Command, flagName string) error {
+	return &parseError{
+		msg:      "flag --" + flagName + " can only be given once",
+		token:    "--" + flagName,
+		cmdChain: cmdChain,
+	}
+}
+
+func newStdinReadTwiceError(cmdChain []*spec.Command, first, second string, source ValueSource) error {
+	detail := fmt.Sprintf("%s and %s both use \"-\"", first, second)
+	if first == second {
+		detail = first + " uses \"-\" twice"
+	}
+
+	return &validationError{
+		msg:      "stdin can only be read once (" + detail + ")",
+		source:   source,
+		cmdChain: cmdChain,
+		cause:    errStdinReadTwice,
+	}
+}
+
+// newCounterValueError reports a value attached to a counter flag on the
+// command line (--verbose=2, -v=2, -vv=2). A counter counts occurrences only,
+// so the attached value is a usage error.
+func newCounterValueError(cmdChain []*spec.Command, raw string) error {
+	return &parseError{
+		msg:      "flag does not take a value: " + raw,
+		token:    raw,
+		cmdChain: cmdChain,
+	}
 }
 
 // registerBuiltinShort maps a configured built-in short rune onto its shared
@@ -2029,29 +2052,6 @@ func validateFlagGroupConstraints(cmdChain []*spec.Command, naming flagGroupNami
 	}
 
 	return nil
-}
-
-// flagGroupNaming names supplied group members in group errors.
-type flagGroupNaming struct {
-	// spellings holds the token typed for each command-line flag.
-	spellings map[*spec.Flag]string
-	// sourceNames holds the environment variable or config key that supplied
-	// each env- or config-sourced flag (see [bindingState.SourceNames]).
-	sourceNames map[*spec.Flag]string
-}
-
-// name returns a supplied member's name: a command-line member by the token the
-// user typed, any other by its declared name plus the origin suffix.
-func (naming flagGroupNaming) name(flagSpec *spec.Flag) string {
-	target := flagStateOf(flagSpec.Handle)
-
-	if target.Source() == SourceCLI {
-		if spelling := naming.spellings[flagSpec]; spelling != "" {
-			return spelling
-		}
-	}
-
-	return "--" + flagSpec.Name + sourceLocation(target.Source(), naming.sourceNames[flagSpec])
 }
 
 // xorGroupName returns a flag's xor group name for collectFlagGroups.

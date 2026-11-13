@@ -739,29 +739,6 @@ func (w *walker) checkBootstrapField(node *commandNode, fieldObject types.Object
 	}
 }
 
-// staticBootstrapReadsWhileParsing mirrors the runtime ReadsWhileParsing hook
-// over go/types: conga.FileContent, or a slice or map of it.
-func staticBootstrapReadsWhileParsing(targetType types.Type) bool {
-	isFileContent := func(candidate types.Type) bool {
-		named, ok := types.Unalias(candidate).(*types.Named)
-
-		return ok && named.Obj().Pkg() != nil && named.Obj().Pkg().Path() == congaPackagePath && named.Obj().Name() == "FileContent"
-	}
-
-	if isFileContent(targetType) {
-		return true
-	}
-
-	switch underlying := types.Unalias(targetType).Underlying().(type) {
-	case *types.Slice:
-		return isFileContent(underlying.Elem())
-	case *types.Map:
-		return isFileContent(underlying.Key()) || isFileContent(underlying.Elem())
-	default:
-		return false
-	}
-}
-
 // validateRangeBounds is the static port of the runtime validateRangeSpec:
 // numeric element kinds get their bounds parsed, the duration type gets
 // duration bounds, conga.ByteSize is parsed with the runtime grammar compiled
@@ -862,6 +839,29 @@ func (w *walker) containerInnerType(fieldType types.Type) types.Type {
 	}
 
 	return containerType
+}
+
+// staticBootstrapReadsWhileParsing mirrors the runtime ReadsWhileParsing hook
+// over go/types: conga.FileContent, or a slice or map of it.
+func staticBootstrapReadsWhileParsing(targetType types.Type) bool {
+	isFileContent := func(candidate types.Type) bool {
+		named, ok := types.Unalias(candidate).(*types.Named)
+
+		return ok && named.Obj().Pkg() != nil && named.Obj().Pkg().Path() == congaPackagePath && named.Obj().Name() == "FileContent"
+	}
+
+	if isFileContent(targetType) {
+		return true
+	}
+
+	switch underlying := types.Unalias(targetType).Underlying().(type) {
+	case *types.Slice:
+		return isFileContent(underlying.Elem())
+	case *types.Map:
+		return isFileContent(underlying.Key()) || isFileContent(underlying.Elem())
+	default:
+		return false
+	}
 }
 
 // isStaticBootstrapType mirrors spec.isBootstrapType over go/types.
