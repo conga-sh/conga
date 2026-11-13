@@ -372,7 +372,7 @@ func (parser *tokenParser) consumeNextValue(flagSpec *spec.Flag, flagName, rawTo
 // spec.WalkShorthand. Runes before an unknown rune are bound before the unknown
 // flag is reported; the walk never yields a value-start step together with an
 // unresolved rune.
-func (parser *tokenParser) parseShortFlagCluster(tok tokenizer.Token) error { //nolint:cyclop,gocyclo // one walk over the cluster; each rune outcome is one branch
+func (parser *tokenParser) parseShortFlagCluster(tok tokenizer.Token) error {
 	runes := tok.ShortRunes
 
 	walk := spec.WalkShorthand(runes, tok.HasAttachedValue, func(r rune) (*spec.Flag, int) {
@@ -380,77 +380,94 @@ func (parser *tokenParser) parseShortFlagCluster(tok tokenizer.Token) error { //
 	})
 
 	for i, step := range walk.Steps {
-		flagSpec := step.Flag
-
-		parser.recordFlagSpelling(flagSpec, "-"+string(runes[i]))
-
-		if flagSpec.IsCounter {
-			// A counter takes no value (see the long-flag path), so a cluster
-			// cannot end in one with an attached value.
-			if tok.HasAttachedValue && i == len(runes)-1 {
-				return newCounterValueError(parser.cmdChain, tok.Raw)
-			}
-
-			parser.flagValues[flagSpec] = append(parser.flagValues[flagSpec], "1")
-
-			continue
+		done, err := parser.bindClusterRune(tok, i, step.Flag)
+		if err != nil || done {
+			return err
 		}
-
-		if flagSpec.IsBool {
-			if tok.HasAttachedValue && i == len(runes)-1 {
-				parser.flagValues[flagSpec] = append(parser.flagValues[flagSpec], tok.Value)
-			} else {
-				parser.flagValues[flagSpec] = append(parser.flagValues[flagSpec], "true")
-			}
-
-			continue
-		}
-
-		if i < len(runes)-1 {
-			value := string(runes[i+1:])
-			if tok.HasAttachedValue {
-				value = value + "=" + tok.Value
-			}
-
-			parser.flagValues[flagSpec] = append(parser.flagValues[flagSpec], value)
-
-			return nil
-		}
-
-		if tok.HasAttachedValue {
-			parser.flagValues[flagSpec] = append(parser.flagValues[flagSpec], tok.Value)
-
-			return nil
-		}
-
-		return parser.consumeNextValue(flagSpec, fmt.Sprintf("-%c", runes[i]), tok.Raw)
 	}
 
 	if walk.UnresolvedAt >= 0 {
-		r := runes[walk.UnresolvedAt]
-
-		msg := "unknown flag: -" + string(r)
-		if len(runes) > 1 {
-			msg = "unknown shorthand flag: '" + string(r) + "' in -" + string(runes)
-		}
-
-		// A single letter has no meaningful near miss, except that -h is the
-		// conventional help spelling: point it at the built-in --help.
-		var suggestion string
-		if len(runes) == 1 && r == 'h' && parser.flagMap["help"] == spec.BuiltinHelpFlag {
-			suggestion = "--help"
-		}
-
-		return &parseError{
-			msg:        msg,
-			token:      tok.Raw,
-			cmdChain:   parser.cmdChain,
-			suggestion: suggestion,
-			cause:      errUnknownFlag,
-		}
+		return parser.unknownShorthandError(tok, runes[walk.UnresolvedAt])
 	}
 
 	return nil
+}
+
+// bindClusterRune binds flagSpec, named by the cluster's rune at index. It
+// reports done when the flag took the rest of the cluster, the attached value,
+// or the next token as its value, which ends the walk.
+func (parser *tokenParser) bindClusterRune(tok tokenizer.Token, index int, flagSpec *spec.Flag) (bool, error) {
+	runes := tok.ShortRunes
+	last := index == len(runes)-1
+
+	parser.recordFlagSpelling(flagSpec, "-"+string(runes[index]))
+
+	if flagSpec.IsCounter {
+		// A counter takes no value (see the long-flag path), so a cluster
+		// cannot end in one with an attached value.
+		if tok.HasAttachedValue && last {
+			return true, newCounterValueError(parser.cmdChain, tok.Raw)
+		}
+
+		parser.flagValues[flagSpec] = append(parser.flagValues[flagSpec], "1")
+
+		return false, nil
+	}
+
+	if flagSpec.IsBool {
+		value := "true"
+		if tok.HasAttachedValue && last {
+			value = tok.Value
+		}
+
+		parser.flagValues[flagSpec] = append(parser.flagValues[flagSpec], value)
+
+		return false, nil
+	}
+
+	if !last {
+		value := string(runes[index+1:])
+		if tok.HasAttachedValue {
+			value = value + "=" + tok.Value
+		}
+
+		parser.flagValues[flagSpec] = append(parser.flagValues[flagSpec], value)
+
+		return true, nil
+	}
+
+	if tok.HasAttachedValue {
+		parser.flagValues[flagSpec] = append(parser.flagValues[flagSpec], tok.Value)
+
+		return true, nil
+	}
+
+	return true, parser.consumeNextValue(flagSpec, fmt.Sprintf("-%c", runes[index]), tok.Raw)
+}
+
+// unknownShorthandError reports the cluster rune r that names no flag.
+func (parser *tokenParser) unknownShorthandError(tok tokenizer.Token, r rune) error {
+	runes := tok.ShortRunes
+
+	msg := "unknown flag: -" + string(r)
+	if len(runes) > 1 {
+		msg = "unknown shorthand flag: '" + string(r) + "' in -" + string(runes)
+	}
+
+	// A single letter has no meaningful near miss, except that -h is the
+	// conventional help spelling: point it at the built-in --help.
+	var suggestion string
+	if len(runes) == 1 && r == 'h' && parser.flagMap["help"] == spec.BuiltinHelpFlag {
+		suggestion = "--help"
+	}
+
+	return &parseError{
+		msg:        msg,
+		token:      tok.Raw,
+		cmdChain:   parser.cmdChain,
+		suggestion: suggestion,
+		cause:      errUnknownFlag,
+	}
 }
 
 func (parser *tokenParser) parseShortFlag(tok tokenizer.Token) error {
