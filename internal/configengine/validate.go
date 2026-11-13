@@ -156,8 +156,11 @@ func (v *documentValidator) namespace(cmdPrefix string, section []string, rawMap
 			continue
 		}
 
+		// Every other nested map gets nestedSection's checks: a section for a
+		// scalar flag is not a map, a section with flags under it recurses,
+		// and any other section is unknown.
 		if isMap {
-			if err := v.namespace(cmdPrefix, path, nestedMap, cmd); err != nil {
+			if err := v.namespaceSection(cmdPrefix, section, key, nestedMap, flag, cmd); err != nil {
 				return err
 			}
 
@@ -295,6 +298,33 @@ func (v *documentValidator) storeMapEntry(cmd *spec.Command, flag *spec.Flag, ke
 	entries[key] = configdata.Value{Raw: raw, Origin: v.origin, Scope: v.scope}
 
 	return nil
+}
+
+// namespaceSection validates a nested map at key inside the namespace section,
+// mirroring nestedSection for a map that no map flag consumes.
+func (v *documentValidator) namespaceSection(cmdPrefix string, section []string, key string, nestedMap map[string]any, flag *spec.Flag, cmd *spec.Command) error {
+	displayNamespace := joinConfigPath(cmdPrefix, strings.Join(section, "."))
+	path := append(slices.Clone(section), key)
+
+	if hasFlagUnder(cmd, cmdPrefix, path) {
+		return v.namespace(cmdPrefix, path, nestedMap, cmd)
+	}
+
+	if flag != nil {
+		return newFieldConfigError(
+			v.origin,
+			v.scope,
+			fmt.Sprintf("field %q in namespace %q is not a map", key, displayNamespace),
+			fmt.Sprintf("field %q in namespace %q is not a map", key, displayNamespace),
+		)
+	}
+
+	return newFieldConfigError(
+		v.origin,
+		v.scope,
+		fmt.Sprintf("unknown section %q in namespace %q%s", key, displayNamespace, suggestionHint(cmd, cmdPrefix, section, key, v.keyCase)),
+		fmt.Sprintf("unknown section %q in namespace %q", key, displayNamespace),
+	)
 }
 
 // newExcludedConfigFieldError rejects a configuration entry addressed at a

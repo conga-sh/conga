@@ -40,7 +40,7 @@ app: error: invalid integer value "abc" for flag --port (from config key "port")
 app: error: invalid integer value "abc" for flag --port (from default value)
 ```
 
-The first is a usage error with exit 2. The other three are `ErrConfig` with exit 1. `errors.As` still reaches the original cause, so an application `TextUnmarshaler` error or a stdlib `*fs.PathError` remains inspectable.
+The first is a usage error with exit 2. The other three are `ErrConfig` with exit 1. `errors.As` and `errors.Is` still reach the original cause, so an application `TextUnmarshaler` error, a stdlib `*fs.PathError`, and a sentinel such as `fs.ErrNotExist` remain inspectable. Only the category sentinels stop at `ErrConfig`: `errors.Is` reports false for `ErrCoerce`, `ErrValidation`, `ErrParse`, and `ErrSchema` even when the cause wraps one.
 
 **The stage decides `ErrCoerce` versus `ErrValidation`.** A failure while converting the text is `ErrCoerce`; a check on the converted value is `ErrValidation`. For example, a `File` field with `executable:"true"`:
 

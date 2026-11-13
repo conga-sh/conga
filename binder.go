@@ -593,8 +593,11 @@ type stdinClaim struct {
 
 // claim records the values of owner that read standard input: a "-" for a
 // FileContent, or for a File declaring stdin:"true", including each item of a
-// slice. A second such value, from owner or another flag or argument, is a
-// usage error when both values came from the command line; a conflicting
+// slice. A scalar owner claims stdin at most once, however often it repeats
+// "-": a repeated scalar keeps only its last value, so it never reads stdin
+// twice itself, yet an overridden "-" still claims stdin against other owners.
+// A second claim, from another flag or argument or from another slice item, is
+// a usage error when both values came from the command line; a conflicting
 // environment, configuration, or default value classifies under ErrConfig. It
 // is checked before coercion, so nothing reads stdin twice.
 func (c *stdinClaim) claim(cmdChain []*spec.Command, owner string, targetType reflect.Type, tags spec.FieldTags, sep string, rawValues []string, source ValueSource) error {
@@ -608,6 +611,8 @@ func (c *stdinClaim) claim(cmdChain []*spec.Command, owner string, targetType re
 	if targetType.Kind() == reflect.Slice {
 		elemType = targetType.Elem()
 		items = coerce.SliceItems(rawValues, sep, elemType)
+	} else if slices.Contains(rawValues, "-") {
+		items = []string{"-"}
 	}
 
 	if !readsStdin(elemType, tags) {

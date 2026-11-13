@@ -253,9 +253,55 @@ func TestValidateNamespaceConfig_NonMapFlagWithNestedValueStillErrors(t *testing
 		},
 	}, cmd, dest, "remote.yaml")
 
-	assert.Error(t, err)
 	assert.IsError(t, err, sentinel.ErrConfigUnknownField)
-	assert.Contains(t, err.Error(), `unknown field "a" in namespace "remote.tags"`)
+	assert.Equal(t, `config file "remote.yaml": field "tags" in namespace "remote" is not a map`, err.Error())
+}
+
+func TestValidateNamespaceConfig_UnknownNestedSectionRejected(t *testing.T) {
+	t.Parallel()
+
+	cmd := &spec.Command{
+		Name:  "app",
+		Flags: []*spec.Flag{{Name: "host", ConfigKey: "db.host"}},
+	}
+
+	dest := configdata.New()
+
+	err := validateCommandConfig(map[string]any{
+		"db": map[string]any{
+			"hots": map[string]any{"a": "1"},
+		},
+	}, cmd, dest, "config.toml")
+
+	assert.IsError(t, err, sentinel.ErrConfigUnknownField)
+	assert.Equal(t, `config file "config.toml": unknown section "hots" in namespace "db" (did you mean "host"?)`, err.Error())
+}
+
+func TestValidateNamespaceConfig_SubcommandScalarFlagReportsNotAMap(t *testing.T) {
+	t.Parallel()
+
+	root := &spec.Command{
+		Name: "app",
+		Subcommands: []*spec.Command{
+			{
+				Name:  "deploy",
+				Flags: []*spec.Flag{{Name: "port", ConfigKey: "cache.port"}},
+			},
+		},
+	}
+
+	dest := configdata.New()
+
+	err := validateCommandConfig(map[string]any{
+		"deploy": map[string]any{
+			"cache": map[string]any{
+				"port": map[string]any{"http": 8080},
+			},
+		},
+	}, root, dest, "app.toml")
+
+	assert.IsError(t, err, sentinel.ErrConfigUnknownField)
+	assert.Equal(t, `config file "app.toml": field "port" in namespace "deploy.cache" is not a map`, err.Error())
 }
 
 func TestValidateCommandConfig_SubcommandNamespaceErrorLabel(t *testing.T) {

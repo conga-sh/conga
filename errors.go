@@ -297,8 +297,8 @@ func (e *coercionError) Unwrap() error {
 // As exposes the cause to errors.As for environment-, configuration-, and
 // default-sourced failures, whose Unwrap deliberately stops at the category
 // boundary: the application's own TextUnmarshaler error or a stdlib cause such
-// as *fs.PathError stays reachable even though the failure matches only
-// [ErrConfig].
+// as *fs.PathError stays reachable even though the failure matches no category
+// but [ErrConfig] (see configSourcedIs for errors.Is).
 func (e *coercionError) As(target any) bool {
 	if e.cause == nil {
 		return false
@@ -309,7 +309,7 @@ func (e *coercionError) As(target any) bool {
 
 func (e *coercionError) Is(target error) bool {
 	if !valueErrorIsUsage(e.source) {
-		return target == ErrConfig
+		return configSourcedIs(e.cause, target)
 	}
 
 	if target == ErrCoerce {
@@ -378,8 +378,8 @@ func (e *validationError) Unwrap() error {
 // As exposes the cause to errors.As for environment-, configuration-, and
 // default-sourced failures, whose Unwrap deliberately stops at the category
 // boundary: an application SelfValidator error or a stdlib cause such as
-// *fs.PathError stays reachable even though the failure matches only
-// [ErrConfig].
+// *fs.PathError stays reachable even though the failure matches no category
+// but [ErrConfig] (see configSourcedIs for errors.Is).
 func (e *validationError) As(target any) bool {
 	if e.cause == nil {
 		return false
@@ -390,7 +390,7 @@ func (e *validationError) As(target any) bool {
 
 func (e *validationError) Is(target error) bool {
 	if !valueErrorIsUsage(e.source) {
-		return target == ErrConfig
+		return configSourcedIs(e.cause, target)
 	}
 
 	if target == ErrValidation {
@@ -491,6 +491,22 @@ func sourceLocation(source ValueSource, sourceName string) string {
 	default:
 		return ""
 	}
+}
+
+// configSourcedIs answers errors.Is for an environment-, configuration-, or
+// default-sourced value failure. The failure matches [ErrConfig] and no other
+// category sentinel, even when its cause wraps one; any other target, such as
+// fs.ErrNotExist under a *fs.PathError, is matched against the cause, so
+// errors.Is reaches the same causes errors.As does.
+func configSourcedIs(cause, target error) bool {
+	switch {
+	case errors.Is(target, ErrConfig):
+		return true
+	case errors.Is(target, ErrSchema), errors.Is(target, ErrParse), errors.Is(target, ErrCoerce), errors.Is(target, ErrValidation):
+		return false
+	}
+
+	return cause != nil && errors.Is(cause, target)
 }
 
 func friendlyTypeName(targetType reflect.Type) string {
