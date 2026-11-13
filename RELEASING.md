@@ -33,14 +33,16 @@ Releases are generated from [Conventional Commits](https://www.conventionalcommi
 
 Prefer squash merges so each pull request lands as one conventional commit on
 `main`. Release Please parses the commits since the previous tag to build the
-changelog and choose the next version.
+release notes and choose the next version.
 
 ## Release automation
 
-Release Please maintains a release pull request with the next version and
-`CHANGELOG.md` update. It runs after the `check` workflow succeeds on `main`;
+Release Please maintains a release pull request with the next version, and its
+body holds the release notes. The repository keeps no changelog file
+(`skip-changelog` in `release-please-config.json`); the GitHub Releases are the
+record. Release Please runs after the `check` workflow succeeds on `main`;
 merging the release pull request tags the release commit, publishes the GitHub
-Release, and updates the manifest.
+Release with the notes from the pull request body, and updates the manifest.
 
 Configuration lives in:
 
@@ -68,19 +70,21 @@ allow GitHub Actions to create tags when tag creation is restricted.
 
 1. Merge normal pull requests into `main`.
 2. Wait for Release Please to open or update the release pull request.
-3. Confirm the proposed version matches the version policy and the changelog is
-   accurate.
+3. Confirm the proposed version matches the version policy and the release notes
+   in the pull request body are accurate. Edit the body by hand if needed, as
+   the last step before merging: every merge to `main` regenerates it and drops
+   hand edits.
 4. Merge the release pull request.
 5. Wait for the `check` workflow on `main` to pass; Release Please then tags and
    publishes the release.
-6. Confirm the tag, GitHub Release, and changelog update.
+6. Confirm the tag and the GitHub Release notes.
 
 The release pull request is the review point. Do not merge it merely to clear
 the queue.
 
 ### First release
 
-The first tag (`v0.1.0`) is cut manually from the prepared changelog before
+The first tag (`v0.1.0`) is cut manually from prepared release notes before
 Release Please is enabled. Push the first-release commit to `main`, tag it, and
 publish the release; add `release.yml` afterward so the first Release Please run
 sees the existing tag.
