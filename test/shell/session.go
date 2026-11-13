@@ -745,7 +745,7 @@ func getZshDumpFile(t *testing.T, zshPath string) string {
 	t.Helper()
 
 	zshDumpOnce.Do(func() {
-		dumpDir, err := os.MkdirTemp("", "conga_zsh_dump_*") //nolint:usetesting // Dump cache must persist beyond a single test.
+		dumpDir, err := os.MkdirTemp(runTempRoot, "zsh_dump_*") //nolint:usetesting // Dump outlives a single test; RunTests removes the run root.
 		if err != nil {
 			errZshDump = fmt.Errorf("failed to create temp zsh dump dir: %w", err)
 

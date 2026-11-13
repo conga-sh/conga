@@ -251,6 +251,12 @@ func (ws *Workspace) StartPtySession(t *testing.T, binaryName, shellName string)
 		env:         append(ws.ptyEnvironment(socketDir), shellSpec.extraEnv...),
 	}
 
+	// pwsh leaves its CoreFxPipe sockets and .dotnet directory in TMPDIR when
+	// killServer ends it, so they go into the run's temp root instead of /tmp.
+	if shellName == "powershell" && runTempRoot != "" {
+		session.env = append(session.env, "TMPDIR="+runTempRoot)
+	}
+
 	t.Cleanup(session.killServer)
 
 	commandLine := strings.Join(append([]string{shellPath}, shellSpec.launch...), " ")
