@@ -692,7 +692,9 @@ type parseTimeReader interface {
 
 // counterError is the root cause for environment or configuration counter
 // values that are not an unsigned integer: a sign, a non-integer, or a count
-// too large for an int.
+// too large for an int. It carries no category: counters fail only on
+// environment and configuration values, which the wrapping coercionError
+// classifies under ErrConfig.
 type counterError struct {
 	raw   string
 	cause error // *strconv.NumError, preserved for errors.As
@@ -702,15 +704,7 @@ func (e *counterError) Error() string {
 	return fmt.Sprintf("invalid unsigned integer value %q", e.raw)
 }
 
-func (e *counterError) Unwrap() error {
-	if e.cause != nil {
-		return e.cause
-	}
-
-	return ErrCoerce
-}
-
-func (e *counterError) Is(target error) bool { return target == ErrCoerce }
+func (e *counterError) Unwrap() error { return e.cause }
 
 // mapRegistrationError is the root cause for unregistered non-string map types.
 type mapRegistrationError struct {
