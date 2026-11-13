@@ -189,7 +189,7 @@ func LastWordbreakPrefix(word string, wordbreaks string) string {
 // resolved value up to readline's replacement start: after the last
 // wordbreak rune outside quotes and escapes, or after a quote still open at
 // the end of raw. Quote and escape rules match the lexer's.
-func replacementPrefix(raw string, wordbreaks string) string {
+func replacementPrefix(raw string, wordbreaks string) string { //nolint:cyclop,gocyclo // one scan whose switch is the quote/escape state table; splitting it would hide the state transitions
 	var value strings.Builder
 
 	keep := 0

@@ -156,14 +156,14 @@ func continueDoubleQuote(value string, closeQuote bool) string {
 	var builder strings.Builder
 
 	for i := range len(value) {
-		switch r := value[i]; r {
+		switch char := value[i]; char {
 		case '"', '\\', '$', '`':
 			builder.WriteByte('\\')
-			builder.WriteByte(r)
+			builder.WriteByte(char)
 		case '!':
 			builder.WriteString(`"\!"`)
 		default:
-			builder.WriteByte(r)
+			builder.WriteByte(char)
 		}
 	}
 
