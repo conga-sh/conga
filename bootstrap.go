@@ -330,20 +330,22 @@ func (a *App[T]) bindBootstrapTrailingArg(invocation parsedInvocation, state *bi
 	snapshot := snapshotContainer(arg.Handle)
 	snapshots = append(snapshots, snapshot)
 
+	resolver := bootstrapArgResolver(invocation, state)
+
 	var err error
 
 	switch {
 	case len(invocation.posTokens[tokenIndex:]) > 0:
 		if arg.IsSlice {
-			err = resolveSliceArg(invocation.cmdChain, arg, invocation.posTokens[tokenIndex:], state.TypeParsers, coerce.DecodeContext{Stdin: state.Stdin, Stdout: state.Stdout}, state.StdinClaim)
+			err = resolver.slice(arg, invocation.posTokens[tokenIndex:])
 		} else {
-			err = resolveMapArg(invocation.cmdChain, arg, invocation.posTokens[tokenIndex:], state.TypeParsers)
+			err = resolver.mapArg(arg, invocation.posTokens[tokenIndex:])
 		}
 	case arg.Default != "":
 		if arg.IsSlice {
-			err = resolveEmptySliceArg(invocation.cmdChain, arg, state.TypeParsers, coerce.DecodeContext{Stdin: state.Stdin, Stdout: state.Stdout})
+			err = resolver.emptySlice(arg, resolver.decodeContext)
 		} else {
-			err = resolveMapArg(invocation.cmdChain, arg, nil, state.TypeParsers)
+			err = resolver.mapArg(arg, nil)
 		}
 	}
 
@@ -358,7 +360,7 @@ func (a *App[T]) bindBootstrapTokenArg(invocation parsedInvocation, state *bindi
 	snapshot := snapshotContainer(arg.Handle)
 	snapshots = append(snapshots, snapshot)
 
-	_, err := resolveScalarArg(invocation.cmdChain, arg, invocation.posTokens, tokenIndex, state.TypeParsers, coerce.DecodeContext{Stdin: state.Stdin, Stdout: state.Stdout}, state.StdinClaim)
+	_, err := bootstrapArgResolver(invocation, state).scalar(arg, invocation.posTokens, tokenIndex)
 
 	return tolerateBootstrapError(snapshots, snapshot, err, tolerate)
 }
@@ -371,7 +373,7 @@ func (a *App[T]) bindBootstrapDefaultArg(invocation parsedInvocation, state *bin
 	snapshot := snapshotContainer(arg.Handle)
 	snapshots = append(snapshots, snapshot)
 
-	_, err := resolveScalarArg(invocation.cmdChain, arg, invocation.posTokens, tokenIndex, state.TypeParsers, coerce.DecodeContext{Stdin: state.Stdin, Stdout: state.Stdout}, state.StdinClaim)
+	_, err := bootstrapArgResolver(invocation, state).scalar(arg, invocation.posTokens, tokenIndex)
 
 	return tolerateBootstrapError(snapshots, snapshot, err, tolerate)
 }
@@ -493,4 +495,15 @@ func tolerateBootstrapError(snapshots []containerSnapshot, snapshot containerSna
 	}
 
 	return snapshots, err
+}
+
+// bootstrapArgResolver is the argResolver for the bootstrap binding pass: the
+// invocation's chain plus the state's type parsers, streams, and stdin claim.
+func bootstrapArgResolver(invocation parsedInvocation, state *bindingState) argResolver {
+	return argResolver{
+		cmdChain:      invocation.cmdChain,
+		parsers:       state.TypeParsers,
+		decodeContext: coerce.DecodeContext{Stdin: state.Stdin, Stdout: state.Stdout},
+		stdin:         state.StdinClaim,
+	}
 }

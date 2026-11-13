@@ -1857,7 +1857,14 @@ func (a *App[T]) prepare(ctx context.Context) (*Session, bool, error) { //nolint
 		return nil, true, nil
 	}
 
-	if err := resolveArgs(leaf, cmdChain, posTokens, a.collectTypeParsers(), coerce.DecodeContext{Stdin: session.stdin, Stdout: session.stdout}, &session.stdinClaim); err != nil {
+	resolver := argResolver{
+		cmdChain:      cmdChain,
+		parsers:       a.collectTypeParsers(),
+		decodeContext: coerce.DecodeContext{Stdin: session.stdin, Stdout: session.stdout},
+		stdin:         &session.stdinClaim,
+	}
+
+	if err := resolver.resolve(leaf, posTokens); err != nil {
 		return nil, false, err
 	}
 

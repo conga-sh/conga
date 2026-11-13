@@ -978,6 +978,244 @@ func (check valueCheck) invalid(msg string, cause error) error {
 	}
 }
 
+// argResolver binds positional arguments: the chain their errors name, the
+// run's type parsers, the decode context carrying the configured standard
+// streams (each argument adds its own tags), and the run's stdin claim.
+type argResolver struct {
+	cmdChain      []*spec.Command
+	parsers       coerce.Registry
+	decodeContext coerce.DecodeContext
+	stdin         *stdinClaim
+}
+
+// resolve binds cmd's positional arguments from posTokens and reports a
+// token left over after the last argument.
+func (resolver argResolver) resolve(cmd *spec.Command, posTokens []string) error {
+	tokenIdx := 0
+
+	for _, arg := range cmd.Args {
+		if arg.IsSlice {
+			if err := resolver.slice(arg, posTokens[tokenIdx:]); err != nil {
+				return err
+			}
+
+			// Slice positional argument consumes all remaining positional tokens,
+			// satisfying the trailing token check below (tokenIdx == len(posTokens)).
+			tokenIdx = len(posTokens)
+
+			break
+		}
+
+		if arg.IsMap {
+			if err := resolver.mapArg(arg, posTokens[tokenIdx:]); err != nil {
+				return err
+			}
+
+			// Map positional argument consumes all remaining positional tokens,
+			// satisfying the trailing token check below (tokenIdx == len(posTokens)).
+			tokenIdx = len(posTokens)
+
+			break
+		}
+
+		advanced, err := resolver.scalar(arg, posTokens, tokenIdx)
+		if err != nil {
+			return err
+		}
+
+		if advanced {
+			tokenIdx++
+		}
+	}
+
+	// Check for unexpected extra positional arguments
+	if tokenIdx < len(posTokens) {
+		return handleUnexpectedPositional(cmd, resolver.cmdChain, posTokens[tokenIdx])
+	}
+
+	return nil
+}
+
+// slice binds a slice argument from the remaining tokens, or from its default
+// when none remain.
+func (resolver argResolver) slice(arg *spec.Arg, remaining []string) error {
+	decodeContext := resolver.decodeContext
+	decodeContext.Tags = arg.FieldTags
+
+	if len(remaining) == 0 {
+		if arg.Default != "" {
+			if err := resolver.stdin.claim(resolver.cmdChain, "argument "+arg.Name, arg.TargetType, arg.FieldTags, arg.Sep, []string{arg.Default}, SourceDefault); err != nil {
+				return err
+			}
+		}
+
+		return resolver.emptySlice(arg, decodeContext)
+	}
+
+	if err := resolver.stdin.claim(resolver.cmdChain, "argument "+arg.Name, arg.TargetType, arg.FieldTags, arg.Sep, remaining, SourceCLI); err != nil {
+		return err
+	}
+
+	typedSlice, err := coerce.SliceWith(remaining, arg.TargetType, arg.Sep, resolver.parsers, decodeContext)
+	if err != nil {
+		return resolver.coercionError(arg, valueOrigin{source: SourceCLI}, strings.Join(remaining, arg.Sep), err)
+	}
+
+	if err := resolver.check(arg, SourceCLI).slice(argConstraints(arg), typedSlice); err != nil {
+		return err
+	}
+
+	argStateOf(arg.Handle).setValue(typedSlice, SourceCLI, "")
+
+	return nil
+}
+
+// emptySlice binds a slice argument that received no tokens: a required one
+// is missing, an optional one takes its default. decodeContext is used as
+// given.
+func (resolver argResolver) emptySlice(arg *spec.Arg, decodeContext coerce.DecodeContext) error {
+	if arg.Required {
+		return resolver.missing(arg)
+	}
+
+	if arg.Default != "" {
+		typedSlice, err := coerce.SliceWith([]string{arg.Default}, arg.TargetType, arg.Sep, resolver.parsers, decodeContext)
+		if err != nil {
+			return resolver.coercionError(arg, valueOrigin{source: SourceDefault, name: arg.Default}, arg.Default, err)
+		}
+
+		if err := resolver.check(arg, SourceDefault).slice(argConstraints(arg), typedSlice); err != nil {
+			return err
+		}
+
+		argStateOf(arg.Handle).setValue(typedSlice, SourceDefault, arg.Default)
+	}
+
+	return nil
+}
+
+// mapArg binds a map argument from its key=value tokens, or from its default
+// when none remain.
+func (resolver argResolver) mapArg(arg *spec.Arg, tokens []string) error {
+	if len(tokens) > 0 {
+		parsedMap, err := parseMapTokens(tokens, arg.TargetType, arg.Sep, resolver.parsers)
+		if err != nil {
+			return resolver.coercionError(arg, valueOrigin{source: SourceCLI}, strings.Join(tokens, " "), err)
+		}
+
+		if err := resolver.check(arg, SourceCLI).mapItems(arg.Items, parsedMap); err != nil {
+			return err
+		}
+
+		argStateOf(arg.Handle).setValue(parsedMap, SourceCLI, "")
+
+		return nil
+	}
+
+	if arg.Default != "" {
+		parsedMap, err := parseMapTokens([]string{arg.Default}, arg.TargetType, arg.Sep, resolver.parsers)
+		if err != nil {
+			return resolver.coercionError(arg, valueOrigin{source: SourceDefault, name: arg.Default}, arg.Default, err)
+		}
+
+		if err := resolver.check(arg, SourceDefault).mapItems(arg.Items, parsedMap); err != nil {
+			return err
+		}
+
+		argStateOf(arg.Handle).setValue(parsedMap, SourceDefault, arg.Default)
+
+		return nil
+	}
+
+	if arg.Required {
+		return resolver.missing(arg)
+	}
+
+	return nil
+}
+
+// scalar binds a scalar argument from posTokens[tokenIdx], or from its default
+// when the tokens ran out. It reports whether it consumed a token.
+func (resolver argResolver) scalar(arg *spec.Arg, posTokens []string, tokenIdx int) (bool, error) {
+	decodeContext := resolver.decodeContext
+	decodeContext.Tags = arg.FieldTags
+
+	if tokenIdx < len(posTokens) {
+		raw := posTokens[tokenIdx]
+
+		if err := resolver.stdin.claim(resolver.cmdChain, "argument "+arg.Name, arg.TargetType, arg.FieldTags, "", []string{raw}, SourceCLI); err != nil {
+			return false, err
+		}
+
+		typedValue, err := coerce.ScalarWith(raw, arg.TargetType, resolver.parsers, decodeContext)
+		if err != nil {
+			return false, resolver.coercionError(arg, valueOrigin{source: SourceCLI}, raw, err)
+		}
+
+		if err := resolver.check(arg, SourceCLI).scalar(argConstraints(arg), typedValue); err != nil {
+			return false, err
+		}
+
+		argStateOf(arg.Handle).setValue(typedValue, SourceCLI, "")
+
+		return true, nil
+	}
+
+	if arg.Default != "" {
+		if err := resolver.stdin.claim(resolver.cmdChain, "argument "+arg.Name, arg.TargetType, arg.FieldTags, "", []string{arg.Default}, SourceDefault); err != nil {
+			return false, err
+		}
+
+		typedValue, err := coerce.ScalarWith(arg.Default, arg.TargetType, resolver.parsers, decodeContext)
+		if err != nil {
+			return false, resolver.coercionError(arg, valueOrigin{source: SourceDefault, name: arg.Default}, arg.Default, err)
+		}
+
+		if err := resolver.check(arg, SourceDefault).scalar(argConstraints(arg), typedValue); err != nil {
+			return false, err
+		}
+
+		argStateOf(arg.Handle).setValue(typedValue, SourceDefault, arg.Default)
+
+		return false, nil
+	}
+
+	if arg.Required {
+		return false, resolver.missing(arg)
+	}
+
+	return false, nil
+}
+
+// check is the valueCheck for one of arg's values from source.
+func (resolver argResolver) check(arg *spec.Arg, source ValueSource) valueCheck {
+	return valueCheck{cmdChain: resolver.cmdChain, descriptor: "argument " + arg.Name + sourceLocation(source, ""), source: source}
+}
+
+// coercionError attributes a failure to convert rawValue to arg's type to the
+// value's origin.
+func (resolver argResolver) coercionError(arg *spec.Arg, origin valueOrigin, rawValue string, cause error) *coercionError {
+	return &coercionError{
+		targetName: arg.Name,
+		isFlag:     false,
+		source:     origin.source,
+		sourceName: origin.name,
+		targetType: arg.TargetType,
+		rawValue:   rawValue,
+		cmdChain:   resolver.cmdChain,
+		cause:      cause,
+	}
+}
+
+// missing reports a required argument that received no value.
+func (resolver argResolver) missing(arg *spec.Arg) error {
+	return &validationError{
+		msg:      "missing required positional argument " + arg.Name,
+		cmdChain: resolver.cmdChain,
+		cause:    errMissingArg,
+	}
+}
+
 // stdinErrorSource picks the classification for a duplicate stdin claim: any
 // environment, configuration, or default value makes the failure a config
 // error; two command-line values stay a usage error.
@@ -2103,158 +2341,6 @@ func oneOfGroupName(flagSpec *spec.Flag) string { return flagSpec.OneOfGroup }
 // andGroupName returns a flag's and group name for collectFlagGroups.
 func andGroupName(flagSpec *spec.Flag) string { return flagSpec.AndGroup }
 
-func resolveSliceArg(cmdChain []*spec.Command, arg *spec.Arg, remaining []string, parsers coerce.Registry, decodeContext coerce.DecodeContext, stdin *stdinClaim) error {
-	decodeContext.Tags = arg.FieldTags
-
-	if len(remaining) == 0 {
-		if arg.Default != "" {
-			if err := stdin.claim(cmdChain, "argument "+arg.Name, arg.TargetType, arg.FieldTags, arg.Sep, []string{arg.Default}, SourceDefault); err != nil {
-				return err
-			}
-		}
-
-		return resolveEmptySliceArg(cmdChain, arg, parsers, decodeContext)
-	}
-
-	if err := stdin.claim(cmdChain, "argument "+arg.Name, arg.TargetType, arg.FieldTags, arg.Sep, remaining, SourceCLI); err != nil {
-		return err
-	}
-
-	typedSlice, err := coerce.SliceWith(remaining, arg.TargetType, arg.Sep, parsers, decodeContext)
-	if err != nil {
-		return newArgCoercionError(cmdChain, arg, valueOrigin{source: SourceCLI}, strings.Join(remaining, arg.Sep), err)
-	}
-
-	if err := validateArgSlice(cmdChain, arg, typedSlice, SourceCLI); err != nil {
-		return err
-	}
-
-	argStateOf(arg.Handle).setValue(typedSlice, SourceCLI, "")
-
-	return nil
-}
-
-func resolveEmptySliceArg(cmdChain []*spec.Command, arg *spec.Arg, parsers coerce.Registry, decodeContext coerce.DecodeContext) error {
-	if arg.Required {
-		return &validationError{
-			msg:      "missing required positional argument " + arg.Name,
-			cmdChain: cmdChain,
-			cause:    errMissingArg,
-		}
-	}
-
-	if arg.Default != "" {
-		typedSlice, err := coerce.SliceWith([]string{arg.Default}, arg.TargetType, arg.Sep, parsers, decodeContext)
-		if err != nil {
-			return newArgCoercionError(cmdChain, arg, valueOrigin{source: SourceDefault, name: arg.Default}, arg.Default, err)
-		}
-
-		if err := validateArgSlice(cmdChain, arg, typedSlice, SourceDefault); err != nil {
-			return err
-		}
-
-		argStateOf(arg.Handle).setValue(typedSlice, SourceDefault, arg.Default)
-	}
-
-	return nil
-}
-
-func resolveMapArg(cmdChain []*spec.Command, arg *spec.Arg, tokens []string, parsers coerce.Registry) error {
-	if len(tokens) > 0 {
-		parsedMap, err := parseMapTokens(tokens, arg.TargetType, arg.Sep, parsers)
-		if err != nil {
-			return newArgCoercionError(cmdChain, arg, valueOrigin{source: SourceCLI}, strings.Join(tokens, " "), err)
-		}
-
-		if err := validateArgMap(cmdChain, arg, parsedMap, SourceCLI); err != nil {
-			return err
-		}
-
-		argStateOf(arg.Handle).setValue(parsedMap, SourceCLI, "")
-
-		return nil
-	}
-
-	if arg.Default != "" {
-		parsedMap, err := parseMapTokens([]string{arg.Default}, arg.TargetType, arg.Sep, parsers)
-		if err != nil {
-			return newArgCoercionError(cmdChain, arg, valueOrigin{source: SourceDefault, name: arg.Default}, arg.Default, err)
-		}
-
-		if err := validateArgMap(cmdChain, arg, parsedMap, SourceDefault); err != nil {
-			return err
-		}
-
-		argStateOf(arg.Handle).setValue(parsedMap, SourceDefault, arg.Default)
-
-		return nil
-	}
-
-	if arg.Required {
-		return &validationError{
-			msg:      "missing required positional argument " + arg.Name,
-			cmdChain: cmdChain,
-			cause:    errMissingArg,
-		}
-	}
-
-	return nil
-}
-
-func resolveScalarArg(cmdChain []*spec.Command, arg *spec.Arg, posTokens []string, tokenIdx int, parsers coerce.Registry, decodeContext coerce.DecodeContext, stdin *stdinClaim) (bool, error) {
-	decodeContext.Tags = arg.FieldTags
-
-	if tokenIdx < len(posTokens) {
-		raw := posTokens[tokenIdx]
-
-		if err := stdin.claim(cmdChain, "argument "+arg.Name, arg.TargetType, arg.FieldTags, "", []string{raw}, SourceCLI); err != nil {
-			return false, err
-		}
-
-		typedValue, err := coerce.ScalarWith(raw, arg.TargetType, parsers, decodeContext)
-		if err != nil {
-			return false, newArgCoercionError(cmdChain, arg, valueOrigin{source: SourceCLI}, raw, err)
-		}
-
-		if err := validateArgScalar(cmdChain, arg, typedValue, SourceCLI); err != nil {
-			return false, err
-		}
-
-		argStateOf(arg.Handle).setValue(typedValue, SourceCLI, "")
-
-		return true, nil
-	}
-
-	if arg.Default != "" {
-		if err := stdin.claim(cmdChain, "argument "+arg.Name, arg.TargetType, arg.FieldTags, "", []string{arg.Default}, SourceDefault); err != nil {
-			return false, err
-		}
-
-		typedValue, err := coerce.ScalarWith(arg.Default, arg.TargetType, parsers, decodeContext)
-		if err != nil {
-			return false, newArgCoercionError(cmdChain, arg, valueOrigin{source: SourceDefault, name: arg.Default}, arg.Default, err)
-		}
-
-		if err := validateArgScalar(cmdChain, arg, typedValue, SourceDefault); err != nil {
-			return false, err
-		}
-
-		argStateOf(arg.Handle).setValue(typedValue, SourceDefault, arg.Default)
-
-		return false, nil
-	}
-
-	if arg.Required {
-		return false, &validationError{
-			msg:      "missing required positional argument " + arg.Name,
-			cmdChain: cmdChain,
-			cause:    errMissingArg,
-		}
-	}
-
-	return false, nil
-}
-
 func handleUnexpectedPositional(cmd *spec.Command, cmdChain []*spec.Command, unexpected string) error {
 	if suggestion := suggestSubcommand(cmd, unexpected); suggestion != "" {
 		return &parseError{
@@ -2305,72 +2391,6 @@ func suggestSubcommand(cmd *spec.Command, input string) string {
 	}
 
 	return suggestion
-}
-
-// resolveArgs binds positional argument tokens. decodeContext carries the
-// run's engine-configured standard streams (no tags); each arg's declared
-// tags are composed into the context at its coercion site.
-func resolveArgs(cmd *spec.Command, cmdChain []*spec.Command, posTokens []string, parsers coerce.Registry, decodeContext coerce.DecodeContext, stdin *stdinClaim) error {
-	tokenIdx := 0
-
-	for _, arg := range cmd.Args {
-		if arg.IsSlice {
-			if err := resolveSliceArg(cmdChain, arg, posTokens[tokenIdx:], parsers, decodeContext, stdin); err != nil {
-				return err
-			}
-
-			// Slice positional argument consumes all remaining positional tokens,
-			// satisfying the trailing token check below (tokenIdx == len(posTokens)).
-			tokenIdx = len(posTokens)
-
-			break
-		}
-
-		if arg.IsMap {
-			if err := resolveMapArg(cmdChain, arg, posTokens[tokenIdx:], parsers); err != nil {
-				return err
-			}
-
-			// Map positional argument consumes all remaining positional tokens,
-			// satisfying the trailing token check below (tokenIdx == len(posTokens)).
-			tokenIdx = len(posTokens)
-
-			break
-		}
-
-		advanced, err := resolveScalarArg(cmdChain, arg, posTokens, tokenIdx, parsers, decodeContext, stdin)
-		if err != nil {
-			return err
-		}
-
-		if advanced {
-			tokenIdx++
-		}
-	}
-
-	// Check for unexpected extra positional arguments
-	if tokenIdx < len(posTokens) {
-		return handleUnexpectedPositional(cmd, cmdChain, posTokens[tokenIdx])
-	}
-
-	return nil
-}
-
-func validateArgScalar(cmdChain []*spec.Command, arg *spec.Arg, typedValue any, source ValueSource) error {
-	return argValueCheck(cmdChain, arg, source).scalar(argConstraints(arg), typedValue)
-}
-
-func validateArgSlice(cmdChain []*spec.Command, arg *spec.Arg, typedSlice any, source ValueSource) error {
-	return argValueCheck(cmdChain, arg, source).slice(argConstraints(arg), typedSlice)
-}
-
-func validateArgMap(cmdChain []*spec.Command, arg *spec.Arg, typedMap any, source ValueSource) error {
-	return argValueCheck(cmdChain, arg, source).mapItems(arg.Items, typedMap)
-}
-
-// argValueCheck is the valueCheck for a positional argument's value.
-func argValueCheck(cmdChain []*spec.Command, arg *spec.Arg, source ValueSource) valueCheck {
-	return valueCheck{cmdChain: cmdChain, descriptor: "argument " + arg.Name + sourceLocation(source, ""), source: source}
 }
 
 // argConstraints collects a positional argument's per-value constraints.
@@ -2828,19 +2848,6 @@ func getCmdTarget(cmd *spec.Command) any {
 
 func isMetaCommand(cmd *spec.Command) bool {
 	return cmd != nil && (cmd.IsCompletionCmd || cmd.IsHelpCmd || cmd.IsVersionCmd)
-}
-
-func newArgCoercionError(cmdChain []*spec.Command, arg *spec.Arg, origin valueOrigin, rawValue string, cause error) *coercionError {
-	return &coercionError{
-		targetName: arg.Name,
-		isFlag:     false,
-		source:     origin.source,
-		sourceName: origin.name,
-		targetType: arg.TargetType,
-		rawValue:   rawValue,
-		cmdChain:   cmdChain,
-		cause:      cause,
-	}
 }
 
 func foldMapTier(cmdChain []*spec.Command, flagSpec *spec.Flag, rawValues []string, source ValueSource, name string, origin configdata.Value, merged map[string]string, provenance map[string]ValueSource, origins map[string]configdata.Value, result *mapMergeResult) error {
