@@ -1,7 +1,9 @@
 function _myapp_completion
   set --local words (commandline -opc)
   if test (count $words) -gt 0
-    set --local current (commandline -ct)
+    set --local raw (commandline -ct)
+    set --local current "$(string unescape -- $raw)"
+    or set current $raw
     $words[1] __complete fish $words[2..-1] $current 2>/dev/null
   end
 end

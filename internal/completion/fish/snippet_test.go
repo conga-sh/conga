@@ -18,7 +18,9 @@ func TestSnippet_SingleName(t *testing.T) {
 		`function _myapp_completion`+"\n"+
 			`  set --local words (commandline -opc)`+"\n"+
 			`  if test (count $words) -gt 0`+"\n"+
-			`    set --local current (commandline -ct)`+"\n"+
+			`    set --local raw (commandline -ct)`+"\n"+
+			`    set --local current "$(string unescape -- $raw)"`+"\n"+
+			`    or set current $raw`+"\n"+
 			`    $words[1] __complete fish $words[2..-1] $current 2>/dev/null`+"\n"+
 			`  end`+"\n"+
 			`end`+"\n"+
@@ -37,7 +39,9 @@ func TestSnippet_AliasesShareFunction(t *testing.T) {
 		`function _myapp_completion`+"\n"+
 			`  set --local words (commandline -opc)`+"\n"+
 			`  if test (count $words) -gt 0`+"\n"+
-			`    set --local current (commandline -ct)`+"\n"+
+			`    set --local raw (commandline -ct)`+"\n"+
+			`    set --local current "$(string unescape -- $raw)"`+"\n"+
+			`    or set current $raw`+"\n"+
 			`    $words[1] __complete fish $words[2..-1] $current 2>/dev/null`+"\n"+
 			`  end`+"\n"+
 			`end`+"\n"+
@@ -72,7 +76,9 @@ func TestSnippet_QuotesNonIdentifierNames(t *testing.T) {
 		`function _my_app_completion`+"\n"+
 			`  set --local words (commandline -opc)`+"\n"+
 			`  if test (count $words) -gt 0`+"\n"+
-			`    set --local current (commandline -ct)`+"\n"+
+			`    set --local raw (commandline -ct)`+"\n"+
+			`    set --local current "$(string unescape -- $raw)"`+"\n"+
+			`    or set current $raw`+"\n"+
 			`    $words[1] __complete fish $words[2..-1] $current 2>/dev/null`+"\n"+
 			`  end`+"\n"+
 			`end`+"\n"+

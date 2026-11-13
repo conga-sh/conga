@@ -44,6 +44,13 @@ const (
 	// EnvZshListSeparator overrides the separator zsh renders between a match
 	// and its description (the user's list-separator style).
 	EnvZshListSeparator = "CONGA_ZSH_LIST_SEPARATOR"
+	// EnvZshQuote carries zsh's compstate[quote] for the word being
+	// completed: the quote character the user opened ('\'' or '"'), or empty
+	// when the word is unquoted.
+	EnvZshQuote = "CONGA_ZSH_QUOTE"
+	// EnvZshBanghist is "0" when the user's zsh has the banghist option off,
+	// so a '!' inside double quotes needs no backslash.
+	EnvZshBanghist = "CONGA_ZSH_BANGHIST"
 	// EnvZshStyleLimit caps the number of candidates inline-styled in zsh.
 	EnvZshStyleLimit = "CONGA_ZSH_STYLE_LIMIT"
 
@@ -152,6 +159,26 @@ func Tooltip() bool {
 	default:
 		return false
 	}
+}
+
+// ZshQuote returns the quote the user opened in the word being completed,
+// read from CONGA_ZSH_QUOTE: '\”, '"', or 0 for an unquoted word (or any
+// other value).
+func ZshQuote() byte {
+	switch os.Getenv(EnvZshQuote) {
+	case "'":
+		return '\''
+	case `"`:
+		return '"'
+	default:
+		return 0
+	}
+}
+
+// ZshBanghist reports whether zsh history expansion is on for the user's
+// shell: true unless CONGA_ZSH_BANGHIST is "0".
+func ZshBanghist() bool {
+	return os.Getenv(EnvZshBanghist) != "0"
 }
 
 // ZshListSeparator returns the separator to embed in zsh list-colors patterns:

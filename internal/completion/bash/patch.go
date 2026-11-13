@@ -40,9 +40,14 @@ type Session struct {
 	active bool
 	// compType is the raw COMP_TYPE value when known (empty otherwise).
 	compType string
-	// wordbreakPrefix is the raw prefix of the word being completed up to
-	// and including its last COMP_WORDBREAKS rune (e.g. `--env="`).
+	// wordbreakPrefix is the quotes-resolved prefix of the word being
+	// completed that readline keeps in place: up to and including its last
+	// unquoted, unescaped COMP_WORDBREAKS rune, or up to a quote still open
+	// (`--env=` for both `--env=pro` and `--env="pro`).
 	wordbreakPrefix string
+	// openQuote is the quote character left open in the word being
+	// completed ('\'' or '"'), or 0.
+	openQuote byte
 }
 
 // NewSession returns an inactive session for one completion invocation: Format
@@ -67,6 +72,7 @@ func (s *Session) Patch(args []string) ([]string, error) {
 	s.active = false
 	s.compType = ""
 	s.wordbreakPrefix = ""
+	s.openQuote = 0
 
 	line, ok := s.resolveCompLine()
 	if !ok || line == "" {
@@ -84,6 +90,10 @@ func (s *Session) Patch(args []string) ([]string, error) {
 	s.active = true
 	s.compType = s.resolveCompType()
 	s.wordbreakPrefix = pipeline.WordbreakPrefix(s.resolveCompWordbreaks())
+
+	if count := len(pipeline.Tokens); count > 0 {
+		s.openQuote = pipeline.Tokens[count-1].OpenQuote
+	}
 
 	words := pipeline.Words()
 	if len(words) > 0 {

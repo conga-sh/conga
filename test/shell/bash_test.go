@@ -679,11 +679,11 @@ func TestBash_ContextualPositionalPredictor(t *testing.T) {
 		assert.Equal(t, "", result.StdoutLeak)
 
 		prodResult := workspace.RunBashCompletion(t, "shell-completion", "shell-completion exec web-prod-1 ")
-		assert.True(t, prodResult.HasItem("\"nginx -t\"") || prodResult.HasItem("nginx -t"))
+		assert.True(t, prodResult.HasItem(`nginx\ -t`))
 		assert.Equal(t, "", prodResult.StdoutLeak)
 
 		containerResult := workspace.RunBashCompletion(t, "shell-completion", "shell-completion exec --container app web-prod-1 ")
-		assert.True(t, containerResult.HasItem("\"sh -c 'env'\"") || containerResult.HasItem("sh -c 'env'"))
+		assert.True(t, containerResult.HasItem(`sh\ -c\ \'env\'`))
 		assert.Equal(t, "", containerResult.StdoutLeak)
 	})
 }

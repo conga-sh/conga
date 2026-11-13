@@ -69,21 +69,97 @@ func TestFormat_NoprefixTokenForAttachedValues(t *testing.T) {
 	assert.Equal(t, "D\tnoprefix\nC\tstaging\nC\tproduction", formatted)
 }
 
-func TestFormat_QuotesValuesWithMetacharacters(t *testing.T) {
+func TestFormat_EscapesValuesWithMetacharacters(t *testing.T) {
 	t.Parallel()
 
 	candidates := []wire.Candidate{{Value: "two words"}, {Value: `a"b$c\`}}
 	formatted := NewSession().Format("", wire.Directives{}, candidates)
 
-	assert.Equal(t, "D\t\nC\t\"two words\"\nC\t\"a\\\"b\\$c\\\\\"", formatted)
+	assert.Equal(t, "D\t\nC\t"+`two\ words`+"\nC\t"+`a\"b\$c\\`, formatted)
 }
 
-func TestFormat_QuotesMidWordMetacharacters(t *testing.T) {
+func TestFormat_EscapesMidWordMetacharacters(t *testing.T) {
 	t.Parallel()
 
 	formatted := NewSession().Format("", wire.Directives{}, []wire.Candidate{{Value: "a;b|c&d"}})
 
-	assert.Equal(t, "D\t\nC\t\"a;b|c&d\"", formatted)
+	assert.Equal(t, "D\t\nC\t"+`a\;b\|c\&d`, formatted)
+}
+
+func TestFormat_EscapesHistoryBang(t *testing.T) {
+	t.Parallel()
+
+	formatted := NewSession().Format("a", wire.Directives{}, []wire.Candidate{{Value: "a!b"}})
+
+	assert.Equal(t, "D\t\nC\t"+`a\!b`, formatted)
+}
+
+func TestFormat_EscapesCollapsedPrefixWithSpace(t *testing.T) {
+	t.Parallel()
+
+	candidates := []wire.Candidate{{Value: "My Dir/"}, {Value: "My File.yaml"}}
+
+	assert.Equal(t, "D\tnospace\nC\t"+`My\ `, NewSession().Format("My", wire.Directives{}, candidates))
+}
+
+func TestFormat_ContinuesOpenDoubleQuote(t *testing.T) {
+	t.Parallel()
+
+	session := sessionWithEnvironment(map[string]string{"COMP_LINE": `app --env="my`, "COMP_POINT": "13"})
+	_, err := session.Patch(nil)
+
+	formatted := session.Format("--env=my", wire.Directives{}, []wire.Candidate{{Value: `--env=my $env`, Display: `my $env`}})
+
+	assert.NoError(t, err)
+	assert.Equal(t, "D\tnoprefix\nC\t"+`my \$env"`, formatted)
+}
+
+func TestFormat_OpenDoubleQuoteClosesAroundBang(t *testing.T) {
+	t.Parallel()
+
+	session := sessionWithEnvironment(map[string]string{"COMP_LINE": `app --env "a`, "COMP_POINT": "12"})
+	_, err := session.Patch(nil)
+
+	formatted := session.Format("a", wire.Directives{}, []wire.Candidate{{Value: "a!b"}})
+
+	assert.NoError(t, err)
+	assert.Equal(t, "D\t\nC\t"+`a"\!"b"`, formatted)
+}
+
+func TestFormat_ContinuesOpenSingleQuote(t *testing.T) {
+	t.Parallel()
+
+	session := sessionWithEnvironment(map[string]string{"COMP_LINE": `app --env 'it`, "COMP_POINT": "13"})
+	_, err := session.Patch(nil)
+
+	formatted := session.Format("it", wire.Directives{}, []wire.Candidate{{Value: "it's here"}})
+
+	assert.NoError(t, err)
+	assert.Equal(t, "D\t\nC\t"+`it'\''s here'`, formatted)
+}
+
+func TestFormat_OpenQuoteLeftOpenForDirectory(t *testing.T) {
+	t.Parallel()
+
+	session := sessionWithEnvironment(map[string]string{"COMP_LINE": `app --kubeconfig "My D`, "COMP_POINT": "22"})
+	_, err := session.Patch(nil)
+
+	formatted := session.Format("My D", wire.Directives{}, []wire.Candidate{{Value: "My Dir/"}})
+
+	assert.NoError(t, err)
+	assert.Equal(t, "D\tnospace\nC\tMy Dir/", formatted)
+}
+
+func TestFormat_KeepsQuotedDirectoryOnTraversal(t *testing.T) {
+	t.Parallel()
+
+	session := sessionWithEnvironment(map[string]string{"COMP_LINE": `app --kubeconfig "My Dir/i`, "COMP_POINT": "26"})
+	_, err := session.Patch(nil)
+
+	formatted := session.Format("My Dir/i", wire.Directives{}, []wire.Candidate{{Value: "My Dir/inner.yaml", Display: "inner.yaml"}})
+
+	assert.NoError(t, err)
+	assert.Equal(t, "D\tnoprefix\nC\t"+`My Dir/inner.yaml"`, formatted)
 }
 
 func TestFormat_BackslashEscapesTildeLeadingValues(t *testing.T) {
@@ -99,7 +175,7 @@ func TestFormat_SanitizesFramingCharactersInValues(t *testing.T) {
 
 	formatted := NewSession().Format("", wire.Directives{}, []wire.Candidate{{Value: "with\ttab\nnewline"}})
 
-	assert.Equal(t, "D\t\nC\t\"with tab newline\"", formatted)
+	assert.Equal(t, "D\t\nC\t"+`with\ tab\ newline`, formatted)
 }
 
 func TestFormat_StripsWordbreakPrefixDerivedFromToComplete(t *testing.T) {

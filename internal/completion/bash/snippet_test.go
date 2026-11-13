@@ -23,6 +23,10 @@ func TestSnippet_SingleCommand(t *testing.T) {
 			`  export COMP_WORDBREAKS`+"\n"+
 			"\n"+
 			`  local compline="${COMP_LINE:0:${COMP_POINT}}"`+"\n"+
+			`  # COMP_POINT counts characters in a UTF-8 locale; the engine slices`+"\n"+
+			`  # COMP_LINE by bytes, so hand it the byte length of the text before the`+"\n"+
+			`  # cursor (counted in the C locale, inside the substitution only).`+"\n"+
+			`  COMP_POINT=$(LC_ALL=C; printf '%s' "${#compline}")`+"\n"+
 			`  local words="${compline#"${compline%%[! ]*}"}"`+"\n"+
 			`  local cmd="${COMP_WORDS[0]:-${words%% *}}"`+"\n"+
 			`  cmd="${cmd/#\~/$HOME}"`+"\n"+

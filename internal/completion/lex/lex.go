@@ -54,6 +54,9 @@ type Token struct {
 	// quote and wordbreak characters (e.g. `--env="pro`), which
 	// WordbreakPrefix needs to reproduce readline's replacement semantics.
 	Raw string
+	// OpenQuote is the quote character ('\'' or '"') left unclosed at the end
+	// of a word (the user is mid-quote), or 0 when every quote is closed.
+	OpenQuote byte
 }
 
 // Line is a lexed command line: a sequence of tokens with the trailing
@@ -129,30 +132,32 @@ func (l Line) RedirectAtEnd() bool {
 	return l.Tokens[n-1].Kind == Redirect || (n >= 2 && l.Tokens[n-2].Kind == Redirect)
 }
 
-// WordbreakPrefix returns the prefix of the last word's raw text up to and
-// including its last wordbreak rune (e.g. `--env=` for the current word
-// `--env=`, `--env="` for `--env="pro`). wordbreaks is the rune set,
-// normally the COMP_WORDBREAKS value. The prefix is empty when the line ends
-// with an operator or the last word contains no wordbreak rune.
+// WordbreakPrefix returns the quotes-resolved part of the last word that
+// readline leaves in place when it inserts a completion: the text up to and
+// including the last wordbreak rune outside quotes and not escaped, or up to
+// a quote left open at the end of the word, whichever comes later (`--env=`
+// for `--env=pro`, `--env=` for `--env="pro`, "" for `"My Dir/in` and
+// `My\ Dir/in`). wordbreaks is the rune set, normally the COMP_WORDBREAKS
+// value. The prefix is empty when the line ends with an operator or no such
+// boundary exists.
 func (l Line) WordbreakPrefix(wordbreaks string) string {
 	if len(l.Tokens) == 0 || l.Tokens[len(l.Tokens)-1].Kind != Word {
 		return ""
 	}
 
-	raw := l.Tokens[len(l.Tokens)-1].Raw
-
-	return LastWordbreakPrefix(raw, wordbreaks)
+	return replacementPrefix(l.Tokens[len(l.Tokens)-1].Raw, wordbreaks)
 }
 
 // Parse lexes the cursor-truncated command line into tokens. Unclosed quotes
-// are tolerated (the token runs to end of line); a line that ends with
-// whitespace (or is empty) yields a trailing empty Word token. An unquoted
-// '#' at the start of a word begins a comment that consumes the rest of the
-// line.
+// are tolerated (the token runs to end of line). A line that is empty or ends
+// with whitespace separating words yields a trailing empty Word token.
+// Whitespace inside quotes or escaped with a backslash belongs to the word
+// (`foo\ ` is the one word "foo "). An unquoted '#' at the start of a word
+// begins a comment that consumes the rest of the line.
 func Parse(line string) Line {
-	tokens := lexLine(line)
+	tokens, trailingSeparator := lexLine(line)
 
-	if endsInWhitespace(line) {
+	if line == "" || trailingSeparator {
 		tokens = append(tokens, Token{Kind: Word})
 	}
 
@@ -178,6 +183,52 @@ func LastWordbreakPrefix(word string, wordbreaks string) string {
 	}
 
 	return prefix
+}
+
+// replacementPrefix resolves raw (one word's source text) and returns the
+// resolved value up to readline's replacement start: after the last
+// wordbreak rune outside quotes and escapes, or after a quote still open at
+// the end of raw. Quote and escape rules match the lexer's.
+func replacementPrefix(raw string, wordbreaks string) string {
+	var value strings.Builder
+
+	keep := 0
+	quote := byte(0)
+	quoteStart := 0
+
+	for i := 0; i < len(raw); i++ {
+		char := raw[i]
+
+		switch {
+		case quote == '\'' && char == '\'', quote == '"' && char == '"':
+			quote = 0
+		case quote == '\'':
+			value.WriteByte(char)
+		case quote == '"' && char == '\\' && i+1 < len(raw) && isEscapableInDoubleQuote(raw[i+1]):
+			i++
+			writeEscaped(&value, raw[i])
+		case quote == '"':
+			value.WriteByte(char)
+		case char == '\'' || char == '"':
+			quote = char
+			quoteStart = value.Len()
+		case char == '\\' && i+1 < len(raw):
+			i++
+			writeEscaped(&value, raw[i])
+		default:
+			value.WriteByte(char)
+
+			if strings.IndexByte(wordbreaks, char) >= 0 {
+				keep = value.Len()
+			}
+		}
+	}
+
+	if quote != 0 {
+		keep = max(keep, quoteStart)
+	}
+
+	return value.String()[:keep]
 }
 
 // lexer holds the scan state for one line.
@@ -288,6 +339,9 @@ func (l *lexer) scanOperator(fdNumber string) {
 type wordBuilder struct {
 	value strings.Builder
 	raw   strings.Builder
+	// openQuote is the quote character of a region left unclosed at end of
+	// line, or 0.
+	openQuote byte
 }
 
 func newWordBuilder() *wordBuilder {
@@ -322,7 +376,7 @@ func (w *wordBuilder) rawText() string {
 
 // token materializes the word token.
 func (w *wordBuilder) token() Token {
-	return Token{Kind: Word, Value: w.value.String(), Raw: w.raw.String()}
+	return Token{Kind: Word, Value: w.value.String(), Raw: w.raw.String(), OpenQuote: w.openQuote}
 }
 
 // scanSingleQuote consumes a single-quoted region: every character is
@@ -344,6 +398,8 @@ func (w *wordBuilder) scanSingleQuote(scan *lexer) {
 		w.push(scan.source[scan.pos], scan.source[scan.pos])
 		scan.pos++
 	}
+
+	w.openQuote = '\''
 }
 
 // scanDoubleQuote consumes a double-quoted region: backslash escapes '"',
@@ -386,6 +442,8 @@ func (w *wordBuilder) scanDoubleQuote(scan *lexer) {
 			scan.pos++
 		}
 	}
+
+	w.openQuote = '"'
 }
 
 // scanEscape consumes a backslash escape outside quotes: the next character
@@ -410,37 +468,29 @@ func (w *wordBuilder) scanEscape(scan *lexer) {
 	scan.pos += 2
 }
 
-// endsInWhitespace reports whether the line is empty or ends with a space,
-// tab, carriage return, or newline.
-func endsInWhitespace(line string) bool {
-	if line == "" {
-		return true
-	}
-
-	switch line[len(line)-1] {
-	case ' ', '\t', '\r', '\n':
-		return true
-	default:
-		return false
-	}
-}
-
-// lexLine scans the full line into tokens.
-func lexLine(line string) []Token {
+// lexLine scans the full line into tokens and reports whether the line ends
+// with separating whitespace: whitespace outside any word, so neither quoted
+// nor escaped. A comment keeps the previous rule of looking at the last
+// character, since its text is not lexed.
+func lexLine(line string) ([]Token, bool) {
 	scan := &lexer{source: line}
+	trailingSeparator := false
 
 	for scan.pos < len(scan.source) {
 		switch r := scan.source[scan.pos]; {
 		case isWhitespace(r):
 			scan.pos++
+			trailingSeparator = true
 		case r == '#':
 			scan.pos = len(scan.source)
+			trailingSeparator = isWhitespace(line[len(line)-1])
 		default:
 			scan.scanWord()
+			trailingSeparator = false
 		}
 	}
 
-	return scan.tokens
+	return scan.tokens, trailingSeparator
 }
 
 // isOperator reports whether r starts a redirection, pipeline, or list
@@ -482,5 +532,14 @@ func isEscapableInDoubleQuote(c byte) bool {
 		return true
 	default:
 		return false
+	}
+}
+
+// writeEscaped appends the character a backslash escaped to value, dropping a
+// newline: a backslash-newline is a line continuation, as in the lexer's
+// scanDoubleQuote and scanEscape.
+func writeEscaped(value *strings.Builder, char byte) {
+	if char != '\n' {
+		value.WriteByte(char)
 	}
 }

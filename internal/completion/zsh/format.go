@@ -24,11 +24,12 @@ const (
 	fieldSep         = "\x1f"
 	controlCutset    = "\t\n\r\x1f"
 
-	longhandFlagsTag   = "longhand flags"
-	shorthandFlagsTag  = "shorthand flags"
-	mergedFlagsTag     = "flags"
-	valueEscapeClass   = " \"'\\$`|&;<>()[]{}*?!^#:"
-	patternEscapeClass = "\\[]*?()|^~#<>:"
+	longhandFlagsTag       = "longhand flags"
+	shorthandFlagsTag      = "shorthand flags"
+	mergedFlagsTag         = "flags"
+	valueEscapeClass       = " \"'\\$`|&;<>()[]{}*?!^#"
+	doubleQuoteEscapeClass = "\"\\$`"
+	patternEscapeClass     = "\\[]*?()|^~#<>:"
 )
 
 // Format renders candidates and directives in the zsh framing: a directives
@@ -169,10 +170,7 @@ func styledMessage(message string, colorOn bool) string {
 // trailing space is embedded unless the nospace rules apply (directive set,
 // or the value ends with "=" or "/").
 func candidateRecord(candidate wire.Candidate, directives wire.Directives, colorOn bool) string {
-	value := escapeValue(sanitizeField(candidate.Value))
-	if !directives.NoSpaceFor(candidate.Value) {
-		value += " "
-	}
+	value := insertionValue(sanitizeField(candidate.Value), wire.ZshQuote(), wire.ZshBanghist(), !directives.NoSpaceFor(candidate.Value))
 
 	var sgr string
 	if colorOn && candidate.Style != "" {
@@ -188,6 +186,40 @@ func candidateRecord(candidate wire.Candidate, directives wire.Directives, color
 	}
 
 	return recordCandidate + fieldSep + strings.Join(fields, fieldSep)
+}
+
+// insertionValue renders the text zsh inserts (verbatim, through -Q) for one
+// candidate in the quote state of the word being completed. complete reports
+// whether the value takes a trailing space; a quote the user opened is then
+// closed before the space, and left open otherwise (directories, "=").
+//
+//   - unquoted: zsh metacharacters are backslash-escaped.
+//   - inside '"': '"', '\', '$', and '`' are backslash-escaped, and so is '!'
+//     when banghist is on. Under nobanghist a backslash before '!' would stay
+//     in the word, so '!' is written bare.
+//   - inside '\”: every character is literal; '\” is written as `'\”`.
+func insertionValue(value string, quote byte, banghist bool, complete bool) string {
+	switch quote {
+	case '"':
+		value = escapeChars(value, doubleQuoteEscapeClass)
+		if banghist {
+			value = strings.ReplaceAll(value, "!", `\!`)
+		}
+	case '\'':
+		value = strings.ReplaceAll(value, "'", `'\''`)
+	default:
+		value = escapeValue(value)
+	}
+
+	if !complete {
+		return value
+	}
+
+	if quote != 0 {
+		value += string(quote)
+	}
+
+	return value + " "
 }
 
 // escapeChars backslash-escapes characters in input that are present in the class.
@@ -211,8 +243,8 @@ func escapeChars(input, class string) string {
 }
 
 // escapeValue backslash-escapes the zsh metacharacters of an insertion value
-// so _describe -Q can insert it verbatim. Colon is included because _describe
-// uses it as the value/description separator.
+// so -Q can insert it verbatim. The snippet adds the escaping _describe
+// itself consumes (backslash and colon).
 func escapeValue(value string) string {
 	return escapeChars(value, valueEscapeClass)
 }

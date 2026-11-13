@@ -9,10 +9,11 @@ import (
 	"github.com/conga-sh/conga/internal/completion/wire"
 )
 
-// quotedClass lists the characters that force double-quoting of a candidate
-// value: whitespace and the POSIX shell metacharacters.
+// escapedClass lists the characters backslash-escaped in a value typed
+// outside quotes: whitespace, the POSIX shell metacharacters, and '!' for
+// history expansion.
 const (
-	quotedClass   = " \t\n\r\"'\\$`[]{}()<>;|&*?#"
+	escapedClass  = " \t\n\r\"'\\$`[]{}()<>;|&*?#!"
 	controlCutset = "\t\n\r"
 )
 
@@ -21,10 +22,11 @@ const (
 // keep the terminal clean), and one candidate line ("C") per candidate.
 //
 // Normal mode carries the insertion value with the COMP_WORDBREAKS prefix
-// (e.g. `--env=`) stripped and POSIX double-quoting applied; successive-tab
-// mode (COMP_TYPE=63 with multiple candidates) carries tab-delimited
-// display/value/description triplets that the snippet renders as
-// "display (description)". Multiple candidates sharing a non-flag common
+// (e.g. `--env=`) stripped and quoted for the word's state: backslash-escaped
+// when unquoted, continued (and closed when complete) inside a quote the user
+// opened; successive-tab mode (COMP_TYPE=63 with multiple candidates) carries
+// tab-delimited display/value/description triplets that the snippet renders
+// as "display (description)". Multiple candidates sharing a non-flag common
 // value prefix collapse to that prefix with the nospace directive so the
 // first tab inserts the shared stem.
 func (s *Session) Format(toComplete string, directives wire.Directives, candidates []wire.Candidate) string {
@@ -48,7 +50,8 @@ func (s *Session) Format(toComplete string, directives wire.Directives, candidat
 	}
 
 	for _, candidate := range candidates {
-		lines = append(lines, "C\t"+candidateLine(candidate, wordbreakPrefix, successive))
+		closeQuote := !collapsed && !directives.NoSpaceFor(candidate.Value)
+		lines = append(lines, "C\t"+s.candidateLine(candidate, wordbreakPrefix, successive, closeQuote))
 	}
 
 	return strings.Join(lines, "\n")
@@ -84,15 +87,25 @@ func sanitizeField(s string) string {
 
 // candidateLine renders one candidate: a tab-delimited display/value/
 // description triplet in successive-tab mode, or the quoted insertion value
-// otherwise.
-func candidateLine(candidate wire.Candidate, wordbreakPrefix string, successive bool) string {
+// otherwise. closeQuote reports whether a quote left open in the word is
+// closed after the value (a complete value that takes a trailing space).
+func (s *Session) candidateLine(candidate wire.Candidate, wordbreakPrefix string, successive bool, closeQuote bool) string {
 	if successive {
 		return sanitizeField(candidate.Display) + "\t" +
 			sanitizeField(candidate.Value) + "\t" +
 			sanitizeField(candidate.TrimmedDescription())
 	}
 
-	return quoteValue(insertionValue(candidate, wordbreakPrefix))
+	value := sanitizeField(insertionValue(candidate, wordbreakPrefix))
+
+	switch s.openQuote {
+	case '"':
+		return continueDoubleQuote(value, closeQuote)
+	case '\'':
+		return continueSingleQuote(value, closeQuote)
+	default:
+		return escapeValue(value)
+	}
 }
 
 // insertionValue resolves the text bash inserts for one candidate: the value
@@ -116,61 +129,62 @@ func insertionValue(candidate wire.Candidate, wordbreakPrefix string) string {
 	return value
 }
 
-// quoteValue renders the insertion value for readline's `-o noquote` mode:
-// tilde-leading values keep their tilde expansion and only backslash-escape
-// metacharacters; values containing whitespace or shell metacharacters are
-// double-quoted with '"', '\', '$', and '`' escaped; everything else is raw.
-func quoteValue(value string) string {
-	value = sanitizeField(value)
-
-	switch {
-	case strings.HasPrefix(value, "~"):
-		return escapeTildeValue(value)
-	case strings.ContainsAny(value, quotedClass):
-		return quoteDouble(value)
-	default:
-		return value
-	}
-}
-
-// escapeTildeValue backslash-escapes the metacharacters of a tilde-leading
-// value so readline preserves tilde expansion.
-func escapeTildeValue(value string) string {
+// escapeValue renders a value typed outside quotes for readline's
+// `-o noquote` mode: shell metacharacters, whitespace, and '!' are
+// backslash-escaped, as bash's own filename completion and printf %q do.
+// The result can be extended by typing on (`My\ ` for a shared prefix), and
+// a leading '~' stays unescaped so tilde expansion survives.
+func escapeValue(value string) string {
 	var builder strings.Builder
 
 	for i := range len(value) {
-		switch r := value[i]; r {
-		case ' ', '\t', '"', '\'', '\\', '$', '`', '&', ';', '<', '>', '(', ')', '[', ']', '{', '}', '|', '*', '?', '#':
+		if strings.IndexByte(escapedClass, value[i]) >= 0 {
 			builder.WriteByte('\\')
-			builder.WriteByte(r)
-		default:
-			builder.WriteByte(r)
 		}
+
+		builder.WriteByte(value[i])
 	}
 
 	return builder.String()
 }
 
-// quoteDouble wraps the value in double quotes with the POSIX double-quote
-// escape set ('"', '\', '$', '`').
-func quoteDouble(value string) string {
+// continueDoubleQuote renders a value inside a double quote the user opened:
+// '"', '\', '$', and '`' are backslash-escaped, and '!' (live for history
+// expansion inside double quotes) is written as `"\!"`, closing and reopening
+// the quote around it. closeQuote appends the closing '"'.
+func continueDoubleQuote(value string, closeQuote bool) string {
 	var builder strings.Builder
-
-	builder.WriteByte('"')
 
 	for i := range len(value) {
 		switch r := value[i]; r {
 		case '"', '\\', '$', '`':
 			builder.WriteByte('\\')
 			builder.WriteByte(r)
+		case '!':
+			builder.WriteString(`"\!"`)
 		default:
 			builder.WriteByte(r)
 		}
 	}
 
-	builder.WriteByte('"')
+	if closeQuote {
+		builder.WriteByte('"')
+	}
 
 	return builder.String()
+}
+
+// continueSingleQuote renders a value inside a single quote the user opened:
+// every character is literal except '\”, written as `'\”`. closeQuote
+// appends the closing '\”.
+func continueSingleQuote(value string, closeQuote bool) string {
+	value = strings.ReplaceAll(value, "'", `'\''`)
+
+	if closeQuote {
+		value += "'"
+	}
+
+	return value
 }
 
 // headerTokens resolves the directive vocabulary tokens for the D line:

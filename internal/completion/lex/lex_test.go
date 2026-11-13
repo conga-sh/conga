@@ -35,6 +35,46 @@ func TestParse_NoTrailingWhitespaceOmitsEmptyWord(t *testing.T) {
 	assert.Equal(t, []string{"cloudctl", "deploy", "--env="}, lex.Parse("cloudctl deploy --env=").Words())
 }
 
+func TestParse_EscapedTrailingSpaceStaysInWord(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, []string{"app", "foo "}, lex.Parse(`app foo\ `).Words())
+}
+
+func TestParse_TrailingSpaceInsideSingleQuoteStaysInWord(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, []string{"app", "--env", "a b "}, lex.Parse(`app --env 'a b `).Words())
+}
+
+func TestParse_TrailingSpaceInsideDoubleQuoteStaysInWord(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, []string{"app", "--env", "a b "}, lex.Parse(`app --env "a b `).Words())
+}
+
+func TestParse_EscapedBackslashThenSpaceYieldsEmptyWord(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, []string{"app", `a\`, ""}, lex.Parse(`app a\\ `).Words())
+}
+
+func TestParse_UnclosedQuoteRecordsOpenQuote(t *testing.T) {
+	t.Parallel()
+
+	line := lex.Parse(`app --env="my`)
+
+	assert.Equal(t, byte('"'), line.Tokens[1].OpenQuote)
+}
+
+func TestParse_ClosedQuoteRecordsNoOpenQuote(t *testing.T) {
+	t.Parallel()
+
+	line := lex.Parse(`app 'my env'`)
+
+	assert.Equal(t, byte(0), line.Tokens[1].OpenQuote)
+}
+
 func TestParse_SingleQuotesResolveAndPreserveRaw(t *testing.T) {
 	t.Parallel()
 
@@ -296,10 +336,40 @@ func TestWordbreakPrefix_AttachedSeparator(t *testing.T) {
 	assert.Equal(t, "--env=", lex.Parse("cloudctl deploy --env=").WordbreakPrefix(defaultWordbreaks))
 }
 
-func TestWordbreakPrefix_UnclosedQuoteIncluded(t *testing.T) {
+func TestWordbreakPrefix_UnclosedQuoteStartsReplacement(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, `--env="`, lex.Parse(`cloudctl deploy --env="pro`).WordbreakPrefix(defaultWordbreaks))
+	assert.Equal(t, `--env=`, lex.Parse(`cloudctl deploy --env="pro`).WordbreakPrefix(defaultWordbreaks))
+}
+
+func TestWordbreakPrefix_QuotedWordbreakIgnored(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "", lex.Parse(`cloudctl --kubeconfig "My Dir/in`).WordbreakPrefix(defaultWordbreaks))
+}
+
+func TestWordbreakPrefix_EscapedWordbreakIgnored(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "", lex.Parse(`cloudctl --kubeconfig My\ Dir/in`).WordbreakPrefix(defaultWordbreaks))
+}
+
+func TestWordbreakPrefix_ClosedQuoteThenWordbreak(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "a b=", lex.Parse(`cloudctl --labels 'a b'=x`).WordbreakPrefix(defaultWordbreaks))
+}
+
+func TestWordbreakPrefix_EscapedNewlineIsLineContinuation(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "--env=ab=", lex.Parse("cloudctl --env=a\\\nb=x").WordbreakPrefix(defaultWordbreaks))
+}
+
+func TestWordbreakPrefix_DoubleQuotedEscapedNewlineIsLineContinuation(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "ab=", lex.Parse("cloudctl --labels \"a\\\nb\"=x").WordbreakPrefix(defaultWordbreaks))
 }
 
 func TestWordbreakPrefix_EscapedQuote(t *testing.T) {
@@ -308,7 +378,7 @@ func TestWordbreakPrefix_EscapedQuote(t *testing.T) {
 	line := lex.Parse(`cloudctl deploy --env=\"pro`)
 
 	assert.Equal(t, `--env=\"pro`, line.Tokens[2].Raw)
-	assert.Equal(t, `--env=\"`, line.WordbreakPrefix(defaultWordbreaks))
+	assert.Equal(t, `--env=`, line.WordbreakPrefix(defaultWordbreaks))
 }
 
 func TestWordbreakPrefix_MapKeySeparator(t *testing.T) {
