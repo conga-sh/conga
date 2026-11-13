@@ -12,8 +12,8 @@ with Go structs, and CONGA derives the flags, environment bindings,
 configuration, validation, and autocompletion.
 
 CONGA is experimental and pre-1.0: breaking changes increment the minor
-version. Pin a tag in production. See [CHANGELOG.md](CHANGELOG.md) for release
-notes.
+version. Pin a tag in production. See the
+[GitHub Releases](https://github.com/conga-sh/conga/releases) for release notes.
 
 ## Features
 
