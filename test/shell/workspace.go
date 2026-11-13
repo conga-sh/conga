@@ -16,6 +16,10 @@ import (
 var (
 	binaryCacheMu sync.Mutex                //nolint:gochecknoglobals // Process-wide cache for compiled test binaries.
 	binaryCache   = make(map[string]string) //nolint:gochecknoglobals // Process-wide cache for compiled test binaries.
+	// runTempRoot holds the caches shared across one test run; RunTests sets
+	// it and removes it when the run ends. Empty outside RunTests, so the
+	// caches fall back to the system temp directory.
+	runTempRoot string //nolint:gochecknoglobals // Per-run temp root shared by the process-wide caches.
 )
 
 // Workspace represents an isolated, CI-safe test environment for shell completion testing.
@@ -24,6 +28,27 @@ type Workspace struct {
 	BinDir  string
 	HomeDir string
 	WorkDir string
+}
+
+// RunTests runs the suite with one temp root for the caches shared across
+// tests (compiled binaries, the zsh compinit dump, PTY shells' TMPDIR) and
+// removes it afterwards. Call it from TestMain: os.Exit(shell.RunTests(m)).
+func RunTests(m *testing.M) int {
+	root, err := os.MkdirTemp("", "conga_shelltest_*")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "failed to create shell test temp root: %v\n", err)
+
+		return 1
+	}
+
+	runTempRoot = root
+	code := m.Run()
+
+	if err := os.RemoveAll(root); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to remove shell test temp root %s: %v\n", root, err)
+	}
+
+	return code
 }
 
 // NewWorkspace initializes an isolated filesystem workspace for shell completion testing.
@@ -78,7 +103,7 @@ func (ws *Workspace) BuildBinary(t *testing.T, pkgPath, binaryName string) strin
 
 	cachedPath, exists := binaryCache[pkgPath]
 	if !exists {
-		cacheDir, err := os.MkdirTemp("", "conga_shelltest_bin_*") //nolint:usetesting // Cache must persist beyond a single test.
+		cacheDir, err := os.MkdirTemp(runTempRoot, "bin_*") //nolint:usetesting // Cache outlives a single test; RunTests removes the run root.
 		if err != nil {
 			binaryCacheMu.Unlock()
 			t.Fatalf("failed to create bin cache dir: %v", err)
