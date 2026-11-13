@@ -711,6 +711,119 @@ func TestFileExecutableTagResolvesPathRelativeNames(t *testing.T) {
 	assert.Equal(t, binPath, exec.String())
 }
 
+// The executable tests below change the working directory or PATH, so they
+// don't run in parallel.
+
+func TestFileExecutableTagDotSlashResolvesInWorkingDirectory(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("execute-bit setup is Unix-specific")
+	}
+
+	workDir := t.TempDir()
+	pathDir := t.TempDir()
+	localTool := filepath.Join(workDir, "tool")
+	assert.NoError(t, os.WriteFile(localTool, []byte("#!/bin/sh\n"), 0o755))
+	assert.NoError(t, os.WriteFile(filepath.Join(pathDir, "tool"), []byte("#!/bin/sh\n"), 0o755))
+	t.Setenv("PATH", pathDir)
+	t.Chdir(workDir)
+
+	decodeContext := conga.DecodeContext{Tags: conga.FieldTags{"executable": "true"}}
+
+	var tool conga.File
+
+	err := tool.UnmarshalTextWithContext([]byte("./tool"), decodeContext)
+
+	assert.NoError(t, err)
+	assert.Equal(t, localTool, tool.String())
+	assert.NoError(t, tool.Validate(t.Context()))
+}
+
+func TestFileExecutableTagDotSlashNotExecutableFailsValidation(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("execute-bit check is not enforced on Windows")
+	}
+
+	workDir := t.TempDir()
+	assert.NoError(t, os.WriteFile(filepath.Join(workDir, "noexec"), []byte("#!/bin/sh\n"), 0o644))
+	t.Setenv("PATH", t.TempDir())
+	t.Chdir(workDir)
+
+	decodeContext := conga.DecodeContext{Tags: conga.FieldTags{"executable": "true"}}
+
+	var tool conga.File
+
+	assert.NoError(t, tool.UnmarshalTextWithContext([]byte("./noexec"), decodeContext))
+
+	err := tool.Validate(t.Context())
+
+	assert.IsError(t, err, conga.ErrValidation)
+	assert.Equal(t, fmt.Sprintf("%q is not executable", filepath.Join(workDir, "noexec")), err.Error())
+}
+
+func TestFileExecutableTagSubdirectoryPathBecomesAbsolute(t *testing.T) {
+	workDir := t.TempDir()
+	t.Chdir(workDir)
+
+	decodeContext := conga.DecodeContext{Tags: conga.FieldTags{"executable": "true"}}
+
+	var tool conga.File
+
+	err := tool.UnmarshalTextWithContext([]byte("sub/tool"), decodeContext)
+
+	assert.NoError(t, err)
+	assert.Equal(t, filepath.Join(workDir, "sub", "tool"), tool.String())
+}
+
+func TestFileExecutableTagAbsolutePathUnchanged(t *testing.T) {
+	t.Parallel()
+
+	absolute := filepath.Join(t.TempDir(), "tool")
+	decodeContext := conga.DecodeContext{Tags: conga.FieldTags{"executable": "true"}}
+
+	var tool conga.File
+
+	err := tool.UnmarshalTextWithContext([]byte(absolute), decodeContext)
+
+	assert.NoError(t, err)
+	assert.Equal(t, absolute, tool.String())
+}
+
+func TestFileExecutableTagTildePathExpanded(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	decodeContext := conga.DecodeContext{Tags: conga.FieldTags{"executable": "true"}}
+
+	var tool conga.File
+
+	err := tool.UnmarshalTextWithContext([]byte("~/bin/tool"), decodeContext)
+
+	assert.NoError(t, err)
+	assert.Equal(t, filepath.Join(home, "bin", "tool"), tool.String())
+}
+
+func TestFileExecutableTagRelativePathEntryResultIsAbsolute(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("execute-bit setup is Unix-specific")
+	}
+
+	workDir := t.TempDir()
+	assert.NoError(t, os.Mkdir(filepath.Join(workDir, "bin"), 0o755))
+	assert.NoError(t, os.WriteFile(filepath.Join(workDir, "bin", "reltool"), []byte("#!/bin/sh\n"), 0o755))
+	t.Chdir(workDir)
+	t.Setenv("PATH", "bin")
+	t.Setenv("GODEBUG", "execerrdot=0")
+
+	decodeContext := conga.DecodeContext{Tags: conga.FieldTags{"executable": "true"}}
+
+	var tool conga.File
+
+	err := tool.UnmarshalTextWithContext([]byte("reltool"), decodeContext)
+
+	assert.NoError(t, err)
+	assert.Equal(t, filepath.Join(workDir, "bin", "reltool"), tool.String())
+}
+
 func TestFileExecutableTagValidateNotExecutable(t *testing.T) {
 	t.Parallel()
 

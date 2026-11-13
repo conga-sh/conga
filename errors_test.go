@@ -1211,6 +1211,49 @@ func TestErrorClassificationExecutableBoundary(t *testing.T) {
 	})
 }
 
+// The two ./nosuchtool tests change the working directory, so they don't
+// run in parallel.
+func TestErrorClassificationExecutableDotSlashMissingConvertsForWhy(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("$PATH lookup and execute-bit diagnostics are Unix-specific")
+	}
+
+	t.Chdir(t.TempDir())
+
+	var stdoutBuffer bytes.Buffer
+
+	app := conga.New[classificationCLI]().
+		Name("app").
+		EnableWhy().
+		Stdout(&stdoutBuffer).
+		Args([]string{"--exe", "./nosuchtool", "--why"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Contains(t, stdoutBuffer.String(), `Value provenance for "app":`)
+	assert.Contains(t, stdoutBuffer.String(), "--exe")
+}
+
+func TestErrorClassificationExecutableDotSlashMissingFailsValidation(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("$PATH lookup and execute-bit diagnostics are Unix-specific")
+	}
+
+	workDir := t.TempDir()
+	t.Chdir(workDir)
+
+	app := conga.New[classificationCLI]().
+		Name("app").
+		Args([]string{"--exe", "./nosuchtool"})
+
+	err := app.Run()
+
+	assert.IsError(t, err, conga.ErrValidation)
+	assert.False(t, errors.Is(err, conga.ErrCoerce))
+	assert.Equal(t, fmt.Sprintf("stat %s: no such file or directory for flag --exe", filepath.Join(workDir, "nosuchtool")), err.Error())
+}
+
 func TestHookErrorsPassThrough(t *testing.T) {
 	t.Parallel()
 

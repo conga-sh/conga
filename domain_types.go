@@ -231,9 +231,10 @@ func (f *File) UnmarshalText(text []byte) error {
 // UnmarshalTextWithContext decodes a path string using ambient field tags and configured
 // standard streams ([App.Stdin] / [App.Stdout]).
 //
-// Expands environment variables and tilde prefixes, captures declared capability tags
-// for [File.Validate], and resolves PATH-relative names to absolute paths when the
-// executable tag is declared.
+// Expands environment variables and tilde prefixes and captures declared capability tags
+// for [File.Validate]. When the executable tag is declared, the path is always absolute:
+// a bare name (no path separator, judged before the path is cleaned, so "./tool" is not
+// bare) is looked up on $PATH, and any other path resolves against the working directory.
 func (f *File) UnmarshalTextWithContext(text []byte, decodeContext DecodeContext) error {
 	f.path = pathx.Expand(string(text))
 	f.applyTags(decodeContext.Tags)
@@ -251,20 +252,26 @@ func (f *File) UnmarshalTextWithContext(text []byte, decodeContext DecodeContext
 		return nil
 	}
 
-	expanded := pathx.Expand(raw)
+	expanded := pathx.ExpandUncleaned(raw)
 
-	if strings.ContainsAny(expanded, "/\\") || filepath.IsAbs(expanded) {
-		f.path = expanded
+	if !strings.ContainsAny(expanded, "/\\") && !filepath.IsAbs(expanded) {
+		foundPath, err := exec.LookPath(expanded)
+		if err != nil {
+			return err
+		}
 
-		return nil
+		expanded = foundPath
 	}
 
-	foundPath, err := exec.LookPath(expanded)
+	// A relative LookPath result (a relative $PATH entry under
+	// GODEBUG=execerrdot=0) and a typed relative path both become absolute,
+	// so the value doesn't drift with exec.Cmd.Dir or os.Chdir.
+	absolute, err := filepath.Abs(expanded)
 	if err != nil {
 		return err
 	}
 
-	f.path = foundPath
+	f.path = absolute
 
 	return nil
 }

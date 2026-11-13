@@ -23,7 +23,7 @@ type Convert struct {
 }
 ```
 
-All filesystem capability checks run during the validation phase on the final resolved value, after the configuration cascade. A failed check is `ErrValidation` for a command-line value and `ErrConfig` for a value from the environment, a config file, or a `default` tag. `File` with `executable:"true"` also resolves a bare name on `$PATH` while converting the text; that lookup is conversion-time, so a miss is `ErrCoerce` for a command-line value and `ErrConfig` for a value from another source. [Errors and exit codes](/reference/errors/#which-category-a-value-failure-gets) states the rule.
+All filesystem capability checks run during the validation phase on the final resolved value, after the configuration cascade. A failed check is `ErrValidation` for a command-line value and `ErrConfig` for a value from the environment, a config file, or a `default` tag. `File` with `executable:"true"` also resolves a bare name on `$PATH` while converting the text, and turns any other path, including `./tool`, into an absolute path against the working directory. The `$PATH` lookup is conversion-time, so a miss is `ErrCoerce` for a command-line value and `ErrConfig` for a value from another source. [Errors and exit codes](/reference/errors/#which-category-a-value-failure-gets) states the rule.
 
 ## Content and I/O types
 

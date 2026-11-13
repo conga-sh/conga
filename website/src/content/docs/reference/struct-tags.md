@@ -365,7 +365,7 @@ The built-in filesystem domain types register these tags:
 
 | Tag | Meaning |
 |-----|---------|
-| `executable` | Path must be an executable regular file. Bare names resolve via `$PATH` to their absolute location at parse time. Completes from `$PATH`. Mutually exclusive with `existing`, `stdin`, `stdout`, `symlink`, and `glob`. |
+| `executable` | Path must be an executable regular file. At parse time a bare name resolves via `$PATH`, and a path with a separator, including `./name`, resolves against the working directory. Either way the value is an absolute path. Completes from `$PATH`. Mutually exclusive with `existing`, `stdin`, `stdout`, `symlink`, and `glob`. |
 | `existing` | Path must exist and be a regular file. Mutually exclusive with `stdout`, `executable`, and `symlink`. |
 | `glob` | Comma-separated glob patterns filtering completion candidates (e.g. `glob:"*.yaml,Makefile"`). Patterns match entry names; malformed patterns and patterns containing path separators fail at schema build. Mutually exclusive with `executable` and `symlink`. |
 | `stdin` | `"-"` reads standard input. Mutually exclusive with `stdout`, `executable`, and `symlink`. |
