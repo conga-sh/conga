@@ -4,3 +4,5 @@ gitlab.com,172.65.251.78 ecdsa-sha2-nistp256 AAAAE2VjZHNhLXNoYTItbmlzdHAyNTYAAAA
 |1|hashedstring=|otherhashed ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA
 @cert-authority *.example.com ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQC3 mockkey
 @revoked revoked.example.com ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA
+good.example.com,!bad.example.com,h?st ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA
+bastion ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA

@@ -57,7 +57,7 @@ func parseHostsReader(r io.Reader) []predict.Item {
 
 		for _, host := range fields[1:] {
 			host = strings.TrimSpace(host)
-			if host == "" {
+			if host == "" || isHostPattern(host) {
 				continue
 			}
 
@@ -83,7 +83,7 @@ func parseSSHConfigReader(r io.Reader) []predict.Item {
 		fields := strings.Fields(line)
 		if len(fields) >= 2 && strings.EqualFold(fields[0], "Host") {
 			for _, pat := range fields[1:] {
-				if strings.ContainsAny(pat, "*?!") {
+				if isHostPattern(pat) {
 					continue
 				}
 
@@ -137,7 +137,7 @@ func parseSSHKnownHostsReader(r io.Reader) []predict.Item {
 				}
 			}
 
-			if host == "" {
+			if host == "" || isHostPattern(host) {
 				continue
 			}
 
@@ -320,4 +320,10 @@ func scanSSHHosts(ctx predict.Context) []predict.Item {
 	}
 
 	return items
+}
+
+// isHostPattern reports whether an ssh_config Host or known_hosts entry is a
+// pattern or a negation ("*", "?", "!") rather than a host name.
+func isHostPattern(host string) bool {
+	return strings.ContainsAny(host, "*?!")
 }

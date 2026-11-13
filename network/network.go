@@ -476,6 +476,7 @@ func RegisterNetInterface[T any](app *conga.App[T]) {
 }
 
 // Hosts configures completion of hostnames from /etc/hosts, SSH known_hosts, and SSH config.
+// Patterns and negations (entries containing "*", "?", or "!") are not offered.
 func Hosts() predict.Predictor {
 	return predict.Callback(actionHosts)
 }
