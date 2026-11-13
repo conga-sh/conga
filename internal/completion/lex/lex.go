@@ -486,6 +486,7 @@ func lexLine(line string) ([]Token, bool) {
 			trailingSeparator = isWhitespace(line[len(line)-1])
 		default:
 			scan.scanWord()
+
 			trailingSeparator = false
 		}
 	}
