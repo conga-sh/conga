@@ -70,11 +70,18 @@ func TestPtyPathQualifiedInvocation(t *testing.T) {
 			workspace := setupShellCompletion(t)
 			session := workspace.StartPtySession(t, "shell-completion", shellName)
 
-			session.Type(workspace.BinDir + "/shell-completion de")
+			// A relative path keeps the typed line short, so it never wraps
+			// the pane whatever the temp root (zsh redraws a long line on a
+			// second row that tmux can't join back).
+			session.Type("cd " + workspace.BinDir)
+			session.PressEnter()
+			session.Capture()
+
+			session.Type("./shell-completion de")
 			session.Tab()
 			result := session.Capture()
 
-			assert.Equal(t, workspace.BinDir+"/shell-completion deploy", result.BufferAfterPrompt())
+			assert.Equal(t, "./shell-completion deploy", result.BufferAfterPrompt())
 		})
 	}
 }
