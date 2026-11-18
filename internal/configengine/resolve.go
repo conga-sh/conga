@@ -35,13 +35,6 @@ type Resolver struct {
 	Registry *Registry
 }
 
-// decoderRegistered reports whether at least one config decoder is
-// registered, which decides whether an app without a ConfigFile reads
-// <PREFIX>_CONFIG (spec.ConfigEnvVars).
-func (r Resolver) decoderRegistered() bool {
-	return r.Registry != nil && len(r.Registry.Extensions()) > 0
-}
-
 // EffectiveSearchPaths returns the search paths driving configuration file
 // resolution: the author-declared tier when present, otherwise the built-in
 // conventional tier (${XDG_CONFIG_HOME:-~/.config}/<app-name>), or nil when
@@ -258,6 +251,13 @@ type configTargets struct {
 	appName   string
 	decoders  []string
 	cascading bool
+}
+
+// decoderRegistered reports whether at least one config decoder is
+// registered, which decides whether an app without a ConfigFile reads
+// <PREFIX>_CONFIG (spec.ConfigEnvVars).
+func (r Resolver) decoderRegistered() bool {
+	return r.Registry != nil && len(r.Registry.Extensions()) > 0
 }
 
 // defaultTier returns the built-in conventional configuration search tier,
