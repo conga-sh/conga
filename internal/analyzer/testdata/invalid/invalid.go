@@ -952,3 +952,77 @@ func (d *DuplicateConfigFileApp) Run(ctx context.Context, session *conga.Session
 }
 
 var _ = conga.New[DuplicateConfigFileApp]()
+
+// StrictBoolTagApp misspells the values of the presence-or-boolean tags.
+type StrictBoolTagApp struct {
+	Debug conga.OptionalFlag[bool]   `help:"Debug" hidden:"yes"`        // want `struct StrictBoolTagApp field Debug: schema error: invalid struct tag: tag "hidden" expects "true" or "false", got "yes"`
+	Color conga.OptionalFlag[bool]   `help:"Color" negatable:"ture"`    // want `struct StrictBoolTagApp field Color: schema error: invalid struct tag: tag "negatable" expects "true" or "false", got "ture"`
+	Dir   conga.OptionalFlag[string] `bootstrap:"yes" help:"Directory"` // want `struct StrictBoolTagApp field Dir: schema error: invalid struct tag: tag "bootstrap" expects "true" or "false", got "yes"`
+}
+
+// Run executes the strict bool tag fixture.
+func (s *StrictBoolTagApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[StrictBoolTagApp]()
+
+// BootstrapFalseApp turns bootstrap off explicitly, so it needs no
+// Bootstrapper.
+type BootstrapFalseApp struct {
+	Dir conga.OptionalFlag[string] `bootstrap:"false" help:"Directory"`
+}
+
+// Run executes the bootstrap-off fixture.
+func (b *BootstrapFalseApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[BootstrapFalseApp]()
+
+// BootstrapCollectorTypoApp misspells bootstrap on a dash collector.
+type BootstrapCollectorTypoApp struct {
+	Rest conga.DashArgs `bootstrap:"yes"` // want `struct BootstrapCollectorTypoApp field Rest: schema error: invalid struct tag: tag "bootstrap" expects "true" or "false", got "yes"`
+}
+
+// Run executes the dash args fixture.
+func (b *BootstrapCollectorTypoApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+// Bootstrap satisfies the bootstrap requirement.
+func (b *BootstrapCollectorTypoApp) Bootstrap(ctx context.Context, bootstrap *conga.Bootstrap) error {
+	return nil
+}
+
+var _ = conga.New[BootstrapCollectorTypoApp]()
+
+// BootstrapRawTypoApp misspells bootstrap on a raw collector.
+type BootstrapRawTypoApp struct {
+	Rest conga.RawArgs `bootstrap:"yes"` // want `struct BootstrapRawTypoApp field Rest: schema error: invalid struct tag: tag "bootstrap" expects "true" or "false", got "yes"`
+}
+
+// Run executes the raw args fixture.
+func (b *BootstrapRawTypoApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+// Bootstrap satisfies the bootstrap requirement.
+func (b *BootstrapRawTypoApp) Bootstrap(ctx context.Context, bootstrap *conga.Bootstrap) error {
+	return nil
+}
+
+var _ = conga.New[BootstrapRawTypoApp]()
+
+// HiddenOnArgApp puts a hidden typo on a positional argument, where hidden is
+// not a tag: the placement is reported, not the value.
+type HiddenOnArgApp struct {
+	Target conga.OptionalArg[string] `hidden:"yes"` // want `struct HiddenOnArgApp field Target: schema error: invalid struct tag: tag "hidden" is invalid on positional argument`
+}
+
+// Run executes the misplaced hidden fixture.
+func (h *HiddenOnArgApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[HiddenOnArgApp]()

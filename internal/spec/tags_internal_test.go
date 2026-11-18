@@ -549,40 +549,6 @@ func TestParseRangeSpec_TripleDotRejected(t *testing.T) {
 	assert.Equal(t, `schema error: invalid range syntax: "1...5" (expected min..max, min.., or ..max)`, err.Error())
 }
 
-func TestParsePresenceOrTrueTag(t *testing.T) {
-	t.Parallel()
-
-	t.Run("tag missing returns false", func(t *testing.T) {
-		t.Parallel()
-
-		assert.False(t, parsePresenceOrTrueTag(reflect.StructTag(`other:"val"`), "hidden"))
-	})
-
-	t.Run("bare tag returns true", func(t *testing.T) {
-		t.Parallel()
-
-		assert.True(t, parsePresenceOrTrueTag(reflect.StructTag(`hidden:""`), "hidden"))
-	})
-
-	t.Run("explicit true returns true", func(t *testing.T) {
-		t.Parallel()
-
-		assert.True(t, parsePresenceOrTrueTag(reflect.StructTag(`hidden:"true"`), "hidden"))
-	})
-
-	t.Run("explicit false returns false", func(t *testing.T) {
-		t.Parallel()
-
-		assert.False(t, parsePresenceOrTrueTag(reflect.StructTag(`hidden:"false"`), "hidden"))
-	})
-
-	t.Run("arbitrary string returns false", func(t *testing.T) {
-		t.Parallel()
-
-		assert.False(t, parsePresenceOrTrueTag(reflect.StructTag(`hidden:"yes"`), "hidden"))
-	})
-}
-
 func TestSplitTagList(t *testing.T) {
 	t.Parallel()
 

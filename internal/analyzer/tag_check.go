@@ -489,8 +489,6 @@ func (w *walker) checkFlagField(node *commandNode, fieldObject types.Object, tag
 		w.reportFieldError(node, fieldObject, err)
 	}
 
-	w.reportFieldError(node, fieldObject, strictBoolTagError(tag))
-
 	w.checkAndCollectFlag(node, fieldObject, tag, flagName, branchNames, branchShorts)
 	w.recordFlagEnvOwners(node, tag, flagName, false)
 }
@@ -1119,12 +1117,6 @@ func shortPackageQualifier(packageObject *types.Package) string {
 	}
 
 	return packageObject.Name()
-}
-
-func strictBoolTagError(tag reflect.StructTag) error {
-	_, _, err := spec.ParseStrictBoolTag(tag, "safe")
-
-	return err
 }
 
 func summaryTagError(tag reflect.StructTag) error {

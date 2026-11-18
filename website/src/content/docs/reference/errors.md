@@ -123,6 +123,7 @@ Programmer errors during schema construction abort at startup before execution b
 - Invalid section definitions: declaring a `section` value with leading or trailing whitespace.
 - CONGA tags on plain non-container fields, such as `name` or `help` on a plain struct field, instead of silently ignoring them.
 - Unrecognized struct tags without calling `app.AllowTags(...)` (including `conga:"..."` directives).
+- A boolean tag (`hidden`, `negatable`, `bootstrap`, `implicit`, `safe`, `multi`, or a domain type's boolean tag such as `existing`) with a value other than empty, `true`, or `false`: `struct CLI field Debug: schema error: invalid struct tag: tag "hidden" expects "true" or "false", got "yes"`.
 - Declaring `ConfigFile` or `Features` on any command struct other than the root.
 - A flag or positional argument whose type, slice element type, or map key or value type has no parser: `struct CLI field Zone: schema error: unsupported type *time.Location; register a parser with app.Use(timezone.RegisterLocation)`. The hint names `app.RegisterType`, or the domain-package binding for `*time.Location`, `*user.User`, `*user.Group`, and `*net.Interface`.
 - A leaf command that does not implement `conga.Runner`: `struct LeafCmd: schema error: runner not implemented: implement conga.Runner: Run(context.Context, *conga.Session) error`.

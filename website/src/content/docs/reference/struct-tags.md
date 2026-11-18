@@ -11,7 +11,7 @@ CONGA derives the CLI schema from struct fields and their tags. Schema build val
 |-----|:--------:|:--------:|:-------:|---------|
 | `aliases` | ✅ | ✅ | – | Comma-separated long-name aliases. |
 | `and` | ✅ | ✅ | ✅ | Required co-occurrence group name whose members must all be set together. |
-| `bootstrap` | ✅ | ✅ | ✅ | Bind the field before the bootstrap phase runs and expose it typed to `Bootstrap` (`bootstrap` or `bootstrap:"true"`). Requires a `conga.Bootstrapper`; rejected with `feature`; restricted to scalar, slice-of-scalar, and map-of-scalar types, and rejected on `conga.FileContent` (or a slice or map of it), which reads its file while parsing. |
+| `bootstrap` | ✅ | ✅ | ✅ | Bind the field before the bootstrap phase runs and expose it typed to `Bootstrap` (`bootstrap` or `bootstrap:"true"`; `bootstrap:"false"` turns it off, and any other value fails schema build). Requires a `conga.Bootstrapper`; rejected with `feature`; restricted to scalar, slice-of-scalar, and map-of-scalar types, and rejected on `conga.FileContent` (or a slice or map of it), which reads its file while parsing. |
 | `config` | ✅ | ✅ | ✅ | Config file key feeding the flag, matched exactly as written (default: a key derived from the flag name, spelled in the app's key casing, so `--api-endpoint` reads `api-endpoint`, or `api_endpoint` under `conga.ConfigKeyCase(conga.SnakeCase)`). The tag replaces the name, and aliases never match. A dotted key such as `db.host` is read from nested sections, `host` inside `db`. `config:"-"` excludes the field from config files. |
 | `default` | ✅ | – | – | Default value when no other source provides one. Coerced with the same parser as CLI input. Rejected on required flags and `oneof` members. |
 | `deprecated` | ✅ | – | ✅ | Deprecation notice; suppresses flag from completion. |
@@ -20,11 +20,11 @@ CONGA derives the CLI schema from struct fields and their tags. Schema build val
 | `env` | ✅ | ✅ | ✅ | Comma-separated environment variable names; the first one set to a non-empty value wins. `env:"-"` disables environment binding. Explicit names ignore all prefixes. |
 | `feature` | ✅ | – | ✅ | Feature-gate expression: the flag exists only while the expression is satisfied (see [Feature toggles](#feature-toggles-congafeaturest)). Required flags reject this tag. |
 | `help` | ✅ | ✅ | ✅ | Help text displayed on the help screen. Supports [help variables](#help-variables). |
-| `hidden` | ✅ | ✅ | ✅ | Suppress from help and completion (`hidden` or `hidden:"true"`). |
+| `hidden` | ✅ | ✅ | ✅ | Suppress from help and completion (`hidden` or `hidden:"true"`; `hidden:"false"` keeps it shown, and any other value fails schema build). |
 | `items` | ✅ | ✅ | – | Element count bound for slices or maps (see [Bounds syntax](#bounds-syntax)). |
 | `len` | ✅ | ✅ | – | Length bound for strings, slices, or maps. |
 | `name` | ✅ | ✅ | ✅ | Flag name override (default: kebab-case of field name, e.g. `MaxRetries` → `--max-retries`). |
-| `negatable` | ✅ (bool) | – | – | Boolean flags only: enables `--[no-]flag` syntax (`negatable` or `negatable:"true"`). |
+| `negatable` | ✅ (bool) | – | – | Boolean flags only: enables `--[no-]flag` syntax (`negatable` or `negatable:"true"`; `negatable:"false"` turns it off, and any other value fails schema build). |
 | `oneof` | ✅ | – | ✅ | Exactly-one group name: exactly one member must be supplied by CLI, environment, or configuration. `default` is rejected on members. |
 | `placeholder` | ✅ | ✅ | – | Argument placeholder displayed in syntax and help. |
 | `predictor` | ✅ | ✅ | – | Completion predictor identifier (see [Predictors](#predictors)). |
@@ -128,7 +128,7 @@ A command that declares `Command[T]` fields is a branch. It routes to its subcom
 | `deprecated` | Deprecation notice displayed in help. |
 | `envprefix` | Environment prefix for this command's flags. Replaces any inherited prefix. Appends a trailing underscore if omitted. |
 | `feature` | Feature-gate expression: the subcommand and its subtree exist only while the expression is satisfied (see [Feature toggles](#feature-toggles-congafeaturest)). An implicit subcommand rejects this tag. |
-| `hidden` | Suppress from help and completion (`hidden` or `hidden:"true"`). |
+| `hidden` | Suppress from help and completion (`hidden` or `hidden:"true"`; `hidden:"false"` keeps it shown, and any other value fails schema build). |
 | `implicit` | Route tokens that no explicit subcommand claims into this subcommand. At most one per command. See [Implicit subcommands](#implicit-subcommands). |
 | `name` | Subcommand token override (default: kebab-case field name). |
 | `section` | Help-screen section title. Subcommands sharing a section render under their own titled section and are tagged as `<section> commands` in completion. |
@@ -240,8 +240,8 @@ The design rationale is in [About subcommands and hierarchy](/explanation/subcom
 | `env` | Comma-separated environment variable names. `env:"-"` disables environment binding. |
 | `feature` | Feature-gate expression: the config-file flag exists only while the expression is satisfied (see [Feature toggles](#feature-toggles-congafeaturest)). |
 | `help` | Help text (default: `Path to config file`, or `Path to config file(s)` when `multi:"true"`). |
-| `hidden` | Suppress from help and completion (`hidden` or `hidden:"true"`). |
-| `multi` | Enable multi-value arity for repeated flags and slice values (`multi` or `multi:"true"`). |
+| `hidden` | Suppress from help and completion (`hidden` or `hidden:"true"`; `hidden:"false"` keeps it shown, and any other value fails schema build). |
+| `multi` | Enable multi-value arity for repeated flags and slice values (`multi` or `multi:"true"`; `multi:"false"` keeps one value, and any other value fails schema build). |
 | `name` | Flag name (default: `--config-file`). |
 | `placeholder` | Value placeholder in help (default: `PATH`). |
 | `section` | Help-screen section title. Flags sharing a section render under their own titled section. |
