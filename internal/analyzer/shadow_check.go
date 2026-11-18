@@ -105,8 +105,8 @@ func (w *walker) reportFlagShadow(node *commandNode, fieldObject types.Object, p
 // diagnostics, in the shape the runtime records on spec.Flag.
 func flagOwner(node *commandNode, fieldObject types.Object) shadowOwner {
 	return shadowOwner{
-		FlagOwner: spec.FlagOwner{Struct: node.named.Obj().Name(), Field: fieldObject.Name()},
-		node:      node,
+		Struct: node.named.Obj().Name(), Field: fieldObject.Name(),
+		node: node,
 	}
 }
 
