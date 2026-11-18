@@ -466,7 +466,7 @@ func TestConfigFile_DecoderlessExplicitTargetErrors(t *testing.T) {
 		err.Error())
 }
 
-func TestConfig_EnvConfigVar_RequiresDecoder(t *testing.T) {
+func TestConfig_EnvConfigVar_IgnoredWithoutConfigSupport(t *testing.T) {
 	t.Setenv("CONGA_TEST_DECODERLESS_CONFIG", filepath.Join(t.TempDir(), "app.json"))
 
 	type EnvConfigCLI struct {
@@ -475,16 +475,102 @@ func TestConfig_EnvConfigVar_RequiresDecoder(t *testing.T) {
 		Value conga.OptionalFlag[string] `name:"value"`
 	}
 
-	app := conga.New[EnvConfigCLI]().
+	cli := new(EnvConfigCLI)
+	app := conga.New(cli).
 		EnvPrefix("CONGA_TEST_DECODERLESS_").
-		Args([]string{})
+		Args([]string{"--value", "x"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, "x", cli.Value.Get())
+}
+
+func TestConfig_EnvConfigVar_FlagBindsItWithoutConfigSupport(t *testing.T) {
+	t.Setenv("CONGA_TEST_NOCFG_CONFIG", "profile-a")
+
+	type ConfigNameCLI struct {
+		noopRunner
+
+		Config conga.OptionalFlag[string] `help:"Profile name"`
+	}
+
+	cli := new(ConfigNameCLI)
+	app := conga.New(cli).
+		EnvPrefix("CONGA_TEST_NOCFG_").
+		Args(nil)
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, "profile-a", cli.Config.Get())
+	assert.Equal(t, conga.SourceEnv, cli.Config.Source())
+}
+
+func TestConfig_EnvConfigVar_ConfigFileWithoutDecoderStillRequiresDecoder(t *testing.T) {
+	t.Setenv("CONGA_TEST_CFGNODEC_CONFIG", filepath.Join(t.TempDir(), "app.json"))
+
+	type ConfigFileOnlyCLI struct {
+		noopRunner
+
+		Config conga.ConfigFile `help:"Config file"`
+	}
+
+	app := conga.New[ConfigFileOnlyCLI]().
+		EnvPrefix("CONGA_TEST_CFGNODEC_").
+		Args(nil)
 
 	err := app.Run()
 
 	assert.IsError(t, err, conga.ErrConfig)
 	assert.Equal(t,
-		"config error: environment variable CONGA_TEST_DECODERLESS_CONFIG requires a registered config decoder: call App.RegisterDecoder with a format decoder (e.g. decoder/json)",
+		"config error: environment variable CONGA_TEST_CFGNODEC_CONFIG requires a registered config decoder: call App.RegisterDecoder with a format decoder (e.g. decoder/json)",
 		err.Error())
+}
+
+func TestConfig_EnvConfigVar_ConfigFileEnvExcluded(t *testing.T) {
+	t.Setenv("CONGA_TEST_CFGEXCL_CONFIG", filepath.Join(t.TempDir(), "missing.json"))
+
+	type ExcludedConfigCLI struct {
+		noopRunner
+
+		Config conga.ConfigFile `env:"-" help:"Config file"`
+	}
+
+	app := conga.New[ExcludedConfigCLI]().
+		EnvPrefix("CONGA_TEST_CFGEXCL_").
+		RegisterDecoder(".json", json.Decode).
+		Args(nil)
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+}
+
+func TestConfig_EnvConfigVar_ConfigFileEnvTagReplacesPrefixVariable(t *testing.T) {
+	configPath := writeConfigFile(t, `{"value": "from-file"}`)
+	t.Setenv("CONGA_TEST_CFGTAG_CFG", configPath)
+	t.Setenv("CONGA_TEST_CFGTAG_CONFIG", "profile-b")
+
+	type TaggedConfigCLI struct {
+		noopRunner
+
+		ConfigFile conga.ConfigFile           `env:"CONGA_TEST_CFGTAG_CFG" help:"Config file"`
+		Config     conga.OptionalFlag[string] `help:"Profile name"`
+		Value      conga.OptionalFlag[string] `help:"Value"`
+	}
+
+	cli := new(TaggedConfigCLI)
+	app := conga.New(cli).
+		EnvPrefix("CONGA_TEST_CFGTAG_").
+		RegisterDecoder(".json", json.Decode).
+		Args(nil)
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, "from-file", cli.Value.Get())
+	assert.Equal(t, "profile-b", cli.Config.Get())
 }
 
 type DefaultTagConfigFileCLI struct {
@@ -504,4 +590,185 @@ func TestConfigFile_DefaultTagRejected(t *testing.T) {
 	assert.Error(t, err)
 	assert.IsError(t, err, conga.ErrSchema)
 	assert.Equal(t, `struct DefaultTagConfigFileCLI field ConfigFile: schema error: invalid struct tag: tag "default" is not supported on config-file flags; declare search locations with app.ConfigOptions(conga.ConfigPaths(...)) or conga.ConfigExplicit(...), or show an example value with placeholder:"..."`, err.Error())
+}
+
+type configEnvDerivedCLI struct {
+	noopRunner
+
+	Config conga.OptionalFlag[string] `help:"Profile name"`
+}
+
+type configEnvSubcommandLeaf struct {
+	noopRunner
+
+	Name conga.OptionalFlag[string] `env:"PC_CONFIG" help:"Name"`
+}
+
+type configEnvSubcommandCLI struct {
+	Deploy conga.Command[configEnvSubcommandLeaf]
+}
+
+type configEnvConfigFileCLI struct {
+	noopRunner
+
+	ConfigFile conga.ConfigFile           `help:"Config file"`
+	Config     conga.OptionalFlag[string] `help:"Profile name"`
+}
+
+type configEnvFeatureSet struct {
+	Config bool `help:"Config feature"`
+}
+
+type configEnvFeatureCLI struct {
+	noopRunner
+
+	Features conga.Features[configEnvFeatureSet] `envprefix:"PC_" flag:"feature-gates"`
+}
+
+func TestSchema_ConfigEnvCollision(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		run      func() error
+		expected string
+	}{
+		{
+			name: "derived flag name",
+			run: func() error {
+				return conga.New[configEnvDerivedCLI]().EnvPrefix("PC").RegisterDecoder(".json", json.Decode).Args(nil).Run()
+			},
+			expected: `struct configEnvDerivedCLI field Config: schema error: environment variable "PC_CONFIG" is bound by both the config file variable and flag --config; give the flag another env tag or exclude it with env:"-"`,
+		},
+		{
+			name: "explicit env tag on a subcommand flag",
+			run: func() error {
+				return conga.New[configEnvSubcommandCLI]().EnvPrefix("PC").RegisterDecoder(".json", json.Decode).Args(nil).Run()
+			},
+			expected: `struct configEnvSubcommandLeaf field Name: schema error: environment variable "PC_CONFIG" is bound by both the config file variable and flag --name; give the flag another env tag or exclude it with env:"-"`,
+		},
+		{
+			name: "flag colliding with a ConfigFile",
+			run: func() error {
+				return conga.New[configEnvConfigFileCLI]().EnvPrefix("PC").RegisterDecoder(".json", json.Decode).Args(nil).Run()
+			},
+			expected: `struct configEnvConfigFileCLI field Config: schema error: environment variable "PC_CONFIG" is bound by both flag --config-file and flag --config; give the flag another env tag or exclude it with env:"-"`,
+		},
+		{
+			name: "feature variable",
+			run: func() error {
+				return conga.New[configEnvFeatureCLI]().EnvPrefix("PC").EnableFeatures().RegisterDecoder(".json", json.Decode).Args(nil).Run()
+			},
+			expected: `struct configEnvFeatureCLI field Features: schema error: environment variable "PC_CONFIG" is bound by both the config file variable and feature "config"; give the feature another env tag or exclude it with env:"-"`,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := testCase.run()
+
+			assert.IsError(t, err, conga.ErrSchema)
+			assert.Equal(t, testCase.expected, err.Error())
+		})
+	}
+}
+
+type configEnvMapNoFlagCLI struct {
+	noopRunner
+
+	Features conga.Features[configEnvFeatureSet] `env:"PC_CONFIG"`
+}
+
+type configEnvMapFlagCLI struct {
+	noopRunner
+
+	Features conga.Features[configEnvFeatureSet] `env:"PC_CONFIG" flag:"feature-gates"`
+}
+
+type configEnvConfigFileFeatureCLI struct {
+	noopRunner
+
+	ConfigFile conga.ConfigFile                    `help:"Config file"`
+	Features   conga.Features[configEnvFeatureSet] `envprefix:"PC_" flag:"feature-gates"`
+}
+
+type configEnvConfigFileNoDecoderCLI struct {
+	noopRunner
+
+	ConfigFile conga.ConfigFile           `help:"Config file"`
+	Config     conga.OptionalFlag[string] `help:"Profile name"`
+}
+
+func TestSchema_ConfigEnvCollisionFeaturesAndConfigFile(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name     string
+		run      func() error
+		expected string
+	}{
+		{
+			name: "Features container without a flag",
+			run: func() error {
+				return conga.New[configEnvMapNoFlagCLI]().EnvPrefix("PC").EnableFeatures().RegisterDecoder(".json", json.Decode).Args(nil).Run()
+			},
+			expected: `struct configEnvMapNoFlagCLI field Features: schema error: environment variable "PC_CONFIG" is bound by both the config file variable and the Features container; give the Features container another env tag`,
+		},
+		{
+			name: "Features container with a flag",
+			run: func() error {
+				return conga.New[configEnvMapFlagCLI]().EnvPrefix("PC").EnableFeatures().RegisterDecoder(".json", json.Decode).Args(nil).Run()
+			},
+			expected: `struct configEnvMapFlagCLI field Features: schema error: environment variable "PC_CONFIG" is bound by both the config file variable and the feature map flag --feature-gates; give the Features container another env tag`,
+		},
+		{
+			name: "feature colliding with a ConfigFile",
+			run: func() error {
+				return conga.New[configEnvConfigFileFeatureCLI]().EnvPrefix("PC").EnableFeatures().Args(nil).Run()
+			},
+			expected: `struct configEnvConfigFileFeatureCLI field Features: schema error: environment variable "PC_CONFIG" is bound by both flag --config-file and feature "config"; give the feature another env tag or exclude it with env:"-"`,
+		},
+		{
+			name: "ConfigFile without a decoder still reserves its variable",
+			run: func() error {
+				return conga.New[configEnvConfigFileNoDecoderCLI]().EnvPrefix("PC").Args(nil).Run()
+			},
+			expected: `struct configEnvConfigFileNoDecoderCLI field Config: schema error: environment variable "PC_CONFIG" is bound by both flag --config-file and flag --config; give the flag another env tag or exclude it with env:"-"`,
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := testCase.run()
+
+			assert.IsError(t, err, conga.ErrSchema)
+			assert.Equal(t, testCase.expected, err.Error())
+		})
+	}
+}
+
+func TestConfig_EnvConfigVar_ConfigOptionsWithoutDecoderLeavesItToFlags(t *testing.T) {
+	t.Setenv("CONGA_TEST_OPTSONLY_CONFIG", "profile-c")
+
+	type OptionsOnlyCLI struct {
+		noopRunner
+
+		Config conga.OptionalFlag[string] `help:"Profile name"`
+	}
+
+	cli := new(OptionsOnlyCLI)
+	app := conga.New(cli).
+		EnvPrefix("CONGA_TEST_OPTSONLY_").
+		ConfigOptions(conga.ConfigKeyCase(conga.SnakeCase)).
+		Args(nil)
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, "profile-c", cli.Config.Get())
+	assert.Equal(t, conga.SourceEnv, cli.Config.Source())
 }

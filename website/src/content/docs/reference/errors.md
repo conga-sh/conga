@@ -110,6 +110,7 @@ Programmer errors during schema construction abort at startup before execution b
 - Declaring `conga.Features[T]` or `feature:"..."` tags without calling `app.EnableFeatures()`.
 - Declaring both `env` and `envprefix` on a `conga.Features` container, or a feature-field `env` tag under a combined-map container.
 - Binding one environment variable through two feature fields (explicitly or through prefix derivation), or through a feature and a flag.
+- Binding a flag or feature to the environment variable the app reads a config file path from (`<PREFIX>_CONFIG`, or the `ConfigFile` field's `env` tag): `struct CLI field Config: schema error: environment variable "PC_CONFIG" is bound by both the config file variable and flag --config; give the flag another env tag or exclude it with env:"-"`.
 - Combining `conga.ConfigExplicit(...)` with `conga.ConfigPaths(...)` or `conga.ConfigCascading()`.
 - Declaring the `bootstrap` tag when neither the declaring command nor an ancestor implements `conga.Bootstrapper`.
 - Combining the `bootstrap` and `feature` tags on the same field.

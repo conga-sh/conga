@@ -197,6 +197,15 @@ func FeatureFieldEnvWithContainerEnvError(fieldName string) error {
 	return fmt.Errorf("%w: feature field %s declares env while the Features container declares env (the combined map variable); declare one env surface per container", ErrSchema, fieldName)
 }
 
+// ConfigEnvCollisionError builds the schema error for a flag or feature bound
+// to the environment variable the configuration engine reads a config file
+// path from; first names the config side, second the colliding binding, and
+// remedy says how to separate them. The runtime schema builder returns it and
+// the static analyzer can report it verbatim.
+func ConfigEnvCollisionError(envVar string, first string, second string, remedy string) error {
+	return fmt.Errorf("%w: environment variable %q is bound by both %s and %s; %s", ErrSchema, envVar, first, second, remedy)
+}
+
 // FeatureEnvCollisionError builds the schema error for one environment
 // variable bound by two schema members: two feature fields resolving to the
 // same variable, or a feature variable a flag also binds. The runtime schema

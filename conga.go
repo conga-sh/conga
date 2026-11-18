@@ -1027,7 +1027,7 @@ func (view emptyConfigView) Resolve(flagTargets []string, cmd *spec.Command) ([]
 		return nil, nil, SourceNone, newDecoderRequiredError("flag --" + configFlagName(cmd))
 	}
 
-	for _, envKey := range configengine.EnvKeys(view.envPrefix, cmd) {
+	for _, envKey := range configengine.EnvKeys(view.envPrefix, cmd, false) {
 		if envValue := os.Getenv(envKey); envValue != "" {
 			return nil, nil, SourceNone, newDecoderRequiredError("environment variable " + envKey)
 		}
@@ -1041,7 +1041,7 @@ func (view emptyConfigView) CandidatePaths(flagPaths []string, cmd *spec.Command
 		return slicex.Map(flagPaths, pathx.Expand)
 	}
 
-	if envPaths := configengine.EnvCandidates(view.envPrefix, cmd); len(envPaths) > 0 {
+	if envPaths := configengine.EnvCandidates(view.envPrefix, cmd, false); len(envPaths) > 0 {
 		return envPaths
 	}
 
