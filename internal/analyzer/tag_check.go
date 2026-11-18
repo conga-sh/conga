@@ -752,10 +752,7 @@ func (w *walker) validateRangeBounds(rangeSpec *spec.Range, targetType types.Typ
 		return nil
 	}
 
-	elementType := types.Unalias(targetType)
-	if slice, ok := elementType.Underlying().(*types.Slice); ok && staticIsCollection(elementType) {
-		elementType = types.Unalias(slice.Elem())
-	}
+	elementType := staticRangeElement(targetType)
 
 	if named, ok := elementType.(*types.Named); ok {
 		switch {
@@ -1020,6 +1017,17 @@ func staticIsCollection(targetType types.Type) bool {
 	}
 
 	return !staticParsesItself(targetType)
+}
+
+// staticRangeElement returns the type a range bound applies to: the element
+// of a slice collection, otherwise the type itself.
+func staticRangeElement(targetType types.Type) types.Type {
+	targetType = types.Unalias(targetType)
+	if slice, ok := targetType.Underlying().(*types.Slice); ok && staticIsCollection(targetType) {
+		return types.Unalias(slice.Elem())
+	}
+
+	return targetType
 }
 
 // staticParsesItself mirrors spec.ParsesItself over go/types. The
