@@ -303,7 +303,7 @@ type hiddenFalseCommandsCLI struct {
 	noopRunner
 
 	Config conga.ConfigFile          `help:"Config file" hidden:"false"`
-	Sub    conga.Command[noopRunner] `hidden:"false" summary:"Sub command"`
+	Sub    conga.Command[noopRunner] `hidden:"false"     summary:"Sub command"`
 	Help   conga.HelpCommand         `hidden:"false"`
 }
 
@@ -330,7 +330,7 @@ func TestSchema_HiddenFalseKeepsCommandsShown(t *testing.T) {
 type bootstrapSplitCLI struct {
 	noopRunner
 
-	Early conga.OptionalFlag[string] `bootstrap:"true" help:"Early"`
+	Early conga.OptionalFlag[string] `bootstrap:"true"  help:"Early"`
 	Late  conga.OptionalFlag[string] `bootstrap:"false" help:"Late"`
 
 	earlySeen string
