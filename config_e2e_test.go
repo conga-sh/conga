@@ -691,7 +691,7 @@ type configEnvConfigFileFeatureCLI struct {
 	noopRunner
 
 	ConfigFile conga.ConfigFile                    `help:"Config file"`
-	Features   conga.Features[configEnvFeatureSet] `envprefix:"PC_" flag:"feature-gates"`
+	Features   conga.Features[configEnvFeatureSet] `envprefix:"PC_"    flag:"feature-gates"`
 }
 
 type configEnvConfigFileNoDecoderCLI struct {
