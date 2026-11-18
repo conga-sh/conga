@@ -284,7 +284,7 @@ type gatedGroupCLI struct {
 	noopRunner
 
 	Features conga.Features[gatedGroupFeatures] `flag:"feature-gates"`
-	Group    conga.OptionalFlag[*user.Group]    `feature:"admin" help:"Group"`
+	Group    conga.OptionalFlag[*user.Group]    `feature:"admin"      help:"Group"`
 }
 
 type interfaceCLI struct {
@@ -527,7 +527,7 @@ type lowerKeyMapCLI struct {
 	noopRunner
 
 	ConfigFile conga.ConfigFile                     `help:"Config file"`
-	Ports      conga.OptionalFlag[map[lowerKey]int] `help:"Ports" safe:"true"`
+	Ports      conga.OptionalFlag[map[lowerKey]int] `help:"Ports"       safe:"true"`
 }
 
 func TestWhy_TypedMapKeysKeepTheirSource(t *testing.T) {

@@ -379,5 +379,4 @@ func TestTypedMaps_FlagsAndArgs(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, map[string]string{"hosts": "a,b"}, cli.Counts.Get())
 	})
-
 }
