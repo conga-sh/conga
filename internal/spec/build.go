@@ -74,6 +74,12 @@ func Build(target any, defaultName string, opts Options) (*Command, error) {
 		return nil, err
 	}
 
+	// The config-variable check runs before the feature checks, so a feature
+	// bound to the config variable gets the config message and its remedy.
+	if err := validateConfigEnvCollisions(cmd, len(opts.ConfigDecoders) > 0); err != nil {
+		return nil, err
+	}
+
 	if opts.ValidateFeatureReferences != nil {
 		if err := opts.ValidateFeatureReferences(cmd); err != nil {
 			return nil, err

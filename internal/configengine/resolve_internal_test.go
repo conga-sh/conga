@@ -85,9 +85,9 @@ func TestSplitList(t *testing.T) {
 func TestEnvCandidates_SingleValueKeepsSeparator(t *testing.T) {
 	t.Setenv("CANDIDATE_SINGLE_CONFIG", "/tmp/x/a,b.json")
 
-	cmd := &spec.Command{ConfigFileFlag: &spec.Flag{}}
+	cmd := &spec.Command{ConfigFileFlag: &spec.Flag{EnvVars: []string{"CANDIDATE_SINGLE_CONFIG"}}}
 
-	candidates := EnvCandidates("CANDIDATE_SINGLE_", cmd)
+	candidates := EnvCandidates("CANDIDATE_SINGLE_", cmd, true)
 
 	assert.Equal(t, []string{"/tmp/x/a,b.json"}, candidates)
 }
@@ -95,9 +95,9 @@ func TestEnvCandidates_SingleValueKeepsSeparator(t *testing.T) {
 func TestEnvCandidates_MultiValueSplitsOnSeparator(t *testing.T) {
 	t.Setenv("CANDIDATE_MULTI_CONFIG", "/tmp/x/a.json, /tmp/x/b.json")
 
-	cmd := &spec.Command{ConfigFileFlag: &spec.Flag{IsSlice: true}}
+	cmd := &spec.Command{ConfigFileFlag: &spec.Flag{IsSlice: true, EnvVars: []string{"CANDIDATE_MULTI_CONFIG"}}}
 
-	candidates := EnvCandidates("CANDIDATE_MULTI_", cmd)
+	candidates := EnvCandidates("CANDIDATE_MULTI_", cmd, true)
 
 	assert.Equal(t, []string{"/tmp/x/a.json", "/tmp/x/b.json"}, candidates)
 }
@@ -105,9 +105,9 @@ func TestEnvCandidates_MultiValueSplitsOnSeparator(t *testing.T) {
 func TestEnvCandidates_ExpandsPaths(t *testing.T) {
 	t.Setenv("CANDIDATE_CLEAN_CONFIG", "/tmp/./x/../a.json")
 
-	cmd := &spec.Command{ConfigFileFlag: &spec.Flag{}}
+	cmd := &spec.Command{ConfigFileFlag: &spec.Flag{EnvVars: []string{"CANDIDATE_CLEAN_CONFIG"}}}
 
-	candidates := EnvCandidates("CANDIDATE_CLEAN_", cmd)
+	candidates := EnvCandidates("CANDIDATE_CLEAN_", cmd, true)
 
 	assert.Equal(t, []string{"/tmp/a.json"}, candidates)
 }
@@ -115,9 +115,9 @@ func TestEnvCandidates_ExpandsPaths(t *testing.T) {
 func TestEnvCandidates_UnsetReturnsNil(t *testing.T) {
 	t.Setenv("CANDIDATE_UNSET_CONFIG", "")
 
-	cmd := &spec.Command{ConfigFileFlag: &spec.Flag{}}
+	cmd := &spec.Command{ConfigFileFlag: &spec.Flag{EnvVars: []string{"CANDIDATE_UNSET_CONFIG"}}}
 
-	candidates := EnvCandidates("CANDIDATE_UNSET_", cmd)
+	candidates := EnvCandidates("CANDIDATE_UNSET_", cmd, true)
 
 	assert.Equal(t, []string(nil), candidates)
 }
@@ -126,7 +126,7 @@ func TestSkippedTargets_FlagSkipsEnvAndExplicit(t *testing.T) {
 	t.Setenv("SKIPPED_FLAG_CONFIG", "/work/team.json")
 
 	resolver := Resolver{EnvPrefix: "SKIPPED_FLAG_", Settings: spec.ConfigSettings{Explicit: "/etc/app.json"}}
-	cmd := &spec.Command{ConfigFileFlag: &spec.Flag{}}
+	cmd := &spec.Command{ConfigFileFlag: &spec.Flag{EnvVars: []string{"SKIPPED_FLAG_CONFIG"}}}
 
 	skipped := resolver.SkippedTargets([]string{"/work/ci.json"}, cmd)
 
@@ -137,7 +137,7 @@ func TestSkippedTargets_EnvSkipsExplicit(t *testing.T) {
 	t.Setenv("SKIPPED_ENV_CONFIG", "/work/team.json")
 
 	resolver := Resolver{EnvPrefix: "SKIPPED_ENV_", Settings: spec.ConfigSettings{Explicit: "/etc/app.json"}}
-	cmd := &spec.Command{ConfigFileFlag: &spec.Flag{}}
+	cmd := &spec.Command{ConfigFileFlag: &spec.Flag{EnvVars: []string{"SKIPPED_ENV_CONFIG"}}}
 
 	skipped := resolver.SkippedTargets(nil, cmd)
 
@@ -148,7 +148,7 @@ func TestSkippedTargets_MultiValueEnvSkippedPerPath(t *testing.T) {
 	t.Setenv("SKIPPED_MULTI_CONFIG", "/work/a.json,/work/b.json")
 
 	resolver := Resolver{EnvPrefix: "SKIPPED_MULTI_"}
-	cmd := &spec.Command{ConfigFileFlag: &spec.Flag{IsSlice: true}}
+	cmd := &spec.Command{ConfigFileFlag: &spec.Flag{IsSlice: true, EnvVars: []string{"SKIPPED_MULTI_CONFIG"}}}
 
 	skipped := resolver.SkippedTargets([]string{"/work/ci.json"}, cmd)
 
@@ -159,7 +159,7 @@ func TestSkippedTargets_ExplicitAloneSkipsNothing(t *testing.T) {
 	t.Setenv("SKIPPED_EXPLICIT_CONFIG", "")
 
 	resolver := Resolver{EnvPrefix: "SKIPPED_EXPLICIT_", Settings: spec.ConfigSettings{Explicit: "/etc/app.json"}}
-	cmd := &spec.Command{ConfigFileFlag: &spec.Flag{}}
+	cmd := &spec.Command{ConfigFileFlag: &spec.Flag{EnvVars: []string{"SKIPPED_EXPLICIT_CONFIG"}}}
 
 	skipped := resolver.SkippedTargets(nil, cmd)
 
@@ -170,9 +170,37 @@ func TestSkippedTargets_SearchTierNeverReported(t *testing.T) {
 	t.Setenv("SKIPPED_TIER_CONFIG", "")
 
 	resolver := Resolver{EnvPrefix: "SKIPPED_TIER_", Settings: spec.ConfigSettings{Tier: []string{"/etc/app"}}}
-	cmd := &spec.Command{ConfigFileFlag: &spec.Flag{}}
+	cmd := &spec.Command{ConfigFileFlag: &spec.Flag{EnvVars: []string{"SKIPPED_TIER_CONFIG"}}}
 
 	skipped := resolver.SkippedTargets([]string{"/work/ci.json"}, cmd)
 
 	assert.Equal(t, []string(nil), skipped)
+}
+
+func TestEnvKeys(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name              string
+		cmd               *spec.Command
+		decoderRegistered bool
+		want              []string
+	}{
+		{name: "ConfigFile with env tag", cmd: &spec.Command{ConfigFileFlag: &spec.Flag{EnvVars: []string{"APP_CFG"}}}, decoderRegistered: true, want: []string{"APP_CFG"}},
+		{name: "ConfigFile with derived variable", cmd: &spec.Command{ConfigFileFlag: &spec.Flag{EnvVars: []string{"PC_CONFIG"}}}, decoderRegistered: true, want: []string{"PC_CONFIG"}},
+		{name: "ConfigFile with env excluded", cmd: &spec.Command{ConfigFileFlag: &spec.Flag{}}, decoderRegistered: true, want: nil},
+		{name: "ConfigFile without decoder", cmd: &spec.Command{ConfigFileFlag: &spec.Flag{EnvVars: []string{"PC_CONFIG"}}}, decoderRegistered: false, want: []string{"PC_CONFIG"}},
+		{name: "no ConfigFile, decoder registered", cmd: &spec.Command{}, decoderRegistered: true, want: []string{"PC_CONFIG"}},
+		{name: "no ConfigFile, no decoder", cmd: &spec.Command{}, decoderRegistered: false, want: nil},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			keys := EnvKeys("PC_", testCase.cmd, testCase.decoderRegistered)
+
+			assert.Equal(t, testCase.want, keys)
+		})
+	}
 }

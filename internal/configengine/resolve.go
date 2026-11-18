@@ -62,7 +62,7 @@ func (r Resolver) CandidatePaths(flagPaths []string, cmd *spec.Command) []string
 		return slicex.Map(flagPaths, pathx.Expand)
 	}
 
-	if envPaths := EnvCandidates(r.EnvPrefix, cmd); len(envPaths) > 0 {
+	if envPaths := EnvCandidates(r.EnvPrefix, cmd, r.decoderRegistered()); len(envPaths) > 0 {
 		return envPaths
 	}
 
@@ -81,7 +81,7 @@ func (r Resolver) CandidatePaths(flagPaths []string, cmd *spec.Command) []string
 // are not named targets and are never reported. Returns nil when no named
 // source lost.
 func (r Resolver) SkippedTargets(flagTargets []string, cmd *spec.Command) []string {
-	named := [][]string{flagTargets, envConfigTargets(r.EnvPrefix, cmd)}
+	named := [][]string{flagTargets, envConfigTargets(r.EnvPrefix, cmd, r.decoderRegistered())}
 	if r.Settings.Explicit != "" {
 		named = append(named, []string{r.Settings.Explicit})
 	}
@@ -116,7 +116,7 @@ func (r Resolver) Resolve(flagTargets []string, cmd *spec.Command) ([]string, *c
 
 	files, source, err := findConfigFiles(configTargets{
 		flag:      flagTargets,
-		env:       envConfigTargets(r.EnvPrefix, cmd),
+		env:       envConfigTargets(r.EnvPrefix, cmd, r.decoderRegistered()),
 		explicit:  r.Settings.Explicit,
 		tier:      r.EffectiveSearchPaths(),
 		appName:   r.AppName,
@@ -220,25 +220,18 @@ func SplitList(value string, separator string) []string {
 }
 
 // EnvKeys returns the environment variables that can carry configuration file
-// targets: the config-file flag's declared env tags, or the global
-// `<PREFIX>_CONFIG` variable.
-func EnvKeys(envPrefix string, cmd *spec.Command) []string {
-	if cmd != nil && cmd.ConfigFileFlag != nil && len(cmd.ConfigFileFlag.EnvVars) > 0 {
-		return cmd.ConfigFileFlag.EnvVars
-	}
-
-	if envPrefix != "" {
-		return []string{envPrefix + "CONFIG"}
-	}
-
-	return nil
+// targets (spec.ConfigEnvVars): the ConfigFile's own variables when one is
+// declared, otherwise <PREFIX>_CONFIG for an app with a registered decoder
+// (decoderRegistered), otherwise none.
+func EnvKeys(envPrefix string, cmd *spec.Command, decoderRegistered bool) []string {
+	return spec.ConfigEnvVars(envPrefix, cmd, decoderRegistered)
 }
 
 // EnvCandidates returns the expanded candidate configuration paths named by the
 // first set configuration environment variable, split by the same rule
 // resolution applies, or nil when none is set.
-func EnvCandidates(envPrefix string, cmd *spec.Command) []string {
-	targets := envConfigTargets(envPrefix, cmd)
+func EnvCandidates(envPrefix string, cmd *spec.Command, decoderRegistered bool) []string {
+	targets := envConfigTargets(envPrefix, cmd, decoderRegistered)
 	if len(targets) == 0 {
 		return nil
 	}
@@ -258,6 +251,13 @@ type configTargets struct {
 	appName   string
 	decoders  []string
 	cascading bool
+}
+
+// decoderRegistered reports whether at least one config decoder is
+// registered, which decides whether an app without a ConfigFile reads
+// <PREFIX>_CONFIG (spec.ConfigEnvVars).
+func (r Resolver) decoderRegistered() bool {
+	return r.Registry != nil && len(r.Registry.Extensions()) > 0
 }
 
 // defaultTier returns the built-in conventional configuration search tier,
@@ -391,7 +391,7 @@ func resolveNamedConfigFiles(targets []string, source container.Source) ([]strin
 // into named targets. A single-value config-file flag treats the variable as
 // one literal path; a multi-value flag splits it by the configured separator.
 // It returns nil when no environment variable is set.
-func envConfigTargets(envPrefix string, cmd *spec.Command) []string {
+func envConfigTargets(envPrefix string, cmd *spec.Command, decoderRegistered bool) []string {
 	var (
 		separator string
 		split     bool
@@ -402,7 +402,7 @@ func envConfigTargets(envPrefix string, cmd *spec.Command) []string {
 		split = cmd.ConfigFileFlag.IsSlice
 	}
 
-	for _, envKey := range EnvKeys(envPrefix, cmd) {
+	for _, envKey := range EnvKeys(envPrefix, cmd, decoderRegistered) {
 		value := os.Getenv(envKey)
 		if value == "" {
 			continue
