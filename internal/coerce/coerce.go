@@ -134,9 +134,9 @@ func Supports(targetType reflect.Type, reg Registry) bool {
 	}
 }
 
-// IsPlainStringMap reports whether mapType's keys and values are plain
-// strings that decode by conversion alone: string kinds with no registered
-// parser and no text unmarshaler. Such a map binds without per-entry decoding.
+// IsPlainStringMap reports whether mapType's keys and values are both the
+// string type with no registered parser. Such a map, or a named map type with
+// that underlying type, binds without per-entry decoding.
 func IsPlainStringMap(mapType reflect.Type, reg Registry) bool {
 	return isPlainString(mapType.Key(), reg) && isPlainString(mapType.Elem(), reg)
 }
@@ -500,11 +500,12 @@ func coerceTextUnmarshaler(raw string, targetType reflect.Type, decodeContext De
 	return nil, false, nil
 }
 
-// isPlainString reports whether targetType is a string kind that ScalarWith
-// decodes by conversion: no registered parser for it or its pointer, and no
-// text unmarshaler.
+// isPlainString reports whether targetType is the string type with no
+// registered parser for it or its pointer. A named string type is never plain:
+// a map[string]string cannot convert to a map keyed or valued by it, so its
+// entries decode one by one through ScalarWith.
 func isPlainString(targetType reflect.Type, reg Registry) bool {
-	if targetType.Kind() != reflect.String {
+	if targetType != reflect.TypeFor[string]() {
 		return false
 	}
 
@@ -512,11 +513,9 @@ func isPlainString(targetType reflect.Type, reg Registry) bool {
 		return false
 	}
 
-	if _, ok := reg[reflect.PointerTo(targetType)]; ok {
-		return false
-	}
+	_, ok := reg[reflect.PointerTo(targetType)]
 
-	return !spec.ParsesItself(targetType)
+	return !ok
 }
 
 // unmarshalTextInto unmarshals raw into the pointer value, preferring the
