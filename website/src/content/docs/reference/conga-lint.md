@@ -31,6 +31,7 @@ Each check reports the same mistake, with the same message, that the program rep
 | Ancestor flag shadowing | The runtime `ErrDuplicateFlag` rule: a flag name, alias, or short rune declared on an ancestor cannot be redeclared on any descendant command. The diagnostic names the struct and field on both sides, built by the same function as the runtime error. |
 | Built-in short collisions | The runtime rejection of a user-declared `short` that claims the rune assigned with `app.HelpShortFlag(...)` (every command offering help) or `app.VersionShortFlag(...)` (root only), and of assigning the same rune to both built-ins. A disabled built-in leaves its rune free; non-constant runes suppress the check. |
 | Cascading guard | The schema rejection of `conga.ConfigCascading()` when the root command lacks a `multi:"true"` `ConfigFile` flag. |
+| Config variable collisions | The schema rejection of a flag, feature, or `Features` map variable bound to the environment variable the app reads a config file path from: the root `ConfigFile` field's variable, or `<PREFIX>_CONFIG` when the app has no `ConfigFile` and registers a decoder. A non-literal `app.EnvPrefix(...)`, or a `RegisterDecoder` call the analyzer can't attribute to one `conga.New` root, suppresses the check. |
 | Throwaway root detection | Lint-only: flags `conga.New(root)` when the root pointer is never referenced outside the application builder, steering code to the engine-allocating `conga.New[T]()` form. |
 | Builder call order (opt-in) | With `-builder-order`, validates fluent builder invocations at `conga.New` construction sites against canonical ordering. |
 
@@ -42,6 +43,8 @@ Hierarchies are discovered exclusively from `conga.New` constructor sites (both 
 - `app.Predictor("name", ...)`
 - `app.HelpShortFlag('h')`, `app.VersionShortFlag('V')`
 - `app.DisableHelpFlag()`, `app.DisableVersionFlag()`
+- `app.EnvPrefix("...")`
+- `app.RegisterDecoder(...)`, attributed to the single `conga.New` root of the package
 
 Non-literal or computed arguments degrade conservatively, and the analyzer suppresses the affected diagnostic rather than inventing one. Builder-option evidence is aggregated package-wide, so checks that could turn it into a diagnostic, the cascading guard and the built-in short collisions, are skipped entirely in packages anchoring more than one `conga.New` root. A diagnostic is never attributed to an innocent sibling root. `./...` skips directories with leading underscores (such as `_examples/`), so pass directory paths or globs explicitly to lint them.
 

@@ -39,6 +39,12 @@ func detectFeatureState(pass *analysis.Pass, anchors []*anchor) optInState {
 	return detectOptInState(pass, anchors, "EnableFeatures")
 }
 
+// detectDecoderState attributes the decoder-registered fact to the single
+// conga.New anchor of the package.
+func detectDecoderState(pass *analysis.Pass, anchors []*anchor) optInState {
+	return detectOptInState(pass, anchors, "RegisterDecoder")
+}
+
 // detectOptInState attributes an opt-in builder-method fact to the single
 // conga.New anchor of the package. The construction chain is inspected first,
 // then the straight-line statements on the app variable it binds, stopping at

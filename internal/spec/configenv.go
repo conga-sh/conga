@@ -3,7 +3,6 @@ package spec
 import (
 	"fmt"
 	"slices"
-	"strconv"
 )
 
 // ConfigEnvVars returns the environment variables an app reads a config file
@@ -35,10 +34,12 @@ func validateConfigEnvCollisions(root *Command, decoderRegistered bool) error {
 		return nil
 	}
 
-	configSide := "the config file variable"
+	configFileFlagName := ""
 	if root.ConfigFileFlag != nil {
-		configSide = "flag --" + root.ConfigFileFlag.Name
+		configFileFlagName = root.ConfigFileFlag.Name
 	}
+
+	configSide := ConfigEnvSide(configFileFlagName)
 
 	if err := checkConfigEnvFlags(root, reserved, configSide); err != nil {
 		return err
@@ -47,23 +48,12 @@ func validateConfigEnvCollisions(root *Command, decoderRegistered bool) error {
 	for _, feature := range root.FeatureFields {
 		for _, envVar := range feature.EnvVars {
 			if slices.Contains(reserved, envVar) {
-				return wrapFeatureEnvCollision(root, ConfigEnvCollisionError(envVar, configSide, "feature "+strconv.Quote(feature.Name), `give the feature another env tag or exclude it with env:"-"`))
+				return wrapFeatureEnvCollision(root, ConfigEnvFeatureCollisionError(envVar, configSide, feature.Name))
 			}
 		}
 	}
 
 	return nil
-}
-
-// featureMapCollision builds the collision error for the Features
-// container's combined map variable: it names the feature map flag when the
-// container has one on the command line, and the container otherwise.
-func featureMapCollision(root *Command, envVar string, configSide string) error {
-	if root.FeatureFlag.NoCLI {
-		return ConfigEnvCollisionError(envVar, configSide, "the Features container", "give the Features container another env tag")
-	}
-
-	return ConfigEnvCollisionError(envVar, configSide, "the feature map flag --"+root.FeatureFlag.Name, "give the Features container another env tag")
 }
 
 // checkConfigEnvFlags walks cmd and its subcommands for a flag, other than
@@ -80,10 +70,10 @@ func checkConfigEnvFlags(cmd *Command, reserved []string, configSide string) err
 			}
 
 			if flagSpec == cmd.FeatureFlag {
-				return wrapFeatureEnvCollision(cmd, featureMapCollision(cmd, envVar, configSide))
+				return wrapFeatureEnvCollision(cmd, ConfigEnvFeatureMapCollisionError(envVar, configSide, cmd.FeatureFlag.Name, cmd.FeatureFlag.NoCLI))
 			}
 
-			err := ConfigEnvCollisionError(envVar, configSide, "flag --"+flagSpec.Name, `give the flag another env tag or exclude it with env:"-"`)
+			err := ConfigEnvFlagCollisionError(envVar, configSide, flagSpec.Name)
 
 			return fieldContext(flagSpec.StructName, flagSpec.FieldName, err)
 		}

@@ -177,6 +177,14 @@ func (w *walker) checkCompletionCommandField(node *commandNode, fieldObject type
 func (w *walker) checkConfigFileField(node *commandNode, fieldObject types.Object, tag reflect.StructTag, branchNames map[string]shadowOwner, branchShorts map[rune]shadowOwner) {
 	tagSpecs := spec.ConfigFileFieldTagSpecs()
 
+	// A declared root ConfigFile decides the reserved config variables alone,
+	// so record it as undecided before validation: a rejected field then
+	// suppresses the config env check instead of falling back to the decoder
+	// rule. recordFlagEnvOwners fills in the resolved variables.
+	if node.isRoot && w.rootConfigFile == nil {
+		w.rootConfigFile = &configFileEnv{}
+	}
+
 	if !w.validateNodeFieldTags(node, fieldObject, tag, "config file flag", tagSpecs) {
 		return
 	}
@@ -200,7 +208,7 @@ func (w *walker) checkConfigFileField(node *commandNode, fieldObject types.Objec
 	w.trackRootConfigFileArity(node, fieldObject, fieldTags, flagName)
 
 	w.checkAndCollectFlag(node, fieldObject, tag, flagName, branchNames, branchShorts)
-	w.recordFlagEnvOwners(node, tag, flagName, true)
+	w.recordFlagEnvOwners(node, fieldObject, tag, flagName, true)
 }
 
 // checkFeaturesField validates a root feature-declaration field
@@ -268,7 +276,7 @@ func (w *walker) checkFeaturesField(node *commandNode, fieldObject types.Object,
 	}
 
 	if !envConflict {
-		w.recordFeatureEnvBindings(node, fieldObject, tag, structType, flagName)
+		w.recordFeatureEnvBindings(node, fieldObject, tag, structType, flagName, noCLI)
 	}
 }
 
@@ -490,7 +498,7 @@ func (w *walker) checkFlagField(node *commandNode, fieldObject types.Object, tag
 	}
 
 	w.checkAndCollectFlag(node, fieldObject, tag, flagName, branchNames, branchShorts)
-	w.recordFlagEnvOwners(node, tag, flagName, false)
+	w.recordFlagEnvOwners(node, fieldObject, tag, flagName, false)
 }
 
 // recordFlagGroups records a flag's declared group memberships for the
