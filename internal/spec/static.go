@@ -363,11 +363,13 @@ func BootstrapReadsWhileParsingError() error {
 	return fmt.Errorf("%w: tag \"bootstrap\" is not supported on conga.FileContent: bootstrap fields are parsed twice and FileContent reads its file while parsing; use conga.File and read it in Bootstrap", ErrInvalidStructTag)
 }
 
-// BootstrapTagged reports whether the bootstrap tag is declared with an
-// accepted presence-or-true value. The runtime schema builder and the static
-// analyzer share it as the single source of truth.
+// BootstrapTagged reports whether the bootstrap tag is on: bare presence or
+// "true". It reads a value ValidateFieldTags has already checked for the
+// field's role, so a misspelled value has been reported before it reads as
+// off. conga-lint's bootstrap check uses it; schema build parses the tag with
+// ParseStrictBoolTag in parseBootstrapTag.
 func BootstrapTagged(tag reflect.StructTag) bool {
-	return parsePresenceOrTrueTag(tag, "bootstrap")
+	return strictBoolTag(tag, "bootstrap")
 }
 
 // FeaturesRequiresEnableError returns the schema error for a conga.Features
@@ -471,13 +473,13 @@ func validateRoleTagRules(tag reflect.StructTag, role string, opts ValidationOpt
 		}
 	}
 
+	if err := validateStrictBoolTags(tag, role); err != nil {
+		return err
+	}
+
 	switch role {
 	case "flag", "positional argument", "features":
 		if err := validateEnumHintTag(tag, role); err != nil {
-			return err
-		}
-	case "subcommand":
-		if _, _, err := ParseStrictBoolTag(tag, "implicit"); err != nil {
 			return err
 		}
 	case "blank field":

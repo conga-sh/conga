@@ -291,7 +291,7 @@ func (b *schemaBuilder) processSubcommand(structField reflect.StructField, comma
 	subcommand.Summary = summary
 	subcommand.Deprecated = structField.Tag.Get("deprecated")
 	subcommand.Section = structField.Tag.Get("section")
-	subcommand.Hidden = parsePresenceOrTrueTag(structField.Tag, "hidden")
+	subcommand.Hidden = strictBoolTag(structField.Tag, "hidden")
 	subcommand.Aliases = aliases
 	subcommand.Implicit = implicit
 
@@ -369,7 +369,7 @@ func (b *schemaBuilder) newBuiltinSubcommand(structField reflect.StructField, ki
 	}
 
 	aliases := SplitTagList(structField.Tag, "aliases")
-	hidden := parsePresenceOrTrueTag(structField.Tag, "hidden")
+	hidden := strictBoolTag(structField.Tag, "hidden")
 
 	for _, alias := range aliases {
 		if err := b.checkDuplicateSubcommand(alias, structField.Name, true); err != nil {
@@ -508,7 +508,7 @@ func (b *schemaBuilder) buildConfigFileFlagSpec(structField reflect.StructField,
 		HelpVars:     referenced,
 		Placeholder:  placeholder,
 		Section:      structField.Tag.Get("section"),
-		Hidden:       parsePresenceOrTrueTag(structField.Tag, "hidden"),
+		Hidden:       strictBoolTag(structField.Tag, "hidden"),
 		Deprecated:   structField.Tag.Get("deprecated"),
 		Feature:      feature,
 		FieldTags:    fieldTags,

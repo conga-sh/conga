@@ -500,7 +500,7 @@ func extractFlagKindInfo(structField reflect.StructField, classification contain
 	isMap := isMapCollection(innerType)
 	isSlice := isSliceCollection(innerType)
 	isBool := innerType.Kind() == reflect.Bool
-	isNegatable := isBool && parsePresenceOrTrueTag(structField.Tag, "negatable")
+	isNegatable := isBool && strictBoolTag(structField.Tag, "negatable")
 
 	sep, sepFound := structField.Tag.Lookup("sep")
 	if !sepFound {
@@ -596,7 +596,7 @@ func parseFlagSpec(structField reflect.StructField, flagHandle any, classificati
 		EnumHintHidden: hasTag(structField.Tag, "enumhint"),
 		Placeholder:    placeholder,
 		Section:        structField.Tag.Get("section"),
-		Hidden:         parsePresenceOrTrueTag(structField.Tag, "hidden"),
+		Hidden:         strictBoolTag(structField.Tag, "hidden"),
 		Safe:           safe,
 		Deprecated:     structField.Tag.Get("deprecated"),
 		Feature:        feature,
@@ -664,8 +664,9 @@ func bootstrapReadsWhileParsing(targetType reflect.Type, readsWhileParsing func(
 // parseBootstrapTag validates the bootstrap tag's Bootstrapper requirement and
 // feature exclusion without checking the field's value shape.
 func parseBootstrapTag(tag reflect.StructTag, feature string, opts *Options) (bool, error) {
-	if !parsePresenceOrTrueTag(tag, "bootstrap") {
-		return false, nil
+	bootstrap, _, err := ParseStrictBoolTag(tag, "bootstrap")
+	if err != nil || !bootstrap {
+		return false, err
 	}
 
 	if opts == nil || !opts.HasBootstrapper {
@@ -1096,11 +1097,44 @@ func hasTag(tag reflect.StructTag, key string) bool {
 	return ok
 }
 
-func parsePresenceOrTrueTag(tag reflect.StructTag, key string) bool {
-	value, ok := tag.Lookup(key)
-	if !ok {
+// isStrictBoolTagKey reports whether key is one of the CONGA tags whose value
+// is a strict boolean (see ParseStrictBoolTag).
+func isStrictBoolTagKey(key string) bool {
+	switch key {
+	case "hidden", "negatable", "bootstrap", "implicit", "safe":
+		return true
+	default:
 		return false
 	}
+}
 
-	return value == "" || value == "true"
+// validateStrictBoolTags rejects a value other than "", "true", or "false" on
+// the strict boolean tags that are CONGA tags for role. A strict boolean tag
+// on a role that doesn't take it is left to the candidate check, which names
+// the misplacement; a key the developer allowed with app.AllowTags on such a
+// role is not a CONGA tag there and isn't checked.
+func validateStrictBoolTags(tag reflect.StructTag, role string) error {
+	candidates, _ := TagCandidatesForRole(role)
+
+	for _, key := range candidates {
+		if !isStrictBoolTagKey(key) {
+			continue
+		}
+
+		if _, _, err := ParseStrictBoolTag(tag, key); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// strictBoolTag reads a strict boolean tag that ValidateFieldTags has already
+// validated for the field's role: bare presence and "true" are true, absent
+// and "false" are false. Callers that can't rely on that order use
+// ParseStrictBoolTag, which reports any other value.
+func strictBoolTag(tag reflect.StructTag, key string) bool {
+	value, ok := tag.Lookup(key)
+
+	return ok && (value == "" || value == "true")
 }
