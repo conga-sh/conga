@@ -497,8 +497,8 @@ func extractFlagKindInfo(structField reflect.StructField, classification contain
 		innerType = reflect.TypeFor[int]()
 	}
 
-	isMap := innerType.Kind() == reflect.Map
-	isSlice := innerType.Kind() == reflect.Slice
+	isMap := isMapCollection(innerType)
+	isSlice := isSliceCollection(innerType)
 	isBool := innerType.Kind() == reflect.Bool
 	isNegatable := isBool && parsePresenceOrTrueTag(structField.Tag, "negatable")
 
@@ -645,6 +645,10 @@ func bootstrapReadsWhileParsing(targetType reflect.Type, readsWhileParsing func(
 
 	if readsWhileParsing(targetType) {
 		return true
+	}
+
+	if !IsCollection(targetType) {
+		return false
 	}
 
 	switch targetType.Kind() {
@@ -815,7 +819,7 @@ func validateRangeSpec(rangeSpec *Range, targetType reflect.Type, fieldTags Fiel
 	}
 
 	elemType := targetType
-	if elemType.Kind() == reflect.Slice {
+	if isSliceCollection(elemType) {
 		elemType = elemType.Elem()
 	}
 
@@ -1015,8 +1019,8 @@ func parseArgSpec(structField reflect.StructField, argHandle any, classification
 	name := DefaultArgName(structField.Name, structField.Tag)
 
 	innerType := extractGenericType(structField.Type)
-	isSlice := innerType.Kind() == reflect.Slice
-	isMap := innerType.Kind() == reflect.Map
+	isSlice := isSliceCollection(innerType)
+	isMap := isMapCollection(innerType)
 
 	sep, sepFound := structField.Tag.Lookup("sep")
 	if !sepFound {

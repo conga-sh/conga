@@ -904,7 +904,6 @@ func defaultBuilderCallOrder() []string {
 		"AllowTags",
 		"Predictor",
 		"RegisterType",
-		"RegisterMap",
 		"Use",
 		"UsageOnError",
 		"Args",

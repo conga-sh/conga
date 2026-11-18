@@ -193,7 +193,7 @@ func DefaultTypeHelp(targetType reflect.Type, tags FieldTags) string {
 		return ""
 	}
 
-	for targetType.Kind() == reflect.Pointer || targetType.Kind() == reflect.Slice || targetType.Kind() == reflect.Map {
+	for targetType.Kind() == reflect.Pointer || IsCollection(targetType) {
 		targetType = targetType.Elem()
 	}
 
@@ -253,8 +253,7 @@ func fieldTagSpecsForField(containerType reflect.Type) []TagSpec {
 		return nil
 	}
 
-	switch {
-	case containerType.Kind() == reflect.Slice, containerType.Kind() == reflect.Map:
+	if IsCollection(containerType) {
 		containerType = containerType.Elem()
 	}
 

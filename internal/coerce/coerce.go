@@ -6,7 +6,6 @@ import (
 	"encoding"
 	"errors"
 	"fmt"
-	"io"
 	"net/url"
 	"reflect"
 	"strconv"
@@ -46,24 +45,9 @@ type TypeParser[U any] = func(raw string) (U, error)
 type Registry map[reflect.Type]TypeParser[any]
 
 // DecodeContext carries the ambient input for coercing one raw value into
-// its target type: the owning field's declared custom tags and the
-// engine-configured standard streams. The zero value selects no tags and
-// process defaults (os.Stdin/os.Stdout), so values decoded outside an App
-// run behave identically to direct UnmarshalText calls. It is a plain value
-// struct: unlike context.Context it carries no cancellation or deadlines.
-type DecodeContext struct {
-	// Tags holds the owning field's declared custom tags (see
-	// conga.TagSpecProvider); nil for fields that declare no registered tags.
-	Tags spec.FieldTags
-
-	// Stdin is the engine-configured standard input (App.Stdin); nil selects
-	// os.Stdin for types implementing "-" conventions.
-	Stdin io.Reader
-
-	// Stdout is the engine-configured standard output (App.Stdout); nil
-	// selects os.Stdout.
-	Stdout io.Writer
-}
+// its target type. It is defined in internal/spec so schema build can
+// recognise context-aware unmarshalers (see spec.ParsesItself).
+type DecodeContext = spec.DecodeContext
 
 // MapEntry is a key-value pair parsed from raw CLI tokens.
 type MapEntry struct {
@@ -100,6 +84,61 @@ func ScalarWith(raw string, targetType reflect.Type, reg Registry, decodeContext
 	}
 
 	return scalar(raw, targetType, decodeContext)
+}
+
+// Supports reports whether ScalarWith can decode a value of targetType with
+// the registry reg: a registered parser for the type, its pointer, or (for a
+// pointer type) its element; a text unmarshaler on the type's pointer (or, for
+// a pointer type, on the type itself); or a kind with built-in parsing. It
+// follows ScalarWith's dispatch so schema build can reject a type before any
+// value reaches it.
+func Supports(targetType reflect.Type, reg Registry) bool {
+	if targetType == nil {
+		return false
+	}
+
+	if _, ok := reg[targetType]; ok {
+		return true
+	}
+
+	if _, ok := reg[reflect.PointerTo(targetType)]; ok {
+		return true
+	}
+
+	if targetType.Kind() == reflect.Pointer {
+		if _, ok := reg[targetType.Elem()]; ok {
+			return true
+		}
+
+		if spec.ParsesItself(targetType.Elem()) {
+			return true
+		}
+	}
+
+	if spec.ParsesItself(targetType) {
+		return true
+	}
+
+	switch targetType.Kind() {
+	case reflect.String, reflect.Bool,
+		reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64,
+		reflect.Float32, reflect.Float64:
+		return true
+	case reflect.Pointer:
+		return targetType == reflect.TypeFor[*url.URL]()
+	case reflect.Struct:
+		return targetType == reflect.TypeFor[url.URL]()
+	default:
+		return false
+	}
+}
+
+// IsPlainStringMap reports whether mapType's keys and values are plain
+// strings that decode by conversion alone: string kinds with no registered
+// parser and no text unmarshaler. Such a map binds without per-entry decoding.
+func IsPlainStringMap(mapType reflect.Type, reg Registry) bool {
+	return isPlainString(mapType.Key(), reg) && isPlainString(mapType.Elem(), reg)
 }
 
 // Scalar converts a raw string value into the target type represented by targetType.
@@ -459,6 +498,25 @@ func coerceTextUnmarshaler(raw string, targetType reflect.Type, decodeContext De
 	}
 
 	return nil, false, nil
+}
+
+// isPlainString reports whether targetType is a string kind that ScalarWith
+// decodes by conversion: no registered parser for it or its pointer, and no
+// text unmarshaler.
+func isPlainString(targetType reflect.Type, reg Registry) bool {
+	if targetType.Kind() != reflect.String {
+		return false
+	}
+
+	if _, ok := reg[targetType]; ok {
+		return false
+	}
+
+	if _, ok := reg[reflect.PointerTo(targetType)]; ok {
+		return false
+	}
+
+	return !spec.ParsesItself(targetType)
 }
 
 // unmarshalTextInto unmarshals raw into the pointer value, preferring the

@@ -62,12 +62,13 @@ func (w *walker) congaFieldTagSpecs(targetType types.Type) []spec.TagSpec {
 
 	targetType = types.Unalias(targetType)
 
-	if slice, ok := targetType.Underlying().(*types.Slice); ok {
-		targetType = types.Unalias(slice.Elem())
-	}
-
-	if mapping, ok := targetType.Underlying().(*types.Map); ok {
-		targetType = types.Unalias(mapping.Elem())
+	if staticIsCollection(targetType) {
+		switch underlying := targetType.Underlying().(type) {
+		case *types.Slice:
+			targetType = types.Unalias(underlying.Elem())
+		case *types.Map:
+			targetType = types.Unalias(underlying.Elem())
+		}
 	}
 
 	named, ok := targetType.(*types.Named)
@@ -751,10 +752,7 @@ func (w *walker) validateRangeBounds(rangeSpec *spec.Range, targetType types.Typ
 		return nil
 	}
 
-	elementType := types.Unalias(targetType)
-	if slice, ok := elementType.Underlying().(*types.Slice); ok {
-		elementType = types.Unalias(slice.Elem())
-	}
+	elementType := staticRangeElement(targetType)
 
 	if named, ok := elementType.(*types.Named); ok {
 		switch {
@@ -852,6 +850,10 @@ func staticBootstrapReadsWhileParsing(targetType types.Type) bool {
 
 	if isFileContent(targetType) {
 		return true
+	}
+
+	if !staticIsCollection(targetType) {
+		return false
 	}
 
 	switch underlying := types.Unalias(targetType).Underlying().(type) {
@@ -999,6 +1001,68 @@ func hasOrderedProjection(named *types.Named) bool {
 	default:
 		return false
 	}
+}
+
+// staticIsCollection mirrors spec.IsCollection over go/types: a slice or map
+// whose pointer implements neither encoding.TextUnmarshaler nor
+// conga.ContextAwareTextUnmarshaler. A self-parsing type such as net.IP is one
+// value, so the analyzer must not apply slice or map rules to it.
+func staticIsCollection(targetType types.Type) bool {
+	targetType = types.Unalias(targetType)
+
+	switch targetType.Underlying().(type) {
+	case *types.Slice, *types.Map:
+	default:
+		return false
+	}
+
+	return !staticParsesItself(targetType)
+}
+
+// staticRangeElement returns the type a range bound applies to: the element
+// of a slice collection, otherwise the type itself.
+func staticRangeElement(targetType types.Type) types.Type {
+	targetType = types.Unalias(targetType)
+	if slice, ok := targetType.Underlying().(*types.Slice); ok && staticIsCollection(targetType) {
+		return types.Unalias(slice.Elem())
+	}
+
+	return targetType
+}
+
+// staticParsesItself mirrors spec.ParsesItself over go/types. The
+// context-aware method is matched by signature,
+// UnmarshalTextWithContext([]byte, DecodeContext) error, with DecodeContext
+// named in the spec package that conga.DecodeContext aliases.
+func staticParsesItself(targetType types.Type) bool {
+	pointerType := types.NewPointer(targetType)
+	if types.Implements(pointerType, textUnmarshalerType()) {
+		return true
+	}
+
+	selection := types.NewMethodSet(pointerType).Lookup(nil, "UnmarshalTextWithContext")
+	if selection == nil {
+		return false
+	}
+
+	signature, ok := selection.Type().(*types.Signature)
+	if !ok || signature.Params().Len() != 2 || signature.Results().Len() != 1 {
+		return false
+	}
+
+	text, ok := signature.Params().At(0).Type().(*types.Slice)
+	if !ok || !types.Identical(text.Elem(), types.Typ[types.Byte]) {
+		return false
+	}
+
+	if !types.Identical(signature.Results().At(0).Type(), types.Universe.Lookup("error").Type()) {
+		return false
+	}
+
+	decodeContext, ok := types.Unalias(signature.Params().At(1).Type()).(*types.Named)
+
+	return ok && decodeContext.Obj().Name() == "DecodeContext" && decodeContext.Obj().Pkg() != nil &&
+		decodeContext.Obj().Pkg().Path() == congaPackagePath+"/internal/spec"
 }
 
 // textUnmarshalerType builds the encoding.TextUnmarshaler interface statically:

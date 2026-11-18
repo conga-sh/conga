@@ -227,11 +227,11 @@ Network allowed to connect
 10.0.0.0/8      192.168.0.0/16
 ```
 
-## Register a map type with `RegisterMap`
+## Use a custom type in a map flag
 
-`map[string]string` binds natively. To support other map types, register each with `RegisterMap`. The key's underlying type must be `string`, and the value type must implement `encoding.TextUnmarshaler` or be one CONGA parses natively. Here the value type is `PortRange`:
+A map flag decodes each value the way it decodes a single flag value: through a registered `TypeParser`, the type's unmarshaler, or built-in parsing. The key's underlying type must be `string`. Here the value type is `PortRange`:
 
-```go title="main.go" ins={3,9-12,20}
+```go title="main.go" ins={3,9-12}
 type Relay struct {
 	// ...
 	Expose conga.OptionalFlag[map[string]PortRange] `help:"Named port ranges to expose (NAME=START-END)"`
@@ -246,13 +246,6 @@ func (r *Relay) Run(ctx context.Context, session *conga.Session) error {
 	}
 
 	return nil
-}
-
-func main() {
-	app := conga.New[Relay]().
-		// ...
-		RegisterMap[map[string]PortRange]()
-	// ...
 }
 ```
 
@@ -283,7 +276,9 @@ $ relay --ports 8000-8100 --route checkout-api --expose web=80
 relay: error: value for key "web": invalid port range "80", expected START-END for flag --expose
 ```
 
-A registered `TypeParser` decodes scalar and slice fields. Map values decode through the value type's unmarshaler or built-in parsing.
+With `parseCIDR` registered, a `map[string]net.IPNet` flag decodes its values through it too.
+
+A slice or map type that implements `UnmarshalText`, such as `net.IP`, is one value: its unmarshaler decodes the whole flag value.
 
 ## Know what users see
 
@@ -292,10 +287,8 @@ A registered `TypeParser` decodes scalar and slice fields. Map values decode thr
 | A value the parser or the type's unmarshaler rejects, from the command line | When the value is bound | Usage error naming the flag, exit 2 |
 | The same rejection from the environment or a config file | When the value is bound | `ErrConfig`, exit 1, naming the flag and source |
 | A misspelled custom tag, a tag value its `Validate` rejects, or a custom tag on a field of another type | Startup, on every run | `schema error: invalid struct tag`, exit 1 |
-| A field of a type with no parser, unmarshaler, or built-in support | Only when a user sets the flag | `unsupported type net.IPNet for flag --allow`, exit 2 |
-| A map flag of an unregistered map type | Only when a user sets the flag | `map type map[string]main.PortRange requires registration via app.RegisterMap`, exit 2 |
-
-The last two pass startup and every run that leaves the flag unset. Run the flag once in a test to catch a missing registration.
+| A field of a type with no parser, unmarshaler, or built-in support | Startup, on every run | `struct Relay field Allow: schema error: unsupported type net.IPNet; register a parser with app.RegisterType`, exit 1 |
+| A `TypeParser` for a slice or map type | `RegisterType`, on every run | Panic: `conga: RegisterType does not accept map type map[string]main.PortRange; maps bind entry by entry, so register the key or value type instead` |
 
 ## Where to go next
 

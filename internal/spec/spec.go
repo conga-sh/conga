@@ -573,6 +573,12 @@ type Options struct {
 	// leaves the default parser alone, and a nil return from the hook for
 	// unhandled types also falls through to the default parser.
 	ValidateTextRangeBound func(targetType reflect.Type, tags FieldTags, raw string) error
+	// ValidateValueType rejects a declared flag or positional argument whose
+	// value type the binder cannot decode, naming the registration that fixes
+	// it. It is supplied by the caller (the root package), which owns the
+	// parser registry; a nil hook skips the check. The returned error must
+	// wrap ErrSchema; schema build adds the struct and field context.
+	ValidateValueType func(targetType reflect.Type) error
 	// ProcessFeatures processes a conga.Features container field during schema build.
 	ProcessFeatures func(builder any, structField reflect.StructField, fieldAddr any, classification container.Classification) error
 	// ValidateFeatureReferences validates feature expressions across commands and flags.

@@ -1240,7 +1240,7 @@ func stringForm(value any) (string, bool) {
 	}
 
 	reflected := reflect.ValueOf(value)
-	if !reflected.IsValid() || reflected.Kind() != reflect.Struct {
+	if !reflected.IsValid() || reflected.Kind() == reflect.Pointer || reflected.Kind() == reflect.Interface {
 		return "", false
 	}
 

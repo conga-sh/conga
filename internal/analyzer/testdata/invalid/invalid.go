@@ -4,6 +4,7 @@ package invalid
 
 import (
 	"context"
+	"net"
 
 	"github.com/conga-sh/conga"
 )
@@ -613,6 +614,35 @@ func (r *RawArgsWithSliceArgApp) Run(ctx context.Context, session *conga.Session
 }
 
 var _ = conga.New[RawArgsWithSliceArgApp]()
+
+// RawArgsAfterTextSliceApp places a required positional of a slice-kind type
+// that parses itself (net.IP) before a raw collector. net.IP is one value, so
+// the prefix is deterministic and nothing is reported.
+type RawArgsAfterTextSliceApp struct {
+	Address conga.RequiredArg[net.IP]
+	Raw     conga.RawArgs
+}
+
+// Run executes the self-parsing prefix fixture.
+func (r *RawArgsAfterTextSliceApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[RawArgsAfterTextSliceApp]()
+
+// RawArgsAfterTextSliceListApp places a list of a self-parsing slice-kind type
+// before a raw collector; the list is still a collection.
+type RawArgsAfterTextSliceListApp struct {
+	Addresses conga.RequiredArg[[]net.IP]
+	Raw       conga.RawArgs // want `positional argument <addresses> must be a required scalar`
+}
+
+// Run executes the self-parsing list prefix fixture.
+func (r *RawArgsAfterTextSliceListApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[RawArgsAfterTextSliceListApp]()
 
 // DuplicateRawArgsApp declares two raw collectors on one command; the second
 // one is rejected by the one-collector-per-kind guard.

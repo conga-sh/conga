@@ -312,13 +312,7 @@ headers: []
 form: map[lang:rust name:ada]
 ```
 
-:::caution[Other map types]
-Only `map[string]string` binds without registration. Any other map type, such as `map[string]int`, needs `app.RegisterMap` (see [Register a map type with `RegisterMap`](/how-to/add-custom-flag-types/#register-a-map-type-with-registermap)). Without it the program starts, and fails only when a user sets the flag, exit 2:
-
-```text no-copy
-fetch: error: map type map[string]int requires registration via app.RegisterMap
-```
-:::
+Map values decode like single flag values, so a `map[string]int` or a `map[string]time.Duration` flag works the same way. For a map of your own type, see [Use a custom type in a map flag](/how-to/add-custom-flag-types/#use-a-custom-type-in-a-map-flag).
 
 ## Know what users see
 
@@ -332,7 +326,7 @@ fetch: error: map type map[string]int requires registration via app.RegisterMap
 | The user gives a counter a value | Run | `flag does not take a value: --verbose=2`, then usage, exit 2 |
 | An environment variable gives a counter a negative or signed value | Run | `invalid unsigned integer value "-1" for flag --verbose (from environment variable FETCH_VERBOSE)`, exit 1 |
 | The user gives a map entry without `=` | Run | `invalid key-value pair "name", expected KEY=VALUE for flag --form`, exit 2 |
-| The user sets a map flag whose type isn't registered | Run | `map type map[string]int requires registration via app.RegisterMap`, then usage, exit 2 |
+| A map flag's value type has no parser | Startup | `schema error: unsupported map value type net.IPNet; register a parser with app.RegisterType`, exit 1 |
 | Two flags share a short name or alias | Startup | `schema error: duplicate flag: short flag -o (already declared by field Output)`, exit 1 |
 | `negatable` is on a flag that isn't `bool` | Startup | `schema error: invalid struct tag: tag "negatable" is only valid on boolean flags, got time.Duration`, exit 1 |
 | A `Counter` has a `default` tag | Startup | `schema error: invalid struct tag: tag "default" is not supported on counter flags; …`, exit 1 |

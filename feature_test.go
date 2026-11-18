@@ -1286,16 +1286,17 @@ func TestFeature_FieldEnv_CliBeatsEnv(t *testing.T) {
 	assert.False(t, cli.ActiveGentle)
 }
 
-// TestFeature_FieldEnv_CliBeatsEnvWithRegisteredStringMap pins that a custom
-// map parser registered for map[string]string does not divert the engine-owned
-// feature map from its native merge, where CLI keys stay ahead of env values.
-func TestFeature_FieldEnv_CliBeatsEnvWithRegisteredStringMap(t *testing.T) {
+// TestFeature_FieldEnv_CliBeatsEnvWithRegisteredStringParser pins that a
+// parser registered for string, which sends ordinary string maps through the
+// typed merge, does not divert the engine-owned feature map from its native
+// merge, where CLI keys stay ahead of env values.
+func TestFeature_FieldEnv_CliBeatsEnvWithRegisteredStringParser(t *testing.T) {
 	var cli featureFieldEnvCLI
 
 	app := conga.New(&cli).
 		Name("task").
 		EnableFeatures().
-		RegisterMap[map[string]string]().
+		RegisterType(func(raw string) (string, error) { return raw, nil }).
 		Args([]string{"--feature-gates", "gentle-force=false"})
 
 	t.Setenv("CONGA_TEST_TASK_X_GENTLE_FORCE", "1")

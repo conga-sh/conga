@@ -403,10 +403,10 @@ func ExamplePredictable() {
 	// gamma
 }
 
-// Register a map type so flags and arguments accept key=value pairs.
-func ExampleApp_RegisterMap() {
+// A map flag accepts key=value pairs; its values decode like any other flag
+// value, with no registration.
+func ExampleOptionalFlag_map() {
 	app := conga.New[ReplicasCLI]().
-		RegisterMap[map[string]int]().
 		Args([]string{"--replicas", "api=2,web=3"})
 
 	if err := app.Run(); err != nil {

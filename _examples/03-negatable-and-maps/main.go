@@ -13,7 +13,7 @@ type CLI struct {
 	Color    conga.OptionalFlag[bool] `default:"true"           help:"Enable or disable colorized output" negatable:"true" short:"C"`
 	Progress conga.OptionalFlag[bool] `help:"Show progress bar" negatable:"true"`
 
-	// Key-value pairs flags: built-in map[string]string and registered custom map[string]int
+	// Key-value pair flags: map[string]string and map[string]int
 	EnvVars  conga.OptionalFlag[map[string]string] `help:"Environment variables"             short:"e"`
 	Replicas conga.OptionalFlag[map[string]int]    `help:"Service replica counts"            items:"1..4" short:"r"`
 	Shards   conga.OptionalFlag[map[string]int]    `help:"Shard counts, semicolon-separated" sep:";"      short:"z"`
@@ -35,8 +35,6 @@ func main() {
 		Name("negatable-and-maps").
 		Description("Negatable booleans, maps, and slice delimiter controls").
 		Version("1.0.0")
-
-	app.RegisterMap[map[string]int]()
 
 	if err := app.Run(); err != nil {
 		app.Exit(err)

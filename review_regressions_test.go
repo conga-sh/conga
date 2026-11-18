@@ -173,19 +173,14 @@ func (c *TypedMapsCLI) Run(_ context.Context, _ *conga.Session) error {
 	return nil
 }
 
-// TestTypedMaps_ArbitraryTypes validates that arbitrary map[string]V types are supported
-// across flags and positional arguments once registered via app.RegisterMap.
+// TestTypedMaps_ArbitraryTypes validates that map[string]V types bind across
+// flags and positional arguments without registration.
 func TestTypedMaps_ArbitraryTypes(t *testing.T) {
 	t.Parallel()
 
 	cli := new(TypedMapsCLI)
 	app := conga.New(cli).
 		Args([]string{"-i", "web=3,worker=5", "-b", "auth=true,billing=false", "-d", "api=5s,db=30s", "lr=0.01,decay=0.001"})
-
-	app.RegisterMap[map[string]int]()
-	app.RegisterMap[map[string]bool]()
-	app.RegisterMap[map[string]time.Duration]()
-	app.RegisterMap[map[string]float64]()
 
 	err := app.Run()
 
@@ -198,17 +193,17 @@ func TestTypedMaps_ArbitraryTypes(t *testing.T) {
 
 type namedStringMap map[string]string
 
-type unregisteredTypedMapCLI struct {
+type typedMapCLI struct {
 	IntMap conga.OptionalFlag[map[string]int] `short:"i"`
 }
 
-func (c *unregisteredTypedMapCLI) Run(_ context.Context, _ *conga.Session) error { return nil }
+func (c *typedMapCLI) Run(_ context.Context, _ *conga.Session) error { return nil }
 
-type unregisteredNamedStringMapCLI struct {
+type namedStringMapCLI struct {
 	Names conga.OptionalFlag[namedStringMap] `short:"n"`
 }
 
-func (c *unregisteredNamedStringMapCLI) Run(_ context.Context, _ *conga.Session) error { return nil }
+func (c *namedStringMapCLI) Run(_ context.Context, _ *conga.Session) error { return nil }
 
 type nonStringKeyMapCLI struct {
 	Counts conga.OptionalFlag[map[int]string] `short:"c"`
@@ -216,28 +211,29 @@ type nonStringKeyMapCLI struct {
 
 func (c *nonStringKeyMapCLI) Run(_ context.Context, _ *conga.Session) error { return nil }
 
-// TestMapRegistrationRequirements pins the registration boundary: map[string]string and
-// named map[string]string types work by default, typed values require RegisterMap, and
-// non-string keys panic at schema init.
-func TestMapRegistrationRequirements(t *testing.T) {
+// TestMapKeyAndValueTypes pins which maps bind: typed values and named
+// map[string]string types bind without registration, and non-string keys are
+// rejected at schema build.
+func TestMapKeyAndValueTypes(t *testing.T) {
 	t.Parallel()
 
-	t.Run("unregistered typed map fails loudly", func(t *testing.T) {
+	t.Run("typed map binds without registration", func(t *testing.T) {
 		t.Parallel()
 
-		app := conga.New[unregisteredTypedMapCLI]().
+		cli := new(typedMapCLI)
+		app := conga.New(cli).
 			Args([]string{"-i", "web=3,worker=5"})
 
 		err := app.Run()
 
-		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrCoerce)
+		assert.NoError(t, err)
+		assert.Equal(t, map[string]int{"web": 3, "worker": 5}, cli.IntMap.Get())
 	})
 
-	t.Run("unregistered named map[string]string works", func(t *testing.T) {
+	t.Run("named map[string]string binds", func(t *testing.T) {
 		t.Parallel()
 
-		cli := new(unregisteredNamedStringMapCLI)
+		cli := new(namedStringMapCLI)
 		app := conga.New(cli).
 			Args([]string{"-n", "web=3,worker=5"})
 
@@ -458,8 +454,6 @@ func TestRegression_SelfValidatingMapEntryValues(t *testing.T) {
 		app := conga.New(cli).
 			Args([]string{"--ports", "http=80,https=443"})
 
-		app.RegisterMap[map[string]ValidatedPortNumber]()
-
 		err := app.Run()
 
 		assert.NoError(t, err)
@@ -472,8 +466,6 @@ func TestRegression_SelfValidatingMapEntryValues(t *testing.T) {
 
 		app := conga.New[SelfValidatingMapEntryCLI]().
 			Args([]string{"--ports", "http=80,bad=99999"})
-
-		app.RegisterMap[map[string]ValidatedPortNumber]()
 
 		err := app.Run()
 

@@ -3,7 +3,6 @@ package conga
 import (
 	"errors"
 	"path/filepath"
-	"reflect"
 	"strconv"
 	"testing"
 
@@ -152,36 +151,6 @@ func TestFormatCoercionLocation(t *testing.T) {
 	assert.Equal(t, "", FormatCoercionLocation(eEmpty))
 }
 
-func TestMapPairError(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		name     string
-		kind     mapPairErrorKind
-		expected string
-	}{
-		{name: "invalid pair", kind: mapPairErrorInvalid, expected: `invalid key-value pair "BROKEN", expected KEY=VALUE`},
-		{name: "empty key", kind: mapPairErrorEmptyKey, expected: `empty key in key-value pair "=value"`},
-		{name: "unknown kind", kind: mapPairErrorKind(255), expected: `invalid key-value pair "=value"`},
-	}
-
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
-			t.Parallel()
-
-			item := "=value"
-			if testCase.kind == mapPairErrorInvalid {
-				item = "BROKEN"
-			}
-
-			err := &mapPairError{item: item, kind: testCase.kind}
-
-			assert.Equal(t, testCase.expected, err.Error())
-			assert.IsError(t, err, ErrCoerce)
-		})
-	}
-}
-
 func TestMapEntryError(t *testing.T) {
 	t.Parallel()
 
@@ -251,55 +220,4 @@ func TestCounterError(t *testing.T) {
 		assert.True(t, errors.As(err, &numErr))
 		assert.Equal(t, "abc", numErr.Num)
 	})
-}
-
-func TestMapRegistrationError(t *testing.T) {
-	t.Parallel()
-
-	err := &mapRegistrationError{targetType: reflect.TypeFor[map[string]int64]()}
-
-	assert.Equal(t, "map type map[string]int64 requires registration via app.RegisterMap", err.Error())
-	assert.IsError(t, err, ErrCoerce)
-}
-
-func TestMapParserError(t *testing.T) {
-	t.Parallel()
-
-	testCases := []struct {
-		name     string
-		kind     mapParserErrorKind
-		expected string
-	}{
-		{
-			name:     "not a map",
-			kind:     mapParserErrorNotMap,
-			expected: "registered parser for map[string]int returned int, expected a map",
-		},
-		{
-			name:     "not convertible",
-			kind:     mapParserErrorNotConvertible,
-			expected: "registered parser for map[string]int returned map[string]string",
-		},
-		{
-			name:     "unknown kind",
-			kind:     mapParserErrorKind(255),
-			expected: "registered parser for map[string]int returned map[string]string",
-		},
-	}
-
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
-			t.Parallel()
-
-			returnedType := reflect.TypeFor[map[string]string]()
-			if testCase.kind == mapParserErrorNotMap {
-				returnedType = reflect.TypeFor[int]()
-			}
-
-			err := &mapParserError{targetType: reflect.TypeFor[map[string]int](), returnedType: returnedType, kind: testCase.kind}
-
-			assert.Equal(t, testCase.expected, err.Error())
-			assert.IsError(t, err, ErrCoerce)
-		})
-	}
 }

@@ -19,15 +19,15 @@ func TestDefaultBuilderCallOrderCoversAllAppMethods(t *testing.T) {
 
 	appType := reflect.TypeFor[*conga.App[int]]()
 
-	methodNames := make([]string, 0, appType.NumMethod()+2)
+	methodNames := make([]string, 0, appType.NumMethod()+1)
 
 	for method := range appType.Methods() {
 		methodNames = append(methodNames, method.Name)
 	}
 
-	// Reflection omits method-level generic methods (RegisterType[U],
-	// RegisterMap[M, K, V]), so the expected set adds them explicitly.
-	methodNames = append(methodNames, "RegisterMap", "RegisterType")
+	// Reflection omits method-level generic methods (RegisterType[U]), so the
+	// expected set adds it explicitly.
+	methodNames = append(methodNames, "RegisterType")
 
 	slices.Sort(methodNames)
 

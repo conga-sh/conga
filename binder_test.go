@@ -6,8 +6,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"strconv"
-	"strings"
 	"testing"
 	"time"
 
@@ -597,7 +595,6 @@ func TestBinder_MapFlagMergesTiers(t *testing.T) {
 		cli := new(CLI)
 		app := conga.New(cli).
 			RegisterDecoder(".json", json.Decode).
-			RegisterMap[map[string]int]().
 			ConfigOptions(conga.ConfigExplicit(configPath)).
 			Args([]string{"--sizes", "shared=9,large=3"})
 
@@ -614,7 +611,6 @@ func TestBinder_MapFlagMergesTiers(t *testing.T) {
 
 		app := conga.New[CLI]().
 			RegisterDecoder(".json", json.Decode).
-			RegisterMap[map[string]int]().
 			ConfigOptions(conga.ConfigExplicit(configPath)).
 			Args([]string{"--sizes", "large=3"})
 
@@ -771,7 +767,6 @@ func TestBinder_MapFlagMergesCascadingFiles(t *testing.T) {
 		cli := new(CascadeMapCLI)
 		app := conga.New(cli).
 			RegisterDecoder(".json", json.Decode).
-			RegisterMap[map[string]int]().
 			ConfigOptions(conga.ConfigPaths(highPath, lowPath), conga.ConfigCascading()).
 			Args([]string{})
 
@@ -813,7 +808,6 @@ func TestBinder_MapFlagMergesCascadingFiles(t *testing.T) {
 		cli := new(registeredMapCLI)
 		app := conga.New(cli).
 			RegisterDecoder(".json", json.Decode).
-			RegisterMap[map[string]string]().
 			ConfigOptions(conga.ConfigExplicit(configPath)).
 			Args([]string{})
 
@@ -856,6 +850,24 @@ func TestBinder_MapFlagMergesCascadingFiles(t *testing.T) {
 
 		assert.NoError(t, err)
 		assert.False(t, cli.Tags.IsSet())
+	})
+
+	t.Run("empty typed map section alone leaves map unset", func(t *testing.T) {
+		t.Parallel()
+
+		configPath := writeConfigFile(t, `{"sizes": {}}`)
+
+		cli := new(CascadeMapCLI)
+		app := conga.New(cli).
+			RegisterDecoder(".json", json.Decode).
+			ConfigOptions(conga.ConfigExplicit(configPath)).
+			Args([]string{})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.False(t, cli.Sizes.IsSet())
+		assert.Equal(t, conga.SourceNone, cli.Sizes.Source())
 	})
 
 	t.Run("malformed flat string errors with config attribution", func(t *testing.T) {
@@ -940,66 +952,6 @@ func TestBinder_MapFlagCascadingTierOverrides(t *testing.T) {
 			"env":      "1",
 			"cli":      "1",
 		}, cli.Tags.Get())
-	})
-}
-
-func TestBinder_RegisterTypeMapFlag(t *testing.T) {
-	t.Parallel()
-
-	t.Run("RegisterType map parser binds repeated pairs", func(t *testing.T) {
-		t.Parallel()
-
-		type CLI struct {
-			noopRunner
-
-			Sizes conga.OptionalFlag[map[string]int] `help:"Registered map"`
-		}
-
-		cli := new(CLI)
-		app := conga.New(cli).
-			RegisterType(func(raw string) (map[string]int, error) {
-				key, value, _ := strings.Cut(raw, "=")
-
-				parsed, err := strconv.Atoi(value)
-				if err != nil {
-					return nil, err
-				}
-
-				return map[string]int{key: parsed}, nil
-			}).
-			Args([]string{"--sizes", "a=1", "--sizes", "b=2"})
-
-		err := app.Run()
-
-		assert.NoError(t, err)
-		assert.Equal(t, map[string]int{"a": 1, "b": 2}, cli.Sizes.Get())
-	})
-
-	t.Run("RegisterType map parser is consulted for string maps", func(t *testing.T) {
-		t.Parallel()
-
-		type CLI struct {
-			noopRunner
-
-			Headers conga.OptionalFlag[map[string]string] `help:"Headers"`
-		}
-
-		app := conga.New[CLI]().
-			RegisterType(func(raw string) (map[string]string, error) {
-				if strings.HasPrefix(raw, "forbidden") {
-					return nil, errors.New("forbidden key rejected")
-				}
-
-				key, value, _ := strings.Cut(raw, "=")
-
-				return map[string]string{key: value}, nil
-			}).
-			Args([]string{"--headers", "forbidden=1"})
-
-		err := app.Run()
-
-		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrCoerce)
 	})
 }
 
@@ -1522,7 +1474,6 @@ func TestBinder_EmptyBoolValue(t *testing.T) {
 
 		cli := new(CLI)
 		app := conga.New(cli).
-			RegisterMap[map[string]bool]().
 			Args([]string{"--marks", "a="})
 
 		err := app.Run()

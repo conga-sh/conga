@@ -93,7 +93,7 @@ $ go run ./_examples/03-negatable-and-maps -H 'Accept=text/html,application/json
 ```
 :::
 
-Uses: `negatable`, `map[K]V`, `items`, `sep`, `App.RegisterMap`
+Uses: `negatable`, `map[K]V`, `items`, `sep`
 
 ### 05 domain-types
 
@@ -956,7 +956,6 @@ Uses: `ConfigFile`, `Features[T]`, `RequiredFlag[T]`, `DashArgs`, `executable`, 
 | `App.HelpShortFlag` | [10](#10-builtins-help-version) |
 | `App.Predictor` | [19](#19-shell-completion) |
 | `App.RegisterDecoder` | [14](#14-multiformat-and-dotenv), [99](#99-kitchen-sink) |
-| `App.RegisterMap` | [03](#03-negatable-and-maps) |
 | `App.RegisterType` | [21](#21-pluggable-types) |
 | `App.RunContext` | [26](#26-library-embedding) |
 | `App.Stderr` | [26](#26-library-embedding) |

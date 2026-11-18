@@ -357,15 +357,15 @@ func TestCoercionErrorCounterRender(t *testing.T) {
 	assert.Equal(t, `invalid unsigned integer value "abc" for flag --count (from config key "count")`, err.Error())
 }
 
-func TestCoercionErrorUnsupportedTypeRender(t *testing.T) {
+func TestSchemaErrorUnsupportedType(t *testing.T) {
 	t.Parallel()
 
-	app := conga.New[UnsupportedTypeCLI]().Args([]string{"--ch", "x"})
+	app := conga.New[UnsupportedTypeCLI]().Args(nil)
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrCoerce)
-	assert.Equal(t, "unsupported type chan int for flag --ch", err.Error())
+	assert.IsError(t, err, conga.ErrSchema)
+	assert.Equal(t, "struct UnsupportedTypeCLI field Channel: schema error: unsupported type chan int; register a parser with app.RegisterType", err.Error())
 }
 
 func TestCoercionErrorByteSizeRender(t *testing.T) {
@@ -477,7 +477,6 @@ func runClassification[T any](t *testing.T, app *conga.App[T]) classificationRun
 func classificationApp() *conga.App[classificationCLI] {
 	return conga.New[classificationCLI]().
 		RegisterDecoder(".json", json.Decode).
-		RegisterMap[map[string]int]().
 		Args([]string{})
 }
 
@@ -984,7 +983,6 @@ func TestConfigKeyPath_AncestorFlagOnSubcommand(t *testing.T) {
 
 		return conga.New[configKeyAncestorCLI]().
 			RegisterDecoder(".json", json.Decode).
-			RegisterMap[map[string]int]().
 			ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, config))).
 			Args([]string{"deploy"})
 	}
