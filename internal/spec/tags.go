@@ -1130,11 +1130,11 @@ func validateStrictBoolTags(tag reflect.StructTag, role string) error {
 }
 
 // strictBoolTag reads a strict boolean tag that ValidateFieldTags has already
-// validated for the field's role, so the error is never set: absent and
-// "false" are false, bare presence and "true" are true. Callers that can't
-// rely on that order use ParseStrictBoolTag.
+// validated for the field's role: bare presence and "true" are true, absent
+// and "false" are false. Callers that can't rely on that order use
+// ParseStrictBoolTag, which reports any other value.
 func strictBoolTag(tag reflect.StructTag, key string) bool {
-	value, _, _ := ParseStrictBoolTag(tag, key)
+	value, ok := tag.Lookup(key)
 
-	return value
+	return ok && (value == "" || value == "true")
 }
