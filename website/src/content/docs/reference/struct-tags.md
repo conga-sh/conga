@@ -22,7 +22,7 @@ CONGA derives the CLI schema from struct fields and their tags. Schema build val
 | `help` | ✅ | ✅ | ✅ | Help text displayed on the help screen. Supports [help variables](#help-variables). |
 | `hidden` | ✅ | ✅ | ✅ | Suppress from help and completion (`hidden` or `hidden:"true"`). |
 | `items` | ✅ | ✅ | – | Element count bound for slices or maps (see [Bounds syntax](#bounds-syntax)). |
-| `len` | ✅ | ✅ | – | Length bound for strings, slices, or maps. |
+| `len` | ✅ | ✅ | – | Length bound in runes for strings, applied to each element of a slice. |
 | `name` | ✅ | ✅ | ✅ | Flag name override (default: kebab-case of field name, e.g. `MaxRetries` → `--max-retries`). |
 | `negatable` | ✅ (bool) | – | – | Boolean flags only: enables `--[no-]flag` syntax (`negatable` or `negatable:"true"`). |
 | `oneof` | ✅ | – | ✅ | Exactly-one group name: exactly one member must be supplied by CLI, environment, or configuration. `default` is rejected on members. |
@@ -59,7 +59,7 @@ Positional arguments bind to command-line input. They belong to leaf commands. A
 | `enumhint` | ✅ | ✅ | Set to `-` to suppress the automatic `[enum: …]` help hint while keeping values validated and completed. |
 | `help` | ✅ | ✅ | Help text. Supports [help variables](#help-variables). |
 | `items` | ✅ | ✅ | Element count bound for slices or maps. |
-| `len` | ✅ | ✅ | Length bound for strings, slices, or maps. |
+| `len` | ✅ | ✅ | Length bound in runes for strings, applied to each element of a slice. |
 | `name` | ✅ | ✅ | Argument placeholder in usage syntax (default: `<kebab-field-name>`). |
 | `predictor` | ✅ | ✅ | Completion predictor identifier (see [Predictors](#predictors)). |
 | `range` | ✅ | ✅ | Numeric or duration bounds. |
@@ -427,7 +427,7 @@ Applicability rules:
 | Tag | Applicable types | Validation |
 |-----|------------------|------------|
 | `range` | Numeric types (`int*`, `uint*` except `uintptr`, `float*`), `time.Duration`, and domain types implementing `encoding.TextUnmarshaler` with an ordered projection (`Bytes() int64` or numeric underlying kind). | Bounds parse using the type's own unmarshaler (e.g. `ByteSize` accepts `range:"1MiB..1GiB"`), under the field's declared tags: a decimal bound on a `units:"binary"` field fails at schema build. Pointer element types and unprojected types are rejected. |
-| `len` | Strings, slices, and maps. | Asserts character count on strings or entry count on slices and maps. |
+| `len` | Strings and slices (each element). | Counts runes. On a slice, each element must satisfy the bound. |
 | `items` | Slices and maps. | Asserts element count. |
 
 ## Predictors
