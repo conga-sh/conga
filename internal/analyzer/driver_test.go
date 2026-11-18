@@ -30,7 +30,7 @@ func TestDriverDiagnostics(t *testing.T) {
 		wantExit    int
 		wantMessage string
 	}{
-		{name: "invalid fixture reports diagnostics", arguments: []string{"./invalid"}, wantExit: 3, wantMessage: "does not implement conga.Runner"},
+		{name: "invalid fixture reports diagnostics", arguments: []string{"./invalid"}, wantExit: 3, wantMessage: "runner not implemented: implement conga.Runner"},
 		{name: "invalid fixture reports throwaway roots", arguments: []string{"./invalid"}, wantExit: 3, wantMessage: "conga.New root instance is not referenced outside the app"},
 		{name: "invalid fixture reports unknown tags by default", arguments: []string{"./invalid"}, wantExit: 3, wantMessage: "unknown struct tag"},
 		{name: "valid fixture is clean", arguments: []string{"./valid"}, wantExit: 0},

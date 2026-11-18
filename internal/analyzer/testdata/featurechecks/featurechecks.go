@@ -111,7 +111,7 @@ func (a *duplicateFeaturesApp) Run(ctx context.Context, session *conga.Session) 
 var _ = conga.New[duplicateFeaturesApp]()
 
 type featureShadowSub struct {
-	Gates conga.OptionalFlag[bool] `help:"Shadowed gate"` // want `struct featureShadowSub field Gates: schema error: duplicate flag: --gates \(already declared by struct featureShadowApp field Features on ancestor command "feature-shadow-app"\)`
+	Gates conga.OptionalFlag[bool] `help:"Shadowed gate"` // want `struct featureShadowSub field Gates: schema error: duplicate flag: --gates \(already declared by struct featureShadowApp field Features on an ancestor command\)`
 }
 
 func (s *featureShadowSub) Run(ctx context.Context, session *conga.Session) error {
@@ -133,7 +133,7 @@ var _ = conga.New[featureShadowApp]()
 type featureFlagCollisionApp struct {
 	Features conga.Features[goodFeatureSet] `flag:"gates"`
 
-	Gates conga.OptionalFlag[bool] `name:"gates" help:"Collides with the synthesized flag"` // want `already declared by another field on this command`
+	Gates conga.OptionalFlag[bool] `name:"gates" help:"Collides with the synthesized flag"` // want `struct featureFlagCollisionApp field Gates: schema error: duplicate flag: --gates \(already declared by field Features\)`
 }
 
 func (a *featureFlagCollisionApp) Run(ctx context.Context, session *conga.Session) error {
@@ -149,7 +149,7 @@ var _ = conga.New[featureFlagCollisionApp]()
 type featureFlagCollisionOrderApp struct {
 	Gates    conga.OptionalFlag[bool]       `name:"gates" help:"Collides with the synthesized flag"`
 	Solo     conga.OptionalFlag[bool]       `name:"solo" xor:"choice" help:"Solo"`
-	Features conga.Features[goodFeatureSet] `flag:"gates"` // want `already declared by another field on this command`
+	Features conga.Features[goodFeatureSet] `flag:"gates"` // want `struct featureFlagCollisionOrderApp field Features: schema error: duplicate flag: --gates \(already declared by field Gates\)`
 }
 
 func (a *featureFlagCollisionOrderApp) Run(ctx context.Context, session *conga.Session) error {

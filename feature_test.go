@@ -593,7 +593,7 @@ func TestFeature_CLIExposedFlagShadowedByDescendant(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.IsError(t, err, conga.ErrSchema)
-	assert.Equal(t, `struct featureShadowedDescendantSub field Gates: schema error: duplicate flag: --gates (already declared by struct featureShadowedDescendantCLI field Features on ancestor command "task")`, err.Error())
+	assert.Equal(t, `struct featureShadowedDescendantSub field Gates: schema error: duplicate flag: --gates (already declared by struct featureShadowedDescendantCLI field Features on an ancestor command)`, err.Error())
 }
 
 type featureNoCLIDescendantCLI struct {

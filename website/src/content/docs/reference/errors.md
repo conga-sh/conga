@@ -125,7 +125,7 @@ Programmer errors during schema construction abort at startup before execution b
 - Unrecognized struct tags without calling `app.AllowTags(...)` (including `conga:"..."` directives).
 - Declaring `ConfigFile` or `Features` on any command struct other than the root.
 - A flag or positional argument whose type, slice element type, or map key or value type has no parser: `struct CLI field Zone: schema error: unsupported type *time.Location; register a parser with app.Use(timezone.RegisterLocation)`. The hint names `app.RegisterType`, or the domain-package binding for `*time.Location`, `*user.User`, `*user.Group`, and `*net.Interface`.
-- A leaf command that does not implement `conga.Runner`: `schema error: runner not implemented: command "leaf" does not implement conga.Runner (implement Run(context.Context, *conga.Session) error)`.
+- A leaf command that does not implement `conga.Runner`: `struct LeafCmd: schema error: runner not implemented: implement conga.Runner: Run(context.Context, *conga.Session) error`.
 
 ## Panics
 

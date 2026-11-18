@@ -921,7 +921,7 @@ func TestErrorClassificationBySource(t *testing.T) {
 
 				return runClassification(t, conga.New[classificationNoRunnerCLI]().Args([]string{}))
 			},
-			message:    `schema error: runner not implemented: command "app" does not implement conga.Runner (implement Run(context.Context, *conga.Session) error)`,
+			message:    `struct classificationNoRunnerCLI: schema error: runner not implemented: implement conga.Runner: Run(context.Context, *conga.Session) error`,
 			category:   conga.ErrSchema,
 			usage:      false,
 			exitCode:   1,
@@ -1393,7 +1393,7 @@ func TestErrNoRunner(t *testing.T) {
 		assert.Error(t, err)
 		assert.False(t, conga.IsUsageError(err))
 		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, `schema error: runner not implemented: command "app" does not implement conga.Runner (implement Run(context.Context, *conga.Session) error)`, err.Error())
+		assert.Equal(t, `struct CLI: schema error: runner not implemented: implement conga.Runner: Run(context.Context, *conga.Session) error`, err.Error())
 	})
 
 	t.Run("subcommand without Run", func(t *testing.T) {
@@ -1414,7 +1414,7 @@ func TestErrNoRunner(t *testing.T) {
 		assert.Error(t, err)
 		assert.False(t, conga.IsUsageError(err))
 		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, `schema error: runner not implemented: command "sub" does not implement conga.Runner (implement Run(context.Context, *conga.Session) error)`, err.Error())
+		assert.Equal(t, `struct ChildCmd: schema error: runner not implemented: implement conga.Runner: Run(context.Context, *conga.Session) error`, err.Error())
 	})
 
 	t.Run("nested subcommand without Run", func(t *testing.T) {
@@ -1439,7 +1439,7 @@ func TestErrNoRunner(t *testing.T) {
 		assert.Error(t, err)
 		assert.False(t, conga.IsUsageError(err))
 		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, `schema error: runner not implemented: command "leaf" does not implement conga.Runner (implement Run(context.Context, *conga.Session) error)`, err.Error())
+		assert.Equal(t, `struct LeafCmd: schema error: runner not implemented: implement conga.Runner: Run(context.Context, *conga.Session) error`, err.Error())
 	})
 }
 
@@ -2180,7 +2180,7 @@ func TestSchemaFlagCollisions_Issue05(t *testing.T) {
 		_, err := spec.Build(&cli, "app", conga.SpecOptionsWithContainers(spec.Options{}))
 		assert.Error(t, err)
 		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, `struct ChildCmd field Verbose: schema error: duplicate flag: --verbose (already declared by struct Depth2ShadowCLI field Verbose on ancestor command "app")`, err.Error())
+		assert.Equal(t, `struct ChildCmd field Verbose: schema error: duplicate flag: --verbose (already declared by struct Depth2ShadowCLI field Verbose on an ancestor command)`, err.Error())
 	})
 
 	t.Run("subcommand flag shadowing ancestor is rejected", func(t *testing.T) {
@@ -2929,4 +2929,24 @@ type failingCLI struct{}
 
 func (f *failingCLI) Run(ctx context.Context, session *conga.Session) error {
 	return fs.ErrPermission
+}
+
+type anonymousLeafCLI struct {
+	Inline conga.Command[struct {
+		Verbose conga.OptionalFlag[bool] `help:"Verbose output"`
+	}] `name:"inline"`
+}
+
+// TestErrNoRunner_AnonymousStruct pins the fallback for an anonymous command
+// struct, which has no name to report: the message names the command.
+func TestErrNoRunner_AnonymousStruct(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[anonymousLeafCLI]().
+		Args([]string{"inline"})
+
+	err := app.Run()
+
+	assert.IsError(t, err, conga.ErrSchema)
+	assert.Equal(t, `command "inline": schema error: runner not implemented: implement conga.Runner: Run(context.Context, *conga.Session) error`, err.Error())
 }

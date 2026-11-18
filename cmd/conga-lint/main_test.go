@@ -60,7 +60,7 @@ func TestCLI_ViolationExitsThree(t *testing.T) {
 
 	assert.Equal(t, 3, exitCode)
 	assert.NotEqual(t, "", stderr)
-	assert.Contains(t, stderr, "does not implement conga.Runner")
+	assert.Contains(t, stderr, "runner not implemented: implement conga.Runner")
 }
 
 func TestCLI_UnknownFlagExitsTwo(t *testing.T) {

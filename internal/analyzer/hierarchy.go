@@ -1,7 +1,6 @@
 package analyzer
 
 import (
-	"cmp"
 	"errors"
 	"fmt"
 	"go/token"
@@ -12,7 +11,6 @@ import (
 
 	"golang.org/x/tools/go/analysis"
 
-	"github.com/conga-sh/conga/internal/casing"
 	"github.com/conga-sh/conga/internal/spec"
 )
 
@@ -68,19 +66,11 @@ type groupPair struct {
 // attributed to the declaring field object.
 type groupCensus = spec.GroupCensus[types.Object]
 
-// versionJSONField is one VersionCommand field, with the command name the
-// runtime installs for it.
-type versionJSONField struct {
-	fieldObject types.Object
-	name        string
-}
-
 // commandNode is one command struct in the static hierarchy rooted at a
 // conga.New anchor.
 type commandNode struct {
 	named      *types.Named
 	structType *types.Struct
-	name       string
 	inPackage  bool
 	reportPos  token.Pos
 	// envPrefix is the effective environment variable prefix inherited by the
@@ -111,12 +101,15 @@ type commandNode struct {
 	// declaration in the duplicate-container diagnostic.
 	rawArgsFieldName  string
 	dashArgsFieldName string
-	implicitFieldName string
+	// configFileFieldName carries the struct field of the first ConfigFile
+	// container; the runtime rejects a second one, naming the first.
+	configFileFieldName string
+	implicitFieldName   string
 	// versionJSONFields records the VersionCommand fields declared on this
 	// command. Their synthesized --json flag is checked against the completed
 	// ancestor shadow map after the field loop, so declaration order does not
 	// decide whether the collision is found.
-	versionJSONFields []versionJSONField
+	versionJSONFields []types.Object
 	// rejected records that a field-level schema error was reported for this
 	// command. The runtime aborts the command build on the first error, so its
 	// group census never runs; single-member group diagnostics would be
@@ -200,7 +193,6 @@ func (w *walker) walkRoot(root *anchor) {
 	node := &commandNode{
 		named:           root.rootType,
 		structType:      structType,
-		name:            casing.Kebab(root.rootType.Obj().Name()),
 		inPackage:       w.isCurrentPackage(root.rootType.Obj()),
 		reportPos:       root.position,
 		envPrefix:       normalizedEnvPrefix(w.options.envPrefix),
@@ -209,7 +201,7 @@ func (w *walker) walkRoot(root *anchor) {
 		hasBootstrapper: w.implements(types.NewPointer(root.rootType), w.conga.bootstrapper),
 	}
 
-	w.walkCommand(node, map[string]spec.FlagOwner{}, map[rune]spec.FlagOwner{})
+	w.walkCommand(node, map[string]shadowOwner{}, map[rune]shadowOwner{})
 	w.checkCascadingArity()
 	w.checkFeatureEnvCollisions()
 }
@@ -217,7 +209,7 @@ func (w *walker) walkRoot(root *anchor) {
 // walkCommand mirrors the runtime schema walk: struct tag validation per
 // field, ancestor flag shadowing against the accumulated maps, and the leaf
 // command Runner contract.
-func (w *walker) walkCommand(node *commandNode, ancestorNames map[string]spec.FlagOwner, ancestorShorts map[rune]spec.FlagOwner) {
+func (w *walker) walkCommand(node *commandNode, ancestorNames map[string]shadowOwner, ancestorShorts map[rune]shadowOwner) {
 	typeObject := node.named.Obj()
 	if w.visitPath[typeObject] {
 		return
@@ -241,10 +233,14 @@ func (w *walker) walkCommand(node *commandNode, ancestorNames map[string]spec.Fl
 		fieldObject := node.structType.Field(index)
 		tag := reflect.StructTag(node.structType.Tag(index))
 
-		childNode := w.checkField(node, fieldObject, tag, branchNames, branchShorts, branchGroups, census)
-		if childNode != nil {
+		// A Command[T] field makes the command a branch whether or not the
+		// analyzer can follow T: an anonymous or generic command struct isn't
+		// walked, but its parent must not be treated as a leaf.
+		if w.isSubcommandField(fieldObject) {
 			subcommandCount++
+		}
 
+		if childNode := w.checkField(node, fieldObject, tag, branchNames, branchShorts, branchGroups, census); childNode != nil {
 			childNodes = append(childNodes, childNode)
 		}
 	}
@@ -260,10 +256,16 @@ func (w *walker) walkCommand(node *commandNode, ancestorNames map[string]spec.Fl
 	}
 }
 
+// isSubcommandField reports whether fieldObject is an exported user
+// Command[T] field.
+func (w *walker) isSubcommandField(fieldObject types.Object) bool {
+	return fieldObject.Exported() && congaWrapperRoles[w.congaWrapperName(fieldObject.Type())] == "subcommand"
+}
+
 // checkField validates the tags of a single field and returns the child
 // command node for user subcommand fields. Flag fields are folded into the
 // shadow maps.
-func (w *walker) checkField(node *commandNode, fieldObject types.Object, tag reflect.StructTag, branchNames map[string]spec.FlagOwner, branchShorts map[rune]spec.FlagOwner, branchGroups map[groupPair]string, census *groupCensus) *commandNode {
+func (w *walker) checkField(node *commandNode, fieldObject types.Object, tag reflect.StructTag, branchNames map[string]shadowOwner, branchShorts map[rune]shadowOwner, branchGroups map[groupPair]string, census *groupCensus) *commandNode {
 	if !fieldObject.Exported() {
 		if fieldObject.Name() == "_" {
 			w.validateNodeFieldTags(node, fieldObject, tag, "blank field", nil)
@@ -288,10 +290,7 @@ func (w *walker) checkField(node *commandNode, fieldObject types.Object, tag ref
 		return nil
 	case "version command":
 		if w.checkBuiltinCommandField(node, fieldObject, tag, role) {
-			node.versionJSONFields = append(node.versionJSONFields, versionJSONField{
-				fieldObject: fieldObject,
-				name:        cmp.Or(tag.Get("name"), "version"),
-			})
+			node.versionJSONFields = append(node.versionJSONFields, fieldObject)
 		}
 
 		return nil
@@ -363,7 +362,7 @@ func (w *walker) checkDuplicateTrailingCollector(node *commandNode, fieldObject 
 			return
 		}
 
-		w.reportFieldError(node, fieldObject, spec.TrailingCollectorAlreadyDeclaredError("DashArgs", node.dashArgsFieldName))
+		w.reportFieldError(node, fieldObject, spec.ContainerAlreadyDeclaredError("DashArgs", node.dashArgsFieldName))
 
 		return
 	}
@@ -374,7 +373,7 @@ func (w *walker) checkDuplicateTrailingCollector(node *commandNode, fieldObject 
 		return
 	}
 
-	w.reportFieldError(node, fieldObject, spec.TrailingCollectorAlreadyDeclaredError("RawArgs", node.rawArgsFieldName))
+	w.reportFieldError(node, fieldObject, spec.ContainerAlreadyDeclaredError("RawArgs", node.rawArgsFieldName))
 }
 
 // checkBranchGrammar mirrors the runtime branch/leaf invariant: a command may
@@ -535,7 +534,6 @@ func (w *walker) buildChildNode(node *commandNode, fieldObject types.Object, tag
 	childNode := &commandNode{
 		named:           named,
 		structType:      structType,
-		name:            cmp.Or(tag.Get("name"), casing.Kebab(fieldObject.Name())),
 		inPackage:       w.isCurrentPackage(named.Obj()),
 		reportPos:       w.fieldReportPos(node, fieldObject),
 		hasBootstrapper: node.hasBootstrapper || w.implements(types.NewPointer(named), w.conga.bootstrapper),
