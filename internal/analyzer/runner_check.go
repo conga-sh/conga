@@ -1,8 +1,9 @@
 package analyzer
 
 import (
-	"fmt"
 	"go/types"
+
+	"github.com/conga-sh/conga/internal/spec"
 )
 
 // checkRunner enforces the leaf command contract: a command struct without
@@ -23,5 +24,5 @@ func (w *walker) checkRunner(node *commandNode, subcommandCount int) {
 		position = node.named.Obj().Pos()
 	}
 
-	w.report(position, fmt.Sprintf("leaf command %q (struct %s) does not implement conga.Runner (implement Run(context.Context, *conga.Session) error)", node.name, node.named.Obj().Name()))
+	w.report(position, spec.NoRunnerError(node.named.Obj().Name(), "").Error())
 }

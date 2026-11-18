@@ -9,4 +9,4 @@ import (
 	"congalint.test/fixtures/libpkg"
 )
 
-var _ = conga.New[libpkg.Root]() // want `leaf command "bad" \(struct BadLeaf\) does not implement conga\.Runner`
+var _ = conga.New[libpkg.Root]() // want `struct BadLeaf: schema error: runner not implemented`

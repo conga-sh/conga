@@ -239,7 +239,7 @@ func TestConfigFile_SchemaValidation_DuplicateRejected(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.IsError(t, err, conga.ErrSchema)
-	assert.Equal(t, "struct DuplicateConfigCLI field Config2: schema error: duplicate flag: ConfigFile (already declared by config1)", err.Error())
+	assert.Equal(t, "struct DuplicateConfigCLI field Config2: schema error: duplicate ConfigFile field (already declared by field Config1)", err.Error())
 }
 
 func TestConfigFile_SchemaValidation_CascadingRequiresMulti(t *testing.T) {

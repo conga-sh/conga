@@ -45,12 +45,12 @@ type BranchGrammar struct {
 }
 
 // FlagOwner names the declaration of a flag name, alias, or short rune for
-// shadowing diagnostics: the command that declares it and the Go struct and
-// field that hold it.
+// shadowing diagnostics: the Go struct and field that hold it. A struct
+// appears at most once in any command chain (Command[T] holds T by value), so
+// struct and field identify the declaration without the command name.
 type FlagOwner struct {
-	Command string
-	Struct  string
-	Field   string
+	Struct string
+	Field  string
 }
 
 // ValidateTrailingGrammar enforces a deterministic RawArgs boundary: a command
@@ -92,12 +92,12 @@ func ValidateBranchGrammar(grammar BranchGrammar) error {
 	return fmt.Errorf("%w: positional argument %s cannot be combined with subcommand %s; a command is either a branch (subcommands) or a leaf (positional arguments): move %s into a leaf subcommand or pass the value through a flag", ErrSchema, grammar.PositionalField, grammar.SubcommandField, grammar.PositionalField)
 }
 
-// TrailingCollectorAlreadyDeclaredError builds the duplicate-container error
-// for a second trailing-argument collector of one kind on a command struct.
-// The runtime schema builder and the static analyzer share it as the single
-// source of truth; containerName is "RawArgs" or "DashArgs" and firstFieldName
+// ContainerAlreadyDeclaredError builds the duplicate-container error for a
+// second container of a kind a command allows once. The runtime schema builder
+// and the static analyzer share it as the single source of truth;
+// containerName is "RawArgs", "DashArgs", or "ConfigFile" and firstFieldName
 // is the struct field of the first declaration.
-func TrailingCollectorAlreadyDeclaredError(containerName, firstFieldName string) error {
+func ContainerAlreadyDeclaredError(containerName, firstFieldName string) error {
 	return fmt.Errorf("%w %s field (already declared by field %s)", ErrDuplicateDeclaration, containerName, firstFieldName)
 }
 
@@ -114,16 +114,41 @@ func ImplicitCommandAlreadyDeclaredError(firstFieldName string) error {
 // struct and field. The runtime schema builder and the static analyzer share it
 // as the single source of truth.
 func AncestorShadowError(descendant FlagOwner, declaration string, ancestor FlagOwner) error {
-	return fmt.Errorf("struct %s field %s: %w: %s (already declared by struct %s field %s on ancestor command %q)",
-		descendant.Struct, descendant.Field, ErrDuplicateFlag, declaration, ancestor.Struct, ancestor.Field, ancestor.Command)
+	return fmt.Errorf("struct %s field %s: %w: %s (already declared by struct %s field %s on an ancestor command)",
+		descendant.Struct, descendant.Field, ErrDuplicateFlag, declaration, ancestor.Struct, ancestor.Field)
+}
+
+// DuplicateFlagError builds the error for a flag name, alias, or short rune
+// (declaration, such as "--verbose", "alias --v", or "short flag -v") that a
+// second field of the same command declares; firstField names the field that
+// declared it first. The caller adds the struct and field context. The
+// runtime schema builder and the static analyzer share it as the single
+// source of truth.
+func DuplicateFlagError(declaration string, firstField string) error {
+	return fmt.Errorf("%w: %s (already declared by field %s)", ErrDuplicateFlag, declaration, firstField)
+}
+
+// NoRunnerError builds the error for a leaf command whose struct doesn't
+// implement conga.Runner, naming the struct. An anonymous struct has no name
+// (and can't have methods), so commandName names the command instead. The
+// runtime binder and the static analyzer share it as the single source of
+// truth.
+func NoRunnerError(structName string, commandName string) error {
+	const remedy = "implement conga.Runner: Run(context.Context, *conga.Session) error"
+
+	if structName == "" {
+		return fmt.Errorf("command %q: %w: %s", commandName, ErrRunnerNotImplemented, remedy)
+	}
+
+	return fmt.Errorf("struct %s: %w: %s", structName, ErrRunnerNotImplemented, remedy)
 }
 
 // VersionJSONShadowError builds the shadowing error for the built-in version
 // command's --json selector, which the user cannot rename, with a migration
 // hint. descendant names the VersionCommand field.
 func VersionJSONShadowError(descendant FlagOwner, ancestor FlagOwner) error {
-	return fmt.Errorf("struct %s field %s: %w: --%s (already declared by struct %s field %s on ancestor command %q; the built-in version command owns --%s: rename the ancestor flag or remove the VersionCommand field)",
-		descendant.Struct, descendant.Field, ErrDuplicateFlag, VersionJSONFlagName, ancestor.Struct, ancestor.Field, ancestor.Command, VersionJSONFlagName)
+	return fmt.Errorf("struct %s field %s: %w: --%s (already declared by struct %s field %s on an ancestor command; the built-in version command owns --%s: rename the ancestor flag or remove the VersionCommand field)",
+		descendant.Struct, descendant.Field, ErrDuplicateFlag, VersionJSONFlagName, ancestor.Struct, ancestor.Field, VersionJSONFlagName)
 }
 
 // ValidateImplicitFeature rejects a feature tag on an implicit command. An

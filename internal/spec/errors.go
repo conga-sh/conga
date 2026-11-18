@@ -22,6 +22,10 @@ var (
 	// right after it ("duplicate subcommand \"deploy\" ...").
 	ErrDuplicateDeclaration = fmt.Errorf("%w: duplicate", ErrSchema)
 
+	// ErrRunnerNotImplemented indicates a leaf command struct that doesn't
+	// implement conga.Runner.
+	ErrRunnerNotImplemented = fmt.Errorf("%w: runner not implemented", ErrSchema)
+
 	// ErrInvalidArgOrder indicates an invalid positional argument order.
 	ErrInvalidArgOrder = fmt.Errorf("%w: invalid positional argument order", ErrSchema)
 

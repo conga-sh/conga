@@ -173,6 +173,7 @@ func newSchemaBuilder(target any, defaultName string, structValue reflect.Value,
 
 	cmd := &Command{
 		Name:              defaultName,
+		StructName:        structType.Name(),
 		Target:            target,
 		EnvPrefix:         envPrefix,
 		DisableHelp:       opts.DisableHelp,
@@ -433,7 +434,7 @@ func (b *schemaBuilder) processConfigFile(structField reflect.StructField, confi
 	}
 
 	if b.cmd.ConfigFileFlag != nil {
-		return fmt.Errorf("%w: ConfigFile (already declared by %s)", ErrDuplicateFlag, b.cmd.ConfigFileFlag.Name)
+		return ContainerAlreadyDeclaredError("ConfigFile", b.cmd.ConfigFileFlag.FieldName)
 	}
 
 	if err := ValidateConfigFileConfigTag(structField.Tag); err != nil {
@@ -875,7 +876,7 @@ func (b *schemaBuilder) validateTrailingCollectorField(structField reflect.Struc
 	}
 
 	if firstFieldName != "" {
-		return false, nil, b.fieldContextError(structField.Name, TrailingCollectorAlreadyDeclaredError(containerName, firstFieldName))
+		return false, nil, b.fieldContextError(structField.Name, ContainerAlreadyDeclaredError(containerName, firstFieldName))
 	}
 
 	bootstrap, err := parseBootstrapTag(structField.Tag, "", &b.opts)
@@ -1051,14 +1052,14 @@ func newFlagCollisionTracker() *flagCollisionTracker {
 
 func (t *flagCollisionTracker) CheckAndAdd(flagSpec *Flag, fieldName string) error {
 	if prevField, ok := t.seenNames[flagSpec.Name]; ok {
-		return fmt.Errorf("%w: --%s (already declared by field %s)", ErrDuplicateFlag, flagSpec.Name, prevField)
+		return DuplicateFlagError("--"+flagSpec.Name, prevField)
 	}
 
 	t.seenNames[flagSpec.Name] = fieldName
 
 	for _, alias := range flagSpec.Aliases {
 		if prevField, ok := t.seenNames[alias]; ok {
-			return fmt.Errorf("%w: alias --%s (already declared by field %s)", ErrDuplicateFlag, alias, prevField)
+			return DuplicateFlagError("alias --"+alias, prevField)
 		}
 
 		t.seenNames[alias] = fieldName
@@ -1066,7 +1067,7 @@ func (t *flagCollisionTracker) CheckAndAdd(flagSpec *Flag, fieldName string) err
 
 	if flagSpec.Short != 0 {
 		if prevField, ok := t.seenShorts[flagSpec.Short]; ok {
-			return fmt.Errorf("%w: short flag -%c (already declared by field %s)", ErrDuplicateFlag, flagSpec.Short, prevField)
+			return DuplicateFlagError(fmt.Sprintf("short flag -%c", flagSpec.Short), prevField)
 		}
 
 		t.seenShorts[flagSpec.Short] = fieldName
@@ -1227,7 +1228,7 @@ func addCommandFlags(cmd *Command, names map[string]FlagOwner, shorts map[rune]F
 			continue
 		}
 
-		owner := flagOwnerOf(cmd, flagSpec)
+		owner := flagOwnerOf(flagSpec)
 
 		names[flagSpec.Name] = owner
 		for _, alias := range flagSpec.Aliases {
@@ -1246,7 +1247,7 @@ func checkDescendantFlags(cmd *Command, ancestorFlags map[string]FlagOwner, ance
 			continue
 		}
 
-		descendant := flagOwnerOf(cmd, flagSpec)
+		descendant := flagOwnerOf(flagSpec)
 
 		if ancestor, ok := ancestorFlags[flagSpec.Name]; ok {
 			if cmd.IsVersionCmd && flagSpec.EngineOwned && flagSpec.Name == VersionJSONFlagName {
@@ -1282,10 +1283,10 @@ func checkDescendantFlags(cmd *Command, ancestorFlags map[string]FlagOwner, ance
 	return nil
 }
 
-// flagOwnerOf names the declaration of flagSpec on cmd for shadowing
+// flagOwnerOf names the declaration of flagSpec for shadowing
 // diagnostics.
-func flagOwnerOf(cmd *Command, flagSpec *Flag) FlagOwner {
-	return FlagOwner{Command: cmd.Name, Struct: flagSpec.StructName, Field: flagSpec.FieldName}
+func flagOwnerOf(flagSpec *Flag) FlagOwner {
+	return FlagOwner{Struct: flagSpec.StructName, Field: flagSpec.FieldName}
 }
 
 func validateFlagSubcommandCollisions(command *Command) error {

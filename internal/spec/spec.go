@@ -35,7 +35,10 @@ const (
 
 // Command represents the metadata and AST definition of a command node.
 type Command struct {
-	Name        string
+	Name string
+	// StructName names the Go struct that declares the command, for
+	// schema errors that name the declaration (see NoRunnerError).
+	StructName  string
 	Aliases     []string
 	Summary     string
 	Description string

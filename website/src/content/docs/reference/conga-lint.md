@@ -14,7 +14,7 @@ Each check reports the same mistake, with the same message, that the program rep
 | Leaf command Runner enforcement | A command struct without `Command[T]` fields must implement `Run(context.Context, *conga.Session) error`; without it, the command fails when invoked. |
 | Branch/leaf separation | The runtime `ErrSchema` rule that a command declaring positional arguments cannot also declare `Command[T]` subcommands; declared built-in help, version, and completion command fields do not count as branching. |
 | RawArgs boundary | The runtime `ErrSchema` rule that `RawArgs` cannot coexist with any command field (user subcommands or declared built-in help, version, and completion commands) and that every positional argument before it is a required scalar. |
-| Duplicate trailing collectors | The runtime `ErrDuplicateFlag` rejection of a second `DashArgs` or `RawArgs` field on one command struct, naming the first declaration. |
+| Duplicate containers | The runtime rejection of a second `DashArgs`, `RawArgs`, or `ConfigFile` field on one command struct, naming the first declaration. |
 | Struct tag validation | Tag syntax, `required:"true"` rejection, `help` on `Command[T]`, predictor vocabulary, `range`/`len`/`items` bounds, unregistered `predictor:"..."` names, `enumhint:"-"` usage, whitespace-padded `section` values, and unknown or undeclared `{{...}}` help variables. |
 | Trailing-collector predictor | The predictor tag contract on `DashArgs`/`RawArgs`: the explicit tag only (no type inference), the same vocabulary as flags and positional arguments, and an absent tag means the `none` predictor. |
 | Flag tag guards | Empty or whitespace-padded `xor`/`and`/`oneof` group names; `xor`/`oneof`/`deprecated`/`default` on `RequiredFlag`; `default` on `oneof` members; two `oneof` or `xor` members sharing an `and` group; a one-member `xor` or `and` group; and a one-member `oneof` group unless its sole member is a `Counter`. |
@@ -36,7 +36,7 @@ Each check reports the same mistake, with the same message, that the program rep
 
 ## Discovery contract
 
-Hierarchies are discovered exclusively from `conga.New` constructor sites (both `conga.New[T]()` and `conga.New(root)`) and then walked through the root type's `Command[T]` fields. Settings are reconstructed from literal builder arguments:
+Hierarchies are discovered exclusively from `conga.New` constructor sites (both `conga.New[T]()` and `conga.New(root)`) and then walked through the root type's `Command[T]` fields. A `Command[T]` field whose `T` is an anonymous struct or an instantiated generic type makes its command a branch, but the analyzer doesn't walk into `T`. Settings are reconstructed from literal builder arguments:
 
 - `app.AllowTags("...", ...)`
 - `app.Predictor("name", ...)`

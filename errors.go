@@ -94,8 +94,6 @@ var (
 
 	// errByteSizeDisplayTag reports an unrecognized display tag value on a ByteSize field.
 	errByteSizeDisplayTag = errors.New("unknown display value")
-
-	errNoRunner = fmt.Errorf("%w: runner not implemented", ErrSchema)
 )
 
 // UsageError is an interface implemented by errors that carry command-path and

@@ -142,11 +142,11 @@ A subcommand's flags read config keys from a section named after the subcommand,
 
 | Situation | Result |
 |---|---|
-| A flag name, alias, or short rune declared on an ancestor is declared again on a descendant | Schema build fails with `ErrSchema` wrapping `ErrDuplicateFlag`: `struct Child field Verbose: schema error: duplicate flag: --verbose (already declared by struct App field Verbose on ancestor command "tool")`. Sibling commands may share names. |
+| A flag name, alias, or short rune declared on an ancestor is declared again on a descendant | Schema build fails with `ErrSchema` wrapping `ErrDuplicateFlag`: `struct Child field Verbose: schema error: duplicate flag: --verbose (already declared by struct App field Verbose on an ancestor command)`. Sibling commands may share names. |
 | A descendant's short rune matches the rune given to `app.HelpShortFlag` or `app.VersionShortFlag` | Schema build fails: `duplicate flag: built-in --help short flag -h collides with --host; assign a different rune to one of them`. |
 | A branch that doesn't implement `Runner` is invoked with no subcommand | `subcommand required for "<name>"` and the command's help screen, exit 2. |
 | A branch that implements `Runner` is invoked with no subcommand | The branch's own `Run` executes. |
-| A leaf that doesn't implement `Runner` is invoked | `schema error: runner not implemented: command "<name>" does not implement conga.Runner (implement Run(context.Context, *conga.Session) error)`, classified as `ErrSchema`, exit 1. Its siblings still run. `conga-lint` reports every such leaf. |
+| A leaf that doesn't implement `Runner` is invoked | `struct <Name>: schema error: runner not implemented: implement conga.Runner: Run(context.Context, *conga.Session) error`, classified as `ErrSchema`, exit 1. Its siblings still run. `conga-lint` reports every such leaf. |
 | A subcommand off the selected path | Its containers receive no values and its lifecycle hooks don't run. `Command[T].IsSelected()` reports whether a subcommand is on the path. |
 | A subcommand whose `feature` expression is false | See [Feature runtime behavior](#feature-runtime-behavior). |
 

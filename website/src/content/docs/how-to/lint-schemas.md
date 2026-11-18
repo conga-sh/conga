@@ -60,9 +60,9 @@ func main() {
 
 ```sh error={2-4} wrap
 $ go tool conga-lint ./...
-main.go:18:2: struct DeployCmd field Verbose: schema error: duplicate flag: --verbose (already declared by struct CLI field Verbose on ancestor command "cli")
+main.go:18:2: struct DeployCmd field Verbose: schema error: duplicate flag: --verbose (already declared by struct CLI field Verbose on an ancestor command)
 main.go:19:2: struct DeployCmd field Replicas: schema error: invalid struct tag: unknown struct tag "hlep" (did you mean "help"?). Use app.AllowTags("hlep") to permit external tags
-main.go:28:6: leaf command "status" (struct StatusCmd) does not implement conga.Runner (implement Run(context.Context, *conga.Session) error)
+main.go:28:6: struct StatusCmd: schema error: runner not implemented: implement conga.Runner: Run(context.Context, *conga.Session) error
 ```
 
 Running the program shows only the first mistake:
@@ -85,9 +85,9 @@ Go's `./...` pattern skips directories that start with `_`, such as `_examples/`
 ```sh error={2} wrap
 $ go tool conga-lint -builder-order ./...
 main.go:33:3: builder call order violation: Name (rank 1) called after EnableCompletion (rank 9); use -fix to reorder
-main.go:18:2: struct DeployCmd field Verbose: schema error: duplicate flag: --verbose (already declared by struct CLI field Verbose on ancestor command "cli")
+main.go:18:2: struct DeployCmd field Verbose: schema error: duplicate flag: --verbose (already declared by struct CLI field Verbose on an ancestor command)
 main.go:19:2: struct DeployCmd field Replicas: schema error: invalid struct tag: unknown struct tag "hlep" (did you mean "help"?). Use app.AllowTags("hlep") to permit external tags
-main.go:28:6: leaf command "status" (struct StatusCmd) does not implement conga.Runner (implement Run(context.Context, *conga.Session) error)
+main.go:28:6: struct StatusCmd: schema error: runner not implemented: implement conga.Runner: Run(context.Context, *conga.Session) error
 ```
 
 To reorder the calls in place, add `-fix`. It rewrites the files and prints nothing:

@@ -1660,7 +1660,7 @@ func validateRunnableContract(leaf *spec.Command, cmdChain []*spec.Command) erro
 }
 
 func newNoRunnerError(leaf *spec.Command) error {
-	return fmt.Errorf("%w: command %q does not implement conga.Runner (implement Run(context.Context, *conga.Session) error)", errNoRunner, leaf.Name)
+	return spec.NoRunnerError(leaf.StructName, leaf.Name)
 }
 
 func runValidators(ctx context.Context, session *Session, cmdChain []*spec.Command) error {
