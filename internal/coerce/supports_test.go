@@ -100,6 +100,8 @@ func TestIsPlainStringMap(t *testing.T) {
 
 	type namedString string
 
+	type namedStringMap map[string]string
+
 	testCases := []struct {
 		name     string
 		mapType  reflect.Type
@@ -107,7 +109,9 @@ func TestIsPlainStringMap(t *testing.T) {
 		plain    bool
 	}{
 		{name: "string to string", mapType: reflect.TypeFor[map[string]string](), plain: true},
-		{name: "named string kinds", mapType: reflect.TypeFor[map[namedString]namedString](), plain: true},
+		{name: "named map of strings", mapType: reflect.TypeFor[namedStringMap](), plain: true},
+		{name: "named string keys", mapType: reflect.TypeFor[map[namedString]string](), plain: false},
+		{name: "named string values", mapType: reflect.TypeFor[map[string]namedString](), plain: false},
 		{name: "integer values", mapType: reflect.TypeFor[map[string]int](), plain: false},
 		{name: "text unmarshaler values", mapType: reflect.TypeFor[map[string]supportsTextValue](), plain: false},
 		{

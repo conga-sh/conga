@@ -367,6 +367,27 @@ type stringMapsCLI struct {
 	Names  conga.OptionalFlag[namedStringMap]    `help:"Names"`
 }
 
+// mapKey and mapValue are named string types without a parser of their own.
+type (
+	mapKey   string
+	mapValue string
+)
+
+type namedStringKindMapsCLI struct {
+	noopRunner
+
+	ConfigFile conga.ConfigFile                        `help:"Config file"`
+	Keys       conga.OptionalFlag[map[mapKey]string]   `help:"Keys"`
+	Values     conga.OptionalFlag[map[string]mapValue] `help:"Values"`
+	Both       conga.OptionalFlag[map[mapKey]mapValue] `default:"d=1"      help:"Both"`
+}
+
+type namedStringKeyArgCLI struct {
+	noopRunner
+
+	Pairs conga.RequiredArg[map[mapKey]string] `help:"Pairs"`
+}
+
 type signalCLI struct {
 	noopRunner
 
@@ -394,6 +415,51 @@ func TestSchema_SupportedValueTypes(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, map[string]string{"a": "1"}, cli.Labels.Get())
 		assert.Equal(t, namedStringMap{"b": "2"}, cli.Names.Get())
+	})
+
+	t.Run("maps keyed or valued by named string types bind from the command line", func(t *testing.T) {
+		t.Parallel()
+
+		cli := new(namedStringKindMapsCLI)
+		app := conga.New(cli).
+			Args([]string{"--keys", "a=1", "--values", "b=2", "--both", "c=3"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, map[mapKey]string{"a": "1"}, cli.Keys.Get())
+		assert.Equal(t, map[string]mapValue{"b": "2"}, cli.Values.Get())
+		assert.Equal(t, map[mapKey]mapValue{"d": "1", "c": "3"}, cli.Both.Get())
+	})
+
+	t.Run("maps keyed or valued by named string types bind from config", func(t *testing.T) {
+		t.Parallel()
+
+		configPath := writeConfigFile(t, `{"keys": {"a": "1"}, "values": {"b": "2"}, "both": {"c": "3"}}`)
+		cli := new(namedStringKindMapsCLI)
+		app := conga.New(cli).
+			RegisterDecoder(".json", json.Decode).
+			Args([]string{"--config-file", configPath})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, map[mapKey]string{"a": "1"}, cli.Keys.Get())
+		assert.Equal(t, map[string]mapValue{"b": "2"}, cli.Values.Get())
+		assert.Equal(t, map[mapKey]mapValue{"d": "1", "c": "3"}, cli.Both.Get())
+	})
+
+	t.Run("a map positional keyed by a named string type binds", func(t *testing.T) {
+		t.Parallel()
+
+		cli := new(namedStringKeyArgCLI)
+		app := conga.New(cli).
+			Args([]string{"a=1"})
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, map[mapKey]string{"a": "1"}, cli.Pairs.Get())
 	})
 
 	t.Run("integer-kind standard library type needs no registration", func(t *testing.T) {
