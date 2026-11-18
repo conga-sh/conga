@@ -3,6 +3,7 @@ package analyzer
 import (
 	"go/types"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -29,7 +30,7 @@ func (w *walker) checkFeatureEnvSurfaceConflicts(node *commandNode, fieldObject 
 // collision check: explicit env names bind the combined map variable, and
 // each feature field resolves an explicit env tag or a name derived from the
 // container's envprefix.
-func (w *walker) recordFeatureEnvBindings(node *commandNode, fieldObject types.Object, tag reflect.StructTag, structType *types.Struct, flagName string) {
+func (w *walker) recordFeatureEnvBindings(node *commandNode, fieldObject types.Object, tag reflect.StructTag, structType *types.Struct, flagName string, noCLI bool) {
 	w.featureEnvNode = node
 	w.featureEnvFieldObject = fieldObject
 
@@ -38,6 +39,9 @@ func (w *walker) recordFeatureEnvBindings(node *commandNode, fieldObject types.O
 			w.featureEnvBindings = append(w.featureEnvBindings, envBinding{
 				envVar: envVar,
 				owner:  "the feature map flag --" + flagName,
+				configCollision: func(envVar string, configSide string) error {
+					return spec.ConfigEnvFeatureMapCollisionError(envVar, configSide, flagName, noCLI)
+				},
 			})
 		}
 	}
@@ -62,6 +66,9 @@ func (w *walker) recordFeatureEnvBindings(node *commandNode, fieldObject types.O
 			w.featureEnvBindings = append(w.featureEnvBindings, envBinding{
 				envVar: envVar,
 				owner:  "feature " + strconv.Quote(name),
+				configCollision: func(envVar string, configSide string) error {
+					return spec.ConfigEnvFeatureCollisionError(envVar, configSide, name)
+				},
 			})
 		}
 	}
@@ -70,10 +77,11 @@ func (w *walker) recordFeatureEnvBindings(node *commandNode, fieldObject types.O
 // recordFlagEnvOwners resolves a flag field's environment variable names the
 // way the runtime schema builder does — explicit env tag names, else a name
 // derived from the command's env prefix (config-file flags derive
-// <PREFIX>CONFIG) — and records them for the feature env collision check.
-// Derived names are skipped when the effective prefix is unknown, so the
-// check may only miss collisions, never invent them.
-func (w *walker) recordFlagEnvOwners(node *commandNode, tag reflect.StructTag, flagName string, configFile bool) {
+// <PREFIX>CONFIG) — and records them for the env collision checks. Derived
+// names are skipped when the effective prefix is unknown, so the checks may
+// only miss collisions, never invent them. The root ConfigFile flag's
+// variables are also kept as the config env check's reserved set.
+func (w *walker) recordFlagEnvOwners(node *commandNode, fieldObject types.Object, tag reflect.StructTag, flagName string, configFile bool) {
 	effectivePrefix := ""
 	if node.envPrefixKnown {
 		effectivePrefix = node.envPrefix
@@ -85,20 +93,83 @@ func (w *walker) recordFlagEnvOwners(node *commandNode, tag reflect.StructTag, f
 	}
 
 	envVars, excluded := spec.ResolveFlagEnvVars(tag, derivedName, effectivePrefix)
+
+	if configFile && node.isRoot {
+		_, explicit := tag.Lookup("env")
+		w.rootConfigFile = &configFileEnv{
+			flagName: flagName,
+			envVars:  envVars,
+			known:    excluded || node.envPrefixKnown || (explicit && len(envVars) > 0),
+		}
+	}
+
 	if excluded {
 		return
 	}
 
 	for _, envVar := range envVars {
-		w.recordFlagEnvOwner(envVar, flagName)
+		w.flagEnvBindings = append(w.flagEnvBindings, envBinding{
+			envVar:      envVar,
+			owner:       "flag --" + flagName,
+			node:        node,
+			fieldObject: fieldObject,
+			configFile:  configFile,
+			configCollision: func(envVar string, configSide string) error {
+				return spec.ConfigEnvFlagCollisionError(envVar, configSide, flagName)
+			},
+		})
 	}
 }
 
-func (w *walker) recordFlagEnvOwner(envVar string, flagName string) {
-	w.flagEnvBindings = append(w.flagEnvBindings, envBinding{
-		envVar: envVar,
-		owner:  "flag --" + flagName,
-	})
+// checkConfigEnvCollisions mirrors the runtime config env guard: a flag or
+// feature bound to a variable the app reads a config file path from. The
+// reserved set is the root ConfigFile flag's variables when one is declared,
+// else <PREFIX>_CONFIG when the anchored app registers a decoder. Undecided
+// evidence (an unknown prefix, an unattributed decoder call) skips the check.
+// Like the runtime, flags report before features, and only the first
+// collision is reported. The result reports whether a collision was found.
+func (w *walker) checkConfigEnvCollisions() bool {
+	reserved, configSide, known := w.reservedConfigEnvVars()
+	if !known || len(reserved) == 0 {
+		return false
+	}
+
+	for _, binding := range w.flagEnvBindings {
+		if binding.configFile || !slices.Contains(reserved, binding.envVar) {
+			continue
+		}
+
+		w.reportFieldError(binding.node, binding.fieldObject, binding.configCollision(binding.envVar, configSide))
+
+		return true
+	}
+
+	for _, binding := range w.featureEnvBindings {
+		if !slices.Contains(reserved, binding.envVar) {
+			continue
+		}
+
+		w.reportFieldError(w.featureEnvNode, w.featureEnvFieldObject, binding.configCollision(binding.envVar, configSide))
+
+		return true
+	}
+
+	return false
+}
+
+// reservedConfigEnvVars mirrors spec.ConfigEnvVars on the walked root and
+// returns the config side naming them; known is false when the analyzer
+// cannot decide the set.
+func (w *walker) reservedConfigEnvVars() ([]string, string, bool) {
+	if configFile := w.rootConfigFile; configFile != nil {
+		return configFile.envVars, spec.ConfigEnvSide(configFile.flagName), configFile.known
+	}
+
+	if w.decoderState != optInEnabled || w.options.envPrefixAmbiguous {
+		return nil, "", false
+	}
+
+	return spec.ConfigEnvVars(normalizedEnvPrefix(w.options.envPrefix), nil, true), spec.ConfigEnvSide(""), true
 }
 
 // checkFeatureEnvCollisions mirrors the runtime feature env uniqueness

@@ -324,7 +324,7 @@ func run(pass *analysis.Pass) (any, error) {
 
 	options := collectAppOptions(pass)
 
-	walker := newWalker(pass, congaTypes, options, detectCompletionState(pass, anchors), detectFeatureState(pass, anchors), len(anchors) == 1)
+	walker := newWalker(pass, congaTypes, options, detectCompletionState(pass, anchors), detectFeatureState(pass, anchors), detectDecoderState(pass, anchors), len(anchors) == 1)
 	for _, anchor := range anchors {
 		walker.walkRoot(anchor)
 	}

@@ -117,13 +117,14 @@ func (a *derivedFlagCollisionApp) Run(ctx context.Context, session *conga.Sessio
 
 var _ = conga.New[derivedFlagCollisionApp]().EnableFeatures().EnvPrefix("TASK_X")
 
-// A feature variable colliding with the config-file flag's derived variable.
+// A feature variable colliding with the config-file flag's derived variable
+// reports the config env collision, which the runtime checks first.
 type configFileCollisionSet struct {
 	Enabled bool `env:"TASK_X_CONFIG" help:"Enabled"`
 }
 
 type configFileCollisionApp struct {
-	Features   conga.Features[configFileCollisionSet] // want `struct configFileCollisionApp field Features: schema error: environment variable "TASK_X_CONFIG" is bound by both feature "enabled" and flag --config-file`
+	Features   conga.Features[configFileCollisionSet] // want `struct configFileCollisionApp field Features: schema error: environment variable "TASK_X_CONFIG" is bound by both flag --config-file and feature "enabled"; give the feature another env tag or exclude it with env:"-"`
 	ConfigFile conga.ConfigFile
 }
 

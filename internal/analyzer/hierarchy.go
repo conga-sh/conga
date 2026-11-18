@@ -160,9 +160,17 @@ type walker struct {
 	// field for collision diagnostics.
 	featureEnvNode        *commandNode
 	featureEnvFieldObject types.Object
+	// decoderState is the per-anchor RegisterDecoder verdict: without a root
+	// ConfigFile, <PREFIX>_CONFIG is reserved only when the anchored app
+	// definitely registers a config decoder.
+	decoderState optInState
+	// rootConfigFile records the root ConfigFile flag's resolved environment
+	// variables for the config env collision check; nil when the root
+	// declares none. The state is reset per walked root.
+	rootConfigFile *configFileEnv
 }
 
-func newWalker(pass *analysis.Pass, congaTypes *congaTypes, options *appOptions, completionState, featureState optInState, singleAnchor bool) *walker {
+func newWalker(pass *analysis.Pass, congaTypes *congaTypes, options *appOptions, completionState, featureState, decoderState optInState, singleAnchor bool) *walker {
 	return &walker{
 		pass:            pass,
 		conga:           congaTypes,
@@ -172,6 +180,7 @@ func newWalker(pass *analysis.Pass, congaTypes *congaTypes, options *appOptions,
 		singleAnchor:    singleAnchor,
 		completionState: completionState,
 		featureState:    featureState,
+		decoderState:    decoderState,
 	}
 }
 
@@ -189,6 +198,7 @@ func (w *walker) walkRoot(root *anchor) {
 	w.featureEnvNode = nil
 	w.featureEnvFieldObject = nil
 	w.flagEnvBindings = nil
+	w.rootConfigFile = nil
 
 	node := &commandNode{
 		named:           root.rootType,
@@ -203,7 +213,12 @@ func (w *walker) walkRoot(root *anchor) {
 
 	w.walkCommand(node, map[string]shadowOwner{}, map[rune]shadowOwner{})
 	w.checkCascadingArity()
-	w.checkFeatureEnvCollisions()
+
+	// The config-variable check runs first and, like the runtime's
+	// first-error abort, suppresses the feature env check when it reports.
+	if !w.checkConfigEnvCollisions() {
+		w.checkFeatureEnvCollisions()
+	}
 }
 
 // walkCommand mirrors the runtime schema walk: struct tag validation per
@@ -592,10 +607,26 @@ func (w *walker) fieldReportPos(node *commandNode, fieldObject types.Object) tok
 }
 
 // envBinding is one environment variable bound by a feature or a flag, with
-// the owner description the collision diagnostic names.
+// the owner description the feature collision diagnostic names. Flag
+// bindings also locate the declaring field and mark config-file flags, and
+// every binding carries configCollision, which builds the config env
+// collision error naming it.
 type envBinding struct {
-	envVar string
-	owner  string
+	envVar          string
+	owner           string
+	node            *commandNode
+	fieldObject     types.Object
+	configFile      bool
+	configCollision func(envVar string, configSide string) error
+}
+
+// configFileEnv is the root ConfigFile flag's environment surface: its flag
+// name and resolved variables. known is false when the variables derive from
+// an undetermined env prefix.
+type configFileEnv struct {
+	flagName string
+	envVars  []string
+	known    bool
 }
 
 // congaNamedWrapperName returns the classified wrapper name of a named conga

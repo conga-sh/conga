@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"reflect"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -197,13 +198,42 @@ func FeatureFieldEnvWithContainerEnvError(fieldName string) error {
 	return fmt.Errorf("%w: feature field %s declares env while the Features container declares env (the combined map variable); declare one env surface per container", ErrSchema, fieldName)
 }
 
-// ConfigEnvCollisionError builds the schema error for a flag or feature bound
-// to the environment variable the configuration engine reads a config file
-// path from; first names the config side, second the colliding binding, and
-// remedy says how to separate them. The runtime schema builder returns it and
-// the static analyzer can report it verbatim.
-func ConfigEnvCollisionError(envVar string, first string, second string, remedy string) error {
-	return fmt.Errorf("%w: environment variable %q is bound by both %s and %s; %s", ErrSchema, envVar, first, second, remedy)
+// ConfigEnvSide names the config side of a config env collision: the root
+// ConfigFile flag when one is declared (configFileFlagName), and the config
+// file variable a registered decoder reads otherwise.
+func ConfigEnvSide(configFileFlagName string) string {
+	if configFileFlagName == "" {
+		return "the config file variable"
+	}
+
+	return "flag --" + configFileFlagName
+}
+
+// ConfigEnvFlagCollisionError builds the schema error for a flag bound to the
+// environment variable the configuration engine reads a config file path
+// from. configSide comes from ConfigEnvSide. The runtime schema builder and
+// the static analyzer share it as the single source of truth.
+func ConfigEnvFlagCollisionError(envVar string, configSide string, flagName string) error {
+	return configEnvCollisionError(envVar, configSide, "flag --"+flagName, `give the flag another env tag or exclude it with env:"-"`)
+}
+
+// ConfigEnvFeatureCollisionError builds the schema error for a feature field
+// bound to the config file variable. configSide comes from ConfigEnvSide.
+func ConfigEnvFeatureCollisionError(envVar string, configSide string, featureName string) error {
+	return configEnvCollisionError(envVar, configSide, "feature "+strconv.Quote(featureName), `give the feature another env tag or exclude it with env:"-"`)
+}
+
+// ConfigEnvFeatureMapCollisionError builds the schema error for the Features
+// container's combined map variable bound to the config file variable. It
+// names the feature map flag (flagName) when the container has one on the
+// command line, and the container when noCLI is set.
+func ConfigEnvFeatureMapCollisionError(envVar string, configSide string, flagName string, noCLI bool) error {
+	owner := "the feature map flag --" + flagName
+	if noCLI {
+		owner = "the Features container"
+	}
+
+	return configEnvCollisionError(envVar, configSide, owner, "give the Features container another env tag")
 }
 
 // FeatureEnvCollisionError builds the schema error for one environment
@@ -615,4 +645,11 @@ func validateFlagGroupTagValues(tag reflect.StructTag) error {
 	}
 
 	return nil
+}
+
+// configEnvCollisionError formats a config env collision: first names the
+// config side, second the colliding binding, and remedy says how to separate
+// them.
+func configEnvCollisionError(envVar string, first string, second string, remedy string) error {
+	return fmt.Errorf("%w: environment variable %q is bound by both %s and %s; %s", ErrSchema, envVar, first, second, remedy)
 }
