@@ -55,11 +55,6 @@ const (
 )
 
 const (
-	mapPairErrorInvalid  mapPairErrorKind = iota // no '=' separator
-	mapPairErrorEmptyKey                         // key is empty after trimming
-)
-
-const (
 	mapEntryErrorKey   mapEntryErrorKind = iota // key coercion failed
 	mapEntryErrorValue                          // value coercion failed
 )
@@ -540,9 +535,16 @@ func (a *App[T]) Use(bindings ...func(*App[T])) *App[T] {
 // If type U was previously registered, the new parser and predictor overwrite the
 // existing registration.
 //
+// Slices and maps bind element by element and entry by entry, so register the
+// element, key, or value type, not the collection type. A slice or map type
+// that implements [encoding.TextUnmarshaler] or [ContextAwareTextUnmarshaler]
+// (such as net.IP) binds as one value through its own unmarshaler and needs no
+// registration.
+//
 // Panics:
 //   - If the receiver App is nil.
 //   - If parser is nil.
+//   - If U is a slice or map type.
 //
 // See https://docs.conga.sh/how-to/add-custom-flag-types/.
 func (a *App[T]) RegisterType[U any](parser TypeParser[U], opts ...RegistrationOption) *App[T] {
@@ -555,10 +557,7 @@ func (a *App[T]) RegisterType[U any](parser TypeParser[U], opts ...RegistrationO
 	}
 
 	targetType := reflect.TypeFor[U]()
-
-	if targetType.Kind() == reflect.Map {
-		a.customMapMerger = mergeRegisteredMapTiers
-	}
+	rejectCollectionRegistration(targetType)
 
 	wrapped := func(raw string) (any, error) {
 		return parser(raw)
@@ -577,69 +576,6 @@ func (a *App[T]) RegisterType[U any](parser TypeParser[U], opts ...RegistrationO
 	a.registerType(targetType, reg)
 
 	return a
-}
-
-// RegisterMap registers a parser and optional completion predictor
-// for a map type with string-compatible keys. It supports both
-// standard map[K]V types and custom named types whose underlying
-// type is map[K]V.
-//
-// Key types must have an underlying type of string (~string).
-// Value types (V) can be any type supported by conga's coercion
-// system, including types with custom text unmarshalers or
-// types registered via [App.RegisterType]. Maps with both a string
-// key and a string value bind natively and need no registration.
-//
-// Example:
-//
-//	type PortMap map[string]int
-//	app := conga.New[CLI]().
-//		RegisterMap[PortMap]().
-//		RegisterMap[map[string]time.Duration]()
-//
-// Flags accept repeated or comma-separated pairs:
-//
-//	--flag k1=v1 --flag k2=v2
-//	--flag k1=v1,k2=v2
-//
-// Panics:
-//   - If the receiver App is nil.
-//
-// See https://docs.conga.sh/how-to/add-custom-flag-types/.
-func (a *App[T]) RegisterMap[M ~map[K]V, K ~string, V any](opts ...RegistrationOption) *App[T] {
-	if a == nil {
-		panic("conga: RegisterMap requires a non-nil app")
-	}
-
-	parser := func(raw string) (M, error) {
-		result := make(M)
-
-		keyString, valueString, ok := strings.Cut(raw, "=")
-		if !ok {
-			return nil, &mapPairError{item: raw, kind: mapPairErrorInvalid}
-		}
-
-		keyString = strings.TrimSpace(keyString)
-		if keyString == "" {
-			return nil, &mapPairError{item: raw, kind: mapPairErrorEmptyKey}
-		}
-
-		key, err := coerce.Value[K](keyString)
-		if err != nil {
-			return nil, &mapEntryError{key: keyString, kind: mapEntryErrorKey, cause: err}
-		}
-
-		value, err := coerce.Value[V](strings.TrimSpace(valueString))
-		if err != nil {
-			return nil, &mapEntryError{key: keyString, kind: mapEntryErrorValue, cause: err}
-		}
-
-		result[key] = value
-
-		return result, nil
-	}
-
-	return a.RegisterType(parser, opts...)
 }
 
 // RunContext executes the application lifecycle using the provided context.
@@ -910,8 +846,8 @@ func (a *App[T]) Exit(err error) {
 	a.exit(1)
 }
 
-// RegistrationOption configures a custom type registration on [App.RegisterType]
-// and [App.RegisterMap]. [WithPredictor] is currently the only constructor.
+// RegistrationOption configures a custom type registration on [App.RegisterType].
+// [WithPredictor] is currently the only constructor.
 type RegistrationOption func(*typeRegistration)
 
 // WithPredictor attaches a shell autocompletion predictor to a registered custom type.
@@ -925,30 +861,6 @@ func WithPredictor(p predict.Predictor) RegistrationOption {
 	}
 }
 
-// mapPairErrorKind identifies the KEY=VALUE syntax failure mode.
-type mapPairErrorKind uint8
-
-// mapPairError duplicates coerce.go's carrier: the RegisterMap parser
-// reimplements pair splitting for typed K/V across the package boundary;
-// the two stay deliberately in sync.
-type mapPairError struct {
-	item string
-	kind mapPairErrorKind
-}
-
-func (e *mapPairError) Error() string {
-	switch e.kind {
-	case mapPairErrorInvalid:
-		return fmt.Sprintf("invalid key-value pair %q, expected KEY=VALUE", e.item)
-	case mapPairErrorEmptyKey:
-		return fmt.Sprintf("empty key in key-value pair %q", e.item)
-	default:
-		return fmt.Sprintf("invalid key-value pair %q", e.item)
-	}
-}
-
-func (e *mapPairError) Unwrap() error { return ErrCoerce }
-
 // mapEntryErrorKind identifies which side of a KEY=VALUE entry failed coercion.
 type mapEntryErrorKind uint8
 
@@ -956,7 +868,7 @@ type mapEntryErrorKind uint8
 type mapEntryError struct {
 	key   string
 	kind  mapEntryErrorKind
-	cause error // inner coercion failure from coerce.Value[K] / coerce.Value[V]
+	cause error // inner coercion failure of the key or value
 }
 
 func (e *mapEntryError) Error() string {
@@ -1082,7 +994,6 @@ type appConfig[T any] struct {
 	processFeatures            func(builder any, structField reflect.StructField, fieldHandle any, classification container.Classification) error
 	validateFeatures           func(root *spec.Command) error
 	parseFeatureTag            func(feature string, required bool) (string, error)
-	customMapMerger            func(binding flagBinding, result *mapMergeResult) error
 }
 
 // configView is the root package's view over the configuration resolution
@@ -1501,6 +1412,7 @@ func (a *App[T]) buildSpec() (*spec.Command, error) {
 		InferPredictor:            a.inferPredictor,
 		FeaturePredictor:          a.featurePredictor,
 		ValidateTextRangeBound:    validateTextRangeBound,
+		ValidateValueType:         valueTypeValidator(a.collectTypeParsers()),
 		EnvPrefix:                 a.envPrefix,
 		ProcessFeatures:           a.processFeatures,
 		ValidateFeatureReferences: a.validateFeatures,
@@ -1736,7 +1648,6 @@ func (a *App[T]) prepareNonMetaExecution(ctx context.Context, session *Session, 
 		ConfigOrigins:       resolution.loadedPaths,
 		DotenvOrigins:       a.dotenvOrigins,
 		TypeParsers:         a.collectTypeParsers(),
-		CustomMapMerger:     a.customMapMerger,
 		Stdin:               session.stdin,
 		Stdout:              session.stdout,
 		StdinClaim:          &session.stdinClaim,

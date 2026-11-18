@@ -57,7 +57,7 @@ Keeping the two apart suits candidates from live sources. A callback may read a 
 
 A map flag takes `key=value` pairs, so its completion has two parts, the key and then its value. A `predict.KeyValue` named in a `predictor` tag describes both, as a map from each key to its values. The shell offers the keys with their `=` (`team=` and `tier=`), then the values of the key on the line (`web` and `db` after `tier=`). [Complete a value in parts](/how-to/compute-completion-candidates/#complete-a-value-in-parts) builds one, and `predict.KeyValueDescribed` adds a description to each key.
 
-The program supplies the keys because the map's type names only what kind they are. A `map[string]string` of labels accepts any key the user invents, so a map flag with no predictor shows the usage hint `<key>=<value>`.
+The program supplies the keys because the map's type names only what kind they are. A `map[string]string` of labels accepts any key the user invents, so a map flag with no predictor shows the usage hint `<key>=<value>`. A named map type can carry its own key-value predictor through a `Predict` method, which every flag of that type then uses.
 
 `conga.Features` declares its keys. They are the fields of the struct it holds, so CONGA builds the key-value predictor from them, and feature names complete from the declaration alone.
 

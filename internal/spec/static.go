@@ -117,7 +117,7 @@ func InferPredictorFromType(targetType reflect.Type, tags FieldTags) *PredictorS
 	}
 
 	elemType := targetType
-	if elemType.Kind() == reflect.Slice {
+	if isSliceCollection(elemType) {
 		elemType = elemType.Elem()
 	}
 

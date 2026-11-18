@@ -9,7 +9,7 @@ CONGA validates config files into the config source of the [value precedence ord
 
 By default the search paths are first-hit. `conga.ConfigPaths(...)` lists files in precedence order and the first existing one wins. Declaring `conga.ConfigCascading()` changes the model to a merge, in which every existing file contributes, from lowest to highest precedence. Partial cascades are supported, so any subset of the list may exist.
 
-Merge semantics differ by value shape. Scalar and slice flags take the nearest file's value. A later file replaces what an earlier file set. Map flags (`map[K]V` fields, registered `RegisterMap` types, and `conga.Features[T]` gates) merge key by key across the files. Files apply in lowest-to-highest precedence, a later file overrides only the keys it names, and keys set only by an earlier file survive. The `--why` report attributes each merged map key to the file that last wrote it.
+Merge semantics differ by value shape. Scalar and slice flags take the nearest file's value. A later file replaces what an earlier file set. Map flags (`map[K]V` fields and `conga.Features[T]` gates) merge key by key across the files. Files apply in lowest-to-highest precedence, a later file overrides only the keys it names, and keys set only by an earlier file survive. The `--why` report attributes each merged map key to the file that last wrote it.
 
 Because a cascade can load more than one file, a declared root config-file flag must accept multiple values (`multi:"true"`) so it can report every merged file. The schema rejects the combination otherwise.
 

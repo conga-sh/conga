@@ -549,6 +549,12 @@ func (b *schemaBuilder) processFlag(structField reflect.StructField, flagHandle 
 		return err
 	}
 
+	if classification.Kind != container.KindCounter {
+		if err := b.validateValueType(innerType); err != nil {
+			return err
+		}
+	}
+
 	if err := b.checkRequiredFlagTags(structField, classification); err != nil {
 		return err
 	}
@@ -680,6 +686,10 @@ func (b *schemaBuilder) processArg(structField reflect.StructField, argHandle an
 	innerType := extractGenericType(structField.Type)
 
 	if err := validateMapConstraints(structField, innerType); err != nil {
+		return err
+	}
+
+	if err := b.validateValueType(innerType); err != nil {
 		return err
 	}
 
@@ -1084,11 +1094,21 @@ func validateConfigSettings(root *Command, _ Options) error {
 	return CascadingRequiresMultiError(root.ConfigFileFlag.Name)
 }
 
+// validateValueType runs the caller's value-type check on a declared flag or
+// positional argument type; a nil hook accepts every type.
+func (b *schemaBuilder) validateValueType(innerType reflect.Type) error {
+	if b.opts.ValidateValueType == nil {
+		return nil
+	}
+
+	return b.opts.ValidateValueType(innerType)
+}
+
 // validateMapConstraints rejects map-typed flag/arg fields whose key type is
 // not a string, or whose tags carry per-entry constraints (enum/range/len)
 // that maps cannot honor; map entries are constrained via "items" instead.
 func validateMapConstraints(structField reflect.StructField, innerType reflect.Type) error {
-	if innerType.Kind() != reflect.Map {
+	if !isMapCollection(innerType) {
 		return nil
 	}
 

@@ -214,10 +214,10 @@ restart: error: unknown time zone Mars/Base for flag --zone
 Standard library types carry no help text of their own, so give these flags a `help` tag. `system.RegisterGroup`, `system.RegisterSignal`, and `network.RegisterInterface` bind `*user.Group`, `syscall.Signal`, and `*net.Interface` the same way.
 
 :::caution[Register every standard library type]
-A flag of a standard library type with no registered parser passes startup, and fails when it needs a value. With a `default`, that is every run that leaves the flag out:
+A flag of a standard library type with no registered parser stops the program at startup, on every run, exit 1. The message names the binding to add:
 
 ```text no-copy
-restart: error: unsupported type *user.User for flag --as (from default value)
+restart: error: struct Restart field As: schema error: unsupported type *user.User; register a parser with app.Use(system.RegisterUser)
 ```
 :::
 

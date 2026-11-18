@@ -16,7 +16,7 @@ go run ./_examples/03-negatable-and-maps -H 'Accept=text/html,application/json'
 
 - `--color` then `--no-color` leaves the last occurrence in effect.
 - `sep:"none"` preserves embedded commas in `--headers`.
-- The custom `map[string]int` needs `app.RegisterMap`.
+- `map[string]int` values decode as integers, with no registration.
 
 ## Test
 

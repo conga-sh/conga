@@ -32,8 +32,7 @@ func New[T any](root ...*T) *App[T]
 | `AllowTags(tags...)` | Allow additional struct tag keys (matched exactly) |
 | `Predictor(name, p)` | Register named completion predictor (panics on misuse) |
 | `Use(bindings...)` | Apply builder bindings (`network.RegisterInterface`, `timezone.RegisterLocation`, …) |
-| `RegisterType[U](parser, opts...)` | Register a parser (and optional predictor) for type `U` |
-| `RegisterMap[M](opts...)` | Register a `map[K]V` parser for a map type with string-compatible keys |
+| `RegisterType[U](parser, opts...)` | Register a parser (and optional predictor) for type `U`; panics for a slice or map type |
 | `Args(args)` | Custom argument slice (defaults to `os.Args[1:]`) |
 | `UsageOnError(mode)` | Error-time usage rendering mode |
 | `Stdin(r)` | Input reader for `session.Stdin()`, `File` fields with `stdin`, and `FileContent` reading `-` (default `os.Stdin`) |
@@ -56,11 +55,10 @@ func New[T any](root ...*T) *App[T]
 
 ```go
 func (a *App[T]) RegisterType[U any](parser TypeParser[U], opts ...RegistrationOption) *App[T]
-func (a *App[T]) RegisterMap[M ~map[K]V, K ~string, V any](opts ...RegistrationOption) *App[T]
 func WithPredictor(p predict.Predictor) RegistrationOption
 ```
 
-`TypeParser[U]` is a `func(raw string) (U, error)`, and an error it returns classifies under `ErrCoerce` for a command-line value and `ErrConfig` for one from the environment, a config file, or a `default` tag. `RegistrationOption` customizes registrations, and `WithPredictor` attaches default completion to a registered type.
+`TypeParser[U]` is a `func(raw string) (U, error)`, and an error it returns classifies under `ErrCoerce` for a command-line value and `ErrConfig` for one from the environment, a config file, or a `default` tag. A registered parser decodes every field of type `U`, each `U` element of a slice, and each `U` key or value of a map. `RegistrationOption` customizes registrations, and `WithPredictor` attaches default completion to a registered type.
 
 ## Containers
 

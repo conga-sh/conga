@@ -19,7 +19,7 @@ func TestSignal(t *testing.T) {
 	cli := new(sysTestCLI)
 	app := conga.New(cli).
 		Args([]string{"-s", "SIGHUP"}).
-		Use(system.RegisterSignal)
+		Use(system.RegisterSignal, system.RegisterUser, system.RegisterGroup)
 
 	err := app.Run()
 
@@ -32,7 +32,7 @@ func TestSignal_InvalidName(t *testing.T) {
 
 	app := conga.New[sysTestCLI]().
 		Args([]string{"-s", "NOTASIGNAL"}).
-		Use(system.RegisterSignal)
+		Use(system.RegisterSignal, system.RegisterUser, system.RegisterGroup)
 
 	err := app.Run()
 
@@ -50,7 +50,7 @@ func TestSignal_Completion(t *testing.T) {
 	app := conga.New[sysTestCLI]().
 		EnableCompletion().
 		Stdout(&buffer).
-		Use(system.RegisterSignal).
+		Use(system.RegisterSignal, system.RegisterUser, system.RegisterGroup).
 		Args([]string{"__complete", "export", "--sig", ""})
 
 	err := app.Run()
@@ -68,7 +68,7 @@ func TestUser(t *testing.T) {
 	cli := new(sysTestCLI)
 	app := conga.New(cli).
 		Args([]string{"-u", curr.Username}).
-		Use(system.RegisterUser)
+		Use(system.RegisterSignal, system.RegisterUser, system.RegisterGroup)
 
 	err = app.Run()
 
@@ -82,7 +82,7 @@ func TestUser_UnknownUser(t *testing.T) {
 
 	app := conga.New[sysTestCLI]().
 		Args([]string{"-u", "no-such-user-conga-test"}).
-		Use(system.RegisterUser)
+		Use(system.RegisterSignal, system.RegisterUser, system.RegisterGroup)
 
 	err := app.Run()
 
@@ -104,7 +104,7 @@ func TestGroup(t *testing.T) {
 	cli := new(sysTestCLI)
 	app := conga.New(cli).
 		Args([]string{"-g", grp.Name}).
-		Use(system.RegisterGroup)
+		Use(system.RegisterSignal, system.RegisterUser, system.RegisterGroup)
 
 	err = app.Run()
 
@@ -118,7 +118,7 @@ func TestGroup_UnknownGroup(t *testing.T) {
 
 	app := conga.New[sysTestCLI]().
 		Args([]string{"-g", "no-such-group-conga-test"}).
-		Use(system.RegisterGroup)
+		Use(system.RegisterSignal, system.RegisterUser, system.RegisterGroup)
 
 	err := app.Run()
 

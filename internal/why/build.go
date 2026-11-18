@@ -240,7 +240,7 @@ func FlagType(flagSpec *spec.Flag) string {
 		return "string"
 	}
 
-	if flagSpec.TargetType.Kind() == reflect.Slice {
+	if flagSpec.IsSlice {
 		if stringType(flagSpec.TargetType.Elem()) {
 			return "string[]"
 		}
@@ -248,7 +248,7 @@ func FlagType(flagSpec *spec.Flag) string {
 		return scalarKindType(flagSpec.TargetType.Elem().Kind()) + "[]"
 	}
 
-	if flagSpec.TargetType.Kind() == reflect.Map {
+	if flagSpec.IsMap {
 		return "map"
 	}
 
@@ -476,6 +476,9 @@ func displayValue(flagSpec *spec.Flag, value any) string {
 	}
 
 	reflected := reflect.ValueOf(value)
+	if !spec.IsCollection(reflected.Type()) {
+		return stringx.Stringify(value)
+	}
 
 	switch reflected.Kind() {
 	case reflect.Slice:

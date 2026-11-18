@@ -27,11 +27,6 @@ import (
 	"github.com/conga-sh/conga/internal/tokenizer"
 )
 
-const (
-	mapParserErrorNotMap         mapParserErrorKind = iota // parser returned a non-map value
-	mapParserErrorNotConvertible                           // returned map type is not convertible
-)
-
 // bindingState holds the binder's working state for one run: runtime options,
 // external configuration maps, and the engine-configured standard streams
 // projected from the session into per-value decode contexts.
@@ -69,10 +64,6 @@ type bindingState struct {
 	// SkipRequiredFlags suppresses required flag validation so --why can display
 	// unset flags instead of aborting execution.
 	SkipRequiredFlags bool
-	// CustomMapMerger merges registered custom map types. Populated when a map
-	// type is registered through RegisterMap or RegisterType; nil keeps custom
-	// map reflection unreferenced.
-	CustomMapMerger func(binding flagBinding, result *mapMergeResult) error
 	// StdinClaim records the first value of this binding pass that reads
 	// standard input, so a second one is rejected before it reads. Nil skips
 	// the check (completion pruning).
@@ -625,7 +616,7 @@ func (c *stdinClaim) claim(cmdChain []*spec.Command, owner stdinOwner, rawValues
 	elemType := owner.targetType
 	items := rawValues
 
-	if owner.targetType.Kind() == reflect.Slice {
+	if owner.targetType.Kind() == reflect.Slice && spec.IsCollection(owner.targetType) {
 		elemType = owner.targetType.Elem()
 		items = coerce.SliceItems(rawValues, owner.sep, elemType)
 	} else if slices.Contains(rawValues, "-") {
@@ -705,41 +696,6 @@ func (e *counterError) Error() string {
 }
 
 func (e *counterError) Unwrap() error { return e.cause }
-
-// mapRegistrationError is the root cause for unregistered non-string map types.
-type mapRegistrationError struct {
-	targetType reflect.Type
-}
-
-func (e *mapRegistrationError) Error() string {
-	return fmt.Sprintf("map type %s requires registration via app.RegisterMap", e.targetType)
-}
-
-func (e *mapRegistrationError) Unwrap() error { return ErrCoerce }
-
-// mapParserErrorKind identifies the registered-map-parser shape failure mode.
-type mapParserErrorKind uint8
-
-// mapParserError is the root cause for registered map parsers returning a
-// value of the wrong shape.
-type mapParserError struct {
-	targetType   reflect.Type
-	returnedType reflect.Type
-	kind         mapParserErrorKind
-}
-
-func (e *mapParserError) Error() string {
-	switch e.kind {
-	case mapParserErrorNotMap:
-		return fmt.Sprintf("registered parser for %s returned %s, expected a map", e.targetType, e.returnedType)
-	case mapParserErrorNotConvertible:
-		return fmt.Sprintf("registered parser for %s returned %s", e.targetType, e.returnedType)
-	default:
-		return fmt.Sprintf("registered parser for %s returned %s", e.targetType, e.returnedType)
-	}
-}
-
-func (e *mapParserError) Unwrap() error { return ErrCoerce }
 
 // mapMergeResult is the outcome of folding a map flag's tiers: whether any
 // tiers contributed, the merged value, the per-key source tiers recorded when
@@ -983,9 +939,11 @@ func (fold stringMapFold) finish(last valueOrigin) {
 	fold.provenance.publish(result)
 }
 
-// registeredMapFold merges a map flag whose type has a registered parser:
-// each tier's entries parse through that parser into merged.
-type registeredMapFold struct {
+// typedMapFold merges a map flag whose keys or values need parsing (anything
+// but a plain string-to-string map): every tier's entries decode key by key
+// through coerce.ScalarWith with the app's parsers, then merge in ascending
+// precedence.
+type typedMapFold struct {
 	binding    flagBinding
 	merged     reflect.Value
 	provenance mapProvenance
@@ -994,7 +952,7 @@ type registeredMapFold struct {
 
 // tier folds one tier: the config tier's structured entries or any other
 // tier's raw values.
-func (fold registeredMapFold) tier(tier mapTierInput) error {
+func (fold typedMapFold) tier(tier mapTierInput) error {
 	if tier.entries != nil {
 		return fold.config(tier.entries, tier.name)
 	}
@@ -1002,89 +960,122 @@ func (fold registeredMapFold) tier(tier mapTierInput) error {
 	return fold.values(tier.values, valueOrigin{source: tier.source, name: tier.name}, configdata.Value{Origin: tier.envOrigin()})
 }
 
-// values parses a tier's raw tokens and merges the result. recorded is the
+// values parses a tier's raw key=value tokens and merges them. recorded is the
 // origin each key records for --why.
-func (fold registeredMapFold) values(rawValues []string, origin valueOrigin, recorded configdata.Value) error {
+func (fold typedMapFold) values(rawValues []string, origin valueOrigin, recorded configdata.Value) error {
 	if len(rawValues) == 0 {
 		return nil
 	}
 
 	flagSpec, result := fold.binding.flagSpec, fold.result
+	result.hasValues = true
 
-	parsed, err := parseMapTokens(rawValues, flagSpec.TargetType, flagSpec.Sep, fold.binding.state.TypeParsers)
+	entries, err := coerce.MapEntries(rawValues, flagSpec.Sep)
 	if err != nil {
-		result.hasValues = true
-
 		return fold.binding.coercionError(origin, strings.Join(rawValues, flagSpec.Sep), err)
 	}
 
-	result.hasValues = true
+	decoder := fold.binding.mapEntryDecoder()
 
-	parsedValue := reflect.ValueOf(parsed)
-	if parsedValue.Len() > 0 {
-		result.highestTier = origin.source
-		result.highestName = origin.name
+	for _, entry := range entries {
+		key, value, err := decoder.decode(entry.Key, entry.Value)
+		if err != nil {
+			return fold.binding.coercionError(origin, strings.Join(rawValues, flagSpec.Sep), err)
+		}
+
+		fold.merged.SetMapIndex(key, value)
+		fold.recordKey(key, origin.source, recorded)
 	}
 
-	iter := parsedValue.MapRange()
-	for iter.Next() {
-		fold.merged.SetMapIndex(iter.Key(), iter.Value())
-
-		if fold.provenance.recording() {
-			fold.provenance.record(stringx.Stringify(iter.Key().Interface()), origin.source, recorded)
-		}
+	if len(entries) > 0 {
+		result.highestTier = origin.source
+		result.highestName = origin.name
 	}
 
 	return nil
 }
 
-// config folds the config tier's pre-merged map entries into the registered
-// map type. Keys are sorted for deterministic error reporting; each pair is
-// parsed and merged into the destination map with its originating file path
-// recorded.
-func (fold registeredMapFold) config(entries map[string]configdata.Value, configKey string) error {
+// config folds the config tier's pre-merged map entries. Keys are sorted for
+// deterministic error reporting; each entry decodes and merges with its
+// originating file recorded.
+func (fold typedMapFold) config(entries map[string]configdata.Value, configKey string) error {
 	origin := valueOrigin{source: SourceConfig, name: configKey}
 
 	if bad, hasBad := entries[""]; hasBad {
 		return fold.values([]string{bad.Raw}, origin, bad)
 	}
 
-	flagSpec, result := fold.binding.flagSpec, fold.result
-	parser := fold.binding.state.TypeParsers[flagSpec.TargetType]
+	result := fold.result
+	decoder := fold.binding.mapEntryDecoder()
 
-	for _, key := range slices.Sorted(maps.Keys(entries)) {
-		entry := entries[key]
-		raw := key + "=" + entry.Raw
-
-		parsed, err := parser(raw)
-		if err != nil {
-			result.hasValues = true
-
-			return fold.binding.coercionError(origin, raw, err)
-		}
-
-		parsedValue, mergeErr := mergeParsedMapValue(parsed, flagSpec.TargetType, fold.merged)
-		if mergeErr != nil {
-			result.hasValues = true
-
-			return fold.binding.coercionError(origin, raw, mergeErr)
-		}
-
+	for _, keyText := range slices.Sorted(maps.Keys(entries)) {
+		entry := entries[keyText]
 		result.hasValues = true
+
+		key, value, err := decoder.decode(strings.TrimSpace(keyText), strings.TrimSpace(entry.Raw))
+		if err != nil {
+			return fold.binding.coercionError(origin, keyText+"="+entry.Raw, err)
+		}
+
+		fold.merged.SetMapIndex(key, value)
+		fold.recordKey(key, SourceConfig, configdata.Value{Origin: entry.Origin, Scope: entry.Scope})
+
 		result.highestTier = SourceConfig
 		result.highestName = configKey
-
-		if !fold.provenance.recording() {
-			continue
-		}
-
-		iter := parsedValue.MapRange()
-		for iter.Next() {
-			fold.provenance.record(stringx.Stringify(iter.Key().Interface()), SourceConfig, configdata.Value{Origin: entry.Origin, Scope: entry.Scope})
-		}
 	}
 
 	return nil
+}
+
+// recordKey records a decoded key's provenance under its display form, the
+// form --why looks keys up by (stringx.Stringify of the decoded key).
+func (fold typedMapFold) recordKey(key reflect.Value, source ValueSource, origin configdata.Value) {
+	if !fold.provenance.recording() {
+		return
+	}
+
+	fold.provenance.record(stringx.Stringify(key.Interface()), source, origin)
+}
+
+// mapEntryDecoder decodes one key=value entry of a typed map into the map's
+// key and value types, with the app's parsers and the owning field's decode
+// context.
+type mapEntryDecoder struct {
+	mapType       reflect.Type
+	parsers       coerce.Registry
+	decodeContext coerce.DecodeContext
+}
+
+// decode converts keyText and valueText, wrapping a failure in mapEntryError
+// so the message names the key.
+func (decoder mapEntryDecoder) decode(keyText, valueText string) (reflect.Value, reflect.Value, error) {
+	key, err := decoder.scalar(keyText, decoder.mapType.Key())
+	if err != nil {
+		return reflect.Value{}, reflect.Value{}, &mapEntryError{key: keyText, kind: mapEntryErrorKey, cause: err}
+	}
+
+	value, err := decoder.scalar(valueText, decoder.mapType.Elem())
+	if err != nil {
+		return reflect.Value{}, reflect.Value{}, &mapEntryError{key: keyText, kind: mapEntryErrorValue, cause: err}
+	}
+
+	return key, value, nil
+}
+
+// scalar decodes text into targetType; a nil result (a parser returning a nil
+// pointer) becomes targetType's zero value so SetMapIndex stores the key.
+func (decoder mapEntryDecoder) scalar(text string, targetType reflect.Type) (reflect.Value, error) {
+	decoded, err := coerce.ScalarWith(text, targetType, decoder.parsers, decoder.decodeContext)
+	if err != nil {
+		return reflect.Value{}, err
+	}
+
+	value := reflect.ValueOf(decoded)
+	if !value.IsValid() {
+		return reflect.Zero(targetType), nil
+	}
+
+	return value, nil
 }
 
 // countMessages are the formats a count-range check reports: an exact count
@@ -1177,6 +1168,15 @@ type flagBinding struct {
 	flagSpec  *spec.Flag
 	cliValues map[*spec.Flag][]string
 	state     *bindingState
+}
+
+// mapEntryDecoder returns the entry decoder for the binding's map flag.
+func (binding flagBinding) mapEntryDecoder() mapEntryDecoder {
+	return mapEntryDecoder{
+		mapType:       binding.flagSpec.TargetType,
+		parsers:       binding.state.TypeParsers,
+		decodeContext: binding.state.decodeContext(binding.flagSpec.FieldTags),
+	}
 }
 
 // coercionError attributes a failure to convert rawValue to the flag's type to
@@ -1431,8 +1431,11 @@ func (resolver argResolver) emptySlice(arg *spec.Arg, decodeContext coerce.Decod
 // mapArg binds a map argument from its key=value tokens, or from its default
 // when none remain.
 func (resolver argResolver) mapArg(arg *spec.Arg, tokens []string) error {
+	decodeContext := resolver.decodeContext
+	decodeContext.Tags = arg.FieldTags
+
 	if len(tokens) > 0 {
-		parsedMap, err := parseMapTokens(tokens, arg.TargetType, arg.Sep, resolver.parsers)
+		parsedMap, err := parseMapTokens(tokens, arg.TargetType, arg.Sep, resolver.parsers, decodeContext)
 		if err != nil {
 			return resolver.coercionError(arg, valueOrigin{source: SourceCLI}, strings.Join(tokens, " "), err)
 		}
@@ -1447,7 +1450,7 @@ func (resolver argResolver) mapArg(arg *spec.Arg, tokens []string) error {
 	}
 
 	if arg.Default != "" {
-		parsedMap, err := parseMapTokens([]string{arg.Default}, arg.TargetType, arg.Sep, resolver.parsers)
+		parsedMap, err := parseMapTokens([]string{arg.Default}, arg.TargetType, arg.Sep, resolver.parsers, decodeContext)
 		if err != nil {
 			return resolver.coercionError(arg, valueOrigin{source: SourceDefault, name: arg.Default}, arg.Default, err)
 		}
@@ -3054,7 +3057,12 @@ func validateCustomValueTree(ctx context.Context, value any, descriptor string) 
 		return "", nil
 	}
 
-	switch reflectedValue.Kind() {
+	kind := reflectedValue.Kind()
+	if !spec.IsCollection(reflectedValue.Type()) {
+		kind = reflect.Invalid
+	}
+
+	switch kind {
 	case reflect.Map:
 		if err := callSelfValidator(ctx, value); err != nil {
 			return fmt.Sprintf("%v for %s", err, descriptor), err
@@ -3171,24 +3179,6 @@ func isMetaCommand(cmd *spec.Command) bool {
 	return cmd != nil && (cmd.IsCompletionCmd || cmd.IsHelpCmd || cmd.IsVersionCmd)
 }
 
-func hasCustomMapParser(state *bindingState, flagSpec *spec.Flag) bool {
-	if flagSpec.EngineOwned {
-		return false
-	}
-
-	if state == nil || state.CustomMapMerger == nil || len(state.TypeParsers) == 0 {
-		return false
-	}
-
-	_, ok := state.TypeParsers[flagSpec.TargetType]
-
-	return ok
-}
-
-func isStringStringMap(targetType reflect.Type) bool {
-	return targetType.Key().Kind() == reflect.String && targetType.Elem().Kind() == reflect.String
-}
-
 // foldMapTiers resolves a map flag's contributing tiers (default, config,
 // feature environment, combined environment, CLI) and merges their
 // contributions key-by-key in ascending precedence. featureEnv is the
@@ -3212,22 +3202,15 @@ func foldMapTiers(binding flagBinding, featureEnv *mapTierInput, result *mapMerg
 
 	result.envName = envName
 
-	// Engine-owned map flags (the synthesized feature map) always use the
-	// native merge: it canonicalizes feature keys and folds the per-feature
-	// environment tier ahead of the CLI tier. A registered parser for
-	// map[string]string must not divert the engine-owned flag to the generic
-	// registered-map path.
-	if hasCustomMapParser(state, binding.flagSpec) {
-		return state.CustomMapMerger(binding, result)
-	}
-
-	if !isStringStringMap(binding.flagSpec.TargetType) {
-		result.hasValues = true
-
-		return &mapRegistrationError{targetType: binding.flagSpec.TargetType}
-	}
-
 	attachDotenvOrigins(tiers, state)
+
+	// Engine-owned map flags (the synthesized feature map) always use the
+	// string merge: it canonicalizes feature keys and folds the per-feature
+	// environment tier ahead of the CLI tier. Every other map whose keys or
+	// values need parsing goes through the typed merge.
+	if !binding.flagSpec.EngineOwned && !coerce.IsPlainStringMap(binding.flagSpec.TargetType, state.TypeParsers) {
+		return mergeTypedMapTiers(binding, tiers, configEntries, result)
+	}
 
 	fold := stringMapFold{
 		binding:    binding,
@@ -3325,14 +3308,13 @@ func orderedConfigOrigins(state *bindingState, entries map[string]configdata.Val
 	return ordered
 }
 
-// mergeRegisteredMapTiers merges a map flag whose type has a registered
-// parser: every tier's entries parse through that parser and merge key by key
+// mergeTypedMapTiers merges a map flag whose keys or values need parsing:
+// every tier's entries decode through the app's parsers and merge key by key
 // in ascending precedence.
-func mergeRegisteredMapTiers(binding flagBinding, result *mapMergeResult) error {
+func mergeTypedMapTiers(binding flagBinding, tiers []mapTierInput, configEntries map[string]configdata.Value, result *mapMergeResult) error {
 	state := binding.state
-	tiers, configEntries, _ := binding.mapTiers(nil)
 
-	fold := registeredMapFold{
+	fold := typedMapFold{
 		binding:    binding,
 		merged:     reflect.MakeMap(binding.flagSpec.TargetType),
 		provenance: newMapProvenance(state),
@@ -3363,67 +3345,41 @@ func mergeRegisteredMapTiers(binding flagBinding, result *mapMergeResult) error 
 	return nil
 }
 
-func parseMapTokens(rawValues []string, targetType reflect.Type, sep string, parsers coerce.Registry) (any, error) {
-	if parser, ok := parsers[targetType]; ok {
-		return parseRegisteredMap(rawValues, targetType, sep, parser)
-	}
-
-	if targetType.Key().Kind() != reflect.String || targetType.Elem().Kind() != reflect.String {
-		return nil, &mapRegistrationError{targetType: targetType}
-	}
-
-	parsedMap, err := coerce.Map(rawValues, sep)
-	if err != nil {
-		return nil, err
-	}
-
-	if reflect.TypeOf(parsedMap) == targetType {
-		return parsedMap, nil
-	}
-
-	return reflect.ValueOf(parsedMap).Convert(targetType).Interface(), nil
-}
-
-func parseRegisteredMap(rawValues []string, targetType reflect.Type, sep string, parser coerce.TypeParser[any]) (any, error) {
-	merged := reflect.MakeMap(targetType)
-
-	for _, item := range coerce.SplitMapItems(rawValues, sep) {
-		parsed, err := parser(item)
+// parseMapTokens decodes a map positional's key=value tokens into targetType:
+// a plain string-to-string map binds directly, and any other map decodes each
+// entry through the app's parsers.
+func parseMapTokens(rawValues []string, targetType reflect.Type, sep string, parsers coerce.Registry, decodeContext coerce.DecodeContext) (any, error) {
+	if coerce.IsPlainStringMap(targetType, parsers) {
+		parsedMap, err := coerce.Map(rawValues, sep)
 		if err != nil {
 			return nil, err
 		}
 
-		if _, err := mergeParsedMapValue(parsed, targetType, merged); err != nil {
+		if reflect.TypeOf(parsedMap) == targetType {
+			return parsedMap, nil
+		}
+
+		return reflect.ValueOf(parsedMap).Convert(targetType).Interface(), nil
+	}
+
+	entries, err := coerce.MapEntries(rawValues, sep)
+	if err != nil {
+		return nil, err
+	}
+
+	decoder := mapEntryDecoder{mapType: targetType, parsers: parsers, decodeContext: decodeContext}
+	merged := reflect.MakeMap(targetType)
+
+	for _, entry := range entries {
+		key, value, err := decoder.decode(entry.Key, entry.Value)
+		if err != nil {
 			return nil, err
 		}
+
+		merged.SetMapIndex(key, value)
 	}
 
 	return merged.Interface(), nil
-}
-
-// mergeParsedMapValue merges one parser-returned map into merged, converting
-// the value to the target map type when needed, and returns the converted
-// value so callers can attribute per-key provenance.
-func mergeParsedMapValue(parsed any, targetType reflect.Type, merged reflect.Value) (reflect.Value, error) {
-	parsedValue := reflect.ValueOf(parsed)
-	if parsedValue.Kind() != reflect.Map {
-		return reflect.Value{}, &mapParserError{targetType: targetType, returnedType: reflect.TypeOf(parsed), kind: mapParserErrorNotMap}
-	}
-
-	if parsedValue.Type() != targetType {
-		if parsedValue.Type().ConvertibleTo(targetType) {
-			parsedValue = parsedValue.Convert(targetType)
-		} else {
-			return reflect.Value{}, &mapParserError{targetType: targetType, returnedType: parsedValue.Type(), kind: mapParserErrorNotConvertible}
-		}
-	}
-
-	iter := parsedValue.MapRange()
-	for iter.Next() {
-		merged.SetMapIndex(iter.Key(), iter.Value())
-	}
-
-	return parsedValue, nil
 }
 
 // joinNaturalList joins items as an English list: "a", "a and b",

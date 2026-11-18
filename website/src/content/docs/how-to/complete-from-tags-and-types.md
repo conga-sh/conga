@@ -208,11 +208,11 @@ Europe/Lisbon[2m  -- Portugal (mainland)[0m
 Europe/London
 ```
 
-Without `Use(timezone.RegisterLocation)`, `--zone` completes nothing, and the flag fails when the user gives it a value:
+Without `Use(timezone.RegisterLocation)`, `--zone` completes nothing, and the program stops at startup on every run:
 
 ```sh error={2}
 $ deploy --zone Europe/London
-deploy: error: unsupported type *time.Location for flag --zone
+deploy: error: struct Deploy field Zone: schema error: unsupported type *time.Location; register a parser with app.Use(timezone.RegisterLocation)
 ```
 
 [How to use the network, system, and timezone packages](/how-to/use-domain-packages/) covers the types themselves.
@@ -263,7 +263,7 @@ false  true
 | `predictor:"none"` | No candidates, whatever the type |
 | `conga.File` with a `glob` tag | Matching files, plus directories and symlinks. A file outside the patterns still passes |
 | A `predictor` tag naming a path predictor | Paths. A path that doesn't exist still passes |
-| `*time.Location` without `Use(timezone.RegisterLocation)` | No candidates. A value for the flag fails with exit 2 |
+| `*time.Location` without `Use(timezone.RegisterLocation)` | No candidates. The program fails at startup, exit 1 |
 
 ## Where to go next
 

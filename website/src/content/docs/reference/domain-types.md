@@ -201,14 +201,16 @@ Implement exactly one form of each tag-aware pair. Filesystem-derived types can 
 
 ### Decoding order
 
-CONGA decodes a scalar flag, argument, environment, or config value into type `U` with the first of these that applies:
+CONGA decodes a scalar flag, argument, environment, or config value into type `U`, and each element of a slice and each key and value of a map, with the first of these that applies:
 
 1. A `conga.TypeParser[U]` registered with `app.RegisterType`.
 2. `UnmarshalTextWithContext` on `*U` (`ContextAwareTextUnmarshaler`).
 3. `UnmarshalText` on `*U` (`encoding.TextUnmarshaler`).
 4. Built-in parsing for `string`, `bool`, signed and unsigned integers, `time.Duration`, floats, and `url.URL` / `*url.URL`.
 
-Any other type fails with `unsupported type <U>` when a value is bound, not at schema build: `ErrCoerce`, exit 2, for a command-line value and `ErrConfig`, exit 1, for a value from another source. Values of a map registered with `app.RegisterMap` skip step 1. An error from steps 1 to 3 inherits the value's source: the flag name and origin are appended to its message, and the category follows the source.
+Schema build rejects a flag or positional argument whose type, slice element type, or map key or value type none of these decode: `schema error: unsupported type <U>`, exit 1, naming the registration that fixes it. An error from steps 1 to 3 inherits the value's source: the flag name and origin are appended to its message, and the category follows the source.
+
+A slice or map type whose pointer implements one of the unmarshaler interfaces, such as `net.IP`, is one value, decoded whole by step 2 or 3. `app.RegisterType` panics for any slice or map type, because the binder decodes collections element by element and entry by entry.
 
 ### Custom tags
 

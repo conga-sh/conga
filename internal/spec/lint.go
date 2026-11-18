@@ -302,7 +302,7 @@ func inferPredictorFromOptions(targetType reflect.Type, typePredictors map[refle
 	}
 
 	elemType := targetType
-	if elemType.Kind() == reflect.Slice {
+	if isSliceCollection(elemType) {
 		elemType = elemType.Elem()
 	}
 

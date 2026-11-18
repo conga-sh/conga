@@ -124,6 +124,7 @@ Programmer errors during schema construction abort at startup before execution b
 - CONGA tags on plain non-container fields, such as `name` or `help` on a plain struct field, instead of silently ignoring them.
 - Unrecognized struct tags without calling `app.AllowTags(...)` (including `conga:"..."` directives).
 - Declaring `ConfigFile` or `Features` on any command struct other than the root.
+- A flag or positional argument whose type, slice element type, or map key or value type has no parser: `struct CLI field Zone: schema error: unsupported type *time.Location; register a parser with app.Use(timezone.RegisterLocation)`. The hint names `app.RegisterType`, or the domain-package binding for `*time.Location`, `*user.User`, `*user.Group`, and `*net.Interface`.
 - A leaf command that does not implement `conga.Runner`: `schema error: runner not implemented: command "leaf" does not implement conga.Runner (implement Run(context.Context, *conga.Session) error)`.
 
 ## Panics
@@ -138,7 +139,8 @@ Developer misuse of the API panics with a fixed message instead of returning an 
 | `app.Predictor` with a built-in predictor's name | `conga: cannot register predictor "<name>": reserved built-in predictor name` |
 | `app.Predictor` with a name already registered | `conga: predictor "<name>" is already registered` |
 | `RegisterType` with a nil parser, or on a nil app | `conga: RegisterType requires a non-nil parser`, `conga: RegisterType requires a non-nil app` |
-| `RegisterMap` on a nil app | `conga: RegisterMap requires a non-nil app` |
+| `RegisterType` for a map or slice type | `conga: RegisterType does not accept map type <M>; maps bind entry by entry, so register the key or value type instead`, `conga: RegisterType does not accept slice type <S>; slices bind element by element, so register the element type instead` |
+| `RegisterType` for a slice or map type that implements `encoding.TextUnmarshaler` | `conga: RegisterType does not accept <T>; it implements encoding.TextUnmarshaler, so it binds as one value without registration` |
 | `conga.ConfigPaths()` with no paths, or an empty path | `conga: app.ConfigOptions(conga.ConfigPaths(...)): at least one path is required`, `…: path entries must be non-empty` |
 | `conga.ConfigExplicit("")` | `conga: app.ConfigOptions(conga.ConfigExplicit(...)): the explicit path cannot be empty` |
 | A nil `context.Context` passed to `RunContext`, or to `Run` on `HelpCommand`, `VersionCommand`, or `CompletionCommand` | `conga: nil Context` |

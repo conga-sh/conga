@@ -115,7 +115,7 @@ func stringifyStringer(stringer fmt.Stringer) string {
 }
 
 func stringifyAddressable(reflected reflect.Value) (string, bool) {
-	if reflected.Kind() != reflect.Struct {
+	if kind := reflected.Kind(); kind == reflect.Pointer || kind == reflect.Interface {
 		return "", false
 	}
 

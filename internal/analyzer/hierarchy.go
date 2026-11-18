@@ -455,10 +455,13 @@ func (w *walker) checkTrailingGrammar(node *commandNode) {
 				grammar.CommandField = fieldObject.Name()
 			}
 		case "positional argument":
-			underlying := types.Unalias(w.containerInnerType(fieldObject.Type())).Underlying()
+			innerType := types.Unalias(w.containerInnerType(fieldObject.Type()))
+			collection := staticIsCollection(innerType)
 
-			_, isSlice := underlying.(*types.Slice)
-			_, isMap := underlying.(*types.Map)
+			_, isSlice := innerType.Underlying().(*types.Slice)
+			_, isMap := innerType.Underlying().(*types.Map)
+			isSlice = isSlice && collection
+			isMap = isMap && collection
 
 			grammar.Args = append(grammar.Args, spec.TrailingArgGrammar{
 				Name:     spec.DefaultArgName(fieldObject.Name(), tag),

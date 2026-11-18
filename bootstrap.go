@@ -231,12 +231,11 @@ func (a *App[T]) bindBootstrapFields(invocation parsedInvocation, envLookup func
 
 func (a *App[T]) bindBootstrapContainers(invocation parsedInvocation, envLookup func(string) (string, bool), tolerate bool) ([]containerSnapshot, error) {
 	state := &bindingState{
-		EnvPrefix:       a.envPrefix,
-		EnvLookup:       envLookup,
-		TypeParsers:     a.collectTypeParsers(),
-		CustomMapMerger: a.customMapMerger,
-		Stdin:           a.stdin,
-		Stdout:          a.stdout,
+		EnvPrefix:   a.envPrefix,
+		EnvLookup:   envLookup,
+		TypeParsers: a.collectTypeParsers(),
+		Stdin:       a.stdin,
+		Stdout:      a.stdout,
 		// The bootstrap pass keeps its own stdin record: bootstrap-tagged
 		// values are bound again in the normal pass.
 		StdinClaim: &stdinClaim{},

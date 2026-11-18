@@ -930,7 +930,7 @@ func metavarForType(targetType reflect.Type) string {
 		return "VALUE"
 	}
 
-	for targetType.Kind() == reflect.Pointer || targetType.Kind() == reflect.Slice {
+	for targetType.Kind() == reflect.Pointer || (targetType.Kind() == reflect.Slice && spec.IsCollection(targetType)) {
 		targetType = targetType.Elem()
 	}
 
@@ -953,7 +953,7 @@ func typeHelpFor(targetType reflect.Type, tags spec.FieldTags) string {
 		return ""
 	}
 
-	for targetType.Kind() == reflect.Pointer || targetType.Kind() == reflect.Slice {
+	for targetType.Kind() == reflect.Pointer || (targetType.Kind() == reflect.Slice && spec.IsCollection(targetType)) {
 		targetType = targetType.Elem()
 	}
 
