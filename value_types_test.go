@@ -379,7 +379,7 @@ type namedStringKindMapsCLI struct {
 	ConfigFile conga.ConfigFile                        `help:"Config file"`
 	Keys       conga.OptionalFlag[map[mapKey]string]   `help:"Keys"`
 	Values     conga.OptionalFlag[map[string]mapValue] `help:"Values"`
-	Both       conga.OptionalFlag[map[mapKey]mapValue] `default:"d=1"          help:"Both"`
+	Both       conga.OptionalFlag[map[mapKey]mapValue] `default:"d=1"      help:"Both"`
 }
 
 type namedStringKeyArgCLI struct {
