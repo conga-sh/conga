@@ -910,6 +910,9 @@ func (nopWriteCloser) Close() error {
 // when its field declares stdin:"true".
 func (File) dashReadsStdin(tags FieldTags) bool { return tags.Bool("stdin") }
 
+// pathValue marks File as a path type; see the binder's pathValue.
+func (File) pathValue() {}
+
 // applyTags captures the declared capability tags on the value.
 func (f *File) applyTags(tags FieldTags) {
 	f.existing = tags.Bool("existing")
@@ -918,6 +921,12 @@ func (f *File) applyTags(tags FieldTags) {
 	f.executable = tags.Bool("executable")
 	f.symlink = tags.Bool("symlink")
 }
+
+// pathValue marks Dir as a path type; see the binder's pathValue.
+func (Dir) pathValue() {}
+
+// pathValue marks FileContent as a path type; see the binder's pathValue.
+func (FileContent) pathValue() {}
 
 // readsWhileParsing marks FileContent as reading its input during coercion;
 // see the binder's parseTimeReader.

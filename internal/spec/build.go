@@ -552,7 +552,7 @@ func (b *schemaBuilder) processFlag(structField reflect.StructField, flagHandle 
 		return fmt.Errorf("%w: tag \"negatable\" is only valid on boolean flags, got %s", ErrInvalidStructTag, innerType.String())
 	}
 
-	if err := validateMapConstraints(structField, innerType); err != nil {
+	if err := b.validateValueTarget(structField, innerType); err != nil {
 		return err
 	}
 
@@ -692,7 +692,7 @@ func (b *schemaBuilder) checkBuiltinShortConflict(flagSpec *Flag) error {
 func (b *schemaBuilder) processArg(structField reflect.StructField, argHandle any, classification container.Classification, fieldTags FieldTags) error {
 	innerType := extractGenericType(structField.Type)
 
-	if err := validateMapConstraints(structField, innerType); err != nil {
+	if err := b.validateValueTarget(structField, innerType); err != nil {
 		return err
 	}
 
@@ -1111,25 +1111,49 @@ func (b *schemaBuilder) validateValueType(innerType reflect.Type) error {
 	return b.opts.ValidateValueType(innerType)
 }
 
-// validateMapConstraints rejects map-typed flag/arg fields whose key type is
-// not a string, or whose tags carry per-entry constraints (enum/range/len)
-// that maps cannot honor; map entries are constrained via "items" instead.
-func validateMapConstraints(structField reflect.StructField, innerType reflect.Type) error {
-	if !isMapCollection(innerType) {
-		return nil
+// validateValueTarget runs the shared value-type tag checks
+// (ValidateValueTarget) on a flag or positional argument.
+func (b *schemaBuilder) validateValueTarget(structField reflect.StructField, innerType reflect.Type) error {
+	target := ValueTarget{PathSubject: b.pathSubject(innerType)}
+
+	if isMapCollection(innerType) {
+		target.IsMap = true
+		target.MapKeyIsString = innerType.Key().Kind() == reflect.String
+		target.MapKeyType = innerType.Key().String()
 	}
 
-	if innerType.Key().Kind() != reflect.String {
-		return fmt.Errorf("%w, got %s", errNonStringMapKey, innerType.Key())
+	return ValidateValueTarget(structField.Tag, target)
+}
+
+// pathSubject returns the display name of the path type a flag or positional
+// argument holds, or "". A slice collection resolves to its element and one
+// pointer layer is unwrapped, so []*conga.File names conga.File. Path types
+// are the ones Options.IsPathType reports and the FileFilterable,
+// DirFilterable and PathFilterable implementations (value or pointer
+// receiver). Maps resolve to "": they cannot declare enum at all.
+func (b *schemaBuilder) pathSubject(innerType reflect.Type) string {
+	if innerType == nil || isMapCollection(innerType) {
+		return ""
 	}
 
-	for _, tag := range []string{"enum", "range", "len"} {
-		if hasTag(structField.Tag, tag) {
-			return fmt.Errorf("%w: tag %q is not supported on map types. Use tag \"items\" to constrain the number of map entries, or custom domain types with SelfValidator to validate map entries", ErrInvalidStructTag, tag)
-		}
+	elemType := innerType
+	if IsCollection(elemType) {
+		elemType = elemType.Elem()
 	}
 
-	return nil
+	if elemType.Kind() == reflect.Pointer {
+		elemType = elemType.Elem()
+	}
+
+	if b.opts.IsPathType != nil && b.opts.IsPathType(elemType) {
+		return elemType.String()
+	}
+
+	if isFilterableType(elemType) {
+		return elemType.String()
+	}
+
+	return ""
 }
 
 // implements reports whether target satisfies the interface type T.

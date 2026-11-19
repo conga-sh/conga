@@ -85,6 +85,17 @@ $ deploy --manifest notes.txt
 deploying to dev
 ```
 
+:::caution[No `enum` on path fields]
+An `enum` tag on a `conga.File`, `conga.Dir`, or `conga.FileContent` field fails at startup, and so does one on a field with a `file`, `dir`, `exec`, or `symlink` predictor:
+
+```sh error={2}
+$ deploy
+deploy: error: struct Deploy field Manifest: schema error: invalid struct tag: tag "enum" is not supported on conga.File; use tag "glob" to filter completion candidates, or a string field with tag "enum" to accept a fixed set of names
+```
+
+The run exits with status 1. Use `glob` to narrow a `conga.File`'s candidates, and a `string` field with `enum` to accept a fixed set of names.
+:::
+
 ## Complete paths for a string flag
 
 To complete paths for a `string` flag, give it a `predictor` tag naming a built-in predictor:

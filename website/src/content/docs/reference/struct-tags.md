@@ -15,7 +15,7 @@ CONGA derives the CLI schema from struct fields and their tags. Schema build val
 | `config` | ✅ | ✅ | ✅ | Config file key feeding the flag, matched exactly as written (default: a key derived from the flag name, spelled in the app's key casing, so `--api-endpoint` reads `api-endpoint`, or `api_endpoint` under `conga.ConfigKeyCase(conga.SnakeCase)`). The tag replaces the name, and aliases never match. A dotted key such as `db.host` is read from nested sections, `host` inside `db`. `config:"-"` excludes the field from config files. |
 | `default` | ✅ | – | – | Default value when no other source provides one. Coerced with the same parser as CLI input. Rejected on required flags and `oneof` members. |
 | `deprecated` | ✅ | – | ✅ | Deprecation notice; suppresses flag from completion. |
-| `enum` | ✅ | ✅ | – | Comma-separated allowed values, checked against the coerced value, rendered in help as `[enum: …]`. |
+| `enum` | ✅ | ✅ | – | Comma-separated allowed values, checked against the coerced value, rendered in help as `[enum: …]`. Not allowed on path fields (`conga.File`, `conga.Dir`, `conga.FileContent`, types implementing `predict.FileFilterable`, `DirFilterable`, or `PathFilterable`, and `file`, `dir`, `exec`, or `symlink` predictor tags). |
 | `enumhint` | ✅ | ✅ | – | Set to `-` to suppress the automatic `[enum: …]` help hint while keeping values validated and completed. |
 | `env` | ✅ | ✅ | ✅ | Comma-separated environment variable names; the first one set to a non-empty value wins. `env:"-"` disables environment binding. Explicit names ignore all prefixes. |
 | `feature` | ✅ | – | ✅ | Feature-gate expression: the flag exists only while the expression is satisfied (see [Feature toggles](#feature-toggles-congafeaturest)). Required flags reject this tag. |
@@ -55,7 +55,7 @@ Positional arguments bind to command-line input. They belong to leaf commands. A
 |-----|:--------:|:--------:|---------|
 | `bootstrap` | ✅ | ✅ | Bind the argument before the bootstrap phase runs and expose it typed to `Bootstrap`. Same restrictions as bootstrap flags. |
 | `default` | ✅ | – | Default value for optional arguments. |
-| `enum` | ✅ | ✅ | Comma-separated allowed values, checked against the coerced value, rendered in help as `[enum: …]`. |
+| `enum` | ✅ | ✅ | Comma-separated allowed values, checked against the coerced value, rendered in help as `[enum: …]`. Not allowed on path fields, as on flags. |
 | `enumhint` | ✅ | ✅ | Set to `-` to suppress the automatic `[enum: …]` help hint while keeping values validated and completed. |
 | `help` | ✅ | ✅ | Help text. Supports [help variables](#help-variables). |
 | `items` | ✅ | ✅ | Element count bound for slices or maps. |

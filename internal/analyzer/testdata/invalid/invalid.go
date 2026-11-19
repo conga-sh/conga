@@ -465,10 +465,10 @@ func (b *ByteSizeUnitsTagApp) Run(ctx context.Context, session *conga.Session) e
 
 var _ = conga.New[ByteSizeUnitsTagApp]()
 
-// MapRangeApp applies a range to a map element type, which runtime schema
-// build rejects and the analyzer mirrors.
+// MapRangeApp applies a range to a map, which runtime schema build rejects
+// with the map constraint message and the analyzer mirrors.
 type MapRangeApp struct {
-	Weights conga.OptionalFlag[map[string]int] `name:"weights" range:"1..10" help:"Weights"` // want `range tag is not supported on type map\[string\]int`
+	Weights conga.OptionalFlag[map[string]int] `name:"weights" range:"1..10" help:"Weights"` // want `tag "range" is not supported on map types\. Use tag "items"`
 }
 
 // Run executes the map range fixture.
