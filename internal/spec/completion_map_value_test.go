@@ -33,7 +33,7 @@ type MapValueCLI struct {
 	Bare       mockFlag[map[string]stage]
 	Named      mockFlag[stageMap]                 `help:"Named"`
 	Registered mockFlag[map[string]unpredictable] `help:"Registered"`
-	Tagged     mockFlag[map[string]stage]         `help:"Tagged"            predictor:"entries"`
+	Tagged     mockFlag[map[string]stage]         `help:"Tagged"     predictor:"entries"`
 	Toggles    mockFlag[map[string]bool]          `help:"Toggles"`
 	Plain      mockFlag[map[string]string]        `help:"Plain"`
 }
