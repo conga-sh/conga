@@ -29,11 +29,10 @@ const (
 	// PredictorKindNone indicates completion should be suppressed (no file fallback).
 	PredictorKindNone
 
-	// PredictorKindPredictable indicates a predictor supplied directly rather
-	// than named by a tag: an eagerly known predict.Predictor (a registered
-	// type predictor, the feature map predictor) or a deferred builder set by
-	// type inference (Predictable, TagAwarePredictable, and the filterable
-	// interfaces).
+	// PredictorKindPredictable indicates a predictor supplied through
+	// PredictorSpec.Build rather than named by a tag: a registered type
+	// predictor, the feature map predictor, or one inferred from the field's
+	// type (Predictable, TagAwarePredictable, and the filterable interfaces).
 	PredictorKindPredictable
 )
 
@@ -310,16 +309,14 @@ type PredictorKind int
 // PredictorSpec represents the parsed predictor configuration on a flag,
 // positional argument, or trailing-argument collector.
 //
-// A PredictorKindPredictable spec sets exactly one of Predictor and Build.
-// Predictor holds an eagerly known predictor. Build is set by type inference
-// and defers the type's Predict call until the completion walker resolves
-// candidates for that field, so runs, help, and --why never call it.
+// Build supplies the predictor of a PredictorKindPredictable spec. The
+// completion walker calls it only when it resolves candidates for that
+// field, so runs, help, and --why never call a type's Predict.
 type PredictorSpec struct {
-	Kind      PredictorKind
-	Name      string
-	Patterns  []string
-	Predictor predict.Predictor
-	Build     func() predict.Predictor
+	Kind     PredictorKind
+	Name     string
+	Patterns []string
+	Build    func() predict.Predictor
 }
 
 // Flag represents the metadata and binder for a command-line flag.

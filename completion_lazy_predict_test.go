@@ -13,9 +13,17 @@ import (
 	"github.com/conga-sh/conga/predict"
 )
 
-// predictCalls maps each test case's marker type to the number of Predict
-// calls on countingService[Case], so parallel cases never share a count.
-var predictCalls sync.Map
+// predictCalls holds one Predict call counter per test case, keyed by the
+// case's marker type, so parallel cases never share a count. The mutex
+// guards creating a case's counter on first use. Tests assert the
+// difference across the action, so -count>1 reruns pass.
+//
+//nolint:gochecknoglobals // Predict runs on an engine-made zero value, so call counts must live at package scope
+var predictCalls = struct {
+	sync.Mutex
+
+	counts map[reflect.Type]*atomic.Int32
+}{counts: map[reflect.Type]*atomic.Int32{}}
 
 // countingService counts its Predict calls under the marker type Case.
 type countingService[Case any] string
@@ -112,12 +120,13 @@ func TestPredict_NotCalledOutsideCompletion(t *testing.T) {
 
 		type runCase struct{}
 
+		before := predictCallCounter[runCase]().Load()
 		app := conga.New[lazyFlagCLI[runCase]]().EnableCompletion().Args([]string{"--service", "api"})
 
 		err := app.RunContext(t.Context())
 
 		assert.NoError(t, err)
-		assert.Equal(t, int32(0), predictCallCounter[runCase]().Load())
+		assert.Equal(t, int32(0), predictCallCounter[runCase]().Load()-before)
 	})
 
 	t.Run("help", func(t *testing.T) {
@@ -127,13 +136,14 @@ func TestPredict_NotCalledOutsideCompletion(t *testing.T) {
 
 		var buffer bytes.Buffer
 
+		before := predictCallCounter[helpCase]().Load()
 		app := conga.New[lazyFlagCLI[helpCase]]().EnableCompletion().Stdout(&buffer).Args([]string{"--help"})
 
 		err := app.RunContext(t.Context())
 
 		assert.NoError(t, err)
 		assert.Contains(t, buffer.String(), "--service")
-		assert.Equal(t, int32(0), predictCallCounter[helpCase]().Load())
+		assert.Equal(t, int32(0), predictCallCounter[helpCase]().Load()-before)
 	})
 
 	t.Run("why", func(t *testing.T) {
@@ -143,13 +153,14 @@ func TestPredict_NotCalledOutsideCompletion(t *testing.T) {
 
 		var buffer bytes.Buffer
 
+		before := predictCallCounter[whyCase]().Load()
 		app := conga.New[lazyFlagCLI[whyCase]]().EnableCompletion().EnableWhy().Stdout(&buffer).Args([]string{"--service", "api", "--why"})
 
 		err := app.RunContext(t.Context())
 
 		assert.NoError(t, err)
 		assert.Contains(t, buffer.String(), "--service")
-		assert.Equal(t, int32(0), predictCallCounter[whyCase]().Load())
+		assert.Equal(t, int32(0), predictCallCounter[whyCase]().Load()-before)
 	})
 }
 
@@ -165,13 +176,14 @@ func TestPredict_CalledOnlyForCompletedFlag(t *testing.T) {
 
 		var buffer bytes.Buffer
 
+		before := predictCallCounter[otherFlagCase]().Load()
 		app := conga.New[lazyFlagCLI[otherFlagCase]]().EnableCompletion().Stdout(&buffer).Args([]string{"__complete", "export", "--other", ""})
 
 		err := app.RunContext(t.Context())
 
 		assert.NoError(t, err)
 		assert.NotContains(t, buffer.String(), `"value":"api"`)
-		assert.Equal(t, int32(0), predictCallCounter[otherFlagCase]().Load())
+		assert.Equal(t, int32(0), predictCallCounter[otherFlagCase]().Load()-before)
 	})
 
 	t.Run("flag names", func(t *testing.T) {
@@ -181,13 +193,14 @@ func TestPredict_CalledOnlyForCompletedFlag(t *testing.T) {
 
 		var buffer bytes.Buffer
 
+		before := predictCallCounter[flagNamesCase]().Load()
 		app := conga.New[lazyFlagCLI[flagNamesCase]]().EnableCompletion().Stdout(&buffer).Args([]string{"__complete", "export", "--"})
 
 		err := app.RunContext(t.Context())
 
 		assert.NoError(t, err)
 		assert.Contains(t, buffer.String(), `"value":"--service"`)
-		assert.Equal(t, int32(0), predictCallCounter[flagNamesCase]().Load())
+		assert.Equal(t, int32(0), predictCallCounter[flagNamesCase]().Load()-before)
 	})
 
 	t.Run("predictable flag value", func(t *testing.T) {
@@ -197,6 +210,7 @@ func TestPredict_CalledOnlyForCompletedFlag(t *testing.T) {
 
 		var buffer bytes.Buffer
 
+		before := predictCallCounter[flagValueCase]().Load()
 		app := conga.New[lazyFlagCLI[flagValueCase]]().EnableCompletion().Stdout(&buffer).Args([]string{"__complete", "export", "--service", ""})
 
 		err := app.RunContext(t.Context())
@@ -204,7 +218,7 @@ func TestPredict_CalledOnlyForCompletedFlag(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Contains(t, buffer.String(), `"value":"api"`)
 		assert.Contains(t, buffer.String(), `"value":"web"`)
-		assert.Equal(t, int32(1), predictCallCounter[flagValueCase]().Load())
+		assert.Equal(t, int32(1), predictCallCounter[flagValueCase]().Load()-before)
 	})
 }
 
@@ -220,13 +234,14 @@ func TestPredict_CalledOnlyForCompletedPositional(t *testing.T) {
 
 		var buffer bytes.Buffer
 
+		before := predictCallCounter[slotCase]().Load()
 		app := conga.New[lazyBranchCLI[slotCase]]().EnableCompletion().Stdout(&buffer).Args([]string{"__complete", "export", "deploy", ""})
 
 		err := app.RunContext(t.Context())
 
 		assert.NoError(t, err)
 		assert.Contains(t, buffer.String(), `"value":"api"`)
-		assert.Equal(t, int32(1), predictCallCounter[slotCase]().Load())
+		assert.Equal(t, int32(1), predictCallCounter[slotCase]().Load()-before)
 	})
 
 	t.Run("sibling flag names", func(t *testing.T) {
@@ -236,13 +251,14 @@ func TestPredict_CalledOnlyForCompletedPositional(t *testing.T) {
 
 		var buffer bytes.Buffer
 
+		before := predictCallCounter[flagNamesCase]().Load()
 		app := conga.New[lazyBranchCLI[flagNamesCase]]().EnableCompletion().Stdout(&buffer).Args([]string{"__complete", "export", "deploy", "--"})
 
 		err := app.RunContext(t.Context())
 
 		assert.NoError(t, err)
 		assert.Contains(t, buffer.String(), `"value":"--force"`)
-		assert.Equal(t, int32(0), predictCallCounter[flagNamesCase]().Load())
+		assert.Equal(t, int32(0), predictCallCounter[flagNamesCase]().Load()-before)
 	})
 
 	t.Run("command names", func(t *testing.T) {
@@ -252,13 +268,14 @@ func TestPredict_CalledOnlyForCompletedPositional(t *testing.T) {
 
 		var buffer bytes.Buffer
 
+		before := predictCallCounter[commandNamesCase]().Load()
 		app := conga.New[lazyBranchCLI[commandNamesCase]]().EnableCompletion().Stdout(&buffer).Args([]string{"__complete", "export", ""})
 
 		err := app.RunContext(t.Context())
 
 		assert.NoError(t, err)
 		assert.Contains(t, buffer.String(), `"value":"deploy"`)
-		assert.Equal(t, int32(0), predictCallCounter[commandNamesCase]().Load())
+		assert.Equal(t, int32(0), predictCallCounter[commandNamesCase]().Load()-before)
 	})
 }
 
@@ -272,6 +289,7 @@ func TestPredict_ImplicitBareSpaceCompletesImplicitPositional(t *testing.T) {
 
 	var buffer bytes.Buffer
 
+	before := predictCallCounter[implicitCase]().Load()
 	app := conga.New[lazyImplicitCLI[implicitCase]]().EnableCompletion().Stdout(&buffer).Args([]string{"__complete", "export", ""})
 
 	err := app.RunContext(t.Context())
@@ -279,7 +297,7 @@ func TestPredict_ImplicitBareSpaceCompletesImplicitPositional(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Contains(t, buffer.String(), `"value":"api"`)
 	assert.Contains(t, buffer.String(), `"value":"status"`)
-	assert.Equal(t, int32(1), predictCallCounter[implicitCase]().Load())
+	assert.Equal(t, int32(1), predictCallCounter[implicitCase]().Load()-before)
 }
 
 // TestPredict_TagAwareReceivesFieldTags verifies that the deferred Predict
@@ -340,7 +358,13 @@ func TestPredict_PanicFailsOnlyCompletion(t *testing.T) {
 }
 
 func predictCallCounter[Case any]() *atomic.Int32 {
-	counter, _ := predictCalls.LoadOrStore(reflect.TypeFor[Case](), new(atomic.Int32))
+	predictCalls.Lock()
+	defer predictCalls.Unlock()
 
-	return counter.(*atomic.Int32)
+	key := reflect.TypeFor[Case]()
+	if predictCalls.counts[key] == nil {
+		predictCalls.counts[key] = new(atomic.Int32)
+	}
+
+	return predictCalls.counts[key]
 }

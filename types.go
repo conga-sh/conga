@@ -161,8 +161,10 @@ type ContextAwareTextUnmarshaler interface {
 //
 // The engine calls Predict only when completion resolves candidates for a field
 // of the type, and Predict receives no parsed values; return a
-// [predict.Callback] for candidates that depend on them. Implement exactly one
-// of [Predictable] or [TagAwarePredictable], not both.
+// [predict.Callback] for candidates that depend on them or take time to
+// compute, because no deadline applies to Predict while a callback runs under
+// [predict.DefaultTimeout] or its own Timeout. Implement exactly one of
+// [Predictable] or [TagAwarePredictable], not both.
 type Predictable interface {
 	// Predict returns an autocompletion predictor for the domain type.
 	Predict() predict.Predictor
@@ -176,8 +178,10 @@ type Predictable interface {
 //
 // The engine calls Predict only when completion resolves candidates for a field
 // of the type, and Predict receives no parsed values; return a
-// [predict.Callback] for candidates that depend on them. Implement exactly one
-// of [Predictable] or [TagAwarePredictable], not both.
+// [predict.Callback] for candidates that depend on them or take time to
+// compute, because no deadline applies to Predict while a callback runs under
+// [predict.DefaultTimeout] or its own Timeout. Implement exactly one of
+// [Predictable] or [TagAwarePredictable], not both.
 type TagAwarePredictable interface {
 	// Predict returns a predictor tailored to the field's declared tags.
 	Predict(tags FieldTags) predict.Predictor
