@@ -7,7 +7,9 @@
       "include-v-in-tag": true,
       "bump-minor-pre-major": true,
       "bump-patch-for-minor-pre-major": false,
-      "include-commit-authors": true,
+      "include-commit-authors": false,
+      "draft": true,
+      "force-tag-creation": true,
       "pull-request-title-pattern": "chore: release ${version}",
       "changelog-sections": [
         { "type": "feat", "section": "✨ Features" },
@@ -17,6 +19,7 @@
         { "type": "deps", "section": "📦 Dependencies", "hidden": false },
         { "type": "revert", "section": "⏪ Reverts" },
         { "type": "refactor", "section": "♻️ Code Refactoring", "hidden": true },
+        { "type": "style", "section": "🎨 Styling", "hidden": true },
         { "type": "test", "section": "🧪 Tests", "hidden": true },
         { "type": "ci", "section": "👷 CI", "hidden": true },
         { "type": "build", "section": "🛠 Build System", "hidden": true },
