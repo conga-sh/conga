@@ -720,12 +720,12 @@ Uses: `Bootstrapper`, `Bootstrap.SetConfig`, `ConfigDocument`, `bootstrap`
 
 [Source](https://github.com/conga-sh/conga/tree/main/_examples/19-shell-completion) · Guide: [How to compute and shape completion candidates](/how-to/compute-completion-candidates/)
 
-A deploy tool that completes values three ways: types that complete themselves on `deploy`, named predictors on `exec`, and the `predict` package's constructors and combinators on `logs`. `--list-candidates` calls the predictors directly, outside completion.
+A deploy tool that completes values three ways: types that complete themselves on `deploy`, named predictors on `exec`, and the `predict` package's constructors and combinators on `logs`. `--list-candidates` calls the predictors directly, outside completion. On `deploy`, `enum` tags narrow a type's candidates on `--failover` and `--base-image`, and `--zones` completes map values from the value type.
 
 :::code-tabs
 ```sh label="Completion request" wrap
 $ go run ./_examples/19-shell-completion __complete export deploy --cluster ''
-{"candidates":[{"value":"staging-cluster-alpha","display":"staging-cluster-alpha","tag":"values"},{"value":"staging-cluster-beta","display":"staging-cluster-beta","tag":"values"}],"directives":{"keeporder":false,"messages":[],"noprefix":false,"nospace":false},"usage":"Target cluster (contextual)"}
+{"candidates":[{"value":"staging-cluster-alpha","display":"staging-cluster-alpha","tag":"values"},{"value":"staging-cluster-beta","display":"staging-cluster-beta","tag":"values"}],"directives":{"keeporder":false,"messages":[],"noprefix":false,"nospace":false},"usage":"target cluster in staging"}
 ```
 ```sh label="Direct call"
 $ go run ./_examples/19-shell-completion logs api --list-candidates
@@ -736,7 +736,7 @@ Tag: severities
 ```
 :::
 
-Uses: `Predictable`, `predict.FileFilterable`, `predictor`, `App.Predictor`, `App.EnableCompletion`, `CompletionEnvPrefix`
+Uses: `Predictable`, `predict.FileFilterable`, `predictor`, `enum`, `map[K]V`, `App.Predictor`, `App.EnableCompletion`, `CompletionEnvPrefix`
 
 ### 20 modular-predictors
 
@@ -984,7 +984,7 @@ Uses: `ConfigFile`, `Features[T]`, `RequiredFlag[T]`, `DashArgs`, `executable`, 
 | `{{default}}` | [16](#16-help-variables) |
 | `deprecated` | [23](#23-member-deprecation) |
 | `Dir` | [05](#05-domain-types) |
-| `enum` | [06](#06-flag-constraints) |
+| `enum` | [06](#06-flag-constraints), [19](#19-shell-completion) |
 | `{{enum}}` | [16](#16-help-variables) |
 | `{{env}}` | [16](#16-help-variables) |
 | `env` | [13](#13-twelve-factor-precedence) |
@@ -1006,7 +1006,7 @@ Uses: `ConfigFile`, `Features[T]`, `RequiredFlag[T]`, `DashArgs`, `executable`, 
 | `items` | [03](#03-negatable-and-maps), [06](#06-flag-constraints) |
 | `{{items}}` | [16](#16-help-variables) |
 | `len` | [06](#06-flag-constraints) |
-| `map[K]V` | [03](#03-negatable-and-maps) |
+| `map[K]V` | [03](#03-negatable-and-maps), [19](#19-shell-completion) |
 | `multi` | [17](#17-config-profiles) |
 | `name` | [04](#04-positional-args), [32](#32-implicit-command) |
 | `negatable` | [03](#03-negatable-and-maps) |

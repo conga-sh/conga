@@ -138,7 +138,7 @@ An `enum` tag narrows the chosen predictor to the listed values with `Include`, 
 
 For a slice field, the element type decides, and an `enum` narrows each element's candidates.
 
-A `file`, `dir`, `exec` or `symlink` tag on a map field completes the value after the entry's first `=`, and a custom predictor tag completes the whole entry. For a map field without a `predictor` tag, steps 3 to 5 apply to the map type first. When the map type has no predictor, steps 2 to 5 apply to the value type, and a `bool` value offers `true` and `false`. A value-type predictor completes the text after the entry's first `=` and puts `key=` in front of each candidate. Before the `=`, it offers no candidates.
+A `file`, `dir`, `exec` or `symlink` tag on a map field completes the value after the entry's first `=`, and a custom predictor tag completes the whole entry. For a map field without a `predictor` tag, steps 3 to 5 apply to the map type first. When the map type has no predictor, steps 2 to 5 apply to the value type, and a `bool` value offers `true` and `false`. A value-type predictor completes the text after the entry's first `=`, as the run splits it (in `k=a=b/`, the value is `a=b/`), and puts `key=` in front of each candidate. Before the `=`, it offers no candidates, and the usage hint is the field's help. A field without help gets the hint `<key>=<value>`, with the value type's help in place of `<value>` when the type has some (`<key>=<Path to a file>` for `map[string]conga.File`). A positional map without help puts its name before the hint (`<files>: <key>=<Path to a file>`).
 
 ## Constants
 

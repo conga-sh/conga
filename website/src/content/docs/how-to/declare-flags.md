@@ -163,7 +163,7 @@ fetching https://example.com to -: 3 tries, 30s each
 follow redirects: true
 ```
 
-`--redirects=false` also works. Without the `negatable` tag, `--no-redirects` is an unknown flag. `negatable` on a non-`bool` flag fails at startup with `ErrSchema`.
+`--redirects=false` also works. Without the `negatable` tag, `--no-redirects` is an unknown flag. `negatable` on a non-`bool` flag fails at startup with `ErrSchema`, and so does a value other than `true` or `false`, such as `negatable:"yes"`.
 
 ## Count how often a flag is repeated
 

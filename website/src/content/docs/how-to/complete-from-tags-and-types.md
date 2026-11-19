@@ -1,6 +1,6 @@
 ---
 title: How to get completion from tags and types
-description: Complete enum values, paths, programs, symlinks, signals, HTTP methods, time zones, and feature names from tags and types with no predictor code, and turn completion off for a field.
+description: Complete enum values, paths, programs, symlinks, signals, HTTP methods, time zones, map values, and feature names from tags and types with no predictor code, and turn completion off for a field.
 ---
 
 CONGA completes a flag's values from its tags and its type. This guide builds a `deploy` command with a flag for each source of candidates: an `enum` tag, a `predictor` tag, the filesystem types, and the domain types. Positional arguments complete from the same tags and types.
@@ -255,6 +255,45 @@ $ deploy --method PUT
 deploy: error: invalid value "PUT" (must be one of: GET, POST) for flag --method
 ```
 
+## Complete the values of a map
+
+A map flag takes `key=value` pairs and completes each value from the map's value type. `--zones` maps a region to a time zone, so its values complete as `--zone` does:
+
+```go title="main.go" ins={6}
+type Deploy struct {
+	// ...
+	Signal conga.OptionalFlag[system.Signal]
+	Method conga.OptionalFlag[network.HTTPMethod] `enum:"GET,POST"`
+	Zone   conga.OptionalFlag[*time.Location] `help:"Time zone"`
+	Zones  conga.OptionalFlag[map[string]*time.Location] `help:"Time zone per region"`
+}
+```
+
+The user picks the keys, so before the `=` the shell offers no candidates and shows the flag's help:
+
+```ansi no-copy frame="code"
+$ deploy --zones <Tab>
+[2mTime zone per region[0m
+```
+
+After `key=`, the shell offers the time zones:
+
+```ansi no-copy frame="code"
+$ deploy --zones eu=Europe/L<Tab>
+[2mTime zone per region[0m
+Europe/Lisbon[2m  -- Portugal (mainland)[0m
+Europe/London
+```
+
+The run parses each value as a `*time.Location`, and an unknown zone is a usage error, exit 2:
+
+```sh error={2}
+$ deploy --zones eu=Europe/Lndon
+deploy: error: value for key "eu": unknown time zone Europe/Lndon for flag --zones
+```
+
+A `file`, `dir`, `exec`, or `symlink` predictor tag on a map completes paths after `key=` in the same way. A `predictor` tag naming your own predictor completes the whole entry, keys included, as [Complete a value in parts](/how-to/compute-completion-candidates/#complete-a-value-in-parts) shows.
+
 ## Complete feature names
 
 A `conga.Features` field declares the program's feature gates from a struct of `bool` fields, and its flag completes the feature names, then the values after `=`. Features need `EnableFeatures()` on the builder:
@@ -297,8 +336,9 @@ false  true
 | Field | What completion offers |
 |---|---|
 | `string` with no `enum` or `predictor` tag | No candidates |
-| `map[string]string` | No candidates. zsh shows the hint `<key>=<value>` |
-| A map whose value type completes (`map[string]*time.Location` with `Use(timezone.RegisterLocation)`) | No keys. After `key=`, the value type's candidates. Before the `=`, zsh shows the field's help, or without one `<key>=<value>` with the value type's help as the value (`<key>=<Path to a file>`) |
+| `map[string]string` | No candidates. zsh shows the field's help, or the hint `<key>=<value>` without one |
+| A map whose value type completes (`map[string]*time.Location` with `Use(timezone.RegisterLocation)`) | No keys. After `key=`, the value type's candidates |
+| A map without a `help` tag whose value type has help (`map[string]conga.File`) | No keys. zsh shows the hint `<key>=<Path to a file>` |
 | A map with a path predictor tag (`predictor:"file"` on `map[string]string`) | No keys. After `key=`, paths |
 | `predictor:"none"` | No candidates, whatever the type |
 | An `enum` value the type's predictor doesn't produce | Not offered. The run still accepts it |
