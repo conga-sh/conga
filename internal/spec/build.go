@@ -1112,9 +1112,14 @@ func (b *schemaBuilder) validateValueType(innerType reflect.Type) error {
 }
 
 // validateValueTarget runs the shared value-type tag checks
-// (ValidateValueTarget) on a flag or positional argument.
+// (ValidateValueTarget) on a flag or positional argument. Only the enum rule
+// reads PathSubject, so fields without an enum tag skip computing it.
 func (b *schemaBuilder) validateValueTarget(structField reflect.StructField, innerType reflect.Type) error {
-	target := ValueTarget{PathSubject: b.pathSubject(innerType)}
+	var target ValueTarget
+
+	if hasTag(structField.Tag, "enum") {
+		target.PathSubject = b.pathSubject(innerType)
+	}
 
 	if isMapCollection(innerType) {
 		target.IsMap = true

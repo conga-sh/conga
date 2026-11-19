@@ -416,19 +416,20 @@ func inferImplements[T any](elemType reflect.Type, build func(T) predict.Predict
 
 // isFilterableType reports whether elemType implements FileFilterable,
 // DirFilterable or PathFilterable with a value or pointer receiver, the
-// structural check inferFilterablePredictor uses.
+// structural check inferFilterablePredictor uses. It checks method sets with
+// Implements rather than assertValueOrPointer: schema build runs it in every
+// binary, and each reflect.TypeAssert instantiation would link into programs
+// that never enable completion.
 func isFilterableType(elemType reflect.Type) bool {
-	if _, ok := assertValueOrPointer[predict.FileFilterable](elemType); ok {
-		return true
-	}
+	return implementsValueOrPointer(elemType, reflect.TypeFor[predict.FileFilterable]()) ||
+		implementsValueOrPointer(elemType, reflect.TypeFor[predict.DirFilterable]()) ||
+		implementsValueOrPointer(elemType, reflect.TypeFor[predict.PathFilterable]())
+}
 
-	if _, ok := assertValueOrPointer[predict.DirFilterable](elemType); ok {
-		return true
-	}
-
-	_, ok := assertValueOrPointer[predict.PathFilterable](elemType)
-
-	return ok
+// implementsValueOrPointer reports whether targetType or a pointer to it
+// implements interfaceType, the yes/no form of assertValueOrPointer.
+func implementsValueOrPointer(targetType reflect.Type, interfaceType reflect.Type) bool {
+	return targetType.Implements(interfaceType) || reflect.PointerTo(targetType).Implements(interfaceType)
 }
 
 func inferFilterablePredictor(elemType reflect.Type) *PredictorSpec {

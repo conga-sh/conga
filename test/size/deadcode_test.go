@@ -126,6 +126,9 @@ func TestMinimalHello_PredictorInferenceEliminated(t *testing.T) {
 		"github.com/conga-sh/conga/predict.FilesFiltered",
 		"github.com/conga-sh/conga/predict.(*fsScan).candidateItem",
 		"github.com/conga-sh/conga/predict.scanFilesystem",
+		"reflect..dict.TypeAssert[github.com/conga-sh/conga/predict.FileFilterable]",
+		"reflect..dict.TypeAssert[github.com/conga-sh/conga/predict.DirFilterable]",
+		"reflect..dict.TypeAssert[github.com/conga-sh/conga/predict.PathFilterable]",
 		"os.Stat",
 		"os.Lstat",
 	} {
