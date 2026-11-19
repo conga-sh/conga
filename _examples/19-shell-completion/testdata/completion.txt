@@ -110,6 +110,14 @@ stdout '"description":"North America \(N\. Virginia\)"'
 stdout '"value":"eu-west-1"'
 stdout '"value":"ap-southeast-1"'
 
+# An enum narrows the type's own candidates and keeps their descriptions
+exec shell-completion __complete export deploy --failover ''
+stdout '"value":"us-east-1"'
+stdout '"description":"North America \(N\. Virginia\)"'
+stdout '"value":"eu-west-1"'
+stdout '"description":"Europe \(Ireland\)"'
+! stdout '"value":"ap-southeast-1"'
+
 exec shell-completion __complete export --profile ''
 stdout '"value":"production"'
 stdout '"description":"Production workloads"'
@@ -146,12 +154,27 @@ stdout '"value":"prod-ap-southeast-1"'
 exec shell-completion __complete export deploy --image a
 stdout '"value":"api-gateway:"'
 stdout '"value":"auth-service:"'
+stdout '"nospace":true'
 
 exec shell-completion __complete export deploy --image auth-service:
 stdout '"value":"auth-service:v1.0.0"'
 stdout '"value":"auth-service:v1.1.0"'
 stdout '"value":"auth-service:v1.2.0"'
 stdout '"value":"auth-service:latest"'
+stdout '"nospace":false'
+
+# An enum narrows a segmented type piece by piece: the repositories that lead to an enum value, then the enum value
+exec shell-completion __complete export deploy --base-image ''
+stdout '"value":"api-gateway:"'
+stdout '"value":"auth-service:"'
+! stdout '"value":"billing-service:"'
+stdout '"nospace":true'
+
+exec shell-completion __complete export deploy --base-image auth-service:
+stdout '"value":"auth-service:v1.2.0"'
+! stdout '"value":"auth-service:v1.1.0"'
+! stdout '"value":"auth-service:latest"'
+stdout '"nospace":false'
 
 # 11. Domain-type slice completion with deduplication (Feature via predict.Values)
 exec shell-completion __complete export deploy --features c

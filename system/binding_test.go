@@ -59,6 +59,44 @@ func TestSignal_Completion(t *testing.T) {
 	assert.Contains(t, buffer.String(), `"value":"SIGTERM"`)
 }
 
+func TestSignal_EnumNarrowsCompletion(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	app := conga.New[enumSignalCLI]().
+		EnableCompletion().
+		Stdout(&buffer).
+		Args([]string{"__complete", "export", "--signal", ""})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, `{"candidates":[`+
+		`{"value":"HUP","display":"HUP","description":"Hangup detected on controlling terminal","style":"yellow","tag":"signals"},`+
+		`{"value":"INT","display":"INT","description":"Interrupt from keyboard (Ctrl+C)","style":"yellow","tag":"signals"},`+
+		`{"value":"TERM","display":"TERM","description":"Termination signal (graceful shutdown request)","style":"yellow","tag":"signals"}],`+
+		`"directives":{"keeporder":false,"messages":[],"noprefix":false,"nospace":false},`+
+		`"usage":"Signal name or number (e.g. SIGTERM, 9)"}`, buffer.String())
+}
+
+func TestSignal_WithoutEnumCompletesEverySignal(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	app := conga.New[enumSignalCLI]().
+		EnableCompletion().
+		Stdout(&buffer).
+		Args([]string{"__complete", "export", "--any-signal", ""})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Contains(t, buffer.String(), `{"value":"SIGTERM","display":"SIGTERM","description":"Termination signal (graceful shutdown request)","style":"yellow","tag":"signals"}`)
+	assert.Contains(t, buffer.String(), `{"value":"KILL","display":"KILL",`)
+}
+
 func TestUser(t *testing.T) {
 	t.Parallel()
 
@@ -173,6 +211,15 @@ type sysHelpCLI struct {
 }
 
 func (c *sysHelpCLI) Run(_ context.Context, _ *conga.Session) error {
+	return nil
+}
+
+type enumSignalCLI struct {
+	Signal    conga.OptionalFlag[system.Signal] `enum:"TERM,INT,HUP"`
+	AnySignal conga.OptionalFlag[system.Signal]
+}
+
+func (c *enumSignalCLI) Run(_ context.Context, _ *conga.Session) error {
 	return nil
 }
 

@@ -18,6 +18,8 @@ import (
 	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/decoder/json"
 	"github.com/conga-sh/conga/decoder/yaml"
+	"github.com/conga-sh/conga/internal/slicex"
+	"github.com/conga-sh/conga/predict"
 )
 
 var (
@@ -2153,6 +2155,38 @@ func TestFeature_Completion(t *testing.T) {
 		assert.Equal(t, "Manage Taskfile packages", result.Items[1].Description)
 		assert.Equal(t, "syntax=", result.Items[2].Value)
 		assert.Equal(t, "Syntax version (0 = off)", result.Items[2].Description)
+	})
+
+	t.Run("feature value completion offers the feature's domain", func(t *testing.T) {
+		t.Parallel()
+
+		var cli featureTestCLI
+
+		app := conga.New(&cli).
+			Name("task").
+			EnableCompletion().
+			EnableFeatures()
+
+		result, _ := app.CompleteForShell("bash", []string{"--feature-gates", "syntax="})
+
+		values := slicex.Map(result.Items, func(item predict.Item) string { return item.Value })
+		assert.Equal(t, []string{"syntax=0", "syntax=1", "syntax=2"}, values)
+	})
+
+	t.Run("bool feature value completion offers true and false", func(t *testing.T) {
+		t.Parallel()
+
+		var cli featureTestCLI
+
+		app := conga.New(&cli).
+			Name("task").
+			EnableCompletion().
+			EnableFeatures()
+
+		result, _ := app.CompleteForShell("bash", []string{"--feature-gates", "gentle-force="})
+
+		values := slicex.Map(result.Items, func(item predict.Item) string { return item.Value })
+		assert.Equal(t, []string{"gentle-force=true", "gentle-force=false"}, values)
 	})
 
 	t.Run("CLI feature gates drive subcommand completion", func(t *testing.T) {

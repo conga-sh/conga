@@ -1,11 +1,14 @@
 package predict_test
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/alecthomas/assert/v2"
 
+	"github.com/conga-sh/conga/internal/slicex"
 	"github.com/conga-sh/conga/predict"
 )
 
@@ -155,17 +158,18 @@ func TestExclude_Callback(t *testing.T) {
 	assert.Equal(t, []predict.Item{{Value: "banana", Display: "banana"}}, result.Items)
 }
 
-func TestExclude_MatchesDisplay(t *testing.T) {
+func TestExclude_IgnoresDisplay(t *testing.T) {
 	t.Parallel()
 
 	pred := predict.Items(
 		predict.Item{Value: "a", Display: "apple"},
 		predict.Item{Value: "b", Display: "banana"},
-	).Exclude("apple")
+	).Exclude("apple", "b")
 
 	result := pred.Invoke(predict.Context{})
 
-	assert.Equal(t, []predict.Item{{Value: "b", Display: "banana"}}, result.Items)
+	assert.Equal(t, []predict.Item{{Value: "a", Display: "apple"}}, result.Items)
+	assert.Equal(t, []string{"a"}, pred.Raw())
 }
 
 func TestExclude_Accumulates(t *testing.T) {
@@ -179,14 +183,32 @@ func TestExclude_Accumulates(t *testing.T) {
 	assert.Equal(t, []string{"banana"}, pred.Raw())
 }
 
-func TestExclude_BeforePrefix(t *testing.T) {
+func TestExclude_AfterPrefix(t *testing.T) {
 	t.Parallel()
 
-	pred := predict.Values("apple", "banana").Prefix("x-").Exclude("apple")
+	pred := predict.Values("apple", "banana").Prefix("x-").Exclude("x-apple", "banana")
 
 	result := pred.Invoke(predict.Context{})
 
 	assert.Equal(t, []predict.Item{{Value: "x-banana", Display: "banana"}}, result.Items)
+	assert.Equal(t, []string{"banana"}, pred.Raw())
+}
+
+func TestExclude_FileInAnotherDirectoryStays(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	assert.NoError(t, os.Mkdir(filepath.Join(dir, "envs"), 0o750))
+	assert.NoError(t, os.WriteFile(filepath.Join(dir, "dev.yaml"), nil, 0o600))
+	assert.NoError(t, os.WriteFile(filepath.Join(dir, "envs", "dev.yaml"), nil, 0o600))
+	assert.NoError(t, os.WriteFile(filepath.Join(dir, "envs", "prod.yaml"), nil, 0o600))
+
+	pred := predict.Files().Exclude("dev.yaml", "envs/prod.yaml")
+
+	result := pred.Invoke(predict.Context{Dir: dir, ToComplete: "envs/"})
+
+	values := slicex.Map(result.Items, func(item predict.Item) string { return item.Value })
+	assert.Equal(t, []string{"envs/dev.yaml"}, values)
 }
 
 func TestExclude_TimeoutAlternative(t *testing.T) {
@@ -310,7 +332,7 @@ func TestMultiParts(t *testing.T) {
 		assert.Equal(t, 2, len(result.Items))
 		assert.Equal(t, "apple,banana", result.Items[0].Value)
 		assert.Equal(t, "apple,berry", result.Items[1].Value)
-		assert.True(t, result.Directive.Has(predict.DirectiveNoSpace))
+		assert.False(t, result.Directive.Has(predict.DirectiveNoSpace))
 	})
 
 	t.Run("key value pair with equals delimiter", func(t *testing.T) {
@@ -336,8 +358,91 @@ func TestMultiParts(t *testing.T) {
 		assert.Equal(t, "port=8080", result.Items[0].Value)
 		assert.Equal(t, "port=9090", result.Items[1].Value)
 		assert.Equal(t, "port=3000", result.Items[2].Value)
-		assert.True(t, result.Directive.Has(predict.DirectiveNoSpace))
+		assert.False(t, result.Directive.Has(predict.DirectiveNoSpace))
 	})
+}
+
+func TestMultiParts_PartialCandidatesGetNoSpace(t *testing.T) {
+	t.Parallel()
+
+	pred := predict.MultiParts(":", func(predict.Context) predict.Predictor {
+		return predict.Values("api:", "web:")
+	})
+
+	result := pred.Invoke(predict.Context{})
+
+	assert.True(t, result.Directive.Has(predict.DirectiveNoSpace))
+}
+
+func TestMultiParts_MiddlePartialCandidatesGetNoSpace(t *testing.T) {
+	t.Parallel()
+
+	pred := threePartPredictor()
+
+	result := pred.Invoke(predict.Context{ToComplete: "eu:"})
+
+	assert.Equal(t, []string{"eu:c1:", "eu:c2:"}, itemValues(result.Items))
+	assert.True(t, result.Directive.Has(predict.DirectiveNoSpace))
+}
+
+func TestMultiParts_FinishedValueGetsSpace(t *testing.T) {
+	t.Parallel()
+
+	pred := imagePredictor()
+
+	result := pred.Invoke(predict.Context{ToComplete: "api-gateway:"})
+
+	assert.Equal(t, []string{"api-gateway:v1", "api-gateway:v10", "api-gateway:latest"}, itemValues(result.Items))
+	assert.False(t, result.Directive.Has(predict.DirectiveNoSpace))
+}
+
+func TestMultiParts_MixedCandidatesFollowSegmentDirective(t *testing.T) {
+	t.Parallel()
+
+	pred := predict.MultiParts(":", func(predict.Context) predict.Predictor {
+		return predict.Values("api:", "local")
+	})
+
+	result := pred.Invoke(predict.Context{})
+
+	assert.False(t, result.Directive.Has(predict.DirectiveNoSpace))
+}
+
+func TestMultiParts_MixedCandidatesNarrowedByIncludeGetNoSpace(t *testing.T) {
+	t.Parallel()
+
+	pred := predict.MultiParts(":", func(predict.Context) predict.Predictor {
+		return predict.Values("api:", "local")
+	}).Include("api:latest")
+
+	result := pred.Invoke(predict.Context{})
+
+	assert.Equal(t, []string{"api:"}, itemValues(result.Items))
+	assert.True(t, result.Directive.Has(predict.DirectiveNoSpace))
+}
+
+func TestMultiParts_MixedCandidatesNarrowedByTypingGetNoSpace(t *testing.T) {
+	t.Parallel()
+
+	pred := predict.MultiParts(":", func(predict.Context) predict.Predictor {
+		return predict.Values("api:", "local")
+	})
+
+	result := pred.Invoke(predict.Context{ToComplete: "a"})
+
+	assert.Equal(t, []string{"api:"}, itemValues(result.Items))
+	assert.True(t, result.Directive.Has(predict.DirectiveNoSpace))
+}
+
+func TestMultiParts_NoCandidatesAddNoSpace(t *testing.T) {
+	t.Parallel()
+
+	pred := imagePredictor()
+
+	result := pred.Invoke(predict.Context{ToComplete: "api-gateway:x"})
+
+	assert.Equal(t, 0, len(result.Items))
+	assert.False(t, result.Directive.Has(predict.DirectiveNoSpace))
 }
 
 func TestBatch(t *testing.T) {
@@ -586,6 +691,314 @@ func TestTimeout(t *testing.T) {
 	})
 }
 
+func TestTimeout_AlternativeKeepsItsModifiers(t *testing.T) {
+	t.Parallel()
+
+	alternative := predict.Values("a1", "b1").Tag("alt").Usage("alt usage").Prefix("x-").Exclude("x-b1")
+	pred := blockingCallback(t).Timeout(time.Millisecond, alternative)
+
+	result := pred.Invoke(predict.Context{})
+
+	assert.Equal(t, []predict.Item{{Value: "x-a1", Display: "a1", Tag: "alt"}}, result.Items)
+	assert.Equal(t, "alt usage", result.Usage)
+}
+
+func TestTimeout_OuterModifiersApplyOnTopOfAlternative(t *testing.T) {
+	t.Parallel()
+
+	pred := blockingCallback(t).Timeout(time.Millisecond, predict.Values("a").Prefix("in-")).Prefix("out-")
+
+	result := pred.Invoke(predict.Context{})
+
+	assert.Equal(t, []predict.Item{{Value: "out-in-a", Display: "a"}}, result.Items)
+}
+
+func TestTimeout_MultiPartsAlternativeIsNotFilteredAgain(t *testing.T) {
+	t.Parallel()
+
+	alternative := predict.MultiParts(":", func(predict.Context) predict.Predictor {
+		return predict.Values("aa", "zz").FilterText("z")
+	})
+	pred := blockingCallback(t).Timeout(time.Millisecond, alternative)
+
+	result := pred.Invoke(predict.Context{ToComplete: "k:a"})
+
+	assert.Equal(t, []predict.Item{{Value: "k:zz", Display: "zz"}}, result.Items)
+}
+
+func TestInclude(t *testing.T) {
+	t.Parallel()
+
+	pred := predict.Values("apple", "banana", "cherry").Include("cherry", "apple")
+
+	result := pred.Invoke(predict.Context{})
+
+	assert.Equal(t, []predict.Item{{Value: "apple", Display: "apple"}, {Value: "cherry", Display: "cherry"}}, result.Items)
+	assert.Equal(t, []string{"apple", "cherry"}, pred.Raw())
+}
+
+func TestInclude_IgnoresDisplay(t *testing.T) {
+	t.Parallel()
+
+	pred := predict.Items(
+		predict.Item{Value: "a", Display: "apple", Description: "fruit"},
+		predict.Item{Value: "b", Display: "banana"},
+	).Include("apple", "b")
+
+	result := pred.Invoke(predict.Context{})
+
+	assert.Equal(t, []predict.Item{{Value: "b", Display: "banana"}}, result.Items)
+	assert.Equal(t, []string{"b"}, pred.Raw())
+}
+
+func TestInclude_Callback(t *testing.T) {
+	t.Parallel()
+
+	pred := predict.Callback(func(predict.Context) predict.Predictor {
+		return predict.Values("apple", "banana")
+	}).Include("banana")
+
+	result := pred.Invoke(predict.Context{})
+
+	assert.Equal(t, []predict.Item{{Value: "banana", Display: "banana"}}, result.Items)
+}
+
+func TestInclude_Batch(t *testing.T) {
+	t.Parallel()
+
+	pred := predict.Batch(predict.Values("apple", "banana"), predict.Values("cherry")).Include("banana", "cherry")
+
+	result := pred.Invoke(predict.Context{})
+
+	assert.Equal(t, []predict.Item{{Value: "banana", Display: "banana"}, {Value: "cherry", Display: "cherry"}}, result.Items)
+}
+
+func TestInclude_MultiParts(t *testing.T) {
+	t.Parallel()
+
+	pred := predict.MultiParts(",", func(predict.Context) predict.Predictor {
+		return predict.Values("apple", "banana")
+	}).Include("banana")
+
+	result := pred.Invoke(predict.Context{})
+
+	assert.Equal(t, []predict.Item{{Value: "banana", Display: "banana"}}, result.Items)
+}
+
+func TestInclude_TimeoutAlternative(t *testing.T) {
+	t.Parallel()
+
+	release := make(chan struct{})
+
+	t.Cleanup(func() { close(release) })
+
+	slow := predict.Callback(func(predict.Context) predict.Predictor {
+		<-release
+
+		return predict.None()
+	})
+	pred := slow.Timeout(time.Millisecond, predict.Values("apple", "banana")).Include("apple")
+
+	result := pred.Invoke(predict.Context{})
+
+	assert.Equal(t, []predict.Item{{Value: "apple", Display: "apple"}}, result.Items)
+}
+
+func TestInclude_CallsNarrow(t *testing.T) {
+	t.Parallel()
+
+	pred := predict.Values("apple", "banana", "cherry").Include("apple", "banana").Include("banana", "cherry")
+
+	result := pred.Invoke(predict.Context{})
+
+	assert.Equal(t, []predict.Item{{Value: "banana", Display: "banana"}}, result.Items)
+	assert.Equal(t, []string{"banana"}, pred.Raw())
+}
+
+func TestInclude_NoValuesKeepsNothing(t *testing.T) {
+	t.Parallel()
+
+	pred := predict.Values("apple", "banana").Include()
+
+	result := pred.Invoke(predict.Context{})
+
+	assert.Equal(t, 0, len(result.Items))
+	assert.Equal(t, []string{}, pred.Raw())
+}
+
+func TestInclude_NilSliceKeepsNothing(t *testing.T) {
+	t.Parallel()
+
+	var allowed []string
+
+	pred := predict.Values("apple", "banana").Include(allowed...)
+
+	result := pred.Invoke(predict.Context{})
+
+	assert.Equal(t, 0, len(result.Items))
+}
+
+func TestInclude_WithExclude(t *testing.T) {
+	t.Parallel()
+
+	pred := predict.Values("apple", "banana", "cherry").Include("apple", "banana").Exclude("apple")
+
+	result := pred.Invoke(predict.Context{})
+
+	assert.Equal(t, []predict.Item{{Value: "banana", Display: "banana"}}, result.Items)
+	assert.Equal(t, []string{"banana"}, pred.Raw())
+}
+
+func TestInclude_AfterPrefix(t *testing.T) {
+	t.Parallel()
+
+	pred := predict.Values("1", "2").Prefix("v").Include("v1", "2")
+
+	result := pred.Invoke(predict.Context{})
+
+	assert.Equal(t, []predict.Item{{Value: "v1", Display: "1"}}, result.Items)
+	assert.Equal(t, []string{"1"}, pred.Raw())
+}
+
+func TestInclude_MultiPartsMatchesWholeValue(t *testing.T) {
+	t.Parallel()
+
+	pred := predict.MultiParts(":", func(predict.Context) predict.Predictor {
+		return predict.Values("latest", "v1")
+	}).Include("api:latest", "v1")
+
+	result := pred.Invoke(predict.Context{ToComplete: "api:"})
+
+	assert.Equal(t, []predict.Item{{Value: "api:latest", Display: "latest"}}, result.Items)
+}
+
+func TestInclude_ValueNotProducedIsNotOffered(t *testing.T) {
+	t.Parallel()
+
+	pred := predict.Values("apple", "banana").Include("banana", "durian")
+
+	result := pred.Invoke(predict.Context{})
+
+	assert.Equal(t, []predict.Item{{Value: "banana", Display: "banana"}}, result.Items)
+	assert.Equal(t, []string{"banana"}, pred.Raw())
+}
+
+func TestInclude_NoneProducedOffersNothing(t *testing.T) {
+	t.Parallel()
+
+	pred := predict.Values("apple", "banana").Include("durian")
+
+	result := pred.Invoke(predict.Context{})
+
+	assert.Equal(t, 0, len(result.Items))
+	assert.Equal(t, []string{}, pred.Raw())
+}
+
+func TestInclude_MultiPartsKeepsPartialLeadingToValue(t *testing.T) {
+	t.Parallel()
+
+	pred := imagePredictor().Include("api-gateway:v10")
+
+	result := pred.Invoke(predict.Context{})
+
+	assert.Equal(t, []predict.Item{{Value: "api-gateway:", Display: "api-gateway:"}}, result.Items)
+	assert.True(t, result.Directive.Has(predict.DirectiveNoSpace))
+}
+
+func TestInclude_MultiPartsKeepsPartialWhileTyping(t *testing.T) {
+	t.Parallel()
+
+	pred := imagePredictor().Include("api-gateway:v10")
+
+	result := pred.Invoke(predict.Context{ToComplete: "a"})
+
+	assert.Equal(t, []predict.Item{{Value: "api-gateway:", Display: "api-gateway:"}}, result.Items)
+}
+
+func TestInclude_MultiPartsLastSegmentDropsValuePrefix(t *testing.T) {
+	t.Parallel()
+
+	pred := imagePredictor().Include("api-gateway:v10")
+
+	result := pred.Invoke(predict.Context{ToComplete: "api-gateway:v1"})
+
+	assert.Equal(t, []predict.Item{{Value: "api-gateway:v10", Display: "v10"}}, result.Items)
+	assert.False(t, result.Directive.Has(predict.DirectiveNoSpace))
+}
+
+func TestInclude_MultiPartsMiddleSegmentKeepsPartial(t *testing.T) {
+	t.Parallel()
+
+	pred := threePartPredictor().Include("eu:c2:n1")
+
+	result := pred.Invoke(predict.Context{ToComplete: "eu:"})
+
+	assert.Equal(t, []predict.Item{{Value: "eu:c2:", Display: "c2:"}}, result.Items)
+	assert.True(t, result.Directive.Has(predict.DirectiveNoSpace))
+}
+
+func TestInclude_MultiPartsListsWithoutCommonValueKeepNoPartial(t *testing.T) {
+	t.Parallel()
+
+	pred := imagePredictor().Include("api-gateway:v1").Include("api-gateway:latest")
+
+	result := pred.Invoke(predict.Context{})
+
+	assert.Equal(t, 0, len(result.Items))
+}
+
+func TestInclude_MultiPartsListsWithCommonValueKeepPartial(t *testing.T) {
+	t.Parallel()
+
+	pred := imagePredictor().Include("api-gateway:v1", "auth:latest").Include("auth:latest")
+
+	result := pred.Invoke(predict.Context{})
+
+	assert.Equal(t, []predict.Item{{Value: "auth:", Display: "auth:"}}, result.Items)
+}
+
+func TestInclude_MultiPartsValueNotProducedDeadEnds(t *testing.T) {
+	t.Parallel()
+
+	pred := imagePredictor().Include("api-gateway:v9")
+
+	result := pred.Invoke(predict.Context{ToComplete: "api-gateway:"})
+
+	assert.Equal(t, 0, len(result.Items))
+}
+
+func TestInclude_MultiPartsExcludedPartialIsRemoved(t *testing.T) {
+	t.Parallel()
+
+	pred := imagePredictor().Include("api-gateway:v1").Exclude("api-gateway:")
+
+	result := pred.Invoke(predict.Context{})
+
+	assert.Equal(t, 0, len(result.Items))
+}
+
+func TestInclude_WrappedMultiPartsMatchesWholeValues(t *testing.T) {
+	t.Parallel()
+
+	pred := predict.Callback(func(predict.Context) predict.Predictor {
+		return imagePredictor()
+	}).Include("api-gateway:v1")
+
+	result := pred.Invoke(predict.Context{})
+
+	assert.Equal(t, 0, len(result.Items))
+}
+
+func TestInclude_MultiPartsRawIsEmpty(t *testing.T) {
+	t.Parallel()
+
+	pred := imagePredictor().Include("api-gateway:v1")
+
+	values := pred.Raw()
+
+	assert.Equal(t, 0, len(values))
+}
+
 func TestPredictor_RawAndTag(t *testing.T) {
 	t.Parallel()
 
@@ -653,4 +1066,50 @@ func TestKeyValueDescribed_EmptyDescriptionsMatchesKeyValue(t *testing.T) {
 	assert.Equal(t, "team=", resKeys.Items[0].Value)
 	assert.Equal(t, "", resKeys.Items[0].Description)
 	assert.True(t, resKeys.Directive.Has(predict.DirectiveNoSpace))
+}
+
+// imagePredictor completes repository:tag values. Its first segment offers
+// repositories without NoSpace, so the trailing-space rule is MultiParts' own.
+func imagePredictor() predict.Predictor {
+	return predict.MultiParts(":", func(predictContext predict.Context) predict.Predictor {
+		if len(predictContext.Parts) == 0 {
+			return predict.Values("api:", "api-gateway:", "auth:")
+		}
+
+		if predictContext.Parts[0] == "api-gateway" {
+			return predict.Values("v1", "v10", "latest")
+		}
+
+		return predict.Values("latest")
+	})
+}
+
+// threePartPredictor completes region:cluster:node values.
+func threePartPredictor() predict.Predictor {
+	return predict.MultiParts(":", func(predictContext predict.Context) predict.Predictor {
+		switch len(predictContext.Parts) {
+		case 0:
+			return predict.Values("eu:", "us:")
+		case 1:
+			return predict.Values("c1:", "c2:")
+		default:
+			return predict.Values("n1", "n2")
+		}
+	})
+}
+
+// blockingCallback returns a callback that blocks until the test ends, so a
+// Timeout on it always falls back to its alternative.
+func blockingCallback(t *testing.T) predict.Predictor {
+	t.Helper()
+
+	release := make(chan struct{})
+
+	t.Cleanup(func() { close(release) })
+
+	return predict.Callback(func(predict.Context) predict.Predictor {
+		<-release
+
+		return predict.None()
+	})
 }

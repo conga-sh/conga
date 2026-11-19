@@ -20,11 +20,11 @@ The shell reads the program's standard output as the completion result, so error
 
 ## One predictor per field
 
-A predictor is the value that produces a field's candidates. CONGA gives each flag and positional argument one predictor at most, and that predictor alone decides what the shell offers for it. With one predictor, the answer to "where did these candidates come from" is a single place, even when several declarations could supply candidates. A field that needs candidates from several sources gets one predictor that combines them, built with `predict.Batch` and named in a `predictor` tag, so the merge shows in the program's code.
+A predictor is the value that produces a field's candidates. CONGA gives each flag and positional argument one predictor at most, and that predictor, narrowed by the field's `enum` tag when it has one, decides what the shell offers for it. With one predictor, the answer to "where did these candidates come from" is a single place, even when several declarations could supply candidates. A field that needs candidates from several sources gets one predictor that combines them, built with `predict.Batch` and named in a `predictor` tag, so the merge shows in the program's code.
 
-CONGA looks first at declarations made for completion, and then at tags made for something else. A `predictor` tag names the predictor for one field, so it comes first, and `predictor:"none"` turns completion off for that field. A predictor registered for the field's type with `app.RegisterType` comes next, which lets a program replace the completion of a type it doesn't own. The type's own methods follow (`Predictable`, `TagAwarePredictable`, and the path filters), written by the type's author for every field of that type. When none of these applies, CONGA derives candidates from the field's other tags and its type. These are the `enum` values, then `true` and `false` when the user types `=` after a bool flag. A field with none of these offers nothing. For a slice, the element type decides, and CONGA leaves out values the line already holds. [Which predictor a field uses](/reference/predict/#which-predictor-a-field-uses) lists the steps.
+CONGA looks first at declarations made for completion, and then at tags made for something else. A `predictor` tag names the predictor for one field, so it comes first, and `predictor:"none"` turns completion off for that field. A predictor registered for the field's type with `app.RegisterType` comes next, which lets a program replace the completion of a type it doesn't own. The type's own methods follow (`Predictable`, `TagAwarePredictable`, and the path filters), written by the type's author for every field of that type. When none of these applies, a bool flag offers `true` and `false` when the user types `=`. For a slice, the element type decides, and CONGA leaves out values the line already holds. [Which predictor a field uses](/reference/predict/#which-predictor-a-field-uses) lists the steps.
 
-This order puts an `enum` behind the field's type, so a type with a long list keeps the whole list on a field whose `enum` narrows it. `system.Signal` completes every signal, and a `stop` command that accepts three of them still offers them all:
+An `enum` tag then narrows the predictor to the values it lists. The candidates keep the predictor's descriptions and order, and an `enum` value the predictor doesn't produce isn't offered. A type that completes in segments, such as `repository:tag`, offers the segments that lead to an `enum` value. A field with an `enum` and no predictor offers the `enum` values, and a field with neither offers nothing. `system.Signal` completes every signal, and a `stop` command that accepts three of them offers those three:
 
 ```go
 type StopCmd struct {
@@ -32,7 +32,7 @@ type StopCmd struct {
 }
 ```
 
-The shell offers 90 candidates for `--signal`, starting with `SIGHUP`, `HUP`, and `1`, and the run accepts three of them. The `enum` compares the text the user typed, so `SIGINT` and `2`, two spellings of `INT` that the shell offers, fail too:
+The shell offers `HUP`, `INT`, and `TERM` for `--signal`, each with the description `system.Signal` gives it. Without the `enum`, it offers 90 candidates, starting with `SIGHUP`, `HUP`, and `1`. The `enum` compares the parsed value's text form, and `system.Signal` keeps the spelling the user typed, so `SIGINT` and `2`, two spellings of `INT` that `system.Signal` parses, fail:
 
 ```sh error={2}
 $ cloudctl stop --signal SIGINT
@@ -49,7 +49,7 @@ A `predict.Callback` runs when the shell asks, after CONGA has parsed the partia
 
 ## Candidates and validation
 
-A predictor offers values, and the user can type any other. The run accepts what the user typed unless the type's parser, a tag such as `enum` or `range`, or a `Validator` checks it. Of these, only `enum` also completes, so a field with an `enum` tag and no other predictor offers exactly the values it accepts.
+A predictor offers values, and the user can type any other. The run accepts what the user typed unless the type's parser, a tag such as `enum` or `range`, or a `Validator` checks it. Of these, only `enum` also affects completion. It narrows the field's candidates to the values it accepts, and supplies those values when the field has no other predictor.
 
 Keeping the two apart suits candidates from live sources. A callback may read a cache that is a day old, fetch a list that has changed since, or run out of time and offer nothing. A run that rejected values missing from those candidates would fail for reasons the user can't see. The command checks its input against the source it trusts, at run time, as `deploy` in [How to compute and shape completion candidates](/how-to/compute-completion-candidates/) checks tags against its project file in `Run`.
 

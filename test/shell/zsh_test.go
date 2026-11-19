@@ -1241,6 +1241,7 @@ func TestZsh_ColonMultiParts(t *testing.T) {
 		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion deploy --image api-gateway:v3.2.1-")
 
 		assert.True(t, result.HasItem("v3.2.1-rc1") || result.HasItem("api-gateway:v3.2.1-rc1"))
+		assert.Equal(t, "shell-completion deploy --image api-gateway:v3.2.1-rc1 ", result.BufferTab1)
 	})
 }
 
@@ -1254,6 +1255,76 @@ func TestZsh_DomainType_Region(t *testing.T) {
 	assert.True(t, result.HasItem("us-east-1"))
 	assert.True(t, result.HasItem("eu-west-1"))
 	assert.True(t, result.HasItem("ap-southeast-1"))
+}
+
+func TestZsh_EnumNarrowsDomainType(t *testing.T) {
+	t.Parallel()
+
+	workspace := setupShellCompletion(t)
+
+	t.Run("lists only the enum values", func(t *testing.T) {
+		t.Parallel()
+
+		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion deploy --failover ")
+
+		assert.True(t, result.HasItem("us-east-1"))
+		assert.True(t, result.HasItem("eu-west-1"))
+		assert.False(t, result.HasItem("ap-southeast-1"), "a value outside the enum must not be offered")
+		assert.Equal(t, "shell-completion deploy --failover ", result.BufferTab1)
+	})
+
+	t.Run("completes a unique enum value", func(t *testing.T) {
+		t.Parallel()
+
+		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion deploy --failover e")
+
+		assert.True(t, result.HasItem("eu-west-1"))
+		assert.Equal(t, "shell-completion deploy --failover eu-west-1 ", result.BufferTab1)
+	})
+
+	t.Run("offers nothing for a type value outside the enum", func(t *testing.T) {
+		t.Parallel()
+
+		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion deploy --failover a")
+
+		assert.False(t, result.HasItem("ap-southeast-1"), "a value outside the enum must not be offered")
+		assert.Equal(t, "shell-completion deploy --failover a", result.BufferTab1)
+	})
+}
+
+func TestZsh_EnumNarrowsSegmentedType(t *testing.T) {
+	t.Parallel()
+
+	workspace := setupShellCompletion(t)
+
+	t.Run("lists the repositories that lead to an enum value", func(t *testing.T) {
+		t.Parallel()
+
+		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion deploy --base-image ")
+
+		assert.True(t, result.HasItem("api-gateway"))
+		assert.True(t, result.HasItem("auth-service"))
+		assert.False(t, result.HasItem("billing-service"), "a repository with no enum value must not be offered")
+	})
+
+	t.Run("completes a leading segment without a space", func(t *testing.T) {
+		t.Parallel()
+
+		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion deploy --base-image ap")
+
+		assert.True(t, result.HasItem("api-gateway"))
+		assert.Equal(t, "shell-completion deploy --base-image api-gateway:", result.BufferTab1)
+	})
+
+	t.Run("completes the enum value at the last segment", func(t *testing.T) {
+		t.Parallel()
+
+		result := workspace.RunZshCompletion(t, "shell-completion", "shell-completion deploy --base-image auth-service:")
+
+		assert.True(t, result.HasItem("v1.2.0"))
+		assert.False(t, result.HasItem("v1.1.0"), "a tag outside the enum must not be offered")
+		assert.Equal(t, "shell-completion deploy --base-image auth-service:v1.2.0 ", result.BufferTab1)
+	})
 }
 
 func TestZsh_ContainerExclusion(t *testing.T) {

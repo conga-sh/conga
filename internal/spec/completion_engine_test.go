@@ -1153,7 +1153,7 @@ func TestCompletion_FlagValues(t *testing.T) {
 		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
 
 		assert.Equal(t, []string{"api,cli", "api,docs"}, values)
-		assert.True(t, invoked.Directive.Has(predict.DirectiveNoSpace))
+		assert.False(t, invoked.Directive.Has(predict.DirectiveNoSpace))
 	})
 
 	t.Run("deduplicates repeated slice flag invocations", func(t *testing.T) {

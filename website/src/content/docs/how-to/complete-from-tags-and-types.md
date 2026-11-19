@@ -217,6 +217,33 @@ deploy: error: struct Deploy field Zone: schema error: unsupported type *time.Lo
 
 [How to use the network, system, and timezone packages](/how-to/use-domain-packages/) covers the types themselves.
 
+## Limit a type's values to a list
+
+An `enum` tag on a field whose type completes its own values keeps only the listed values, each with the type's description:
+
+```go title="main.go" ins={4}
+type Deploy struct {
+	// ...
+	Signal conga.OptionalFlag[system.Signal]
+	Method conga.OptionalFlag[network.HTTPMethod] `enum:"GET,POST"`
+	Zone   conga.OptionalFlag[*time.Location] `help:"Time zone"`
+}
+```
+
+```ansi no-copy frame="code"
+$ deploy --method <Tab>
+[2mHTTP method (GET, POST, PUT, DELETE, ...)[0m
+[32mGET[2m[39m   -- Retrieve resource representation[0m
+[34mPOST[2m[39m  -- Submit data for processing or resource creation[0m
+```
+
+The run rejects the methods the `enum` leaves out:
+
+```sh error={2}
+$ deploy --method PUT
+deploy: error: invalid value "PUT" (must be one of: GET, POST) for flag --method
+```
+
 ## Complete feature names
 
 A `conga.Features` field declares the program's feature gates from a struct of `bool` fields, and its flag completes the feature names, then the values after `=`. Features need `EnableFeatures()` on the builder:
@@ -261,6 +288,9 @@ false  true
 | `string` with no `enum` or `predictor` tag | No candidates |
 | `map[string]string` | No candidates. zsh shows the hint `<key>=<value>` |
 | `predictor:"none"` | No candidates, whatever the type |
+| An `enum` value the type's predictor doesn't produce | Not offered. The run still accepts it |
+| `predictor:"none"` with an `enum` tag | No candidates |
+| An `enum` tag on a type that completes in segments (`repository:tag`) | The segments that lead to an `enum` value, then the `enum` value |
 | `conga.File` with a `glob` tag | Matching files, plus directories and symlinks. A file outside the patterns still passes |
 | A `predictor` tag naming a path predictor | Paths. A path that doesn't exist still passes |
 | `*time.Location` without `Use(timezone.RegisterLocation)` | No candidates. The program fails at startup, exit 1 |

@@ -17,7 +17,7 @@
     "error": false,
     "keeporder": false,
     "nofilecomp": true,
-    "nospace": true
+    "nospace": false
   },
   "usage": "Services to tail, comma-separated"
 }

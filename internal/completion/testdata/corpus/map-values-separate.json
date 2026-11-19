@@ -20,7 +20,7 @@
     "error": false,
     "keeporder": false,
     "nofilecomp": true,
-    "nospace": true
+    "nospace": false
   },
   "usage": "Metadata labels in key=value format"
 }

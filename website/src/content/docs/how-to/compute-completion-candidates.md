@@ -305,9 +305,9 @@ worker[2m  -- Background jobs[0m
 
 ## Complete a value in parts
 
-`predict.MultiParts` splits the value at a delimiter and calls a function for the part under the cursor, with the finished parts in `Parts`. `--pin web:1.26` deploys a service at one of its tags, so the first part completes from the service names and the second from that service's tags:
+`predict.MultiParts` splits the value at a delimiter and calls a function for the part under the cursor, with the finished parts in `Parts`. `--pin web:1.26` deploys a service at one of its tags, so the first part completes from the service names and the second from that service's tags. A candidate that ends with the delimiter, such as `web:`, takes no trailing space, so the cursor stays after the `:`:
 
-```go title="main.go" {3,22} ins={7-18,23}
+```go title="main.go" {3,21} ins={7-17,22}
 type Deploy struct {
 	// ...
 	Pin      conga.OptionalFlag[[]string]          `help:"Deploy a service at one of its tags (service:tag)" predictor:"pins"`
@@ -321,8 +321,7 @@ func (d *Deploy) pins(predictContext predict.Context) predict.Predictor {
 			names = append(names, name+":")
 		}
 
-		// [!callout /NoSpace/] Keeps the cursor after the `:`, ready for the tag.
-		return predict.Values(names...).NoSpace()
+		return predict.Values(names...)
 	}
 
 	return predict.Values(d.project.Services[predictContext.Parts[0]].Tags...)

@@ -323,7 +323,7 @@ func corpusScenarios() []corpusScenario {
 		{Name: "root-bool-attached", Shell: "export", Words: []string{"--verbose="}},
 		{Name: "root-profile-predictable", Shell: "export", Words: []string{"--profile", ""}},
 		{Name: "root-map-usage", Shell: "export", Words: []string{"--env-vars", ""}},
-		{Name: "root-slice-nospace-usage", Shell: "export", Words: []string{"--features", "net,"}},
+		{Name: "root-slice-continuation-usage", Shell: "export", Words: []string{"--features", "net,"}},
 		{Name: "deploy-bare", Shell: "export", Words: []string{"deploy", ""}},
 		{Name: "deploy-alias", Shell: "export", Words: []string{"d", ""}},
 		{Name: "deploy-enum-attached-bare", Shell: "export", Words: []string{"deploy", "--env="}},
