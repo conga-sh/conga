@@ -17,7 +17,7 @@ These packages isolate external domain dependencies behind explicit imports, so 
 
 Each domain package provides value types and standard library bindings for its domain.
 
-- Domain types (`network.Host`, `system.User`, `system.Signal`, and the rest) implement `encoding.TextUnmarshaler` and `predict.Predictable` directly. Declaring a field with one enables automatic coercion and autocompletion through interface detection at schema build.
+- Domain types (`network.Host`, `system.User`, `system.Signal`, and the rest) implement `encoding.TextUnmarshaler` and `predict.Predictable` directly. Declaring a field with one enables coercion and completion. Schema build detects the interfaces, and CONGA calls `Predict` only when the shell completes that field.
 - The `Register*` bindings adapt Go standard library types (`*net.Interface`, `*user.User`, `syscall.Signal`, `*time.Location`) to CONGA's parsing and completion interfaces. Each calls `App.RegisterType` with a parser and a predictor, mounting via `app.Use(...)`. Command fields then hold the standard library type in a container, such as `conga.OptionalFlag[*time.Location]`.
 
 ```go

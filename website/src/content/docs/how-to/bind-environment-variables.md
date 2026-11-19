@@ -3,7 +3,7 @@ title: How to bind environment variables
 description: Give flags environment variables with an application prefix, per-flag names, and subcommand prefixes, and see what users set and get.
 ---
 
-An environment variable gives a flag a value when the user leaves the flag off the command line. This guide gives every flag a variable with one prefix, renames one flag's variable, keeps one flag on the command line only, and gives a subcommand its own prefix.
+An environment variable gives a flag a value when the user leaves the flag off the command line. This guide gives every flag a variable with one prefix, renames one flag's variable, keeps one flag on the command line only, moves a flag off the config file's variable, and gives a subcommand its own prefix.
 
 The running example is the [twelve-factor precedence example](https://github.com/conga-sh/conga/tree/main/_examples/13-twelve-factor-precedence).
 
@@ -74,6 +74,28 @@ The flag's help line carries no `[env: ...]` hint, and `SERVER_TRACE=true` leave
 ```
 
 The flag still takes its value from the command line, a config file, or its `default` tag.
+
+## Rename a flag that reads the config file's variable
+
+The example's `ConfigFile` field gives `--config-file` the variable `SERVER_CONFIG`, the prefix plus `CONFIG`. A flag whose own variable is also `SERVER_CONFIG`, such as a `Config` flag, stops the program at startup, `--help` included. Here `Config conga.OptionalFlag[string]` was added to the struct:
+
+```sh error={2} wrap
+$ twelve-factor-precedence
+twelve-factor-precedence: error: struct CLI field Config: schema error: environment variable "SERVER_CONFIG" is bound by both flag --config-file and flag --config; give the flag another env tag or exclude it with env:"-"
+```
+
+The run exits with status 1. Give the flag an `env` tag with another name, or `env:"-"`:
+
+```go title="main.go"
+Config conga.OptionalFlag[string] `env:"CLUSTER_CONFIG" help:"Cluster config name"`
+```
+
+```text no-copy
+  -c, --config-file=PATH   Path to config file [decoders: .toml] [env: SERVER_CONFIG]
+      --config=STRING      Cluster config name [env: CLUSTER_CONFIG]
+```
+
+The `ConfigFile` field decides which variable names the config file: the one in its `env` tag, `SERVER_CONFIG` without one, or none with `env:"-"`. A program without a `ConfigFile` field reads `SERVER_CONFIG` as a config file path only when it registers a config decoder. With neither, a `Config` flag reads `SERVER_CONFIG` like any other flag's variable.
 
 ## Give a subcommand its own prefix
 
@@ -222,6 +244,7 @@ Create a config file at one of:
 | `PORT=9001` and `-p 9003` | The command line wins: `--port` is `9003` |
 | `PORT=abc` | Config error, exit 1, naming the variable |
 | `SERVER_TRACE=true` on an `env:"-"` flag | Not read: `--trace` stays unset |
+| `SERVER_CONFIG=prod.toml` | `--config-file` loads `prod.toml`, source `env` |
 | `SERVER_TIMEOUT=10m`, with `worker` and `migrate` both declaring `--timeout` and neither tagged | Both commands read `10m` |
 | The variable of a `RequiredFlag` | Satisfies the requirement |
 

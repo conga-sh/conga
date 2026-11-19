@@ -192,6 +192,19 @@ $ APP_CONFIG=nope.yaml cascading-searchpaths
 cascading-searchpaths: error: cannot read config file "nope.yaml": stat nope.yaml: no such file or directory
 ```
 
+An `env` tag on the `ConfigFile` field names the variable instead of `APP_CONFIG`, and `env:"-"` gives the flag no variable:
+
+```go title="main.go"
+ConfigFile conga.ConfigFile `env:"CASCADE_CONFIG" multi:"true" short:"c"`
+```
+
+```text no-copy
+  -c, --config-file=PATH,...                   Path to config file(s) [decoders: .yaml, .yml]
+                                               [env: CASCADE_CONFIG]
+```
+
+The program now ignores `APP_CONFIG`. Schema build rejects a flag or feature bound to the config file's variable, as [Rename a flag that reads the config file's variable](/how-to/bind-environment-variables/#rename-a-flag-that-reads-the-config-files-variable) shows.
+
 With `multi:"true"`, users can repeat `-c`, and a later file beats an earlier one:
 
 ```sh
