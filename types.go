@@ -159,9 +159,12 @@ type ContextAwareTextUnmarshaler interface {
 // Types whose completion candidates depend on custom field tags (such as [File] with
 // the glob tag) implement [TagAwarePredictable] instead.
 //
-// The engine evaluates Predict during schema compilation; implementations must not
-// depend on runtime parsed values. Implement exactly one of [Predictable] or
-// [TagAwarePredictable], not both.
+// The engine calls Predict only when completion resolves candidates for a field
+// of the type, and Predict receives no parsed values; return a
+// [predict.Callback] for candidates that depend on them or take time to
+// compute, because no deadline applies to Predict while a callback runs under
+// [predict.DefaultTimeout] or its own Timeout. Implement exactly one of
+// [Predictable] or [TagAwarePredictable], not both.
 type Predictable interface {
 	// Predict returns an autocompletion predictor for the domain type.
 	Predict() predict.Predictor
@@ -173,9 +176,12 @@ type Predictable interface {
 // For example, [File] returns executable completions when the executable tag is declared,
 // or glob-filtered completions when the glob tag is declared.
 //
-// The engine evaluates Predict during schema compilation; implementations must not
-// depend on runtime parsed values. Implement exactly one of [Predictable] or
-// [TagAwarePredictable], not both.
+// The engine calls Predict only when completion resolves candidates for a field
+// of the type, and Predict receives no parsed values; return a
+// [predict.Callback] for candidates that depend on them or take time to
+// compute, because no deadline applies to Predict while a callback runs under
+// [predict.DefaultTimeout] or its own Timeout. Implement exactly one of
+// [Predictable] or [TagAwarePredictable], not both.
 type TagAwarePredictable interface {
 	// Predict returns a predictor tailored to the field's declared tags.
 	Predict(tags FieldTags) predict.Predictor

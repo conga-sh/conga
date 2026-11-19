@@ -2203,7 +2203,9 @@ func (a *App[T]) resolveConfigFiles(invocation parsedInvocation) (configFiles, e
 func (a *App[T]) installCompletionHooks() {
 	a.inferPredictor = spec.InferPredictorFromType
 	a.featurePredictor = func(name string, values map[string][]string, descriptions map[string]string) *spec.PredictorSpec {
-		return &spec.PredictorSpec{Kind: spec.PredictorKindPredictable, Name: name, Predictor: predict.KeyValueDescribed(values, descriptions)}
+		return &spec.PredictorSpec{Kind: spec.PredictorKindPredictable, Name: name, Build: func() predict.Predictor {
+			return predict.KeyValueDescribed(values, descriptions)
+		}}
 	}
 	a.defaultPredictors = (*App[T]).initDefaultPredictors
 	a.mountCompletion = (*App[T]).mountCompletionSubcommand

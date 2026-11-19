@@ -308,26 +308,26 @@ func inferPredictorFromOptions(targetType reflect.Type, typePredictors map[refle
 
 	if pred, ok := typePredictors[elemType]; ok {
 		return &PredictorSpec{
-			Kind:      PredictorKindPredictable,
-			Name:      elemType.String(),
-			Predictor: pred,
+			Kind:  PredictorKindPredictable,
+			Name:  elemType.String(),
+			Build: fixedPredictor(pred),
 		}
 	}
 
 	if elemType.Kind() == reflect.Pointer {
 		if pred, ok := typePredictors[elemType.Elem()]; ok {
 			return &PredictorSpec{
-				Kind:      PredictorKindPredictable,
-				Name:      elemType.Elem().String(),
-				Predictor: pred,
+				Kind:  PredictorKindPredictable,
+				Name:  elemType.Elem().String(),
+				Build: fixedPredictor(pred),
 			}
 		}
 	} else {
 		if pred, ok := typePredictors[reflect.PointerTo(elemType)]; ok {
 			return &PredictorSpec{
-				Kind:      PredictorKindPredictable,
-				Name:      elemType.String(),
-				Predictor: pred,
+				Kind:  PredictorKindPredictable,
+				Name:  elemType.String(),
+				Build: fixedPredictor(pred),
 			}
 		}
 	}
@@ -335,15 +335,22 @@ func inferPredictorFromOptions(targetType reflect.Type, typePredictors map[refle
 	return nil
 }
 
+// fixedPredictor returns a builder for a predictor known at schema build.
+func fixedPredictor(predictor predict.Predictor) func() predict.Predictor {
+	return func() predict.Predictor { return predictor }
+}
+
 // inferImplements asserts the filterable/predictable interface T on elemType —
-// first in value form, then in pointer form — and builds the predictor through
-// build. It is the shared skeleton of the predictor-inference helpers.
+// first in value form, then in pointer form — and records build as the spec's
+// builder, so the predictor is built only when completion resolves candidates
+// for the field. It is the shared skeleton of the
+// predictor-inference helpers.
 func inferImplements[T any](elemType reflect.Type, build func(T) predict.Predictor) *PredictorSpec {
 	if target, ok := assertValueOrPointer[T](elemType); ok {
 		return &PredictorSpec{
-			Kind:      PredictorKindPredictable,
-			Name:      "predictable",
-			Predictor: build(target),
+			Kind:  PredictorKindPredictable,
+			Name:  "predictable",
+			Build: func() predict.Predictor { return build(target) },
 		}
 	}
 
