@@ -30,6 +30,7 @@
 // Modifiers refine prediction behavior:
 //
 //   - [Predictor.FilterText]: matches against a typed prefix.
+//   - [Predictor.Include]: keeps only the listed candidates.
 //   - [Predictor.Exclude]: filters out already selected candidates.
 //   - [Predictor.KeepOrder]: asks the shell to keep the candidate order.
 //   - [Predictor.Timeout]: limits how long completion waits for dynamic callbacks.

@@ -862,6 +862,10 @@ func TestElvish_ColonMultiParts(t *testing.T) {
 
 		assert.True(t, result.HasItem("v3.2.1-rc1") || result.HasItem("api-gateway:v3.2.1-rc1"))
 		assert.Equal(t, "shell-completion deploy --image api-gateway:v3.2.1-rc1", result.BufferTab1)
+
+		codeSuffix, found := result.ItemCodeSuffix("api-gateway:v3.2.1-rc1")
+		assert.True(t, found)
+		assert.Equal(t, " ", codeSuffix)
 		assert.Equal(t, "", result.StdoutLeak)
 	})
 }

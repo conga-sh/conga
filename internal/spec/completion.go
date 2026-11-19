@@ -1465,14 +1465,16 @@ func getArgSpec(cmd *Command, posIndex int) *Arg {
 }
 
 func resolveArgAction(arg *Arg, registered map[string]predict.Predictor) predict.Predictor {
+	var base *predict.Predictor
+
 	if arg.Predictor != nil {
-		if act, ok := resolvePredictorSpec(arg.Predictor, registered); ok {
-			return act.Tag("arguments")
+		if predictor, ok := resolvePredictorSpec(arg.Predictor, registered); ok {
+			base = &predictor
 		}
 	}
 
-	if len(arg.Enum) > 0 {
-		return predict.Values(arg.Enum...).Tag("arguments")
+	if predictor, ok := narrowToEnum(base, arg.Enum); ok {
+		return predictor.Tag("arguments")
 	}
 
 	cleanName := strings.Trim(arg.Name, "<>")
@@ -1486,12 +1488,12 @@ func resolveArgAction(arg *Arg, registered map[string]predict.Predictor) predict
 }
 
 func resolveFlagAction(flag *Flag, registered map[string]predict.Predictor, whyFormats []string) predict.Predictor {
-	act := resolveBaseFlagAction(flag, registered, whyFormats).Tag("values")
+	predictor := resolveBaseFlagAction(flag, registered, whyFormats).Tag("values")
 	if description := flagHelpText(flag); description != "" {
-		act = act.Usage(description)
+		predictor = predictor.Usage(description)
 	}
 
-	return act
+	return predictor
 }
 
 // flagHelpText returns the flag's help description for completion candidate
@@ -1519,18 +1521,28 @@ func resolveBaseFlagAction(flag *Flag, registered map[string]predict.Predictor, 
 		return predict.Values(whyFormats...)
 	}
 
+	var base *predict.Predictor
+
 	if flag.Predictor != nil {
-		if predAct, ok := resolvePredictorSpec(flag.Predictor, registered); ok {
-			return predAct
+		if predictor, ok := resolvePredictorSpec(flag.Predictor, registered); ok {
+			base = &predictor
 		}
 	}
 
-	if len(flag.Enum) > 0 {
-		return predict.Values(flag.Enum...)
+	if base == nil && flag.IsBool {
+		values := predict.Values("true", "false")
+		base = &values
 	}
 
-	if flag.IsBool {
-		return predict.Values("true", "false")
+	// The synthesized feature map flag carries Enum only as help metadata,
+	// and user maps cannot declare one, so maps are never narrowed.
+	enum := flag.Enum
+	if flag.IsMap {
+		enum = nil
+	}
+
+	if predictor, ok := narrowToEnum(base, enum); ok {
+		return predictor
 	}
 
 	if flag.IsMap {
@@ -1538,6 +1550,23 @@ func resolveBaseFlagAction(flag *Flag, registered map[string]predict.Predictor, 
 	}
 
 	return predict.None()
+}
+
+// narrowToEnum returns the field's predictor narrowed to its enum values, the
+// bare enum values when the field has no predictor, or base unchanged when the
+// field has no enum. The boolean is false when there is neither a predictor
+// nor an enum.
+func narrowToEnum(base *predict.Predictor, enum []string) (predict.Predictor, bool) {
+	switch {
+	case base != nil && len(enum) > 0:
+		return base.Include(enum...), true
+	case base != nil:
+		return *base, true
+	case len(enum) > 0:
+		return predict.Values(enum...), true
+	default:
+		return predict.Predictor{}, false
+	}
 }
 
 func resolvePredictorSpec(spec *PredictorSpec, registered map[string]predict.Predictor) (predict.Predictor, bool) {
@@ -1548,8 +1577,8 @@ func resolvePredictorSpec(spec *PredictorSpec, registered map[string]predict.Pre
 		return predict.Files(spec.Patterns...), true
 	case PredictorKindCustom:
 		if registered != nil {
-			if act, ok := registered[spec.Name]; ok {
-				return act, true
+			if predictor, ok := registered[spec.Name]; ok {
+				return predictor, true
 			}
 		}
 

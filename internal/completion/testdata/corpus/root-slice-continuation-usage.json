@@ -4,7 +4,7 @@
     "error": false,
     "keeporder": false,
     "nofilecomp": true,
-    "nospace": true
+    "nospace": false
   },
   "usage": "Comma-separated feature flags"
 }

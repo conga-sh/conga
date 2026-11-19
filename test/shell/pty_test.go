@@ -129,7 +129,33 @@ func TestPtyBash_TabCompletesColonCandidate(t *testing.T) {
 	result := session.Capture()
 
 	assert.Equal(t, "shell-completion deploy --image api-gateway:v3.2.1-rc1", result.BufferAfterPrompt())
-	assert.Equal(t, len("CONGA> shell-completion deploy --image api-gateway:v3.2.1-rc1"), result.CursorX)
+	assert.Equal(t, len("CONGA> shell-completion deploy --image api-gateway:v3.2.1-rc1 "), result.CursorX)
+}
+
+func TestPtyBash_TabCompletesLeadingSegmentWithoutSpace(t *testing.T) {
+	t.Parallel()
+
+	session := startShellCompletionPty(t, "bash")
+
+	session.Type("shell-completion deploy --base-image ap")
+	session.Tab()
+	result := session.Capture()
+
+	assert.Equal(t, "shell-completion deploy --base-image api-gateway:", result.BufferAfterPrompt())
+	assert.Equal(t, len("CONGA> shell-completion deploy --base-image api-gateway:"), result.CursorX)
+}
+
+func TestPtyBash_TabCompletesEnumValueAtLastSegment(t *testing.T) {
+	t.Parallel()
+
+	session := startShellCompletionPty(t, "bash")
+
+	session.Type("shell-completion deploy --base-image auth-service:")
+	session.Tab()
+	result := session.Capture()
+
+	assert.Equal(t, "shell-completion deploy --base-image auth-service:v1.2.0", result.BufferAfterPrompt())
+	assert.Equal(t, len("CONGA> shell-completion deploy --base-image auth-service:v1.2.0 "), result.CursorX)
 }
 
 func TestPtyZsh_TabCompletesSingleMatch(t *testing.T) {
@@ -188,7 +214,20 @@ func TestPtyZsh_TabCompletesColonCandidate(t *testing.T) {
 	result := session.Capture()
 
 	assert.Equal(t, "shell-completion deploy --image api-gateway:v3.2.1-rc1", result.BufferAfterPrompt())
-	assert.Equal(t, len("CONGA> shell-completion deploy --image api-gateway:v3.2.1-rc1"), result.CursorX)
+	assert.Equal(t, len("CONGA> shell-completion deploy --image api-gateway:v3.2.1-rc1 "), result.CursorX)
+}
+
+func TestPtyZsh_TabCompletesLeadingSegmentWithoutSpace(t *testing.T) {
+	t.Parallel()
+
+	session := startShellCompletionPty(t, "zsh")
+
+	session.Type("shell-completion deploy --base-image ap")
+	session.Tab()
+	result := session.Capture()
+
+	assert.Equal(t, "shell-completion deploy --base-image api-gateway:", result.BufferAfterPrompt())
+	assert.Equal(t, len("CONGA> shell-completion deploy --base-image api-gateway:"), result.CursorX)
 }
 
 func TestPtyZsh_UserZstylesSurvive(t *testing.T) {
@@ -387,6 +426,58 @@ func TestPtyFish_SecondTabInsertsFirstCandidate(t *testing.T) {
 	assert.Contains(t, result.Screen, ptyClusterCandidateUS)
 	assert.Contains(t, result.Screen, ptyClusterCandidateEU)
 	assert.Contains(t, result.Screen, ptyClusterCandidateAP)
+}
+
+func TestPtyFish_TabCompletesColonCandidate(t *testing.T) {
+	t.Parallel()
+
+	session := startShellCompletionPty(t, "fish")
+
+	session.Type("shell-completion deploy --image api-gateway:v3.2.1-")
+	session.Tab()
+	result := session.Capture()
+
+	assert.Equal(t, "shell-completion deploy --image api-gateway:v3.2.1-rc1", result.BufferAfterPrompt())
+	assert.Equal(t, len("CONGA> shell-completion deploy --image api-gateway:v3.2.1-rc1 "), result.CursorX)
+}
+
+func TestPtyFish_TabCompletesLeadingSegmentWithoutSpace(t *testing.T) {
+	t.Parallel()
+
+	session := startShellCompletionPty(t, "fish")
+
+	session.Type("shell-completion deploy --base-image ap")
+	session.Tab()
+	result := session.Capture()
+
+	assert.Equal(t, "shell-completion deploy --base-image api-gateway:", result.BufferAfterPrompt())
+	assert.Equal(t, len("CONGA> shell-completion deploy --base-image api-gateway:"), result.CursorX)
+}
+
+func TestPtyPowerShell_TabCompletesColonCandidate(t *testing.T) {
+	t.Parallel()
+
+	session := startShellCompletionPty(t, "powershell")
+
+	session.Type("shell-completion deploy --image api-gateway:v3.2.1-")
+	session.Tab()
+	result := session.Capture()
+
+	assert.Equal(t, "shell-completion deploy --image api-gateway:v3.2.1-rc1", result.BufferAfterPrompt())
+	assert.Equal(t, len("CONGA> shell-completion deploy --image api-gateway:v3.2.1-rc1 "), result.CursorX)
+}
+
+func TestPtyPowerShell_TabCompletesLeadingSegmentWithoutSpace(t *testing.T) {
+	t.Parallel()
+
+	session := startShellCompletionPty(t, "powershell")
+
+	session.Type("shell-completion deploy --base-image ap")
+	session.Tab()
+	result := session.Capture()
+
+	assert.Equal(t, "shell-completion deploy --base-image api-gateway:", result.BufferAfterPrompt())
+	assert.Equal(t, len("CONGA> shell-completion deploy --base-image api-gateway:"), result.CursorX)
 }
 
 func TestPtyPowerShell_TabCompletesSingleMatch(t *testing.T) {

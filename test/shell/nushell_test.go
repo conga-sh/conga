@@ -909,7 +909,7 @@ func TestNushell_ColonMultiParts(t *testing.T) {
 		result := workspace.RunNushellCompletion(t, "shell-completion", "shell-completion deploy --image api-gateway:v3.2.1-")
 
 		assert.True(t, result.HasItem("v3.2.1-rc1") || result.HasItem("api-gateway:v3.2.1-rc1"))
-		assert.Equal(t, "shell-completion deploy --image api-gateway:v3.2.1-rc1", result.BufferTab1)
+		assert.Equal(t, "shell-completion deploy --image api-gateway:v3.2.1-rc1 ", result.BufferTab1)
 		assert.Equal(t, "", result.Stderr)
 	})
 }

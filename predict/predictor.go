@@ -44,6 +44,7 @@ type Predictor struct {
 	tag        string
 	usage      string
 	excluded   []string
+	included   [][]string
 	items      []Item
 	raw        []string
 	timeout    time.Duration
@@ -52,11 +53,14 @@ type Predictor struct {
 	keepOrder  bool
 }
 
-// Exclude returns a new Predictor that filters out candidates whose Value or
-// Display matches any of the specified values. The filter applies to whatever
-// the predictor evaluates to, including the candidates produced by callbacks,
-// batches, MultiParts, and a Timeout alternative, and runs before Prefix and
-// Suffix are applied. Repeated calls accumulate.
+// Exclude returns a new Predictor that filters out candidates whose Value
+// matches any of the specified values. The comparison uses the Value the shell
+// inserts, after Prefix and Suffix are applied; Display is never compared. The
+// filter applies to whatever the predictor evaluates to, including the
+// candidates produced by callbacks, batches, MultiParts, and a Timeout
+// alternative. On a MultiParts predictor the Value is the whole text built so
+// far; to remove one segment, call Exclude on the predictor the segment
+// function returns. Repeated calls accumulate.
 func (p Predictor) Exclude(values ...string) Predictor {
 	p.excluded = slices.Concat(p.excluded, values)
 
@@ -71,6 +75,29 @@ func (p Predictor) Exclude(values ...string) Predictor {
 // whose filter argument is a predicate over directory entries.
 func (p Predictor) FilterText(toComplete string) Predictor {
 	p.filterText = toComplete
+
+	return p
+}
+
+// Include returns a new Predictor that keeps only the candidates whose Value
+// matches one of the specified values. The comparison uses the Value the shell
+// inserts, after Prefix and Suffix are applied; Display is never compared. The
+// filter applies to whatever the predictor evaluates to, including the
+// candidates produced by callbacks, batches, MultiParts, and a Timeout
+// alternative. Each call narrows the result further: a candidate must match
+// every Include list, so Include with no values keeps nothing. Include and
+// Exclude combine: a candidate must pass every Include list and match no
+// excluded value. Candidates keep the order the predictor produces.
+//
+// On a MultiParts predictor, Include also keeps a partial candidate: one that
+// ends with the delimiter and starts a value present in every Include list.
+// With Include("api-gateway:latest"), the first segment offers "api-gateway:"
+// and drops "auth:", and the next segment offers only "api-gateway:latest".
+// This applies only when Include is called on the MultiParts predictor itself;
+// a MultiParts reached through a Callback, Batch, or Timeout alternative is
+// matched on whole values, so its partial candidates are dropped.
+func (p Predictor) Include(values ...string) Predictor {
+	p.included = append(slices.Clone(p.included), slices.Clone(values))
 
 	return p
 }
@@ -110,19 +137,19 @@ func (p Predictor) Prefix(prefix string) Predictor {
 // strings recorded by constructors such as Values, Items, and Map, or the
 // Value fields of the stored Items when no raw slice was recorded. It is a
 // snapshot, not an evaluation: callbacks, batches, and MultiParts are not
-// invoked (a callback-only predictor returns an empty slice), and while
-// Exclude narrows the stored set, Prefix, Suffix, Style, and Tag are ignored
-// because they apply to Result.Items only. The returned slice is always a
-// fresh copy.
+// invoked (a callback-only predictor returns an empty slice). Include and
+// Exclude narrow the stored set, comparing each value with Prefix and Suffix
+// applied as Invoke does, but the returned values carry neither: Prefix,
+// Suffix, Style, and Tag apply to Result.Items only. The returned slice is
+// always a fresh copy.
 func (p Predictor) Raw() []string {
-	if len(p.raw) > 0 {
-		return slicex.Filter(p.raw, func(value string) bool {
-			return !slices.Contains(p.excluded, value)
-		})
+	values := p.raw
+	if len(p.items) > 0 {
+		values = slicex.Map(p.items, func(item Item) string { return item.Value })
 	}
 
-	return slicex.Map(p.excludeItems(p.items), func(item Item) string {
-		return item.Value
+	return slicex.Filter(values, func(value string) bool {
+		return p.keeps(p.prefix + value + p.suffix)
 	})
 }
 
@@ -133,7 +160,10 @@ func (p Predictor) Style(style string) Predictor {
 	return p
 }
 
-// Suffix appends a suffix string to all candidate values.
+// Suffix appends a suffix string to all candidate values. On a MultiParts
+// predictor it applies to every segment's candidates, partial ones included
+// ("api-gateway:," then breaks the next segment); to suffix only finished
+// values, call Suffix on the predictor the last segment function returns.
 func (p Predictor) Suffix(suffix string) Predictor {
 	p.suffix += suffix
 
@@ -151,6 +181,9 @@ func (p Predictor) Tag(tag string) Predictor {
 // Passing d < 0 disables timeout enforcement for this predictor.
 // Passing d == 0 (the default) applies DefaultTimeout.
 // If more than one alternative predictor is passed, Timeout panics.
+// When the deadline passes, the alternative is invoked with its own modifiers
+// (Tag, Usage, Prefix, Include, Exclude, ...), and this predictor's modifiers
+// then apply on top, as they do to its own candidates.
 func (p Predictor) Timeout(d time.Duration, alternative ...Predictor) Predictor {
 	if len(alternative) > 1 {
 		panic("predict: Timeout accepts at most 1 alternative predictor")
@@ -255,7 +288,13 @@ func KeyValueDescribed(valuesByKey map[string][]string, descriptionByKey map[str
 	return keyValue(valuesByKey, descriptionByKey)
 }
 
-// MultiParts completes segmented tokens by splitting on a delimiter.
+// MultiParts completes segmented tokens by splitting on a delimiter. fn is
+// called for the segment under the cursor, with the finished segments in
+// Context.Parts, and the candidates it returns are prefixed with the text
+// typed before that segment. When every remaining candidate ends with the
+// delimiter (partial candidates such as "api-gateway:"), the shell adds no
+// trailing space, so the user can continue with the next segment; a finished
+// value gets a space unless the segment's predictor sets NoSpace.
 func MultiParts(delimiter string, fn func(c Context) Predictor) Predictor {
 	return Predictor{
 		multiparts: &multiPartsConfig{
@@ -291,7 +330,7 @@ type multiPartsConfig struct {
 }
 
 func (p Predictor) applyModifiers(base Result, ctx Context, hasCustomSubcommandCompletion bool) Result {
-	items := p.excludeItems(base.Items)
+	items := slices.Clone(base.Items)
 	directive := base.Directive
 
 	if p.prefix != "" {
@@ -305,6 +344,10 @@ func (p Predictor) applyModifiers(base Result, ctx Context, hasCustomSubcommandC
 			items[i].Value += p.suffix
 		}
 	}
+
+	items = slicex.Filter(items, func(item Item) bool {
+		return p.keeps(item.Value)
+	})
 
 	if p.style != "" {
 		for i := range items {
@@ -327,6 +370,10 @@ func (p Predictor) applyModifiers(base Result, ctx Context, hasCustomSubcommandC
 	}
 
 	items = p.filterItems(items, ctx, hasCustomSubcommandCompletion)
+
+	if p.onlyPartials(items) {
+		directive |= DirectiveNoSpace
+	}
 
 	return Result{
 		Items:     items,
@@ -388,7 +435,9 @@ func (p Predictor) evaluateBaseWithTimeout(ctx Context, timeout time.Duration) (
 		return evaluated.result, evaluated.customSubcommand
 	case <-timer.C:
 		if p.timeoutAlt != nil {
-			return p.timeoutAlt.evaluateBase(ctx)
+			base, hasCustomSubcommandCompletion := p.timeoutAlt.evaluateBase(ctx)
+
+			return p.timeoutAlt.applyModifiers(base, ctx, hasCustomSubcommandCompletion), hasCustomSubcommandCompletion
 		}
 
 		return Result{
@@ -423,11 +472,59 @@ func (p Predictor) evaluateBaseRaw(ctx Context) (Result, bool) {
 	}, false
 }
 
-// excludeItems returns a fresh copy of items without the candidates recorded
-// by Exclude.
-func (p Predictor) excludeItems(items []Item) []Item {
-	return slicex.Filter(items, func(item Item) bool {
-		return !slices.Contains(p.excluded, item.Value) && !slices.Contains(p.excluded, item.Display)
+// keeps reports whether a candidate with the given final value passes every
+// Include list and matches no Exclude value. On a MultiParts predictor, a
+// partial value that ends with the delimiter also passes when it starts a
+// target present in every Include list.
+func (p Predictor) keeps(value string) bool {
+	if slices.Contains(p.excluded, value) {
+		return false
+	}
+
+	if len(p.included) == 0 {
+		return true
+	}
+
+	inEveryList := func(target string) bool {
+		return !slices.ContainsFunc(p.included, func(included []string) bool {
+			return !slices.Contains(included, target)
+		})
+	}
+
+	if inEveryList(value) {
+		return true
+	}
+
+	delimiter := p.segmentDelimiter()
+	if delimiter == "" || !strings.HasSuffix(value, delimiter) {
+		return false
+	}
+
+	return slices.ContainsFunc(p.included[0], func(target string) bool {
+		return len(target) > len(value) && strings.HasPrefix(target, value) && inEveryList(target)
+	})
+}
+
+// segmentDelimiter returns the delimiter of a MultiParts predictor, or "" for
+// any other predictor.
+func (p Predictor) segmentDelimiter() string {
+	if p.multiparts == nil {
+		return ""
+	}
+
+	return p.multiparts.delimiter
+}
+
+// onlyPartials reports whether a MultiParts predictor's final candidates are
+// all partial, ending with the delimiter, so the shell must not add a space.
+func (p Predictor) onlyPartials(items []Item) bool {
+	delimiter := p.segmentDelimiter()
+	if delimiter == "" || len(items) == 0 {
+		return false
+	}
+
+	return !slices.ContainsFunc(items, func(item Item) bool {
+		return !strings.HasSuffix(item.Value, delimiter)
 	})
 }
 
@@ -533,12 +630,7 @@ func (p Predictor) invokeMultiParts(ctx Context) ([]Item, Directive, string) {
 		return item
 	})
 
-	directive := childRes.Directive | p.directive
-	if lastIdx >= 0 {
-		directive |= DirectiveNoSpace
-	}
-
-	return items, directive, childRes.Usage
+	return items, childRes.Directive | p.directive, childRes.Usage
 }
 
 // keyValue is the shared segmentation core of KeyValue and KeyValueDescribed:

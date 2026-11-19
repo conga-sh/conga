@@ -1,1 +1,1 @@
-[{"value":"api,scheduler","display":"scheduler","description":"Cron scheduler"},{"value":"api,worker","display":"worker","description":"Background worker"}]
+[{"value":"api,scheduler ","display":"scheduler","description":"Cron scheduler"},{"value":"api,worker ","display":"worker","description":"Background worker"}]

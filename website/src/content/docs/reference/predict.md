@@ -43,7 +43,7 @@ func (i Item) WithAlias() Item
 | `KeyValueDescribed(valuesByKey map[string][]string, descriptionByKey map[string]string)` | `KEY=VALUE` segmented completion with per-key descriptions |
 | `Items(items ...Item)` | Explicit item list |
 | `Callback(fn func(Context) Predictor)` | Lazy evaluation |
-| `MultiParts(delimiter string, fn func(Context) Predictor)` | Multi-segment values |
+| `MultiParts(delimiter string, fn func(Context) Predictor)` | Multi-segment values. When every candidate ends with the delimiter (`web:`), the shell adds no space after it |
 | `Batch(predictors ...Predictor)` | Aggregate predictors |
 | `None()` | Return an empty candidate set |
 
@@ -57,15 +57,16 @@ Hidden entries are offered only when the typed name starts with `.`. A typed `..
 
 | Combinator | Purpose |
 |------------|---------|
-| `Prefix(s)` / `Suffix(s)` | Decorate every candidate |
-| `Exclude(values ...string)` | Remove by value or display from whatever the predictor produces, callbacks and batches included; applies before `Prefix`/`Suffix` |
+| `Prefix(s)` / `Suffix(s)` | Decorate every candidate. On a `MultiParts` predictor they also decorate the partial candidates, so call `Suffix` on the predictor the last segment returns to decorate finished values only |
+| `Include(values ...string)` | Keep only candidates whose value, the text the shell inserts after `Prefix`/`Suffix`, matches one of `values`. On a `MultiParts` predictor it also keeps a partial candidate that ends with the delimiter and starts a value in every `Include` list (`api-gateway:` for `api-gateway:latest`). A `MultiParts` reached through a callback, a batch, or a `Timeout` alternative matches whole values only. Applies to whatever the predictor produces, callbacks and batches included. Each call narrows further, so `Include()` with no values keeps nothing. Candidates keep the predictor's order |
+| `Exclude(values ...string)` | Remove candidates whose value, the text the shell inserts after `Prefix`/`Suffix`, matches one of `values`. Applies to whatever the predictor produces, callbacks and batches included. On a `MultiParts` predictor the value is the whole text built so far, so to remove one segment, call `Exclude` on the predictor the segment function returns |
 | `FilterText(toComplete)` | Pre-filter by query |
 | `Style(s)` / `Tag(t)` | Default display style / group |
 | `Usage(msg)` / `Usagef(format, a...)` | ActiveHelp / tooltip hint, used when the evaluated result has none of its own (a callback's or batch member's hint wins) |
 | `NoSpace()` | Suppress the trailing space after insertion |
 | `KeepOrder()` | Ask the shell to keep the candidate order. bash 4.4 or later and zsh honor it. zsh keeps the order within each tag group and lists candidates that have a description before those that don't. PowerShell and nushell keep the order anyway. fish and elvish always sort |
-| `Timeout(d, alternative...)` | Deadline with optional fallback (panics with >1 alternative) |
-| `Raw()` | Underlying candidate strings |
+| `Timeout(d, alternative...)` | Deadline with optional fallback (panics with >1 alternative). The fallback keeps its own modifiers, and this predictor's modifiers apply on top |
+| `Raw()` | Underlying static candidate strings, narrowed by `Include` and `Exclude` |
 | `Invoke(ctx)` | Evaluate to a `Result` |
 
 ## Context
@@ -129,8 +130,13 @@ CONGA takes a field's predictor from the first source that applies:
 3. `FileFilterable`, then `DirFilterable`, then `PathFilterable` on the field's type.
 4. `TagAwarePredictable` on the field's type (for example `conga.File`).
 5. `Predictable` on the field's type (for example `conga.Dir`).
+6. `true` and `false` for a bool flag, after `=`.
 
-For a slice field, the element type decides.
+With none of these, the field offers no candidates. `predictor:"none"` also offers none.
+
+An `enum` tag narrows the chosen predictor to the listed values with `Include`, so the candidates keep their descriptions and the predictor's order. A candidate stays when the text the shell inserts equals an `enum` value. A type that completes a value in segments with `MultiParts` offers the partial candidates that lead to an `enum` value, then the `enum` value. With `enum:"api-gateway:latest"`, the first segment offers `api-gateway:` and the second offers `api-gateway:latest`. When the predictor never produces an `enum` value's last segment, its partial candidate leads to no candidates. An `enum` value the predictor doesn't produce isn't offered, although validation accepts it. Validation compares the parsed value's text form, so a type that rewrites what the user types (`get` to `GET`) accepts spellings that completion doesn't offer. A field with an `enum` and no predictor source offers the `enum` values. Map fields can't declare an `enum`.
+
+For a slice field, the element type decides, and an `enum` narrows each element's candidates.
 
 ## Constants
 
