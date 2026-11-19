@@ -1592,10 +1592,6 @@ func resolveBaseFlagAction(flag *Flag, registered map[string]predict.Predictor, 
 		return predictor
 	}
 
-	if flag.IsMap {
-		return predict.None()
-	}
-
 	return predict.None()
 }
 
