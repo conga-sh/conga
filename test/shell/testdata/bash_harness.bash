@@ -81,18 +81,45 @@ while IFS= read -r compopt_call; do
 done <"$compopt_log"
 rm -f "$compopt_log"
 
-# Simulate Readline buffer mutation
-prefix="${COMP_WORDS[COMP_CWORD]}"
+# Simulate Readline buffer mutation. Readline replaces only the end of the
+# word under the cursor: the text after its last COMP_WORDBREAKS character
+# outside quotes and not escaped, or after a quote still open at the end of
+# the word, whichever comes later. COMP_WORDS above is split on spaces only,
+# so the replaced text is found by scanning the word.
+word="${COMP_WORDS[COMP_CWORD]}"
+replace_start=0
+open_quote=""
+escaped=0
+for (( i = 0; i < ${#word}; i++ )); do
+    char="${word:i:1}"
+    if (( escaped )); then
+        escaped=0
+    elif [[ -n "$open_quote" ]]; then
+        if [[ "$char" == "$open_quote" ]]; then
+            open_quote=""
+        elif [[ "$open_quote" == '"' && "$char" == '\' ]]; then
+            escaped=1
+        fi
+    elif [[ "$char" == '\' ]]; then
+        escaped=1
+    elif [[ "$char" == "'" || "$char" == '"' ]]; then
+        open_quote="$char"
+        quote_start=$(( i + 1 ))
+    elif [[ "$COMP_WORDBREAKS" == *"$char"* ]]; then
+        replace_start=$(( i + 1 ))
+    fi
+done
+if [[ -n "$open_quote" ]] && (( quote_start > replace_start )); then
+    replace_start=$quote_start
+fi
+replaced="${word:replace_start}"
+kept="${CMD_LINE:0:${#CMD_LINE}-${#replaced}}"
+
 buffer_tab1="$CMD_LINE"
 buffer_tab2="$CMD_LINE"
 
 if (( ${#COMPREPLY[@]} == 1 )); then
-    only_cand="${COMPREPLY[0]}"
-    if [[ "$CMD_LINE" == *" " ]]; then
-        buffer_tab1="${CMD_LINE}${only_cand}"
-    else
-        buffer_tab1="${CMD_LINE%${prefix}}${only_cand}"
-    fi
+    buffer_tab1="${kept}${COMPREPLY[0]}"
     buffer_tab2="$buffer_tab1"
 elif (( ${#COMPREPLY[@]} > 1 )); then
     lcp="${COMPREPLY[0]}"
@@ -101,19 +128,10 @@ elif (( ${#COMPREPLY[@]} > 1 )); then
             lcp="${lcp:0:${#lcp}-1}"
         done
     done
-    if [[ -n "$lcp" && ${#lcp} -gt ${#prefix} ]]; then
-        if [[ "$CMD_LINE" == *" " ]]; then
-            buffer_tab1="${CMD_LINE}${lcp}"
-        else
-            buffer_tab1="${CMD_LINE%${prefix}}${lcp}"
-        fi
+    if [[ -n "$lcp" && ${#lcp} -gt ${#replaced} ]]; then
+        buffer_tab1="${kept}${lcp}"
     fi
-    first_cand="${COMPREPLY[0]}"
-    if [[ "$CMD_LINE" == *" " ]]; then
-        buffer_tab2="${CMD_LINE}${first_cand}"
-    else
-        buffer_tab2="${CMD_LINE%${prefix}}${first_cand}"
-    fi
+    buffer_tab2="${kept}${COMPREPLY[0]}"
 fi
 
 echo "BUFFER_TAB1:${buffer_tab1}"

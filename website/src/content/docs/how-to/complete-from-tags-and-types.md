@@ -298,6 +298,8 @@ false  true
 |---|---|
 | `string` with no `enum` or `predictor` tag | No candidates |
 | `map[string]string` | No candidates. zsh shows the hint `<key>=<value>` |
+| A map whose value type completes (`map[string]*time.Location` with `Use(timezone.RegisterLocation)`) | No keys. After `key=`, the value type's candidates. Before the `=`, zsh shows the field's help, or without one `<key>=<value>` with the value type's help as the value (`<key>=<Path to a file>`) |
+| A map with a path predictor tag (`predictor:"file"` on `map[string]string`) | No keys. After `key=`, paths |
 | `predictor:"none"` | No candidates, whatever the type |
 | An `enum` value the type's predictor doesn't produce | Not offered. The run still accepts it |
 | `predictor:"none"` with an `enum` tag | No candidates |

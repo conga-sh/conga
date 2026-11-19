@@ -444,6 +444,8 @@ The `predictor:"..."` tag sets completion behavior:
 | `none` / `off` | Disable completion for the field. |
 | `<name>` | Custom predictor registered via `app.Predictor(name, action)`. |
 
+On a map field, the path predictors (`file`, `dir`, `exec`, `symlink`) complete the value after `key=`. A custom predictor completes the whole `key=value` entry.
+
 ## Examples
 
 ```go

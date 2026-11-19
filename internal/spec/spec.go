@@ -312,11 +312,17 @@ type PredictorKind int
 // Build supplies the predictor of a PredictorKindPredictable spec. The
 // completion walker calls it only when it resolves candidates for that
 // field, so runs, help, and --why never call a type's Predict.
+//
+// MapValue marks a map field's predictor that completes the value: one
+// inferred from the map's value type, or a path predictor tag (file, dir,
+// exec, symlink). The walker runs it on the text after the entry's first '='
+// and offers nothing before.
 type PredictorSpec struct {
 	Kind     PredictorKind
 	Name     string
 	Patterns []string
 	Build    func() predict.Predictor
+	MapValue bool
 }
 
 // Flag represents the metadata and binder for a command-line flag.

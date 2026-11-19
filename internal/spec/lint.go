@@ -117,7 +117,30 @@ func parsePredictorSpec(structTag reflect.StructTag, targetType reflect.Type, is
 		return inferPredictorSpec(targetType, tags, opts), nil
 	}
 
-	return validateExplicitPredictor(strings.TrimSpace(tagValue), isBool, slices.Sorted(maps.Keys(opts.RegisteredPredictors)), true)
+	spec, err := validateExplicitPredictor(strings.TrimSpace(tagValue), isBool, slices.Sorted(maps.Keys(opts.RegisteredPredictors)), true)
+	if err != nil {
+		return nil, err
+	}
+
+	// A path predictor can't describe a whole key=value entry, so on a map it
+	// completes the value after the entry's '='. A named predictor still
+	// completes the whole entry (predict.KeyValue).
+	if isMapCollection(targetType) && isPathPredictorKind(spec.Kind) {
+		spec.MapValue = true
+	}
+
+	return spec, nil
+}
+
+// isPathPredictorKind reports whether kind is a built-in path predictor
+// (file, dir, exec, symlink).
+func isPathPredictorKind(kind PredictorKind) bool {
+	switch kind {
+	case PredictorKindFile, PredictorKindDir, PredictorKindExec, PredictorKindSymlink:
+		return true
+	default:
+		return false
+	}
 }
 
 // parseTrailingArgsPredictor parses the explicit predictor tag on a
@@ -138,6 +161,10 @@ func parseTrailingArgsPredictor(structTag reflect.StructTag, opts *Options) (*Pr
 // completion-supplied inference hook. It returns nil when inference is
 // disabled.
 func inferPredictorSpec(targetType reflect.Type, tags FieldTags, opts *Options) *PredictorSpec {
+	if isMapCollection(targetType) {
+		return inferMapPredictorSpec(targetType, tags, opts)
+	}
+
 	if spec := inferPredictorFromOptions(targetType, opts.TypePredictors); spec != nil {
 		return spec
 	}
@@ -338,6 +365,36 @@ func inferPredictorFromOptions(targetType reflect.Type, typePredictors map[refle
 // fixedPredictor returns a builder for a predictor known at schema build.
 func fixedPredictor(predictor predict.Predictor) func() predict.Predictor {
 	return func() predict.Predictor { return predictor }
+}
+
+// inferMapPredictorSpec resolves the predictor of a map field without an
+// explicit predictor tag: the map type's own predictor, then the value type's
+// registered predictor, then the value type's own. A value-type predictor is
+// marked MapValue, so the walker completes it after the entry's '='. Steps
+// that infer from a type's methods need the completion inference hook. The
+// walker supplies true/false for a bool value without a predictor.
+func inferMapPredictorSpec(mapType reflect.Type, tags FieldTags, opts *Options) *PredictorSpec {
+	if opts.InferPredictor != nil {
+		if spec := opts.InferPredictor(mapType, tags); spec != nil {
+			return spec
+		}
+	}
+
+	valueType := mapType.Elem()
+
+	spec := inferPredictorFromOptions(valueType, opts.TypePredictors)
+	if spec == nil && opts.InferPredictor != nil {
+		spec = opts.InferPredictor(valueType, tags)
+	}
+
+	if spec == nil {
+		return nil
+	}
+
+	mapValue := *spec
+	mapValue.MapValue = true
+
+	return &mapValue
 }
 
 // inferImplements asserts the filterable/predictable interface T on elemType —

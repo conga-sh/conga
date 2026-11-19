@@ -158,6 +158,19 @@ func TestPtyBash_TabCompletesEnumValueAtLastSegment(t *testing.T) {
 	assert.Equal(t, len("CONGA> shell-completion deploy --base-image auth-service:v1.2.0 "), result.CursorX)
 }
 
+func TestPtyBash_TabCompletesMapValueAfterKey(t *testing.T) {
+	t.Parallel()
+
+	session := startShellCompletionPty(t, "bash")
+
+	session.Type("shell-completion deploy --zones api=e")
+	session.Tab()
+	result := session.Capture()
+
+	assert.Equal(t, "shell-completion deploy --zones api=eu-west-1", result.BufferAfterPrompt())
+	assert.Equal(t, len("CONGA> shell-completion deploy --zones api=eu-west-1 "), result.CursorX)
+}
+
 func TestPtyZsh_TabCompletesSingleMatch(t *testing.T) {
 	t.Parallel()
 
@@ -228,6 +241,19 @@ func TestPtyZsh_TabCompletesLeadingSegmentWithoutSpace(t *testing.T) {
 
 	assert.Equal(t, "shell-completion deploy --base-image api-gateway:", result.BufferAfterPrompt())
 	assert.Equal(t, len("CONGA> shell-completion deploy --base-image api-gateway:"), result.CursorX)
+}
+
+func TestPtyZsh_TabCompletesMapValueAfterKey(t *testing.T) {
+	t.Parallel()
+
+	session := startShellCompletionPty(t, "zsh")
+
+	session.Type("shell-completion deploy --zones api=e")
+	session.Tab()
+	result := session.Capture()
+
+	assert.Equal(t, "shell-completion deploy --zones api=eu-west-1", result.BufferAfterPrompt())
+	assert.Equal(t, len("CONGA> shell-completion deploy --zones api=eu-west-1 "), result.CursorX)
 }
 
 func TestPtyZsh_UserZstylesSurvive(t *testing.T) {
