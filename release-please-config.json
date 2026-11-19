@@ -10,18 +10,18 @@
       "include-commit-authors": false,
       "pull-request-title-pattern": "chore: release ${version}",
       "changelog-sections": [
-        { "type": "feat", "section": "Features" },
-        { "type": "fix", "section": "Bug Fixes" },
-        { "type": "perf", "section": "Performance Improvements" },
-        { "type": "docs", "section": "Documentation", "hidden": false },
-        { "type": "deps", "section": "Dependencies", "hidden": false },
-        { "type": "revert", "section": "Reverts" },
-        { "type": "refactor", "section": "Code Refactoring", "hidden": true },
-        { "type": "style", "section": "Styling", "hidden": true },
-        { "type": "test", "section": "Tests", "hidden": true },
-        { "type": "ci", "section": "CI", "hidden": true },
-        { "type": "build", "section": "Build System", "hidden": true },
-        { "type": "chore", "section": "Miscellaneous Chores", "hidden": true }
+        { "type": "feat", "section": "✨ Features" },
+        { "type": "fix", "section": "🐛 Bug Fixes" },
+        { "type": "perf", "section": "⚡ Performance Improvements" },
+        { "type": "docs", "section": "📚 Documentation", "hidden": false },
+        { "type": "deps", "section": "📦 Dependencies", "hidden": false },
+        { "type": "revert", "section": "⏪ Reverts" },
+        { "type": "refactor", "section": "♻️ Code Refactoring", "hidden": true },
+        { "type": "style", "section": "🎨 Styling", "hidden": true },
+        { "type": "test", "section": "🧪 Tests", "hidden": true },
+        { "type": "ci", "section": "👷 CI", "hidden": true },
+        { "type": "build", "section": "🛠 Build System", "hidden": true },
+        { "type": "chore", "section": "🔧 Miscellaneous Chores", "hidden": true }
       ]
     }
   }

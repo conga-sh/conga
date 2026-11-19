@@ -109,11 +109,11 @@ the queue.
 ```markdown
 Short 2–3 sentence summary of what changed in this release and who should upgrade.
 
-### Highlights
+### 🚀 Highlights
 
 - **Headline:** concise user-facing takeaway (#PR).
 
-### Breaking Changes & Migration
+### ⚠ Breaking Changes & Migration
 
 #### API changes
 - **`RemovedOrChangedSymbol`** (#PR): what changed and before/after Go snippet if helpful.
@@ -124,15 +124,15 @@ Short 2–3 sentence summary of what changed in this release and who should upgr
 #### Behaviour & diagnostics
 - **Summary** (#PR): runtime or error-message change and migration note.
 
-### Features
+### ✨ Features
 
 - **scope:** user-facing description (#PR)
 
-### Bug Fixes
+### 🐛 Bug Fixes
 
 - **scope:** user-facing description (#PR)
 
-### Documentation
+### 📚 Documentation
 
 - **scope:** user-facing description (#PR)
 
