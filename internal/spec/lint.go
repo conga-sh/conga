@@ -350,6 +350,23 @@ func inferImplements[T any](elemType reflect.Type, build func(T) predict.Predict
 	return nil
 }
 
+// isFilterableType reports whether elemType implements FileFilterable,
+// DirFilterable or PathFilterable with a value or pointer receiver, the
+// structural check inferFilterablePredictor uses.
+func isFilterableType(elemType reflect.Type) bool {
+	if _, ok := assertValueOrPointer[predict.FileFilterable](elemType); ok {
+		return true
+	}
+
+	if _, ok := assertValueOrPointer[predict.DirFilterable](elemType); ok {
+		return true
+	}
+
+	_, ok := assertValueOrPointer[predict.PathFilterable](elemType)
+
+	return ok
+}
+
 func inferFilterablePredictor(elemType reflect.Type) *PredictorSpec {
 	if spec := inferImplements[predict.FileFilterable](elemType, func(f predict.FileFilterable) predict.Predictor {
 		return predict.FilesFiltered(f.MatchFile)

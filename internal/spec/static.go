@@ -653,3 +653,129 @@ func validateFlagGroupTagValues(tag reflect.StructTag) error {
 func configEnvCollisionError(envVar string, first string, second string, remedy string) error {
 	return fmt.Errorf("%w: environment variable %q is bound by both %s and %s; %s", ErrSchema, envVar, first, second, remedy)
 }
+
+// ValueTarget carries the facts about a flag or positional argument value type
+// that ValidateValueTarget checks the field's tags against. The runtime schema
+// builder derives them through reflection, the static analyzer through
+// go/types, so both report the same diagnostics.
+type ValueTarget struct {
+	// IsMap reports a map collection (a map type that does not parse itself).
+	IsMap bool
+
+	// MapKeyIsString reports a map key with a string underlying kind. Only
+	// consulted when IsMap is true.
+	MapKeyIsString bool
+
+	// MapKeyType is the display name of the map key type, used in the
+	// non-string key message. Only consulted when IsMap is true.
+	MapKeyType string
+
+	// PathSubject is the display name of a path type (conga.File, conga.Dir,
+	// conga.FileContent, or a FileFilterable, DirFilterable or PathFilterable
+	// type), or of a slice or pointer element of one; empty otherwise.
+	PathSubject string
+}
+
+// ValidateValueTarget checks the tags of a flag or positional argument against
+// its value type: maps need string keys and cannot declare enum, range or len,
+// and path fields (a path type, or a path predictor tag) cannot declare enum.
+// It returns the first violation.
+func ValidateValueTarget(tag reflect.StructTag, target ValueTarget) error {
+	if err := validateMapConstraints(tag, target); err != nil {
+		return err
+	}
+
+	return validateEnumTarget(tag, target.PathSubject)
+}
+
+// validateMapConstraints rejects map-typed flag/arg fields whose key type is
+// not a string, or whose tags carry per-entry constraints (enum/range/len)
+// that maps cannot honor; map entries are constrained via "items" instead.
+func validateMapConstraints(tag reflect.StructTag, target ValueTarget) error {
+	if !target.IsMap {
+		return nil
+	}
+
+	if !target.MapKeyIsString {
+		return fmt.Errorf("%w, got %s", errNonStringMapKey, target.MapKeyType)
+	}
+
+	for _, key := range []string{"enum", "range", "len"} {
+		if hasTag(tag, key) {
+			return fmt.Errorf("%w: tag %q is not supported on map types. Use tag \"items\" to constrain the number of map entries, or custom domain types with SelfValidator to validate map entries", ErrInvalidStructTag, key)
+		}
+	}
+
+	return nil
+}
+
+// validateEnumTarget rejects an enum tag on a path field: a path type named by
+// pathSubject, or a field whose predictor tag names a path predictor. Path
+// values compare as expanded paths (or file content), so an enum list of names
+// cannot describe them; glob narrows a conga.File's completion, and a string
+// field carries a fixed set of names. Predictor syntax errors are left to
+// ValidatePredictorTag.
+func validateEnumTarget(tag reflect.StructTag, pathSubject string) error {
+	if !hasTag(tag, "enum") {
+		return nil
+	}
+
+	if pathSubject != "" {
+		return enumOnPathTypeError(tag, pathSubject)
+	}
+
+	if name := pathPredictorName(tag); name != "" {
+		return enumWithPathPredictorError(name)
+	}
+
+	return nil
+}
+
+// pathPredictorName returns the canonical name of the path predictor a
+// predictor tag names (file, dir, symlink, exec), or "" for any other or
+// malformed value.
+func pathPredictorName(tag reflect.StructTag) string {
+	value := strings.TrimSpace(tag.Get("predictor"))
+
+	predictorSpec, ok, err := parseBuiltinFilesystemPredictor(value)
+	if !ok {
+		predictorSpec, ok, err = parseBuiltinEnginePredictor(value)
+	}
+
+	if !ok || err != nil || predictorSpec == nil {
+		return ""
+	}
+
+	switch predictorSpec.Kind {
+	case PredictorKindFile, PredictorKindDir, PredictorKindSymlink, PredictorKindExec:
+		return predictorSpec.Name
+	default:
+		return ""
+	}
+}
+
+// enumOnPathTypeError builds the enum rejection for a path type. Only a
+// conga.File without executable or symlink accepts glob, so only that field
+// gets the glob hint.
+func enumOnPathTypeError(tag reflect.StructTag, pathSubject string) error {
+	const stringFieldHint = `a string field with tag "enum" to accept a fixed set of names`
+
+	_, hasExecutable := tag.Lookup("executable")
+	_, hasSymlink := tag.Lookup("symlink")
+
+	if pathSubject == "conga.File" && !hasExecutable && !hasSymlink {
+		return fmt.Errorf("%w: tag \"enum\" is not supported on %s; use tag \"glob\" to filter completion candidates, or %s", ErrInvalidStructTag, pathSubject, stringFieldHint)
+	}
+
+	return fmt.Errorf("%w: tag \"enum\" is not supported on %s; use %s", ErrInvalidStructTag, pathSubject, stringFieldHint)
+}
+
+// enumWithPathPredictorError builds the enum rejection for a path predictor
+// tag, named canonically.
+func enumWithPathPredictorError(predictorName string) error {
+	if predictorName == "file" {
+		return fmt.Errorf("%w: tag \"enum\" cannot be combined with predictor:\"file\"; remove tag \"enum\" (predictor:\"file:<patterns>\" filters completion candidates), or remove the predictor tag to complete the enum values", ErrInvalidStructTag)
+	}
+
+	return fmt.Errorf("%w: tag \"enum\" cannot be combined with predictor:%q; remove tag \"enum\", or remove the predictor tag to complete the enum values", ErrInvalidStructTag, predictorName)
+}

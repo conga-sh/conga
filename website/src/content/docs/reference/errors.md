@@ -116,6 +116,7 @@ Programmer errors during schema construction abort at startup before execution b
 - Combining the `bootstrap` and `feature` tags on the same field.
 - Declaring the `bootstrap` tag on unsupported field types (structs, pointers, interfaces).
 - Inconsistent `stage` tags violating the all-or-nothing requirement on feature structs.
+- Declaring `enum` on a path field (`conga.File`, `conga.Dir`, `conga.FileContent`, a filterable type, or a `file`, `dir`, `exec`, or `symlink` predictor tag): `struct Deploy field Manifest: schema error: invalid struct tag: tag "enum" is not supported on conga.File; use tag "glob" to filter completion candidates, or a string field with tag "enum" to accept a fixed set of names`.
 - Setting `enumhint:"-"` on a field without declared enums, or where the `help` tag already references `{{enum}}`.
 - Ancestor flag shadowing across command-subcommand hierarchies (`ErrDuplicateFlag`), including the built-in version command's `--json` and a CLI-exposed `Features[T]` flag.
 - Built-in short flag collisions: assigning a short rune via `app.HelpShortFlag` or `app.VersionShortFlag` that collides with an application flag, or assigning the same rune to both built-in flags (`ErrDuplicateFlag`).

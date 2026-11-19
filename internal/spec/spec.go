@@ -521,6 +521,12 @@ type Options struct {
 	// are coerced twice, so schema build rejects such types, and slices or
 	// maps of them, on bootstrap fields. Nil disables the check.
 	ReadsWhileParsing func(reflect.Type) bool
+	// IsPathType reports whether a value type is one of the root path domain
+	// types (conga.File, conga.Dir, conga.FileContent). Schema build rejects
+	// an enum tag on such fields, and on slices or pointers of them. The
+	// filterable completion interfaces are checked without this hook. Nil
+	// leaves only the filterable check.
+	IsPathType func(reflect.Type) bool
 	// HasBootstrapper reports whether this command or one of its ancestors
 	// implements conga.Bootstrapper. It is derived from IsBootstrapper during
 	// the build walk and inherited by descendant commands.

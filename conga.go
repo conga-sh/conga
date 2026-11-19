@@ -1394,6 +1394,7 @@ func (a *App[T]) buildSpec() (*spec.Command, error) {
 		ClassifyContainer:    classifyContainer,
 		IsBootstrapper:       isBootstrapper,
 		ReadsWhileParsing:    readsWhileParsing,
+		IsPathType:           isPathType,
 		IsRunner:             isRunner,
 		ConfigDecoders:       decoderExtensions,
 		ConfigFilePatterns: slicex.Map(decoderExtensions, func(extension string) string {

@@ -681,6 +681,14 @@ type parseTimeReader interface {
 	readsWhileParsing()
 }
 
+// pathValue marks the path domain types (File, Dir, FileContent). Schema build
+// rejects an enum tag on them through spec.Options.IsPathType; matching the
+// marker instead of the types keeps them out of programs that do not declare
+// one.
+type pathValue interface {
+	pathValue()
+}
+
 // counterError is the root cause for environment or configuration counter
 // values that are not an unsigned integer: a sign, a non-integer, or a count
 // too large for an int. It carries no category: counters fail only on
@@ -1580,6 +1588,12 @@ func readsStdin(elemType reflect.Type, tags spec.FieldTags) bool {
 // links no domain type into programs that do not declare one.
 func readsWhileParsing(targetType reflect.Type) bool {
 	return targetType != nil && reflect.PointerTo(targetType).Implements(reflect.TypeFor[parseTimeReader]())
+}
+
+// isPathType reports whether targetType is a path domain type. Like
+// readsWhileParsing it checks the method set without naming the types.
+func isPathType(targetType reflect.Type) bool {
+	return targetType != nil && reflect.PointerTo(targetType).Implements(reflect.TypeFor[pathValue]())
 }
 
 func newRepeatedFlagError(cmdChain []*spec.Command, flagName string) error {

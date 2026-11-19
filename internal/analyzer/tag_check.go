@@ -50,11 +50,13 @@ func (w *walker) validateNodeFieldTags(node *commandNode, fieldObject types.Obje
 }
 
 // congaFieldTagSpecs resolves the field-tag specs of a flag or positional
-// argument element type. Only named types declared by the conga package
-// resolve through the built-in dispatch: foreign types that happen to share a
-// builtin name are not honored statically, mirroring the runtime's
-// TagSpecProvider interface assertion and keeping the analyzer conservative
-// (it may miss diagnostics, never invent them).
+// argument element type. A slice or map collection resolves to its element,
+// and one pointer layer is unwrapped. Only named types declared by the conga
+// package resolve through the built-in dispatch: foreign types that happen to
+// share a builtin name are not honored statically, mirroring the runtime's
+// TagSpecProvider interface assertion (which a nil *conga.File satisfies) and
+// keeping the analyzer conservative (it may miss diagnostics, never invent
+// them).
 func (w *walker) congaFieldTagSpecs(targetType types.Type) []spec.TagSpec {
 	if targetType == nil {
 		return nil
@@ -69,6 +71,10 @@ func (w *walker) congaFieldTagSpecs(targetType types.Type) []spec.TagSpec {
 		case *types.Map:
 			targetType = types.Unalias(underlying.Elem())
 		}
+	}
+
+	if pointer, ok := targetType.(*types.Pointer); ok {
+		targetType = types.Unalias(pointer.Elem())
 	}
 
 	named, ok := targetType.(*types.Named)
@@ -435,6 +441,19 @@ func (w *walker) checkFlagField(node *commandNode, fieldObject types.Object, tag
 		return
 	}
 
+	flagName := cmp.Or(tag.Get("name"), casing.Kebab(fieldObject.Name()))
+
+	// The runtime parses the domain-type tags, then checks the tags against the
+	// value type before any other flag guard, and stops at the first error.
+	// A value-type rejection skips the remaining value checks but still
+	// registers the flag, so other fields' shadowing and env checks hold.
+	if w.valueTargetRejected(node, fieldObject, tag, targetType, tagSpecs) {
+		w.checkAndCollectFlag(node, fieldObject, tag, flagName, branchNames, branchShorts)
+		w.recordFlagEnvOwners(node, fieldObject, tag, flagName, false)
+
+		return
+	}
+
 	wrapperName := w.congaWrapperName(fieldObject.Type())
 
 	guardRejected := false
@@ -450,8 +469,6 @@ func (w *walker) checkFlagField(node *commandNode, fieldObject types.Object, tag
 	if w.checkFlagValueGuards(node, fieldObject, tag, wrapperName) {
 		guardRejected = true
 	}
-
-	flagName := cmp.Or(tag.Get("name"), casing.Kebab(fieldObject.Name()))
 
 	// A flag that shares both an exclusive group and an and group with another
 	// member can never be supplied: selecting it forces the other member, which
@@ -492,10 +509,6 @@ func (w *walker) checkFlagField(node *commandNode, fieldObject types.Object, tag
 	w.reportFieldError(node, fieldObject, spec.ValidatePredictorTag(tag, isBasicKind(targetType, types.Bool), w.options.registeredNames, !w.options.registeredNamesAmbiguous))
 	w.checkBootstrapField(node, fieldObject, tag, targetType)
 	w.checkValidationSpecs(node, fieldObject, tag, targetType, tagSpecs)
-
-	if _, err := spec.ParseFieldTags(tag, tagSpecs); err != nil {
-		w.reportFieldError(node, fieldObject, err)
-	}
 
 	w.checkAndCollectFlag(node, fieldObject, tag, flagName, branchNames, branchShorts)
 	w.recordFlagEnvOwners(node, fieldObject, tag, flagName, false)
@@ -681,13 +694,36 @@ func (w *walker) checkArgField(node *commandNode, fieldObject types.Object, tag 
 		return
 	}
 
+	if w.valueTargetRejected(node, fieldObject, tag, targetType, tagSpecs) {
+		return
+	}
+
 	w.reportFieldError(node, fieldObject, spec.ValidatePredictorTag(tag, false, w.options.registeredNames, !w.options.registeredNamesAmbiguous))
 	w.checkBootstrapField(node, fieldObject, tag, targetType)
 	w.checkValidationSpecs(node, fieldObject, tag, targetType, tagSpecs)
+}
 
+// valueTargetRejected mirrors the start of the runtime flag and
+// positional-argument processing: the domain-type tags are parsed, then, when
+// they parse, the tags are checked against the value type
+// (spec.ValidateValueTarget: map constraints, enum on path fields). It reports
+// either error and returns true only for a value-type rejection, after which
+// the caller skips the field's remaining value checks. A domain-tag error keeps
+// the other checks running, as before the value-type check existed.
+func (w *walker) valueTargetRejected(node *commandNode, fieldObject types.Object, tag reflect.StructTag, targetType types.Type, tagSpecs []spec.TagSpec) bool {
 	if _, err := spec.ParseFieldTags(tag, tagSpecs); err != nil {
 		w.reportFieldError(node, fieldObject, err)
+
+		return false
 	}
+
+	if err := spec.ValidateValueTarget(tag, staticValueTarget(targetType)); err != nil {
+		w.reportFieldError(node, fieldObject, err)
+
+		return true
+	}
+
+	return false
 }
 
 // checkValidationSpecs mirrors the runtime parseValidationSpecs: range bounds
@@ -851,6 +887,106 @@ func (w *walker) containerInnerType(fieldType types.Type) types.Type {
 	}
 
 	return containerType
+}
+
+// staticValueTarget mirrors the runtime schemaBuilder.validateValueTarget
+// facts over go/types: a map collection with its key facts, otherwise the
+// path subject.
+func staticValueTarget(targetType types.Type) spec.ValueTarget {
+	if targetType == nil {
+		return spec.ValueTarget{}
+	}
+
+	targetType = types.Unalias(targetType)
+
+	if mapType, ok := targetType.Underlying().(*types.Map); ok && staticIsCollection(targetType) {
+		keyType := types.Unalias(mapType.Key())
+		basic, isBasic := keyType.Underlying().(*types.Basic)
+
+		return spec.ValueTarget{
+			IsMap:          true,
+			MapKeyIsString: isBasic && basic.Info()&types.IsString != 0,
+			MapKeyType:     types.TypeString(keyType, shortPackageQualifier),
+		}
+	}
+
+	return spec.ValueTarget{PathSubject: staticPathSubject(targetType)}
+}
+
+// staticPathSubject mirrors the runtime schemaBuilder.pathSubject over
+// go/types: a slice collection resolves to its element, one pointer layer is
+// unwrapped, and the path types are conga.File, conga.Dir and
+// conga.FileContent, matched by package path and name, plus types whose
+// method set matches FileFilterable, DirFilterable or PathFilterable. The
+// interfaces are matched by method signature because predict is not
+// necessarily resolvable from the analyzed package.
+func staticPathSubject(targetType types.Type) string {
+	elemType := targetType
+	if slice, ok := elemType.Underlying().(*types.Slice); ok && staticIsCollection(elemType) {
+		elemType = types.Unalias(slice.Elem())
+	}
+
+	if pointer, ok := elemType.(*types.Pointer); ok {
+		elemType = types.Unalias(pointer.Elem())
+	}
+
+	if named, ok := elemType.(*types.Named); ok && named.Obj().Pkg() != nil && named.Obj().Pkg().Path() == congaPackagePath {
+		switch named.Obj().Name() {
+		case "File", "Dir", "FileContent":
+			return types.TypeString(elemType, shortPackageQualifier)
+		}
+	}
+
+	if staticIsFilterable(elemType) {
+		return types.TypeString(elemType, shortPackageQualifier)
+	}
+
+	return ""
+}
+
+// staticIsFilterable reports whether the pointer method set of elemType, which
+// includes its value methods, has MatchFile, MatchDir or MatchPath with the
+// signature func(string, fs.DirEntry) bool, mirroring the runtime value or
+// pointer assertion on the predict filterable interfaces.
+func staticIsFilterable(elemType types.Type) bool {
+	if _, isInterface := elemType.Underlying().(*types.Interface); isInterface {
+		return false
+	}
+
+	methodSet := types.NewMethodSet(types.NewPointer(elemType))
+
+	for _, name := range []string{"MatchFile", "MatchDir", "MatchPath"} {
+		selection := methodSet.Lookup(nil, name)
+		if selection == nil {
+			continue
+		}
+
+		if signature, ok := selection.Type().(*types.Signature); ok && isFilterSignature(signature) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// isFilterSignature reports whether signature is func(string, fs.DirEntry)
+// bool; os.DirEntry is an alias of fs.DirEntry.
+func isFilterSignature(signature *types.Signature) bool {
+	if signature.Variadic() || signature.Params().Len() != 2 || signature.Results().Len() != 1 {
+		return false
+	}
+
+	if !types.Identical(types.Unalias(signature.Params().At(0).Type()), types.Typ[types.String]) {
+		return false
+	}
+
+	if !types.Identical(types.Unalias(signature.Results().At(0).Type()), types.Typ[types.Bool]) {
+		return false
+	}
+
+	entry, ok := types.Unalias(signature.Params().At(1).Type()).(*types.Named)
+
+	return ok && entry.Obj().Name() == "DirEntry" && entry.Obj().Pkg() != nil && entry.Obj().Pkg().Path() == "io/fs"
 }
 
 // staticBootstrapReadsWhileParsing mirrors the runtime ReadsWhileParsing hook

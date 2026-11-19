@@ -33,6 +33,8 @@ func TestDriverDiagnostics(t *testing.T) {
 		{name: "invalid fixture reports diagnostics", arguments: []string{"./invalid"}, wantExit: 3, wantMessage: "runner not implemented: implement conga.Runner"},
 		{name: "invalid fixture reports throwaway roots", arguments: []string{"./invalid"}, wantExit: 3, wantMessage: "conga.New root instance is not referenced outside the app"},
 		{name: "invalid fixture reports unknown tags by default", arguments: []string{"./invalid"}, wantExit: 3, wantMessage: "unknown struct tag"},
+		{name: "filterable type without a predict import is matched", arguments: []string{"./enumtarget"}, wantExit: 3, wantMessage: `tag "enum" is not supported on enumtarget.FileFilter`},
+		{name: "enum next to path rules is clean", arguments: []string{"./enumtargetclean"}, wantExit: 0},
 		{name: "valid fixture is clean", arguments: []string{"./valid"}, wantExit: 0},
 	}
 
