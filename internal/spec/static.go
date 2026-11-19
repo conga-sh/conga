@@ -33,6 +33,28 @@ type ValidationOptions struct {
 	EnvPrefixKnown bool
 }
 
+// ValueTarget carries the facts about a flag or positional argument value type
+// that ValidateValueTarget checks the field's tags against. The runtime schema
+// builder derives them through reflection, the static analyzer through
+// go/types, so both report the same diagnostics.
+type ValueTarget struct {
+	// IsMap reports a map collection (a map type that does not parse itself).
+	IsMap bool
+
+	// MapKeyIsString reports a map key with a string underlying kind. Only
+	// consulted when IsMap is true.
+	MapKeyIsString bool
+
+	// MapKeyType is the display name of the map key type, used in the
+	// non-string key message. Only consulted when IsMap is true.
+	MapKeyType string
+
+	// PathSubject is the display name of a path type (conga.File, conga.Dir,
+	// conga.FileContent, or a FileFilterable, DirFilterable or PathFilterable
+	// type), or of a slice or pointer element of one; empty otherwise.
+	PathSubject string
+}
+
 // ValidateFieldTags validates the struct tags of a single schema field:
 // tag syntax, disallowed tags, {{...}} help-variable references for the flag,
 // positional-argument, and config-file-flag roles, and tag-key candidate
@@ -486,6 +508,18 @@ func ValidateNonContainerFieldTags(tag reflect.StructTag, fieldTagKeys []string,
 	return nil
 }
 
+// ValidateValueTarget checks the tags of a flag or positional argument against
+// its value type: maps need string keys and cannot declare enum, range or len,
+// and path fields (a path type, or a path predictor tag) cannot declare enum.
+// It returns the first violation.
+func ValidateValueTarget(tag reflect.StructTag, target ValueTarget) error {
+	if err := validateMapConstraints(tag, target); err != nil {
+		return err
+	}
+
+	return validateEnumTarget(tag, target.PathSubject)
+}
+
 // validateRoleTagRules applies the role-specific tag rules shared by schema
 // build and the static analyzer: constraint tag values for flags and
 // positional arguments, {{...}} help-variable availability for the roles that
@@ -652,40 +686,6 @@ func validateFlagGroupTagValues(tag reflect.StructTag) error {
 // them.
 func configEnvCollisionError(envVar string, first string, second string, remedy string) error {
 	return fmt.Errorf("%w: environment variable %q is bound by both %s and %s; %s", ErrSchema, envVar, first, second, remedy)
-}
-
-// ValueTarget carries the facts about a flag or positional argument value type
-// that ValidateValueTarget checks the field's tags against. The runtime schema
-// builder derives them through reflection, the static analyzer through
-// go/types, so both report the same diagnostics.
-type ValueTarget struct {
-	// IsMap reports a map collection (a map type that does not parse itself).
-	IsMap bool
-
-	// MapKeyIsString reports a map key with a string underlying kind. Only
-	// consulted when IsMap is true.
-	MapKeyIsString bool
-
-	// MapKeyType is the display name of the map key type, used in the
-	// non-string key message. Only consulted when IsMap is true.
-	MapKeyType string
-
-	// PathSubject is the display name of a path type (conga.File, conga.Dir,
-	// conga.FileContent, or a FileFilterable, DirFilterable or PathFilterable
-	// type), or of a slice or pointer element of one; empty otherwise.
-	PathSubject string
-}
-
-// ValidateValueTarget checks the tags of a flag or positional argument against
-// its value type: maps need string keys and cannot declare enum, range or len,
-// and path fields (a path type, or a path predictor tag) cannot declare enum.
-// It returns the first violation.
-func ValidateValueTarget(tag reflect.StructTag, target ValueTarget) error {
-	if err := validateMapConstraints(tag, target); err != nil {
-		return err
-	}
-
-	return validateEnumTarget(tag, target.PathSubject)
 }
 
 // validateMapConstraints rejects map-typed flag/arg fields whose key type is

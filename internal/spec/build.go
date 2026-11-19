@@ -1032,6 +1032,66 @@ func (b *schemaBuilder) processContainerField(structField reflect.StructField, r
 	return nil
 }
 
+// validateValueType runs the caller's value-type check on a declared flag or
+// positional argument type; a nil hook accepts every type.
+func (b *schemaBuilder) validateValueType(innerType reflect.Type) error {
+	if b.opts.ValidateValueType == nil {
+		return nil
+	}
+
+	return b.opts.ValidateValueType(innerType)
+}
+
+// validateValueTarget runs the shared value-type tag checks
+// (ValidateValueTarget) on a flag or positional argument. Only the enum rule
+// reads PathSubject, so fields without an enum tag skip computing it.
+func (b *schemaBuilder) validateValueTarget(structField reflect.StructField, innerType reflect.Type) error {
+	var target ValueTarget
+
+	if hasTag(structField.Tag, "enum") {
+		target.PathSubject = b.pathSubject(innerType)
+	}
+
+	if isMapCollection(innerType) {
+		target.IsMap = true
+		target.MapKeyIsString = innerType.Key().Kind() == reflect.String
+		target.MapKeyType = innerType.Key().String()
+	}
+
+	return ValidateValueTarget(structField.Tag, target)
+}
+
+// pathSubject returns the display name of the path type a flag or positional
+// argument holds, or "". A slice collection resolves to its element and one
+// pointer layer is unwrapped, so []*conga.File names conga.File. Path types
+// are the ones Options.IsPathType reports and the FileFilterable,
+// DirFilterable and PathFilterable implementations (value or pointer
+// receiver). Maps resolve to "": they cannot declare enum at all.
+func (b *schemaBuilder) pathSubject(innerType reflect.Type) string {
+	if innerType == nil || isMapCollection(innerType) {
+		return ""
+	}
+
+	elemType := innerType
+	if IsCollection(elemType) {
+		elemType = elemType.Elem()
+	}
+
+	if elemType.Kind() == reflect.Pointer {
+		elemType = elemType.Elem()
+	}
+
+	if b.opts.IsPathType != nil && b.opts.IsPathType(elemType) {
+		return elemType.String()
+	}
+
+	if isFilterableType(elemType) {
+		return elemType.String()
+	}
+
+	return ""
+}
+
 type descriptionMethod interface{ Description() string }
 
 type examplesMethod interface{ Examples() string }
@@ -1099,66 +1159,6 @@ func validateConfigSettings(root *Command, _ Options) error {
 	}
 
 	return CascadingRequiresMultiError(root.ConfigFileFlag.Name)
-}
-
-// validateValueType runs the caller's value-type check on a declared flag or
-// positional argument type; a nil hook accepts every type.
-func (b *schemaBuilder) validateValueType(innerType reflect.Type) error {
-	if b.opts.ValidateValueType == nil {
-		return nil
-	}
-
-	return b.opts.ValidateValueType(innerType)
-}
-
-// validateValueTarget runs the shared value-type tag checks
-// (ValidateValueTarget) on a flag or positional argument. Only the enum rule
-// reads PathSubject, so fields without an enum tag skip computing it.
-func (b *schemaBuilder) validateValueTarget(structField reflect.StructField, innerType reflect.Type) error {
-	var target ValueTarget
-
-	if hasTag(structField.Tag, "enum") {
-		target.PathSubject = b.pathSubject(innerType)
-	}
-
-	if isMapCollection(innerType) {
-		target.IsMap = true
-		target.MapKeyIsString = innerType.Key().Kind() == reflect.String
-		target.MapKeyType = innerType.Key().String()
-	}
-
-	return ValidateValueTarget(structField.Tag, target)
-}
-
-// pathSubject returns the display name of the path type a flag or positional
-// argument holds, or "". A slice collection resolves to its element and one
-// pointer layer is unwrapped, so []*conga.File names conga.File. Path types
-// are the ones Options.IsPathType reports and the FileFilterable,
-// DirFilterable and PathFilterable implementations (value or pointer
-// receiver). Maps resolve to "": they cannot declare enum at all.
-func (b *schemaBuilder) pathSubject(innerType reflect.Type) string {
-	if innerType == nil || isMapCollection(innerType) {
-		return ""
-	}
-
-	elemType := innerType
-	if IsCollection(elemType) {
-		elemType = elemType.Elem()
-	}
-
-	if elemType.Kind() == reflect.Pointer {
-		elemType = elemType.Elem()
-	}
-
-	if b.opts.IsPathType != nil && b.opts.IsPathType(elemType) {
-		return elemType.String()
-	}
-
-	if isFilterableType(elemType) {
-		return elemType.String()
-	}
-
-	return ""
 }
 
 // implements reports whether target satisfies the interface type T.

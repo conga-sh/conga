@@ -922,9 +922,6 @@ func (f *File) applyTags(tags FieldTags) {
 	f.symlink = tags.Bool("symlink")
 }
 
-// pathValue marks Dir as a path type; see the binder's pathValue.
-func (Dir) pathValue() {}
-
 // pathValue marks FileContent as a path type; see the binder's pathValue.
 func (FileContent) pathValue() {}
 
@@ -934,6 +931,9 @@ func (FileContent) readsWhileParsing() {}
 
 // dashReadsStdin reports that a "-" FileContent value reads standard input.
 func (FileContent) dashReadsStdin(FieldTags) bool { return true }
+
+// pathValue marks Dir as a path type; see the binder's pathValue.
+func (Dir) pathValue() {}
 
 // byteSizeParseParts converts the split numeric prefix and unit suffix into a
 // byte count and input family, enforcing the field's declared units tag. A bare

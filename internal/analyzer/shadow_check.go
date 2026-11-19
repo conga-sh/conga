@@ -9,6 +9,15 @@ import (
 	"github.com/conga-sh/conga/internal/spec"
 )
 
+// shadowOwner is a flag declaration in the shadow maps: the struct and field
+// the message names, and the command node that declares it, so a same-command
+// duplicate is told apart from an ancestor by node, never by command name.
+type shadowOwner struct {
+	spec.FlagOwner
+
+	node *commandNode
+}
+
 // checkAndCollectFlag mirrors the runtime ancestor shadowing contract: the
 // flag's name, aliases, and short rune are checked against every ancestor
 // declaration, then folded into the branch maps for descendants.
@@ -74,15 +83,6 @@ func (w *walker) checkVersionJSONShadows(node *commandNode, branchNames map[stri
 
 		w.report(position, spec.VersionJSONShadowError(flagOwner(node, versionField).FlagOwner, owner.FlagOwner).Error())
 	}
-}
-
-// shadowOwner is a flag declaration in the shadow maps: the struct and field
-// the message names, and the command node that declares it, so a same-command
-// duplicate is told apart from an ancestor by node, never by command name.
-type shadowOwner struct {
-	spec.FlagOwner
-
-	node *commandNode
 }
 
 // reportFlagShadow reports a flag-shadow collision and marks the command
