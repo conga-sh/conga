@@ -742,16 +742,11 @@ func pathPredictorName(tag reflect.StructTag) string {
 		predictorSpec, ok, err = parseBuiltinEnginePredictor(value)
 	}
 
-	if !ok || err != nil || predictorSpec == nil {
+	if !ok || err != nil || predictorSpec == nil || !isPathPredictorKind(predictorSpec.Kind) {
 		return ""
 	}
 
-	switch predictorSpec.Kind {
-	case PredictorKindFile, PredictorKindDir, PredictorKindSymlink, PredictorKindExec:
-		return predictorSpec.Name
-	default:
-		return ""
-	}
+	return predictorSpec.Name
 }
 
 // enumOnPathTypeError builds the enum rejection for a path type. Only a

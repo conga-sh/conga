@@ -264,6 +264,11 @@ func fieldTagSpecsForField(containerType reflect.Type) []TagSpec {
 	return nil
 }
 
+// assertValueOrPointer returns a value of targetType, or failing that a
+// pointer to a new one, as the interface I. Use it when the caller needs the
+// asserted value; a yes/no check uses implementsValueOrPointer, because every
+// interface type I instantiates its own reflect.TypeAssert and the pointer
+// form allocates.
 func assertValueOrPointer[I any](targetType reflect.Type) (I, bool) {
 	if target, ok := reflect.TypeAssert[I](reflect.Zero(targetType)); ok {
 		return target, true
