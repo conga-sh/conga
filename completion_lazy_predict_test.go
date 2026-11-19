@@ -86,7 +86,7 @@ type lazyBranchCLI[Case any] struct {
 
 // lazyImplicitCLI makes the predictable-positional subcommand implicit.
 type lazyImplicitCLI[Case any] struct {
-	Deploy conga.Command[lazyDeployCmd[Case]] `implicit:"true" summary:"Deploy"`
+	Deploy conga.Command[lazyDeployCmd[Case]] `implicit:"true"  summary:"Deploy"`
 	Status conga.Command[noopRunner]          `summary:"Status"`
 }
 
