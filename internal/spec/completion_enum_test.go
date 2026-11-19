@@ -41,15 +41,15 @@ func (c customImageType) Predict() predict.Predictor {
 }
 
 type EnumNarrowingCLI struct {
-	Region     mockFlag[customRegionType]   `enum:"eu-west-1,us-east-1"   help:"Region"`
-	Regions    mockFlag[[]customRegionType] `enum:"eu-west-1,us-east-1"   help:"Regions"`
-	Branch     mockFlag[string]             `enum:"main,release"          help:"Branch"     predictor:"branches"`
-	Quiet      mockFlag[string]             `enum:"low,high"              help:"Quiet"      predictor:"none"`
-	Missing    mockFlag[customRegionType]   `enum:"ap-south-1"            help:"Missing"`
-	Plain      mockFlag[string]             `enum:"json,yaml"             help:"Plain"`
-	Confirm    mockFlag[bool]               `enum:"true"                  help:"Confirm"`
+	Region     mockFlag[customRegionType]   `enum:"eu-west-1,us-east-1" help:"Region"`
+	Regions    mockFlag[[]customRegionType] `enum:"eu-west-1,us-east-1" help:"Regions"`
+	Branch     mockFlag[string]             `enum:"main,release"        help:"Branch"  predictor:"branches"`
+	Quiet      mockFlag[string]             `enum:"low,high"            help:"Quiet"   predictor:"none"`
+	Missing    mockFlag[customRegionType]   `enum:"ap-south-1"          help:"Missing"`
+	Plain      mockFlag[string]             `enum:"json,yaml"           help:"Plain"`
+	Confirm    mockFlag[bool]               `enum:"true"                help:"Confirm"`
 	Unnarrowed mockFlag[customRegionType]   `help:"Unnarrowed"`
-	Image      mockFlag[customImageType]    `enum:"api-gateway:latest"    help:"Image"`
+	Image      mockFlag[customImageType]    `enum:"api-gateway:latest"  help:"Image"`
 }
 
 func (c *EnumNarrowingCLI) Run(ctx context.Context) error { return nil }

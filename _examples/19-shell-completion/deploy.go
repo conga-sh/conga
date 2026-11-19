@@ -93,8 +93,8 @@ func (m ManifestFile) MatchFile(path string, entry fs.DirEntry) bool {
 // DeployCmd uses the recommended completion style: every flag's type carries
 // its own completion behaviour, so no registry wiring is needed.
 type DeployCmd struct {
-	Env       conga.OptionalFlag[string]       `default:"staging"                                   enum:"staging,production,qa"                 help:"Target deployment environment" short:"e"`
-	Region    conga.OptionalFlag[Region]       `default:"us-east-1"                                 help:"Target cloud region (self-completing)" short:"r"`
+	Env       conga.OptionalFlag[string]       `default:"staging"                                   enum:"staging,production,qa"                              help:"Target deployment environment" short:"e"`
+	Region    conga.OptionalFlag[Region]       `default:"us-east-1"                                 help:"Target cloud region (self-completing)"              short:"r"`
 	Failover  conga.OptionalFlag[Region]       `enum:"us-east-1,eu-west-1"                          help:"Failover region (enum narrows Region)"`
 	Cluster   conga.OptionalFlag[Cluster]      `help:"Target cluster (contextual)"                  short:"c"`
 	Image     conga.OptionalFlag[Image]        `help:"Container image (repository:tag)"             short:"i"`
