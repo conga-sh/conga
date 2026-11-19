@@ -22,18 +22,34 @@ an experimental project.
 
 Releases are generated from [Conventional Commits](https://www.conventionalcommits.org/):
 
-- `feat: ...` adds a user-visible feature and bumps the minor version.
-- `fix: ...` fixes a defect and bumps the patch version.
-- `feat!: ...` or a `BREAKING CHANGE:` footer marks a breaking change and bumps
-  the minor version while the project is pre-1.0.
-- `docs:`, `test:`, `ci:`, `build:`, and `chore:` do not trigger a version bump.
-  User-facing documentation updates (`docs: ...`) appear in the release notes under
-  Documentation; use `chore(docs): ...` for minor typos or internal doc tweaks to
-  keep them omitted from the public notes.
+- `feat(scope): ...` adds a user-visible feature or capability and bumps the
+  minor version.
+- `fix(scope): ...` fixes a defect and bumps the patch version.
+- `feat!(scope): ...`, `fix!(scope): ...`, or a `BREAKING CHANGE:` footer marks
+  a breaking change and bumps the minor version while the project is pre-1.0.
+  Use `feat!` for intentional API redesigns or removals and `fix!` when a defect
+  fix changes documented behaviour.
+- `docs(scope): ...` appears in the release notes under Documentation; reserve it
+  for user-facing reference or guide updates worth announcing, and use
+  `chore(docs): ...` for typos, `AGENTS.md`, or internal doc tweaks so they stay
+  omitted from public notes.
+- `refactor:`, `style:`, `test:`, `ci:`, `build:`, and `chore:` are hidden from
+  the release notes and do not trigger a version bump.
+
+Write subjects for CONGA users rather than contributors, and use user-facing
+scopes (`cli`, `config`, `completion`, `predict`, `validation`, `errors`,
+`features`, `why`, `dotenv`, `maps`, `lint`, `domain-types`, `docs`) instead of
+internal package names.
+
+In `BREAKING CHANGE:` footers, keep the message to 1–3 migration-focused
+sentences (what broke and the exact action to take) and wrap code symbols,
+tags, flags, env vars, error sentinels, and `<placeholder>` tokens in backticks
+(for example `` `<PREFIX>_CONFIG` ``, `` `<Name>` ``, `` `env:"-"` ``) so GitHub
+does not strip `<...>` as raw HTML.
 
 Prefer squash merges so each pull request lands as one conventional commit on
 `main`. Release Please parses the commits since the previous tag to build the
-release notes and choose the next version.
+draft release notes and choose the next version.
 
 ## Release automation
 
@@ -70,17 +86,61 @@ allow GitHub Actions to create tags when tag creation is restricted.
 
 1. Merge normal pull requests into `main`.
 2. Wait for Release Please to open or update the release pull request.
-3. Confirm the proposed version matches the version policy and the release notes
-   in the pull request body are accurate. Edit the body by hand if needed, as
-   the last step before merging: every merge to `main` regenerates it and drops
-   hand edits.
-4. Merge the release pull request.
-5. Wait for the `check` workflow on `main` to pass; Release Please then tags and
+3. Confirm the proposed version matches the version policy.
+4. Curate the release notes in the pull request body right before merging (every
+   subsequent merge to `main` regenerates the body and drops hand edits):
+   - Add a 2–3 sentence summary and a **Highlights** section at the top.
+   - Group **Breaking Changes & Migration** by impact (API changes with brief
+     before/after Go snippets, schema/validation changes, behaviour/diagnostic
+     changes), and verify all symbols and `<placeholder>` tokens are backticked.
+   - Deduplicate entries that already appear under Breaking Changes from Features
+     or Bug Fixes, remove internal-only noise and redundant commit SHA links, and
+     end with the compare link, minimum Go version, and docs/`pkg.go.dev` links.
+5. Merge the release pull request.
+6. Wait for the `check` workflow on `main` to pass; Release Please then tags and
    publishes the release.
-6. Confirm the tag and the GitHub Release notes.
+7. Confirm the tag and the GitHub Release notes.
 
 The release pull request is the review point. Do not merge it merely to clear
 the queue.
+
+### Release notes template
+
+```markdown
+Short 2–3 sentence summary of what changed in this release and who should upgrade.
+
+### Highlights
+
+- **Headline:** concise user-facing takeaway (#PR).
+
+### Breaking Changes & Migration
+
+#### API changes
+- **`RemovedOrChangedSymbol`** (#PR): what changed and before/after Go snippet if helpful.
+
+#### Schema & validation changes
+- **Summary** (#PR): what fails at startup now and how to update structs or tags.
+
+#### Behaviour & diagnostics
+- **Summary** (#PR): runtime or error-message change and migration note.
+
+### Features
+
+- **scope:** user-facing description (#PR)
+
+### Bug Fixes
+
+- **scope:** user-facing description (#PR)
+
+### Documentation
+
+- **scope:** user-facing description (#PR)
+
+---
+
+**Full Changelog:** https://github.com/conga-sh/conga/compare/vPREV...vNEXT
+**Requirements:** Go 1.27+ · [Docs](https://docs.conga.sh) · [pkg.go.dev](https://pkg.go.dev/github.com/conga-sh/conga)
+```
 
 ### First release
 
@@ -94,7 +154,7 @@ sees the existing tag.
 - Confirm the module resolves:
 
   ```sh
-  go list -m github.com/conga-sh/conga@v0.1.0
+  go list -m github.com/conga-sh/conga@v0.x.y
   ```
 
 - Confirm the tag renders on pkg.go.dev.
