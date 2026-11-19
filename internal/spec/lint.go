@@ -336,14 +336,16 @@ func inferPredictorFromOptions(targetType reflect.Type, typePredictors map[refle
 }
 
 // inferImplements asserts the filterable/predictable interface T on elemType —
-// first in value form, then in pointer form — and builds the predictor through
-// build. It is the shared skeleton of the predictor-inference helpers.
+// first in value form, then in pointer form — and records build as the spec's
+// deferred builder, so the predictor is built only when completion resolves
+// candidates for the field. It is the shared skeleton of the
+// predictor-inference helpers.
 func inferImplements[T any](elemType reflect.Type, build func(T) predict.Predictor) *PredictorSpec {
 	if target, ok := assertValueOrPointer[T](elemType); ok {
 		return &PredictorSpec{
-			Kind:      PredictorKindPredictable,
-			Name:      "predictable",
-			Predictor: build(target),
+			Kind:  PredictorKindPredictable,
+			Name:  "predictable",
+			Build: func() predict.Predictor { return build(target) },
 		}
 	}
 

@@ -1572,6 +1572,10 @@ func narrowToEnum(base *predict.Predictor, enum []string) (predict.Predictor, bo
 func resolvePredictorSpec(spec *PredictorSpec, registered map[string]predict.Predictor) (predict.Predictor, bool) {
 	switch spec.Kind {
 	case PredictorKindPredictable:
+		if spec.Build != nil {
+			return spec.Build(), true
+		}
+
 		return spec.Predictor, true
 	case PredictorKindFile:
 		return predict.Files(spec.Patterns...), true

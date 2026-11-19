@@ -189,7 +189,7 @@ An explicit `help:"..."` tag replaces the type-derived description. Without one,
 
 | Interface | Method | Purpose |
 |-----------|--------|---------|
-| `Predictable` | `Predict() predict.Predictor` | Parameterless self-completion candidates; consulted at schema build |
+| `Predictable` | `Predict() predict.Predictor` | Parameterless self-completion candidates; consulted when completing a field of the type |
 | `TagAwarePredictable` | `Predict(tags FieldTags) predict.Predictor` | Tag-tailored candidates; preferred when both forms are implemented |
 | `HelpProvider` | `Help() string` | Parameterless default help description |
 | `TagAwareHelpProvider` | `Help(tags FieldTags) string` | Tag-tailored default help; preferred when both forms are implemented |

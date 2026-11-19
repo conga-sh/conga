@@ -119,7 +119,7 @@ app.Predictor("stack", predict.Callback(func(c predict.Context) predict.Predicto
 | `TagAwarePredictable` | `Predict(tags FieldTags) Predictor` |
 | `FileFilterable` / `DirFilterable` / `PathFilterable` | Filesystem filtering hooks |
 
-`Predict` runs once, when CONGA builds the schema, so it must not depend on values parsed at run time. Return a `Callback` for candidates that do. Implement either `Predictable` or `TagAwarePredictable`, not both.
+`Predict` runs when the shell asks for the candidates of a field of the type, and it sees no parsed values. Return a `Callback` for candidates that depend on them. Implement either `Predictable` or `TagAwarePredictable`, not both.
 
 ### Which predictor a field uses
 

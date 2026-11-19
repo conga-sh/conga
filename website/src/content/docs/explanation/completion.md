@@ -41,11 +41,11 @@ cloudctl: error: invalid value "SIGINT" (must be one of: TERM, INT, HUP) for fla
 
 ## When predictors run
 
-Predictors run at two times, and the time decides what a predictor can see.
+A type's `Predict` method and a `predict.Callback` both run when the shell asks for candidates, and they differ in what they can see.
 
-A type's `Predict` method runs at schema build. CONGA builds the schema at the start of every run, so with completion enabled, `Predict` runs each time anyone runs the program, ordinary commands included. It runs before CONGA parses anything, so it sees no flag values, and slow work in it delays every invocation, each completion request included. With completion off, CONGA never calls it.
+A type's `Predict` method runs when the shell asks for the candidates of a field of that type. Runs, `--help`, and `--why` never call it, and a completion request calls it only for the field being completed. It receives no `predict.Context`, so it sees no flag values, and slow work in it makes the user wait at the prompt. With completion off, CONGA never calls it.
 
-A `predict.Callback` runs when the shell asks, after CONGA has parsed the partial line. Its `predict.Context` holds the words and flag values typed so far, so one value's candidates can follow another's. The images callback in [Add shell completion to a CLI](/tutorials/complete-a-cli/) offers the images of the service already on the line. The context holds the command line only, and values from the environment, a config file, or a `default` tag stay out of it. The user waits at the prompt while a callback runs, so CONGA gives it 250 milliseconds (`predict.DefaultTimeout`), or the deadline the predictor sets with `Timeout`, and then offers nothing. A type whose candidates come from live data returns a `Callback` from `Predict`, which moves the work from every run to the moment the shell asks, as the tutorial's `Service` type does.
+A `predict.Callback` runs when the shell asks, after CONGA has parsed the partial line. Its `predict.Context` holds the words and flag values typed so far, so one value's candidates can follow another's. The images callback in [Add shell completion to a CLI](/tutorials/complete-a-cli/) offers the images of the service already on the line. The context holds the command line only, and values from the environment, a config file, or a `default` tag stay out of it. The user waits at the prompt while a callback runs, so CONGA gives it 250 milliseconds (`predict.DefaultTimeout`), or the deadline the predictor sets with `Timeout`, and then offers nothing. A type whose candidates come from live data returns a `Callback` from `Predict`, which gives the predictor the `predict.Context` and the timeout, as the tutorial's `Service` type does.
 
 ## Candidates and validation
 

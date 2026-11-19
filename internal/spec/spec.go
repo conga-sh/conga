@@ -29,7 +29,11 @@ const (
 	// PredictorKindNone indicates completion should be suppressed (no file fallback).
 	PredictorKindNone
 
-	// PredictorKindPredictable indicates a direct predict.Predictor (e.g. from Predictable interface).
+	// PredictorKindPredictable indicates a predictor supplied directly rather
+	// than named by a tag: an eagerly known predict.Predictor (a registered
+	// type predictor, the feature map predictor) or a deferred builder set by
+	// type inference (Predictable, TagAwarePredictable, and the filterable
+	// interfaces).
 	PredictorKindPredictable
 )
 
@@ -305,11 +309,17 @@ type PredictorKind int
 
 // PredictorSpec represents the parsed predictor configuration on a flag,
 // positional argument, or trailing-argument collector.
+//
+// A PredictorKindPredictable spec sets exactly one of Predictor and Build.
+// Predictor holds an eagerly known predictor. Build is set by type inference
+// and defers the type's Predict call until the completion walker resolves
+// candidates for that field, so runs, help, and --why never call it.
 type PredictorSpec struct {
 	Kind      PredictorKind
 	Name      string
 	Patterns  []string
 	Predictor predict.Predictor
+	Build     func() predict.Predictor
 }
 
 // Flag represents the metadata and binder for a command-line flag.

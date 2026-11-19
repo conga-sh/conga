@@ -129,7 +129,7 @@ type PredictableDomainCLI struct {
 }
 
 // customTaggedPredictable demonstrates that declared custom field tags reach
-// the TagAwarePredictable hook at schema build.
+// the TagAwarePredictable hook when the field is completed.
 type customTaggedPredictable string
 
 // Predict returns tag-dependent candidates: "tagged" when the field declares customcap.
@@ -1473,8 +1473,9 @@ func TestCompletion_FileCapabilityTagsTailorPredictor(t *testing.T) {
 }
 
 // TestCompletion_TaggedPredictableReceivesFieldTags verifies that declared
-// custom field tags reach the TagAwarePredictable hook at schema build, so
-// custom types can tailor completion to their registered capabilities.
+// custom field tags reach the TagAwarePredictable hook when the field is
+// completed, so custom types can tailor completion to their registered
+// capabilities.
 func TestCompletion_TaggedPredictableReceivesFieldTags(t *testing.T) {
 	t.Parallel()
 
