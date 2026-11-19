@@ -3,10 +3,12 @@ package spec
 import (
 	"cmp"
 	"fmt"
+	"reflect"
 	"slices"
 	"strings"
 
 	"github.com/conga-sh/conga/internal/completion/wire"
+	"github.com/conga-sh/conga/internal/slicex"
 	"github.com/conga-sh/conga/internal/style"
 	"github.com/conga-sh/conga/internal/tokenizer"
 	"github.com/conga-sh/conga/predict"
@@ -1043,7 +1045,7 @@ func (w *astCompletionWalker) completeTerminatorPositional(compCtx predict.Conte
 	}
 
 	baseAction := resolveArgAction(arg, w.opts.RegisteredPredictors)
-	action := wrapSliceAction(baseAction, arg.IsSlice, arg.Sep, compCtx.Args).Tag("arguments")
+	action := wrapSliceAction(baseAction, arg.IsSlice || arg.IsMap, arg.Sep, compCtx.Args).Tag("arguments")
 
 	return action.Invoke(compCtx)
 }
@@ -1361,7 +1363,7 @@ func (w *astCompletionWalker) implicitOperandAction() (predict.Predictor, bool) 
 func (w *astCompletionWalker) resolvePositionalArgAction(arg *Arg) predict.Predictor {
 	baseAction := resolveArgAction(arg, w.opts.RegisteredPredictors)
 
-	return wrapSliceAction(baseAction, arg.IsSlice, arg.Sep, nil).Tag("arguments")
+	return wrapSliceAction(baseAction, arg.IsSlice || arg.IsMap, arg.Sep, nil).Tag("arguments")
 }
 
 func (w *astCompletionWalker) isSubcommandEligible(subcommand *Command, toComplete string) bool {
@@ -1457,7 +1459,7 @@ func getArgSpec(cmd *Command, posIndex int) *Arg {
 		return cmd.Args[posIndex]
 	}
 
-	if len(cmd.Args) > 0 && cmd.Args[len(cmd.Args)-1].IsSlice {
+	if len(cmd.Args) > 0 && (cmd.Args[len(cmd.Args)-1].IsSlice || cmd.Args[len(cmd.Args)-1].IsMap) {
 		return cmd.Args[len(cmd.Args)-1]
 	}
 
@@ -1469,31 +1471,68 @@ func resolveArgAction(arg *Arg, registered map[string]predict.Predictor) predict
 
 	if arg.Predictor != nil {
 		if predictor, ok := resolvePredictorSpec(arg.Predictor, registered); ok {
+			if arg.Predictor.MapValue {
+				return wrapMapValuePredictor(predictor, argUsage(arg))
+			}
+
 			base = &predictor
 		}
+	}
+
+	if base == nil && arg.IsMap && hasBoolMapValue(arg.TargetType) {
+		return wrapMapValuePredictor(boolValues(), argUsage(arg))
 	}
 
 	if predictor, ok := narrowToEnum(base, arg.Enum); ok {
 		return predictor.Tag("arguments")
 	}
 
-	cleanName := strings.Trim(arg.Name, "<>")
-	helpMsg := fmt.Sprintf("<%s>", cleanName)
+	return predict.None().Usage(argUsage(arg))
+}
 
-	if argDescription := argHelpText(arg); argDescription != "" {
-		helpMsg = fmt.Sprintf("<%s>: %s", cleanName, argDescription)
+// argUsage returns a positional argument's usage line: "<name>", or
+// "<name>: help" when the argument has help.
+func argUsage(arg *Arg) string {
+	cleanName := strings.Trim(arg.Name, "<>")
+
+	if arg.IsMap && arg.Help == "" {
+		return fmt.Sprintf("<%s>: %s", cleanName, mapEntryHint(arg.TargetType, arg.FieldTags))
 	}
 
-	return predict.None().Usage(helpMsg)
+	if argDescription := argHelpText(arg); argDescription != "" {
+		return fmt.Sprintf("<%s>: %s", cleanName, argDescription)
+	}
+
+	return fmt.Sprintf("<%s>", cleanName)
 }
 
 func resolveFlagAction(flag *Flag, registered map[string]predict.Predictor, whyFormats []string) predict.Predictor {
 	predictor := resolveBaseFlagAction(flag, registered, whyFormats).Tag("values")
-	if description := flagHelpText(flag); description != "" {
+	if description := flagValueUsage(flag); description != "" {
 		predictor = predictor.Usage(description)
 	}
 
 	return predictor
+}
+
+// flagValueUsage returns the usage line shown while a flag's value is
+// completed: the flag's help text. A map flag without help that completes its
+// value, or has no predictor, shows its key=value shape (mapEntryHint); one
+// with a whole-entry predictor keeps flagHelpText, so an empty result leaves
+// the predictor's own usage in place.
+func flagValueUsage(flag *Flag) string {
+	if flag.IsMap && flag.Help == "" && (flag.Predictor == nil || flag.Predictor.MapValue) {
+		return mapEntryHint(flag.TargetType, flag.FieldTags)
+	}
+
+	return flagHelpText(flag)
+}
+
+// mapEntryHint describes a map entry's shape: "<key>=<value>", with the value
+// type's help in place of "value" when the type has some
+// ("<key>=<Path to a file>").
+func mapEntryHint(mapType reflect.Type, tags FieldTags) string {
+	return "<key>=<" + cmp.Or(DefaultTypeHelp(mapType, tags), "value") + ">"
 }
 
 // flagHelpText returns the flag's help description for completion candidate
@@ -1525,12 +1564,20 @@ func resolveBaseFlagAction(flag *Flag, registered map[string]predict.Predictor, 
 
 	if flag.Predictor != nil {
 		if predictor, ok := resolvePredictorSpec(flag.Predictor, registered); ok {
+			if flag.Predictor.MapValue {
+				return wrapMapValuePredictor(predictor, "")
+			}
+
 			base = &predictor
 		}
 	}
 
+	if base == nil && flag.IsMap && hasBoolMapValue(flag.TargetType) {
+		return wrapMapValuePredictor(boolValues(), "")
+	}
+
 	if base == nil && flag.IsBool {
-		values := predict.Values("true", "false")
+		values := boolValues()
 		base = &values
 	}
 
@@ -1546,7 +1593,7 @@ func resolveBaseFlagAction(flag *Flag, registered map[string]predict.Predictor, 
 	}
 
 	if flag.IsMap {
-		return predict.None().Usage("<key>=<value>")
+		return predict.None()
 	}
 
 	return predict.None()
@@ -1603,6 +1650,74 @@ func resolveBuiltinPredictor(kind PredictorKind) (predict.Predictor, bool) {
 	}
 }
 
+// boolValues offers the two values a bool field completes to.
+func boolValues() predict.Predictor {
+	return predict.Values("true", "false")
+}
+
+// hasBoolMapValue reports whether targetType is a map whose values are bools.
+func hasBoolMapValue(targetType reflect.Type) bool {
+	return targetType != nil && targetType.Kind() == reflect.Map && targetType.Elem().Kind() == reflect.Bool
+}
+
+// wrapMapValuePredictor completes one map entry with a value predictor.
+// Before the '=', or with an empty key, it offers nothing and shows usage.
+// After "key=", it runs value on the text after the key's '=', the first one,
+// as the binder cuts. MultiParts puts the text before the cursor's segment in
+// front of each candidate and doesn't filter them again, so the value
+// predictor's own filtering, directives, usage and timeout apply unchanged.
+// Its own timeout governs, so the wrapper adds none.
+func wrapMapValuePredictor(value predict.Predictor, usage string) predict.Predictor {
+	return predict.MultiParts("=", func(partsCtx predict.Context) predict.Predictor {
+		switch {
+		case len(partsCtx.Parts) == 0 || partsCtx.Parts[0] == "":
+			return predict.None()
+		case len(partsCtx.Parts) == 1:
+			return value
+		default:
+			return completeValueContainingEquals(value, partsCtx)
+		}
+	}).Usage(usage).Timeout(-1)
+}
+
+// completeValueContainingEquals completes a map value that itself contains
+// '='. MultiParts splits at the last '=', so the value predictor runs on the
+// whole text after the key's '=' and each candidate keeps only its text after
+// that last '='; MultiParts puts the rest back in front. Only candidates that
+// start with the typed text up to that '=' (case-sensitive) survive, and only
+// the NoSpace and KeepOrder directives carry over: predict has no public way
+// to set the others. Values containing '=' are rare (a path such as "a=b/").
+func completeValueContainingEquals(value predict.Predictor, partsCtx predict.Context) predict.Predictor {
+	valuePrefix := strings.Join(partsCtx.Parts[1:], "=") + "="
+
+	valueCtx := partsCtx
+	valueCtx.Parts = partsCtx.Parts[:1]
+	valueCtx.ToComplete = valuePrefix + partsCtx.ToComplete
+
+	result := value.Invoke(valueCtx)
+
+	matching := slicex.Filter(result.Items, func(item predict.Item) bool {
+		return strings.HasPrefix(item.Value, valuePrefix)
+	})
+	items := slicex.Map(matching, func(item predict.Item) predict.Item {
+		item.Display = cmp.Or(item.Display, item.Value)
+		item.Value = strings.TrimPrefix(item.Value, valuePrefix)
+
+		return item
+	})
+
+	entry := predict.Items(items...)
+	if result.Directive.Has(predict.DirectiveNoSpace) {
+		entry = entry.NoSpace()
+	}
+
+	if result.Directive.Has(predict.DirectiveKeepOrder) {
+		entry = entry.KeepOrder()
+	}
+
+	return entry.Usage(result.Usage)
+}
+
 func wrapSliceAction(base predict.Predictor, isSlice bool, sep string, prevValues []string) predict.Predictor {
 	if !isSlice {
 		return base
@@ -1618,6 +1733,7 @@ func wrapSliceAction(base predict.Predictor, isSlice bool, sep string, prevValue
 
 	delim := sep
 
+	// The element predictor's own timeout governs, so the wrapper adds none.
 	return predict.MultiParts(delim, func(sliceCtx predict.Context) predict.Predictor {
 		toExclude := make([]string, 0, len(sliceCtx.Parts)+len(prevValues))
 		toExclude = append(toExclude, sliceCtx.Parts...)
@@ -1631,5 +1747,5 @@ func wrapSliceAction(base predict.Predictor, isSlice bool, sep string, prevValue
 		}
 
 		return base.Exclude(toExclude...)
-	})
+	}).Timeout(-1)
 }

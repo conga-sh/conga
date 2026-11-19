@@ -904,6 +904,46 @@ func TestBash_EnumNarrowsDomainType(t *testing.T) {
 	})
 }
 
+func TestBash_MapValueCompletesFromValueType(t *testing.T) {
+	t.Parallel()
+
+	workspace := setupShellCompletion(t)
+
+	t.Run("offers nothing before the equals sign", func(t *testing.T) {
+		t.Parallel()
+
+		result := workspace.RunBashCompletion(t, "shell-completion", "shell-completion deploy --zones ap")
+
+		assert.Equal(t, 0, len(result.Items))
+		assert.Equal(t, "shell-completion deploy --zones ap", result.BufferTab1)
+		assert.Equal(t, "", result.StdoutLeak)
+	})
+
+	// Bash splits the word at "=" (COMP_WORDBREAKS), so candidates carry only
+	// the value and readline keeps "api=" in the buffer.
+	t.Run("lists the value type's candidates after key=", func(t *testing.T) {
+		t.Parallel()
+
+		result := workspace.RunBashCompletion(t, "shell-completion", "shell-completion deploy --zones api=")
+
+		assert.True(t, result.HasItem("us-east-1"))
+		assert.True(t, result.HasItem("eu-west-1"))
+		assert.True(t, result.HasItem("ap-southeast-1"))
+		assert.Equal(t, "shell-completion deploy --zones api=", result.BufferTab1)
+		assert.Equal(t, "", result.StdoutLeak)
+	})
+
+	t.Run("completes a unique value", func(t *testing.T) {
+		t.Parallel()
+
+		result := workspace.RunBashCompletion(t, "shell-completion", "shell-completion deploy --zones api=e")
+
+		assert.True(t, result.HasItem("eu-west-1"))
+		assert.Equal(t, "shell-completion deploy --zones api=eu-west-1", result.BufferTab1)
+		assert.Equal(t, "", result.StdoutLeak)
+	})
+}
+
 func TestBash_ContainerExclusion(t *testing.T) {
 	t.Parallel()
 

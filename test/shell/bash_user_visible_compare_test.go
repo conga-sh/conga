@@ -164,6 +164,7 @@ func TestBashUserVisible_Suite4_FlagValuesAndContext(t *testing.T) {
 		result := workspace.RunBashCompletion(t, "shell-completion", "shell-completion deploy --env=pr")
 
 		assert.True(t, result.HasItem("production"))
+		assert.Equal(t, "shell-completion deploy --env=production", result.BufferTab1)
 	})
 
 	t.Run("context_aware_dynamic_cluster_completion", func(t *testing.T) {
@@ -209,6 +210,16 @@ func TestBashUserVisible_Suite5_ComplexTokensAndMapDeduplication(t *testing.T) {
 		assert.False(t, result.HasItem("team=") || result.HasItem(`"team="`), "team key must be excluded")
 		assert.True(t, result.HasItem("tier=") || result.HasItem(`"tier="`))
 		assert.True(t, result.HasItem("owner=") || result.HasItem(`"owner="`))
+	})
+
+	t.Run("map_value_keeps_key_in_buffer", func(t *testing.T) {
+		t.Parallel()
+
+		result := workspace.RunBashCompletion(t, "shell-completion", "shell-completion logs --labels owner=b")
+
+		assert.True(t, result.HasItem("bob"))
+		assert.Equal(t, "shell-completion logs --labels owner=bob", result.BufferTab1)
+		assert.Equal(t, "", result.StdoutLeak)
 	})
 
 	t.Run("documented_exception_map_value_deduplication", func(t *testing.T) {

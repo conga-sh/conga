@@ -17,7 +17,9 @@ import (
 	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/decoder/json"
 	"github.com/conga-sh/conga/internal/assertx"
+	"github.com/conga-sh/conga/internal/slicex"
 	"github.com/conga-sh/conga/predict"
+	"github.com/conga-sh/conga/timezone"
 )
 
 // level is a named int with its own word grammar, so a registered parser and
@@ -544,8 +546,7 @@ func TestRegisterType_CollectionPanics(t *testing.T) {
 	})
 }
 
-// tier has its own predictor. A map of tiers offers no candidates after
-// "key=": map values don't inherit their value type's predictor.
+// tier has its own predictor. A map of tiers completes it after "key=".
 type tier string
 
 func (t *tier) UnmarshalText(text []byte) error {
@@ -562,7 +563,7 @@ type tierMapCLI struct {
 	Tiers conga.OptionalFlag[map[string]tier] `help:"Tier per service"`
 }
 
-func TestComplete_TypedMapValueInheritsNoPredictor(t *testing.T) {
+func TestComplete_TypedMapValueCompletesAfterKey(t *testing.T) {
 	t.Parallel()
 
 	var buffer bytes.Buffer
@@ -576,8 +577,61 @@ func TestComplete_TypedMapValueInheritsNoPredictor(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Equal(t,
+		`{"candidates":[{"value":"api=web ","display":"web","description":" ","tag":"values"},{"value":"api=db ","display":"db","description":" ","tag":"values"}],"directives":{"keeporder":false,"messages":[],"noprefix":false,"nospace":false},"usage":"Tier per service"}`,
+		buffer.String())
+}
+
+func TestComplete_TypedMapValueOffersNothingBeforeEquals(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	app := conga.New[tierMapCLI]().
+		EnableCompletion().
+		Stdout(&buffer).
+		Args([]string{"__complete", "powershell", "--tiers", "ap"})
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t,
 		`{"candidates":[],"directives":{"keeporder":false,"messages":[],"noprefix":false,"nospace":false},"usage":"Tier per service"}`,
 		buffer.String())
+}
+
+type locationMapCLI struct {
+	noopRunner
+
+	Zones conga.OptionalFlag[map[string]*time.Location]
+}
+
+func TestComplete_MapOfLocationsCompletesTimeZones(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[locationMapCLI]().
+		Use(timezone.RegisterLocation).
+		EnableCompletion()
+
+	result, _ := app.CompleteForShell("bash", []string{"--zones", "eu=Europe/Lo"})
+
+	assert.Equal(t, []string{"eu=Europe/London"}, slicex.Map(result.Items, func(item predict.Item) string { return item.Value }))
+}
+
+type fileMapCLI struct {
+	noopRunner
+
+	Inputs conga.OptionalFlag[map[string]conga.File]
+}
+
+func TestComplete_MapOfFilesNamesFileHelpInHint(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[fileMapCLI]().EnableCompletion()
+
+	result, _ := app.CompleteForShell("bash", []string{"--inputs", ""})
+
+	assert.Equal(t, 0, len(result.Items))
+	assert.Equal(t, "<key>=<Path to a file>", result.Usage)
 }
 
 // lowerKey lowercases its text, so the decoded key differs from the typed one.

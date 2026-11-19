@@ -180,8 +180,8 @@ The interactive shell completion tests (`test/shell`, `shelltest` build tag) dri
 
 | Shell | Post-Tab buffer (`BufferTab1`/`BufferTab2`) | Purity channel | Insertion semantics |
 |-------|---------------------------------------------|----------------|---------------------|
-| bash | Real (Readline buffer captured by the harness) | `StdoutLeak` | Buffer + cursor capture |
-| zsh | Real (`zle` buffer captured by the harness) | `Messages` | `CompstateInsert`, buffer + cursor capture |
+| bash | Derived by the harness script from the real `COMPREPLY`, replacing the text after the last unquoted `COMP_WORDBREAKS` character as Readline does | `StdoutLeak` | Buffer + cursor derivation |
+| zsh | Derived by the harness script from the candidates `compadd` received, zsh's own `PREFIX`, and `compstate[insert]` | `Messages` | `CompstateInsert`, buffer + cursor derivation |
 | elvish | Simulated (derived from candidates by the harness parser) | `StdoutLeak` | Buffer derivation models prefix insertion |
 | fish | Simulated (derived from candidates by the harness parser) | `Stderr` (must be empty) | Buffer derivation models prefix insertion |
 | powershell | Simulated (derived from `ReplacementIndex`/candidates by the harness parser) | `Stderr` + `StdoutLeak` (must be empty) | `ReplacementIndex`/`CompletionPrefix`: insertion must start at the word being completed so earlier command-line content is never replaced |
@@ -197,7 +197,7 @@ Rules:
 
 Known limits of the suite:
 
-- Only bash and zsh observe genuine line-editor buffer state. The elvish, fish, powershell, and nushell post-Tab buffers are simulated by the Go harness from returned candidates, so driver bugs that corrupt those shells' real buffers are invisible here (the PTY tests cover real buffers). The bash and zsh buffer tests are the authoritative user-visible checks.
+- No non-PTY harness reads a line editor's buffer. The bash and zsh harness scripts run the real completion function inside the real shell and derive the post-Tab buffer from what it produced (`COMPREPLY`, or the `compadd` candidates with zsh's `PREFIX` and `compstate[insert]`), so they follow the shell's own word splitting and insert mode. The elvish, fish, powershell, and nushell buffers are derived by the Go harness from returned candidates, without any shell state. A driver bug that only a real line editor shows is invisible to all of them. The PTY tests (`task test:shell:pty`) drive real shells in tmux and read the rendered buffer, so they are the authoritative user-visible checks. The bash and zsh harness buffers come next.
 - PowerShell's parser rejects a bare trailing comma inside a command line (array operator in argument mode), so the delimited-slice deduplication contract is exercised with the backtick-escaped form (`` canary`, ``) that real users must type and that the generated snippet unwraps before invoking `__complete`.
 
 ---

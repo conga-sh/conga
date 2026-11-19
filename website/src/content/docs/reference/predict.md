@@ -138,6 +138,8 @@ An `enum` tag narrows the chosen predictor to the listed values with `Include`, 
 
 For a slice field, the element type decides, and an `enum` narrows each element's candidates.
 
+A `file`, `dir`, `exec` or `symlink` tag on a map field completes the value after the entry's first `=`, and a custom predictor tag completes the whole entry. For a map field without a `predictor` tag, steps 3 to 5 apply to the map type first. When the map type has no predictor, steps 2 to 5 apply to the value type, and a `bool` value offers `true` and `false`. A value-type predictor completes the text after the entry's first `=` and puts `key=` in front of each candidate. Before the `=`, it offers no candidates.
+
 ## Constants
 
 `DefaultTimeout = 250 * time.Millisecond` is the callback deadline that dynamic predictors apply. `Timeout(0)` reapplies it, and a negative duration disables enforcement.

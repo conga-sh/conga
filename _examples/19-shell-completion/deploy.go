@@ -93,14 +93,15 @@ func (m ManifestFile) MatchFile(path string, entry fs.DirEntry) bool {
 // DeployCmd uses the recommended completion style: every flag's type carries
 // its own completion behaviour, so no registry wiring is needed.
 type DeployCmd struct {
-	Env       conga.OptionalFlag[string]       `default:"staging"                                   enum:"staging,production,qa"                              help:"Target deployment environment" short:"e"`
-	Region    conga.OptionalFlag[Region]       `default:"us-east-1"                                 help:"Target cloud region (self-completing)"              short:"r"`
-	Failover  conga.OptionalFlag[Region]       `enum:"us-east-1,eu-west-1"                          help:"Failover region (enum narrows Region)"`
-	Cluster   conga.OptionalFlag[Cluster]      `help:"Target cluster (contextual)"                  short:"c"`
-	Image     conga.OptionalFlag[Image]        `help:"Container image (repository:tag)"             short:"i"`
-	BaseImage conga.OptionalFlag[Image]        `enum:"api-gateway:latest,auth-service:v1.2.0"       help:"Base image (enum narrows Image segment by segment)"`
-	Features  conga.OptionalFlag[[]Feature]    `help:"Enabled deployment features"`
-	Manifest  conga.OptionalFlag[ManifestFile] `help:"Deployment manifest file (yaml/yml filtered)"`
+	Env       conga.OptionalFlag[string]            `default:"staging"                                          enum:"staging,production,qa"                              help:"Target deployment environment" short:"e"`
+	Region    conga.OptionalFlag[Region]            `default:"us-east-1"                                        help:"Target cloud region (self-completing)"              short:"r"`
+	Failover  conga.OptionalFlag[Region]            `enum:"us-east-1,eu-west-1"                                 help:"Failover region (enum narrows Region)"`
+	Zones     conga.OptionalFlag[map[string]Region] `help:"Region per service (map values complete after key=)"`
+	Cluster   conga.OptionalFlag[Cluster]           `help:"Target cluster (contextual)"                         short:"c"`
+	Image     conga.OptionalFlag[Image]             `help:"Container image (repository:tag)"                    short:"i"`
+	BaseImage conga.OptionalFlag[Image]             `enum:"api-gateway:latest,auth-service:v1.2.0"              help:"Base image (enum narrows Image segment by segment)"`
+	Features  conga.OptionalFlag[[]Feature]         `help:"Enabled deployment features"`
+	Manifest  conga.OptionalFlag[ManifestFile]      `help:"Deployment manifest file (yaml/yml filtered)"`
 	OutDir    conga.OptionalFlag[conga.Dir]
 	DryRun    conga.OptionalFlag[bool]  `default:"false"               help:"Simulate deployment" negatable:"true"`
 	Service   conga.RequiredArg[string] `help:"Service name to deploy"`

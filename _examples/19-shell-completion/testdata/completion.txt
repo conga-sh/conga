@@ -78,6 +78,7 @@ exec shell-completion __complete export deploy --
 stdout '"tag":"longhand flags"'
 stdout '"value":"--env"'
 stdout '"value":"--region"'
+stdout '"value":"--zones"'
 stdout '"value":"--cluster"'
 stdout '"value":"--image"'
 stdout '"value":"--features"'
@@ -117,6 +118,22 @@ stdout '"description":"North America \(N\. Virginia\)"'
 stdout '"value":"eu-west-1"'
 stdout '"description":"Europe \(Ireland\)"'
 ! stdout '"value":"ap-southeast-1"'
+
+# A map of a self-completing type completes the value after key=, with nothing offered for the key
+exec shell-completion __complete export deploy --zones ''
+! stdout '"value":'
+stdout '"usage":"Region per service \(map values complete after key=\)"'
+
+exec shell-completion __complete export deploy --zones api=
+stdout '"value":"api=us-east-1"'
+stdout '"description":"North America \(N\. Virginia\)"'
+stdout '"value":"api=eu-west-1"'
+stdout '"value":"api=ap-southeast-1"'
+
+exec shell-completion __complete export deploy --zones api=eu
+stdout '"value":"api=eu-west-1"'
+! stdout '"value":"api=us-east-1"'
+stdout '"nospace":false'
 
 exec shell-completion __complete export --profile ''
 stdout '"value":"production"'

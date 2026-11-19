@@ -950,6 +950,38 @@ func TestFish_EnumNarrowsDomainType(t *testing.T) {
 	})
 }
 
+func TestFish_MapValueCompletesFromValueType(t *testing.T) {
+	t.Parallel()
+
+	workspace := setupShellCompletion(t)
+
+	t.Run("offers nothing before the equals sign", func(t *testing.T) {
+		t.Parallel()
+
+		result := workspace.RunFishCompletion(t, "shell-completion", "shell-completion deploy --zones ap")
+
+		assert.Equal(t, 0, len(result.Items))
+	})
+
+	t.Run("lists the value type's candidates after key=", func(t *testing.T) {
+		t.Parallel()
+
+		result := workspace.RunFishCompletion(t, "shell-completion", "shell-completion deploy --zones api=")
+
+		assert.True(t, result.HasItem("api=us-east-1"))
+		assert.True(t, result.HasItem("api=eu-west-1"))
+		assert.True(t, result.HasItem("api=ap-southeast-1"))
+	})
+
+	t.Run("completes a unique value", func(t *testing.T) {
+		t.Parallel()
+
+		result := workspace.RunFishCompletion(t, "shell-completion", "shell-completion deploy --zones api=e")
+
+		assert.True(t, result.HasItem("api=eu-west-1"))
+	})
+}
+
 func TestFish_ContainerExclusion(t *testing.T) {
 	t.Parallel()
 
