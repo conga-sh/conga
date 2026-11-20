@@ -233,7 +233,7 @@ func TestBuiltinHoist_DeprecationNotices(t *testing.T) {
 		assert.Contains(t, buffer.String(), "WARNING: flag '--old-flag' is deprecated")
 	})
 
-	t.Run("not emitted when deprecated flag accompanies a meta command", func(t *testing.T) {
+	t.Run("not emitted when deprecated flag accompanies a built-in command", func(t *testing.T) {
 		t.Parallel()
 
 		var (

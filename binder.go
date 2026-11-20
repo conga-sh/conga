@@ -1682,7 +1682,7 @@ func runValidators(ctx context.Context, session *Session, cmdChain []*spec.Comma
 		return nil
 	}
 
-	if leaf := cmdChain[len(cmdChain)-1]; isMetaCommand(leaf) {
+	if leaf := cmdChain[len(cmdChain)-1]; leaf.IsBuiltin() {
 		if validator, ok := getCmdTarget(leaf).(Validator); ok {
 			if err := validator.Validate(ctx, session); err != nil {
 				return &validationError{
@@ -1761,7 +1761,7 @@ func populateCompletionCommandShell(compCmd *spec.Command, tokens []tokenizer.To
 }
 
 // bindVersionCommandJSON feeds the parsed --json flag into the opt-in
-// VersionCommand target. Version commands are meta commands, so they skip the
+// VersionCommand target. Version commands are built-in commands, so they skip the
 // regular binding pipeline and their flags are applied here instead. The
 // engine-synthesized flag is matched by identity so a same-named user flag on
 // an ancestor command can never feed this value.
@@ -2186,7 +2186,7 @@ func applyFlagValue(binding flagBinding) error {
 
 func resolveRequiredFlags(cmdChain []*spec.Command) error {
 	leaf := cmdChain[len(cmdChain)-1]
-	if isMetaCommand(leaf) {
+	if leaf.IsBuiltin() {
 		return nil
 	}
 
@@ -2211,7 +2211,7 @@ func resolveRequiredFlags(cmdChain []*spec.Command) error {
 // more-than-one conflict remains in validateFlagGroupConstraints.
 func resolveOneOfGroups(cmdChain []*spec.Command) error {
 	leaf := cmdChain[len(cmdChain)-1]
-	if isMetaCommand(leaf) {
+	if leaf.IsBuiltin() {
 		return nil
 	}
 
@@ -3132,7 +3132,7 @@ func executeLifecycle(ctx context.Context, session *Session) error {
 		return newNoRunnerError(leaf)
 	}
 
-	if isMetaCommand(leaf) {
+	if leaf.IsBuiltin() {
 		return runner.Run(ctx, session)
 	}
 
@@ -3187,10 +3187,6 @@ func getCmdTarget(cmd *spec.Command) any {
 	}
 
 	return cmd.Target
-}
-
-func isMetaCommand(cmd *spec.Command) bool {
-	return cmd != nil && (cmd.IsCompletionCmd || cmd.IsHelpCmd || cmd.IsVersionCmd)
 }
 
 // foldMapTiers resolves a map flag's contributing tiers (default, config,
