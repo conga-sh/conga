@@ -423,22 +423,15 @@ func appendUsageFlags(parts []string, flags []*spec.Flag) ([]string, bool) {
 }
 
 // formatUsageOneOfGroup renders the visible members of an exactly-one group as
-// a parenthesized alternation. A group with a single visible member renders as
-// a plain required token; a group with no visible members renders nothing.
+// a parenthesized alternation, leaving deprecated members out unless every
+// visible member is deprecated. A group with a single rendered member renders
+// as a plain required token; a group with no visible members renders nothing.
 func formatUsageOneOfGroup(flags []*spec.Flag, group string) string {
-	tokens := make([]string, 0, len(flags))
+	visible := slicex.Filter(flags, func(flag *spec.Flag) bool {
+		return flag.OneOfGroup == group && !flag.Hidden && !isEngineBuiltinFlag(flag)
+	})
 
-	for _, flag := range flags {
-		if flag.OneOfGroup != group {
-			continue
-		}
-
-		if flag.Hidden || isEngineBuiltinFlag(flag) {
-			continue
-		}
-
-		tokens = append(tokens, formatUsageFlag(flag))
-	}
+	tokens := slicex.Map(spec.PreferNonDeprecated(visible), formatUsageFlag)
 
 	switch len(tokens) {
 	case 0:

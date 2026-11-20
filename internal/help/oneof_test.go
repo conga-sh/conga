@@ -43,6 +43,67 @@ func TestUsage_OneOfGroupRendersValueSlots(t *testing.T) {
 	assert.Equal(t, "Usage:\n  app (--input-file=PATH | --input-url=URL)", usage)
 }
 
+func TestUsage_OneOfGroupOmitsDeprecatedMember(t *testing.T) {
+	t.Parallel()
+
+	cmd := &spec.Command{
+		Name: "oneofdep",
+		Flags: []*spec.Flag{
+			{Name: "replicas", TargetType: reflect.TypeFor[int](), OneOfGroup: "scale", Deprecated: "use --count"},
+			{Name: "count", TargetType: reflect.TypeFor[int](), OneOfGroup: "scale"},
+		},
+	}
+
+	assert.Equal(t, "Usage:\n  oneofdep --count=INT", help.Usage([]*spec.Command{cmd}))
+}
+
+func TestUsage_OneOfGroupOmitsDeprecatedMemberFromAlternation(t *testing.T) {
+	t.Parallel()
+
+	cmd := &spec.Command{
+		Name: "app",
+		Flags: []*spec.Flag{
+			{Name: "json", IsBool: true, OneOfGroup: "format"},
+			{Name: "xml", IsBool: true, OneOfGroup: "format", Deprecated: "use --yaml"},
+			{Name: "yaml", IsBool: true, OneOfGroup: "format"},
+		},
+	}
+
+	assert.Equal(t, "Usage:\n  app (--json | --yaml)", help.Usage([]*spec.Command{cmd}))
+}
+
+func TestUsage_OneOfGroupKeepsMembersWhenAllDeprecated(t *testing.T) {
+	t.Parallel()
+
+	cmd := &spec.Command{
+		Name: "app",
+		Flags: []*spec.Flag{
+			{Name: "json", IsBool: true, OneOfGroup: "format", Deprecated: "use --output"},
+			{Name: "yaml", IsBool: true, OneOfGroup: "format", Deprecated: "use --output"},
+		},
+	}
+
+	assert.Equal(t, "Usage:\n  app (--json | --yaml)", help.Usage([]*spec.Command{cmd}))
+}
+
+func TestFormat_OneOfGroupListsDeprecatedMemberInFlags(t *testing.T) {
+	t.Parallel()
+
+	cmd := &spec.Command{
+		Name: "oneofdep",
+		Flags: []*spec.Flag{
+			{Name: "replicas", TargetType: reflect.TypeFor[int](), OneOfGroup: "scale", Deprecated: "use --count", Help: "Replica count"},
+			{Name: "count", TargetType: reflect.TypeFor[int](), OneOfGroup: "scale", Help: "Replica count"},
+		},
+	}
+
+	formatted := help.Format([]*spec.Command{cmd})
+
+	assert.Contains(t, formatted, "Usage:\n  oneofdep --count=INT\n")
+	assert.Contains(t, formatted, "--replicas=INT      Replica count [deprecated: use --count]")
+	assert.Contains(t, formatted, "--count=INT         Replica count\n")
+}
+
 func TestUsage_OneOfGroupSingleVisibleMemberRendersPlainToken(t *testing.T) {
 	t.Parallel()
 
