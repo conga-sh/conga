@@ -77,7 +77,7 @@ Sections appear in this order, and a section with nothing to show is left out:
 | Usage | `Usage:` | The schema; see [Usage line](#usage-line). |
 | Examples | `Examples:` | The root: `app.Examples(...)`. A subcommand: its `Examples() string` method. |
 | Subcommands | `Commands:`, or the `section:"..."` headings | The command's `Command[T]` fields and their `summary` tags. |
-| Arguments | `Arguments:` | The command's positional arguments. |
+| Arguments | `Arguments:` | The command's positional arguments, then a `DashArgs` or `RawArgs` field that has a `help` tag. |
 | Flags | `Flags:`, or the `section:"..."` headings | The command's flags, then the built-in `--help`, `--why`, and, on the root screen, `--version`. |
 | Features | `Features:` | The root's `conga.Features[T]` toggles, on the root screen only. |
 | Global flags | `Global Flags:` | Flags declared on ancestor commands. |

@@ -142,6 +142,13 @@ type groupPair struct {
 	and       string
 }
 
+// trailingCollector holds the tag values shared by DashArgs and RawArgs.
+type trailingCollector struct {
+	help      string
+	bootstrap bool
+	predictor *PredictorSpec
+}
+
 type schemaBuilder struct {
 	cmd                  *Command
 	structType           reflect.Type
@@ -871,37 +878,46 @@ func (b *schemaBuilder) processCommandField(structField reflect.StructField, com
 	return b.processSubcommand(structField, commandHandle, classification.Target)
 }
 
-// validateTrailingCollectorField validates a DashArgs/RawArgs field and
-// parses the bootstrap and predictor tags shared by both collector kinds. It
+// validateTrailingCollectorField validates a DashArgs/RawArgs field and parses
+// the help, bootstrap, and predictor tags shared by both collector kinds. It
 // also enforces the one-collector-per-kind invariant: firstFieldName carries
 // the already declared collector's struct field, and a second declaration of
 // the same kind is rejected.
-func (b *schemaBuilder) validateTrailingCollectorField(structField reflect.StructField, role, containerName, firstFieldName string) (bool, *PredictorSpec, error) {
+func (b *schemaBuilder) validateTrailingCollectorField(structField reflect.StructField, role, containerName, firstFieldName string) (trailingCollector, error) {
 	if err := b.validateFieldTags(structField, role, dashRawTagCandidates); err != nil {
-		return false, nil, b.fieldContextError(structField.Name, err)
+		return trailingCollector{}, b.fieldContextError(structField.Name, err)
 	}
 
 	if firstFieldName != "" {
-		return false, nil, b.fieldContextError(structField.Name, ContainerAlreadyDeclaredError(containerName, firstFieldName))
+		return trailingCollector{}, b.fieldContextError(structField.Name, ContainerAlreadyDeclaredError(containerName, firstFieldName))
+	}
+
+	// validateFieldTags has already rejected every {{...}} reference, since a
+	// collector provides no variable values, so this resolves escapes; the
+	// error check matches the flag path, which also interpolates after
+	// validating.
+	helpText, _, err := interpolateHelp(structField.Tag.Get("help"), helpVarValues{})
+	if err != nil {
+		return trailingCollector{}, b.fieldContextError(structField.Name, err)
 	}
 
 	bootstrap, err := parseBootstrapTag(structField.Tag, "", &b.opts)
 	if err != nil {
-		return false, nil, b.fieldContextError(structField.Name, err)
+		return trailingCollector{}, b.fieldContextError(structField.Name, err)
 	}
 
 	predictorSpec, err := parseTrailingArgsPredictor(structField.Tag, &b.opts)
 	if err != nil {
-		return false, nil, b.fieldContextError(structField.Name, err)
+		return trailingCollector{}, b.fieldContextError(structField.Name, err)
 	}
 
-	return bootstrap, predictorSpec, nil
+	return trailingCollector{help: helpText, bootstrap: bootstrap, predictor: predictorSpec}, nil
 }
 
 // processDashArgsField validates and stores the '--' trailing-arguments
 // collector field.
 func (b *schemaBuilder) processDashArgsField(structField reflect.StructField, handle any) error {
-	bootstrap, predictorSpec, err := b.validateTrailingCollectorField(structField, "dash args", "DashArgs", b.dashArgsField)
+	collector, err := b.validateTrailingCollectorField(structField, "dash args", "DashArgs", b.dashArgsField)
 	if err != nil {
 		return err
 	}
@@ -910,8 +926,9 @@ func (b *schemaBuilder) processDashArgsField(structField reflect.StructField, ha
 
 	b.cmd.DashArgs = &DashArgs{
 		Name:      cmp.Or(structField.Tag.Get("name"), "[-- <args...>]"),
-		Predictor: predictorSpec,
-		Bootstrap: bootstrap,
+		Help:      collector.help,
+		Predictor: collector.predictor,
+		Bootstrap: collector.bootstrap,
 		Handle:    handle,
 	}
 
@@ -921,7 +938,7 @@ func (b *schemaBuilder) processDashArgsField(structField reflect.StructField, ha
 // processRawArgsField validates and stores the raw trailing-tokens collector
 // field.
 func (b *schemaBuilder) processRawArgsField(structField reflect.StructField, handle any) error {
-	bootstrap, predictorSpec, err := b.validateTrailingCollectorField(structField, "raw args", "RawArgs", b.rawArgsField)
+	collector, err := b.validateTrailingCollectorField(structField, "raw args", "RawArgs", b.rawArgsField)
 	if err != nil {
 		return err
 	}
@@ -930,8 +947,9 @@ func (b *schemaBuilder) processRawArgsField(structField reflect.StructField, han
 
 	b.cmd.RawArgs = &RawArgs{
 		Name:      cmp.Or(structField.Tag.Get("name"), "[args...]"),
-		Predictor: predictorSpec,
-		Bootstrap: bootstrap,
+		Help:      collector.help,
+		Predictor: collector.predictor,
+		Bootstrap: collector.bootstrap,
 		Handle:    handle,
 	}
 

@@ -111,8 +111,8 @@ var _ = conga.New[ArgsWithBuiltinHelp]()
 // one-collector-per-kind guard is per kind, so this shape stays legal.
 type BothCollectorsLeaf struct {
 	Target conga.RequiredArg[string] `name:"target"`
-	Dash   conga.DashArgs            `name:"extra" predictor:"file"`
-	Raw    conga.RawArgs             `name:"leftover" predictor:"dir"`
+	Dash   conga.DashArgs            `help:"Files passed through" name:"extra" predictor:"file"`
+	Raw    conga.RawArgs             `help:"Unparsed directories" name:"leftover" predictor:"dir"`
 }
 
 // Run executes the both-collectors leaf.

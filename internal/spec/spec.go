@@ -454,6 +454,9 @@ type Arg struct {
 // DashArgs represents the binder for arguments explicitly passed after '--'.
 type DashArgs struct {
 	Name string
+	// Help describes the captured arguments in the help screen's Arguments
+	// section. Empty means the collector appears only in the usage line.
+	Help string
 	// Predictor declares the completion candidates for the captured tokens.
 	// The none predictor means no candidates (the collector is opaque); schema
 	// build stores it when the tag is absent, and a nil field behaves the same
@@ -470,6 +473,9 @@ type DashArgs struct {
 // RawArgs represents the binder for unparsed trailing raw arguments.
 type RawArgs struct {
 	Name string
+	// Help describes the captured arguments in the help screen's Arguments
+	// section. Empty means the collector appears only in the usage line.
+	Help string
 	// Predictor declares the completion candidates for the captured tokens
 	// once raw mode begins. The none predictor means no candidates (the
 	// collector is opaque); schema build stores it when the tag is absent, and

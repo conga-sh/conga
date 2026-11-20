@@ -534,11 +534,11 @@ type BuiltinHelpTagApp struct { // want `runner not implemented: implement conga
 
 var _ = conga.New[BuiltinHelpTagApp]()
 
-// TrailingHelpApp declares the unsupported help tag on trailing-argument
-// collectors; their names render in the usage synopsis only.
+// TrailingHelpApp references help variables on trailing-argument collectors,
+// which provide no values for them.
 type TrailingHelpApp struct {
-	Extra    conga.DashArgs `help:"Arguments after --"` // want `tag "help" is invalid on dash args`
-	Leftover conga.RawArgs  `help:"Unparsed tokens"`    // want `tag "help" is invalid on raw args`
+	Extra    conga.DashArgs `help:"Arguments after -- {{enum}}"` // want `tag "help" references \{\{enum\}\}, but the field provides no value for that variable`
+	Leftover conga.RawArgs  `help:"Unparsed tokens {{env}}"`     // want `tag "help" references \{\{env\}\}, but the field provides no value for that variable`
 }
 
 // Run executes the trailing help fixture.

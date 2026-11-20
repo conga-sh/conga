@@ -56,9 +56,10 @@ type ValueTarget struct {
 }
 
 // ValidateFieldTags validates the struct tags of a single schema field:
-// tag syntax, disallowed tags, {{...}} help-variable references for the flag,
-// positional-argument, and config-file-flag roles, and tag-key candidate
-// membership for the field's role.
+// tag syntax, disallowed tags, {{...}} help-variable references for flags,
+// positional arguments, config-file flags, Features containers, and
+// trailing-argument collectors, and tag-key candidate membership for the
+// field's role.
 func ValidateFieldTags(tag reflect.StructTag, role string, candidates []string, opts ValidationOptions) error {
 	keys, err := parseStructTagKeys(tag)
 	if err != nil {
@@ -542,6 +543,12 @@ func validateRoleTagRules(tag reflect.StructTag, role string, opts ValidationOpt
 		}
 
 		if err := validator(tag.Get("help"), declared); err != nil {
+			return err
+		}
+	case "dash args", "raw args":
+		// Trailing collectors declare no range, enum, default, or env, so
+		// every help variable is unavailable.
+		if err := validateHelpVariables(tag.Get("help"), helpVars{}); err != nil {
 			return err
 		}
 	}
