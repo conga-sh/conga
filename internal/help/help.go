@@ -979,7 +979,7 @@ func typeHelpFor(targetType reflect.Type, tags spec.FieldTags) string {
 	return spec.DefaultTypeHelp(targetType, tags)
 }
 
-func formatFlagHelpText(flagSpec *spec.Flag) string {
+func formatFlagHelpText(flagSpec *spec.Flag, peers []*spec.Flag) string {
 	helpText := flagSpec.Help
 
 	if helpText == "" {
@@ -1010,6 +1010,7 @@ func formatFlagHelpText(flagSpec *spec.Flag) string {
 		helpText = appendNonEmpty(helpText, hint)
 	}
 
+	helpText = appendNonEmpty(helpText, formatGroupHints(flagSpec, peers))
 	helpText = appendNonEmpty(helpText, deprecationMarker(flagSpec.Deprecated))
 
 	return helpText
@@ -1125,25 +1126,25 @@ func formatFlags(flags []*spec.Flag, hasHelpInfo bool, hasVersionInfo bool, hasC
 		case "completion":
 			hasCompletion = true
 
-			completionEntries = append(completionEntries, builderEntry(flagSpec))
+			completionEntries = append(completionEntries, builderEntry(flagSpec, flags))
 
 		case "help":
 			hasHelp = true
 
-			helpEntries = append(helpEntries, builderEntry(withBuiltinShort(flagSpec, helpShort)))
+			helpEntries = append(helpEntries, builderEntry(withBuiltinShort(flagSpec, helpShort), flags))
 
 		case "version":
 			hasVersion = true
 
-			versionEntries = append(versionEntries, builderEntry(withBuiltinShort(flagSpec, versionShort)))
+			versionEntries = append(versionEntries, builderEntry(withBuiltinShort(flagSpec, versionShort), flags))
 
 		case "why":
 			hasWhy = true
 
-			whyEntries = append(whyEntries, builderEntry(flagSpec))
+			whyEntries = append(whyEntries, builderEntry(flagSpec, flags))
 
 		default:
-			builder.add(flagSpec.Section, builderEntry(flagSpec))
+			builder.add(flagSpec.Section, builderEntry(flagSpec, flags))
 		}
 	}
 
@@ -1185,7 +1186,7 @@ func formatFlags(flags []*spec.Flag, hasHelpInfo bool, hasVersionInfo bool, hasC
 // presents as a plain toggle and the text format stays implicit.
 func builtinWhyEntry(whyFormats []string) tableEntry {
 	if len(whyFormats) < 2 {
-		return builderEntry(spec.BuiltinWhyFlag)
+		return builderEntry(spec.BuiltinWhyFlag, nil)
 	}
 
 	return tableEntry{
@@ -1194,12 +1195,51 @@ func builtinWhyEntry(whyFormats []string) tableEntry {
 	}
 }
 
-// builderEntry renders one flag's table row.
-func builderEntry(flagSpec *spec.Flag) tableEntry {
+// builderEntry renders one flag's table row. peers holds the flags declared on
+// the same command, which the xor and and group hints name; the synthesized
+// built-in --why row passes nil because engine flags never join a group.
+func builderEntry(flagSpec *spec.Flag, peers []*spec.Flag) tableEntry {
 	return tableEntry{
 		label: formatFlagLabel(flagSpec),
-		help:  formatFlagHelpText(flagSpec),
+		help:  formatFlagHelpText(flagSpec, peers),
 	}
+}
+
+// formatGroupHints renders the "[xor: --a]" and "[and: --b]" hints naming the
+// other visible members of the flag's xor and and groups, or "" when there are
+// none. An xor hint leaves deprecated members out, since users shouldn't
+// choose them; an and hint names them, since the requirement still holds.
+func formatGroupHints(flagSpec *spec.Flag, peers []*spec.Flag) string {
+	xorHint := formatGroupHint("xor", groupPeerNames(flagSpec, peers, func(flag *spec.Flag) string { return flag.XorGroup }, true))
+	andHint := formatGroupHint("and", groupPeerNames(flagSpec, peers, func(flag *spec.Flag) string { return flag.AndGroup }, false))
+
+	return appendNonEmpty(xorHint, andHint)
+}
+
+// groupPeerNames returns "--name" for each other visible member of the group
+// that groupOf reports for flagSpec, in declaration order. Members are matched
+// by name, which is unique per command, so a row rendered from a copy
+// (withBuiltinShort) still skips its own flag.
+func groupPeerNames(flagSpec *spec.Flag, peers []*spec.Flag, groupOf func(*spec.Flag) string, skipDeprecated bool) []string {
+	group := groupOf(flagSpec)
+	if group == "" {
+		return nil
+	}
+
+	members := slicex.Filter(peers, func(peer *spec.Flag) bool {
+		return peer.Name != flagSpec.Name && groupOf(peer) == group && !peer.Hidden &&
+			(!skipDeprecated || peer.Deprecated == "")
+	})
+
+	return slicex.Map(members, func(member *spec.Flag) string { return "--" + member.Name })
+}
+
+func formatGroupHint(label string, names []string) string {
+	if len(names) == 0 {
+		return ""
+	}
+
+	return "[" + label + ": " + strings.Join(names, ", ") + "]"
 }
 
 // formatGlobalFlags renders the "Global Flags" section listing non-hidden flags
@@ -1232,7 +1272,7 @@ func formatGlobalFlags(cmdChain []*spec.Command, width int) string {
 				continue
 			}
 
-			builder.add(flagSpec.Section, builderEntry(flagSpec))
+			builder.add(flagSpec.Section, builderEntry(flagSpec, cmd.Flags))
 		}
 	}
 

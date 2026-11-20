@@ -89,6 +89,8 @@ The Features section shows each feature's help text, stage (`[alpha]`, `[beta]`)
 
 A boolean flag shows its default only when it is `true` (`[default: true]`).
 
+A flag in an `xor` or `and` group names the group's other visible members, as `[xor: --zstd]` or `[and: --password]`. An `xor` hint leaves deprecated members out, and an `and` hint names them.
+
 Completion help screens add two sections. A per-shell screen such as `--completion bash --help` shows that shell's setup steps between the description and `Usage:`. The generic completion screen lists the supported shells after the arguments.
 
 ### Usage line

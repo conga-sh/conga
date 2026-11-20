@@ -303,12 +303,12 @@ Usage:
   flag-constraints --api-key=STRING [flags]
 
 Flags:
-      --json              Output in JSON format
-      --yaml              Output in YAML format
-      --table             Output in Table format
+      --json              Output in JSON format [xor: --yaml, --table]
+      --yaml              Output in YAML format [xor: --json, --table]
+      --table             Output in Table format [xor: --json, --yaml]
   -k, --api-key=STRING    API key for authentication (required)
-  -u, --username=STRING   Authentication username [len: 3..20]
-      --password=STRING   Authentication password [len: >= 8]
+  -u, --username=STRING   Authentication username [len: 3..20] [and: --password]
+      --password=STRING   Authentication password [len: >= 8] [and: --username]
   -p, --port=8080         Port number [1..65535]
       --timeout=2s        Request timeout [100ms..5s]
       --memory=256MiB     Byte size (e.g., 10MiB, 1.5GB, 500KiB) [1MiB..1GiB]
