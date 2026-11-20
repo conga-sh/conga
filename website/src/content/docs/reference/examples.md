@@ -896,7 +896,7 @@ $ go run ./_examples/99-kitchen-sink --help
 Exhaustive type, configuration-mapping, and value-provenance reference
 
 Usage:
-  kitchen-sink <command> [flags]
+  kitchen-sink [<command>] [flags]
 
 Commands:
   types          Type system matrix (primitives, filesystem, value types)

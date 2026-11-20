@@ -177,11 +177,16 @@ func Usage(cmdChain []*spec.Command) string {
 		return "Usage:\n  " + strings.Join(parts, " ")
 	}
 
+	// A parent that runs on its own or routes to an implicit subcommand can be
+	// invoked without naming one, so its command slot is optional, and shown
+	// only when a subcommand is visible. A parent that needs a subcommand keeps
+	// the required slot even when all of them are hidden.
 	if leaf.HasUserSubcommands() {
-		if leaf.ImplicitCommand() != nil {
-			parts = append(parts, "[<command>]")
-		} else {
+		switch {
+		case leaf.ImplicitCommand() == nil && !leaf.IsRunnable:
 			parts = append(parts, "<command>")
+		case hasVisibleUserSubcommand(leaf):
+			parts = append(parts, "[<command>]")
 		}
 	}
 
@@ -743,6 +748,18 @@ func wrapText(text string, width int) string {
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+// hasVisibleUserSubcommand reports whether the command lists a user subcommand
+// in its Commands section, applying the same hidden rule as formatSubcommands.
+func hasVisibleUserSubcommand(cmd *spec.Command) bool {
+	for _, subcommand := range cmd.Subcommands {
+		if !subcommand.Hidden && !subcommand.IsCompletionCmd && !subcommand.IsHelpCmd && !subcommand.IsVersionCmd {
+			return true
+		}
+	}
+
+	return false
 }
 
 func formatSubcommands(subcommands []*spec.Command, width int) string {

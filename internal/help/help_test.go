@@ -665,6 +665,44 @@ func TestUsage_And_Hint(t *testing.T) {
 	assert.Equal(t, "Run 'mycmd --help' for more information.", help.Hint([]*spec.Command{cmd}))
 }
 
+func TestUsage_RunnableBranchBracketsCommandToken(t *testing.T) {
+	t.Parallel()
+
+	cmd := &spec.Command{
+		Name:        "mycmd",
+		Flags:       []*spec.Flag{{Name: "flag1"}},
+		IsRunnable:  true,
+		Subcommands: []*spec.Command{{Name: "sub"}},
+	}
+
+	assert.Equal(t, "Usage:\n  mycmd [<command>] [flags]", help.Usage([]*spec.Command{cmd}))
+}
+
+func TestUsage_RunnableBranchWithOnlyHiddenSubcommandsOmitsCommandToken(t *testing.T) {
+	t.Parallel()
+
+	cmd := &spec.Command{
+		Name:        "mycmd",
+		Flags:       []*spec.Flag{{Name: "flag1"}},
+		IsRunnable:  true,
+		Subcommands: []*spec.Command{{Name: "sub", Hidden: true}},
+	}
+
+	assert.Equal(t, "Usage:\n  mycmd [flags]", help.Usage([]*spec.Command{cmd}))
+}
+
+func TestUsage_NonRunnableBranchWithOnlyHiddenSubcommandsRequiresCommandToken(t *testing.T) {
+	t.Parallel()
+
+	cmd := &spec.Command{
+		Name:        "mycmd",
+		Flags:       []*spec.Flag{{Name: "flag1"}},
+		Subcommands: []*spec.Command{{Name: "sub", Hidden: true}},
+	}
+
+	assert.Equal(t, "Usage:\n  mycmd <command> [flags]", help.Usage([]*spec.Command{cmd}))
+}
+
 func TestUsage_RequiredGlobalFlagsInSubcommandUsageLine(t *testing.T) {
 	t.Parallel()
 
