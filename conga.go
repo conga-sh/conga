@@ -1616,7 +1616,7 @@ func (a *App[T]) clearGatedSuggestion(err error, flagValues map[*spec.Flag][]str
 	return &cleared
 }
 
-func (a *App[T]) prepareNonMetaExecution(ctx context.Context, session *Session, invocation parsedInvocation, featureBinding featureState, prunedFlags []prunedFlag, whyReport bool) error {
+func (a *App[T]) prepareNonBuiltinExecution(ctx context.Context, session *Session, invocation parsedInvocation, featureBinding featureState, prunedFlags []prunedFlag, whyReport bool) error {
 	resolution := a.resolveConfig(ctx, configRequest{invocation: invocation})
 	if session != nil {
 		session.candidateFiles = resolution.candidates
@@ -1755,8 +1755,8 @@ func (a *App[T]) prepare(ctx context.Context) (*Session, bool, error) { //nolint
 		return nil, handled, err
 	}
 
-	if a.shouldPrepareNonMetaExecution(leaf, request) {
-		if err := a.prepareNonMetaExecution(ctx, session, invocation, featureBinding, prunedFlags, request.hasWhy); err != nil {
+	if a.shouldPrepareNonBuiltinExecution(leaf, request) {
+		if err := a.prepareNonBuiltinExecution(ctx, session, invocation, featureBinding, prunedFlags, request.hasWhy); err != nil {
 			return nil, false, err
 		}
 	}
@@ -1789,11 +1789,11 @@ func (a *App[T]) prepare(ctx context.Context) (*Session, bool, error) { //nolint
 	return session, false, nil
 }
 
-// shouldPrepareNonMetaExecution reports whether the regular binding pipeline
-// runs for this invocation. Meta commands skip it, except when --why needs the
-// bound containers to render a complete provenance report.
-func (a *App[T]) shouldPrepareNonMetaExecution(leaf *spec.Command, request builtinRequest) bool {
-	return !isMetaCommand(leaf) || (request.hasWhy && a.whyHooks != nil)
+// shouldPrepareNonBuiltinExecution reports whether the regular binding
+// pipeline runs for this invocation. Built-in commands skip it, except when
+// --why needs the bound containers to render a complete provenance report.
+func (a *App[T]) shouldPrepareNonBuiltinExecution(leaf *spec.Command, request builtinRequest) bool {
+	return !leaf.IsBuiltin() || (request.hasWhy && a.whyHooks != nil)
 }
 
 func (a *App[T]) validateExecution(ctx context.Context, session *Session, leaf *spec.Command, cmdChain []*spec.Command) error {
@@ -1801,7 +1801,7 @@ func (a *App[T]) validateExecution(ctx context.Context, session *Session, leaf *
 		return err
 	}
 
-	if !isMetaCommand(leaf) {
+	if !leaf.IsBuiltin() {
 		if err := validateCustomValues(ctx, cmdChain); err != nil {
 			return err
 		}

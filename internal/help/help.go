@@ -458,7 +458,7 @@ func globalUsageFlags(cmdChain []*spec.Command) ([]string, bool) {
 
 	leaf := cmdChain[len(cmdChain)-1]
 
-	if leaf.IsCompletionCmd || leaf.IsHelpCmd || leaf.IsVersionCmd {
+	if leaf.IsBuiltin() {
 		return nil, false
 	}
 
@@ -755,13 +755,9 @@ func commandSlot(cmd *spec.Command) string {
 // hasVisibleUserSubcommand reports whether the command lists a user subcommand
 // in its Commands section, applying the same hidden rule as formatSubcommands.
 func hasVisibleUserSubcommand(cmd *spec.Command) bool {
-	for _, subcommand := range cmd.Subcommands {
-		if !subcommand.Hidden && !subcommand.IsCompletionCmd && !subcommand.IsHelpCmd && !subcommand.IsVersionCmd {
-			return true
-		}
-	}
-
-	return false
+	return slices.ContainsFunc(cmd.Subcommands, func(subcommand *spec.Command) bool {
+		return !subcommand.Hidden && !subcommand.IsBuiltin()
+	})
 }
 
 func formatSubcommands(subcommands []*spec.Command, width int) string {
@@ -1220,7 +1216,7 @@ func formatGlobalFlags(cmdChain []*spec.Command, width int) string {
 
 	leaf := cmdChain[len(cmdChain)-1]
 
-	if leaf.IsCompletionCmd || leaf.IsHelpCmd || leaf.IsVersionCmd {
+	if leaf.IsBuiltin() {
 		return ""
 	}
 

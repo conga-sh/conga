@@ -150,15 +150,15 @@ func (c *Command) FeatureNames() []string {
 	return names
 }
 
+// IsBuiltin reports whether the command is a built-in help, version, or
+// completion command. It is false for a nil command.
+func (c *Command) IsBuiltin() bool {
+	return c != nil && (c.IsCompletionCmd || c.IsHelpCmd || c.IsVersionCmd)
+}
+
 // HasUserSubcommands returns true if this command has user-declared subcommands (excluding built-in help, version, and completion).
 func (c *Command) HasUserSubcommands() bool {
-	for _, subcommand := range c.Subcommands {
-		if !subcommand.IsCompletionCmd && !subcommand.IsHelpCmd && !subcommand.IsVersionCmd {
-			return true
-		}
-	}
-
-	return false
+	return slices.ContainsFunc(c.Subcommands, func(subcommand *Command) bool { return !subcommand.IsBuiltin() })
 }
 
 // HasCompletionCommand reports whether this command contains a completion subcommand.
