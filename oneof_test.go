@@ -42,21 +42,21 @@ type OneOfDeprecatedCLI struct {
 	noopRunner
 
 	Replicas conga.OptionalFlag[int] `deprecated:"use --count" name:"replicas" oneof:"scale"`
-	Count    conga.OptionalFlag[int] `name:"count" oneof:"scale"`
+	Count    conga.OptionalFlag[int] `name:"count"             oneof:"scale"`
 }
 
 type OneOfAllDeprecatedCLI struct {
 	noopRunner
 
 	Replicas conga.OptionalFlag[int] `deprecated:"use --scale" name:"replicas" oneof:"scale"`
-	Count    conga.OptionalFlag[int] `deprecated:"use --scale" name:"count" oneof:"scale"`
+	Count    conga.OptionalFlag[int] `deprecated:"use --scale" name:"count"    oneof:"scale"`
 }
 
 type OneOfHiddenCurrentCLI struct {
 	noopRunner
 
 	Legacy conga.OptionalFlag[bool] `deprecated:"use --secret" name:"legacy" oneof:"mode"`
-	Secret conga.OptionalFlag[bool] `hidden:"true" name:"secret" oneof:"mode"`
+	Secret conga.OptionalFlag[bool] `hidden:"true"             name:"secret" oneof:"mode"`
 }
 
 type OneOfCounterCLI struct {
