@@ -254,14 +254,14 @@ type DeployCmd struct {
 }
 ```
 
-Leaving out both is a usage error. The usage line still lists `--count` as one of the choices:
+Leaving out both is a usage error. The error and the usage line name only `--replicas`, and help still lists `--count`, marked deprecated:
 
 ```sh error={2}
 $ cloudctl deploy app.yaml
-cloudctl: error: missing required flag: one of --replicas, --count
+cloudctl: error: missing required flag: --replicas
 
 Usage:
-  cloudctl deploy (--replicas=INT | --count=INT) <manifest>
+  cloudctl deploy --replicas=INT <manifest>
 
 Run 'cloudctl deploy --help' for more information.
 ```

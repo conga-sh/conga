@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/conga-sh/conga/internal/container"
+	"github.com/conga-sh/conga/internal/slicex"
 	"github.com/conga-sh/conga/predict"
 )
 
@@ -608,6 +609,22 @@ type Options struct {
 	// ParseFeatureTag parses, validates, and normalizes a feature struct tag.
 	ParseFeatureTag func(raw string, required bool) (string, error)
 	EnvPrefix       string
+}
+
+// PreferNonDeprecated returns the flags that aren't deprecated while one of
+// them is visible, or flags unchanged otherwise. The usage line (given only
+// visible members) and the missing-group error (given every member) use it to
+// name a oneof group's members, so neither advertises a deprecated flag while
+// a visible replacement exists, and the usage line never names a flag the
+// error leaves out.
+func PreferNonDeprecated(flags []*Flag) []*Flag {
+	current := slicex.Filter(flags, func(flag *Flag) bool { return flag.Deprecated == "" })
+
+	if !slices.ContainsFunc(current, func(flag *Flag) bool { return !flag.Hidden }) {
+		return flags
+	}
+
+	return current
 }
 
 // FindFlagInChain searches backwards through chain for a CLI-routable flag

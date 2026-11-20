@@ -38,6 +38,27 @@ type OneOfSingleCLI struct {
 	JSON conga.OptionalFlag[bool] `name:"json" oneof:"format"`
 }
 
+type OneOfDeprecatedCLI struct {
+	noopRunner
+
+	Replicas conga.OptionalFlag[int] `deprecated:"use --count" name:"replicas" oneof:"scale"`
+	Count    conga.OptionalFlag[int] `name:"count" oneof:"scale"`
+}
+
+type OneOfAllDeprecatedCLI struct {
+	noopRunner
+
+	Replicas conga.OptionalFlag[int] `deprecated:"use --scale" name:"replicas" oneof:"scale"`
+	Count    conga.OptionalFlag[int] `deprecated:"use --scale" name:"count" oneof:"scale"`
+}
+
+type OneOfHiddenCurrentCLI struct {
+	noopRunner
+
+	Legacy conga.OptionalFlag[bool] `deprecated:"use --secret" name:"legacy" oneof:"mode"`
+	Secret conga.OptionalFlag[bool] `hidden:"true" name:"secret" oneof:"mode"`
+}
+
 type OneOfCounterCLI struct {
 	noopRunner
 
@@ -133,6 +154,51 @@ type OneOfAllGatedCLI struct {
 
 	JSON conga.OptionalFlag[bool] `feature:"json" name:"json" oneof:"format"`
 	YAML conga.OptionalFlag[bool] `feature:"yaml" name:"yaml" oneof:"format"`
+}
+
+func TestOneOf_MissingGroupOmitsDeprecatedMember(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[OneOfDeprecatedCLI]().Args([]string{})
+
+	err := app.RunContext(t.Context())
+
+	assert.Error(t, err)
+	assert.Equal(t, "missing required flag: --count", err.Error())
+	assert.IsError(t, err, conga.ErrValidation)
+	assert.True(t, conga.IsUsageError(err))
+}
+
+func TestOneOf_MissingGroupNamesEveryMemberWhenAllDeprecated(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[OneOfAllDeprecatedCLI]().Args([]string{})
+
+	err := app.RunContext(t.Context())
+
+	assert.Error(t, err)
+	assert.Equal(t, "missing required flag: one of --replicas, --count", err.Error())
+	assert.IsError(t, err, conga.ErrValidation)
+	assert.True(t, conga.IsUsageError(err))
+}
+
+func TestOneOf_MissingGroupNamesDeprecatedMemberWhenReplacementHidden(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	app := conga.New[OneOfHiddenCurrentCLI]().
+		Name("app").
+		Args([]string{}).
+		Stderr(&buffer).
+		ExitFunc(func(int) {})
+
+	err := app.RunContext(t.Context())
+	app.Exit(err)
+
+	assert.Error(t, err)
+	assert.Equal(t, "missing required flag: one of --legacy, --secret", err.Error())
+	assert.Contains(t, buffer.String(), "Usage:\n  app --legacy\n")
 }
 
 func TestOneOf_MissingGroup(t *testing.T) {
