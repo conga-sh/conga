@@ -347,6 +347,7 @@ Only environment variables that bind *gated flags* are ignored when inactive, so
 | Tag | Meaning |
 |-----|---------|
 | `name` | Placeholder name in usage syntax. |
+| `help` | Description of the collected words, listed under Arguments by the `name` placeholder. No help variable applies. |
 | `predictor` | Completion candidates for the collected words, using the same vocabulary as flags and positional arguments (`file`, `file:*.yml`, `dir`, `exec`, `symlink`, `none`, or a registered custom name). |
 
 An untagged collector offers no completion candidates, because the collected words are opaque forwarded arguments. `DashArgs` candidates cover the words after `--`, and `RawArgs` candidates cover the words captured once raw mode begins (the first overflowing positional or unknown flag after every declared required positional is filled). Forwarded words never reuse a declared positional argument's predictor, and they do not suppress previously forwarded values.

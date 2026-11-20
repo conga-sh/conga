@@ -22,6 +22,12 @@ type TestHelpRootCLI struct {
 	Help    conga.HelpCommand
 }
 
+type TestHelpWrapCLI struct {
+	noopRunner
+
+	Rest conga.DashArgs `help:"Arguments passed to the tool"`
+}
+
 type TestHelpClusterCmd struct {
 	Node conga.Command[TestHelpNodeCmd] `summary:"Node commands"`
 }
@@ -107,6 +113,22 @@ func TestHelpFlag_Root(t *testing.T) {
 
 	assert.NoError(t, err)
 	assertGolden(t, "testdata/help/root.golden", goldenHelpRoot, buffer.String())
+}
+
+func TestHelpFlag_DashArgsHelp(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	app := conga.New[TestHelpWrapCLI]().
+		Name("wrap").
+		Args([]string{"--help"}).
+		Stdout(&buffer)
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Contains(t, buffer.String(), "Usage:\n  wrap [-- <args...>]\n\nArguments:\n  [-- <args...>]  Arguments passed to the tool\n")
 }
 
 func TestHelpFlag_Subcommand(t *testing.T) {

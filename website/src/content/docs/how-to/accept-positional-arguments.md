@@ -212,6 +212,31 @@ Flags:
       --version  Show version
 ```
 
+A `help` tag on the field describes the collected words. Help lists them under Arguments, by the name the usage line shows:
+
+```go title="main.go" {3}
+type Mirror struct {
+	Target conga.RequiredArg[string] `help:"Destination directory"`
+	Rsync  conga.RawArgs             `help:"Arguments passed to rsync"`
+}
+```
+
+```sh {7}
+$ mirror --help
+Usage:
+  mirror <target> [args...]
+
+Arguments:
+  <target>   Destination directory
+  [args...]  Arguments passed to rsync
+
+Flags:
+      --help     Show help
+      --version  Show version
+```
+
+A `DashArgs` field takes the same tag.
+
 Collection starts after the last required positional, so words up to that point are still parsed. `mirror /mnt/backup --help` prints help, and `mirror /mnt/backup src/ --help` forwards `--help`. Only required scalar arguments can come before `RawArgs`, and the command can't have subcommands. Use `DashArgs` when you need either.
 
 ## Know what users see
@@ -225,7 +250,7 @@ Collection starts after the last required positional, so words up to that point 
 | A slice argument is followed by another positional argument | Startup | `schema error: invalid positional argument order: slice argument <sources> must be the last positional argument`, exit 1 |
 | A slice or optional argument comes before `RawArgs` | Startup | `schema error: raw args requires a deterministic positional prefix`, exit 1 |
 | A command declares both positional arguments and subcommands | Startup | `schema error: positional argument Target cannot be combined with subcommand Check`, exit 1 |
-| A `DashArgs` or `RawArgs` field carries a `help` tag | Startup | `schema error: invalid struct tag: tag "help" is invalid on dash args`, exit 1 |
+| A `DashArgs` or `RawArgs` `help` tag uses a variable such as `{{enum}}` | Startup | `schema error: invalid struct tag: tag "help" references {{enum}}, but the field provides no value for that variable`, exit 1 |
 
 ## Where to go next
 

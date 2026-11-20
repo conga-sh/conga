@@ -269,7 +269,7 @@ func FormatWith(cmdChain []*spec.Command, opts Options) string {
 	// The per-shell completion screen omits Arguments: the shell is already
 	// supplied, so restating the <shell> placeholder adds noise.
 	if (!leaf.IsCompletionCmd || leaf.Shell == "") && !leaf.IsCompletionFlag {
-		builder.WriteString(formatArgs(leaf.Args, width))
+		builder.WriteString(formatArgs(leaf, width))
 	}
 
 	// 7. Completion-specific footer: supported shells list and enable hints,
@@ -856,19 +856,30 @@ func formatArgLabel(arg *spec.Arg) (string, string) {
 	return formatArgToken(arg), helpText
 }
 
-func formatArgs(args []*spec.Arg, width int) string {
-	if len(args) == 0 {
-		return ""
-	}
-
+// formatArgs renders the Arguments section: the command's positional
+// arguments, then a DashArgs or RawArgs collector that has help text, labelled
+// with its usage-line token.
+func formatArgs(cmd *spec.Command, width int) string {
 	var entries []tableEntry
 
-	for _, arg := range args {
+	for _, arg := range cmd.Args {
 		label, helpText := formatArgLabel(arg)
 		entries = append(entries, tableEntry{
 			label: label,
 			help:  helpText,
 		})
+	}
+
+	if cmd.DashArgs != nil && cmd.DashArgs.Help != "" {
+		entries = append(entries, tableEntry{label: cmd.DashArgs.Name, help: cmd.DashArgs.Help})
+	}
+
+	if cmd.RawArgs != nil && cmd.RawArgs.Help != "" {
+		entries = append(entries, tableEntry{label: cmd.RawArgs.Name, help: cmd.RawArgs.Help})
+	}
+
+	if len(entries) == 0 {
+		return ""
 	}
 
 	return renderTable("Arguments", entries, width)

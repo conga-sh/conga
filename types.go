@@ -564,10 +564,11 @@ func (a *RequiredArg[T]) String() string {
 // terminator also ends subcommand routing for the rest of the invocation: no
 // token after it is matched against a Command[T] name.
 //
-// A DashArgs field accepts the name, predictor, and bootstrap tags. The
-// predictor declares completion candidates for the captured words; an absent
-// predictor does not guess a domain. Only one DashArgs field may be declared
-// per command.
+// A DashArgs field accepts the name, help, predictor, and bootstrap tags. The
+// help text is listed under Arguments in the help screen. The predictor
+// declares completion candidates for the captured words; an absent predictor
+// does not guess a domain. Only one DashArgs field may be declared per
+// command.
 type DashArgs struct {
 	rawSlice
 }
@@ -593,9 +594,10 @@ func (raw *DashArgs) String() string {
 // scalar. Only one RawArgs field may be declared per command. Use DashArgs when the
 // command also branches.
 //
-// A RawArgs field accepts the name, predictor, and bootstrap tags. The predictor
-// declares completion candidates for the words captured once raw mode begins; an
-// absent predictor does not guess a domain.
+// A RawArgs field accepts the name, help, predictor, and bootstrap tags. The
+// help text is listed under Arguments in the help screen. The predictor
+// declares completion candidates for the words captured once raw mode begins;
+// an absent predictor does not guess a domain.
 type RawArgs struct {
 	rawSlice
 }

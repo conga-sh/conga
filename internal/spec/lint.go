@@ -22,7 +22,7 @@ var (
 	configFileTagCandidates     = []string{"name", "short", "help", "env", "aliases", "placeholder", "section", "hidden", "multi", "sep", "config", "deprecated", "feature"}
 	featuresFieldTagCandidates  = []string{"flag", "env", "envprefix", "config", "sep", "help", "enumhint"}
 	featureFieldTagCandidates   = []string{"name", "help", "env", "default", "enum", "stage"}
-	dashRawTagCandidates        = []string{"name", "bootstrap", "predictor"}
+	dashRawTagCandidates        = []string{"name", "help", "bootstrap", "predictor"}
 	allCongaTagCandidates       = []string{
 		"name", "short", "help", "default", "env", "aliases", "section", "hidden", "safe",
 		"xor", "and", "oneof", "enum", "enumhint", "range", "len", "items", "sep", "negatable", "placeholder",
