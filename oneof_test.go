@@ -104,8 +104,8 @@ type OneOfAllHiddenCLI struct {
 type OneOfAllHiddenDeprecatedCLI struct {
 	noopRunner
 
-	JSON conga.OptionalFlag[bool] `hidden:"true"                          name:"json" oneof:"format"`
-	YAML conga.OptionalFlag[bool] `deprecated:"use --json" hidden:"true" name:"yaml" oneof:"format"`
+	JSON conga.OptionalFlag[bool] `hidden:"true"           name:"json"   oneof:"format"`
+	YAML conga.OptionalFlag[bool] `deprecated:"use --json" hidden:"true" name:"yaml"    oneof:"format"`
 }
 
 type OneOfRequiredCLI struct {
