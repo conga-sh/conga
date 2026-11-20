@@ -1196,8 +1196,9 @@ func builtinWhyEntry(whyFormats []string) tableEntry {
 }
 
 // builderEntry renders one flag's table row. peers holds the flags declared on
-// the same command, which the xor and and group hints name; the synthesized
-// built-in --why row passes nil because engine flags never join a group.
+// the same command, which the group hints ([xor: ...], [and: ...]) name; the
+// synthesized built-in --why row passes nil because engine flags never join a
+// group.
 func builderEntry(flagSpec *spec.Flag, peers []*spec.Flag) tableEntry {
 	return tableEntry{
 		label: formatFlagLabel(flagSpec),
@@ -1206,8 +1207,8 @@ func builderEntry(flagSpec *spec.Flag, peers []*spec.Flag) tableEntry {
 }
 
 // formatGroupHints renders the "[xor: --a]" and "[and: --b]" hints naming the
-// other visible members of the flag's xor and and groups, or "" when there are
-// none. An xor hint leaves deprecated members out, since users shouldn't
+// other visible members of each xor or and group the flag belongs to, or ""
+// when there are none. An xor hint leaves deprecated members out, since users shouldn't
 // choose them; an and hint names them, since the requirement still holds.
 func formatGroupHints(flagSpec *spec.Flag, peers []*spec.Flag) string {
 	xorHint := formatGroupHint("xor", groupPeerNames(flagSpec, peers, func(flag *spec.Flag) string { return flag.XorGroup }, true))
