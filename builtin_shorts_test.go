@@ -80,7 +80,7 @@ func TestBuiltinShort_Parsing(t *testing.T) {
 		err := app.Run()
 
 		assert.NoError(t, err)
-		assert.Contains(t, buffer.String(), "Usage:\n  golden <command>")
+		assert.Contains(t, buffer.String(), "Usage:\n  golden [<command>]")
 		assert.Contains(t, buffer.String(), "-h, --help")
 	})
 

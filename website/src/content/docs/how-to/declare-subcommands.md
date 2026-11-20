@@ -90,7 +90,7 @@ Flags:
       --version  Show version
 ```
 
-To run code when the user names no subcommand, implement `Runner` on the parent too. Its `Run` handles `cloudctl` alone, and `cloudctl deploy web.yaml` still runs `deploy`.
+To run code when the user names no subcommand, implement `Runner` on the parent too. Its `Run` handles `cloudctl` alone, and `cloudctl deploy web.yaml` still runs `deploy`. Help then shows the subcommand as optional, as in `cloudctl [<command>] [flags]`.
 
 A command declares subcommands or positional arguments, not both. [How to accept positional arguments](/how-to/accept-positional-arguments/) covers positional arguments.
 
