@@ -160,7 +160,13 @@ Usage:
 Run 'export --help' for more information.
 ```
 
-A flag counts as given when the user writes it at all, whatever its value, so `--gzip=false --zstd` fails the same way. Help lists `--gzip` and `--zstd` as ordinary flags, so name the other flag in each `help` tag if users need to know before they meet the error.
+A flag counts as given when the user writes it at all, whatever its value, so `--gzip=false --zstd` fails the same way. Help names the other flag of the group on each line:
+
+```sh
+$ export --help | grep -e --gzip -e --zstd
+      --gzip               Compress with gzip [env: EXPORT_GZIP] [xor: --zstd]
+      --zstd               Compress with zstd [env: EXPORT_ZSTD] [xor: --gzip]
+```
 
 A flag set in the environment counts as given too, and the error names its variable:
 
@@ -244,6 +250,14 @@ Run 'export --help' for more information.
 ```sh
 $ export --token abc --to-file out.json --username ada --password s3cret
 exporting as json
+```
+
+Help names the other flag of the group on each line:
+
+```sh
+$ export --help | grep -e --username -e --password
+      --username=STRING    Proxy user name [env: EXPORT_USERNAME] [and: --password]
+      --password=STRING    Proxy password [env: EXPORT_PASSWORD] [and: --username]
 ```
 
 A password left in `EXPORT_PASSWORD` counts as given, so a run without `--username` fails. The program prints the error without usage and exits with status 1:
