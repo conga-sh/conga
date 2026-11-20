@@ -617,16 +617,14 @@ type Options struct {
 	EnvPrefix       string
 }
 
-// PreferNonDeprecated returns the flags that aren't deprecated while one of
-// them is visible, or flags unchanged otherwise. The usage line (given only
-// visible members) and the missing-group error (given every member) use it to
-// name a oneof group's members, so neither advertises a deprecated flag while
-// a visible replacement exists, and the usage line never names a flag the
-// error leaves out.
+// PreferNonDeprecated returns the flags that aren't deprecated, or flags
+// unchanged when all of them are. The usage line and the missing-group error
+// use it to name a oneof group's members, so neither advertises a deprecated
+// flag while a replacement exists.
 func PreferNonDeprecated(flags []*Flag) []*Flag {
 	current := slicex.Filter(flags, func(flag *Flag) bool { return flag.Deprecated == "" })
 
-	if !slices.ContainsFunc(current, func(flag *Flag) bool { return !flag.Hidden }) {
+	if len(current) == 0 {
 		return flags
 	}
 

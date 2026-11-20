@@ -2269,10 +2269,16 @@ func collectFlagGroups(flags []*spec.Flag, groupOf func(*spec.Flag) string) orde
 }
 
 // missingOneOfError builds the usage error for an exactly-one group with no
-// supplied member. It names every member the usage line offers, hidden ones
-// too: deprecated members are left out while a visible current member exists.
+// supplied member. It names the members the usage line shows. When every
+// member is hidden, the usage line shows none, so it names the hidden ones.
+// Either way, deprecated members are left out unless all of them are.
 func missingOneOfError(cmdChain []*spec.Command, members []*spec.Flag) error {
-	names := slicex.Map(spec.PreferNonDeprecated(members), func(member *spec.Flag) string {
+	named := slicex.Filter(members, func(member *spec.Flag) bool { return !member.Hidden })
+	if len(named) == 0 {
+		named = members
+	}
+
+	names := slicex.Map(spec.PreferNonDeprecated(named), func(member *spec.Flag) string {
 		return "--" + member.Name
 	})
 

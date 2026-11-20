@@ -1219,8 +1219,10 @@ func builderEntry(flagSpec *spec.Flag, peers []*spec.Flag) tableEntry {
 
 // formatGroupHints renders the "[xor: --a]" and "[and: --b]" hints naming the
 // other visible members of each xor or and group the flag belongs to, or ""
-// when there are none. An xor hint leaves deprecated members out, since users shouldn't
-// choose them; an and hint names them, since the requirement still holds.
+// when there are none. Hidden members are never named, because help doesn't
+// advertise them. An xor hint leaves deprecated members out, since users
+// shouldn't choose them; an and hint names them, since the requirement still
+// holds and help still lists them, marked deprecated.
 func formatGroupHints(flagSpec *spec.Flag, peers []*spec.Flag) string {
 	xorHint := formatGroupHint("xor", groupPeerNames(flagSpec, peers, func(flag *spec.Flag) string { return flag.XorGroup }, true))
 	andHint := formatGroupHint("and", groupPeerNames(flagSpec, peers, func(flag *spec.Flag) string { return flag.AndGroup }, false))

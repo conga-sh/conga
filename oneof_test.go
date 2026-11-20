@@ -94,6 +94,20 @@ type OneOfHiddenCLI struct {
 	Text conga.OptionalFlag[bool] `hidden:"true" name:"text"    oneof:"format"`
 }
 
+type OneOfAllHiddenCLI struct {
+	noopRunner
+
+	JSON conga.OptionalFlag[bool] `hidden:"true" name:"json" oneof:"format"`
+	YAML conga.OptionalFlag[bool] `hidden:"true" name:"yaml" oneof:"format"`
+}
+
+type OneOfAllHiddenDeprecatedCLI struct {
+	noopRunner
+
+	JSON conga.OptionalFlag[bool] `hidden:"true"                          name:"json" oneof:"format"`
+	YAML conga.OptionalFlag[bool] `deprecated:"use --json" hidden:"true" name:"yaml" oneof:"format"`
+}
+
 type OneOfRequiredCLI struct {
 	noopRunner
 
@@ -182,7 +196,7 @@ func TestOneOf_MissingGroupNamesEveryMemberWhenAllDeprecated(t *testing.T) {
 	assert.True(t, conga.IsUsageError(err))
 }
 
-func TestOneOf_MissingGroupNamesDeprecatedMemberWhenReplacementHidden(t *testing.T) {
+func TestOneOf_MissingGroupNamesOnlyDeprecatedMemberWhenReplacementHidden(t *testing.T) {
 	t.Parallel()
 
 	var buffer bytes.Buffer
@@ -197,7 +211,7 @@ func TestOneOf_MissingGroupNamesDeprecatedMemberWhenReplacementHidden(t *testing
 	app.Exit(err)
 
 	assert.Error(t, err)
-	assert.Equal(t, "missing required flag: one of --legacy, --secret", err.Error())
+	assert.Equal(t, "missing required flag: --legacy", err.Error())
 	assert.Contains(t, buffer.String(), "Usage:\n  app --legacy\n")
 }
 
@@ -400,7 +414,7 @@ func TestOneOf_HiddenMemberSatisfiesGroup(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestOneOf_MissingNamesHiddenMembers(t *testing.T) {
+func TestOneOf_MissingLeavesOutHiddenMembers(t *testing.T) {
 	t.Parallel()
 
 	app := conga.New[OneOfHiddenCLI]().Args([]string{})
@@ -408,7 +422,29 @@ func TestOneOf_MissingNamesHiddenMembers(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.Equal(t, "missing required flag: one of --json, --yaml, --text", err.Error())
+	assert.Equal(t, "missing required flag: one of --json, --yaml", err.Error())
+}
+
+func TestOneOf_MissingNamesHiddenMembersWhenAllHidden(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[OneOfAllHiddenCLI]().Args([]string{})
+
+	err := app.RunContext(t.Context())
+
+	assert.Error(t, err)
+	assert.Equal(t, "missing required flag: one of --json, --yaml", err.Error())
+}
+
+func TestOneOf_MissingLeavesOutDeprecatedMemberWhenAllHidden(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[OneOfAllHiddenDeprecatedCLI]().Args([]string{})
+
+	err := app.RunContext(t.Context())
+
+	assert.Error(t, err)
+	assert.Equal(t, "missing required flag: --json", err.Error())
 }
 
 func TestOneOf_AncestorGroupEnforced(t *testing.T) {
