@@ -425,6 +425,20 @@ func (f *Float32RangeApp) Run(ctx context.Context, session *conga.Session) error
 
 var _ = conga.New[Float32RangeApp]()
 
+// LeadingZeroRangeApp declares integer bounds with a leading zero; conga-lint
+// parses integer bounds with the runtime integer syntax, which rejects them.
+type LeadingZeroRangeApp struct {
+	Width conga.OptionalFlag[int]  `name:"width" range:"010..20" help:"Width"` // want `invalid integer min bound "010" \(a leading zero is ambiguous: write 0o10 for octal or 10 for decimal\)`
+	Size  conga.OptionalFlag[uint] `name:"size" range:"0x1..020" help:"Size"`  // want `invalid unsigned integer max bound "020" \(a leading zero is ambiguous: write 0o20 for octal or 20 for decimal\)`
+}
+
+// Run executes the leading-zero range fixture.
+func (l *LeadingZeroRangeApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[LeadingZeroRangeApp]()
+
 // ByteSizeRangeApp declares an unparseable byte-size bound; conga-lint parses
 // conga.ByteSize bounds with the runtime grammar.
 type ByteSizeRangeApp struct {
@@ -502,6 +516,20 @@ type LenApp struct { // want `runner not implemented: implement conga\.Runner`
 }
 
 var _ = conga.New[LenApp]()
+
+// LeadingZeroCountApp declares len and items bounds with a leading zero;
+// conga-lint parses count bounds with the runtime integer syntax.
+type LeadingZeroCountApp struct {
+	Name  conga.OptionalFlag[string]   `name:"name" len:"010" help:"Name"`       // want `invalid len min bound "010" \(a leading zero is ambiguous: write 0o10 for octal or 10 for decimal\)`
+	Hosts conga.OptionalFlag[[]string] `name:"hosts" items:"1..05" help:"Hosts"` // want `invalid items max bound "05" \(a leading zero is ambiguous: write 0o5 for octal or 5 for decimal\)`
+}
+
+// Run executes the leading-zero count fixture.
+func (l *LeadingZeroCountApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[LeadingZeroCountApp]()
 
 // EmptySummaryParent declares an empty summary tag.
 type EmptySummaryParent struct {

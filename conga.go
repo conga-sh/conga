@@ -1387,6 +1387,8 @@ func (a *App[T]) buildSpec() (*spec.Command, error) {
 
 	decoderExtensions := a.configRegistry.Extensions()
 
+	typeParsers := a.collectTypeParsers()
+
 	opts := spec.Options{
 		AllowedTags:          a.allowedTags,
 		RegisteredPredictors: a.predictors,
@@ -1413,7 +1415,8 @@ func (a *App[T]) buildSpec() (*spec.Command, error) {
 		InferPredictor:            a.inferPredictor,
 		FeaturePredictor:          a.featurePredictor,
 		ValidateTextRangeBound:    validateTextRangeBound,
-		ValidateValueType:         valueTypeValidator(a.collectTypeParsers()),
+		ValidateValueType:         valueTypeValidator(typeParsers),
+		HasTypeParser:             typeParserLookup(typeParsers),
 		EnvPrefix:                 a.envPrefix,
 		ProcessFeatures:           a.processFeatures,
 		ValidateFeatureReferences: a.validateFeatures,
@@ -1665,7 +1668,7 @@ func (a *App[T]) prepareNonBuiltinExecution(ctx context.Context, session *Sessio
 
 	a.collectDeprecationNotices(invocation.cmdChain)
 
-	if err := validateFlagValueConstraints(invocation.cmdChain, state.SourceNames); err != nil {
+	if err := validateFlagValueConstraints(invocation.cmdChain, state.SourceNames, state.EnumSpellings); err != nil {
 		return err
 	}
 

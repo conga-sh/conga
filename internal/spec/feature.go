@@ -11,6 +11,7 @@ import (
 
 	"github.com/conga-sh/conga/internal/casing"
 	"github.com/conga-sh/conga/internal/container"
+	"github.com/conga-sh/conga/internal/intx"
 	"github.com/conga-sh/conga/internal/slicex"
 )
 
@@ -403,7 +404,7 @@ type featureTerm struct {
 // storage width for both.
 func (f *FeatureField) parseInteger(raw string) (string, error) {
 	if f.IsUnsigned {
-		parsed, err := strconv.ParseUint(raw, 10, f.BitSize)
+		parsed, err := intx.ParseUint(raw, f.BitSize)
 		if err != nil {
 			return "", featureIntegerParseError(err, false)
 		}
@@ -411,7 +412,7 @@ func (f *FeatureField) parseInteger(raw string) (string, error) {
 		return strconv.FormatUint(parsed, 10), nil
 	}
 
-	parsed, err := strconv.ParseInt(raw, 10, f.BitSize)
+	parsed, err := intx.ParseInt(raw, f.BitSize)
 	if err != nil {
 		return "", featureIntegerParseError(err, true)
 	}
@@ -721,11 +722,16 @@ func featureIntegerParseError(err error, signed bool) error {
 		return errFeatureIntegerOutOfRange
 	}
 
+	base := errFeatureMustBeInteger
 	if !signed {
-		return errFeatureMustBeNonNegativeInteger
+		base = errFeatureMustBeNonNegativeInteger
 	}
 
-	return errFeatureMustBeInteger
+	if hint := intx.HintOf(err); hint != "" {
+		return fmt.Errorf("%w (%s)", base, hint)
+	}
+
+	return base
 }
 
 // invalidFeatureEnumError builds the enum-domain rejection listing the

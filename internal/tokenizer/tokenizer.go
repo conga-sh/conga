@@ -5,6 +5,8 @@ package tokenizer
 import (
 	"strconv"
 	"strings"
+
+	"github.com/conga-sh/conga/internal/intx"
 )
 
 // Scanner provides a forward-only, peekable cursor over a sequence of tokens.
@@ -98,6 +100,11 @@ func Tokenize(args []string) []Token {
 }
 
 // IsNegativeNumber checks if a token's raw representation corresponds to a numeric literal (e.g. "-10", "-3.14", "-1e-3").
+// It also accepts negative integers in the -0x, -0o and -0b forms of the
+// integer syntax whatever their size, so an out-of-range value binds and fails
+// coercion with the range message. It decides only that the token binds as a
+// value: a leading-zero integer such as "-0755" binds too and then fails
+// coercion with the integer syntax's leading-zero hint.
 func (t Token) IsNegativeNumber() bool {
 	if !strings.HasPrefix(t.Raw, "-") || len(t.Raw) < 2 {
 		return false
@@ -107,15 +114,7 @@ func (t Token) IsNegativeNumber() bool {
 		return true
 	}
 
-	if strings.HasPrefix(t.Raw, "-0x") || strings.HasPrefix(t.Raw, "-0X") ||
-		strings.HasPrefix(t.Raw, "-0o") || strings.HasPrefix(t.Raw, "-0O") ||
-		strings.HasPrefix(t.Raw, "-0b") || strings.HasPrefix(t.Raw, "-0B") {
-		if _, err := strconv.ParseInt(t.Raw, 0, 64); err == nil {
-			return true
-		}
-	}
-
-	return false
+	return intx.IsSignedLiteral(t.Raw)
 }
 
 // CanBindAsFlagValue reports whether the token may be consumed as the next

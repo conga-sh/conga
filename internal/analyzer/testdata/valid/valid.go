@@ -57,6 +57,9 @@ type DeployWorker struct {
 	WorkDir   conga.OptionalFlag[conga.Dir]      `name:"workdir" existing:"true" help:"Working directory"`
 	Manifest  conga.OptionalFlag[conga.File]     `name:"manifest" glob:"*.yaml,Makefile" help:"Manifest file"`
 	Port      conga.OptionalFlag[int]            `name:"port" help:"Port number ({{range}})" range:"1..1024"`
+	Mode      conga.OptionalFlag[uint32]         `name:"mode" help:"File mode" range:"0o0..0o777"`
+	Offset    conga.OptionalFlag[int]            `name:"offset" help:"Offset" range:"-0x10..0b1010"`
+	Region    conga.OptionalFlag[string]         `name:"region" help:"Region" len:"0x2..0x4"`
 }
 
 // Run executes the worker deployment.

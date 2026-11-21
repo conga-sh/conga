@@ -45,7 +45,7 @@ Plain struct fields and exported non-container fields are ignored by schema buil
 
 A map flag merges key by key across sources. A config value written as a nested map binds per key without `sep` splitting, so a `labels` section containing `hosts: a,b` keeps `a,b` as one value, while the string value `labels: hosts=a,b` is split on `sep`.
 
-The `enum` tag validates against the field's coerced value. When a type's `UnmarshalText` normalizes input (such as `get` to `GET`), validation compares against that normalized form, so declared enum values must match the normalized output.
+The `enum` tag validates against the field's coerced value. When a type's `UnmarshalText` normalizes input (such as `get` to `GET`), validation compares against that normalized form, so declared enum values must match the normalized output. On an integer field, the values follow the [integer syntax](#integer-syntax) and compare as numbers.
 
 ## Positional arguments (`OptionalArg[T]`, `RequiredArg[T]`)
 
@@ -430,6 +430,29 @@ Applicability rules:
 | `range` | Numeric types (`int*`, `uint*` except `uintptr`, `float*`), `time.Duration`, and domain types implementing `encoding.TextUnmarshaler` with an ordered projection (`Bytes() int64` or numeric underlying kind). | Bounds parse using the type's own unmarshaler (e.g. `ByteSize` accepts `range:"1MiB..1GiB"`), under the field's declared tags: a decimal bound on a `units:"binary"` field fails at schema build. Pointer element types and unprojected types are rejected. |
 | `len` | Strings and slices (each element). | Counts runes. On a slice, each element must satisfy the bound. |
 | `items` | Slices and maps. | Asserts element count. |
+
+## Integer syntax
+
+Integer values share one syntax wherever CONGA reads them: flag and argument values from the command line, environment variables, and config-file strings, `default` tags, `enum` values, `range`, `len`, and `items` bounds, feature levels, and counter values from the environment or a config file.
+
+| Form | Examples | Value |
+|------|----------|-------|
+| Decimal | `493`, `-16`, `+5` | 493, -16, 5 |
+| Hexadecimal | `0x1ed`, `0X1ED` | 493 |
+| Octal | `0o755`, `0O755` | 493 |
+| Binary | `0b111101101`, `0B111101101` | 493 |
+
+A sign goes before the prefix (`-0x10` is -16), and only signed types accept one. `0` and `-0` are zero. A decimal value that starts with a zero, such as `0755`, is rejected because some tools read it as octal and others as decimal. The error gives both spellings:
+
+```text no-copy
+invalid unsigned integer value "0755" for flag --mode (a leading zero is ambiguous: write 0o755 for octal or 755 for decimal)
+```
+
+Underscore digit separators (`1_000`) are rejected. A value that does not fit the field's type fails as out of range (`value "0x80" is out of range for int8`).
+
+Tags use the same syntax and fail schema build with `ErrSchema` when a value is invalid. A `range`, `len`, or `items` bound or an `enum` value with a leading zero fails, and so does an `enum` value that is not an integer or does not fit the field's type. `enum` values compare as numbers, so `enum:"0x10,20"` accepts `16`, `0x10`, and `0o20`. Help and completion show the values as the tag spells them (`[enum: 0x10, 20]`). A feature's levels appear in decimal in help, completion, and error messages, whatever spelling its `enum` tag uses, so `enum:"0x2,3"` shows `[levels: 2, 3]`.
+
+The syntax covers fields whose value type has an integer kind and no parser of its own. A type with an `UnmarshalText` method or a parser registered through `app.RegisterType` reads its own syntax, and so do its `enum` values. `time.Duration` and `conga.ByteSize` have their own grammars.
 
 ## Predictors
 

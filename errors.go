@@ -11,6 +11,7 @@ import (
 	"github.com/conga-sh/conga/internal/coerce"
 	"github.com/conga-sh/conga/internal/container"
 	"github.com/conga-sh/conga/internal/help"
+	"github.com/conga-sh/conga/internal/intx"
 	"github.com/conga-sh/conga/internal/sentinel"
 	"github.com/conga-sh/conga/internal/spec"
 )
@@ -268,7 +269,14 @@ func (e *coercionError) Error() string {
 
 		if causeMsg != "" && causeMsg != ErrCoerce.Error() {
 			if location != "" {
-				return fmt.Sprintf("%s %s", causeMsg, location)
+				causeMsg += " " + location
+			}
+
+			// An integer with a leading zero ends with its correction, after
+			// the location: "... for flag --mode (a leading zero is ambiguous:
+			// write 0o755 for octal or 755 for decimal)".
+			if hint := intx.HintOf(e.cause); hint != "" {
+				causeMsg += " (" + hint + ")"
 			}
 
 			return causeMsg

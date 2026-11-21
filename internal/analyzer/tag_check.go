@@ -7,12 +7,12 @@ import (
 	"go/types"
 	"reflect"
 	"slices"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/internal/casing"
+	"github.com/conga-sh/conga/internal/intx"
 	"github.com/conga-sh/conga/internal/spec"
 )
 
@@ -833,11 +833,11 @@ func (w *walker) validateRangeBounds(rangeSpec *spec.Range, targetType types.Typ
 	switch basic.Kind() {
 	case types.Int, types.Int8, types.Int16, types.Int32, types.Int64:
 		return spec.ValidateScalarRange(rangeSpec, "integer", func(raw string) (int64, error) {
-			return strconv.ParseInt(raw, 10, 64)
+			return intx.ParseInt(raw, 64)
 		})
 	case types.Uint, types.Uint8, types.Uint16, types.Uint32, types.Uint64:
 		return spec.ValidateScalarRange(rangeSpec, "unsigned integer", func(raw string) (uint64, error) {
-			return strconv.ParseUint(raw, 10, 64)
+			return intx.ParseUint(raw, 64)
 		})
 	case types.Float32:
 		return spec.ValidateScalarRange(rangeSpec, "float", spec.FloatBoundParser(32))

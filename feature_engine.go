@@ -7,11 +7,11 @@ import (
 	"maps"
 	"reflect"
 	"slices"
-	"strconv"
 	"strings"
 
 	"github.com/conga-sh/conga/internal/casing"
 	"github.com/conga-sh/conga/internal/configdata"
+	"github.com/conga-sh/conga/internal/intx"
 	"github.com/conga-sh/conga/internal/levenshtein"
 	"github.com/conga-sh/conga/internal/slicex"
 	"github.com/conga-sh/conga/internal/spec"
@@ -497,7 +497,7 @@ func materializeFeatureValues(target any, fields []*spec.FeatureField, values ma
 		}
 
 		if feature.IsUnsigned {
-			parsed, err := strconv.ParseUint(value, 10, field.Type().Bits())
+			parsed, err := intx.ParseUint(value, field.Type().Bits())
 			if err != nil {
 				panic(fmt.Sprintf("conga: invariant violation: feature %q value %q does not fit %s", feature.Name, value, field.Type()))
 			}
@@ -507,7 +507,7 @@ func materializeFeatureValues(target any, fields []*spec.FeatureField, values ma
 			continue
 		}
 
-		parsed, err := strconv.ParseInt(value, 10, field.Type().Bits())
+		parsed, err := intx.ParseInt(value, field.Type().Bits())
 		if err != nil {
 			panic(fmt.Sprintf("conga: invariant violation: feature %q value %q does not fit %s", feature.Name, value, field.Type()))
 		}

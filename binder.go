@@ -20,6 +20,7 @@ import (
 	"github.com/conga-sh/conga/internal/completion"
 	"github.com/conga-sh/conga/internal/cond"
 	"github.com/conga-sh/conga/internal/configdata"
+	"github.com/conga-sh/conga/internal/intx"
 	"github.com/conga-sh/conga/internal/levenshtein"
 	"github.com/conga-sh/conga/internal/slicex"
 	"github.com/conga-sh/conga/internal/spec"
@@ -73,6 +74,24 @@ type bindingState struct {
 	// constraint validation reads it to attribute value errors to their origin;
 	// the container's SourceDetail stays reserved for the --why report.
 	SourceNames map[*spec.Flag]string
+	// EnumSpellings records, per flag with an integer enum, the input text of
+	// its winning value (one entry per slice element), so post-bind enum
+	// errors quote what the user typed.
+	EnumSpellings map[*spec.Flag][]string
+}
+
+// recordEnumSpellings remembers the input text of a flag's winning value
+// when the flag has an integer enum.
+func (b *bindingState) recordEnumSpellings(flagSpec *spec.Flag, spellings []string) {
+	if len(flagSpec.IntegerEnum) == 0 {
+		return
+	}
+
+	if b.EnumSpellings == nil {
+		b.EnumSpellings = make(map[*spec.Flag][]string)
+	}
+
+	b.EnumSpellings[flagSpec] = spellings
 }
 
 // recordSourceName remembers the env variable or config key that supplied a
@@ -559,7 +578,14 @@ func (index *flagIndex) addCommand(cmd *spec.Command) {
 }
 
 type constraintSet struct {
-	enum       []string
+	enum []string
+	// integerEnum holds the decimal form of each enum value for a value the
+	// binder decodes as a built-in integer, so 0x10 in the tag matches 16.
+	integerEnum []string
+	// spellings holds the input text of each checked value, one per slice
+	// element, so an integer enum rejection quotes what the user typed. Nil
+	// when the field has no integer enum.
+	spellings  []string
 	length     *spec.Range
 	valueRange *spec.Range
 	items      *spec.Range
@@ -694,7 +720,7 @@ type pathValue interface {
 // classifies under ErrConfig.
 type counterError struct {
 	raw   string
-	cause error // *strconv.NumError, preserved for errors.As
+	cause error // *intx.Error, preserved for errors.As and the leading-zero hint
 }
 
 func (e *counterError) Error() string {
@@ -1096,8 +1122,9 @@ type countMessages struct {
 	countFirst bool
 }
 
-// bound formats a message that names the count and one bound.
-func (messages countMessages) bound(format string, count, bound int) string {
+// bound formats a message that names the count and one bound, the bound
+// spelled as the tag writes it.
+func (messages countMessages) bound(format string, count int, bound string) string {
 	if messages.countFirst {
 		return fmt.Sprintf(format, count, bound)
 	}
@@ -1249,9 +1276,39 @@ func (check valueCheck) enum(enum []string, text string) error {
 		truncateForDisplay(text), strings.Join(enum, ", "), check.descriptor), errInvalidValue)
 }
 
+// enumValue checks value against the enum. A built-in integer compares as a
+// number: its decimal form against the decimal form of each enum value, while
+// the error lists the values as the tag spells them.
+func (check valueCheck) enumValue(constraints constraintSet, value any, index int) error {
+	if len(constraints.integerEnum) == 0 {
+		return check.enum(constraints.enum, stringx.Stringify(value))
+	}
+
+	decimal := integerDecimal(reflect.ValueOf(value))
+	if slices.Contains(constraints.integerEnum, decimal) {
+		return nil
+	}
+
+	// The rejection quotes the input as typed (0x11), falling back to the
+	// decimal form when no spelling was recorded for this value.
+	spelling := decimal
+	if index < len(constraints.spellings) {
+		spelling = constraints.spellings[index]
+	}
+
+	return check.invalid(fmt.Sprintf("invalid value %q (must be one of: %s) for %s",
+		truncateForDisplay(spelling), strings.Join(constraints.enum, ", "), check.descriptor), errInvalidValue)
+}
+
 // scalar checks one value against the enum, length, and range constraints.
 func (check valueCheck) scalar(constraints constraintSet, value any) error {
-	if err := check.enum(constraints.enum, stringx.Stringify(value)); err != nil {
+	return check.element(constraints, value, 0)
+}
+
+// element checks the value at index (0 for a scalar) against the enum,
+// length, and range constraints; index selects its recorded spelling.
+func (check valueCheck) element(constraints constraintSet, value any, index int) error {
+	if err := check.enumValue(constraints, value, index); err != nil {
 		return err
 	}
 
@@ -1281,7 +1338,7 @@ func (check valueCheck) slice(constraints constraintSet, typedSlice any) error {
 	}
 
 	for i := range sliceValue.Len() {
-		if err := check.scalar(constraints, sliceValue.Index(i).Interface()); err != nil {
+		if err := check.element(constraints, sliceValue.Index(i).Interface(), i); err != nil {
 			return err
 		}
 	}
@@ -1401,7 +1458,7 @@ func (resolver argResolver) slice(arg *spec.Arg, remaining []string) error {
 		return resolver.coercionError(arg, valueOrigin{source: SourceCLI}, strings.Join(remaining, arg.Sep), err)
 	}
 
-	if err := resolver.check(arg, SourceCLI).slice(argConstraints(arg), typedSlice); err != nil {
+	if err := resolver.check(arg, SourceCLI).slice(argConstraints(arg, enumSpellings(arg.IntegerEnum, remaining, arg.Sep, arg.TargetType.Elem())), typedSlice); err != nil {
 		return err
 	}
 
@@ -1424,7 +1481,7 @@ func (resolver argResolver) emptySlice(arg *spec.Arg, decodeContext coerce.Decod
 			return resolver.coercionError(arg, valueOrigin{source: SourceDefault, name: arg.Default}, arg.Default, err)
 		}
 
-		if err := resolver.check(arg, SourceDefault).slice(argConstraints(arg), typedSlice); err != nil {
+		if err := resolver.check(arg, SourceDefault).slice(argConstraints(arg, enumSpellings(arg.IntegerEnum, []string{arg.Default}, arg.Sep, arg.TargetType.Elem())), typedSlice); err != nil {
 			return err
 		}
 
@@ -1495,7 +1552,7 @@ func (resolver argResolver) scalar(arg *spec.Arg, posTokens []string, tokenIdx i
 			return false, resolver.coercionError(arg, valueOrigin{source: SourceCLI}, raw, err)
 		}
 
-		if err := resolver.check(arg, SourceCLI).scalar(argConstraints(arg), typedValue); err != nil {
+		if err := resolver.check(arg, SourceCLI).scalar(argConstraints(arg, []string{raw}), typedValue); err != nil {
 			return false, err
 		}
 
@@ -1514,7 +1571,7 @@ func (resolver argResolver) scalar(arg *spec.Arg, posTokens []string, tokenIdx i
 			return false, resolver.coercionError(arg, valueOrigin{source: SourceDefault, name: arg.Default}, arg.Default, err)
 		}
 
-		if err := resolver.check(arg, SourceDefault).scalar(argConstraints(arg), typedValue); err != nil {
+		if err := resolver.check(arg, SourceDefault).scalar(argConstraints(arg, []string{arg.Default}), typedValue); err != nil {
 			return false, err
 		}
 
@@ -2139,7 +2196,7 @@ func applyFlagCoercion(binding flagBinding, input flagInput) error {
 			// Command-line occurrences arrive as "1". An environment or
 			// configuration count is an unsigned integer that fits an int: no
 			// sign, so -1 and +2 are rejected like any other non-count value.
-			parsedCount, err := strconv.ParseUint(raw, 10, strconv.IntSize-1)
+			parsedCount, err := intx.ParseUint(raw, strconv.IntSize-1)
 			if err != nil {
 				return binding.coercionError(origin, raw, &counterError{raw: raw, cause: err})
 			}
@@ -2171,6 +2228,7 @@ func applyFlagCoercion(binding flagBinding, input flagInput) error {
 			return binding.coercionError(origin, strings.Join(input.values, flagSpec.Sep), err)
 		}
 
+		state.recordEnumSpellings(flagSpec, enumSpellings(flagSpec.IntegerEnum, input.values, flagSpec.Sep, flagSpec.TargetType.Elem()))
 		flagStateOf(flagSpec.Handle).setValue(typedSlice, origin.source, input.detail)
 
 		return nil
@@ -2188,6 +2246,10 @@ func applyFlagCoercion(binding flagBinding, input flagInput) error {
 		}
 
 		typedValue = coerced
+	}
+
+	if len(input.values) > 0 {
+		state.recordEnumSpellings(flagSpec, input.values[len(input.values)-1:])
 	}
 
 	flagStateOf(flagSpec.Handle).setValue(typedValue, origin.source, input.detail)
@@ -2683,7 +2745,7 @@ func validateAndGroups(cmdChain []*spec.Command, andGroups orderedFlagGroups, na
 
 // validateFlagValueConstraint checks one flag's per-value constraints after
 // binding. sourceName attributes env- and config-sourced values.
-func validateFlagValueConstraint(cmdChain []*spec.Command, flagSpec *spec.Flag, sourceName string) error {
+func validateFlagValueConstraint(cmdChain []*spec.Command, flagSpec *spec.Flag, sourceName string, spellings []string) error {
 	target := flagStateOf(flagSpec.Handle)
 	if !target.IsSet() {
 		return nil
@@ -2691,10 +2753,12 @@ func validateFlagValueConstraint(cmdChain []*spec.Command, flagSpec *spec.Flag, 
 
 	value := target.getValue()
 	constraints := constraintSet{
-		enum:       flagSpec.Enum,
-		length:     flagSpec.Len,
-		valueRange: flagSpec.Range,
-		items:      flagSpec.Items,
+		enum:        flagSpec.Enum,
+		integerEnum: flagSpec.IntegerEnum,
+		spellings:   spellings,
+		length:      flagSpec.Len,
+		valueRange:  flagSpec.Range,
+		items:       flagSpec.Items,
 	}
 	check := valueCheck{
 		cmdChain:   cmdChain,
@@ -2720,8 +2784,9 @@ func validateFlagValueConstraint(cmdChain []*spec.Command, flagSpec *spec.Flag, 
 
 // validateFlagValueConstraints checks per-flag value constraints after binding.
 // sourceNames attributes env- and config-sourced values (see
-// [bindingState.SourceNames]); a nil map attributes none.
-func validateFlagValueConstraints(cmdChain []*spec.Command, sourceNames map[*spec.Flag]string) error {
+// [bindingState.SourceNames]); a nil map attributes none. spellings holds the
+// input text of integer-enum values (see [bindingState.EnumSpellings]).
+func validateFlagValueConstraints(cmdChain []*spec.Command, sourceNames map[*spec.Flag]string, spellings map[*spec.Flag][]string) error {
 	for _, cmd := range cmdChain {
 		for _, flagSpec := range cmd.Flags {
 			if flagSpec.Handle == nil {
@@ -2729,7 +2794,7 @@ func validateFlagValueConstraints(cmdChain []*spec.Command, sourceNames map[*spe
 				continue
 			}
 
-			if err := validateFlagValueConstraint(cmdChain, flagSpec, sourceNames[flagSpec]); err != nil {
+			if err := validateFlagValueConstraint(cmdChain, flagSpec, sourceNames[flagSpec], spellings[flagSpec]); err != nil {
 				return err
 			}
 		}
@@ -2821,12 +2886,16 @@ func suggestSubcommand(cmd *spec.Command, input string) string {
 }
 
 // argConstraints collects a positional argument's per-value constraints.
-func argConstraints(arg *spec.Arg) constraintSet {
+// spellings is the input text of the checked value, one entry per slice
+// element.
+func argConstraints(arg *spec.Arg, spellings []string) constraintSet {
 	return constraintSet{
-		enum:       arg.Enum,
-		length:     arg.Len,
-		valueRange: arg.Range,
-		items:      arg.Items,
+		enum:        arg.Enum,
+		integerEnum: arg.IntegerEnum,
+		spellings:   spellings,
+		length:      arg.Len,
+		valueRange:  arg.Range,
+		items:       arg.Items,
 	}
 }
 
@@ -2874,11 +2943,11 @@ func checkTypedRange[T cmp.Ordered](value T, rangeSpec *spec.Range, parse func(s
 }
 
 func parseInt64Bound(raw string) (int64, error) {
-	return strconv.ParseInt(raw, 10, 64)
+	return intx.ParseInt(raw, 64)
 }
 
 func parseUint64Bound(raw string) (uint64, error) {
-	return strconv.ParseUint(raw, 10, 64)
+	return intx.ParseUint(raw, 64)
 }
 
 // checkTextRange applies range bounds to a value whose type carries its own
@@ -2963,8 +3032,28 @@ func checkValueRange(value any, rangeSpec *spec.Range) (string, bool) {
 	}
 }
 
+// enumSpellings splits raw slice tokens into the element items the slice
+// coercion reads, for an integer enum's error messages; nil when integerEnum
+// is empty.
+func enumSpellings(integerEnum []string, raws []string, sep string, elemType reflect.Type) []string {
+	if len(integerEnum) == 0 {
+		return nil
+	}
+
+	return coerce.SliceItems(raws, sep, elemType)
+}
+
+// integerDecimal renders an integer value in base 10.
+func integerDecimal(value reflect.Value) string {
+	if value.CanInt() {
+		return strconv.FormatInt(value.Int(), 10)
+	}
+
+	return strconv.FormatUint(value.Uint(), 10)
+}
+
 func parseIntBound(raw string) (int, bool) {
-	value, err := strconv.Atoi(raw)
+	value, err := spec.ParseCountBound(raw)
 	if err != nil {
 		return 0, false
 	}
@@ -2985,7 +3074,7 @@ func checkIntRange(count int, rangeSpec *spec.Range, messages countMessages) (st
 
 	if rangeSpec.Exact && parsedMin {
 		if count != minValue {
-			return messages.bound(messages.exact, count, minValue), false
+			return messages.bound(messages.exact, count, rangeSpec.MinStr), false
 		}
 
 		return "", true
@@ -2993,18 +3082,18 @@ func checkIntRange(count int, rangeSpec *spec.Range, messages countMessages) (st
 
 	if hasMin && hasMax {
 		if count < minValue || count > maxValue {
-			return fmt.Sprintf(messages.outOfRange, count, minValue, maxValue), false
+			return fmt.Sprintf(messages.outOfRange, count, rangeSpec.MinStr, rangeSpec.MaxStr), false
 		}
 
 		return "", true
 	}
 
 	if hasMin && count < minValue {
-		return messages.bound(messages.belowMin, count, minValue), false
+		return messages.bound(messages.belowMin, count, rangeSpec.MinStr), false
 	}
 
 	if hasMax && count > maxValue {
-		return messages.bound(messages.aboveMax, count, maxValue), false
+		return messages.bound(messages.aboveMax, count, rangeSpec.MaxStr), false
 	}
 
 	return "", true
@@ -3018,10 +3107,10 @@ func checkStringLen(value any, rangeSpec *spec.Range) (string, bool) {
 	length := utf8.RuneCountInString(stringx.Stringify(value))
 
 	return checkIntRange(length, rangeSpec, countMessages{
-		exact:      "length %d must be exactly %d",
-		outOfRange: "length %d is out of range [%d..%d]",
-		belowMin:   "length %d must be >= %d",
-		aboveMax:   "length %d must be <= %d",
+		exact:      "length %d must be exactly %s",
+		outOfRange: "length %d is out of range [%s..%s]",
+		belowMin:   "length %d must be >= %s",
+		aboveMax:   "length %d must be <= %s",
 		countFirst: true,
 	})
 }
@@ -3032,10 +3121,10 @@ func checkItemCount(collectionValue reflect.Value, rangeSpec *spec.Range) (strin
 	}
 
 	return checkIntRange(collectionValue.Len(), rangeSpec, countMessages{
-		exact:      "expected exactly %d items, got %d",
-		outOfRange: "item count %d is out of range [%d..%d]",
-		belowMin:   "expected at least %d items, got %d",
-		aboveMax:   "expected at most %d items, got %d",
+		exact:      "expected exactly %s items, got %d",
+		outOfRange: "item count %d is out of range [%s..%s]",
+		belowMin:   "expected at least %s items, got %d",
+		aboveMax:   "expected at most %s items, got %d",
 	})
 }
 

@@ -3,6 +3,7 @@ package spec
 import (
 	"cmp"
 	"encoding"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"reflect"
@@ -14,6 +15,7 @@ import (
 	"github.com/conga-sh/conga/internal/casing"
 	"github.com/conga-sh/conga/internal/cond"
 	"github.com/conga-sh/conga/internal/container"
+	"github.com/conga-sh/conga/internal/intx"
 	"github.com/conga-sh/conga/internal/slicex"
 )
 
@@ -118,7 +120,7 @@ func ValidateScalarRange[T cmp.Ordered](rangeSpec *Range, boundKind string, pars
 	if rangeSpec.HasMin {
 		v, err := parse(rangeSpec.MinStr)
 		if err != nil {
-			return fmt.Errorf("%w: invalid %s min bound %q", ErrInvalidRangeSyntax, boundKind, rangeSpec.MinStr)
+			return fmt.Errorf("%w: invalid %s min bound %q%s", ErrInvalidRangeSyntax, boundKind, rangeSpec.MinStr, integerHintSuffix(err))
 		}
 
 		minValue = v
@@ -127,7 +129,7 @@ func ValidateScalarRange[T cmp.Ordered](rangeSpec *Range, boundKind string, pars
 	if rangeSpec.HasMax {
 		v, err := parse(rangeSpec.MaxStr)
 		if err != nil {
-			return fmt.Errorf("%w: invalid %s max bound %q", ErrInvalidRangeSyntax, boundKind, rangeSpec.MaxStr)
+			return fmt.Errorf("%w: invalid %s max bound %q%s", ErrInvalidRangeSyntax, boundKind, rangeSpec.MaxStr, integerHintSuffix(err))
 		}
 
 		maxValue = v
@@ -140,6 +142,27 @@ func ValidateScalarRange[T cmp.Ordered](rangeSpec *Range, boundKind string, pars
 	return nil
 }
 
+// ParseCountBound parses a len or items bound: a non-negative integer in the
+// integer syntax that fits an int.
+func ParseCountBound(raw string) (int, error) {
+	value, err := intx.ParseUint(raw, strconv.IntSize-1)
+	if err != nil {
+		return 0, err
+	}
+
+	return int(value), nil
+}
+
+// countBoundError reports an invalid len or items bound. A leading zero gets
+// the integer syntax's correction; any other failure says what a bound must be.
+func countBoundError(tagName, side, raw string, err error) error {
+	if hint := intx.HintOf(err); hint != "" {
+		return fmt.Errorf("%w: invalid %s %s bound %q (%s)", ErrInvalidRangeSyntax, tagName, side, raw, hint)
+	}
+
+	return fmt.Errorf("%w: invalid %s %s bound %q (must be non-negative integer)", ErrInvalidRangeSyntax, tagName, side, raw)
+}
+
 // ValidateCountRangeSpec validates len/items range bounds as non-negative integers.
 func ValidateCountRangeSpec(spec *Range, tagName string) error {
 	if spec == nil {
@@ -149,18 +172,18 @@ func ValidateCountRangeSpec(spec *Range, tagName string) error {
 	var minValue, maxValue int
 
 	if spec.HasMin {
-		v, err := strconv.Atoi(spec.MinStr)
-		if err != nil || v < 0 {
-			return fmt.Errorf("%w: invalid %s min bound %q (must be non-negative integer)", ErrInvalidRangeSyntax, tagName, spec.MinStr)
+		v, err := ParseCountBound(spec.MinStr)
+		if err != nil {
+			return countBoundError(tagName, "min", spec.MinStr, err)
 		}
 
 		minValue = v
 	}
 
 	if spec.HasMax {
-		v, err := strconv.Atoi(spec.MaxStr)
-		if err != nil || v < 0 {
-			return fmt.Errorf("%w: invalid %s max bound %q (must be non-negative integer)", ErrInvalidRangeSyntax, tagName, spec.MaxStr)
+		v, err := ParseCountBound(spec.MaxStr)
+		if err != nil {
+			return countBoundError(tagName, "max", spec.MaxStr, err)
 		}
 
 		maxValue = v
@@ -539,6 +562,15 @@ func parseFlagSpec(structField reflect.StructField, flagHandle any, classificati
 		return nil, err
 	}
 
+	var integerEnum []string
+
+	if !kindInfo.isCounter {
+		integerEnum, err = parseIntegerEnum(enumValues, kindInfo.targetType, opts)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	helpText, referenced, err := interpolateHelp(
 		structField.Tag.Get("help"),
 		helpVarValuesFor(rangeSpec, lenSpec, itemsSpec, enumValues, structField.Tag.Get("default"), envVars),
@@ -586,6 +618,7 @@ func parseFlagSpec(structField reflect.StructField, flagHandle any, classificati
 		AndGroup:    structField.Tag.Get("and"),
 		OneOfGroup:  structField.Tag.Get("oneof"),
 		Enum:        enumValues,
+		IntegerEnum: integerEnum,
 		Range:       rangeSpec,
 		Len:         lenSpec,
 		Items:       itemsSpec,
@@ -854,12 +887,12 @@ func validateRangeSpec(rangeSpec *Range, targetType reflect.Type, fieldTags Fiel
 	switch elemType.Kind() {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
 		return ValidateScalarRange(rangeSpec, "integer", func(raw string) (int64, error) {
-			return strconv.ParseInt(raw, 10, 64)
+			return intx.ParseInt(raw, 64)
 		})
 
 	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
 		return ValidateScalarRange(rangeSpec, "unsigned integer", func(raw string) (uint64, error) {
-			return strconv.ParseUint(raw, 10, 64)
+			return intx.ParseUint(raw, 64)
 		})
 
 	case reflect.Float32, reflect.Float64:
@@ -1035,6 +1068,11 @@ func parseArgSpec(structField reflect.StructField, argHandle any, classification
 		return nil, err
 	}
 
+	integerEnum, err := parseIntegerEnum(enumValues, innerType, opts)
+	if err != nil {
+		return nil, err
+	}
+
 	predSpec, err := parsePredictorSpec(structField.Tag, innerType, false, fieldTags, opts)
 	if err != nil {
 		return nil, err
@@ -1062,6 +1100,7 @@ func parseArgSpec(structField reflect.StructField, argHandle any, classification
 		// before parsing; presence alone opts the argument out of the enum hint.
 		EnumHintHidden: hasTag(structField.Tag, "enumhint"),
 		Enum:           enumValues,
+		IntegerEnum:    integerEnum,
 		Range:          rangeSpec,
 		Len:            lenSpec,
 		Items:          itemsSpec,
@@ -1074,6 +1113,98 @@ func parseArgSpec(structField reflect.StructField, argHandle any, classification
 		TargetType:     innerType,
 		Handle:         argHandle,
 	}, nil
+}
+
+// parseIntegerEnum returns the decimal form of each enum value when
+// targetType, or a slice's element type, decodes as a built-in integer, and
+// nil otherwise. Each value parses with the integer value syntax at the
+// element's bit size, so a value no input could match fails schema build.
+func parseIntegerEnum(enumValues []string, targetType reflect.Type, opts *Options) ([]string, error) {
+	if len(enumValues) == 0 {
+		return nil, nil
+	}
+
+	elemType := targetType
+	if isSliceCollection(elemType) {
+		elemType = elemType.Elem()
+	}
+
+	if !decodesAsBuiltinInteger(elemType, opts) {
+		return nil, nil
+	}
+
+	decimals := make([]string, 0, len(enumValues))
+
+	for _, value := range enumValues {
+		decimal, err := integerEnumDecimal(value, elemType)
+		if err != nil {
+			return nil, err
+		}
+
+		decimals = append(decimals, decimal)
+	}
+
+	return decimals, nil
+}
+
+// integerEnumDecimal parses one enum value at elemType's signedness and bit
+// size and returns its decimal form.
+func integerEnumDecimal(value string, elemType reflect.Type) (string, error) {
+	var (
+		decimal string
+		err     error
+	)
+
+	switch elemType.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		var parsed int64
+
+		parsed, err = intx.ParseInt(value, elemType.Bits())
+		decimal = strconv.FormatInt(parsed, 10)
+	default:
+		var parsed uint64
+
+		parsed, err = intx.ParseUint(value, elemType.Bits())
+		decimal = strconv.FormatUint(parsed, 10)
+	}
+
+	if err == nil {
+		return decimal, nil
+	}
+
+	if errors.Is(err, strconv.ErrRange) {
+		return "", fmt.Errorf("%w: enum value %q is out of range for %s", ErrInvalidStructTag, value, elemType)
+	}
+
+	return "", fmt.Errorf("%w: enum value %q is not a valid %s%s", ErrInvalidStructTag, value, elemType, integerHintSuffix(err))
+}
+
+// decodesAsBuiltinInteger reports whether the binder decodes elemType through
+// the built-in integer parser: an integer kind other than time.Duration with
+// no UnmarshalText method and no registered parser.
+func decodesAsBuiltinInteger(elemType reflect.Type, opts *Options) bool {
+	switch elemType.Kind() {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+		reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64:
+	default:
+		return false
+	}
+
+	if elemType == reflect.TypeFor[time.Duration]() || ParsesItself(elemType) {
+		return false
+	}
+
+	return opts == nil || opts.HasTypeParser == nil || !opts.HasTypeParser(elemType)
+}
+
+// integerHintSuffix renders the leading-zero correction carried by err as a
+// parenthesized suffix, or "" when err carries none.
+func integerHintSuffix(err error) string {
+	if hint := intx.HintOf(err); hint != "" {
+		return " (" + hint + ")"
+	}
+
+	return ""
 }
 
 // extractGenericType extracts the type parameter T from Flag[T] / Arg[T].

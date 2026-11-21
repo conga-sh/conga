@@ -99,3 +99,18 @@ func rejectCollectionRegistration(targetType reflect.Type) {
 
 	panic(fmt.Sprintf("conga: RegisterType does not accept slice type %s; slices bind element by element, so register the element type instead", targetType))
 }
+
+// typeParserLookup returns the schema-build check that reports whether
+// parsers holds a parser for a value type or its pointer, the lookups the
+// binder's registry dispatch makes before the built-in parsers.
+func typeParserLookup(parsers coerce.Registry) func(reflect.Type) bool {
+	return func(targetType reflect.Type) bool {
+		if _, ok := parsers[targetType]; ok {
+			return true
+		}
+
+		_, ok := parsers[reflect.PointerTo(targetType)]
+
+		return ok
+	}
+}
