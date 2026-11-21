@@ -250,7 +250,7 @@ func (request *builtinBoolRequest) record(flagSpec *Flag, enabled bool) {
 	}
 }
 
-func (request builtinBoolRequest) requested() bool {
+func (request *builtinBoolRequest) requested() bool {
 	return request.help || request.version
 }
 

@@ -1751,16 +1751,8 @@ func (a *App[T]) prepare(ctx context.Context) (*Session, bool, error) { //nolint
 	// resolution errors (e.g. a missing env-sourced config path). --why is not
 	// exempt: it runs the regular binding pipeline, so it resolves
 	// configuration and surfaces resolution, coercion, and feature errors.
-	if handled, err := a.handleBuiltinFlags(session, request); handled || err != nil {
+	if handled, err := a.handleBuiltinRequest(session, request, parsedFlags.values); handled || err != nil {
 		return nil, handled, err
-	}
-
-	// The version command's --json value is coerced after the built-in flags
-	// render, so --help wins over a bad value here as everywhere else.
-	if leaf.IsVersionCmd {
-		if err := bindVersionCommandJSON(cmdChain, leaf, parsedFlags.values); err != nil {
-			return nil, false, err
-		}
 	}
 
 	if a.shouldPrepareNonBuiltinExecution(leaf, request) {
@@ -1834,6 +1826,23 @@ func (a *App[T]) resolveFeatureState(ctx context.Context, invocation parsedInvoc
 	}
 
 	return featureBinding, pruned, nil
+}
+
+// handleBuiltinRequest renders a built-in flag request, and otherwise binds
+// the version command's --json value when the routed leaf is the version
+// command. The value is coerced only after the built-in flags render, so
+// --help wins over a bad --json value as everywhere else.
+func (a *App[T]) handleBuiltinRequest(session *Session, request builtinRequest, flagValues map[*spec.Flag][]string) (bool, error) {
+	if handled, err := a.handleBuiltinFlags(session, request); handled || err != nil {
+		return handled, err
+	}
+
+	leaf := session.cmdChain[len(session.cmdChain)-1]
+	if !leaf.IsVersionCmd {
+		return false, nil
+	}
+
+	return false, bindVersionCommandJSON(session.cmdChain, leaf, flagValues)
 }
 
 func (a *App[T]) handleBuiltinFlags(session *Session, request builtinRequest) (bool, error) {
