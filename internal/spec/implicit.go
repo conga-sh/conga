@@ -2,6 +2,7 @@ package spec
 
 import (
 	"slices"
+	"strconv"
 
 	"github.com/conga-sh/conga/internal/tokenizer"
 )
@@ -201,41 +202,92 @@ func flagDepthInLevels(chain []*Command, levelChains [][]*Command, tokens []toke
 // the built-ins through FindFlagInChain and FindShortFlagInChain. levelChains
 // holds the implicit levels strictly below chain; it supplies the arity of
 // shorthands declared only there, so a value-taking rune ends the cluster
-// exactly as the parser does.
+// exactly as the parser does. The bool --help and --version flags honor their
+// value as the binder does: the last occurrence of each decides, and a false
+// or unparseable value (--help=false, -h=0, --help=maybe) is no request. The
+// binder reports an unparseable value as a bad bool later.
 func builtinRequestedAt(chain []*Command, levelChains [][]*Command, tokens []tokenizer.Token) bool {
+	var request builtinBoolRequest
+
 	for _, tok := range tokens {
 		switch tok.Type {
 		case tokenizer.TokenTypeTerminator:
-			return false
+			return request.requested()
 		case tokenizer.TokenTypeLongFlag:
-			if IsBuiltinFlag(FindFlagInChain(chain, tok.Name)) {
+			flagSpec := FindFlagInChain(chain, tok.Name)
+			if !IsBuiltinFlag(flagSpec) {
+				continue
+			}
+
+			if !IsBuiltinShortFlag(flagSpec) {
+				// --why and --completion take a non-bool value, so their
+				// presence alone is the request.
 				return true
 			}
+
+			request.record(flagSpec, !tok.HasAttachedValue || builtinBoolValue(tok.Value))
 		case tokenizer.TokenTypeShortFlag:
-			if shortClusterRequestsBuiltin(chain, levelChains, tok) {
-				return true
-			}
+			recordShortClusterBuiltins(chain, levelChains, tok, &request)
 		case tokenizer.TokenTypePositional, tokenizer.TokenTypeUnknown:
 			continue
 		}
 	}
 
-	return false
+	return request.requested()
 }
 
-// shortClusterRequestsBuiltin reports whether a shorthand cluster binds the
-// built-in help or version flag. WalkShorthand stops at a rune that takes a
-// value (it consumes the rest of the cluster) and at an unresolved rune, so
-// neither can reveal a later built-in rune. levelChains holds the implicit
-// levels strictly below chain.
-func shortClusterRequestsBuiltin(chain []*Command, levelChains [][]*Command, tok tokenizer.Token) bool {
+// builtinBoolRequest tracks the last value seen for each bool built-in flag.
+type builtinBoolRequest struct {
+	help    bool
+	version bool
+}
+
+func (request *builtinBoolRequest) record(flagSpec *Flag, enabled bool) {
+	if flagSpec == BuiltinHelpFlag {
+		request.help = enabled
+	} else {
+		request.version = enabled
+	}
+}
+
+func (request builtinBoolRequest) requested() bool {
+	return request.help || request.version
+}
+
+// builtinBoolValue reports whether an attached value switches a bool built-in
+// on. It accepts the spellings of the flag bool parser (strconv.ParseBool), and
+// an unparseable value counts as off.
+func builtinBoolValue(value string) bool {
+	enabled, err := strconv.ParseBool(value)
+
+	return err == nil && enabled
+}
+
+// recordShortClusterBuiltins records each built-in help or version rune a
+// shorthand cluster binds. As in the parser, an attached value belongs to the
+// cluster's last rune, and every earlier bool rune is true. WalkShorthand stops
+// at a rune that takes a value (it consumes the rest of the cluster) and at an
+// unresolved rune, so neither can reveal a later built-in rune. levelChains
+// holds the implicit levels strictly below chain.
+func recordShortClusterBuiltins(chain []*Command, levelChains [][]*Command, tok tokenizer.Token, request *builtinBoolRequest) {
 	walk := WalkShorthand(tok.ShortRunes, tok.HasAttachedValue, func(r rune) (*Flag, int) {
 		return resolveShortFlagInChain(chain, levelChains, r)
 	})
 
-	return slices.ContainsFunc(walk.Steps, func(step ShorthandStep) bool {
-		return IsBuiltinShortFlag(step.Flag)
-	})
+	last := len(tok.ShortRunes) - 1
+
+	for position, step := range walk.Steps {
+		if !IsBuiltinShortFlag(step.Flag) {
+			continue
+		}
+
+		enabled := true
+		if position == last && tok.HasAttachedValue {
+			enabled = builtinBoolValue(tok.Value)
+		}
+
+		request.record(step.Flag, enabled)
+	}
 }
 
 // hasFlagTokenBeforeTerminator reports whether a flag token before the --

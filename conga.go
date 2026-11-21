@@ -1755,6 +1755,14 @@ func (a *App[T]) prepare(ctx context.Context) (*Session, bool, error) { //nolint
 		return nil, handled, err
 	}
 
+	// The version command's --json value is coerced after the built-in flags
+	// render, so --help wins over a bad value here as everywhere else.
+	if leaf.IsVersionCmd {
+		if err := bindVersionCommandJSON(cmdChain, leaf, parsedFlags.values); err != nil {
+			return nil, false, err
+		}
+	}
+
 	if a.shouldPrepareNonBuiltinExecution(leaf, request) {
 		if err := a.prepareNonBuiltinExecution(ctx, session, invocation, featureBinding, prunedFlags, request.hasWhy); err != nil {
 			return nil, false, err

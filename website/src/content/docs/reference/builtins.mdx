@@ -93,6 +93,24 @@ A flag in an `xor` or `and` group names the group's other visible members, as `[
 
 Completion help screens add two sections. A per-shell screen such as `--completion bash --help` shows that shell's setup steps between the description and `Usage:`. The generic completion screen lists the supported shells after the arguments.
 
+### Help on a command line with mistakes
+
+`--help` anywhere before the `--` terminator prints the help screen of the deepest command selected so far and exits 0. It does so even when the same command line has an unknown flag, a flag missing its value, a value that fails to parse, a missing required argument or flag, or an unknown subcommand name. On the root command, `--version` prints the version line the same way. When both appear, help prints. `--why` and `--completion` stop at the first error. Both flags take a bool value like any bool flag. A false value (`--help=false`, `--version=0`) makes no request, and an invalid value is a usage error.
+
+| Command line | Result |
+|---|---|
+| `deploy rollout --regoin eu-west-1 --help` | The `rollout` help screen, exit 0. |
+| `deploy rollout --region --help` | The `rollout` help screen, exit 0. `--help` is flag-shaped, so `--region` gets no value. |
+| `deploy --target prod --help` | The root help screen, exit 0. The unknown `--target` takes no value, so `prod` is read as a subcommand name and matches none. |
+| `deploy --bogus --version` | The version line, exit 0. |
+| `deploy --why --bogus` | `unknown flag: --bogus`, exit 2. |
+| `deploy rollout --region=--help v1.4` | Runs `rollout` with the region `--help`. |
+| `deploy rollout -- --help` | Runs `rollout` with `--help` as its release argument. |
+| `deploy rollout --help=false v1.4` | Runs `rollout`. |
+| `deploy rollout --help=maybe v1.4` | `invalid boolean value "maybe", expected true or false (or 1 or 0) for flag --help`, exit 2. |
+
+A `--help` that a `RawArgs` field collects is passed through with the other raw arguments ([Pass everything through with `RawArgs`](/how-to/accept-positional-arguments/#pass-everything-through-with-rawargs)). After `app.DisableHelpFlag()` or `app.DisableVersionFlag()`, a flag you declare with the `help` or `version` name is an ordinary flag, so an unknown flag next to it is still an error.
+
 ### Usage line
 
 The usage line names the required flags and `oneof` groups first, then `[flags]` for the optional ones, then the positional arguments and any `DashArgs` or `RawArgs` collector. Each argument shows whether it is optional and whether it repeats. Here `rollout` was given a required `--image` flag and an optional list of hosts:

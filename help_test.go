@@ -1048,3 +1048,410 @@ func TestHelpFlag_RawArgsUsageLineHasNoCommand(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Contains(t, buffer.String(), "Usage:\n  mirror <target> [args...]\n")
 }
+
+// helpPrecedenceCLI is a branch root with a leaf, a nested branch, and a
+// RawArgs leaf, so the precedence tests reach --help at every command shape.
+type helpPrecedenceCLI struct {
+	Name    conga.OptionalFlag[string]              `help:"Service name"`
+	Deploy  conga.Command[helpPrecedenceDeployCmd]  `summary:"Deploy a service"`
+	Cluster conga.Command[helpPrecedenceClusterCmd] `summary:"Cluster commands"`
+	Mirror  conga.Command[helpPrecedenceMirrorCmd]  `summary:"Mirror a directory"`
+}
+
+type helpPrecedenceDeployCmd struct {
+	noopRunner
+
+	Target   conga.RequiredArg[string] `help:"Deployment target"`
+	Replicas conga.OptionalFlag[int]   `help:"Number of replicas" short:"r"`
+}
+
+type helpPrecedenceClusterCmd struct {
+	Node conga.Command[helpPrecedenceNodeCmd] `summary:"Node commands"`
+}
+
+type helpPrecedenceNodeCmd struct {
+	noopRunner
+}
+
+type helpPrecedenceMirrorCmd struct {
+	noopRunner
+
+	Target conga.RequiredArg[string] `help:"Destination directory"`
+	Rest   conga.RawArgs
+}
+
+// TestHelpFlag_PrecedenceOverParseErrors pins that a built-in --help anywhere
+// before -- renders the help screen of the deepest routed command even when
+// another token is an unknown flag or a flag missing its value.
+func TestHelpFlag_PrecedenceOverParseErrors(t *testing.T) {
+	t.Parallel()
+
+	rootHelp := "Precedence test app\n\nUsage:\n  app <command> [flags]\n"
+	deployHelp := "Deploy a service\n\nUsage:\n  app deploy [flags] <target>\n"
+	clusterHelp := "Cluster commands\n\nUsage:\n  app cluster <command> [flags]\n"
+
+	tests := []struct {
+		name     string
+		args     []string
+		expected string
+	}{
+		{name: "unknown long flag after help", args: []string{"--help", "--bogus"}, expected: rootHelp},
+		{name: "unknown long flag before help", args: []string{"--bogus", "--help"}, expected: rootHelp},
+		{name: "unknown short flag after help", args: []string{"deploy", "--help", "-x"}, expected: deployHelp},
+		{name: "missing short flag value after help", args: []string{"deploy", "--help", "-r"}, expected: deployHelp},
+		{name: "help in place of a flag value", args: []string{"deploy", "-r", "--help"}, expected: deployHelp},
+		{name: "missing long flag value at end", args: []string{"--help", "--name"}, expected: rootHelp},
+		{name: "unknown flag before help at leaf", args: []string{"deploy", "--bogus", "--help"}, expected: deployHelp},
+		{name: "unknown flag before help at branch", args: []string{"cluster", "--bogus", "--help"}, expected: clusterHelp},
+		{name: "unknown flag before the command", args: []string{"--bogus", "deploy", "--help"}, expected: deployHelp},
+		{name: "bad value before help", args: []string{"deploy", "-r", "notanint", "--help"}, expected: deployHelp},
+		{name: "unknown command before the command", args: []string{"typo", "deploy", "--help"}, expected: deployHelp},
+		{name: "help with a true value", args: []string{"--help=true"}, expected: rootHelp},
+		{name: "unknown flag before an operand", args: []string{"--bogus", "prod", "--help"}, expected: rootHelp},
+		{name: "unknown flag before an unknown command", args: []string{"--bogus", "prod", "deploy", "--help"}, expected: deployHelp},
+		{name: "unknown flag before a command name", args: []string{"--bogus", "cluster", "deploy", "--help"}, expected: clusterHelp},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			var buffer bytes.Buffer
+
+			app := conga.New[helpPrecedenceCLI]().
+				Name("app").
+				Description("Precedence test app").
+				Args(test.args).
+				Stdout(&buffer)
+
+			err := app.Run()
+
+			assert.NoError(t, err)
+			assert.Equal(t, test.expected, buffer.String()[:len(test.expected)])
+		})
+	}
+}
+
+// TestHelpFlag_PrecedenceLeavesValuesAndOperands pins the tokens that never
+// count as a help request: an operand after --, an attached flag value, and a
+// token after the RawArgs boundary.
+func TestHelpFlag_PrecedenceLeavesValuesAndOperands(t *testing.T) {
+	t.Parallel()
+
+	t.Run("operand after the terminator", func(t *testing.T) {
+		t.Parallel()
+
+		var buffer bytes.Buffer
+
+		cli := new(helpPrecedenceCLI)
+		app := conga.New(cli).
+			Name("app").
+			Args([]string{"deploy", "--", "--help"}).
+			Stdout(&buffer)
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, "--help", cli.Deploy.Get().Target.Get())
+		assert.Equal(t, "", buffer.String())
+	})
+
+	t.Run("attached flag value", func(t *testing.T) {
+		t.Parallel()
+
+		var buffer bytes.Buffer
+
+		cli := new(helpPrecedenceCLI)
+		app := conga.New(cli).
+			Name("app").
+			Args([]string{"--name=--help", "deploy", "prod"}).
+			Stdout(&buffer)
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, "--help", cli.Name.Get())
+		assert.Equal(t, "", buffer.String())
+	})
+
+	t.Run("token after the raw-args boundary", func(t *testing.T) {
+		t.Parallel()
+
+		var buffer bytes.Buffer
+
+		cli := new(helpPrecedenceCLI)
+		app := conga.New(cli).
+			Name("app").
+			Args([]string{"mirror", "dst", "--bogus", "--help"}).
+			Stdout(&buffer)
+
+		err := app.Run()
+
+		assert.NoError(t, err)
+		assert.Equal(t, []string{"--bogus", "--help"}, cli.Mirror.Get().Rest.Get())
+		assert.Equal(t, "", buffer.String())
+	})
+}
+
+// TestHelpFlag_UserHelpFlagGetsNoPrecedence pins that a user flag reusing the
+// freed help name is an ordinary flag, so an unknown flag still fails.
+func TestHelpFlag_UserHelpFlagGetsNoPrecedence(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[UserHelpFlagCLI]().
+		DisableHelpFlag().
+		Args([]string{"--bogus", "--help", "topic"})
+
+	err := app.Run()
+
+	assert.IsError(t, err, conga.ErrParse)
+	assert.Equal(t, "unknown flag: --bogus", err.Error())
+}
+
+// whyCompletionPrecedenceCLI is a flat root, so it carries both the built-in
+// --why and --completion flags.
+type whyCompletionPrecedenceCLI struct {
+	noopRunner
+
+	Name conga.OptionalFlag[string] `help:"Service name"`
+}
+
+// TestWhyAndCompletionFlags_NoPrecedenceOverParseErrors pins that only help
+// and version outrank a parse error: --why and --completion still fail.
+func TestWhyAndCompletionFlags_NoPrecedenceOverParseErrors(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{name: "why", args: []string{"--why", "--bogus"}},
+		{name: "completion", args: []string{"--completion", "bash", "--bogus"}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			var buffer bytes.Buffer
+
+			app := conga.New[whyCompletionPrecedenceCLI]().
+				Name("app").
+				EnableWhy().
+				EnableCompletion().
+				Args(test.args).
+				Stdout(&buffer)
+
+			err := app.Run()
+
+			assert.IsError(t, err, conga.ErrParse)
+			assert.Equal(t, "unknown flag: --bogus", err.Error())
+			assert.Equal(t, "", buffer.String())
+		})
+	}
+}
+
+// TestHelpFlag_ShortPrecedenceOverParseErrors pins that the configured -h
+// rune outranks a parse error like --help does. A cluster binds its runes in
+// order, so -hx requests help before the unknown x, while in -xh the unknown x
+// may take the rest of the cluster as its value and h is never read.
+func TestHelpFlag_ShortPrecedenceOverParseErrors(t *testing.T) {
+	t.Parallel()
+
+	rootHelp := "Precedence test app\n\nUsage:\n  app <command> [flags]\n"
+	deployHelp := "Deploy a service\n\nUsage:\n  app deploy [flags] <target>\n"
+
+	tests := []struct {
+		name     string
+		args     []string
+		expected string
+	}{
+		{name: "unknown long flag", args: []string{"-h", "--bogus"}, expected: rootHelp},
+		{name: "missing flag value", args: []string{"deploy", "-h", "-r"}, expected: deployHelp},
+		{name: "unknown rune after h in a cluster", args: []string{"-hx"}, expected: rootHelp},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			var buffer bytes.Buffer
+
+			app := conga.New[helpPrecedenceCLI]().
+				Name("app").
+				Description("Precedence test app").
+				HelpShortFlag('h').
+				Args(test.args).
+				Stdout(&buffer)
+
+			err := app.Run()
+
+			assert.NoError(t, err)
+			assert.Equal(t, test.expected, buffer.String()[:len(test.expected)])
+		})
+	}
+}
+
+func TestHelpFlag_ShortAfterUnknownRuneFails(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	app := conga.New[helpPrecedenceCLI]().
+		Name("app").
+		HelpShortFlag('h').
+		Args([]string{"-xh"}).
+		Stdout(&buffer)
+
+	err := app.Run()
+
+	assert.IsError(t, err, conga.ErrParse)
+	assert.Equal(t, "unknown shorthand flag: 'x' in -xh", err.Error())
+	assert.Equal(t, "", buffer.String())
+}
+
+// TestHelpFlag_FalseValueIsNoRequest pins that the built-in help flag honors
+// its bool value: a false value runs the command as if help were absent.
+func TestHelpFlag_FalseValueIsNoRequest(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{name: "long flag false", args: []string{"--help=false", "deploy", "prod"}},
+		{name: "long flag zero", args: []string{"deploy", "--help=0", "prod"}},
+		{name: "long flag f", args: []string{"deploy", "prod", "--help=f"}},
+		{name: "short flag false", args: []string{"deploy", "-h=false", "prod"}},
+		{name: "last value wins", args: []string{"deploy", "--help", "--help=false", "prod"}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			var buffer bytes.Buffer
+
+			cli := new(helpPrecedenceCLI)
+			app := conga.New(cli).
+				Name("app").
+				HelpShortFlag('h').
+				Args(test.args).
+				Stdout(&buffer)
+
+			err := app.Run()
+
+			assert.NoError(t, err)
+			assert.Equal(t, "prod", cli.Deploy.Get().Target.Get())
+			assert.Equal(t, "", buffer.String())
+		})
+	}
+}
+
+// A false --help gives no precedence, so the unknown flag beside it fails.
+func TestHelpFlag_FalseValueGetsNoPrecedence(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	app := conga.New[helpPrecedenceCLI]().
+		Name("app").
+		Args([]string{"--bogus", "--help=false"}).
+		Stdout(&buffer)
+
+	err := app.Run()
+
+	assert.IsError(t, err, conga.ErrParse)
+	assert.Equal(t, "unknown flag: --bogus", err.Error())
+	assert.Equal(t, "", buffer.String())
+}
+
+// TestHelpFlag_InvalidValueFails pins that an invalid --help value fails with
+// the bool coercion error every bool flag reports.
+func TestHelpFlag_InvalidValueFails(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{name: "long flag", args: []string{"--help=maybe"}},
+		{name: "short flag", args: []string{"deploy", "-h=maybe"}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			var buffer bytes.Buffer
+
+			app := conga.New[helpPrecedenceCLI]().
+				Name("app").
+				HelpShortFlag('h').
+				Args(test.args).
+				Stdout(&buffer)
+
+			err := app.Run()
+
+			assert.IsError(t, err, conga.ErrCoerce)
+			assert.True(t, conga.IsUsageError(err))
+			assert.Equal(t, `invalid boolean value "maybe", expected true or false (or 1 or 0) for flag --help`, err.Error())
+			assert.Equal(t, "", buffer.String())
+		})
+	}
+}
+
+// TestHelpFlag_FalseValueKeepsUnknownCommandError pins that routing honors a
+// false --help like the parser does, so an unknown subcommand name reports
+// the unknown-command error.
+func TestHelpFlag_FalseValueKeepsUnknownCommandError(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{name: "long flag false", args: []string{"nosuch", "--help=false"}},
+		{name: "help switched off by a later value", args: []string{"nosuch", "--help", "--help=false"}},
+		{name: "short flag false", args: []string{"nosuch", "-h=false"}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			var buffer bytes.Buffer
+
+			app := conga.New[helpPrecedenceCLI]().
+				Name("app").
+				HelpShortFlag('h').
+				Args(test.args).
+				Stdout(&buffer)
+
+			err := app.Run()
+
+			assert.IsError(t, err, conga.ErrParse)
+			assert.Equal(t, "unknown command: nosuch", err.Error())
+			assert.Equal(t, "", buffer.String())
+		})
+	}
+}
+
+// A later true value switches help back on, so the unknown command defers to it.
+func TestHelpFlag_LaterTrueValueRequestsHelp(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	app := conga.New[helpPrecedenceCLI]().
+		Name("app").
+		Description("Precedence test app").
+		HelpShortFlag('h').
+		Args([]string{"nosuch", "-h=false", "-h"}).
+		Stdout(&buffer)
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, "Precedence test app\n\nUsage:\n  app <command> [flags]\n", buffer.String()[:len("Precedence test app\n\nUsage:\n  app <command> [flags]\n")])
+}

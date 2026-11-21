@@ -1656,3 +1656,41 @@ func TestImplicitCommand_ExplicitSiblingRoutingIgnoresImplicitFlagArity(t *testi
 	assert.True(t, errors.As(err, &usage))
 	assert.Equal(t, "tool admin purge", usage.CommandPath())
 }
+
+// TestImplicit_FalseHelpRoutesAsIfAbsent pins that a false --help is no
+// built-in request during terminal routing: operands after -- enter the
+// implicit child exactly as they do without the flag.
+func TestImplicit_FalseHelpRoutesAsIfAbsent(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{name: "without help", args: []string{"--", "./script.ts"}},
+		{name: "false help", args: []string{"--help=false", "--", "./script.ts"}},
+		{name: "help switched off by a later value", args: []string{"--help", "--help=false", "--", "./script.ts"}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			var buffer bytes.Buffer
+
+			cli := new(implicitRunnableRootCLI)
+			app := conga.New(cli).
+				Name("tool").
+				Args(test.args).
+				Stdout(&buffer)
+
+			err := app.Run()
+
+			assert.NoError(t, err)
+			assert.False(t, cli.executed)
+			assert.True(t, cli.Exec.Get().executed)
+			assert.Equal(t, "./script.ts", cli.Exec.Get().File.Get())
+			assert.Equal(t, "", buffer.String())
+		})
+	}
+}
