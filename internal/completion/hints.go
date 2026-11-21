@@ -94,34 +94,12 @@ func DetectHomebrew() bool {
 // InferBashNeedsUpgrade inspects the executable path of a detected bash shell
 // to infer whether it predates the features the generated bash script requires
 // (bash 4.4+). The bundled macOS bash lives at /bin/bash and is still 3.2.57;
-// a Homebrew-installed bash is modern. known is false when the version cannot
-// be determined from the path alone, so callers warn only on positive evidence.
+// a Homebrew-installed bash is modern. A login shell reports the argv[0] form
+// "-bash", which names no path, so the login shell recorded in $SHELL decides
+// then. known is false when the version cannot be determined, so callers warn
+// only on positive evidence.
 func InferBashNeedsUpgrade(execPath string) (bool, bool) {
-	if execPath == "" {
-		return false, false
-	}
-
-	base := strings.TrimPrefix(filepath.Base(execPath), "-")
-	if base != "bash" {
-		return false, true
-	}
-
-	switch filepath.Clean(execPath) {
-	case "/bin/bash", "/usr/bin/bash":
-		return true, true
-	}
-
-	// A login shell's argv[0] carries a leading dash ("-bash"); on macOS this
-	// is always the bundled shell, since the terminal launches /bin/bash.
-	if strings.HasPrefix(execPath, "-") {
-		return true, true
-	}
-
-	if isHomebrewPath(execPath) {
-		return false, true
-	}
-
-	return false, false
+	return inferBashNeedsUpgrade(execPath, os.Getenv)
 }
 
 // ShouldWarnBash reports whether the enable hints should call out an outdated
@@ -364,6 +342,41 @@ func shellFromExecPath(execPath string) Shell {
 	}
 
 	return ""
+}
+
+// inferBashNeedsUpgrade implements InferBashNeedsUpgrade with getenv
+// resolving $SHELL for a login shell's "-bash" argv[0].
+func inferBashNeedsUpgrade(execPath string, getenv func(string) string) (bool, bool) {
+	if execPath == "" {
+		return false, false
+	}
+
+	base := strings.TrimPrefix(filepath.Base(execPath), "-")
+	if base != "bash" {
+		return false, true
+	}
+
+	// A login shell's argv[0] is "-bash", without a path. $SHELL holds the
+	// path of the login shell, which a terminal starts as the login shell.
+	if strings.HasPrefix(execPath, "-") {
+		loginShell := getenv("SHELL")
+		if filepath.Base(loginShell) != "bash" {
+			return false, false
+		}
+
+		execPath = loginShell
+	}
+
+	switch filepath.Clean(execPath) {
+	case "/bin/bash", "/usr/bin/bash":
+		return true, true
+	}
+
+	if isHomebrewPath(execPath) {
+		return false, true
+	}
+
+	return false, false
 }
 
 func isHomebrewPath(path string) bool {

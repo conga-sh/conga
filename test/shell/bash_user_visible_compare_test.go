@@ -310,26 +310,57 @@ func TestBashUserVisible_Suite7_SuccessiveTabsAndDescriptions(t *testing.T) {
 	})
 }
 
-// TestBashUserVisible_Suite8_RedirectTarget tests the bash redirect-rejection
-// contract (docs/completion-wire-protocol.md §4.1): completing at a
-// redirection target yields zero candidates and leaves the command line
-// buffer and the terminal untouched. Redirect rejection is a bash driver
-// mechanism (the COMP_LINE re-lex in the Patch hook); the other shells manage
-// their own insertion and are intentionally not mirrored here.
+// TestBashUserVisible_Suite8_RedirectTarget tests the bash redirect-target
+// contract (docs/completion-wire-protocol.md §7.2 and §8): at a redirection
+// target the driver emits the default directive, the snippet runs compopt
+// -o default +o noquote, and readline completes filenames from the working
+// directory with no subcommand candidates and no terminal leakage. The
+// harness mocks compopt and simulates readline's default completion, so
+// the file candidates and buffers here follow from the recorded compopt call.
 func TestBashUserVisible_Suite8_RedirectTarget(t *testing.T) {
 	t.Parallel()
 
 	workspace := setupShellCompletion(t)
+	workspace.WriteFile(t, "output.log", []byte("log"))
+	workspace.WriteFile(t, "notes.txt", []byte("notes"))
+	workspace.Mkdir(t, "reports")
 
-	t.Run("redirect_target_yields_zero_candidates", func(t *testing.T) {
+	t.Run("redirect_target_offers_files_without_subcommands", func(t *testing.T) {
 		t.Parallel()
 
 		result := workspace.RunBashCompletion(t, "shell-completion", "shell-completion > ")
 
-		assert.Zero(t, result.Items, "subcommand candidates must not leak at a redirect target")
-		assert.False(t, result.HasItem("deploy"))
-		assert.False(t, result.HasItem("logs"))
-		assert.Equal(t, "shell-completion > ", result.BufferTab1, "Tab on a redirect target must not mutate the command line buffer")
+		items := slices.Sorted(slices.Values(result.Items))
+		assert.Equal(t, []string{"notes.txt", "output.log", "reports/"}, items)
+		assert.False(t, result.HasItem("deploy"), "subcommand candidates must not leak at a redirect target")
+		assert.False(t, result.HasItem("logs"), "subcommand candidates must not leak at a redirect target")
+		assert.Equal(t, []string{"-o default +o noquote"}, result.Compopts)
+		assert.Equal(t, "shell-completion > ", result.BufferTab1, "several files share no prefix, so Tab 1 keeps the buffer")
 		assert.Equal(t, "", result.StdoutLeak, "completion function must not emit raw stdout/newlines in bash")
 	})
+
+	for name, testCase := range map[string]struct {
+		line     string
+		expected string
+	}{
+		"truncate":           {"shell-completion > out", "shell-completion > output.log"},
+		"append":             {"shell-completion deploy >> out", "shell-completion deploy >> output.log"},
+		"stderr":             {"shell-completion deploy 2> out", "shell-completion deploy 2> output.log"},
+		"stdin":              {"shell-completion deploy < out", "shell-completion deploy < output.log"},
+		"stdout_and_stderr":  {"shell-completion deploy &> out", "shell-completion deploy &> output.log"},
+		"attached_target":    {"shell-completion >out", "shell-completion >output.log"},
+		"attached_fd_target": {"shell-completion deploy 2>out", "shell-completion deploy 2>output.log"},
+		"directory_target":   {"shell-completion > rep", "shell-completion > reports/"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			result := workspace.RunBashCompletion(t, "shell-completion", testCase.line)
+
+			assert.Equal(t, testCase.expected, result.BufferTab1)
+			assert.Equal(t, []string{"-o default +o noquote"}, result.Compopts)
+			assert.False(t, result.HasItem("deploy"), "subcommand candidates must not leak at a redirect target")
+			assert.Equal(t, "", result.StdoutLeak, "completion function must not emit raw stdout/newlines in bash")
+		})
+	}
 }

@@ -484,7 +484,7 @@ func TestApp_CompleteCompLine(t *testing.T) {
 	assert.Equal(t, "--cache", formatted) // fish framing omits the trailing tab
 }
 
-func TestApp_CompleteCompLine_BashRedirectRejection(t *testing.T) {
+func TestApp_CompleteCompLine_BashRedirectTarget(t *testing.T) {
 	t.Parallel()
 
 	app := conga.New[SimpleAppCLI]().
@@ -494,7 +494,7 @@ func TestApp_CompleteCompLine_BashRedirectRejection(t *testing.T) {
 	invoked, formatted := app.CompleteCompLineForShell("bash", line, len(line))
 
 	assert.Equal(t, 0, len(invoked.Items))
-	assert.Equal(t, "D\t", formatted)
+	assert.Equal(t, "D\tdefault", formatted)
 }
 
 func TestApp_HiddenCompleteCommand(t *testing.T) {
@@ -532,10 +532,11 @@ func TestApp_HiddenCompleteCommand_EnvCompLine(t *testing.T) {
 }
 
 // TestApp_HiddenCompleteCommand_EnvCompLineRedirectTarget verifies the
-// redirect-rejection contract of the __complete dispatch
-// (docs/completion-wire-protocol.md §4.1): with the cursor at a redirection
-// target the bash framing carries the D line only — no C candidate lines may
-// leak from the raw-argument fallback.
+// redirect-target contract of the __complete dispatch
+// (docs/completion-wire-protocol.md §8): with the cursor at a redirection
+// target the bash framing carries the default directive line only, so the
+// snippet falls back to filename completion, and no C candidate lines leak
+// from the raw-argument fallback.
 func TestApp_HiddenCompleteCommand_EnvCompLineRedirectTarget(t *testing.T) {
 	t.Setenv("COMP_LINE", "testapp echo test > ")
 	t.Setenv("COMP_POINT", strconv.Itoa(len("testapp echo test > ")))
@@ -557,7 +558,7 @@ func TestApp_HiddenCompleteCommand_EnvCompLineRedirectTarget(t *testing.T) {
 	err := app.Run()
 
 	assert.NoError(t, err)
-	assert.Equal(t, "D\t", buffer.String())
+	assert.Equal(t, "D\tdefault", buffer.String())
 }
 
 func TestApp_Predictor_EmptyNamePanic(t *testing.T) {

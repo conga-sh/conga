@@ -43,8 +43,8 @@ var (
 	ErrUnknownShell = errors.New("unknown shell")
 
 	// ErrRedirectTarget reports that the completion cursor sits at a shell
-	// redirection target ("cloudctl deploy > <cursor>"), where completion
-	// yields no candidates. The bash Patch hook raises it; the dispatch
+	// redirection target ("cloudctl deploy > <cursor>"), where the shell
+	// completes filenames. The bash Patch hook raises it, and the dispatch
 	// path honors it with the zero-candidate framing instead of the
 	// raw-argument fallback.
 	ErrRedirectTarget = errors.New("bash completion: current position is a redirect target")

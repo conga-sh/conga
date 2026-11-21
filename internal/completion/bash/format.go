@@ -28,8 +28,14 @@ const (
 // tab-delimited display/value/description triplets that the snippet renders
 // as "display (description)". Multiple candidates sharing a non-flag common
 // value prefix collapse to that prefix with the nospace directive so the
-// first tab inserts the shared stem.
+// first tab inserts the shared stem. At a redirect target found by Patch the
+// framing is the directive line "D\tdefault" alone, and the snippet hands
+// the word to bash's filename completion.
 func (s *Session) Format(toComplete string, directives wire.Directives, candidates []wire.Candidate) string {
+	if s.redirectTarget {
+		return "D\tdefault"
+	}
+
 	candidates = sanitizedCandidates(candidates)
 	wordbreakPrefix := s.resolveWordbreakPrefix(toComplete)
 	successive := s.isSuccessiveTabs(len(candidates))

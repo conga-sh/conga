@@ -172,6 +172,42 @@ func TestPatch_RedirectPositionResetsSessionState(t *testing.T) {
 	assert.Equal(t, "", session.wordbreakPrefix, "session.wordbreakPrefix must be empty after redirect error")
 }
 
+func TestPatch_RedirectPositionMarksRedirectTarget(t *testing.T) {
+	t.Parallel()
+
+	line := "cloudctl deploy > "
+	session := sessionWithEnvironment(map[string]string{
+		"COMP_LINE":  line,
+		"COMP_POINT": strconv.Itoa(len(line)),
+	})
+
+	_, err := session.Patch([]string{"deploy", ">", ""})
+
+	assert.IsError(t, err, sentinel.ErrRedirectTarget)
+	assert.True(t, session.redirectTarget)
+}
+
+func TestPatch_WordPositionClearsRedirectTarget(t *testing.T) {
+	t.Parallel()
+
+	environment := map[string]string{
+		"COMP_LINE":  "cloudctl deploy > ",
+		"COMP_POINT": strconv.Itoa(len("cloudctl deploy > ")),
+	}
+	session := sessionWithEnvironment(environment)
+	_, err := session.Patch([]string{"deploy", ">", ""})
+	assert.IsError(t, err, sentinel.ErrRedirectTarget)
+
+	environment["COMP_LINE"] = "cloudctl deploy > out.log "
+	environment["COMP_POINT"] = strconv.Itoa(len("cloudctl deploy > out.log "))
+
+	patched, err := session.Patch([]string{"deploy", ">", "out.log", ""})
+
+	assert.NoError(t, err)
+	assert.Equal(t, []string{"deploy", ""}, patched)
+	assert.False(t, session.redirectTarget)
+}
+
 func TestPatch_SequentialInvocationsDoNotBleedState(t *testing.T) {
 	t.Parallel()
 
