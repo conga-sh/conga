@@ -9,8 +9,8 @@ Types in the root `conga` package and the topical `network` and `system` package
 
 | Type | Coercion / validation | Completes as |
 |------|----------------------|--------------|
-| `conga.File` | Expands `~` and environment variables; capability tags constrain the path | File paths (or per capability tags) |
-| `conga.Dir` | Expands `~` and environment variables; `existing` requires a directory | Directories |
+| `conga.File` | Expands `~` and environment variables; rejects an empty path; capability tags constrain the path | File paths (or per capability tags) |
+| `conga.Dir` | Expands `~` and environment variables; rejects an empty path; `existing` requires a directory | Directories |
 
 `File` accepts the capability tags `existing`, `stdin`, `stdout`, `executable`, `symlink`, and `glob`. The [struct tag reference](/reference/struct-tags/#domain-type-tags) defines each tag, its mutual exclusions, and the schema-build rules.
 
@@ -23,13 +23,13 @@ type Convert struct {
 }
 ```
 
-All filesystem capability checks run during the validation phase on the final resolved value, after the configuration cascade. A failed check is `ErrValidation` for a command-line value and `ErrConfig` for a value from the environment, a config file, or a `default` tag. `File` with `executable:"true"` also resolves a bare name on `$PATH` while converting the text, and turns any other path, including `./tool`, into an absolute path against the working directory. The `$PATH` lookup is conversion-time, so a miss is `ErrCoerce` for a command-line value and `ErrConfig` for a value from another source. [Errors and exit codes](/reference/errors/#which-category-a-value-failure-gets) states the rule.
+All filesystem capability checks run during the validation phase on the final resolved value, after the configuration cascade. A failed check is `ErrValidation` for a command-line value and `ErrConfig` for a value from the environment, a config file, or a `default` tag. `File` with `executable:"true"` also resolves a bare name on `$PATH` while converting the text, and turns any other path, including `./tool`, into an absolute path against the working directory. The `$PATH` lookup is conversion-time, so a miss is `ErrCoerce` for a command-line value and `ErrConfig` for a value from another source. `File`, `Dir`, and `FileContent` reject a path that is empty or expands to blank text (`--out-dir=`, `--out-dir '$UNSET'`) while converting it, before any capability tag applies, with `empty path for flag --out-dir`. That is `ErrCoerce` for a command-line value and `ErrConfig` for a value from another source. The `-` stdio form is unaffected. [Errors and exit codes](/reference/errors/#which-category-a-value-failure-gets) states the rule.
 
 ## Content and I/O types
 
 | Type | Behavior |
 |------|-----------|
-| `conga.FileContent` | Reads the file into memory during parsing; accepts `-` for stdin; 16 MiB limit; a scalar flag can be given only once on the command line, and the type is rejected on `bootstrap` fields |
+| `conga.FileContent` | Reads the file into memory during parsing; accepts `-` for stdin; rejects an empty path; 16 MiB limit; a scalar flag can be given only once on the command line, and the type is rejected on `bootstrap` fields |
 | `conga.ByteSize` | Parses `"10MiB"`, `"1.5GB"`, `"500KiB"`, and exact bytes; `Bytes()` returns `int64`; strict case-sensitive units. See [Byte size parsing](#byte-size-parsing) and [Byte size rendering](#byte-size-rendering) |
 
 ```go

@@ -85,6 +85,9 @@ var (
 
 	errPathWrongKind = fmt.Errorf("%w: wrong path kind", ErrValidation)
 
+	// errEmptyPath reports an empty File, Dir, or FileContent path.
+	errEmptyPath error = emptyPathError{}
+
 	// errStdioCapabilityRequired reports a "-" value on a File field that
 	// declared neither the stdin nor the stdout capability tag.
 	errStdioCapabilityRequired = errors.New(`"-" requires the stdin or stdout tag on the field`)

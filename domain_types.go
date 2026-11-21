@@ -233,46 +233,35 @@ func (f *File) UnmarshalText(text []byte) error {
 // standard streams ([App.Stdin] / [App.Stdout]).
 //
 // Expands environment variables and tilde prefixes and captures declared capability tags
-// for [File.Validate]. When the executable tag is declared, the path is always absolute:
+// for [File.Validate]. An empty path, or one that expands to blank text, fails before any
+// tag applies. When the executable tag is declared, the path is always absolute:
 // a bare name (no path separator, judged before the path is cleaned, so "./tool" is not
 // bare) is looked up on $PATH, and any other path resolves against the working directory.
 func (f *File) UnmarshalTextWithContext(text []byte, decodeContext DecodeContext) error {
-	f.path = pathx.Expand(string(text))
-	f.applyTags(decodeContext.Tags)
-	f.stdinSource = decodeContext.Stdin
-	f.stdoutSink = decodeContext.Stdout
+	executable := decodeContext.Tags.Bool("executable")
 
-	if !f.executable {
-		return nil
+	source := string(text)
+	if executable {
+		source = strings.TrimSpace(source)
 	}
 
-	raw := strings.TrimSpace(string(text))
-	if raw == "" {
-		f.path = ""
-
-		return nil
-	}
-
-	expanded := pathx.ExpandUncleaned(raw)
-
-	if !strings.ContainsAny(expanded, "/\\") && !filepath.IsAbs(expanded) {
-		foundPath, err := exec.LookPath(expanded)
-		if err != nil {
-			return err
-		}
-
-		expanded = foundPath
-	}
-
-	// A relative LookPath result (a relative $PATH entry under
-	// GODEBUG=execerrdot=0) and a typed relative path both become absolute,
-	// so the value doesn't drift with exec.Cmd.Dir or os.Chdir.
-	absolute, err := filepath.Abs(expanded)
+	expanded, err := expandPathUncleaned(source)
 	if err != nil {
 		return err
 	}
 
-	f.path = absolute
+	path := filepath.Clean(expanded)
+	if executable {
+		path, err = resolveExecutablePath(expanded)
+		if err != nil {
+			return err
+		}
+	}
+
+	f.path = path
+	f.applyTags(decodeContext.Tags)
+	f.stdinSource = decodeContext.Stdin
+	f.stdoutSink = decodeContext.Stdout
 
 	return nil
 }
@@ -437,6 +426,7 @@ func (f *FileContent) UnmarshalText(text []byte) error {
 // UnmarshalTextWithContext loads the file at path into memory, enforcing a strict
 // 16MB file size limit. When path is "-", content is read from the engine-configured
 // standard input ([App.Stdin]), falling back to [os.Stdin] for unconfigured values.
+// An empty path, or one that expands to blank text, fails without reading anything.
 func (f *FileContent) UnmarshalTextWithContext(text []byte, decodeContext DecodeContext) error {
 	raw := string(text)
 	if raw == "-" {
@@ -455,7 +445,10 @@ func (f *FileContent) UnmarshalTextWithContext(text []byte, decodeContext Decode
 		return nil
 	}
 
-	path := pathx.Expand(raw)
+	path, err := expandPath(raw)
+	if err != nil {
+		return err
+	}
 
 	info, err := os.Stat(path)
 	if err != nil {
@@ -550,8 +543,14 @@ func (d *Dir) UnmarshalText(text []byte) error {
 
 // UnmarshalTextWithContext decodes a directory path, expanding environment variables
 // and tilde prefixes, and captures declared capability tags from [DecodeContext].
+// An empty path, or one that expands to blank text, fails before any tag applies.
 func (d *Dir) UnmarshalTextWithContext(text []byte, decodeContext DecodeContext) error {
-	d.path = pathx.Expand(string(text))
+	path, err := expandPath(string(text))
+	if err != nil {
+		return err
+	}
+
+	d.path = path
 	d.existing = decodeContext.Tags.Bool("existing")
 
 	return nil
@@ -839,6 +838,15 @@ type pathKindConversionError struct {
 
 func (e *pathKindConversionError) Unwrap() error { return ErrCoerce }
 
+// emptyPathError reports a File, Dir, or FileContent value whose path is empty
+// or expands to blank text. The value cannot become a path, so the failure is a
+// conversion failure and errors.Is matches ErrCoerce.
+type emptyPathError struct{}
+
+func (emptyPathError) Error() string { return "empty path" }
+
+func (emptyPathError) Unwrap() error { return ErrCoerce }
+
 // executableError is the root cause for permission deficits on regular files
 // (correct path kind, missing execute bit).
 type executableError struct {
@@ -934,6 +942,51 @@ func (FileContent) dashReadsStdin(FieldTags) bool { return true }
 
 // pathValue marks Dir as a path type; see the binder's pathValue.
 func (Dir) pathValue() {}
+
+// expandPath expands environment variables and a tilde prefix in text and
+// cleans the result. It returns errEmptyPath when the expansion is blank (see
+// expandPathUncleaned).
+func expandPath(text string) (string, error) {
+	expanded, err := expandPathUncleaned(text)
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.Clean(expanded), nil
+}
+
+// expandPathUncleaned expands environment variables and a tilde prefix in
+// text without cleaning the result. It returns errEmptyPath when the expansion
+// is blank, which covers empty text, whitespace, and variables that expand to
+// nothing ("$UNSET" would otherwise clean to ".").
+func expandPathUncleaned(text string) (string, error) {
+	expanded := pathx.ExpandUncleaned(text)
+	if strings.TrimSpace(expanded) == "" {
+		return "", errEmptyPath
+	}
+
+	return expanded, nil
+}
+
+// resolveExecutablePath turns an expanded executable-tagged path into an
+// absolute path. A bare name (no path separator, judged before the path is
+// cleaned) is looked up on $PATH; any other path resolves against the working
+// directory.
+func resolveExecutablePath(expanded string) (string, error) {
+	if !strings.ContainsAny(expanded, "/\\") && !filepath.IsAbs(expanded) {
+		foundPath, err := exec.LookPath(expanded)
+		if err != nil {
+			return "", err
+		}
+
+		expanded = foundPath
+	}
+
+	// A relative LookPath result (a relative $PATH entry under
+	// GODEBUG=execerrdot=0) and a typed relative path both become absolute,
+	// so the value doesn't drift with exec.Cmd.Dir or os.Chdir.
+	return filepath.Abs(expanded)
+}
 
 // byteSizeParseParts converts the split numeric prefix and unit suffix into a
 // byte count and input family, enforcing the field's declared units tag. A bare
