@@ -144,8 +144,7 @@ func IsSignedLiteral(raw string) bool {
 // HintOf returns the [Error.Hint] of the first [*Error] in err's chain, or ""
 // when the chain holds none.
 func HintOf(err error) string {
-	var parseError *Error
-	if errors.As(err, &parseError) {
+	if parseError, ok := errors.AsType[*Error](err); ok {
 		return parseError.Hint()
 	}
 

@@ -696,8 +696,7 @@ func floatBitSize(kind reflect.Kind) (int, bool) {
 func wrapParseNumError(err error, raw string, targetType reflect.Type, noun string) error {
 	var cause error
 
-	var integerError *intx.Error
-	if errors.As(err, &integerError) {
+	if integerError, ok := errors.AsType[*intx.Error](err); ok {
 		cause = integerError
 	}
 

@@ -34,9 +34,9 @@ type integerSyntaxConfigCLI struct {
 type integerSyntaxEnumCLI struct {
 	noopRunner
 
-	Pick  conga.OptionalFlag[int]     `enum:"0x10,20"  help:"Pick"`
-	Sizes conga.OptionalFlag[[]uint8] `enum:"0b1,0o2"  help:"Sizes"`
-	Slot  conga.OptionalArg[uint16]   `enum:"0X1F,0"   help:"Slot"`
+	Pick  conga.OptionalFlag[int]     `enum:"0x10,20" help:"Pick"`
+	Sizes conga.OptionalFlag[[]uint8] `enum:"0b1,0o2" help:"Sizes"`
+	Slot  conga.OptionalArg[uint16]   `enum:"0X1F,0"  help:"Slot"`
 }
 
 type integerSyntaxRangeCLI struct {
