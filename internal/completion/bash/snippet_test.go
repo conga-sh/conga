@@ -49,6 +49,8 @@ func TestSnippet_SingleCommand(t *testing.T) {
 			`      'D'$'\t'*)`+"\n"+
 			`        [[ "${line#D?}" == *nospace* ]] && compopt -o nospace`+"\n"+
 			`        [[ " ${line#D?} " == *" keeporder "* ]] && compopt -o nosort 2>/dev/null`+"\n"+
+			`        # At a redirect target readline completes filenames and quotes them.`+"\n"+
+			`        [[ " ${line#D?} " == *" default "* ]] && compopt -o default +o noquote 2>/dev/null`+"\n"+
 			`        ;;`+"\n"+
 			`      'M'$'\t'*)`+"\n"+
 			`        ;;`+"\n"+

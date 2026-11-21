@@ -58,7 +58,7 @@ func NewSessionWithEnv(targetShell string, lookup EnvLookup, envPrefix string) *
 }
 
 // Patch applies shell-specific completion argument patching: bash's redirect
-// rejection and wordbreak trimming, and nushell's raw-span dequoting. Every
+// target detection and wordbreak trimming, and nushell's raw-span dequoting. Every
 // other shell passes the arguments through unchanged.
 func (s *Session) Patch(args []string) ([]string, error) {
 	if s.driver == nil {

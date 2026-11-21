@@ -16,7 +16,10 @@ import (
 // command name (the first span), and feeds the remaining spans to the
 // binary's __complete entry point (docs/completion-wire-protocol.md).
 // Aliases need no separate registration: the global completer resolves the name the
-// user typed from the spans.
+// user typed from the spans. When the span before the word being completed is
+// a redirection operator (redirectOperators), the closure returns null without
+// invoking the binary, and nushell completes the redirect target as a file
+// path.
 func Snippet(name string, aliases []string, _ string) string {
 	identifier := wire.SanitizeIdentifier(name)
 
@@ -24,6 +27,9 @@ func Snippet(name string, aliases []string, _ string) string {
 
 	builder.WriteString("let " + identifier + "_completer = {|spans|\n")
 	builder.WriteString("    load-env { CONGA_SHELL: 'nushell' }\n")
+	builder.WriteString("    if ($spans | length) > 1 and ($spans | last 2 | first) in [" + redirectOperatorList() + "] {\n")
+	builder.WriteString("        return null\n")
+	builder.WriteString("    }\n")
 	builder.WriteString("    if ($spans | length) > 0 {\n")
 	builder.WriteString("        try {\n")
 	builder.WriteString("            let words = ($spans | skip 1)\n")
@@ -42,4 +48,26 @@ func Snippet(name string, aliases []string, _ string) string {
 	builder.WriteString("$env.config = $current\n")
 
 	return builder.String()
+}
+
+// redirectOperators lists nushell's file redirection operators: stdout (o>,
+// out>), stderr (e>, err>), and both streams (o+e>, e+o>, out+err>, err+out>),
+// each in its truncating and appending (>>) form. An operator attached to its
+// target (o>out) is one ordinary argument span in nushell.
+func redirectOperators() []string {
+	return []string{
+		"o>", "out>", "e>", "err>", "o+e>", "e+o>", "out+err>", "err+out>",
+		"o>>", "out>>", "e>>", "err>>", "o+e>>", "e+o>>", "out+err>>", "err+out>>",
+	}
+}
+
+// redirectOperatorList renders redirectOperators as the space-separated,
+// single-quoted items of a nushell list literal.
+func redirectOperatorList() string {
+	quoted := make([]string, 0, len(redirectOperators()))
+	for _, operator := range redirectOperators() {
+		quoted = append(quoted, "'"+operator+"'")
+	}
+
+	return strings.Join(quoted, " ")
 }

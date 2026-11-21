@@ -1,5 +1,8 @@
 let myapp_completer = {|spans|
     load-env { CONGA_SHELL: 'nushell' }
+    if ($spans | length) > 1 and ($spans | last 2 | first) in ['o>' 'out>' 'e>' 'err>' 'o+e>' 'e+o>' 'out+err>' 'err+out>' 'o>>' 'out>>' 'e>>' 'err>>' 'o+e>>' 'e+o>>' 'out+err>>' 'err+out>>'] {
+        return null
+    }
     if ($spans | length) > 0 {
         try {
             let words = ($spans | skip 1)

@@ -194,7 +194,7 @@ func TestPatchNativeBash(t *testing.T) {
 		assert.Equal(t, []string{"dep"}, patched)
 	})
 
-	t.Run("redirect position rejected", func(t *testing.T) {
+	t.Run("redirect position short-circuits", func(t *testing.T) {
 		t.Parallel()
 
 		line := "cloudctl deploy > "

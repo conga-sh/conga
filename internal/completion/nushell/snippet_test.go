@@ -117,3 +117,15 @@ func TestSnippet_IdentifierHygiene(t *testing.T) {
 		})
 	}
 }
+
+func TestSnippet_RedirectTargetReturnsNull(t *testing.T) {
+	t.Parallel()
+
+	script := nushell.Snippet("myapp", nil, "")
+
+	assert.Contains(t, script, "    load-env { CONGA_SHELL: 'nushell' }\n"+
+		"    if ($spans | length) > 1 and ($spans | last 2 | first) in ['o>' 'out>' 'e>' 'err>' 'o+e>' 'e+o>' 'out+err>' 'err+out>' 'o>>' 'out>>' 'e>>' 'err>>' 'o+e>>' 'e+o>>' 'out+err>>' 'err+out>>'] {\n"+
+		"        return null\n"+
+		"    }\n"+
+		"    if ($spans | length) > 0 {\n")
+}

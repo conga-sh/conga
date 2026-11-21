@@ -55,27 +55,42 @@ func TestInferBashNeedsUpgrade(t *testing.T) {
 	t.Parallel()
 
 	cases := []struct {
-		name      string
-		execPath  string
-		wantOld   bool
-		wantKnown bool
+		name       string
+		execPath   string
+		loginShell string
+		wantOld    bool
+		wantKnown  bool
 	}{
 		{name: "bundled macos bash", execPath: "/bin/bash", wantOld: true, wantKnown: true},
 		{name: "usr bin bash", execPath: "/usr/bin/bash", wantOld: true, wantKnown: true},
-		{name: "login shell marker", execPath: "-bash", wantOld: true, wantKnown: true},
+		{name: "login shell marker with bundled login bash", execPath: "-bash", loginShell: "/bin/bash", wantOld: true, wantKnown: true},
+		{name: "login shell marker with usr bin login bash", execPath: "-bash", loginShell: "/usr/bin/bash", wantOld: true, wantKnown: true},
+		{name: "login shell marker with brew arm login bash", execPath: "-bash", loginShell: "/opt/homebrew/bin/bash", wantOld: false, wantKnown: true},
+		{name: "login shell marker with usr local login bash", execPath: "-bash", loginShell: "/usr/local/bin/bash", wantOld: false, wantKnown: false},
+		{name: "login shell marker with unset login shell", execPath: "-bash", loginShell: "", wantOld: false, wantKnown: false},
+		{name: "login shell marker with zsh login shell", execPath: "-bash", loginShell: "/bin/zsh", wantOld: false, wantKnown: false},
 		{name: "brew arm bash", execPath: "/opt/homebrew/bin/bash", wantOld: false, wantKnown: true},
 		{name: "brew cellar bash", execPath: "/opt/homebrew/Cellar/bash/5.2.0/bin/bash", wantOld: false, wantKnown: true},
 		{name: "intel brew cellar bash", execPath: "/usr/local/Cellar/bash/5.2.0/bin/bash", wantOld: false, wantKnown: true},
 		{name: "bare name unknown", execPath: "bash", wantOld: false, wantKnown: false},
 		{name: "empty unknown", execPath: "", wantOld: false, wantKnown: false},
 		{name: "non bash known", execPath: "/bin/fish", wantOld: false, wantKnown: true},
+		{name: "path ignores login shell", execPath: "/opt/homebrew/bin/bash", loginShell: "/bin/bash", wantOld: false, wantKnown: true},
 	}
 
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			old, known := InferBashNeedsUpgrade(test.execPath)
+			getenv := func(key string) string {
+				if key == "SHELL" {
+					return test.loginShell
+				}
+
+				return ""
+			}
+
+			old, known := inferBashNeedsUpgrade(test.execPath, getenv)
 
 			assert.Equal(t, test.wantOld, old)
 			assert.Equal(t, test.wantKnown, known)

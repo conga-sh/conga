@@ -32,6 +32,8 @@ _myapp_completion() {
       'D'$'\t'*)
         [[ "${line#D?}" == *nospace* ]] && compopt -o nospace
         [[ " ${line#D?} " == *" keeporder "* ]] && compopt -o nosort 2>/dev/null
+        # At a redirect target readline completes filenames and quotes them.
+        [[ " ${line#D?} " == *" default "* ]] && compopt -o default +o noquote 2>/dev/null
         ;;
       'M'$'\t'*)
         ;;

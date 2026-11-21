@@ -16,6 +16,42 @@ func TestFormat_DirectiveHeaderAlwaysFirst(t *testing.T) {
 	assert.Equal(t, "D\t\nC\tdeploy", NewSession().Format("", wire.Directives{}, []wire.Candidate{{Value: "deploy"}}))
 }
 
+func TestFormat_RedirectTargetEmitsDefaultDirective(t *testing.T) {
+	t.Parallel()
+
+	for _, line := range []string{
+		"cloudctl deploy > ",
+		"cloudctl deploy >",
+		"cloudctl deploy >> ",
+		"cloudctl deploy 2> ",
+		"cloudctl deploy < ",
+		"cloudctl deploy &> ",
+		"cloudctl deploy >out",
+		"cloudctl deploy 2>out",
+	} {
+		t.Run(line, func(t *testing.T) {
+			t.Parallel()
+
+			session := NewSessionWithEnv(func(key string) (string, bool) {
+				switch key {
+				case wire.EnvCompLine:
+					return line, true
+				case wire.EnvCompPoint:
+					return strconv.Itoa(len(line)), true
+				default:
+					return "", false
+				}
+			})
+			_, err := session.Patch(nil)
+			assert.Error(t, err)
+
+			formatted := session.Format("", wire.Directives{}, []wire.Candidate{{Value: "deploy"}, {Value: "logs"}})
+
+			assert.Equal(t, "D\tdefault", formatted)
+		})
+	}
+}
+
 func TestFormat_MessageLinesFollowHeader(t *testing.T) {
 	t.Parallel()
 

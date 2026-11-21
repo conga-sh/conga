@@ -76,8 +76,10 @@ if [[ -n "$comp_leak" ]]; then
     echo "STDOUT_LEAK:${comp_leak}"
 fi
 
+compopt_default=0
 while IFS= read -r compopt_call; do
     echo "COMPOPT:${compopt_call}"
+    [[ " ${compopt_call} " == *" -o default "* ]] && compopt_default=1
 done <"$compopt_log"
 rm -f "$compopt_log"
 
@@ -114,6 +116,17 @@ if [[ -n "$open_quote" ]] && (( quote_start > replace_start )); then
 fi
 replaced="${word:replace_start}"
 kept="${CMD_LINE:0:${#CMD_LINE}-${#replaced}}"
+
+# Simulate readline's default completion, which compopt -o default selects
+# when the completer leaves COMPREPLY empty: the filenames that start with the
+# replaced text, a directory marked with a trailing slash, each name quoted
+# as readline quotes it without noquote.
+if (( compopt_default )) && (( ${#COMPREPLY[@]} == 0 )); then
+    while IFS= read -r name; do
+        [[ -d "$name" ]] && name+="/"
+        COMPREPLY+=("$(printf '%q' "$name")")
+    done < <(compgen -f -- "$replaced")
+fi
 
 buffer_tab1="$CMD_LINE"
 buffer_tab2="$CMD_LINE"

@@ -2,7 +2,7 @@
 // generates the bash registration snippet for the wire protocol
 // (docs/completion-wire-protocol.md). The Session Patch pass re-lexes
 // the bash-native COMP_LINE environment through internal/completion/lex to
-// reject redirect targets, isolate the current pipeline segment, and expose
+// detect redirect targets, isolate the current pipeline segment, and expose
 // the COMP_WORDBREAKS prefix that the session's Format pass strips from
 // candidate values.
 package bash
@@ -48,6 +48,9 @@ type Session struct {
 	// openQuote is the quote character left open in the word being
 	// completed ('\'' or '"'), or 0.
 	openQuote byte
+	// redirectTarget reports that Patch found the cursor at a redirect
+	// target; Format then hands the word to bash's filename completion.
+	redirectTarget bool
 }
 
 // NewSession returns an inactive session for one completion invocation: Format
@@ -63,16 +66,20 @@ func NewSessionWithEnv(lookup EnvLookup) *Session {
 }
 
 // Patch rewrites the completion arguments for the engine: with COMP_LINE and
-// COMP_POINT present it re-lexes the cursor-truncated line, rejects redirect
-// positions, isolates the current pipeline segment, drops redirect operators
-// with their targets, and preserves the trailing empty word. Without the
-// bash-native environment (direct API invocations) the arguments pass through
-// unchanged. Patch only reads the environment; it never mutates process state.
+// COMP_POINT present it re-lexes the cursor-truncated line, isolates the
+// current pipeline segment, drops redirect operators with their targets, and
+// preserves the trailing empty word. At a redirect target it returns
+// sentinel.ErrRedirectTarget so the dispatch skips candidate generation, and
+// the session's Format pass emits the default directive, which makes the
+// snippet fall back to bash's filename completion. Without the bash-native
+// environment (direct API invocations) the arguments pass through unchanged.
+// Patch only reads the environment; it never mutates process state.
 func (s *Session) Patch(args []string) ([]string, error) {
 	s.active = false
 	s.compType = ""
 	s.wordbreakPrefix = ""
 	s.openQuote = 0
+	s.redirectTarget = false
 
 	line, ok := s.resolveCompLine()
 	if !ok || line == "" {
@@ -82,7 +89,9 @@ func (s *Session) Patch(args []string) ([]string, error) {
 	tokens := lex.Parse(line)
 
 	if tokens.RedirectAtEnd() {
-		return nil, fmt.Errorf("%w like `echo test >[TAB]`; no candidates are offered", sentinel.ErrRedirectTarget)
+		s.redirectTarget = true
+
+		return nil, fmt.Errorf("%w like `echo test >[TAB]`; bash completes filenames", sentinel.ErrRedirectTarget)
 	}
 
 	pipeline := tokens.CurrentPipeline().WithoutRedirects()

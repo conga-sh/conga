@@ -1135,11 +1135,12 @@ func (a *App[T]) completeForShellWithEnv(targetShell string, args []string, look
 
 	patchedArgs, err := completionSession.Patch(args)
 	if errors.Is(err, sentinel.ErrRedirectTarget) {
-		// A redirect target ("cloudctl deploy > <cursor>") never completes:
-		// falling back to the raw arguments would leak subcommand
-		// candidates, so short-circuit with the zero-candidate framing
-		// (docs/completion-wire-protocol.md §4.1). Other patch errors keep
-		// the pass-through behavior below.
+		// A redirect target ("cloudctl deploy > <cursor>") completes
+		// filenames in the shell. Falling back to the raw arguments would
+		// leak subcommand candidates, so short-circuit with the zero-candidate
+		// framing, which the bash driver renders as the default directive
+		// (docs/completion-wire-protocol.md §8). Other patch errors keep the
+		// pass-through behavior below.
 		invoked := predict.None().Invoke(predict.Context{})
 
 		return invoked, completionSession.Format("", invoked)
@@ -2069,7 +2070,7 @@ func (a *App[T]) handleComplete() (err error) {
 
 	// The bash-native COMP_LINE environment is intentionally left intact
 	// here: completeForShell's Patch pass re-lexes it, and only that pass
-	// sees the redirect-rejection sentinel this dispatch must honor.
+	// sees the redirect-target sentinel this dispatch must honor.
 	if targetShell == "bash" {
 		if envWords, ok := resolveCompLineEnv(); ok && len(wordsToComplete) <= 1 {
 			wordsToComplete = envWords

@@ -785,3 +785,68 @@ func TestPtyWordHandling(t *testing.T) {
 		})
 	}
 }
+
+// TestPtyRedirectTarget pins the redirect target in every shell: Tab after a
+// redirection operator completes the one file in the working directory and
+// shows no subcommand candidates. Nushell redirects stdout with "o>"; a bare
+// ">" is an ordinary argument there.
+func TestPtyRedirectTarget(t *testing.T) {
+	t.Parallel()
+
+	testCases := map[string]struct {
+		shell string
+		line  string
+	}{
+		"bash":       {"bash", "shell-completion > "},
+		"zsh":        {"zsh", "shell-completion > "},
+		"fish":       {"fish", "shell-completion > "},
+		"powershell": {"powershell", "shell-completion > "},
+		"nushell":    {"nushell", "shell-completion o> "},
+		"elvish":     {"elvish", "shell-completion > "},
+	}
+
+	for name, testCase := range testCases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			workspace := setupShellCompletion(t)
+			workspace.WriteFile(t, "output.log", []byte("log"))
+			session := workspace.StartPtySession(t, "shell-completion", testCase.shell)
+			session.Type("cd '" + workspace.WorkDir + "'")
+			session.PressEnter()
+			session.Capture()
+			session.Type("clear")
+			session.PressEnter()
+			session.Capture()
+			session.Type(testCase.line)
+
+			session.Tab()
+			result := session.Capture()
+
+			assert.Contains(t, result.BufferAfterPrompt(), "output.log")
+			assert.False(t, ptyHasToken(result.Screen, "deploy"), "subcommand candidates must not appear at a redirect target")
+			assert.False(t, ptyHasToken(result.Screen, "logs"), "subcommand candidates must not appear at a redirect target")
+		})
+	}
+}
+
+// TestPtyBash_RedirectTargetQuotesFilename pins the quoting of a filename
+// completed at a redirect target: readline escapes the space, because the
+// snippet turns noquote off for the default completion.
+func TestPtyBash_RedirectTargetQuotesFilename(t *testing.T) {
+	t.Parallel()
+
+	workspace := setupShellCompletion(t)
+	workspace.WriteFile(t, "my notes.txt", []byte("notes"))
+	session := workspace.StartPtySession(t, "shell-completion", "bash")
+	session.Type("cd '" + workspace.WorkDir + "' && clear")
+	session.PressEnter()
+	session.Capture()
+	session.Type("shell-completion > my")
+
+	session.Tab()
+	result := session.Capture()
+
+	assert.Equal(t, `shell-completion > my\ notes.txt`, result.BufferAfterPrompt())
+	assert.Equal(t, len(`CONGA> shell-completion > my\ notes.txt `), result.CursorX)
+}
