@@ -66,14 +66,22 @@ Set and exported by the bash snippet itself, consumed by the driver:
 | `<APP>_COMPLETION_ALIASES` | Shows (`1`/`true`) or suppresses (`0`/`false`) alias candidates; unset or unparseable shows them. Aliases are subcommand/flag aliases declared on the schema and predictor-supplied domain aliases marked with `predict.Item.Alias` | shown |
 | `<APP>_COMPLETION_BARE_SPACE_FLAGS` | Restores (`1`/`true`) the flag candidates otherwise suppressed at a bare space in every shell; unset or unparseable keeps them suppressed. A command with no subcommands, positional arguments, or raw args has nothing else to offer, so its flags stay visible regardless | suppressed |
 | `<APP>_COMPLETION_DESCRIPTIONS` | Shows (`1`/`true`) or suppresses (`0`/`false`) candidate descriptions in every framing; unset or unparseable shows them | shown |
-| `CONGA_MERGE_FLAGS` | Merges `longhand flags`/`shorthand flags` tags into `flags` (zsh grouping); `true`/`false` | `true` for zsh, unset elsewhere |
+| `CONGA_MERGE_FLAGS` | Merges (`1`/`true`) the `longhand flags`/`shorthand flags` tags into `flags` (zsh grouping) or keeps them apart (`0`/`false`). Unset or unparseable applies the shell's default | `true` for zsh, unset elsewhere |
 | `CONGA_DESCRIPTION_LENGTH` | Maximum description length (runes) for fish/powershell clamping | `80` |
-| `CONGA_TOOLTIP` | Enables tooltip-style description rendering (powershell) | off |
-| `CONGA_COLOR` | `"0"` disables color styling in rendered output | *(unset)* |
+| `CONGA_TOOLTIP` | Enables (`1`/`true`) or disables (`0`/`false`) tooltip-style description rendering (powershell). Unset or unparseable keeps it off | off |
+| `CONGA_COLOR` | Forces color styling in rendered output on (`1`/`true`) or off (`0`/`false`). Unset or unparseable defers to the standard variables (§4.3) | *(unset)* |
 | `CONGA_ZSH_BANGHIST` | Set to `0` by the zsh snippet when the user's `banghist` option is off; a `!` inside double quotes is then inserted without a backslash (§7.3). Any other value keeps the escape | *(unset)* |
 | `CONGA_ZSH_LIST_SEPARATOR` | Separator zsh renders between a match and its description, mirrored from the user's `list-separator` style; glob-escaped into zsh list-colors patterns. Empty, colon-containing, control-character-containing, or over-32-byte values fall back to the default | `--` |
 | `CONGA_ZSH_QUOTE` | Set by the zsh snippet from `compstate[quote]`: the quote (`'` or `"`) the user opened at the start of the word being completed, so the driver continues and closes it (§7.3). Any other value counts as unquoted | *(unset)* |
 | `CONGA_ZSH_STYLE_LIMIT` | Maximum candidates to inline-style in zsh | `300` |
+
+The boolean variables above (`<APP>_COMPLETION_ALIASES`,
+`<APP>_COMPLETION_BARE_SPACE_FLAGS`, `<APP>_COMPLETION_DESCRIPTIONS`,
+`CONGA_MERGE_FLAGS`, `CONGA_TOOLTIP`, `CONGA_COLOR`) are parsed with Go's
+`strconv.ParseBool`, the parser behind boolean flags and features. It accepts
+`1`, `t`, `T`, `TRUE`, `true`, `True` and `0`, `f`, `F`, `FALSE`, `false`,
+`False`. An empty value or any other spelling, such as `yes`, `on`, or `off`,
+counts as unparseable.
 
 `<APP>_` is the application completion environment prefix: the application
 name in UPPER_SNAKE_CASE (an app named task reads `TASK_COMPLETION_*`), rooted

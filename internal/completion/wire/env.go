@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+
+	"github.com/conga-sh/conga/internal/envx"
 )
 
 // Environment variable names of the shell completion protocol: the bash-native
@@ -30,8 +32,8 @@ const (
 	// the description-suppression variable name.
 	CompletionDescriptionsSuffix = "COMPLETION_DESCRIPTIONS"
 
-	// EnvColor forces color styling on ("1") or off ("0").
-	EnvColor = "CONGA_COLOR"
+	// EnvColor forces color styling on or off, parsed as a boolean.
+	EnvColor = envx.EnvColor
 	// EnvDescriptionLength limits the maximum description length in runes.
 	EnvDescriptionLength = "CONGA_DESCRIPTION_LENGTH"
 	// EnvMergeFlags merges the "shorthand flags" and "longhand flags" tags
@@ -55,9 +57,10 @@ const (
 	EnvZshStyleLimit = "CONGA_ZSH_STYLE_LIMIT"
 
 	// EnvCLIColor is the standard CLICOLOR variable; "0" disables color.
-	EnvCLIColor = "CLICOLOR"
-	// EnvNoColor is the standard NO_COLOR variable; presence disables color.
-	EnvNoColor = "NO_COLOR"
+	EnvCLIColor = envx.EnvCLIColor
+	// EnvNoColor is the standard NO_COLOR variable; a non-empty value
+	// disables color.
+	EnvNoColor = envx.EnvNoColor
 )
 
 // AliasesEnabled reports whether alias candidates are shown: the
@@ -69,7 +72,7 @@ func AliasesEnabled(prefix string) bool {
 		return true
 	}
 
-	return booleanSetting(prefix + CompletionAliasesSuffix)
+	return booleanSetting(prefix+CompletionAliasesSuffix, true)
 }
 
 // DescriptionsEnabled reports whether candidate descriptions are shown: the
@@ -81,7 +84,7 @@ func DescriptionsEnabled(prefix string) bool {
 		return true
 	}
 
-	return booleanSetting(prefix + CompletionDescriptionsSuffix)
+	return booleanSetting(prefix+CompletionDescriptionsSuffix, true)
 }
 
 // BareSpaceFlagsEnabled reports whether flag candidates are restored at a bare
@@ -94,29 +97,15 @@ func BareSpaceFlagsEnabled(prefix string) bool {
 		return false
 	}
 
-	value, ok := os.LookupEnv(prefix + CompletionBareSpaceFlagsSuffix)
-	if !ok {
-		return false
-	}
-
-	parsed, err := strconv.ParseBool(value)
-
-	return err == nil && parsed
+	return booleanSetting(prefix+CompletionBareSpaceFlagsSuffix, false)
 }
 
-// ColorDisabled reports whether styled output is disabled: CONGA_COLOR is
-// honored first ("0" disables, any other non-empty value forces color), then
-// the NO_COLOR standard (present and non-empty disables), then CLICOLOR=0.
+// ColorDisabled reports whether styled output is disabled. CONGA_COLOR parsed
+// as a boolean decides first (true forces color, false disables it), then a
+// non-empty NO_COLOR disables color, then CLICOLOR=0. Completion output goes
+// to a pipe, so neither TERM nor TTY detection takes part.
 func ColorDisabled() bool {
-	if value, ok := os.LookupEnv(EnvColor); ok && value != "" {
-		return value == "0"
-	}
-
-	if value, ok := os.LookupEnv(EnvNoColor); ok && value != "" {
-		return true
-	}
-
-	return os.Getenv(EnvCLIColor) == "0"
+	return envx.ColorPreference() == envx.ColorOff
 }
 
 // DescriptionLength returns the maximum description length in runes:
@@ -134,14 +123,7 @@ func DescriptionLength() int {
 // return). Shells apply their own default when the variable is unset or
 // unparseable.
 func MergeFlags() (bool, bool) {
-	value, ok := os.LookupEnv(EnvMergeFlags)
-	if !ok {
-		return false, false
-	}
-
-	parsed, err := strconv.ParseBool(value)
-
-	return parsed, err == nil
+	return envx.EnvBool(EnvMergeFlags)
 }
 
 // Shell returns the CONGA_SHELL override, which forces the target shell and
@@ -151,14 +133,10 @@ func Shell() string {
 }
 
 // Tooltip reports whether tooltip-style description rendering is requested
-// (powershell): CONGA_TOOLTIP set to a truthy value.
+// (powershell): CONGA_TOOLTIP parsed as a boolean. Unset or unparseable keeps
+// the default (off).
 func Tooltip() bool {
-	switch strings.ToLower(os.Getenv(EnvTooltip)) {
-	case "true", "1", "yes", "on":
-		return true
-	default:
-		return false
-	}
+	return booleanSetting(EnvTooltip, false)
 }
 
 // ZshQuote returns the quote the user opened in the word being completed,
@@ -212,18 +190,12 @@ func ZshStyleLimit() int {
 	return limit
 }
 
-// booleanSetting parses name as a boolean, defaulting to true when it is unset
+// booleanSetting parses name as a boolean, returning fallback when it is unset
 // or unparseable.
-func booleanSetting(name string) bool {
-	value, ok := os.LookupEnv(name)
-	if !ok {
-		return true
+func booleanSetting(name string, fallback bool) bool {
+	if value, ok := envx.EnvBool(name); ok {
+		return value
 	}
 
-	parsed, err := strconv.ParseBool(value)
-	if err != nil {
-		return true
-	}
-
-	return parsed
+	return fallback
 }

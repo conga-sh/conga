@@ -34,10 +34,10 @@ func TestAliasesEnabled(t *testing.T) {
 		assert.True(t, wire.AliasesEnabled(testEnvPrefix))
 	})
 
-	t.Run("suppressed with 0", func(t *testing.T) {
-		t.Setenv(testEnvPrefix+wire.CompletionAliasesSuffix, "0")
+	t.Run("shown with true", func(t *testing.T) {
+		t.Setenv(testEnvPrefix+wire.CompletionAliasesSuffix, "true")
 
-		assert.False(t, wire.AliasesEnabled(testEnvPrefix))
+		assert.True(t, wire.AliasesEnabled(testEnvPrefix))
 	})
 
 	t.Run("suppressed with false", func(t *testing.T) {
@@ -46,14 +46,8 @@ func TestAliasesEnabled(t *testing.T) {
 		assert.False(t, wire.AliasesEnabled(testEnvPrefix))
 	})
 
-	t.Run("enabled with 1", func(t *testing.T) {
-		t.Setenv(testEnvPrefix+wire.CompletionAliasesSuffix, "1")
-
-		assert.True(t, wire.AliasesEnabled(testEnvPrefix))
-	})
-
-	t.Run("unparseable value defaults to true", func(t *testing.T) {
-		t.Setenv(testEnvPrefix+wire.CompletionAliasesSuffix, "garbage")
+	t.Run("unparseable yes keeps the default", func(t *testing.T) {
+		t.Setenv(testEnvPrefix+wire.CompletionAliasesSuffix, "yes")
 
 		assert.True(t, wire.AliasesEnabled(testEnvPrefix))
 	})
@@ -77,10 +71,10 @@ func TestDescriptionsEnabled(t *testing.T) {
 		assert.True(t, wire.DescriptionsEnabled(testEnvPrefix))
 	})
 
-	t.Run("suppressed with 0", func(t *testing.T) {
-		t.Setenv(testEnvPrefix+wire.CompletionDescriptionsSuffix, "0")
+	t.Run("shown with true", func(t *testing.T) {
+		t.Setenv(testEnvPrefix+wire.CompletionDescriptionsSuffix, "true")
 
-		assert.False(t, wire.DescriptionsEnabled(testEnvPrefix))
+		assert.True(t, wire.DescriptionsEnabled(testEnvPrefix))
 	})
 
 	t.Run("suppressed with false", func(t *testing.T) {
@@ -89,14 +83,8 @@ func TestDescriptionsEnabled(t *testing.T) {
 		assert.False(t, wire.DescriptionsEnabled(testEnvPrefix))
 	})
 
-	t.Run("enabled with 1", func(t *testing.T) {
-		t.Setenv(testEnvPrefix+wire.CompletionDescriptionsSuffix, "1")
-
-		assert.True(t, wire.DescriptionsEnabled(testEnvPrefix))
-	})
-
-	t.Run("unparseable value defaults to true", func(t *testing.T) {
-		t.Setenv(testEnvPrefix+wire.CompletionDescriptionsSuffix, "garbage")
+	t.Run("unparseable yes keeps the default", func(t *testing.T) {
+		t.Setenv(testEnvPrefix+wire.CompletionDescriptionsSuffix, "yes")
 
 		assert.True(t, wire.DescriptionsEnabled(testEnvPrefix))
 	})
@@ -120,22 +108,10 @@ func TestBareSpaceFlagsEnabled(t *testing.T) {
 		assert.False(t, wire.BareSpaceFlagsEnabled(testEnvPrefix))
 	})
 
-	t.Run("restored with 1", func(t *testing.T) {
-		t.Setenv(testEnvPrefix+wire.CompletionBareSpaceFlagsSuffix, "1")
-
-		assert.True(t, wire.BareSpaceFlagsEnabled(testEnvPrefix))
-	})
-
 	t.Run("restored with true", func(t *testing.T) {
 		t.Setenv(testEnvPrefix+wire.CompletionBareSpaceFlagsSuffix, "true")
 
 		assert.True(t, wire.BareSpaceFlagsEnabled(testEnvPrefix))
-	})
-
-	t.Run("suppressed with 0", func(t *testing.T) {
-		t.Setenv(testEnvPrefix+wire.CompletionBareSpaceFlagsSuffix, "0")
-
-		assert.False(t, wire.BareSpaceFlagsEnabled(testEnvPrefix))
 	})
 
 	t.Run("suppressed with false", func(t *testing.T) {
@@ -144,8 +120,8 @@ func TestBareSpaceFlagsEnabled(t *testing.T) {
 		assert.False(t, wire.BareSpaceFlagsEnabled(testEnvPrefix))
 	})
 
-	t.Run("unparseable value defaults to false", func(t *testing.T) {
-		t.Setenv(testEnvPrefix+wire.CompletionBareSpaceFlagsSuffix, "garbage")
+	t.Run("unparseable yes keeps the default", func(t *testing.T) {
+		t.Setenv(testEnvPrefix+wire.CompletionBareSpaceFlagsSuffix, "yes")
 
 		assert.False(t, wire.BareSpaceFlagsEnabled(testEnvPrefix))
 	})
@@ -181,15 +157,6 @@ func TestMergeFlags(t *testing.T) {
 		assert.True(t, explicit)
 	})
 
-	t.Run("enabled and explicit with 1", func(t *testing.T) {
-		t.Setenv(wire.EnvMergeFlags, "1")
-
-		enabled, explicit := wire.MergeFlags()
-
-		assert.True(t, enabled)
-		assert.True(t, explicit)
-	})
-
 	t.Run("disabled but explicit with false", func(t *testing.T) {
 		t.Setenv(wire.EnvMergeFlags, "false")
 
@@ -199,8 +166,8 @@ func TestMergeFlags(t *testing.T) {
 		assert.True(t, explicit)
 	})
 
-	t.Run("unparseable value defaults to disabled", func(t *testing.T) {
-		t.Setenv(wire.EnvMergeFlags, "garbage")
+	t.Run("unparseable yes is not explicit", func(t *testing.T) {
+		t.Setenv(wire.EnvMergeFlags, "yes")
 
 		enabled, explicit := wire.MergeFlags()
 
@@ -253,126 +220,62 @@ func TestDescriptionLength(t *testing.T) {
 //nolint:paralleltest // t.Setenv cannot be used with t.Parallel
 func TestTooltip(t *testing.T) {
 	t.Run("default is false when unset", func(t *testing.T) {
-		enabled := wire.Tooltip()
-
-		assert.False(t, enabled)
+		assert.False(t, wire.Tooltip())
 	})
 
 	t.Run("enabled with true", func(t *testing.T) {
 		t.Setenv(wire.EnvTooltip, "true")
 
-		enabled := wire.Tooltip()
-
-		assert.True(t, enabled)
+		assert.True(t, wire.Tooltip())
 	})
 
-	t.Run("enabled with 1", func(t *testing.T) {
-		t.Setenv(wire.EnvTooltip, "1")
+	t.Run("disabled with false", func(t *testing.T) {
+		t.Setenv(wire.EnvTooltip, "false")
 
-		enabled := wire.Tooltip()
-
-		assert.True(t, enabled)
+		assert.False(t, wire.Tooltip())
 	})
 
-	t.Run("enabled with yes", func(t *testing.T) {
+	t.Run("unparseable yes keeps the default", func(t *testing.T) {
 		t.Setenv(wire.EnvTooltip, "yes")
 
-		enabled := wire.Tooltip()
-
-		assert.True(t, enabled)
-	})
-
-	t.Run("enabled with on", func(t *testing.T) {
-		t.Setenv(wire.EnvTooltip, "on")
-
-		enabled := wire.Tooltip()
-
-		assert.True(t, enabled)
-	})
-
-	t.Run("enabled case-insensitively with TRUE", func(t *testing.T) {
-		t.Setenv(wire.EnvTooltip, "TRUE")
-
-		enabled := wire.Tooltip()
-
-		assert.True(t, enabled)
-	})
-
-	t.Run("enabled case-insensitively with Yes", func(t *testing.T) {
-		t.Setenv(wire.EnvTooltip, "Yes")
-
-		enabled := wire.Tooltip()
-
-		assert.True(t, enabled)
-	})
-
-	t.Run("unparseable value defaults to false", func(t *testing.T) {
-		t.Setenv(wire.EnvTooltip, "garbage")
-
-		enabled := wire.Tooltip()
-
-		assert.False(t, enabled)
+		assert.False(t, wire.Tooltip())
 	})
 }
 
-//nolint:paralleltest // t.Setenv cannot be used with t.Parallel
 func TestColorDisabled(t *testing.T) {
-	t.Run("default is false when unset", func(t *testing.T) {
-		disabled := wire.ColorDisabled()
+	cases := []struct {
+		name     string
+		color    string
+		noColor  string
+		cliColor string
+		term     string
+		disabled bool
+	}{
+		{name: "no preference keeps color"},
+		{name: "CONGA_COLOR true forces color", color: "true"},
+		{name: "CONGA_COLOR false disables color", color: "false", disabled: true},
+		{name: "unparseable CONGA_COLOR keeps color", color: "always"},
+		{name: "CONGA_COLOR true outranks NO_COLOR", color: "true", noColor: "1"},
+		{name: "CONGA_COLOR false with NO_COLOR disables color", color: "false", noColor: "1", disabled: true},
+		{name: "unparseable CONGA_COLOR defers to NO_COLOR", color: "always", noColor: "1", disabled: true},
+		{name: "CONGA_COLOR true outranks CLICOLOR 0", color: "true", cliColor: "0"},
+		{name: "CONGA_COLOR false with CLICOLOR 0 disables color", color: "false", cliColor: "0", disabled: true},
+		{name: "unparseable CONGA_COLOR defers to CLICOLOR 0", color: "always", cliColor: "0", disabled: true},
+		{name: "CONGA_COLOR true ignores TERM dumb", color: "true", term: "dumb"},
+		{name: "TERM dumb alone keeps color", term: "dumb"},
+		{name: "CLICOLOR 1 keeps color", cliColor: "1"},
+	}
 
-		assert.False(t, disabled)
-	})
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Setenv(wire.EnvColor, testCase.color)
+			t.Setenv(wire.EnvNoColor, testCase.noColor)
+			t.Setenv(wire.EnvCLIColor, testCase.cliColor)
+			t.Setenv("TERM", testCase.term)
 
-	t.Run("disabled with CONGA_COLOR 0", func(t *testing.T) {
-		t.Setenv(wire.EnvColor, "0")
-
-		disabled := wire.ColorDisabled()
-
-		assert.True(t, disabled)
-	})
-
-	t.Run("explicit CONGA_COLOR overrides NO_COLOR", func(t *testing.T) {
-		t.Setenv(wire.EnvColor, "1")
-		t.Setenv(wire.EnvNoColor, "1")
-
-		disabled := wire.ColorDisabled()
-
-		assert.False(t, disabled)
-	})
-
-	t.Run("NO_COLOR disables when CONGA_COLOR is empty", func(t *testing.T) {
-		t.Setenv(wire.EnvColor, "")
-		t.Setenv(wire.EnvNoColor, "1")
-
-		disabled := wire.ColorDisabled()
-
-		assert.True(t, disabled)
-	})
-
-	t.Run("empty NO_COLOR is ignored", func(t *testing.T) {
-		t.Setenv(wire.EnvColor, "")
-		t.Setenv(wire.EnvNoColor, "")
-
-		disabled := wire.ColorDisabled()
-
-		assert.False(t, disabled)
-	})
-
-	t.Run("disabled with CONGA_CLI_COLOR 0", func(t *testing.T) {
-		t.Setenv(wire.EnvCLIColor, "0")
-
-		disabled := wire.ColorDisabled()
-
-		assert.True(t, disabled)
-	})
-
-	t.Run("enabled with CONGA_CLI_COLOR 1", func(t *testing.T) {
-		t.Setenv(wire.EnvCLIColor, "1")
-
-		disabled := wire.ColorDisabled()
-
-		assert.False(t, disabled)
-	})
+			assert.Equal(t, testCase.disabled, wire.ColorDisabled())
+		})
+	}
 }
 
 //nolint:paralleltest // t.Setenv cannot be used with t.Parallel
