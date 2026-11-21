@@ -157,7 +157,6 @@ func TestEmptyPathPositional(t *testing.T) {
 	})
 }
 
-//nolint:paralleltest // subtests mutate the process environment with t.Setenv
 func TestEmptyPathEnvironmentIsUnset(t *testing.T) {
 	variables := []string{"EMPTY_PATH_FILE", "EMPTY_PATH_DIR", "EMPTY_PATH_CONTENT"}
 
