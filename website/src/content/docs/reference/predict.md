@@ -62,12 +62,33 @@ Hidden entries are offered only when the typed name starts with `.`. A typed `..
 | `Exclude(values ...string)` | Remove candidates whose value, the text the shell inserts after `Prefix`/`Suffix`, matches one of `values`. Applies to whatever the predictor produces, callbacks and batches included. On a `MultiParts` predictor the value is the whole text built so far, so to remove one segment, call `Exclude` on the predictor the segment function returns |
 | `FilterText(toComplete)` | Pre-filter by query |
 | `Style(s)` / `Tag(t)` | Default display style / group |
-| `Usage(msg)` / `Usagef(format, a...)` | ActiveHelp / tooltip hint, used when the evaluated result has none of its own (a callback's or batch member's hint wins) |
+| `Usage(msg)` / `Usagef(format, a...)` | Static [usage hint](#usage-hints). A hint the predictor computes while completing wins over it, and so does the hint of a flag that has one |
 | `NoSpace()` | Suppress the trailing space after insertion |
 | `KeepOrder()` | Ask the shell to keep the candidate order. bash 4.4 or later and zsh honor it. zsh keeps the order within each tag group and lists candidates that have a description before those that don't. PowerShell and nushell keep the order anyway. fish and elvish always sort |
 | `Timeout(d, alternative...)` | Deadline with optional fallback (panics with >1 alternative). The fallback keeps its own modifiers, and this predictor's modifiers apply on top |
 | `Raw()` | Underlying static candidate strings, narrowed by `Include` and `Exclude` |
 | `Invoke(ctx)` | Evaluate to a `Result` |
+
+## Usage hints
+
+A usage hint is a line of text that zsh shows while the user completes a value, above the candidates or on its own when there are none. The other shells show the candidates only:
+
+| Shell | Usage hint |
+|-------|------------|
+| zsh | Shown |
+| bash | Not shown |
+| fish | Not shown |
+| PowerShell | Not shown |
+| elvish | Not shown |
+| nushell | Not shown |
+
+A flag value shows the first hint that exists, in this order:
+
+1. A hint the predictor computes while completing. It is set with `Usage` on the predictor a `Callback` returns, on a `Batch` member, or on the predictor a `MultiParts` segment function returns.
+2. The flag's hint. It is the flag's `help` text, or the value type's default help when the flag has none (`Path to a file` for `conga.File`). A map flag without help that has no predictor, or one that completes values, uses the entry shape `<key>=<value>` instead.
+3. The static hint set with `Usage` or `Usagef` on the predictor the field uses.
+
+A positional argument with no predictor and no `enum` shows its placeholder, followed by its help text when it has some (`<service>: Service name to deploy`, or `<service>`). A map positional that completes values shows the same line. A positional with any other predictor, or with an `enum`, shows only the hint its predictor sets.
 
 ## Context
 

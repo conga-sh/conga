@@ -63,7 +63,8 @@ func UppercaseWords(s string) string {
 //   - a trailing upper-case rune after a digit is not split (version2B ->
 //     version2b);
 //   - an acronym followed by a lowercase suffix is split (IPv4 -> i-pv4,
-//     OAuth2Client -> o-auth2-client).
+//     OAuth2Client -> o-auth2-client), and so is a plural acronym (UserIDs ->
+//     user-i-ds, SourceURLs -> source-ur-ls).
 func joinWords(s string, sep string, transform func(rune) rune) string {
 	var builder strings.Builder
 	builder.Grow(len(s) + len(s)/2)
