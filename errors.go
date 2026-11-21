@@ -264,23 +264,8 @@ func (e *coercionError) Error() string {
 
 	location := formatCoercionLocation(e)
 
-	if e.cause != nil {
-		causeMsg := e.cause.Error()
-
-		if causeMsg != "" && causeMsg != ErrCoerce.Error() {
-			if location != "" {
-				causeMsg += " " + location
-			}
-
-			// An integer with a leading zero ends with its correction, after
-			// the location: "... for flag --mode (a leading zero is ambiguous:
-			// write 0o755 for octal or 755 for decimal)".
-			if hint := intx.HintOf(e.cause); hint != "" {
-				causeMsg += " (" + hint + ")"
-			}
-
-			return causeMsg
-		}
+	if message, ok := e.causeMessage(location); ok {
+		return message
 	}
 
 	typeName := friendlyTypeName(e.targetType)
@@ -342,6 +327,33 @@ func (e *coercionError) CommandPath() string {
 
 func (e *coercionError) Usage() string {
 	return help.Usage(e.cmdChain)
+}
+
+// causeMessage renders the cause's own message followed by location, or
+// reports false when the cause has no message of its own (nil, empty, or the
+// bare ErrCoerce text).
+func (e *coercionError) causeMessage(location string) (string, bool) {
+	if e.cause == nil {
+		return "", false
+	}
+
+	message := e.cause.Error()
+	if message == "" || message == ErrCoerce.Error() {
+		return "", false
+	}
+
+	if location != "" {
+		message += " " + location
+	}
+
+	// An integer with a leading zero ends with its correction, after the
+	// location: "... for flag --mode (a leading zero is ambiguous: write
+	// 0o755 for octal or 755 for decimal)".
+	if hint := intx.HintOf(e.cause); hint != "" {
+		message += " (" + hint + ")"
+	}
+
+	return message, true
 }
 
 func (e *coercionError) commandChain() []*spec.Command {

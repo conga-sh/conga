@@ -194,16 +194,16 @@ func splitBase(raw, unsigned string) (int, string, error) {
 	return base, digits, nil
 }
 
-// digitValue returns the value of the digit character c in bases up to 16,
+// digitValue returns the value of the digit character in bases up to 16,
 // or 16 for any other character.
-func digitValue(c byte) int {
+func digitValue(character byte) int {
 	switch {
-	case '0' <= c && c <= '9':
-		return int(c - '0')
-	case 'a' <= c && c <= 'f':
-		return int(c-'a') + 10
-	case 'A' <= c && c <= 'F':
-		return int(c-'A') + 10
+	case '0' <= character && character <= '9':
+		return int(character - '0')
+	case 'a' <= character && character <= 'f':
+		return int(character-'a') + 10
+	case 'A' <= character && character <= 'F':
+		return int(character-'A') + 10
 	default:
 		return 16
 	}

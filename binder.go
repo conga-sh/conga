@@ -2201,7 +2201,7 @@ func applyFlagCoercion(binding flagBinding, input flagInput) error {
 				return binding.coercionError(origin, raw, &counterError{raw: raw, cause: err})
 			}
 
-			totalCount += int(parsedCount)
+			totalCount += int(parsedCount) //nolint:gosec // parsed with bitSize strconv.IntSize-1, so the value fits int
 		}
 
 		flagStateOf(flagSpec.Handle).setValue(totalCount, origin.source, input.detail)

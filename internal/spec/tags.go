@@ -150,7 +150,7 @@ func ParseCountBound(raw string) (int, error) {
 		return 0, err
 	}
 
-	return int(value), nil
+	return int(value), nil //nolint:gosec // parsed with bitSize strconv.IntSize-1, so the value fits int
 }
 
 // countBoundError reports an invalid len or items bound. A leading zero gets
@@ -562,13 +562,9 @@ func parseFlagSpec(structField reflect.StructField, flagHandle any, classificati
 		return nil, err
 	}
 
-	var integerEnum []string
-
-	if !kindInfo.isCounter {
-		integerEnum, err = parseIntegerEnum(enumValues, kindInfo.targetType, opts)
-		if err != nil {
-			return nil, err
-		}
+	integerEnum, err := parseFlagIntegerEnum(enumValues, kindInfo, opts)
+	if err != nil {
+		return nil, err
 	}
 
 	helpText, referenced, err := interpolateHelp(
@@ -1113,6 +1109,16 @@ func parseArgSpec(structField reflect.StructField, argHandle any, classification
 		TargetType:     innerType,
 		Handle:         argHandle,
 	}, nil
+}
+
+// parseFlagIntegerEnum parses a flag's integer enum values (see
+// parseIntegerEnum). Counters bind no enum, so they parse none.
+func parseFlagIntegerEnum(enumValues []string, kindInfo flagKindInfo, opts *Options) ([]string, error) {
+	if kindInfo.isCounter {
+		return nil, nil
+	}
+
+	return parseIntegerEnum(enumValues, kindInfo.targetType, opts)
 }
 
 // parseIntegerEnum returns the decimal form of each enum value when
