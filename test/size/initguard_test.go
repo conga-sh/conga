@@ -40,6 +40,7 @@ var optInInitGuardPackages = []string{
 	"internal/configdata",
 	"internal/configengine",
 	"internal/dotenv",
+	"internal/envx",
 	"internal/intx",
 	"internal/jsonwire",
 	"internal/style",

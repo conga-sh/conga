@@ -13,6 +13,7 @@ import (
 
 	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/internal/casing"
+	"github.com/conga-sh/conga/internal/envx"
 	"github.com/conga-sh/conga/internal/stringx"
 )
 
@@ -613,15 +614,15 @@ func styled(text, escape string, useColor bool) string {
 }
 
 func isColorEnabled(writer io.Writer) bool {
-	if value, ok := os.LookupEnv("CONGA_COLOR"); ok && value != "" {
-		return value != "0"
-	}
-
-	if value, ok := os.LookupEnv("NO_COLOR"); ok && value != "" {
+	switch envx.ColorPreference() {
+	case envx.ColorOn:
+		return true
+	case envx.ColorOff:
 		return false
+	case envx.ColorDefault:
 	}
 
-	if os.Getenv("CLICOLOR") == "0" || os.Getenv("TERM") == "dumb" {
+	if os.Getenv("TERM") == "dumb" {
 		return false
 	}
 

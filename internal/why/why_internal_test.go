@@ -1,6 +1,9 @@
 package why
 
 import (
+	"bytes"
+	"cmp"
+	"io"
 	"os"
 	"strings"
 	"testing"
@@ -213,6 +216,50 @@ func TestIsColorEnabled_NoColorDisables(t *testing.T) {
 	t.Setenv("TERM", "xterm")
 
 	assert.False(t, IsColorEnabled(openCharDevice(t)))
+}
+
+func TestIsColorEnabled_CongaColor(t *testing.T) {
+	cases := []struct {
+		name     string
+		color    string
+		noColor  string
+		cliColor string
+		term     string
+		pipe     bool
+		enabled  bool
+	}{
+		{name: "true on a terminal", color: "true", enabled: true},
+		{name: "false on a terminal", color: "false"},
+		{name: "unparseable on a terminal follows the terminal", color: "always", enabled: true},
+		{name: "true on a pipe forces color", color: "true", pipe: true, enabled: true},
+		{name: "false on a pipe", color: "false", pipe: true},
+		{name: "unparseable on a pipe follows the pipe", color: "always", pipe: true},
+		{name: "true outranks NO_COLOR", color: "true", noColor: "1", enabled: true},
+		{name: "false with NO_COLOR", color: "false", noColor: "1"},
+		{name: "unparseable defers to NO_COLOR", color: "always", noColor: "1"},
+		{name: "true outranks CLICOLOR 0", color: "true", cliColor: "0", enabled: true},
+		{name: "false with CLICOLOR 0", color: "false", cliColor: "0"},
+		{name: "unparseable defers to CLICOLOR 0", color: "always", cliColor: "0"},
+		{name: "true outranks TERM dumb", color: "true", term: "dumb", enabled: true},
+		{name: "false with TERM dumb", color: "false", term: "dumb"},
+		{name: "unparseable defers to TERM dumb", color: "always", term: "dumb"},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Setenv("CONGA_COLOR", testCase.color)
+			t.Setenv("NO_COLOR", testCase.noColor)
+			t.Setenv("CLICOLOR", testCase.cliColor)
+			t.Setenv("TERM", cmp.Or(testCase.term, "xterm"))
+
+			var writer io.Writer = openCharDevice(t)
+			if testCase.pipe {
+				writer = &bytes.Buffer{}
+			}
+
+			assert.Equal(t, testCase.enabled, IsColorEnabled(writer))
+		})
+	}
 }
 
 func openCharDevice(t *testing.T) *os.File {

@@ -134,3 +134,45 @@ func TestInspectorColorDisabled(t *testing.T) {
 	assert.Contains(t, output, "⚙  app")
 	assert.Contains(t, output, "● cli --name")
 }
+
+func TestInspectorColorFalseDisables(t *testing.T) {
+	t.Setenv("CONGA_COLOR", "false")
+	t.Setenv("NO_COLOR", "")
+	t.Setenv("CLICOLOR", "")
+
+	cli := new(SampleCLI)
+	app := conga.New(cli).
+		Args([]string{"-n", "Antigravity", "-v"})
+
+	err := app.RunContext(t.Context())
+	assert.NoError(t, err)
+
+	var buffer bytes.Buffer
+	inspector.Fprint(nil, &buffer, cli)
+
+	output := buffer.String()
+	assert.False(t, strings.Contains(output, "\033["))
+	assert.Contains(t, output, "⚙  app")
+	assert.Contains(t, output, "● cli --name")
+}
+
+func TestInspectorColorUnparseableDefersToWriter(t *testing.T) {
+	t.Setenv("CONGA_COLOR", "always")
+	t.Setenv("NO_COLOR", "")
+	t.Setenv("CLICOLOR", "")
+
+	cli := new(SampleCLI)
+	app := conga.New(cli).
+		Args([]string{"-n", "Antigravity", "-v"})
+
+	err := app.RunContext(t.Context())
+	assert.NoError(t, err)
+
+	var buffer bytes.Buffer
+	inspector.Fprint(nil, &buffer, cli)
+
+	output := buffer.String()
+	assert.False(t, strings.Contains(output, "\033["))
+	assert.Contains(t, output, "⚙  app")
+	assert.Contains(t, output, "● cli --name")
+}

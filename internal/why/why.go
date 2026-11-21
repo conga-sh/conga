@@ -21,6 +21,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/conga-sh/conga/internal/configdata"
+	"github.com/conga-sh/conga/internal/envx"
 	"github.com/conga-sh/conga/internal/jsonwire"
 )
 
@@ -348,19 +349,18 @@ func (r Report) FormatJSON() string {
 	return string(buffer)
 }
 
-// IsColorEnabled reports whether styled color output should be enabled for writer,
-// honoring CONGA_COLOR, NO_COLOR, CLICOLOR, TERM=dumb, and TTY detection.
+// IsColorEnabled reports whether styled color output should be enabled for
+// writer. The environment preference of envx.ColorPreference decides first
+// (CONGA_COLOR parsed as a boolean, then NO_COLOR, then CLICOLOR=0). Without a
+// preference, TERM=dumb disables color and otherwise color follows whether
+// writer is a terminal.
 func IsColorEnabled(writer io.Writer) bool {
-	if value, ok := os.LookupEnv("CONGA_COLOR"); ok && value != "" {
-		return value != "0"
-	}
-
-	if value, ok := os.LookupEnv("NO_COLOR"); ok && value != "" {
+	switch envx.ColorPreference() {
+	case envx.ColorOn:
+		return true
+	case envx.ColorOff:
 		return false
-	}
-
-	if value, ok := os.LookupEnv("CLICOLOR"); ok && value == "0" {
-		return false
+	case envx.ColorDefault:
 	}
 
 	if os.Getenv("TERM") == "dumb" {
