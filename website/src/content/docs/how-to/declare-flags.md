@@ -320,6 +320,7 @@ Map values decode like single flag values, so a `map[string]int` or a `map[strin
 |---|---|---|
 | The user gives a value of the wrong type | Run | `invalid duration "30" (valid units: ms, s, m, h) for flag --timeout`, exit 2 |
 | The user repeats a flag and an earlier value has the wrong type | Run | `invalid integer value "two" for flag --retries`, exit 2 |
+| The user gives an integer with a leading zero (see [Integer syntax](/reference/struct-tags/#integer-syntax)) | Run | `invalid integer value "05" for flag --retries (a leading zero is ambiguous: write 0o5 for octal or 5 for decimal)`, exit 2 |
 | An environment variable holds a value of the wrong type | Run | `invalid boolean value "no", expected true or false (or 1 or 0) for flag --redirects (from environment variable FETCH_REDIRECTS)`, exit 1 |
 | The user misspells a flag | Run | `unknown flag: --redirect (did you mean "--redirects"?)`, then usage, exit 2 |
 | The user gives `--no-` to a flag without `negatable` | Run | `unknown flag: --no-verbose`, then usage, exit 2 |

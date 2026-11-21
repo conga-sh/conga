@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/conga-sh/conga/internal/intx"
 	"github.com/conga-sh/conga/internal/spec"
 )
 
@@ -29,7 +30,7 @@ const (
 )
 
 const (
-	numErrorInvalid    numErrorKind = iota // strconv syntax failure
+	numErrorInvalid    numErrorKind = iota // syntax failure
 	numErrorOutOfRange                     // strconv.ErrRange
 )
 
@@ -334,6 +335,7 @@ type numError struct {
 	noun       string       // "integer" | "unsigned integer" | "float" (invalid kind only)
 	targetType reflect.Type // out-of-range kind only
 	kind       numErrorKind
+	cause      error // *intx.Error for integers, so intx.HintOf finds the leading-zero hint
 }
 
 func (e *numError) Error() string {
@@ -347,7 +349,13 @@ func (e *numError) Error() string {
 	}
 }
 
-func (e *numError) Unwrap() error { return ErrCoerce }
+func (e *numError) Unwrap() []error {
+	if e.cause == nil {
+		return []error{ErrCoerce}
+	}
+
+	return []error{ErrCoerce, e.cause}
+}
 
 // mapPairErrorKind identifies the KEY=VALUE syntax failure mode.
 type mapPairErrorKind uint8
@@ -600,7 +608,7 @@ func coerceSignedInt(raw string, targetType reflect.Type) (any, error) {
 		return nil, &unsupportedTypeError{targetType: targetType}
 	}
 
-	num, err := strconv.ParseInt(raw, 10, bitSize)
+	num, err := intx.ParseInt(raw, bitSize)
 	if err != nil {
 		return nil, wrapParseNumError(err, raw, targetType, "integer")
 	}
@@ -614,7 +622,7 @@ func coerceUnsignedInt(raw string, targetType reflect.Type) (any, error) {
 		return nil, &unsupportedTypeError{targetType: targetType}
 	}
 
-	num, err := strconv.ParseUint(raw, 10, bitSize)
+	num, err := intx.ParseUint(raw, bitSize)
 	if err != nil {
 		return nil, wrapParseNumError(err, raw, targetType, "unsigned integer")
 	}
@@ -686,11 +694,17 @@ func floatBitSize(kind reflect.Kind) (int, bool) {
 }
 
 func wrapParseNumError(err error, raw string, targetType reflect.Type, noun string) error {
-	if errors.Is(err, strconv.ErrRange) {
-		return &numError{raw: raw, targetType: targetType, kind: numErrorOutOfRange}
+	var cause error
+
+	if integerError, ok := errors.AsType[*intx.Error](err); ok {
+		cause = integerError
 	}
 
-	return &numError{raw: raw, noun: noun, kind: numErrorInvalid}
+	if errors.Is(err, strconv.ErrRange) {
+		return &numError{raw: raw, targetType: targetType, kind: numErrorOutOfRange, cause: cause}
+	}
+
+	return &numError{raw: raw, noun: noun, kind: numErrorInvalid, cause: cause}
 }
 
 func ensureAssignable(value any, targetType reflect.Type) (any, error) {

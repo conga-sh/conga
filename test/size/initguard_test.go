@@ -18,8 +18,8 @@ import (
 // optInInitGuardPackages lists the packages that must stay free of dynamic
 // package-level initializers: for opt-in subsystems a dynamic initializer emits
 // a `..inittask` that keeps the package (and its subsystem) linked even when
-// the feature is disabled, and internal/jsonwire is always-linked, so its
-// initializer would run at every startup. Error sentinels for these packages
+// the feature is disabled, and internal/jsonwire and internal/intx are
+// always-linked, so their initializers would run at every startup. Error sentinels for these packages
 // live in the always-linked internal/sentinel leaf instead. Packages not yet
 // converted (network, system, internal/filex, internal/signals, decoder/*) are
 // intentionally absent until their sentinels move there; the network and system
@@ -40,6 +40,7 @@ var optInInitGuardPackages = []string{
 	"internal/configdata",
 	"internal/configengine",
 	"internal/dotenv",
+	"internal/intx",
 	"internal/jsonwire",
 	"internal/style",
 	"internal/why",

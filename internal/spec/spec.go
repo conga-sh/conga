@@ -349,9 +349,13 @@ type Flag struct {
 	// supplied. Declared through oneof:"group"; rejected on required flags.
 	OneOfGroup string
 	Enum       []string
-	Range      *Range
-	Len        *Range
-	Items      *Range
+	// IntegerEnum holds the decimal form of each Enum value when the flag's
+	// value, or a slice flag's element, decodes as a built-in integer, so the
+	// binder compares numbers: enum:"0x10" accepts 16. Nil otherwise.
+	IntegerEnum []string
+	Range       *Range
+	Len         *Range
+	Items       *Range
 	// FieldTags holds the custom tag values declared on the flag that were
 	// registered by its domain type (see spec.TagSpecProvider). Nil when the
 	// flag's type registers no tags or declares none.
@@ -430,9 +434,13 @@ type Arg struct {
 	// validated and completed; only the help-screen listing is suppressed.
 	EnumHintHidden bool
 	Enum           []string
-	Range          *Range
-	Len            *Range
-	Items          *Range
+	// IntegerEnum holds the decimal form of each Enum value when the
+	// argument's value, or a slice argument's element, decodes as a built-in
+	// integer, so the binder compares numbers. Nil otherwise.
+	IntegerEnum []string
+	Range       *Range
+	Len         *Range
+	Items       *Range
 	// FieldTags holds the custom tag values declared on the argument that
 	// were registered by its domain type (see spec.TagSpecProvider). Nil
 	// when the argument's type registers no tags or declares none.
@@ -608,6 +616,11 @@ type Options struct {
 	// parser registry; a nil hook skips the check. The returned error must
 	// wrap ErrSchema; schema build adds the struct and field context.
 	ValidateValueType func(targetType reflect.Type) error
+	// HasTypeParser reports whether the app registered a parser for a value
+	// type. An integer type with a registered parser reads its enum values in
+	// that parser's grammar, so schema build leaves them unparsed. A nil hook
+	// reports no registered parsers.
+	HasTypeParser func(targetType reflect.Type) bool
 	// ProcessFeatures processes a conga.Features container field during schema build.
 	ProcessFeatures func(builder any, structField reflect.StructField, fieldAddr any, classification container.Classification) error
 	// ValidateFeatureReferences validates feature expressions across commands and flags.
