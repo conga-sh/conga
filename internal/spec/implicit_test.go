@@ -102,6 +102,18 @@ func TestTerminalImplicitLevels(t *testing.T) {
 		assert.Equal(t, 0, levels)
 	})
 
+	t.Run("false builtin value forwards terminator operands to the implicit child", func(t *testing.T) {
+		t.Parallel()
+
+		leaf := &spec.Command{Name: "run", Implicit: true}
+		root := &spec.Command{Name: "tool", IsRunnable: true, Subcommands: []*spec.Command{leaf}}
+		tokens := tokenizer.Tokenize([]string{"--help=false", "--", "x"})
+
+		levels := spec.TerminalImplicitLevels([]*spec.Command{root}, tokens, true)
+
+		assert.Equal(t, 1, levels)
+	})
+
 	t.Run("child-only flag selects the implicit child", func(t *testing.T) {
 		t.Parallel()
 
@@ -464,6 +476,17 @@ func TestBuiltinRequested(t *testing.T) {
 		{name: "short help in cluster", args: []string{"-vh", "bogus"}, requested: true},
 		{name: "help after terminator", args: []string{"--", "--help"}, requested: false},
 		{name: "declared flags only", args: []string{"-v", "bogus"}, requested: false},
+		{name: "long help true", args: []string{"--help=true"}, requested: true},
+		{name: "long help false", args: []string{"--help=false"}, requested: false},
+		{name: "long help zero", args: []string{"--help=0"}, requested: false},
+		{name: "long help f", args: []string{"--help=f"}, requested: false},
+		{name: "long help unparseable", args: []string{"--help=maybe"}, requested: false},
+		{name: "later false value wins", args: []string{"--help", "--help=false"}, requested: false},
+		{name: "later bare flag wins", args: []string{"--help=false", "--help"}, requested: true},
+		{name: "short help false", args: []string{"-h=false"}, requested: false},
+		{name: "short help one", args: []string{"-h=1"}, requested: true},
+		{name: "value belongs to the last rune", args: []string{"-hv=false"}, requested: true},
+		{name: "short help last in cluster false", args: []string{"-vh=false"}, requested: false},
 	}
 
 	for _, test := range tests {

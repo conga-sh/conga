@@ -344,19 +344,17 @@ func (parser *tokenParser) consumeNextValue(flagSpec *spec.Flag, flagName, rawTo
 		}
 	}
 
-	if parser.scanner.HasNext() {
-		nextTok, _ := parser.scanner.Next()
-
-		if !nextTok.CanBindAsFlagValue() {
-			return flagRequiresValueError()
-		}
-
-		parser.flagValues[flagSpec] = append(parser.flagValues[flagSpec], nextTok.Raw)
-
-		return nil
+	// The next token is consumed only when it binds as the value, so a
+	// flag-shaped token such as --help stays in the stream for the parser.
+	nextTok, ok := parser.scanner.Peek()
+	if !ok || !nextTok.CanBindAsFlagValue() {
+		return flagRequiresValueError()
 	}
 
-	return flagRequiresValueError()
+	parser.scanner.Next()
+	parser.flagValues[flagSpec] = append(parser.flagValues[flagSpec], nextTok.Raw)
+
+	return nil
 }
 
 // parseShortFlagCluster binds a shorthand cluster classified by
@@ -2013,8 +2011,20 @@ func skipFlagValue(tokens []tokenizer.Token, position int, chain []*spec.Command
 	return true, position
 }
 
+// parseTokens binds the routed tokens to flags, positionals, dash arguments,
+// and raw arguments. A token-level parse error does not stop parsing: the bad
+// token is skipped (a flag missing its value stays unset) and parsing goes on,
+// so a built-in --help or --version request anywhere before the -- terminator
+// and the raw-args boundary renders instead of failing. Without such a
+// request the first error is returned, together with the flag values parsed
+// before it.
 func parseTokens(cmdChain []*spec.Command, tokens []tokenizer.Token, index *flagIndex) (flagTokens, []string, []string, []string, error) {
 	parser := newTokenParser(cmdChain, tokens, index)
+
+	var (
+		firstErr         error
+		valuesAtFirstErr map[*spec.Flag][]string
+	)
 
 	for parser.scanner.HasNext() {
 		tok, _ := parser.scanner.Next()
@@ -2034,22 +2044,82 @@ func parseTokens(cmdChain []*spec.Command, tokens []tokenizer.Token, index *flag
 			// No-op for unknown token type
 		}
 
-		if err != nil {
+		if err != nil && firstErr == nil {
 			// The flags parsed before the error let an unknown-flag hint be
-			// checked against the feature gates they set.
-			return flagTokens{values: parser.flagValues}, nil, nil, nil, err
+			// checked against the feature gates they set, so later tokens
+			// (a --feature-gates after the bad token) must not change them.
+			// A shallow clone is a safe snapshot: the parser only appends to
+			// a flag's value slice, so later appends never change the
+			// elements this copy sees.
+			firstErr = err
+			valuesAtFirstErr = maps.Clone(parser.flagValues)
 		}
 	}
 
-	if leaf := cmdChain[len(cmdChain)-1]; leaf.IsVersionCmd {
-		if err := bindVersionCommandJSON(cmdChain, leaf, parser.flagValues); err != nil {
-			return flagTokens{}, nil, nil, nil, err
-		}
+	builtinErr := resolveBuiltinBoolFlags(cmdChain, parser.flagValues)
+
+	if firstErr != nil && !requestsHelpOrVersion(parser.flagValues) {
+		return flagTokens{values: valuesAtFirstErr}, nil, nil, nil, firstErr
+	}
+
+	if builtinErr != nil {
+		return flagTokens{values: parser.flagValues}, nil, nil, nil, builtinErr
 	}
 
 	parsed := flagTokens{values: parser.flagValues, spellings: parser.flagSpellings}
 
 	return parsed, parser.posTokens, parser.dashTokens, parser.rawTokens, nil
+}
+
+// resolveBuiltinBoolFlags applies the values of the built-in --help and
+// --version flags. Each value is parsed like any bool flag value, and the last
+// one decides: when it is false (--help=false, --version=0) the flag is
+// removed from flagValues, so it is no request. An invalid value
+// (--help=maybe) removes the flag too and returns the coercion error, which the
+// caller reports after any token-level parse error, as for other flags. Both
+// requestsHelpOrVersion and scanBuiltinRequest read the result, which keeps
+// scanBuiltinRequest within the inlining budget.
+func resolveBuiltinBoolFlags(cmdChain []*spec.Command, flagValues map[*spec.Flag][]string) error {
+	var firstErr error
+
+	for _, flagSpec := range []*spec.Flag{spec.BuiltinHelpFlag, spec.BuiltinVersionFlag} {
+		requested, err := builtinFlagRequested(cmdChain, flagSpec, flagValues[flagSpec])
+		if err != nil && firstErr == nil {
+			firstErr = err
+		}
+
+		if !requested {
+			delete(flagValues, flagSpec)
+		}
+	}
+
+	return firstErr
+}
+
+// builtinFlagRequested parses the command-line values of one built-in bool
+// flag and reports whether the last one switches it on.
+func builtinFlagRequested(cmdChain []*spec.Command, flagSpec *spec.Flag, values []string) (bool, error) {
+	requested := false
+
+	for _, rawValue := range values {
+		enabled, err := coerce.Value[bool](rawValue)
+		if err != nil {
+			binding := flagBinding{cmdChain: cmdChain, flagSpec: flagSpec}
+
+			return false, binding.coercionError(valueOrigin{source: SourceCLI, name: "--" + flagSpec.Name}, rawValue, err)
+		}
+
+		requested = enabled
+	}
+
+	return requested, nil
+}
+
+// requestsHelpOrVersion reports whether the parsed command-line flags include
+// the built-in --help or --version flag. A user flag that takes the help or
+// version name is a different flag, so it never matches.
+func requestsHelpOrVersion(flagValues map[*spec.Flag][]string) bool {
+	return len(flagValues[spec.BuiltinHelpFlag]) > 0 || len(flagValues[spec.BuiltinVersionFlag]) > 0
 }
 
 // applyFlagCoercion coerces the winning tier's raw values and records the

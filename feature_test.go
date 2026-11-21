@@ -3397,6 +3397,25 @@ func TestFeature_UnknownFlagHintKeptForGatedOnFlag(t *testing.T) {
 	assert.False(t, cli.Ran)
 }
 
+// A flag parsed after the unknown flag does not reach the hint check, so a
+// later --feature-gates cannot switch the gate on for it.
+func TestFeature_UnknownFlagHintIgnoresLaterGates(t *testing.T) {
+	t.Parallel()
+
+	var cli featureTestCLI
+
+	app := conga.New(&cli).
+		Name("task").
+		EnableFeatures().
+		Args([]string{"--force-al", "--feature-gates", "gentle-force=true"})
+
+	err := app.Run()
+
+	assert.IsError(t, err, conga.ErrParse)
+	assert.Equal(t, "unknown flag: --force-al", err.Error())
+	assert.False(t, cli.Ran)
+}
+
 // An unknown-command hint that names a gated-off subcommand is dropped.
 func TestFeature_UnknownCommandHintDroppedForGatedOffCommand(t *testing.T) {
 	t.Parallel()

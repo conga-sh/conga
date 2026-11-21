@@ -452,3 +452,167 @@ func TestVersion_CustomFlagWithDisableVersionFlag(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "custom-v1", cli.Version.Get())
 }
+
+// TestVersionFlag_PrecedenceOverParseErrors pins that a built-in --version
+// renders the version line even when another token is an unknown flag.
+func TestVersionFlag_PrecedenceOverParseErrors(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{name: "unknown flag after version", args: []string{"--version", "--bogus"}},
+		{name: "unknown flag before version", args: []string{"--bogus", "--version"}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			var buffer bytes.Buffer
+
+			app := conga.New[TestVersionRootCLI]().
+				Name("testapp").
+				Version("2.1.0").
+				Args(test.args).
+				Stdout(&buffer)
+
+			err := app.Run()
+
+			assert.NoError(t, err)
+			assert.True(t, strings.HasPrefix(buffer.String(), "testapp has version 2.1.0 built with "))
+		})
+	}
+}
+
+// TestVersionFlag_ShortPrecedenceOverParseErrors pins that the configured -V
+// rune outranks a parse error like --version does.
+func TestVersionFlag_ShortPrecedenceOverParseErrors(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{name: "unknown flag", args: []string{"-V", "--bogus"}},
+		{name: "missing flag value", args: []string{"-V", "--name"}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			var buffer bytes.Buffer
+
+			app := conga.New[versionPrecedenceCLI]().
+				Name("testapp").
+				Version("2.1.0").
+				VersionShortFlag('V').
+				Args(test.args).
+				Stdout(&buffer)
+
+			err := app.Run()
+
+			assert.NoError(t, err)
+			assert.True(t, strings.HasPrefix(buffer.String(), "testapp has version 2.1.0 built with "))
+		})
+	}
+}
+
+// versionPrecedenceCLI is a runnable root with a value flag, so a version
+// request can meet a missing value and a false version value runs the root.
+type versionPrecedenceCLI struct {
+	Name conga.OptionalFlag[string] `help:"Service name"`
+	Ran  bool
+}
+
+func (c *versionPrecedenceCLI) Run(context.Context, *conga.Session) error {
+	c.Ran = true
+
+	return nil
+}
+
+// TestVersionFlag_UserVersionFlagGetsNoPrecedence pins that a user flag
+// reusing the freed version name is an ordinary flag, so an unknown flag still
+// fails.
+func TestVersionFlag_UserVersionFlagGetsNoPrecedence(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[UserVersionFlagCLI]().
+		DisableVersionFlag().
+		Args([]string{"--bogus", "--version", "custom-v1"})
+
+	err := app.Run()
+
+	assert.IsError(t, err, conga.ErrParse)
+	assert.Equal(t, "unknown flag: --bogus", err.Error())
+}
+
+// TestVersionFlag_FalseValueIsNoRequest pins that the built-in version flag
+// honors its bool value: a false value runs the command.
+func TestVersionFlag_FalseValueIsNoRequest(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{name: "long flag zero", args: []string{"--version=0"}},
+		{name: "short flag false", args: []string{"-V=false"}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			var buffer bytes.Buffer
+
+			cli := new(versionPrecedenceCLI)
+			app := conga.New(cli).
+				Name("testapp").
+				Version("2.1.0").
+				VersionShortFlag('V').
+				Args(test.args).
+				Stdout(&buffer)
+
+			err := app.Run()
+
+			assert.NoError(t, err)
+			assert.True(t, cli.Ran)
+			assert.Equal(t, "", buffer.String())
+		})
+	}
+}
+
+func TestVersionFlag_InvalidValueFails(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[versionPrecedenceCLI]().
+		Name("testapp").
+		Args([]string{"--version=maybe"})
+
+	err := app.Run()
+
+	assert.IsError(t, err, conga.ErrCoerce)
+	assert.Equal(t, `invalid boolean value "maybe", expected true or false (or 1 or 0) for flag --version`, err.Error())
+}
+
+// TestVersionCommand_HelpWinsOverInvalidJSON pins that --help on the version
+// command renders its help screen before --json is coerced.
+func TestVersionCommand_HelpWinsOverInvalidJSON(t *testing.T) {
+	t.Parallel()
+
+	var buffer bytes.Buffer
+
+	app := conga.New[TestVersionRootCLI]().
+		Name("testapp").
+		Version("2.1.0").
+		Args([]string{"version", "--json=bad", "--help"}).
+		Stdout(&buffer)
+
+	err := app.Run()
+
+	assert.NoError(t, err)
+	assert.Equal(t, "Show version information\n\nUsage:\n  testapp version [flags]\n\nFlags:\n      --json  Render machine-readable JSON output\n      --help  Show help\n", buffer.String())
+}

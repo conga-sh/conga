@@ -678,6 +678,18 @@ func TestAnalyzeCompletion_BuiltinBeforeTerminatorKeepsChain(t *testing.T) {
 	assert.Equal(t, []string{"tool"}, commandNames(analysis.CommandChain))
 }
 
+// A false --help is no built-in request, so the walker follows the implicit
+// child into the operands after -- as it does without the flag.
+func TestAnalyzeCompletion_FalseBuiltinBeforeTerminatorFollowsImplicit(t *testing.T) {
+	t.Parallel()
+
+	root := buildCompletionImplicitRoot(t, &completionImplicitRoot{})
+
+	analysis := spec.AnalyzeCompletion(root, []string{"--help=false", "--", ""})
+
+	assert.Equal(t, []string{"tool", "run"}, commandNames(analysis.CommandChain))
+}
+
 func TestComplete_BuiltinBeforeTerminatorOmitsImplicitOperands(t *testing.T) {
 	t.Parallel()
 
