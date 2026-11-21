@@ -23,7 +23,7 @@ CONGA derives the CLI schema from struct fields and their tags. Schema build val
 | `hidden` | ✅ | ✅ | ✅ | Suppress from help and completion (`hidden` or `hidden:"true"`; `hidden:"false"` keeps it shown, and any other value fails schema build). |
 | `items` | ✅ | ✅ | – | Element count bound for slices or maps (see [Bounds syntax](#bounds-syntax)). |
 | `len` | ✅ | ✅ | – | Length bound in runes for strings, applied to each element of a slice. |
-| `name` | ✅ | ✅ | ✅ | Flag name override (default: kebab-case of field name, e.g. `MaxRetries` → `--max-retries`). |
+| `name` | ✅ | ✅ | ✅ | Flag name override (default: kebab-case of field name, e.g. `MaxRetries` → `--max-retries`; see [Derived flag names](#derived-flag-names)). |
 | `negatable` | ✅ (bool) | – | – | Boolean flags only: enables `--[no-]flag` syntax (`negatable` or `negatable:"true"`; `negatable:"false"` turns it off, and any other value fails schema build). |
 | `oneof` | ✅ | – | ✅ | Exactly-one group name: exactly one member must be supplied by CLI, environment, or configuration. `default` is rejected on members. |
 | `placeholder` | ✅ | ✅ | – | Argument placeholder displayed in syntax and help. |
@@ -46,6 +46,20 @@ Plain struct fields and exported non-container fields are ignored by schema buil
 A map flag merges key by key across sources. A config value written as a nested map binds per key without `sep` splitting, so a `labels` section containing `hosts: a,b` keeps `a,b` as one value, while the string value `labels: hosts=a,b` is split on `sep`.
 
 The `enum` tag validates against the field's coerced value. When a type's `UnmarshalText` normalizes input (such as `get` to `GET`), validation compares against that normalized form, so declared enum values must match the normalized output. On an integer field, the values follow the [integer syntax](#integer-syntax) and compare as numbers.
+
+### Derived flag names
+
+A flag's name is its field name in kebab case, or the value of its `name` tag. The derived environment variable (the `App.EnvPrefix` prefix plus the flag name in upper snake case) and the derived config key (the flag name in the app's key casing) follow the flag name, so a `name` tag renames all three. An upper-case letter starts a new word when the letter before it or the letter after it is lower case. An acronym followed by a lower-case letter, such as the `v` in `IPv6` or the plural `s` in `IDs`, therefore splits before its last letter. With `EnvPrefix("PROBE")` and the default key casing:
+
+| Field | Flag | Environment variable | Config key |
+|-------|------|----------------------|------------|
+| `IPv6Addr` | `--i-pv6-addr` | `PROBE_I_PV6_ADDR` | `i-pv6-addr` |
+| `OAuth2Token` | `--o-auth2-token` | `PROBE_O_AUTH2_TOKEN` | `o-auth2-token` |
+| `UserIDs` | `--user-i-ds` | `PROBE_USER_I_DS` | `user-i-ds` |
+| `SourceURLs` | `--source-ur-ls` | `PROBE_SOURCE_UR_LS` | `source-ur-ls` |
+| `IPv6Addr` with `name:"ipv6-addr"` | `--ipv6-addr` | `PROBE_IPV6_ADDR` | `ipv6-addr` |
+
+Subcommand names and positional placeholders split the same way (`SyncURLs` becomes `sync-ur-ls`, and a `SourceURLs` argument shows as `<source-ur-ls>`). A subcommand's `name` tag sets its name (`name:"sync-urls"`). A positional's `name` tag replaces the whole placeholder as written, so it includes the angle brackets (`name:"<source-urls>"`).
 
 ## Positional arguments (`OptionalArg[T]`, `RequiredArg[T]`)
 

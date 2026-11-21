@@ -91,7 +91,32 @@ $ fetch https://example.com --retries two --retries 5
 fetch: error: invalid integer value "two" for flag --retries
 ```
 
-A `name` tag replaces the derived name. For types CONGA doesn't parse, see [How to add custom flag types](/how-to/add-custom-flag-types/).
+A `name` tag replaces the derived name. In the derived name, an upper-case letter starts a new word when the letter before it or the letter after it is lower case, so an acronym followed by a lower-case letter, such as a plural `s`, splits before its last letter ([Derived flag names](/reference/struct-tags/#derived-flag-names) shows the environment variable and config key that follow the flag name). Here `Fetch` also has a field `SourceURLs conga.OptionalFlag[[]string]` with `help:"Mirror addresses"`:
+
+```sh {12}
+$ fetch --help
+Usage:
+  fetch [flags] <url>
+
+Arguments:
+  <url>  Address to download
+
+Flags:
+      --output="-"               File to write
+      --retries=3                Attempts before giving up
+      --timeout=30s              Time limit per attempt
+      --source-ur-ls=STRING,...  Mirror addresses
+      --help                     Show help
+      --version                  Show version
+```
+
+With `name:"source-urls"` added to the field's tags, help lists the flag under its new name:
+
+```text no-copy
+      --source-urls=STRING,...  Mirror addresses
+```
+
+For types CONGA doesn't parse, see [How to add custom flag types](/how-to/add-custom-flag-types/).
 
 ## Add a short name and aliases
 

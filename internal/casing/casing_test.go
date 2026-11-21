@@ -32,10 +32,12 @@ func TestKebab(t *testing.T) {
 		{"ÜberFluss", "über-fluss"},
 		{"café", "café"},
 		// Known heuristic limitations (pinned, not aspirational): an acronym
-		// followed by a lowercase suffix is split, and a trailing upper-case
-		// rune after a digit is not split.
+		// followed by a lowercase suffix is split, a plural acronym is split,
+		// and a trailing upper-case rune after a digit is not split.
 		{"OAuth2Client", "o-auth2-client"},
 		{"IPv4", "i-pv4"},
+		{"UserIDs", "user-i-ds"},
+		{"SourceURLs", "source-ur-ls"},
 		{"version2B", "version2b"},
 		{"Step1A", "step1a"},
 		{"", ""},
@@ -75,6 +77,8 @@ func TestSnake(t *testing.T) {
 		// Known heuristic limitations (pinned, not aspirational).
 		{"OAuth2Client", "o_auth2_client"},
 		{"IPv4", "i_pv4"},
+		{"UserIDs", "user_i_ds"},
+		{"SourceURLs", "source_ur_ls"},
 		{"version2B", "version2b"},
 		{"Step1A", "step1a"},
 		{"", ""},
@@ -137,6 +141,9 @@ func TestUpperSnake(t *testing.T) {
 		{"ÜberFluss", "ÜBER_FLUSS"},
 		{"café", "CAFÉ"},
 		{"İstanbul", "İSTANBUL"},
+		// Known heuristic limitations (pinned, not aspirational).
+		{"UserIDs", "USER_I_DS"},
+		{"SourceURLs", "SOURCE_UR_LS"},
 		{"", ""},
 	}
 
@@ -170,6 +177,8 @@ func TestUppercaseWords(t *testing.T) {
 		// Known heuristic limitations (pinned, not aspirational).
 		{"OAuth2Client", "O-AUTH2-CLIENT"},
 		{"IPv4", "I-PV4"},
+		{"UserIDs", "USER-I-DS"},
+		{"SourceURLs", "SOURCE-UR-LS"},
 		{"version2B", "VERSION2B"},
 		{"Step1A", "STEP1A"},
 		{"", ""},
