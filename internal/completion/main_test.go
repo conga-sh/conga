@@ -87,7 +87,8 @@ func envConstantValues(t *testing.T, path string, imported map[string]string) ma
 		}
 
 		for _, item := range general.Specs {
-			valueSpec := item.(*ast.ValueSpec)
+			valueSpec, ok := item.(*ast.ValueSpec)
+			assert.True(t, ok, "const spec has unexpected type %T", item)
 
 			for i, name := range valueSpec.Names {
 				if !strings.HasPrefix(name.Name, "Env") {
