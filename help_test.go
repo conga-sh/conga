@@ -796,7 +796,7 @@ func TestHelp_CollisionWithoutDisableHelpFlag(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrSchema)
+	assert.Equal(t, "struct UserHelpFlagCLI field Help: duplicate flag --help (note: already declared by the built-in --help flag; hint: use app.DisableHelpFlag() to override)", err.Error())
 }
 
 func TestHelp_CustomFlagWithDisableHelpFlag(t *testing.T) {

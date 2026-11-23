@@ -1,7 +1,6 @@
 package analyzer
 
 import (
-	"fmt"
 	"go/token"
 	"go/types"
 	"reflect"
@@ -27,18 +26,18 @@ func (w *walker) checkAndCollectFlag(node *commandNode, fieldObject types.Object
 	declared := flagOwner(node, fieldObject)
 
 	if owner, ok := branchNames[flagName]; ok {
-		w.reportFlagShadow(node, fieldObject, position, declared, owner, "--"+flagName)
+		w.reportFlagShadow(node, fieldObject, position, declared, owner, spec.FlagNameDeclaration(flagName))
 	}
 
 	for _, alias := range splitAliases(tag) {
 		if owner, ok := branchNames[alias]; ok {
-			w.reportFlagShadow(node, fieldObject, position, declared, owner, "alias --"+alias)
+			w.reportFlagShadow(node, fieldObject, position, declared, owner, spec.FlagAliasDeclaration(alias))
 		}
 	}
 
 	if shortRune != 0 {
 		if owner, ok := branchShorts[shortRune]; ok {
-			w.reportFlagShadow(node, fieldObject, position, declared, owner, fmt.Sprintf("short flag -%c", shortRune))
+			w.reportFlagShadow(node, fieldObject, position, declared, owner, spec.ShortFlagDeclaration(shortRune))
 		}
 	}
 
@@ -61,7 +60,7 @@ func (w *walker) checkAndCollectSynthesizedFlag(node *commandNode, fieldObject t
 	declared := flagOwner(node, fieldObject)
 
 	if owner, ok := branchNames[flagName]; ok {
-		w.reportFlagShadow(node, fieldObject, position, declared, owner, "--"+flagName)
+		w.reportFlagShadow(node, fieldObject, position, declared, owner, spec.FlagNameDeclaration(flagName))
 	}
 
 	branchNames[flagName] = declared
@@ -81,7 +80,7 @@ func (w *walker) checkVersionJSONShadows(node *commandNode, branchNames map[stri
 
 		position := w.fieldReportPos(node, versionField)
 
-		w.report(position, spec.VersionJSONShadowError(flagOwner(node, versionField).FlagOwner, owner.FlagOwner).Error())
+		w.reportError(position, spec.VersionJSONShadowError(flagOwner(node, versionField).FlagOwner, owner.FlagOwner))
 	}
 }
 
@@ -91,14 +90,14 @@ func (w *walker) checkVersionJSONShadows(node *commandNode, branchNames map[stri
 // the field loop, before the group census runs, so census diagnostics would be
 // unreachable. An ancestor collision is validated only after the whole command
 // tree is built, so descendant census diagnostics stay reportable.
-func (w *walker) reportFlagShadow(node *commandNode, fieldObject types.Object, position token.Pos, declared, owner shadowOwner, declaration string) {
+func (w *walker) reportFlagShadow(node *commandNode, fieldObject types.Object, position token.Pos, declared, owner shadowOwner, declaration spec.FlagDeclaration) {
 	if owner.node == node {
 		w.reportFieldError(node, fieldObject, spec.DuplicateFlagError(declaration, owner.Field))
 
 		return
 	}
 
-	w.report(position, spec.AncestorShadowError(declared.FlagOwner, declaration, owner.FlagOwner).Error())
+	w.reportError(position, spec.AncestorShadowError(declared.FlagOwner, declaration, owner.FlagOwner))
 }
 
 // flagOwner names the declaration of a flag field on node for shadowing

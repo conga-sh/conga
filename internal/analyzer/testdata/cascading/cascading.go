@@ -10,8 +10,8 @@ import (
 
 // CascadingSingleFlag declares Cascading() with a single-value config-file
 // flag: the flag cannot report every merged file.
-type CascadingSingleFlag struct { // want `runner not implemented: implement conga\.Runner`
-	Config conga.ConfigFile `name:"config"` // want `conga\.ConfigCascading\(\) merges multiple config files; the root config-file flag "config" must declare multi:"true"`
+type CascadingSingleFlag struct { // want `runner not implemented`
+	Config conga.ConfigFile `name:"config"` // want `struct CascadingSingleFlag field Config: the root config-file flag "config" must declare multi:"true"`
 }
 
 var _ = conga.New[CascadingSingleFlag]().ConfigOptions(conga.ConfigCascading())

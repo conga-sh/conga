@@ -275,7 +275,7 @@ func TestApp_RunContext_PropagatesSchemaError(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrSchema)
+	assert.Equal(t, `struct InvalidSchemaTagCLI field Port: tag "required" is not supported (hint: use conga.RequiredFlag[T] or conga.RequiredArg[T] instead)`, err.Error())
 }
 
 func TestApp_RunContext_NilContext(t *testing.T) {
@@ -424,7 +424,8 @@ func TestApp_ZeroValue_UnknownTagRejected(t *testing.T) {
 
 	err := app.RunContext(t.Context())
 
-	assert.IsError(t, err, conga.ErrSchema)
+	assert.Error(t, err)
+	assert.Equal(t, `struct ZeroValueUnknownTagCLI field Port: unknown struct tag "custom" (hint: use app.AllowTags("custom") to permit external tags)`, err.Error())
 }
 
 func TestApp_CompletionInvocationDoesNotConsumeExecution(t *testing.T) {
@@ -619,8 +620,8 @@ func TestApp_CompletionOffByDefault_RejectsCompletionCommand(t *testing.T) {
 
 		err := app.Run()
 
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, "struct CLI field Completion: schema error: completion command declared without completion enabled; call app.EnableCompletion() when constructing the app, or remove the field", err.Error())
+		assert.Error(t, err)
+		assert.Equal(t, "struct CLI field Completion: completion command declared without completion enabled (hint: call app.EnableCompletion() when constructing the app, or remove the field)", err.Error())
 	})
 
 	t.Run("multi command app fails schema build", func(t *testing.T) {
@@ -642,8 +643,8 @@ func TestApp_CompletionOffByDefault_RejectsCompletionCommand(t *testing.T) {
 
 		err := app.Run()
 
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, "struct CLI field Completion: schema error: completion command declared without completion enabled; call app.EnableCompletion() when constructing the app, or remove the field", err.Error())
+		assert.Error(t, err)
+		assert.Equal(t, "struct CLI field Completion: completion command declared without completion enabled (hint: call app.EnableCompletion() when constructing the app, or remove the field)", err.Error())
 	})
 }
 
@@ -717,8 +718,7 @@ func TestApp_TagValidationBuilders(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, `struct UnknownTagCLI field Port: schema error: invalid struct tag: unknown struct tag "custom". Use app.AllowTags("custom") to permit external tags`, err.Error())
+		assert.Equal(t, `struct UnknownTagCLI field Port: unknown struct tag "custom" (hint: use app.AllowTags("custom") to permit external tags)`, err.Error())
 	})
 
 	t.Run("AllowTags permits the registered custom tag", func(t *testing.T) {

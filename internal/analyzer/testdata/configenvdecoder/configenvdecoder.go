@@ -10,7 +10,7 @@ import (
 )
 
 type decoderApp struct {
-	Config conga.OptionalFlag[string] `help:"Profile name"` // want `struct decoderApp field Config: schema error: environment variable "APP_CONFIG" is bound by both the config file variable and flag --config; give the flag another env tag or exclude it with env:"-"`
+	Config conga.OptionalFlag[string] `help:"Profile name"` // want `struct decoderApp field Config: environment variable "APP_CONFIG" is bound by both the config file variable and flag --config`
 }
 
 func (a *decoderApp) Run(ctx context.Context, session *conga.Session) error {

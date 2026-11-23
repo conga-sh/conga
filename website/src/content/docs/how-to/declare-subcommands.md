@@ -221,7 +221,7 @@ An operand that starts with `-` goes after `--`, so `cloudctl -- -web.yaml` depl
 | What happens | When | Result |
 |---|---|---|
 | The user mistypes a subcommand (`cloudctl lst`) | Run | `unknown command: lst (did you mean "list"?)`, exit 2 |
-| The user runs a subcommand whose type has no `Run` method | Run | `struct ListCmd: schema error: runner not implemented: implement conga.Runner: Run(context.Context, *conga.Session) error`, `ErrSchema`, exit 1 |
+| The user runs a subcommand whose type has no `Run` method | Run | `struct ListCmd: schema error: runner not implemented: implement conga.Runner: Run(context.Context, *conga.Session) error`, schema error, exit 1 |
 | A subcommand declares a flag its parent already declares | Startup | `struct DeployCmd field Verbose: schema error: duplicate flag: --verbose (already declared by struct CLI field Verbose on an ancestor command)`, exit 1 |
 | Two subcommands of one parent are tagged `implicit:"true"` | Startup | `schema error: only one implicit command is allowed per command`, exit 1 |
 | With `deploy` implicit, a flag only `list` declares comes before `list` (`cloudctl --format json list`) | Run | `unknown flag: --format`, exit 2; the line routes to `deploy` |

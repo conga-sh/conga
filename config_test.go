@@ -1475,8 +1475,7 @@ func TestConfig_ConfigExplicit_ConflictWithPathsOrCascading_FailsSchema(t *testi
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Contains(t, err.Error(), "conga.ConfigExplicit() names a single configuration file and cannot be combined with conga.ConfigPaths() or conga.ConfigCascading()")
+		assert.Equal(t, "conga.ConfigExplicit() names a single configuration file and cannot be combined with conga.ConfigPaths() or conga.ConfigCascading()", err.Error())
 	})
 
 	t.Run("explicit combined with cascading", func(t *testing.T) {
@@ -1489,8 +1488,7 @@ func TestConfig_ConfigExplicit_ConflictWithPathsOrCascading_FailsSchema(t *testi
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Contains(t, err.Error(), "conga.ConfigExplicit() names a single configuration file and cannot be combined with conga.ConfigPaths() or conga.ConfigCascading()")
+		assert.Equal(t, "conga.ConfigExplicit() names a single configuration file and cannot be combined with conga.ConfigPaths() or conga.ConfigCascading()", err.Error())
 	})
 }
 

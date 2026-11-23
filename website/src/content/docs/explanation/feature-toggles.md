@@ -120,7 +120,7 @@ The meanings are guidance for the author. A stage decides only whether the featu
 
 ### The all-or-nothing stage rule
 
-Declaring feature stages is optional. However, when any field on `T` declares a `stage` tag, every field on `T` must declare one, and schema build rejects a mix with `ErrSchema`. This rule prevents ambiguous help listings, where staged and unstaged features would sit side by side with no way to tell whether a missing label means stable or forgotten.
+Declaring feature stages is optional. However, when any field on `T` declares a `stage` tag, every field on `T` must declare one, and schema build rejects a mix. This rule prevents ambiguous help listings, where staged and unstaged features would sit side by side with no way to tell whether a missing label means stable or forgotten.
 
 ### Mature features leave the Features section
 

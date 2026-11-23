@@ -3,7 +3,7 @@ title: Errors and exit codes
 description: Categorized base errors, the usage/runtime classification contract, and the 0/1/2 exit code contract.
 ---
 
-CONGA classifies every failure it detects into exactly one of five base categories. An error returned by a command's own `Run` or lifecycle hook comes back unchanged. Match the category, and read the specifics from the message (field, token, command path, suggestions).
+CONGA classifies runtime failures it detects into one of four base categories, and rejects invalid schemas before execution begins. An error returned by a command's own `Run` or lifecycle hook comes back unchanged. Match the category, and read the specifics from the message (field, token, command path, suggestions).
 
 ## Exit codes
 
@@ -12,7 +12,7 @@ CONGA classifies every failure it detects into exactly one of five base categori
 | Code | Meaning |
 |------|---------|
 | **0** | Success |
-| **1** | Command runtime failure (`Runner.Run` or lifecycle hooks), schema-build failure (`ErrSchema`), or configuration failure (`ErrConfig`, including environment-, configuration-, and default-sourced value failures) |
+| **1** | Command runtime failure (`Runner.Run` or lifecycle hooks), schema-build failure, or configuration failure (`ErrConfig`, including environment-, configuration-, and default-sourced value failures) |
 | **2** | Usage error: invalid command-line input — unknown flags, parse failures, coercion failures, constraint violations, missing required input — and internal completion failures with a diagnostic on stderr |
 
 Built-in requests (`--help`, `help`, `--version`, `version`, and opt-in `--why` and `--completion <shell>`) write to stdout during `app.Run()` and return `nil` on clean completion.
@@ -21,7 +21,6 @@ Built-in requests (`--help`, `help`, `--version`, `version`, and opt-in `--why` 
 
 | Sentinel | Stage |
 |----------|-------|
-| `conga.ErrSchema` | Schema building: tag linting, duplicates, invalid order (programmer errors at startup) |
 | `conga.ErrParse` | Command-line tokenization and parsing |
 | `conga.ErrCoerce` | Command-line string → typed value conversion |
 | `conga.ErrValidation` | Command-line constraints and semantic checks |
@@ -40,7 +39,7 @@ app: error: invalid integer value "abc" for flag --port (from config key "port")
 app: error: invalid integer value "abc" for flag --port (from default value)
 ```
 
-The first is a usage error with exit 2. The other three are `ErrConfig` with exit 1. `errors.As` and `errors.Is` still reach the original cause, so an application `TextUnmarshaler` error, a stdlib `*fs.PathError`, and a sentinel such as `fs.ErrNotExist` remain inspectable. Only the category sentinels stop at `ErrConfig`: `errors.Is` reports false for `ErrCoerce`, `ErrValidation`, `ErrParse`, and `ErrSchema` even when the cause wraps one.
+The first is a usage error with exit 2. The other three are `ErrConfig` with exit 1. `errors.As` and `errors.Is` still reach the original cause, so an application `TextUnmarshaler` error, a stdlib `*fs.PathError`, and a sentinel such as `fs.ErrNotExist` remain inspectable. Only the category sentinels stop at `ErrConfig`: `errors.Is` reports false for `ErrCoerce`, `ErrValidation`, and `ErrParse` even when the cause wraps one.
 
 **The stage decides `ErrCoerce` versus `ErrValidation`.** A failure while converting the text is `ErrCoerce`; a check on the converted value is `ErrValidation`. For example, a `File` field with `executable:"true"`:
 
@@ -104,35 +103,35 @@ Feature gating and map folding classify errors by the input source that introduc
 | Invalid format passed to `--why` or `--why=json` requested without `conga.WhyOptionJSON()` | `ErrValidation` (usage error) | 2 |
 | Runtime error returned from `Bootstrapper.Bootstrap` | `ErrConfig` | 1 |
 
-## Schema errors (`ErrSchema`)
+## Schema errors
 
 Programmer errors during schema construction abort at startup before execution begins (exit code 1):
 - Declaring `conga.Features[T]` or `feature:"..."` tags without calling `app.EnableFeatures()`.
 - Declaring both `env` and `envprefix` on a `conga.Features` container, or a feature-field `env` tag under a combined-map container.
 - Binding one environment variable through two feature fields (explicitly or through prefix derivation), or through a feature and a flag.
-- Binding a flag or feature to the environment variable the app reads a config file path from (`<PREFIX>_CONFIG`, or the `ConfigFile` field's `env` tag): `struct CLI field Config: schema error: environment variable "PC_CONFIG" is bound by both the config file variable and flag --config; give the flag another env tag or exclude it with env:"-"`.
+- Binding a flag or feature to the environment variable the app reads a config file path from (`<PREFIX>_CONFIG`, or the `ConfigFile` field's `env` tag): `struct CLI field Config: environment variable "PC_CONFIG" is bound by both the config file variable and flag --config (hint: give the flag another env tag or exclude it with env:"-")`.
 - Combining `conga.ConfigExplicit(...)` with `conga.ConfigPaths(...)` or `conga.ConfigCascading()`.
 - Declaring the `bootstrap` tag when neither the declaring command nor an ancestor implements `conga.Bootstrapper`.
 - Combining the `bootstrap` and `feature` tags on the same field.
 - Declaring the `bootstrap` tag on unsupported field types (structs, pointers, interfaces).
 - Inconsistent `stage` tags violating the all-or-nothing requirement on feature structs.
-- Declaring `enum` on a path field (`conga.File`, `conga.Dir`, `conga.FileContent`, a filterable type, or a `file`, `dir`, `exec`, or `symlink` predictor tag): `struct Deploy field Manifest: schema error: invalid struct tag: tag "enum" is not supported on conga.File; use tag "glob" to filter completion candidates, or a string field with tag "enum" to accept a fixed set of names`.
+- Declaring `enum` on a path field (`conga.File`, `conga.Dir`, `conga.FileContent`, a filterable type, or a `file`, `dir`, `exec`, or `symlink` predictor tag): `struct Deploy field Manifest: tag "enum" is not supported on conga.File (hint: use tag "glob" to filter completion candidates, or a string field with tag "enum" to accept a fixed set of names)`.
 - Setting `enumhint:"-"` on a field without declared enums, or where the `help` tag already references `{{enum}}`.
-- Ancestor flag shadowing across command-subcommand hierarchies (`ErrDuplicateFlag`), including the built-in version command's `--json` and a CLI-exposed `Features[T]` flag.
-- Built-in short flag collisions: assigning a short rune via `app.HelpShortFlag` or `app.VersionShortFlag` that collides with an application flag, or assigning the same rune to both built-in flags (`ErrDuplicateFlag`).
+- Ancestor flag shadowing across command-subcommand hierarchies, including the built-in version command's `--json` and a CLI-exposed `Features[T]` flag.
+- Built-in short flag collisions: assigning a short rune via `app.HelpShortFlag` or `app.VersionShortFlag` that collides with an application flag, or assigning the same rune to both built-in flags.
 - Declaring `default`, `xor`, or `oneof` on a `RequiredFlag[T]`.
 - Invalid group definitions: declaring `default` on a `oneof` member, two members of the same `oneof` or `xor` group sharing an `and` group, a `xor` or `and` group with fewer than two members, a `oneof` group with fewer than two members unless its sole member is a `Counter`, or an empty or whitespace group name.
 - Invalid section definitions: declaring a `section` value with leading or trailing whitespace.
 - CONGA tags on plain non-container fields, such as `name` or `help` on a plain struct field, instead of silently ignoring them.
 - Unrecognized struct tags without calling `app.AllowTags(...)` (including `conga:"..."` directives).
-- A boolean tag (`hidden`, `negatable`, `bootstrap`, `implicit`, `safe`, `multi`, or a domain type's boolean tag such as `existing`) with a value other than empty, `true`, or `false`: `struct CLI field Debug: schema error: invalid struct tag: tag "hidden" expects "true" or "false", got "yes"`.
+- A boolean tag (`hidden`, `negatable`, `bootstrap`, `implicit`, `safe`, `multi`, or a domain type's boolean tag such as `existing`) with a value other than empty, `true`, or `false`: `struct CLI field Debug: tag "hidden" expects "true" or "false", got "yes"`.
 - Declaring `ConfigFile` or `Features` on any command struct other than the root.
-- A flag or positional argument whose type, slice element type, or map key or value type has no parser: `struct CLI field Zone: schema error: unsupported type *time.Location; register a parser with app.Use(timezone.RegisterLocation)`. The hint names `app.RegisterType`, or the domain-package binding for `*time.Location`, `*user.User`, `*user.Group`, and `*net.Interface`.
-- A leaf command that does not implement `conga.Runner`: `struct LeafCmd: schema error: runner not implemented: implement conga.Runner: Run(context.Context, *conga.Session) error`.
+- A flag or positional argument whose type, slice element type, or map key or value type has no parser: `struct CLI field Zone: unsupported type *time.Location (hint: register a parser with app.Use(timezone.RegisterLocation))`. The hint names `app.RegisterType`, or the domain-package binding for `*time.Location`, `*user.User`, `*user.Group`, and `*net.Interface`.
+- A leaf command that does not implement `conga.Runner`: `struct LeafCmd: runner not implemented (hint: implement conga.Runner: Run(context.Context, *conga.Session) error)`.
 
 ## Panics
 
-Developer misuse of the API panics with a fixed message instead of returning an error. Schema errors are not panics, and `Run` returns them as `ErrSchema`.
+Developer misuse of the API panics with a fixed message instead of returning an error. Schema errors are not panics, and `Run` returns them directly.
 
 | Misuse | Panic message |
 |---|---|

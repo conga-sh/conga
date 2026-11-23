@@ -38,7 +38,7 @@ func unsupportedValueTypeError(role string, targetType reflect.Type, parsers coe
 		return nil
 	}
 
-	return fmt.Errorf("%w: unsupported %s %s; %s", ErrSchema, role, targetType, parserHint(targetType))
+	return spec.UnsupportedValueTypeError(role, targetType.String(), parserHint(targetType))
 }
 
 // parserHint names the registration that gives targetType a parser: the

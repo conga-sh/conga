@@ -318,8 +318,7 @@ func TestOneOf_SingleMemberRejected(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.Equal(t, `struct OneOfSingleCLI field JSON: schema error: invalid struct tag: oneof group "format" has only one member (--json); exactly-one groups need at least two members (use RequiredFlag for a single mandatory flag)`, err.Error())
-	assert.IsError(t, err, conga.ErrSchema)
+	assert.Equal(t, `struct OneOfSingleCLI field JSON: oneof group "format" has only one member (--json) (note: exactly-one groups need at least two members; hint: use RequiredFlag for a single mandatory flag)`, err.Error())
 }
 
 func TestOneOf_SingleMemberCounterRequiresOccurrence(t *testing.T) {

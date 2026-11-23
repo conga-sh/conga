@@ -1033,8 +1033,8 @@ func byteSizeParseParts(numStr, unitStr, rawText string, tags FieldTags) (int64,
 }
 
 // validateGlobTagValue adapts spec.ParseGlobPatterns to the TagSpec.Validate
-// hook; ParseGlobPatterns errors already wrap ErrInvalidStructTag and are
-// propagated unchanged by ParseFieldTags.
+// hook; ParseGlobPatterns returns a *spec.SchemaError which ParseFieldTags
+// propagates unchanged.
 func validateGlobTagValue(value string) error {
 	_, err := spec.ParseGlobPatterns(value)
 

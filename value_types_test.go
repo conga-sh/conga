@@ -306,47 +306,47 @@ func TestSchema_UnsupportedValueType(t *testing.T) {
 		{
 			name:     "standard library type with a kit binding",
 			run:      func() error { return conga.New[locationCLI]().Args(nil).Run() },
-			expected: "struct locationCLI field Zone: schema error: unsupported type *time.Location; register a parser with app.Use(timezone.RegisterLocation)",
+			expected: "struct locationCLI field Zone: unsupported type *time.Location (hint: register a parser with app.Use(timezone.RegisterLocation))",
 		},
 		{
 			name:     "type without a kit binding",
 			run:      func() error { return conga.New[networkCLI]().Args(nil).Run() },
-			expected: "struct networkCLI field Allow: schema error: unsupported type net.IPNet; register a parser with app.RegisterType",
+			expected: "struct networkCLI field Allow: unsupported type net.IPNet (hint: register a parser with app.RegisterType)",
 		},
 		{
 			name:     "slice element",
 			run:      func() error { return conga.New[locationSliceCLI]().Args(nil).Run() },
-			expected: "struct locationSliceCLI field Zones: schema error: unsupported element type *time.Location; register a parser with app.Use(timezone.RegisterLocation)",
+			expected: "struct locationSliceCLI field Zones: unsupported element type *time.Location (hint: register a parser with app.Use(timezone.RegisterLocation))",
 		},
 		{
 			name:     "map value",
 			run:      func() error { return conga.New[networkMapCLI]().Args(nil).Run() },
-			expected: "struct networkMapCLI field Routes: schema error: unsupported map value type net.IPNet; register a parser with app.RegisterType",
+			expected: "struct networkMapCLI field Routes: unsupported map value type net.IPNet (hint: register a parser with app.RegisterType)",
 		},
 		{
 			name:     "nested collection",
 			run:      func() error { return conga.New[nestedSliceMapCLI]().Args(nil).Run() },
-			expected: "struct nestedSliceMapCLI field Groups: schema error: unsupported map value type []string; give the slice a named type that implements encoding.TextUnmarshaler",
+			expected: "struct nestedSliceMapCLI field Groups: unsupported map value type []string (hint: give the slice a named type that implements encoding.TextUnmarshaler)",
 		},
 		{
 			name:     "positional argument",
 			run:      func() error { return conga.New[channelArgCLI]().Args(nil).Run() },
-			expected: "struct channelArgCLI field Channel: schema error: unsupported type chan int; register a parser with app.RegisterType",
+			expected: "struct channelArgCLI field Channel: unsupported type chan int (hint: register a parser with app.RegisterType)",
 		},
 		{
 			name:     "hidden flag",
 			run:      func() error { return conga.New[hiddenUserCLI]().Args(nil).Run() },
-			expected: "struct hiddenUserCLI field As: schema error: unsupported type *user.User; register a parser with app.Use(system.RegisterUser)",
+			expected: "struct hiddenUserCLI field As: unsupported type *user.User (hint: register a parser with app.Use(system.RegisterUser))",
 		},
 		{
 			name:     "feature-gated flag",
 			run:      func() error { return conga.New[gatedGroupCLI]().EnableFeatures().Args(nil).Run() },
-			expected: "struct gatedGroupCLI field Group: schema error: unsupported type *user.Group; register a parser with app.Use(system.RegisterGroup)",
+			expected: "struct gatedGroupCLI field Group: unsupported type *user.Group (hint: register a parser with app.Use(system.RegisterGroup))",
 		},
 		{
 			name:     "network interface",
 			run:      func() error { return conga.New[interfaceCLI]().Args(nil).Run() },
-			expected: "struct interfaceCLI field Via: schema error: unsupported type *net.Interface; register a parser with app.Use(network.RegisterInterface)",
+			expected: "struct interfaceCLI field Via: unsupported type *net.Interface (hint: register a parser with app.Use(network.RegisterInterface))",
 		},
 	}
 
@@ -356,7 +356,7 @@ func TestSchema_UnsupportedValueType(t *testing.T) {
 
 			err := testCase.run()
 
-			assert.IsError(t, err, conga.ErrSchema)
+			assert.Error(t, err)
 			assert.Equal(t, testCase.expected, err.Error())
 		})
 	}

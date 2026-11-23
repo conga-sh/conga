@@ -50,7 +50,9 @@ func TestIsUsageError_Classification(t *testing.T) {
 	assert.Equal(t, SourceNone, source)
 	assert.False(t, IsUsageError(err))
 
-	assert.False(t, IsUsageError(ErrSchema))
+	_, schemaErr := spec.Build(42, "app", spec.Options{})
+	assert.Error(t, schemaErr)
+	assert.False(t, IsUsageError(schemaErr))
 
 	err = errors.New("database connection refused")
 	assert.False(t, IsUsageError(err))

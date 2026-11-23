@@ -51,8 +51,8 @@ func TestBuild_PlainFieldTagRejected(t *testing.T) {
 	_, err := buildSchema(&cli, "app", spec.Options{})
 
 	assert.Error(t, err)
-	assert.Equal(t, `struct PlainTaggedCLI field Extra: schema error: invalid struct tag: tag "name" is not valid on a plain field (declare a flag, argument, command, config-file, features, or trailing-args container)`, err.Error())
-	assert.IsError(t, err, spec.ErrInvalidStructTag)
+	assert.Equal(t, `struct PlainTaggedCLI field Extra: tag "name" is not valid on a plain field (hint: declare a flag, argument, command, config-file, features, or trailing-args container)`, err.Error())
+	assert.True(t, spec.IsSchemaError(err))
 }
 
 func TestBuild_PlainFieldWithoutTagsIgnored(t *testing.T) {
@@ -96,8 +96,8 @@ func TestBuild_PlainFieldDomainTagRejected(t *testing.T) {
 	_, err := buildSchema(&cli, "app", spec.Options{})
 
 	assert.Error(t, err)
-	assert.Equal(t, `struct PlainDomainTagCLI field Log: schema error: invalid struct tag: tag "existing" is not valid on a plain field (declare a flag, argument, command, config-file, features, or trailing-args container)`, err.Error())
-	assert.IsError(t, err, spec.ErrInvalidStructTag)
+	assert.Equal(t, `struct PlainDomainTagCLI field Log: tag "existing" is not valid on a plain field (hint: declare a flag, argument, command, config-file, features, or trailing-args container)`, err.Error())
+	assert.True(t, spec.IsSchemaError(err))
 }
 
 func TestBuild_PlainFieldDomainTagAllowedByAllowTags(t *testing.T) {
@@ -124,8 +124,8 @@ func TestValidateNonContainerFieldTags_MalformedTagRejected(t *testing.T) {
 	err := spec.ValidateNonContainerFieldTags(reflect.StructTag("name"), nil, spec.ValidationOptions{})
 
 	assert.Error(t, err)
-	assert.Equal(t, `schema error: invalid struct tag: "name"`, err.Error())
-	assert.IsError(t, err, spec.ErrInvalidStructTag)
+	assert.Equal(t, `malformed struct tag "name"`, err.Error())
+	assert.True(t, spec.IsSchemaError(err))
 }
 
 func TestValidateNonContainerFieldTags_DomainTagRejected(t *testing.T) {
@@ -134,8 +134,8 @@ func TestValidateNonContainerFieldTags_DomainTagRejected(t *testing.T) {
 	err := spec.ValidateNonContainerFieldTags(reflect.StructTag(`existing:"true"`), []string{"existing"}, spec.ValidationOptions{})
 
 	assert.Error(t, err)
-	assert.Equal(t, `schema error: invalid struct tag: tag "existing" is not valid on a plain field (declare a flag, argument, command, config-file, features, or trailing-args container)`, err.Error())
-	assert.IsError(t, err, spec.ErrInvalidStructTag)
+	assert.Equal(t, `tag "existing" is not valid on a plain field (hint: declare a flag, argument, command, config-file, features, or trailing-args container)`, err.Error())
+	assert.True(t, spec.IsSchemaError(err))
 }
 
 func TestValidateNonContainerFieldTags_DomainTagAllowedByAllowTags(t *testing.T) {
@@ -154,8 +154,8 @@ func TestBuild_PlainFieldRequiredTagRejected(t *testing.T) {
 	_, err := buildSchema(&cli, "app", spec.Options{})
 
 	assert.Error(t, err)
-	assert.Equal(t, `struct PlainRequiredCLI field Host: schema error: invalid struct tag: tag "required" is not supported. Use conga.RequiredFlag[T] or conga.RequiredArg[T] instead`, err.Error())
-	assert.IsError(t, err, spec.ErrInvalidStructTag)
+	assert.Equal(t, `struct PlainRequiredCLI field Host: tag "required" is not supported (hint: use conga.RequiredFlag[T] or conga.RequiredArg[T] instead)`, err.Error())
+	assert.True(t, spec.IsSchemaError(err))
 }
 
 func TestBuild_PlainFieldRequiredTagIgnoresAllowTags(t *testing.T) {
@@ -166,8 +166,8 @@ func TestBuild_PlainFieldRequiredTagIgnoresAllowTags(t *testing.T) {
 	_, err := buildSchema(&cli, "app", spec.Options{AllowedTags: []string{"required"}})
 
 	assert.Error(t, err)
-	assert.Equal(t, `struct PlainRequiredCLI field Host: schema error: invalid struct tag: tag "required" is not supported. Use conga.RequiredFlag[T] or conga.RequiredArg[T] instead`, err.Error())
-	assert.IsError(t, err, spec.ErrInvalidStructTag)
+	assert.Equal(t, `struct PlainRequiredCLI field Host: tag "required" is not supported (hint: use conga.RequiredFlag[T] or conga.RequiredArg[T] instead)`, err.Error())
+	assert.True(t, spec.IsSchemaError(err))
 }
 
 func TestBuild_PlainFieldReservedTagRejected(t *testing.T) {
@@ -178,6 +178,6 @@ func TestBuild_PlainFieldReservedTagRejected(t *testing.T) {
 	_, err := buildSchema(&cli, "app", spec.Options{})
 
 	assert.Error(t, err)
-	assert.Equal(t, `struct PlainReservedCLI field Extra: schema error: invalid struct tag: struct tag "~explicit" is reserved for CONGA's app-level configuration settings; declare it via app.ConfigOptions(...) instead`, err.Error())
-	assert.IsError(t, err, spec.ErrInvalidStructTag)
+	assert.Equal(t, `struct PlainReservedCLI field Extra: struct tag "~explicit" is reserved for CONGA's app-level configuration settings (hint: declare it via app.ConfigOptions(...) instead)`, err.Error())
+	assert.True(t, spec.IsSchemaError(err))
 }

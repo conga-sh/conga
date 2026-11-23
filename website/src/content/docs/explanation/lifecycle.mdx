@@ -14,7 +14,7 @@ A command must validate input before touching disk or network resources, set up 
 Execution has two phases, schema build and the runtime lifecycle. `Run` or `RunContext` first builds and validates the schema from the struct definitions and tags. Once the schema is valid, the runtime pipeline resolves values from command-line tokens, environment variables, and config files, then runs the hooks:
 
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 651" role="img" aria-labelledby="pipeline-title" class="pipeline-diagram">
-  <title id="pipeline-title">Execution runs ten stages in order. Schema build runs first and exits with status 1 on ErrSchema. The bootstrap phase and config resolution follow, and each exits with status 1 on an ErrConfig error. Binding follows them and exits with status 2 on a usage error, and a --why request prints its report after binding and exits with status 0. Value validation with SelfValidator and command validation with Validator, top-down, each exit with status 2 on an error. PreRun runs top-down, Run runs on the leaf command and is the one required hook, drawn with a thick border, and PostRun runs bottom-up. An error in PreRun, Run, or PostRun skips to Finally, which runs bottom-up. After Finally the program exits with status 0, or with status 1 if a stage failed.</title>
+  <title id="pipeline-title">Execution runs ten stages in order. Schema build runs first and exits with status 1 on a schema error. The bootstrap phase and config resolution follow, and each exits with status 1 on an ErrConfig error. Binding follows them and exits with status 2 on a usage error, and a --why request prints its report after binding and exits with status 0. Value validation with SelfValidator and command validation with Validator, top-down, each exit with status 2 on an error. PreRun runs top-down, Run runs on the leaf command and is the one required hook, drawn with a thick border, and PostRun runs bottom-up. An error in PreRun, Run, or PostRun skips to Finally, which runs bottom-up. After Finally the program exits with status 0, or with status 1 if a stage failed.</title>
   <style>{`
     .pipeline-diagram { font-family: inherit; max-width: 780px; }
     .pipeline-diagram .stage { fill: var(--sl-color-gray-6, #edeff4); stroke: var(--sl-color-accent, #3448f5); stroke-width: 1.5; }
@@ -82,7 +82,7 @@ Execution has two phases, schema build and the runtime lifecycle. `Run` or `RunC
   <text class="note" x="424" y="544">Finalizer, bottom-up</text>
   <path class="error" d="M440 40 H639"/>
   <path class="head err" d="M640 40 L631 34 L631 46 Z"/>
-  <text class="edge" x="540" y="32">ErrSchema</text>
+  <text class="edge" x="540" y="32">Schema error</text>
   <ellipse class="exit fail" cx="700" cy="40" rx="60" ry="18"/><text class="label" x="700" y="40">Exit 1</text>
   <path class="flow" d="M440 208 H639"/>
   <path class="head" d="M640 208 L631 202 L631 214 Z"/>
@@ -235,7 +235,7 @@ Schema build validates the program's declarations, and the runtime lifecycle val
 |---|---|---|
 | Runs | At the start of `Run`/`RunContext`, and statically in `conga-lint` | After schema build, on every invocation |
 | Checks | Struct tags, type compatibility, flag collisions, grammar | Input values, constraints, external resources, the command's action |
-| Error category | `ErrSchema` (programmer mistake) | `ErrValidation` (input mistake) or a runtime failure |
+| Error category | Schema error (programmer mistake) | `ErrValidation` (input mistake) or a runtime failure |
 | `Finally` | Never invoked | Invoked for every initialized command |
 | Exit code | 1 | 2 for usage errors, 1 for runtime failures |
 

@@ -200,9 +200,8 @@ func TestStrictPredictorLinter_TypoDetection(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct TypoPredictorFlagCLI field Image: schema error: invalid struct tag: unknown struct tag "predictro" (did you mean "predictor"?). Use app.AllowTags("predictro") to permit external tags`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct TypoPredictorFlagCLI field Image: unknown struct tag "predictro" (hint: did you mean "predictor"? Use app.AllowTags("predictro") to permit external tags)`, err.Error())
 	})
 
 	t.Run("typo in flag pridictor tag suggests predictor", func(t *testing.T) {
@@ -213,9 +212,8 @@ func TestStrictPredictorLinter_TypoDetection(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct TypoPredictorAltFlagCLI field Config: schema error: invalid struct tag: unknown struct tag "pridictor" (did you mean "predictor"?). Use app.AllowTags("pridictor") to permit external tags`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct TypoPredictorAltFlagCLI field Config: unknown struct tag "pridictor" (hint: did you mean "predictor"? Use app.AllowTags("pridictor") to permit external tags)`, err.Error())
 	})
 
 	t.Run("typo in positional arg pedictor tag suggests predictor", func(t *testing.T) {
@@ -226,9 +224,8 @@ func TestStrictPredictorLinter_TypoDetection(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct TypoPredictorArgCLI field Target: schema error: invalid struct tag: unknown struct tag "pedictor" (did you mean "predictor"?). Use app.AllowTags("pedictor") to permit external tags`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct TypoPredictorArgCLI field Target: unknown struct tag "pedictor" (hint: did you mean "predictor"? Use app.AllowTags("pedictor") to permit external tags)`, err.Error())
 	})
 
 	t.Run("empty predictor tag on flag errors", func(t *testing.T) {
@@ -239,9 +236,8 @@ func TestStrictPredictorLinter_TypoDetection(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct EmptyPredictorFlagCLI field File: schema error: invalid struct tag: predictor tag cannot be empty`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct EmptyPredictorFlagCLI field File: predictor tag cannot be empty`, err.Error())
 	})
 
 	t.Run("whitespace predictor tag on arg errors", func(t *testing.T) {
@@ -252,9 +248,8 @@ func TestStrictPredictorLinter_TypoDetection(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct WhitespacePredictorArgCLI field Dir: schema error: invalid struct tag: predictor tag cannot be empty`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct WhitespacePredictorArgCLI field Dir: predictor tag cannot be empty`, err.Error())
 	})
 }
 
@@ -269,9 +264,8 @@ func TestStrictPredictorLinter_ContextValidation(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct ContextPredictorBoolFlagCLI field Verbose: schema error: invalid struct tag: tag "predictor" is invalid on boolean flags`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct ContextPredictorBoolFlagCLI field Verbose: tag "predictor" is invalid on boolean flags`, err.Error())
 	})
 
 	t.Run("predictor tag on negatable bool flag errors", func(t *testing.T) {
@@ -282,9 +276,8 @@ func TestStrictPredictorLinter_ContextValidation(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct ContextPredictorNegatableBoolCLI field Debug: schema error: invalid struct tag: tag "predictor" is invalid on boolean flags`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct ContextPredictorNegatableBoolCLI field Debug: tag "predictor" is invalid on boolean flags`, err.Error())
 	})
 
 	t.Run("predictor tag on subcommand errors", func(t *testing.T) {
@@ -295,9 +288,8 @@ func TestStrictPredictorLinter_ContextValidation(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct ContextPredictorSubcommandCLI field Subcommand: schema error: invalid struct tag: tag "predictor" is invalid on subcommand (tag "predictor" is only valid on flags, positional arguments, and trailing-argument collectors)`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct ContextPredictorSubcommandCLI field Subcommand: tag "predictor" is invalid on subcommand (note: tag "predictor" is only valid on flags, positional arguments, and trailing-argument collectors)`, err.Error())
 	})
 
 	t.Run("predictor tag on blank field errors", func(t *testing.T) {
@@ -308,9 +300,8 @@ func TestStrictPredictorLinter_ContextValidation(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct ContextPredictorBlankFieldCLI field _: schema error: invalid struct tag: tag "predictor" is invalid on blank field (tag "predictor" is only valid on flags, positional arguments, and trailing-argument collectors)`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct ContextPredictorBlankFieldCLI field _: tag "predictor" is invalid on blank field (note: tag "predictor" is only valid on flags, positional arguments, and trailing-argument collectors)`, err.Error())
 	})
 
 	t.Run("predictor tag on dash args builds successfully", func(t *testing.T) {
@@ -357,9 +348,8 @@ func TestStrictPredictorLinter_ContextValidation(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct InvalidTrailingDashPredictorCLI field Trailing: schema error: invalid struct tag: unknown predictor "files" (did you mean "file"?)`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct InvalidTrailingDashPredictorCLI field Trailing: unknown predictor "files" (hint: did you mean "file"?)`, err.Error())
 	})
 
 	t.Run("biased builtin grammar on raw args errors", func(t *testing.T) {
@@ -370,9 +360,8 @@ func TestStrictPredictorLinter_ContextValidation(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct InvalidTrailingRawPredictorCLI field Raw: schema error: invalid struct tag: invalid predictor "dir:*.png" (directories predictor does not accept filter patterns, use predictor:"dir")`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct InvalidTrailingRawPredictorCLI field Raw: invalid predictor "dir:*.png": directories predictor does not accept filter patterns (hint: use predictor:"dir")`, err.Error())
 	})
 
 	t.Run("empty predictor on dash args errors", func(t *testing.T) {
@@ -383,9 +372,8 @@ func TestStrictPredictorLinter_ContextValidation(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct EmptyTrailingDashPredictorCLI field Trailing: schema error: invalid struct tag: predictor tag cannot be empty`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct EmptyTrailingDashPredictorCLI field Trailing: predictor tag cannot be empty`, err.Error())
 	})
 
 	t.Run("unregistered custom predictor on raw args errors", func(t *testing.T) {
@@ -396,9 +384,8 @@ func TestStrictPredictorLinter_ContextValidation(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct UnregisteredTrailingRawPredictorCLI field Raw: schema error: invalid struct tag: unregistered predictor "branches". Register it with app.Predictor("branches", action)`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct UnregisteredTrailingRawPredictorCLI field Raw: unregistered predictor "branches" (hint: register it with app.Predictor("branches", action))`, err.Error())
 	})
 
 	t.Run("registered custom predictor on dash args builds successfully", func(t *testing.T) {
@@ -423,9 +410,8 @@ func TestStrictPredictorLinter_ContextValidation(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct ContextPredictorConfigFileCLI field Config: schema error: invalid struct tag: tag "predictor" is invalid on config file flag (config file flags always complete file paths)`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct ContextPredictorConfigFileCLI field Config: tag "predictor" is invalid on config file flag (note: config file flags always complete file paths)`, err.Error())
 	})
 }
 
@@ -464,9 +450,8 @@ func TestStrictPredictorLinter_BuiltinGrammar(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct MalformedEmptyPatternFileCLI field File: schema error: invalid struct tag: invalid predictor syntax "file:": file filter pattern cannot be empty (expected file:*.ext)`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct MalformedEmptyPatternFileCLI field File: invalid predictor syntax "file:": file filter pattern cannot be empty (note: expected file:*.ext)`, err.Error())
 	})
 
 	t.Run("malformed file filter with trailing comma errors", func(t *testing.T) {
@@ -477,9 +462,8 @@ func TestStrictPredictorLinter_BuiltinGrammar(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct MalformedTrailingCommaFileCLI field File: schema error: invalid struct tag: invalid predictor syntax "file:*.png,": trailing, leading, or empty pattern element in file filter`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct MalformedTrailingCommaFileCLI field File: invalid predictor syntax "file:*.png,": trailing, leading, or empty pattern element in file filter`, err.Error())
 	})
 
 	t.Run("malformed file filter with leading comma errors", func(t *testing.T) {
@@ -490,9 +474,8 @@ func TestStrictPredictorLinter_BuiltinGrammar(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct MalformedLeadingCommaFileCLI field File: schema error: invalid struct tag: invalid predictor syntax "file:,*.png": trailing, leading, or empty pattern element in file filter`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct MalformedLeadingCommaFileCLI field File: invalid predictor syntax "file:,*.png": trailing, leading, or empty pattern element in file filter`, err.Error())
 	})
 
 	t.Run("malformed file filter with empty intermediate pattern errors", func(t *testing.T) {
@@ -503,9 +486,8 @@ func TestStrictPredictorLinter_BuiltinGrammar(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct MalformedEmptyIntermediatePatternCLI field File: schema error: invalid struct tag: invalid predictor syntax "file:*.png,,*.jpg": trailing, leading, or empty pattern element in file filter`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct MalformedEmptyIntermediatePatternCLI field File: invalid predictor syntax "file:*.png,,*.jpg": trailing, leading, or empty pattern element in file filter`, err.Error())
 	})
 
 	t.Run("malformed dir predictor with filter patterns errors", func(t *testing.T) {
@@ -516,9 +498,8 @@ func TestStrictPredictorLinter_BuiltinGrammar(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct MalformedDirWithPatternsCLI field Dir: schema error: invalid struct tag: invalid predictor "dir:*.tmp" (directories predictor does not accept filter patterns, use predictor:"dir")`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct MalformedDirWithPatternsCLI field Dir: invalid predictor "dir:*.tmp": directories predictor does not accept filter patterns (hint: use predictor:"dir")`, err.Error())
 	})
 
 	t.Run("malformed none predictor with params errors", func(t *testing.T) {
@@ -529,9 +510,8 @@ func TestStrictPredictorLinter_BuiltinGrammar(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct MalformedNoneWithParamsCLI field None: schema error: invalid struct tag: invalid predictor "none:true" (none predictor does not accept parameters, use predictor:"none")`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct MalformedNoneWithParamsCLI field None: invalid predictor "none:true": none predictor does not accept parameters (hint: use predictor:"none")`, err.Error())
 	})
 
 	t.Run("misspelled files:*.ext prefix errors suggesting file", func(t *testing.T) {
@@ -542,9 +522,8 @@ func TestStrictPredictorLinter_BuiltinGrammar(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct MisspelledPrefixFilesWithColonCLI field File: schema error: invalid struct tag: invalid predictor "files:*.png" (unknown predictor prefix "files", did you mean "file"?)`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct MisspelledPrefixFilesWithColonCLI field File: invalid predictor "files:*.png": unknown predictor prefix "files" (hint: did you mean "file"?)`, err.Error())
 	})
 
 	t.Run("misspelled fiels:*.ext prefix errors suggesting file", func(t *testing.T) { //nolint:misspell // deliberate test case
@@ -555,9 +534,8 @@ func TestStrictPredictorLinter_BuiltinGrammar(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct MisspelledPrefixFielsWithColonCLI field File: schema error: invalid struct tag: invalid predictor "fiels:*.png" (unknown predictor prefix "fiels", did you mean "file"?)`, err.Error()) //nolint:misspell // intentionally misspelled in expected test error
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct MisspelledPrefixFielsWithColonCLI field File: invalid predictor "fiels:*.png": unknown predictor prefix "fiels" (hint: did you mean "file"?)`, err.Error()) //nolint:misspell // intentionally misspelled in expected test error
 	})
 
 	t.Run("misspelled flie:*.ext prefix errors suggesting file", func(t *testing.T) {
@@ -568,9 +546,8 @@ func TestStrictPredictorLinter_BuiltinGrammar(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct MisspelledPrefixFlieWithColonCLI field File: schema error: invalid struct tag: invalid predictor "flie:*.tar.gz" (unknown predictor prefix "flie", did you mean "file"?)`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct MisspelledPrefixFlieWithColonCLI field File: invalid predictor "flie:*.tar.gz": unknown predictor prefix "flie" (hint: did you mean "file"?)`, err.Error())
 	})
 
 	t.Run("misspelled standalone files predictor errors suggesting file", func(t *testing.T) {
@@ -581,9 +558,8 @@ func TestStrictPredictorLinter_BuiltinGrammar(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct MisspelledStandaloneFilesCLI field File: schema error: invalid struct tag: unknown predictor "files" (did you mean "file"?)`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct MisspelledStandaloneFilesCLI field File: unknown predictor "files" (hint: did you mean "file"?)`, err.Error())
 	})
 
 	t.Run("misspelled standalone dirs predictor errors suggesting dir", func(t *testing.T) {
@@ -594,9 +570,8 @@ func TestStrictPredictorLinter_BuiltinGrammar(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct MisspelledStandaloneDirsCLI field Dir: schema error: invalid struct tag: unknown predictor "dirs" (did you mean "dir"?)`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct MisspelledStandaloneDirsCLI field Dir: unknown predictor "dirs" (hint: did you mean "dir"?)`, err.Error())
 	})
 
 	t.Run("misspelled standalone directory predictor errors suggesting dir", func(t *testing.T) {
@@ -607,9 +582,8 @@ func TestStrictPredictorLinter_BuiltinGrammar(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct MisspelledStandaloneDirectoryCLI field Dir: schema error: invalid struct tag: unknown predictor "directory" (did you mean "dir"?)`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct MisspelledStandaloneDirectoryCLI field Dir: unknown predictor "directory" (hint: did you mean "dir"?)`, err.Error())
 	})
 
 	t.Run("misspelled standalone directories predictor errors suggesting dir", func(t *testing.T) {
@@ -620,9 +594,8 @@ func TestStrictPredictorLinter_BuiltinGrammar(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct MisspelledStandaloneDirectoriesCLI field Dir: schema error: invalid struct tag: unknown predictor "directories" (did you mean "dir"?)`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct MisspelledStandaloneDirectoriesCLI field Dir: unknown predictor "directories" (hint: did you mean "dir"?)`, err.Error())
 	})
 }
 
@@ -708,9 +681,8 @@ func TestStrictPredictorLinter_UnregisteredPredictors(t *testing.T) {
 		})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct CustomPredictorTypoCLI field Branch: schema error: invalid struct tag: unregistered predictor "brnaches" (did you mean "branches"?). Register it with app.Predictor("brnaches", action)`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct CustomPredictorTypoCLI field Branch: unregistered predictor "brnaches" (hint: did you mean "branches"? Register it with app.Predictor("brnaches", action))`, err.Error())
 	})
 
 	t.Run("equidistant registered predictors suggest the lexicographically first", func(t *testing.T) {
@@ -726,9 +698,8 @@ func TestStrictPredictorLinter_UnregisteredPredictors(t *testing.T) {
 		})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct CustomPredictorTieCLI field Branch: schema error: invalid struct tag: unregistered predictor "alpha-3" (did you mean "alpha-1"?). Register it with app.Predictor("alpha-3", action)`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct CustomPredictorTieCLI field Branch: unregistered predictor "alpha-3" (hint: did you mean "alpha-1"? Register it with app.Predictor("alpha-3", action))`, err.Error())
 	})
 
 	t.Run("unregistered custom predictor close to built-in errors suggesting built-in", func(t *testing.T) {
@@ -739,9 +710,8 @@ func TestStrictPredictorLinter_UnregisteredPredictors(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct CustomPredictorCloseToBuiltinCLI field Image: schema error: invalid struct tag: unregistered predictor "fiel" (did you mean "file"?). Register it with app.Predictor("fiel", action)`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct CustomPredictorCloseToBuiltinCLI field Image: unregistered predictor "fiel" (hint: did you mean "file"? Register it with app.Predictor("fiel", action))`, err.Error())
 	})
 
 	t.Run("custom predictor with invalid characters errors", func(t *testing.T) {
@@ -752,9 +722,8 @@ func TestStrictPredictorLinter_UnregisteredPredictors(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct CustomPredictorInvalidCharsCLI field Invalid: schema error: invalid struct tag: invalid predictor "foo bar" (predictor name cannot contain spaces or commas)`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct CustomPredictorInvalidCharsCLI field Invalid: invalid predictor "foo bar": predictor name cannot contain spaces or commas`, err.Error())
 	})
 }
 

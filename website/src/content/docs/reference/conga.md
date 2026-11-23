@@ -41,7 +41,7 @@ func New[T any](root ...*T) *App[T]
 | `ExitFunc(handler)` | Custom exit handler for `Exit` |
 | `EnableWhy(options...)` / `EnableCompletion(options...)` / `EnableFeatures()` | Opt in to the `--why` report, shell completion, and struct-declared feature toggles; pass `conga.WhyOptionJSON()` to `EnableWhy` to enable `--why=json` |
 | `DisableHelpFlag()` / `DisableVersionFlag()` | Remove the `--help`/`--version` flags |
-| `HelpShortFlag('h')` / `VersionShortFlag('V')` | Assign short runes to the `--help`/`--version` flags (collisions fail schema build with `ErrDuplicateFlag`) |
+| `HelpShortFlag('h')` / `VersionShortFlag('V')` | Assign short runes to the `--help`/`--version` flags (collisions fail schema build) |
 
 ### Execution methods
 
@@ -134,7 +134,7 @@ The App snapshots standard streams at the start of execution for the active sess
 
 ## Errors
 
-Base categories (`ErrSchema`, `ErrParse`, `ErrCoerce`, `ErrValidation`, `ErrConfig`) plus the `UsageError` and `CompletionError` interfaces and `IsUsageError(err)` / `IsCompletionError(err)` classifications — cataloged in [Errors and exit codes](/reference/errors/).
+Runtime error categories (`ErrParse`, `ErrCoerce`, `ErrValidation`, `ErrConfig`), schema-build errors, and the `UsageError` and `CompletionError` interfaces with `IsUsageError(err)` / `IsCompletionError(err)` — cataloged in [Errors and exit codes](/reference/errors/).
 
 ## Provenance options
 
@@ -165,7 +165,7 @@ type CompletionOption interface{ /* sealed */ }
 CONGA picks config files in this order, and the first that applies wins:
 
 1. The root `ConfigFile` flag (`--config-file` unless renamed).
-2. The config environment variable: the `ConfigFile` field's `env` tag, or `<PREFIX>_CONFIG` when it has none, and no variable with `env:"-"`. An app without a `ConfigFile` reads `<PREFIX>_CONFIG` only when it registers a decoder. A flag or feature bound to the variable the app reads fails schema build with `ErrSchema`.
+2. The config environment variable: the `ConfigFile` field's `env` tag, or `<PREFIX>_CONFIG` when it has none, and no variable with `env:"-"`. An app without a `ConfigFile` reads `<PREFIX>_CONFIG` only when it registers a decoder. A flag or feature bound to the variable the app reads fails schema build.
 3. `conga.ConfigExplicit(path)`.
 4. The search paths: those given to `conga.ConfigPaths(...)`, in order, or else the built-in location `${XDG_CONFIG_HOME:-~/.config}/<app-name>`.
 

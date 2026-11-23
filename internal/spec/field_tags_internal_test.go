@@ -2,7 +2,6 @@ package spec
 
 import (
 	"errors"
-	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -120,8 +119,8 @@ func TestParseFieldTags(t *testing.T) {
 		_, err := ParseFieldTags(reflect.StructTag(`existing:"yes"`), fileSpecs)
 
 		assert.Error(t, err)
-		assert.IsError(t, err, ErrInvalidStructTag)
-		assert.Equal(t, (`schema error: invalid struct tag: tag "existing" expects "true" or "false", got "yes"`), err.Error())
+		assert.True(t, IsSchemaError(err))
+		assert.Equal(t, (`tag "existing" expects "true" or "false", got "yes"`), err.Error())
 	})
 
 	t.Run("stdin and stdout combination rejected with exact message", func(t *testing.T) {
@@ -130,8 +129,8 @@ func TestParseFieldTags(t *testing.T) {
 		_, err := ParseFieldTags(reflect.StructTag(`stdin:"true" stdout:"true"`), fileSpecs)
 
 		assert.Error(t, err)
-		assert.IsError(t, err, ErrInvalidStructTag)
-		assert.Equal(t, (`schema error: invalid struct tag: tag "stdin" cannot be combined with tag "stdout"`), err.Error())
+		assert.True(t, IsSchemaError(err))
+		assert.Equal(t, (`tag "stdin" cannot be combined with tag "stdout"`), err.Error())
 	})
 
 	t.Run("existing and stdout combination rejected with exact message", func(t *testing.T) {
@@ -140,8 +139,8 @@ func TestParseFieldTags(t *testing.T) {
 		_, err := ParseFieldTags(reflect.StructTag(`existing:"true" stdout:"true"`), fileSpecs)
 
 		assert.Error(t, err)
-		assert.IsError(t, err, ErrInvalidStructTag)
-		assert.Equal(t, (`schema error: invalid struct tag: tag "existing" cannot be combined with tag "stdout"`), err.Error())
+		assert.True(t, IsSchemaError(err))
+		assert.Equal(t, (`tag "existing" cannot be combined with tag "stdout"`), err.Error())
 	})
 
 	t.Run("existing and stdin combination accepted", func(t *testing.T) {
@@ -177,8 +176,8 @@ func TestParseFieldTags(t *testing.T) {
 		_, err := ParseFieldTags(reflect.StructTag(`glob:"   "`), fileSpecs)
 
 		assert.Error(t, err)
-		assert.IsError(t, err, ErrInvalidStructTag)
-		assert.Equal(t, `schema error: invalid struct tag: tag "glob" cannot be empty`, err.Error())
+		assert.True(t, IsSchemaError(err))
+		assert.Equal(t, `tag "glob" cannot be empty`, err.Error())
 	})
 
 	t.Run("validate hook rejection propagates exact message", func(t *testing.T) {
@@ -187,8 +186,8 @@ func TestParseFieldTags(t *testing.T) {
 		_, err := ParseFieldTags(reflect.StructTag(`glob:"["`), fileSpecs)
 
 		assert.Error(t, err)
-		assert.IsError(t, err, ErrInvalidStructTag)
-		assert.Equal(t, `schema error: invalid struct tag: glob pattern "[" is malformed: syntax error in pattern`, err.Error())
+		assert.True(t, IsSchemaError(err))
+		assert.Equal(t, `glob pattern "[" is malformed: syntax error in pattern`, err.Error())
 	})
 
 	t.Run("validate hook accepts valid glob patterns", func(t *testing.T) {
@@ -200,37 +199,38 @@ func TestParseFieldTags(t *testing.T) {
 		assert.Equal(t, FieldTags{"glob": " *.yaml , Dockerfile "}, fieldTags)
 	})
 
-	t.Run("validate hook plain error is classified as invalid struct tag", func(t *testing.T) {
+	t.Run("validate hook plain error is wrapped as SchemaError with cause", func(t *testing.T) {
 		t.Parallel()
 
+		hookErr := errors.New("must be one of fast, slow")
 		hookSpecs := []TagSpec{
 			{Name: "mode", Kind: TagKindString, Validate: func(string) error {
-				return errors.New("must be one of fast, slow")
+				return hookErr
 			}},
 		}
 
 		_, err := ParseFieldTags(reflect.StructTag(`mode:"warp"`), hookSpecs)
 
 		assert.Error(t, err)
-		assert.IsError(t, err, ErrInvalidStructTag)
-		assert.IsError(t, err, ErrSchema)
-		assert.Equal(t, `schema error: invalid struct tag: tag "mode": must be one of fast, slow`, err.Error())
+		assert.True(t, IsSchemaError(err))
+		assert.IsError(t, err, hookErr)
+		assert.Equal(t, `tag "mode": must be one of fast, slow`, err.Error())
 	})
 
-	t.Run("validate hook error wrapping ErrSchema propagates unchanged", func(t *testing.T) {
+	t.Run("validate hook SchemaError propagates unchanged", func(t *testing.T) {
 		t.Parallel()
 
 		hookSpecs := []TagSpec{
 			{Name: "mode", Kind: TagKindString, Validate: func(value string) error {
-				return fmt.Errorf("%w: mode %q is not supported", ErrInvalidStructTag, value)
+				return schemaErrorf("mode %q is not supported", value)
 			}},
 		}
 
 		_, err := ParseFieldTags(reflect.StructTag(`mode:"warp"`), hookSpecs)
 
 		assert.Error(t, err)
-		assert.IsError(t, err, ErrInvalidStructTag)
-		assert.Equal(t, `schema error: invalid struct tag: mode "warp" is not supported`, err.Error())
+		assert.True(t, IsSchemaError(err))
+		assert.Equal(t, `mode "warp" is not supported`, err.Error())
 	})
 
 	t.Run("glob and executable combination rejected with exact message", func(t *testing.T) {
@@ -239,8 +239,8 @@ func TestParseFieldTags(t *testing.T) {
 		_, err := ParseFieldTags(reflect.StructTag(`executable:"true" glob:"*.yaml"`), fileSpecs)
 
 		assert.Error(t, err)
-		assert.IsError(t, err, ErrInvalidStructTag)
-		assert.Equal(t, `schema error: invalid struct tag: tag "executable" cannot be combined with tag "glob"`, err.Error())
+		assert.True(t, IsSchemaError(err))
+		assert.Equal(t, `tag "executable" cannot be combined with tag "glob"`, err.Error())
 	})
 
 	t.Run("glob and symlink combination rejected with exact message", func(t *testing.T) {
@@ -249,8 +249,8 @@ func TestParseFieldTags(t *testing.T) {
 		_, err := ParseFieldTags(reflect.StructTag(`symlink:"true" glob:"*.conf"`), fileSpecs)
 
 		assert.Error(t, err)
-		assert.IsError(t, err, ErrInvalidStructTag)
-		assert.Equal(t, `schema error: invalid struct tag: tag "symlink" cannot be combined with tag "glob"`, err.Error())
+		assert.True(t, IsSchemaError(err))
+		assert.Equal(t, `tag "symlink" cannot be combined with tag "glob"`, err.Error())
 	})
 }
 

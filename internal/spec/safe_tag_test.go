@@ -84,9 +84,8 @@ func TestSafeTag_LintAcceptance(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct SafeConfigFileCLI field Config: schema error: invalid struct tag: tag "safe" is invalid on config file flag (tag "safe" is only valid on flags)`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct SafeConfigFileCLI field Config: tag "safe" is invalid on config file flag (note: tag "safe" is only valid on flags)`, err.Error())
 	})
 
 	t.Run("rejected on positional argument", func(t *testing.T) {
@@ -97,9 +96,8 @@ func TestSafeTag_LintAcceptance(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct SafeOnArgCLI field Target: schema error: invalid struct tag: tag "safe" is invalid on positional argument (tag "safe" is only valid on flags)`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct SafeOnArgCLI field Target: tag "safe" is invalid on positional argument (note: tag "safe" is only valid on flags)`, err.Error())
 	})
 }
 
@@ -149,9 +147,8 @@ func TestSafeTag_StrictBoolMatrix_Flag(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct SafeTypoFlagCLI field Token: schema error: invalid struct tag: tag "safe" expects "true" or "false", got "ture"`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct SafeTypoFlagCLI field Token: tag "safe" expects "true" or "false", got "ture"`, err.Error())
 	})
 }
 
@@ -169,9 +166,8 @@ func TestSafeTag_RejectedOnConfigFile(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct SafeConfigFileCLI field Config: schema error: invalid struct tag: tag "safe" is invalid on config file flag (tag "safe" is only valid on flags)`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct SafeConfigFileCLI field Config: tag "safe" is invalid on config file flag (note: tag "safe" is only valid on flags)`, err.Error())
 	})
 
 	t.Run("safe typo is rejected identically", func(t *testing.T) {
@@ -182,9 +178,8 @@ func TestSafeTag_RejectedOnConfigFile(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct SafeTypoConfigFileCLI field Config: schema error: invalid struct tag: tag "safe" is invalid on config file flag (tag "safe" is only valid on flags)`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct SafeTypoConfigFileCLI field Config: tag "safe" is invalid on config file flag (note: tag "safe" is only valid on flags)`, err.Error())
 	})
 }
 

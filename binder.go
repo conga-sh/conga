@@ -1729,7 +1729,7 @@ func validateRunnableContract(leaf *spec.Command, cmdChain []*spec.Command) erro
 }
 
 func newNoRunnerError(leaf *spec.Command) error {
-	return spec.NoRunnerError(leaf.StructName, leaf.Name)
+	return spec.NoRunnerError(leaf.StructName)
 }
 
 func runValidators(ctx context.Context, session *Session, cmdChain []*spec.Command) error {

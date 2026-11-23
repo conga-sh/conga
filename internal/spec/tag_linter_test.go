@@ -124,9 +124,8 @@ func TestStrictTagLinter_TypoDetection(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct TypoTagFlagCLI field Verbose: schema error: invalid struct tag: unknown struct tag "shrot" (did you mean "short"?). Use app.AllowTags("shrot") to permit external tags`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct TypoTagFlagCLI field Verbose: unknown struct tag "shrot" (hint: did you mean "short"? Use app.AllowTags("shrot") to permit external tags)`, err.Error())
 	})
 
 	t.Run("typo in default tag suggests default", func(t *testing.T) {
@@ -137,9 +136,8 @@ func TestStrictTagLinter_TypoDetection(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct TypoTagDefaultCLI field Port: schema error: invalid struct tag: unknown struct tag "defualt" (did you mean "default"?). Use app.AllowTags("defualt") to permit external tags`, err.Error()) //nolint:misspell // intentionally misspelled in expected test error
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct TypoTagDefaultCLI field Port: unknown struct tag "defualt" (hint: did you mean "default"? Use app.AllowTags("defualt") to permit external tags)`, err.Error()) //nolint:misspell // intentionally misspelled in expected test error
 	})
 
 	t.Run("typo in help tag suggests help", func(t *testing.T) {
@@ -150,9 +148,8 @@ func TestStrictTagLinter_TypoDetection(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct TypoTagHelpCLI field Debug: schema error: invalid struct tag: unknown struct tag "hlepp" (did you mean "help"?). Use app.AllowTags("hlepp") to permit external tags`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct TypoTagHelpCLI field Debug: unknown struct tag "hlepp" (hint: did you mean "help"? Use app.AllowTags("hlepp") to permit external tags)`, err.Error())
 	})
 }
 
@@ -167,9 +164,8 @@ func TestStrictTagLinter_ContextValidation(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct ContextInvalidArgShortCLI field Path: schema error: invalid struct tag: tag "short" is invalid on positional argument (tag "short" is only valid on flags and config file flags)`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct ContextInvalidArgShortCLI field Path: tag "short" is invalid on positional argument (note: tag "short" is only valid on flags and config file flags)`, err.Error())
 	})
 
 	t.Run("xor tag on subcommand errors", func(t *testing.T) {
@@ -180,9 +176,8 @@ func TestStrictTagLinter_ContextValidation(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct ContextInvalidCommandXorCLI field Subcommand: schema error: invalid struct tag: tag "xor" is invalid on subcommand (tag "xor" is only valid on flags)`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct ContextInvalidCommandXorCLI field Subcommand: tag "xor" is invalid on subcommand (note: tag "xor" is only valid on flags)`, err.Error())
 	})
 
 	t.Run("oneof tag on subcommand errors", func(t *testing.T) {
@@ -193,9 +188,8 @@ func TestStrictTagLinter_ContextValidation(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct ContextInvalidCommandOneOfCLI field Subcommand: schema error: invalid struct tag: tag "oneof" is invalid on subcommand (tag "oneof" is only valid on flags)`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct ContextInvalidCommandOneOfCLI field Subcommand: tag "oneof" is invalid on subcommand (note: tag "oneof" is only valid on flags)`, err.Error())
 	})
 
 	t.Run("oneof tag on config file flag errors", func(t *testing.T) {
@@ -206,9 +200,8 @@ func TestStrictTagLinter_ContextValidation(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct ContextInvalidConfigFileOneOfCLI field Config: schema error: invalid struct tag: tag "oneof" is invalid on config file flag (tag "oneof" is only valid on flags)`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct ContextInvalidConfigFileOneOfCLI field Config: tag "oneof" is invalid on config file flag (note: tag "oneof" is only valid on flags)`, err.Error())
 	})
 
 	t.Run("negatable tag on non-bool flag errors", func(t *testing.T) {
@@ -219,9 +212,8 @@ func TestStrictTagLinter_ContextValidation(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct ContextInvalidNegatableNonBoolCLI field Port: schema error: invalid struct tag: tag "negatable" is only valid on boolean flags, got int`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct ContextInvalidNegatableNonBoolCLI field Port: tag "negatable" is only valid on boolean flags, got int`, err.Error())
 	})
 
 	t.Run("help tag on dash args is stored", func(t *testing.T) {
@@ -254,9 +246,8 @@ func TestStrictTagLinter_ContextValidation(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct ContextDashArgsHelpVariableCLI field Extra: schema error: invalid struct tag: tag "help" references {{enum}}, but the field provides no value for that variable`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct ContextDashArgsHelpVariableCLI field Extra: tag "help" references {{enum}}, but the field provides no value for that variable`, err.Error())
 	})
 
 	t.Run("escaped braces in raw args help are unescaped", func(t *testing.T) {
@@ -278,9 +269,8 @@ func TestStrictTagLinter_ContextValidation(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct ObsoleteCounterTagCLI field Count: schema error: invalid struct tag: unknown struct tag "counter". Use app.AllowTags("counter") to permit external tags`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct ObsoleteCounterTagCLI field Count: unknown struct tag "counter" (hint: use app.AllowTags("counter") to permit external tags)`, err.Error())
 	})
 
 	t.Run("sep tag on config files is permitted", func(t *testing.T) {
@@ -303,9 +293,8 @@ func TestStrictTagLinter_ContextValidation(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct ConfigFileDefaultTagCLI field Config: schema error: invalid struct tag: tag "default" is not supported on config-file flags; declare search locations with app.ConfigOptions(conga.ConfigPaths(...)) or conga.ConfigExplicit(...), or show an example value with placeholder:"..."`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct ConfigFileDefaultTagCLI field Config: tag "default" is not supported on config-file flags (hint: declare search locations with app.ConfigOptions(conga.ConfigPaths(...)) or conga.ConfigExplicit(...), or show an example value with placeholder:"...")`, err.Error())
 	})
 
 	t.Run("default tag on counter errors", func(t *testing.T) {
@@ -316,9 +305,8 @@ func TestStrictTagLinter_ContextValidation(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct CounterDefaultTagCLI field Verbose: schema error: invalid struct tag: tag "default" is not supported on counter flags; counters count command-line occurrences starting at 0. Seed a base level with an env or config-file binding, or use OptionalFlag[int] for a numeric default`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct CounterDefaultTagCLI field Verbose: tag "default" is not supported on counter flags (note: counters count command-line occurrences starting at 0; hint: seed a base level with an env or config-file binding, or use OptionalFlag[int] for a numeric default)`, err.Error())
 	})
 
 	t.Run("help tag on blank field errors", func(t *testing.T) {
@@ -329,9 +317,8 @@ func TestStrictTagLinter_ContextValidation(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct BlankFieldInvalidTagCLI field _: schema error: invalid struct tag: tag "help" is invalid on blank field (tag "help" is only valid on flags, positional arguments, config file flags, Features containers, feature fields, and trailing-argument collectors)`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct BlankFieldInvalidTagCLI field _: tag "help" is invalid on blank field (note: tag "help" is only valid on flags, positional arguments, config file flags, Features containers, feature fields, and trailing-argument collectors)`, err.Error())
 	})
 
 	t.Run("envprefix tag on blank field errors", func(t *testing.T) {
@@ -342,9 +329,8 @@ func TestStrictTagLinter_ContextValidation(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct BlankFieldEnvPrefixCLI field _: schema error: invalid struct tag: tag "envprefix" is not supported on blank (_) fields; set the root prefix with app.EnvPrefix(...) and a subcommand prefix with the envprefix tag on its Command[T] field`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct BlankFieldEnvPrefixCLI field _: tag "envprefix" is not supported on blank (_) fields (hint: set the root prefix with app.EnvPrefix(...) and a subcommand prefix with the envprefix tag on its Command[T] field)`, err.Error())
 	})
 }
 
@@ -380,9 +366,8 @@ func TestValidateFieldTags_BlankFieldEnvPrefixRejectedWhenUnknownKeysSkipped(t *
 	err := spec.ValidateFieldTags(reflect.StructTag(`envprefix:"APP_"`), "blank field", nil, spec.ValidationOptions{SkipUnknownTagKeyCheck: true})
 
 	assert.Error(t, err)
-	assert.IsError(t, err, spec.ErrSchema)
-	assert.IsError(t, err, spec.ErrInvalidStructTag)
-	assert.Equal(t, `schema error: invalid struct tag: tag "envprefix" is not supported on blank (_) fields; set the root prefix with app.EnvPrefix(...) and a subcommand prefix with the envprefix tag on its Command[T] field`, err.Error())
+	assert.True(t, spec.IsSchemaError(err))
+	assert.Equal(t, `tag "envprefix" is not supported on blank (_) fields (hint: set the root prefix with app.EnvPrefix(...) and a subcommand prefix with the envprefix tag on its Command[T] field)`, err.Error())
 }
 
 func TestValidateFieldTags_BlankFieldHelpAcceptedWhenUnknownKeysSkipped(t *testing.T) {
@@ -401,9 +386,8 @@ func TestStrictTagLinter_CongaTagRejected(t *testing.T) {
 	_, err := buildSchema(&cli, "app", spec.Options{})
 
 	assert.Error(t, err)
-	assert.IsError(t, err, spec.ErrSchema)
-	assert.IsError(t, err, spec.ErrInvalidStructTag)
-	assert.Equal(t, `struct RemovedCongaTagCLI field Subcommand: schema error: invalid struct tag: unknown struct tag "conga". Use app.AllowTags("conga") to permit external tags`, err.Error())
+	assert.True(t, spec.IsSchemaError(err))
+	assert.Equal(t, `struct RemovedCongaTagCLI field Subcommand: unknown struct tag "conga" (hint: use app.AllowTags("conga") to permit external tags)`, err.Error())
 }
 
 func TestStrictTagLinter_OptionsConfiguration(t *testing.T) {
@@ -435,9 +419,8 @@ func TestStrictTagLinter_RequiredTagRejected(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct RequiredStandaloneTagCLI field Port: schema error: invalid struct tag: tag "required" is not supported. Use conga.RequiredFlag[T] or conga.RequiredArg[T] instead`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct RequiredStandaloneTagCLI field Port: tag "required" is not supported (hint: use conga.RequiredFlag[T] or conga.RequiredArg[T] instead)`, err.Error())
 	})
 }
 
@@ -468,8 +451,8 @@ func TestStrictTagLinter_ContextListFromRoleTables(t *testing.T) {
 
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct contextConfigOnArgCLI field Path: schema error: invalid struct tag: tag "config" is invalid on positional argument (tag "config" is only valid on flags, config file flags, and Features containers)`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct contextConfigOnArgCLI field Path: tag "config" is invalid on positional argument (note: tag "config" is only valid on flags, config file flags, and Features containers)`, err.Error())
 	})
 
 	t.Run("placeholder on a subcommand", func(t *testing.T) {
@@ -479,8 +462,8 @@ func TestStrictTagLinter_ContextListFromRoleTables(t *testing.T) {
 
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct contextPlaceholderOnSubcommandCLI field Sub: schema error: invalid struct tag: tag "placeholder" is invalid on subcommand (tag "placeholder" is only valid on flags and config file flags)`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct contextPlaceholderOnSubcommandCLI field Sub: tag "placeholder" is invalid on subcommand (note: tag "placeholder" is only valid on flags and config file flags)`, err.Error())
 	})
 
 	t.Run("default on a subcommand", func(t *testing.T) {
@@ -490,8 +473,8 @@ func TestStrictTagLinter_ContextListFromRoleTables(t *testing.T) {
 
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct contextDefaultOnSubcommandCLI field Sub: schema error: invalid struct tag: tag "default" is invalid on subcommand (tag "default" is only valid on flags, positional arguments, and feature fields)`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct contextDefaultOnSubcommandCLI field Sub: tag "default" is invalid on subcommand (note: tag "default" is only valid on flags, positional arguments, and feature fields)`, err.Error())
 	})
 }
 
@@ -515,8 +498,8 @@ func TestStrictTagLinter_AllowedTagSuggestion(t *testing.T) {
 
 		_, err := buildSchema(&cli, "app", spec.Options{AllowedTags: []string{"history"}})
 
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct allowedTagTypoCLI field Replicas: schema error: invalid struct tag: unknown struct tag "histroy" (did you mean "history"?)`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct allowedTagTypoCLI field Replicas: unknown struct tag "histroy" (hint: did you mean "history"?)`, err.Error())
 	})
 
 	t.Run("foreign key with no near CONGA tag", func(t *testing.T) {
@@ -526,7 +509,7 @@ func TestStrictTagLinter_AllowedTagSuggestion(t *testing.T) {
 
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
-		assert.IsError(t, err, spec.ErrInvalidStructTag)
-		assert.Equal(t, `struct foreignTagCLI field Replicas: schema error: invalid struct tag: unknown struct tag "bson". Use app.AllowTags("bson") to permit external tags`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct foreignTagCLI field Replicas: unknown struct tag "bson" (hint: use app.AllowTags("bson") to permit external tags)`, err.Error())
 	})
 }

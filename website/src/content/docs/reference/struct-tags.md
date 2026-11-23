@@ -3,7 +3,7 @@ title: Struct tags
 description: Every struct tag CONGA understands, per construct.
 ---
 
-CONGA derives the CLI schema from struct fields and their tags. Schema build validates the tags. Unknown tags, typos, or tags on incompatible field types fail schema construction with `ErrSchema` (see [How to lint schemas](/how-to/lint-schemas/)). Recognized foreign tags (such as `json` or `yaml`) pass validation silently.
+CONGA derives the CLI schema from struct fields and their tags. Schema build validates the tags. Unknown tags, typos, or tags on incompatible field types fail schema build (see [How to lint schemas](/how-to/lint-schemas/)). Recognized foreign tags (such as `json` or `yaml`) pass validation silently.
 
 ## Flags (`OptionalFlag[T]`, `RequiredFlag[T]`, `Counter`)
 
@@ -63,7 +63,7 @@ Subcommand names and positional placeholders split the same way (`SyncURLs` beco
 
 ## Positional arguments (`OptionalArg[T]`, `RequiredArg[T]`)
 
-Positional arguments bind to command-line input. They belong to leaf commands. A command that declares positional arguments cannot also declare `Command[T]` subcommands, and schema build rejects the mix with `ErrSchema`. Declare positionals on the leaf that executes, and pass shared context through inherited flags instead. Required arguments must come before optional ones. An optional argument declared before a required one fails schema build with `ErrSchema` (`optional positional argument cannot precede required positional argument <name>`).
+Positional arguments bind to command-line input. They belong to leaf commands. A command that declares positional arguments cannot also declare `Command[T]` subcommands, and schema build rejects the mix. Declare positionals on the leaf that executes, and pass shared context through inherited flags instead. Required arguments must come before optional ones. An optional argument declared before a required one fails schema build (`optional positional argument cannot precede required positional argument <name>`).
 
 | Tag | Optional | Required | Meaning |
 |-----|:--------:|:--------:|---------|
@@ -126,7 +126,7 @@ The help column renders `Port number (1..65535)`, `Environment (dev, staging, pr
 
 Suppression applies per hint, so referencing `{{range}}` leaves `[len: …]`, `[items: …]`, `[enum: …]`, `[default: …]`, and `[env: …]` in place. On flags, referencing `{{default}}` also removes the default from the value slot (`--port=8080` becomes `--port=INT`), displaying the default exclusively where the help text places it. On positional arguments, `{{default}}` inlines the declared default into the prose. Config-file flags support only `{{env}}`.
 
-Referencing an undeclared variable fails schema build with `ErrSchema`. That covers `{{range}}` without a `range` tag, any variable other than `{{env}}` on a config-file flag, any variable other than `{{enum}}` and `{{env}}` on a `Features` container, `{{env}}` on a `Features` container without a combined-map `env` tag, or `{{env}}` on a positional argument. Unknown names fail the same way and list the six supported names. Empty constraint tags (`range:""`, `len:""`, `items:""`, and `enum:""`) are rejected at schema build unconditionally. Bare `{` and shell-style `${...}` sequences copy verbatim. Double the opening braces (`{{{{`) to render a literal `{{`.
+Referencing an undeclared variable fails schema build. That covers `{{range}}` without a `range` tag, any variable other than `{{env}}` on a config-file flag, any variable other than `{{enum}}` and `{{env}}` on a `Features` container, `{{env}}` on a `Features` container without a combined-map `env` tag, or `{{env}}` on a positional argument. Unknown names fail the same way and list the six supported names. Empty constraint tags (`range:""`, `len:""`, `items:""`, and `enum:""`) are rejected at schema build unconditionally. Bare `{` and shell-style `${...}` sequences copy verbatim. Double the opening braces (`{{{{`) to render a literal `{{`.
 
 ### Suppressing the enum hint
 
@@ -156,11 +156,11 @@ A subcommand's flags read config keys from a section named after the subcommand,
 
 | Situation | Result |
 |---|---|
-| A flag name, alias, or short rune declared on an ancestor is declared again on a descendant | Schema build fails with `ErrSchema` wrapping `ErrDuplicateFlag`: `struct Child field Verbose: schema error: duplicate flag: --verbose (already declared by struct App field Verbose on an ancestor command)`. Sibling commands may share names. |
-| A descendant's short rune matches the rune given to `app.HelpShortFlag` or `app.VersionShortFlag` | Schema build fails: `duplicate flag: built-in --help short flag -h collides with --host; assign a different rune to one of them`. |
+| A flag name, alias, or short rune declared on an ancestor is declared again on a descendant | Schema build fails: `struct Child field Verbose: duplicate flag --verbose (note: already declared by struct App field Verbose on an ancestor command)`. Sibling commands may share names. |
+| A descendant's short rune matches the rune given to `app.HelpShortFlag` or `app.VersionShortFlag` | Schema build fails: `built-in --help short flag -h collides with --host (assign a different rune to one of them)`. |
 | A branch that doesn't implement `Runner` is invoked with no subcommand | `subcommand required for "<name>"` and the command's help screen, exit 2. |
 | A branch that implements `Runner` is invoked with no subcommand | The branch's own `Run` executes. |
-| A leaf that doesn't implement `Runner` is invoked | `struct <Name>: schema error: runner not implemented: implement conga.Runner: Run(context.Context, *conga.Session) error`, classified as `ErrSchema`, exit 1. Its siblings still run. `conga-lint` reports every such leaf. |
+| A leaf that doesn't implement `Runner` is invoked | `struct <Name>: runner not implemented (hint: implement conga.Runner: Run(context.Context, *conga.Session) error)`, schema error, exit 1. Its siblings still run. `conga-lint` reports every such leaf. |
 | A subcommand off the selected path | Its containers receive no values and its lifecycle hooks don't run. `Command[T].IsSelected()` reports whether a subcommand is on the path. |
 | A subcommand whose `feature` expression is false | See [Feature runtime behavior](#feature-runtime-behavior). |
 
@@ -184,8 +184,8 @@ type RunCmd struct {
 #### Schema rules
 
 - The value is a strict boolean, `"true"` or `"false"`. An empty value means `true`.
-- A command declares at most one implicit subcommand. A second fails schema build with `ErrSchema` and names the field that declared the first. `conga-lint` reports the same error.
-- An implicit subcommand can't carry a `feature` tag. It is entered without being named, so a gate on it would make the parent's operands and flags depend on a feature. Schema build fails with `ErrSchema`, and `conga-lint` reports the same error. Gate the parent instead, or make the subcommand explicit. A flag declared on an implicit subcommand may still carry `feature`.
+- A command declares at most one implicit subcommand. A second fails schema build and names the field that declared the first. `conga-lint` reports the same error.
+- An implicit subcommand can't carry a `feature` tag. It is entered without being named, so a gate on it would make the parent's operands and flags depend on a feature. Schema build rejects the combination, and `conga-lint` reports the same error. Gate the parent instead, or make the subcommand explicit. A flag declared on an implicit subcommand may still carry `feature`.
 - An implicit subcommand may declare its own implicit subcommand.
 
 #### Help rendering
@@ -293,7 +293,7 @@ func (c *CLI) Run(ctx context.Context, session *conga.Session) error {
 }
 ```
 
-Declare the container once, on the root command struct, and call `app.EnableFeatures()` on the application builder to activate feature resolution. Without the builder call, schema build rejects the container and every `feature` tag with `ErrSchema`. The `feature` tag is accepted on `OptionalFlag`, `Counter`, `Command[T]`, and `ConfigFile` fields. `RequiredFlag` rejects it because a required input cannot be absent. See [How to gate features](/how-to/gate-behind-features/).
+Declare the container once, on the root command struct, and call `app.EnableFeatures()` on the application builder to activate feature resolution. Without the builder call, schema build rejects the container and every `feature` tag. The `feature` tag is accepted on `OptionalFlag`, `Counter`, `Command[T]`, and `ConfigFile` fields. `RequiredFlag` rejects it because a required input cannot be absent. See [How to gate features](/how-to/gate-behind-features/).
 
 ### Feature container tags
 
@@ -320,7 +320,7 @@ A container that declares neither `env` nor `envprefix` binds no environment var
 | `enum` | Integer features only: comma-separated non-zero levels, required on every integer feature. `0` is reserved for off and rejected in the tag. |
 | `env` | Comma-separated environment variable names binding this feature individually (first set wins; an empty value is unset). `env:"-"` excludes the field from the environment source. Valid only when the container does not declare `env` (the combined-map variable); under a container `envprefix`, the tag overrides the derived variable name. |
 
-Environment variables are validated for collisions at schema build. Two feature fields resolving to the same variable (explicitly or through prefix derivation), or a feature variable a flag also binds, fail schema build with `ErrSchema`.
+Environment variables are validated for collisions at schema build. Two feature fields resolving to the same variable (explicitly or through prefix derivation), or a feature variable a flag also binds, fail schema build.
 
 ### Feature expressions
 
@@ -464,7 +464,7 @@ invalid unsigned integer value "0755" for flag --mode (a leading zero is ambiguo
 
 Underscore digit separators (`1_000`) are rejected. A value that does not fit the field's type fails as out of range (`value "0x80" is out of range for int8`).
 
-Tags use the same syntax and fail schema build with `ErrSchema` when a value is invalid. A `range`, `len`, or `items` bound or an `enum` value with a leading zero fails, and so does an `enum` value that is not an integer or does not fit the field's type. `enum` values compare as numbers, so `enum:"0x10,20"` accepts `16`, `0x10`, and `0o20`. Help and completion show the values as the tag spells them (`[enum: 0x10, 20]`). A feature's levels appear in decimal in help, completion, and error messages, whatever spelling its `enum` tag uses, so `enum:"0x2,3"` shows `[levels: 2, 3]`.
+Tags use the same syntax and fail schema build when a value is invalid. A `range`, `len`, or `items` bound or an `enum` value with a leading zero fails, and so does an `enum` value that is not an integer or does not fit the field's type. `enum` values compare as numbers, so `enum:"0x10,20"` accepts `16`, `0x10`, and `0o20`. Help and completion show the values as the tag spells them (`[enum: 0x10, 20]`). A feature's levels appear in decimal in help, completion, and error messages, whatever spelling its `enum` tag uses, so `enum:"0x2,3"` shows `[levels: 2, 3]`.
 
 The syntax covers fields whose value type has an integer kind and no parser of its own. A type with an `UnmarshalText` method or a parser registered through `app.RegisterType` reads its own syntax, and so do its `enum` values. `time.Duration` and `conga.ByteSize` have their own grammars.
 

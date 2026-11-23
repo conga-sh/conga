@@ -321,8 +321,7 @@ func TestFileTagSchemaErrors(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, `struct FileStdinStdoutCLI field Stream: schema error: invalid struct tag: tag "stdin" cannot be combined with tag "stdout"`, err.Error())
+		assert.Equal(t, `struct FileStdinStdoutCLI field Stream: tag "stdin" cannot be combined with tag "stdout"`, err.Error())
 	})
 
 	t.Run("existing and stdout are contradictory", func(t *testing.T) {
@@ -333,8 +332,7 @@ func TestFileTagSchemaErrors(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, `struct FileExistingStdoutCLI field File: schema error: invalid struct tag: tag "existing" cannot be combined with tag "stdout"`, err.Error())
+		assert.Equal(t, `struct FileExistingStdoutCLI field File: tag "existing" cannot be combined with tag "stdout"`, err.Error())
 	})
 
 	t.Run("invalid boolean tag value rejected", func(t *testing.T) {
@@ -345,8 +343,7 @@ func TestFileTagSchemaErrors(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, `struct FileBadTagValueCLI field Input: schema error: invalid struct tag: tag "existing" expects "true" or "false", got "yes"`, err.Error())
+		assert.Equal(t, `struct FileBadTagValueCLI field Input: tag "existing" expects "true" or "false", got "yes"`, err.Error())
 	})
 
 	t.Run("domain tags rejected on unregistered types", func(t *testing.T) {
@@ -357,7 +354,6 @@ func TestFileTagSchemaErrors(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
 		assert.Contains(t, err.Error(), `unknown struct tag "existing"`)
 	})
 }
@@ -403,8 +399,7 @@ func TestFileGlobSchemaErrors(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, `struct FileGlobExecutableCLI field Tool: schema error: invalid struct tag: tag "executable" cannot be combined with tag "glob"`, err.Error())
+		assert.Equal(t, `struct FileGlobExecutableCLI field Tool: tag "executable" cannot be combined with tag "glob"`, err.Error())
 	})
 
 	t.Run("glob and symlink are mutually exclusive", func(t *testing.T) {
@@ -415,8 +410,7 @@ func TestFileGlobSchemaErrors(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, `struct FileGlobSymlinkCLI field Link: schema error: invalid struct tag: tag "symlink" cannot be combined with tag "glob"`, err.Error())
+		assert.Equal(t, `struct FileGlobSymlinkCLI field Link: tag "symlink" cannot be combined with tag "glob"`, err.Error())
 	})
 
 	t.Run("empty glob value rejected", func(t *testing.T) {
@@ -427,8 +421,7 @@ func TestFileGlobSchemaErrors(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, `struct FileGlobEmptyCLI field Input: schema error: invalid struct tag: tag "glob" cannot be empty`, err.Error())
+		assert.Equal(t, `struct FileGlobEmptyCLI field Input: tag "glob" cannot be empty`, err.Error())
 	})
 
 	t.Run("malformed glob pattern rejected", func(t *testing.T) {
@@ -439,8 +432,7 @@ func TestFileGlobSchemaErrors(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, `struct FileGlobMalformedCLI field Input: schema error: invalid struct tag: glob pattern "[" is malformed: syntax error in pattern`, err.Error())
+		assert.Equal(t, `struct FileGlobMalformedCLI field Input: glob pattern "[" is malformed: syntax error in pattern`, err.Error())
 	})
 
 	t.Run("path separator in glob pattern rejected", func(t *testing.T) {
@@ -451,8 +443,7 @@ func TestFileGlobSchemaErrors(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, `struct FileGlobPathSeparatorCLI field Input: schema error: invalid struct tag: glob pattern "src/*.go" must not contain path separators (patterns match file names during completion traversal)`, err.Error())
+		assert.Equal(t, `struct FileGlobPathSeparatorCLI field Input: glob pattern "src/*.go" must not contain path separators (note: patterns match file names during completion traversal)`, err.Error())
 	})
 }
 
@@ -700,8 +691,7 @@ func TestUserDefinedTaggedDomainType(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, `struct TaggedTokenExcludedCLI field Token: schema error: invalid struct tag: tag "prefix" cannot be combined with tag "raw"`, err.Error())
+		assert.Equal(t, `struct TaggedTokenExcludedCLI field Token: tag "prefix" cannot be combined with tag "raw"`, err.Error())
 	})
 
 	t.Run("invalid boolean tag value rejected at schema build", func(t *testing.T) {
@@ -712,8 +702,7 @@ func TestUserDefinedTaggedDomainType(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, `struct TaggedTokenBadValueCLI field Token: schema error: invalid struct tag: tag "prefix" expects "true" or "false", got "yes"`, err.Error())
+		assert.Equal(t, `struct TaggedTokenBadValueCLI field Token: tag "prefix" expects "true" or "false", got "yes"`, err.Error())
 	})
 
 	t.Run("string tag hook plain error is classified as a schema error", func(t *testing.T) {
@@ -724,8 +713,7 @@ func TestUserDefinedTaggedDomainType(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, `struct PlainHookTokenCLI field Token: schema error: invalid struct tag: tag "tier": tier must be gold or silver`, err.Error())
+		assert.Equal(t, `struct PlainHookTokenCLI field Token: tag "tier": tier must be gold or silver`, err.Error())
 	})
 
 	t.Run("help description is composed from the declared tags", func(t *testing.T) {

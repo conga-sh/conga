@@ -166,7 +166,7 @@ app := conga.New[CLI]().
 	VersionShortFlag('V')
 ```
 
-The zero value keeps a built-in long-only. A collision between the rune and a user-declared short, or between the two built-in runes, fails schema build with `ErrDuplicateFlag` naming the flag and command. Disabling the matching built-in leaves the rune inert. It binds to nothing, and the `help` or `version` name and the rune stay free for your own flags. User-declared `--help` or `--version` flags shadow built-in rows and render long-only without inheriting the configured short rune.
+The zero value keeps a built-in long-only. A collision between the rune and a user-declared short, or between the two built-in runes, fails schema build naming the flag and command. Disabling the matching built-in leaves the rune inert. It binds to nothing, and the `help` or `version` name and the rune stay free for your own flags. User-declared `--help` or `--version` flags shadow built-in rows and render long-only without inheriting the configured short rune.
 
 The help rune applies to every command screen, and the version rune to the root screen, matching the root-only `--version` flag. Once a subcommand is selected, `--version` is no longer a built-in ([`--version` after selection](/reference/struct-tags/#--version-after-selection)). Completion offers each configured rune as a shorthand candidate next to the declared short flags whenever the matching built-in is offered on the active command.
 
@@ -180,7 +180,7 @@ app := conga.New[CLI]().
 	HelpFooter("Documentation: https://example.com/docs\nReport issues: https://example.com/issues")
 ```
 
-The footer is set only through `app.HelpFooter`. A `HelpFooter() string` method on a root command struct or a subcommand struct fails schema build with `ErrSchema`.
+The footer is set only through `app.HelpFooter`. A `HelpFooter() string` method on a root command struct or a subcommand struct fails schema build.
 
 ### The `help` subcommand
 
@@ -227,7 +227,7 @@ hello:
  OS/Arch:    linux/amd64
 ```
 
-`hello version --json` renders a flat machine-readable object with the same fields (`version`, `gitCommit`, `built`, `goVersion`, `os`, `arch`, `modified`). Call `JSON() bool` on the command struct to query whether JSON format was requested. The built-in command owns `--json`: a user-defined `--json` flag on an ancestor command fails schema build with `ErrDuplicateFlag`, and the error names the fix (rename the ancestor flag or remove the `VersionCommand` field). A non-boolean value is a usage error (exit 2).
+`hello version --json` renders a flat machine-readable object with the same fields (`version`, `gitCommit`, `built`, `goVersion`, `os`, `arch`, `modified`). Call `JSON() bool` on the command struct to query whether JSON format was requested. The built-in command owns `--json`: a user-defined `--json` flag on an ancestor command fails schema build, and the error names the fix (rename the ancestor flag or remove the `VersionCommand` field). A non-boolean value is a usage error (exit 2).
 
 `app.DisableVersionFlag()` removes the flag while keeping the version summary line available through `session.Version()` and `VersionCommand`. `app.VersionShortFlag('V')` assigns the rune rendered and parsed as `-V` (see [Configurable short flags](#configurable-short-flags)).
 
@@ -293,7 +293,7 @@ When the root command declares `conga.Features[T]`, the report includes a `Featu
 | Style | Invocation | When |
 |-------|---------|------|
 | Flag | `--completion <shell>` | A root command without subcommands |
-| Subcommand | `completion <shell>`, listed last under `Commands:` | A root command with subcommands, or any root command that declares a `conga.CompletionCommand` field (which also suppresses the flag). The field accepts the `name`, `aliases`, `section`, `summary`, and `hidden` tags, and its `Shell() string` method returns the requested shell. Declaring `conga.CompletionCommand` without `app.EnableCompletion()` fails schema build with `ErrSchema` |
+| Subcommand | `completion <shell>`, listed last under `Commands:` | A root command with subcommands, or any root command that declares a `conga.CompletionCommand` field (which also suppresses the flag). The field accepts the `name`, `aliases`, `section`, `summary`, and `hidden` tags, and its `Shell() string` method returns the requested shell. Declaring `conga.CompletionCommand` without `app.EnableCompletion()` fails schema build |
 | Hidden driver | `<cmd> __complete <shell> <words...>` | Called by the generated shell functions; `export` in place of a shell name prints JSON (see [Candidates as JSON](#candidates-as-json)) |
 
 Invoked without a shell argument, the flag or subcommand prints the supported shells and, when the active shell is detected, the command to load completion into the current session (exit 0). Invoked with `<shell> --help`, it prints the installation steps for that shell, adjusted to the environment. With `HOMEBREW_PREFIX` set, the zsh steps write to `$HOMEBREW_PREFIX/share/zsh/site-functions`, and on macOS the bash steps warn when the running Bash is older than 4.4. An unknown shell name is a usage error (exit 2).
@@ -334,7 +334,7 @@ At a bare space, the driver offers subcommands and positional arguments and with
 
 ### User toggles
 
-The generated scripts read three per-application environment variables. The default prefix is the application name in `UPPER_SNAKE_CASE` (`cloudctl` reads `CLOUDCTL_COMPLETION_*`). A derived prefix that starts with a digit gains a leading underscore (`7z` reads `_7Z_COMPLETION_*`). Pass `conga.CompletionEnvPrefix(prefix)` to `app.EnableCompletion` to override the prefix. An explicit prefix that normalizes to a leading digit fails schema build with `ErrSchema`.
+The generated scripts read three per-application environment variables. The default prefix is the application name in `UPPER_SNAKE_CASE` (`cloudctl` reads `CLOUDCTL_COMPLETION_*`). A derived prefix that starts with a digit gains a leading underscore (`7z` reads `_7Z_COMPLETION_*`). Pass `conga.CompletionEnvPrefix(prefix)` to `app.EnableCompletion` to override the prefix. An explicit prefix that normalizes to a leading digit fails schema build.
 
 | Variable | Effect |
 |---|---|

@@ -427,8 +427,7 @@ func TestUnitsRangeValidation(t *testing.T) {
 		err := conga.New[ByteSizeUnitsRangeMismatchCLI]().Args([]string{}).RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, `struct ByteSizeUnitsRangeMismatchCLI field Memory: schema error: invalid range syntax: invalid byte size min bound "1MB": byte size unit "MB" in "1MB" is not allowed: the field accepts binary units only`, err.Error())
+		assert.Equal(t, `struct ByteSizeUnitsRangeMismatchCLI field Memory: invalid byte size min bound "1MB": byte size unit "MB" in "1MB" is not allowed: the field accepts binary units only`, err.Error())
 	})
 }
 
@@ -470,7 +469,7 @@ func TestTextDialectRangeValidation(t *testing.T) {
 		err := conga.New[BadRangeTextDialectCLI]().Args([]string{"--temperature", "20C"}).Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
+		assert.Contains(t, err.Error(), `struct BadRangeTextDialectCLI field Temperature: invalid value min bound "bananaC"`)
 	})
 
 	t.Run("unsigned dialect value above int64 max accepted", func(t *testing.T) {
@@ -1088,6 +1087,6 @@ func TestValidation_Float32RangeBoundOutsideFloat32Rejected(t *testing.T) {
 
 	err := conga.New[float32OverflowRangeCLI]().Args([]string{}).Run()
 
-	assert.IsError(t, err, conga.ErrSchema)
-	assert.Equal(t, `struct float32OverflowRangeCLI field Ratio: schema error: invalid range syntax: invalid float max bound "1e39"`, err.Error())
+	assert.Error(t, err)
+	assert.Equal(t, `struct float32OverflowRangeCLI field Ratio: invalid float max bound "1e39"`, err.Error())
 }

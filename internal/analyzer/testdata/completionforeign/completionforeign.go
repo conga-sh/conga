@@ -10,6 +10,6 @@ import (
 )
 
 func run() {
-	app := conga.New[completionlib.Root]() // want `completion command declared without completion enabled; call app\.EnableCompletion\(\) when constructing the app, or remove the field`
+	app := conga.New[completionlib.Root]() // want `completion command declared without completion enabled`
 	app.Run()
 }

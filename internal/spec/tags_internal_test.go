@@ -1,7 +1,9 @@
 package spec
 
 import (
+	"errors"
 	"math"
+	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
@@ -184,8 +186,8 @@ func TestValidateRangeSpec_TextDialects(t *testing.T) {
 		err := validateRangeSpec(rangeSpec, reflect.TypeFor[ByteSize](), nil, nil)
 
 		assert.Error(t, err)
-		assert.IsError(t, err, ErrInvalidRangeSyntax)
-		assert.Equal(t, "schema error: invalid range syntax: min bound \"200\" cannot be greater than max bound \"100\"", err.Error())
+		assert.True(t, IsSchemaError(err))
+		assert.Equal(t, `min bound "200" cannot be greater than max bound "100"`, err.Error())
 	})
 
 	t.Run("unparseable byte size bound rejected with exact message", func(t *testing.T) {
@@ -196,8 +198,8 @@ func TestValidateRangeSpec_TextDialects(t *testing.T) {
 		err := validateRangeSpec(rangeSpec, reflect.TypeFor[ByteSize](), nil, nil)
 
 		assert.Error(t, err)
-		assert.IsError(t, err, ErrInvalidRangeSyntax)
-		assert.Equal(t, "schema error: invalid range syntax: invalid byte size min bound \"banana\"", err.Error())
+		assert.True(t, IsSchemaError(err))
+		assert.Equal(t, `invalid byte size min bound "banana"`, err.Error())
 	})
 
 	t.Run("signed dialect bounds parse with its own grammar", func(t *testing.T) {
@@ -218,8 +220,8 @@ func TestValidateRangeSpec_TextDialects(t *testing.T) {
 		err := validateRangeSpec(rangeSpec, reflect.TypeFor[Celsius](), nil, nil)
 
 		assert.Error(t, err)
-		assert.IsError(t, err, ErrInvalidRangeSyntax)
-		assert.Equal(t, "schema error: invalid range syntax: invalid value min bound \"bananaC\"", err.Error())
+		assert.True(t, IsSchemaError(err))
+		assert.Equal(t, `invalid value min bound "bananaC"`, err.Error())
 	})
 
 	t.Run("unsigned dialect bounds above int64 max compare exactly", func(t *testing.T) {
@@ -250,8 +252,8 @@ func TestValidateRangeSpec_TextDialects(t *testing.T) {
 		err := validateRangeSpec(rangeSpec, reflect.TypeFor[Count](), nil, nil)
 
 		assert.Error(t, err)
-		assert.IsError(t, err, ErrInvalidRangeSyntax)
-		assert.Equal(t, "schema error: invalid range syntax: min bound \"9223372036854775809x\" cannot be greater than max bound \"9223372036854775808x\"", err.Error())
+		assert.True(t, IsSchemaError(err))
+		assert.Equal(t, `min bound "9223372036854775809x" cannot be greater than max bound "9223372036854775808x"`, err.Error())
 	})
 
 	t.Run("float dialect bounds parse with its own grammar", func(t *testing.T) {
@@ -272,8 +274,8 @@ func TestValidateRangeSpec_TextDialects(t *testing.T) {
 		err := validateRangeSpec(rangeSpec, reflect.TypeFor[Ratio](), nil, nil)
 
 		assert.Error(t, err)
-		assert.IsError(t, err, ErrInvalidRangeSyntax)
-		assert.Equal(t, "schema error: invalid range syntax: min bound \"90%\" cannot be greater than max bound \"10%\"", err.Error())
+		assert.True(t, IsSchemaError(err))
+		assert.Equal(t, `min bound "90%" cannot be greater than max bound "10%"`, err.Error())
 	})
 
 	t.Run("text dialect without ordered projection rejected with exact message", func(t *testing.T) {
@@ -284,8 +286,8 @@ func TestValidateRangeSpec_TextDialects(t *testing.T) {
 		err := validateRangeSpec(rangeSpec, reflect.TypeFor[Opaque](), nil, nil)
 
 		assert.Error(t, err)
-		assert.IsError(t, err, ErrInvalidRangeSyntax)
-		assert.Equal(t, "schema error: invalid range syntax: range tag is not supported on type spec.Opaque", err.Error())
+		assert.True(t, IsSchemaError(err))
+		assert.Equal(t, `range tag is not supported on type spec.Opaque`, err.Error())
 	})
 
 	t.Run("numeric type without text grammar keeps integer parsing", func(t *testing.T) {
@@ -306,8 +308,8 @@ func TestValidateRangeSpec_TextDialects(t *testing.T) {
 		err := validateRangeSpec(rangeSpec, reflect.TypeFor[Plain](), nil, nil)
 
 		assert.Error(t, err)
-		assert.IsError(t, err, ErrInvalidRangeSyntax)
-		assert.Equal(t, "schema error: invalid range syntax: invalid integer min bound \"banana\"", err.Error())
+		assert.True(t, IsSchemaError(err))
+		assert.Equal(t, `invalid integer min bound "banana"`, err.Error())
 	})
 
 	t.Run("byte-size-named struct without text grammar rejected", func(t *testing.T) {
@@ -320,8 +322,8 @@ func TestValidateRangeSpec_TextDialects(t *testing.T) {
 		err := validateRangeSpec(rangeSpec, reflect.TypeFor[ByteSize](), nil, nil)
 
 		assert.Error(t, err)
-		assert.IsError(t, err, ErrInvalidRangeSyntax)
-		assert.Equal(t, "schema error: invalid range syntax: range tag is not supported on type spec.ByteSize", err.Error())
+		assert.True(t, IsSchemaError(err))
+		assert.Equal(t, `range tag is not supported on type spec.ByteSize`, err.Error())
 	})
 }
 
@@ -534,7 +536,7 @@ func TestParseRangeSpec_Invalid(t *testing.T) {
 			_, err := ParseRangeSpec(tag)
 
 			assert.Error(t, err)
-			assert.IsError(t, err, ErrInvalidRangeSyntax)
+			assert.True(t, IsSchemaError(err))
 		})
 	}
 }
@@ -545,8 +547,8 @@ func TestParseRangeSpec_TripleDotRejected(t *testing.T) {
 
 	_, err := ParseRangeSpec("1...5")
 
-	assert.IsError(t, err, ErrInvalidRangeSyntax)
-	assert.Equal(t, `schema error: invalid range syntax: "1...5" (expected min..max, min.., or ..max)`, err.Error())
+	assert.True(t, IsSchemaError(err))
+	assert.Equal(t, `invalid range syntax "1...5" (note: expected min..max, min.., or ..max)`, err.Error())
 }
 
 func TestSplitTagList(t *testing.T) {
@@ -604,7 +606,8 @@ func TestParseStructTagKeys(t *testing.T) {
 		_, err := parseStructTagKeys(reflect.StructTag(`keywithoutcolon name:"port"`))
 
 		assert.Error(t, err)
-		assert.IsError(t, err, ErrInvalidStructTag)
+		assert.True(t, IsSchemaError(err))
+		assert.Equal(t, `malformed struct tag "keywithoutcolon name:\"port\""`, err.Error())
 	})
 
 	t.Run("missing value rejected", func(t *testing.T) {
@@ -613,7 +616,8 @@ func TestParseStructTagKeys(t *testing.T) {
 		_, err := parseStructTagKeys(reflect.StructTag(`name`))
 
 		assert.Error(t, err)
-		assert.IsError(t, err, ErrInvalidStructTag)
+		assert.True(t, IsSchemaError(err))
+		assert.Equal(t, `malformed struct tag "name"`, err.Error())
 	})
 
 	t.Run("unterminated quote rejected", func(t *testing.T) {
@@ -622,7 +626,8 @@ func TestParseStructTagKeys(t *testing.T) {
 		_, err := parseStructTagKeys(reflect.StructTag(`name:"unterminated`))
 
 		assert.Error(t, err)
-		assert.IsError(t, err, ErrInvalidStructTag)
+		assert.True(t, IsSchemaError(err))
+		assert.Equal(t, `malformed struct tag "name:\"unterminated"`, err.Error())
 	})
 
 	t.Run("unquoted value rejected", func(t *testing.T) {
@@ -631,7 +636,8 @@ func TestParseStructTagKeys(t *testing.T) {
 		_, err := parseStructTagKeys(reflect.StructTag(`name:bare`))
 
 		assert.Error(t, err)
-		assert.IsError(t, err, ErrInvalidStructTag)
+		assert.True(t, IsSchemaError(err))
+		assert.Equal(t, `malformed struct tag "name:bare"`, err.Error())
 	})
 
 	t.Run("empty tag returns nil", func(t *testing.T) {
@@ -681,8 +687,8 @@ func TestParseGlobPatterns(t *testing.T) {
 			_, err := ParseGlobPatterns(value)
 
 			assert.Error(t, err)
-			assert.IsError(t, err, ErrInvalidStructTag)
-			assert.Equal(t, `schema error: invalid struct tag: empty glob pattern element (expected comma-separated patterns like "Makefile,Dockerfile" or "*.yaml")`, err.Error())
+			assert.True(t, IsSchemaError(err))
+			assert.Equal(t, `empty glob pattern element (note: expected comma-separated patterns like "Makefile,Dockerfile" or "*.yaml")`, err.Error())
 		}
 	})
 
@@ -692,8 +698,8 @@ func TestParseGlobPatterns(t *testing.T) {
 		_, err := ParseGlobPatterns("src/*.go")
 
 		assert.Error(t, err)
-		assert.IsError(t, err, ErrInvalidStructTag)
-		assert.Equal(t, `schema error: invalid struct tag: glob pattern "src/*.go" must not contain path separators (patterns match file names during completion traversal)`, err.Error())
+		assert.True(t, IsSchemaError(err))
+		assert.Equal(t, `glob pattern "src/*.go" must not contain path separators (note: patterns match file names during completion traversal)`, err.Error())
 	})
 
 	t.Run("backslash path separator rejected with exact message", func(t *testing.T) {
@@ -702,8 +708,8 @@ func TestParseGlobPatterns(t *testing.T) {
 		_, err := ParseGlobPatterns(`Make\file`)
 
 		assert.Error(t, err)
-		assert.IsError(t, err, ErrInvalidStructTag)
-		assert.Equal(t, "schema error: invalid struct tag: glob pattern \"Make\\\\file\" must not contain path separators (patterns match file names during completion traversal)", err.Error())
+		assert.True(t, IsSchemaError(err))
+		assert.Equal(t, "glob pattern \"Make\\\\file\" must not contain path separators (note: patterns match file names during completion traversal)", err.Error())
 	})
 
 	t.Run("malformed pattern rejected with exact message", func(t *testing.T) {
@@ -713,8 +719,9 @@ func TestParseGlobPatterns(t *testing.T) {
 			_, err := ParseGlobPatterns(value)
 
 			assert.Error(t, err)
-			assert.IsError(t, err, ErrInvalidStructTag)
-			assert.Equal(t, `schema error: invalid struct tag: glob pattern "`+value+`" is malformed: syntax error in pattern`, err.Error())
+			assert.True(t, IsSchemaError(err))
+			assert.IsError(t, err, filepath.ErrBadPattern)
+			assert.Equal(t, `glob pattern "`+value+`" is malformed: syntax error in pattern`, err.Error())
 		}
 	})
 }
@@ -744,8 +751,8 @@ func TestValidateConfigFileConfigTag(t *testing.T) {
 		err := ValidateConfigFileConfigTag(reflect.StructTag(`config:"server"`))
 
 		assert.Error(t, err)
-		assert.IsError(t, err, ErrInvalidStructTag)
-		assert.Equal(t, `schema error: invalid struct tag: tag "config" on config file flag must be "-", got "server"`, err.Error())
+		assert.True(t, IsSchemaError(err))
+		assert.Equal(t, `tag "config" on config file flag must be "-", got "server"`, err.Error())
 	})
 }
 
@@ -767,8 +774,8 @@ func TestParseBootstrapTag(t *testing.T) {
 		_, err := parseBootstrapTag(reflect.StructTag(`bootstrap:"true"`), "", &Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, ErrSchema)
-		assert.Equal(t, `schema error: tag "bootstrap" requires the command or an ancestor command to implement conga.Bootstrapper; implement Bootstrap(ctx context.Context, b *conga.Bootstrap) error or remove the tag`, err.Error())
+		assert.True(t, IsSchemaError(err))
+		assert.Equal(t, `tag "bootstrap" requires the command or an ancestor command to implement conga.Bootstrapper (hint: implement Bootstrap(ctx context.Context, b *conga.Bootstrap) error or remove the tag)`, err.Error())
 	})
 
 	t.Run("rejects feature combination", func(t *testing.T) {
@@ -777,8 +784,8 @@ func TestParseBootstrapTag(t *testing.T) {
 		_, err := parseBootstrapTag(reflect.StructTag(`bootstrap:"true"`), "strict", &Options{HasBootstrapper: true})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, ErrInvalidStructTag)
-		assert.Equal(t, `schema error: invalid struct tag: tag "bootstrap" cannot be combined with tag "feature" (the bootstrap phase runs before feature gates are resolved)`, err.Error())
+		assert.True(t, IsSchemaError(err))
+		assert.Equal(t, `tag "bootstrap" cannot be combined with tag "feature" (note: the bootstrap phase runs before feature gates are resolved)`, err.Error())
 	})
 
 	t.Run("accepted with Bootstrapper", func(t *testing.T) {
@@ -839,4 +846,80 @@ func TestIsBootstrapType(t *testing.T) {
 	for _, targetType := range rejected {
 		assert.False(t, isBootstrapType(targetType), targetType.String())
 	}
+}
+
+func TestSchemaError_FormattingAndUnwrap(t *testing.T) {
+	t.Parallel()
+
+	t.Run("owner and hint formatting", func(t *testing.T) {
+		t.Parallel()
+
+		assert.Equal(t, "bad schema", schemaError("bad schema").Error())
+		assert.Equal(t, "bad schema (hint: fix it)", schemaError("bad schema").withHint("fix it").Error())
+		assert.Equal(t, "struct CLI: runner not implemented (hint: implement Run)", schemaError("runner not implemented").
+			ownedBy("CLI", "").
+			withHint("implement Run").Error())
+		assert.Equal(t, "struct CLI field Port: bad flag (hint: try this)", schemaError("bad flag").ownedBy("CLI", "Port").withHint("try this").Error())
+	})
+
+	t.Run("note renders before the hint", func(t *testing.T) {
+		t.Parallel()
+
+		assert.Equal(t, "bad schema (note: why it fails)", schemaError("bad schema").withNote("why it fails").Error())
+		assert.Equal(t, "struct CLI field Port: bad flag (note: why it fails; hint: fix it)", schemaError("bad flag").
+			ownedBy("CLI", "Port").
+			withHint("fix it").
+			withNote("why it fails").Error())
+	})
+
+	t.Run("accessors split the message, note, and hint", func(t *testing.T) {
+		t.Parallel()
+
+		err := schemaError("bad flag").ownedBy("CLI", "Port").withNote("why it fails").withHint("fix it")
+
+		assert.Equal(t, "struct CLI field Port: bad flag", err.Message())
+		assert.Equal(t, "why it fails", err.Note())
+		assert.Equal(t, "fix it", err.Hint())
+	})
+
+	t.Run("WithOwner sets owner once and leaves owned error unchanged", func(t *testing.T) {
+		t.Parallel()
+
+		assert.Zero(t, WithOwner(nil, "CLI", "Port"))
+
+		unowned := schemaError("bad flag").withHint("fix it")
+		owned := WithOwner(unowned, "CLI", "Port")
+		assert.Equal(t, "struct CLI field Port: bad flag (hint: fix it)", owned.Error())
+		assert.Equal(t, "bad flag (hint: fix it)", unowned.Error())
+
+		stillOwned := WithOwner(owned, "Other", "Field")
+		assert.Equal(t, "struct CLI field Port: bad flag (hint: fix it)", stillOwned.Error())
+
+		plainCause := errors.New("raw error")
+		wrapped := WithOwner(plainCause, "CLI", "Port")
+		assert.True(t, IsSchemaError(wrapped))
+		assert.IsError(t, wrapped, plainCause)
+		assert.Equal(t, "struct CLI field Port: raw error", wrapped.Error())
+	})
+
+	t.Run("Unwrap returns nil when there is no cause", func(t *testing.T) {
+		t.Parallel()
+
+		err := schemaError("bad flag").ownedBy("CLI", "Port").withHint("fix it")
+		assert.Zero(t, errors.Unwrap(err))
+	})
+
+	t.Run("feature default and enum preserve real cause through Unwrap", func(t *testing.T) {
+		t.Parallel()
+
+		badDefault := ValidateFeatureFieldTags(&FeatureField{Name: "depth", IsInt: true, Enum: []string{"1"}}, reflect.StructTag(`enum:"1" default:"02"`))
+		assert.True(t, IsSchemaError(badDefault))
+		assert.IsError(t, badDefault, errFeatureMustBeInteger)
+		assert.Equal(t, `feature "depth" default "02": must be an integer (hint: a leading zero is ambiguous: write 0o2 for octal or 2 for decimal)`, badDefault.Error())
+
+		badEnum := ValidateFeatureFieldTags(&FeatureField{Name: "depth", IsInt: true}, reflect.StructTag(`enum:"abc"`))
+		assert.True(t, IsSchemaError(badEnum))
+		assert.IsError(t, badEnum, errFeatureMustBeInteger)
+		assert.Equal(t, `feature enum value "abc": must be an integer`, badEnum.Error())
+	})
 }

@@ -12,7 +12,7 @@ import (
 // A root flag bound to the ConfigFile's variable.
 type flagApp struct {
 	ConfigFile conga.ConfigFile        `env:"APP_CONFIG" help:"Config file"`
-	Port       conga.OptionalFlag[int] `env:"APP_CONFIG" help:"Port"` // want `struct flagApp field Port: schema error: environment variable "APP_CONFIG" is bound by both flag --config-file and flag --port; give the flag another env tag or exclude it with env:"-"`
+	Port       conga.OptionalFlag[int] `env:"APP_CONFIG" help:"Port"` // want `struct flagApp field Port: environment variable "APP_CONFIG" is bound by both flag --config-file and flag --port`
 }
 
 func (a *flagApp) Run(ctx context.Context, session *conga.Session) error {
@@ -23,7 +23,7 @@ var _ = conga.New[flagApp]()
 
 // A subcommand flag bound to the root ConfigFile's variable.
 type deployCommand struct {
-	Region conga.OptionalFlag[string] `env:"APP_CONFIG" help:"Region"` // want `struct deployCommand field Region: schema error: environment variable "APP_CONFIG" is bound by both flag --settings and flag --region; give the flag another env tag or exclude it with env:"-"`
+	Region conga.OptionalFlag[string] `env:"APP_CONFIG" help:"Region"` // want `struct deployCommand field Region: environment variable "APP_CONFIG" is bound by both flag --settings and flag --region`
 }
 
 func (c *deployCommand) Run(ctx context.Context, session *conga.Session) error {
@@ -44,7 +44,7 @@ type featureSet struct {
 
 type featureApp struct {
 	ConfigFile conga.ConfigFile           `env:"PC_CONFIG"  help:"Config file"`
-	Features   conga.Features[featureSet] `envprefix:"PC_" flag:"feature-gates"` // want `struct featureApp field Features: schema error: environment variable "PC_CONFIG" is bound by both flag --config-file and feature "config"; give the feature another env tag or exclude it with env:"-"`
+	Features   conga.Features[featureSet] `envprefix:"PC_" flag:"feature-gates"` // want `struct featureApp field Features: environment variable "PC_CONFIG" is bound by both flag --config-file and feature "config"`
 }
 
 func (a *featureApp) Run(ctx context.Context, session *conga.Session) error {
@@ -60,7 +60,7 @@ type gateSet struct {
 
 type mapFlagApp struct {
 	ConfigFile conga.ConfigFile        `env:"APP_CONFIG" help:"Config file"`
-	Features   conga.Features[gateSet] `env:"APP_CONFIG" flag:"feature-gates"` // want `struct mapFlagApp field Features: schema error: environment variable "APP_CONFIG" is bound by both flag --config-file and the feature map flag --feature-gates; give the Features container another env tag`
+	Features   conga.Features[gateSet] `env:"APP_CONFIG" flag:"feature-gates"` // want `struct mapFlagApp field Features: environment variable "APP_CONFIG" is bound by both flag --config-file and the feature map flag --feature-gates`
 }
 
 func (a *mapFlagApp) Run(ctx context.Context, session *conga.Session) error {
@@ -71,7 +71,7 @@ var _ = conga.New[mapFlagApp]().EnableFeatures()
 
 type mapNoFlagApp struct {
 	ConfigFile conga.ConfigFile        `env:"APP_CONFIG" help:"Config file"`
-	Features   conga.Features[gateSet] `env:"APP_CONFIG"` // want `struct mapNoFlagApp field Features: schema error: environment variable "APP_CONFIG" is bound by both flag --config-file and the Features container; give the Features container another env tag`
+	Features   conga.Features[gateSet] `env:"APP_CONFIG"` // want `struct mapNoFlagApp field Features: environment variable "APP_CONFIG" is bound by both flag --config-file and the Features container`
 }
 
 func (a *mapNoFlagApp) Run(ctx context.Context, session *conga.Session) error {

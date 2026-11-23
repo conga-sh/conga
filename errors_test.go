@@ -151,7 +151,7 @@ func TestErrorCategories(t *testing.T) {
 
 		_, err := spec.Build(42, "app", conga.SpecOptionsWithContainers(spec.Options{}))
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
+		assert.Equal(t, "target must be a pointer to a struct, got int", err.Error())
 	})
 
 	t.Run("parse unknown flag", func(t *testing.T) {
@@ -328,8 +328,7 @@ func TestSchemaErrorFileTagExclusionExistingExecutable(t *testing.T) {
 	err := conga.New[FileTagExclusionCLI]().RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrSchema)
-	assert.Equal(t, `struct FileTagExclusionCLI field Input: schema error: invalid struct tag: tag "existing" cannot be combined with tag "executable"`, err.Error())
+	assert.Equal(t, `struct FileTagExclusionCLI field Input: tag "existing" cannot be combined with tag "executable"`, err.Error())
 }
 
 func TestSchemaErrorFileTagExclusionSymlinkStdout(t *testing.T) {
@@ -338,8 +337,7 @@ func TestSchemaErrorFileTagExclusionSymlinkStdout(t *testing.T) {
 	err := conga.New[FileStdioExclusionCLI]().RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrSchema)
-	assert.Equal(t, `struct FileStdioExclusionCLI field Output: schema error: invalid struct tag: tag "stdout" cannot be combined with tag "symlink"`, err.Error())
+	assert.Equal(t, `struct FileStdioExclusionCLI field Output: tag "stdout" cannot be combined with tag "symlink"`, err.Error())
 }
 
 func TestCoercionErrorCounterRender(t *testing.T) {
@@ -364,8 +362,7 @@ func TestSchemaErrorUnsupportedType(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrSchema)
-	assert.Equal(t, "struct UnsupportedTypeCLI field Channel: schema error: unsupported type chan int; register a parser with app.RegisterType", err.Error())
+	assert.Equal(t, "struct UnsupportedTypeCLI field Channel: unsupported type chan int (hint: register a parser with app.RegisterType)", err.Error())
 }
 
 func TestCoercionErrorByteSizeRender(t *testing.T) {
@@ -921,8 +918,8 @@ func TestErrorClassificationBySource(t *testing.T) {
 
 				return runClassification(t, conga.New[classificationNoRunnerCLI]().Args([]string{}))
 			},
-			message:    `struct classificationNoRunnerCLI: schema error: runner not implemented: implement conga.Runner: Run(context.Context, *conga.Session) error`,
-			category:   conga.ErrSchema,
+			message:    `struct classificationNoRunnerCLI: runner not implemented (hint: implement conga.Runner: Run(context.Context, *conga.Session) error)`,
+			category:   nil,
 			usage:      false,
 			exitCode:   1,
 			usageShown: false,
@@ -933,7 +930,6 @@ func TestErrorClassificationBySource(t *testing.T) {
 		name     string
 		sentinel error
 	}{
-		{name: "ErrSchema", sentinel: conga.ErrSchema},
 		{name: "ErrParse", sentinel: conga.ErrParse},
 		{name: "ErrCoerce", sentinel: conga.ErrCoerce},
 		{name: "ErrValidation", sentinel: conga.ErrValidation},
@@ -961,8 +957,12 @@ func TestErrorClassificationBySource(t *testing.T) {
 				assert.Equal(t, expectedPrefix, result.output)
 			}
 
+			if testCase.category == nil {
+				assert.True(t, spec.IsSchemaError(result.err))
+			}
+
 			for _, category := range categories {
-				if errors.Is(category.sentinel, testCase.category) {
+				if testCase.category != nil && errors.Is(category.sentinel, testCase.category) {
 					assert.IsError(t, result.err, category.sentinel)
 				} else {
 					assert.False(t, errors.Is(result.err, category.sentinel),
@@ -1293,8 +1293,9 @@ func TestHookErrorsPassThrough(t *testing.T) {
 	assert.IsError(t, err, fs.ErrPermission)
 	assert.Equal(t, fs.ErrPermission.Error(), err.Error())
 	assert.False(t, conga.IsUsageError(err))
+	assert.False(t, spec.IsSchemaError(err))
 
-	for _, sentinel := range []error{conga.ErrSchema, conga.ErrParse, conga.ErrCoerce, conga.ErrValidation, conga.ErrConfig} {
+	for _, sentinel := range []error{conga.ErrParse, conga.ErrCoerce, conga.ErrValidation, conga.ErrConfig} {
 		assert.False(t, errors.Is(err, sentinel))
 	}
 }
@@ -1314,7 +1315,9 @@ func TestIsUsageError(t *testing.T) {
 
 	assert.False(t, conga.IsUsageError(nil))
 
-	assert.False(t, conga.IsUsageError(conga.ErrSchema))
+	schemaErr := conga.New[classificationNoRunnerCLI]().Args([]string{}).RunContext(t.Context())
+	assert.True(t, spec.IsSchemaError(schemaErr))
+	assert.False(t, conga.IsUsageError(schemaErr))
 
 	err := errors.New("database connection refused")
 	assert.False(t, conga.IsUsageError(err))
@@ -1392,8 +1395,8 @@ func TestErrNoRunner(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.False(t, conga.IsUsageError(err))
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, `struct CLI: schema error: runner not implemented: implement conga.Runner: Run(context.Context, *conga.Session) error`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct CLI: runner not implemented (hint: implement conga.Runner: Run(context.Context, *conga.Session) error)`, err.Error())
 	})
 
 	t.Run("subcommand without Run", func(t *testing.T) {
@@ -1413,8 +1416,8 @@ func TestErrNoRunner(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.False(t, conga.IsUsageError(err))
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, `struct ChildCmd: schema error: runner not implemented: implement conga.Runner: Run(context.Context, *conga.Session) error`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct ChildCmd: runner not implemented (hint: implement conga.Runner: Run(context.Context, *conga.Session) error)`, err.Error())
 	})
 
 	t.Run("nested subcommand without Run", func(t *testing.T) {
@@ -1438,8 +1441,8 @@ func TestErrNoRunner(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.False(t, conga.IsUsageError(err))
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, `struct LeafCmd: schema error: runner not implemented: implement conga.Runner: Run(context.Context, *conga.Session) error`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct LeafCmd: runner not implemented (hint: implement conga.Runner: Run(context.Context, *conga.Session) error)`, err.Error())
 	})
 }
 
@@ -2051,8 +2054,7 @@ func TestSchemaFlagCollisions_Issue05(t *testing.T) {
 
 		_, err := spec.Build(&cli, "app", conga.SpecOptionsWithContainers(spec.Options{}))
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, "struct DuplicateLongCLI field AltPort: schema error: duplicate flag: --port (already declared by field Port)", err.Error())
+		assert.Equal(t, "struct DuplicateLongCLI field AltPort: duplicate flag --port (note: already declared by field Port)", err.Error())
 	})
 
 	t.Run("duplicate short flag rune", func(t *testing.T) {
@@ -2067,8 +2069,7 @@ func TestSchemaFlagCollisions_Issue05(t *testing.T) {
 
 		_, err := spec.Build(&cli, "app", conga.SpecOptionsWithContainers(spec.Options{}))
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, "struct DuplicateShortCLI field Profile: schema error: duplicate flag: short flag -p (already declared by field Port)", err.Error())
+		assert.Equal(t, "struct DuplicateShortCLI field Profile: duplicate short flag -p (note: already declared by field Port)", err.Error())
 	})
 
 	t.Run("duplicate flag alias", func(t *testing.T) {
@@ -2083,8 +2084,7 @@ func TestSchemaFlagCollisions_Issue05(t *testing.T) {
 
 		_, err := spec.Build(&cli, "app", conga.SpecOptionsWithContainers(spec.Options{}))
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, "struct DuplicateAliasCLI field Trace: schema error: duplicate flag: alias --debug (already declared by field Verbose)", err.Error())
+		assert.Equal(t, "struct DuplicateAliasCLI field Trace: duplicate flag alias --debug (note: already declared by field Verbose)", err.Error())
 	})
 
 	t.Run("duplicate subcommand name and alias", func(t *testing.T) {
@@ -2101,8 +2101,7 @@ func TestSchemaFlagCollisions_Issue05(t *testing.T) {
 
 		_, err := spec.Build(&cli, "app", conga.SpecOptionsWithContainers(spec.Options{}))
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, `struct DuplicateSubCLI field Subcommand2: schema error: duplicate subcommand "deploy" (already declared by field Subcommand1)`, err.Error())
+		assert.Equal(t, `struct DuplicateSubCLI field Subcommand2: duplicate subcommand "deploy" (note: already declared by field Subcommand1)`, err.Error())
 	})
 
 	t.Run("sibling subcommands flag sharing is allowed", func(t *testing.T) {
@@ -2179,8 +2178,7 @@ func TestSchemaFlagCollisions_Issue05(t *testing.T) {
 
 		_, err := spec.Build(&cli, "app", conga.SpecOptionsWithContainers(spec.Options{}))
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, `struct ChildCmd field Verbose: schema error: duplicate flag: --verbose (already declared by struct Depth2ShadowCLI field Verbose on an ancestor command)`, err.Error())
+		assert.Equal(t, `struct ChildCmd field Verbose: duplicate flag --verbose (note: already declared by struct Depth2ShadowCLI field Verbose on an ancestor command)`, err.Error())
 	})
 
 	t.Run("subcommand flag shadowing ancestor is rejected", func(t *testing.T) {
@@ -2199,7 +2197,7 @@ func TestSchemaFlagCollisions_Issue05(t *testing.T) {
 
 		_, err := spec.Build(&cli, "app", conga.SpecOptionsWithContainers(spec.Options{}))
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
+		assert.Equal(t, `struct ServerCmd field Port: duplicate flag --port (note: already declared by struct ShadowCLI field Port on an ancestor command)`, err.Error())
 	})
 
 	t.Run("subcommand short flag shadowing ancestor is rejected", func(t *testing.T) {
@@ -2218,7 +2216,7 @@ func TestSchemaFlagCollisions_Issue05(t *testing.T) {
 
 		_, err := spec.Build(&cli, "app", conga.SpecOptionsWithContainers(spec.Options{}))
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
+		assert.Equal(t, `struct ServerCmd field Verbose: duplicate flag --verbose (note: already declared by struct ShadowShortCLI field Verbose on an ancestor command)`, err.Error())
 	})
 
 	t.Run("parent flag and subcommand with same name coexists", func(t *testing.T) {
@@ -2285,8 +2283,7 @@ func TestSchemaFlagCollisions_Issue05(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, `struct BuiltinHelpShortCLI field Host: schema error: duplicate flag: built-in --help short flag -h collides with --host; assign a different rune to one of them`, err.Error())
+		assert.Equal(t, `struct BuiltinHelpShortCLI field Host: built-in --help short flag -h collides with --host (hint: assign a different rune to one of them)`, err.Error())
 	})
 
 	t.Run("built-in version short colliding with a user short is rejected", func(t *testing.T) {
@@ -2305,8 +2302,7 @@ func TestSchemaFlagCollisions_Issue05(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, `struct BuiltinVersionShortCLI field Verbose: schema error: duplicate flag: built-in --version short flag -V collides with --verbose; assign a different rune to one of them`, err.Error())
+		assert.Equal(t, `struct BuiltinVersionShortCLI field Verbose: built-in --version short flag -V collides with --verbose (hint: assign a different rune to one of them)`, err.Error())
 	})
 
 	t.Run("built-in help and version shorts colliding with each other is rejected", func(t *testing.T) {
@@ -2323,8 +2319,7 @@ func TestSchemaFlagCollisions_Issue05(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, "schema error: duplicate flag: built-in --help and --version both claim short flag -h; assign a different rune to one of them", err.Error())
+		assert.Equal(t, "built-in --help and --version both claim short flag -h (hint: assign a different rune to one of them)", err.Error())
 	})
 
 	t.Run("built-in help short colliding on a subcommand is rejected", func(t *testing.T) {
@@ -2347,8 +2342,7 @@ func TestSchemaFlagCollisions_Issue05(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, `struct DeployCmd field Host: schema error: duplicate flag: built-in --help short flag -h collides with --host; assign a different rune to one of them`, err.Error())
+		assert.Equal(t, `struct DeployCmd field Host: built-in --help short flag -h collides with --host (hint: assign a different rune to one of them)`, err.Error())
 	})
 
 	t.Run("built-in short rune is free when the built-in is disabled", func(t *testing.T) {
@@ -2576,8 +2570,7 @@ func TestInvalidArgOrder_Issue08(t *testing.T) {
 
 		_, err := spec.Build(&cli, "app", conga.SpecOptionsWithContainers(spec.Options{}))
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, "struct SliceBeforeScalarCLI field Output: schema error: invalid positional argument order: slice argument <files...> must be the last positional argument", err.Error())
+		assert.Equal(t, "struct SliceBeforeScalarCLI field Output: slice argument <files...> must be the last positional argument", err.Error())
 	})
 
 	t.Run("slice arg followed by optional scalar arg fails schema", func(t *testing.T) {
@@ -2592,8 +2585,7 @@ func TestInvalidArgOrder_Issue08(t *testing.T) {
 
 		_, err := spec.Build(&cli, "app", conga.SpecOptionsWithContainers(spec.Options{}))
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, "struct SliceBeforeOptionalCLI field Target: schema error: invalid positional argument order: slice argument <files...> must be the last positional argument", err.Error())
+		assert.Equal(t, "struct SliceBeforeOptionalCLI field Target: slice argument <files...> must be the last positional argument", err.Error())
 	})
 
 	t.Run("multiple slice positional args fail schema", func(t *testing.T) {
@@ -2608,8 +2600,7 @@ func TestInvalidArgOrder_Issue08(t *testing.T) {
 
 		_, err := spec.Build(&cli, "app", conga.SpecOptionsWithContainers(spec.Options{}))
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, "struct MultipleSlicesCLI field Ports: schema error: invalid positional argument order: slice argument <files...> must be the last positional argument", err.Error())
+		assert.Equal(t, "struct MultipleSlicesCLI field Ports: slice argument <files...> must be the last positional argument", err.Error())
 	})
 
 	t.Run("optional slice followed by required scalar fails schema", func(t *testing.T) {
@@ -2624,8 +2615,7 @@ func TestInvalidArgOrder_Issue08(t *testing.T) {
 
 		_, err := spec.Build(&cli, "app", conga.SpecOptionsWithContainers(spec.Options{}))
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, "struct OptionalSliceBeforeScalarCLI field Dest: schema error: invalid positional argument order: slice argument [items...] must be the last positional argument", err.Error())
+		assert.Equal(t, "struct OptionalSliceBeforeScalarCLI field Dest: slice argument [items...] must be the last positional argument", err.Error())
 	})
 
 	t.Run("interspersed flag between slice and scalar positional arg fails schema", func(t *testing.T) {
@@ -2641,8 +2631,7 @@ func TestInvalidArgOrder_Issue08(t *testing.T) {
 
 		_, err := spec.Build(&cli, "app", conga.SpecOptionsWithContainers(spec.Options{}))
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, "struct InterspersedCLI field Dest: schema error: invalid positional argument order: slice argument <files...> must be the last positional argument", err.Error())
+		assert.Equal(t, "struct InterspersedCLI field Dest: slice argument <files...> must be the last positional argument", err.Error())
 	})
 
 	t.Run("valid ordering with scalar args followed by trailing slice succeeds", func(t *testing.T) {
@@ -2687,7 +2676,7 @@ func TestInvalidArgOrder_Issue08(t *testing.T) {
 
 		_, err := spec.Build(&cli, "parent", conga.SpecOptionsWithContainers(spec.Options{}))
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
+		assert.Equal(t, "struct InvalidSubcommand field Target: slice argument <files...> must be the last positional argument", err.Error())
 	})
 
 	t.Run("optional arg without default preceding required arg fails schema", func(t *testing.T) {
@@ -2702,7 +2691,7 @@ func TestInvalidArgOrder_Issue08(t *testing.T) {
 
 		_, err := spec.Build(&cli, "app", conga.SpecOptionsWithContainers(spec.Options{}))
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
+		assert.Equal(t, "struct OptionalBeforeRequiredCLI field Req: optional positional argument cannot precede required positional argument <req>", err.Error())
 	})
 }
 
@@ -2937,8 +2926,9 @@ type anonymousLeafCLI struct {
 	}] `name:"inline"`
 }
 
-// TestErrNoRunner_AnonymousStruct pins the fallback for an anonymous command
-// struct, which has no name to report: the message names the command.
+// TestErrNoRunner_AnonymousStruct pins the owner of an anonymous command
+// struct, which has no name of its own: the message names it by the path of
+// the field that declares it.
 func TestErrNoRunner_AnonymousStruct(t *testing.T) {
 	t.Parallel()
 
@@ -2947,6 +2937,94 @@ func TestErrNoRunner_AnonymousStruct(t *testing.T) {
 
 	err := app.Run()
 
-	assert.IsError(t, err, conga.ErrSchema)
-	assert.Equal(t, `command "inline": schema error: runner not implemented: implement conga.Runner: Run(context.Context, *conga.Session) error`, err.Error())
+	assert.Error(t, err)
+	assert.True(t, spec.IsSchemaError(err))
+	assert.Equal(t, `struct anonymousLeafCLI.Inline: runner not implemented (hint: implement conga.Runner: Run(context.Context, *conga.Session) error)`, err.Error())
+}
+
+type anonymousTagCLI struct {
+	Deploy conga.Command[struct {
+		failingCLI
+
+		Port conga.OptionalFlag[int] `hlep:"Port"`
+	}]
+}
+
+// TestSchemaError_AnonymousSubcommandOwner pins the owner of a field on an
+// anonymous subcommand struct: the struct is named by its declaring field.
+func TestSchemaError_AnonymousSubcommandOwner(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[anonymousTagCLI]().
+		Args([]string{"deploy"})
+
+	err := app.Run()
+
+	assert.True(t, spec.IsSchemaError(err))
+	assert.Equal(t, `struct anonymousTagCLI.Deploy field Port: unknown struct tag "hlep" (hint: did you mean "help"? Use app.AllowTags("hlep") to permit external tags)`, err.Error())
+}
+
+type nestedAnonymousCLI struct {
+	Deploy conga.Command[struct {
+		Push conga.Command[struct {
+			failingCLI
+
+			Port conga.OptionalFlag[int] `hlep:"Port"`
+		}]
+	}]
+}
+
+// TestSchemaError_NestedAnonymousSubcommandOwner pins the owner path through
+// two anonymous command structs.
+func TestSchemaError_NestedAnonymousSubcommandOwner(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[nestedAnonymousCLI]().
+		Args([]string{"deploy", "push"})
+
+	err := app.Run()
+
+	assert.True(t, spec.IsSchemaError(err))
+	assert.Equal(t, `struct nestedAnonymousCLI.Deploy.Push field Port: unknown struct tag "hlep" (hint: did you mean "help"? Use app.AllowTags("hlep") to permit external tags)`, err.Error())
+}
+
+// anonymousRootCLI is an alias, so the root struct type has no name.
+type anonymousRootCLI = struct {
+	Port conga.OptionalFlag[int] `hlep:"Port"`
+}
+
+// TestSchemaError_AnonymousRootOwner pins the owner of a field on an anonymous
+// root command struct.
+func TestSchemaError_AnonymousRootOwner(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[anonymousRootCLI]()
+
+	err := app.Run()
+
+	assert.True(t, spec.IsSchemaError(err))
+	assert.Equal(t, `struct (root) field Port: unknown struct tag "hlep" (hint: did you mean "help"? Use app.AllowTags("hlep") to permit external tags)`, err.Error())
+}
+
+type anonymousShadowCLI struct {
+	Verbose conga.OptionalFlag[bool] `short:"v"`
+	Deploy  conga.Command[struct {
+		failingCLI
+
+		Loud conga.OptionalFlag[bool] `short:"v"`
+	}]
+}
+
+// TestSchemaError_AnonymousShadowOwner pins both owners of a short rune that an
+// anonymous subcommand struct redeclares from its parent.
+func TestSchemaError_AnonymousShadowOwner(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[anonymousShadowCLI]().
+		Args([]string{"deploy"})
+
+	err := app.Run()
+
+	assert.True(t, spec.IsSchemaError(err))
+	assert.Equal(t, "struct anonymousShadowCLI.Deploy field Loud: duplicate short flag -v (note: already declared by struct anonymousShadowCLI field Verbose on an ancestor command)", err.Error())
 }

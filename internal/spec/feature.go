@@ -203,7 +203,7 @@ func ValidateFeatureExpression(featureExpr string) error {
 
 	for rawPart := range strings.SplitSeq(featureExpr, ",") {
 		if _, ok := parseFeatureTerm(rawPart); !ok {
-			return fmt.Errorf("%w: invalid feature tag syntax %q", ErrInvalidStructTag, featureExpr)
+			return schemaErrorf("invalid feature tag syntax %q", featureExpr)
 		}
 	}
 
@@ -247,7 +247,7 @@ func NormalizeFeatureExpression(featureExpr string) string {
 func FeatureFieldName(fieldName string, tag reflect.StructTag) (string, error) {
 	name := casing.Kebab(cmp.Or(strings.TrimSpace(tag.Get("name")), fieldName))
 	if name == "" {
-		return "", fmt.Errorf("%w: feature field %s declares an empty name", ErrInvalidStructTag, fieldName)
+		return "", schemaErrorf("feature field %s declares an empty name", fieldName)
 	}
 
 	return name, nil
@@ -266,20 +266,21 @@ func ValidateFeatureFieldTags(field *FeatureField, tag reflect.StructTag) error 
 	if stageTag, hasStage := tag.Lookup("stage"); hasStage {
 		stage := strings.TrimSpace(stageTag)
 		if stage == "" {
-			return fmt.Errorf("%w: tag \"stage\" cannot be empty", ErrInvalidStructTag)
+			return schemaError(`tag "stage" cannot be empty`)
 		}
 
 		switch stage {
 		case FeatureStageAlpha, FeatureStageBeta, FeatureStageGA, FeatureStageDeprecated:
 			field.Stage = stage
 		default:
-			return fmt.Errorf(`%w: tag "stage" must be one of %s, %s, %s, or %s, got %q`, ErrInvalidStructTag, FeatureStageAlpha, FeatureStageBeta, FeatureStageGA, FeatureStageDeprecated, stage)
+			return schemaErrorf(`invalid value %q for tag "stage"`, stage).
+				withNotef("accepted values: %s, %s, %s, %s", FeatureStageAlpha, FeatureStageBeta, FeatureStageGA, FeatureStageDeprecated)
 		}
 	}
 
 	if enumTag, hasEnum := tag.Lookup("enum"); hasEnum {
 		if !field.IsInt {
-			return fmt.Errorf("%w: tag \"enum\" is only valid on integer features", ErrInvalidStructTag)
+			return schemaError(`tag "enum" is only valid on integer features`)
 		}
 
 		if err := validateFeatureEnum(field, enumTag); err != nil {
@@ -290,31 +291,35 @@ func ValidateFeatureFieldTags(field *FeatureField, tag reflect.StructTag) error 
 	if defaultTag, hasDefault := tag.Lookup("default"); hasDefault {
 		canonical, err := field.Canonicalize(defaultTag)
 		if err != nil {
-			return fmt.Errorf("%w: feature %q default %q: %w", ErrInvalidStructTag, field.Name, defaultTag, err)
+			reason, hint := splitFeatureParseError(err)
+
+			return schemaErrorf("feature %q default %q: %s", field.Name, defaultTag, reason).withHint(hint).withCause(err)
 		}
 
 		field.Default = canonical
 	}
 
 	if field.IsInt && len(field.Enum) == 0 {
-		return fmt.Errorf("%w: feature %q is an integer feature and requires an enum tag listing its non-zero levels", ErrInvalidStructTag, field.Name)
+		return schemaErrorf("feature %q is an integer feature and requires an enum tag listing its non-zero levels", field.Name)
 	}
 
 	return nil
 }
 
 // DuplicateFeatureError builds the schema error for two feature fields that
-// normalize to the same kebab-case name. The runtime schema builder and the
-// static analyzer share it as the single source of truth.
-func DuplicateFeatureError(name string, typeName string) error {
-	return fmt.Errorf("%w feature %q (already declared in %s)", ErrDuplicateDeclaration, name, typeName)
+// normalize to the same kebab-case name; firstField names the field that
+// declared it first, and the caller names the second field as the owner. The
+// runtime schema builder and the static analyzer share it as the single source
+// of truth.
+func DuplicateFeatureError(name string, firstField string) error {
+	return schemaErrorf("duplicate feature %q", name).withNotef("already declared by field %s", firstField)
 }
 
 // FeatureStageAllOrNothingError builds the schema error for a feature field
 // that omits the stage tag while a sibling declares one. The runtime schema
 // builder and the static analyzer share it as the single source of truth.
 func FeatureStageAllOrNothingError(fieldName string) error {
-	return fmt.Errorf("%w: feature field %s does not declare the stage tag; declare stage on every feature field or on none", ErrInvalidStructTag, fieldName)
+	return schemaErrorf("feature field %s does not declare the stage tag", fieldName).withHint("declare stage on every feature field or on none")
 }
 
 // ParseFeatureTag parses, validates, and normalizes the "feature" struct tag expression.
@@ -449,7 +454,11 @@ func (b *schemaBuilder) processFeaturesField(structField reflect.StructField, fi
 
 	envPrefix := strings.TrimSpace(structField.Tag.Get("envprefix"))
 
-	fields, envDeclarer, err := b.buildFeatureFields(innerType, envPrefix)
+	// An anonymous feature struct is named by the path of its declaring field,
+	// like an anonymous command struct.
+	featureSetName := cmp.Or(innerType.Name(), b.cmd.StructName+"."+structField.Name)
+
+	fields, envDeclarer, err := b.buildFeatureFields(innerType, featureSetName, envPrefix)
 	if err != nil {
 		return err
 	}
@@ -460,20 +469,22 @@ func (b *schemaBuilder) processFeaturesField(structField reflect.StructField, fi
 
 	b.cmd.FeatureFields = fields
 	b.cmd.featureFieldName = structField.Name
-	b.cmd.featureStructName = b.structType.Name()
+	b.cmd.featureStructName = b.cmd.StructName
 
 	return b.installFeatureFlag(structField, fieldHandle, fields)
 }
 
 // buildFeatureFields reflects the exported bool/int fields of the feature
 // struct into feature metadata, deriving the feature key set from the field
-// names. Each field's environment binding resolves against the container's
+// names; featureSetName names the struct as the owner of each field's errors.
+// Each field's environment binding resolves against the container's
 // envprefix: an explicit env tag names the variables, env:"-" excludes the
 // field, and an untagged field derives one variable from the prefix when one
 // is declared. The second result names the first field whose env tag declares
 // a variable, so surface validation needs no second reflection walk.
-func (b *schemaBuilder) buildFeatureFields(innerType reflect.Type, envPrefix string) ([]*FeatureField, string, error) {
-	seen := make(map[string]bool)
+func (b *schemaBuilder) buildFeatureFields(innerType reflect.Type, featureSetName, envPrefix string) ([]*FeatureField, string, error) {
+	// seen maps each feature name to the field that declared it first.
+	seen := make(map[string]string)
 
 	var (
 		envDeclarer string
@@ -486,13 +497,15 @@ func (b *schemaBuilder) buildFeatureFields(innerType reflect.Type, envPrefix str
 			continue
 		}
 
+		// Feature field errors are attributed to the feature struct and its
+		// field, the way a subcommand field's errors name the subcommand struct.
 		if err := b.validateFieldTags(fieldSpec, "feature", featureFieldTagCandidates); err != nil {
-			return nil, "", err
+			return nil, "", WithOwner(err, featureSetName, fieldSpec.Name)
 		}
 
-		field, err := b.buildSingleFeatureField(fieldSpec, innerType.Name(), index, seen, envPrefix)
+		field, err := b.buildSingleFeatureField(fieldSpec, index, seen, envPrefix)
 		if err != nil {
-			return nil, "", err
+			return nil, "", WithOwner(err, featureSetName, fieldSpec.Name)
 		}
 
 		if envDeclarer == "" && FeatureFieldDeclaresEnv(fieldSpec.Tag) {
@@ -502,14 +515,16 @@ func (b *schemaBuilder) buildFeatureFields(innerType reflect.Type, envPrefix str
 		fields = append(fields, field)
 	}
 
-	if err := enforceFeatureStageAllOrNothing(fields); err != nil {
-		return nil, "", err
+	if stageless := firstStagelessFeatureField(fields); stageless != nil {
+		err := FeatureStageAllOrNothingError(stageless.Name)
+
+		return nil, "", WithOwner(err, featureSetName, innerType.Field(stageless.FieldIndex).Name)
 	}
 
 	return fields, envDeclarer, nil
 }
 
-func (b *schemaBuilder) buildSingleFeatureField(fieldSpec reflect.StructField, typeName string, index int, seen map[string]bool, envPrefix string) (*FeatureField, error) {
+func (b *schemaBuilder) buildSingleFeatureField(fieldSpec reflect.StructField, index int, seen map[string]string, envPrefix string) (*FeatureField, error) {
 	var (
 		isInt      bool
 		isUnsigned bool
@@ -523,7 +538,7 @@ func (b *schemaBuilder) buildSingleFeatureField(fieldSpec reflect.StructField, t
 		isInt = true
 		isUnsigned = true
 	default:
-		return nil, FeatureFieldTypeError(fieldSpec.Name, fieldSpec.Type.String())
+		return nil, FeatureFieldTypeError(fieldSpec.Type.String())
 	}
 
 	name, err := FeatureFieldName(fieldSpec.Name, fieldSpec.Tag)
@@ -531,11 +546,11 @@ func (b *schemaBuilder) buildSingleFeatureField(fieldSpec reflect.StructField, t
 		return nil, err
 	}
 
-	if seen[name] {
-		return nil, DuplicateFeatureError(name, typeName)
+	if firstField, ok := seen[name]; ok {
+		return nil, DuplicateFeatureError(name, firstField)
 	}
 
-	seen[name] = true
+	seen[name] = fieldSpec.Name
 
 	field := &FeatureField{
 		Name:       name,
@@ -670,7 +685,7 @@ func (b *schemaBuilder) installFeatureFlag(structField reflect.StructField, fiel
 		return key
 	}
 
-	flagSpec.StructName, flagSpec.FieldName = b.structType.Name(), structField.Name
+	flagSpec.StructName, flagSpec.FieldName = b.cmd.StructName, structField.Name
 	b.cmd.Flags = append(b.cmd.Flags, flagSpec)
 	b.cmd.FeatureFlag = flagSpec
 
@@ -690,28 +705,56 @@ func validateFeatureHelpVariables(helpText string, declared helpVars) error {
 	}
 
 	if referenced.Env && !declared.Env {
-		return fmt.Errorf(`%w: tag "help" references {{env}}, but the Features container declares no combined-map env tag; per-feature variables are rendered in the Features section`, ErrInvalidStructTag)
+		return schemaError(`tag "help" references {{env}}, but the Features container declares no combined-map env tag`).
+			withNote("per-feature variables are rendered in the Features section")
 	}
 
 	return validateHelpVariables(helpText, declared)
 }
 
-// enforceFeatureStageAllOrNothing reports the first feature field (in
-// declaration order) that omits the stage tag while a sibling declares it: a
+// firstStagelessFeatureField returns the first feature field (in declaration
+// order) that omits the stage tag while a sibling declares it, or nil: a
 // feature set is either fully staged or entirely stage-less, so the help
 // screen's Features section never renders a mix of hinted and unhinted rows.
-func enforceFeatureStageAllOrNothing(fields []*FeatureField) error {
+func firstStagelessFeatureField(fields []*FeatureField) *FeatureField {
 	if !slices.ContainsFunc(fields, func(field *FeatureField) bool { return field.Stage != "" }) {
 		return nil
 	}
 
 	for _, field := range fields {
 		if field.Stage == "" {
-			return FeatureStageAllOrNothingError(field.Name)
+			return field
 		}
 	}
 
 	return nil
+}
+
+// featureParseError is a feature integer parse failure that carries the
+// integer syntax's correction separately from its sentinel, so schema build
+// can render the correction as the schema error's hint.
+type featureParseError struct {
+	base error
+	hint string
+}
+
+func (e *featureParseError) Error() string {
+	return e.base.Error() + " (" + e.hint + ")"
+}
+
+func (e *featureParseError) Unwrap() error {
+	return e.base
+}
+
+// splitFeatureParseError separates a feature value parse failure into its
+// reason and the integer syntax's correction, so schema build can render the
+// correction as the schema error's hint; hint is empty when err carries none.
+func splitFeatureParseError(err error) (string, string) {
+	if parseErr, ok := errors.AsType[*featureParseError](err); ok {
+		return parseErr.base.Error(), parseErr.hint
+	}
+
+	return err.Error(), ""
 }
 
 // featureIntegerParseError classifies a failed feature-integer parse: range
@@ -728,7 +771,7 @@ func featureIntegerParseError(err error, signed bool) error {
 	}
 
 	if hint := intx.HintOf(err); hint != "" {
-		return fmt.Errorf("%w (%s)", base, hint)
+		return &featureParseError{base: base, hint: hint}
 	}
 
 	return base
@@ -746,17 +789,19 @@ func invalidFeatureEnumError(f *FeatureField) error {
 func validateFeatureEnum(field *FeatureField, enumTag string) error {
 	parts := slicex.SplitAndTrim(enumTag, ",")
 	if len(parts) == 0 {
-		return fmt.Errorf("%w: tag \"enum\" cannot be empty", ErrInvalidStructTag)
+		return schemaError(`tag "enum" cannot be empty`)
 	}
 
 	for _, part := range parts {
 		canonical, err := field.parseInteger(part)
 		if err != nil {
-			return fmt.Errorf("%w: feature enum value %q: %w", ErrInvalidStructTag, part, err)
+			reason, hint := splitFeatureParseError(err)
+
+			return schemaErrorf("feature enum value %q: %s", part, reason).withHint(hint).withCause(err)
 		}
 
 		if canonical == "0" {
-			return fmt.Errorf("%w: feature %q enum value \"0\" is the reserved off level; list only non-zero levels", ErrInvalidStructTag, field.Name)
+			return schemaErrorf(`feature %q enum value "0" is the reserved off level`, field.Name).withHint("list only non-zero levels")
 		}
 
 		if !slices.Contains(field.Enum, canonical) {
@@ -906,7 +951,7 @@ func wrapFeatureEnvCollision(root *Command, err error) error {
 		return err
 	}
 
-	return fmt.Errorf("struct %s field %s: %w", root.featureStructName, root.featureFieldName, err)
+	return WithOwner(err, root.featureStructName, root.featureFieldName)
 }
 
 // checkFlagEnvCollisions walks the command tree comparing every flag's
@@ -948,7 +993,7 @@ func validateFeatureReferencesInCommand(cmd *Command, declared map[string]bool) 
 			continue
 		}
 
-		if err := validateFeatureExpressionReferences("flag "+strconv.Quote("--"+flagSpec.Name), flagSpec.Feature, declared); err != nil {
+		if err := validateFeatureExpressionReferences("flag --"+flagSpec.Name, flagSpec.Feature, declared); err != nil {
 			return err
 		}
 	}
@@ -966,7 +1011,7 @@ func validateFeatureExpressionReferences(owner, featureExpr string, declared map
 	for rawPart := range strings.SplitSeq(featureExpr, ",") {
 		term, _ := parseFeatureTerm(rawPart)
 		if !declared[term.name] {
-			return fmt.Errorf("%w: %s references undeclared feature %q; declare it in the root conga.Features container", ErrSchema, owner, term.name)
+			return schemaErrorf("%s references undeclared feature %q", owner, term.name).withHint("declare it in the root conga.Features container")
 		}
 	}
 

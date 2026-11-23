@@ -156,7 +156,7 @@ func InferPredictorFromType(targetType reflect.Type, tags FieldTags) *PredictorS
 // flag whose value is not "-".
 func ValidateConfigFileConfigTag(tag reflect.StructTag) error {
 	if configTag, ok := tag.Lookup("config"); ok && configTag != "-" {
-		return fmt.Errorf("%w: tag \"config\" on config file flag must be \"-\", got %q", ErrInvalidStructTag, configTag)
+		return schemaErrorf(`tag "config" on config file flag must be "-", got %q`, configTag)
 	}
 
 	return nil
@@ -165,7 +165,9 @@ func ValidateConfigFileConfigTag(tag reflect.StructTag) error {
 // ValidateCounterDefaultTag rejects a default struct tag on a counter flag.
 func ValidateCounterDefaultTag(tag reflect.StructTag) error {
 	if _, ok := tag.Lookup("default"); ok {
-		return fmt.Errorf("%w: tag \"default\" is not supported on counter flags; counters count command-line occurrences starting at 0. Seed a base level with an env or config-file binding, or use OptionalFlag[int] for a numeric default", ErrInvalidStructTag)
+		return schemaError(`tag "default" is not supported on counter flags`).
+			withNote("counters count command-line occurrences starting at 0").
+			withHint("seed a base level with an env or config-file binding, or use OptionalFlag[int] for a numeric default")
 	}
 
 	return nil
@@ -174,9 +176,10 @@ func ValidateCounterDefaultTag(tag reflect.StructTag) error {
 // FeatureFieldTypeError builds the schema error for a feature field whose type
 // is neither a bool nor an integer. The runtime schema builder reports it from
 // the reflected field kind and the static analyzer reports it from the
-// go/types kind, so the message stays a single source of truth.
-func FeatureFieldTypeError(fieldName string, typeName string) error {
-	return fmt.Errorf("%w: feature field %s must be a bool or an integer, got %s", ErrInvalidStructTag, fieldName, typeName)
+// go/types kind, so the message stays a single source of truth. The caller
+// names the field as the error's owner.
+func FeatureFieldTypeError(typeName string) error {
+	return schemaErrorf("feature fields must be a bool or an integer, got %s", typeName)
 }
 
 // FeaturesMustBeOnRootError builds the schema error for a conga.Features
@@ -184,7 +187,7 @@ func FeatureFieldTypeError(fieldName string, typeName string) error {
 // returns it and the static analyzer reports it verbatim, keeping the message a
 // single source of truth.
 func FeaturesMustBeOnRootError() error {
-	return fmt.Errorf("%w: conga.Features must be declared on the root command struct", ErrSchema)
+	return schemaError("conga.Features must be declared on the root command struct")
 }
 
 // FeaturesMustBeStructParameterError builds the schema error for a
@@ -192,7 +195,7 @@ func FeaturesMustBeOnRootError() error {
 // schema builder and the static analyzer share it as the single source of
 // truth.
 func FeaturesMustBeStructParameterError() error {
-	return fmt.Errorf("%w: conga.Features must be parameterized by a struct type", ErrSchema)
+	return schemaError("conga.Features must be parameterized by a struct type")
 }
 
 // FeaturesAlreadyDeclaredError builds the duplicate-container error for a
@@ -200,7 +203,7 @@ func FeaturesMustBeStructParameterError() error {
 // builder and the static analyzer share it as the single source of truth;
 // firstFlagName is the resolved synthesized flag name of the first container.
 func FeaturesAlreadyDeclaredError(firstFlagName string) error {
-	return fmt.Errorf("%w Features container (already declared by %s)", ErrDuplicateDeclaration, firstFlagName)
+	return schemaError("duplicate Features container").withNotef("already declared by %s", firstFlagName)
 }
 
 // FeatureEnvModeConflictError builds the schema error for a conga.Features
@@ -209,7 +212,8 @@ func FeaturesAlreadyDeclaredError(firstFlagName string) error {
 // surfaces would compete over the same keys. The runtime schema builder and
 // the static analyzer share it as the single source of truth.
 func FeatureEnvModeConflictError() error {
-	return fmt.Errorf("%w: tag \"env\" and tag \"envprefix\" cannot both be declared on a conga.Features container (env names the combined map variable; envprefix derives one variable per feature)", ErrSchema)
+	return schemaError(`tag "env" and tag "envprefix" cannot both be declared on a conga.Features container`).
+		withNote("env names the combined map variable; envprefix derives one variable per feature")
 }
 
 // FeatureFieldEnvWithContainerEnvError builds the schema error for a feature
@@ -218,7 +222,9 @@ func FeatureEnvModeConflictError() error {
 // precedence between them. The runtime schema builder and the static
 // analyzer share it as the single source of truth.
 func FeatureFieldEnvWithContainerEnvError(fieldName string) error {
-	return fmt.Errorf("%w: feature field %s declares env while the Features container declares env (the combined map variable); declare one env surface per container", ErrSchema, fieldName)
+	return schemaErrorf("feature field %s declares env while the Features container declares env", fieldName).
+		withNote("the container's env tag names the combined map variable").
+		withHint("declare one env surface per container")
 }
 
 // ConfigEnvSide names the config side of a config env collision: the root
@@ -264,14 +270,14 @@ func ConfigEnvFeatureMapCollisionError(envVar string, configSide string, flagNam
 // same variable, or a feature variable a flag also binds. The runtime schema
 // builder and the static analyzer share it as the single source of truth.
 func FeatureEnvCollisionError(envVar string, first string, second string) error {
-	return fmt.Errorf("%w: environment variable %q is bound by both %s and %s", ErrSchema, envVar, first, second)
+	return schemaErrorf("environment variable %q is bound by both %s and %s", envVar, first, second)
 }
 
 // FeatureOnRequiredFlagError builds the schema error for a feature tag on a
 // required flag: a feature-gated flag must be optional. The runtime schema
 // builder and the static analyzer share it as the single source of truth.
 func FeatureOnRequiredFlagError() error {
-	return fmt.Errorf("%w: tag \"feature\" cannot be used on required flags (feature-gated flags must be optional)", ErrInvalidStructTag)
+	return schemaError(`tag "feature" cannot be used on required flags`).withNote("feature-gated flags must be optional")
 }
 
 // DeprecatedOnRequiredFlagError builds the schema error for a deprecated tag
@@ -279,7 +285,8 @@ func FeatureOnRequiredFlagError() error {
 // forced to supply. The runtime schema builder and the static analyzer share
 // it as the single source of truth.
 func DeprecatedOnRequiredFlagError() error {
-	return fmt.Errorf("%w: tag \"deprecated\" cannot be used on required flags (make the flag optional before deprecating it so callers can migrate without error)", ErrInvalidStructTag)
+	return schemaError(`tag "deprecated" cannot be used on required flags`).
+		withHint("make the flag optional before deprecating it so callers can migrate without error")
 }
 
 // GroupTagOnRequiredFlagError builds the schema error for an xor or oneof
@@ -288,7 +295,9 @@ func DeprecatedOnRequiredFlagError() error {
 // expresses exactly-one semantics. The runtime schema builder and the static
 // analyzer share it as the single source of truth.
 func GroupTagOnRequiredFlagError(tag string) error {
-	return fmt.Errorf("%w: tag %q cannot be used on required flags (required flags are individually mandatory; declare xor/oneof groups on optional flags, and use oneof when exactly one must be supplied)", ErrInvalidStructTag, tag)
+	return schemaErrorf("tag %q cannot be used on required flags", tag).
+		withNote("required flags are individually mandatory").
+		withHint("declare xor/oneof groups on optional flags, and use oneof when exactly one must be supplied")
 }
 
 // DefaultOnRequiredFlagError builds the schema error for a default tag on a
@@ -296,7 +305,8 @@ func GroupTagOnRequiredFlagError(tag string) error {
 // input, making the requirement meaningless. The runtime schema builder and
 // the static analyzer share it as the single source of truth.
 func DefaultOnRequiredFlagError() error {
-	return fmt.Errorf("%w: tag \"default\" cannot be used on required flags (the requirement must be satisfied by CLI, environment, or configuration input)", ErrInvalidStructTag)
+	return schemaError(`tag "default" cannot be used on required flags`).
+		withNote("the requirement must be satisfied by CLI, environment, or configuration input")
 }
 
 // DefaultOnOneOfFlagError builds the schema error for a default tag on a
@@ -305,7 +315,9 @@ func DefaultOnRequiredFlagError() error {
 // look chosen while validation still demands a choice. The runtime schema
 // builder and the static analyzer share it as the single source of truth.
 func DefaultOnOneOfFlagError() error {
-	return fmt.Errorf("%w: tag \"default\" cannot be used on oneof flags (a default sets the flag's value and marks it as set in --why without satisfying the exactly-one group; remove the default or the oneof tag)", ErrInvalidStructTag)
+	return schemaError(`tag "default" cannot be used on oneof flags`).
+		withNote("a default sets the flag's value and marks it as set in --why without satisfying the exactly-one group").
+		withHint("remove the default or the oneof tag")
 }
 
 // SingleMemberGroupError builds the schema error for a group with only one
@@ -314,25 +326,28 @@ func DefaultOnOneOfFlagError() error {
 // legal and never reaches this constructor. The runtime schema builder and the
 // static analyzer share it as the single source of truth.
 func SingleMemberGroupError(kind, group, flagName, suggestion string) error {
-	var guidance string
+	var note, hint string
 
 	switch kind {
 	case "oneof":
-		guidance = "exactly-one groups need at least two members (use RequiredFlag for a single mandatory flag)"
-	case "xor":
-		guidance = "a one-member xor group has no effect (remove the tag or add another member)"
-	case "and":
-		guidance = "a one-member and group has no effect (remove the tag or add another member)"
+		note = "exactly-one groups need at least two members"
+		hint = "use RequiredFlag for a single mandatory flag"
+	case "xor", "and":
+		note = fmt.Sprintf("a one-member %s group has no effect", kind)
+		hint = "remove the tag or add another member"
 	default:
-		guidance = "groups need at least two members"
+		note = "groups need at least two members"
 	}
 
-	msg := fmt.Sprintf("%s group %q has only one member (--%s); %s", kind, group, flagName, guidance)
 	if suggestion != "" {
-		msg += fmt.Sprintf("; did you mean %q?", suggestion)
+		if hint != "" {
+			hint += "; "
+		}
+
+		hint += fmt.Sprintf("did you mean %q?", suggestion)
 	}
 
-	return fmt.Errorf("%w: %s", ErrInvalidStructTag, msg)
+	return schemaErrorf("%s group %q has only one member (--%s)", kind, group, flagName).withNote(note).withHint(hint)
 }
 
 // OneOfAndOverlapError builds the schema error for two members of the same
@@ -340,7 +355,9 @@ func SingleMemberGroupError(kind, group, flagName, suggestion string) error {
 // other, so the exactly-one rule can never be satisfied. The runtime schema
 // builder and the static analyzer share it as the single source of truth.
 func OneOfAndOverlapError(oneOfGroup, andGroup, firstFlag, secondFlag string) error {
-	return fmt.Errorf("%w: flags --%s and --%s belong to oneof group %q and share \"and\" group %q (selecting either flag forces the other, so the exactly-one group can never be satisfied; remove one of the group tags)", ErrInvalidStructTag, firstFlag, secondFlag, oneOfGroup, andGroup)
+	return schemaErrorf(`flags --%s and --%s belong to oneof group %q and share "and" group %q`, firstFlag, secondFlag, oneOfGroup, andGroup).
+		withNote("selecting either flag forces the other, so the exactly-one group can never be satisfied").
+		withHint("remove one of the group tags")
 }
 
 // XorAndOverlapError builds the schema error for two members of the same xor
@@ -348,7 +365,9 @@ func OneOfAndOverlapError(oneOfGroup, andGroup, firstFlag, secondFlag string) er
 // so the mutually-exclusive rule can never be satisfied. The runtime schema
 // builder and the static analyzer share it as the single source of truth.
 func XorAndOverlapError(xorGroup, andGroup, firstFlag, secondFlag string) error {
-	return fmt.Errorf("%w: flags --%s and --%s belong to xor group %q and share \"and\" group %q (supplying either flag forces the other, so the mutually-exclusive group can never be satisfied; remove one of the group tags)", ErrInvalidStructTag, firstFlag, secondFlag, xorGroup, andGroup)
+	return schemaErrorf(`flags --%s and --%s belong to xor group %q and share "and" group %q`, firstFlag, secondFlag, xorGroup, andGroup).
+		withNote("supplying either flag forces the other, so the mutually-exclusive group can never be satisfied").
+		withHint("remove one of the group tags")
 }
 
 // BuiltinShortConflictError builds the schema error for a user-declared short
@@ -357,7 +376,8 @@ func XorAndOverlapError(xorGroup, andGroup, firstFlag, secondFlag string) error 
 // advertises the rune for the built-in. The runtime schema builder and the
 // static analyzer share it as the single source of truth.
 func BuiltinShortConflictError(builtin string, short rune, flagName string) error {
-	return fmt.Errorf("%w: built-in --%s short flag -%c collides with --%s; assign a different rune to one of them", ErrDuplicateFlag, builtin, short, flagName)
+	return schemaErrorf("built-in --%s short flag -%c collides with --%s", builtin, short, flagName).
+		withHint("assign a different rune to one of them")
 }
 
 // BuiltinShortPairError builds the schema error for app.HelpShortFlag and
@@ -366,34 +386,36 @@ func BuiltinShortConflictError(builtin string, short rune, flagName string) erro
 // while both flag rows still advertise it. The runtime schema builder and the
 // static analyzer share it as the single source of truth.
 func BuiltinShortPairError(short rune) error {
-	return fmt.Errorf("%w: built-in --help and --version both claim short flag -%c; assign a different rune to one of them", ErrDuplicateFlag, short)
+	return schemaErrorf("built-in --help and --version both claim short flag -%c", short).withHint("assign a different rune to one of them")
 }
 
 // ConfigExplicitConflictError builds the error when ConfigExplicit is combined with ConfigPaths or ConfigCascading.
-// The error wraps ErrSchema so runtime schema validation returns it directly and the static analyzer reports it verbatim,
+// Both runtime schema validation and the static analyzer report it verbatim,
 // keeping the lint-time and runtime messages a single source of truth.
 func ConfigExplicitConflictError() error {
-	return fmt.Errorf("%w: conga.ConfigExplicit() names a single configuration file and cannot be combined with conga.ConfigPaths() or conga.ConfigCascading()", ErrSchema)
+	return schemaError("conga.ConfigExplicit() names a single configuration file and cannot be combined with conga.ConfigPaths() or conga.ConfigCascading()")
 }
 
 // CascadingRequiresMultiError builds the cascading⟹multi arity-guard error
 // for a root config-file flag: a flag without multi:"true" cannot report
-// every merged file under Cascading(). The error wraps ErrSchema so runtime
-// schema validation returns it directly and the static analyzer reports it
-// verbatim, keeping the lint-time and runtime messages a single source of
-// truth.
+// every merged file under Cascading(). Both runtime schema validation and the
+// static analyzer report it verbatim, keeping the lint-time and runtime
+// messages a single source of truth.
 func CascadingRequiresMultiError(flagName string) error {
-	return fmt.Errorf("%w: conga.ConfigCascading() merges multiple config files; the root config-file flag %q must declare multi:\"true\" (or drop conga.ConfigCascading() from app.ConfigOptions(...))", ErrSchema, flagName)
+	return schemaErrorf(`the root config-file flag %q must declare multi:"true"`, flagName).
+		withNote("conga.ConfigCascading() merges multiple config files").
+		withHint(`add multi:"true" or drop conga.ConfigCascading() from app.ConfigOptions(...)`)
 }
 
 // CompletionRequiresEnableError builds the completion⟹enable schema guard: a
 // command struct that declares a CompletionCommand field while completion is
 // disabled would have the field silently dropped, so schema build rejects it
-// and names the missing opt-in. The error wraps ErrSchema so runtime schema
-// validation returns it directly and the static analyzer reports it verbatim,
-// keeping the lint-time and runtime messages a single source of truth.
+// and names the missing opt-in. Both runtime schema validation and the static
+// analyzer report it verbatim, keeping the lint-time and runtime messages a
+// single source of truth.
 func CompletionRequiresEnableError() error {
-	return fmt.Errorf("%w: completion command declared without completion enabled; call app.EnableCompletion() when constructing the app, or remove the field", ErrSchema)
+	return schemaError("completion command declared without completion enabled").
+		withHint("call app.EnableCompletion() when constructing the app, or remove the field")
 }
 
 // BootstrapRequiresBootstrapperError builds the schema error for a
@@ -401,28 +423,31 @@ func CompletionRequiresEnableError() error {
 // conga.Bootstrapper. The runtime schema builder and the static analyzer share
 // it as the single source of truth.
 func BootstrapRequiresBootstrapperError() error {
-	return fmt.Errorf("%w: tag \"bootstrap\" requires the command or an ancestor command to implement conga.Bootstrapper; implement Bootstrap(ctx context.Context, b *conga.Bootstrap) error or remove the tag", ErrSchema)
+	return schemaError(`tag "bootstrap" requires the command or an ancestor command to implement conga.Bootstrapper`).
+		withHint("implement Bootstrap(ctx context.Context, b *conga.Bootstrap) error or remove the tag")
 }
 
 // BootstrapFeatureConflictError builds the schema error for a bootstrap field
 // that is also feature-gated. The bootstrap phase runs before feature gates
 // resolve, so a gated bootstrap field cannot be evaluated reliably.
 func BootstrapFeatureConflictError() error {
-	return fmt.Errorf("%w: tag \"bootstrap\" cannot be combined with tag \"feature\" (the bootstrap phase runs before feature gates are resolved)", ErrInvalidStructTag)
+	return schemaError(`tag "bootstrap" cannot be combined with tag "feature"`).withNote("the bootstrap phase runs before feature gates are resolved")
 }
 
 // BootstrapFieldTypeError builds the schema error for a bootstrap field whose
 // type is not a pure scalar value. Restricting bootstrap fields to scalar,
 // slice, and map shapes keeps the second coercion cheap and free of I/O.
 func BootstrapFieldTypeError() error {
-	return fmt.Errorf("%w: bootstrap fields must be scalars, slices of scalars, or maps of scalars (structs and pointers are not supported)", ErrInvalidStructTag)
+	return schemaError("bootstrap fields must be scalars, slices of scalars, or maps of scalars").withNote("structs and pointers are not supported")
 }
 
 // BootstrapReadsWhileParsingError builds the schema error for a bootstrap
 // field typed conga.FileContent (or a slice or map of it). Bootstrap fields are
 // coerced in two passes, and FileContent reads its file, or stdin, each time.
 func BootstrapReadsWhileParsingError() error {
-	return fmt.Errorf("%w: tag \"bootstrap\" is not supported on conga.FileContent: bootstrap fields are parsed twice and FileContent reads its file while parsing; use conga.File and read it in Bootstrap", ErrInvalidStructTag)
+	return schemaError(`tag "bootstrap" is not supported on conga.FileContent`).
+		withNote("bootstrap fields are parsed twice and FileContent reads its file while parsing").
+		withHint("use conga.File and read it in Bootstrap")
 }
 
 // BootstrapTagged reports whether the bootstrap tag is on: bare presence or
@@ -439,7 +464,7 @@ func BootstrapTagged(tag reflect.StructTag) bool {
 // runtime schema builder and the static analyzer share it as the single source
 // of truth.
 func FeaturesRequiresEnableError() error {
-	return errFeaturesRequiresEnableFeatures
+	return schemaError("conga.Features declared on root command requires app.EnableFeatures()")
 }
 
 // FeatureTagRequiresEnableError returns the schema error for a feature:"..."
@@ -447,7 +472,7 @@ func FeaturesRequiresEnableError() error {
 // runtime schema builder and the static analyzer share it as the single source
 // of truth.
 func FeatureTagRequiresEnableError() error {
-	return errFeatureTagRequiresEnableFeatures
+	return schemaError("feature struct tag requires app.EnableFeatures()")
 }
 
 // ValidatePredictorTag validates an explicit predictor:"..." struct tag
@@ -503,7 +528,8 @@ func ValidateNonContainerFieldTags(tag reflect.StructTag, fieldTagKeys []string,
 			continue
 		}
 
-		return fmt.Errorf("%w: tag %q is not valid on a plain field (declare a flag, argument, command, config-file, features, or trailing-args container)", ErrInvalidStructTag, key)
+		return schemaErrorf("tag %q is not valid on a plain field", key).
+			withHint("declare a flag, argument, command, config-file, features, or trailing-args container")
 	}
 
 	return nil
@@ -576,7 +602,8 @@ func validateRoleTagRules(tag reflect.StructTag, role string, opts ValidationOpt
 // unknown-tag-key setting so legacy declarations never silently lose their
 // prefix.
 func blankFieldEnvPrefixError() error {
-	return fmt.Errorf("%w: tag \"envprefix\" is not supported on blank (_) fields; set the root prefix with app.EnvPrefix(...) and a subcommand prefix with the envprefix tag on its Command[T] field", ErrInvalidStructTag)
+	return schemaError(`tag "envprefix" is not supported on blank (_) fields`).
+		withHint("set the root prefix with app.EnvPrefix(...) and a subcommand prefix with the envprefix tag on its Command[T] field")
 }
 
 // validateEnumHintTag validates the enumhint struct tag of a flag, positional
@@ -593,11 +620,11 @@ func validateEnumHintTag(tag reflect.StructTag, role string) error {
 	}
 
 	if strings.TrimSpace(raw) != "-" {
-		return fmt.Errorf("%w: tag \"enumhint\" must be \"-\"", ErrInvalidStructTag)
+		return schemaError(`tag "enumhint" must be "-"`)
 	}
 
 	if role != "features" && len(SplitTagList(tag, "enum")) == 0 {
-		return fmt.Errorf("%w: tag \"enumhint\" suppresses the enum hint, but the field declares no enum values", ErrInvalidStructTag)
+		return schemaError(`tag "enumhint" suppresses the enum hint, but the field declares no enum values`)
 	}
 
 	_, referenced, err := interpolateHelp(tag.Get("help"), helpVarValues{})
@@ -606,7 +633,7 @@ func validateEnumHintTag(tag reflect.StructTag, role string) error {
 	}
 
 	if referenced.Enum {
-		return fmt.Errorf("%w: tag \"enumhint\" is redundant: the help tag already references {{enum}}", ErrInvalidStructTag)
+		return schemaError(`tag "enumhint" is redundant: the help tag already references {{enum}}`)
 	}
 
 	return nil
@@ -622,7 +649,8 @@ func validateEnumHintTag(tag reflect.StructTag, role string) error {
 func validateReservedPseudoTagKeys(keys []string) error {
 	for _, key := range keys {
 		if strings.HasPrefix(key, "~") {
-			return fmt.Errorf("%w: struct tag %q is reserved for CONGA's app-level configuration settings; declare it via app.ConfigOptions(...) instead", ErrInvalidStructTag, key)
+			return schemaErrorf("struct tag %q is reserved for CONGA's app-level configuration settings", key).
+				withHint("declare it via app.ConfigOptions(...) instead")
 		}
 	}
 
@@ -636,12 +664,12 @@ func validateReservedPseudoTagKeys(keys []string) error {
 func validateConstraintTagValues(tag reflect.StructTag) error {
 	for _, key := range []string{"range", "len", "items"} {
 		if value, ok := tag.Lookup(key); ok && strings.TrimSpace(value) == "" {
-			return fmt.Errorf("%w: tag %q cannot be empty", ErrInvalidStructTag, key)
+			return schemaErrorf("tag %q cannot be empty", key)
 		}
 	}
 
 	if _, ok := tag.Lookup("enum"); ok && len(SplitTagList(tag, "enum")) == 0 {
-		return fmt.Errorf("%w: tag %q cannot be empty", ErrInvalidStructTag, "enum")
+		return schemaError(`tag "enum" cannot be empty`)
 	}
 
 	return nil
@@ -657,7 +685,7 @@ func validateSectionTagValue(tag reflect.StructTag) error {
 	}
 
 	if strings.TrimSpace(value) != value {
-		return fmt.Errorf("%w: tag %q cannot have leading or trailing whitespace", ErrInvalidStructTag, "section")
+		return schemaError(`tag "section" cannot have leading or trailing whitespace`)
 	}
 
 	return nil
@@ -677,11 +705,11 @@ func validateFlagGroupTagValues(tag reflect.StructTag) error {
 		trimmed := strings.TrimSpace(value)
 
 		if trimmed == "" {
-			return fmt.Errorf("%w: tag %q cannot be empty", ErrInvalidStructTag, key)
+			return schemaErrorf("tag %q cannot be empty", key)
 		}
 
 		if trimmed != value {
-			return fmt.Errorf("%w: tag %q cannot have leading or trailing whitespace", ErrInvalidStructTag, key)
+			return schemaErrorf("tag %q cannot have leading or trailing whitespace", key)
 		}
 	}
 
@@ -692,7 +720,7 @@ func validateFlagGroupTagValues(tag reflect.StructTag) error {
 // config side, second the colliding binding, and remedy says how to separate
 // them.
 func configEnvCollisionError(envVar string, first string, second string, remedy string) error {
-	return fmt.Errorf("%w: environment variable %q is bound by both %s and %s; %s", ErrSchema, envVar, first, second, remedy)
+	return schemaErrorf("environment variable %q is bound by both %s and %s", envVar, first, second).withHint(remedy)
 }
 
 // validateMapConstraints rejects map-typed flag/arg fields whose key type is
@@ -704,12 +732,13 @@ func validateMapConstraints(tag reflect.StructTag, target ValueTarget) error {
 	}
 
 	if !target.MapKeyIsString {
-		return fmt.Errorf("%w, got %s", errNonStringMapKey, target.MapKeyType)
+		return schemaErrorf("map keys must be of type string, got %s", target.MapKeyType)
 	}
 
 	for _, key := range []string{"enum", "range", "len"} {
 		if hasTag(tag, key) {
-			return fmt.Errorf("%w: tag %q is not supported on map types. Use tag \"items\" to constrain the number of map entries, or custom domain types with SelfValidator to validate map entries", ErrInvalidStructTag, key)
+			return schemaErrorf("tag %q is not supported on map types", key).
+				withHint(`use tag "items" to constrain the number of map entries, or custom domain types with SelfValidator to validate map entries`)
 		}
 	}
 
@@ -766,18 +795,21 @@ func enumOnPathTypeError(tag reflect.StructTag, pathSubject string) error {
 	_, hasSymlink := tag.Lookup("symlink")
 
 	if pathSubject == "conga.File" && !hasExecutable && !hasSymlink {
-		return fmt.Errorf("%w: tag \"enum\" is not supported on %s; use tag \"glob\" to filter completion candidates, or %s", ErrInvalidStructTag, pathSubject, stringFieldHint)
+		return schemaErrorf(`tag "enum" is not supported on %s`, pathSubject).
+			withHintf(`use tag "glob" to filter completion candidates, or %s`, stringFieldHint)
 	}
 
-	return fmt.Errorf("%w: tag \"enum\" is not supported on %s; use %s", ErrInvalidStructTag, pathSubject, stringFieldHint)
+	return schemaErrorf(`tag "enum" is not supported on %s`, pathSubject).withHint("use " + stringFieldHint)
 }
 
 // enumWithPathPredictorError builds the enum rejection for a path predictor
 // tag, named canonically.
 func enumWithPathPredictorError(predictorName string) error {
+	err := schemaErrorf(`tag "enum" cannot be combined with predictor:%q`, predictorName).
+		withHint(`remove tag "enum", or remove the predictor tag to complete the enum values`)
 	if predictorName == "file" {
-		return fmt.Errorf("%w: tag \"enum\" cannot be combined with predictor:\"file\"; remove tag \"enum\" (predictor:\"file:<patterns>\" filters completion candidates), or remove the predictor tag to complete the enum values", ErrInvalidStructTag)
+		return err.withNote(`predictor:"file:<patterns>" filters completion candidates`)
 	}
 
-	return fmt.Errorf("%w: tag \"enum\" cannot be combined with predictor:%q; remove tag \"enum\", or remove the predictor tag to complete the enum values", ErrInvalidStructTag, predictorName)
+	return err
 }

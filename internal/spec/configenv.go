@@ -1,7 +1,6 @@
 package spec
 
 import (
-	"fmt"
 	"slices"
 )
 
@@ -88,7 +87,7 @@ func checkConfigEnvFlags(cmd *Command, reserved []string, configSide string) err
 	return nil
 }
 
-// fieldContext wraps err with the struct and field that declare the binding.
+// fieldContext attaches the struct and field that declare the binding to err.
 func fieldContext(structName string, fieldName string, err error) error {
-	return fmt.Errorf("struct %s field %s: %w", structName, fieldName, err)
+	return WithOwner(err, structName, fieldName)
 }

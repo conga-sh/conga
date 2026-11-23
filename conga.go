@@ -196,8 +196,8 @@ func (a *App[T]) HelpFooter(footer string) *App[T] {
 // --version and --why print no warning.
 //
 // Declare the deprecation with this method, not a Deprecated method on the root
-// struct, which fails schema compilation with [ErrSchema]. To deprecate an
-// individual optional flag or subcommand, use the deprecated struct tag.
+// struct, which fails schema compilation. To deprecate an individual optional
+// flag or subcommand, use the deprecated struct tag.
 func (a *App[T]) Deprecated(reason string) *App[T] {
 	a.deprecated = reason
 
@@ -334,7 +334,7 @@ func (a *App[T]) RegisterDecoder(extension string, decoder ConfigDecoder) *App[T
 // CONGA inspects all struct tags on command fields when the schema is compiled.
 // Unknown tag keys (such as misspelled hlp or deflt), invalid constraint
 // combinations, or tags applied to unsupported field types cause [App.Run] or
-// [App.RunContext] to return an error wrapping [ErrSchema].
+// [App.RunContext] to return a schema error.
 //
 // Common third-party tags (json, yaml, validate, db, and others listed in the
 // package documentation) are permitted out of the box; register any others your
@@ -437,10 +437,10 @@ func (a *App[T]) DisableVersionFlag() *App[T] {
 
 // HelpShortFlag assigns a short rune to the built-in --help flag, so it renders
 // and parses as e.g. "-h, --help". It is opt-in because a short rune can
-// collide with an application flag; a collision is rejected at schema build
-// with [ErrDuplicateFlag]. The zero value keeps --help long-only, and the rune
-// stays inert when [App.DisableHelpFlag] disables the built-in, leaving the
-// "help" name and the rune free for your own flags.
+// collide with an application flag; a collision is rejected at schema build.
+// The zero value keeps --help long-only, and the rune stays inert when
+// [App.DisableHelpFlag] disables the built-in, leaving the "help" name and the
+// rune free for your own flags.
 //
 // See https://docs.conga.sh/reference/builtins/.
 func (a *App[T]) HelpShortFlag(short rune) *App[T] {
@@ -451,10 +451,10 @@ func (a *App[T]) HelpShortFlag(short rune) *App[T] {
 
 // VersionShortFlag assigns a short rune to the built-in --version flag, so it
 // renders and parses as e.g. "-V, --version". It is opt-in because a short rune
-// can collide with an application flag; a collision is rejected at schema build
-// with [ErrDuplicateFlag]. The zero value keeps --version long-only, and the
-// rune stays inert when [App.DisableVersionFlag] disables the built-in, leaving
-// the "version" name and the rune free for your own flags.
+// can collide with an application flag; a collision is rejected at schema build.
+// The zero value keeps --version long-only, and the rune stays inert when
+// [App.DisableVersionFlag] disables the built-in, leaving the "version" name
+// and the rune free for your own flags.
 //
 // See https://docs.conga.sh/reference/builtins/.
 func (a *App[T]) VersionShortFlag(short rune) *App[T] {
@@ -613,7 +613,7 @@ func (a *App[T]) RegisterType[U any](parser TypeParser[U], opts ...RegistrationO
 //
 // Returns:
 //   - nil on successful execution or when handling built-in flags (--help, --version, --why).
-//   - An error wrapping [ErrSchema] if the struct tags or command schema are invalid.
+//   - A schema error if the struct tags or command schema are invalid.
 //   - An error wrapping [ErrParse], [ErrCoerce], or [ErrValidation] if user input is invalid.
 //   - An error wrapping [ErrConfig] if configuration or .env loading fails.
 //   - The error returned by [Runner.Run] or lifecycle hooks, or ctx.Err() on cancellation.
@@ -804,7 +804,7 @@ func (a *App[T]) ExitFunc(exitHandler func(code int)) *App[T] {
 // Exit code conventions:
 //   - A nil err exits with status 0 and no output.
 //   - Exit code 1: runtime errors from command execution ([Runner.Run] or lifecycle
-//     hooks), developer schema defects ([ErrSchema]), and configuration failures
+//     hooks), developer schema defects, and configuration failures
 //     ([ErrConfig], including .env loading and environment-, configuration-, and
 //     default-sourced value failures).
 //   - Exit code 2: usage errors ([IsUsageError] reports true for command-line parse,
@@ -1499,7 +1499,7 @@ func (a *App[T]) resolvedCompletionEnvPrefix() (string, error) {
 		normalized = "APP"
 	} else if normalized[0] >= '0' && normalized[0] <= '9' {
 		if explicit {
-			return "", fmt.Errorf("%w: completion environment prefix %q begins with a digit, which is not a valid shell variable name; pass conga.CompletionEnvPrefix with a prefix beginning with a letter", ErrSchema, normalized+"_")
+			return "", spec.CompletionEnvPrefixError(normalized + "_")
 		}
 
 		normalized = "_" + normalized
