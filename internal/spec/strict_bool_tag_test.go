@@ -23,9 +23,9 @@ func TestParseStrictBoolTag(t *testing.T) {
 		{name: "bare", tag: `hidden:""`, value: true, present: true},
 		{name: "true", tag: `hidden:"true"`, value: true, present: true},
 		{name: "false", tag: `hidden:"false"`, value: false, present: true},
-		{name: "yes", tag: `hidden:"yes"`, present: true, message: `schema error: invalid struct tag: tag "hidden" expects "true" or "false", got "yes"`},
-		{name: "capitalised", tag: `hidden:"True"`, present: true, message: `schema error: invalid struct tag: tag "hidden" expects "true" or "false", got "True"`},
-		{name: "numeric", tag: `hidden:"1"`, present: true, message: `schema error: invalid struct tag: tag "hidden" expects "true" or "false", got "1"`},
+		{name: "yes", tag: `hidden:"yes"`, present: true, message: `tag "hidden" expects "true" or "false", got "yes"`},
+		{name: "capitalised", tag: `hidden:"True"`, present: true, message: `tag "hidden" expects "true" or "false", got "True"`},
+		{name: "numeric", tag: `hidden:"1"`, present: true, message: `tag "hidden" expects "true" or "false", got "1"`},
 	}
 
 	for _, testCase := range testCases {
@@ -43,7 +43,7 @@ func TestParseStrictBoolTag(t *testing.T) {
 				return
 			}
 
-			assert.IsError(t, err, spec.ErrInvalidStructTag)
+			assert.True(t, spec.IsSchemaError(err))
 			assert.Equal(t, testCase.message, err.Error())
 		})
 	}

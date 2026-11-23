@@ -208,7 +208,7 @@ CONGA decodes a scalar flag, argument, environment, or config value into type `U
 3. `UnmarshalText` on `*U` (`encoding.TextUnmarshaler`).
 4. Built-in parsing for `string`, `bool`, signed and unsigned integers, `time.Duration`, floats, and `url.URL` / `*url.URL`.
 
-Schema build rejects a flag or positional argument whose type, slice element type, or map key or value type none of these decode: `schema error: unsupported type <U>`, exit 1, naming the registration that fixes it. An error from steps 1 to 3 inherits the value's source: the flag name and origin are appended to its message, and the category follows the source.
+Schema build rejects a flag or positional argument whose type, slice element type, or map key or value type none of these decode: `unsupported type <U>`, exit 1, naming the registration that fixes it. An error from steps 1 to 3 inherits the value's source: the flag name and origin are appended to its message, and the category follows the source.
 
 A slice or map type whose pointer implements one of the unmarshaler interfaces, such as `net.IP`, is one value, decoded whole by step 2 or 3. `app.RegisterType` panics for any slice or map type, because the binder decodes collections element by element and entry by entry.
 
@@ -223,7 +223,7 @@ A slice or map type whose pointer implements one of the unmarshaler interfaces, 
 | `Validate` | `func(value string) error` | Optional check of a `TagKindString` value at schema build |
 | `Excludes` | `[]string` | Tag keys that can't be declared on the same field as this one |
 
-Schema build rejects, with `ErrSchema`, a tag that no `TagSpec` of the field's type names, a `TagKindBool` tag with another value, a `Validate` error, and a tag declared together with one its `Excludes` lists. `app.AllowTags` exempts listed foreign keys.
+Schema build rejects a tag that no `TagSpec` of the field's type names, a `TagKindBool` tag with another value, a `Validate` error, and a tag declared together with one its `Excludes` lists. `app.AllowTags` exempts listed foreign keys.
 
 `UnmarshalTextWithContext` receives a `conga.DecodeContext`:
 

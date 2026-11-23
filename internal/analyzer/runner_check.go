@@ -24,5 +24,5 @@ func (w *walker) checkRunner(node *commandNode, subcommandCount int) {
 		position = node.named.Obj().Pos()
 	}
 
-	w.report(position, spec.NoRunnerError(node.named.Obj().Name(), "").Error())
+	w.reportError(position, spec.NoRunnerError(node.named.Obj().Name()))
 }

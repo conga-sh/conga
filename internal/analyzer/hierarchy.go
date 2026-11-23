@@ -575,14 +575,43 @@ func (w *walker) isCurrentPackage(object types.Object) bool {
 
 // report emits a diagnostic once per position and message.
 func (w *walker) report(position token.Pos, message string) {
-	key := fmt.Sprintf("%d|%s", position, message)
+	w.reportDiagnostic(analysis.Diagnostic{Pos: position, Message: message})
+}
+
+// reportError emits err as a diagnostic. A schema error's message becomes the
+// diagnostic message, and its note and hint follow as related entries at the
+// same position, which drivers print as their own "note:" and "hint:" lines.
+func (w *walker) reportError(position token.Pos, err error) {
+	schemaErr, ok := errors.AsType[*spec.SchemaError](err)
+	if !ok {
+		w.report(position, err.Error())
+
+		return
+	}
+
+	diagnostic := analysis.Diagnostic{Pos: position, Message: schemaErr.Message()}
+
+	if note := schemaErr.Note(); note != "" {
+		diagnostic.Related = append(diagnostic.Related, analysis.RelatedInformation{Pos: position, Message: "note: " + note})
+	}
+
+	if hint := schemaErr.Hint(); hint != "" {
+		diagnostic.Related = append(diagnostic.Related, analysis.RelatedInformation{Pos: position, Message: "hint: " + hint})
+	}
+
+	w.reportDiagnostic(diagnostic)
+}
+
+// reportDiagnostic emits diagnostic once per position and message.
+func (w *walker) reportDiagnostic(diagnostic analysis.Diagnostic) {
+	key := fmt.Sprintf("%d|%s", diagnostic.Pos, diagnostic.Message)
 	if w.reported[key] {
 		return
 	}
 
 	w.reported[key] = true
 
-	w.pass.Report(analysis.Diagnostic{Pos: position, Message: message})
+	w.pass.Report(diagnostic)
 }
 
 func (w *walker) reportFieldError(node *commandNode, fieldObject types.Object, err error) {
@@ -592,7 +621,7 @@ func (w *walker) reportFieldError(node *commandNode, fieldObject types.Object, e
 
 	node.rejected = true
 
-	w.report(w.fieldReportPos(node, fieldObject), fmt.Sprintf("struct %s field %s: %s", node.named.Obj().Name(), fieldObject.Name(), err.Error()))
+	w.reportError(w.fieldReportPos(node, fieldObject), spec.WithOwner(err, node.named.Obj().Name(), fieldObject.Name()))
 }
 
 // fieldReportPos resolves the diagnostic position for a field of the command

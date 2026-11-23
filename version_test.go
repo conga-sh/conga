@@ -340,8 +340,7 @@ func TestVersionCommand_AncestorJSONFlagCollides(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrSchema)
-	assert.Equal(t, `struct TestVersionJSONCollisionCLI field Version: schema error: duplicate flag: --json (already declared by struct TestVersionJSONCollisionCLI field JSON on an ancestor command; the built-in version command owns --json: rename the ancestor flag or remove the VersionCommand field)`, err.Error())
+	assert.Equal(t, `struct TestVersionJSONCollisionCLI field Version: duplicate flag --json (note: already declared by struct TestVersionJSONCollisionCLI field JSON on an ancestor command; the built-in version command owns --json; hint: rename the ancestor flag or remove the VersionCommand field)`, err.Error())
 }
 
 func TestRootJSONFlagWithoutVersionCommandBuilds(t *testing.T) {
@@ -424,7 +423,7 @@ func TestVersion_CollisionWithoutDisableVersionFlag(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrSchema)
+	assert.Equal(t, "struct UserVersionFlagCLI field Version: duplicate flag --version (note: already declared by the built-in --version flag; hint: use app.DisableVersionFlag() to override)", err.Error())
 }
 
 func TestVersion_CustomFlagCollisionWithoutDisableVersionFlag(t *testing.T) {
@@ -436,7 +435,7 @@ func TestVersion_CustomFlagCollisionWithoutDisableVersionFlag(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrSchema)
+	assert.Equal(t, "struct UserVersionFlagCLI field Version: duplicate flag --version (note: already declared by the built-in --version flag; hint: use app.DisableVersionFlag() to override)", err.Error())
 }
 
 func TestVersion_CustomFlagWithDisableVersionFlag(t *testing.T) {

@@ -18,7 +18,7 @@ type DeployCmd struct {
 }
 ```
 
-The tree's shape is fixed at compile time. Schema build walks the complete struct graph before parsing any command-line token, and validates every tag and every flag name along each ancestor-descendant path. A schema defect in any subcommand, selected or not, fails startup with `ErrSchema`, so a misconfigured subcommand can't ship unnoticed. A leaf without a `Run` method is the exception. CONGA checks it only for the command an invocation selects, so it fails when invoked, with `struct <Name>: schema error: runner not implemented: implement conga.Runner: Run(context.Context, *conga.Session) error`. The error classifies as `ErrSchema` and exits 1, while its siblings keep working. `conga-lint` reports every such leaf before you build.
+The tree's shape is fixed at compile time. Schema build walks the complete struct graph before parsing any command-line token, and validates every tag and every flag name along each ancestor-descendant path. A schema defect in any subcommand, selected or not, fails startup, so a misconfigured subcommand can't ship unnoticed. A leaf without a `Run` method is the exception. CONGA checks it only for the command an invocation selects, so it fails when invoked, with `struct <Name>: runner not implemented (hint: implement conga.Runner: Run(context.Context, *conga.Session) error)`. That schema error exits 1, while its siblings keep working. `conga-lint` reports every such leaf before you build.
 
 ## Routing nodes and runnable commands
 
@@ -107,14 +107,14 @@ Environment variables are not nested. A config file holds settings for every com
 
 ## Ancestors reserve their flag names
 
-A flag name, alias, or short rune declared on a command is reserved for every descendant, and redeclaring it fails schema build with `ErrSchema`. Siblings may reuse names:
+A flag name, alias, or short rune declared on a command is reserved for every descendant, and redeclaring it fails schema build. Siblings may reuse names:
 
 ```text no-copy
 cloudctl deploy --force      + cloudctl remove --force   (allowed: sibling commands)
 cloudctl --verbose           + cloudctl deploy --verbose (reserved: ancestor-descendant collision)
 ```
 
-The reservation also covers flags CONGA adds for you when they appear on the command line. The built-in version command's `--json` selector is reserved: an ancestor `--json` flag alongside a mounted `conga.VersionCommand` fails schema build with `ErrDuplicateFlag`, and the error asks you to rename the ancestor flag or remove the field. A `conga.Features[T]` container reserves the name in its `flag` tag the same way. A container without one, or with `flag:"-"`, is excluded from the command line, so its derived name reserves nothing and a descendant can still declare it.
+The reservation also covers flags CONGA adds for you when they appear on the command line. The built-in version command's `--json` selector is reserved: an ancestor `--json` flag alongside a mounted `conga.VersionCommand` fails schema build, and the error asks you to rename the ancestor flag or remove the field. A `conga.Features[T]` container reserves the name in its `flag` tag the same way. A container without one, or with `flag:"-"`, is excluded from the command line, so its derived name reserves nothing and a descendant can still declare it.
 
 ### Deterministic single-pass parsing
 

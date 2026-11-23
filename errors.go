@@ -18,13 +18,6 @@ import (
 
 // Base error categories classifying execution and configuration failures.
 var (
-	// ErrSchema indicates the command schema could not be constructed from the struct definition.
-	//
-	// This occurs when a struct tag is unrecognized, a tag combination is invalid,
-	// a field type is unsupported, or ancestor flag shadowing is detected.
-	// ErrSchema represents a developer defect detected during schema compilation.
-	ErrSchema = spec.ErrSchema
-
 	// ErrParse indicates command-line tokens could not be parsed.
 	//
 	// This category includes unknown flags, missing flag arguments, unexpected positional
@@ -140,7 +133,7 @@ type CompletionError interface {
 //
 // Returns true if err implements [UsageError] and reports true, or if err wraps
 // [ErrParse], [ErrCoerce], or [ErrValidation]. Returns false for developer schema
-// errors ([ErrSchema]), configuration failures ([ErrConfig]), runtime errors
+// errors, configuration failures ([ErrConfig]), runtime errors
 // returned by [Runner.Run], or nil errors. Conversion and constraint failures for
 // environment-, configuration-, and default-sourced values classify under
 // [ErrConfig] and report false, even though the error value still implements
@@ -523,7 +516,7 @@ func configSourcedIs(cause, target error) bool {
 	switch {
 	case errors.Is(target, ErrConfig):
 		return true
-	case errors.Is(target, ErrSchema), errors.Is(target, ErrParse), errors.Is(target, ErrCoerce), errors.Is(target, ErrValidation):
+	case errors.Is(target, ErrParse), errors.Is(target, ErrCoerce), errors.Is(target, ErrValidation):
 		return false
 	}
 

@@ -568,8 +568,8 @@ func TestBootstrapper_FileContentFieldRejected(t *testing.T) {
 
 	err := conga.New[bootstrapFileContentCLI]().Args([]string{}).Run()
 
-	assert.IsError(t, err, conga.ErrSchema)
-	assert.Equal(t, `struct bootstrapFileContentCLI field Seed: schema error: invalid struct tag: tag "bootstrap" is not supported on conga.FileContent: bootstrap fields are parsed twice and FileContent reads its file while parsing; use conga.File and read it in Bootstrap`, err.Error())
+	assert.Error(t, err)
+	assert.Equal(t, `struct bootstrapFileContentCLI field Seed: tag "bootstrap" is not supported on conga.FileContent (note: bootstrap fields are parsed twice and FileContent reads its file while parsing; hint: use conga.File and read it in Bootstrap)`, err.Error())
 }
 
 func TestBootstrapper_FileContentSliceFieldRejected(t *testing.T) {
@@ -577,6 +577,6 @@ func TestBootstrapper_FileContentSliceFieldRejected(t *testing.T) {
 
 	err := conga.New[bootstrapFileContentSliceCLI]().Args([]string{}).Run()
 
-	assert.IsError(t, err, conga.ErrSchema)
-	assert.Equal(t, `struct bootstrapFileContentSliceCLI field Seeds: schema error: invalid struct tag: tag "bootstrap" is not supported on conga.FileContent: bootstrap fields are parsed twice and FileContent reads its file while parsing; use conga.File and read it in Bootstrap`, err.Error())
+	assert.Error(t, err)
+	assert.Equal(t, `struct bootstrapFileContentSliceCLI field Seeds: tag "bootstrap" is not supported on conga.FileContent (note: bootstrap fields are parsed twice and FileContent reads its file while parsing; hint: use conga.File and read it in Bootstrap)`, err.Error())
 }

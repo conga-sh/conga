@@ -348,6 +348,5 @@ func TestDeprecation_RequiredFlagRejected(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrSchema)
-	assert.Equal(t, `struct deprecatedReqFlagCLI field Token: schema error: invalid struct tag: tag "deprecated" cannot be used on required flags (make the flag optional before deprecating it so callers can migrate without error)`, err.Error())
+	assert.Equal(t, `struct deprecatedReqFlagCLI field Token: tag "deprecated" cannot be used on required flags (hint: make the flag optional before deprecating it so callers can migrate without error)`, err.Error())
 }

@@ -1,7 +1,6 @@
 package spec
 
 import (
-	"fmt"
 	"reflect"
 	"strings"
 )
@@ -198,14 +197,15 @@ func firstUnavailableHelpVar(referenced, declared helpVars) string {
 // unknownHelpVarError reports an unknown {{name}} reference. Both the runtime
 // schema build and conga-lint report this message verbatim.
 func unknownHelpVarError(name string) error {
-	return fmt.Errorf(`%w: tag "help" references unknown variable {{%s}}; supported variables are {{range}}, {{len}}, {{items}}, {{enum}}, {{default}}, {{env}}`, ErrInvalidStructTag, name)
+	return schemaErrorf(`tag "help" references unknown variable {{%s}}`, name).
+		withNote("supported variables are {{range}}, {{len}}, {{items}}, {{enum}}, {{default}}, {{env}}")
 }
 
 // unavailableHelpVarError reports a reference to a variable the field does not
 // declare. Both the runtime schema build and conga-lint report this message
 // verbatim.
 func unavailableHelpVarError(name string) error {
-	return fmt.Errorf(`%w: tag "help" references {{%s}}, but the field provides no value for that variable`, ErrInvalidStructTag, name)
+	return schemaErrorf(`tag "help" references {{%s}}, but the field provides no value for that variable`, name)
 }
 
 // scanHelpVarName parses a {{name}} reference starting at the opening brace at

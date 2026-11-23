@@ -50,7 +50,7 @@ Positional arguments take their order on the command line from the order of thei
 
 ## Why the positional grammar is strict
 
-CONGA binds positional words left to right, in declaration order, and never backtracks. That makes two grammars ambiguous, so schema build rejects them with `ErrSchema`.
+CONGA binds positional words left to right, in declaration order, and never backtracks. That makes two grammars ambiguous, so schema build rejects them.
 
 The first is an optional argument declared before a required one. Given one word, the parser couldn't tell whether it fills the optional slot or the required one, so required arguments come first.
 

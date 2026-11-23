@@ -58,11 +58,14 @@ func main() {
 }
 ```
 
-```sh error={2-4} wrap
+```sh error={2-7} wrap
 $ go tool conga-lint ./...
-main.go:18:2: struct DeployCmd field Verbose: schema error: duplicate flag: --verbose (already declared by struct CLI field Verbose on an ancestor command)
-main.go:19:2: struct DeployCmd field Replicas: schema error: invalid struct tag: unknown struct tag "hlep" (did you mean "help"?). Use app.AllowTags("hlep") to permit external tags
-main.go:28:6: struct StatusCmd: schema error: runner not implemented: implement conga.Runner: Run(context.Context, *conga.Session) error
+main.go:18:2: struct DeployCmd field Verbose: duplicate flag --verbose
+main.go:18:2: 	note: already declared by struct CLI field Verbose on an ancestor command
+main.go:19:2: struct DeployCmd field Replicas: unknown struct tag "hlep"
+main.go:19:2: 	hint: did you mean "help"? Use app.AllowTags("hlep") to permit external tags
+main.go:28:6: struct StatusCmd: runner not implemented
+main.go:28:6: 	hint: implement conga.Runner: Run(context.Context, *conga.Session) error
 ```
 
 Running the program shows only the first mistake:
@@ -85,9 +88,12 @@ Go's `./...` pattern skips directories that start with `_`, such as `_examples/`
 ```sh error={2} wrap
 $ go tool conga-lint -builder-order ./...
 main.go:33:3: builder call order violation: Name (rank 1) called after EnableCompletion (rank 9); use -fix to reorder
-main.go:18:2: struct DeployCmd field Verbose: schema error: duplicate flag: --verbose (already declared by struct CLI field Verbose on an ancestor command)
-main.go:19:2: struct DeployCmd field Replicas: schema error: invalid struct tag: unknown struct tag "hlep" (did you mean "help"?). Use app.AllowTags("hlep") to permit external tags
-main.go:28:6: struct StatusCmd: schema error: runner not implemented: implement conga.Runner: Run(context.Context, *conga.Session) error
+main.go:18:2: struct DeployCmd field Verbose: duplicate flag --verbose
+main.go:18:2: 	note: already declared by struct CLI field Verbose on an ancestor command
+main.go:19:2: struct DeployCmd field Replicas: unknown struct tag "hlep"
+main.go:19:2: 	hint: did you mean "help"? Use app.AllowTags("hlep") to permit external tags
+main.go:28:6: struct StatusCmd: runner not implemented
+main.go:28:6: 	hint: implement conga.Runner: Run(context.Context, *conga.Session) error
 ```
 
 To reorder the calls in place, add `-fix`. It rewrites the files and prints nothing:
@@ -130,10 +136,12 @@ type DeployCmd struct {
 
 The analyzer reports the first unknown key on each field:
 
-```sh error={2-3} wrap
+```sh error={2-5} wrap
 $ go tool conga-lint ./...
-main.go:18:2: struct DeployCmd field Replicas: schema error: invalid struct tag: unknown struct tag "bson". Use app.AllowTags("bson") to permit external tags
-main.go:19:2: struct DeployCmd field Token: schema error: invalid struct tag: unknown struct tag "history". Use app.AllowTags("history") to permit external tags
+main.go:18:2: struct DeployCmd field Replicas: unknown struct tag "bson"
+main.go:18:2: 	hint: use app.AllowTags("bson") to permit external tags
+main.go:19:2: struct DeployCmd field Token: unknown struct tag "history"
+main.go:19:2: 	hint: use app.AllowTags("history") to permit external tags
 ```
 
 The program fails at startup with the first of them, exit 1:
@@ -169,9 +177,10 @@ The analyzer reads the keys from string literals in the `AllowTags` call. When t
 
 `AllowTags` matches keys exactly, so a misspelled `histroy` still fails. The hint names the allowed key it was probably meant to be:
 
-```sh error={2} wrap
+```sh error={2-3} wrap
 $ go tool conga-lint ./...
-main.go:18:2: struct DeployCmd field Replicas: schema error: invalid struct tag: unknown struct tag "histroy" (did you mean "history"?)
+main.go:18:2: struct DeployCmd field Replicas: unknown struct tag "histroy"
+main.go:18:2: 	hint: did you mean "history"?
 ```
 
 CONGA checks plain fields, which aren't containers, only for its own tags, so a `Note string` field tagged `history:"note"` needs no `AllowTags`.

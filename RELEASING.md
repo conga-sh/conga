@@ -122,7 +122,7 @@ headings in this order:
 | Heading | What the upgrader changes |
 |---------|---------------------------|
 | API changes | Go code that calls CONGA |
-| Schema & startup guards | Struct fields and tags that now fail at startup with `ErrSchema` |
+| Schema & startup guards | Struct fields and tags that now fail at startup during schema build |
 | Configuration | Config files, `.env` files, and environment variables |
 | Command-line behaviour | What end users type: parsing and coercion |
 | Errors & diagnostics | Code or tests that match error categories, exit codes, message text, or `--why` output |

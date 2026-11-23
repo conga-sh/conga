@@ -2,7 +2,6 @@ package analyzer
 
 import (
 	"cmp"
-	"fmt"
 	"go/token"
 	"go/types"
 	"reflect"
@@ -34,19 +33,30 @@ var congaBuiltinTaggedTypes = map[string]spec.TagSpecProvider{
 // tagSpecs are the field's domain-type tag registrations; their keys join the
 // strict tag-key candidates.
 func (w *walker) validateNodeFieldTags(node *commandNode, fieldObject types.Object, tag reflect.StructTag, role string, tagSpecs []spec.TagSpec) bool {
-	candidates, roleKnown := spec.TagCandidatesForRole(role)
+	roleKnown, err := w.fieldTagsError(node, tag, role, tagSpecs)
 	if !roleKnown {
 		return false
+	}
+
+	w.reportFieldError(node, fieldObject, err)
+
+	return err == nil
+}
+
+// fieldTagsError validates tag against the candidates for role and returns
+// the error unreported, so a caller can attribute it to an owner other than
+// the command node; roleKnown is false for a role with no candidate table.
+func (w *walker) fieldTagsError(node *commandNode, tag reflect.StructTag, role string, tagSpecs []spec.TagSpec) (bool, error) {
+	candidates, roleKnown := spec.TagCandidatesForRole(role)
+	if !roleKnown {
+		return false, nil
 	}
 
 	if len(tagSpecs) > 0 {
 		candidates = slices.Concat(candidates, spec.FieldTagKeys(tagSpecs))
 	}
 
-	err := spec.ValidateFieldTags(tag, role, candidates, w.options.validationOptionsFor(node))
-	w.reportFieldError(node, fieldObject, err)
-
-	return err == nil
+	return true, spec.ValidateFieldTags(tag, role, candidates, w.options.validationOptionsFor(node))
 }
 
 // congaFieldTagSpecs resolves the field-tag specs of a flag or positional
@@ -260,7 +270,7 @@ func (w *walker) checkFeaturesField(node *commandNode, fieldObject types.Object,
 	// The runtime installs the synthesized flag only after every inner field
 	// validates, so a failed container neither reserves the flag name against
 	// descendants nor counts as the first declaration.
-	valid, envDeclarer := w.checkFeatureFields(node, innerType, structType)
+	valid, envDeclarer := w.checkFeatureFields(node, fieldObject, innerType, structType)
 	if !valid {
 		return
 	}
@@ -290,10 +300,18 @@ func (w *walker) checkFeaturesField(node *commandNode, fieldObject types.Object,
 // and reports whether the container is valid. It also returns the first valid
 // field whose env tag declares a variable, so surface validation and the env
 // binding pass need no additional scan for the declarer.
-func (w *walker) checkFeatureFields(node *commandNode, innerType types.Type, structType *types.Struct) (bool, string) {
-	innerStructName := ""
+func (w *walker) checkFeatureFields(node *commandNode, fieldObject types.Object, innerType types.Type, structType *types.Struct) (bool, string) {
+	// An anonymous feature struct is named by the path of its declaring
+	// field, mirroring the runtime schema builder.
+	innerStructName := node.named.Obj().Name() + "." + fieldObject.Name()
 	if named, ok := types.Unalias(innerType).(*types.Named); ok {
 		innerStructName = named.Obj().Name()
+	}
+
+	// Feature field errors name the feature struct and its field, mirroring
+	// the runtime schema builder.
+	reportFeatureFieldError := func(featureField types.Object, err error) {
+		w.reportFieldError(node, featureField, spec.WithOwner(err, innerStructName, featureField.Name()))
 	}
 
 	var (
@@ -301,7 +319,8 @@ func (w *walker) checkFeatureFields(node *commandNode, innerType types.Type, str
 		valid       = true
 	)
 
-	seen := make(map[string]bool)
+	// seen maps each feature name to the field that declared it first.
+	seen := make(map[string]string)
 
 	// stagedFields accumulates the fields that survived validation so the
 	// all-or-nothing stage guard can report the first stage-less field after
@@ -322,7 +341,10 @@ func (w *walker) checkFeatureFields(node *commandNode, innerType types.Type, str
 
 		innerTag := reflect.StructTag(structType.Tag(index))
 
-		if !w.validateNodeFieldTags(node, innerField, innerTag, "feature", nil) {
+		_, tagErr := w.fieldTagsError(node, innerTag, "feature", nil)
+		reportFeatureFieldError(innerField, tagErr)
+
+		if tagErr != nil {
 			valid = false
 
 			continue
@@ -330,7 +352,7 @@ func (w *walker) checkFeatureFields(node *commandNode, innerType types.Type, str
 
 		field, ok := featureField(innerField.Type(), w.pass.TypesSizes)
 		if !ok {
-			w.reportFieldError(node, innerField, spec.FeatureFieldTypeError(innerField.Name(), innerField.Type().String()))
+			reportFeatureFieldError(innerField, spec.FeatureFieldTypeError(innerField.Type().String()))
 
 			valid = false
 
@@ -338,7 +360,7 @@ func (w *walker) checkFeatureFields(node *commandNode, innerType types.Type, str
 		}
 
 		name, err := spec.FeatureFieldName(innerField.Name(), innerTag)
-		w.reportFieldError(node, innerField, err)
+		reportFeatureFieldError(innerField, err)
 
 		if err != nil {
 			valid = false
@@ -346,19 +368,19 @@ func (w *walker) checkFeatureFields(node *commandNode, innerType types.Type, str
 			continue
 		}
 
-		if seen[name] {
-			w.reportFieldError(node, innerField, spec.DuplicateFeatureError(name, innerStructName))
+		if firstField, ok := seen[name]; ok {
+			reportFeatureFieldError(innerField, spec.DuplicateFeatureError(name, firstField))
 
 			valid = false
 
 			continue
 		}
 
-		seen[name] = true
+		seen[name] = innerField.Name()
 		field.Name = name
 
 		if err := spec.ValidateFeatureFieldTags(field, innerTag); err != nil {
-			w.reportFieldError(node, innerField, err)
+			reportFeatureFieldError(innerField, err)
 
 			valid = false
 
@@ -375,7 +397,7 @@ func (w *walker) checkFeatureFields(node *commandNode, innerType types.Type, str
 	if slices.ContainsFunc(stagedFields, func(entry stagedField) bool { return entry.stage != "" }) {
 		for _, entry := range stagedFields {
 			if entry.stage == "" {
-				w.reportFieldError(node, entry.obj, spec.FeatureStageAllOrNothingError(entry.name))
+				reportFeatureFieldError(entry.obj, spec.FeatureStageAllOrNothingError(entry.name))
 
 				valid = false
 
@@ -682,7 +704,7 @@ func (w *walker) checkBuiltinShortPair(node *commandNode) {
 		position = node.named.Obj().Pos()
 	}
 
-	w.report(position, spec.BuiltinShortPairError(w.options.helpShort).Error())
+	w.reportError(position, spec.BuiltinShortPairError(w.options.helpShort))
 }
 
 // checkArgField validates a positional argument field.
@@ -827,7 +849,7 @@ func (w *walker) validateRangeBounds(rangeSpec *spec.Range, targetType types.Typ
 
 	basic, ok := elementType.Underlying().(*types.Basic)
 	if !ok {
-		return fmt.Errorf("%w: range tag is not supported on type %s", spec.ErrInvalidRangeSyntax, types.TypeString(elementType, shortPackageQualifier))
+		return spec.RangeUnsupportedTypeError(types.TypeString(elementType, shortPackageQualifier))
 	}
 
 	switch basic.Kind() {
@@ -844,7 +866,7 @@ func (w *walker) validateRangeBounds(rangeSpec *spec.Range, targetType types.Typ
 	case types.Float64:
 		return spec.ValidateScalarRange(rangeSpec, "float", spec.FloatBoundParser(64))
 	default:
-		return fmt.Errorf("%w: range tag is not supported on type %s", spec.ErrInvalidRangeSyntax, types.TypeString(elementType, shortPackageQualifier))
+		return spec.RangeUnsupportedTypeError(types.TypeString(elementType, shortPackageQualifier))
 	}
 }
 

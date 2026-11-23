@@ -51,8 +51,8 @@ func TestBuild_ImplicitCommandDuplicate(t *testing.T) {
 		ClassifyContainer: classifyTestContainer,
 	})
 
-	assert.IsError(t, err, spec.ErrSchema)
-	assert.Equal(t, "struct implicitDuplicateCLI field Second: schema error: only one implicit command is allowed per command; implicit command already declared by field First", err.Error())
+	assert.True(t, spec.IsSchemaError(err))
+	assert.Equal(t, "struct implicitDuplicateCLI field Second: only one implicit command is allowed per command (note: already declared by field First)", err.Error())
 }
 
 func TestBuild_ImplicitCommandInvalidBool(t *testing.T) {
@@ -62,8 +62,8 @@ func TestBuild_ImplicitCommandInvalidBool(t *testing.T) {
 		ClassifyContainer: classifyTestContainer,
 	})
 
-	assert.IsError(t, err, spec.ErrInvalidStructTag)
-	assert.Equal(t, "struct implicitInvalidBoolCLI field Exec: schema error: invalid struct tag: tag \"implicit\" expects \"true\" or \"false\", got \"ture\"", err.Error())
+	assert.True(t, spec.IsSchemaError(err))
+	assert.Equal(t, `struct implicitInvalidBoolCLI field Exec: tag "implicit" expects "true" or "false", got "ture"`, err.Error())
 }
 
 func TestTerminalImplicitLevels(t *testing.T) {

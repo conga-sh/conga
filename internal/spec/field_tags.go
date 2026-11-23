@@ -1,8 +1,6 @@
 package spec
 
 import (
-	"errors"
-	"fmt"
 	"reflect"
 	"strconv"
 	"strings"
@@ -38,9 +36,9 @@ type TagSpec struct {
 	// Validate optionally checks the raw string value of a TagKindString
 	// tag at schema build (both at runtime and in the static analyzer,
 	// which shares this parse path). The returned error should be
-	// self-describing; ParseFieldTags wraps it with ErrInvalidStructTag
-	// unless it already wraps ErrSchema, in which case it is propagated
-	// unchanged.
+	// self-describing; ParseFieldTags wraps it with the tag name and
+	// keeps it reachable through Unwrap unless it is already a
+	// *SchemaError, in which case it is propagated unchanged.
 	Validate func(value string) error
 
 	// Excludes lists tag keys that cannot be declared together with this
@@ -120,14 +118,14 @@ func ParseFieldTags(tag reflect.StructTag, tagSpecs []TagSpec) (FieldTags, error
 			values[tagSpec.Name] = raw
 			declaredKeys = append(declaredKeys, tagSpec.Name)
 		default:
-			return nil, fmt.Errorf("%w: tag %q declares an unknown field tag kind", ErrInvalidStructTag, tagSpec.Name)
+			return nil, schemaErrorf("tag %q declares an unknown field tag kind", tagSpec.Name)
 		}
 	}
 
 	for _, key := range declaredKeys {
 		for _, excluded := range tagSpecByName(tagSpecs, key).Excludes {
 			if _, ok := values[excluded]; ok {
-				return nil, fmt.Errorf("%w: tag %q cannot be combined with tag %q", ErrInvalidStructTag, key, excluded)
+				return nil, schemaErrorf("tag %q cannot be combined with tag %q", key, excluded)
 			}
 		}
 	}
@@ -156,8 +154,8 @@ func FieldTagKeys(tagSpecs []TagSpec) []string {
 // ParseStrictStringTag parses a raw string struct tag for tagSpec: absence is
 // reported via the present flag, an empty (all-whitespace) value is a schema
 // error, and the spec's optional Validate hook checks the raw value. A hook
-// error that already wraps ErrSchema propagates unchanged; any other hook
-// error is wrapped with ErrInvalidStructTag and the tag name.
+// error that is already a *SchemaError propagates unchanged; any other hook
+// error is wrapped with the tag name and stays reachable through Unwrap.
 func ParseStrictStringTag(tag reflect.StructTag, tagSpec TagSpec) (string, bool, error) {
 	raw, ok := tag.Lookup(tagSpec.Name)
 	if !ok {
@@ -165,16 +163,16 @@ func ParseStrictStringTag(tag reflect.StructTag, tagSpec TagSpec) (string, bool,
 	}
 
 	if strings.TrimSpace(raw) == "" {
-		return "", false, fmt.Errorf("%w: tag %q cannot be empty", ErrInvalidStructTag, tagSpec.Name)
+		return "", false, schemaErrorf("tag %q cannot be empty", tagSpec.Name)
 	}
 
 	if tagSpec.Validate != nil {
 		if err := tagSpec.Validate(raw); err != nil {
-			if errors.Is(err, ErrSchema) {
+			if IsSchemaError(err) {
 				return "", false, err
 			}
 
-			return "", false, fmt.Errorf("%w: tag %q: %w", ErrInvalidStructTag, tagSpec.Name, err)
+			return "", false, schemaErrorf("tag %q: %s", tagSpec.Name, err).withCause(err)
 		}
 	}
 

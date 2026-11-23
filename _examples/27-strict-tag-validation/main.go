@@ -24,8 +24,8 @@ func main() {
 	app := conga.New[CLI]().
 		Name("strict-tag-validation").
 		Description("Registering third-party struct tags with app.AllowTags").
-		// Tag validation is always on and rejects unknown tag keys with an
-		// ErrSchema error. The db and validate keys below belong to other
+		// Tag validation is always on and rejects unknown tag keys with a schema
+		// error before Run. The db and validate keys below belong to other
 		// libraries, so the app registers them explicitly. Registered keys
 		// are matched exactly, so a misspelling still fails schema build.
 		AllowTags("db", "validate")

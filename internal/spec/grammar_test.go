@@ -116,8 +116,8 @@ func TestValidateBranchGrammar(t *testing.T) {
 
 		err := spec.ValidateBranchGrammar(spec.BranchGrammar{PositionalField: "Target", SubcommandField: "Deploy"})
 
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.Equal(t, `schema error: positional argument Target cannot be combined with subcommand Deploy; a command is either a branch (subcommands) or a leaf (positional arguments): move Target into a leaf subcommand or pass the value through a flag`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `positional argument Target cannot be combined with subcommand Deploy (hint: move Target into a leaf subcommand or pass the value through a flag)`, err.Error())
 	})
 }
 
@@ -156,8 +156,8 @@ func TestBuild_BranchGrammar(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.Equal(t, `struct mixedBranchCLI field Deploy: schema error: positional argument Target cannot be combined with subcommand Deploy; a command is either a branch (subcommands) or a leaf (positional arguments): move Target into a leaf subcommand or pass the value through a flag`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct mixedBranchCLI field Deploy: positional argument Target cannot be combined with subcommand Deploy (hint: move Target into a leaf subcommand or pass the value through a flag)`, err.Error())
 	})
 }
 
@@ -188,8 +188,8 @@ func TestValidateTrailingGrammar(t *testing.T) {
 
 		err := spec.ValidateTrailingGrammar(spec.TrailingGrammar{HasRawArgs: true, CommandField: "Deploy"})
 
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.Equal(t, `schema error: raw args cannot be combined with command field Deploy (declared built-in help, version, and completion command fields also count); a command is either a branch (subcommands) or a leaf (positional/raw arguments): use DashArgs for '--' forwarding or declare RawArgs on a leaf command`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `raw args cannot be combined with command field Deploy (note: declared built-in help, version, and completion command fields also count; hint: use DashArgs for '--' forwarding or declare RawArgs on a leaf command)`, err.Error())
 	})
 
 	t.Run("optional argument errors", func(t *testing.T) {
@@ -200,8 +200,8 @@ func TestValidateTrailingGrammar(t *testing.T) {
 			Args:       []spec.TrailingArgGrammar{{Name: "<target>"}},
 		})
 
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.Equal(t, `schema error: raw args requires a deterministic positional prefix: positional argument <target> must be a required scalar; declare only required scalar positional arguments before RawArgs, or use DashArgs for '--' forwarding`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `raw args requires a deterministic positional prefix: positional argument <target> must be a required scalar (hint: declare only required scalar positional arguments before RawArgs, or use DashArgs for '--' forwarding)`, err.Error())
 	})
 
 	t.Run("slice argument errors", func(t *testing.T) {
@@ -212,8 +212,8 @@ func TestValidateTrailingGrammar(t *testing.T) {
 			Args:       []spec.TrailingArgGrammar{{Name: "<targets>", Required: true, IsSlice: true}},
 		})
 
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.Equal(t, `schema error: raw args requires a deterministic positional prefix: positional argument <targets> must be a required scalar; declare only required scalar positional arguments before RawArgs, or use DashArgs for '--' forwarding`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `raw args requires a deterministic positional prefix: positional argument <targets> must be a required scalar (hint: declare only required scalar positional arguments before RawArgs, or use DashArgs for '--' forwarding)`, err.Error())
 	})
 
 	t.Run("map argument errors", func(t *testing.T) {
@@ -224,8 +224,8 @@ func TestValidateTrailingGrammar(t *testing.T) {
 			Args:       []spec.TrailingArgGrammar{{Name: "<labels>", Required: true, IsMap: true}},
 		})
 
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.Equal(t, `schema error: raw args requires a deterministic positional prefix: positional argument <labels> must be a required scalar; declare only required scalar positional arguments before RawArgs, or use DashArgs for '--' forwarding`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `raw args requires a deterministic positional prefix: positional argument <labels> must be a required scalar (hint: declare only required scalar positional arguments before RawArgs, or use DashArgs for '--' forwarding)`, err.Error())
 	})
 }
 
@@ -275,8 +275,8 @@ func TestBuild_RawArgsGrammar(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.Equal(t, `struct rawWithSubcommandCLI field Raw: schema error: raw args cannot be combined with command field Deploy (declared built-in help, version, and completion command fields also count); a command is either a branch (subcommands) or a leaf (positional/raw arguments): use DashArgs for '--' forwarding or declare RawArgs on a leaf command`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct rawWithSubcommandCLI field Raw: raw args cannot be combined with command field Deploy (note: declared built-in help, version, and completion command fields also count; hint: use DashArgs for '--' forwarding or declare RawArgs on a leaf command)`, err.Error())
 	})
 
 	t.Run("raw args with built-in help errors", func(t *testing.T) {
@@ -287,8 +287,8 @@ func TestBuild_RawArgsGrammar(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.Equal(t, `struct rawWithBuiltinHelpCLI field Raw: schema error: raw args cannot be combined with command field Help (declared built-in help, version, and completion command fields also count); a command is either a branch (subcommands) or a leaf (positional/raw arguments): use DashArgs for '--' forwarding or declare RawArgs on a leaf command`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct rawWithBuiltinHelpCLI field Raw: raw args cannot be combined with command field Help (note: declared built-in help, version, and completion command fields also count; hint: use DashArgs for '--' forwarding or declare RawArgs on a leaf command)`, err.Error())
 	})
 
 	t.Run("optional positional before raw args errors", func(t *testing.T) {
@@ -299,8 +299,8 @@ func TestBuild_RawArgsGrammar(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.Equal(t, `struct rawWithOptionalArgCLI field Raw: schema error: raw args requires a deterministic positional prefix: positional argument <target> must be a required scalar; declare only required scalar positional arguments before RawArgs, or use DashArgs for '--' forwarding`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct rawWithOptionalArgCLI field Raw: raw args requires a deterministic positional prefix: positional argument <target> must be a required scalar (hint: declare only required scalar positional arguments before RawArgs, or use DashArgs for '--' forwarding)`, err.Error())
 	})
 
 	t.Run("slice positional before raw args errors", func(t *testing.T) {
@@ -311,8 +311,8 @@ func TestBuild_RawArgsGrammar(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.Equal(t, `struct rawWithSliceArgCLI field Raw: schema error: raw args requires a deterministic positional prefix: positional argument <targets> must be a required scalar; declare only required scalar positional arguments before RawArgs, or use DashArgs for '--' forwarding`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct rawWithSliceArgCLI field Raw: raw args requires a deterministic positional prefix: positional argument <targets> must be a required scalar (hint: declare only required scalar positional arguments before RawArgs, or use DashArgs for '--' forwarding)`, err.Error())
 	})
 
 	t.Run("dash args with subcommands builds", func(t *testing.T) {
@@ -351,9 +351,8 @@ func TestBuild_TrailingCollectorUniqueness(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrDuplicateDeclaration)
-		assert.Equal(t, `struct duplicateRawArgsCLI field Second: schema error: duplicate RawArgs field (already declared by field First)`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct duplicateRawArgsCLI field Second: duplicate RawArgs field (note: already declared by field First)`, err.Error())
 	})
 
 	t.Run("duplicate dash args errors", func(t *testing.T) {
@@ -364,9 +363,8 @@ func TestBuild_TrailingCollectorUniqueness(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, spec.ErrSchema)
-		assert.IsError(t, err, spec.ErrDuplicateDeclaration)
-		assert.Equal(t, `struct duplicateDashArgsCLI field Second: schema error: duplicate DashArgs field (already declared by field First)`, err.Error())
+		assert.True(t, spec.IsSchemaError(err))
+		assert.Equal(t, `struct duplicateDashArgsCLI field Second: duplicate DashArgs field (note: already declared by field First)`, err.Error())
 	})
 
 	t.Run("one dash and one raw collector builds", func(t *testing.T) {

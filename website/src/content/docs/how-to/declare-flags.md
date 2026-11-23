@@ -144,7 +144,7 @@ Flags:
       --retries=3    Attempts before giving up
 ```
 
-Every short name and alias must be unique in the command and its ancestors. A clash fails at startup with `ErrSchema`, exit 1. Here `Timeout` also has `short:"o"`:
+Every short name and alias must be unique in the command and its ancestors. A clash fails schema build at startup, exit 1. Here `Timeout` also has `short:"o"`:
 
 ```text no-copy wrap
 fetch: error: struct Fetch field Timeout: schema error: duplicate flag: short flag -o (already declared by field Output)
@@ -188,7 +188,7 @@ fetching https://example.com to -: 3 tries, 30s each
 follow redirects: true
 ```
 
-`--redirects=false` also works. Without the `negatable` tag, `--no-redirects` is an unknown flag. `negatable` on a non-`bool` flag fails at startup with `ErrSchema`, and so does a value other than `true` or `false`, such as `negatable:"yes"`.
+`--redirects=false` also works. Without the `negatable` tag, `--no-redirects` is an unknown flag. `negatable` on a non-`bool` flag fails schema build at startup, and so does a value other than `true` or `false`, such as `negatable:"yes"`.
 
 ## Count how often a flag is repeated
 

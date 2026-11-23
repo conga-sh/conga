@@ -12,8 +12,8 @@ Each check reports the same mistake, with the same message, that the program rep
 | Check | Runtime contract mirrored |
 |-------|---------------------------|
 | Leaf command Runner enforcement | A command struct without `Command[T]` fields must implement `Run(context.Context, *conga.Session) error`; without it, the command fails when invoked. |
-| Branch/leaf separation | The runtime `ErrSchema` rule that a command declaring positional arguments cannot also declare `Command[T]` subcommands; declared built-in help, version, and completion command fields do not count as branching. |
-| RawArgs boundary | The runtime `ErrSchema` rule that `RawArgs` cannot coexist with any command field (user subcommands or declared built-in help, version, and completion commands) and that every positional argument before it is a required scalar. |
+| Branch/leaf separation | The runtime schema rule that a command declaring positional arguments cannot also declare `Command[T]` subcommands; declared built-in help, version, and completion command fields do not count as branching. |
+| RawArgs boundary | The runtime schema rule that `RawArgs` cannot coexist with any command field (user subcommands or declared built-in help, version, and completion commands) and that every positional argument before it is a required scalar. |
 | Duplicate containers | The runtime rejection of a second `DashArgs`, `RawArgs`, or `ConfigFile` field on one command struct, naming the first declaration. |
 | Struct tag validation | Tag syntax, `required:"true"` rejection, `help` on `Command[T]`, predictor vocabulary, `range`/`len`/`items` bounds, `enum` on path fields, `enum`/`range`/`len` on maps and non-string map keys, unregistered `predictor:"..."` names, `enumhint:"-"` usage, whitespace-padded `section` values, and unknown or undeclared `{{...}}` help variables. |
 | Trailing-collector predictor | The predictor tag contract on `DashArgs`/`RawArgs`: the explicit tag only (no type inference), the same vocabulary as flags and positional arguments, and an absent tag means the `none` predictor. |
@@ -25,10 +25,10 @@ Each check reports the same mistake, with the same message, that the program rep
 | `ConfigExplicit` exclusivity | Flags builder calls combining `conga.ConfigExplicit(...)` with `conga.ConfigPaths(...)` or `conga.ConfigCascading()`. |
 | `bootstrap` tag validation | Flags fields carrying `bootstrap` when neither the declaring command nor an ancestor implements `conga.Bootstrapper`, flags combining `bootstrap` with `feature`, and fields carrying `bootstrap` on unsupported types (structs, pointers, interfaces). |
 | Synthesized feature flag shadowing | The `flag:"..."` name installed for a CLI-exposed `Features[T]` container joins the ancestor shadow map, so a descendant flag cannot redeclare it. |
-| Version command flag shadowing | The built-in version command's `--json` selector joins the ancestor shadow map, so an ancestor `--json` flag is rejected with the same `ErrDuplicateFlag` diagnostic and migration hint. |
-| Implicit command uniqueness | The runtime `ErrSchema` rule that a command declares at most one `implicit:"true"` subcommand; the diagnostic names the field that declared the first. |
-| Implicit command gates | The runtime `ErrSchema` rule that an `implicit:"true"` subcommand can't carry a `feature` tag. Gating its parent, or a flag it declares, stays legal. |
-| Ancestor flag shadowing | The runtime `ErrDuplicateFlag` rule: a flag name, alias, or short rune declared on an ancestor cannot be redeclared on any descendant command. The diagnostic names the struct and field on both sides, built by the same function as the runtime error. |
+| Version command flag shadowing | The built-in version command's `--json` selector joins the ancestor shadow map, so an ancestor `--json` flag is rejected with the same duplicate-flag diagnostic and migration hint. |
+| Implicit command uniqueness | The runtime schema rule that a command declares at most one `implicit:"true"` subcommand; the diagnostic names the field that declared the first. |
+| Implicit command gates | The runtime schema rule that an `implicit:"true"` subcommand can't carry a `feature` tag. Gating its parent, or a flag it declares, stays legal. |
+| Ancestor flag shadowing | The runtime duplicate-flag rule: a flag name, alias, or short rune declared on an ancestor cannot be redeclared on any descendant command. The diagnostic names the struct and field on both sides, built by the same function as the runtime error. |
 | Built-in short collisions | The runtime rejection of a user-declared `short` that claims the rune assigned with `app.HelpShortFlag(...)` (every command offering help) or `app.VersionShortFlag(...)` (root only), and of assigning the same rune to both built-ins. A disabled built-in leaves its rune free; non-constant runes suppress the check. |
 | Cascading guard | The schema rejection of `conga.ConfigCascading()` when the root command lacks a `multi:"true"` `ConfigFile` flag. |
 | Config variable collisions | The schema rejection of a flag, feature, or `Features` map variable bound to the environment variable the app reads a config file path from: the root `ConfigFile` field's variable, or `<PREFIX>_CONFIG` when the app has no `ConfigFile` and registers a decoder. A non-literal `app.EnvPrefix(...)`, or a `RegisterDecoder` call the analyzer can't attribute to one `conga.New` root, suppresses the check. |
@@ -59,8 +59,8 @@ Non-literal or computed arguments degrade conservatively, and the analyzer suppr
 
 ## Output
 
-A report run prints one line per finding, `file:line:column: message`, with the file path relative to the working directory, or absolute when the file lies outside it. It exits 0 when there are no findings, 3 when there are, and 1 when packages fail to load or analysis fails. `-json`, `-c`, and `-fix` (with or without `-diff`) use the standard `golang.org/x/tools` driver output, which prints absolute paths. With `-json` the exit code is always 0. Under `go vet -vettool`, `go vet` prints the findings and exits 1 when there are any.
+A report run prints each finding as `file:line:column: message`, with the file path relative to the working directory, or absolute when the file lies outside it. A schema finding that carries a note or a hint follows with a `file:line:column: \tnote: …` line, then a `file:line:column: \thint: …` line, at the same position. `-json` lists them as the finding's related entries. It exits 0 when there are no findings, 3 when there are, and 1 when packages fail to load or analysis fails. `-json`, `-c`, and `-fix` (with or without `-diff`) use the standard `golang.org/x/tools` driver output, which prints absolute paths. With `-json` the exit code is always 0. Under `go vet -vettool`, `go vet` prints the findings and exits 1 when there are any.
 
 ## Relationship to runtime errors
 
-Static linting complements runtime verification. The runtime schema builder still enforces every contract at startup, returning descriptive `ErrSchema` errors from `App.Run` if an invalid schema executes.
+Static linting complements runtime verification. The runtime schema builder still enforces every contract at startup, returning descriptive schema errors from `App.Run` if an invalid schema executes.

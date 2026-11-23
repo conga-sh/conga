@@ -39,22 +39,22 @@ func TestBuild_SectionWhitespaceRejected(t *testing.T) {
 		{
 			name:   "flag",
 			target: func() any { return new(SectionWhitespaceFlagCLI) },
-			want:   `struct SectionWhitespaceFlagCLI field Format: schema error: invalid struct tag: tag "section" cannot have leading or trailing whitespace`,
+			want:   `struct SectionWhitespaceFlagCLI field Format: tag "section" cannot have leading or trailing whitespace`,
 		},
 		{
 			name:   "subcommand",
 			target: func() any { return new(SectionWhitespaceSubcommandCLI) },
-			want:   `struct SectionWhitespaceSubcommandCLI field Child: schema error: invalid struct tag: tag "section" cannot have leading or trailing whitespace`,
+			want:   `struct SectionWhitespaceSubcommandCLI field Child: tag "section" cannot have leading or trailing whitespace`,
 		},
 		{
 			name:   "config file flag",
 			target: func() any { return new(SectionWhitespaceConfigFileCLI) },
-			want:   `struct SectionWhitespaceConfigFileCLI field Config: schema error: invalid struct tag: tag "section" cannot have leading or trailing whitespace`,
+			want:   `struct SectionWhitespaceConfigFileCLI field Config: tag "section" cannot have leading or trailing whitespace`,
 		},
 		{
 			name:   "built-in command",
 			target: func() any { return new(SectionWhitespaceBuiltinCLI) },
-			want:   `struct SectionWhitespaceBuiltinCLI field Help: schema error: invalid struct tag: tag "section" cannot have leading or trailing whitespace`,
+			want:   `struct SectionWhitespaceBuiltinCLI field Help: tag "section" cannot have leading or trailing whitespace`,
 		},
 	}
 
@@ -66,7 +66,7 @@ func TestBuild_SectionWhitespaceRejected(t *testing.T) {
 
 			assert.Error(t, err)
 			assert.Equal(t, test.want, err.Error())
-			assert.IsError(t, err, spec.ErrInvalidStructTag)
+			assert.True(t, spec.IsSchemaError(err))
 		})
 	}
 }

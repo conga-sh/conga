@@ -115,7 +115,8 @@ func TestDocClaims_DeprecatedTagRestrictions(t *testing.T) {
 
 		err := conga.New[docClaimsRequiredDeprecatedCLI]().Args([]string{"--token", "x"}).Run()
 
-		assert.IsError(t, err, conga.ErrSchema)
+		assert.Error(t, err)
+		assert.Equal(t, `struct docClaimsRequiredDeprecatedCLI field Token: tag "deprecated" cannot be used on required flags (hint: make the flag optional before deprecating it so callers can migrate without error)`, err.Error())
 	})
 
 	t.Run("version command", func(t *testing.T) {
@@ -123,7 +124,8 @@ func TestDocClaims_DeprecatedTagRestrictions(t *testing.T) {
 
 		err := conga.New[docClaimsVersionDeprecatedCLI]().Args([]string{}).Run()
 
-		assert.IsError(t, err, conga.ErrSchema)
+		assert.Error(t, err)
+		assert.Equal(t, `struct docClaimsVersionDeprecatedCLI field Version: tag "deprecated" is invalid on version command (note: tag "deprecated" is only valid on flags, subcommands, and config file flags)`, err.Error())
 	})
 
 	t.Run("completion command", func(t *testing.T) {
@@ -131,7 +133,8 @@ func TestDocClaims_DeprecatedTagRestrictions(t *testing.T) {
 
 		err := conga.New[docClaimsCompletionDeprecatedCLI]().EnableCompletion().Args([]string{}).Run()
 
-		assert.IsError(t, err, conga.ErrSchema)
+		assert.Error(t, err)
+		assert.Equal(t, `struct docClaimsCompletionDeprecatedCLI field Completion: tag "deprecated" is invalid on completion command (note: tag "deprecated" is only valid on flags, subcommands, and config file flags)`, err.Error())
 	})
 }
 

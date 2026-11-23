@@ -16,7 +16,7 @@ type dupFieldSet struct {
 }
 
 type dupFieldApp struct {
-	Features conga.Features[dupFieldSet] // want `struct dupFieldApp field Features: schema error: environment variable "SHARED_VAR" is bound by both feature "first" and feature "second"`
+	Features conga.Features[dupFieldSet] // want `struct dupFieldApp field Features: environment variable "SHARED_VAR" is bound by both feature "first" and feature "second"`
 }
 
 func (a *dupFieldApp) Run(ctx context.Context, session *conga.Session) error {
@@ -32,7 +32,7 @@ type derivedCollisionSet struct {
 }
 
 type derivedCollisionApp struct {
-	Features conga.Features[derivedCollisionSet] `envprefix:"TASK_X_"` // want `struct derivedCollisionApp field Features: schema error: environment variable "TASK_X_SECOND" is bound by both feature "first" and feature "second"`
+	Features conga.Features[derivedCollisionSet] `envprefix:"TASK_X_"` // want `struct derivedCollisionApp field Features: environment variable "TASK_X_SECOND" is bound by both feature "first" and feature "second"`
 }
 
 func (a *derivedCollisionApp) Run(ctx context.Context, session *conga.Session) error {
@@ -47,7 +47,7 @@ type flagCollisionSet struct {
 }
 
 type flagCollisionApp struct {
-	Features conga.Features[flagCollisionSet] `envprefix:"TASK_X_"` // want `struct flagCollisionApp field Features: schema error: environment variable "SHARED_FLAG_VAR" is bound by both feature "enabled" and flag --port`
+	Features conga.Features[flagCollisionSet] `envprefix:"TASK_X_"` // want `struct flagCollisionApp field Features: environment variable "SHARED_FLAG_VAR" is bound by both feature "enabled" and flag --port`
 
 	Port conga.OptionalFlag[int] `env:"SHARED_FLAG_VAR" help:"Port"`
 }
@@ -64,7 +64,7 @@ type mapFlagCollisionSet struct {
 }
 
 type mapFlagCollisionApp struct {
-	Features conga.Features[mapFlagCollisionSet] `env:"SHARED_MAP_VAR"` // want `struct mapFlagCollisionApp field Features: schema error: environment variable "SHARED_MAP_VAR" is bound by both the feature map flag --features and flag --port`
+	Features conga.Features[mapFlagCollisionSet] `env:"SHARED_MAP_VAR"` // want `struct mapFlagCollisionApp field Features: environment variable "SHARED_MAP_VAR" is bound by both the feature map flag --features and flag --port`
 
 	Port conga.OptionalFlag[int] `env:"SHARED_MAP_VAR" help:"Port"`
 }
@@ -89,7 +89,7 @@ func (s *subCollisionSub) Run(ctx context.Context, session *conga.Session) error
 }
 
 type subCollisionApp struct {
-	Features conga.Features[subCollisionSet] // want `struct subCollisionApp field Features: schema error: environment variable "SHARED_SUB_VAR" is bound by both feature "enabled" and flag --port`
+	Features conga.Features[subCollisionSet] // want `struct subCollisionApp field Features: environment variable "SHARED_SUB_VAR" is bound by both feature "enabled" and flag --port`
 
 	Sub conga.Command[subCollisionSub] `summary:"Sub"`
 }
@@ -106,7 +106,7 @@ type derivedFlagCollisionSet struct {
 }
 
 type derivedFlagCollisionApp struct {
-	Features conga.Features[derivedFlagCollisionSet] // want `struct derivedFlagCollisionApp field Features: schema error: environment variable "TASK_X_PORT" is bound by both feature "enabled" and flag --port`
+	Features conga.Features[derivedFlagCollisionSet] // want `struct derivedFlagCollisionApp field Features: environment variable "TASK_X_PORT" is bound by both feature "enabled" and flag --port`
 
 	Port conga.OptionalFlag[int] `help:"Port"`
 }
@@ -124,7 +124,7 @@ type configFileCollisionSet struct {
 }
 
 type configFileCollisionApp struct {
-	Features   conga.Features[configFileCollisionSet] // want `struct configFileCollisionApp field Features: schema error: environment variable "TASK_X_CONFIG" is bound by both flag --config-file and feature "enabled"; give the feature another env tag or exclude it with env:"-"`
+	Features   conga.Features[configFileCollisionSet] // want `struct configFileCollisionApp field Features: environment variable "TASK_X_CONFIG" is bound by both flag --config-file and feature "enabled"`
 	ConfigFile conga.ConfigFile
 }
 
@@ -142,7 +142,7 @@ type orderCollisionSet struct {
 }
 
 type orderCollisionApp struct {
-	Features conga.Features[orderCollisionSet] // want `struct orderCollisionApp field Features: schema error: environment variable "FLAG_B_VAR" is bound by both feature "second" and flag --flag-one`
+	Features conga.Features[orderCollisionSet] // want `struct orderCollisionApp field Features: environment variable "FLAG_B_VAR" is bound by both feature "second" and flag --flag-one`
 
 	FlagOne conga.OptionalFlag[int] `env:"FLAG_B_VAR" help:"Flag one"`
 	FlagTwo conga.OptionalFlag[int] `env:"FLAG_A_VAR" help:"Flag two"`
@@ -161,7 +161,7 @@ type whitespacePrefixSet struct {
 }
 
 type whitespacePrefixApp struct {
-	Features conga.Features[whitespacePrefixSet] `envprefix:" TASK_X "` // want `struct whitespacePrefixApp field Features: schema error: environment variable "TASK_X_ENABLED" is bound by both feature "enabled" and flag --port`
+	Features conga.Features[whitespacePrefixSet] `envprefix:" TASK_X "` // want `struct whitespacePrefixApp field Features: environment variable "TASK_X_ENABLED" is bound by both feature "enabled" and flag --port`
 
 	Port conga.OptionalFlag[int] `env:"TASK_X_ENABLED" help:"Port"`
 }

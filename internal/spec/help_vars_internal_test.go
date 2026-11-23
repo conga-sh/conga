@@ -148,8 +148,8 @@ func TestInterpolateHelp_UnknownVariable(t *testing.T) {
 	expanded, referenced, err := interpolateHelp("Port ({{rnage}})", helpVarValues{rangeText: "1..10"})
 
 	assert.Error(t, err)
-	assert.IsError(t, err, ErrInvalidStructTag)
-	assert.Equal(t, `schema error: invalid struct tag: tag "help" references unknown variable {{rnage}}; supported variables are {{range}}, {{len}}, {{items}}, {{enum}}, {{default}}, {{env}}`, err.Error())
+	assert.True(t, IsSchemaError(err))
+	assert.Equal(t, `tag "help" references unknown variable {{rnage}} (note: supported variables are {{range}}, {{len}}, {{items}}, {{enum}}, {{default}}, {{env}})`, err.Error())
 	assert.Equal(t, "", expanded)
 	assert.Equal(t, helpVars{}, referenced)
 }
@@ -164,7 +164,7 @@ func TestInterpolateHelp_MalformedReferenceRejected(t *testing.T) {
 		_, _, err := interpolateHelp(helpText, helpVarValues{rangeText: "1..10"})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, ErrInvalidStructTag)
+		assert.True(t, IsSchemaError(err))
 	}
 }
 
@@ -209,25 +209,25 @@ func TestValidateHelpVariables(t *testing.T) {
 			name:     "undeclared range",
 			helpText: "Port ({{range}})",
 			declared: helpVars{},
-			expected: `schema error: invalid struct tag: tag "help" references {{range}}, but the field provides no value for that variable`,
+			expected: `tag "help" references {{range}}, but the field provides no value for that variable`,
 		},
 		{
 			name:     "undeclared env",
 			helpText: "Reads {{env}}",
 			declared: helpVars{},
-			expected: `schema error: invalid struct tag: tag "help" references {{env}}, but the field provides no value for that variable`,
+			expected: `tag "help" references {{env}}, but the field provides no value for that variable`,
 		},
 		{
 			name:     "fixed priority order decides the reported variable",
 			helpText: "{{range}} {{env}}",
 			declared: helpVars{},
-			expected: `schema error: invalid struct tag: tag "help" references {{range}}, but the field provides no value for that variable`,
+			expected: `tag "help" references {{range}}, but the field provides no value for that variable`,
 		},
 		{
 			name:     "unknown variable",
 			helpText: "{{rnage}}",
 			declared: helpVars{},
-			expected: `schema error: invalid struct tag: tag "help" references unknown variable {{rnage}}; supported variables are {{range}}, {{len}}, {{items}}, {{enum}}, {{default}}, {{env}}`,
+			expected: `tag "help" references unknown variable {{rnage}} (note: supported variables are {{range}}, {{len}}, {{items}}, {{enum}}, {{default}}, {{env}})`,
 		},
 	}
 
@@ -244,7 +244,7 @@ func TestValidateHelpVariables(t *testing.T) {
 			}
 
 			assert.Error(t, err)
-			assert.IsError(t, err, ErrInvalidStructTag)
+			assert.True(t, IsSchemaError(err))
 			assert.Equal(t, testCase.expected, err.Error())
 		})
 	}

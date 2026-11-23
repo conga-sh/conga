@@ -65,37 +65,37 @@ func TestSchema_StrictBoolTagRejectsTypos(t *testing.T) {
 		{
 			name:     "hidden on a flag",
 			run:      func() error { return conga.New[hiddenTypoFlagCLI]().Args(nil).Run() },
-			expected: `struct hiddenTypoFlagCLI field Debug: schema error: invalid struct tag: tag "hidden" expects "true" or "false", got "yes"`,
+			expected: `struct hiddenTypoFlagCLI field Debug: tag "hidden" expects "true" or "false", got "yes"`,
 		},
 		{
 			name:     "hidden on a subcommand",
 			run:      func() error { return conga.New[hiddenTypoSubcommandCLI]().Args(nil).Run() },
-			expected: `struct hiddenTypoSubcommandCLI field Debug: schema error: invalid struct tag: tag "hidden" expects "true" or "false", got "yes"`,
+			expected: `struct hiddenTypoSubcommandCLI field Debug: tag "hidden" expects "true" or "false", got "yes"`,
 		},
 		{
 			name:     "hidden on a built-in command",
 			run:      func() error { return conga.New[hiddenTypoBuiltinCLI]().Args(nil).Run() },
-			expected: `struct hiddenTypoBuiltinCLI field Help: schema error: invalid struct tag: tag "hidden" expects "true" or "false", got "yes"`,
+			expected: `struct hiddenTypoBuiltinCLI field Help: tag "hidden" expects "true" or "false", got "yes"`,
 		},
 		{
 			name:     "hidden on a ConfigFile",
 			run:      func() error { return conga.New[hiddenTypoConfigFileCLI]().Args(nil).Run() },
-			expected: `struct hiddenTypoConfigFileCLI field Config: schema error: invalid struct tag: tag "hidden" expects "true" or "false", got "yes"`,
+			expected: `struct hiddenTypoConfigFileCLI field Config: tag "hidden" expects "true" or "false", got "yes"`,
 		},
 		{
 			name:     "negatable on a bool flag",
 			run:      func() error { return conga.New[negatableTypoCLI]().Args(nil).Run() },
-			expected: `struct negatableTypoCLI field Color: schema error: invalid struct tag: tag "negatable" expects "true" or "false", got "ture"`,
+			expected: `struct negatableTypoCLI field Color: tag "negatable" expects "true" or "false", got "ture"`,
 		},
 		{
 			name:     "bootstrap on a flag",
 			run:      func() error { return conga.New[bootstrapTypoFlagCLI]().Args(nil).Run() },
-			expected: `struct bootstrapTypoFlagCLI field Dir: schema error: invalid struct tag: tag "bootstrap" expects "true" or "false", got "yes"`,
+			expected: `struct bootstrapTypoFlagCLI field Dir: tag "bootstrap" expects "true" or "false", got "yes"`,
 		},
 		{
 			name:     "bootstrap on a positional argument",
 			run:      func() error { return conga.New[bootstrapTypoArgCLI]().Args(nil).Run() },
-			expected: `struct bootstrapTypoArgCLI field Dir: schema error: invalid struct tag: tag "bootstrap" expects "true" or "false", got "yes"`,
+			expected: `struct bootstrapTypoArgCLI field Dir: tag "bootstrap" expects "true" or "false", got "yes"`,
 		},
 	}
 
@@ -105,7 +105,7 @@ func TestSchema_StrictBoolTagRejectsTypos(t *testing.T) {
 
 			err := testCase.run()
 
-			assert.IsError(t, err, conga.ErrSchema)
+			assert.Error(t, err)
 			assert.Equal(t, testCase.expected, err.Error())
 		})
 	}
@@ -243,27 +243,27 @@ func TestSchema_StrictBoolTagPlacementAndCollectors(t *testing.T) {
 		{
 			name:     "hidden typo on a positional argument names the placement",
 			run:      func() error { return conga.New[hiddenOnArgCLI]().Args(nil).Run() },
-			expected: `struct hiddenOnArgCLI field Target: schema error: invalid struct tag: tag "hidden" is invalid on positional argument (tag "hidden" is only valid on flags, subcommands, built-in commands, and config file flags)`,
+			expected: `struct hiddenOnArgCLI field Target: tag "hidden" is invalid on positional argument (note: tag "hidden" is only valid on flags, subcommands, built-in commands, and config file flags)`,
 		},
 		{
 			name:     "negatable typo on a ConfigFile names the placement",
 			run:      func() error { return conga.New[negatableOnConfigFileCLI]().Args(nil).Run() },
-			expected: `struct negatableOnConfigFileCLI field Config: schema error: invalid struct tag: tag "negatable" is invalid on config file flag (tag "negatable" is only valid on flags)`,
+			expected: `struct negatableOnConfigFileCLI field Config: tag "negatable" is invalid on config file flag (note: tag "negatable" is only valid on flags)`,
 		},
 		{
 			name:     "bootstrap typo on a subcommand names the placement",
 			run:      func() error { return conga.New[bootstrapOnSubcommandCLI]().Args(nil).Run() },
-			expected: `struct bootstrapOnSubcommandCLI field Sub: schema error: invalid struct tag: tag "bootstrap" is invalid on subcommand (tag "bootstrap" is only valid on flags, positional arguments, and trailing-argument collectors)`,
+			expected: `struct bootstrapOnSubcommandCLI field Sub: tag "bootstrap" is invalid on subcommand (note: tag "bootstrap" is only valid on flags, positional arguments, and trailing-argument collectors)`,
 		},
 		{
 			name:     "bootstrap typo on DashArgs",
 			run:      func() error { return conga.New[bootstrapTypoDashArgsCLI]().Args(nil).Run() },
-			expected: `struct bootstrapTypoDashArgsCLI field Rest: schema error: invalid struct tag: tag "bootstrap" expects "true" or "false", got "yes"`,
+			expected: `struct bootstrapTypoDashArgsCLI field Rest: tag "bootstrap" expects "true" or "false", got "yes"`,
 		},
 		{
 			name:     "bootstrap typo on RawArgs",
 			run:      func() error { return conga.New[bootstrapTypoRawArgsCLI]().Args(nil).Run() },
-			expected: `struct bootstrapTypoRawArgsCLI field Rest: schema error: invalid struct tag: tag "bootstrap" expects "true" or "false", got "yes"`,
+			expected: `struct bootstrapTypoRawArgsCLI field Rest: tag "bootstrap" expects "true" or "false", got "yes"`,
 		},
 	}
 
@@ -273,7 +273,7 @@ func TestSchema_StrictBoolTagPlacementAndCollectors(t *testing.T) {
 
 			err := testCase.run()
 
-			assert.IsError(t, err, conga.ErrSchema)
+			assert.Error(t, err)
 			assert.Equal(t, testCase.expected, err.Error())
 		})
 	}

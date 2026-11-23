@@ -2,7 +2,6 @@ package spec
 
 import (
 	"cmp"
-	"fmt"
 	"maps"
 	"reflect"
 	"slices"
@@ -12,6 +11,11 @@ import (
 	"github.com/conga-sh/conga/internal/container"
 	"github.com/conga-sh/conga/internal/slicex"
 )
+
+// anonymousRootName stands in for the struct name of an anonymous root command
+// struct in schema errors; an anonymous subcommand struct is named by the path
+// of the field that declares it (Parent.Field).
+const anonymousRootName = "(root)"
 
 const (
 	builtinHelp builtinCommandKind = iota
@@ -25,43 +29,39 @@ const (
 //nolint:gochecknoglobals // static guard table for root command method validation
 var rootCommandMethodGuards = []struct {
 	rejects func(target any) bool
-	message func(structName string) string
+	method  string
+	hint    string
 }{
 	{
 		rejects: implements[summaryMethod],
-		message: func(structName string) string {
-			return "root command struct " + structName + " must not implement Summary(); configure application description via app.Description()"
-		},
+		method:  "Summary()",
+		hint:    "configure application description via app.Description()",
 	},
 	{
 		rejects: implements[descriptionMethod],
-		message: func(structName string) string {
-			return "root command struct " + structName + " must not implement Description(); configure application description via app.Description()"
-		},
+		method:  "Description()",
+		hint:    "configure application description via app.Description()",
 	},
 	{
 		rejects: implements[helpFooterMethod],
-		message: func(structName string) string {
-			return "root command struct " + structName + " must not implement HelpFooter(); configure global help footer via app.HelpFooter()"
-		},
+		method:  "HelpFooter()",
+		hint:    "configure global help footer via app.HelpFooter()",
 	},
 	{
 		rejects: implements[deprecatedMethod],
-		message: func(structName string) string {
-			return "root command struct " + structName + " must not implement Deprecated(); use app.Deprecated()"
-		},
+		method:  "Deprecated()",
+		hint:    "use app.Deprecated()",
 	},
 	{
 		rejects: implements[examplesMethod],
-		message: func(structName string) string {
-			return "root command struct " + structName + " must not implement Examples(); configure root examples via app.Examples()"
-		},
+		method:  "Examples()",
+		hint:    "configure root examples via app.Examples()",
 	},
 }
 
 // Build inspects a struct pointer and recursively constructs the Command AST tree.
 func Build(target any, defaultName string, opts Options) (*Command, error) {
-	cmd, err := buildInternal(target, defaultName, true, opts)
+	cmd, err := buildInternal(target, defaultName, anonymousRootName, true, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -172,8 +172,9 @@ type schemaBuilder struct {
 	opts                 Options
 }
 
-func newSchemaBuilder(target any, defaultName string, structValue reflect.Value, isRoot bool, opts Options) (*schemaBuilder, error) {
+func newSchemaBuilder(target any, defaultName, anonymousName string, structValue reflect.Value, isRoot bool, opts Options) (*schemaBuilder, error) {
 	structType := structValue.Type()
+	structName := cmp.Or(structType.Name(), anonymousName)
 
 	opts.HasBootstrapper = opts.HasBootstrapper || (opts.IsBootstrapper != nil && opts.IsBootstrapper(target))
 
@@ -186,7 +187,7 @@ func newSchemaBuilder(target any, defaultName string, structValue reflect.Value,
 
 	cmd := &Command{
 		Name:              defaultName,
-		StructName:        structType.Name(),
+		StructName:        structName,
 		Target:            target,
 		EnvPrefix:         envPrefix,
 		DisableHelp:       opts.DisableHelp,
@@ -202,21 +203,21 @@ func newSchemaBuilder(target any, defaultName string, structValue reflect.Value,
 		cmd.VersionShort = opts.VersionShort
 	}
 
-	if err := applyCommandMethodGuardrails(target, cmd, structType.Name(), isRoot); err != nil {
+	if err := applyCommandMethodGuardrails(target, cmd, structName, isRoot); err != nil {
 		return nil, err
 	}
 
 	flagTracker := newFlagCollisionTracker()
 	if !opts.DisableHelp {
-		flagTracker.seenNames["help"] = "built-in help (use app.DisableHelpFlag() to override)"
+		flagTracker.reserveBuiltin("help", builtinFlagReservation{hint: "use app.DisableHelpFlag() to override"})
 	}
 
 	if isRoot && !opts.DisableVersion {
-		flagTracker.seenNames["version"] = "built-in version (use app.DisableVersionFlag() to override)"
+		flagTracker.reserveBuiltin("version", builtinFlagReservation{hint: "use app.DisableVersionFlag() to override"})
 	}
 
 	if !opts.DisableWhy {
-		flagTracker.seenNames["why"] = "built-in why (enabled by app.EnableWhy())"
+		flagTracker.reserveBuiltin("why", builtinFlagReservation{enabledBy: "app.EnableWhy()"})
 	}
 
 	return &schemaBuilder{
@@ -247,7 +248,7 @@ func (b *schemaBuilder) checkDuplicateSubcommand(name, fieldName string, isAlias
 			desc = "subcommand alias"
 		}
 
-		return fmt.Errorf("%w %s %q (already declared by field %s)", ErrDuplicateDeclaration, desc, name, prevField)
+		return schemaErrorf("duplicate %s %q", desc, name).withNotef("already declared by field %s", prevField)
 	}
 
 	b.seenSubcommands[name] = fieldName
@@ -295,7 +296,7 @@ func (b *schemaBuilder) processSubcommand(structField reflect.StructField, comma
 		subOpts.EnvPrefix = b.cmd.EnvPrefix
 	}
 
-	subcommand, err := buildInternal(target, subName, false, subOpts)
+	subcommand, err := buildInternal(target, subName, b.cmd.StructName+"."+structField.Name, false, subOpts)
 	if err != nil {
 		return err
 	}
@@ -420,7 +421,7 @@ func (b *schemaBuilder) newBuiltinSubcommand(structField reflect.StructField, ki
 			Flags: []*Flag{
 				{
 					Name:        VersionJSONFlagName,
-					StructName:  b.structType.Name(),
+					StructName:  b.cmd.StructName,
 					FieldName:   structField.Name,
 					Help:        "Render machine-readable JSON output",
 					IsBool:      true,
@@ -443,7 +444,7 @@ func (b *schemaBuilder) newBuiltinSubcommand(structField reflect.StructField, ki
 
 func (b *schemaBuilder) processConfigFile(structField reflect.StructField, configHandle any, fieldTags FieldTags) error {
 	if !b.isRoot {
-		return ErrInvalidConfigFilePlacement
+		return schemaError("ConfigFile can only be declared on the root command")
 	}
 
 	if b.cmd.ConfigFileFlag != nil {
@@ -463,7 +464,7 @@ func (b *schemaBuilder) processConfigFile(structField reflect.StructField, confi
 		return err
 	}
 
-	flagSpec.StructName, flagSpec.FieldName = b.structType.Name(), structField.Name
+	flagSpec.StructName, flagSpec.FieldName = b.cmd.StructName, structField.Name
 	b.cmd.Flags = append(b.cmd.Flags, flagSpec)
 	b.cmd.ConfigFileFlag = flagSpec
 
@@ -556,7 +557,7 @@ func (b *schemaBuilder) extractConfigFileEnvVars(tag reflect.StructTag) []string
 func (b *schemaBuilder) processFlag(structField reflect.StructField, flagHandle any, classification container.Classification, fieldTags FieldTags) error {
 	innerType := extractGenericType(structField.Type)
 	if hasTag(structField.Tag, "negatable") && innerType.Kind() != reflect.Bool {
-		return fmt.Errorf("%w: tag \"negatable\" is only valid on boolean flags, got %s", ErrInvalidStructTag, innerType.String())
+		return schemaErrorf(`tag "negatable" is only valid on boolean flags, got %s`, innerType.String())
 	}
 
 	if err := b.validateValueTarget(structField, innerType); err != nil {
@@ -602,7 +603,7 @@ func (b *schemaBuilder) processFlag(structField reflect.StructField, flagHandle 
 		b.groupCensus.Add("and", flagSpec.AndGroup, flagSpec.Name, flagSpec.IsCounter, structField.Name)
 	}
 
-	flagSpec.StructName, flagSpec.FieldName = b.structType.Name(), structField.Name
+	flagSpec.StructName, flagSpec.FieldName = b.cmd.StructName, structField.Name
 	b.cmd.Flags = append(b.cmd.Flags, flagSpec)
 
 	return nil
@@ -715,15 +716,15 @@ func (b *schemaBuilder) processArg(structField reflect.StructField, argHandle an
 	argSpec.FieldTags = fieldTags
 
 	if b.sliceArgField != "" {
-		return fmt.Errorf("%w: slice argument %s must be the last positional argument", ErrInvalidArgOrder, b.sliceArgName)
+		return schemaErrorf("slice argument %s must be the last positional argument", b.sliceArgName)
 	}
 
 	if b.mapArgField != "" {
-		return fmt.Errorf("%w: map argument %s must be the last positional argument", ErrInvalidArgOrder, b.mapArgName)
+		return schemaErrorf("map argument %s must be the last positional argument", b.mapArgName)
 	}
 
 	if b.hasOptionalArg && argSpec.Required {
-		return fmt.Errorf("%w: optional positional argument cannot precede required positional argument %s", ErrInvalidArgOrder, argSpec.Name)
+		return schemaErrorf("optional positional argument cannot precede required positional argument %s", argSpec.Name)
 	}
 
 	if !argSpec.Required {
@@ -997,14 +998,10 @@ func (b *schemaBuilder) validateBranchGrammar() error {
 	return b.fieldContextError(b.firstSubcommandField, err)
 }
 
-// fieldContextError wraps a schema-build error with the owning struct and
-// field, returning nil unchanged.
+// fieldContextError attaches the owning struct and field to a schema-build
+// error, returning nil unchanged.
 func (b *schemaBuilder) fieldContextError(fieldName string, err error) error {
-	if err == nil {
-		return nil
-	}
-
-	return fmt.Errorf("struct %s field %s: %w", b.structType.Name(), fieldName, err)
+	return WithOwner(err, b.cmd.StructName, fieldName)
 }
 
 func (b *schemaBuilder) processFlagField(structField reflect.StructField, flagHandle any, classification container.Classification) error {
@@ -1026,8 +1023,7 @@ func (b *schemaBuilder) processArgField(structField reflect.StructField, argHand
 // processContainerField is the shared skeleton of flag and positional-argument
 // field processing: tag validation (with the field's domain-type tag keys
 // merged into the strict candidates), custom field-tag parsing, and delegation
-// to the container-specific processor, wrapped in the struct/field error
-// context.
+// to the container-specific processor, attributed to the owning struct and field.
 func (b *schemaBuilder) processContainerField(structField reflect.StructField, role string, tagCandidates []string, tagSpecs []TagSpec, process func(FieldTags) error) error {
 	candidates := tagCandidates
 	if len(tagSpecs) > 0 {
@@ -1035,16 +1031,16 @@ func (b *schemaBuilder) processContainerField(structField reflect.StructField, r
 	}
 
 	if err := b.validateFieldTags(structField, role, candidates); err != nil {
-		return fmt.Errorf("struct %s field %s: %w", b.structType.Name(), structField.Name, err)
+		return b.fieldContextError(structField.Name, err)
 	}
 
 	fieldTags, err := ParseFieldTags(structField.Tag, tagSpecs)
 	if err != nil {
-		return fmt.Errorf("struct %s field %s: %w", b.structType.Name(), structField.Name, err)
+		return b.fieldContextError(structField.Name, err)
 	}
 
 	if err := process(fieldTags); err != nil {
-		return fmt.Errorf("struct %s field %s: %w", b.structType.Name(), structField.Name, err)
+		return b.fieldContextError(structField.Name, err)
 	}
 
 	return nil
@@ -1125,25 +1121,27 @@ type builtinCommandKind int
 type flagCollisionTracker struct {
 	seenNames  map[string]string
 	seenShorts map[rune]string
+	builtins   map[string]builtinFlagReservation
 }
 
 func newFlagCollisionTracker() *flagCollisionTracker {
 	return &flagCollisionTracker{
 		seenNames:  make(map[string]string),
 		seenShorts: make(map[rune]string),
+		builtins:   make(map[string]builtinFlagReservation),
 	}
 }
 
 func (t *flagCollisionTracker) CheckAndAdd(flagSpec *Flag, fieldName string) error {
-	if prevField, ok := t.seenNames[flagSpec.Name]; ok {
-		return DuplicateFlagError("--"+flagSpec.Name, prevField)
+	if err := t.checkName(FlagNameDeclaration(flagSpec.Name), flagSpec.Name); err != nil {
+		return err
 	}
 
 	t.seenNames[flagSpec.Name] = fieldName
 
 	for _, alias := range flagSpec.Aliases {
-		if prevField, ok := t.seenNames[alias]; ok {
-			return DuplicateFlagError("alias --"+alias, prevField)
+		if err := t.checkName(FlagAliasDeclaration(alias), alias); err != nil {
+			return err
 		}
 
 		t.seenNames[alias] = fieldName
@@ -1151,13 +1149,47 @@ func (t *flagCollisionTracker) CheckAndAdd(flagSpec *Flag, fieldName string) err
 
 	if flagSpec.Short != 0 {
 		if prevField, ok := t.seenShorts[flagSpec.Short]; ok {
-			return DuplicateFlagError(fmt.Sprintf("short flag -%c", flagSpec.Short), prevField)
+			return DuplicateFlagError(ShortFlagDeclaration(flagSpec.Short), prevField)
 		}
 
 		t.seenShorts[flagSpec.Short] = fieldName
 	}
 
 	return nil
+}
+
+// reserveBuiltin claims a built-in flag's long name, so a user flag or alias
+// spelling it is rejected naming the built-in.
+func (t *flagCollisionTracker) reserveBuiltin(name string, reservation builtinFlagReservation) {
+	t.builtins[name] = reservation
+}
+
+// checkName reports a collision of name, spelled as declaration, with a
+// built-in flag or with a field already declared on the command.
+func (t *flagCollisionTracker) checkName(declaration FlagDeclaration, name string) error {
+	if reservation, ok := t.builtins[name]; ok {
+		note := "already declared by the built-in --" + name + " flag"
+		if reservation.enabledBy != "" {
+			note += ", enabled by " + reservation.enabledBy
+		}
+
+		return schemaErrorf("duplicate %s", declaration).withNote(note).withHint(reservation.hint)
+	}
+
+	if prevField, ok := t.seenNames[name]; ok {
+		return DuplicateFlagError(declaration, prevField)
+	}
+
+	return nil
+}
+
+// builtinFlagReservation describes how a built-in flag that reserves a name
+// is reported when a user flag spells that name: enabledBy names the builder
+// call that turns an opt-in built-in on, and hint is the action that frees the
+// name.
+type builtinFlagReservation struct {
+	enabledBy string
+	hint      string
 }
 
 // validateConfigSettings enforces the app-level configuration settings against
@@ -1203,7 +1235,7 @@ func applyCommandMethodGuardrails(target any, cmd *Command, structName string, i
 func guardRootCommandMethods(target any, structName string) error {
 	for _, guard := range rootCommandMethodGuards {
 		if guard.rejects(target) {
-			return fmt.Errorf("%w: %s", ErrSchema, guard.message(structName))
+			return schemaErrorf("root command struct %s must not implement %s", structName, guard.method).withHint(guard.hint)
 		}
 	}
 
@@ -1212,15 +1244,19 @@ func guardRootCommandMethods(target any, structName string) error {
 
 func guardSubcommandMethods(target any, cmd *Command, structName string) error {
 	if _, ok := target.(summaryMethod); ok {
-		return fmt.Errorf("%w: subcommand struct %s must not implement Summary(); declare the 1-line synopsis via the summary:\"...\" struct tag", ErrSchema, structName)
+		return schemaErrorf("subcommand struct %s must not implement Summary()", structName).
+			withHint(`declare the 1-line synopsis via the summary:"..." struct tag`)
 	}
 
 	if _, ok := target.(deprecatedMethod); ok {
-		return fmt.Errorf("%w: subcommand struct %s must not implement Deprecated(); declare the deprecation notice via the deprecated:\"...\" struct tag", ErrSchema, structName)
+		return schemaErrorf("subcommand struct %s must not implement Deprecated()", structName).
+			withHint(`declare the deprecation notice via the deprecated:"..." struct tag`)
 	}
 
 	if _, ok := target.(helpFooterMethod); ok {
-		return fmt.Errorf("%w: subcommand struct %s must not implement HelpFooter(); help footers are global and must be configured via app.HelpFooter()", ErrSchema, structName)
+		return schemaErrorf("subcommand struct %s must not implement HelpFooter()", structName).
+			withNote("help footers are global").
+			withHint("configure the footer via app.HelpFooter()")
 	}
 
 	if m, ok := target.(descriptionMethod); ok {
@@ -1307,18 +1343,18 @@ func checkDescendantFlags(cmd *Command, ancestorFlags map[string]FlagOwner, ance
 				return VersionJSONShadowError(descendant, ancestor)
 			}
 
-			return AncestorShadowError(descendant, "--"+flagSpec.Name, ancestor)
+			return AncestorShadowError(descendant, FlagNameDeclaration(flagSpec.Name), ancestor)
 		}
 
 		for _, alias := range flagSpec.Aliases {
 			if ancestor, ok := ancestorFlags[alias]; ok {
-				return AncestorShadowError(descendant, "alias --"+alias, ancestor)
+				return AncestorShadowError(descendant, FlagAliasDeclaration(alias), ancestor)
 			}
 		}
 
 		if flagSpec.Short != 0 {
 			if ancestor, ok := ancestorShorts[flagSpec.Short]; ok {
-				return AncestorShadowError(descendant, fmt.Sprintf("short flag -%c", flagSpec.Short), ancestor)
+				return AncestorShadowError(descendant, ShortFlagDeclaration(flagSpec.Short), ancestor)
 			}
 		}
 	}
@@ -1358,12 +1394,16 @@ func validateFlagSubcommandCollisions(command *Command) error {
 		for _, subcommand := range command.Subcommands {
 			for _, key := range keysToCheck {
 				if key == subcommand.Name {
-					return fmt.Errorf("command %q: %w: flag --%s collides with subcommand %q (ambiguous in config files; use config:\"-\" to exclude flag from config or rename)", command.Name, ErrDuplicateFlag, flagSpec.Name, subcommand.Name)
+					return schemaErrorf("command %q: flag --%s collides with subcommand %q", command.Name, flagSpec.Name, subcommand.Name).
+						withNote("ambiguous in config files").
+						withHint(`use config:"-" to exclude flag from config or rename`)
 				}
 
 				for _, alias := range subcommand.Aliases {
 					if key == alias {
-						return fmt.Errorf("command %q: %w: flag --%s collides with subcommand alias %q (ambiguous in config files; use config:\"-\" to exclude flag from config or rename)", command.Name, ErrDuplicateFlag, flagSpec.Name, alias)
+						return schemaErrorf("command %q: flag --%s collides with subcommand alias %q", command.Name, flagSpec.Name, alias).
+							withNote("ambiguous in config files").
+							withHint(`use config:"-" to exclude flag from config or rename`)
 					}
 				}
 			}
@@ -1399,15 +1439,17 @@ func extractConfigFilePlaceholder(tag reflect.StructTag) string {
 	return "PATH"
 }
 
-func buildInternal(target any, defaultName string, isRoot bool, opts Options) (*Command, error) {
+// buildInternal builds the command for target. anonymousName names the command
+// in schema errors when target's struct type is anonymous.
+func buildInternal(target any, defaultName, anonymousName string, isRoot bool, opts Options) (*Command, error) {
 	value := reflect.ValueOf(target)
 	if value.Kind() != reflect.Pointer || value.Elem().Kind() != reflect.Struct {
-		return nil, fmt.Errorf("%w, got %T", ErrInvalidTarget, target)
+		return nil, schemaErrorf("target must be a pointer to a struct, got %T", target)
 	}
 
 	structValue := value.Elem()
 
-	builder, err := newSchemaBuilder(target, defaultName, structValue, isRoot, opts)
+	builder, err := newSchemaBuilder(target, defaultName, anonymousName, structValue, isRoot, opts)
 	if err != nil {
 		return nil, err
 	}
@@ -1424,9 +1466,10 @@ func buildInternal(target any, defaultName string, isRoot bool, opts Options) (*
 	if singleMemberGroups := builder.groupCensus.SingleMemberGroups(); len(singleMemberGroups) > 0 {
 		group := singleMemberGroups[0]
 
-		return nil, fmt.Errorf("struct %s field %s: %w",
-			builder.structType.Name(), group.Attribution,
-			SingleMemberGroupError(group.Kind, group.Group, group.FlagName, group.Suggestion))
+		return nil, builder.fieldContextError(
+			group.Attribution,
+			SingleMemberGroupError(group.Kind, group.Group, group.FlagName, group.Suggestion),
+		)
 	}
 
 	if err := builder.validateBranchGrammar(); err != nil {
@@ -1442,22 +1485,23 @@ func buildInternal(target any, defaultName string, isRoot bool, opts Options) (*
 
 func validateDisallowedTags(tag reflect.StructTag, keys []string, role string) error {
 	if slices.Contains(keys, "required") {
-		return fmt.Errorf("%w: tag \"required\" is not supported. Use conga.RequiredFlag[T] or conga.RequiredArg[T] instead", ErrInvalidStructTag)
+		return schemaError(`tag "required" is not supported`).withHint("use conga.RequiredFlag[T] or conga.RequiredArg[T] instead")
 	}
 
 	if role == "config file flag" {
 		if _, ok := tag.Lookup("default"); ok {
-			return fmt.Errorf("%w: tag \"default\" is not supported on config-file flags; declare search locations with app.ConfigOptions(conga.ConfigPaths(...)) or conga.ConfigExplicit(...), or show an example value with placeholder:\"...\"", ErrInvalidStructTag)
+			return schemaError(`tag "default" is not supported on config-file flags`).
+				withHint(`declare search locations with app.ConfigOptions(conga.ConfigPaths(...)) or conga.ConfigExplicit(...), or show an example value with placeholder:"..."`)
 		}
 	}
 
 	if _, ok := tag.Lookup("help"); ok {
 		if role == "subcommand" {
-			return fmt.Errorf("%w: tag \"help\" is not supported on Command[T]; use \"summary\" for the 1-line synopsis", ErrInvalidStructTag)
+			return schemaError(`tag "help" is not supported on Command[T]`).withHint(`use "summary" for the 1-line synopsis`)
 		}
 
 		if strings.HasSuffix(role, " command") {
-			return fmt.Errorf("%w: tag \"help\" is not supported on built-in command fields; use \"summary\" for the 1-line synopsis", ErrInvalidStructTag)
+			return schemaError(`tag "help" is not supported on built-in command fields`).withHint(`use "summary" for the 1-line synopsis`)
 		}
 	}
 
@@ -1471,23 +1515,24 @@ func validateTagCandidates(keys []string, role string, candidates []string, allo
 		}
 
 		if key == "predictor" && role == "config file flag" {
-			return fmt.Errorf("%w: tag %q is invalid on %s (config file flags always complete file paths)", ErrInvalidStructTag, key, role)
+			return schemaErrorf("tag %q is invalid on %s", key, role).withNote("config file flags always complete file paths")
 		}
 
 		if isAnyCongaTag(key) {
-			return fmt.Errorf("%w: tag %q is invalid on %s (tag %q is only valid on %s)", ErrInvalidStructTag, key, role, key, validContextDescription(key))
+			return schemaErrorf("tag %q is invalid on %s", key, role).withNotef("tag %q is only valid on %s", key, validContextDescription(key))
 		}
 
 		suggestion := findClosestTagSuggestion(key, candidates, allowedTags)
 		if slices.Contains(allowedTags, suggestion) {
-			return fmt.Errorf("%w: unknown struct tag %q (did you mean %q?)", ErrInvalidStructTag, key, suggestion)
+			return schemaErrorf("unknown struct tag %q", key).withHintf("did you mean %q?", suggestion)
 		}
 
 		if suggestion != "" {
-			return fmt.Errorf("%w: unknown struct tag %q (did you mean %q?). Use app.AllowTags(%q) to permit external tags", ErrInvalidStructTag, key, suggestion, key)
+			return schemaErrorf("unknown struct tag %q", key).
+				withHintf("did you mean %q? Use app.AllowTags(%q) to permit external tags", suggestion, key)
 		}
 
-		return fmt.Errorf("%w: unknown struct tag %q. Use app.AllowTags(%q) to permit external tags", ErrInvalidStructTag, key, key)
+		return schemaErrorf("unknown struct tag %q", key).withHintf("use app.AllowTags(%q) to permit external tags", key)
 	}
 
 	return nil

@@ -1,7 +1,6 @@
 package spec
 
 import (
-	"fmt"
 	"maps"
 	"os"
 	"reflect"
@@ -182,11 +181,11 @@ func inferPredictorSpec(targetType reflect.Type, tags FieldTags, opts *Options) 
 // registration lookup while keeping every other check.
 func validateExplicitPredictor(trimmedValue string, isBool bool, registeredNames []string, checkCustomNames bool) (*PredictorSpec, error) {
 	if trimmedValue == "" {
-		return nil, fmt.Errorf("%w: predictor tag cannot be empty", ErrInvalidStructTag)
+		return nil, schemaError("predictor tag cannot be empty")
 	}
 
 	if isBool {
-		return nil, fmt.Errorf("%w: tag \"predictor\" is invalid on boolean flags", ErrInvalidStructTag)
+		return nil, schemaError(`tag "predictor" is invalid on boolean flags`)
 	}
 
 	spec, handled, err := parseBuiltinPredictor(trimmedValue)
@@ -236,11 +235,13 @@ func parseBuiltinFilesystemPredictor(value string) (*PredictorSpec, bool, error)
 	case value == "dir":
 		return &PredictorSpec{Kind: PredictorKindDir, Name: "dir"}, true, nil
 	case strings.HasPrefix(value, "dir:"):
-		return nil, false, fmt.Errorf("%w: invalid predictor %q (directories predictor does not accept filter patterns, use predictor:\"dir\")", ErrInvalidStructTag, value)
+		return nil, false, schemaErrorf("invalid predictor %q: directories predictor does not accept filter patterns", value).
+			withHint(`use predictor:"dir"`)
 	case value == "symlink" || value == "symlinks":
 		return &PredictorSpec{Kind: PredictorKindSymlink, Name: "symlink"}, true, nil
 	case strings.HasPrefix(value, "symlink:") || strings.HasPrefix(value, "symlinks:"):
-		return nil, false, fmt.Errorf("%w: invalid predictor %q (symlink predictor does not accept parameters, use predictor:\"symlink\")", ErrInvalidStructTag, value)
+		return nil, false, schemaErrorf("invalid predictor %q: symlink predictor does not accept parameters", value).
+			withHint(`use predictor:"symlink"`)
 	}
 
 	return nil, false, nil
@@ -255,11 +256,11 @@ func parseBuiltinEnginePredictor(value string) (*PredictorSpec, bool, error) {
 	}
 
 	if strings.HasPrefix(value, "exec:") || strings.HasPrefix(value, "executable:") {
-		return nil, false, fmt.Errorf("%w: invalid predictor %q (exec predictor does not accept parameters, use predictor:\"exec\")", ErrInvalidStructTag, value)
+		return nil, false, schemaErrorf("invalid predictor %q: exec predictor does not accept parameters", value).withHint(`use predictor:"exec"`)
 	}
 
 	if strings.HasPrefix(value, "none:") || strings.HasPrefix(value, "off:") {
-		return nil, false, fmt.Errorf("%w: invalid predictor %q (none predictor does not accept parameters, use predictor:\"none\")", ErrInvalidStructTag, value)
+		return nil, false, schemaErrorf("invalid predictor %q: none predictor does not accept parameters", value).withHint(`use predictor:"none"`)
 	}
 
 	return nil, false, nil
@@ -268,37 +269,38 @@ func parseBuiltinEnginePredictor(value string) (*PredictorSpec, bool, error) {
 func parseFileFilterPredictor(value string) (*PredictorSpec, error) {
 	patternStr := value[len("file:"):]
 	if patternStr == "" {
-		return nil, fmt.Errorf("%w: invalid predictor syntax %q: file filter pattern cannot be empty (expected file:*.ext)", ErrInvalidStructTag, value)
+		return nil, schemaErrorf("invalid predictor syntax %q: file filter pattern cannot be empty", value).withNote("expected file:*.ext")
 	}
 
 	if strings.HasPrefix(patternStr, ",") || strings.HasSuffix(patternStr, ",") || strings.Contains(patternStr, ",,") {
-		return nil, fmt.Errorf("%w: invalid predictor syntax %q: trailing, leading, or empty pattern element in file filter", ErrInvalidStructTag, value)
+		return nil, schemaErrorf("invalid predictor syntax %q: trailing, leading, or empty pattern element in file filter", value)
 	}
 
 	patterns := slicex.SplitAndTrim(patternStr, ",")
 	if slices.Contains(patterns, "") {
-		return nil, fmt.Errorf("%w: invalid predictor syntax %q: empty pattern element in file filter", ErrInvalidStructTag, value)
+		return nil, schemaErrorf("invalid predictor syntax %q: empty pattern element in file filter", value)
 	}
 
 	return &PredictorSpec{Kind: PredictorKindFile, Name: "file", Patterns: patterns}, nil
 }
 
 func validateColonPrefixTypo(value, prefix string) error {
+	err := schemaErrorf("invalid predictor %q: unknown predictor prefix %q", value, prefix)
 	if levenshtein.Distance(strings.ToLower(prefix), "file") <= 2 || prefix == "files" {
-		return fmt.Errorf("%w: invalid predictor %q (unknown predictor prefix %q, did you mean \"file\"?)", ErrInvalidStructTag, value, prefix)
+		return err.withHint(`did you mean "file"?`)
 	}
 
-	return fmt.Errorf("%w: invalid predictor %q (unknown predictor prefix %q)", ErrInvalidStructTag, value, prefix)
+	return err
 }
 
 func validateBuiltinNameTypo(value string) error {
 	switch value {
 	case "files":
-		return fmt.Errorf("%w: unknown predictor %q (did you mean \"file\"?)", ErrInvalidStructTag, value)
+		return schemaErrorf("unknown predictor %q", value).withHint(`did you mean "file"?`)
 	case "dirs", "directory", "directories":
-		return fmt.Errorf("%w: unknown predictor %q (did you mean \"dir\"?)", ErrInvalidStructTag, value)
+		return schemaErrorf("unknown predictor %q", value).withHint(`did you mean "dir"?`)
 	case "executables":
-		return fmt.Errorf("%w: unknown predictor %q (did you mean \"exec\"?)", ErrInvalidStructTag, value)
+		return schemaErrorf("unknown predictor %q", value).withHint(`did you mean "exec"?`)
 	}
 
 	return nil
@@ -306,7 +308,7 @@ func validateBuiltinNameTypo(value string) error {
 
 func validateCustomPredictor(value string, registeredNames []string) (*PredictorSpec, error) {
 	if strings.ContainsAny(value, " \t\r\n,") {
-		return nil, fmt.Errorf("%w: invalid predictor %q (predictor name cannot contain spaces or commas)", ErrInvalidStructTag, value)
+		return nil, schemaErrorf("invalid predictor %q: predictor name cannot contain spaces or commas", value)
 	}
 
 	if slices.Contains(registeredNames, value) {
@@ -317,10 +319,11 @@ func validateCustomPredictor(value string, registeredNames []string) (*Predictor
 
 	suggestion := levenshtein.SuggestFor(value, candidates)
 	if suggestion != "" {
-		return nil, fmt.Errorf("%w: unregistered predictor %q (did you mean %q?). Register it with app.Predictor(%q, action)", ErrInvalidStructTag, value, suggestion, value)
+		return nil, schemaErrorf("unregistered predictor %q", value).
+			withHintf("did you mean %q? Register it with app.Predictor(%q, action)", suggestion, value)
 	}
 
-	return nil, fmt.Errorf("%w: unregistered predictor %q. Register it with app.Predictor(%q, action)", ErrInvalidStructTag, value, value)
+	return nil, schemaErrorf("unregistered predictor %q", value).withHintf("register it with app.Predictor(%q, action)", value)
 }
 
 func inferPredictorFromOptions(targetType reflect.Type, typePredictors map[reflect.Type]predict.Predictor) *PredictorSpec {

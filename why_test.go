@@ -1236,8 +1236,7 @@ func TestWhy_Collision(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrSchema)
-	assert.Contains(t, err.Error(), "built-in why (enabled by app.EnableWhy())")
+	assert.Equal(t, "struct collidingCLI field Why: duplicate flag --why (note: already declared by the built-in --why flag, enabled by app.EnableWhy())", err.Error())
 }
 
 func TestWhy_Collision_SubcommandUserFlag(t *testing.T) {
@@ -1248,8 +1247,7 @@ func TestWhy_Collision_SubcommandUserFlag(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrSchema)
-	assert.Contains(t, err.Error(), "built-in why (enabled by app.EnableWhy())")
+	assert.Equal(t, "struct whySubCollisionRunner field Why: duplicate flag --why (note: already declared by the built-in --why flag, enabled by app.EnableWhy())", err.Error())
 }
 
 func TestWhy_UserFlagWithoutOptIn(t *testing.T) {

@@ -573,7 +573,7 @@ type Options struct {
 	// HelpShort and VersionShort assign optional short runes to the injected
 	// built-in --help and --version flags (app.HelpShortFlag / app.VersionShortFlag).
 	// Zero keeps them long-only. A rune colliding with a user-declared short is
-	// rejected with ErrDuplicateFlag during schema build.
+	// rejected during schema build.
 	HelpShort    rune
 	VersionShort rune
 	DisableWhy   bool
@@ -584,7 +584,7 @@ type Options struct {
 	// DisableCompletion excludes every completion entry point from the schema:
 	// no `completion` subcommand is mounted and no `--completion` flag is
 	// offered. A command struct that declares a completion command field while
-	// completion is disabled is rejected with an ErrSchema naming the fix,
+	// completion is disabled is rejected with a schema error naming the fix,
 	// rather than silently dropped.
 	DisableCompletion bool
 	// CompletionShells enumerates the shells the completion subsystem supports;
@@ -613,8 +613,8 @@ type Options struct {
 	// ValidateValueType rejects a declared flag or positional argument whose
 	// value type the binder cannot decode, naming the registration that fixes
 	// it. It is supplied by the caller (the root package), which owns the
-	// parser registry; a nil hook skips the check. The returned error must
-	// wrap ErrSchema; schema build adds the struct and field context.
+	// parser registry; a nil hook skips the check. The returned error should
+	// be a *SchemaError; schema build adds the struct and field context.
 	ValidateValueType func(targetType reflect.Type) error
 	// HasTypeParser reports whether the app registered a parser for a value
 	// type. An integer type with a registered parser reads its enum values in

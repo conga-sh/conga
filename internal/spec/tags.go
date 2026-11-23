@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"encoding"
 	"errors"
-	"fmt"
 	"path/filepath"
 	"reflect"
 	"strconv"
@@ -42,20 +41,20 @@ type RangeDomain uint8
 func ParseRangeSpec(tag string) (*Range, error) {
 	tag = strings.TrimSpace(tag)
 	if tag == "" {
-		return nil, fmt.Errorf("%w: tag cannot be empty", ErrInvalidRangeSyntax)
+		return nil, schemaError("range tag cannot be empty")
 	}
 
 	if strings.Contains(tag, "..") {
 		parts := strings.Split(tag, "..")
 		if len(parts) != 2 || strings.Contains(tag, "...") {
-			return nil, fmt.Errorf("%w: %q (expected min..max, min.., or ..max)", ErrInvalidRangeSyntax, tag)
+			return nil, schemaErrorf("invalid range syntax %q", tag).withNote("expected min..max, min.., or ..max")
 		}
 
 		minStr := strings.TrimSpace(parts[0])
 		maxStr := strings.TrimSpace(parts[1])
 
 		if minStr == "" && maxStr == "" {
-			return nil, fmt.Errorf("%w: %q (at least one bound required)", ErrInvalidRangeSyntax, tag)
+			return nil, schemaErrorf("invalid range syntax %q", tag).withNote("at least one bound required")
 		}
 
 		spec := &Range{
@@ -84,13 +83,13 @@ func ParseRangeSpec(tag string) (*Range, error) {
 func ValidateTextBounds(rangeSpec *Range, boundKind string, validate func(string) error) error {
 	if rangeSpec.HasMin {
 		if err := validate(rangeSpec.MinStr); err != nil {
-			return fmt.Errorf("%w: invalid %s min bound %q: %v", ErrInvalidRangeSyntax, boundKind, rangeSpec.MinStr, err) //nolint:errorlint // the cause explains the bound; the category stays ErrInvalidRangeSyntax
+			return schemaErrorf("invalid %s min bound %q: %s", boundKind, rangeSpec.MinStr, err)
 		}
 	}
 
 	if rangeSpec.HasMax {
 		if err := validate(rangeSpec.MaxStr); err != nil {
-			return fmt.Errorf("%w: invalid %s max bound %q: %v", ErrInvalidRangeSyntax, boundKind, rangeSpec.MaxStr, err) //nolint:errorlint // the cause explains the bound; the category stays ErrInvalidRangeSyntax
+			return schemaErrorf("invalid %s max bound %q: %s", boundKind, rangeSpec.MaxStr, err)
 		}
 	}
 
@@ -120,7 +119,7 @@ func ValidateScalarRange[T cmp.Ordered](rangeSpec *Range, boundKind string, pars
 	if rangeSpec.HasMin {
 		v, err := parse(rangeSpec.MinStr)
 		if err != nil {
-			return fmt.Errorf("%w: invalid %s min bound %q%s", ErrInvalidRangeSyntax, boundKind, rangeSpec.MinStr, integerHintSuffix(err))
+			return schemaErrorf("invalid %s min bound %q", boundKind, rangeSpec.MinStr).withHint(intx.HintOf(err))
 		}
 
 		minValue = v
@@ -129,14 +128,14 @@ func ValidateScalarRange[T cmp.Ordered](rangeSpec *Range, boundKind string, pars
 	if rangeSpec.HasMax {
 		v, err := parse(rangeSpec.MaxStr)
 		if err != nil {
-			return fmt.Errorf("%w: invalid %s max bound %q%s", ErrInvalidRangeSyntax, boundKind, rangeSpec.MaxStr, integerHintSuffix(err))
+			return schemaErrorf("invalid %s max bound %q", boundKind, rangeSpec.MaxStr).withHint(intx.HintOf(err))
 		}
 
 		maxValue = v
 	}
 
 	if rangeSpec.HasMin && rangeSpec.HasMax && minValue > maxValue {
-		return fmt.Errorf("%w: min bound %q cannot be greater than max bound %q", ErrInvalidRangeSyntax, rangeSpec.MinStr, rangeSpec.MaxStr)
+		return schemaErrorf("min bound %q cannot be greater than max bound %q", rangeSpec.MinStr, rangeSpec.MaxStr)
 	}
 
 	return nil
@@ -156,11 +155,12 @@ func ParseCountBound(raw string) (int, error) {
 // countBoundError reports an invalid len or items bound. A leading zero gets
 // the integer syntax's correction; any other failure says what a bound must be.
 func countBoundError(tagName, side, raw string, err error) error {
+	boundErr := schemaErrorf("invalid %s %s bound %q", tagName, side, raw)
 	if hint := intx.HintOf(err); hint != "" {
-		return fmt.Errorf("%w: invalid %s %s bound %q (%s)", ErrInvalidRangeSyntax, tagName, side, raw, hint)
+		return boundErr.withHint(hint)
 	}
 
-	return fmt.Errorf("%w: invalid %s %s bound %q (must be non-negative integer)", ErrInvalidRangeSyntax, tagName, side, raw)
+	return boundErr.withNote("must be non-negative integer")
 }
 
 // ValidateCountRangeSpec validates len/items range bounds as non-negative integers.
@@ -190,7 +190,7 @@ func ValidateCountRangeSpec(spec *Range, tagName string) error {
 	}
 
 	if spec.HasMin && spec.HasMax && minValue > maxValue {
-		return fmt.Errorf("%w: %s min bound %q cannot be greater than max bound %q", ErrInvalidRangeSyntax, tagName, spec.MinStr, spec.MaxStr)
+		return schemaErrorf("%s min bound %q cannot be greater than max bound %q", tagName, spec.MinStr, spec.MaxStr)
 	}
 
 	return nil
@@ -213,7 +213,7 @@ func ParseStrictBoolTag(tag reflect.StructTag, key string) (bool, bool, error) {
 	case "false":
 		return false, true, nil
 	default:
-		return false, true, fmt.Errorf("%w: tag %q expects \"true\" or \"false\", got %q", ErrInvalidStructTag, key, raw)
+		return false, true, schemaErrorf(`tag %q expects "true" or "false", got %q`, key, raw)
 	}
 }
 
@@ -222,12 +222,12 @@ func ParseStrictBoolTag(tag reflect.StructTag, key string) (bool, bool, error) {
 // malformed filepath.Match syntax are rejected at schema build. Patterns
 // match file names (not paths) during completion traversal, so a
 // wildcard-free pattern such as "Makefile" matches that literal name.
-// Errors wrap ErrInvalidStructTag.
+// Errors return a *SchemaError.
 func ParseGlobPatterns(value string) ([]string, error) {
 	elements := strings.Split(value, ",")
 	for _, element := range elements {
 		if strings.TrimSpace(element) == "" {
-			return nil, fmt.Errorf("%w: empty glob pattern element (expected comma-separated patterns like \"Makefile,Dockerfile\" or \"*.yaml\")", ErrInvalidStructTag)
+			return nil, schemaError("empty glob pattern element").withNote(`expected comma-separated patterns like "Makefile,Dockerfile" or "*.yaml"`)
 		}
 	}
 
@@ -235,11 +235,12 @@ func ParseGlobPatterns(value string) ([]string, error) {
 
 	for _, pattern := range patterns {
 		if strings.ContainsAny(pattern, `/\`) {
-			return nil, fmt.Errorf("%w: glob pattern %q must not contain path separators (patterns match file names during completion traversal)", ErrInvalidStructTag, pattern)
+			return nil, schemaErrorf("glob pattern %q must not contain path separators", pattern).
+				withNote("patterns match file names during completion traversal")
 		}
 
 		if _, err := filepath.Match(pattern, ""); err != nil {
-			return nil, fmt.Errorf("%w: glob pattern %q is malformed: %w", ErrInvalidStructTag, pattern, err)
+			return nil, schemaErrorf("glob pattern %q is malformed: %s", pattern, err).withCause(err)
 		}
 	}
 
@@ -266,11 +267,11 @@ func ParseSummaryTag(tag reflect.StructTag, defaultSummary string) (string, erro
 
 	trimmed := strings.TrimSpace(summaryTag)
 	if trimmed == "" {
-		return "", fmt.Errorf("%w: tag \"summary\" cannot be empty", ErrInvalidStructTag)
+		return "", schemaError(`tag "summary" cannot be empty`)
 	}
 
 	if strings.ContainsAny(summaryTag, "\r\n") {
-		return "", fmt.Errorf("%w: tag \"summary\" must be a single line without newlines", ErrInvalidStructTag)
+		return "", schemaError(`tag "summary" must be a single line without newlines`)
 	}
 
 	return trimmed, nil
@@ -328,7 +329,7 @@ func TextRangeParser[T cmp.Ordered](elemType reflect.Type) (func(string) (T, err
 
 		value, ok := domainValue[T](domain, bound)
 		if !ok {
-			return zero, fmt.Errorf("%w: range type %s does not project into its native domain", ErrInvalidRangeSyntax, elemType)
+			return zero, schemaErrorf("range type %s does not project into its native domain", elemType)
 		}
 
 		return value, nil
@@ -477,7 +478,7 @@ func scanTagKey(tagStr string, fullTag reflect.StructTag) (string, string, error
 	}
 
 	if i == 0 || i >= len(tagStr) || tagStr[i] != ':' {
-		return "", "", fmt.Errorf("%w: %q", ErrInvalidStructTag, fullTag)
+		return "", "", schemaErrorf("malformed struct tag %q", fullTag)
 	}
 
 	key := tagStr[:i]
@@ -488,7 +489,7 @@ func scanTagKey(tagStr string, fullTag reflect.StructTag) (string, string, error
 
 func scanTagValue(tagStr string, fullTag reflect.StructTag) (string, string, error) {
 	if tagStr == "" || tagStr[0] != '"' {
-		return "", "", fmt.Errorf("%w: %q", ErrInvalidStructTag, fullTag)
+		return "", "", schemaErrorf("malformed struct tag %q", fullTag)
 	}
 
 	tagStr = tagStr[1:]
@@ -503,7 +504,7 @@ func scanTagValue(tagStr string, fullTag reflect.StructTag) (string, string, err
 	}
 
 	if i >= len(tagStr) {
-		return "", "", fmt.Errorf("%w: %q", ErrInvalidStructTag, fullTag)
+		return "", "", schemaErrorf("malformed struct tag %q", fullTag)
 	}
 
 	value := tagStr[:i]
@@ -895,7 +896,7 @@ func validateRangeSpec(rangeSpec *Range, targetType reflect.Type, fieldTags Fiel
 		return ValidateScalarRange(rangeSpec, "float", FloatBoundParser(elemType.Bits()))
 
 	default:
-		return fmt.Errorf("%w: range tag is not supported on type %s", ErrInvalidRangeSyntax, elemType.String())
+		return RangeUnsupportedTypeError(elemType.String())
 	}
 }
 
@@ -924,7 +925,7 @@ func parseTextBound(elemType reflect.Type, domain RangeDomain, raw string) (text
 
 	unmarshaler, ok := reflect.TypeAssert[encoding.TextUnmarshaler](instance)
 	if !ok {
-		return textBound{}, fmt.Errorf("%w: range type %s does not implement encoding.TextUnmarshaler", ErrInvalidRangeSyntax, elemType)
+		return textBound{}, schemaErrorf("range type %s does not implement encoding.TextUnmarshaler", elemType)
 	}
 
 	if err := unmarshaler.UnmarshalText([]byte(raw)); err != nil {
@@ -933,7 +934,7 @@ func parseTextBound(elemType reflect.Type, domain RangeDomain, raw string) (text
 
 	bound, ok := projectTextBound(instance, domain)
 	if !ok {
-		return textBound{}, fmt.Errorf("%w: range type %s has no ordered projection", ErrInvalidRangeSyntax, elemType)
+		return textBound{}, schemaErrorf("range type %s has no ordered projection", elemType)
 	}
 
 	return bound, nil
@@ -1179,10 +1180,10 @@ func integerEnumDecimal(value string, elemType reflect.Type) (string, error) {
 	}
 
 	if errors.Is(err, strconv.ErrRange) {
-		return "", fmt.Errorf("%w: enum value %q is out of range for %s", ErrInvalidStructTag, value, elemType)
+		return "", schemaErrorf("enum value %q is out of range for %s", value, elemType)
 	}
 
-	return "", fmt.Errorf("%w: enum value %q is not a valid %s%s", ErrInvalidStructTag, value, elemType, integerHintSuffix(err))
+	return "", schemaErrorf("enum value %q is not a valid %s", value, elemType).withHint(intx.HintOf(err))
 }
 
 // decodesAsBuiltinInteger reports whether the binder decodes elemType through
@@ -1201,16 +1202,6 @@ func decodesAsBuiltinInteger(elemType reflect.Type, opts *Options) bool {
 	}
 
 	return opts == nil || opts.HasTypeParser == nil || !opts.HasTypeParser(elemType)
-}
-
-// integerHintSuffix renders the leading-zero correction carried by err as a
-// parenthesized suffix, or "" when err carries none.
-func integerHintSuffix(err error) string {
-	if hint := intx.HintOf(err); hint != "" {
-		return " (" + hint + ")"
-	}
-
-	return ""
 }
 
 // extractGenericType extracts the type parameter T from Flag[T] / Arg[T].

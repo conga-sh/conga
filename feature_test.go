@@ -594,8 +594,7 @@ func TestFeature_CLIExposedFlagShadowedByDescendant(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrSchema)
-	assert.Equal(t, `struct featureShadowedDescendantSub field Gates: schema error: duplicate flag: --gates (already declared by struct featureShadowedDescendantCLI field Features on an ancestor command)`, err.Error())
+	assert.Equal(t, `struct featureShadowedDescendantSub field Gates: duplicate flag --gates (note: already declared by struct featureShadowedDescendantCLI field Features on an ancestor command)`, err.Error())
 }
 
 type featureNoCLIDescendantCLI struct {
@@ -651,7 +650,7 @@ func TestFeature_DuplicateName(t *testing.T) {
 
 	err := app.Run()
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), `feature "dup" (already declared`)
+	assert.Equal(t, `struct featureDuplicateSet field Second: duplicate feature "dup" (note: already declared by field First)`, err.Error())
 }
 
 func TestFeature_FlagGating_Disabled(t *testing.T) {
@@ -1078,8 +1077,7 @@ func TestFeature_ContainerEnvAndPrefixConflict(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrSchema)
-	assert.Contains(t, err.Error(), `tag "env" and tag "envprefix" cannot both be declared on a conga.Features container (env names the combined map variable; envprefix derives one variable per feature)`)
+	assert.Contains(t, err.Error(), `tag "env" and tag "envprefix" cannot both be declared on a conga.Features container (note: env names the combined map variable; envprefix derives one variable per feature)`)
 }
 
 // TestFeature_FieldEnvWithContainerEnvConflict pins the one-env-surface rule:
@@ -1100,8 +1098,7 @@ func TestFeature_FieldEnvWithContainerEnvConflict(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrSchema)
-	assert.Contains(t, err.Error(), `feature field Enabled declares env while the Features container declares env (the combined map variable); declare one env surface per container`)
+	assert.Contains(t, err.Error(), `feature field Enabled declares env while the Features container declares env (note: the container's env tag names the combined map variable; hint: declare one env surface per container)`)
 }
 
 // TestFeature_FieldEnv_MultipleNamesFirstSetWins pins the flag-convention
@@ -1548,7 +1545,6 @@ func TestFeature_FieldEnv_CollisionTests(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
 		assert.Contains(t, err.Error(), `environment variable "CONGA_TEST_SHARED_VAR" is bound by both feature "first" and feature "second"`)
 	})
 
@@ -1567,7 +1563,6 @@ func TestFeature_FieldEnv_CollisionTests(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
 		assert.Contains(t, err.Error(), `environment variable "CONGA_TEST_TASK_X_SECOND" is bound by both feature "first" and feature "second"`)
 	})
 
@@ -1581,8 +1576,7 @@ func TestFeature_FieldEnv_CollisionTests(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, `struct featureEnvFlagDupCLI field Features: schema error: environment variable "CONGA_TEST_SHARED_VAR" is bound by both feature "enabled" and flag --port`, err.Error())
+		assert.Equal(t, `struct featureEnvFlagDupCLI field Features: environment variable "CONGA_TEST_SHARED_VAR" is bound by both feature "enabled" and flag --port`, err.Error())
 	})
 
 	t.Run("field variable collides with a derived flag variable", func(t *testing.T) {
@@ -1595,7 +1589,6 @@ func TestFeature_FieldEnv_CollisionTests(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
 		assert.Contains(t, err.Error(), `environment variable "CONGA_TEST_TASK_X_PORT" is bound by both feature "enabled" and flag --port`)
 	})
 
@@ -1609,7 +1602,6 @@ func TestFeature_FieldEnv_CollisionTests(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
 		assert.Contains(t, err.Error(), `environment variable "CONGA_TEST_SHARED_MAP_VAR" is bound by both the feature map flag --feature-gates and flag --port`)
 	})
 
@@ -1623,7 +1615,6 @@ func TestFeature_FieldEnv_CollisionTests(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
 		assert.Contains(t, err.Error(), `environment variable "CONGA_TEST_SUB_CONGA_TEST_SHARED_VAR" is bound by both feature "enabled" and flag --name`)
 	})
 
@@ -2830,7 +2821,6 @@ func TestFeature_ValueComparisonSyntaxRejected(t *testing.T) {
 
 	err := app.Run()
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrSchema)
 	assert.Contains(t, err.Error(), `invalid feature tag syntax "syntax=3"`)
 }
 
@@ -3100,7 +3090,6 @@ func TestFeature_RequiresEnableFeatures(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrSchema)
 	assert.Contains(t, err.Error(), "conga.Features declared on root command requires app.EnableFeatures()")
 }
 
@@ -3525,8 +3514,8 @@ func TestFeature_ImplicitCommandGateRejected(t *testing.T) {
 
 	err := app.Run()
 
-	assert.IsError(t, err, conga.ErrSchema)
-	assert.Equal(t, `struct featureGatedImplicitCLI field Run: schema error: tag "feature" cannot be combined with implicit:"true" (an implicit command is entered without being named, so it cannot be gated; gate the parent, or make the command explicit)`, err.Error())
+	assert.Error(t, err)
+	assert.Equal(t, `struct featureGatedImplicitCLI field Run: tag "feature" cannot be combined with implicit:"true" (note: an implicit command is entered without being named, so it cannot be gated; hint: gate the parent, or make the command explicit)`, err.Error())
 }
 
 // Gating the parent of an implicit command, and a flag declared on it, still

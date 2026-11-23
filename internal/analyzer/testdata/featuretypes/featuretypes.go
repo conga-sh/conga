@@ -10,7 +10,7 @@ import (
 
 type badFeatureSet struct {
 	Enabled bool
-	Label   string // want `struct featureTypesApp field Label: schema error: invalid struct tag: feature field Label must be a bool or an integer, got string`
+	Label   string // want `struct badFeatureSet field Label: feature fields must be a bool or an integer, got string`
 }
 
 type featureTypesApp struct {

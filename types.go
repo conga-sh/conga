@@ -772,7 +772,7 @@ func (v *VersionCommand) Run(ctx context.Context, session *Session) error {
 //	}
 //
 // The field requires [App.EnableCompletion]; declaring it without that call fails
-// schema build with an [ErrSchema] error naming the missing opt-in.
+// schema build with a schema error naming the missing opt-in.
 //
 // The completion subcommand is a meta-command: it bypasses the execution
 // lifecycle, so ancestor [PreRunner], [PostRunner], and [Finalizer] hooks do not run
@@ -847,8 +847,8 @@ func (c *CompletionCommand) Run(ctx context.Context, session *Session) error {
 //
 // Declare the Features field on the root command struct only. Activating
 // feature toggles requires calling [App.EnableFeatures] on the application
-// builder; declaring a Features field or a feature tag without it fails schema
-// build with [ErrSchema].
+// builder; declaring a Features field or a feature tag without it fails
+// schema build.
 //
 // Every feature is
 // carried by a single key=value map surface: the map flag named by the flag

@@ -40,7 +40,7 @@ type toolsCmd struct {
 type App struct {
 	Features conga.Features[gates] `flag:"feature-gates"`
 
-	Run   conga.Command[runCmd]   `feature:"runner" implicit:"true" summary:"Run a script"` // want `struct App field Run: schema error: tag "feature" cannot be combined with implicit:"true" \(an implicit command is entered without being named, so it cannot be gated; gate the parent, or make the command explicit\)`
+	Run   conga.Command[runCmd]   `feature:"runner" implicit:"true" summary:"Run a script"` // want `struct App field Run: tag "feature" cannot be combined with implicit:"true"`
 	Build conga.Command[buildCmd] `summary:"Build"`
 	Tools conga.Command[toolsCmd] `feature:"runner" summary:"Gated parent of an implicit command"`
 }

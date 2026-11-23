@@ -1924,7 +1924,7 @@ func TestByteSizeUnitsTagRestrictsAcceptedFamilies(t *testing.T) {
 }
 
 // TestByteSizeTagSchemaErrors verifies that invalid tag values fail schema build
-// with a self-describing message and the ErrSchema category.
+// with a self-describing message.
 func TestByteSizeTagSchemaErrors(t *testing.T) {
 	t.Parallel()
 
@@ -1934,8 +1934,7 @@ func TestByteSizeTagSchemaErrors(t *testing.T) {
 		err := conga.New[invalidByteSizeUnitsCLI]().Args([]string{}).RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, `struct invalidByteSizeUnitsCLI field Memory: schema error: invalid struct tag: tag "units": unknown units value "hex" (want "binary", "decimal", or "both")`, err.Error())
+		assert.Equal(t, `struct invalidByteSizeUnitsCLI field Memory: tag "units": unknown units value "hex" (want "binary", "decimal", or "both")`, err.Error())
 	})
 
 	t.Run("display", func(t *testing.T) {
@@ -1944,8 +1943,7 @@ func TestByteSizeTagSchemaErrors(t *testing.T) {
 		err := conga.New[invalidByteSizeDisplayCLI]().Args([]string{}).RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, `struct invalidByteSizeDisplayCLI field Memory: schema error: invalid struct tag: tag "display": unknown display value "hex" (want "binary", "decimal", or "input")`, err.Error())
+		assert.Equal(t, `struct invalidByteSizeDisplayCLI field Memory: tag "display": unknown display value "hex" (want "binary", "decimal", or "input")`, err.Error())
 	})
 }
 

@@ -60,7 +60,7 @@ func TestBuild_EnumOnFilterableTypeRejected(t *testing.T) {
 
 				return &CLI{}
 			},
-			expected: `struct CLI field Env: schema error: invalid struct tag: tag "enum" is not supported on spec_test.enumFileFilter; use a string field with tag "enum" to accept a fixed set of names`,
+			expected: `struct CLI field Env: tag "enum" is not supported on spec_test.enumFileFilter (hint: use a string field with tag "enum" to accept a fixed set of names)`,
 		},
 		{
 			name: "DirFilterable pointer receiver",
@@ -71,7 +71,7 @@ func TestBuild_EnumOnFilterableTypeRejected(t *testing.T) {
 
 				return &CLI{}
 			},
-			expected: `struct CLI field Env: schema error: invalid struct tag: tag "enum" is not supported on spec_test.enumDirFilter; use a string field with tag "enum" to accept a fixed set of names`,
+			expected: `struct CLI field Env: tag "enum" is not supported on spec_test.enumDirFilter (hint: use a string field with tag "enum" to accept a fixed set of names)`,
 		},
 		{
 			name: "PathFilterable slice",
@@ -82,7 +82,7 @@ func TestBuild_EnumOnFilterableTypeRejected(t *testing.T) {
 
 				return &CLI{}
 			},
-			expected: `struct CLI field Env: schema error: invalid struct tag: tag "enum" is not supported on spec_test.enumPathFilter; use a string field with tag "enum" to accept a fixed set of names`,
+			expected: `struct CLI field Env: tag "enum" is not supported on spec_test.enumPathFilter (hint: use a string field with tag "enum" to accept a fixed set of names)`,
 		},
 	}
 
@@ -92,7 +92,7 @@ func TestBuild_EnumOnFilterableTypeRejected(t *testing.T) {
 
 			_, err := buildSchema(testCase.newCLI(), "app", spec.Options{})
 
-			assert.IsError(t, err, spec.ErrSchema)
+			assert.True(t, spec.IsSchemaError(err))
 			assert.Equal(t, testCase.expected, err.Error())
 		})
 	}
@@ -101,7 +101,7 @@ func TestBuild_EnumOnFilterableTypeRejected(t *testing.T) {
 func TestBuild_EnumWithPathPredictorRejected(t *testing.T) {
 	t.Parallel()
 
-	const fileMessage = `struct CLI field Env: schema error: invalid struct tag: tag "enum" cannot be combined with predictor:"file"; remove tag "enum" (predictor:"file:<patterns>" filters completion candidates), or remove the predictor tag to complete the enum values`
+	const fileMessage = `struct CLI field Env: tag "enum" cannot be combined with predictor:"file" (note: predictor:"file:<patterns>" filters completion candidates; hint: remove tag "enum", or remove the predictor tag to complete the enum values)`
 
 	testCases := []struct {
 		name     string
@@ -150,7 +150,7 @@ func TestBuild_EnumWithPathPredictorRejected(t *testing.T) {
 
 				return &CLI{}
 			},
-			expected: `struct CLI field Env: schema error: invalid struct tag: tag "enum" cannot be combined with predictor:"dir"; remove tag "enum", or remove the predictor tag to complete the enum values`,
+			expected: `struct CLI field Env: tag "enum" cannot be combined with predictor:"dir" (hint: remove tag "enum", or remove the predictor tag to complete the enum values)`,
 		},
 		{
 			name: "exec",
@@ -161,7 +161,7 @@ func TestBuild_EnumWithPathPredictorRejected(t *testing.T) {
 
 				return &CLI{}
 			},
-			expected: `struct CLI field Env: schema error: invalid struct tag: tag "enum" cannot be combined with predictor:"exec"; remove tag "enum", or remove the predictor tag to complete the enum values`,
+			expected: `struct CLI field Env: tag "enum" cannot be combined with predictor:"exec" (hint: remove tag "enum", or remove the predictor tag to complete the enum values)`,
 		},
 		{
 			name: "executable names exec",
@@ -172,7 +172,7 @@ func TestBuild_EnumWithPathPredictorRejected(t *testing.T) {
 
 				return &CLI{}
 			},
-			expected: `struct CLI field Env: schema error: invalid struct tag: tag "enum" cannot be combined with predictor:"exec"; remove tag "enum", or remove the predictor tag to complete the enum values`,
+			expected: `struct CLI field Env: tag "enum" cannot be combined with predictor:"exec" (hint: remove tag "enum", or remove the predictor tag to complete the enum values)`,
 		},
 		{
 			name: "symlink",
@@ -183,7 +183,7 @@ func TestBuild_EnumWithPathPredictorRejected(t *testing.T) {
 
 				return &CLI{}
 			},
-			expected: `struct CLI field Env: schema error: invalid struct tag: tag "enum" cannot be combined with predictor:"symlink"; remove tag "enum", or remove the predictor tag to complete the enum values`,
+			expected: `struct CLI field Env: tag "enum" cannot be combined with predictor:"symlink" (hint: remove tag "enum", or remove the predictor tag to complete the enum values)`,
 		},
 		{
 			name: "symlinks names symlink",
@@ -194,7 +194,7 @@ func TestBuild_EnumWithPathPredictorRejected(t *testing.T) {
 
 				return &CLI{}
 			},
-			expected: `struct CLI field Env: schema error: invalid struct tag: tag "enum" cannot be combined with predictor:"symlink"; remove tag "enum", or remove the predictor tag to complete the enum values`,
+			expected: `struct CLI field Env: tag "enum" cannot be combined with predictor:"symlink" (hint: remove tag "enum", or remove the predictor tag to complete the enum values)`,
 		},
 	}
 
@@ -204,7 +204,7 @@ func TestBuild_EnumWithPathPredictorRejected(t *testing.T) {
 
 			_, err := buildSchema(testCase.newCLI(), "app", spec.Options{})
 
-			assert.IsError(t, err, spec.ErrSchema)
+			assert.True(t, spec.IsSchemaError(err))
 			assert.Equal(t, testCase.expected, err.Error())
 		})
 	}
@@ -219,8 +219,8 @@ func TestBuild_EnumWithMalformedFilePredictorReportsSyntax(t *testing.T) {
 
 	_, err := buildSchema(&CLI{}, "app", spec.Options{})
 
-	assert.IsError(t, err, spec.ErrSchema)
-	assert.Equal(t, `struct CLI field Env: schema error: invalid struct tag: invalid predictor syntax "file:": file filter pattern cannot be empty (expected file:*.ext)`, err.Error())
+	assert.True(t, spec.IsSchemaError(err))
+	assert.Equal(t, `struct CLI field Env: invalid predictor syntax "file:": file filter pattern cannot be empty (note: expected file:*.ext)`, err.Error())
 }
 
 func TestBuild_EnumWithNonPathPredictorBuilds(t *testing.T) {

@@ -2,8 +2,8 @@
 
 Registering third-party struct-tag keys with `app.AllowTags(...)`.
 The schema mixes CONGA tags with third-party `validate:"..."` and `db:"..."`
-tags owned by other libraries; tag validation rejects unknown keys with an
-`ErrSchema` error before `Run` unless the app registers them.
+tags owned by other libraries; tag validation rejects unknown keys with a
+schema error before `Run` unless the app registers them.
 
 ## Run it
 
@@ -16,7 +16,7 @@ go run ./_examples/27-strict-tag-validation --help
 
 - The schema builds and runs once the foreign tag keys are registered.
 - Registered keys are matched exactly: a misspelling of a registered key is
-  still rejected with an `ErrSchema` error.
+  still rejected with a schema error.
 - Third-party tags are inert: they never appear in help or the inspector.
 
 ## Test

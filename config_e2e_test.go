@@ -220,8 +220,7 @@ func TestConfigFile_SchemaValidation_SubcommandRejected(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrSchema)
-	assert.Equal(t, "struct SubcommandWithConfig field Config: schema error: ConfigFile can only be declared on the root command", err.Error())
+	assert.Equal(t, "struct SubcommandWithConfig field Config: ConfigFile can only be declared on the root command", err.Error())
 }
 
 func TestConfigFile_SchemaValidation_DuplicateRejected(t *testing.T) {
@@ -238,8 +237,7 @@ func TestConfigFile_SchemaValidation_DuplicateRejected(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrSchema)
-	assert.Equal(t, "struct DuplicateConfigCLI field Config2: schema error: duplicate ConfigFile field (already declared by field Config1)", err.Error())
+	assert.Equal(t, "struct DuplicateConfigCLI field Config2: duplicate ConfigFile field (note: already declared by field Config1)", err.Error())
 }
 
 func TestConfigFile_SchemaValidation_CascadingRequiresMulti(t *testing.T) {
@@ -258,8 +256,7 @@ func TestConfigFile_SchemaValidation_CascadingRequiresMulti(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrSchema)
-	assert.Equal(t, `schema error: conga.ConfigCascading() merges multiple config files; the root config-file flag "config" must declare multi:"true" (or drop conga.ConfigCascading() from app.ConfigOptions(...))`, err.Error())
+	assert.Equal(t, `the root config-file flag "config" must declare multi:"true" (note: conga.ConfigCascading() merges multiple config files; hint: add multi:"true" or drop conga.ConfigCascading() from app.ConfigOptions(...))`, err.Error())
 }
 
 func TestConfigFile_SchemaValidation_CascadingWithMultiAccepted(t *testing.T) {
@@ -318,8 +315,7 @@ func TestConfigFile_SchemaValidation_ReservedPseudoTagsRejected(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, `struct PseudoTagCLI field Config: schema error: invalid struct tag: struct tag "~explicit" is reserved for CONGA's app-level configuration settings; declare it via app.ConfigOptions(...) instead`, err.Error())
+		assert.Equal(t, `struct PseudoTagCLI field Config: struct tag "~explicit" is reserved for CONGA's app-level configuration settings (hint: declare it via app.ConfigOptions(...) instead)`, err.Error())
 	})
 
 	t.Run("cascading pseudo-tag on plain flag", func(t *testing.T) {
@@ -337,7 +333,6 @@ func TestConfigFile_SchemaValidation_ReservedPseudoTagsRejected(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
 		assert.Contains(t, err.Error(), `struct tag "~cascading" is reserved`)
 	})
 }
@@ -588,8 +583,7 @@ func TestConfigFile_DefaultTagRejected(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrSchema)
-	assert.Equal(t, `struct DefaultTagConfigFileCLI field ConfigFile: schema error: invalid struct tag: tag "default" is not supported on config-file flags; declare search locations with app.ConfigOptions(conga.ConfigPaths(...)) or conga.ConfigExplicit(...), or show an example value with placeholder:"..."`, err.Error())
+	assert.Equal(t, `struct DefaultTagConfigFileCLI field ConfigFile: tag "default" is not supported on config-file flags (hint: declare search locations with app.ConfigOptions(conga.ConfigPaths(...)) or conga.ConfigExplicit(...), or show an example value with placeholder:"...")`, err.Error())
 }
 
 type configEnvDerivedCLI struct {
@@ -638,28 +632,28 @@ func TestSchema_ConfigEnvCollision(t *testing.T) {
 			run: func() error {
 				return conga.New[configEnvDerivedCLI]().EnvPrefix("PC").RegisterDecoder(".json", json.Decode).Args(nil).Run()
 			},
-			expected: `struct configEnvDerivedCLI field Config: schema error: environment variable "PC_CONFIG" is bound by both the config file variable and flag --config; give the flag another env tag or exclude it with env:"-"`,
+			expected: `struct configEnvDerivedCLI field Config: environment variable "PC_CONFIG" is bound by both the config file variable and flag --config (hint: give the flag another env tag or exclude it with env:"-")`,
 		},
 		{
 			name: "explicit env tag on a subcommand flag",
 			run: func() error {
 				return conga.New[configEnvSubcommandCLI]().EnvPrefix("PC").RegisterDecoder(".json", json.Decode).Args(nil).Run()
 			},
-			expected: `struct configEnvSubcommandLeaf field Name: schema error: environment variable "PC_CONFIG" is bound by both the config file variable and flag --name; give the flag another env tag or exclude it with env:"-"`,
+			expected: `struct configEnvSubcommandLeaf field Name: environment variable "PC_CONFIG" is bound by both the config file variable and flag --name (hint: give the flag another env tag or exclude it with env:"-")`,
 		},
 		{
 			name: "flag colliding with a ConfigFile",
 			run: func() error {
 				return conga.New[configEnvConfigFileCLI]().EnvPrefix("PC").RegisterDecoder(".json", json.Decode).Args(nil).Run()
 			},
-			expected: `struct configEnvConfigFileCLI field Config: schema error: environment variable "PC_CONFIG" is bound by both flag --config-file and flag --config; give the flag another env tag or exclude it with env:"-"`,
+			expected: `struct configEnvConfigFileCLI field Config: environment variable "PC_CONFIG" is bound by both flag --config-file and flag --config (hint: give the flag another env tag or exclude it with env:"-")`,
 		},
 		{
 			name: "feature variable",
 			run: func() error {
 				return conga.New[configEnvFeatureCLI]().EnvPrefix("PC").EnableFeatures().RegisterDecoder(".json", json.Decode).Args(nil).Run()
 			},
-			expected: `struct configEnvFeatureCLI field Features: schema error: environment variable "PC_CONFIG" is bound by both the config file variable and feature "config"; give the feature another env tag or exclude it with env:"-"`,
+			expected: `struct configEnvFeatureCLI field Features: environment variable "PC_CONFIG" is bound by both the config file variable and feature "config" (hint: give the feature another env tag or exclude it with env:"-")`,
 		},
 	}
 
@@ -669,7 +663,7 @@ func TestSchema_ConfigEnvCollision(t *testing.T) {
 
 			err := testCase.run()
 
-			assert.IsError(t, err, conga.ErrSchema)
+			assert.Error(t, err)
 			assert.Equal(t, testCase.expected, err.Error())
 		})
 	}
@@ -714,28 +708,28 @@ func TestSchema_ConfigEnvCollisionFeaturesAndConfigFile(t *testing.T) {
 			run: func() error {
 				return conga.New[configEnvMapNoFlagCLI]().EnvPrefix("PC").EnableFeatures().RegisterDecoder(".json", json.Decode).Args(nil).Run()
 			},
-			expected: `struct configEnvMapNoFlagCLI field Features: schema error: environment variable "PC_CONFIG" is bound by both the config file variable and the Features container; give the Features container another env tag`,
+			expected: `struct configEnvMapNoFlagCLI field Features: environment variable "PC_CONFIG" is bound by both the config file variable and the Features container (hint: give the Features container another env tag)`,
 		},
 		{
 			name: "Features container with a flag",
 			run: func() error {
 				return conga.New[configEnvMapFlagCLI]().EnvPrefix("PC").EnableFeatures().RegisterDecoder(".json", json.Decode).Args(nil).Run()
 			},
-			expected: `struct configEnvMapFlagCLI field Features: schema error: environment variable "PC_CONFIG" is bound by both the config file variable and the feature map flag --feature-gates; give the Features container another env tag`,
+			expected: `struct configEnvMapFlagCLI field Features: environment variable "PC_CONFIG" is bound by both the config file variable and the feature map flag --feature-gates (hint: give the Features container another env tag)`,
 		},
 		{
 			name: "feature colliding with a ConfigFile",
 			run: func() error {
 				return conga.New[configEnvConfigFileFeatureCLI]().EnvPrefix("PC").EnableFeatures().Args(nil).Run()
 			},
-			expected: `struct configEnvConfigFileFeatureCLI field Features: schema error: environment variable "PC_CONFIG" is bound by both flag --config-file and feature "config"; give the feature another env tag or exclude it with env:"-"`,
+			expected: `struct configEnvConfigFileFeatureCLI field Features: environment variable "PC_CONFIG" is bound by both flag --config-file and feature "config" (hint: give the feature another env tag or exclude it with env:"-")`,
 		},
 		{
 			name: "ConfigFile without a decoder still reserves its variable",
 			run: func() error {
 				return conga.New[configEnvConfigFileNoDecoderCLI]().EnvPrefix("PC").Args(nil).Run()
 			},
-			expected: `struct configEnvConfigFileNoDecoderCLI field Config: schema error: environment variable "PC_CONFIG" is bound by both flag --config-file and flag --config; give the flag another env tag or exclude it with env:"-"`,
+			expected: `struct configEnvConfigFileNoDecoderCLI field Config: environment variable "PC_CONFIG" is bound by both flag --config-file and flag --config (hint: give the flag another env tag or exclude it with env:"-")`,
 		},
 	}
 
@@ -745,7 +739,7 @@ func TestSchema_ConfigEnvCollisionFeaturesAndConfigFile(t *testing.T) {
 
 			err := testCase.run()
 
-			assert.IsError(t, err, conga.ErrSchema)
+			assert.Error(t, err)
 			assert.Equal(t, testCase.expected, err.Error())
 		})
 	}

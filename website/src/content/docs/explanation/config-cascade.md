@@ -13,7 +13,7 @@ Merge semantics differ by value shape. Scalar and slice flags take the nearest f
 
 Because a cascade can load more than one file, a declared root config-file flag must accept multiple values (`multi:"true"`) so it can report every merged file. The schema rejects the combination otherwise.
 
-`conga.ConfigExplicit(...)` specifies a single configuration file target, the application's default file. A missing file is an error, and a file the user names with `--config-file` or `<PREFIX>_CONFIG` replaces it. It cannot be combined with `conga.ConfigPaths(...)` or `conga.ConfigCascading()`. Attempting to combine them fails schema initialization with `ErrSchema` and is reported as a violation by `conga-lint`.
+`conga.ConfigExplicit(...)` specifies a single configuration file target, the application's default file. A missing file is an error, and a file the user names with `--config-file` or `<PREFIX>_CONFIG` replaces it. It cannot be combined with `conga.ConfigPaths(...)` or `conga.ConfigCascading()`. Attempting to combine them fails schema build and is reported as a violation by `conga-lint`.
 
 ## Programmatic documents
 

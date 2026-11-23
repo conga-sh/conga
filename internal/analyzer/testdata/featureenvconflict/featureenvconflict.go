@@ -14,7 +14,7 @@ type modeConflictSet struct {
 }
 
 type modeConflictApp struct {
-	Features conga.Features[modeConflictSet] `env:"APP_FEATURES" envprefix:"APP_"` // want `struct modeConflictApp field Features: schema error: tag "env" and tag "envprefix" cannot both be declared on a conga.Features container \(env names the combined map variable; envprefix derives one variable per feature\)`
+	Features conga.Features[modeConflictSet] `env:"APP_FEATURES" envprefix:"APP_"` // want `struct modeConflictApp field Features: tag "env" and tag "envprefix" cannot both be declared on a conga.Features container`
 }
 
 func (a *modeConflictApp) Run(ctx context.Context, session *conga.Session) error {
@@ -28,7 +28,7 @@ type fieldConflictSet struct {
 }
 
 type fieldConflictApp struct {
-	Features conga.Features[fieldConflictSet] `env:"APP_FEATURES" flag:"feature-gates"` // want `struct fieldConflictApp field Features: schema error: feature field Enabled declares env while the Features container declares env \(the combined map variable\); declare one env surface per container`
+	Features conga.Features[fieldConflictSet] `env:"APP_FEATURES" flag:"feature-gates"` // want `struct fieldConflictApp field Features: feature field Enabled declares env while the Features container declares env`
 }
 
 func (a *fieldConflictApp) Run(ctx context.Context, session *conga.Session) error {

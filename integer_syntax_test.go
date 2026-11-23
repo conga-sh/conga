@@ -468,8 +468,7 @@ func TestIntegerSyntax_EnumSchemaErrors(t *testing.T) {
 		err := conga.New[CLI]().Args([]string{}).RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.Equal(t, `struct CLI field Pick: schema error: invalid struct tag: enum value "0755" is not a valid int (a leading zero is ambiguous: write 0o755 for octal or 755 for decimal)`, err.Error())
-		assert.IsError(t, err, conga.ErrSchema)
+		assert.Equal(t, `struct CLI field Pick: enum value "0755" is not a valid int (hint: a leading zero is ambiguous: write 0o755 for octal or 755 for decimal)`, err.Error())
 	})
 
 	t.Run("not an integer", func(t *testing.T) {
@@ -484,8 +483,7 @@ func TestIntegerSyntax_EnumSchemaErrors(t *testing.T) {
 		err := conga.New[CLI]().Args([]string{}).RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.Equal(t, `struct CLI field Pick: schema error: invalid struct tag: enum value "one" is not a valid int`, err.Error())
-		assert.IsError(t, err, conga.ErrSchema)
+		assert.Equal(t, `struct CLI field Pick: enum value "one" is not a valid int`, err.Error())
 	})
 
 	t.Run("out of range for the element type", func(t *testing.T) {
@@ -500,8 +498,7 @@ func TestIntegerSyntax_EnumSchemaErrors(t *testing.T) {
 		err := conga.New[CLI]().Args([]string{}).RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.Equal(t, `struct CLI field Pick: schema error: invalid struct tag: enum value "0x100" is out of range for uint8`, err.Error())
-		assert.IsError(t, err, conga.ErrSchema)
+		assert.Equal(t, `struct CLI field Pick: enum value "0x100" is out of range for uint8`, err.Error())
 	})
 }
 
@@ -572,8 +569,7 @@ func TestIntegerSyntax_RangeBounds(t *testing.T) {
 		err := conga.New[CLI]().Args([]string{}).RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.Equal(t, `struct CLI field Width: schema error: invalid range syntax: invalid integer min bound "010" (a leading zero is ambiguous: write 0o10 for octal or 10 for decimal)`, err.Error())
-		assert.IsError(t, err, conga.ErrSchema)
+		assert.Equal(t, `struct CLI field Width: invalid integer min bound "010" (hint: a leading zero is ambiguous: write 0o10 for octal or 10 for decimal)`, err.Error())
 	})
 
 	t.Run("leading zero unsigned max bound", func(t *testing.T) {
@@ -588,8 +584,7 @@ func TestIntegerSyntax_RangeBounds(t *testing.T) {
 		err := conga.New[CLI]().Args([]string{}).RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.Equal(t, `struct CLI field Size: schema error: invalid range syntax: invalid unsigned integer max bound "020" (a leading zero is ambiguous: write 0o20 for octal or 20 for decimal)`, err.Error())
-		assert.IsError(t, err, conga.ErrSchema)
+		assert.Equal(t, `struct CLI field Size: invalid unsigned integer max bound "020" (hint: a leading zero is ambiguous: write 0o20 for octal or 20 for decimal)`, err.Error())
 	})
 }
 
@@ -646,8 +641,7 @@ func TestIntegerSyntax_FeatureLevels(t *testing.T) {
 		err := conga.New[CLI]().EnableFeatures().Args([]string{}).RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.Equal(t, `struct CLI field Features: schema error: invalid struct tag: feature enum value "02": must be a non-negative integer (a leading zero is ambiguous: write 0o2 for octal or 2 for decimal)`, err.Error())
-		assert.IsError(t, err, conga.ErrSchema)
+		assert.Equal(t, `struct levels field Depth: feature enum value "02": must be a non-negative integer (hint: a leading zero is ambiguous: write 0o2 for octal or 2 for decimal)`, err.Error())
 	})
 }
 
@@ -740,8 +734,7 @@ func TestIntegerSyntax_CountBounds(t *testing.T) {
 		err := conga.New[CLI]().Args([]string{}).RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.Equal(t, `struct CLI field Region: schema error: invalid range syntax: invalid len min bound "010" (a leading zero is ambiguous: write 0o10 for octal or 10 for decimal)`, err.Error())
-		assert.IsError(t, err, conga.ErrSchema)
+		assert.Equal(t, `struct CLI field Region: invalid len min bound "010" (hint: a leading zero is ambiguous: write 0o10 for octal or 10 for decimal)`, err.Error())
 	})
 
 	t.Run("leading zero items max bound", func(t *testing.T) {
@@ -756,8 +749,7 @@ func TestIntegerSyntax_CountBounds(t *testing.T) {
 		err := conga.New[CLI]().Args([]string{}).RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.Equal(t, `struct CLI field Hosts: schema error: invalid range syntax: invalid items max bound "05" (a leading zero is ambiguous: write 0o5 for octal or 5 for decimal)`, err.Error())
-		assert.IsError(t, err, conga.ErrSchema)
+		assert.Equal(t, `struct CLI field Hosts: invalid items max bound "05" (hint: a leading zero is ambiguous: write 0o5 for octal or 5 for decimal)`, err.Error())
 	})
 }
 
@@ -820,8 +812,7 @@ func TestIntegerSyntax_SignedCountBound(t *testing.T) {
 		err := conga.New[CLI]().Args([]string{}).RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.Equal(t, `struct CLI field Region: schema error: invalid range syntax: invalid len min bound "-05" (must be non-negative integer)`, err.Error())
-		assert.IsError(t, err, conga.ErrSchema)
+		assert.Equal(t, `struct CLI field Region: invalid len min bound "-05" (note: must be non-negative integer)`, err.Error())
 	})
 
 	t.Run("negative", func(t *testing.T) {
@@ -836,8 +827,7 @@ func TestIntegerSyntax_SignedCountBound(t *testing.T) {
 		err := conga.New[CLI]().Args([]string{}).RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.Equal(t, `struct CLI field Hosts: schema error: invalid range syntax: invalid items max bound "-1" (must be non-negative integer)`, err.Error())
-		assert.IsError(t, err, conga.ErrSchema)
+		assert.Equal(t, `struct CLI field Hosts: invalid items max bound "-1" (note: must be non-negative integer)`, err.Error())
 	})
 }
 

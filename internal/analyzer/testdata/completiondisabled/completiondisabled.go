@@ -11,7 +11,7 @@ import (
 
 // CLI declares a completion command without enabling completion.
 type CLI struct {
-	Completion conga.CompletionCommand `summary:"Generate shell completion scripts"` // want `completion command declared without completion enabled; call app\.EnableCompletion\(\) when constructing the app, or remove the field`
+	Completion conga.CompletionCommand `summary:"Generate shell completion scripts"` // want `completion command declared without completion enabled`
 }
 
 // Run executes the CLI.

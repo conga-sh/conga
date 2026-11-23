@@ -74,7 +74,7 @@ func (c *InvalidArgOrderWithDefaultCLI) Run(_ context.Context, _ *conga.Session)
 
 // TestRegression_ArgOrderDefaultTagHole reproduces Finding 4 from REVIEW.md:
 // An optional argument with a default tag preceding a required argument must be rejected
-// at schema construction time with ErrInvalidArgOrder.
+// at schema construction time.
 func TestRegression_ArgOrderDefaultTagHole(t *testing.T) {
 	t.Parallel()
 
@@ -84,8 +84,7 @@ func TestRegression_ArgOrderDefaultTagHole(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrSchema)
-	assert.Equal(t, "struct InvalidArgOrderWithDefaultCLI field Req: schema error: invalid positional argument order: optional positional argument cannot precede required positional argument <req>", err.Error())
+	assert.Equal(t, "struct InvalidArgOrderWithDefaultCLI field Req: optional positional argument cannot precede required positional argument <req>", err.Error())
 }
 
 type MapArgConstraintCLI struct {
@@ -251,8 +250,7 @@ func TestMapKeyAndValueTypes(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, "struct nonStringKeyMapCLI field Counts: schema error: map keys must be of type string, got int", err.Error())
+		assert.Equal(t, "struct nonStringKeyMapCLI field Counts: map keys must be of type string, got int", err.Error())
 	})
 }
 
@@ -306,8 +304,7 @@ func TestRegression_MapSchemaRejectsScalarConstraints(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, `struct MapEnumFlagCLI field Options: schema error: invalid struct tag: tag "enum" is not supported on map types. Use tag "items" to constrain the number of map entries, or custom domain types with SelfValidator to validate map entries`, err.Error())
+		assert.Equal(t, `struct MapEnumFlagCLI field Options: tag "enum" is not supported on map types (hint: use tag "items" to constrain the number of map entries, or custom domain types with SelfValidator to validate map entries)`, err.Error())
 	})
 
 	t.Run("range tag on map flag rejected", func(t *testing.T) {
@@ -318,8 +315,7 @@ func TestRegression_MapSchemaRejectsScalarConstraints(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, `struct MapRangeFlagCLI field Options: schema error: invalid struct tag: tag "range" is not supported on map types. Use tag "items" to constrain the number of map entries, or custom domain types with SelfValidator to validate map entries`, err.Error())
+		assert.Equal(t, `struct MapRangeFlagCLI field Options: tag "range" is not supported on map types (hint: use tag "items" to constrain the number of map entries, or custom domain types with SelfValidator to validate map entries)`, err.Error())
 	})
 
 	t.Run("len tag on map flag rejected", func(t *testing.T) {
@@ -330,8 +326,7 @@ func TestRegression_MapSchemaRejectsScalarConstraints(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, `struct MapLenFlagCLI field Options: schema error: invalid struct tag: tag "len" is not supported on map types. Use tag "items" to constrain the number of map entries, or custom domain types with SelfValidator to validate map entries`, err.Error())
+		assert.Equal(t, `struct MapLenFlagCLI field Options: tag "len" is not supported on map types (hint: use tag "items" to constrain the number of map entries, or custom domain types with SelfValidator to validate map entries)`, err.Error())
 	})
 
 	t.Run("enum tag on map arg rejected", func(t *testing.T) {
@@ -342,8 +337,7 @@ func TestRegression_MapSchemaRejectsScalarConstraints(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, `struct MapEnumArgCLI field Options: schema error: invalid struct tag: tag "enum" is not supported on map types. Use tag "items" to constrain the number of map entries, or custom domain types with SelfValidator to validate map entries`, err.Error())
+		assert.Equal(t, `struct MapEnumArgCLI field Options: tag "enum" is not supported on map types (hint: use tag "items" to constrain the number of map entries, or custom domain types with SelfValidator to validate map entries)`, err.Error())
 	})
 
 	t.Run("range tag on map arg rejected", func(t *testing.T) {
@@ -354,8 +348,7 @@ func TestRegression_MapSchemaRejectsScalarConstraints(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, `struct MapRangeArgCLI field Options: schema error: invalid struct tag: tag "range" is not supported on map types. Use tag "items" to constrain the number of map entries, or custom domain types with SelfValidator to validate map entries`, err.Error())
+		assert.Equal(t, `struct MapRangeArgCLI field Options: tag "range" is not supported on map types (hint: use tag "items" to constrain the number of map entries, or custom domain types with SelfValidator to validate map entries)`, err.Error())
 	})
 
 	t.Run("len tag on map arg rejected", func(t *testing.T) {
@@ -366,8 +359,7 @@ func TestRegression_MapSchemaRejectsScalarConstraints(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrSchema)
-		assert.Equal(t, `struct MapLenArgCLI field Options: schema error: invalid struct tag: tag "len" is not supported on map types. Use tag "items" to constrain the number of map entries, or custom domain types with SelfValidator to validate map entries`, err.Error())
+		assert.Equal(t, `struct MapLenArgCLI field Options: tag "len" is not supported on map types (hint: use tag "items" to constrain the number of map entries, or custom domain types with SelfValidator to validate map entries)`, err.Error())
 	})
 }
 

@@ -123,6 +123,7 @@ Use `github.com/alecthomas/assert/v2` for all test assertions.
 
 - Use `assert.NoError(t, err)` for successful operations.
 - Use `assert.Error(t, err)` and `assert.IsError(t, err, sentinel)` for error checks.
+- Schema errors have no sentinel: assert the exact message with `assert.Equal(t, expected, err.Error())`, plus `spec.IsSchemaError(err)` to assert that the failure is a schema error.
 - Use `assert.Equal(t, expected, actual)` for value equivalence.
 - Use `assert.Zero(t, actual)` for zero values, empty slices, and empty maps instead of `assert.Equal(t, 0, len(actual))`.
 - Use `assert.True(t, condition)` and `assert.False(t, condition)` for booleans.
