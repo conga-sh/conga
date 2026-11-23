@@ -2990,8 +2990,6 @@ func TestSchemaError_NestedAnonymousSubcommandOwner(t *testing.T) {
 
 // anonymousRootCLI is an alias, so the root struct type has no name.
 type anonymousRootCLI = struct {
-	failingCLI
-
 	Port conga.OptionalFlag[int] `hlep:"Port"`
 }
 
