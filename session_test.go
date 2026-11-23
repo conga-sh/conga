@@ -40,7 +40,7 @@ func TestSession_Help(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.NotZero(t, cmd.helpText)
-	assertGolden(t, "testdata/help/session.golden", goldenHelpSession, buffer.String())
+	assert.Equal(t, goldenHelpSession, buffer.String())
 	assert.Equal(t, cmd.helpText+"\n", buffer.String())
 }
 
@@ -58,7 +58,7 @@ func TestSession_Usage(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.NotZero(t, cmd.usageText)
-	assertGolden(t, "testdata/help/usage.golden", goldenHelpUsage, buffer.String())
+	assert.Equal(t, goldenHelpUsage, buffer.String())
 	assert.Equal(t, cmd.usageText+"\n", buffer.String())
 }
 

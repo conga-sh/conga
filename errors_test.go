@@ -1611,7 +1611,7 @@ func TestExit_OutputsAndExits(t *testing.T) {
 		app.Exit(err)
 
 		assert.Equal(t, 2, exitCode)
-		assertGolden(t, "testdata/errors/usage-default.golden", goldenErrorsUsageDefault, buffer.String())
+		assert.Equal(t, goldenErrorsUsageDefault, buffer.String())
 	})
 
 	t.Run("silenced usage prints only the error message", func(t *testing.T) {
@@ -1637,7 +1637,7 @@ func TestExit_OutputsAndExits(t *testing.T) {
 		app.Exit(err)
 
 		assert.Equal(t, 2, exitCode)
-		assertGolden(t, "testdata/errors/usage-silence.golden", goldenErrorsUsageSilence, buffer.String())
+		assert.Equal(t, goldenErrorsUsageSilence, buffer.String())
 	})
 
 	t.Run("usage full mode prints error and full help screen", func(t *testing.T) {
@@ -1663,7 +1663,7 @@ func TestExit_OutputsAndExits(t *testing.T) {
 		app.Exit(err)
 
 		assert.Equal(t, 2, exitCode)
-		assertGolden(t, "testdata/errors/usage-full.golden", goldenErrorsUsageFull, buffer.String())
+		assert.Equal(t, goldenErrorsUsageFull, buffer.String())
 	})
 
 	t.Run("subcommand required error outputs error message and exits with status 2", func(t *testing.T) {
@@ -1689,7 +1689,7 @@ func TestExit_OutputsAndExits(t *testing.T) {
 		app.Exit(err)
 
 		assert.Equal(t, 2, exitCode)
-		assertGolden(t, "testdata/errors/subcommand-required.golden", goldenErrorsSubcommandRequired, buffer.String())
+		assert.Equal(t, goldenErrorsSubcommandRequired, buffer.String())
 	})
 
 	t.Run("usage hint mode prints error and only help hint", func(t *testing.T) {
@@ -1715,7 +1715,7 @@ func TestExit_OutputsAndExits(t *testing.T) {
 		app.Exit(err)
 
 		assert.Equal(t, 2, exitCode)
-		assertGolden(t, "testdata/errors/usage-hint.golden", goldenErrorsUsageHint, buffer.String())
+		assert.Equal(t, goldenErrorsUsageHint, buffer.String())
 	})
 
 	t.Run("runtime error from command execution exits with status 1 and suppresses usage", func(t *testing.T) {
@@ -1765,7 +1765,7 @@ func TestExit_OutputsAndExits(t *testing.T) {
 		app.Exit(err)
 
 		assert.Equal(t, 2, exitCode)
-		assertGolden(t, "testdata/errors/invalid-value.golden", goldenErrorsInvalidValue, buffer.String())
+		assert.Equal(t, goldenErrorsInvalidValue, buffer.String())
 	})
 }
 
@@ -1875,7 +1875,7 @@ func TestExit_ValueErrorsRenderWithoutUsage(t *testing.T) {
 		app.Exit(err)
 
 		assert.Equal(t, 2, exitCode)
-		assertGolden(t, "testdata/errors/missing-required-flag.golden", goldenErrorsMissingRequiredFlag, buffer.String())
+		assert.Equal(t, goldenErrorsMissingRequiredFlag, buffer.String())
 	})
 
 	t.Run("missing oneof flag error still renders usage", func(t *testing.T) {
@@ -1900,7 +1900,7 @@ func TestExit_ValueErrorsRenderWithoutUsage(t *testing.T) {
 		app.Exit(err)
 
 		assert.Equal(t, 2, exitCode)
-		assertGolden(t, "testdata/errors/missing-oneof-flag.golden", goldenErrorsMissingOneOfFlag, buffer.String())
+		assert.Equal(t, goldenErrorsMissingOneOfFlag, buffer.String())
 	})
 }
 

@@ -45,7 +45,7 @@ func TestSnapshotEquivalence_Nushell(t *testing.T) {
 			data, err := nushellSnapshotFixtures.ReadFile("testdata/snapshots/nushell/" + entry.Name())
 			assert.NoError(t, err)
 
-			if strings.HasPrefix(entry.Name(), "patch-") {
+			if strings.HasPrefix(entry.Name(), "patch_") {
 				var fixture patchSnapshot
 
 				assert.NoError(t, json.Unmarshal(data, &fixture))
@@ -68,7 +68,7 @@ func TestSnapshotEquivalence_Nushell(t *testing.T) {
 			// verbatim, which nushell cannot parse; the native driver
 			// normalizes them to hex. Fixture 06 is the only observation
 			// carrying an rgb() style.
-			if strings.HasSuffix(entry.Name(), "06-style-vocabulary.json") {
+			if strings.HasSuffix(entry.Name(), "06_style_vocabulary.json") {
 				expected = strings.Replace(expected, `"fg":"rgb(10,20,30)"`, `"fg":"#0a141e"`, 1)
 			}
 

@@ -168,6 +168,7 @@ During prototype-phase iteration, use `task proto -- ./path/to/pkg/...` or a foc
 | `task test:shell:pty` | The `^TestPty` subset, driving real shells in tmux pseudo-terminals and asserting screen, cursor, and buffer. Fails fast without tmux; inside `test:shell`/`test:all` the subset skips when tmux is absent |
 | `task test:size` | Builds `_examples/01-minimal-hello` (with `10`, `13`, and `19` as positive controls) unstripped and asserts via `go tool nm` that disabled subsystems are eliminated; also runs the init-free package guard (`-tags sizetest`) |
 | `task test:all` | Unit, shell, and size suites together (`-tags shelltest,sizetest`, no `-race`) |
+| `task generate` | Regenerate generated test goldens (completion corpus, completion scripts, conformance goldens) |
 | `task coverage` | Per-function coverage; `task coverage -- ./internal/coerce` for one package |
 
 `task ci` runs check-only lint, `test`, `test:examples`, and `test:size`; `task harden` runs auto-fix lint and reordering first, then `ci`.
@@ -193,7 +194,7 @@ Rules:
 - **Assert the user-visible buffer.** Don't rely only on raw candidate lists (`COMPREPLY`, wire items). Assert `result.BufferTab1`/`result.BufferTab2` so line editors (Readline, ZLE) are proven not to insert unwanted characters or rewrite the prompt.
 - **Assert the negative invariant** for any bug involving prefix auto-insertion, prefix collapsing, or buffer corruption (e.g. `assert.Equal(t, "cloudctl deploy ", result.BufferTab1)`).
 - **Assert the purity channel** the shell exposes (table above). In shells without a message widget (bash), completion must write nothing unmanaged to stdout or stderr: `assert.Equal(t, "", result.StdoutLeak)`.
-- **Script goldens.** Completion script generation is asserted against `testdata/completion/` goldens: `bash`, `zsh`, `fish`, `elvish`, `powershell`, and `nushell` `.golden` files, plus `command-{bash,zsh,powershell}.golden` for scripts generated through a mounted `CompletionCommand`.
+- **Script goldens.** Completion script generation is asserted against generated goldens in `testdata/completion/`: `bash`, `zsh`, `fish`, `elvish`, `powershell`, and `nushell` `.golden` files, plus `command_{bash,zsh,powershell}.golden` for scripts generated through a mounted `CompletionCommand`. Regenerate them with `task generate` rather than editing them by hand.
 
 Known limits of the suite:
 
@@ -204,17 +205,18 @@ Known limits of the suite:
 
 ## 8. Embedded Test Fixtures & Goldens
 
-Multi-line test payloads (config files in `.json`/`.toml`/`.yaml`/`.hcl`, `.env` payloads, Go source snippets, expected output) never appear as inline multi-line string literals in test files. They live as standalone files in a `testdata/` directory (package-local `testdata/`, or root `testdata/fixtures/`) and are embedded one-to-one with `//go:embed` directives, so a missing or renamed fixture fails the build instead of failing at read time. Embedded fixture variables sit directly after the imports in a single `var (...)` block. Identifiers are category-prefixed so IDE completion lists related fixtures together and readers can tell inputs from expected output:
+Multi-line test payloads (config files in `.json`/`.toml`/`.yaml`/`.hcl`, `.env` payloads, Go source snippets, expected output) never appear as inline multi-line string literals in test files. They live as standalone files in a `testdata/` directory (package-local `testdata/`, or root `testdata/fixtures/`) with `snake_case` file stems, and are embedded one-to-one with `//go:embed` directives, so a missing or renamed fixture fails the build instead of failing at read time. Embedded fixture variables sit directly after the imports in a single `var (...)` block. Identifiers are category-prefixed so IDE completion lists related fixtures together and readers can tell inputs from expected output:
 
 | Category | Pattern | Example |
 |----------|---------|---------|
-| Input fixture | `fixture<Subject>` | `//go:embed testdata/fixtures/native_map.toml` → `fixtureNativeMap` |
-| Expected output | `golden<Subject>` | `//go:embed testdata/sectioned_flags.golden` → `goldenSectionedFlags` |
-| Directory corpus | `<domain>Fixtures` (`embed.FS`) | `corpusFixtures`, `elvishSnapshotFixtures` |
+| Input fixture | `fixture<PathSubject>` | `//go:embed testdata/fixtures/native_map.toml` → `fixtureNativeMap` |
+| Expected output | `golden<PathSubject>` | `//go:embed testdata/why/defaults.golden` → `goldenWhyDefaults` |
+| Directory corpus | `<domain>Fixtures` (`embed.FS`) | `corpusFixtures`, `conformanceGoldenFixtures`, `elvishSnapshotFixtures` |
 
 Rules:
 
-- `<Subject>` is the CamelCase form of the fixture filename stem. Append the uppercase format tag only when the same stem is embedded in more than one format within the file: `fixtureNativeMapTOML` sits next to `fixtureNativeMapYAML` in `config_test.go`, while `decoder/json/json_test.go` needs no tag at all (`fixtureValidFlat`). Don't use the legacy `test*`, `*Fixture`, or `*Golden` spellings.
+- `<PathSubject>` is the CamelCase form of the fixture path under `testdata/`, without the file extension and without a leading `fixtures/` directory (`testdata/completion/bash.golden` → `goldenCompletionBash`, `testdata/why/defaults.golden` → `goldenWhyDefaults`, `testdata/fixtures/native_map.toml` → `fixtureNativeMap`). Keep Go initialisms uppercase (`testdata/crlf.env` → `fixtureCRLF`, `testdata/fixtures/ssh_config` → `fixtureSSHConfig`, `testdata/invalid_utf8.json` → `fixtureInvalidUTF8`). Append the uppercase format tag only when the same path stem is embedded in more than one format within the file: `fixtureNativeMapTOML` sits next to `fixtureNativeMapYAML` in `config_test.go`, while `decoder/json/json_test.go` needs no tag at all (`fixtureValidFlat`). Don't use the legacy `test*`, `*Fixture`, or `*Golden` spellings.
+- Two paths that flatten to the same identifier fail to compile; rename one of the files.
 - Order the block alphabetically by embedded fixture path, so multi-format families stay contiguous and diffs stay mechanical.
 - Separate families with a blank line and give each family of two or more members one period-terminated doc comment:
 
@@ -222,10 +224,10 @@ Rules:
 var (
 	// The same server payload in four encodings; the decoder matrix asserts
 	// each decoder yields identical bindings.
-	//go:embed testdata/fixtures/decoder_test.hcl
+	//go:embed testdata/fixtures/decoder.hcl
 	fixtureDecoderHCL []byte
 
-	//go:embed testdata/fixtures/decoder_test.json
+	//go:embed testdata/fixtures/decoder.json
 	fixtureDecoderJSON []byte
 
 	//go:embed testdata/fixtures/excluded_field.toml
@@ -234,9 +236,12 @@ var (
 ```
 
 - A file embedding exactly one fixture declares it as a bare `var`, without parentheses.
-- Colliding identifiers inside one package are a compile error; repair a collision by qualifying only the colliding declaration with its owning file stem (e.g. `fixtureDecoderHCL` in `config_test.go` becomes `fixtureConfigDecoderHCL` if a second file in the package embeds the same stem), never as a default.
-- Embed as `[]byte` whenever the consumer takes bytes (`os.WriteFile`, parsers, tokenizers, decoders), so no `[]byte(...)` conversion is needed.
-- Directory corpora iterated with `fs.ReadDir` use an `embed.FS` named `<domain>Fixtures` and are exempt from the per-fixture naming and ordering rules.
-- Go source fixtures in `testdata/` keep the `.go` extension. The toolchain ignores `testdata/`, so fixtures with different package clauses coexist.
+- Embed as `string` when comparing against a `string` (such as golden output) and as `[]byte` when the consumer takes bytes (`os.WriteFile`, parsers, tokenizers, decoders), so no conversion is needed.
+- Every golden is compared against its embed; no test reads a golden file from disk outside `-update`.
+- **Designed vs. generated goldens:**
+  - *Designed goldens* (help screens, error output, `--why` reports) are compared with plain `assert.Equal` and have no `-update` mode; edit the golden file by hand from the failure diff when output changes intentionally. Assert ANSI colour output with inline `\x1b[...]` string literals rather than golden files.
+  - *Generated goldens* (the completion corpus in `internal/completion/testdata/corpus/`, conformance goldens in `internal/completion/testdata/golden/`, and completion scripts in `testdata/completion/`) keep `-update` support and are regenerated via `task generate` (which runs the update tests in dependency order: corpus and scripts first, then conformance goldens). Run `task generate` on a clean branch and commit regenerated output separately from code changes so diffs remain inspectable.
+- Directory corpora iterated with `fs.ReadDir` or `fs.WalkDir` use an `embed.FS` named `<domain>Fixtures` and are exempt from the per-fixture naming and ordering rules.
+- Go source fixtures in `testdata/` keep the `.go` extension. The toolchain ignores `testdata/`, so fixtures with different package clauses coexist. The `.golden` files in `internal/analyzer/testdata/builderorderfix/` belong to `analysistest.RunWithSuggestedFixes` and keep their toolchain naming.
 - In packages using `rogpeppe/go-internal/testscript`, `testdata/` subdirectories holding `.txt` scripts (e.g. `testdata/config/`) are reserved for script discovery; keep embedded fixtures in `testdata/fixtures/` or another dedicated folder.
 - Fixtures mirroring real system file layouts (`passwd`, `group`, `known_hosts`, `ssh_config`, `zone1970.tab`) keep their canonical filenames. Shell harness scripts (`test/shell/`) and production embedded assets (`internal/completion/bash/snippet.go`) are not fixtures and stay outside this convention.

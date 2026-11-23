@@ -16,7 +16,7 @@ import (
 )
 
 //go:embed testdata/fixtures/zone1970.tab
-var fixtureZone1970Tab []byte
+var fixtureZone1970 []byte
 
 //nolint:paralleltest // timezone package tests mutate the process-global ZONEINFO environment variable.
 func TestTimezones_Execution(t *testing.T) {
@@ -36,7 +36,7 @@ func TestTimezones_Execution(t *testing.T) {
 
 func TestTimezones_ParseZoneTab(t *testing.T) {
 	tmpDir := t.TempDir()
-	assert.NoError(t, os.WriteFile(filepath.Join(tmpDir, "zone1970.tab"), fixtureZone1970Tab, 0600))
+	assert.NoError(t, os.WriteFile(filepath.Join(tmpDir, "zone1970.tab"), fixtureZone1970, 0600))
 	t.Setenv("ZONEINFO", tmpDir)
 
 	result := timezone.Timezones().Invoke(predict.Context{})

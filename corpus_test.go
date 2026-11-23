@@ -2,24 +2,65 @@ package conga_test
 
 import (
 	"context"
+	"embed"
 	"encoding/json"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/alecthomas/assert/v2"
 
 	"github.com/conga-sh/conga"
+	"github.com/conga-sh/conga/internal/assertx"
+	"github.com/conga-sh/conga/internal/completion/wire"
 	"github.com/conga-sh/conga/predict"
 )
+
+//go:embed internal/completion/testdata/corpus/*.json
+var corpusFixtures embed.FS
 
 // corpusFixtureDir is the fixture directory relative to the repository root
 // (the working directory when running tests for the root package).
 const corpusFixtureDir = "internal/completion/testdata/corpus"
 
+// driverEnvVars lists every environment variable read by the completion
+// drivers, internal/envx, and internal/style, so the corpus capture starts from
+// a neutral environment. internal/completion keeps the same list for its own
+// tests, and each package's TestDriverEnvVars_CoverWireConstants pins its copy
+// to the wire constants.
+//
+//nolint:gochecknoglobals // shared list of driver environment variables for test isolation
+var driverEnvVars = []string{
+	wire.EnvCompLine,
+	wire.EnvCompPoint,
+	wire.EnvCompType,
+	wire.EnvCompWordbreaks,
+	wire.EnvColor,
+	wire.EnvNoColor,
+	wire.EnvCLIColor,
+	wire.EnvDescriptionLength,
+	wire.EnvMergeFlags,
+	wire.EnvShell,
+	wire.EnvTooltip,
+	wire.EnvZshListSeparator,
+	wire.EnvZshQuote,
+	wire.EnvZshBanghist,
+	wire.EnvZshStyleLimit,
+	"LS_COLORS",
+}
+
 func TestCorpusStable(t *testing.T) {
-	t.Setenv("LS_COLORS", "")
+	for _, key := range driverEnvVars {
+		t.Setenv(key, "")
+	}
 
 	// The fixture directory is resolved before t.Chdir relocates the process;
 	// scenarios run inside a disposable working directory so file-based
@@ -27,8 +68,12 @@ func TestCorpusStable(t *testing.T) {
 	fixtureDir, err := filepath.Abs(corpusFixtureDir)
 	assert.NoError(t, err)
 
-	capture := os.Getenv("CONGA_CAPTURE_CORPUS") == "1"
 	scenarios := corpusScenarios()
+	expectedFiles := make(map[string]bool, len(scenarios))
+
+	for _, scenario := range scenarios {
+		expectedFiles[scenario.Name+".json"] = true
+	}
 
 	for _, scenario := range scenarios {
 		t.Run(scenario.Name, func(t *testing.T) {
@@ -57,19 +102,56 @@ func TestCorpusStable(t *testing.T) {
 			// Determinism guard: a second capture through a fresh app must be identical.
 			assert.Equal(t, string(first), string(second), "engine output is nondeterministic for scenario %s", scenario.Name)
 
-			fixturePath := filepath.Join(fixtureDir, scenario.Name+".json")
-			if capture {
+			if *updateGolden {
 				assert.NoError(t, os.MkdirAll(fixtureDir, 0o755))
-				assert.NoError(t, os.WriteFile(fixturePath, first, 0o644))
+				assert.NoError(t, os.WriteFile(filepath.Join(fixtureDir, scenario.Name+".json"), first, 0o644))
 
 				return
 			}
 
-			existing, err := os.ReadFile(fixturePath)
-			assert.NoError(t, err, "missing corpus fixture %s; regenerate with CONGA_CAPTURE_CORPUS=1 go test . -run TestCorpusStable", scenario.Name+".json")
+			existing, err := corpusFixtures.ReadFile(corpusFixtureDir + "/" + scenario.Name + ".json")
+			assert.NoError(t, err, "missing corpus fixture %s; regenerate with task generate", scenario.Name+".json")
 			assert.Equal(t, string(existing), string(first), "corpus fixture drift for scenario %s", scenario.Name)
 		})
 	}
+
+	if *updateGolden {
+		entries, err := os.ReadDir(fixtureDir)
+		assert.NoError(t, err)
+
+		for _, entry := range entries {
+			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".json") && !expectedFiles[entry.Name()] {
+				assert.NoError(t, os.Remove(filepath.Join(fixtureDir, entry.Name())))
+			}
+		}
+
+		return
+	}
+
+	entries, err := fs.ReadDir(corpusFixtures, corpusFixtureDir)
+	assert.NoError(t, err)
+
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			assert.True(t, expectedFiles[entry.Name()], "stray corpus fixture %s; regenerate with task generate", entry.Name())
+		}
+	}
+}
+
+// TestDriverEnvVars_CoverWireConstants pins driverEnvVars to the Env*
+// constants declared in internal/completion/wire, so a new driver variable
+// cannot leak the caller's shell into the corpus capture. LS_COLORS is read by
+// internal/style and has no wire constant.
+func TestDriverEnvVars_CoverWireConstants(t *testing.T) {
+	t.Parallel()
+
+	envxValues := envConstantValues(t, "internal/envx/envx.go", nil)
+	wireValues := envConstantValues(t, "internal/completion/wire/env.go", envxValues)
+
+	expected := append(slices.Collect(maps.Values(wireValues)), "LS_COLORS")
+	slices.Sort(expected)
+
+	assert.Equal(t, expected, slices.Sorted(slices.Values(driverEnvVars)))
 }
 
 // corpusProfile demonstrates the self-completing Predictable contract on a named type.
@@ -312,66 +394,66 @@ func newCorpusTrailingApp() *conga.App[corpusTrailingRoot] {
 
 func corpusScenarios() []corpusScenario {
 	return []corpusScenario{
-		{Name: "root-bare-export", Shell: "export", Words: []string{""}},
-		{Name: "root-bare-flags-enabled", Shell: "export", Words: []string{""}, Env: map[string]string{"CORPUSCTL_COMPLETION_BARE_SPACE_FLAGS": "1"}},
-		{Name: "root-bare-bash", Shell: "bash", Words: []string{""}},
-		{Name: "root-subcommand-prefix", Shell: "export", Words: []string{"dep"}},
-		{Name: "root-completion-candidate", Shell: "export", Words: []string{"comp"}},
-		{Name: "root-flag-prefix", Shell: "export", Words: []string{"--"}},
-		{Name: "root-negatable-prefix", Shell: "export", Words: []string{"--no"}},
-		{Name: "root-shorthand-prefix", Shell: "export", Words: []string{"-"}},
-		{Name: "root-bool-attached", Shell: "export", Words: []string{"--verbose="}},
-		{Name: "root-profile-predictable", Shell: "export", Words: []string{"--profile", ""}},
-		{Name: "root-map-usage", Shell: "export", Words: []string{"--env-vars", ""}},
-		{Name: "root-slice-continuation-usage", Shell: "export", Words: []string{"--features", "net,"}},
-		{Name: "deploy-bare", Shell: "export", Words: []string{"deploy", ""}},
-		{Name: "deploy-alias", Shell: "export", Words: []string{"d", ""}},
-		{Name: "deploy-enum-attached-bare", Shell: "export", Words: []string{"deploy", "--env="}},
-		{Name: "deploy-enum-attached-filtered", Shell: "export", Words: []string{"deploy", "--env=pr"}},
-		{Name: "deploy-enum-separate", Shell: "export", Words: []string{"deploy", "--env", "st"}},
-		{Name: "deploy-negatable-prefix", Shell: "export", Words: []string{"deploy", "--no"}},
-		{Name: "deploy-region-descriptions", Shell: "export", Words: []string{"deploy", "--region", ""}},
-		{Name: "deploy-predictor-none-usage", Shell: "export", Words: []string{"deploy", "--timeout", ""}},
-		{Name: "deploy-manifest-patterns", Shell: "export", Words: []string{"deploy", "--manifest", ""}, Files: []string{"deploy.yaml", "values.json", "readme.txt"}},
-		{Name: "logs-bare", Shell: "export", Words: []string{"logs", ""}},
-		{Name: "logs-slice-exclusion", Shell: "export", Words: []string{"logs", "--tail", "api,"}},
-		{Name: "exec-enum-positional", Shell: "export", Words: []string{"exec", ""}},
-		{Name: "exec-terminator-args", Shell: "export", Words: []string{"exec", "--", ""}},
-		{Name: "copy-file-positional", Shell: "export", Words: []string{"cp", ""}, Files: []string{"a.yaml", "b.json", "notes.md"}},
-		{Name: "copy-second-usage", Shell: "export", Words: []string{"cp", "a.yaml", ""}, Files: []string{"a.yaml"}},
-		{Name: "exec-single-quoted-prefix", Shell: "export", Words: []string{"exec", "'s"}},
-		{Name: "exec-double-quoted-prefix", Shell: "export", Words: []string{"exec", "\"b"}},
-		{Name: "deploy-attached-quoted-enum", Shell: "export", Words: []string{"deploy", "--env=\"pro"}},
-		{Name: "logs-quoted-positional-and-flags", Shell: "export", Words: []string{"logs", "'api'", "--"}},
-		{Name: "root-redirect-out", Shell: "bash", CompLine: "corpusctl deploy > /tmp/output.log --env ", Words: []string{"deploy", "--env", ""}},
-		{Name: "root-pipeline-isolate", Shell: "bash", CompLine: "echo foo | corpusctl dep", Words: []string{"dep"}},
-		{Name: "deploy-successive-tabs", Shell: "bash", Words: []string{"deploy", "--"}, Env: map[string]string{"COMP_TYPE": "63"}},
-		{Name: "root-map-key-prefix", Shell: "export", Words: []string{"--env-vars", "FO"}},
-		{Name: "root-map-attached-key", Shell: "export", Words: []string{"--env-vars=FOO="}},
-		{Name: "root-map-custom-sep", Shell: "export", Words: []string{"--shards", "cache="}},
-		{Name: "map-keys-bare", Shell: "export", Words: []string{"deploy", "--labels", ""}, App: "map"},
-		{Name: "map-values-separate", Shell: "export", Words: []string{"deploy", "--labels", "team="}, App: "map"},
-		{Name: "map-multi-entry-key-dedup", Shell: "export", Words: []string{"deploy", "--labels", "team=core,"}, App: "map"},
-		{Name: "map-repeated-key-value-dedup", Shell: "export", Words: []string{"deploy", "--labels", "owner=alice,owner="}, App: "map"},
-		{Name: "trailing-dash-files", Shell: "export", Words: []string{"forward", "svc", "--", ""}, Files: []string{"manifest.yaml"}, App: "trailing"},
-		{Name: "trailing-dash-none", Shell: "export", Words: []string{"quiet", "svc", "--", ""}, App: "trailing"},
-		{Name: "trailing-both-dash-wins", Shell: "export", Words: []string{"both", "svc", "--", ""}, App: "trailing"},
-		{Name: "trailing-both-raw-swallows", Shell: "export", Words: []string{"both", "svc", "extra", "--", ""}, Files: []string{"forwarded.txt"}, App: "trailing"},
-		{Name: "trailing-raw-files", Shell: "export", Words: []string{"exec", "img", ""}, Files: []string{"script.sh"}, App: "trailing"},
-		{Name: "trailing-raw-known-flag", Shell: "export", Words: []string{"exec", "img", "-"}, App: "trailing"},
-		{Name: "trailing-raw-active-suppresses-flags", Shell: "export", Words: []string{"exec", "img", "extra", "-"}, App: "trailing"},
-		{Name: "root-hidden-flag-excluded", Shell: "export", Words: []string{"--sec"}},
-		{Name: "root-deprecated-flag", Shell: "export", Words: []string{"--leg"}},
-		{Name: "exec-default-flag", Shell: "export", Words: []string{"exec", "--namespace", ""}},
-		{Name: "root-why-attached-bare", Shell: "export", Words: []string{"--why="}},
-		{Name: "whyjson-flag-prefix", Shell: "export", Words: []string{"--why"}, App: "whyjson"},
-		{Name: "whyjson-attached-bare", Shell: "export", Words: []string{"--why="}, App: "whyjson"},
-		{Name: "whyjson-attached-filtered", Shell: "export", Words: []string{"--why=j"}, App: "whyjson"},
-		{Name: "root-bare-zsh", Shell: "zsh", Words: []string{""}},
-		{Name: "root-bare-fish", Shell: "fish", Words: []string{""}},
-		{Name: "root-bare-powershell", Shell: "powershell", Words: []string{""}},
-		{Name: "root-bare-elvish", Shell: "elvish", Words: []string{""}},
-		{Name: "root-bare-nushell", Shell: "nushell", Words: []string{""}},
+		{Name: "root_bare_export", Shell: "export", Words: []string{""}},
+		{Name: "root_bare_flags_enabled", Shell: "export", Words: []string{""}, Env: map[string]string{"CORPUSCTL_COMPLETION_BARE_SPACE_FLAGS": "1"}},
+		{Name: "root_bare_bash", Shell: "bash", Words: []string{""}},
+		{Name: "root_subcommand_prefix", Shell: "export", Words: []string{"dep"}},
+		{Name: "root_completion_candidate", Shell: "export", Words: []string{"comp"}},
+		{Name: "root_flag_prefix", Shell: "export", Words: []string{"--"}},
+		{Name: "root_negatable_prefix", Shell: "export", Words: []string{"--no"}},
+		{Name: "root_shorthand_prefix", Shell: "export", Words: []string{"-"}},
+		{Name: "root_bool_attached", Shell: "export", Words: []string{"--verbose="}},
+		{Name: "root_profile_predictable", Shell: "export", Words: []string{"--profile", ""}},
+		{Name: "root_map_usage", Shell: "export", Words: []string{"--env-vars", ""}},
+		{Name: "root_slice_continuation_usage", Shell: "export", Words: []string{"--features", "net,"}},
+		{Name: "deploy_bare", Shell: "export", Words: []string{"deploy", ""}},
+		{Name: "deploy_alias", Shell: "export", Words: []string{"d", ""}},
+		{Name: "deploy_enum_attached_bare", Shell: "export", Words: []string{"deploy", "--env="}},
+		{Name: "deploy_enum_attached_filtered", Shell: "export", Words: []string{"deploy", "--env=pr"}},
+		{Name: "deploy_enum_separate", Shell: "export", Words: []string{"deploy", "--env", "st"}},
+		{Name: "deploy_negatable_prefix", Shell: "export", Words: []string{"deploy", "--no"}},
+		{Name: "deploy_region_descriptions", Shell: "export", Words: []string{"deploy", "--region", ""}},
+		{Name: "deploy_predictor_none_usage", Shell: "export", Words: []string{"deploy", "--timeout", ""}},
+		{Name: "deploy_manifest_patterns", Shell: "export", Words: []string{"deploy", "--manifest", ""}, Files: []string{"deploy.yaml", "values.json", "readme.txt"}},
+		{Name: "logs_bare", Shell: "export", Words: []string{"logs", ""}},
+		{Name: "logs_slice_exclusion", Shell: "export", Words: []string{"logs", "--tail", "api,"}},
+		{Name: "exec_enum_positional", Shell: "export", Words: []string{"exec", ""}},
+		{Name: "exec_terminator_args", Shell: "export", Words: []string{"exec", "--", ""}},
+		{Name: "copy_file_positional", Shell: "export", Words: []string{"cp", ""}, Files: []string{"a.yaml", "b.json", "notes.md"}},
+		{Name: "copy_second_usage", Shell: "export", Words: []string{"cp", "a.yaml", ""}, Files: []string{"a.yaml"}},
+		{Name: "exec_single_quoted_prefix", Shell: "export", Words: []string{"exec", "'s"}},
+		{Name: "exec_double_quoted_prefix", Shell: "export", Words: []string{"exec", "\"b"}},
+		{Name: "deploy_attached_quoted_enum", Shell: "export", Words: []string{"deploy", "--env=\"pro"}},
+		{Name: "logs_quoted_positional_and_flags", Shell: "export", Words: []string{"logs", "'api'", "--"}},
+		{Name: "root_redirect_out", Shell: "bash", CompLine: "corpusctl deploy > /tmp/output.log --env ", Words: []string{"deploy", "--env", ""}},
+		{Name: "root_pipeline_isolate", Shell: "bash", CompLine: "echo foo | corpusctl dep", Words: []string{"dep"}},
+		{Name: "deploy_successive_tabs", Shell: "bash", Words: []string{"deploy", "--"}, Env: map[string]string{"COMP_TYPE": "63"}},
+		{Name: "root_map_key_prefix", Shell: "export", Words: []string{"--env-vars", "FO"}},
+		{Name: "root_map_attached_key", Shell: "export", Words: []string{"--env-vars=FOO="}},
+		{Name: "root_map_custom_sep", Shell: "export", Words: []string{"--shards", "cache="}},
+		{Name: "map_keys_bare", Shell: "export", Words: []string{"deploy", "--labels", ""}, App: "map"},
+		{Name: "map_values_separate", Shell: "export", Words: []string{"deploy", "--labels", "team="}, App: "map"},
+		{Name: "map_multi_entry_key_dedup", Shell: "export", Words: []string{"deploy", "--labels", "team=core,"}, App: "map"},
+		{Name: "map_repeated_key_value_dedup", Shell: "export", Words: []string{"deploy", "--labels", "owner=alice,owner="}, App: "map"},
+		{Name: "trailing_dash_files", Shell: "export", Words: []string{"forward", "svc", "--", ""}, Files: []string{"manifest.yaml"}, App: "trailing"},
+		{Name: "trailing_dash_none", Shell: "export", Words: []string{"quiet", "svc", "--", ""}, App: "trailing"},
+		{Name: "trailing_both_dash_wins", Shell: "export", Words: []string{"both", "svc", "--", ""}, App: "trailing"},
+		{Name: "trailing_both_raw_swallows", Shell: "export", Words: []string{"both", "svc", "extra", "--", ""}, Files: []string{"forwarded.txt"}, App: "trailing"},
+		{Name: "trailing_raw_files", Shell: "export", Words: []string{"exec", "img", ""}, Files: []string{"script.sh"}, App: "trailing"},
+		{Name: "trailing_raw_known_flag", Shell: "export", Words: []string{"exec", "img", "-"}, App: "trailing"},
+		{Name: "trailing_raw_active_suppresses_flags", Shell: "export", Words: []string{"exec", "img", "extra", "-"}, App: "trailing"},
+		{Name: "root_hidden_flag_excluded", Shell: "export", Words: []string{"--sec"}},
+		{Name: "root_deprecated_flag", Shell: "export", Words: []string{"--leg"}},
+		{Name: "exec_default_flag", Shell: "export", Words: []string{"exec", "--namespace", ""}},
+		{Name: "root_why_attached_bare", Shell: "export", Words: []string{"--why="}},
+		{Name: "whyjson_flag_prefix", Shell: "export", Words: []string{"--why"}, App: "whyjson"},
+		{Name: "whyjson_attached_bare", Shell: "export", Words: []string{"--why="}, App: "whyjson"},
+		{Name: "whyjson_attached_filtered", Shell: "export", Words: []string{"--why=j"}, App: "whyjson"},
+		{Name: "root_bare_zsh", Shell: "zsh", Words: []string{""}},
+		{Name: "root_bare_fish", Shell: "fish", Words: []string{""}},
+		{Name: "root_bare_powershell", Shell: "powershell", Words: []string{""}},
+		{Name: "root_bare_elvish", Shell: "elvish", Words: []string{""}},
+		{Name: "root_bare_nushell", Shell: "nushell", Words: []string{""}},
 	}
 }
 
@@ -440,4 +522,50 @@ func captureCorpusResult[T any](app *conga.App[T], scenario corpusScenario) []by
 	}
 
 	return append(data, '\n')
+}
+
+// envConstantValues parses the Go file at path and returns the string value of
+// every package-level constant whose name starts with Env, keyed by name. A
+// constant defined as envx.<Name> resolves through imported.
+func envConstantValues(t *testing.T, path string, imported map[string]string) map[string]string {
+	t.Helper()
+
+	file, err := parser.ParseFile(token.NewFileSet(), path, nil, 0)
+	assert.NoError(t, err)
+
+	values := map[string]string{}
+
+	for _, declaration := range file.Decls {
+		general, ok := declaration.(*ast.GenDecl)
+		if !ok || general.Tok != token.CONST {
+			continue
+		}
+
+		for _, item := range general.Specs {
+			valueSpec := item.(*ast.ValueSpec)
+
+			for i, name := range valueSpec.Names {
+				if !strings.HasPrefix(name.Name, "Env") {
+					continue
+				}
+
+				switch expression := valueSpec.Values[i].(type) {
+				case *ast.BasicLit:
+					unquoted, err := strconv.Unquote(expression.Value)
+					assert.NoError(t, err)
+
+					values[name.Name] = unquoted
+				case *ast.SelectorExpr:
+					value, ok := imported[expression.Sel.Name]
+					assert.True(t, ok, "constant %s refers to unknown %s", name.Name, expression.Sel.Name)
+
+					values[name.Name] = value
+				default:
+					assertx.Unreachable(t, "constant "+name.Name+" has an unsupported definition")
+				}
+			}
+		}
+	}
+
+	return values
 }

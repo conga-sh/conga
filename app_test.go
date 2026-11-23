@@ -386,7 +386,7 @@ func TestApp_ZeroValue_EnablesBuiltins(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assert.NoError(t, err)
-	assertGolden(t, "testdata/help/root.golden", goldenHelpRoot, stdoutBuffer.String())
+	assert.Equal(t, goldenHelpRoot, stdoutBuffer.String())
 }
 
 func TestApp_ZeroValue_PredictorBeforeRun(t *testing.T) {
