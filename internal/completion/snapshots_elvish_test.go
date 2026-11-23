@@ -50,7 +50,7 @@ func TestSnapshotEquivalence_Elvish(t *testing.T) {
 			// through verbatim, which elvish's styling parser rejects; the
 			// native driver normalizes them to the nearest indexed color.
 			// Fixture 06 is the only observation carrying truecolor styles.
-			if strings.HasSuffix(entry.Name(), "06-style-vocabulary.json") {
+			if strings.HasSuffix(entry.Name(), "06_style_vocabulary.json") {
 				expected = strings.Replace(expected, `"style":"#ff8800"`, `"style":"color208"`, 1)
 				expected = strings.Replace(expected, `"style":"rgb(10,20,30)"`, `"style":"color233"`, 1)
 			}

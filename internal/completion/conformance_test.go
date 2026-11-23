@@ -21,6 +21,9 @@ import (
 //go:embed testdata/corpus/*.json
 var corpusFixtures embed.FS
 
+//go:embed testdata/golden
+var conformanceGoldenFixtures embed.FS
+
 // updateGolden rewrites the golden snapshots from the current formatter
 // output when the suite runs with -update. Review regenerated snapshots
 // manually; the shells themselves are exercised end-to-end by test/shell.
@@ -40,16 +43,16 @@ var goldenModes = []struct {
 	env   map[string]string
 }{
 	{name: "bash", shell: "bash"},
-	{name: "bash-successive-tabs", shell: "bash", env: map[string]string{"COMP_TYPE": "63"}},
+	{name: "bash_successive_tabs", shell: "bash", env: map[string]string{"COMP_TYPE": "63"}},
 	{name: "fish", shell: "fish"},
 	{name: "elvish", shell: "elvish"},
 	{name: "nushell", shell: "nushell"},
 	{name: "export", shell: "export"},
 	{name: "powershell", shell: "powershell", env: map[string]string{"CONGA_COLOR": "0"}},
-	{name: "powershell-styled", shell: "powershell", env: map[string]string{"CONGA_COLOR": "1"}},
-	{name: "powershell-tooltip", shell: "powershell", env: map[string]string{"CONGA_COLOR": "0", "CONGA_TOOLTIP": "1"}},
+	{name: "powershell_styled", shell: "powershell", env: map[string]string{"CONGA_COLOR": "1"}},
+	{name: "powershell_tooltip", shell: "powershell", env: map[string]string{"CONGA_COLOR": "0", "CONGA_TOOLTIP": "1"}},
 	{name: "zsh", shell: "zsh", env: map[string]string{"CONGA_COLOR": "0"}},
-	{name: "zsh-styled", shell: "zsh", env: map[string]string{"CONGA_COLOR": "1"}},
+	{name: "zsh_styled", shell: "zsh", env: map[string]string{"CONGA_COLOR": "1"}},
 }
 
 // singleLineFramings lists the JSON framings whose documents must never span
@@ -94,10 +97,21 @@ type conformanceFixture struct {
 
 func TestConformance_GoldenReplay(t *testing.T) {
 	fixtures := loadCorpusFixtures(t)
+	produced := make(map[string]bool, len(goldenModes)*len(fixtures))
+
+	for _, mode := range goldenModes {
+		for fixtureName := range fixtures {
+			produced["testdata/golden/"+mode.name+"/"+fixtureName+".golden"] = true
+		}
+	}
 
 	for _, mode := range goldenModes {
 		for fixtureName, fixture := range fixtures {
 			t.Run(mode.name+"/"+fixtureName, func(t *testing.T) {
+				for _, key := range driverEnvVars {
+					t.Setenv(key, "")
+				}
+
 				for key, value := range mode.env {
 					t.Setenv(key, value)
 				}
@@ -108,20 +122,71 @@ func TestConformance_GoldenReplay(t *testing.T) {
 					assert.False(t, strings.Contains(formatted, "\n"), mode.name+" framing must be a single line")
 				}
 
-				goldenPath := filepath.Join("testdata", "golden", mode.name, fixtureName+".golden")
+				relativePath := "testdata/golden/" + mode.name + "/" + fixtureName + ".golden"
 
 				if *updateGolden {
-					assert.NoError(t, os.MkdirAll(filepath.Dir(goldenPath), 0o755))
-					assert.NoError(t, os.WriteFile(goldenPath, []byte(formatted), 0o644))
+					diskPath := filepath.FromSlash(relativePath)
+					assert.NoError(t, os.MkdirAll(filepath.Dir(diskPath), 0o755))
+					assert.NoError(t, os.WriteFile(diskPath, []byte(formatted), 0o644))
+
+					return
 				}
 
-				expected, err := os.ReadFile(goldenPath)
+				expected, err := conformanceGoldenFixtures.ReadFile(relativePath)
 				assert.NoError(t, err)
 
 				assert.Equal(t, string(expected), formatted)
 			})
 		}
 	}
+
+	if *updateGolden {
+		err := filepath.WalkDir(filepath.Join("testdata", "golden"), func(path string, entry fs.DirEntry, walkErr error) error {
+			if walkErr != nil {
+				return walkErr
+			}
+
+			if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".golden") && !produced[filepath.ToSlash(path)] {
+				return os.Remove(path)
+			}
+
+			return nil
+		})
+		assert.NoError(t, err)
+
+		dirs, err := os.ReadDir(filepath.Join("testdata", "golden"))
+		assert.NoError(t, err)
+
+		for _, dir := range dirs {
+			if !dir.IsDir() {
+				continue
+			}
+
+			dirPath := filepath.Join("testdata", "golden", dir.Name())
+
+			children, err := os.ReadDir(dirPath)
+			assert.NoError(t, err)
+
+			if len(children) == 0 {
+				assert.NoError(t, os.Remove(dirPath))
+			}
+		}
+
+		return
+	}
+
+	err := fs.WalkDir(conformanceGoldenFixtures, "testdata/golden", func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+
+		if !entry.IsDir() {
+			assert.True(t, produced[path], "stray conformance golden %s; regenerate with task generate", path)
+		}
+
+		return nil
+	})
+	assert.NoError(t, err)
 }
 
 // TestConformance_ExportReplay replays every corpus fixture through the
@@ -145,7 +210,7 @@ func TestConformance_ExportReplay(t *testing.T) {
 //
 
 func TestConformance_MergeFlags(t *testing.T) {
-	fixture, ok := loadCorpusFixtures(t)["deploy-bare"]
+	fixture, ok := loadCorpusFixtures(t)["deploy_bare"]
 	assert.True(t, ok)
 
 	result := resultFromFixture(fixture)

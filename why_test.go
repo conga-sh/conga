@@ -276,7 +276,7 @@ func TestWhy_ReportRedactionAndBadges(t *testing.T) {
 	err := app.Run()
 
 	assert.NoError(t, err)
-	assertGolden(t, "testdata/why/redaction-badges.golden", goldenWhyRedactionBadges, buffer.String())
+	assert.Equal(t, goldenWhyRedactionBadges, buffer.String())
 
 	// The command never ran: --why short-circuits execution.
 	assert.False(t, cli.Sub.Get().ran)
@@ -323,7 +323,7 @@ func TestWhy_MapMergePerKeyProvenance(t *testing.T) {
 	err := app.Run()
 
 	assert.NoError(t, err)
-	assertGolden(t, "testdata/why/map-merge.golden", goldenWhyMapMerge, buffer.String())
+	assert.Equal(t, goldenWhyMapMerge, buffer.String())
 }
 
 // whyCascadeCLI exercises a map flag loaded from two cascading files so the
@@ -362,7 +362,7 @@ func TestWhy_CascadingMapOriginsPerKey(t *testing.T) {
 	assert.NoError(t, err)
 
 	output := normalizeWhyGolden(buffer.String(), tmpDir, "<TMP>")
-	assertGolden(t, "testdata/why/map-cascade-merge.golden", goldenWhyMapCascadeMerge, output)
+	assert.Equal(t, goldenWhyMapCascadeMerge, output)
 }
 
 // whyCascadeScalarCLI exercises scalar flags loaded from two cascading files
@@ -403,7 +403,7 @@ func TestWhy_CascadingScalarOriginsPerFile(t *testing.T) {
 	assert.NoError(t, err)
 
 	output := normalizeWhyGolden(buffer.String(), tmpDir, "<TMP>")
-	assertGolden(t, "testdata/why/scalar-cascade-merge.golden", goldenWhyScalarCascadeMerge, output)
+	assert.Equal(t, goldenWhyScalarCascadeMerge, output)
 }
 
 type whyMapEntryWidthCLI struct {
@@ -426,7 +426,7 @@ func TestWhy_MapEntryWidensValueColumn(t *testing.T) {
 	err := app.Run()
 
 	assert.NoError(t, err)
-	assertGolden(t, "testdata/why/map-entry-width.golden", goldenWhyMapEntryWidth, buffer.String())
+	assert.Equal(t, goldenWhyMapEntryWidth, buffer.String())
 }
 
 type whyNoCLIFeatures struct {
@@ -588,7 +588,7 @@ func TestWhy_DefaultValuesDisplayed(t *testing.T) {
 	err := app.Run()
 
 	assert.NoError(t, err)
-	assertGolden(t, "testdata/why/defaults.golden", goldenWhyDefaults, buffer.String())
+	assert.Equal(t, goldenWhyDefaults, buffer.String())
 }
 
 func TestWhy_BoolAndCounterVisibleByDefault(t *testing.T) {
@@ -990,7 +990,7 @@ func TestWhy_ConfigPathsChecked_NothingFound(t *testing.T) {
 	assert.NoError(t, err)
 
 	output := normalizeWhyGolden(buffer.String(), tmpDir, "<TMP>")
-	assertGolden(t, "testdata/why/config-paths-missing.golden", goldenWhyConfigPathsMissing, output)
+	assert.Equal(t, goldenWhyConfigPathsMissing, output)
 }
 
 // TestWhy_ConfigPathsChecked_LoadedTiers pins that a loaded search tier
@@ -1027,7 +1027,7 @@ func TestWhy_ConfigPathsChecked_LoadedTiers(t *testing.T) {
 	assert.NoError(t, err)
 
 	output := normalizeWhyGolden(buffer.String(), tmpDir, "<TMP>")
-	assertGolden(t, "testdata/why/config-paths-loaded.golden", goldenWhyConfigPathsLoaded, output)
+	assert.Equal(t, goldenWhyConfigPathsLoaded, output)
 }
 
 func TestWhy_ConfigPathsChecked_ExplicitPath(t *testing.T) {
@@ -1328,7 +1328,7 @@ func TestWhy_OnSubcommands(t *testing.T) {
 		err := app.Run()
 
 		assert.NoError(t, err)
-		assertGolden(t, "testdata/why/subcommand-report.golden", goldenWhySubcommandReport, buffer.String())
+		assert.Equal(t, goldenWhySubcommandReport, buffer.String())
 		assert.False(t, cli.Sub.Get().ran)
 	})
 

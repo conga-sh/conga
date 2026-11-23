@@ -6,8 +6,8 @@
 
 copy-fixture testdata/fixtures/pipeline.yaml pipeline.yaml
 copy-fixture testdata/fixtures/pipeline.local.yaml pipeline.local.yaml
-copy-fixture testdata/fixtures/bad-version.yaml bad-version.yaml
-copy-fixture testdata/fixtures/unknown-key.yaml unknown-key.yaml
+copy-fixture testdata/fixtures/bad_version.yaml bad_version.yaml
+copy-fixture testdata/fixtures/unknown_key.yaml unknown_key.yaml
 
 # 1. Listing pipelines: the file's domain data drives the output, and its
 #    top-level config keys bind at the config tier.
@@ -55,9 +55,9 @@ exit-status 1 bootstrapper --pipeline nope
 stderr 'bootstrap failed: pipeline\.yaml has no pipeline "nope"'
 exit-status 1 bootstrapper -f missing.yaml
 stderr 'bootstrap failed: read pipeline file "missing\.yaml"'
-exit-status 1 bootstrapper -f bad-version.yaml
+exit-status 1 bootstrapper -f bad_version.yaml
 stderr 'unsupported pipeline file version "2"'
-exit-status 1 bootstrapper -f unknown-key.yaml
+exit-status 1 bootstrapper -f unknown_key.yaml
 stderr 'field paralelism not found'
 
 # 7. Help does not run Bootstrap: an empty directory has no pipeline file.

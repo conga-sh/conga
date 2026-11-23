@@ -112,7 +112,7 @@ func TestHelpFlag_Root(t *testing.T) {
 	err := app.Run()
 
 	assert.NoError(t, err)
-	assertGolden(t, "testdata/help/root.golden", goldenHelpRoot, buffer.String())
+	assert.Equal(t, goldenHelpRoot, buffer.String())
 }
 
 func TestHelpFlag_DashArgsHelp(t *testing.T) {
@@ -143,7 +143,7 @@ func TestHelpFlag_Subcommand(t *testing.T) {
 	err := app.Run()
 
 	assert.NoError(t, err)
-	assertGolden(t, "testdata/help/subcommand.golden", goldenHelpSubcommand, buffer.String())
+	assert.Equal(t, goldenHelpSubcommand, buffer.String())
 }
 
 func TestHelpFlag_PrecedenceOverRequired(t *testing.T) {
@@ -175,7 +175,7 @@ func TestHelpCommand_Root(t *testing.T) {
 	err := app.Run()
 
 	assert.NoError(t, err)
-	assertGolden(t, "testdata/help/root.golden", goldenHelpRoot, buffer.String())
+	assert.Equal(t, goldenHelpRoot, buffer.String())
 }
 
 type TestHelpAliasCLI struct {

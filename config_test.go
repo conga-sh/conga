@@ -33,16 +33,16 @@ var (
 
 	// The same server payload in four encodings; the decoder matrix asserts
 	// each decoder yields identical bindings.
-	//go:embed testdata/fixtures/decoder_test.hcl
+	//go:embed testdata/fixtures/decoder.hcl
 	fixtureDecoderHCL []byte
 
-	//go:embed testdata/fixtures/decoder_test.json
+	//go:embed testdata/fixtures/decoder.json
 	fixtureDecoderJSON []byte
 
-	//go:embed testdata/fixtures/decoder_test.toml
+	//go:embed testdata/fixtures/decoder.toml
 	fixtureDecoderTOML []byte
 
-	//go:embed testdata/fixtures/decoder_test.yaml
+	//go:embed testdata/fixtures/decoder.yaml
 	fixtureDecoderYAML []byte
 
 	//go:embed testdata/fixtures/excluded_field.toml

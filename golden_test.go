@@ -31,75 +31,77 @@ var (
 	goldenHelpUsage string
 
 	// Golden stderr screens for each usage-on-error mode and parse failure.
-	//go:embed testdata/errors/invalid-value.golden
+	//go:embed testdata/errors/invalid_value.golden
 	goldenErrorsInvalidValue string
 
-	//go:embed testdata/errors/missing-oneof-flag.golden
+	//go:embed testdata/errors/missing_oneof_flag.golden
 	goldenErrorsMissingOneOfFlag string
 
-	//go:embed testdata/errors/missing-required-flag.golden
+	//go:embed testdata/errors/missing_required_flag.golden
 	goldenErrorsMissingRequiredFlag string
 
-	//go:embed testdata/errors/subcommand-required.golden
+	//go:embed testdata/errors/subcommand_required.golden
 	goldenErrorsSubcommandRequired string
 
-	//go:embed testdata/errors/usage-default.golden
+	//go:embed testdata/errors/usage_default.golden
 	goldenErrorsUsageDefault string
 
-	//go:embed testdata/errors/usage-full.golden
+	//go:embed testdata/errors/usage_full.golden
 	goldenErrorsUsageFull string
 
-	//go:embed testdata/errors/usage-hint.golden
+	//go:embed testdata/errors/usage_hint.golden
 	goldenErrorsUsageHint string
 
-	//go:embed testdata/errors/usage-silence.golden
+	//go:embed testdata/errors/usage_silence.golden
 	goldenErrorsUsageSilence string
 
 	// Golden completion scripts generated through the app-driven completion command.
-	//go:embed testdata/completion/command-bash.golden
+	//go:embed testdata/completion/command_bash.golden
 	goldenCompletionCommandBash string
 
-	//go:embed testdata/completion/command-powershell.golden
+	//go:embed testdata/completion/command_powershell.golden
 	goldenCompletionCommandPowershell string
 
-	//go:embed testdata/completion/command-zsh.golden
+	//go:embed testdata/completion/command_zsh.golden
 	goldenCompletionCommandZsh string
 
 	// Golden --why provenance reports covering the representative report shapes.
-	//go:embed testdata/why/config-paths-loaded.golden
+	//go:embed testdata/why/config_paths_loaded.golden
 	goldenWhyConfigPathsLoaded string
 
-	//go:embed testdata/why/config-paths-missing.golden
+	//go:embed testdata/why/config_paths_missing.golden
 	goldenWhyConfigPathsMissing string
 
 	//go:embed testdata/why/defaults.golden
 	goldenWhyDefaults string
 
-	//go:embed testdata/why/map-cascade-merge.golden
+	//go:embed testdata/why/map_cascade_merge.golden
 	goldenWhyMapCascadeMerge string
 
-	//go:embed testdata/why/map-entry-width.golden
+	//go:embed testdata/why/map_entry_width.golden
 	goldenWhyMapEntryWidth string
 
-	//go:embed testdata/why/map-merge.golden
+	//go:embed testdata/why/map_merge.golden
 	goldenWhyMapMerge string
 
-	//go:embed testdata/why/redaction-badges.golden
+	//go:embed testdata/why/redaction_badges.golden
 	goldenWhyRedactionBadges string
 
-	//go:embed testdata/why/scalar-cascade-merge.golden
+	//go:embed testdata/why/scalar_cascade_merge.golden
 	goldenWhyScalarCascadeMerge string
 
-	//go:embed testdata/why/subcommand-report.golden
+	//go:embed testdata/why/subcommand_report.golden
 	goldenWhySubcommandReport string
 )
 
-// updateGolden rewrites the golden snapshots from the current output when the
-// suite runs with -update. Review regenerated snapshots manually; the embedded
-// copy is refreshed on the next compilation.
+// updateGolden rewrites generated golden files (completion corpus and
+// completion scripts) from current output when the suite runs with -update.
+// Designed goldens (help, errors, --why) have no update mode and are edited by
+// hand. Review regenerated snapshots manually; the embedded copy is refreshed
+// on the next compilation.
 //
 //nolint:gochecknoglobals // standard -update golden-refresh flag seam
-var updateGolden = flag.Bool("update", false, "rewrite golden files from current output")
+var updateGolden = flag.Bool("update", false, "rewrite generated golden files from current output")
 
 // goldenCLI is the canonical reference application: one struct exercises every
 // rendering axis (description, footer, examples, sectioned and unsectioned
@@ -155,10 +157,11 @@ func configureGoldenApp(app *conga.App[goldenCLI]) *conga.App[goldenCLI] {
 		Version("1.2.3")
 }
 
-// assertGolden compares got against the embedded golden expected, or rewrites
-// the file at path when the suite runs with -update. The path is resolved
-// against this file's directory so tests that change the working directory
-// still refresh the committed fixture.
+// assertGolden compares got against the embedded generated golden expected,
+// or rewrites the file at relativePath when the suite runs with -update. The
+// path is resolved against this file's directory so tests that change the
+// working directory still refresh the committed fixture. Designed goldens use
+// assert.Equal directly.
 func assertGolden(t *testing.T, relativePath, expected, got string) {
 	t.Helper()
 

@@ -19,22 +19,22 @@ import (
 var (
 	// Expected completion script output, one golden per supported shell.
 	//go:embed testdata/completion/bash.golden
-	goldenBash []byte
+	goldenCompletionBash string
 
 	//go:embed testdata/completion/elvish.golden
-	goldenElvish []byte
+	goldenCompletionElvish string
 
 	//go:embed testdata/completion/fish.golden
-	goldenFish []byte
+	goldenCompletionFish string
 
 	//go:embed testdata/completion/nushell.golden
-	goldenNushell []byte
+	goldenCompletionNushell string
 
 	//go:embed testdata/completion/powershell.golden
-	goldenPowershell []byte
+	goldenCompletionPowershell string
 
 	//go:embed testdata/completion/zsh.golden
-	goldenZsh []byte
+	goldenCompletionZsh string
 )
 
 type StructCompletionCLI struct {
@@ -87,59 +87,30 @@ func TestCompletionScriptGeneration_AllShells(t *testing.T) {
 		EnvPrefix:   "MYAPP_",
 	}
 
-	t.Run("bash script generation", func(t *testing.T) {
-		t.Parallel()
+	goldens := map[completion.Shell]string{
+		completion.ShellBash:       goldenCompletionBash,
+		completion.ShellZsh:        goldenCompletionZsh,
+		completion.ShellFish:       goldenCompletionFish,
+		completion.ShellPowerShell: goldenCompletionPowershell,
+		completion.ShellElvish:     goldenCompletionElvish,
+		completion.ShellNushell:    goldenCompletionNushell,
+	}
 
-		out, err := completion.Generate(completion.ShellBash, opts)
+	for _, shellName := range completion.SupportedShells() {
+		shell := completion.Shell(shellName)
 
-		assert.NoError(t, err)
-		assert.Equal(t, string(goldenBash), out)
-	})
+		t.Run(shellName+" script generation", func(t *testing.T) {
+			t.Parallel()
 
-	t.Run("zsh script generation", func(t *testing.T) {
-		t.Parallel()
+			expected, ok := goldens[shell]
+			assert.True(t, ok, "missing golden for shell %s", shellName)
 
-		out, err := completion.Generate(completion.ShellZsh, opts)
+			output, err := completion.Generate(shell, opts)
 
-		assert.NoError(t, err)
-		assert.Equal(t, string(goldenZsh), out)
-	})
-
-	t.Run("fish script generation", func(t *testing.T) {
-		t.Parallel()
-
-		out, err := completion.Generate(completion.ShellFish, opts)
-
-		assert.NoError(t, err)
-		assert.Equal(t, string(goldenFish), out)
-	})
-
-	t.Run("powershell script generation", func(t *testing.T) {
-		t.Parallel()
-
-		out, err := completion.Generate(completion.ShellPowerShell, opts)
-
-		assert.NoError(t, err)
-		assert.Equal(t, string(goldenPowershell), out)
-	})
-
-	t.Run("elvish script generation", func(t *testing.T) {
-		t.Parallel()
-
-		out, err := completion.Generate(completion.ShellElvish, opts)
-
-		assert.NoError(t, err)
-		assert.Equal(t, string(goldenElvish), out)
-	})
-
-	t.Run("nushell script generation", func(t *testing.T) {
-		t.Parallel()
-
-		out, err := completion.Generate(completion.ShellNushell, opts)
-
-		assert.NoError(t, err)
-		assert.Equal(t, string(goldenNushell), out)
-	})
+			assert.NoError(t, err)
+			assertGolden(t, "testdata/completion/"+shellName+".golden", expected, output)
+		})
+	}
 }
 
 func TestCompletionCommand_Shell(t *testing.T) {
@@ -185,7 +156,7 @@ func TestCompletionCommand_StructBased(t *testing.T) {
 		err := app.Run()
 
 		assert.NoError(t, err)
-		assertGolden(t, "testdata/completion/command-bash.golden", goldenCompletionCommandBash, buffer.String())
+		assertGolden(t, "testdata/completion/command_bash.golden", goldenCompletionCommandBash, buffer.String())
 	})
 
 	t.Run("execute completion zsh", func(t *testing.T) {
@@ -202,7 +173,7 @@ func TestCompletionCommand_StructBased(t *testing.T) {
 		err := app.Run()
 
 		assert.NoError(t, err)
-		assertGolden(t, "testdata/completion/command-zsh.golden", goldenCompletionCommandZsh, buffer.String())
+		assertGolden(t, "testdata/completion/command_zsh.golden", goldenCompletionCommandZsh, buffer.String())
 	})
 
 	t.Run("execute completion powershell", func(t *testing.T) {
@@ -219,7 +190,7 @@ func TestCompletionCommand_StructBased(t *testing.T) {
 		err := app.Run()
 
 		assert.NoError(t, err)
-		assertGolden(t, "testdata/completion/command-powershell.golden", goldenCompletionCommandPowershell, buffer.String())
+		assertGolden(t, "testdata/completion/command_powershell.golden", goldenCompletionCommandPowershell, buffer.String())
 	})
 }
 

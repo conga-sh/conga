@@ -2,8 +2,6 @@ package completion_test
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/alecthomas/assert/v2"
@@ -99,28 +97,4 @@ func TestSupportedShells(t *testing.T) {
 	t.Parallel()
 
 	assert.Equal(t, []string{"bash", "elvish", "fish", "nushell", "powershell", "zsh"}, completion.SupportedShells())
-}
-
-func TestGenerate_AllShells(t *testing.T) {
-	t.Parallel()
-
-	for _, shell := range completion.SupportedShells() {
-		t.Run(shell, func(t *testing.T) {
-			t.Parallel()
-
-			opts := completion.DriverOptions{
-				CommandName: "myapp",
-				Aliases:     []string{"ma", "app"},
-				EnvPrefix:   "MYAPP_",
-			}
-
-			out, err := completion.Generate(completion.Shell(shell), opts)
-
-			assert.NoError(t, err)
-
-			expected, err := os.ReadFile(filepath.Join("..", "..", "testdata", "completion", shell+".golden"))
-			assert.NoError(t, err)
-			assert.Equal(t, string(expected), out)
-		})
-	}
 }
