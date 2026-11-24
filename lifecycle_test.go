@@ -332,7 +332,8 @@ func TestLifecycle_ValidationFailure_ZeroSideEffects(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrValidation)
+	assertNotUsageError(t, err)
+	assert.Equal(t, "root validation failed", err.Error())
 	assert.Equal(t, []string{"Root.Validate"}, cli.Logs)
 }
 
@@ -348,7 +349,7 @@ func TestLifecycle_IncompleteSubcommand_ZeroSideEffects(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrParse)
+	assertUsageError(t, err)
 	assert.Zero(t, cli.Logs)
 }
 

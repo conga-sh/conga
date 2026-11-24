@@ -3,7 +3,6 @@ package conga_test
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -1404,7 +1403,7 @@ func TestWhy_SynthesizedCompletionSubcommand(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.True(t, conga.IsUsageError(err))
+		assertUsageError(t, err)
 	})
 
 	t.Run("help lists --why when why is enabled", func(t *testing.T) {
@@ -2280,12 +2279,9 @@ func TestBuiltinWhy_InvalidFormat(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), `invalid value "banana" (must be one of: text, json) for --why`)
-	assert.IsError(t, err, conga.ErrValidation)
-	assert.True(t, conga.IsUsageError(err))
+	assertUsageError(t, err)
 
-	var usage conga.UsageError
-
-	assert.True(t, errors.As(err, &usage))
+	usage := assertUsageError(t, err)
 	assert.Equal(t, "cloudctl", usage.CommandPath())
 }
 
@@ -2304,8 +2300,7 @@ func TestBuiltinWhy_FalseFlagRejected(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), `invalid value "false" (must be one of: text, json) for --why`)
-	assert.IsError(t, err, conga.ErrValidation)
-	assert.True(t, conga.IsUsageError(err))
+	assertUsageError(t, err)
 }
 
 func TestBuiltinWhy_LastValueWinsOverInvalid(t *testing.T) {
@@ -2430,8 +2425,7 @@ func TestBuiltinWhy_NonFormatBoolsRejected(t *testing.T) {
 
 			assert.Error(t, err)
 			assert.Contains(t, err.Error(), `invalid value "`+invalid+`" (must be one of: text, json) for --why`)
-			assert.IsError(t, err, conga.ErrValidation)
-			assert.True(t, conga.IsUsageError(err))
+			assertUsageError(t, err)
 		})
 	}
 }
@@ -2451,8 +2445,7 @@ func TestBuiltinWhy_JSONWithoutOptionRejected(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), `invalid value "json" for --why: JSON output format is not enabled on this application (enable with app.EnableWhy(conga.WhyOptionJSON()))`)
-	assert.IsError(t, err, conga.ErrValidation)
-	assert.True(t, conga.IsUsageError(err))
+	assertUsageError(t, err)
 }
 
 type whySessionCLI struct {

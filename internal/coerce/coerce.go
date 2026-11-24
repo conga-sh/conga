@@ -16,14 +16,6 @@ import (
 	"github.com/conga-sh/conga/internal/spec"
 )
 
-var (
-	// ErrCoerce indicates a raw value could not be converted to its target type.
-	ErrCoerce = errors.New("coercion error")
-
-	// ErrUnsupportedType indicates a value could not be coerced to its target type.
-	ErrUnsupportedType = fmt.Errorf("%w: unsupported type", ErrCoerce)
-)
-
 const (
 	urlErrorMalformed     urlErrorKind = iota // url.Parse rejected the value
 	urlErrorMissingScheme                     // parsed, but Scheme == ""
@@ -264,8 +256,6 @@ func (e *unsupportedTypeError) Error() string {
 	return fmt.Sprintf("unsupported type %s", e.targetType)
 }
 
-func (e *unsupportedTypeError) Unwrap() error { return ErrUnsupportedType }
-
 // booleanError is the root cause for unparseable boolean values.
 type booleanError struct {
 	raw string
@@ -275,8 +265,6 @@ func (e *booleanError) Error() string {
 	return fmt.Sprintf("invalid boolean value %q, expected true or false (or 1 or 0)", e.raw)
 }
 
-func (e *booleanError) Unwrap() error { return ErrCoerce }
-
 // durationError is the root cause for unparseable duration values.
 type durationError struct {
 	raw string
@@ -285,8 +273,6 @@ type durationError struct {
 func (e *durationError) Error() string {
 	return fmt.Sprintf("invalid duration %q (valid units: ms, s, m, h)", e.raw)
 }
-
-func (e *durationError) Unwrap() error { return ErrCoerce }
 
 // timeError is the root cause for unparseable time.Time values. A detail
 // from time.ParseError (such as "day out of range") replaces the RFC 3339
@@ -303,8 +289,6 @@ func (e *timeError) Error() string {
 
 	return fmt.Sprintf("invalid time %q (expected RFC 3339, e.g. 2006-01-02T15:04:05Z)", e.raw)
 }
-
-func (e *timeError) Unwrap() error { return ErrCoerce }
 
 // urlErrorKind identifies the URL expectation violated by a raw value.
 type urlErrorKind uint8
@@ -324,8 +308,6 @@ func (e *urlError) Error() string {
 		return fmt.Sprintf("invalid URL %q", e.raw)
 	}
 }
-
-func (e *urlError) Unwrap() error { return ErrCoerce }
 
 // numErrorKind identifies the numeric parse failure mode.
 type numErrorKind uint8
@@ -349,13 +331,7 @@ func (e *numError) Error() string {
 	}
 }
 
-func (e *numError) Unwrap() []error {
-	if e.cause == nil {
-		return []error{ErrCoerce}
-	}
-
-	return []error{ErrCoerce, e.cause}
-}
+func (e *numError) Unwrap() error { return e.cause }
 
 // mapPairErrorKind identifies the KEY=VALUE syntax failure mode.
 type mapPairErrorKind uint8
@@ -376,8 +352,6 @@ func (e *mapPairError) Error() string {
 	}
 }
 
-func (e *mapPairError) Unwrap() error { return ErrCoerce }
-
 // conversionError is the root cause for the defensive type-assertion failure
 // in Value (a custom parser returned a value of the wrong type).
 type conversionError struct {
@@ -389,8 +363,6 @@ func (e *conversionError) Error() string {
 	return fmt.Sprintf("cannot convert %T to %s", e.value, e.targetType)
 }
 
-func (e *conversionError) Unwrap() error { return ErrCoerce }
-
 // assignabilityError is the root cause for registered-parser results that are
 // not assignable to the target type.
 type assignabilityError struct {
@@ -401,26 +373,6 @@ type assignabilityError struct {
 func (e *assignabilityError) Error() string {
 	return fmt.Sprintf("registered parser returned %s which is not assignable to %s", e.valueType, e.targetType)
 }
-
-func (e *assignabilityError) Unwrap() error { return ErrCoerce }
-
-// wrappedError anchors an externally produced error (custom registry parser,
-// TextUnmarshaler) in the ErrCoerce taxonomy while delegating prose to it.
-type wrappedError struct {
-	cause error
-}
-
-func (e *wrappedError) Error() string {
-	if e.cause == nil {
-		panic("coerce: invariant violation: wrappedError requires a non-nil cause")
-	}
-
-	return e.cause.Error()
-}
-
-func (e *wrappedError) Unwrap() error { return e.cause }
-
-func (e *wrappedError) Is(target error) bool { return target == ErrCoerce }
 
 // scalar converts a raw string value into the target type represented by
 // targetType, delivering the field's declared tags and the engine's
@@ -478,11 +430,7 @@ func scalar(raw string, targetType reflect.Type, decodeContext DecodeContext) (a
 
 func unmarshalTextBytes(unmarshaler encoding.TextUnmarshaler, raw string) error {
 	if err := unmarshaler.UnmarshalText([]byte(raw)); err != nil {
-		if errors.Is(err, ErrCoerce) {
-			return err
-		}
-
-		return &wrappedError{cause: err}
+		return err
 	}
 
 	return nil
@@ -531,12 +479,7 @@ func isPlainString(targetType reflect.Type, reg Registry) bool {
 // whether the value type handled the text.
 func unmarshalTextInto(target reflect.Value, raw string, decodeContext DecodeContext) (bool, error) {
 	if unmarshaler, ok := reflect.TypeAssert[contextAwareTextUnmarshaler](target); ok {
-		err := unmarshaler.UnmarshalTextWithContext([]byte(raw), decodeContext)
-		if err != nil && !errors.Is(err, ErrCoerce) {
-			return true, &wrappedError{cause: err}
-		}
-
-		return true, err
+		return true, unmarshaler.UnmarshalTextWithContext([]byte(raw), decodeContext)
 	}
 
 	if unmarshaler, ok := reflect.TypeAssert[encoding.TextUnmarshaler](target); ok {
@@ -698,6 +641,8 @@ func wrapParseNumError(err error, raw string, targetType reflect.Type, noun stri
 
 	if integerError, ok := errors.AsType[*intx.Error](err); ok {
 		cause = integerError
+	} else if numberError, ok := errors.AsType[*strconv.NumError](err); ok {
+		cause = numberError
 	}
 
 	if errors.Is(err, strconv.ErrRange) {
@@ -734,7 +679,7 @@ func coercePointerTarget(raw string, targetType reflect.Type, reg Registry) (any
 
 	value, err := parser(raw)
 	if err != nil {
-		return nil, true, &wrappedError{cause: err}
+		return nil, true, err
 	}
 
 	checkedValue, err := ensureAssignable(value, elemType)
@@ -756,7 +701,7 @@ func coerceValueTargetFromPointer(raw string, targetType reflect.Type, reg Regis
 
 	value, err := parser(raw)
 	if err != nil {
-		return nil, true, &wrappedError{cause: err}
+		return nil, true, err
 	}
 
 	reflectedValue := reflect.ValueOf(value)
@@ -785,7 +730,7 @@ func coerceCustomRegistry(raw string, targetType reflect.Type, reg Registry) (an
 	if parser, ok := reg[targetType]; ok {
 		value, err := parser(raw)
 		if err != nil {
-			return nil, true, &wrappedError{cause: err}
+			return nil, true, err
 		}
 
 		checkedValue, err := ensureAssignable(value, targetType)

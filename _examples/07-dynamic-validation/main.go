@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/conga-sh/conga"
@@ -26,24 +25,26 @@ type CLI struct {
 }
 
 // Validate executes pure, side-effect-free cross-field semantic validation before any lifecycle hooks.
+// The values come from the command line, so it reports mistakes with session.UsageErrorf. The program
+// then exits with status 2 and prints usage. A plain error would exit with status 1 and no usage.
 func (c *CLI) Validate(ctx context.Context, session *conga.Session) error {
 	startDate, err := time.Parse(time.DateOnly, c.StartDate.Get())
 	if err != nil {
-		return fmt.Errorf("%w %q (expected YYYY-MM-DD)", errInvalidStartDate, c.StartDate.Get())
+		return session.UsageErrorf("%w %q (expected YYYY-MM-DD)", errInvalidStartDate, c.StartDate.Get())
 	}
 
 	endDate, err := time.Parse(time.DateOnly, c.EndDate.Get())
 	if err != nil {
-		return fmt.Errorf("%w %q (expected YYYY-MM-DD)", errInvalidEndDate, c.EndDate.Get())
+		return session.UsageErrorf("%w %q (expected YYYY-MM-DD)", errInvalidEndDate, c.EndDate.Get())
 	}
 
 	if endDate.Before(startDate) {
-		return fmt.Errorf("%w: end-date (%s) cannot be earlier than start-date (%s)",
+		return session.UsageErrorf("%w: end-date (%s) cannot be earlier than start-date (%s)",
 			errInvalidDateRange, c.EndDate.Get(), c.StartDate.Get())
 	}
 
 	if c.MaxRetries.Get() > 0 && c.Backoff.Get() <= 0 {
-		return fmt.Errorf("%w: backoff duration must be positive when max-retries > 0", errInvalidBackoff)
+		return session.UsageErrorf("%w: backoff duration must be positive when max-retries > 0", errInvalidBackoff)
 	}
 
 	return nil

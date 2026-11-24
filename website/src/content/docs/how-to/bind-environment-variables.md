@@ -192,7 +192,7 @@ Each variable takes its value in the format the flag takes on the command line, 
 | `map[string]string` | `SERVER_LABELS=env=prod,team=core` | `map[env:prod team:core]` |
 | `bool` | `SERVER_DEBUG=true` | `true` |
 
-Spaces after commas are trimmed (`SERVER_TAGS="a, b"` gives the same list). Booleans accept `true`/`false`, `1`/`0`, and upper-case forms such as `TRUE`. Any other value, such as `yes`, is a config error (`ErrConfig`, exit 1) that names the variable.
+Spaces after commas are trimmed (`SERVER_TAGS="a, b"` gives the same list). Booleans accept `true`/`false`, `1`/`0`, and upper-case forms such as `TRUE`. Any other value, such as `yes`, is an error that exits 1 and names the variable.
 
 A list on the command line replaces the variable's list, so `SERVER_TAGS=a,b` with `--tags c` gives `["c"]`. A map on the command line merges with the variable's map key by key, and the command line wins on a shared key. The variation's `Run` prints `--tags`, `--labels`, and `--debug`:
 
@@ -242,7 +242,7 @@ Create a config file at one of:
 | `SERVER_HOST=0.0.0.0` | `--host` is `0.0.0.0`, source `env` |
 | `SERVER_HOST=` (empty) | Treated as unset: `--host` falls back to the config file or `default` |
 | `PORT=9001` and `-p 9003` | The command line wins: `--port` is `9003` |
-| `PORT=abc` | Config error, exit 1, naming the variable |
+| `PORT=abc` | Error, exit 1, naming the variable |
 | `SERVER_TRACE=true` on an `env:"-"` flag | Not read: `--trace` stays unset |
 | `SERVER_CONFIG=prod.toml` | `--config-file` loads `prod.toml`, source `env` |
 | `SERVER_TIMEOUT=10m`, with `worker` and `migrate` both declaring `--timeout` and neither tagged | Both commands read `10m` |

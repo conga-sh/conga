@@ -227,7 +227,7 @@ func lookupPortByName(service string) (int, error) {
 		}
 	}
 
-	return 0, fmt.Errorf("%w: unknown service name %q", errInvalidPort, service)
+	return 0, rejectedError{message: fmt.Sprintf("invalid port: unknown service name %q", service)}
 }
 
 func parseHTTPStatusText(raw string) (int, error) {
@@ -237,5 +237,5 @@ func parseHTTPStatusText(raw string) (int, error) {
 		}
 	}
 
-	return 0, fmt.Errorf("%w: unknown HTTP status text %q", errInvalidHTTPStatus, raw)
+	return 0, rejectedError{message: fmt.Sprintf("invalid HTTP status: unknown HTTP status text %q", raw)}
 }

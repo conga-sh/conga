@@ -179,8 +179,7 @@ func TestOneOf_MissingGroupOmitsDeprecatedMember(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, "missing required flag: --count", err.Error())
-	assert.IsError(t, err, conga.ErrValidation)
-	assert.True(t, conga.IsUsageError(err))
+	assertUsageError(t, err)
 }
 
 func TestOneOf_MissingGroupNamesEveryMemberWhenAllDeprecated(t *testing.T) {
@@ -192,8 +191,7 @@ func TestOneOf_MissingGroupNamesEveryMemberWhenAllDeprecated(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, "missing required flag: one of --replicas, --count", err.Error())
-	assert.IsError(t, err, conga.ErrValidation)
-	assert.True(t, conga.IsUsageError(err))
+	assertUsageError(t, err)
 }
 
 func TestOneOf_MissingGroupNamesOnlyDeprecatedMemberWhenReplacementHidden(t *testing.T) {
@@ -224,8 +222,7 @@ func TestOneOf_MissingGroup(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, "missing required flag: one of --json, --yaml", err.Error())
-	assert.IsError(t, err, conga.ErrValidation)
-	assert.True(t, conga.IsUsageError(err))
+	assertUsageError(t, err)
 }
 
 func TestOneOf_OneSupplied(t *testing.T) {
@@ -252,8 +249,7 @@ func TestOneOf_Conflict(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, "flags --json and --yaml are mutually exclusive", err.Error())
-	assert.IsError(t, err, conga.ErrValidation)
-	assert.True(t, conga.IsUsageError(err))
+	assertUsageError(t, err)
 }
 
 func TestOneOf_ThreeMemberConflict(t *testing.T) {
@@ -265,7 +261,7 @@ func TestOneOf_ThreeMemberConflict(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, "flags --json and --yaml are mutually exclusive", err.Error())
-	assert.IsError(t, err, conga.ErrValidation)
+	assertUsageError(t, err)
 }
 
 func TestOneOf_GatedMembers(t *testing.T) {
@@ -333,7 +329,7 @@ func TestOneOf_SingleMemberCounterRequiresOccurrence(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Equal(t, "missing required flag: --verbose", err.Error())
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 
 	t.Run("supplied counter runs", func(t *testing.T) {
@@ -383,8 +379,7 @@ func TestOneOf_EnvAndCLIConflict(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, "flags --json and --yaml (from environment variable CONGA_TEST_ONEOF_YAML) are mutually exclusive", err.Error())
-	assert.IsError(t, err, conga.ErrValidation)
-	assert.True(t, conga.IsUsageError(err))
+	assertUsageError(t, err)
 }
 
 func TestOneOf_ConfigCounts(t *testing.T) {
@@ -455,7 +450,7 @@ func TestOneOf_AncestorGroupEnforced(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, "missing required flag: one of --json, --yaml", err.Error())
-	assert.IsError(t, err, conga.ErrValidation)
+	assertUsageError(t, err)
 }
 
 func TestOneOf_AncestorGroupSatisfied(t *testing.T) {
@@ -581,7 +576,7 @@ func TestOneOf_ExplicitFalseConflictsWithSibling(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, "flags --json and --yaml are mutually exclusive", err.Error())
-	assert.IsError(t, err, conga.ErrValidation)
+	assertUsageError(t, err)
 }
 
 func TestOneOf_CounterZeroSatisfiesGroup(t *testing.T) {
@@ -609,7 +604,7 @@ func TestOneOf_CounterZeroConflictsWithSibling(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, `flags --json (from config key "json") and --yaml are mutually exclusive`, err.Error())
-	assert.IsError(t, err, conga.ErrValidation)
+	assertUsageError(t, err)
 }
 
 func TestOneOf_EmptyStringSatisfiesGroup(t *testing.T) {
@@ -631,7 +626,7 @@ func TestOneOf_EmptyStringConflictsWithSibling(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, "flags --format and --mode are mutually exclusive", err.Error())
-	assert.IsError(t, err, conga.ErrValidation)
+	assertUsageError(t, err)
 }
 
 func TestOneOf_NegatedBoolSatisfiesGroup(t *testing.T) {
@@ -653,5 +648,5 @@ func TestOneOf_NegatedBoolConflictsWithSibling(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, "flags --no-color and --plain are mutually exclusive", err.Error())
-	assert.IsError(t, err, conga.ErrValidation)
+	assertUsageError(t, err)
 }

@@ -17,12 +17,12 @@
 //	database-url: "postgres://localhost/db"
 //	max-retries: 5
 //
-// Parse failures wrap [ErrParse], and an empty document decodes to an empty map.
+// Parse failures are returned as errors, and an empty document decodes to an empty map.
 //
 // # Numbers and timestamps
 //
 // Integers decode to int, or to uint64 above the int64 range. A plain integer
-// literal outside both 64-bit ranges wraps [ErrParse] instead of decoding to
+// literal outside both 64-bit ranges is an error instead of decoding to
 // an approximate float64 or a string. Unquoted timestamps decode to
 // time.Time, which binds to a time.Time flag and reaches a string flag in
 // RFC 3339 form.
@@ -39,11 +39,6 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-var (
-	// ErrParse indicates a syntax or parsing error in YAML configuration.
-	ErrParse = errors.New("yaml parse error")
-)
-
 // Decode decodes YAML bytes into the generic map[string]any structure the configuration engine matches against flag bindings.
 func Decode(data []byte) (map[string]any, error) {
 	var document yaml.Node
@@ -54,12 +49,12 @@ func Decode(data []byte) (map[string]any, error) {
 			return make(map[string]any), nil
 		}
 
-		return nil, fmt.Errorf("%w: %w", ErrParse, err)
+		return nil, err
 	}
 
 	var extra any
 	if err := dec.Decode(&extra); !errors.Is(err, io.EOF) {
-		return nil, fmt.Errorf("%w: trailing garbage after YAML document", ErrParse)
+		return nil, &trailingDocumentError{}
 	}
 
 	if err := checkIntegerRange(&document); err != nil {
@@ -68,7 +63,7 @@ func Decode(data []byte) (map[string]any, error) {
 
 	var result map[string]any
 	if err := document.Decode(&result); err != nil {
-		return nil, fmt.Errorf("%w: %w", ErrParse, err)
+		return nil, err
 	}
 
 	if result == nil {
@@ -76,6 +71,24 @@ func Decode(data []byte) (map[string]any, error) {
 	}
 
 	return result, nil
+}
+
+// trailingDocumentError reports content after the YAML document. The decoder
+// found the problem itself, so it has no cause.
+type trailingDocumentError struct{}
+
+func (*trailingDocumentError) Error() string {
+	return "trailing garbage after YAML document"
+}
+
+// integerRangeError reports an integer literal that no 64-bit integer holds.
+type integerRangeError struct {
+	line    int
+	literal string
+}
+
+func (e *integerRangeError) Error() string {
+	return fmt.Sprintf("line %d: integer %s out of range", e.line, e.literal)
 }
 
 // checkIntegerRange rejects plain integer literals that no 64-bit integer
@@ -87,7 +100,7 @@ func checkIntegerRange(node *yaml.Node) error {
 	}
 
 	if node.Kind == yaml.ScalarNode && node.Style == 0 && node.ShortTag() != "!!int" && outsideIntegerRange(node.Value) {
-		return fmt.Errorf("%w: line %d: integer %s out of range", ErrParse, node.Line, node.Value)
+		return &integerRangeError{line: node.Line, literal: node.Value}
 	}
 
 	for _, child := range node.Content {

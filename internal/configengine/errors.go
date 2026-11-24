@@ -1,11 +1,9 @@
 package configengine
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/conga-sh/conga/internal/configdata"
-	"github.com/conga-sh/conga/internal/sentinel"
 )
 
 // configError represents a failure reading or parsing configuration files.
@@ -15,13 +13,12 @@ type configError struct {
 	cause error
 }
 
-func newFieldConfigError(origin, scope, msgContext, causeContext string) *configError {
+func newFieldConfigError(origin, scope, msgContext string) *configError {
 	path := configdata.JoinOriginScope(origin, scope)
 
 	return &configError{
-		path:  path,
-		msg:   fmt.Sprintf("config file %q: %s", path, msgContext),
-		cause: fmt.Errorf("%w: %s", sentinel.ErrConfigUnknownField, causeContext),
+		path: path,
+		msg:  fmt.Sprintf("config file %q: %s", path, msgContext),
 	}
 }
 
@@ -46,21 +43,5 @@ func (e *configError) Error() string {
 }
 
 func (e *configError) Unwrap() error {
-	if e.cause != nil {
-		return e.cause
-	}
-
-	return sentinel.ErrConfig
-}
-
-func (e *configError) Is(target error) bool {
-	if target == sentinel.ErrConfig {
-		return true
-	}
-
-	if e.cause != nil {
-		return errors.Is(e.cause, target)
-	}
-
-	return false
+	return e.cause
 }

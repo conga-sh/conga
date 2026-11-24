@@ -1,7 +1,6 @@
 package completion
 
 import (
-	"fmt"
 	"strings"
 
 	"github.com/conga-sh/conga/internal/completion/bash"
@@ -12,7 +11,6 @@ import (
 	"github.com/conga-sh/conga/internal/completion/powershell"
 	"github.com/conga-sh/conga/internal/completion/wire"
 	"github.com/conga-sh/conga/internal/completion/zsh"
-	"github.com/conga-sh/conga/internal/sentinel"
 	"github.com/conga-sh/conga/internal/slicex"
 	"github.com/conga-sh/conga/predict"
 )
@@ -88,7 +86,7 @@ func (s *Session) Format(toComplete string, result predict.Result) string {
 func Snippet(opts DriverOptions, shellName string) (string, error) {
 	driver := findDriver(normalizeShell(shellName))
 	if driver == nil {
-		return "", fmt.Errorf("%w %q, supported shells: %s", sentinel.ErrUnknownShell, shellName, strings.Join(SupportedShells(), ", "))
+		return "", &unknownShellError{name: shellName}
 	}
 
 	return driver.snippet(opts.CommandName, opts.Aliases, opts.EnvPrefix), nil

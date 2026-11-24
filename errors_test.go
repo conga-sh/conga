@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -143,7 +144,7 @@ type MissingOneOfFlagCLI struct {
 	YAML conga.OptionalFlag[bool] `name:"yaml" oneof:"format"`
 }
 
-func TestErrorCategories(t *testing.T) {
+func TestErrorTypesByFailure(t *testing.T) {
 	t.Parallel()
 
 	t.Run("schema", func(t *testing.T) {
@@ -154,67 +155,68 @@ func TestErrorCategories(t *testing.T) {
 		assert.Equal(t, "target must be a pointer to a struct, got int", err.Error())
 	})
 
-	t.Run("parse unknown flag", func(t *testing.T) {
+	t.Run("unknown flag", func(t *testing.T) {
 		t.Parallel()
 
 		app := conga.New[XorDefaultCLI]().Args([]string{"--bogus"})
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrParse)
+		assertUsageError(t, err)
 		assert.Equal(t, "unknown flag: --bogus", err.Error())
 	})
 
-	t.Run("parse flag requires value", func(t *testing.T) {
+	t.Run("flag requires a value", func(t *testing.T) {
 		t.Parallel()
 
 		app := conga.New[FullServerCLI]().Args([]string{"--api-key", "k", "--port"})
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrParse)
+		assertUsageError(t, err)
 		assert.Equal(t, "flag requires an argument: --port", err.Error())
 	})
 
-	t.Run("validation mutually exclusive", func(t *testing.T) {
+	t.Run("mutually exclusive flags", func(t *testing.T) {
 		t.Parallel()
 
 		app := conga.New[XorDefaultCLI]().Args([]string{"--immediate", "--graceful"})
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
+		assert.Equal(t, "flags --graceful and --immediate are mutually exclusive", err.Error())
 	})
 
-	t.Run("validation missing required flag", func(t *testing.T) {
+	t.Run("missing required flag", func(t *testing.T) {
 		t.Parallel()
 
 		app := conga.New[FullServerCLI]().Args([]string{"file.txt"})
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 		assert.Equal(t, "missing required flag: --api-key", err.Error())
 	})
 
-	t.Run("validation invalid enum value", func(t *testing.T) {
+	t.Run("invalid enum value", func(t *testing.T) {
 		t.Parallel()
 
 		app := conga.New[FullServerCLI]().Args([]string{"--api-key", "k", "--format", "invalid", "file.txt"})
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 
-	t.Run("coerce invalid value", func(t *testing.T) {
+	t.Run("invalid value for the flag type", func(t *testing.T) {
 		t.Parallel()
 
 		app := conga.New[FullServerCLI]().Args([]string{"--api-key", "k", "-p", "not-a-number", "file.txt"})
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrCoerce)
+		assertUsageError(t, err)
 		assert.Equal(t, `invalid integer value "not-a-number" for flag --port`, err.Error())
 	})
 
@@ -228,7 +230,7 @@ func TestErrorCategories(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrConfig)
+		assertNotUsageError(t, err)
 		assert.IsError(t, err, fs.ErrNotExist)
 	})
 }
@@ -269,8 +271,7 @@ func TestErrorPathWrongKind(t *testing.T) {
 	err = file.Validate(t.Context())
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrValidation)
-	assert.False(t, errors.Is(err, conga.ErrCoerce))
+	assertNotUsageError(t, err)
 	assert.Equal(t, fmt.Sprintf("%q is a directory, but a file was expected", tmpDir), err.Error())
 }
 
@@ -283,8 +284,7 @@ func TestValidationErrorPathKindRender(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrValidation)
-	assert.True(t, conga.IsUsageError(err))
+	assertUsageError(t, err)
 	assert.Equal(t, fmt.Sprintf("%q is a directory, but a file was expected for flag --file", tmpDir), err.Error())
 }
 
@@ -302,8 +302,7 @@ func TestValidationErrorExecutableRender(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrValidation)
-	assert.True(t, conga.IsUsageError(err))
+	assertUsageError(t, err)
 	assert.Equal(t, fmt.Sprintf("%q is not executable for flag --prog", progPath), err.Error())
 }
 
@@ -317,8 +316,7 @@ func TestValidationErrorSymlinkRender(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrValidation)
-	assert.True(t, conga.IsUsageError(err))
+	assertUsageError(t, err)
 	assert.Equal(t, fmt.Sprintf("%q is not a symbolic link for flag --hook", hookPath), err.Error())
 }
 
@@ -349,9 +347,7 @@ func TestCoercionErrorCounterRender(t *testing.T) {
 		Args([]string{})
 	err := app.RunContext(t.Context())
 
-	assert.IsError(t, err, conga.ErrConfig)
-	assert.False(t, conga.IsUsageError(err))
-	assert.False(t, errors.Is(err, conga.ErrCoerce))
+	assertNotUsageError(t, err)
 	assert.Equal(t, `invalid unsigned integer value "abc" for flag --count (from config key "count")`, err.Error())
 }
 
@@ -372,7 +368,7 @@ func TestCoercionErrorByteSizeRender(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrCoerce)
+	assertUsageError(t, err)
 	assert.Equal(t, `unknown byte size unit "ZB" in "10ZB" (accepted: B, kB, MB, GB, TB, PB, EB, KiB, MiB, GiB, TiB, PiB, EiB) for flag --max-memory`, err.Error())
 }
 
@@ -383,7 +379,7 @@ func TestCoercionErrorByteSizeAmbiguousUnitRender(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrCoerce)
+	assertUsageError(t, err)
 	assert.Equal(t, `ambiguous byte size unit "KB" in "10KB": use kB (1000) or KiB (1024) for flag --max-memory`, err.Error())
 }
 
@@ -402,6 +398,31 @@ type classificationCLI struct {
 	Labels  conga.OptionalFlag[map[string]string] `env:"APP_LABELS"  name:"labels"`
 	Counts  conga.OptionalFlag[map[string]int]    `name:"counts"`
 	Verbose conga.OptionalFlag[bool]              `name:"verbose"    negatable:"true"`
+}
+
+// classificationXorCLI, classificationOneOfCLI, and classificationAndCLI each
+// declare one flag group whose members read from the environment and the
+// configuration file, so the group error's type follows the highest source
+// among the supplied members.
+type classificationXorCLI struct {
+	noopRunner
+
+	Fast conga.OptionalFlag[bool] `env:"APP_FAST" name:"fast" xor:"speed"`
+	Slow conga.OptionalFlag[bool] `env:"APP_SLOW" name:"slow" xor:"speed"`
+}
+
+type classificationOneOfCLI struct {
+	noopRunner
+
+	JSON conga.OptionalFlag[bool] `env:"APP_JSON" name:"json" oneof:"format"`
+	YAML conga.OptionalFlag[bool] `env:"APP_YAML" name:"yaml" oneof:"format"`
+}
+
+type classificationAndCLI struct {
+	noopRunner
+
+	User conga.OptionalFlag[string] `and:"credentials" env:"APP_USER" name:"user"`
+	Pass conga.OptionalFlag[string] `and:"credentials" env:"APP_PASS" name:"pass"`
 }
 
 type classificationFeatureSet struct {
@@ -478,7 +499,7 @@ func classificationApp() *conga.App[classificationCLI] {
 }
 
 // TestErrorClassificationBySource is the single table that #162 asks for: one
-// subtest per failure shape, asserting the exact message, exactly one category,
+// subtest per failure shape, asserting the exact message, the error type,
 // the usage classification, the exit code through App.Exit, and whether the
 // usage block renders.
 //
@@ -499,119 +520,12 @@ func TestErrorClassificationBySource(t *testing.T) {
 		name          string
 		run           func(t *testing.T) classificationRunResult
 		message       string
-		category      error
+		causeType     string
 		usage         bool
 		exitCode      int
 		usageShown    bool
 		skipOnWindows bool
 	}{
-		{
-			name: "command-line coercion",
-			run: func(t *testing.T) classificationRunResult {
-				t.Helper()
-
-				return runClassification(t, classificationApp().Args([]string{"--port", "abc"}))
-			},
-			message:    `invalid integer value "abc" for flag --port`,
-			category:   conga.ErrCoerce,
-			usage:      true,
-			exitCode:   2,
-			usageShown: false,
-		},
-		{
-			name: "configuration coercion",
-			run: func(t *testing.T) classificationRunResult {
-				t.Helper()
-
-				return runClassification(t, classificationApp().
-					ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"port": "abc"}`))).
-					Args([]string{}))
-			},
-			message:    `invalid integer value "abc" for flag --port (from config key "port")`,
-			category:   conga.ErrConfig,
-			usage:      false,
-			exitCode:   1,
-			usageShown: false,
-		},
-		{
-			name: "configuration map entry",
-			run: func(t *testing.T) classificationRunResult {
-				t.Helper()
-
-				return runClassification(t, classificationApp().
-					ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"counts": {"web": "abc"}}`))).
-					Args([]string{}))
-			},
-			message:    `value for key "web": invalid integer value "abc" for flag --counts (from config key "counts")`,
-			category:   conga.ErrConfig,
-			usage:      false,
-			exitCode:   1,
-			usageShown: false,
-		},
-		{
-			name: "environment coercion",
-			run: func(t *testing.T) classificationRunResult {
-				t.Helper()
-
-				t.Setenv("APP_PORT", "abc")
-
-				return runClassification(t, classificationApp())
-			},
-			message:    `invalid integer value "abc" for flag --port (from environment variable APP_PORT)`,
-			category:   conga.ErrConfig,
-			usage:      false,
-			exitCode:   1,
-			usageShown: false,
-		},
-		{
-			name: "environment enum",
-			run: func(t *testing.T) classificationRunResult {
-				t.Helper()
-
-				t.Setenv("APP_MODE", "qa")
-
-				return runClassification(t, classificationApp())
-			},
-			message:    `invalid value "qa" (must be one of: dev, prod) for flag --mode (from environment variable APP_MODE)`,
-			category:   conga.ErrConfig,
-			usage:      false,
-			exitCode:   1,
-			usageShown: false,
-		},
-		{
-			name: "configuration range",
-			run: func(t *testing.T) classificationRunResult {
-				t.Helper()
-
-				return runClassification(t, classificationApp().
-					ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"workers": 12}`))).
-					Args([]string{}))
-			},
-			message:    `value 12 is out of range [1..8] for flag --workers (from config key "workers")`,
-			category:   conga.ErrConfig,
-			usage:      false,
-			exitCode:   1,
-			usageShown: false,
-		},
-		{
-			name: "default range constraint",
-			run: func(t *testing.T) classificationRunResult {
-				t.Helper()
-
-				type CLI struct {
-					noopRunner
-
-					Limit conga.OptionalFlag[int] `default:"5000" name:"limit" range:"1..1000"`
-				}
-
-				return runClassification(t, conga.New[CLI]().Args([]string{}))
-			},
-			message:    `value 5000 is out of range [1..1000] for flag --limit (from default value)`,
-			category:   conga.ErrConfig,
-			usage:      false,
-			exitCode:   1,
-			usageShown: false,
-		},
 		{
 			name: "default positional range constraint",
 			run: func(t *testing.T) classificationRunResult {
@@ -626,7 +540,7 @@ func TestErrorClassificationBySource(t *testing.T) {
 				return runClassification(t, conga.New[CLI]().Args([]string{}))
 			},
 			message:    `value 5000 is out of range [1..1000] for argument [count] (from default value)`,
-			category:   conga.ErrConfig,
+			causeType:  "",
 			usage:      false,
 			exitCode:   1,
 			usageShown: false,
@@ -639,7 +553,7 @@ func TestErrorClassificationBySource(t *testing.T) {
 				return runClassification(t, classificationApp().Args([]string{"--in", dirPath}))
 			},
 			message:    fmt.Sprintf("%q is a directory, but a file was expected for flag --in", dirPath),
-			category:   conga.ErrValidation,
+			causeType:  "*conga.pathKindError",
 			usage:      true,
 			exitCode:   2,
 			usageShown: false,
@@ -654,7 +568,7 @@ func TestErrorClassificationBySource(t *testing.T) {
 					Args([]string{}))
 			},
 			message:    fmt.Sprintf("%q is a directory, but a file was expected for flag --in (from config key \"in\")", dirPath),
-			category:   conga.ErrConfig,
+			causeType:  "*conga.pathKindError",
 			usage:      false,
 			exitCode:   1,
 			usageShown: false,
@@ -667,7 +581,7 @@ func TestErrorClassificationBySource(t *testing.T) {
 				return runClassification(t, classificationApp().Args([]string{"--in", missingPath}))
 			},
 			message:    fmt.Sprintf("stat %s: no such file or directory for flag --in", missingPath),
-			category:   conga.ErrValidation,
+			causeType:  "*fs.PathError",
 			usage:      true,
 			exitCode:   2,
 			usageShown: false,
@@ -682,7 +596,7 @@ func TestErrorClassificationBySource(t *testing.T) {
 				return runClassification(t, classificationApp())
 			},
 			message:    fmt.Sprintf("stat %s: no such file or directory for flag --in (from environment variable APP_IN)", missingPath),
-			category:   conga.ErrConfig,
+			causeType:  "*fs.PathError",
 			usage:      false,
 			exitCode:   1,
 			usageShown: false,
@@ -696,7 +610,7 @@ func TestErrorClassificationBySource(t *testing.T) {
 				return runClassification(t, classificationApp().Args([]string{"--exe", noExecPath}))
 			},
 			message:    fmt.Sprintf("%q is not executable for flag --exe", noExecPath),
-			category:   conga.ErrValidation,
+			causeType:  "*conga.executableError",
 			usage:      true,
 			exitCode:   2,
 			usageShown: false,
@@ -710,7 +624,7 @@ func TestErrorClassificationBySource(t *testing.T) {
 				return runClassification(t, classificationApp().Args([]string{"--exe", "nosuchtool"}))
 			},
 			message:    `exec: "nosuchtool": executable file not found in $PATH for flag --exe`,
-			category:   conga.ErrCoerce,
+			causeType:  "*exec.Error",
 			usage:      true,
 			exitCode:   2,
 			usageShown: false,
@@ -724,7 +638,7 @@ func TestErrorClassificationBySource(t *testing.T) {
 				return runClassification(t, classificationApp().Args([]string{"--exe", missingPath}))
 			},
 			message:    fmt.Sprintf("stat %s: no such file or directory for flag --exe", missingPath),
-			category:   conga.ErrValidation,
+			causeType:  "*fs.PathError",
 			usage:      true,
 			exitCode:   2,
 			usageShown: false,
@@ -737,7 +651,7 @@ func TestErrorClassificationBySource(t *testing.T) {
 				return runClassification(t, classificationApp().Args([]string{"--body", missingPath}))
 			},
 			message:    fmt.Sprintf("stat %s: no such file or directory for flag --body", missingPath),
-			category:   conga.ErrCoerce,
+			causeType:  "*fs.PathError",
 			usage:      true,
 			exitCode:   2,
 			usageShown: false,
@@ -750,7 +664,7 @@ func TestErrorClassificationBySource(t *testing.T) {
 				return runClassification(t, classificationApp().Args([]string{"--body", dirPath}))
 			},
 			message:    fmt.Sprintf("%q is a directory, but a file was expected for flag --body", dirPath),
-			category:   conga.ErrCoerce,
+			causeType:  "*conga.pathKindError",
 			usage:      true,
 			exitCode:   2,
 			usageShown: false,
@@ -763,7 +677,7 @@ func TestErrorClassificationBySource(t *testing.T) {
 				return runClassification(t, classificationApp().Args([]string{"extra"}))
 			},
 			message:    `unexpected argument "extra"`,
-			category:   conga.ErrParse,
+			causeType:  "",
 			usage:      true,
 			exitCode:   2,
 			usageShown: true,
@@ -778,7 +692,7 @@ func TestErrorClassificationBySource(t *testing.T) {
 				return runClassification(t, classificationApp())
 			},
 			message:    `invalid key-value pair "novalue", expected KEY=VALUE for flag --labels (from environment variable APP_LABELS)`,
-			category:   conga.ErrConfig,
+			causeType:  "*coerce.mapPairError",
 			usage:      false,
 			exitCode:   1,
 			usageShown: false,
@@ -791,7 +705,7 @@ func TestErrorClassificationBySource(t *testing.T) {
 				return runClassification(t, classificationApp().Args([]string{"--no-verbose=true"}))
 			},
 			message:    "negated flag does not take a value: --no-verbose=true",
-			category:   conga.ErrParse,
+			causeType:  "",
 			usage:      true,
 			exitCode:   2,
 			usageShown: true,
@@ -808,7 +722,7 @@ func TestErrorClassificationBySource(t *testing.T) {
 					Args([]string{}))
 			},
 			message:    `invalid value "7" for feature "level" (from config key "experiments.level"): must be one of: 0, 1, 2`,
-			category:   conga.ErrConfig,
+			causeType:  "*spec.featureValueError",
 			usage:      false,
 			exitCode:   1,
 			usageShown: false,
@@ -825,7 +739,7 @@ func TestErrorClassificationBySource(t *testing.T) {
 					Args([]string{}))
 			},
 			message:    `invalid value "7" for feature "level" (from environment variable APP_FEATURES): must be one of: 0, 1, 2`,
-			category:   conga.ErrConfig,
+			causeType:  "*spec.featureValueError",
 			usage:      false,
 			exitCode:   1,
 			usageShown: false,
@@ -845,7 +759,7 @@ func TestErrorClassificationBySource(t *testing.T) {
 					Args([]string{}))
 			},
 			message:    `config file "config.json": unknown feature "bogus" in section "experiments"`,
-			category:   conga.ErrConfig,
+			causeType:  "",
 			usage:      false,
 			exitCode:   1,
 			usageShown: false,
@@ -862,7 +776,7 @@ func TestErrorClassificationBySource(t *testing.T) {
 					Args([]string{}))
 			},
 			message:    `unknown feature "bogus" (from environment variable APP_FEATURES)`,
-			category:   conga.ErrConfig,
+			causeType:  "",
 			usage:      false,
 			exitCode:   1,
 			usageShown: false,
@@ -877,7 +791,7 @@ func TestErrorClassificationBySource(t *testing.T) {
 					Args([]string{"--features", "level=7"}))
 			},
 			message:    `invalid value "7" for feature "level": must be one of: 0, 1, 2`,
-			category:   conga.ErrValidation,
+			causeType:  "*spec.featureValueError",
 			usage:      true,
 			exitCode:   2,
 			usageShown: false,
@@ -892,7 +806,7 @@ func TestErrorClassificationBySource(t *testing.T) {
 					Args([]string{"--features", "bogus=true"}))
 			},
 			message:    `unknown feature "bogus"`,
-			category:   conga.ErrParse,
+			causeType:  "",
 			usage:      true,
 			exitCode:   2,
 			usageShown: true,
@@ -906,7 +820,155 @@ func TestErrorClassificationBySource(t *testing.T) {
 				return runClassification(t, conga.New[classificationDefaultFileCLI]().Args([]string{}))
 			},
 			message:    `stat /nonexistent-conga-test/missing.txt: no such file or directory for flag --in (from default value)`,
-			category:   conga.ErrConfig,
+			causeType:  "*fs.PathError",
+			usage:      false,
+			exitCode:   1,
+			usageShown: false,
+		},
+		{
+			name: "xor group conflict between command-line members",
+			run: func(t *testing.T) classificationRunResult {
+				t.Helper()
+
+				return runClassification(t, conga.New[classificationXorCLI]().Args([]string{"--fast", "--slow"}))
+			},
+			message:    `flags --fast and --slow are mutually exclusive`,
+			causeType:  "",
+			usage:      true,
+			exitCode:   2,
+			usageShown: true,
+		},
+		{
+			name: "xor group conflict between environment members",
+			run: func(t *testing.T) classificationRunResult {
+				t.Helper()
+
+				t.Setenv("APP_FAST", "true")
+				t.Setenv("APP_SLOW", "true")
+
+				return runClassification(t, conga.New[classificationXorCLI]().Args([]string{}))
+			},
+			message:    `flags --fast (from environment variable APP_FAST) and --slow (from environment variable APP_SLOW) are mutually exclusive`,
+			causeType:  "",
+			usage:      false,
+			exitCode:   1,
+			usageShown: false,
+		},
+		{
+			name: "xor group conflict between configuration members",
+			run: func(t *testing.T) classificationRunResult {
+				t.Helper()
+
+				return runClassification(t, conga.New[classificationXorCLI]().
+					RegisterDecoder(".json", json.Decode).
+					ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"fast": true, "slow": true}`))).
+					Args([]string{}))
+			},
+			message:    `flags --fast (from config key "fast") and --slow (from config key "slow") are mutually exclusive`,
+			causeType:  "",
+			usage:      false,
+			exitCode:   1,
+			usageShown: false,
+		},
+		{
+			name: "xor group conflict with one command-line member",
+			run: func(t *testing.T) classificationRunResult {
+				t.Helper()
+
+				t.Setenv("APP_SLOW", "true")
+
+				return runClassification(t, conga.New[classificationXorCLI]().Args([]string{"--fast"}))
+			},
+			message:    `flags --fast and --slow (from environment variable APP_SLOW) are mutually exclusive`,
+			causeType:  "",
+			usage:      true,
+			exitCode:   2,
+			usageShown: true,
+		},
+		{
+			name: "oneof group conflict between command-line members",
+			run: func(t *testing.T) classificationRunResult {
+				t.Helper()
+
+				return runClassification(t, conga.New[classificationOneOfCLI]().Args([]string{"--json", "--yaml"}))
+			},
+			message:    `flags --json and --yaml are mutually exclusive`,
+			causeType:  "",
+			usage:      true,
+			exitCode:   2,
+			usageShown: true,
+		},
+		{
+			name: "oneof group conflict between environment members",
+			run: func(t *testing.T) classificationRunResult {
+				t.Helper()
+
+				t.Setenv("APP_JSON", "true")
+				t.Setenv("APP_YAML", "true")
+
+				return runClassification(t, conga.New[classificationOneOfCLI]().Args([]string{}))
+			},
+			message:    `flags --json (from environment variable APP_JSON) and --yaml (from environment variable APP_YAML) are mutually exclusive`,
+			causeType:  "",
+			usage:      false,
+			exitCode:   1,
+			usageShown: false,
+		},
+		{
+			name: "oneof group conflict between configuration members",
+			run: func(t *testing.T) classificationRunResult {
+				t.Helper()
+
+				return runClassification(t, conga.New[classificationOneOfCLI]().
+					RegisterDecoder(".json", json.Decode).
+					ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"json": true, "yaml": true}`))).
+					Args([]string{}))
+			},
+			message:    `flags --json (from config key "json") and --yaml (from config key "yaml") are mutually exclusive`,
+			causeType:  "",
+			usage:      false,
+			exitCode:   1,
+			usageShown: false,
+		},
+		{
+			name: "oneof group conflict with one command-line member",
+			run: func(t *testing.T) classificationRunResult {
+				t.Helper()
+
+				t.Setenv("APP_YAML", "true")
+
+				return runClassification(t, conga.New[classificationOneOfCLI]().Args([]string{"--json"}))
+			},
+			message:    `flags --json and --yaml (from environment variable APP_YAML) are mutually exclusive`,
+			causeType:  "",
+			usage:      true,
+			exitCode:   2,
+			usageShown: true,
+		},
+		{
+			name: "and group with a command-line member",
+			run: func(t *testing.T) classificationRunResult {
+				t.Helper()
+
+				return runClassification(t, conga.New[classificationAndCLI]().Args([]string{"--user", "ada"}))
+			},
+			message:    `flag --user must be given together with --pass`,
+			causeType:  "",
+			usage:      true,
+			exitCode:   2,
+			usageShown: true,
+		},
+		{
+			name: "and group with an environment member",
+			run: func(t *testing.T) classificationRunResult {
+				t.Helper()
+
+				t.Setenv("APP_USER", "ada")
+
+				return runClassification(t, conga.New[classificationAndCLI]().Args([]string{}))
+			},
+			message:    `flag --user (from environment variable APP_USER) must be given together with --pass`,
+			causeType:  "",
 			usage:      false,
 			exitCode:   1,
 			usageShown: false,
@@ -919,21 +981,11 @@ func TestErrorClassificationBySource(t *testing.T) {
 				return runClassification(t, conga.New[classificationNoRunnerCLI]().Args([]string{}))
 			},
 			message:    `struct classificationNoRunnerCLI: runner not implemented (hint: implement conga.Runner: Run(context.Context, *conga.Session) error)`,
-			category:   nil,
+			causeType:  "",
 			usage:      false,
 			exitCode:   1,
 			usageShown: false,
 		},
-	}
-
-	categories := []struct {
-		name     string
-		sentinel error
-	}{
-		{name: "ErrParse", sentinel: conga.ErrParse},
-		{name: "ErrCoerce", sentinel: conga.ErrCoerce},
-		{name: "ErrValidation", sentinel: conga.ErrValidation},
-		{name: "ErrConfig", sentinel: conga.ErrConfig},
 	}
 
 	//nolint:paralleltest // subtests mutate the process environment with t.Setenv
@@ -947,27 +999,16 @@ func TestErrorClassificationBySource(t *testing.T) {
 
 			assert.Error(t, result.err)
 			assert.Equal(t, testCase.message, result.err.Error())
-			assert.Equal(t, testCase.usage, conga.IsUsageError(result.err))
+			_, isUsage := errors.AsType[*conga.UsageError](result.err)
+			assert.Equal(t, testCase.usage, isUsage)
 			assert.Equal(t, testCase.exitCode, result.exitCode)
+			assert.Equal(t, testCase.causeType, causeTypeOf(result.err))
 			expectedPrefix := "app: error: " + testCase.message + "\n"
 			assert.True(t, strings.HasPrefix(result.output, expectedPrefix))
 			assert.Equal(t, testCase.usageShown, strings.Contains(result.output, "\nUsage:\n"))
 
 			if !testCase.usageShown {
 				assert.Equal(t, expectedPrefix, result.output)
-			}
-
-			if testCase.category == nil {
-				assert.True(t, spec.IsSchemaError(result.err))
-			}
-
-			for _, category := range categories {
-				if testCase.category != nil && errors.Is(category.sentinel, testCase.category) {
-					assert.IsError(t, result.err, category.sentinel)
-				} else {
-					assert.False(t, errors.Is(result.err, category.sentinel),
-						"expected no %s classification, got error tree: %v", category.name, result.err)
-				}
 			}
 		})
 	}
@@ -992,8 +1033,7 @@ func TestConfigKeyPath_AncestorFlagOnSubcommand(t *testing.T) {
 
 		err := newApp(t, `{"port": "abc"}`).Run()
 
-		assert.IsError(t, err, conga.ErrConfig)
-		assert.False(t, conga.IsUsageError(err))
+		assertNotUsageError(t, err)
 		assert.Equal(t, `invalid integer value "abc" for flag --port (from config key "port")`, err.Error())
 	})
 
@@ -1002,8 +1042,7 @@ func TestConfigKeyPath_AncestorFlagOnSubcommand(t *testing.T) {
 
 		err := newApp(t, fmt.Sprintf(`{"in": %q}`, missing)).Run()
 
-		assert.IsError(t, err, conga.ErrConfig)
-		assert.False(t, conga.IsUsageError(err))
+		assertNotUsageError(t, err)
 		assert.Equal(t, fmt.Sprintf("stat %s: no such file or directory for flag --in (from config key \"in\")", missing), err.Error())
 	})
 
@@ -1012,8 +1051,7 @@ func TestConfigKeyPath_AncestorFlagOnSubcommand(t *testing.T) {
 
 		err := newApp(t, `{"counts": {"a": "abc"}}`).Run()
 
-		assert.IsError(t, err, conga.ErrConfig)
-		assert.False(t, conga.IsUsageError(err))
+		assertNotUsageError(t, err)
 		assert.Equal(t, `value for key "a": invalid integer value "abc" for flag --counts (from config key "counts")`, err.Error())
 	})
 }
@@ -1025,8 +1063,7 @@ type classificationDefaultFileCLI struct {
 }
 
 // TestErrorClassificationDefaultCoercion pins the default-value origin suffix
-// on both coercion paths. The positional case exercises the formatCoercionLocation
-// argument branch, which took its source from argState.
+// on both coercion paths, for a flag and for a positional argument.
 func TestErrorClassificationDefaultCoercion(t *testing.T) {
 	t.Parallel()
 
@@ -1043,9 +1080,7 @@ func TestErrorClassificationDefaultCoercion(t *testing.T) {
 
 		assert.Error(t, result.err)
 		assert.Equal(t, `invalid integer value "abc" for flag --port (from default value)`, result.err.Error())
-		assert.IsError(t, result.err, conga.ErrConfig)
-		assert.False(t, errors.Is(result.err, conga.ErrCoerce))
-		assert.False(t, conga.IsUsageError(result.err))
+		assertNotUsageError(t, result.err)
 		assert.Equal(t, 1, result.exitCode)
 	})
 
@@ -1062,9 +1097,7 @@ func TestErrorClassificationDefaultCoercion(t *testing.T) {
 
 		assert.Error(t, result.err)
 		assert.Equal(t, `invalid integer value "abc" for argument [count] (from default value)`, result.err.Error())
-		assert.IsError(t, result.err, conga.ErrConfig)
-		assert.False(t, errors.Is(result.err, conga.ErrCoerce))
-		assert.False(t, conga.IsUsageError(result.err))
+		assertNotUsageError(t, result.err)
 		assert.Equal(t, 1, result.exitCode)
 	})
 
@@ -1085,9 +1118,7 @@ func TestErrorClassificationDefaultCoercion(t *testing.T) {
 
 		assert.Error(t, result.err)
 		assert.Equal(t, `stat /nonexistent-conga-test/missing.txt: no such file or directory for argument [in] (from default value)`, result.err.Error())
-		assert.IsError(t, result.err, conga.ErrConfig)
-		assert.False(t, errors.Is(result.err, conga.ErrValidation))
-		assert.False(t, conga.IsUsageError(result.err))
+		assertNotUsageError(t, result.err)
 		assert.Equal(t, 1, result.exitCode)
 	})
 }
@@ -1106,20 +1137,9 @@ func (classificationUnmarshaler) UnmarshalText(text []byte) error {
 	return &classificationUnmarshalError{raw: string(text)}
 }
 
-var errClassificationSentinel = errors.New("classification sentinel")
-
-// classificationCategoryUnmarshaler fails with a cause that wraps both an
-// application sentinel and a CONGA category sentinel.
-type classificationCategoryUnmarshaler struct{}
-
-func (classificationCategoryUnmarshaler) UnmarshalText([]byte) error {
-	return fmt.Errorf("%w: %w", errClassificationSentinel, conga.ErrValidation)
-}
-
-// TestErrorClassificationCauseReachable pins decision 1A: an env- or
-// config-sourced failure matches ErrConfig and no other category, while
-// errors.As and errors.Is still reach the application's TextUnmarshaler error
-// and stdlib causes such as *fs.PathError.
+// TestErrorClassificationCauseReachable pins that errors.As and errors.Is reach
+// the application's TextUnmarshaler error and stdlib causes such as
+// *fs.PathError, for command-line and config-sourced values alike.
 func TestErrorClassificationCauseReachable(t *testing.T) {
 	t.Parallel()
 
@@ -1139,8 +1159,7 @@ func TestErrorClassificationCauseReachable(t *testing.T) {
 
 		assert.Error(t, result.err)
 		assert.Equal(t, `custom config unmarshal failure for flag --custom (from config key "custom")`, result.err.Error())
-		assert.IsError(t, result.err, conga.ErrConfig)
-		assert.False(t, errors.Is(result.err, conga.ErrCoerce))
+		assertNotUsageError(t, result.err)
 
 		var unmarshalErr *classificationUnmarshalError
 		assert.True(t, errors.As(result.err, &unmarshalErr))
@@ -1157,34 +1176,39 @@ func TestErrorClassificationCauseReachable(t *testing.T) {
 			Args([]string{}))
 
 		assert.Error(t, result.err)
-		assert.IsError(t, result.err, conga.ErrConfig)
+		assertNotUsageError(t, result.err)
 		assert.IsError(t, result.err, fs.ErrNotExist)
-		assert.False(t, errors.Is(result.err, conga.ErrValidation))
 
 		var pathErr *fs.PathError
 		assert.True(t, errors.As(result.err, &pathErr))
 		assert.Equal(t, missing, pathErr.Path)
 	})
 
-	t.Run("cause wrapping a category sentinel", func(t *testing.T) {
+	t.Run("CONGA's own integer error is the cause and reaches strconv.ErrSyntax", func(t *testing.T) {
 		t.Parallel()
 
-		type WrappingCLI struct {
-			noopRunner
+		result := runClassification(t, classificationApp().Args([]string{"--port", "abc"}))
 
-			Wrapping conga.OptionalFlag[classificationCategoryUnmarshaler] `name:"wrapping"`
-		}
+		assertUsageError(t, result.err)
+		assert.Equal(t, `invalid integer value "abc" for flag --port`, result.err.Error())
+		assert.Equal(t, `invalid integer value "abc"`, errors.Unwrap(result.err).Error())
 
-		result := runClassification(t, conga.New[WrappingCLI]().
-			RegisterDecoder(".json", json.Decode).
-			ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"wrapping": "value"}`))).
-			Args([]string{}))
+		assert.IsError(t, result.err, strconv.ErrSyntax)
+	})
 
-		assert.Error(t, result.err)
-		assert.IsError(t, result.err, conga.ErrConfig)
-		assert.IsError(t, result.err, errClassificationSentinel)
-		assert.False(t, errors.Is(result.err, conga.ErrValidation))
-		assert.False(t, errors.Is(result.err, conga.ErrCoerce))
+	t.Run("command-line TextUnmarshaler error", func(t *testing.T) {
+		t.Parallel()
+
+		result := runClassification(t, conga.New[CLI]().Args([]string{"--custom", "value"}))
+
+		usage := assertUsageError(t, result.err)
+		assert.Equal(t, "custom config unmarshal failure for flag --custom", result.err.Error())
+		assert.Equal(t, 2, result.exitCode)
+		assert.Equal(t, "app", usage.CommandPath())
+
+		var unmarshalErr *classificationUnmarshalError
+		assert.True(t, errors.As(result.err, &unmarshalErr))
+		assert.Equal(t, "value", unmarshalErr.raw)
 	})
 }
 
@@ -1214,9 +1238,7 @@ func TestErrorClassificationExecutableBoundary(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrCoerce)
-		assert.False(t, errors.Is(err, conga.ErrValidation))
-		assert.True(t, conga.IsUsageError(err))
+		assertUsageError(t, err)
 		assert.Equal(t, `exec: "nosuchtool": executable file not found in $PATH for flag --exe`, err.Error())
 		assert.Equal(t, "", stdoutBuffer.String())
 	})
@@ -1280,50 +1302,143 @@ func TestErrorClassificationExecutableDotSlashMissingFailsValidation(t *testing.
 
 	err := app.Run()
 
-	assert.IsError(t, err, conga.ErrValidation)
-	assert.False(t, errors.Is(err, conga.ErrCoerce))
+	assertUsageError(t, err)
 	assert.Equal(t, fmt.Sprintf("stat %s: no such file or directory for flag --exe", filepath.Join(workDir, "nosuchtool")), err.Error())
 }
+
+// hookFailureContextKey carries, in the run context, the failure hookFailureCLI
+// produces.
+type hookFailureContextKey struct{}
+
+// hookFailure names the lifecycle stage that fails with err, and the error a
+// failing Finally returns.
+type hookFailure struct {
+	stage       string
+	err         error
+	finallyErr  error
+	finallySeen *error
+}
+
+// hookFailureCLI fails the stage its run context names.
+type hookFailureCLI struct{}
+
+func (c *hookFailureCLI) PreRun(ctx context.Context, _ *conga.Session) error {
+	if failure := c.failure(ctx); failure.stage == "PreRun" {
+		return failure.err
+	}
+
+	return nil
+}
+
+func (c *hookFailureCLI) Run(ctx context.Context, _ *conga.Session) error {
+	if failure := c.failure(ctx); failure.stage == "Run" {
+		return failure.err
+	}
+
+	return nil
+}
+
+func (c *hookFailureCLI) PostRun(ctx context.Context, _ *conga.Session) error {
+	if failure := c.failure(ctx); failure.stage == "PostRun" {
+		return failure.err
+	}
+
+	return nil
+}
+
+func (c *hookFailureCLI) Finally(ctx context.Context, _ *conga.Session, err error) error {
+	failure := c.failure(ctx)
+
+	if failure.finallySeen != nil {
+		*failure.finallySeen = err
+	}
+
+	return failure.finallyErr
+}
+
+func (c *hookFailureCLI) failure(ctx context.Context) hookFailure {
+	failure, _ := ctx.Value(hookFailureContextKey{}).(hookFailure)
+
+	return failure
+}
+
+type hookPassThroughError struct{ message string }
+
+func (e *hookPassThroughError) Error() string { return e.message }
 
 func TestHookErrorsPassThrough(t *testing.T) {
 	t.Parallel()
 
-	app := conga.New[failingCLI]().Args([]string{})
-	err := app.RunContext(t.Context())
-	assert.IsError(t, err, fs.ErrPermission)
-	assert.Equal(t, fs.ErrPermission.Error(), err.Error())
-	assert.False(t, conga.IsUsageError(err))
-	assert.False(t, spec.IsSchemaError(err))
+	for _, stage := range []string{"PreRun", "Run", "PostRun"} {
+		t.Run(stage+" error comes back as returned", func(t *testing.T) {
+			t.Parallel()
 
-	for _, sentinel := range []error{conga.ErrParse, conga.ErrCoerce, conga.ErrValidation, conga.ErrConfig} {
-		assert.False(t, errors.Is(err, sentinel))
+			hookErr := &hookPassThroughError{message: stage + " failed"}
+
+			err := conga.New[hookFailureCLI]().
+				Args([]string{}).
+				RunContext(context.WithValue(t.Context(), hookFailureContextKey{}, hookFailure{stage: stage, err: hookErr}))
+
+			assert.True(t, err == hookErr) //nolint:errorlint // identity, not errors.Is, is the property under test
+			assert.Equal(t, stage+" failed", err.Error())
+			assertNotUsageError(t, err)
+			assert.False(t, spec.IsSchemaError(err))
+		})
 	}
+
+	t.Run("a failing Finally joins with the hook error", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			hookErr    = &hookPassThroughError{message: "Run failed"}
+			finallyErr = &hookPassThroughError{message: "Finally failed"}
+			seen       error
+		)
+
+		err := conga.New[hookFailureCLI]().
+			Args([]string{}).
+			RunContext(context.WithValue(t.Context(), hookFailureContextKey{}, hookFailure{stage: "Run", err: hookErr, finallyErr: finallyErr, finallySeen: &seen}))
+
+		assert.True(t, errors.Is(err, hookErr))
+		assert.True(t, errors.Is(err, finallyErr))
+		assert.Equal(t, "Run failed\nFinally failed", err.Error())
+		assert.True(t, seen == hookErr) //nolint:errorlint // identity, not errors.Is, is the property under test
+	})
+
+	t.Run("the standard library error from Run is not a usage error", func(t *testing.T) {
+		t.Parallel()
+
+		err := conga.New[failingCLI]().Args([]string{}).RunContext(t.Context())
+
+		assert.IsError(t, err, fs.ErrPermission)
+		assert.Equal(t, fs.ErrPermission.Error(), err.Error())
+		assertNotUsageError(t, err)
+	})
 }
 
-func TestDomainTypeErrorsSelfCategorize(t *testing.T) {
+func TestDomainTypeErrorsAreRootErrors(t *testing.T) {
 	t.Parallel()
 
 	var size conga.ByteSize
 
 	err := size.UnmarshalText([]byte("10ZB"))
-	assert.IsError(t, err, conga.ErrCoerce)
+	assertNotUsageError(t, err)
+	assert.Equal(t, nil, errors.Unwrap(err))
 	assert.Equal(t, `unknown byte size unit "ZB" in "10ZB" (accepted: B, kB, MB, GB, TB, PB, EB, KiB, MiB, GiB, TiB, PiB, EiB)`, err.Error())
 }
 
-func TestIsUsageError(t *testing.T) {
+func TestUsageError_NotReturnedForSchemaOrPlainErrors(t *testing.T) {
 	t.Parallel()
-
-	assert.False(t, conga.IsUsageError(nil))
 
 	schemaErr := conga.New[classificationNoRunnerCLI]().Args([]string{}).RunContext(t.Context())
 	assert.True(t, spec.IsSchemaError(schemaErr))
-	assert.False(t, conga.IsUsageError(schemaErr))
+	assertNotUsageError(t, schemaErr)
 
 	err := errors.New("database connection refused")
-	assert.False(t, conga.IsUsageError(err))
+	assertNotUsageError(t, err)
 }
 
-func TestIsUsageError_EndToEnd(t *testing.T) {
+func TestUsageError_EndToEnd(t *testing.T) {
 	t.Parallel()
 
 	t.Run("unknown flag parses as usage error", func(t *testing.T) {
@@ -1338,11 +1453,10 @@ func TestIsUsageError_EndToEnd(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.True(t, conga.IsUsageError(err))
-		assert.IsError(t, err, conga.ErrParse)
+		assertUsageError(t, err)
 	})
 
-	t.Run("coercion failure classifies as usage error", func(t *testing.T) {
+	t.Run("coercion failure is a usage error", func(t *testing.T) {
 		t.Parallel()
 
 		type CLI struct {
@@ -1356,11 +1470,10 @@ func TestIsUsageError_EndToEnd(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.True(t, conga.IsUsageError(err))
-		assert.IsError(t, err, conga.ErrCoerce)
+		assertUsageError(t, err)
 	})
 
-	t.Run("missing required flag classifies as usage error", func(t *testing.T) {
+	t.Run("missing required flag is a usage error", func(t *testing.T) {
 		t.Parallel()
 
 		type CLI struct {
@@ -1374,8 +1487,7 @@ func TestIsUsageError_EndToEnd(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.True(t, conga.IsUsageError(err))
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 }
 
@@ -1394,7 +1506,7 @@ func TestErrNoRunner(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.False(t, conga.IsUsageError(err))
+		assertNotUsageError(t, err)
 		assert.True(t, spec.IsSchemaError(err))
 		assert.Equal(t, `struct CLI: runner not implemented (hint: implement conga.Runner: Run(context.Context, *conga.Session) error)`, err.Error())
 	})
@@ -1415,7 +1527,7 @@ func TestErrNoRunner(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.False(t, conga.IsUsageError(err))
+		assertNotUsageError(t, err)
 		assert.True(t, spec.IsSchemaError(err))
 		assert.Equal(t, `struct ChildCmd: runner not implemented (hint: implement conga.Runner: Run(context.Context, *conga.Session) error)`, err.Error())
 	})
@@ -1440,7 +1552,7 @@ func TestErrNoRunner(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.False(t, conga.IsUsageError(err))
+		assertNotUsageError(t, err)
 		assert.True(t, spec.IsSchemaError(err))
 		assert.Equal(t, `struct LeafCmd: runner not implemented (hint: implement conga.Runner: Run(context.Context, *conga.Session) error)`, err.Error())
 	})
@@ -1453,8 +1565,7 @@ func TestTextUnmarshalerCoerceWrapping_Issue06(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrCoerce)
-	assert.True(t, conga.IsUsageError(err))
+	assertUsageError(t, err)
 }
 
 func TestSubcommandTypoSuggestion_Issue10(t *testing.T) {
@@ -1464,7 +1575,7 @@ func TestSubcommandTypoSuggestion_Issue10(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrParse)
+	assertUsageError(t, err)
 	assert.Equal(t, `unknown command: clustr (did you mean "cluster"?)`, err.Error())
 }
 
@@ -1475,7 +1586,7 @@ func TestSubcommandRequired_Issue11(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrParse)
+	assertUsageError(t, err)
 	assert.Contains(t, err.Error(), `subcommand required for "clustermgr"`)
 }
 
@@ -1498,7 +1609,7 @@ func TestSliceEnumValidation_Issue03(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 }
 
@@ -1533,7 +1644,7 @@ func TestNormalizingEnumValidation(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 
 	t.Run("argument rejects value outside enum", func(t *testing.T) {
@@ -1544,7 +1655,7 @@ func TestNormalizingEnumValidation(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 }
 
@@ -1687,7 +1798,7 @@ func TestExit_OutputsAndExits(t *testing.T) {
 
 		err := app.RunContext(t.Context())
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrParse)
+		assertUsageError(t, err)
 
 		app.Exit(err)
 
@@ -1795,7 +1906,7 @@ func TestExit_ValueErrorsRenderWithoutUsage(t *testing.T) {
 
 		err := app.RunContext(t.Context())
 		assert.Error(t, err)
-		assert.True(t, conga.IsUsageError(err))
+		assertUsageError(t, err)
 
 		app.Exit(err)
 
@@ -1939,7 +2050,7 @@ func TestOptionTerminatorLookahead_Issue02(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrParse)
+		assertUsageError(t, err)
 		assert.Contains(t, err.Error(), "flag requires an argument: --name")
 	})
 
@@ -1950,7 +2061,7 @@ func TestOptionTerminatorLookahead_Issue02(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrParse)
+		assertUsageError(t, err)
 		assert.Contains(t, err.Error(), "flag requires an argument: -o")
 	})
 
@@ -1996,8 +2107,7 @@ func TestPointerTargetCoercion_Issue07(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrCoerce)
-		assert.True(t, conga.IsUsageError(err))
+		assertUsageError(t, err)
 	})
 
 	t.Run("failing pointer TextUnmarshaler fails coercion", func(t *testing.T) {
@@ -2007,8 +2117,7 @@ func TestPointerTargetCoercion_Issue07(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrCoerce)
-		assert.True(t, conga.IsUsageError(err))
+		assertUsageError(t, err)
 	})
 }
 
@@ -2499,7 +2608,7 @@ func TestNegativeNumbersAndNumericFlags_Issue01(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrParse)
+		assertUsageError(t, err)
 	})
 
 	t.Run("short flag requires argument error when followed by non-numeric flag", func(t *testing.T) {
@@ -2516,7 +2625,7 @@ func TestNegativeNumbersAndNumericFlags_Issue01(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrParse)
+		assertUsageError(t, err)
 	})
 
 	t.Run("unexpected negative number when no positional args declared", func(t *testing.T) {
@@ -2532,7 +2641,7 @@ func TestNegativeNumbersAndNumericFlags_Issue01(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrParse)
+		assertUsageError(t, err)
 	})
 
 	t.Run("scientific notation and large negative numbers", func(t *testing.T) {
@@ -2726,7 +2835,7 @@ func TestErrorCommandAndDiagnostics(t *testing.T) {
 func TestErrFileSizeLimitExceeded(t *testing.T) {
 	t.Parallel()
 
-	t.Run("dotenv exceeding size limit classifies as config error", func(t *testing.T) {
+	t.Run("dotenv exceeding size limit is not a usage error", func(t *testing.T) {
 		t.Parallel()
 
 		envFile := filepath.Join(t.TempDir(), "large.env")
@@ -2745,7 +2854,7 @@ func TestErrFileSizeLimitExceeded(t *testing.T) {
 		err = app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrConfig)
+		assertNotUsageError(t, err)
 		assert.Contains(t, err.Error(), "exceeds maximum limit")
 	})
 }
@@ -2813,12 +2922,9 @@ func TestErrorCommandAndChain_EndToEnd(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
-		assert.True(t, conga.IsUsageError(err))
+		assertUsageError(t, err)
 
-		var usage conga.UsageError
-
-		assert.True(t, errors.As(err, &usage))
+		usage := assertUsageError(t, err)
 		assert.Equal(t, "app sub", usage.CommandPath())
 		assert.Contains(t, usage.Usage(), "app sub [flags]")
 	})
@@ -2834,9 +2940,7 @@ func TestErrorCommandAndChain_EndToEnd(t *testing.T) {
 
 		assert.Error(t, err)
 
-		var usage conga.UsageError
-
-		assert.True(t, errors.As(err, &usage))
+		usage := assertUsageError(t, err)
 		assert.Contains(t, usage.Usage(), "Usage:\n  app sub [flags]")
 	})
 
@@ -2851,9 +2955,7 @@ func TestErrorCommandAndChain_EndToEnd(t *testing.T) {
 
 		assert.Error(t, err)
 
-		var usage conga.UsageError
-
-		assert.True(t, errors.As(err, &usage))
+		usage := assertUsageError(t, err)
 		assert.Contains(t, usage.Usage(), "Usage:\n  app sub [flags]")
 	})
 
@@ -2868,13 +2970,11 @@ func TestErrorCommandAndChain_EndToEnd(t *testing.T) {
 
 		assert.Error(t, err)
 
-		var usage conga.UsageError
-
-		assert.True(t, errors.As(err, &usage))
+		usage := assertUsageError(t, err)
 		assert.Contains(t, usage.Usage(), "Usage:\n  app sub [flags]")
 	})
 
-	t.Run("CompletionError classification and decoupling from UsageError", func(t *testing.T) {
+	t.Run("completion failure is an ExitCoder and not a usage error", func(t *testing.T) {
 		t.Parallel()
 
 		booming := predict.Callback(func(_ predict.Context) predict.Predictor {
@@ -2897,20 +2997,13 @@ func TestErrorCommandAndChain_EndToEnd(t *testing.T) {
 
 		assert.Error(t, err)
 
-		// Must classify as CompletionError
-		assert.True(t, conga.IsCompletionError(err))
+		// The internal completion failure is an ExitCoder reporting 2, not a usage error.
+		coder, isCoder := errors.AsType[conga.ExitCoder](err)
 
-		var compErr conga.CompletionError
-
-		assert.True(t, errors.As(err, &compErr))
-		assert.True(t, compErr.IsCompletionError())
-
-		// Must NOT classify as UsageError
-		assert.False(t, conga.IsUsageError(err))
-
-		var usageErr conga.UsageError
-
-		assert.False(t, errors.As(err, &usageErr))
+		assert.True(t, isCoder)
+		assert.Equal(t, 2, coder.ExitCode())
+		assert.Equal(t, "internal completion failure: completion boom", err.Error())
+		assertNotUsageError(t, err)
 	})
 }
 

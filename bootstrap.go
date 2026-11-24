@@ -2,8 +2,6 @@ package conga
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"os"
 	"reflect"
 	"slices"
@@ -57,31 +55,21 @@ func (b *Bootstrap) LookupEnv(key string) (string, bool) {
 
 // Dotenv loads each existing .env file in order through the configured setenv
 // function. Missing files are ignored; malformed or oversized (>16MB) files
-// return an error wrapping [ErrConfig]. When called without paths it probes
+// return an error. When called without paths it probes
 // .env followed by .env.local in the current working directory, loading both if
 // present, mirroring [App.Dotenv]. Variables already present in the host
 // process environment are never overwritten, while a file loaded here overrides
 // a key an earlier .env file set in the same run.
 func (b *Bootstrap) Dotenv(paths ...string) error {
-	err := dotenv.LoadWithOrigins(b.setenvFunc, b.dotenvOrigins, false, paths...)
-	if err != nil {
-		return fmt.Errorf("%w: %w", ErrConfig, err)
-	}
-
-	return nil
+	return dotenv.LoadWithOrigins(b.setenvFunc, b.dotenvOrigins, false, paths...)
 }
 
 // DotenvExplicit loads each named .env file through the configured setenv
-// function, returning an error wrapping [ErrConfig] when a file is missing,
+// function, returning an error when a file is missing,
 // malformed, or oversized (>16MB). It is the strict counterpart of
 // [Bootstrap.Dotenv] for paths supplied by a flag such as --env-file.
 func (b *Bootstrap) DotenvExplicit(paths ...string) error {
-	err := dotenv.LoadWithOrigins(b.setenvFunc, b.dotenvOrigins, true, paths...)
-	if err != nil {
-		return fmt.Errorf("%w: %w", ErrConfig, err)
-	}
-
-	return nil
+	return dotenv.LoadWithOrigins(b.setenvFunc, b.dotenvOrigins, true, paths...)
 }
 
 // SetConfig supplies the run's programmatic configuration document. The
@@ -105,20 +93,6 @@ type bootstrapResult struct {
 	restore     func()
 	configSet   bool
 	err         error
-}
-
-// bootstrapError classifies a failure returned by a [Bootstrapper] under
-// [ErrConfig].
-type bootstrapError struct {
-	cause error
-}
-
-func (e *bootstrapError) Error() string {
-	return "bootstrap failed: " + e.cause.Error()
-}
-
-func (e *bootstrapError) Unwrap() []error {
-	return []error{ErrConfig, e.cause}
 }
 
 // containerSnapshot captures a bootstrap container's value so an
@@ -154,8 +128,8 @@ func (a *App[T]) runBootstrap(ctx context.Context, request configRequest) (boots
 
 	result := bootstrapResult{restore: restore}
 	if err != nil {
-		// Binder errors are already categorized by value source. Only errors
-		// returned by Bootstrapper.Bootstrap are config failures.
+		// Binder errors reach prepare unchanged, which reports a command-line
+		// value as a usage error.
 		result.err = err
 
 		return result, true
@@ -170,7 +144,7 @@ func (a *App[T]) runBootstrap(ctx context.Context, request configRequest) (boots
 		}
 
 		if err := bootstrapper.Bootstrap(ctx, handle); err != nil {
-			bootstrapErr = classifyBootstrapError(err)
+			bootstrapErr = err
 
 			break
 		}
@@ -402,18 +376,6 @@ func chainImplementsBootstrapper(cmdChain []*spec.Command) bool {
 	}
 
 	return false
-}
-
-func classifyBootstrapError(err error) error {
-	if err == nil {
-		return nil
-	}
-
-	if errors.Is(err, ErrConfig) {
-		return err
-	}
-
-	return &bootstrapError{cause: err}
 }
 
 // isBootstrapper reports whether a command struct value implements

@@ -4,8 +4,6 @@ package completion
 import (
 	"fmt"
 	"strings"
-
-	"github.com/conga-sh/conga/internal/sentinel"
 )
 
 const (
@@ -61,5 +59,14 @@ func ParseShell(name string) (Shell, error) {
 		return driver.shell, nil
 	}
 
-	return "", fmt.Errorf("%w %q, supported shells: %s", sentinel.ErrUnknownShell, name, strings.Join(SupportedShells(), ", "))
+	return "", &unknownShellError{name: name}
+}
+
+// unknownShellError reports a shell name no driver serves. It has no cause.
+type unknownShellError struct {
+	name string
+}
+
+func (e *unknownShellError) Error() string {
+	return fmt.Sprintf("unknown shell %q, supported shells: %s", e.name, strings.Join(SupportedShells(), ", "))
 }

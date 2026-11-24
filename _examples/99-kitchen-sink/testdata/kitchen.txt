@@ -224,8 +224,11 @@ exec kitchen-sink --config-file config.hcl feature-state
 stdout 'features: http3=false strict-tls=true metrics=true compression=1'
 
 # 19. The validation hook rejects the unobservable plaintext-metrics combination.
+#     The value came from the environment and the hook returns a plain error,
+#     so the exit status is 1 and no usage block is printed.
 env KITCHEN_SINK_STRICT=false
-exit-status 2 kitchen-sink feature-state
+exit-status 1 kitchen-sink feature-state
+! stderr 'Usage:'
 stderr 'metrics require strict TLS'
 env KITCHEN_SINK_STRICT=
 

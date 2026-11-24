@@ -1,7 +1,6 @@
 package conga_test
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -100,9 +99,8 @@ func TestConfigValues_JSONIntegerBeyond64BitsRejected(t *testing.T) {
 
 	err := app.Run()
 
-	assert.IsError(t, err, conga.ErrConfig)
-	assert.IsError(t, err, json.ErrParse)
-	assert.Equal(t, fmt.Sprintf(`cannot parse config file %q: json parse error: /count: integer 18446744073709551616 out of range`, cfgPath), err.Error())
+	assertNotUsageError(t, err)
+	assert.Equal(t, fmt.Sprintf(`cannot parse config file %q: /count: integer 18446744073709551616 out of range`, cfgPath), err.Error())
 	assert.Equal(t, conga.SourceNone, cli.Count.Source())
 	assert.Equal(t, "", cli.Count.Get())
 }
@@ -119,9 +117,8 @@ func TestConfigValues_YAMLIntegerBeyond64BitsRejected(t *testing.T) {
 
 	err := app.Run()
 
-	assert.IsError(t, err, conga.ErrConfig)
-	assert.IsError(t, err, yaml.ErrParse)
-	assert.Equal(t, fmt.Sprintf(`cannot parse config file %q: yaml parse error: line 1: integer 999999999999999999999999999999 out of range`, cfgPath), err.Error())
+	assertNotUsageError(t, err)
+	assert.Equal(t, fmt.Sprintf(`cannot parse config file %q: line 1: integer 999999999999999999999999999999 out of range`, cfgPath), err.Error())
 	assert.Equal(t, conga.SourceNone, cli.Count.Source())
 	assert.Equal(t, "", cli.Count.Get())
 }
@@ -138,9 +135,8 @@ func TestConfigValues_HCLIntegerBeyond64BitsRejected(t *testing.T) {
 
 	err := app.Run()
 
-	assert.IsError(t, err, conga.ErrConfig)
-	assert.IsError(t, err, hcl.ErrParse)
-	assert.Equal(t, fmt.Sprintf(`cannot parse config file %q: hcl parse error: config.hcl:1,1-39: attribute "count": number 999999999999999999999999999999 out of range`, cfgPath), err.Error())
+	assertNotUsageError(t, err)
+	assert.Equal(t, fmt.Sprintf(`cannot parse config file %q: config.hcl:1,1-39: attribute "count": number 999999999999999999999999999999 out of range`, cfgPath), err.Error())
 	assert.Equal(t, conga.SourceNone, cli.Count.Source())
 	assert.Equal(t, "", cli.Count.Get())
 }
@@ -177,9 +173,7 @@ func TestConfigValues_TOMLLocalDatetimeRejectedForTime(t *testing.T) {
 
 	err := app.Run()
 
-	assert.IsError(t, err, conga.ErrConfig)
-	assert.False(t, conga.IsUsageError(err))
-	assert.False(t, errors.Is(err, conga.ErrCoerce))
+	assertNotUsageError(t, err)
 	assert.Equal(t, `invalid time "1979-05-27T07:32:00" (expected RFC 3339, e.g. 2006-01-02T15:04:05Z) for flag --when (from config key "when")`, err.Error())
 	assert.Equal(t, conga.SourceNone, cli.When.Source())
 	assert.True(t, cli.When.Get().IsZero())
@@ -197,9 +191,7 @@ func TestConfigValues_TOMLLocalDateRejectedForTime(t *testing.T) {
 
 	err := app.Run()
 
-	assert.IsError(t, err, conga.ErrConfig)
-	assert.False(t, conga.IsUsageError(err))
-	assert.False(t, errors.Is(err, conga.ErrCoerce))
+	assertNotUsageError(t, err)
 	assert.Equal(t, `invalid time "1979-05-27" (expected RFC 3339, e.g. 2006-01-02T15:04:05Z) for flag --when (from config key "when")`, err.Error())
 	assert.Equal(t, conga.SourceNone, cli.When.Source())
 	assert.True(t, cli.When.Get().IsZero())

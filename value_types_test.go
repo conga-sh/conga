@@ -82,7 +82,7 @@ func TestTypedMap_RegisteredValueParser(t *testing.T) {
 
 		err := app.Run()
 
-		assert.IsError(t, err, conga.ErrCoerce)
+		assertUsageError(t, err)
 		assert.Equal(t, `value for key "db": unknown level "1" for flag --levels`, err.Error())
 	})
 

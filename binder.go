@@ -265,13 +265,7 @@ func (parser *tokenParser) parseLongFlag(tok tokenizer.Token) error {
 
 		suggestion := parser.findFlagSuggestion(name)
 
-		return &parseError{
-			msg:        "unknown flag: --" + name,
-			token:      tok.Raw,
-			cmdChain:   parser.cmdChain,
-			suggestion: suggestion,
-			cause:      errUnknownFlag,
-		}
+		return usageError(parser.cmdChain, "unknown flag: --"+name).withSuggestion(suggestion, suggestionKindFlag)
 	}
 
 	parser.recordFlagSpelling(flagSpec, "--"+name)
@@ -289,12 +283,7 @@ func (parser *tokenParser) parseLongFlag(tok tokenizer.Token) error {
 
 	if flagSpec.IsBool {
 		if isNegated && tok.HasAttachedValue {
-			return &parseError{
-				msg:      "negated flag does not take a value: " + tok.Raw,
-				token:    tok.Raw,
-				cmdChain: parser.cmdChain,
-				cause:    ErrParse,
-			}
+			return usageError(parser.cmdChain, "negated flag does not take a value: "+tok.Raw)
 		}
 
 		if isNegated {
@@ -324,7 +313,7 @@ func (parser *tokenParser) parseLongFlag(tok tokenizer.Token) error {
 		return parser.handleCompletionFlag(flagSpec)
 	}
 
-	return parser.consumeNextValue(flagSpec, "--"+flagSpec.Name, tok.Raw)
+	return parser.consumeNextValue(flagSpec, "--"+flagSpec.Name)
 }
 
 func (parser *tokenParser) handleCompletionFlag(flagSpec *spec.Flag) error {
@@ -353,21 +342,12 @@ func (parser *tokenParser) handleCompletionFlag(flagSpec *spec.Flag) error {
 	return nil
 }
 
-func (parser *tokenParser) consumeNextValue(flagSpec *spec.Flag, flagName, rawToken string) error {
-	flagRequiresValueError := func() *parseError {
-		return &parseError{
-			msg:      "flag requires an argument: " + flagName,
-			token:    rawToken,
-			cmdChain: parser.cmdChain,
-			cause:    errFlagRequiresValue,
-		}
-	}
-
+func (parser *tokenParser) consumeNextValue(flagSpec *spec.Flag, flagName string) error {
 	// The next token is consumed only when it binds as the value, so a
 	// flag-shaped token such as --help stays in the stream for the parser.
 	nextTok, ok := parser.scanner.Peek()
 	if !ok || !nextTok.CanBindAsFlagValue() {
-		return flagRequiresValueError()
+		return usageError(parser.cmdChain, "flag requires an argument: "+flagName)
 	}
 
 	parser.scanner.Next()
@@ -450,7 +430,9 @@ func (parser *tokenParser) bindClusterRune(tok tokenizer.Token, index int, flagS
 		return true, nil
 	}
 
-	return true, parser.consumeNextValue(flagSpec, fmt.Sprintf("-%c", runes[index]), tok.Raw)
+	flagName := fmt.Sprintf("-%c", runes[index])
+
+	return true, parser.consumeNextValue(flagSpec, flagName)
 }
 
 // unknownShorthandError reports the cluster rune r that names no flag.
@@ -469,13 +451,7 @@ func (parser *tokenParser) unknownShorthandError(tok tokenizer.Token, r rune) er
 		suggestion = "--help"
 	}
 
-	return &parseError{
-		msg:        msg,
-		token:      tok.Raw,
-		cmdChain:   parser.cmdChain,
-		suggestion: suggestion,
-		cause:      errUnknownFlag,
-	}
+	return usageError(parser.cmdChain, msg).withSuggestion(suggestion, suggestionKindFlag)
 }
 
 func (parser *tokenParser) parseShortFlag(tok tokenizer.Token) error {
@@ -630,9 +606,9 @@ type stdinClaim struct {
 // twice itself, yet an overridden "-" still claims stdin against other owners.
 // A second claim, from another flag or argument or from another slice item, is
 // a usage error when both values came from the command line; a conflicting
-// environment, configuration, or default value classifies under ErrConfig. It
+// environment, configuration, or default value is an input error. It
 // is checked before coercion, so nothing reads stdin twice.
-func (c *stdinClaim) claim(cmdChain []*spec.Command, owner stdinOwner, rawValues []string, source ValueSource) error {
+func (c *stdinClaim) claim(owner stdinOwner, rawValues []string, source ValueSource) error {
 	if c == nil || owner.targetType == nil {
 		return nil
 	}
@@ -663,20 +639,26 @@ func (c *stdinClaim) claim(cmdChain []*spec.Command, owner stdinOwner, rawValues
 			continue
 		}
 
-		return newStdinReadTwiceError(cmdChain, c.owner, owner.name, stdinErrorSource(c.source, source))
+		duplicateSource := stdinErrorSource(c.source, source)
+
+		return newStdinReadTwiceError(c.owner, owner.name, duplicateSource)
 	}
 
 	return nil
 }
 
 // claimFlag claims stdin for a flag's values from source.
-func (c *stdinClaim) claimFlag(cmdChain []*spec.Command, flagSpec *spec.Flag, values []string, source ValueSource) error {
-	return c.claim(cmdChain, stdinOwner{name: "--" + flagSpec.Name, targetType: flagSpec.TargetType, tags: flagSpec.FieldTags, sep: flagSpec.Sep}, values, source)
+func (c *stdinClaim) claimFlag(flagSpec *spec.Flag, values []string, source ValueSource) error {
+	owner := stdinOwner{name: "--" + flagSpec.Name, targetType: flagSpec.TargetType, tags: flagSpec.FieldTags, sep: flagSpec.Sep}
+
+	return c.claim(owner, values, source)
 }
 
 // claimArg claims stdin for a positional argument's values from source.
-func (c *stdinClaim) claimArg(cmdChain []*spec.Command, arg *spec.Arg, values []string, source ValueSource) error {
-	return c.claim(cmdChain, stdinOwner{name: "argument " + arg.Name, targetType: arg.TargetType, tags: arg.FieldTags, sep: arg.Sep}, values, source)
+func (c *stdinClaim) claimArg(arg *spec.Arg, values []string, source ValueSource) error {
+	owner := stdinOwner{name: valueSubject(nil, arg), targetType: arg.TargetType, tags: arg.FieldTags, sep: arg.Sep}
+
+	return c.claim(owner, values, source)
 }
 
 // stdinOwner is a flag or argument that may claim stdin: the name a conflict
@@ -712,22 +694,6 @@ type parseTimeReader interface {
 type pathValue interface {
 	pathValue()
 }
-
-// counterError is the root cause for environment or configuration counter
-// values that are not an unsigned integer: a sign, a non-integer, or a count
-// too large for an int. It carries no category: counters fail only on
-// environment and configuration values, which the wrapping coercionError
-// classifies under ErrConfig.
-type counterError struct {
-	raw   string
-	cause error // *intx.Error, preserved for errors.As and the leading-zero hint
-}
-
-func (e *counterError) Error() string {
-	return fmt.Sprintf("invalid unsigned integer value %q", e.raw)
-}
-
-func (e *counterError) Unwrap() error { return e.cause }
 
 // mapMergeResult is the outcome of folding a map flag's tiers: whether any
 // tiers contributed, the merged value, the per-key source tiers recorded when
@@ -875,7 +841,7 @@ func (fold stringMapFold) values(rawValues []string, origin valueOrigin, recorde
 	if err != nil {
 		result.hasValues = true
 
-		return fold.binding.coercionError(origin, strings.Join(rawValues, flagSpec.Sep), err)
+		return &conversionError{flag: flagSpec, value: strings.Join(rawValues, flagSpec.Sep), origin: origin, cause: err}
 	}
 
 	for _, entry := range entries {
@@ -1004,7 +970,7 @@ func (fold typedMapFold) values(rawValues []string, origin valueOrigin, recorded
 
 	entries, err := coerce.MapEntries(rawValues, flagSpec.Sep)
 	if err != nil {
-		return fold.binding.coercionError(origin, strings.Join(rawValues, flagSpec.Sep), err)
+		return &conversionError{flag: flagSpec, value: strings.Join(rawValues, flagSpec.Sep), origin: origin, cause: err}
 	}
 
 	decoder := fold.binding.mapEntryDecoder()
@@ -1012,7 +978,7 @@ func (fold typedMapFold) values(rawValues []string, origin valueOrigin, recorded
 	for _, entry := range entries {
 		key, value, err := decoder.decode(entry.Key, entry.Value)
 		if err != nil {
-			return fold.binding.coercionError(origin, strings.Join(rawValues, flagSpec.Sep), err)
+			return &conversionError{flag: flagSpec, value: strings.Join(rawValues, flagSpec.Sep), origin: origin, cause: err}
 		}
 
 		fold.merged.SetMapIndex(key, value)
@@ -1038,15 +1004,19 @@ func (fold typedMapFold) config(entries map[string]configdata.Value, configKey s
 	}
 
 	result := fold.result
+	flagSpec := fold.binding.flagSpec
 	decoder := fold.binding.mapEntryDecoder()
 
 	for _, keyText := range slices.Sorted(maps.Keys(entries)) {
 		entry := entries[keyText]
 		result.hasValues = true
 
-		key, value, err := decoder.decode(strings.TrimSpace(keyText), strings.TrimSpace(entry.Raw))
+		trimmedKey := strings.TrimSpace(keyText)
+		trimmedValue := strings.TrimSpace(entry.Raw)
+
+		key, value, err := decoder.decode(trimmedKey, trimmedValue)
 		if err != nil {
-			return fold.binding.coercionError(origin, keyText+"="+entry.Raw, err)
+			return &conversionError{flag: flagSpec, value: keyText + "=" + entry.Raw, origin: origin, cause: err}
 		}
 
 		fold.merged.SetMapIndex(key, value)
@@ -1173,14 +1143,9 @@ func (naming flagGroupNaming) name(flagSpec *spec.Flag) string {
 		}
 	}
 
-	return "--" + flagSpec.Name + sourceLocation(target.Source(), naming.sourceNames[flagSpec])
-}
+	origin := valueOrigin{source: target.Source(), name: naming.sourceNames[flagSpec]}
 
-// valueOrigin is where a value came from: its tier, and the token, variable,
-// config key, or default text that diagnostics attribute it to.
-type valueOrigin struct {
-	source ValueSource
-	name   string
+	return "--" + flagSpec.Name + origin.suffix()
 }
 
 // flagInput is the winning tier's contribution to a scalar, slice, or counter
@@ -1212,21 +1177,6 @@ func (binding flagBinding) mapEntryDecoder() mapEntryDecoder {
 	}
 }
 
-// coercionError attributes a failure to convert rawValue to the flag's type to
-// the value's origin.
-func (binding flagBinding) coercionError(origin valueOrigin, rawValue string, cause error) *coercionError {
-	return &coercionError{
-		targetName: binding.flagSpec.Name,
-		isFlag:     true,
-		source:     origin.source,
-		sourceName: origin.name,
-		targetType: binding.flagSpec.TargetType,
-		rawValue:   rawValue,
-		cmdChain:   binding.cmdChain,
-		cause:      cause,
-	}
-}
-
 // mapTiers looks up a map flag's tiers in ascending precedence: default,
 // config, per-feature environment (featureEnv, nil for ordinary map flags),
 // combined environment, then CLI. It also returns the config tier's entries
@@ -1255,14 +1205,13 @@ func (binding flagBinding) mapTiers(featureEnv *mapTierInput) ([]mapTierInput, m
 	return tiers, configEntries, envName
 }
 
-// valueCheck applies the per-value constraints of one flag or argument: the
-// chain its errors name, the descriptor that ends their message (for example
-// "flag --port (from environment variable PORT)"), and the source that
-// classifies them.
+// valueCheck applies the per-value constraints of one flag or argument from
+// origin. A check on a value merged from several tiers (a map's item count)
+// gives its origin no name, so the message names no variable or key.
 type valueCheck struct {
-	cmdChain   []*spec.Command
-	descriptor string
-	source     ValueSource
+	flag   *spec.Flag
+	arg    *spec.Arg
+	origin valueOrigin
 }
 
 // enum reports text that is not one of enum's values; an empty enum accepts
@@ -1272,8 +1221,7 @@ func (check valueCheck) enum(enum []string, text string) error {
 		return nil
 	}
 
-	return check.invalid(fmt.Sprintf("invalid value %q (must be one of: %s) for %s",
-		truncateForDisplay(text), strings.Join(enum, ", "), check.descriptor), errInvalidValue)
+	return check.notOneOf(text, enum)
 }
 
 // enumValue checks value against the enum. A built-in integer compares as a
@@ -1296,8 +1244,15 @@ func (check valueCheck) enumValue(constraints constraintSet, value any, index in
 		spelling = constraints.spellings[index]
 	}
 
-	return check.invalid(fmt.Sprintf("invalid value %q (must be one of: %s) for %s",
-		truncateForDisplay(spelling), strings.Join(constraints.enum, ", "), check.descriptor), errInvalidValue)
+	return check.notOneOf(spelling, constraints.enum)
+}
+
+// notOneOf reports text, quoted as given, as outside the accepted values.
+func (check valueCheck) notOneOf(text string, accepted []string) error {
+	shown := truncateForDisplay(text)
+	listed := strings.Join(accepted, ", ")
+
+	return check.invalid("invalid value %q (must be one of: %s)", shown, listed)
 }
 
 // scalar checks one value against the enum, length, and range constraints.
@@ -1314,13 +1269,15 @@ func (check valueCheck) element(constraints constraintSet, value any, index int)
 
 	if constraints.length != nil {
 		if reason, ok := checkStringLen(value, constraints.length); !ok {
-			return check.invalid(fmt.Sprintf("value %q %s for %s", truncateForDisplay(stringx.Stringify(value)), reason, check.descriptor), errInvalidLength)
+			text := truncateForDisplay(stringx.Stringify(value))
+
+			return check.invalid("value %q %s", text, reason)
 		}
 	}
 
 	if constraints.valueRange != nil {
 		if reason, ok := checkValueRange(value, constraints.valueRange); !ok {
-			return check.invalid(fmt.Sprintf("value %v %s for %s", value, reason, check.descriptor), errOutOfRange)
+			return check.invalid("value %v %s", value, reason)
 		}
 	}
 
@@ -1333,7 +1290,7 @@ func (check valueCheck) slice(constraints constraintSet, typedSlice any) error {
 
 	if constraints.items != nil {
 		if reason, ok := checkItemCount(sliceValue, constraints.items); !ok {
-			return check.invalid(fmt.Sprintf("%s for %s", reason, check.descriptor), errInvalidItemCount)
+			return check.invalid("%s", reason)
 		}
 	}
 
@@ -1358,20 +1315,19 @@ func (check valueCheck) mapItems(items *spec.Range, value any) error {
 	}
 
 	if reason, ok := checkItemCount(mapValue, items); !ok {
-		return check.invalid(fmt.Sprintf("%s for %s", reason, check.descriptor), errInvalidItemCount)
+		return check.invalid("%s", reason)
 	}
 
 	return nil
 }
 
-// invalid builds the value-shaped validation error every check reports.
-func (check valueCheck) invalid(msg string, cause error) error {
-	return &validationError{
-		msg:         msg,
-		source:      check.source,
-		cmdChain:    check.cmdChain,
-		cause:       cause,
-		valueShaped: true,
+// invalid builds the error every check reports.
+func (check valueCheck) invalid(format string, args ...any) error {
+	return &inputError{
+		flag:   check.flag,
+		arg:    check.arg,
+		origin: check.origin,
+		msg:    fmt.Sprintf(format, args...),
 	}
 }
 
@@ -1441,7 +1397,7 @@ func (resolver argResolver) slice(arg *spec.Arg, remaining []string) error {
 
 	if len(remaining) == 0 {
 		if arg.Default != "" {
-			if err := resolver.stdin.claimArg(resolver.cmdChain, arg, []string{arg.Default}, SourceDefault); err != nil {
+			if err := resolver.stdin.claimArg(arg, []string{arg.Default}, SourceDefault); err != nil {
 				return err
 			}
 		}
@@ -1449,16 +1405,20 @@ func (resolver argResolver) slice(arg *spec.Arg, remaining []string) error {
 		return resolver.emptySlice(arg, decodeContext)
 	}
 
-	if err := resolver.stdin.claimArg(resolver.cmdChain, arg, remaining, SourceCLI); err != nil {
+	if err := resolver.stdin.claimArg(arg, remaining, SourceCLI); err != nil {
 		return err
 	}
 
 	typedSlice, err := coerce.SliceWith(remaining, arg.TargetType, arg.Sep, resolver.parsers, decodeContext)
 	if err != nil {
-		return resolver.coercionError(arg, valueOrigin{source: SourceCLI}, strings.Join(remaining, arg.Sep), err)
+		return &conversionError{arg: arg, value: strings.Join(remaining, arg.Sep), origin: fromCommandLine, cause: err}
 	}
 
-	if err := resolver.check(arg, SourceCLI).slice(argConstraints(arg, enumSpellings(arg.IntegerEnum, remaining, arg.Sep, arg.TargetType.Elem())), typedSlice); err != nil {
+	elemType := arg.TargetType.Elem()
+	spellings := enumSpellings(arg.IntegerEnum, remaining, arg.Sep, elemType)
+	constraints := argConstraints(arg, spellings)
+
+	if err := resolver.check(arg, SourceCLI).slice(constraints, typedSlice); err != nil {
 		return err
 	}
 
@@ -1478,10 +1438,14 @@ func (resolver argResolver) emptySlice(arg *spec.Arg, decodeContext coerce.Decod
 	if arg.Default != "" {
 		typedSlice, err := coerce.SliceWith([]string{arg.Default}, arg.TargetType, arg.Sep, resolver.parsers, decodeContext)
 		if err != nil {
-			return resolver.coercionError(arg, valueOrigin{source: SourceDefault, name: arg.Default}, arg.Default, err)
+			return &conversionError{arg: arg, value: arg.Default, origin: fromDefault, cause: err}
 		}
 
-		if err := resolver.check(arg, SourceDefault).slice(argConstraints(arg, enumSpellings(arg.IntegerEnum, []string{arg.Default}, arg.Sep, arg.TargetType.Elem())), typedSlice); err != nil {
+		elemType := arg.TargetType.Elem()
+		spellings := enumSpellings(arg.IntegerEnum, []string{arg.Default}, arg.Sep, elemType)
+		constraints := argConstraints(arg, spellings)
+
+		if err := resolver.check(arg, SourceDefault).slice(constraints, typedSlice); err != nil {
 			return err
 		}
 
@@ -1500,7 +1464,7 @@ func (resolver argResolver) mapArg(arg *spec.Arg, tokens []string) error {
 	if len(tokens) > 0 {
 		parsedMap, err := parseMapTokens(tokens, arg.TargetType, arg.Sep, resolver.parsers, decodeContext)
 		if err != nil {
-			return resolver.coercionError(arg, valueOrigin{source: SourceCLI}, strings.Join(tokens, " "), err)
+			return &conversionError{arg: arg, value: strings.Join(tokens, " "), origin: fromCommandLine, cause: err}
 		}
 
 		if err := resolver.check(arg, SourceCLI).mapItems(arg.Items, parsedMap); err != nil {
@@ -1515,7 +1479,7 @@ func (resolver argResolver) mapArg(arg *spec.Arg, tokens []string) error {
 	if arg.Default != "" {
 		parsedMap, err := parseMapTokens([]string{arg.Default}, arg.TargetType, arg.Sep, resolver.parsers, decodeContext)
 		if err != nil {
-			return resolver.coercionError(arg, valueOrigin{source: SourceDefault, name: arg.Default}, arg.Default, err)
+			return &conversionError{arg: arg, value: arg.Default, origin: fromDefault, cause: err}
 		}
 
 		if err := resolver.check(arg, SourceDefault).mapItems(arg.Items, parsedMap); err != nil {
@@ -1543,16 +1507,18 @@ func (resolver argResolver) scalar(arg *spec.Arg, posTokens []string, tokenIdx i
 	if tokenIdx < len(posTokens) {
 		raw := posTokens[tokenIdx]
 
-		if err := resolver.stdin.claimArg(resolver.cmdChain, arg, []string{raw}, SourceCLI); err != nil {
+		if err := resolver.stdin.claimArg(arg, []string{raw}, SourceCLI); err != nil {
 			return false, err
 		}
 
 		typedValue, err := coerce.ScalarWith(raw, arg.TargetType, resolver.parsers, decodeContext)
 		if err != nil {
-			return false, resolver.coercionError(arg, valueOrigin{source: SourceCLI}, raw, err)
+			return false, &conversionError{arg: arg, value: raw, origin: fromCommandLine, cause: err}
 		}
 
-		if err := resolver.check(arg, SourceCLI).scalar(argConstraints(arg, []string{raw}), typedValue); err != nil {
+		constraints := argConstraints(arg, []string{raw})
+
+		if err := resolver.check(arg, SourceCLI).scalar(constraints, typedValue); err != nil {
 			return false, err
 		}
 
@@ -1562,16 +1528,18 @@ func (resolver argResolver) scalar(arg *spec.Arg, posTokens []string, tokenIdx i
 	}
 
 	if arg.Default != "" {
-		if err := resolver.stdin.claimArg(resolver.cmdChain, arg, []string{arg.Default}, SourceDefault); err != nil {
+		if err := resolver.stdin.claimArg(arg, []string{arg.Default}, SourceDefault); err != nil {
 			return false, err
 		}
 
 		typedValue, err := coerce.ScalarWith(arg.Default, arg.TargetType, resolver.parsers, decodeContext)
 		if err != nil {
-			return false, resolver.coercionError(arg, valueOrigin{source: SourceDefault, name: arg.Default}, arg.Default, err)
+			return false, &conversionError{arg: arg, value: arg.Default, origin: fromDefault, cause: err}
 		}
 
-		if err := resolver.check(arg, SourceDefault).scalar(argConstraints(arg, []string{arg.Default}), typedValue); err != nil {
+		constraints := argConstraints(arg, []string{arg.Default})
+
+		if err := resolver.check(arg, SourceDefault).scalar(constraints, typedValue); err != nil {
 			return false, err
 		}
 
@@ -1589,42 +1557,32 @@ func (resolver argResolver) scalar(arg *spec.Arg, posTokens []string, tokenIdx i
 
 // check is the valueCheck for one of arg's values from source.
 func (resolver argResolver) check(arg *spec.Arg, source ValueSource) valueCheck {
-	return valueCheck{cmdChain: resolver.cmdChain, descriptor: "argument " + arg.Name + sourceLocation(source, ""), source: source}
-}
-
-// coercionError attributes a failure to convert rawValue to arg's type to the
-// value's origin.
-func (resolver argResolver) coercionError(arg *spec.Arg, origin valueOrigin, rawValue string, cause error) *coercionError {
-	return &coercionError{
-		targetName: arg.Name,
-		isFlag:     false,
-		source:     origin.source,
-		sourceName: origin.name,
-		targetType: arg.TargetType,
-		rawValue:   rawValue,
-		cmdChain:   resolver.cmdChain,
-		cause:      cause,
-	}
+	return valueCheck{arg: arg, origin: valueOrigin{source: source}}
 }
 
 // missing reports a required argument that received no value.
 func (resolver argResolver) missing(arg *spec.Arg) error {
-	return &validationError{
-		msg:      "missing required positional argument " + arg.Name,
-		cmdChain: resolver.cmdChain,
-		cause:    errMissingArg,
-	}
+	return usageError(resolver.cmdChain, "missing required positional argument "+arg.Name)
 }
 
-// stdinErrorSource picks the classification for a duplicate stdin claim: any
-// environment, configuration, or default value makes the failure a config
-// error; two command-line values stay a usage error.
+// customValueFailure is the first SelfValidator failure in a value. err is nil
+// when the value passed, and entry is the key of the map entry that failed
+// when it was one. It is a struct because an (entry, err) pair would return
+// nil for both on a passing value, which nilnil rejects.
+type customValueFailure struct {
+	err   error
+	entry *string
+}
+
+// stdinErrorSource picks the source of a duplicate stdin claim. When either
+// value came from the environment, a config file or a default, the failure is
+// not a usage error. Two command-line values make it a usage error.
 func stdinErrorSource(first, second ValueSource) ValueSource {
-	if !valueErrorIsUsage(first) {
+	if first != SourceCLI {
 		return first
 	}
 
-	if !valueErrorIsUsage(second) {
+	if second != SourceCLI {
 		return second
 	}
 
@@ -1652,24 +1610,18 @@ func isPathType(targetType reflect.Type) bool {
 }
 
 func newRepeatedFlagError(cmdChain []*spec.Command, flagName string) error {
-	return &parseError{
-		msg:      "flag --" + flagName + " can only be given once",
-		token:    "--" + flagName,
-		cmdChain: cmdChain,
-	}
+	return usageErrorf(cmdChain, "flag --%s can only be given once", flagName)
 }
 
-func newStdinReadTwiceError(cmdChain []*spec.Command, first, second string, source ValueSource) error {
+func newStdinReadTwiceError(first, second string, source ValueSource) error {
 	detail := fmt.Sprintf("%s and %s both use \"-\"", first, second)
 	if first == second {
 		detail = first + " uses \"-\" twice"
 	}
 
-	return &validationError{
-		msg:      "stdin can only be read once (" + detail + ")",
-		source:   source,
-		cmdChain: cmdChain,
-		cause:    errStdinReadTwice,
+	return &inputError{
+		origin: valueOrigin{source: source},
+		msg:    fmt.Sprintf("stdin can only be read once (%s)", detail),
 	}
 }
 
@@ -1677,11 +1629,7 @@ func newStdinReadTwiceError(cmdChain []*spec.Command, first, second string, sour
 // command line (--verbose=2, -v=2, -vv=2). A counter counts occurrences only,
 // so the attached value is a usage error.
 func newCounterValueError(cmdChain []*spec.Command, raw string) error {
-	return &parseError{
-		msg:      "flag does not take a value: " + raw,
-		token:    raw,
-		cmdChain: cmdChain,
-	}
+	return usageError(cmdChain, "flag does not take a value: "+raw)
 }
 
 // registerBuiltinShort maps a configured built-in short rune onto its shared
@@ -1715,11 +1663,7 @@ func validateRunnableContract(leaf *spec.Command, cmdChain []*spec.Command) erro
 
 	if !isRunner(leafTarget) {
 		if leaf.HasUserSubcommands() {
-			return &parseError{
-				msg:      fmt.Sprintf("subcommand required for %q", leaf.Name),
-				cmdChain: cmdChain,
-				cause:    errSubcommandRequired,
-			}
+			return usageErrorf(cmdChain, "subcommand required for %q", leaf.Name).withShape(usageShapeFullHelp)
 		}
 
 		return newNoRunnerError(leaf)
@@ -1739,13 +1683,7 @@ func runValidators(ctx context.Context, session *Session, cmdChain []*spec.Comma
 
 	if leaf := cmdChain[len(cmdChain)-1]; leaf.IsBuiltin() {
 		if validator, ok := getCmdTarget(leaf).(Validator); ok {
-			if err := validator.Validate(ctx, session); err != nil {
-				return &validationError{
-					msg:      err.Error(),
-					cmdChain: cmdChain,
-					cause:    ErrValidation,
-				}
-			}
+			return validator.Validate(ctx, session)
 		}
 
 		return nil
@@ -1754,11 +1692,7 @@ func runValidators(ctx context.Context, session *Session, cmdChain []*spec.Comma
 	for _, cmd := range cmdChain {
 		if validator, ok := getCmdTarget(cmd).(Validator); ok {
 			if err := validator.Validate(ctx, session); err != nil {
-				return &validationError{
-					msg:      err.Error(),
-					cmdChain: cmdChain,
-					cause:    ErrValidation,
-				}
+				return err
 			}
 		}
 	}
@@ -1820,7 +1754,7 @@ func populateCompletionCommandShell(compCmd *spec.Command, tokens []tokenizer.To
 // regular binding pipeline and their flags are applied here instead. The
 // engine-synthesized flag is matched by identity so a same-named user flag on
 // an ancestor command can never feed this value.
-func bindVersionCommandJSON(cmdChain []*spec.Command, versionCmd *spec.Command, flagValues map[*spec.Flag][]string) error {
+func bindVersionCommandJSON(versionCmd *spec.Command, flagValues map[*spec.Flag][]string) error {
 	versionCommand, ok := getCmdTarget(versionCmd).(*VersionCommand)
 	if !ok {
 		return nil
@@ -1840,9 +1774,7 @@ func bindVersionCommandJSON(cmdChain []*spec.Command, versionCmd *spec.Command, 
 
 		enabled, err := coerce.Value[bool](rawValue)
 		if err != nil {
-			binding := flagBinding{cmdChain: cmdChain, flagSpec: flagSpec}
-
-			return binding.coercionError(valueOrigin{source: SourceCLI, name: "--" + flagSpec.Name}, rawValue, err)
+			return &conversionError{flag: flagSpec, value: rawValue, origin: fromCommandLine, cause: err}
 		}
 
 		versionCommand.json = enabled
@@ -2113,7 +2045,7 @@ func parseTokens(cmdChain []*spec.Command, tokens []tokenizer.Token, index *flag
 		}
 	}
 
-	builtinErr := resolveBuiltinBoolFlags(cmdChain, parser.flagValues)
+	builtinErr := resolveBuiltinBoolFlags(parser.flagValues)
 
 	if firstErr != nil && !requestsHelpOrVersion(parser.flagValues) {
 		return flagTokens{values: valuesAtFirstErr}, nil, nil, nil, firstErr
@@ -2136,11 +2068,11 @@ func parseTokens(cmdChain []*spec.Command, tokens []tokenizer.Token, index *flag
 // caller reports after any token-level parse error, as for other flags. Both
 // requestsHelpOrVersion and scanBuiltinRequest read the result, which keeps
 // scanBuiltinRequest within the inlining budget.
-func resolveBuiltinBoolFlags(cmdChain []*spec.Command, flagValues map[*spec.Flag][]string) error {
+func resolveBuiltinBoolFlags(flagValues map[*spec.Flag][]string) error {
 	var firstErr error
 
 	for _, flagSpec := range []*spec.Flag{spec.BuiltinHelpFlag, spec.BuiltinVersionFlag} {
-		requested, err := builtinFlagRequested(cmdChain, flagSpec, flagValues[flagSpec])
+		requested, err := builtinFlagRequested(flagSpec, flagValues[flagSpec])
 		if err != nil && firstErr == nil {
 			firstErr = err
 		}
@@ -2155,15 +2087,13 @@ func resolveBuiltinBoolFlags(cmdChain []*spec.Command, flagValues map[*spec.Flag
 
 // builtinFlagRequested parses the command-line values of one built-in bool
 // flag and reports whether the last one switches it on.
-func builtinFlagRequested(cmdChain []*spec.Command, flagSpec *spec.Flag, values []string) (bool, error) {
+func builtinFlagRequested(flagSpec *spec.Flag, values []string) (bool, error) {
 	requested := false
 
 	for _, rawValue := range values {
 		enabled, err := coerce.Value[bool](rawValue)
 		if err != nil {
-			binding := flagBinding{cmdChain: cmdChain, flagSpec: flagSpec}
-
-			return false, binding.coercionError(valueOrigin{source: SourceCLI, name: "--" + flagSpec.Name}, rawValue, err)
+			return false, &conversionError{flag: flagSpec, value: rawValue, origin: fromCommandLine, cause: err}
 		}
 
 		requested = enabled
@@ -2198,7 +2128,13 @@ func applyFlagCoercion(binding flagBinding, input flagInput) error {
 			// sign, so -1 and +2 are rejected like any other non-count value.
 			parsedCount, err := intx.ParseUint(raw, strconv.IntSize-1)
 			if err != nil {
-				return binding.coercionError(origin, raw, &counterError{raw: raw, cause: err})
+				return &inputError{
+					flag:   flagSpec,
+					origin: origin,
+					msg:    fmt.Sprintf("invalid unsigned integer value %q", raw),
+					hint:   intx.HintOf(err),
+					cause:  err,
+				}
 			}
 
 			totalCount += int(parsedCount) //nolint:gosec // parsed with bitSize strconv.IntSize-1, so the value fits int
@@ -2216,7 +2152,7 @@ func applyFlagCoercion(binding flagBinding, input flagInput) error {
 		return newRepeatedFlagError(binding.cmdChain, flagSpec.Name)
 	}
 
-	if err := state.StdinClaim.claimFlag(binding.cmdChain, flagSpec, input.values, origin.source); err != nil {
+	if err := state.StdinClaim.claimFlag(flagSpec, input.values, origin.source); err != nil {
 		return err
 	}
 
@@ -2225,10 +2161,12 @@ func applyFlagCoercion(binding flagBinding, input flagInput) error {
 	if flagSpec.IsSlice {
 		typedSlice, err := coerce.SliceWith(input.values, flagSpec.TargetType, flagSpec.Sep, state.TypeParsers, decodeContext)
 		if err != nil {
-			return binding.coercionError(origin, strings.Join(input.values, flagSpec.Sep), err)
+			return &conversionError{flag: flagSpec, value: strings.Join(input.values, flagSpec.Sep), origin: origin, cause: err}
 		}
 
-		state.recordEnumSpellings(flagSpec, enumSpellings(flagSpec.IntegerEnum, input.values, flagSpec.Sep, flagSpec.TargetType.Elem()))
+		elemType := flagSpec.TargetType.Elem()
+		spellings := enumSpellings(flagSpec.IntegerEnum, input.values, flagSpec.Sep, elemType)
+		state.recordEnumSpellings(flagSpec, spellings)
 		flagStateOf(flagSpec.Handle).setValue(typedSlice, origin.source, input.detail)
 
 		return nil
@@ -2242,7 +2180,7 @@ func applyFlagCoercion(binding flagBinding, input flagInput) error {
 	for _, rawValue := range input.values {
 		coerced, err := coerce.ScalarWith(rawValue, flagSpec.TargetType, state.TypeParsers, decodeContext)
 		if err != nil {
-			return binding.coercionError(origin, rawValue, err)
+			return &conversionError{flag: flagSpec, value: rawValue, origin: origin, cause: err}
 		}
 
 		typedValue = coerced
@@ -2325,11 +2263,7 @@ func resolveRequiredFlags(cmdChain []*spec.Command) error {
 	for _, cmd := range cmdChain {
 		for _, flagSpec := range cmd.Flags {
 			if flagSpec.Required && !flagStateOf(flagSpec.Handle).IsSet() {
-				return &validationError{
-					msg:      "missing required flag: --" + flagSpec.Name,
-					cmdChain: cmdChain,
-					cause:    errMissingFlag,
-				}
+				return usageError(cmdChain, "missing required flag: --"+flagSpec.Name)
 			}
 		}
 	}
@@ -2419,11 +2353,7 @@ func missingOneOfError(cmdChain []*spec.Command, members []*spec.Flag) error {
 		msg = "missing required flag: one of " + strings.Join(names, ", ")
 	}
 
-	return &validationError{
-		msg:      msg,
-		cmdChain: cmdChain,
-		cause:    errMissingFlag,
-	}
+	return usageError(cmdChain, msg)
 }
 
 func resolveFlags(cmdChain []*spec.Command, cliValues map[*spec.Flag][]string, state *bindingState) error {
@@ -2484,11 +2414,9 @@ func buildCompletionHelpCommand(cmdChain []*spec.Command, completionValue string
 	if shell != "" {
 		parsedShell, err := completion.ParseShell(shell)
 		if err != nil {
-			return nil, &validationError{
-				msg:      err.Error(),
-				cmdChain: cmdChain,
-				cause:    errInvalidValue,
-			}
+			message := err.Error()
+
+			return nil, usageError(cmdChain, message)
 		}
 
 		shell = string(parsedShell)
@@ -2659,19 +2587,19 @@ func candidateConfigKeys(flagSpec *spec.Flag, cmd *spec.Command, cmdChain []*spe
 	return keys
 }
 
-func validateXorGroups(cmdChain []*spec.Command, xorGroups orderedFlagGroups, naming flagGroupNaming) error {
-	return validateMutuallyExclusiveGroups(cmdChain, xorGroups, naming)
+func validateXorGroups(xorGroups orderedFlagGroups, naming flagGroupNaming) error {
+	return validateMutuallyExclusiveGroups(xorGroups, naming)
 }
 
-func validateOneOfGroups(cmdChain []*spec.Command, oneOfGroups orderedFlagGroups, naming flagGroupNaming) error {
-	return validateMutuallyExclusiveGroups(cmdChain, oneOfGroups, naming)
+func validateOneOfGroups(oneOfGroups orderedFlagGroups, naming flagGroupNaming) error {
+	return validateMutuallyExclusiveGroups(oneOfGroups, naming)
 }
 
 // validateMutuallyExclusiveGroups reports a group with more than one supplied
 // member. The error takes the highest source among the supplied members, so a
 // conflict involving a command-line member is a usage error and one built only
-// from environment or configuration members classifies under ErrConfig.
-func validateMutuallyExclusiveGroups(cmdChain []*spec.Command, groups orderedFlagGroups, naming flagGroupNaming) error {
+// from environment or configuration members is an input error.
+func validateMutuallyExclusiveGroups(groups orderedFlagGroups, naming flagGroupNaming) error {
 	for _, group := range groups.order {
 		flags := groups.members[group]
 
@@ -2691,12 +2619,11 @@ func validateMutuallyExclusiveGroups(cmdChain []*spec.Command, groups orderedFla
 		}
 
 		if len(setFlags) > 1 {
-			return &validationError{
-				msg: fmt.Sprintf("flags %s are mutually exclusive",
-					strings.Join(setFlags, " and ")),
-				source:   source,
-				cmdChain: cmdChain,
-				cause:    errMutuallyExclusive,
+			conflicting := strings.Join(setFlags, " and ")
+
+			return &inputError{
+				origin: valueOrigin{source: source},
+				msg:    fmt.Sprintf("flags %s are mutually exclusive", conflicting),
 			}
 		}
 	}
@@ -2707,7 +2634,7 @@ func validateMutuallyExclusiveGroups(cmdChain []*spec.Command, groups orderedFla
 // validateAndGroups reports a partially supplied co-occurrence group. Members
 // count from every source; the error takes the highest source among the
 // supplied members, like validateMutuallyExclusiveGroups.
-func validateAndGroups(cmdChain []*spec.Command, andGroups orderedFlagGroups, naming flagGroupNaming) error {
+func validateAndGroups(andGroups orderedFlagGroups, naming flagGroupNaming) error {
 	for _, group := range andGroups.order {
 		flags := andGroups.members[group]
 
@@ -2730,12 +2657,13 @@ func validateAndGroups(cmdChain []*spec.Command, andGroups orderedFlagGroups, na
 		}
 
 		if len(setFlags) > 0 && len(unsetFlags) > 0 {
-			return &validationError{
-				msg: fmt.Sprintf("%s %s must be given together with %s",
-					cond.If(len(setFlags) == 1, "flag", "flags"), joinNaturalList(setFlags), joinNaturalList(unsetFlags)),
-				source:   source,
-				cmdChain: cmdChain,
-				cause:    errAndGroup,
+			noun := cond.If(len(setFlags) == 1, "flag", "flags")
+			setList := joinNaturalList(setFlags)
+			unsetList := joinNaturalList(unsetFlags)
+
+			return &inputError{
+				origin: valueOrigin{source: source},
+				msg:    fmt.Sprintf("%s %s must be given together with %s", noun, setList, unsetList),
 			}
 		}
 	}
@@ -2745,7 +2673,7 @@ func validateAndGroups(cmdChain []*spec.Command, andGroups orderedFlagGroups, na
 
 // validateFlagValueConstraint checks one flag's per-value constraints after
 // binding. sourceName attributes env- and config-sourced values.
-func validateFlagValueConstraint(cmdChain []*spec.Command, flagSpec *spec.Flag, sourceName string, spellings []string) error {
+func validateFlagValueConstraint(flagSpec *spec.Flag, sourceName string, spellings []string) error {
 	target := flagStateOf(flagSpec.Handle)
 	if !target.IsSet() {
 		return nil
@@ -2760,21 +2688,18 @@ func validateFlagValueConstraint(cmdChain []*spec.Command, flagSpec *spec.Flag, 
 		valueRange:  flagSpec.Range,
 		items:       flagSpec.Items,
 	}
-	check := valueCheck{
-		cmdChain:   cmdChain,
-		descriptor: "flag --" + flagSpec.Name + sourceLocation(target.Source(), sourceName),
-		source:     target.Source(),
-	}
+
+	check := valueCheck{flag: flagSpec, origin: valueOrigin{source: target.Source(), name: sourceName}}
 
 	if flagSpec.IsSlice {
 		return check.slice(constraints, value)
 	}
 
 	if flagSpec.IsMap {
-		// A map merges keys from several sources, so its item count has no
-		// single origin to attribute; its category follows the highest
+		// A map merges keys from several sources, so its item count names no
+		// single variable or key. Its error type follows the highest
 		// contributing tier recorded on the container.
-		check.descriptor = "flag --" + flagSpec.Name
+		check.origin.name = ""
 
 		return check.mapItems(constraints.items, value)
 	}
@@ -2794,7 +2719,7 @@ func validateFlagValueConstraints(cmdChain []*spec.Command, sourceNames map[*spe
 				continue
 			}
 
-			if err := validateFlagValueConstraint(cmdChain, flagSpec, sourceNames[flagSpec], spellings[flagSpec]); err != nil {
+			if err := validateFlagValueConstraint(flagSpec, sourceNames[flagSpec], spellings[flagSpec]); err != nil {
 				return err
 			}
 		}
@@ -2808,15 +2733,19 @@ func validateFlagValueConstraints(cmdChain []*spec.Command, sourceNames map[*spe
 // environment- and configuration-sourced members.
 func validateFlagGroupConstraints(cmdChain []*spec.Command, naming flagGroupNaming) error {
 	for _, cmd := range cmdChain {
-		if err := validateXorGroups(cmdChain, collectFlagGroups(cmd.Flags, xorGroupName), naming); err != nil {
+		xorGroups := collectFlagGroups(cmd.Flags, xorGroupName)
+		oneOfGroups := collectFlagGroups(cmd.Flags, oneOfGroupName)
+		andGroups := collectFlagGroups(cmd.Flags, andGroupName)
+
+		if err := validateXorGroups(xorGroups, naming); err != nil {
 			return err
 		}
 
-		if err := validateOneOfGroups(cmdChain, collectFlagGroups(cmd.Flags, oneOfGroupName), naming); err != nil {
+		if err := validateOneOfGroups(oneOfGroups, naming); err != nil {
 			return err
 		}
 
-		if err := validateAndGroups(cmdChain, collectFlagGroups(cmd.Flags, andGroupName), naming); err != nil {
+		if err := validateAndGroups(andGroups, naming); err != nil {
 			return err
 		}
 	}
@@ -2835,33 +2764,19 @@ func andGroupName(flagSpec *spec.Flag) string { return flagSpec.AndGroup }
 
 func handleUnexpectedPositional(cmd *spec.Command, cmdChain []*spec.Command, unexpected string) error {
 	if suggestion := suggestSubcommand(cmd, unexpected); suggestion != "" {
-		return &parseError{
-			msg:        "unknown command: " + unexpected,
-			token:      unexpected,
-			cmdChain:   cmdChain,
-			suggestion: suggestion,
-			cause:      errUnknownCommand,
-		}
+		return usageError(cmdChain, "unknown command: "+unexpected).withSuggestion(suggestion, suggestionKindCommand)
 	}
 
-	return &parseError{
-		msg:      fmt.Sprintf("unexpected argument %q", unexpected),
-		cmdChain: cmdChain,
-		cause:    errUnexpectedArg,
-	}
+	return usageErrorf(cmdChain, "unexpected argument %q", unexpected)
 }
 
 // newUnknownCommandError reports input, which names no subcommand of cmd, with
 // a suggestion from cmd's subcommands. Routing and the built-in help command
 // share it, so "tool deplo" and "tool help deplo" report the same error.
 func newUnknownCommandError(cmd *spec.Command, cmdChain []*spec.Command, input string) error {
-	return &parseError{
-		msg:        "unknown command: " + input,
-		token:      input,
-		cmdChain:   cmdChain,
-		suggestion: suggestSubcommand(cmd, input),
-		cause:      errUnknownCommand,
-	}
+	suggestion := suggestSubcommand(cmd, input)
+
+	return usageError(cmdChain, "unknown command: "+input).withSuggestion(suggestion, suggestionKindCommand)
 }
 
 func suggestSubcommand(cmd *spec.Command, input string) string {
@@ -3167,7 +3082,7 @@ func callSelfValidator(ctx context.Context, value any) error {
 // constructed so validation observes the final value of the configuration
 // cascade, with the context of the active invocation. Failures inherit the
 // value's source: environment-, configuration-, and default-sourced values
-// classify under [ErrConfig] and carry the same origin suffix as coercion
+// are input errors and carry the same origin suffix as coercion
 // errors.
 func validateCustomValues(ctx context.Context, cmdChain []*spec.Command) error {
 	for index, cmd := range cmdChain {
@@ -3179,13 +3094,17 @@ func validateCustomValues(ctx context.Context, cmdChain []*spec.Command) error {
 				continue
 			}
 
-			if msg, cause := validateCustomValueTree(ctx, target.getValue(), "flag --"+flagSpec.Name); cause != nil {
-				return &validationError{
-					msg:         msg + sourceLocation(target.Source(), flagValueSourceName(flagSpec, target, ownerChain)),
-					source:      target.Source(),
-					cmdChain:    cmdChain,
-					cause:       cause,
-					valueShaped: true,
+			value := target.getValue()
+
+			if failure := validateCustomValueTree(ctx, value); failure.err != nil {
+				sourceName := flagValueSourceName(flagSpec, target, ownerChain)
+
+				return &inputError{
+					flag:   flagSpec,
+					entry:  failure.entry,
+					origin: valueOrigin{source: target.Source(), name: sourceName},
+					msg:    failure.err.Error(),
+					cause:  failure.err,
 				}
 			}
 		}
@@ -3196,13 +3115,15 @@ func validateCustomValues(ctx context.Context, cmdChain []*spec.Command) error {
 				continue
 			}
 
-			if msg, cause := validateCustomValueTree(ctx, target.getValue(), "argument "+argSpec.Name); cause != nil {
-				return &validationError{
-					msg:         msg + sourceLocation(target.Source(), target.SourceDetail()),
-					source:      target.Source(),
-					cmdChain:    cmdChain,
-					cause:       cause,
-					valueShaped: true,
+			value := target.getValue()
+
+			if failure := validateCustomValueTree(ctx, value); failure.err != nil {
+				return &inputError{
+					arg:    argSpec,
+					entry:  failure.entry,
+					origin: valueOrigin{source: target.Source(), name: target.SourceDetail()},
+					msg:    failure.err.Error(),
+					cause:  failure.err,
 				}
 			}
 		}
@@ -3229,11 +3150,11 @@ func flagValueSourceName(flagSpec *spec.Flag, target flagState, cmdChain []*spec
 // validateCustomValueTree walks a resolved value like the constraint
 // validators: maps validate as a whole and per entry in deterministic sorted
 // key order, slices validate per element, and scalars validate directly. It
-// returns the composed developer-facing message and the validation cause.
-func validateCustomValueTree(ctx context.Context, value any, descriptor string) (string, error) {
+// returns the first failure.
+func validateCustomValueTree(ctx context.Context, value any) customValueFailure {
 	reflectedValue := reflect.ValueOf(value)
 	if !reflectedValue.IsValid() {
-		return "", nil
+		return customValueFailure{}
 	}
 
 	kind := reflectedValue.Kind()
@@ -3244,11 +3165,11 @@ func validateCustomValueTree(ctx context.Context, value any, descriptor string) 
 	switch kind {
 	case reflect.Map:
 		if err := callSelfValidator(ctx, value); err != nil {
-			return fmt.Sprintf("%v for %s", err, descriptor), err
+			return customValueFailure{err: err}
 		}
 
 		if reflectedValue.Len() == 0 {
-			return "", nil
+			return customValueFailure{}
 		}
 
 		strKeys := make([]string, 0, reflectedValue.Len())
@@ -3267,24 +3188,24 @@ func validateCustomValueTree(ctx context.Context, value any, descriptor string) 
 		for _, keyStr := range strKeys {
 			entry := reflectedValue.MapIndex(keyMap[keyStr]).Interface()
 			if err := callSelfValidator(ctx, entry); err != nil {
-				return fmt.Sprintf("%v for %s entry %q", err, descriptor, keyStr), err
+				return customValueFailure{err: err, entry: &keyStr}
 			}
 		}
 
 	case reflect.Slice:
 		for i := range reflectedValue.Len() {
 			if err := callSelfValidator(ctx, reflectedValue.Index(i).Interface()); err != nil {
-				return fmt.Sprintf("%v for %s", err, descriptor), err
+				return customValueFailure{err: err}
 			}
 		}
 
 	default:
 		if err := callSelfValidator(ctx, value); err != nil {
-			return fmt.Sprintf("%v for %s", err, descriptor), err
+			return customValueFailure{err: err}
 		}
 	}
 
-	return "", nil
+	return customValueFailure{}
 }
 
 func executeLifecycle(ctx context.Context, session *Session) error {
@@ -3312,6 +3233,13 @@ func executeLifecycle(ctx context.Context, session *Session) error {
 					finErrs = errors.Join(finErrs, err)
 				}
 			}
+		}
+
+		// Without a failing Finally the hook's error comes back as it was
+		// returned. errors.Join would wrap it in a new value, which breaks
+		// identity and type assertions.
+		if finErrs == nil {
+			return causeErr
 		}
 
 		return errors.Join(causeErr, finErrs)

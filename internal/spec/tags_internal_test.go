@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	"github.com/alecthomas/assert/v2"
+
+	"github.com/conga-sh/conga/internal/intx"
 )
 
 // ByteSize is a Bytes() int64 text dialect: its own UnmarshalText grammar
@@ -914,12 +916,14 @@ func TestSchemaError_FormattingAndUnwrap(t *testing.T) {
 
 		badDefault := ValidateFeatureFieldTags(&FeatureField{Name: "depth", IsInt: true, Enum: []string{"1"}}, reflect.StructTag(`enum:"1" default:"02"`))
 		assert.True(t, IsSchemaError(badDefault))
-		assert.IsError(t, badDefault, errFeatureMustBeInteger)
+		_, hasIntegerCause := errors.AsType[*intx.Error](badDefault)
+		assert.True(t, hasIntegerCause)
 		assert.Equal(t, `feature "depth" default "02": must be an integer (hint: a leading zero is ambiguous: write 0o2 for octal or 2 for decimal)`, badDefault.Error())
 
 		badEnum := ValidateFeatureFieldTags(&FeatureField{Name: "depth", IsInt: true}, reflect.StructTag(`enum:"abc"`))
 		assert.True(t, IsSchemaError(badEnum))
-		assert.IsError(t, badEnum, errFeatureMustBeInteger)
+		_, hasEnumCause := errors.AsType[*intx.Error](badEnum)
+		assert.True(t, hasEnumCause)
 		assert.Equal(t, `feature enum value "abc": must be an integer`, badEnum.Error())
 	})
 }

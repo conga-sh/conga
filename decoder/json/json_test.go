@@ -1,6 +1,7 @@
 package json_test
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/alecthomas/assert/v2"
@@ -82,7 +83,7 @@ func TestDecode_InvalidSyntax(t *testing.T) {
 
 	_, err := json.Decode(fixtureInvalidSyntax)
 
-	assert.IsError(t, err, json.ErrParse)
+	assert.EqualError(t, err, `jsontext: unexpected EOF after offset 55`)
 }
 
 func TestDecode_InvalidArray(t *testing.T) {
@@ -90,7 +91,7 @@ func TestDecode_InvalidArray(t *testing.T) {
 
 	_, err := json.Decode(fixtureInvalidArray)
 
-	assert.IsError(t, err, json.ErrParse)
+	assert.EqualError(t, err, `json: cannot unmarshal JSON array into Go map[string]interface {}`)
 }
 
 func TestDecode_TrailingGarbage(t *testing.T) {
@@ -98,7 +99,7 @@ func TestDecode_TrailingGarbage(t *testing.T) {
 
 	_, err := json.Decode(fixtureTrailingGarbage)
 
-	assert.IsError(t, err, json.ErrParse)
+	assert.EqualError(t, err, `jsontext: invalid character 't' after top-level value after offset 20`)
 }
 
 func TestDecode_TrailingWhitespaceSucceeds(t *testing.T) {
@@ -116,7 +117,7 @@ func TestDecode_EmptyFails(t *testing.T) {
 
 	_, err := json.Decode([]byte(""))
 
-	assert.IsError(t, err, json.ErrParse)
+	assert.EqualError(t, err, `jsontext: unexpected EOF`)
 }
 
 func TestDecode_NilInput(t *testing.T) {
@@ -124,7 +125,7 @@ func TestDecode_NilInput(t *testing.T) {
 
 	_, err := json.Decode(nil)
 
-	assert.IsError(t, err, json.ErrParse)
+	assert.EqualError(t, err, `jsontext: unexpected EOF`)
 }
 
 func TestDecode_NullDocument(t *testing.T) {
@@ -142,7 +143,7 @@ func TestDecode_DuplicateKeys(t *testing.T) {
 
 	_, err := json.Decode(fixtureDuplicateKeys)
 
-	assert.IsError(t, err, json.ErrParse)
+	assert.EqualError(t, err, `jsontext: duplicate object member name "port"`)
 }
 
 func TestDecode_InvalidUTF8(t *testing.T) {
@@ -150,7 +151,7 @@ func TestDecode_InvalidUTF8(t *testing.T) {
 
 	_, err := json.Decode(fixtureInvalidUTF8)
 
-	assert.IsError(t, err, json.ErrParse)
+	assert.EqualError(t, err, `jsontext: invalid UTF-8 within "/name" after offset 10`)
 }
 
 func TestDecode_NumbersKeepIntegerPrecision(t *testing.T) {
@@ -172,8 +173,7 @@ func TestDecode_IntegerAboveUint64Rejected(t *testing.T) {
 
 	_, err := json.Decode([]byte(`{"id": 18446744073709551616}`))
 
-	assert.IsError(t, err, json.ErrParse)
-	assert.Equal(t, `json parse error: /id: integer 18446744073709551616 out of range`, err.Error())
+	assert.Equal(t, `/id: integer 18446744073709551616 out of range`, err.Error())
 }
 
 func TestDecode_IntegerBelowInt64Rejected(t *testing.T) {
@@ -181,8 +181,7 @@ func TestDecode_IntegerBelowInt64Rejected(t *testing.T) {
 
 	_, err := json.Decode([]byte(`{"id": -9223372036854775809}`))
 
-	assert.IsError(t, err, json.ErrParse)
-	assert.Equal(t, `json parse error: /id: integer -9223372036854775809 out of range`, err.Error())
+	assert.Equal(t, `/id: integer -9223372036854775809 out of range`, err.Error())
 }
 
 func TestDecode_NestedIntegerOutOfRangeRejected(t *testing.T) {
@@ -190,8 +189,7 @@ func TestDecode_NestedIntegerOutOfRangeRejected(t *testing.T) {
 
 	_, err := json.Decode([]byte(`{"a": {"b": [1, 99999999999999999999]}}`))
 
-	assert.IsError(t, err, json.ErrParse)
-	assert.Equal(t, `json parse error: /a/b/1: integer 99999999999999999999 out of range`, err.Error())
+	assert.Equal(t, `/a/b/1: integer 99999999999999999999 out of range`, err.Error())
 }
 
 func TestDecode_FloatOverflowRejected(t *testing.T) {
@@ -199,6 +197,16 @@ func TestDecode_FloatOverflowRejected(t *testing.T) {
 
 	_, err := json.Decode([]byte(`{"ratio": 1e400}`))
 
-	assert.IsError(t, err, json.ErrParse)
-	assert.Equal(t, `json parse error: /ratio: number 1e400 out of range`, err.Error())
+	assert.Equal(t, `/ratio: number 1e400 out of range`, err.Error())
+}
+
+func TestDecode_RangeErrorKeepsItsCause(t *testing.T) {
+	t.Parallel()
+
+	_, err := json.Decode([]byte(`{"ratio": 1e400}`))
+
+	cause := errors.Unwrap(err)
+
+	assert.Equal(t, "number 1e400 out of range", cause.Error())
+	assert.Equal(t, nil, errors.Unwrap(cause))
 }

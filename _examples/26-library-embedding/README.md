@@ -3,7 +3,7 @@
 Embedding CONGA as a library inside a host process: the host supplies the
 argument vector, injects its own stdin/stdout/stderr streams, calls
 `RunContext` with its own context, consumes typed errors programmatically
-(`IsUsageError`, `UsageError.CommandPath`, `ErrCoerce`, `ErrParse`), and
+(`errors.AsType[*conga.UsageError]`, `UsageError.CommandPath`, `UsageError.ExitCode`), and
 intercepts termination with a custom `ExitFunc` instead of `os.Exit`.
 
 ## Run it

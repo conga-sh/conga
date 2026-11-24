@@ -2,7 +2,6 @@ package conga_test
 
 import (
 	"bytes"
-	"errors"
 	"testing"
 
 	"github.com/alecthomas/assert/v2"
@@ -130,8 +129,7 @@ func TestIntegerSyntax_FlagLeadingZero(t *testing.T) {
 
 	assert.Error(t, result.err)
 	assert.Equal(t, `invalid unsigned integer value "0755" for flag --mode (a leading zero is ambiguous: write 0o755 for octal or 755 for decimal)`, result.err.Error())
-	assert.IsError(t, result.err, conga.ErrCoerce)
-	assert.True(t, conga.IsUsageError(result.err))
+	assertUsageError(t, result.err)
 	assert.Equal(t, 2, result.exitCode)
 }
 
@@ -142,7 +140,7 @@ func TestIntegerSyntax_NegativeFlagLeadingZero(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, `invalid integer value "-0755" for flag --offset (a leading zero is ambiguous: write -0o755 for octal or -755 for decimal)`, err.Error())
-	assert.IsError(t, err, conga.ErrCoerce)
+	assertUsageError(t, err)
 }
 
 func TestIntegerSyntax_LeadingZeroWithNonOctalDigits(t *testing.T) {
@@ -152,7 +150,7 @@ func TestIntegerSyntax_LeadingZeroWithNonOctalDigits(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, `invalid integer value "0089" for flag --offset (a leading zero is not allowed: write 89)`, err.Error())
-	assert.IsError(t, err, conga.ErrCoerce)
+	assertUsageError(t, err)
 }
 
 func TestIntegerSyntax_UnderscoreRejected(t *testing.T) {
@@ -162,7 +160,7 @@ func TestIntegerSyntax_UnderscoreRejected(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, `invalid integer value "1_000" for flag --offset`, err.Error())
-	assert.IsError(t, err, conga.ErrCoerce)
+	assertUsageError(t, err)
 }
 
 func TestIntegerSyntax_PrefixWithoutDigits(t *testing.T) {
@@ -172,7 +170,7 @@ func TestIntegerSyntax_PrefixWithoutDigits(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, `invalid integer value "0x" for flag --offset`, err.Error())
-	assert.IsError(t, err, conga.ErrCoerce)
+	assertUsageError(t, err)
 }
 
 func TestIntegerSyntax_PositionalPrefixed(t *testing.T) {
@@ -194,8 +192,7 @@ func TestIntegerSyntax_PositionalLeadingZero(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, `invalid integer value "07" for argument <count> (a leading zero is ambiguous: write 0o7 for octal or 7 for decimal)`, err.Error())
-	assert.IsError(t, err, conga.ErrCoerce)
-	assert.True(t, conga.IsUsageError(err))
+	assertUsageError(t, err)
 }
 
 func TestIntegerSyntax_PositionalPrefixedOutOfRange(t *testing.T) {
@@ -205,7 +202,7 @@ func TestIntegerSyntax_PositionalPrefixedOutOfRange(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, `value "0x80" is out of range for int8 for argument <count>`, err.Error())
-	assert.IsError(t, err, conga.ErrCoerce)
+	assertUsageError(t, err)
 }
 
 func TestIntegerSyntax_EnvLeadingZero(t *testing.T) {
@@ -215,8 +212,7 @@ func TestIntegerSyntax_EnvLeadingZero(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, `invalid unsigned integer value "0755" for flag --mode (from environment variable CONGA_TEST_INTEGER_SYNTAX_MODE) (a leading zero is ambiguous: write 0o755 for octal or 755 for decimal)`, err.Error())
-	assert.IsError(t, err, conga.ErrConfig)
-	assert.False(t, conga.IsUsageError(err))
+	assertNotUsageError(t, err)
 }
 
 func TestIntegerSyntax_EnvPrefixed(t *testing.T) {
@@ -244,8 +240,7 @@ func TestIntegerSyntax_ConfigStringLeadingZero(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, `invalid unsigned integer value "0755" for flag --mode (from config key "mode") (a leading zero is ambiguous: write 0o755 for octal or 755 for decimal)`, err.Error())
-	assert.IsError(t, err, conga.ErrConfig)
-	assert.False(t, errors.Is(err, conga.ErrCoerce))
+	assertNotUsageError(t, err)
 }
 
 func TestIntegerSyntax_ConfigStringPrefixed(t *testing.T) {
@@ -299,8 +294,7 @@ func TestIntegerSyntax_DefaultTag(t *testing.T) {
 
 		assert.Error(t, result.err)
 		assert.Equal(t, `invalid unsigned integer value "0644" for flag --mode (from default value) (a leading zero is ambiguous: write 0o644 for octal or 644 for decimal)`, result.err.Error())
-		assert.IsError(t, result.err, conga.ErrConfig)
-		assert.False(t, conga.IsUsageError(result.err))
+		assertNotUsageError(t, result.err)
 		assert.Equal(t, 1, result.exitCode)
 	})
 }
@@ -341,7 +335,7 @@ func TestIntegerSyntax_EnumRejectsOtherNumber(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, `invalid value "0x11" (must be one of: 0x10, 20) for flag --pick`, err.Error())
-	assert.IsError(t, err, conga.ErrValidation)
+	assertUsageError(t, err)
 }
 
 func TestIntegerSyntax_EnumRejectsLastRepeatedValue(t *testing.T) {
@@ -351,7 +345,7 @@ func TestIntegerSyntax_EnumRejectsLastRepeatedValue(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, `invalid value "0o21" (must be one of: 0x10, 20) for flag --pick`, err.Error())
-	assert.IsError(t, err, conga.ErrValidation)
+	assertUsageError(t, err)
 }
 
 func TestIntegerSyntax_EnumEnvSpelling(t *testing.T) {
@@ -367,7 +361,7 @@ func TestIntegerSyntax_EnumEnvSpelling(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, `invalid value "0x11" (must be one of: 0x10, 20) for flag --pick (from environment variable CONGA_TEST_INTEGER_SYNTAX_PICK)`, err.Error())
-	assert.IsError(t, err, conga.ErrConfig)
+	assertNotUsageError(t, err)
 }
 
 func TestIntegerSyntax_EnumDefaultSpelling(t *testing.T) {
@@ -383,7 +377,7 @@ func TestIntegerSyntax_EnumDefaultSpelling(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, `invalid value "0x7" (must be one of: 0X1F, 0) for argument <slot> (from default value)`, err.Error())
-	assert.IsError(t, err, conga.ErrConfig)
+	assertNotUsageError(t, err)
 }
 
 func TestIntegerSyntax_EnumSliceElements(t *testing.T) {
@@ -408,7 +402,7 @@ func TestIntegerSyntax_EnumSliceElements(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Equal(t, `invalid value "0x3" (must be one of: 0b1, 0o2) for flag --sizes`, err.Error())
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 }
 
@@ -434,7 +428,7 @@ func TestIntegerSyntax_EnumPositional(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Equal(t, `invalid value "0b101" (must be one of: 0X1F, 0) for argument <slot>`, err.Error())
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 }
 
@@ -544,7 +538,7 @@ func TestIntegerSyntax_RangeBounds(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Equal(t, `value 15 is out of range [0x10..0x20] for flag --width`, err.Error())
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 
 	t.Run("value above the prefixed bound", func(t *testing.T) {
@@ -554,7 +548,7 @@ func TestIntegerSyntax_RangeBounds(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Equal(t, `value 9 is out of range [0b1..0o10] for flag --size`, err.Error())
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 
 	t.Run("leading zero bound", func(t *testing.T) {
@@ -622,7 +616,7 @@ func TestIntegerSyntax_FeatureLevels(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Equal(t, `invalid value "02" for feature "depth": must be an integer (a leading zero is ambiguous: write 0o2 for octal or 2 for decimal)`, err.Error())
-		assert.True(t, conga.IsUsageError(err))
+		assertUsageError(t, err)
 	})
 
 	t.Run("leading zero enum level", func(t *testing.T) {
@@ -665,7 +659,7 @@ func TestIntegerSyntax_CounterEnv(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Equal(t, `invalid unsigned integer value "02" for flag --verbose (from environment variable CONGA_TEST_INTEGER_SYNTAX_VERBOSE) (a leading zero is ambiguous: write 0o2 for octal or 2 for decimal)`, err.Error())
-		assert.IsError(t, err, conga.ErrConfig)
+		assertNotUsageError(t, err)
 	})
 }
 
@@ -703,7 +697,7 @@ func TestIntegerSyntax_CountBounds(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Equal(t, `value "europe" length 6 is out of range [0x2..0x4] for flag --region`, err.Error())
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 
 	t.Run("prefixed items bound", func(t *testing.T) {
@@ -719,7 +713,7 @@ func TestIntegerSyntax_CountBounds(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Equal(t, `expected exactly 0b10 items, got 3 for flag --hosts`, err.Error())
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 
 	t.Run("leading zero len bound", func(t *testing.T) {
@@ -792,7 +786,7 @@ func TestIntegerSyntax_CountMessagesKeepBoundSpelling(t *testing.T) {
 
 			assert.Error(t, err)
 			assert.Equal(t, testCase.message, err.Error())
-			assert.IsError(t, err, conga.ErrValidation)
+			assertUsageError(t, err)
 		})
 	}
 }
@@ -841,7 +835,7 @@ func TestIntegerSyntax_NegativePrefixedOutOfRange(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Equal(t, `value "-0x8000000000000001" is out of range for int for flag --offset`, err.Error())
-		assert.IsError(t, err, conga.ErrCoerce)
+		assertUsageError(t, err)
 	})
 
 	t.Run("positional", func(t *testing.T) {
@@ -851,7 +845,7 @@ func TestIntegerSyntax_NegativePrefixedOutOfRange(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Equal(t, `value "-0x81" is out of range for int8 for argument <count>`, err.Error())
-		assert.IsError(t, err, conga.ErrCoerce)
+		assertUsageError(t, err)
 	})
 
 	t.Run("positional beyond int64", func(t *testing.T) {
@@ -861,6 +855,6 @@ func TestIntegerSyntax_NegativePrefixedOutOfRange(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Equal(t, `value "-0x8000000000000001" is out of range for int8 for argument <count>`, err.Error())
-		assert.IsError(t, err, conga.ErrCoerce)
+		assertUsageError(t, err)
 	})
 }

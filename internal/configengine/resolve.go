@@ -12,7 +12,6 @@ import (
 	"github.com/conga-sh/conga/internal/container"
 	"github.com/conga-sh/conga/internal/filex"
 	"github.com/conga-sh/conga/internal/pathx"
-	"github.com/conga-sh/conga/internal/sentinel"
 	"github.com/conga-sh/conga/internal/slicex"
 	"github.com/conga-sh/conga/internal/spec"
 )
@@ -301,7 +300,7 @@ func (r Resolver) loadAndValidateFile(path string, cmd *spec.Command, dest *conf
 		return &configError{
 			path:  path,
 			msg:   fmt.Sprintf("cannot read config file %q: %v", path, err),
-			cause: fmt.Errorf("%w: %w", sentinel.ErrConfigRead, err),
+			cause: err,
 		}
 	}
 
@@ -310,9 +309,8 @@ func (r Resolver) loadAndValidateFile(path string, cmd *spec.Command, dest *conf
 	decoder := r.Registry.Decoder(extension)
 	if decoder == nil {
 		return &configError{
-			path:  path,
-			msg:   fmt.Sprintf("unsupported config file format %q for %q", extension, path),
-			cause: fmt.Errorf("%w: unsupported format %q", sentinel.ErrConfigParse, extension),
+			path: path,
+			msg:  fmt.Sprintf("unsupported config file format %q for %q", extension, path),
 		}
 	}
 
@@ -321,7 +319,7 @@ func (r Resolver) loadAndValidateFile(path string, cmd *spec.Command, dest *conf
 		return &configError{
 			path:  path,
 			msg:   fmt.Sprintf("cannot parse config file %q: %v", path, err),
-			cause: fmt.Errorf("%w: %w", sentinel.ErrConfigParse, err),
+			cause: err,
 		}
 	}
 
@@ -426,7 +424,7 @@ func resolveExplicitConfigFile(target string) (string, error) {
 		return "", &configError{
 			path:  target,
 			msg:   fmt.Sprintf("cannot read config file %q: %v", target, err),
-			cause: fmt.Errorf("%w: %w", sentinel.ErrConfigRead, err),
+			cause: err,
 		}
 	}
 
@@ -546,9 +544,8 @@ func resolveMatchedConfigCandidates(matched []string, path, location string) (st
 	baseNames := slicex.Map(matched, filepath.Base)
 
 	return "", &configError{
-		path:  path,
-		msg:   fmt.Sprintf("multiple conflicting config files found %s: %s", location, strings.Join(baseNames, ", ")),
-		cause: fmt.Errorf("%w: multiple conflicting config files found: %s", sentinel.ErrConfigConflict, strings.Join(baseNames, ", ")),
+		path: path,
+		msg:  fmt.Sprintf("multiple conflicting config files found %s: %s", location, strings.Join(baseNames, ", ")),
 	}
 }
 

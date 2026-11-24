@@ -3,7 +3,6 @@ package conga_test
 import (
 	"bytes"
 	"context"
-	"errors"
 	"testing"
 
 	"github.com/alecthomas/assert/v2"
@@ -561,8 +560,7 @@ func TestImplicitCommand_ChildFlagOnExplicitSiblingIsUnknown(t *testing.T) {
 
 	err := app.Run()
 
-	assert.IsError(t, err, conga.ErrParse)
-	assert.True(t, conga.IsUsageError(err))
+	assertUsageError(t, err)
 	assert.False(t, cli.Install.Get().executed)
 }
 
@@ -841,12 +839,10 @@ func TestImplicitCommand_ChildFlagMissingRequiredArgument(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrValidation)
+	assertUsageError(t, err)
 	assert.Equal(t, "missing required positional argument <file>", err.Error())
 
-	var usage conga.UsageError
-
-	assert.True(t, errors.As(err, &usage))
+	usage := assertUsageError(t, err)
 	assert.Equal(t, "tool run", usage.CommandPath())
 	assert.False(t, cli.executed)
 	assert.False(t, cli.Exec.Get().executed)
@@ -934,7 +930,7 @@ func TestImplicitCommand_SiblingFlagDoesNotSelectImplicit(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrParse)
+	assertUsageError(t, err)
 	assert.Contains(t, err.Error(), "unknown flag: --frozen")
 	assert.False(t, cli.executed)
 	assert.False(t, cli.Exec.Get().executed)
@@ -951,12 +947,10 @@ func TestImplicitCommand_SiblingValueFlagBeforeNameSelectsImplicitChild(t *testi
 
 		err := app.Run()
 
-		assert.IsError(t, err, conga.ErrParse)
+		assertUsageError(t, err)
 		assert.Contains(t, err.Error(), "unknown flag: --env")
 
-		var usage conga.UsageError
-
-		assert.True(t, errors.As(err, &usage))
+		usage := assertUsageError(t, err)
 		assert.Equal(t, "tool run", usage.CommandPath())
 		assert.False(t, cli.Deploy.Get().executed)
 		assert.False(t, cli.Exec.Get().executed)
@@ -1047,7 +1041,7 @@ func TestImplicitCommand_ChildFlagBeforeVersionStaysUnknown(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrParse)
+	assertUsageError(t, err)
 	assert.Contains(t, err.Error(), "unknown flag: --version")
 	assert.False(t, cli.executed)
 	assert.False(t, cli.Exec.Get().executed)
@@ -1127,7 +1121,7 @@ func TestImplicitCommand_VersionBeforeChildFlagStaysUnknown(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrParse)
+	assertUsageError(t, err)
 	assert.Contains(t, err.Error(), "unknown flag: --version")
 	assert.False(t, cli.executed)
 	assert.False(t, cli.Exec.Get().executed)
@@ -1146,7 +1140,7 @@ func TestImplicitCommand_ChildFlagVersionShortInClusterStaysUnknown(t *testing.T
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrParse)
+	assertUsageError(t, err)
 	assert.Contains(t, err.Error(), "unknown shorthand flag: 'V' in -Vn")
 	assert.False(t, cli.executed)
 	assert.False(t, cli.Exec.Get().executed)
@@ -1165,7 +1159,7 @@ func TestImplicitCommand_ChildFlagVersionShortStaysUnknown(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrParse)
+	assertUsageError(t, err)
 	assert.Contains(t, err.Error(), "unknown flag: -V")
 	assert.False(t, cli.executed)
 	assert.False(t, cli.Exec.Get().executed)
@@ -1283,7 +1277,7 @@ func TestImplicitCommand_DisabledVersionStaysUnknown(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrParse)
+	assertUsageError(t, err)
 	assert.Contains(t, err.Error(), "unknown flag: --version")
 	assert.False(t, cli.executed)
 	assert.False(t, cli.Exec.Get().executed)
@@ -1298,11 +1292,9 @@ func TestImplicitCommand_OperandBeforeVersionStaysUnknown(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrParse)
+	assertUsageError(t, err)
 
-	var usage conga.UsageError
-
-	assert.True(t, errors.As(err, &usage))
+	usage := assertUsageError(t, err)
 	assert.Equal(t, "tool mid run", usage.CommandPath())
 	assert.Contains(t, err.Error(), "unknown flag: --version")
 	assert.False(t, cli.Mid.Get().Run.Get().executed)
@@ -1351,7 +1343,7 @@ func TestImplicitCommand_ExplicitNameBeforeVersionStaysUnknown(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrParse)
+	assertUsageError(t, err)
 	assert.Contains(t, err.Error(), "unknown flag: --version")
 	assert.False(t, cli.executed)
 	assert.False(t, cli.Exec.Get().executed)
@@ -1447,12 +1439,10 @@ func TestImplicitCommand_DeepChainFlagSelectsNeededDepth(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 		assert.Equal(t, "missing required positional argument <file>", err.Error())
 
-		var usage conga.UsageError
-
-		assert.True(t, errors.As(err, &usage))
+		usage := assertUsageError(t, err)
 		assert.Equal(t, "tool mid run", usage.CommandPath())
 		assert.False(t, cli.Mid.Get().executed)
 	})
@@ -1466,12 +1456,10 @@ func TestImplicitCommand_DeepChainFlagSelectsNeededDepth(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 		assert.Equal(t, "missing required positional argument <file>", err.Error())
 
-		var usage conga.UsageError
-
-		assert.True(t, errors.As(err, &usage))
+		usage := assertUsageError(t, err)
 		assert.Equal(t, "tool mid run", usage.CommandPath())
 		assert.False(t, cli.Mid.Get().executed)
 	})
@@ -1528,7 +1516,7 @@ func TestImplicitCommand_VersionBeforeExplicitNameStaysUnknown(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrParse)
+	assertUsageError(t, err)
 	assert.Contains(t, err.Error(), "unknown flag: --version")
 	assert.False(t, cli.executed)
 	assert.False(t, cli.Exec.Get().executed)
@@ -1648,12 +1636,10 @@ func TestImplicitCommand_ExplicitSiblingRoutingIgnoresImplicitFlagArity(t *testi
 
 	err := app.Run()
 
-	assert.IsError(t, err, conga.ErrParse)
+	assertUsageError(t, err)
 	assert.Equal(t, "unknown flag: --format", err.Error())
 
-	var usage conga.UsageError
-
-	assert.True(t, errors.As(err, &usage))
+	usage := assertUsageError(t, err)
 	assert.Equal(t, "tool admin purge", usage.CommandPath())
 }
 

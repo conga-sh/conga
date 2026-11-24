@@ -164,7 +164,7 @@ func TestXor_ExplicitConflictStillDetected(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "mutually exclusive")
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 
 	t.Run("explicit false flag still counts as provided", func(t *testing.T) {
@@ -177,7 +177,7 @@ func TestXor_ExplicitConflictStillDetected(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "mutually exclusive")
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 }
 
@@ -198,8 +198,7 @@ func TestXor_EnvCountsAsChanged(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, "flags --graceful (from environment variable CONGA_TEST_XOR_GRACEFUL) and --immediate are mutually exclusive", err.Error())
-	assert.IsError(t, err, conga.ErrValidation)
-	assert.True(t, conga.IsUsageError(err))
+	assertUsageError(t, err)
 }
 
 func TestAndGroup_EnvTriggersGroup(t *testing.T) {
@@ -219,8 +218,7 @@ func TestAndGroup_EnvTriggersGroup(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, "flag --pass (from environment variable CONGA_TEST_RT_PASS) must be given together with --user", err.Error())
-	assert.IsError(t, err, conga.ErrConfig)
-	assert.False(t, conga.IsUsageError(err))
+	assertNotUsageError(t, err)
 }
 
 func TestAndGroup_DefaultDoesNotTriggerGroup(t *testing.T) {

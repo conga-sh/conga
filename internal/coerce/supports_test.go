@@ -2,10 +2,10 @@ package coerce_test
 
 import (
 	"context"
-	"errors"
 	"net"
 	"net/url"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -36,7 +36,7 @@ type supportsPointerRegistered struct{}
 
 // TestSupports_MatchesScalarWith pins Supports to ScalarWith's dispatch: for
 // every type in the table, Supports reports true exactly when ScalarWith
-// doesn't fail with ErrUnsupportedType.
+// doesn't fail with an "unsupported type" error.
 func TestSupports_MatchesScalarWith(t *testing.T) {
 	t.Parallel()
 
@@ -85,7 +85,7 @@ func TestSupports_MatchesScalarWith(t *testing.T) {
 			t.Parallel()
 
 			_, err := coerce.ScalarWith("1", testCase.targetType, registry, coerce.DecodeContext{})
-			scalarSupported := !errors.Is(err, coerce.ErrUnsupportedType)
+			scalarSupported := err == nil || !strings.HasPrefix(err.Error(), "unsupported type ")
 
 			supported := coerce.Supports(testCase.targetType, registry)
 

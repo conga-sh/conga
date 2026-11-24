@@ -5,8 +5,6 @@ import (
 	"testing"
 
 	"github.com/alecthomas/assert/v2"
-
-	"github.com/conga-sh/conga/internal/sentinel"
 )
 
 func TestConfigError_Error(t *testing.T) {
@@ -74,10 +72,11 @@ func TestConfigError_Error(t *testing.T) {
 	})
 }
 
-func TestConfigError_Classification(t *testing.T) {
+func TestConfigError_Unwrap(t *testing.T) {
 	t.Parallel()
 
-	err := &configError{path: "app.json", cause: errors.New("read failed")}
+	cause := errors.New("read failed")
 
-	assert.IsError(t, err, sentinel.ErrConfig)
+	assert.Equal(t, cause, (&configError{path: "app.json", cause: cause}).Unwrap())
+	assert.Equal(t, nil, (&configError{path: "app.json"}).Unwrap())
 }

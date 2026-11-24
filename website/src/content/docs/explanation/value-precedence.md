@@ -120,7 +120,7 @@ Not every container reads all four sources.
 
 ### Decoderless applications
 
-CONGA skips the config search paths if an application does not register a config decoder, and values fall from the environment straight to defaults. A file named with `--config-file` or with the `ConfigFile` field's environment variable still needs a decoder, and fails with `ErrConfig` (exit 1) without one. An app with neither a decoder nor a `ConfigFile` doesn't read `<PREFIX>_CONFIG`, so one of its flags can bind that variable. A `Bootstrapper` can still supply the config source in code with `Bootstrap.SetConfig`.
+CONGA skips the config search paths if an application does not register a config decoder, and values fall from the environment straight to defaults. A file named with `--config-file` or with the `ConfigFile` field's environment variable still needs a decoder, and fails with exit 1 without one. An app with neither a decoder nor a `ConfigFile` doesn't read `<PREFIX>_CONFIG`, so one of its flags can bind that variable. A `Bootstrapper` can still supply the config source in code with `Bootstrap.SetConfig`.
 
 ### Positional arguments
 
@@ -139,7 +139,7 @@ Scalar and slice flags take the value of the single winning source. `map[K]V` fl
 
 This matches the convention of Kubernetes `--feature-gates`, Helm `--set`, and `git -c`. A higher source can change a key set by a lower one, but cannot remove it.
 
-Because every source contributes, CONGA parses map entries from every active source, even when the command line also sets the flag. A malformed entry on the command line is a usage error: `ErrCoerce`, exit 2. A malformed entry in a config file or an environment variable comes from a lower source, so it classifies under `ErrConfig` with exit 1, even when the command line also sets the flag. The message names the origin, such as `invalid key-value pair "novalue", expected KEY=VALUE for flag --labels (from environment variable TOOL_LABELS)` or `(from config key "labels")`.
+Because every source contributes, CONGA parses map entries from every active source, even when the command line also sets the flag. A malformed entry on the command line is a `*conga.UsageError` (exit 2). A malformed entry in a config file or an environment variable comes from a lower source, so it is not a usage error and exits 1, even when the command line also sets the flag. The message names the origin, such as `invalid key-value pair "novalue", expected KEY=VALUE for flag --labels (from environment variable TOOL_LABELS)` or `(from config key "labels")`.
 
 ### Feature maps
 

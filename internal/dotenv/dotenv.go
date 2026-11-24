@@ -13,10 +13,19 @@ import (
 
 	"github.com/conga-sh/conga/internal/filex"
 	"github.com/conga-sh/conga/internal/pathx"
-	"github.com/conga-sh/conga/internal/sentinel"
 )
 
 const maxDotenvFileSize = 16 * 1024 * 1024
+
+const (
+	syntaxMissingEquals       syntaxKind = iota // no '=' in the statement
+	syntaxEmptyKey                              // the key is blank
+	syntaxKeyStart                              // the key starts with a character that cannot start one
+	syntaxKeyCharacter                          // the key holds a character it cannot hold
+	syntaxTrailingText                          // text follows a closing quote
+	syntaxUnclosedSingleQuote                   // a single-quoted value never closes
+	syntaxUnclosedDoubleQuote                   // a double-quoted value never closes
+)
 
 // DotenvError represents an error reading or parsing a .env file.
 type DotenvError struct {
@@ -38,23 +47,7 @@ func (e *DotenvError) Error() string {
 }
 
 func (e *DotenvError) Unwrap() error {
-	if e.Cause != nil {
-		return e.Cause
-	}
-
-	return sentinel.ErrDotenv
-}
-
-func (e *DotenvError) Is(target error) bool {
-	if target == sentinel.ErrDotenv {
-		return true
-	}
-
-	if e.Cause != nil {
-		return errors.Is(e.Cause, target)
-	}
-
-	return false
+	return e.Cause
 }
 
 // Load loads environment variables from .env files into the current process environment.
@@ -131,6 +124,38 @@ func Parse(data []byte) (map[string]string, error) {
 	return parse(data, nil)
 }
 
+// syntaxKind identifies how a .env statement is malformed.
+type syntaxKind uint8
+
+// syntaxError reports a malformed .env statement. The parser found the problem
+// itself, so it has no cause.
+type syntaxError struct {
+	kind syntaxKind
+	char rune   // the offending key character (syntaxKeyStart, syntaxKeyCharacter)
+	rest string // the text after the closing quote (syntaxTrailingText)
+}
+
+func (e *syntaxError) Error() string {
+	switch e.kind {
+	case syntaxMissingEquals:
+		return "missing '=' in statement"
+	case syntaxEmptyKey:
+		return "empty key name"
+	case syntaxKeyStart:
+		return fmt.Sprintf("invalid character %q at start of key", e.char)
+	case syntaxKeyCharacter:
+		return fmt.Sprintf("invalid character %q in key", e.char)
+	case syntaxTrailingText:
+		return "unexpected characters after closing quote: " + e.rest
+	case syntaxUnclosedSingleQuote:
+		return "unclosed single quote"
+	case syntaxUnclosedDoubleQuote:
+		return "unclosed double quote"
+	default:
+		return "malformed statement"
+	}
+}
+
 func parse(data []byte, loadedKeys map[string]string) (map[string]string, error) {
 	reader := bufio.NewReader(bytes.NewReader(data))
 	result := make(map[string]string)
@@ -144,7 +169,7 @@ func parse(data []byte, loadedKeys map[string]string) (map[string]string, error)
 				break
 			}
 
-			return nil, fmt.Errorf("%w: %w", sentinel.ErrDotenvParse, err)
+			return nil, err
 		}
 
 		lineNum++
@@ -225,16 +250,15 @@ func loadSingleFile(set func(key, value string) error, path string, mustExist bo
 		return &DotenvError{
 			Path:  path,
 			Msg:   fmt.Sprintf("cannot read .env file %q: %v", path, err),
-			Cause: fmt.Errorf("%w: %w", sentinel.ErrDotenvRead, err),
+			Cause: err,
 		}
 	}
 
 	envMap, err := parse(data, origins)
 	if err != nil {
 		return &DotenvError{
-			Path:  path,
-			Msg:   fmt.Sprintf("cannot parse .env file %q: %v", path, err),
-			Cause: fmt.Errorf("%w: %w", sentinel.ErrDotenvParse, err),
+			Path: path,
+			Msg:  fmt.Sprintf("cannot parse .env file %q: %v", path, err),
 		}
 	}
 
@@ -249,7 +273,7 @@ func loadSingleFile(set func(key, value string) error, path string, mustExist bo
 			return &DotenvError{
 				Path:  path,
 				Msg:   fmt.Sprintf("cannot set environment variable %q: %v", key, err),
-				Cause: fmt.Errorf("%w: %w", sentinel.ErrDotenv, err),
+				Cause: err,
 			}
 		}
 
@@ -270,22 +294,22 @@ func parseLine(line string, reader *bufio.Reader, lineNum *int, expand func(stri
 
 	keyPart, rawValPart, ok := strings.Cut(line, "=")
 	if !ok {
-		return "", "", false, fmt.Errorf("%w: missing '=' in statement", sentinel.ErrDotenvParse)
+		return "", "", false, &syntaxError{kind: syntaxMissingEquals}
 	}
 
 	key := strings.TrimSpace(keyPart)
 	if key == "" {
-		return "", "", false, fmt.Errorf("%w: empty key name", sentinel.ErrDotenvParse)
+		return "", "", false, &syntaxError{kind: syntaxEmptyKey}
 	}
 
 	// Validate key contains valid identifier characters
 	for index, r := range key {
 		if index == 0 && !unicode.IsLetter(r) && r != '_' {
-			return "", "", false, fmt.Errorf("%w: invalid character %q at start of key", sentinel.ErrDotenvParse, r)
+			return "", "", false, &syntaxError{kind: syntaxKeyStart, char: r}
 		}
 
 		if !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '_' && r != '.' {
-			return "", "", false, fmt.Errorf("%w: invalid character %q in key", sentinel.ErrDotenvParse, r)
+			return "", "", false, &syntaxError{kind: syntaxKeyCharacter, char: r}
 		}
 	}
 
@@ -336,7 +360,7 @@ func parseSingleQuoted(rawValue string, reader *bufio.Reader, lineNum *int) (str
 			// Rest after closing quote must be comment or whitespace
 			rest := strings.TrimSpace(cur[closeIdx+1:])
 			if rest != "" && !strings.HasPrefix(rest, "#") {
-				return "", fmt.Errorf("%w: unexpected characters after closing quote: %s", sentinel.ErrDotenvParse, rest)
+				return "", &syntaxError{kind: syntaxTrailingText, rest: rest}
 			}
 
 			return builder.String(), nil
@@ -347,7 +371,7 @@ func parseSingleQuoted(rawValue string, reader *bufio.Reader, lineNum *int) (str
 
 		nextLine, err := reader.ReadString('\n')
 		if !readContinuation(nextLine, err) {
-			return "", fmt.Errorf("%w: unclosed single quote", sentinel.ErrDotenvParse)
+			return "", &syntaxError{kind: syntaxUnclosedSingleQuote}
 		}
 
 		(*lineNum)++
@@ -382,7 +406,7 @@ func parseDoubleQuoted(rawValue string, reader *bufio.Reader, lineNum *int, expa
 
 		nextLine, err := reader.ReadString('\n')
 		if !readContinuation(nextLine, err) {
-			return "", fmt.Errorf("%w: unclosed double quote", sentinel.ErrDotenvParse)
+			return "", &syntaxError{kind: syntaxUnclosedDoubleQuote}
 		}
 
 		(*lineNum)++
@@ -419,7 +443,7 @@ func processDoubleQuotedLine(cleanCur string, builder *strings.Builder, pending 
 		if char == '"' {
 			rest := strings.TrimSpace(cleanCur[index+1:])
 			if rest != "" && !strings.HasPrefix(rest, "#") {
-				return false, fmt.Errorf("%w: unexpected characters after closing quote: %s", sentinel.ErrDotenvParse, rest)
+				return false, &syntaxError{kind: syntaxTrailingText, rest: rest}
 			}
 
 			return true, nil

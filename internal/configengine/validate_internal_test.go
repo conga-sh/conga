@@ -6,7 +6,6 @@ import (
 	"github.com/alecthomas/assert/v2"
 
 	"github.com/conga-sh/conga/internal/configdata"
-	"github.com/conga-sh/conga/internal/sentinel"
 	"github.com/conga-sh/conga/internal/spec"
 )
 
@@ -29,7 +28,6 @@ func TestValidateCommandConfig_ExcludedFlagByName(t *testing.T) {
 	dest := configdata.New()
 	err := validateCommandConfig(map[string]any{"token": "secret"}, cmd, dest, "config.yaml")
 
-	assert.IsError(t, err, sentinel.ErrConfigUnknownField)
 	assert.Equal(t, `config file "config.yaml": field "token" is excluded from config files in command "app"`, err.Error())
 }
 
@@ -45,7 +43,6 @@ func TestValidateCommandConfig_ExcludedFlagAliasIsUnknown(t *testing.T) {
 	dest := configdata.New()
 	err := validateCommandConfig(map[string]any{"auth-token": "secret"}, cmd, dest, "config.yaml")
 
-	assert.IsError(t, err, sentinel.ErrConfigUnknownField)
 	assert.Equal(t, `config file "config.yaml": unknown field "auth-token" in command "app"`, err.Error())
 }
 
@@ -61,7 +58,6 @@ func TestValidateCommandConfig_UnknownSection(t *testing.T) {
 	err := validateCommandConfig(map[string]any{"cache": map[string]any{"ttl": "30"}}, cmd, dest, "config.yaml")
 
 	assert.Error(t, err)
-	assert.IsError(t, err, sentinel.ErrConfigUnknownField)
 	assert.Contains(t, err.Error(), `unknown section "cache" in command "app"`)
 }
 
@@ -77,7 +73,6 @@ func TestValidateCommandConfig_UnknownFieldInNamespace(t *testing.T) {
 	err := validateCommandConfig(map[string]any{"cache": map[string]any{"port": "80"}}, cmd, dest, "config.yaml")
 
 	assert.Error(t, err)
-	assert.IsError(t, err, sentinel.ErrConfigUnknownField)
 	assert.Contains(t, err.Error(), `unknown field "port" in namespace "cache"`)
 }
 
@@ -253,7 +248,6 @@ func TestValidateNamespaceConfig_NonMapFlagWithNestedValueStillErrors(t *testing
 		},
 	}, cmd, dest, "remote.yaml")
 
-	assert.IsError(t, err, sentinel.ErrConfigUnknownField)
 	assert.Equal(t, `config file "remote.yaml": field "tags" in namespace "remote" is not a map`, err.Error())
 }
 
@@ -273,7 +267,6 @@ func TestValidateNamespaceConfig_UnknownNestedSectionRejected(t *testing.T) {
 		},
 	}, cmd, dest, "config.toml")
 
-	assert.IsError(t, err, sentinel.ErrConfigUnknownField)
 	assert.Equal(t, `config file "config.toml": unknown section "hots" in namespace "db" (did you mean "host"?)`, err.Error())
 }
 
@@ -300,7 +293,6 @@ func TestValidateNamespaceConfig_SubcommandScalarFlagReportsNotAMap(t *testing.T
 		},
 	}, root, dest, "app.toml")
 
-	assert.IsError(t, err, sentinel.ErrConfigUnknownField)
 	assert.Equal(t, `config file "app.toml": field "port" in namespace "deploy.cache" is not a map`, err.Error())
 }
 
@@ -326,7 +318,6 @@ func TestValidateCommandConfig_SubcommandNamespaceErrorLabel(t *testing.T) {
 	}, root, dest, "app.toml")
 
 	assert.Error(t, err)
-	assert.IsError(t, err, sentinel.ErrConfigUnknownField)
 	assert.Contains(t, err.Error(), `unknown field "bogus" in namespace "deploy.cache"`)
 }
 
@@ -343,7 +334,6 @@ func TestValidateCommandConfig_ExcludedMapSectionRejected(t *testing.T) {
 	err := validateCommandConfig(map[string]any{"tags": map[string]any{"a": "1"}}, cmd, dest, "app.toml")
 
 	assert.Error(t, err)
-	assert.IsError(t, err, sentinel.ErrConfigUnknownField)
 	assert.Contains(t, err.Error(), `field "tags" is excluded from config files in command "app"`)
 	assert.False(t, dest.HasKey("tags"))
 }
@@ -418,7 +408,6 @@ func TestValidateDocument_UnknownKeyAttributesOrigin(t *testing.T) {
 	err := ValidateDocument(map[string]any{"hots": "x"}, cmd, configdata.New(), "taskrc", "")
 
 	assert.Error(t, err)
-	assert.IsError(t, err, sentinel.ErrConfigUnknownField)
 	assert.Contains(t, err.Error(), `config file "taskrc"`)
 	assert.Contains(t, err.Error(), `unknown field "hots" in command "app"`)
 }
@@ -478,7 +467,6 @@ func TestHandleNestedSection_ScalarFlagReportsNotAMap(t *testing.T) {
 	err := validateCommandConfig(map[string]any{"port": map[string]any{"http": 8080}}, cmd, dest, "taskrc")
 
 	assert.Error(t, err)
-	assert.IsError(t, err, sentinel.ErrConfig)
 	assert.Equal(t, `config file "taskrc": field "port" in command "app" is not a map`, err.Error())
 	assert.NotContains(t, err.Error(), "did you mean")
 }
@@ -505,7 +493,6 @@ func TestValidateCommandConfig_OtherSpellingsRejected(t *testing.T) {
 			dest := configdata.New()
 			err := validateCommandConfig(map[string]any{key: "true"}, cmd, dest, "config.yaml")
 
-			assert.IsError(t, err, sentinel.ErrConfigUnknownField)
 			assert.Equal(t, message, err.Error())
 		})
 	}
@@ -563,7 +550,6 @@ func TestValidateCommandConfig_SubcommandAliasSectionRejected(t *testing.T) {
 	dest := configdata.New()
 	err := validateCommandConfig(map[string]any{"d": map[string]any{"region": "eu"}}, cmd, dest, "config.yaml")
 
-	assert.IsError(t, err, sentinel.ErrConfigUnknownField)
 	assert.Equal(t, `config file "config.yaml": unknown section "d" in command "app"`, err.Error())
 }
 
@@ -581,7 +567,6 @@ func TestValidateCommandConfig_SubcommandSectionOtherSpellingRejected(t *testing
 	dest := configdata.New()
 	err := validateCommandConfig(map[string]any{"deploy_app": map[string]any{"region": "eu"}}, cmd, dest, "config.yaml")
 
-	assert.IsError(t, err, sentinel.ErrConfigUnknownField)
 	assert.Equal(t, `config file "config.yaml": unknown section "deploy_app" in command "app" (did you mean "deploy-app"?)`, err.Error())
 }
 
@@ -596,7 +581,6 @@ func TestValidateNamespaceConfig_RootFlagNameRejectedInSection(t *testing.T) {
 	dest := configdata.New()
 	err := validateCommandConfig(map[string]any{"db": map[string]any{"host": "h", "port": 99}}, cmd, dest, "config.toml")
 
-	assert.IsError(t, err, sentinel.ErrConfigUnknownField)
 	assert.Equal(t, `config file "config.toml": unknown field "port" in namespace "db" (did you mean "host"?)`, err.Error())
 }
 
@@ -611,7 +595,6 @@ func TestValidateNamespaceConfig_ExcludedRootFlagReportedUnknown(t *testing.T) {
 	dest := configdata.New()
 	err := validateCommandConfig(map[string]any{"db": map[string]any{"port": 99}}, cmd, dest, "config.toml")
 
-	assert.IsError(t, err, sentinel.ErrConfigUnknownField)
 	assert.Equal(t, `config file "config.toml": unknown field "port" in namespace "db" (did you mean "host"?)`, err.Error())
 }
 
@@ -626,7 +609,6 @@ func TestValidateNamespaceConfig_SuggestsKeyInSection(t *testing.T) {
 	dest := configdata.New()
 	err := validateCommandConfig(map[string]any{"db": map[string]any{"hots": "h"}}, cmd, dest, "config.toml")
 
-	assert.IsError(t, err, sentinel.ErrConfigUnknownField)
 	assert.Equal(t, `config file "config.toml": unknown field "hots" in namespace "db" (did you mean "host"?)`, err.Error())
 }
 
@@ -651,7 +633,6 @@ func TestValidateCommandConfig_DottedTagOnlyMatchesNestedSections(t *testing.T) 
 			dest := configdata.New()
 			err := validateCommandConfig(map[string]any{key: "x"}, cmd, dest, "config.toml")
 
-			assert.IsError(t, err, sentinel.ErrConfigUnknownField)
 			assert.Equal(t, message, err.Error())
 		})
 	}
@@ -696,7 +677,6 @@ func TestValidateCommandConfig_ConfigTagReplacesFlagName(t *testing.T) {
 			dest := configdata.New()
 			err := validateCommandConfig(map[string]any{key: "x"}, cmd, dest, "config.toml")
 
-			assert.IsError(t, err, sentinel.ErrConfigUnknownField)
 			assert.Equal(t, message, err.Error())
 		})
 	}
@@ -749,7 +729,6 @@ func TestValidateCommandConfig_FeatureKeyOtherSpellingRejected(t *testing.T) {
 			dest := configdata.New()
 			err := validateCommandConfig(map[string]any{"experiments": section}, featureMapCommand(spec.KeyCaseKebab), dest, "config.yaml")
 
-			assert.IsError(t, err, sentinel.ErrConfigUnknownField)
 			assert.Equal(t, `config file "config.yaml": unknown field "gentle_force" in section "experiments" (did you mean "gentle-force"?)`, err.Error())
 		})
 	}
@@ -828,7 +807,6 @@ func TestValidateCommandConfig_KeyCaseRejectsOtherCasings(t *testing.T) {
 			dest := configdata.New()
 			err := validateCommandConfig(map[string]any{key: "true"}, cmd, dest, "config.yaml")
 
-			assert.IsError(t, err, sentinel.ErrConfigUnknownField)
 			assert.Equal(t, message, err.Error())
 		})
 	}
@@ -848,7 +826,6 @@ func TestValidateCommandConfig_KeyCaseLeavesConfigTagAsWritten(t *testing.T) {
 	errCased := validateCommandConfig(map[string]any{"api_url": "x"}, cmd, dest, "config.yaml")
 
 	assert.NoError(t, errTag)
-	assert.IsError(t, errCased, sentinel.ErrConfigUnknownField)
 	assert.Equal(t, `config file "config.yaml": unknown field "api_url" in command "app" (did you mean "api-url"?)`, errCased.Error())
 }
 
@@ -871,6 +848,5 @@ func TestValidateCommandConfig_KeyCaseRejectsKebabFeatureKey(t *testing.T) {
 	dest := configdata.New()
 	err := validateCommandConfig(map[string]any{"experiments": map[string]any{"gentle-force": true}}, featureMapCommand(spec.KeyCaseCamel), dest, "config.yaml")
 
-	assert.IsError(t, err, sentinel.ErrConfigUnknownField)
 	assert.Equal(t, `config file "config.yaml": unknown field "gentle-force" in section "experiments" (did you mean "gentleForce"?)`, err.Error())
 }

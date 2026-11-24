@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"os/signal"
 	"reflect"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -278,8 +280,8 @@ func (a *App[T]) EnvPrefix(prefix string) *App[T] {
 // function configured by [App.SetenvFunc], which defaults to [os.Setenv].
 //
 // Dotenv files enforce a strict 16MB file size limit to prevent unbounded memory allocation.
-// Files exceeding the limit or missing explicit paths cause execution to halt with an error
-// wrapping [ErrConfig].
+// Files exceeding the limit or missing explicit paths cause execution to halt with an error,
+// which is not a [UsageError].
 //
 // See https://docs.conga.sh/how-to/load-env-files/.
 func (a *App[T]) Dotenv(paths ...string) *App[T] {
@@ -530,7 +532,8 @@ func (a *App[T]) Use(bindings ...func(*App[T])) *App[T] {
 // for custom type U on the application builder.
 //
 // The parser, a [TypeParser], converts raw string input from flags, arguments, environment
-// variables, or config files into an instance of type U. A returned error is wrapped in [ErrCoerce].
+// variables, or config files into an instance of type U. A returned error is the cause of
+// the coercion failure and stays reachable through [errors.Is] and [errors.As].
 //
 // If type U was previously registered, the new parser and predictor overwrite the
 // existing registration.
@@ -614,9 +617,12 @@ func (a *App[T]) RegisterType[U any](parser TypeParser[U], opts ...RegistrationO
 // Returns:
 //   - nil on successful execution or when handling built-in flags (--help, --version, --why).
 //   - A schema error if the struct tags or command schema are invalid.
-//   - An error wrapping [ErrParse], [ErrCoerce], or [ErrValidation] if user input is invalid.
-//   - An error wrapping [ErrConfig] if configuration or .env loading fails.
-//   - The error returned by [Runner.Run] or lifecycle hooks, or ctx.Err() on cancellation.
+//   - A [*UsageError] if command-line input is invalid.
+//   - An error that is not a [*UsageError] if configuration or .env loading fails, or if a
+//     value from the environment, a configuration file, or a default tag does not bind.
+//   - The error returned by [Runner.Run] or a lifecycle hook as the hook returned
+//     it, or ctx.Err() on cancellation. When a [Finalizer.Finally] hook also
+//     fails, the hook's error and the Finally errors are joined.
 //
 // RunContext never terminates the process; it returns every failure to the
 // caller. [App.Exit] maps a returned error to an exit code.
@@ -648,7 +654,7 @@ func (a *App[T]) RunContext(ctx context.Context) error {
 	// 1. Load Dotenv if enabled
 	if a.dotenvLoader != nil {
 		if err := a.dotenvLoader(a.setenvFunc, a.dotenvOriginMap(), len(a.dotenvPaths) > 0, a.dotenvPaths...); err != nil {
-			return fmt.Errorf("%w: %w", ErrConfig, err)
+			return err
 		}
 	}
 
@@ -792,8 +798,9 @@ func (a *App[T]) ExitFunc(exitHandler func(code int)) *App[T] {
 	return a
 }
 
-// Exit terminates the process with an exit status mapped from err, using the
-// configured exit function (see [App.ExitFunc], defaults to [os.Exit]).
+// Exit prints err and terminates the process with the exit status
+// [App.ExitCode] returns for it, using the configured exit function (see
+// [App.ExitFunc], defaults to [os.Exit]).
 //
 // Exit accepts the error returned by [App.Run] or [App.RunContext].
 //
@@ -801,18 +808,25 @@ func (a *App[T]) ExitFunc(exitHandler func(code int)) *App[T] {
 // completes before [App.Run] returns, so Exit runs only after teardown
 // finishes.
 //
-// Exit code conventions:
+// Exit maps err as follows:
 //   - A nil err exits with status 0 and no output.
-//   - Exit code 1: runtime errors from command execution ([Runner.Run] or lifecycle
-//     hooks), developer schema defects, and configuration failures
-//     ([ErrConfig], including .env loading and environment-, configuration-, and
-//     default-sourced value failures).
-//   - Exit code 2: usage errors ([IsUsageError] reports true for command-line parse,
-//     coercion, and validation failures) and internal completion failures.
+//   - An internal completion failure prints its message as is and exits 2.
+//   - A [*UsageError] exits 2 and prints the error line and the usage block
+//     [UsageOnErrorMode] asks for. Value errors (a value that does not convert
+//     or violates a constraint) print the error line alone in every mode, and a
+//     missing subcommand prints the full help of its command under
+//     [UsageSummary] and [UsageFull].
+//   - Any other [ExitCoder] exits with its code and prints the error line. A
+//     code outside 1 to 255 exits 1. An [*os/exec.ExitError] exits with the
+//     child's code, or 128 plus the signal number when a signal killed the
+//     child. On Windows the child's code passes through unchanged.
+//   - Any other error, including configuration, .env, bootstrap, and schema
+//     failures and errors returned by hooks, exits 1 and prints the error line.
 //
-// Usage error rendering follows [UsageOnErrorMode], except for self-describing
-// value errors (coercion failures and value-constraint violations), which always
-// print the error line alone.
+// Only the outermost [ExitCoder] in err's chain counts, so an author wrapper
+// with its own ExitCode method wins over an error it wraps. An error whose
+// message is empty prints no error line. A [*UsageError] with an empty message
+// still prints its usage block.
 //
 // See https://docs.conga.sh/explanation/error-reporting/.
 func (a *App[T]) Exit(err error) {
@@ -820,30 +834,64 @@ func (a *App[T]) Exit(err error) {
 
 	a.resolveHelpWidth()
 
+	code := a.ExitCode(err)
+
 	if err == nil {
-		a.exit(0)
+		a.exit(code)
 
 		return
 	}
 
-	if IsCompletionError(err) {
-		fmt.Fprintln(a.stderr, err)
-		a.exit(2)
+	if completionErr, ok := errors.AsType[*completionError](err); ok {
+		fmt.Fprintln(a.stderr, completionErr)
+		a.exit(code)
 
 		return
 	}
 
 	name := cond.SetOrDefaultFunc(a.name, getAppName)
 
-	if IsUsageError(err) {
-		a.handleUsageFatal(a.stderr, err, name)
+	coder, isCoder := errors.AsType[ExitCoder](err)
+	if !isCoder {
+		a.printErrorLine(name, err)
+		a.exit(code)
 
 		return
 	}
 
-	// Runtime error from Runner.Run()
-	fmt.Fprintf(a.stderr, "%s: error: %v\n", name, err)
-	a.exit(1)
+	usage, isUsage := coder.(*UsageError)
+	if isUsage {
+		a.printUsageError(name, err, usage)
+	} else {
+		a.printErrorLine(name, err)
+	}
+
+	a.exit(code)
+}
+
+// ExitCode returns the exit status [App.Exit] uses for err, by the rules
+// [App.Exit] lists, without printing anything or exiting. A program that
+// reports errors itself exits with it:
+//
+//	if err := app.RunContext(ctx); err != nil {
+//		slog.Error("run failed", "err", err)
+//		os.Exit(app.ExitCode(err))
+//	}
+func (a *App[T]) ExitCode(err error) int {
+	if err == nil {
+		return 0
+	}
+
+	if completionErr, ok := errors.AsType[*completionError](err); ok {
+		return completionErr.ExitCode()
+	}
+
+	coder, ok := errors.AsType[ExitCoder](err)
+	if !ok {
+		return 1
+	}
+
+	return exitCodeOf(coder)
 }
 
 // RegistrationOption configures a custom type registration on [App.RegisterType].
@@ -887,14 +935,8 @@ func (e *mapEntryError) Error() string {
 }
 
 func (e *mapEntryError) Unwrap() error {
-	if e.cause != nil {
-		return e.cause
-	}
-
-	return ErrCoerce
+	return e.cause
 }
-
-func (e *mapEntryError) Is(target error) bool { return target == ErrCoerce }
 
 type typeRegistration struct {
 	parser       coerce.TypeParser[any]
@@ -1024,12 +1066,17 @@ type emptyConfigView struct {
 
 func (view emptyConfigView) Resolve(flagTargets []string, cmd *spec.Command) ([]string, *configdata.Data, ValueSource, error) {
 	if len(flagTargets) > 0 {
-		return nil, nil, SourceNone, newDecoderRequiredError("flag --" + configFlagName(cmd))
+		subject := valueSubject(cmd.ConfigFileFlag, nil)
+
+		return nil, nil, SourceNone, newDecoderRequiredError(subject)
 	}
 
 	for _, envKey := range configengine.EnvKeys(view.envPrefix, cmd, false) {
 		if envValue := os.Getenv(envKey); envValue != "" {
-			return nil, nil, SourceNone, newDecoderRequiredError("environment variable " + envKey)
+			envOrigin := valueOrigin{source: SourceEnv, name: envKey}
+			target := envOrigin.describe()
+
+			return nil, nil, SourceNone, newDecoderRequiredError(target)
 		}
 	}
 
@@ -1057,22 +1104,6 @@ func (emptyConfigView) EffectiveSearchPaths() []string { return nil }
 func (emptyConfigView) ProbedFiles(_ string, _ []string) []string { return nil }
 
 func (emptyConfigView) ConfigExamples(_ []string, _ []string, _ []string) []string { return nil }
-
-// decoderRequiredError is the config-incapable rejection of a named
-// configuration target.
-type decoderRequiredError struct {
-	cause error
-}
-
-func newDecoderRequiredError(source string) *decoderRequiredError {
-	return &decoderRequiredError{
-		cause: fmt.Errorf("%w: %s requires a registered config decoder: call App.RegisterDecoder with a format decoder (e.g. decoder/json)", ErrConfig, source),
-	}
-}
-
-func (e *decoderRequiredError) Error() string { return e.cause.Error() }
-
-func (e *decoderRequiredError) Unwrap() error { return e.cause }
 
 // dotenvOriginMap returns the App's shared dotenv origins map, allocating it on
 // first use.
@@ -1251,7 +1282,7 @@ func (a *App[T]) loadConfigDataForCompletion(invocation parsedInvocation) *confi
 		return nil
 	}
 
-	flagTargets, err := flagConfigTargets(invocation.root, invocation.cmdChain, invocation.flagValues)
+	flagTargets, err := flagConfigTargets(invocation.root, invocation.flagValues)
 	if err != nil {
 		return nil
 	}
@@ -1566,8 +1597,8 @@ func (a *App[T]) prepareFeatures(ctx context.Context, featureBinding featureStat
 // this path. When configuration fails to resolve, the original error and its
 // hint are kept.
 func (a *App[T]) clearGatedSuggestion(err error, flagValues map[*spec.Flag][]string, tokens []tokenizer.Token) error {
-	var unknown *parseError
-	if !errors.As(err, &unknown) || unknown.suggestion == "" || len(unknown.cmdChain) == 0 {
+	unknown, ok := errors.AsType[*UsageError](err)
+	if !ok || unknown.suggestion == "" || len(unknown.cmdChain) == 0 {
 		return err
 	}
 
@@ -1591,7 +1622,7 @@ func (a *App[T]) clearGatedSuggestion(err error, flagValues map[*spec.Flag][]str
 	var configData *configdata.Data
 
 	if a.configEngine != nil {
-		flagTargets, targetErr := flagConfigTargets(root, unknown.cmdChain, flagValues)
+		flagTargets, targetErr := flagConfigTargets(root, flagValues)
 		if targetErr != nil {
 			return err
 		}
@@ -1604,18 +1635,21 @@ func (a *App[T]) clearGatedSuggestion(err error, flagValues map[*spec.Flag][]str
 		configData = values
 	}
 
-	gates := completionFeatureGates(root, flagValues, &bindingState{
+	binding := &bindingState{
 		EnvPrefix:             a.envPrefix,
 		ConfigData:            configData,
 		TypeParsers:           a.collectTypeParsers(),
 		TolerateFeatureErrors: true,
-	})
+	}
+
+	gates := completionFeatureGates(root, flagValues, binding)
 	if spec.MatchFeature(featureExpr, gates) {
 		return err
 	}
 
 	cleared := *unknown
 	cleared.suggestion = ""
+	cleared.suggestionKind = suggestionKindNone
 
 	return &cleared
 }
@@ -1685,7 +1719,7 @@ func (a *App[T]) prepareNonBuiltinExecution(ctx context.Context, session *Sessio
 	})
 }
 
-func (a *App[T]) prepare(ctx context.Context) (*Session, bool, error) { //nolint:cyclop,gocyclo // one linear pipeline whose stage order reads top to bottom; splitting it would scatter that order
+func (a *App[T]) prepare(ctx context.Context) (*Session, bool, error) {
 	cmd, err := a.buildSpec()
 	if err != nil {
 		return nil, false, err
@@ -1707,6 +1741,8 @@ func (a *App[T]) prepare(ctx context.Context) (*Session, bool, error) { //nolint
 
 	parsedFlags, posTokens, dashArgs, rawTokens, err := parseTokens(cmdChain, remainingTokens, index)
 	if err != nil {
+		err = commandLineError(cmdChain, err)
+
 		if a.dropGatedSuggestion != nil {
 			err = a.dropGatedSuggestion(a, err, parsedFlags.values, nil)
 		}
@@ -1743,11 +1779,29 @@ func (a *App[T]) prepare(ctx context.Context) (*Session, bool, error) { //nolint
 		rawTokens:     rawTokens,
 	}
 
-	request := scanBuiltinRequest(parsedFlags.values)
+	handled, err := a.bindInvocation(ctx, session, invocation)
+	if err != nil {
+		return nil, false, commandLineError(cmdChain, err)
+	}
+
+	if handled {
+		return nil, true, nil
+	}
+
+	return session, false, nil
+}
+
+// bindInvocation binds every value the invocation uses, from the command line,
+// the environment, configuration files, and defaults, handles a built-in
+// request, and runs the validators. It reports whether a built-in request
+// handled the run. Failures come back as the binder reported them. prepare
+// reports those from the command line as a [UsageError].
+func (a *App[T]) bindInvocation(ctx context.Context, session *Session, invocation parsedInvocation) (bool, error) {
+	request := scanBuiltinRequest(invocation.flagValues)
 
 	featureBinding, prunedFlags, err := a.resolveFeatureState(ctx, invocation, request)
 	if err != nil {
-		return nil, false, err
+		return false, err
 	}
 
 	// Featureless applications defer configuration resolution below builtin
@@ -1755,42 +1809,34 @@ func (a *App[T]) prepare(ctx context.Context) (*Session, bool, error) { //nolint
 	// resolution errors (e.g. a missing env-sourced config path). --why is not
 	// exempt: it runs the regular binding pipeline, so it resolves
 	// configuration and surfaces resolution, coercion, and feature errors.
-	if handled, err := a.handleBuiltinRequest(session, request, parsedFlags.values); handled || err != nil {
-		return nil, handled, err
+	if handled, err := a.handleBuiltinRequest(session, request, invocation.flagValues); handled || err != nil {
+		return handled, err
 	}
 
-	if a.shouldPrepareNonBuiltinExecution(leaf, request) {
+	if a.shouldPrepareNonBuiltinExecution(invocation.leaf, request) {
 		if err := a.prepareNonBuiltinExecution(ctx, session, invocation, featureBinding, prunedFlags, request.hasWhy); err != nil {
-			return nil, false, err
+			return false, err
 		}
 	}
 
 	if request.hasWhy && a.whyHooks != nil {
-		if err := a.whyHooks.render(session, request.whyValue); err != nil {
-			return nil, false, err
-		}
-
-		return nil, true, nil
+		return true, a.whyHooks.render(session, request.whyValue)
 	}
 
 	resolver := argResolver{
-		cmdChain:      cmdChain,
+		cmdChain:      invocation.cmdChain,
 		parsers:       a.collectTypeParsers(),
 		decodeContext: coerce.DecodeContext{Stdin: session.stdin, Stdout: session.stdout},
 		stdin:         &session.stdinClaim,
 	}
 
-	if err := resolver.resolve(leaf, posTokens); err != nil {
-		return nil, false, err
+	if err := resolver.resolve(invocation.leaf, invocation.posTokens); err != nil {
+		return false, err
 	}
 
-	bindSpecialArgs(leaf, dashArgs, rawTokens)
+	bindSpecialArgs(invocation.leaf, invocation.dashTokens, invocation.rawTokens)
 
-	if err := a.validateExecution(ctx, session, leaf, cmdChain); err != nil {
-		return nil, false, err
-	}
-
-	return session, false, nil
+	return false, a.validateExecution(ctx, session, invocation.leaf, invocation.cmdChain)
 }
 
 // shouldPrepareNonBuiltinExecution reports whether the regular binding
@@ -1846,7 +1892,7 @@ func (a *App[T]) handleBuiltinRequest(session *Session, request builtinRequest, 
 		return false, nil
 	}
 
-	return false, bindVersionCommandJSON(session.cmdChain, leaf, flagValues)
+	return false, bindVersionCommandJSON(leaf, flagValues)
 }
 
 func (a *App[T]) handleBuiltinFlags(session *Session, request builtinRequest) (bool, error) {
@@ -1936,15 +1982,13 @@ func (a *App[T]) renderCompletionHelp(cmdChain []*spec.Command, completionValue 
 }
 
 // renderCompletionScriptBuiltin generates the shell completion script for the
-// requested shell, mapping unknown shell names to a validation error.
+// requested shell, mapping unknown shell names to a usage error.
 func (a *App[T]) renderCompletionScriptBuiltin(cmdChain []*spec.Command, shell string) (bool, error) {
 	parsedShell, err := completion.ParseShell(shell)
 	if err != nil {
-		return false, &validationError{
-			msg:      err.Error(),
-			cmdChain: cmdChain,
-			cause:    errInvalidValue,
-		}
+		message := err.Error()
+
+		return false, usageError(cmdChain, message)
 	}
 
 	if err := generateCompletionScript(parsedShell, cmdChain[0], a.stdout); err != nil {
@@ -2086,64 +2130,62 @@ func (a *App[T]) handleComplete() (err error) {
 	return nil
 }
 
-func (a *App[T]) handleSubcommandRequiredFatal(writer io.Writer, err error, appName string, cmdChain []*spec.Command) {
-	fmt.Fprintf(writer, "%s: error: %v\n", appName, err)
-
-	switch a.usageMode {
-	case UsageSummary, UsageFull:
-		if len(cmdChain) > 0 {
-			fmt.Fprintf(writer, "\n%s\n", help.FormatWith(cmdChain, a.helpOptions))
-		}
-	case UsageHint:
-		if len(cmdChain) > 0 {
-			fmt.Fprintf(writer, "\n%s\n", help.Hint(cmdChain))
-		}
-	case UsageSilence:
-		// No usage printed
+// printErrorLine writes "name: error: message" to stderr and reports whether
+// it wrote anything. An error with an empty message prints nothing.
+func (a *App[T]) printErrorLine(name string, err error) bool {
+	message := err.Error()
+	if message == "" {
+		return false
 	}
 
-	a.exit(2)
+	fmt.Fprintf(a.stderr, "%s: error: %s\n", name, message)
+
+	return true
 }
 
-func (a *App[T]) handleUsageFatal(writer io.Writer, err error, appName string) {
-	cmdChain := extractCmdChain(err, a.rootCommand)
+// printUsageError writes the error line of a usage error and, unless its shape
+// is the error line alone, the usage block its shape and the [UsageOnErrorMode]
+// ask for. The block comes from the error's own command chain. An error without
+// one prints no block. A blank line separates the block from the error line
+// only when a line was printed.
+func (a *App[T]) printUsageError(name string, err error, usage *UsageError) {
+	printedLine := a.printErrorLine(name, err)
 
-	if errors.Is(err, errSubcommandRequired) {
-		a.handleSubcommandRequiredFatal(writer, err, appName, cmdChain)
-
+	if usage.shape == usageShapeLineOnly || len(usage.cmdChain) == 0 {
 		return
 	}
 
-	// Self-describing value errors (coercion failures and value-constraint
-	// violations) name the exact flag/argument and offending value, so
-	// rendering usage/help text adds noise without context.
-	if sd, ok := errors.AsType[selfDescribingError](err); ok && sd.selfDescribing() {
-		fmt.Fprintf(writer, "%s: error: %v\n", appName, err)
-		a.exit(2)
-
+	block := a.usageBlock(usage)
+	if block == "" {
 		return
 	}
 
-	fmt.Fprintf(writer, "%s: error: %v\n", appName, err)
+	if printedLine {
+		fmt.Fprintln(a.stderr)
+	}
+
+	fmt.Fprintln(a.stderr, block)
+}
+
+// usageBlock renders the usage block for usage under the configured
+// [UsageOnErrorMode], without surrounding blank lines.
+func (a *App[T]) usageBlock(usage *UsageError) string {
+	cmdChain := usage.cmdChain
 
 	switch a.usageMode {
 	case UsageSummary:
-		if len(cmdChain) > 0 {
-			fmt.Fprintf(writer, "\n%s\n\n%s\n", help.Usage(cmdChain), help.Hint(cmdChain))
+		if usage.shape == usageShapeFullHelp {
+			return help.FormatWith(cmdChain, a.helpOptions)
 		}
-	case UsageFull:
-		if len(cmdChain) > 0 {
-			fmt.Fprintf(writer, "\n%s\n", help.FormatWith(cmdChain, a.helpOptions))
-		}
-	case UsageHint:
-		if len(cmdChain) > 0 {
-			fmt.Fprintf(writer, "\n%s\n", help.Hint(cmdChain))
-		}
-	case UsageSilence:
-		// No usage output printed
-	}
 
-	a.exit(2)
+		return help.Usage(cmdChain) + "\n\n" + help.Hint(cmdChain)
+	case UsageFull:
+		return help.FormatWith(cmdChain, a.helpOptions)
+	case UsageHint:
+		return help.Hint(cmdChain)
+	default:
+		return ""
+	}
 }
 
 // resolveConfig resolves the run's configuration exactly once, memoizing the
@@ -2198,7 +2240,7 @@ func (a *App[T]) resolveConfigFiles(invocation parsedInvocation) (configFiles, e
 	view := a.configurationView(cmd)
 	files := configFiles{data: configdata.New()}
 
-	flagTargets, err := flagConfigTargets(cmd, invocation.cmdChain, invocation.flagValues)
+	flagTargets, err := flagConfigTargets(cmd, invocation.flagValues)
 	if err != nil {
 		files.candidates = view.CandidatePaths(nil, cmd)
 
@@ -2257,6 +2299,43 @@ func (a *App[T]) exit(code int) {
 	}
 }
 
+// newDecoderRequiredError is the config-incapable rejection of the named
+// configuration target.
+func newDecoderRequiredError(target string) error {
+	return &decoderRequiredError{target: target}
+}
+
+// exitCodeOf maps the outermost [ExitCoder] of a failure to a process exit
+// code. A code outside 1 to 255 becomes 1. An [*os/exec.ExitError] reports the
+// child's code, 128 plus the signal number for a child killed by a signal, and
+// an unchanged code on Windows. A hand-built one with no process state has no
+// code and becomes 1.
+func exitCodeOf(coder ExitCoder) int {
+	if exitErr, ok := coder.(*exec.ExitError); ok {
+		if exitErr.ProcessState == nil {
+			return 1
+		}
+
+		if signaled, ok := exitErr.Sys().(interface {
+			Signaled() bool
+			Signal() syscall.Signal
+		}); ok && signaled.Signaled() {
+			return 128 + int(signaled.Signal())
+		}
+
+		if runtime.GOOS == "windows" {
+			return exitErr.ExitCode()
+		}
+	}
+
+	code := coder.ExitCode()
+	if code < 1 || code > 255 {
+		return 1
+	}
+
+	return code
+}
+
 // validateTextRangeBound parses a range bound with the owning field's declared
 // tags for domain types that implement [ContextAwareTextUnmarshaler]. It backs
 // spec.Options.ValidateTextRangeBound, so schema build rejects range bounds that
@@ -2270,16 +2349,6 @@ func validateTextRangeBound(targetType reflect.Type, tags FieldTags, raw string)
 	}
 
 	return unmarshaler.UnmarshalTextWithContext([]byte(raw), DecodeContext{Tags: tags})
-}
-
-// configFlagName returns the root configuration file flag name, defaulting to
-// the canonical "config-file" when the schema declares no such flag.
-func configFlagName(cmd *spec.Command) string {
-	if cmd != nil && cmd.ConfigFileFlag != nil {
-		return cmd.ConfigFileFlag.Name
-	}
-
-	return "config-file"
 }
 
 // engineConfigResolver adapts configengine.Resolver to configView. It is
@@ -2297,10 +2366,10 @@ func engineConfigResolver(name string, envPrefix string, registry *configengine.
 // flagConfigTargets extracts the CLI-supplied configuration file paths for the
 // root config-file flag: the split values of a multi-valued flag, or the last
 // value of a single-valued one. Supplying the flag without naming a path (an
-// empty or blank value) is rejected as a usage error instead of silently
+// empty or blank value) is rejected instead of silently
 // falling through to the environment variable or the search tier, which would
 // load a different configuration than the one the user named.
-func flagConfigTargets(cmd *spec.Command, cmdChain []*spec.Command, flagValues map[*spec.Flag][]string) ([]string, error) {
+func flagConfigTargets(cmd *spec.Command, flagValues map[*spec.Flag][]string) ([]string, error) {
 	if cmd == nil || cmd.ConfigFileFlag == nil {
 		return nil, nil
 	}
@@ -2320,25 +2389,24 @@ func flagConfigTargets(cmd *spec.Command, cmdChain []*spec.Command, flagValues m
 
 	for _, target := range targets {
 		if strings.TrimSpace(target) == "" {
-			return nil, errEmptyConfigTarget(cmd, cmdChain)
+			return nil, errEmptyConfigTarget(cmd)
 		}
 	}
 
 	if len(targets) == 0 {
-		return nil, errEmptyConfigTarget(cmd, cmdChain)
+		return nil, errEmptyConfigTarget(cmd)
 	}
 
 	return targets, nil
 }
 
-// errEmptyConfigTarget builds the usage error for a config-file flag that was
-// supplied without naming a path.
-func errEmptyConfigTarget(cmd *spec.Command, cmdChain []*spec.Command) error {
-	return &validationError{
-		msg:         "path cannot be empty for flag --" + cmd.ConfigFileFlag.Name,
-		cmdChain:    cmdChain,
-		cause:       errInvalidValue,
-		valueShaped: true,
+// errEmptyConfigTarget reports a config-file flag that was supplied without
+// naming a path.
+func errEmptyConfigTarget(cmd *spec.Command) error {
+	return &inputError{
+		flag:   cmd.ConfigFileFlag,
+		origin: fromCommandLine,
+		msg:    "path cannot be empty",
 	}
 }
 
@@ -2437,20 +2505,6 @@ func commandPath(cmdChain []*spec.Command, cmd *spec.Command) string {
 	}
 
 	return strings.Join(names, " ")
-}
-
-func extractCmdChain(err error, fallback *spec.Command) []*spec.Command {
-	if provider, ok := errors.AsType[commandChainProvider](err); ok {
-		if chain := provider.commandChain(); len(chain) > 0 {
-			return chain
-		}
-	}
-
-	if fallback != nil {
-		return []*spec.Command{fallback}
-	}
-
-	return nil
 }
 
 func detectShell() string {

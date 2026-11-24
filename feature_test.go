@@ -3,7 +3,6 @@ package conga_test
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -305,7 +304,7 @@ func TestFeature_MergesSourcesPerKey(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrConfig)
+		assertNotUsageError(t, err)
 		assert.Equal(t, fmt.Sprintf(`config file %q: unknown feature "GNTLE_FORCCE" in section "experiments" (did you mean "gentle-force"?)`, configPath), err.Error())
 	})
 }
@@ -520,7 +519,7 @@ func TestFeature_CascadingConfigRestrictsPrunedConfigKey(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrConfig)
+	assertNotUsageError(t, err)
 	assert.Contains(t, err.Error(), "requires feature")
 }
 
@@ -665,7 +664,7 @@ func TestFeature_FlagGating_Disabled(t *testing.T) {
 
 	err := app.Run()
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrParse)
+	assertUsageError(t, err)
 	assert.Contains(t, err.Error(), `flag '--force-all' requires feature "gentle-force"`)
 }
 
@@ -749,7 +748,7 @@ func TestFeature_AppEnvPrefixNeverTouchesFeatures(t *testing.T) {
 
 	err := app.Run()
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrParse)
+	assertUsageError(t, err)
 	assert.Contains(t, err.Error(), `flag '--force-all' requires feature "gentle-force"`)
 	assert.False(t, cli.ForceAll.IsSet())
 	assert.False(t, cli.ForceAll.Get())
@@ -1054,7 +1053,7 @@ func TestFeature_EnvSurfaceAbsentByDefault(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrParse)
+	assertUsageError(t, err)
 	assert.Contains(t, err.Error(), `flag '--force-all' requires feature "gentle-force"`)
 	assert.False(t, cli.ForceAll.Get())
 }
@@ -1323,9 +1322,7 @@ func TestFeature_FieldEnv_InvalidValueError(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrConfig)
-	assert.False(t, conga.IsUsageError(err))
-	assert.False(t, errors.Is(err, conga.ErrValidation))
+	assertNotUsageError(t, err)
 	assert.Contains(t, err.Error(), `invalid value "3" for feature "syntax" (from environment variable CONGA_TEST_TASK_X_SYNTAX): must be one of: 0, 1, 2`)
 }
 
@@ -1344,9 +1341,7 @@ func TestFeature_CombinedEnv_InvalidValueError(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrConfig)
-	assert.False(t, conga.IsUsageError(err))
-	assert.False(t, errors.Is(err, conga.ErrValidation))
+	assertNotUsageError(t, err)
 	assert.Contains(t, err.Error(), `invalid value "3" for feature "syntax" (from environment variable CONGA_TEST_TASK_X_FEATURES): must be one of: 0, 1, 2`)
 }
 
@@ -1366,8 +1361,7 @@ func TestFeature_CombinedEnv_InvalidValueErrorUnderWhy(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrConfig)
-	assert.False(t, conga.IsUsageError(err))
+	assertNotUsageError(t, err)
 	assert.Contains(t, err.Error(), `invalid value "3" for feature "syntax" (from environment variable CONGA_TEST_TASK_X_FEATURES): must be one of: 0, 1, 2`)
 }
 
@@ -1388,8 +1382,7 @@ func TestFeature_CombinedEnv_InvalidValueNamesWinningVariable(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrConfig)
-	assert.False(t, conga.IsUsageError(err))
+	assertNotUsageError(t, err)
 	assert.Contains(t, err.Error(), `invalid value "3" for feature "syntax" (from environment variable CONGA_TEST_GATES_B): must be one of: 0, 1, 2`)
 	assert.NotContains(t, err.Error(), "CONGA_TEST_GATES_A")
 }
@@ -1681,7 +1674,7 @@ func TestFeature_Config_TypoRejection(t *testing.T) {
 
 	err = app.Run()
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrConfig)
+	assertNotUsageError(t, err)
 	assert.Equal(t, fmt.Sprintf(`config file %q: unknown feature "GNTLE_FORCCE" in section "experiments" (did you mean "gentle-force"?)`, configPath), err.Error())
 }
 
@@ -1829,9 +1822,7 @@ func TestFeature_Config_InvalidValue(t *testing.T) {
 
 	err = app.Run()
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrConfig)
-	assert.False(t, conga.IsUsageError(err))
-	assert.False(t, errors.Is(err, conga.ErrValidation))
+	assertNotUsageError(t, err)
 	assert.Equal(t, `invalid value "3" for feature "syntax" (from config key "experiments.syntax"): must be one of: 0, 1, 2`, err.Error())
 }
 
@@ -1847,7 +1838,7 @@ func TestFeature_CLI_UnknownFeature(t *testing.T) {
 
 	err := app.Run()
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrParse)
+	assertUsageError(t, err)
 	assert.Contains(t, err.Error(), `unknown feature "gentle-forse" (did you mean "gentle-force"?)`)
 }
 
@@ -1863,7 +1854,7 @@ func TestFeature_CLI_InvalidValue(t *testing.T) {
 
 	err := app.Run()
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrValidation)
+	assertUsageError(t, err)
 	assert.Contains(t, err.Error(), `invalid value "9" for feature "syntax"`)
 }
 
@@ -1879,7 +1870,7 @@ func TestFeature_SubcommandGating_Disabled(t *testing.T) {
 
 	err := app.Run()
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrParse)
+	assertUsageError(t, err)
 	assert.Contains(t, err.Error(), `command "package" requires feature "packages"`)
 }
 
@@ -2436,7 +2427,7 @@ func TestFeature_SubcommandHelp_Disabled(t *testing.T) {
 
 	err := app.Run()
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrParse)
+	assertUsageError(t, err)
 	assert.Contains(t, err.Error(), `command "package" requires feature "packages"`)
 }
 
@@ -2459,7 +2450,7 @@ func TestFeature_FlagGating_HelpRejected(t *testing.T) {
 
 	err := app.Run()
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrParse)
+	assertUsageError(t, err)
 	assert.Contains(t, err.Error(), `flag '--force-all' requires feature "gentle-force"`)
 	assert.NotContains(t, buffer.String(), "Usage:")
 }
@@ -2566,7 +2557,7 @@ func TestFeature_ConfigFile_InactiveFlagRejection(t *testing.T) {
 
 	err = app.Run()
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrConfig)
+	assertNotUsageError(t, err)
 	assert.Equal(t, fmt.Sprintf(`config file %q: flag '--force-all' requires feature "gentle-force"`, configPath), err.Error())
 }
 
@@ -2616,7 +2607,7 @@ func TestFeature_ConfigFile_InactiveScopedFlagRejection(t *testing.T) {
 
 	err = app.Run()
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrConfig)
+	assertNotUsageError(t, err)
 	assert.Equal(t, fmt.Sprintf(`config file %q: flag '--beta' requires feature "syntax"`, configPath), err.Error())
 }
 
@@ -2639,7 +2630,7 @@ func TestFeature_ConfigFile_InactiveSubcommandSubtreeRejection(t *testing.T) {
 
 	err = app.Run()
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrConfig)
+	assertNotUsageError(t, err)
 	assert.Equal(t, fmt.Sprintf(`config file %q: flag '--name' requires feature "packages"`, configPath), err.Error())
 }
 
@@ -2797,7 +2788,7 @@ func TestFeature_ConfigFile_PrunedSubcommandScopedConfigKeyRejection(t *testing.
 
 	err = app.Run()
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrConfig)
+	assertNotUsageError(t, err)
 	assert.Equal(t, fmt.Sprintf(`config file %q: flag '--beta' requires feature "packages"`, configPath), err.Error())
 }
 
@@ -2895,7 +2886,8 @@ func TestFeature_ConfigErrorPrecedenceOverFeatureGate(t *testing.T) {
 
 	err = app.Run()
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrConfig)
+	assertNotUsageError(t, err)
+	assert.Equal(t, fmt.Sprintf("cannot parse config file %q: yaml: line 1: did not find expected ',' or ']'", configPath), err.Error())
 	assert.NotContains(t, err.Error(), `requires feature`)
 }
 
@@ -2978,7 +2970,7 @@ func TestFeature_ConfigOtherSpellingRejected(t *testing.T) {
 
 			err := app.Run()
 
-			assert.IsError(t, err, conga.ErrConfig)
+			assertNotUsageError(t, err)
 			assert.Equal(t, fmt.Sprintf(`config file %q: unknown field %q in section "experiments" (did you mean "gentle-force"?)`, configPath, testCase.key), err.Error())
 			assert.False(t, cli.Ran)
 		})
@@ -3004,7 +2996,7 @@ func TestFeature_ConfigOtherSpellingRejectedDeterministically(t *testing.T) {
 
 		err := app.Run()
 
-		assert.IsError(t, err, conga.ErrConfig)
+		assertNotUsageError(t, err)
 		assert.Equal(t, fmt.Sprintf(`config file %q: unknown field "gentleForce" in section "experiments" (did you mean "gentle-force"?)`, cfgPath), err.Error())
 	}
 }
@@ -3076,7 +3068,7 @@ func TestFeature_ConfigFile_PrunedCommandLocalKeyRejection(t *testing.T) {
 
 	err = app.Run()
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrConfig)
+	assertNotUsageError(t, err)
 	assert.Equal(t, fmt.Sprintf(`config file %q: flag '--wait' requires feature "experimental"`, configPath), err.Error())
 }
 
@@ -3106,8 +3098,7 @@ func TestFeature_EnvUnknownNameNamesVariable(t *testing.T) {
 
 	err := app.Run()
 
-	assert.IsError(t, err, conga.ErrConfig)
-	assert.False(t, conga.IsUsageError(err))
+	assertNotUsageError(t, err)
 	assert.Equal(t, `unknown feature "gentle-forse" (from environment variable CONGA_TEST_TASK_X_FEATURES) (did you mean "gentle-force"?)`, err.Error())
 	assert.False(t, cli.Ran)
 }
@@ -3131,7 +3122,7 @@ func TestFeature_ConfigUnknownNameSuggestsConfigKeyCase(t *testing.T) {
 
 	err := app.Run()
 
-	assert.IsError(t, err, conga.ErrConfig)
+	assertNotUsageError(t, err)
 	assert.Equal(t, fmt.Sprintf(`config file %q: unknown feature "gntle_force" in section "experiments" (did you mean "gentle_force"?)`, configPath), err.Error())
 	assert.False(t, cli.Ran)
 }
@@ -3151,8 +3142,7 @@ func TestFeature_CLIUnknownNameSuggestsKebabCase(t *testing.T) {
 
 	err := app.Run()
 
-	assert.IsError(t, err, conga.ErrParse)
-	assert.True(t, conga.IsUsageError(err))
+	assertUsageError(t, err)
 	assert.Equal(t, `unknown feature "gntle_force" (did you mean "gentle-force"?)`, err.Error())
 	assert.False(t, cli.Ran)
 }
@@ -3224,8 +3214,7 @@ func TestFeature_GateDescribedOnCLI(t *testing.T) {
 
 			err := app.Run()
 
-			assert.IsError(t, err, conga.ErrParse)
-			assert.True(t, conga.IsUsageError(err))
+			assertUsageError(t, err)
 			assert.Equal(t, testCase.message, err.Error())
 			assert.False(t, cli.Ran)
 		})
@@ -3267,8 +3256,7 @@ func TestFeature_GateDescribedForConfigKey(t *testing.T) {
 
 			err := app.Run()
 
-			assert.IsError(t, err, conga.ErrConfig)
-			assert.False(t, conga.IsUsageError(err))
+			assertNotUsageError(t, err)
 			assert.Equal(t, fmt.Sprintf("config file %q: %s", configPath, testCase.message), err.Error())
 			assert.False(t, cli.Ran)
 		})
@@ -3362,7 +3350,7 @@ func TestFeature_UnknownFlagHintDroppedForGatedOffFlag(t *testing.T) {
 
 	err := app.Run()
 
-	assert.IsError(t, err, conga.ErrParse)
+	assertUsageError(t, err)
 	assert.Equal(t, "unknown flag: --force-al", err.Error())
 	assert.False(t, cli.Ran)
 }
@@ -3381,7 +3369,7 @@ func TestFeature_UnknownFlagHintKeptForGatedOnFlag(t *testing.T) {
 
 	err := app.Run()
 
-	assert.IsError(t, err, conga.ErrParse)
+	assertUsageError(t, err)
 	assert.Equal(t, `unknown flag: --force-al (did you mean "--force-all"?)`, err.Error())
 	assert.False(t, cli.Ran)
 }
@@ -3400,7 +3388,7 @@ func TestFeature_UnknownFlagHintIgnoresLaterGates(t *testing.T) {
 
 	err := app.Run()
 
-	assert.IsError(t, err, conga.ErrParse)
+	assertUsageError(t, err)
 	assert.Equal(t, "unknown flag: --force-al", err.Error())
 	assert.False(t, cli.Ran)
 }
@@ -3418,7 +3406,7 @@ func TestFeature_UnknownCommandHintDroppedForGatedOffCommand(t *testing.T) {
 
 	err := app.Run()
 
-	assert.IsError(t, err, conga.ErrParse)
+	assertUsageError(t, err)
 	assert.Equal(t, "unknown command: packag", err.Error())
 	assert.False(t, cli.Ran)
 }
@@ -3436,7 +3424,7 @@ func TestFeature_UnknownCommandHintKeptForGatedOnCommand(t *testing.T) {
 
 	err := app.Run()
 
-	assert.IsError(t, err, conga.ErrParse)
+	assertUsageError(t, err)
 	assert.Equal(t, `unknown command: packag (did you mean "package"?)`, err.Error())
 	assert.False(t, cli.Ran)
 }
@@ -3457,7 +3445,7 @@ func TestFeature_UnknownFlagHintKeptWhenConfigFails(t *testing.T) {
 
 	err := app.Run()
 
-	assert.IsError(t, err, conga.ErrParse)
+	assertUsageError(t, err)
 	assert.Equal(t, `unknown flag: --force-al (did you mean "--force-all"?)`, err.Error())
 	assert.False(t, cli.Ran)
 }
@@ -3552,7 +3540,7 @@ func TestFeature_UnknownCommandHintKeptForCLIGatedOnCommand(t *testing.T) {
 
 	err := app.Run()
 
-	assert.IsError(t, err, conga.ErrParse)
+	assertUsageError(t, err)
 	assert.Equal(t, `unknown command: packag (did you mean "package"?)`, err.Error())
 	assert.False(t, cli.Ran)
 }
@@ -3573,7 +3561,7 @@ func TestFeature_UnknownFlagHintDroppedWithoutConfigFile(t *testing.T) {
 
 	err := app.Run()
 
-	assert.IsError(t, err, conga.ErrParse)
+	assertUsageError(t, err)
 	assert.Equal(t, "unknown flag: --force-al", err.Error())
 	assert.False(t, cli.Ran)
 }

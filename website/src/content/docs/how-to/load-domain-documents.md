@@ -178,9 +178,9 @@ func (c *CLI) Bootstrap(_ context.Context, handle *conga.Bootstrap) error {
 $ bootstrapper
 parallelism=1 log-level=warn
 $ bootstrapper -f pipeline.yaml
-bootstrapper: error: bootstrap failed: open pipeline.yaml: no such file or directory
+bootstrapper: error: open pipeline.yaml: no such file or directory
 $ bootstrapper --pipeline deploy
-bootstrapper: error: bootstrap failed: open pipeline.yaml: no such file or directory
+bootstrapper: error: open pipeline.yaml: no such file or directory
 ```
 
 ## Record settings with origins
@@ -232,21 +232,21 @@ A document combines with config files key by key. It wins the keys it sets, and 
 
 ## Know what users see when a document is wrong
 
-Any error that `Bootstrap` returns is a config error (`ErrConfig`, exit 1) with a `bootstrap failed:` prefix. CONGA checks the settings themselves the way it checks a config file:
+Any error that `Bootstrap` returns reaches the caller unchanged and exits 1, with no usage block. An `ExitCoder` chooses its own code. CONGA checks the settings themselves the way it checks a config file:
 
 | Situation | Result |
 |---|---|
-| The file named by `-f` or `FLOW_FILE` is missing | `bootstrap failed: …`, exit 1 |
-| The default `pipeline.yaml` is missing | Flags keep their defaults with the check from [Let the default file be missing](#let-the-default-file-be-missing). Without it, or with `--pipeline` set, `bootstrap failed: …`, exit 1 |
-| `--pipeline` names a pipeline the file lacks | `bootstrap failed: …`, exit 1 |
-| The file is not valid YAML | `bootstrap failed: …`, exit 1 |
-| `Set` names a key that matches no flag, or a `config:"-"` field | Config error, exit 1, with a "did you mean" hint for typos |
-| A value outside `enum` or `range` (`log_level: loud`) | Config error, exit 1, naming the key |
+| The file named by `-f` or `FLOW_FILE` is missing | The error `Bootstrap` returned, exit 1 |
+| The default `pipeline.yaml` is missing | Flags keep their defaults with the check from [Let the default file be missing](#let-the-default-file-be-missing). Without it, or with `--pipeline` set, the error `Bootstrap` returned, exit 1 |
+| `--pipeline` names a pipeline the file lacks | The error `Bootstrap` returned, exit 1 |
+| The file is not valid YAML | The error `Bootstrap` returned, exit 1 |
+| `Set` names a key that matches no flag, or a `config:"-"` field | Error, exit 1, with a "did you mean" hint for typos |
+| A value outside `enum` or `range` (`log_level: loud`) | Error, exit 1, naming the key |
 
 ```text no-copy error={1-4} wrap
-bootstrapper: error: bootstrap failed: open nope.yaml: no such file or directory
-bootstrapper: error: bootstrap failed: pipeline.yaml has no pipeline "release"
-bootstrapper: error: bootstrap failed: parse broken.yaml: yaml: line 1: did not find expected ',' or ']'
+bootstrapper: error: open nope.yaml: no such file or directory
+bootstrapper: error: pipeline.yaml has no pipeline "release"
+bootstrapper: error: parse broken.yaml: yaml: line 1: did not find expected ',' or ']'
 bootstrapper: error: invalid value "loud" (must be one of: debug, info, warn, error) for flag --log-level (from config key "log-level")
 ```
 

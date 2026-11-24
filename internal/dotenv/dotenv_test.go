@@ -12,7 +12,6 @@ import (
 
 	"github.com/conga-sh/conga/internal/dotenv"
 	"github.com/conga-sh/conga/internal/filex"
-	"github.com/conga-sh/conga/internal/sentinel"
 )
 
 var (
@@ -197,9 +196,7 @@ func TestDotenv_SyntaxErrors(t *testing.T) {
 		_, err := dotenv.Parse([]byte(raw))
 
 		assert.Error(t, err)
-		assert.IsError(t, err, sentinel.ErrDotenv)
-		assert.IsError(t, err, sentinel.ErrDotenvParse)
-		assert.Equal(t, "line 1: dotenv error: parsing .env file: missing '=' in statement", err.Error())
+		assert.Equal(t, "line 1: missing '=' in statement", err.Error())
 	})
 
 	t.Run("invalid start character in key", func(t *testing.T) {
@@ -210,9 +207,7 @@ func TestDotenv_SyntaxErrors(t *testing.T) {
 		_, err := dotenv.Parse([]byte(raw))
 
 		assert.Error(t, err)
-		assert.IsError(t, err, sentinel.ErrDotenv)
-		assert.IsError(t, err, sentinel.ErrDotenvParse)
-		assert.Equal(t, "line 1: dotenv error: parsing .env file: invalid character '1' at start of key", err.Error())
+		assert.Equal(t, "line 1: invalid character '1' at start of key", err.Error())
 	})
 
 	t.Run("unclosed double quote", func(t *testing.T) {
@@ -223,9 +218,7 @@ func TestDotenv_SyntaxErrors(t *testing.T) {
 		_, err := dotenv.Parse([]byte(raw))
 
 		assert.Error(t, err)
-		assert.IsError(t, err, sentinel.ErrDotenv)
-		assert.IsError(t, err, sentinel.ErrDotenvParse)
-		assert.Equal(t, "line 1: dotenv error: parsing .env file: unclosed double quote", err.Error())
+		assert.Equal(t, "line 1: unclosed double quote", err.Error())
 	})
 
 	t.Run("unclosed single quote", func(t *testing.T) {
@@ -236,53 +229,39 @@ func TestDotenv_SyntaxErrors(t *testing.T) {
 		_, err := dotenv.Parse([]byte(raw))
 
 		assert.Error(t, err)
-		assert.IsError(t, err, sentinel.ErrDotenv)
-		assert.IsError(t, err, sentinel.ErrDotenvParse)
-		assert.Equal(t, "line 1: dotenv error: parsing .env file: unclosed single quote", err.Error())
+		assert.Equal(t, "line 1: unclosed single quote", err.Error())
 	})
 }
 
 func TestDotenvError_Contract(t *testing.T) {
 	t.Parallel()
 
-	parseCause := sentinel.ErrDotenvParse
-
 	t.Run("Msg takes precedence", func(t *testing.T) {
 		t.Parallel()
 
-		err := &dotenv.DotenvError{Path: "a.env", Msg: "custom message", Cause: parseCause}
+		err := &dotenv.DotenvError{Path: "a.env", Msg: "custom message", Cause: errors.New("cause")}
 
 		assert.Equal(t, "custom message", err.Error())
-		assert.True(t, err.Is(sentinel.ErrDotenv))
-		assert.True(t, err.Is(sentinel.ErrDotenvParse))
 	})
 
 	t.Run("Path and Cause fallback format", func(t *testing.T) {
 		t.Parallel()
 
-		err := &dotenv.DotenvError{Path: "a.env", Cause: parseCause}
+		cause := errors.New("bad line")
+		err := &dotenv.DotenvError{Path: "a.env", Cause: cause}
 
-		assert.Equal(t, `dotenv file "a.env": dotenv error: parsing .env file`, err.Error())
-		assert.True(t, err.Is(sentinel.ErrDotenvParse))
+		assert.Equal(t, `dotenv file "a.env": bad line`, err.Error())
+		assert.True(t, errors.Is(err, cause))
+		assert.Equal(t, cause, err.Unwrap())
 	})
 
-	t.Run("bare error fallback and Unwrap default", func(t *testing.T) {
+	t.Run("bare error fallback has no cause", func(t *testing.T) {
 		t.Parallel()
 
 		err := &dotenv.DotenvError{}
 
 		assert.Equal(t, "dotenv error", err.Error())
-		assert.True(t, err.Is(sentinel.ErrDotenv))
-		assert.True(t, errors.Is(err, sentinel.ErrDotenv))
-	})
-
-	t.Run("Is rejects unrelated targets", func(t *testing.T) {
-		t.Parallel()
-
-		err := &dotenv.DotenvError{Path: "a.env", Cause: parseCause}
-
-		assert.False(t, err.Is(sentinel.ErrDotenvRead))
-		assert.False(t, err.Is(errors.New("unrelated")))
+		assert.Equal(t, nil, err.Unwrap())
 	})
 }
 
@@ -321,8 +300,8 @@ func TestDotenv_LoadExplicitMissingFile(t *testing.T) {
 	err := dotenv.Load(filepath.Join(t.TempDir(), "nonexistent.env"))
 
 	assert.Error(t, err)
-	assert.IsError(t, err, sentinel.ErrDotenv)
-	assert.IsError(t, err, sentinel.ErrDotenvRead)
+	assert.Contains(t, err.Error(), "cannot read .env file")
+	assert.True(t, errors.Is(err, os.ErrNotExist))
 }
 
 func TestDotenv_LoadWithOrigins_SharedMapOverridesEarlierFile(t *testing.T) {
@@ -363,7 +342,8 @@ func TestDotenv_LoadWithOrigins_MissingToleratedMalformedFails(t *testing.T) {
 
 	err = dotenv.LoadWithOrigins(t.Setenv, make(map[string]string), false, malformed)
 	assert.Error(t, err)
-	assert.IsError(t, err, sentinel.ErrDotenvParse)
+	assert.Contains(t, err.Error(), "cannot parse .env file")
+	assert.Contains(t, err.Error(), "missing '=' in statement")
 }
 
 //nolint:paralleltest // dotenv.LoadWithOrigins(t.Setenv, ...) mutates the process-global environment
@@ -573,8 +553,7 @@ func TestDotenv_ParseErrors(t *testing.T) {
 
 		_, err := dotenv.Parse(fixtureUnclosedDouble)
 
-		assert.IsError(t, err, sentinel.ErrDotenvParse)
-		assert.Equal(t, "line 2: dotenv error: parsing .env file: unclosed double quote", err.Error())
+		assert.Equal(t, "line 2: unclosed double quote", err.Error())
 	})
 
 	t.Run("unclosed single quote", func(t *testing.T) {
@@ -582,8 +561,7 @@ func TestDotenv_ParseErrors(t *testing.T) {
 
 		_, err := dotenv.Parse(fixtureUnclosedSingle)
 
-		assert.IsError(t, err, sentinel.ErrDotenvParse)
-		assert.Equal(t, "line 2: dotenv error: parsing .env file: unclosed single quote", err.Error())
+		assert.Equal(t, "line 2: unclosed single quote", err.Error())
 	})
 
 	t.Run("unclosed double quote without trailing newline", func(t *testing.T) {
@@ -591,8 +569,7 @@ func TestDotenv_ParseErrors(t *testing.T) {
 
 		_, err := dotenv.Parse(fixtureUnclosedDoubleNoTrailingNewline)
 
-		assert.IsError(t, err, sentinel.ErrDotenvParse)
-		assert.Equal(t, "line 2: dotenv error: parsing .env file: unclosed double quote", err.Error())
+		assert.Equal(t, "line 2: unclosed double quote", err.Error())
 	})
 
 	t.Run("unclosed single quote without trailing newline", func(t *testing.T) {
@@ -600,8 +577,7 @@ func TestDotenv_ParseErrors(t *testing.T) {
 
 		_, err := dotenv.Parse(fixtureUnclosedSingleNoTrailingNewline)
 
-		assert.IsError(t, err, sentinel.ErrDotenvParse)
-		assert.Equal(t, "line 2: dotenv error: parsing .env file: unclosed single quote", err.Error())
+		assert.Equal(t, "line 2: unclosed single quote", err.Error())
 	})
 
 	t.Run("garbage after closing quote", func(t *testing.T) {
@@ -610,7 +586,6 @@ func TestDotenv_ParseErrors(t *testing.T) {
 		_, err := dotenv.Parse(fixtureGarbageAfterQuote)
 
 		assert.Error(t, err)
-		assert.IsError(t, err, sentinel.ErrDotenvParse)
 		assert.Contains(t, err.Error(), "unexpected characters after closing quote")
 	})
 }
@@ -630,7 +605,6 @@ func TestDotenv_FileSizeLimitExceeded(t *testing.T) {
 	err = dotenv.Load(largeFile)
 
 	assert.Error(t, err)
-	assert.IsError(t, err, sentinel.ErrDotenvRead)
 	assert.IsError(t, err, filex.ErrFileSizeLimitExceeded)
 	assert.Contains(t, err.Error(), "exceeds")
 }
@@ -716,7 +690,5 @@ func TestDotenv_LoadDefaultHierarchy_MalformedFilePropagates(t *testing.T) {
 	err = dotenv.LoadWith(t.Setenv)
 
 	assert.Error(t, err)
-	assert.IsError(t, err, sentinel.ErrDotenv)
-	assert.IsError(t, err, sentinel.ErrDotenvParse)
 	assert.Contains(t, err.Error(), "cannot parse .env file")
 }

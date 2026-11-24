@@ -456,7 +456,7 @@ func (f *FileContent) UnmarshalTextWithContext(text []byte, decodeContext Decode
 	}
 
 	if info.IsDir() {
-		return &pathKindConversionError{pathKindError{path: path, kind: pathKindExpectFile}}
+		return &pathKindError{path: path, kind: pathKindExpectFile}
 	}
 
 	data, err := filex.ReadLimited(path, maxFileContentSize)
@@ -802,9 +802,7 @@ func (b ByteSize) Help(tags FieldTags) string {
 type pathKind uint8
 
 // pathKindError is the root cause for path-kind mismatches: path and kind are
-// the structured payload, Error composes the user-facing prose, and Unwrap
-// links the errPathWrongKind → ErrValidation taxonomy for errors.Is. A wrong
-// path kind is a failed check on the converted value, not a conversion failure.
+// the structured payload and Error composes the user-facing prose.
 type pathKindError struct {
 	path string
 	kind pathKind
@@ -825,27 +823,19 @@ func (e *pathKindError) Error() string {
 	}
 }
 
-func (e *pathKindError) Unwrap() error { return errPathWrongKind }
+// stdioCapabilityError reports a "-" value on a File field that declared
+// neither the stdin nor the stdout capability tag.
+type stdioCapabilityError struct{}
 
-// pathKindConversionError adapts a path-kind mismatch detected while converting
-// text (FileContent stats its path inside UnmarshalTextWithContext) to the
-// conversion category: the failure happened during conversion, so errors.Is
-// matches ErrCoerce only. Capability checks on an already converted value
-// return pathKindError directly and classify under ErrValidation.
-type pathKindConversionError struct {
-	pathKindError
+func (stdioCapabilityError) Error() string {
+	return `"-" requires the stdin or stdout tag on the field`
 }
 
-func (e *pathKindConversionError) Unwrap() error { return ErrCoerce }
-
 // emptyPathError reports a File, Dir, or FileContent value whose path is empty
-// or expands to blank text. The value cannot become a path, so the failure is a
-// conversion failure and errors.Is matches ErrCoerce.
+// or expands to blank text.
 type emptyPathError struct{}
 
 func (emptyPathError) Error() string { return "empty path" }
-
-func (emptyPathError) Unwrap() error { return ErrCoerce }
 
 // executableError is the root cause for permission deficits on regular files
 // (correct path kind, missing execute bit).
@@ -856,8 +846,6 @@ type executableError struct {
 func (e *executableError) Error() string {
 	return fmt.Sprintf("%q is not executable", e.path)
 }
-
-func (e *executableError) Unwrap() error { return ErrValidation }
 
 // byteSizeFamily identifies the unit family a ByteSize renders in: the family
 // captured from the parsed input, or the family forced by the field's display tag.
@@ -904,7 +892,17 @@ func (e *byteSizeError) Error() string {
 	}
 }
 
-func (e *byteSizeError) Unwrap() error { return ErrCoerce }
+// byteSizeTagError reports a units or display tag value on a ByteSize field
+// that names no supported family.
+type byteSizeTagError struct {
+	tag   string
+	value string
+	want  string
+}
+
+func (e *byteSizeTagError) Error() string {
+	return fmt.Sprintf("unknown %s value %q (want %s)", e.tag, e.value, e.want)
+}
 
 type nopWriteCloser struct {
 	io.Writer
@@ -1278,7 +1276,7 @@ func validateByteSizeUnitsTag(value string) error {
 	case "binary", "decimal", "both":
 		return nil
 	default:
-		return fmt.Errorf("%w %q (want \"binary\", \"decimal\", or \"both\")", errByteSizeUnitsTag, value)
+		return &byteSizeTagError{tag: "units", value: value, want: `"binary", "decimal", or "both"`}
 	}
 }
 
@@ -1288,6 +1286,6 @@ func validateByteSizeDisplayTag(value string) error {
 	case "binary", "decimal", "input":
 		return nil
 	default:
-		return fmt.Errorf("%w %q (want \"binary\", \"decimal\", or \"input\")", errByteSizeDisplayTag, value)
+		return &byteSizeTagError{tag: "display", value: value, want: `"binary", "decimal", or "input"`}
 	}
 }

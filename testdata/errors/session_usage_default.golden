@@ -1,0 +1,6 @@
+app: error: --target is required with --env=staging
+
+Usage:
+  app deploy [flags]
+
+Run 'app deploy --help' for more information.

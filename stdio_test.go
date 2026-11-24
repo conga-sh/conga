@@ -3,7 +3,6 @@ package conga_test
 import (
 	"bytes"
 	"context"
-	"errors"
 	"io"
 	"strings"
 	"testing"
@@ -325,8 +324,7 @@ func TestStdio_SecondStdinConsumerRejected(t *testing.T) {
 
 			err := app.RunContext(t.Context())
 
-			assert.IsError(t, err, conga.ErrValidation)
-			assert.True(t, conga.IsUsageError(err))
+			assertUsageError(t, err)
 			assert.Equal(t, testCase.message, err.Error())
 		})
 	}
@@ -341,9 +339,7 @@ func TestStdio_EnvStdinConsumerConflictsWithPositional(t *testing.T) {
 
 	err := app.RunContext(t.Context())
 
-	assert.IsError(t, err, conga.ErrConfig)
-	assert.False(t, conga.IsUsageError(err))
-	assert.False(t, errors.Is(err, conga.ErrValidation))
+	assertNotUsageError(t, err)
 	assert.Equal(t, `stdin can only be read once (--first and argument <input> both use "-")`, err.Error())
 }
 
@@ -358,9 +354,7 @@ func TestStdio_ConfigStdinConsumerConflictsWithPositional(t *testing.T) {
 
 	err := app.Run()
 
-	assert.IsError(t, err, conga.ErrConfig)
-	assert.False(t, conga.IsUsageError(err))
-	assert.False(t, errors.Is(err, conga.ErrValidation))
+	assertNotUsageError(t, err)
 	assert.Equal(t, `stdin can only be read once (--first and argument <input> both use "-")`, err.Error())
 }
 
@@ -403,8 +397,7 @@ func TestStdio_RepeatedFileContentFlagRejectedBeforeReading(t *testing.T) {
 
 			err := app.RunContext(t.Context())
 
-			assert.IsError(t, err, conga.ErrParse)
-			assert.True(t, conga.IsUsageError(err))
+			assertUsageError(t, err)
 			assert.Equal(t, "flag --first can only be given once", err.Error())
 			assert.Equal(t, conga.SourceNone, cli.First.Source())
 			assert.Equal(t, len("payload"), stdin.Len())

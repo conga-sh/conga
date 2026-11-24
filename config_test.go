@@ -168,7 +168,8 @@ func TestConfig_UnregisteredDecoderRejection(t *testing.T) {
 	err = app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrConfig)
+	assertNotUsageError(t, err)
+	assert.Equal(t, fmt.Sprintf("unsupported config file format \".customext\" for %q", cfgPath), err.Error())
 }
 
 func TestConfig_JSONDecoder(t *testing.T) {
@@ -286,7 +287,8 @@ func TestConfig_StrictUnknownFieldRejection(t *testing.T) {
 	err = app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrConfig)
+	assertNotUsageError(t, err)
+	assert.Equal(t, fmt.Sprintf("config file %q: unknown field \"clstr_name\" in command \"app\" (did you mean \"cluster-name\"?)", cfgPath), err.Error())
 }
 
 func TestConfig_ExcludedFieldRejection(t *testing.T) {
@@ -304,7 +306,8 @@ func TestConfig_ExcludedFieldRejection(t *testing.T) {
 	err = app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrConfig)
+	assertNotUsageError(t, err)
+	assert.Equal(t, fmt.Sprintf("config file %q: unknown field \"internal_key\" in command \"app\"", cfgPath), err.Error())
 }
 
 func TestConfig_NestedSubcommandTables(t *testing.T) {
@@ -864,7 +867,7 @@ func TestConfig_NamespacedFlagAliasRejected(t *testing.T) {
 
 	err = app.Run()
 
-	assert.IsError(t, err, conga.ErrConfig)
+	assertNotUsageError(t, err)
 	assert.Equal(t, fmt.Sprintf(`config file %q: unknown field "listen-port" in namespace "network"`, cfgPath), err.Error())
 	assert.False(t, cli.Port.IsSet())
 }
@@ -886,7 +889,7 @@ func TestConfig_NamespacedScalarFlagSectionRejected(t *testing.T) {
 
 	err = app.Run()
 
-	assert.IsError(t, err, conga.ErrConfig)
+	assertNotUsageError(t, err)
 	assert.Equal(t, fmt.Sprintf(`config file %q: field "port" in namespace "network" is not a map`, cfgPath), err.Error())
 	assert.False(t, cli.Port.IsSet())
 }
@@ -913,7 +916,7 @@ func TestConfig_OtherSpellingRejectedDeterministically(t *testing.T) {
 
 		err := app.Run()
 
-		assert.IsError(t, err, conga.ErrConfig)
+		assertNotUsageError(t, err)
 		assert.Equal(t, fmt.Sprintf(`config file %q: unknown field "dryRun" in command "app" (did you mean "dry-run"?)`, cfgPath), err.Error())
 		assert.False(t, cli.DryRun.IsSet())
 	}
@@ -1020,7 +1023,7 @@ func TestConfig_MultiFormatConflict_Directory(t *testing.T) {
 	err = app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrConfig)
+	assertNotUsageError(t, err)
 	assert.Contains(t, err.Error(), "multiple conflicting config files found")
 	assert.Contains(t, err.Error(), "server.json, server.toml")
 }
@@ -1045,7 +1048,7 @@ func TestConfig_MultiFormatConflict_Stem(t *testing.T) {
 	err = app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrConfig)
+	assertNotUsageError(t, err)
 	assert.Contains(t, err.Error(), "multiple conflicting config files found")
 	assert.Contains(t, err.Error(), "config.hcl, config.toml")
 }
@@ -1232,7 +1235,7 @@ func TestConfig_FileSizeLimitExceeded(t *testing.T) {
 	err = app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrConfig)
+	assertNotUsageError(t, err)
 	assert.Contains(t, err.Error(), "exceeds")
 }
 
@@ -1664,7 +1667,7 @@ func TestConfig_EnvConfigVar_MultiValueMissingEntryFails(t *testing.T) {
 
 	err := app.RunContext(t.Context())
 
-	assert.IsError(t, err, conga.ErrConfig)
+	assertNotUsageError(t, err)
 	assert.Equal(t, "cannot read config file \""+missingPath+"\": stat "+missingPath+": no such file or directory", err.Error())
 	assert.Equal(t, conga.SourceNone, cli.ConfigFile.Source())
 	assert.Equal(t, []string(nil), cli.ConfigFile.Paths())

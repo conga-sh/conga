@@ -180,7 +180,7 @@ func TestSchema_StrictBoolTagValues(t *testing.T) {
 
 		err := app.Run()
 
-		assert.IsError(t, err, conga.ErrParse)
+		assertUsageError(t, err)
 		assert.Equal(t, "unknown flag: --no-false", err.Error())
 	})
 

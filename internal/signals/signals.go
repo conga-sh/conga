@@ -3,15 +3,11 @@
 package signals
 
 import (
-	"errors"
 	"slices"
 	"strconv"
 	"strings"
 	"syscall"
 )
-
-// ErrInvalid indicates an unrecognized signal name or number.
-var ErrInvalid = errors.New("unknown or invalid signal")
 
 // Entry describes a single known POSIX / system signal.
 type Entry struct {

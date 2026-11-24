@@ -23,7 +23,7 @@
 // leaves ambiguous: duplicate object member names and invalid UTF-8 in strings are
 // errors rather than silently accepted. Reported errors carry the byte offset and
 // JSON pointer of the offending value. Syntax errors, trailing content after the
-// first JSON document, and non-object top-level values wrap [ErrParse]. A JSON
+// first JSON document, and non-object top-level values are errors. A JSON
 // null document decodes to an empty map.
 //
 // # Numbers
@@ -32,7 +32,7 @@
 // integers bind exactly. An integer literal decodes to int64, or to uint64 when
 // it exceeds the int64 range. A literal with a fraction or exponent decodes to
 // float64. An integer outside both 64-bit ranges, or a number that overflows
-// float64, wraps [ErrParse].
+// float64, is an error.
 package json
 
 import (
@@ -45,11 +45,6 @@ import (
 	"strings"
 )
 
-var (
-	// ErrParse indicates a syntax or parsing error in JSON configuration.
-	ErrParse = errors.New("json parse error")
-)
-
 // Decode decodes JSON bytes into the generic map[string]any structure the configuration engine matches against flag bindings.
 func Decode(data []byte) (map[string]any, error) {
 	var result map[string]any
@@ -57,10 +52,10 @@ func Decode(data []byte) (map[string]any, error) {
 	if err := json.Unmarshal(data, &result, json.WithUnmarshalers(json.UnmarshalFromFunc(decodeNumber))); err != nil {
 		var semantic *json.SemanticError
 		if outOfRange := (*numberRangeError)(nil); errors.As(err, &semantic) && errors.As(semantic.Err, &outOfRange) {
-			return nil, fmt.Errorf("%w: %s: %w", ErrParse, semantic.JSONPointer, outOfRange)
+			return nil, &numberLocationError{pointer: semantic.JSONPointer, cause: outOfRange}
 		}
 
-		return nil, fmt.Errorf("%w: %w", ErrParse, err)
+		return nil, err
 	}
 
 	if result == nil {
@@ -68,6 +63,21 @@ func Decode(data []byte) (map[string]any, error) {
 	}
 
 	return result, nil
+}
+
+// numberLocationError names the JSON pointer of a number no int64, uint64, or
+// float64 holds. Its cause is the numberRangeError, reachable through errors.As.
+type numberLocationError struct {
+	pointer jsontext.Pointer
+	cause   *numberRangeError
+}
+
+func (e *numberLocationError) Error() string {
+	return fmt.Sprintf("%s: %s", e.pointer, e.cause)
+}
+
+func (e *numberLocationError) Unwrap() error {
+	return e.cause
 }
 
 // numberRangeError reports a JSON number that no int64, uint64, or float64

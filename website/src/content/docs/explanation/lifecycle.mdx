@@ -14,7 +14,7 @@ A command must validate input before touching disk or network resources, set up 
 Execution has two phases, schema build and the runtime lifecycle. `Run` or `RunContext` first builds and validates the schema from the struct definitions and tags. Once the schema is valid, the runtime pipeline resolves values from command-line tokens, environment variables, and config files, then runs the hooks:
 
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 651" role="img" aria-labelledby="pipeline-title" class="pipeline-diagram">
-  <title id="pipeline-title">Execution runs ten stages in order. Schema build runs first and exits with status 1 on a schema error. The bootstrap phase and config resolution follow, and each exits with status 1 on an ErrConfig error. Binding follows them and exits with status 2 on a usage error, and a --why request prints its report after binding and exits with status 0. Value validation with SelfValidator and command validation with Validator, top-down, each exit with status 2 on an error. PreRun runs top-down, Run runs on the leaf command and is the one required hook, drawn with a thick border, and PostRun runs bottom-up. An error in PreRun, Run, or PostRun skips to Finally, which runs bottom-up. After Finally the program exits with status 0, or with status 1 if a stage failed.</title>
+  <title id="pipeline-title">Execution runs ten stages in order. Schema build runs first and exits with status 1 on a schema error. The bootstrap phase and config resolution follow, and each exits with status 1 on an error. Binding follows them, and a --why request prints its report after binding and exits with status 0. Binding and value validation with SelfValidator exit with status 2 on an error in a command-line value, and with status 1 on an error in a value from the environment, a config file, or a default. Command validation with Validator, top-down, exits with status 1 on a plain error and with status 2 on an error from session.UsageError. PreRun runs top-down, Run runs on the leaf command and is the one required hook, drawn with a thick border, and PostRun runs bottom-up. An error in PreRun, Run, or PostRun skips to Finally, which runs bottom-up. After Finally the program exits with status 0, or if a hook failed with its error's status, which is 1 for a plain error, 2 for session.UsageError, and an ExitCoder's own code.</title>
   <style>{`
     .pipeline-diagram { font-family: inherit; max-width: 780px; }
     .pipeline-diagram .stage { fill: var(--sl-color-gray-6, #edeff4); stroke: var(--sl-color-accent, #3448f5); stroke-width: 1.5; }
@@ -91,19 +91,19 @@ Execution has two phases, schema build and the runtime lifecycle. `Run` or `RunC
   <path class="error" d="M440 96 H600 V124 H639"/>
   <path class="error" d="M440 152 H600 V124"/>
   <path class="head err" d="M640 124 L631 118 L631 130 Z"/>
-  <text class="edge" x="520" y="88">ErrConfig</text>
-  <text class="edge" x="520" y="144">ErrConfig</text>
+  <text class="edge" x="520" y="88">error</text>
+  <text class="edge" x="520" y="144">error</text>
   <ellipse class="exit fail" cx="700" cy="124" rx="60" ry="18"/><text class="label" x="700" y="124">Exit 1</text>
   <path class="error" d="M440 220 H600 V264"/>
   <text class="edge" x="520" y="236">error</text>
   <path class="error" d="M440 264 H639"/>
   <path class="head err" d="M640 264 L631 258 L631 270 Z"/>
   <text class="edge" x="540" y="256">error</text>
-  <ellipse class="exit fail" cx="700" cy="264" rx="60" ry="18"/><text class="label" x="700" y="264">Exit 2</text>
+  <ellipse class="exit fail" cx="700" cy="264" rx="60" ry="18"/><text class="label" x="700" y="264">Exit 1 or 2</text>
   <path class="error" d="M440 320 H639"/>
   <path class="head err" d="M640 320 L631 314 L631 326 Z"/>
   <text class="edge" x="540" y="312">error</text>
-  <ellipse class="exit fail" cx="700" cy="320" rx="60" ry="18"/><text class="label" x="700" y="320">Exit 2</text>
+  <ellipse class="exit fail" cx="700" cy="320" rx="60" ry="18"/><text class="label" x="700" y="320">Exit 1 or 2</text>
   <path class="error" d="M440 376 H490"/>
   <path class="error" d="M440 432 H490"/>
   <path class="error" d="M440 488 H490"/>
@@ -148,13 +148,25 @@ func (c *DeployCmd) Validate(ctx context.Context, session *conga.Session) error 
 }
 ```
 
-Validation is intended to be side-effect-free. An error from either level wraps `ErrValidation`, and because invalid input is a user mistake rather than a runtime failure, it is classified as a usage error (exit code 2).
+Validation is intended to be side-effect-free. A value type's `SelfValidator` failure on a command-line value is a `*conga.UsageError` (exit code 2). From any other source it exits 1.
+
+CONGA returns an error from a command's `Validate` unchanged. A plain error exits with code 1 and prints no usage block, because CONGA can't tell whether the check read a command-line value or a config value. To report a mistake in the user's input, return `session.UsageError` or `session.UsageErrorf`. Both return a `*conga.UsageError`, so the program exits with code 2 and prints the usage block that `UsageOnError` asks for.
+
+```go
+func (c *DeployCmd) Validate(ctx context.Context, session *conga.Session) error {
+	if c.MinReplicas.Get() > c.MaxReplicas.Get() {
+		return session.UsageError("--min-replicas cannot exceed --max-replicas")
+	}
+
+	return nil
+}
+```
 
 ## PreRun, Run, and PostRun
 
 After validation, execution separates setup, the primary action, and follow-up into distinct stages.
 
-`PreRunner` establishes the resources the command body needs. Setup depends on external systems, so it meets environmental faults such as network timeouts or permission errors rather than input mistakes. An error from `PreRun` halts forward progress and is a runtime failure (exit code 1).
+`PreRunner` establishes the resources the command body needs. Setup depends on external systems, so it meets environmental faults such as network timeouts or permission errors. An error from `PreRun` halts forward progress and is a runtime failure. A plain error exits with code 1, and an `ExitCoder` exits with its own code.
 
 `Runner` on the selected leaf performs the action. Ancestor commands act as routers and context providers, and leave the action to the leaf.
 
@@ -235,8 +247,8 @@ Schema build validates the program's declarations, and the runtime lifecycle val
 |---|---|---|
 | Runs | At the start of `Run`/`RunContext`, and statically in `conga-lint` | After schema build, on every invocation |
 | Checks | Struct tags, type compatibility, flag collisions, grammar | Input values, constraints, external resources, the command's action |
-| Error category | Schema error (programmer mistake) | `ErrValidation` (input mistake) or a runtime failure |
+| Error type | A schema error (programmer mistake) | `*conga.UsageError` (input mistake) or any other error |
 | `Finally` | Never invoked | Invoked for every initialized command |
-| Exit code | 1 | 2 for usage errors, 1 for runtime failures |
+| Exit code | 1 | 2 for usage errors, 1 for other errors |
 
 A schema failure stops the run before any command struct receives values. Running cleanup hooks on an unvalidated command tree would expose them to uninitialized fields, so no hook runs. [`conga-lint`](/how-to/lint-schemas/) inspects the Go AST and type declarations in CI, and reports invalid tags, duplicate flags, and malformed command trees before the program is built.

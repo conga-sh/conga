@@ -3,7 +3,6 @@ package conga_test
 import (
 	"bytes"
 	"context"
-	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -114,7 +113,7 @@ func TestBinder_Constraints(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Equal(t, "missing required flag: --api-key", err.Error())
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 
 	t.Run("XOR mutually exclusive", func(t *testing.T) {
@@ -126,7 +125,7 @@ func TestBinder_Constraints(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 
 	t.Run("and group violation", func(t *testing.T) {
@@ -138,7 +137,7 @@ func TestBinder_Constraints(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 
 	t.Run("invalid enum", func(t *testing.T) {
@@ -150,7 +149,7 @@ func TestBinder_Constraints(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 		assert.Equal(t, `invalid value "invalid" (must be one of: json, yaml, table) for flag --format`, err.Error())
 	})
 }
@@ -175,10 +174,7 @@ func TestBinder_ValidationAttribution_EnvEnum(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrConfig)
-	assert.False(t, conga.IsUsageError(err))
-	assert.False(t, errors.Is(err, conga.ErrValidation))
-	assert.False(t, errors.Is(err, conga.ErrCoerce))
+	assertNotUsageError(t, err)
 	assert.Equal(t, `invalid value "qa" (must be one of: dev, prod) for flag --mode (from environment variable CONGA_TEST_ATTRIBUTION_MODE)`, err.Error())
 }
 
@@ -191,10 +187,7 @@ func TestBinder_ValidationAttribution_EnvSliceItem(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrConfig)
-	assert.False(t, conga.IsUsageError(err))
-	assert.False(t, errors.Is(err, conga.ErrValidation))
-	assert.False(t, errors.Is(err, conga.ErrCoerce))
+	assertNotUsageError(t, err)
 	assert.Equal(t, `invalid value "green" (must be one of: red, blue) for flag --tags (from environment variable CONGA_TEST_ATTRIBUTION_TAGS)`, err.Error())
 }
 
@@ -209,10 +202,7 @@ func TestBinder_ValidationAttribution_ConfigEnum(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrConfig)
-	assert.False(t, conga.IsUsageError(err))
-	assert.False(t, errors.Is(err, conga.ErrValidation))
-	assert.False(t, errors.Is(err, conga.ErrCoerce))
+	assertNotUsageError(t, err)
 	assert.Equal(t, `invalid value "qa" (must be one of: dev, prod) for flag --mode (from config key "mode")`, err.Error())
 }
 
@@ -227,10 +217,7 @@ func TestBinder_ValidationAttribution_ConfigRange(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrConfig)
-	assert.False(t, conga.IsUsageError(err))
-	assert.False(t, errors.Is(err, conga.ErrValidation))
-	assert.False(t, errors.Is(err, conga.ErrCoerce))
+	assertNotUsageError(t, err)
 	assert.Equal(t, `value 12 is out of range [1..8] for flag --workers (from config key "workers")`, err.Error())
 }
 
@@ -243,7 +230,7 @@ func TestBinder_ValidationAttribution_CLIUnattributed(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrValidation)
+	assertUsageError(t, err)
 	assert.Equal(t, `invalid value "qa" (must be one of: dev, prod) for flag --mode`, err.Error())
 }
 
@@ -338,7 +325,7 @@ func TestDashArgs(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrParse)
+		assertUsageError(t, err)
 	})
 }
 
@@ -388,7 +375,7 @@ func TestRouteSubcommands_TerminatorStopsPlainBranchRouting(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrParse)
+		assertUsageError(t, err)
 		assert.Equal(t, `unexpected argument "deploy"`, err.Error())
 		assert.False(t, cli.Deploy.IsSelected())
 	})
@@ -407,7 +394,7 @@ func TestRouteSubcommands_TerminatorStopsPlainBranchRouting(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrParse)
+		assertUsageError(t, err)
 		assert.Equal(t, `unexpected argument "help"`, err.Error())
 	})
 }
@@ -617,8 +604,7 @@ func TestBinder_MapFlagMergesTiers(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrConfig)
-		assert.False(t, conga.IsUsageError(err))
+		assertNotUsageError(t, err)
 		assert.Contains(t, err.Error(), "config")
 	})
 
@@ -883,8 +869,7 @@ func TestBinder_MapFlagMergesCascadingFiles(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrConfig)
-		assert.False(t, conga.IsUsageError(err))
+		assertNotUsageError(t, err)
 		assert.Contains(t, err.Error(), "config")
 	})
 }
@@ -1072,8 +1057,7 @@ func TestBinder_CounterFlag(t *testing.T) {
 
 		err := app.Run()
 
-		assert.IsError(t, err, conga.ErrParse)
-		assert.True(t, conga.IsUsageError(err))
+		assertUsageError(t, err)
 		assert.Equal(t, "flag does not take a value: --verbose=2", err.Error())
 		assert.Equal(t, conga.SourceNone, cli.Verbose.Source())
 		assert.Equal(t, 0, cli.Verbose.Get())
@@ -1088,8 +1072,7 @@ func TestBinder_CounterFlag(t *testing.T) {
 
 		err := app.Run()
 
-		assert.IsError(t, err, conga.ErrParse)
-		assert.True(t, conga.IsUsageError(err))
+		assertUsageError(t, err)
 		assert.Equal(t, "flag does not take a value: -v=2", err.Error())
 		assert.Equal(t, conga.SourceNone, cli.Verbose.Source())
 		assert.Equal(t, 0, cli.Verbose.Get())
@@ -1104,8 +1087,7 @@ func TestBinder_CounterFlag(t *testing.T) {
 
 		err := app.Run()
 
-		assert.IsError(t, err, conga.ErrParse)
-		assert.True(t, conga.IsUsageError(err))
+		assertUsageError(t, err)
 		assert.Equal(t, "flag does not take a value: -vv=2", err.Error())
 		assert.Equal(t, conga.SourceNone, cli.Verbose.Source())
 		assert.Equal(t, 0, cli.Verbose.Get())
@@ -1120,8 +1102,7 @@ func TestBinder_CounterFlag(t *testing.T) {
 
 		err := app.Run()
 
-		assert.IsError(t, err, conga.ErrParse)
-		assert.True(t, conga.IsUsageError(err))
+		assertUsageError(t, err)
 		assert.Equal(t, "flag does not take a value: --verbose=", err.Error())
 		assert.Equal(t, conga.SourceNone, cli.Verbose.Source())
 		assert.Equal(t, 0, cli.Verbose.Get())
@@ -1136,8 +1117,7 @@ func TestBinder_CounterFlag(t *testing.T) {
 
 		err := app.Run()
 
-		assert.IsError(t, err, conga.ErrParse)
-		assert.True(t, conga.IsUsageError(err))
+		assertUsageError(t, err)
 		assert.Equal(t, "flag does not take a value: --verbose=2", err.Error())
 		assert.Equal(t, conga.SourceNone, cli.Verbose.Source())
 		assert.Equal(t, 0, cli.Verbose.Get())
@@ -1152,8 +1132,7 @@ func TestBinder_CounterFlag(t *testing.T) {
 
 		err := app.Run()
 
-		assert.IsError(t, err, conga.ErrParse)
-		assert.True(t, conga.IsUsageError(err))
+		assertUsageError(t, err)
 		assert.Equal(t, "flag does not take a value: --verbose=abc", err.Error())
 		assert.Equal(t, conga.SourceNone, cli.Verbose.Source())
 		assert.Equal(t, 0, cli.Verbose.Get())
@@ -1197,9 +1176,7 @@ func TestBinder_CounterNegativeEnvRejected(t *testing.T) {
 
 	err := app.Run()
 
-	assert.IsError(t, err, conga.ErrConfig)
-	assert.False(t, conga.IsUsageError(err))
-	assert.False(t, errors.Is(err, conga.ErrCoerce))
+	assertNotUsageError(t, err)
 	assert.Equal(t, `invalid unsigned integer value "-4" for flag --verbose (from environment variable CONGA_TEST_VERBOSE_NEGATIVE)`, err.Error())
 	assert.Equal(t, conga.SourceNone, cli.Verbose.Source())
 	assert.Equal(t, 0, cli.Verbose.Get())
@@ -1222,9 +1199,7 @@ func TestBinder_CounterNegativeConfigRejected(t *testing.T) {
 
 	err := app.Run()
 
-	assert.IsError(t, err, conga.ErrConfig)
-	assert.False(t, conga.IsUsageError(err))
-	assert.False(t, errors.Is(err, conga.ErrCoerce))
+	assertNotUsageError(t, err)
 	assert.Equal(t, `invalid unsigned integer value "-2" for flag --verbose (from config key "verbose")`, err.Error())
 	assert.Equal(t, conga.SourceNone, cli.Verbose.Source())
 	assert.Equal(t, 0, cli.Verbose.Get())
@@ -1269,7 +1244,7 @@ func TestBinder_UnknownShortFlag(t *testing.T) {
 
 		err := app.Run()
 
-		assert.IsError(t, err, conga.ErrParse)
+		assertUsageError(t, err)
 		assert.Equal(t, "unknown flag: -Z", err.Error())
 	})
 
@@ -1281,7 +1256,7 @@ func TestBinder_UnknownShortFlag(t *testing.T) {
 
 		err := app.Run()
 
-		assert.IsError(t, err, conga.ErrParse)
+		assertUsageError(t, err)
 		assert.Equal(t, "unknown shorthand flag: 'Z' in -dZ", err.Error())
 	})
 
@@ -1293,7 +1268,7 @@ func TestBinder_UnknownShortFlag(t *testing.T) {
 
 		err := app.Run()
 
-		assert.IsError(t, err, conga.ErrParse)
+		assertUsageError(t, err)
 		assert.Equal(t, "unknown shorthand flag: 'Z' in -Zd", err.Error())
 	})
 }
@@ -1328,7 +1303,7 @@ func TestRouteSubcommands_UnknownCommandAfterShorthandCluster(t *testing.T) {
 
 			err := app.Run()
 
-			assert.IsError(t, err, conga.ErrParse)
+			assertUsageError(t, err)
 			assert.Equal(t, "unknown command: bogus", err.Error())
 		})
 	}
@@ -1341,7 +1316,7 @@ func TestRouteSubcommands_UnknownShorthandInClusterReportsUnknownFlag(t *testing
 
 	err := app.Run()
 
-	assert.IsError(t, err, conga.ErrParse)
+	assertUsageError(t, err)
 	assert.Equal(t, "unknown shorthand flag: 'x' in -vx", err.Error())
 }
 
@@ -1448,8 +1423,7 @@ func TestBinder_EmptyBoolValue(t *testing.T) {
 
 		err := app.Run()
 
-		assert.IsError(t, err, conga.ErrCoerce)
-		assert.True(t, conga.IsUsageError(err))
+		assertUsageError(t, err)
 		assert.Equal(t, `invalid boolean value "", expected true or false (or 1 or 0) for flag --verbose`, err.Error())
 		assert.False(t, cli.Verbose.IsSet())
 	})
@@ -1463,8 +1437,7 @@ func TestBinder_EmptyBoolValue(t *testing.T) {
 
 		err := app.Run()
 
-		assert.IsError(t, err, conga.ErrCoerce)
-		assert.True(t, conga.IsUsageError(err))
+		assertUsageError(t, err)
 		assert.Equal(t, `invalid boolean value "", expected true or false (or 1 or 0) for flag --verbose`, err.Error())
 		assert.False(t, cli.Verbose.IsSet())
 	})
@@ -1478,8 +1451,7 @@ func TestBinder_EmptyBoolValue(t *testing.T) {
 
 		err := app.Run()
 
-		assert.IsError(t, err, conga.ErrCoerce)
-		assert.True(t, conga.IsUsageError(err))
+		assertUsageError(t, err)
 		assert.Equal(t, `value for key "a": invalid boolean value "", expected true or false (or 1 or 0) for flag --marks`, err.Error())
 		assert.False(t, cli.Marks.IsSet())
 	})
@@ -1571,7 +1543,7 @@ func TestBinder_NegatedTokenRouting(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrParse)
+		assertUsageError(t, err)
 		assert.Equal(t, "unknown flag: --no-port", err.Error())
 	})
 
@@ -1582,7 +1554,7 @@ func TestBinder_NegatedTokenRouting(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrParse)
+		assertUsageError(t, err)
 		assert.Equal(t, "unknown flag: --no-verbose", err.Error())
 	})
 
@@ -1618,7 +1590,7 @@ func TestBinder_NegatedTokenSuggestionSuppression(t *testing.T) {
 		app := conga.New[NegatedTokenCLI]().Args([]string{"--no-port"})
 		err := app.RunContext(t.Context())
 
-		assert.IsError(t, err, conga.ErrParse)
+		assertUsageError(t, err)
 		assert.Equal(t, "unknown flag: --no-port", err.Error())
 	})
 }
@@ -1630,7 +1602,7 @@ func TestBinder_CaseInsensitiveFlagSuggestion(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrParse)
+	assertUsageError(t, err)
 	assert.Equal(t, `unknown flag: --PORT (did you mean "--port"?)`, err.Error())
 }
 
@@ -1701,7 +1673,7 @@ func TestBinder_SubcommandRequired(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrParse)
+	assertUsageError(t, err)
 }
 
 func TestBinder_FlagMissingValue(t *testing.T) {
@@ -1719,7 +1691,7 @@ func TestBinder_FlagMissingValue(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrParse)
+		assertUsageError(t, err)
 	})
 
 	t.Run("long flag followed by another flag", func(t *testing.T) {
@@ -1729,7 +1701,7 @@ func TestBinder_FlagMissingValue(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrParse)
+		assertUsageError(t, err)
 	})
 
 	t.Run("short flag at end of args", func(t *testing.T) {
@@ -1739,7 +1711,7 @@ func TestBinder_FlagMissingValue(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrParse)
+		assertUsageError(t, err)
 	})
 
 	t.Run("short flag cluster followed by terminator", func(t *testing.T) {
@@ -1749,7 +1721,7 @@ func TestBinder_FlagMissingValue(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrParse)
+		assertUsageError(t, err)
 	})
 
 	t.Run("long flag followed by terminator", func(t *testing.T) {
@@ -1759,7 +1731,7 @@ func TestBinder_FlagMissingValue(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrParse)
+		assertUsageError(t, err)
 		assert.Equal(t, "flag requires an argument: --port", err.Error())
 	})
 }
@@ -1783,7 +1755,7 @@ func TestBinder_TerminatorAfterValueFlagDoesNotRouteSubcommand(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrParse)
+	assertUsageError(t, err)
 	assert.Equal(t, "flag requires an argument: --port", err.Error())
 }
 
@@ -1814,7 +1786,7 @@ func TestBinder_SliceValidationDelegation(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 
 	t.Run("too many items", func(t *testing.T) {
@@ -1824,7 +1796,7 @@ func TestBinder_SliceValidationDelegation(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 }
 
@@ -1839,7 +1811,7 @@ func TestBinder_ArgCoercionError(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrCoerce)
+	assertUsageError(t, err)
 }
 
 func TestBinder_PositionalMap(t *testing.T) {
@@ -1908,25 +1880,24 @@ func TestBinder_ShortClusterAttachedValues(t *testing.T) {
 		assert.True(t, cli.Verbose.IsSet())
 	})
 
-	t.Run("short bool flag with invalid attached value returns ErrCoerce", func(t *testing.T) {
+	t.Run("short bool flag with invalid attached value returns a usage error", func(t *testing.T) {
 		t.Parallel()
 
 		app := conga.New[FlagsCLI]().Args([]string{"-v=notabool"})
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrCoerce)
+		assertUsageError(t, err)
 	})
 
-	t.Run("negated flag with attached value returns ErrParse", func(t *testing.T) {
+	t.Run("negated flag with attached value returns a usage error", func(t *testing.T) {
 		t.Parallel()
 
 		app := conga.New[FlagsCLI]().Args([]string{"--no-verbose=true"})
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrParse)
-		assert.False(t, errors.Is(err, conga.ErrCoerce))
+		assertUsageError(t, err)
 		assert.Equal(t, "negated flag does not take a value: --no-verbose=true", err.Error())
 	})
 }
@@ -2088,8 +2059,8 @@ func TestBinder_CounterCoercionError(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrConfig)
-	assert.False(t, conga.IsUsageError(err))
+	assertNotUsageError(t, err)
+	assert.Equal(t, `invalid unsigned integer value "not-a-number" for flag --v (from config key "v")`, err.Error())
 }
 
 type repeatedScalarCLI struct {
@@ -2158,7 +2129,7 @@ func TestBinder_RepeatedScalarFlagInvalidEarlierOccurrence(t *testing.T) {
 
 		err := app.Run()
 
-		assert.IsError(t, err, conga.ErrCoerce)
+		assertUsageError(t, err)
 		assert.Equal(t, `invalid integer value "abc" for flag --port`, err.Error())
 		assert.Equal(t, conga.SourceNone, cli.Port.Source())
 		assert.Equal(t, 0, cli.Port.Get())
@@ -2173,7 +2144,7 @@ func TestBinder_RepeatedScalarFlagInvalidEarlierOccurrence(t *testing.T) {
 
 		err := app.Run()
 
-		assert.IsError(t, err, conga.ErrCoerce)
+		assertUsageError(t, err)
 		assert.Equal(t, `invalid integer value "x" for flag --token`, err.Error())
 		assert.Equal(t, conga.SourceNone, cli.Token.Source())
 		assert.Equal(t, 0, cli.Token.Get())

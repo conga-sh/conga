@@ -210,12 +210,12 @@ Gated members and feature names are checked against every source. Each source re
 
 | What the user does | Command line | Environment | Config file |
 |---|---|---|---|
-| Uses a gated flag or command while its feature is off | Usage error, exit 2 | Ignored | Config error, exit 1 |
+| Uses a gated flag or command while its feature is off | Usage error, exit 2 | Ignored | Error, exit 1 |
 | Sets a gated flag in a file whose feature `--feature-gates` or the environment turned off | — | — | Ignored, the run continues |
-| Names an unknown feature (`htt3=true`) | Usage error, exit 2, with a "did you mean" hint | Config error, exit 1, with a hint (list variable only) | Config error, exit 1, with a hint |
-| Gives a bad value (`http3=maybe`) | Usage error, exit 2 | Config error, exit 1, naming the variable | Config error, exit 1, naming the config key |
+| Names an unknown feature (`htt3=true`) | Usage error, exit 2, with a "did you mean" hint | Error, exit 1, with a hint (list variable only) | Error, exit 1, with a hint |
+| Gives a bad value (`http3=maybe`) | Usage error, exit 2 | Error, exit 1, naming the variable | Error, exit 1, naming the config key |
 
-When a gated flag has its own variable, such as `API_QUIC` from `EnvPrefix("API")`, the environment skips it while the flag is inactive, so leftover variables from a parent shell or CI runner leave unrelated runs alone. Feature variables, whether the `API_FEATURES` list or per-feature variables such as `API_FEATURE_METRICS`, exist only to set features, so the program always validates them. They come from the environment, so their failures are `ErrConfig` with exit 1.
+When a gated flag has its own variable, such as `API_QUIC` from `EnvPrefix("API")`, the environment skips it while the flag is inactive, so leftover variables from a parent shell or CI runner leave unrelated runs alone. Feature variables, whether the `API_FEATURES` list or per-feature variables such as `API_FEATURE_METRICS`, exist only to set features, so the program always validates them. They come from the environment, so their failures exit 1 without a usage block.
 
 An unknown name or a bad value in `API_FEATURES` produces:
 

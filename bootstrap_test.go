@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"testing"
@@ -185,9 +187,7 @@ func TestBootstrapper_CLIBindingErrorKeepsUsageClassification(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrCoerce)
-	assert.False(t, errors.Is(err, conga.ErrConfig))
-	assert.True(t, conga.IsUsageError(err))
+	assertUsageError(t, err)
 	assert.Equal(t, `invalid integer value "not-a-number" for flag --count`, err.Error())
 }
 
@@ -442,22 +442,17 @@ func TestBootstrapper_DotenvPrecedence(t *testing.T) {
 type dotenvErrorCLI struct {
 	noopRunner
 
-	load       func(*conga.Bootstrap) error
-	err        error
-	classified bool
+	load func(*conga.Bootstrap) error
 }
 
 func (c *dotenvErrorCLI) Bootstrap(_ context.Context, b *conga.Bootstrap) error {
-	c.err = c.load(b)
-	c.classified = errors.Is(c.err, conga.ErrConfig)
-
-	return c.err
+	return c.load(b)
 }
 
-// TestBootstrapper_DotenvErrorsClassifiedUnderErrConfig pins that both dotenv
-// methods classify their failures under ErrConfig at the call boundary, so a
-// Bootstrap hook can branch on errors.Is(err, conga.ErrConfig) before returning.
-func TestBootstrapper_DotenvErrorsClassifiedUnderErrConfig(t *testing.T) {
+// TestBootstrapper_DotenvErrorsReturnedAsIs pins that both dotenv methods
+// return their failure unchanged. The message carries no prefix, and the
+// underlying I/O error stays reachable.
+func TestBootstrapper_DotenvErrorsReturnedAsIs(t *testing.T) {
 	t.Parallel()
 
 	missing := filepath.Join(t.TempDir(), "missing.env")
@@ -467,11 +462,22 @@ func TestBootstrapper_DotenvErrorsClassifiedUnderErrConfig(t *testing.T) {
 	assert.NoError(t, err)
 
 	tests := []struct {
-		name string
-		load func(*conga.Bootstrap) error
+		name    string
+		load    func(*conga.Bootstrap) error
+		message string
+		cause   error
 	}{
-		{name: "dotenv malformed", load: func(b *conga.Bootstrap) error { return b.Dotenv(malformed) }},
-		{name: "dotenv explicit missing", load: func(b *conga.Bootstrap) error { return b.DotenvExplicit(missing) }},
+		{
+			name:    "dotenv malformed",
+			load:    func(b *conga.Bootstrap) error { return b.Dotenv(malformed) },
+			message: fmt.Sprintf("cannot parse .env file %q: line 1: missing '=' in statement", malformed),
+		},
+		{
+			name:    "dotenv explicit missing",
+			load:    func(b *conga.Bootstrap) error { return b.DotenvExplicit(missing) },
+			message: fmt.Sprintf("cannot read .env file %q: open %s: no such file or directory", missing, missing),
+			cause:   fs.ErrNotExist,
+		},
 	}
 
 	for _, test := range tests {
@@ -485,8 +491,12 @@ func TestBootstrapper_DotenvErrorsClassifiedUnderErrConfig(t *testing.T) {
 			err := app.Run()
 
 			assert.Error(t, err)
-			assert.True(t, cli.classified)
-			assert.IsError(t, err, conga.ErrConfig)
+			assert.Equal(t, test.message, err.Error())
+			assertNotUsageError(t, err)
+
+			if test.cause != nil {
+				assert.True(t, errors.Is(err, test.cause))
+			}
 		})
 	}
 }

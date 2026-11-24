@@ -223,7 +223,7 @@ restart: error: struct Restart field As: schema error: unsupported type *user.Us
 
 ## Know what users see
 
-The rows below cover command-line values. A rejected value from the environment, a config file, or a `default` tag is `ErrConfig`, exit 1, and the message names the source.
+The rows below cover command-line values. A rejected value from the environment, a config file, or a `default` tag exits 1, and the message names the source.
 
 | What the user does | `network` and `system` types | Types bound with `app.Use` |
 |---|---|---|

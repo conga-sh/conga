@@ -52,9 +52,9 @@ stdout 'pipeline\.yaml\s+loaded'
 
 # 6. A Bootstrap failure is app-authored data: exit 1, never a usage error.
 exit-status 1 bootstrapper --pipeline nope
-stderr 'bootstrap failed: pipeline\.yaml has no pipeline "nope"'
+stderr 'pipeline\.yaml has no pipeline "nope"'
 exit-status 1 bootstrapper -f missing.yaml
-stderr 'bootstrap failed: read pipeline file "missing\.yaml"'
+stderr 'read pipeline file "missing\.yaml"'
 exit-status 1 bootstrapper -f bad_version.yaml
 stderr 'unsupported pipeline file version "2"'
 exit-status 1 bootstrapper -f unknown_key.yaml
@@ -72,9 +72,9 @@ exec bootstrapper
 stdout '--parallelism\s+int\s+1\s+· default'
 stdout '--log-level\s+string\s+warn\s+· default'
 exit-status 1 bootstrapper -f pipeline.yaml
-stderr 'bootstrap failed: read pipeline file "pipeline\.yaml"'
+stderr 'read pipeline file "pipeline\.yaml"'
 env FLOW_FILE=pipeline.yaml
 exit-status 1 bootstrapper
-stderr 'bootstrap failed: read pipeline file "pipeline\.yaml"'
+stderr 'read pipeline file "pipeline\.yaml"'
 env FLOW_FILE=
 cd ..

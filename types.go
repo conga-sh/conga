@@ -118,9 +118,12 @@ type Runner interface {
 // Validate is the first lifecycle stage. Hooks run top-down from root to leaf, after
 // struct tag constraints and domain-type [SelfValidator] checks have already passed,
 // and before any [PreRunner], [Runner], [PostRunner], or [Finalizer] hook executes.
-// If Validate returns an error, Run returns it without running the remaining stages
-// (no command has been initialized, so no Finally hook runs); [IsUsageError] reports
-// true and [App.Exit] exits with status 2. For a built-in subcommand such as
+// If Validate returns an error, Run returns it unchanged without running the remaining
+// stages (no command has been initialized, so no Finally hook runs). A plain error
+// makes [App.Exit] exit with status 1 and no usage block. To report a mistake in
+// the user's input, return [Session.UsageError] or [Session.UsageErrorf]. [App.Exit]
+// then exits with status 2 and the usage block [UsageOnErrorMode] asks for. An
+// [ExitCoder] chooses its own code. For a built-in subcommand such as
 // [HelpCommand], only the leaf command's Validate hook runs.
 //
 // See https://docs.conga.sh/explanation/lifecycle/.
@@ -225,7 +228,8 @@ type FieldTags = spec.FieldTags
 
 // TypeParser converts raw text into a value of type U. It is the parser
 // signature [App.RegisterType] takes: func(raw string) (U, error). A returned
-// error is wrapped in [ErrCoerce].
+// error is the cause of the coercion failure and stays reachable through
+// [errors.Is] and [errors.As].
 type TypeParser[U any] = coerce.TypeParser[U]
 
 // DecodeContext carries ambient metadata for coercing a raw string into a domain type:
@@ -297,7 +301,9 @@ type Finalizer interface {
 // See https://docs.conga.sh/explanation/lifecycle/.
 type Bootstrapper interface {
 	// Bootstrap loads environment files and supplies app state or a
-	// configuration document before the binder resolves values.
+	// configuration document before the binder resolves values. A returned
+	// error stops the run and comes back as returned. A plain error exits 1
+	// with no usage block. An [ExitCoder] chooses its own code.
 	Bootstrap(ctx context.Context, b *Bootstrap) error
 }
 
@@ -392,9 +398,9 @@ func (f *OptionalFlag[T]) String() string {
 // an environment variable, or a configuration file. The schema builder rejects
 // the default struct tag on required flags: a fallback value would satisfy the
 // requirement without any caller input and make it meaningless. If no source
-// provides a value, Run returns a usage error before any lifecycle stage,
-// starting with [Validator.Validate], executes; [IsUsageError] reports true and
-// [App.Exit] exits with status 2.
+// provides a value, Run returns a [*UsageError] before any lifecycle stage,
+// starting with [Validator.Validate], executes, and [App.Exit] exits with
+// status 2.
 //
 // When satisfied, [RequiredFlag.Changed] reports true and [RequiredFlag.IsSet]
 // reports true.
@@ -513,8 +519,8 @@ func (a *OptionalArg[T]) String() string {
 //
 // Required positional arguments must be supplied on the command line in struct
 // declaration order. If omitted and no struct default tag is present, Run
-// returns a usage error before any lifecycle stage, starting with [Validator.Validate],
-// executes; [IsUsageError] reports true and [App.Exit] exits with status 2.
+// returns a [*UsageError] before any lifecycle stage, starting with [Validator.Validate],
+// executes, and [App.Exit] exits with status 2.
 type RequiredArg[T any] struct {
 	value        T
 	set          bool
@@ -817,11 +823,7 @@ func (c *CompletionCommand) Run(ctx context.Context, session *Session) error {
 
 	parsedShell, err := completion.ParseShell(c.shell)
 	if err != nil {
-		return &validationError{
-			msg:      err.Error(),
-			cmdChain: session.cmdChain,
-			cause:    errInvalidValue,
-		}
+		return usageError(session.cmdChain, err.Error())
 	}
 
 	return generateCompletionScript(parsedShell, session.cmdChain[0], session.Stdout())
@@ -884,7 +886,7 @@ func (c *CompletionCommand) Run(ctx context.Context, session *Session) error {
 // Gating enforcement is symmetric for explicit inputs: a gated flag supplied on
 // the command line is a usage error even when only help was requested, and a
 // configuration key naming a gated flag whose feature is inactive is rejected
-// with [ErrConfig]. Environment variables are the exception: pruning removes
+// with an error that is not a [*UsageError]. Environment variables are the exception: pruning removes
 // the flag from the schema before environment binding, so a variable targeting
 // an inactive gated flag is ignored rather than rejected, keeping ambient
 // environment state from breaking runs it does not control.
@@ -1018,12 +1020,12 @@ func (c *ConfigFile) String() string {
 //
 // Each occurrence on the command line increments the count by 1. With no
 // occurrences and no other source, [Counter.Get] returns 0. A counter takes no
-// value on the command line: --verbose=2, -v=2, and -vv=2 fail with [ErrParse]
-// as usage errors.
+// value on the command line: --verbose=2, -v=2, and -vv=2 fail with a
+// [*UsageError].
 //
 // An environment or configuration count is an unsigned integer: a sign ("-1",
 // "+2"), a non-integer, or a value too large for an int fails with
-// [ErrConfig] (exit 1). Use [OptionalFlag] with an integer type for a value set
+// an error that is not a [*UsageError] (exit 1). Use [OptionalFlag] with an integer type for a value set
 // directly on the command line or for a signed value.
 //
 // Counters count command-line occurrences starting at 0, so a default tag is

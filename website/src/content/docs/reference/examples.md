@@ -353,7 +353,7 @@ Run 'dynamic-validation --help' for more information.
 ```
 :::
 
-Uses: `Validator`
+Uses: `Validator`, `Session.UsageErrorf`
 
 ### 27 strict-tag-validation
 
@@ -870,18 +870,17 @@ Running job migrate-data (priority 7)
 stdin payload: "host-provided stdin\n"
 [host] captured exit code: 0
 ```
-```sh label="Usage error" error={6}
+```sh label="Usage error" error={5}
 $ go run ./_examples/26-library-embedding migrate-data --priority notanumber
 [host] run error: invalid integer value "notanumber" for flag --priority
-[host] usage-classified: true
 [host] usage error at command path: library-embedding
-[host] coercion failure: invalid integer value "notanumber" for flag --priority
+[host] usage error exit code: 2
 library-embedding: error: invalid integer value "notanumber" for flag --priority
 [host] captured exit code: 2
 ```
 :::
 
-Uses: `App.Args`, `App.Stdin`, `App.Stdout`, `App.Stderr`, `App.RunContext`, `App.ExitFunc`, `App.DisableHelpFlag`, `IsUsageError`, `UsageError`, `ErrCoerce`
+Uses: `App.Args`, `App.Stdin`, `App.Stdout`, `App.Stderr`, `App.RunContext`, `App.ExitFunc`, `App.DisableHelpFlag`, `UsageError`
 
 ## Everything together
 
@@ -989,7 +988,6 @@ Uses: `ConfigFile`, `Features[T]`, `RequiredFlag[T]`, `DashArgs`, `executable`, 
 | `{{env}}` | [16](#16-help-variables) |
 | `env` | [13](#13-twelve-factor-precedence) |
 | `envprefix` | [09](#09-deep-hierarchy-context) |
-| `ErrCoerce` | [26](#26-library-embedding) |
 | `executable` | [99](#99-kitchen-sink) |
 | `existing` | [05](#05-domain-types) |
 | `feature` | [29](#29-feature-toggles) |
@@ -1002,7 +1000,6 @@ Uses: `ConfigFile`, `Features[T]`, `RequiredFlag[T]`, `DashArgs`, `executable`, 
 | `HelpCommand` | [10](#10-builtins-help-version) |
 | `hidden` | [02](#02-flag-primitives), [08](#08-subcommands-basic) |
 | `implicit` | [32](#32-implicit-command) |
-| `IsUsageError` | [26](#26-library-embedding) |
 | `items` | [03](#03-negatable-and-maps), [06](#06-flag-constraints) |
 | `{{items}}` | [16](#16-help-variables) |
 | `len` | [06](#06-flag-constraints) |
@@ -1038,6 +1035,7 @@ Uses: `ConfigFile`, `Features[T]`, `RequiredFlag[T]`, `DashArgs`, `executable`, 
 | `Session.Path` | [09](#09-deep-hierarchy-context) |
 | `Session.Root` | [09](#09-deep-hierarchy-context) |
 | `Session.Usage` | [10](#10-builtins-help-version) |
+| `Session.UsageErrorf` | [07](#07-dynamic-validation) |
 | `Session.Version` | [10](#10-builtins-help-version) |
 | `short` | [01](#01-minimal-hello) |
 | `stage` | [29](#29-feature-toggles) |

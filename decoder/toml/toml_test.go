@@ -70,7 +70,7 @@ func TestDecode_InvalidSyntax(t *testing.T) {
 
 	_, err := toml.Decode(fixtureInvalidSyntax)
 
-	assert.IsError(t, err, toml.ErrParse)
+	assert.EqualError(t, err, `toml: unexpected character U+000A at start of value`)
 }
 
 func TestDecode_DuplicateKeys(t *testing.T) {
@@ -78,7 +78,7 @@ func TestDecode_DuplicateKeys(t *testing.T) {
 
 	_, err := toml.Decode(fixtureDuplicateKeys)
 
-	assert.IsError(t, err, toml.ErrParse)
+	assert.EqualError(t, err, `toml: key port is already defined`)
 }
 
 func TestDecode_TrailingGarbage(t *testing.T) {
@@ -86,7 +86,7 @@ func TestDecode_TrailingGarbage(t *testing.T) {
 
 	_, err := toml.Decode(fixtureTrailingGarbage)
 
-	assert.IsError(t, err, toml.ErrParse)
+	assert.EqualError(t, err, `toml: expected '=' after key`)
 }
 
 func TestDecode_TrailingWhitespaceSucceeds(t *testing.T) {

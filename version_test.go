@@ -305,8 +305,7 @@ func TestVersionCommand_JSONInvalidValue(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrCoerce)
-	assert.True(t, conga.IsUsageError(err))
+	assertUsageError(t, err)
 	assert.Equal(t, `invalid boolean value "banana", expected true or false (or 1 or 0) for flag --json`, err.Error())
 	assert.Equal(t, "", buffer.String())
 }
@@ -324,8 +323,7 @@ func TestVersionCommand_JSONEmptyValueRejected(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrCoerce)
-	assert.True(t, conga.IsUsageError(err))
+	assertUsageError(t, err)
 	assert.Equal(t, `invalid boolean value "", expected true or false (or 1 or 0) for flag --json`, err.Error())
 	assert.Equal(t, "", buffer.String())
 }
@@ -544,7 +542,7 @@ func TestVersionFlag_UserVersionFlagGetsNoPrecedence(t *testing.T) {
 
 	err := app.Run()
 
-	assert.IsError(t, err, conga.ErrParse)
+	assertUsageError(t, err)
 	assert.Equal(t, "unknown flag: --bogus", err.Error())
 }
 
@@ -593,7 +591,7 @@ func TestVersionFlag_InvalidValueFails(t *testing.T) {
 
 	err := app.Run()
 
-	assert.IsError(t, err, conga.ErrCoerce)
+	assertUsageError(t, err)
 	assert.Equal(t, `invalid boolean value "maybe", expected true or false (or 1 or 0) for flag --version`, err.Error())
 }
 

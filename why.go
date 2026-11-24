@@ -63,22 +63,18 @@ func (a *App[T]) resolveWhyFormat(cmdChain []*spec.Command, rawFormat string) (s
 		return spec.WhyFormatText, nil
 	case spec.WhyFormatJSON:
 		if a.whyHooks == nil || a.whyHooks.jsonFormatter == nil {
-			return "", &validationError{
-				msg:         `invalid value "json" for --why: JSON output format is not enabled on this application (enable with app.EnableWhy(conga.WhyOptionJSON()))`,
-				cmdChain:    cmdChain,
-				cause:       errInvalidValue,
-				valueShaped: true,
-			}
+			const message = `invalid value "json" for --why: JSON output format is not enabled on this application (enable with app.EnableWhy(conga.WhyOptionJSON()))`
+
+			return "", usageError(cmdChain, message).
+				withShape(usageShapeLineOnly)
 		}
 
 		return spec.WhyFormatJSON, nil
 	default:
-		return "", &validationError{
-			msg:         fmt.Sprintf("invalid value %q (must be one of: text, json) for --why", truncateForDisplay(rawFormat)),
-			cmdChain:    cmdChain,
-			cause:       errInvalidValue,
-			valueShaped: true,
-		}
+		shown := truncateForDisplay(rawFormat)
+
+		return "", usageErrorf(cmdChain, "invalid value %q (must be one of: text, json) for --why", shown).
+			withShape(usageShapeLineOnly)
 	}
 }
 

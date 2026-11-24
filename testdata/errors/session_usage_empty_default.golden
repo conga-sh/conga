@@ -1,0 +1,4 @@
+Usage:
+  app deploy [flags]
+
+Run 'app deploy --help' for more information.

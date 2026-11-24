@@ -200,7 +200,7 @@ func TestHelpCommand_PrecedingFlags(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrParse)
+		assertUsageError(t, err)
 		assert.Equal(t, "unknown flag: --bogus", err.Error())
 	})
 
@@ -212,7 +212,7 @@ func TestHelpCommand_PrecedingFlags(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrParse)
+		assertUsageError(t, err)
 		assert.Equal(t, "flag requires an argument: --format", err.Error())
 	})
 
@@ -337,8 +337,7 @@ func TestHelpCommand_UnknownSubcommand(t *testing.T) {
 
 	err := app.Run()
 
-	assert.IsError(t, err, conga.ErrParse)
-	assert.True(t, conga.IsUsageError(err))
+	assertUsageError(t, err)
 	assert.Equal(t, "unknown command: bogus", err.Error())
 }
 
@@ -355,7 +354,7 @@ func TestHelpCommand_UnknownSubcommandSuggests(t *testing.T) {
 
 		err := app.Run()
 
-		assert.IsError(t, err, conga.ErrParse)
+		assertUsageError(t, err)
 		assert.Equal(t, `unknown command: clustr (did you mean "cluster"?)`, err.Error())
 	})
 
@@ -367,7 +366,7 @@ func TestHelpCommand_UnknownSubcommandSuggests(t *testing.T) {
 
 		err := app.Run()
 
-		assert.IsError(t, err, conga.ErrParse)
+		assertUsageError(t, err)
 		assert.Equal(t, `unknown command: nod (did you mean "node"?)`, err.Error())
 	})
 
@@ -379,7 +378,7 @@ func TestHelpCommand_UnknownSubcommandSuggests(t *testing.T) {
 
 		err := app.Run()
 
-		assert.IsError(t, err, conga.ErrParse)
+		assertUsageError(t, err)
 		assert.Equal(t, `unknown command: clustr (did you mean "cluster"?)`, err.Error())
 	})
 }
@@ -392,7 +391,7 @@ func TestShortH_Unreserved(t *testing.T) {
 
 	err := app.Run()
 
-	assert.IsError(t, err, conga.ErrParse)
+	assertUsageError(t, err)
 	assert.Equal(t, `unknown flag: -h (did you mean "--help"?)`, err.Error())
 }
 
@@ -406,7 +405,7 @@ func TestShortH_NoHintWithoutHelpFlag(t *testing.T) {
 
 	err := app.Run()
 
-	assert.IsError(t, err, conga.ErrParse)
+	assertUsageError(t, err)
 	assert.Equal(t, "unknown flag: -h", err.Error())
 }
 
@@ -676,7 +675,7 @@ func TestExampleProvider_OmittedOnError(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrParse)
+	assertUsageError(t, err)
 
 	// Exit handles usage errors by rendering error and synopsis to stderr and calling exit(2).
 	app.Exit(err)
@@ -1204,7 +1203,7 @@ func TestHelpFlag_UserHelpFlagGetsNoPrecedence(t *testing.T) {
 
 	err := app.Run()
 
-	assert.IsError(t, err, conga.ErrParse)
+	assertUsageError(t, err)
 	assert.Equal(t, "unknown flag: --bogus", err.Error())
 }
 
@@ -1244,7 +1243,7 @@ func TestWhyAndCompletionFlags_NoPrecedenceOverParseErrors(t *testing.T) {
 
 			err := app.Run()
 
-			assert.IsError(t, err, conga.ErrParse)
+			assertUsageError(t, err)
 			assert.Equal(t, "unknown flag: --bogus", err.Error())
 			assert.Equal(t, "", buffer.String())
 		})
@@ -1305,7 +1304,7 @@ func TestHelpFlag_ShortAfterUnknownRuneFails(t *testing.T) {
 
 	err := app.Run()
 
-	assert.IsError(t, err, conga.ErrParse)
+	assertUsageError(t, err)
 	assert.Equal(t, "unknown shorthand flag: 'x' in -xh", err.Error())
 	assert.Equal(t, "", buffer.String())
 }
@@ -1361,7 +1360,7 @@ func TestHelpFlag_FalseValueGetsNoPrecedence(t *testing.T) {
 
 	err := app.Run()
 
-	assert.IsError(t, err, conga.ErrParse)
+	assertUsageError(t, err)
 	assert.Equal(t, "unknown flag: --bogus", err.Error())
 	assert.Equal(t, "", buffer.String())
 }
@@ -1393,8 +1392,7 @@ func TestHelpFlag_InvalidValueFails(t *testing.T) {
 
 			err := app.Run()
 
-			assert.IsError(t, err, conga.ErrCoerce)
-			assert.True(t, conga.IsUsageError(err))
+			assertUsageError(t, err)
 			assert.Equal(t, `invalid boolean value "maybe", expected true or false (or 1 or 0) for flag --help`, err.Error())
 			assert.Equal(t, "", buffer.String())
 		})
@@ -1430,7 +1428,7 @@ func TestHelpFlag_FalseValueKeepsUnknownCommandError(t *testing.T) {
 
 			err := app.Run()
 
-			assert.IsError(t, err, conga.ErrParse)
+			assertUsageError(t, err)
 			assert.Equal(t, "unknown command: nosuch", err.Error())
 			assert.Equal(t, "", buffer.String())
 		})

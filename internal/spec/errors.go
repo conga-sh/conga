@@ -6,15 +6,6 @@ import (
 	"strings"
 )
 
-// Runtime feature value validation sentinels.
-var (
-	errFeatureMustBeInteger            = errors.New("must be an integer")
-	errFeatureMustBeBoolean            = errors.New("must be true or false (or 1 or 0)")
-	errFeatureInvalidEnum              = errors.New("must be one of")
-	errFeatureMustBeNonNegativeInteger = errors.New("must be a non-negative integer")
-	errFeatureIntegerOutOfRange        = errors.New("is out of range for the feature's integer type")
-)
-
 // SchemaError reports a command schema defect discovered during schema build
 // or static analysis. Its text has three roles: the message states the
 // defect, the note gives more detail on it, and the hint is the action that

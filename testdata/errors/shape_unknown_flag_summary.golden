@@ -1,0 +1,6 @@
+app: error: unknown flag: --bogus
+
+Usage:
+  app <command> [flags]
+
+Run 'app --help' for more information.

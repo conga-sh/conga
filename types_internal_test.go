@@ -64,24 +64,10 @@ func TestPathKindError(t *testing.T) {
 			err := &pathKindError{path: testCase.path, kind: testCase.kind}
 
 			assert.Equal(t, testCase.expected, err.Error())
-			assert.IsError(t, err, errPathWrongKind)
-			assert.IsError(t, err, ErrValidation)
-			assert.False(t, errors.Is(err, ErrCoerce))
+			assert.Equal(t, nil, errors.Unwrap(err))
+			assert.Equal(t, nil, errors.Unwrap(err))
 		})
 	}
-}
-
-// TestPathKindConversionError pins the conversion-time path-kind wrapper:
-// FileContent detects the wrong kind while converting its text, so the failure
-// stays under ErrCoerce and never classifies as ErrValidation.
-func TestPathKindConversionError(t *testing.T) {
-	t.Parallel()
-
-	err := &pathKindConversionError{pathKindError{path: "/tmp", kind: pathKindExpectFile}}
-
-	assert.Equal(t, `"/tmp" is a directory, but a file was expected`, err.Error())
-	assert.IsError(t, err, ErrCoerce)
-	assert.False(t, errors.Is(err, ErrValidation))
 }
 
 func TestPathKindErrorUnknownKind(t *testing.T) {
@@ -98,7 +84,7 @@ func TestExecutableError(t *testing.T) {
 	err := &executableError{path: "/opt/bin/tool"}
 
 	assert.Equal(t, `"/opt/bin/tool" is not executable`, err.Error())
-	assert.IsError(t, err, ErrValidation)
+	assert.Equal(t, nil, errors.Unwrap(err))
 }
 
 func TestByteSizeError(t *testing.T) {
@@ -124,7 +110,7 @@ func TestByteSizeError(t *testing.T) {
 			t.Parallel()
 
 			assert.Equal(t, testCase.expected, testCase.err.Error())
-			assert.IsError(t, testCase.err, ErrCoerce)
+			assert.Equal(t, nil, errors.Unwrap(testCase.err))
 		})
 	}
 }
@@ -239,7 +225,7 @@ func TestByteSizeUnknownUnitAcceptedUnits(t *testing.T) {
 
 			err := size.UnmarshalTextWithContext([]byte("10G"), DecodeContext{Tags: testCase.tags})
 
-			assert.IsError(t, err, ErrCoerce)
+			assert.Equal(t, nil, errors.Unwrap(err))
 			assert.Equal(t, testCase.expected, err.Error())
 			assert.Equal(t, int64(0), size.Bytes())
 		})

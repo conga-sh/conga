@@ -3,7 +3,7 @@ title: How to validate input
 description: Require flags, limit values to a set, bound numbers, durations, lengths and counts, reject conflicting flags, demand exactly one of a group, require flags together, and check values against each other with Validator.
 ---
 
-This guide builds an `export` command that sends records to a file or a URL, and adds one kind of check at each step. Each check runs before `Run`. A command-line value that fails one is a usage error; the program prints the problem and exits with status 2. A value from the environment, a config file, or a `default` tag classifies under `ErrConfig` instead and exits with status 1. A failed group check (`xor`, `oneof`, `and`) is a usage error when one of its flags came from the command line, and `ErrConfig` when they all came from the environment or a config file.
+This guide builds an `export` command that sends records to a file or a URL, and adds one kind of check at each step. Each check runs before `Run`. A command-line value that fails one is a usage error. The program prints the problem and exits with status 2. A value from the environment, a config file, or a `default` tag exits with status 1 and prints no usage block. A failed group check (`xor`, `oneof`, `and`) is a usage error when one of its flags came from the command line, and exits with status 1 when they all came from the environment or a config file.
 
 ## Require a flag
 
@@ -128,7 +128,7 @@ Help shows each bound:
 An optional flag with a bound can still be left out. Make it a required flag when it must be given. Either side of a [bound](/reference/struct-tags/#bounds-syntax) can be left open, as in `range:"1.."`, and a single number, as in `items:"5"`, means exactly that many.
 
 :::caution[Defaults are checked too]
-CONGA checks a `default` against the field's bound at every run. A `default:"5000"` on `Limit` passes startup, then fails every run that leaves `--limit` out, as an `ErrConfig` failure the user can't fix from the command line:
+CONGA checks a `default` against the field's bound at every run. A `default:"5000"` on `Limit` passes startup, then fails every run that leaves `--limit` out, as a failure the user can't fix from the command line:
 
 ```sh error={2}
 $ export
@@ -277,7 +277,7 @@ type Validator interface {
 }
 ```
 
-Here the export covers a date range, and the last day can't come before the first. The file now also imports `errors`:
+Here the export covers a date range, and the last day can't come before the first. The checks report a mistake in the user's input, so they return `session.UsageError` or `session.UsageErrorf`:
 
 ```go title="main.go" ins={3-4,7-23}
 type Export struct {
@@ -289,23 +289,23 @@ type Export struct {
 func (e *Export) Validate(ctx context.Context, session *conga.Session) error {
 	since, err := time.Parse(time.DateOnly, e.Since.Get())
 	if err != nil {
-		return fmt.Errorf("--since %q is not a date (YYYY-MM-DD)", e.Since.Get())
+		return session.UsageErrorf("--since %q is not a date (YYYY-MM-DD)", e.Since.Get())
 	}
 
 	until, err := time.Parse(time.DateOnly, e.Until.Get())
 	if err != nil {
-		return fmt.Errorf("--until %q is not a date (YYYY-MM-DD)", e.Until.Get())
+		return session.UsageErrorf("--until %q is not a date (YYYY-MM-DD)", e.Until.Get())
 	}
 
 	if until.Before(since) {
-		return errors.New("--until must not be before --since")
+		return session.UsageError("--until must not be before --since")
 	}
 
 	return nil
 }
 ```
 
-An error from `Validate` is a usage error, like a failed tag check:
+An error from `session.UsageError` or `session.UsageErrorf` is a usage error, like a failed tag check:
 
 ```sh error={2}
 $ export --token abc --to-file out.json --since 2026-02-01
@@ -318,6 +318,8 @@ Run 'export --help' for more information.
 ```
 
 `Validate` runs after every tag check has passed, and before `Run` and any lifecycle hook, so it can trust that the flags hold valid values and the program has opened nothing yet. Write the message the user should see. CONGA prints it after `export: error:`.
+
+CONGA returns the error from `Validate` unchanged. A plain error, such as one made with `errors.New`, exits with status 1 and prints no usage block, because CONGA can't tell whether the check read a command-line value or a value from a config file. Return `session.UsageError` when the cause is the command line.
 
 ## Know what users see
 
@@ -340,7 +342,8 @@ Run 'export --help' for more information.
 | Gives only part of an `and` group | `flag --username must be given together with --password`, then usage, exit 2 |
 | Gives `--username` and sets the password in the environment | Works |
 | Sets only the password in the environment | `flag --password (from environment variable EXPORT_PASSWORD) must be given together with --username`, exit 1 |
-| Gives values that `Validate` rejects | The returned message, then usage, exit 2 |
+| Gives values that `Validate` rejects with `session.UsageError` | The returned message, then usage, exit 2 |
+| Gives values that `Validate` rejects with a plain error | The returned message, exit 1 |
 | Leaves out a flag whose `default` is outside its bound | `value 5000 is out of range [1..1000] for flag --limit (from default value)`, exit 1, on every such run |
 
 ## Where to go next

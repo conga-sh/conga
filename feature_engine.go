@@ -2,7 +2,6 @@ package conga
 
 import (
 	"cmp"
-	"errors"
 	"fmt"
 	"maps"
 	"reflect"
@@ -118,7 +117,7 @@ func featureGates(cmd *spec.Command, values map[string]string) map[string]bool {
 // key order. Diagnostics attribute each key to the tier that supplied it via
 // provenance, falling back to the container's recorded source when a key has no
 // recorded tier.
-func featureValues(cmd *spec.Command, cmdChain []*spec.Command, provided map[string]string, provenance map[string]ValueSource, origins map[string]configdata.Value, envNames map[string]string, fallback ValueSource) (map[string]string, error) {
+func featureValues(cmd *spec.Command, provided map[string]string, provenance map[string]ValueSource, origins map[string]configdata.Value, envNames map[string]string, fallback ValueSource) (map[string]string, error) {
 	var firstErr error
 
 	values := collectFeatureValues(cmd, provided, func(name string, raw string, feature *spec.FeatureField, cause error) {
@@ -132,12 +131,14 @@ func featureValues(cmd *spec.Command, cmdChain []*spec.Command, provided map[str
 		}
 
 		if feature == nil {
-			firstErr = unknownFeatureError(cmdChain, cmd, name, source, envNames[name], origins[name].SourceDetail())
+			file := origins[name].SourceDetail()
+			firstErr = unknownFeatureError(cmd, name, source, envNames[name], file)
 
 			return
 		}
 
-		firstErr = invalidFeatureValueError(cmdChain, feature, raw, cause, source, featureSourceName(cmd, feature, source, envNames[name]))
+		sourceName := featureSourceName(cmd, feature, source, envNames[name])
+		firstErr = invalidFeatureValueError(feature, raw, cause, source, sourceName)
 	})
 
 	return values, firstErr
@@ -197,7 +198,9 @@ func bindFeatureValues(binding featureState, target any, cmd *spec.Command, cmdC
 
 	sources, origins := binding.mapProvenance()
 
-	values, err := featureValues(cmd, cmdChain, provided, sources, origins, envNames, binding.Source())
+	fallback := binding.Source()
+
+	values, err := featureValues(cmd, provided, sources, origins, envNames, fallback)
 	if err != nil && !state.TolerateFeatureErrors {
 		return nil, err
 	}
@@ -390,68 +393,62 @@ func resolveFeatureGates(binding featureState, target any, cmd *spec.Command, cm
 }
 
 // unknownFeatureError reports a feature map key that names no declared
-// feature. A command-line key is a usage error; environment and configuration
-// keys classify under [ErrConfig] (#133) and name their source: the variable
-// for env, and the file and section for config, in the shape of the config
-// engine's unknown-field errors. A config suggestion is spelled in the app's
-// config key case, because that is how the file must spell it.
-func unknownFeatureError(cmdChain []*spec.Command, cmd *spec.Command, name string, source ValueSource, envName string, origin string) error {
+// feature. The environment key names its variable, and the config key names
+// its file and section in the shape of the config engine's unknown-field
+// errors. A config suggestion is spelled in the app's config key case, because
+// that is how the file must spell it.
+func unknownFeatureError(cmd *spec.Command, name string, source ValueSource, envName string, origin string) error {
 	var hint string
 
-	if suggestion := levenshtein.SuggestFor(casing.Kebab(name), cmd.FeatureNames()); suggestion != "" {
+	kebabName := casing.Kebab(name)
+	featureNames := cmd.FeatureNames()
+
+	if suggestion := levenshtein.SuggestFor(kebabName, featureNames); suggestion != "" {
 		if source == SourceConfig {
 			suggestion = cmd.ConfigSettings.KeyCase.Apply(suggestion)
 		}
 
-		hint = fmt.Sprintf(" (did you mean %q?)", suggestion)
+		hint = fmt.Sprintf("did you mean %q?", suggestion)
 	}
+
+	message := fmt.Sprintf("unknown feature %q", name)
+	featureOrigin := fromCommandLine
 
 	switch source {
 	case SourceEnv:
-		return &validationError{
-			msg:      fmt.Sprintf("unknown feature %q%s%s", name, sourceLocation(source, envName), hint),
-			source:   source,
-			cmdChain: cmdChain,
-		}
+		featureOrigin = valueOrigin{source: SourceEnv, name: envName}
 	case SourceConfig:
-		message := fmt.Sprintf("unknown feature %q", name)
+		featureOrigin = valueOrigin{source: SourceConfig}
+
 		if cmd.FeatureFlag != nil && cmd.FeatureFlag.ConfigKey != "-" {
-			message += fmt.Sprintf(" in section %q", spec.ConfigKeyPath(cmd.FeatureFlag, []*spec.Command{cmd}))
+			section := spec.ConfigKeyPath(cmd.FeatureFlag, []*spec.Command{cmd})
+			message += fmt.Sprintf(" in section %q", section)
 		}
 
 		if origin != "" {
 			message = fmt.Sprintf("config file %q: %s", origin, message)
 		}
-
-		return &validationError{
-			msg:      message + hint,
-			source:   source,
-			cmdChain: cmdChain,
-		}
 	default:
-		return &parseError{
-			msg:      fmt.Sprintf("unknown feature %q%s", name, hint),
-			cmdChain: cmdChain,
-			cause:    ErrParse,
-		}
+		// A command-line name keeps fromCommandLine.
+	}
+
+	return &inputError{
+		origin: featureOrigin,
+		msg:    message,
+		hint:   hint,
 	}
 }
 
 // invalidFeatureValueError reports a feature value that fails canonicalization.
-// The error inherits the value's source through valueErrorIsUsage: a
-// command-line value is a usage-class validation error (exit 2), while
-// environment-, configuration-, and default-sourced values classify under
-// [ErrConfig] (exit 1, no usage block). sourceName attributes env- and
-// config-sourced values in the message.
-func invalidFeatureValueError(cmdChain []*spec.Command, feature *spec.FeatureField, raw string, cause error, source ValueSource, sourceName string) error {
-	message := fmt.Sprintf("invalid value %q for feature %q%s: %v", raw, feature.Name, sourceLocation(source, sourceName), cause)
-
-	return &validationError{
-		msg:         message,
-		source:      source,
-		cmdChain:    cmdChain,
-		cause:       errInvalidValue,
-		valueShaped: true,
+// sourceName attributes env- and config-sourced values in the message, and the
+// reason follows the origin.
+func invalidFeatureValueError(feature *spec.FeatureField, raw string, cause error, source ValueSource, sourceName string) error {
+	return &inputError{
+		feature: feature.Name,
+		origin:  valueOrigin{source: source, name: sourceName},
+		msg:     fmt.Sprintf("invalid value %q", raw),
+		note:    cause.Error(),
+		cause:   cause,
 	}
 }
 
@@ -593,9 +590,11 @@ func collectPrunedSubtree(cmd *spec.Command, prefix string, featureExpr string, 
 // suggested member is ungated or is neither. A suggested flag is looked up on
 // every command of the chain, since the parser accepts ancestor flags; a
 // suggested subcommand belongs to the last command of the chain.
-func suggestedMemberFeature(unknown *parseError) string {
-	switch {
-	case errors.Is(unknown.cause, errUnknownFlag):
+func suggestedMemberFeature(unknown *UsageError) string {
+	switch unknown.suggestionKind {
+	case suggestionKindNone:
+		// No suggestion, so no member to look up.
+	case suggestionKindFlag:
 		for _, cmd := range unknown.cmdChain {
 			for _, flagSpec := range cmd.Flags {
 				if "--"+flagSpec.Name == unknown.suggestion {
@@ -603,7 +602,7 @@ func suggestedMemberFeature(unknown *parseError) string {
 				}
 			}
 		}
-	case errors.Is(unknown.cause, errUnknownCommand):
+	case suggestionKindCommand:
 		for _, subcommand := range unknown.cmdChain[len(unknown.cmdChain)-1].Subcommands {
 			if subcommand.Name == unknown.suggestion {
 				return subcommand.Feature
@@ -617,11 +616,9 @@ func suggestedMemberFeature(unknown *parseError) string {
 func validateSubcommandFeatures(cmdChain []*spec.Command, activeFeatures map[string]bool) error {
 	for _, subcommand := range cmdChain[1:] {
 		if subcommand.Feature != "" && !spec.MatchFeature(subcommand.Feature, activeFeatures) {
-			return &parseError{
-				msg:      fmt.Sprintf("command %q requires %s", subcommand.Name, spec.DescribeFeatureExpression(subcommand.Feature)),
-				cmdChain: cmdChain,
-				cause:    ErrParse,
-			}
+			required := spec.DescribeFeatureExpression(subcommand.Feature)
+
+			return usageErrorf(cmdChain, "command %q requires %s", subcommand.Name, required)
 		}
 	}
 
@@ -640,11 +637,9 @@ func checkFeatureFlagCLIRestrictions(flagValues map[*spec.Flag][]string, activeF
 
 	for _, flagSpec := range targets {
 		if flagSpec.Feature != "" && !spec.MatchFeature(flagSpec.Feature, activeFeatures) {
-			return &parseError{
-				msg:      fmt.Sprintf("flag '--%s' requires %s", flagSpec.Name, spec.DescribeFeatureExpression(flagSpec.Feature)),
-				cmdChain: cmdChain,
-				cause:    ErrParse,
-			}
+			required := spec.DescribeFeatureExpression(flagSpec.Feature)
+
+			return usageErrorf(cmdChain, "flag '--%s' requires %s", flagSpec.Name, required)
 		}
 	}
 
@@ -675,12 +670,17 @@ func checkFeatureConfigRestrictions(pruned []prunedFlag, configData *configdata.
 				continue
 			}
 
-			message := fmt.Sprintf("flag '--%s' requires %s", prunedMember.flag.Name, spec.DescribeFeatureExpression(prunedMember.featureExpr))
+			required := spec.DescribeFeatureExpression(prunedMember.featureExpr)
+
+			message := fmt.Sprintf("flag '--%s' requires %s", prunedMember.flag.Name, required)
 			if origin := configKeyOrigin(configData, key); origin != "" {
 				message = fmt.Sprintf("config file %q: %s", origin, message)
 			}
 
-			return &validationError{msg: message, source: SourceConfig}
+			return &inputError{
+				origin: valueOrigin{source: SourceConfig},
+				msg:    message,
+			}
 		}
 	}
 
