@@ -15,6 +15,7 @@ import (
 
 	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/decoder/json"
+	"github.com/conga-sh/conga/internal/errlines"
 )
 
 type FileExistingCLI struct {
@@ -232,7 +233,8 @@ func TestFileExistingValidation(t *testing.T) {
 
 		assert.Error(t, err)
 		assertNotUsageError(t, err)
-		assert.Equal(t, fmt.Sprintf("stat %s: no such file or directory for flag --input (from config key \"input\")", missing), err.Error())
+		assert.Equal(t, fmt.Sprintf("stat %s: no such file or directory for flag --input", missing), err.Error())
+		assert.Contains(t, fmt.Sprintf("%+v", err), `from: config key "input" in config file "`)
 	})
 
 	t.Run("slice elements validated with index context", func(t *testing.T) {
@@ -440,7 +442,8 @@ func TestFileGlobSchemaErrors(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.Equal(t, `struct FileGlobPathSeparatorCLI field Input: glob pattern "src/*.go" must not contain path separators (note: patterns match file names during completion traversal)`, err.Error())
+		assert.Equal(t, `struct FileGlobPathSeparatorCLI field Input: glob pattern "src/*.go" must not contain path separators`, err.Error())
+		assert.Equal(t, `patterns match file names during completion traversal`, errlines.Note(err))
 	})
 }
 
@@ -474,7 +477,8 @@ func TestFileExistingConfigValidation(t *testing.T) {
 
 		assert.Error(t, err)
 		assertNotUsageError(t, err)
-		assert.Equal(t, fmt.Sprintf("stat %s: no such file or directory for flag --input (from config key \"input\")", missing), err.Error())
+		assert.Equal(t, fmt.Sprintf("stat %s: no such file or directory for flag --input", missing), err.Error())
+		assert.Contains(t, fmt.Sprintf("%+v", err), `from: config key "input" in config file "`)
 	})
 }
 

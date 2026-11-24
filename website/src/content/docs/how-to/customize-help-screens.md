@@ -281,7 +281,8 @@ The flag still accepts only the listed values, and shell completion still offers
 
 ```sh error={2} wrap
 $ cloudctl deploy --region mars
-cloudctl: error: invalid value "mars" (must be one of: us-east-1, us-west-1, us-west-2, eu-west-1, eu-central-1) for flag --region
+cloudctl: error: invalid value "mars" for flag --region
+  note: accepted values: us-east-1, us-west-1, us-west-2, eu-west-1, eu-central-1
 ```
 
 `enumhint` accepts only `-`. Feature toggles hide the list for you, because the `Features:` section already shows every toggle.
@@ -335,9 +336,11 @@ Each of these mistakes stops the program at startup, before it reads any input, 
 
 Each full message names the struct and field:
 
-```text no-copy error={1-2} wrap
-cloudctl: error: struct CLI field Verbose: schema error: duplicate flag: built-in --help short flag -h collides with --verbose; assign a different rune to one of them
-cloudctl: error: struct DeployCmd field Port: schema error: invalid struct tag: tag "help" references unknown variable {{min}}; supported variables are {{range}}, {{len}}, {{items}}, {{enum}}, {{default}}, {{env}}
+```text no-copy error={1,3} wrap
+cloudctl: error: struct CLI field Verbose: built-in --help short flag -h collides with --verbose
+  hint: assign a different rune to one of them
+cloudctl: error: struct DeployCmd field Port: tag "help" references unknown variable {{min}}
+  note: supported variables are {{range}}, {{len}}, {{items}}, {{enum}}, {{default}}, {{env}}
 ```
 
 `conga-lint` reports the same mistakes before you build, and [How to lint schemas](/how-to/lint-schemas/) sets it up.

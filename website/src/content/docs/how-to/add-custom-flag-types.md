@@ -167,13 +167,14 @@ relay: error: "Checkout_API" does not match ^[a-z][a-z0-9-]*$ for flag --route
 A pattern that doesn't compile stops the program at startup, before it reads any flag (exit 1). Here the field was given `pattern:"^[a-z"`:
 
 ```text no-copy error={1} wrap
-relay: error: struct Relay field Route: schema error: invalid struct tag: tag "pattern": error parsing regexp: missing closing ]: `[a-z`
+relay: error: struct Relay field Route: tag "pattern": error parsing regexp: missing closing ]: `[a-z`
 ```
 
 A misspelled tag stops it the same way:
 
 ```text no-copy error={1} wrap
-relay: error: struct Relay field Route: schema error: invalid struct tag: unknown struct tag "patern" (did you mean "pattern"?). Use app.AllowTags("patern") to permit external tags
+relay: error: struct Relay field Route: unknown struct tag "patern"
+  hint: did you mean "pattern"? Use app.AllowTags("patern") to permit external tags
 ```
 
 ## Register a parser with `RegisterType`
@@ -286,8 +287,8 @@ A slice or map type that implements `UnmarshalText`, such as `net.IP`, is one va
 |---|---|---|
 | A value the parser or the type's unmarshaler rejects, from the command line | When the value is bound | Usage error naming the flag, exit 2 |
 | The same rejection from the environment or a config file | When the value is bound | Exit 1, naming the flag and source |
-| A misspelled custom tag, a tag value its `Validate` rejects, or a custom tag on a field of another type | Startup, on every run | `schema error: invalid struct tag`, exit 1 |
-| A field of a type with no parser, unmarshaler, or built-in support | Startup, on every run | `struct Relay field Allow: schema error: unsupported type net.IPNet; register a parser with app.RegisterType`, exit 1 |
+| A misspelled custom tag, a tag value its `Validate` rejects, or a custom tag on a field of another type | Startup, on every run | `struct Relay field Route: tag "pattern": …` for a tag value its `Validate` rejects, or `unknown struct tag "patern"` with a `hint:` line, exit 1 |
+| A field of a type with no parser, unmarshaler, or built-in support | Startup, on every run | `struct Relay field Allow: unsupported type net.IPNet`, with a `hint: register a parser with app.RegisterType` line, exit 1 |
 | A `TypeParser` for a slice or map type | `RegisterType`, on every run | Panic: `conga: RegisterType does not accept map type map[string]main.PortRange; maps bind entry by entry, so register the key or value type instead` |
 
 ## Where to go next

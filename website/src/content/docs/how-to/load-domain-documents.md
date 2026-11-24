@@ -232,7 +232,7 @@ A document combines with config files key by key. It wins the keys it sets, and 
 
 ## Know what users see when a document is wrong
 
-Any error that `Bootstrap` returns reaches the caller unchanged and exits 1, with no usage block. An `ExitCoder` chooses its own code. CONGA checks the settings themselves the way it checks a config file:
+Any error that `Bootstrap` returns comes back behind a `*conga.Error`, which keeps its text and type and is compared with `errors.Is` and `errors.As` ([the error `Run` returns](/reference/errors/#the-error-run-returns)). It exits 1, with no usage block. An `ExitCoder` chooses its own code. CONGA checks the settings themselves the way it checks a config file:
 
 | Situation | Result |
 |---|---|
@@ -240,14 +240,16 @@ Any error that `Bootstrap` returns reaches the caller unchanged and exits 1, wit
 | The default `pipeline.yaml` is missing | Flags keep their defaults with the check from [Let the default file be missing](#let-the-default-file-be-missing). Without it, or with `--pipeline` set, the error `Bootstrap` returned, exit 1 |
 | `--pipeline` names a pipeline the file lacks | The error `Bootstrap` returned, exit 1 |
 | The file is not valid YAML | The error `Bootstrap` returned, exit 1 |
-| `Set` names a key that matches no flag, or a `config:"-"` field | Error, exit 1, with a "did you mean" hint for typos |
+| `Set` names a key that matches no flag, or a `config:"-"` field | Error, exit 1, with a `hint:` line for typos |
 | A value outside `enum` or `range` (`log_level: loud`) | Error, exit 1, naming the key |
 
-```text no-copy error={1-4} wrap
+```text no-copy error={1,2,3,4} wrap
 bootstrapper: error: open nope.yaml: no such file or directory
 bootstrapper: error: pipeline.yaml has no pipeline "release"
 bootstrapper: error: parse broken.yaml: yaml: line 1: did not find expected ',' or ']'
-bootstrapper: error: invalid value "loud" (must be one of: debug, info, warn, error) for flag --log-level (from config key "log-level")
+bootstrapper: error: invalid value "loud" for flag --log-level
+  from: config key "log-level" set by pipeline.yaml
+  note: accepted values: debug, info, warn, error
 ```
 
 ## Where to go next

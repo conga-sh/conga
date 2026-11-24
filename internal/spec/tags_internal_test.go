@@ -11,6 +11,7 @@ import (
 
 	"github.com/alecthomas/assert/v2"
 
+	"github.com/conga-sh/conga/internal/errlines"
 	"github.com/conga-sh/conga/internal/intx"
 )
 
@@ -224,6 +225,8 @@ func TestValidateRangeSpec_TextDialects(t *testing.T) {
 		assert.Error(t, err)
 		assert.True(t, IsSchemaError(err))
 		assert.Equal(t, `invalid value min bound "bananaC"`, err.Error())
+		assert.NotEqual(t, "", errlines.Note(err))
+		assert.True(t, errors.Unwrap(err) != nil)
 	})
 
 	t.Run("unsigned dialect bounds above int64 max compare exactly", func(t *testing.T) {
@@ -550,7 +553,8 @@ func TestParseRangeSpec_TripleDotRejected(t *testing.T) {
 	_, err := ParseRangeSpec("1...5")
 
 	assert.True(t, IsSchemaError(err))
-	assert.Equal(t, `invalid range syntax "1...5" (note: expected min..max, min.., or ..max)`, err.Error())
+	assert.Equal(t, `invalid range syntax "1...5"`, err.Error())
+	assert.Equal(t, `expected min..max, min.., or ..max`, errlines.Note(err))
 }
 
 func TestSplitTagList(t *testing.T) {
@@ -690,7 +694,8 @@ func TestParseGlobPatterns(t *testing.T) {
 
 			assert.Error(t, err)
 			assert.True(t, IsSchemaError(err))
-			assert.Equal(t, `empty glob pattern element (note: expected comma-separated patterns like "Makefile,Dockerfile" or "*.yaml")`, err.Error())
+			assert.Equal(t, `empty glob pattern element`, err.Error())
+			assert.Equal(t, `expected comma-separated patterns like "Makefile,Dockerfile" or "*.yaml"`, errlines.Note(err))
 		}
 	})
 
@@ -701,7 +706,8 @@ func TestParseGlobPatterns(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.True(t, IsSchemaError(err))
-		assert.Equal(t, `glob pattern "src/*.go" must not contain path separators (note: patterns match file names during completion traversal)`, err.Error())
+		assert.Equal(t, `glob pattern "src/*.go" must not contain path separators`, err.Error())
+		assert.Equal(t, `patterns match file names during completion traversal`, errlines.Note(err))
 	})
 
 	t.Run("backslash path separator rejected with exact message", func(t *testing.T) {
@@ -711,7 +717,8 @@ func TestParseGlobPatterns(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.True(t, IsSchemaError(err))
-		assert.Equal(t, "glob pattern \"Make\\\\file\" must not contain path separators (note: patterns match file names during completion traversal)", err.Error())
+		assert.Equal(t, "glob pattern \"Make\\\\file\" must not contain path separators", err.Error())
+		assert.Equal(t, "patterns match file names during completion traversal", errlines.Note(err))
 	})
 
 	t.Run("malformed pattern rejected with exact message", func(t *testing.T) {
@@ -777,7 +784,8 @@ func TestParseBootstrapTag(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.True(t, IsSchemaError(err))
-		assert.Equal(t, `tag "bootstrap" requires the command or an ancestor command to implement conga.Bootstrapper (hint: implement Bootstrap(ctx context.Context, b *conga.Bootstrap) error or remove the tag)`, err.Error())
+		assert.Equal(t, `tag "bootstrap" requires the command or an ancestor command to implement conga.Bootstrapper`, err.Error())
+		assert.Equal(t, `implement Bootstrap(ctx context.Context, b *conga.Bootstrap) error or remove the tag`, errlines.Hint(err))
 	})
 
 	t.Run("rejects feature combination", func(t *testing.T) {
@@ -787,7 +795,8 @@ func TestParseBootstrapTag(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.True(t, IsSchemaError(err))
-		assert.Equal(t, `tag "bootstrap" cannot be combined with tag "feature" (note: the bootstrap phase runs before feature gates are resolved)`, err.Error())
+		assert.Equal(t, `tag "bootstrap" cannot be combined with tag "feature"`, err.Error())
+		assert.Equal(t, `the bootstrap phase runs before feature gates are resolved`, errlines.Note(err))
 	})
 
 	t.Run("accepted with Bootstrapper", func(t *testing.T) {
@@ -853,25 +862,32 @@ func TestIsBootstrapType(t *testing.T) {
 func TestSchemaError_FormattingAndUnwrap(t *testing.T) {
 	t.Parallel()
 
-	t.Run("owner and hint formatting", func(t *testing.T) {
+	t.Run("owner prefixes the message and the hint stays separate", func(t *testing.T) {
 		t.Parallel()
 
 		assert.Equal(t, "bad schema", schemaError("bad schema").Error())
-		assert.Equal(t, "bad schema (hint: fix it)", schemaError("bad schema").withHint("fix it").Error())
-		assert.Equal(t, "struct CLI: runner not implemented (hint: implement Run)", schemaError("runner not implemented").
+		assert.Equal(t, "bad schema", schemaError("bad schema").withHint("fix it").Error())
+		assert.Equal(t, "fix it", schemaError("bad schema").withHint("fix it").Hint())
+		assert.Equal(t, "struct CLI: runner not implemented", schemaError("runner not implemented").
 			ownedBy("CLI", "").
 			withHint("implement Run").Error())
-		assert.Equal(t, "struct CLI field Port: bad flag (hint: try this)", schemaError("bad flag").ownedBy("CLI", "Port").withHint("try this").Error())
+		assert.Equal(t, "struct CLI field Port: bad flag", schemaError("bad flag").ownedBy("CLI", "Port").withHint("try this").Error())
 	})
 
-	t.Run("note renders before the hint", func(t *testing.T) {
+	t.Run("note and hint stay separate from the message", func(t *testing.T) {
 		t.Parallel()
 
-		assert.Equal(t, "bad schema (note: why it fails)", schemaError("bad schema").withNote("why it fails").Error())
-		assert.Equal(t, "struct CLI field Port: bad flag (note: why it fails; hint: fix it)", schemaError("bad flag").
+		assert.Equal(t, "bad schema", schemaError("bad schema").withNote("why it fails").Error())
+		assert.Equal(t, "why it fails", schemaError("bad schema").withNote("why it fails").Note())
+
+		err := schemaError("bad flag").
 			ownedBy("CLI", "Port").
 			withHint("fix it").
-			withNote("why it fails").Error())
+			withNote("why it fails")
+
+		assert.Equal(t, "struct CLI field Port: bad flag", err.Error())
+		assert.Equal(t, "why it fails", err.Note())
+		assert.Equal(t, "fix it", err.Hint())
 	})
 
 	t.Run("accessors split the message, note, and hint", func(t *testing.T) {
@@ -891,11 +907,14 @@ func TestSchemaError_FormattingAndUnwrap(t *testing.T) {
 
 		unowned := schemaError("bad flag").withHint("fix it")
 		owned := WithOwner(unowned, "CLI", "Port")
-		assert.Equal(t, "struct CLI field Port: bad flag (hint: fix it)", owned.Error())
-		assert.Equal(t, "bad flag (hint: fix it)", unowned.Error())
+		assert.Equal(t, "struct CLI field Port: bad flag", owned.Error())
+		assert.Equal(t, "fix it", errlines.Hint(owned))
+		assert.Equal(t, "bad flag", unowned.Error())
+		assert.Equal(t, "fix it", errlines.Hint(unowned))
 
 		stillOwned := WithOwner(owned, "Other", "Field")
-		assert.Equal(t, "struct CLI field Port: bad flag (hint: fix it)", stillOwned.Error())
+		assert.Equal(t, "struct CLI field Port: bad flag", stillOwned.Error())
+		assert.Equal(t, "fix it", errlines.Hint(stillOwned))
 
 		plainCause := errors.New("raw error")
 		wrapped := WithOwner(plainCause, "CLI", "Port")
@@ -918,12 +937,51 @@ func TestSchemaError_FormattingAndUnwrap(t *testing.T) {
 		assert.True(t, IsSchemaError(badDefault))
 		_, hasIntegerCause := errors.AsType[*intx.Error](badDefault)
 		assert.True(t, hasIntegerCause)
-		assert.Equal(t, `feature "depth" default "02": must be an integer (hint: a leading zero is ambiguous: write 0o2 for octal or 2 for decimal)`, badDefault.Error())
+		assert.Equal(t, `feature "depth" default "02"`, badDefault.Error())
+		assert.Equal(t, `a leading zero is ambiguous`, errlines.Note(badDefault))
+		assert.Equal(t, `write 0o2 for octal or 2 for decimal`, errlines.Hint(badDefault))
 
 		badEnum := ValidateFeatureFieldTags(&FeatureField{Name: "depth", IsInt: true}, reflect.StructTag(`enum:"abc"`))
 		assert.True(t, IsSchemaError(badEnum))
 		_, hasEnumCause := errors.AsType[*intx.Error](badEnum)
 		assert.True(t, hasEnumCause)
-		assert.Equal(t, `feature enum value "abc": must be an integer`, badEnum.Error())
+		assert.Equal(t, `feature enum value "abc"`, badEnum.Error())
 	})
+}
+
+type tagPiecesError struct {
+	message string
+	note    string
+	hint    string
+}
+
+func (e *tagPiecesError) Error() string { return e.message }
+func (e *tagPiecesError) Note() string  { return e.note }
+func (e *tagPiecesError) Hint() string  { return e.hint }
+
+func TestParseStrictStringTag_PreservesNoteAndHint(t *testing.T) {
+	t.Parallel()
+
+	cause := &tagPiecesError{
+		message: "unknown unit",
+		note:    "accepted units: B, kB",
+		hint:    "use B or kB",
+	}
+
+	_, _, err := ParseStrictStringTag(reflect.StructTag(`units:"bad"`), TagSpec{
+		Name: "units",
+		Kind: TagKindString,
+		Validate: func(string) error {
+			return cause
+		},
+	})
+
+	assert.True(t, IsSchemaError(err))
+	assert.IsError(t, err, cause)
+	assert.Equal(t, `tag "units": unknown unit`, err.Error())
+
+	schemaErr, ok := errors.AsType[*SchemaError](err)
+	assert.True(t, ok)
+	assert.Equal(t, "accepted units: B, kB", schemaErr.Note())
+	assert.Equal(t, "use B or kB", schemaErr.Hint())
 }

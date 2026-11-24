@@ -4,6 +4,8 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+
+	"github.com/conga-sh/conga/internal/errlines"
 )
 
 const (
@@ -172,7 +174,10 @@ func ParseStrictStringTag(tag reflect.StructTag, tagSpec TagSpec) (string, bool,
 				return "", false, err
 			}
 
-			return "", false, schemaErrorf("tag %q: %s", tagSpec.Name, err).withCause(err)
+			return "", false, schemaErrorf("tag %q: %s", tagSpec.Name, err).
+				withNote(errlines.Note(err)).
+				withHint(errlines.Hint(err)).
+				withCause(err)
 		}
 	}
 

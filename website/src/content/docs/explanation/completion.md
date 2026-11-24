@@ -36,7 +36,8 @@ The shell offers `HUP`, `INT`, and `TERM` for `--signal`, each with the descript
 
 ```sh error={2}
 $ cloudctl stop --signal SIGINT
-cloudctl: error: invalid value "SIGINT" (must be one of: TERM, INT, HUP) for flag --signal
+cloudctl: error: invalid value "SIGINT" for flag --signal
+  note: accepted values: TERM, INT, HUP
 ```
 
 ## When predictors run

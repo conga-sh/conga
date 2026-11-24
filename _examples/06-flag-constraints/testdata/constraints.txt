@@ -59,7 +59,7 @@ stderr 'value 2GiB is out of range \[1MiB\.\.1GiB\] for flag --memory'
 
 # 12. Enum violation
 exit-status 2 flag-constraints -k s3cr3t-key --env local
-stderr 'must be one of'
+stderr 'accepted values: dev, staging, prod'
 
 # 13. Collection bounds violation (4 items > max 3)
 exit-status 2 flag-constraints -k s3cr3t-key -z us-east,us-west,eu-west,ap-south

@@ -16,6 +16,7 @@ import (
 	"github.com/conga-sh/conga/decoder/json"
 	"github.com/conga-sh/conga/decoder/toml"
 	"github.com/conga-sh/conga/decoder/yaml"
+	"github.com/conga-sh/conga/internal/errlines"
 )
 
 var (
@@ -174,7 +175,9 @@ func TestConfigValues_TOMLLocalDatetimeRejectedForTime(t *testing.T) {
 	err := app.Run()
 
 	assertNotUsageError(t, err)
-	assert.Equal(t, `invalid time "1979-05-27T07:32:00" (expected RFC 3339, e.g. 2006-01-02T15:04:05Z) for flag --when (from config key "when")`, err.Error())
+	assert.Equal(t, `invalid time "1979-05-27T07:32:00" for flag --when`, err.Error())
+	assert.Equal(t, `expected RFC 3339, e.g. 2006-01-02T15:04:05Z`, errlines.Note(err))
+	assert.Contains(t, fmt.Sprintf("%+v", err), `from: config key "when"`)
 	assert.Equal(t, conga.SourceNone, cli.When.Source())
 	assert.True(t, cli.When.Get().IsZero())
 }
@@ -192,7 +195,9 @@ func TestConfigValues_TOMLLocalDateRejectedForTime(t *testing.T) {
 	err := app.Run()
 
 	assertNotUsageError(t, err)
-	assert.Equal(t, `invalid time "1979-05-27" (expected RFC 3339, e.g. 2006-01-02T15:04:05Z) for flag --when (from config key "when")`, err.Error())
+	assert.Equal(t, `invalid time "1979-05-27" for flag --when`, err.Error())
+	assert.Equal(t, `expected RFC 3339, e.g. 2006-01-02T15:04:05Z`, errlines.Note(err))
+	assert.Contains(t, fmt.Sprintf("%+v", err), `from: config key "when"`)
 	assert.Equal(t, conga.SourceNone, cli.When.Source())
 	assert.True(t, cli.When.Get().IsZero())
 }

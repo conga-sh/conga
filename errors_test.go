@@ -20,6 +20,7 @@ import (
 
 	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/decoder/json"
+	"github.com/conga-sh/conga/internal/errlines"
 	"github.com/conga-sh/conga/internal/help"
 	"github.com/conga-sh/conga/internal/spec"
 	"github.com/conga-sh/conga/predict"
@@ -348,7 +349,8 @@ func TestCoercionErrorCounterRender(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assertNotUsageError(t, err)
-	assert.Equal(t, `invalid unsigned integer value "abc" for flag --count (from config key "count")`, err.Error())
+	assert.Equal(t, `invalid unsigned integer value "abc" for flag --count`, err.Error())
+	assert.Contains(t, fmt.Sprintf("%+v", err), `from: config key "count"`)
 }
 
 func TestSchemaErrorUnsupportedType(t *testing.T) {
@@ -358,7 +360,8 @@ func TestSchemaErrorUnsupportedType(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.Equal(t, "struct UnsupportedTypeCLI field Channel: unsupported type chan int (hint: register a parser with app.RegisterType)", err.Error())
+	assert.Equal(t, "struct UnsupportedTypeCLI field Channel: unsupported type chan int", err.Error())
+	assert.Equal(t, "register a parser with app.RegisterType", errlines.Hint(err))
 }
 
 func TestCoercionErrorByteSizeRender(t *testing.T) {
@@ -369,7 +372,8 @@ func TestCoercionErrorByteSizeRender(t *testing.T) {
 
 	assert.Error(t, err)
 	assertUsageError(t, err)
-	assert.Equal(t, `unknown byte size unit "ZB" in "10ZB" (accepted: B, kB, MB, GB, TB, PB, EB, KiB, MiB, GiB, TiB, PiB, EiB) for flag --max-memory`, err.Error())
+	assert.Equal(t, `unknown byte size unit "ZB" in "10ZB" for flag --max-memory`, err.Error())
+	assert.Equal(t, `accepted units: B, kB, MB, GB, TB, PB, EB, KiB, MiB, GiB, TiB, PiB, EiB`, errlines.Note(err))
 }
 
 func TestCoercionErrorByteSizeAmbiguousUnitRender(t *testing.T) {
@@ -380,7 +384,8 @@ func TestCoercionErrorByteSizeAmbiguousUnitRender(t *testing.T) {
 
 	assert.Error(t, err)
 	assertUsageError(t, err)
-	assert.Equal(t, `ambiguous byte size unit "KB" in "10KB": use kB (1000) or KiB (1024) for flag --max-memory`, err.Error())
+	assert.Equal(t, `ambiguous byte size unit "KB" in "10KB" for flag --max-memory`, err.Error())
+	assert.Equal(t, `use kB (1000) or KiB (1024)`, errlines.Hint(err))
 }
 
 // classificationCLI declares one field per value-failure shape exercised by
@@ -520,6 +525,9 @@ func TestErrorClassificationBySource(t *testing.T) {
 		name          string
 		run           func(t *testing.T) classificationRunResult
 		message       string
+		from          []string // a prefix of each origin line, in order
+		note          string
+		hint          string
 		causeType     string
 		usage         bool
 		exitCode      int
@@ -539,7 +547,8 @@ func TestErrorClassificationBySource(t *testing.T) {
 
 				return runClassification(t, conga.New[CLI]().Args([]string{}))
 			},
-			message:    `value 5000 is out of range [1..1000] for argument [count] (from default value)`,
+			message:    `value 5000 is out of range [1..1000] for argument [count]`,
+			from:       []string{`default value`},
 			causeType:  "",
 			usage:      false,
 			exitCode:   1,
@@ -567,7 +576,8 @@ func TestErrorClassificationBySource(t *testing.T) {
 					ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"in": "`+dirPath+`"}`))).
 					Args([]string{}))
 			},
-			message:    fmt.Sprintf("%q is a directory, but a file was expected for flag --in (from config key \"in\")", dirPath),
+			message:    fmt.Sprintf("%q is a directory, but a file was expected for flag --in", dirPath),
+			from:       []string{`config key "in"`},
 			causeType:  "*conga.pathKindError",
 			usage:      false,
 			exitCode:   1,
@@ -595,7 +605,8 @@ func TestErrorClassificationBySource(t *testing.T) {
 
 				return runClassification(t, classificationApp())
 			},
-			message:    fmt.Sprintf("stat %s: no such file or directory for flag --in (from environment variable APP_IN)", missingPath),
+			message:    fmt.Sprintf("stat %s: no such file or directory for flag --in", missingPath),
+			from:       []string{`environment variable APP_IN`},
 			causeType:  "*fs.PathError",
 			usage:      false,
 			exitCode:   1,
@@ -691,7 +702,9 @@ func TestErrorClassificationBySource(t *testing.T) {
 
 				return runClassification(t, classificationApp())
 			},
-			message:    `invalid key-value pair "novalue", expected KEY=VALUE for flag --labels (from environment variable APP_LABELS)`,
+			message:    `invalid key-value pair "novalue" for flag --labels`,
+			from:       []string{`environment variable APP_LABELS`},
+			note:       `expected KEY=VALUE`,
 			causeType:  "*coerce.mapPairError",
 			usage:      false,
 			exitCode:   1,
@@ -721,7 +734,9 @@ func TestErrorClassificationBySource(t *testing.T) {
 					ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"experiments": {"level": 7}}`))).
 					Args([]string{}))
 			},
-			message:    `invalid value "7" for feature "level" (from config key "experiments.level"): must be one of: 0, 1, 2`,
+			message:    `invalid value "7" for feature "level"`,
+			from:       []string{`config key "experiments.level"`},
+			note:       `accepted values: 0, 1, 2`,
 			causeType:  "*spec.featureValueError",
 			usage:      false,
 			exitCode:   1,
@@ -738,7 +753,9 @@ func TestErrorClassificationBySource(t *testing.T) {
 					EnableFeatures().
 					Args([]string{}))
 			},
-			message:    `invalid value "7" for feature "level" (from environment variable APP_FEATURES): must be one of: 0, 1, 2`,
+			message:    `invalid value "7" for feature "level"`,
+			from:       []string{`environment variable APP_FEATURES`},
+			note:       `accepted values: 0, 1, 2`,
 			causeType:  "*spec.featureValueError",
 			usage:      false,
 			exitCode:   1,
@@ -758,7 +775,8 @@ func TestErrorClassificationBySource(t *testing.T) {
 					ConfigOptions(conga.ConfigExplicit("config.json")).
 					Args([]string{}))
 			},
-			message:    `config file "config.json": unknown feature "bogus" in section "experiments"`,
+			message:    `unknown feature "bogus" in section "experiments"`,
+			from:       []string{`config file "`},
 			causeType:  "",
 			usage:      false,
 			exitCode:   1,
@@ -775,7 +793,8 @@ func TestErrorClassificationBySource(t *testing.T) {
 					EnableFeatures().
 					Args([]string{}))
 			},
-			message:    `unknown feature "bogus" (from environment variable APP_FEATURES)`,
+			message:    `unknown feature "bogus"`,
+			from:       []string{`environment variable APP_FEATURES`},
 			causeType:  "",
 			usage:      false,
 			exitCode:   1,
@@ -790,7 +809,8 @@ func TestErrorClassificationBySource(t *testing.T) {
 					EnableFeatures().
 					Args([]string{"--features", "level=7"}))
 			},
-			message:    `invalid value "7" for feature "level": must be one of: 0, 1, 2`,
+			message:    `invalid value "7" for feature "level"`,
+			note:       `accepted values: 0, 1, 2`,
 			causeType:  "*spec.featureValueError",
 			usage:      true,
 			exitCode:   2,
@@ -819,7 +839,8 @@ func TestErrorClassificationBySource(t *testing.T) {
 
 				return runClassification(t, conga.New[classificationDefaultFileCLI]().Args([]string{}))
 			},
-			message:    `stat /nonexistent-conga-test/missing.txt: no such file or directory for flag --in (from default value)`,
+			message:    `stat /nonexistent-conga-test/missing.txt: no such file or directory for flag --in`,
+			from:       []string{`default value`},
 			causeType:  "*fs.PathError",
 			usage:      false,
 			exitCode:   1,
@@ -848,7 +869,8 @@ func TestErrorClassificationBySource(t *testing.T) {
 
 				return runClassification(t, conga.New[classificationXorCLI]().Args([]string{}))
 			},
-			message:    `flags --fast (from environment variable APP_FAST) and --slow (from environment variable APP_SLOW) are mutually exclusive`,
+			message:    `flags --fast and --slow are mutually exclusive`,
+			from:       []string{`--fast: environment variable APP_FAST`, `--slow: environment variable APP_SLOW`},
 			causeType:  "",
 			usage:      false,
 			exitCode:   1,
@@ -864,7 +886,8 @@ func TestErrorClassificationBySource(t *testing.T) {
 					ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"fast": true, "slow": true}`))).
 					Args([]string{}))
 			},
-			message:    `flags --fast (from config key "fast") and --slow (from config key "slow") are mutually exclusive`,
+			message:    `flags --fast and --slow are mutually exclusive`,
+			from:       []string{`--fast: config key "fast"`, `--slow: config key "slow"`},
 			causeType:  "",
 			usage:      false,
 			exitCode:   1,
@@ -879,7 +902,8 @@ func TestErrorClassificationBySource(t *testing.T) {
 
 				return runClassification(t, conga.New[classificationXorCLI]().Args([]string{"--fast"}))
 			},
-			message:    `flags --fast and --slow (from environment variable APP_SLOW) are mutually exclusive`,
+			message:    `flags --fast and --slow are mutually exclusive`,
+			from:       []string{`--slow: environment variable APP_SLOW`},
 			causeType:  "",
 			usage:      true,
 			exitCode:   2,
@@ -908,7 +932,8 @@ func TestErrorClassificationBySource(t *testing.T) {
 
 				return runClassification(t, conga.New[classificationOneOfCLI]().Args([]string{}))
 			},
-			message:    `flags --json (from environment variable APP_JSON) and --yaml (from environment variable APP_YAML) are mutually exclusive`,
+			message:    `flags --json and --yaml are mutually exclusive`,
+			from:       []string{`--json: environment variable APP_JSON`, `--yaml: environment variable APP_YAML`},
 			causeType:  "",
 			usage:      false,
 			exitCode:   1,
@@ -924,7 +949,8 @@ func TestErrorClassificationBySource(t *testing.T) {
 					ConfigOptions(conga.ConfigExplicit(writeConfigFile(t, `{"json": true, "yaml": true}`))).
 					Args([]string{}))
 			},
-			message:    `flags --json (from config key "json") and --yaml (from config key "yaml") are mutually exclusive`,
+			message:    `flags --json and --yaml are mutually exclusive`,
+			from:       []string{`--json: config key "json"`, `--yaml: config key "yaml"`},
 			causeType:  "",
 			usage:      false,
 			exitCode:   1,
@@ -939,7 +965,8 @@ func TestErrorClassificationBySource(t *testing.T) {
 
 				return runClassification(t, conga.New[classificationOneOfCLI]().Args([]string{"--json"}))
 			},
-			message:    `flags --json and --yaml (from environment variable APP_YAML) are mutually exclusive`,
+			message:    `flags --json and --yaml are mutually exclusive`,
+			from:       []string{`--yaml: environment variable APP_YAML`},
 			causeType:  "",
 			usage:      true,
 			exitCode:   2,
@@ -967,7 +994,8 @@ func TestErrorClassificationBySource(t *testing.T) {
 
 				return runClassification(t, conga.New[classificationAndCLI]().Args([]string{}))
 			},
-			message:    `flag --user (from environment variable APP_USER) must be given together with --pass`,
+			message:    `flag --user must be given together with --pass`,
+			from:       []string{`--user: environment variable APP_USER`},
 			causeType:  "",
 			usage:      false,
 			exitCode:   1,
@@ -980,7 +1008,8 @@ func TestErrorClassificationBySource(t *testing.T) {
 
 				return runClassification(t, conga.New[classificationNoRunnerCLI]().Args([]string{}))
 			},
-			message:    `struct classificationNoRunnerCLI: runner not implemented (hint: implement conga.Runner: Run(context.Context, *conga.Session) error)`,
+			message:    `struct classificationNoRunnerCLI: runner not implemented`,
+			hint:       `implement conga.Runner: Run(context.Context, *conga.Session) error`,
 			causeType:  "",
 			usage:      false,
 			exitCode:   1,
@@ -1003,7 +1032,29 @@ func TestErrorClassificationBySource(t *testing.T) {
 			assert.Equal(t, testCase.usage, isUsage)
 			assert.Equal(t, testCase.exitCode, result.exitCode)
 			assert.Equal(t, testCase.causeType, causeTypeOf(result.err))
+			assert.Equal(t, testCase.note, errlines.Note(result.err))
+			assert.Equal(t, testCase.hint, errlines.Hint(result.err))
+
+			origins := errlines.Origins(result.err)
+
+			assert.Equal(t, len(testCase.from), len(origins))
+
 			expectedPrefix := "app: error: " + testCase.message + "\n"
+
+			for index, from := range testCase.from {
+				assert.True(t, strings.HasPrefix(origins[index], from))
+
+				expectedPrefix += "  from: " + origins[index] + "\n"
+			}
+
+			if testCase.note != "" {
+				expectedPrefix += "  note: " + testCase.note + "\n"
+			}
+
+			if testCase.hint != "" {
+				expectedPrefix += "  hint: " + testCase.hint + "\n"
+			}
+
 			assert.True(t, strings.HasPrefix(result.output, expectedPrefix))
 			assert.Equal(t, testCase.usageShown, strings.Contains(result.output, "\nUsage:\n"))
 
@@ -1034,7 +1085,8 @@ func TestConfigKeyPath_AncestorFlagOnSubcommand(t *testing.T) {
 		err := newApp(t, `{"port": "abc"}`).Run()
 
 		assertNotUsageError(t, err)
-		assert.Equal(t, `invalid integer value "abc" for flag --port (from config key "port")`, err.Error())
+		assert.Equal(t, `invalid integer value "abc" for flag --port`, err.Error())
+		assert.Contains(t, fmt.Sprintf("%+v", err), `from: config key "port"`)
 	})
 
 	t.Run("self validation", func(t *testing.T) {
@@ -1043,7 +1095,8 @@ func TestConfigKeyPath_AncestorFlagOnSubcommand(t *testing.T) {
 		err := newApp(t, fmt.Sprintf(`{"in": %q}`, missing)).Run()
 
 		assertNotUsageError(t, err)
-		assert.Equal(t, fmt.Sprintf("stat %s: no such file or directory for flag --in (from config key \"in\")", missing), err.Error())
+		assert.Equal(t, fmt.Sprintf("stat %s: no such file or directory for flag --in", missing), err.Error())
+		assert.Contains(t, fmt.Sprintf("%+v", err), `from: config key "in" in config file "`)
 	})
 
 	t.Run("map entry", func(t *testing.T) {
@@ -1052,7 +1105,8 @@ func TestConfigKeyPath_AncestorFlagOnSubcommand(t *testing.T) {
 		err := newApp(t, `{"counts": {"a": "abc"}}`).Run()
 
 		assertNotUsageError(t, err)
-		assert.Equal(t, `value for key "a": invalid integer value "abc" for flag --counts (from config key "counts")`, err.Error())
+		assert.Equal(t, `value for key "a": invalid integer value "abc" for flag --counts`, err.Error())
+		assert.Contains(t, fmt.Sprintf("%+v", err), `from: config key "counts"`)
 	})
 }
 
@@ -1079,7 +1133,8 @@ func TestErrorClassificationDefaultCoercion(t *testing.T) {
 		result := runClassification(t, conga.New[CLI]().Args([]string{}))
 
 		assert.Error(t, result.err)
-		assert.Equal(t, `invalid integer value "abc" for flag --port (from default value)`, result.err.Error())
+		assert.Equal(t, `invalid integer value "abc" for flag --port`, result.err.Error())
+		assert.Contains(t, fmt.Sprintf("%+v", result.err), `from: default value`)
 		assertNotUsageError(t, result.err)
 		assert.Equal(t, 1, result.exitCode)
 	})
@@ -1096,7 +1151,8 @@ func TestErrorClassificationDefaultCoercion(t *testing.T) {
 		result := runClassification(t, conga.New[CLI]().Args([]string{}))
 
 		assert.Error(t, result.err)
-		assert.Equal(t, `invalid integer value "abc" for argument [count] (from default value)`, result.err.Error())
+		assert.Equal(t, `invalid integer value "abc" for argument [count]`, result.err.Error())
+		assert.Contains(t, fmt.Sprintf("%+v", result.err), `from: default value`)
 		assertNotUsageError(t, result.err)
 		assert.Equal(t, 1, result.exitCode)
 	})
@@ -1117,7 +1173,8 @@ func TestErrorClassificationDefaultCoercion(t *testing.T) {
 		result := runClassification(t, conga.New[CLI]().Args([]string{}))
 
 		assert.Error(t, result.err)
-		assert.Equal(t, `stat /nonexistent-conga-test/missing.txt: no such file or directory for argument [in] (from default value)`, result.err.Error())
+		assert.Equal(t, `stat /nonexistent-conga-test/missing.txt: no such file or directory for argument [in]`, result.err.Error())
+		assert.Contains(t, fmt.Sprintf("%+v", result.err), `from: default value`)
 		assertNotUsageError(t, result.err)
 		assert.Equal(t, 1, result.exitCode)
 	})
@@ -1158,7 +1215,8 @@ func TestErrorClassificationCauseReachable(t *testing.T) {
 			Args([]string{}))
 
 		assert.Error(t, result.err)
-		assert.Equal(t, `custom config unmarshal failure for flag --custom (from config key "custom")`, result.err.Error())
+		assert.Equal(t, `custom config unmarshal failure for flag --custom`, result.err.Error())
+		assert.Contains(t, fmt.Sprintf("%+v", result.err), `from: config key "custom"`)
 		assertNotUsageError(t, result.err)
 
 		var unmarshalErr *classificationUnmarshalError
@@ -1191,7 +1249,7 @@ func TestErrorClassificationCauseReachable(t *testing.T) {
 
 		assertUsageError(t, result.err)
 		assert.Equal(t, `invalid integer value "abc" for flag --port`, result.err.Error())
-		assert.Equal(t, `invalid integer value "abc"`, errors.Unwrap(result.err).Error())
+		assert.Equal(t, `invalid integer value "abc"`, errors.Unwrap(errors.Unwrap(result.err)).Error())
 
 		assert.IsError(t, result.err, strconv.ErrSyntax)
 	})
@@ -1370,7 +1428,7 @@ func TestHookErrorsPassThrough(t *testing.T) {
 	t.Parallel()
 
 	for _, stage := range []string{"PreRun", "Run", "PostRun"} {
-		t.Run(stage+" error comes back as returned", func(t *testing.T) {
+		t.Run(stage+" error keeps its text behind the Error", func(t *testing.T) {
 			t.Parallel()
 
 			hookErr := &hookPassThroughError{message: stage + " failed"}
@@ -1379,7 +1437,7 @@ func TestHookErrorsPassThrough(t *testing.T) {
 				Args([]string{}).
 				RunContext(context.WithValue(t.Context(), hookFailureContextKey{}, hookFailure{stage: stage, err: hookErr}))
 
-			assert.True(t, err == hookErr) //nolint:errorlint // identity, not errors.Is, is the property under test
+			assert.IsError(t, err, hookErr)
 			assert.Equal(t, stage+" failed", err.Error())
 			assertNotUsageError(t, err)
 			assert.False(t, spec.IsSchemaError(err))
@@ -1424,7 +1482,8 @@ func TestDomainTypeErrorsAreRootErrors(t *testing.T) {
 	err := size.UnmarshalText([]byte("10ZB"))
 	assertNotUsageError(t, err)
 	assert.Equal(t, nil, errors.Unwrap(err))
-	assert.Equal(t, `unknown byte size unit "ZB" in "10ZB" (accepted: B, kB, MB, GB, TB, PB, EB, KiB, MiB, GiB, TiB, PiB, EiB)`, err.Error())
+	assert.Equal(t, `unknown byte size unit "ZB" in "10ZB"`, err.Error())
+	assert.Equal(t, `accepted units: B, kB, MB, GB, TB, PB, EB, KiB, MiB, GiB, TiB, PiB, EiB`, errlines.Note(err))
 }
 
 func TestUsageError_NotReturnedForSchemaOrPlainErrors(t *testing.T) {
@@ -1508,7 +1567,8 @@ func TestErrNoRunner(t *testing.T) {
 		assert.Error(t, err)
 		assertNotUsageError(t, err)
 		assert.True(t, spec.IsSchemaError(err))
-		assert.Equal(t, `struct CLI: runner not implemented (hint: implement conga.Runner: Run(context.Context, *conga.Session) error)`, err.Error())
+		assert.Equal(t, `struct CLI: runner not implemented`, err.Error())
+		assert.Equal(t, `implement conga.Runner: Run(context.Context, *conga.Session) error`, errlines.Hint(err))
 	})
 
 	t.Run("subcommand without Run", func(t *testing.T) {
@@ -1529,7 +1589,8 @@ func TestErrNoRunner(t *testing.T) {
 		assert.Error(t, err)
 		assertNotUsageError(t, err)
 		assert.True(t, spec.IsSchemaError(err))
-		assert.Equal(t, `struct ChildCmd: runner not implemented (hint: implement conga.Runner: Run(context.Context, *conga.Session) error)`, err.Error())
+		assert.Equal(t, `struct ChildCmd: runner not implemented`, err.Error())
+		assert.Equal(t, `implement conga.Runner: Run(context.Context, *conga.Session) error`, errlines.Hint(err))
 	})
 
 	t.Run("nested subcommand without Run", func(t *testing.T) {
@@ -1554,7 +1615,8 @@ func TestErrNoRunner(t *testing.T) {
 		assert.Error(t, err)
 		assertNotUsageError(t, err)
 		assert.True(t, spec.IsSchemaError(err))
-		assert.Equal(t, `struct LeafCmd: runner not implemented (hint: implement conga.Runner: Run(context.Context, *conga.Session) error)`, err.Error())
+		assert.Equal(t, `struct LeafCmd: runner not implemented`, err.Error())
+		assert.Equal(t, `implement conga.Runner: Run(context.Context, *conga.Session) error`, errlines.Hint(err))
 	})
 }
 
@@ -1576,7 +1638,8 @@ func TestSubcommandTypoSuggestion_Issue10(t *testing.T) {
 
 	assert.Error(t, err)
 	assertUsageError(t, err)
-	assert.Equal(t, `unknown command: clustr (did you mean "cluster"?)`, err.Error())
+	assert.Equal(t, `unknown command: clustr`, err.Error())
+	assert.Equal(t, `did you mean cluster?`, errlines.Hint(err))
 }
 
 func TestSubcommandRequired_Issue11(t *testing.T) {
@@ -2163,7 +2226,8 @@ func TestSchemaFlagCollisions_Issue05(t *testing.T) {
 
 		_, err := spec.Build(&cli, "app", conga.SpecOptionsWithContainers(spec.Options{}))
 		assert.Error(t, err)
-		assert.Equal(t, "struct DuplicateLongCLI field AltPort: duplicate flag --port (note: already declared by field Port)", err.Error())
+		assert.Equal(t, "struct DuplicateLongCLI field AltPort: duplicate flag --port", err.Error())
+		assert.Equal(t, "already declared by field Port", errlines.Note(err))
 	})
 
 	t.Run("duplicate short flag rune", func(t *testing.T) {
@@ -2178,7 +2242,8 @@ func TestSchemaFlagCollisions_Issue05(t *testing.T) {
 
 		_, err := spec.Build(&cli, "app", conga.SpecOptionsWithContainers(spec.Options{}))
 		assert.Error(t, err)
-		assert.Equal(t, "struct DuplicateShortCLI field Profile: duplicate short flag -p (note: already declared by field Port)", err.Error())
+		assert.Equal(t, "struct DuplicateShortCLI field Profile: duplicate short flag -p", err.Error())
+		assert.Equal(t, "already declared by field Port", errlines.Note(err))
 	})
 
 	t.Run("duplicate flag alias", func(t *testing.T) {
@@ -2193,7 +2258,8 @@ func TestSchemaFlagCollisions_Issue05(t *testing.T) {
 
 		_, err := spec.Build(&cli, "app", conga.SpecOptionsWithContainers(spec.Options{}))
 		assert.Error(t, err)
-		assert.Equal(t, "struct DuplicateAliasCLI field Trace: duplicate flag alias --debug (note: already declared by field Verbose)", err.Error())
+		assert.Equal(t, "struct DuplicateAliasCLI field Trace: duplicate flag alias --debug", err.Error())
+		assert.Equal(t, "already declared by field Verbose", errlines.Note(err))
 	})
 
 	t.Run("duplicate subcommand name and alias", func(t *testing.T) {
@@ -2210,7 +2276,8 @@ func TestSchemaFlagCollisions_Issue05(t *testing.T) {
 
 		_, err := spec.Build(&cli, "app", conga.SpecOptionsWithContainers(spec.Options{}))
 		assert.Error(t, err)
-		assert.Equal(t, `struct DuplicateSubCLI field Subcommand2: duplicate subcommand "deploy" (note: already declared by field Subcommand1)`, err.Error())
+		assert.Equal(t, `struct DuplicateSubCLI field Subcommand2: duplicate subcommand "deploy"`, err.Error())
+		assert.Equal(t, `already declared by field Subcommand1`, errlines.Note(err))
 	})
 
 	t.Run("sibling subcommands flag sharing is allowed", func(t *testing.T) {
@@ -2287,7 +2354,8 @@ func TestSchemaFlagCollisions_Issue05(t *testing.T) {
 
 		_, err := spec.Build(&cli, "app", conga.SpecOptionsWithContainers(spec.Options{}))
 		assert.Error(t, err)
-		assert.Equal(t, `struct ChildCmd field Verbose: duplicate flag --verbose (note: already declared by struct Depth2ShadowCLI field Verbose on an ancestor command)`, err.Error())
+		assert.Equal(t, `struct ChildCmd field Verbose: duplicate flag --verbose`, err.Error())
+		assert.Equal(t, `already declared by struct Depth2ShadowCLI field Verbose on an ancestor command`, errlines.Note(err))
 	})
 
 	t.Run("subcommand flag shadowing ancestor is rejected", func(t *testing.T) {
@@ -2306,7 +2374,8 @@ func TestSchemaFlagCollisions_Issue05(t *testing.T) {
 
 		_, err := spec.Build(&cli, "app", conga.SpecOptionsWithContainers(spec.Options{}))
 		assert.Error(t, err)
-		assert.Equal(t, `struct ServerCmd field Port: duplicate flag --port (note: already declared by struct ShadowCLI field Port on an ancestor command)`, err.Error())
+		assert.Equal(t, `struct ServerCmd field Port: duplicate flag --port`, err.Error())
+		assert.Equal(t, `already declared by struct ShadowCLI field Port on an ancestor command`, errlines.Note(err))
 	})
 
 	t.Run("subcommand short flag shadowing ancestor is rejected", func(t *testing.T) {
@@ -2325,7 +2394,8 @@ func TestSchemaFlagCollisions_Issue05(t *testing.T) {
 
 		_, err := spec.Build(&cli, "app", conga.SpecOptionsWithContainers(spec.Options{}))
 		assert.Error(t, err)
-		assert.Equal(t, `struct ServerCmd field Verbose: duplicate flag --verbose (note: already declared by struct ShadowShortCLI field Verbose on an ancestor command)`, err.Error())
+		assert.Equal(t, `struct ServerCmd field Verbose: duplicate flag --verbose`, err.Error())
+		assert.Equal(t, `already declared by struct ShadowShortCLI field Verbose on an ancestor command`, errlines.Note(err))
 	})
 
 	t.Run("parent flag and subcommand with same name coexists", func(t *testing.T) {
@@ -2392,7 +2462,8 @@ func TestSchemaFlagCollisions_Issue05(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.Equal(t, `struct BuiltinHelpShortCLI field Host: built-in --help short flag -h collides with --host (hint: assign a different rune to one of them)`, err.Error())
+		assert.Equal(t, `struct BuiltinHelpShortCLI field Host: built-in --help short flag -h collides with --host`, err.Error())
+		assert.Equal(t, `assign a different rune to one of them`, errlines.Hint(err))
 	})
 
 	t.Run("built-in version short colliding with a user short is rejected", func(t *testing.T) {
@@ -2411,7 +2482,8 @@ func TestSchemaFlagCollisions_Issue05(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.Equal(t, `struct BuiltinVersionShortCLI field Verbose: built-in --version short flag -V collides with --verbose (hint: assign a different rune to one of them)`, err.Error())
+		assert.Equal(t, `struct BuiltinVersionShortCLI field Verbose: built-in --version short flag -V collides with --verbose`, err.Error())
+		assert.Equal(t, `assign a different rune to one of them`, errlines.Hint(err))
 	})
 
 	t.Run("built-in help and version shorts colliding with each other is rejected", func(t *testing.T) {
@@ -2428,7 +2500,8 @@ func TestSchemaFlagCollisions_Issue05(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.Equal(t, "built-in --help and --version both claim short flag -h (hint: assign a different rune to one of them)", err.Error())
+		assert.Equal(t, "built-in --help and --version both claim short flag -h", err.Error())
+		assert.Equal(t, "assign a different rune to one of them", errlines.Hint(err))
 	})
 
 	t.Run("built-in help short colliding on a subcommand is rejected", func(t *testing.T) {
@@ -2451,7 +2524,8 @@ func TestSchemaFlagCollisions_Issue05(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.Equal(t, `struct DeployCmd field Host: built-in --help short flag -h collides with --host (hint: assign a different rune to one of them)`, err.Error())
+		assert.Equal(t, `struct DeployCmd field Host: built-in --help short flag -h collides with --host`, err.Error())
+		assert.Equal(t, `assign a different rune to one of them`, errlines.Hint(err))
 	})
 
 	t.Run("built-in short rune is free when the built-in is disabled", func(t *testing.T) {
@@ -3032,7 +3106,8 @@ func TestErrNoRunner_AnonymousStruct(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.True(t, spec.IsSchemaError(err))
-	assert.Equal(t, `struct anonymousLeafCLI.Inline: runner not implemented (hint: implement conga.Runner: Run(context.Context, *conga.Session) error)`, err.Error())
+	assert.Equal(t, `struct anonymousLeafCLI.Inline: runner not implemented`, err.Error())
+	assert.Equal(t, `implement conga.Runner: Run(context.Context, *conga.Session) error`, errlines.Hint(err))
 }
 
 type anonymousTagCLI struct {
@@ -3054,7 +3129,8 @@ func TestSchemaError_AnonymousSubcommandOwner(t *testing.T) {
 	err := app.Run()
 
 	assert.True(t, spec.IsSchemaError(err))
-	assert.Equal(t, `struct anonymousTagCLI.Deploy field Port: unknown struct tag "hlep" (hint: did you mean "help"? Use app.AllowTags("hlep") to permit external tags)`, err.Error())
+	assert.Equal(t, `struct anonymousTagCLI.Deploy field Port: unknown struct tag "hlep"`, err.Error())
+	assert.Equal(t, `did you mean "help"? Use app.AllowTags("hlep") to permit external tags`, errlines.Hint(err))
 }
 
 type nestedAnonymousCLI struct {
@@ -3078,7 +3154,8 @@ func TestSchemaError_NestedAnonymousSubcommandOwner(t *testing.T) {
 	err := app.Run()
 
 	assert.True(t, spec.IsSchemaError(err))
-	assert.Equal(t, `struct nestedAnonymousCLI.Deploy.Push field Port: unknown struct tag "hlep" (hint: did you mean "help"? Use app.AllowTags("hlep") to permit external tags)`, err.Error())
+	assert.Equal(t, `struct nestedAnonymousCLI.Deploy.Push field Port: unknown struct tag "hlep"`, err.Error())
+	assert.Equal(t, `did you mean "help"? Use app.AllowTags("hlep") to permit external tags`, errlines.Hint(err))
 }
 
 // anonymousRootCLI is an alias, so the root struct type has no name.
@@ -3096,7 +3173,8 @@ func TestSchemaError_AnonymousRootOwner(t *testing.T) {
 	err := app.Run()
 
 	assert.True(t, spec.IsSchemaError(err))
-	assert.Equal(t, `struct (root) field Port: unknown struct tag "hlep" (hint: did you mean "help"? Use app.AllowTags("hlep") to permit external tags)`, err.Error())
+	assert.Equal(t, `struct (root) field Port: unknown struct tag "hlep"`, err.Error())
+	assert.Equal(t, `did you mean "help"? Use app.AllowTags("hlep") to permit external tags`, errlines.Hint(err))
 }
 
 type anonymousShadowCLI struct {
@@ -3119,5 +3197,6 @@ func TestSchemaError_AnonymousShadowOwner(t *testing.T) {
 	err := app.Run()
 
 	assert.True(t, spec.IsSchemaError(err))
-	assert.Equal(t, "struct anonymousShadowCLI.Deploy field Loud: duplicate short flag -v (note: already declared by struct anonymousShadowCLI field Verbose on an ancestor command)", err.Error())
+	assert.Equal(t, "struct anonymousShadowCLI.Deploy field Loud: duplicate short flag -v", err.Error())
+	assert.Equal(t, "already declared by struct anonymousShadowCLI field Verbose on an ancestor command", errlines.Note(err))
 }

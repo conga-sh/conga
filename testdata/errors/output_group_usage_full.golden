@@ -1,0 +1,11 @@
+app: error: flags --to-file and --to-url are mutually exclusive
+  from: --to-file: environment variable TOOL_TO_FILE
+
+Usage:
+  app [flags]
+
+Flags:
+      --to-file=STRING  [env: TOOL_TO_FILE] [xor: --to-url]
+      --to-url=STRING   [env: TOOL_TO_URL] [xor: --to-file]
+      --help            Show help
+      --version         Show version

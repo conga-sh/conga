@@ -19,6 +19,7 @@ import (
 	"github.com/conga-sh/conga/decoder/json"
 	"github.com/conga-sh/conga/decoder/toml"
 	"github.com/conga-sh/conga/decoder/yaml"
+	"github.com/conga-sh/conga/internal/errlines"
 )
 
 func TestBuiltinHoist_HelpWithEnvSourcedMissingConfigPath(t *testing.T) {
@@ -1235,7 +1236,8 @@ func TestWhy_Collision(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.Equal(t, "struct collidingCLI field Why: duplicate flag --why (note: already declared by the built-in --why flag, enabled by app.EnableWhy())", err.Error())
+	assert.Equal(t, "struct collidingCLI field Why: duplicate flag --why", err.Error())
+	assert.Equal(t, "already declared by the built-in --why flag, enabled by app.EnableWhy()", errlines.Note(err))
 }
 
 func TestWhy_Collision_SubcommandUserFlag(t *testing.T) {
@@ -1246,7 +1248,8 @@ func TestWhy_Collision_SubcommandUserFlag(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.Equal(t, "struct whySubCollisionRunner field Why: duplicate flag --why (note: already declared by the built-in --why flag, enabled by app.EnableWhy())", err.Error())
+	assert.Equal(t, "struct whySubCollisionRunner field Why: duplicate flag --why", err.Error())
+	assert.Equal(t, "already declared by the built-in --why flag, enabled by app.EnableWhy()", errlines.Note(err))
 }
 
 func TestWhy_UserFlagWithoutOptIn(t *testing.T) {
@@ -2278,7 +2281,8 @@ func TestBuiltinWhy_InvalidFormat(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), `invalid value "banana" (must be one of: text, json) for --why`)
+	assert.Contains(t, err.Error(), `invalid value "banana" for --why`)
+	assert.Equal(t, `accepted values: text, json`, errlines.Note(err))
 	assertUsageError(t, err)
 
 	usage := assertUsageError(t, err)
@@ -2299,7 +2303,8 @@ func TestBuiltinWhy_FalseFlagRejected(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), `invalid value "false" (must be one of: text, json) for --why`)
+	assert.Contains(t, err.Error(), `invalid value "false" for --why`)
+	assert.Equal(t, `accepted values: text, json`, errlines.Note(err))
 	assertUsageError(t, err)
 }
 
@@ -2424,7 +2429,8 @@ func TestBuiltinWhy_NonFormatBoolsRejected(t *testing.T) {
 			err := app.Run()
 
 			assert.Error(t, err)
-			assert.Contains(t, err.Error(), `invalid value "`+invalid+`" (must be one of: text, json) for --why`)
+			assert.Contains(t, err.Error(), `invalid value "`+invalid+`" for --why`)
+			assert.Equal(t, "accepted values: text, json", errlines.Note(err))
 			assertUsageError(t, err)
 		})
 	}

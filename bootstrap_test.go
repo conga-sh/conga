@@ -13,6 +13,7 @@ import (
 	"github.com/alecthomas/assert/v2"
 
 	"github.com/conga-sh/conga"
+	"github.com/conga-sh/conga/internal/errlines"
 )
 
 type bootstrapSubcommand struct {
@@ -579,7 +580,9 @@ func TestBootstrapper_FileContentFieldRejected(t *testing.T) {
 	err := conga.New[bootstrapFileContentCLI]().Args([]string{}).Run()
 
 	assert.Error(t, err)
-	assert.Equal(t, `struct bootstrapFileContentCLI field Seed: tag "bootstrap" is not supported on conga.FileContent (note: bootstrap fields are parsed twice and FileContent reads its file while parsing; hint: use conga.File and read it in Bootstrap)`, err.Error())
+	assert.Equal(t, `struct bootstrapFileContentCLI field Seed: tag "bootstrap" is not supported on conga.FileContent`, err.Error())
+	assert.Equal(t, `bootstrap fields are parsed twice and FileContent reads its file while parsing`, errlines.Note(err))
+	assert.Equal(t, `use conga.File and read it in Bootstrap`, errlines.Hint(err))
 }
 
 func TestBootstrapper_FileContentSliceFieldRejected(t *testing.T) {
@@ -588,5 +591,7 @@ func TestBootstrapper_FileContentSliceFieldRejected(t *testing.T) {
 	err := conga.New[bootstrapFileContentSliceCLI]().Args([]string{}).Run()
 
 	assert.Error(t, err)
-	assert.Equal(t, `struct bootstrapFileContentSliceCLI field Seeds: tag "bootstrap" is not supported on conga.FileContent (note: bootstrap fields are parsed twice and FileContent reads its file while parsing; hint: use conga.File and read it in Bootstrap)`, err.Error())
+	assert.Equal(t, `struct bootstrapFileContentSliceCLI field Seeds: tag "bootstrap" is not supported on conga.FileContent`, err.Error())
+	assert.Equal(t, `bootstrap fields are parsed twice and FileContent reads its file while parsing`, errlines.Note(err))
+	assert.Equal(t, `use conga.File and read it in Bootstrap`, errlines.Hint(err))
 }

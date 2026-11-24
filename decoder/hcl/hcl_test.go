@@ -11,6 +11,7 @@ import (
 	hashicorphcl "github.com/hashicorp/hcl/v2"
 
 	"github.com/conga-sh/conga/decoder/hcl"
+	"github.com/conga-sh/conga/internal/errlines"
 )
 
 var (
@@ -161,7 +162,9 @@ func TestDecode_LabeledBlockRejected(t *testing.T) {
 
 	_, err := hcl.Decode(fixtureLabeledBlock)
 
-	assert.Equal(t, `config.hcl:1,1-13: block "server" has labels ["web"]; labeled blocks are not supported, use an unlabeled block`, err.Error())
+	assert.Equal(t, `config.hcl:1,1-13: block "server" has labels ["web"]`, err.Error())
+	assert.Equal(t, "labeled blocks are not supported", errlines.Note(err))
+	assert.Equal(t, "use an unlabeled block", errlines.Hint(err))
 }
 
 func TestDecode_AttributeThenBlockRejected(t *testing.T) {

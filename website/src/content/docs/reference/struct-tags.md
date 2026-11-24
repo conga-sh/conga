@@ -39,7 +39,7 @@ The `default` tag is rejected on `Counter` flags, `RequiredFlag`s, and `oneof` m
 
 Group names are scoped to the command that declares them. A same-named group on an ancestor or descendant command is an independent group, and validation, completion suppression, and the usage synopsis treat them separately. A flag may belong to one group of each kind. Every declared `xor` or `and` group needs at least two members. A one-member group is a no-op, so it fails schema construction. A `oneof` group needs at least two members unless its sole member is a `Counter`, where it means "require at least one occurrence" (use `RequiredFlag` for a single mandatory flag instead). Two members of the same `oneof` group may not also share an `and` group, and two members of the same `xor` group may not also share an `and` group, because supplying either member would force the other and the exclusive rule could never hold. Schema build rejects the pair at startup. A group whose members are all `hidden` renders no synopsis token — like a hidden required flag — but is still enforced, and the missing-group error names the hidden members. When at least one member is visible, the missing-group error names the members the synopsis shows and leaves the hidden ones out. The synopsis and the missing-group error leave out deprecated `oneof` members unless every member they would name is deprecated, and the flag list still shows them, marked deprecated. The `xor` and `and` help hints never name hidden members. A visible `and` member whose partner is hidden shows no hint for it, so users meet the partner only in the error. Hide a required partner only when the environment or a config file supplies it.
 
-Group membership follows `Changed()`, so `--flag=false` and `--no-flag` both count as supplying the flag. A member counts whether it came from the command line, the environment, or a config file. A `default` never counts. A group error names each command-line member as the user typed it (`--no-color`, `-u`, an alias) and each other member by its long name and source (`--yaml (from environment variable APP_YAML)`). It is a usage error (exit 2) when a supplied member came from the command line, and an ordinary error (exit 1) otherwise. Shell completion suppresses sibling members only after a member is present on the command line. A group satisfied by an environment variable or config file still offers siblings, and selecting one then fails at runtime.
+Group membership follows `Changed()`, so `--flag=false` and `--no-flag` both count as supplying the flag. A member counts whether it came from the command line, the environment, or a config file. A `default` never counts. A group error names each command-line member as the user typed it (`--no-color`, `-u`, an alias) and each other member by its long name, and adds one `from:` line per member that did not come from the command line (`from: --yaml: environment variable APP_YAML`). It is a usage error (exit 2) when a supplied member came from the command line, and an ordinary error (exit 1) otherwise. Shell completion suppresses sibling members only after a member is present on the command line. A group satisfied by an environment variable or config file still offers siblings, and selecting one then fails at runtime.
 
 Plain struct fields and exported non-container fields are ignored by schema building. CONGA tags on such fields are rejected at schema build instead of being silently dropped. `app.AllowTags(...)` accepts the listed keys, and tag syntax is validated on every field. Unexported embedded behavior mixins remain supported.
 
@@ -156,11 +156,11 @@ A subcommand's flags read config keys from a section named after the subcommand,
 
 | Situation | Result |
 |---|---|
-| A flag name, alias, or short rune declared on an ancestor is declared again on a descendant | Schema build fails: `struct Child field Verbose: duplicate flag --verbose (note: already declared by struct App field Verbose on an ancestor command)`. Sibling commands may share names. |
-| A descendant's short rune matches the rune given to `app.HelpShortFlag` or `app.VersionShortFlag` | Schema build fails: `built-in --help short flag -h collides with --host (assign a different rune to one of them)`. |
+| A flag name, alias, or short rune declared on an ancestor is declared again on a descendant | Schema build fails: `struct Child field Verbose: duplicate flag --verbose`, with a `note: already declared by struct App field Verbose on an ancestor command` line. Sibling commands may share names. |
+| A descendant's short rune matches the rune given to `app.HelpShortFlag` or `app.VersionShortFlag` | Schema build fails: `struct Child field Host: built-in --help short flag -h collides with --host`, with a `hint: assign a different rune to one of them` line. |
 | A branch that doesn't implement `Runner` is invoked with no subcommand | `subcommand required for "<name>"` and the command's help screen, exit 2. |
 | A branch that implements `Runner` is invoked with no subcommand | The branch's own `Run` executes. |
-| A leaf that doesn't implement `Runner` is invoked | `struct <Name>: runner not implemented (hint: implement conga.Runner: Run(context.Context, *conga.Session) error)`, schema error, exit 1. Its siblings still run. `conga-lint` reports every such leaf. |
+| A leaf that doesn't implement `Runner` is invoked | `struct <Name>: runner not implemented`, with a `hint: implement conga.Runner: Run(context.Context, *conga.Session) error` line, schema error, exit 1. Its siblings still run. `conga-lint` reports every such leaf. |
 | A subcommand off the selected path | Its containers receive no values and its lifecycle hooks don't run. `Command[T].IsSelected()` reports whether a subcommand is on the path. |
 | A subcommand whose `feature` expression is false | See [Feature runtime behavior](#feature-runtime-behavior). |
 
@@ -459,7 +459,9 @@ Integer values share one syntax wherever CONGA reads them: flag and argument val
 A sign goes before the prefix (`-0x10` is -16), and only signed types accept one. `0` and `-0` are zero. A decimal value that starts with a zero, such as `0755`, is rejected because some tools read it as octal and others as decimal. The error gives both spellings:
 
 ```text no-copy
-invalid unsigned integer value "0755" for flag --mode (a leading zero is ambiguous: write 0o755 for octal or 755 for decimal)
+invalid unsigned integer value "0755" for flag --mode
+  note: a leading zero is ambiguous
+  hint: write 0o755 for octal or 755 for decimal
 ```
 
 Underscore digit separators (`1_000`) are rejected. A value that does not fit the field's type fails as out of range (`value "0x80" is out of range for int8`).

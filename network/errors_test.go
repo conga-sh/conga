@@ -7,6 +7,7 @@ import (
 
 	"github.com/alecthomas/assert/v2"
 
+	"github.com/conga-sh/conga/internal/errlines"
 	"github.com/conga-sh/conga/network"
 )
 
@@ -24,6 +25,7 @@ func TestUnmarshalText_RejectionsAreRootErrors(t *testing.T) {
 		name    string
 		decode  func() error
 		message string
+		note    string
 	}{
 		{
 			name:    "HTTP method",
@@ -33,7 +35,8 @@ func TestUnmarshalText_RejectionsAreRootErrors(t *testing.T) {
 		{
 			name:    "HTTP status out of range",
 			decode:  decodeInto(new(network.HTTPStatus), "99"),
-			message: "invalid HTTP status: HTTP status code 99 (must be between 100 and 599)",
+			message: "invalid HTTP status 99",
+			note:    "must be between 100 and 599",
 		},
 		{
 			name:    "HTTP status text",
@@ -43,12 +46,14 @@ func TestUnmarshalText_RejectionsAreRootErrors(t *testing.T) {
 		{
 			name:    "MIME type",
 			decode:  decodeInto(new(network.MIMEType), "json"),
-			message: `invalid MIME type "json" (expected format type/subtype, e.g. application/json)`,
+			message: `invalid MIME type "json"`,
+			note:    "expected format type/subtype, e.g. application/json",
 		},
 		{
 			name:    "port out of range",
 			decode:  decodeInto(new(network.Port), "70000"),
-			message: "invalid port 70000 (must be between 1 and 65535)",
+			message: "invalid port 70000",
+			note:    "must be between 1 and 65535",
 		},
 		{
 			name:    "port service name",
@@ -65,6 +70,7 @@ func TestUnmarshalText_RejectionsAreRootErrors(t *testing.T) {
 
 			assert.Error(t, err)
 			assert.Equal(t, testCase.message, err.Error())
+			assert.Equal(t, testCase.note, errlines.Note(err))
 			assert.Equal(t, nil, errors.Unwrap(err))
 		})
 	}

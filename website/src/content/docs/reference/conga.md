@@ -221,7 +221,7 @@ func (d *ConfigDocument) SetKey(key, entryKey string, value any, origin string) 
 func (d *ConfigDocument) SetKeyScoped(key, entryKey string, value any, origin, scope string) *ConfigDocument
 ```
 
-A command struct that implements `Bootstrapper` runs `Bootstrap` after the bootstrap pass, which binds the fields tagged `bootstrap:"true"` from the command line, environment, and defaults. The normal binding pass then binds every field, the tagged ones included, with config added. An error returned from `Bootstrap` reaches the caller unchanged and exits 1, or with the code of an `ExitCoder`.
+A command struct that implements `Bootstrapper` runs `Bootstrap` after the bootstrap pass, which binds the fields tagged `bootstrap:"true"` from the command line, environment, and defaults. The normal binding pass then binds every field, the tagged ones included, with config added. An error returned from `Bootstrap` comes back behind a `*conga.Error`, which keeps its text and type and is compared with `errors.Is` and `errors.As` ([the error `Run` returns](/reference/errors/#the-error-run-returns)). It exits 1, or with the code of an `ExitCoder`.
 
 | `Bootstrap` method | Effect |
 |---|---|

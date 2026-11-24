@@ -270,7 +270,8 @@ stdout '"schemaVersion":1'
 stdout '"name":"http3"'
 
 exit-status 2 kitchen-sink --why=xml
-stderr 'invalid value "xml" \(must be one of: text, json\) for --why'
+stderr 'invalid value "xml" for --why'
+stderr 'note: accepted values: text, json'
 
 -- run.sh --
 #!/bin/sh

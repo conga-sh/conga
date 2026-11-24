@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/internal/assertx"
+	"github.com/conga-sh/conga/internal/errlines"
 )
 
 // documentBootstrapper is embedded by test CLIs to implement conga.Bootstrapper.
@@ -359,9 +361,9 @@ func TestBootstrapper_UnknownKeyFailsWithSuggestion(t *testing.T) {
 
 	assert.Error(t, err)
 	assertNotUsageError(t, err)
-	assert.Contains(t, err.Error(), `config file "taskrc"`)
-	assert.Contains(t, err.Error(), `unknown field "hots" in command "app"`)
-	assert.Contains(t, err.Error(), `did you mean "host"?`)
+	assert.Equal(t, `unknown field "hots" in command "app"`, err.Error())
+	assert.Equal(t, `did you mean "host"?`, errlines.Hint(err))
+	assert.Equal(t, []string{`set by taskrc`}, errlines.Origins(err))
 }
 
 func TestBootstrapper_ExcludedFlagRejected(t *testing.T) {
@@ -431,7 +433,9 @@ func TestBootstrapper_EnumViolationMatchesFileMessageShape(t *testing.T) {
 
 	assert.Error(t, err)
 	assertNotUsageError(t, err)
-	assert.Equal(t, `invalid value "staging" (must be one of: dev, prod) for flag --mode (from config key "mode")`, err.Error())
+	assert.Equal(t, `invalid value "staging" for flag --mode`, err.Error())
+	assert.Equal(t, `accepted values: dev, prod`, errlines.Note(err))
+	assert.Contains(t, fmt.Sprintf("%+v", err), `from: config key "mode"`)
 }
 
 func TestBootstrapper_RangeViolationMatchesFileMessageShape(t *testing.T) {
@@ -474,7 +478,8 @@ func TestBootstrapper_CoercionViolationAttributesToConfig(t *testing.T) {
 
 	assert.Error(t, err)
 	assertNotUsageError(t, err)
-	assert.Contains(t, err.Error(), `for flag --port (from config key "port")`)
+	assert.Contains(t, err.Error(), `for flag --port`)
+	assert.Contains(t, fmt.Sprintf("%+v", err), `from: config key "port"`)
 }
 
 func TestBootstrapper_WhyReportsOrigins(t *testing.T) {
@@ -749,7 +754,9 @@ func TestBootstrapper_FeatureInvalidValueIsNotAUsageError(t *testing.T) {
 
 	assert.Error(t, err)
 	assertNotUsageError(t, err)
-	assert.Equal(t, `invalid value "maybe" for feature "force-all" (from config key "experiments.force-all"): must be true or false (or 1 or 0)`, err.Error())
+	assert.Equal(t, `invalid value "maybe" for feature "force-all"`, err.Error())
+	assert.Equal(t, `must be true or false (or 1 or 0)`, errlines.Note(err))
+	assert.Equal(t, []string{`config key "experiments.force-all" set by taskrc`}, errlines.Origins(err))
 }
 
 func TestBootstrapper_CompletionReflectsDocumentGate(t *testing.T) {
@@ -1092,8 +1099,9 @@ func TestConfigDocument_SetKeyUnknownKeyIsNotAUsageError(t *testing.T) {
 
 	assert.Error(t, err)
 	assertNotUsageError(t, err)
-	assert.Contains(t, err.Error(), `unknown section "header" in command "app"`)
-	assert.Contains(t, err.Error(), `did you mean "headers"?`)
+	assert.Equal(t, `unknown section "header" in command "app"`, err.Error())
+	assert.Equal(t, `did you mean "headers"?`, errlines.Hint(err))
+	assert.Equal(t, []string{`set by taskrc`}, errlines.Origins(err))
 }
 
 func TestBootstrapper_ContextCommandPath(t *testing.T) {
@@ -1161,7 +1169,8 @@ func TestConfigDocument_SetKeyOnScalarFlagReportsNotAMap(t *testing.T) {
 
 	assert.Error(t, err)
 	assertNotUsageError(t, err)
-	assert.Equal(t, `config file "taskrc": field "port" in command "app" is not a map`, err.Error())
+	assert.Equal(t, `field "port" in command "app" is not a map`, err.Error())
+	assert.Equal(t, []string{`set by taskrc`}, errlines.Origins(err))
 }
 
 func TestBootstrapper_ScopedOriginWithSlashAndCollidingBasenames(t *testing.T) {

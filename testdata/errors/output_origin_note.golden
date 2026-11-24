@@ -1,0 +1,3 @@
+app: error: invalid duration "30" for flag --timeout
+  from: environment variable TOOL_TIMEOUT
+  note: accepted units: ns, us (or µs), ms, s, m, h

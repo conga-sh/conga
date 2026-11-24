@@ -65,7 +65,8 @@ Flags:
 
 ```sh error={2}
 $ restart --host api.internal --port 70000
-restart: error: invalid port 70000 (must be between 1 and 65535) for flag --port
+restart: error: invalid port 70000 for flag --port
+  note: must be between 1 and 65535
 ```
 
 ```sh error={2}
@@ -216,8 +217,9 @@ Standard library types carry no help text of their own, so give these flags a `h
 :::caution[Register every standard library type]
 A flag of a standard library type with no registered parser stops the program at startup, on every run, exit 1. The message names the binding to add:
 
-```text no-copy
-restart: error: struct Restart field As: schema error: unsupported type *user.User; register a parser with app.Use(system.RegisterUser)
+```text no-copy error={1}
+restart: error: struct Restart field As: unsupported type *user.User
+  hint: register a parser with app.Use(system.RegisterUser)
 ```
 :::
 
@@ -232,7 +234,7 @@ The rows below cover command-line values. A rejected value from the environment,
 | Names a time zone that doesn't exist | – | `unknown time zone Mars/Base for flag --zone`, exit 2 |
 | Gives any text as a host | Accepted; `LookupIP` resolves it when called | – |
 
-The same checks apply when the value comes from an environment variable or a config file, and the message then names the source, as in `(from environment variable RESTART_ZONE)`.
+The same checks apply when the value comes from an environment variable or a config file, and the error then adds a `from:` line naming the source, as in `from: environment variable RESTART_ZONE`.
 
 ## Where to go next
 

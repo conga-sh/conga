@@ -11,6 +11,7 @@ import (
 	"github.com/alecthomas/assert/v2"
 
 	"github.com/conga-sh/conga"
+	"github.com/conga-sh/conga/internal/errlines"
 )
 
 // Counter is a user-defined struct named Counter in a test package.
@@ -304,7 +305,8 @@ func TestRegression_MapSchemaRejectsScalarConstraints(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.Equal(t, `struct MapEnumFlagCLI field Options: tag "enum" is not supported on map types (hint: use tag "items" to constrain the number of map entries, or custom domain types with SelfValidator to validate map entries)`, err.Error())
+		assert.Equal(t, `struct MapEnumFlagCLI field Options: tag "enum" is not supported on map types`, err.Error())
+		assert.Equal(t, `use tag "items" to constrain the number of map entries, or custom domain types with SelfValidator to validate map entries`, errlines.Hint(err))
 	})
 
 	t.Run("range tag on map flag rejected", func(t *testing.T) {
@@ -315,7 +317,8 @@ func TestRegression_MapSchemaRejectsScalarConstraints(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.Equal(t, `struct MapRangeFlagCLI field Options: tag "range" is not supported on map types (hint: use tag "items" to constrain the number of map entries, or custom domain types with SelfValidator to validate map entries)`, err.Error())
+		assert.Equal(t, `struct MapRangeFlagCLI field Options: tag "range" is not supported on map types`, err.Error())
+		assert.Equal(t, `use tag "items" to constrain the number of map entries, or custom domain types with SelfValidator to validate map entries`, errlines.Hint(err))
 	})
 
 	t.Run("len tag on map flag rejected", func(t *testing.T) {
@@ -326,7 +329,8 @@ func TestRegression_MapSchemaRejectsScalarConstraints(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.Equal(t, `struct MapLenFlagCLI field Options: tag "len" is not supported on map types (hint: use tag "items" to constrain the number of map entries, or custom domain types with SelfValidator to validate map entries)`, err.Error())
+		assert.Equal(t, `struct MapLenFlagCLI field Options: tag "len" is not supported on map types`, err.Error())
+		assert.Equal(t, `use tag "items" to constrain the number of map entries, or custom domain types with SelfValidator to validate map entries`, errlines.Hint(err))
 	})
 
 	t.Run("enum tag on map arg rejected", func(t *testing.T) {
@@ -337,7 +341,8 @@ func TestRegression_MapSchemaRejectsScalarConstraints(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.Equal(t, `struct MapEnumArgCLI field Options: tag "enum" is not supported on map types (hint: use tag "items" to constrain the number of map entries, or custom domain types with SelfValidator to validate map entries)`, err.Error())
+		assert.Equal(t, `struct MapEnumArgCLI field Options: tag "enum" is not supported on map types`, err.Error())
+		assert.Equal(t, `use tag "items" to constrain the number of map entries, or custom domain types with SelfValidator to validate map entries`, errlines.Hint(err))
 	})
 
 	t.Run("range tag on map arg rejected", func(t *testing.T) {
@@ -348,7 +353,8 @@ func TestRegression_MapSchemaRejectsScalarConstraints(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.Equal(t, `struct MapRangeArgCLI field Options: tag "range" is not supported on map types (hint: use tag "items" to constrain the number of map entries, or custom domain types with SelfValidator to validate map entries)`, err.Error())
+		assert.Equal(t, `struct MapRangeArgCLI field Options: tag "range" is not supported on map types`, err.Error())
+		assert.Equal(t, `use tag "items" to constrain the number of map entries, or custom domain types with SelfValidator to validate map entries`, errlines.Hint(err))
 	})
 
 	t.Run("len tag on map arg rejected", func(t *testing.T) {
@@ -359,7 +365,8 @@ func TestRegression_MapSchemaRejectsScalarConstraints(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.Equal(t, `struct MapLenArgCLI field Options: tag "len" is not supported on map types (hint: use tag "items" to constrain the number of map entries, or custom domain types with SelfValidator to validate map entries)`, err.Error())
+		assert.Equal(t, `struct MapLenArgCLI field Options: tag "len" is not supported on map types`, err.Error())
+		assert.Equal(t, `use tag "items" to constrain the number of map entries, or custom domain types with SelfValidator to validate map entries`, errlines.Hint(err))
 	})
 }
 

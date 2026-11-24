@@ -186,7 +186,7 @@ Every named file must exist:
 
 ```sh error={2} wrap
 $ multiformat-and-dotenv
-multiformat-and-dotenv: error: config error: cannot read .env file "config/secrets.env": open config/secrets.env: no such file or directory
+multiformat-and-dotenv: error: cannot read .env file "config/secrets.env": open config/secrets.env: no such file or directory
 ```
 
 ## Load a .env from a directory the user picks
@@ -240,7 +240,7 @@ func (c *CLI) Bootstrap(_ context.Context, b *conga.Bootstrap) error {
 
 ```sh error={2} wrap
 $ multiformat-and-dotenv --env-file nope.env
-multiformat-and-dotenv: error: config error: cannot read .env file "nope.env": open nope.env: no such file or directory
+multiformat-and-dotenv: error: cannot read .env file "nope.env": open nope.env: no such file or directory
 ```
 
 ## Combine startup and bootstrap loading
@@ -283,8 +283,8 @@ Tests that load `.env` files this way change process-wide state, so they run wit
 | The host sets the same variable | The host value wins |
 
 ```text no-copy error={1-2} wrap
-multiformat-and-dotenv: error: config error: cannot parse .env file "bad.env": line 1: dotenv error: parsing .env file: missing '=' in statement
-multiformat-and-dotenv: error: config error: cannot read .env file "big.env": file size limit exceeded: file size 17000002 bytes exceeds maximum limit of 16777216 bytes
+multiformat-and-dotenv: error: cannot parse .env file "bad.env": line 1: missing '=' in statement
+multiformat-and-dotenv: error: cannot read .env file "big.env": file size limit exceeded: file size 17000002 bytes exceeds maximum limit of 16777216 bytes
 ```
 
 Shell completion reads the same files before suggesting values, so `.env` settings, including [feature gates](/how-to/gate-behind-features/), shape completion the same way they shape a run. A missing or broken file stays quiet during completion and fails the run itself.

@@ -2,6 +2,7 @@ package conga_test
 
 import (
 	"bytes"
+	"fmt"
 	"testing"
 
 	"github.com/alecthomas/assert/v2"
@@ -48,7 +49,9 @@ func TestGroupErrors_XorBothFromEnv(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.Equal(t, "flags --gzip (from environment variable CONGA_TEST_GROUP_GZIP) and --zstd (from environment variable CONGA_TEST_GROUP_ZSTD) are mutually exclusive", err.Error())
+	assert.Equal(t, "flags --gzip and --zstd are mutually exclusive", err.Error())
+	assert.Contains(t, fmt.Sprintf("%+v", err), "from: --gzip: environment variable CONGA_TEST_GROUP_GZIP")
+	assert.Contains(t, fmt.Sprintf("%+v", err), "from: --zstd: environment variable CONGA_TEST_GROUP_ZSTD")
 	assertNotUsageError(t, err)
 }
 
@@ -63,7 +66,9 @@ func TestGroupErrors_XorBothFromConfig(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.Equal(t, `flags --gzip (from config key "gzip") and --zstd (from config key "zstd") are mutually exclusive`, err.Error())
+	assert.Equal(t, `flags --gzip and --zstd are mutually exclusive`, err.Error())
+	assert.Contains(t, fmt.Sprintf("%+v", err), `from: --gzip: config key "gzip"`)
+	assert.Contains(t, fmt.Sprintf("%+v", err), `from: --zstd: config key "zstd"`)
 	assertNotUsageError(t, err)
 }
 
@@ -78,7 +83,9 @@ func TestGroupErrors_OneOfEnvAndConfig(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.Equal(t, `flags --to-file (from environment variable CONGA_TEST_GROUP_TO_FILE) and --to-url (from config key "to-url") are mutually exclusive`, err.Error())
+	assert.Equal(t, `flags --to-file and --to-url are mutually exclusive`, err.Error())
+	assert.Contains(t, fmt.Sprintf("%+v", err), `from: --to-file: environment variable CONGA_TEST_GROUP_TO_FILE`)
+	assert.Contains(t, fmt.Sprintf("%+v", err), `from: --to-url: config key "to-url"`)
 	assertNotUsageError(t, err)
 }
 
@@ -93,7 +100,8 @@ func TestGroupErrors_OneOfConfigAndCLI(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.Equal(t, `flags --to-file and --to-url (from config key "to-url") are mutually exclusive`, err.Error())
+	assert.Equal(t, `flags --to-file and --to-url are mutually exclusive`, err.Error())
+	assert.Contains(t, fmt.Sprintf("%+v", err), `from: --to-url: config key "to-url"`)
 	assertUsageError(t, err)
 }
 
@@ -108,7 +116,8 @@ func TestGroupErrors_AndPartialFromConfig(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.Equal(t, `flag --user (from config key "user") must be given together with --password and --host`, err.Error())
+	assert.Equal(t, `flag --user must be given together with --password and --host`, err.Error())
+	assert.Contains(t, fmt.Sprintf("%+v", err), `from: --user: config key "user"`)
 	assertNotUsageError(t, err)
 }
 
@@ -120,7 +129,8 @@ func TestGroupErrors_AndCLIWithEnvPartner(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.Equal(t, "flags -u and --password (from environment variable CONGA_TEST_GROUP_PASS) must be given together with --host", err.Error())
+	assert.Equal(t, "flags -u and --password must be given together with --host", err.Error())
+	assert.Contains(t, fmt.Sprintf("%+v", err), "from: --password: environment variable CONGA_TEST_GROUP_PASS")
 	assertUsageError(t, err)
 }
 

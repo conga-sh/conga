@@ -32,6 +32,10 @@ type Session struct {
 	helpOptions   help.Options
 	whyRenderer   func(s *Session, format string) string
 	mapProvenance map[*spec.Flag]mapFlagProvenance
+	// flagOrigins records where each flag's value came from, so a
+	// SelfValidator failure that surfaces after binding names the file or
+	// .env file behind it.
+	flagOrigins map[*spec.Flag]valueOrigin
 }
 
 // Stdout returns the configured standard output writer for this session.

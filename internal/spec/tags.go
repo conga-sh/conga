@@ -14,6 +14,7 @@ import (
 	"github.com/conga-sh/conga/internal/casing"
 	"github.com/conga-sh/conga/internal/cond"
 	"github.com/conga-sh/conga/internal/container"
+	"github.com/conga-sh/conga/internal/errlines"
 	"github.com/conga-sh/conga/internal/intx"
 	"github.com/conga-sh/conga/internal/slicex"
 )
@@ -78,18 +79,20 @@ func ParseRangeSpec(tag string) (*Range, error) {
 
 // ValidateTextBounds checks each declared bound side with validate, which
 // rejects a bound the field's tags don't accept (a decimal byte size under
-// units:"binary"). The message keeps validate's reason. Schema build and the
-// static analyzer share it, so both report the same diagnostic.
+// units:"binary"). The schema error keeps validate's error as its cause and
+// takes its note and hint, falling back to its text as the note when it has
+// none. Schema build and the static analyzer share it, so both report the same
+// diagnostic.
 func ValidateTextBounds(rangeSpec *Range, boundKind string, validate func(string) error) error {
 	if rangeSpec.HasMin {
 		if err := validate(rangeSpec.MinStr); err != nil {
-			return schemaErrorf("invalid %s min bound %q: %s", boundKind, rangeSpec.MinStr, err)
+			return boundError(boundKind, "min", rangeSpec.MinStr, err)
 		}
 	}
 
 	if rangeSpec.HasMax {
 		if err := validate(rangeSpec.MaxStr); err != nil {
-			return schemaErrorf("invalid %s max bound %q: %s", boundKind, rangeSpec.MaxStr, err)
+			return boundError(boundKind, "max", rangeSpec.MaxStr, err)
 		}
 	}
 
@@ -111,34 +114,7 @@ func FloatBoundParser(bitSize int) func(string) (float64, error) {
 // checks their order. boundKind names the value kind in parse-error messages
 // ("duration", "integer", "unsigned integer", "float", "byte size", "value").
 func ValidateScalarRange[T cmp.Ordered](rangeSpec *Range, boundKind string, parse func(string) (T, error)) error {
-	var (
-		minValue T
-		maxValue T
-	)
-
-	if rangeSpec.HasMin {
-		v, err := parse(rangeSpec.MinStr)
-		if err != nil {
-			return schemaErrorf("invalid %s min bound %q", boundKind, rangeSpec.MinStr).withHint(intx.HintOf(err))
-		}
-
-		minValue = v
-	}
-
-	if rangeSpec.HasMax {
-		v, err := parse(rangeSpec.MaxStr)
-		if err != nil {
-			return schemaErrorf("invalid %s max bound %q", boundKind, rangeSpec.MaxStr).withHint(intx.HintOf(err))
-		}
-
-		maxValue = v
-	}
-
-	if rangeSpec.HasMin && rangeSpec.HasMax && minValue > maxValue {
-		return schemaErrorf("min bound %q cannot be greater than max bound %q", rangeSpec.MinStr, rangeSpec.MaxStr)
-	}
-
-	return nil
+	return validateRange(rangeSpec, boundKind, parse, scalarBoundError)
 }
 
 // ParseCountBound parses a len or items bound: a non-negative integer in the
@@ -150,17 +126,6 @@ func ParseCountBound(raw string) (int, error) {
 	}
 
 	return int(value), nil //nolint:gosec // parsed with bitSize strconv.IntSize-1, so the value fits int
-}
-
-// countBoundError reports an invalid len or items bound. A leading zero gets
-// the integer syntax's correction; any other failure says what a bound must be.
-func countBoundError(tagName, side, raw string, err error) error {
-	boundErr := schemaErrorf("invalid %s %s bound %q", tagName, side, raw)
-	if hint := intx.HintOf(err); hint != "" {
-		return boundErr.withHint(hint)
-	}
-
-	return boundErr.withNote("must be non-negative integer")
 }
 
 // ValidateCountRangeSpec validates len/items range bounds as non-negative integers.
@@ -441,6 +406,69 @@ type textBound struct {
 	signed   int64
 	unsigned uint64
 	float    float64
+}
+
+// validateRange parses the min/max bounds of rangeSpec with parse, checks
+// their order, and builds parse failures with buildError.
+func validateRange[T cmp.Ordered](rangeSpec *Range, boundKind string, parse func(string) (T, error), buildError func(boundKind, side, raw string, err error) *SchemaError) error {
+	var (
+		minValue T
+		maxValue T
+	)
+
+	if rangeSpec.HasMin {
+		value, err := parse(rangeSpec.MinStr)
+		if err != nil {
+			return buildError(boundKind, "min", rangeSpec.MinStr, err)
+		}
+
+		minValue = value
+	}
+
+	if rangeSpec.HasMax {
+		value, err := parse(rangeSpec.MaxStr)
+		if err != nil {
+			return buildError(boundKind, "max", rangeSpec.MaxStr, err)
+		}
+
+		maxValue = value
+	}
+
+	if rangeSpec.HasMin && rangeSpec.HasMax && minValue > maxValue {
+		return schemaErrorf("min bound %q cannot be greater than max bound %q", rangeSpec.MinStr, rangeSpec.MaxStr)
+	}
+
+	return nil
+}
+
+// boundError reports a range bound its parser rejected, with the parser's note
+// and hint (its text as the note when it has no note).
+func boundError(boundKind, side, raw string, err error) *SchemaError {
+	note := cmp.Or(errlines.Note(err), err.Error())
+
+	return schemaErrorf("invalid %s %s bound %q", boundKind, side, raw).
+		withNote(note).
+		withHint(errlines.Hint(err)).
+		withCause(err)
+}
+
+// scalarBoundError reports a range bound its parser rejected, with the note
+// and hint the parser's error carries (a leading zero's, say).
+func scalarBoundError(boundKind, side, raw string, err error) *SchemaError {
+	return schemaErrorf("invalid %s %s bound %q", boundKind, side, raw).
+		withNote(errlines.Note(err)).
+		withHint(errlines.Hint(err))
+}
+
+// countBoundError reports an invalid len or items bound. A leading zero gets
+// the integer syntax's correction; any other failure says what a bound must be.
+func countBoundError(tagName, side, raw string, err error) error {
+	boundErr := schemaErrorf("invalid %s %s bound %q", tagName, side, raw)
+	if note := errlines.Note(err); note != "" {
+		return boundErr.withNote(note).withHint(errlines.Hint(err))
+	}
+
+	return boundErr.withNote("must be non-negative integer")
 }
 
 func parseStructTagKeys(tag reflect.StructTag) ([]string, error) {
@@ -869,15 +897,15 @@ func validateRangeSpec(rangeSpec *Range, targetType reflect.Type, fieldTags Fiel
 		case RangeSigned:
 			parse, _ := TextRangeParser[int64](elemType)
 
-			return ValidateScalarRange(rangeSpec, boundKind, parse)
+			return validateRange(rangeSpec, boundKind, parse, boundError)
 		case RangeUnsigned:
 			parse, _ := TextRangeParser[uint64](elemType)
 
-			return ValidateScalarRange(rangeSpec, boundKind, parse)
+			return validateRange(rangeSpec, boundKind, parse, boundError)
 		case RangeFloat:
 			parse, _ := TextRangeParser[float64](elemType)
 
-			return ValidateScalarRange(rangeSpec, boundKind, parse)
+			return validateRange(rangeSpec, boundKind, parse, boundError)
 		}
 	}
 
@@ -1183,7 +1211,9 @@ func integerEnumDecimal(value string, elemType reflect.Type) (string, error) {
 		return "", schemaErrorf("enum value %q is out of range for %s", value, elemType)
 	}
 
-	return "", schemaErrorf("enum value %q is not a valid %s", value, elemType).withHint(intx.HintOf(err))
+	return "", schemaErrorf("enum value %q is not a valid %s", value, elemType).
+		withNote(errlines.Note(err)).
+		withHint(errlines.Hint(err))
 }
 
 // decodesAsBuiltinInteger reports whether the binder decodes elemType through

@@ -5,6 +5,8 @@ import (
 	"testing"
 
 	"github.com/alecthomas/assert/v2"
+
+	"github.com/conga-sh/conga/internal/errlines"
 )
 
 func TestInterpolateHelp(t *testing.T) {
@@ -149,7 +151,8 @@ func TestInterpolateHelp_UnknownVariable(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.True(t, IsSchemaError(err))
-	assert.Equal(t, `tag "help" references unknown variable {{rnage}} (note: supported variables are {{range}}, {{len}}, {{items}}, {{enum}}, {{default}}, {{env}})`, err.Error())
+	assert.Equal(t, `tag "help" references unknown variable {{rnage}}`, err.Error())
+	assert.Equal(t, `supported variables are {{range}}, {{len}}, {{items}}, {{enum}}, {{default}}, {{env}}`, errlines.Note(err))
 	assert.Equal(t, "", expanded)
 	assert.Equal(t, helpVars{}, referenced)
 }
@@ -189,6 +192,8 @@ func TestValidateHelpVariables(t *testing.T) {
 		helpText string
 		declared helpVars
 		expected string
+		note     string
+		hint     string
 	}{
 		{
 			name:     "every reference declared",
@@ -227,7 +232,8 @@ func TestValidateHelpVariables(t *testing.T) {
 			name:     "unknown variable",
 			helpText: "{{rnage}}",
 			declared: helpVars{},
-			expected: `tag "help" references unknown variable {{rnage}} (note: supported variables are {{range}}, {{len}}, {{items}}, {{enum}}, {{default}}, {{env}})`,
+			expected: `tag "help" references unknown variable {{rnage}}`,
+			note:     `supported variables are {{range}}, {{len}}, {{items}}, {{enum}}, {{default}}, {{env}}`,
 		},
 	}
 
@@ -246,6 +252,8 @@ func TestValidateHelpVariables(t *testing.T) {
 			assert.Error(t, err)
 			assert.True(t, IsSchemaError(err))
 			assert.Equal(t, testCase.expected, err.Error())
+			assert.Equal(t, testCase.note, errlines.Note(err))
+			assert.Equal(t, testCase.hint, errlines.Hint(err))
 		})
 	}
 }

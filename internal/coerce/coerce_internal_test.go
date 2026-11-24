@@ -23,7 +23,8 @@ func TestBooleanError(t *testing.T) {
 
 	err := &booleanError{raw: "maybe"}
 
-	assert.Equal(t, `invalid boolean value "maybe", expected true or false (or 1 or 0)`, err.Error())
+	assert.Equal(t, `invalid boolean value "maybe"`, err.Error())
+	assert.Equal(t, "expected true or false (or 1 or 0)", err.Note())
 	assert.Equal(t, nil, errors.Unwrap(err))
 }
 
@@ -32,7 +33,8 @@ func TestDurationError(t *testing.T) {
 
 	err := &durationError{raw: "5parsecs"}
 
-	assert.Equal(t, `invalid duration "5parsecs" (valid units: ms, s, m, h)`, err.Error())
+	assert.Equal(t, `invalid duration "5parsecs"`, err.Error())
+	assert.Equal(t, "accepted units: ns, us (or µs), ms, s, m, h", err.Note())
 	assert.Equal(t, nil, errors.Unwrap(err))
 }
 
@@ -41,7 +43,8 @@ func TestTimeError_RFC3339Hint(t *testing.T) {
 
 	err := &timeError{raw: "1979-05-27"}
 
-	assert.Equal(t, `invalid time "1979-05-27" (expected RFC 3339, e.g. 2006-01-02T15:04:05Z)`, err.Error())
+	assert.Equal(t, `invalid time "1979-05-27"`, err.Error())
+	assert.Equal(t, "expected RFC 3339, e.g. 2006-01-02T15:04:05Z", err.Note())
 	assert.Equal(t, nil, errors.Unwrap(err))
 }
 
@@ -50,7 +53,8 @@ func TestTimeError_Detail(t *testing.T) {
 
 	err := &timeError{raw: "1979-02-30T07:32:00Z", detail: "day out of range"}
 
-	assert.Equal(t, `invalid time "1979-02-30T07:32:00Z" (day out of range)`, err.Error())
+	assert.Equal(t, `invalid time "1979-02-30T07:32:00Z"`, err.Error())
+	assert.Equal(t, "day out of range", err.Note())
 	assert.Equal(t, nil, errors.Unwrap(err))
 }
 
@@ -61,9 +65,10 @@ func TestURLError(t *testing.T) {
 		name     string
 		kind     urlErrorKind
 		expected string
+		note     string
 	}{
 		{name: "malformed", kind: urlErrorMalformed, expected: `invalid URL "ht tp://x"`},
-		{name: "missing scheme", kind: urlErrorMissingScheme, expected: `invalid URL "example.com/x" (missing scheme, e.g. https://)`},
+		{name: "missing scheme", kind: urlErrorMissingScheme, expected: `invalid URL "example.com/x"`, note: "missing scheme, e.g. https://"},
 		{name: "unknown kind", kind: urlErrorKind(255), expected: `invalid URL "example.com/x"`},
 	}
 
@@ -77,6 +82,7 @@ func TestURLError(t *testing.T) {
 			}
 
 			assert.Equal(t, testCase.expected, err.Error())
+			assert.Equal(t, testCase.note, err.Note())
 			assert.Equal(t, nil, errors.Unwrap(err))
 		})
 	}
@@ -134,8 +140,9 @@ func TestMapPairError(t *testing.T) {
 		name     string
 		kind     mapPairErrorKind
 		expected string
+		note     string
 	}{
-		{name: "invalid pair", kind: mapPairErrorInvalid, expected: `invalid key-value pair "BROKEN", expected KEY=VALUE`},
+		{name: "invalid pair", kind: mapPairErrorInvalid, expected: `invalid key-value pair "BROKEN"`, note: "expected KEY=VALUE"},
 		{name: "empty key", kind: mapPairErrorEmptyKey, expected: `empty key in key-value pair "=value"`},
 		{name: "unknown kind", kind: mapPairErrorKind(255), expected: `invalid key-value pair "=value"`},
 	}
@@ -152,6 +159,7 @@ func TestMapPairError(t *testing.T) {
 			err := &mapPairError{item: item, kind: testCase.kind}
 
 			assert.Equal(t, testCase.expected, err.Error())
+			assert.Equal(t, testCase.note, err.Note())
 			assert.Equal(t, nil, errors.Unwrap(err))
 		})
 	}

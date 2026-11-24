@@ -67,7 +67,8 @@ $ go run ./_examples/02-flag-primitives -vvv --dbg
 ```
 ```sh label="Bad duration" error={2}
 $ go run ./_examples/02-flag-primitives --timeout 5x
-flag-primitives: error: invalid duration "5x" (valid units: ms, s, m, h) for flag --timeout
+flag-primitives: error: invalid duration "5x" for flag --timeout
+  note: accepted units: ns, us (or µs), ms, s, m, h
 ```
 :::
 
@@ -210,7 +211,8 @@ A service-management CLI whose `create`, `delete` and `list` commands sit under 
 :::code-tabs
 ```sh label="Typo" error={2}
 $ go run ./_examples/08-subcommands-basic delte
-subcommands-basic: error: unknown command: delte (did you mean "delete"?)
+subcommands-basic: error: unknown command: delte
+  hint: did you mean delete?
 ```
 ```sh label="Alias"
 $ go run ./_examples/08-subcommands-basic rm web-api -f

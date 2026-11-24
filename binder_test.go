@@ -3,6 +3,7 @@ package conga_test
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -12,6 +13,7 @@ import (
 
 	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/decoder/json"
+	"github.com/conga-sh/conga/internal/errlines"
 )
 
 type noopRunner struct{}
@@ -150,7 +152,8 @@ func TestBinder_Constraints(t *testing.T) {
 
 		assert.Error(t, err)
 		assertUsageError(t, err)
-		assert.Equal(t, `invalid value "invalid" (must be one of: json, yaml, table) for flag --format`, err.Error())
+		assert.Equal(t, `invalid value "invalid" for flag --format`, err.Error())
+		assert.Equal(t, `accepted values: json, yaml, table`, errlines.Note(err))
 	})
 }
 
@@ -175,7 +178,9 @@ func TestBinder_ValidationAttribution_EnvEnum(t *testing.T) {
 
 	assert.Error(t, err)
 	assertNotUsageError(t, err)
-	assert.Equal(t, `invalid value "qa" (must be one of: dev, prod) for flag --mode (from environment variable CONGA_TEST_ATTRIBUTION_MODE)`, err.Error())
+	assert.Equal(t, `invalid value "qa" for flag --mode`, err.Error())
+	assert.Equal(t, `accepted values: dev, prod`, errlines.Note(err))
+	assert.Contains(t, fmt.Sprintf("%+v", err), `from: environment variable CONGA_TEST_ATTRIBUTION_MODE`)
 }
 
 func TestBinder_ValidationAttribution_EnvSliceItem(t *testing.T) {
@@ -188,7 +193,9 @@ func TestBinder_ValidationAttribution_EnvSliceItem(t *testing.T) {
 
 	assert.Error(t, err)
 	assertNotUsageError(t, err)
-	assert.Equal(t, `invalid value "green" (must be one of: red, blue) for flag --tags (from environment variable CONGA_TEST_ATTRIBUTION_TAGS)`, err.Error())
+	assert.Equal(t, `invalid value "green" for flag --tags`, err.Error())
+	assert.Equal(t, `accepted values: red, blue`, errlines.Note(err))
+	assert.Contains(t, fmt.Sprintf("%+v", err), `from: environment variable CONGA_TEST_ATTRIBUTION_TAGS`)
 }
 
 func TestBinder_ValidationAttribution_ConfigEnum(t *testing.T) {
@@ -203,7 +210,9 @@ func TestBinder_ValidationAttribution_ConfigEnum(t *testing.T) {
 
 	assert.Error(t, err)
 	assertNotUsageError(t, err)
-	assert.Equal(t, `invalid value "qa" (must be one of: dev, prod) for flag --mode (from config key "mode")`, err.Error())
+	assert.Equal(t, `invalid value "qa" for flag --mode`, err.Error())
+	assert.Equal(t, `accepted values: dev, prod`, errlines.Note(err))
+	assert.Contains(t, fmt.Sprintf("%+v", err), `from: config key "mode"`)
 }
 
 func TestBinder_ValidationAttribution_ConfigRange(t *testing.T) {
@@ -218,7 +227,8 @@ func TestBinder_ValidationAttribution_ConfigRange(t *testing.T) {
 
 	assert.Error(t, err)
 	assertNotUsageError(t, err)
-	assert.Equal(t, `value 12 is out of range [1..8] for flag --workers (from config key "workers")`, err.Error())
+	assert.Equal(t, `value 12 is out of range [1..8] for flag --workers`, err.Error())
+	assert.Contains(t, fmt.Sprintf("%+v", err), `from: config key "workers"`)
 }
 
 func TestBinder_ValidationAttribution_CLIUnattributed(t *testing.T) {
@@ -231,7 +241,8 @@ func TestBinder_ValidationAttribution_CLIUnattributed(t *testing.T) {
 
 	assert.Error(t, err)
 	assertUsageError(t, err)
-	assert.Equal(t, `invalid value "qa" (must be one of: dev, prod) for flag --mode`, err.Error())
+	assert.Equal(t, `invalid value "qa" for flag --mode`, err.Error())
+	assert.Equal(t, `accepted values: dev, prod`, errlines.Note(err))
 }
 
 // Subcommands & Lifecycle Hooks.
@@ -605,7 +616,8 @@ func TestBinder_MapFlagMergesTiers(t *testing.T) {
 
 		assert.Error(t, err)
 		assertNotUsageError(t, err)
-		assert.Contains(t, err.Error(), "config")
+		assert.Contains(t, err.Error(), "for flag --sizes")
+		assert.Contains(t, fmt.Sprintf("%+v", err), `from: config key "sizes" in config file "`)
 	})
 
 	t.Run("no tier leaves map unset", func(t *testing.T) {
@@ -870,7 +882,8 @@ func TestBinder_MapFlagMergesCascadingFiles(t *testing.T) {
 
 		assert.Error(t, err)
 		assertNotUsageError(t, err)
-		assert.Contains(t, err.Error(), "config")
+		assert.Contains(t, err.Error(), "invalid key-value pair")
+		assert.Contains(t, fmt.Sprintf("%+v", err), `from: config key "tags" in config file "`)
 	})
 }
 
@@ -1177,7 +1190,8 @@ func TestBinder_CounterNegativeEnvRejected(t *testing.T) {
 	err := app.Run()
 
 	assertNotUsageError(t, err)
-	assert.Equal(t, `invalid unsigned integer value "-4" for flag --verbose (from environment variable CONGA_TEST_VERBOSE_NEGATIVE)`, err.Error())
+	assert.Equal(t, `invalid unsigned integer value "-4" for flag --verbose`, err.Error())
+	assert.Contains(t, fmt.Sprintf("%+v", err), `from: environment variable CONGA_TEST_VERBOSE_NEGATIVE`)
 	assert.Equal(t, conga.SourceNone, cli.Verbose.Source())
 	assert.Equal(t, 0, cli.Verbose.Get())
 }
@@ -1200,7 +1214,8 @@ func TestBinder_CounterNegativeConfigRejected(t *testing.T) {
 	err := app.Run()
 
 	assertNotUsageError(t, err)
-	assert.Equal(t, `invalid unsigned integer value "-2" for flag --verbose (from config key "verbose")`, err.Error())
+	assert.Equal(t, `invalid unsigned integer value "-2" for flag --verbose`, err.Error())
+	assert.Contains(t, fmt.Sprintf("%+v", err), `from: config key "verbose"`)
 	assert.Equal(t, conga.SourceNone, cli.Verbose.Source())
 	assert.Equal(t, 0, cli.Verbose.Get())
 }
@@ -1424,7 +1439,8 @@ func TestBinder_EmptyBoolValue(t *testing.T) {
 		err := app.Run()
 
 		assertUsageError(t, err)
-		assert.Equal(t, `invalid boolean value "", expected true or false (or 1 or 0) for flag --verbose`, err.Error())
+		assert.Equal(t, `invalid boolean value "" for flag --verbose`, err.Error())
+		assert.Equal(t, `expected true or false (or 1 or 0)`, errlines.Note(err))
 		assert.False(t, cli.Verbose.IsSet())
 	})
 
@@ -1438,7 +1454,8 @@ func TestBinder_EmptyBoolValue(t *testing.T) {
 		err := app.Run()
 
 		assertUsageError(t, err)
-		assert.Equal(t, `invalid boolean value "", expected true or false (or 1 or 0) for flag --verbose`, err.Error())
+		assert.Equal(t, `invalid boolean value "" for flag --verbose`, err.Error())
+		assert.Equal(t, `expected true or false (or 1 or 0)`, errlines.Note(err))
 		assert.False(t, cli.Verbose.IsSet())
 	})
 
@@ -1452,7 +1469,8 @@ func TestBinder_EmptyBoolValue(t *testing.T) {
 		err := app.Run()
 
 		assertUsageError(t, err)
-		assert.Equal(t, `value for key "a": invalid boolean value "", expected true or false (or 1 or 0) for flag --marks`, err.Error())
+		assert.Equal(t, `value for key "a": invalid boolean value "" for flag --marks`, err.Error())
+		assert.Equal(t, `expected true or false (or 1 or 0)`, errlines.Note(err))
 		assert.False(t, cli.Marks.IsSet())
 	})
 }
@@ -1603,7 +1621,8 @@ func TestBinder_CaseInsensitiveFlagSuggestion(t *testing.T) {
 
 	assert.Error(t, err)
 	assertUsageError(t, err)
-	assert.Equal(t, `unknown flag: --PORT (did you mean "--port"?)`, err.Error())
+	assert.Equal(t, `unknown flag: --PORT`, err.Error())
+	assert.Equal(t, `did you mean --port?`, errlines.Hint(err))
 }
 
 func TestBinder_ShortFlagClusteringWithEqual(t *testing.T) {
@@ -2060,7 +2079,8 @@ func TestBinder_CounterCoercionError(t *testing.T) {
 
 	assert.Error(t, err)
 	assertNotUsageError(t, err)
-	assert.Equal(t, `invalid unsigned integer value "not-a-number" for flag --v (from config key "v")`, err.Error())
+	assert.Equal(t, `invalid unsigned integer value "not-a-number" for flag --v`, err.Error())
+	assert.Contains(t, fmt.Sprintf("%+v", err), `from: config key "v"`)
 }
 
 type repeatedScalarCLI struct {

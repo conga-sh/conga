@@ -93,8 +93,7 @@ func (e *structureError) Error() string {
 	case structureBodyType:
 		return "unexpected HCL body type " + e.bodyType
 	case structureLabeledBlock:
-		return fmt.Sprintf("%s: block %q has labels %q; labeled blocks are not supported, use an unlabeled block",
-			e.position, e.blockType, e.labels)
+		return fmt.Sprintf("%s: block %q has labels %q", e.position, e.blockType, e.labels)
 	case structureDuplicateBlock:
 		return fmt.Sprintf("%s: duplicate block %q, first declared at %s", e.position, e.blockType, e.other)
 	case structureAttributeConflict:
@@ -102,6 +101,26 @@ func (e *structureError) Error() string {
 	default:
 		return "invalid HCL structure"
 	}
+}
+
+// Note says why a labeled block is rejected, and is empty for the other
+// structure errors.
+func (e *structureError) Note() string {
+	if e.kind == structureLabeledBlock {
+		return "labeled blocks are not supported"
+	}
+
+	return ""
+}
+
+// Hint says how to write a labeled block the decoder accepts, and is empty for
+// the other structure errors.
+func (e *structureError) Hint() string {
+	if e.kind == structureLabeledBlock {
+		return "use an unlabeled block"
+	}
+
+	return ""
 }
 
 func decodeHCLBody(body *hclsyntax.Body) (map[string]any, error) {

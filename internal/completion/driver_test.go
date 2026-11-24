@@ -7,6 +7,7 @@ import (
 	"github.com/alecthomas/assert/v2"
 
 	"github.com/conga-sh/conga/internal/completion"
+	"github.com/conga-sh/conga/internal/errlines"
 )
 
 func TestParseShell(t *testing.T) {
@@ -60,7 +61,8 @@ func TestParseShell(t *testing.T) {
 
 			assert.Error(t, err)
 			assert.Equal(t, completion.Shell(""), shell)
-			assert.Equal(t, fmt.Sprintf(`unknown shell %q, supported shells: bash, elvish, fish, nushell, powershell, zsh`, input), err.Error())
+			assert.Equal(t, fmt.Sprintf(`unknown shell %q`, input), err.Error())
+			assert.Equal(t, "supported shells: bash, elvish, fish, nushell, powershell, zsh", errlines.Note(err))
 		}
 	})
 
@@ -70,7 +72,8 @@ func TestParseShell(t *testing.T) {
 		_, err := completion.ParseShell("pwsh")
 
 		assert.Error(t, err)
-		assert.Equal(t, `unknown shell "pwsh", supported shells: bash, elvish, fish, nushell, powershell, zsh`, err.Error())
+		assert.Equal(t, `unknown shell "pwsh"`, err.Error())
+		assert.Equal(t, "supported shells: bash, elvish, fish, nushell, powershell, zsh", errlines.Note(err))
 	})
 
 	t.Run("trims leading and trailing whitespace", func(t *testing.T) {
@@ -89,7 +92,8 @@ func TestParseShell(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.Equal(t, completion.Shell(""), shell)
-		assert.Equal(t, `unknown shell "unknown-shell", supported shells: bash, elvish, fish, nushell, powershell, zsh`, err.Error())
+		assert.Equal(t, `unknown shell "unknown-shell"`, err.Error())
+		assert.Equal(t, "supported shells: bash, elvish, fish, nushell, powershell, zsh", errlines.Note(err))
 	})
 }
 

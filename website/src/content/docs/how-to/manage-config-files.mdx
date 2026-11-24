@@ -134,12 +134,12 @@ Config paths:
 Without `ConfigPaths`, the program looks in the user's config directory, `${XDG_CONFIG_HOME:-~/.config}`, and [About the config cascade](/explanation/config-cascade/) covers that default. To load one fixed file instead of searching, use `conga.ConfigExplicit(path)`. The run then fails if that file is missing. `ConfigExplicit` takes the place of the search, so a program that also passes `ConfigPaths` or `ConfigCascading` fails at startup:
 
 ```text no-copy error={1} wrap
-cascading-searchpaths: error: schema error: conga.ConfigExplicit() names a single configuration file and cannot be combined with conga.ConfigPaths() or conga.ConfigCascading()
+cascading-searchpaths: error: conga.ConfigExplicit() names a single configuration file and cannot be combined with conga.ConfigPaths() or conga.ConfigCascading()
 ```
 
 ## Merge files from every place
 
-Add `ConfigCascading()` to load every file found and merge them key by key, higher places winning. The `ConfigFile` flag must then accept several files, with `multi:"true"` as in the struct above, or the program fails at startup with `schema error: conga.ConfigCascading() merges multiple config files; the root config-file flag "config-file" must declare multi:"true"`:
+Add `ConfigCascading()` to load every file found and merge them key by key, higher places winning. The `ConfigFile` flag must then accept several files, with `multi:"true"` as in the struct above, or the program fails at startup. Line 1 is `the root config-file flag "config-file" must declare multi:"true"`, with a `note: conga.ConfigCascading() merges multiple config files` line and a `hint: add multi:"true" or drop conga.ConfigCascading() from app.ConfigOptions(...)` line:
 
 ```go title="main.go" ins={3}
 ConfigOptions(
@@ -250,7 +250,8 @@ A file that sets it is rejected:
 
 ```sh error={2} wrap
 $ cascading-searchpaths -c token.yaml
-cascading-searchpaths: error: config file "token.yaml": field "token" is excluded from config files in command "cascading-searchpaths"
+cascading-searchpaths: error: field "token" is excluded from config files in command "cascading-searchpaths"
+  from: config file "token.yaml"
 ```
 
 ## Choose the key casing
@@ -293,7 +294,9 @@ The kebab-case key is now unknown:
 
 ```sh error={2} wrap
 $ cascading-searchpaths -c kebab.yaml
-cascading-searchpaths: error: config file "kebab.yaml": unknown field "api-endpoint" in command "cascading-searchpaths" (did you mean "api_endpoint"?)
+cascading-searchpaths: error: unknown field "api-endpoint" in command "cascading-searchpaths"
+  from: config file "kebab.yaml"
+  hint: did you mean "api_endpoint"?
 ```
 
 ## Nest subcommand settings
@@ -461,25 +464,33 @@ loaded=["/etc/cascading-searchpaths/cascading-searchpaths.yaml" "/home/alice/.co
 
 ## Know what users see when a file is wrong
 
-A problem with the file itself, or with a value it supplies, exits 1. That includes a valid file whose value fails to coerce or validate. The value did not come from the command line, so the failure is not a usage error, and its message names the key it came from. Only command-line values are usage errors (exit 2):
+A problem with the file itself, or with a value it supplies, exits 1. That includes a valid file whose value fails to coerce or validate. The value did not come from the command line, so the failure is not a usage error, and a `from:` line names the key and the file it came from. Only command-line values are usage errors (exit 2):
 
 | What the file has | Result |
 |---|---|
 | A `-c` file that doesn't exist | Error, exit 1 |
-| Text the decoder can't parse | Error, exit 1, naming the file |
+| Text the decoder can't parse | Error, exit 1, naming the file on line 1 |
 | An extension with no registered decoder | Error, exit 1 |
-| An unknown key (`them: dark`) | Error, exit 1, with a "did you mean" hint |
-| A key in another spelling (`api_endpoint:` for `--api-endpoint`) | Error, exit 1, with a "did you mean" hint |
+| An unknown key (`them: dark`) | Error, exit 1, with a `from:` line naming the file and a `hint:` line |
+| A key in another spelling (`api_endpoint:` for `--api-endpoint`) | Error, exit 1, with a `from:` line naming the file and a `hint:` line |
 | A key for a `config:"-"` field | Error, exit 1 |
-| A value of the wrong type (`timeout: soon`) | Error, exit 1, naming the key |
-| A value outside `enum` or `range` (`theme: pink`) | Error, exit 1, naming the key |
+| A value of the wrong type (`timeout: soon`) | Error, exit 1, with a `from:` line naming the key and the file |
+| A value outside `enum` or `range` (`theme: pink`) | Error, exit 1, with a `from:` line naming the key and the file |
 
-```text no-copy error={1-5} wrap
-cascading-searchpaths: error: config file "typo.yaml": unknown field "them" in command "cascading-searchpaths" (did you mean "theme"?)
-cascading-searchpaths: error: config file "snake.yaml": unknown field "api_endpoint" in command "cascading-searchpaths" (did you mean "api-endpoint"?)
+```text no-copy error={1,4,7,8,11} wrap
+cascading-searchpaths: error: unknown field "them" in command "cascading-searchpaths"
+  from: config file "typo.yaml"
+  hint: did you mean "theme"?
+cascading-searchpaths: error: unknown field "api_endpoint" in command "cascading-searchpaths"
+  from: config file "snake.yaml"
+  hint: did you mean "api-endpoint"?
 cascading-searchpaths: error: unsupported config file format ".toml" for "settings.toml"
-cascading-searchpaths: error: invalid duration "soon" (valid units: ms, s, m, h) for flag --timeout (from config key "timeout")
-cascading-searchpaths: error: invalid value "pink" (must be one of: dark, light, solarized, system) for flag --theme (from config key "theme")
+cascading-searchpaths: error: invalid duration "soon" for flag --timeout
+  from: config key "timeout" in config file "soon.yaml"
+  note: accepted units: ns, us (or µs), ms, s, m, h
+cascading-searchpaths: error: invalid value "pink" for flag --theme
+  from: config key "theme" in config file "pink.yaml"
+  note: accepted values: dark, light, solarized, system
 ```
 
 ## Where to go next

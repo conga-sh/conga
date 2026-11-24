@@ -63,11 +63,25 @@ func (e *Error) Unwrap() error {
 	return strconv.ErrSyntax
 }
 
-// Hint returns the correction for a leading-zero literal, without enclosing
-// parentheses, or "" for every other failure. Digits that form an octal
-// number get both spellings ("a leading zero is ambiguous: write 0o755 for
-// octal or 755 for decimal"); other digits get the decimal one ("a leading
-// zero is not allowed: write 89").
+// Note returns the detail on a leading-zero literal, or "" for every other
+// failure: "a leading zero is ambiguous" for digits that form an octal number
+// and "a leading zero is not allowed" for the rest.
+func (e *Error) Note() string {
+	if e.Kind != KindLeadingZero {
+		return ""
+	}
+
+	if e.octalDigits() {
+		return "a leading zero is ambiguous"
+	}
+
+	return "a leading zero is not allowed"
+}
+
+// Hint returns the correction for a leading-zero literal, or "" for every
+// other failure. Digits that form an octal number get both spellings ("write
+// 0o755 for octal or 755 for decimal"); other digits get the decimal one
+// ("write 89").
 func (e *Error) Hint() string {
 	if e.Kind != KindLeadingZero {
 		return ""
@@ -80,11 +94,11 @@ func (e *Error) Hint() string {
 		decimal = "0"
 	}
 
-	if strings.Trim(digits, "01234567") != "" {
-		return "a leading zero is not allowed: write " + sign + decimal
+	if !e.octalDigits() {
+		return "write " + sign + decimal
 	}
 
-	return "a leading zero is ambiguous: write " + sign + "0o" + decimal + " for octal or " + sign + decimal + " for decimal"
+	return "write " + sign + "0o" + decimal + " for octal or " + sign + decimal + " for decimal"
 }
 
 // ParseInt parses raw as a signed integer that fits bitSize bits (0 means the
@@ -141,14 +155,11 @@ func IsSignedLiteral(raw string) bool {
 	return true
 }
 
-// HintOf returns the [Error.Hint] of the first [*Error] in err's chain, or ""
-// when the chain holds none.
-func HintOf(err error) string {
-	if parseError, ok := errors.AsType[*Error](err); ok {
-		return parseError.Hint()
-	}
+// octalDigits reports whether the literal's digits are all octal.
+func (e *Error) octalDigits() bool {
+	_, digits := cutSign(e.Raw)
 
-	return ""
+	return strings.Trim(digits, "01234567") == ""
 }
 
 // cutSign splits a leading + or - from raw.

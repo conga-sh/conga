@@ -365,7 +365,7 @@ func TestSession_UsageErrorf(t *testing.T) {
 	assert.Equal(t, "cannot deploy: backend refused", err.Error())
 	assert.Equal(t, "app deploy", usage.CommandPath())
 	assert.IsError(t, err, errSessionUsageBoom)
-	assert.Equal(t, errSessionUsageBoom, errors.Unwrap(err))
+	assert.Equal(t, errSessionUsageBoom, errors.Unwrap(usage))
 	assert.Equal(t, "app: error: cannot deploy: backend refused\n", result.stderr)
 	assert.Equal(t, 2, result.code)
 }
@@ -392,7 +392,7 @@ func TestValidate_Errors(t *testing.T) {
 		result, err := runSessionUsage(t, "plain", conga.UsageFull)
 
 		assertNotUsageError(t, err)
-		assert.Equal(t, errSessionUsageBoom, err)
+		assert.IsError(t, err, errSessionUsageBoom)
 		assert.Equal(t, "app: error: backend refused\n", result.stderr)
 		assert.Equal(t, 1, result.code)
 	})
@@ -566,7 +566,8 @@ func TestBootstrap_Errors(t *testing.T) {
 			err := app.RunContext(context.WithValue(t.Context(), bootstrapErrorContextKey{}, testCase.err))
 
 			assertNotUsageError(t, err)
-			assert.Equal(t, testCase.err, err)
+			assert.IsError(t, err, testCase.err)
+			assert.Equal(t, testCase.err.Error(), err.Error())
 
 			app.Exit(err)
 

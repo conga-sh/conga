@@ -37,7 +37,8 @@ func TestSliceEnumValidation_Issue03(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.Equal(t, `invalid value "xml" (must be one of: json, yaml) for flag --format`, err.Error())
+		assert.Equal(t, `invalid value "xml" for flag --format`, err.Error())
+		assert.Equal(t, `accepted values: json, yaml`, errlines.Note(err))
 	})
 }
 ```
@@ -123,8 +124,8 @@ Use `github.com/alecthomas/assert/v2` for all test assertions.
 
 - Use `assert.NoError(t, err)` for successful operations.
 - Use `assert.Error(t, err)` for error checks, and `assert.IsError(t, err, cause)` to assert a real cause (a stdlib or author error) is reachable.
-- CONGA has no category sentinels. Assert the exact message with `assert.Equal(t, expected, err.Error())`, and the type with `errors.AsType`: `*conga.UsageError` for command-line failures (check `CommandPath`, `Usage`, and `ExitCode`), `conga.ExitCoder` for exit codes. Assert that an environment-, config-, or default-sourced failure is not a usage error.
-- Schema errors: assert the exact message, plus `spec.IsSchemaError(err)` to assert that the failure is a schema error.
+- CONGA has no category sentinels. `App.Run` returns a `*conga.Error` whose `Error()` is line 1 alone, so assert the exact message with `assert.Equal(t, expected, err.Error())` and the pieces that are not in the message with its methods as well: `Origins()`, `Note()` and `Hint()` (tests inside the module read them with `errlines.Origins`, `errlines.Note` and `errlines.Hint`, which apply the chain rule). Assert the type with `errors.AsType`: `*conga.UsageError` for command-line failures (check `CommandPath`, `Usage`, and `ExitCode`), `conga.ExitCoder` for exit codes. Assert that an environment-, config-, or default-sourced failure is not a usage error. Compare an error a hook returned with `assert.IsError` (`errors.Is`), never with `==`, because `Run` wraps it.
+- Schema errors: assert the exact message, the note and the hint (`errlines.Note(err)`, `errlines.Hint(err)`, each with its own `assert.Equal`), plus `spec.IsSchemaError(err)` to assert that the failure is a schema error.
 - Use `assert.Equal(t, expected, actual)` for value equivalence.
 - Use `assert.Zero(t, actual)` for zero values, empty slices, and empty maps instead of `assert.Equal(t, 0, len(actual))`.
 - Use `assert.True(t, condition)` and `assert.False(t, condition)` for booleans.

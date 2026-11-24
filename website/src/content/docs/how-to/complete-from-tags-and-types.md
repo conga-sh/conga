@@ -90,7 +90,8 @@ An `enum` tag on a `conga.File`, `conga.Dir`, or `conga.FileContent` field fails
 
 ```sh error={2}
 $ deploy
-deploy: error: struct Deploy field Manifest: schema error: invalid struct tag: tag "enum" is not supported on conga.File; use tag "glob" to filter completion candidates, or a string field with tag "enum" to accept a fixed set of names
+deploy: error: struct Deploy field Manifest: tag "enum" is not supported on conga.File
+  hint: use tag "glob" to filter completion candidates, or a string field with tag "enum" to accept a fixed set of names
 ```
 
 The run exits with status 1. Use `glob` to narrow a `conga.File`'s candidates, and a `string` field with `enum` to accept a fixed set of names.
@@ -223,7 +224,8 @@ Without `Use(timezone.RegisterLocation)`, `--zone` completes nothing, and the pr
 
 ```sh error={2}
 $ deploy --zone Europe/London
-deploy: error: struct Deploy field Zone: schema error: unsupported type *time.Location; register a parser with app.Use(timezone.RegisterLocation)
+deploy: error: struct Deploy field Zone: unsupported type *time.Location
+  hint: register a parser with app.Use(timezone.RegisterLocation)
 ```
 
 [How to use the network, system, and timezone packages](/how-to/use-domain-packages/) covers the types themselves.
@@ -252,7 +254,8 @@ The run rejects the methods the `enum` leaves out:
 
 ```sh error={2}
 $ deploy --method PUT
-deploy: error: invalid value "PUT" (must be one of: GET, POST) for flag --method
+deploy: error: invalid value "PUT" for flag --method
+  note: accepted values: GET, POST
 ```
 
 ## Complete the values of a map

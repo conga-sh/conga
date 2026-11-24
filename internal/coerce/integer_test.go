@@ -1,6 +1,7 @@
 package coerce_test
 
 import (
+	"errors"
 	"reflect"
 	"strconv"
 	"testing"
@@ -88,13 +89,14 @@ func TestScalar_IntegerSyntaxRejected(t *testing.T) {
 
 	rejected := []struct {
 		raw          string
+		note         string
 		hint         string
 		signedOnly   bool
 		unsignedOnly bool
 	}{
-		{raw: "0755", hint: "a leading zero is ambiguous: write 0o755 for octal or 755 for decimal"},
-		{raw: "00", hint: "a leading zero is ambiguous: write 0o0 for octal or 0 for decimal"},
-		{raw: "-07", hint: "a leading zero is ambiguous: write -0o7 for octal or -7 for decimal", signedOnly: true},
+		{raw: "0755", note: "a leading zero is ambiguous", hint: "write 0o755 for octal or 755 for decimal"},
+		{raw: "00", note: "a leading zero is ambiguous", hint: "write 0o0 for octal or 0 for decimal"},
+		{raw: "-07", note: "a leading zero is ambiguous", hint: "write -0o7 for octal or -7 for decimal", signedOnly: true},
 		{raw: "-07", unsignedOnly: true},
 		{raw: "-0", unsignedOnly: true},
 		{raw: "+5", unsignedOnly: true},
@@ -123,7 +125,10 @@ func TestScalar_IntegerSyntaxRejected(t *testing.T) {
 
 				assert.Error(t, err)
 				assert.Equal(t, "invalid "+width.invalidMessage+" value "+strconv.Quote(testCase.raw), err.Error())
-				assert.Equal(t, testCase.hint, intx.HintOf(err))
+				intxErr, _ := errors.AsType[*intx.Error](err)
+
+				assert.Equal(t, testCase.note, intxNote(intxErr))
+				assert.Equal(t, testCase.hint, intxHint(intxErr))
 			})
 		}
 	}
@@ -150,4 +155,22 @@ func TestScalar_IntegerOutOfRange(t *testing.T) {
 			})
 		}
 	}
+}
+
+// intxNote returns the note of err, or "" when it is nil.
+func intxNote(err *intx.Error) string {
+	if err == nil {
+		return ""
+	}
+
+	return err.Note()
+}
+
+// intxHint returns the hint of err, or "" when it is nil.
+func intxHint(err *intx.Error) string {
+	if err == nil {
+		return ""
+	}
+
+	return err.Hint()
 }

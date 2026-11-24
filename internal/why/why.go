@@ -11,8 +11,6 @@ package why
 import (
 	"encoding"
 	"fmt"
-	"io"
-	"os"
 	"path/filepath"
 	"reflect"
 	"slices"
@@ -21,7 +19,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/conga-sh/conga/internal/configdata"
-	"github.com/conga-sh/conga/internal/envx"
 	"github.com/conga-sh/conga/internal/jsonwire"
 )
 
@@ -347,27 +344,6 @@ func (r Report) FormatJSON() string {
 	buffer = appendConfigJSON(buffer, r)
 
 	return string(buffer)
-}
-
-// IsColorEnabled reports whether styled color output should be enabled for
-// writer. The environment preference of envx.ColorPreference decides first
-// (CONGA_COLOR parsed as a boolean, then NO_COLOR, then CLICOLOR=0). Without a
-// preference, TERM=dumb disables color and otherwise color follows whether
-// writer is a terminal.
-func IsColorEnabled(writer io.Writer) bool {
-	switch envx.ColorPreference() {
-	case envx.ColorOn:
-		return true
-	case envx.ColorOff:
-		return false
-	case envx.ColorDefault:
-	}
-
-	if os.Getenv("TERM") == "dumb" {
-		return false
-	}
-
-	return isTerminalWriter(writer)
 }
 
 // originShortener maps displayed provenance origins to concise forms. A
@@ -983,20 +959,6 @@ func styleText(text, escape string, enableColor bool) string {
 	}
 
 	return escape + text + ansiReset
-}
-
-func isTerminalWriter(writer io.Writer) bool {
-	file, ok := writer.(*os.File)
-	if !ok {
-		return false
-	}
-
-	fileInfo, err := file.Stat()
-	if err != nil {
-		return false
-	}
-
-	return fileInfo.Mode()&os.ModeCharDevice != 0
 }
 
 func appendRowArrayJSON(buffer []byte, field string, rows []Row) []byte {

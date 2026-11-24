@@ -3,18 +3,18 @@ title: About error reporting
 description: How execution separates error values from process termination, when developer defects panic, and why Exit is an optional convenience.
 ---
 
-Command execution in CONGA separates error evaluation from process termination. The execution methods `app.Run` and `app.RunContext` return command-line mistakes and runtime failures as plain error values instead of calling `os.Exit`. Callers decide how to handle failures, whether by inspecting the error directly or delegating terminal formatting and exit status codes to the optional `app.Exit(err)` convenience method.
+Command execution in CONGA separates error evaluation from process termination. The execution methods `app.Run` and `app.RunContext` return command-line mistakes and runtime failures as error values instead of calling `os.Exit`. Callers decide how to handle failures, whether by inspecting the error directly or delegating terminal formatting and exit status codes to the optional `app.Exit(err)` convenience method.
 
 ## Errors as values across the pipeline
 
 Many command-line libraries end the process when parsing fails. The standard library's `flag.Parse` prints the error and calls `os.Exit` on invalid input. A test of such a program has to run it as a subprocess, and its commands can't be embedded in a server, a GUI application, or a test harness.
 
-In CONGA, `app.Run()` and `app.RunContext(ctx)` parse, coerce, validate, and run the command, then return an ordinary Go error:
+In CONGA, `app.Run()` and `app.RunContext(ctx)` parse, coerce, validate, and run the command, then return a `*conga.Error`, a Go error that wraps whatever failed:
 
 - `nil` on clean execution, including built-in commands. Requests for `--help`, `--version`, and opt-in diagnostics like `--why` and `--completion` render to standard output and return `nil`. A help request succeeds, so `if err != nil` handles only real failures.
-- A `*conga.UsageError` when command-line input violates syntax, naming, or value constraints, or when a hook returns `session.UsageError`.
-- An ordinary error when a value from an environment variable, a configuration file, or a default tag fails to coerce or validate. It exits with status 1 and names the value's origin in the message ([which failures are usage errors](/reference/errors/#which-failures-are-usage-errors)).
-- The error a lifecycle hook returns. A `Validate`, `Bootstrap`, `PreRun`, `Run`, or `PostRun` error reaches the caller exactly as the hook returned it, so `errors.Is` and `errors.As` find the author's own causes. A `Validate` or `Bootstrap` failure comes back before any `Finally` hook runs. When a `Finally` hook that does run also fails, the hook's error and the `Finally` errors are joined.
+- A `*conga.UsageError`, inside the `*conga.Error`, when command-line input violates syntax, naming, or value constraints, or when a hook returns `session.UsageError`.
+- An ordinary error behind the `*conga.Error` when a value from an environment variable, a configuration file, or a default tag fails to coerce or validate. It exits with status 1 and names the value's origin on a `from:` line ([which failures are usage errors](/reference/errors/#which-failures-are-usage-errors)).
+- The error a lifecycle hook returns. A `Validate`, `Bootstrap`, `PreRun`, `Run`, or `PostRun` error keeps its text and type behind the `*conga.Error`, so `errors.Is` and `errors.As` find the author's own causes. Compare with those two functions, not with `==`. A `Validate` or `Bootstrap` failure comes back before any `Finally` hook runs. When a `Finally` hook that does run also fails, the hook's error and the `Finally` errors are joined.
 
 ## Pipeline errors versus programmer defects
 
@@ -29,11 +29,11 @@ Standalone command-line applications translate errors into standard error messag
 
 `Exit` terminates through the configured exit function (`app.ExitFunc`, default `os.Exit`). It returns only when that function returns without terminating. All `PostRun` and `Finally` hooks complete inside `app.Run`, so the teardown work is already done by the time `Exit` runs.
 
-`Exit` is optional. Applications that embed CLI commands, collect telemetry, or format errors using structured loggers like `slog` can omit `Exit` and handle the returned error value directly. When callers do use `Exit`, setting `app.ExitFunc(handler)` intercepts the requested exit status code without killing the test process, allowing tests to verify exit behavior in-process.
+`Exit` is optional. Applications that embed CLI commands, collect telemetry, or format errors using structured loggers like `slog` can omit `Exit` and handle the returned error value directly. `*conga.Error` implements `json.Marshaler` and `encoding.TextMarshaler`, so a JSON `slog` handler records the origins, note and hint as separate keys. When callers do use `Exit`, setting `app.ExitFunc(handler)` intercepts the requested exit status code without killing the test process, allowing tests to verify exit behavior in-process.
 
-## Value errors print the error line alone
+## Value errors print no usage block
 
-`Exit` matches the help it prints to the kind of mistake. Unknown flags, unknown subcommands, and missing required positional arguments are interface-discovery mistakes, so `Exit` pairs them with a syntax usage block or `--help` hint. Command-line coercion and constraint failures already name the flag and the offending value, so they render without the usage block. Environment-, configuration-, and default-sourced value failures exit with status 1 and print the error line alone. Printing a 40-line usage screen below a value error scrolls the terminal window and buries the actual message under redundant text. [Errors and exit codes](/reference/errors/#usage-rendering-on-errors) lists which failures render the error line alone.
+`Exit` matches the help it prints to the kind of mistake. Unknown flags, unknown subcommands, and missing required positional arguments are interface-discovery mistakes, so `Exit` pairs them with a syntax usage block or `--help` hint. Command-line coercion and constraint failures already name the flag and the offending value, so they render without the usage block. Environment-, configuration-, and default-sourced value failures exit with status 1 and print the error line with its `from:`, `note:` and `hint:` lines, and no usage block. Printing a 40-line usage screen below a value error scrolls the terminal window and buries the actual message under redundant text. [Errors and exit codes](/reference/errors/#usage-rendering-on-errors) lists which failures render without a usage block.
 
 ## Telling failures apart by type
 

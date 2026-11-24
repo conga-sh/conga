@@ -5,6 +5,12 @@ import (
 	"strings"
 )
 
+const (
+	flagDeclarationName flagDeclarationKind = iota
+	flagDeclarationAlias
+	flagDeclarationShort
+)
+
 // TrailingGrammar describes the trailing-argument grammar of one command for
 // the RawArgs boundary invariant. It carries only classification metadata so
 // schema build and the static analyzer share one validation source.
@@ -62,6 +68,18 @@ type FlagDeclaration struct {
 	short rune
 }
 
+// String renders the declaration as it appears in schema error messages.
+func (d FlagDeclaration) String() string {
+	switch d.kind {
+	case flagDeclarationAlias:
+		return "flag alias --" + d.name
+	case flagDeclarationShort:
+		return "short flag -" + string(d.short)
+	default:
+		return "flag --" + d.name
+	}
+}
+
 // FlagNameDeclaration names a flag's long name, rendered "flag --name".
 func FlagNameDeclaration(name string) FlagDeclaration {
 	return FlagDeclaration{kind: flagDeclarationName, name: name}
@@ -75,18 +93,6 @@ func FlagAliasDeclaration(alias string) FlagDeclaration {
 // ShortFlagDeclaration names a flag's short rune, rendered "short flag -r".
 func ShortFlagDeclaration(short rune) FlagDeclaration {
 	return FlagDeclaration{kind: flagDeclarationShort, short: short}
-}
-
-// String renders the declaration as it appears in schema error messages.
-func (d FlagDeclaration) String() string {
-	switch d.kind {
-	case flagDeclarationAlias:
-		return "flag alias --" + d.name
-	case flagDeclarationShort:
-		return "short flag -" + string(d.short)
-	default:
-		return "flag --" + d.name
-	}
 }
 
 // ValidateTrailingGrammar enforces a deterministic RawArgs boundary: a command
@@ -204,9 +210,3 @@ func ValidateImplicitFeature(tag reflect.StructTag) error {
 
 // flagDeclarationKind selects which spelling of a flag a FlagDeclaration names.
 type flagDeclarationKind uint8
-
-const (
-	flagDeclarationName flagDeclarationKind = iota
-	flagDeclarationAlias
-	flagDeclarationShort
-)

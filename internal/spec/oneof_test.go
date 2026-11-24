@@ -5,6 +5,7 @@ import (
 
 	"github.com/alecthomas/assert/v2"
 
+	"github.com/conga-sh/conga/internal/errlines"
 	"github.com/conga-sh/conga/internal/spec"
 )
 
@@ -192,61 +193,84 @@ func TestBuild_OneOfSchemaErrors(t *testing.T) {
 		name   string
 		target func() any
 		want   string
+		note   string
+		hint   string
 	}{
 		{
 			name:   "oneof on required flag",
 			target: func() any { return new(OneOfRequiredCLI) },
-			want:   `struct OneOfRequiredCLI field Format: tag "oneof" cannot be used on required flags (note: required flags are individually mandatory; hint: declare xor/oneof groups on optional flags, and use oneof when exactly one must be supplied)`,
+			want:   `struct OneOfRequiredCLI field Format: tag "oneof" cannot be used on required flags`,
+			note:   `required flags are individually mandatory`,
+			hint:   `declare xor/oneof groups on optional flags, and use oneof when exactly one must be supplied`,
 		},
 		{
 			name:   "xor on required flag",
 			target: func() any { return new(XorRequiredCLI) },
-			want:   `struct XorRequiredCLI field Format: tag "xor" cannot be used on required flags (note: required flags are individually mandatory; hint: declare xor/oneof groups on optional flags, and use oneof when exactly one must be supplied)`,
+			want:   `struct XorRequiredCLI field Format: tag "xor" cannot be used on required flags`,
+			note:   `required flags are individually mandatory`,
+			hint:   `declare xor/oneof groups on optional flags, and use oneof when exactly one must be supplied`,
 		},
 		{
 			name:   "default on required flag",
 			target: func() any { return new(DefaultRequiredCLI) },
-			want:   `struct DefaultRequiredCLI field Format: tag "default" cannot be used on required flags (note: the requirement must be satisfied by CLI, environment, or configuration input)`,
+			want:   `struct DefaultRequiredCLI field Format: tag "default" cannot be used on required flags`,
+			note:   `the requirement must be satisfied by CLI, environment, or configuration input`,
 		},
 		{
 			name:   "default on oneof flag",
 			target: func() any { return new(DefaultOneOfCLI) },
-			want:   `struct DefaultOneOfCLI field Format: tag "default" cannot be used on oneof flags (note: a default sets the flag's value and marks it as set in --why without satisfying the exactly-one group; hint: remove the default or the oneof tag)`,
+			want:   `struct DefaultOneOfCLI field Format: tag "default" cannot be used on oneof flags`,
+			note:   `a default sets the flag's value and marks it as set in --why without satisfying the exactly-one group`,
+			hint:   `remove the default or the oneof tag`,
 		},
 		{
 			name:   "single-member oneof on optional flag",
 			target: func() any { return new(OneOfSingleOptionalCLI) },
-			want:   `struct OneOfSingleOptionalCLI field Format: oneof group "format" has only one member (--format) (note: exactly-one groups need at least two members; hint: use RequiredFlag for a single mandatory flag)`,
+			want:   `struct OneOfSingleOptionalCLI field Format: oneof group "format" has only one member (--format)`,
+			note:   `exactly-one groups need at least two members`,
+			hint:   `use RequiredFlag for a single mandatory flag`,
 		},
 		{
 			name:   "single-member xor group",
 			target: func() any { return new(XorSingleCLI) },
-			want:   `struct XorSingleCLI field Format: xor group "format" has only one member (--format) (note: a one-member xor group has no effect; hint: remove the tag or add another member)`,
+			want:   `struct XorSingleCLI field Format: xor group "format" has only one member (--format)`,
+			note:   `a one-member xor group has no effect`,
+			hint:   `remove the tag or add another member`,
 		},
 		{
 			name:   "single-member and group",
 			target: func() any { return new(AndSingleCLI) },
-			want:   `struct AndSingleCLI field Format: and group "format" has only one member (--format) (note: a one-member and group has no effect; hint: remove the tag or add another member)`,
+			want:   `struct AndSingleCLI field Format: and group "format" has only one member (--format)`,
+			note:   `a one-member and group has no effect`,
+			hint:   `remove the tag or add another member`,
 		},
 		{
 			name:   "single-member group suggests the populated group",
 			target: func() any { return new(SplitOneOfSuggestionCLI) },
-			want:   `struct SplitOneOfSuggestionCLI field Text: oneof group "fromat" has only one member (--text) (note: exactly-one groups need at least two members; hint: use RequiredFlag for a single mandatory flag; did you mean "format"?)`,
+			want:   `struct SplitOneOfSuggestionCLI field Text: oneof group "fromat" has only one member (--text)`,
+			note:   `exactly-one groups need at least two members`,
+			hint:   `use RequiredFlag for a single mandatory flag; did you mean "format"?`,
 		},
 		{
 			name:   "single-member split has no arbitrary suggestion",
 			target: func() any { return new(SplitOneOfCLI) },
-			want:   `struct SplitOneOfCLI field JSON: oneof group "format" has only one member (--json) (note: exactly-one groups need at least two members; hint: use RequiredFlag for a single mandatory flag)`,
+			want:   `struct SplitOneOfCLI field JSON: oneof group "format" has only one member (--json)`,
+			note:   `exactly-one groups need at least two members`,
+			hint:   `use RequiredFlag for a single mandatory flag`,
 		},
 		{
 			name:   "oneof member sharing an and group",
 			target: func() any { return new(OneOfAndOverlapCLI) },
-			want:   `struct OneOfAndOverlapCLI field YAML: flags --json and --yaml belong to oneof group "format" and share "and" group "auth" (note: selecting either flag forces the other, so the exactly-one group can never be satisfied; hint: remove one of the group tags)`,
+			want:   `struct OneOfAndOverlapCLI field YAML: flags --json and --yaml belong to oneof group "format" and share "and" group "auth"`,
+			note:   `selecting either flag forces the other, so the exactly-one group can never be satisfied`,
+			hint:   `remove one of the group tags`,
 		},
 		{
 			name:   "xor member sharing an and group",
 			target: func() any { return new(XorAndOverlapCLI) },
-			want:   `struct XorAndOverlapCLI field YAML: flags --json and --yaml belong to xor group "format" and share "and" group "auth" (note: supplying either flag forces the other, so the mutually-exclusive group can never be satisfied; hint: remove one of the group tags)`,
+			want:   `struct XorAndOverlapCLI field YAML: flags --json and --yaml belong to xor group "format" and share "and" group "auth"`,
+			note:   `supplying either flag forces the other, so the mutually-exclusive group can never be satisfied`,
+			hint:   `remove one of the group tags`,
 		},
 		{
 			name:   "empty oneof group",
@@ -278,6 +302,8 @@ func TestBuild_OneOfSchemaErrors(t *testing.T) {
 
 			assert.Error(t, err)
 			assert.Equal(t, test.want, err.Error())
+			assert.Equal(t, test.note, errlines.Note(err))
+			assert.Equal(t, test.hint, errlines.Hint(err))
 			assert.True(t, spec.IsSchemaError(err))
 		})
 	}

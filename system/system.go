@@ -260,7 +260,7 @@ func (p *PID) UnmarshalText(text []byte) error {
 	}
 
 	if value <= 0 {
-		return rejectedError{message: fmt.Sprintf("invalid PID: PID %d (must be a positive integer > 0)", value)}
+		return rejectedError{message: fmt.Sprintf("invalid PID %d", value), note: "must be a positive integer"}
 	}
 
 	*p = PID(value)
@@ -481,10 +481,16 @@ func Users() predict.Predictor {
 // user sees. The type found the problem itself, so it has no cause.
 type rejectedError struct {
 	message string
+	note    string
 }
 
 func (e rejectedError) Error() string {
 	return e.message
+}
+
+// Note returns the detail on the rejection, such as the accepted range, or "".
+func (e rejectedError) Note() string {
+	return e.note
 }
 
 // pidSyntaxError reports a PID that is not an integer. The strconv failure is
@@ -495,7 +501,12 @@ type pidSyntaxError struct {
 }
 
 func (e *pidSyntaxError) Error() string {
-	return fmt.Sprintf("invalid PID: PID %q (must be an integer): %v", e.raw, e.cause)
+	return fmt.Sprintf("invalid PID %q", e.raw)
+}
+
+// Note says what a PID must be.
+func (e *pidSyntaxError) Note() string {
+	return "must be an integer"
 }
 
 func (e *pidSyntaxError) Unwrap() error {

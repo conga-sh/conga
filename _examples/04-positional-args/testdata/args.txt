@@ -7,7 +7,8 @@ stderr 'missing required positional argument <channel>'
 
 # 2. Invalid enum value for positional argument <channel>
 exit-status 2 positional-args discord
-stderr 'invalid value "discord" \(must be one of: slack, email, sms, webhook\) for argument <channel>'
+stderr 'invalid value "discord" for argument <channel>'
+stderr 'note: accepted values: slack, email, sms, webhook'
 
 # 3. Single positional argument (optional message defaults to fallback)
 exec positional-args slack

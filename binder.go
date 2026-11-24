@@ -69,11 +69,12 @@ type bindingState struct {
 	// standard input, so a second one is rejected before it reads. Nil skips
 	// the check (completion pruning).
 	StdinClaim *stdinClaim
-	// SourceNames records, per flag bound from the environment or a config
-	// file, the variable name or config key that supplied its value. Post-bind
-	// constraint validation reads it to attribute value errors to their origin;
+	// Origins records, per flag, where its value came from: the source tier,
+	// the variable name or config key, the config file or document label, and
+	// the .env file. Post-bind constraint validation, group validation and
+	// SelfValidator checks read it to attribute value errors to their origin;
 	// the container's SourceDetail stays reserved for the --why report.
-	SourceNames map[*spec.Flag]string
+	Origins map[*spec.Flag]valueOrigin
 	// EnumSpellings records, per flag with an integer enum, the input text of
 	// its winning value (one entry per slice element), so post-bind enum
 	// errors quote what the user typed.
@@ -94,18 +95,14 @@ func (b *bindingState) recordEnumSpellings(flagSpec *spec.Flag, spellings []stri
 	b.EnumSpellings[flagSpec] = spellings
 }
 
-// recordSourceName remembers the env variable or config key that supplied a
-// flag's value, for attribution in post-bind validation errors.
-func (b *bindingState) recordSourceName(flagSpec *spec.Flag, origin valueOrigin) {
-	if origin.name == "" || (origin.source != SourceEnv && origin.source != SourceConfig) {
-		return
+// recordOrigin remembers where a flag's value came from, for attribution in
+// post-bind validation errors.
+func (b *bindingState) recordOrigin(flagSpec *spec.Flag, origin valueOrigin) {
+	if b.Origins == nil {
+		b.Origins = make(map[*spec.Flag]valueOrigin)
 	}
 
-	if b.SourceNames == nil {
-		b.SourceNames = make(map[*spec.Flag]string)
-	}
-
-	b.SourceNames[flagSpec] = origin.name
+	b.Origins[flagSpec] = origin
 }
 
 // decodeContext composes the per-value context for one field's coercion: the
@@ -713,6 +710,7 @@ type mapMergeResult struct {
 	envEntryNames map[string]string
 	highestTier   ValueSource
 	highestName   string
+	highestConfig configdata.Value
 	// highestOrigins lists the distinct configuration origins contributing to
 	// the merged map, in load order, when the config tier is the highest
 	// contributor. Empty for other highest tiers.
@@ -825,7 +823,10 @@ func (fold stringMapFold) tier(tier mapTierInput) error {
 		return fold.config(tier.entries, tier.name)
 	}
 
-	return fold.values(tier.values, valueOrigin{source: tier.source, name: tier.name}, configdata.Value{Origin: tier.envOrigin()})
+	dotenvFile := tier.envOrigin()
+	origin := valueOrigin{source: tier.source, name: tier.name, dotenv: dotenvFile}
+
+	return fold.values(tier.values, origin, configdata.Value{Origin: dotenvFile})
 }
 
 // values folds a tier's raw key=value tokens. recorded is the origin each key
@@ -869,12 +870,12 @@ func (fold stringMapFold) values(rawValues []string, origin valueOrigin, recorde
 // config tier as its provenance with the contributing file as its origin.
 func (fold stringMapFold) config(entries map[string]configdata.Value, configKey string) error {
 	if bad, hasBad := entries[""]; hasBad {
-		return fold.values([]string{bad.Raw}, valueOrigin{source: SourceConfig, name: configKey}, bad)
+		return fold.values([]string{bad.Raw}, configValueOrigin(configKey, bad), bad)
 	}
 
 	for key, entry := range entries {
 		fold.merged[key] = entry.Raw
-		fold.provenance.record(key, SourceConfig, configdata.Value{Origin: entry.Origin, Scope: entry.Scope})
+		fold.provenance.record(key, SourceConfig, configdata.Value{Origin: entry.Origin, Scope: entry.Scope, Document: entry.Document})
 	}
 
 	fold.result.hasValues = true
@@ -955,7 +956,10 @@ func (fold typedMapFold) tier(tier mapTierInput) error {
 		return fold.config(tier.entries, tier.name)
 	}
 
-	return fold.values(tier.values, valueOrigin{source: tier.source, name: tier.name}, configdata.Value{Origin: tier.envOrigin()})
+	dotenvFile := tier.envOrigin()
+	origin := valueOrigin{source: tier.source, name: tier.name, dotenv: dotenvFile}
+
+	return fold.values(tier.values, origin, configdata.Value{Origin: dotenvFile})
 }
 
 // values parses a tier's raw key=value tokens and merges them. recorded is the
@@ -997,10 +1001,8 @@ func (fold typedMapFold) values(rawValues []string, origin valueOrigin, recorded
 // deterministic error reporting; each entry decodes and merges with its
 // originating file recorded.
 func (fold typedMapFold) config(entries map[string]configdata.Value, configKey string) error {
-	origin := valueOrigin{source: SourceConfig, name: configKey}
-
 	if bad, hasBad := entries[""]; hasBad {
-		return fold.values([]string{bad.Raw}, origin, bad)
+		return fold.values([]string{bad.Raw}, configValueOrigin(configKey, bad), bad)
 	}
 
 	result := fold.result
@@ -1016,11 +1018,11 @@ func (fold typedMapFold) config(entries map[string]configdata.Value, configKey s
 
 		key, value, err := decoder.decode(trimmedKey, trimmedValue)
 		if err != nil {
-			return &conversionError{flag: flagSpec, value: keyText + "=" + entry.Raw, origin: origin, cause: err}
+			return &conversionError{flag: flagSpec, value: keyText + "=" + entry.Raw, origin: configValueOrigin(configKey, entry), cause: err}
 		}
 
 		fold.merged.SetMapIndex(key, value)
-		fold.recordKey(key, SourceConfig, configdata.Value{Origin: entry.Origin, Scope: entry.Scope})
+		fold.recordKey(key, SourceConfig, configdata.Value{Origin: entry.Origin, Scope: entry.Scope, Document: entry.Document})
 
 		result.highestTier = SourceConfig
 		result.highestName = configKey
@@ -1127,13 +1129,13 @@ type positionalRoute struct {
 type flagGroupNaming struct {
 	// spellings holds the token typed for each command-line flag.
 	spellings map[*spec.Flag]string
-	// sourceNames holds the environment variable or config key that supplied
-	// each env- or config-sourced flag (see [bindingState.SourceNames]).
-	sourceNames map[*spec.Flag]string
+	// origins holds where each flag's value came from (see
+	// [bindingState.Origins]).
+	origins map[*spec.Flag]valueOrigin
 }
 
 // name returns a supplied member's name: a command-line member by the token the
-// user typed, any other by its declared name plus the origin suffix.
+// user typed, any other by its declared name.
 func (naming flagGroupNaming) name(flagSpec *spec.Flag) string {
 	target := flagStateOf(flagSpec.Handle)
 
@@ -1143,9 +1145,20 @@ func (naming flagGroupNaming) name(flagSpec *spec.Flag) string {
 		}
 	}
 
-	origin := valueOrigin{source: target.Source(), name: naming.sourceNames[flagSpec]}
+	return "--" + flagSpec.Name
+}
 
-	return "--" + flagSpec.Name + origin.suffix()
+// origin returns the "from:" text of a supplied member: its name and where its
+// value came from, or "" for a command-line member.
+func (naming flagGroupNaming) origin(flagSpec *spec.Flag) string {
+	target := flagStateOf(flagSpec.Handle)
+
+	described := originOf(naming.origins, flagSpec, target.Source()).describe()
+	if described == "" {
+		return ""
+	}
+
+	return "--" + flagSpec.Name + ": " + described
 }
 
 // flagInput is the winning tier's contribution to a scalar, slice, or counter
@@ -1252,7 +1265,7 @@ func (check valueCheck) notOneOf(text string, accepted []string) error {
 	shown := truncateForDisplay(text)
 	listed := strings.Join(accepted, ", ")
 
-	return check.invalid("invalid value %q (must be one of: %s)", shown, listed)
+	return check.invalid("invalid value %q", shown).withNote("accepted values: " + listed)
 }
 
 // scalar checks one value against the enum, length, and range constraints.
@@ -1322,7 +1335,7 @@ func (check valueCheck) mapItems(items *spec.Range, value any) error {
 }
 
 // invalid builds the error every check reports.
-func (check valueCheck) invalid(format string, args ...any) error {
+func (check valueCheck) invalid(format string, args ...any) *inputError {
 	return &inputError{
 		flag:   check.flag,
 		arg:    check.arg,
@@ -1572,6 +1585,16 @@ func (resolver argResolver) missing(arg *spec.Arg) error {
 type customValueFailure struct {
 	err   error
 	entry *string
+}
+
+// originOf returns the origin recorded for flagSpec when it matches source, and
+// a bare origin of that source otherwise.
+func originOf(origins map[*spec.Flag]valueOrigin, flagSpec *spec.Flag, source ValueSource) valueOrigin {
+	if recorded, ok := origins[flagSpec]; ok && recorded.source == source {
+		return recorded
+	}
+
+	return valueOrigin{source: source}
 }
 
 // stdinErrorSource picks the source of a duplicate stdin claim. When either
@@ -2117,7 +2140,7 @@ func requestsHelpOrVersion(flagValues map[*spec.Flag][]string) bool {
 func applyFlagCoercion(binding flagBinding, input flagInput) error {
 	flagSpec, state, origin := binding.flagSpec, binding.state, input.origin
 
-	state.recordSourceName(flagSpec, origin)
+	state.recordOrigin(flagSpec, origin)
 
 	if flagSpec.IsCounter {
 		totalCount := 0
@@ -2132,7 +2155,6 @@ func applyFlagCoercion(binding flagBinding, input flagInput) error {
 					flag:   flagSpec,
 					origin: origin,
 					msg:    fmt.Sprintf("invalid unsigned integer value %q", raw),
-					hint:   intx.HintOf(err),
 					cause:  err,
 				}
 			}
@@ -2195,6 +2217,20 @@ func applyFlagCoercion(binding flagBinding, input flagInput) error {
 	return nil
 }
 
+// mapFlagOrigin returns the origin recorded for a merged map flag: its highest
+// contributing tier, with the .env file when that tier is the environment, or
+// the shared config file/document when every config entry came from one source.
+func mapFlagOrigin(result mapMergeResult, state *bindingState) valueOrigin {
+	switch result.highestTier {
+	case SourceEnv:
+		return envValueOrigin(result.highestName, state.DotenvOrigins[result.highestName])
+	case SourceConfig:
+		return configValueOrigin(result.highestName, result.highestConfig)
+	default:
+		return valueOrigin{source: result.highestTier, name: result.highestName}
+	}
+}
+
 // applyFlagValue binds one flag from its highest tier that holds a value, or
 // merges every tier key by key for a map flag.
 func applyFlagValue(binding flagBinding) error {
@@ -2220,6 +2256,7 @@ func applyFlagValue(binding flagBinding) error {
 		if result.hasValues {
 			target := flagStateOf(flagSpec.Handle)
 			target.setValue(result.merged, result.highestTier, result.sourceDetail())
+			state.recordOrigin(flagSpec, mapFlagOrigin(result, state))
 
 			if state.RecordMapProvenance != nil {
 				state.RecordMapProvenance(state.Session, flagSpec, result.provenance, result.origins)
@@ -2238,12 +2275,17 @@ func applyFlagValue(binding flagBinding) error {
 
 	// Tier 2: Environment Variables
 	if envValue, envName, ok := lookupEnv(flagSpec, binding.cmd, state); ok {
-		return applyFlagCoercion(binding, flagInput{values: []string{envValue}, origin: valueOrigin{source: SourceEnv, name: envName}, detail: envName})
+		origin := envValueOrigin(envName, state.DotenvOrigins[envName])
+
+		return applyFlagCoercion(binding, flagInput{values: []string{envValue}, origin: origin, detail: envName})
 	}
 
 	// Tier 3: Configuration Files
 	if configValue, configKey, ok := lookupConfig(flagSpec, binding.cmd, binding.cmdChain, state); ok {
-		return applyFlagCoercion(binding, flagInput{values: []string{configValue.Raw}, origin: valueOrigin{source: SourceConfig, name: configKey}, detail: cmp.Or(configValue.SourceDetail(), configKey)})
+		origin := configValueOrigin(configKey, configValue)
+		detail := cmp.Or(configValue.SourceDetail(), configKey)
+
+		return applyFlagCoercion(binding, flagInput{values: []string{configValue.Raw}, origin: origin, detail: detail})
 	}
 
 	// Tier 4: Default Values
@@ -2414,9 +2456,7 @@ func buildCompletionHelpCommand(cmdChain []*spec.Command, completionValue string
 	if shell != "" {
 		parsedShell, err := completion.ParseShell(shell)
 		if err != nil {
-			message := err.Error()
-
-			return nil, usageError(cmdChain, message)
+			return nil, usageErrorFrom(cmdChain, err)
 		}
 
 		shell = string(parsedShell)
@@ -2605,6 +2645,7 @@ func validateMutuallyExclusiveGroups(groups orderedFlagGroups, naming flagGroupN
 
 		var (
 			setFlags []string
+			origins  []string
 			source   ValueSource
 		)
 
@@ -2616,14 +2657,19 @@ func validateMutuallyExclusiveGroups(groups orderedFlagGroups, naming flagGroupN
 
 			setFlags = append(setFlags, naming.name(flag))
 			source = max(source, target.Source())
+
+			if from := naming.origin(flag); from != "" {
+				origins = append(origins, from)
+			}
 		}
 
 		if len(setFlags) > 1 {
 			conflicting := strings.Join(setFlags, " and ")
 
 			return &inputError{
-				origin: valueOrigin{source: source},
-				msg:    fmt.Sprintf("flags %s are mutually exclusive", conflicting),
+				origin:  valueOrigin{source: source},
+				origins: origins,
+				msg:     fmt.Sprintf("flags %s are mutually exclusive", conflicting),
 			}
 		}
 	}
@@ -2641,6 +2687,7 @@ func validateAndGroups(andGroups orderedFlagGroups, naming flagGroupNaming) erro
 		var (
 			setFlags   []string
 			unsetFlags []string
+			origins    []string
 			source     ValueSource
 		)
 
@@ -2654,6 +2701,10 @@ func validateAndGroups(andGroups orderedFlagGroups, naming flagGroupNaming) erro
 
 			setFlags = append(setFlags, naming.name(flag))
 			source = max(source, target.Source())
+
+			if from := naming.origin(flag); from != "" {
+				origins = append(origins, from)
+			}
 		}
 
 		if len(setFlags) > 0 && len(unsetFlags) > 0 {
@@ -2662,8 +2713,9 @@ func validateAndGroups(andGroups orderedFlagGroups, naming flagGroupNaming) erro
 			unsetList := joinNaturalList(unsetFlags)
 
 			return &inputError{
-				origin: valueOrigin{source: source},
-				msg:    fmt.Sprintf("%s %s must be given together with %s", noun, setList, unsetList),
+				origin:  valueOrigin{source: source},
+				origins: origins,
+				msg:     fmt.Sprintf("%s %s must be given together with %s", noun, setList, unsetList),
 			}
 		}
 	}
@@ -2672,8 +2724,8 @@ func validateAndGroups(andGroups orderedFlagGroups, naming flagGroupNaming) erro
 }
 
 // validateFlagValueConstraint checks one flag's per-value constraints after
-// binding. sourceName attributes env- and config-sourced values.
-func validateFlagValueConstraint(flagSpec *spec.Flag, sourceName string, spellings []string) error {
+// binding. origins attributes the value to its source.
+func validateFlagValueConstraint(flagSpec *spec.Flag, origins map[*spec.Flag]valueOrigin, spellings []string) error {
 	target := flagStateOf(flagSpec.Handle)
 	if !target.IsSet() {
 		return nil
@@ -2689,7 +2741,7 @@ func validateFlagValueConstraint(flagSpec *spec.Flag, sourceName string, spellin
 		items:       flagSpec.Items,
 	}
 
-	check := valueCheck{flag: flagSpec, origin: valueOrigin{source: target.Source(), name: sourceName}}
+	check := valueCheck{flag: flagSpec, origin: originOf(origins, flagSpec, target.Source())}
 
 	if flagSpec.IsSlice {
 		return check.slice(constraints, value)
@@ -2699,7 +2751,7 @@ func validateFlagValueConstraint(flagSpec *spec.Flag, sourceName string, spellin
 		// A map merges keys from several sources, so its item count names no
 		// single variable or key. Its error type follows the highest
 		// contributing tier recorded on the container.
-		check.origin.name = ""
+		check.origin = valueOrigin{source: check.origin.source}
 
 		return check.mapItems(constraints.items, value)
 	}
@@ -2708,10 +2760,10 @@ func validateFlagValueConstraint(flagSpec *spec.Flag, sourceName string, spellin
 }
 
 // validateFlagValueConstraints checks per-flag value constraints after binding.
-// sourceNames attributes env- and config-sourced values (see
-// [bindingState.SourceNames]); a nil map attributes none. spellings holds the
+// origins attributes each value to its source (see [bindingState.Origins]); a
+// nil map attributes none. spellings holds the
 // input text of integer-enum values (see [bindingState.EnumSpellings]).
-func validateFlagValueConstraints(cmdChain []*spec.Command, sourceNames map[*spec.Flag]string, spellings map[*spec.Flag][]string) error {
+func validateFlagValueConstraints(cmdChain []*spec.Command, origins map[*spec.Flag]valueOrigin, spellings map[*spec.Flag][]string) error {
 	for _, cmd := range cmdChain {
 		for _, flagSpec := range cmd.Flags {
 			if flagSpec.Handle == nil {
@@ -2719,7 +2771,7 @@ func validateFlagValueConstraints(cmdChain []*spec.Command, sourceNames map[*spe
 				continue
 			}
 
-			if err := validateFlagValueConstraint(flagSpec, sourceNames[flagSpec], spellings[flagSpec]); err != nil {
+			if err := validateFlagValueConstraint(flagSpec, origins, spellings[flagSpec]); err != nil {
 				return err
 			}
 		}
@@ -2730,7 +2782,7 @@ func validateFlagValueConstraints(cmdChain []*spec.Command, sourceNames map[*spe
 
 // validateFlagGroupConstraints checks xor, oneof, and co-occurrence groups
 // after binding. naming spells command-line members as typed and attributes
-// environment- and configuration-sourced members.
+// the other members to their origins.
 func validateFlagGroupConstraints(cmdChain []*spec.Command, naming flagGroupNaming) error {
 	for _, cmd := range cmdChain {
 		xorGroups := collectFlagGroups(cmd.Flags, xorGroupName)
@@ -3082,12 +3134,9 @@ func callSelfValidator(ctx context.Context, value any) error {
 // constructed so validation observes the final value of the configuration
 // cascade, with the context of the active invocation. Failures inherit the
 // value's source: environment-, configuration-, and default-sourced values
-// are input errors and carry the same origin suffix as coercion
-// errors.
-func validateCustomValues(ctx context.Context, cmdChain []*spec.Command) error {
-	for index, cmd := range cmdChain {
-		ownerChain := cmdChain[:index+1]
-
+// are input errors and carry the same origin as coercion errors.
+func validateCustomValues(ctx context.Context, cmdChain []*spec.Command, origins map[*spec.Flag]valueOrigin) error {
+	for _, cmd := range cmdChain {
 		for _, flagSpec := range cmd.Flags {
 			target := flagStateOf(flagSpec.Handle)
 			if !target.IsSet() {
@@ -3097,12 +3146,10 @@ func validateCustomValues(ctx context.Context, cmdChain []*spec.Command) error {
 			value := target.getValue()
 
 			if failure := validateCustomValueTree(ctx, value); failure.err != nil {
-				sourceName := flagValueSourceName(flagSpec, target, ownerChain)
-
 				return &inputError{
 					flag:   flagSpec,
 					entry:  failure.entry,
-					origin: valueOrigin{source: target.Source(), name: sourceName},
+					origin: originOf(origins, flagSpec, target.Source()),
 					msg:    failure.err.Error(),
 					cause:  failure.err,
 				}
@@ -3121,7 +3168,7 @@ func validateCustomValues(ctx context.Context, cmdChain []*spec.Command) error {
 				return &inputError{
 					arg:    argSpec,
 					entry:  failure.entry,
-					origin: valueOrigin{source: target.Source(), name: target.SourceDetail()},
+					origin: valueOrigin{source: target.Source()},
 					msg:    failure.err.Error(),
 					cause:  failure.err,
 				}
@@ -3130,21 +3177,6 @@ func validateCustomValues(ctx context.Context, cmdChain []*spec.Command) error {
 	}
 
 	return nil
-}
-
-// flagValueSourceName names the origin of a bound flag for diagnostics: the
-// winning environment variable, the flag's configuration key, or the default
-// literal. For configuration values the container's SourceDetail records the
-// contributing file (the --why detail), while the message names the key.
-func flagValueSourceName(flagSpec *spec.Flag, target flagState, cmdChain []*spec.Command) string {
-	switch target.Source() {
-	case SourceEnv:
-		return target.SourceDetail()
-	case SourceConfig:
-		return spec.ConfigKeyPath(flagSpec, cmdChain)
-	default:
-		return target.SourceDetail()
-	}
 }
 
 // validateCustomValueTree walks a resolved value like the constraint
@@ -3335,6 +3367,7 @@ func foldMapTiers(binding flagBinding, featureEnv *mapTierInput, result *mapMerg
 
 	if result.highestTier == SourceConfig {
 		result.highestOrigins = orderedConfigOrigins(state, configEntries)
+		result.highestConfig, _ = singleConfigOriginValue(configEntries)
 	}
 
 	return nil
@@ -3411,6 +3444,35 @@ func orderedConfigOrigins(state *bindingState, entries map[string]configdata.Val
 	return ordered
 }
 
+// singleConfigOriginValue returns the shared configdata.Value when every entry
+// in entries shares one non-empty SourceDetail() and Document flag.
+func singleConfigOriginValue(entries map[string]configdata.Value) (configdata.Value, bool) {
+	if len(entries) == 0 {
+		return configdata.Value{}, false
+	}
+
+	var shared configdata.Value
+
+	for _, entry := range entries {
+		detail := entry.SourceDetail()
+		if detail == "" {
+			return configdata.Value{}, false
+		}
+
+		if shared.SourceDetail() == "" {
+			shared = entry
+
+			continue
+		}
+
+		if detail != shared.SourceDetail() || entry.Document != shared.Document {
+			return configdata.Value{}, false
+		}
+	}
+
+	return shared, true
+}
+
 // mergeTypedMapTiers merges a map flag whose keys or values need parsing:
 // every tier's entries decode through the app's parsers and merge key by key
 // in ascending precedence.
@@ -3440,6 +3502,7 @@ func mergeTypedMapTiers(binding flagBinding, tiers []mapTierInput, configEntries
 
 	if result.highestTier == SourceConfig {
 		result.highestOrigins = orderedConfigOrigins(state, configEntries)
+		result.highestConfig, _ = singleConfigOriginValue(configEntries)
 	}
 
 	result.merged = fold.merged.Interface()

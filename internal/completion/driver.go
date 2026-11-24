@@ -68,5 +68,10 @@ type unknownShellError struct {
 }
 
 func (e *unknownShellError) Error() string {
-	return fmt.Sprintf("unknown shell %q, supported shells: %s", e.name, strings.Join(SupportedShells(), ", "))
+	return fmt.Sprintf("unknown shell %q", e.name)
+}
+
+// Note lists the shells a driver serves.
+func (e *unknownShellError) Note() string {
+	return "supported shells: " + strings.Join(SupportedShells(), ", ")
 }

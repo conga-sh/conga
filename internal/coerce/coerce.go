@@ -256,13 +256,23 @@ func (e *unsupportedTypeError) Error() string {
 	return fmt.Sprintf("unsupported type %s", e.targetType)
 }
 
-// booleanError is the root cause for unparseable boolean values.
+// booleanError is the root cause for unparseable boolean values. Its note
+// advertises only true, false, 1 and 0, although coerceBool accepts every
+// strconv.ParseBool spelling (t, T, TRUE, True, ...). That is deliberate (1.13
+// decision 2, #171): the full set is pinned by the spelling tests in
+// coerce_test.go, and replacing ParseBool with a narrower parser or listing
+// every spelling in the note is not intended.
 type booleanError struct {
 	raw string
 }
 
 func (e *booleanError) Error() string {
-	return fmt.Sprintf("invalid boolean value %q, expected true or false (or 1 or 0)", e.raw)
+	return fmt.Sprintf("invalid boolean value %q", e.raw)
+}
+
+// Note names the spellings the message advertises.
+func (e *booleanError) Note() string {
+	return "expected true or false (or 1 or 0)"
 }
 
 // durationError is the root cause for unparseable duration values.
@@ -271,23 +281,33 @@ type durationError struct {
 }
 
 func (e *durationError) Error() string {
-	return fmt.Sprintf("invalid duration %q (valid units: ms, s, m, h)", e.raw)
+	return fmt.Sprintf("invalid duration %q", e.raw)
+}
+
+// Note lists the units time.ParseDuration accepts.
+func (e *durationError) Note() string {
+	return "accepted units: ns, us (or µs), ms, s, m, h"
 }
 
 // timeError is the root cause for unparseable time.Time values. A detail
 // from time.ParseError (such as "day out of range") replaces the RFC 3339
-// hint when the text has the right shape but an invalid field.
+// note when the text has the right shape but an invalid field.
 type timeError struct {
 	raw    string
 	detail string
 }
 
 func (e *timeError) Error() string {
+	return fmt.Sprintf("invalid time %q", e.raw)
+}
+
+// Note returns the time.ParseError detail, or the expected format.
+func (e *timeError) Note() string {
 	if e.detail != "" {
-		return fmt.Sprintf("invalid time %q (%s)", e.raw, e.detail)
+		return e.detail
 	}
 
-	return fmt.Sprintf("invalid time %q (expected RFC 3339, e.g. 2006-01-02T15:04:05Z)", e.raw)
+	return "expected RFC 3339, e.g. 2006-01-02T15:04:05Z"
 }
 
 // urlErrorKind identifies the URL expectation violated by a raw value.
@@ -299,14 +319,17 @@ type urlError struct {
 }
 
 func (e *urlError) Error() string {
-	switch e.kind {
-	case urlErrorMalformed:
-		return fmt.Sprintf("invalid URL %q", e.raw)
-	case urlErrorMissingScheme:
-		return fmt.Sprintf("invalid URL %q (missing scheme, e.g. https://)", e.raw)
-	default:
-		return fmt.Sprintf("invalid URL %q", e.raw)
+	return fmt.Sprintf("invalid URL %q", e.raw)
+}
+
+// Note says what is missing from a URL without a scheme, and is empty for a
+// malformed one.
+func (e *urlError) Note() string {
+	if e.kind == urlErrorMissingScheme {
+		return "missing scheme, e.g. https://"
 	}
+
+	return ""
 }
 
 // numErrorKind identifies the numeric parse failure mode.
@@ -317,7 +340,7 @@ type numError struct {
 	noun       string       // "integer" | "unsigned integer" | "float" (invalid kind only)
 	targetType reflect.Type // out-of-range kind only
 	kind       numErrorKind
-	cause      error // *intx.Error for integers, so intx.HintOf finds the leading-zero hint
+	cause      error // *intx.Error for integers, which carries the leading-zero note and hint
 }
 
 func (e *numError) Error() string {
@@ -344,12 +367,21 @@ type mapPairError struct {
 func (e *mapPairError) Error() string {
 	switch e.kind {
 	case mapPairErrorInvalid:
-		return fmt.Sprintf("invalid key-value pair %q, expected KEY=VALUE", e.item)
+		return fmt.Sprintf("invalid key-value pair %q", e.item)
 	case mapPairErrorEmptyKey:
 		return fmt.Sprintf("empty key in key-value pair %q", e.item)
 	default:
 		return fmt.Sprintf("invalid key-value pair %q", e.item)
 	}
+}
+
+// Note says what a key-value pair looks like, for a pair with no separator.
+func (e *mapPairError) Note() string {
+	if e.kind == mapPairErrorInvalid {
+		return "expected KEY=VALUE"
+	}
+
+	return ""
 }
 
 // conversionError is the root cause for the defensive type-assertion failure
@@ -502,6 +534,10 @@ func coerceURL(raw string) (*url.URL, error) {
 	return parsedURL, nil
 }
 
+// coerceBool parses a boolean. It accepts every strconv.ParseBool spelling
+// (true, false, 1, 0, t, T, TRUE, True, ...), and the error's note advertises
+// only true, false, 1 and 0. That is deliberate (1.13 decision 2, #171); see
+// booleanError and the spelling tests in coerce_test.go.
 func coerceBool(raw string, targetType reflect.Type) (any, error) {
 	if raw == "true" || raw == "1" {
 		return convertValue(true, targetType), nil

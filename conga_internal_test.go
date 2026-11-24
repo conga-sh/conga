@@ -320,7 +320,8 @@ func TestValidator_FailureSurfacesFromRun(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, "custom validator failure", err.Error())
-	assert.Equal(t, nil, errors.Unwrap(err))
+	assert.Equal(t, "custom validator failure", errors.Unwrap(err).Error())
+	assert.Equal(t, nil, errors.Unwrap(errors.Unwrap(err)))
 	_, isUsage := errors.AsType[*UsageError](err)
 	assert.False(t, isUsage)
 }

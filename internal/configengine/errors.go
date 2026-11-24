@@ -2,24 +2,34 @@ package configengine
 
 import (
 	"fmt"
-
-	"github.com/conga-sh/conga/internal/configdata"
 )
 
-// configError represents a failure reading or parsing configuration files.
+// configError represents a failure reading or parsing configuration files, or
+// a strict-validation failure inside one. Its Error is the first line alone.
+// Only strict-validation errors carry an origin (the file or document the
+// offending entry came from) and may carry a hint; the errors from finding and
+// loading files name their file or directory in the message instead.
 type configError struct {
 	path  string
 	msg   string
 	cause error
+
+	// origin is the text of the "from:" line, or "" for none.
+	origin string
+
+	// hint is the action that fixes the error, or "".
+	hint string
 }
 
-func newFieldConfigError(origin, scope, msgContext string) *configError {
-	path := configdata.JoinOriginScope(origin, scope)
+func newFieldConfigError(origin, msg string) *configError {
+	return &configError{msg: msg, origin: origin}
+}
 
-	return &configError{
-		path: path,
-		msg:  fmt.Sprintf("config file %q: %s", path, msgContext),
-	}
+// withHint sets the action that fixes the error.
+func (e *configError) withHint(hint string) *configError {
+	e.hint = hint
+
+	return e
 }
 
 func (e *configError) Error() string {
@@ -40,6 +50,23 @@ func (e *configError) Error() string {
 	}
 
 	return "config error"
+}
+
+// Origins returns the "from:" text of a strict-validation error: the config
+// file or the document label the offending entry came from. It is nil for an
+// error from finding or loading files.
+func (e *configError) Origins() []string {
+	if e.origin == "" {
+		return nil
+	}
+
+	return []string{e.origin}
+}
+
+// Hint returns the action that fixes the error, such as a did-you-mean
+// suggestion, or "".
+func (e *configError) Hint() string {
+	return e.hint
 }
 
 func (e *configError) Unwrap() error {

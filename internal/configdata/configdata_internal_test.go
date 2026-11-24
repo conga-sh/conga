@@ -131,3 +131,13 @@ func TestSetScalarScoped_EmptyOriginIgnoresScope(t *testing.T) {
 	assert.Equal(t, Value{Raw: "8080"}, scalar)
 	assert.Equal(t, "", scalar.SourceDetail())
 }
+
+func TestValue_OriginText(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, "", Value{}.OriginText())
+	assert.Equal(t, "", Value{Scope: "dev", Document: true}.OriginText())
+	assert.Equal(t, `config file "tool.yaml"`, Value{Origin: "tool.yaml"}.OriginText())
+	assert.Equal(t, "set by profile dev", Value{Origin: "profile dev", Document: true}.OriginText())
+	assert.Equal(t, "set by profiles.yaml › dev", Value{Origin: "profiles.yaml", Scope: "dev", Document: true}.OriginText())
+}

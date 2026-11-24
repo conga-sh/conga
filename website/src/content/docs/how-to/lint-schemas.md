@@ -72,7 +72,8 @@ Running the program shows only the first mistake:
 
 ```sh error={2} wrap
 $ cloudctl status
-cloudctl: error: struct DeployCmd field Replicas: schema error: invalid struct tag: unknown struct tag "hlep" (did you mean "help"?). Use app.AllowTags("hlep") to permit external tags
+cloudctl: error: struct DeployCmd field Replicas: unknown struct tag "hlep"
+  hint: did you mean "help"? Use app.AllowTags("hlep") to permit external tags
 ```
 
 Go's `./...` pattern skips directories that start with `_`, such as `_examples/`, so name those paths explicitly.
@@ -148,7 +149,8 @@ The program fails at startup with the first of them, exit 1:
 
 ```sh error={2} wrap
 $ cloudctl deploy
-cloudctl: error: struct DeployCmd field Replicas: schema error: invalid struct tag: unknown struct tag "bson". Use app.AllowTags("bson") to permit external tags
+cloudctl: error: struct DeployCmd field Replicas: unknown struct tag "bson"
+  hint: use app.AllowTags("bson") to permit external tags
 ```
 
 List both keys in `AllowTags`:

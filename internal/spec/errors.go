@@ -3,7 +3,8 @@ package spec
 import (
 	"errors"
 	"fmt"
-	"strings"
+
+	"github.com/conga-sh/conga/internal/errlines"
 )
 
 // SchemaError reports a command schema defect discovered during schema build
@@ -19,23 +20,10 @@ type SchemaError struct {
 	cause      error
 }
 
-// Error renders the message followed by the labelled note and hint, as in
-// `message (note: ...; hint: ...)`.
+// Error returns the message alone. The note and hint are separate pieces,
+// read through Note and Hint, and App.Exit prints them on their own lines.
 func (e *SchemaError) Error() string {
-	var builder strings.Builder
-
-	builder.WriteString(e.Message())
-
-	switch {
-	case e.note != "" && e.hint != "":
-		builder.WriteString(" (note: " + e.note + "; hint: " + e.hint + ")")
-	case e.note != "":
-		builder.WriteString(" (note: " + e.note + ")")
-	case e.hint != "":
-		builder.WriteString(" (hint: " + e.hint + ")")
-	}
-
-	return builder.String()
+	return e.Message()
 }
 
 // Message returns the defect statement with its owner prefix
@@ -98,6 +86,8 @@ func WithOwner(err error, structName, fieldName string) error {
 		structName: structName,
 		fieldName:  fieldName,
 		msg:        err.Error(),
+		note:       errlines.Note(err),
+		hint:       errlines.Hint(err),
 		cause:      err,
 	}
 }

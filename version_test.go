@@ -11,6 +11,7 @@ import (
 	"github.com/alecthomas/assert/v2"
 
 	"github.com/conga-sh/conga"
+	"github.com/conga-sh/conga/internal/errlines"
 )
 
 type TestVersionRootCLI struct {
@@ -306,7 +307,8 @@ func TestVersionCommand_JSONInvalidValue(t *testing.T) {
 
 	assert.Error(t, err)
 	assertUsageError(t, err)
-	assert.Equal(t, `invalid boolean value "banana", expected true or false (or 1 or 0) for flag --json`, err.Error())
+	assert.Equal(t, `invalid boolean value "banana" for flag --json`, err.Error())
+	assert.Equal(t, `expected true or false (or 1 or 0)`, errlines.Note(err))
 	assert.Equal(t, "", buffer.String())
 }
 
@@ -324,7 +326,8 @@ func TestVersionCommand_JSONEmptyValueRejected(t *testing.T) {
 
 	assert.Error(t, err)
 	assertUsageError(t, err)
-	assert.Equal(t, `invalid boolean value "", expected true or false (or 1 or 0) for flag --json`, err.Error())
+	assert.Equal(t, `invalid boolean value "" for flag --json`, err.Error())
+	assert.Equal(t, `expected true or false (or 1 or 0)`, errlines.Note(err))
 	assert.Equal(t, "", buffer.String())
 }
 
@@ -338,7 +341,9 @@ func TestVersionCommand_AncestorJSONFlagCollides(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.Equal(t, `struct TestVersionJSONCollisionCLI field Version: duplicate flag --json (note: already declared by struct TestVersionJSONCollisionCLI field JSON on an ancestor command; the built-in version command owns --json; hint: rename the ancestor flag or remove the VersionCommand field)`, err.Error())
+	assert.Equal(t, `struct TestVersionJSONCollisionCLI field Version: duplicate flag --json`, err.Error())
+	assert.Equal(t, `already declared by struct TestVersionJSONCollisionCLI field JSON on an ancestor command; the built-in version command owns --json`, errlines.Note(err))
+	assert.Equal(t, `rename the ancestor flag or remove the VersionCommand field`, errlines.Hint(err))
 }
 
 func TestRootJSONFlagWithoutVersionCommandBuilds(t *testing.T) {
@@ -421,7 +426,9 @@ func TestVersion_CollisionWithoutDisableVersionFlag(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.Equal(t, "struct UserVersionFlagCLI field Version: duplicate flag --version (note: already declared by the built-in --version flag; hint: use app.DisableVersionFlag() to override)", err.Error())
+	assert.Equal(t, "struct UserVersionFlagCLI field Version: duplicate flag --version", err.Error())
+	assert.Equal(t, "already declared by the built-in --version flag", errlines.Note(err))
+	assert.Equal(t, "use app.DisableVersionFlag() to override", errlines.Hint(err))
 }
 
 func TestVersion_CustomFlagCollisionWithoutDisableVersionFlag(t *testing.T) {
@@ -433,7 +440,9 @@ func TestVersion_CustomFlagCollisionWithoutDisableVersionFlag(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.Equal(t, "struct UserVersionFlagCLI field Version: duplicate flag --version (note: already declared by the built-in --version flag; hint: use app.DisableVersionFlag() to override)", err.Error())
+	assert.Equal(t, "struct UserVersionFlagCLI field Version: duplicate flag --version", err.Error())
+	assert.Equal(t, "already declared by the built-in --version flag", errlines.Note(err))
+	assert.Equal(t, "use app.DisableVersionFlag() to override", errlines.Hint(err))
 }
 
 func TestVersion_CustomFlagWithDisableVersionFlag(t *testing.T) {
@@ -592,7 +601,8 @@ func TestVersionFlag_InvalidValueFails(t *testing.T) {
 	err := app.Run()
 
 	assertUsageError(t, err)
-	assert.Equal(t, `invalid boolean value "maybe", expected true or false (or 1 or 0) for flag --version`, err.Error())
+	assert.Equal(t, `invalid boolean value "maybe" for flag --version`, err.Error())
+	assert.Equal(t, `expected true or false (or 1 or 0)`, errlines.Note(err))
 }
 
 // TestVersionCommand_HelpWinsOverInvalidJSON pins that --help on the version

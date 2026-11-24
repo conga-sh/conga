@@ -3,6 +3,7 @@ package conga_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -12,6 +13,8 @@ import (
 	"github.com/alecthomas/assert/v2"
 
 	"github.com/conga-sh/conga"
+	"github.com/conga-sh/conga/internal/errlines"
+	"github.com/conga-sh/conga/network"
 )
 
 // --- Custom Type Definitions and Type Aliases ---
@@ -427,7 +430,8 @@ func TestUnitsRangeValidation(t *testing.T) {
 		err := conga.New[ByteSizeUnitsRangeMismatchCLI]().Args([]string{}).RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.Equal(t, `struct ByteSizeUnitsRangeMismatchCLI field Memory: invalid byte size min bound "1MB": byte size unit "MB" in "1MB" is not allowed: the field accepts binary units only`, err.Error())
+		assert.Equal(t, `struct ByteSizeUnitsRangeMismatchCLI field Memory: invalid byte size min bound "1MB"`, err.Error())
+		assert.Equal(t, `the field accepts binary units only`, errlines.Note(err))
 	})
 }
 
@@ -1089,4 +1093,62 @@ func TestValidation_Float32RangeBoundOutsideFloat32Rejected(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, `struct float32OverflowRangeCLI field Ratio: invalid float max bound "1e39"`, err.Error())
+}
+
+var errPixelBoundSyntax = errors.New("must end in px")
+
+type pixelValue int
+
+func (p *pixelValue) UnmarshalText(text []byte) error {
+	raw, ok := strings.CutSuffix(string(text), "px")
+	if !ok {
+		return errPixelBoundSyntax
+	}
+
+	parsed, err := strconv.Atoi(raw)
+	if err != nil {
+		return err
+	}
+
+	*p = pixelValue(parsed)
+
+	return nil
+}
+
+func TestValidation_PlainTextUnmarshalerRangeBoundsPreserveCauseAndNote(t *testing.T) {
+	t.Parallel()
+
+	t.Run("network.Port preserves its note and cause", func(t *testing.T) {
+		t.Parallel()
+
+		type badPortRangeCLI struct {
+			noopRunner
+
+			Port conga.OptionalFlag[network.Port] `name:"port" range:"0..80"`
+		}
+
+		err := conga.New[badPortRangeCLI]().Args([]string{}).Run()
+
+		assert.Error(t, err)
+		assert.Equal(t, `struct badPortRangeCLI field Port: invalid value min bound "0"`, err.Error())
+		assert.Equal(t, "must be between 1 and 65535", errlines.Note(err))
+		assert.True(t, errors.Unwrap(err) != nil)
+	})
+
+	t.Run("author TextUnmarshaler keeps its error as note and cause", func(t *testing.T) {
+		t.Parallel()
+
+		type badPixelRangeCLI struct {
+			noopRunner
+
+			Width conga.OptionalFlag[pixelValue] `name:"width" range:"nope..10px"`
+		}
+
+		err := conga.New[badPixelRangeCLI]().Args([]string{}).Run()
+
+		assert.Error(t, err)
+		assert.Equal(t, `struct badPixelRangeCLI field Width: invalid value min bound "nope"`, err.Error())
+		assert.Equal(t, "must end in px", errlines.Note(err))
+		assert.IsError(t, err, errPixelBoundSyntax)
+	})
 }
