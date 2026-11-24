@@ -49,7 +49,8 @@ func New[T any](root ...*T) *App[T]
 |--------|---------|
 | `Run()` | Parse + execute with a signal-aware context (`SIGINT`/`SIGTERM`) |
 | `RunContext(ctx)` | Execute with your context; panics on a nil context |
-| `Exit(err)` | Render error messages and exit (0/1/2 contract) |
+| `Exit(err)` | Render error messages and exit with 0, 1, 2, or an `ExitCoder`'s code |
+| `ExitCode(err)` | The exit code `Exit` uses for `err`, without printing or exiting |
 
 ### Extensibility functions
 
@@ -58,7 +59,7 @@ func (a *App[T]) RegisterType[U any](parser TypeParser[U], opts ...RegistrationO
 func WithPredictor(p predict.Predictor) RegistrationOption
 ```
 
-`TypeParser[U]` is a `func(raw string) (U, error)`, and an error it returns classifies under `ErrCoerce` for a command-line value and `ErrConfig` for one from the environment, a config file, or a `default` tag. A registered parser decodes every field of type `U`, each `U` element of a slice, and each `U` key or value of a map. `RegistrationOption` customizes registrations, and `WithPredictor` attaches default completion to a registered type.
+`TypeParser[U]` is a `func(raw string) (U, error)`, and an error it returns is the cause of a `*UsageError` for a command-line value and of an ordinary error for one from the environment, a config file, or a `default` tag. `errors.Is` and `errors.As` reach it in both cases. A registered parser decodes every field of type `U`, each `U` element of a slice, and each `U` key or value of a map. `RegistrationOption` customizes registrations, and `WithPredictor` attaches default completion to a registered type.
 
 ## Containers
 
@@ -105,7 +106,11 @@ func (s *Session) Path() string
 func (s *Session) Name() string
 func (s *Session) CandidateConfigFiles() []string
 func (s *Session) LoadedConfigFiles() []string
+func (s *Session) UsageError(message string) error
+func (s *Session) UsageErrorf(format string, args ...any) error
 ```
+
+`UsageError` and `UsageErrorf` return a `*UsageError` for the active command, so `App.Exit` exits with status 2 and prints the usage block. A `%w` operand of `UsageErrorf` stays reachable as the cause. See [Errors and exit codes](/reference/errors/#validate-and-bootstrap-errors).
 
 `Root` returns the application struct bound to `T`, either the instance passed to
 `New` or the engine-allocated instance. The type argument `T` must match the
@@ -134,7 +139,7 @@ The App snapshots standard streams at the start of execution for the active sess
 
 ## Errors
 
-Runtime error categories (`ErrParse`, `ErrCoerce`, `ErrValidation`, `ErrConfig`), schema-build errors, and the `UsageError` and `CompletionError` interfaces with `IsUsageError(err)` / `IsCompletionError(err)` — cataloged in [Errors and exit codes](/reference/errors/).
+The `*UsageError` type and the `ExitCoder` interface, `Session.UsageError` and `Session.UsageErrorf`, and the schema-build errors, cataloged in [Errors and exit codes](/reference/errors/).
 
 ## Provenance options
 
@@ -175,14 +180,14 @@ Each search path is probed for every registered extension. An existing directory
 
 | Situation | Result |
 |-----------|--------|
-| A file named by the `ConfigFile` flag, the config environment variable, or `ConfigExplicit` doesn't exist | `ErrConfig`, exit 1 |
-| A named file's extension has no registered decoder | `ErrConfig`, exit 1 |
+| A file named by the `ConfigFile` flag, the config environment variable, or `ConfigExplicit` doesn't exist | Exit 1 |
+| A named file's extension has no registered decoder | Exit 1 |
 | A search path yields no file | Skipped, and probing continues |
-| One search path yields several files with registered extensions | `ErrConfig`, exit 1: `multiple conflicting config files found` |
+| One search path yields several files with registered extensions | Exit 1: `multiple conflicting config files found` |
 | No file is found anywhere | The run continues on the other sources |
-| A file larger than 16 MiB | `ErrConfig`, exit 1, naming the size and the limit |
-| Malformed content | `ErrConfig`, exit 1 |
-| An unknown key | `ErrConfig`, exit 1, with a "did you mean" hint for near misses |
+| A file larger than 16 MiB | Exit 1, naming the size and the limit |
+| Malformed content | Exit 1 |
+| An unknown key | Exit 1, with a "did you mean" hint for near misses |
 
 With no decoder registered, the `ConfigFile` flag's help text ends in `(no configuration decoder registered)`.
 
@@ -216,7 +221,7 @@ func (d *ConfigDocument) SetKey(key, entryKey string, value any, origin string) 
 func (d *ConfigDocument) SetKeyScoped(key, entryKey string, value any, origin, scope string) *ConfigDocument
 ```
 
-A command struct that implements `Bootstrapper` runs `Bootstrap` after the bootstrap pass, which binds the fields tagged `bootstrap:"true"` from the command line, environment, and defaults. The normal binding pass then binds every field, the tagged ones included, with config added. An error returned from `Bootstrap` wraps `ErrConfig` and exits 1.
+A command struct that implements `Bootstrapper` runs `Bootstrap` after the bootstrap pass, which binds the fields tagged `bootstrap:"true"` from the command line, environment, and defaults. The normal binding pass then binds every field, the tagged ones included, with config added. An error returned from `Bootstrap` reaches the caller unchanged and exits 1, or with the code of an `ExitCoder`.
 
 | `Bootstrap` method | Effect |
 |---|---|
@@ -224,7 +229,7 @@ A command struct that implements `Bootstrapper` runs `Bootstrap` after the boots
 | `Name()` | The matched leaf command name |
 | `LookupEnv(key)` | The environment this invocation sees, like `os.LookupEnv`, including variables loaded by earlier `Dotenv` calls |
 | `Dotenv(paths...)` | Loads each existing `.env` file through `App.SetenvFunc`, skipping missing ones. With no paths, loads `.env` then `.env.local`. Never overwrites a variable already in the process environment |
-| `DotenvExplicit(paths...)` | Like `Dotenv`, but a missing file is an `ErrConfig` error |
+| `DotenvExplicit(paths...)` | Like `Dotenv`, but a missing file is an error |
 | `SetConfig(doc)` | Supplies the run's config document. A later call replaces an earlier one, and nil leaves the document inactive |
 
 The document is the highest-precedence part of the config source and overlays file values key by key, giving `CLI > environment > document > config file > default`. Each entry's origin appears in `--why`.

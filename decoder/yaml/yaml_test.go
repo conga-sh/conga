@@ -70,7 +70,7 @@ func TestDecode_InvalidSyntax(t *testing.T) {
 
 	_, err := yaml.Decode(fixtureInvalidSyntax)
 
-	assert.IsError(t, err, yaml.ErrParse)
+	assert.EqualError(t, err, `yaml: line 2: mapping values are not allowed in this context`)
 }
 
 func TestDecode_TrailingGarbage(t *testing.T) {
@@ -78,7 +78,7 @@ func TestDecode_TrailingGarbage(t *testing.T) {
 
 	_, err := yaml.Decode(fixtureTrailingGarbage)
 
-	assert.IsError(t, err, yaml.ErrParse)
+	assert.EqualError(t, err, `trailing garbage after YAML document`)
 }
 
 func TestDecode_TrailingWhitespaceSucceeds(t *testing.T) {
@@ -128,8 +128,7 @@ func TestDecode_IntegerBeyond64BitsRejected(t *testing.T) {
 
 	_, err := yaml.Decode([]byte("id: 999999999999999999999999999999\n"))
 
-	assert.IsError(t, err, yaml.ErrParse)
-	assert.Equal(t, "yaml parse error: line 1: integer 999999999999999999999999999999 out of range", err.Error())
+	assert.Equal(t, "line 1: integer 999999999999999999999999999999 out of range", err.Error())
 }
 
 func TestDecode_NestedIntegerBeyond64BitsRejected(t *testing.T) {
@@ -137,8 +136,7 @@ func TestDecode_NestedIntegerBeyond64BitsRejected(t *testing.T) {
 
 	_, err := yaml.Decode([]byte("nested:\n  list: [1, -99999999999999999999]\n"))
 
-	assert.IsError(t, err, yaml.ErrParse)
-	assert.Equal(t, "yaml parse error: line 2: integer -99999999999999999999 out of range", err.Error())
+	assert.Equal(t, "line 2: integer -99999999999999999999 out of range", err.Error())
 }
 
 func TestDecode_HexIntegerBeyond64BitsRejected(t *testing.T) {
@@ -146,6 +144,5 @@ func TestDecode_HexIntegerBeyond64BitsRejected(t *testing.T) {
 
 	_, err := yaml.Decode([]byte("mask: 0xFFFFFFFFFFFFFFFFFF\n"))
 
-	assert.IsError(t, err, yaml.ErrParse)
-	assert.Equal(t, "yaml parse error: line 1: integer 0xFFFFFFFFFFFFFFFFFF out of range", err.Error())
+	assert.Equal(t, "line 1: integer 0xFFFFFFFFFFFFFFFFFF out of range", err.Error())
 }

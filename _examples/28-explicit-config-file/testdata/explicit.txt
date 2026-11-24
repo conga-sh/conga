@@ -41,7 +41,7 @@ rm bootstrap.yaml
 exit-status 1 explicit-config-file
 stderr 'cannot read config file "bootstrap\.yaml"'
 
-# 7. Missing explicit file under --why fails fast with ErrConfig (non-tolerant pipeline)
+# 7. Missing explicit file under --why fails fast with exit 1 (non-tolerant pipeline)
 exit-status 1 explicit-config-file --why
 stderr 'cannot read config file "bootstrap\.yaml"'
 

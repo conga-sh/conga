@@ -118,7 +118,7 @@ func TestBuiltinShort_Parsing(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrParse)
+		assertUsageError(t, err)
 	})
 
 	t.Run("unconfigured short stays an unknown flag", func(t *testing.T) {
@@ -129,7 +129,7 @@ func TestBuiltinShort_Parsing(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrParse)
+		assertUsageError(t, err)
 	})
 
 	t.Run("user flag keeps its rune when no built-in short is assigned", func(t *testing.T) {
@@ -284,7 +284,7 @@ func TestBuiltinShort_UserShadows(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrParse)
+		assertUsageError(t, err)
 		assert.Equal(t, "unknown flag: -h", err.Error())
 	})
 }
@@ -328,7 +328,7 @@ func TestBuiltinShort_EngineOwnedShadows(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrParse)
+		assertUsageError(t, err)
 		assert.Equal(t, "unknown flag: -h", err.Error())
 	})
 

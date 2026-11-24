@@ -2,7 +2,6 @@ package conga_test
 
 import (
 	"bytes"
-	"errors"
 	"io"
 	"os/exec"
 	"strings"
@@ -96,10 +95,7 @@ func TestEmptyPathCommandLine(t *testing.T) {
 				result := runClassification(t, app)
 
 				assert.Equal(t, "empty path for flag --"+flag, result.err.Error())
-				assert.IsError(t, result.err, conga.ErrCoerce)
-				assert.False(t, errors.Is(result.err, conga.ErrValidation))
-				assert.False(t, errors.Is(result.err, conga.ErrConfig))
-				assert.True(t, conga.IsUsageError(result.err))
+				assertUsageError(t, result.err)
 				assert.Equal(t, 2, result.exitCode)
 				assert.Equal(t, "app: error: empty path for flag --"+flag+"\n", result.output)
 				assert.Equal(t, make([]conga.ValueSource, 10), emptyPathSources(cli))
@@ -117,8 +113,7 @@ func TestEmptyPathRequiredDirFlag(t *testing.T) {
 	result := runClassification(t, app)
 
 	assert.Equal(t, "empty path for flag --out-dir", result.err.Error())
-	assert.IsError(t, result.err, conga.ErrCoerce)
-	assert.True(t, conga.IsUsageError(result.err))
+	assertUsageError(t, result.err)
 	assert.Equal(t, 2, result.exitCode)
 	assert.Equal(t, conga.SourceNone, cli.OutDir.Source())
 }
@@ -135,8 +130,7 @@ func TestEmptyPathPositional(t *testing.T) {
 		result := runClassification(t, app)
 
 		assert.Equal(t, "empty path for argument [src]", result.err.Error())
-		assert.IsError(t, result.err, conga.ErrCoerce)
-		assert.True(t, conga.IsUsageError(result.err))
+		assertUsageError(t, result.err)
 		assert.Equal(t, 2, result.exitCode)
 		assert.Equal(t, conga.SourceNone, cli.Source.Source())
 	})
@@ -150,8 +144,7 @@ func TestEmptyPathPositional(t *testing.T) {
 		result := runClassification(t, app)
 
 		assert.Equal(t, "empty path for argument <dst>", result.err.Error())
-		assert.IsError(t, result.err, conga.ErrCoerce)
-		assert.True(t, conga.IsUsageError(result.err))
+		assertUsageError(t, result.err)
 		assert.Equal(t, 2, result.exitCode)
 		assert.Equal(t, conga.SourceNone, cli.Destination.Source())
 	})
@@ -208,9 +201,7 @@ func TestEmptyPathConfig(t *testing.T) {
 
 			message := `empty path for flag --` + value.key + ` (from config key "` + value.key + `")`
 			assert.Equal(t, message, result.err.Error())
-			assert.IsError(t, result.err, conga.ErrConfig)
-			assert.False(t, errors.Is(result.err, conga.ErrCoerce))
-			assert.False(t, conga.IsUsageError(result.err))
+			assertNotUsageError(t, result.err)
 			assert.Equal(t, 1, result.exitCode)
 			assert.Equal(t, "app: error: "+message+"\n", result.output)
 			assert.Equal(t, make([]conga.ValueSource, 10), emptyPathSources(cli))
@@ -266,7 +257,7 @@ func TestEmptyPathUnmarshalText(t *testing.T) {
 		err := file.UnmarshalText([]byte(""))
 
 		assert.Equal(t, "empty path", err.Error())
-		assert.IsError(t, err, conga.ErrCoerce)
+		assertNotUsageError(t, err)
 		assert.Equal(t, "", file.String())
 	})
 
@@ -278,7 +269,7 @@ func TestEmptyPathUnmarshalText(t *testing.T) {
 		err := dir.UnmarshalText([]byte(""))
 
 		assert.Equal(t, "empty path", err.Error())
-		assert.IsError(t, err, conga.ErrCoerce)
+		assertNotUsageError(t, err)
 		assert.Equal(t, "", dir.String())
 	})
 
@@ -290,7 +281,7 @@ func TestEmptyPathUnmarshalText(t *testing.T) {
 		err := content.UnmarshalText([]byte(""))
 
 		assert.Equal(t, "empty path", err.Error())
-		assert.IsError(t, err, conga.ErrCoerce)
+		assertNotUsageError(t, err)
 		assert.Equal(t, "", content.String())
 	})
 }

@@ -4,8 +4,8 @@
 //
 // Every exported domain type implements encoding.TextUnmarshaler and Predict:
 // fields declared with these types coerce automatically and complete from
-// package tables or live system state. Invalid values classify under
-// conga.ErrCoerce with the flag and reason named in the message. Host.LookupIP
+// package tables or live system state. An invalid command-line value is
+// reported as a *conga.UsageError that names the flag and the reason. Host.LookupIP
 // and NetInterface.Interface report a blank receiver as an error naming the
 // failed lookup.
 //
@@ -27,7 +27,6 @@ package network
 import (
 	"context"
 	"encoding"
-	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -76,13 +75,8 @@ var (
 )
 
 var (
-	errEmptyHost      = errors.New("lookup host: empty host name")
-	errEmptyInterface = errors.New("network interface: empty interface name")
-
-	errInvalidHTTPMethod = errors.New("unrecognized HTTP method")
-	errInvalidHTTPStatus = errors.New("invalid HTTP status")
-	errInvalidMIMEType   = errors.New("invalid MIME type")
-	errInvalidPort       = errors.New("invalid port")
+	errEmptyHost      error = rejectedError{message: "lookup host: empty host name"}
+	errEmptyInterface error = rejectedError{message: "network interface: empty interface name"}
 )
 
 // Host represents a hostname, domain name, or IP address with automatic host completion.
@@ -183,7 +177,7 @@ func (m *HTTPMethod) UnmarshalText(text []byte) error {
 
 		return nil
 	default:
-		return fmt.Errorf("%w %q", errInvalidHTTPMethod, string(text))
+		return rejectedError{message: fmt.Sprintf("unrecognized HTTP method %q", string(text))}
 	}
 }
 
@@ -249,7 +243,7 @@ func (s *HTTPStatus) UnmarshalText(text []byte) error {
 
 	if code, err := strconv.Atoi(raw); err == nil {
 		if code < 100 || code > 599 {
-			return fmt.Errorf("%w: HTTP status code %d (must be between 100 and 599)", errInvalidHTTPStatus, code)
+			return rejectedError{message: fmt.Sprintf("invalid HTTP status: HTTP status code %d (must be between 100 and 599)", code)}
 		}
 
 		*s = HTTPStatus(code)
@@ -323,7 +317,7 @@ func (m *MIMEType) UnmarshalText(text []byte) error {
 
 	topType, subtype, found := strings.Cut(raw, "/")
 	if !found || strings.TrimSpace(topType) == "" || strings.TrimSpace(subtype) == "" {
-		return fmt.Errorf("%w %q (expected format type/subtype, e.g. application/json)", errInvalidMIMEType, raw)
+		return rejectedError{message: fmt.Sprintf("invalid MIME type %q (expected format type/subtype, e.g. application/json)", raw)}
 	}
 
 	*m = MIMEType(raw)
@@ -440,7 +434,7 @@ func (p *Port) UnmarshalText(text []byte) error {
 
 	if value, err := strconv.Atoi(raw); err == nil {
 		if value < 1 || value > 65535 {
-			return fmt.Errorf("%w %d (must be between 1 and 65535)", errInvalidPort, value)
+			return rejectedError{message: fmt.Sprintf("invalid port %d (must be between 1 and 65535)", value)}
 		}
 
 		*p = Port(uint16(value))
@@ -454,7 +448,7 @@ func (p *Port) UnmarshalText(text []byte) error {
 	}
 
 	if resolvedPort < 1 || resolvedPort > 65535 {
-		return fmt.Errorf("%w: resolved %d", errInvalidPort, resolvedPort)
+		return rejectedError{message: fmt.Sprintf("invalid port: resolved %d", resolvedPort)}
 	}
 
 	*p = Port(uint16(resolvedPort))
@@ -504,4 +498,14 @@ func NetInterfaces() predict.Predictor {
 // Ports configures completion of well-known TCP/UDP service ports with descriptive annotations.
 func Ports() predict.Predictor {
 	return predict.Callback(actionPorts)
+}
+
+// rejectedError reports a value a network type rejects, with the message the
+// user sees. The type found the problem itself, so it has no cause.
+type rejectedError struct {
+	message string
+}
+
+func (e rejectedError) Error() string {
+	return e.message
 }

@@ -96,15 +96,29 @@ func TestDocClaims_DeprecatedAppWarnsOnlyWhenLifecycleRuns(t *testing.T) {
 func TestDocClaims_ValidateFailureSkipsFinally(t *testing.T) {
 	t.Parallel()
 
-	var buffer bytes.Buffer
+	var (
+		buffer       bytes.Buffer
+		stderrBuffer bytes.Buffer
+		exitCode     int
+	)
 
-	app := conga.New[docClaimsValidateCLI]().Stdout(&buffer).Args([]string{})
+	app := conga.New[docClaimsValidateCLI]().
+		Name("app").
+		Stdout(&buffer).
+		Stderr(&stderrBuffer).
+		ExitFunc(func(code int) { exitCode = code }).
+		Args([]string{})
 
 	err := app.Run()
 
-	assert.Error(t, err)
-	assert.True(t, conga.IsUsageError(err))
+	assertNotUsageError(t, err)
+	assert.Equal(t, "invalid state", err.Error())
 	assert.Equal(t, "", buffer.String())
+
+	app.Exit(err)
+
+	assert.Equal(t, 1, exitCode)
+	assert.Equal(t, "app: error: invalid state\n", stderrBuffer.String())
 }
 
 func TestDocClaims_DeprecatedTagRestrictions(t *testing.T) {

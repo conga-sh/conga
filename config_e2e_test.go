@@ -455,9 +455,9 @@ func TestConfigFile_DecoderlessExplicitTargetErrors(t *testing.T) {
 
 	err = app.Run()
 
-	assert.IsError(t, err, conga.ErrConfig)
+	assertNotUsageError(t, err)
 	assert.Equal(t,
-		"config error: flag --config requires a registered config decoder: call App.RegisterDecoder with a format decoder (e.g. decoder/json)",
+		"flag --config requires a registered config decoder: call App.RegisterDecoder with a format decoder (e.g. decoder/json)",
 		err.Error())
 }
 
@@ -517,9 +517,9 @@ func TestConfig_EnvConfigVar_ConfigFileWithoutDecoderStillRequiresDecoder(t *tes
 
 	err := app.Run()
 
-	assert.IsError(t, err, conga.ErrConfig)
+	assertNotUsageError(t, err)
 	assert.Equal(t,
-		"config error: environment variable CONGA_TEST_CFGNODEC_CONFIG requires a registered config decoder: call App.RegisterDecoder with a format decoder (e.g. decoder/json)",
+		"environment variable CONGA_TEST_CFGNODEC_CONFIG requires a registered config decoder: call App.RegisterDecoder with a format decoder (e.g. decoder/json)",
 		err.Error())
 }
 

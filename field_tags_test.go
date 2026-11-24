@@ -146,8 +146,7 @@ func TestFileExistingValidation(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
-		assert.True(t, conga.IsUsageError(err))
+		assertUsageError(t, err)
 		assert.Contains(t, err.Error(), " for flag --input")
 	})
 
@@ -197,7 +196,7 @@ func TestFileExistingValidation(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 		assert.Equal(t, `"-" requires the stdin or stdout tag on the field for flag --input`, err.Error())
 	})
 
@@ -232,9 +231,7 @@ func TestFileExistingValidation(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrConfig)
-		assert.False(t, conga.IsUsageError(err))
-		assert.False(t, errors.Is(err, conga.ErrValidation))
+		assertNotUsageError(t, err)
 		assert.Equal(t, fmt.Sprintf("stat %s: no such file or directory for flag --input (from config key \"input\")", missing), err.Error())
 	})
 
@@ -249,7 +246,7 @@ func TestFileExistingValidation(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 		assert.Contains(t, err.Error(), " for flag --input")
 	})
 }
@@ -279,7 +276,7 @@ func TestFileArgExistingValidation(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 		assert.Contains(t, err.Error(), " for argument <input>")
 	})
 }
@@ -305,7 +302,7 @@ func TestDirExistingValidation(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 		assert.Contains(t, err.Error(), "is a file, but a directory was expected")
 	})
 }
@@ -476,9 +473,7 @@ func TestFileExistingConfigValidation(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrConfig)
-		assert.False(t, conga.IsUsageError(err))
-		assert.False(t, errors.Is(err, conga.ErrValidation))
+		assertNotUsageError(t, err)
 		assert.Equal(t, fmt.Sprintf("stat %s: no such file or directory for flag --input (from config key \"input\")", missing), err.Error())
 	})
 }
@@ -679,7 +674,7 @@ func TestUserDefinedTaggedDomainType(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 		assert.Equal(t, `token is missing the declared prefix for flag --token`, err.Error())
 	})
 
@@ -785,7 +780,7 @@ func TestContextAwareTextUnmarshalerTagsAndStreams(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrCoerce)
+		assertUsageError(t, err)
 		assert.Contains(t, err.Error(), `secret must start with prefix "sk-"`)
 	})
 
@@ -811,7 +806,7 @@ func TestContextAwareTextUnmarshalerTagsAndStreams(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrCoerce)
+		assertUsageError(t, err)
 		assert.Contains(t, err.Error(), "reading from stdin is not enabled for this field")
 	})
 }

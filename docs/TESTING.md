@@ -37,7 +37,7 @@ func TestSliceEnumValidation_Issue03(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assert.Equal(t, `invalid value "xml" (must be one of: json, yaml) for flag --format`, err.Error())
 	})
 }
 ```
@@ -122,8 +122,9 @@ When extracting a helper variable to inspect a downcasted error, unwrapped value
 Use `github.com/alecthomas/assert/v2` for all test assertions.
 
 - Use `assert.NoError(t, err)` for successful operations.
-- Use `assert.Error(t, err)` and `assert.IsError(t, err, sentinel)` for error checks.
-- Schema errors have no sentinel: assert the exact message with `assert.Equal(t, expected, err.Error())`, plus `spec.IsSchemaError(err)` to assert that the failure is a schema error.
+- Use `assert.Error(t, err)` for error checks, and `assert.IsError(t, err, cause)` to assert a real cause (a stdlib or author error) is reachable.
+- CONGA has no category sentinels. Assert the exact message with `assert.Equal(t, expected, err.Error())`, and the type with `errors.AsType`: `*conga.UsageError` for command-line failures (check `CommandPath`, `Usage`, and `ExitCode`), `conga.ExitCoder` for exit codes. Assert that an environment-, config-, or default-sourced failure is not a usage error.
+- Schema errors: assert the exact message, plus `spec.IsSchemaError(err)` to assert that the failure is a schema error.
 - Use `assert.Equal(t, expected, actual)` for value equivalence.
 - Use `assert.Zero(t, actual)` for zero values, empty slices, and empty maps instead of `assert.Equal(t, 0, len(actual))`.
 - Use `assert.True(t, condition)` and `assert.False(t, condition)` for booleans.

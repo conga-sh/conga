@@ -319,8 +319,10 @@ func TestValidator_FailureSurfacesFromRun(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, ErrValidation)
 	assert.Equal(t, "custom validator failure", err.Error())
+	assert.Equal(t, nil, errors.Unwrap(err))
+	_, isUsage := errors.AsType[*UsageError](err)
+	assert.False(t, isUsage)
 }
 
 // TestPrunedFlag_ConfigKeys pins the configuration-key mapping against

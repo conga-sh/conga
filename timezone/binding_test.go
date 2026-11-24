@@ -3,6 +3,7 @@ package timezone_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -34,8 +35,8 @@ func TestLocation_InvalidZone(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrCoerce)
-	assert.True(t, conga.IsUsageError(err))
+	_, isUsage := errors.AsType[*conga.UsageError](err)
+	assert.True(t, isUsage)
 	assert.Contains(t, err.Error(), "Mars/Crater")
 	assert.Contains(t, err.Error(), "for flag --zone")
 }

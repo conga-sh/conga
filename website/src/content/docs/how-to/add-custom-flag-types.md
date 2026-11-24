@@ -83,7 +83,7 @@ Flags:
       --version           Show version
 ```
 
-A command-line error from `UnmarshalText` is a usage error (`ErrCoerce`, exit 2):
+A command-line error from `UnmarshalText` is a `*conga.UsageError` (exit 2):
 
 ```sh error={2}
 $ relay --ports 80
@@ -285,7 +285,7 @@ A slice or map type that implements `UnmarshalText`, such as `net.IP`, is one va
 | Mistake | When it shows | Result |
 |---|---|---|
 | A value the parser or the type's unmarshaler rejects, from the command line | When the value is bound | Usage error naming the flag, exit 2 |
-| The same rejection from the environment or a config file | When the value is bound | `ErrConfig`, exit 1, naming the flag and source |
+| The same rejection from the environment or a config file | When the value is bound | Exit 1, naming the flag and source |
 | A misspelled custom tag, a tag value its `Validate` rejects, or a custom tag on a field of another type | Startup, on every run | `schema error: invalid struct tag`, exit 1 |
 | A field of a type with no parser, unmarshaler, or built-in support | Startup, on every run | `struct Relay field Allow: schema error: unsupported type net.IPNet; register a parser with app.RegisterType`, exit 1 |
 | A `TypeParser` for a slice or map type | `RegisterType`, on every run | Panic: `conga: RegisterType does not accept map type map[string]main.PortRange; maps bind entry by entry, so register the key or value type instead` |

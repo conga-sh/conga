@@ -55,7 +55,7 @@ func TestGroupValidation_DeterministicXorOrder(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, "flags --first-a and --first-b are mutually exclusive", err.Error())
-	assert.IsError(t, err, conga.ErrValidation)
+	assertUsageError(t, err)
 }
 
 func TestGroupValidation_DeterministicOneOfOrder(t *testing.T) {
@@ -67,7 +67,7 @@ func TestGroupValidation_DeterministicOneOfOrder(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, "flags --first-a and --first-b are mutually exclusive", err.Error())
-	assert.IsError(t, err, conga.ErrValidation)
+	assertUsageError(t, err)
 }
 
 func TestGroupValidation_DeterministicAndOrder(t *testing.T) {
@@ -79,7 +79,7 @@ func TestGroupValidation_DeterministicAndOrder(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, "flag --first-a must be given together with --first-b", err.Error())
-	assert.IsError(t, err, conga.ErrValidation)
+	assertUsageError(t, err)
 }
 
 func TestGroupValidation_PinsCrossKindOrder(t *testing.T) {
@@ -91,7 +91,7 @@ func TestGroupValidation_PinsCrossKindOrder(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, "flags --xor-a and --xor-b are mutually exclusive", err.Error())
-	assert.IsError(t, err, conga.ErrValidation)
+	assertUsageError(t, err)
 }
 
 type FourMemberAndGroupCLI struct {
@@ -112,7 +112,7 @@ func TestAndGroupMessage_SeveralGiven(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, "flags --host and --user must be given together with --pass and --port", err.Error())
-	assert.IsError(t, err, conga.ErrValidation)
+	assertUsageError(t, err)
 }
 
 func TestAndGroupMessage_SeveralMissing(t *testing.T) {
@@ -124,5 +124,5 @@ func TestAndGroupMessage_SeveralMissing(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, "flag --user must be given together with --host, --pass and --port", err.Error())
-	assert.IsError(t, err, conga.ErrValidation)
+	assertUsageError(t, err)
 }

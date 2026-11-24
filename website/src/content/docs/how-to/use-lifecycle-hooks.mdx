@@ -16,7 +16,7 @@ When the user runs a subcommand, CONGA calls `PreRun` top-down from the root com
 This guide builds `snap`, which copies a directory into a snapshot store. The root `snap` command locks the store in `PreRun` and unlocks it in `Finally`. The `snap create` subcommand creates a staging directory in `PreRun`, copies files into it in `Run`, renames it into place in `PostRun`, and deletes it in `Finally` if an earlier stage failed:
 
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 950 258" role="img" aria-labelledby="lifecycle-title" class="lifecycle-diagram">
-  <title id="lifecycle-title">A snap create run goes PreRun (snap then create), Run (create), PostRun (create), Finally (create then snap). If snap fails in PreRun, the run exits with status 1 without calling Finally. If create fails in PreRun, CONGA skips Run, PostRun, and create's Finally, and calls snap's Finally before exiting with status 1. If create fails in Run or PostRun, CONGA calls create's Finally and then snap's Finally before exiting with status 1. After Finally on a successful run, the program exits with status 0.</title>
+  <title id="lifecycle-title">A snap create run goes PreRun (snap then create), Run (create), PostRun (create), Finally (create then snap). If snap fails in PreRun, the run ends with that error without calling Finally. If create fails in PreRun, CONGA skips Run, PostRun, and create's Finally, and calls snap's Finally before ending with that error. If create fails in Run or PostRun, CONGA calls create's Finally and then snap's Finally before ending with that error. A plain error exits with status 1, session.UsageError with status 2, and an ExitCoder with its own code. After Finally on a successful run, the program exits with status 0.</title>
   <style>{`
     .lifecycle-diagram { font-family: inherit; max-width: 950px; }
     .lifecycle-diagram .stage { fill: var(--sl-color-gray-6, #edeff4); stroke: var(--sl-color-accent, #3448f5); stroke-width: 1.5; }
@@ -393,7 +393,8 @@ When `Finally` runs after <Kbd default="Ctrl+C" />, `ctx` is already canceled. I
 
 | What fails | `Finally` hooks that run | Exit status |
 |---|---|---|
-| Flag parsing, a struct tag check (such as `existing:"true"`), or `Validate` | None | 2 |
+| Flag parsing, a struct tag check (such as `existing:"true"`), or a `Validate` error from `session.UsageError` | None | 2 |
+| A plain error from `Validate` | None | 1 |
 | `CLI.PreRun` (the store is locked) | None | 1 |
 | `CreateCmd.PreRun` (the snapshot name already exists) | `CLI.Finally` | 1 |
 | `CreateCmd.Run` (a file cannot be read) | `CreateCmd.Finally`, then `CLI.Finally` | 1 |
@@ -402,6 +403,8 @@ When `Finally` runs after <Kbd default="Ctrl+C" />, `ctx` is already canceled. I
 | <Kbd default="Ctrl+C" /> under `app.Run()`, in a command that checks `ctx` | Each `Finally` whose `PreRun` succeeded, receiving `context.Canceled` | 1 |
 | <Kbd default="Ctrl+C" /> under `app.Run()`, in a command that ignores `ctx` | Every `Finally` hook, once `Run` finishes | The command's own |
 | <Kbd default="Ctrl+C" /> under `app.RunContext` with a context that has no signal handler | None | 130, set by the shell |
+
+The table lists plain errors. A hook may return `session.UsageError` to exit 2 with the usage block, or an `ExitCoder` to exit with its own code, and `Exit` uses that code for any hook.
 
 ## Where to go next
 

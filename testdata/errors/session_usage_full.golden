@@ -1,0 +1,10 @@
+app: error: --target is required with --env=staging
+
+Deploy a release
+
+Usage:
+  app deploy [flags]
+
+Flags:
+      --fail=STRING  How Validate fails
+      --help         Show help

@@ -5,8 +5,8 @@
 //
 // Every exported domain type implements encoding.TextUnmarshaler and Predict:
 // fields declared with these types coerce automatically and complete from
-// package tables or live system state. Invalid values classify under
-// conga.ErrCoerce with the flag and reason named in the message. Group.Lookup
+// package tables or live system state. An invalid command-line value is
+// reported as a *conga.UsageError that names the flag and the reason. Group.Lookup
 // and User.Lookup report a blank receiver as an error naming the failed lookup.
 //
 // Mount [RegisterUser], [RegisterGroup], or [RegisterSignal] to register the
@@ -29,7 +29,6 @@ package system
 
 import (
 	"encoding"
-	"errors"
 	"fmt"
 	"os"
 	"os/user"
@@ -87,9 +86,8 @@ var (
 )
 
 var (
-	errEmptyGroup = errors.New("group lookup: empty group name")
-	errEmptyUser  = errors.New("user lookup: empty username")
-	errInvalidPID = errors.New("invalid PID")
+	errEmptyGroup error = rejectedError{message: "group lookup: empty group name"}
+	errEmptyUser  error = rejectedError{message: "user lookup: empty username"}
 )
 
 // EnvVar represents an environment variable name with automatic environment completion.
@@ -258,11 +256,11 @@ func (p *PID) UnmarshalText(text []byte) error {
 
 	value, err := strconv.Atoi(raw)
 	if err != nil {
-		return fmt.Errorf("%w: PID %q (must be an integer): %w", errInvalidPID, raw, err)
+		return &pidSyntaxError{raw: raw, cause: err}
 	}
 
 	if value <= 0 {
-		return fmt.Errorf("%w: PID %d (must be a positive integer > 0)", errInvalidPID, value)
+		return rejectedError{message: fmt.Sprintf("invalid PID: PID %d (must be a positive integer > 0)", value)}
 	}
 
 	*p = PID(value)
@@ -353,7 +351,7 @@ func (s *Signal) UnmarshalText(text []byte) error {
 	}
 
 	if _, ok := signals.Lookup(raw); !ok {
-		return fmt.Errorf("%w %q", signals.ErrInvalid, raw)
+		return rejectedError{message: fmt.Sprintf("unknown or invalid signal %q", raw)}
 	}
 
 	*s = Signal(raw)
@@ -479,11 +477,36 @@ func Users() predict.Predictor {
 	return predict.Callback(actionUsers)
 }
 
+// rejectedError reports a value a system type rejects, with the message the
+// user sees. The type found the problem itself, so it has no cause.
+type rejectedError struct {
+	message string
+}
+
+func (e rejectedError) Error() string {
+	return e.message
+}
+
+// pidSyntaxError reports a PID that is not an integer. The strconv failure is
+// its cause.
+type pidSyntaxError struct {
+	raw   string
+	cause error
+}
+
+func (e *pidSyntaxError) Error() string {
+	return fmt.Sprintf("invalid PID: PID %q (must be an integer): %v", e.raw, e.cause)
+}
+
+func (e *pidSyntaxError) Unwrap() error {
+	return e.cause
+}
+
 // parseSignal parses a signal by name (e.g. "SIGTERM", "TERM", "hup") or numeric string ("15").
 func parseSignal(raw string) (syscall.Signal, error) {
 	sig, ok := signals.Lookup(raw)
 	if !ok {
-		return 0, fmt.Errorf("%w %q", signals.ErrInvalid, raw)
+		return 0, rejectedError{message: fmt.Sprintf("unknown or invalid signal %q", raw)}
 	}
 
 	return sig, nil

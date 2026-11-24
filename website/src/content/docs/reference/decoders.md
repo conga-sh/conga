@@ -9,12 +9,14 @@ Each subpackage exposes a single function matching `conga.ConfigDecoder`:
 func Decode(data []byte) (map[string]any, error)
 ```
 
-| Package | Import | Parse sentinel |
-|---------|--------|----------------|
-| JSON | `github.com/conga-sh/conga/decoder/json` | `json.ErrParse` |
-| YAML | `github.com/conga-sh/conga/decoder/yaml` | `yaml.ErrParse` |
-| TOML | `github.com/conga-sh/conga/decoder/toml` | `toml.ErrParse` |
-| HCL | `github.com/conga-sh/conga/decoder/hcl` | `hcl.ErrParse` |
+| Package | Import |
+|---------|--------|
+| JSON | `github.com/conga-sh/conga/decoder/json` |
+| YAML | `github.com/conga-sh/conga/decoder/yaml` |
+| TOML | `github.com/conga-sh/conga/decoder/toml` |
+| HCL | `github.com/conga-sh/conga/decoder/hcl` |
+
+A decoder returns the error of its parsing library for malformed input, or an error that names the position and the rejected value. CONGA reports it as `cannot parse config file "<path>": <decoder error>` and exits 1.
 
 ## Registration
 
@@ -46,15 +48,15 @@ A `time.Time` value reaches the flag in RFC 3339 form, so `when = 1979-05-27T07:
 invalid time "1979-05-27T07:32:00" (expected RFC 3339, e.g. 2006-01-02T15:04:05Z) for flag --when (from config key "when")
 ```
 
-An integer that fits neither `int64` nor `uint64` fails to load the file with the decoder's `ErrParse`, wrapped in `ErrConfig` (exit 1). TOML rejects every integer outside the `int64` range. JSON and HCL also reject a number that overflows `float64`. HCL stores a number's value without its spelling, so it rejects `1e30` as it rejects a 30-digit integer. YAML checks unquoted values only, so a quoted `'999999999999999999999999999999'` stays a string:
+An integer that fits neither `int64` nor `uint64` fails to load the file with a decoder error (exit 1). TOML rejects every integer outside the `int64` range. JSON and HCL also reject a number that overflows `float64`. HCL stores a number's value without its spelling, so it rejects `1e30` as it rejects a 30-digit integer. YAML checks unquoted values only, so a quoted `'999999999999999999999999999999'` stays a string:
 
 ```text no-copy
-cannot parse config file "config.yaml": yaml parse error: line 1: integer 999999999999999999999999999999 out of range
+cannot parse config file "config.yaml": line 1: integer 999999999999999999999999999999 out of range
 ```
 
 ## HCL blocks
 
-An unlabeled block decodes as a nested section keyed by its block type, so `server { port = 8080 }` matches the config key `server.port`. Three block forms fail to load the file with `hcl.ErrParse`:
+An unlabeled block decodes as a nested section keyed by its block type, so `server { port = 8080 }` matches the config key `server.port`. Three block forms fail to load the file with a decoder error:
 
 | HCL input | Error |
 |---|---|
@@ -66,7 +68,7 @@ Each message starts with the position of the offending block, such as `config.hc
 
 ## Missing decoders
 
-A named configuration target (an explicit `--config-file`, an environment variable, or `conga.ConfigExplicit(...)`) requires a registered decoder for its file extension. Resolving a target without a matching decoder returns a fatal `ErrConfig` error identifying the missing decoder or unsupported format. The config-file flag's help text appends `[decoders: .json, .yaml]` listing the registered extensions in sorted order, or `(no configuration decoder registered)` when no decoder is registered, and environment targets still appear in `session.CandidateConfigFiles()`.
+A named configuration target (an explicit `--config-file`, an environment variable, or `conga.ConfigExplicit(...)`) requires a registered decoder for its file extension. Resolving a target without a matching decoder returns a fatal error (exit 1) identifying the missing decoder or unsupported format. The config-file flag's help text appends `[decoders: .json, .yaml]` listing the registered extensions in sorted order, or `(no configuration decoder registered)` when no decoder is registered, and environment targets still appear in `session.CandidateConfigFiles()`.
 
 ## Isolation guarantee
 

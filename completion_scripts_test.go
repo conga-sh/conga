@@ -315,7 +315,7 @@ func TestApp_Completion_Fluent(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrParse)
+		assertUsageError(t, err)
 	})
 
 	t.Run("unknown flag when completion is not enabled", func(t *testing.T) {
@@ -328,7 +328,7 @@ func TestApp_Completion_Fluent(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrParse)
+		assertUsageError(t, err)
 	})
 }
 
@@ -453,7 +453,7 @@ func TestCompletionCommand_Errors(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 }
 
@@ -777,7 +777,7 @@ func TestCompletion_PureFlagsCommandWithRequiredFlag(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 }
 
@@ -1122,7 +1122,7 @@ func TestCompletionFlag_FlatCLI(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 
 		app.Exit(err)
 
@@ -1149,7 +1149,7 @@ func TestCompletionFlag_FlatCLI(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 
 		app.Exit(err)
 

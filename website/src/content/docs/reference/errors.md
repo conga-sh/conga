@@ -1,36 +1,67 @@
 ---
 title: Errors and exit codes
-description: Categorized base errors, the usage/runtime classification contract, and the 0/1/2 exit code contract.
+description: The UsageError and ExitCoder types, the exit codes 0, 1, 2, and an ExitCoder's own code, and how Exit renders usage.
 ---
 
-CONGA classifies runtime failures it detects into one of four base categories, and rejects invalid schemas before execution begins. An error returned by a command's own `Run` or lifecycle hook comes back unchanged. Match the category, and read the specifics from the message (field, token, command path, suggestions).
+CONGA reports a command-line mistake as a `*conga.UsageError` and rejects invalid schemas before execution begins. Every other failure comes back as an ordinary error, and an error returned by a command's own `Run` or lifecycle hook comes back as the hook returned it. When a `Finally` hook also fails, the hook's error and the `Finally` errors come back joined. Tell the kinds apart by type with `errors.AsType`, and read the specifics from the message (field, token, command path, suggestions). A cause that CONGA did not write itself, such as an error returned by a `TextUnmarshaler`, a standard library error, or an error from the application, stays reachable through `errors.Is` and `errors.As`.
 
 ## Exit codes
 
-`app.Exit(err)` terminates with one of three codes:
+`app.Exit(err)` terminates with 0, 1, 2, or an `ExitCoder`'s code:
 
 | Code | Meaning |
 |------|---------|
 | **0** | Success |
-| **1** | Command runtime failure (`Runner.Run` or lifecycle hooks), schema-build failure, or configuration failure (`ErrConfig`, including environment-, configuration-, and default-sourced value failures) |
-| **2** | Usage error: invalid command-line input — unknown flags, parse failures, coercion failures, constraint violations, missing required input — and internal completion failures with a diagnostic on stderr |
+| **1** | Any other error, such as a command runtime failure (`Runner.Run` or lifecycle hooks), a schema-build failure, a configuration or `.env` failure, an environment-, configuration-, or default-sourced value failure, a `Bootstrap` failure, or a plain `Validate` error |
+| **2** | Usage error (`*conga.UsageError`): invalid command-line input such as unknown flags, parse failures, coercion failures, constraint violations, and missing required input, or an error from `session.UsageError`. Internal completion failures also exit 2, with a diagnostic on stderr |
+| **Other** | The code of the outermost `conga.ExitCoder` in the error chain |
 
 Built-in requests (`--help`, `help`, `--version`, `version`, and opt-in `--why` and `--completion <shell>`) write to stdout during `app.Run()` and return `nil` on clean completion.
 
-## Base categories
+## ExitCoder
 
-| Sentinel | Stage |
-|----------|-------|
-| `conga.ErrParse` | Command-line tokenization and parsing |
-| `conga.ErrCoerce` | Command-line string → typed value conversion |
-| `conga.ErrValidation` | Command-line constraints and semantic checks |
-| `conga.ErrConfig` | Config file and `.env` reading, parsing, and key resolution, plus conversion and constraint failures for environment-, configuration-, and default-sourced values |
+An error chooses its own exit code by implementing `conga.ExitCoder`:
 
-## Which category a value failure gets
+```go
+type ExitCoder interface {
+	error
+	ExitCode() int
+}
+```
 
-Two rules decide the category of a value failure.
+The interface is structural, so an application error needs no CONGA import to satisfy it. `Exit` looks up the outermost `ExitCoder` in the chain with one `errors.AsType` call. A wrapper with its own `ExitCode` method therefore wins over an error it wraps.
 
-**The source decides the exit path.** A command-line token is a usage error: `ErrCoerce` when conversion fails, `ErrValidation` when a constraint fails, exit 2. A value from an environment variable, a configuration file, or a `default` tag classifies under `ErrConfig` only: exit 1, no usage block, and `errors.Is(err, conga.ErrCoerce)` and `errors.Is(err, conga.ErrValidation)` both report false. The message keeps its origin:
+| Code reported | Exit status |
+|---|---|
+| 1 to 255 | That code |
+| 0, a negative code, or a code above 255 | 1 |
+
+`*exec.ExitError` is an `ExitCoder`, so returning the error from a child process passes the child's exit code through. A child killed by a signal exits with 128 plus the signal number, as a shell reports it (`signal: killed` exits 137, `signal: segmentation fault` exits 139), and `Exit` still prints the message. On Windows an `*exec.ExitError`'s code passes through unchanged, so a crash code such as `0xC0000005` stays as it is. A hand-built `*exec.ExitError` with no process state has no code and exits 1.
+
+An error whose `Error()` is empty prints no error line. It still exits with its code, which is 1 for a plain error.
+
+## UsageError
+
+`*conga.UsageError` is returned for command-line parse, coercion, and validation failures, and by `session.UsageError` and `session.UsageErrorf`. Its fields are unexported:
+
+```go
+func (e *UsageError) Error() string
+func (e *UsageError) Unwrap() error
+func (e *UsageError) ExitCode() int
+func (e *UsageError) CommandPath() string
+func (e *UsageError) Usage() string
+```
+
+- `CommandPath()` returns the invocation path of the command where the failure occurred (for example, `"cloudctl deploy"`), or an empty string when the error has no command.
+- `Usage()` returns the syntax usage summary string for that command.
+- `ExitCode()` always returns 2.
+- `Unwrap()` returns the error behind the message. For a value that did not convert, it is the error the conversion step returned. That is the error of a `TextUnmarshaler` or registered parser, or CONGA's own parse error, whose type is not part of the API. For a value a `SelfValidator` rejected, it is the validator's error. For `session.UsageErrorf` it is the `%w` operand. It returns nil when CONGA found the problem itself, as for an unknown flag, an `enum`, `range` or `len` violation, or a flag group conflict.
+
+[Which failures are usage errors](#which-failures-are-usage-errors) lists what is not a `*conga.UsageError`.
+
+### Which failures are usage errors
+
+The source of a value decides the exit path. A command-line token that fails to convert or violates a constraint is a `*conga.UsageError` with exit 2. A value from an environment variable, a configuration file, or a `default` tag is not from the command line, so it fails with an ordinary error, exit 1, no usage block. So do `Bootstrap` failures, schema failures, runtime failures, and a plain error returned by `Validate`. A flag group conflict (`xor`, `oneof`, `and`) is a usage error when at least one of the supplied flags came from the command line, and an ordinary error when they all came from the environment or a config file. A `default` tag never counts as supplied. The message keeps its origin:
 
 ```text no-copy
 app: error: invalid integer value "abc" for flag --port
@@ -39,9 +70,9 @@ app: error: invalid integer value "abc" for flag --port (from config key "port")
 app: error: invalid integer value "abc" for flag --port (from default value)
 ```
 
-The first is a usage error with exit 2. The other three are `ErrConfig` with exit 1. `errors.As` and `errors.Is` still reach the original cause, so an application `TextUnmarshaler` error, a stdlib `*fs.PathError`, and a sentinel such as `fs.ErrNotExist` remain inspectable. Only the category sentinels stop at `ErrConfig`: `errors.Is` reports false for `ErrCoerce`, `ErrValidation`, and `ErrParse` even when the cause wraps one.
+The first is a usage error with exit 2. The other three exit 1. `errors.As` and `errors.Is` reach the original cause in all four cases, so an application `TextUnmarshaler` error, a standard library `*fs.PathError`, and a sentinel such as `fs.ErrNotExist` remain inspectable.
 
-**The stage decides `ErrCoerce` versus `ErrValidation`.** A failure while converting the text is `ErrCoerce`; a check on the converted value is `ErrValidation`. For example, a `File` field with `executable:"true"`:
+Domain types that fail while converting the text (a `File` with `executable:"true"`, for example) follow the same rule. A bare name is resolved on `$PATH` during conversion, and an absolute path converts cleanly and fails `File.Validate`:
 
 ```sh error={2}
 $ app --exe nosuchtool
@@ -53,55 +84,41 @@ $ app --exe /usr/local/bin/nosuchtool
 app: error: stat /usr/local/bin/nosuchtool: no such file or directory for flag --exe
 ```
 
-The bare name is resolved on `$PATH` during conversion, so the failure is `ErrCoerce`. The absolute path converts cleanly and fails `File.Validate`, so it is `ErrValidation`. Both exit 2 because the value came from the command line. A wrong path kind on a converted value — a directory where a file was expected — is `ErrValidation`. The same check inside `FileContent` runs while converting its text, so for a command-line value it stays `ErrCoerce`.
+Both exit 2 because the value came from the command line. `--why` makes the difference between the two stages visible. A conversion-time `$PATH` miss aborts before the report renders, while the post-coercion `File.Validate` error is skipped when `--why` renders the report.
 
-For a command-line value, conversion-time failures stay under `ErrCoerce` even when they mean "not found". `--why` makes the difference visible: a conversion-time `$PATH` miss aborts before the report renders, while the post-coercion `File.Validate` error is skipped when `--why` renders the report.
+## Validate and Bootstrap errors
 
-## Usage and completion classification
+`Validator.Validate` returns its error unchanged, like `PreRun`, `Run`, and `PostRun`:
 
-Use `conga.IsUsageError(err)` to decide whether an error is input-related (exit 2) versus a runtime failure (exit 1). Errors caused by invalid command-line input satisfy the `conga.UsageError` interface:
+| `Validate` returns | `Exit` |
+|---|---|
+| A plain error | Message, exit 1, no usage block |
+| An `ExitCoder`, wrapped or not | Message, the coder's code |
+| `ctx.Err()` after cancellation or a deadline, bare or wrapped | Message, exit 1 |
+| `session.UsageError(message)` or `session.UsageErrorf(format, args...)` | Message and the usage block for the command, exit 2 |
 
-```go
-type UsageError interface {
-	error
-	IsUsageError() bool
-	CommandPath() string
-	Usage() string
-}
-```
+CONGA can't see which values a check read, so it can't tell a command-line mistake from a config one. Return `session.UsageError` when the cause is the command line. `session.UsageErrorf` keeps a `%w` operand as the error's cause. On a nil session the error has no command, so `Exit` prints no usage block. A message that is empty prints no error line and only the usage block.
 
-- `CommandPath()` returns the invocation path of the command where the failure occurred (for example, `"cloudctl deploy"`).
-- `Usage()` returns the syntax usage summary string for that command.
-
-Internal completion failures satisfy the `conga.CompletionError` interface and are detected with `conga.IsCompletionError(err)`:
-
-```go
-type CompletionError interface {
-	error
-	IsCompletionError() bool
-}
-```
-
-The concrete error implementations (parse, coercion, validation, config) are unexported. `IsUsageError`, `IsCompletionError`, `UsageError`, `CompletionError`, and the base category sentinels form the public classification API.
+`Bootstrapper.Bootstrap` errors also come back unchanged, with no prefix. A plain error exits 1, an `ExitCoder` exits with its code, and a nested app's `*conga.UsageError` exits 2.
 
 ## Feature-gating and map-folding failures
 
-Feature gating and map folding classify errors by the input source that introduced the invalid data:
+Feature gating and map folding report errors by the input source that introduced the invalid data:
 
-| Failure | Category | Exit |
-|---------|----------|:----:|
-| Inactive gated flag or subcommand supplied on the command line, unknown feature key, or invalid feature value | `ErrParse` / `ErrValidation` (usage error) | 2 |
-| Unknown feature key in a config file | `ErrConfig` | 1 |
-| Invalid feature value in a config file | `ErrConfig` | 1 |
-| Config key naming a flag whose gating feature is inactive | `ErrConfig` | 1 |
+| Failure | Error | Exit |
+|---------|-------|:----:|
+| Inactive gated flag or subcommand supplied on the command line, unknown feature key, or invalid feature value | `*conga.UsageError` | 2 |
+| Unknown feature key in a config file | Ordinary error | 1 |
+| Invalid feature value in a config file | Ordinary error | 1 |
+| Config key naming a flag whose gating feature is inactive | Ordinary error | 1 |
 | Config key naming a flag whose gating feature the command line or environment turned off | Ignored | – |
 | Environment variable naming an inactive gated flag | Ignored (the inactive flag never reaches environment binding) | – |
-| Unknown feature key in the feature map environment variable | `ErrConfig` | 1 |
-| Invalid feature value in the feature map environment variable | `ErrConfig` | 1 |
-| Malformed map flag entry in a config file (even when overridden by CLI) | `ErrConfig` | 1 |
-| Malformed map flag syntax in an environment variable | `ErrConfig` | 1 |
-| Invalid format passed to `--why` or `--why=json` requested without `conga.WhyOptionJSON()` | `ErrValidation` (usage error) | 2 |
-| Runtime error returned from `Bootstrapper.Bootstrap` | `ErrConfig` | 1 |
+| Unknown feature key in the feature map environment variable | Ordinary error | 1 |
+| Invalid feature value in the feature map environment variable | Ordinary error | 1 |
+| Malformed map flag entry in a config file (even when overridden by CLI) | Ordinary error | 1 |
+| Malformed map flag syntax in an environment variable | Ordinary error | 1 |
+| Invalid format passed to `--why` or `--why=json` requested without `conga.WhyOptionJSON()` | `*conga.UsageError` | 2 |
+| Error returned from `Bootstrapper.Bootstrap` | Returned unchanged | 1, or the `ExitCoder`'s code |
 
 ## Schema errors
 
@@ -154,36 +171,23 @@ A panic whose message starts with `conga: invariant violation:` is a bug in CONG
 
 ## Custom error handling
 
-Custom error handling inspects the error returned by `app.Run()` or `app.RunContext(ctx)` directly instead of delegating to `app.Exit(err)`. The returned error carries the classification. `conga.IsUsageError(err)` distinguishes command-line input errors, `errors.AsType[conga.UsageError](err)` yields the `UsageError` for `CommandPath()` and `Usage()`, `conga.IsCompletionError(err)` identifies internal completion failures, and `errors.Is` matches the base category sentinels.
-
-An environment-, configuration-, or default-sourced coercion or constraint failure still implements `conga.UsageError`, but its `IsUsageError()` reports false and it classifies under `ErrConfig`. Test the classification through `conga.IsUsageError(err)`, not through the type assertion alone:
+Custom error handling reports the error returned by `app.Run()` or `app.RunContext(ctx)` itself instead of delegating to `app.Exit(err)`. `app.ExitCode(err)` returns the code `app.Exit` would exit with, so the program exits the same way. `App.Exit` prints a usage block only when the outermost `ExitCoder` in the error is the `*conga.UsageError`, and the same lookup gives `CommandPath()` and `Usage()`:
 
 ```go
 if err := app.RunContext(ctx); err != nil {
-	if conga.IsUsageError(err) {
-		usageErr, _ := errors.AsType[conga.UsageError](err)
-		fmt.Fprintf(os.Stderr, "usage error in %s: %v\n", usageErr.CommandPath(), err)
-		fmt.Fprintf(os.Stderr, "%s\n", usageErr.Usage())
-
-		os.Exit(2)
-	}
-
-	if errors.Is(err, conga.ErrConfig) {
-		fmt.Fprintf(os.Stderr, "configuration failure: %v\n", err)
-		
-		os.Exit(78)
-	}
-
-	if conga.IsCompletionError(err) {
-		fmt.Fprintf(os.Stderr, "completion failure: %v\n", err)
-		
-		os.Exit(70)
-	}
-
 	fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-	os.Exit(1)
+
+	if coder, ok := errors.AsType[conga.ExitCoder](err); ok {
+		if usageErr, isUsage := coder.(*conga.UsageError); isUsage {
+			fmt.Fprintf(os.Stderr, "usage for %s:\n%s\n", usageErr.CommandPath(), usageErr.Usage())
+		}
+	}
+
+	os.Exit(app.ExitCode(err))
 }
 ```
+
+A failure from the environment, a config file or a default is not a `*conga.UsageError`, so the snippet prints no usage block for it ([which failures are usage errors](#which-failures-are-usage-errors)).
 
 [About error reporting](/explanation/error-reporting/) covers the separation of error values from process termination.
 
@@ -198,4 +202,10 @@ if err := app.RunContext(ctx); err != nil {
 | `conga.UsageHint` | Clean error plus a single `Run '<cmd> --help'` hint |
 | `conga.UsageSilence` | Only the clean error message |
 
-Self-describing command-line value errors render only the error line regardless of the configured mode. Environment-, configuration-, and default-sourced value failures are not usage errors, so they always render as a single `app: error: ...` line with exit 1. Self-describing command-line value errors are those whose message already names the flag or argument and the offending value, such as coercion failures (`unknown byte size unit "XB" in "5XB" (accepted: B, kB, MB, GB, TB, PB, EB, KiB, MiB, GiB, TiB, PiB, EiB) for flag --max-memory`, `ambiguous byte size unit "KB" in "5KB": use kB (1000) or KiB (1024) for flag --max-memory`) and value-constraint violations (`"/etc/passwd" is a file, but a directory was expected for flag --dir`, `score 150 must be between 0 and 100 for flag --score`). Errors that benefit from usage context — unknown commands and flags, missing required flags/arguments, mutually exclusive or grouped flags — keep the mode's rendering. A group failure whose members all came from the environment or a config file classifies under `ErrConfig` instead and renders as the single error line with exit 1.
+Three shapes follow from the kind of failure:
+
+- Command-line value errors name the flag or argument and the offending value, so they render only the error line regardless of the configured mode. These are coercion failures (`unknown byte size unit "XB" in "5XB" (accepted: B, kB, MB, GB, TB, PB, EB, KiB, MiB, GiB, TiB, PiB, EiB) for flag --max-memory`, `ambiguous byte size unit "KB" in "5KB": use kB (1000) or KiB (1024) for flag --max-memory`) and value-constraint violations (`"/etc/passwd" is a file, but a directory was expected for flag --dir`, `value 150 is out of range [0..100] for flag --score`).
+- Errors that benefit from usage context keep the mode's rendering. These are unknown commands and flags, missing required flags and arguments, mutually exclusive or grouped flags, stdin read twice, an unknown feature on the command line, and the errors from `session.UsageError`.
+- A missing subcommand prints the full help of its command for `UsageSummary` and `UsageFull`, the hint for `UsageHint`, and the error line alone for `UsageSilence`.
+
+The usage block comes from the error's own command, so a `*conga.UsageError` without one (a nil session, or a zero value) prints no block. Environment-, configuration-, and default-sourced value failures are not usage errors, so they always render as a single `app: error: ...` line with exit 1. A group failure whose members all came from the environment or a config file renders the same way.

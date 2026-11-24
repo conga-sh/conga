@@ -1,0 +1,12 @@
+app: error: subcommand required for "app"
+
+Usage:
+  app <command> [flags]
+
+Commands:
+  cluster
+
+Flags:
+      --port=INT
+      --help      Show help
+      --version   Show version

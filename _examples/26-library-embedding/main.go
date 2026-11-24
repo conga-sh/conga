@@ -69,18 +69,10 @@ func main() {
 	// Typed errors let the host branch programmatically.
 	if err != nil {
 		fmt.Printf("[host] run error: %v\n", err)
-		fmt.Printf("[host] usage-classified: %t\n", conga.IsUsageError(err))
 
-		if usageErr, ok := errors.AsType[conga.UsageError](err); ok {
+		if usageErr, ok := errors.AsType[*conga.UsageError](err); ok {
 			fmt.Printf("[host] usage error at command path: %s\n", usageErr.CommandPath())
-		}
-
-		if errors.Is(err, conga.ErrCoerce) {
-			fmt.Printf("[host] coercion failure: %v\n", err)
-		}
-
-		if errors.Is(err, conga.ErrParse) {
-			fmt.Printf("[host] parse failure: %v\n", err)
+			fmt.Printf("[host] usage error exit code: %d\n", usageErr.ExitCode())
 		}
 	}
 

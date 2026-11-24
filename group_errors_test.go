@@ -49,8 +49,7 @@ func TestGroupErrors_XorBothFromEnv(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, "flags --gzip (from environment variable CONGA_TEST_GROUP_GZIP) and --zstd (from environment variable CONGA_TEST_GROUP_ZSTD) are mutually exclusive", err.Error())
-	assert.IsError(t, err, conga.ErrConfig)
-	assert.False(t, conga.IsUsageError(err))
+	assertNotUsageError(t, err)
 }
 
 func TestGroupErrors_XorBothFromConfig(t *testing.T) {
@@ -65,8 +64,7 @@ func TestGroupErrors_XorBothFromConfig(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, `flags --gzip (from config key "gzip") and --zstd (from config key "zstd") are mutually exclusive`, err.Error())
-	assert.IsError(t, err, conga.ErrConfig)
-	assert.False(t, conga.IsUsageError(err))
+	assertNotUsageError(t, err)
 }
 
 func TestGroupErrors_OneOfEnvAndConfig(t *testing.T) {
@@ -81,8 +79,7 @@ func TestGroupErrors_OneOfEnvAndConfig(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, `flags --to-file (from environment variable CONGA_TEST_GROUP_TO_FILE) and --to-url (from config key "to-url") are mutually exclusive`, err.Error())
-	assert.IsError(t, err, conga.ErrConfig)
-	assert.False(t, conga.IsUsageError(err))
+	assertNotUsageError(t, err)
 }
 
 func TestGroupErrors_OneOfConfigAndCLI(t *testing.T) {
@@ -97,8 +94,7 @@ func TestGroupErrors_OneOfConfigAndCLI(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, `flags --to-file and --to-url (from config key "to-url") are mutually exclusive`, err.Error())
-	assert.IsError(t, err, conga.ErrValidation)
-	assert.True(t, conga.IsUsageError(err))
+	assertUsageError(t, err)
 }
 
 func TestGroupErrors_AndPartialFromConfig(t *testing.T) {
@@ -113,8 +109,7 @@ func TestGroupErrors_AndPartialFromConfig(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, `flag --user (from config key "user") must be given together with --password and --host`, err.Error())
-	assert.IsError(t, err, conga.ErrConfig)
-	assert.False(t, conga.IsUsageError(err))
+	assertNotUsageError(t, err)
 }
 
 func TestGroupErrors_AndCLIWithEnvPartner(t *testing.T) {
@@ -126,8 +121,7 @@ func TestGroupErrors_AndCLIWithEnvPartner(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, "flags -u and --password (from environment variable CONGA_TEST_GROUP_PASS) must be given together with --host", err.Error())
-	assert.IsError(t, err, conga.ErrValidation)
-	assert.True(t, conga.IsUsageError(err))
+	assertUsageError(t, err)
 }
 
 func TestGroupErrors_AndSatisfiedAcrossSources(t *testing.T) {
@@ -150,7 +144,7 @@ func TestGroupErrors_ShortSpelling(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, "flags -j and -y are mutually exclusive", err.Error())
-	assert.IsError(t, err, conga.ErrValidation)
+	assertUsageError(t, err)
 }
 
 func TestGroupErrors_AliasSpelling(t *testing.T) {
@@ -162,7 +156,7 @@ func TestGroupErrors_AliasSpelling(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, "flags --as-json and --yaml are mutually exclusive", err.Error())
-	assert.IsError(t, err, conga.ErrValidation)
+	assertUsageError(t, err)
 }
 
 func TestGroupErrors_LastSpellingWins(t *testing.T) {
@@ -174,7 +168,7 @@ func TestGroupErrors_LastSpellingWins(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, "flags -j and --yaml are mutually exclusive", err.Error())
-	assert.IsError(t, err, conga.ErrValidation)
+	assertUsageError(t, err)
 }
 
 func TestGroupErrors_WhyRendersOnEnvConflict(t *testing.T) {
@@ -216,5 +210,5 @@ func TestGroupErrors_WhyStillFailsOnValueConstraint(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, "value 12 is out of range [1..9] for flag --level", err.Error())
-	assert.IsError(t, err, conga.ErrValidation)
+	assertUsageError(t, err)
 }

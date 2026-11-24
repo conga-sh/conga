@@ -915,6 +915,7 @@ func defaultBuilderCallOrder() []string {
 		"Run",
 		"RunContext",
 		"Exit",
+		"ExitCode",
 	}
 }
 
@@ -928,7 +929,7 @@ func isBuilderOrderBarrier(name string) bool {
 // check stops at the first execution call.
 func isBuilderOrderExecution(name string) bool {
 	switch name {
-	case "Run", "RunContext", "Exit":
+	case "Run", "RunContext", "Exit", "ExitCode":
 		return true
 	default:
 		return false

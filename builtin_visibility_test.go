@@ -300,7 +300,7 @@ func TestBuiltinVisibility_VersionCommand(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.True(t, conga.IsUsageError(err))
+		assertUsageError(t, err)
 	})
 
 	t.Run("omits version flag when version is disabled", func(t *testing.T) {
@@ -401,7 +401,7 @@ func TestBuiltinVisibility_SynthesizedCompletionCommand(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.True(t, conga.IsUsageError(err))
+		assertUsageError(t, err)
 	})
 
 	t.Run("omits version flag when version is disabled", func(t *testing.T) {
@@ -490,7 +490,7 @@ func TestBuiltinVisibility_EphemeralCompletionScreens(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.True(t, conga.IsUsageError(err))
+		assertUsageError(t, err)
 	})
 
 	t.Run("bare completion omits version when version is disabled", func(t *testing.T) {

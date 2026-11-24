@@ -198,11 +198,6 @@ func FriendlyTypeName(targetType reflect.Type) string {
 	return friendlyTypeName(targetType)
 }
 
-// FormatCoercionLocation exposes unexported formatCoercionLocation for testing.
-func FormatCoercionLocation(e *coercionError) string {
-	return formatCoercionLocation(e)
-}
-
 // TruncateForDisplay exposes unexported truncateForDisplay for testing.
 func TruncateForDisplay(s string) string {
 	return truncateForDisplay(s)

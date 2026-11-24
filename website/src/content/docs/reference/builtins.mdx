@@ -193,7 +193,7 @@ type App struct {
 }
 ```
 
-`HelpCommand` resolves the requested path (with aliases) and returns the target's help screen, and an unknown path is a parse error with suggestions. Call `Path() []string` to inspect the requested subcommand path. `app.DisableHelpFlag()` removes `--help` flag injection entirely.
+`HelpCommand` resolves the requested path (with aliases) and returns the target's help screen, and an unknown path is a usage error (exit 2) with suggestions. Call `Path() []string` to inspect the requested subcommand path. `app.DisableHelpFlag()` removes `--help` flag injection entirely.
 
 The built-in command fields accept `name`, `summary`, `aliases`, `section`, and `hidden` tags. A declared `aliases:"h"` adds a routing alias, so `hello h` resolves the `help` subcommand. The same tag applies to `conga.VersionCommand` and `conga.CompletionCommand` fields.
 

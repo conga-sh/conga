@@ -3,7 +3,9 @@ package system_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"os/user"
+	"strconv"
 	"syscall"
 	"testing"
 
@@ -37,8 +39,8 @@ func TestSignal_InvalidName(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrCoerce)
-	assert.True(t, conga.IsUsageError(err))
+	_, isUsage := errors.AsType[*conga.UsageError](err)
+	assert.True(t, isUsage)
 	assert.Contains(t, err.Error(), "NOTASIGNAL")
 }
 
@@ -125,8 +127,8 @@ func TestUser_UnknownUser(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrCoerce)
-	assert.True(t, conga.IsUsageError(err))
+	_, isUsage := errors.AsType[*conga.UsageError](err)
+	assert.True(t, isUsage)
 	assert.Contains(t, err.Error(), "no-such-user-conga-test")
 }
 
@@ -161,8 +163,8 @@ func TestGroup_UnknownGroup(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrCoerce)
-	assert.True(t, conga.IsUsageError(err))
+	_, isUsage := errors.AsType[*conga.UsageError](err)
+	assert.True(t, isUsage)
 	assert.Contains(t, err.Error(), "no-such-group-conga-test")
 }
 
@@ -231,4 +233,34 @@ type sysTestCLI struct {
 
 func (c *sysTestCLI) Run(_ context.Context, _ *conga.Session) error {
 	return nil
+}
+
+func TestPID_UnmarshalText_Errors(t *testing.T) {
+	t.Parallel()
+
+	t.Run("not an integer keeps the strconv failure as its cause", func(t *testing.T) {
+		t.Parallel()
+
+		var pid system.PID
+
+		err := pid.UnmarshalText([]byte("abc"))
+
+		assert.Equal(t, `invalid PID: PID "abc" (must be an integer): strconv.Atoi: parsing "abc": invalid syntax`, err.Error())
+
+		numberError, ok := errors.AsType[*strconv.NumError](err)
+
+		assert.True(t, ok)
+		assert.Equal(t, "Atoi", numberError.Func)
+	})
+
+	t.Run("not positive is a root error", func(t *testing.T) {
+		t.Parallel()
+
+		var pid system.PID
+
+		err := pid.UnmarshalText([]byte("-4"))
+
+		assert.Equal(t, "invalid PID: PID -4 (must be a positive integer > 0)", err.Error())
+		assert.Equal(t, nil, errors.Unwrap(err))
+	})
 }

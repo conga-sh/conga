@@ -320,7 +320,7 @@ func TestBootstrapper_EmptyDocumentLeavesDefaults(t *testing.T) {
 	assert.Equal(t, conga.SourceDefault, cli.Host.Source())
 }
 
-func TestBootstrapper_ErrorClassifiedUnderErrConfig(t *testing.T) {
+func TestBootstrapper_PlainErrorExitsOneWithoutPrefix(t *testing.T) {
 	t.Parallel()
 
 	var stderrBuffer bytes.Buffer
@@ -336,9 +336,8 @@ func TestBootstrapper_ErrorClassifiedUnderErrConfig(t *testing.T) {
 
 	err := app.Run()
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrConfig)
-	assert.False(t, conga.IsUsageError(err))
-	assert.Equal(t, "bootstrap failed: taskrc unreadable", err.Error())
+	assertNotUsageError(t, err)
+	assert.Equal(t, "taskrc unreadable", err.Error())
 
 	app.Exit(err)
 
@@ -359,7 +358,7 @@ func TestBootstrapper_UnknownKeyFailsWithSuggestion(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrConfig)
+	assertNotUsageError(t, err)
 	assert.Contains(t, err.Error(), `config file "taskrc"`)
 	assert.Contains(t, err.Error(), `unknown field "hots" in command "app"`)
 	assert.Contains(t, err.Error(), `did you mean "host"?`)
@@ -379,7 +378,7 @@ func TestBootstrapper_ExcludedFlagRejected(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrConfig)
+	assertNotUsageError(t, err)
 	assert.Contains(t, err.Error(), `field "secret" is excluded from config files in command "app"`)
 }
 
@@ -431,9 +430,7 @@ func TestBootstrapper_EnumViolationMatchesFileMessageShape(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrConfig)
-	assert.False(t, conga.IsUsageError(err))
-	assert.False(t, errors.Is(err, conga.ErrValidation))
+	assertNotUsageError(t, err)
 	assert.Equal(t, `invalid value "staging" (must be one of: dev, prod) for flag --mode (from config key "mode")`, err.Error())
 }
 
@@ -458,9 +455,7 @@ func TestBootstrapper_RangeViolationMatchesFileMessageShape(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrConfig)
-	assert.False(t, conga.IsUsageError(err))
-	assert.False(t, errors.Is(err, conga.ErrValidation))
+	assertNotUsageError(t, err)
 	assert.Contains(t, err.Error(), "for flag --workers")
 }
 
@@ -478,9 +473,7 @@ func TestBootstrapper_CoercionViolationAttributesToConfig(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrConfig)
-	assert.False(t, conga.IsUsageError(err))
-	assert.False(t, errors.Is(err, conga.ErrCoerce))
+	assertNotUsageError(t, err)
 	assert.Contains(t, err.Error(), `for flag --port (from config key "port")`)
 }
 
@@ -722,7 +715,7 @@ func TestBootstrapper_FeatureGateOffPrunesFlag(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.True(t, conga.IsUsageError(err))
+	assertUsageError(t, err)
 }
 
 func TestBootstrapper_FeatureEnvChannelExcluded(t *testing.T) {
@@ -738,10 +731,10 @@ func TestBootstrapper_FeatureEnvChannelExcluded(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.True(t, conga.IsUsageError(err))
+	assertUsageError(t, err)
 }
 
-func TestBootstrapper_FeatureInvalidValueFailsAsConfigError(t *testing.T) {
+func TestBootstrapper_FeatureInvalidValueIsNotAUsageError(t *testing.T) {
 	t.Parallel()
 
 	cli := &documentFeaturesCLI{doc: documentWith(func(document *conga.ConfigDocument) {
@@ -755,9 +748,7 @@ func TestBootstrapper_FeatureInvalidValueFailsAsConfigError(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrConfig)
-	assert.False(t, conga.IsUsageError(err))
-	assert.False(t, errors.Is(err, conga.ErrValidation))
+	assertNotUsageError(t, err)
 	assert.Equal(t, `invalid value "maybe" for feature "force-all" (from config key "experiments.force-all"): must be true or false (or 1 or 0)`, err.Error())
 }
 
@@ -1086,7 +1077,7 @@ func TestConfigDocument_SetKeyOnNilPanics(t *testing.T) {
 	})
 }
 
-func TestConfigDocument_SetKeyUnknownKeyFailsUnderErrConfig(t *testing.T) {
+func TestConfigDocument_SetKeyUnknownKeyIsNotAUsageError(t *testing.T) {
 	t.Parallel()
 
 	cli := &documentMapCLI{doc: documentWith(func(document *conga.ConfigDocument) {
@@ -1100,7 +1091,7 @@ func TestConfigDocument_SetKeyUnknownKeyFailsUnderErrConfig(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrConfig)
+	assertNotUsageError(t, err)
 	assert.Contains(t, err.Error(), `unknown section "header" in command "app"`)
 	assert.Contains(t, err.Error(), `did you mean "headers"?`)
 }
@@ -1169,7 +1160,7 @@ func TestConfigDocument_SetKeyOnScalarFlagReportsNotAMap(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrConfig)
+	assertNotUsageError(t, err)
 	assert.Equal(t, `config file "taskrc": field "port" in command "app" is not a map`, err.Error())
 }
 

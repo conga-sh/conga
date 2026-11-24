@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -536,8 +535,7 @@ func TestDomainTypes(t *testing.T) {
 		err := exec.Validate(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
-		assert.False(t, errors.Is(err, conga.ErrCoerce))
+		assertNotUsageError(t, err)
 		assert.Equal(t, fmt.Sprintf("%q is a directory, but an executable file was expected", tmpDir), err.Error())
 	})
 
@@ -597,8 +595,7 @@ func TestDomainTypes(t *testing.T) {
 		err := symlink.Validate(t.Context())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
-		assert.False(t, errors.Is(err, conga.ErrCoerce))
+		assertNotUsageError(t, err)
 		assert.Equal(t, fmt.Sprintf("%q is not a symbolic link", target), err.Error())
 	})
 
@@ -677,7 +674,7 @@ func TestDomainTypes(t *testing.T) {
 				err := byteSize.UnmarshalText([]byte(testCase.input))
 
 				if testCase.errorMessage != "" {
-					assert.IsError(t, err, conga.ErrCoerce)
+					assertNotUsageError(t, err)
 					assert.Equal(t, testCase.errorMessage, err.Error())
 					assert.Equal(t, int64(0), byteSize.Bytes())
 
@@ -756,7 +753,7 @@ func TestFileExecutableTagDotSlashNotExecutableFailsValidation(t *testing.T) {
 
 	err := tool.Validate(t.Context())
 
-	assert.IsError(t, err, conga.ErrValidation)
+	assertNotUsageError(t, err)
 	assert.Equal(t, fmt.Sprintf("%q is not executable", filepath.Join(workDir, "noexec")), err.Error())
 }
 
@@ -844,7 +841,7 @@ func TestFileExecutableTagValidateNotExecutable(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, fmt.Sprintf("%q is not executable", progPath), err.Error())
-	assert.IsError(t, err, conga.ErrValidation)
+	assertNotUsageError(t, err)
 }
 
 // TestDomainTypeHelp verifies that every built-in domain type contributes a
@@ -1232,8 +1229,8 @@ func TestFileContent(t *testing.T) {
 		err := dir.UnmarshalText([]byte(tmpDir))
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrCoerce)
-		assert.False(t, errors.Is(err, conga.ErrValidation))
+		assertNotUsageError(t, err)
+		assert.Equal(t, fmt.Sprintf("%q is a directory, but a file was expected", tmpDir), err.Error())
 	})
 }
 
@@ -1856,7 +1853,7 @@ func TestByteSizeUnitsTagRestrictsAcceptedFamilies(t *testing.T) {
 		err := byteSize.UnmarshalTextWithContext([]byte("10MB"), conga.DecodeContext{Tags: conga.FieldTags{"units": "binary"}})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrCoerce)
+		assertNotUsageError(t, err)
 		assert.Equal(t, `byte size unit "MB" in "10MB" is not allowed: the field accepts binary units only`, err.Error())
 	})
 
@@ -1868,7 +1865,7 @@ func TestByteSizeUnitsTagRestrictsAcceptedFamilies(t *testing.T) {
 		err := byteSize.UnmarshalTextWithContext([]byte("10MiB"), conga.DecodeContext{Tags: conga.FieldTags{"units": "decimal"}})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrCoerce)
+		assertNotUsageError(t, err)
 		assert.Equal(t, `byte size unit "MiB" in "10MiB" is not allowed: the field accepts decimal units only`, err.Error())
 	})
 
@@ -2050,7 +2047,7 @@ func TestByteSize_UnknownUnitHintFollowsUnitsTag(t *testing.T) {
 
 		err := conga.New[byteSizeUnitsHintCLI]().Args([]string{"--binary", "10G"}).Run()
 
-		assert.IsError(t, err, conga.ErrCoerce)
+		assertUsageError(t, err)
 		assert.Equal(t, `unknown byte size unit "G" in "10G" (accepted: B, KiB, MiB, GiB, TiB, PiB, EiB) for flag --binary`, err.Error())
 	})
 
@@ -2059,7 +2056,7 @@ func TestByteSize_UnknownUnitHintFollowsUnitsTag(t *testing.T) {
 
 		err := conga.New[byteSizeUnitsHintCLI]().Args([]string{"--decimal", "10G"}).Run()
 
-		assert.IsError(t, err, conga.ErrCoerce)
+		assertUsageError(t, err)
 		assert.Equal(t, `unknown byte size unit "G" in "10G" (accepted: B, kB, MB, GB, TB, PB, EB) for flag --decimal`, err.Error())
 	})
 }

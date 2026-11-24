@@ -14,7 +14,7 @@ func (a *App[T]) Dotenv(paths ...string) *App[T]
 | Call | Files | Missing file | Key conflicts |
 |------|-------|--------------|---------------|
 | `Dotenv()` | `.env`, then `.env.local`, in the working directory | Silently ignored | The last definition wins; the process environment outranks both files |
-| `Dotenv(path1, path2, ...)` | Each named path, in order | Fatal error wrapping `conga.ErrConfig` | The last definition wins; the process environment outranks files |
+| `Dotenv(path1, path2, ...)` | Each named path, in order | Fatal error, exit 1 | The last definition wins; the process environment outranks files |
 
 `app.Dotenv()` loads non-destructively, so process environment variables take precedence over file values, preserving shell, container, and CI configurations. Files apply in order, so `.env.local` overrides keys defined in `.env`, and each named path overrides preceding paths.
 
@@ -22,7 +22,7 @@ Loaded variables are written into the process environment through `os.Setenv`. `
 
 ## Bootstrap-phase loading
 
-A [`conga.Bootstrapper`](/how-to/load-env-files/) loads `.env` files whose paths derive from bootstrap-tagged flags with `Bootstrap.Dotenv(paths...)`. It runs after bootstrap-field binding and before configuration resolution, so a path such as `filepath.Join(c.Dir.Get(), ".env")` is available. `Bootstrap.Dotenv` tolerates missing files, while `Bootstrap.DotenvExplicit` fails with `conga.ErrConfig` when a named file is absent, matching `Dotenv(path1, path2, ...)`. An argument-less `Bootstrap.Dotenv()` probes `.env` and then `.env.local` in the working directory, matching `app.Dotenv()`.
+A [`conga.Bootstrapper`](/how-to/load-env-files/) loads `.env` files whose paths derive from bootstrap-tagged flags with `Bootstrap.Dotenv(paths...)`. It runs after bootstrap-field binding and before configuration resolution, so a path such as `filepath.Join(c.Dir.Get(), ".env")` is available. `Bootstrap.Dotenv` tolerates missing files, while `Bootstrap.DotenvExplicit` fails with an error when a named file is absent, matching `Dotenv(path1, path2, ...)`. An argument-less `Bootstrap.Dotenv()` probes `.env` and then `.env.local` in the working directory, matching `app.Dotenv()`.
 
 Both phases share one origin map. Variables already present in the host process environment are never overwritten, and a file loaded by `Bootstrap.Dotenv` overrides a key an earlier `app.Dotenv` file set. `--why` attributes an env-sourced value to its `.env` file (for example `env (sub/.env)`), while host variables render as bare `env`.
 
@@ -48,4 +48,4 @@ PATH=${PATH}:/opt/bin
 
 ## Size limit
 
-`.env` files are capped at 16 MiB. A larger file is rejected with an error wrapping `conga.ErrConfig`, which bounds the memory a hostile file can claim.
+`.env` files are capped at 16 MiB. A larger file is rejected with an error (exit 1), which bounds the memory a hostile file can claim.

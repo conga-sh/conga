@@ -118,8 +118,7 @@ func TestRegisterType_CoercionError_InvalidScalar(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrCoerce)
-	assert.True(t, conga.IsUsageError(err))
+	assertUsageError(t, err)
 	assert.Contains(t, err.Error(), "for flag --id")
 }
 
@@ -135,8 +134,7 @@ func TestRegisterType_CoercionError_InvalidPointer(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrCoerce)
-	assert.True(t, conga.IsUsageError(err))
+	assertUsageError(t, err)
 	assert.Contains(t, err.Error(), "Mars/Crater")
 	assert.Contains(t, err.Error(), "for flag --tz")
 }
@@ -153,8 +151,7 @@ func TestRegisterType_CoercionError_InvalidSliceElement(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrCoerce)
-	assert.True(t, conga.IsUsageError(err))
+	assertUsageError(t, err)
 	assert.Contains(t, err.Error(), "for flag --ids")
 }
 
@@ -338,7 +335,7 @@ func TestTypedMaps_FlagsAndArgs(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrCoerce)
+		assertUsageError(t, err)
 	})
 
 	t.Run("invalid value coercion returns coercion error", func(t *testing.T) {
@@ -350,7 +347,7 @@ func TestTypedMaps_FlagsAndArgs(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrCoerce)
+		assertUsageError(t, err)
 		assert.Equal(t, `value for key "web": invalid integer value "not_a_number" for flag --counts`, err.Error())
 	})
 

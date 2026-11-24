@@ -12,9 +12,9 @@ Many command-line libraries end the process when parsing fails. The standard lib
 In CONGA, `app.Run()` and `app.RunContext(ctx)` parse, coerce, validate, and run the command, then return an ordinary Go error:
 
 - `nil` on clean execution, including built-in commands. Requests for `--help`, `--version`, and opt-in diagnostics like `--why` and `--completion` render to standard output and return `nil`. A help request succeeds, so `if err != nil` handles only real failures.
-- A usage error when command-line input violates syntax, naming, or value constraints.
-- An `ErrConfig` failure when a value from an environment variable, a configuration file, or a default tag fails to coerce or validate. These exit with status 1 and name the value's origin in the message.
-- A runtime error when the active command's `Run` method or a lifecycle hook returns a failure.
+- A `*conga.UsageError` when command-line input violates syntax, naming, or value constraints, or when a hook returns `session.UsageError`.
+- An ordinary error when a value from an environment variable, a configuration file, or a default tag fails to coerce or validate. It exits with status 1 and names the value's origin in the message ([which failures are usage errors](/reference/errors/#which-failures-are-usage-errors)).
+- The error a lifecycle hook returns. A `Validate`, `Bootstrap`, `PreRun`, `Run`, or `PostRun` error reaches the caller exactly as the hook returned it, so `errors.Is` and `errors.As` find the author's own causes. A `Validate` or `Bootstrap` failure comes back before any `Finally` hook runs. When a `Finally` hook that does run also fails, the hook's error and the `Finally` errors are joined.
 
 ## Pipeline errors versus programmer defects
 
@@ -25,18 +25,18 @@ CONGA splits failures by who has to fix them:
 
 ## The optional Exit convenience
 
-Standalone command-line applications translate errors into standard error messages and an exit status code. `app.Exit(err)` accepts the value returned by `app.Run` or `app.RunContext(ctx)` and maps it to a POSIX status. A usage error exits with status 2, so a script can tell that the command failed before any work began because its command line was wrong. [Exit codes](/reference/errors/#exit-codes) lists every status.
+Standalone command-line applications translate errors into standard error messages and an exit status code. `app.Exit(err)` accepts the value returned by `app.Run` or `app.RunContext(ctx)` and maps it to a POSIX status. `Exit` takes the outermost `conga.ExitCoder` in the error chain and exits with its code. A `*conga.UsageError` reports 2, so a script can tell that the command failed before any work began because its command line was wrong. An error that is not an `ExitCoder` exits with status 1. [Exit codes](/reference/errors/#exit-codes) lists every status.
 
 `Exit` terminates through the configured exit function (`app.ExitFunc`, default `os.Exit`). It returns only when that function returns without terminating. All `PostRun` and `Finally` hooks complete inside `app.Run`, so the teardown work is already done by the time `Exit` runs.
 
 `Exit` is optional. Applications that embed CLI commands, collect telemetry, or format errors using structured loggers like `slog` can omit `Exit` and handle the returned error value directly. When callers do use `Exit`, setting `app.ExitFunc(handler)` intercepts the requested exit status code without killing the test process, allowing tests to verify exit behavior in-process.
 
-## Self-describing value errors
+## Value errors print the error line alone
 
-`Exit` matches the help it prints to the kind of mistake. Unknown flags, unknown subcommands, and missing required positional arguments are interface-discovery mistakes, so `Exit` pairs them with a syntax usage block or `--help` hint. Command-line coercion and constraint failures already name the flag and the offending value, so they render without the usage block. Environment-, configuration-, and default-sourced value failures are not usage errors at all, so they exit with status 1 and print the error line alone. Printing a 40-line usage screen below a value error scrolls the terminal window and buries the actual message under redundant text. [Errors and exit codes](/reference/errors/#usage-rendering-on-errors) lists which failures count as self-describing.
+`Exit` matches the help it prints to the kind of mistake. Unknown flags, unknown subcommands, and missing required positional arguments are interface-discovery mistakes, so `Exit` pairs them with a syntax usage block or `--help` hint. Command-line coercion and constraint failures already name the flag and the offending value, so they render without the usage block. Environment-, configuration-, and default-sourced value failures exit with status 1 and print the error line alone. Printing a 40-line usage screen below a value error scrolls the terminal window and buries the actual message under redundant text. [Errors and exit codes](/reference/errors/#usage-rendering-on-errors) lists which failures render the error line alone.
 
-## Categorical classification without concrete coupling
+## Telling failures apart by type
 
-Every pipeline failure wraps one of five sentinel errors, such as `ErrParse` or `ErrConfig`, and `conga.IsUsageError(err)` reports whether it is a usage error. The concrete error types stay unexported, so their representation can change without breaking callers. [Errors and exit codes](/reference/errors/) catalogs the sentinels and the `UsageError` interface.
+CONGA reports the kind of a failure through its type. `errors.AsType[*conga.UsageError](err)` reports a command-line mistake and gives access to its `CommandPath` and `Usage`, and `errors.AsType[conga.ExitCoder](err)` finds the exit code. A cause that CONGA did not write itself, such as an error returned by a `TextUnmarshaler`, a standard library error, or an error from the application, stays reachable through `errors.Is` and `errors.As`. The other concrete error types stay unexported, so their representation can change without breaking callers. [Errors and exit codes](/reference/errors/) catalogs the types.
 
 For testing patterns, see [How to test a command](/how-to/test-a-command/).

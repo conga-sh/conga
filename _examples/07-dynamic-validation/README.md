@@ -14,7 +14,7 @@ go run ./_examples/07-dynamic-validation --max-retries 3 --backoff 0s
 ## What to look for
 
 - Date ordering and retry/backoff consistency are checked in `Validate`.
-- Failures are usage-classified: exit code 2, with a descriptive message.
+- `Validate` reports mistakes with `session.UsageErrorf`, so failures exit with code 2 and a descriptive message. A plain error would exit with code 1 and print no usage block.
 - Validation happens before `PreRun`/`Run`; nothing observable has executed yet.
 
 ## Test

@@ -184,6 +184,40 @@ func (s *Session) WhyJSON() string {
 	return s.whyRenderer(s, "json")
 }
 
+// UsageError returns a [*UsageError] for message, reporting a mistake in the
+// user's input that only the command can detect, such as a combination of
+// values that is invalid together. [App.Exit] prints the message and the usage
+// block of the active command that [UsageOnErrorMode] asks for, then exits with
+// status 2.
+//
+// Return it from [Validator.Validate] or any other hook. A plain error from a
+// hook exits with status 1 and prints no usage block. A message that is empty
+// prints no error line, only the usage block.
+//
+// On a nil or uninitialized session the error has no command, so [App.Exit]
+// prints no usage block.
+func (s *Session) UsageError(message string) error {
+	return usageError(s.chain(), message)
+}
+
+// UsageErrorf returns a [*UsageError] whose message is formatted like
+// [fmt.Errorf]. A %w operand becomes the error's cause, reachable through
+// [errors.Is], [errors.As], and [errors.Unwrap]. See [Session.UsageError].
+func (s *Session) UsageErrorf(format string, args ...any) error {
+	formatted := fmt.Errorf(format, args...) //nolint:err113 // the caller supplies the format, as with fmt.Errorf
+
+	var cause error
+
+	switch wrapped := formatted.(type) { //nolint:errorlint // fmt.Errorf returns its wrapper types unwrapped
+	case interface{ Unwrap() error }:
+		cause = wrapped.Unwrap()
+	case interface{ Unwrap() []error }:
+		cause = formatted
+	}
+
+	return usageError(s.chain(), formatted.Error()).withCause(cause)
+}
+
 // Root returns a pointer to the root application struct of type T: either the
 // instance supplied to [New], or the engine-allocated instance created during schema
 // compilation.
@@ -213,3 +247,12 @@ func (s *Session) Root[T any]() *T {
 type eofReader struct{}
 
 func (eofReader) Read([]byte) (int, error) { return 0, io.EOF }
+
+// chain returns the session's command chain, or nil for a nil session.
+func (s *Session) chain() []*spec.Command {
+	if s == nil {
+		return nil
+	}
+
+	return s.cmdChain
+}

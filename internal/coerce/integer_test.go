@@ -124,7 +124,6 @@ func TestScalar_IntegerSyntaxRejected(t *testing.T) {
 				assert.Error(t, err)
 				assert.Equal(t, "invalid "+width.invalidMessage+" value "+strconv.Quote(testCase.raw), err.Error())
 				assert.Equal(t, testCase.hint, intx.HintOf(err))
-				assert.IsError(t, err, coerce.ErrCoerce)
 			})
 		}
 	}
@@ -147,7 +146,6 @@ func TestScalar_IntegerOutOfRange(t *testing.T) {
 
 				assert.Error(t, err)
 				assert.Equal(t, "value "+strconv.Quote(raw)+" is out of range for "+width.targetType.String(), err.Error())
-				assert.IsError(t, err, coerce.ErrCoerce)
 				assert.IsError(t, err, strconv.ErrRange)
 			})
 		}

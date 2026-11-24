@@ -2,7 +2,6 @@ package coerce_test
 
 import (
 	"errors"
-	"fmt"
 	"math"
 	"net"
 	"net/netip"
@@ -80,7 +79,6 @@ func TestCoerce(t *testing.T) {
 
 		_, err := coerce.Value[bool]("")
 
-		assert.IsError(t, err, coerce.ErrCoerce)
 		assert.Equal(t, `invalid boolean value "", expected true or false (or 1 or 0)`, err.Error())
 	})
 
@@ -90,7 +88,6 @@ func TestCoerce(t *testing.T) {
 		_, err := coerce.Value[bool]("not-a-bool")
 
 		assert.Error(t, err)
-		assert.IsError(t, err, coerce.ErrCoerce)
 	})
 
 	t.Run("bool invalid edge cases", func(t *testing.T) {
@@ -100,7 +97,6 @@ func TestCoerce(t *testing.T) {
 			_, err := coerce.Value[bool](raw)
 
 			assert.Error(t, err)
-			assert.IsError(t, err, coerce.ErrCoerce)
 		}
 	})
 
@@ -128,7 +124,6 @@ func TestCoerce(t *testing.T) {
 		_, err := coerce.Value[time.Duration]("not-a-duration")
 
 		assert.Error(t, err)
-		assert.IsError(t, err, coerce.ErrCoerce)
 	})
 
 	t.Run("time RFC 3339", func(t *testing.T) {
@@ -145,7 +140,6 @@ func TestCoerce(t *testing.T) {
 
 		_, err := coerce.Value[time.Time]("1979-05-27T07:32:00")
 
-		assert.IsError(t, err, coerce.ErrCoerce)
 		assert.Equal(t, `invalid time "1979-05-27T07:32:00" (expected RFC 3339, e.g. 2006-01-02T15:04:05Z)`, err.Error())
 	})
 
@@ -154,7 +148,6 @@ func TestCoerce(t *testing.T) {
 
 		_, err := coerce.Value[time.Time]("1979-02-30T07:32:00Z")
 
-		assert.IsError(t, err, coerce.ErrCoerce)
 		assert.Equal(t, `invalid time "1979-02-30T07:32:00Z" (day out of range)`, err.Error())
 	})
 
@@ -163,7 +156,6 @@ func TestCoerce(t *testing.T) {
 
 		_, err := coerce.Value[*time.Time]("1979-05-27")
 
-		assert.IsError(t, err, coerce.ErrCoerce)
 		assert.Equal(t, `invalid time "1979-05-27" (expected RFC 3339, e.g. 2006-01-02T15:04:05Z)`, err.Error())
 	})
 
@@ -172,7 +164,6 @@ func TestCoerce(t *testing.T) {
 
 		_, err := coerce.Value[dateOnly]("27/05/1979")
 
-		assert.IsError(t, err, coerce.ErrCoerce)
 		assert.Equal(t, `parsing time "27/05/1979" as "2006-01-02": cannot parse "27/05/1979" as "2006"`, err.Error())
 	})
 
@@ -208,17 +199,15 @@ func TestCoerce(t *testing.T) {
 
 		_, err := coerce.Value[*customTextErrType]("fail")
 
-		assert.Error(t, err)
-		assert.IsError(t, err, coerce.ErrCoerce)
+		assert.EqualError(t, err, "custom unmarshal failed")
 	})
 
-	t.Run("custom TextUnmarshaler already ErrCoerce error", func(t *testing.T) {
+	t.Run("custom TextUnmarshaler error is returned unchanged", func(t *testing.T) {
 		t.Parallel()
 
 		_, err := coerce.Value[customTextCoerceErrType]("fail-direct")
 
-		assert.Error(t, err)
-		assert.IsError(t, err, coerce.ErrCoerce)
+		assert.Equal(t, errDirectUnmarshal, err)
 	})
 }
 
@@ -250,9 +239,7 @@ func TestCoerce_UnsignedIntegers(t *testing.T) {
 		assert.NoError(t, errMax)
 		assert.Equal(t, uint8(math.MaxUint8), maxValue)
 		assert.Error(t, errOver)
-		assert.IsError(t, errOver, coerce.ErrCoerce)
 		assert.Error(t, errNeg)
-		assert.IsError(t, errNeg, coerce.ErrCoerce)
 	})
 
 	t.Run("uint16 boundaries and overflow", func(t *testing.T) {
@@ -268,9 +255,7 @@ func TestCoerce_UnsignedIntegers(t *testing.T) {
 		assert.NoError(t, errMax)
 		assert.Equal(t, uint16(math.MaxUint16), maxValue)
 		assert.Error(t, errOver)
-		assert.IsError(t, errOver, coerce.ErrCoerce)
 		assert.Error(t, errNeg)
-		assert.IsError(t, errNeg, coerce.ErrCoerce)
 	})
 
 	t.Run("uint32 boundaries and overflow", func(t *testing.T) {
@@ -286,9 +271,7 @@ func TestCoerce_UnsignedIntegers(t *testing.T) {
 		assert.NoError(t, errMax)
 		assert.Equal(t, uint32(math.MaxUint32), maxValue)
 		assert.Error(t, errOver)
-		assert.IsError(t, errOver, coerce.ErrCoerce)
 		assert.Error(t, errNeg)
-		assert.IsError(t, errNeg, coerce.ErrCoerce)
 	})
 
 	t.Run("uint64 boundaries and overflow", func(t *testing.T) {
@@ -304,9 +287,7 @@ func TestCoerce_UnsignedIntegers(t *testing.T) {
 		assert.NoError(t, errMax)
 		assert.Equal(t, uint64(math.MaxUint64), maxValue)
 		assert.Error(t, errOver)
-		assert.IsError(t, errOver, coerce.ErrCoerce)
 		assert.Error(t, errNeg)
-		assert.IsError(t, errNeg, coerce.ErrCoerce)
 	})
 
 	t.Run("malformed unsigned int", func(t *testing.T) {
@@ -315,7 +296,6 @@ func TestCoerce_UnsignedIntegers(t *testing.T) {
 		_, err := coerce.Value[uint]("abc")
 
 		assert.Error(t, err)
-		assert.IsError(t, err, coerce.ErrCoerce)
 	})
 }
 
@@ -335,9 +315,7 @@ func TestCoerce_SignedIntegersAndFloats(t *testing.T) {
 		assert.NoError(t, errMax)
 		assert.Equal(t, int8(math.MaxInt8), maxValue)
 		assert.Error(t, errOver)
-		assert.IsError(t, errOver, coerce.ErrCoerce)
 		assert.Error(t, errUnder)
-		assert.IsError(t, errUnder, coerce.ErrCoerce)
 	})
 
 	t.Run("int16 boundaries and overflow", func(t *testing.T) {
@@ -353,9 +331,7 @@ func TestCoerce_SignedIntegersAndFloats(t *testing.T) {
 		assert.NoError(t, errMax)
 		assert.Equal(t, int16(math.MaxInt16), maxValue)
 		assert.Error(t, errOver)
-		assert.IsError(t, errOver, coerce.ErrCoerce)
 		assert.Error(t, errUnder)
-		assert.IsError(t, errUnder, coerce.ErrCoerce)
 	})
 
 	t.Run("int32 boundaries and overflow", func(t *testing.T) {
@@ -370,7 +346,6 @@ func TestCoerce_SignedIntegersAndFloats(t *testing.T) {
 		assert.NoError(t, errMax)
 		assert.Equal(t, int32(math.MaxInt32), maxValue)
 		assert.Error(t, errOver)
-		assert.IsError(t, errOver, coerce.ErrCoerce)
 	})
 
 	t.Run("int64 boundaries and overflow", func(t *testing.T) {
@@ -385,7 +360,6 @@ func TestCoerce_SignedIntegersAndFloats(t *testing.T) {
 		assert.NoError(t, errMax)
 		assert.Equal(t, int64(math.MaxInt64), maxValue)
 		assert.Error(t, errOver)
-		assert.IsError(t, errOver, coerce.ErrCoerce)
 	})
 
 	t.Run("signed int malformed input", func(t *testing.T) {
@@ -394,7 +368,6 @@ func TestCoerce_SignedIntegersAndFloats(t *testing.T) {
 		_, err := coerce.Value[int]("not-an-int")
 
 		assert.Error(t, err)
-		assert.IsError(t, err, coerce.ErrCoerce)
 	})
 
 	t.Run("float32 boundary and malformed", func(t *testing.T) {
@@ -408,11 +381,8 @@ func TestCoerce_SignedIntegersAndFloats(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, float32(1.25), value)
 		assert.Error(t, errMalformed)
-		assert.IsError(t, errMalformed, coerce.ErrCoerce)
 		assert.Error(t, errPrefix)
-		assert.IsError(t, errPrefix, coerce.ErrCoerce)
 		assert.Error(t, errOver)
-		assert.IsError(t, errOver, coerce.ErrCoerce)
 	})
 
 	t.Run("float64 malformed inputs", func(t *testing.T) {
@@ -422,9 +392,7 @@ func TestCoerce_SignedIntegersAndFloats(t *testing.T) {
 		_, errDoubleSign := coerce.Value[float64]("+-1")
 
 		assert.Error(t, errOneE)
-		assert.IsError(t, errOneE, coerce.ErrCoerce)
 		assert.Error(t, errDoubleSign)
-		assert.IsError(t, errDoubleSign, coerce.ErrCoerce)
 	})
 }
 
@@ -450,7 +418,6 @@ func TestCoerce_NetworkingAndURL(t *testing.T) {
 		_, err := coerce.Value[*url.URL]("example.com/path")
 
 		assert.Error(t, err)
-		assert.IsError(t, err, coerce.ErrCoerce)
 	})
 
 	t.Run("url pointer parse error", func(t *testing.T) {
@@ -459,7 +426,6 @@ func TestCoerce_NetworkingAndURL(t *testing.T) {
 		_, err := coerce.Value[*url.URL]("://bad")
 
 		assert.Error(t, err)
-		assert.IsError(t, err, coerce.ErrCoerce)
 	})
 
 	t.Run("url value valid", func(t *testing.T) {
@@ -478,7 +444,6 @@ func TestCoerce_NetworkingAndURL(t *testing.T) {
 		_, err := coerce.Value[url.URL]("localhost/path")
 
 		assert.Error(t, err)
-		assert.IsError(t, err, coerce.ErrCoerce)
 	})
 
 	t.Run("net.IP valid and invalid", func(t *testing.T) {
@@ -493,7 +458,6 @@ func TestCoerce_NetworkingAndURL(t *testing.T) {
 		assert.NoError(t, err6)
 		assert.Equal(t, net.ParseIP("2001:db8::1"), ip6)
 		assert.Error(t, errBad)
-		assert.IsError(t, errBad, coerce.ErrCoerce)
 	})
 
 	t.Run("netip.Addr valid and invalid", func(t *testing.T) {
@@ -505,7 +469,6 @@ func TestCoerce_NetworkingAndURL(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, netip.MustParseAddr("10.0.0.1"), addr)
 		assert.Error(t, errBad)
-		assert.IsError(t, errBad, coerce.ErrCoerce)
 	})
 
 	t.Run("netip.Prefix valid and invalid", func(t *testing.T) {
@@ -517,7 +480,6 @@ func TestCoerce_NetworkingAndURL(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, netip.MustParsePrefix("192.168.1.0/24"), prefix)
 		assert.Error(t, errBad)
-		assert.IsError(t, errBad, coerce.ErrCoerce)
 	})
 }
 
@@ -539,7 +501,6 @@ func TestCoerce_TextUnmarshalerAndReflection(t *testing.T) {
 		_, err := coerce.Value[customTextErrType]("trigger-error")
 
 		assert.Error(t, err)
-		assert.IsError(t, err, coerce.ErrCoerce)
 		assert.Equal(t, "custom unmarshal failed", err.Error())
 	})
 
@@ -548,8 +509,7 @@ func TestCoerce_TextUnmarshalerAndReflection(t *testing.T) {
 
 		_, err := coerce.Scalar("val", reflect.TypeFor[chan int]())
 
-		assert.Error(t, err)
-		assert.IsError(t, err, coerce.ErrUnsupportedType)
+		assert.EqualError(t, err, "unsupported type chan int")
 	})
 
 	t.Run("unsupported func type", func(t *testing.T) {
@@ -557,8 +517,7 @@ func TestCoerce_TextUnmarshalerAndReflection(t *testing.T) {
 
 		_, err := coerce.Scalar("val", reflect.TypeFor[func()]())
 
-		assert.Error(t, err)
-		assert.IsError(t, err, coerce.ErrUnsupportedType)
+		assert.EqualError(t, err, "unsupported type func()")
 	})
 
 	t.Run("unsupported complex type", func(t *testing.T) {
@@ -566,8 +525,7 @@ func TestCoerce_TextUnmarshalerAndReflection(t *testing.T) {
 
 		_, err := coerce.Scalar("val", reflect.TypeFor[complex128]())
 
-		assert.Error(t, err)
-		assert.IsError(t, err, coerce.ErrUnsupportedType)
+		assert.EqualError(t, err, "unsupported type complex128")
 	})
 
 	t.Run("unsupported raw struct type", func(t *testing.T) {
@@ -579,8 +537,7 @@ func TestCoerce_TextUnmarshalerAndReflection(t *testing.T) {
 
 		_, err := coerce.Scalar("val", reflect.TypeFor[unmarshaledStruct]())
 
-		assert.Error(t, err)
-		assert.IsError(t, err, coerce.ErrUnsupportedType)
+		assert.EqualError(t, err, "unsupported type coerce_test.unmarshaledStruct")
 	})
 }
 
@@ -699,7 +656,6 @@ func TestCoerceMap(t *testing.T) {
 		_, err := coerce.Map([]string{"invalid-pair"}, ",")
 
 		assert.Error(t, err)
-		assert.IsError(t, err, coerce.ErrCoerce)
 	})
 
 	t.Run("empty key in pair", func(t *testing.T) {
@@ -708,7 +664,6 @@ func TestCoerceMap(t *testing.T) {
 		_, err := coerce.Map([]string{"=value"}, ",")
 
 		assert.Error(t, err)
-		assert.IsError(t, err, coerce.ErrCoerce)
 	})
 
 	t.Run("sep disabled variations in map", func(t *testing.T) {
@@ -785,9 +740,7 @@ func TestCoerceURLAndNumericEdgeCases(t *testing.T) {
 		_, errValue := coerce.Scalar("just-a-host", reflect.TypeFor[url.URL]())
 
 		assert.Error(t, errPtr)
-		assert.IsError(t, errPtr, coerce.ErrCoerce)
 		assert.Error(t, errValue)
-		assert.IsError(t, errValue, coerce.ErrCoerce)
 	})
 
 	t.Run("url invalid syntax rejected", func(t *testing.T) {
@@ -796,7 +749,6 @@ func TestCoerceURLAndNumericEdgeCases(t *testing.T) {
 		_, err := coerce.Scalar("http://[fe80::1%en0]:invalid-port", reflect.TypeFor[*url.URL]())
 
 		assert.Error(t, err)
-		assert.IsError(t, err, coerce.ErrCoerce)
 	})
 
 	t.Run("signed int bit-sizes and boundaries", func(t *testing.T) {
@@ -811,7 +763,6 @@ func TestCoerceURLAndNumericEdgeCases(t *testing.T) {
 
 		_, err8Overflow := coerce.Scalar("128", reflect.TypeFor[int8]())
 		assert.Error(t, err8Overflow)
-		assert.IsError(t, err8Overflow, coerce.ErrCoerce)
 
 		val16, err := coerce.Scalar("32767", reflect.TypeFor[int16]())
 		assert.NoError(t, err)
@@ -847,11 +798,9 @@ func TestCoerceURLAndNumericEdgeCases(t *testing.T) {
 
 		_, err = coerce.Scalar("256", reflect.TypeFor[uint8]())
 		assert.Error(t, err)
-		assert.IsError(t, err, coerce.ErrCoerce)
 
 		_, err = coerce.Scalar("-1", reflect.TypeFor[uint]())
 		assert.Error(t, err)
-		assert.IsError(t, err, coerce.ErrCoerce)
 	})
 
 	t.Run("float bit-sizes and boundaries", func(t *testing.T) {
@@ -873,7 +822,6 @@ func TestCoerceURLAndNumericEdgeCases(t *testing.T) {
 
 		_, err = coerce.Scalar("not-a-number", reflect.TypeFor[float64]())
 		assert.Error(t, err)
-		assert.IsError(t, err, coerce.ErrCoerce)
 	})
 }
 
@@ -917,7 +865,6 @@ func TestCoerce_CustomRegistry(t *testing.T) {
 
 		_, err := coerce.ScalarWith("bad-prefix", reflect.TypeFor[testCustomID](), reg, coerce.DecodeContext{})
 		assert.Error(t, err)
-		assert.IsError(t, err, coerce.ErrCoerce)
 	})
 
 	t.Run("pointer target resolved from scalar parser", func(t *testing.T) {
@@ -971,7 +918,6 @@ func TestCoerce_CustomRegistry(t *testing.T) {
 		rawSlice := []string{"id-1", "bad-element"}
 		_, err := coerce.SliceWith(rawSlice, reflect.TypeFor[[]testCustomID](), ",", reg, coerce.DecodeContext{})
 		assert.Error(t, err)
-		assert.IsError(t, err, coerce.ErrCoerce)
 	})
 
 	t.Run("format override takes precedence over default behavior", func(t *testing.T) {
@@ -1025,7 +971,6 @@ func TestCoerce_CustomRegistry(t *testing.T) {
 		_, err := coerce.ScalarWith("123", reflect.TypeFor[int](), mismatchReg, coerce.DecodeContext{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, coerce.ErrCoerce)
 	})
 
 	t.Run("parser returning convertible but non-assignable type yields error", func(t *testing.T) {
@@ -1040,7 +985,6 @@ func TestCoerce_CustomRegistry(t *testing.T) {
 		_, err := coerce.ScalarWith("42", reflect.TypeFor[int](), mismatchReg, coerce.DecodeContext{})
 
 		assert.Error(t, err)
-		assert.IsError(t, err, coerce.ErrCoerce)
 	})
 }
 
@@ -1066,10 +1010,12 @@ func (c *customTextErrType) UnmarshalText(text []byte) error {
 	return errors.New("custom unmarshal failed")
 }
 
+var errDirectUnmarshal = errors.New("direct unmarshal error")
+
 type customTextCoerceErrType struct{}
 
 func (c *customTextCoerceErrType) UnmarshalText(text []byte) error {
-	return fmt.Errorf("%w: direct coerce error", coerce.ErrCoerce)
+	return errDirectUnmarshal
 }
 
 // testTaggedValue implements both plain and context-aware text unmarshaling;

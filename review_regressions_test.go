@@ -106,7 +106,7 @@ func TestRegression_MapArgConstraintEnforced(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrValidation)
+	assertUsageError(t, err)
 	assert.Equal(t, "item count 1 is out of range [2..4] for argument <pairs>", err.Error())
 }
 
@@ -140,7 +140,7 @@ func TestRegression_ConfigFileEmptyValueErrors(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrValidation)
+	assertUsageError(t, err)
 	assert.Equal(t, "path cannot be empty for flag --config-file", err.Error())
 }
 
@@ -157,7 +157,7 @@ func TestRegression_ConfigFileMultiBlankEntryErrors(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.IsError(t, err, conga.ErrValidation)
+	assertUsageError(t, err)
 	assert.Equal(t, "path cannot be empty for flag --config-file", err.Error())
 }
 
@@ -413,7 +413,7 @@ func TestRegression_SelfValidatingMapType(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 		assert.Equal(t, "header name cannot contain spaces for flag --headers", err.Error())
 	})
 }
@@ -462,7 +462,7 @@ func TestRegression_SelfValidatingMapEntryValues(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 		assert.Equal(t, `port 99999 is out of range 1..65535 for flag --ports entry "bad"`, err.Error())
 	})
 }
@@ -500,7 +500,7 @@ func TestRegression_SelfValidatingMapArg(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 		assert.Equal(t, "header name cannot contain spaces for argument <headers>", err.Error())
 	})
 }

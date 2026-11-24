@@ -84,7 +84,6 @@ func (v *documentValidator) commandEntry(prefix, key string, value any, cmd *spe
 		v.origin,
 		v.scope,
 		fmt.Sprintf("unknown field %q in command %q%s", key, cmd.Name, suggestionHint(cmd, prefix, nil, key, v.keyCase)),
-		fmt.Sprintf("unknown field %q in command %q", key, cmd.Name),
 	)
 }
 
@@ -114,7 +113,6 @@ func (v *documentValidator) nestedSection(prefix, key string, nestedMap map[stri
 			v.origin,
 			v.scope,
 			fmt.Sprintf("field %q in command %q is not a map", key, cmd.Name),
-			fmt.Sprintf("field %q in command %q is not a map", key, cmd.Name),
 		)
 	}
 
@@ -126,7 +124,6 @@ func (v *documentValidator) nestedSection(prefix, key string, nestedMap map[stri
 		v.origin,
 		v.scope,
 		fmt.Sprintf("unknown section %q in command %q%s", key, cmd.Name, suggestionHint(cmd, prefix, nil, key, v.keyCase)),
-		fmt.Sprintf("unknown section %q in command %q", key, cmd.Name),
 	)
 }
 
@@ -179,7 +176,6 @@ func (v *documentValidator) namespace(cmdPrefix string, section []string, rawMap
 			v.origin,
 			v.scope,
 			fmt.Sprintf("unknown field %q in namespace %q%s", key, displayNamespace, suggestionHint(cmd, cmdPrefix, section, key, v.keyCase)),
-			fmt.Sprintf("unknown field %q in namespace %q", key, displayNamespace),
 		)
 	}
 
@@ -287,7 +283,6 @@ func (v *documentValidator) storeMapEntry(cmd *spec.Command, flag *spec.Flag, ke
 					v.origin,
 					v.scope,
 					fmt.Sprintf("unknown field %q in section %q (did you mean %q?)", key, section, expected),
-					fmt.Sprintf("unknown field %q in section %q", key, section),
 				)
 			}
 
@@ -315,7 +310,6 @@ func (v *documentValidator) namespaceSection(cmdPrefix string, section []string,
 			v.origin,
 			v.scope,
 			fmt.Sprintf("field %q in namespace %q is not a map", key, displayNamespace),
-			fmt.Sprintf("field %q in namespace %q is not a map", key, displayNamespace),
 		)
 	}
 
@@ -323,7 +317,6 @@ func (v *documentValidator) namespaceSection(cmdPrefix string, section []string,
 		v.origin,
 		v.scope,
 		fmt.Sprintf("unknown section %q in namespace %q%s", key, displayNamespace, suggestionHint(cmd, cmdPrefix, section, key, v.keyCase)),
-		fmt.Sprintf("unknown section %q in namespace %q", key, displayNamespace),
 	)
 }
 
@@ -335,7 +328,6 @@ func newExcludedConfigFieldError(origin, scope, fieldKey, commandName string) er
 		origin,
 		scope,
 		fmt.Sprintf("field %q is excluded from config files in command %q", fieldKey, commandName),
-		fmt.Sprintf("field %q not allowed in config", fieldKey),
 	)
 }
 

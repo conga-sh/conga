@@ -284,7 +284,7 @@ convert: error: "notes.txt" is a file, but a directory was expected for flag --k
 | Gives a size without the `B` | `unknown byte size unit "M" in "10M" (accepted: B, kB, MB, GB, TB, PB, EB, KiB, MiB, GiB, TiB, PiB, EiB) for flag --max-size`, exit 2 |
 | Gives a size outside the `range` | `value 10B is out of range [1KiB..100MiB] for flag --max-size`, exit 2 |
 
-The same checks apply when the value comes from an environment variable or a config file. A conflict that involves one of those sources, or a `default` tag, is `ErrConfig` (exit 1) instead of a usage error. An environment variable set to the empty string counts as unset, and so does an empty string in a config file for a `File` or `Dir` flag.
+The same checks apply when the value comes from an environment variable or a config file. A conflict that involves one of those sources, or a `default` tag, exits 1 instead of 2 and prints no usage block. An environment variable set to the empty string counts as unset, and so does an empty string in a config file for a `File` or `Dir` flag.
 
 ## Where to go next
 

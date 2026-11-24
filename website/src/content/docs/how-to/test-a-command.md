@@ -239,10 +239,11 @@ func TestNameFromDotenvFile(t *testing.T) {
 `app.Exit(err)` formats the error to the app's `Stderr` and calls `os.Exit`:
 
 - Exit code `0` when `err` is `nil`.
-- Exit code `2` when `conga.IsUsageError(err)` is `true` (an unknown flag, a command-line value of the wrong type, or a command-line value that fails `range` or `enum`).
-- Exit code `1` for any other error, such as an error returned from `Run`, a missing or malformed config or `.env` file, an environment-, config-, or default-sourced value failure (`ErrConfig`), or an invalid struct tag. See [Errors](/reference/errors/) for every error category.
+- Exit code `2` when `errors.AsType[*conga.UsageError](err)` finds a usage error (an unknown flag, a command-line value of the wrong type, a command-line value that fails `range` or `enum`, or an error from `session.UsageError`).
+- The code of the outermost `conga.ExitCoder` in the error chain, for an error that implements `ExitCode() int`.
+- Exit code `1` for any other error, such as an error returned from `Run`, a missing or malformed config or `.env` file, an environment-, config-, or default-sourced value failure, or an invalid struct tag. See [Errors](/reference/errors/) for every error type.
 
-In a test, `os.Exit` would stop the test binary, so pass `ExitFunc` to record the code instead:
+In a test, `os.Exit` would stop the test binary, so pass `ExitFunc` to record the code instead. The test also imports `errors`:
 
 ```go title="main_test.go" {12}
 func TestUnknownFlagExitsWithUsageError(t *testing.T) {
@@ -259,7 +260,7 @@ func TestUnknownFlagExitsWithUsageError(t *testing.T) {
 		ExitFunc(func(code int) { exitCode = code })
 
 	err := app.RunContext(t.Context())
-	if !conga.IsUsageError(err) {
+	if _, ok := errors.AsType[*conga.UsageError](err); !ok {
 		t.Fatalf("expected a usage error, got %v", err)
 	}
 
@@ -321,6 +322,6 @@ func TestHelpFlagPrintsUsage(t *testing.T) {
 ## Where to go next
 
 - [About testing CONGA programs](/explanation/testing/): running the app inside a test compared with running the built binary, and where unit tests fit.
-- [About error reporting](/explanation/error-reporting/): error categories, exit codes, and usage output.
+- [About error reporting](/explanation/error-reporting/): error types, exit codes, and usage output.
 - [How to load .env files](/how-to/load-env-files/): how `Dotenv` resolves and loads environment files.
 - [About the command lifecycle](/explanation/lifecycle/): context, signals, and the order of lifecycle hooks.

@@ -255,7 +255,7 @@ func TestNumericRangeValidation(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 
 	t.Run("out of range above max", func(t *testing.T) {
@@ -266,7 +266,7 @@ func TestNumericRangeValidation(t *testing.T) {
 		err := app.Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 
 	t.Run("min only range valid at lower bound", func(t *testing.T) {
@@ -291,7 +291,7 @@ func TestNumericRangeValidation(t *testing.T) {
 		err := conga.New[RangeNumericCLI]().Args([]string{"--min-only", "4"}).Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 
 	t.Run("max only range valid", func(t *testing.T) {
@@ -308,7 +308,7 @@ func TestNumericRangeValidation(t *testing.T) {
 		err := conga.New[RangeNumericCLI]().Args([]string{"--max-only", "51"}).Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 
 	t.Run("negative numbers in range valid", func(t *testing.T) {
@@ -329,7 +329,7 @@ func TestNumericRangeValidation(t *testing.T) {
 		err := conga.New[RangeNumericCLI]().Args([]string{"--offset", "-30"}).Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 
 	t.Run("negative numbers in range invalid above max", func(t *testing.T) {
@@ -338,7 +338,7 @@ func TestNumericRangeValidation(t *testing.T) {
 		err := conga.New[RangeNumericCLI]().Args([]string{"--offset", "0"}).Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 
 	t.Run("float range valid", func(t *testing.T) {
@@ -355,7 +355,7 @@ func TestNumericRangeValidation(t *testing.T) {
 		err := conga.New[RangeNumericCLI]().Args([]string{"--float-val", "1.5"}).Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 
 	t.Run("float range invalid below min", func(t *testing.T) {
@@ -364,7 +364,7 @@ func TestNumericRangeValidation(t *testing.T) {
 		err := conga.New[RangeNumericCLI]().Args([]string{"--float-val", "-0.1"}).Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 }
 
@@ -386,7 +386,7 @@ func TestUnitsRangeValidation(t *testing.T) {
 
 		err := conga.New[RangeUnitCLI]().Args([]string{"--timeout", "50ms"}).Run()
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 
 	t.Run("duration range above max", func(t *testing.T) {
@@ -394,7 +394,7 @@ func TestUnitsRangeValidation(t *testing.T) {
 
 		err := conga.New[RangeUnitCLI]().Args([]string{"--timeout", "10m"}).Run()
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 
 	t.Run("bytesize range valid", func(t *testing.T) {
@@ -410,7 +410,7 @@ func TestUnitsRangeValidation(t *testing.T) {
 
 		err := conga.New[RangeUnitCLI]().Args([]string{"--memory", "500kB"}).Run()
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 
 	t.Run("bytesize range above max", func(t *testing.T) {
@@ -418,7 +418,7 @@ func TestUnitsRangeValidation(t *testing.T) {
 
 		err := conga.New[RangeUnitCLI]().Args([]string{"--memory", "20GB"}).Run()
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 
 	t.Run("bytesize bound violating units tag rejected at schema build", func(t *testing.T) {
@@ -451,7 +451,7 @@ func TestTextDialectRangeValidation(t *testing.T) {
 		err := conga.New[RangeTextDialectCLI]().Args([]string{"--temperature", "5C"}).Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 
 	t.Run("value above dialect max", func(t *testing.T) {
@@ -460,7 +460,7 @@ func TestTextDialectRangeValidation(t *testing.T) {
 		err := conga.New[RangeTextDialectCLI]().Args([]string{"--temperature", "50C"}).Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 
 	t.Run("unparseable dialect bound rejected at schema build", func(t *testing.T) {
@@ -489,7 +489,7 @@ func TestTextDialectRangeValidation(t *testing.T) {
 		err := conga.New[RangeUnsignedDialectCLI]().Args([]string{"--threshold", "5x"}).Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 
 	t.Run("float dialect value within bounds", func(t *testing.T) {
@@ -506,7 +506,7 @@ func TestTextDialectRangeValidation(t *testing.T) {
 		err := conga.New[RangeFloatDialectCLI]().Args([]string{"--ratio", "95%"}).Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 
 	t.Run("slice dialect validates each element", func(t *testing.T) {
@@ -523,7 +523,7 @@ func TestTextDialectRangeValidation(t *testing.T) {
 		err := conga.New[RangeSliceDialectCLI]().Args([]string{"--temperatures", "20C,50C"}).Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 }
 
@@ -548,7 +548,7 @@ func TestUintRangeValidation(t *testing.T) {
 		err := conga.New[RangeUintCLI]().Args([]string{"--port", "0"}).Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 		assert.Equal(t, "value 0 is out of range [1..65535] for flag --port", err.Error())
 	})
 
@@ -558,7 +558,7 @@ func TestUintRangeValidation(t *testing.T) {
 		err := conga.New[RangeUintCLI]().Args([]string{"--port", "70000"}).Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 		assert.Equal(t, "value 70000 is out of range [1..65535] for flag --port", err.Error())
 	})
 
@@ -592,7 +592,7 @@ func TestUintRangeValidation(t *testing.T) {
 		err := conga.New[RangeUintCLI]().Args([]string{"--worker", "9"}).Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 		assert.Equal(t, "value 9 must be <= 8 for flag --worker", err.Error())
 	})
 
@@ -614,7 +614,7 @@ func TestUintRangeValidation(t *testing.T) {
 		err := conga.New[RangeUintCLI]().Args([]string{"--level", "9"}).Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 		assert.Equal(t, "value 9 must be >= 10 for flag --level", err.Error())
 	})
 
@@ -636,7 +636,7 @@ func TestUintRangeValidation(t *testing.T) {
 		err := conga.New[RangeUintCLI]().Args([]string{"--octets", "80,300"}).Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 		assert.Equal(t, "value 300 is out of range [0..255] for flag --octets", err.Error())
 	})
 
@@ -659,7 +659,7 @@ func TestUintRangeValidation(t *testing.T) {
 		err := conga.New[RangeUintCLI]().Args([]string{"--port", "-1"}).Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrCoerce)
+		assertUsageError(t, err)
 	})
 }
 
@@ -679,7 +679,7 @@ func TestStringLengthValidation(t *testing.T) {
 
 		err := conga.New[LengthCLI]().Args([]string{"--user", "ab"}).Run()
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 
 	t.Run("closed string length above max", func(t *testing.T) {
@@ -687,7 +687,7 @@ func TestStringLengthValidation(t *testing.T) {
 
 		err := conga.New[LengthCLI]().Args([]string{"--user", "thisusernameiswaytoolongtobeallowed"}).Run()
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 
 	t.Run("exact string length valid", func(t *testing.T) {
@@ -703,7 +703,7 @@ func TestStringLengthValidation(t *testing.T) {
 
 		err := conga.New[LengthCLI]().Args([]string{"--pin", "123"}).Run()
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 
 	t.Run("min only string length valid", func(t *testing.T) {
@@ -719,7 +719,7 @@ func TestStringLengthValidation(t *testing.T) {
 
 		err := conga.New[LengthCLI]().Args([]string{"--pass", "short"}).Run()
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 
 	t.Run("max only string length valid", func(t *testing.T) {
@@ -735,7 +735,7 @@ func TestStringLengthValidation(t *testing.T) {
 
 		err := conga.New[LengthCLI]().Args([]string{"--bio", strings.Repeat("x", 55)}).Run()
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 }
 
@@ -755,7 +755,7 @@ func TestSliceConstraints(t *testing.T) {
 
 		err := conga.New[SliceConstraintsCLI]().Args([]string{"--ports", "1,2,3,4"}).Run()
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 
 	t.Run("slice element range violation above max", func(t *testing.T) {
@@ -763,7 +763,7 @@ func TestSliceConstraints(t *testing.T) {
 
 		err := conga.New[SliceConstraintsCLI]().Args([]string{"--ports", "1,15"}).Run()
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 
 	t.Run("slice string length validation valid", func(t *testing.T) {
@@ -779,7 +779,7 @@ func TestSliceConstraints(t *testing.T) {
 
 		err := conga.New[SliceConstraintsCLI]().Args([]string{"--tags", "a,api"}).Run()
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 
 	t.Run("slice too few items", func(t *testing.T) {
@@ -787,7 +787,7 @@ func TestSliceConstraints(t *testing.T) {
 
 		err := conga.New[SliceConstraintsCLI]().Args([]string{"--tags", "web"}).Run()
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 }
 
@@ -810,7 +810,7 @@ func TestCustomTypesAndAliases(t *testing.T) {
 		err := conga.New[CustomTypesCLI]().Args([]string{"--port", "70000"}).Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrCoerce)
+		assertUsageError(t, err)
 		assert.Equal(t, "port 70000 out of range [1..65535] for flag --port", err.Error())
 	})
 
@@ -830,7 +830,7 @@ func TestCustomTypesAndAliases(t *testing.T) {
 		err := conga.New[CustomTypesCLI]().Args([]string{"--user", "ab"}).Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrCoerce)
+		assertUsageError(t, err)
 		assert.Equal(t, `username "ab" length must be between 3 and 16 for flag --user`, err.Error())
 	})
 
@@ -840,7 +840,7 @@ func TestCustomTypesAndAliases(t *testing.T) {
 		err := conga.New[CustomTypesCLI]().Args([]string{"--user", "john doe"}).Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrCoerce)
+		assertUsageError(t, err)
 		assert.Equal(t, `username "john doe" cannot contain spaces for flag --user`, err.Error())
 	})
 
@@ -860,7 +860,7 @@ func TestCustomTypesAndAliases(t *testing.T) {
 		err := conga.New[CustomTypesCLI]().Args([]string{"--score", "150"}).Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 		assert.Equal(t, "score 150 must be between 0 and 100 for flag --score", err.Error())
 	})
 
@@ -870,7 +870,7 @@ func TestCustomTypesAndAliases(t *testing.T) {
 		err := conga.New[CustomTypesCLI]().Args([]string{"--score", "-5"}).Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 		assert.Equal(t, "score -5 must be between 0 and 100 for flag --score", err.Error())
 	})
 
@@ -888,7 +888,7 @@ func TestCustomTypesAndAliases(t *testing.T) {
 		err := conga.New[CustomTypesCLI]().Args([]string{"--slug", "My-Cluster-01"}).Run()
 
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 		assert.Equal(t, `slug "My-Cluster-01" must be all lowercase for flag --slug`, err.Error())
 	})
 
@@ -907,7 +907,7 @@ func TestCustomTypesAndAliases(t *testing.T) {
 
 		err := conga.New[CustomTypesCLI]().Args([]string{"--alias-num", "150"}).Run()
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 
 	t.Run("Type Alias with len tag valid", func(t *testing.T) {
@@ -923,7 +923,7 @@ func TestCustomTypesAndAliases(t *testing.T) {
 
 		err := conga.New[CustomTypesCLI]().Args([]string{"--alias-str", "hi"}).Run()
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 
 	t.Run("Type Alias with negative number parsing valid", func(t *testing.T) {
@@ -941,7 +941,7 @@ func TestCustomTypesAndAliases(t *testing.T) {
 
 		err := conga.New[CustomTypesCLI]().Args([]string{"--neg-alias", "10"}).Run()
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 
 	t.Run("Type Alias with negative number below min", func(t *testing.T) {
@@ -949,7 +949,7 @@ func TestCustomTypesAndAliases(t *testing.T) {
 
 		err := conga.New[CustomTypesCLI]().Args([]string{"--neg-alias", "-60"}).Run()
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 }
 
@@ -972,7 +972,7 @@ func TestPositionalValidation(t *testing.T) {
 
 		err := conga.New[PositionalRangeCLI]().Args([]string{"10", "deploy"}).Run()
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 
 	t.Run("scalar positional name length violation", func(t *testing.T) {
@@ -980,7 +980,7 @@ func TestPositionalValidation(t *testing.T) {
 
 		err := conga.New[PositionalRangeCLI]().Args([]string{"3", "ab"}).Run()
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 
 	t.Run("slice positional valid", func(t *testing.T) {
@@ -996,7 +996,7 @@ func TestPositionalValidation(t *testing.T) {
 
 		err := conga.New[PositionalSliceCLI]().Args([]string{"5"}).Run()
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 
 	t.Run("slice positional item out of range", func(t *testing.T) {
@@ -1004,7 +1004,7 @@ func TestPositionalValidation(t *testing.T) {
 
 		err := conga.New[PositionalSliceCLI]().Args([]string{"5", "20"}).Run()
 		assert.Error(t, err)
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 	})
 }
 
@@ -1077,7 +1077,7 @@ func TestValidation_Float32RangeAcceptsItsBounds(t *testing.T) {
 
 		err := app.Run()
 
-		assert.IsError(t, err, conga.ErrValidation)
+		assertUsageError(t, err)
 		assert.Equal(t, "value 0.10000001 is out of range [0..0.1] for flag --high", err.Error())
 	})
 }

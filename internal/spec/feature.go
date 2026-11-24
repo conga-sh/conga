@@ -3,7 +3,6 @@ package spec
 import (
 	"cmp"
 	"errors"
-	"fmt"
 	"reflect"
 	"slices"
 	"strconv"
@@ -111,7 +110,7 @@ func (f *FeatureField) Canonicalize(raw string) (string, error) {
 
 	b, err := strconv.ParseBool(raw)
 	if err != nil {
-		return "", errFeatureMustBeBoolean
+		return "", &featureValueError{msg: "must be true or false (or 1 or 0)"}
 	}
 
 	return strconv.FormatBool(b), nil
@@ -402,6 +401,27 @@ func ValidateFeatureEnvSurfaces(containerTag reflect.StructTag, envDeclarer stri
 type featureTerm struct {
 	name    string
 	negated bool
+}
+
+// featureValueError is a feature value that failed validation. Its message is
+// the reason alone. An integer syntax failure carries its *intx.Error as the
+// cause, so the correction (a leading zero's 0o spelling) renders after the
+// reason and schema build can split it off as the schema error's hint.
+type featureValueError struct {
+	msg   string
+	cause error
+}
+
+func (e *featureValueError) Error() string {
+	if hint := intx.HintOf(e.cause); hint != "" {
+		return e.msg + " (" + hint + ")"
+	}
+
+	return e.msg
+}
+
+func (e *featureValueError) Unwrap() error {
+	return e.cause
 }
 
 // parseInteger parses raw into the canonical decimal string for the feature's
@@ -730,28 +750,12 @@ func firstStagelessFeatureField(fields []*FeatureField) *FeatureField {
 	return nil
 }
 
-// featureParseError is a feature integer parse failure that carries the
-// integer syntax's correction separately from its sentinel, so schema build
-// can render the correction as the schema error's hint.
-type featureParseError struct {
-	base error
-	hint string
-}
-
-func (e *featureParseError) Error() string {
-	return e.base.Error() + " (" + e.hint + ")"
-}
-
-func (e *featureParseError) Unwrap() error {
-	return e.base
-}
-
-// splitFeatureParseError separates a feature value parse failure into its
-// reason and the integer syntax's correction, so schema build can render the
-// correction as the schema error's hint; hint is empty when err carries none.
+// splitFeatureParseError separates a feature value failure into its reason and
+// the integer syntax's correction, so schema build can render the correction
+// as the schema error's hint. The hint is empty when err carries none.
 func splitFeatureParseError(err error) (string, string) {
-	if parseErr, ok := errors.AsType[*featureParseError](err); ok {
-		return parseErr.base.Error(), parseErr.hint
+	if valueErr, ok := errors.AsType[*featureValueError](err); ok {
+		return valueErr.msg, intx.HintOf(valueErr.cause)
 	}
 
 	return err.Error(), ""
@@ -761,26 +765,29 @@ func splitFeatureParseError(err error) (string, string) {
 // failures name the storage width, unsigned syntax failures name the
 // non-negativity requirement, and everything else is a plain integer error.
 func featureIntegerParseError(err error, signed bool) error {
-	if errors.Is(err, strconv.ErrRange) {
-		return errFeatureIntegerOutOfRange
+	cause, _ := errors.AsType[*intx.Error](err)
+	if cause == nil {
+		return &featureValueError{msg: featureParseMessage(err, signed)}
 	}
 
-	base := errFeatureMustBeInteger
-	if !signed {
-		base = errFeatureMustBeNonNegativeInteger
-	}
+	return &featureValueError{msg: featureParseMessage(err, signed), cause: cause}
+}
 
-	if hint := intx.HintOf(err); hint != "" {
-		return &featureParseError{base: base, hint: hint}
+func featureParseMessage(err error, signed bool) string {
+	switch {
+	case errors.Is(err, strconv.ErrRange):
+		return "is out of range for the feature's integer type"
+	case signed:
+		return "must be an integer"
+	default:
+		return "must be a non-negative integer"
 	}
-
-	return base
 }
 
 // invalidFeatureEnumError builds the enum-domain rejection listing the
 // permitted levels.
 func invalidFeatureEnumError(f *FeatureField) error {
-	return fmt.Errorf("%w: %s", errFeatureInvalidEnum, strings.Join(f.Domain(), ", "))
+	return &featureValueError{msg: "must be one of: " + strings.Join(f.Domain(), ", ")}
 }
 
 // validateFeatureEnum parses and records the non-zero levels of an integer

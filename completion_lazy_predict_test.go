@@ -2,6 +2,7 @@ package conga_test
 
 import (
 	"bytes"
+	"errors"
 	"reflect"
 	"sync"
 	"sync/atomic"
@@ -350,7 +351,9 @@ func TestPredict_PanicFailsOnlyCompletion(t *testing.T) {
 		app.Exit(err)
 
 		assert.Error(t, err)
-		assert.True(t, conga.IsCompletionError(err))
+		coder, isCoder := errors.AsType[conga.ExitCoder](err)
+		assert.True(t, isCoder)
+		assert.Equal(t, 2, coder.ExitCode())
 		assert.Equal(t, 2, exitCode)
 		assert.Equal(t, "", stdoutBuffer.String())
 		assert.Contains(t, stderrBuffer.String(), "predict boom")

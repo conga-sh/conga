@@ -8,192 +8,115 @@ import (
 	"strings"
 	"time"
 
-	"github.com/conga-sh/conga/internal/coerce"
-	"github.com/conga-sh/conga/internal/container"
 	"github.com/conga-sh/conga/internal/help"
 	"github.com/conga-sh/conga/internal/intx"
-	"github.com/conga-sh/conga/internal/sentinel"
 	"github.com/conga-sh/conga/internal/spec"
-)
-
-// Base error categories classifying execution and configuration failures.
-var (
-	// ErrParse indicates command-line tokens could not be parsed.
-	//
-	// This category includes unknown flags, missing flag arguments, unexpected positional
-	// arguments, unrecognized subcommand names, and values attached to flags that take
-	// none. All parse errors classify as usage errors ([IsUsageError] reports true).
-	ErrParse = errors.New("parse error")
-
-	// ErrCoerce indicates a command-line value could not be converted to its target type.
-	//
-	// This category includes numeric parsing failures, unparseable durations, malformed
-	// URLs, and errors returned by [encoding.TextUnmarshaler] or [ContextAwareTextUnmarshaler].
-	// A conversion failure at command-line binding is a usage error ([IsUsageError] reports
-	// true). Values that reach binding from the environment, a configuration file, or a
-	// default tag classify under [ErrConfig] instead, and [errors.Is] matches only that
-	// category.
-	ErrCoerce = coerce.ErrCoerce
-
-	// ErrValidation indicates a flag or argument constraint was violated.
-	//
-	// This category covers violations of struct tags such as range, len, enum,
-	// xor, and and, as well as failures returned by [SelfValidator.Validate].
-	// A constraint violation on a command-line value is a usage error ([IsUsageError]
-	// reports true). Values that reach validation from the environment, a configuration
-	// file, or a default tag classify under [ErrConfig] instead, and [errors.Is] matches
-	// only that category.
-	ErrValidation = errors.New("validation error")
-
-	// ErrConfig indicates configuration could not be loaded or a value from the
-	// environment, a configuration file, or a default tag failed to bind.
-	//
-	// This category includes missing explicit configuration files, file read permission
-	// errors, file size limit violations (exceeding the 16MB DoS threshold), syntax
-	// errors returned by configuration decoders, and conversion or constraint failures
-	// for environment-, configuration-, and default-sourced values.
-	ErrConfig = sentinel.ErrConfig
 )
 
 // maxDisplayRunes is the maximum number of runes echoed from a user-supplied
 // value before it is truncated in an error message.
 const maxDisplayRunes = 50
 
-// Internal sentinel errors for error wrapping and chaining.
+const (
+	// usageShapeMode prints the block the [UsageOnErrorMode] asks for.
+	usageShapeMode usageShape = iota
+
+	// usageShapeLineOnly prints the error line alone, in every mode. Value
+	// errors use it because their message already names the flag or argument
+	// and the value.
+	usageShapeLineOnly
+
+	// usageShapeFullHelp prints the full help of the command for
+	// [UsageSummary] and [UsageFull], and the hint for [UsageHint].
+	usageShapeFullHelp
+)
+
+const (
+	suggestionKindNone suggestionKind = iota
+	suggestionKindFlag
+	suggestionKindCommand
+)
+
 var (
-	errUnknownFlag        = fmt.Errorf("%w: unknown flag", ErrParse)
-	errFlagRequiresValue  = fmt.Errorf("%w: flag requires an argument", ErrParse)
-	errUnknownCommand     = fmt.Errorf("%w: unknown command", ErrParse)
-	errSubcommandRequired = fmt.Errorf("%w: subcommand required", ErrParse)
-
-	errMissingFlag       = fmt.Errorf("%w: missing required flag", ErrValidation)
-	errMissingArg        = fmt.Errorf("%w: missing required positional argument", ErrValidation)
-	errUnexpectedArg     = fmt.Errorf("%w: unexpected argument", ErrParse)
-	errInvalidValue      = fmt.Errorf("%w: invalid value", ErrValidation)
-	errOutOfRange        = fmt.Errorf("%w: value out of range", ErrValidation)
-	errInvalidLength     = fmt.Errorf("%w: invalid length", ErrValidation)
-	errInvalidItemCount  = fmt.Errorf("%w: invalid item count", ErrValidation)
-	errMutuallyExclusive = fmt.Errorf("%w: mutually exclusive flags", ErrValidation)
-	errAndGroup          = fmt.Errorf("%w: flags must be given together", ErrValidation)
-	errStdinReadTwice    = fmt.Errorf("%w: stdin can only be read once", ErrValidation)
-
-	errPathWrongKind = fmt.Errorf("%w: wrong path kind", ErrValidation)
-
 	// errEmptyPath reports an empty File, Dir, or FileContent path.
 	errEmptyPath error = emptyPathError{}
 
 	// errStdioCapabilityRequired reports a "-" value on a File field that
 	// declared neither the stdin nor the stdout capability tag.
-	errStdioCapabilityRequired = errors.New(`"-" requires the stdin or stdout tag on the field`)
-
-	// errByteSizeUnitsTag reports an unrecognized units tag value on a ByteSize field.
-	errByteSizeUnitsTag = errors.New("unknown units value")
-
-	// errByteSizeDisplayTag reports an unrecognized display tag value on a ByteSize field.
-	errByteSizeDisplayTag = errors.New("unknown display value")
+	errStdioCapabilityRequired error = stdioCapabilityError{}
 )
 
-// UsageError is an interface implemented by errors that carry command-path and
-// usage-rendering context. Parse, coercion, and validation failures implement
-// it. [IsUsageError] decides whether the failure is a command-line usage error:
-// command-line value failures report true, while environment-,
-// configuration-, and default-sourced value failures report false and classify
-// under [ErrConfig].
+// fromCommandLine is the origin of a value typed on the command line. Its
+// failure names no origin and reaches the caller as a [UsageError].
+var fromCommandLine = valueOrigin{source: SourceCLI} //nolint:gochecknoglobals // a fixed origin shared by every command-line site
+
+// fromDefault is the origin of a value from a default tag.
+var fromDefault = valueOrigin{source: SourceDefault} //nolint:gochecknoglobals // a fixed origin shared by every default-tag site
+
+// ExitCoder is implemented by errors that choose the process exit code.
+// [App.Exit] looks for the outermost [ExitCoder] in the error chain and exits
+// with its code.
 //
-// When [App.Exit] receives an error for which [IsUsageError] reports true, it
-// prints the message to standard error, appends usage guidance as configured by
-// [UsageOnErrorMode], and terminates the process with exit code 2. The
-// interface assertion alone does not imply exit code 2; callers that inspect it
-// directly must also check IsUsageError. Self-describing value errors (coercion
-// failures and value-constraint violations) print the message alone regardless
-// of the configured mode.
-type UsageError interface {
+// A code from 1 to 255 is used as is. Any other code, 0 included, exits 1. An
+// [*os/exec.ExitError] passes the child's exit code through, and a child killed
+// by a signal exits with 128 plus the signal number, as a shell reports it.
+// On Windows an [*os/exec.ExitError]'s code passes through unchanged. An
+// error whose Error method returns the empty string prints no error line.
+type ExitCoder interface {
 	error
 
-	// IsUsageError reports whether the error represents invalid command-line input.
-	IsUsageError() bool
-
-	// CommandPath returns the space-separated command path where the error occurred.
-	CommandPath() string
-
-	// Usage returns the syntax usage summary for the command where the error occurred.
-	Usage() string
+	// ExitCode returns the process exit code for the error.
+	ExitCode() int
 }
 
-// CompletionError is an interface implemented by errors that represent an internal
-// failure during shell completion evaluation.
-type CompletionError interface {
-	error
-
-	// IsCompletionError reports whether the error represents an internal completion failure.
-	IsCompletionError() bool
-}
-
-// IsUsageError reports whether err was caused by invalid command-line input.
+// UsageError is returned for a failure caused by the command line. That covers
+// an unknown flag or command, a value that does not convert, a violated
+// constraint, a missing required flag or argument, and an error returned
+// through [Session.UsageError] or [Session.UsageErrorf]. [App.Exit] prints it
+// and exits with code 2.
 //
-// Returns true if err implements [UsageError] and reports true, or if err wraps
-// [ErrParse], [ErrCoerce], or [ErrValidation]. Returns false for developer schema
-// errors, configuration failures ([ErrConfig]), runtime errors
-// returned by [Runner.Run], or nil errors. Conversion and constraint failures for
-// environment-, configuration-, and default-sourced values classify under
-// [ErrConfig] and report false, even though the error value still implements
-// [UsageError].
-func IsUsageError(err error) bool {
-	if err == nil {
-		return false
-	}
+// Failures that come from the environment, configuration files, default tags,
+// bootstrap, or the command's own code are not usage errors, and neither is a
+// plain error returned by [Validator.Validate]. A conflict between flag group
+// members is a usage error when at least one supplied member came from the
+// command line.
+//
+// Unwrap returns the error behind the message. For a value that did not
+// convert, that is the error the conversion step returned. It is the error of
+// a [encoding.TextUnmarshaler] or type parser, which [errors.Is] and
+// [errors.As] reach, or CONGA's own parse error, whose type is not part of the
+// API. For a value a [SelfValidator] rejected, it is the error the validator
+// returned. For a [Session.UsageErrorf] call it is the %w operand. Unwrap
+// returns nil when CONGA found the problem itself, as for an unknown flag, an
+// enum, range or length violation, or a flag group conflict.
+//
+// A UsageError has no exported fields. Obtain one with [Session.UsageError],
+// or find one in a returned error with [errors.AsType]:
+//
+//	if usage, ok := errors.AsType[*conga.UsageError](err); ok {
+//		fmt.Println(usage.CommandPath(), usage.Usage())
+//	}
+//
+// The zero value is valid. It has an empty message and no command path.
+type UsageError struct {
+	msg      string
+	cmdChain []*spec.Command
+	shape    usageShape
 
-	if ue, ok := errors.AsType[UsageError](err); ok {
-		return ue.IsUsageError()
-	}
+	// cause is the error behind the message. It is the error a conversion or
+	// a [SelfValidator] returned, or the %w operand of [Session.UsageErrorf],
+	// and nil when CONGA itself found the problem.
+	cause error
 
-	return errors.Is(err, ErrParse) ||
-		errors.Is(err, ErrCoerce) ||
-		errors.Is(err, ErrValidation)
+	// suggestion is the "did you mean" candidate appended to the message, and
+	// suggestionKind says whether it names a flag or a subcommand.
+	suggestion     string
+	suggestionKind suggestionKind
 }
 
-// IsCompletionError reports whether err was caused by an internal failure during shell
-// completion evaluation.
-func IsCompletionError(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	if completionErr, ok := errors.AsType[CompletionError](err); ok {
-		return completionErr.IsCompletionError()
-	}
-
-	return false
-}
-
-type commandChainProvider interface {
-	error
-	commandChain() []*spec.Command
-}
-
-// selfDescribingError is implemented by usage errors whose message already
-// names the offending flag/argument and value, so rendering usage or help
-// text below the error adds noise without context. It drives the rendering
-// policy in handleUsageFatal: self-describing value errors (coercion failures
-// and value-constraint violations) render only the error line, regardless of
-// the configured UsageOnErrorMode. Parse errors and missing-input errors
-// deliberately do not implement it: their messages benefit from the usage
-// block listing valid commands and flags.
-type selfDescribingError interface {
-	error
-	selfDescribing() bool
-}
-
-// parseError represents a CLI syntax, tokenization, or command-routing error.
-type parseError struct {
-	msg        string
-	token      string
-	cmdChain   []*spec.Command
-	suggestion string
-	cause      error
-}
-
-func (e *parseError) Error() string {
+// Error returns the message, followed by the "did you mean" suggestion when
+// there is one.
+func (e *UsageError) Error() string {
 	if e.suggestion != "" {
 		return fmt.Sprintf("%s (did you mean %q?)", e.msg, e.suggestion)
 	}
@@ -201,241 +124,153 @@ func (e *parseError) Error() string {
 	return e.msg
 }
 
-func (e *parseError) Unwrap() error {
-	if e.cause != nil {
-		return e.cause
-	}
-
-	return ErrParse
+// Unwrap returns the error behind the message. That is the error a conversion
+// step or a [SelfValidator] returned, or the %w operand of
+// [Session.UsageErrorf]. It returns nil when CONGA found the problem itself.
+func (e *UsageError) Unwrap() error {
+	return e.cause
 }
 
-func (e *parseError) Is(target error) bool {
-	if target == ErrParse {
-		return true
-	}
-
-	if e.cause != nil {
-		return errors.Is(e.cause, target)
-	}
-
-	return false
+// ExitCode returns 2.
+func (e *UsageError) ExitCode() int {
+	return 2
 }
 
-func (e *parseError) IsUsageError() bool {
-	return true
-}
-
-func (e *parseError) CommandPath() string {
+// CommandPath returns the space-separated path of the command where the error
+// occurred, or "" when the error has no command.
+func (e *UsageError) CommandPath() string {
 	return commandChainPath(e.cmdChain)
 }
 
-func (e *parseError) Usage() string {
+// Usage returns the syntax usage summary of the command where the error
+// occurred, or "" when the error has no command.
+func (e *UsageError) Usage() string {
+	if len(e.cmdChain) == 0 {
+		return ""
+	}
+
 	return help.Usage(e.cmdChain)
 }
 
-func (e *parseError) commandChain() []*spec.Command {
-	return e.cmdChain
+// usageShape selects what [App.Exit] prints below a [UsageError]'s message.
+type usageShape uint8
+
+// suggestionKind says what a [UsageError]'s suggestion names.
+type suggestionKind uint8
+
+// conversionError reports a value that did not convert to its flag's or
+// argument's type. From the command line it reaches the caller as a
+// [UsageError] (see commandLineError). From anywhere else it is returned as
+// is, and [App.Exit] exits 1 without a usage block.
+type conversionError struct {
+	flag   *spec.Flag  // the flag the value was for, or nil
+	arg    *spec.Arg   // the positional argument the value was for, or nil
+	value  string      // the value as given
+	origin valueOrigin // where the value came from
+	cause  error       // what the conversion returned
 }
 
-// coercionError represents a type-conversion failure across CLI flags, positional args, env vars, or configs.
-type coercionError struct {
-	targetName string
-	isFlag     bool
-	source     container.Source
-	sourceName string
-	targetType reflect.Type
-	rawValue   string
-	msg        string
-	cmdChain   []*spec.Command
-	cause      error
-}
-
-func (e *coercionError) Error() string {
-	if e.msg != "" {
-		return e.msg
-	}
-
-	location := formatCoercionLocation(e)
-
-	if message, ok := e.causeMessage(location); ok {
-		return message
-	}
-
-	typeName := friendlyTypeName(e.targetType)
-	if location != "" {
-		return fmt.Sprintf("invalid %s value %q %s", typeName, truncateForDisplay(e.rawValue), location)
-	}
-
-	return fmt.Sprintf("invalid %s value %q", typeName, truncateForDisplay(e.rawValue))
-}
-
-func (e *coercionError) Unwrap() error {
-	if !valueErrorIsUsage(e.source) {
-		return nil
-	}
-
+// Error returns the cause's own text, or "invalid <type> value" quoting the
+// value when the cause has none, then what the value was for and where it came
+// from, then the cause's leading-zero correction when it carries one:
+// "invalid integer value "x" for argument N (from default value)".
+func (e *conversionError) Error() string {
+	var message string
 	if e.cause != nil {
-		return e.cause
+		message = e.cause.Error()
 	}
 
-	return ErrCoerce
-}
-
-// As exposes the cause to errors.As for environment-, configuration-, and
-// default-sourced failures, whose Unwrap deliberately stops at the category
-// boundary: the application's own TextUnmarshaler error or a stdlib cause such
-// as *fs.PathError stays reachable even though the failure matches no category
-// but [ErrConfig] (see configSourcedIs for errors.Is).
-func (e *coercionError) As(target any) bool {
-	if e.cause == nil {
-		return false
+	if message == "" {
+		typeName := friendlyTypeName(e.valueType())
+		display := truncateForDisplay(e.value)
+		message = fmt.Sprintf("invalid %s value %q", typeName, display)
 	}
 
-	return errors.As(e.cause, target)
-}
+	message += " for " + valueSubject(e.flag, e.arg) + e.origin.suffix()
 
-func (e *coercionError) Is(target error) bool {
-	if !valueErrorIsUsage(e.source) {
-		return configSourcedIs(e.cause, target)
-	}
-
-	if target == ErrCoerce {
-		return true
-	}
-
-	if e.cause != nil {
-		return errors.Is(e.cause, target)
-	}
-
-	return false
-}
-
-func (e *coercionError) IsUsageError() bool {
-	return valueErrorIsUsage(e.source)
-}
-
-func (e *coercionError) CommandPath() string {
-	return commandChainPath(e.cmdChain)
-}
-
-func (e *coercionError) Usage() string {
-	return help.Usage(e.cmdChain)
-}
-
-// causeMessage renders the cause's own message followed by location, or
-// reports false when the cause has no message of its own (nil, empty, or the
-// bare ErrCoerce text).
-func (e *coercionError) causeMessage(location string) (string, bool) {
-	if e.cause == nil {
-		return "", false
-	}
-
-	message := e.cause.Error()
-	if message == "" || message == ErrCoerce.Error() {
-		return "", false
-	}
-
-	if location != "" {
-		message += " " + location
-	}
-
-	// An integer with a leading zero ends with its correction, after the
-	// location: "... for flag --mode (a leading zero is ambiguous: write
-	// 0o755 for octal or 755 for decimal)".
 	if hint := intx.HintOf(e.cause); hint != "" {
 		message += " (" + hint + ")"
 	}
 
-	return message, true
+	return message
 }
 
-func (e *coercionError) commandChain() []*spec.Command {
-	return e.cmdChain
+// Unwrap returns what the conversion returned.
+func (e *conversionError) Unwrap() error {
+	return e.cause
 }
 
-// selfDescribing reports that coercion failures always name the target
-// flag/argument and the offending value, since every construction site sets
-// targetName from the flag or argument specification.
-func (e *coercionError) selfDescribing() bool {
-	return true
-}
-
-// validationError represents a constraint violation (required flag/arg, enum, XOR, and group).
-type validationError struct {
-	msg      string
-	source   container.Source
-	cmdChain []*spec.Command
-	cause    error
-
-	// valueShaped marks value-shaped constraint violations (enum, range,
-	// length, item count, domain-type validation) whose message already names
-	// the target flag/argument and the offending value.
-	valueShaped bool
-}
-
-func (e *validationError) Error() string {
-	return e.msg
-}
-
-func (e *validationError) Unwrap() error {
-	if !valueErrorIsUsage(e.source) {
-		return nil
+// valueType returns the type the value was converted to.
+func (e *conversionError) valueType() reflect.Type {
+	if e.flag != nil {
+		return e.flag.TargetType
 	}
 
-	if e.cause != nil {
-		return e.cause
+	return e.arg.TargetType
+}
+
+// inputError reports input CONGA rejected: a converted value that broke a
+// constraint (enum, len, range, items), a SelfValidator failure, conflicting
+// values (flag groups, stdin read twice), a feature failure, a counter count,
+// an empty config path, or a config entry for a gated flag. From the command
+// line it reaches the caller as a [UsageError] (see commandLineError). From
+// anywhere else it is returned as is, and [App.Exit] exits 1 without a usage
+// block.
+type inputError struct {
+	flag    *spec.Flag  // the flag the value was for, or nil
+	arg     *spec.Arg   // the positional argument the value was for, or nil
+	feature string      // the feature the value was for, or ""
+	entry   *string     // the key of the map entry that failed, or nil
+	origin  valueOrigin // where the value came from
+	msg     string      // what is wrong with the value
+	note    string      // the detail that follows the origin, or ""
+	hint    string      // the action that fixes the value, or ""
+	cause   error       // what the check returned, or nil
+}
+
+// Error returns the message, what the value was for, and where it came from,
+// then the note and the hint: "value 11 is out of range [1..10] for flag --size
+// (from environment variable SIZE)".
+func (e *inputError) Error() string {
+	message := e.msg
+
+	if subject := e.subject(); subject != "" {
+		message += " for " + subject
 	}
 
-	return ErrValidation
-}
+	message += e.origin.suffix()
 
-// As exposes the cause to errors.As for environment-, configuration-, and
-// default-sourced failures, whose Unwrap deliberately stops at the category
-// boundary: an application SelfValidator error or a stdlib cause such as
-// *fs.PathError stays reachable even though the failure matches no category
-// but [ErrConfig] (see configSourcedIs for errors.Is).
-func (e *validationError) As(target any) bool {
-	if e.cause == nil {
-		return false
+	if e.note != "" {
+		message += ": " + e.note
 	}
 
-	return errors.As(e.cause, target)
-}
-
-func (e *validationError) Is(target error) bool {
-	if !valueErrorIsUsage(e.source) {
-		return configSourcedIs(e.cause, target)
+	if e.hint != "" {
+		message += " (" + e.hint + ")"
 	}
 
-	if target == ErrValidation {
-		return true
+	return message
+}
+
+// Unwrap returns what the check returned, or nil when CONGA itself found the
+// problem.
+func (e *inputError) Unwrap() error {
+	return e.cause
+}
+
+// subject names what the value was for, such as "flag --port", "argument N" or
+// a quoted feature name, followed by the entry key for a map entry. It is ""
+// when the error is about conflicting values.
+func (e *inputError) subject() string {
+	subject := valueSubject(e.flag, e.arg)
+	if e.feature != "" {
+		subject = fmt.Sprintf("feature %q", e.feature)
 	}
 
-	if e.cause != nil {
-		return errors.Is(e.cause, target)
+	if subject != "" && e.entry != nil {
+		subject += fmt.Sprintf(" entry %q", *e.entry)
 	}
 
-	return false
-}
-
-func (e *validationError) IsUsageError() bool {
-	return valueErrorIsUsage(e.source)
-}
-
-func (e *validationError) CommandPath() string {
-	return commandChainPath(e.cmdChain)
-}
-
-func (e *validationError) Usage() string {
-	return help.Usage(e.cmdChain)
-}
-
-func (e *validationError) commandChain() []*spec.Command {
-	return e.cmdChain
-}
-
-func (e *validationError) selfDescribing() bool {
-	return e.valueShaped
+	return subject
 }
 
 // completionError represents an internal failure during completion evaluation (panics or unwritable stdout).
@@ -447,80 +282,141 @@ func (e *completionError) Error() string {
 	return "internal completion failure: " + e.cause
 }
 
-func (e *completionError) IsCompletionError() bool {
-	return true
+// ExitCode returns 2, so a caller mapping codes through [ExitCoder] agrees
+// with [App.Exit].
+func (e *completionError) ExitCode() int {
+	return 2
 }
 
-func formatCoercionLocation(errObj *coercionError) string {
-	if errObj.isFlag {
-		return "for flag --" + errObj.targetName + sourceLocation(errObj.source, errObj.sourceName)
+// decoderRequiredError reports a named configuration target on an application
+// with no registered config decoder. It exits 1 even when the target is
+// --config-file on the command line.
+type decoderRequiredError struct {
+	target string // what named the target, such as "flag --config-file"
+}
+
+func (e *decoderRequiredError) Error() string {
+	return e.target + " requires a registered config decoder: call App.RegisterDecoder with a format decoder (e.g. decoder/json)"
+}
+
+// valueOrigin is where a value came from. It holds the source tier and the
+// variable, config key, or default text that diagnostics attribute the value
+// to.
+type valueOrigin struct {
+	source ValueSource
+	name   string
+}
+
+// suffix renders the parenthesized origin shared by value diagnostics: "(from
+// environment variable NAME)" for an environment value, "(from config key
+// KEY)" with a quoted key for a configuration value, and "(from default
+// value)" for a default tag, each after a space. Command-line and unnamed
+// environment or configuration origins render nothing.
+func (origin valueOrigin) suffix() string {
+	if origin.source == SourceDefault {
+		return " (from default value)"
 	}
 
-	if errObj.targetName != "" {
-		return "for argument " + errObj.targetName + sourceLocation(errObj.source, errObj.sourceName)
-	}
-
-	if errObj.source == SourceEnv && errObj.sourceName != "" {
-		return "for environment variable " + errObj.sourceName
-	}
-
-	if errObj.source == SourceConfig && errObj.sourceName != "" {
-		return fmt.Sprintf("for config key %q", errObj.sourceName)
+	if described := origin.describe(); described != "" {
+		return " (from " + described + ")"
 	}
 
 	return ""
 }
 
-// valueErrorIsUsage reports whether a value failure from source is a command-line
-// usage error. Only command-line tokens produce usage errors; environment,
-// configuration, and default values classify under [ErrConfig] instead (#133).
-func valueErrorIsUsage(source ValueSource) bool {
-	switch source {
-	case SourceEnv, SourceConfig, SourceDefault:
-		return false
-	default:
-		return true
-	}
-}
-
-// sourceLocation renders the parenthesized origin suffix shared by value
-// diagnostics: " (from environment variable NAME)" for env-sourced values,
-// " (from config key "KEY")" for config-sourced values, and
-// " (from default value)" for values that failed while binding a default tag.
-// CLI, unnamed env/config, and unset sources render no suffix.
-func sourceLocation(source ValueSource, sourceName string) string {
-	if source == SourceDefault {
-		return " (from default value)"
-	}
-
-	if sourceName == "" {
+// describe names a named environment or configuration origin: "environment
+// variable NAME", or "config key" with a quoted key. Any other origin has no
+// name.
+func (origin valueOrigin) describe() string {
+	if origin.name == "" {
 		return ""
 	}
 
-	switch source {
+	switch origin.source {
 	case SourceEnv:
-		return fmt.Sprintf(" (from environment variable %s)", sourceName)
+		return "environment variable " + origin.name
 	case SourceConfig:
-		return fmt.Sprintf(" (from config key %q)", sourceName)
+		return fmt.Sprintf("config key %q", origin.name)
 	default:
 		return ""
 	}
 }
 
-// configSourcedIs answers errors.Is for an environment-, configuration-, or
-// default-sourced value failure. The failure matches [ErrConfig] and no other
-// category sentinel, even when its cause wraps one; any other target, such as
-// fs.ErrNotExist under a *fs.PathError, is matched against the cause, so
-// errors.Is reaches the same causes errors.As does.
-func configSourcedIs(cause, target error) bool {
-	switch {
-	case errors.Is(target, ErrConfig):
-		return true
-	case errors.Is(target, ErrParse), errors.Is(target, ErrCoerce), errors.Is(target, ErrValidation):
-		return false
+// withShape sets what [App.Exit] prints below the message. The default is
+// [usageShapeMode].
+func (e *UsageError) withShape(shape usageShape) *UsageError {
+	e.shape = shape
+
+	return e
+}
+
+// withSuggestion sets the "did you mean" candidate. An empty suggestion sets
+// nothing.
+func (e *UsageError) withSuggestion(suggestion string, kind suggestionKind) *UsageError {
+	if suggestion == "" {
+		return e
 	}
 
-	return cause != nil && errors.Is(cause, target)
+	e.suggestion = suggestion
+	e.suggestionKind = kind
+
+	return e
+}
+
+// withCause sets the error behind the message.
+func (e *UsageError) withCause(cause error) *UsageError {
+	e.cause = cause
+
+	return e
+}
+
+// usageError returns a [UsageError] with message msg for the command chain
+// cmdChain. The with methods set the optional shape, suggestion, and cause.
+func usageError(cmdChain []*spec.Command, msg string) *UsageError {
+	return &UsageError{msg: msg, cmdChain: cmdChain}
+}
+
+// usageErrorf returns a [UsageError] with a formatted message for the command
+// chain cmdChain.
+func usageErrorf(cmdChain []*spec.Command, format string, args ...any) *UsageError {
+	return &UsageError{msg: fmt.Sprintf(format, args...), cmdChain: cmdChain}
+}
+
+// valueSubject names what a value was for: "flag --port", "argument N", or ""
+// when it was for neither.
+func valueSubject(flag *spec.Flag, arg *spec.Arg) string {
+	switch {
+	case flag != nil:
+		return "flag --" + flag.Name
+	case arg != nil:
+		return "argument " + arg.Name
+	default:
+		return ""
+	}
+}
+
+// commandLineError reports input the user typed on the command line as a
+// [UsageError] for cmdChain. Every conversion failure, and every input error
+// that names its flag, argument or feature, prints the error line alone. An
+// input error that names no subject (a flag group conflict, say) is followed
+// by the usage block [UsageOnErrorMode] asks for. Errors of other types, and
+// errors from other sources, are returned unchanged.
+func commandLineError(cmdChain []*spec.Command, err error) error {
+	if conversion, ok := errors.AsType[*conversionError](err); ok && conversion.origin.source == SourceCLI {
+		return &UsageError{msg: conversion.Error(), cmdChain: cmdChain, shape: usageShapeLineOnly, cause: conversion.cause}
+	}
+
+	input, ok := errors.AsType[*inputError](err)
+	if !ok || input.origin.source != SourceCLI {
+		return err
+	}
+
+	shape := usageShapeMode
+	if input.subject() != "" {
+		shape = usageShapeLineOnly
+	}
+
+	return &UsageError{msg: input.Error(), cmdChain: cmdChain, shape: shape, cause: input.cause}
 }
 
 func friendlyTypeName(targetType reflect.Type) string {

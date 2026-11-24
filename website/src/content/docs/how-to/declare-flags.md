@@ -239,7 +239,7 @@ follow redirects: true
 verbosity: 2
 ```
 
-A count from the environment or a config file must be an unsigned whole number. A negative or signed value is `ErrConfig`, exit 1, because the value did not come from the command line. A counter starts at 0 and rejects a `default` tag at startup. Use `OptionalFlag[int]` when you need a different starting value, a level the user sets directly on the command line, or a negative value.
+A count from the environment or a config file must be an unsigned whole number. A negative or signed value exits 1, because the value did not come from the command line. A counter starts at 0 and rejects a `default` tag at startup. Use `OptionalFlag[int]` when you need a different starting value, a level the user sets directly on the command line, or a negative value.
 
 ## Accept a list of values
 

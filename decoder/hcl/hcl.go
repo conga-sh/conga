@@ -28,12 +28,11 @@
 // was written in full or with an exponent (1e30), as is a number that
 // overflows float64.
 //
-// Parse and semantic failures (undefined variables) and these rejections wrap
-// [ErrParse], and an empty document decodes to an empty map.
+// Parse and semantic failures (undefined variables) and these rejections are
+// returned as errors, and an empty document decodes to an empty map.
 package hcl
 
 import (
-	"errors"
 	"fmt"
 	"math"
 	"math/big"
@@ -43,21 +42,23 @@ import (
 	"github.com/zclconf/go-cty/cty"
 )
 
-var (
-	// ErrParse indicates a syntax or semantic error in HCL configuration.
-	ErrParse = errors.New("hcl parse error")
+const (
+	structureBodyType          structureKind = iota // the body is not an hclsyntax body
+	structureLabeledBlock                           // a block carries labels
+	structureDuplicateBlock                         // a block type is declared twice
+	structureAttributeConflict                      // a block shares an attribute's name
 )
 
 // Decode decodes HCL bytes into the generic map[string]any structure the configuration engine matches against flag bindings.
 func Decode(data []byte) (map[string]any, error) {
 	file, diags := hclsyntax.ParseConfig(data, "config.hcl", hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {
-		return nil, fmt.Errorf("%w: %w", ErrParse, diags)
+		return nil, diags
 	}
 
 	body, ok := file.Body.(*hclsyntax.Body)
 	if !ok {
-		return nil, fmt.Errorf("%w: unexpected HCL body type %T", ErrParse, file.Body)
+		return nil, &structureError{kind: structureBodyType, bodyType: fmt.Sprintf("%T", file.Body)}
 	}
 
 	return decodeHCLBody(body)
@@ -73,18 +74,48 @@ func (e *numberRangeError) Error() string {
 	return "number " + e.literal + " out of range"
 }
 
+// structureKind identifies how an HCL document's structure is rejected.
+type structureKind uint8
+
+// structureError reports an HCL document whose structure the decoder rejects.
+// The decoder found the problem itself, so it has no cause.
+type structureError struct {
+	kind      structureKind
+	position  hcl.Range // where the block is declared
+	blockType string
+	labels    []string  // the block's labels (structureLabeledBlock)
+	other     hcl.Range // the first declaration or the conflicting attribute
+	bodyType  string    // the unexpected body's type (structureBodyType)
+}
+
+func (e *structureError) Error() string {
+	switch e.kind {
+	case structureBodyType:
+		return "unexpected HCL body type " + e.bodyType
+	case structureLabeledBlock:
+		return fmt.Sprintf("%s: block %q has labels %q; labeled blocks are not supported, use an unlabeled block",
+			e.position, e.blockType, e.labels)
+	case structureDuplicateBlock:
+		return fmt.Sprintf("%s: duplicate block %q, first declared at %s", e.position, e.blockType, e.other)
+	case structureAttributeConflict:
+		return fmt.Sprintf("%s: block %q conflicts with the attribute of the same name at %s", e.position, e.blockType, e.other)
+	default:
+		return "invalid HCL structure"
+	}
+}
+
 func decodeHCLBody(body *hclsyntax.Body) (map[string]any, error) {
 	result := make(map[string]any)
 
 	for name, attr := range body.Attributes {
 		value, diags := attr.Expr.Value(nil)
 		if diags.HasErrors() {
-			return nil, fmt.Errorf("%w: %w", ErrParse, diags)
+			return nil, diags
 		}
 
 		converted, err := convertCtyValue(value)
 		if err != nil {
-			return nil, fmt.Errorf("%w: %s: attribute %q: %w", ErrParse, attr.SrcRange, name, err)
+			return nil, fmt.Errorf("%s: attribute %q: %w", attr.SrcRange, name, err)
 		}
 
 		result[name] = converted
@@ -94,18 +125,15 @@ func decodeHCLBody(body *hclsyntax.Body) (map[string]any, error) {
 
 	for _, block := range body.Blocks {
 		if len(block.Labels) > 0 {
-			return nil, fmt.Errorf("%w: %s: block %q has labels %q; labeled blocks are not supported, use an unlabeled block",
-				ErrParse, block.DefRange(), block.Type, block.Labels)
+			return nil, &structureError{kind: structureLabeledBlock, position: block.DefRange(), blockType: block.Type, labels: block.Labels}
 		}
 
 		if first, isDuplicate := firstBlocks[block.Type]; isDuplicate {
-			return nil, fmt.Errorf("%w: %s: duplicate block %q, first declared at %s",
-				ErrParse, block.DefRange(), block.Type, first)
+			return nil, &structureError{kind: structureDuplicateBlock, position: block.DefRange(), blockType: block.Type, other: first}
 		}
 
 		if attr, isAttribute := body.Attributes[block.Type]; isAttribute {
-			return nil, fmt.Errorf("%w: %s: block %q conflicts with the attribute of the same name at %s",
-				ErrParse, block.DefRange(), block.Type, attr.SrcRange)
+			return nil, &structureError{kind: structureAttributeConflict, position: block.DefRange(), blockType: block.Type, other: attr.SrcRange}
 		}
 
 		firstBlocks[block.Type] = block.DefRange()
