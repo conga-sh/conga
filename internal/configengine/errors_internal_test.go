@@ -5,7 +5,84 @@ import (
 	"testing"
 
 	"github.com/alecthomas/assert/v2"
+
+	"github.com/conga-sh/conga/internal/errlines"
 )
+
+// pieceCause is a decoder error that supplies origins and a hint.
+type pieceCause struct {
+	origins []string
+	hint    string
+}
+
+func (e *pieceCause) Error() string     { return "decode failed" }
+func (e *pieceCause) Origins() []string { return e.origins }
+func (e *pieceCause) Hint() string      { return e.hint }
+
+// originsHinter mirrors conga.Originer and conga.Hinter, which this package
+// cannot import.
+type originsHinter interface {
+	error
+	Origins() []string
+	Hint() string
+}
+
+func TestConfigError_PiecesReachTheCause(t *testing.T) {
+	t.Parallel()
+
+	cause := &pieceCause{origins: []string{"config.hcl"}, hint: "use an unlabeled block"}
+
+	tests := []struct {
+		name        string
+		err         *configError
+		wantOrigins []string
+		wantHint    string
+	}{
+		{
+			name:        "own values win",
+			err:         &configError{msg: "load failed", origin: "config file \"own.hcl\"", hint: "own hint", cause: cause},
+			wantOrigins: []string{`config file "own.hcl"`},
+			wantHint:    "own hint",
+		},
+		{
+			name:        "own empty, the cause supplies them",
+			err:         &configError{msg: "load failed", cause: cause},
+			wantOrigins: []string{"config.hcl"},
+			wantHint:    "use an unlabeled block",
+		},
+		{
+			name:        "own origin only, the cause supplies the hint",
+			err:         &configError{msg: "load failed", origin: "file", cause: cause},
+			wantOrigins: []string{"file"},
+			wantHint:    "use an unlabeled block",
+		},
+		{
+			name: "both empty",
+			err:  &configError{msg: "load failed", cause: errors.New("plain")},
+		},
+		{
+			name: "no cause",
+			err:  &configError{msg: "load failed"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, test.wantOrigins, test.err.Origins())
+			assert.Equal(t, test.wantHint, test.err.Hint())
+
+			found, ok := errors.AsType[originsHinter](test.err)
+			assert.True(t, ok)
+			assert.Equal(t, test.wantOrigins, found.Origins())
+			assert.Equal(t, test.wantHint, found.Hint())
+
+			assert.Equal(t, test.wantOrigins, errlines.Origins(test.err))
+			assert.Equal(t, test.wantHint, errlines.Hint(test.err))
+		})
+	}
+}
 
 func TestConfigError_Error(t *testing.T) {
 	t.Parallel()

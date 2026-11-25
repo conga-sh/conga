@@ -191,9 +191,9 @@ func TestErrorLineOne_EveryTypeWithPieces(t *testing.T) {
 			assert.Equal(t, testCase.expected, err.Error())
 			assert.False(t, strings.Contains(err.Error(), "\n"))
 
-			resolved := conga.ResolveError(err)
+			resolved := conga.DiagnosticOf(err)
 
-			assert.Equal(t, testCase.expected, resolved.Error())
+			assert.Equal(t, testCase.expected, resolved.Message())
 
 			// The pieces exist, so their absence from line 1 means something. A
 			// .env read failure names its file on line 1 and has none.

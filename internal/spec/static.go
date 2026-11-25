@@ -6,6 +6,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/conga-sh/conga/internal/levenshtein"
 )
 
 // ValidationOptions carries the schema-build options that affect struct tag
@@ -344,7 +346,7 @@ func SingleMemberGroupError(kind, group, flagName, suggestion string) error {
 			hint += "; "
 		}
 
-		hint += fmt.Sprintf("did you mean %q?", suggestion)
+		hint += levenshtein.QuotedHint(suggestion)
 	}
 
 	return schemaErrorf("%s group %q has only one member (--%s)", kind, group, flagName).withNote(note).withHint(hint)

@@ -64,7 +64,7 @@ func TestConfigKeyCase_CamelCaseRejectsKebabKey(t *testing.T) {
 
 	assertNotUsageError(t, err)
 	assert.Equal(t, `unknown field "api-endpoint" in command "app"`, err.Error())
-	assert.Contains(t, conga.ResolveError(err).Render(), fmt.Sprintf("from: config file %q", cfgPath))
+	assert.Contains(t, conga.DiagnosticOf(err).Render(), fmt.Sprintf("from: config file %q", cfgPath))
 	assert.Equal(t, `did you mean "apiEndpoint"?`, errlines.Hint(err))
 	assert.Equal(t, conga.SourceNone, cli.APIEndpoint.Source())
 	assert.Equal(t, "", cli.APIEndpoint.Get())
@@ -86,7 +86,7 @@ func TestConfigKeyCase_CoercionErrorNamesCasedKey(t *testing.T) {
 
 	assertNotUsageError(t, err)
 	assert.Equal(t, `invalid integer value "many" for flag --max-conns`, err.Error())
-	assert.Contains(t, conga.ResolveError(err).Render(), `from: config key "deploy_app.max_conns"`)
+	assert.Contains(t, conga.DiagnosticOf(err).Render(), `from: config key "deploy_app.max_conns"`)
 	assert.Equal(t, conga.SourceNone, cli.DeployApp.Get().MaxConns.Source())
 	assert.Equal(t, 0, cli.DeployApp.Get().MaxConns.Get())
 }

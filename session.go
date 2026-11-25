@@ -90,15 +90,17 @@ func (s *Session) Help() string {
 	return help.FormatWith(s.cmdChain, s.helpOptions)
 }
 
-// Usage returns the syntax usage summary for the active command.
+// Synopsis returns the active command's "Usage:" syntax lines, such as
+// "Usage:\n  tool deploy [flags]". [Session.Help] returns the full help
+// screen.
 //
-// If the session is nil or uninitialized, Usage returns an empty string.
-func (s *Session) Usage() string {
+// If the session is nil or uninitialized, Synopsis returns an empty string.
+func (s *Session) Synopsis() string {
 	if s == nil || len(s.cmdChain) == 0 {
 		return ""
 	}
 
-	return help.Usage(s.cmdChain)
+	return help.Synopsis(s.cmdChain)
 }
 
 // Version returns the formatted application version summary line.

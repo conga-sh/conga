@@ -41,14 +41,24 @@ func (e *SchemaError) Message() string {
 	return owner + ": " + e.msg
 }
 
-// Note returns the detail on the defect, or "" when there is none.
+// Note returns the detail on the defect. When the error has none it returns its
+// cause's, by the chain rule, or "".
 func (e *SchemaError) Note() string {
-	return e.note
+	if e.note != "" {
+		return e.note
+	}
+
+	return errlines.Note(e.cause)
 }
 
-// Hint returns the action that fixes the defect, or "" when there is none.
+// Hint returns the action that fixes the defect. When the error has none it
+// returns its cause's, by the chain rule, or "".
 func (e *SchemaError) Hint() string {
-	return e.hint
+	if e.hint != "" {
+		return e.hint
+	}
+
+	return errlines.Hint(e.cause)
 }
 
 // Unwrap returns the underlying cause when the schema error wraps one.
@@ -86,8 +96,6 @@ func WithOwner(err error, structName, fieldName string) error {
 		structName: structName,
 		fieldName:  fieldName,
 		msg:        err.Error(),
-		note:       errlines.Note(err),
-		hint:       errlines.Hint(err),
 		cause:      err,
 	}
 }

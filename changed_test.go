@@ -198,7 +198,7 @@ func TestXor_EnvCountsAsChanged(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, "flags --graceful and --immediate are mutually exclusive", err.Error())
-	assert.Contains(t, conga.ResolveError(err).Render(), "from: --graceful: environment variable CONGA_TEST_XOR_GRACEFUL")
+	assert.Contains(t, conga.DiagnosticOf(err).Render(), "from: --graceful: environment variable CONGA_TEST_XOR_GRACEFUL")
 	assertUsageError(t, err)
 }
 
@@ -219,7 +219,7 @@ func TestAndGroup_EnvTriggersGroup(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, "flag --pass must be given together with --user", err.Error())
-	assert.Contains(t, conga.ResolveError(err).Render(), "from: --pass: environment variable CONGA_TEST_RT_PASS")
+	assert.Contains(t, conga.DiagnosticOf(err).Render(), "from: --pass: environment variable CONGA_TEST_RT_PASS")
 	assertNotUsageError(t, err)
 }
 

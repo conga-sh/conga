@@ -6,6 +6,13 @@
 //
 // The lookup is the chain rule: each piece is taken from the outermost error
 // in the chain that returns a non-empty value, in errors.As traversal order.
+//
+// Members splits an error into the members every caller reads and renders. It
+// drops nil members and members whose Error() is empty, and returns nil when
+// none is left, so Origins, Note, Hint, Plain, AppendJSON and AppendText need
+// no guards of their own. Render keeps a guard because it takes an unfiltered
+// slice. The labels and the line renderers behind Render are unexported.
+//
 // The package has no package-level state, so linking it adds no initializer.
 package errlines
 
@@ -17,9 +24,9 @@ import (
 
 // Labels of the lines below an error's first line.
 const (
-	LabelOrigin = "from:"
-	LabelNote   = "note:"
-	LabelHint   = "hint:"
+	labelOrigin = "from:"
+	labelNote   = "note:"
+	labelHint   = "hint:"
 )
 
 // ANSI sequences of the colored layout.
@@ -30,21 +37,8 @@ const (
 	ansiBoldCyan = "\x1b[1;36m"
 )
 
-// Line is one labeled line below an error's first line.
-type Line struct {
-	// Label is one of the Label constants.
-	Label string
-	// Text is the text after the label.
-	Text string
-}
-
 // Origins returns the outermost non-empty Origins() in err's chain, or nil.
-// An error whose Error() is empty has no origins.
 func Origins(err error) []string {
-	if err == nil || err.Error() == "" {
-		return nil
-	}
-
 	var found []string
 
 	walk(err, func(node error) bool {
@@ -63,12 +57,7 @@ func Origins(err error) []string {
 }
 
 // Note returns the outermost non-empty Note() in err's chain, or "".
-// An error whose Error() is empty has no note.
 func Note(err error) string {
-	if err == nil || err.Error() == "" {
-		return ""
-	}
-
 	var found string
 
 	walk(err, func(node error) bool {
@@ -87,12 +76,7 @@ func Note(err error) string {
 }
 
 // Hint returns the outermost non-empty Hint() in err's chain, or "".
-// An error whose Error() is empty has no hint.
 func Hint(err error) string {
-	if err == nil || err.Error() == "" {
-		return ""
-	}
-
 	var found string
 
 	walk(err, func(node error) bool {
@@ -110,51 +94,31 @@ func Hint(err error) string {
 	return found
 }
 
-// Lines returns the labeled lines of err: one per origin, then the note, then
-// the hint. An error whose Error() is empty has no lines.
-func Lines(err error) []Line {
-	if err == nil || err.Error() == "" {
-		return nil
-	}
-
-	var lines []Line
-
-	for _, origin := range Origins(err) {
-		lines = append(lines, Line{Label: LabelOrigin, Text: origin})
-	}
-
-	if note := Note(err); note != "" {
-		lines = append(lines, Line{Label: LabelNote, Text: note})
-	}
-
-	if hint := Hint(err); hint != "" {
-		lines = append(lines, Line{Label: LabelHint, Text: hint})
-	}
-
-	return lines
-}
-
 // Members splits err into the errors that render separately. An error with
 // Unwrap() []error whose Error() is exactly its members' texts joined by
 // newlines (the errors.Join shape) yields its members, nested ones flattened
-// and nil ones skipped. Any other error is its own single member. A nil error
-// has none.
+// and nil ones skipped. Any other error is its own single member. Members with
+// an empty Error() are dropped. A nil error, or one with nothing left, has none.
 func Members(err error) []error {
 	if err == nil {
 		return nil
 	}
 
-	members := flatten(err, nil)
-	if len(members) == 0 {
-		return []error{err}
+	var members []error
+
+	for _, leaf := range flatten(err, nil) {
+		if leaf != nil && leaf.Error() != "" {
+			members = append(members, leaf)
+		}
 	}
 
 	return members
 }
 
 // Render writes each member as "<prefix>error: <first line>" followed by its
-// indented lines, one member after another, each line ending in a newline. A
-// member with an empty Error() prints nothing. With color, the labels are
+// indented lines, one member after another, each line ending in a newline. It
+// skips nil members and members with an empty Error(), so a caller passing an
+// unfiltered slice prints only the others. With color, the labels are
 // styled: error bold red, from and note dim, hint bold cyan.
 func Render(members []error, prefix string, color bool) string {
 	var builder strings.Builder
@@ -168,9 +132,9 @@ func Render(members []error, prefix string, color bool) string {
 		builder.WriteString(styled("error:", ansiBoldRed, color))
 		builder.WriteString(" " + member.Error() + "\n")
 
-		for _, line := range Lines(member) {
-			label := styled(line.Label, labelStyle(line.Label), color)
-			builder.WriteString("  " + label + " " + line.Text + "\n")
+		for _, line := range lines(member) {
+			label := styled(line.label, labelStyle(line.label), color)
+			builder.WriteString("  " + label + " " + line.text + "\n")
 		}
 	}
 
@@ -178,29 +142,20 @@ func Render(members []error, prefix string, color bool) string {
 }
 
 // Plain renders the members as their first lines followed by their indented
-// lines, without a prefix or color and with no trailing newline. Members with an
-// empty Error() are skipped. It is the form %+v prints.
+// lines, without a prefix or color and with no trailing newline. members come
+// from Members. It is the form %+v prints.
 func Plain(members []error) string {
-	var (
-		builder strings.Builder
-		written bool
-	)
+	var builder strings.Builder
 
-	for _, member := range members {
-		if member == nil || member.Error() == "" {
-			continue
-		}
-
-		if written {
+	for index, member := range members {
+		if index > 0 {
 			builder.WriteString("\n")
 		}
 
-		written = true
-
 		builder.WriteString(member.Error())
 
-		for _, line := range Lines(member) {
-			builder.WriteString("\n  " + line.Label + " " + line.Text)
+		for _, line := range lines(member) {
+			builder.WriteString("\n  " + line.label + " " + line.text)
 		}
 	}
 
@@ -208,83 +163,59 @@ func Plain(members []error) string {
 }
 
 // AppendJSON appends the JSON form of members to dst: an object for the first
-// non-empty member, {"error": <line 1>, "from": [...], "note": "...", "hint":
-// "..."}, with every key but "error" omitted when empty, and "more": [...]
-// holding the objects of the other non-empty members when there are several.
+// member, {"error": <line 1>, "from": [...], "note": "...", "hint": "..."},
+// with every key but "error" omitted when empty, and "more": [...] holding the
+// objects of the other members when there are several. members come from
+// Members. An empty list is written as {"error":""}.
 func AppendJSON(dst []byte, members []error) []byte {
-	firstIndex := -1
-
-	for index, member := range members {
-		if member != nil && member.Error() != "" {
-			firstIndex = index
-
-			break
-		}
-	}
-
-	if firstIndex < 0 {
+	if len(members) == 0 {
 		return append(dst, `{"error":""}`...)
 	}
 
-	dst = appendMemberJSON(dst, members[firstIndex])
+	dst = appendMemberJSON(dst, members[0])
 
-	hasMore := false
+	if len(members) == 1 {
+		return dst
+	}
 
-	for _, member := range members[firstIndex+1:] {
-		if member == nil || member.Error() == "" {
-			continue
-		}
+	dst = dst[:len(dst)-1]
+	dst = append(dst, `,"more":[`...)
 
-		if !hasMore {
-			dst = dst[:len(dst)-1]
-			dst = append(dst, `,"more":[`...)
-			hasMore = true
-		} else {
+	for index, member := range members[1:] {
+		if index > 0 {
 			dst = append(dst, ',')
 		}
 
 		dst = appendMemberJSON(dst, member)
 	}
 
-	if hasMore {
-		return append(dst, ']', '}')
-	}
-
-	return dst
+	return append(dst, ']', '}')
 }
 
 // AppendText appends the one-line text form of members to dst:
 // "<line 1> (from: <origin>; <origin>; note: ...; hint: ...)" with absent
-// parts left out and no parentheses when nothing follows line 1. Members with
-// an empty Error() are skipped, and several members are joined with " | ".
+// parts left out and no parentheses when nothing follows line 1. members come
+// from Members, and several are joined with " | ".
 func AppendText(dst []byte, members []error) []byte {
-	written := false
-
-	for _, member := range members {
-		if member == nil || member.Error() == "" {
-			continue
-		}
-
-		if written {
+	for index, member := range members {
+		if index > 0 {
 			dst = append(dst, " | "...)
 		}
-
-		written = true
 
 		dst = append(dst, member.Error()...)
 
 		var parts []string
 
 		if origins := Origins(member); len(origins) > 0 {
-			parts = append(parts, LabelOrigin+" "+strings.Join(origins, "; "))
+			parts = append(parts, labelOrigin+" "+strings.Join(origins, "; "))
 		}
 
 		if note := Note(member); note != "" {
-			parts = append(parts, LabelNote+" "+note)
+			parts = append(parts, labelNote+" "+note)
 		}
 
 		if hint := Hint(member); hint != "" {
-			parts = append(parts, LabelHint+" "+hint)
+			parts = append(parts, labelHint+" "+hint)
 		}
 
 		if len(parts) == 0 {
@@ -305,15 +236,15 @@ type noter interface{ Note() string }
 
 type hinter interface{ Hint() string }
 
+// line is one labeled line below an error's first line.
+type line struct {
+	label string
+	text  string
+}
+
 func appendMemberJSON(dst []byte, member error) []byte {
-	text := member.Error()
-
 	dst = append(dst, `{"error":`...)
-	dst = jsonwire.AppendString(dst, text)
-
-	if text == "" {
-		return append(dst, '}')
-	}
+	dst = jsonwire.AppendString(dst, member.Error())
 
 	if origins := Origins(member); len(origins) > 0 {
 		dst = append(dst, `,"from":[`...)
@@ -342,8 +273,28 @@ func appendMemberJSON(dst []byte, member error) []byte {
 	return append(dst, '}')
 }
 
+// lines returns the labeled lines of err, one per origin, then the note, then
+// the hint.
+func lines(err error) []line {
+	var result []line
+
+	for _, origin := range Origins(err) {
+		result = append(result, line{label: labelOrigin, text: origin})
+	}
+
+	if note := Note(err); note != "" {
+		result = append(result, line{label: labelNote, text: note})
+	}
+
+	if hint := Hint(err); hint != "" {
+		result = append(result, line{label: labelHint, text: hint})
+	}
+
+	return result
+}
+
 func labelStyle(label string) string {
-	if label == LabelHint {
+	if label == labelHint {
 		return ansiBoldCyan
 	}
 

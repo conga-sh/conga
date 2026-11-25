@@ -350,7 +350,7 @@ func TestCoercionErrorCounterRender(t *testing.T) {
 
 	assertNotUsageError(t, err)
 	assert.Equal(t, `invalid unsigned integer value "abc" for flag --count`, err.Error())
-	assert.Contains(t, conga.ResolveError(err).Render(), `from: config key "count"`)
+	assert.Contains(t, conga.DiagnosticOf(err).Render(), `from: config key "count"`)
 }
 
 func TestSchemaErrorUnsupportedType(t *testing.T) {
@@ -362,6 +362,26 @@ func TestSchemaErrorUnsupportedType(t *testing.T) {
 	assert.Error(t, err)
 	assert.Equal(t, "struct UnsupportedTypeCLI field Channel: unsupported type chan int", err.Error())
 	assert.Equal(t, "register a parser with app.RegisterType", errlines.Hint(err))
+}
+
+// ByteSizeBadBoundCLI declares a byte size range bound with an unknown unit.
+type ByteSizeBadBoundCLI struct {
+	noopRunner
+
+	Memory conga.OptionalFlag[conga.ByteSize] `name:"memory" range:"5XB..1GiB"`
+}
+
+func TestSchemaErrorByteSizeBoundUnit(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[ByteSizeBadBoundCLI]().Args(nil)
+	err := app.RunContext(t.Context())
+
+	assert.Error(t, err)
+	assert.Equal(t, `struct ByteSizeBadBoundCLI field Memory: invalid byte size min bound "5XB"`, err.Error())
+	assert.Equal(t, `accepted units: B, kB, MB, GB, TB, PB, EB, KiB, MiB, GiB, TiB, PiB, EiB`, errlines.Note(err))
+	assert.Equal(t, "", errlines.Hint(err))
+	assert.Equal(t, "unknown byte size unit \"XB\" in \"5XB\"", errors.Unwrap(err).Error())
 }
 
 func TestCoercionErrorByteSizeRender(t *testing.T) {
@@ -1086,7 +1106,7 @@ func TestConfigKeyPath_AncestorFlagOnSubcommand(t *testing.T) {
 
 		assertNotUsageError(t, err)
 		assert.Equal(t, `invalid integer value "abc" for flag --port`, err.Error())
-		assert.Contains(t, conga.ResolveError(err).Render(), `from: config key "port"`)
+		assert.Contains(t, conga.DiagnosticOf(err).Render(), `from: config key "port"`)
 	})
 
 	t.Run("self validation", func(t *testing.T) {
@@ -1096,7 +1116,7 @@ func TestConfigKeyPath_AncestorFlagOnSubcommand(t *testing.T) {
 
 		assertNotUsageError(t, err)
 		assert.Equal(t, fmt.Sprintf("stat %s: no such file or directory for flag --in", missing), err.Error())
-		assert.Contains(t, conga.ResolveError(err).Render(), `from: config key "in" in config file "`)
+		assert.Contains(t, conga.DiagnosticOf(err).Render(), `from: config key "in" in config file "`)
 	})
 
 	t.Run("map entry", func(t *testing.T) {
@@ -1106,7 +1126,7 @@ func TestConfigKeyPath_AncestorFlagOnSubcommand(t *testing.T) {
 
 		assertNotUsageError(t, err)
 		assert.Equal(t, `value for key "a": invalid integer value "abc" for flag --counts`, err.Error())
-		assert.Contains(t, conga.ResolveError(err).Render(), `from: config key "counts"`)
+		assert.Contains(t, conga.DiagnosticOf(err).Render(), `from: config key "counts"`)
 	})
 }
 
@@ -1134,7 +1154,7 @@ func TestErrorClassificationDefaultCoercion(t *testing.T) {
 
 		assert.Error(t, result.err)
 		assert.Equal(t, `invalid integer value "abc" for flag --port`, result.err.Error())
-		assert.Contains(t, conga.ResolveError(result.err).Render(), `from: default value`)
+		assert.Contains(t, conga.DiagnosticOf(result.err).Render(), `from: default value`)
 		assertNotUsageError(t, result.err)
 		assert.Equal(t, 1, result.exitCode)
 	})
@@ -1152,7 +1172,7 @@ func TestErrorClassificationDefaultCoercion(t *testing.T) {
 
 		assert.Error(t, result.err)
 		assert.Equal(t, `invalid integer value "abc" for argument [count]`, result.err.Error())
-		assert.Contains(t, conga.ResolveError(result.err).Render(), `from: default value`)
+		assert.Contains(t, conga.DiagnosticOf(result.err).Render(), `from: default value`)
 		assertNotUsageError(t, result.err)
 		assert.Equal(t, 1, result.exitCode)
 	})
@@ -1174,7 +1194,7 @@ func TestErrorClassificationDefaultCoercion(t *testing.T) {
 
 		assert.Error(t, result.err)
 		assert.Equal(t, `stat /nonexistent-conga-test/missing.txt: no such file or directory for argument [in]`, result.err.Error())
-		assert.Contains(t, conga.ResolveError(result.err).Render(), `from: default value`)
+		assert.Contains(t, conga.DiagnosticOf(result.err).Render(), `from: default value`)
 		assertNotUsageError(t, result.err)
 		assert.Equal(t, 1, result.exitCode)
 	})
@@ -1216,7 +1236,7 @@ func TestErrorClassificationCauseReachable(t *testing.T) {
 
 		assert.Error(t, result.err)
 		assert.Equal(t, `custom config unmarshal failure for flag --custom`, result.err.Error())
-		assert.Contains(t, conga.ResolveError(result.err).Render(), `from: config key "custom"`)
+		assert.Contains(t, conga.DiagnosticOf(result.err).Render(), `from: config key "custom"`)
 		assertNotUsageError(t, result.err)
 
 		var unmarshalErr *classificationUnmarshalError
@@ -2082,7 +2102,7 @@ func TestExit_ValueErrorsRenderWithoutUsage(t *testing.T) {
 	})
 }
 
-func TestHelpAndUsageFormatting(t *testing.T) {
+func TestHelpAndSynopsisFormatting(t *testing.T) {
 	t.Parallel()
 
 	var app SubcommandParentCLI
@@ -2090,8 +2110,8 @@ func TestHelpAndUsageFormatting(t *testing.T) {
 	cmd, err := spec.Build(&app, "clustermgr", conga.SpecOptionsWithContainers(spec.Options{}))
 	assert.NoError(t, err)
 
-	usage := help.Usage([]*spec.Command{cmd})
-	assert.Contains(t, usage, "Usage:\n  clustermgr <command>")
+	synopsis := help.Synopsis([]*spec.Command{cmd})
+	assert.Contains(t, synopsis, "Usage:\n  clustermgr <command>")
 	assert.Equal(t, "Run 'clustermgr --help' for more information.", help.Hint([]*spec.Command{cmd}))
 	assert.Contains(t, help.Format([]*spec.Command{cmd}), "Commands:\n  cluster")
 }
@@ -3001,10 +3021,10 @@ func TestErrorCommandAndChain_EndToEnd(t *testing.T) {
 
 		usage := assertUsageError(t, err)
 		assert.Equal(t, "app sub", usage.CommandPath())
-		assert.Contains(t, usage.Usage(), "app sub [flags]")
+		assert.Equal(t, "", app.UsageBlock(err))
 	})
 
-	t.Run("parse error exposes Usage syntax", func(t *testing.T) {
+	t.Run("parse error has a usage block", func(t *testing.T) {
 		t.Parallel()
 
 		app := conga.New[nestedCLI]().
@@ -3015,11 +3035,11 @@ func TestErrorCommandAndChain_EndToEnd(t *testing.T) {
 
 		assert.Error(t, err)
 
-		usage := assertUsageError(t, err)
-		assert.Contains(t, usage.Usage(), "Usage:\n  app sub [flags]")
+		assertUsageError(t, err)
+		assert.Equal(t, "Usage:\n  app sub [flags]\n\nRun 'app sub --help' for more information.", app.UsageBlock(err))
 	})
 
-	t.Run("coercion error exposes Usage syntax", func(t *testing.T) {
+	t.Run("coercion error has no usage block", func(t *testing.T) {
 		t.Parallel()
 
 		app := conga.New[nestedCLI]().
@@ -3030,11 +3050,11 @@ func TestErrorCommandAndChain_EndToEnd(t *testing.T) {
 
 		assert.Error(t, err)
 
-		usage := assertUsageError(t, err)
-		assert.Contains(t, usage.Usage(), "Usage:\n  app sub [flags]")
+		assertUsageError(t, err)
+		assert.Equal(t, "", app.UsageBlock(err))
 	})
 
-	t.Run("validation error exposes Usage syntax", func(t *testing.T) {
+	t.Run("validation error has no usage block", func(t *testing.T) {
 		t.Parallel()
 
 		app := conga.New[nestedCLI]().
@@ -3045,8 +3065,8 @@ func TestErrorCommandAndChain_EndToEnd(t *testing.T) {
 
 		assert.Error(t, err)
 
-		usage := assertUsageError(t, err)
-		assert.Contains(t, usage.Usage(), "Usage:\n  app sub [flags]")
+		assertUsageError(t, err)
+		assert.Equal(t, "", app.UsageBlock(err))
 	})
 
 	t.Run("completion failure is an ExitCoder and not a usage error", func(t *testing.T) {

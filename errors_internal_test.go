@@ -31,7 +31,7 @@ func TestUsageError_Methods(t *testing.T) {
 		assert.Equal(t, "tool deploy", err.CommandPath())
 		assert.Equal(t, 2, err.ExitCode())
 		assert.Equal(t, nil, err.Unwrap())
-		assert.Equal(t, "Usage:\n  tool deploy", err.Usage())
+		assert.Equal(t, "Usage:\n  tool deploy\n\nRun 'tool deploy --help' for more information.", New[struct{}]().UsageBlock(err))
 	})
 
 	t.Run("suggestion is appended to the message", func(t *testing.T) {
@@ -75,7 +75,7 @@ func TestUsageError_Methods(t *testing.T) {
 
 		assert.Equal(t, "", err.Error())
 		assert.Equal(t, "", err.CommandPath())
-		assert.Equal(t, "", err.Usage())
+		assert.Equal(t, "", New[struct{}]().UsageBlock(err))
 		assert.Equal(t, 2, err.ExitCode())
 		assert.Equal(t, nil, err.Unwrap())
 	})
@@ -477,4 +477,124 @@ func TestDecoderRequiredError(t *testing.T) {
 	_, isInput := errors.AsType[*inputError](err)
 	assert.False(t, isInput)
 	assert.Equal(t, err, commandLineError(nil, err))
+}
+
+// pieceCause is a check's error that supplies every piece.
+type pieceCause struct{}
+
+func (pieceCause) Error() string     { return "check failed" }
+func (pieceCause) Origins() []string { return []string{"the manifest"} }
+func (pieceCause) Note() string      { return "cause note" }
+func (pieceCause) Hint() string      { return "cause hint" }
+
+func TestInputError_PiecesReachTheCause(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		err         *inputError
+		wantOrigins []string
+		wantNote    string
+		wantHint    string
+	}{
+		{
+			name:        "own values win",
+			err:         &inputError{msg: "bad", origin: fromDefault, note: "own note", hint: "own hint", cause: pieceCause{}},
+			wantOrigins: []string{"default value"},
+			wantNote:    "own note",
+			wantHint:    "own hint",
+		},
+		{
+			name:        "group origins win",
+			err:         &inputError{msg: "bad", origins: []string{"a", "b"}, cause: pieceCause{}},
+			wantOrigins: []string{"a", "b"},
+			wantNote:    "cause note",
+			wantHint:    "cause hint",
+		},
+		{
+			name:        "own empty, the cause supplies them",
+			err:         &inputError{msg: "bad", origin: fromCommandLine, cause: pieceCause{}},
+			wantOrigins: []string{"the manifest"},
+			wantNote:    "cause note",
+			wantHint:    "cause hint",
+		},
+		{
+			name:        "own note only, the cause supplies the hint",
+			err:         &inputError{msg: "bad", origin: fromDefault, note: "own note", cause: pieceCause{}},
+			wantOrigins: []string{"default value"},
+			wantNote:    "own note",
+			wantHint:    "cause hint",
+		},
+		{
+			name: "both empty",
+			err:  &inputError{msg: "bad", cause: errors.New("plain")},
+		},
+		{
+			name: "no cause",
+			err:  &inputError{msg: "bad"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, test.wantOrigins, test.err.Origins())
+			assert.Equal(t, test.wantNote, test.err.Note())
+			assert.Equal(t, test.wantHint, test.err.Hint())
+
+			originer, ok := errors.AsType[Originer](test.err)
+			assert.True(t, ok)
+			assert.Equal(t, test.wantOrigins, originer.Origins())
+
+			noter, ok := errors.AsType[Noter](test.err)
+			assert.True(t, ok)
+			assert.Equal(t, test.wantNote, noter.Note())
+
+			hinter, ok := errors.AsType[Hinter](test.err)
+			assert.True(t, ok)
+			assert.Equal(t, test.wantHint, hinter.Hint())
+
+			assert.Equal(t, test.wantOrigins, errlines.Origins(test.err))
+			assert.Equal(t, test.wantNote, errlines.Note(test.err))
+			assert.Equal(t, test.wantHint, errlines.Hint(test.err))
+		})
+	}
+}
+
+func TestUsageError_EmptyMessageKeepsTheCausesPieces(t *testing.T) {
+	t.Parallel()
+
+	err := &UsageError{cause: pieceCause{}}
+
+	assert.Equal(t, []string{"the manifest"}, err.Origins())
+	assert.Equal(t, "cause note", err.Note())
+	assert.Equal(t, "cause hint", err.Hint())
+}
+
+func TestApp_UsageBlock_LeavesHelpOptionsUnchanged(t *testing.T) {
+	t.Setenv("COLUMNS", "57")
+
+	app := New[struct{}]().UsageOnError(UsageFull)
+	err := usageError([]*spec.Command{{Name: "tool"}}, "unknown flag: --bogus")
+
+	assert.Equal(t, 0, app.helpOptions.Width)
+
+	first := app.UsageBlock(err)
+	second := app.UsageBlock(err)
+
+	assert.Equal(t, 0, app.helpOptions.Width)
+	assert.Equal(t, first, second)
+	assert.Equal(t, "Usage:\n"+
+		"  tool\n"+
+		"\n"+
+		"Flags:\n"+
+		"      --why               Show resolved field values and\n"+
+		"                          where they came from (values\n"+
+		"                          redacted unless tagged safe)\n"+
+		"      --completion=SHELL  Generate shell completion\n"+
+		"                          script\n"+
+		"      --help              Show help\n"+
+		"      --version           Show version", first)
+	assert.Equal(t, 57, app.resolvedHelpOptions().Width)
 }

@@ -89,8 +89,9 @@ func TestDecode_InvalidSyntax(t *testing.T) {
 
 	_, err := hcl.Decode(fixtureInvalidSyntax)
 
-	assert.EqualError(t, err, `config.hcl:3,9-4,1: Invalid expression; Expected the start of an expression, but found an invalid expression token.`)
-	assert.Contains(t, err.Error(), "config.hcl")
+	assert.EqualError(t, err, `line 3, column 9: Invalid expression`)
+	assert.Equal(t, "Expected the start of an expression, but found an invalid expression token.", errlines.Note(err))
+	assert.Equal(t, "", errlines.Hint(err))
 }
 
 func TestDecode_DuplicateBlocks(t *testing.T) {
@@ -98,7 +99,7 @@ func TestDecode_DuplicateBlocks(t *testing.T) {
 
 	_, err := hcl.Decode(fixtureDuplicateBlocks)
 
-	assert.Equal(t, `config.hcl:5,1-7: duplicate block "server", first declared at config.hcl:1,1-7`, err.Error())
+	assert.Equal(t, `line 5, column 1: duplicate block "server", first declared at line 1, column 1`, err.Error())
 }
 
 func TestDecode_UndefinedVariable(t *testing.T) {
@@ -106,8 +107,8 @@ func TestDecode_UndefinedVariable(t *testing.T) {
 
 	_, err := hcl.Decode(fixtureUndefinedVariable)
 
-	assert.EqualError(t, err, `config.hcl:1,8-21: Variables not allowed; Variables may not be used here.`)
-	assert.Contains(t, err.Error(), "Variables not allowed")
+	assert.EqualError(t, err, `line 1, column 8: Variables not allowed`)
+	assert.Equal(t, "Variables may not be used here.", errlines.Note(err))
 
 	var diagnostics hashicorphcl.Diagnostics
 	assert.True(t, errors.As(err, &diagnostics))
@@ -138,7 +139,7 @@ func TestDecode_IntegerBeyond64BitsRejected(t *testing.T) {
 
 	_, err := hcl.Decode([]byte("huge_num = 999999999999999999999999999999\n"))
 
-	assert.Equal(t, `config.hcl:1,1-42: attribute "huge_num": number 999999999999999999999999999999 out of range`, err.Error())
+	assert.Equal(t, `line 1, column 1: attribute "huge_num": number 999999999999999999999999999999 out of range`, err.Error())
 }
 
 func TestDecode_NestedIntegerBeyond64BitsRejected(t *testing.T) {
@@ -146,7 +147,7 @@ func TestDecode_NestedIntegerBeyond64BitsRejected(t *testing.T) {
 
 	_, err := hcl.Decode([]byte("list = [1, 99999999999999999999]\n"))
 
-	assert.Equal(t, `config.hcl:1,1-33: attribute "list": number 99999999999999999999 out of range`, err.Error())
+	assert.Equal(t, `line 1, column 1: attribute "list": number 99999999999999999999 out of range`, err.Error())
 }
 
 func TestDecode_FloatOverflowRejected(t *testing.T) {
@@ -154,7 +155,7 @@ func TestDecode_FloatOverflowRejected(t *testing.T) {
 
 	_, err := hcl.Decode([]byte("ratio = 1.5e400\n"))
 
-	assert.Equal(t, `config.hcl:1,1-16: attribute "ratio": number 1.5e+400 out of range`, err.Error())
+	assert.Equal(t, `line 1, column 1: attribute "ratio": number 1.5e+400 out of range`, err.Error())
 }
 
 func TestDecode_LabeledBlockRejected(t *testing.T) {
@@ -162,7 +163,7 @@ func TestDecode_LabeledBlockRejected(t *testing.T) {
 
 	_, err := hcl.Decode(fixtureLabeledBlock)
 
-	assert.Equal(t, `config.hcl:1,1-13: block "server" has labels ["web"]`, err.Error())
+	assert.Equal(t, `line 1, column 1: block "server" has labels ["web"]`, err.Error())
 	assert.Equal(t, "labeled blocks are not supported", errlines.Note(err))
 	assert.Equal(t, "use an unlabeled block", errlines.Hint(err))
 }
@@ -172,7 +173,7 @@ func TestDecode_AttributeThenBlockRejected(t *testing.T) {
 
 	_, err := hcl.Decode(fixtureAttributeThenBlock)
 
-	assert.Equal(t, `config.hcl:3,1-7: block "server" conflicts with the attribute of the same name at config.hcl:1,1-11`, err.Error())
+	assert.Equal(t, `line 3, column 1: block "server" conflicts with the attribute of the same name at line 1, column 1`, err.Error())
 }
 
 func TestDecode_BlockThenAttributeRejected(t *testing.T) {
@@ -180,7 +181,7 @@ func TestDecode_BlockThenAttributeRejected(t *testing.T) {
 
 	_, err := hcl.Decode(fixtureBlockThenAttribute)
 
-	assert.Equal(t, `config.hcl:1,1-7: block "server" conflicts with the attribute of the same name at config.hcl:5,1-11`, err.Error())
+	assert.Equal(t, `line 1, column 1: block "server" conflicts with the attribute of the same name at line 5, column 1`, err.Error())
 }
 
 func TestDecode_EmptyValid(t *testing.T) {

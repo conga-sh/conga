@@ -63,10 +63,17 @@ An unlabeled block decodes as a nested section keyed by its block type, so `serv
 | HCL input | Error |
 |---|---|
 | A labeled block, `server "web" { port = 1 }` | `block "server" has labels ["web"]`, with `note: labeled blocks are not supported` and `hint: use an unlabeled block` lines |
-| A second `server { }` block | `duplicate block "server", first declared at config.hcl:1,1-7` |
-| An attribute `server = 1` and a block `server { }` | `block "server" conflicts with the attribute of the same name at config.hcl:1,1-11` |
+| A second `server { }` block | `duplicate block "server", first declared at line 1, column 1` |
+| An attribute `server = 1` and a block `server { }` | `block "server" conflicts with the attribute of the same name at line 1, column 1` |
 
-Each message starts with the position of the offending block, such as `config.hcl:5,1-7`.
+Each message starts with the position of the offending block, such as `line 5, column 1`. The HCL decoder sees only the file's bytes, so its positions carry no file name, and the `cannot parse config file` line names the file.
+
+A syntax or evaluation error from the HCL parser gives the parser's summary in line 1 and its detail as the `note:` line:
+
+```text no-copy
+tool: error: cannot parse config file "tool.hcl": line 1, column 11: Invalid expression
+  note: Expected the start of an expression, but found an invalid expression token.
+```
 
 ## Missing decoders
 

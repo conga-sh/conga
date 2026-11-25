@@ -11,7 +11,6 @@ import (
 
 	"github.com/conga-sh/conga/internal/configdata"
 	"github.com/conga-sh/conga/internal/errlines"
-	"github.com/conga-sh/conga/internal/help"
 	"github.com/conga-sh/conga/internal/spec"
 )
 
@@ -78,8 +77,10 @@ type ExitCoder interface {
 //
 // The interface is structural, so any error type implementing Origins() []string
 // participates. [errors.As] stops at the first implementer in a chain even when
-// it returns an empty result; read pieces through [ResolveError], which applies
-// the chain rule (the outermost non-empty result wins).
+// it returns an empty result, so a type that wraps another error and has no
+// origins of its own should return the wrapped error's, or not implement the
+// method. CONGA's own errors do. [DiagnosticOf] reads origins as [App.Exit]
+// prints them, so the outermost non-empty result wins.
 type Originer interface {
 	error
 
@@ -93,8 +94,10 @@ type Originer interface {
 //
 // The interface is structural, so any error type implementing Note() string
 // participates. [errors.As] stops at the first implementer in a chain even when
-// it returns an empty result; read pieces through [ResolveError], which applies
-// the chain rule (the outermost non-empty result wins).
+// it returns an empty result, so a type that wraps another error and has no
+// note of its own should return the wrapped error's, or not implement the
+// method. CONGA's own errors do. [DiagnosticOf] reads the note as [App.Exit]
+// prints it, so the outermost non-empty result wins.
 type Noter interface {
 	error
 
@@ -107,10 +110,11 @@ type Noter interface {
 // on a "hint:" line. An empty result prints no line.
 //
 // The interface is structural, so any error type implementing Hint() string
-// (including third-party types such as samber/oops's OopsError) participates.
-// [errors.As] stops at the first implementer in a chain even when it returns an
-// empty result; read pieces through [ResolveError], which applies the chain
-// rule (the outermost non-empty result wins).
+// participates. [errors.As] stops at the first implementer in a chain even when
+// it returns an empty result, so a type that wraps another error and has no
+// hint of its own should return the wrapped error's, or not implement the
+// method. CONGA's own errors do. [DiagnosticOf] reads the hint as [App.Exit]
+// prints it, so the outermost non-empty result wins.
 type Hinter interface {
 	error
 
@@ -118,157 +122,127 @@ type Hinter interface {
 	Hint() string
 }
 
-// Error is an opt-in view of any error: a CONGA error, a hook's error, a
-// developer wrapper around [App.Run]'s result, or a join. Construct one with
-// [ResolveError]. [App.Run] and [App.RunContext] return the failing error as
-// is and do not wrap it in Error.
+// Diagnostic holds the pieces of an error as [App.Exit] prints them. They are
+// the message, the origins, the note and the hint. Construct one with
+// [DiagnosticOf] for a CONGA error, a hook's error, a developer wrapper around
+// [App.Run]'s result, or a join. [App.Run] and [App.RunContext] return the
+// failing error as is.
 //
-// [Error.Error] returns the underlying error's text, which is line 1 alone for
-// a CONGA error. [Error.Origins], [Error.Note] and [Error.Hint] read the pieces
-// [App.Exit] prints on "from:", "note:" and "hint:" lines by the chain rule:
-// the outermost error in the chain that returns a non-empty value supplies each
-// piece, in [errors.As] traversal order, so an author wrapper's Hint replaces
-// CONGA's and the note and hint can come from different errors. For an error
-// that stands for several errors (an [errors.Join] of them), the piece methods
-// describe the first non-empty member, and [Error.Members] returns each
-// non-empty member as its own Error.
+// A Diagnostic does not implement error. It has no Error or Unwrap method, so
+// it can't be returned from a hook, passed to [App.Exit] or [App.ExitCode],
+// joined, or compared with [errors.Is], and the zero value can't turn a success
+// into a failure.
 //
-// [Error.Render] returns the plain multi-line form (line 1 followed by the
-// indented lines for every non-empty member, with no prefix or color). Error
-// implements [fmt.Formatter] (%v and %s print line 1; %+v prints [Error.Render];
-// every other verb formats line 1 with that verb), [encoding/json.Marshaler],
-// [encoding.TextMarshaler], and [encoding.TextAppender], so a structured logger
-// such as [log/slog] records the pieces cleanly under both JSON and text
-// handlers. Error has no ExitCode method; [App.ExitCode] decides from the
-// outermost [ExitCoder] in the chain.
+// [Diagnostic.Message] returns the error's text, which is line 1 alone for a
+// CONGA error and every member's line 1 for a join. [Diagnostic.Origins],
+// [Diagnostic.Note] and [Diagnostic.Hint] read the pieces [App.Exit] prints on
+// "from:", "note:" and "hint:" lines by the chain rule. The outermost error in
+// the chain that returns a non-empty value supplies each piece, in [errors.As]
+// traversal order, so an author wrapper's Hint replaces CONGA's and the note
+// and hint can come from different errors. For an error that stands for
+// several errors (an [errors.Join] of them), the pieces describe the first
+// non-empty member, and [Diagnostic.Members] returns each non-empty member as
+// its own Diagnostic.
 //
-// The zero value is valid: every method is safe on it, and [Error.MarshalJSON]
-// returns null. Do not return a zero Error through an error return value.
-type Error struct {
+// [Diagnostic.Render] returns the plain multi-line form, which is line 1
+// followed by the indented lines of every non-empty member, with no prefix or
+// color.
+//
+// Diagnostic implements [fmt.Formatter]. %v and %s print [Diagnostic.Message],
+// %+v prints [Diagnostic.Render], and every other verb formats the message with
+// that verb. It also implements [encoding/json.Marshaler] and
+// [encoding.TextMarshaler], so a structured logger such as [log/slog] records
+// the pieces under both JSON and text handlers.
+//
+// Diagnostic has no ExitCode method. [App.ExitCode] decides from the outermost
+// [ExitCoder] in the chain.
+//
+// The zero value, which [DiagnosticOf] returns for a nil error, has an empty
+// message and no members, and marshals as null.
+type Diagnostic struct {
 	err     error
 	members []error
 }
 
-// ResolveError resolves err into an [Error] from the outside in, applying the
-// chain rule and splitting any joined error into its members. A nil err returns
-// the zero [Error].
-//
-// ResolveError is for inspecting, formatting, and logging errors. Because it
-// starts at err itself, a developer wrapper's [Hinter.Hint] wins over an inner
-// error's and the result always agrees with [App.Exit]. Do not return a zero
-// [Error] through an error return value.
-func ResolveError(err error) Error {
-	if err == nil {
-		return Error{}
-	}
-
-	if resolved, ok := err.(Error); ok { //nolint:errorlint // only a direct Error at the top is reused; a wrapped Error starts a fresh outer walk
-		return resolved
-	}
-
-	if resolved, ok := err.(*Error); ok { //nolint:errorlint // same for a direct *Error at the top
-		if resolved == nil {
-			return Error{}
-		}
-
-		return *resolved
-	}
-
-	return Error{err: err, members: errorMembers(err)}
-}
-
-// Error returns the underlying error's text, which is line 1 alone for a CONGA
-// error, or "" for the zero [Error]. An error that stands for several errors
-// keeps one line per member.
-func (e Error) Error() string {
-	if e.err == nil {
+// Message returns the error's text, which is line 1 alone for a CONGA error and
+// one line per member for a join, or "" for the zero [Diagnostic].
+func (d Diagnostic) Message() string {
+	if d.err == nil {
 		return ""
 	}
 
-	return e.err.Error()
-}
-
-// Unwrap returns the underlying error, or nil for the zero [Error].
-func (e Error) Unwrap() error {
-	return e.err
+	return d.err.Error()
 }
 
 // Origins returns the origins of the first non-empty member by the chain rule,
 // or nil.
-func (e Error) Origins() []string {
-	return errlines.Origins(e.firstMember())
+func (d Diagnostic) Origins() []string {
+	return errlines.Origins(d.firstMember())
 }
 
 // Note returns the note of the first non-empty member by the chain rule, or "".
-func (e Error) Note() string {
-	return errlines.Note(e.firstMember())
+func (d Diagnostic) Note() string {
+	return errlines.Note(d.firstMember())
 }
 
 // Hint returns the hint of the first non-empty member by the chain rule, or "".
-func (e Error) Hint() string {
-	return errlines.Hint(e.firstMember())
+func (d Diagnostic) Hint() string {
+	return errlines.Hint(d.firstMember())
 }
 
-// Members returns each non-empty member as its own [Error]. For a single
-// non-empty error it returns a one-element slice; for the zero [Error] or an
-// error whose members all have empty messages it returns nil.
-func (e Error) Members() []Error {
-	var result []Error
+// Members returns each non-empty member as its own [Diagnostic], split the way
+// [App.Exit] splits them. For a single non-empty error it returns a one-element
+// slice. For the zero [Diagnostic] or an error whose message is empty it
+// returns nil.
+func (d Diagnostic) Members() []Diagnostic {
+	var members []Diagnostic
 
-	for _, member := range e.members {
-		if member == nil || member.Error() == "" {
-			continue
-		}
-
-		result = append(result, Error{err: member, members: []error{member}})
+	for _, member := range d.members {
+		members = append(members, Diagnostic{err: member, members: []error{member}})
 	}
 
-	return result
+	return members
 }
 
 // Render formats every non-empty member as line 1 followed by its indented
 // "from:", "note:" and "hint:" lines, plain, with no prefix, color, or trailing
-// newline. It returns "" for the zero [Error] or when every member has an empty
-// message.
-func (e Error) Render() string {
-	return errlines.Plain(e.members)
+// newline. It returns "" for the zero [Diagnostic] or an error whose message is
+// empty.
+func (d Diagnostic) Render() string {
+	return errlines.Plain(d.members)
 }
 
 // MarshalJSON returns {"error": <line 1>, "from": [...], "note": "...", "hint":
 // "..."} for the first non-empty member, with every key but "error" omitted
 // when empty, and "more": [...] holding the other non-empty members when the
-// error stands for several. The zero [Error] marshals as null; a non-nil error
-// whose message is empty marshals as {"error":""}.
-func (e Error) MarshalJSON() ([]byte, error) {
-	if e.err == nil {
+// error stands for several. The zero [Diagnostic] marshals as null. A non-nil
+// error whose message is empty marshals as {"error":""}.
+func (d Diagnostic) MarshalJSON() ([]byte, error) {
+	if d.err == nil {
 		return []byte("null"), nil
 	}
 
-	return errlines.AppendJSON(nil, e.members), nil
+	return errlines.AppendJSON(nil, d.members), nil
 }
 
 // MarshalText returns "<line 1> (from: <origin>; note: ...; hint: ...)" with
 // absent parts left out and no parentheses when nothing follows line 1. Several
-// members are joined with " | ".
-func (e Error) MarshalText() ([]byte, error) {
-	return e.AppendText(nil)
+// members are joined with " | ". The zero [Diagnostic] returns "".
+func (d Diagnostic) MarshalText() ([]byte, error) {
+	return errlines.AppendText(nil, d.members), nil
 }
 
-// AppendText appends the one-line text form of [Error.MarshalText] to dst,
-// implementing [encoding.TextAppender].
-func (e Error) AppendText(dst []byte) ([]byte, error) {
-	if e.err == nil {
-		return dst, nil
+// Format implements [fmt.Formatter]. %+v prints [Diagnostic.Render] (line 1
+// followed by the "from:", "note:" and "hint:" lines, plain). Every other form
+// formats [Diagnostic.Message] with the requested verb.
+func (d Diagnostic) Format(state fmt.State, verb rune) {
+	if verb == 'v' && state.Flag('+') {
+		io.WriteString(state, d.Render()) //nolint:errcheck // a failed write to the formatter's state has nowhere to go
+
+		return
 	}
 
-	return errlines.AppendText(dst, e.members), nil
-}
-
-// Format implements [fmt.Formatter]. %+v prints [Error.Render] (line 1 followed
-// by the "from:", "note:" and "hint:" lines, plain). Every other form formats
-// line 1 with the requested verb.
-func (e Error) Format(state fmt.State, verb rune) {
-	formatError(state, verb, e.Error(), e.members)
+	fmt.Fprintf(state, fmt.FormatString(state, verb), d.Message())
 }
 
 // UsageError is returned for a failure caused by the command line. That covers
@@ -284,9 +258,10 @@ func (e Error) Format(state fmt.State, verb rune) {
 // command line.
 //
 // Origins, Note and Hint return the pieces [App.Exit] prints on their own
-// lines, by the chain rule [Error] describes: the failed value's own, then those
-// of the error behind the message. For an unknown flag or command, Hint is the
-// "did you mean" suggestion. Error returns line 1 alone.
+// lines, by the chain rule [Diagnostic] describes. The failed value's own
+// pieces come first, then those of the error behind the message. For an
+// unknown flag or command, Hint is the "did you mean" suggestion. Error
+// returns line 1 alone.
 //
 // Unwrap returns the error behind the message. For a value that did not
 // convert, that is the error the conversion step returned. It is the error of
@@ -301,7 +276,7 @@ func (e Error) Format(state fmt.State, verb rune) {
 // or find one in a returned error with [errors.AsType]:
 //
 //	if usage, ok := errors.AsType[*conga.UsageError](err); ok {
-//		fmt.Println(usage.CommandPath(), usage.Usage())
+//		fmt.Println(usage.CommandPath(), app.UsageBlock(err))
 //	}
 //
 // The zero value is valid. It has an empty message and no command path.
@@ -347,10 +322,6 @@ func (e *UsageError) Note() string {
 // otherwise the hint of the inner error and then the cause chain, or "". The
 // suggestion is a flag token (--port) or a subcommand name, unquoted.
 func (e *UsageError) Hint() string {
-	if e.msg == "" {
-		return ""
-	}
-
 	if e.suggestion != "" {
 		return "did you mean " + e.suggestion + "?"
 	}
@@ -376,14 +347,18 @@ func (e *UsageError) CommandPath() string {
 	return commandChainPath(e.cmdChain)
 }
 
-// Usage returns the syntax usage summary of the command where the error
-// occurred, or "" when the error has no command.
-func (e *UsageError) Usage() string {
-	if len(e.cmdChain) == 0 {
-		return ""
+// DiagnosticOf reads err into a [Diagnostic] from the outside in, applying the
+// chain rule and splitting any joined error into its members. A nil err returns
+// the zero [Diagnostic].
+//
+// Because it starts at err itself, a developer wrapper's [Hinter.Hint] wins
+// over an inner error's and the result agrees with [App.Exit].
+func DiagnosticOf(err error) Diagnostic {
+	if err == nil {
+		return Diagnostic{}
 	}
 
-	return help.Usage(e.cmdChain)
+	return Diagnostic{err: err, members: errorMembers(err)}
 }
 
 // usageShape selects what [App.Exit] prints below a [UsageError]'s message.
@@ -476,22 +451,38 @@ func (e *inputError) Error() string {
 
 // Origins returns where the value came from, or nil for a command-line value.
 // A group error names each member that did not come from the command line.
+// When the error has no origin of its own it returns the check's, by the chain
+// rule.
 func (e *inputError) Origins() []string {
-	if e.origins != nil {
+	if len(e.origins) > 0 {
 		return e.origins
 	}
 
-	return e.origin.lines()
+	if lines := e.origin.lines(); lines != nil {
+		return lines
+	}
+
+	return errlines.Origins(e.cause)
 }
 
-// Note returns the detail on the failure, or "".
+// Note returns the detail on the failure, or the check's when the error has
+// none, or "".
 func (e *inputError) Note() string {
-	return e.note
+	if e.note != "" {
+		return e.note
+	}
+
+	return errlines.Note(e.cause)
 }
 
-// Hint returns the action that fixes the value, or "".
+// Hint returns the action that fixes the value, or the check's when the error
+// has none, or "".
 func (e *inputError) Hint() string {
-	return e.hint
+	if e.hint != "" {
+		return e.hint
+	}
+
+	return errlines.Hint(e.cause)
 }
 
 // Unwrap returns what the check returned, or nil when CONGA itself found the
@@ -619,24 +610,18 @@ func (origin valueOrigin) describe() string {
 	}
 }
 
-// firstMember returns the first member with a non-empty message, or nil.
-func (e Error) firstMember() error {
-	for _, member := range e.members {
-		if member != nil && member.Error() != "" {
-			return member
-		}
-	}
-
-	return nil
-}
-
-// pieces returns the error the origins, note and hint are read from: the inner
-// error, else the cause, or nil when the message is empty.
-func (e *UsageError) pieces() error {
-	if e.msg == "" {
+// firstMember returns the first member, or nil.
+func (d Diagnostic) firstMember() error {
+	if len(d.members) == 0 {
 		return nil
 	}
 
+	return d.members[0]
+}
+
+// pieces returns the error the origins, note and hint are read from: the inner
+// error, else the cause, or nil.
+func (e *UsageError) pieces() error {
 	if e.inner != nil {
 		return e.inner
 	}
@@ -809,21 +794,10 @@ func commandChainPath(chain []*spec.Command) string {
 	return strings.Join(names, " ")
 }
 
-// errorMembers returns the members of err that render separately. Both
-// [App.Exit] and [ResolveError] call it so they always split errors the same
-// way without linking [Error] into binaries that only call [App.Exit].
+// errorMembers returns the members of err that render separately, without the
+// empty ones. Both [App.Exit] and [DiagnosticOf] call it so they always split
+// errors the same way without linking [Diagnostic] into binaries that only call
+// [App.Exit].
 func errorMembers(err error) []error {
 	return errlines.Members(err)
-}
-
-// formatError implements [Error.Format]: %+v prints the members' lines, and
-// every other form formats line 1 with the requested format string.
-func formatError(state fmt.State, verb rune, line string, members []error) {
-	if verb == 'v' && state.Flag('+') {
-		io.WriteString(state, errlines.Plain(members)) //nolint:errcheck // a failed write to the formatter's state has nowhere to go
-
-		return
-	}
-
-	fmt.Fprintf(state, fmt.FormatString(state, verb), line)
 }

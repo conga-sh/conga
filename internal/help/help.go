@@ -146,8 +146,8 @@ func RenderFeatures(root *spec.Command, width int) string {
 	return renderTable("Features", entries, width)
 }
 
-// Usage returns the standard 1-2 line usage syntax for the given command chain.
-func Usage(cmdChain []*spec.Command) string {
+// Synopsis returns the 1-2 line "Usage:" syntax for the given command chain.
+func Synopsis(cmdChain []*spec.Command) string {
 	if len(cmdChain) == 0 {
 		return ""
 	}
@@ -256,7 +256,7 @@ func FormatWith(cmdChain []*spec.Command, opts Options) string {
 	}
 
 	// 3. Usage
-	builder.WriteString(Usage(cmdChain))
+	builder.WriteString(Synopsis(cmdChain))
 	builder.WriteString("\n")
 
 	// 4. Examples

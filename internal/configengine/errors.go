@@ -2,6 +2,8 @@ package configengine
 
 import (
 	"fmt"
+
+	"github.com/conga-sh/conga/internal/errlines"
 )
 
 // configError represents a failure reading or parsing configuration files, or
@@ -52,21 +54,28 @@ func (e *configError) Error() string {
 	return "config error"
 }
 
-// Origins returns the "from:" text of a strict-validation error: the config
-// file or the document label the offending entry came from. It is nil for an
-// error from finding or loading files.
+// Origins returns the "from:" text of a strict-validation error. It is the
+// config file or the document label the offending entry came from. When the
+// error has no origin of its own it returns its cause's, by the chain rule. It
+// is nil when the cause has none either, as for an error from finding or
+// loading files.
 func (e *configError) Origins() []string {
 	if e.origin == "" {
-		return nil
+		return errlines.Origins(e.cause)
 	}
 
 	return []string{e.origin}
 }
 
 // Hint returns the action that fixes the error, such as a did-you-mean
-// suggestion, or "".
+// suggestion. When the error has none it returns its cause's, by the chain
+// rule, or "".
 func (e *configError) Hint() string {
-	return e.hint
+	if e.hint != "" {
+		return e.hint
+	}
+
+	return errlines.Hint(e.cause)
 }
 
 func (e *configError) Unwrap() error {

@@ -200,8 +200,8 @@ func (p Predictor) Timeout(d time.Duration, alternative ...Predictor) Predictor 
 }
 
 // Usage attaches an ActiveHelp/tooltip hint message to the predictor. This is
-// completion-time guidance, not the root package's syntax-help usage summary
-// (Session.Usage and App.UsageOnError). The message is a fallback: when the
+// completion-time guidance, not the root package's synopsis (Session.Synopsis)
+// or usage block (App.UsageOnError). The message is a fallback. When the
 // predictor evaluates to a Result that already carries a usage hint (one set
 // by a callback's, batch member's, or MultiParts part's own Usage), that hint
 // is kept.
@@ -213,7 +213,7 @@ func (p Predictor) Usage(message string) Predictor {
 
 // Usagef attaches a formatted ActiveHelp/tooltip hint message to the predictor
 // using fmt.Sprintf. See Usage for the distinction from the root package's
-// syntax-help usage summary.
+// synopsis and usage block.
 func (p Predictor) Usagef(format string, a ...any) Predictor {
 	p.usage = fmt.Sprintf(format, a...)
 

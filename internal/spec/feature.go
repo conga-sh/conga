@@ -10,7 +10,6 @@ import (
 
 	"github.com/conga-sh/conga/internal/casing"
 	"github.com/conga-sh/conga/internal/container"
-	"github.com/conga-sh/conga/internal/errlines"
 	"github.com/conga-sh/conga/internal/intx"
 	"github.com/conga-sh/conga/internal/slicex"
 )
@@ -296,9 +295,7 @@ func ValidateFeatureFieldTags(field *FeatureField, tag reflect.StructTag) error 
 	if defaultTag, hasDefault := tag.Lookup("default"); hasDefault {
 		canonical, err := field.Canonicalize(defaultTag)
 		if err != nil {
-			note, hint := splitFeatureParseError(err)
-
-			return schemaErrorf("invalid default %q for feature %q", defaultTag, field.Name).withNote(note).withHint(hint).withCause(err)
+			return schemaErrorf("invalid default %q for feature %q", defaultTag, field.Name).withCause(err)
 		}
 
 		field.Default = canonical
@@ -758,17 +755,6 @@ func firstStagelessFeatureField(fields []*FeatureField) *FeatureField {
 	return nil
 }
 
-// splitFeatureParseError separates a feature value failure into its note and
-// the integer syntax's correction, so schema build can render them as the
-// schema error's note and hint. The hint is empty when err carries none.
-func splitFeatureParseError(err error) (string, string) {
-	if valueErr, ok := errors.AsType[*featureValueError](err); ok {
-		return valueErr.Note(), errlines.Hint(valueErr)
-	}
-
-	return err.Error(), ""
-}
-
 // featureIntegerParseError classifies a failed feature-integer parse: range
 // failures name the storage width, unsigned syntax failures name the
 // non-negativity requirement, and everything else is a plain integer error.
@@ -814,9 +800,7 @@ func validateFeatureEnum(field *FeatureField, enumTag string) error {
 	for _, part := range parts {
 		canonical, err := field.parseInteger(part)
 		if err != nil {
-			note, hint := splitFeatureParseError(err)
-
-			return schemaErrorf("invalid feature enum value %q", part).withNote(note).withHint(hint).withCause(err)
+			return schemaErrorf("invalid feature enum value %q", part).withCause(err)
 		}
 
 		if canonical == "0" {

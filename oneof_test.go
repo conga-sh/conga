@@ -382,7 +382,7 @@ func TestOneOf_EnvAndCLIConflict(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, "flags --json and --yaml are mutually exclusive", err.Error())
-	assert.Contains(t, conga.ResolveError(err).Render(), "from: --yaml: environment variable CONGA_TEST_ONEOF_YAML")
+	assert.Contains(t, conga.DiagnosticOf(err).Render(), "from: --yaml: environment variable CONGA_TEST_ONEOF_YAML")
 	assertUsageError(t, err)
 }
 
@@ -608,7 +608,7 @@ func TestOneOf_CounterZeroConflictsWithSibling(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Equal(t, `flags --json and --yaml are mutually exclusive`, err.Error())
-	assert.Contains(t, conga.ResolveError(err).Render(), `from: --json: config key "json"`)
+	assert.Contains(t, conga.DiagnosticOf(err).Render(), `from: --json: config key "json"`)
 	assertUsageError(t, err)
 }
 

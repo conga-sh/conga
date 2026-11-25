@@ -290,7 +290,7 @@ func TestConfig_StrictUnknownFieldRejection(t *testing.T) {
 	assert.Error(t, err)
 	assertNotUsageError(t, err)
 	assert.Equal(t, "unknown field \"clstr_name\" in command \"app\"", err.Error())
-	assert.Contains(t, conga.ResolveError(err).Render(), fmt.Sprintf("from: config file %q", cfgPath))
+	assert.Contains(t, conga.DiagnosticOf(err).Render(), fmt.Sprintf("from: config file %q", cfgPath))
 	assert.Equal(t, `did you mean "cluster-name"?`, errlines.Hint(err))
 }
 
@@ -311,7 +311,7 @@ func TestConfig_ExcludedFieldRejection(t *testing.T) {
 	assert.Error(t, err)
 	assertNotUsageError(t, err)
 	assert.Equal(t, "unknown field \"internal_key\" in command \"app\"", err.Error())
-	assert.Contains(t, conga.ResolveError(err).Render(), fmt.Sprintf("from: config file %q", cfgPath))
+	assert.Contains(t, conga.DiagnosticOf(err).Render(), fmt.Sprintf("from: config file %q", cfgPath))
 }
 
 func TestConfig_NestedSubcommandTables(t *testing.T) {
@@ -873,7 +873,7 @@ func TestConfig_NamespacedFlagAliasRejected(t *testing.T) {
 
 	assertNotUsageError(t, err)
 	assert.Equal(t, `unknown field "listen-port" in namespace "network"`, err.Error())
-	assert.Contains(t, conga.ResolveError(err).Render(), fmt.Sprintf("from: config file %q", cfgPath))
+	assert.Contains(t, conga.DiagnosticOf(err).Render(), fmt.Sprintf("from: config file %q", cfgPath))
 	assert.False(t, cli.Port.IsSet())
 }
 
@@ -896,7 +896,7 @@ func TestConfig_NamespacedScalarFlagSectionRejected(t *testing.T) {
 
 	assertNotUsageError(t, err)
 	assert.Equal(t, `field "port" in namespace "network" is not a map`, err.Error())
-	assert.Contains(t, conga.ResolveError(err).Render(), fmt.Sprintf("from: config file %q", cfgPath))
+	assert.Contains(t, conga.DiagnosticOf(err).Render(), fmt.Sprintf("from: config file %q", cfgPath))
 	assert.False(t, cli.Port.IsSet())
 }
 
@@ -924,7 +924,7 @@ func TestConfig_OtherSpellingRejectedDeterministically(t *testing.T) {
 
 		assertNotUsageError(t, err)
 		assert.Equal(t, `unknown field "dryRun" in command "app"`, err.Error())
-		assert.Contains(t, conga.ResolveError(err).Render(), fmt.Sprintf("from: config file %q", cfgPath))
+		assert.Contains(t, conga.DiagnosticOf(err).Render(), fmt.Sprintf("from: config file %q", cfgPath))
 		assert.Equal(t, `did you mean "dry-run"?`, errlines.Hint(err))
 		assert.False(t, cli.DryRun.IsSet())
 	}

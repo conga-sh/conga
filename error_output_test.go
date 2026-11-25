@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -18,6 +19,7 @@ import (
 	"github.com/alecthomas/assert/v2"
 
 	"github.com/conga-sh/conga"
+	hcldecoder "github.com/conga-sh/conga/decoder/hcl"
 	jsondecoder "github.com/conga-sh/conga/decoder/json"
 	"github.com/conga-sh/conga/internal/errlines"
 )
@@ -119,6 +121,16 @@ type exitCapture struct {
 	code   int
 }
 
+// newExitApp returns an app named "app" that prints to buffer in the given
+// usage mode and reports its exit code to onExit.
+func newExitApp(buffer *bytes.Buffer, mode conga.UsageOnErrorMode, onExit func(int)) *conga.App[outputCLI] {
+	return conga.New[outputCLI]().
+		Name("app").
+		UsageOnError(mode).
+		Stderr(buffer).
+		ExitFunc(onExit)
+}
+
 // exitOutputFor runs err through App.Exit of an app named "app" and captures it.
 func exitOutputFor(t *testing.T, err error) exitCapture {
 	t.Helper()
@@ -127,13 +139,19 @@ func exitOutputFor(t *testing.T, err error) exitCapture {
 
 	code := -1
 
-	conga.New[outputCLI]().
-		Name("app").
-		Stderr(&buffer).
-		ExitFunc(func(exitCode int) { code = exitCode }).
-		Exit(err)
+	newExitApp(&buffer, conga.UsageSummary, func(exitCode int) { code = exitCode }).Exit(err)
 
 	return exitCapture{output: buffer.String(), code: code}
+}
+
+// exitLinesFor returns what App.Exit of an app named "app" prints for err
+// without a usage block.
+func exitLinesFor(err error) string {
+	var buffer bytes.Buffer
+
+	newExitApp(&buffer, conga.UsageSilence, func(int) {}).Exit(err)
+
+	return buffer.String()
 }
 
 // failWith runs an app whose Run returns err and captures App.Exit's output.
@@ -486,11 +504,11 @@ func (n notedNumber) Validate(_ context.Context) error {
 }
 
 // assertSamePieces fails unless usage reports the same origins, note and hint
-// as ResolveError(err).
+// as DiagnosticOf(err).
 func assertSamePieces(t *testing.T, err error, usage *conga.UsageError) {
 	t.Helper()
 
-	resolved := conga.ResolveError(err)
+	resolved := conga.DiagnosticOf(err)
 
 	assert.Equal(t, resolved.Origins(), usage.Origins())
 	assert.Equal(t, resolved.Note(), usage.Note())
@@ -768,10 +786,10 @@ func TestError_RunReturnsRawError(t *testing.T) {
 		assert.Equal(t, 75, result.code)
 	})
 
-	t.Run("ResolveError agrees with Exit", func(t *testing.T) {
+	t.Run("DiagnosticOf agrees with Exit", func(t *testing.T) {
 		err, result := failWith(t, &devHintOnly{hint: "retry later"})
 
-		resolved := conga.ResolveError(err)
+		resolved := conga.DiagnosticOf(err)
 
 		assert.Equal(t, "retry later", resolved.Hint())
 		assert.Contains(t, result.output, "  hint: retry later\n")
@@ -811,11 +829,11 @@ func TestError_RunAndFinallySeeTheSameError(t *testing.T) {
 	assert.Equal(t, "run failed", cli.received.Error())
 }
 
-func TestResolveError_FormattingAndRender(t *testing.T) {
+func TestDiagnosticOf_FormattingAndRender(t *testing.T) {
 	t.Setenv("TOOL_TIMEOUT", "30")
 
 	err := conga.New[outputCLI]().Args([]string{}).RunContext(t.Context())
-	resolved := conga.ResolveError(err)
+	resolved := conga.DiagnosticOf(err)
 
 	line := `invalid duration "30" for flag --timeout`
 	rendered := line + "\n" +
@@ -845,9 +863,9 @@ func TestResolveError_FormattingAndRender(t *testing.T) {
 
 	t.Run("wrapped CONGA error keeps outer text and outer hint", func(t *testing.T) {
 		outer := &devError{message: "startup: " + err.Error(), hint: "check TOOL_TIMEOUT", cause: err}
-		outerResolved := conga.ResolveError(outer)
+		outerResolved := conga.DiagnosticOf(outer)
 
-		assert.Equal(t, "startup: "+line, outerResolved.Error())
+		assert.Equal(t, "startup: "+line, outerResolved.Message())
 		assert.Equal(t, []string{"environment variable TOOL_TIMEOUT"}, outerResolved.Origins())
 		assert.Equal(t, "accepted units: ns, us (or µs), ms, s, m, h", outerResolved.Note())
 		assert.Equal(t, "check TOOL_TIMEOUT", outerResolved.Hint())
@@ -863,11 +881,10 @@ func TestResolveError_FormattingAndRender(t *testing.T) {
 			"  hint: check TOOL_TIMEOUT\n", result.output)
 	})
 
-	t.Run("zero Error from ResolveError(nil) is safe", func(t *testing.T) {
-		zero := conga.ResolveError(nil)
+	t.Run("zero Diagnostic from DiagnosticOf(nil) is safe", func(t *testing.T) {
+		zero := conga.DiagnosticOf(nil)
 
-		assert.Equal(t, "", zero.Error())
-		assert.Zero(t, zero.Unwrap())
+		assert.Equal(t, "", zero.Message())
 		assert.Zero(t, zero.Origins())
 		assert.Equal(t, "", zero.Note())
 		assert.Equal(t, "", zero.Hint())
@@ -883,22 +900,10 @@ func TestResolveError_FormattingAndRender(t *testing.T) {
 		textBytes, textErr := zero.MarshalText()
 		assert.NoError(t, textErr)
 		assert.Equal(t, "", string(textBytes))
-
-		appended, appendErr := zero.AppendText([]byte("prefix:"))
-		assert.NoError(t, appendErr)
-		assert.Equal(t, "prefix:", string(appended))
-	})
-
-	t.Run("ResolveError is idempotent on a direct Error", func(t *testing.T) {
-		again := conga.ResolveError(resolved)
-
-		assert.Equal(t, resolved.Render(), again.Render())
-		assert.Equal(t, resolved.Origins(), again.Origins())
-		assert.Equal(t, resolved.Note(), again.Note())
 	})
 }
 
-func TestResolveError_Marshalers(t *testing.T) {
+func TestDiagnosticOf_Marshalers(t *testing.T) {
 	var size conga.ByteSize
 
 	conga1 := size.UnmarshalText([]byte("5XB"))
@@ -906,17 +911,13 @@ func TestResolveError_Marshalers(t *testing.T) {
 	marshal := func(t *testing.T, err error) (string, string) {
 		t.Helper()
 
-		resolved := conga.ResolveError(err)
+		resolved := conga.DiagnosticOf(err)
 
 		jsonBytes, jsonErr := json.Marshal(resolved)
 		assert.NoError(t, jsonErr)
 
 		textBytes, textErr := resolved.MarshalText()
 		assert.NoError(t, textErr)
-
-		appended, appendErr := resolved.AppendText([]byte("->"))
-		assert.NoError(t, appendErr)
-		assert.Equal(t, "->"+string(textBytes), string(appended))
 
 		return string(jsonBytes), string(textBytes)
 	}
@@ -957,36 +958,62 @@ func TestResolveError_Marshalers(t *testing.T) {
 	})
 }
 
-func TestResolveError_Slog(t *testing.T) {
+func TestDiagnosticOf_Slog(t *testing.T) {
 	err, _ := failWith(t, &devError{message: "failed", origins: []string{"the manifest"}, hint: "act"})
 
 	t.Run("the JSON handler records an object", func(t *testing.T) {
-		var buffer bytes.Buffer
+		line := slogLine(err, slogJSON)
 
-		slog.New(slog.NewJSONHandler(&buffer, &slog.HandlerOptions{ReplaceAttr: dropTime})).Error("run failed", "err", conga.ResolveError(err))
-
-		assert.Equal(t, `{"level":"ERROR","msg":"run failed","err":{"error":"failed","from":["the manifest"],"hint":"act"}}`+"\n", buffer.String())
+		assert.Equal(t, `{"level":"ERROR","msg":"run failed","err":{"error":"failed","from":["the manifest"],"hint":"act"}}`+"\n", line)
 	})
 
 	t.Run("the text handler records a line", func(t *testing.T) {
-		var buffer bytes.Buffer
+		line := slogLine(err, slogText)
 
-		slog.New(slog.NewTextHandler(&buffer, &slog.HandlerOptions{ReplaceAttr: dropTime})).Error("run failed", "err", conga.ResolveError(err))
-
-		assert.Equal(t, `level=ERROR msg="run failed" err="failed (from: the manifest; hint: act)"`+"\n", buffer.String())
+		assert.Equal(t, `level=ERROR msg="run failed" err="failed (from: the manifest; hint: act)"`+"\n", line)
 	})
 
 	t.Run("a developer-wrapped error keeps its pieces in both handlers", func(t *testing.T) {
 		wrapped := fmt.Errorf("main: %w", err)
 
-		var jsonBuffer, textBuffer bytes.Buffer
-
-		slog.New(slog.NewJSONHandler(&jsonBuffer, &slog.HandlerOptions{ReplaceAttr: dropTime})).Error("run failed", "err", conga.ResolveError(wrapped))
-		slog.New(slog.NewTextHandler(&textBuffer, &slog.HandlerOptions{ReplaceAttr: dropTime})).Error("run failed", "err", conga.ResolveError(wrapped))
-
-		assert.Equal(t, `{"level":"ERROR","msg":"run failed","err":{"error":"main: failed","from":["the manifest"],"hint":"act"}}`+"\n", jsonBuffer.String())
-		assert.Equal(t, `level=ERROR msg="run failed" err="main: failed (from: the manifest; hint: act)"`+"\n", textBuffer.String())
+		assert.Equal(t, `{"level":"ERROR","msg":"run failed","err":{"error":"main: failed","from":["the manifest"],"hint":"act"}}`+"\n", slogLine(wrapped, slogJSON))
+		assert.Equal(t, `level=ERROR msg="run failed" err="main: failed (from: the manifest; hint: act)"`+"\n", slogLine(wrapped, slogText))
 	})
+
+	t.Run("a join records its members in both handlers", func(t *testing.T) {
+		joined, _ := failWith(t, errors.Join(
+			&devError{message: "first", hint: "act"},
+			&devError{message: "second", note: "detail"},
+		))
+
+		assert.Equal(t, `{"level":"ERROR","msg":"run failed","err":{"error":"first","hint":"act","more":[{"error":"second","note":"detail"}]}}`+"\n", slogLine(joined, slogJSON))
+		assert.Equal(t, `level=ERROR msg="run failed" err="first (hint: act) | second (note: detail)"`+"\n", slogLine(joined, slogText))
+	})
+}
+
+// slogFormat selects the slog handler slogLine logs through.
+type slogFormat int
+
+const (
+	slogJSON slogFormat = iota
+	slogText
+)
+
+// slogLine logs the Diagnostic of err through the chosen handler without a
+// timestamp and returns the line it wrote.
+func slogLine(err error, format slogFormat) string {
+	var buffer bytes.Buffer
+
+	options := &slog.HandlerOptions{ReplaceAttr: dropTime}
+
+	var handler slog.Handler = slog.NewTextHandler(&buffer, options)
+	if format == slogJSON {
+		handler = slog.NewJSONHandler(&buffer, options)
+	}
+
+	slog.New(handler).Error("run failed", "err", conga.DiagnosticOf(err))
+
+	return buffer.String()
 }
 
 // dropTime removes the timestamp so the handler output is stable.
@@ -998,16 +1025,16 @@ func dropTime(_ []string, attr slog.Attr) slog.Attr {
 	return attr
 }
 
-func TestResolveError_ReportsPiecesAndMembers(t *testing.T) {
+func TestDiagnosticOf_ReportsPiecesAndMembers(t *testing.T) {
 	err, _ := failWith(t, &devError{message: "failed", origins: []string{"a"}, note: "n", hint: "h"})
 
-	resolved := conga.ResolveError(err)
+	resolved := conga.DiagnosticOf(err)
 
 	assert.Equal(t, []string{"a"}, resolved.Origins())
 	assert.Equal(t, "n", resolved.Note())
 	assert.Equal(t, "h", resolved.Hint())
 	assert.Equal(t, 1, len(resolved.Members()))
-	assert.Equal(t, "failed", resolved.Members()[0].Error())
+	assert.Equal(t, "failed", resolved.Members()[0].Message())
 	assert.Equal(t, 1, conga.New[outputCLI]().ExitCode(err))
 }
 
@@ -1018,31 +1045,36 @@ type configFlagCLI struct {
 	Config conga.ConfigFile `name:"config"`
 }
 
-// innerJoinedFinallyCLI returns a multi-member join from an inner Run and adds
-// an outer Finally failure.
-type innerJoinedFinallyCLI struct {
-	innerErr error
+// innerJoinCLI fails Validate with a join of two developer errors.
+type innerJoinCLI struct{}
+
+func (*innerJoinCLI) Validate(_ context.Context, _ *conga.Session) error {
+	return errors.Join(
+		&devError{message: "first inner", origins: []string{"origin a"}, note: "note a"},
+		&devError{message: "second inner", hint: "hint b"},
+	)
 }
 
-func (c *innerJoinedFinallyCLI) Run(_ context.Context, _ *conga.Session) error {
-	return c.innerErr
+func (*innerJoinCLI) Run(_ context.Context, _ *conga.Session) error { return nil }
+
+// outerNestedRunCLI runs innerJoinCLI from Run and adds an outer Finally
+// failure.
+type outerNestedRunCLI struct{}
+
+func (*outerNestedRunCLI) Run(ctx context.Context, _ *conga.Session) error {
+	return conga.New[innerJoinCLI]().
+		Args([]string{}).
+		RunContext(ctx)
 }
 
-func (c *innerJoinedFinallyCLI) Finally(_ context.Context, _ *conga.Session, _ error) error {
+func (*outerNestedRunCLI) Finally(_ context.Context, _ *conga.Session, _ error) error {
 	return &devError{message: "outer finally failed", hint: "outer hint"}
 }
 
 func TestError_NestedJoinFlattens(t *testing.T) {
-	innerApp := conga.New(&devValidateCLI{
-		validate: func(_ *conga.Session) error {
-			return errors.Join(
-				&devError{message: "first inner", origins: []string{"origin a"}, note: "note a"},
-				&devError{message: "second inner", hint: "hint b"},
-			)
-		},
-	}).Args([]string{})
-
-	innerErr := innerApp.RunContext(t.Context())
+	innerErr := conga.New[innerJoinCLI]().
+		Args([]string{}).
+		RunContext(t.Context())
 
 	t.Run("errors.Join with a nested run's join", func(t *testing.T) {
 		joined := errors.Join(innerErr, &devError{message: "close failed", hint: "hint c"})
@@ -1060,7 +1092,7 @@ func TestError_NestedJoinFlattens(t *testing.T) {
 	t.Run("an outer Finally failure joined with an inner run's join", func(t *testing.T) {
 		var buffer bytes.Buffer
 
-		app := conga.New(&innerJoinedFinallyCLI{innerErr: innerErr}).
+		app := conga.New[outerNestedRunCLI]().
 			Name("app").
 			Args([]string{}).
 			Stderr(&buffer).
@@ -1069,7 +1101,7 @@ func TestError_NestedJoinFlattens(t *testing.T) {
 		err := app.RunContext(t.Context())
 		app.Exit(err)
 
-		resolved := conga.ResolveError(err)
+		resolved := conga.DiagnosticOf(err)
 
 		jsonBytes, jsonErr := json.Marshal(resolved)
 		assert.NoError(t, jsonErr)
@@ -1091,21 +1123,21 @@ func TestError_NestedJoinFlattens(t *testing.T) {
 
 		members := resolved.Members()
 		assert.Equal(t, 3, len(members))
-		assert.Equal(t, "first inner", members[0].Error())
+		assert.Equal(t, "first inner", members[0].Message())
 		assert.Equal(t, []string{"origin a"}, members[0].Origins())
 		assert.Equal(t, "note a", members[0].Note())
-		assert.Equal(t, "second inner", members[1].Error())
+		assert.Equal(t, "second inner", members[1].Message())
 		assert.Equal(t, "hint b", members[1].Hint())
-		assert.Equal(t, "outer finally failed", members[2].Error())
+		assert.Equal(t, "outer finally failed", members[2].Message())
 		assert.Equal(t, "outer hint", members[2].Hint())
 	})
 }
 
 func TestError_EmptyMessageConsistency(t *testing.T) {
-	t.Run("a single empty-message error reports no pieces through ResolveError", func(t *testing.T) {
+	t.Run("a single empty-message error reports no pieces through DiagnosticOf", func(t *testing.T) {
 		err, result := failWith(t, &devError{message: "", origins: []string{"o"}, note: "n", hint: "h"})
 
-		resolved := conga.ResolveError(err)
+		resolved := conga.DiagnosticOf(err)
 
 		assert.Equal(t, "", result.output)
 		assert.Zero(t, resolved.Origins())
@@ -1116,17 +1148,64 @@ func TestError_EmptyMessageConsistency(t *testing.T) {
 		assert.Equal(t, "", fmt.Sprintf("%+v", resolved))
 	})
 
-	t.Run("UsageErrorf with an empty message reports no pieces", func(t *testing.T) {
+	t.Run("UsageErrorf wrapping an empty-message error keeps its pieces", func(t *testing.T) {
+		emptyHinted := &devError{message: "", hint: "run login"}
+
+		wrappers := map[string]func(*conga.Session) error{
+			"UsageErrorf": func(session *conga.Session) error {
+				return session.UsageErrorf("not logged in: %w", emptyHinted)
+			},
+			"UsageErrorf in fmt.Errorf": func(session *conga.Session) error {
+				return fmt.Errorf("startup: %w", session.UsageErrorf("not logged in: %w", emptyHinted))
+			},
+		}
+
+		for name, validate := range wrappers {
+			err := bootstrapApp(&devValidateCLI{validate: validate}).Args([]string{}).RunContext(t.Context())
+			usage := assertUsageError(t, err)
+
+			hinter, ok := errors.AsType[conga.Hinter](err)
+			assert.True(t, ok, name)
+			assert.Equal(t, "run login", usage.Hint(), name)
+			assert.Equal(t, "run login", hinter.Hint(), name)
+			assert.Equal(t, "run login", conga.DiagnosticOf(err).Hint(), name)
+		}
+
+		err := bootstrapApp(&devValidateCLI{validate: wrappers["UsageErrorf"]}).Args([]string{}).RunContext(t.Context())
+		result := exitOutputFor(t, err)
+
+		assert.Equal(t, "app: error: not logged in: \n  hint: run login\n\nUsage:\n  app [flags]\n\nRun 'app --help' for more information.\n", result.output)
+		assert.Equal(t, 2, result.code)
+	})
+
+	t.Run("a single empty-message error prints nothing and exits 1", func(t *testing.T) {
+		_, result := failWith(t, &devError{message: "", hint: "ignored"})
+
+		assert.Equal(t, "", result.output)
+		assert.Equal(t, 1, result.code)
+	})
+
+	t.Run("session.UsageError with an empty message prints the usage block only", func(t *testing.T) {
 		cli := &devValidateCLI{validate: func(session *conga.Session) error {
-			return session.UsageErrorf("%w", &devError{message: "", origins: []string{"o"}, note: "n", hint: "h"})
+			return session.UsageError("")
 		}}
 
-		err := bootstrapApp(cli).Args([]string{}).RunContext(t.Context())
-		usage := assertUsageError(t, err)
+		var buffer bytes.Buffer
 
-		assert.Zero(t, usage.Origins())
-		assert.Equal(t, "", usage.Note())
-		assert.Equal(t, "", usage.Hint())
+		code := -1
+		app := bootstrapApp(cli).
+			Name("app").
+			Args([]string{}).
+			Stderr(&buffer).
+			ExitFunc(func(exitCode int) { code = exitCode })
+
+		err := app.RunContext(t.Context())
+		app.Exit(err)
+
+		assert.Equal(t, "", conga.DiagnosticOf(err).Message())
+		assert.Zero(t, conga.DiagnosticOf(err).Members())
+		assert.Equal(t, "Usage:\n  app [flags]\n\nRun 'app --help' for more information.\n", buffer.String())
+		assert.Equal(t, 2, code)
 	})
 
 	t.Run("a join with a leading empty-message member uses the first non-empty member", func(t *testing.T) {
@@ -1137,7 +1216,7 @@ func TestError_EmptyMessageConsistency(t *testing.T) {
 
 		err, result := failWith(t, joined)
 
-		resolved := conga.ResolveError(err)
+		resolved := conga.DiagnosticOf(err)
 
 		jsonBytes, jsonErr := json.Marshal(resolved)
 		assert.NoError(t, jsonErr)
@@ -1150,10 +1229,241 @@ func TestError_EmptyMessageConsistency(t *testing.T) {
 		assert.Equal(t, "real note", resolved.Note())
 		assert.Equal(t, "real hint", resolved.Hint())
 		assert.Equal(t, 1, len(resolved.Members()))
-		assert.Equal(t, "real", resolved.Members()[0].Error())
+		assert.Equal(t, "real", resolved.Members()[0].Message())
 		assert.Equal(t, "real\n  from: real origin\n  note: real note\n  hint: real hint", resolved.Render())
 		assert.Equal(t, resolved.Render(), fmt.Sprintf("%+v", resolved))
 		assert.Equal(t, `{"error":"real","from":["real origin"],"note":"real note","hint":"real hint"}`, string(jsonBytes))
 		assert.Equal(t, "real (from: real origin; note: real note; hint: real hint)", string(textBytes))
+	})
+}
+
+// emptyHintWrapper is a third-party-style wrapper whose Hint is empty.
+type emptyHintWrapper struct{ cause error }
+
+func (e *emptyHintWrapper) Error() string { return "wrapped: " + e.cause.Error() }
+func (e *emptyHintWrapper) Hint() string  { return "" }
+func (e *emptyHintWrapper) Unwrap() error { return e.cause }
+
+func TestDiagnosticOf_Shapes(t *testing.T) {
+	t.Setenv("TOOL_TIMEOUT", "30")
+
+	congaErr := conga.New[outputCLI]().Args([]string{}).RunContext(t.Context())
+	line := `invalid duration "30" for flag --timeout`
+	timeoutOrigin := []string{"environment variable TOOL_TIMEOUT"}
+	timeoutNote := "accepted units: ns, us (or µs), ms, s, m, h"
+	typoErr := conga.New[outputCLI]().Args([]string{"--timout", "30s"}).RunContext(t.Context())
+	first := &devError{message: "first", origins: []string{"a"}, note: "n1", hint: "h1"}
+	second := &devError{message: "second", hint: "h2"}
+
+	tests := []struct {
+		name        string
+		err         error
+		message     string
+		origins     []string
+		note        string
+		hint        string
+		memberCount int
+	}{
+		{name: "a CONGA error", err: congaErr, message: line, origins: timeoutOrigin, note: timeoutNote, memberCount: 1},
+		{name: "a CONGA error under fmt.Errorf", err: fmt.Errorf("startup: %w", congaErr), message: "startup: " + line, origins: timeoutOrigin, note: timeoutNote, memberCount: 1},
+		{name: "a CONGA error with its own hint", err: typoErr, message: "unknown flag: --timout", hint: "did you mean --timeout?", memberCount: 1},
+		{
+			name:        "a developer wrapper with its own hint wins over a CONGA hint",
+			err:         &devError{message: "startup failed", hint: "check the flag name", cause: typoErr},
+			message:     "startup failed",
+			hint:        "check the flag name",
+			memberCount: 1,
+		},
+		{
+			name:        "a developer wrapper with its own hint wins",
+			err:         &devError{message: "startup failed", hint: "check TOOL_TIMEOUT", cause: congaErr},
+			message:     "startup failed",
+			origins:     timeoutOrigin,
+			note:        timeoutNote,
+			hint:        "check TOOL_TIMEOUT",
+			memberCount: 1,
+		},
+		{name: "a developer type implementing only Hinter", err: &devHintOnly{hint: "act"}, message: "dev failure", hint: "act", memberCount: 1},
+		{name: "a wrapper whose Hint is empty", err: &emptyHintWrapper{cause: &devHintOnly{hint: "act"}}, message: "wrapped: dev failure", hint: "act", memberCount: 1},
+		{name: "a join", err: errors.Join(first, second), message: "first\nsecond", origins: []string{"a"}, note: "n1", hint: "h1", memberCount: 2},
+		{name: "a join with a leading empty-message member", err: errors.Join(&devError{message: "", hint: "ignored"}, first), message: "\nfirst", origins: []string{"a"}, note: "n1", hint: "h1", memberCount: 1},
+		{name: "fmt.Errorf with two %w is one member", err: fmt.Errorf("%w and %w", first, second), message: "first and second", origins: []string{"a"}, note: "n1", hint: "h1", memberCount: 1},
+		{name: "a single empty-message error", err: &devError{message: "", hint: "ignored"}},
+		{name: "nil"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			diagnostic := conga.DiagnosticOf(test.err)
+
+			assert.Equal(t, test.message, diagnostic.Message())
+			assert.Equal(t, test.origins, diagnostic.Origins())
+			assert.Equal(t, test.note, diagnostic.Note())
+			assert.Equal(t, test.hint, diagnostic.Hint())
+			assert.Equal(t, test.memberCount, len(diagnostic.Members()))
+			assert.Equal(t, diagnostic.Render(), fmt.Sprintf("%+v", diagnostic))
+
+			// Render is App.Exit's output without each member's prefix, the
+			// trailing newline and any usage block.
+			if test.err != nil {
+				unprefixed := strings.ReplaceAll(exitLinesFor(test.err), "app: error: ", "")
+
+				assert.Equal(t, diagnostic.Render(), strings.TrimSuffix(unprefixed, "\n"))
+			}
+		})
+	}
+}
+
+func TestDiagnosticOf_FormatVerbs(t *testing.T) {
+	diagnostic := conga.DiagnosticOf(&devError{message: "failed", hint: "act"})
+
+	assert.Equal(t, "failed", fmt.Sprintf("%v", diagnostic))
+	assert.Equal(t, "failed\n  hint: act", fmt.Sprintf("%+v", diagnostic))
+	assert.Equal(t, `"failed"`, fmt.Sprintf("%q", diagnostic))
+	assert.Equal(t, "  failed", fmt.Sprintf("%8s", diagnostic))
+	assert.Equal(t, "fai", fmt.Sprintf("%.3s", diagnostic))
+	assert.Equal(t, `"failed"`, fmt.Sprintf("%#v", diagnostic))
+}
+
+// hintedNumber is a value whose validation fails with a hint and no other
+// piece.
+type hintedNumber int
+
+func (n *hintedNumber) UnmarshalText(text []byte) error {
+	value, err := strconv.Atoi(string(text))
+	if err != nil {
+		return err
+	}
+
+	*n = hintedNumber(value)
+
+	return nil
+}
+
+func (n hintedNumber) Validate(_ context.Context) error {
+	return &devHintOnly{hint: "pick another"}
+}
+
+func TestErrorOutput_CausePiecesShowThrough(t *testing.T) {
+	type hintedCLI struct {
+		noopRunner
+
+		Size conga.OptionalFlag[hintedNumber] `config:"size" default:"3" env:"TOOL_SIZE" name:"size"`
+	}
+
+	type limitCLI struct {
+		noopRunner
+
+		Limit conga.OptionalFlag[conga.ByteSize] `config:"limit" default:"5XB" env:"TOOL_LIMIT" name:"limit"`
+	}
+
+	unitNote := "accepted units: B, kB, MB, GB, TB, PB, EB, KiB, MiB, GiB, TiB, PiB, EiB"
+
+	assertSurfaces := func(t *testing.T, err error, wantLines string, wantNote string, wantHint string) {
+		t.Helper()
+
+		result := exitOutputFor(t, err)
+
+		assert.Equal(t, wantLines, result.output)
+		assert.Equal(t, 1, result.code)
+		assertNotUsageError(t, err)
+
+		diagnostic := conga.DiagnosticOf(err)
+
+		assert.Equal(t, wantNote, diagnostic.Note())
+		assert.Equal(t, wantHint, diagnostic.Hint())
+
+		noter, hasNoter := errors.AsType[conga.Noter](err)
+		assert.True(t, hasNoter)
+		assert.Equal(t, wantNote, noter.Note())
+
+		hinter, hasHinter := errors.AsType[conga.Hinter](err)
+		assert.True(t, hasHinter)
+		assert.Equal(t, wantHint, hinter.Hint())
+
+		originer, hasOriginer := errors.AsType[conga.Originer](err)
+		assert.True(t, hasOriginer)
+		assert.Equal(t, diagnostic.Origins(), originer.Origins())
+	}
+
+	t.Run("a SelfValidator hint from the environment", func(t *testing.T) {
+		t.Setenv("TOOL_SIZE", "4")
+
+		err := conga.New[hintedCLI]().Args([]string{}).RunContext(t.Context())
+
+		assertSurfaces(t, err, "app: error: dev failure for flag --size\n  from: environment variable TOOL_SIZE\n  hint: pick another\n", "", "pick another")
+	})
+
+	t.Run("a SelfValidator hint from a config file", func(t *testing.T) {
+		path := writeConfigFile(t, `{"size": 4}`)
+
+		err := conga.New[hintedCLI]().
+			RegisterDecoder(".json", jsondecoder.Decode).
+			ConfigOptions(conga.ConfigExplicit(path)).
+			Args([]string{}).
+			RunContext(t.Context())
+
+		assertSurfaces(t, err, "app: error: dev failure for flag --size\n  from: config key \"size\" in config file \""+path+"\"\n  hint: pick another\n", "", "pick another")
+	})
+
+	t.Run("a SelfValidator hint from a default", func(t *testing.T) {
+		err := conga.New[hintedCLI]().Args([]string{}).RunContext(t.Context())
+
+		assertSurfaces(t, err, "app: error: dev failure for flag --size\n  from: default value\n  hint: pick another\n", "", "pick another")
+	})
+
+	t.Run("a ByteSize note from the environment", func(t *testing.T) {
+		t.Setenv("TOOL_LIMIT", "5XB")
+
+		err := conga.New[limitCLI]().Args([]string{}).RunContext(t.Context())
+
+		assertSurfaces(t, err, "app: error: unknown byte size unit \"XB\" in \"5XB\" for flag --limit\n  from: environment variable TOOL_LIMIT\n  note: "+unitNote+"\n", unitNote, "")
+	})
+
+	t.Run("a ByteSize note from a config file", func(t *testing.T) {
+		path := writeConfigFile(t, `{"limit": "5XB"}`)
+
+		err := conga.New[limitCLI]().
+			RegisterDecoder(".json", jsondecoder.Decode).
+			ConfigOptions(conga.ConfigExplicit(path)).
+			Args([]string{}).
+			RunContext(t.Context())
+
+		assertSurfaces(t, err, "app: error: unknown byte size unit \"XB\" in \"5XB\" for flag --limit\n  from: config key \"limit\" in config file \""+path+"\"\n  note: "+unitNote+"\n", unitNote, "")
+	})
+
+	t.Run("a ByteSize note from a default", func(t *testing.T) {
+		err := conga.New[limitCLI]().Args([]string{}).RunContext(t.Context())
+
+		assertSurfaces(t, err, "app: error: unknown byte size unit \"XB\" in \"5XB\" for flag --limit\n  from: default value\n  note: "+unitNote+"\n", unitNote, "")
+	})
+
+	t.Run("an HCL labeled block note and hint", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "app.hcl")
+		assert.NoError(t, os.WriteFile(path, []byte("server \"web\" {}\n"), 0o600))
+
+		err := conga.New[hintedCLI]().
+			RegisterDecoder(".hcl", hcldecoder.Decode).
+			ConfigOptions(conga.ConfigExplicit(path)).
+			Args([]string{}).
+			RunContext(t.Context())
+
+		assertSurfaces(t, err, "app: error: cannot parse config file \""+path+"\": line 1, column 1: block \"server\" has labels [\"web\"]\n  note: labeled blocks are not supported\n  hint: use an unlabeled block\n", "labeled blocks are not supported", "use an unlabeled block")
+	})
+
+	t.Run("an HCL syntax error's detail as the note", func(t *testing.T) {
+		path := filepath.Join(t.TempDir(), "app.hcl")
+		assert.NoError(t, os.WriteFile(path, []byte("timeout = \n"), 0o600))
+
+		err := conga.New[hintedCLI]().
+			RegisterDecoder(".hcl", hcldecoder.Decode).
+			ConfigOptions(conga.ConfigExplicit(path)).
+			Args([]string{}).
+			RunContext(t.Context())
+
+		wantLines := "app: error: cannot parse config file \"" + path + "\": line 1, column 11: Invalid expression\n" +
+			"  note: Expected the start of an expression, but found an invalid expression token.\n"
+
+		assertSurfaces(t, err, wantLines, "Expected the start of an expression, but found an invalid expression token.", "")
 	})
 }

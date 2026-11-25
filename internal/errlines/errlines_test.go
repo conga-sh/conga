@@ -77,33 +77,12 @@ func TestLookup_WalksJoinMembersInOrder(t *testing.T) {
 	assert.Equal(t, "first hint", errlines.Hint(err))
 }
 
-func TestLookup_NilAndEmptyMessageErrorHaveNoPieces(t *testing.T) {
+func TestLookup_NilHasNoPieces(t *testing.T) {
 	t.Parallel()
 
 	assert.Zero(t, errlines.Origins(nil))
 	assert.Equal(t, "", errlines.Note(nil))
 	assert.Equal(t, "", errlines.Hint(nil))
-	assert.Zero(t, errlines.Members(nil))
-
-	empty := &pieceError{message: "", origins: []string{"o"}, note: "n", hint: "h"}
-
-	assert.Zero(t, errlines.Origins(empty))
-	assert.Equal(t, "", errlines.Note(empty))
-	assert.Equal(t, "", errlines.Hint(empty))
-}
-
-func TestLines_OrderAndEmptyFirstLine(t *testing.T) {
-	t.Parallel()
-
-	err := &pieceError{message: "failed", origins: []string{"a", "b"}, note: "n", hint: "h"}
-
-	assert.Equal(t, []errlines.Line{
-		{Label: errlines.LabelOrigin, Text: "a"},
-		{Label: errlines.LabelOrigin, Text: "b"},
-		{Label: errlines.LabelNote, Text: "n"},
-		{Label: errlines.LabelHint, Text: "h"},
-	}, errlines.Lines(err))
-	assert.Zero(t, errlines.Lines(&pieceError{message: "", hint: "ignored"}))
 }
 
 func TestMembers(t *testing.T) {
@@ -137,6 +116,22 @@ func TestMembers(t *testing.T) {
 		both := fmt.Errorf("%w and %w", first, second)
 
 		assert.Equal(t, []error{both}, errlines.Members(both))
+	})
+
+	t.Run("nil and empty-message members are dropped", func(t *testing.T) {
+		t.Parallel()
+
+		real := errors.New("real")
+
+		assert.Equal(t, []error{real}, errlines.Members(errors.Join(nil, &pieceError{message: "", hint: "h"}, real)))
+	})
+
+	t.Run("an empty-message error has no members", func(t *testing.T) {
+		t.Parallel()
+
+		assert.Zero(t, errlines.Members(&pieceError{message: "", hint: "h"}))
+		assert.Zero(t, errlines.Members(errors.Join(errors.New(""), &pieceError{message: ""})))
+		assert.Zero(t, errlines.Members(nil))
 	})
 
 	t.Run("a nil member is skipped", func(t *testing.T) {
@@ -186,30 +181,40 @@ func TestRender(t *testing.T) {
 	})
 }
 
+func TestRender_LinesOrderAndFilter(t *testing.T) {
+	t.Parallel()
+
+	t.Run("origins, then the note, then the hint", func(t *testing.T) {
+		t.Parallel()
+
+		err := &pieceError{message: "failed", origins: []string{"a", "b"}, note: "n", hint: "h"}
+
+		assert.Equal(t, "app: error: failed\n  from: a\n  from: b\n  note: n\n  hint: h\n", errlines.Render([]error{err}, "app: ", false))
+	})
+
+	t.Run("nil and empty-message members print nothing", func(t *testing.T) {
+		t.Parallel()
+
+		members := []error{nil, &pieceError{message: "", hint: "ignored"}, errors.New("real")}
+
+		assert.Equal(t, "app: error: real\n", errlines.Render(members, "app: ", false))
+		assert.Equal(t, "", errlines.Render([]error{nil, &pieceError{message: ""}}, "app: ", false))
+		assert.Equal(t, "", errlines.Render(nil, "app: ", false))
+	})
+}
+
 func TestPlain(t *testing.T) {
 	t.Parallel()
 
-	t.Run("joins non-empty members", func(t *testing.T) {
-		t.Parallel()
+	members := []error{&pieceError{message: "first", note: "n"}, errors.New("second")}
 
-		members := []error{&pieceError{message: "first", note: "n"}, errors.New("second")}
+	assert.Equal(t, "first\n  note: n\nsecond", errlines.Plain(members))
+	assert.Equal(t, "", errlines.Plain(nil))
 
-		assert.Equal(t, "first\n  note: n\nsecond", errlines.Plain(members))
-	})
+	joined := errors.Join(nil, &pieceError{message: ""}, &pieceError{message: "real", note: "n"})
+	filtered := errlines.Members(joined)
 
-	t.Run("skips nil and empty-message members", func(t *testing.T) {
-		t.Parallel()
-
-		members := []error{
-			nil,
-			&pieceError{message: "", hint: "ignored"},
-			&pieceError{message: "real", note: "n"},
-			&pieceError{message: ""},
-		}
-
-		assert.Equal(t, "real\n  note: n", errlines.Plain(members))
-		assert.Equal(t, "", errlines.Plain([]error{nil, &pieceError{message: ""}}))
-	})
+	assert.Equal(t, "real\n  note: n", errlines.Plain(filtered))
 }
 
 func TestAppendJSON(t *testing.T) {
@@ -231,34 +236,23 @@ func TestAppendJSON(t *testing.T) {
 		assert.Equal(t, `{"error":"first","more":[{"error":"second","hint":"h"},{"error":"third"}]}`, string(got))
 	})
 
-	t.Run("an empty message keeps the error key and drops the pieces", func(t *testing.T) {
-		t.Parallel()
-
-		got := errlines.AppendJSON(nil, []error{&pieceError{message: "", hint: "h"}})
-
-		assert.Equal(t, `{"error":""}`, string(got))
-	})
-
-	t.Run("no members", func(t *testing.T) {
+	t.Run("no members is an empty message", func(t *testing.T) {
 		t.Parallel()
 
 		assert.Equal(t, `{"error":""}`, string(errlines.AppendJSON(nil, nil)))
+		assert.Equal(t, `{"error":""}`, string(errlines.AppendJSON(nil, errlines.Members(&pieceError{message: "", hint: "h"}))))
 	})
 
-	t.Run("skips nil and empty members in joins", func(t *testing.T) {
+	t.Run("members from a join with nil and empty entries", func(t *testing.T) {
 		t.Parallel()
 
-		got := errlines.AppendJSON(nil, []error{
-			nil,
+		got := errlines.AppendJSON(nil, errlines.Members(errors.Join(
 			&pieceError{message: "", hint: "ignored"},
 			&pieceError{message: "first", note: "n"},
-			&pieceError{message: ""},
-			nil,
 			errors.New("second"),
-		})
+		)))
 
 		assert.Equal(t, `{"error":"first","note":"n","more":[{"error":"second"}]}`, string(got))
-		assert.Equal(t, `{"error":""}`, string(errlines.AppendJSON(nil, []error{nil, &pieceError{message: ""}})))
 	})
 }
 
@@ -276,17 +270,15 @@ func TestAppendText(t *testing.T) {
 		assert.Equal(t, "first (from: a; b; note: n; hint: h) | second", string(got))
 	})
 
-	t.Run("skips nil and empty-message members", func(t *testing.T) {
+	t.Run("members from a join with an empty entry", func(t *testing.T) {
 		t.Parallel()
 
-		got := errlines.AppendText(nil, []error{
-			nil,
+		got := errlines.AppendText(nil, errlines.Members(errors.Join(
 			&pieceError{message: "", hint: "ignored"},
 			&pieceError{message: "real", origins: []string{"a"}},
-			&pieceError{message: ""},
-		})
+		)))
 
 		assert.Equal(t, "real (from: a)", string(got))
-		assert.Equal(t, "", string(errlines.AppendText(nil, []error{nil, &pieceError{message: ""}})))
+		assert.Equal(t, "", string(errlines.AppendText(nil, nil)))
 	})
 }

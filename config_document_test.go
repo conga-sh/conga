@@ -434,7 +434,7 @@ func TestBootstrapper_EnumViolationMatchesFileMessageShape(t *testing.T) {
 	assertNotUsageError(t, err)
 	assert.Equal(t, `invalid value "staging" for flag --mode`, err.Error())
 	assert.Equal(t, `accepted values: dev, prod`, errlines.Note(err))
-	assert.Contains(t, conga.ResolveError(err).Render(), `from: config key "mode"`)
+	assert.Contains(t, conga.DiagnosticOf(err).Render(), `from: config key "mode"`)
 }
 
 func TestBootstrapper_RangeViolationMatchesFileMessageShape(t *testing.T) {
@@ -478,7 +478,7 @@ func TestBootstrapper_CoercionViolationAttributesToConfig(t *testing.T) {
 	assert.Error(t, err)
 	assertNotUsageError(t, err)
 	assert.Contains(t, err.Error(), `for flag --port`)
-	assert.Contains(t, conga.ResolveError(err).Render(), `from: config key "port"`)
+	assert.Contains(t, conga.DiagnosticOf(err).Render(), `from: config key "port"`)
 }
 
 func TestBootstrapper_WhyReportsOrigins(t *testing.T) {

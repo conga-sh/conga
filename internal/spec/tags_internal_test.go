@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/alecthomas/assert/v2"
 
@@ -205,6 +206,19 @@ func TestValidateRangeSpec_TextDialects(t *testing.T) {
 		assert.Equal(t, `invalid byte size min bound "banana"`, err.Error())
 	})
 
+	t.Run("a bound its parser rejects without a note reports the parser's message as the note", func(t *testing.T) {
+		t.Parallel()
+
+		rangeSpec := &Range{MinStr: "5XB", HasMin: true}
+
+		err := validateRangeSpec(rangeSpec, reflect.TypeFor[ByteSize](), nil, nil)
+
+		assert.Equal(t, `invalid byte size min bound "5XB"`, err.Error())
+		assert.Equal(t, `strconv.ParseInt: parsing "5XB": invalid syntax`, errlines.Note(err))
+		assert.Equal(t, "", errlines.Hint(err))
+		assert.IsError(t, err, strconv.ErrSyntax)
+	})
+
 	t.Run("signed dialect bounds parse with its own grammar", func(t *testing.T) {
 		t.Parallel()
 
@@ -225,8 +239,9 @@ func TestValidateRangeSpec_TextDialects(t *testing.T) {
 		assert.Error(t, err)
 		assert.True(t, IsSchemaError(err))
 		assert.Equal(t, `invalid value min bound "bananaC"`, err.Error())
-		assert.NotEqual(t, "", errlines.Note(err))
-		assert.True(t, errors.Unwrap(err) != nil)
+		assert.Equal(t, `strconv.ParseInt: parsing "banana": invalid syntax`, errlines.Note(err))
+		assert.Equal(t, "", errlines.Hint(err))
+		assert.IsError(t, err, strconv.ErrSyntax)
 	})
 
 	t.Run("unsigned dialect bounds above int64 max compare exactly", func(t *testing.T) {
@@ -315,8 +330,9 @@ func TestValidateRangeSpec_TextDialects(t *testing.T) {
 		assert.Error(t, err)
 		assert.True(t, IsSchemaError(err))
 		assert.Equal(t, `invalid integer min bound "banana"`, err.Error())
-		assert.NotEqual(t, "", errlines.Note(err))
-		assert.True(t, errors.Unwrap(err) != nil)
+		assert.Equal(t, "", errlines.Note(err))
+		assert.Equal(t, "", errlines.Hint(err))
+		assert.IsError(t, err, strconv.ErrSyntax)
 	})
 
 	t.Run("byte-size-named struct without text grammar rejected", func(t *testing.T) {
@@ -986,4 +1002,267 @@ func TestParseStrictStringTag_PreservesNoteAndHint(t *testing.T) {
 	assert.True(t, ok)
 	assert.Equal(t, "accepted units: B, kB", schemaErr.Note())
 	assert.Equal(t, "use B or kB", schemaErr.Hint())
+}
+
+func TestValidateScalarRange_BoundErrors(t *testing.T) {
+	t.Parallel()
+
+	type Float32 float32
+
+	tests := []struct {
+		name       string
+		elemType   reflect.Type
+		raw        string
+		message    string
+		note       string
+		hint       string
+		causeCheck func(t *testing.T, err error)
+	}{
+		{
+			name:     "integer syntax",
+			elemType: reflect.TypeFor[int](),
+			raw:      "banana",
+			message:  `invalid integer min bound "banana"`,
+			causeCheck: func(t *testing.T, err error) {
+				t.Helper()
+				assert.IsError(t, err, strconv.ErrSyntax)
+			},
+		},
+		{
+			name:     "float syntax",
+			elemType: reflect.TypeFor[float64](),
+			raw:      "abc",
+			message:  `invalid float min bound "abc"`,
+			causeCheck: func(t *testing.T, err error) {
+				t.Helper()
+				assert.IsError(t, err, strconv.ErrSyntax)
+			},
+		},
+		{
+			name:     "duration unit",
+			elemType: reflect.TypeFor[time.Duration](),
+			raw:      "1x",
+			message:  `invalid duration min bound "1x"`,
+			causeCheck: func(t *testing.T, err error) {
+				t.Helper()
+				assert.Equal(t, `time: unknown unit "x" in duration "1x"`, errors.Unwrap(err).Error())
+			},
+		},
+		{
+			name:     "integer leading zero",
+			elemType: reflect.TypeFor[int](),
+			raw:      "07",
+			message:  `invalid integer min bound "07"`,
+			note:     "a leading zero is ambiguous",
+			hint:     "write 0o7 for octal or 7 for decimal",
+			causeCheck: func(t *testing.T, err error) {
+				t.Helper()
+
+				cause, ok := errors.AsType[*intx.Error](err)
+				assert.True(t, ok)
+				assert.Equal(t, intx.KindLeadingZero, cause.Kind)
+			},
+		},
+		{
+			name:     "integer out of range",
+			elemType: reflect.TypeFor[int](),
+			raw:      "99999999999999999999",
+			message:  `invalid integer min bound "99999999999999999999"`,
+			note:     "is out of range",
+			causeCheck: func(t *testing.T, err error) {
+				t.Helper()
+				assert.IsError(t, err, strconv.ErrRange)
+			},
+		},
+		{
+			name:     "float32 out of range",
+			elemType: reflect.TypeFor[Float32](),
+			raw:      "1e39",
+			message:  `invalid float min bound "1e39"`,
+			note:     "is out of range",
+			causeCheck: func(t *testing.T, err error) {
+				t.Helper()
+				assert.IsError(t, err, strconv.ErrRange)
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			rangeSpec := &Range{MinStr: test.raw, HasMin: true}
+
+			err := validateRangeSpec(rangeSpec, test.elemType, nil, nil)
+
+			assert.True(t, IsSchemaError(err))
+			assert.Equal(t, test.message, err.Error())
+			assert.Equal(t, test.note, errlines.Note(err))
+			assert.Equal(t, test.hint, errlines.Hint(err))
+			test.causeCheck(t, err)
+		})
+	}
+}
+
+func TestBoundError_TextDialectNotes(t *testing.T) {
+	t.Parallel()
+
+	t.Run("the parser's note and hint show through", func(t *testing.T) {
+		t.Parallel()
+
+		cause := noteHintCause{}
+		err := boundError("byte size", "min", "5XB", cause)
+
+		assert.Equal(t, `invalid byte size min bound "5XB"`, err.Error())
+		assert.Equal(t, "cause note", err.Note())
+		assert.Equal(t, "cause hint", err.Hint())
+		assert.IsError(t, err, cause)
+	})
+
+	t.Run("a parser with no note supplies its message", func(t *testing.T) {
+		t.Parallel()
+
+		cause := errors.New("not a temperature")
+		err := boundError("value", "max", "hot", cause)
+
+		assert.Equal(t, `invalid value max bound "hot"`, err.Error())
+		assert.Equal(t, "not a temperature", err.Note())
+		assert.Equal(t, "", err.Hint())
+		assert.IsError(t, err, cause)
+	})
+}
+
+func TestCountBoundError_KeepsItsCause(t *testing.T) {
+	t.Parallel()
+
+	t.Run("a leading zero takes the integer syntax's pieces", func(t *testing.T) {
+		t.Parallel()
+
+		err := ValidateCountRangeSpec(&Range{MinStr: "07", HasMin: true}, "len")
+
+		assert.Equal(t, `invalid len min bound "07"`, err.Error())
+		assert.Equal(t, "a leading zero is ambiguous", errlines.Note(err))
+		assert.Equal(t, "write 0o7 for octal or 7 for decimal", errlines.Hint(err))
+
+		_, ok := errors.AsType[*intx.Error](err)
+		assert.True(t, ok)
+	})
+
+	t.Run("any other failure says what a bound must be", func(t *testing.T) {
+		t.Parallel()
+
+		err := ValidateCountRangeSpec(&Range{MaxStr: "-1", HasMax: true}, "items")
+
+		assert.Equal(t, `invalid items max bound "-1"`, err.Error())
+		assert.Equal(t, "must be non-negative integer", errlines.Note(err))
+		assert.Equal(t, "", errlines.Hint(err))
+		assert.IsError(t, err, strconv.ErrSyntax)
+	})
+}
+
+func TestIntegerEnumDecimal_KeepsItsCause(t *testing.T) {
+	t.Parallel()
+
+	t.Run("out of range", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := integerEnumDecimal("300", reflect.TypeFor[uint8]())
+
+		assert.Equal(t, "enum value \"300\" is out of range for uint8", err.Error())
+		assert.IsError(t, err, strconv.ErrRange)
+	})
+
+	t.Run("syntax", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := integerEnumDecimal("07", reflect.TypeFor[int]())
+
+		assert.Equal(t, "enum value \"07\" is not a valid int", err.Error())
+		assert.Equal(t, "a leading zero is ambiguous", errlines.Note(err))
+		assert.Equal(t, "write 0o7 for octal or 7 for decimal", errlines.Hint(err))
+
+		_, ok := errors.AsType[*intx.Error](err)
+		assert.True(t, ok)
+	})
+}
+
+// noteHintCause is an error that supplies a note and a hint.
+type noteHintCause struct{}
+
+func (noteHintCause) Error() string { return "cause" }
+func (noteHintCause) Note() string  { return "cause note" }
+func (noteHintCause) Hint() string  { return "cause hint" }
+
+// noteHinter mirrors conga.Noter and conga.Hinter, which this package cannot
+// import.
+type noteHinter interface {
+	error
+	Note() string
+	Hint() string
+}
+
+func TestSchemaError_PiecesReachTheCause(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		err      *SchemaError
+		wantNote string
+		wantHint string
+	}{
+		{
+			name:     "own values win",
+			err:      schemaError("bad").withNote("own note").withHint("own hint").withCause(noteHintCause{}),
+			wantNote: "own note",
+			wantHint: "own hint",
+		},
+		{
+			name:     "own empty, the cause supplies them",
+			err:      schemaError("bad").withCause(noteHintCause{}),
+			wantNote: "cause note",
+			wantHint: "cause hint",
+		},
+		{
+			name:     "own note only, the cause supplies the hint",
+			err:      schemaError("bad").withNote("own note").withCause(noteHintCause{}),
+			wantNote: "own note",
+			wantHint: "cause hint",
+		},
+		{
+			name: "both empty",
+			err:  schemaError("bad").withCause(errors.New("plain")),
+		},
+		{
+			name: "no cause",
+			err:  schemaError("bad"),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, test.wantNote, test.err.Note())
+			assert.Equal(t, test.wantHint, test.err.Hint())
+
+			found, ok := errors.AsType[noteHinter](test.err)
+			assert.True(t, ok)
+			assert.Equal(t, test.wantNote, found.Note())
+			assert.Equal(t, test.wantHint, found.Hint())
+
+			assert.Equal(t, test.wantNote, errlines.Note(test.err))
+			assert.Equal(t, test.wantHint, errlines.Hint(test.err))
+		})
+	}
+}
+
+func TestWithOwner_KeepsTheCausesPieces(t *testing.T) {
+	t.Parallel()
+
+	err := WithOwner(noteHintCause{}, "CLI", "Port")
+
+	assert.Equal(t, "struct CLI field Port: cause", err.Error())
+	assert.Equal(t, "cause note", errlines.Note(err))
+	assert.Equal(t, "cause hint", errlines.Hint(err))
+	assert.IsError(t, err, noteHintCause{})
 }

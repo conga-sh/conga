@@ -223,7 +223,7 @@ func TestIntegerSyntax_EnvLeadingZero(t *testing.T) {
 	assert.Equal(t, `invalid unsigned integer value "0755" for flag --mode`, err.Error())
 	assert.Equal(t, `a leading zero is ambiguous`, errlines.Note(err))
 	assert.Equal(t, `write 0o755 for octal or 755 for decimal`, errlines.Hint(err))
-	assert.Contains(t, conga.ResolveError(err).Render(), `from: environment variable CONGA_TEST_INTEGER_SYNTAX_MODE`)
+	assert.Contains(t, conga.DiagnosticOf(err).Render(), `from: environment variable CONGA_TEST_INTEGER_SYNTAX_MODE`)
 	assertNotUsageError(t, err)
 }
 
@@ -254,7 +254,7 @@ func TestIntegerSyntax_ConfigStringLeadingZero(t *testing.T) {
 	assert.Equal(t, `invalid unsigned integer value "0755" for flag --mode`, err.Error())
 	assert.Equal(t, `a leading zero is ambiguous`, errlines.Note(err))
 	assert.Equal(t, `write 0o755 for octal or 755 for decimal`, errlines.Hint(err))
-	assert.Contains(t, conga.ResolveError(err).Render(), `from: config key "mode"`)
+	assert.Contains(t, conga.DiagnosticOf(err).Render(), `from: config key "mode"`)
 	assertNotUsageError(t, err)
 }
 
@@ -311,7 +311,7 @@ func TestIntegerSyntax_DefaultTag(t *testing.T) {
 		assert.Equal(t, `invalid unsigned integer value "0644" for flag --mode`, result.err.Error())
 		assert.Equal(t, `a leading zero is ambiguous`, errlines.Note(result.err))
 		assert.Equal(t, `write 0o644 for octal or 644 for decimal`, errlines.Hint(result.err))
-		assert.Contains(t, conga.ResolveError(result.err).Render(), `from: default value`)
+		assert.Contains(t, conga.DiagnosticOf(result.err).Render(), `from: default value`)
 		assertNotUsageError(t, result.err)
 		assert.Equal(t, 1, result.exitCode)
 	})
@@ -382,7 +382,7 @@ func TestIntegerSyntax_EnumEnvSpelling(t *testing.T) {
 	assert.Error(t, err)
 	assert.Equal(t, `invalid value "0x11" for flag --pick`, err.Error())
 	assert.Equal(t, `accepted values: 0x10, 20`, errlines.Note(err))
-	assert.Contains(t, conga.ResolveError(err).Render(), `from: environment variable CONGA_TEST_INTEGER_SYNTAX_PICK`)
+	assert.Contains(t, conga.DiagnosticOf(err).Render(), `from: environment variable CONGA_TEST_INTEGER_SYNTAX_PICK`)
 	assertNotUsageError(t, err)
 }
 
@@ -400,7 +400,7 @@ func TestIntegerSyntax_EnumDefaultSpelling(t *testing.T) {
 	assert.Error(t, err)
 	assert.Equal(t, `invalid value "0x7" for argument <slot>`, err.Error())
 	assert.Equal(t, `accepted values: 0X1F, 0`, errlines.Note(err))
-	assert.Contains(t, conga.ResolveError(err).Render(), `from: default value`)
+	assert.Contains(t, conga.DiagnosticOf(err).Render(), `from: default value`)
 	assertNotUsageError(t, err)
 }
 
@@ -697,7 +697,7 @@ func TestIntegerSyntax_CounterEnv(t *testing.T) {
 		assert.Equal(t, `invalid unsigned integer value "02" for flag --verbose`, err.Error())
 		assert.Equal(t, `a leading zero is ambiguous`, errlines.Note(err))
 		assert.Equal(t, `write 0o2 for octal or 2 for decimal`, errlines.Hint(err))
-		assert.Contains(t, conga.ResolveError(err).Render(), `from: environment variable CONGA_TEST_INTEGER_SYNTAX_VERBOSE`)
+		assert.Contains(t, conga.DiagnosticOf(err).Render(), `from: environment variable CONGA_TEST_INTEGER_SYNTAX_VERBOSE`)
 		assertNotUsageError(t, err)
 	})
 }

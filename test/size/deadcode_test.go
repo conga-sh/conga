@@ -75,6 +75,21 @@ func TestMinimalHello_WhyEliminated(t *testing.T) {
 	}
 }
 
+func TestMinimalHello_DiagnosticEliminated(t *testing.T) {
+	t.Parallel()
+
+	symbols := buildAndListSymbols(t, minimalExamplePath)
+
+	assert.True(t, symbols["main.main"], "sanity check: the analysis build must expose symbols")
+
+	for symbol := range symbols {
+		assert.False(t, strings.Contains(symbol, "conga.Diagnostic"), "linker must drop the Diagnostic methods: "+symbol)
+		assert.False(t, strings.Contains(symbol, "errlines.Plain"), "linker must drop the plain error renderer: "+symbol)
+		assert.False(t, strings.Contains(symbol, "errlines.AppendJSON"), "linker must drop the JSON error marshaler: "+symbol)
+		assert.False(t, strings.Contains(symbol, "errlines.AppendText"), "linker must drop the text error marshaler: "+symbol)
+	}
+}
+
 func TestMinimalHello_ScanBuiltinRequestInlined(t *testing.T) {
 	t.Parallel()
 

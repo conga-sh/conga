@@ -2,7 +2,7 @@
 
 Opt-in `conga.HelpCommand` and `conga.VersionCommand` subcommands (including
 `version --json`) alongside custom commands that render through
-`session.Help()`, `session.Usage()`, and `session.Version()`. Also covers the
+`session.Help()`, `session.Synopsis()`, and `session.Version()`. Also covers the
 `Examples`/`HelpFooter` builders, the configurable built-in short flags
 (`HelpShortFlag`/`VersionShortFlag`), and the `Description()`/`Examples()` methods.
 

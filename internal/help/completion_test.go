@@ -245,10 +245,10 @@ func TestHelpArgv0Resolution(t *testing.T) {
 	})
 
 	t.Run("root command usage synopsis uses the configured command name", func(t *testing.T) {
-		usage := Usage([]*spec.Command{root})
+		synopsis := Synopsis([]*spec.Command{root})
 
-		assert.Contains(t, usage, "Usage:\n  default-app")
-		assert.NotContains(t, usage, "custom-bin")
+		assert.Contains(t, synopsis, "Usage:\n  default-app")
+		assert.NotContains(t, synopsis, "custom-bin")
 	})
 
 	t.Run("deprecation banner uses the configured command name", func(t *testing.T) {

@@ -588,10 +588,10 @@ func TestFormat_WidthWrapsDescription(t *testing.T) {
 	assert.Contains(t, formatted, "First paragraph stays short.\nA second paragraph that is long enough\nto fold at the wrap width.\n\nUsage:")
 }
 
-// TestUsage_UserDeclaredBuiltinShadows verifies that user flags reusing the
+// TestSynopsis_UserDeclaredBuiltinShadows verifies that user flags reusing the
 // freed --help/--version names and aliases stay first-class: only the shared
 // engine built-in rows are excluded from the synopsis and Global Flags.
-func TestUsage_UserDeclaredBuiltinShadows(t *testing.T) {
+func TestSynopsis_UserDeclaredBuiltinShadows(t *testing.T) {
 	t.Parallel()
 
 	t.Run("required help shadow renders in the synopsis", func(t *testing.T) {
@@ -611,9 +611,9 @@ func TestUsage_UserDeclaredBuiltinShadows(t *testing.T) {
 			},
 		}
 
-		usage := help.Usage([]*spec.Command{cmd})
+		synopsis := help.Synopsis([]*spec.Command{cmd})
 
-		assert.Equal(t, "Usage:\n  app --help=TOPIC", usage)
+		assert.Equal(t, "Usage:\n  app --help=TOPIC", synopsis)
 	})
 
 	t.Run("ancestor alias shadow stays in the leaf synopsis and Global Flags", func(t *testing.T) {
@@ -641,13 +641,13 @@ func TestUsage_UserDeclaredBuiltinShadows(t *testing.T) {
 			Flags: []*spec.Flag{spec.BuiltinHelpFlag},
 		}
 
-		usage := help.Usage([]*spec.Command{cmd})
+		synopsis := help.Synopsis([]*spec.Command{cmd})
 
-		assert.Equal(t, "Usage:\n  app", usage)
+		assert.Equal(t, "Usage:\n  app", synopsis)
 	})
 }
 
-func TestUsage_And_Hint(t *testing.T) {
+func TestSynopsis_And_Hint(t *testing.T) {
 	t.Parallel()
 
 	cmd := &spec.Command{
@@ -660,12 +660,12 @@ func TestUsage_And_Hint(t *testing.T) {
 		},
 	}
 
-	usage := help.Usage([]*spec.Command{cmd})
-	assert.Equal(t, "Usage:\n  mycmd <command> [flags]", usage)
+	synopsis := help.Synopsis([]*spec.Command{cmd})
+	assert.Equal(t, "Usage:\n  mycmd <command> [flags]", synopsis)
 	assert.Equal(t, "Run 'mycmd --help' for more information.", help.Hint([]*spec.Command{cmd}))
 }
 
-func TestUsage_RunnableBranchBracketsCommandToken(t *testing.T) {
+func TestSynopsis_RunnableBranchBracketsCommandToken(t *testing.T) {
 	t.Parallel()
 
 	cmd := &spec.Command{
@@ -675,10 +675,10 @@ func TestUsage_RunnableBranchBracketsCommandToken(t *testing.T) {
 		Subcommands: []*spec.Command{{Name: "sub"}},
 	}
 
-	assert.Equal(t, "Usage:\n  mycmd [<command>] [flags]", help.Usage([]*spec.Command{cmd}))
+	assert.Equal(t, "Usage:\n  mycmd [<command>] [flags]", help.Synopsis([]*spec.Command{cmd}))
 }
 
-func TestUsage_RunnableBranchWithOnlyHiddenSubcommandsOmitsCommandToken(t *testing.T) {
+func TestSynopsis_RunnableBranchWithOnlyHiddenSubcommandsOmitsCommandToken(t *testing.T) {
 	t.Parallel()
 
 	cmd := &spec.Command{
@@ -688,10 +688,10 @@ func TestUsage_RunnableBranchWithOnlyHiddenSubcommandsOmitsCommandToken(t *testi
 		Subcommands: []*spec.Command{{Name: "sub", Hidden: true}},
 	}
 
-	assert.Equal(t, "Usage:\n  mycmd [flags]", help.Usage([]*spec.Command{cmd}))
+	assert.Equal(t, "Usage:\n  mycmd [flags]", help.Synopsis([]*spec.Command{cmd}))
 }
 
-func TestUsage_NonRunnableBranchWithOnlyHiddenSubcommandsRequiresCommandToken(t *testing.T) {
+func TestSynopsis_NonRunnableBranchWithOnlyHiddenSubcommandsRequiresCommandToken(t *testing.T) {
 	t.Parallel()
 
 	cmd := &spec.Command{
@@ -700,10 +700,10 @@ func TestUsage_NonRunnableBranchWithOnlyHiddenSubcommandsRequiresCommandToken(t 
 		Subcommands: []*spec.Command{{Name: "sub", Hidden: true}},
 	}
 
-	assert.Equal(t, "Usage:\n  mycmd <command> [flags]", help.Usage([]*spec.Command{cmd}))
+	assert.Equal(t, "Usage:\n  mycmd <command> [flags]", help.Synopsis([]*spec.Command{cmd}))
 }
 
-func TestUsage_RequiredGlobalFlagsInSubcommandUsageLine(t *testing.T) {
+func TestSynopsis_RequiredGlobalFlagsInSubcommandUsageLine(t *testing.T) {
 	t.Parallel()
 
 	root := &spec.Command{
@@ -737,12 +737,12 @@ func TestUsage_RequiredGlobalFlagsInSubcommandUsageLine(t *testing.T) {
 		},
 	}
 
-	usage := help.Usage([]*spec.Command{root, root.Subcommands[0]})
+	synopsis := help.Synopsis([]*spec.Command{root, root.Subcommands[0]})
 
-	assert.Equal(t, "Usage:\n  app build --api-key=STRING --profile=\"dev\" <artifact>", usage)
+	assert.Equal(t, "Usage:\n  app build --api-key=STRING --profile=\"dev\" <artifact>", synopsis)
 }
 
-func TestUsage_OptionalGlobalFlagsAppendFlagsPlaceholder(t *testing.T) {
+func TestSynopsis_OptionalGlobalFlagsAppendFlagsPlaceholder(t *testing.T) {
 	t.Parallel()
 
 	root := &spec.Command{
@@ -771,12 +771,12 @@ func TestUsage_OptionalGlobalFlagsAppendFlagsPlaceholder(t *testing.T) {
 		},
 	}
 
-	usage := help.Usage([]*spec.Command{root, root.Subcommands[0]})
+	synopsis := help.Synopsis([]*spec.Command{root, root.Subcommands[0]})
 
-	assert.Equal(t, "Usage:\n  behave-conga build --profile=\"dev\" [flags] <artifact>", usage)
+	assert.Equal(t, "Usage:\n  behave-conga build --profile=\"dev\" [flags] <artifact>", synopsis)
 }
 
-func TestUsage_MixedGlobalFlagsRenderRequiredAndPlaceholder(t *testing.T) {
+func TestSynopsis_MixedGlobalFlagsRenderRequiredAndPlaceholder(t *testing.T) {
 	t.Parallel()
 
 	root := &spec.Command{
@@ -790,12 +790,12 @@ func TestUsage_MixedGlobalFlagsRenderRequiredAndPlaceholder(t *testing.T) {
 		},
 	}
 
-	usage := help.Usage([]*spec.Command{root, root.Subcommands[0]})
+	synopsis := help.Synopsis([]*spec.Command{root, root.Subcommands[0]})
 
-	assert.Equal(t, "Usage:\n  app build --api-key=STRING [flags]", usage)
+	assert.Equal(t, "Usage:\n  app build --api-key=STRING [flags]", synopsis)
 }
 
-func TestUsage_RequiredFlagsOnly_OmitsFlagsPlaceholder(t *testing.T) {
+func TestSynopsis_RequiredFlagsOnly_OmitsFlagsPlaceholder(t *testing.T) {
 	t.Parallel()
 
 	cmd := &spec.Command{
@@ -805,16 +805,16 @@ func TestUsage_RequiredFlagsOnly_OmitsFlagsPlaceholder(t *testing.T) {
 		},
 	}
 
-	usage := help.Usage([]*spec.Command{cmd})
+	synopsis := help.Synopsis([]*spec.Command{cmd})
 
-	assert.Equal(t, "Usage:\n  deploy --target=STRING", usage)
+	assert.Equal(t, "Usage:\n  deploy --target=STRING", synopsis)
 }
 
-// TestUsage_ArgTokensFromSchema verifies that the usage synopsis and the
+// TestSynopsis_ArgTokensFromSchema verifies that the usage synopsis and the
 // Arguments section derive an argument's repetition and optionality from the
 // schema while preserving author-supplied brackets: bracketed names keep a
 // single bracket pair, and the repetition marker lands inside the placeholder.
-func TestUsage_ArgTokensFromSchema(t *testing.T) {
+func TestSynopsis_ArgTokensFromSchema(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
@@ -875,16 +875,16 @@ func TestUsage_ArgTokensFromSchema(t *testing.T) {
 
 			cmd := &spec.Command{Name: "app", Args: []*spec.Arg{testCase.arg}}
 
-			usage := help.Usage([]*spec.Command{cmd})
+			synopsis := help.Synopsis([]*spec.Command{cmd})
 			formatted := help.Format([]*spec.Command{cmd})
 
-			assert.Equal(t, "Usage:\n  app "+testCase.wantToken, usage)
+			assert.Equal(t, "Usage:\n  app "+testCase.wantToken, synopsis)
 			assert.Contains(t, formatted, "Arguments:\n  "+testCase.wantToken+"  "+testCase.arg.Help)
 		})
 	}
 }
 
-func TestUsage_HiddenGlobalFlagsDoNotAffectUsageLine(t *testing.T) {
+func TestSynopsis_HiddenGlobalFlagsDoNotAffectUsageLine(t *testing.T) {
 	t.Parallel()
 
 	root := &spec.Command{
@@ -898,12 +898,12 @@ func TestUsage_HiddenGlobalFlagsDoNotAffectUsageLine(t *testing.T) {
 		},
 	}
 
-	usage := help.Usage([]*spec.Command{root, root.Subcommands[0]})
+	synopsis := help.Synopsis([]*spec.Command{root, root.Subcommands[0]})
 
-	assert.Equal(t, "Usage:\n  app build", usage)
+	assert.Equal(t, "Usage:\n  app build", synopsis)
 }
 
-func TestUsage_BuiltinLeavesExcludeGlobalFlags(t *testing.T) {
+func TestSynopsis_BuiltinLeavesExcludeGlobalFlags(t *testing.T) {
 	t.Parallel()
 
 	root := &spec.Command{
@@ -918,11 +918,11 @@ func TestUsage_BuiltinLeavesExcludeGlobalFlags(t *testing.T) {
 		},
 	}
 
-	helpUsage := help.Usage([]*spec.Command{root, subcommandByName(root, "help")})
-	assert.Equal(t, "Usage:\n  app help [<command>...]", helpUsage)
+	helpSynopsis := help.Synopsis([]*spec.Command{root, subcommandByName(root, "help")})
+	assert.Equal(t, "Usage:\n  app help [<command>...]", helpSynopsis)
 
-	versionUsage := help.Usage([]*spec.Command{root, subcommandByName(root, "version")})
-	assert.Equal(t, "Usage:\n  app version", versionUsage)
+	versionSynopsis := help.Synopsis([]*spec.Command{root, subcommandByName(root, "version")})
+	assert.Equal(t, "Usage:\n  app version", versionSynopsis)
 }
 
 func TestFormat_GlobalFlags(t *testing.T) {

@@ -411,7 +411,7 @@ Uses: `oneof`, `placeholder`
 
 [Source](https://github.com/conga-sh/conga/tree/main/_examples/10-builtins-help-version) · Guide: [How to customize help screens](/how-to/customize-help-screens/)
 
-A service tool with `help` and `version` commands, `-h` and `-V` as the short forms of `--help` and `--version`, and custom commands that render help, usage and version themselves. `help status` shows a multi-line description, examples and a footer.
+A service tool with `help` and `version` commands, `-h` and `-V` as the short forms of `--help` and `--version`, and custom commands that render help, synopsis and version themselves. `help status` shows a multi-line description, examples and a footer.
 
 :::code-tabs
 ```sh label="help status"
@@ -443,7 +443,7 @@ builtins-help-version has version 2.4.1 built with go1.27.3
 ```
 :::
 
-Uses: `HelpCommand`, `VersionCommand`, `App.HelpShortFlag`, `App.VersionShortFlag`, `App.Examples`, `App.HelpFooter`, `Session.Help`, `Session.Usage`, `Session.Version`
+Uses: `HelpCommand`, `VersionCommand`, `App.HelpShortFlag`, `App.VersionShortFlag`, `App.Examples`, `App.HelpFooter`, `Session.Help`, `Session.Synopsis`, `Session.Version`
 
 ### 16 help-variables
 
@@ -1036,7 +1036,7 @@ Uses: `ConfigFile`, `Features[T]`, `RequiredFlag[T]`, `DashArgs`, `executable`, 
 | `Session.Name` | [09](#09-deep-hierarchy-context) |
 | `Session.Path` | [09](#09-deep-hierarchy-context) |
 | `Session.Root` | [09](#09-deep-hierarchy-context) |
-| `Session.Usage` | [10](#10-builtins-help-version) |
+| `Session.Synopsis` | [10](#10-builtins-help-version) |
 | `Session.UsageErrorf` | [07](#07-dynamic-validation) |
 | `Session.Version` | [10](#10-builtins-help-version) |
 | `short` | [01](#01-minimal-hello) |

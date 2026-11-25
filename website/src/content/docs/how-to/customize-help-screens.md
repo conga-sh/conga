@@ -5,7 +5,7 @@ description: Add descriptions, examples, and footers, mark deprecated commands, 
 
 CONGA builds every help screen from your command structs. This guide adds the text around them, marks a deprecated command, assigns short flags to the built-ins, groups flags and commands into sections, and controls the hints that follow each flag.
 
-This guide builds a small `cloudctl` program with `deploy` and `rollout` subcommands. The [built-ins example](https://github.com/conga-sh/conga/tree/main/_examples/10-builtins-help-version) is a fuller program with custom help, usage, and version commands.
+This guide builds a small `cloudctl` program with `deploy` and `rollout` subcommands. The [built-ins example](https://github.com/conga-sh/conga/tree/main/_examples/10-builtins-help-version) is a fuller program with custom help, synopsis, and version commands.
 
 ## Describe the application
 
@@ -347,13 +347,13 @@ cloudctl: error: struct DeployCmd field Port: tag "help" references unknown vari
 
 ## Print help from your own command
 
-`session.Help()` returns the active command's help screen, and `session.Usage()` its usage line, as strings. Neither writes anything, so a command can page, reformat, or route them. This `guide` command prints its own usage string, quoted to show its exact content:
+`session.Help()` returns the active command's help screen, and `session.Synopsis()` the command's `Usage:` syntax lines, as strings. Neither writes anything, so a command can page, reformat, or route them. This `guide` command prints its own synopsis, quoted to show its exact content:
 
 ```go title="guide.go"
 type GuideCmd struct{}
 
 func (g *GuideCmd) Run(_ context.Context, session *conga.Session) error {
-	fmt.Fprintf(session.Stdout(), "%q\n", session.Usage())
+	fmt.Fprintf(session.Stdout(), "%q\n", session.Synopsis())
 
 	return nil
 }
@@ -364,7 +364,7 @@ $ cloudctl guide
 "Usage:\n  cloudctl guide [flags]"
 ```
 
-The usage string includes its `Usage:` heading, as on the help screen.
+The synopsis includes its `Usage:` heading, as on the help screen.
 
 ## Where to go next
 
@@ -372,4 +372,4 @@ The usage string includes its `Usage:` heading, as on the help screen.
 - [Help variables](/reference/struct-tags/#help-variables): the full variable catalog.
 - [How to gate features](/how-to/gate-behind-features/): the `Features:` section.
 - [How to deprecate flags and commands](/how-to/deprecate-flags-and-commands/): the deprecation markers and warnings.
-- [Built-ins example](https://github.com/conga-sh/conga/tree/main/_examples/10-builtins-help-version): custom help, usage, and version commands.
+- [Built-ins example](https://github.com/conga-sh/conga/tree/main/_examples/10-builtins-help-version): custom help, synopsis, and version commands.
