@@ -246,11 +246,11 @@ Collection starts after the last required positional, so words up to that point 
 | The user leaves out a required argument | Run | `missing required positional argument <source>`, exit 2 |
 | The user gives more words than the arguments take | Run | `unexpected argument "c"`, exit 2 |
 | The user puts a forwarded option before `--` | Run | `unknown flag: --delete`, exit 2 |
-| An `OptionalArg` is declared before a `RequiredArg` | Startup | `schema error: invalid positional argument order: optional positional argument cannot precede required positional argument <source>`, exit 1 |
-| A slice argument is followed by another positional argument | Startup | `schema error: invalid positional argument order: slice argument <sources> must be the last positional argument`, exit 1 |
-| A slice or optional argument comes before `RawArgs` | Startup | `schema error: raw args requires a deterministic positional prefix`, exit 1 |
-| A command declares both positional arguments and subcommands | Startup | `schema error: positional argument Target cannot be combined with subcommand Check`, exit 1 |
-| A `DashArgs` or `RawArgs` `help` tag uses a variable such as `{{enum}}` | Startup | `schema error: invalid struct tag: tag "help" references {{enum}}, but the field provides no value for that variable`, exit 1 |
+| An `OptionalArg` is declared before a `RequiredArg` | Startup | `struct Mirror field Source: optional positional argument cannot precede required positional argument <source>`, exit 1 |
+| A slice argument is followed by another positional argument | Startup | `struct Mirror field Extra: slice argument <sources> must be the last positional argument`, exit 1 |
+| A slice or optional argument comes before `RawArgs` | Startup | `struct Mirror field Rsync: raw args requires a deterministic positional prefix: positional argument <target> must be a required scalar`, with a `hint: …` line, exit 1 |
+| A command declares both positional arguments and subcommands | Startup | `struct Mirror field Check: positional argument Target cannot be combined with subcommand Check`, with a `hint: …` line, exit 1 |
+| A `DashArgs` or `RawArgs` `help` tag uses a variable such as `{{enum}}` | Startup | `struct Mirror field Rsync: tag "help" references {{enum}}, but the field provides no value for that variable`, exit 1 |
 
 ## Where to go next
 

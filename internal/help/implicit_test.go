@@ -10,7 +10,7 @@ import (
 	"github.com/conga-sh/conga/internal/spec"
 )
 
-func TestUsage_ImplicitCommandBracketsCommandToken(t *testing.T) {
+func TestSynopsis_ImplicitCommandBracketsCommandToken(t *testing.T) {
 	t.Parallel()
 
 	cmd := &spec.Command{
@@ -21,9 +21,9 @@ func TestUsage_ImplicitCommandBracketsCommandToken(t *testing.T) {
 		},
 	}
 
-	usage := help.Usage([]*spec.Command{cmd})
+	synopsis := help.Synopsis([]*spec.Command{cmd})
 
-	assert.Equal(t, "Usage:\n  tool [<command>] [flags]", usage)
+	assert.Equal(t, "Usage:\n  tool [<command>] [flags]", synopsis)
 }
 
 func TestFormat_ImplicitCommandMarksDefaultInDeclarationOrder(t *testing.T) {

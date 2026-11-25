@@ -28,8 +28,15 @@
 // was written in full or with an exponent (1e30), as is a number that
 // overflows float64.
 //
+// # Errors
+//
 // Parse and semantic failures (undefined variables) and these rejections are
-// returned as errors, and an empty document decodes to an empty map.
+// returned as errors, and an empty document decodes to an empty map. An error
+// names its position as "line N, column N" and no file name. The decoder sees
+// only the bytes, and the configuration engine names the file in the message
+// it wraps the error in. A parse or semantic failure's message is the first
+// HCL diagnostic's summary, its Note method returns that diagnostic's detail,
+// and the HCL library's Diagnostics value stays reachable through errors.As.
 package hcl
 
 import (
@@ -51,9 +58,9 @@ const (
 
 // Decode decodes HCL bytes into the generic map[string]any structure the configuration engine matches against flag bindings.
 func Decode(data []byte) (map[string]any, error) {
-	file, diags := hclsyntax.ParseConfig(data, "config.hcl", hcl.Pos{Line: 1, Column: 1})
+	file, diags := hclsyntax.ParseConfig(data, "", hcl.Pos{Line: 1, Column: 1})
 	if diags.HasErrors() {
-		return nil, diags
+		return nil, &diagnosticsError{diagnostics: diags}
 	}
 
 	body, ok := file.Body.(*hclsyntax.Body)
@@ -62,6 +69,71 @@ func Decode(data []byte) (map[string]any, error) {
 	}
 
 	return decodeHCLBody(body)
+}
+
+// diagnosticsError reports HCL's own parse or evaluation diagnostics. Its
+// message is the first error's position and summary, and its note is that
+// error's detail.
+type diagnosticsError struct {
+	diagnostics hcl.Diagnostics
+}
+
+func (e *diagnosticsError) Error() string {
+	first, others := e.first()
+	if first == nil {
+		return e.diagnostics.Error()
+	}
+
+	message := first.Summary
+	if first.Subject != nil {
+		message = position(*first.Subject) + ": " + message
+	}
+
+	if others > 0 {
+		message += fmt.Sprintf(", and %d other diagnostic(s)", others)
+	}
+
+	return message
+}
+
+// Note returns the first error's detail, or "".
+func (e *diagnosticsError) Note() string {
+	if first, _ := e.first(); first != nil {
+		return first.Detail
+	}
+
+	return ""
+}
+
+func (e *diagnosticsError) Unwrap() error {
+	return e.diagnostics
+}
+
+// first returns the first error-severity diagnostic and the number of other
+// error-severity diagnostics. Without an error it returns the first diagnostic
+// of any severity, and nil for an empty list.
+func (e *diagnosticsError) first() (*hcl.Diagnostic, int) {
+	var first *hcl.Diagnostic
+
+	others := 0
+
+	for _, diagnostic := range e.diagnostics {
+		if diagnostic.Severity != hcl.DiagError {
+			continue
+		}
+
+		if first == nil {
+			first = diagnostic
+		} else {
+			others++
+		}
+	}
+
+	if first == nil && len(e.diagnostics) > 0 {
+		return e.diagnostics[0], 0
+	}
+
+	return first, others
 }
 
 // numberRangeError reports an HCL number that no int64, uint64, or float64
@@ -93,15 +165,34 @@ func (e *structureError) Error() string {
 	case structureBodyType:
 		return "unexpected HCL body type " + e.bodyType
 	case structureLabeledBlock:
-		return fmt.Sprintf("%s: block %q has labels %q; labeled blocks are not supported, use an unlabeled block",
-			e.position, e.blockType, e.labels)
+		return fmt.Sprintf("%s: block %q has labels %q", position(e.position), e.blockType, e.labels)
 	case structureDuplicateBlock:
-		return fmt.Sprintf("%s: duplicate block %q, first declared at %s", e.position, e.blockType, e.other)
+		return fmt.Sprintf("%s: duplicate block %q, first declared at %s", position(e.position), e.blockType, position(e.other))
 	case structureAttributeConflict:
-		return fmt.Sprintf("%s: block %q conflicts with the attribute of the same name at %s", e.position, e.blockType, e.other)
+		return fmt.Sprintf("%s: block %q conflicts with the attribute of the same name at %s", position(e.position), e.blockType, position(e.other))
 	default:
 		return "invalid HCL structure"
 	}
+}
+
+// Note says why a labeled block is rejected, and is empty for the other
+// structure errors.
+func (e *structureError) Note() string {
+	if e.kind == structureLabeledBlock {
+		return "labeled blocks are not supported"
+	}
+
+	return ""
+}
+
+// Hint says how to write a labeled block the decoder accepts, and is empty for
+// the other structure errors.
+func (e *structureError) Hint() string {
+	if e.kind == structureLabeledBlock {
+		return "use an unlabeled block"
+	}
+
+	return ""
 }
 
 func decodeHCLBody(body *hclsyntax.Body) (map[string]any, error) {
@@ -110,12 +201,12 @@ func decodeHCLBody(body *hclsyntax.Body) (map[string]any, error) {
 	for name, attr := range body.Attributes {
 		value, diags := attr.Expr.Value(nil)
 		if diags.HasErrors() {
-			return nil, diags
+			return nil, &diagnosticsError{diagnostics: diags}
 		}
 
 		converted, err := convertCtyValue(value)
 		if err != nil {
-			return nil, fmt.Errorf("%s: attribute %q: %w", attr.SrcRange, name, err)
+			return nil, fmt.Errorf("%s: attribute %q: %w", position(attr.SrcRange), name, err)
 		}
 
 		result[name] = converted
@@ -234,4 +325,10 @@ func formatOversized(bigFloat *big.Float) string {
 	}
 
 	return bigFloat.Text('g', 10)
+}
+
+// position renders where a range starts, without a file name. The decoder
+// parses bytes, so the caller names the file.
+func position(r hcl.Range) string {
+	return fmt.Sprintf("line %d, column %d", r.Start.Line, r.Start.Column)
 }

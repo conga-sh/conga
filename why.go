@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"github.com/conga-sh/conga/internal/configdata"
+	"github.com/conga-sh/conga/internal/envx"
 	"github.com/conga-sh/conga/internal/pathx"
 	"github.com/conga-sh/conga/internal/slicex"
 	"github.com/conga-sh/conga/internal/spec"
@@ -73,7 +74,12 @@ func (a *App[T]) resolveWhyFormat(cmdChain []*spec.Command, rawFormat string) (s
 	default:
 		shown := truncateForDisplay(rawFormat)
 
-		return "", usageErrorf(cmdChain, "invalid value %q (must be one of: text, json) for --why", shown).
+		invalid := &inputError{
+			msg:  fmt.Sprintf("invalid value %q for --why", shown),
+			note: "accepted values: text, json",
+		}
+
+		return "", usageErrorFrom(cmdChain, invalid).
 			withShape(usageShapeLineOnly)
 	}
 }
@@ -97,7 +103,7 @@ func (a *App[T]) renderWhy(session *Session, rawFormat string) error {
 
 func (a *App[T]) renderWhyString(session *Session, format string) string {
 	report := a.buildWhyReport(session)
-	report.Color = why.IsColorEnabled(session.Stdout())
+	report.Color = envx.ColorEnabled(session.Stdout())
 
 	if format == spec.WhyFormatJSON {
 		if a.whyHooks != nil && a.whyHooks.jsonFormatter != nil {

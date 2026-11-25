@@ -32,6 +32,11 @@ type DotenvError struct {
 	Path  string
 	Msg   string
 	Cause error
+
+	// namesOrigin reports that the error prints a "from:" line naming Path.
+	// Only the failure to set an environment variable does: the read and
+	// parse failures name the file in their message.
+	namesOrigin bool
 }
 
 func (e *DotenvError) Error() string {
@@ -44,6 +49,17 @@ func (e *DotenvError) Error() string {
 	}
 
 	return "dotenv error"
+}
+
+// Origins returns the ".env file" origin of an error that sets an environment
+// variable from the file. The read and parse errors name the file in their
+// message and return nil.
+func (e *DotenvError) Origins() []string {
+	if !e.namesOrigin {
+		return nil
+	}
+
+	return []string{fmt.Sprintf(".env file %q", e.Path)}
 }
 
 func (e *DotenvError) Unwrap() error {
@@ -274,6 +290,8 @@ func loadSingleFile(set func(key, value string) error, path string, mustExist bo
 				Path:  path,
 				Msg:   fmt.Sprintf("cannot set environment variable %q: %v", key, err),
 				Cause: err,
+
+				namesOrigin: true,
 			}
 		}
 

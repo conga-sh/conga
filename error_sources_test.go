@@ -14,6 +14,7 @@ import (
 
 	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/decoder/json"
+	"github.com/conga-sh/conga/internal/errlines"
 )
 
 //go:embed testdata/errors/stdin_read_twice.golden
@@ -102,6 +103,8 @@ func TestErrorSources(t *testing.T) {
 		config     string
 		run        func(t *testing.T, config string) classificationRunResult
 		message    string
+		from       string // the origin line, or "" for none
+		note       string // the note line, or "" for none
 		causeType  string
 		usage      bool
 		exitCode   int
@@ -150,7 +153,8 @@ func TestErrorSources(t *testing.T) {
 			name:       "flag conversion from the environment",
 			environ:    map[string]string{"SRC_PORT": "abc"},
 			run:        flagsRun(),
-			message:    `invalid integer value "abc" for flag --port (from environment variable SRC_PORT)`,
+			message:    `invalid integer value "abc" for flag --port`,
+			from:       `environment variable SRC_PORT`,
 			causeType:  "*coerce.numError",
 			usage:      false,
 			exitCode:   1,
@@ -160,7 +164,8 @@ func TestErrorSources(t *testing.T) {
 			name:       "flag conversion from the config file",
 			config:     `{"port": "abc"}`,
 			run:        flagsRun(),
-			message:    `invalid integer value "abc" for flag --port (from config key "port")`,
+			message:    `invalid integer value "abc" for flag --port`,
+			from:       `config key "port"`,
 			causeType:  "*coerce.numError",
 			usage:      false,
 			exitCode:   1,
@@ -173,7 +178,8 @@ func TestErrorSources(t *testing.T) {
 
 				return runClassification(t, conga.New[sourceDefaultsCLI]().Args([]string{"--size", "5", "--items", "a=1,b=2", "--even", "2"}))
 			},
-			message:    `invalid integer value "abc" for flag --port (from default value)`,
+			message:    `invalid integer value "abc" for flag --port`,
+			from:       `default value`,
 			causeType:  "*coerce.numError",
 			usage:      false,
 			exitCode:   1,
@@ -183,7 +189,8 @@ func TestErrorSources(t *testing.T) {
 			name:       "counter count from the environment",
 			environ:    map[string]string{"SRC_V": "-1"},
 			run:        flagsRun(),
-			message:    `invalid unsigned integer value "-1" for flag --v (from environment variable SRC_V)`,
+			message:    `invalid unsigned integer value "-1" for flag --v`,
+			from:       `environment variable SRC_V`,
 			causeType:  "*intx.Error",
 			usage:      false,
 			exitCode:   1,
@@ -193,7 +200,8 @@ func TestErrorSources(t *testing.T) {
 			name:       "counter count from the config file",
 			config:     `{"v": "-1"}`,
 			run:        flagsRun(),
-			message:    `invalid unsigned integer value "-1" for flag --v (from config key "v")`,
+			message:    `invalid unsigned integer value "-1" for flag --v`,
+			from:       `config key "v"`,
 			causeType:  "*intx.Error",
 			usage:      false,
 			exitCode:   1,
@@ -212,7 +220,8 @@ func TestErrorSources(t *testing.T) {
 			name:       "map entry conversion from the environment",
 			environ:    map[string]string{"SRC_LIMITS": "a=x"},
 			run:        flagsRun(),
-			message:    `value for key "a": invalid integer value "x" for flag --limits (from environment variable SRC_LIMITS)`,
+			message:    `value for key "a": invalid integer value "x" for flag --limits`,
+			from:       `environment variable SRC_LIMITS`,
 			causeType:  "*conga.mapEntryError",
 			usage:      false,
 			exitCode:   1,
@@ -222,7 +231,8 @@ func TestErrorSources(t *testing.T) {
 			name:       "map entry conversion from the config file",
 			config:     `{"limits": {"a": "x"}}`,
 			run:        flagsRun(),
-			message:    `value for key "a": invalid integer value "x" for flag --limits (from config key "limits")`,
+			message:    `value for key "a": invalid integer value "x" for flag --limits`,
+			from:       `config key "limits"`,
 			causeType:  "*conga.mapEntryError",
 			usage:      false,
 			exitCode:   1,
@@ -240,7 +250,8 @@ func TestErrorSources(t *testing.T) {
 		{
 			name:       "argument conversion from a default",
 			run:        argRun[sourceDefaultArgCLI](),
-			message:    `invalid integer value "abc" for argument [count] (from default value)`,
+			message:    `invalid integer value "abc" for argument [count]`,
+			from:       `default value`,
 			causeType:  "*coerce.numError",
 			usage:      false,
 			exitCode:   1,
@@ -250,7 +261,8 @@ func TestErrorSources(t *testing.T) {
 		{
 			name:       "enum from the command line",
 			run:        flagsRun("--level", "mid"),
-			message:    `invalid value "mid" (must be one of: low, high) for flag --level`,
+			message:    `invalid value "mid" for flag --level`,
+			note:       `accepted values: low, high`,
 			usage:      true,
 			exitCode:   2,
 			usageShown: false,
@@ -259,7 +271,9 @@ func TestErrorSources(t *testing.T) {
 			name:       "enum from the environment",
 			environ:    map[string]string{"SRC_LEVEL": "mid"},
 			run:        flagsRun(),
-			message:    `invalid value "mid" (must be one of: low, high) for flag --level (from environment variable SRC_LEVEL)`,
+			message:    `invalid value "mid" for flag --level`,
+			from:       `environment variable SRC_LEVEL`,
+			note:       `accepted values: low, high`,
 			usage:      false,
 			exitCode:   1,
 			usageShown: false,
@@ -268,7 +282,9 @@ func TestErrorSources(t *testing.T) {
 			name:       "enum from the config file",
 			config:     `{"level": "mid"}`,
 			run:        flagsRun(),
-			message:    `invalid value "mid" (must be one of: low, high) for flag --level (from config key "level")`,
+			message:    `invalid value "mid" for flag --level`,
+			from:       `config key "level"`,
+			note:       `accepted values: low, high`,
 			usage:      false,
 			exitCode:   1,
 			usageShown: false,
@@ -285,7 +301,8 @@ func TestErrorSources(t *testing.T) {
 			name:       "range from the environment",
 			environ:    map[string]string{"SRC_SIZE": "11"},
 			run:        flagsRun(),
-			message:    `value 11 is out of range [1..10] for flag --size (from environment variable SRC_SIZE)`,
+			message:    `value 11 is out of range [1..10] for flag --size`,
+			from:       `environment variable SRC_SIZE`,
 			usage:      false,
 			exitCode:   1,
 			usageShown: false,
@@ -294,7 +311,8 @@ func TestErrorSources(t *testing.T) {
 			name:       "range from the config file",
 			config:     `{"size": 11}`,
 			run:        flagsRun(),
-			message:    `value 11 is out of range [1..10] for flag --size (from config key "size")`,
+			message:    `value 11 is out of range [1..10] for flag --size`,
+			from:       `config key "size"`,
 			usage:      false,
 			exitCode:   1,
 			usageShown: false,
@@ -306,7 +324,8 @@ func TestErrorSources(t *testing.T) {
 
 				return runClassification(t, conga.New[sourceDefaultsCLI]().Args([]string{"--port", "1", "--items", "a=1,b=2", "--even", "2"}))
 			},
-			message:    `value 11 is out of range [1..10] for flag --size (from default value)`,
+			message:    `value 11 is out of range [1..10] for flag --size`,
+			from:       `default value`,
 			usage:      false,
 			exitCode:   1,
 			usageShown: false,
@@ -323,7 +342,8 @@ func TestErrorSources(t *testing.T) {
 			name:       "length from the environment",
 			environ:    map[string]string{"SRC_LABEL": "ab"},
 			run:        flagsRun(),
-			message:    `value "ab" length 2 is out of range [3..5] for flag --label (from environment variable SRC_LABEL)`,
+			message:    `value "ab" length 2 is out of range [3..5] for flag --label`,
+			from:       `environment variable SRC_LABEL`,
 			usage:      false,
 			exitCode:   1,
 			usageShown: false,
@@ -340,7 +360,8 @@ func TestErrorSources(t *testing.T) {
 			name:       "item count from the config file",
 			config:     `{"zones": ["a"]}`,
 			run:        flagsRun(),
-			message:    `item count 1 is out of range [2..3] for flag --zones (from config key "zones")`,
+			message:    `item count 1 is out of range [2..3] for flag --zones`,
+			from:       `config key "zones"`,
 			usage:      false,
 			exitCode:   1,
 			usageShown: false,
@@ -352,7 +373,8 @@ func TestErrorSources(t *testing.T) {
 
 				return runClassification(t, conga.New[sourceDefaultsCLI]().Args([]string{"--port", "1", "--size", "5", "--even", "2"}))
 			},
-			message:    `item count 1 is out of range [2..3] for flag --items (from default value)`,
+			message:    `item count 1 is out of range [2..3] for flag --items`,
+			from:       `default value`,
 			usage:      false,
 			exitCode:   1,
 			usageShown: false,
@@ -379,7 +401,8 @@ func TestErrorSources(t *testing.T) {
 			name:       "validator from the environment",
 			environ:    map[string]string{"SRC_SINGLE": "3"},
 			run:        flagsRun(),
-			message:    `value 3 is odd for flag --single (from environment variable SRC_SINGLE)`,
+			message:    `value 3 is odd for flag --single`,
+			from:       `environment variable SRC_SINGLE`,
 			causeType:  "*errors.errorString",
 			usage:      false,
 			exitCode:   1,
@@ -398,7 +421,8 @@ func TestErrorSources(t *testing.T) {
 			name:       "map entry validator from the config file",
 			config:     `{"evens": {"a": "3"}}`,
 			run:        flagsRun(),
-			message:    `value 3 is odd for flag --evens entry "a" (from config key "evens")`,
+			message:    `value 3 is odd for flag --evens entry "a"`,
+			from:       `config key "evens"`,
 			causeType:  "*errors.errorString",
 			usage:      false,
 			exitCode:   1,
@@ -411,7 +435,8 @@ func TestErrorSources(t *testing.T) {
 
 				return runClassification(t, conga.New[sourceDefaultsCLI]().Args([]string{"--port", "1", "--size", "5", "--items", "a=1,b=2"}))
 			},
-			message:    `value 3 is odd for flag --even (from default value)`,
+			message:    `value 3 is odd for flag --even`,
+			from:       `default value`,
 			causeType:  "*errors.errorString",
 			usage:      false,
 			exitCode:   1,
@@ -421,7 +446,8 @@ func TestErrorSources(t *testing.T) {
 		{
 			name:       "help flag with a bad boolean",
 			run:        flagsRun("--help=maybe"),
-			message:    `invalid boolean value "maybe", expected true or false (or 1 or 0) for flag --help`,
+			message:    `invalid boolean value "maybe" for flag --help`,
+			note:       `expected true or false (or 1 or 0)`,
 			causeType:  "*coerce.booleanError",
 			usage:      true,
 			exitCode:   2,
@@ -430,7 +456,8 @@ func TestErrorSources(t *testing.T) {
 		{
 			name:       "version flag with a bad boolean",
 			run:        flagsRun("--version=maybe"),
-			message:    `invalid boolean value "maybe", expected true or false (or 1 or 0) for flag --version`,
+			message:    `invalid boolean value "maybe" for flag --version`,
+			note:       `expected true or false (or 1 or 0)`,
 			causeType:  "*coerce.booleanError",
 			usage:      true,
 			exitCode:   2,
@@ -472,8 +499,33 @@ func TestErrorSources(t *testing.T) {
 			assert.Equal(t, testCase.usage, isUsage)
 			assert.Equal(t, testCase.causeType, causeTypeOf(result.err))
 			assert.Equal(t, testCase.exitCode, result.exitCode)
+			assert.Equal(t, testCase.note, errlines.Note(result.err))
 
 			expectedPrefix := "app: error: " + testCase.message + "\n"
+
+			if testCase.from != "" {
+				from := testCase.from
+				if testCase.config != "" && strings.HasPrefix(from, "config key ") {
+					// A config value names its file, which the table can't spell.
+					origins := errlines.Origins(result.err)
+
+					assert.Equal(t, 1, len(origins))
+					assert.True(t, strings.HasPrefix(origins[0], from+` in config file "`))
+					assert.True(t, strings.HasSuffix(origins[0], `config.json"`))
+
+					from = origins[0]
+				}
+
+				assert.Equal(t, []string{from}, errlines.Origins(result.err))
+
+				expectedPrefix += "  from: " + from + "\n"
+			} else {
+				assert.Zero(t, errlines.Origins(result.err))
+			}
+
+			if testCase.note != "" {
+				expectedPrefix += "  note: " + testCase.note + "\n"
+			}
 
 			assert.True(t, strings.HasPrefix(result.output, expectedPrefix))
 			assert.Equal(t, testCase.usageShown, strings.Contains(result.output, "\nUsage:\n"))

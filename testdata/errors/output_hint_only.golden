@@ -1,0 +1,2 @@
+app: error: flag --config requires a registered config decoder
+  hint: call App.RegisterDecoder with a format decoder (e.g. decoder/json)

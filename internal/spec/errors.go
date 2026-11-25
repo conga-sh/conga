@@ -3,7 +3,8 @@ package spec
 import (
 	"errors"
 	"fmt"
-	"strings"
+
+	"github.com/conga-sh/conga/internal/errlines"
 )
 
 // SchemaError reports a command schema defect discovered during schema build
@@ -19,23 +20,10 @@ type SchemaError struct {
 	cause      error
 }
 
-// Error renders the message followed by the labelled note and hint, as in
-// `message (note: ...; hint: ...)`.
+// Error returns the message alone. The note and hint are separate pieces,
+// read through Note and Hint, and App.Exit prints them on their own lines.
 func (e *SchemaError) Error() string {
-	var builder strings.Builder
-
-	builder.WriteString(e.Message())
-
-	switch {
-	case e.note != "" && e.hint != "":
-		builder.WriteString(" (note: " + e.note + "; hint: " + e.hint + ")")
-	case e.note != "":
-		builder.WriteString(" (note: " + e.note + ")")
-	case e.hint != "":
-		builder.WriteString(" (hint: " + e.hint + ")")
-	}
-
-	return builder.String()
+	return e.Message()
 }
 
 // Message returns the defect statement with its owner prefix
@@ -53,14 +41,24 @@ func (e *SchemaError) Message() string {
 	return owner + ": " + e.msg
 }
 
-// Note returns the detail on the defect, or "" when there is none.
+// Note returns the detail on the defect. When the error has none it returns its
+// cause's, by the chain rule, or "".
 func (e *SchemaError) Note() string {
-	return e.note
+	if e.note != "" {
+		return e.note
+	}
+
+	return errlines.Note(e.cause)
 }
 
-// Hint returns the action that fixes the defect, or "" when there is none.
+// Hint returns the action that fixes the defect. When the error has none it
+// returns its cause's, by the chain rule, or "".
 func (e *SchemaError) Hint() string {
-	return e.hint
+	if e.hint != "" {
+		return e.hint
+	}
+
+	return errlines.Hint(e.cause)
 }
 
 // Unwrap returns the underlying cause when the schema error wraps one.

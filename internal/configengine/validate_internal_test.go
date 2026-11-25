@@ -6,6 +6,7 @@ import (
 	"github.com/alecthomas/assert/v2"
 
 	"github.com/conga-sh/conga/internal/configdata"
+	"github.com/conga-sh/conga/internal/errlines"
 	"github.com/conga-sh/conga/internal/spec"
 )
 
@@ -28,7 +29,11 @@ func TestValidateCommandConfig_ExcludedFlagByName(t *testing.T) {
 	dest := configdata.New()
 	err := validateCommandConfig(map[string]any{"token": "secret"}, cmd, dest, "config.yaml")
 
-	assert.Equal(t, `config file "config.yaml": field "token" is excluded from config files in command "app"`, err.Error())
+	assert.Equal(t, `field "token" is excluded from config files in command "app"`, err.Error())
+
+	assert.Equal(t, []string{`config file "config.yaml"`}, errlines.Origins(err))
+
+	assert.Equal(t, ``, errlines.Hint(err))
 }
 
 // Aliases are not config keys, so an excluded flag's alias is simply unknown.
@@ -43,7 +48,11 @@ func TestValidateCommandConfig_ExcludedFlagAliasIsUnknown(t *testing.T) {
 	dest := configdata.New()
 	err := validateCommandConfig(map[string]any{"auth-token": "secret"}, cmd, dest, "config.yaml")
 
-	assert.Equal(t, `config file "config.yaml": unknown field "auth-token" in command "app"`, err.Error())
+	assert.Equal(t, `unknown field "auth-token" in command "app"`, err.Error())
+
+	assert.Equal(t, []string{`config file "config.yaml"`}, errlines.Origins(err))
+
+	assert.Equal(t, ``, errlines.Hint(err))
 }
 
 func TestValidateCommandConfig_UnknownSection(t *testing.T) {
@@ -248,7 +257,11 @@ func TestValidateNamespaceConfig_NonMapFlagWithNestedValueStillErrors(t *testing
 		},
 	}, cmd, dest, "remote.yaml")
 
-	assert.Equal(t, `config file "remote.yaml": field "tags" in namespace "remote" is not a map`, err.Error())
+	assert.Equal(t, `field "tags" in namespace "remote" is not a map`, err.Error())
+
+	assert.Equal(t, []string{`config file "remote.yaml"`}, errlines.Origins(err))
+
+	assert.Equal(t, ``, errlines.Hint(err))
 }
 
 func TestValidateNamespaceConfig_UnknownNestedSectionRejected(t *testing.T) {
@@ -267,7 +280,11 @@ func TestValidateNamespaceConfig_UnknownNestedSectionRejected(t *testing.T) {
 		},
 	}, cmd, dest, "config.toml")
 
-	assert.Equal(t, `config file "config.toml": unknown section "hots" in namespace "db" (did you mean "host"?)`, err.Error())
+	assert.Equal(t, `unknown section "hots" in namespace "db"`, err.Error())
+
+	assert.Equal(t, []string{`config file "config.toml"`}, errlines.Origins(err))
+
+	assert.Equal(t, `did you mean "host"?`, errlines.Hint(err))
 }
 
 func TestValidateNamespaceConfig_SubcommandScalarFlagReportsNotAMap(t *testing.T) {
@@ -293,7 +310,11 @@ func TestValidateNamespaceConfig_SubcommandScalarFlagReportsNotAMap(t *testing.T
 		},
 	}, root, dest, "app.toml")
 
-	assert.Equal(t, `config file "app.toml": field "port" in namespace "deploy.cache" is not a map`, err.Error())
+	assert.Equal(t, `field "port" in namespace "deploy.cache" is not a map`, err.Error())
+
+	assert.Equal(t, []string{`config file "app.toml"`}, errlines.Origins(err))
+
+	assert.Equal(t, ``, errlines.Hint(err))
 }
 
 func TestValidateCommandConfig_SubcommandNamespaceErrorLabel(t *testing.T) {
@@ -375,7 +396,7 @@ func TestValidateDocument_ScalarStoresOrigin(t *testing.T) {
 	value, exists := dest.ScalarValue("host")
 
 	assert.True(t, exists)
-	assert.Equal(t, configdata.Value{Raw: "doc.example.com", Origin: "embedded defaults"}, value)
+	assert.Equal(t, configdata.Value{Raw: "doc.example.com", Origin: "embedded defaults", Document: true}, value)
 }
 
 func TestValidateDocument_StringMapSectionStoresOrigin(t *testing.T) {
@@ -394,7 +415,7 @@ func TestValidateDocument_StringMapSectionStoresOrigin(t *testing.T) {
 	entries := dest.Map("headers")
 
 	assert.Equal(t, 1, len(entries))
-	assert.Equal(t, configdata.Value{Raw: "eu", Origin: "taskrc"}, entries["Region"])
+	assert.Equal(t, configdata.Value{Raw: "eu", Origin: "taskrc", Document: true}, entries["Region"])
 }
 
 func TestValidateDocument_UnknownKeyAttributesOrigin(t *testing.T) {
@@ -408,8 +429,38 @@ func TestValidateDocument_UnknownKeyAttributesOrigin(t *testing.T) {
 	err := ValidateDocument(map[string]any{"hots": "x"}, cmd, configdata.New(), "taskrc", "")
 
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), `config file "taskrc"`)
-	assert.Contains(t, err.Error(), `unknown field "hots" in command "app"`)
+	assert.Equal(t, `unknown field "hots" in command "app"`, err.Error())
+	assert.Equal(t, []string{`set by taskrc`}, errlines.Origins(err))
+	assert.Equal(t, `did you mean "host"?`, errlines.Hint(err))
+}
+
+func TestValidateDocument_ScopedOriginNamesLabelAndScope(t *testing.T) {
+	t.Parallel()
+
+	cmd := &spec.Command{
+		Name:  "app",
+		Flags: []*spec.Flag{{Name: "host"}},
+	}
+
+	err := ValidateDocument(map[string]any{"hots": "x"}, cmd, configdata.New(), "profiles.yaml", "dev")
+
+	assert.Error(t, err)
+	assert.Equal(t, []string{`set by profiles.yaml › dev`}, errlines.Origins(err))
+}
+
+func TestValidateDocument_EmptyOriginHasNoOriginLine(t *testing.T) {
+	t.Parallel()
+
+	cmd := &spec.Command{
+		Name:  "app",
+		Flags: []*spec.Flag{{Name: "host"}},
+	}
+
+	err := ValidateDocument(map[string]any{"hots": "x"}, cmd, configdata.New(), "", "dev")
+
+	assert.Error(t, err)
+	assert.Equal(t, `unknown field "hots" in command "app"`, err.Error())
+	assert.Zero(t, errlines.Origins(err))
 }
 
 func TestValidateDocument_StoresOriginAndScope(t *testing.T) {
@@ -431,9 +482,9 @@ func TestValidateDocument_StoresOriginAndScope(t *testing.T) {
 	scalar, exists := dest.ScalarValue("host")
 
 	assert.True(t, exists)
-	assert.Equal(t, configdata.Value{Raw: "doc.example.com", Origin: "pipeline.yaml", Scope: "jobs/deploy"}, scalar)
+	assert.Equal(t, configdata.Value{Raw: "doc.example.com", Origin: "pipeline.yaml", Scope: "jobs/deploy", Document: true}, scalar)
 	assert.Equal(t, "pipeline.yaml › jobs/deploy", scalar.SourceDetail())
-	assert.Equal(t, configdata.Value{Raw: "eu", Origin: "pipeline.yaml", Scope: "jobs/deploy"}, dest.Map("headers")["Region"])
+	assert.Equal(t, configdata.Value{Raw: "eu", Origin: "pipeline.yaml", Scope: "jobs/deploy", Document: true}, dest.Map("headers")["Region"])
 }
 
 func TestValidateDocument_EmptyOriginIgnoresScope(t *testing.T) {
@@ -452,7 +503,7 @@ func TestValidateDocument_EmptyOriginIgnoresScope(t *testing.T) {
 	value, exists := dest.ScalarValue("host")
 
 	assert.True(t, exists)
-	assert.Equal(t, configdata.Value{Raw: "localhost"}, value)
+	assert.Equal(t, configdata.Value{Raw: "localhost", Document: true}, value)
 }
 
 func TestHandleNestedSection_ScalarFlagReportsNotAMap(t *testing.T) {
@@ -467,7 +518,9 @@ func TestHandleNestedSection_ScalarFlagReportsNotAMap(t *testing.T) {
 	err := validateCommandConfig(map[string]any{"port": map[string]any{"http": 8080}}, cmd, dest, "taskrc")
 
 	assert.Error(t, err)
-	assert.Equal(t, `config file "taskrc": field "port" in command "app" is not a map`, err.Error())
+	assert.Equal(t, `field "port" in command "app" is not a map`, err.Error())
+	assert.Equal(t, []string{`config file "taskrc"`}, errlines.Origins(err))
+	assert.Equal(t, ``, errlines.Hint(err))
 	assert.NotContains(t, err.Error(), "did you mean")
 }
 
@@ -475,10 +528,10 @@ func TestValidateCommandConfig_OtherSpellingsRejected(t *testing.T) {
 	t.Parallel()
 
 	messages := map[string]string{
-		"dry_run": `config file "config.yaml": unknown field "dry_run" in command "app" (did you mean "dry-run"?)`,
-		"dryRun":  `config file "config.yaml": unknown field "dryRun" in command "app" (did you mean "dry-run"?)`,
-		"Dry-Run": `config file "config.yaml": unknown field "Dry-Run" in command "app" (did you mean "dry-run"?)`,
-		"n":       `config file "config.yaml": unknown field "n" in command "app"`,
+		"dry_run": `unknown field "dry_run" in command "app"`,
+		"dryRun":  `unknown field "dryRun" in command "app"`,
+		"Dry-Run": `unknown field "Dry-Run" in command "app"`,
+		"n":       `unknown field "n" in command "app"`,
 	}
 
 	for key, message := range messages {
@@ -531,7 +584,11 @@ func TestValidateCommandConfig_FirstErrorIsStable(t *testing.T) {
 		dest := configdata.New()
 		err := validateCommandConfig(map[string]any{"dry-run": "true", "dry_run": "false", "dryRun": "x"}, cmd, dest, "config.yaml")
 
-		assert.Equal(t, `config file "config.yaml": unknown field "dryRun" in command "app" (did you mean "dry-run"?)`, err.Error())
+		assert.Equal(t, `unknown field "dryRun" in command "app"`, err.Error())
+
+		assert.Equal(t, []string{`config file "config.yaml"`}, errlines.Origins(err))
+
+		assert.Equal(t, `did you mean "dry-run"?`, errlines.Hint(err))
 	}
 }
 
@@ -550,7 +607,11 @@ func TestValidateCommandConfig_SubcommandAliasSectionRejected(t *testing.T) {
 	dest := configdata.New()
 	err := validateCommandConfig(map[string]any{"d": map[string]any{"region": "eu"}}, cmd, dest, "config.yaml")
 
-	assert.Equal(t, `config file "config.yaml": unknown section "d" in command "app"`, err.Error())
+	assert.Equal(t, `unknown section "d" in command "app"`, err.Error())
+
+	assert.Equal(t, []string{`config file "config.yaml"`}, errlines.Origins(err))
+
+	assert.Equal(t, ``, errlines.Hint(err))
 }
 
 func TestValidateCommandConfig_SubcommandSectionOtherSpellingRejected(t *testing.T) {
@@ -567,7 +628,11 @@ func TestValidateCommandConfig_SubcommandSectionOtherSpellingRejected(t *testing
 	dest := configdata.New()
 	err := validateCommandConfig(map[string]any{"deploy_app": map[string]any{"region": "eu"}}, cmd, dest, "config.yaml")
 
-	assert.Equal(t, `config file "config.yaml": unknown section "deploy_app" in command "app" (did you mean "deploy-app"?)`, err.Error())
+	assert.Equal(t, `unknown section "deploy_app" in command "app"`, err.Error())
+
+	assert.Equal(t, []string{`config file "config.yaml"`}, errlines.Origins(err))
+
+	assert.Equal(t, `did you mean "deploy-app"?`, errlines.Hint(err))
 }
 
 func TestValidateNamespaceConfig_RootFlagNameRejectedInSection(t *testing.T) {
@@ -581,7 +646,11 @@ func TestValidateNamespaceConfig_RootFlagNameRejectedInSection(t *testing.T) {
 	dest := configdata.New()
 	err := validateCommandConfig(map[string]any{"db": map[string]any{"host": "h", "port": 99}}, cmd, dest, "config.toml")
 
-	assert.Equal(t, `config file "config.toml": unknown field "port" in namespace "db" (did you mean "host"?)`, err.Error())
+	assert.Equal(t, `unknown field "port" in namespace "db"`, err.Error())
+
+	assert.Equal(t, []string{`config file "config.toml"`}, errlines.Origins(err))
+
+	assert.Equal(t, `did you mean "host"?`, errlines.Hint(err))
 }
 
 func TestValidateNamespaceConfig_ExcludedRootFlagReportedUnknown(t *testing.T) {
@@ -595,7 +664,11 @@ func TestValidateNamespaceConfig_ExcludedRootFlagReportedUnknown(t *testing.T) {
 	dest := configdata.New()
 	err := validateCommandConfig(map[string]any{"db": map[string]any{"port": 99}}, cmd, dest, "config.toml")
 
-	assert.Equal(t, `config file "config.toml": unknown field "port" in namespace "db" (did you mean "host"?)`, err.Error())
+	assert.Equal(t, `unknown field "port" in namespace "db"`, err.Error())
+
+	assert.Equal(t, []string{`config file "config.toml"`}, errlines.Origins(err))
+
+	assert.Equal(t, `did you mean "host"?`, errlines.Hint(err))
 }
 
 func TestValidateNamespaceConfig_SuggestsKeyInSection(t *testing.T) {
@@ -609,16 +682,20 @@ func TestValidateNamespaceConfig_SuggestsKeyInSection(t *testing.T) {
 	dest := configdata.New()
 	err := validateCommandConfig(map[string]any{"db": map[string]any{"hots": "h"}}, cmd, dest, "config.toml")
 
-	assert.Equal(t, `config file "config.toml": unknown field "hots" in namespace "db" (did you mean "host"?)`, err.Error())
+	assert.Equal(t, `unknown field "hots" in namespace "db"`, err.Error())
+
+	assert.Equal(t, []string{`config file "config.toml"`}, errlines.Origins(err))
+
+	assert.Equal(t, `did you mean "host"?`, errlines.Hint(err))
 }
 
 func TestValidateCommandConfig_DottedTagOnlyMatchesNestedSections(t *testing.T) {
 	t.Parallel()
 
 	messages := map[string]string{
-		"db.host": `config file "config.toml": unknown field "db.host" in command "app"`,
-		"dbhost":  `config file "config.toml": unknown field "dbhost" in command "app"`,
-		"host":    `config file "config.toml": unknown field "host" in command "app"`,
+		"db.host": `unknown field "db.host" in command "app"`,
+		"dbhost":  `unknown field "dbhost" in command "app"`,
+		"host":    `unknown field "host" in command "app"`,
 	}
 
 	for key, message := range messages {
@@ -661,8 +738,8 @@ func TestValidateCommandConfig_ConfigTagReplacesFlagName(t *testing.T) {
 	t.Parallel()
 
 	messages := map[string]string{
-		"api-endpoint": `config file "config.toml": unknown field "api-endpoint" in command "app" (did you mean "endpoint"?)`,
-		"Endpoint":     `config file "config.toml": unknown field "Endpoint" in command "app" (did you mean "endpoint"?)`,
+		"api-endpoint": `unknown field "api-endpoint" in command "app"`,
+		"Endpoint":     `unknown field "Endpoint" in command "app"`,
 	}
 
 	for key, message := range messages {
@@ -729,7 +806,11 @@ func TestValidateCommandConfig_FeatureKeyOtherSpellingRejected(t *testing.T) {
 			dest := configdata.New()
 			err := validateCommandConfig(map[string]any{"experiments": section}, featureMapCommand(spec.KeyCaseKebab), dest, "config.yaml")
 
-			assert.Equal(t, `config file "config.yaml": unknown field "gentle_force" in section "experiments" (did you mean "gentle-force"?)`, err.Error())
+			assert.Equal(t, `unknown field "gentle_force" in section "experiments"`, err.Error())
+
+			assert.Equal(t, []string{`config file "config.yaml"`}, errlines.Origins(err))
+
+			assert.Equal(t, `did you mean "gentle-force"?`, errlines.Hint(err))
 		})
 	}
 }
@@ -790,8 +871,8 @@ func TestValidateCommandConfig_KeyCaseRejectsOtherCasings(t *testing.T) {
 	t.Parallel()
 
 	messages := map[string]string{
-		"dry-run": `config file "config.yaml": unknown field "dry-run" in command "app" (did you mean "dry_run"?)`,
-		"dryRun":  `config file "config.yaml": unknown field "dryRun" in command "app" (did you mean "dry_run"?)`,
+		"dry-run": `unknown field "dry-run" in command "app"`,
+		"dryRun":  `unknown field "dryRun" in command "app"`,
 	}
 
 	for key, message := range messages {
@@ -826,7 +907,9 @@ func TestValidateCommandConfig_KeyCaseLeavesConfigTagAsWritten(t *testing.T) {
 	errCased := validateCommandConfig(map[string]any{"api_url": "x"}, cmd, dest, "config.yaml")
 
 	assert.NoError(t, errTag)
-	assert.Equal(t, `config file "config.yaml": unknown field "api_url" in command "app" (did you mean "api-url"?)`, errCased.Error())
+	assert.Equal(t, `unknown field "api_url" in command "app"`, errCased.Error())
+	assert.Equal(t, []string{`config file "config.yaml"`}, errlines.Origins(errCased))
+	assert.Equal(t, `did you mean "api-url"?`, errlines.Hint(errCased))
 }
 
 func TestValidateCommandConfig_KeyCaseSpellsFeatureKeys(t *testing.T) {
@@ -848,5 +931,9 @@ func TestValidateCommandConfig_KeyCaseRejectsKebabFeatureKey(t *testing.T) {
 	dest := configdata.New()
 	err := validateCommandConfig(map[string]any{"experiments": map[string]any{"gentle-force": true}}, featureMapCommand(spec.KeyCaseCamel), dest, "config.yaml")
 
-	assert.Equal(t, `config file "config.yaml": unknown field "gentle-force" in section "experiments" (did you mean "gentleForce"?)`, err.Error())
+	assert.Equal(t, `unknown field "gentle-force" in section "experiments"`, err.Error())
+
+	assert.Equal(t, []string{`config file "config.yaml"`}, errlines.Origins(err))
+
+	assert.Equal(t, `did you mean "gentleForce"?`, errlines.Hint(err))
 }

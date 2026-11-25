@@ -5,6 +5,7 @@ import (
 
 	"github.com/alecthomas/assert/v2"
 
+	"github.com/conga-sh/conga/internal/errlines"
 	"github.com/conga-sh/conga/internal/spec"
 )
 
@@ -85,7 +86,8 @@ func TestSafeTag_LintAcceptance(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.True(t, spec.IsSchemaError(err))
-		assert.Equal(t, `struct SafeConfigFileCLI field Config: tag "safe" is invalid on config file flag (note: tag "safe" is only valid on flags)`, err.Error())
+		assert.Equal(t, `struct SafeConfigFileCLI field Config: tag "safe" is invalid on config file flag`, err.Error())
+		assert.Equal(t, `tag "safe" is only valid on flags`, errlines.Note(err))
 	})
 
 	t.Run("rejected on positional argument", func(t *testing.T) {
@@ -97,7 +99,8 @@ func TestSafeTag_LintAcceptance(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.True(t, spec.IsSchemaError(err))
-		assert.Equal(t, `struct SafeOnArgCLI field Target: tag "safe" is invalid on positional argument (note: tag "safe" is only valid on flags)`, err.Error())
+		assert.Equal(t, `struct SafeOnArgCLI field Target: tag "safe" is invalid on positional argument`, err.Error())
+		assert.Equal(t, `tag "safe" is only valid on flags`, errlines.Note(err))
 	})
 }
 
@@ -167,7 +170,8 @@ func TestSafeTag_RejectedOnConfigFile(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.True(t, spec.IsSchemaError(err))
-		assert.Equal(t, `struct SafeConfigFileCLI field Config: tag "safe" is invalid on config file flag (note: tag "safe" is only valid on flags)`, err.Error())
+		assert.Equal(t, `struct SafeConfigFileCLI field Config: tag "safe" is invalid on config file flag`, err.Error())
+		assert.Equal(t, `tag "safe" is only valid on flags`, errlines.Note(err))
 	})
 
 	t.Run("safe typo is rejected identically", func(t *testing.T) {
@@ -179,7 +183,8 @@ func TestSafeTag_RejectedOnConfigFile(t *testing.T) {
 
 		assert.Error(t, err)
 		assert.True(t, spec.IsSchemaError(err))
-		assert.Equal(t, `struct SafeTypoConfigFileCLI field Config: tag "safe" is invalid on config file flag (note: tag "safe" is only valid on flags)`, err.Error())
+		assert.Equal(t, `struct SafeTypoConfigFileCLI field Config: tag "safe" is invalid on config file flag`, err.Error())
+		assert.Equal(t, `tag "safe" is only valid on flags`, errlines.Note(err))
 	})
 }
 

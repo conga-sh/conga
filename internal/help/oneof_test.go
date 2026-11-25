@@ -10,7 +10,7 @@ import (
 	"github.com/conga-sh/conga/internal/spec"
 )
 
-func TestUsage_OneOfGroupRendersAlternation(t *testing.T) {
+func TestSynopsis_OneOfGroupRendersAlternation(t *testing.T) {
 	t.Parallel()
 
 	cmd := &spec.Command{
@@ -22,12 +22,12 @@ func TestUsage_OneOfGroupRendersAlternation(t *testing.T) {
 		Args: []*spec.Arg{{Name: "<target>", Required: true}},
 	}
 
-	usage := help.Usage([]*spec.Command{cmd})
+	synopsis := help.Synopsis([]*spec.Command{cmd})
 
-	assert.Equal(t, "Usage:\n  app (--json | --yaml) <target>", usage)
+	assert.Equal(t, "Usage:\n  app (--json | --yaml) <target>", synopsis)
 }
 
-func TestUsage_OneOfGroupRendersValueSlots(t *testing.T) {
+func TestSynopsis_OneOfGroupRendersValueSlots(t *testing.T) {
 	t.Parallel()
 
 	cmd := &spec.Command{
@@ -38,12 +38,12 @@ func TestUsage_OneOfGroupRendersValueSlots(t *testing.T) {
 		},
 	}
 
-	usage := help.Usage([]*spec.Command{cmd})
+	synopsis := help.Synopsis([]*spec.Command{cmd})
 
-	assert.Equal(t, "Usage:\n  app (--input-file=PATH | --input-url=URL)", usage)
+	assert.Equal(t, "Usage:\n  app (--input-file=PATH | --input-url=URL)", synopsis)
 }
 
-func TestUsage_OneOfGroupOmitsDeprecatedMember(t *testing.T) {
+func TestSynopsis_OneOfGroupOmitsDeprecatedMember(t *testing.T) {
 	t.Parallel()
 
 	cmd := &spec.Command{
@@ -54,10 +54,10 @@ func TestUsage_OneOfGroupOmitsDeprecatedMember(t *testing.T) {
 		},
 	}
 
-	assert.Equal(t, "Usage:\n  oneofdep --count=INT", help.Usage([]*spec.Command{cmd}))
+	assert.Equal(t, "Usage:\n  oneofdep --count=INT", help.Synopsis([]*spec.Command{cmd}))
 }
 
-func TestUsage_OneOfGroupOmitsDeprecatedMemberFromAlternation(t *testing.T) {
+func TestSynopsis_OneOfGroupOmitsDeprecatedMemberFromAlternation(t *testing.T) {
 	t.Parallel()
 
 	cmd := &spec.Command{
@@ -69,10 +69,10 @@ func TestUsage_OneOfGroupOmitsDeprecatedMemberFromAlternation(t *testing.T) {
 		},
 	}
 
-	assert.Equal(t, "Usage:\n  app (--json | --yaml)", help.Usage([]*spec.Command{cmd}))
+	assert.Equal(t, "Usage:\n  app (--json | --yaml)", help.Synopsis([]*spec.Command{cmd}))
 }
 
-func TestUsage_OneOfGroupKeepsMembersWhenAllDeprecated(t *testing.T) {
+func TestSynopsis_OneOfGroupKeepsMembersWhenAllDeprecated(t *testing.T) {
 	t.Parallel()
 
 	cmd := &spec.Command{
@@ -83,7 +83,7 @@ func TestUsage_OneOfGroupKeepsMembersWhenAllDeprecated(t *testing.T) {
 		},
 	}
 
-	assert.Equal(t, "Usage:\n  app (--json | --yaml)", help.Usage([]*spec.Command{cmd}))
+	assert.Equal(t, "Usage:\n  app (--json | --yaml)", help.Synopsis([]*spec.Command{cmd}))
 }
 
 func TestFormat_OneOfGroupListsDeprecatedMemberInFlags(t *testing.T) {
@@ -104,7 +104,7 @@ func TestFormat_OneOfGroupListsDeprecatedMemberInFlags(t *testing.T) {
 	assert.Contains(t, formatted, "--count=INT         Replica count\n")
 }
 
-func TestUsage_OneOfGroupSingleVisibleMemberRendersPlainToken(t *testing.T) {
+func TestSynopsis_OneOfGroupSingleVisibleMemberRendersPlainToken(t *testing.T) {
 	t.Parallel()
 
 	cmd := &spec.Command{
@@ -116,12 +116,12 @@ func TestUsage_OneOfGroupSingleVisibleMemberRendersPlainToken(t *testing.T) {
 		Args: []*spec.Arg{{Name: "<target>", Required: true}},
 	}
 
-	usage := help.Usage([]*spec.Command{cmd})
+	synopsis := help.Synopsis([]*spec.Command{cmd})
 
-	assert.Equal(t, "Usage:\n  app --json <target>", usage)
+	assert.Equal(t, "Usage:\n  app --json <target>", synopsis)
 }
 
-func TestUsage_OneOfGroupAllMembersHiddenRendersNothing(t *testing.T) {
+func TestSynopsis_OneOfGroupAllMembersHiddenRendersNothing(t *testing.T) {
 	t.Parallel()
 
 	cmd := &spec.Command{
@@ -133,9 +133,9 @@ func TestUsage_OneOfGroupAllMembersHiddenRendersNothing(t *testing.T) {
 		Args: []*spec.Arg{{Name: "<target>", Required: true}},
 	}
 
-	usage := help.Usage([]*spec.Command{cmd})
+	synopsis := help.Synopsis([]*spec.Command{cmd})
 
-	assert.Equal(t, "Usage:\n  app <target>", usage)
+	assert.Equal(t, "Usage:\n  app <target>", synopsis)
 }
 
 // TestFormat_OneOfGroupAllMembersHiddenOmitsRowsAndHint pins the documented
@@ -159,7 +159,7 @@ func TestFormat_OneOfGroupAllMembersHiddenOmitsRowsAndHint(t *testing.T) {
 	assert.NotContains(t, formatted, "--yaml")
 }
 
-func TestUsage_OneOfGroupDoesNotSetFlagsPlaceholder(t *testing.T) {
+func TestSynopsis_OneOfGroupDoesNotSetFlagsPlaceholder(t *testing.T) {
 	t.Parallel()
 
 	cmd := &spec.Command{
@@ -172,12 +172,12 @@ func TestUsage_OneOfGroupDoesNotSetFlagsPlaceholder(t *testing.T) {
 		Args: []*spec.Arg{{Name: "<target>", Required: true}},
 	}
 
-	usage := help.Usage([]*spec.Command{cmd})
+	synopsis := help.Synopsis([]*spec.Command{cmd})
 
-	assert.Equal(t, "Usage:\n  app (--json | --yaml) [flags] <target>", usage)
+	assert.Equal(t, "Usage:\n  app (--json | --yaml) [flags] <target>", synopsis)
 }
 
-func TestUsage_OneOfGroupOnAncestor(t *testing.T) {
+func TestSynopsis_OneOfGroupOnAncestor(t *testing.T) {
 	t.Parallel()
 
 	root := &spec.Command{
@@ -189,12 +189,12 @@ func TestUsage_OneOfGroupOnAncestor(t *testing.T) {
 		Subcommands: []*spec.Command{{Name: "build"}},
 	}
 
-	usage := help.Usage([]*spec.Command{root, root.Subcommands[0]})
+	synopsis := help.Synopsis([]*spec.Command{root, root.Subcommands[0]})
 
-	assert.Equal(t, "Usage:\n  app build (--json | --yaml)", usage)
+	assert.Equal(t, "Usage:\n  app build (--json | --yaml)", synopsis)
 }
 
-func TestUsage_FlagsPlaceholderPrecedesCollectors(t *testing.T) {
+func TestSynopsis_FlagsPlaceholderPrecedesCollectors(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -227,7 +227,7 @@ func TestUsage_FlagsPlaceholderPrecedesCollectors(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t, test.want, help.Usage([]*spec.Command{test.cmd}))
+			assert.Equal(t, test.want, help.Synopsis([]*spec.Command{test.cmd}))
 		})
 	}
 }

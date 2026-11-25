@@ -9,6 +9,7 @@ import (
 	"github.com/alecthomas/assert/v2"
 
 	"github.com/conga-sh/conga/internal/container"
+	"github.com/conga-sh/conga/internal/errlines"
 	"github.com/conga-sh/conga/internal/spec"
 )
 
@@ -209,7 +210,8 @@ func TestBuildSchema(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.True(t, spec.IsSchemaError(err))
-		assert.Equal(t, "struct DuplicateFlagCLI field Port2: duplicate flag --port (note: already declared by field Port1)", err.Error())
+		assert.Equal(t, "struct DuplicateFlagCLI field Port2: duplicate flag --port", err.Error())
+		assert.Equal(t, "already declared by field Port1", errlines.Note(err))
 	})
 
 	t.Run("duplicate short flag reject", func(t *testing.T) {
@@ -240,7 +242,8 @@ func TestBuildSchema(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.True(t, spec.IsSchemaError(err))
-		assert.Equal(t, `struct DuplicateSubCLI field Subcommand2: duplicate subcommand "run" (note: already declared by field Subcommand1)`, err.Error())
+		assert.Equal(t, `struct DuplicateSubCLI field Subcommand2: duplicate subcommand "run"`, err.Error())
+		assert.Equal(t, `already declared by field Subcommand1`, errlines.Note(err))
 	})
 
 	t.Run("child command flags collision with parent flags", func(t *testing.T) {
@@ -260,7 +263,8 @@ func TestBuildSchema(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.True(t, spec.IsSchemaError(err))
-		assert.Equal(t, "struct ChildCLI field Port: duplicate flag --port (note: already declared by struct ParentCLI field Port on an ancestor command)", err.Error())
+		assert.Equal(t, "struct ChildCLI field Port: duplicate flag --port", err.Error())
+		assert.Equal(t, "already declared by struct ParentCLI field Port on an ancestor command", errlines.Note(err))
 	})
 
 	t.Run("built-in commands recognized", func(t *testing.T) {
@@ -288,7 +292,8 @@ func TestBuildSchema(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{DisableCompletion: true})
 
 		assert.True(t, spec.IsSchemaError(err))
-		assert.Equal(t, "struct BuiltinTestCLI field Completion: completion command declared without completion enabled (hint: call app.EnableCompletion() when constructing the app, or remove the field)", err.Error())
+		assert.Equal(t, "struct BuiltinTestCLI field Completion: completion command declared without completion enabled", err.Error())
+		assert.Equal(t, "call app.EnableCompletion() when constructing the app, or remove the field", errlines.Hint(err))
 	})
 
 	t.Run("range on int with invalid bound rejected at build time", func(t *testing.T) {
@@ -363,7 +368,8 @@ func TestBuildSchema(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.True(t, spec.IsSchemaError(err))
-		assert.Equal(t, `struct InvalidLenCLI field Name: invalid len min bound "abc" (note: must be non-negative integer)`, err.Error())
+		assert.Equal(t, `struct InvalidLenCLI field Name: invalid len min bound "abc"`, err.Error())
+		assert.Equal(t, `must be non-negative integer`, errlines.Note(err))
 	})
 
 	t.Run("items with negative bound rejected at build time", func(t *testing.T) {
@@ -378,7 +384,8 @@ func TestBuildSchema(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.True(t, spec.IsSchemaError(err))
-		assert.Equal(t, `struct InvalidItemsCLI field Items: invalid items min bound "-1" (note: must be non-negative integer)`, err.Error())
+		assert.Equal(t, `struct InvalidItemsCLI field Items: invalid items min bound "-1"`, err.Error())
+		assert.Equal(t, `must be non-negative integer`, errlines.Note(err))
 	})
 }
 
@@ -787,7 +794,8 @@ func TestBuiltinSubcommandAliasCollision(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.True(t, spec.IsSchemaError(err))
-		assert.Equal(t, `struct builtinAliasCollisionCLI field Sub: duplicate subcommand "h" (note: already declared by field Help)`, err.Error())
+		assert.Equal(t, `struct builtinAliasCollisionCLI field Sub: duplicate subcommand "h"`, err.Error())
+		assert.Equal(t, `already declared by field Help`, errlines.Note(err))
 	})
 
 	t.Run("builtin alias collides with earlier subcommand name", func(t *testing.T) {
@@ -798,7 +806,8 @@ func TestBuiltinSubcommandAliasCollision(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.True(t, spec.IsSchemaError(err))
-		assert.Equal(t, `struct builtinAliasCollisionReversedCLI field Help: duplicate subcommand alias "h" (note: already declared by field Sub)`, err.Error())
+		assert.Equal(t, `struct builtinAliasCollisionReversedCLI field Help: duplicate subcommand alias "h"`, err.Error())
+		assert.Equal(t, `already declared by field Sub`, errlines.Note(err))
 	})
 }
 
@@ -1033,7 +1042,8 @@ func TestSubcommand_SummaryTag(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.True(t, spec.IsSchemaError(err))
-		assert.Equal(t, `struct RootCLI field Deploy: tag "help" is not supported on Command[T] (hint: use "summary" for the 1-line synopsis)`, err.Error())
+		assert.Equal(t, `struct RootCLI field Deploy: tag "help" is not supported on Command[T]`, err.Error())
+		assert.Equal(t, `use "summary" for the 1-line synopsis`, errlines.Hint(err))
 	})
 
 	t.Run("builtin command defaults to standard summary", func(t *testing.T) {
@@ -1110,7 +1120,8 @@ func TestSubcommand_SummaryTag(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.True(t, spec.IsSchemaError(err))
-		assert.Equal(t, `struct RootCLI field Help: tag "help" is not supported on built-in command fields (hint: use "summary" for the 1-line synopsis)`, err.Error())
+		assert.Equal(t, `struct RootCLI field Help: tag "help" is not supported on built-in command fields`, err.Error())
+		assert.Equal(t, `use "summary" for the 1-line synopsis`, errlines.Hint(err))
 	})
 }
 
@@ -1150,7 +1161,8 @@ func TestEnvPrefix_SubcommandAndBuiltin(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.True(t, spec.IsSchemaError(err))
-		assert.Equal(t, `struct RootCLI field Help: tag "envprefix" is invalid on help command (note: tag "envprefix" is only valid on subcommands and Features containers)`, err.Error())
+		assert.Equal(t, `struct RootCLI field Help: tag "envprefix" is invalid on help command`, err.Error())
+		assert.Equal(t, `tag "envprefix" is only valid on subcommands and Features containers`, errlines.Note(err))
 	})
 
 	t.Run("builtin command deprecated tag is rejected with clarified error", func(t *testing.T) {
@@ -1165,7 +1177,8 @@ func TestEnvPrefix_SubcommandAndBuiltin(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.True(t, spec.IsSchemaError(err))
-		assert.Equal(t, `struct RootCLI field Help: tag "deprecated" is invalid on help command (note: tag "deprecated" is only valid on flags, subcommands, and config file flags)`, err.Error())
+		assert.Equal(t, `struct RootCLI field Help: tag "deprecated" is invalid on help command`, err.Error())
+		assert.Equal(t, `tag "deprecated" is only valid on flags, subcommands, and config file flags`, errlines.Note(err))
 	})
 }
 
@@ -1252,7 +1265,8 @@ func TestFlag_DeprecatedRequiredRejected(t *testing.T) {
 	_, err := buildSchema(&cli, "app", spec.Options{})
 
 	assert.True(t, spec.IsSchemaError(err))
-	assert.Equal(t, `struct RootCLI field Key: tag "deprecated" cannot be used on required flags (hint: make the flag optional before deprecating it so callers can migrate without error)`, err.Error())
+	assert.Equal(t, `struct RootCLI field Key: tag "deprecated" cannot be used on required flags`, err.Error())
+	assert.Equal(t, `make the flag optional before deprecating it so callers can migrate without error`, errlines.Hint(err))
 }
 
 func TestFlag_HelpVariablesExpanded(t *testing.T) {
@@ -1351,7 +1365,8 @@ func TestFlag_HelpUnknownVariableRejected(t *testing.T) {
 	_, err := buildSchema(&cli, "app", spec.Options{})
 
 	assert.True(t, spec.IsSchemaError(err))
-	assert.Equal(t, `struct RootCLI field Port: tag "help" references unknown variable {{rnage}} (note: supported variables are {{range}}, {{len}}, {{items}}, {{enum}}, {{default}}, {{env}})`, err.Error())
+	assert.Equal(t, `struct RootCLI field Port: tag "help" references unknown variable {{rnage}}`, err.Error())
+	assert.Equal(t, `supported variables are {{range}}, {{len}}, {{items}}, {{enum}}, {{default}}, {{env}}`, errlines.Note(err))
 }
 
 func TestArg_HelpUnknownVariableRejected(t *testing.T) {
@@ -1366,7 +1381,8 @@ func TestArg_HelpUnknownVariableRejected(t *testing.T) {
 	_, err := buildSchema(&cli, "app", spec.Options{})
 
 	assert.True(t, spec.IsSchemaError(err))
-	assert.Equal(t, `struct RootCLI field Channel: tag "help" references unknown variable {{enums}} (note: supported variables are {{range}}, {{len}}, {{items}}, {{enum}}, {{default}}, {{env}})`, err.Error())
+	assert.Equal(t, `struct RootCLI field Channel: tag "help" references unknown variable {{enums}}`, err.Error())
+	assert.Equal(t, `supported variables are {{range}}, {{len}}, {{items}}, {{enum}}, {{default}}, {{env}}`, errlines.Note(err))
 }
 
 func TestConfigFile_HelpEnvVariableExpanded(t *testing.T) {
@@ -1412,7 +1428,8 @@ func TestConfigFile_HelpUnknownVariableRejected(t *testing.T) {
 	_, err := buildSchema(&cli, "app", spec.Options{})
 
 	assert.True(t, spec.IsSchemaError(err))
-	assert.Equal(t, `struct RootCLI field Config: tag "help" references unknown variable {{rnage}} (note: supported variables are {{range}}, {{len}}, {{items}}, {{enum}}, {{default}}, {{env}})`, err.Error())
+	assert.Equal(t, `struct RootCLI field Config: tag "help" references unknown variable {{rnage}}`, err.Error())
+	assert.Equal(t, `supported variables are {{range}}, {{len}}, {{items}}, {{enum}}, {{default}}, {{env}}`, errlines.Note(err))
 }
 
 func TestConfigFile_ConfigTagRejected(t *testing.T) {
@@ -1564,7 +1581,8 @@ func TestSubcommand_MethodRejection_Summary(t *testing.T) {
 	_, err := buildSchema(&cli, "app", spec.Options{})
 
 	assert.True(t, spec.IsSchemaError(err))
-	assert.Equal(t, `subcommand struct summaryMethodCmd must not implement Summary() (hint: declare the 1-line synopsis via the summary:"..." struct tag)`, err.Error())
+	assert.Equal(t, `subcommand struct summaryMethodCmd must not implement Summary()`, err.Error())
+	assert.Equal(t, `declare the 1-line synopsis via the summary:"..." struct tag`, errlines.Hint(err))
 }
 
 func TestSubcommand_MethodRejection_Deprecated(t *testing.T) {
@@ -1579,7 +1597,8 @@ func TestSubcommand_MethodRejection_Deprecated(t *testing.T) {
 	_, err := buildSchema(&cli, "app", spec.Options{})
 
 	assert.True(t, spec.IsSchemaError(err))
-	assert.Equal(t, `subcommand struct deprecatedMethodCmd must not implement Deprecated() (hint: declare the deprecation notice via the deprecated:"..." struct tag)`, err.Error())
+	assert.Equal(t, `subcommand struct deprecatedMethodCmd must not implement Deprecated()`, err.Error())
+	assert.Equal(t, `declare the deprecation notice via the deprecated:"..." struct tag`, errlines.Hint(err))
 }
 
 func TestSubcommand_MethodRejection_HelpFooter(t *testing.T) {
@@ -1594,7 +1613,9 @@ func TestSubcommand_MethodRejection_HelpFooter(t *testing.T) {
 	_, err := buildSchema(&cli, "app", spec.Options{})
 
 	assert.True(t, spec.IsSchemaError(err))
-	assert.Equal(t, `subcommand struct helpFooterMethodCmd must not implement HelpFooter() (note: help footers are global; hint: configure the footer via app.HelpFooter())`, err.Error())
+	assert.Equal(t, `subcommand struct helpFooterMethodCmd must not implement HelpFooter()`, err.Error())
+	assert.Equal(t, `help footers are global`, errlines.Note(err))
+	assert.Equal(t, `configure the footer via app.HelpFooter()`, errlines.Hint(err))
 }
 
 func TestRootCommand_MethodRejection_Summary(t *testing.T) {
@@ -1605,7 +1626,8 @@ func TestRootCommand_MethodRejection_Summary(t *testing.T) {
 	_, err := buildSchema(&cli, "app", spec.Options{})
 
 	assert.True(t, spec.IsSchemaError(err))
-	assert.Equal(t, `root command struct rootSummaryCLI must not implement Summary() (hint: configure application description via app.Description())`, err.Error())
+	assert.Equal(t, `root command struct rootSummaryCLI must not implement Summary()`, err.Error())
+	assert.Equal(t, `configure application description via app.Description()`, errlines.Hint(err))
 }
 
 func TestRootCommand_MethodRejection_Description(t *testing.T) {
@@ -1616,7 +1638,8 @@ func TestRootCommand_MethodRejection_Description(t *testing.T) {
 	_, err := buildSchema(&cli, "app", spec.Options{})
 
 	assert.True(t, spec.IsSchemaError(err))
-	assert.Equal(t, `root command struct rootDescriptionCLI must not implement Description() (hint: configure application description via app.Description())`, err.Error())
+	assert.Equal(t, `root command struct rootDescriptionCLI must not implement Description()`, err.Error())
+	assert.Equal(t, `configure application description via app.Description()`, errlines.Hint(err))
 }
 
 func TestRootCommand_MethodRejection_HelpFooter(t *testing.T) {
@@ -1627,7 +1650,8 @@ func TestRootCommand_MethodRejection_HelpFooter(t *testing.T) {
 	_, err := buildSchema(&cli, "app", spec.Options{})
 
 	assert.True(t, spec.IsSchemaError(err))
-	assert.Equal(t, `root command struct rootHelpFooterCLI must not implement HelpFooter() (hint: configure global help footer via app.HelpFooter())`, err.Error())
+	assert.Equal(t, `root command struct rootHelpFooterCLI must not implement HelpFooter()`, err.Error())
+	assert.Equal(t, `configure global help footer via app.HelpFooter()`, errlines.Hint(err))
 }
 
 func TestRootCommand_MethodRejection_Deprecated(t *testing.T) {
@@ -1638,7 +1662,8 @@ func TestRootCommand_MethodRejection_Deprecated(t *testing.T) {
 	_, err := buildSchema(&cli, "app", spec.Options{})
 
 	assert.True(t, spec.IsSchemaError(err))
-	assert.Equal(t, `root command struct rootDeprecatedCLI must not implement Deprecated() (hint: use app.Deprecated())`, err.Error())
+	assert.Equal(t, `root command struct rootDeprecatedCLI must not implement Deprecated()`, err.Error())
+	assert.Equal(t, `use app.Deprecated()`, errlines.Hint(err))
 }
 
 func TestRootCommand_MethodRejection_Examples(t *testing.T) {
@@ -1649,7 +1674,8 @@ func TestRootCommand_MethodRejection_Examples(t *testing.T) {
 	_, err := buildSchema(&cli, "app", spec.Options{})
 
 	assert.True(t, spec.IsSchemaError(err))
-	assert.Equal(t, `root command struct rootExamplesCLI must not implement Examples() (hint: configure root examples via app.Examples())`, err.Error())
+	assert.Equal(t, `root command struct rootExamplesCLI must not implement Examples()`, err.Error())
+	assert.Equal(t, `configure root examples via app.Examples()`, errlines.Hint(err))
 }
 
 type featureSet struct {
@@ -1846,7 +1872,9 @@ func TestFeaturesContainer_EnvSurfaces(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.True(t, spec.IsSchemaError(err))
-		assert.Contains(t, err.Error(), `tag "env" and tag "envprefix" cannot both be declared on a conga.Features container (note: env names the combined map variable; envprefix derives one variable per feature)`)
+		assert.Equal(t, `struct (root) field Features: tag "env" and tag "envprefix" cannot both be declared on a conga.Features container`, err.Error())
+		assert.Equal(t, `env names the combined map variable; envprefix derives one variable per feature`, errlines.Note(err))
+		assert.Equal(t, "", errlines.Hint(err))
 	})
 
 	t.Run("field env under container env conflict", func(t *testing.T) {
@@ -1861,7 +1889,9 @@ func TestFeaturesContainer_EnvSurfaces(t *testing.T) {
 		_, err := buildSchema(&cli, "app", spec.Options{})
 
 		assert.True(t, spec.IsSchemaError(err))
-		assert.Contains(t, err.Error(), `feature field Enabled declares env while the Features container declares env (note: the container's env tag names the combined map variable; hint: declare one env surface per container)`)
+		assert.Equal(t, `struct (root) field Features: feature field Enabled declares env while the Features container declares env`, err.Error())
+		assert.Equal(t, `the container's env tag names the combined map variable`, errlines.Note(err))
+		assert.Equal(t, `declare one env surface per container`, errlines.Hint(err))
 	})
 
 	t.Run("field env absence under container env is accepted", func(t *testing.T) {
@@ -2006,7 +2036,8 @@ func TestFeaturesContainer_DuplicateDeclaration_EmptyInnerStruct(t *testing.T) {
 	_, err := buildSchema(&cli, "app", spec.Options{})
 
 	assert.True(t, spec.IsSchemaError(err))
-	assert.Equal(t, "struct featureDuplicateCLI field Second: duplicate Features container (note: already declared by gates-a)", err.Error())
+	assert.Equal(t, "struct featureDuplicateCLI field Second: duplicate Features container", err.Error())
+	assert.Equal(t, "already declared by gates-a", errlines.Note(err))
 }
 
 type featureNoCLINameAfterCLI struct {
@@ -2153,7 +2184,8 @@ func TestFeatureField_StageAllOrNothing(t *testing.T) {
 	_, err := buildSchema(&cli, "app", spec.Options{})
 
 	assert.True(t, spec.IsSchemaError(err))
-	assert.Equal(t, "struct featurePartialStageSet field Second: feature field second does not declare the stage tag (hint: declare stage on every feature field or on none)", err.Error())
+	assert.Equal(t, "struct featurePartialStageSet field Second: feature field second does not declare the stage tag", err.Error())
+	assert.Equal(t, "declare stage on every feature field or on none", errlines.Hint(err))
 }
 
 type featureFullyStagedSet struct {
@@ -2191,7 +2223,8 @@ func TestFeatureField_StageInvalidValue(t *testing.T) {
 	_, err := buildSchema(&cli, "app", spec.Options{})
 
 	assert.True(t, spec.IsSchemaError(err))
-	assert.Equal(t, `struct featureBadStageSet field Level: invalid value "stable" for tag "stage" (note: accepted values: alpha, beta, ga, deprecated)`, err.Error())
+	assert.Equal(t, `struct featureBadStageSet field Level: invalid value "stable" for tag "stage"`, err.Error())
+	assert.Equal(t, `accepted values: alpha, beta, ga, deprecated`, errlines.Note(err))
 }
 
 type featureEmptyStageSet struct {
@@ -2291,7 +2324,8 @@ func TestFeaturesContainer_EnvVariableRejectedUnderEnvPrefix(t *testing.T) {
 	_, err := buildSchema(&cli, "app", spec.Options{})
 
 	assert.True(t, spec.IsSchemaError(err))
-	assert.Equal(t, `struct featureEnvPrefixHelpCLI field Features: tag "help" references {{env}}, but the Features container declares no combined-map env tag (note: per-feature variables are rendered in the Features section)`, err.Error())
+	assert.Equal(t, `struct featureEnvPrefixHelpCLI field Features: tag "help" references {{env}}, but the Features container declares no combined-map env tag`, err.Error())
+	assert.Equal(t, `per-feature variables are rendered in the Features section`, errlines.Note(err))
 }
 
 type featureFieldEnvSet struct {
@@ -2310,7 +2344,8 @@ func TestFeaturesContainer_EnvVariableRejectedUnderFieldEnv(t *testing.T) {
 	_, err := buildSchema(&cli, "app", spec.Options{})
 
 	assert.True(t, spec.IsSchemaError(err))
-	assert.Equal(t, `struct featureFieldEnvHelpCLI field Features: tag "help" references {{env}}, but the Features container declares no combined-map env tag (note: per-feature variables are rendered in the Features section)`, err.Error())
+	assert.Equal(t, `struct featureFieldEnvHelpCLI field Features: tag "help" references {{env}}, but the Features container declares no combined-map env tag`, err.Error())
+	assert.Equal(t, `per-feature variables are rendered in the Features section`, errlines.Note(err))
 }
 
 type featureDefaultHelpCLI struct {
@@ -2485,7 +2520,8 @@ func TestFeaturesContainer_DuplicateFeatureName(t *testing.T) {
 	_, err := buildSchema(&cli, "app", spec.Options{})
 
 	assert.True(t, spec.IsSchemaError(err))
-	assert.Equal(t, `struct featureDuplicateNameSet field Alias: duplicate feature "name" (note: already declared by field Name)`, err.Error())
+	assert.Equal(t, `struct featureDuplicateNameSet field Alias: duplicate feature "name"`, err.Error())
+	assert.Equal(t, `already declared by field Name`, errlines.Note(err))
 }
 
 type featureAnonymousDuplicateNameCLI struct {
@@ -2503,7 +2539,8 @@ func TestFeaturesContainer_DuplicateFeatureNameAnonymousSet(t *testing.T) {
 	_, err := buildSchema(&cli, "app", spec.Options{})
 
 	assert.True(t, spec.IsSchemaError(err))
-	assert.Equal(t, `struct featureAnonymousDuplicateNameCLI.Features field Alias: duplicate feature "name" (note: already declared by field Name)`, err.Error())
+	assert.Equal(t, `struct featureAnonymousDuplicateNameCLI.Features field Alias: duplicate feature "name"`, err.Error())
+	assert.Equal(t, `already declared by field Name`, errlines.Note(err))
 }
 
 func TestFeatureTag_UnsignedComparison(t *testing.T) {
@@ -2524,7 +2561,9 @@ func TestFeatureTag_NegativeUnsignedEnum(t *testing.T) {
 	_, err := buildSchema(&cli, "app", spec.Options{})
 
 	assert.True(t, spec.IsSchemaError(err))
-	assert.Contains(t, err.Error(), `feature enum value "-1": must be a non-negative integer`)
+	assert.Equal(t, `struct featureNegativeEnumSet field Level: invalid feature enum value "-1"`, err.Error())
+	assert.Equal(t, `must be a non-negative integer`, errlines.Note(err))
+	assert.Equal(t, "", errlines.Hint(err))
 }
 
 func TestFeatureTag_ZeroEnumRejected(t *testing.T) {
@@ -2535,7 +2574,9 @@ func TestFeatureTag_ZeroEnumRejected(t *testing.T) {
 	_, err := buildSchema(&cli, "app", spec.Options{})
 
 	assert.True(t, spec.IsSchemaError(err))
-	assert.Contains(t, err.Error(), `feature "level" enum value "0" is the reserved off level (hint: list only non-zero levels)`)
+	assert.Equal(t, `struct featureZeroEnumSet field Level: feature "level" enum value "0" is the reserved off level`, err.Error())
+	assert.Equal(t, "", errlines.Note(err))
+	assert.Equal(t, `list only non-zero levels`, errlines.Hint(err))
 }
 
 func TestFeatureTag_OutOfWidthEnum(t *testing.T) {
@@ -2546,7 +2587,9 @@ func TestFeatureTag_OutOfWidthEnum(t *testing.T) {
 	_, err := buildSchema(&cli, "app", spec.Options{})
 
 	assert.True(t, spec.IsSchemaError(err))
-	assert.Contains(t, err.Error(), `feature enum value "300": is out of range for the feature's integer type`)
+	assert.Equal(t, `struct featureWidthSet field Level: invalid feature enum value "300"`, err.Error())
+	assert.Equal(t, `is out of range for the feature's integer type`, errlines.Note(err))
+	assert.Equal(t, "", errlines.Hint(err))
 }
 
 func TestFeatureTag_NegativeUnsignedDefault(t *testing.T) {
@@ -2557,7 +2600,9 @@ func TestFeatureTag_NegativeUnsignedDefault(t *testing.T) {
 	_, err := buildSchema(&cli, "app", spec.Options{})
 
 	assert.True(t, spec.IsSchemaError(err))
-	assert.Contains(t, err.Error(), `feature "level" default "-1": must be a non-negative integer`)
+	assert.Equal(t, `struct featureNegativeDefaultSet field Level: invalid default "-1" for feature "level"`, err.Error())
+	assert.Equal(t, `must be a non-negative integer`, errlines.Note(err))
+	assert.Equal(t, "", errlines.Hint(err))
 }
 
 func TestFeatureTag_OutOfWidthDefault(t *testing.T) {
@@ -2568,7 +2613,9 @@ func TestFeatureTag_OutOfWidthDefault(t *testing.T) {
 	_, err := buildSchema(&cli, "app", spec.Options{})
 
 	assert.True(t, spec.IsSchemaError(err))
-	assert.Contains(t, err.Error(), `feature "level" default "300": is out of range for the feature's integer type`)
+	assert.Equal(t, `struct featureWidthDefaultSet field Level: invalid default "300" for feature "level"`, err.Error())
+	assert.Equal(t, `is out of range for the feature's integer type`, errlines.Note(err))
+	assert.Equal(t, "", errlines.Hint(err))
 }
 
 func TestFeatureTag_IntegerWithoutEnum(t *testing.T) {
@@ -2645,7 +2692,8 @@ func TestFeatureTag_UndeclaredReference(t *testing.T) {
 	_, err := buildSchema(&cli, "app", spec.Options{})
 
 	assert.True(t, spec.IsSchemaError(err))
-	assert.Equal(t, `flag --force references undeclared feature "missing" (hint: declare it in the root conga.Features container)`, err.Error())
+	assert.Equal(t, `flag --force references undeclared feature "missing"`, err.Error())
+	assert.Equal(t, `declare it in the root conga.Features container`, errlines.Hint(err))
 }
 
 func TestFeatureTag_ValueComparisonSyntaxRejected(t *testing.T) {

@@ -20,6 +20,7 @@ import (
 
 	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/internal/container"
+	"github.com/conga-sh/conga/internal/errlines"
 	"github.com/conga-sh/conga/internal/slicex"
 	"github.com/conga-sh/conga/predict"
 )
@@ -614,7 +615,7 @@ func TestDomainTypes(t *testing.T) {
 			{name: "zero integer", input: "0", expected: 0},
 			{name: "exact bytes B unit", input: "500B", expected: 500},
 			{name: "SI kilobytes lowercase k", input: "1kB", expected: 1000},
-			{name: "SI kilobytes uppercase K rejected as ambiguous", input: "2KB", errorMessage: `ambiguous byte size unit "KB" in "2KB": use kB (1000) or KiB (1024)`},
+			{name: "SI kilobytes uppercase K rejected as ambiguous", input: "2KB", errorMessage: `ambiguous byte size unit "KB" in "2KB"` + "\n  hint: use kB (1000) or KiB (1024)"},
 			{name: "IEC kibibytes", input: "1KiB", expected: 1024},
 			{name: "SI megabytes", input: "10MB", expected: 10 * 1000 * 1000},
 			{name: "IEC mebibytes", input: "1MiB", expected: 1024 * 1024},
@@ -629,10 +630,10 @@ func TestDomainTypes(t *testing.T) {
 			{name: "largest IEC exbibytes that fit", input: "7EiB", expected: 7 * 1024 * 1024 * 1024 * 1024 * 1024 * 1024},
 			{name: "largest SI exabytes that fit", input: "9EB", expected: 9 * 1000 * 1000 * 1000 * 1000 * 1000 * 1000},
 			{name: "largest exact byte count", input: "9223372036854775807", expected: math.MaxInt64},
-			{name: "exact byte count past int64 is out of range", input: "9223372036854775808", errorMessage: `byte size "9223372036854775808" is out of range (max 9223372036854775807B)`},
-			{name: "valid number with overflowing unit is out of range", input: "10000PB", errorMessage: `byte size "10000PB" is out of range (max 9223372036854775807B)`},
-			{name: "8EiB is one byte past the maximum", input: "8EiB", errorMessage: `byte size "8EiB" is out of range (max 9223372036854775807B)`},
-			{name: "10EB is out of range", input: "10EB", errorMessage: `byte size "10EB" is out of range (max 9223372036854775807B)`},
+			{name: "exact byte count past int64 is out of range", input: "9223372036854775808", errorMessage: `byte size "9223372036854775808" is out of range` + "\n  note: max 9223372036854775807B"},
+			{name: "valid number with overflowing unit is out of range", input: "10000PB", errorMessage: `byte size "10000PB" is out of range` + "\n  note: max 9223372036854775807B"},
+			{name: "8EiB is one byte past the maximum", input: "8EiB", errorMessage: `byte size "8EiB" is out of range` + "\n  note: max 9223372036854775807B"},
+			{name: "10EB is out of range", input: "10EB", errorMessage: `byte size "10EB" is out of range` + "\n  note: max 9223372036854775807B"},
 			{name: "fractional SI megabytes", input: "1.5MB", expected: int64(1.5 * 1000 * 1000)},
 			{name: "fractional IEC gibibytes", input: "0.5GiB", expected: int64(0.5 * 1024 * 1024 * 1024)},
 			{name: "fractional trailing zeros resolve exactly", input: "1.500GB", expected: 1500 * 1000 * 1000},
@@ -649,19 +650,19 @@ func TestDomainTypes(t *testing.T) {
 			{name: "fractional byte above one rejected", input: "1.5B", errorMessage: `byte size "1.5B" is not a whole number of bytes`},
 			{name: "inexact binary fraction rejected", input: "0.1GiB", errorMessage: `byte size "0.1GiB" is not a whole number of bytes`},
 			{name: "inexact decimal sub-byte fraction rejected", input: "0.0000001MB", errorMessage: `byte size "0.0000001MB" is not a whole number of bytes`},
-			{name: "lowercase byte unit rejected", input: "500b", errorMessage: `unknown byte size unit "b" in "500b" (accepted: ` + acceptedUnits + `)`},
-			{name: "naked K prefix rejected", input: "4K", errorMessage: `unknown byte size unit "K" in "4K" (accepted: ` + acceptedUnits + `)`},
-			{name: "naked M prefix rejected", input: "10M", errorMessage: `unknown byte size unit "M" in "10M" (accepted: ` + acceptedUnits + `)`},
-			{name: "naked G prefix rejected", input: "1G", errorMessage: `unknown byte size unit "G" in "1G" (accepted: ` + acceptedUnits + `)`},
-			{name: "naked Gi prefix rejected", input: "10Gi", errorMessage: `unknown byte size unit "Gi" in "10Gi" (accepted: ` + acceptedUnits + `)`},
-			{name: "lowercase kib rejected", input: "100kib", errorMessage: `unknown byte size unit "kib" in "100kib" (accepted: ` + acceptedUnits + `)`},
-			{name: "uppercase MIB rejected", input: "512MIB", errorMessage: `unknown byte size unit "MIB" in "512MIB" (accepted: ` + acceptedUnits + `)`},
-			{name: "megabit casing rejected", input: "10Mb", errorMessage: `unknown byte size unit "Mb" in "10Mb" (accepted: ` + acceptedUnits + `)`},
-			{name: "lowercase megabyte rejected", input: "10mb", errorMessage: `unknown byte size unit "mb" in "10mb" (accepted: ` + acceptedUnits + `)`},
-			{name: "lowercase gigabyte rejected", input: "1gb", errorMessage: `unknown byte size unit "gb" in "1gb" (accepted: ` + acceptedUnits + `)`},
-			{name: "internal whitespace rejected", input: "256 MiB", errorMessage: `unknown byte size unit " MiB" in "256 MiB" (accepted: ` + acceptedUnits + `)`},
+			{name: "lowercase byte unit rejected", input: "500b", errorMessage: `unknown byte size unit "b" in "500b"` + "\n  note: accepted units: " + acceptedUnits},
+			{name: "naked K prefix rejected", input: "4K", errorMessage: `unknown byte size unit "K" in "4K"` + "\n  note: accepted units: " + acceptedUnits},
+			{name: "naked M prefix rejected", input: "10M", errorMessage: `unknown byte size unit "M" in "10M"` + "\n  note: accepted units: " + acceptedUnits},
+			{name: "naked G prefix rejected", input: "1G", errorMessage: `unknown byte size unit "G" in "1G"` + "\n  note: accepted units: " + acceptedUnits},
+			{name: "naked Gi prefix rejected", input: "10Gi", errorMessage: `unknown byte size unit "Gi" in "10Gi"` + "\n  note: accepted units: " + acceptedUnits},
+			{name: "lowercase kib rejected", input: "100kib", errorMessage: `unknown byte size unit "kib" in "100kib"` + "\n  note: accepted units: " + acceptedUnits},
+			{name: "uppercase MIB rejected", input: "512MIB", errorMessage: `unknown byte size unit "MIB" in "512MIB"` + "\n  note: accepted units: " + acceptedUnits},
+			{name: "megabit casing rejected", input: "10Mb", errorMessage: `unknown byte size unit "Mb" in "10Mb"` + "\n  note: accepted units: " + acceptedUnits},
+			{name: "lowercase megabyte rejected", input: "10mb", errorMessage: `unknown byte size unit "mb" in "10mb"` + "\n  note: accepted units: " + acceptedUnits},
+			{name: "lowercase gigabyte rejected", input: "1gb", errorMessage: `unknown byte size unit "gb" in "1gb"` + "\n  note: accepted units: " + acceptedUnits},
+			{name: "internal whitespace rejected", input: "256 MiB", errorMessage: `unknown byte size unit " MiB" in "256 MiB"` + "\n  note: accepted units: " + acceptedUnits},
 			{name: "invalid number", input: "abcMB", errorMessage: `invalid byte size "abcMB"`},
-			{name: "invalid unit", input: "100XYZ", errorMessage: `unknown byte size unit "XYZ" in "100XYZ" (accepted: ` + acceptedUnits + `)`},
+			{name: "invalid unit", input: "100XYZ", errorMessage: `unknown byte size unit "XYZ" in "100XYZ"` + "\n  note: accepted units: " + acceptedUnits},
 			{name: "negative value", input: "-5MB", errorMessage: `invalid byte size "-5MB"`},
 		}
 
@@ -675,7 +676,7 @@ func TestDomainTypes(t *testing.T) {
 
 				if testCase.errorMessage != "" {
 					assertNotUsageError(t, err)
-					assert.Equal(t, testCase.errorMessage, err.Error())
+					assert.Equal(t, testCase.errorMessage, errlines.Plain([]error{err}))
 					assert.Equal(t, int64(0), byteSize.Bytes())
 
 					return
@@ -1854,7 +1855,8 @@ func TestByteSizeUnitsTagRestrictsAcceptedFamilies(t *testing.T) {
 
 		assert.Error(t, err)
 		assertNotUsageError(t, err)
-		assert.Equal(t, `byte size unit "MB" in "10MB" is not allowed: the field accepts binary units only`, err.Error())
+		assert.Equal(t, `byte size unit "MB" in "10MB" is not allowed`, err.Error())
+		assert.Equal(t, `the field accepts binary units only`, errlines.Note(err))
 	})
 
 	t.Run("decimal only rejects binary", func(t *testing.T) {
@@ -1866,7 +1868,8 @@ func TestByteSizeUnitsTagRestrictsAcceptedFamilies(t *testing.T) {
 
 		assert.Error(t, err)
 		assertNotUsageError(t, err)
-		assert.Equal(t, `byte size unit "MiB" in "10MiB" is not allowed: the field accepts decimal units only`, err.Error())
+		assert.Equal(t, `byte size unit "MiB" in "10MiB" is not allowed`, err.Error())
+		assert.Equal(t, `the field accepts decimal units only`, errlines.Note(err))
 	})
 
 	t.Run("binary accepts binary", func(t *testing.T) {
@@ -2048,7 +2051,8 @@ func TestByteSize_UnknownUnitHintFollowsUnitsTag(t *testing.T) {
 		err := conga.New[byteSizeUnitsHintCLI]().Args([]string{"--binary", "10G"}).Run()
 
 		assertUsageError(t, err)
-		assert.Equal(t, `unknown byte size unit "G" in "10G" (accepted: B, KiB, MiB, GiB, TiB, PiB, EiB) for flag --binary`, err.Error())
+		assert.Equal(t, `unknown byte size unit "G" in "10G" for flag --binary`, err.Error())
+		assert.Equal(t, `accepted units: B, KiB, MiB, GiB, TiB, PiB, EiB`, errlines.Note(err))
 	})
 
 	t.Run("decimal field lists decimal units", func(t *testing.T) {
@@ -2057,7 +2061,8 @@ func TestByteSize_UnknownUnitHintFollowsUnitsTag(t *testing.T) {
 		err := conga.New[byteSizeUnitsHintCLI]().Args([]string{"--decimal", "10G"}).Run()
 
 		assertUsageError(t, err)
-		assert.Equal(t, `unknown byte size unit "G" in "10G" (accepted: B, kB, MB, GB, TB, PB, EB) for flag --decimal`, err.Error())
+		assert.Equal(t, `unknown byte size unit "G" in "10G" for flag --decimal`, err.Error())
+		assert.Equal(t, `accepted units: B, kB, MB, GB, TB, PB, EB`, errlines.Note(err))
 	})
 }
 

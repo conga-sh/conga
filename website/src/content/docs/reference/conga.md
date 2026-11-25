@@ -51,6 +51,7 @@ func New[T any](root ...*T) *App[T]
 | `RunContext(ctx)` | Execute with your context; panics on a nil context |
 | `Exit(err)` | Render error messages and exit with 0, 1, 2, or an `ExitCoder`'s code |
 | `ExitCode(err)` | The exit code `Exit` uses for `err`, without printing or exiting |
+| `UsageBlock(err)` | The usage block `Exit` prints after the lines of `err`, or `""` when it prints none |
 
 ### Extensibility functions
 
@@ -98,7 +99,7 @@ func (s *Session) Stdin() io.Reader
 func (s *Session) Stdout() io.Writer
 func (s *Session) Stderr() io.Writer
 func (s *Session) Help() string
-func (s *Session) Usage() string
+func (s *Session) Synopsis() string
 func (s *Session) Version() string
 func (s *Session) Why() string
 func (s *Session) WhyJSON() string
@@ -123,7 +124,7 @@ The App snapshots standard streams at the start of execution for the active sess
 
 `CandidateConfigFiles`/`LoadedConfigFiles` report the configuration sources the run evaluated. These are file paths for file-based resolution, plus the distinct origin paths the application recorded when a [`conga.Bootstrapper`](/how-to/load-domain-documents/) supplies a document with `Bootstrap.SetConfig`. Document scopes recorded with `ConfigDocument.SetScoped` are not part of the reported path.
 
-`Help`, `Usage`, and `Version` are the formatting primitives behind the built-in `help` and `version` commands. `Help` returns the active command's help screen as a string, `Usage` returns the syntax usage summary as a string, and `Version` returns the formatted version summary line as a string, falling back to the module version (or `dev`) plus the embedded build metadata when no version string was configured.
+`Help`, `Synopsis`, and `Version` are the formatting primitives behind the built-in `help` and `version` commands. `Help` returns the active command's help screen as a string, `Synopsis` returns the command's `Usage:` syntax lines as a string, and `Version` returns the formatted version summary line as a string, falling back to the module version (or `dev`) plus the embedded build metadata when no version string was configured.
 
 ## Domain types
 
@@ -139,7 +140,7 @@ The App snapshots standard streams at the start of execution for the active sess
 
 ## Errors
 
-The `*UsageError` type and the `ExitCoder` interface, `Session.UsageError` and `Session.UsageErrorf`, and the schema-build errors, cataloged in [Errors and exit codes](/reference/errors/).
+The `*UsageError` type, the `ExitCoder` interface, the `Originer`, `Noter` and `Hinter` interfaces, `Diagnostic` and `DiagnosticOf`, `Session.UsageError` and `Session.UsageErrorf`, and the schema-build errors, cataloged in [Errors and exit codes](/reference/errors/).
 
 ## Provenance options
 
@@ -221,7 +222,7 @@ func (d *ConfigDocument) SetKey(key, entryKey string, value any, origin string) 
 func (d *ConfigDocument) SetKeyScoped(key, entryKey string, value any, origin, scope string) *ConfigDocument
 ```
 
-A command struct that implements `Bootstrapper` runs `Bootstrap` after the bootstrap pass, which binds the fields tagged `bootstrap:"true"` from the command line, environment, and defaults. The normal binding pass then binds every field, the tagged ones included, with config added. An error returned from `Bootstrap` reaches the caller unchanged and exits 1, or with the code of an `ExitCoder`.
+A command struct that implements `Bootstrapper` runs `Bootstrap` after the bootstrap pass, which binds the fields tagged `bootstrap:"true"` from the command line, environment, and defaults. The normal binding pass then binds every field, the tagged ones included, with config added. An error returned from `Bootstrap` comes back as is ([Errors and exit codes](/reference/errors/)). It exits 1, or with the code of an `ExitCoder`.
 
 | `Bootstrap` method | Effect |
 |---|---|

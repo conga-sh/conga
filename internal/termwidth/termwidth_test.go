@@ -46,3 +46,17 @@ func TestResolve_PipeFallsBackToDefault(t *testing.T) {
 
 	assert.Equal(t, termwidth.Default, termwidth.Resolve(read))
 }
+
+// TestIsTerminal_PipeIsNotATerminal verifies that a pipe fails the terminal
+// probe.
+func TestIsTerminal_PipeIsNotATerminal(t *testing.T) {
+	t.Parallel()
+
+	read, write, err := os.Pipe()
+	assert.NoError(t, err)
+
+	defer read.Close()
+	defer write.Close()
+
+	assert.False(t, termwidth.IsTerminal(read))
+}

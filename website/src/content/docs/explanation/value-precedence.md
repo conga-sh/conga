@@ -139,7 +139,7 @@ Scalar and slice flags take the value of the single winning source. `map[K]V` fl
 
 This matches the convention of Kubernetes `--feature-gates`, Helm `--set`, and `git -c`. A higher source can change a key set by a lower one, but cannot remove it.
 
-Because every source contributes, CONGA parses map entries from every active source, even when the command line also sets the flag. A malformed entry on the command line is a `*conga.UsageError` (exit 2). A malformed entry in a config file or an environment variable comes from a lower source, so it is not a usage error and exits 1, even when the command line also sets the flag. The message names the origin, such as `invalid key-value pair "novalue", expected KEY=VALUE for flag --labels (from environment variable TOOL_LABELS)` or `(from config key "labels")`.
+Because every source contributes, CONGA parses map entries from every active source, even when the command line also sets the flag. A malformed entry on the command line is a `*conga.UsageError` (exit 2). A malformed entry in a config file or an environment variable comes from a lower source, so it is not a usage error and exits 1, even when the command line also sets the flag. The error names the origin on a `from:` line, such as `environment variable TOOL_LABELS` or `config key "labels" in config file "tool.yaml"`.
 
 ### Feature maps
 

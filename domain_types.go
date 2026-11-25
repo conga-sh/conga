@@ -880,16 +880,40 @@ func (e *byteSizeError) Error() string {
 	case byteSizeErrorInexactFraction:
 		return fmt.Sprintf("byte size %q is not a whole number of bytes", e.raw)
 	case byteSizeErrorOutOfRange:
-		return fmt.Sprintf("byte size %q is out of range (max %dB)", e.raw, int64(math.MaxInt64))
+		return fmt.Sprintf("byte size %q is out of range", e.raw)
 	case byteSizeErrorUnknownUnit:
-		return fmt.Sprintf("unknown byte size unit %q in %q (accepted: %s)", e.unit, e.raw, e.accepted)
+		return fmt.Sprintf("unknown byte size unit %q in %q", e.unit, e.raw)
 	case byteSizeErrorUnitNotAllowed:
-		return fmt.Sprintf("byte size unit %q in %q is not allowed: the field accepts %s units only", e.unit, e.raw, e.allowed)
+		return fmt.Sprintf("byte size unit %q in %q is not allowed", e.unit, e.raw)
 	case byteSizeErrorAmbiguousUnit:
-		return fmt.Sprintf("ambiguous byte size unit %q in %q: use kB (1000) or KiB (1024)", e.unit, e.raw)
+		return fmt.Sprintf("ambiguous byte size unit %q in %q", e.unit, e.raw)
 	default:
 		return fmt.Sprintf("invalid byte size %q", e.raw)
 	}
+}
+
+// Note returns the detail on the failure: the limit, the accepted units, or
+// the unit family the field restricts to. Other failures have none.
+func (e *byteSizeError) Note() string {
+	switch e.kind {
+	case byteSizeErrorOutOfRange:
+		return fmt.Sprintf("max %dB", int64(math.MaxInt64))
+	case byteSizeErrorUnknownUnit:
+		return "accepted units: " + e.accepted
+	case byteSizeErrorUnitNotAllowed:
+		return fmt.Sprintf("the field accepts %s units only", e.allowed)
+	default:
+		return ""
+	}
+}
+
+// Hint returns the correction for an ambiguous unit, or "".
+func (e *byteSizeError) Hint() string {
+	if e.kind == byteSizeErrorAmbiguousUnit {
+		return "use kB (1000) or KiB (1024)"
+	}
+
+	return ""
 }
 
 // byteSizeTagError reports a units or display tag value on a ByteSize field

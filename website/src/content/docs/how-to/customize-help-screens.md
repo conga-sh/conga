@@ -5,7 +5,7 @@ description: Add descriptions, examples, and footers, mark deprecated commands, 
 
 CONGA builds every help screen from your command structs. This guide adds the text around them, marks a deprecated command, assigns short flags to the built-ins, groups flags and commands into sections, and controls the hints that follow each flag.
 
-This guide builds a small `cloudctl` program with `deploy` and `rollout` subcommands. The [built-ins example](https://github.com/conga-sh/conga/tree/main/_examples/10-builtins-help-version) is a fuller program with custom help, usage, and version commands.
+This guide builds a small `cloudctl` program with `deploy` and `rollout` subcommands. The [built-ins example](https://github.com/conga-sh/conga/tree/main/_examples/10-builtins-help-version) is a fuller program with custom help, synopsis, and version commands.
 
 ## Describe the application
 
@@ -281,7 +281,8 @@ The flag still accepts only the listed values, and shell completion still offers
 
 ```sh error={2} wrap
 $ cloudctl deploy --region mars
-cloudctl: error: invalid value "mars" (must be one of: us-east-1, us-west-1, us-west-2, eu-west-1, eu-central-1) for flag --region
+cloudctl: error: invalid value "mars" for flag --region
+  note: accepted values: us-east-1, us-west-1, us-west-2, eu-west-1, eu-central-1
 ```
 
 `enumhint` accepts only `-`. Feature toggles hide the list for you, because the `Features:` section already shows every toggle.
@@ -335,22 +336,24 @@ Each of these mistakes stops the program at startup, before it reads any input, 
 
 Each full message names the struct and field:
 
-```text no-copy error={1-2} wrap
-cloudctl: error: struct CLI field Verbose: schema error: duplicate flag: built-in --help short flag -h collides with --verbose; assign a different rune to one of them
-cloudctl: error: struct DeployCmd field Port: schema error: invalid struct tag: tag "help" references unknown variable {{min}}; supported variables are {{range}}, {{len}}, {{items}}, {{enum}}, {{default}}, {{env}}
+```text no-copy error={1,3} wrap
+cloudctl: error: struct CLI field Verbose: built-in --help short flag -h collides with --verbose
+  hint: assign a different rune to one of them
+cloudctl: error: struct DeployCmd field Port: tag "help" references unknown variable {{min}}
+  note: supported variables are {{range}}, {{len}}, {{items}}, {{enum}}, {{default}}, {{env}}
 ```
 
 `conga-lint` reports the same mistakes before you build, and [How to lint schemas](/how-to/lint-schemas/) sets it up.
 
 ## Print help from your own command
 
-`session.Help()` returns the active command's help screen, and `session.Usage()` its usage line, as strings. Neither writes anything, so a command can page, reformat, or route them. This `guide` command prints its own usage string, quoted to show its exact content:
+`session.Help()` returns the active command's help screen, and `session.Synopsis()` the command's `Usage:` syntax lines, as strings. Neither writes anything, so a command can page, reformat, or route them. This `guide` command prints its own synopsis, quoted to show its exact content:
 
 ```go title="guide.go"
 type GuideCmd struct{}
 
 func (g *GuideCmd) Run(_ context.Context, session *conga.Session) error {
-	fmt.Fprintf(session.Stdout(), "%q\n", session.Usage())
+	fmt.Fprintf(session.Stdout(), "%q\n", session.Synopsis())
 
 	return nil
 }
@@ -361,7 +364,7 @@ $ cloudctl guide
 "Usage:\n  cloudctl guide [flags]"
 ```
 
-The usage string includes its `Usage:` heading, as on the help screen.
+The synopsis includes its `Usage:` heading, as on the help screen.
 
 ## Where to go next
 
@@ -369,4 +372,4 @@ The usage string includes its `Usage:` heading, as on the help screen.
 - [Help variables](/reference/struct-tags/#help-variables): the full variable catalog.
 - [How to gate features](/how-to/gate-behind-features/): the `Features:` section.
 - [How to deprecate flags and commands](/how-to/deprecate-flags-and-commands/): the deprecation markers and warnings.
-- [Built-ins example](https://github.com/conga-sh/conga/tree/main/_examples/10-builtins-help-version): custom help, usage, and version commands.
+- [Built-ins example](https://github.com/conga-sh/conga/tree/main/_examples/10-builtins-help-version): custom help, synopsis, and version commands.

@@ -4,6 +4,12 @@ package termwidth
 
 import "os"
 
+// IsTerminal reports false on platforms without a portable ioctl probe. The
+// Windows console check lives in internal/envx.
+func IsTerminal(_ *os.File) bool {
+	return false
+}
+
 // widthOf reports no terminal width on platforms without a portable ioctl
 // probe; Resolve then falls back to COLUMNS or Default. The Windows console
 // would need kernel32 through golang.org/x/sys, which the core footprint rules

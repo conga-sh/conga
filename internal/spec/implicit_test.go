@@ -5,6 +5,7 @@ import (
 
 	"github.com/alecthomas/assert/v2"
 
+	"github.com/conga-sh/conga/internal/errlines"
 	"github.com/conga-sh/conga/internal/spec"
 	"github.com/conga-sh/conga/internal/tokenizer"
 )
@@ -52,7 +53,8 @@ func TestBuild_ImplicitCommandDuplicate(t *testing.T) {
 	})
 
 	assert.True(t, spec.IsSchemaError(err))
-	assert.Equal(t, "struct implicitDuplicateCLI field Second: only one implicit command is allowed per command (note: already declared by field First)", err.Error())
+	assert.Equal(t, "struct implicitDuplicateCLI field Second: only one implicit command is allowed per command", err.Error())
+	assert.Equal(t, "already declared by field First", errlines.Note(err))
 }
 
 func TestBuild_ImplicitCommandInvalidBool(t *testing.T) {

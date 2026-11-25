@@ -8,6 +8,7 @@ import (
 	"github.com/alecthomas/assert/v2"
 
 	"github.com/conga-sh/conga"
+	"github.com/conga-sh/conga/internal/errlines"
 )
 
 type hiddenTypoFlagCLI struct {
@@ -61,6 +62,8 @@ func TestSchema_StrictBoolTagRejectsTypos(t *testing.T) {
 		name     string
 		run      func() error
 		expected string
+		note     string
+		hint     string
 	}{
 		{
 			name:     "hidden on a flag",
@@ -107,6 +110,8 @@ func TestSchema_StrictBoolTagRejectsTypos(t *testing.T) {
 
 			assert.Error(t, err)
 			assert.Equal(t, testCase.expected, err.Error())
+			assert.Equal(t, testCase.note, errlines.Note(err))
+			assert.Equal(t, testCase.hint, errlines.Hint(err))
 		})
 	}
 }
@@ -239,21 +244,26 @@ func TestSchema_StrictBoolTagPlacementAndCollectors(t *testing.T) {
 		name     string
 		run      func() error
 		expected string
+		note     string
+		hint     string
 	}{
 		{
 			name:     "hidden typo on a positional argument names the placement",
 			run:      func() error { return conga.New[hiddenOnArgCLI]().Args(nil).Run() },
-			expected: `struct hiddenOnArgCLI field Target: tag "hidden" is invalid on positional argument (note: tag "hidden" is only valid on flags, subcommands, built-in commands, and config file flags)`,
+			expected: `struct hiddenOnArgCLI field Target: tag "hidden" is invalid on positional argument`,
+			note:     `tag "hidden" is only valid on flags, subcommands, built-in commands, and config file flags`,
 		},
 		{
 			name:     "negatable typo on a ConfigFile names the placement",
 			run:      func() error { return conga.New[negatableOnConfigFileCLI]().Args(nil).Run() },
-			expected: `struct negatableOnConfigFileCLI field Config: tag "negatable" is invalid on config file flag (note: tag "negatable" is only valid on flags)`,
+			expected: `struct negatableOnConfigFileCLI field Config: tag "negatable" is invalid on config file flag`,
+			note:     `tag "negatable" is only valid on flags`,
 		},
 		{
 			name:     "bootstrap typo on a subcommand names the placement",
 			run:      func() error { return conga.New[bootstrapOnSubcommandCLI]().Args(nil).Run() },
-			expected: `struct bootstrapOnSubcommandCLI field Sub: tag "bootstrap" is invalid on subcommand (note: tag "bootstrap" is only valid on flags, positional arguments, and trailing-argument collectors)`,
+			expected: `struct bootstrapOnSubcommandCLI field Sub: tag "bootstrap" is invalid on subcommand`,
+			note:     `tag "bootstrap" is only valid on flags, positional arguments, and trailing-argument collectors`,
 		},
 		{
 			name:     "bootstrap typo on DashArgs",
@@ -275,6 +285,8 @@ func TestSchema_StrictBoolTagPlacementAndCollectors(t *testing.T) {
 
 			assert.Error(t, err)
 			assert.Equal(t, testCase.expected, err.Error())
+			assert.Equal(t, testCase.note, errlines.Note(err))
+			assert.Equal(t, testCase.hint, errlines.Hint(err))
 		})
 	}
 }

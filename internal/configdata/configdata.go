@@ -4,6 +4,8 @@
 // documents, and package conga folds it into the tier cascade.
 package configdata
 
+import "strconv"
+
 // ScopeSeparator separates an origin from its optional scope in rendered
 // provenance.
 const ScopeSeparator = " › "
@@ -19,12 +21,31 @@ type Value struct {
 	// section of a configuration file. It is empty when Origin is a whole
 	// source or none was supplied.
 	Scope string
+	// Document reports that Origin labels a programmatic document, not a
+	// configuration file path.
+	Document bool
 }
 
 // SourceDetail renders the origin with its optional scope for value
 // attribution.
 func (v Value) SourceDetail() string {
 	return JoinOriginScope(v.Origin, v.Scope)
+}
+
+// OriginText renders the value's origin for an error "from:" line with no
+// key: `config file "<path>"` for a file, `set by <label>` (with its scope)
+// for a programmatic document, and "" when no origin was recorded.
+func (v Value) OriginText() string {
+	detail := v.SourceDetail()
+	if detail == "" {
+		return ""
+	}
+
+	if v.Document {
+		return "set by " + detail
+	}
+
+	return "config file " + strconv.Quote(detail)
 }
 
 // Data holds the validated configuration tier of one invocation: scalar values
@@ -58,6 +79,16 @@ func (data *Data) SetScalarScoped(key, raw, origin, scope string) {
 	}
 
 	data.scalars[key] = Value{Raw: raw, Origin: origin, Scope: scope}
+}
+
+// SetScalarValue records value under key, overwriting any value stored by an
+// earlier file. An empty origin records no scope.
+func (data *Data) SetScalarValue(key string, value Value) {
+	if value.Origin == "" {
+		value.Scope = ""
+	}
+
+	data.scalars[key] = value
 }
 
 // EnsureMap returns the shared per-key map for the given alias keys of a map

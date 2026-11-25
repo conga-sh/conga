@@ -1,0 +1,4 @@
+app: error: invalid unsigned integer value "0755" for flag --mode
+  from: environment variable TOOL_MODE
+  note: a leading zero is ambiguous
+  hint: write 0o755 for octal or 755 for decimal

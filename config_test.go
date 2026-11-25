@@ -17,6 +17,7 @@ import (
 	"github.com/conga-sh/conga/decoder/json"
 	"github.com/conga-sh/conga/decoder/toml"
 	"github.com/conga-sh/conga/decoder/yaml"
+	"github.com/conga-sh/conga/internal/errlines"
 )
 
 var (
@@ -288,7 +289,9 @@ func TestConfig_StrictUnknownFieldRejection(t *testing.T) {
 
 	assert.Error(t, err)
 	assertNotUsageError(t, err)
-	assert.Equal(t, fmt.Sprintf("config file %q: unknown field \"clstr_name\" in command \"app\" (did you mean \"cluster-name\"?)", cfgPath), err.Error())
+	assert.Equal(t, "unknown field \"clstr_name\" in command \"app\"", err.Error())
+	assert.Contains(t, conga.DiagnosticOf(err).Render(), fmt.Sprintf("from: config file %q", cfgPath))
+	assert.Equal(t, `did you mean "cluster-name"?`, errlines.Hint(err))
 }
 
 func TestConfig_ExcludedFieldRejection(t *testing.T) {
@@ -307,7 +310,8 @@ func TestConfig_ExcludedFieldRejection(t *testing.T) {
 
 	assert.Error(t, err)
 	assertNotUsageError(t, err)
-	assert.Equal(t, fmt.Sprintf("config file %q: unknown field \"internal_key\" in command \"app\"", cfgPath), err.Error())
+	assert.Equal(t, "unknown field \"internal_key\" in command \"app\"", err.Error())
+	assert.Contains(t, conga.DiagnosticOf(err).Render(), fmt.Sprintf("from: config file %q", cfgPath))
 }
 
 func TestConfig_NestedSubcommandTables(t *testing.T) {
@@ -868,7 +872,8 @@ func TestConfig_NamespacedFlagAliasRejected(t *testing.T) {
 	err = app.Run()
 
 	assertNotUsageError(t, err)
-	assert.Equal(t, fmt.Sprintf(`config file %q: unknown field "listen-port" in namespace "network"`, cfgPath), err.Error())
+	assert.Equal(t, `unknown field "listen-port" in namespace "network"`, err.Error())
+	assert.Contains(t, conga.DiagnosticOf(err).Render(), fmt.Sprintf("from: config file %q", cfgPath))
 	assert.False(t, cli.Port.IsSet())
 }
 
@@ -890,7 +895,8 @@ func TestConfig_NamespacedScalarFlagSectionRejected(t *testing.T) {
 	err = app.Run()
 
 	assertNotUsageError(t, err)
-	assert.Equal(t, fmt.Sprintf(`config file %q: field "port" in namespace "network" is not a map`, cfgPath), err.Error())
+	assert.Equal(t, `field "port" in namespace "network" is not a map`, err.Error())
+	assert.Contains(t, conga.DiagnosticOf(err).Render(), fmt.Sprintf("from: config file %q", cfgPath))
 	assert.False(t, cli.Port.IsSet())
 }
 
@@ -917,7 +923,9 @@ func TestConfig_OtherSpellingRejectedDeterministically(t *testing.T) {
 		err := app.Run()
 
 		assertNotUsageError(t, err)
-		assert.Equal(t, fmt.Sprintf(`config file %q: unknown field "dryRun" in command "app" (did you mean "dry-run"?)`, cfgPath), err.Error())
+		assert.Equal(t, `unknown field "dryRun" in command "app"`, err.Error())
+		assert.Contains(t, conga.DiagnosticOf(err).Render(), fmt.Sprintf("from: config file %q", cfgPath))
+		assert.Equal(t, `did you mean "dry-run"?`, errlines.Hint(err))
 		assert.False(t, cli.DryRun.IsSet())
 	}
 }

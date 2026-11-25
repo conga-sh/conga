@@ -166,7 +166,9 @@ Run a deployment:
 
 ```sh error={2}
 $ ./cloudctl deploy web
-cloudctl: error: config file "cloudctl.yaml": unknown field "replcas" in command "deploy" (did you mean "replicas"?)
+cloudctl: error: unknown field "replcas" in command "deploy"
+  from: config file "cloudctl.yaml"
+  hint: did you mean "replicas"?
 ```
 
 CONGA checks every key in the file against the flags, and stops before any command runs. This time the program exits with status 1, not the 2 of a mistyped flag:

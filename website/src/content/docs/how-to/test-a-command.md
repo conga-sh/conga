@@ -291,7 +291,7 @@ Usage:
 Run 'hello --help' for more information.
 ```
 
-To omit the usage block on errors, add `UsageOnError(conga.UsageSilence)` so `Stderr` receives only the error line, or `UsageOnError(conga.UsageHint)` to keep the error line and the `--help` hint.
+To omit the usage block on errors, add `UsageOnError(conga.UsageSilence)` so `Stderr` receives the error line and its `from:`, `note:` and `hint:` lines without the usage block, or `UsageOnError(conga.UsageHint)` to keep the error line and the `--help` hint.
 
 ## Test --help and other built-in flags
 

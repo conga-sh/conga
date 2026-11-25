@@ -9,6 +9,7 @@ import (
 
 	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/decoder/json"
+	"github.com/conga-sh/conga/internal/errlines"
 )
 
 type OneOfCLI struct {
@@ -314,7 +315,9 @@ func TestOneOf_SingleMemberRejected(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.Equal(t, `struct OneOfSingleCLI field JSON: oneof group "format" has only one member (--json) (note: exactly-one groups need at least two members; hint: use RequiredFlag for a single mandatory flag)`, err.Error())
+	assert.Equal(t, `struct OneOfSingleCLI field JSON: oneof group "format" has only one member (--json)`, err.Error())
+	assert.Equal(t, `exactly-one groups need at least two members`, errlines.Note(err))
+	assert.Equal(t, `use RequiredFlag for a single mandatory flag`, errlines.Hint(err))
 }
 
 func TestOneOf_SingleMemberCounterRequiresOccurrence(t *testing.T) {
@@ -378,7 +381,8 @@ func TestOneOf_EnvAndCLIConflict(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.Equal(t, "flags --json and --yaml (from environment variable CONGA_TEST_ONEOF_YAML) are mutually exclusive", err.Error())
+	assert.Equal(t, "flags --json and --yaml are mutually exclusive", err.Error())
+	assert.Contains(t, conga.DiagnosticOf(err).Render(), "from: --yaml: environment variable CONGA_TEST_ONEOF_YAML")
 	assertUsageError(t, err)
 }
 
@@ -603,7 +607,8 @@ func TestOneOf_CounterZeroConflictsWithSibling(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.Equal(t, `flags --json (from config key "json") and --yaml are mutually exclusive`, err.Error())
+	assert.Equal(t, `flags --json and --yaml are mutually exclusive`, err.Error())
+	assert.Contains(t, conga.DiagnosticOf(err).Render(), `from: --json: config key "json"`)
 	assertUsageError(t, err)
 }
 

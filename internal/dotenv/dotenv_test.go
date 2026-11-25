@@ -11,6 +11,7 @@ import (
 	_ "embed"
 
 	"github.com/conga-sh/conga/internal/dotenv"
+	"github.com/conga-sh/conga/internal/errlines"
 	"github.com/conga-sh/conga/internal/filex"
 )
 
@@ -691,4 +692,22 @@ func TestDotenv_LoadDefaultHierarchy_MalformedFilePropagates(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "cannot parse .env file")
+}
+
+func TestDotenvError_ReadAndParseNameTheFileInTheirMessage(t *testing.T) {
+	t.Parallel()
+
+	directory := t.TempDir()
+	missing := filepath.Join(directory, "missing.env")
+	broken := filepath.Join(directory, "broken.env")
+
+	assert.NoError(t, os.WriteFile(broken, []byte("='unterminated\n"), 0o600))
+
+	readErr := dotenv.LoadWithOrigins(func(string, string) {}, map[string]string{}, true, missing)
+	parseErr := dotenv.LoadWithOrigins(func(string, string) {}, map[string]string{}, true, broken)
+
+	assert.Contains(t, readErr.Error(), `cannot read .env file "`+missing+`"`)
+	assert.Zero(t, errlines.Origins(readErr))
+	assert.Contains(t, parseErr.Error(), `cannot parse .env file "`+broken+`"`)
+	assert.Zero(t, errlines.Origins(parseErr))
 }

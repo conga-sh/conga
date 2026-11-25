@@ -44,11 +44,11 @@ func TestSession_Help(t *testing.T) {
 	assert.Equal(t, cmd.helpText+"\n", buffer.String())
 }
 
-func TestSession_Usage(t *testing.T) {
+func TestSession_Synopsis(t *testing.T) {
 	t.Parallel()
 
 	buffer := &bytes.Buffer{}
-	cmd := &sessionUsageCmd{}
+	cmd := &sessionSynopsisCmd{}
 	app := conga.New(cmd).
 		Name("myapp").
 		Args([]string{}).
@@ -57,17 +57,16 @@ func TestSession_Usage(t *testing.T) {
 	err := app.Run()
 
 	assert.NoError(t, err)
-	assert.NotZero(t, cmd.usageText)
+	assert.Equal(t, "Usage:\n  myapp", cmd.synopsisText)
 	assert.Equal(t, goldenHelpUsage, buffer.String())
-	assert.Equal(t, cmd.usageText+"\n", buffer.String())
 }
 
-func TestSession_HelpAndUsage_NilOrEmpty(t *testing.T) {
+func TestSession_HelpAndSynopsis_NilOrEmpty(t *testing.T) {
 	t.Parallel()
 
 	var s *conga.Session
 	assert.Equal(t, "", s.Help())
-	assert.Equal(t, "", s.Usage())
+	assert.Equal(t, "", s.Synopsis())
 }
 
 func TestSession_Version(t *testing.T) {
@@ -157,13 +156,13 @@ func (h *sessionHelpCmd) Run(ctx context.Context, session *conga.Session) error 
 	return nil
 }
 
-type sessionUsageCmd struct {
-	usageText string
+type sessionSynopsisCmd struct {
+	synopsisText string
 }
 
-func (u *sessionUsageCmd) Run(ctx context.Context, session *conga.Session) error {
-	u.usageText = session.Usage()
-	fmt.Fprintln(session.Stderr(), u.usageText)
+func (u *sessionSynopsisCmd) Run(ctx context.Context, session *conga.Session) error {
+	u.synopsisText = session.Synopsis()
+	fmt.Fprintln(session.Stderr(), u.synopsisText)
 
 	return nil
 }

@@ -8,6 +8,7 @@ import (
 
 	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/decoder/json"
+	"github.com/conga-sh/conga/internal/errlines"
 )
 
 type integerSyntaxCLI struct {
@@ -128,7 +129,9 @@ func TestIntegerSyntax_FlagLeadingZero(t *testing.T) {
 	result := runClassification(t, conga.New[integerSyntaxCLI]().Args([]string{"--mode", "0755"}))
 
 	assert.Error(t, result.err)
-	assert.Equal(t, `invalid unsigned integer value "0755" for flag --mode (a leading zero is ambiguous: write 0o755 for octal or 755 for decimal)`, result.err.Error())
+	assert.Equal(t, `invalid unsigned integer value "0755" for flag --mode`, result.err.Error())
+	assert.Equal(t, `a leading zero is ambiguous`, errlines.Note(result.err))
+	assert.Equal(t, `write 0o755 for octal or 755 for decimal`, errlines.Hint(result.err))
 	assertUsageError(t, result.err)
 	assert.Equal(t, 2, result.exitCode)
 }
@@ -139,7 +142,9 @@ func TestIntegerSyntax_NegativeFlagLeadingZero(t *testing.T) {
 	err := conga.New[integerSyntaxCLI]().Args([]string{"--offset", "-0755"}).RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.Equal(t, `invalid integer value "-0755" for flag --offset (a leading zero is ambiguous: write -0o755 for octal or -755 for decimal)`, err.Error())
+	assert.Equal(t, `invalid integer value "-0755" for flag --offset`, err.Error())
+	assert.Equal(t, `a leading zero is ambiguous`, errlines.Note(err))
+	assert.Equal(t, `write -0o755 for octal or -755 for decimal`, errlines.Hint(err))
 	assertUsageError(t, err)
 }
 
@@ -149,7 +154,9 @@ func TestIntegerSyntax_LeadingZeroWithNonOctalDigits(t *testing.T) {
 	err := conga.New[integerSyntaxCLI]().Args([]string{"--offset", "0089"}).RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.Equal(t, `invalid integer value "0089" for flag --offset (a leading zero is not allowed: write 89)`, err.Error())
+	assert.Equal(t, `invalid integer value "0089" for flag --offset`, err.Error())
+	assert.Equal(t, `a leading zero is not allowed`, errlines.Note(err))
+	assert.Equal(t, `write 89`, errlines.Hint(err))
 	assertUsageError(t, err)
 }
 
@@ -191,7 +198,9 @@ func TestIntegerSyntax_PositionalLeadingZero(t *testing.T) {
 	err := conga.New[integerSyntaxCLI]().Args([]string{"07"}).RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.Equal(t, `invalid integer value "07" for argument <count> (a leading zero is ambiguous: write 0o7 for octal or 7 for decimal)`, err.Error())
+	assert.Equal(t, `invalid integer value "07" for argument <count>`, err.Error())
+	assert.Equal(t, `a leading zero is ambiguous`, errlines.Note(err))
+	assert.Equal(t, `write 0o7 for octal or 7 for decimal`, errlines.Hint(err))
 	assertUsageError(t, err)
 }
 
@@ -211,7 +220,10 @@ func TestIntegerSyntax_EnvLeadingZero(t *testing.T) {
 	err := conga.New[integerSyntaxEnvCLI]().Args([]string{}).RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.Equal(t, `invalid unsigned integer value "0755" for flag --mode (from environment variable CONGA_TEST_INTEGER_SYNTAX_MODE) (a leading zero is ambiguous: write 0o755 for octal or 755 for decimal)`, err.Error())
+	assert.Equal(t, `invalid unsigned integer value "0755" for flag --mode`, err.Error())
+	assert.Equal(t, `a leading zero is ambiguous`, errlines.Note(err))
+	assert.Equal(t, `write 0o755 for octal or 755 for decimal`, errlines.Hint(err))
+	assert.Contains(t, conga.DiagnosticOf(err).Render(), `from: environment variable CONGA_TEST_INTEGER_SYNTAX_MODE`)
 	assertNotUsageError(t, err)
 }
 
@@ -239,7 +251,10 @@ func TestIntegerSyntax_ConfigStringLeadingZero(t *testing.T) {
 	err := app.RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.Equal(t, `invalid unsigned integer value "0755" for flag --mode (from config key "mode") (a leading zero is ambiguous: write 0o755 for octal or 755 for decimal)`, err.Error())
+	assert.Equal(t, `invalid unsigned integer value "0755" for flag --mode`, err.Error())
+	assert.Equal(t, `a leading zero is ambiguous`, errlines.Note(err))
+	assert.Equal(t, `write 0o755 for octal or 755 for decimal`, errlines.Hint(err))
+	assert.Contains(t, conga.DiagnosticOf(err).Render(), `from: config key "mode"`)
 	assertNotUsageError(t, err)
 }
 
@@ -293,7 +308,10 @@ func TestIntegerSyntax_DefaultTag(t *testing.T) {
 		result := runClassification(t, conga.New[CLI]().Args([]string{}))
 
 		assert.Error(t, result.err)
-		assert.Equal(t, `invalid unsigned integer value "0644" for flag --mode (from default value) (a leading zero is ambiguous: write 0o644 for octal or 644 for decimal)`, result.err.Error())
+		assert.Equal(t, `invalid unsigned integer value "0644" for flag --mode`, result.err.Error())
+		assert.Equal(t, `a leading zero is ambiguous`, errlines.Note(result.err))
+		assert.Equal(t, `write 0o644 for octal or 644 for decimal`, errlines.Hint(result.err))
+		assert.Contains(t, conga.DiagnosticOf(result.err).Render(), `from: default value`)
 		assertNotUsageError(t, result.err)
 		assert.Equal(t, 1, result.exitCode)
 	})
@@ -334,7 +352,8 @@ func TestIntegerSyntax_EnumRejectsOtherNumber(t *testing.T) {
 	err := conga.New[integerSyntaxEnumCLI]().Args([]string{"--pick", "0x11"}).RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.Equal(t, `invalid value "0x11" (must be one of: 0x10, 20) for flag --pick`, err.Error())
+	assert.Equal(t, `invalid value "0x11" for flag --pick`, err.Error())
+	assert.Equal(t, `accepted values: 0x10, 20`, errlines.Note(err))
 	assertUsageError(t, err)
 }
 
@@ -344,7 +363,8 @@ func TestIntegerSyntax_EnumRejectsLastRepeatedValue(t *testing.T) {
 	err := conga.New[integerSyntaxEnumCLI]().Args([]string{"--pick", "0x10", "--pick", "0o21"}).RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.Equal(t, `invalid value "0o21" (must be one of: 0x10, 20) for flag --pick`, err.Error())
+	assert.Equal(t, `invalid value "0o21" for flag --pick`, err.Error())
+	assert.Equal(t, `accepted values: 0x10, 20`, errlines.Note(err))
 	assertUsageError(t, err)
 }
 
@@ -360,7 +380,9 @@ func TestIntegerSyntax_EnumEnvSpelling(t *testing.T) {
 	err := conga.New[CLI]().Args([]string{}).RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.Equal(t, `invalid value "0x11" (must be one of: 0x10, 20) for flag --pick (from environment variable CONGA_TEST_INTEGER_SYNTAX_PICK)`, err.Error())
+	assert.Equal(t, `invalid value "0x11" for flag --pick`, err.Error())
+	assert.Equal(t, `accepted values: 0x10, 20`, errlines.Note(err))
+	assert.Contains(t, conga.DiagnosticOf(err).Render(), `from: environment variable CONGA_TEST_INTEGER_SYNTAX_PICK`)
 	assertNotUsageError(t, err)
 }
 
@@ -376,7 +398,9 @@ func TestIntegerSyntax_EnumDefaultSpelling(t *testing.T) {
 	err := conga.New[CLI]().Args([]string{}).RunContext(t.Context())
 
 	assert.Error(t, err)
-	assert.Equal(t, `invalid value "0x7" (must be one of: 0X1F, 0) for argument <slot> (from default value)`, err.Error())
+	assert.Equal(t, `invalid value "0x7" for argument <slot>`, err.Error())
+	assert.Equal(t, `accepted values: 0X1F, 0`, errlines.Note(err))
+	assert.Contains(t, conga.DiagnosticOf(err).Render(), `from: default value`)
 	assertNotUsageError(t, err)
 }
 
@@ -401,7 +425,8 @@ func TestIntegerSyntax_EnumSliceElements(t *testing.T) {
 		err := conga.New[integerSyntaxEnumCLI]().Args([]string{"--sizes", "1, 0x3"}).RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.Equal(t, `invalid value "0x3" (must be one of: 0b1, 0o2) for flag --sizes`, err.Error())
+		assert.Equal(t, `invalid value "0x3" for flag --sizes`, err.Error())
+		assert.Equal(t, `accepted values: 0b1, 0o2`, errlines.Note(err))
 		assertUsageError(t, err)
 	})
 }
@@ -427,7 +452,8 @@ func TestIntegerSyntax_EnumPositional(t *testing.T) {
 		err := conga.New[integerSyntaxEnumCLI]().Args([]string{"0b101"}).RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.Equal(t, `invalid value "0b101" (must be one of: 0X1F, 0) for argument <slot>`, err.Error())
+		assert.Equal(t, `invalid value "0b101" for argument <slot>`, err.Error())
+		assert.Equal(t, `accepted values: 0X1F, 0`, errlines.Note(err))
 		assertUsageError(t, err)
 	})
 }
@@ -462,7 +488,9 @@ func TestIntegerSyntax_EnumSchemaErrors(t *testing.T) {
 		err := conga.New[CLI]().Args([]string{}).RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.Equal(t, `struct CLI field Pick: enum value "0755" is not a valid int (hint: a leading zero is ambiguous: write 0o755 for octal or 755 for decimal)`, err.Error())
+		assert.Equal(t, `struct CLI field Pick: enum value "0755" is not a valid int`, err.Error())
+		assert.Equal(t, `a leading zero is ambiguous`, errlines.Note(err))
+		assert.Equal(t, `write 0o755 for octal or 755 for decimal`, errlines.Hint(err))
 	})
 
 	t.Run("not an integer", func(t *testing.T) {
@@ -563,7 +591,9 @@ func TestIntegerSyntax_RangeBounds(t *testing.T) {
 		err := conga.New[CLI]().Args([]string{}).RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.Equal(t, `struct CLI field Width: invalid integer min bound "010" (hint: a leading zero is ambiguous: write 0o10 for octal or 10 for decimal)`, err.Error())
+		assert.Equal(t, `struct CLI field Width: invalid integer min bound "010"`, err.Error())
+		assert.Equal(t, `a leading zero is ambiguous`, errlines.Note(err))
+		assert.Equal(t, `write 0o10 for octal or 10 for decimal`, errlines.Hint(err))
 	})
 
 	t.Run("leading zero unsigned max bound", func(t *testing.T) {
@@ -578,7 +608,9 @@ func TestIntegerSyntax_RangeBounds(t *testing.T) {
 		err := conga.New[CLI]().Args([]string{}).RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.Equal(t, `struct CLI field Size: invalid unsigned integer max bound "020" (hint: a leading zero is ambiguous: write 0o20 for octal or 20 for decimal)`, err.Error())
+		assert.Equal(t, `struct CLI field Size: invalid unsigned integer max bound "020"`, err.Error())
+		assert.Equal(t, `a leading zero is ambiguous`, errlines.Note(err))
+		assert.Equal(t, `write 0o20 for octal or 20 for decimal`, errlines.Hint(err))
 	})
 }
 
@@ -615,7 +647,9 @@ func TestIntegerSyntax_FeatureLevels(t *testing.T) {
 		err := conga.New[integerSyntaxFeatureCLI]().EnableFeatures().Args([]string{"--feature", "depth=02"}).RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.Equal(t, `invalid value "02" for feature "depth": must be an integer (a leading zero is ambiguous: write 0o2 for octal or 2 for decimal)`, err.Error())
+		assert.Equal(t, `invalid value "02" for feature "depth"`, err.Error())
+		assert.Equal(t, `a leading zero is ambiguous`, errlines.Note(err))
+		assert.Equal(t, `write 0o2 for octal or 2 for decimal`, errlines.Hint(err))
 		assertUsageError(t, err)
 	})
 
@@ -635,7 +669,9 @@ func TestIntegerSyntax_FeatureLevels(t *testing.T) {
 		err := conga.New[CLI]().EnableFeatures().Args([]string{}).RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.Equal(t, `struct levels field Depth: feature enum value "02": must be a non-negative integer (hint: a leading zero is ambiguous: write 0o2 for octal or 2 for decimal)`, err.Error())
+		assert.Equal(t, `struct levels field Depth: invalid feature enum value "02"`, err.Error())
+		assert.Equal(t, `a leading zero is ambiguous`, errlines.Note(err))
+		assert.Equal(t, `write 0o2 for octal or 2 for decimal`, errlines.Hint(err))
 	})
 }
 
@@ -658,7 +694,10 @@ func TestIntegerSyntax_CounterEnv(t *testing.T) {
 		err := conga.New[integerSyntaxCounterEnvCLI]().Args([]string{}).RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.Equal(t, `invalid unsigned integer value "02" for flag --verbose (from environment variable CONGA_TEST_INTEGER_SYNTAX_VERBOSE) (a leading zero is ambiguous: write 0o2 for octal or 2 for decimal)`, err.Error())
+		assert.Equal(t, `invalid unsigned integer value "02" for flag --verbose`, err.Error())
+		assert.Equal(t, `a leading zero is ambiguous`, errlines.Note(err))
+		assert.Equal(t, `write 0o2 for octal or 2 for decimal`, errlines.Hint(err))
+		assert.Contains(t, conga.DiagnosticOf(err).Render(), `from: environment variable CONGA_TEST_INTEGER_SYNTAX_VERBOSE`)
 		assertNotUsageError(t, err)
 	})
 }
@@ -728,7 +767,9 @@ func TestIntegerSyntax_CountBounds(t *testing.T) {
 		err := conga.New[CLI]().Args([]string{}).RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.Equal(t, `struct CLI field Region: invalid len min bound "010" (hint: a leading zero is ambiguous: write 0o10 for octal or 10 for decimal)`, err.Error())
+		assert.Equal(t, `struct CLI field Region: invalid len min bound "010"`, err.Error())
+		assert.Equal(t, `a leading zero is ambiguous`, errlines.Note(err))
+		assert.Equal(t, `write 0o10 for octal or 10 for decimal`, errlines.Hint(err))
 	})
 
 	t.Run("leading zero items max bound", func(t *testing.T) {
@@ -743,7 +784,9 @@ func TestIntegerSyntax_CountBounds(t *testing.T) {
 		err := conga.New[CLI]().Args([]string{}).RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.Equal(t, `struct CLI field Hosts: invalid items max bound "05" (hint: a leading zero is ambiguous: write 0o5 for octal or 5 for decimal)`, err.Error())
+		assert.Equal(t, `struct CLI field Hosts: invalid items max bound "05"`, err.Error())
+		assert.Equal(t, `a leading zero is ambiguous`, errlines.Note(err))
+		assert.Equal(t, `write 0o5 for octal or 5 for decimal`, errlines.Hint(err))
 	})
 }
 
@@ -806,7 +849,8 @@ func TestIntegerSyntax_SignedCountBound(t *testing.T) {
 		err := conga.New[CLI]().Args([]string{}).RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.Equal(t, `struct CLI field Region: invalid len min bound "-05" (note: must be non-negative integer)`, err.Error())
+		assert.Equal(t, `struct CLI field Region: invalid len min bound "-05"`, err.Error())
+		assert.Equal(t, `must be non-negative integer`, errlines.Note(err))
 	})
 
 	t.Run("negative", func(t *testing.T) {
@@ -821,7 +865,8 @@ func TestIntegerSyntax_SignedCountBound(t *testing.T) {
 		err := conga.New[CLI]().Args([]string{}).RunContext(t.Context())
 
 		assert.Error(t, err)
-		assert.Equal(t, `struct CLI field Hosts: invalid items max bound "-1" (note: must be non-negative integer)`, err.Error())
+		assert.Equal(t, `struct CLI field Hosts: invalid items max bound "-1"`, err.Error())
+		assert.Equal(t, `must be non-negative integer`, errlines.Note(err))
 	})
 }
 

@@ -133,10 +133,10 @@ func TestSessionGetters_NilSession(t *testing.T) {
 		nilSession.Help()
 	})
 
-	t.Run("Usage", func(t *testing.T) {
+	t.Run("Synopsis", func(t *testing.T) {
 		t.Parallel()
 
-		nilSession.Usage()
+		nilSession.Synopsis()
 	})
 
 	t.Run("Version", func(t *testing.T) {

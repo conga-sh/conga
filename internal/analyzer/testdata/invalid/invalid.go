@@ -456,7 +456,7 @@ var _ = conga.New[ByteSizeRangeApp]()
 // binary units; conga-lint parses bounds with the field's tags, mirroring
 // runtime schema build.
 type ByteSizeUnitsRangeApp struct {
-	Memory conga.OptionalFlag[conga.ByteSize] `name:"memory" units:"binary" range:"1MB..10MB" help:"Memory"` // want `invalid byte size min bound "1MB": byte size unit "MB" in "1MB" is not allowed: the field accepts binary units only`
+	Memory conga.OptionalFlag[conga.ByteSize] `name:"memory" units:"binary" range:"1MB..10MB" help:"Memory"` // want `invalid byte size min bound "1MB"`
 }
 
 // Run executes the byte-size units-range fixture.

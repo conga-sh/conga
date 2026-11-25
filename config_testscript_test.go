@@ -60,6 +60,12 @@ func TestMain(m *testing.M) {
 	// width.
 	os.Unsetenv("COLUMNS")
 
+	// Keep error output plain: an exported color variable would add escape
+	// codes to every App.Exit test. Color tests set what they need.
+	for _, name := range []string{"CONGA_COLOR", "NO_COLOR", "CLICOLOR", "TERM"} {
+		os.Unsetenv(name)
+	}
+
 	testscript.Main(m, map[string]func(){
 		"test-app": mainTestApp,
 	})

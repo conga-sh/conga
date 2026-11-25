@@ -243,7 +243,7 @@ func (s *HTTPStatus) UnmarshalText(text []byte) error {
 
 	if code, err := strconv.Atoi(raw); err == nil {
 		if code < 100 || code > 599 {
-			return rejectedError{message: fmt.Sprintf("invalid HTTP status: HTTP status code %d (must be between 100 and 599)", code)}
+			return rejectedError{message: fmt.Sprintf("invalid HTTP status %d", code), note: "must be between 100 and 599"}
 		}
 
 		*s = HTTPStatus(code)
@@ -317,7 +317,7 @@ func (m *MIMEType) UnmarshalText(text []byte) error {
 
 	topType, subtype, found := strings.Cut(raw, "/")
 	if !found || strings.TrimSpace(topType) == "" || strings.TrimSpace(subtype) == "" {
-		return rejectedError{message: fmt.Sprintf("invalid MIME type %q (expected format type/subtype, e.g. application/json)", raw)}
+		return rejectedError{message: fmt.Sprintf("invalid MIME type %q", raw), note: "expected format type/subtype, e.g. application/json"}
 	}
 
 	*m = MIMEType(raw)
@@ -434,7 +434,7 @@ func (p *Port) UnmarshalText(text []byte) error {
 
 	if value, err := strconv.Atoi(raw); err == nil {
 		if value < 1 || value > 65535 {
-			return rejectedError{message: fmt.Sprintf("invalid port %d (must be between 1 and 65535)", value)}
+			return rejectedError{message: fmt.Sprintf("invalid port %d", value), note: "must be between 1 and 65535"}
 		}
 
 		*p = Port(uint16(value))
@@ -504,8 +504,14 @@ func Ports() predict.Predictor {
 // user sees. The type found the problem itself, so it has no cause.
 type rejectedError struct {
 	message string
+	note    string
 }
 
 func (e rejectedError) Error() string {
 	return e.message
+}
+
+// Note returns the detail on the rejection, such as the accepted range, or "".
+func (e rejectedError) Note() string {
+	return e.note
 }

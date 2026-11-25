@@ -45,7 +45,9 @@ The configuration engine turns each decoded value into text and parses that text
 A `time.Time` value reaches the flag in RFC 3339 form, so `when = 1979-05-27T07:32:00Z` binds to a `time.Time` flag and gives a string flag `1979-05-27T07:32:00Z`. A TOML local datetime or local date carries no offset. A string flag receives it as written, and a `time.Time` flag rejects it, as it rejects `--when 1979-05-27T07:32:00` on the command line:
 
 ```text no-copy
-invalid time "1979-05-27T07:32:00" (expected RFC 3339, e.g. 2006-01-02T15:04:05Z) for flag --when (from config key "when")
+invalid time "1979-05-27T07:32:00" for flag --when
+  from: config key "when" in config file "settings.toml"
+  note: expected RFC 3339, e.g. 2006-01-02T15:04:05Z
 ```
 
 An integer that fits neither `int64` nor `uint64` fails to load the file with a decoder error (exit 1). TOML rejects every integer outside the `int64` range. JSON and HCL also reject a number that overflows `float64`. HCL stores a number's value without its spelling, so it rejects `1e30` as it rejects a 30-digit integer. YAML checks unquoted values only, so a quoted `'999999999999999999999999999999'` stays a string:
@@ -60,11 +62,18 @@ An unlabeled block decodes as a nested section keyed by its block type, so `serv
 
 | HCL input | Error |
 |---|---|
-| A labeled block, `server "web" { port = 1 }` | `block "server" has labels ["web"]; labeled blocks are not supported, use an unlabeled block` |
-| A second `server { }` block | `duplicate block "server", first declared at config.hcl:1,1-7` |
-| An attribute `server = 1` and a block `server { }` | `block "server" conflicts with the attribute of the same name at config.hcl:1,1-11` |
+| A labeled block, `server "web" { port = 1 }` | `block "server" has labels ["web"]`, with `note: labeled blocks are not supported` and `hint: use an unlabeled block` lines |
+| A second `server { }` block | `duplicate block "server", first declared at line 1, column 1` |
+| An attribute `server = 1` and a block `server { }` | `block "server" conflicts with the attribute of the same name at line 1, column 1` |
 
-Each message starts with the position of the offending block, such as `config.hcl:5,1-7`.
+Each message starts with the position of the offending block, such as `line 5, column 1`. The HCL decoder sees only the file's bytes, so its positions carry no file name, and the `cannot parse config file` line names the file.
+
+A syntax or evaluation error from the HCL parser gives the parser's summary in line 1 and its detail as the `note:` line:
+
+```text no-copy
+tool: error: cannot parse config file "tool.hcl": line 1, column 11: Invalid expression
+  note: Expected the start of an expression, but found an invalid expression token.
+```
 
 ## Missing decoders
 

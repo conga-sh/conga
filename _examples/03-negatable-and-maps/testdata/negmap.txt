@@ -29,7 +29,8 @@ stdout '-e, --env-vars\s+map\[string\]string\s+APP=api, REGION=us-east, TIER=pro
 
 # 7. Map pair without '=' fails with a clean coercion error
 exit-status 2 negatable-and-maps -e BROKEN
-stderr 'invalid key-value pair "BROKEN", expected KEY=VALUE for flag --env-vars'
+stderr 'invalid key-value pair "BROKEN" for flag --env-vars'
+stderr 'note: expected KEY=VALUE'
 
 # 8. Custom Typed Map (-r KEY=INT, repeated and comma-separated)
 exec negatable-and-maps -r web=3,worker=5 -r db=2

@@ -131,14 +131,13 @@ func featureValues(cmd *spec.Command, provided map[string]string, provenance map
 		}
 
 		if feature == nil {
-			file := origins[name].SourceDetail()
-			firstErr = unknownFeatureError(cmd, name, source, envNames[name], file)
+			firstErr = unknownFeatureError(cmd, name, source, envNames[name], origins[name])
 
 			return
 		}
 
 		sourceName := featureSourceName(cmd, feature, source, envNames[name])
-		firstErr = invalidFeatureValueError(feature, raw, cause, source, sourceName)
+		firstErr = invalidFeatureValueError(feature, raw, cause, featureValueOrigin(source, sourceName, origins[name]))
 	})
 
 	return values, firstErr
@@ -393,11 +392,11 @@ func resolveFeatureGates(binding featureState, target any, cmd *spec.Command, cm
 }
 
 // unknownFeatureError reports a feature map key that names no declared
-// feature. The environment key names its variable, and the config key names
-// its file and section in the shape of the config engine's unknown-field
-// errors. A config suggestion is spelled in the app's config key case, because
-// that is how the file must spell it.
-func unknownFeatureError(cmd *spec.Command, name string, source ValueSource, envName string, origin string) error {
+// feature. An environment key names its variable and the .env file that set it,
+// and a config key names its file or document in the shape of the config
+// engine's unknown-field errors. A config suggestion is spelled in the app's
+// config key case, because that is how the file must spell it.
+func unknownFeatureError(cmd *spec.Command, name string, source ValueSource, envName string, recorded configdata.Value) error {
 	var hint string
 
 	kebabName := casing.Kebab(name)
@@ -408,47 +407,60 @@ func unknownFeatureError(cmd *spec.Command, name string, source ValueSource, env
 			suggestion = cmd.ConfigSettings.KeyCase.Apply(suggestion)
 		}
 
-		hint = fmt.Sprintf("did you mean %q?", suggestion)
+		hint = levenshtein.QuotedHint(suggestion)
 	}
 
 	message := fmt.Sprintf("unknown feature %q", name)
 	featureOrigin := fromCommandLine
 
+	var origins []string
+
 	switch source {
 	case SourceEnv:
-		featureOrigin = valueOrigin{source: SourceEnv, name: envName}
+		featureOrigin = envValueOrigin(envName, recorded.Origin)
 	case SourceConfig:
 		featureOrigin = valueOrigin{source: SourceConfig}
+		origins = configFileOrigins(recorded)
 
 		if cmd.FeatureFlag != nil && cmd.FeatureFlag.ConfigKey != "-" {
 			section := spec.ConfigKeyPath(cmd.FeatureFlag, []*spec.Command{cmd})
 			message += fmt.Sprintf(" in section %q", section)
-		}
-
-		if origin != "" {
-			message = fmt.Sprintf("config file %q: %s", origin, message)
 		}
 	default:
 		// A command-line name keeps fromCommandLine.
 	}
 
 	return &inputError{
-		origin: featureOrigin,
-		msg:    message,
-		hint:   hint,
+		origin:  featureOrigin,
+		origins: origins,
+		msg:     message,
+		hint:    hint,
 	}
 }
 
 // invalidFeatureValueError reports a feature value that fails canonicalization.
-// sourceName attributes env- and config-sourced values in the message, and the
-// reason follows the origin.
-func invalidFeatureValueError(feature *spec.FeatureField, raw string, cause error, source ValueSource, sourceName string) error {
+// The reason is the cause's note, and its correction the cause's hint, both
+// read through the chain.
+func invalidFeatureValueError(feature *spec.FeatureField, raw string, cause error, origin valueOrigin) error {
 	return &inputError{
 		feature: feature.Name,
-		origin:  valueOrigin{source: source, name: sourceName},
+		origin:  origin,
 		msg:     fmt.Sprintf("invalid value %q", raw),
-		note:    cause.Error(),
 		cause:   cause,
+	}
+}
+
+// featureValueOrigin builds the origin of a feature value: the environment
+// variable with the .env file recorded for the key, the config key with the file
+// or document that set it, or the command line.
+func featureValueOrigin(source ValueSource, sourceName string, recorded configdata.Value) valueOrigin {
+	switch source {
+	case SourceEnv:
+		return envValueOrigin(sourceName, recorded.Origin)
+	case SourceConfig:
+		return configValueOrigin(sourceName, recorded)
+	default:
+		return valueOrigin{source: source, name: sourceName}
 	}
 }
 
@@ -671,15 +683,12 @@ func checkFeatureConfigRestrictions(pruned []prunedFlag, configData *configdata.
 			}
 
 			required := spec.DescribeFeatureExpression(prunedMember.featureExpr)
-
-			message := fmt.Sprintf("flag '--%s' requires %s", prunedMember.flag.Name, required)
-			if origin := configKeyOrigin(configData, key); origin != "" {
-				message = fmt.Sprintf("config file %q: %s", origin, message)
-			}
+			keyOrigin := configKeyOrigin(configData, key)
 
 			return &inputError{
-				origin: valueOrigin{source: SourceConfig},
-				msg:    message,
+				origin:  valueOrigin{source: SourceConfig},
+				origins: configFileOrigins(keyOrigin),
+				msg:     fmt.Sprintf("flag '--%s' requires %s", prunedMember.flag.Name, required),
 			}
 		}
 	}
@@ -687,20 +696,20 @@ func checkFeatureConfigRestrictions(pruned []prunedFlag, configData *configdata.
 	return nil
 }
 
-// configKeyOrigin names the source that set key in the configuration tier: a
-// scalar's origin, or the origin of a map section's first entry in key order.
-// It returns "" when the tier recorded no origin.
-func configKeyOrigin(configData *configdata.Data, key string) string {
+// configKeyOrigin returns the value that set key in the configuration tier: a
+// scalar, or the first entry in key order of a map section that recorded an
+// origin. It is the zero value when the tier recorded no origin.
+func configKeyOrigin(configData *configdata.Data, key string) configdata.Value {
 	if value, ok := configData.ScalarValue(key); ok {
-		return value.SourceDetail()
+		return value
 	}
 
 	entries := configData.Map(key)
 	for _, name := range slices.Sorted(maps.Keys(entries)) {
-		if origin := entries[name].SourceDetail(); origin != "" {
-			return origin
+		if entries[name].SourceDetail() != "" {
+			return entries[name]
 		}
 	}
 
-	return ""
+	return configdata.Value{}
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/alecthomas/assert/v2"
 
 	"github.com/conga-sh/conga/internal/coerce"
+	"github.com/conga-sh/conga/internal/errlines"
 	"github.com/conga-sh/conga/internal/intx"
 	"github.com/conga-sh/conga/internal/spec"
 )
@@ -30,7 +31,7 @@ func TestUsageError_Methods(t *testing.T) {
 		assert.Equal(t, "tool deploy", err.CommandPath())
 		assert.Equal(t, 2, err.ExitCode())
 		assert.Equal(t, nil, err.Unwrap())
-		assert.Equal(t, "Usage:\n  tool deploy", err.Usage())
+		assert.Equal(t, "Usage:\n  tool deploy\n\nRun 'tool deploy --help' for more information.", New[struct{}]().UsageBlock(err))
 	})
 
 	t.Run("suggestion is appended to the message", func(t *testing.T) {
@@ -38,7 +39,8 @@ func TestUsageError_Methods(t *testing.T) {
 
 		err := usageError(nil, "unknown flag: --prot").withSuggestion("--port", suggestionKindFlag)
 
-		assert.Equal(t, `unknown flag: --prot (did you mean "--port"?)`, err.Error())
+		assert.Equal(t, `unknown flag: --prot`, err.Error())
+		assert.Equal(t, `did you mean --port?`, errlines.Hint(err))
 	})
 
 	t.Run("an empty suggestion sets nothing", func(t *testing.T) {
@@ -73,7 +75,7 @@ func TestUsageError_Methods(t *testing.T) {
 
 		assert.Equal(t, "", err.Error())
 		assert.Equal(t, "", err.CommandPath())
-		assert.Equal(t, "", err.Usage())
+		assert.Equal(t, "", New[struct{}]().UsageBlock(err))
 		assert.Equal(t, 2, err.ExitCode())
 		assert.Equal(t, nil, err.Unwrap())
 	})
@@ -120,17 +122,17 @@ func TestConversionError_Message(t *testing.T) {
 		{
 			name: "a cause's text is the message",
 			err:  &conversionError{flag: portFlag, value: "3", origin: valueOrigin{source: SourceEnv, name: "PORT"}, cause: errors.New("port must be even")},
-			want: "port must be even for flag --port (from environment variable PORT)",
+			want: "port must be even for flag --port\n  from: environment variable PORT",
 		},
 		{
 			name: "a default names its origin",
 			err:  &conversionError{arg: countArg, value: "x", origin: fromDefault},
-			want: `invalid integer value "x" for argument COUNT (from default value)`,
+			want: "invalid integer value \"x\" for argument COUNT\n  from: default value",
 		},
 		{
-			name: "the cause's leading-zero correction ends the message",
+			name: "the cause's note and hint follow the first line",
 			err:  &conversionError{flag: portFlag, value: "0755", origin: fromCommandLine, cause: leadingZero},
-			want: `integer "0755" has a leading zero for flag --port (a leading zero is ambiguous: write 0o755 for octal or 755 for decimal)`,
+			want: "integer \"0755\" has a leading zero for flag --port\n  note: a leading zero is ambiguous\n  hint: write 0o755 for octal or 755 for decimal",
 		},
 	}
 
@@ -138,7 +140,7 @@ func TestConversionError_Message(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t, test.want, test.err.Error())
+			assert.Equal(t, test.want, errlines.Plain([]error{test.err}))
 		})
 	}
 }
@@ -156,7 +158,7 @@ func TestInputError_Message(t *testing.T) {
 		{
 			name: "the message names the flag and origin",
 			err:  &inputError{flag: portFlag, origin: valueOrigin{source: SourceEnv, name: "PORT"}, msg: "value 9 is out of range [1..5]"},
-			want: "value 9 is out of range [1..5] for flag --port (from environment variable PORT)",
+			want: "value 9 is out of range [1..5] for flag --port\n  from: environment variable PORT",
 		},
 		{
 			name: "an environment origin with no name renders nothing",
@@ -166,7 +168,7 @@ func TestInputError_Message(t *testing.T) {
 		{
 			name: "a default renders its origin without a name",
 			err:  &inputError{flag: portFlag, origin: fromDefault, msg: "item count 1 is out of range [2..3]"},
-			want: "item count 1 is out of range [2..3] for flag --port (from default value)",
+			want: "item count 1 is out of range [2..3] for flag --port\n  from: default value",
 		},
 		{
 			name: "a failure for no flag or argument is the message alone",
@@ -174,19 +176,19 @@ func TestInputError_Message(t *testing.T) {
 			want: "flags --a and --b are mutually exclusive",
 		},
 		{
-			name: "a hint ends the message",
+			name: "a hint follows the first line",
 			err:  &inputError{flag: portFlag, origin: fromCommandLine, msg: "rejected", hint: "write 9"},
-			want: "rejected for flag --port (write 9)",
+			want: "rejected for flag --port\n  hint: write 9",
 		},
 		{
 			name: "a feature is the subject",
 			err:  &inputError{feature: "http3", origin: valueOrigin{source: SourceEnv, name: "TOOL_FEATURES"}, msg: `invalid value "maybe"`},
-			want: `invalid value "maybe" for feature "http3" (from environment variable TOOL_FEATURES)`,
+			want: "invalid value \"maybe\" for feature \"http3\"\n  from: environment variable TOOL_FEATURES",
 		},
 		{
 			name: "a map entry follows the flag",
 			err:  &inputError{flag: portFlag, entry: new("web"), origin: valueOrigin{source: SourceConfig, name: "counts"}, msg: "value 3 is odd"},
-			want: `value 3 is odd for flag --port entry "web" (from config key "counts")`,
+			want: "value 3 is odd for flag --port entry \"web\"\n  from: config key \"counts\"",
 		},
 		{
 			name: "an empty map key is still an entry",
@@ -194,14 +196,14 @@ func TestInputError_Message(t *testing.T) {
 			want: `bad for flag --port entry ""`,
 		},
 		{
-			name: "the note follows the origin and precedes the hint",
+			name: "the origin, note and hint follow the first line in that order",
 			err:  &inputError{feature: "http3", origin: valueOrigin{source: SourceConfig, name: "features.http3"}, msg: `invalid value "x"`, note: "must be true or false", hint: "write true"},
-			want: `invalid value "x" for feature "http3" (from config key "features.http3"): must be true or false (write true)`,
+			want: "invalid value \"x\" for feature \"http3\"\n  from: config key \"features.http3\"\n  note: must be true or false\n  hint: write true",
 		},
 		{
 			name: "an unknown feature carries only a message and a hint",
 			err:  &inputError{origin: fromCommandLine, msg: `unknown feature "htp3"`, hint: `did you mean "http3"?`},
-			want: `unknown feature "htp3" (did you mean "http3"?)`,
+			want: "unknown feature \"htp3\"\n  hint: did you mean \"http3\"?",
 		},
 	}
 
@@ -209,7 +211,7 @@ func TestInputError_Message(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			assert.Equal(t, test.want, test.err.Error())
+			assert.Equal(t, test.want, errlines.Plain([]error{test.err}))
 		})
 	}
 }
@@ -263,7 +265,8 @@ func TestCommandLineError(t *testing.T) {
 
 		usageErr, ok := errors.AsType[*UsageError](err)
 		assert.True(t, ok)
-		assert.Equal(t, `invalid value "x" for feature "http3": must be true or false`, usageErr.Error())
+		assert.Equal(t, `invalid value "x" for feature "http3"`, usageErr.Error())
+		assert.Equal(t, "must be true or false", usageErr.Note())
 		assert.Equal(t, usageShapeLineOnly, usageErr.shape)
 	})
 
@@ -286,7 +289,8 @@ func TestCommandLineError(t *testing.T) {
 
 		usageErr, ok := errors.AsType[*UsageError](err)
 		assert.True(t, ok)
-		assert.Equal(t, `unknown feature "htp3" (did you mean "http3"?)`, usageErr.Error())
+		assert.Equal(t, `unknown feature "htp3"`, usageErr.Error())
+		assert.Equal(t, `did you mean "http3"?`, errlines.Hint(usageErr))
 		assert.Equal(t, usageShapeMode, usageErr.shape)
 	})
 
@@ -455,9 +459,10 @@ func TestInvalidFeatureValueError(t *testing.T) {
 
 	authorCause := errors.New("author failure")
 
-	err := invalidFeatureValueError(&spec.FeatureField{Name: "http3"}, "maybe", authorCause, SourceEnv, "TOOL_FEATURES")
+	err := invalidFeatureValueError(&spec.FeatureField{Name: "http3"}, "maybe", authorCause, envValueOrigin("TOOL_FEATURES", ""))
 
-	assert.Equal(t, `invalid value "maybe" for feature "http3" (from environment variable TOOL_FEATURES): author failure`, err.Error())
+	assert.Equal(t, `invalid value "maybe" for feature "http3"`, err.Error())
+	assert.Equal(t, []string{"environment variable TOOL_FEATURES"}, errlines.Origins(err))
 	assert.Equal(t, authorCause, errors.Unwrap(err))
 }
 
@@ -466,9 +471,130 @@ func TestDecoderRequiredError(t *testing.T) {
 
 	err := newDecoderRequiredError("flag --config-file")
 
-	assert.Equal(t, "flag --config-file requires a registered config decoder: call App.RegisterDecoder with a format decoder (e.g. decoder/json)", err.Error())
+	assert.Equal(t, "flag --config-file requires a registered config decoder", err.Error())
+	assert.Equal(t, "call App.RegisterDecoder with a format decoder (e.g. decoder/json)", errlines.Hint(err))
 
 	_, isInput := errors.AsType[*inputError](err)
 	assert.False(t, isInput)
 	assert.Equal(t, err, commandLineError(nil, err))
+}
+
+// pieceCauseError is a check's error that supplies every piece.
+type pieceCauseError struct{}
+
+func (pieceCauseError) Error() string     { return "check failed" }
+func (pieceCauseError) Origins() []string { return []string{"the manifest"} }
+func (pieceCauseError) Note() string      { return "cause note" }
+func (pieceCauseError) Hint() string      { return "cause hint" }
+
+func TestInputError_PiecesReachTheCause(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name        string
+		err         *inputError
+		wantOrigins []string
+		wantNote    string
+		wantHint    string
+	}{
+		{
+			name:        "own values win",
+			err:         &inputError{msg: "bad", origin: fromDefault, note: "own note", hint: "own hint", cause: pieceCauseError{}},
+			wantOrigins: []string{"default value"},
+			wantNote:    "own note",
+			wantHint:    "own hint",
+		},
+		{
+			name:        "group origins win",
+			err:         &inputError{msg: "bad", origins: []string{"a", "b"}, cause: pieceCauseError{}},
+			wantOrigins: []string{"a", "b"},
+			wantNote:    "cause note",
+			wantHint:    "cause hint",
+		},
+		{
+			name:        "own empty, the cause supplies them",
+			err:         &inputError{msg: "bad", origin: fromCommandLine, cause: pieceCauseError{}},
+			wantOrigins: []string{"the manifest"},
+			wantNote:    "cause note",
+			wantHint:    "cause hint",
+		},
+		{
+			name:        "own note only, the cause supplies the hint",
+			err:         &inputError{msg: "bad", origin: fromDefault, note: "own note", cause: pieceCauseError{}},
+			wantOrigins: []string{"default value"},
+			wantNote:    "own note",
+			wantHint:    "cause hint",
+		},
+		{
+			name: "both empty",
+			err:  &inputError{msg: "bad", cause: errors.New("plain")},
+		},
+		{
+			name: "no cause",
+			err:  &inputError{msg: "bad"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			assert.Equal(t, test.wantOrigins, test.err.Origins())
+			assert.Equal(t, test.wantNote, test.err.Note())
+			assert.Equal(t, test.wantHint, test.err.Hint())
+
+			originer, ok := errors.AsType[Originer](test.err)
+			assert.True(t, ok)
+			assert.Equal(t, test.wantOrigins, originer.Origins())
+
+			noter, ok := errors.AsType[Noter](test.err)
+			assert.True(t, ok)
+			assert.Equal(t, test.wantNote, noter.Note())
+
+			hinter, ok := errors.AsType[Hinter](test.err)
+			assert.True(t, ok)
+			assert.Equal(t, test.wantHint, hinter.Hint())
+
+			assert.Equal(t, test.wantOrigins, errlines.Origins(test.err))
+			assert.Equal(t, test.wantNote, errlines.Note(test.err))
+			assert.Equal(t, test.wantHint, errlines.Hint(test.err))
+		})
+	}
+}
+
+func TestUsageError_EmptyMessageKeepsTheCausesPieces(t *testing.T) {
+	t.Parallel()
+
+	err := &UsageError{cause: pieceCauseError{}}
+
+	assert.Equal(t, []string{"the manifest"}, err.Origins())
+	assert.Equal(t, "cause note", err.Note())
+	assert.Equal(t, "cause hint", err.Hint())
+}
+
+func TestApp_UsageBlock_LeavesHelpOptionsUnchanged(t *testing.T) {
+	t.Setenv("COLUMNS", "57")
+
+	app := New[struct{}]().UsageOnError(UsageFull)
+	err := usageError([]*spec.Command{{Name: "tool"}}, "unknown flag: --bogus")
+
+	assert.Equal(t, 0, app.helpOptions.Width)
+
+	first := app.UsageBlock(err)
+	second := app.UsageBlock(err)
+
+	assert.Equal(t, 0, app.helpOptions.Width)
+	assert.Equal(t, first, second)
+	assert.Equal(t, "Usage:\n"+
+		"  tool\n"+
+		"\n"+
+		"Flags:\n"+
+		"      --why               Show resolved field values and\n"+
+		"                          where they came from (values\n"+
+		"                          redacted unless tagged safe)\n"+
+		"      --completion=SHELL  Generate shell completion\n"+
+		"                          script\n"+
+		"      --help              Show help\n"+
+		"      --version           Show version", first)
+	assert.Equal(t, 57, app.resolvedHelpOptions().Width)
 }

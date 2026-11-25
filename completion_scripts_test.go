@@ -13,6 +13,7 @@ import (
 
 	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/internal/completion"
+	"github.com/conga-sh/conga/internal/errlines"
 	"github.com/conga-sh/conga/predict"
 )
 
@@ -419,7 +420,9 @@ func TestCompletionScript_DigitLeadingExplicitEnvPrefixRejected(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.Equal(t, `completion environment prefix "2FA_" begins with a digit (note: shell variable names cannot begin with a digit; hint: pass conga.CompletionEnvPrefix with a prefix beginning with a letter)`, err.Error())
+	assert.Equal(t, `completion environment prefix "2FA_" begins with a digit`, err.Error())
+	assert.Equal(t, `shell variable names cannot begin with a digit`, errlines.Note(err))
+	assert.Equal(t, `pass conga.CompletionEnvPrefix with a prefix beginning with a letter`, errlines.Hint(err))
 }
 
 func TestCompletionScript_EnvPrefixResolvedAfterBuilderChain(t *testing.T) {

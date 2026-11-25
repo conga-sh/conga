@@ -79,23 +79,29 @@ When a source names a feature that doesn't exist, or a gated member that is inac
 The command line is what the user typed for this run, so an unknown feature name, or a flag whose feature is off, is a mistake to report to them. The run stops before any hook with a usage error (exit code 2) that names the missing feature and shows the usage.
 
 ### Configuration files and feature variables (exit code 1)
-A config file holds settings that outlast any one run, and an environment variable arrives from the shell, CI, or a container. An unknown feature name or a bad value from either source exits with code 1, without a usage block. Both errors name their source. A bad value names the key or variable, and an unknown name names the variable or the file and section, with the same "did you mean" hint as on the command line. A file that sets a flag an inactive feature removed is also an error with exit code 1, unless the command line or an environment variable turned that feature off. A higher source overrides the file for that run, so CONGA ignores the key.
+A config file holds settings that outlast any one run, and an environment variable arrives from the shell, CI, or a container. An unknown feature name or a bad value from either source exits with code 1, without a usage block. Both errors name their source on a `from:` line. A bad value names the key or variable, and an unknown name names the variable or the file and section, with the same `hint:` line as on the command line. A file that sets a flag an inactive feature removed is also an error with exit code 1, unless the command line or an environment variable turned that feature off. A higher source overrides the file for that run, so CONGA ignores the key.
 
 ```sh error={2}
 $ feature-toggles --config-file features.yaml
-feature-toggles: error: invalid value "maybe" for feature "http3" (from config key "features.http3"): must be true or false (or 1 or 0)
+feature-toggles: error: invalid value "maybe" for feature "http3"
+  from: config key "features.http3" in config file "features.yaml"
+  note: must be true or false (or 1 or 0)
 ```
 
 ```sh error={2}
 $ API_FEATURES=http3=maybe feature-toggles
-feature-toggles: error: invalid value "maybe" for feature "http3" (from environment variable API_FEATURES): must be true or false (or 1 or 0)
+feature-toggles: error: invalid value "maybe" for feature "http3"
+  from: environment variable API_FEATURES
+  note: must be true or false (or 1 or 0)
 ```
 
 An unknown name gets a hint when the spelling is close:
 
 ```sh error={2}
 $ API_FEATURES=htt3=true feature-toggles
-feature-toggles: error: unknown feature "htt3" (from environment variable API_FEATURES) (did you mean "http3"?)
+feature-toggles: error: unknown feature "htt3"
+  from: environment variable API_FEATURES
+  hint: did you mean "http3"?
 ```
 
 ### Variables for gated flags (silently ignored)

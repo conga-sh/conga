@@ -108,6 +108,11 @@ func (f *FeatureField) Canonicalize(raw string) (string, error) {
 		return canonical, nil
 	}
 
+	// strconv.ParseBool also accepts t, T, TRUE, True and the like, while the
+	// message names only true, false, 1 and 0. That is deliberate (1.13
+	// decision 2, #171): the spellings are pinned by the tests in
+	// internal/coerce/coerce_test.go, and a narrower parser or a longer message
+	// is not intended.
 	b, err := strconv.ParseBool(raw)
 	if err != nil {
 		return "", &featureValueError{msg: "must be true or false (or 1 or 0)"}
@@ -290,9 +295,7 @@ func ValidateFeatureFieldTags(field *FeatureField, tag reflect.StructTag) error 
 	if defaultTag, hasDefault := tag.Lookup("default"); hasDefault {
 		canonical, err := field.Canonicalize(defaultTag)
 		if err != nil {
-			reason, hint := splitFeatureParseError(err)
-
-			return schemaErrorf("feature %q default %q: %s", field.Name, defaultTag, reason).withHint(hint).withCause(err)
+			return schemaErrorf("invalid default %q for feature %q", defaultTag, field.Name).withCause(err)
 		}
 
 		field.Default = canonical
@@ -403,20 +406,22 @@ type featureTerm struct {
 	negated bool
 }
 
-// featureValueError is a feature value that failed validation. Its message is
-// the reason alone. An integer syntax failure carries its *intx.Error as the
-// cause, so the correction (a leading zero's 0o spelling) renders after the
-// reason and schema build can split it off as the schema error's hint.
+// featureValueError is a feature value that failed validation. Its text is the
+// reason alone, which is also its note (the detail on line 1's failure). An
+// integer syntax failure carries its *intx.Error as the cause, which supplies
+// the hint (a leading zero's 0o spelling) through the chain.
 type featureValueError struct {
 	msg   string
 	cause error
 }
 
 func (e *featureValueError) Error() string {
-	if hint := intx.HintOf(e.cause); hint != "" {
-		return e.msg + " (" + hint + ")"
-	}
+	return e.msg
+}
 
+// Note returns the reason: what the feature accepts, or what was wrong with
+// the integer.
+func (e *featureValueError) Note() string {
 	return e.msg
 }
 
@@ -750,17 +755,6 @@ func firstStagelessFeatureField(fields []*FeatureField) *FeatureField {
 	return nil
 }
 
-// splitFeatureParseError separates a feature value failure into its reason and
-// the integer syntax's correction, so schema build can render the correction
-// as the schema error's hint. The hint is empty when err carries none.
-func splitFeatureParseError(err error) (string, string) {
-	if valueErr, ok := errors.AsType[*featureValueError](err); ok {
-		return valueErr.msg, intx.HintOf(valueErr.cause)
-	}
-
-	return err.Error(), ""
-}
-
 // featureIntegerParseError classifies a failed feature-integer parse: range
 // failures name the storage width, unsigned syntax failures name the
 // non-negativity requirement, and everything else is a plain integer error.
@@ -774,6 +768,10 @@ func featureIntegerParseError(err error, signed bool) error {
 }
 
 func featureParseMessage(err error, signed bool) string {
+	if parseErr, ok := errors.AsType[*intx.Error](err); ok && parseErr.Kind == intx.KindLeadingZero {
+		return parseErr.Note()
+	}
+
 	switch {
 	case errors.Is(err, strconv.ErrRange):
 		return "is out of range for the feature's integer type"
@@ -787,7 +785,7 @@ func featureParseMessage(err error, signed bool) string {
 // invalidFeatureEnumError builds the enum-domain rejection listing the
 // permitted levels.
 func invalidFeatureEnumError(f *FeatureField) error {
-	return &featureValueError{msg: "must be one of: " + strings.Join(f.Domain(), ", ")}
+	return &featureValueError{msg: "accepted values: " + strings.Join(f.Domain(), ", ")}
 }
 
 // validateFeatureEnum parses and records the non-zero levels of an integer
@@ -802,9 +800,7 @@ func validateFeatureEnum(field *FeatureField, enumTag string) error {
 	for _, part := range parts {
 		canonical, err := field.parseInteger(part)
 		if err != nil {
-			reason, hint := splitFeatureParseError(err)
-
-			return schemaErrorf("feature enum value %q: %s", part, reason).withHint(hint).withCause(err)
+			return schemaErrorf("invalid feature enum value %q", part).withCause(err)
 		}
 
 		if canonical == "0" {

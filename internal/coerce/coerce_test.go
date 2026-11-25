@@ -15,6 +15,7 @@ import (
 	"github.com/alecthomas/assert/v2"
 
 	"github.com/conga-sh/conga/internal/coerce"
+	"github.com/conga-sh/conga/internal/errlines"
 	"github.com/conga-sh/conga/internal/spec"
 )
 
@@ -79,7 +80,8 @@ func TestCoerce(t *testing.T) {
 
 		_, err := coerce.Value[bool]("")
 
-		assert.Equal(t, `invalid boolean value "", expected true or false (or 1 or 0)`, err.Error())
+		assert.Equal(t, `invalid boolean value ""`, err.Error())
+		assert.Equal(t, "expected true or false (or 1 or 0)", errlines.Note(err))
 	})
 
 	t.Run("bool invalid", func(t *testing.T) {
@@ -140,7 +142,8 @@ func TestCoerce(t *testing.T) {
 
 		_, err := coerce.Value[time.Time]("1979-05-27T07:32:00")
 
-		assert.Equal(t, `invalid time "1979-05-27T07:32:00" (expected RFC 3339, e.g. 2006-01-02T15:04:05Z)`, err.Error())
+		assert.Equal(t, `invalid time "1979-05-27T07:32:00"`, err.Error())
+		assert.Equal(t, "expected RFC 3339, e.g. 2006-01-02T15:04:05Z", errlines.Note(err))
 	})
 
 	t.Run("time field out of range", func(t *testing.T) {
@@ -148,7 +151,8 @@ func TestCoerce(t *testing.T) {
 
 		_, err := coerce.Value[time.Time]("1979-02-30T07:32:00Z")
 
-		assert.Equal(t, `invalid time "1979-02-30T07:32:00Z" (day out of range)`, err.Error())
+		assert.Equal(t, `invalid time "1979-02-30T07:32:00Z"`, err.Error())
+		assert.Equal(t, "day out of range", errlines.Note(err))
 	})
 
 	t.Run("time pointer without offset", func(t *testing.T) {
@@ -156,7 +160,8 @@ func TestCoerce(t *testing.T) {
 
 		_, err := coerce.Value[*time.Time]("1979-05-27")
 
-		assert.Equal(t, `invalid time "1979-05-27" (expected RFC 3339, e.g. 2006-01-02T15:04:05Z)`, err.Error())
+		assert.Equal(t, `invalid time "1979-05-27"`, err.Error())
+		assert.Equal(t, "expected RFC 3339, e.g. 2006-01-02T15:04:05Z", errlines.Note(err))
 	})
 
 	t.Run("custom time layout keeps its own error", func(t *testing.T) {
@@ -1093,4 +1098,30 @@ func TestCoerceContextAwareTextUnmarshaler(t *testing.T) {
 
 type testCustomID struct {
 	value string
+}
+
+func TestCoerce_DurationUnits(t *testing.T) {
+	t.Parallel()
+
+	for _, testCase := range []struct {
+		raw      string
+		expected time.Duration
+	}{
+		{raw: "5ns", expected: 5 * time.Nanosecond},
+		{raw: "5us", expected: 5 * time.Microsecond},
+		{raw: "5µs", expected: 5 * time.Microsecond},
+		{raw: "5ms", expected: 5 * time.Millisecond},
+		{raw: "5s", expected: 5 * time.Second},
+		{raw: "5m", expected: 5 * time.Minute},
+		{raw: "5h", expected: 5 * time.Hour},
+	} {
+		t.Run(testCase.raw, func(t *testing.T) {
+			t.Parallel()
+
+			result, err := coerce.Value[time.Duration](testCase.raw)
+
+			assert.NoError(t, err)
+			assert.Equal(t, testCase.expected, result)
+		})
+	}
 }

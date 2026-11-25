@@ -1,9 +1,152 @@
 ---
 title: Errors and exit codes
-description: The UsageError and ExitCoder types, the exit codes 0, 1, 2, and an ExitCoder's own code, and how Exit renders usage.
+description: The Diagnostic, UsageError and ExitCoder types, the from, note and hint lines Exit prints, the exit codes 0, 1, 2, and an ExitCoder's own code, and how Exit renders usage.
 ---
 
-CONGA reports a command-line mistake as a `*conga.UsageError` and rejects invalid schemas before execution begins. Every other failure comes back as an ordinary error, and an error returned by a command's own `Run` or lifecycle hook comes back as the hook returned it. When a `Finally` hook also fails, the hook's error and the `Finally` errors come back joined. Tell the kinds apart by type with `errors.AsType`, and read the specifics from the message (field, token, command path, suggestions). A cause that CONGA did not write itself, such as an error returned by a `TextUnmarshaler`, a standard library error, or an error from the application, stays reachable through `errors.Is` and `errors.As`.
+CONGA reports a command-line mistake as a `*conga.UsageError` and rejects invalid schemas before execution begins. `app.Run` and `app.RunContext` return whatever failed as is, with an untyped `nil` on success. An error returned by a command's own `Run` or lifecycle hook keeps its text, type, and identity, and `Finally` receives the same value. When a `Finally` hook also fails, the hook's error and the `Finally` errors come back joined. Tell the kinds apart by type with `errors.AsType`. A cause that CONGA did not write itself, such as an error returned by a `TextUnmarshaler`, a standard library error, or an error from the application, stays reachable through `errors.Is` and `errors.As`.
+
+## Reading an error with DiagnosticOf
+
+`conga.DiagnosticOf(err)` reads any error (a CONGA error, a hook's error, a developer wrapper around `Run`'s result, or a join) from the outside in into a `conga.Diagnostic`. It holds the pieces `app.Exit` prints, so a program that reports errors itself can print, render or log the same lines. Programs that only call `app.Exit(app.Run())` never link `conga.Diagnostic` or its marshalers into the binary. Its fields are unexported:
+
+```go
+func DiagnosticOf(err error) Diagnostic
+
+func (d Diagnostic) Message() string
+func (d Diagnostic) Origins() []string
+func (d Diagnostic) Note() string
+func (d Diagnostic) Hint() string
+func (d Diagnostic) Members() []Diagnostic
+func (d Diagnostic) Render() string
+func (d Diagnostic) MarshalJSON() ([]byte, error)
+func (d Diagnostic) MarshalText() ([]byte, error)
+func (d Diagnostic) Format(state fmt.State, verb rune)
+```
+
+`Message()` returns the error's text, which is line 1 of what `app.Exit` prints and nothing more. `Origins()`, `Note()` and `Hint()` return the lines `app.Exit` prints below line 1 by the chain rule, agreeing with `app.Exit` even when a developer wraps `Run`'s result with `fmt.Errorf`. [Custom error handling](#custom-error-handling) shows a program that reports errors itself.
+
+A `conga.Diagnostic` does not implement `error`. It has no `Error()` or `Unwrap()` method, so it can't be returned from a hook, passed to `app.Exit` or `app.ExitCode`, joined with `errors.Join`, or compared with `errors.Is`, and `==` between two values doesn't compile. `app.ExitCode` decides the exit code from the outermost `conga.ExitCoder` in the chain, and `app.UsageBlock` returns the usage block, so a `Diagnostic` has neither.
+
+An error that stands for several errors (an `errors.Join` of them) has one member per error. `Message()` joins their first lines with newlines, `Origins()`, `Note()` and `Hint()` describe the first non-empty member, and `Members()` returns each non-empty member as its own `conga.Diagnostic`. `Members()` splits errors the way `app.Exit` does, including a hook's error joined with `Finally` errors.
+
+`DiagnosticOf(nil)` returns the zero `conga.Diagnostic`. Its `Message()` is empty, its `Members()` is nil and its `MarshalJSON` returns `null`.
+
+## The lines below an error
+
+`app.Exit` prints `<app>: error: ` and line 1, then indented lines in a fixed order. One `from:` line per origin comes first, then one `note:` line and one `hint:` line.
+
+```text no-copy
+tool: error: invalid unsigned integer value "0755" for flag --mode
+  from: environment variable TOOL_MODE
+  note: a leading zero is ambiguous
+  hint: write 0o755 for octal or 755 for decimal
+```
+
+- `from:` says where the value came from. It shows `environment variable TOOL_MODE`, `config key "mode" in config file "/home/alice/.config/tool/config.yaml"`, `config key "mode" set by profile dev` for a `ConfigDocument` value, or `default value` for a `default` tag. An environment variable that a `.env` file set adds ` in .env file ".env.local"`. A command-line value has no `from:` line.
+- `note:` gives more detail on the issue line 1 states, such as the accepted values or units.
+- `hint:` says what to do about it, as an imperative or a "did you mean" suggestion.
+
+A flag group conflict has one `from:` line per member that did not come from the command line, flag first:
+
+```text no-copy
+tool: error: flags --to-file and --to-url are mutually exclusive
+  from: --to-file: environment variable TOOL_TO_FILE
+  from: --to-url: config key "to-url" in config file "tool.yaml"
+```
+
+An error about a whole config file, such as an unknown field, names the file (`from: config file "tool.yaml"`), or the label of a `ConfigDocument` (`from: set by profiles.yaml › dev`). The errors from finding and loading files (`cannot read config file`, `cannot parse config file`, `multiple conflicting config files found`) and from `.env` files (`cannot read .env file`, `cannot parse .env file`) name the file in line 1 and add no `from:` line.
+
+An error whose text is empty prints no lines at all.
+
+### See every line of an error
+
+`Error()` of every CONGA error is line 1 alone, so `log.Fatal(err)`, `t.Fatal(err)` and `assert.NoError(t, err)` show line 1 and leave out the `from:`, `note:` and `hint:` lines. Two ways show every line. Pass the error to `app.Exit` with `Stderr` and `ExitFunc` set, which is what a test captures, or call `conga.DiagnosticOf(err).Render()` (or format it with `%+v`).
+
+### Supply the lines from your own errors
+
+An error type supplies lines by implementing the structural interfaces `conga.Originer`, `conga.Noter` and `conga.Hinter`:
+
+```go
+type Originer interface{ error; Origins() []string }
+type Noter    interface{ error; Note() string }
+type Hinter   interface{ error; Hint() string }
+```
+
+An empty result prints no line. Implement only the methods the error has something to say for. Because the interfaces are structural, any error type implementing those method names participates. CONGA's own errors implement the same methods, so a developer's error gets the same layout.
+
+`Exit` reads each piece by the chain rule. The outermost error in the chain that returns a non-empty value supplies it, in `errors.As` traversal order. Text added around an error on line 1 does not matter, because the lines come from the chain:
+
+```go
+return fmt.Errorf("limit: %w", byteSizeErr)
+```
+
+```text no-copy
+tool: error: limit: unknown byte size unit "XB" in "5XB"
+  note: accepted units: B, kB, MB, GB, TB, PB, EB, KiB, MiB, GiB, TiB, PiB, EiB
+```
+
+A wrapper's own `Hint()` replaces CONGA's hint, and the note and the hint can come from different errors in one chain. At most one `note:` line and one `hint:` line print.
+
+`errors.As` stops at the first implementer in a chain even when it returns an empty result, so `errors.AsType[conga.Hinter](err)` may stop at a wrapper whose `Hint()` is empty. CONGA's own errors never hide their cause's pieces. A CONGA error that wraps a cause returns its own `Origins()`, `Note()` or `Hint()` when it has one, and otherwise the cause's, so `errors.AsType` on the three interfaces agrees with `Exit` for them. A developer type that wraps another error should do the same, by returning the wrapped error's piece when it has none or by not implementing the method. Pass any error to `conga.DiagnosticOf(err)` to apply the chain rule from the outside in and match `Exit`.
+
+### Joined errors
+
+An error with `Unwrap() []error` whose text is its members' texts joined by newlines (the shape `errors.Join` returns) prints member by member. Each member gets its own `<app>: error:` prefix, lines and colors, a nested join is flattened, and a nil member is skipped. An `fmt.Errorf` with two `%w`, a join that `fmt.Errorf` wraps, and a member whose own text spans lines print as one error, with later lines as they are.
+
+The usage block prints once, after every line, and only when the `*conga.UsageError` is the error that sets the exit code. In a join the first member with an `ExitCode()` sets the code, so `errors.Join(usageErr, exit75Err)` exits 2 with the usage block and `errors.Join(exit75Err, usageErr)` exits 75 without one.
+
+### Colors
+
+`Exit` colors the labels when stderr is a terminal. `error:` is bold red, `from:` and `note:` are dim, and `hint:` is bold cyan. Line 1 keeps the default foreground. These variables decide:
+
+| Variable | Effect |
+|---|---|
+| `CONGA_COLOR` | A boolean. True colors a non-terminal stderr too, and false turns colors off. It outranks `NO_COLOR` and `CLICOLOR` |
+| `NO_COLOR` | Any non-empty value turns colors off |
+| `CLICOLOR` | `0` turns colors off |
+| `TERM` | `dumb` turns colors off when none of `CONGA_COLOR`, `NO_COLOR` and `CLICOLOR` sets a preference |
+
+`--why` uses the same rules for stdout. On Windows, CONGA turns on the console's escape-code handling when the stream is a console.
+
+### Render plain text or print with %+v
+
+`conga.DiagnosticOf(err).Render()` returns line 1 followed by the indented `from:`, `note:` and `hint:` lines for every non-empty member as plain text, with no `<app>: error:` prefix, no color, and no trailing newline. `conga.Diagnostic` also implements `fmt.Formatter`. `%v` and `%s` print `Message()`, `%+v` prints the same multi-line form as `Render()`, and every other verb, such as `%q`, formats `Message()` with that verb.
+
+```go
+if err := app.RunContext(t.Context()); err != nil {
+	t.Fatal(conga.DiagnosticOf(err).Render())
+}
+```
+
+### Log with log/slog
+
+`conga.Diagnostic` implements `json.Marshaler` and `encoding.TextMarshaler`, so passing `conga.DiagnosticOf(err)` to `log/slog` records an object in `slog.NewJSONHandler` and a compact one-line string in `slog.NewTextHandler` from one call site, with no `encoding/json` import:
+
+```go
+slog.Error("run failed", "err", conga.DiagnosticOf(err))
+```
+
+```text no-copy
+{"level":"ERROR","msg":"run failed","err":{"error":"invalid integer value \"abc\" for flag --port"}}
+level=ERROR msg="run failed" err="invalid integer value \"abc\" for flag --port"
+```
+
+A value that came from the environment adds `"from"`, and the text form adds the origin in parentheses:
+
+```text no-copy
+{"level":"ERROR","msg":"run failed","err":{"error":"invalid integer value \"abc\" for flag --port","from":["environment variable APP_PORT"]}}
+level=ERROR msg="run failed" err="invalid integer value \"abc\" for flag --port (from: environment variable APP_PORT)"
+```
+
+Both samples leave out the `time` attribute, which a `ReplaceAttr` function removes.
+
+The object is `{"error": <line 1>, "from": [...], "note": "...", "hint": "..."}`, with every key but `error` left out when empty (`error` is always present for a non-nil error). An error with several members adds `"more": [...]`. The text form is `<line 1> (from: <origin>; <origin>; note: ...; hint: ...)`, with several members joined by ` | `.
+
+Because `DiagnosticOf` walks from the outside in, wrapping `Run`'s result with `fmt.Errorf("main: %w", err)` before calling `conga.DiagnosticOf(wrapped)` preserves the outer message and any outer `Hint()` in both handlers.
+
+### Show a usage block from your own error
+
+`*conga.UsageError` is the only error that shows a usage block, and exit code 2 and the block go together. To get both from a program's own error, return it through `session.UsageErrorf("%w", err)`, which also keeps the error's hint.
 
 ## Exit codes
 
@@ -15,6 +158,8 @@ CONGA reports a command-line mistake as a `*conga.UsageError` and rejects invali
 | **1** | Any other error, such as a command runtime failure (`Runner.Run` or lifecycle hooks), a schema-build failure, a configuration or `.env` failure, an environment-, configuration-, or default-sourced value failure, a `Bootstrap` failure, or a plain `Validate` error |
 | **2** | Usage error (`*conga.UsageError`): invalid command-line input such as unknown flags, parse failures, coercion failures, constraint violations, and missing required input, or an error from `session.UsageError`. Internal completion failures also exit 2, with a diagnostic on stderr |
 | **Other** | The code of the outermost `conga.ExitCoder` in the error chain |
+
+`app.ExitCode(err)` returns the status `app.Exit` exits with, and `app.UsageBlock(err)` returns the usage block `app.Exit` prints after the lines, without printing anything, so a program that reports errors itself matches `app.Exit`.
 
 Built-in requests (`--help`, `help`, `--version`, `version`, and opt-in `--why` and `--completion <shell>`) write to stdout during `app.Run()` and return `nil` on clean completion.
 
@@ -38,7 +183,7 @@ The interface is structural, so an application error needs no CONGA import to sa
 
 `*exec.ExitError` is an `ExitCoder`, so returning the error from a child process passes the child's exit code through. A child killed by a signal exits with 128 plus the signal number, as a shell reports it (`signal: killed` exits 137, `signal: segmentation fault` exits 139), and `Exit` still prints the message. On Windows an `*exec.ExitError`'s code passes through unchanged, so a crash code such as `0xC0000005` stays as it is. A hand-built `*exec.ExitError` with no process state has no code and exits 1.
 
-An error whose `Error()` is empty prints no error line. It still exits with its code, which is 1 for a plain error.
+An error whose `Error()` is empty prints no lines. It still exits with its code, which is 1 for a plain error.
 
 ## UsageError
 
@@ -49,28 +194,41 @@ func (e *UsageError) Error() string
 func (e *UsageError) Unwrap() error
 func (e *UsageError) ExitCode() int
 func (e *UsageError) CommandPath() string
-func (e *UsageError) Usage() string
+func (e *UsageError) Origins() []string
+func (e *UsageError) Note() string
+func (e *UsageError) Hint() string
 ```
 
 - `CommandPath()` returns the invocation path of the command where the failure occurred (for example, `"cloudctl deploy"`), or an empty string when the error has no command.
-- `Usage()` returns the syntax usage summary string for that command.
 - `ExitCode()` always returns 2.
+- `Origins()`, `Note()` and `Hint()` return the lines `app.Exit` prints below line 1, by the chain rule. The failed value's own come first, then those of the error behind the message. For an unknown flag or command, `Hint()` is the suggestion (`did you mean --port?`). A flag group conflict returns the origin of each member that did not come from the command line.
+- `Error()` returns line 1 alone.
 - `Unwrap()` returns the error behind the message. For a value that did not convert, it is the error the conversion step returned. That is the error of a `TextUnmarshaler` or registered parser, or CONGA's own parse error, whose type is not part of the API. For a value a `SelfValidator` rejected, it is the validator's error. For `session.UsageErrorf` it is the `%w` operand. It returns nil when CONGA found the problem itself, as for an unknown flag, an `enum`, `range` or `len` violation, or a flag group conflict.
 
-[Which failures are usage errors](#which-failures-are-usage-errors) lists what is not a `*conga.UsageError`.
+The usage block that goes with the error comes from the app, as `app.UsageBlock(err)` returns it. [Which failures are usage errors](#which-failures-are-usage-errors) lists what is not a `*conga.UsageError`.
 
 ### Which failures are usage errors
 
-The source of a value decides the exit path. A command-line token that fails to convert or violates a constraint is a `*conga.UsageError` with exit 2. A value from an environment variable, a configuration file, or a `default` tag is not from the command line, so it fails with an ordinary error, exit 1, no usage block. So do `Bootstrap` failures, schema failures, runtime failures, and a plain error returned by `Validate`. A flag group conflict (`xor`, `oneof`, `and`) is a usage error when at least one of the supplied flags came from the command line, and an ordinary error when they all came from the environment or a config file. A `default` tag never counts as supplied. The message keeps its origin:
+The source of a value decides the exit path. A command-line token that fails to convert or violates a constraint is a `*conga.UsageError` with exit 2. A value from an environment variable, a configuration file, or a `default` tag is not from the command line, so it fails with an ordinary error, exit 1, no usage block. So do `Bootstrap` failures, schema failures, runtime failures, and a plain error returned by `Validate`. A flag group conflict (`xor`, `oneof`, `and`) is a usage error when at least one of the supplied flags came from the command line, and an ordinary error when they all came from the environment or a config file. A `default` tag never counts as supplied. The error keeps its origin on a `from:` line:
 
 ```text no-copy
+# from the command line
 app: error: invalid integer value "abc" for flag --port
-app: error: invalid integer value "abc" for flag --port (from environment variable APP_PORT)
-app: error: invalid integer value "abc" for flag --port (from config key "port")
-app: error: invalid integer value "abc" for flag --port (from default value)
+
+# from the environment
+app: error: invalid integer value "abc" for flag --port
+  from: environment variable APP_PORT
+
+# from a config file
+app: error: invalid integer value "abc" for flag --port
+  from: config key "port" in config file "/home/alice/.config/app/config.yaml"
+
+# from a default tag
+app: error: invalid integer value "abc" for flag --port
+  from: default value
 ```
 
-The first is a usage error with exit 2. The other three exit 1. `errors.As` and `errors.Is` reach the original cause in all four cases, so an application `TextUnmarshaler` error, a standard library `*fs.PathError`, and a sentinel such as `fs.ErrNotExist` remain inspectable.
+The command-line value is a usage error with exit 2. The other three exit 1. `errors.As` and `errors.Is` reach the original cause in all four cases, so an application `TextUnmarshaler` error, a standard library `*fs.PathError`, and a sentinel such as `fs.ErrNotExist` remain inspectable.
 
 Domain types that fail while converting the text (a `File` with `executable:"true"`, for example) follow the same rule. A bare name is resolved on `$PATH` during conversion, and an absolute path converts cleanly and fails `File.Validate`:
 
@@ -88,7 +246,7 @@ Both exit 2 because the value came from the command line. `--why` makes the diff
 
 ## Validate and Bootstrap errors
 
-`Validator.Validate` returns its error unchanged, like `PreRun`, `Run`, and `PostRun`:
+`Validator.Validate` returns its error as is, like `PreRun`, `Run`, and `PostRun`:
 
 | `Validate` returns | `Exit` |
 |---|---|
@@ -99,7 +257,7 @@ Both exit 2 because the value came from the command line. `--why` makes the diff
 
 CONGA can't see which values a check read, so it can't tell a command-line mistake from a config one. Return `session.UsageError` when the cause is the command line. `session.UsageErrorf` keeps a `%w` operand as the error's cause. On a nil session the error has no command, so `Exit` prints no usage block. A message that is empty prints no error line and only the usage block.
 
-`Bootstrapper.Bootstrap` errors also come back unchanged, with no prefix. A plain error exits 1, an `ExitCoder` exits with its code, and a nested app's `*conga.UsageError` exits 2.
+`Bootstrapper.Bootstrap` errors also come back with their text unchanged and no prefix. A plain error exits 1, an `ExitCoder` exits with its code, and a nested app's `*conga.UsageError` exits 2.
 
 ## Feature-gating and map-folding failures
 
@@ -118,21 +276,21 @@ Feature gating and map folding report errors by the input source that introduced
 | Malformed map flag entry in a config file (even when overridden by CLI) | Ordinary error | 1 |
 | Malformed map flag syntax in an environment variable | Ordinary error | 1 |
 | Invalid format passed to `--why` or `--why=json` requested without `conga.WhyOptionJSON()` | `*conga.UsageError` | 2 |
-| Error returned from `Bootstrapper.Bootstrap` | Returned unchanged | 1, or the `ExitCoder`'s code |
+| Error returned from `Bootstrapper.Bootstrap` | Returned as is | 1, or the `ExitCoder`'s code |
 
 ## Schema errors
 
-Programmer errors during schema construction abort at startup before execution begins (exit code 1):
+Programmer errors during schema construction abort at startup before execution begins (exit code 1). Each one prints its message on line 1, and many add a `note:` line with the detail and a `hint:` line with the fix:
 - Declaring `conga.Features[T]` or `feature:"..."` tags without calling `app.EnableFeatures()`.
 - Declaring both `env` and `envprefix` on a `conga.Features` container, or a feature-field `env` tag under a combined-map container.
 - Binding one environment variable through two feature fields (explicitly or through prefix derivation), or through a feature and a flag.
-- Binding a flag or feature to the environment variable the app reads a config file path from (`<PREFIX>_CONFIG`, or the `ConfigFile` field's `env` tag): `struct CLI field Config: environment variable "PC_CONFIG" is bound by both the config file variable and flag --config (hint: give the flag another env tag or exclude it with env:"-")`.
+- Binding a flag or feature to the environment variable the app reads a config file path from (`<PREFIX>_CONFIG`, or the `ConfigFile` field's `env` tag). An example is `struct CLI field Config: environment variable "PC_CONFIG" is bound by both the config file variable and flag --config`, with a `hint: give the flag another env tag or exclude it with env:"-"` line.
 - Combining `conga.ConfigExplicit(...)` with `conga.ConfigPaths(...)` or `conga.ConfigCascading()`.
 - Declaring the `bootstrap` tag when neither the declaring command nor an ancestor implements `conga.Bootstrapper`.
 - Combining the `bootstrap` and `feature` tags on the same field.
 - Declaring the `bootstrap` tag on unsupported field types (structs, pointers, interfaces).
 - Inconsistent `stage` tags violating the all-or-nothing requirement on feature structs.
-- Declaring `enum` on a path field (`conga.File`, `conga.Dir`, `conga.FileContent`, a filterable type, or a `file`, `dir`, `exec`, or `symlink` predictor tag): `struct Deploy field Manifest: tag "enum" is not supported on conga.File (hint: use tag "glob" to filter completion candidates, or a string field with tag "enum" to accept a fixed set of names)`.
+- Declaring `enum` on a path field (`conga.File`, `conga.Dir`, `conga.FileContent`, a filterable type, or a `file`, `dir`, `exec`, or `symlink` predictor tag): `struct Deploy field Manifest: tag "enum" is not supported on conga.File`, with a `hint: use tag "glob" to filter completion candidates, or a string field with tag "enum" to accept a fixed set of names` line.
 - Setting `enumhint:"-"` on a field without declared enums, or where the `help` tag already references `{{enum}}`.
 - Ancestor flag shadowing across command-subcommand hierarchies, including the built-in version command's `--json` and a CLI-exposed `Features[T]` flag.
 - Built-in short flag collisions: assigning a short rune via `app.HelpShortFlag` or `app.VersionShortFlag` that collides with an application flag, or assigning the same rune to both built-in flags.
@@ -143,12 +301,12 @@ Programmer errors during schema construction abort at startup before execution b
 - Unrecognized struct tags without calling `app.AllowTags(...)` (including `conga:"..."` directives).
 - A boolean tag (`hidden`, `negatable`, `bootstrap`, `implicit`, `safe`, `multi`, or a domain type's boolean tag such as `existing`) with a value other than empty, `true`, or `false`: `struct CLI field Debug: tag "hidden" expects "true" or "false", got "yes"`.
 - Declaring `ConfigFile` or `Features` on any command struct other than the root.
-- A flag or positional argument whose type, slice element type, or map key or value type has no parser: `struct CLI field Zone: unsupported type *time.Location (hint: register a parser with app.Use(timezone.RegisterLocation))`. The hint names `app.RegisterType`, or the domain-package binding for `*time.Location`, `*user.User`, `*user.Group`, and `*net.Interface`.
-- A leaf command that does not implement `conga.Runner`: `struct LeafCmd: runner not implemented (hint: implement conga.Runner: Run(context.Context, *conga.Session) error)`.
+- A flag or positional argument whose type, slice element type, or map key or value type has no parser: `struct CLI field Zone: unsupported type *time.Location`, with a `hint: register a parser with app.Use(timezone.RegisterLocation)` line. The hint names `app.RegisterType`, or the domain-package binding for `*time.Location`, `*user.User`, `*user.Group`, and `*net.Interface`.
+- A leaf command that does not implement `conga.Runner`: `struct LeafCmd: runner not implemented`, with a `hint: implement conga.Runner: Run(context.Context, *conga.Session) error` line.
 
 ## Panics
 
-Developer misuse of the API panics with a fixed message instead of returning an error. Schema errors are not panics, and `Run` returns them directly.
+Developer misuse of the API panics with a fixed message instead of returning an error. Schema errors are not panics; `Run` returns them as ordinary errors.
 
 | Misuse | Panic message |
 |---|---|
@@ -171,23 +329,40 @@ A panic whose message starts with `conga: invariant violation:` is a bug in CONG
 
 ## Custom error handling
 
-Custom error handling reports the error returned by `app.Run()` or `app.RunContext(ctx)` itself instead of delegating to `app.Exit(err)`. `app.ExitCode(err)` returns the code `app.Exit` would exit with, so the program exits the same way. `App.Exit` prints a usage block only when the outermost `ExitCoder` in the error is the `*conga.UsageError`, and the same lookup gives `CommandPath()` and `Usage()`:
+Custom error handling reports the error returned by `app.Run()` or `app.RunContext(ctx)` itself instead of delegating to `app.Exit(err)`. `conga.DiagnosticOf(err)` returns a `conga.Diagnostic` whose `Members()` give the lines, `app.UsageBlock(err)` returns the usage block that goes with the error, and `app.ExitCode(err)` returns the exit code. The snippet uses its own prefix and no color. `UsageBlock` returns `""` when `app.Exit` prints no block. When it returns text, `app.Exit` prints a blank line before it only if it printed error lines, and a newline after it, as the snippet does:
 
 ```go
 if err := app.RunContext(ctx); err != nil {
-	fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+	printed := false
 
-	if coder, ok := errors.AsType[conga.ExitCoder](err); ok {
-		if usageErr, isUsage := coder.(*conga.UsageError); isUsage {
-			fmt.Fprintf(os.Stderr, "usage for %s:\n%s\n", usageErr.CommandPath(), usageErr.Usage())
+	for _, item := range conga.DiagnosticOf(err).Members() {
+		fmt.Fprintf(os.Stderr, "Error: %s\n", item.Message())
+		for _, origin := range item.Origins() {
+			fmt.Fprintf(os.Stderr, "  from: %s\n", origin)
 		}
+		if note := item.Note(); note != "" {
+			fmt.Fprintf(os.Stderr, "  note: %s\n", note)
+		}
+		if hint := item.Hint(); hint != "" {
+			fmt.Fprintf(os.Stderr, "  hint: %s\n", hint)
+		}
+
+		printed = true
+	}
+
+	if block := app.UsageBlock(err); block != "" {
+		if printed {
+			fmt.Fprintln(os.Stderr)
+		}
+
+		fmt.Fprintln(os.Stderr, block)
 	}
 
 	os.Exit(app.ExitCode(err))
 }
 ```
 
-A failure from the environment, a config file or a default is not a `*conga.UsageError`, so the snippet prints no usage block for it ([which failures are usage errors](#which-failures-are-usage-errors)).
+A failure from the environment, a config file or a default is not a `*conga.UsageError`, so `UsageBlock` returns `""` for it ([which failures are usage errors](#which-failures-are-usage-errors)). A value error from the command line also gets `""`. A nested app's `*conga.UsageError` that an outer app returns follows the outer app's `UsageOnError` mode.
 
 [About error reporting](/explanation/error-reporting/) covers the separation of error values from process termination.
 
@@ -200,12 +375,12 @@ A failure from the environment, a config file or a default is not a `*conga.Usag
 | `conga.UsageSummary` (default) | Clean error, 1–2 line syntax, `--help` hint |
 | `conga.UsageFull` | Clean error plus the complete help screen |
 | `conga.UsageHint` | Clean error plus a single `Run '<cmd> --help'` hint |
-| `conga.UsageSilence` | Only the clean error message |
+| `conga.UsageSilence` | The error and its `from:`, `note:` and `hint:` lines, no usage block |
 
 Three shapes follow from the kind of failure:
 
-- Command-line value errors name the flag or argument and the offending value, so they render only the error line regardless of the configured mode. These are coercion failures (`unknown byte size unit "XB" in "5XB" (accepted: B, kB, MB, GB, TB, PB, EB, KiB, MiB, GiB, TiB, PiB, EiB) for flag --max-memory`, `ambiguous byte size unit "KB" in "5KB": use kB (1000) or KiB (1024) for flag --max-memory`) and value-constraint violations (`"/etc/passwd" is a file, but a directory was expected for flag --dir`, `value 150 is out of range [0..100] for flag --score`).
+- Command-line value errors name the flag or argument and the offending value, so they render no usage block in any mode. These are coercion failures (`unknown byte size unit "XB" in "5XB" for flag --max-memory`, `ambiguous byte size unit "KB" in "5KB" for flag --max-memory`) and value-constraint violations (`"/etc/passwd" is a file, but a directory was expected for flag --dir`, `value 150 is out of range [0..100] for flag --score`).
 - Errors that benefit from usage context keep the mode's rendering. These are unknown commands and flags, missing required flags and arguments, mutually exclusive or grouped flags, stdin read twice, an unknown feature on the command line, and the errors from `session.UsageError`.
-- A missing subcommand prints the full help of its command for `UsageSummary` and `UsageFull`, the hint for `UsageHint`, and the error line alone for `UsageSilence`.
+- A missing subcommand prints the full help of its command for `UsageSummary` and `UsageFull`, the hint for `UsageHint`, and no usage block for `UsageSilence`.
 
-The usage block comes from the error's own command, so a `*conga.UsageError` without one (a nil session, or a zero value) prints no block. Environment-, configuration-, and default-sourced value failures are not usage errors, so they always render as a single `app: error: ...` line with exit 1. A group failure whose members all came from the environment or a config file renders the same way.
+The usage block comes from the error's own command, so a `*conga.UsageError` without one (a nil session, or a zero value) prints no block. Environment-, configuration-, and default-sourced value failures are not usage errors, so they render `app: error: ...` with their `from:`, `note:` and `hint:` lines, exit 1, and no usage block. A group failure whose members all came from the environment or a config file renders the same way.

@@ -107,7 +107,7 @@ Completion help screens add two sections. A per-shell screen such as `--completi
 | `deploy rollout --region=--help v1.4` | Runs `rollout` with the region `--help`. |
 | `deploy rollout -- --help` | Runs `rollout` with `--help` as its release argument. |
 | `deploy rollout --help=false v1.4` | Runs `rollout`. |
-| `deploy rollout --help=maybe v1.4` | `invalid boolean value "maybe", expected true or false (or 1 or 0) for flag --help`, exit 2. |
+| `deploy rollout --help=maybe v1.4` | `invalid boolean value "maybe" for flag --help`, with a `note: expected true or false (or 1 or 0)` line, exit 2. |
 
 A `--help` that a `RawArgs` field collects is passed through with the other raw arguments ([Pass everything through with `RawArgs`](/how-to/accept-positional-arguments/#pass-everything-through-with-rawargs)). After `app.DisableHelpFlag()` or `app.DisableVersionFlag()`, a flag you declare with the `help` or `version` name is an ordinary flag, so an unknown flag next to it is still an error.
 

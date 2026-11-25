@@ -422,7 +422,8 @@ Without `TagSpecs`, CONGA rejects the tag, and the program fails at startup:
 
 ```sh error={2} wrap
 $ deploy api
-deploy: error: struct Deploy field Manifest: schema error: invalid struct tag: unknown struct tag "ext" (did you mean "env"?). Use app.AllowTags("ext") to permit external tags
+deploy: error: struct Deploy field Manifest: unknown struct tag "ext"
+  hint: did you mean "env"? Use app.AllowTags("ext") to permit external tags
 ```
 
 `FieldTags` also offers `Has` and `Bool`.
@@ -520,7 +521,8 @@ deploy: error: deploy.yaml has no tag "1.28" for service "web"
 
 ```sh error={2} wrap
 $ deploy api
-deploy: error: struct Deploy field Cluster: schema error: invalid struct tag: unregistered predictor "cluster" (did you mean "clusters"?). Register it with app.Predictor("cluster", action)
+deploy: error: struct Deploy field Cluster: unregistered predictor "cluster"
+  hint: did you mean "clusters"? Register it with app.Predictor("cluster", action)
 ```
 
 ## Where to go next

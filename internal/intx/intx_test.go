@@ -101,15 +101,16 @@ func TestParseInt_Rejected(t *testing.T) {
 		raw     string
 		bitSize int
 		message string
+		note    string
 		hint    string
 		cause   error
 	}{
-		{raw: "0755", bitSize: 64, message: `integer "0755" has a leading zero`, hint: "a leading zero is ambiguous: write 0o755 for octal or 755 for decimal", cause: strconv.ErrSyntax},
-		{raw: "-07", bitSize: 64, message: `integer "-07" has a leading zero`, hint: "a leading zero is ambiguous: write -0o7 for octal or -7 for decimal", cause: strconv.ErrSyntax},
-		{raw: "+07", bitSize: 64, message: `integer "+07" has a leading zero`, hint: "a leading zero is ambiguous: write +0o7 for octal or +7 for decimal", cause: strconv.ErrSyntax},
-		{raw: "00", bitSize: 64, message: `integer "00" has a leading zero`, hint: "a leading zero is ambiguous: write 0o0 for octal or 0 for decimal", cause: strconv.ErrSyntax},
-		{raw: "-00", bitSize: 64, message: `integer "-00" has a leading zero`, hint: "a leading zero is ambiguous: write -0o0 for octal or -0 for decimal", cause: strconv.ErrSyntax},
-		{raw: "0089", bitSize: 64, message: `integer "0089" has a leading zero`, hint: "a leading zero is not allowed: write 89", cause: strconv.ErrSyntax},
+		{raw: "0755", bitSize: 64, message: `integer "0755" has a leading zero`, note: "a leading zero is ambiguous", hint: "write 0o755 for octal or 755 for decimal", cause: strconv.ErrSyntax},
+		{raw: "-07", bitSize: 64, message: `integer "-07" has a leading zero`, note: "a leading zero is ambiguous", hint: "write -0o7 for octal or -7 for decimal", cause: strconv.ErrSyntax},
+		{raw: "+07", bitSize: 64, message: `integer "+07" has a leading zero`, note: "a leading zero is ambiguous", hint: "write +0o7 for octal or +7 for decimal", cause: strconv.ErrSyntax},
+		{raw: "00", bitSize: 64, message: `integer "00" has a leading zero`, note: "a leading zero is ambiguous", hint: "write 0o0 for octal or 0 for decimal", cause: strconv.ErrSyntax},
+		{raw: "-00", bitSize: 64, message: `integer "-00" has a leading zero`, note: "a leading zero is ambiguous", hint: "write -0o0 for octal or -0 for decimal", cause: strconv.ErrSyntax},
+		{raw: "0089", bitSize: 64, message: `integer "0089" has a leading zero`, note: "a leading zero is not allowed", hint: "write 89", cause: strconv.ErrSyntax},
 		{raw: "0x", bitSize: 64, message: `invalid integer "0x"`, cause: strconv.ErrSyntax},
 		{raw: "0o", bitSize: 64, message: `invalid integer "0o"`, cause: strconv.ErrSyntax},
 		{raw: "0B", bitSize: 64, message: `invalid integer "0B"`, cause: strconv.ErrSyntax},
@@ -146,7 +147,8 @@ func TestParseInt_Rejected(t *testing.T) {
 
 			assert.Error(t, err)
 			assert.Equal(t, testCase.message, err.Error())
-			assert.Equal(t, testCase.hint, intx.HintOf(err))
+			assert.Equal(t, testCase.note, noteOf(err))
+			assert.Equal(t, testCase.hint, hintOf(err))
 			assert.IsError(t, err, testCase.cause)
 		})
 	}
@@ -159,11 +161,12 @@ func TestParseUint_Rejected(t *testing.T) {
 		raw     string
 		bitSize int
 		message string
+		note    string
 		hint    string
 		cause   error
 	}{
-		{raw: "0755", bitSize: 64, message: `integer "0755" has a leading zero`, hint: "a leading zero is ambiguous: write 0o755 for octal or 755 for decimal", cause: strconv.ErrSyntax},
-		{raw: "00", bitSize: 64, message: `integer "00" has a leading zero`, hint: "a leading zero is ambiguous: write 0o0 for octal or 0 for decimal", cause: strconv.ErrSyntax},
+		{raw: "0755", bitSize: 64, message: `integer "0755" has a leading zero`, note: "a leading zero is ambiguous", hint: "write 0o755 for octal or 755 for decimal", cause: strconv.ErrSyntax},
+		{raw: "00", bitSize: 64, message: `integer "00" has a leading zero`, note: "a leading zero is ambiguous", hint: "write 0o0 for octal or 0 for decimal", cause: strconv.ErrSyntax},
 		{raw: "-0", bitSize: 64, message: `invalid integer "-0"`, cause: strconv.ErrSyntax},
 		{raw: "+5", bitSize: 64, message: `invalid integer "+5"`, cause: strconv.ErrSyntax},
 		{raw: "-1", bitSize: 64, message: `invalid integer "-1"`, cause: strconv.ErrSyntax},
@@ -187,41 +190,60 @@ func TestParseUint_Rejected(t *testing.T) {
 
 			assert.Error(t, err)
 			assert.Equal(t, testCase.message, err.Error())
-			assert.Equal(t, testCase.hint, intx.HintOf(err))
+			assert.Equal(t, testCase.note, noteOf(err))
+			assert.Equal(t, testCase.hint, hintOf(err))
 			assert.IsError(t, err, testCase.cause)
 		})
 	}
 }
 
-func TestHintOf(t *testing.T) {
+func TestError_NoteAndHint(t *testing.T) {
 	t.Parallel()
 
-	t.Run("wrapped leading zero error", func(t *testing.T) {
+	t.Run("octal digits", func(t *testing.T) {
 		t.Parallel()
 
-		_, parseErr := intx.ParseInt("010", 64)
-		wrapped := fmt.Errorf("flag --mode: %w", parseErr)
+		_, err := intx.ParseInt("010", 64)
 
-		hint := intx.HintOf(wrapped)
-
-		assert.Equal(t, "a leading zero is ambiguous: write 0o10 for octal or 10 for decimal", hint)
+		assert.Equal(t, "a leading zero is ambiguous", noteOf(err))
+		assert.Equal(t, "write 0o10 for octal or 10 for decimal", hintOf(err))
 	})
 
-	t.Run("error without an integer error", func(t *testing.T) {
+	t.Run("non-octal digits", func(t *testing.T) {
 		t.Parallel()
 
-		hint := intx.HintOf(errors.New("other"))
+		_, err := intx.ParseInt("089", 64)
 
-		assert.Equal(t, "", hint)
+		assert.Equal(t, "a leading zero is not allowed", noteOf(err))
+		assert.Equal(t, "write 89", hintOf(err))
 	})
 
-	t.Run("nil error", func(t *testing.T) {
+	t.Run("syntax failure carries neither", func(t *testing.T) {
 		t.Parallel()
 
-		hint := intx.HintOf(nil)
+		_, err := intx.ParseInt("abc", 64)
 
-		assert.Equal(t, "", hint)
+		assert.Equal(t, "", noteOf(err))
+		assert.Equal(t, "", hintOf(err))
 	})
+}
+
+// noteOf returns the note of err when it is an *intx.Error.
+func noteOf(err error) string {
+	if parseErr, ok := errors.AsType[*intx.Error](err); ok {
+		return parseErr.Note()
+	}
+
+	return ""
+}
+
+// hintOf returns the hint of err when it is an *intx.Error.
+func hintOf(err error) string {
+	if parseErr, ok := errors.AsType[*intx.Error](err); ok {
+		return parseErr.Hint()
+	}
+
+	return ""
 }
 
 func TestIsSignedLiteral(t *testing.T) {

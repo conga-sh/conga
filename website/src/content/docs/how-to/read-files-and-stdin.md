@@ -209,7 +209,8 @@ Units are case-sensitive and end in `B`. `kB`, `MB`, and `GB` are powers of 1000
 
 ```sh error={2}
 $ convert --input notes.txt --max-size 10M
-convert: error: unknown byte size unit "M" in "10M" (accepted: B, kB, MB, GB, TB, PB, EB, KiB, MiB, GiB, TiB, PiB, EiB) for flag --max-size
+convert: error: unknown byte size unit "M" in "10M" for flag --max-size
+  note: accepted units: B, kB, MB, GB, TB, PB, EB, KiB, MiB, GiB, TiB, PiB, EiB
 ```
 
 ```sh error={2}
@@ -281,7 +282,7 @@ convert: error: "notes.txt" is a file, but a directory was expected for flag --k
 | Passes `-` to a `File` flag without `stdin` or `stdout` | `"-" requires the stdin or stdout tag on the field for flag --input`, exit 2 |
 | Gives a `FileContent` flag twice | `flag --header can only be given once`, then usage, exit 2 |
 | Passes `-` to two command-line values that read standard input | `stdin can only be read once (--input and --header both use "-")`, then usage, exit 2 |
-| Gives a size without the `B` | `unknown byte size unit "M" in "10M" (accepted: B, kB, MB, GB, TB, PB, EB, KiB, MiB, GiB, TiB, PiB, EiB) for flag --max-size`, exit 2 |
+| Gives a size without the `B` | `unknown byte size unit "M" in "10M" for flag --max-size`, with a `note: …` line listing the accepted units, exit 2 |
 | Gives a size outside the `range` | `value 10B is out of range [1KiB..100MiB] for flag --max-size`, exit 2 |
 
 The same checks apply when the value comes from an environment variable or a config file. A conflict that involves one of those sources, or a `default` tag, exits 1 instead of 2 and prints no usage block. An environment variable set to the empty string counts as unset, and so does an empty string in a config file for a `File` or `Dir` flag.

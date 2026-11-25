@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os/exec"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -15,6 +16,8 @@ import (
 	_ "embed"
 
 	"github.com/conga-sh/conga"
+	"github.com/conga-sh/conga/internal/errlines"
+	"github.com/conga-sh/conga/predict"
 )
 
 var (
@@ -365,7 +368,7 @@ func TestSession_UsageErrorf(t *testing.T) {
 	assert.Equal(t, "cannot deploy: backend refused", err.Error())
 	assert.Equal(t, "app deploy", usage.CommandPath())
 	assert.IsError(t, err, errSessionUsageBoom)
-	assert.Equal(t, errSessionUsageBoom, errors.Unwrap(err))
+	assert.Equal(t, errSessionUsageBoom, errors.Unwrap(usage))
 	assert.Equal(t, "app: error: cannot deploy: backend refused\n", result.stderr)
 	assert.Equal(t, 2, result.code)
 }
@@ -392,7 +395,7 @@ func TestValidate_Errors(t *testing.T) {
 		result, err := runSessionUsage(t, "plain", conga.UsageFull)
 
 		assertNotUsageError(t, err)
-		assert.Equal(t, errSessionUsageBoom, err)
+		assert.IsError(t, err, errSessionUsageBoom)
 		assert.Equal(t, "app: error: backend refused\n", result.stderr)
 		assert.Equal(t, 1, result.code)
 	})
@@ -566,7 +569,8 @@ func TestBootstrap_Errors(t *testing.T) {
 			err := app.RunContext(context.WithValue(t.Context(), bootstrapErrorContextKey{}, testCase.err))
 
 			assertNotUsageError(t, err)
-			assert.Equal(t, testCase.err, err)
+			assert.IsError(t, err, testCase.err)
+			assert.Equal(t, testCase.err.Error(), err.Error())
 
 			app.Exit(err)
 
@@ -696,4 +700,343 @@ func TestApp_Exit_UsageShapesByMode(t *testing.T) {
 		assert.Equal(t, "app: error: subcommand required for \"app\"\n", result.stderr)
 		assert.Equal(t, 2, result.code)
 	})
+}
+
+// exitBlock returns the text App.Exit printed after err's lines: no leading
+// blank line and no trailing newline, as App.UsageBlock returns it.
+func exitBlock(t *testing.T, err error, stderr string) string {
+	t.Helper()
+
+	lines := errlines.Render(errlines.Members(err), "app: ", false)
+
+	assert.True(t, strings.HasPrefix(stderr, lines), "stderr %q does not start with the lines %q", stderr, lines)
+
+	rest := strings.TrimPrefix(stderr, lines)
+	if lines != "" {
+		rest = strings.TrimPrefix(rest, "\n")
+	}
+
+	return strings.TrimSuffix(rest, "\n")
+}
+
+// blockCommandCLI is a required-subcommand root with app options enabled, so
+// its full help shows the completion and feature sections.
+type blockCommandCLI struct {
+	Features conga.Features[blockFeatures]     `flag:"feature-gates"`
+	Cluster  conga.Command[SubcommandChildCLI] `name:"cluster"`
+}
+
+type blockFeatures struct {
+	Beta bool `help:"Beta behaviour"`
+}
+
+// trimGolden returns golden without its leading error lines and its trailing
+// newline, which leaves the usage block App.Exit printed after them.
+func trimGolden(golden string, errorLines string) string {
+	return strings.TrimSuffix(strings.TrimPrefix(golden, errorLines), "\n")
+}
+
+// newBlockApp returns an app named "app" in the given usage mode that prints to
+// stderr and does not exit the process.
+func newBlockApp[T any](mode conga.UsageOnErrorMode, stderr *bytes.Buffer, args ...string) *conga.App[T] {
+	return conga.New[T]().
+		Name("app").
+		UsageOnError(mode).
+		Stderr(stderr).
+		ExitFunc(func(int) {}).
+		Args(append([]string{}, args...))
+}
+
+// blockRun is one run of an app through App.Exit.
+type blockRun struct {
+	err    error
+	block  string
+	stderr string
+}
+
+// runForBlock runs T in the given usage mode, passes the failure to App.Exit
+// and records what App.UsageBlock returned for it.
+func runForBlock[T any](t *testing.T, mode conga.UsageOnErrorMode, args ...string) blockRun {
+	t.Helper()
+
+	var stderrBuffer bytes.Buffer
+
+	app := newBlockApp[T](mode, &stderrBuffer, args...)
+
+	err := app.RunContext(t.Context())
+	app.Exit(err)
+
+	return blockRun{err: err, block: app.UsageBlock(err), stderr: stderrBuffer.String()}
+}
+
+func TestApp_UsageBlock_MatchesExit(t *testing.T) {
+	t.Parallel()
+
+	modes := []struct {
+		name string
+		mode conga.UsageOnErrorMode
+	}{
+		{name: "summary", mode: conga.UsageSummary},
+		{name: "full", mode: conga.UsageFull},
+		{name: "hint", mode: conga.UsageHint},
+		{name: "silence", mode: conga.UsageSilence},
+	}
+
+	for _, mode := range modes {
+		t.Run("unknown flag in "+mode.name, func(t *testing.T) {
+			t.Parallel()
+
+			run := runForBlock[shapeCLI](t, mode.mode, "--bogus")
+
+			want := map[conga.UsageOnErrorMode]string{
+				conga.UsageSummary: trimGolden(goldenErrorsShapeUnknownFlagSummary, "app: error: unknown flag: --bogus\n\n"),
+				conga.UsageFull:    trimGolden(goldenErrorsShapeUnknownFlagFull, "app: error: unknown flag: --bogus\n\n"),
+				conga.UsageHint:    "Run 'app --help' for more information.",
+				conga.UsageSilence: "",
+			}[mode.mode]
+
+			assert.Equal(t, want, run.block)
+			assert.Equal(t, want, exitBlock(t, run.err, run.stderr))
+		})
+
+		t.Run("unknown subcommand in "+mode.name, func(t *testing.T) {
+			t.Parallel()
+
+			run := runForBlock[shapeCLI](t, mode.mode, "bogus")
+
+			want := map[conga.UsageOnErrorMode]string{
+				conga.UsageSummary: "Usage:\n  app <command> [flags]\n\nRun 'app --help' for more information.",
+				conga.UsageFull:    "Usage:\n  app <command> [flags]\n\nCommands:\n  cluster\n\nFlags:\n      --port=INT\n      --help      Show help\n      --version   Show version",
+				conga.UsageHint:    "Run 'app --help' for more information.",
+				conga.UsageSilence: "",
+			}[mode.mode]
+
+			assert.Equal(t, "unknown command: bogus", run.err.Error())
+			assert.Equal(t, want, run.block)
+			assert.Equal(t, want, exitBlock(t, run.err, run.stderr))
+		})
+
+		t.Run("value error in "+mode.name, func(t *testing.T) {
+			t.Parallel()
+
+			run := runForBlock[shapeCLI](t, mode.mode, "--port", "abc", "cluster")
+
+			assertUsageError(t, run.err)
+			assert.Equal(t, "", run.block)
+			assert.Equal(t, "app: error: invalid integer value \"abc\" for flag --port\n", run.stderr)
+		})
+
+		t.Run("subcommand required in "+mode.name, func(t *testing.T) {
+			t.Parallel()
+
+			run := runForBlock[shapeCLI](t, mode.mode)
+
+			want := map[conga.UsageOnErrorMode]string{
+				conga.UsageSummary: trimGolden(goldenErrorsShapeSubcommandRequiredHelp, "app: error: subcommand required for \"app\"\n\n"),
+				conga.UsageFull:    trimGolden(goldenErrorsShapeSubcommandRequiredHelp, "app: error: subcommand required for \"app\"\n\n"),
+				conga.UsageHint:    "Run 'app --help' for more information.",
+				conga.UsageSilence: "",
+			}[mode.mode]
+
+			assert.Equal(t, want, run.block)
+			assert.Equal(t, want, exitBlock(t, run.err, run.stderr))
+		})
+
+		t.Run("session.UsageError from a hook in "+mode.name, func(t *testing.T) {
+			t.Parallel()
+
+			run := runForBlock[sessionUsageCLI](t, mode.mode, "deploy", "--fail", "usage")
+
+			want := map[conga.UsageOnErrorMode]string{
+				conga.UsageSummary: "Usage:\n  app deploy [flags]\n\nRun 'app deploy --help' for more information.",
+				conga.UsageFull:    trimGolden(goldenErrorsSessionUsageFull, "app: error: --target is required with --env=staging\n\n"),
+				conga.UsageHint:    "Run 'app deploy --help' for more information.",
+				conga.UsageSilence: "",
+			}[mode.mode]
+
+			assert.Equal(t, want, run.block)
+			assert.Equal(t, want, exitBlock(t, run.err, run.stderr))
+		})
+
+		t.Run("required subcommand with app options in "+mode.name, func(t *testing.T) {
+			t.Parallel()
+
+			var stderrBuffer bytes.Buffer
+
+			app := conga.New[blockCommandCLI]().
+				Name("app").
+				EnableCompletion().
+				EnableFeatures().
+				UsageOnError(mode.mode).
+				Stderr(&stderrBuffer).
+				ExitFunc(func(int) {}).
+				Args([]string{})
+
+			err := app.RunContext(t.Context())
+			app.Exit(err)
+
+			fullHelp := "Usage:\n  app <command> [flags]\n\n" +
+				"Commands:\n  cluster\n  completion  Generate shell completion scripts\n\n" +
+				"Flags:\n      --feature-gates=KEY=VALUE,...  Enable or disable features (name=value)\n" +
+				"      --help                         Show help\n" +
+				"      --version                      Show version\n\n" +
+				"Features:\n  beta  Beta behaviour"
+
+			want := map[conga.UsageOnErrorMode]string{
+				conga.UsageSummary: fullHelp,
+				conga.UsageFull:    fullHelp,
+				conga.UsageHint:    "Run 'app --help' for more information.",
+				conga.UsageSilence: "",
+			}[mode.mode]
+
+			assert.Equal(t, want, app.UsageBlock(err))
+			assert.Equal(t, want, exitBlock(t, err, stderrBuffer.String()))
+		})
+
+		t.Run("an error with no command chain has no block in "+mode.name, func(t *testing.T) {
+			t.Parallel()
+
+			var stderrBuffer bytes.Buffer
+
+			app := newBlockApp[shapeCLI](mode.mode, &stderrBuffer)
+
+			assert.Equal(t, "", app.UsageBlock(&conga.UsageError{}))
+			assert.Equal(t, "", app.UsageBlock(nil))
+			assert.Equal(t, "", app.UsageBlock(errors.New("plain")))
+
+			app.Exit(errors.New("plain"))
+
+			assert.Equal(t, "app: error: plain\n", stderrBuffer.String())
+		})
+
+		t.Run("a join whose outermost ExitCoder is not the usage error has no block in "+mode.name, func(t *testing.T) {
+			t.Parallel()
+
+			var stderrBuffer bytes.Buffer
+
+			app := newBlockApp[shapeCLI](mode.mode, &stderrBuffer, "--bogus")
+
+			usageErr := app.RunContext(t.Context())
+			assertUsageError(t, usageErr)
+
+			joined := errors.Join(&exitCodeError{code: 7, message: "refused"}, usageErr)
+
+			assert.Equal(t, "", app.UsageBlock(joined))
+			assert.Equal(t, 7, app.ExitCode(joined))
+
+			app.Exit(joined)
+
+			assert.Equal(t, "app: error: refused\napp: error: unknown flag: --bogus\n", stderrBuffer.String())
+		})
+
+		t.Run("a usage error joined with a completion failure has no block in "+mode.name, func(t *testing.T) {
+			t.Parallel()
+
+			type panicCLI struct {
+				noopRunner
+
+				Kind conga.OptionalFlag[string] `predictor:"boom"`
+			}
+
+			completionApp := conga.New[panicCLI]().
+				EnableCompletion().
+				Name("app").
+				Predictor("boom", predict.Callback(func(_ predict.Context) predict.Predictor { panic("completion boom") })).
+				Args([]string{"__complete", "bash", "--kind", ""})
+
+			completionErr := completionApp.Run()
+			assert.Error(t, completionErr)
+
+			var joinedBuffer, completionBuffer bytes.Buffer
+
+			app := newBlockApp[shapeCLI](mode.mode, &joinedBuffer, "--bogus")
+			usageErr := app.RunContext(t.Context())
+			assertUsageError(t, usageErr)
+
+			joined := errors.Join(usageErr, completionErr)
+
+			assert.Equal(t, "", app.UsageBlock(joined))
+			assert.Equal(t, "", app.UsageBlock(completionErr))
+
+			app.Exit(joined)
+			newBlockApp[shapeCLI](mode.mode, &completionBuffer).Exit(completionErr)
+
+			assert.Equal(t, "internal completion failure: completion boom\n", joinedBuffer.String())
+			assert.Equal(t, "internal completion failure: completion boom\n", completionBuffer.String())
+		})
+
+		t.Run("a nested app's usage error follows the app that prints in "+mode.name, func(t *testing.T) {
+			t.Parallel()
+
+			var nestedBuffer bytes.Buffer
+
+			nestedApp := conga.New[shapeCLI]().
+				Name("inner").
+				UsageOnError(conga.UsageFull).
+				Stderr(&nestedBuffer).
+				Args([]string{"--bogus"})
+
+			nested := nestedApp.RunContext(t.Context())
+			assertUsageError(t, nested)
+
+			var stderrBuffer bytes.Buffer
+
+			app := newBlockApp[bootstrapFailureCLI](mode.mode, &stderrBuffer)
+
+			err := app.RunContext(context.WithValue(t.Context(), bootstrapErrorContextKey{}, nested))
+			assertUsageError(t, err)
+			app.Exit(err)
+
+			want := map[conga.UsageOnErrorMode]string{
+				conga.UsageSummary: "Usage:\n  inner <command> [flags]\n\nRun 'inner --help' for more information.",
+				conga.UsageFull:    "Usage:\n  inner <command> [flags]\n\nCommands:\n  cluster\n\nFlags:\n      --port=INT\n      --help      Show help\n      --version   Show version",
+				conga.UsageHint:    "Run 'inner --help' for more information.",
+				conga.UsageSilence: "",
+			}[mode.mode]
+
+			assert.Equal(t, want, app.UsageBlock(err))
+			assert.Equal(t, want, exitBlock(t, err, stderrBuffer.String()))
+		})
+	}
+}
+
+func TestApp_UsageBlock_HelpFlagDisabled(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		mode       conga.UsageOnErrorMode
+		wantBlock  string
+		wantStderr string
+	}{
+		{
+			name:       "summary prints the synopsis without a hint line",
+			mode:       conga.UsageSummary,
+			wantBlock:  "Usage:\n  app <command> [flags]",
+			wantStderr: "app: error: unknown flag: --bogus\n\nUsage:\n  app <command> [flags]\n",
+		},
+		{
+			name:       "hint prints no block",
+			mode:       conga.UsageHint,
+			wantBlock:  "",
+			wantStderr: "app: error: unknown flag: --bogus\n",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			var stderrBuffer bytes.Buffer
+
+			app := newBlockApp[shapeCLI](test.mode, &stderrBuffer, "--bogus").
+				DisableHelpFlag()
+
+			err := app.RunContext(t.Context())
+			app.Exit(err)
+
+			assert.Equal(t, test.wantBlock, app.UsageBlock(err))
+			assert.Equal(t, test.wantStderr, stderrBuffer.String())
+		})
+	}
 }

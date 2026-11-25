@@ -10,6 +10,7 @@ import (
 
 	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/decoder/json"
+	"github.com/conga-sh/conga/internal/errlines"
 )
 
 type DeprecatedAppWithSubCLI struct {
@@ -348,5 +349,6 @@ func TestDeprecation_RequiredFlagRejected(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.Equal(t, `struct deprecatedReqFlagCLI field Token: tag "deprecated" cannot be used on required flags (hint: make the flag optional before deprecating it so callers can migrate without error)`, err.Error())
+	assert.Equal(t, `struct deprecatedReqFlagCLI field Token: tag "deprecated" cannot be used on required flags`, err.Error())
+	assert.Equal(t, `make the flag optional before deprecating it so callers can migrate without error`, errlines.Hint(err))
 }

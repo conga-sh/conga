@@ -5,6 +5,7 @@ import (
 
 	"github.com/alecthomas/assert/v2"
 
+	"github.com/conga-sh/conga/internal/errlines"
 	"github.com/conga-sh/conga/internal/spec"
 )
 
@@ -32,7 +33,8 @@ func TestBuild_BootstrapRequiresBootstrapper(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.True(t, spec.IsSchemaError(err))
-	assert.Equal(t, `struct bootstrapSchemaCLI field Dir: tag "bootstrap" requires the command or an ancestor command to implement conga.Bootstrapper (hint: implement Bootstrap(ctx context.Context, b *conga.Bootstrap) error or remove the tag)`, err.Error())
+	assert.Equal(t, `struct bootstrapSchemaCLI field Dir: tag "bootstrap" requires the command or an ancestor command to implement conga.Bootstrapper`, err.Error())
+	assert.Equal(t, `implement Bootstrap(ctx context.Context, b *conga.Bootstrap) error or remove the tag`, errlines.Hint(err))
 }
 
 func TestBuild_BootstrapRejectsFeatureTag(t *testing.T) {
@@ -48,7 +50,8 @@ func TestBuild_BootstrapRejectsFeatureTag(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.True(t, spec.IsSchemaError(err))
-	assert.Equal(t, `struct featureCLI field Dir: tag "bootstrap" cannot be combined with tag "feature" (note: the bootstrap phase runs before feature gates are resolved)`, err.Error())
+	assert.Equal(t, `struct featureCLI field Dir: tag "bootstrap" cannot be combined with tag "feature"`, err.Error())
+	assert.Equal(t, `the bootstrap phase runs before feature gates are resolved`, errlines.Note(err))
 }
 
 func TestBuild_BootstrapRejectsStructType(t *testing.T) {
@@ -66,7 +69,8 @@ func TestBuild_BootstrapRejectsStructType(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.True(t, spec.IsSchemaError(err))
-	assert.Equal(t, `struct typeCLI field Input: bootstrap fields must be scalars, slices of scalars, or maps of scalars (note: structs and pointers are not supported)`, err.Error())
+	assert.Equal(t, `struct typeCLI field Input: bootstrap fields must be scalars, slices of scalars, or maps of scalars`, err.Error())
+	assert.Equal(t, `structs and pointers are not supported`, errlines.Note(err))
 }
 
 func TestBuild_BootstrapRejectsRecursiveSliceType(t *testing.T) {
@@ -82,7 +86,8 @@ func TestBuild_BootstrapRejectsRecursiveSliceType(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.True(t, spec.IsSchemaError(err))
-	assert.Equal(t, `struct typeCLI field Input: bootstrap fields must be scalars, slices of scalars, or maps of scalars (note: structs and pointers are not supported)`, err.Error())
+	assert.Equal(t, `struct typeCLI field Input: bootstrap fields must be scalars, slices of scalars, or maps of scalars`, err.Error())
+	assert.Equal(t, `structs and pointers are not supported`, errlines.Note(err))
 }
 
 func TestBuild_BootstrapDashArgsRequiresBootstrapper(t *testing.T) {
@@ -96,7 +101,8 @@ func TestBuild_BootstrapDashArgsRequiresBootstrapper(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.True(t, spec.IsSchemaError(err))
-	assert.Equal(t, `struct dashCLI field Trail: tag "bootstrap" requires the command or an ancestor command to implement conga.Bootstrapper (hint: implement Bootstrap(ctx context.Context, b *conga.Bootstrap) error or remove the tag)`, err.Error())
+	assert.Equal(t, `struct dashCLI field Trail: tag "bootstrap" requires the command or an ancestor command to implement conga.Bootstrapper`, err.Error())
+	assert.Equal(t, `implement Bootstrap(ctx context.Context, b *conga.Bootstrap) error or remove the tag`, errlines.Hint(err))
 }
 
 func TestBuild_BootstrapRawArgsRequiresBootstrapper(t *testing.T) {
@@ -110,5 +116,6 @@ func TestBuild_BootstrapRawArgsRequiresBootstrapper(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.True(t, spec.IsSchemaError(err))
-	assert.Equal(t, `struct rawCLI field Raw: tag "bootstrap" requires the command or an ancestor command to implement conga.Bootstrapper (hint: implement Bootstrap(ctx context.Context, b *conga.Bootstrap) error or remove the tag)`, err.Error())
+	assert.Equal(t, `struct rawCLI field Raw: tag "bootstrap" requires the command or an ancestor command to implement conga.Bootstrapper`, err.Error())
+	assert.Equal(t, `implement Bootstrap(ctx context.Context, b *conga.Bootstrap) error or remove the tag`, errlines.Hint(err))
 }

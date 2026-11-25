@@ -14,7 +14,7 @@ type CLI struct {
 	Status  conga.Command[StatusCmd] `summary:"Check system status"`
 	About   conga.Command[AboutCmd]  `summary:"Print the version summary via the session renderer"`
 	Guide   conga.Command[GuideCmd]  `summary:"Render this command's help screen via the session renderer"`
-	Syntax  conga.Command[SyntaxCmd] `summary:"Render the syntax usage summary via the session renderer"`
+	Syntax  conga.Command[SyntaxCmd] `summary:"Render the synopsis via the session renderer"`
 	Help    conga.HelpCommand        `summary:"Show help for any command"`
 	Version conga.VersionCommand     `summary:"Display detailed version and build information"`
 }
@@ -61,9 +61,9 @@ func (g *GuideCmd) Run(_ context.Context, session *conga.Session) error {
 
 type SyntaxCmd struct{}
 
-// Run renders the syntax usage summary to stderr.
+// Run renders the synopsis to stderr.
 func (s *SyntaxCmd) Run(_ context.Context, session *conga.Session) error {
-	fmt.Fprintln(session.Stderr(), session.Usage())
+	fmt.Fprintln(session.Stderr(), session.Synopsis())
 
 	return nil
 }

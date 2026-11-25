@@ -6,6 +6,7 @@ import (
 
 	"github.com/alecthomas/assert/v2"
 
+	"github.com/conga-sh/conga/internal/errlines"
 	"github.com/conga-sh/conga/internal/spec"
 )
 
@@ -51,7 +52,8 @@ func TestBuild_PlainFieldTagRejected(t *testing.T) {
 	_, err := buildSchema(&cli, "app", spec.Options{})
 
 	assert.Error(t, err)
-	assert.Equal(t, `struct PlainTaggedCLI field Extra: tag "name" is not valid on a plain field (hint: declare a flag, argument, command, config-file, features, or trailing-args container)`, err.Error())
+	assert.Equal(t, `struct PlainTaggedCLI field Extra: tag "name" is not valid on a plain field`, err.Error())
+	assert.Equal(t, `declare a flag, argument, command, config-file, features, or trailing-args container`, errlines.Hint(err))
 	assert.True(t, spec.IsSchemaError(err))
 }
 
@@ -96,7 +98,8 @@ func TestBuild_PlainFieldDomainTagRejected(t *testing.T) {
 	_, err := buildSchema(&cli, "app", spec.Options{})
 
 	assert.Error(t, err)
-	assert.Equal(t, `struct PlainDomainTagCLI field Log: tag "existing" is not valid on a plain field (hint: declare a flag, argument, command, config-file, features, or trailing-args container)`, err.Error())
+	assert.Equal(t, `struct PlainDomainTagCLI field Log: tag "existing" is not valid on a plain field`, err.Error())
+	assert.Equal(t, `declare a flag, argument, command, config-file, features, or trailing-args container`, errlines.Hint(err))
 	assert.True(t, spec.IsSchemaError(err))
 }
 
@@ -134,7 +137,8 @@ func TestValidateNonContainerFieldTags_DomainTagRejected(t *testing.T) {
 	err := spec.ValidateNonContainerFieldTags(reflect.StructTag(`existing:"true"`), []string{"existing"}, spec.ValidationOptions{})
 
 	assert.Error(t, err)
-	assert.Equal(t, `tag "existing" is not valid on a plain field (hint: declare a flag, argument, command, config-file, features, or trailing-args container)`, err.Error())
+	assert.Equal(t, `tag "existing" is not valid on a plain field`, err.Error())
+	assert.Equal(t, `declare a flag, argument, command, config-file, features, or trailing-args container`, errlines.Hint(err))
 	assert.True(t, spec.IsSchemaError(err))
 }
 
@@ -154,7 +158,8 @@ func TestBuild_PlainFieldRequiredTagRejected(t *testing.T) {
 	_, err := buildSchema(&cli, "app", spec.Options{})
 
 	assert.Error(t, err)
-	assert.Equal(t, `struct PlainRequiredCLI field Host: tag "required" is not supported (hint: use conga.RequiredFlag[T] or conga.RequiredArg[T] instead)`, err.Error())
+	assert.Equal(t, `struct PlainRequiredCLI field Host: tag "required" is not supported`, err.Error())
+	assert.Equal(t, `use conga.RequiredFlag[T] or conga.RequiredArg[T] instead`, errlines.Hint(err))
 	assert.True(t, spec.IsSchemaError(err))
 }
 
@@ -166,7 +171,8 @@ func TestBuild_PlainFieldRequiredTagIgnoresAllowTags(t *testing.T) {
 	_, err := buildSchema(&cli, "app", spec.Options{AllowedTags: []string{"required"}})
 
 	assert.Error(t, err)
-	assert.Equal(t, `struct PlainRequiredCLI field Host: tag "required" is not supported (hint: use conga.RequiredFlag[T] or conga.RequiredArg[T] instead)`, err.Error())
+	assert.Equal(t, `struct PlainRequiredCLI field Host: tag "required" is not supported`, err.Error())
+	assert.Equal(t, `use conga.RequiredFlag[T] or conga.RequiredArg[T] instead`, errlines.Hint(err))
 	assert.True(t, spec.IsSchemaError(err))
 }
 
@@ -178,6 +184,7 @@ func TestBuild_PlainFieldReservedTagRejected(t *testing.T) {
 	_, err := buildSchema(&cli, "app", spec.Options{})
 
 	assert.Error(t, err)
-	assert.Equal(t, `struct PlainReservedCLI field Extra: struct tag "~explicit" is reserved for CONGA's app-level configuration settings (hint: declare it via app.ConfigOptions(...) instead)`, err.Error())
+	assert.Equal(t, `struct PlainReservedCLI field Extra: struct tag "~explicit" is reserved for CONGA's app-level configuration settings`, err.Error())
+	assert.Equal(t, `declare it via app.ConfigOptions(...) instead`, errlines.Hint(err))
 	assert.True(t, spec.IsSchemaError(err))
 }

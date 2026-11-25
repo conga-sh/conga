@@ -61,7 +61,8 @@ stdout '--service-name\s+string\s+hcl-service\s+● config config\.hcl'
 # 8. Strict validation typo suggestions (config-parse errors exit 1)
 exit-status 1 multiformat-and-dotenv -c typo.yaml
 stderr 'unknown field "prt"'
-stderr 'did you mean "port"\?'
+stderr 'hint: did you mean "port"\?'
+stderr 'from: config file "typo.yaml"'
 
 # 9. Unsupported config file extension fails with a clean error (exit 1)
 exit-status 1 multiformat-and-dotenv -c config.xml

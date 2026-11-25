@@ -24,7 +24,10 @@ import (
 // values and validation errors, and may be any free-form application-supplied
 // source label. scope optionally names a region within origin.
 func ValidateDocument(rawMap map[string]any, cmd *spec.Command, dest *configdata.Data, origin, scope string) error {
-	return newDocumentValidator(cmd, dest, origin, scope).command("", rawMap, cmd)
+	validator := newDocumentValidator(cmd, dest, origin, scope)
+	validator.document = true
+
+	return validator.command("", rawMap, cmd)
 }
 
 // documentValidator validates one decoded document (a config file or one
@@ -43,6 +46,10 @@ type documentValidator struct {
 	origin  string
 	scope   string
 	keyCase spec.KeyCase
+
+	// document reports that origin labels a programmatic document, not a
+	// file path.
+	document bool
 }
 
 // newDocumentValidator builds a validator for one document; root carries the
@@ -53,6 +60,17 @@ func newDocumentValidator(root *spec.Command, dest *configdata.Data, origin, sco
 	}
 
 	return &documentValidator{dest: dest, origin: origin, scope: scope, keyCase: root.ConfigSettings.KeyCase}
+}
+
+// fieldErrorf builds a strict-validation error whose origin line names the
+// config file, or the document label with its scope.
+func (v *documentValidator) fieldErrorf(format string, args ...any) *configError {
+	return newFieldConfigError(v.value("").OriginText(), fmt.Sprintf(format, args...))
+}
+
+// value builds the stored value for raw with the document's origin.
+func (v *documentValidator) value(raw string) configdata.Value {
+	return configdata.Value{Raw: raw, Origin: v.origin, Scope: v.scope, Document: v.document}
 }
 
 // command validates one command's section; prefix is the command's section
@@ -74,17 +92,14 @@ func (v *documentValidator) commandEntry(prefix, key string, value any, cmd *spe
 
 	if flag := findFlag(cmd, prefix, []string{key}, v.keyCase); flag != nil {
 		if flag.ConfigKey == "-" {
-			return newExcludedConfigFieldError(v.origin, v.scope, key, cmd.Name)
+			return v.excludedFieldError(key, cmd.Name)
 		}
 
 		return v.store(prefix, cmd, flag, value)
 	}
 
-	return newFieldConfigError(
-		v.origin,
-		v.scope,
-		fmt.Sprintf("unknown field %q in command %q%s", key, cmd.Name, suggestionHint(cmd, prefix, nil, key, v.keyCase)),
-	)
+	return v.fieldErrorf("unknown field %q in command %q", key, cmd.Name).
+		withHint(suggestionHint(cmd, prefix, nil, key, v.keyCase))
 }
 
 func (v *documentValidator) nestedSection(prefix, key string, nestedMap map[string]any, cmd *spec.Command) error {
@@ -96,7 +111,7 @@ func (v *documentValidator) nestedSection(prefix, key string, nestedMap map[stri
 
 	if flag != nil && flag.IsMap {
 		if flag.ConfigKey == "-" {
-			return newExcludedConfigFieldError(v.origin, v.scope, key, cmd.Name)
+			return v.excludedFieldError(key, cmd.Name)
 		}
 
 		return v.store(prefix, cmd, flag, nestedMap)
@@ -106,25 +121,18 @@ func (v *documentValidator) nestedSection(prefix, key string, nestedMap map[stri
 
 	if flag != nil && !hasFlagUnder(cmd, prefix, section) {
 		if flag.ConfigKey == "-" {
-			return newExcludedConfigFieldError(v.origin, v.scope, key, cmd.Name)
+			return v.excludedFieldError(key, cmd.Name)
 		}
 
-		return newFieldConfigError(
-			v.origin,
-			v.scope,
-			fmt.Sprintf("field %q in command %q is not a map", key, cmd.Name),
-		)
+		return v.fieldErrorf("field %q in command %q is not a map", key, cmd.Name)
 	}
 
 	if hasFlagUnder(cmd, prefix, section) {
 		return v.namespace(prefix, section, nestedMap, cmd)
 	}
 
-	return newFieldConfigError(
-		v.origin,
-		v.scope,
-		fmt.Sprintf("unknown section %q in command %q%s", key, cmd.Name, suggestionHint(cmd, prefix, nil, key, v.keyCase)),
-	)
+	return v.fieldErrorf("unknown section %q in command %q", key, cmd.Name).
+		withHint(suggestionHint(cmd, prefix, nil, key, v.keyCase))
 }
 
 // namespace validates a section that groups dotted config tags (`db` for
@@ -172,11 +180,8 @@ func (v *documentValidator) namespace(cmdPrefix string, section []string, rawMap
 			continue
 		}
 
-		return newFieldConfigError(
-			v.origin,
-			v.scope,
-			fmt.Sprintf("unknown field %q in namespace %q%s", key, displayNamespace, suggestionHint(cmd, cmdPrefix, section, key, v.keyCase)),
-		)
+		return v.fieldErrorf("unknown field %q in namespace %q", key, displayNamespace).
+			withHint(suggestionHint(cmd, cmdPrefix, section, key, v.keyCase))
 	}
 
 	return nil
@@ -197,7 +202,7 @@ func (v *documentValidator) store(prefix string, cmd *spec.Command, flag *spec.F
 
 	formatted := formatConfigValue(value)
 	for _, storageKey := range storageKeys {
-		v.dest.SetScalarScoped(storageKey, formatted, v.origin, v.scope)
+		v.dest.SetScalarValue(storageKey, v.value(formatted))
 	}
 
 	return nil
@@ -260,7 +265,7 @@ func (v *documentValidator) storeFlatMapToken(cmd *spec.Command, flag *spec.Flag
 
 	key = strings.TrimSpace(key)
 	if !ok || key == "" {
-		entries[""] = configdata.Value{Raw: token, Origin: v.origin, Scope: v.scope}
+		entries[""] = v.value(token)
 
 		return nil
 	}
@@ -279,18 +284,15 @@ func (v *documentValidator) storeMapEntry(cmd *spec.Command, flag *spec.Flag, ke
 			if expected := v.keyCase.Apply(feature.Name); key != expected {
 				section := spec.ConfigKeyPath(flag, []*spec.Command{cmd})
 
-				return newFieldConfigError(
-					v.origin,
-					v.scope,
-					fmt.Sprintf("unknown field %q in section %q (did you mean %q?)", key, section, expected),
-				)
+				return v.fieldErrorf("unknown field %q in section %q", key, section).
+					withHint(levenshtein.QuotedHint(expected))
 			}
 
 			key = feature.Name
 		}
 	}
 
-	entries[key] = configdata.Value{Raw: raw, Origin: v.origin, Scope: v.scope}
+	entries[key] = v.value(raw)
 
 	return nil
 }
@@ -306,29 +308,18 @@ func (v *documentValidator) namespaceSection(cmdPrefix string, section []string,
 	}
 
 	if flag != nil {
-		return newFieldConfigError(
-			v.origin,
-			v.scope,
-			fmt.Sprintf("field %q in namespace %q is not a map", key, displayNamespace),
-		)
+		return v.fieldErrorf("field %q in namespace %q is not a map", key, displayNamespace)
 	}
 
-	return newFieldConfigError(
-		v.origin,
-		v.scope,
-		fmt.Sprintf("unknown section %q in namespace %q%s", key, displayNamespace, suggestionHint(cmd, cmdPrefix, section, key, v.keyCase)),
-	)
+	return v.fieldErrorf("unknown section %q in namespace %q", key, displayNamespace).
+		withHint(suggestionHint(cmd, cmdPrefix, section, key, v.keyCase))
 }
 
-// newExcludedConfigFieldError rejects a configuration entry addressed at a
+// excludedFieldError rejects a configuration entry addressed at a
 // flag excluded from config files, the strict-validation counterpart of the
 // binder's refusal to read such keys.
-func newExcludedConfigFieldError(origin, scope, fieldKey, commandName string) error {
-	return newFieldConfigError(
-		origin,
-		scope,
-		fmt.Sprintf("field %q is excluded from config files in command %q", fieldKey, commandName),
-	)
+func (v *documentValidator) excludedFieldError(fieldKey, commandName string) error {
+	return v.fieldErrorf("field %q is excluded from config files in command %q", fieldKey, commandName)
 }
 
 // validateCommandConfig validates raw parsed configuration data against the
@@ -480,10 +471,5 @@ func findClosestSuggestion(cmd *spec.Command, cmdPrefix string, section []string
 }
 
 func suggestionHint(cmd *spec.Command, cmdPrefix string, section []string, key string, keyCase spec.KeyCase) string {
-	suggestion := findClosestSuggestion(cmd, cmdPrefix, section, key, keyCase)
-	if suggestion == "" {
-		return ""
-	}
-
-	return fmt.Sprintf(" (did you mean %q?)", suggestion)
+	return levenshtein.QuotedHint(findClosestSuggestion(cmd, cmdPrefix, section, key, keyCase))
 }

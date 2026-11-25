@@ -139,6 +139,24 @@ func TerminalImplicitLevels(chain []*Command, tokens []tokenizer.Token, terminat
 	}
 }
 
+// builtinBoolRequest tracks the last value seen for each bool built-in flag.
+type builtinBoolRequest struct {
+	help    bool
+	version bool
+}
+
+func (request *builtinBoolRequest) record(flagSpec *Flag, enabled bool) {
+	if flagSpec == BuiltinHelpFlag {
+		request.help = enabled
+	} else {
+		request.version = enabled
+	}
+}
+
+func (request *builtinBoolRequest) requested() bool {
+	return request.help || request.version
+}
+
 // routingLevelChains returns the command chains active after entering each
 // implicit level below chain's leaf, nearest first. chain must be non-empty.
 func routingLevelChains(chain []*Command) [][]*Command {
@@ -234,24 +252,6 @@ func builtinRequestedAt(chain []*Command, levelChains [][]*Command, tokens []tok
 	}
 
 	return request.requested()
-}
-
-// builtinBoolRequest tracks the last value seen for each bool built-in flag.
-type builtinBoolRequest struct {
-	help    bool
-	version bool
-}
-
-func (request *builtinBoolRequest) record(flagSpec *Flag, enabled bool) {
-	if flagSpec == BuiltinHelpFlag {
-		request.help = enabled
-	} else {
-		request.version = enabled
-	}
-}
-
-func (request *builtinBoolRequest) requested() bool {
-	return request.help || request.version
 }
 
 // builtinBoolValue reports whether an attached value switches a bool built-in

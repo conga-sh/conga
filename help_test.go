@@ -12,6 +12,7 @@ import (
 	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/decoder/json"
 	"github.com/conga-sh/conga/decoder/yaml"
+	"github.com/conga-sh/conga/internal/errlines"
 	"github.com/conga-sh/conga/internal/help"
 	"github.com/conga-sh/conga/internal/spec"
 )
@@ -355,7 +356,8 @@ func TestHelpCommand_UnknownSubcommandSuggests(t *testing.T) {
 		err := app.Run()
 
 		assertUsageError(t, err)
-		assert.Equal(t, `unknown command: clustr (did you mean "cluster"?)`, err.Error())
+		assert.Equal(t, `unknown command: clustr`, err.Error())
+		assert.Equal(t, `did you mean cluster?`, errlines.Hint(err))
 	})
 
 	t.Run("nested level", func(t *testing.T) {
@@ -367,7 +369,8 @@ func TestHelpCommand_UnknownSubcommandSuggests(t *testing.T) {
 		err := app.Run()
 
 		assertUsageError(t, err)
-		assert.Equal(t, `unknown command: nod (did you mean "node"?)`, err.Error())
+		assert.Equal(t, `unknown command: nod`, err.Error())
+		assert.Equal(t, `did you mean node?`, errlines.Hint(err))
 	})
 
 	t.Run("routed directly", func(t *testing.T) {
@@ -379,7 +382,8 @@ func TestHelpCommand_UnknownSubcommandSuggests(t *testing.T) {
 		err := app.Run()
 
 		assertUsageError(t, err)
-		assert.Equal(t, `unknown command: clustr (did you mean "cluster"?)`, err.Error())
+		assert.Equal(t, `unknown command: clustr`, err.Error())
+		assert.Equal(t, `did you mean cluster?`, errlines.Hint(err))
 	})
 }
 
@@ -392,7 +396,8 @@ func TestShortH_Unreserved(t *testing.T) {
 	err := app.Run()
 
 	assertUsageError(t, err)
-	assert.Equal(t, `unknown flag: -h (did you mean "--help"?)`, err.Error())
+	assert.Equal(t, `unknown flag: -h`, err.Error())
+	assert.Equal(t, `did you mean --help?`, errlines.Hint(err))
 }
 
 // Without the built-in --help flag, -h gets no hint.
@@ -795,7 +800,9 @@ func TestHelp_CollisionWithoutDisableHelpFlag(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.Equal(t, "struct UserHelpFlagCLI field Help: duplicate flag --help (note: already declared by the built-in --help flag; hint: use app.DisableHelpFlag() to override)", err.Error())
+	assert.Equal(t, "struct UserHelpFlagCLI field Help: duplicate flag --help", err.Error())
+	assert.Equal(t, "already declared by the built-in --help flag", errlines.Note(err))
+	assert.Equal(t, "use app.DisableHelpFlag() to override", errlines.Hint(err))
 }
 
 func TestHelp_CustomFlagWithDisableHelpFlag(t *testing.T) {
@@ -1393,7 +1400,8 @@ func TestHelpFlag_InvalidValueFails(t *testing.T) {
 			err := app.Run()
 
 			assertUsageError(t, err)
-			assert.Equal(t, `invalid boolean value "maybe", expected true or false (or 1 or 0) for flag --help`, err.Error())
+			assert.Equal(t, `invalid boolean value "maybe" for flag --help`, err.Error())
+			assert.Equal(t, `expected true or false (or 1 or 0)`, errlines.Note(err))
 			assert.Equal(t, "", buffer.String())
 		})
 	}

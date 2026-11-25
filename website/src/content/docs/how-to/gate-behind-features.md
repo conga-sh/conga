@@ -81,7 +81,8 @@ feature-toggles --feature-gates http3=true --quic
 The `feature` tag works on `OptionalFlag`, `Counter`, `ConfigFile`, and `Command[T]` fields. A required flag can't be gated, because it would be required while it doesn't exist. Here `QUIC` was made a `RequiredFlag`:
 
 ```text no-copy error={1} wrap
-feature-toggles: error: struct CLI field QUIC: schema error: invalid struct tag: tag "feature" cannot be used on required flags (feature-gated flags must be optional)
+feature-toggles: error: struct CLI field QUIC: tag "feature" cannot be used on required flags
+  note: feature-gated flags must be optional
 ```
 
 ## Gate a subcommand
@@ -170,7 +171,9 @@ features:
 
 ```sh error={2} wrap
 $ feature-toggles -c features.yaml
-feature-toggles: error: config file "features.yaml": unknown field "admin_api" in section "features" (did you mean "admin-api"?)
+feature-toggles: error: unknown field "admin_api" in section "features"
+  from: config file "features.yaml"
+  hint: did you mean "admin-api"?
 ```
 
 ## Check which source set each feature
@@ -212,8 +215,8 @@ Gated members and feature names are checked against every source. Each source re
 |---|---|---|---|
 | Uses a gated flag or command while its feature is off | Usage error, exit 2 | Ignored | Error, exit 1 |
 | Sets a gated flag in a file whose feature `--feature-gates` or the environment turned off | — | — | Ignored, the run continues |
-| Names an unknown feature (`htt3=true`) | Usage error, exit 2, with a "did you mean" hint | Error, exit 1, with a hint (list variable only) | Error, exit 1, with a hint |
-| Gives a bad value (`http3=maybe`) | Usage error, exit 2 | Error, exit 1, naming the variable | Error, exit 1, naming the config key |
+| Names an unknown feature (`htt3=true`) | Usage error, exit 2, with a `hint:` line | Error, exit 1, with a `hint:` line (list variable only) | Error, exit 1, with a `hint:` line |
+| Gives a bad value (`http3=maybe`) | Usage error, exit 2 | Error, exit 1, with a `from:` line naming the variable | Error, exit 1, with a `from:` line naming the config key and file |
 
 When a gated flag has its own variable, such as `API_QUIC` from `EnvPrefix("API")`, the environment skips it while the flag is inactive, so leftover variables from a parent shell or CI runner leave unrelated runs alone. Feature variables, whether the `API_FEATURES` list or per-feature variables such as `API_FEATURE_METRICS`, exist only to set features, so the program always validates them. They come from the environment, so their failures exit 1 without a usage block.
 
@@ -221,19 +224,26 @@ An unknown name or a bad value in `API_FEATURES` produces:
 
 ```sh error={2}
 $ API_FEATURES=htt3=true feature-toggles
-feature-toggles: error: unknown feature "htt3" (from environment variable API_FEATURES) (did you mean "http3"?)
+feature-toggles: error: unknown feature "htt3"
+  from: environment variable API_FEATURES
+  hint: did you mean "http3"?
 ```
 
 ```sh error={2}
 $ API_FEATURES=http3=maybe feature-toggles
-feature-toggles: error: invalid value "maybe" for feature "http3" (from environment variable API_FEATURES): must be true or false (or 1 or 0)
+feature-toggles: error: invalid value "maybe" for feature "http3"
+  from: environment variable API_FEATURES
+  note: must be true or false (or 1 or 0)
 ```
 
-The config-file errors name the file:
+The config-file errors name the file on a `from:` line:
 
-```text no-copy error={1-2} wrap
-feature-toggles: error: config file "features.yaml": unknown feature "htt3" in section "features" (did you mean "http3"?)
-feature-toggles: error: config file "features.yaml": flag '--quic' requires feature "http3"
+```text no-copy error={1,4} wrap
+feature-toggles: error: unknown feature "htt3" in section "features"
+  from: config file "features.yaml"
+  hint: did you mean "http3"?
+feature-toggles: error: flag '--quic' requires feature "http3"
+  from: config file "features.yaml"
 ```
 
 A file that sets `--quic` is still valid when the feature is off only because the command line or the environment turned it off. With `http3: true` and `quic: true` in `features.yaml`, `--feature-gates http3=false` runs without `--quic`:
@@ -243,10 +253,12 @@ $ feature-toggles -c features.yaml --feature-gates http3=false
 features: http3=false admin-api=false strict-tls=true metrics=true
 ```
 
-A bad value in the file names the key it came from and exits 1:
+A bad value in the file names the key and the file it came from and exits 1:
 
 ```text no-copy error={1} wrap
-feature-toggles: error: invalid value "maybe" for feature "http3" (from config key "features.http3"): must be true or false (or 1 or 0)
+feature-toggles: error: invalid value "maybe" for feature "http3"
+  from: config key "features.http3" in config file "features.yaml"
+  note: must be true or false (or 1 or 0)
 ```
 
 ## Read a feature's value
@@ -280,7 +292,8 @@ Users pick a level with `--feature-gates syntax=2`. The help screen lists the le
 ```
 
 ```text no-copy error={1}
-feature-toggles: error: invalid value "3" for feature "syntax": must be one of: 0, 1, 2
+feature-toggles: error: invalid value "3" for feature "syntax"
+  note: accepted values: 0, 1, 2
 ```
 
 A gate such as `feature:"syntax"` holds at every level from 1 up. To vary behavior by level, read it in code with `c.Features.Get().Syntax`.
@@ -331,13 +344,13 @@ The command line still beats these variables, one feature at a time. `ENABLE_HTT
 The application checks at startup that each variable belongs to one feature. Here `AdminAPI` was also given `env:"ENABLE_HTTP3"`:
 
 ```text no-copy error={1} wrap
-feature-toggles: error: struct CLI field Features: schema error: environment variable "ENABLE_HTTP3" is bound by both feature "http3" and feature "admin-api"
+feature-toggles: error: struct CLI field Features: environment variable "ENABLE_HTTP3" is bound by both feature "http3" and feature "admin-api"
 ```
 
 A feature's variable can't also belong to a flag. With `env:"API_LISTEN"` on `AdminAPI` instead, the variable of `--listen`:
 
 ```text no-copy error={1} wrap
-feature-toggles: error: struct CLI field Features: schema error: environment variable "API_LISTEN" is bound by both feature "admin-api" and flag --listen
+feature-toggles: error: struct CLI field Features: environment variable "API_LISTEN" is bound by both feature "admin-api" and flag --listen
 ```
 
 ## Mark how mature each feature is

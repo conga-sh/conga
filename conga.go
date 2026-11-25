@@ -27,6 +27,8 @@ import (
 	"github.com/conga-sh/conga/internal/configengine"
 	"github.com/conga-sh/conga/internal/container"
 	"github.com/conga-sh/conga/internal/dotenv"
+	"github.com/conga-sh/conga/internal/envx"
+	"github.com/conga-sh/conga/internal/errlines"
 	"github.com/conga-sh/conga/internal/help"
 	"github.com/conga-sh/conga/internal/pathx"
 	"github.com/conga-sh/conga/internal/sentinel"
@@ -618,11 +620,17 @@ func (a *App[T]) RegisterType[U any](parser TypeParser[U], opts ...RegistrationO
 //   - nil on successful execution or when handling built-in flags (--help, --version, --why).
 //   - A schema error if the struct tags or command schema are invalid.
 //   - A [*UsageError] if command-line input is invalid.
-//   - An error that is not a [*UsageError] if configuration or .env loading fails, or if a
-//     value from the environment, a configuration file, or a default tag does not bind.
-//   - The error returned by [Runner.Run] or a lifecycle hook as the hook returned
-//     it, or ctx.Err() on cancellation. When a [Finalizer.Finally] hook also
-//     fails, the hook's error and the Finally errors are joined.
+//   - An error that is not a [*UsageError] if configuration or .env loading
+//     fails, or if a value from the environment, a configuration file, or a
+//     default tag does not bind.
+//   - The error returned by [Runner.Run] or a lifecycle hook as is, or
+//     ctx.Err() on cancellation. When a [Finalizer.Finally] hook also fails,
+//     the hook's error and the Finally errors are joined.
+//
+// Pass a returned error to [DiagnosticOf] to read its origins, note, and hint
+// by the chain rule, render its plain multi-line form, or log it with
+// [log/slog]. [App.UsageBlock] and [App.ExitCode] give the usage block and the
+// exit status [App.Exit] uses.
 //
 // RunContext never terminates the process; it returns every failure to the
 // caller. [App.Exit] maps a returned error to an exit code.
@@ -635,7 +643,8 @@ func (a *App[T]) RunContext(ctx context.Context) error {
 
 	a.initDefaults()
 
-	a.resolveHelpWidth()
+	// Pin the wrap width so every screen this run renders shares it.
+	a.helpOptions = a.resolvedHelpOptions()
 
 	if a.handleCompletionInvocation != nil && a.isCompletionInvocation() {
 		return a.handleCompletionInvocation(a)
@@ -679,6 +688,9 @@ func (a *App[T]) RunContext(ctx context.Context) error {
 // [os.Interrupt] (SIGINT) or [syscall.SIGTERM] signal is received.
 //
 // For callers supplying their own context, use [App.RunContext].
+//
+// Returns nil on success or when a built-in flag was handled, and otherwise the
+// failing error as [App.RunContext] does.
 //
 // Panics:
 //   - If the App has already been executed: an App instance runs exactly once.
@@ -754,7 +766,7 @@ func (a *App[T]) Stdout(writer io.Writer) *App[T] {
 // Stderr redirects the standard error stream writer for the application.
 //
 // The stream defaults to [os.Stderr]. It is passed to commands via [Session.Stderr] and
-// is used for diagnostics, deprecation notices, syntax usage summaries, and [App.Exit].
+// is used for diagnostics, deprecation notices, synopses and usage blocks, and [App.Exit].
 //
 // The stream writer is snapshotted when [App.Run] or [App.RunContext] begins; mutations
 // made after execution starts do not affect the active session. Passing a nil writer
@@ -808,31 +820,56 @@ func (a *App[T]) ExitFunc(exitHandler func(code int)) *App[T] {
 // completes before [App.Run] returns, so Exit runs only after teardown
 // finishes.
 //
+// Exit prints "<app>: error: " and line 1, the error's text, followed by
+// indented lines in a fixed order:
+//
+//	tool: error: invalid duration "30" for flag --timeout
+//	  from: environment variable TOOL_TIMEOUT
+//	  note: accepted units: ns, us (or µs), ms, s, m, h
+//
+// One "from:" line names each origin, a "note:" line gives more detail on the
+// issue, and a "hint:" line says what to do about it. An error supplies them
+// through the [Originer], [Noter] and [Hinter] methods. Exit reads them by the
+// chain rule, the same rule [DiagnosticOf] applies. For each piece the
+// outermost error in the chain with a non-empty value supplies it, so a
+// wrapper's own hint replaces CONGA's and the text a wrapper adds to line 1
+// does not matter. An error whose text is empty prints no lines at all.
+//
+// An error with Unwrap() []error whose text is its members' texts joined by
+// newlines (an [errors.Join] of them) prints each member on its own, with its
+// own lines. A nested join is flattened, and a join that another error wraps
+// prints as one error.
+//
+// The labels are colored when stderr is a terminal: "error:" bold red, "from:"
+// and "note:" dim, "hint:" bold cyan. CONGA_COLOR (a boolean) forces color on
+// or off, even when stderr is not a terminal, and outranks NO_COLOR (any
+// non-empty value turns color off) and CLICOLOR=0 (off). Without any of them,
+// TERM=dumb turns color off.
+//
 // Exit maps err as follows:
 //   - A nil err exits with status 0 and no output.
 //   - An internal completion failure prints its message as is and exits 2.
-//   - A [*UsageError] exits 2 and prints the error line and the usage block
-//     [UsageOnErrorMode] asks for. Value errors (a value that does not convert
-//     or violates a constraint) print the error line alone in every mode, and a
-//     missing subcommand prints the full help of its command under
-//     [UsageSummary] and [UsageFull].
-//   - Any other [ExitCoder] exits with its code and prints the error line. A
+//   - A [*UsageError] exits 2 and prints the lines above, then a blank line and
+//     the usage block [UsageOnErrorMode] asks for. Value errors (a value that
+//     does not convert or violates a constraint) print their lines with no usage
+//     block in every mode, and a missing subcommand prints the full help of its command under
+//     [UsageSummary] and [UsageFull]. The block prints once, after every line,
+//     and only when the [*UsageError] is the error that sets the exit code.
+//   - Any other [ExitCoder] exits with its code and prints the lines. A
 //     code outside 1 to 255 exits 1. An [*os/exec.ExitError] exits with the
 //     child's code, or 128 plus the signal number when a signal killed the
 //     child. On Windows the child's code passes through unchanged.
 //   - Any other error, including configuration, .env, bootstrap, and schema
-//     failures and errors returned by hooks, exits 1 and prints the error line.
+//     failures and errors returned by hooks, exits 1 and prints the lines.
 //
 // Only the outermost [ExitCoder] in err's chain counts, so an author wrapper
-// with its own ExitCode method wins over an error it wraps. An error whose
-// message is empty prints no error line. A [*UsageError] with an empty message
-// still prints its usage block.
+// with its own ExitCode method wins over an error it wraps. In a join the first
+// member with an ExitCode method sets the code. A [*UsageError] with an empty
+// message still prints its usage block.
 //
 // See https://docs.conga.sh/explanation/error-reporting/.
 func (a *App[T]) Exit(err error) {
 	a.applyDefaults()
-
-	a.resolveHelpWidth()
 
 	code := a.ExitCode(err)
 
@@ -851,19 +888,15 @@ func (a *App[T]) Exit(err error) {
 
 	name := cond.SetOrDefaultFunc(a.name, getAppName)
 
-	coder, isCoder := errors.AsType[ExitCoder](err)
-	if !isCoder {
-		a.printErrorLine(name, err)
-		a.exit(code)
+	text := errlines.Render(errorMembers(err), name+": ", envx.ColorEnabled(a.stderr))
+	fmt.Fprint(a.stderr, text)
 
-		return
-	}
+	if block := a.UsageBlock(err); block != "" {
+		if text != "" {
+			fmt.Fprintln(a.stderr)
+		}
 
-	usage, isUsage := coder.(*UsageError)
-	if isUsage {
-		a.printUsageError(name, err, usage)
-	} else {
-		a.printErrorLine(name, err)
+		fmt.Fprintln(a.stderr, block)
 	}
 
 	a.exit(code)
@@ -874,7 +907,7 @@ func (a *App[T]) Exit(err error) {
 // reports errors itself exits with it:
 //
 //	if err := app.RunContext(ctx); err != nil {
-//		slog.Error("run failed", "err", err)
+//		slog.Error("run failed", "err", conga.DiagnosticOf(err))
 //		os.Exit(app.ExitCode(err))
 //	}
 func (a *App[T]) ExitCode(err error) int {
@@ -892,6 +925,58 @@ func (a *App[T]) ExitCode(err error) int {
 	}
 
 	return exitCodeOf(coder)
+}
+
+// UsageBlock returns the text [App.Exit] prints after err's lines, or "" when it
+// prints none. It applies Exit's whole rule. An internal completion failure has
+// no block. Otherwise the outermost [ExitCoder] must be a [*UsageError], and its
+// command chain, the kind of failure, the App's [UsageOnErrorMode] and the
+// App's help options decide the text, so a nested app's [*UsageError] returned
+// by an outer app follows the outer app's mode.
+//
+// The text has no leading blank line and no trailing newline. Exit prints a
+// blank line before it only when it printed error lines, and a newline after
+// it. A program that reports errors itself does the same:
+//
+//	if err := app.RunContext(ctx); err != nil {
+//		text := conga.DiagnosticOf(err).Render()
+//		if text != "" {
+//			fmt.Fprintln(os.Stderr, text)
+//		}
+//
+//		if block := app.UsageBlock(err); block != "" {
+//			if text != "" {
+//				fmt.Fprintln(os.Stderr)
+//			}
+//
+//			fmt.Fprintln(os.Stderr, block)
+//		}
+//
+//		os.Exit(app.ExitCode(err))
+//	}
+//
+// UsageBlock reads the App's settings at call time and leaves the App
+// unchanged.
+func (a *App[T]) UsageBlock(err error) string {
+	if err == nil {
+		return ""
+	}
+
+	if _, ok := errors.AsType[*completionError](err); ok {
+		return ""
+	}
+
+	coder, ok := errors.AsType[ExitCoder](err)
+	if !ok {
+		return ""
+	}
+
+	usage, ok := coder.(*UsageError)
+	if !ok || usage.shape == usageShapeLineOnly || len(usage.cmdChain) == 0 {
+		return ""
+	}
+
+	return a.usageBlockText(usage, a.resolvedHelpOptions())
 }
 
 // RegistrationOption configures a custom type registration on [App.RegisterType].
@@ -1347,18 +1432,20 @@ func (a *App[T]) initDefaults() {
 	}
 }
 
-// resolveHelpWidth pins the help wrap width for the active run: a COLUMNS
-// override wins, otherwise the configured stdout is probed when it is a
-// terminal, otherwise the engine default width applies. Resolving once per
-// entry point keeps every screen — help, usage-on-error, completion — on the
-// same width.
-func (a *App[T]) resolveHelpWidth() {
+// resolvedHelpOptions returns a copy of the help options with the wrap width
+// resolved, leaving the App unchanged. A COLUMNS override wins. Otherwise the
+// configured stdout ([os.Stdout] when none is set yet) is probed when it is a
+// terminal, and otherwise the engine default width applies.
+func (a *App[T]) resolvedHelpOptions() help.Options {
 	var stdoutFile *os.File
-	if file, ok := a.stdout.(*os.File); ok {
+	if file, ok := cmp.Or[io.Writer](a.stdout, os.Stdout).(*os.File); ok {
 		stdoutFile = file
 	}
 
-	a.helpOptions.Width = termwidth.Resolve(stdoutFile)
+	options := a.helpOptions
+	options.Width = termwidth.Resolve(stdoutFile)
+
+	return options
 }
 
 func (a *App[T]) initDefaultPredictors() {
@@ -1693,7 +1780,10 @@ func (a *App[T]) prepareNonBuiltinExecution(ctx context.Context, session *Sessio
 		SkipRequiredFlags:   whyReport,
 	}
 
-	if err := resolveFlags(invocation.cmdChain, invocation.flagValues, state); err != nil {
+	err := resolveFlags(invocation.cmdChain, invocation.flagValues, state)
+	session.flagOrigins = state.Origins
+
+	if err != nil {
 		return err
 	}
 
@@ -1703,7 +1793,7 @@ func (a *App[T]) prepareNonBuiltinExecution(ctx context.Context, session *Sessio
 
 	a.collectDeprecationNotices(invocation.cmdChain)
 
-	if err := validateFlagValueConstraints(invocation.cmdChain, state.SourceNames, state.EnumSpellings); err != nil {
+	if err := validateFlagValueConstraints(invocation.cmdChain, state.Origins, state.EnumSpellings); err != nil {
 		return err
 	}
 
@@ -1714,8 +1804,8 @@ func (a *App[T]) prepareNonBuiltinExecution(ctx context.Context, session *Sessio
 	}
 
 	return validateFlagGroupConstraints(invocation.cmdChain, flagGroupNaming{
-		spellings:   invocation.flagSpellings,
-		sourceNames: state.SourceNames,
+		spellings: invocation.flagSpellings,
+		origins:   state.Origins,
 	})
 }
 
@@ -1852,7 +1942,7 @@ func (a *App[T]) validateExecution(ctx context.Context, session *Session, leaf *
 	}
 
 	if !leaf.IsBuiltin() {
-		if err := validateCustomValues(ctx, cmdChain); err != nil {
+		if err := validateCustomValues(ctx, cmdChain, session.flagOrigins); err != nil {
 			return err
 		}
 	}
@@ -1986,9 +2076,7 @@ func (a *App[T]) renderCompletionHelp(cmdChain []*spec.Command, completionValue 
 func (a *App[T]) renderCompletionScriptBuiltin(cmdChain []*spec.Command, shell string) (bool, error) {
 	parsedShell, err := completion.ParseShell(shell)
 	if err != nil {
-		message := err.Error()
-
-		return false, usageError(cmdChain, message)
+		return false, usageErrorFrom(cmdChain, err)
 	}
 
 	if err := generateCompletionScript(parsedShell, cmdChain[0], a.stdout); err != nil {
@@ -2130,57 +2218,25 @@ func (a *App[T]) handleComplete() (err error) {
 	return nil
 }
 
-// printErrorLine writes "name: error: message" to stderr and reports whether
-// it wrote anything. An error with an empty message prints nothing.
-func (a *App[T]) printErrorLine(name string, err error) bool {
-	message := err.Error()
-	if message == "" {
-		return false
-	}
-
-	fmt.Fprintf(a.stderr, "%s: error: %s\n", name, message)
-
-	return true
-}
-
-// printUsageError writes the error line of a usage error and, unless its shape
-// is the error line alone, the usage block its shape and the [UsageOnErrorMode]
-// ask for. The block comes from the error's own command chain. An error without
-// one prints no block. A blank line separates the block from the error line
-// only when a line was printed.
-func (a *App[T]) printUsageError(name string, err error, usage *UsageError) {
-	printedLine := a.printErrorLine(name, err)
-
-	if usage.shape == usageShapeLineOnly || len(usage.cmdChain) == 0 {
-		return
-	}
-
-	block := a.usageBlock(usage)
-	if block == "" {
-		return
-	}
-
-	if printedLine {
-		fmt.Fprintln(a.stderr)
-	}
-
-	fmt.Fprintln(a.stderr, block)
-}
-
-// usageBlock renders the usage block for usage under the configured
+// usageBlockText renders the usage block for usage under the configured
 // [UsageOnErrorMode], without surrounding blank lines.
-func (a *App[T]) usageBlock(usage *UsageError) string {
+func (a *App[T]) usageBlockText(usage *UsageError, options help.Options) string {
 	cmdChain := usage.cmdChain
 
 	switch a.usageMode {
 	case UsageSummary:
 		if usage.shape == usageShapeFullHelp {
-			return help.FormatWith(cmdChain, a.helpOptions)
+			return help.FormatWith(cmdChain, options)
 		}
 
-		return help.Usage(cmdChain) + "\n\n" + help.Hint(cmdChain)
+		synopsis := help.Synopsis(cmdChain)
+		if hint := help.Hint(cmdChain); hint != "" {
+			return synopsis + "\n\n" + hint
+		}
+
+		return synopsis
 	case UsageFull:
-		return help.FormatWith(cmdChain, a.helpOptions)
+		return help.FormatWith(cmdChain, options)
 	case UsageHint:
 		return help.Hint(cmdChain)
 	default:

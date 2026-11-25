@@ -64,7 +64,8 @@ type Export struct {
 
 ```sh error={2}
 $ export --token abc --format xml
-export: error: invalid value "xml" (must be one of: json, csv, yaml) for flag --format
+export: error: invalid value "xml" for flag --format
+  note: accepted values: json, csv, yaml
 ```
 
 Help lists the values after the flag's help text:
@@ -132,7 +133,8 @@ CONGA checks a `default` against the field's bound at every run. A `default:"500
 
 ```sh error={2}
 $ export
-export: error: value 5000 is out of range [1..1000] for flag --limit (from default value)
+export: error: value 5000 is out of range [1..1000] for flag --limit
+  from: default value
 ```
 
 The run exits with status 1. A user who sets the flag on the command line overrides the default and gets a usage error with status 2 if the command-line value is also out of range.
@@ -168,11 +170,12 @@ $ export --help | grep -e --gzip -e --zstd
       --zstd               Compress with zstd [env: EXPORT_ZSTD] [xor: --gzip]
 ```
 
-A flag set in the environment counts as given too, and the error names its variable:
+A flag set in the environment counts as given too, and the error's `from:` line names its variable:
 
 ```sh error={2}
 $ EXPORT_GZIP=true export --token abc --zstd
-export: error: flags --gzip (from environment variable EXPORT_GZIP) and --zstd are mutually exclusive
+export: error: flags --gzip and --zstd are mutually exclusive
+  from: --gzip: environment variable EXPORT_GZIP
 
 Usage:
   export --token=STRING [flags]
@@ -184,7 +187,9 @@ When both flags come from the environment, the user typed nothing that caused th
 
 ```sh error={2}
 $ EXPORT_GZIP=true EXPORT_ZSTD=true export --token abc
-export: error: flags --gzip (from environment variable EXPORT_GZIP) and --zstd (from environment variable EXPORT_ZSTD) are mutually exclusive
+export: error: flags --gzip and --zstd are mutually exclusive
+  from: --gzip: environment variable EXPORT_GZIP
+  from: --zstd: environment variable EXPORT_ZSTD
 ```
 
 ## Demand exactly one of a group
@@ -264,7 +269,8 @@ A password left in `EXPORT_PASSWORD` counts as given, so a run without `--userna
 
 ```sh error={2}
 $ EXPORT_PASSWORD=s3cret export --token abc --to-file out.json
-export: error: flag --password (from environment variable EXPORT_PASSWORD) must be given together with --username
+export: error: flag --password must be given together with --username
+  from: --password: environment variable EXPORT_PASSWORD
 ```
 
 ## Check values against each other
@@ -319,7 +325,7 @@ Run 'export --help' for more information.
 
 `Validate` runs after every tag check has passed, and before `Run` and any lifecycle hook, so it can trust that the flags hold valid values and the program has opened nothing yet. Write the message the user should see. CONGA prints it after `export: error:`.
 
-CONGA returns the error from `Validate` unchanged. A plain error, such as one made with `errors.New`, exits with status 1 and prints no usage block, because CONGA can't tell whether the check read a command-line value or a value from a config file. Return `session.UsageError` when the cause is the command line.
+`Run` returns the error from `Validate` as is ([Errors and exit codes](/reference/errors/)). A plain error, such as one made with `errors.New`, exits with status 1 and prints no usage block, because CONGA can't tell whether the check read a command-line value or a value from a config file. Return `session.UsageError` when the cause is the command line.
 
 ## Know what users see
 
@@ -329,22 +335,22 @@ CONGA returns the error from `Validate` unchanged. A plain error, such as one ma
 |---|---|
 | Leaves out a required flag | `missing required flag: --token`, then usage, exit 2 |
 | Sets the required flag in the environment only | Works |
-| Gives a value outside the `enum` list | `invalid value "xml" (must be one of: json, csv, yaml) for flag --format`, exit 2 |
+| Gives a value outside the `enum` list | `invalid value "xml" for flag --format`, with a `note: accepted values: json, csv, yaml` line, exit 2 |
 | Gives a value outside a bound | `value 0 is out of range [1..1000] for flag --limit`, exit 2 |
-| Sets a value outside a bound in the environment | `value 5000 is out of range [1..1000] for flag --limit (from environment variable EXPORT_LIMIT)`, exit 1 |
+| Sets a value outside a bound in the environment | `value 5000 is out of range [1..1000] for flag --limit`, with a `from: environment variable EXPORT_LIMIT` line, exit 1 |
 | Gives two flags from one `xor` group | `flags --gzip and --zstd are mutually exclusive`, then usage, exit 2 |
 | Gives `--gzip=false` with `--zstd` | The same error: `--gzip` counts as given |
-| Sets one `xor` flag in the environment and gives the other on the command line | `flags --gzip (from environment variable EXPORT_GZIP) and --zstd are mutually exclusive`, then usage, exit 2 |
-| Sets both `xor` flags in the environment | `flags --gzip (from environment variable EXPORT_GZIP) and --zstd (from environment variable EXPORT_ZSTD) are mutually exclusive`, exit 1 |
+| Sets one `xor` flag in the environment and gives the other on the command line | `flags --gzip and --zstd are mutually exclusive`, with a `from: --gzip: environment variable EXPORT_GZIP` line, then usage, exit 2 |
+| Sets both `xor` flags in the environment | `flags --gzip and --zstd are mutually exclusive` with a `from: …` line per variable, exit 1 |
 | Gives no flag from a `oneof` group | `missing required flag: one of --to-file, --to-url`, then usage, exit 2 |
-| Sets one `oneof` flag in the environment and gives the other on the command line | `flags --to-file and --to-url (from environment variable EXPORT_TO_URL) are mutually exclusive`, then usage, exit 2 |
-| Sets both `oneof` flags in the environment | `flags --to-file (from environment variable EXPORT_TO_FILE) and --to-url (from environment variable EXPORT_TO_URL) are mutually exclusive`, exit 1 |
+| Sets one `oneof` flag in the environment and gives the other on the command line | `flags --to-file and --to-url are mutually exclusive`, with a `from: --to-url: environment variable EXPORT_TO_URL` line, then usage, exit 2 |
+| Sets both `oneof` flags in the environment | `flags --to-file and --to-url are mutually exclusive` with a `from: …` line per variable, exit 1 |
 | Gives only part of an `and` group | `flag --username must be given together with --password`, then usage, exit 2 |
 | Gives `--username` and sets the password in the environment | Works |
-| Sets only the password in the environment | `flag --password (from environment variable EXPORT_PASSWORD) must be given together with --username`, exit 1 |
+| Sets only the password in the environment | `flag --password must be given together with --username`, with a `from: --password: environment variable EXPORT_PASSWORD` line, exit 1 |
 | Gives values that `Validate` rejects with `session.UsageError` | The returned message, then usage, exit 2 |
 | Gives values that `Validate` rejects with a plain error | The returned message, exit 1 |
-| Leaves out a flag whose `default` is outside its bound | `value 5000 is out of range [1..1000] for flag --limit (from default value)`, exit 1, on every such run |
+| Leaves out a flag whose `default` is outside its bound | `value 5000 is out of range [1..1000] for flag --limit`, with a `from: default value` line, exit 1, on every such run |
 
 ## Where to go next
 

@@ -1,6 +1,6 @@
 // Package envx reads the on/off switches the engine takes from the process
 // environment: the completion sideband booleans and the colour preference
-// shared by the completion drivers and the --why report. A boolean switch is
+// shared by the completion drivers, the --why report and App.Exit. A boolean switch is
 // parsed with strconv.ParseBool, the parser behind boolean flags and features,
 // and an unset, empty, or unrecognised value leaves the caller's default in
 // place. The package has no package-level state, so importing it from an
@@ -8,6 +8,7 @@
 package envx
 
 import (
+	"io"
 	"os"
 	"strconv"
 )
@@ -74,4 +75,28 @@ func EnvBool(name string) (bool, bool) {
 	}
 
 	return parsed, true
+}
+
+// ColorEnabled reports whether styled output should be enabled for writer.
+// The environment preference of ColorPreference decides first (CONGA_COLOR
+// parsed as a boolean, then NO_COLOR, then CLICOLOR=0). Without a preference,
+// TERM=dumb disables color and otherwise color follows whether writer is a
+// terminal. On Windows a terminal is a console on which escape-code handling
+// could be switched on, and the switch is made here.
+func ColorEnabled(writer io.Writer) bool {
+	switch ColorPreference() {
+	case ColorOn:
+		enableEscapeCodes(writer)
+
+		return true
+	case ColorOff:
+		return false
+	case ColorDefault:
+	}
+
+	if os.Getenv("TERM") == "dumb" {
+		return false
+	}
+
+	return isTerminal(writer)
 }

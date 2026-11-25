@@ -68,10 +68,10 @@ type badFeatureTagSet struct {
 	NoEnum     int  // want `struct badFeatureTagSet field NoEnum: feature "no-enum" is an integer feature and requires an enum tag listing its non-zero levels`
 	EmptyEnum  int  `enum:""`                // want `struct badFeatureTagSet field EmptyEnum: tag "enum" cannot be empty`
 	BoolEnum   bool `enum:"1"`               // want `struct badFeatureTagSet field BoolEnum: tag "enum" is only valid on integer features`
-	BadEnum    int  `enum:"abc"`             // want `struct badFeatureTagSet field BadEnum: feature enum value "abc": must be an integer`
+	BadEnum    int  `enum:"abc"`             // want `struct badFeatureTagSet field BadEnum: invalid feature enum value "abc"`
 	ZeroEnum   int  `enum:"0,1"`             // want `struct badFeatureTagSet field ZeroEnum: feature "zero-enum" enum value "0" is the reserved off level`
-	WidthEnum  int8 `enum:"300"`             // want `struct badFeatureTagSet field WidthEnum: feature enum value "300": is out of range for the feature's integer type`
-	BadDefault int  `enum:"1,2" default:"9"` // want `struct badFeatureTagSet field BadDefault: feature "bad-default" default "9": must be one of: 0, 1, 2`
+	WidthEnum  int8 `enum:"300"`             // want `struct badFeatureTagSet field WidthEnum: invalid feature enum value "300"`
+	BadDefault int  `enum:"1,2" default:"9"` // want `struct badFeatureTagSet field BadDefault: invalid default "9" for feature "bad-default"`
 }
 
 type badFeatureTagApp struct {

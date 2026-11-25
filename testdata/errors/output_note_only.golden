@@ -1,0 +1,2 @@
+app: error: invalid value "mid" for flag --level
+  note: accepted values: low, high

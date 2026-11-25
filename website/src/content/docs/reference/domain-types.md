@@ -54,7 +54,7 @@ func (u *Upload) Run(ctx context.Context, session *conga.Session) error {
 | Decimal | `kB`, `MB`, `GB`, `TB`, `PB`, `EB` | Powers of 1000 |
 | Binary | `KiB`, `MiB`, `GiB`, `TiB`, `PiB`, `EiB` | Powers of 1024 |
 
-The numeric prefix is digits with an optional fraction whose contribution resolves exactly to bytes (`1.5GB`, `0.5GiB`), and a sub-byte remainder such as `0.1GiB` is rejected. Naked unit suffixes without `B` (`10G`, `512Mi`) and lowercase casings (`mb`, `kib`) are rejected to prevent ambiguity. `kB` is always 1000 bytes and `KiB` is always 1024. `KB` is rejected as ambiguous because it denotes 1000 bytes in SI usage and 1024 bytes in legacy usage. An unknown unit error lists the units the field accepts. Text input must be non-negative, and the largest size is 9223372036854775807 bytes (one byte under `8EiB`). A larger size, such as `10000PB`, fails with `byte size "10000PB" is out of range (max 9223372036854775807B)`.
+The numeric prefix is digits with an optional fraction whose contribution resolves exactly to bytes (`1.5GB`, `0.5GiB`), and a sub-byte remainder such as `0.1GiB` is rejected. Naked unit suffixes without `B` (`10G`, `512Mi`) and lowercase casings (`mb`, `kib`) are rejected to prevent ambiguity. `kB` is always 1000 bytes and `KiB` is always 1024. `KB` is rejected as ambiguous because it denotes 1000 bytes in SI usage and 1024 bytes in legacy usage. An unknown unit error lists the units the field accepts. Text input must be non-negative, and the largest size is 9223372036854775807 bytes (one byte under `8EiB`). A larger size, such as `10000PB`, fails with `byte size "10000PB" is out of range`, with a `note: max 9223372036854775807B` line.
 
 ### Byte size rendering
 
@@ -206,9 +206,9 @@ CONGA decodes a scalar flag, argument, environment, or config value into type `U
 1. A `conga.TypeParser[U]` registered with `app.RegisterType`.
 2. `UnmarshalTextWithContext` on `*U` (`ContextAwareTextUnmarshaler`).
 3. `UnmarshalText` on `*U` (`encoding.TextUnmarshaler`).
-4. Built-in parsing for `string`, `bool`, signed and unsigned integers, `time.Duration`, floats, and `url.URL` / `*url.URL`.
+4. Built-in parsing for `string`, `bool`, signed and unsigned integers, `time.Duration`, floats, and `url.URL` / `*url.URL`. A `bool` accepts every spelling `strconv.ParseBool` does (`1`, `t`, `T`, `TRUE`, `true`, `True`, `0`, `f`, `F`, `FALSE`, `false`, `False`), and its error message names only `true`, `false`, `1` and `0`. A `time.Duration` accepts the units `ns`, `us` (or `µs`), `ms`, `s`, `m` and `h`.
 
-Schema build rejects a flag or positional argument whose type, slice element type, or map key or value type none of these decode: `unsupported type <U>`, exit 1, naming the registration that fixes it. An error from steps 1 to 3 inherits the value's source. The flag name and origin are appended to its message, and the error type follows the source.
+Schema build rejects a flag or positional argument whose type, slice element type, or map key or value type none of these decode: `unsupported type <U>`, exit 1, naming the registration that fixes it. An error from steps 1 to 3 inherits the value's source. The flag name ends line 1 of its message, a `from:` line names the origin, and the error type follows the source. The error's own `Note()` and `Hint()`, if it has them, print as `note:` and `hint:` lines.
 
 A slice or map type whose pointer implements one of the unmarshaler interfaces, such as `net.IP`, is one value, decoded whole by step 2 or 3. `app.RegisterType` panics for any slice or map type, because the binder decodes collections element by element and entry by entry.
 

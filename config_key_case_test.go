@@ -11,6 +11,7 @@ import (
 	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/decoder/json"
 	"github.com/conga-sh/conga/internal/assertx"
+	"github.com/conga-sh/conga/internal/errlines"
 )
 
 type keyCaseDeployCmd struct {
@@ -62,7 +63,9 @@ func TestConfigKeyCase_CamelCaseRejectsKebabKey(t *testing.T) {
 	err := app.Run()
 
 	assertNotUsageError(t, err)
-	assert.Equal(t, fmt.Sprintf(`config file %q: unknown field "api-endpoint" in command "app" (did you mean "apiEndpoint"?)`, cfgPath), err.Error())
+	assert.Equal(t, `unknown field "api-endpoint" in command "app"`, err.Error())
+	assert.Contains(t, conga.DiagnosticOf(err).Render(), fmt.Sprintf("from: config file %q", cfgPath))
+	assert.Equal(t, `did you mean "apiEndpoint"?`, errlines.Hint(err))
 	assert.Equal(t, conga.SourceNone, cli.APIEndpoint.Source())
 	assert.Equal(t, "", cli.APIEndpoint.Get())
 }
@@ -82,7 +85,8 @@ func TestConfigKeyCase_CoercionErrorNamesCasedKey(t *testing.T) {
 	err := app.Run()
 
 	assertNotUsageError(t, err)
-	assert.Equal(t, `invalid integer value "many" for flag --max-conns (from config key "deploy_app.max_conns")`, err.Error())
+	assert.Equal(t, `invalid integer value "many" for flag --max-conns`, err.Error())
+	assert.Contains(t, conga.DiagnosticOf(err).Render(), `from: config key "deploy_app.max_conns"`)
 	assert.Equal(t, conga.SourceNone, cli.DeployApp.Get().MaxConns.Source())
 	assert.Equal(t, 0, cli.DeployApp.Get().MaxConns.Get())
 }

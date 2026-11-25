@@ -241,7 +241,8 @@ Suppose `--count` had been a `conga.RequiredFlag[...]`. A `deprecated` tag on it
 
 ```sh error={2} wrap
 $ cloudctl deploy app.yaml
-cloudctl: error: struct DeployCmd field Count: schema error: invalid struct tag: tag "deprecated" cannot be used on required flags (make the flag optional before deprecating it so callers can migrate without error)
+cloudctl: error: struct DeployCmd field Count: tag "deprecated" cannot be used on required flags
+  hint: make the flag optional before deprecating it so callers can migrate without error
 ```
 
 Make both flags optional and put them in one `oneof` group, so the user must give exactly one of them. A `oneof` member can't have a `default`:

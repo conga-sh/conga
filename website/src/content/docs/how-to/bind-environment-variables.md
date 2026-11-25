@@ -81,7 +81,8 @@ The example's `ConfigFile` field gives `--config-file` the variable `SERVER_CONF
 
 ```sh error={2} wrap
 $ twelve-factor-precedence
-twelve-factor-precedence: error: struct CLI field Config: schema error: environment variable "SERVER_CONFIG" is bound by both flag --config-file and flag --config; give the flag another env tag or exclude it with env:"-"
+twelve-factor-precedence: error: struct CLI field Config: environment variable "SERVER_CONFIG" is bound by both flag --config-file and flag --config
+  hint: give the flag another env tag or exclude it with env:"-"
 ```
 
 The run exits with status 1. Give the flag an `env` tag with another name, or `env:"-"`:
@@ -248,10 +249,11 @@ Create a config file at one of:
 | `SERVER_TIMEOUT=10m`, with `worker` and `migrate` both declaring `--timeout` and neither tagged | Both commands read `10m` |
 | The variable of a `RequiredFlag` | Satisfies the requirement |
 
-A bad value names both the flag and the variable it came from, and exits 1:
+A bad value names the flag on line 1 and the variable it came from on a `from:` line, and exits 1:
 
 ```text no-copy error={1}
-twelve-factor-precedence: error: invalid integer value "abc" for flag --port (from environment variable PORT)
+twelve-factor-precedence: error: invalid integer value "abc" for flag --port
+  from: environment variable PORT
 ```
 
 To pass an empty string on purpose, use the command line, as in `twelve-factor-precedence --host ""`.

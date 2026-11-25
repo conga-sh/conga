@@ -199,11 +199,11 @@ func TestEmptyPathConfig(t *testing.T) {
 
 			result := runClassification(t, app)
 
-			message := `empty path for flag --` + value.key + ` (from config key "` + value.key + `")`
-			assert.Equal(t, message, result.err.Error())
+			assert.Equal(t, `empty path for flag --`+value.key, result.err.Error())
+			assert.Contains(t, conga.DiagnosticOf(result.err).Render(), `from: config key "`+value.key+`" in config file "`)
 			assertNotUsageError(t, result.err)
 			assert.Equal(t, 1, result.exitCode)
-			assert.Equal(t, "app: error: "+message+"\n", result.output)
+			assert.True(t, strings.HasPrefix(result.output, "app: error: empty path for flag --"+value.key+"\n  from: config key \""+value.key+"\" in config file \""))
 			assert.Equal(t, make([]conga.ValueSource, 10), emptyPathSources(cli))
 		})
 	}

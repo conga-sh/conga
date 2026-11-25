@@ -12,6 +12,7 @@ import (
 	"github.com/alecthomas/assert/v2"
 
 	"github.com/conga-sh/conga"
+	"github.com/conga-sh/conga/internal/errlines"
 	"github.com/conga-sh/conga/system"
 )
 
@@ -245,7 +246,8 @@ func TestPID_UnmarshalText_Errors(t *testing.T) {
 
 		err := pid.UnmarshalText([]byte("abc"))
 
-		assert.Equal(t, `invalid PID: PID "abc" (must be an integer): strconv.Atoi: parsing "abc": invalid syntax`, err.Error())
+		assert.Equal(t, `invalid PID "abc"`, err.Error())
+		assert.Equal(t, "must be an integer", errlines.Note(err))
 
 		numberError, ok := errors.AsType[*strconv.NumError](err)
 
@@ -260,7 +262,8 @@ func TestPID_UnmarshalText_Errors(t *testing.T) {
 
 		err := pid.UnmarshalText([]byte("-4"))
 
-		assert.Equal(t, "invalid PID: PID -4 (must be a positive integer > 0)", err.Error())
+		assert.Equal(t, "invalid PID -4", err.Error())
+		assert.Equal(t, "must be a positive integer", errlines.Note(err))
 		assert.Equal(t, nil, errors.Unwrap(err))
 	})
 }

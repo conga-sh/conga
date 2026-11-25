@@ -9,6 +9,7 @@ import (
 
 	"github.com/conga-sh/conga/internal/casing"
 	"github.com/conga-sh/conga/internal/container"
+	"github.com/conga-sh/conga/internal/levenshtein"
 	"github.com/conga-sh/conga/internal/slicex"
 )
 
@@ -1524,12 +1525,12 @@ func validateTagCandidates(keys []string, role string, candidates []string, allo
 
 		suggestion := findClosestTagSuggestion(key, candidates, allowedTags)
 		if slices.Contains(allowedTags, suggestion) {
-			return schemaErrorf("unknown struct tag %q", key).withHintf("did you mean %q?", suggestion)
+			return schemaErrorf("unknown struct tag %q", key).withHint(levenshtein.QuotedHint(suggestion))
 		}
 
 		if suggestion != "" {
 			return schemaErrorf("unknown struct tag %q", key).
-				withHintf("did you mean %q? Use app.AllowTags(%q) to permit external tags", suggestion, key)
+				withHintf("%s Use app.AllowTags(%q) to permit external tags", levenshtein.QuotedHint(suggestion), key)
 		}
 
 		return schemaErrorf("unknown struct tag %q", key).withHintf("use app.AllowTags(%q) to permit external tags", key)

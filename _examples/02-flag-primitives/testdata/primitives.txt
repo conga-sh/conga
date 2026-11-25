@@ -38,7 +38,8 @@ stderr 'invalid integer value "notanumber" for flag --port'
 
 # 8. Type coercion failure: malformed duration
 exit-status 2 flag-primitives --timeout bogus
-stderr 'invalid duration "bogus" \(valid units: ms, s, m, h\) for flag --timeout'
+stderr 'invalid duration "bogus" for flag --timeout'
+stderr 'note: accepted units: ns, us \(or µs\), ms, s, m, h'
 
 # 9. Help screen shows flags and excludes hidden flags
 exec flag-primitives --help

@@ -7,6 +7,7 @@ import (
 	"github.com/alecthomas/assert/v2"
 
 	"github.com/conga-sh/conga/internal/completion"
+	"github.com/conga-sh/conga/internal/errlines"
 	"github.com/conga-sh/conga/internal/sentinel"
 	"github.com/conga-sh/conga/predict"
 )
@@ -231,7 +232,7 @@ func TestSnippetRejectsUnsupportedShells(t *testing.T) {
 			assert.Error(t, err)
 			assert.Equal(t, "", snippet)
 			assert.Contains(t, err.Error(), "unknown shell")
-			assert.Contains(t, err.Error(), "supported shells: bash, elvish, fish, nushell, powershell, zsh")
+			assert.Equal(t, "supported shells: bash, elvish, fish, nushell, powershell, zsh", errlines.Note(err))
 		})
 	}
 }
