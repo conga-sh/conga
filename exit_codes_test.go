@@ -998,7 +998,6 @@ func TestApp_UsageBlock_MatchesExit(t *testing.T) {
 			assert.Equal(t, want, exitBlock(t, err, stderrBuffer.String()))
 		})
 	}
-
 }
 
 func TestApp_UsageBlock_HelpFlagDisabled(t *testing.T) {

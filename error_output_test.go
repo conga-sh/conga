@@ -3,7 +3,6 @@ package conga_test
 import (
 	"bytes"
 	"context"
-	_ "embed"
 	"encoding"
 	"encoding/json"
 	"errors"
@@ -17,6 +16,8 @@ import (
 	"time"
 
 	"github.com/alecthomas/assert/v2"
+
+	_ "embed"
 
 	"github.com/conga-sh/conga"
 	hcldecoder "github.com/conga-sh/conga/decoder/hcl"
@@ -61,7 +62,7 @@ type outputCLI struct {
 	Timeout conga.OptionalFlag[time.Duration]  `env:"TOOL_TIMEOUT" name:"timeout"`
 	Mode    conga.OptionalFlag[uint32]         `env:"TOOL_MODE"    name:"mode"`
 	Level   conga.OptionalFlag[string]         `enum:"low,high"    name:"level"`
-	Limit   conga.OptionalFlag[conga.ByteSize] `env:"TOOL_LIMIT"  name:"limit"`
+	Limit   conga.OptionalFlag[conga.ByteSize] `env:"TOOL_LIMIT"   name:"limit"`
 }
 
 // outputGroupCLI declares an xor group whose members can come from several

@@ -202,5 +202,4 @@ func TestErrorLineOne_EveryTypeWithPieces(t *testing.T) {
 			assert.Equal(t, testCase.name != "a .env file", hasPieces)
 		})
 	}
-
 }

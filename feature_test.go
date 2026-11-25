@@ -3293,7 +3293,7 @@ func TestFeature_GateDescribedForConfigKey(t *testing.T) {
 			err := app.Run()
 
 			assertNotUsageError(t, err)
-			assert.Equal(t, fmt.Sprintf("%s", testCase.message), err.Error())
+			assert.Equal(t, testCase.message, err.Error())
 			assert.Contains(t, conga.DiagnosticOf(err).Render(), fmt.Sprintf("from: config file %q", configPath))
 			assert.False(t, cli.Ran)
 		})

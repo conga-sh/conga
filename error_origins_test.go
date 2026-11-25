@@ -21,10 +21,10 @@ type originCLI struct {
 
 	Config conga.ConfigFile `multi:"true" name:"config-file"`
 
-	Port    conga.OptionalFlag[int]               `env:"TOOL_PORT"    name:"port"`
-	Limits  conga.OptionalFlag[map[string]int]    `env:"TOOL_LIMITS"  name:"limits"`
-	Input   conga.OptionalFlag[conga.File]        `env:"TOOL_INPUT"   existing:"true" name:"input"`
-	Retries conga.OptionalFlag[int]               `default:"abc"     name:"retries"`
+	Port    conga.OptionalFlag[int]               `env:"TOOL_PORT"              name:"port"`
+	Limits  conga.OptionalFlag[map[string]int]    `env:"TOOL_LIMITS"            name:"limits"`
+	Input   conga.OptionalFlag[conga.File]        `env:"TOOL_INPUT"             existing:"true" name:"input"`
+	Retries conga.OptionalFlag[int]               `default:"abc"                name:"retries"`
 	Token   conga.OptionalFlag[conga.FileContent] `default:"/nonexistent/token" name:"token"`
 
 	Count conga.OptionalArg[int] `default:"abc" name:"[count]"`
@@ -548,7 +548,7 @@ func TestErrorOrigins_MapFlagConfigAndDocument(t *testing.T) {
 		var document conga.ConfigDocument
 		document.SetScoped("labels", map[string]any{"env": 1}, "profiles.yaml", "dev")
 
-		cli := &mapDocumentGroupCLI{documentBootstrapper: documentBootstrapper{doc: &document}}
+		cli := &mapDocumentGroupCLI{doc: &document}
 
 		err := bootstrapApp(cli).Args([]string{"--target", "prod"}).RunContext(t.Context())
 
@@ -563,7 +563,7 @@ func TestErrorOrigins_MapFlagConfigAndDocument(t *testing.T) {
 		type cascadingMapGroupCLI struct {
 			noopRunner
 
-			Config conga.ConfigFile                   `multi:"true" name:"config-file"`
+			Config conga.ConfigFile                   `multi:"true"  name:"config-file"`
 			Labels conga.OptionalFlag[map[string]int] `name:"labels" xor:"target"`
 			Target conga.OptionalFlag[string]         `name:"target" xor:"target"`
 		}
@@ -605,7 +605,7 @@ func TestErrorOrigins_MapFlagConfigAndDocument(t *testing.T) {
 		var document conga.ConfigDocument
 		document.Set("files", map[string]any{"main": missing}, "profile dev")
 
-		cli := &fileMapCLI{documentBootstrapper: documentBootstrapper{doc: &document}}
+		cli := &fileMapCLI{doc: &document}
 
 		err := bootstrapApp(cli).Args([]string{}).RunContext(t.Context())
 
