@@ -9,12 +9,12 @@ Command execution in CONGA separates error evaluation from process termination. 
 
 Many command-line libraries end the process when parsing fails. The standard library's `flag.Parse` prints the error and calls `os.Exit` on invalid input. A test of such a program has to run it as a subprocess, and its commands can't be embedded in a server, a GUI application, or a test harness.
 
-In CONGA, `app.Run()` and `app.RunContext(ctx)` parse, coerce, validate, and run the command, then return a `*conga.Error`, a Go error that wraps whatever failed:
+In CONGA, `app.Run()` and `app.RunContext(ctx)` parse, coerce, validate, and run the command, then return whatever failed as a Go `error`:
 
 - `nil` on clean execution, including built-in commands. Requests for `--help`, `--version`, and opt-in diagnostics like `--why` and `--completion` render to standard output and return `nil`. A help request succeeds, so `if err != nil` handles only real failures.
-- A `*conga.UsageError`, inside the `*conga.Error`, when command-line input violates syntax, naming, or value constraints, or when a hook returns `session.UsageError`.
-- An ordinary error behind the `*conga.Error` when a value from an environment variable, a configuration file, or a default tag fails to coerce or validate. It exits with status 1 and names the value's origin on a `from:` line ([which failures are usage errors](/reference/errors/#which-failures-are-usage-errors)).
-- The error a lifecycle hook returns. A `Validate`, `Bootstrap`, `PreRun`, `Run`, or `PostRun` error keeps its text and type behind the `*conga.Error`, so `errors.Is` and `errors.As` find the author's own causes. Compare with those two functions, not with `==`. A `Validate` or `Bootstrap` failure comes back before any `Finally` hook runs. When a `Finally` hook that does run also fails, the hook's error and the `Finally` errors are joined.
+- A `*conga.UsageError` when command-line input violates syntax, naming, or value constraints, or when a hook returns `session.UsageError`.
+- An ordinary error when a value from an environment variable, a configuration file, or a default tag fails to coerce or validate. It exits with status 1 and names the value's origin on a `from:` line ([which failures are usage errors](/reference/errors/#which-failures-are-usage-errors)).
+- The error a lifecycle hook returns, as is. A `Validate`, `Bootstrap`, `PreRun`, `Run`, or `PostRun` error keeps its text, type, and identity, and `Finally` receives the same value. A `Validate` or `Bootstrap` failure comes back before any `Finally` hook runs. When a `Finally` hook that does run also fails, the hook's error and the `Finally` errors are joined.
 
 ## Pipeline errors versus programmer defects
 
@@ -29,7 +29,7 @@ Standalone command-line applications translate errors into standard error messag
 
 `Exit` terminates through the configured exit function (`app.ExitFunc`, default `os.Exit`). It returns only when that function returns without terminating. All `PostRun` and `Finally` hooks complete inside `app.Run`, so the teardown work is already done by the time `Exit` runs.
 
-`Exit` is optional. Applications that embed CLI commands, collect telemetry, or format errors using structured loggers like `slog` can omit `Exit` and handle the returned error value directly. `*conga.Error` implements `json.Marshaler` and `encoding.TextMarshaler`, so a JSON `slog` handler records the origins, note and hint as separate keys. When callers do use `Exit`, setting `app.ExitFunc(handler)` intercepts the requested exit status code without killing the test process, allowing tests to verify exit behavior in-process.
+`Exit` is optional. Applications that embed CLI commands, collect telemetry, or format errors using structured loggers like `slog` can omit `Exit` and handle the returned error value directly. Passing any error to `conga.ResolveError(err)` returns an opt-in `conga.Error` that reads origins, note, and hint by the chain rule and implements `json.Marshaler`, `encoding.TextMarshaler`, `encoding.TextAppender`, and `fmt.Formatter`, so `slog`'s JSON handler records the pieces as separate keys and its text handler writes a compact line. Programs that never call `ResolveError` do not link it into the binary. When callers do use `Exit`, setting `app.ExitFunc(handler)` intercepts the requested exit status code without killing the test process, allowing tests to verify exit behavior in-process.
 
 ## Value errors print no usage block
 

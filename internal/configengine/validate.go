@@ -62,10 +62,10 @@ func newDocumentValidator(root *spec.Command, dest *configdata.Data, origin, sco
 	return &documentValidator{dest: dest, origin: origin, scope: scope, keyCase: root.ConfigSettings.KeyCase}
 }
 
-// fieldError builds a strict-validation error whose origin line names the
+// fieldErrorf builds a strict-validation error whose origin line names the
 // config file, or the document label with its scope.
-func (v *documentValidator) fieldError(msg string) *configError {
-	return newFieldConfigError(v.value("").OriginText(), msg)
+func (v *documentValidator) fieldErrorf(format string, args ...any) *configError {
+	return newFieldConfigError(v.value("").OriginText(), fmt.Sprintf(format, args...))
 }
 
 // value builds the stored value for raw with the document's origin.
@@ -98,7 +98,7 @@ func (v *documentValidator) commandEntry(prefix, key string, value any, cmd *spe
 		return v.store(prefix, cmd, flag, value)
 	}
 
-	return v.fieldError(fmt.Sprintf("unknown field %q in command %q", key, cmd.Name)).
+	return v.fieldErrorf("unknown field %q in command %q", key, cmd.Name).
 		withHint(suggestionHint(cmd, prefix, nil, key, v.keyCase))
 }
 
@@ -124,14 +124,14 @@ func (v *documentValidator) nestedSection(prefix, key string, nestedMap map[stri
 			return v.excludedFieldError(key, cmd.Name)
 		}
 
-		return v.fieldError(fmt.Sprintf("field %q in command %q is not a map", key, cmd.Name))
+		return v.fieldErrorf("field %q in command %q is not a map", key, cmd.Name)
 	}
 
 	if hasFlagUnder(cmd, prefix, section) {
 		return v.namespace(prefix, section, nestedMap, cmd)
 	}
 
-	return v.fieldError(fmt.Sprintf("unknown section %q in command %q", key, cmd.Name)).
+	return v.fieldErrorf("unknown section %q in command %q", key, cmd.Name).
 		withHint(suggestionHint(cmd, prefix, nil, key, v.keyCase))
 }
 
@@ -180,7 +180,7 @@ func (v *documentValidator) namespace(cmdPrefix string, section []string, rawMap
 			continue
 		}
 
-		return v.fieldError(fmt.Sprintf("unknown field %q in namespace %q", key, displayNamespace)).
+		return v.fieldErrorf("unknown field %q in namespace %q", key, displayNamespace).
 			withHint(suggestionHint(cmd, cmdPrefix, section, key, v.keyCase))
 	}
 
@@ -284,8 +284,8 @@ func (v *documentValidator) storeMapEntry(cmd *spec.Command, flag *spec.Flag, ke
 			if expected := v.keyCase.Apply(feature.Name); key != expected {
 				section := spec.ConfigKeyPath(flag, []*spec.Command{cmd})
 
-				return v.fieldError(fmt.Sprintf("unknown field %q in section %q", key, section)).
-					withHint(fmt.Sprintf("did you mean %q?", expected))
+				return v.fieldErrorf("unknown field %q in section %q", key, section).
+					withHint(levenshtein.QuotedHint(expected))
 			}
 
 			key = feature.Name
@@ -308,10 +308,10 @@ func (v *documentValidator) namespaceSection(cmdPrefix string, section []string,
 	}
 
 	if flag != nil {
-		return v.fieldError(fmt.Sprintf("field %q in namespace %q is not a map", key, displayNamespace))
+		return v.fieldErrorf("field %q in namespace %q is not a map", key, displayNamespace)
 	}
 
-	return v.fieldError(fmt.Sprintf("unknown section %q in namespace %q", key, displayNamespace)).
+	return v.fieldErrorf("unknown section %q in namespace %q", key, displayNamespace).
 		withHint(suggestionHint(cmd, cmdPrefix, section, key, v.keyCase))
 }
 
@@ -319,7 +319,7 @@ func (v *documentValidator) namespaceSection(cmdPrefix string, section []string,
 // flag excluded from config files, the strict-validation counterpart of the
 // binder's refusal to read such keys.
 func (v *documentValidator) excludedFieldError(fieldKey, commandName string) error {
-	return v.fieldError(fmt.Sprintf("field %q is excluded from config files in command %q", fieldKey, commandName))
+	return v.fieldErrorf("field %q is excluded from config files in command %q", fieldKey, commandName)
 }
 
 // validateCommandConfig validates raw parsed configuration data against the
@@ -471,10 +471,5 @@ func findClosestSuggestion(cmd *spec.Command, cmdPrefix string, section []string
 }
 
 func suggestionHint(cmd *spec.Command, cmdPrefix string, section []string, key string, keyCase spec.KeyCase) string {
-	suggestion := findClosestSuggestion(cmd, cmdPrefix, section, key, keyCase)
-	if suggestion == "" {
-		return ""
-	}
-
-	return fmt.Sprintf("did you mean %q?", suggestion)
+	return levenshtein.QuotedHint(findClosestSuggestion(cmd, cmdPrefix, section, key, keyCase))
 }

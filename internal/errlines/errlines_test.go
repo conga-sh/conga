@@ -77,13 +77,19 @@ func TestLookup_WalksJoinMembersInOrder(t *testing.T) {
 	assert.Equal(t, "first hint", errlines.Hint(err))
 }
 
-func TestLookup_NilErrorHasNoPieces(t *testing.T) {
+func TestLookup_NilAndEmptyMessageErrorHaveNoPieces(t *testing.T) {
 	t.Parallel()
 
 	assert.Zero(t, errlines.Origins(nil))
 	assert.Equal(t, "", errlines.Note(nil))
 	assert.Equal(t, "", errlines.Hint(nil))
 	assert.Zero(t, errlines.Members(nil))
+
+	empty := &pieceError{message: "", origins: []string{"o"}, note: "n", hint: "h"}
+
+	assert.Zero(t, errlines.Origins(empty))
+	assert.Equal(t, "", errlines.Note(empty))
+	assert.Equal(t, "", errlines.Hint(empty))
 }
 
 func TestLines_OrderAndEmptyFirstLine(t *testing.T) {

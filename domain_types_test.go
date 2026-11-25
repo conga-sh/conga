@@ -2,7 +2,6 @@ package conga_test
 
 import (
 	"bytes"
-	"fmt"
 	"io"
 	"os/exec"
 	"strings"
@@ -201,7 +200,7 @@ func TestEmptyPathConfig(t *testing.T) {
 			result := runClassification(t, app)
 
 			assert.Equal(t, `empty path for flag --`+value.key, result.err.Error())
-			assert.Contains(t, fmt.Sprintf("%+v", result.err), `from: config key "`+value.key+`" in config file "`)
+			assert.Contains(t, conga.ResolveError(result.err).Render(), `from: config key "`+value.key+`" in config file "`)
 			assertNotUsageError(t, result.err)
 			assert.Equal(t, 1, result.exitCode)
 			assert.True(t, strings.HasPrefix(result.output, "app: error: empty path for flag --"+value.key+"\n  from: config key \""+value.key+"\" in config file \""))

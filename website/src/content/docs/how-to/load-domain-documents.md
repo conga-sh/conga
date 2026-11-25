@@ -232,7 +232,7 @@ A document combines with config files key by key. It wins the keys it sets, and 
 
 ## Know what users see when a document is wrong
 
-Any error that `Bootstrap` returns comes back behind a `*conga.Error`, which keeps its text and type and is compared with `errors.Is` and `errors.As` ([the error `Run` returns](/reference/errors/#the-error-run-returns)). It exits 1, with no usage block. An `ExitCoder` chooses its own code. CONGA checks the settings themselves the way it checks a config file:
+Any error that `Bootstrap` returns comes back as is ([Errors and exit codes](/reference/errors/)). It exits 1, with no usage block. An `ExitCoder` chooses its own code. CONGA checks the settings themselves the way it checks a config file:
 
 | Situation | Result |
 |---|---|

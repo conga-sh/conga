@@ -9,9 +9,20 @@
 package levenshtein
 
 import (
+	"strconv"
 	"strings"
 	"unicode/utf8"
 )
+
+// QuotedHint formats a non-empty suggestion as `did you mean "<suggestion>"?`,
+// or returns "" when suggestion is empty.
+func QuotedHint(suggestion string) string {
+	if suggestion == "" {
+		return ""
+	}
+
+	return "did you mean " + strconv.Quote(suggestion) + "?"
+}
 
 // Distance computes the Levenshtein edit distance between source and target,
 // measured in Unicode code points. ASCII inputs take a byte-based fast path;

@@ -325,7 +325,7 @@ Run 'export --help' for more information.
 
 `Validate` runs after every tag check has passed, and before `Run` and any lifecycle hook, so it can trust that the flags hold valid values and the program has opened nothing yet. Write the message the user should see. CONGA prints it after `export: error:`.
 
-`Run` returns the error from `Validate` behind a `*conga.Error`, which keeps its text and type. Compare it with `errors.Is` and `errors.As` ([the error `Run` returns](/reference/errors/#the-error-run-returns)). A plain error, such as one made with `errors.New`, exits with status 1 and prints no usage block, because CONGA can't tell whether the check read a command-line value or a value from a config file. Return `session.UsageError` when the cause is the command line.
+`Run` returns the error from `Validate` as is ([Errors and exit codes](/reference/errors/)). A plain error, such as one made with `errors.New`, exits with status 1 and prints no usage block, because CONGA can't tell whether the check read a command-line value or a value from a config file. Return `session.UsageError` when the cause is the command line.
 
 ## Know what users see
 

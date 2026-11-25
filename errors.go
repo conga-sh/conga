@@ -76,9 +76,10 @@ type ExitCoder interface {
 // "environment variable TOOL_PORT" or "config key "port" in config file
 // "tool.yaml"". An empty result prints no line.
 //
-// The method is found with [errors.As], which stops at the first implementer
-// in a chain even when it returns an empty result. Read the pieces through
-// [*Error], which applies the chain rule. The outermost non-empty result wins.
+// The interface is structural, so any error type implementing Origins() []string
+// participates. [errors.As] stops at the first implementer in a chain even when
+// it returns an empty result; read pieces through [ResolveError], which applies
+// the chain rule (the outermost non-empty result wins).
 type Originer interface {
 	error
 
@@ -90,9 +91,10 @@ type Originer interface {
 // the issue line 1 states. [App.Exit] prints it on a "note:" line. An empty result
 // prints no line.
 //
-// The method is found with [errors.As], which stops at the first implementer
-// in a chain even when it returns an empty result. Read the pieces through
-// [*Error], which applies the chain rule. The outermost non-empty result wins.
+// The interface is structural, so any error type implementing Note() string
+// participates. [errors.As] stops at the first implementer in a chain even when
+// it returns an empty result; read pieces through [ResolveError], which applies
+// the chain rule (the outermost non-empty result wins).
 type Noter interface {
 	error
 
@@ -104,9 +106,11 @@ type Noter interface {
 // reader can act on, an imperative or a "did you mean" suggestion. [App.Exit] prints it
 // on a "hint:" line. An empty result prints no line.
 //
-// The method is found with [errors.As], which stops at the first implementer
-// in a chain even when it returns an empty result. Read the pieces through
-// [*Error], which applies the chain rule. The outermost non-empty result wins.
+// The interface is structural, so any error type implementing Hint() string
+// (including third-party types such as samber/oops's OopsError) participates.
+// [errors.As] stops at the first implementer in a chain even when it returns an
+// empty result; read pieces through [ResolveError], which applies the chain
+// rule (the outermost non-empty result wins).
 type Hinter interface {
 	error
 
@@ -114,84 +118,156 @@ type Hinter interface {
 	Hint() string
 }
 
-// Error is the error [App.Run] and [App.RunContext] return. It wraps whatever
-// failed: a hook's error, a CONGA error, a join, or an error from loading
-// configuration. [Error.Error] returns the wrapped error's text, so a program
-// that prints it sees line 1 only. [App.Exit] prints line 1 and then one
-// "from:" line per origin, a "note:" line and a "hint:" line, which this type
-// reads from the chain through [Error.Origins], [Error.Note] and
-// [Error.Hint].
+// Error is an opt-in view of any error: a CONGA error, a hook's error, a
+// developer wrapper around [App.Run]'s result, or a join. Construct one with
+// [ResolveError]. [App.Run] and [App.RunContext] return the failing error as
+// is and do not wrap it in Error.
 //
-// Compare a returned error with [errors.Is] and [errors.As], which reach the
-// wrapped error through [Error.Unwrap]. A hook's own error is not the value Run
-// returns, so == and a type switch on it do not match.
+// [Error.Error] returns the underlying error's text, which is line 1 alone for
+// a CONGA error. [Error.Origins], [Error.Note] and [Error.Hint] read the pieces
+// [App.Exit] prints on "from:", "note:" and "hint:" lines by the chain rule:
+// the outermost error in the chain that returns a non-empty value supplies each
+// piece, in [errors.As] traversal order, so an author wrapper's Hint replaces
+// CONGA's and the note and hint can come from different errors. For an error
+// that stands for several errors (an [errors.Join] of them), the piece methods
+// describe the first non-empty member, and [Error.Members] returns each
+// non-empty member as its own Error.
 //
-// The chain rule decides each piece. The outermost error in the chain that
-// returns a non-empty value supplies it, in [errors.As] traversal order, so an
-// author wrapper's Hint replaces CONGA's, and the note and the hint can come
-// from different errors. An error that stands for several errors (an
-// [errors.Join] of them) keeps one member per error, and the methods describe
-// the first member.
+// [Error.Render] returns the plain multi-line form (line 1 followed by the
+// indented lines for every non-empty member, with no prefix or color). Error
+// implements [fmt.Formatter] (%v and %s print line 1; %+v prints [Error.Render];
+// every other verb formats line 1 with that verb), [encoding/json.Marshaler],
+// [encoding.TextMarshaler], and [encoding.TextAppender], so a structured logger
+// such as [log/slog] records the pieces cleanly under both JSON and text
+// handlers. Error has no ExitCode method; [App.ExitCode] decides from the
+// outermost [ExitCoder] in the chain.
 //
-// Error implements [fmt.Formatter]: %v and %s print line 1, %+v prints line 1
-// followed by the indented lines, and every other verb formats line 1 with that
-// verb. It also implements [encoding.TextMarshaler] and [encoding/json.Marshaler], so a
-// structured logger such as [log/slog] records the pieces separately. Error has
-// no ExitCode method. [App.ExitCode] decides from the outermost [ExitCoder] in
-// the chain.
-//
-// The zero value is not valid. Obtain an Error from Run, or find one in a
-// returned error with [errors.AsType].
+// The zero value is valid: every method is safe on it, and [Error.MarshalJSON]
+// returns null. Do not return a zero Error through an error return value.
 type Error struct {
 	err     error
 	members []error
 }
 
-// Error returns the wrapped error's text, which is line 1 alone for a CONGA
-// error. An error that stands for several errors keeps one line per member.
-func (e *Error) Error() string {
+// ResolveError resolves err into an [Error] from the outside in, applying the
+// chain rule and splitting any joined error into its members. A nil err returns
+// the zero [Error].
+//
+// ResolveError is for inspecting, formatting, and logging errors. Because it
+// starts at err itself, a developer wrapper's [Hinter.Hint] wins over an inner
+// error's and the result always agrees with [App.Exit]. Do not return a zero
+// [Error] through an error return value.
+func ResolveError(err error) Error {
+	if err == nil {
+		return Error{}
+	}
+
+	if resolved, ok := err.(Error); ok { //nolint:errorlint // only a direct Error at the top is reused; a wrapped Error starts a fresh outer walk
+		return resolved
+	}
+
+	if resolved, ok := err.(*Error); ok { //nolint:errorlint // same for a direct *Error at the top
+		if resolved == nil {
+			return Error{}
+		}
+
+		return *resolved
+	}
+
+	return Error{err: err, members: errorMembers(err)}
+}
+
+// Error returns the underlying error's text, which is line 1 alone for a CONGA
+// error, or "" for the zero [Error]. An error that stands for several errors
+// keeps one line per member.
+func (e Error) Error() string {
+	if e.err == nil {
+		return ""
+	}
+
 	return e.err.Error()
 }
 
-// Unwrap returns the wrapped error.
-func (e *Error) Unwrap() error {
+// Unwrap returns the underlying error, or nil for the zero [Error].
+func (e Error) Unwrap() error {
 	return e.err
 }
 
-// Origins returns the origins of the first non-empty member by the chain
-// rule, or nil.
-func (e *Error) Origins() []string {
+// Origins returns the origins of the first non-empty member by the chain rule,
+// or nil.
+func (e Error) Origins() []string {
 	return errlines.Origins(e.firstMember())
 }
 
 // Note returns the note of the first non-empty member by the chain rule, or "".
-func (e *Error) Note() string {
+func (e Error) Note() string {
 	return errlines.Note(e.firstMember())
 }
 
 // Hint returns the hint of the first non-empty member by the chain rule, or "".
-func (e *Error) Hint() string {
+func (e Error) Hint() string {
 	return errlines.Hint(e.firstMember())
 }
 
+// Members returns each non-empty member as its own [Error]. For a single
+// non-empty error it returns a one-element slice; for the zero [Error] or an
+// error whose members all have empty messages it returns nil.
+func (e Error) Members() []Error {
+	var result []Error
+
+	for _, member := range e.members {
+		if member == nil || member.Error() == "" {
+			continue
+		}
+
+		result = append(result, Error{err: member, members: []error{member}})
+	}
+
+	return result
+}
+
+// Render formats every non-empty member as line 1 followed by its indented
+// "from:", "note:" and "hint:" lines, plain, with no prefix, color, or trailing
+// newline. It returns "" for the zero [Error] or when every member has an empty
+// message.
+func (e Error) Render() string {
+	return errlines.Plain(e.members)
+}
+
 // MarshalJSON returns {"error": <line 1>, "from": [...], "note": "...", "hint":
-// "..."} for the first member, with every key but "error" omitted when empty,
-// and "more": [...] holding the other members when the error stands for
-// several.
-func (e *Error) MarshalJSON() ([]byte, error) {
+// "..."} for the first non-empty member, with every key but "error" omitted
+// when empty, and "more": [...] holding the other non-empty members when the
+// error stands for several. The zero [Error] marshals as null; a non-nil error
+// whose message is empty marshals as {"error":""}.
+func (e Error) MarshalJSON() ([]byte, error) {
+	if e.err == nil {
+		return []byte("null"), nil
+	}
+
 	return errlines.AppendJSON(nil, e.members), nil
 }
 
 // MarshalText returns "<line 1> (from: <origin>; note: ...; hint: ...)" with
 // absent parts left out and no parentheses when nothing follows line 1. Several
 // members are joined with " | ".
-func (e *Error) MarshalText() ([]byte, error) {
-	return errlines.AppendText(nil, e.members), nil
+func (e Error) MarshalText() ([]byte, error) {
+	return e.AppendText(nil)
 }
 
-// Format implements [fmt.Formatter]. %+v prints line 1 followed by the "from:",
-// "note:" and "hint:" lines, plain. Every other form prints line 1.
-func (e *Error) Format(state fmt.State, verb rune) {
+// AppendText appends the one-line text form of [Error.MarshalText] to dst,
+// implementing [encoding.TextAppender].
+func (e Error) AppendText(dst []byte) ([]byte, error) {
+	if e.err == nil {
+		return dst, nil
+	}
+
+	return errlines.AppendText(dst, e.members), nil
+}
+
+// Format implements [fmt.Formatter]. %+v prints [Error.Render] (line 1 followed
+// by the "from:", "note:" and "hint:" lines, plain). Every other form formats
+// line 1 with the requested verb.
+func (e Error) Format(state fmt.State, verb rune) {
 	formatError(state, verb, e.Error(), e.members)
 }
 
@@ -210,8 +286,7 @@ func (e *Error) Format(state fmt.State, verb rune) {
 // Origins, Note and Hint return the pieces [App.Exit] prints on their own
 // lines, by the chain rule [Error] describes: the failed value's own, then those
 // of the error behind the message. For an unknown flag or command, Hint is the
-// "did you mean" suggestion. Error returns line 1 alone. A UsageError
-// implements [fmt.Formatter] like [Error]: %+v adds the lines.
+// "did you mean" suggestion. Error returns line 1 alone.
 //
 // Unwrap returns the error behind the message. For a value that did not
 // convert, that is the error the conversion step returned. It is the error of
@@ -281,11 +356,6 @@ func (e *UsageError) Hint() string {
 	}
 
 	return errlines.Hint(e.pieces())
-}
-
-// Format implements [fmt.Formatter]: %+v prints line 1 and the lines below it.
-func (e *UsageError) Format(state fmt.State, verb rune) {
-	formatError(state, verb, e.msg, []error{e})
 }
 
 // Unwrap returns the error behind the message. That is the error a conversion
@@ -550,7 +620,7 @@ func (origin valueOrigin) describe() string {
 }
 
 // firstMember returns the first member with a non-empty message, or nil.
-func (e *Error) firstMember() error {
+func (e Error) firstMember() error {
 	for _, member := range e.members {
 		if member != nil && member.Error() != "" {
 			return member
@@ -739,42 +809,15 @@ func commandChainPath(chain []*spec.Command) string {
 	return strings.Join(names, " ")
 }
 
-// newError wraps err in the [*Error] [App.Run] returns. A nil err stays an
-// untyped nil, and an err that is already an [*Error] is returned as it is.
-func newError(err error) error {
-	if err == nil {
-		return nil
-	}
-
-	return asError(err)
+// errorMembers returns the members of err that render separately. Both
+// [App.Exit] and [ResolveError] call it so they always split errors the same
+// way without linking [Error] into binaries that only call [App.Exit].
+func errorMembers(err error) []error {
+	return errlines.Members(err)
 }
 
-// asError returns err as an [*Error]: itself when it is one at the top, a fresh
-// wrapper otherwise with any joined [*Error] members spliced flat.
-func asError(err error) *Error {
-	if wrapped, ok := err.(*Error); ok { //nolint:errorlint // only an Error at the top is reused, so a developer wrapper around one starts its own walk
-		return wrapped
-	}
-
-	rawMembers := errlines.Members(err)
-	members := make([]error, 0, len(rawMembers))
-
-	for _, member := range rawMembers {
-		if nested, ok := member.(*Error); ok { //nolint:errorlint // only a direct *Error member is spliced; a wrapped *Error stays one error
-			members = append(members, nested.members...)
-
-			continue
-		}
-
-		members = append(members, member)
-	}
-
-	return &Error{err: err, members: members}
-}
-
-// formatError implements the fmt.Formatter shared by [*Error] and
-// [*UsageError]: %+v prints the members' lines, and every other form formats
-// line 1 with the requested format string.
+// formatError implements [Error.Format]: %+v prints the members' lines, and
+// every other form formats line 1 with the requested format string.
 func formatError(state fmt.State, verb rune, line string, members []error) {
 	if verb == 'v' && state.Flag('+') {
 		io.WriteString(state, errlines.Plain(members)) //nolint:errcheck // a failed write to the formatter's state has nowhere to go

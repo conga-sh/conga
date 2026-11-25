@@ -298,7 +298,7 @@ func ValidateFeatureFieldTags(field *FeatureField, tag reflect.StructTag) error 
 		if err != nil {
 			note, hint := splitFeatureParseError(err)
 
-			return schemaErrorf("feature %q default %q", field.Name, defaultTag).withNote(note).withHint(hint).withCause(err)
+			return schemaErrorf("invalid default %q for feature %q", defaultTag, field.Name).withNote(note).withHint(hint).withCause(err)
 		}
 
 		field.Default = canonical
@@ -816,7 +816,7 @@ func validateFeatureEnum(field *FeatureField, enumTag string) error {
 		if err != nil {
 			note, hint := splitFeatureParseError(err)
 
-			return schemaErrorf("feature enum value %q", part).withNote(note).withHint(hint).withCause(err)
+			return schemaErrorf("invalid feature enum value %q", part).withNote(note).withHint(hint).withCause(err)
 		}
 
 		if canonical == "0" {

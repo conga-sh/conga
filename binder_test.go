@@ -3,7 +3,6 @@ package conga_test
 import (
 	"bytes"
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -180,7 +179,7 @@ func TestBinder_ValidationAttribution_EnvEnum(t *testing.T) {
 	assertNotUsageError(t, err)
 	assert.Equal(t, `invalid value "qa" for flag --mode`, err.Error())
 	assert.Equal(t, `accepted values: dev, prod`, errlines.Note(err))
-	assert.Contains(t, fmt.Sprintf("%+v", err), `from: environment variable CONGA_TEST_ATTRIBUTION_MODE`)
+	assert.Contains(t, conga.ResolveError(err).Render(), `from: environment variable CONGA_TEST_ATTRIBUTION_MODE`)
 }
 
 func TestBinder_ValidationAttribution_EnvSliceItem(t *testing.T) {
@@ -195,7 +194,7 @@ func TestBinder_ValidationAttribution_EnvSliceItem(t *testing.T) {
 	assertNotUsageError(t, err)
 	assert.Equal(t, `invalid value "green" for flag --tags`, err.Error())
 	assert.Equal(t, `accepted values: red, blue`, errlines.Note(err))
-	assert.Contains(t, fmt.Sprintf("%+v", err), `from: environment variable CONGA_TEST_ATTRIBUTION_TAGS`)
+	assert.Contains(t, conga.ResolveError(err).Render(), `from: environment variable CONGA_TEST_ATTRIBUTION_TAGS`)
 }
 
 func TestBinder_ValidationAttribution_ConfigEnum(t *testing.T) {
@@ -212,7 +211,7 @@ func TestBinder_ValidationAttribution_ConfigEnum(t *testing.T) {
 	assertNotUsageError(t, err)
 	assert.Equal(t, `invalid value "qa" for flag --mode`, err.Error())
 	assert.Equal(t, `accepted values: dev, prod`, errlines.Note(err))
-	assert.Contains(t, fmt.Sprintf("%+v", err), `from: config key "mode"`)
+	assert.Contains(t, conga.ResolveError(err).Render(), `from: config key "mode"`)
 }
 
 func TestBinder_ValidationAttribution_ConfigRange(t *testing.T) {
@@ -228,7 +227,7 @@ func TestBinder_ValidationAttribution_ConfigRange(t *testing.T) {
 	assert.Error(t, err)
 	assertNotUsageError(t, err)
 	assert.Equal(t, `value 12 is out of range [1..8] for flag --workers`, err.Error())
-	assert.Contains(t, fmt.Sprintf("%+v", err), `from: config key "workers"`)
+	assert.Contains(t, conga.ResolveError(err).Render(), `from: config key "workers"`)
 }
 
 func TestBinder_ValidationAttribution_CLIUnattributed(t *testing.T) {
@@ -617,7 +616,7 @@ func TestBinder_MapFlagMergesTiers(t *testing.T) {
 		assert.Error(t, err)
 		assertNotUsageError(t, err)
 		assert.Contains(t, err.Error(), "for flag --sizes")
-		assert.Contains(t, fmt.Sprintf("%+v", err), `from: config key "sizes" in config file "`)
+		assert.Contains(t, conga.ResolveError(err).Render(), `from: config key "sizes" in config file "`)
 	})
 
 	t.Run("no tier leaves map unset", func(t *testing.T) {
@@ -883,7 +882,7 @@ func TestBinder_MapFlagMergesCascadingFiles(t *testing.T) {
 		assert.Error(t, err)
 		assertNotUsageError(t, err)
 		assert.Contains(t, err.Error(), "invalid key-value pair")
-		assert.Contains(t, fmt.Sprintf("%+v", err), `from: config key "tags" in config file "`)
+		assert.Contains(t, conga.ResolveError(err).Render(), `from: config key "tags" in config file "`)
 	})
 }
 
@@ -1191,7 +1190,7 @@ func TestBinder_CounterNegativeEnvRejected(t *testing.T) {
 
 	assertNotUsageError(t, err)
 	assert.Equal(t, `invalid unsigned integer value "-4" for flag --verbose`, err.Error())
-	assert.Contains(t, fmt.Sprintf("%+v", err), `from: environment variable CONGA_TEST_VERBOSE_NEGATIVE`)
+	assert.Contains(t, conga.ResolveError(err).Render(), `from: environment variable CONGA_TEST_VERBOSE_NEGATIVE`)
 	assert.Equal(t, conga.SourceNone, cli.Verbose.Source())
 	assert.Equal(t, 0, cli.Verbose.Get())
 }
@@ -1215,7 +1214,7 @@ func TestBinder_CounterNegativeConfigRejected(t *testing.T) {
 
 	assertNotUsageError(t, err)
 	assert.Equal(t, `invalid unsigned integer value "-2" for flag --verbose`, err.Error())
-	assert.Contains(t, fmt.Sprintf("%+v", err), `from: config key "verbose"`)
+	assert.Contains(t, conga.ResolveError(err).Render(), `from: config key "verbose"`)
 	assert.Equal(t, conga.SourceNone, cli.Verbose.Source())
 	assert.Equal(t, 0, cli.Verbose.Get())
 }
@@ -2080,7 +2079,7 @@ func TestBinder_CounterCoercionError(t *testing.T) {
 	assert.Error(t, err)
 	assertNotUsageError(t, err)
 	assert.Equal(t, `invalid unsigned integer value "not-a-number" for flag --v`, err.Error())
-	assert.Contains(t, fmt.Sprintf("%+v", err), `from: config key "v"`)
+	assert.Contains(t, conga.ResolveError(err).Render(), `from: config key "v"`)
 }
 
 type repeatedScalarCLI struct {

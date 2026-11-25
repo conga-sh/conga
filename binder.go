@@ -95,9 +95,15 @@ func (b *bindingState) recordEnumSpellings(flagSpec *spec.Flag, spellings []stri
 	b.EnumSpellings[flagSpec] = spellings
 }
 
-// recordOrigin remembers where a flag's value came from, for attribution in
-// post-bind validation errors.
+// recordOrigin remembers where an environment- or config-sourced flag value
+// came from, for attribution in post-bind validation errors. Command-line and
+// default values need no entry because originOf derives them from the
+// container's source without allocating.
 func (b *bindingState) recordOrigin(flagSpec *spec.Flag, origin valueOrigin) {
+	if origin.source != SourceEnv && origin.source != SourceConfig {
+		return
+	}
+
 	if b.Origins == nil {
 		b.Origins = make(map[*spec.Flag]valueOrigin)
 	}

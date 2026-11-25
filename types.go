@@ -118,10 +118,9 @@ type Runner interface {
 // Validate is the first lifecycle stage. Hooks run top-down from root to leaf, after
 // struct tag constraints and domain-type [SelfValidator] checks have already passed,
 // and before any [PreRunner], [Runner], [PostRunner], or [Finalizer] hook executes.
-// If Validate returns an error, Run returns it behind an [*Error], with its text and
-// type kept, and does not run the remaining stages (no command has been initialized,
-// so no Finally hook runs). Find the error with [errors.Is] and [errors.As]. A plain error
-// makes [App.Exit] exit with status 1 and no usage block. To report a mistake in
+// If Validate returns an error, Run returns it as is and does not run the
+// remaining stages (no command has been initialized, so no Finally hook runs).
+// A plain error makes [App.Exit] exit with status 1 and no usage block. To report a mistake in
 // the user's input, return [Session.UsageError] or [Session.UsageErrorf]. [App.Exit]
 // then exits with status 2 and the usage block [UsageOnErrorMode] asks for. An
 // [ExitCoder] chooses its own code. For a built-in subcommand such as
@@ -303,8 +302,7 @@ type Finalizer interface {
 type Bootstrapper interface {
 	// Bootstrap loads environment files and supplies app state or a
 	// configuration document before the binder resolves values. A returned
-	// error stops the run and comes back behind an [*Error], with its text and
-	// type kept, found with [errors.Is] and [errors.As]. A plain error exits 1
+	// error stops the run and is returned as is. A plain error exits 1
 	// with no usage block. An [ExitCoder] chooses its own code.
 	Bootstrap(ctx context.Context, b *Bootstrap) error
 }

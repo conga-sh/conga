@@ -618,22 +618,18 @@ func (a *App[T]) RegisterType[U any](parser TypeParser[U], opts ...RegistrationO
 //
 // Returns:
 //   - nil on successful execution or when handling built-in flags (--help, --version, --why).
-//   - Otherwise an [*Error]. Find the failure with [errors.Is] and [errors.As],
-//     which reach it through [Error.Unwrap]. A comparison with == or a type
-//     switch on a hook's error does not match.
-//
-// The wrapped error is one of:
 //   - A schema error if the struct tags or command schema are invalid.
 //   - A [*UsageError] if command-line input is invalid.
 //   - An error that is not a [*UsageError] if configuration or .env loading
 //     fails, or if a value from the environment, a configuration file, or a
 //     default tag does not bind.
-//   - The error returned by [Runner.Run] or a lifecycle hook, or ctx.Err() on
-//     cancellation. When a [Finalizer.Finally] hook also fails, the hook's error
-//     and the Finally errors are joined.
+//   - The error returned by [Runner.Run] or a lifecycle hook as is, or
+//     ctx.Err() on cancellation. When a [Finalizer.Finally] hook also fails,
+//     the hook's error and the Finally errors are joined.
 //
-// The [Finalizer.Finally] hook receives the raw error of the failed stage, not
-// the [*Error].
+// Pass a returned error to [ResolveError] to inspect its origins, note, and
+// hint by the chain rule, render its plain multi-line form, or log it with
+// [log/slog].
 //
 // RunContext never terminates the process; it returns every failure to the
 // caller. [App.Exit] maps a returned error to an exit code.
@@ -642,7 +638,7 @@ func (a *App[T]) RegisterType[U any](parser TypeParser[U], opts ...RegistrationO
 //   - If ctx is nil.
 //   - If the App has already been executed: an App instance runs exactly once.
 func (a *App[T]) RunContext(ctx context.Context) error {
-	return newError(a.runContext(ctx))
+	return a.runContext(ctx)
 }
 
 // Run executes the application, passing a default context to the command's
@@ -651,8 +647,8 @@ func (a *App[T]) RunContext(ctx context.Context) error {
 //
 // For callers supplying their own context, use [App.RunContext].
 //
-// Returns nil on success or when a built-in flag was handled, and otherwise an
-// [*Error], as [App.RunContext] does.
+// Returns nil on success or when a built-in flag was handled, and otherwise the
+// failing error as [App.RunContext] does.
 //
 // Panics:
 //   - If the App has already been executed: an App instance runs exactly once.
@@ -791,11 +787,11 @@ func (a *App[T]) ExitFunc(exitHandler func(code int)) *App[T] {
 //
 // One "from:" line names each origin, a "note:" line gives more detail on the
 // issue, and a "hint:" line says what to do about it. An error supplies them
-// through the [Originer], [Noter] and [Hinter] methods. Exit reads them through
-// an [*Error] by the chain rule. For each piece the outermost error in the chain
-// with a non-empty value supplies it, so a wrapper's own hint replaces CONGA's
-// and the text a wrapper adds to line 1 does not matter. An error whose text is
-// empty prints no lines at all.
+// through the [Originer], [Noter] and [Hinter] methods. Exit reads them by the
+// chain rule, the same rule [ResolveError] applies. For each piece the
+// outermost error in the chain with a non-empty value supplies it, so a
+// wrapper's own hint replaces CONGA's and the text a wrapper adds to line 1
+// does not matter. An error whose text is empty prints no lines at all.
 //
 // An error with Unwrap() []error whose text is its members' texts joined by
 // newlines (an [errors.Join] of them) prints each member on its own, with its
@@ -829,9 +825,6 @@ func (a *App[T]) ExitFunc(exitHandler func(code int)) *App[T] {
 // member with an ExitCode method sets the code. A [*UsageError] with an empty
 // message still prints its usage block.
 //
-// An err that is not an [*Error] at the top is wrapped in a fresh one first, so
-// a developer's wrapper around Run's result supplies its own pieces.
-//
 // See https://docs.conga.sh/explanation/error-reporting/.
 func (a *App[T]) Exit(err error) {
 	a.applyDefaults()
@@ -855,8 +848,7 @@ func (a *App[T]) Exit(err error) {
 
 	name := cond.SetOrDefaultFunc(a.name, getAppName)
 
-	wrapped := asError(err)
-	text := errlines.Render(wrapped.members, name+": ", envx.ColorEnabled(a.stderr))
+	text := errlines.Render(errorMembers(err), name+": ", envx.ColorEnabled(a.stderr))
 	fmt.Fprint(a.stderr, text)
 
 	if coder, isCoder := errors.AsType[ExitCoder](err); isCoder {

@@ -1,7 +1,6 @@
 package conga_test
 
 import (
-	"errors"
 	"fmt"
 	"net/url"
 	"path/filepath"
@@ -192,14 +191,13 @@ func TestErrorLineOne_EveryTypeWithPieces(t *testing.T) {
 			assert.Equal(t, testCase.expected, err.Error())
 			assert.False(t, strings.Contains(err.Error(), "\n"))
 
-			wrapped, ok := errors.AsType[*conga.Error](err)
+			resolved := conga.ResolveError(err)
 
-			assert.True(t, ok)
-			assert.Equal(t, testCase.expected, wrapped.Error())
+			assert.Equal(t, testCase.expected, resolved.Error())
 
 			// The pieces exist, so their absence from line 1 means something. A
 			// .env read failure names its file on line 1 and has none.
-			hasPieces := wrapped.Note() != "" || wrapped.Hint() != "" || len(wrapped.Origins()) > 0
+			hasPieces := resolved.Note() != "" || resolved.Hint() != "" || len(resolved.Origins()) > 0
 
 			assert.Equal(t, testCase.name != "a .env file", hasPieces)
 		})

@@ -307,7 +307,7 @@ func TestFeature_MergesSourcesPerKey(t *testing.T) {
 		assert.Error(t, err)
 		assertNotUsageError(t, err)
 		assert.Equal(t, `unknown feature "GNTLE_FORCCE" in section "experiments"`, err.Error())
-		assert.Contains(t, fmt.Sprintf("%+v", err), fmt.Sprintf("from: config file %q", configPath))
+		assert.Contains(t, conga.ResolveError(err).Render(), fmt.Sprintf("from: config file %q", configPath))
 		assert.Equal(t, `did you mean "gentle-force"?`, errlines.Hint(err))
 	})
 }
@@ -1333,7 +1333,7 @@ func TestFeature_FieldEnv_InvalidValueError(t *testing.T) {
 	assertNotUsageError(t, err)
 	assert.Contains(t, err.Error(), `invalid value "3" for feature "syntax"`)
 	assert.Equal(t, `accepted values: 0, 1, 2`, errlines.Note(err))
-	assert.Contains(t, fmt.Sprintf("%+v", err), `from: environment variable CONGA_TEST_TASK_X_SYNTAX`)
+	assert.Contains(t, conga.ResolveError(err).Render(), `from: environment variable CONGA_TEST_TASK_X_SYNTAX`)
 }
 
 // TestFeature_CombinedEnv_InvalidValueError pins that an invalid value from a
@@ -1354,7 +1354,7 @@ func TestFeature_CombinedEnv_InvalidValueError(t *testing.T) {
 	assertNotUsageError(t, err)
 	assert.Contains(t, err.Error(), `invalid value "3" for feature "syntax"`)
 	assert.Equal(t, `accepted values: 0, 1, 2`, errlines.Note(err))
-	assert.Contains(t, fmt.Sprintf("%+v", err), `from: environment variable CONGA_TEST_TASK_X_FEATURES`)
+	assert.Contains(t, conga.ResolveError(err).Render(), `from: environment variable CONGA_TEST_TASK_X_FEATURES`)
 }
 
 // TestFeature_CombinedEnv_InvalidValueErrorUnderWhy pins the same attribution
@@ -1376,7 +1376,7 @@ func TestFeature_CombinedEnv_InvalidValueErrorUnderWhy(t *testing.T) {
 	assertNotUsageError(t, err)
 	assert.Contains(t, err.Error(), `invalid value "3" for feature "syntax"`)
 	assert.Equal(t, `accepted values: 0, 1, 2`, errlines.Note(err))
-	assert.Contains(t, fmt.Sprintf("%+v", err), `from: environment variable CONGA_TEST_TASK_X_FEATURES`)
+	assert.Contains(t, conga.ResolveError(err).Render(), `from: environment variable CONGA_TEST_TASK_X_FEATURES`)
 }
 
 // TestFeature_CombinedEnv_InvalidValueNamesWinningVariable pins that the
@@ -1399,7 +1399,7 @@ func TestFeature_CombinedEnv_InvalidValueNamesWinningVariable(t *testing.T) {
 	assertNotUsageError(t, err)
 	assert.Contains(t, err.Error(), `invalid value "3" for feature "syntax"`)
 	assert.Equal(t, `accepted values: 0, 1, 2`, errlines.Note(err))
-	assert.Contains(t, fmt.Sprintf("%+v", err), `from: environment variable CONGA_TEST_GATES_B`)
+	assert.Contains(t, conga.ResolveError(err).Render(), `from: environment variable CONGA_TEST_GATES_B`)
 	assert.NotContains(t, err.Error(), "CONGA_TEST_GATES_A")
 }
 
@@ -1692,7 +1692,7 @@ func TestFeature_Config_TypoRejection(t *testing.T) {
 	assert.Error(t, err)
 	assertNotUsageError(t, err)
 	assert.Equal(t, `unknown feature "GNTLE_FORCCE" in section "experiments"`, err.Error())
-	assert.Contains(t, fmt.Sprintf("%+v", err), fmt.Sprintf("from: config file %q", configPath))
+	assert.Contains(t, conga.ResolveError(err).Render(), fmt.Sprintf("from: config file %q", configPath))
 	assert.Equal(t, `did you mean "gentle-force"?`, errlines.Hint(err))
 }
 
@@ -1843,7 +1843,7 @@ func TestFeature_Config_InvalidValue(t *testing.T) {
 	assertNotUsageError(t, err)
 	assert.Equal(t, `invalid value "3" for feature "syntax"`, err.Error())
 	assert.Equal(t, `accepted values: 0, 1, 2`, errlines.Note(err))
-	assert.Contains(t, fmt.Sprintf("%+v", err), `from: config key "experiments.syntax"`)
+	assert.Contains(t, conga.ResolveError(err).Render(), `from: config key "experiments.syntax"`)
 }
 
 func TestFeature_CLI_UnknownFeature(t *testing.T) {
@@ -2581,7 +2581,7 @@ func TestFeature_ConfigFile_InactiveFlagRejection(t *testing.T) {
 	assert.Error(t, err)
 	assertNotUsageError(t, err)
 	assert.Equal(t, `flag '--force-all' requires feature "gentle-force"`, err.Error())
-	assert.Contains(t, fmt.Sprintf("%+v", err), fmt.Sprintf("from: config file %q", configPath))
+	assert.Contains(t, conga.ResolveError(err).Render(), fmt.Sprintf("from: config file %q", configPath))
 }
 
 type featureScopedConfigCLI struct {
@@ -2632,7 +2632,7 @@ func TestFeature_ConfigFile_InactiveScopedFlagRejection(t *testing.T) {
 	assert.Error(t, err)
 	assertNotUsageError(t, err)
 	assert.Equal(t, `flag '--beta' requires feature "syntax"`, err.Error())
-	assert.Contains(t, fmt.Sprintf("%+v", err), fmt.Sprintf("from: config file %q", configPath))
+	assert.Contains(t, conga.ResolveError(err).Render(), fmt.Sprintf("from: config file %q", configPath))
 }
 
 func TestFeature_ConfigFile_InactiveSubcommandSubtreeRejection(t *testing.T) {
@@ -2656,7 +2656,7 @@ func TestFeature_ConfigFile_InactiveSubcommandSubtreeRejection(t *testing.T) {
 	assert.Error(t, err)
 	assertNotUsageError(t, err)
 	assert.Equal(t, `flag '--name' requires feature "packages"`, err.Error())
-	assert.Contains(t, fmt.Sprintf("%+v", err), fmt.Sprintf("from: config file %q", configPath))
+	assert.Contains(t, conga.ResolveError(err).Render(), fmt.Sprintf("from: config file %q", configPath))
 }
 
 func TestFeature_ConfigFile_ScopedFlagBindsWhenActive(t *testing.T) {
@@ -2815,7 +2815,7 @@ func TestFeature_ConfigFile_PrunedSubcommandScopedConfigKeyRejection(t *testing.
 	assert.Error(t, err)
 	assertNotUsageError(t, err)
 	assert.Equal(t, `flag '--beta' requires feature "packages"`, err.Error())
-	assert.Contains(t, fmt.Sprintf("%+v", err), fmt.Sprintf("from: config file %q", configPath))
+	assert.Contains(t, conga.ResolveError(err).Render(), fmt.Sprintf("from: config file %q", configPath))
 }
 
 type featureInvalidEnumTagCLI struct {
@@ -2998,7 +2998,7 @@ func TestFeature_ConfigOtherSpellingRejected(t *testing.T) {
 
 			assertNotUsageError(t, err)
 			assert.Equal(t, fmt.Sprintf(`unknown field %q in section "experiments"`, testCase.key), err.Error())
-			assert.Contains(t, fmt.Sprintf("%+v", err), fmt.Sprintf("from: config file %q", configPath))
+			assert.Contains(t, conga.ResolveError(err).Render(), fmt.Sprintf("from: config file %q", configPath))
 			assert.Equal(t, `did you mean "gentle-force"?`, errlines.Hint(err))
 			assert.False(t, cli.Ran)
 		})
@@ -3026,7 +3026,7 @@ func TestFeature_ConfigOtherSpellingRejectedDeterministically(t *testing.T) {
 
 		assertNotUsageError(t, err)
 		assert.Equal(t, `unknown field "gentleForce" in section "experiments"`, err.Error())
-		assert.Contains(t, fmt.Sprintf("%+v", err), fmt.Sprintf("from: config file %q", cfgPath))
+		assert.Contains(t, conga.ResolveError(err).Render(), fmt.Sprintf("from: config file %q", cfgPath))
 		assert.Equal(t, `did you mean "gentle-force"?`, errlines.Hint(err))
 	}
 }
@@ -3100,7 +3100,7 @@ func TestFeature_ConfigFile_PrunedCommandLocalKeyRejection(t *testing.T) {
 	assert.Error(t, err)
 	assertNotUsageError(t, err)
 	assert.Equal(t, `flag '--wait' requires feature "experimental"`, err.Error())
-	assert.Contains(t, fmt.Sprintf("%+v", err), fmt.Sprintf("from: config file %q", configPath))
+	assert.Contains(t, conga.ResolveError(err).Render(), fmt.Sprintf("from: config file %q", configPath))
 }
 
 func TestFeature_RequiresEnableFeatures(t *testing.T) {
@@ -3132,7 +3132,7 @@ func TestFeature_EnvUnknownNameNamesVariable(t *testing.T) {
 	assertNotUsageError(t, err)
 	assert.Equal(t, `unknown feature "gentle-forse"`, err.Error())
 	assert.Equal(t, `did you mean "gentle-force"?`, errlines.Hint(err))
-	assert.Contains(t, fmt.Sprintf("%+v", err), `from: environment variable CONGA_TEST_TASK_X_FEATURES`)
+	assert.Contains(t, conga.ResolveError(err).Render(), `from: environment variable CONGA_TEST_TASK_X_FEATURES`)
 	assert.False(t, cli.Ran)
 }
 
@@ -3157,7 +3157,7 @@ func TestFeature_ConfigUnknownNameSuggestsConfigKeyCase(t *testing.T) {
 
 	assertNotUsageError(t, err)
 	assert.Equal(t, `unknown feature "gntle_force" in section "experiments"`, err.Error())
-	assert.Contains(t, fmt.Sprintf("%+v", err), fmt.Sprintf("from: config file %q", configPath))
+	assert.Contains(t, conga.ResolveError(err).Render(), fmt.Sprintf("from: config file %q", configPath))
 	assert.Equal(t, `did you mean "gentle_force"?`, errlines.Hint(err))
 	assert.False(t, cli.Ran)
 }
@@ -3294,7 +3294,7 @@ func TestFeature_GateDescribedForConfigKey(t *testing.T) {
 
 			assertNotUsageError(t, err)
 			assert.Equal(t, fmt.Sprintf("%s", testCase.message), err.Error())
-			assert.Contains(t, fmt.Sprintf("%+v", err), fmt.Sprintf("from: config file %q", configPath))
+			assert.Contains(t, conga.ResolveError(err).Render(), fmt.Sprintf("from: config file %q", configPath))
 			assert.False(t, cli.Ran)
 		})
 	}

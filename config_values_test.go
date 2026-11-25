@@ -177,7 +177,7 @@ func TestConfigValues_TOMLLocalDatetimeRejectedForTime(t *testing.T) {
 	assertNotUsageError(t, err)
 	assert.Equal(t, `invalid time "1979-05-27T07:32:00" for flag --when`, err.Error())
 	assert.Equal(t, `expected RFC 3339, e.g. 2006-01-02T15:04:05Z`, errlines.Note(err))
-	assert.Contains(t, fmt.Sprintf("%+v", err), `from: config key "when"`)
+	assert.Contains(t, conga.ResolveError(err).Render(), `from: config key "when"`)
 	assert.Equal(t, conga.SourceNone, cli.When.Source())
 	assert.True(t, cli.When.Get().IsZero())
 }
@@ -197,7 +197,7 @@ func TestConfigValues_TOMLLocalDateRejectedForTime(t *testing.T) {
 	assertNotUsageError(t, err)
 	assert.Equal(t, `invalid time "1979-05-27" for flag --when`, err.Error())
 	assert.Equal(t, `expected RFC 3339, e.g. 2006-01-02T15:04:05Z`, errlines.Note(err))
-	assert.Contains(t, fmt.Sprintf("%+v", err), `from: config key "when"`)
+	assert.Contains(t, conga.ResolveError(err).Render(), `from: config key "when"`)
 	assert.Equal(t, conga.SourceNone, cli.When.Source())
 	assert.True(t, cli.When.Get().IsZero())
 }

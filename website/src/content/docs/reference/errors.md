@@ -3,30 +3,35 @@ title: Errors and exit codes
 description: The Error, UsageError and ExitCoder types, the from, note and hint lines Exit prints, the exit codes 0, 1, 2, and an ExitCoder's own code, and how Exit renders usage.
 ---
 
-CONGA reports a command-line mistake as a `*conga.UsageError` and rejects invalid schemas before execution begins. `app.Run` and `app.RunContext` return every failure inside a `*conga.Error`, which wraps whatever failed. An error returned by a command's own `Run` or lifecycle hook keeps its text and its type behind the wrapper. When a `Finally` hook also fails, the hook's error and the `Finally` errors come back joined. Tell the kinds apart by type with `errors.AsType`. A cause that CONGA did not write itself, such as an error returned by a `TextUnmarshaler`, a standard library error, or an error from the application, stays reachable through `errors.Is` and `errors.As`.
+CONGA reports a command-line mistake as a `*conga.UsageError` and rejects invalid schemas before execution begins. `app.Run` and `app.RunContext` return whatever failed as is, with an untyped `nil` on success. An error returned by a command's own `Run` or lifecycle hook keeps its text, type, and identity, and `Finally` receives the same value. When a `Finally` hook also fails, the hook's error and the `Finally` errors come back joined. Tell the kinds apart by type with `errors.AsType`. A cause that CONGA did not write itself, such as an error returned by a `TextUnmarshaler`, a standard library error, or an error from the application, stays reachable through `errors.Is` and `errors.As`.
 
-## The error Run returns
+## Inspecting errors with ResolveError
 
-`*conga.Error` is the error `app.Run` and `app.RunContext` return. Success is an untyped `nil`. Its fields are unexported:
+`conga.ResolveError(err)` resolves any error (a CONGA error, a hook's error, a developer wrapper around `Run`'s result, or a join) from the outside in into an opt-in value `conga.Error`. Programs that only call `app.Exit(app.Run())` never link `conga.Error` or its marshalers into the binary. Its fields are unexported:
 
 ```go
-func (e *Error) Error() string
-func (e *Error) Unwrap() error
-func (e *Error) Origins() []string
-func (e *Error) Note() string
-func (e *Error) Hint() string
-func (e *Error) MarshalJSON() ([]byte, error)
-func (e *Error) MarshalText() ([]byte, error)
-func (e *Error) Format(state fmt.State, verb rune)
+func ResolveError(err error) Error
+
+func (e Error) Error() string
+func (e Error) Unwrap() error
+func (e Error) Origins() []string
+func (e Error) Note() string
+func (e Error) Hint() string
+func (e Error) Members() []Error
+func (e Error) Render() string
+func (e Error) MarshalJSON() ([]byte, error)
+func (e Error) MarshalText() ([]byte, error)
+func (e Error) AppendText(dst []byte) ([]byte, error)
+func (e Error) Format(state fmt.State, verb rune)
 ```
 
-`Error()` returns the wrapped error's text, which is line 1 of what `app.Exit` prints and nothing more. `Unwrap()` returns the wrapped error, so `errors.Is` and `errors.As` find a hook's own error, a CONGA error, or an error from a join. Compare with those two functions. A comparison with `==` or a type switch on the error a hook returned does not match, because `Run` returns the wrapper. `Finally` receives the raw error of the failed stage, not the wrapper.
+`Error()` returns the underlying error's text, which is line 1 of what `app.Exit` prints and nothing more. `Unwrap()` returns the underlying error. `Origins()`, `Note()` and `Hint()` return the lines `app.Exit` prints below line 1 by the chain rule, agreeing with `app.Exit` even when a developer wraps `Run`'s result with `fmt.Errorf`. A program that reports errors itself reads them through `ResolveError`, as [Custom error handling](#custom-error-handling) shows.
 
-`Origins()`, `Note()` and `Hint()` return the lines `app.Exit` prints below line 1. A program that reports errors itself reads them from the `*conga.Error`, as [Custom error handling](#custom-error-handling) shows.
+`conga.Error` has no `ExitCode()` method. `app.ExitCode` decides from the outermost `conga.ExitCoder` in the chain.
 
-`*conga.Error` has no `ExitCode()` method. `app.ExitCode` decides from the outermost `conga.ExitCoder` in the chain.
+An error that stands for several errors (an `errors.Join` of them) keeps one member per error. `Error()` joins their texts with newlines, `Origins()`, `Note()` and `Hint()` describe the first non-empty member, and `Members()` returns each non-empty member as its own `conga.Error`.
 
-An error that stands for several errors (an `errors.Join` of them) keeps one member per error. `Error()` joins their texts with newlines, as `errors.Join` does, and `Origins()`, `Note()` and `Hint()` describe the first member.
+`ResolveError(nil)` returns the zero `conga.Error`, which is safe for every method (`MarshalJSON` returns `null`, every other method returns empty or nil). Use `ResolveError` to inspect, render, or log errors; do not return a zero `conga.Error` through an `error` return value.
 
 ## The lines below an error
 
@@ -65,7 +70,7 @@ type Noter    interface{ error; Note() string }
 type Hinter   interface{ error; Hint() string }
 ```
 
-An empty result prints no line. Implement only the methods the error has something to say for. CONGA's own errors implement the same methods, so a developer's error gets the same layout.
+An empty result prints no line. Implement only the methods the error has something to say for. Because the interfaces are structural, any error type implementing those method names (including third-party types such as `samber/oops`'s `OopsError.Hint()`) participates. CONGA's own errors implement the same methods, so a developer's error gets the same layout.
 
 `Exit` reads each piece by the chain rule. The outermost error in the chain that returns a non-empty value supplies it, in `errors.As` traversal order. Text added around an error on line 1 does not matter, because the lines come from the chain:
 
@@ -80,9 +85,7 @@ tool: error: limit: unknown byte size unit "XB" in "5XB"
 
 A wrapper's own `Hint()` replaces CONGA's hint, and the note and the hint can come from different errors in one chain. At most one `note:` line and one `hint:` line print.
 
-`errors.As` stops at the first implementer in a chain even when it returns an empty result, so `errors.AsType[conga.Hinter](err)` agrees with `Exit` on the error `Run` returns and may not on an error that has not passed through `Run`, such as the `err` a `Finally` hook receives. Read the pieces through `*conga.Error` to get the chain rule.
-
-An error that is not a `*conga.Error` at the top, such as a wrapper a program builds around `Run`'s result, is wrapped in a fresh one when `Exit` prints it, so the wrapper's own pieces win.
+`errors.As` stops at the first implementer in a chain even when it returns an empty result, so `errors.AsType[conga.Hinter](err)` may stop at a wrapper whose `Hint()` is empty. Pass any error to `conga.ResolveError(err)` to apply the chain rule from the outside in and match `Exit`.
 
 ### Joined errors
 
@@ -103,18 +106,22 @@ The usage block prints once, after every line, and only when the `*conga.UsageEr
 
 `--why` uses the same rules for stdout. On Windows, CONGA turns on the console's escape-code handling when the stream is a console.
 
-### Print with %+v
+### Render plain text or print with %+v
 
-`*conga.Error` and `*conga.UsageError` implement `fmt.Formatter`. `%v` and `%s` print line 1, `%+v` prints line 1 followed by the indented lines as plain text, and `%q` quotes line 1. The `NoError` functions of alecthomas/assert v2 and testify print an unexpected error with `%+v`, so `assert.NoError(t, app.Run())` and `log.Printf("%+v", err)` show the whole error.
+`conga.ResolveError(err).Render()` returns line 1 followed by the indented `from:`, `note:` and `hint:` lines for every non-empty member as plain text, with no `<app>: error:` prefix, no color, and no trailing newline. `conga.Error` also implements `fmt.Formatter`: `%v` and `%s` print line 1, `%+v` prints the same multi-line form as `Render()`, and `%q` quotes line 1.
 
-Wrapping the error returned by `Run` with `fmt.Errorf("main: %w", err)` drops the extra lines under `%+v`, because `fmt.Errorf`'s wrapper does not forward `fmt.Formatter` to the wrapped error. Format the `*conga.Error` directly, or extract it with `errors.AsType[*conga.Error]`, to keep the lines.
+```go
+if err := app.RunContext(t.Context()); err != nil {
+	t.Fatal(conga.ResolveError(err).Render())
+}
+```
 
 ### Log with log/slog
 
-`*conga.Error` implements `json.Marshaler` and `encoding.TextMarshaler`, so `log/slog` records an error `Run` returned as an object in its JSON handler and as a line in its text handler:
+`conga.Error` implements `json.Marshaler`, `encoding.TextMarshaler`, and `encoding.TextAppender`, so passing `conga.ResolveError(err)` to `log/slog` records an object in `slog.NewJSONHandler` and a compact one-line string in `slog.NewTextHandler` from one call site, with no `encoding/json` import:
 
 ```go
-slog.Error("run failed", "err", err)
+slog.Error("run failed", "err", conga.ResolveError(err))
 ```
 
 ```text no-copy
@@ -131,9 +138,9 @@ level=ERROR msg="run failed" err="invalid integer value \"abc\" for flag --port 
 
 Both samples leave out the `time` attribute, which a `ReplaceAttr` function removes.
 
-The object is `{"error": <line 1>, "from": [...], "note": "...", "hint": "..."}`, with every key but `error` left out when empty (`error` is always present). An error with several members adds `"more": [...]`. The text form is `<line 1> (from: <origin>; <origin>; note: ...; hint: ...)`, with several members joined by ` | `.
+The object is `{"error": <line 1>, "from": [...], "note": "...", "hint": "..."}`, with every key but `error` left out when empty (`error` is always present for a non-nil error; `ResolveError(nil)` marshals as `null`). An error with several members adds `"more": [...]`. The text form is `<line 1> (from: <origin>; <origin>; note: ...; hint: ...)`, with several members joined by ` | `.
 
-A `*conga.Error` that the program wraps (`fmt.Errorf("main: %w", err)`) logs as its text, because the logger sees the wrapper's type. A key that holds both `*conga.Error` values and other errors holds objects and strings.
+Because `ResolveError` walks from the outside in, wrapping `Run`'s result with `fmt.Errorf("main: %w", err)` before calling `conga.ResolveError(wrapped)` preserves the outer message and any outer `Hint()` in both handlers.
 
 ### Show a usage block from your own error
 
@@ -187,14 +194,13 @@ func (e *UsageError) Usage() string
 func (e *UsageError) Origins() []string
 func (e *UsageError) Note() string
 func (e *UsageError) Hint() string
-func (e *UsageError) Format(state fmt.State, verb rune)
 ```
 
 - `CommandPath()` returns the invocation path of the command where the failure occurred (for example, `"cloudctl deploy"`), or an empty string when the error has no command.
 - `Usage()` returns the syntax usage summary string for that command.
 - `ExitCode()` always returns 2.
 - `Origins()`, `Note()` and `Hint()` return the lines `app.Exit` prints below line 1, by the chain rule. The failed value's own come first, then those of the error behind the message. For an unknown flag or command, `Hint()` is the suggestion (`did you mean --port?`). A flag group conflict returns the origin of each member that did not come from the command line.
-- `Error()` returns line 1 alone, and `%+v` adds the lines.
+- `Error()` returns line 1 alone.
 - `Unwrap()` returns the error behind the message. For a value that did not convert, it is the error the conversion step returned. That is the error of a `TextUnmarshaler` or registered parser, or CONGA's own parse error, whose type is not part of the API. For a value a `SelfValidator` rejected, it is the validator's error. For `session.UsageErrorf` it is the `%w` operand. It returns nil when CONGA found the problem itself, as for an unknown flag, an `enum`, `range` or `len` violation, or a flag group conflict.
 
 [Which failures are usage errors](#which-failures-are-usage-errors) lists what is not a `*conga.UsageError`.
@@ -238,7 +244,7 @@ Both exit 2 because the value came from the command line. `--why` makes the diff
 
 ## Validate and Bootstrap errors
 
-`Validator.Validate` keeps its error as it returned it, behind the `*conga.Error`, like `PreRun`, `Run`, and `PostRun`:
+`Validator.Validate` returns its error as is, like `PreRun`, `Run`, and `PostRun`:
 
 | `Validate` returns | `Exit` |
 |---|---|
@@ -268,7 +274,7 @@ Feature gating and map folding report errors by the input source that introduced
 | Malformed map flag entry in a config file (even when overridden by CLI) | Ordinary error | 1 |
 | Malformed map flag syntax in an environment variable | Ordinary error | 1 |
 | Invalid format passed to `--why` or `--why=json` requested without `conga.WhyOptionJSON()` | `*conga.UsageError` | 2 |
-| Error returned from `Bootstrapper.Bootstrap` | Text unchanged, behind the `*conga.Error` | 1, or the `ExitCoder`'s code |
+| Error returned from `Bootstrapper.Bootstrap` | Returned as is | 1, or the `ExitCoder`'s code |
 
 ## Schema errors
 
@@ -298,7 +304,7 @@ Programmer errors during schema construction abort at startup before execution b
 
 ## Panics
 
-Developer misuse of the API panics with a fixed message instead of returning an error. Schema errors are not panics; `Run` returns them wrapped in `*conga.Error`.
+Developer misuse of the API panics with a fixed message instead of returning an error. Schema errors are not panics; `Run` returns them as ordinary errors.
 
 | Misuse | Panic message |
 |---|---|
@@ -321,19 +327,19 @@ A panic whose message starts with `conga: invariant violation:` is a bug in CONG
 
 ## Custom error handling
 
-Custom error handling reports the error returned by `app.Run()` or `app.RunContext(ctx)` itself instead of delegating to `app.Exit(err)`. `errors.AsType[*conga.Error](err)` gives the wrapper whose `Origins()`, `Note()` and `Hint()` read the pieces by the chain rule, and `%+v` prints the plain multi-line form. `app.ExitCode(err)` returns the code `app.Exit` would exit with, and `errors.AsType[conga.ExitCoder](err)` checks whether the outermost `ExitCoder` is a `*conga.UsageError` to print `CommandPath()` and `Usage()`:
+Custom error handling reports the error returned by `app.Run()` or `app.RunContext(ctx)` itself instead of delegating to `app.Exit(err)`. `conga.ResolveError(err)` returns a `conga.Error` whose `Members()`, `Origins()`, `Note()`, `Hint()`, and `Render()` read and format the pieces by the chain rule. `app.ExitCode(err)` returns the code `app.Exit` would exit with, and `errors.AsType[conga.ExitCoder](err)` checks whether the outermost `ExitCoder` is a `*conga.UsageError` to print `CommandPath()` and `Usage()`:
 
 ```go
 if err := app.RunContext(ctx); err != nil {
-	if congaErr, ok := errors.AsType[*conga.Error](err); ok {
-		fmt.Fprintf(os.Stderr, "Error: %s\n", congaErr)
-		for _, origin := range congaErr.Origins() {
+	for _, item := range conga.ResolveError(err).Members() {
+		fmt.Fprintf(os.Stderr, "Error: %s\n", item.Error())
+		for _, origin := range item.Origins() {
 			fmt.Fprintf(os.Stderr, "  from: %s\n", origin)
 		}
-		if note := congaErr.Note(); note != "" {
+		if note := item.Note(); note != "" {
 			fmt.Fprintf(os.Stderr, "  note: %s\n", note)
 		}
-		if hint := congaErr.Hint(); hint != "" {
+		if hint := item.Hint(); hint != "" {
 			fmt.Fprintf(os.Stderr, "  hint: %s\n", hint)
 		}
 	}

@@ -407,7 +407,7 @@ func unknownFeatureError(cmd *spec.Command, name string, source ValueSource, env
 			suggestion = cmd.ConfigSettings.KeyCase.Apply(suggestion)
 		}
 
-		hint = fmt.Sprintf("did you mean %q?", suggestion)
+		hint = levenshtein.QuotedHint(suggestion)
 	}
 
 	message := fmt.Sprintf("unknown feature %q", name)

@@ -114,7 +114,7 @@ func FloatBoundParser(bitSize int) func(string) (float64, error) {
 // checks their order. boundKind names the value kind in parse-error messages
 // ("duration", "integer", "unsigned integer", "float", "byte size", "value").
 func ValidateScalarRange[T cmp.Ordered](rangeSpec *Range, boundKind string, parse func(string) (T, error)) error {
-	return validateRange(rangeSpec, boundKind, parse, scalarBoundError)
+	return validateRange(rangeSpec, boundKind, parse, boundError)
 }
 
 // ParseCountBound parses a len or items bound: a non-negative integer in the
@@ -450,14 +450,6 @@ func boundError(boundKind, side, raw string, err error) *SchemaError {
 		withNote(note).
 		withHint(errlines.Hint(err)).
 		withCause(err)
-}
-
-// scalarBoundError reports a range bound its parser rejected, with the note
-// and hint the parser's error carries (a leading zero's, say).
-func scalarBoundError(boundKind, side, raw string, err error) *SchemaError {
-	return schemaErrorf("invalid %s %s bound %q", boundKind, side, raw).
-		withNote(errlines.Note(err)).
-		withHint(errlines.Hint(err))
 }
 
 // countBoundError reports an invalid len or items bound. A leading zero gets

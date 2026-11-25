@@ -2561,7 +2561,7 @@ func TestFeatureTag_NegativeUnsignedEnum(t *testing.T) {
 	_, err := buildSchema(&cli, "app", spec.Options{})
 
 	assert.True(t, spec.IsSchemaError(err))
-	assert.Equal(t, `struct featureNegativeEnumSet field Level: feature enum value "-1"`, err.Error())
+	assert.Equal(t, `struct featureNegativeEnumSet field Level: invalid feature enum value "-1"`, err.Error())
 	assert.Equal(t, `must be a non-negative integer`, errlines.Note(err))
 	assert.Equal(t, "", errlines.Hint(err))
 }
@@ -2587,7 +2587,7 @@ func TestFeatureTag_OutOfWidthEnum(t *testing.T) {
 	_, err := buildSchema(&cli, "app", spec.Options{})
 
 	assert.True(t, spec.IsSchemaError(err))
-	assert.Equal(t, `struct featureWidthSet field Level: feature enum value "300"`, err.Error())
+	assert.Equal(t, `struct featureWidthSet field Level: invalid feature enum value "300"`, err.Error())
 	assert.Equal(t, `is out of range for the feature's integer type`, errlines.Note(err))
 	assert.Equal(t, "", errlines.Hint(err))
 }
@@ -2600,7 +2600,7 @@ func TestFeatureTag_NegativeUnsignedDefault(t *testing.T) {
 	_, err := buildSchema(&cli, "app", spec.Options{})
 
 	assert.True(t, spec.IsSchemaError(err))
-	assert.Equal(t, `struct featureNegativeDefaultSet field Level: feature "level" default "-1"`, err.Error())
+	assert.Equal(t, `struct featureNegativeDefaultSet field Level: invalid default "-1" for feature "level"`, err.Error())
 	assert.Equal(t, `must be a non-negative integer`, errlines.Note(err))
 	assert.Equal(t, "", errlines.Hint(err))
 }
@@ -2613,7 +2613,7 @@ func TestFeatureTag_OutOfWidthDefault(t *testing.T) {
 	_, err := buildSchema(&cli, "app", spec.Options{})
 
 	assert.True(t, spec.IsSchemaError(err))
-	assert.Equal(t, `struct featureWidthDefaultSet field Level: feature "level" default "300"`, err.Error())
+	assert.Equal(t, `struct featureWidthDefaultSet field Level: invalid default "300" for feature "level"`, err.Error())
 	assert.Equal(t, `is out of range for the feature's integer type`, errlines.Note(err))
 	assert.Equal(t, "", errlines.Hint(err))
 }

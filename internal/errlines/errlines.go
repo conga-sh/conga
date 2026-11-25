@@ -39,7 +39,12 @@ type Line struct {
 }
 
 // Origins returns the outermost non-empty Origins() in err's chain, or nil.
+// An error whose Error() is empty has no origins.
 func Origins(err error) []string {
+	if err == nil || err.Error() == "" {
+		return nil
+	}
+
 	var found []string
 
 	walk(err, func(node error) bool {
@@ -58,7 +63,12 @@ func Origins(err error) []string {
 }
 
 // Note returns the outermost non-empty Note() in err's chain, or "".
+// An error whose Error() is empty has no note.
 func Note(err error) string {
+	if err == nil || err.Error() == "" {
+		return ""
+	}
+
 	var found string
 
 	walk(err, func(node error) bool {
@@ -77,7 +87,12 @@ func Note(err error) string {
 }
 
 // Hint returns the outermost non-empty Hint() in err's chain, or "".
+// An error whose Error() is empty has no hint.
 func Hint(err error) string {
+	if err == nil || err.Error() == "" {
+		return ""
+	}
+
 	var found string
 
 	walk(err, func(node error) bool {

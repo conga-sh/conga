@@ -350,7 +350,7 @@ func TestCoercionErrorCounterRender(t *testing.T) {
 
 	assertNotUsageError(t, err)
 	assert.Equal(t, `invalid unsigned integer value "abc" for flag --count`, err.Error())
-	assert.Contains(t, fmt.Sprintf("%+v", err), `from: config key "count"`)
+	assert.Contains(t, conga.ResolveError(err).Render(), `from: config key "count"`)
 }
 
 func TestSchemaErrorUnsupportedType(t *testing.T) {
@@ -1086,7 +1086,7 @@ func TestConfigKeyPath_AncestorFlagOnSubcommand(t *testing.T) {
 
 		assertNotUsageError(t, err)
 		assert.Equal(t, `invalid integer value "abc" for flag --port`, err.Error())
-		assert.Contains(t, fmt.Sprintf("%+v", err), `from: config key "port"`)
+		assert.Contains(t, conga.ResolveError(err).Render(), `from: config key "port"`)
 	})
 
 	t.Run("self validation", func(t *testing.T) {
@@ -1096,7 +1096,7 @@ func TestConfigKeyPath_AncestorFlagOnSubcommand(t *testing.T) {
 
 		assertNotUsageError(t, err)
 		assert.Equal(t, fmt.Sprintf("stat %s: no such file or directory for flag --in", missing), err.Error())
-		assert.Contains(t, fmt.Sprintf("%+v", err), `from: config key "in" in config file "`)
+		assert.Contains(t, conga.ResolveError(err).Render(), `from: config key "in" in config file "`)
 	})
 
 	t.Run("map entry", func(t *testing.T) {
@@ -1106,7 +1106,7 @@ func TestConfigKeyPath_AncestorFlagOnSubcommand(t *testing.T) {
 
 		assertNotUsageError(t, err)
 		assert.Equal(t, `value for key "a": invalid integer value "abc" for flag --counts`, err.Error())
-		assert.Contains(t, fmt.Sprintf("%+v", err), `from: config key "counts"`)
+		assert.Contains(t, conga.ResolveError(err).Render(), `from: config key "counts"`)
 	})
 }
 
@@ -1134,7 +1134,7 @@ func TestErrorClassificationDefaultCoercion(t *testing.T) {
 
 		assert.Error(t, result.err)
 		assert.Equal(t, `invalid integer value "abc" for flag --port`, result.err.Error())
-		assert.Contains(t, fmt.Sprintf("%+v", result.err), `from: default value`)
+		assert.Contains(t, conga.ResolveError(result.err).Render(), `from: default value`)
 		assertNotUsageError(t, result.err)
 		assert.Equal(t, 1, result.exitCode)
 	})
@@ -1152,7 +1152,7 @@ func TestErrorClassificationDefaultCoercion(t *testing.T) {
 
 		assert.Error(t, result.err)
 		assert.Equal(t, `invalid integer value "abc" for argument [count]`, result.err.Error())
-		assert.Contains(t, fmt.Sprintf("%+v", result.err), `from: default value`)
+		assert.Contains(t, conga.ResolveError(result.err).Render(), `from: default value`)
 		assertNotUsageError(t, result.err)
 		assert.Equal(t, 1, result.exitCode)
 	})
@@ -1174,7 +1174,7 @@ func TestErrorClassificationDefaultCoercion(t *testing.T) {
 
 		assert.Error(t, result.err)
 		assert.Equal(t, `stat /nonexistent-conga-test/missing.txt: no such file or directory for argument [in]`, result.err.Error())
-		assert.Contains(t, fmt.Sprintf("%+v", result.err), `from: default value`)
+		assert.Contains(t, conga.ResolveError(result.err).Render(), `from: default value`)
 		assertNotUsageError(t, result.err)
 		assert.Equal(t, 1, result.exitCode)
 	})
@@ -1216,7 +1216,7 @@ func TestErrorClassificationCauseReachable(t *testing.T) {
 
 		assert.Error(t, result.err)
 		assert.Equal(t, `custom config unmarshal failure for flag --custom`, result.err.Error())
-		assert.Contains(t, fmt.Sprintf("%+v", result.err), `from: config key "custom"`)
+		assert.Contains(t, conga.ResolveError(result.err).Render(), `from: config key "custom"`)
 		assertNotUsageError(t, result.err)
 
 		var unmarshalErr *classificationUnmarshalError
@@ -1249,7 +1249,7 @@ func TestErrorClassificationCauseReachable(t *testing.T) {
 
 		assertUsageError(t, result.err)
 		assert.Equal(t, `invalid integer value "abc" for flag --port`, result.err.Error())
-		assert.Equal(t, `invalid integer value "abc"`, errors.Unwrap(errors.Unwrap(result.err)).Error())
+		assert.Equal(t, `invalid integer value "abc"`, errors.Unwrap(result.err).Error())
 
 		assert.IsError(t, result.err, strconv.ErrSyntax)
 	})
@@ -1428,7 +1428,7 @@ func TestHookErrorsPassThrough(t *testing.T) {
 	t.Parallel()
 
 	for _, stage := range []string{"PreRun", "Run", "PostRun"} {
-		t.Run(stage+" error keeps its text behind the Error", func(t *testing.T) {
+		t.Run(stage+" error passes through unchanged", func(t *testing.T) {
 			t.Parallel()
 
 			hookErr := &hookPassThroughError{message: stage + " failed"}
@@ -1437,6 +1437,7 @@ func TestHookErrorsPassThrough(t *testing.T) {
 				Args([]string{}).
 				RunContext(context.WithValue(t.Context(), hookFailureContextKey{}, hookFailure{stage: stage, err: hookErr}))
 
+			assert.True(t, err == hookErr) //nolint:errorlint // identity, not errors.Is, is the property under test
 			assert.IsError(t, err, hookErr)
 			assert.Equal(t, stage+" failed", err.Error())
 			assertNotUsageError(t, err)

@@ -548,10 +548,9 @@ func argRun[T any](args ...string) func(t *testing.T, config string) classificat
 	}
 }
 
-// causeTypeOf names the type of the error behind the error Run returned and
-// the error it wraps, or "" when it has none.
+// causeTypeOf names the type of the error behind err, or "" when it has none.
 func causeTypeOf(err error) string {
-	cause := errors.Unwrap(errors.Unwrap(err))
+	cause := errors.Unwrap(err)
 	if cause == nil {
 		return ""
 	}

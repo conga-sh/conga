@@ -315,6 +315,8 @@ func TestValidateRangeSpec_TextDialects(t *testing.T) {
 		assert.Error(t, err)
 		assert.True(t, IsSchemaError(err))
 		assert.Equal(t, `invalid integer min bound "banana"`, err.Error())
+		assert.NotEqual(t, "", errlines.Note(err))
+		assert.True(t, errors.Unwrap(err) != nil)
 	})
 
 	t.Run("byte-size-named struct without text grammar rejected", func(t *testing.T) {
@@ -937,7 +939,7 @@ func TestSchemaError_FormattingAndUnwrap(t *testing.T) {
 		assert.True(t, IsSchemaError(badDefault))
 		_, hasIntegerCause := errors.AsType[*intx.Error](badDefault)
 		assert.True(t, hasIntegerCause)
-		assert.Equal(t, `feature "depth" default "02"`, badDefault.Error())
+		assert.Equal(t, `invalid default "02" for feature "depth"`, badDefault.Error())
 		assert.Equal(t, `a leading zero is ambiguous`, errlines.Note(badDefault))
 		assert.Equal(t, `write 0o2 for octal or 2 for decimal`, errlines.Hint(badDefault))
 
@@ -945,7 +947,7 @@ func TestSchemaError_FormattingAndUnwrap(t *testing.T) {
 		assert.True(t, IsSchemaError(badEnum))
 		_, hasEnumCause := errors.AsType[*intx.Error](badEnum)
 		assert.True(t, hasEnumCause)
-		assert.Equal(t, `feature enum value "abc"`, badEnum.Error())
+		assert.Equal(t, `invalid feature enum value "abc"`, badEnum.Error())
 	})
 }
 
