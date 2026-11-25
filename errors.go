@@ -195,7 +195,11 @@ func (d Diagnostic) Hint() string {
 // slice. For the zero [Diagnostic] or an error whose message is empty it
 // returns nil.
 func (d Diagnostic) Members() []Diagnostic {
-	var members []Diagnostic
+	if len(d.members) == 0 {
+		return nil
+	}
+
+	members := make([]Diagnostic, 0, len(d.members))
 
 	for _, member := range d.members {
 		members = append(members, Diagnostic{err: member, members: []error{member}})
@@ -237,7 +241,7 @@ func (d Diagnostic) MarshalText() ([]byte, error) {
 // formats [Diagnostic.Message] with the requested verb.
 func (d Diagnostic) Format(state fmt.State, verb rune) {
 	if verb == 'v' && state.Flag('+') {
-		io.WriteString(state, d.Render()) //nolint:errcheck // a failed write to the formatter's state has nowhere to go
+		io.WriteString(state, d.Render()) //nolint:errcheck,gosec // a failed write to the formatter's state has nowhere to go
 
 		return
 	}

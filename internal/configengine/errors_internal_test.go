@@ -9,15 +9,15 @@ import (
 	"github.com/conga-sh/conga/internal/errlines"
 )
 
-// pieceCause is a decoder error that supplies origins and a hint.
-type pieceCause struct {
+// pieceCauseError is a decoder error that supplies origins and a hint.
+type pieceCauseError struct {
 	origins []string
 	hint    string
 }
 
-func (e *pieceCause) Error() string     { return "decode failed" }
-func (e *pieceCause) Origins() []string { return e.origins }
-func (e *pieceCause) Hint() string      { return e.hint }
+func (e *pieceCauseError) Error() string     { return "decode failed" }
+func (e *pieceCauseError) Origins() []string { return e.origins }
+func (e *pieceCauseError) Hint() string      { return e.hint }
 
 // originsHinter mirrors conga.Originer and conga.Hinter, which this package
 // cannot import.
@@ -30,7 +30,7 @@ type originsHinter interface {
 func TestConfigError_PiecesReachTheCause(t *testing.T) {
 	t.Parallel()
 
-	cause := &pieceCause{origins: []string{"config.hcl"}, hint: "use an unlabeled block"}
+	cause := &pieceCauseError{origins: []string{"config.hcl"}, hint: "use an unlabeled block"}
 
 	tests := []struct {
 		name        string

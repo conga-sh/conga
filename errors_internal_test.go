@@ -479,13 +479,13 @@ func TestDecoderRequiredError(t *testing.T) {
 	assert.Equal(t, err, commandLineError(nil, err))
 }
 
-// pieceCause is a check's error that supplies every piece.
-type pieceCause struct{}
+// pieceCauseError is a check's error that supplies every piece.
+type pieceCauseError struct{}
 
-func (pieceCause) Error() string     { return "check failed" }
-func (pieceCause) Origins() []string { return []string{"the manifest"} }
-func (pieceCause) Note() string      { return "cause note" }
-func (pieceCause) Hint() string      { return "cause hint" }
+func (pieceCauseError) Error() string     { return "check failed" }
+func (pieceCauseError) Origins() []string { return []string{"the manifest"} }
+func (pieceCauseError) Note() string      { return "cause note" }
+func (pieceCauseError) Hint() string      { return "cause hint" }
 
 func TestInputError_PiecesReachTheCause(t *testing.T) {
 	t.Parallel()
@@ -499,28 +499,28 @@ func TestInputError_PiecesReachTheCause(t *testing.T) {
 	}{
 		{
 			name:        "own values win",
-			err:         &inputError{msg: "bad", origin: fromDefault, note: "own note", hint: "own hint", cause: pieceCause{}},
+			err:         &inputError{msg: "bad", origin: fromDefault, note: "own note", hint: "own hint", cause: pieceCauseError{}},
 			wantOrigins: []string{"default value"},
 			wantNote:    "own note",
 			wantHint:    "own hint",
 		},
 		{
 			name:        "group origins win",
-			err:         &inputError{msg: "bad", origins: []string{"a", "b"}, cause: pieceCause{}},
+			err:         &inputError{msg: "bad", origins: []string{"a", "b"}, cause: pieceCauseError{}},
 			wantOrigins: []string{"a", "b"},
 			wantNote:    "cause note",
 			wantHint:    "cause hint",
 		},
 		{
 			name:        "own empty, the cause supplies them",
-			err:         &inputError{msg: "bad", origin: fromCommandLine, cause: pieceCause{}},
+			err:         &inputError{msg: "bad", origin: fromCommandLine, cause: pieceCauseError{}},
 			wantOrigins: []string{"the manifest"},
 			wantNote:    "cause note",
 			wantHint:    "cause hint",
 		},
 		{
 			name:        "own note only, the cause supplies the hint",
-			err:         &inputError{msg: "bad", origin: fromDefault, note: "own note", cause: pieceCause{}},
+			err:         &inputError{msg: "bad", origin: fromDefault, note: "own note", cause: pieceCauseError{}},
 			wantOrigins: []string{"default value"},
 			wantNote:    "own note",
 			wantHint:    "cause hint",
@@ -565,7 +565,7 @@ func TestInputError_PiecesReachTheCause(t *testing.T) {
 func TestUsageError_EmptyMessageKeepsTheCausesPieces(t *testing.T) {
 	t.Parallel()
 
-	err := &UsageError{cause: pieceCause{}}
+	err := &UsageError{cause: pieceCauseError{}}
 
 	assert.Equal(t, []string{"the manifest"}, err.Origins())
 	assert.Equal(t, "cause note", err.Note())

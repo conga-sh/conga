@@ -87,6 +87,7 @@ func exitOnATerminal(t *testing.T, environment map[string]string) string {
 	return received.String()
 }
 
+//nolint:paralleltest // subtests mutate the process environment with t.Setenv
 func TestErrorOutput_ColorOnATerminal(t *testing.T) {
 	const (
 		colored = "app: \x1b[1;31merror:\x1b[0m failed\r\n  \x1b[1;36mhint:\x1b[0m act\r\n"

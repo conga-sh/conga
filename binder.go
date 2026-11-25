@@ -3373,7 +3373,7 @@ func foldMapTiers(binding flagBinding, featureEnv *mapTierInput, result *mapMerg
 
 	if result.highestTier == SourceConfig {
 		result.highestOrigins = orderedConfigOrigins(state, configEntries)
-		result.highestConfig, _ = singleConfigOriginValue(configEntries)
+		result.highestConfig = singleConfigOriginValue(configEntries)
 	}
 
 	return nil
@@ -3451,10 +3451,11 @@ func orderedConfigOrigins(state *bindingState, entries map[string]configdata.Val
 }
 
 // singleConfigOriginValue returns the shared configdata.Value when every entry
-// in entries shares one non-empty SourceDetail() and Document flag.
-func singleConfigOriginValue(entries map[string]configdata.Value) (configdata.Value, bool) {
+// in entries shares one non-empty SourceDetail() and Document flag, and the
+// zero Value otherwise.
+func singleConfigOriginValue(entries map[string]configdata.Value) configdata.Value {
 	if len(entries) == 0 {
-		return configdata.Value{}, false
+		return configdata.Value{}
 	}
 
 	var shared configdata.Value
@@ -3462,7 +3463,7 @@ func singleConfigOriginValue(entries map[string]configdata.Value) (configdata.Va
 	for _, entry := range entries {
 		detail := entry.SourceDetail()
 		if detail == "" {
-			return configdata.Value{}, false
+			return configdata.Value{}
 		}
 
 		if shared.SourceDetail() == "" {
@@ -3472,11 +3473,11 @@ func singleConfigOriginValue(entries map[string]configdata.Value) (configdata.Va
 		}
 
 		if detail != shared.SourceDetail() || entry.Document != shared.Document {
-			return configdata.Value{}, false
+			return configdata.Value{}
 		}
 	}
 
-	return shared, true
+	return shared
 }
 
 // mergeTypedMapTiers merges a map flag whose keys or values need parsing:
@@ -3508,7 +3509,7 @@ func mergeTypedMapTiers(binding flagBinding, tiers []mapTierInput, configEntries
 
 	if result.highestTier == SourceConfig {
 		result.highestOrigins = orderedConfigOrigins(state, configEntries)
-		result.highestConfig, _ = singleConfigOriginValue(configEntries)
+		result.highestConfig = singleConfigOriginValue(configEntries)
 	}
 
 	result.merged = fold.merged.Interface()

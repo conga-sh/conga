@@ -75,6 +75,7 @@ func tokenFile(t *testing.T) string {
 	return path
 }
 
+//nolint:paralleltest // subtests mutate the process environment with t.Setenv
 func TestErrorOrigins_ConfigFileMatrix(t *testing.T) {
 	t.Run("--config-file", func(t *testing.T) {
 		path := writeConfigFile(t, `{"port": "abc"}`)
@@ -153,6 +154,8 @@ func TestErrorOrigins_ConfigFileMatrix(t *testing.T) {
 }
 
 func TestErrorOrigins_MapEntryFromConfigFile(t *testing.T) {
+	t.Parallel()
+
 	path := writeConfigFile(t, `{"limits": {"a": "x"}}`)
 
 	err := originApp(path).Args([]string{"--retries", "1", "--token", "x", "5"}).RunContext(t.Context())
@@ -162,7 +165,11 @@ func TestErrorOrigins_MapEntryFromConfigFile(t *testing.T) {
 }
 
 func TestErrorOrigins_Defaults(t *testing.T) {
+	t.Parallel()
+
 	t.Run("a static default that does not parse", func(t *testing.T) {
+		t.Parallel()
+
 		err := originApp("").Args([]string{"--token", "x", "5"}).RunContext(t.Context())
 
 		assert.Equal(t, `invalid integer value "abc" for flag --retries`, err.Error())
@@ -170,6 +177,8 @@ func TestErrorOrigins_Defaults(t *testing.T) {
 	})
 
 	t.Run("an environment-dependent default", func(t *testing.T) {
+		t.Parallel()
+
 		err := originApp("").Args([]string{"--retries", "1", "5"}).RunContext(t.Context())
 
 		assert.Equal(t, "stat /nonexistent/token: no such file or directory for flag --token", err.Error())
@@ -177,6 +186,8 @@ func TestErrorOrigins_Defaults(t *testing.T) {
 	})
 
 	t.Run("a positional argument default", func(t *testing.T) {
+		t.Parallel()
+
 		err := originApp("").Args([]string{"--retries", "1", "--token", tokenFile(t)}).RunContext(t.Context())
 
 		assert.Equal(t, "invalid integer value \"abc\" for argument [count]", err.Error())
@@ -185,6 +196,8 @@ func TestErrorOrigins_Defaults(t *testing.T) {
 }
 
 func TestErrorOrigins_Documents(t *testing.T) {
+	t.Parallel()
+
 	cases := []struct {
 		name    string
 		build   func(document *conga.ConfigDocument)
@@ -209,6 +222,8 @@ func TestErrorOrigins_Documents(t *testing.T) {
 
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
 			cli := &documentBasicCLI{doc: documentWith(testCase.build)}
 
 			err := bootstrapApp(cli).Name("app").Args([]string{}).RunContext(t.Context())
@@ -219,6 +234,8 @@ func TestErrorOrigins_Documents(t *testing.T) {
 	}
 
 	t.Run("a document with an unknown key names the label alone", func(t *testing.T) {
+		t.Parallel()
+
 		cli := &documentBasicCLI{doc: documentWith(func(document *conga.ConfigDocument) { document.Set("prot", "1", "profile dev") })}
 
 		err := bootstrapApp(cli).Name("app").Args([]string{}).RunContext(t.Context())
@@ -229,6 +246,8 @@ func TestErrorOrigins_Documents(t *testing.T) {
 	})
 
 	t.Run("a scoped document with an unknown key names the label and scope", func(t *testing.T) {
+		t.Parallel()
+
 		cli := &documentBasicCLI{doc: documentWith(func(document *conga.ConfigDocument) {
 			document.SetScoped("prot", "1", "profiles.yaml", "dev")
 		})}
@@ -239,6 +258,8 @@ func TestErrorOrigins_Documents(t *testing.T) {
 	})
 
 	t.Run("a document with an empty origin and an unknown key has no origin line", func(t *testing.T) {
+		t.Parallel()
+
 		cli := &documentBasicCLI{doc: documentWith(func(document *conga.ConfigDocument) { document.Set("prot", "1", "") })}
 
 		err := bootstrapApp(cli).Name("app").Args([]string{}).RunContext(t.Context())
@@ -247,6 +268,7 @@ func TestErrorOrigins_Documents(t *testing.T) {
 	})
 }
 
+//nolint:paralleltest // subtests mutate the process environment with t.Setenv
 func TestErrorOrigins_WholeFileErrors(t *testing.T) {
 	t.Run("an unknown field names the config file", func(t *testing.T) {
 		path := writeConfigFile(t, `{"prot": 1}`)
@@ -301,6 +323,7 @@ func TestErrorOrigins_WholeFileErrors(t *testing.T) {
 	})
 }
 
+//nolint:paralleltest // subtests mutate the process environment with t.Setenv
 func TestErrorOrigins_Features(t *testing.T) {
 	t.Run("an invalid feature value from the config file names the file", func(t *testing.T) {
 		path := writeConfigFile(t, `{"experiments": {"level": "9"}}`)
@@ -322,9 +345,9 @@ func TestErrorOrigins_Features(t *testing.T) {
 	})
 
 	t.Run("an unknown feature suggestion is quoted", func(t *testing.T) {
-		err := conga.New[originFeatureCLI]().EnableFeatures().Args([]string{"--feature-gates", "levle=1"}).RunContext(t.Context())
+		err := conga.New[originFeatureCLI]().EnableFeatures().Args([]string{"--feature-gates", "levle=1"}).RunContext(t.Context()) //nolint:misspell // intentionally misspelled feature name
 
-		assert.Equal(t, `unknown feature "levle"`, err.Error())
+		assert.Equal(t, `unknown feature "levle"`, err.Error()) //nolint:misspell // intentionally misspelled feature name
 		assert.Equal(t, `did you mean "level"?`, errlines.Hint(err))
 	})
 
@@ -343,16 +366,17 @@ func TestErrorOrigins_Features(t *testing.T) {
 	t.Run("an unknown feature from a .env file names the file", func(t *testing.T) {
 		envPath := filepath.Join(t.TempDir(), ".env.local")
 
-		assert.NoError(t, os.WriteFile(envPath, []byte("TOOL_FEATURES=levle=1\n"), 0o600))
+		assert.NoError(t, os.WriteFile(envPath, []byte("TOOL_FEATURES=levle=1\n"), 0o600)) //nolint:misspell // intentionally misspelled feature name
 
 		err := conga.New[originFeatureCLI]().EnableFeatures().Dotenv(envPath).SetenvFunc(t.Setenv).
 			Args([]string{}).RunContext(t.Context())
 
-		assert.Equal(t, `unknown feature "levle"`, err.Error())
+		assert.Equal(t, `unknown feature "levle"`, err.Error()) //nolint:misspell // intentionally misspelled feature name
 		assert.Equal(t, []string{`environment variable TOOL_FEATURES in .env file "` + envPath + `"`}, errlines.Origins(err))
 	})
 }
 
+//nolint:paralleltest // subtests mutate the process environment with t.Setenv
 func TestErrorOrigins_Dotenv(t *testing.T) {
 	t.Run("a bad value from App.Dotenv names the file", func(t *testing.T) {
 		envPath := filepath.Join(t.TempDir(), ".env.local")
@@ -437,6 +461,7 @@ func TestErrorOrigins_Dotenv(t *testing.T) {
 	})
 }
 
+//nolint:paralleltest // subtests mutate the process environment with t.Setenv
 func TestErrorOrigins_PostBindConstraints(t *testing.T) {
 	type rangeCLI struct {
 		noopRunner
@@ -465,6 +490,7 @@ func TestErrorOrigins_PostBindConstraints(t *testing.T) {
 	})
 }
 
+//nolint:paralleltest // subtests mutate the process environment with t.Setenv
 func TestErrorOrigins_SelfValidator(t *testing.T) {
 	type existingCLI struct {
 		noopRunner
@@ -495,6 +521,8 @@ func TestErrorOrigins_SelfValidator(t *testing.T) {
 }
 
 func TestErrorOrigins_PositionalArgumentCommandLineNamesNoOrigin(t *testing.T) {
+	t.Parallel()
+
 	err := originApp("").Args([]string{"--retries", "1", "--token", tokenFile(t), "abc"}).RunContext(t.Context())
 
 	assert.Equal(t, `invalid integer value "abc" for argument [count]`, err.Error())
@@ -502,6 +530,8 @@ func TestErrorOrigins_PositionalArgumentCommandLineNamesNoOrigin(t *testing.T) {
 }
 
 func TestErrorOutput_CompletionBadShellKeepsTheNote(t *testing.T) {
+	t.Parallel()
+
 	err := conga.New[outputSubcommandCLI]().EnableCompletion().Args([]string{"completion", "bogus"}).RunContext(t.Context())
 
 	usage := assertUsageError(t, err)
@@ -518,6 +548,8 @@ func (m wholeMapSelfValidator) Validate(_ context.Context) error {
 }
 
 func TestErrorOrigins_MapFlagConfigAndDocument(t *testing.T) {
+	t.Parallel()
+
 	type mapGroupCLI struct {
 		noopRunner
 
@@ -534,6 +566,8 @@ func TestErrorOrigins_MapFlagConfigAndDocument(t *testing.T) {
 	}
 
 	t.Run("xor group conflict with a map flag from a config file names the file", func(t *testing.T) {
+		t.Parallel()
+
 		path := writeConfigFile(t, `{"labels": {"env": 1}}`)
 
 		err := conga.New[mapGroupCLI]().RegisterDecoder(".json", json.Decode).
@@ -545,6 +579,8 @@ func TestErrorOrigins_MapFlagConfigAndDocument(t *testing.T) {
 	})
 
 	t.Run("xor group conflict with a map flag from a scoped ConfigDocument names the document", func(t *testing.T) {
+		t.Parallel()
+
 		var document conga.ConfigDocument
 		document.SetScoped("labels", map[string]any{"env": 1}, "profiles.yaml", "dev")
 
@@ -557,6 +593,8 @@ func TestErrorOrigins_MapFlagConfigAndDocument(t *testing.T) {
 	})
 
 	t.Run("xor group conflict with a map flag merged across cascading config files drops the file name", func(t *testing.T) {
+		t.Parallel()
+
 		first := writeConfigFile(t, `{"labels": {"a": 1}}`)
 		second := writeConfigFile(t, `{"labels": {"b": 2}}`)
 
@@ -577,6 +615,8 @@ func TestErrorOrigins_MapFlagConfigAndDocument(t *testing.T) {
 	})
 
 	t.Run("whole-map SelfValidator from a single config file names the file", func(t *testing.T) {
+		t.Parallel()
+
 		type wholeMapCLI struct {
 			noopRunner
 
@@ -593,6 +633,8 @@ func TestErrorOrigins_MapFlagConfigAndDocument(t *testing.T) {
 	})
 
 	t.Run("map[string]conga.File from a ConfigDocument names the document", func(t *testing.T) {
+		t.Parallel()
+
 		type fileMapCLI struct {
 			noopRunner
 			documentBootstrapper

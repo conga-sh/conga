@@ -27,13 +27,6 @@ func newFieldConfigError(origin, msg string) *configError {
 	return &configError{msg: msg, origin: origin}
 }
 
-// withHint sets the action that fixes the error.
-func (e *configError) withHint(hint string) *configError {
-	e.hint = hint
-
-	return e
-}
-
 func (e *configError) Error() string {
 	if e.msg != "" {
 		return e.msg
@@ -80,4 +73,11 @@ func (e *configError) Hint() string {
 
 func (e *configError) Unwrap() error {
 	return e.cause
+}
+
+// withHint sets the action that fixes the error.
+func (e *configError) withHint(hint string) *configError {
+	e.hint = hint
+
+	return e
 }

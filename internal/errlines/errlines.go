@@ -349,7 +349,7 @@ func walk(err error, visit func(error) bool) bool {
 			return true
 		}
 
-		switch wrapper := err.(type) {
+		switch wrapper := err.(type) { //nolint:errorlint // walk steps one Unwrap level at a time
 		case interface{ Unwrap() error }:
 			err = wrapper.Unwrap()
 		case interface{ Unwrap() []error }:

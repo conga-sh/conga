@@ -90,11 +90,11 @@ func (e *devError) Note() string      { return e.note }
 func (e *devError) Hint() string      { return e.hint }
 func (e *devError) Unwrap() error     { return e.cause }
 
-// devHintOnly is a developer error with a hint and no other piece.
-type devHintOnly struct{ hint string }
+// devHintOnlyError is a developer error with a hint and no other piece.
+type devHintOnlyError struct{ hint string }
 
-func (e *devHintOnly) Error() string { return "dev failure" }
-func (e *devHintOnly) Hint() string  { return e.hint }
+func (e *devHintOnlyError) Error() string { return "dev failure" }
+func (e *devHintOnlyError) Hint() string  { return e.hint }
 
 // devFailCLI fails in Run with the error its test installs.
 type devFailCLI struct {
@@ -156,7 +156,7 @@ func exitLinesFor(err error) string {
 }
 
 // failWith runs an app whose Run returns err and captures App.Exit's output.
-func failWith(t *testing.T, err error) (error, exitCapture) {
+func failWith(t *testing.T, err error) (exitCapture, error) {
 	t.Helper()
 
 	cli := &devFailCLI{err: err}
@@ -174,9 +174,10 @@ func failWith(t *testing.T, err error) (error, exitCapture) {
 
 	app.Exit(runErr)
 
-	return runErr, exitCapture{output: buffer.String(), code: code}
+	return exitCapture{output: buffer.String(), code: code}, runErr
 }
 
+//nolint:paralleltest // subtests mutate the process environment with t.Setenv
 func TestErrorOutput_Layout(t *testing.T) {
 	t.Run("an origin and a note", func(t *testing.T) {
 		t.Setenv("TOOL_TIMEOUT", "30")
@@ -264,6 +265,7 @@ func TestUsageError_GroupConflictWithCommandLineAndEnvironmentMembers(t *testing
 	assert.Equal(t, 2, usage.ExitCode())
 }
 
+//nolint:paralleltest // subtests mutate the process environment with t.Setenv
 func TestErrorOutput_LineOneOnly(t *testing.T) {
 	t.Run("a value that did not convert", func(t *testing.T) {
 		t.Setenv("TOOL_TIMEOUT", "30")
@@ -305,6 +307,7 @@ type wrappedLimitCLI struct {
 	Max conga.OptionalFlag[limitValue] `env:"TOOL_MAX" name:"max"`
 }
 
+//nolint:paralleltest // subtests mutate the process environment with t.Setenv
 func TestErrorOutput_ChainRule(t *testing.T) {
 	t.Run("an author wrapper around a ByteSize error keeps the note from the command line", func(t *testing.T) {
 		result := runClassification(t, conga.New[wrappedLimitCLI]().Args([]string{"--max", "5XB"}))
@@ -331,7 +334,7 @@ func TestErrorOutput_ChainRule(t *testing.T) {
 		inner := size.UnmarshalText([]byte("5KB"))
 		wrapped := &devError{message: "config failed: " + inner.Error(), hint: "ask the platform team", cause: inner}
 
-		_, result := failWith(t, wrapped)
+		result, _ := failWith(t, wrapped)
 
 		assert.Equal(t, "app: error: config failed: ambiguous byte size unit \"KB\" in \"5KB\"\n"+
 			"  hint: ask the platform team\n", result.output)
@@ -343,7 +346,7 @@ func TestErrorOutput_ChainRule(t *testing.T) {
 		inner := size.UnmarshalText([]byte("5XB"))
 		wrapped := &devError{message: "deploy: " + inner.Error(), hint: "fix the manifest", cause: inner}
 
-		_, result := failWith(t, wrapped)
+		result, _ := failWith(t, wrapped)
 
 		assert.Equal(t, "app: error: deploy: unknown byte size unit \"XB\" in \"5XB\"\n"+
 			"  note: accepted units: B, kB, MB, GB, TB, PB, EB, KiB, MiB, GiB, TiB, PiB, EiB\n"+
@@ -351,19 +354,19 @@ func TestErrorOutput_ChainRule(t *testing.T) {
 	})
 
 	t.Run("a type with only a hint prints one hint line", func(t *testing.T) {
-		_, result := failWith(t, &devHintOnly{hint: "retry later"})
+		result, _ := failWith(t, &devHintOnlyError{hint: "retry later"})
 
 		assert.Equal(t, "app: error: dev failure\n  hint: retry later\n", result.output)
 	})
 
 	t.Run("empty methods print no lines", func(t *testing.T) {
-		_, result := failWith(t, &devError{message: "dev failure"})
+		result, _ := failWith(t, &devError{message: "dev failure"})
 
 		assert.Equal(t, "app: error: dev failure\n", result.output)
 	})
 
 	t.Run("an empty first line prints no lines even with a hinter cause", func(t *testing.T) {
-		wrapped := &devError{message: "", cause: &devHintOnly{hint: "retry later"}}
+		wrapped := &devError{message: "", cause: &devHintOnlyError{hint: "retry later"}}
 
 		result := exitOutputFor(t, wrapped)
 
@@ -373,7 +376,11 @@ func TestErrorOutput_ChainRule(t *testing.T) {
 }
 
 func TestUsageError_Pieces(t *testing.T) {
+	t.Parallel()
+
 	t.Run("UsageErrorf keeps the note from the wrapped chain and prints the usage block", func(t *testing.T) {
+		t.Parallel()
+
 		var size conga.ByteSize
 
 		byteSizeErr := size.UnmarshalText([]byte("5XB"))
@@ -406,8 +413,10 @@ func TestUsageError_Pieces(t *testing.T) {
 	})
 
 	t.Run("UsageErrorf with a developer hinter shows its hint and the usage block", func(t *testing.T) {
+		t.Parallel()
+
 		cli := &devValidateCLI{validate: func(session *conga.Session) error {
-			return session.UsageErrorf("%w", &devHintOnly{hint: "pass --limit"})
+			return session.UsageErrorf("%w", &devHintOnlyError{hint: "pass --limit"})
 		}}
 
 		var buffer bytes.Buffer
@@ -425,6 +434,8 @@ func TestUsageError_Pieces(t *testing.T) {
 	})
 
 	t.Run("an unknown command suggestion is the hint", func(t *testing.T) {
+		t.Parallel()
+
 		err := conga.New[outputSubcommandCLI]().Args([]string{"deplo"}).RunContext(t.Context())
 
 		usage := assertUsageError(t, err)
@@ -435,6 +446,8 @@ func TestUsageError_Pieces(t *testing.T) {
 	})
 
 	t.Run("an unknown flag suggestion is the hint", func(t *testing.T) {
+		t.Parallel()
+
 		err := conga.New[outputCLI]().Args([]string{"--timeot", "1s"}).RunContext(t.Context())
 
 		usage := assertUsageError(t, err)
@@ -444,6 +457,8 @@ func TestUsageError_Pieces(t *testing.T) {
 	})
 
 	t.Run("a conversion error's pieces equal Error's", func(t *testing.T) {
+		t.Parallel()
+
 		err := conga.New[outputCLI]().Args([]string{"--limit", "5XB"}).RunContext(t.Context())
 
 		usage := assertUsageError(t, err)
@@ -453,6 +468,8 @@ func TestUsageError_Pieces(t *testing.T) {
 	})
 
 	t.Run("a SelfValidator error's pieces equal Error's", func(t *testing.T) {
+		t.Parallel()
+
 		type notedCLI struct {
 			noopRunner
 
@@ -470,6 +487,8 @@ func TestUsageError_Pieces(t *testing.T) {
 	})
 
 	t.Run("a UsageErrorf error's pieces equal Error's", func(t *testing.T) {
+		t.Parallel()
+
 		cli := &devValidateCLI{validate: func(session *conga.Session) error {
 			return session.UsageErrorf("--limit: %w", &devError{message: "rejected", origins: []string{"the manifest"}, note: "detail", hint: "act"})
 		}}
@@ -525,39 +544,49 @@ type outputSubcommandCLI struct {
 }
 
 func TestErrorOutput_Wrapping(t *testing.T) {
+	t.Parallel()
+
 	t.Run("a prefix wrap lands on line one", func(t *testing.T) {
+		t.Parallel()
+
 		var size conga.ByteSize
 
 		inner := size.UnmarshalText([]byte("5XB"))
 
-		_, result := failWith(t, fmt.Errorf("load profile: %w", inner))
+		result, _ := failWith(t, fmt.Errorf("load profile: %w", inner))
 
 		assert.True(t, strings.HasPrefix(result.output, "app: error: load profile: unknown byte size unit \"XB\" in \"5XB\"\n  note: accepted units:"))
 	})
 
 	t.Run("a suffix wrap lands on line one", func(t *testing.T) {
+		t.Parallel()
+
 		var size conga.ByteSize
 
 		inner := size.UnmarshalText([]byte("5XB"))
 
-		_, result := failWith(t, fmt.Errorf("%w (attempt 3)", inner))
+		result, _ := failWith(t, fmt.Errorf("%w (attempt 3)", inner))
 
 		assert.True(t, strings.HasPrefix(result.output, "app: error: unknown byte size unit \"XB\" in \"5XB\" (attempt 3)\n  note: accepted units:"))
 	})
 
 	t.Run("a wrapper that transforms the text keeps the lines", func(t *testing.T) {
+		t.Parallel()
+
 		var size conga.ByteSize
 
 		inner := size.UnmarshalText([]byte("5XB"))
 		transformed := &devError{message: strings.ToUpper(inner.Error()), cause: inner}
 
-		_, result := failWith(t, transformed)
+		result, _ := failWith(t, transformed)
 
 		assert.True(t, strings.HasPrefix(result.output, "app: error: UNKNOWN BYTE SIZE UNIT \"XB\" IN \"5XB\"\n  note: accepted units:"))
 	})
 }
 
 func TestErrorOutput_DeveloperWrapperAroundRun(t *testing.T) {
+	t.Parallel()
+
 	hinted := &devError{message: "main: run failed", hint: "see the log", cause: errors.New("boom")}
 
 	result := exitOutputFor(t, hinted)
@@ -567,11 +596,13 @@ func TestErrorOutput_DeveloperWrapperAroundRun(t *testing.T) {
 }
 
 func TestErrorOutput_Exit_RendersLikeARunError(t *testing.T) {
+	t.Parallel()
+
 	var size conga.ByteSize
 
 	inner := size.UnmarshalText([]byte("5XB"))
 
-	_, viaRun := failWith(t, inner)
+	viaRun, _ := failWith(t, inner)
 	direct := exitOutputFor(t, inner)
 
 	assert.Equal(t, viaRun.output, direct.output)
@@ -593,6 +624,7 @@ func (e *nilMemberError) Error() string {
 
 func (e *nilMemberError) Unwrap() []error { return e.members }
 
+//nolint:paralleltest // subtests mutate the process environment with t.Setenv
 func TestErrorOutput_JoinedErrors(t *testing.T) {
 	var size conga.ByteSize
 
@@ -720,10 +752,14 @@ func TestErrorOutput_Color(t *testing.T) {
 }
 
 func TestError_RunReturnsRawError(t *testing.T) {
+	t.Parallel()
+
 	t.Run("a hook's error is returned as is so == and type switches match", func(t *testing.T) {
+		t.Parallel()
+
 		hookErr := &devError{message: "hook failed", hint: "fix it"}
 
-		err, _ := failWith(t, hookErr)
+		_, err := failWith(t, hookErr)
 
 		assert.True(t, err == hookErr) //nolint:errorlint // identity of the returned error is the property under test
 
@@ -735,6 +771,8 @@ func TestError_RunReturnsRawError(t *testing.T) {
 	})
 
 	t.Run("a prepare error is returned directly as *UsageError", func(t *testing.T) {
+		t.Parallel()
+
 		err := conga.New[outputCLI]().Args([]string{"--nope"}).RunContext(t.Context())
 
 		_, isUsage := err.(*conga.UsageError) //nolint:errorlint // the concrete type Run returns is the property under test
@@ -744,6 +782,8 @@ func TestError_RunReturnsRawError(t *testing.T) {
 	})
 
 	t.Run("a dotenv load failure is returned directly", func(t *testing.T) {
+		t.Parallel()
+
 		missing := filepath.Join(t.TempDir(), "missing.env")
 
 		err := conga.New[outputCLI]().Dotenv(missing).Args([]string{}).RunContext(t.Context())
@@ -753,6 +793,8 @@ func TestError_RunReturnsRawError(t *testing.T) {
 	})
 
 	t.Run("a completion invocation failure is returned directly", func(t *testing.T) {
+		t.Parallel()
+
 		err := conga.New[outputCLI]().
 			EnableCompletion().
 			Stdout(failingWriter{}).
@@ -764,12 +806,16 @@ func TestError_RunReturnsRawError(t *testing.T) {
 	})
 
 	t.Run("success is an untyped nil", func(t *testing.T) {
+		t.Parallel()
+
 		err := conga.New[outputCLI]().Args([]string{}).RunContext(t.Context())
 
 		assert.True(t, err == nil)
 	})
 
 	t.Run("the exit code works directly", func(t *testing.T) {
+		t.Parallel()
+
 		err := conga.New[outputCLI]().Args([]string{"--level", "mid"}).RunContext(t.Context())
 
 		assert.Equal(t, 2, conga.New[outputCLI]().ExitCode(err))
@@ -781,14 +827,18 @@ func TestError_RunReturnsRawError(t *testing.T) {
 	})
 
 	t.Run("a developer error with an exit code decides the code", func(t *testing.T) {
-		err, result := failWith(t, &exitCodeError{code: 75, message: "exit 75"})
+		t.Parallel()
+
+		result, err := failWith(t, &exitCodeError{code: 75, message: "exit 75"})
 
 		assert.Equal(t, 75, conga.New[outputCLI]().ExitCode(err))
 		assert.Equal(t, 75, result.code)
 	})
 
 	t.Run("DiagnosticOf agrees with Exit", func(t *testing.T) {
-		err, result := failWith(t, &devHintOnly{hint: "retry later"})
+		t.Parallel()
+
+		result, err := failWith(t, &devHintOnlyError{hint: "retry later"})
 
 		resolved := conga.DiagnosticOf(err)
 
@@ -797,9 +847,11 @@ func TestError_RunReturnsRawError(t *testing.T) {
 	})
 
 	t.Run("a nested run returns the inner error unchanged", func(t *testing.T) {
+		t.Parallel()
+
 		inner := conga.New[outputCLI]().Args([]string{"--level", "mid"}).RunContext(t.Context())
 
-		err, _ := failWith(t, inner)
+		_, err := failWith(t, inner)
 
 		assert.True(t, err == inner) //nolint:errorlint // identity of the returned value is the property under test
 	})
@@ -820,6 +872,8 @@ func (c *finallyCLI) Finally(_ context.Context, _ *conga.Session, err error) err
 }
 
 func TestError_RunAndFinallySeeTheSameError(t *testing.T) {
+	t.Parallel()
+
 	hookErr := errors.New("run failed")
 	cli := &finallyCLI{runErr: hookErr}
 
@@ -830,6 +884,7 @@ func TestError_RunAndFinallySeeTheSameError(t *testing.T) {
 	assert.Equal(t, "run failed", cli.received.Error())
 }
 
+//nolint:paralleltest // subtests mutate the process environment with t.Setenv
 func TestDiagnosticOf_FormattingAndRender(t *testing.T) {
 	t.Setenv("TOOL_TIMEOUT", "30")
 
@@ -843,7 +898,7 @@ func TestDiagnosticOf_FormattingAndRender(t *testing.T) {
 
 	t.Run("%v and %s print line one", func(t *testing.T) {
 		assert.Equal(t, line, fmt.Sprintf("%v", resolved))
-		assert.Equal(t, line, fmt.Sprintf("%s", resolved)) //nolint:perfsprint // %s is the verb under test
+		assert.Equal(t, line, fmt.Sprintf("%s", resolved))
 	})
 
 	t.Run("Render and %+v print line one and the lines, plain", func(t *testing.T) {
@@ -905,6 +960,8 @@ func TestDiagnosticOf_FormattingAndRender(t *testing.T) {
 }
 
 func TestDiagnosticOf_Marshalers(t *testing.T) {
+	t.Parallel()
+
 	var size conga.ByteSize
 
 	conga1 := size.UnmarshalText([]byte("5XB"))
@@ -924,6 +981,8 @@ func TestDiagnosticOf_Marshalers(t *testing.T) {
 	}
 
 	t.Run("a single error", func(t *testing.T) {
+		t.Parallel()
+
 		jsonText, plainText := marshal(t, conga1)
 
 		assert.Equal(t, `{"error":"unknown byte size unit \"XB\" in \"5XB\"","note":"accepted units: B, kB, MB, GB, TB, PB, EB, KiB, MiB, GiB, TiB, PiB, EiB"}`, jsonText)
@@ -931,6 +990,8 @@ func TestDiagnosticOf_Marshalers(t *testing.T) {
 	})
 
 	t.Run("origins, a note and a hint", func(t *testing.T) {
+		t.Parallel()
+
 		jsonText, plainText := marshal(t, &devError{message: "failed", origins: []string{"a", "b"}, note: "n", hint: "h"})
 
 		assert.Equal(t, `{"error":"failed","from":["a","b"],"note":"n","hint":"h"}`, jsonText)
@@ -938,6 +999,8 @@ func TestDiagnosticOf_Marshalers(t *testing.T) {
 	})
 
 	t.Run("a join keeps the first member as the object and the rest under more", func(t *testing.T) {
+		t.Parallel()
+
 		jsonText, plainText := marshal(t, errors.Join(&devError{message: "first", hint: "h1"}, &devError{message: "second", note: "n2"}))
 
 		assert.Equal(t, `{"error":"first","hint":"h1","more":[{"error":"second","note":"n2"}]}`, jsonText)
@@ -945,6 +1008,8 @@ func TestDiagnosticOf_Marshalers(t *testing.T) {
 	})
 
 	t.Run("a message with nothing after it has no brackets", func(t *testing.T) {
+		t.Parallel()
+
 		jsonText, plainText := marshal(t, errors.New("plain"))
 
 		assert.Equal(t, `{"error":"plain"}`, jsonText)
@@ -952,6 +1017,8 @@ func TestDiagnosticOf_Marshalers(t *testing.T) {
 	})
 
 	t.Run("an empty message keeps the error key", func(t *testing.T) {
+		t.Parallel()
+
 		jsonText, plainText := marshal(t, &devError{message: "", hint: "ignored"})
 
 		assert.Equal(t, `{"error":""}`, jsonText)
@@ -960,21 +1027,29 @@ func TestDiagnosticOf_Marshalers(t *testing.T) {
 }
 
 func TestDiagnosticOf_Slog(t *testing.T) {
-	err, _ := failWith(t, &devError{message: "failed", origins: []string{"the manifest"}, hint: "act"})
+	t.Parallel()
+
+	_, err := failWith(t, &devError{message: "failed", origins: []string{"the manifest"}, hint: "act"})
 
 	t.Run("the JSON handler records an object", func(t *testing.T) {
+		t.Parallel()
+
 		line := slogLine(err, slogJSON)
 
 		assert.Equal(t, `{"level":"ERROR","msg":"run failed","err":{"error":"failed","from":["the manifest"],"hint":"act"}}`+"\n", line)
 	})
 
 	t.Run("the text handler records a line", func(t *testing.T) {
+		t.Parallel()
+
 		line := slogLine(err, slogText)
 
 		assert.Equal(t, `level=ERROR msg="run failed" err="failed (from: the manifest; hint: act)"`+"\n", line)
 	})
 
 	t.Run("a developer-wrapped error keeps its pieces in both handlers", func(t *testing.T) {
+		t.Parallel()
+
 		wrapped := fmt.Errorf("main: %w", err)
 
 		assert.Equal(t, `{"level":"ERROR","msg":"run failed","err":{"error":"main: failed","from":["the manifest"],"hint":"act"}}`+"\n", slogLine(wrapped, slogJSON))
@@ -982,7 +1057,9 @@ func TestDiagnosticOf_Slog(t *testing.T) {
 	})
 
 	t.Run("a join records its members in both handlers", func(t *testing.T) {
-		joined, _ := failWith(t, errors.Join(
+		t.Parallel()
+
+		_, joined := failWith(t, errors.Join(
 			&devError{message: "first", hint: "act"},
 			&devError{message: "second", note: "detail"},
 		))
@@ -1027,7 +1104,9 @@ func dropTime(_ []string, attr slog.Attr) slog.Attr {
 }
 
 func TestDiagnosticOf_ReportsPiecesAndMembers(t *testing.T) {
-	err, _ := failWith(t, &devError{message: "failed", origins: []string{"a"}, note: "n", hint: "h"})
+	t.Parallel()
+
+	_, err := failWith(t, &devError{message: "failed", origins: []string{"a"}, note: "n", hint: "h"})
 
 	resolved := conga.DiagnosticOf(err)
 
@@ -1073,11 +1152,15 @@ func (*outerNestedRunCLI) Finally(_ context.Context, _ *conga.Session, _ error) 
 }
 
 func TestError_NestedJoinFlattens(t *testing.T) {
+	t.Parallel()
+
 	innerErr := conga.New[innerJoinCLI]().
 		Args([]string{}).
 		RunContext(t.Context())
 
 	t.Run("errors.Join with a nested run's join", func(t *testing.T) {
+		t.Parallel()
+
 		joined := errors.Join(innerErr, &devError{message: "close failed", hint: "hint c"})
 		result := exitOutputFor(t, joined)
 
@@ -1091,6 +1174,8 @@ func TestError_NestedJoinFlattens(t *testing.T) {
 	})
 
 	t.Run("an outer Finally failure joined with an inner run's join", func(t *testing.T) {
+		t.Parallel()
+
 		var buffer bytes.Buffer
 
 		app := conga.New[outerNestedRunCLI]().
@@ -1135,8 +1220,12 @@ func TestError_NestedJoinFlattens(t *testing.T) {
 }
 
 func TestError_EmptyMessageConsistency(t *testing.T) {
+	t.Parallel()
+
 	t.Run("a single empty-message error reports no pieces through DiagnosticOf", func(t *testing.T) {
-		err, result := failWith(t, &devError{message: "", origins: []string{"o"}, note: "n", hint: "h"})
+		t.Parallel()
+
+		result, err := failWith(t, &devError{message: "", origins: []string{"o"}, note: "n", hint: "h"})
 
 		resolved := conga.DiagnosticOf(err)
 
@@ -1150,6 +1239,8 @@ func TestError_EmptyMessageConsistency(t *testing.T) {
 	})
 
 	t.Run("UsageErrorf wrapping an empty-message error keeps its pieces", func(t *testing.T) {
+		t.Parallel()
+
 		emptyHinted := &devError{message: "", hint: "run login"}
 
 		wrappers := map[string]func(*conga.Session) error{
@@ -1180,13 +1271,17 @@ func TestError_EmptyMessageConsistency(t *testing.T) {
 	})
 
 	t.Run("a single empty-message error prints nothing and exits 1", func(t *testing.T) {
-		_, result := failWith(t, &devError{message: "", hint: "ignored"})
+		t.Parallel()
+
+		result, _ := failWith(t, &devError{message: "", hint: "ignored"})
 
 		assert.Equal(t, "", result.output)
 		assert.Equal(t, 1, result.code)
 	})
 
 	t.Run("session.UsageError with an empty message prints the usage block only", func(t *testing.T) {
+		t.Parallel()
+
 		cli := &devValidateCLI{validate: func(session *conga.Session) error {
 			return session.UsageError("")
 		}}
@@ -1210,12 +1305,14 @@ func TestError_EmptyMessageConsistency(t *testing.T) {
 	})
 
 	t.Run("a join with a leading empty-message member uses the first non-empty member", func(t *testing.T) {
+		t.Parallel()
+
 		joined := errors.Join(
 			&devError{message: "", origins: []string{"ignored"}, note: "ignored", hint: "ignored"},
 			&devError{message: "real", origins: []string{"real origin"}, note: "real note", hint: "real hint"},
 		)
 
-		err, result := failWith(t, joined)
+		result, err := failWith(t, joined)
 
 		resolved := conga.DiagnosticOf(err)
 
@@ -1238,13 +1335,14 @@ func TestError_EmptyMessageConsistency(t *testing.T) {
 	})
 }
 
-// emptyHintWrapper is a third-party-style wrapper whose Hint is empty.
-type emptyHintWrapper struct{ cause error }
+// emptyHintWrapperError is a third-party-style wrapper whose Hint is empty.
+type emptyHintWrapperError struct{ cause error }
 
-func (e *emptyHintWrapper) Error() string { return "wrapped: " + e.cause.Error() }
-func (e *emptyHintWrapper) Hint() string  { return "" }
-func (e *emptyHintWrapper) Unwrap() error { return e.cause }
+func (e *emptyHintWrapperError) Error() string { return "wrapped: " + e.cause.Error() }
+func (e *emptyHintWrapperError) Hint() string  { return "" }
+func (e *emptyHintWrapperError) Unwrap() error { return e.cause }
 
+//nolint:paralleltest // subtests mutate the process environment with t.Setenv
 func TestDiagnosticOf_Shapes(t *testing.T) {
 	t.Setenv("TOOL_TIMEOUT", "30")
 
@@ -1284,8 +1382,8 @@ func TestDiagnosticOf_Shapes(t *testing.T) {
 			hint:        "check TOOL_TIMEOUT",
 			memberCount: 1,
 		},
-		{name: "a developer type implementing only Hinter", err: &devHintOnly{hint: "act"}, message: "dev failure", hint: "act", memberCount: 1},
-		{name: "a wrapper whose Hint is empty", err: &emptyHintWrapper{cause: &devHintOnly{hint: "act"}}, message: "wrapped: dev failure", hint: "act", memberCount: 1},
+		{name: "a developer type implementing only Hinter", err: &devHintOnlyError{hint: "act"}, message: "dev failure", hint: "act", memberCount: 1},
+		{name: "a wrapper whose Hint is empty", err: &emptyHintWrapperError{cause: &devHintOnlyError{hint: "act"}}, message: "wrapped: dev failure", hint: "act", memberCount: 1},
 		{name: "a join", err: errors.Join(first, second), message: "first\nsecond", origins: []string{"a"}, note: "n1", hint: "h1", memberCount: 2},
 		{name: "a join with a leading empty-message member", err: errors.Join(&devError{message: "", hint: "ignored"}, first), message: "\nfirst", origins: []string{"a"}, note: "n1", hint: "h1", memberCount: 1},
 		{name: "fmt.Errorf with two %w is one member", err: fmt.Errorf("%w and %w", first, second), message: "first and second", origins: []string{"a"}, note: "n1", hint: "h1", memberCount: 1},
@@ -1316,6 +1414,8 @@ func TestDiagnosticOf_Shapes(t *testing.T) {
 }
 
 func TestDiagnosticOf_FormatVerbs(t *testing.T) {
+	t.Parallel()
+
 	diagnostic := conga.DiagnosticOf(&devError{message: "failed", hint: "act"})
 
 	assert.Equal(t, "failed", fmt.Sprintf("%v", diagnostic))
@@ -1342,9 +1442,10 @@ func (n *hintedNumber) UnmarshalText(text []byte) error {
 }
 
 func (n hintedNumber) Validate(_ context.Context) error {
-	return &devHintOnly{hint: "pick another"}
+	return &devHintOnlyError{hint: "pick another"}
 }
 
+//nolint:paralleltest // subtests mutate the process environment with t.Setenv
 func TestErrorOutput_CausePiecesShowThrough(t *testing.T) {
 	type hintedCLI struct {
 		noopRunner

@@ -121,9 +121,9 @@ func TestMembers(t *testing.T) {
 	t.Run("nil and empty-message members are dropped", func(t *testing.T) {
 		t.Parallel()
 
-		real := errors.New("real")
+		kept := errors.New("real")
 
-		assert.Equal(t, []error{real}, errlines.Members(errors.Join(nil, &pieceError{message: "", hint: "h"}, real)))
+		assert.Equal(t, []error{kept}, errlines.Members(errors.Join(nil, &pieceError{message: "", hint: "h"}, kept)))
 	})
 
 	t.Run("an empty-message error has no members", func(t *testing.T) {
@@ -143,17 +143,17 @@ func TestMembers(t *testing.T) {
 	t.Run("a join whose text is not its members' texts is one error", func(t *testing.T) {
 		t.Parallel()
 
-		odd := &oddJoin{members: []error{first, second}}
+		odd := &oddJoinError{members: []error{first, second}}
 
 		assert.Equal(t, []error{odd}, errlines.Members(odd))
 	})
 }
 
-// oddJoin has Unwrap() []error but a text that is not its members' joined.
-type oddJoin struct{ members []error }
+// oddJoinError has Unwrap() []error but a text that is not its members' joined.
+type oddJoinError struct{ members []error }
 
-func (e *oddJoin) Error() string   { return "something else" }
-func (e *oddJoin) Unwrap() []error { return e.members }
+func (e *oddJoinError) Error() string   { return "something else" }
+func (e *oddJoinError) Unwrap() []error { return e.members }
 
 func TestRender(t *testing.T) {
 	t.Parallel()

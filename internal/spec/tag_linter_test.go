@@ -141,7 +141,7 @@ func TestStrictTagLinter_TypoDetection(t *testing.T) {
 		assert.True(t, spec.IsSchemaError(err))
 		assert.Equal(t, `struct TypoTagDefaultCLI field Port: unknown struct tag "defualt"`, err.Error()) //nolint:misspell // intentionally misspelled in expected test error
 		assert.Equal(t, "", errlines.Note(err))
-		assert.Equal(t, `did you mean "default"? Use app.AllowTags("defualt") to permit external tags`, errlines.Hint(err))
+		assert.Equal(t, `did you mean "default"? Use app.AllowTags("defualt") to permit external tags`, errlines.Hint(err)) //nolint:misspell // intentionally misspelled in expected test error
 	})
 
 	t.Run("typo in help tag suggests help", func(t *testing.T) {

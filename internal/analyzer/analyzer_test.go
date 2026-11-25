@@ -50,7 +50,7 @@ func TestAnalyzer_RangeBoundDiagnosticsCarryNoteAndHint(t *testing.T) {
 	related := map[string][]string{}
 
 	for _, diagnostic := range results[0].Diagnostics {
-		lines := []string{}
+		lines := make([]string, 0, len(diagnostic.Related))
 
 		for _, information := range diagnostic.Related {
 			lines = append(lines, information.Message)

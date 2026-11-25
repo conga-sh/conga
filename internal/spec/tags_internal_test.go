@@ -1110,7 +1110,7 @@ func TestBoundError_TextDialectNotes(t *testing.T) {
 	t.Run("the parser's note and hint show through", func(t *testing.T) {
 		t.Parallel()
 
-		cause := noteHintCause{}
+		cause := noteHintCauseError{}
 		err := boundError("byte size", "min", "5XB", cause)
 
 		assert.Equal(t, `invalid byte size min bound "5XB"`, err.Error())
@@ -1186,12 +1186,12 @@ func TestIntegerEnumDecimal_KeepsItsCause(t *testing.T) {
 	})
 }
 
-// noteHintCause is an error that supplies a note and a hint.
-type noteHintCause struct{}
+// noteHintCauseError is an error that supplies a note and a hint.
+type noteHintCauseError struct{}
 
-func (noteHintCause) Error() string { return "cause" }
-func (noteHintCause) Note() string  { return "cause note" }
-func (noteHintCause) Hint() string  { return "cause hint" }
+func (noteHintCauseError) Error() string { return "cause" }
+func (noteHintCauseError) Note() string  { return "cause note" }
+func (noteHintCauseError) Hint() string  { return "cause hint" }
 
 // noteHinter mirrors conga.Noter and conga.Hinter, which this package cannot
 // import.
@@ -1212,19 +1212,19 @@ func TestSchemaError_PiecesReachTheCause(t *testing.T) {
 	}{
 		{
 			name:     "own values win",
-			err:      schemaError("bad").withNote("own note").withHint("own hint").withCause(noteHintCause{}),
+			err:      schemaError("bad").withNote("own note").withHint("own hint").withCause(noteHintCauseError{}),
 			wantNote: "own note",
 			wantHint: "own hint",
 		},
 		{
 			name:     "own empty, the cause supplies them",
-			err:      schemaError("bad").withCause(noteHintCause{}),
+			err:      schemaError("bad").withCause(noteHintCauseError{}),
 			wantNote: "cause note",
 			wantHint: "cause hint",
 		},
 		{
 			name:     "own note only, the cause supplies the hint",
-			err:      schemaError("bad").withNote("own note").withCause(noteHintCause{}),
+			err:      schemaError("bad").withNote("own note").withCause(noteHintCauseError{}),
 			wantNote: "own note",
 			wantHint: "cause hint",
 		},
@@ -1259,10 +1259,10 @@ func TestSchemaError_PiecesReachTheCause(t *testing.T) {
 func TestWithOwner_KeepsTheCausesPieces(t *testing.T) {
 	t.Parallel()
 
-	err := WithOwner(noteHintCause{}, "CLI", "Port")
+	err := WithOwner(noteHintCauseError{}, "CLI", "Port")
 
 	assert.Equal(t, "struct CLI field Port: cause", err.Error())
 	assert.Equal(t, "cause note", errlines.Note(err))
 	assert.Equal(t, "cause hint", errlines.Hint(err))
-	assert.IsError(t, err, noteHintCause{})
+	assert.IsError(t, err, noteHintCauseError{})
 }
