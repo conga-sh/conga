@@ -604,7 +604,7 @@ func TestBootstrap_NestedAppUsageErrorExitsTwo(t *testing.T) {
 	app.Exit(err)
 
 	assert.Equal(t, 2, exitCode)
-	assert.Equal(t, "app: error: unknown flag: --bogus\n", stderrBuffer.String())
+	assert.Equal(t, "app: error: unknown flag \"--bogus\"\n", stderrBuffer.String())
 }
 
 // shapeCLI has a required-subcommand root and a typed flag, so one app yields
@@ -625,7 +625,7 @@ func TestApp_Exit_UsageShapesByMode(t *testing.T) {
 		{name: "summary", mode: conga.UsageSummary, unknownFlag: goldenErrorsShapeUnknownFlagSummary},
 		{name: "full", mode: conga.UsageFull, unknownFlag: goldenErrorsShapeUnknownFlagFull},
 		{name: "hint", mode: conga.UsageHint, unknownFlag: goldenErrorsShapeUnknownFlagHint},
-		{name: "silence", mode: conga.UsageSilence, unknownFlag: "app: error: unknown flag: --bogus\n"},
+		{name: "silence", mode: conga.UsageSilence, unknownFlag: "app: error: unknown flag \"--bogus\"\n"},
 	}
 
 	exitWith := func(t *testing.T, mode conga.UsageOnErrorMode, args ...string) exitResult {
@@ -789,8 +789,8 @@ func TestApp_UsageBlock_MatchesExit(t *testing.T) {
 			run := runForBlock[shapeCLI](t, mode.mode, "--bogus")
 
 			want := map[conga.UsageOnErrorMode]string{
-				conga.UsageSummary: trimGolden(goldenErrorsShapeUnknownFlagSummary, "app: error: unknown flag: --bogus\n\n"),
-				conga.UsageFull:    trimGolden(goldenErrorsShapeUnknownFlagFull, "app: error: unknown flag: --bogus\n\n"),
+				conga.UsageSummary: trimGolden(goldenErrorsShapeUnknownFlagSummary, "app: error: unknown flag \"--bogus\"\n\n"),
+				conga.UsageFull:    trimGolden(goldenErrorsShapeUnknownFlagFull, "app: error: unknown flag \"--bogus\"\n\n"),
 				conga.UsageHint:    "Run 'app --help' for more information.",
 				conga.UsageSilence: "",
 			}[mode.mode]
@@ -811,7 +811,7 @@ func TestApp_UsageBlock_MatchesExit(t *testing.T) {
 				conga.UsageSilence: "",
 			}[mode.mode]
 
-			assert.Equal(t, "unknown command: bogus", run.err.Error())
+			assert.Equal(t, `unknown command "bogus"`, run.err.Error())
 			assert.Equal(t, want, run.block)
 			assert.Equal(t, want, exitBlock(t, run.err, run.stderr))
 		})
@@ -926,7 +926,7 @@ func TestApp_UsageBlock_MatchesExit(t *testing.T) {
 
 			app.Exit(joined)
 
-			assert.Equal(t, "app: error: refused\napp: error: unknown flag: --bogus\n", stderrBuffer.String())
+			assert.Equal(t, "app: error: refused\napp: error: unknown flag \"--bogus\"\n", stderrBuffer.String())
 		})
 
 		t.Run("a usage error joined with a completion failure has no block in "+mode.name, func(t *testing.T) {
@@ -1013,13 +1013,13 @@ func TestApp_UsageBlock_HelpFlagDisabled(t *testing.T) {
 			name:       "summary prints the synopsis without a hint line",
 			mode:       conga.UsageSummary,
 			wantBlock:  "Usage:\n  app <command> [flags]",
-			wantStderr: "app: error: unknown flag: --bogus\n\nUsage:\n  app <command> [flags]\n",
+			wantStderr: "app: error: unknown flag \"--bogus\"\n\nUsage:\n  app <command> [flags]\n",
 		},
 		{
 			name:       "hint prints no block",
 			mode:       conga.UsageHint,
 			wantBlock:  "",
-			wantStderr: "app: error: unknown flag: --bogus\n",
+			wantStderr: "app: error: unknown flag \"--bogus\"\n",
 		},
 	}
 

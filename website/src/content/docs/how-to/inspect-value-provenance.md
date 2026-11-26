@@ -269,8 +269,8 @@ listening on 0.0.0.0:8080
 
 | What the user runs | Result |
 |---|---|
-| `--why` on a program without `EnableWhy()` | Usage error, exit 2: `unknown flag: --why` |
-| `--why=json` without `conga.WhyOptionJSON()` | Usage error, exit 2, naming the option to enable |
+| `--why` on a program without `EnableWhy()` | Usage error, exit 2: `unknown flag "--why"` |
+| `--why=json` without `conga.WhyOptionJSON()` | Usage error, exit 2: `invalid value "json" for --why`, with a `note: this application doesn't offer JSON output` line |
 | `--why=xml` | Usage error, exit 2: `invalid value "xml" for --why`, with a `note: accepted values: text, json` line |
 | `--why` while a config file holds a bad value | The same error a normal run gives, exit 1, and no report |
 | `--why` without a required flag | The report, with the flag `unset`, exit 0 |

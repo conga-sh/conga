@@ -103,7 +103,7 @@ Completion help screens add two sections. A per-shell screen such as `--completi
 | `deploy rollout --region --help` | The `rollout` help screen, exit 0. `--help` is flag-shaped, so `--region` gets no value. |
 | `deploy --target prod --help` | The root help screen, exit 0. The unknown `--target` takes no value, so `prod` is read as a subcommand name and matches none. |
 | `deploy --bogus --version` | The version line, exit 0. |
-| `deploy --why --bogus` | `unknown flag: --bogus`, exit 2. |
+| `deploy --why --bogus` | `unknown flag "--bogus"`, exit 2. |
 | `deploy rollout --region=--help v1.4` | Runs `rollout` with the region `--help`. |
 | `deploy rollout -- --help` | Runs `rollout` with `--help` as its release argument. |
 | `deploy rollout --help=false v1.4` | Runs `rollout`. |

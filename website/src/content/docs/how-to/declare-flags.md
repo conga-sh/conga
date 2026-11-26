@@ -224,7 +224,7 @@ A cluster can end in a short flag that takes a value, as in `-vvvo page.html`. A
 
 ```sh error={2} wrap
 $ fetch https://example.com --verbose=2
-fetch: error: flag does not take a value: --verbose=2
+fetch: error: flag does not take a value: "--verbose=2"
 
 Usage:
   fetch [flags] <url>
@@ -349,9 +349,9 @@ Map values decode like single flag values, so a `map[string]int` or a `map[strin
 | The user repeats a flag and an earlier value has the wrong type | Run | `invalid integer value "two" for flag --retries`, exit 2 |
 | The user gives an integer with a leading zero (see [Integer syntax](/reference/struct-tags/#integer-syntax)) | Run | `invalid integer value "05" for flag --retries`, with `note: a leading zero is ambiguous` and `hint: write 0o5 for octal or 5 for decimal` lines, exit 2 |
 | An environment variable holds a value of the wrong type | Run | `invalid boolean value "no" for flag --redirects`, with `from: environment variable FETCH_REDIRECTS` and `note: expected true or false (or 1 or 0)` lines, exit 1 |
-| The user misspells a flag | Run | `unknown flag: --redirect`, with a `hint: did you mean --redirects?` line, then usage, exit 2 |
-| The user gives `--no-` to a flag without `negatable` | Run | `unknown flag: --no-verbose`, then usage, exit 2 |
-| The user gives a counter a value | Run | `flag does not take a value: --verbose=2`, then usage, exit 2 |
+| The user misspells a flag | Run | `unknown flag "--redirect"`, with a `hint: did you mean "--redirects"?` line, then usage, exit 2 |
+| The user gives `--no-` to a flag without `negatable` | Run | `unknown flag "--no-verbose"`, then usage, exit 2 |
+| The user gives a counter a value | Run | `flag does not take a value: "--verbose=2"`, then usage, exit 2 |
 | An environment variable gives a counter a negative or signed value | Run | `invalid unsigned integer value "-1" for flag --verbose`, with a `from: environment variable FETCH_VERBOSE` line, exit 1 |
 | The user gives a map entry without `=` | Run | `invalid key-value pair "name" for flag --form`, with a `note: expected KEY=VALUE` line, exit 2 |
 | A map flag's value type has no parser | Startup | `struct Fetch field Form: unsupported map value type net.IPNet`, with a `hint: register a parser with app.RegisterType` line, exit 1 |

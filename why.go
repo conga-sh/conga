@@ -64,9 +64,12 @@ func (a *App[T]) resolveWhyFormat(cmdChain []*spec.Command, rawFormat string) (s
 		return spec.WhyFormatText, nil
 	case spec.WhyFormatJSON:
 		if a.whyHooks == nil || a.whyHooks.jsonFormatter == nil {
-			const message = `invalid value "json" for --why: JSON output format is not enabled on this application (enable with app.EnableWhy(conga.WhyOptionJSON()))`
+			invalid := &inputError{
+				msg:  `invalid value "json" for --why`,
+				note: "this application doesn't offer JSON output",
+			}
 
-			return "", usageError(cmdChain, message).
+			return "", usageErrorFrom(cmdChain, invalid).
 				withShape(usageShapeLineOnly)
 		}
 

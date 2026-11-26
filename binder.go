@@ -220,27 +220,58 @@ func (parser *tokenParser) isShortRegistered(tok tokenizer.Token) bool {
 	return exists
 }
 
-func (parser *tokenParser) findFlagSuggestion(name string) string {
+func (parser *tokenParser) findFlagSuggestion(name string) (string, string) {
+	const negatedPrefix = "no-"
+
+	target := name
+
+	isNegated := len(name) >= len(negatedPrefix) && strings.EqualFold(name[:len(negatedPrefix)], negatedPrefix)
+	if isNegated {
+		target = name[len(negatedPrefix):]
+	}
+
 	var candidates []string
 
 	for flagName, flagSpec := range parser.flagMap {
-		if flagSpec.Name == flagName {
-			// A no- token is only an intentional negation of a negatable bool
-			// flag. Skip candidates that a negated token could never legally
-			// spell, so suggestions do not point at unrelated flags.
-			if _, ok := strings.CutPrefix(name, "no-"); ok && !flagSpec.IsNegatable {
-				continue
-			}
+		if flagSpec.Name != flagName || flagSpec.Hidden {
+			continue
+		}
 
+		if !isNegated {
 			candidates = append(candidates, flagName)
+
+			continue
+		}
+
+		if spec.CanNegate(flagSpec) {
+			candidates = append(candidates, flagName)
+		}
+
+		if suffix, ok := strings.CutPrefix(flagName, negatedPrefix); ok {
+			candidates = append(candidates, suffix)
 		}
 	}
 
-	if suggestion := levenshtein.SuggestFor(name, candidates); suggestion != "" {
-		return "--" + suggestion
+	slices.Sort(candidates)
+
+	suggestion := levenshtein.SuggestFor(target, candidates)
+	if suggestion == "" {
+		return "", ""
 	}
 
-	return ""
+	if isNegated {
+		suggestion = negatedPrefix + suggestion
+	}
+
+	// Resolve the winning candidate through lookupLongFlag so a hidden flag or
+	// alias shadowing a negation never leaks a hint, and read its feature gate
+	// directly from the resolved flag.
+	flagSpec, resolvedNegated := parser.lookupLongFlag(suggestion)
+	if flagSpec == nil || flagSpec.Hidden || (!resolvedNegated && flagSpec.Name != suggestion) {
+		return "", ""
+	}
+
+	return "--" + suggestion, flagSpec.Feature
 }
 
 func (parser *tokenParser) lookupLongFlag(name string) (*spec.Flag, bool) {
@@ -266,9 +297,9 @@ func (parser *tokenParser) parseLongFlag(tok tokenizer.Token) error {
 			return nil
 		}
 
-		suggestion := parser.findFlagSuggestion(name)
+		suggestion, feature := parser.findFlagSuggestion(name)
 
-		return usageError(parser.cmdChain, "unknown flag: --"+name).withSuggestion(suggestion, suggestionKindFlag)
+		return unknownFlagError(parser.cmdChain, "--"+truncateForDisplay(name), suggestion, feature)
 	}
 
 	parser.recordFlagSpelling(flagSpec, "--"+name)
@@ -286,7 +317,7 @@ func (parser *tokenParser) parseLongFlag(tok tokenizer.Token) error {
 
 	if flagSpec.IsBool {
 		if isNegated && tok.HasAttachedValue {
-			return usageError(parser.cmdChain, "negated flag does not take a value: "+tok.Raw)
+			return usageErrorf(parser.cmdChain, "negated flag does not take a value: %q", truncateForDisplay(tok.Raw))
 		}
 
 		if isNegated {
@@ -441,20 +472,20 @@ func (parser *tokenParser) bindClusterRune(tok tokenizer.Token, index int, flagS
 // unknownShorthandError reports the cluster rune r that names no flag.
 func (parser *tokenParser) unknownShorthandError(tok tokenizer.Token, r rune) error {
 	runes := tok.ShortRunes
-
-	msg := "unknown flag: -" + string(r)
 	if len(runes) > 1 {
-		msg = "unknown shorthand flag: '" + string(r) + "' in -" + string(runes)
+		cluster := "-" + truncateForDisplay(string(runes))
+
+		return usageErrorf(parser.cmdChain, "unknown shorthand flag %q in %q", r, cluster)
 	}
 
 	// A single letter has no meaningful near miss, except that -h is the
 	// conventional help spelling: point it at the built-in --help.
 	var suggestion string
-	if len(runes) == 1 && r == 'h' && parser.flagMap["help"] == spec.BuiltinHelpFlag {
+	if r == 'h' && parser.flagMap["help"] == spec.BuiltinHelpFlag {
 		suggestion = "--help"
 	}
 
-	return usageError(parser.cmdChain, msg).withSuggestion(suggestion, suggestionKindFlag)
+	return unknownFlagError(parser.cmdChain, "-"+string(r), suggestion, "")
 }
 
 func (parser *tokenParser) parseShortFlag(tok tokenizer.Token) error {
@@ -1658,7 +1689,7 @@ func newStdinReadTwiceError(first, second string, source ValueSource) error {
 // command line (--verbose=2, -v=2, -vv=2). A counter counts occurrences only,
 // so the attached value is a usage error.
 func newCounterValueError(cmdChain []*spec.Command, raw string) error {
-	return usageError(cmdChain, "flag does not take a value: "+raw)
+	return usageErrorf(cmdChain, "flag does not take a value: %q", truncateForDisplay(raw))
 }
 
 // registerBuiltinShort maps a configured built-in short rune onto its shared
@@ -2821,25 +2852,41 @@ func oneOfGroupName(flagSpec *spec.Flag) string { return flagSpec.OneOfGroup }
 func andGroupName(flagSpec *spec.Flag) string { return flagSpec.AndGroup }
 
 func handleUnexpectedPositional(cmd *spec.Command, cmdChain []*spec.Command, unexpected string) error {
-	if suggestion := suggestSubcommand(cmd, unexpected); suggestion != "" {
-		return usageError(cmdChain, "unknown command: "+unexpected).withSuggestion(suggestion, suggestionKindCommand)
+	if suggestion, feature := suggestSubcommand(cmd, unexpected); suggestion != "" {
+		return unknownCommandError(cmdChain, unexpected, suggestion, feature)
 	}
 
-	return usageErrorf(cmdChain, "unexpected argument %q", unexpected)
+	return usageErrorf(cmdChain, "unexpected argument %q", truncateForDisplay(unexpected))
 }
 
 // newUnknownCommandError reports input, which names no subcommand of cmd, with
 // a suggestion from cmd's subcommands. Routing and the built-in help command
 // share it, so "tool deplo" and "tool help deplo" report the same error.
 func newUnknownCommandError(cmd *spec.Command, cmdChain []*spec.Command, input string) error {
-	suggestion := suggestSubcommand(cmd, input)
+	suggestion, feature := suggestSubcommand(cmd, input)
 
-	return usageError(cmdChain, "unknown command: "+input).withSuggestion(suggestion, suggestionKindCommand)
+	return unknownCommandError(cmdChain, input, suggestion, feature)
 }
 
-func suggestSubcommand(cmd *spec.Command, input string) string {
+// unknownFlagError reports token, already spelled with its dashes and truncated
+// for display, as an unknown flag, with suggestion as the "did you mean"
+// candidate when it is not empty and feature as its gating expression.
+func unknownFlagError(cmdChain []*spec.Command, token, suggestion, feature string) *UsageError {
+	return usageErrorf(cmdChain, "unknown flag %q", token).
+		withSuggestion(suggestion, feature)
+}
+
+// unknownCommandError reports input as an unknown command, with suggestion as
+// the "did you mean" candidate when it is not empty and feature as its gating
+// expression.
+func unknownCommandError(cmdChain []*spec.Command, input, suggestion, feature string) *UsageError {
+	return usageErrorf(cmdChain, "unknown command %q", truncateForDisplay(input)).
+		withSuggestion(suggestion, feature)
+}
+
+func suggestSubcommand(cmd *spec.Command, input string) (string, string) {
 	if cmd == nil || len(cmd.Subcommands) == 0 {
-		return ""
+		return "", ""
 	}
 
 	subNames := make([]string, 0, len(cmd.Subcommands))
@@ -2851,11 +2898,17 @@ func suggestSubcommand(cmd *spec.Command, input string) string {
 	}
 
 	suggestion := levenshtein.SuggestFor(input, subNames)
-	if suggestion == input {
-		return ""
+	if suggestion == "" || suggestion == input {
+		return "", ""
 	}
 
-	return suggestion
+	for _, subcommand := range cmd.Subcommands {
+		if subcommand.Name == suggestion {
+			return suggestion, subcommand.Feature
+		}
+	}
+
+	return suggestion, ""
 }
 
 // argConstraints collects a positional argument's per-value constraints.

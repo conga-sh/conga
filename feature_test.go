@@ -3388,7 +3388,8 @@ func TestFeature_UnknownFlagHintDroppedForGatedOffFlag(t *testing.T) {
 	err := app.Run()
 
 	assertUsageError(t, err)
-	assert.Equal(t, "unknown flag: --force-al", err.Error())
+	assert.Equal(t, `unknown flag "--force-al"`, err.Error())
+	assert.Equal(t, "", errlines.Hint(err))
 	assert.False(t, cli.Ran)
 }
 
@@ -3407,9 +3408,49 @@ func TestFeature_UnknownFlagHintKeptForGatedOnFlag(t *testing.T) {
 	err := app.Run()
 
 	assertUsageError(t, err)
-	assert.Equal(t, `unknown flag: --force-al`, err.Error())
-	assert.Equal(t, `did you mean --force-all?`, errlines.Hint(err))
+	assert.Equal(t, `unknown flag "--force-al"`, err.Error())
+	assert.Equal(t, `did you mean "--force-all"?`, errlines.Hint(err))
 	assert.False(t, cli.Ran)
+}
+
+type featureNegatableCLI struct {
+	noopRunner
+
+	Features conga.Features[featureExperiments] `config:"experiments" env:"CONGA_TEST_NEGATABLE_FEATURES" flag:"feature-gates"`
+
+	ForceAll conga.OptionalFlag[bool] `feature:"gentle-force" help:"Forces all dependent tasks" negatable:"true"`
+}
+
+// A negation typo that names a gated-off negatable flag drops the hint.
+func TestFeature_NegationTypoHintDroppedForGatedOffFlag(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[featureNegatableCLI]().
+		Name("task").
+		EnableFeatures().
+		Args([]string{"--no-force-al"})
+
+	err := app.Run()
+
+	assertUsageError(t, err)
+	assert.Equal(t, `unknown flag "--no-force-al"`, err.Error())
+	assert.Equal(t, "", errlines.Hint(err))
+}
+
+// A negation typo that names a gated-on negatable flag keeps the hint.
+func TestFeature_NegationTypoHintKeptForGatedOnFlag(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[featureNegatableCLI]().
+		Name("task").
+		EnableFeatures().
+		Args([]string{"--feature-gates", "gentle-force=true", "--no-force-al"})
+
+	err := app.Run()
+
+	assertUsageError(t, err)
+	assert.Equal(t, `unknown flag "--no-force-al"`, err.Error())
+	assert.Equal(t, `did you mean "--no-force-all"?`, errlines.Hint(err))
 }
 
 // A flag parsed after the unknown flag does not reach the hint check, so a
@@ -3427,7 +3468,8 @@ func TestFeature_UnknownFlagHintIgnoresLaterGates(t *testing.T) {
 	err := app.Run()
 
 	assertUsageError(t, err)
-	assert.Equal(t, "unknown flag: --force-al", err.Error())
+	assert.Equal(t, `unknown flag "--force-al"`, err.Error())
+	assert.Equal(t, "", errlines.Hint(err))
 	assert.False(t, cli.Ran)
 }
 
@@ -3445,7 +3487,8 @@ func TestFeature_UnknownCommandHintDroppedForGatedOffCommand(t *testing.T) {
 	err := app.Run()
 
 	assertUsageError(t, err)
-	assert.Equal(t, "unknown command: packag", err.Error())
+	assert.Equal(t, `unknown command "packag"`, err.Error())
+	assert.Equal(t, "", errlines.Hint(err))
 	assert.False(t, cli.Ran)
 }
 
@@ -3463,8 +3506,8 @@ func TestFeature_UnknownCommandHintKeptForGatedOnCommand(t *testing.T) {
 	err := app.Run()
 
 	assertUsageError(t, err)
-	assert.Equal(t, `unknown command: packag`, err.Error())
-	assert.Equal(t, `did you mean package?`, errlines.Hint(err))
+	assert.Equal(t, `unknown command "packag"`, err.Error())
+	assert.Equal(t, `did you mean "package"?`, errlines.Hint(err))
 	assert.False(t, cli.Ran)
 }
 
@@ -3485,8 +3528,8 @@ func TestFeature_UnknownFlagHintKeptWhenConfigFails(t *testing.T) {
 	err := app.Run()
 
 	assertUsageError(t, err)
-	assert.Equal(t, `unknown flag: --force-al`, err.Error())
-	assert.Equal(t, `did you mean --force-all?`, errlines.Hint(err))
+	assert.Equal(t, `unknown flag "--force-al"`, err.Error())
+	assert.Equal(t, `did you mean "--force-all"?`, errlines.Hint(err))
 	assert.False(t, cli.Ran)
 }
 
@@ -3583,8 +3626,8 @@ func TestFeature_UnknownCommandHintKeptForCLIGatedOnCommand(t *testing.T) {
 	err := app.Run()
 
 	assertUsageError(t, err)
-	assert.Equal(t, `unknown command: packag`, err.Error())
-	assert.Equal(t, `did you mean package?`, errlines.Hint(err))
+	assert.Equal(t, `unknown command "packag"`, err.Error())
+	assert.Equal(t, `did you mean "package"?`, errlines.Hint(err))
 	assert.False(t, cli.Ran)
 }
 
@@ -3605,6 +3648,240 @@ func TestFeature_UnknownFlagHintDroppedWithoutConfigFile(t *testing.T) {
 	err := app.Run()
 
 	assertUsageError(t, err)
-	assert.Equal(t, "unknown flag: --force-al", err.Error())
+	assert.Equal(t, `unknown flag "--force-al"`, err.Error())
+	assert.Equal(t, "", errlines.Hint(err))
 	assert.False(t, cli.Ran)
+}
+
+type featureGatedSubcommandNegatable struct {
+	noopRunner
+
+	Force conga.OptionalFlag[bool] `feature:"gentle-force" negatable:"true"`
+}
+
+type featureGatedSubcommandNegatableCLI struct {
+	Features conga.Features[featureExperiments] `config:"experiments" env:"CONGA_TEST_NEGATABLE_SUB_FEATURES" flag:"feature-gates"`
+
+	Deploy conga.Command[featureGatedSubcommandNegatable] `name:"deploy"`
+}
+
+type featurePlainSubcommand struct {
+	noopRunner
+}
+
+type featureGatedRootNegatableCLI struct {
+	Features conga.Features[featureExperiments] `config:"experiments" env:"CONGA_TEST_NEGATABLE_ROOT_FEATURES" flag:"feature-gates"`
+
+	Force conga.OptionalFlag[bool] `feature:"gentle-force" negatable:"true"`
+
+	Deploy conga.Command[featurePlainSubcommand] `name:"deploy"`
+}
+
+// Negation gating applies to a negatable flag on a subcommand and to a root
+// negatable flag reached from a subcommand.
+func TestFeature_NegationTypoHintGatingInSubcommands(t *testing.T) {
+	t.Parallel()
+
+	const typo = "--no-forc"
+
+	tests := []struct {
+		name string
+		run  func(args []string) error
+	}{
+		{name: "subcommand flag", run: func(args []string) error {
+			return conga.New[featureGatedSubcommandNegatableCLI]().Name("task").EnableFeatures().Args(args).Run()
+		}},
+		{name: "root flag from subcommand", run: func(args []string) error {
+			return conga.New[featureGatedRootNegatableCLI]().Name("task").EnableFeatures().Args(args).Run()
+		}},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name+" off", func(t *testing.T) {
+			t.Parallel()
+
+			err := test.run([]string{"deploy", typo})
+
+			assertUsageError(t, err)
+			assert.Equal(t, `unknown flag "--no-forc"`, err.Error())
+			assert.Equal(t, "", errlines.Hint(err))
+		})
+
+		t.Run(test.name+" on", func(t *testing.T) {
+			t.Parallel()
+
+			err := test.run([]string{"--feature-gates", "gentle-force=true", "deploy", typo})
+
+			assertUsageError(t, err)
+			assert.Equal(t, `unknown flag "--no-forc"`, err.Error())
+			assert.Equal(t, `did you mean "--no-force"?`, errlines.Hint(err))
+		})
+	}
+}
+
+type featureHiddenNoPrefixGatedForceCLI struct {
+	noopRunner
+
+	Features conga.Features[featureExperiments] `config:"experiments" env:"CONGA_TEST_HIDDEN_NOPREFIX_GATED_FEATURES" flag:"feature-gates"`
+
+	HiddenNoForce conga.OptionalFlag[bool] `hidden:"true"          name:"no-force"`
+	Force         conga.OptionalFlag[bool] `feature:"gentle-force" name:"force"    negatable:"true"`
+}
+
+type featureHiddenGatedNoPrefixForceCLI struct {
+	noopRunner
+
+	Features conga.Features[featureExperiments] `config:"experiments" env:"CONGA_TEST_HIDDEN_GATED_NOPREFIX_FEATURES" flag:"feature-gates"`
+
+	HiddenNoForce conga.OptionalFlag[bool] `feature:"gentle-force" hidden:"true"    name:"no-force"`
+	Force         conga.OptionalFlag[bool] `name:"force"           negatable:"true"`
+}
+
+type featureVisibleGatedNoPrefixForceCLI struct {
+	noopRunner
+
+	Features conga.Features[featureExperiments] `config:"experiments" env:"CONGA_TEST_VISIBLE_GATED_NOPREFIX_FEATURES" flag:"feature-gates"`
+
+	NoForce conga.OptionalFlag[bool] `feature:"gentle-force" name:"no-force"`
+	Force   conga.OptionalFlag[bool] `name:"force"           negatable:"true"`
+}
+
+// A hidden "no-<name>" flag shadows "--no-<name>" at runtime, so a visible
+// negatable "<name>" flag never emits a "--no-<name>" hint behind it. A visible
+// gated "no-<name>" flag takes precedence over a visible ungated negatable
+// "<name>" flag for the same reason.
+func TestFeature_ShadowedNoPrefixAndVisibleOverlap(t *testing.T) {
+	t.Parallel()
+
+	t.Run("hidden ungated no-force suppresses negatable force hint with gate off", func(t *testing.T) {
+		t.Parallel()
+
+		app := conga.New[featureHiddenNoPrefixGatedForceCLI]().
+			Name("task").
+			EnableFeatures().
+			Args([]string{"--no-forc"})
+
+		err := app.Run()
+
+		assertUsageError(t, err)
+		assert.Equal(t, `unknown flag "--no-forc"`, err.Error())
+		assert.Equal(t, "", errlines.Hint(err))
+	})
+
+	t.Run("hidden ungated no-force suppresses negatable force hint with gate on", func(t *testing.T) {
+		t.Parallel()
+
+		app := conga.New[featureHiddenNoPrefixGatedForceCLI]().
+			Name("task").
+			EnableFeatures().
+			Args([]string{"--feature-gates", "gentle-force=true", "--no-forc"})
+
+		err := app.Run()
+
+		assertUsageError(t, err)
+		assert.Equal(t, `unknown flag "--no-forc"`, err.Error())
+		assert.Equal(t, "", errlines.Hint(err))
+	})
+
+	t.Run("hidden gated-off no-force suppresses visible ungated negatable force hint", func(t *testing.T) {
+		t.Parallel()
+
+		app := conga.New[featureHiddenGatedNoPrefixForceCLI]().
+			Name("task").
+			EnableFeatures().
+			Args([]string{"--no-forc"})
+
+		err := app.Run()
+
+		assertUsageError(t, err)
+		assert.Equal(t, `unknown flag "--no-forc"`, err.Error())
+		assert.Equal(t, "", errlines.Hint(err))
+
+		// Running --no-force directly binds the hidden gated flag, not Force.
+		directApp := conga.New[featureHiddenGatedNoPrefixForceCLI]().
+			Name("task").
+			EnableFeatures().
+			Args([]string{"--no-force"})
+
+		directErr := directApp.Run()
+
+		assertUsageError(t, directErr)
+		assert.Equal(t, `flag '--no-force' requires feature "gentle-force"`, directErr.Error())
+	})
+
+	t.Run("visible gated no-force drops hint when gate is off", func(t *testing.T) {
+		t.Parallel()
+
+		app := conga.New[featureVisibleGatedNoPrefixForceCLI]().
+			Name("task").
+			EnableFeatures().
+			Args([]string{"--no-forc"})
+
+		err := app.Run()
+
+		assertUsageError(t, err)
+		assert.Equal(t, `unknown flag "--no-forc"`, err.Error())
+		assert.Equal(t, "", errlines.Hint(err))
+	})
+
+	t.Run("visible gated no-force keeps hint when gate is on", func(t *testing.T) {
+		t.Parallel()
+
+		app := conga.New[featureVisibleGatedNoPrefixForceCLI]().
+			Name("task").
+			EnableFeatures().
+			Args([]string{"--feature-gates", "gentle-force=true", "--no-forc"})
+
+		err := app.Run()
+
+		assertUsageError(t, err)
+		assert.Equal(t, `unknown flag "--no-forc"`, err.Error())
+		assert.Equal(t, `did you mean "--no-force"?`, errlines.Hint(err))
+	})
+}
+
+type featureNoCLIGatedDescendantSub struct {
+	noopRunner
+
+	Features conga.OptionalFlag[bool] `feature:"gentle-force" name:"features"`
+}
+
+type featureNoCLIGatedDescendantCLI struct {
+	Features conga.Features[featureExperiments] `env:"CONGA_TEST_NOCLI_HINT_FEATURES"`
+
+	Sub conga.Command[featureNoCLIGatedDescendantSub] `name:"sub"`
+}
+
+// A root NoCLI Features container does not mask a descendant flag of the same
+// name when checking whether a suggestion is gated.
+//
+//nolint:paralleltest // subtests mutate the process environment with t.Setenv
+func TestFeature_NoCLIContainerDoesNotMaskDescendantFlagGate(t *testing.T) {
+	t.Run("gate off drops hint", func(t *testing.T) {
+		app := conga.New[featureNoCLIGatedDescendantCLI]().
+			Name("task").
+			EnableFeatures().
+			Args([]string{"sub", "--featur"})
+
+		err := app.Run()
+
+		assertUsageError(t, err)
+		assert.Equal(t, `unknown flag "--featur"`, err.Error())
+		assert.Equal(t, "", errlines.Hint(err))
+	})
+
+	t.Run("gate on keeps hint", func(t *testing.T) {
+		t.Setenv("CONGA_TEST_NOCLI_HINT_FEATURES", "gentle-force=true")
+
+		app := conga.New[featureNoCLIGatedDescendantCLI]().
+			Name("task").
+			EnableFeatures().
+			Args([]string{"sub", "--featur"})
+
+		err := app.Run()
+
+		assertUsageError(t, err)
+		assert.Equal(t, `unknown flag "--featur"`, err.Error())
+		assert.Equal(t, `did you mean "--features"?`, errlines.Hint(err))
+	})
 }

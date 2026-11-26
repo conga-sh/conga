@@ -46,6 +46,8 @@ tool: error: invalid unsigned integer value "0755" for flag --mode
 - `note:` gives more detail on the issue line 1 states, such as the accepted values or units.
 - `hint:` says what to do about it, as an imperative or a "did you mean" suggestion.
 
+Unknown flag, shorthand and command errors, `unexpected argument` errors, and the errors for a value given to a flag that takes none, quote the text the user typed (a shorthand flag's rune is in single quotes), truncated after 50 characters with a trailing `…`, as in `unknown flag "--prot"`. A "did you mean" suggestion is double-quoted too, and a flag suggestion keeps its dashes, as in `did you mean "--port"?`.
+
 A flag group conflict has one `from:` line per member that did not come from the command line, flag first:
 
 ```text no-copy
@@ -201,7 +203,7 @@ func (e *UsageError) Hint() string
 
 - `CommandPath()` returns the invocation path of the command where the failure occurred (for example, `"cloudctl deploy"`), or an empty string when the error has no command.
 - `ExitCode()` always returns 2.
-- `Origins()`, `Note()` and `Hint()` return the lines `app.Exit` prints below line 1, by the chain rule. The failed value's own come first, then those of the error behind the message. For an unknown flag or command, `Hint()` is the suggestion (`did you mean --port?`). A flag group conflict returns the origin of each member that did not come from the command line.
+- `Origins()`, `Note()` and `Hint()` return the lines `app.Exit` prints below line 1, by the chain rule. The failed value's own come first, then those of the error behind the message. For an unknown flag or command, `Hint()` is the suggestion (`did you mean "--port"?`). A flag group conflict returns the origin of each member that did not come from the command line.
 - `Error()` returns line 1 alone.
 - `Unwrap()` returns the error behind the message. For a value that did not convert, it is the error the conversion step returned. That is the error of a `TextUnmarshaler` or registered parser, or CONGA's own parse error, whose type is not part of the API. For a value a `SelfValidator` rejected, it is the validator's error. For `session.UsageErrorf` it is the `%w` operand. It returns nil when CONGA found the problem itself, as for an unknown flag, an `enum`, `range` or `len` violation, or a flag group conflict.
 

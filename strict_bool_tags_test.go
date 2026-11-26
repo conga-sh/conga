@@ -186,7 +186,7 @@ func TestSchema_StrictBoolTagValues(t *testing.T) {
 		err := app.Run()
 
 		assertUsageError(t, err)
-		assert.Equal(t, "unknown flag: --no-false", err.Error())
+		assert.Equal(t, `unknown flag "--no-false"`, err.Error())
 	})
 
 	t.Run("bootstrap false needs no Bootstrapper", func(t *testing.T) {

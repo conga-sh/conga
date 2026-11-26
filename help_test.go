@@ -202,7 +202,7 @@ func TestHelpCommand_PrecedingFlags(t *testing.T) {
 
 		assert.Error(t, err)
 		assertUsageError(t, err)
-		assert.Equal(t, "unknown flag: --bogus", err.Error())
+		assert.Equal(t, `unknown flag "--bogus"`, err.Error())
 	})
 
 	t.Run("terminator after a value flag is not its value before help", func(t *testing.T) {
@@ -339,7 +339,7 @@ func TestHelpCommand_UnknownSubcommand(t *testing.T) {
 	err := app.Run()
 
 	assertUsageError(t, err)
-	assert.Equal(t, "unknown command: bogus", err.Error())
+	assert.Equal(t, `unknown command "bogus"`, err.Error())
 }
 
 // help <name> reports a near miss with the same error and suggestion as
@@ -356,8 +356,8 @@ func TestHelpCommand_UnknownSubcommandSuggests(t *testing.T) {
 		err := app.Run()
 
 		assertUsageError(t, err)
-		assert.Equal(t, `unknown command: clustr`, err.Error())
-		assert.Equal(t, `did you mean cluster?`, errlines.Hint(err))
+		assert.Equal(t, `unknown command "clustr"`, err.Error())
+		assert.Equal(t, `did you mean "cluster"?`, errlines.Hint(err))
 	})
 
 	t.Run("nested level", func(t *testing.T) {
@@ -369,8 +369,8 @@ func TestHelpCommand_UnknownSubcommandSuggests(t *testing.T) {
 		err := app.Run()
 
 		assertUsageError(t, err)
-		assert.Equal(t, `unknown command: nod`, err.Error())
-		assert.Equal(t, `did you mean node?`, errlines.Hint(err))
+		assert.Equal(t, `unknown command "nod"`, err.Error())
+		assert.Equal(t, `did you mean "node"?`, errlines.Hint(err))
 	})
 
 	t.Run("routed directly", func(t *testing.T) {
@@ -382,8 +382,8 @@ func TestHelpCommand_UnknownSubcommandSuggests(t *testing.T) {
 		err := app.Run()
 
 		assertUsageError(t, err)
-		assert.Equal(t, `unknown command: clustr`, err.Error())
-		assert.Equal(t, `did you mean cluster?`, errlines.Hint(err))
+		assert.Equal(t, `unknown command "clustr"`, err.Error())
+		assert.Equal(t, `did you mean "cluster"?`, errlines.Hint(err))
 	})
 }
 
@@ -396,8 +396,8 @@ func TestShortH_Unreserved(t *testing.T) {
 	err := app.Run()
 
 	assertUsageError(t, err)
-	assert.Equal(t, `unknown flag: -h`, err.Error())
-	assert.Equal(t, `did you mean --help?`, errlines.Hint(err))
+	assert.Equal(t, `unknown flag "-h"`, err.Error())
+	assert.Equal(t, `did you mean "--help"?`, errlines.Hint(err))
 }
 
 // Without the built-in --help flag, -h gets no hint.
@@ -411,7 +411,8 @@ func TestShortH_NoHintWithoutHelpFlag(t *testing.T) {
 	err := app.Run()
 
 	assertUsageError(t, err)
-	assert.Equal(t, "unknown flag: -h", err.Error())
+	assert.Equal(t, `unknown flag "-h"`, err.Error())
+	assert.Equal(t, "", errlines.Hint(err))
 }
 
 func TestShortH_CustomFieldBinding(t *testing.T) {
@@ -1211,7 +1212,7 @@ func TestHelpFlag_UserHelpFlagGetsNoPrecedence(t *testing.T) {
 	err := app.Run()
 
 	assertUsageError(t, err)
-	assert.Equal(t, "unknown flag: --bogus", err.Error())
+	assert.Equal(t, `unknown flag "--bogus"`, err.Error())
 }
 
 // whyCompletionPrecedenceCLI is a flat root, so it carries both the built-in
@@ -1251,7 +1252,7 @@ func TestWhyAndCompletionFlags_NoPrecedenceOverParseErrors(t *testing.T) {
 			err := app.Run()
 
 			assertUsageError(t, err)
-			assert.Equal(t, "unknown flag: --bogus", err.Error())
+			assert.Equal(t, `unknown flag "--bogus"`, err.Error())
 			assert.Equal(t, "", buffer.String())
 		})
 	}
@@ -1312,7 +1313,7 @@ func TestHelpFlag_ShortAfterUnknownRuneFails(t *testing.T) {
 	err := app.Run()
 
 	assertUsageError(t, err)
-	assert.Equal(t, "unknown shorthand flag: 'x' in -xh", err.Error())
+	assert.Equal(t, `unknown shorthand flag 'x' in "-xh"`, err.Error())
 	assert.Equal(t, "", buffer.String())
 }
 
@@ -1368,7 +1369,7 @@ func TestHelpFlag_FalseValueGetsNoPrecedence(t *testing.T) {
 	err := app.Run()
 
 	assertUsageError(t, err)
-	assert.Equal(t, "unknown flag: --bogus", err.Error())
+	assert.Equal(t, `unknown flag "--bogus"`, err.Error())
 	assert.Equal(t, "", buffer.String())
 }
 
@@ -1437,7 +1438,7 @@ func TestHelpFlag_FalseValueKeepsUnknownCommandError(t *testing.T) {
 			err := app.Run()
 
 			assertUsageError(t, err)
-			assert.Equal(t, "unknown command: nosuch", err.Error())
+			assert.Equal(t, `unknown command "nosuch"`, err.Error())
 			assert.Equal(t, "", buffer.String())
 		})
 	}

@@ -440,8 +440,8 @@ func TestUsageError_Pieces(t *testing.T) {
 
 		usage := assertUsageError(t, err)
 
-		assert.Equal(t, "unknown command: deplo", err.Error())
-		assert.Equal(t, "did you mean deploy?", usage.Hint())
+		assert.Equal(t, `unknown command "deplo"`, err.Error())
+		assert.Equal(t, `did you mean "deploy"?`, usage.Hint())
 		assert.Equal(t, usage.Hint(), errlines.Hint(err))
 	})
 
@@ -452,8 +452,8 @@ func TestUsageError_Pieces(t *testing.T) {
 
 		usage := assertUsageError(t, err)
 
-		assert.Equal(t, "unknown flag: --timeot", err.Error())
-		assert.Equal(t, "did you mean --timeout?", usage.Hint())
+		assert.Equal(t, `unknown flag "--timeot"`, err.Error())
+		assert.Equal(t, `did you mean "--timeout"?`, usage.Hint())
 	})
 
 	t.Run("a conversion error's pieces equal Error's", func(t *testing.T) {
@@ -1365,7 +1365,7 @@ func TestDiagnosticOf_Shapes(t *testing.T) {
 	}{
 		{name: "a CONGA error", err: congaErr, message: line, origins: timeoutOrigin, note: timeoutNote, memberCount: 1},
 		{name: "a CONGA error under fmt.Errorf", err: fmt.Errorf("startup: %w", congaErr), message: "startup: " + line, origins: timeoutOrigin, note: timeoutNote, memberCount: 1},
-		{name: "a CONGA error with its own hint", err: typoErr, message: "unknown flag: --timout", hint: "did you mean --timeout?", memberCount: 1},
+		{name: "a CONGA error with its own hint", err: typoErr, message: `unknown flag "--timout"`, hint: `did you mean "--timeout"?`, memberCount: 1},
 		{
 			name:        "a developer wrapper with its own hint wins over a CONGA hint",
 			err:         &devError{message: "startup failed", hint: "check the flag name", cause: typoErr},

@@ -34,22 +34,22 @@ func TestUsageError_Methods(t *testing.T) {
 		assert.Equal(t, "Usage:\n  tool deploy\n\nRun 'tool deploy --help' for more information.", New[struct{}]().UsageBlock(err))
 	})
 
-	t.Run("suggestion is appended to the message", func(t *testing.T) {
+	t.Run("suggestion is the quoted hint", func(t *testing.T) {
 		t.Parallel()
 
-		err := usageError(nil, "unknown flag: --prot").withSuggestion("--port", suggestionKindFlag)
+		err := usageError(nil, `unknown flag "--prot"`).withSuggestion("--port", "")
 
-		assert.Equal(t, `unknown flag: --prot`, err.Error())
-		assert.Equal(t, `did you mean --port?`, errlines.Hint(err))
+		assert.Equal(t, `unknown flag "--prot"`, err.Error())
+		assert.Equal(t, `did you mean "--port"?`, errlines.Hint(err))
 	})
 
 	t.Run("an empty suggestion sets nothing", func(t *testing.T) {
 		t.Parallel()
 
-		err := usageError(nil, "unknown flag: --zzz").withSuggestion("", suggestionKindFlag)
+		err := usageError(nil, `unknown flag "--zzz"`).withSuggestion("", "gentle-force")
 
-		assert.Equal(t, "unknown flag: --zzz", err.Error())
-		assert.Equal(t, suggestionKindNone, err.suggestionKind)
+		assert.Equal(t, `unknown flag "--zzz"`, err.Error())
+		assert.Equal(t, "", err.suggestionFeature)
 	})
 
 	t.Run("shape defaults to the mode and builds on request", func(t *testing.T) {
@@ -576,7 +576,7 @@ func TestApp_UsageBlock_LeavesHelpOptionsUnchanged(t *testing.T) {
 	t.Setenv("COLUMNS", "57")
 
 	app := New[struct{}]().UsageOnError(UsageFull)
-	err := usageError([]*spec.Command{{Name: "tool"}}, "unknown flag: --bogus")
+	err := usageError([]*spec.Command{{Name: "tool"}}, `unknown flag "--bogus"`)
 
 	assert.Equal(t, 0, app.helpOptions.Width)
 

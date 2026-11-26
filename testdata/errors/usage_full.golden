@@ -1,5 +1,5 @@
-clustermgr: error: unknown command: clustr
-  hint: did you mean cluster?
+clustermgr: error: unknown command "clustr"
+  hint: did you mean "cluster"?
 
 Usage:
   clustermgr <command>

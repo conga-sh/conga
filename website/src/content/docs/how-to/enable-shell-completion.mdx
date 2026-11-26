@@ -380,7 +380,7 @@ See [User toggles](/reference/builtins/#user-toggles) for the full variable and 
 | Invocation | Result |
 |---|---|
 | `cloudctl completion myshell` | Usage error listing the supported shells (exit 2) |
-| `--completion zsh` on a CLI that has a `completion` subcommand | Usage error, `unknown flag: --completion` (exit 2) |
+| `--completion zsh` on a CLI that has a `completion` subcommand | Usage error, `unknown flag "--completion"` (exit 2) |
 | `./cloudctl <Tab>` or `/usr/local/bin/cloudctl <Tab>` | Dispatches to the `cloudctl` completer in bash, zsh, fish, PowerShell, and Nushell |
 | `./cloudctl <Tab>` in Elvish | Falls back to file completion; Elvish keys completers on the literal command word |
 | `cctl <Tab>` using a script generated from `cloudctl` | Falls back to file completion until the user regenerates the script from `cctl` |

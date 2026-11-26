@@ -139,7 +139,7 @@ Before the `--`, CONGA parses words as usual, so a forwarded option there is an 
 
 ```sh error={2}
 $ mirror /mnt/backup src/ --delete
-mirror: error: unknown flag: --delete
+mirror: error: unknown flag "--delete"
 
 Usage:
   mirror <target> <sources...> [-- <args...>]
@@ -245,7 +245,7 @@ Collection starts after the last required positional, so words up to that point 
 |---|---|---|
 | The user leaves out a required argument | Run | `missing required positional argument <source>`, exit 2 |
 | The user gives more words than the arguments take | Run | `unexpected argument "c"`, exit 2 |
-| The user puts a forwarded option before `--` | Run | `unknown flag: --delete`, exit 2 |
+| The user puts a forwarded option before `--` | Run | `unknown flag "--delete"`, exit 2 |
 | An `OptionalArg` is declared before a `RequiredArg` | Startup | `struct Mirror field Source: optional positional argument cannot precede required positional argument <source>`, exit 1 |
 | A slice argument is followed by another positional argument | Startup | `struct Mirror field Extra: slice argument <sources> must be the last positional argument`, exit 1 |
 | A slice or optional argument comes before `RawArgs` | Startup | `struct Mirror field Rsync: raw args requires a deterministic positional prefix: positional argument <target> must be a required scalar`, with a `hint: …` line, exit 1 |

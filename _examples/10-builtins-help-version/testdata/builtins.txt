@@ -53,11 +53,11 @@ stdout '  builtins-help-version status --detailed$'
 
 # 7. Subcommand `help nonexistent`
 exit-status 2 builtins-help-version help nonexistent
-stderr 'unknown command: nonexistent$'
+stderr 'unknown command "nonexistent"$'
 
 # 8. Invalid flag with UsageHint mode
 exit-status 2 builtins-help-version status --unknown
-stderr 'unknown flag: --unknown'
+stderr 'unknown flag "--unknown"'
 stderr 'Run ''builtins-help-version status --help'' for more information'
 
 # 9. Custom commands rendering through the session primitives
