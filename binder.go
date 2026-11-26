@@ -307,12 +307,16 @@ func (parser *tokenParser) parseLongFlag(tok tokenizer.Token) error {
 	if flagSpec.IsCounter {
 		// A counter counts occurrences and takes no value on the command line.
 		if tok.HasAttachedValue {
-			return newCounterValueError(parser.cmdChain, tok.Raw)
+			return flagDoesNotTakeValueError(parser.cmdChain, tok.Raw)
 		}
 
 		parser.flagValues[flagSpec] = append(parser.flagValues[flagSpec], "1")
 
 		return nil
+	}
+
+	if flagSpec == spec.BuiltinWhyFlag {
+		return parser.parseWhyFlag(tok)
 	}
 
 	if flagSpec.IsBool {
@@ -348,6 +352,32 @@ func (parser *tokenParser) parseLongFlag(tok tokenizer.Token) error {
 	}
 
 	return parser.consumeNextValue(flagSpec, "--"+flagSpec.Name)
+}
+
+func (parser *tokenParser) parseWhyFlag(tok tokenizer.Token) error {
+	if !tok.HasAttachedValue {
+		parser.flagValues[spec.BuiltinWhyFlag] = append(parser.flagValues[spec.BuiltinWhyFlag], spec.WhyFormatText)
+
+		return nil
+	}
+
+	if !parser.cmdChain[0].WhyJSONEnabled {
+		return flagDoesNotTakeValueError(parser.cmdChain, tok.Raw)
+	}
+
+	if tok.Value == spec.WhyFormatText || tok.Value == spec.WhyFormatJSON {
+		parser.flagValues[spec.BuiltinWhyFlag] = append(parser.flagValues[spec.BuiltinWhyFlag], tok.Value)
+
+		return nil
+	}
+
+	shown := truncateForDisplay(tok.Value)
+	invalid := &inputError{
+		msg:  fmt.Sprintf("invalid value %q for --why", shown),
+		note: "accepted values: text, json",
+	}
+
+	return usageErrorFrom(parser.cmdChain, invalid).withShape(usageShapeLineOnly)
 }
 
 func (parser *tokenParser) handleCompletionFlag(flagSpec *spec.Flag) error {
@@ -428,7 +458,7 @@ func (parser *tokenParser) bindClusterRune(tok tokenizer.Token, index int, flagS
 		// A counter takes no value (see the long-flag path), so a cluster
 		// cannot end in one with an attached value.
 		if tok.HasAttachedValue && last {
-			return true, newCounterValueError(parser.cmdChain, tok.Raw)
+			return true, flagDoesNotTakeValueError(parser.cmdChain, tok.Raw)
 		}
 
 		parser.flagValues[flagSpec] = append(parser.flagValues[flagSpec], "1")
@@ -1685,10 +1715,10 @@ func newStdinReadTwiceError(first, second string, source ValueSource) error {
 	}
 }
 
-// newCounterValueError reports a value attached to a counter flag on the
-// command line (--verbose=2, -v=2, -vv=2). A counter counts occurrences only,
-// so the attached value is a usage error.
-func newCounterValueError(cmdChain []*spec.Command, raw string) error {
+// flagDoesNotTakeValueError reports a value attached to a flag that takes none
+// on the command line (such as a counter --verbose=2, -v=2, -vv=2, or --why=foo
+// when JSON output is disabled).
+func flagDoesNotTakeValueError(cmdChain []*spec.Command, raw string) error {
 	return usageErrorf(cmdChain, "flag does not take a value: %q", truncateForDisplay(raw))
 }
 

@@ -264,7 +264,7 @@ When connected to an interactive terminal, the report uses color, and each sourc
 
 `--why` binds values as a normal run does, except that a missing required flag and a failed `xor`, `oneof`, or `and` group are not errors. Malformed configuration, a value that fails to parse, or a value outside its `enum`, `range`, `len`, or `items` bound produces the normal error, and no report.
 
-By default (or with `--why=text`), the report renders as formatted human-readable tables. Pass `conga.WhyOptionJSON()` to `EnableWhy` (`app.EnableWhy(conga.WhyOptionJSON())`) to enable `--why=json`, which emits a versioned machine-readable document:
+Bare `--why` renders the report as formatted human-readable tables. Pass `conga.WhyOptionJSON()` to `EnableWhy` (`app.EnableWhy(conga.WhyOptionJSON())`) to accept `--why=text` and `--why=json`, where `--why=json` emits a versioned machine-readable document:
 
 | Property | Type | Description |
 |----------|------|-------------|
@@ -280,9 +280,9 @@ By default (or with `--why=text`), the report renders as formatted human-readabl
 | `features` | `[]object` | Feature toggles: `name`, `value`, `source`, and `detail` when present; omitted when empty |
 | `config` | `object` | Config status: registered `decoders`, evaluated `paths` (`path`, `status`, `probedFiles`), and `examples` when the report suggests where to create a file. `status` is `loaded`, `no_config_file`, `not_found`, or `skipped` |
 
-Requesting `--why=json` without `conga.WhyOptionJSON()` enabled on the application, or passing any value other than `text` or `json`, is a usage error (exit 2).
+Without `conga.WhyOptionJSON()`, `--why` is a plain toggle. Any attached value (such as `--why=text` or `--why=json`) fails as a `*conga.UsageError` (exit 2, `flag does not take a value`), help shows `--why`, and completion offers `--why` with no candidates after `--why=`.
 
-When `conga.WhyOptionJSON()` is enabled, the help screen renders the flag as `--why[=FORMAT]` with the accepted formats appended as an enum hint (`[enum: text, json]`). Otherwise `--why` renders as a plain toggle. Completion mirrors the split, and the flag-name candidates are the value-bearing forms `--why=text` and `--why=json`, and completing after `--why=` offers the enabled formats filtered by prefix.
+With `conga.WhyOptionJSON()`, `--why` accepts only `text` and `json` (bare `--why` still selects `text`). Any other attached value fails as a `*conga.UsageError` (exit 2, `invalid value ... for --why`), help renders `--why[=FORMAT]` with `[enum: text, json]`, and completion offers `--why=text` and `--why=json` both at the flag name and after `--why=`. Repeated `--why` flags validate each occurrence and apply the last one.
 
 When the root command declares `conga.Features[T]`, the report includes a `Features:` table listing every declared feature, its resolved value, and its source. Each feature reports the source that last wrote its key. Keys no source sets fall back to the field default (`default`) or render `unset`. See [Feature toggles](/reference/struct-tags/#feature-toggles-congafeaturest).
 

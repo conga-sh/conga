@@ -1909,7 +1909,9 @@ func (a *App[T]) bindInvocation(ctx context.Context, session *Session, invocatio
 	}
 
 	if request.hasWhy && a.whyHooks != nil {
-		return true, a.whyHooks.render(session, request.whyValue)
+		a.whyHooks.render(session, request.whyValue)
+
+		return true, nil
 	}
 
 	resolver := argResolver{
@@ -1992,9 +1994,6 @@ func (a *App[T]) handleBuiltinFlags(session *Session, request builtinRequest) (b
 	}
 
 	// 3. Standard --help
-	// Help and version render ahead of the --why-format check below, so an
-	// invalid --why value is deliberately ignored when --help or --version is
-	// also present. This matches the help-wins precedence for every builtin.
 	if request.hasHelp {
 		fmt.Fprintln(a.stdout, session.Help())
 
@@ -2008,14 +2007,7 @@ func (a *App[T]) handleBuiltinFlags(session *Session, request builtinRequest) (b
 		return true, nil
 	}
 
-	// 5. Value-provenance format check (e.g. app --why)
-	if request.hasWhy && a.whyHooks != nil && a.whyHooks.validateFormat != nil {
-		if err := a.whyHooks.validateFormat(cmdChain, request.whyValue); err != nil {
-			return false, err
-		}
-	}
-
-	// 6. Completion script generation (e.g. app --completion zsh)
+	// 5. Completion script generation (e.g. app --completion zsh)
 	if !request.hasWhy && request.hasCompletion && request.completionValue != "" && a.renderCompletionScript != nil {
 		return a.renderCompletionScript(a, cmdChain, request.completionValue)
 	}

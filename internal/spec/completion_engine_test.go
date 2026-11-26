@@ -528,7 +528,7 @@ func TestCompletion_WhyFormats(t *testing.T) {
 		assert.Equal(t, []string{"--why"}, values)
 	})
 
-	t.Run("json disabled offers the single text value for the attached flag", func(t *testing.T) {
+	t.Run("json disabled offers nothing for the attached flag", func(t *testing.T) {
 		t.Parallel()
 
 		var cli FlagsTestCLI
@@ -538,9 +538,8 @@ func TestCompletion_WhyFormats(t *testing.T) {
 
 		invoked := spec.Complete(cmdSpec, []string{"--why="}, spec.CompleteOptions{})
 
-		values := slicex.Map(invoked.Items, func(item predict.Item) string { return item.Value })
-
-		assert.Equal(t, []string{"--why=text"}, values)
+		assert.Zero(t, invoked.Items)
+		assert.Equal(t, "", invoked.Usage)
 	})
 
 	t.Run("json enabled replaces the plain flag with format candidates", func(t *testing.T) {

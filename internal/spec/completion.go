@@ -988,10 +988,10 @@ func (w *astCompletionWalker) completeAttachedFlag(toComplete string, compCtx pr
 		return predict.Result{}, false
 	}
 
-	// A counter and a negated bool take no value, so "--verbose=" and
-	// "--no-redirects=" have nothing to complete and no value usage line to
-	// show.
-	if flag.IsCounter || negated {
+	// A counter, a negated bool, and --why without JSON output take no value,
+	// so "--verbose=", "--no-redirects=", and "--why=" (when JSON is disabled)
+	// have nothing to complete and no value usage line to show.
+	if flag.IsCounter || negated || (flag == BuiltinWhyFlag && !w.rootCmd.WhyJSONEnabled) {
 		return predict.Result{}, true
 	}
 
@@ -1283,7 +1283,7 @@ func (w *astCompletionWalker) appendBuiltinShort(shortItems *[]predict.Item, see
 // completes as a plain toggle.
 func (w *astCompletionWalker) builtinWhyItems() []predict.Item {
 	formats := w.rootCmd.WhyFormats()
-	if len(formats) < 2 {
+	if len(formats) == 0 {
 		return []predict.Item{{
 			Value:       "--why",
 			Display:     "--why",

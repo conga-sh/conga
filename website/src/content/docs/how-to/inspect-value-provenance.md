@@ -215,7 +215,7 @@ $ SERVER_TOKEN=hunter2 server --why=json --port 9003 | jq '.flags'
 ]
 ```
 
-The rest of the document records the command, the working directory, a timestamp, and the config search. [The `--why` report](/reference/builtins/#the---why-report) lists every property. `--why` and `--why=text` still print the table, and `--help` now lists the flag as `--why[=FORMAT]`.
+The rest of the document records the command, the working directory, a timestamp, and the config search. [The `--why` report](/reference/builtins/#the---why-report) lists every property. Bare `--why` and `--why=text` both print the table, and `--help` now lists the flag as `--why[=FORMAT]`.
 
 ## Print the report from your own code
 
@@ -270,8 +270,8 @@ listening on 0.0.0.0:8080
 | What the user runs | Result |
 |---|---|
 | `--why` on a program without `EnableWhy()` | Usage error, exit 2: `unknown flag "--why"` |
-| `--why=json` without `conga.WhyOptionJSON()` | Usage error, exit 2: `invalid value "json" for --why`, with a `note: this application doesn't offer JSON output` line |
-| `--why=xml` | Usage error, exit 2: `invalid value "xml" for --why`, with a `note: accepted values: text, json` line |
+| `--why=json` without `conga.WhyOptionJSON()` | Usage error, exit 2: `flag does not take a value: "--why=json"` (and the same for any attached value such as `--why=text`) |
+| `--why=xml` with `conga.WhyOptionJSON()` enabled | Usage error, exit 2: `invalid value "xml" for --why`, with a `note: accepted values: text, json` line |
 | `--why` while a config file holds a bad value | The same error a normal run gives, exit 1, and no report |
 | `--why` without a required flag | The report, with the flag `unset`, exit 0 |
 | `--why` with two flags of one `xor` or `oneof` group, or part of an `and` group | The report, showing each flag's value and source, exit 0 |

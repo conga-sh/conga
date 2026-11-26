@@ -277,7 +277,7 @@ Feature gating and map folding report errors by the input source that introduced
 | Invalid feature value in the feature map environment variable | Ordinary error | 1 |
 | Malformed map flag entry in a config file (even when overridden by CLI) | Ordinary error | 1 |
 | Malformed map flag syntax in an environment variable | Ordinary error | 1 |
-| Invalid format passed to `--why` or `--why=json` requested without `conga.WhyOptionJSON()` | `*conga.UsageError` | 2 |
+| Attached value on `--why` without `conga.WhyOptionJSON()`, or invalid format passed to `--why` with it enabled | `*conga.UsageError` | 2 |
 | Error returned from `Bootstrapper.Bootstrap` | Returned as is | 1, or the `ExitCoder`'s code |
 
 ## Schema errors
