@@ -23,9 +23,8 @@ type whyJSONFormatterFunc func(report *why.Report) string
 type whyRowTypeFunc func(flagSpec *spec.Flag) string
 
 type whyHooks struct {
-	render              func(session *Session, rawFormat string) error
+	render              func(session *Session, format string)
 	bindSession         func(session *Session)
-	validateFormat      func(cmdChain []*spec.Command, rawFormat string) error
 	recordMapProvenance func(session *Session, flag *spec.Flag, sources map[string]ValueSource, origins map[string]configdata.Value)
 	jsonFormatter       whyJSONFormatterFunc
 	rowType             whyRowTypeFunc
@@ -43,65 +42,16 @@ type mapFlagProvenance struct {
 
 func (a *App[T]) installWhyRenderer(settings whySettings) {
 	a.whyHooks = &whyHooks{
-		render: func(session *Session, rawFormat string) error {
-			return a.renderWhy(session, rawFormat)
-		},
-		bindSession: func(session *Session) {
-			a.bindWhySession(session)
-		},
-		validateFormat: func(cmdChain []*spec.Command, rawFormat string) error {
-			return a.validateWhyFormat(cmdChain, rawFormat)
-		},
+		render:              a.renderWhy,
+		bindSession:         a.bindWhySession,
 		recordMapProvenance: (*Session).recordMapProvenance,
 		jsonFormatter:       settings.jsonFormatter,
 		rowType:             settings.rowType,
 	}
 }
 
-func (a *App[T]) resolveWhyFormat(cmdChain []*spec.Command, rawFormat string) (string, error) {
-	switch rawFormat {
-	case "", "true", spec.WhyFormatText:
-		return spec.WhyFormatText, nil
-	case spec.WhyFormatJSON:
-		if a.whyHooks == nil || a.whyHooks.jsonFormatter == nil {
-			invalid := &inputError{
-				msg:  `invalid value "json" for --why`,
-				note: "this application doesn't offer JSON output",
-			}
-
-			return "", usageErrorFrom(cmdChain, invalid).
-				withShape(usageShapeLineOnly)
-		}
-
-		return spec.WhyFormatJSON, nil
-	default:
-		shown := truncateForDisplay(rawFormat)
-
-		invalid := &inputError{
-			msg:  fmt.Sprintf("invalid value %q for --why", shown),
-			note: "accepted values: text, json",
-		}
-
-		return "", usageErrorFrom(cmdChain, invalid).
-			withShape(usageShapeLineOnly)
-	}
-}
-
-func (a *App[T]) validateWhyFormat(cmdChain []*spec.Command, rawFormat string) error {
-	_, err := a.resolveWhyFormat(cmdChain, rawFormat)
-
-	return err
-}
-
-func (a *App[T]) renderWhy(session *Session, rawFormat string) error {
-	format, err := a.resolveWhyFormat(session.cmdChain, rawFormat)
-	if err != nil {
-		return err
-	}
-
+func (a *App[T]) renderWhy(session *Session, format string) {
 	fmt.Fprintln(session.Stdout(), a.renderWhyString(session, format))
-
-	return nil
 }
 
 func (a *App[T]) renderWhyString(session *Session, format string) string {

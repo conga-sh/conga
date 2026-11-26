@@ -1191,12 +1191,12 @@ func formatFlags(flags []*spec.Flag, hasHelpInfo bool, hasVersionInfo bool, hasC
 	return renderSections(builder.sections(), width)
 }
 
-// builtinWhyEntry renders the built-in --why flag row. The optional value
-// slot and the format list are advertised only when more than the default
-// text format is accepted (app.EnableWhy(conga.WhyOptionJSON())); otherwise --why
-// presents as a plain toggle and the text format stays implicit.
+// builtinWhyEntry renders the built-in --why flag row. When whyFormats is
+// empty (app.EnableWhy without conga.WhyOptionJSON()), --why is a plain toggle
+// that takes no value; otherwise it renders --why[=FORMAT] with the accepted
+// formats.
 func builtinWhyEntry(whyFormats []string) tableEntry {
-	if len(whyFormats) < 2 {
+	if len(whyFormats) == 0 {
 		return builderEntry(spec.BuiltinWhyFlag, nil)
 	}
 

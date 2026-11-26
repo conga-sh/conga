@@ -238,7 +238,7 @@ func builtinRequestedAt(chain []*Command, levelChains [][]*Command, tokens []tok
 			}
 
 			if !IsBuiltinShortFlag(flagSpec) {
-				// --why and --completion take a non-bool value, so their
+				// --why and --completion never accept a bool false value, so their
 				// presence alone is the request.
 				return true
 			}

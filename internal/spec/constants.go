@@ -25,9 +25,9 @@ const (
 	DefaultCompletionFlagHelp = "Generate shell completion script"
 
 	// DefaultWhyFlagHelp is the default description for the --why flag.
-	// Accepted output formats are advertised structurally — as a value slot
+	// Output formats are accepted and advertised structurally — as a value slot
 	// and enum hint in help, and as completion candidates — only when the app
-	// enabled more than the default text format.
+	// enabled conga.WhyOptionJSON().
 	DefaultWhyFlagHelp = "Show resolved field values and where they came from (values redacted unless tagged safe)"
 
 	// WhyFormatText is the default --why output format.

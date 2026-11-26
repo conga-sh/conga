@@ -106,9 +106,10 @@ type Command struct {
 	DisableWhy        bool
 	// WhyJSONEnabled reports whether the app enabled the machine-readable
 	// JSON output format for the built-in --why flag via
-	// app.EnableWhy(conga.WhyOptionJSON()). The help renderer and completion engine
-	// use it to advertise the value slot only when more than the default text
-	// format is accepted.
+	// app.EnableWhy(conga.WhyOptionJSON()). When false, the binder rejects any
+	// attached value on --why, help renders it as a plain toggle, and
+	// completion offers no value candidates; when true, --why accepts text and
+	// json and help and completion advertise both.
 	WhyJSONEnabled bool
 	// Feature holds the feature-gate expression declared through the feature
 	// tag on a subcommand container field. Empty means the subcommand is not
@@ -199,16 +200,16 @@ func (c *Command) WhyFlagVisible() bool {
 }
 
 // WhyFormats returns the output formats advertised for the built-in --why
-// flag: the default text format alone, or text and json when the app enabled
-// app.EnableWhy(conga.WhyOptionJSON()). Help and completion read this list so the
-// advertised formats stay a single source of truth; parse-time value
-// validation remains with the app's why resolver.
+// flag: nil when JSON output is disabled (so --why behaves as a plain toggle),
+// or text and json when the app enabled app.EnableWhy(conga.WhyOptionJSON()).
+// Help and completion read this list so the advertised formats stay a single
+// source of truth.
 func (c *Command) WhyFormats() []string {
 	if c.WhyJSONEnabled {
 		return []string{WhyFormatText, WhyFormatJSON}
 	}
 
-	return []string{WhyFormatText}
+	return nil
 }
 
 // InheritBuiltinVisibilityFrom copies the app-wide built-in flag visibility

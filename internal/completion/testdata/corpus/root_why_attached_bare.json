@@ -1,16 +1,10 @@
 {
-  "items": [
-    {
-      "value": "--why=text",
-      "display": "text",
-      "tag": "values"
-    }
-  ],
+  "items": [],
   "directives": {
     "error": false,
     "keeporder": false,
-    "nofilecomp": true,
+    "nofilecomp": false,
     "nospace": false
   },
-  "usage": "Show resolved field values and where they came from (values redacted unless tagged safe)"
+  "usage": ""
 }

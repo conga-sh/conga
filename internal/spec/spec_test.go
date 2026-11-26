@@ -857,6 +857,23 @@ func TestBuiltinSubcommandsInheritVisibility(t *testing.T) {
 		assert.False(t, cmd.FindSubcommand("completion").WhyFlagVisible())
 	})
 
+	t.Run("enabled why without json returns nil formats on root and synthesized commands", func(t *testing.T) {
+		t.Parallel()
+
+		var cli BuiltinTestCLI
+
+		cmd, err := buildSchema(&cli, "app", spec.Options{})
+
+		assert.NoError(t, err)
+		assert.Zero(t, cmd.WhyFormats())
+		assert.True(t, cmd.FindSubcommand("help").WhyFlagVisible())
+		assert.Zero(t, cmd.FindSubcommand("help").WhyFormats())
+		assert.True(t, cmd.FindSubcommand("version").WhyFlagVisible())
+		assert.Zero(t, cmd.FindSubcommand("version").WhyFormats())
+		assert.True(t, cmd.FindSubcommand("completion").WhyFlagVisible())
+		assert.Zero(t, cmd.FindSubcommand("completion").WhyFormats())
+	})
+
 	t.Run("enabled why advertises the flag and JSON formats", func(t *testing.T) {
 		t.Parallel()
 
@@ -865,6 +882,7 @@ func TestBuiltinSubcommandsInheritVisibility(t *testing.T) {
 		cmd, err := buildSchema(&cli, "app", spec.Options{WhyJSONEnabled: true})
 
 		assert.NoError(t, err)
+		assert.Equal(t, []string{spec.WhyFormatText, spec.WhyFormatJSON}, cmd.WhyFormats())
 		assert.True(t, cmd.FindSubcommand("help").WhyFlagVisible())
 		assert.Equal(t, []string{spec.WhyFormatText, spec.WhyFormatJSON}, cmd.FindSubcommand("help").WhyFormats())
 		assert.True(t, cmd.FindSubcommand("version").WhyFlagVisible())
