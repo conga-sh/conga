@@ -11,6 +11,7 @@ import (
 
 	"github.com/conga-sh/conga/internal/configdata"
 	"github.com/conga-sh/conga/internal/errlines"
+	"github.com/conga-sh/conga/internal/levenshtein"
 	"github.com/conga-sh/conga/internal/spec"
 )
 
@@ -30,12 +31,6 @@ const (
 	// usageShapeFullHelp prints the full help of the command for
 	// [UsageSummary] and [UsageFull], and the hint for [UsageHint].
 	usageShapeFullHelp
-)
-
-const (
-	suggestionKindNone suggestionKind = iota
-	suggestionKindFlag
-	suggestionKindCommand
 )
 
 var (
@@ -300,9 +295,10 @@ type UsageError struct {
 	inner error
 
 	// suggestion is the "did you mean" candidate returned as the hint, and
-	// suggestionKind says whether it names a flag or a subcommand.
-	suggestion     string
-	suggestionKind suggestionKind
+	// suggestionFeature is the feature expression gating the suggested flag or
+	// subcommand, or "" when ungated.
+	suggestion        string
+	suggestionFeature string
 }
 
 // Error returns the message, which is line 1 alone.
@@ -324,10 +320,10 @@ func (e *UsageError) Note() string {
 
 // Hint returns the "did you mean" suggestion for an unknown flag or command,
 // otherwise the hint of the inner error and then the cause chain, or "". The
-// suggestion is a flag token (--port) or a subcommand name, unquoted.
+// suggestion is quoted, and a flag keeps its dashes: did you mean "--port"?
 func (e *UsageError) Hint() string {
 	if e.suggestion != "" {
-		return "did you mean " + e.suggestion + "?"
+		return levenshtein.QuotedHint(e.suggestion)
 	}
 
 	return errlines.Hint(e.pieces())
@@ -367,9 +363,6 @@ func DiagnosticOf(err error) Diagnostic {
 
 // usageShape selects what [App.Exit] prints below a [UsageError]'s message.
 type usageShape uint8
-
-// suggestionKind says what a [UsageError]'s suggestion names.
-type suggestionKind uint8
 
 // conversionError reports a value that did not convert to its flag's or
 // argument's type. From the command line it reaches the caller as a
@@ -641,15 +634,15 @@ func (e *UsageError) withShape(shape usageShape) *UsageError {
 	return e
 }
 
-// withSuggestion sets the "did you mean" candidate. An empty suggestion sets
-// nothing.
-func (e *UsageError) withSuggestion(suggestion string, kind suggestionKind) *UsageError {
+// withSuggestion sets the "did you mean" candidate and its gating feature
+// expression. An empty suggestion sets nothing.
+func (e *UsageError) withSuggestion(suggestion, feature string) *UsageError {
 	if suggestion == "" {
 		return e
 	}
 
 	e.suggestion = suggestion
-	e.suggestionKind = kind
+	e.suggestionFeature = feature
 
 	return e
 }

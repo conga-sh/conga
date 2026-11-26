@@ -931,7 +931,7 @@ func TestImplicitCommand_SiblingFlagDoesNotSelectImplicit(t *testing.T) {
 
 	assert.Error(t, err)
 	assertUsageError(t, err)
-	assert.Contains(t, err.Error(), "unknown flag: --frozen")
+	assert.Equal(t, `unknown flag "--frozen"`, err.Error())
 	assert.False(t, cli.executed)
 	assert.False(t, cli.Exec.Get().executed)
 }
@@ -948,7 +948,7 @@ func TestImplicitCommand_SiblingValueFlagBeforeNameSelectsImplicitChild(t *testi
 		err := app.Run()
 
 		assertUsageError(t, err)
-		assert.Contains(t, err.Error(), "unknown flag: --env")
+		assert.Equal(t, `unknown flag "--env"`, err.Error())
 
 		usage := assertUsageError(t, err)
 		assert.Equal(t, "tool run", usage.CommandPath())
@@ -1042,7 +1042,7 @@ func TestImplicitCommand_ChildFlagBeforeVersionStaysUnknown(t *testing.T) {
 
 	assert.Error(t, err)
 	assertUsageError(t, err)
-	assert.Contains(t, err.Error(), "unknown flag: --version")
+	assert.Equal(t, `unknown flag "--version"`, err.Error())
 	assert.False(t, cli.executed)
 	assert.False(t, cli.Exec.Get().executed)
 }
@@ -1122,7 +1122,7 @@ func TestImplicitCommand_VersionBeforeChildFlagStaysUnknown(t *testing.T) {
 
 	assert.Error(t, err)
 	assertUsageError(t, err)
-	assert.Contains(t, err.Error(), "unknown flag: --version")
+	assert.Equal(t, `unknown flag "--version"`, err.Error())
 	assert.False(t, cli.executed)
 	assert.False(t, cli.Exec.Get().executed)
 }
@@ -1141,7 +1141,7 @@ func TestImplicitCommand_ChildFlagVersionShortInClusterStaysUnknown(t *testing.T
 
 	assert.Error(t, err)
 	assertUsageError(t, err)
-	assert.Contains(t, err.Error(), "unknown shorthand flag: 'V' in -Vn")
+	assert.Equal(t, `unknown shorthand flag 'V' in "-Vn"`, err.Error())
 	assert.False(t, cli.executed)
 	assert.False(t, cli.Exec.Get().executed)
 }
@@ -1160,7 +1160,7 @@ func TestImplicitCommand_ChildFlagVersionShortStaysUnknown(t *testing.T) {
 
 	assert.Error(t, err)
 	assertUsageError(t, err)
-	assert.Contains(t, err.Error(), "unknown flag: -V")
+	assert.Equal(t, `unknown flag "-V"`, err.Error())
 	assert.False(t, cli.executed)
 	assert.False(t, cli.Exec.Get().executed)
 }
@@ -1278,7 +1278,7 @@ func TestImplicitCommand_DisabledVersionStaysUnknown(t *testing.T) {
 
 	assert.Error(t, err)
 	assertUsageError(t, err)
-	assert.Contains(t, err.Error(), "unknown flag: --version")
+	assert.Equal(t, `unknown flag "--version"`, err.Error())
 	assert.False(t, cli.executed)
 	assert.False(t, cli.Exec.Get().executed)
 }
@@ -1296,7 +1296,7 @@ func TestImplicitCommand_OperandBeforeVersionStaysUnknown(t *testing.T) {
 
 	usage := assertUsageError(t, err)
 	assert.Equal(t, "tool mid run", usage.CommandPath())
-	assert.Contains(t, err.Error(), "unknown flag: --version")
+	assert.Equal(t, `unknown flag "--version"`, err.Error())
 	assert.False(t, cli.Mid.Get().Run.Get().executed)
 }
 
@@ -1344,7 +1344,7 @@ func TestImplicitCommand_ExplicitNameBeforeVersionStaysUnknown(t *testing.T) {
 
 	assert.Error(t, err)
 	assertUsageError(t, err)
-	assert.Contains(t, err.Error(), "unknown flag: --version")
+	assert.Equal(t, `unknown flag "--version"`, err.Error())
 	assert.False(t, cli.executed)
 	assert.False(t, cli.Exec.Get().executed)
 }
@@ -1517,7 +1517,7 @@ func TestImplicitCommand_VersionBeforeExplicitNameStaysUnknown(t *testing.T) {
 
 	assert.Error(t, err)
 	assertUsageError(t, err)
-	assert.Contains(t, err.Error(), "unknown flag: --version")
+	assert.Equal(t, `unknown flag "--version"`, err.Error())
 	assert.False(t, cli.executed)
 	assert.False(t, cli.Exec.Get().executed)
 }
@@ -1637,7 +1637,7 @@ func TestImplicitCommand_ExplicitSiblingRoutingIgnoresImplicitFlagArity(t *testi
 	err := app.Run()
 
 	assertUsageError(t, err)
-	assert.Equal(t, "unknown flag: --format", err.Error())
+	assert.Equal(t, `unknown flag "--format"`, err.Error())
 
 	usage := assertUsageError(t, err)
 	assert.Equal(t, "tool admin purge", usage.CommandPath())
@@ -1679,4 +1679,25 @@ func TestImplicit_FalseHelpRoutesAsIfAbsent(t *testing.T) {
 			assert.Equal(t, "", buffer.String())
 		})
 	}
+}
+
+type implicitHelpParentCLI struct {
+	Exec    conga.Command[implicitRunCmd]     `implicit:"true"                name:"run" summary:"Execute a file"`
+	Install conga.Command[implicitInstallCmd] `summary:"Install dependencies"`
+	Help    conga.HelpCommand
+}
+
+func TestImplicitCommand_HelpUnknownSubcommandSuggests(t *testing.T) {
+	t.Parallel()
+
+	app := conga.New[implicitHelpParentCLI]().
+		Name("tool").
+		Args([]string{"help", "instal"})
+
+	err := app.Run()
+
+	usage := assertUsageError(t, err)
+	assert.Equal(t, `unknown command "instal"`, err.Error())
+	assert.Equal(t, `did you mean "install"?`, usage.Hint())
+	assert.Equal(t, 2, usage.ExitCode())
 }

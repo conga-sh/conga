@@ -164,7 +164,7 @@ func TestErrorTypesByFailure(t *testing.T) {
 
 		assert.Error(t, err)
 		assertUsageError(t, err)
-		assert.Equal(t, "unknown flag: --bogus", err.Error())
+		assert.Equal(t, `unknown flag "--bogus"`, err.Error())
 	})
 
 	t.Run("flag requires a value", func(t *testing.T) {
@@ -737,7 +737,7 @@ func TestErrorClassificationBySource(t *testing.T) {
 
 				return runClassification(t, classificationApp().Args([]string{"--no-verbose=true"}))
 			},
-			message:    "negated flag does not take a value: --no-verbose=true",
+			message:    `negated flag does not take a value: "--no-verbose=true"`,
 			causeType:  "",
 			usage:      true,
 			exitCode:   2,
@@ -1663,8 +1663,8 @@ func TestSubcommandTypoSuggestion_Issue10(t *testing.T) {
 
 	assert.Error(t, err)
 	assertUsageError(t, err)
-	assert.Equal(t, `unknown command: clustr`, err.Error())
-	assert.Equal(t, `did you mean cluster?`, errlines.Hint(err))
+	assert.Equal(t, `unknown command "clustr"`, err.Error())
+	assert.Equal(t, `did you mean "cluster"?`, errlines.Hint(err))
 }
 
 func TestSubcommandRequired_Issue11(t *testing.T) {

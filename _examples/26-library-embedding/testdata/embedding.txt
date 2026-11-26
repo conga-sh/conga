@@ -28,7 +28,7 @@ stdout '\[host\] captured exit code: 2'
 
 # 4. Disabled built-ins: --help is just an unknown flag now
 exit-status 2 library-embedding --help
-stdout '\[host\] run error: unknown flag: --help'
+stdout '\[host\] run error: unknown flag "--help"'
 stdout '\[host\] usage error exit code: 2'
 stdout '\[host\] captured exit code: 2'
 

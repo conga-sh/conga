@@ -220,11 +220,11 @@ An operand that starts with `-` goes after `--`, so `cloudctl -- -web.yaml` depl
 
 | What happens | When | Result |
 |---|---|---|
-| The user mistypes a subcommand (`cloudctl lst`) | Run | `unknown command: lst`, with a `hint: did you mean list?` line, exit 2 |
+| The user mistypes a subcommand (`cloudctl lst`) | Run | `unknown command "lst"`, with a `hint: did you mean "list"?` line, exit 2 |
 | The user runs a subcommand whose type has no `Run` method | Run | `struct ListCmd: runner not implemented`, with a `hint: implement conga.Runner: Run(context.Context, *conga.Session) error` line, exit 1 |
 | A subcommand declares a flag its parent already declares | Startup | `struct DeployCmd field Verbose: duplicate flag --verbose`, with a `note: already declared by struct CLI field Verbose on an ancestor command` line, exit 1 |
 | Two subcommands of one parent are tagged `implicit:"true"` | Startup | `struct CLI field List: only one implicit command is allowed per command`, with a `note: already declared by field Deploy` line, exit 1 |
-| With `deploy` implicit, a flag only `list` declares comes before `list` (`cloudctl --format json list`) | Run | `unknown flag: --format`, exit 2; the line routes to `deploy` |
+| With `deploy` implicit, a flag only `list` declares comes before `list` (`cloudctl --format json list`) | Run | `unknown flag "--format"`, exit 2; the line routes to `deploy` |
 | With `deploy` implicit, the user runs `cloudctl` alone | Run | `missing required positional argument <manifest>`, exit 2 |
 
 A missing `Run` passes startup and fails only when a user invokes that subcommand. `conga-lint` reports it before you build, and [How to lint schemas](/how-to/lint-schemas/) sets it up.

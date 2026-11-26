@@ -1,4 +1,4 @@
-app: error: unknown flag: --bogus
+app: error: unknown flag "--bogus"
 
 Usage:
   app <command> [flags]

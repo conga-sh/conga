@@ -137,7 +137,7 @@ func TestHelloReadsStdin(t *testing.T) {
 Arguments and streams belong to that `App` instance, so these tests can call `t.Parallel()`.
 
 :::caution[Always call Args in tests]
-Without `Args`, the app parses `os.Args`, which holds the flags `go test` passes to the test binary, and `RunContext` returns `unknown shorthand flag: 't' in -test.testlogfile`. Pass `Args(nil)` for a run with no command-line arguments.
+Without `Args`, the app parses `os.Args`, which holds the flags `go test` passes to the test binary, and `RunContext` returns `unknown shorthand flag 't' in "-test.testlogfile"`. Pass `Args(nil)` for a run with no command-line arguments.
 :::
 
 ## Run table-driven tests
@@ -270,7 +270,7 @@ func TestUnknownFlagExitsWithUsageError(t *testing.T) {
 		t.Errorf("exit code = %d, want 2", exitCode)
 	}
 
-	if !strings.Contains(stderrBuffer.String(), "unknown flag: --unknown-flag") {
+	if !strings.Contains(stderrBuffer.String(), `unknown flag "--unknown-flag"`) {
 		t.Errorf("stderr = %q, want the unknown flag message", stderrBuffer.String())
 	}
 
@@ -283,7 +283,7 @@ func TestUnknownFlagExitsWithUsageError(t *testing.T) {
 After `app.Exit(err)`, `stdoutBuffer` is empty, so a user piping the output gets no partial result, and `stderrBuffer` holds the error and usage block a user sees:
 
 ```text no-copy error={1}
-hello: error: unknown flag: --unknown-flag
+hello: error: unknown flag "--unknown-flag"
 
 Usage:
   hello [flags]

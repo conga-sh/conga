@@ -285,7 +285,7 @@ func TestBuiltinShort_UserShadows(t *testing.T) {
 
 		assert.Error(t, err)
 		assertUsageError(t, err)
-		assert.Equal(t, "unknown flag: -h", err.Error())
+		assert.Equal(t, `unknown flag "-h"`, err.Error())
 	})
 }
 
@@ -329,7 +329,7 @@ func TestBuiltinShort_EngineOwnedShadows(t *testing.T) {
 
 		assert.Error(t, err)
 		assertUsageError(t, err)
-		assert.Equal(t, "unknown flag: -h", err.Error())
+		assert.Equal(t, `unknown flag "-h"`, err.Error())
 	})
 
 	t.Run("features version shadow renders long-only", func(t *testing.T) {

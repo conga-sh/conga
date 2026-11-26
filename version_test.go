@@ -552,7 +552,7 @@ func TestVersionFlag_UserVersionFlagGetsNoPrecedence(t *testing.T) {
 	err := app.Run()
 
 	assertUsageError(t, err)
-	assert.Equal(t, "unknown flag: --bogus", err.Error())
+	assert.Equal(t, `unknown flag "--bogus"`, err.Error())
 }
 
 // TestVersionFlag_FalseValueIsNoRequest pins that the built-in version flag

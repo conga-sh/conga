@@ -44,7 +44,7 @@ does not list the root-only `--version`; the root help documents it.
 
 `--version` belongs to the root invocation. Once a command is selected, the
 flag is no longer a builtin: `implicit-command -n --version` fails with
-`unknown flag: --version` because the raw-args fallback has not started yet
+`unknown flag "--version"` because the raw-args fallback has not started yet
 (`run` still needs its file argument), and these reject it because they name
 the child explicitly:
 

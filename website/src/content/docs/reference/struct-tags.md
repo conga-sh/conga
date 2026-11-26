@@ -210,7 +210,7 @@ A parent that implements `Runner` runs itself when the invocation supplies no op
 | `tool -n ./script.ts` | `run` with `-n` set |
 | `tool -- -e.ts` | `run` with the file `-e.ts` |
 | `tool install` | `install` |
-| `tool -n install` | Fails: `unknown flag: -n` |
+| `tool -n install` | Fails: `unknown flag "-n"` |
 | `tool -n` | Fails: `missing required positional argument <file>` |
 
 #### Token order
@@ -234,8 +234,8 @@ Routing reads tokens left to right. A subcommand's value-taking flag must follow
 | Invocation | Result |
 |------------|--------|
 | `tool --version` | Prints the version summary |
-| `tool -n --version` | Fails: `unknown flag: --version`, same as `tool run --version` |
-| `tool --version run` | Fails: `unknown flag: --version` |
+| `tool -n --version` | Fails: `unknown flag "--version"`, same as `tool run --version` |
+| `tool --version run` | Fails: `unknown flag "--version"` |
 | `tool ./script.ts --version` | `run` receives `--version` in `RawArgs`, same as `tool run ./script.ts --version` |
 
 An implicit subcommand may declare its own `version` flag or claim the `app.VersionShortFlag` rune. The root built-in still decides routing. A bare `tool --version` prints the summary, and an operand after it selects the subcommand, which then binds exactly like the named form. With a value-taking `version` flag on `run`, `tool --version script.ts` behaves like `tool run --version script.ts`, and `script.ts` becomes the flag's value.

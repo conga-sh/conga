@@ -58,7 +58,7 @@ type DeployCmd struct {
 
 A token that matches a sibling's name or alias selects that sibling. Adding an implicit subcommand therefore never changes the meaning of an invocation that was valid before.
 
-The trade-off is in error reporting. Without an implicit subcommand, `tool instal` is an unknown command and gets a "did you mean install?" suggestion. With one, `instal` is a valid operand, and the implicit subcommand runs with it.
+The trade-off is in error reporting. Without an implicit subcommand, `tool instal` is an unknown command and gets a `did you mean "install"?` suggestion. With one, `instal` is a valid operand, and the implicit subcommand runs with it.
 
 ### Routing reads left to right
 

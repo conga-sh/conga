@@ -597,34 +597,6 @@ func collectPrunedSubtree(cmd *spec.Command, prefix string, featureExpr string, 
 	return pruned
 }
 
-// suggestedMemberFeature returns the feature expression gating the flag or
-// subcommand an unknown-flag or unknown-command error suggests, or "" when the
-// suggested member is ungated or is neither. A suggested flag is looked up on
-// every command of the chain, since the parser accepts ancestor flags; a
-// suggested subcommand belongs to the last command of the chain.
-func suggestedMemberFeature(unknown *UsageError) string {
-	switch unknown.suggestionKind {
-	case suggestionKindNone:
-		// No suggestion, so no member to look up.
-	case suggestionKindFlag:
-		for _, cmd := range unknown.cmdChain {
-			for _, flagSpec := range cmd.Flags {
-				if "--"+flagSpec.Name == unknown.suggestion {
-					return flagSpec.Feature
-				}
-			}
-		}
-	case suggestionKindCommand:
-		for _, subcommand := range unknown.cmdChain[len(unknown.cmdChain)-1].Subcommands {
-			if subcommand.Name == unknown.suggestion {
-				return subcommand.Feature
-			}
-		}
-	}
-
-	return ""
-}
-
 func validateSubcommandFeatures(cmdChain []*spec.Command, activeFeatures map[string]bool) error {
 	for _, subcommand := range cmdChain[1:] {
 		if subcommand.Feature != "" && !spec.MatchFeature(subcommand.Feature, activeFeatures) {

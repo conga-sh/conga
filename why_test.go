@@ -2450,8 +2450,15 @@ func TestBuiltinWhy_JSONWithoutOptionRejected(t *testing.T) {
 	err := app.Run()
 
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), `invalid value "json" for --why: JSON output format is not enabled on this application (enable with app.EnableWhy(conga.WhyOptionJSON()))`)
+	assert.Equal(t, `invalid value "json" for --why`, err.Error())
 	assertUsageError(t, err)
+
+	diagnostic := conga.DiagnosticOf(err)
+	assert.Equal(t, "this application doesn't offer JSON output", diagnostic.Note())
+	assert.Equal(t, "", diagnostic.Hint())
+	assert.Equal(t, 2, app.ExitCode(err))
+	assert.Equal(t, "", app.UsageBlock(err))
+	assert.Equal(t, "", buffer.String())
 }
 
 type whySessionCLI struct {

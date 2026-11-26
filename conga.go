@@ -1694,8 +1694,7 @@ func (a *App[T]) clearGatedSuggestion(err error, flagValues map[*spec.Flag][]str
 		return err
 	}
 
-	featureExpr := suggestedMemberFeature(unknown)
-	if featureExpr == "" {
+	if unknown.suggestionFeature == "" {
 		return err
 	}
 
@@ -1730,13 +1729,13 @@ func (a *App[T]) clearGatedSuggestion(err error, flagValues map[*spec.Flag][]str
 	}
 
 	gates := completionFeatureGates(root, flagValues, binding)
-	if spec.MatchFeature(featureExpr, gates) {
+	if spec.MatchFeature(unknown.suggestionFeature, gates) {
 		return err
 	}
 
 	cleared := *unknown
 	cleared.suggestion = ""
-	cleared.suggestionKind = suggestionKindNone
+	cleared.suggestionFeature = ""
 
 	return &cleared
 }

@@ -5,6 +5,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -1070,7 +1071,7 @@ func TestBinder_CounterFlag(t *testing.T) {
 		err := app.Run()
 
 		assertUsageError(t, err)
-		assert.Equal(t, "flag does not take a value: --verbose=2", err.Error())
+		assert.Equal(t, `flag does not take a value: "--verbose=2"`, err.Error())
 		assert.Equal(t, conga.SourceNone, cli.Verbose.Source())
 		assert.Equal(t, 0, cli.Verbose.Get())
 	})
@@ -1085,7 +1086,7 @@ func TestBinder_CounterFlag(t *testing.T) {
 		err := app.Run()
 
 		assertUsageError(t, err)
-		assert.Equal(t, "flag does not take a value: -v=2", err.Error())
+		assert.Equal(t, `flag does not take a value: "-v=2"`, err.Error())
 		assert.Equal(t, conga.SourceNone, cli.Verbose.Source())
 		assert.Equal(t, 0, cli.Verbose.Get())
 	})
@@ -1100,7 +1101,7 @@ func TestBinder_CounterFlag(t *testing.T) {
 		err := app.Run()
 
 		assertUsageError(t, err)
-		assert.Equal(t, "flag does not take a value: -vv=2", err.Error())
+		assert.Equal(t, `flag does not take a value: "-vv=2"`, err.Error())
 		assert.Equal(t, conga.SourceNone, cli.Verbose.Source())
 		assert.Equal(t, 0, cli.Verbose.Get())
 	})
@@ -1115,7 +1116,7 @@ func TestBinder_CounterFlag(t *testing.T) {
 		err := app.Run()
 
 		assertUsageError(t, err)
-		assert.Equal(t, "flag does not take a value: --verbose=", err.Error())
+		assert.Equal(t, `flag does not take a value: "--verbose="`, err.Error())
 		assert.Equal(t, conga.SourceNone, cli.Verbose.Source())
 		assert.Equal(t, 0, cli.Verbose.Get())
 	})
@@ -1130,7 +1131,7 @@ func TestBinder_CounterFlag(t *testing.T) {
 		err := app.Run()
 
 		assertUsageError(t, err)
-		assert.Equal(t, "flag does not take a value: --verbose=2", err.Error())
+		assert.Equal(t, `flag does not take a value: "--verbose=2"`, err.Error())
 		assert.Equal(t, conga.SourceNone, cli.Verbose.Source())
 		assert.Equal(t, 0, cli.Verbose.Get())
 	})
@@ -1145,7 +1146,7 @@ func TestBinder_CounterFlag(t *testing.T) {
 		err := app.Run()
 
 		assertUsageError(t, err)
-		assert.Equal(t, "flag does not take a value: --verbose=abc", err.Error())
+		assert.Equal(t, `flag does not take a value: "--verbose=abc"`, err.Error())
 		assert.Equal(t, conga.SourceNone, cli.Verbose.Source())
 		assert.Equal(t, 0, cli.Verbose.Get())
 	})
@@ -1259,7 +1260,7 @@ func TestBinder_UnknownShortFlag(t *testing.T) {
 		err := app.Run()
 
 		assertUsageError(t, err)
-		assert.Equal(t, "unknown flag: -Z", err.Error())
+		assert.Equal(t, `unknown flag "-Z"`, err.Error())
 	})
 
 	t.Run("unknown short flag in cluster", func(t *testing.T) {
@@ -1271,7 +1272,7 @@ func TestBinder_UnknownShortFlag(t *testing.T) {
 		err := app.Run()
 
 		assertUsageError(t, err)
-		assert.Equal(t, "unknown shorthand flag: 'Z' in -dZ", err.Error())
+		assert.Equal(t, `unknown shorthand flag 'Z' in "-dZ"`, err.Error())
 	})
 
 	t.Run("unknown short flag leading cluster", func(t *testing.T) {
@@ -1283,7 +1284,7 @@ func TestBinder_UnknownShortFlag(t *testing.T) {
 		err := app.Run()
 
 		assertUsageError(t, err)
-		assert.Equal(t, "unknown shorthand flag: 'Z' in -Zd", err.Error())
+		assert.Equal(t, `unknown shorthand flag 'Z' in "-Zd"`, err.Error())
 	})
 }
 
@@ -1318,7 +1319,7 @@ func TestRouteSubcommands_UnknownCommandAfterShorthandCluster(t *testing.T) {
 			err := app.Run()
 
 			assertUsageError(t, err)
-			assert.Equal(t, "unknown command: bogus", err.Error())
+			assert.Equal(t, `unknown command "bogus"`, err.Error())
 		})
 	}
 }
@@ -1331,7 +1332,7 @@ func TestRouteSubcommands_UnknownShorthandInClusterReportsUnknownFlag(t *testing
 	err := app.Run()
 
 	assertUsageError(t, err)
-	assert.Equal(t, "unknown shorthand flag: 'x' in -vx", err.Error())
+	assert.Equal(t, `unknown shorthand flag 'x' in "-vx"`, err.Error())
 }
 
 func TestRouteSubcommands_HelpRequestBeforeUnknownCommandRendersHelp(t *testing.T) {
@@ -1561,7 +1562,7 @@ func TestBinder_NegatedTokenRouting(t *testing.T) {
 
 		assert.Error(t, err)
 		assertUsageError(t, err)
-		assert.Equal(t, "unknown flag: --no-port", err.Error())
+		assert.Equal(t, `unknown flag "--no-port"`, err.Error())
 	})
 
 	t.Run("negated form of non-negatable bool flag is an unknown flag", func(t *testing.T) {
@@ -1572,7 +1573,7 @@ func TestBinder_NegatedTokenRouting(t *testing.T) {
 
 		assert.Error(t, err)
 		assertUsageError(t, err)
-		assert.Equal(t, "unknown flag: --no-verbose", err.Error())
+		assert.Equal(t, `unknown flag "--no-verbose"`, err.Error())
 	})
 
 	t.Run("exact match on flag starting with no- binds without negation", func(t *testing.T) {
@@ -1608,7 +1609,8 @@ func TestBinder_NegatedTokenSuggestionSuppression(t *testing.T) {
 		err := app.RunContext(t.Context())
 
 		assertUsageError(t, err)
-		assert.Equal(t, "unknown flag: --no-port", err.Error())
+		assert.Equal(t, `unknown flag "--no-port"`, err.Error())
+		assert.Equal(t, "", errlines.Hint(err))
 	})
 }
 
@@ -1620,8 +1622,8 @@ func TestBinder_CaseInsensitiveFlagSuggestion(t *testing.T) {
 
 	assert.Error(t, err)
 	assertUsageError(t, err)
-	assert.Equal(t, `unknown flag: --PORT`, err.Error())
-	assert.Equal(t, `did you mean --port?`, errlines.Hint(err))
+	assert.Equal(t, `unknown flag "--PORT"`, err.Error())
+	assert.Equal(t, `did you mean "--port"?`, errlines.Hint(err))
 }
 
 func TestBinder_ShortFlagClusteringWithEqual(t *testing.T) {
@@ -1916,7 +1918,7 @@ func TestBinder_ShortClusterAttachedValues(t *testing.T) {
 
 		assert.Error(t, err)
 		assertUsageError(t, err)
-		assert.Equal(t, "negated flag does not take a value: --no-verbose=true", err.Error())
+		assert.Equal(t, `negated flag does not take a value: "--no-verbose=true"`, err.Error())
 	})
 }
 
@@ -2168,4 +2170,193 @@ func TestBinder_RepeatedScalarFlagInvalidEarlierOccurrence(t *testing.T) {
 		assert.Equal(t, conga.SourceNone, cli.Token.Source())
 		assert.Equal(t, 0, cli.Token.Get())
 	})
+}
+
+type quotedInputDeployCmd struct {
+	Target conga.OptionalFlag[string] `name:"target"`
+	Quiet  conga.OptionalFlag[bool]   `name:"quiet" negatable:"true"`
+
+	noopRunner
+}
+
+type quotedInputMeanCmd struct {
+	noopRunner
+}
+
+type quotedInputCLI struct {
+	Verbose conga.Counter                       `name:"verbose" short:"v"`
+	Loud    conga.OptionalFlag[bool]            `name:"loud" negatable:"true"`
+	Port    conga.OptionalFlag[int]             `name:"port"`
+	Literal conga.OptionalFlag[bool]            `name:"no-cache"`
+	Mean    conga.Command[quotedInputMeanCmd]   `name:"mean"`
+	Deploy  conga.Command[quotedInputDeployCmd] `name:"deploy"`
+	Secret  conga.Command[quotedInputMeanCmd]   `name:"secretive" hidden:"true"`
+}
+
+func TestBinder_QuotesTypedInputAndSuggestions(t *testing.T) {
+	t.Parallel()
+
+	long := strings.Repeat("é", 200)
+	fifty := strings.Repeat("é", 50)
+
+	tests := []struct {
+		name    string
+		args    []string
+		message string
+		hint    string
+	}{
+		{name: "long flag with suggestion", args: []string{"--prot", "1"}, message: `unknown flag "--prot"`, hint: `did you mean "--port"?`},
+		{name: "long flag without suggestion", args: []string{"--zzzzzzzz"}, message: `unknown flag "--zzzzzzzz"`},
+		{name: "long flag with value", args: []string{"--prot=1"}, message: `unknown flag "--prot"`, hint: `did you mean "--port"?`},
+		{name: "long flag with space", args: []string{"--po rt=1"}, message: `unknown flag "--po rt"`, hint: `did you mean "--port"?`},
+		{name: "long flag truncated", args: []string{"--" + long}, message: `unknown flag "--` + fifty + `…"`},
+		{name: "long flag escape sequence", args: []string{"--zz\x1b[31m"}, message: `unknown flag "--zz\x1b[31m"`},
+		{name: "negated token", args: []string{"--no-prot"}, message: `unknown flag "--no-prot"`},
+		{name: "negated token with negatable match", args: []string{"--no-lod"}, message: `unknown flag "--no-lod"`, hint: `did you mean "--no-loud"?`},
+		{name: "negated token with negatable match and value", args: []string{"--no-lod=1"}, message: `unknown flag "--no-lod"`, hint: `did you mean "--no-loud"?`},
+		{name: "negated token with no negatable match", args: []string{"--no-zzzzzzzz"}, message: `unknown flag "--no-zzzzzzzz"`},
+		{name: "negated token literal no- flag", args: []string{"--no-cach"}, message: `unknown flag "--no-cach"`, hint: `did you mean "--no-cache"?`},
+		{name: "short flag", args: []string{"-x"}, message: `unknown flag "-x"`},
+		{name: "short flag with value", args: []string{"-x=1"}, message: `unknown flag "-x"`},
+		{name: "short help without help flag short", args: []string{"-h"}, message: `unknown flag "-h"`, hint: `did you mean "--help"?`},
+		{name: "cluster", args: []string{"-xyz"}, message: `unknown shorthand flag 'x' in "-xyz"`},
+		{name: "cluster with value", args: []string{"-xyz=1"}, message: `unknown shorthand flag 'x' in "-xyz"`},
+		{name: "cluster with known rune", args: []string{"-vxz"}, message: `unknown shorthand flag 'x' in "-vxz"`},
+		{name: "cluster non-ASCII rune", args: []string{"-vé"}, message: `unknown shorthand flag 'é' in "-vé"`},
+		{name: "cluster control rune", args: []string{"-v\x01"}, message: `unknown shorthand flag '\x01' in "-v\x01"`},
+		{name: "cluster truncated", args: []string{"-x" + long}, message: `unknown shorthand flag 'x' in "-x` + strings.Repeat("é", 49) + `…"`},
+		{name: "command with suggestion", args: []string{"maen"}, message: `unknown command "maen"`, hint: `did you mean "mean"?`},
+		{name: "command typo", args: []string{"deplyo"}, message: `unknown command "deplyo"`, hint: `did you mean "deploy"?`},
+		{name: "command with space", args: []string{"dep loy"}, message: `unknown command "dep loy"`, hint: `did you mean "deploy"?`},
+		{name: "command truncated", args: []string{long}, message: `unknown command "` + fifty + `…"`},
+		{name: "command escape sequence", args: []string{"deplo\x1b[31m"}, message: `unknown command "deplo\x1b[31m"`},
+		{name: "counter long value", args: []string{"--verbose=2"}, message: `flag does not take a value: "--verbose=2"`},
+		{name: "counter short value", args: []string{"-v=2"}, message: `flag does not take a value: "-v=2"`},
+		{name: "counter cluster value", args: []string{"-vv=2"}, message: `flag does not take a value: "-vv=2"`},
+		{name: "counter empty value", args: []string{"--verbose="}, message: `flag does not take a value: "--verbose="`},
+		{name: "counter truncated value", args: []string{"--verbose=" + long}, message: `flag does not take a value: "--verbose=` + strings.Repeat("é", 50-len("--verbose=")) + `…"`},
+		{name: "counter escape value", args: []string{"--verbose=\x1b"}, message: `flag does not take a value: "--verbose=\x1b"`},
+		{name: "negated bool value", args: []string{"--no-loud=true"}, message: `negated flag does not take a value: "--no-loud=true"`},
+		{name: "negated bool escape value", args: []string{"--no-loud=\x1b"}, message: `negated flag does not take a value: "--no-loud=\x1b"`},
+		{name: "subcommand flag", args: []string{"deploy", "--targt", "1"}, message: `unknown flag "--targt"`, hint: `did you mean "--target"?`},
+		{name: "subcommand flag without suggestion", args: []string{"deploy", "--zzzz"}, message: `unknown flag "--zzzz"`},
+		{name: "subcommand flag with value", args: []string{"deploy", "--targt=1"}, message: `unknown flag "--targt"`, hint: `did you mean "--target"?`},
+		{name: "subcommand flag with space", args: []string{"deploy", "--tar get=1"}, message: `unknown flag "--tar get"`, hint: `did you mean "--target"?`},
+		{name: "subcommand flag truncated", args: []string{"deploy", "--" + long}, message: `unknown flag "--` + fifty + `…"`},
+		{name: "subcommand flag escape sequence", args: []string{"deploy", "--zz\x1b[31m"}, message: `unknown flag "--zz\x1b[31m"`},
+		{name: "subcommand negated token", args: []string{"deploy", "--no-targt"}, message: `unknown flag "--no-targt"`},
+		{name: "subcommand negated token with negatable match", args: []string{"deploy", "--no-quit"}, message: `unknown flag "--no-quit"`, hint: `did you mean "--no-quiet"?`},
+		{name: "subcommand negated token reaches root negatable", args: []string{"deploy", "--no-lod"}, message: `unknown flag "--no-lod"`, hint: `did you mean "--no-loud"?`},
+		{name: "empty command", args: []string{""}, message: `unknown command ""`},
+		{name: "hidden command not suggested", args: []string{"secretiv"}, message: `unknown command "secretiv"`},
+		{name: "unexpected positional with suggestion", args: []string{"--", "deplo"}, message: `unknown command "deplo"`, hint: `did you mean "deploy"?`},
+		{name: "unexpected argument truncated", args: []string{"deploy", "--", long}, message: `unexpected argument "` + fifty + `…"`},
+		{name: "negated bool truncated value", args: []string{"--no-loud=" + long}, message: `negated flag does not take a value: "--no-loud=` + strings.Repeat("é", 50-len("--no-loud=")) + `…"`},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			app := conga.New[quotedInputCLI]().Name("tool").Args(test.args)
+
+			err := app.Run()
+
+			usage := assertUsageError(t, err)
+			assert.Equal(t, test.message, err.Error())
+			assert.Equal(t, test.hint, usage.Hint())
+			assert.Equal(t, 2, usage.ExitCode())
+		})
+	}
+}
+
+type suggestionOrderCLI struct {
+	Loud conga.OptionalFlag[bool] `name:"loud" negatable:"true"`
+	Load conga.OptionalFlag[bool] `name:"load" negatable:"true"`
+
+	noopRunner
+}
+
+type suggestionHiddenCLI struct {
+	Secret conga.OptionalFlag[bool] `name:"secret" negatable:"true" hidden:"true"`
+
+	noopRunner
+}
+
+type suggestionNoPrefixedCLI struct {
+	Color conga.OptionalFlag[bool] `name:"no-color" negatable:"true"`
+
+	noopRunner
+}
+
+type suggestionNoPrefixDistanceCLI struct {
+	Sort    conga.OptionalFlag[bool] `name:"sort" negatable:"true"`
+	NoShort conga.OptionalFlag[bool] `name:"no-short"`
+
+	noopRunner
+}
+
+type suggestionCaseNoPrefixCLI struct {
+	Loud         conga.OptionalFlag[bool]   `name:"loud" negatable:"true"`
+	VerboseOut   conga.OptionalFlag[bool]   `name:"verbose-output" negatable:"true"`
+	OutputFormat conga.OptionalFlag[string] `name:"output-format"`
+
+	noopRunner
+}
+
+type suggestionShadowedByHiddenNoPrefixCLI struct {
+	HiddenNoForce conga.OptionalFlag[bool] `hidden:"true" name:"no-force"`
+	Force         conga.OptionalFlag[bool] `name:"force" negatable:"true"`
+
+	noopRunner
+}
+
+type suggestionShadowedByAliasNoPrefixCLI struct {
+	DisableForce conga.OptionalFlag[bool] `aliases:"no-force" name:"disable-force"`
+	Force        conga.OptionalFlag[bool] `name:"force" negatable:"true"`
+
+	noopRunner
+}
+
+func TestBinder_FlagSuggestionOrderHiddenAndNoPrefix(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name    string
+		run     func(args []string) error
+		args    []string
+		message string
+		hint    string
+	}{
+		{name: "tie on negation", run: runSuggestionApp[suggestionOrderCLI], args: []string{"--no-lod"}, message: `unknown flag "--no-lod"`, hint: `did you mean "--no-load"?`},
+		{name: "tie on plain", run: runSuggestionApp[suggestionOrderCLI], args: []string{"--lod"}, message: `unknown flag "--lod"`, hint: `did you mean "--load"?`},
+		{name: "hidden plain", run: runSuggestionApp[suggestionHiddenCLI], args: []string{"--secrt"}, message: `unknown flag "--secrt"`},
+		{name: "hidden negated", run: runSuggestionApp[suggestionHiddenCLI], args: []string{"--no-secrt"}, message: `unknown flag "--no-secrt"`},
+		{name: "negated literal no- flag", run: runSuggestionApp[suggestionNoPrefixedCLI], args: []string{"--no-colr"}, message: `unknown flag "--no-colr"`, hint: `did you mean "--no-color"?`},
+		{name: "double negated literal no- flag", run: runSuggestionApp[suggestionNoPrefixedCLI], args: []string{"--no-no-colr"}, message: `unknown flag "--no-no-colr"`, hint: `did you mean "--no-no-color"?`},
+		{name: "closer literal no- flag beats negatable", run: runSuggestionApp[suggestionNoPrefixDistanceCLI], args: []string{"--no-shrt"}, message: `unknown flag "--no-shrt"`, hint: `did you mean "--no-short"?`},
+		{name: "uppercase no- prefix on short negatable", run: runSuggestionApp[suggestionCaseNoPrefixCLI], args: []string{"--NO-LOUD"}, message: `unknown flag "--NO-LOUD"`, hint: `did you mean "--no-loud"?`},
+		{name: "mixed-case no- prefix on short negatable", run: runSuggestionApp[suggestionCaseNoPrefixCLI], args: []string{"--No-Loud"}, message: `unknown flag "--No-Loud"`, hint: `did you mean "--no-loud"?`},
+		{name: "uppercase no- prefix on long negatable preserves polarity", run: runSuggestionApp[suggestionCaseNoPrefixCLI], args: []string{"--NO-VERBOSE-OUTPUT"}, message: `unknown flag "--NO-VERBOSE-OUTPUT"`, hint: `did you mean "--no-verbose-output"?`},
+		{name: "uppercase no- prefix on non-negatable suppresses hint", run: runSuggestionApp[suggestionCaseNoPrefixCLI], args: []string{"--NO-OUTPUT-FORMAT"}, message: `unknown flag "--NO-OUTPUT-FORMAT"`},
+		{name: "uppercase no- prefix on literal no- flag", run: runSuggestionApp[suggestionNoPrefixedCLI], args: []string{"--NO-COLR"}, message: `unknown flag "--NO-COLR"`, hint: `did you mean "--no-color"?`},
+		{name: "hidden literal no- flag shadows negatable negation", run: runSuggestionApp[suggestionShadowedByHiddenNoPrefixCLI], args: []string{"--no-forc"}, message: `unknown flag "--no-forc"`},
+		{name: "alias no- flag shadows negatable negation", run: runSuggestionApp[suggestionShadowedByAliasNoPrefixCLI], args: []string{"--no-forc"}, message: `unknown flag "--no-forc"`},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := test.run(test.args)
+
+			usage := assertUsageError(t, err)
+			assert.Equal(t, test.message, err.Error())
+			assert.Equal(t, test.hint, usage.Hint())
+		})
+	}
+}
+
+func runSuggestionApp[T any](args []string) error {
+	return conga.New[T]().Args(args).Run()
 }
