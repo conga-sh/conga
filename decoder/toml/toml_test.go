@@ -1,11 +1,14 @@
 package toml_test
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/alecthomas/assert/v2"
 
 	_ "embed"
+
+	gotoml "github.com/pelletier/go-toml/v2"
 
 	"github.com/conga-sh/conga/decoder/toml"
 )
@@ -70,7 +73,14 @@ func TestDecode_InvalidSyntax(t *testing.T) {
 
 	_, err := toml.Decode(fixtureInvalidSyntax)
 
-	assert.EqualError(t, err, `toml: unexpected character U+000A at start of value`)
+	assert.Error(t, err)
+
+	decodeErr, ok := errors.AsType[*gotoml.DecodeError](err)
+	assert.True(t, ok)
+
+	row, column := decodeErr.Position()
+	assert.Equal(t, 3, row)
+	assert.Equal(t, 8, column)
 }
 
 func TestDecode_DuplicateKeys(t *testing.T) {
@@ -78,7 +88,11 @@ func TestDecode_DuplicateKeys(t *testing.T) {
 
 	_, err := toml.Decode(fixtureDuplicateKeys)
 
-	assert.EqualError(t, err, `toml: key port is already defined`)
+	assert.Error(t, err)
+
+	decodeErr, ok := errors.AsType[*gotoml.DecodeError](err)
+	assert.True(t, ok)
+	assert.Equal(t, gotoml.Key{"port"}, decodeErr.Key())
 }
 
 func TestDecode_TrailingGarbage(t *testing.T) {
@@ -86,7 +100,14 @@ func TestDecode_TrailingGarbage(t *testing.T) {
 
 	_, err := toml.Decode(fixtureTrailingGarbage)
 
-	assert.EqualError(t, err, `toml: expected '=' after key`)
+	assert.Error(t, err)
+
+	decodeErr, ok := errors.AsType[*gotoml.DecodeError](err)
+	assert.True(t, ok)
+
+	row, column := decodeErr.Position()
+	assert.Equal(t, 2, row)
+	assert.Equal(t, 10, column)
 }
 
 func TestDecode_TrailingWhitespaceSucceeds(t *testing.T) {

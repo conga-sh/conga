@@ -64,7 +64,7 @@ func TestDiagnosticsError_Rendering(t *testing.T) {
 
 		err := &diagnosticsError{}
 
-		assert.Equal(t, "no diagnostics", err.Error())
+		assert.Equal(t, (hcl.Diagnostics{}).Error(), err.Error())
 		assert.Equal(t, "", err.Note())
 	})
 }

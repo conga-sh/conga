@@ -19,6 +19,8 @@ import (
 
 	_ "embed"
 
+	hashicorphcl "github.com/hashicorp/hcl/v2"
+
 	"github.com/conga-sh/conga"
 	hcldecoder "github.com/conga-sh/conga/decoder/hcl"
 	jsondecoder "github.com/conga-sh/conga/decoder/json"
@@ -1563,9 +1565,20 @@ func TestErrorOutput_CausePiecesShowThrough(t *testing.T) {
 			Args([]string{}).
 			RunContext(t.Context())
 
-		wantLines := "app: error: cannot parse config file \"" + path + "\": line 1, column 11: Invalid expression\n" +
-			"  note: Expected the start of an expression, but found an invalid expression token.\n"
+		assert.Error(t, err)
 
-		assertSurfaces(t, err, wantLines, "Expected the start of an expression, but found an invalid expression token.", "")
+		diagnostics, ok := errors.AsType[hashicorphcl.Diagnostics](err)
+		assert.True(t, ok)
+		assert.True(t, diagnostics.HasErrors())
+
+		first := diagnostics[0]
+		assert.NotZero(t, first.Subject)
+		assert.Equal(t, 1, first.Subject.Start.Line)
+		assert.Equal(t, 11, first.Subject.Start.Column)
+		assert.NotZero(t, first.Summary)
+		assert.NotZero(t, first.Detail)
+
+		wantLines := fmt.Sprintf("app: error: cannot parse config file %q: line 1, column 11: %s\n  note: %s\n", path, first.Summary, first.Detail)
+		assertSurfaces(t, err, wantLines, first.Detail, "")
 	})
 }

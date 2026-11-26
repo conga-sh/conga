@@ -2897,9 +2897,13 @@ func TestFeature_GatedFlagErrorDeterministic(t *testing.T) {
 func TestFeature_ConfigErrorPrecedenceOverFeatureGate(t *testing.T) {
 	t.Parallel()
 
+	payload := []byte("broken: [unclosed\n")
 	configPath := filepath.Join(t.TempDir(), "broken.yaml")
-	err := os.WriteFile(configPath, []byte("broken: [unclosed\n"), 0o600)
+	err := os.WriteFile(configPath, payload, 0o600)
 	assert.NoError(t, err)
+
+	_, decodeErr := yaml.Decode(payload)
+	assert.Error(t, decodeErr)
 
 	var cli featureTestCLI
 
@@ -2911,9 +2915,12 @@ func TestFeature_ConfigErrorPrecedenceOverFeatureGate(t *testing.T) {
 		Args([]string{"package"})
 
 	err = app.Run()
+
 	assert.Error(t, err)
 	assertNotUsageError(t, err)
-	assert.Equal(t, fmt.Sprintf("cannot parse config file %q: yaml: line 1: did not find expected ',' or ']'", configPath), err.Error())
+
+	wantMessage := fmt.Sprintf("cannot parse config file %q: %s", configPath, decodeErr.Error())
+	assert.Equal(t, wantMessage, err.Error())
 	assert.NotContains(t, err.Error(), `requires feature`)
 }
 

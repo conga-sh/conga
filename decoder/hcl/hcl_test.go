@@ -2,6 +2,7 @@ package hcl_test
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/alecthomas/assert/v2"
@@ -89,8 +90,7 @@ func TestDecode_InvalidSyntax(t *testing.T) {
 
 	_, err := hcl.Decode(fixtureInvalidSyntax)
 
-	assert.EqualError(t, err, `line 3, column 9: Invalid expression`)
-	assert.Equal(t, "Expected the start of an expression, but found an invalid expression token.", errlines.Note(err))
+	assertDiagnosticError(t, err, 3, 9)
 	assert.Equal(t, "", errlines.Hint(err))
 }
 
@@ -107,11 +107,7 @@ func TestDecode_UndefinedVariable(t *testing.T) {
 
 	_, err := hcl.Decode(fixtureUndefinedVariable)
 
-	assert.EqualError(t, err, `line 1, column 8: Variables not allowed`)
-	assert.Equal(t, "Variables may not be used here.", errlines.Note(err))
-
-	var diagnostics hashicorphcl.Diagnostics
-	assert.True(t, errors.As(err, &diagnostics))
+	assertDiagnosticError(t, err, 1, 8)
 }
 
 func TestDecode_NullAndFloatValues(t *testing.T) {
@@ -200,4 +196,23 @@ func TestDecode_NilInput(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.Zero(t, result)
+}
+
+func assertDiagnosticError(t *testing.T, err error, wantLine, wantColumn int) {
+	t.Helper()
+
+	assert.Error(t, err)
+
+	diagnostics, ok := errors.AsType[hashicorphcl.Diagnostics](err)
+	assert.True(t, ok)
+	assert.True(t, diagnostics.HasErrors())
+
+	first := diagnostics[0]
+	assert.NotZero(t, first.Subject)
+	assert.Equal(t, wantLine, first.Subject.Start.Line)
+	assert.Equal(t, wantColumn, first.Subject.Start.Column)
+	assert.NotZero(t, first.Summary)
+	assert.NotZero(t, first.Detail)
+	assert.Equal(t, fmt.Sprintf("line %d, column %d: %s", wantLine, wantColumn, first.Summary), err.Error())
+	assert.Equal(t, first.Detail, errlines.Note(err))
 }
