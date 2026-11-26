@@ -1,12 +1,17 @@
 package json_test
 
 import (
+	"encoding/json/jsontext"
 	"errors"
+	"io"
+	"reflect"
 	"testing"
 
 	"github.com/alecthomas/assert/v2"
 
 	_ "embed"
+
+	jsonv2 "encoding/json/v2"
 
 	"github.com/conga-sh/conga/decoder/json"
 )
@@ -83,7 +88,12 @@ func TestDecode_InvalidSyntax(t *testing.T) {
 
 	_, err := json.Decode(fixtureInvalidSyntax)
 
-	assert.EqualError(t, err, `jsontext: unexpected EOF after offset 55`)
+	assert.Error(t, err)
+	assert.IsError(t, err, io.ErrUnexpectedEOF)
+
+	syntacticErr, ok := errors.AsType[*jsontext.SyntacticError](err)
+	assert.True(t, ok)
+	assert.Equal(t, int64(len(fixtureInvalidSyntax)), syntacticErr.ByteOffset)
 }
 
 func TestDecode_InvalidArray(t *testing.T) {
@@ -91,7 +101,12 @@ func TestDecode_InvalidArray(t *testing.T) {
 
 	_, err := json.Decode(fixtureInvalidArray)
 
-	assert.EqualError(t, err, `json: cannot unmarshal JSON array into Go map[string]interface {}`)
+	assert.Error(t, err)
+
+	semanticErr, ok := errors.AsType[*jsonv2.SemanticError](err)
+	assert.True(t, ok)
+	assert.Equal(t, jsontext.Kind('['), semanticErr.JSONKind)
+	assert.Equal(t, reflect.TypeFor[map[string]any](), semanticErr.GoType)
 }
 
 func TestDecode_TrailingGarbage(t *testing.T) {
@@ -99,7 +114,11 @@ func TestDecode_TrailingGarbage(t *testing.T) {
 
 	_, err := json.Decode(fixtureTrailingGarbage)
 
-	assert.EqualError(t, err, `jsontext: invalid character 't' after top-level value after offset 20`)
+	assert.Error(t, err)
+
+	syntacticErr, ok := errors.AsType[*jsontext.SyntacticError](err)
+	assert.True(t, ok)
+	assert.Equal(t, int64(20), syntacticErr.ByteOffset)
 }
 
 func TestDecode_TrailingWhitespaceSucceeds(t *testing.T) {
@@ -117,7 +136,12 @@ func TestDecode_EmptyFails(t *testing.T) {
 
 	_, err := json.Decode([]byte(""))
 
-	assert.EqualError(t, err, `jsontext: unexpected EOF`)
+	assert.Error(t, err)
+	assert.IsError(t, err, io.ErrUnexpectedEOF)
+
+	syntacticErr, ok := errors.AsType[*jsontext.SyntacticError](err)
+	assert.True(t, ok)
+	assert.Equal(t, int64(0), syntacticErr.ByteOffset)
 }
 
 func TestDecode_NilInput(t *testing.T) {
@@ -125,7 +149,12 @@ func TestDecode_NilInput(t *testing.T) {
 
 	_, err := json.Decode(nil)
 
-	assert.EqualError(t, err, `jsontext: unexpected EOF`)
+	assert.Error(t, err)
+	assert.IsError(t, err, io.ErrUnexpectedEOF)
+
+	syntacticErr, ok := errors.AsType[*jsontext.SyntacticError](err)
+	assert.True(t, ok)
+	assert.Equal(t, int64(0), syntacticErr.ByteOffset)
 }
 
 func TestDecode_NullDocument(t *testing.T) {
@@ -143,7 +172,12 @@ func TestDecode_DuplicateKeys(t *testing.T) {
 
 	_, err := json.Decode(fixtureDuplicateKeys)
 
-	assert.EqualError(t, err, `jsontext: duplicate object member name "port"`)
+	assert.Error(t, err)
+	assert.IsError(t, err, jsontext.ErrDuplicateName)
+
+	syntacticErr, ok := errors.AsType[*jsontext.SyntacticError](err)
+	assert.True(t, ok)
+	assert.Equal(t, jsontext.Pointer("/port"), syntacticErr.JSONPointer)
 }
 
 func TestDecode_InvalidUTF8(t *testing.T) {
@@ -151,7 +185,12 @@ func TestDecode_InvalidUTF8(t *testing.T) {
 
 	_, err := json.Decode(fixtureInvalidUTF8)
 
-	assert.EqualError(t, err, `jsontext: invalid UTF-8 within "/name" after offset 10`)
+	assert.Error(t, err)
+
+	syntacticErr, ok := errors.AsType[*jsontext.SyntacticError](err)
+	assert.True(t, ok)
+	assert.Equal(t, jsontext.Pointer("/name"), syntacticErr.JSONPointer)
+	assert.Equal(t, int64(10), syntacticErr.ByteOffset)
 }
 
 func TestDecode_NumbersKeepIntegerPrecision(t *testing.T) {

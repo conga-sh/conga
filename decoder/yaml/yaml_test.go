@@ -7,6 +7,8 @@ import (
 
 	_ "embed"
 
+	yamlv3 "gopkg.in/yaml.v3"
+
 	"github.com/conga-sh/conga/decoder/yaml"
 )
 
@@ -68,9 +70,13 @@ func TestDecode_ValidNested(t *testing.T) {
 func TestDecode_InvalidSyntax(t *testing.T) {
 	t.Parallel()
 
+	wantErr := yamlv3.Unmarshal(fixtureInvalidSyntax, new(map[string]any))
+	assert.Error(t, wantErr)
+
 	_, err := yaml.Decode(fixtureInvalidSyntax)
 
-	assert.EqualError(t, err, `yaml: line 2: mapping values are not allowed in this context`)
+	assert.Error(t, err)
+	assert.Equal(t, wantErr.Error(), err.Error())
 }
 
 func TestDecode_TrailingGarbage(t *testing.T) {
