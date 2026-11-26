@@ -2173,10 +2173,10 @@ func TestBinder_RepeatedScalarFlagInvalidEarlierOccurrence(t *testing.T) {
 }
 
 type quotedInputDeployCmd struct {
-	Target conga.OptionalFlag[string] `name:"target"`
-	Quiet  conga.OptionalFlag[bool]   `name:"quiet" negatable:"true"`
-
 	noopRunner
+
+	Target conga.OptionalFlag[string] `name:"target"`
+	Quiet  conga.OptionalFlag[bool]   `name:"quiet"  negatable:"true"`
 }
 
 type quotedInputMeanCmd struct {
@@ -2184,13 +2184,13 @@ type quotedInputMeanCmd struct {
 }
 
 type quotedInputCLI struct {
-	Verbose conga.Counter                       `name:"verbose" short:"v"`
-	Loud    conga.OptionalFlag[bool]            `name:"loud" negatable:"true"`
+	Verbose conga.Counter                       `name:"verbose"  short:"v"`
+	Loud    conga.OptionalFlag[bool]            `name:"loud"     negatable:"true"`
 	Port    conga.OptionalFlag[int]             `name:"port"`
 	Literal conga.OptionalFlag[bool]            `name:"no-cache"`
 	Mean    conga.Command[quotedInputMeanCmd]   `name:"mean"`
 	Deploy  conga.Command[quotedInputDeployCmd] `name:"deploy"`
-	Secret  conga.Command[quotedInputMeanCmd]   `name:"secretive" hidden:"true"`
+	Secret  conga.Command[quotedInputMeanCmd]   `hidden:"true"   name:"secretive"`
 }
 
 func TestBinder_QuotesTypedInputAndSuggestions(t *testing.T) {
@@ -2271,51 +2271,51 @@ func TestBinder_QuotesTypedInputAndSuggestions(t *testing.T) {
 }
 
 type suggestionOrderCLI struct {
+	noopRunner
+
 	Loud conga.OptionalFlag[bool] `name:"loud" negatable:"true"`
 	Load conga.OptionalFlag[bool] `name:"load" negatable:"true"`
-
-	noopRunner
 }
 
 type suggestionHiddenCLI struct {
-	Secret conga.OptionalFlag[bool] `name:"secret" negatable:"true" hidden:"true"`
-
 	noopRunner
+
+	Secret conga.OptionalFlag[bool] `hidden:"true" name:"secret" negatable:"true"`
 }
 
 type suggestionNoPrefixedCLI struct {
-	Color conga.OptionalFlag[bool] `name:"no-color" negatable:"true"`
-
 	noopRunner
+
+	Color conga.OptionalFlag[bool] `name:"no-color" negatable:"true"`
 }
 
 type suggestionNoPrefixDistanceCLI struct {
-	Sort    conga.OptionalFlag[bool] `name:"sort" negatable:"true"`
-	NoShort conga.OptionalFlag[bool] `name:"no-short"`
-
 	noopRunner
+
+	Sort    conga.OptionalFlag[bool] `name:"sort"     negatable:"true"`
+	NoShort conga.OptionalFlag[bool] `name:"no-short"`
 }
 
 type suggestionCaseNoPrefixCLI struct {
-	Loud         conga.OptionalFlag[bool]   `name:"loud" negatable:"true"`
+	noopRunner
+
+	Loud         conga.OptionalFlag[bool]   `name:"loud"           negatable:"true"`
 	VerboseOut   conga.OptionalFlag[bool]   `name:"verbose-output" negatable:"true"`
 	OutputFormat conga.OptionalFlag[string] `name:"output-format"`
-
-	noopRunner
 }
 
 type suggestionShadowedByHiddenNoPrefixCLI struct {
-	HiddenNoForce conga.OptionalFlag[bool] `hidden:"true" name:"no-force"`
-	Force         conga.OptionalFlag[bool] `name:"force" negatable:"true"`
-
 	noopRunner
+
+	HiddenNoForce conga.OptionalFlag[bool] `hidden:"true" name:"no-force"`
+	Force         conga.OptionalFlag[bool] `name:"force"  negatable:"true"`
 }
 
 type suggestionShadowedByAliasNoPrefixCLI struct {
-	DisableForce conga.OptionalFlag[bool] `aliases:"no-force" name:"disable-force"`
-	Force        conga.OptionalFlag[bool] `name:"force" negatable:"true"`
-
 	noopRunner
+
+	DisableForce conga.OptionalFlag[bool] `aliases:"no-force" name:"disable-force"`
+	Force        conga.OptionalFlag[bool] `name:"force"       negatable:"true"`
 }
 
 func TestBinder_FlagSuggestionOrderHiddenAndNoPrefix(t *testing.T) {

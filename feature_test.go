@@ -3414,11 +3414,11 @@ func TestFeature_UnknownFlagHintKeptForGatedOnFlag(t *testing.T) {
 }
 
 type featureNegatableCLI struct {
+	noopRunner
+
 	Features conga.Features[featureExperiments] `config:"experiments" env:"CONGA_TEST_NEGATABLE_FEATURES" flag:"feature-gates"`
 
 	ForceAll conga.OptionalFlag[bool] `feature:"gentle-force" help:"Forces all dependent tasks" negatable:"true"`
-
-	noopRunner
 }
 
 // A negation typo that names a gated-off negatable flag drops the hint.
@@ -3654,9 +3654,9 @@ func TestFeature_UnknownFlagHintDroppedWithoutConfigFile(t *testing.T) {
 }
 
 type featureGatedSubcommandNegatable struct {
-	Force conga.OptionalFlag[bool] `feature:"gentle-force" negatable:"true"`
-
 	noopRunner
+
+	Force conga.OptionalFlag[bool] `feature:"gentle-force" negatable:"true"`
 }
 
 type featureGatedSubcommandNegatableCLI struct {
@@ -3720,30 +3720,30 @@ func TestFeature_NegationTypoHintGatingInSubcommands(t *testing.T) {
 }
 
 type featureHiddenNoPrefixGatedForceCLI struct {
+	noopRunner
+
 	Features conga.Features[featureExperiments] `config:"experiments" env:"CONGA_TEST_HIDDEN_NOPREFIX_GATED_FEATURES" flag:"feature-gates"`
 
-	HiddenNoForce conga.OptionalFlag[bool] `hidden:"true" name:"no-force"`
-	Force         conga.OptionalFlag[bool] `feature:"gentle-force" name:"force" negatable:"true"`
-
-	noopRunner
+	HiddenNoForce conga.OptionalFlag[bool] `hidden:"true"          name:"no-force"`
+	Force         conga.OptionalFlag[bool] `feature:"gentle-force" name:"force"    negatable:"true"`
 }
 
 type featureHiddenGatedNoPrefixForceCLI struct {
+	noopRunner
+
 	Features conga.Features[featureExperiments] `config:"experiments" env:"CONGA_TEST_HIDDEN_GATED_NOPREFIX_FEATURES" flag:"feature-gates"`
 
-	HiddenNoForce conga.OptionalFlag[bool] `feature:"gentle-force" hidden:"true" name:"no-force"`
-	Force         conga.OptionalFlag[bool] `name:"force" negatable:"true"`
-
-	noopRunner
+	HiddenNoForce conga.OptionalFlag[bool] `feature:"gentle-force" hidden:"true"    name:"no-force"`
+	Force         conga.OptionalFlag[bool] `name:"force"           negatable:"true"`
 }
 
 type featureVisibleGatedNoPrefixForceCLI struct {
+	noopRunner
+
 	Features conga.Features[featureExperiments] `config:"experiments" env:"CONGA_TEST_VISIBLE_GATED_NOPREFIX_FEATURES" flag:"feature-gates"`
 
 	NoForce conga.OptionalFlag[bool] `feature:"gentle-force" name:"no-force"`
-	Force   conga.OptionalFlag[bool] `name:"force" negatable:"true"`
-
-	noopRunner
+	Force   conga.OptionalFlag[bool] `name:"force"           negatable:"true"`
 }
 
 // A hidden "no-<name>" flag shadows "--no-<name>" at runtime, so a visible
@@ -3841,9 +3841,9 @@ func TestFeature_ShadowedNoPrefixAndVisibleOverlap(t *testing.T) {
 }
 
 type featureNoCLIGatedDescendantSub struct {
-	Features conga.OptionalFlag[bool] `feature:"gentle-force" name:"features"`
-
 	noopRunner
+
+	Features conga.OptionalFlag[bool] `feature:"gentle-force" name:"features"`
 }
 
 type featureNoCLIGatedDescendantCLI struct {
@@ -3854,6 +3854,8 @@ type featureNoCLIGatedDescendantCLI struct {
 
 // A root NoCLI Features container does not mask a descendant flag of the same
 // name when checking whether a suggestion is gated.
+//
+//nolint:paralleltest // subtests mutate the process environment with t.Setenv
 func TestFeature_NoCLIContainerDoesNotMaskDescendantFlagGate(t *testing.T) {
 	t.Run("gate off drops hint", func(t *testing.T) {
 		app := conga.New[featureNoCLIGatedDescendantCLI]().

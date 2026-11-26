@@ -224,6 +224,7 @@ func (parser *tokenParser) findFlagSuggestion(name string) (string, string) {
 	const negatedPrefix = "no-"
 
 	target := name
+
 	isNegated := len(name) >= len(negatedPrefix) && strings.EqualFold(name[:len(negatedPrefix)], negatedPrefix)
 	if isNegated {
 		target = name[len(negatedPrefix):]
