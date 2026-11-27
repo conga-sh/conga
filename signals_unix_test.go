@@ -54,12 +54,14 @@ func (c *signalHelperCLI) Run(ctx context.Context, session *conga.Session) error
 		return ctx.Err()
 	case "ignore-sigterm-self":
 		c.ctxErr = ctx.Err
+
 		fmt.Fprintln(session.Stdout(), "READY")
 		_, _ = io.ReadAll(session.Stdin())
 
 		return nil
 	case "child-forwarded-sigint":
 		child := exec.CommandContext(context.WithoutCancel(ctx), "sh", "-c", "trap 'kill $! 2>/dev/null; exit 130' INT; sleep 30 & echo CHILD_READY; wait $!")
+
 		stdout, err := child.StdoutPipe()
 		if err != nil {
 			return err
@@ -97,10 +99,12 @@ func (c *signalHelperCLI) Finally(_ context.Context, session *conga.Session, _ e
 		c.writeMarker("FINALLY_RAN\n")
 	case "slow-finally":
 		fmt.Fprintln(session.Stdout(), "FINALLY_ENTERED")
+
 		if rawDelay := os.Getenv(envSignalHelperFinallyDelay); rawDelay != "" {
 			delay, _ := time.ParseDuration(rawDelay)
 			time.Sleep(delay)
 		}
+
 		c.writeMarker("FINALLY_DONE\n")
 	case "validate-sigint":
 		c.writeMarker("FINALLY_SHOULD_NOT_RUN\n")
@@ -215,6 +219,7 @@ func launchSignalSubprocess(t *testing.T, cmd *exec.Cmd, mode string, options ..
 
 	go func() {
 		defer close(stderrDone)
+
 		_, _ = io.Copy(stderrBuffer, stderrPipe)
 	}()
 
@@ -231,6 +236,7 @@ func launchSignalSubprocess(t *testing.T, cmd *exec.Cmd, mode string, options ..
 		if proc.cmd.Process != nil {
 			_ = proc.cmd.Process.Kill()
 		}
+
 		_ = proc.wait()
 	})
 
@@ -363,6 +369,7 @@ func TestSignals_SecondSignalBehavior(t *testing.T) {
 			assert.Equal(t, "FINALLY_ENTERED\n", proc.readLine(t))
 
 			start := time.Now()
+
 			assert.NoError(t, proc.cmd.Process.Signal(sig))
 
 			_, status, _ := proc.waitExit(t)
@@ -405,6 +412,7 @@ func TestSignals_SecondSignalBehavior(t *testing.T) {
 		assert.Equal(t, "FINALLY_ENTERED\n", proc.readLine(t))
 
 		start := time.Now()
+
 		assert.NoError(t, proc.cmd.Process.Signal(syscall.SIGTERM))
 
 		_, status, _ := proc.waitExit(t)
@@ -456,6 +464,7 @@ func TestSignals_IgnoredAtStartup(t *testing.T) {
 		var waitStatus syscall.WaitStatus
 
 		deadline := time.Now().Add(signalTestTimeout)
+
 		for {
 			pid, err := syscall.Wait4(proc.cmd.Process.Pid, &waitStatus, syscall.WUNTRACED|syscall.WNOHANG, nil)
 			if errors.Is(err, syscall.EINTR) {

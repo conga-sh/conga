@@ -13,10 +13,10 @@ import (
 
 	"github.com/alecthomas/assert/v2"
 
+	_ "embed"
+
 	"github.com/conga-sh/conga"
 	"github.com/conga-sh/conga/internal/assertx"
-
-	_ "embed"
 )
 
 var (
@@ -884,6 +884,7 @@ func TestLifecycle_FinallyErrorMatrix(t *testing.T) {
 		coded, hasCoded := errors.AsType[*matrixCodedError](err)
 		assert.True(t, hasCoded)
 		assert.Equal(t, 19, coded.code)
+
 		_, hasUsage := errors.AsType[*conga.UsageError](err)
 		assert.False(t, hasUsage)
 		assert.Equal(t, "", app.UsageBlock(err))
@@ -1337,6 +1338,7 @@ func capturePanicStack(t *testing.T, expected any, action func()) string {
 			}
 
 			assert.Equal(t, expected, recovered)
+
 			stack = string(debug.Stack())
 		}()
 
