@@ -86,6 +86,21 @@ tasks:
     cmds:
       - go tool conga-lint -builder-order {{.CLI_ARGS | default "./... ./_examples/[0-9]* ./_examples/internal/..."}}
 
+  lint:gopls:
+    desc: Run gopls diagnostics at hint severity across Go files (supports custom file paths via --)
+    cmds:
+      - 'command -v gopls >/dev/null || { echo "gopls is required; install with: go install golang.org/x/tools/gopls@latest"; exit 1; }'
+      - |
+        {{if .CLI_ARGS}}
+        output=$(gopls check -severity=hint {{.CLI_ARGS}})
+        {{else}}
+        output=$(find . -name '*.go' -not -path '*/testdata/*' -not -path './.git/*' -not -path './website/*' -not -path './vendor/*' -exec gopls check -severity=hint {} +)
+        {{end}}
+        if [ -n "$output" ]; then
+          printf '%s\n' "$output"
+          exit 1
+        fi
+
   ci:
     desc: Run the full CI verification suite (check-only lint plus unit, example, and size tests)
     cmds:

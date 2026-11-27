@@ -46,7 +46,9 @@ func Snippet(name string, aliases []string, _ string) string {
 	builder.WriteString("}\n")
 
 	for _, commandName := range append([]string{name}, aliases...) {
-		builder.WriteString("set edit:completion:arg-completer[" + quoteElvishWord(commandName) + "] = $completer~\n")
+		builder.WriteString("set edit:completion:arg-completer[")
+		builder.WriteString(quoteElvishWord(commandName))
+		builder.WriteString("] = $completer~\n")
 	}
 
 	return builder.String()

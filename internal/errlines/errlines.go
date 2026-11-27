@@ -130,11 +130,18 @@ func Render(members []error, prefix string, color bool) string {
 
 		builder.WriteString(prefix)
 		builder.WriteString(styled("error:", ansiBoldRed, color))
-		builder.WriteString(" " + member.Error() + "\n")
+		builder.WriteByte(' ')
+		builder.WriteString(member.Error())
+		builder.WriteByte('\n')
 
 		for _, line := range lines(member) {
 			label := styled(line.label, labelStyle(line.label), color)
-			builder.WriteString("  " + label + " " + line.text + "\n")
+
+			builder.WriteString("  ")
+			builder.WriteString(label)
+			builder.WriteByte(' ')
+			builder.WriteString(line.text)
+			builder.WriteByte('\n')
 		}
 	}
 
@@ -155,7 +162,10 @@ func Plain(members []error) string {
 		builder.WriteString(member.Error())
 
 		for _, line := range lines(member) {
-			builder.WriteString("\n  " + line.label + " " + line.text)
+			builder.WriteString("\n  ")
+			builder.WriteString(line.label)
+			builder.WriteByte(' ')
+			builder.WriteString(line.text)
 		}
 	}
 
