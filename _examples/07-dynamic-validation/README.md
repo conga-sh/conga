@@ -14,7 +14,7 @@ go run ./_examples/07-dynamic-validation --max-retries 3 --backoff 0s
 ## What to look for
 
 - Date ordering and retry/backoff consistency are checked in `Validate`.
-- `Validate` reports mistakes with `session.UsageErrorf`, so failures exit with code 2 and a descriptive message. A plain error would exit with code 1 and print no usage block.
+- `Validate` reports mistakes with `session.Error().For(...).Newf(...)`, so single-flag CLI errors exit with status 2 and no usage block, multi-flag CLI errors exit with status 2 and print usage alongside any defaulted flag's `from:` line, and errors where every named flag came from defaults exit with status 1.
 - Validation happens before `PreRun`/`Run`; nothing observable has executed yet.
 
 ## Test

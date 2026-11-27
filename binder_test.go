@@ -18,7 +18,7 @@ import (
 
 type noopRunner struct{}
 
-func (noopRunner) Run(_ context.Context, _ *conga.Session) error { return nil }
+func (*noopRunner) Run(_ context.Context, _ *conga.Session) error { return nil }
 
 // writeConfigFile writes a JSON configuration payload to a temporary file and
 // returns its path, standing in for the removed in-memory config map.

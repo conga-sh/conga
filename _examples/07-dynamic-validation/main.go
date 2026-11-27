@@ -25,26 +25,39 @@ type CLI struct {
 }
 
 // Validate executes pure, side-effect-free cross-field semantic validation before any lifecycle hooks.
-// The values come from the command line, so it reports mistakes with session.UsageErrorf. The program
-// then exits with status 2 and prints usage. A plain error would exit with status 1 and no usage.
+// It reports mistakes with session.Error().For(...) so CONGA classifies them by the checked flags'
+// sources: command-line values exit with status 2 (printing usage when multiple flags interact),
+// while defaults or lower sources exit with status 1 and list their origins.
 func (c *CLI) Validate(ctx context.Context, session *conga.Session) error {
 	startDate, err := time.Parse(time.DateOnly, c.StartDate.Get())
 	if err != nil {
-		return session.UsageErrorf("%w %q (expected YYYY-MM-DD)", errInvalidStartDate, c.StartDate.Get())
+		return session.Error().
+			For(&c.StartDate).
+			Note("accepted format: YYYY-MM-DD").
+			Newf("%w %q", errInvalidStartDate, c.StartDate.Get())
 	}
 
 	endDate, err := time.Parse(time.DateOnly, c.EndDate.Get())
 	if err != nil {
-		return session.UsageErrorf("%w %q (expected YYYY-MM-DD)", errInvalidEndDate, c.EndDate.Get())
+		return session.Error().
+			For(&c.EndDate).
+			Note("accepted format: YYYY-MM-DD").
+			Newf("%w %q", errInvalidEndDate, c.EndDate.Get())
 	}
 
 	if endDate.Before(startDate) {
-		return session.UsageErrorf("%w: end-date (%s) cannot be earlier than start-date (%s)",
-			errInvalidDateRange, c.EndDate.Get(), c.StartDate.Get())
+		return session.Error().
+			For(&c.StartDate, &c.EndDate).
+			Hint("pick an --end-date on or after --start-date").
+			Newf("%w: end-date (%s) cannot be earlier than start-date (%s)",
+				errInvalidDateRange, c.EndDate.Get(), c.StartDate.Get())
 	}
 
 	if c.MaxRetries.Get() > 0 && c.Backoff.Get() <= 0 {
-		return session.UsageErrorf("%w: backoff duration must be positive when max-retries > 0", errInvalidBackoff)
+		return session.Error().
+			For(&c.MaxRetries, &c.Backoff).
+			Hint("pass a positive --backoff or set --max-retries 0").
+			Newf("%w: backoff duration must be positive when max-retries > 0", errInvalidBackoff)
 	}
 
 	return nil

@@ -183,6 +183,51 @@ func NoRunnerError(structName string) error {
 		withHint("implement conga.Runner: Run(context.Context, *conga.Session) error")
 }
 
+// ValueReceiverHookError builds the error for a command struct whose lifecycle
+// hook uses a value receiver rather than a pointer receiver. The runtime
+// schema builder and the static analyzer share it as the single source of
+// truth.
+func ValueReceiverHookError(structName, receiverName, methodName string) error {
+	if receiverName == "" {
+		receiverName = structName
+	}
+
+	return schemaErrorf("lifecycle hook %s must use a pointer receiver", methodName).
+		ownedBy(structName, "").
+		withHintf("change func (%s) %s to func (*%s) %s", receiverName, methodName, receiverName, methodName)
+}
+
+// EmbeddedPointerHookError builds the error for a command struct whose
+// lifecycle hook is promoted from an embedded pointer struct. The runtime
+// schema builder and the static analyzer share it as the single source of
+// truth.
+func EmbeddedPointerHookError(structName, baseName, methodName string) error {
+	if baseName == "" {
+		return schemaErrorf("lifecycle hook %s cannot be promoted from an embedded pointer", methodName).
+			ownedBy(structName, "").
+			withHintf("embed the struct by value or implement func (*%s) %s", structName, methodName)
+	}
+
+	return schemaErrorf("lifecycle hook %s cannot be promoted from embedded pointer *%s", methodName, baseName).
+		ownedBy(structName, "").
+		withHintf("embed %s by value or implement func (*%s) %s", baseName, structName, methodName)
+}
+
+// EmbeddedInterfaceHookError builds the error for a command struct whose
+// lifecycle hook is promoted from an embedded interface. The runtime schema
+// builder and the static analyzer share it as the single source of truth.
+func EmbeddedInterfaceHookError(structName, ifaceName, methodName string) error {
+	if ifaceName == "" {
+		return schemaErrorf("lifecycle hook %s cannot be promoted from an embedded interface", methodName).
+			ownedBy(structName, "").
+			withHintf("store the dependency in a named field and implement func (*%s) %s", structName, methodName)
+	}
+
+	return schemaErrorf("lifecycle hook %s cannot be promoted from embedded interface %s", methodName, ifaceName).
+		ownedBy(structName, "").
+		withHintf("store the dependency in a named field and implement func (*%s) %s", structName, methodName)
+}
+
 // VersionJSONShadowError builds the shadowing error for the built-in version
 // command's --json selector, which the user cannot rename, with a migration
 // hint. descendant names the VersionCommand field.

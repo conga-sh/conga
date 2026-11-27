@@ -31,6 +31,7 @@ func TestDriverDiagnostics(t *testing.T) {
 		wantMessage string
 	}{
 		{name: "invalid fixture reports a hint on its own line", arguments: []string{"./invalid"}, wantExit: 3, wantMessage: "invalid/invalid.go:13:6: struct MissingRunner: runner not implemented\ninvalid/invalid.go:13:6: \thint: implement conga.Runner: Run(context.Context, *conga.Session) error\n"},
+		{name: "invalid fixture reports value-receiver lifecycle hook with hint", arguments: []string{"./invalid"}, wantExit: 3, wantMessage: "invalid/invalid.go:1060:6: struct ValueReceiverLeaf: lifecycle hook Run must use a pointer receiver\ninvalid/invalid.go:1060:6: \thint: change func (ValueReceiverLeaf) Run to func (*ValueReceiverLeaf) Run\n"},
 		{name: "invalid fixture reports a note before its hint", arguments: []string{"./invalid"}, wantExit: 3, wantMessage: "invalid/invalid.go:40:2: struct CounterDefaultApp field Verbose: tag \"default\" is not supported on counter flags\ninvalid/invalid.go:40:2: \tnote: counters count command-line occurrences starting at 0\ninvalid/invalid.go:40:2: \thint: seed a base level with an env or config-file binding, or use OptionalFlag[int] for a numeric default\n"},
 		{name: "invalid fixture reports throwaway roots", arguments: []string{"./invalid"}, wantExit: 3, wantMessage: "conga.New root instance is not referenced outside the app"},
 		{name: "invalid fixture reports unknown tags by default", arguments: []string{"./invalid"}, wantExit: 3, wantMessage: "unknown struct tag"},

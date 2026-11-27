@@ -121,10 +121,12 @@ type Runner interface {
 // If Validate returns an error, Run returns it as is and does not run the
 // remaining stages (no command has been initialized, so no Finally hook runs).
 // A plain error makes [App.Exit] exit with status 1 and no usage block. To report a mistake in
-// the user's input, return [Session.UsageError] or [Session.UsageErrorf]. [App.Exit]
-// then exits with status 2 and the usage block [UsageOnErrorMode] asks for. An
-// [ExitCoder] chooses its own code. For a built-in subcommand such as
-// [HelpCommand], only the leaf command's Validate hook runs.
+// the user's input, use [Session.Error], [Session.UsageError], or [Session.UsageErrorf]. With
+// [Session.Error], command-line inputs exit with status 2 (printing the usage block
+// [UsageOnErrorMode] asks for, or line-only for a single input without [ErrorBuilder.Usage](true)).
+// Inputs from the environment, configuration, or defaults exit with status 1 and "from:" lines.
+// An [ExitCoder] chooses its own code. For a built-in subcommand such as [HelpCommand], only the
+// leaf command's Validate hook runs.
 //
 // See https://docs.conga.sh/explanation/lifecycle/.
 type Validator interface {
@@ -348,6 +350,18 @@ type DescriptionProvider interface {
 type ExampleProvider interface {
 	// Examples returns usage examples formatted for the subcommand's help screen.
 	Examples() string
+}
+
+// Input is a sealed interface satisfied by pointers to pure value containers:
+// [*OptionalFlag], [*RequiredFlag], [*OptionalArg], [*RequiredArg], [*Counter],
+// [*DashArgs], and [*RawArgs].
+//
+// Pass container field pointers to [ErrorBuilder.For] so [Session.Error] can
+// classify errors by the inputs' sources and emit "from:" provenance lines.
+// Passing a value copy, a plain variable, [*Command], [*ConfigFile], or
+// [*Features] fails to compile.
+type Input interface {
+	inputValue()
 }
 
 // OptionalFlag represents an optional command-line flag of type T.
@@ -1187,6 +1201,8 @@ func (f *OptionalFlag[T]) containerKind() container.Classification {
 	return container.Classification{Kind: container.KindFlag}
 }
 
+func (f *OptionalFlag[T]) inputValue() {}
+
 // getValue returns the resolved value for the engine.
 func (f *RequiredFlag[T]) getValue() any { return f.value }
 
@@ -1209,6 +1225,8 @@ func (f *RequiredFlag[T]) setValue(value any, source ValueSource, detail string)
 func (f *RequiredFlag[T]) containerKind() container.Classification {
 	return container.Classification{Kind: container.KindFlag, Required: true}
 }
+
+func (f *RequiredFlag[T]) inputValue() {}
 
 // getValue returns the resolved value for the engine.
 func (a *OptionalArg[T]) getValue() any { return a.value }
@@ -1233,6 +1251,8 @@ func (a *OptionalArg[T]) containerKind() container.Classification {
 	return container.Classification{Kind: container.KindArg}
 }
 
+func (a *OptionalArg[T]) inputValue() {}
+
 // getValue returns the resolved value for the engine.
 func (a *RequiredArg[T]) getValue() any { return a.value }
 
@@ -1256,15 +1276,21 @@ func (a *RequiredArg[T]) containerKind() container.Classification {
 	return container.Classification{Kind: container.KindArg, Required: true}
 }
 
+func (a *RequiredArg[T]) inputValue() {}
+
 // containerKind classifies the '--' trailing-arguments collector for the engine.
 func (raw *DashArgs) containerKind() container.Classification {
 	return container.Classification{Kind: container.KindDashArgs}
 }
 
+func (raw *DashArgs) inputValue() {}
+
 // containerKind classifies the raw trailing-tokens collector for the engine.
 func (raw *RawArgs) containerKind() container.Classification {
 	return container.Classification{Kind: container.KindRawArgs}
 }
+
+func (raw *RawArgs) inputValue() {}
 
 // innerValue returns a pointer to the inner command struct for the engine;
 // user code receives the same pointer via Get.
@@ -1413,3 +1439,5 @@ func (c *Counter) setValue(value any, source ValueSource, detail string) {
 func (c *Counter) containerKind() container.Classification {
 	return container.Classification{Kind: container.KindCounter}
 }
+
+func (c *Counter) inputValue() {}

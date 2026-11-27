@@ -48,6 +48,13 @@ type argsState interface {
 	setArgs(args []string)
 }
 
+// trailingInputState is the engine's read view of a DashArgs or RawArgs
+// container passed to Session.Error().For.
+type trailingInputState interface {
+	IsSet() bool
+	Len() int
+}
+
 // containerClassified is implemented by every built-in container through its
 // unexported containerKind marker. Only package conga types can satisfy it,
 // which keeps user-defined container types out of scope.

@@ -89,7 +89,7 @@ func WithPredictor(p predict.Predictor) RegistrationOption
 | `Finalizer` | `Finally(ctx, session, err) error` | Guaranteed teardown on stage errors, signals, and panics. Returns its own failure only, suppressed behind a failing stage or the first failing `Finally` hook |
 | `DescriptionProvider` / `ExampleProvider` | `Description()` / `Examples()` | Custom command metadata |
 
-Value-shape interfaces (`SelfValidator`, `HelpProvider`, `TagAwareHelpProvider`, `ContextAwareTextUnmarshaler`) and the predictor hooks are cataloged in [Domain types](/reference/domain-types/#domain-type-interfaces).
+Command lifecycle interfaces (`Bootstrapper`, `Validator`, `PreRunner`, `Runner`, `PostRunner`, `Finalizer`) must be implemented on pointer receivers (`*T`). Value-embedded mixins with pointer-receiver methods stay allowed, and schema build rejects value-receiver implementations, embedded pointer mixins, and embedded lifecycle interfaces. Value-shape interfaces (`SelfValidator`, `HelpProvider`, `TagAwareHelpProvider`, `ContextAwareTextUnmarshaler`) and the predictor hooks are cataloged in [Domain types](/reference/domain-types/#domain-type-interfaces).
 
 ## Session and hierarchy accessors
 
@@ -109,9 +109,10 @@ func (s *Session) CandidateConfigFiles() []string
 func (s *Session) LoadedConfigFiles() []string
 func (s *Session) UsageError(message string) error
 func (s *Session) UsageErrorf(format string, args ...any) error
+func (s *Session) Error() ErrorBuilder
 ```
 
-`UsageError` and `UsageErrorf` return a `*UsageError` for the active command, so `App.Exit` exits with status 2 and prints the usage block. A `%w` operand of `UsageErrorf` stays reachable as the cause. See [Errors and exit codes](/reference/errors/#validate-and-bootstrap-errors).
+`Error` returns an `ErrorBuilder` that classifies errors by the sources of named `Input` containers (`For`, `Usage`, `Note`, `Hint`, terminated with `New`, `Newf`, `Wrap`, or `Wrapf`). `UsageError` and `UsageErrorf` return a `*UsageError` for the active command, so `App.Exit` exits with status 2 and prints the usage block. A `%w` operand of `UsageErrorf` or `ErrorBuilder.Newf` stays reachable as the cause. See [Errors and exit codes](/reference/errors/#validate-and-bootstrap-errors).
 
 `Root` returns the application struct bound to `T`, either the instance passed to
 `New` or the engine-allocated instance. The type argument `T` must match the
@@ -140,7 +141,7 @@ The App snapshots standard streams at the start of execution for the active sess
 
 ## Errors
 
-The `*UsageError` type, the `ExitCoder` interface, the `Originer`, `Noter` and `Hinter` interfaces, `Diagnostic` and `DiagnosticOf`, `Session.UsageError` and `Session.UsageErrorf`, and the schema-build errors, cataloged in [Errors and exit codes](/reference/errors/).
+The `*UsageError` type, the `ExitCoder` interface, the `Originer`, `Noter` and `Hinter` interfaces, `Diagnostic` and `DiagnosticOf`, `Session.Error`, `ErrorBuilder`, `Input`, `Session.UsageError` and `Session.UsageErrorf`, and the schema-build errors, cataloged in [Errors and exit codes](/reference/errors/).
 
 ## Provenance options
 
