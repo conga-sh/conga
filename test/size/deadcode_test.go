@@ -90,6 +90,47 @@ func TestMinimalHello_DiagnosticEliminated(t *testing.T) {
 	}
 }
 
+func TestMinimalHello_ErrorBuilderEliminated(t *testing.T) {
+	t.Parallel()
+
+	symbols := buildAndListSymbols(t, minimalExamplePath)
+
+	assert.True(t, symbols["main.main"], "sanity check: the analysis build must expose symbols")
+
+	// recordMapProvenance and lookupMapProvenance are guarded in
+	// TestMinimalHello_WhyEliminated above.
+	for symbol := range symbols {
+		assert.False(t, strings.Contains(symbol, "conga.ErrorBuilder"), "linker must drop ErrorBuilder: "+symbol)
+		assert.False(t, strings.Contains(symbol, "inputValue"), "linker must drop Input markers: "+symbol)
+	}
+}
+
+func TestMinimalHello_UnusedReachableMethodsEliminated(t *testing.T) {
+	t.Parallel()
+
+	symbols := buildAndListSymbols(t, minimalExamplePath)
+
+	assert.True(t, symbols["main.main"], "sanity check: the analysis build must expose symbols")
+
+	// Calling reflect.Type.MethodByName, reflect.Value.MethodByName, or Method
+	// with a non-constant name disables Go's linker method pruning across every
+	// reachable type (+~2 MB). Assert unused exported methods on reachable
+	// types (*Session and *App[main.CLI]) stay pruned.
+	for _, symbol := range []string{
+		"github.com/conga-sh/conga.(*Session).Why",
+		"github.com/conga-sh/conga.(*Session).WhyJSON",
+		"github.com/conga-sh/conga.(*Session).UsageError",
+		"github.com/conga-sh/conga.(*Session).Error",
+	} {
+		assert.False(t, symbols[symbol], "linker must prune unused exported method on reachable type (check for dynamic reflect MethodByName/Method): "+symbol)
+	}
+
+	for symbol := range symbols {
+		assert.False(t, strings.Contains(symbol, ").ConfigOptions"), "linker must prune unused App.ConfigOptions: "+symbol)
+		assert.False(t, strings.Contains(symbol, ").EnableFeatures"), "linker must prune unused App.EnableFeatures: "+symbol)
+	}
+}
+
 func TestMinimalHello_ScanBuiltinRequestInlined(t *testing.T) {
 	t.Parallel()
 

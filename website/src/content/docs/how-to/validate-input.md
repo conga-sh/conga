@@ -283,9 +283,9 @@ type Validator interface {
 }
 ```
 
-Here the export covers a date range, and the last day can't come before the first. The checks report a mistake in the user's input, so they return `session.UsageError` or `session.UsageErrorf`:
+Here the export covers a date range, and the last day can't come before the first. Pass the checked flags to `session.Error().For(...)` so CONGA classifies the failure by where each value came from:
 
-```go title="main.go" ins={3-4,7-23}
+```go title="main.go" ins={3-4,7-32}
 type Export struct {
 	// ...
 	Since    conga.OptionalFlag[string]        `default:"2026-01-01" help:"First day to export (YYYY-MM-DD)"`
@@ -295,27 +295,38 @@ type Export struct {
 func (e *Export) Validate(ctx context.Context, session *conga.Session) error {
 	since, err := time.Parse(time.DateOnly, e.Since.Get())
 	if err != nil {
-		return session.UsageErrorf("--since %q is not a date (YYYY-MM-DD)", e.Since.Get())
+		return session.Error().
+			For(&e.Since).
+			Note("accepted format: YYYY-MM-DD").
+			Newf("invalid date %q for --since", e.Since.Get())
 	}
 
 	until, err := time.Parse(time.DateOnly, e.Until.Get())
 	if err != nil {
-		return session.UsageErrorf("--until %q is not a date (YYYY-MM-DD)", e.Until.Get())
+		return session.Error().
+			For(&e.Until).
+			Note("accepted format: YYYY-MM-DD").
+			Newf("invalid date %q for --until", e.Until.Get())
 	}
 
 	if until.Before(since) {
-		return session.UsageError("--until must not be before --since")
+		return session.Error().
+			For(&e.Since, &e.Until).
+			Hint("pick an --until on or after --since").
+			New("--until must not be before --since")
 	}
 
 	return nil
 }
 ```
 
-An error from `session.UsageError` or `session.UsageErrorf` is a usage error, like a failed tag check:
+When `--since` comes from the command line and `--until` falls back to its default, `New` returns a `*conga.UsageError`, adds a `from:` line for `--until`, prints usage, and exits with status 2:
 
 ```sh error={2}
 $ export --token abc --to-file out.json --since 2026-02-01
 export: error: --until must not be before --since
+  from: --until: default value
+  hint: pick an --until on or after --since
 
 Usage:
   export --token=STRING (--to-file=PATH | --to-url=URL) [flags]
@@ -323,9 +334,27 @@ Usage:
 Run 'export --help' for more information.
 ```
 
+When `EXPORT_SINCE` sets `--since` in the environment instead, neither flag came from the command line. The program lists both origins, omits the usage block, and exits with status 1:
+
+```sh error={2}
+$ EXPORT_SINCE=2026-02-01 export --token abc --to-file out.json
+export: error: --until must not be before --since
+  from: --since: environment variable EXPORT_SINCE
+  from: --until: default value
+  hint: pick an --until on or after --since
+```
+
+A check over a single command-line flag, like the date format check on `--since`, exits with status 2 and prints the error line and its note without the usage block:
+
+```sh error={2}
+$ export --token abc --to-file out.json --since 2026/02/01
+export: error: invalid date "2026/02/01" for --since
+  note: accepted format: YYYY-MM-DD
+```
+
 `Validate` runs after every tag check has passed, and before `Run` and any lifecycle hook, so it can trust that the flags hold valid values and the program has opened nothing yet. Write the message the user should see. CONGA prints it after `export: error:`.
 
-`Run` returns the error from `Validate` as is ([Errors and exit codes](/reference/errors/)). A plain error, such as one made with `errors.New`, exits with status 1 and prints no usage block, because CONGA can't tell whether the check read a command-line value or a value from a config file. Return `session.UsageError` when the cause is the command line.
+`Run` returns the error from `Validate` as is ([Errors and exit codes](/reference/errors/)). A plain error, such as one made with `errors.New`, exits with status 1 and prints no usage block. Call `session.Error().For(...)` when a check reads input containers, or `session.UsageError` for a check that always reports a command-line mistake.
 
 ## Know what users see
 
@@ -339,7 +368,7 @@ Run 'export --help' for more information.
 | Gives a value outside a bound | `value 0 is out of range [1..1000] for flag --limit`, exit 2 |
 | Sets a value outside a bound in the environment | `value 5000 is out of range [1..1000] for flag --limit`, with a `from: environment variable EXPORT_LIMIT` line, exit 1 |
 | Gives two flags from one `xor` group | `flags --gzip and --zstd are mutually exclusive`, then usage, exit 2 |
-| Gives `--gzip=false` with `--zstd` | The same error: `--gzip` counts as given |
+| Gives `--gzip=false` with `--zstd` | The same error, because `--gzip` counts as given |
 | Sets one `xor` flag in the environment and gives the other on the command line | `flags --gzip and --zstd are mutually exclusive`, with a `from: --gzip: environment variable EXPORT_GZIP` line, then usage, exit 2 |
 | Sets both `xor` flags in the environment | `flags --gzip and --zstd are mutually exclusive` with a `from: …` line per variable, exit 1 |
 | Gives no flag from a `oneof` group | `missing required flag: one of --to-file, --to-url`, then usage, exit 2 |
@@ -348,6 +377,10 @@ Run 'export --help' for more information.
 | Gives only part of an `and` group | `flag --username must be given together with --password`, then usage, exit 2 |
 | Gives `--username` and sets the password in the environment | Works |
 | Sets only the password in the environment | `flag --password must be given together with --username`, with a `from: --password: environment variable EXPORT_PASSWORD` line, exit 1 |
+| Gives an invalid date for `--since` on the command line | `invalid date "…" for --since`, with a `note: accepted format: YYYY-MM-DD` line, exit 2 |
+| Sets an invalid date for `--since` in the environment | `invalid date "…" for --since`, with `from: --since: environment variable EXPORT_SINCE` and `note:` lines, exit 1 |
+| Gives `--since 2026-02-01` on the command line with default `--until` | `--until must not be before --since`, with `from: --until: default value` and `hint:` lines, then usage, exit 2 |
+| Sets `EXPORT_SINCE=2026-02-01` in the environment with default `--until` | `--until must not be before --since`, with `from:` lines for both flags and the `hint:` line, exit 1 |
 | Gives values that `Validate` rejects with `session.UsageError` | The returned message, then usage, exit 2 |
 | Gives values that `Validate` rejects with a plain error | The returned message, exit 1 |
 | Leaves out a flag whose `default` is outside its bound | `value 5000 is out of range [1..1000] for flag --limit`, with a `from: default value` line, exit 1, on every such run |

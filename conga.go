@@ -1577,6 +1577,7 @@ func (a *App[T]) buildSpec() (*spec.Command, error) {
 		ReadsWhileParsing:    readsWhileParsing,
 		IsPathType:           isPathType,
 		IsRunner:             isRunner,
+		ValidateCommandHooks: validateCommandHooks,
 		ConfigDecoders:       decoderExtensions,
 		ConfigFilePatterns: slicex.Map(decoderExtensions, func(extension string) string {
 			return "*" + extension
@@ -2710,6 +2711,45 @@ func isRunner(target any) bool {
 	_, ok := target.(Runner)
 
 	return ok
+}
+
+// validateCommandHooks rejects command structs that implement a lifecycle
+// interface on their value type rather than their pointer type, whether via a
+// value receiver, an embedded pointer, or an embedded interface. Value-embedded
+// mixins with pointer-receiver hooks only implement the interface on *T and
+// stay allowed. Origin-specific diagnostics are reported by conga-lint, while
+// runtime schema build returns a single generic error to avoid retaining
+// interface reflection metadata in minimal binaries.
+func validateCommandHooks(target any, structName string) error {
+	valueType := reflect.TypeOf(target)
+	if valueType == nil || valueType.Kind() != reflect.Pointer || valueType.Elem().Kind() != reflect.Struct {
+		return nil
+	}
+
+	if method := valueHookMethod(reflect.Zero(valueType.Elem()).Interface()); method != "" {
+		return spec.ValueTypeHookError(structName, method)
+	}
+
+	return nil
+}
+
+func valueHookMethod(value any) string {
+	switch value.(type) {
+	case Runner:
+		return "Run"
+	case Bootstrapper:
+		return "Bootstrap"
+	case Validator:
+		return "Validate"
+	case PreRunner:
+		return "PreRun"
+	case PostRunner:
+		return "PostRun"
+	case Finalizer:
+		return "Finally"
+	default:
+		return ""
+	}
 }
 
 // generateCompletionScript renders the completion driver script for shell and

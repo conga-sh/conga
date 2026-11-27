@@ -239,7 +239,7 @@ func TestNameFromDotenvFile(t *testing.T) {
 `app.Exit(err)` formats the error to the app's `Stderr` and calls `os.Exit`:
 
 - Exit code `0` when `err` is `nil`.
-- Exit code `2` when `errors.AsType[*conga.UsageError](err)` finds a usage error (an unknown flag, a command-line value of the wrong type, a command-line value that fails `range` or `enum`, or an error from `session.UsageError`).
+- Exit code `2` when `errors.AsType[*conga.UsageError](err)` finds a usage error (an unknown flag, a command-line value of the wrong type, a command-line value that fails `range` or `enum`, an error from `session.UsageError`, or an error from `session.Error()` with a command-line input or `.Usage(true)`).
 - The code of the outermost `conga.ExitCoder` in the error chain, for an error that implements `ExitCode() int`.
 - Exit code `1` for any other error, such as an error returned from `Run`, a missing or malformed config or `.env` file, an environment-, config-, or default-sourced value failure, or an invalid struct tag. See [Errors](/reference/errors/) for every error type.
 

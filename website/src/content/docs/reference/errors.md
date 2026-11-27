@@ -56,6 +56,8 @@ tool: error: flags --to-file and --to-url are mutually exclusive
   from: --to-url: config key "to-url" in config file "tool.yaml"
 ```
 
+Errors built with `session.Error().For(...)` use the same `from:` line format for flags (`--<flag>: <origin>`) and prefix positional arguments with `argument <NAME>: default value`. Every non-CLI, non-unset input passed to `For(...)` emits one line in the order `For` named it.
+
 An error about a whole config file, such as an unknown field, names the file (`from: config file "tool.yaml"`), or the label of a `ConfigDocument` (`from: set by profiles.yaml › dev`). The errors from finding and loading files (`cannot read config file`, `cannot parse config file`, `multiple conflicting config files found`) and from `.env` files (`cannot read .env file`, `cannot parse .env file`) name the file in line 1 and add no `from:` line.
 
 An error whose text is empty prints no lines at all.
@@ -148,7 +150,7 @@ Because `DiagnosticOf` walks from the outside in, wrapping `Run`'s result with `
 
 ### Show a usage block from your own error
 
-`*conga.UsageError` is the only error that shows a usage block, and exit code 2 and the block go together. To get both from a program's own error, return it through `session.UsageErrorf("%w", err)`, which also keeps the error's hint.
+`*conga.UsageError` is the only error that shows a usage block, and exit code 2 and the block go together. Return an error through `session.Error().Usage(true).Wrap(err)`, `session.Error().For(...).Wrap(err)` with two or more named inputs where at least one came from the command line, or `session.UsageErrorf("%w", err)`. All three keep the error's hint and note.
 
 ## Exit codes
 
@@ -158,7 +160,7 @@ Because `DiagnosticOf` walks from the outside in, wrapping `Run`'s result with `
 |------|---------|
 | **0** | Success (including a run that caught a signal under `app.Run()` and returned `nil`) |
 | **1** | Any other error, such as a command runtime failure (`Runner.Run` or lifecycle hooks), a schema-build failure, a configuration or `.env` failure, an environment-, configuration-, or default-sourced value failure, a `Bootstrap` failure, or a plain `Validate` error |
-| **2** | Usage error (`*conga.UsageError`): invalid command-line input such as unknown flags, parse failures, coercion failures, constraint violations, and missing required input, or an error from `session.UsageError`. Internal completion failures also exit 2, with a diagnostic on stderr |
+| **2** | Usage error (`*conga.UsageError`): invalid command-line input such as unknown flags, parse failures, coercion failures, constraint violations, and missing required input, or an error from `session.UsageError` or `session.Error()` with a command-line input or `.Usage(true)`. Internal completion failures also exit 2, with a diagnostic on stderr |
 | **129** | Non-nil error after `app.Run()` caught `SIGHUP` (128 + 1), unless an author `ExitCoder` overrides it |
 | **130** | Non-nil error after `app.Run()` caught `SIGINT` (128 + 2), unless an author `ExitCoder` overrides it |
 | **143** | Non-nil error after `app.Run()` caught `SIGTERM` (128 + 15), unless an author `ExitCoder` overrides it |
@@ -194,7 +196,7 @@ An error whose `Error()` is empty prints no lines. It still exits with its code,
 
 ## UsageError
 
-`*conga.UsageError` is returned for command-line parse, coercion, and validation failures, and by `session.UsageError` and `session.UsageErrorf`. Its fields are unexported:
+`*conga.UsageError` is returned for command-line parse, coercion, and validation failures, by `session.UsageError` and `session.UsageErrorf`, and by `session.Error()` with a command-line input or `.Usage(true)`. Its fields are unexported:
 
 ```go
 func (e *UsageError) Error() string
@@ -210,7 +212,7 @@ func (e *UsageError) Hint() string
 - `ExitCode()` always returns 2.
 - `Origins()`, `Note()` and `Hint()` return the lines `app.Exit` prints below line 1, by the chain rule. The failed value's own come first, then those of the error behind the message. For an unknown flag or command, `Hint()` is the suggestion (`did you mean "--port"?`). A flag group conflict returns the origin of each member that did not come from the command line.
 - `Error()` returns line 1 alone.
-- `Unwrap()` returns the error behind the message. For a value that did not convert, it is the error the conversion step returned. That is the error of a `TextUnmarshaler` or registered parser, or CONGA's own parse error, whose type is not part of the API. For a value a `SelfValidator` rejected, it is the validator's error. For `session.UsageErrorf` it is the `%w` operand. It returns nil when CONGA found the problem itself, as for an unknown flag, an `enum`, `range` or `len` violation, or a flag group conflict.
+- `Unwrap()` returns the error behind the message. For a value that did not convert, it is the error the conversion step returned. That is the error of a `TextUnmarshaler` or registered parser, or CONGA's own parse error, whose type is not part of the API. For a value a `SelfValidator` rejected, it is the validator's error. For `session.UsageErrorf` or `ErrorBuilder.Newf` it is the `%w` operand, and for `ErrorBuilder.Wrap` or `ErrorBuilder.Wrapf` it is the wrapped error. It returns nil when CONGA found the problem itself, as for an unknown flag, an `enum`, `range` or `len` violation, or a flag group conflict.
 
 The usage block that goes with the error comes from the app, as `app.UsageBlock(err)` returns it. [Which failures are usage errors](#which-failures-are-usage-errors) lists what is not a `*conga.UsageError`.
 
@@ -261,10 +263,54 @@ Both exit 2 because the value came from the command line. `--why` makes the diff
 | An `ExitCoder`, wrapped or not | Message, the coder's code |
 | `ctx.Err()` after cancellation or a deadline, bare or wrapped | Message, exit 1 |
 | `session.UsageError(message)` or `session.UsageErrorf(format, args...)` | Message and the usage block for the command, exit 2 |
+| `session.Error()` with `For(...)`, `Usage(...)`, `Note(...)`, `Hint(...)` | Classified by source or `.Usage(bool)`, with `from:`, `note:`, and `hint:` lines |
 
-CONGA can't see which values a check read, so it can't tell a command-line mistake from a config one. Return `session.UsageError` when the cause is the command line. `session.UsageErrorf` keeps a `%w` operand as the error's cause. On a nil session the error has no command, so `Exit` prints no usage block. A message that is empty prints no error line and only the usage block.
+Return `session.UsageError` or `session.UsageErrorf` when a check always reports a command-line mistake. `session.UsageErrorf` keeps a `%w` operand as the error's cause. On a nil session the error has no command, so `Exit` prints no usage block. A message that is empty prints no error line and only the usage block.
 
 `Bootstrapper.Bootstrap` errors also come back with their text unchanged and no prefix. A plain error exits 1, an `ExitCoder` exits with its code, and a nested app's `*conga.UsageError` exits 2.
+
+### Classify errors by input source with Session.Error
+
+`session.Error()` returns a `conga.ErrorBuilder` value that classifies the error from the sources of the `conga.Input` containers passed to `For`, and attaches `from:`, `note:`, and `hint:` lines:
+
+```go
+type Input interface{ /* sealed */ }
+
+func (s *Session) Error() ErrorBuilder
+
+func (b ErrorBuilder) For(inputs ...Input) ErrorBuilder
+func (b ErrorBuilder) Usage(usage bool) ErrorBuilder
+func (b ErrorBuilder) Note(note string) ErrorBuilder
+func (b ErrorBuilder) Hint(hint string) ErrorBuilder
+
+func (b ErrorBuilder) New(message string) error
+func (b ErrorBuilder) Newf(format string, args ...any) error
+func (b ErrorBuilder) Wrap(err error) error
+func (b ErrorBuilder) Wrapf(err error, format string, args ...any) error
+```
+
+`ErrorBuilder` is a value type, so calling `For`, `Usage`, `Note`, or `Hint` returns a new builder without mutating earlier ones.
+
+`Input` is satisfied by pointers to pure value containers (`*OptionalFlag`, `*RequiredFlag`, `*OptionalArg`, `*RequiredArg`, `*Counter`, `*DashArgs`, and `*RawArgs`). Passing a value copy, a plain variable, `*Command`, `*ConfigFile`, or `*Features` fails to compile. `*DashArgs` and `*RawArgs` count as command-line inputs when `IsSet()` or non-empty, and as unset otherwise.
+
+Each terminal keeps line 1 verbatim without appending a flag or argument suffix:
+
+- `New(message)` builds an error with line 1 equal to `message` and no cause.
+- `Newf(format, args...)` formats via `fmt.Errorf`, keeping any `%w` operands reachable through `errors.Is`, `errors.As`, and `errors.Unwrap`.
+- `Wrap(err)` returns `nil` when `err` is `nil`. Otherwise it keeps `err.Error()` as line 1, sets `err` as the unwrapped cause, and inherits `err`'s `Origins()` (when `For` produces no `from:` line), `Note()`, and `Hint()` unless overridden on the builder.
+- `Wrapf(err, format, args...)` returns `nil` when `err` is `nil`. Otherwise it formats the prefix via `fmt.Sprintf`, joins prefix and `err.Error()` with `": "` (omitting the separator when either side is empty), and sets `err` as the unwrapped cause. Use `Newf` when you need `%w` placement or multiple wrapped errors.
+
+When `.Usage` is omitted, `ErrorBuilder` classifies the error from the inputs named in `For`:
+
+| Configuration | Named inputs' sources | Returned type | Exit | Usage block | `from:` lines |
+|---|---|---|---|---|---|
+| Auto | 1 named input from `SourceCLI` | `*conga.UsageError` | 2 | None | None |
+| Auto | 2 or more named inputs (at least 1 `SourceCLI`) | `*conga.UsageError` | 2 | Mode's usage block | One per non-CLI, non-unset input |
+| Auto | All env, config, default, or unset, or no `For` | Unexported error | 1 | None | One per non-unset input |
+| `.Usage(true)` | Any (with or without `For`) | `*conga.UsageError` | 2 | Mode's usage block | One per non-CLI, non-unset input |
+| `.Usage(false)` | Any (with or without `For`) | Unexported error | 1 | None | One per non-CLI, non-unset input |
+
+On a nil or uninitialized `*Session`, `Session.Error()` never panics, classifies from each container's own `Source()`, and omits `from:` lines and the usage block. On an initialized session, passing an `Input` that is not bound to an active command in the command chain panics.
 
 ## Feature-gating and map-folding failures
 
@@ -310,6 +356,7 @@ Programmer errors during schema construction abort at startup before execution b
 - Declaring `ConfigFile` or `Features` on any command struct other than the root.
 - A flag or positional argument whose type, slice element type, or map key or value type has no parser: `struct CLI field Zone: unsupported type *time.Location`, with a `hint: register a parser with app.Use(timezone.RegisterLocation)` line. The hint names `app.RegisterType`, or the domain-package binding for `*time.Location`, `*user.User`, `*user.Group`, and `*net.Interface`.
 - A leaf command that does not implement `conga.Runner`: `struct LeafCmd: runner not implemented`, with a `hint: implement conga.Runner: Run(context.Context, *conga.Session) error` line.
+- A command struct implementing `Runner`, `Validator`, `PreRunner`, `PostRunner`, `Finalizer`, or `Bootstrapper` on its value type (via a value receiver, an embedded pointer mixin such as `*Base`, or an embedded interface such as `conga.Runner`): `struct Export: lifecycle hook Validate is callable on a value of Export`, with `note: a value receiver, an embedded pointer, or an embedded interface provides it` and `hint: declare Validate on a pointer receiver, or embed the mixin by value. Run conga-lint for the exact cause`. [`conga-lint`](/reference/conga-lint/#checks) names the specific value receiver, embedded pointer, or embedded interface. Value-embedded mixins with pointer-receiver hooks stay allowed, and `SelfValidator` on domain types is unaffected.
 
 ## Panics
 
@@ -330,6 +377,7 @@ Developer misuse of the API panics with a fixed message instead of returning an 
 | A nil `context.Context` passed to `RunContext`, or to `Run` on `HelpCommand`, `VersionCommand`, or `CompletionCommand` | `conga: nil Context` |
 | A second `Run` or `RunContext` on the same `App` | `conga: App already executed` |
 | `session.Root[T]()` with a `T` other than the root command type | `conga: Session.Root[<T>] called, but root command type is <root>` |
+| `session.Error().For(...)` passed an unbound or unselected `Input` on an initialized session | `conga: Session.Error().For: input is not bound to the active command` |
 | A method called on a nil `*ConfigDocument` | `conga: nil ConfigDocument; use the zero value (var document conga.ConfigDocument)` |
 
 A panic whose message starts with `conga: invariant violation:` is a bug in CONGA, not misuse, and is worth reporting.
@@ -386,8 +434,8 @@ A failure from the environment, a config file or a default is not a `*conga.Usag
 
 Three shapes follow from the kind of failure:
 
-- Command-line value errors name the flag or argument and the offending value, so they render no usage block in any mode. These are coercion failures (`unknown byte size unit "XB" in "5XB" for flag --max-memory`, `ambiguous byte size unit "KB" in "5KB" for flag --max-memory`) and value-constraint violations (`"/etc/passwd" is a file, but a directory was expected for flag --dir`, `value 150 is out of range [0..100] for flag --score`).
-- Errors that benefit from usage context keep the mode's rendering. These are unknown commands and flags, missing required flags and arguments, mutually exclusive or grouped flags, stdin read twice, an unknown feature on the command line, and the errors from `session.UsageError`.
+- Command-line value errors name the flag or argument and the offending value, so they render no usage block in any mode. These are coercion failures (`unknown byte size unit "XB" in "5XB" for flag --max-memory`, `ambiguous byte size unit "KB" in "5KB" for flag --max-memory`), value-constraint violations (`"/etc/passwd" is a file, but a directory was expected for flag --dir`, `value 150 is out of range [0..100] for flag --score`), and single-input command-line errors from `session.Error().For(&flag)` when `.Usage(true)` is omitted.
+- Errors that benefit from usage context keep the mode's rendering. These are unknown commands and flags, missing required flags and arguments, mutually exclusive or grouped flags, stdin read twice, an unknown feature on the command line, the errors from `session.UsageError`, and `session.Error()` with `.Usage(true)` or two or more named inputs where at least one came from the command line.
 - A missing subcommand prints the full help of its command for `UsageSummary` and `UsageFull`, the hint for `UsageHint`, and no usage block for `UsageSilence`.
 
 The usage block comes from the error's own command, so a `*conga.UsageError` without one (a nil session, or a zero value) prints no block. Environment-, configuration-, and default-sourced value failures are not usage errors, so they render `app: error: ...` with their `from:`, `note:` and `hint:` lines, exit 1, and no usage block. A group failure whose members all came from the environment or a config file renders the same way.

@@ -7,11 +7,12 @@ description: The static schema analyzer — checks, discovery contract, and flag
 
 ## Checks
 
-Each check reports the same mistake, with the same message, that the program reports at startup:
+Each check reports the same mistake that the program reports at startup:
 
 | Check | Runtime contract mirrored |
 |-------|---------------------------|
 | Leaf command Runner enforcement | A command struct without `Command[T]` fields must implement `Run(context.Context, *conga.Session) error`; without it, the command fails when invoked. |
+| Pointer-receiver lifecycle hooks | Command structs implementing `Bootstrapper`, `Validator`, `PreRunner`, `Runner`, `PostRunner`, or `Finalizer` on their value type fail schema build. `conga-lint` pinpoints the exact cause: a value receiver (`must use a pointer receiver`), an embedded pointer mixin (`cannot be promoted from embedded pointer *Base`), or an embedded interface (`cannot be promoted from embedded interface Runner`). Value-embedded mixins with pointer-receiver hooks stay allowed. |
 | Branch/leaf separation | The runtime schema rule that a command declaring positional arguments cannot also declare `Command[T]` subcommands; declared built-in help, version, and completion command fields do not count as branching. |
 | RawArgs boundary | The runtime schema rule that `RawArgs` cannot coexist with any command field (user subcommands or declared built-in help, version, and completion commands) and that every positional argument before it is a required scalar. |
 | Duplicate containers | The runtime rejection of a second `DashArgs`, `RawArgs`, or `ConfigFile` field on one command struct, naming the first declaration. |

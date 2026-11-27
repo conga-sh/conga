@@ -204,6 +204,12 @@ func newSchemaBuilder(target any, defaultName, anonymousName string, structValue
 		cmd.VersionShort = opts.VersionShort
 	}
 
+	if opts.ValidateCommandHooks != nil {
+		if err := opts.ValidateCommandHooks(target, structName); err != nil {
+			return nil, err
+		}
+	}
+
 	if err := applyCommandMethodGuardrails(target, cmd, structName, isRoot); err != nil {
 		return nil, err
 	}

@@ -150,7 +150,7 @@ func main() {
 }
 ```
 
-CONGA binds only container fields, such as `OptionalFlag` and `Command`, so any ordinary struct field, exported or unexported, can hold state between hooks. Define the hook methods on a pointer receiver, as `*CLI` does here, so a value that `PreRun` sets, such as `c.lock`, is still there when `Finally` runs.
+CONGA binds only container fields, such as `OptionalFlag` and `Command`, so any ordinary struct field, exported or unexported, can hold state between hooks. Define lifecycle hook methods on a pointer receiver, as `*CLI` does here, so a value that `PreRun` sets, such as `c.lock`, stays visible when `Finally` runs. Schema build and `conga-lint` reject value-receiver lifecycle hooks (`Bootstrapper`, `Validator`, `PreRunner`, `Runner`, `PostRunner`, `Finalizer`), embedded pointer mixins (`*Base`), and embedded interfaces (`conga.Runner`), while value-embedded mixins with pointer-receiver hooks stay allowed.
 
 CONGA calls a command's `Finally` only when every `PreRun` from the root down to that command succeeded. When a second process tries to run while `.lock` exists, the root's `PreRun` returns an error:
 

@@ -332,12 +332,13 @@ Uses: `RequiredFlag[T]`, `xor`, `and`, `range`, `len`, `items`, `enum`, `App.Usa
 
 [Source](https://github.com/conga-sh/conga/tree/main/_examples/07-dynamic-validation) · Guide: [How to validate input](/how-to/validate-input/)
 
-A scheduler that checks flags against each other in a `Validate` method. An end date before the start date, or retries with a zero backoff, is a usage error reported before any hook runs.
+A scheduler that checks flags against each other in a `Validate` method using `session.Error().For(...)`. An end date before the start date, or retries with a zero backoff, is classified as a usage error with its `hint:` line and usage block.
 
 :::code-tabs
 ```sh label="Date order" error={2}
 $ go run ./_examples/07-dynamic-validation --start-date 2026-03-01 --end-date 2026-01-01
 dynamic-validation: error: invalid date range: end-date (2026-01-01) cannot be earlier than start-date (2026-03-01)
+  hint: pick an --end-date on or after --start-date
 
 Usage:
   dynamic-validation [flags]
@@ -347,15 +348,21 @@ Run 'dynamic-validation --help' for more information.
 ```sh label="Retry backoff" error={2}
 $ go run ./_examples/07-dynamic-validation --max-retries 3 --backoff 0s
 dynamic-validation: error: invalid backoff duration: backoff duration must be positive when max-retries > 0
+  hint: pass a positive --backoff or set --max-retries 0
 
 Usage:
   dynamic-validation [flags]
 
 Run 'dynamic-validation --help' for more information.
 ```
+```sh label="Invalid date" error={2}
+$ go run ./_examples/07-dynamic-validation --start-date not-a-date
+dynamic-validation: error: invalid start-date format "not-a-date"
+  note: accepted format: YYYY-MM-DD
+```
 :::
 
-Uses: `Validator`, `Session.UsageErrorf`
+Uses: `Validator`, `Session.Error`, `ErrorBuilder.For`, `ErrorBuilder.Hint`, `ErrorBuilder.Note`, `ErrorBuilder.Newf`
 
 ### 27 strict-tag-validation
 
@@ -990,6 +997,10 @@ Uses: `ConfigFile`, `Features[T]`, `RequiredFlag[T]`, `DashArgs`, `executable`, 
 | `{{env}}` | [16](#16-help-variables) |
 | `env` | [13](#13-twelve-factor-precedence) |
 | `envprefix` | [09](#09-deep-hierarchy-context) |
+| `ErrorBuilder.For` | [07](#07-dynamic-validation) |
+| `ErrorBuilder.Hint` | [07](#07-dynamic-validation) |
+| `ErrorBuilder.Newf` | [07](#07-dynamic-validation) |
+| `ErrorBuilder.Note` | [07](#07-dynamic-validation) |
 | `executable` | [99](#99-kitchen-sink) |
 | `existing` | [05](#05-domain-types) |
 | `feature` | [29](#29-feature-toggles) |
@@ -1032,12 +1043,12 @@ Uses: `ConfigFile`, `Features[T]`, `RequiredFlag[T]`, `DashArgs`, `executable`, 
 | `section` | [02](#02-flag-primitives), [08](#08-subcommands-basic) |
 | `SelfValidator` | [05](#05-domain-types) |
 | `sep` | [03](#03-negatable-and-maps) |
+| `Session.Error` | [07](#07-dynamic-validation) |
 | `Session.Help` | [10](#10-builtins-help-version) |
 | `Session.Name` | [09](#09-deep-hierarchy-context) |
 | `Session.Path` | [09](#09-deep-hierarchy-context) |
 | `Session.Root` | [09](#09-deep-hierarchy-context) |
 | `Session.Synopsis` | [10](#10-builtins-help-version) |
-| `Session.UsageErrorf` | [07](#07-dynamic-validation) |
 | `Session.Version` | [10](#10-builtins-help-version) |
 | `short` | [01](#01-minimal-hello) |
 | `stage` | [29](#29-feature-toggles) |

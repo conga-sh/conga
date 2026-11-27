@@ -43,13 +43,17 @@ var congaWrapperRoles = map[string]string{
 }
 
 // congaTypes holds the runtime type objects the analyzer asserts against: the
-// conga.Runner interface and the conga package object resolving unexported
+// conga lifecycle interfaces and the conga package object resolving unexported
 // wrapper internals, so classification never drifts from the engine's
 // zero-reflection contract.
 type congaTypes struct {
 	packageObject *types.Package
 	runner        *types.Interface
 	bootstrapper  *types.Interface
+	validator     *types.Interface
+	preRunner     *types.Interface
+	postRunner    *types.Interface
+	finalizer     *types.Interface
 }
 
 // groupPair identifies an exclusive/and group combination on a single command.
@@ -262,6 +266,7 @@ func (w *walker) walkCommand(node *commandNode, ancestorNames map[string]shadowO
 
 	w.checkVersionJSONShadows(node, branchNames)
 	w.checkSingleMemberGroups(node, census)
+	w.checkLifecycleReceivers(node)
 	w.checkRunner(node, subcommandCount)
 	w.checkBranchGrammar(node)
 	w.checkTrailingGrammar(node)
@@ -695,14 +700,27 @@ func normalizedEnvPrefix(prefix string) string {
 // here signals a version skew between the analyzer and the compiled conga
 // package and must surface as an analyzer error rather than a silent pass.
 func resolveCongaTypes(congaPackage *types.Package) (*congaTypes, error) {
-	runner := lookupInterface(congaPackage, "Runner")
-	if runner == nil {
-		return nil, fmt.Errorf("%w: conga.Runner missing from package %q", errUnresolvable, congaPackage.Path())
+	resolved := &congaTypes{packageObject: congaPackage}
+
+	interfaces := []struct {
+		name   string
+		target **types.Interface
+	}{
+		{name: "Runner", target: &resolved.runner},
+		{name: "Bootstrapper", target: &resolved.bootstrapper},
+		{name: "Validator", target: &resolved.validator},
+		{name: "PreRunner", target: &resolved.preRunner},
+		{name: "PostRunner", target: &resolved.postRunner},
+		{name: "Finalizer", target: &resolved.finalizer},
 	}
 
-	bootstrapper := lookupInterface(congaPackage, "Bootstrapper")
-	if bootstrapper == nil {
-		return nil, fmt.Errorf("%w: conga.Bootstrapper missing from package %q", errUnresolvable, congaPackage.Path())
+	for _, entry := range interfaces {
+		iface := lookupInterface(congaPackage, entry.name)
+		if iface == nil {
+			return nil, fmt.Errorf("%w: conga.%s missing from package %q", errUnresolvable, entry.name, congaPackage.Path())
+		}
+
+		*entry.target = iface
 	}
 
 	for wrapperName := range congaWrapperRoles {
@@ -711,7 +729,7 @@ func resolveCongaTypes(congaPackage *types.Package) (*congaTypes, error) {
 		}
 	}
 
-	return &congaTypes{packageObject: congaPackage, runner: runner, bootstrapper: bootstrapper}, nil
+	return resolved, nil
 }
 
 func lookupInterface(packageObject *types.Package, name string) *types.Interface {

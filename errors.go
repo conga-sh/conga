@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/url"
 	"reflect"
+	"slices"
 	"strings"
 	"time"
 
@@ -31,6 +32,12 @@ const (
 	// usageShapeFullHelp prints the full help of the command for
 	// [UsageSummary] and [UsageFull], and the hint for [UsageHint].
 	usageShapeFullHelp
+)
+
+const (
+	errorUsageAuto errorUsageOverride = iota
+	errorUsageForceTrue
+	errorUsageForceFalse
 )
 
 var (
@@ -250,8 +257,8 @@ func (d Diagnostic) Format(state fmt.State, verb rune) {
 // UsageError is returned for a failure caused by the command line. That covers
 // an unknown flag or command, a value that does not convert, a violated
 // constraint, a missing required flag or argument, and an error returned
-// through [Session.UsageError] or [Session.UsageErrorf]. [App.Exit] prints it
-// and exits with code 2.
+// through [Session.UsageError], [Session.UsageErrorf], or [Session.Error].
+// [App.Exit] prints it and exits with code 2.
 //
 // Failures that come from the environment, configuration files, default tags,
 // bootstrap, or the command's own code are not usage errors, and neither is a
@@ -270,12 +277,14 @@ func (d Diagnostic) Format(state fmt.State, verb rune) {
 // a [encoding.TextUnmarshaler] or type parser, which [errors.Is] and
 // [errors.As] reach, or CONGA's own parse error, whose type is not part of the
 // API. For a value a [SelfValidator] rejected, it is the error the validator
-// returned. For a [Session.UsageErrorf] call it is the %w operand. Unwrap
-// returns nil when CONGA found the problem itself, as for an unknown flag, an
-// enum, range or length violation, or a flag group conflict.
+// returned. For a [Session.UsageErrorf] or [ErrorBuilder.Newf] call it is the
+// %w operand, and for [ErrorBuilder.Wrap] or [ErrorBuilder.Wrapf] it is the
+// wrapped error. Unwrap returns nil when CONGA found the problem itself, as for
+// an unknown flag, an enum, range or length violation, or a flag group conflict.
 //
 // A UsageError has no exported fields. Obtain one with [Session.UsageError],
-// or find one in a returned error with [errors.AsType]:
+// [Session.UsageErrorf], or [Session.Error], or find one in a returned error
+// with [errors.AsType]:
 //
 //	if usage, ok := errors.AsType[*conga.UsageError](err); ok {
 //		fmt.Println(usage.CommandPath(), app.UsageBlock(err))
@@ -288,8 +297,9 @@ type UsageError struct {
 	shape    usageShape
 
 	// cause is the error behind the message. It is the error a conversion or
-	// a [SelfValidator] returned, or the %w operand of [Session.UsageErrorf],
-	// and nil when CONGA itself found the problem.
+	// a [SelfValidator] returned, the %w operand of [Session.UsageErrorf] or
+	// [ErrorBuilder.Newf], or the wrapped error of [ErrorBuilder.Wrap] or
+	// [ErrorBuilder.Wrapf], and nil when CONGA itself found the problem.
 	cause error
 
 	// inner is the error the message came from (a value error, or the
@@ -333,8 +343,9 @@ func (e *UsageError) Hint() string {
 }
 
 // Unwrap returns the error behind the message. That is the error a conversion
-// step or a [SelfValidator] returned, or the %w operand of
-// [Session.UsageErrorf]. It returns nil when CONGA found the problem itself.
+// step or a [SelfValidator] returned, the %w operand of [Session.UsageErrorf] or
+// [ErrorBuilder.Newf], or the wrapped error of [ErrorBuilder.Wrap] or
+// [ErrorBuilder.Wrapf]. It returns nil when CONGA found the problem itself.
 func (e *UsageError) Unwrap() error {
 	return e.cause
 }
@@ -348,6 +359,123 @@ func (e *UsageError) ExitCode() int {
 // occurred, or "" when the error has no command.
 func (e *UsageError) CommandPath() string {
 	return commandChainPath(e.cmdChain)
+}
+
+// ErrorBuilder constructs an error classified by input source with optional
+// "from:", "note:", and "hint:" lines. Create one with [Session.Error].
+//
+// ErrorBuilder is a value type. Every builder method returns an updated copy
+// without mutating earlier builders, so a partially configured builder can be
+// reused safely across multiple checks.
+type ErrorBuilder struct {
+	session *Session
+	inputs  []Input
+	usage   errorUsageOverride
+	note    string
+	hint    string
+}
+
+// For names the [Input] containers the check read. When the session is
+// initialized, each input must be bound to an active command in the session's
+// command chain. Otherwise For panics.
+//
+// Subsequent calls append inputs in order. An input that came from the command
+// line makes the error a [*UsageError] (exit 2) unless overridden by
+// [ErrorBuilder.Usage]. Non-CLI, non-unset inputs emit "from:" lines in the
+// order For named them.
+func (b ErrorBuilder) For(inputs ...Input) ErrorBuilder {
+	if len(inputs) == 0 {
+		return b
+	}
+
+	if b.session != nil && len(b.session.cmdChain) > 0 {
+		b.session.verifyInputsBound(inputs)
+	}
+
+	b.inputs = append(slices.Clip(b.inputs), inputs...)
+
+	return b
+}
+
+// Usage overrides the source-based classification. Passing true forces a
+// [*UsageError] (exit 2 with the command's usage block). Passing false forces
+// an ordinary error (exit 1 with no usage block) while keeping any non-CLI
+// "from:" lines from [ErrorBuilder.For].
+func (b ErrorBuilder) Usage(usage bool) ErrorBuilder {
+	if usage {
+		b.usage = errorUsageForceTrue
+	} else {
+		b.usage = errorUsageForceFalse
+	}
+
+	return b
+}
+
+// Note attaches detail below line 1 ("note: ..."), replacing any note from a
+// wrapped error.
+func (b ErrorBuilder) Note(note string) ErrorBuilder {
+	b.note = note
+
+	return b
+}
+
+// Hint attaches an actionable suggestion below line 1 ("hint: ..."), replacing
+// any hint from a wrapped error.
+func (b ErrorBuilder) Hint(hint string) ErrorBuilder {
+	b.hint = hint
+
+	return b
+}
+
+// New builds an error whose first line is message verbatim.
+func (b ErrorBuilder) New(message string) error {
+	return b.build(message, nil)
+}
+
+// Newf builds an error whose first line is formatted with [fmt.Errorf]. Any %w
+// operands remain reachable through [errors.Is], [errors.As], and
+// [errors.Unwrap].
+func (b ErrorBuilder) Newf(format string, args ...any) error {
+	formatted := fmt.Errorf(format, args...) //nolint:err113 // the caller supplies the format, as with fmt.Errorf
+
+	return b.build(formatted.Error(), formattedCause(formatted))
+}
+
+// Wrap builds an error that wraps err, keeping err.Error() as line 1 and
+// inheriting err's origins (when For produces no from: line), note, and hint
+// unless overridden on the builder. Wrap returns nil when err is nil.
+func (b ErrorBuilder) Wrap(err error) error {
+	if err == nil {
+		return nil
+	}
+
+	return b.build(err.Error(), err)
+}
+
+// Wrapf builds an error that prefixes err.Error() with the formatted prefix
+// joined by ": " (omitting the separator when either side is empty), and sets
+// err as the cause. Wrapf returns nil when err is nil. Use [ErrorBuilder.Newf]
+// when custom %w placement or multiple wrapped errors are needed.
+func (b ErrorBuilder) Wrapf(err error, format string, args ...any) error {
+	if err == nil {
+		return nil
+	}
+
+	prefix := fmt.Sprintf(format, args...)
+	innerText := err.Error()
+
+	var message string
+
+	switch {
+	case prefix == "":
+		message = innerText
+	case innerText == "":
+		message = prefix
+	default:
+		message = prefix + ": " + innerText
+	}
+
+	return b.build(message, err)
 }
 
 // DiagnosticOf reads err into a [Diagnostic] from the outside in, applying the
@@ -367,6 +495,14 @@ func DiagnosticOf(err error) Diagnostic {
 
 // usageShape selects what [App.Exit] prints below a [UsageError]'s message.
 type usageShape uint8
+
+type errorUsageOverride uint8
+
+type resolvedBuilderInputs struct {
+	namedCount int
+	hasCLI     bool
+	origins    []string
+}
 
 // conversionError reports a value that did not convert to its flag's or
 // argument's type. From the command line it reaches the caller as a
@@ -420,10 +556,12 @@ func (e *conversionError) valueType() reflect.Type {
 // inputError reports input CONGA rejected: a converted value that broke a
 // constraint (enum, len, range, items), a SelfValidator failure, conflicting
 // values (flag groups, stdin read twice), a feature failure, a counter count,
-// an empty config path, or a config entry for a gated flag. From the command
-// line it reaches the caller as a [UsageError] (see commandLineError). From
-// anywhere else it is returned as is, and [App.Exit] exits 1 without a usage
-// block.
+// an empty config path, a config entry for a gated flag, or an error built
+// with [Session.Error]. When CONGA rejects a command-line value it reaches the
+// caller as a [UsageError] (see commandLineError), and [Session.Error] wraps
+// it in a [UsageError] for command-line inputs or [ErrorBuilder.Usage](true).
+// From anywhere else it is returned as is, and [App.Exit] exits 1 without a
+// usage block.
 type inputError struct {
 	flag    *spec.Flag  // the flag the value was for, or nil
 	arg     *spec.Arg   // the positional argument the value was for, or nil
@@ -658,6 +796,53 @@ func (e *UsageError) withCause(cause error) *UsageError {
 	return e
 }
 
+func (b ErrorBuilder) build(message string, cause error) error {
+	resolved := resolveBuilderInputs(b.session, b.inputs)
+
+	input := &inputError{
+		origins: resolved.origins,
+		msg:     message,
+		note:    b.note,
+		hint:    b.hint,
+		cause:   cause,
+	}
+
+	var (
+		useUsage bool
+		shape    usageShape
+	)
+
+	switch b.usage {
+	case errorUsageForceTrue:
+		useUsage = true
+		shape = usageShapeMode
+	case errorUsageForceFalse:
+		useUsage = false
+	default:
+		if resolved.hasCLI {
+			useUsage = true
+
+			if resolved.namedCount == 1 {
+				shape = usageShapeLineOnly
+			} else {
+				shape = usageShapeMode
+			}
+		}
+	}
+
+	if !useUsage {
+		return input
+	}
+
+	return &UsageError{
+		msg:      input.msg,
+		cmdChain: b.session.chain(),
+		shape:    shape,
+		cause:    input.cause,
+		inner:    input,
+	}
+}
+
 // configValueOrigin is the origin of a config value stored under key.
 func configValueOrigin(key string, value configdata.Value) valueOrigin {
 	return valueOrigin{source: SourceConfig, name: key, file: value.SourceDetail(), document: value.Document}
@@ -837,4 +1022,76 @@ func flattenErrorMembers(err error, drop func(error) bool) []error {
 	}
 
 	return members
+}
+
+func resolveBuilderInputs(session *Session, inputs []Input) resolvedBuilderInputs {
+	if len(inputs) == 0 {
+		return resolvedBuilderInputs{}
+	}
+
+	var result resolvedBuilderInputs
+
+	seen := make([]Input, 0, len(inputs))
+
+	for _, input := range inputs {
+		if input == nil || isNilPointerInput(input) || slices.Contains(seen, input) {
+			continue
+		}
+
+		seen = append(seen, input)
+		result.namedCount++
+
+		if session == nil || len(session.cmdChain) == 0 {
+			if uninitializedInputSource(input) == SourceCLI {
+				result.hasCLI = true
+			}
+
+			continue
+		}
+
+		source, originLine := session.resolveInputOrigin(input)
+		if source == SourceCLI {
+			result.hasCLI = true
+		} else if originLine != "" {
+			result.origins = append(result.origins, originLine)
+		}
+	}
+
+	return result
+}
+
+func isNilPointerInput(input Input) bool {
+	value := reflect.ValueOf(input)
+
+	return value.Kind() == reflect.Pointer && value.IsNil()
+}
+
+func trailingInputSource(input Input) ValueSource {
+	if trailing, ok := input.(trailingInputState); ok && (trailing.IsSet() || trailing.Len() > 0) {
+		return SourceCLI
+	}
+
+	return SourceNone
+}
+
+func uninitializedInputSource(input Input) ValueSource {
+	if state, ok := input.(flagState); ok {
+		return state.Source()
+	}
+
+	return trailingInputSource(input)
+}
+
+// formattedCause extracts the cause from a fmt.Errorf result: the single %w
+// operand when one was given, or formatted itself when multiple %w operands
+// were joined.
+func formattedCause(formatted error) error {
+	switch wrapped := formatted.(type) { //nolint:errorlint // fmt.Errorf returns its wrapper types unwrapped
+	case interface{ Unwrap() error }:
+		return wrapped.Unwrap()
+	case interface{ Unwrap() []error }:
+		return formatted
+	default:
+		return nil
+	}
 }

@@ -183,6 +183,60 @@ func NoRunnerError(structName string) error {
 		withHint("implement conga.Runner: Run(context.Context, *conga.Session) error")
 }
 
+// ValueTypeHookError builds the runtime schema error for a command struct
+// whose value type implements a lifecycle hook, whether via a value receiver,
+// an embedded pointer, or an embedded interface. conga-lint reports the
+// specific origin through ValueReceiverHookError, EmbeddedPointerHookError,
+// and EmbeddedInterfaceHookError.
+func ValueTypeHookError(structName, methodName string) error {
+	return schemaErrorf("lifecycle hook %s is callable on a value of %s", methodName, structName).
+		ownedBy(structName, "").
+		withNote("a value receiver, an embedded pointer, or an embedded interface provides it").
+		withHintf("declare %s on a pointer receiver, or embed the mixin by value. Run conga-lint for the exact cause", methodName)
+}
+
+// ValueReceiverHookError builds the error for a command struct whose lifecycle
+// hook uses a value receiver rather than a pointer receiver. Used by
+// conga-lint.
+func ValueReceiverHookError(structName, receiverName, methodName string) error {
+	if receiverName == "" {
+		receiverName = structName
+	}
+
+	return schemaErrorf("lifecycle hook %s must use a pointer receiver", methodName).
+		ownedBy(structName, "").
+		withHintf("change func (%s) %s to func (*%s) %s", receiverName, methodName, receiverName, methodName)
+}
+
+// EmbeddedPointerHookError builds the error for a command struct whose
+// lifecycle hook is promoted from an embedded pointer struct. Used by
+// conga-lint.
+func EmbeddedPointerHookError(structName, baseName, methodName string) error {
+	if baseName == "" {
+		return schemaErrorf("lifecycle hook %s cannot be promoted from an embedded pointer", methodName).
+			ownedBy(structName, "").
+			withHintf("embed the struct by value or implement func (*%s) %s", structName, methodName)
+	}
+
+	return schemaErrorf("lifecycle hook %s cannot be promoted from embedded pointer *%s", methodName, baseName).
+		ownedBy(structName, "").
+		withHintf("embed %s by value or implement func (*%s) %s", baseName, structName, methodName)
+}
+
+// EmbeddedInterfaceHookError builds the error for a command struct whose
+// lifecycle hook is promoted from an embedded interface. Used by conga-lint.
+func EmbeddedInterfaceHookError(structName, ifaceName, methodName string) error {
+	if ifaceName == "" {
+		return schemaErrorf("lifecycle hook %s cannot be promoted from an embedded interface", methodName).
+			ownedBy(structName, "").
+			withHintf("store the dependency in a named field and implement func (*%s) %s", structName, methodName)
+	}
+
+	return schemaErrorf("lifecycle hook %s cannot be promoted from embedded interface %s", methodName, ifaceName).
+		ownedBy(structName, "").
+		withHintf("store the dependency in a named field and implement func (*%s) %s", structName, methodName)
+}
+
 // VersionJSONShadowError builds the shadowing error for the built-in version
 // command's --json selector, which the user cannot rename, with a migration
 // hint. descendant names the VersionCommand field.

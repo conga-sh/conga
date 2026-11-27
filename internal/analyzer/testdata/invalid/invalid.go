@@ -1054,3 +1054,155 @@ func (h *HiddenOnArgApp) Run(ctx context.Context, session *conga.Session) error 
 }
 
 var _ = conga.New[HiddenOnArgApp]()
+
+// ValueReceiverLeaf implements conga.Runner with a value receiver; only the
+// pointer-receiver diagnostic must fire (never "runner not implemented").
+type ValueReceiverLeaf struct { // want `struct ValueReceiverLeaf: lifecycle hook Run must use a pointer receiver`
+	LeafName conga.OptionalFlag[string] `name:"leaf-name" help:"Leaf name"`
+}
+
+// Run executes the leaf with a value receiver.
+func (v ValueReceiverLeaf) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[ValueReceiverLeaf]()
+
+// ValueReceiverValidatorApp implements Validator with a value receiver.
+type ValueReceiverValidatorApp struct{} // want `struct ValueReceiverValidatorApp: lifecycle hook Validate must use a pointer receiver`
+
+// Validate validates with a value receiver.
+func (v ValueReceiverValidatorApp) Validate(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+// Run executes with a pointer receiver.
+func (v *ValueReceiverValidatorApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[ValueReceiverValidatorApp]()
+
+// ValueReceiverAllHooksApp implements Bootstrapper, PreRunner, PostRunner, and
+// Finalizer with value receivers.
+type ValueReceiverAllHooksApp struct{} // want `struct ValueReceiverAllHooksApp: lifecycle hook Bootstrap must use a pointer receiver` `struct ValueReceiverAllHooksApp: lifecycle hook PreRun must use a pointer receiver` `struct ValueReceiverAllHooksApp: lifecycle hook PostRun must use a pointer receiver` `struct ValueReceiverAllHooksApp: lifecycle hook Finally must use a pointer receiver`
+
+// Bootstrap bootstraps with a value receiver.
+func (v ValueReceiverAllHooksApp) Bootstrap(ctx context.Context, bootstrap *conga.Bootstrap) error {
+	return nil
+}
+
+// PreRun initializes with a value receiver.
+func (v ValueReceiverAllHooksApp) PreRun(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+// Run executes with a pointer receiver.
+func (v *ValueReceiverAllHooksApp) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+// PostRun follows up with a value receiver.
+func (v ValueReceiverAllHooksApp) PostRun(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+// Finally cleans up with a value receiver.
+func (v ValueReceiverAllHooksApp) Finally(ctx context.Context, session *conga.Session, err error) error {
+	return nil
+}
+
+var _ = conga.New[ValueReceiverAllHooksApp]()
+
+// ValueMixin defines Validate with a value receiver.
+type ValueMixin struct{}
+
+// Validate validates with a value receiver.
+func (v ValueMixin) Validate(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+// ValueMixinCommand embeds ValueMixin by value.
+type ValueMixinCommand struct { // want `struct ValueMixinCommand: lifecycle hook Validate must use a pointer receiver`
+	ValueMixin
+}
+
+// Run executes with a pointer receiver.
+func (v *ValueMixinCommand) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[ValueMixinCommand]()
+
+// EmbeddedPointerToValueMixinCommand embeds *ValueMixin; crossing an embedded
+// pointer must report the embedded-pointer error directly rather than sending
+// the author through a two-round hint.
+type EmbeddedPointerToValueMixinCommand struct { // want `struct EmbeddedPointerToValueMixinCommand: lifecycle hook Validate cannot be promoted from embedded pointer \*ValueMixin`
+	*ValueMixin
+}
+
+// Run executes with a pointer receiver.
+func (v *EmbeddedPointerToValueMixinCommand) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[EmbeddedPointerToValueMixinCommand]()
+
+// PointerHookMixin defines Run with a pointer receiver.
+type PointerHookMixin struct{}
+
+// Run executes via pointer receiver on the mixin.
+func (m *PointerHookMixin) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+// EmbeddedPointerMixinLeaf embeds *PointerHookMixin; only the embedded-pointer
+// diagnostic must fire (never "runner not implemented").
+type EmbeddedPointerMixinLeaf struct { // want `struct EmbeddedPointerMixinLeaf: lifecycle hook Run cannot be promoted from embedded pointer \*PointerHookMixin`
+	*PointerHookMixin
+}
+
+var _ = conga.New[EmbeddedPointerMixinLeaf]()
+
+// EmbeddedInterfaceLeaf embeds conga.Runner; only the embedded-interface
+// diagnostic must fire (never "runner not implemented").
+type EmbeddedInterfaceLeaf struct { // want `struct EmbeddedInterfaceLeaf: lifecycle hook Run cannot be promoted from embedded interface Runner`
+	conga.Runner
+}
+
+var _ = conga.New[EmbeddedInterfaceLeaf]()
+
+// ShadowDirectValueOverPtrMixin declares a direct value-receiver Run shadowing
+// an embedded *PointerHookMixin.
+type ShadowDirectValueOverPtrMixin struct { // want `struct ShadowDirectValueOverPtrMixin: lifecycle hook Run must use a pointer receiver`
+	*PointerHookMixin
+}
+
+// Run shadows the embedded pointer mixin with a value receiver.
+func (s ShadowDirectValueOverPtrMixin) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+var _ = conga.New[ShadowDirectValueOverPtrMixin]()
+
+// ShadowMidPtrMixin embeds *PointerHookMixin for depth-2 shadowing checks.
+type ShadowMidPtrMixin struct {
+	*PointerHookMixin
+}
+
+// ValueRunMixin declares Run with a value receiver at depth 1.
+type ValueRunMixin struct{}
+
+// Run executes with a value receiver.
+func (v ValueRunMixin) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+// ShadowDepth1ValOverDepth2Ptr embeds a depth-1 value mixin shadowing a
+// depth-2 embedded pointer mixin.
+type ShadowDepth1ValOverDepth2Ptr struct { // want `struct ShadowDepth1ValOverDepth2Ptr: lifecycle hook Run must use a pointer receiver`
+	ShadowMidPtrMixin
+	ValueRunMixin
+}
+
+var _ = conga.New[ShadowDepth1ValOverDepth2Ptr]()

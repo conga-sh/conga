@@ -19,11 +19,23 @@ stdout '--backoff\s+time\.Duration\s+2s\s+● cli --backoff'
 # 3. Cross-field validation failure: end-date before start-date
 exit-status 2 dynamic-validation --start-date 2026-12-01 --end-date 2026-01-01
 stderr 'end-date \(2026-01-01\) cannot be earlier than start-date \(2026-12-01\)'
+stderr 'hint: pick an --end-date on or after --start-date'
+stderr 'Usage:'
 
-# 4. Invalid date format
+# 3b. Cross-field validation with CLI start-date and defaulted end-date
+exit-status 2 dynamic-validation --start-date 2026-12-01
+stderr 'end-date \(2026-01-31\) cannot be earlier than start-date \(2026-12-01\)'
+stderr 'from: --end-date: default value'
+stderr 'Usage:'
+
+# 4. Invalid date format (single-flag CLI failure prints line-only, no usage block)
 exit-status 2 dynamic-validation --start-date not-a-date
 stderr 'invalid start-date format'
+stderr 'note: accepted format: YYYY-MM-DD'
+! stderr 'Usage:'
 
 # 5. Invalid zero backoff when max-retries > 0
 exit-status 2 dynamic-validation --max-retries 5 --backoff 0s
 stderr 'backoff duration must be positive when max-retries > 0'
+stderr 'hint: pass a positive --backoff or set --max-retries 0'
+stderr 'Usage:'

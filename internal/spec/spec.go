@@ -565,6 +565,11 @@ type Options struct {
 	// can mirror the runtime terminal implicit-command rule. Hand-built specs
 	// that omit it report every command as non-runnable.
 	IsRunner func(any) bool
+	// ValidateCommandHooks rejects command structs that implement a lifecycle
+	// hook (Runner, Validator, PreRunner, PostRunner, Finalizer, Bootstrapper)
+	// on the value type rather than the pointer type, whether via a value
+	// receiver, an embedded pointer, or an embedded interface. Nil skips the check.
+	ValidateCommandHooks func(target any, structName string) error
 	// ConfigSettings carries the app-level configuration resolution settings
 	// (app.ConfigOptions options) onto the root command.
 	ConfigSettings ConfigSettings

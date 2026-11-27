@@ -72,25 +72,26 @@ type Deploy struct {
 	Worker conga.Command[DeployWorker] `name:"worker" envprefix:"DEPLOY_"`
 }
 
-// ValueReceiverLeaf implements conga.Runner with a value receiver.
-type ValueReceiverLeaf struct {
+// PointerReceiverLeaf implements conga.Runner with a pointer receiver and
+// carries a RawArgs collector with predictor:"dir".
+type PointerReceiverLeaf struct {
 	LeafName conga.OptionalFlag[string] `name:"leaf-name" help:"Leaf name"`
 	Leftover conga.RawArgs              `name:"leftover" predictor:"dir"`
 }
 
-// Run executes the leaf with a value receiver.
-func (v ValueReceiverLeaf) Run(ctx context.Context, session *conga.Session) error {
+// Run executes the leaf with a pointer receiver.
+func (p *PointerReceiverLeaf) Run(ctx context.Context, session *conga.Session) error {
 	return nil
 }
 
 // App is the root application struct.
 type App struct {
-	Deploy   conga.Command[Deploy]            `name:"deploy"`
-	Leaf     conga.Command[ValueReceiverLeaf] `name:"leaf"`
-	ConfigIn conga.ConfigFile                 `name:"config" short:"c" help:"Path to configuration file"`
-	Count    conga.Counter                    `name:"count" help:"Count invocations"`
-	Extra    conga.DashArgs                   `name:"extra" predictor:"file"`
-	Help     conga.HelpCommand                `summary:"Show help" aliases:"h"`
+	Deploy   conga.Command[Deploy]              `name:"deploy"`
+	Leaf     conga.Command[PointerReceiverLeaf] `name:"leaf"`
+	ConfigIn conga.ConfigFile                   `name:"config" short:"c" help:"Path to configuration file"`
+	Count    conga.Counter                      `name:"count" help:"Count invocations"`
+	Extra    conga.DashArgs                     `name:"extra" predictor:"file"`
+	Help     conga.HelpCommand                  `summary:"Show help" aliases:"h"`
 }
 
 var _ = conga.New[App]().Name("valid")
@@ -349,3 +350,25 @@ type ImplicitRoot struct {
 }
 
 var _ = conga.New[ImplicitRoot]()
+
+// mixinBase implements lifecycle hooks with pointer receivers; embedding
+// mixinBase by value places those methods only in *ValueEmbeddedMixinLeaf's
+// method set, which stays valid.
+type mixinBase struct{}
+
+// Validate validates via pointer receiver on the mixin.
+func (m *mixinBase) Validate(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+// Run executes via pointer receiver on the mixin.
+func (m *mixinBase) Run(ctx context.Context, session *conga.Session) error {
+	return nil
+}
+
+// ValueEmbeddedMixinLeaf embeds mixinBase by value and stays valid.
+type ValueEmbeddedMixinLeaf struct {
+	mixinBase
+}
+
+var _ = conga.New[ValueEmbeddedMixinLeaf]()

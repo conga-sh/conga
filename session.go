@@ -33,8 +33,8 @@ type Session struct {
 	whyRenderer   func(s *Session, format string) string
 	mapProvenance map[*spec.Flag]mapFlagProvenance
 	// flagOrigins records where each flag's value came from, so a
-	// SelfValidator failure that surfaces after binding names the file or
-	// .env file behind it.
+	// SelfValidator failure that surfaces after binding, or an error built with
+	// [Session.Error], names the file or .env file behind it.
 	flagOrigins map[*spec.Flag]valueOrigin
 }
 
@@ -212,16 +212,20 @@ func (s *Session) UsageError(message string) error {
 func (s *Session) UsageErrorf(format string, args ...any) error {
 	formatted := fmt.Errorf(format, args...) //nolint:err113 // the caller supplies the format, as with fmt.Errorf
 
-	var cause error
+	return usageError(s.chain(), formatted.Error()).withCause(formattedCause(formatted))
+}
 
-	switch wrapped := formatted.(type) { //nolint:errorlint // fmt.Errorf returns its wrapper types unwrapped
-	case interface{ Unwrap() error }:
-		cause = wrapped.Unwrap()
-	case interface{ Unwrap() []error }:
-		cause = formatted
-	}
-
-	return usageError(s.chain(), formatted.Error()).withCause(cause)
+// Error returns an [ErrorBuilder] that classifies errors by the sources of
+// named [Input] containers and attaches "from:", "note:", and "hint:" lines.
+//
+// Call [ErrorBuilder.For] with the inputs the check read, optionally call
+// [ErrorBuilder.Note], [ErrorBuilder.Hint], or [ErrorBuilder.Usage], and finish
+// with [ErrorBuilder.New], [ErrorBuilder.Newf], [ErrorBuilder.Wrap], or
+// [ErrorBuilder.Wrapf]. On a nil or uninitialized session, the builder never
+// panics and classifies from each container's own Source without "from:" lines
+// or a usage block.
+func (s *Session) Error() ErrorBuilder {
+	return ErrorBuilder{session: s}
 }
 
 // Root returns a pointer to the root application struct of type T: either the
@@ -261,4 +265,93 @@ func (s *Session) chain() []*spec.Command {
 	}
 
 	return s.cmdChain
+}
+
+// verifyInputsBound panics if any input in inputs is not bound to a command in
+// s.cmdChain.
+func (s *Session) verifyInputsBound(inputs []Input) {
+	for _, input := range inputs {
+		if !s.isInputBound(input) {
+			panic("conga: Session.Error().For: input is not bound to the active command")
+		}
+	}
+}
+
+func (s *Session) isInputBound(input Input) bool {
+	if input == nil || isNilPointerInput(input) {
+		return false
+	}
+
+	for _, cmd := range s.cmdChain {
+		if bound, _, _ := s.resolveCommandInput(cmd, input); bound {
+			return true
+		}
+	}
+
+	return false
+}
+
+// resolveInputOrigin returns the bound input's resolved source and its "from:"
+// line text ("--<flag>: <described>" or "argument <NAME>: <described>"), or ""
+// for command-line or unset inputs.
+func (s *Session) resolveInputOrigin(input Input) (ValueSource, string) {
+	for _, cmd := range s.cmdChain {
+		if bound, source, origin := s.resolveCommandInput(cmd, input); bound {
+			return source, origin
+		}
+	}
+
+	return SourceNone, ""
+}
+
+func (s *Session) resolveCommandInput(cmd *spec.Command, input Input) (bool, ValueSource, string) {
+	for _, flagSpec := range cmd.Flags {
+		if flagSpec.Handle != nil && flagSpec.Handle == input {
+			return true, flagStateOf(flagSpec.Handle).Source(), s.flagOriginLine(flagSpec)
+		}
+	}
+
+	for _, argSpec := range cmd.Args {
+		if argSpec.Handle != nil && argSpec.Handle == input {
+			return true, argStateOf(argSpec.Handle).Source(), argOriginLine(argSpec)
+		}
+	}
+
+	if cmd.DashArgs != nil && cmd.DashArgs.Handle != nil && cmd.DashArgs.Handle == input {
+		return true, trailingInputSource(input), ""
+	}
+
+	if cmd.RawArgs != nil && cmd.RawArgs.Handle != nil && cmd.RawArgs.Handle == input {
+		return true, trailingInputSource(input), ""
+	}
+
+	return false, SourceNone, ""
+}
+
+func (s *Session) flagOriginLine(flagSpec *spec.Flag) string {
+	source := flagStateOf(flagSpec.Handle).Source()
+	if source == SourceCLI || source == SourceNone {
+		return ""
+	}
+
+	described := originOf(s.flagOrigins, flagSpec, source).describe()
+	if described == "" {
+		return ""
+	}
+
+	return "--" + flagSpec.Name + ": " + described
+}
+
+func argOriginLine(argSpec *spec.Arg) string {
+	source := argStateOf(argSpec.Handle).Source()
+	if source == SourceCLI || source == SourceNone {
+		return ""
+	}
+
+	described := valueOrigin{source: source}.describe()
+	if described == "" {
+		return ""
+	}
+
+	return valueSubject(nil, argSpec) + ": " + described
 }
