@@ -1442,6 +1442,8 @@ type nestedValueEmbeddedMixinCmd struct {
 func TestSchema_ValueReceiverLifecycleHooks(t *testing.T) {
 	t.Parallel()
 
+	const wantNote = "a value receiver, an embedded pointer, or an embedded interface provides it"
+
 	testCases := []struct {
 		name     string
 		run      func() error
@@ -1451,98 +1453,98 @@ func TestSchema_ValueReceiverLifecycleHooks(t *testing.T) {
 		{
 			name:     "Runner with value receiver",
 			run:      func() error { return conga.New[valueReceiverRunnerCmd]().Args(nil).RunContext(t.Context()) },
-			wantMsg:  "struct valueReceiverRunnerCmd: lifecycle hook Run must use a pointer receiver",
-			wantHint: "change func (valueReceiverRunnerCmd) Run to func (*valueReceiverRunnerCmd) Run",
+			wantMsg:  "struct valueReceiverRunnerCmd: lifecycle hook Run is callable on a value of valueReceiverRunnerCmd",
+			wantHint: "declare Run on a pointer receiver, or embed the mixin by value. Run conga-lint for the exact cause",
 		},
 		{
 			name:     "Validator with value receiver",
 			run:      func() error { return conga.New[valueReceiverValidatorCmd]().Args(nil).RunContext(t.Context()) },
-			wantMsg:  "struct valueReceiverValidatorCmd: lifecycle hook Validate must use a pointer receiver",
-			wantHint: "change func (valueReceiverValidatorCmd) Validate to func (*valueReceiverValidatorCmd) Validate",
+			wantMsg:  "struct valueReceiverValidatorCmd: lifecycle hook Validate is callable on a value of valueReceiverValidatorCmd",
+			wantHint: "declare Validate on a pointer receiver, or embed the mixin by value. Run conga-lint for the exact cause",
 		},
 		{
 			name:     "PreRunner with value receiver",
 			run:      func() error { return conga.New[valueReceiverPreRunnerCmd]().Args(nil).RunContext(t.Context()) },
-			wantMsg:  "struct valueReceiverPreRunnerCmd: lifecycle hook PreRun must use a pointer receiver",
-			wantHint: "change func (valueReceiverPreRunnerCmd) PreRun to func (*valueReceiverPreRunnerCmd) PreRun",
+			wantMsg:  "struct valueReceiverPreRunnerCmd: lifecycle hook PreRun is callable on a value of valueReceiverPreRunnerCmd",
+			wantHint: "declare PreRun on a pointer receiver, or embed the mixin by value. Run conga-lint for the exact cause",
 		},
 		{
 			name:     "PostRunner with value receiver",
 			run:      func() error { return conga.New[valueReceiverPostRunnerCmd]().Args(nil).RunContext(t.Context()) },
-			wantMsg:  "struct valueReceiverPostRunnerCmd: lifecycle hook PostRun must use a pointer receiver",
-			wantHint: "change func (valueReceiverPostRunnerCmd) PostRun to func (*valueReceiverPostRunnerCmd) PostRun",
+			wantMsg:  "struct valueReceiverPostRunnerCmd: lifecycle hook PostRun is callable on a value of valueReceiverPostRunnerCmd",
+			wantHint: "declare PostRun on a pointer receiver, or embed the mixin by value. Run conga-lint for the exact cause",
 		},
 		{
 			name:     "Finalizer with value receiver",
 			run:      func() error { return conga.New[valueReceiverFinalizerCmd]().Args(nil).RunContext(t.Context()) },
-			wantMsg:  "struct valueReceiverFinalizerCmd: lifecycle hook Finally must use a pointer receiver",
-			wantHint: "change func (valueReceiverFinalizerCmd) Finally to func (*valueReceiverFinalizerCmd) Finally",
+			wantMsg:  "struct valueReceiverFinalizerCmd: lifecycle hook Finally is callable on a value of valueReceiverFinalizerCmd",
+			wantHint: "declare Finally on a pointer receiver, or embed the mixin by value. Run conga-lint for the exact cause",
 		},
 		{
 			name:     "Bootstrapper with value receiver",
 			run:      func() error { return conga.New[valueReceiverBootstrapperCmd]().Args(nil).RunContext(t.Context()) },
-			wantMsg:  "struct valueReceiverBootstrapperCmd: lifecycle hook Bootstrap must use a pointer receiver",
-			wantHint: "change func (valueReceiverBootstrapperCmd) Bootstrap to func (*valueReceiverBootstrapperCmd) Bootstrap",
+			wantMsg:  "struct valueReceiverBootstrapperCmd: lifecycle hook Bootstrap is callable on a value of valueReceiverBootstrapperCmd",
+			wantHint: "declare Bootstrap on a pointer receiver, or embed the mixin by value. Run conga-lint for the exact cause",
 		},
 		{
 			name:     "embedded value mixin with value receiver",
 			run:      func() error { return conga.New[embeddedValueMixinCmd]().Args(nil).RunContext(t.Context()) },
-			wantMsg:  "struct embeddedValueMixinCmd: lifecycle hook Validate must use a pointer receiver",
-			wantHint: "change func (valueMixinBase) Validate to func (*valueMixinBase) Validate",
+			wantMsg:  "struct embeddedValueMixinCmd: lifecycle hook Validate is callable on a value of embeddedValueMixinCmd",
+			wantHint: "declare Validate on a pointer receiver, or embed the mixin by value. Run conga-lint for the exact cause",
 		},
 		{
-			name:     "embedded pointer to value mixin reports embedded pointer",
+			name:     "embedded pointer to value mixin is rejected",
 			run:      func() error { return conga.New[embeddedPointerToValueMixinCmd]().Args(nil).RunContext(t.Context()) },
-			wantMsg:  "struct embeddedPointerToValueMixinCmd: lifecycle hook Validate cannot be promoted from embedded pointer *valueMixinBase",
-			wantHint: "embed valueMixinBase by value or implement func (*embeddedPointerToValueMixinCmd) Validate",
+			wantMsg:  "struct embeddedPointerToValueMixinCmd: lifecycle hook Validate is callable on a value of embeddedPointerToValueMixinCmd",
+			wantHint: "declare Validate on a pointer receiver, or embed the mixin by value. Run conga-lint for the exact cause",
 		},
 		{
 			name:     "embedded pointer mixin with pointer receiver is rejected",
 			run:      func() error { return conga.New[embeddedPointerMixinCmd]().Args(nil).RunContext(t.Context()) },
-			wantMsg:  "struct embeddedPointerMixinCmd: lifecycle hook Run cannot be promoted from embedded pointer *pointerMixinBase",
-			wantHint: "embed pointerMixinBase by value or implement func (*embeddedPointerMixinCmd) Run",
+			wantMsg:  "struct embeddedPointerMixinCmd: lifecycle hook Run is callable on a value of embeddedPointerMixinCmd",
+			wantHint: "declare Run on a pointer receiver, or embed the mixin by value. Run conga-lint for the exact cause",
 		},
 		{
 			name:     "nested embedded pointer mixin with pointer receiver is rejected",
 			run:      func() error { return conga.New[nestedEmbeddedPointerMixinCmd]().Args(nil).RunContext(t.Context()) },
-			wantMsg:  "struct nestedEmbeddedPointerMixinCmd: lifecycle hook Run cannot be promoted from embedded pointer *pointerMixinBase",
-			wantHint: "embed pointerMixinBase by value or implement func (*nestedEmbeddedPointerMixinCmd) Run",
+			wantMsg:  "struct nestedEmbeddedPointerMixinCmd: lifecycle hook Run is callable on a value of nestedEmbeddedPointerMixinCmd",
+			wantHint: "declare Run on a pointer receiver, or embed the mixin by value. Run conga-lint for the exact cause",
 		},
 		{
 			name:     "embedded pointer to value-embedded mixin is rejected",
 			run:      func() error { return conga.New[embeddedPointerToValueEmbeddedCmd]().Args(nil).RunContext(t.Context()) },
-			wantMsg:  "struct embeddedPointerToValueEmbeddedCmd: lifecycle hook Run cannot be promoted from embedded pointer *valueEmbeddedMid",
-			wantHint: "embed valueEmbeddedMid by value or implement func (*embeddedPointerToValueEmbeddedCmd) Run",
+			wantMsg:  "struct embeddedPointerToValueEmbeddedCmd: lifecycle hook Run is callable on a value of embeddedPointerToValueEmbeddedCmd",
+			wantHint: "declare Run on a pointer receiver, or embed the mixin by value. Run conga-lint for the exact cause",
 		},
 		{
 			name:     "unnamed embedded pointer struct is rejected",
 			run:      func() error { return conga.New[unnamedEmbeddedPointerCmd]().Args(nil).RunContext(t.Context()) },
-			wantMsg:  "struct unnamedEmbeddedPointerCmd: lifecycle hook Run cannot be promoted from an embedded pointer",
-			wantHint: "embed the struct by value or implement func (*unnamedEmbeddedPointerCmd) Run",
+			wantMsg:  "struct unnamedEmbeddedPointerCmd: lifecycle hook Run is callable on a value of unnamedEmbeddedPointerCmd",
+			wantHint: "declare Run on a pointer receiver, or embed the mixin by value. Run conga-lint for the exact cause",
 		},
 		{
 			name:     "embedded lifecycle interface is rejected",
 			run:      func() error { return conga.New[embeddedInterfaceCmd]().Args(nil).RunContext(t.Context()) },
-			wantMsg:  "struct embeddedInterfaceCmd: lifecycle hook Run cannot be promoted from embedded interface Runner",
-			wantHint: "store the dependency in a named field and implement func (*embeddedInterfaceCmd) Run",
+			wantMsg:  "struct embeddedInterfaceCmd: lifecycle hook Run is callable on a value of embeddedInterfaceCmd",
+			wantHint: "declare Run on a pointer receiver, or embed the mixin by value. Run conga-lint for the exact cause",
 		},
 		{
 			name:     "unnamed embedded lifecycle interface is rejected",
 			run:      func() error { return conga.New[unnamedEmbeddedInterfaceCmd]().Args(nil).RunContext(t.Context()) },
-			wantMsg:  "struct unnamedEmbeddedInterfaceCmd: lifecycle hook Run cannot be promoted from an embedded interface",
-			wantHint: "store the dependency in a named field and implement func (*unnamedEmbeddedInterfaceCmd) Run",
+			wantMsg:  "struct unnamedEmbeddedInterfaceCmd: lifecycle hook Run is callable on a value of unnamedEmbeddedInterfaceCmd",
+			wantHint: "declare Run on a pointer receiver, or embed the mixin by value. Run conga-lint for the exact cause",
 		},
 		{
 			name:     "direct value receiver alongside embedded pointer mixin is rejected",
 			run:      func() error { return conga.New[shadowDirectValueOverPtrMixinCmd]().Args(nil).RunContext(t.Context()) },
-			wantMsg:  "struct shadowDirectValueOverPtrMixinCmd: lifecycle hook Run cannot be promoted from embedded pointer *pointerMixinBase",
-			wantHint: "embed pointerMixinBase by value or implement func (*shadowDirectValueOverPtrMixinCmd) Run",
+			wantMsg:  "struct shadowDirectValueOverPtrMixinCmd: lifecycle hook Run is callable on a value of shadowDirectValueOverPtrMixinCmd",
+			wantHint: "declare Run on a pointer receiver, or embed the mixin by value. Run conga-lint for the exact cause",
 		},
 		{
 			name:     "depth-1 value mixin alongside depth-2 embedded pointer mixin is rejected",
 			run:      func() error { return conga.New[shadowDepth1ValueOverDepth2PtrCmd]().Args(nil).RunContext(t.Context()) },
-			wantMsg:  "struct shadowDepth1ValueOverDepth2PtrCmd: lifecycle hook Validate cannot be promoted from embedded pointer *pointerMixinBase",
-			wantHint: "embed pointerMixinBase by value or implement func (*shadowDepth1ValueOverDepth2PtrCmd) Validate",
+			wantMsg:  "struct shadowDepth1ValueOverDepth2PtrCmd: lifecycle hook Validate is callable on a value of shadowDepth1ValueOverDepth2PtrCmd",
+			wantHint: "declare Validate on a pointer receiver, or embed the mixin by value. Run conga-lint for the exact cause",
 		},
 	}
 
@@ -1555,6 +1557,7 @@ func TestSchema_ValueReceiverLifecycleHooks(t *testing.T) {
 			assert.Error(t, err)
 			assert.True(t, spec.IsSchemaError(err))
 			assert.Equal(t, testCase.wantMsg, err.Error())
+			assert.Equal(t, wantNote, errlines.Note(err))
 			assert.Equal(t, testCase.wantHint, errlines.Hint(err))
 		})
 	}

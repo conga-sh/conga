@@ -6,6 +6,19 @@ import (
 	"github.com/conga-sh/conga/internal/spec"
 )
 
+const (
+	embeddedHookNone embeddedHookKind = iota
+	embeddedHookPointer
+	embeddedHookInterface
+)
+
+type embeddedHookKind uint8
+
+type embeddedHookOrigin struct {
+	kind embeddedHookKind
+	name string
+}
+
 // checkLifecycleReceivers rejects command structs implementing any lifecycle
 // hook on the value type rather than the pointer type, distinguishing value
 // receivers, embedded pointers, and embedded interfaces. Value-embedded mixins
@@ -58,17 +71,25 @@ func (w *walker) checkLifecycleReceivers(node *commandNode) {
 	}
 }
 
-type embeddedHookKind uint8
+// checkRunner enforces the leaf command contract: a command struct without
+// user subcommand fields must implement conga.Runner, mirroring the runtime
+// bind-time check (noRunnerError) that otherwise only surfaces on first
+// execution.
+func (w *walker) checkRunner(node *commandNode, subcommandCount int) {
+	if subcommandCount > 0 || node.named == nil {
+		return
+	}
 
-const (
-	embeddedHookNone embeddedHookKind = iota
-	embeddedHookPointer
-	embeddedHookInterface
-)
+	if w.implements(types.NewPointer(node.named), w.conga.runner) {
+		return
+	}
 
-type embeddedHookOrigin struct {
-	kind embeddedHookKind
-	name string
+	position := node.reportPos
+	if node.inPackage {
+		position = node.named.Obj().Pos()
+	}
+
+	w.reportError(position, spec.NoRunnerError(node.named.Obj().Name()))
 }
 
 // classifyLifecycleHookError maps a value-type lifecycle hook lookup to one of
@@ -132,25 +153,4 @@ func findEmbeddedHookOrigin(root *types.Named, index []int) embeddedHookOrigin {
 	}
 
 	return embeddedHookOrigin{}
-}
-
-// checkRunner enforces the leaf command contract: a command struct without
-// user subcommand fields must implement conga.Runner, mirroring the runtime
-// bind-time check (noRunnerError) that otherwise only surfaces on first
-// execution.
-func (w *walker) checkRunner(node *commandNode, subcommandCount int) {
-	if subcommandCount > 0 || node.named == nil {
-		return
-	}
-
-	if w.implements(types.NewPointer(node.named), w.conga.runner) {
-		return
-	}
-
-	position := node.reportPos
-	if node.inPackage {
-		position = node.named.Obj().Pos()
-	}
-
-	w.reportError(position, spec.NoRunnerError(node.named.Obj().Name()))
 }

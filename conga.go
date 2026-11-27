@@ -2714,123 +2714,42 @@ func isRunner(target any) bool {
 }
 
 // validateCommandHooks rejects command structs that implement a lifecycle
-// interface on their value type rather than their pointer type, distinguishing
-// value receivers, embedded pointers, and embedded interfaces. Value-embedded
+// interface on their value type rather than their pointer type, whether via a
+// value receiver, an embedded pointer, or an embedded interface. Value-embedded
 // mixins with pointer-receiver hooks only implement the interface on *T and
-// stay allowed.
+// stay allowed. Origin-specific diagnostics are reported by conga-lint, while
+// runtime schema build returns a single generic error to avoid retaining
+// interface reflection metadata in minimal binaries.
 func validateCommandHooks(target any, structName string) error {
 	valueType := reflect.TypeOf(target)
 	if valueType == nil || valueType.Kind() != reflect.Pointer || valueType.Elem().Kind() != reflect.Struct {
 		return nil
 	}
 
-	structType := valueType.Elem()
-
-	hooks := []struct {
-		iface  reflect.Type
-		method string
-	}{
-		{iface: reflect.TypeFor[Runner](), method: "Run"},
-		{iface: reflect.TypeFor[Bootstrapper](), method: "Bootstrap"},
-		{iface: reflect.TypeFor[Validator](), method: "Validate"},
-		{iface: reflect.TypeFor[PreRunner](), method: "PreRun"},
-		{iface: reflect.TypeFor[PostRunner](), method: "PostRun"},
-		{iface: reflect.TypeFor[Finalizer](), method: "Finally"},
-	}
-
-	for _, hook := range hooks {
-		if !structType.Implements(hook.iface) {
-			continue
-		}
-
-		origin := classifyHookOrigin(structType, hook.iface)
-		switch origin.kind {
-		case hookOriginPointer:
-			return spec.EmbeddedPointerHookError(structName, origin.name, hook.method)
-		case hookOriginInterface:
-			return spec.EmbeddedInterfaceHookError(structName, origin.name, hook.method)
-		default:
-			return spec.ValueReceiverHookError(structName, origin.name, hook.method)
-		}
+	if method := valueHookMethod(reflect.Zero(valueType.Elem()).Interface()); method != "" {
+		return spec.ValueTypeHookError(structName, method)
 	}
 
 	return nil
 }
 
-type hookOriginKind uint8
-
-const (
-	hookOriginValue hookOriginKind = iota
-	hookOriginPointer
-	hookOriginInterface
-)
-
-type hookOrigin struct {
-	kind hookOriginKind
-	name string
-}
-
-// classifyHookOrigin walks anonymous struct fields breadth-first to classify
-// why root's value type implements iface: a promoted embedded interface, a
-// promoted embedded pointer, a promoted embedded value mixin, or a direct
-// value receiver on root. It inspects struct layout only and never calls
-// reflect.Type.MethodByName so the Go linker keeps pruning unused methods.
-func classifyHookOrigin(root reflect.Type, iface reflect.Type) hookOrigin {
-	visited := map[reflect.Type]bool{root: true}
-	current := []reflect.Type{root}
-	valueMixin := ""
-
-	for len(current) > 0 {
-		var next []reflect.Type
-
-		for _, structType := range current {
-			for field := range structType.Fields() {
-				if !field.Anonymous {
-					continue
-				}
-
-				origin, found, nextType := inspectEmbeddedHookField(field.Type, iface, visited)
-				if found {
-					return origin
-				}
-
-				if nextType != nil {
-					next = append(next, nextType)
-					if nextType.Name() != "" {
-						valueMixin = nextType.Name()
-					}
-				}
-			}
-		}
-
-		current = next
-	}
-
-	return hookOrigin{kind: hookOriginValue, name: valueMixin}
-}
-
-func inspectEmbeddedHookField(fieldType, iface reflect.Type, visited map[reflect.Type]bool) (hookOrigin, bool, reflect.Type) {
-	switch fieldType.Kind() {
-	case reflect.Interface:
-		if fieldType.Implements(iface) {
-			return hookOrigin{kind: hookOriginInterface, name: fieldType.Name()}, true, nil
-		}
-	case reflect.Pointer:
-		elemType := fieldType.Elem()
-		if elemType.Kind() == reflect.Struct && fieldType.Implements(iface) {
-			return hookOrigin{kind: hookOriginPointer, name: elemType.Name()}, true, nil
-		}
-	case reflect.Struct:
-		if fieldType.Implements(iface) && !visited[fieldType] {
-			visited[fieldType] = true
-
-			return hookOrigin{}, false, fieldType
-		}
+func valueHookMethod(value any) string {
+	switch value.(type) {
+	case Runner:
+		return "Run"
+	case Bootstrapper:
+		return "Bootstrap"
+	case Validator:
+		return "Validate"
+	case PreRunner:
+		return "PreRun"
+	case PostRunner:
+		return "PostRun"
+	case Finalizer:
+		return "Finally"
 	default:
-		return hookOrigin{}, false, nil
+		return ""
 	}
-
-	return hookOrigin{}, false, nil
 }
 
 // generateCompletionScript renders the completion driver script for shell and

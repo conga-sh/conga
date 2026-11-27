@@ -183,10 +183,21 @@ func NoRunnerError(structName string) error {
 		withHint("implement conga.Runner: Run(context.Context, *conga.Session) error")
 }
 
+// ValueTypeHookError builds the runtime schema error for a command struct
+// whose value type implements a lifecycle hook, whether via a value receiver,
+// an embedded pointer, or an embedded interface. conga-lint reports the
+// specific origin through ValueReceiverHookError, EmbeddedPointerHookError,
+// and EmbeddedInterfaceHookError.
+func ValueTypeHookError(structName, methodName string) error {
+	return schemaErrorf("lifecycle hook %s is callable on a value of %s", methodName, structName).
+		ownedBy(structName, "").
+		withNote("a value receiver, an embedded pointer, or an embedded interface provides it").
+		withHintf("declare %s on a pointer receiver, or embed the mixin by value. Run conga-lint for the exact cause", methodName)
+}
+
 // ValueReceiverHookError builds the error for a command struct whose lifecycle
-// hook uses a value receiver rather than a pointer receiver. The runtime
-// schema builder and the static analyzer share it as the single source of
-// truth.
+// hook uses a value receiver rather than a pointer receiver. Used by
+// conga-lint.
 func ValueReceiverHookError(structName, receiverName, methodName string) error {
 	if receiverName == "" {
 		receiverName = structName
@@ -198,9 +209,8 @@ func ValueReceiverHookError(structName, receiverName, methodName string) error {
 }
 
 // EmbeddedPointerHookError builds the error for a command struct whose
-// lifecycle hook is promoted from an embedded pointer struct. The runtime
-// schema builder and the static analyzer share it as the single source of
-// truth.
+// lifecycle hook is promoted from an embedded pointer struct. Used by
+// conga-lint.
 func EmbeddedPointerHookError(structName, baseName, methodName string) error {
 	if baseName == "" {
 		return schemaErrorf("lifecycle hook %s cannot be promoted from an embedded pointer", methodName).
@@ -214,8 +224,7 @@ func EmbeddedPointerHookError(structName, baseName, methodName string) error {
 }
 
 // EmbeddedInterfaceHookError builds the error for a command struct whose
-// lifecycle hook is promoted from an embedded interface. The runtime schema
-// builder and the static analyzer share it as the single source of truth.
+// lifecycle hook is promoted from an embedded interface. Used by conga-lint.
 func EmbeddedInterfaceHookError(structName, ifaceName, methodName string) error {
 	if ifaceName == "" {
 		return schemaErrorf("lifecycle hook %s cannot be promoted from an embedded interface", methodName).
