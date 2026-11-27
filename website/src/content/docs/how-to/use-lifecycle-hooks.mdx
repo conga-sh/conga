@@ -283,7 +283,7 @@ $ snap create docs v1
 snap: error: snapshot "v1" already exists
 ```
 
-If `Finally` returns an error on a run that otherwise succeeded, the run fails with that error. If `Finally` returns an error after an earlier stage failed, CONGA joins both with `errors.Join` and prints the run's error first, followed by each `Finally` error on its own line.
+Return only the `Finally` hook's own cleanup failure, or `nil` when cleanup succeeded. Returning the `err` parameter it received prints that failure a second time. When a cleanup failure is harmless, write a warning to `session.Stderr()` and return `nil`. If all prior stages succeeded and one `Finally` hook fails, the run fails with that error. If an earlier stage failed, or if more than one `Finally` hook fails, the run's error decides the outcome and the remaining `Finally` errors are suppressed alongside it. `app.Exit` prints the primary error first followed by each suppressed `Finally` error on its own line, while `errors.Is`, `errors.As`, and the exit code inspect only the primary error.
 
 ## Commit work after success
 
@@ -344,14 +344,13 @@ Renaming in `PostRun` keeps a failed rename safe. When `os.Rename` fails in `Pos
 
 ## Stop cleanly on Ctrl+C
 
-`app.Run()` passes the hooks a context that is canceled on <Kbd default="Ctrl+C" /> (`SIGINT`) or `SIGTERM`, as [Default signal context versus custom context](/explanation/lifecycle/#default-signal-context-versus-custom-context) explains. The process keeps running after the signal. To stop cleanly, a long-running hook checks `ctx` and returns its error, and the `Finally` hooks then clean up.
+`app.Run()` passes the hooks a context that is canceled on the first <Kbd default="Ctrl+C" /> (`SIGINT`), `SIGTERM`, or `SIGHUP`, as [Default signal context versus custom context](/explanation/lifecycle/#default-signal-context-versus-custom-context) explains. The process stays alive for the active hook to return and `Finally` hooks to clean up. A second <Kbd default="Ctrl+C" /> or `SIGTERM` ends the process at once.
 
-In `CreateCmd.Run`, the `filepath.WalkDir` callback checks `ctx.Err()` before each entry. Pressing <Kbd default="Ctrl+C" /> partway through a large copy returns `context.Canceled`, skips `PostRun`, removes the partial snapshot in `CreateCmd.Finally`, and releases `.lock` in `CLI.Finally`. The run exits with status 1:
+In `CreateCmd.Run`, the `filepath.WalkDir` callback checks `ctx.Err()` before each entry. Pressing <Kbd default="Ctrl+C" /> partway through a large copy returns `context.Canceled`, skips `PostRun`, removes the partial snapshot in `CreateCmd.Finally`, and releases `.lock` in `CLI.Finally`. Because `Run` returned `context.Canceled` after `app.Run()` caught `SIGINT`, the run exits with status 130 without printing an error line:
 
-```sh error={3}
+```sh
 $ snap create photos trip
 discarded the partial snapshot
-snap: error: context canceled
 ```
 
 `app.RunContext(ctx)` passes the caller's context to every hook as it is and installs no signal handler. Under a context such as `context.Background()`, <Kbd default="Ctrl+C" /> ends the process at once, before any `Finally` hook runs, and leaves `.lock` and the `.partial-*` directory in the store. To stop cleanly under `RunContext`, build the context with `signal.NotifyContext`:
@@ -383,8 +382,8 @@ func main() {
 }
 ```
 
-:::caution[A command that ignores ctx ignores Ctrl+C]
-Under a context that is canceled on <Kbd default="Ctrl+C" />, a command that never checks `ctx` runs until `Run` finishes, however often the user presses <Kbd default="Ctrl+C" />. Check `ctx.Err()` in loops and pass `ctx` to context-aware calls such as `exec.CommandContext` and `http.NewRequestWithContext`.
+:::caution[A command that ignores ctx ignores the first Ctrl+C]
+Under a context that is canceled on <Kbd default="Ctrl+C" />, a command that never checks `ctx` keeps running on the first <Kbd default="Ctrl+C" /> until `Run` finishes. Pressing <Kbd default="Ctrl+C" /> a second time ends the process at once without waiting for `Run` or `Finally`. Check `ctx.Err()` in loops and pass `ctx` to context-aware calls such as `exec.CommandContext` and `http.NewRequestWithContext`.
 :::
 
 When `Finally` runs after <Kbd default="Ctrl+C" />, `ctx` is already canceled. If a cleanup step calls a function that takes a `context.Context`, such as one that rolls back a database transaction or deletes a remote object, pass it `context.WithoutCancel(ctx)` so the call gets a live context. Wrap that in `context.WithTimeout` when the call can hang.
@@ -399,12 +398,13 @@ When `Finally` runs after <Kbd default="Ctrl+C" />, `ctx` is already canceled. I
 | `CreateCmd.PreRun` (the snapshot name already exists) | `CLI.Finally` | 1 |
 | `CreateCmd.Run` (a file cannot be read) | `CreateCmd.Finally`, then `CLI.Finally` | 1 |
 | `CreateCmd.PostRun` (`os.Rename` fails) | `CreateCmd.Finally`, then `CLI.Finally` | 1 |
-| A `Finally` hook | The remaining `Finally` hooks, with every error joined | 1 |
-| <Kbd default="Ctrl+C" /> under `app.Run()`, in a command that checks `ctx` | Each `Finally` whose `PreRun` succeeded, receiving `context.Canceled` | 1 |
-| <Kbd default="Ctrl+C" /> under `app.Run()`, in a command that ignores `ctx` | Every `Finally` hook, once `Run` finishes | The command's own |
+| A `Finally` hook | Remaining `Finally` hooks run, and later errors print as suppressed lines | 1 (or primary error's `ExitCoder` status) |
+| <Kbd default="Ctrl+C" /> under `app.Run()`, in a command that checks `ctx` | Each `Finally` whose `PreRun` succeeded, receiving an error wrapping `context.Canceled` | 130, silent |
+| A `Finally` hook passing the canceled `ctx` to I/O after <Kbd default="Ctrl+C" /> (fix with `context.WithoutCancel`) | Remaining `Finally` hooks | 130, hook's `context canceled` prints as suppressed when a stage also failed (silent 130 when prior stages succeeded) |
+| <Kbd default="Ctrl+C" /> under `app.Run()`, in a command that ignores `ctx` | Every `Finally` hook, once `Run` finishes | 130 when `Run` returns an error, 0 when `Run` returns `nil` (unless an author `ExitCoder` overrides) |
 | <Kbd default="Ctrl+C" /> under `app.RunContext` with a context that has no signal handler | None | 130, set by the shell |
 
-The table lists plain errors. A hook may return `session.UsageError` to exit 2 with the usage block, or an `ExitCoder` to exit with its own code, and `Exit` uses that code for any hook.
+The table lists plain errors. A hook may return `session.UsageError` to exit 2 with the usage block, or an `ExitCoder` to exit with its own code, when that error is the primary error. Suppressed `Finally` errors never override the exit code or print a usage block. After a caught signal under `app.Run()`, only an author `ExitCoder` overrides `128` plus the signal number, while a `session.UsageError` prints without a usage block and exits `128` plus the signal number.
 
 ## Where to go next
 

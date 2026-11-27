@@ -1175,7 +1175,7 @@ func TestError_NestedJoinFlattens(t *testing.T) {
 			"  hint: hint c\n", result.output)
 	})
 
-	t.Run("an outer Finally failure joined with an inner run's join", func(t *testing.T) {
+	t.Run("an outer Finally failure suppressed alongside an inner run's join", func(t *testing.T) {
 		t.Parallel()
 
 		var buffer bytes.Buffer

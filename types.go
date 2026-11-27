@@ -266,10 +266,39 @@ type PostRunner interface {
 
 // Finalizer is implemented by commands that require guaranteed resource cleanup.
 //
-// Hooks execute bottom-up from leaf to root for all initialized commands, running
-// unconditionally even when PreRun, Run, or PostRun return an error.
-// The err parameter receives the error that halted execution, or nil if all prior stages
-// succeeded.
+// Hooks execute bottom-up from leaf to root for all initialized commands,
+// running once the run ends whatever PreRun, Run, or PostRun returned. The err
+// parameter receives the error that halted execution, a non-nil error when a
+// stage panicked, or nil if all prior stages succeeded.
+//
+// Return only the hook's own cleanup failure, or nil when cleanup succeeded.
+// Returning the err parameter it received prints that failure a second time.
+// When stages succeeded and one Finally hook fails, the run fails with that
+// error (exit 1, or its [ExitCoder] code). When stages failed, or when more than
+// one Finally hook fails, the run's error decides the outcome and the remaining
+// Finally errors are suppressed alongside it. A hook whose failure is harmless
+// should write a warning to [Session.Stderr] and return nil.
+//
+// Hooks receive the run's context as it is, which may already be canceled when
+// the run was interrupted. A hook that must do work after cancellation calls
+// [context.WithoutCancel] itself.
+//
+// Under [App.Run], a first SIGINT, SIGTERM, or SIGHUP cancels the context, and
+// Finally runs once the active hook returns. A second SIGINT or SIGTERM ends
+// the process at once, as SIGKILL does, unless the signal was ignored when Run
+// started or the program registered its own handler for it with
+// [os/signal.Notify]. Further hangups are ignored while cleanup runs.
+//
+// On Windows, Ctrl-C and Ctrl-Break cancel the context like SIGINT, and closing
+// the console, logging off, or shutting down cancel it like SIGTERM. Windows
+// ends the process a few seconds after a console close, logoff, or shutdown,
+// whether or not Finally has finished.
+//
+// If a stage panics, Finally runs with a non-nil err, and the panic then
+// continues. A panic in another goroutine, a fatal runtime error, [os.Exit],
+// or [log.Fatal] ends the process before Finally runs. CONGA recovers the panic
+// to run the hooks, so a hook that waits on a lock the panicking stage still
+// holds blocks, and the process hangs instead of crashing.
 //
 // See https://docs.conga.sh/explanation/lifecycle/.
 type Finalizer interface {

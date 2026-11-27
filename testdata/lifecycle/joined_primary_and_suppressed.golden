@@ -1,0 +1,7 @@
+app: error: first primary
+  note: p1 note
+app: error: second primary
+  hint: p2 hint
+app: error: first suppressed
+app: error: second suppressed
+  from: cleanup

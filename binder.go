@@ -3,7 +3,6 @@ package conga
 import (
 	"cmp"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"maps"
@@ -1652,6 +1651,42 @@ func (resolver argResolver) missing(arg *spec.Arg) error {
 type customValueFailure struct {
 	err   error
 	entry *string
+}
+
+// finallyError holds a non-nil primary execution error together with one or
+// more non-nil suppressed [Finalizer.Finally] errors (constructed only by
+// combineFinallyErrors). Unwrap returns primary alone so errors.Is, errors.As,
+// and exit-code lookup inspect the primary error, while Error, [App.Exit], and
+// [DiagnosticOf] surface every error.
+type finallyError struct {
+	primary    error
+	suppressed []error
+}
+
+func (e *finallyError) Error() string {
+	parts := make([]string, 0, 1+len(e.suppressed))
+	parts = append(parts, e.primary.Error())
+
+	for _, err := range e.suppressed {
+		parts = append(parts, err.Error())
+	}
+
+	return strings.Join(parts, "\n")
+}
+
+func (e *finallyError) Unwrap() error {
+	return e.primary
+}
+
+// panicError is the error passed to [Finalizer.Finally] when a lifecycle stage
+// or an earlier Finally hook panics. It holds the recovered panic value and
+// does not unwrap.
+type panicError struct {
+	value any
+}
+
+func (e *panicError) Error() string {
+	return fmt.Sprintf("panic: %v", e.value)
 }
 
 // originOf returns the origin recorded for flagSpec when it matches source, and
@@ -3343,27 +3378,28 @@ func executeLifecycle(ctx context.Context, session *Session) error {
 		return runner.Run(ctx, session)
 	}
 
-	var initialized []*spec.Command
+	var (
+		initialized []*spec.Command
+		inFinally   bool
+	)
+
+	defer func() {
+		if inFinally {
+			return
+		}
+
+		if recovered := recover(); recovered != nil {
+			finErrs := unwindFinally(ctx, session, initialized, nil, &panicError{value: recovered}, nil)
+			writeFinallyErrors(session, nil, finErrs)
+
+			panic(recovered)
+		}
+	}()
 
 	runFinally := func(causeErr error) error {
-		var finErrs error
+		inFinally = true
 
-		for _, cmd := range slices.Backward(initialized) {
-			if fin, ok := getCmdTarget(cmd).(Finalizer); ok {
-				if err := fin.Finally(ctx, session, causeErr); err != nil {
-					finErrs = errors.Join(finErrs, err)
-				}
-			}
-		}
-
-		// Without a failing Finally the hook's error comes back as it was
-		// returned. errors.Join would wrap it in a new value, which breaks
-		// identity and type assertions.
-		if finErrs == nil {
-			return causeErr
-		}
-
-		return errors.Join(causeErr, finErrs)
+		return combineFinallyErrors(causeErr, unwindFinally(ctx, session, initialized, causeErr, causeErr, nil))
 	}
 
 	// 1. Top-down PreRun execution
@@ -3393,6 +3429,78 @@ func executeLifecycle(ctx context.Context, session *Session) error {
 
 	// 4. Guaranteed Teardown
 	return runFinally(nil)
+}
+
+// unwindFinally runs [Finalizer.Finally] bottom-up for every initialized
+// command by recursing over initialized from leaf to root. Each command runs
+// once because executeLifecycle invokes unwindFinally at most once per run.
+// Each hook receives argErr (causeErr on normal unwind, or a [*panicError]
+// holding the latest panic value on a panic path) and executes inside its own
+// deferred recover so a panicking hook's frames remain on the stack while
+// ancestor hooks unwind, before writing any accumulated errors once and
+// re-panicking directly from that defer.
+func unwindFinally(
+	ctx context.Context,
+	session *Session,
+	initialized []*spec.Command,
+	causeErr error,
+	argErr error,
+	finErrs []error,
+) []error {
+	if len(initialized) == 0 {
+		return finErrs
+	}
+
+	last := initialized[len(initialized)-1]
+	rest := initialized[:len(initialized)-1]
+
+	fin, ok := getCmdTarget(last).(Finalizer)
+	if !ok {
+		return unwindFinally(ctx, session, rest, causeErr, argErr, finErrs)
+	}
+
+	var hookErr error
+
+	func() {
+		defer func() {
+			if recovered := recover(); recovered != nil {
+				remainingErrs := unwindFinally(ctx, session, rest, causeErr, &panicError{value: recovered}, finErrs)
+				writeFinallyErrors(session, causeErr, remainingErrs)
+
+				panic(recovered)
+			}
+		}()
+
+		hookErr = fin.Finally(ctx, session, argErr)
+	}()
+
+	if hookErr != nil {
+		finErrs = append(finErrs, hookErr)
+	}
+
+	return unwindFinally(ctx, session, rest, causeErr, argErr, finErrs)
+}
+
+func writeFinallyErrors(session *Session, causeErr error, finErrs []error) {
+	if err := combineFinallyErrors(causeErr, finErrs); err != nil {
+		writeErrorMembers(session.Stderr(), session.appName, errorMembers(err))
+	}
+}
+
+func combineFinallyErrors(causeErr error, finErrs []error) error {
+	if len(finErrs) == 0 {
+		return causeErr
+	}
+
+	if causeErr == nil {
+		if len(finErrs) == 1 {
+			return finErrs[0]
+		}
+
+		return &finallyError{primary: finErrs[0], suppressed: finErrs[1:]}
+	}
+
+	return &finallyError{primary: causeErr, suppressed: finErrs}
 }
 
 func getCmdTarget(cmd *spec.Command) any {

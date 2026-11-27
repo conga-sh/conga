@@ -3,7 +3,7 @@ title: Errors and exit codes
 description: The Diagnostic, UsageError and ExitCoder types, the from, note and hint lines Exit prints, the exit codes 0, 1, 2, and an ExitCoder's own code, and how Exit renders usage.
 ---
 
-CONGA reports a command-line mistake as a `*conga.UsageError` and rejects invalid schemas before execution begins. `app.Run` and `app.RunContext` return whatever failed as is, with an untyped `nil` on success. An error returned by a command's own `Run` or lifecycle hook keeps its text, type, and identity, and `Finally` receives the same value. When a `Finally` hook also fails, the hook's error and the `Finally` errors come back joined. Tell the kinds apart by type with `errors.AsType`. A cause that CONGA did not write itself, such as an error returned by a `TextUnmarshaler`, a standard library error, or an error from the application, stays reachable through `errors.Is` and `errors.As`.
+CONGA reports a command-line mistake as a `*conga.UsageError` and rejects invalid schemas before execution begins. `app.Run` and `app.RunContext` return whatever failed as is, with an untyped `nil` on success. An error returned by a command's own `Run` or lifecycle hook keeps its text, type, and identity, and `Finally` receives the same value. When `Finally` hooks also fail, the run's error remains the primary error and the `Finally` errors are suppressed alongside it (or, when stages succeeded and more than one `Finally` hook fails, the first becomes the primary). `Unwrap`, `errors.Is`, `errors.As`, and `ExitCode` see only the primary error, while `Error()`, `app.Exit`, and `conga.DiagnosticOf` surface every error. Tell the kinds apart by type with `errors.AsType`. A cause that CONGA did not write itself, such as an error returned by a `TextUnmarshaler`, a standard library error, or an error from the application, stays reachable through `errors.Is` and `errors.As`.
 
 ## Reading an error with DiagnosticOf
 
@@ -27,7 +27,7 @@ func (d Diagnostic) Format(state fmt.State, verb rune)
 
 A `conga.Diagnostic` does not implement `error`. It has no `Error()` or `Unwrap()` method, so it can't be returned from a hook, passed to `app.Exit` or `app.ExitCode`, joined with `errors.Join`, or compared with `errors.Is`, and `==` between two values doesn't compile. `app.ExitCode` decides the exit code from the outermost `conga.ExitCoder` in the chain, and `app.UsageBlock` returns the usage block, so a `Diagnostic` has neither.
 
-An error that stands for several errors (an `errors.Join` of them) has one member per error. `Message()` joins their first lines with newlines, `Origins()`, `Note()` and `Hint()` describe the first non-empty member, and `Members()` returns each non-empty member as its own `conga.Diagnostic`. `Members()` splits errors the way `app.Exit` does, including a hook's error joined with `Finally` errors.
+An error that stands for several errors (an `errors.Join` of them, or a primary error with suppressed `Finally` errors) has one member per error. `Message()` joins their first lines with newlines, `Origins()`, `Note()` and `Hint()` describe the first non-empty member, and `Members()` returns each non-empty member as its own `conga.Diagnostic`. `Members()` splits errors the way `app.Exit` does, including a primary error paired with suppressed `Finally` errors.
 
 `DiagnosticOf(nil)` returns the zero `conga.Diagnostic`. Its `Message()` is empty, its `Members()` is nil and its `MarshalJSON` returns `null`.
 
@@ -156,10 +156,15 @@ Because `DiagnosticOf` walks from the outside in, wrapping `Run`'s result with `
 
 | Code | Meaning |
 |------|---------|
-| **0** | Success |
+| **0** | Success (including a run that caught a signal under `app.Run()` and returned `nil`) |
 | **1** | Any other error, such as a command runtime failure (`Runner.Run` or lifecycle hooks), a schema-build failure, a configuration or `.env` failure, an environment-, configuration-, or default-sourced value failure, a `Bootstrap` failure, or a plain `Validate` error |
 | **2** | Usage error (`*conga.UsageError`): invalid command-line input such as unknown flags, parse failures, coercion failures, constraint violations, and missing required input, or an error from `session.UsageError`. Internal completion failures also exit 2, with a diagnostic on stderr |
+| **129** | Non-nil error after `app.Run()` caught `SIGHUP` (128 + 1), unless an author `ExitCoder` overrides it |
+| **130** | Non-nil error after `app.Run()` caught `SIGINT` (128 + 2), unless an author `ExitCoder` overrides it |
+| **143** | Non-nil error after `app.Run()` caught `SIGTERM` (128 + 15), unless an author `ExitCoder` overrides it |
 | **Other** | The code of the outermost `conga.ExitCoder` in the error chain |
+
+When `app.Run()`'s own signal handler caught a signal, a non-nil error exits with `128 + signal` and prints no usage block (`app.UsageBlock` returns `""`) unless the outermost `conga.ExitCoder` is an author's own type. Both `*exec.ExitError` and `*conga.UsageError` yield to the signal code. On that path, a primary error wrapping `context.Canceled` or an `*exec.ExitError` killed by a signal or exiting `128 + signal` is silent, and in a joined primary those members are omitted while other primary members and suppressed `Finally` errors still print.
 
 `app.ExitCode(err)` returns the status `app.Exit` exits with, and `app.UsageBlock(err)` returns the usage block `app.Exit` prints after the lines, without printing anything, so a program that reports errors itself matches `app.Exit`.
 
@@ -308,7 +313,7 @@ Programmer errors during schema construction abort at startup before execution b
 
 ## Panics
 
-Developer misuse of the API panics with a fixed message instead of returning an error. Schema errors are not panics; `Run` returns them as ordinary errors.
+Developer misuse of the API panics with a fixed message instead of returning an error. `Run` returns schema errors as ordinary errors instead of panicking.
 
 | Misuse | Panic message |
 |---|---|

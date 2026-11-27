@@ -120,8 +120,9 @@ type Hinter interface {
 // Diagnostic holds the pieces of an error as [App.Exit] prints them. They are
 // the message, the origins, the note and the hint. Construct one with
 // [DiagnosticOf] for a CONGA error, a hook's error, a developer wrapper around
-// [App.Run]'s result, or a join. [App.Run] and [App.RunContext] return the
-// failing error as is.
+// [App.Run]'s result, a join, or a primary error with suppressed
+// [Finalizer.Finally] errors. [App.Run] and [App.RunContext] return the failing
+// error as is.
 //
 // A Diagnostic does not implement error. It has no Error or Unwrap method, so
 // it can't be returned from a hook, passed to [App.Exit] or [App.ExitCode],
@@ -129,15 +130,16 @@ type Hinter interface {
 // into a failure.
 //
 // [Diagnostic.Message] returns the error's text, which is line 1 alone for a
-// CONGA error and every member's line 1 for a join. [Diagnostic.Origins],
+// CONGA error and every member's line 1 for an [errors.Join] or a primary
+// error with suppressed [Finalizer.Finally] errors. [Diagnostic.Origins],
 // [Diagnostic.Note] and [Diagnostic.Hint] read the pieces [App.Exit] prints on
 // "from:", "note:" and "hint:" lines by the chain rule. The outermost error in
 // the chain that returns a non-empty value supplies each piece, in [errors.As]
 // traversal order, so an author wrapper's Hint replaces CONGA's and the note
 // and hint can come from different errors. For an error that stands for
-// several errors (an [errors.Join] of them), the pieces describe the first
-// non-empty member, and [Diagnostic.Members] returns each non-empty member as
-// its own Diagnostic.
+// several errors (an [errors.Join] of them, or a primary error with suppressed
+// [Finalizer.Finally] errors), the pieces describe the first non-empty member,
+// and [Diagnostic.Members] returns each non-empty member as its own Diagnostic.
 //
 // [Diagnostic.Render] returns the plain multi-line form, which is line 1
 // followed by the indented lines of every non-empty member, with no prefix or
@@ -160,7 +162,8 @@ type Diagnostic struct {
 }
 
 // Message returns the error's text, which is line 1 alone for a CONGA error and
-// one line per member for a join, or "" for the zero [Diagnostic].
+// one line per member for an [errors.Join] or a primary error with suppressed
+// [Finalizer.Finally] errors, or "" for the zero [Diagnostic].
 func (d Diagnostic) Message() string {
 	if d.err == nil {
 		return ""
@@ -348,8 +351,9 @@ func (e *UsageError) CommandPath() string {
 }
 
 // DiagnosticOf reads err into a [Diagnostic] from the outside in, applying the
-// chain rule and splitting any joined error into its members. A nil err returns
-// the zero [Diagnostic].
+// chain rule and splitting any [errors.Join] or primary error with suppressed
+// [Finalizer.Finally] errors into its members. A nil err returns the zero
+// [Diagnostic].
 //
 // Because it starts at err itself, a developer wrapper's [Hinter.Hint] wins
 // over an inner error's and the result agrees with [App.Exit].
@@ -796,5 +800,41 @@ func commandChainPath(chain []*spec.Command) string {
 // errors the same way without linking [Diagnostic] into binaries that only call
 // [App.Exit].
 func errorMembers(err error) []error {
-	return errlines.Members(err)
+	return flattenErrorMembers(err, nil)
+}
+
+// flattenErrorMembers flattens direct [*finallyError] values and [errlines.Members]
+// joins into a member slice, skipping leaf members for which drop returns true
+// while keeping suppressed [Finalizer.Finally] errors unfiltered.
+func flattenErrorMembers(err error, drop func(error) bool) []error {
+	if fin, ok := err.(*finallyError); ok { //nolint:errorlint // only a top-level finallyError flattens; a wrapped one stays on the single-error path
+		members := flattenErrorMembers(fin.primary, drop)
+		for _, suppressed := range fin.suppressed {
+			members = append(members, flattenErrorMembers(suppressed, nil)...)
+		}
+
+		return members
+	}
+
+	raw := errlines.Members(err)
+	if len(raw) == 0 {
+		return nil
+	}
+
+	members := make([]error, 0, len(raw))
+	for _, member := range raw {
+		if _, isFinally := member.(*finallyError); isFinally { //nolint:errorlint // only direct finallyError members of a join flatten
+			members = append(members, flattenErrorMembers(member, drop)...)
+
+			continue
+		}
+
+		if drop != nil && drop(member) {
+			continue
+		}
+
+		members = append(members, member)
+	}
+
+	return members
 }

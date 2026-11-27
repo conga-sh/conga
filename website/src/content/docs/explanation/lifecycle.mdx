@@ -14,7 +14,7 @@ A command must validate input before touching disk or network resources, set up 
 Execution has two phases, schema build and the runtime lifecycle. `Run` or `RunContext` first builds and validates the schema from the struct definitions and tags. Once the schema is valid, the runtime pipeline resolves values from command-line tokens, environment variables, and config files, then runs the hooks:
 
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 780 651" role="img" aria-labelledby="pipeline-title" class="pipeline-diagram">
-  <title id="pipeline-title">Execution runs ten stages in order. Schema build runs first and exits with status 1 on a schema error. The bootstrap phase and config resolution follow, and each exits with status 1 on an error. Binding follows them, and a --why request prints its report after binding and exits with status 0. Binding and value validation with SelfValidator exit with status 2 on an error in a command-line value, and with status 1 on an error in a value from the environment, a config file, or a default. Command validation with Validator, top-down, exits with status 1 on a plain error and with status 2 on an error from session.UsageError. PreRun runs top-down, Run runs on the leaf command and is the one required hook, drawn with a thick border, and PostRun runs bottom-up. An error in PreRun, Run, or PostRun skips to Finally, which runs bottom-up. After Finally the program exits with status 0, or if a hook failed with its error's status, which is 1 for a plain error, 2 for session.UsageError, and an ExitCoder's own code.</title>
+  <title id="pipeline-title">Execution runs ten stages in order. Schema build runs first and exits with status 1 on a schema error. The bootstrap phase and config resolution follow, and each exits with status 1 on an error. Binding follows them, and a --why request prints its report after binding and exits with status 0. Binding and value validation with SelfValidator exit with status 2 on an error in a command-line value, and with status 1 on an error in a value from the environment, a config file, or a default. Command validation with Validator, top-down, exits with status 1 on a plain error and with status 2 on an error from session.UsageError. PreRun runs top-down, Run runs on the leaf command and is the one required hook, drawn with a thick border, and PostRun runs bottom-up. An error in PreRun, Run, or PostRun skips to Finally, which runs bottom-up. If a stage panics, Finally runs with a non-nil error and the panic continues. After Finally the program exits with status 0, or if a stage or Finally hook failed with the run's error status, which is 1 for a plain error, 2 for session.UsageError, and an ExitCoder's own code. When App.Run caught a signal, a non-nil error exits with 128 plus the signal number unless an author ExitCoder overrides it.</title>
   <style>{`
     .pipeline-diagram { font-family: inherit; max-width: 780px; }
     .pipeline-diagram .stage { fill: var(--sl-color-gray-6, #edeff4); stroke: var(--sl-color-accent, #3448f5); stroke-width: 1.5; }
@@ -115,7 +115,7 @@ Execution has two phases, schema build and the runtime lifecycle. `Run` or `RunC
   <ellipse class="exit ok" cx="120" cy="620" rx="60" ry="19"/><text class="label" x="120" y="620">Exit 0</text>
   <path class="error" d="M340 564 V599"/>
   <path class="head err" d="M340 600 L334 591 L346 591 Z"/>
-  <text class="edge start" x="352" y="581.5">if a stage failed</text>
+  <text class="edge start" x="352" y="581.5">if a stage or Finally failed</text>
   <ellipse class="exit fail" cx="340" cy="620" rx="60" ry="19"/><text class="label" x="340" y="620">Exit 1</text>
 </svg>
 
@@ -178,7 +178,7 @@ Command-line tools that manipulate persistent state need cleanup that runs on ev
 
 ### Visibility into the outcome
 
-`Finally` receives the terminal error of the preceding stages. If `PreRun`, `Run`, or `PostRun` returned an error, that error is the `err` argument. If all stages succeeded, `err` is nil. Cleanup logic can therefore branch on whether the operation succeeded:
+`Finally` receives only the stages' outcome. The `err` argument is the error returned by `PreRun`, `Run`, or `PostRun`, a non-nil error if a stage or earlier hook panicked, or `nil` when all prior stages succeeded (even if an earlier child `Finally` hook failed). Cleanup logic can therefore branch on whether the operation succeeded:
 
 ```go
 func (c *MigrateCmd) Finally(ctx context.Context, session *conga.Session, err error) error {
@@ -200,9 +200,11 @@ func (c *MigrateCmd) Finally(ctx context.Context, session *conga.Session, err er
 
 ### Unconditional execution
 
-Unlike `PostRun`, `Finally` runs for every initialized command whether execution succeeded or failed, so locks, file descriptors, and temporary files are released after a failing hook as well. Under `app.Run()`, a `SIGINT` or `SIGTERM` cancels the context instead of terminating the process, so `Finally` still runs once the active hook returns.
+`Finally` runs for every initialized command once the run ends, whatever the stages returned. Under `App.Run`, a first `SIGINT`, `SIGTERM`, or `SIGHUP` cancels the context, and `Finally` runs once the active hook returns. A second `SIGINT` or `SIGTERM` ends the process at once, as `SIGKILL` does, unless the signal was ignored when `Run` started or the program registered its own handler for it with `signal.Notify`. Further hangups are ignored while cleanup runs.
 
-If `Finally` fails while cleaning up after an earlier failure, CONGA combines both errors with `errors.Join`, preserving the primary execution error and the cleanup failure.
+If a stage panics, `Finally` runs with a non-nil `err`, and the panic then continues. A panic in another goroutine, a fatal runtime error, `os.Exit`, or `log.Fatal` ends the process before `Finally` runs. CONGA recovers the panic to run the hooks, so a hook that waits on a lock the panicking stage still holds blocks, and the process hangs instead of crashing. Any error returned by `Finally` on the panic path is written to stderr before the panic continues.
+
+The run's error decides the outcome. When an earlier stage failed, any `Finally` errors are suppressed alongside it. `app.Exit` prints every error on its own line, primary first, and `conga.DiagnosticOf(err).Members()` returns all of them, while `errors.Is`, `errors.As`, and `app.ExitCode` inspect only the primary error so a suppressed error cannot change the exit status or show a usage block. When all prior stages succeeded and one `Finally` hook fails, `Run` returns that error as is. When more than one fails, the first becomes the primary error and the rest are suppressed.
 
 ## Hook order across the command chain
 
@@ -229,15 +231,19 @@ The invocation's context flows through every stage, reaching `SelfValidator`, `V
 
 ### Default signal context versus custom context
 
-`app.Run()` executes the pipeline under a context derived from `context.Background()` with `signal.NotifyContext`, listening for `os.Interrupt` (`SIGINT`, <Kbd default="Ctrl+C" />) and `syscall.SIGTERM`. When the process receives either signal, the context is canceled. The signal listener is removed when `Run` returns.
+`App.Run` executes the pipeline under a context canceled by the first `SIGINT` (<Kbd default="Ctrl+C" />), `SIGTERM`, or `SIGHUP`, skipping any signal that was already ignored when `Run` started (such as `SIGHUP` under `nohup`). After the first signal, CONGA stops catching `SIGINT` and `SIGTERM` so a second interrupt or termination ends the process immediately, while `SIGHUP` stays caught so repeat hangups when a terminal closes do not abort cleanup.
 
-`app.RunContext(ctx)` hands control of the context to the caller. CONGA passes the context into the pipeline unchanged, adding no signal handlers, timeouts, or wrappers. Supply your own context when execution must follow a caller-managed lifecycle rather than the default signal handling.
+`App.Run` cancels the run on `SIGHUP`. A command that handles `SIGHUP` itself, for example to reload its configuration, runs under `App.RunContext` with its own context.
+
+On Windows, Ctrl-C and Ctrl-Break cancel the context like `SIGINT`, and closing the console, logging off, or shutting down cancel it like `SIGTERM`. Windows ends the process a few seconds after a console close, logoff, or shutdown, whether or not `Finally` has finished.
+
+`App.RunContext(ctx)` hands control of the context to the caller. CONGA passes the context into the pipeline unchanged, adding no signal handlers, timeouts, or wrappers. Supply your own context when execution must follow a caller-managed lifecycle rather than the default signal handling.
 
 ### Cancellation and teardown guarantees
 
 Cancellation reaches the running hook through `ctx`. Long-running operations in `PreRun` or `Run` observe it by checking `ctx.Done()`, inspecting `ctx.Err()`, or passing `ctx` to cancellable I/O.
 
-A hook that returns an error after cancellation stops forward progress, and the remaining stages, `PostRun` included, are skipped. Teardown then runs as for any other failure. CONGA calls `Finally` in reverse order on every command that completed its `PreRun`, with the cancellation error as `err`, so cleanup can roll back transactions, release locks, and remove temporary files before the process exits.
+A hook that returns an error after cancellation stops forward progress, and the remaining stages, `PostRun` included, are skipped. Teardown then runs as for any other failure. CONGA calls `Finally` in reverse order on every command that completed its `PreRun`, receiving the halting error as `err` with `ctx` in its canceled state (use `context.WithoutCancel(ctx)` if cleanup needs a live context). Under `App.Run`, a non-nil error after a caught signal exits with `128` plus the signal number unless an author `ExitCoder` overrides it, omitting `context.Canceled` and signal-matched child errors while still printing any suppressed `Finally` errors ([Exit codes](/reference/errors/#exit-codes)).
 
 ## Schema build versus the runtime lifecycle
 

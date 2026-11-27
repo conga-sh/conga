@@ -1469,7 +1469,7 @@ func TestHookErrorsPassThrough(t *testing.T) {
 		})
 	}
 
-	t.Run("a failing Finally joins with the hook error", func(t *testing.T) {
+	t.Run("a failing Finally is suppressed alongside the hook error", func(t *testing.T) {
 		t.Parallel()
 
 		var (
@@ -1483,9 +1483,14 @@ func TestHookErrorsPassThrough(t *testing.T) {
 			RunContext(context.WithValue(t.Context(), hookFailureContextKey{}, hookFailure{stage: "Run", err: hookErr, finallyErr: finallyErr, finallySeen: &seen}))
 
 		assert.True(t, errors.Is(err, hookErr))
-		assert.True(t, errors.Is(err, finallyErr))
+		assert.False(t, errors.Is(err, finallyErr))
 		assert.Equal(t, "Run failed\nFinally failed", err.Error())
 		assert.True(t, seen == hookErr) //nolint:errorlint // identity, not errors.Is, is the property under test
+
+		members := conga.DiagnosticOf(err).Members()
+		assert.Equal(t, 2, len(members))
+		assert.Equal(t, "Run failed", members[0].Message())
+		assert.Equal(t, "Finally failed", members[1].Message())
 	})
 
 	t.Run("the standard library error from Run is not a usage error", func(t *testing.T) {

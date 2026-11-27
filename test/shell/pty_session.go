@@ -98,6 +98,12 @@ func (s *PtySession) CtrlC() {
 	s.tmux("send-keys", "-t", s.sessionName, "C-c")
 }
 
+// KillSession terminates the tmux session, closing its PTY and delivering
+// SIGHUP to the interactive shell and its foreground job.
+func (s *PtySession) KillSession() {
+	s.tmux("kill-session", "-t", s.sessionName)
+}
+
 // Capture waits for the terminal to settle, then returns the visible screen,
 // its escape-sequence form, and the cursor position.
 func (s *PtySession) Capture() *PtyResult {
