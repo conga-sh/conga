@@ -59,16 +59,23 @@ func multiSnippet(name string, aliases []string, envPrefix string) string {
 
 	var builder strings.Builder
 
-	builder.WriteString("#compdef " + name + " " + strings.Join(aliases, " ") + "\n")
+	builder.WriteString("#compdef ")
+	builder.WriteString(name)
+	builder.WriteByte(' ')
+	builder.WriteString(strings.Join(aliases, " "))
+	builder.WriteByte('\n')
 	fmt.Fprintf(&builder, "function _%[1]s_completer {\n", identifier)
 	fmt.Fprintf(&builder, "  local app_env_prefix=%s\n", envPrefix)
 	builder.WriteString(completerBody)
 	builder.WriteString("}\n")
 
-	builder.WriteString("compdef _" + identifier + "_completer")
+	builder.WriteString("compdef _")
+	builder.WriteString(identifier)
+	builder.WriteString("_completer")
 
 	for _, registration := range append([]string{name}, aliases...) {
-		builder.WriteString(" " + wire.QuoteTargetPOSIX(registration))
+		builder.WriteByte(' ')
+		builder.WriteString(wire.QuoteTargetPOSIX(registration))
 	}
 
 	builder.WriteString("\n")

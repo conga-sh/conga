@@ -32,7 +32,9 @@ func Snippet(name string, aliases []string, _ string) string {
 
 	var builder strings.Builder
 
-	builder.WriteString("function _" + identifier + "_completion\n")
+	builder.WriteString("function _")
+	builder.WriteString(identifier)
+	builder.WriteString("_completion\n")
 	builder.WriteString("  set --local words (commandline -opc)\n")
 	builder.WriteString("  if test (count $words) -gt 0\n")
 	builder.WriteString("    set --local raw (commandline -ct)\n")
@@ -44,8 +46,14 @@ func Snippet(name string, aliases []string, _ string) string {
 
 	for _, target := range append([]string{name}, aliases...) {
 		builder.WriteString("\n")
-		builder.WriteString("complete -e " + wire.QuoteFish(target) + "\n")
-		builder.WriteString("complete -c " + wire.QuoteFish(target) + " -f -a '(_" + identifier + "_completion)' -r\n")
+		builder.WriteString("complete -e ")
+		builder.WriteString(wire.QuoteFish(target))
+		builder.WriteByte('\n')
+		builder.WriteString("complete -c ")
+		builder.WriteString(wire.QuoteFish(target))
+		builder.WriteString(" -f -a '(_")
+		builder.WriteString(identifier)
+		builder.WriteString("_completion)' -r\n")
 	}
 
 	return builder.String()

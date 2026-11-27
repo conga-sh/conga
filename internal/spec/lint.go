@@ -436,13 +436,13 @@ func implementsValueOrPointer(targetType reflect.Type, interfaceType reflect.Typ
 }
 
 func inferFilterablePredictor(elemType reflect.Type) *PredictorSpec {
-	if spec := inferImplements[predict.FileFilterable](elemType, func(f predict.FileFilterable) predict.Predictor {
+	if spec := inferImplements(elemType, func(f predict.FileFilterable) predict.Predictor {
 		return predict.FilesFiltered(f.MatchFile)
 	}); spec != nil {
 		return spec
 	}
 
-	if spec := inferImplements[predict.DirFilterable](elemType, func(f predict.DirFilterable) predict.Predictor {
+	if spec := inferImplements(elemType, func(f predict.DirFilterable) predict.Predictor {
 		// Directory-only completion is PathsFiltered with a directory predicate;
 		// NoSpace keeps the trailing-space suppression directory candidates need.
 		return predict.PathsFiltered(func(path string, entry os.DirEntry) bool {
@@ -452,19 +452,19 @@ func inferFilterablePredictor(elemType reflect.Type) *PredictorSpec {
 		return spec
 	}
 
-	return inferImplements[predict.PathFilterable](elemType, func(f predict.PathFilterable) predict.Predictor {
+	return inferImplements(elemType, func(f predict.PathFilterable) predict.Predictor {
 		return predict.PathsFiltered(f.MatchPath)
 	})
 }
 
 func inferPredictable(elemType reflect.Type, tags FieldTags) *PredictorSpec {
-	if spec := inferImplements[predictableTagged](elemType, func(p predictableTagged) predict.Predictor {
+	if spec := inferImplements(elemType, func(p predictableTagged) predict.Predictor {
 		return p.Predict(tags)
 	}); spec != nil {
 		return spec
 	}
 
-	return inferImplements[predictable](elemType, func(p predictable) predict.Predictor {
+	return inferImplements(elemType, func(p predictable) predict.Predictor {
 		return p.Predict()
 	})
 }

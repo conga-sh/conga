@@ -51,11 +51,17 @@ func singleSnippet(name string) string {
 	var builder strings.Builder
 
 	builder.WriteString(usingDeclarations)
-	builder.WriteString("Function _" + identifier + "_completer {\n")
+	builder.WriteString("Function _")
+	builder.WriteString(identifier)
+	builder.WriteString("_completer {\n")
 	builder.WriteString("    param($wordToComplete, $commandAst, $cursorPosition)\n")
 	fmt.Fprintf(&builder, completerTemplate, dynamicTarget)
 	builder.WriteString("}\n")
-	builder.WriteString("Register-ArgumentCompleter -Native -ScriptBlock (Get-Item \"Function:_" + identifier + "_completer\").ScriptBlock -CommandName " + registration(name) + "\n")
+	builder.WriteString("Register-ArgumentCompleter -Native -ScriptBlock (Get-Item \"Function:_")
+	builder.WriteString(identifier)
+	builder.WriteString("_completer\").ScriptBlock -CommandName ")
+	builder.WriteString(registration(name))
+	builder.WriteByte('\n')
 
 	return builder.String()
 }
@@ -67,13 +73,19 @@ func multiSnippet(name string, aliases []string) string {
 
 	builder.WriteString(usingDeclarations)
 	builder.WriteString("\n")
-	builder.WriteString("$_" + identifier + "_completer = {\n")
+	builder.WriteString("$_")
+	builder.WriteString(identifier)
+	builder.WriteString("_completer = {\n")
 	builder.WriteString("    param($wordToComplete, $commandAst, $cursorPosition)\n")
 	fmt.Fprintf(&builder, completerTemplate, dynamicTarget)
 	builder.WriteString("}\n")
 
 	for _, target := range append([]string{name}, aliases...) {
-		builder.WriteString("Register-ArgumentCompleter -Native -ScriptBlock $_" + identifier + "_completer -CommandName " + registration(target) + "\n")
+		builder.WriteString("Register-ArgumentCompleter -Native -ScriptBlock $_")
+		builder.WriteString(identifier)
+		builder.WriteString("_completer -CommandName ")
+		builder.WriteString(registration(target))
+		builder.WriteByte('\n')
 	}
 
 	return builder.String()

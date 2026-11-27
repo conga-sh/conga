@@ -25,9 +25,13 @@ func Snippet(name string, aliases []string, _ string) string {
 
 	var builder strings.Builder
 
-	builder.WriteString("let " + identifier + "_completer = {|spans|\n")
+	builder.WriteString("let ")
+	builder.WriteString(identifier)
+	builder.WriteString("_completer = {|spans|\n")
 	builder.WriteString("    load-env { CONGA_SHELL: 'nushell' }\n")
-	builder.WriteString("    if ($spans | length) > 1 and ($spans | last 2 | first) in [" + redirectOperatorList() + "] {\n")
+	builder.WriteString("    if ($spans | length) > 1 and ($spans | last 2 | first) in [")
+	builder.WriteString(redirectOperatorList())
+	builder.WriteString("] {\n")
 	builder.WriteString("        return null\n")
 	builder.WriteString("    }\n")
 	builder.WriteString("    if ($spans | length) > 0 {\n")
@@ -43,7 +47,9 @@ func Snippet(name string, aliases []string, _ string) string {
 	builder.WriteString("$current.completions.external = ($current.completions.external\n")
 	builder.WriteString("    | default true enable\n")
 	builder.WriteString("    |# backwards compatible workaround for default, see nushell #15654\n")
-	builder.WriteString("    | upsert completer { if $in == null { $" + identifier + "_completer } else { $in } })\n")
+	builder.WriteString("    | upsert completer { if $in == null { $")
+	builder.WriteString(identifier)
+	builder.WriteString("_completer } else { $in } })\n")
 	builder.WriteString("\n")
 	builder.WriteString("$env.config = $current\n")
 

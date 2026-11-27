@@ -1061,20 +1061,28 @@ func TestErrorClassificationBySource(t *testing.T) {
 
 			var builder strings.Builder
 
-			builder.WriteString("app: error: " + testCase.message + "\n")
+			builder.WriteString("app: error: ")
+			builder.WriteString(testCase.message)
+			builder.WriteByte('\n')
 
 			for index, from := range testCase.from {
 				assert.True(t, strings.HasPrefix(origins[index], from))
 
-				builder.WriteString("  from: " + origins[index] + "\n")
+				builder.WriteString("  from: ")
+				builder.WriteString(origins[index])
+				builder.WriteByte('\n')
 			}
 
 			if testCase.note != "" {
-				builder.WriteString("  note: " + testCase.note + "\n")
+				builder.WriteString("  note: ")
+				builder.WriteString(testCase.note)
+				builder.WriteByte('\n')
 			}
 
 			if testCase.hint != "" {
-				builder.WriteString("  hint: " + testCase.hint + "\n")
+				builder.WriteString("  hint: ")
+				builder.WriteString(testCase.hint)
+				builder.WriteByte('\n')
 			}
 
 			expectedPrefix := builder.String()
