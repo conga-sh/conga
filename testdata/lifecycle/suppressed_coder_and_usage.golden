@@ -1,0 +1,4 @@
+app: error: primary failure
+  note: primary note
+app: error: suppressed coder
+app: error: suppressed usage

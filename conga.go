@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 
 	"github.com/conga-sh/conga/internal/appname"
@@ -105,6 +106,10 @@ type App[T any] struct {
 	// on the App. It makes initialization idempotent across New and the
 	// execution entry points, so a zero-value App behaves like New[T]().
 	initialized bool
+
+	// caughtSignal records the first signal caught by [App.Run]'s own handler,
+	// or 0 when no signal fired (including all [App.RunContext] runs).
+	caughtSignal atomic.Int64
 }
 
 // New returns an [App] builder for the root command struct T.
@@ -603,8 +608,14 @@ func (a *App[T]) RegisterType[U any](parser TypeParser[U], opts ...RegistrationO
 //     initialized command, receiving the halting error or nil.
 //
 // An error from any stage between PreRun and PostRun skips the remaining
-// stages and jumps straight to Finally. An error from a Finally hook is joined
-// with the halting error and returned alongside it.
+// stages and jumps straight to Finally. When Finally hooks also fail, the run's
+// error decides the outcome and the Finally errors are suppressed alongside it
+// (printed by [App.Exit] and reachable via [DiagnosticOf], while [errors.Is],
+// [errors.As], and [App.ExitCode] inspect the primary error only). When stages
+// succeeded and one Finally hook fails, that error is returned as is. When more
+// than one fails, the first becomes the primary error and the rest are
+// suppressed. If a stage panics, Finally runs with a non-nil error, any hook
+// errors are written to stderr, and the panic then continues.
 //
 // RunContext propagates the provided context to every lifecycle hook but does not
 // itself poll for cancellation; a hook that observes cancellation can return
@@ -624,8 +635,8 @@ func (a *App[T]) RegisterType[U any](parser TypeParser[U], opts ...RegistrationO
 //     fails, or if a value from the environment, a configuration file, or a
 //     default tag does not bind.
 //   - The error returned by [Runner.Run] or a lifecycle hook as is, or
-//     ctx.Err() on cancellation. When a [Finalizer.Finally] hook also fails,
-//     the hook's error and the Finally errors are joined.
+//     ctx.Err() on cancellation. When [Finalizer.Finally] hooks also fail,
+//     the run's error and the suppressed Finally errors are returned together.
 //
 // Pass a returned error to [DiagnosticOf] to read its origins, note, and hint
 // by the chain rule, render its plain multi-line form, or log it with
@@ -684,8 +695,23 @@ func (a *App[T]) RunContext(ctx context.Context) error {
 }
 
 // Run executes the application, passing a default context to the command's
-// [Runner.Run] method and lifecycle hooks. The default context cancels when an
-// [os.Interrupt] (SIGINT) or [syscall.SIGTERM] signal is received.
+// [Runner.Run] method and lifecycle hooks.
+//
+// Under Run, a first SIGINT, SIGTERM, or SIGHUP cancels the context (unless the
+// signal was ignored when Run started), and [Finalizer.Finally] runs once the
+// active hook returns. A second SIGINT or SIGTERM ends the process at once, as
+// SIGKILL does, unless the signal was ignored when Run started or the program
+// registered its own handler for it with [os/signal.Notify]. Further hangups
+// are ignored while cleanup runs.
+//
+// Run cancels the run on SIGHUP. A command that handles SIGHUP itself, for
+// example to reload its configuration, should run under [App.RunContext] with
+// its own context.
+//
+// On Windows, Ctrl-C and Ctrl-Break cancel the context like SIGINT, and closing
+// the console, logging off, or shutting down cancel it like SIGTERM. Windows
+// ends the process a few seconds after a console close, logoff, or shutdown,
+// whether or not Finally has finished.
 //
 // For callers supplying their own context, use [App.RunContext].
 //
@@ -697,7 +723,7 @@ func (a *App[T]) RunContext(ctx context.Context) error {
 //
 // See https://docs.conga.sh/explanation/lifecycle/.
 func (a *App[T]) Run() error {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := a.notifySignals()
 	defer stop()
 
 	return a.RunContext(ctx)
@@ -849,6 +875,13 @@ func (a *App[T]) ExitFunc(exitHandler func(code int)) *App[T] {
 // Exit maps err as follows:
 //   - A nil err exits with status 0 and no output.
 //   - An internal completion failure prints its message as is and exits 2.
+//   - When [App.Run]'s own signal handler caught a signal and the outermost
+//     [ExitCoder] is not an author's own type (there is none, or it is an
+//     [*os/exec.ExitError] or a [*UsageError]), Exit exits with 128 plus the
+//     caught signal number and prints no usage block. A primary error wrapping
+//     [context.Canceled] or an [*os/exec.ExitError] killed by a signal or
+//     exiting 128 plus the caught signal is omitted. Any other primary error and
+//     any suppressed [Finalizer.Finally] errors print as usual.
 //   - A [*UsageError] exits 2 and prints the lines above, then a blank line and
 //     the usage block [UsageOnErrorMode] asks for. Value errors (a value that
 //     does not convert or violates a constraint) print their lines with no usage
@@ -861,6 +894,10 @@ func (a *App[T]) ExitFunc(exitHandler func(code int)) *App[T] {
 //     child. On Windows the child's code passes through unchanged.
 //   - Any other error, including configuration, .env, bootstrap, and schema
 //     failures and errors returned by hooks, exits 1 and prints the lines.
+//
+// When [Finalizer.Finally] hooks failed alongside a primary error, each error
+// prints on its own line, primary first, while only the primary error participates
+// in exit-code and usage-block selection.
 //
 // Only the outermost [ExitCoder] in err's chain counts, so an author wrapper
 // with its own ExitCode method wins over an error it wraps. In a join the first
@@ -886,10 +923,9 @@ func (a *App[T]) Exit(err error) {
 		return
 	}
 
-	name := cond.SetOrDefaultFunc(a.name, getAppName)
-
-	text := errlines.Render(errorMembers(err), name+": ", envx.ColorEnabled(a.stderr))
-	fmt.Fprint(a.stderr, text)
+	coder, _ := errors.AsType[ExitCoder](err)
+	sig := int(a.caughtSignal.Load())
+	text := writeErrorMembers(a.stderr, a.name, exitMembers(err, sig, coder))
 
 	if block := a.UsageBlock(err); block != "" {
 		if text != "" {
@@ -919,8 +955,12 @@ func (a *App[T]) ExitCode(err error) int {
 		return completionErr.ExitCode()
 	}
 
-	coder, ok := errors.AsType[ExitCoder](err)
-	if !ok {
+	coder, hasCoder := errors.AsType[ExitCoder](err)
+	if sig := int(a.caughtSignal.Load()); sig != 0 && !isAuthorExitCoder(coder) {
+		return 128 + sig
+	}
+
+	if !hasCoder {
 		return 1
 	}
 
@@ -928,11 +968,12 @@ func (a *App[T]) ExitCode(err error) int {
 }
 
 // UsageBlock returns the text [App.Exit] prints after err's lines, or "" when it
-// prints none. It applies Exit's whole rule. An internal completion failure has
-// no block. Otherwise the outermost [ExitCoder] must be a [*UsageError], and its
-// command chain, the kind of failure, the App's [UsageOnErrorMode] and the
-// App's help options decide the text, so a nested app's [*UsageError] returned
-// by an outer app follows the outer app's mode.
+// prints none. It applies Exit's whole rule. An internal completion failure or a
+// run canceled by [App.Run]'s own signal handler has no block. Otherwise the
+// outermost [ExitCoder] must be a [*UsageError], and its command chain, the
+// kind of failure, the App's [UsageOnErrorMode] and the App's help options
+// decide the text, so a nested app's [*UsageError] returned by an outer app
+// follows the outer app's mode.
 //
 // The text has no leading blank line and no trailing newline. Exit prints a
 // blank line before it only when it printed error lines, and a newline after
@@ -963,6 +1004,10 @@ func (a *App[T]) UsageBlock(err error) string {
 	}
 
 	if _, ok := errors.AsType[*completionError](err); ok {
+		return ""
+	}
+
+	if a.caughtSignal.Load() != 0 {
 		return ""
 	}
 
@@ -1189,6 +1234,21 @@ func (emptyConfigView) EffectiveSearchPaths() []string { return nil }
 func (emptyConfigView) ProbedFiles(_ string, _ []string) []string { return nil }
 
 func (emptyConfigView) ConfigExamples(_ []string, _ []string, _ []string) []string { return nil }
+
+// signalCancelError is the context cancellation cause installed by [App.Run]
+// when the process receives a signal. It formats like [signal.NotifyContext]
+// and unwraps to [context.Canceled].
+type signalCancelError struct {
+	sig os.Signal
+}
+
+func (e signalCancelError) Error() string {
+	return e.sig.String() + " signal received"
+}
+
+func (e signalCancelError) Unwrap() error {
+	return context.Canceled
+}
 
 // dotenvOriginMap returns the App's shared dotenv origins map, allocating it on
 // first use.
@@ -2346,10 +2406,151 @@ func (a *App[T]) exit(code int) {
 	}
 }
 
+// notifySignals installs [App.Run]'s signal handler for non-ignored SIGINT,
+// SIGTERM, and SIGHUP signals. The first signal stops the SIGINT/SIGTERM
+// channel before cancelling the context while leaving SIGHUP caught so repeat
+// hangups do not interrupt cleanup. The returned stop function tears down both
+// channels, waits for the handler goroutine to exit, and cancels the returned
+// context.
+func (a *App[T]) notifySignals() (context.Context, func()) {
+	termChannel := notifyActiveSignals(syscall.SIGINT, syscall.SIGTERM)
+	hupChannel := notifyActiveSignals(syscall.SIGHUP)
+
+	if termChannel == nil && hupChannel == nil {
+		return context.WithCancel(context.Background())
+	}
+
+	ctx, cancel := context.WithCancelCause(context.Background())
+	done := make(chan struct{})
+	finished := make(chan struct{})
+
+	go func() {
+		defer close(finished)
+
+		a.handleSignals(termChannel, hupChannel, done, cancel)
+	}()
+
+	stop := func() {
+		stopSignalChannel(termChannel)
+		stopSignalChannel(hupChannel)
+		close(done)
+		<-finished
+		cancel(nil)
+	}
+
+	return ctx, stop
+}
+
+func (a *App[T]) handleSignals(
+	termChannel chan os.Signal,
+	hupChannel <-chan os.Signal,
+	done <-chan struct{},
+	cancel context.CancelCauseFunc,
+) {
+	var sig os.Signal
+
+	select {
+	case sig = <-termChannel:
+	case sig = <-hupChannel:
+	case <-done:
+		return
+	}
+
+	a.recordCaughtSignal(sig)
+	stopSignalChannel(termChannel)
+	cancel(signalCancelError{sig: sig})
+
+	if hupChannel == nil {
+		return
+	}
+
+	for {
+		select {
+		case <-hupChannel:
+		case <-done:
+			return
+		}
+	}
+}
+
+func (a *App[T]) recordCaughtSignal(sig os.Signal) {
+	syscallSig, ok := sig.(syscall.Signal)
+	if ok && syscallSig > 0 {
+		a.caughtSignal.Store(int64(syscallSig))
+	}
+}
+
 // newDecoderRequiredError is the config-incapable rejection of the named
 // configuration target.
 func newDecoderRequiredError(target string) error {
 	return &decoderRequiredError{target: target}
+}
+
+func exitMembers(err error, sig int, coder ExitCoder) []error {
+	if sig == 0 || isAuthorExitCoder(coder) {
+		return errorMembers(err)
+	}
+
+	return flattenErrorMembers(err, func(member error) bool {
+		return isSilentSignalPrimary(member, sig)
+	})
+}
+
+// writeErrorMembers renders members with the resolved app-name prefix and
+// color detection to writer, returning the rendered text.
+func writeErrorMembers(writer io.Writer, appName string, members []error) string {
+	name := cond.SetOrDefaultFunc(appName, getAppName)
+	text := errlines.Render(members, name+": ", envx.ColorEnabled(writer))
+	fmt.Fprint(writer, text)
+
+	return text
+}
+
+func isAuthorExitCoder(coder ExitCoder) bool {
+	if coder == nil {
+		return false
+	}
+
+	switch coder.(type) {
+	case *exec.ExitError, *UsageError:
+		return false
+	default:
+		return true
+	}
+}
+
+func isSilentSignalPrimary(err error, sig int) bool {
+	if errors.Is(err, context.Canceled) {
+		return true
+	}
+
+	coder, _ := errors.AsType[ExitCoder](err)
+
+	exitErr, ok := coder.(*exec.ExitError)
+	if !ok {
+		return false
+	}
+
+	if _, signaled := childSignalCode(exitErr); signaled {
+		return true
+	}
+
+	return exitErr.ExitCode() == 128+sig
+}
+
+func childSignalCode(exitErr *exec.ExitError) (int, bool) {
+	if exitErr.ProcessState == nil {
+		return 0, false
+	}
+
+	if signaled, ok := exitErr.Sys().(interface {
+		Signaled() bool
+		Signal() syscall.Signal
+	}); ok && signaled.Signaled() {
+		return 128 + int(signaled.Signal()), true
+	}
+
+	return 0, false
 }
 
 // exitCodeOf maps the outermost [ExitCoder] of a failure to a process exit
@@ -2363,11 +2564,8 @@ func exitCodeOf(coder ExitCoder) int {
 			return 1
 		}
 
-		if signaled, ok := exitErr.Sys().(interface {
-			Signaled() bool
-			Signal() syscall.Signal
-		}); ok && signaled.Signaled() {
-			return 128 + int(signaled.Signal())
+		if code, signaled := childSignalCode(exitErr); signaled {
+			return code
 		}
 
 		if runtime.GOOS == "windows" {
@@ -2564,4 +2762,29 @@ func detectShell() string {
 	}
 
 	return ""
+}
+
+func notifyActiveSignals(signals ...os.Signal) chan os.Signal {
+	var active []os.Signal
+
+	for _, sig := range signals {
+		if !signal.Ignored(sig) {
+			active = append(active, sig)
+		}
+	}
+
+	if len(active) == 0 {
+		return nil
+	}
+
+	channel := make(chan os.Signal, 1)
+	signal.Notify(channel, active...)
+
+	return channel
+}
+
+func stopSignalChannel(channel chan os.Signal) {
+	if channel != nil {
+		signal.Stop(channel)
+	}
 }

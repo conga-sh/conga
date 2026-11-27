@@ -85,8 +85,8 @@
 //
 // # Execution and streams
 //
-// [App.Run] executes with a default context that cancels on SIGINT and
-// SIGTERM; [App.RunContext] executes with the caller's context. An App
+// [App.Run] executes with a default context that cancels on SIGINT, SIGTERM,
+// and SIGHUP; [App.RunContext] executes with the caller's context. An App
 // executes exactly once; a second call panics. A zero-value [App] is usable
 // and installs the same defaults as [New] on first use.
 //

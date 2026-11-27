@@ -1,6 +1,6 @@
 ---
 title: package conga
-description: Core API — App builder, containers, session accessors, extensibility, and errors.
+description: Core API for the App builder, containers, session accessors, extensibility, and errors.
 ---
 
 Deep detail lives on [pkg.go.dev/github.com/conga-sh/conga](https://pkg.go.dev/github.com/conga-sh/conga). This page is the curated map.
@@ -26,20 +26,20 @@ func New[T any](root ...*T) *App[T]
 | `Deprecated(reason)` | Whole-app deprecation banner |
 | `Version(version)` | `--version` display string (falls back to build metadata) |
 | `EnvPrefix(prefix)` | Default environment variable prefix for flags (appends trailing `_` if omitted). Does not apply to `Features` containers. A subcommand's `envprefix` tag replaces it. |
-| `Dotenv(paths...)` | Enable `.env` loading (default `.env` + `.env.local`; [rules](/reference/dotenv/)) |
-| `ConfigOptions(options...)` | Config resolution: `conga.ConfigExplicit(path)`, `conga.ConfigPaths(paths...)`, `conga.ConfigCascading()`, `conga.ConfigKeyCase(keyCase)`; `ConfigExplicit` cannot be combined with paths or cascading. A `conga.Bootstrapper` may additionally contribute a document with `Bootstrap.SetConfig` |
+| `Dotenv(paths...)` | Enable `.env` loading (default `.env` + `.env.local`, [rules](/reference/dotenv/)) |
+| `ConfigOptions(options...)` | Config resolution: `conga.ConfigExplicit(path)`, `conga.ConfigPaths(paths...)`, `conga.ConfigCascading()`, `conga.ConfigKeyCase(keyCase)`. `ConfigExplicit` works alone without paths or cascading. A `conga.Bootstrapper` may additionally contribute a document with `Bootstrap.SetConfig` |
 | `RegisterDecoder(ext, decoder)` | Per-app config format decoder |
 | `AllowTags(tags...)` | Allow additional struct tag keys (matched exactly) |
 | `Predictor(name, p)` | Register named completion predictor (panics on misuse) |
 | `Use(bindings...)` | Apply builder bindings (`network.RegisterInterface`, `timezone.RegisterLocation`, …) |
-| `RegisterType[U](parser, opts...)` | Register a parser (and optional predictor) for type `U`; panics for a slice or map type |
+| `RegisterType[U](parser, opts...)` | Register a parser (and optional predictor) for type `U`. Panics for a slice or map type |
 | `Args(args)` | Custom argument slice (defaults to `os.Args[1:]`) |
 | `UsageOnError(mode)` | Error-time usage rendering mode |
 | `Stdin(r)` | Input reader for `session.Stdin()`, `File` fields with `stdin`, and `FileContent` reading `-` (default `os.Stdin`) |
 | `Stdout(w)` / `Stderr(w)` | Output writers (default `os.Stdout`/`os.Stderr`) |
 | `SetenvFunc(fn)` | Writer for variables loaded by [Dotenv](/reference/dotenv/) (default `os.Setenv`) |
 | `ExitFunc(handler)` | Custom exit handler for `Exit` |
-| `EnableWhy(options...)` / `EnableCompletion(options...)` / `EnableFeatures()` | Opt in to the `--why` report, shell completion, and struct-declared feature toggles; pass `conga.WhyOptionJSON()` to `EnableWhy` to enable `--why=json` |
+| `EnableWhy(options...)` / `EnableCompletion(options...)` / `EnableFeatures()` | Opt in to the `--why` report, shell completion, and struct-declared feature toggles. Pass `conga.WhyOptionJSON()` to `EnableWhy` to enable `--why=json` |
 | `DisableHelpFlag()` / `DisableVersionFlag()` | Remove the `--help`/`--version` flags |
 | `HelpShortFlag('h')` / `VersionShortFlag('V')` | Assign short runes to the `--help`/`--version` flags (collisions fail schema build) |
 
@@ -47,8 +47,8 @@ func New[T any](root ...*T) *App[T]
 
 | Method | Purpose |
 |--------|---------|
-| `Run()` | Parse + execute with a signal-aware context (`SIGINT`/`SIGTERM`) |
-| `RunContext(ctx)` | Execute with your context; panics on a nil context |
+| `Run()` | Parse and execute with a signal-aware context (`SIGINT`, `SIGTERM`, `SIGHUP`). A second `SIGINT` or `SIGTERM` ends the process at once, repeat `SIGHUP`s are ignored, and commands handling `SIGHUP` themselves use `RunContext`. See [exit rules](/reference/errors/#exit-codes) |
+| `RunContext(ctx)` | Execute with your context. Panics on a nil context |
 | `Exit(err)` | Render error messages and exit with 0, 1, 2, or an `ExitCoder`'s code |
 | `ExitCode(err)` | The exit code `Exit` uses for `err`, without printing or exiting |
 | `UsageBlock(err)` | The usage block `Exit` prints after the lines of `err`, or `""` when it prints none |
@@ -69,8 +69,8 @@ func WithPredictor(p predict.Predictor) RegistrationOption
 | `OptionalFlag[T]` / `RequiredFlag[T]` | `Get`, `IsSet`, `Changed`, `Source`, `SourceDetail`, `String` (`GetOr` on optional only) |
 | `OptionalArg[T]` / `RequiredArg[T]` | same as flags |
 | `Counter` | same as flags, value is `int` |
-| `ConfigFile` | root-only config path flag; `multi:"true"` for multi-path (`Path`, `Paths`) |
-| `Features[T]` | root-only feature declaration; values read through `Get`, plus `IsSet`, `Changed`, `Source`, `SourceDetail`, `String` |
+| `ConfigFile` | root-only config path flag (`multi:"true"` for multi-path: `Path`, `Paths`) |
+| `Features[T]` | root-only feature declaration (`Get`, `IsSet`, `Changed`, `Source`, `SourceDetail`, `String`) |
 | `DashArgs` / `RawArgs` | `Get []string`, `GetOr`, `Len`, `IsSet`, `String` |
 | `Command[T]` | `Get() *T`, `IsSelected()` |
 
@@ -86,7 +86,7 @@ func WithPredictor(p predict.Predictor) RegistrationOption
 | `PreRunner` | `PreRun(ctx, session) error` | Resource initialization |
 | `Runner` | `Run(ctx, session) error` | Command body (required) |
 | `PostRunner` | `PostRun(ctx, session) error` | Post-success follow-up |
-| `Finalizer` | `Finally(ctx, session, err) error` | Guaranteed teardown |
+| `Finalizer` | `Finally(ctx, session, err) error` | Guaranteed teardown on stage errors, signals, and panics. Returns its own failure only, suppressed behind a failing stage or the first failing `Finally` hook |
 | `DescriptionProvider` / `ExampleProvider` | `Description()` / `Examples()` | Custom command metadata |
 
 Value-shape interfaces (`SelfValidator`, `HelpProvider`, `TagAwareHelpProvider`, `ContextAwareTextUnmarshaler`) and the predictor hooks are cataloged in [Domain types](/reference/domain-types/#domain-type-interfaces).
@@ -128,7 +128,7 @@ The App snapshots standard streams at the start of execution for the active sess
 
 ## Domain types
 
-`File`, `FileContent`, `Dir`, `ByteSize` — see [Domain types](/reference/domain-types/).
+`File`, `FileContent`, `Dir`, and `ByteSize` are documented in [Domain types](/reference/domain-types/).
 
 ## Value sources
 
